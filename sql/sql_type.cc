@@ -129,6 +129,126 @@ void Type_std_attributes::set(const Field *field)
 }
 
 
+uint Type_std_attributes::count_max_decimals(Item **item, uint nitems)
+{
+  uint res= 0;
+  for (uint i= 0; i < nitems; i++)
+    set_if_bigger(res, item[i]->decimals);
+  return res;
+}
+
+
+/**
+  Set max_length/decimals of function if function is fixed point and
+  result length/precision depends on argument ones.
+*/
+
+void Type_std_attributes::count_decimal_length(Item **item, uint nitems)
+{
+  int max_int_part= 0;
+  decimals= 0;
+  unsigned_flag= 1;
+  for (uint i=0 ; i < nitems ; i++)
+  {
+    set_if_bigger(decimals, item[i]->decimals);
+    set_if_bigger(max_int_part, item[i]->decimal_int_part());
+    set_if_smaller(unsigned_flag, item[i]->unsigned_flag);
+  }
+  int precision= MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
+  fix_char_length(my_decimal_precision_to_length_no_truncation(precision,
+                                                               decimals,
+                                                               unsigned_flag));
+}
+
+
+/**
+  Set max_length of if it is maximum length of its arguments.
+*/
+
+void Type_std_attributes::count_only_length(Item **item, uint nitems)
+{
+  uint32 char_length= 0;
+  unsigned_flag= 0;
+  for (uint i= 0; i < nitems ; i++)
+  {
+    set_if_bigger(char_length, item[i]->max_char_length());
+    set_if_bigger(unsigned_flag, item[i]->unsigned_flag);
+  }
+  fix_char_length(char_length);
+}
+
+
+void Type_std_attributes::count_octet_length(Item **item, uint nitems)
+{
+  max_length= 0;
+  unsigned_flag= 0;
+  for (uint i= 0; i < nitems ; i++)
+  {
+    set_if_bigger(max_length, item[i]->max_length);
+    set_if_bigger(unsigned_flag, item[i]->unsigned_flag);
+  }
+}
+
+
+/**
+  Set max_length/decimals of function if function is floating point and
+  result length/precision depends on argument ones.
+*/
+
+void Type_std_attributes::count_real_length(Item **items, uint nitems)
+{
+  uint32 length= 0;
+  decimals= 0;
+  max_length= 0;
+  unsigned_flag= false;
+  for (uint i=0 ; i < nitems ; i++)
+  {
+    if (decimals < FLOATING_POINT_DECIMALS)
+    {
+      set_if_bigger(decimals, items[i]->decimals);
+      /* Will be ignored if items[i]->decimals >= FLOATING_POINT_DECIMALS */
+      set_if_bigger(length, (items[i]->max_length - items[i]->decimals));
+    }
+    set_if_bigger(max_length, items[i]->max_length);
+  }
+  if (decimals < FLOATING_POINT_DECIMALS)
+  {
+    max_length= length;
+    length+= decimals;
+    if (length < max_length)  // If previous operation gave overflow
+      max_length= UINT_MAX32;
+    else
+      max_length= length;
+  }
+  // Corner case: COALESCE(DOUBLE(255,4), DOUBLE(255,3)) -> FLOAT(255, 4)
+  set_if_smaller(max_length, MAX_FIELD_CHARLENGTH);
+}
+
+
+/**
+  Calculate max_length and decimals for string functions.
+
+  @param field_type  Field type.
+  @param items       Argument array.
+  @param nitems      Number of arguments.
+
+  @retval            False on success, true on error.
+*/
+bool Type_std_attributes::count_string_length(const char *func_name,
+                                              Item **items, uint nitems)
+{
+  if (agg_arg_charsets_for_string_result(collation, func_name,
+                                         items, nitems, 1))
+    return true;
+  if (collation.collation == &my_charset_bin)
+    count_octet_length(items, nitems);
+  else
+    count_only_length(items, nitems);
+  decimals= max_length ? NOT_FIXED_DEC : 0;
+  return false;
+}
+
+
 /**
   This method is used by:
   - Item_user_var_as_out_param::field_type()
@@ -1933,7 +2053,7 @@ bool Type_handler_string_result::
        Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const
 {
-  return func->aggregate_attributes_string(items, nitems);
+  return func->aggregate_attributes_string(func->func_name(), items, nitems);
 }
 
 
@@ -1941,7 +2061,7 @@ bool Type_handler_blob_common::
        Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const
 {
-  if (func->aggregate_attributes_string(items, nitems))
+  if (func->aggregate_attributes_string(func->func_name(), items, nitems))
     return true;
   func->set_handler(blob_type_handler(func->max_length));
   return false;

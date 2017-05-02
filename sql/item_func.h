@@ -42,45 +42,8 @@ protected:
   uint allowed_arg_cols;
   String *val_str_from_val_str_ascii(String *str, String *str2);
 
-  void count_only_length(Item **item, uint nitems);
-  void count_octet_length(Item **item, uint nitems);
-  void count_real_length(Item **item, uint nitems);
-  void count_decimal_length(Item **item, uint nitems);
-  bool count_string_length(Item **item, uint nitems);
-  uint count_max_decimals(Item **item, uint nitems)
-  {
-    uint res= 0;
-    for (uint i= 0; i < nitems; i++)
-      set_if_bigger(res, item[i]->decimals);
-    return res;
-  }
   virtual bool check_allowed_arg_cols(uint argno);
 public:
-  void aggregate_attributes_int(Item **items, uint nitems)
-  {
-    collation.set_numeric();
-    count_only_length(items, nitems);
-    decimals= 0;
-  }
-  void aggregate_attributes_real(Item **items, uint nitems)
-  {
-    collation.set_numeric();
-    count_real_length(items, nitems);
-  }
-  void aggregate_attributes_decimal(Item **items, uint nitems)
-  {
-    collation.set_numeric();
-    count_decimal_length(items, nitems);
-  }
-  bool aggregate_attributes_string(Item **item, uint nitems)
-  {
-    return count_string_length(item, nitems);
-  }
-  void aggregate_attributes_temporal(uint int_part_length,
-                                     Item **item, uint nitems)
-  {
-    fix_attributes_temporal(int_part_length, count_max_decimals(item, nitems));
-  }
 
   table_map not_null_tables_cache;
 

@@ -4059,80 +4059,31 @@ class Item_func_or_sum: public Item_result_field,
                         public Item_args,
                         public Used_tables_and_const_cache
 {
-  bool agg_item_collations(DTCollation &c, const char *name,
-                           Item **items, uint nitems,
-                           uint flags, int item_sep);
-  bool agg_item_set_converter(const DTCollation &coll, const char *fname,
-                              Item **args, uint nargs,
-                              uint flags, int item_sep);
 protected:
-  /*
-    Collect arguments' character sets together.
-    We allow to apply automatic character set conversion in some cases.
-    The conditions when conversion is possible are:
-    - arguments A and B have different charsets
-    - A wins according to coercibility rules
-      (i.e. a column is stronger than a string constant,
-       an explicit COLLATE clause is stronger than a column)
-    - character set of A is either superset for character set of B,
-      or B is a string constant which can be converted into the
-      character set of A without data loss.
-
-    If all of the above is true, then it's possible to convert
-    B into the character set of A, and then compare according
-    to the collation of A.
-
-    For functions with more than two arguments:
-
-      collect(A,B,C) ::= collect(collect(A,B),C)
-
-    Since this function calls THD::change_item_tree() on the passed Item **
-    pointers, it is necessary to pass the original Item **'s, not copies.
-    Otherwise their values will not be properly restored (see BUG#20769).
-    If the items are not consecutive (eg. args[2] and args[5]), use the
-    item_sep argument, ie.
-
-      agg_item_charsets(coll, fname, &args[2], 2, flags, 3)
-  */
   bool agg_arg_charsets(DTCollation &c, Item **items, uint nitems,
                         uint flags, int item_sep)
   {
-    if (agg_item_collations(c, func_name(), items, nitems, flags, item_sep))
-      return true;
-
-    return agg_item_set_converter(c, func_name(), items, nitems,
-                                  flags, item_sep);
+    return Type_std_attributes::agg_arg_charsets(c, func_name(),
+                                                 items, nitems,
+                                                 flags, item_sep);
   }
-  /*
-    Aggregate arguments for string result, e.g: CONCAT(a,b)
-    - convert to @@character_set_connection if all arguments are numbers
-    - allow DERIVATION_NONE
-  */
   bool agg_arg_charsets_for_string_result(DTCollation &c,
                                           Item **items, uint nitems,
                                           int item_sep= 1)
   {
-    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-                MY_COLL_ALLOW_COERCIBLE_CONV |
-                MY_COLL_ALLOW_NUMERIC_CONV;
-    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+    return Type_std_attributes::
+      agg_arg_charsets_for_string_result(c, func_name(),
+                                         items, nitems, item_sep);
   }
-  /*
-    Aggregate arguments for string result, when some comparison
-    is involved internally, e.g: REPLACE(a,b,c)
-    - convert to @@character_set_connection if all arguments are numbers
-    - disallow DERIVATION_NONE
-  */
   bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
                                                           Item **items,
                                                           uint nitems,
                                                           int item_sep= 1)
   {
-    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-                MY_COLL_ALLOW_COERCIBLE_CONV |
-                MY_COLL_ALLOW_NUMERIC_CONV |
-                MY_COLL_DISALLOW_NONE;
-    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+    return Type_std_attributes::
+      agg_arg_charsets_for_string_result_with_comparison(c, func_name(),
+                                                         items, nitems,
+                                                         item_sep);
   }
 
   /*
@@ -4144,12 +4095,9 @@ protected:
                                        Item **items, uint nitems,
                                        int item_sep= 1)
   {
-    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-                MY_COLL_ALLOW_COERCIBLE_CONV |
-                MY_COLL_DISALLOW_NONE;
-    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+    return Type_std_attributes::
+      agg_arg_charsets_for_comparison(c, func_name(), items, nitems, item_sep);
   }
-
 
 public:
   // This method is used by Arg_comparator

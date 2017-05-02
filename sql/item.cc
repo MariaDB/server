@@ -2355,9 +2355,9 @@ void my_coll_agg_error(Item** args, uint count, const char *fname,
 }
 
 
-bool Item_func_or_sum::agg_item_collations(DTCollation &c, const char *fname,
-                                           Item **av, uint count,
-                                           uint flags, int item_sep)
+bool Type_std_attributes::agg_item_collations(DTCollation &c, const char *fname,
+                                              Item **av, uint count,
+                                              uint flags, int item_sep)
 {
   uint i;
   Item **arg;
@@ -2402,10 +2402,10 @@ bool Item_func_or_sum::agg_item_collations(DTCollation &c, const char *fname,
 }
 
 
-bool Item_func_or_sum::agg_item_set_converter(const DTCollation &coll,
-                                              const char *fname,
-                                              Item **args, uint nargs,
-                                              uint flags, int item_sep)
+bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
+                                                 const char *fname,
+                                                 Item **args, uint nargs,
+                                                 uint flags, int item_sep)
 {
   Item **arg, *safe_args[2]= {NULL, NULL};
 
