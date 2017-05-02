@@ -746,10 +746,10 @@ bool TDBJSN::OpenDB(PGLOBAL g)
           return true;
         } // endswitch Jmode
 
-	} // endif Use
+		if (Xcol && Txfp->GetAmType() != TYPE_AM_MGO)
+			To_Filter = NULL;							 // Imcompatible
 
-	if (Xcol && Txfp->GetAmType() != TYPE_AM_MGO)
-		To_Filter = NULL;							 // Imcompatible
+	} // endif Use
 
   return TDBDOS::OpenDB(g);
   } // end of OpenDB

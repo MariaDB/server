@@ -767,6 +767,9 @@ void MGOFAM::CloseTableFile(PGLOBAL g, bool)
 /***********************************************************************/
 void MGOFAM::Rewind(void)
 {
-	// TODO implement me
+	mongoc_cursor_t *cursor = mongoc_cursor_clone(Cursor);
+
+	mongoc_cursor_destroy(Cursor);
+	Cursor = cursor;
 } // end of Rewind
 

@@ -118,7 +118,8 @@ class DllExport DIRDEF : public TABDEF {    /* Directory listing table */
   // Members
   PSZ     Fn;                 /* Path/Name of file search              */
   bool    Incl;               /* true to include sub-directories       */
-  bool    Huge;               /* true if files can be larger than 2GB  */
+	bool    Huge;               /* true if files can be larger than 2GB  */
+	bool    Nodir;							/* true to exclude directories           */
   }; // end of DIRDEF
 
 /***********************************************************************/
@@ -175,6 +176,7 @@ public:
   char Direc[_MAX_DIR];         // Search path
   char Fname[_MAX_FNAME];       // File name
   char Ftype[_MAX_EXT];         // File extention
+	bool Nodir;                   // Exclude directories from file list
   }; // end of class TDBDIR
 
 /***********************************************************************/

@@ -139,10 +139,17 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     htrc("PlugInit: Language='%s'\n",
           ((!Language) ? "Null" : (char*)Language));
 
-  if (!(g = (PGLOBAL)malloc(sizeof(GLOBAL)))) {
-    fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
-    return NULL;
-  } else {
+	try {
+		g = new GLOBAL;
+	} catch (...) {
+		fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
+		return NULL;
+	} // end try/catch
+
+	//if (!(g = (PGLOBAL)malloc(sizeof(GLOBAL)))) {
+ //   fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
+ //   return NULL;
+ // } else {
     g->Sarea = NULL;
     g->Createas = 0;
     g->Alchecked = 0;
@@ -164,7 +171,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     } else
       g->Sarea_Size = worksize;
 
-  } /* endif g */
+  //} /* endif g */
 
   g->jump_level = -1;   /* New setting to allow recursive call of Plug */
   return(g);
@@ -183,7 +190,7 @@ int PlugExit(PGLOBAL g)
   if (g->Sarea)
     free(g->Sarea);
 
-  free(g);
+  delete g;
   return rc;
   } /* end of PlugExit */
 

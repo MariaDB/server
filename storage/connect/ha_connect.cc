@@ -212,7 +212,7 @@ PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
 #if defined(MONGO_SUPPORT)
-PQRYRES MGOColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info);
+PQRYRES MGOColumns(PGLOBAL g, char *db, PTOS topt, bool info);
 #endif   // MONGO_SUPPORT
 int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
@@ -1751,9 +1751,9 @@ void ha_connect::AddColName(char *cp, Field *fp)
 /***********************************************************************/
 /*  This function sets the current database path.                      */
 /***********************************************************************/
-void ha_connect::SetDataPath(PGLOBAL g, const char *path) 
+bool ha_connect::SetDataPath(PGLOBAL g, const char *path) 
 {
-  datapath= SetPath(g, path);
+  return (!(datapath= SetPath(g, path)));
 } // end of SetDataPath
 
 /****************************************************************************/
@@ -2709,6 +2709,8 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 
     if (x)
       return NULL;
+		else
+			pb0= pb1= pb2= ph0= ph1= ph2= NULL;
 
     if (trace)
       htrc("Cond: Ftype=%d name=%s\n", cond_item->functype(),
@@ -4004,8 +4006,12 @@ int ha_connect::rnd_pos(uchar *buf, uchar *pos)
 
     tdbp->SetFilter(NULL);
     rc= rnd_next(buf);
-  } else
-    rc= HA_ERR_KEY_NOT_FOUND;
+	} else {
+		PGLOBAL g = GetPlug((table) ? table->in_use : NULL, xp);
+		strcpy(g->Message, "Not supported by this table type");
+		my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+		rc= HA_ERR_INTERNAL_ERROR;
+	}	// endif SetRecpos
 
   DBUG_RETURN(rc);
 } // end of rnd_pos
@@ -4071,9 +4077,13 @@ int ha_connect::info(uint flag)
       } // endif xmod
 
     // This is necessary for getting file length
-    if (table)
-      SetDataPath(g, table->s->db.str);
-    else
+		if (table) {
+			if (SetDataPath(g, table->s->db.str)) {
+				my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+			}	// endif SetDataPath
+
+		} else
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
 
     if (!(tdbp= GetTDB(g)))
@@ -5562,13 +5572,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				break;
 #if defined(MONGO_SUPPORT)
 			case TAB_MONGO:
-				dsn = strz(g, create_info->connect_string);
-
-				if (!dsn)
-					strcpy(g->Message, "Missing URI");
-				else
-					ok = true;
-
+				ok = true;
 				break;
 #endif   // MONGO_SUPPORT
 			case TAB_VIR:
@@ -5595,12 +5599,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			char   *cnm, *rem, *dft, *xtra, *key, *fmt;
 			int     i, len, prec, dec, typ, flg;
 
-			//  if (cat)
-			//    cat->SetDataPath(g, table_s->db.str);
-			//  else
-			//    return HA_ERR_INTERNAL_ERROR;           // Should never happen
-
-			dpath = SetPath(g, table_s->db.str);
+			if (!(dpath = SetPath(g, table_s->db.str))) {
+				rc = HA_ERR_INTERNAL_ERROR;
+				goto err;
+			}	// endif dpath
 
 			if (src && ttp != TAB_PIVOT && ttp != TAB_ODBC && ttp != TAB_JDBC) {
 				qrp = SrcColumns(g, host, db, user, pwd, src, port);
@@ -5716,7 +5718,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					break;
 #if defined(MONGO_SUPPORT)
 				case TAB_MONGO:
-					qrp = MGOColumns(g, (char*)db, dsn, topt, fnc == FNC_COL);
+					qrp = MGOColumns(g, (char*)db, topt, fnc == FNC_COL);
 					break;
 #endif   // MONGO_SUPPORT
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
@@ -6521,11 +6523,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
-        SetDataPath(g, table_arg->s->db.str);
-
-        if (cat) {
-//        cat->SetDataPath(g, table_arg->s->db.str);
-
+				if (SetDataPath(g, table_arg->s->db.str)) {
+					my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+					rc = HA_ERR_INTERNAL_ERROR;
+				} else if (cat) {
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)
             strncpy(partname, 

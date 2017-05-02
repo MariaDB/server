@@ -48,7 +48,7 @@ public:
 	MGODISC(PGLOBAL g, int *lg);
 
 	// Functions
-	int  GetColumns(PGLOBAL g, char *db, char *dsn, PTOS topt);
+	int  GetColumns(PGLOBAL g, char *db, PTOS topt);
 	bool FindInDoc(PGLOBAL g, bson_iter_t *iter, const bson_t *doc,
 		             char *pcn, char *pfmt, int i, int k, bool b);
 
@@ -69,7 +69,7 @@ class DllExport MGODEF : public EXTDEF {          /* Table description */
 	friend class TDBMGO;
 	friend class MGOFAM;
 	friend class MGODISC;
-	friend PQRYRES MGOColumns(PGLOBAL, char *, char *, PTOS, bool);
+	friend PQRYRES MGOColumns(PGLOBAL, char *, PTOS, bool);
 public:
 	// Constructor
 	MGODEF(void);
@@ -117,7 +117,7 @@ class DllExport TDBMGO : public TDBEXT {
 	friend class MGOCOL;
 	friend class MGODEF;
 	friend class MGODISC;
-	friend PQRYRES MGOColumns(PGLOBAL, char *, char *, PTOS, bool);
+	friend PQRYRES MGOColumns(PGLOBAL, char *, PTOS, bool);
 public:
 	// Constructor
 	TDBMGO(PMGODEF tdp);
@@ -146,7 +146,7 @@ public:
 
 protected:
 	bool Init(PGLOBAL g);
-	bool MakeCursor(PGLOBAL g, mongoc_cursor_t *cursor);
+	mongoc_cursor_t *MakeCursor(PGLOBAL g);
 	void ShowDocument(bson_iter_t *i, const bson_t *b, const char *k);
 	void MakeColumnGroups(PGLOBAL g);
 	bool DocWrite(PGLOBAL g, PINCOL icp);
