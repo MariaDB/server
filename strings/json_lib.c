@@ -1248,6 +1248,7 @@ static int handle_match(json_engine_t *je, json_path_t *p,
       if (++next_step > p->last_step)
       {
         je->s.c_str= je->value_begin;
+        je->stack_p--;
         return 1;
       }
     } while (next_step->type == JSON_PATH_ARRAY && next_step->n_item == 0);

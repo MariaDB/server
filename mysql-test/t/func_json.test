@@ -281,3 +281,9 @@ drop table t1;
 SET @str = 'bar', @path = '$';
 SELECT JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path);
 
+#
+# MDEV-12351 Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path.
+#
+
+SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
+

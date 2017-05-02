@@ -633,3 +633,6 @@ SET @str = 'bar', @path = '$';
 SELECT JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path);
 JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path)
 "$.foo"
+SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
+JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]')
+bar
