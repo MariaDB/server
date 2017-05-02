@@ -2082,9 +2082,11 @@ drop table t1;
 --let $patt= /a /b / /less/more/
 --replace_regex $patt
 select "a is a and less is more" as txt;
+--replace_regex $patt /and /or /
+select "a is a and less is more" as txt2;
 --let $patt=
 --replace_regex $patt
-select "a is a and less is more" as txt;
+select "a is a and less is more" as txt3;
 --enable_query_log
 
 #
