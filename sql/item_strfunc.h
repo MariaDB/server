@@ -1010,6 +1010,8 @@ protected:
 public:
   Item_func_pad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
     Item_str_func(thd, arg1, arg2, arg3) {}
+  Item_func_pad(THD *thd, Item *arg1, Item *arg2):
+    Item_str_func(thd, arg1, arg2) {}
   void fix_length_and_dec();
 };
 
@@ -1019,6 +1021,8 @@ class Item_func_rpad :public Item_func_pad
 public:
   Item_func_rpad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
     Item_func_pad(thd, arg1, arg2, arg3) {}
+  Item_func_rpad(THD *thd, Item *arg1, Item *arg2):
+    Item_func_pad(thd, arg1, arg2) {}
   String *val_str(String *);
   const char *func_name() const { return "rpad"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1031,6 +1035,8 @@ class Item_func_lpad :public Item_func_pad
 public:
   Item_func_lpad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
     Item_func_pad(thd, arg1, arg2, arg3) {}
+  Item_func_lpad(THD *thd, Item *arg1, Item *arg2):
+    Item_func_pad(thd, arg1, arg2) {}
   String *val_str(String *);
   const char *func_name() const { return "lpad"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
