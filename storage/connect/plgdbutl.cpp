@@ -387,26 +387,27 @@ char *SetPath(PGLOBAL g, const char *path)
   char *buf= NULL;
 
 	if (path) {
-		size_t len= strlen(path) + (*path != '.' ? 4 : 1);
+		size_t len = strlen(path) + (*path != '.' ? 4 : 1);
 
-		buf= (char*)PlugSubAlloc(g, NULL, len);
-		
+		if (!(buf = (char*)PlgDBSubAlloc(g, NULL, len)))
+			return NULL;
+
 		if (PlugIsAbsolutePath(path)) {
-		  strcpy(buf, path);
-		  return buf;
-		  } // endif path
+			strcpy(buf, path);
+			return buf;
+		} // endif path
 
 		if (*path != '.') {
 #if defined(__WIN__)
-			char *s= "\\";
+			char *s = "\\";
 #else   // !__WIN__
-			char *s= "/";
+			char *s = "/";
 #endif  // !__WIN__
 			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
 		} else
 			strcpy(buf, path);
 
-		} // endif path
+	} // endif path
 
   return buf;
 } // end of SetPath

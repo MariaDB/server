@@ -603,8 +603,9 @@ bool TDBMSD::InitFileNames(PGLOBAL g)
 bool DIRDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   {
   Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
-  Incl = (GetIntCatInfo("Subdir", 0) != 0);
-  Huge = (GetIntCatInfo("Huge", 0) != 0);
+  Incl = GetBoolCatInfo("Subdir", false);
+	Huge = GetBoolCatInfo("Huge", false);
+	Nodir = GetBoolCatInfo("Nodir", true);
   return false;
   } // end of DefineAM
 
@@ -654,12 +655,14 @@ void TDBDIR::Init(void)
 TDBDIR::TDBDIR(PDIRDEF tdp) : TDBASE(tdp)
 {
   To_File = tdp->Fn;
+	Nodir = tdp->Nodir;
 	Init();
 } // end of TDBDIR standard constructor
 
 TDBDIR::TDBDIR(PSZ fpat) : TDBASE((PTABDEF)NULL)
 {
 	To_File = fpat;
+	Nodir = true;
 	Init();
 } // end of TDBDIR constructor
 
@@ -812,27 +815,32 @@ int TDBDIR::ReadDB(PGLOBAL g)
   int rc = RC_OK;
 
 #if defined(__WIN__)
-  if (hSearch == INVALID_HANDLE_VALUE) {
-    /*******************************************************************/
-    /*  Start searching files in the target directory. The use of the  */
-    /*  Path function is required when called from TDBSDR.             */
-    /*******************************************************************/
-    hSearch = FindFirstFile(Path(g), &FileData);
+	do {
+		if (hSearch == INVALID_HANDLE_VALUE) {
+			/*****************************************************************/
+			/*  Start searching files in the target directory. The use of    */
+			/*  the Path function is required when called from TDBSDR.       */
+			/*****************************************************************/
+			hSearch = FindFirstFile(Path(g), &FileData);
 
-    if (hSearch == INVALID_HANDLE_VALUE)
-      rc = RC_EF;
-    else
-      iFile++;
+			if (hSearch == INVALID_HANDLE_VALUE) {
+				rc = RC_EF;
+				break;
+			} else
+				iFile++;
 
-  } else {
-    if (!FindNextFile(hSearch, &FileData)) {
-      // Restore file name and type pattern
-      _splitpath(To_File, NULL, NULL, Fname, Ftype);
-      rc = RC_EF;
-    } else
-      iFile++;
+		} else {
+			if (!FindNextFile(hSearch, &FileData)) {
+				// Restore file name and type pattern
+				_splitpath(To_File, NULL, NULL, Fname, Ftype);
+				rc = RC_EF;
+				break;
+			} else
+				iFile++;
 
-  } // endif hSearch
+		} // endif hSearch
+
+	} while (Nodir && FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
 
   if (rc == RC_OK)
     _splitpath(FileData.cFileName, NULL, NULL, Fname, Ftype);
@@ -1225,8 +1233,9 @@ int TDBSDR::ReadDB(PGLOBAL g)
    retry:
     do {
       if (Sub->H == INVALID_HANDLE_VALUE) {
-        _makepath(Fpath, Drive, Direc, "*", ".");
-        Sub->H = FindFirstFile(Fpath, &FileData);
+//      _makepath(Fpath, Drive, Direc, "*", ".");		 why was this made?
+				_makepath(Fpath, Drive, Direc, "*", NULL);
+				Sub->H = FindFirstFile(Fpath, &FileData);
       } else if (!FindNextFile(Sub->H, &FileData)) {
         FindClose(Sub->H);
         Sub->H = INVALID_HANDLE_VALUE;
@@ -1234,8 +1243,9 @@ int TDBSDR::ReadDB(PGLOBAL g)
 				break;
       } // endif findnext
 
-    } while(!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-    			|| *FileData.cFileName== '.');
+    } while(!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
+    		(*FileData.cFileName == '.' && 
+			  (!FileData.cFileName[1] || FileData.cFileName[1] == '.')));
 
     if (Sub->H == INVALID_HANDLE_VALUE) {
       // No more sub-directories. Are we in a sub-directory?
@@ -1289,7 +1299,8 @@ int TDBSDR::ReadDB(PGLOBAL g)
       if (lstat(Fpath, &Fileinfo) < 0) {
         sprintf(g->Message, "%s: %s", Fpath, strerror(errno));
         rc = RC_FX;
-      } else if (S_ISDIR(Fileinfo.st_mode) && *Entry->d_name != '.') {
+      } else if (S_ISDIR(Fileinfo.st_mode) && strcmp(Entry->d_name, ".")
+			                                     && strcmp(Entry->d_name, "..")) {
         // Look in the name sub-directory
         if (!Sub->Next) {
           PSUBDIR sup;

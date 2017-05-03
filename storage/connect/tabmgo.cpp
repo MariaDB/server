@@ -39,7 +39,7 @@
 /*  MGOColumns: construct the result blocks containing the description */
 /*  of all the columns of a document contained inside MongoDB.         */
 /***********************************************************************/
-PQRYRES MGOColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
+PQRYRES MGOColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 {
 	static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING, TYPE_INT,
 		                      TYPE_INT, TYPE_SHORT, TYPE_SHORT, TYPE_STRING};
@@ -64,7 +64,7 @@ PQRYRES MGOColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 	/*********************************************************************/
 	mgd = new(g) MGODISC(g, (int*)length);
 
-	if ((n = mgd->GetColumns(g, db, dsn, topt)) < 0)
+	if ((n = mgd->GetColumns(g, db, topt)) < 0)
 		goto err;
 
 skipit:
@@ -142,7 +142,7 @@ MGODISC::MGODISC(PGLOBAL g, int *lg) {
 /***********************************************************************/
 /*  Class used to get the columns of a mongo collection.               */
 /***********************************************************************/
-int MGODISC::GetColumns(PGLOBAL g, char *db, char *dsn, PTOS topt)
+int MGODISC::GetColumns(PGLOBAL g, char *db, PTOS topt)
 {
 	bson_iter_t iter;
 	const bson_t *doc;
@@ -153,16 +153,11 @@ int MGODISC::GetColumns(PGLOBAL g, char *db, char *dsn, PTOS topt)
 	lvl = (lvl > 16) ? 16 : lvl;
 	all = GetBooleanTableOption(g, topt, "Fullarray", false);
 
-	if (!dsn) {
-		strcpy(g->Message, "Missing URI");
-		return -1;
-	} // endif dsn
-
 	/*********************************************************************/
 	/*  Open the MongoDB collection.                                     */
 	/*********************************************************************/
 	tdp = new(g) MGODEF;
-	tdp->Uri = dsn;
+	tdp->Uri = GetStringTableOption(g, topt, "Connect", "mongodb://localhost:27017");
 	tdp->Tabname = GetStringTableOption(g, topt, "Name", NULL);
 	tdp->Tabname = GetStringTableOption(g, topt, "Tabname", tdp->Tabname);
 	tdp->Tabschema = GetStringTableOption(g, topt, "Dbname", db);
@@ -397,7 +392,7 @@ bool MGODEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 	else if (!Tabschema)
 		Tabschema = GetStringCatInfo(g, "Dbname", "*");
 
-	Uri = GetStringCatInfo(g, "Connect", NULL);
+	Uri = GetStringCatInfo(g, "Connect", "mongodb://localhost:27017");
 	Colist = GetStringCatInfo(g, "Colist", NULL);
 	Filter = GetStringCatInfo(g, "Filter", NULL);
 	Base = GetIntCatInfo("Base", 0) ? 1 : 0;
@@ -713,13 +708,13 @@ void TDBMGO::SetFilter(PFIL fp)
 	To_Filter = fp;
 
 	if (fp && Cursor && Cnd != Cond) {
-		mongoc_cursor_t *cursor = NULL;
+		mongoc_cursor_t *cursor = MakeCursor(G);
 
-		if (!MakeCursor(G, cursor)) {
+		if (cursor) {
 			mongoc_cursor_destroy(Cursor);
 			Cursor = cursor;
-		} else if (cursor)
-			mongoc_cursor_destroy(cursor);
+		} else
+			htrc("SetFilter: %s\n", G->Message);
 
 	} // endif Cursor
 
@@ -728,10 +723,11 @@ void TDBMGO::SetFilter(PFIL fp)
 /***********************************************************************/
 /*  OpenDB: Data Base open routine for MONGO access method.            */
 /***********************************************************************/
-bool TDBMGO::MakeCursor(PGLOBAL g, mongoc_cursor_t *cursor)
+mongoc_cursor_t *TDBMGO::MakeCursor(PGLOBAL g)
 {
-	const char *p;
-	PSTRG       s = NULL;
+	const char      *p;
+	mongoc_cursor_t *cursor;
+	PSTRG            s = NULL;
 
 	if (Pipe) {
 		if (trace)
@@ -741,7 +737,7 @@ bool TDBMGO::MakeCursor(PGLOBAL g, mongoc_cursor_t *cursor)
 
 		if (!p) {
 			strcpy(g->Message, "Missing ] in pipeline");
-			return true;
+			return NULL;
 		} else
 			*(char*)p = 0;
 
@@ -752,7 +748,7 @@ bool TDBMGO::MakeCursor(PGLOBAL g, mongoc_cursor_t *cursor)
 
 			if (To_Filter->MakeSelector(g, s, true)) {
 				strcpy(g->Message, "Failed making selector");
-				return true;
+				return NULL;
 			} else
 				s->Append('}');
 
@@ -779,15 +775,15 @@ bool TDBMGO::MakeCursor(PGLOBAL g, mongoc_cursor_t *cursor)
 
 		if (!Query) {
 			sprintf(g->Message, "Wrong pipeline: %s", Error.message);
-			return true;
+			return NULL;
 		}	// endif Query
 
-		Cursor = mongoc_collection_aggregate(Collection, MONGOC_QUERY_NONE,
+		cursor = mongoc_collection_aggregate(Collection, MONGOC_QUERY_NONE,
 			Query, NULL, NULL);
 
-		if (mongoc_cursor_error(Cursor, &Error)) {
+		if (mongoc_cursor_error(cursor, &Error)) {
 			sprintf(g->Message, "Mongo aggregate Failure: %s", Error.message);
-			return true;
+			return NULL;
 		} // endif cursor
 
 	} else {
@@ -813,7 +809,7 @@ bool TDBMGO::MakeCursor(PGLOBAL g, mongoc_cursor_t *cursor)
 
 				if (To_Filter->MakeSelector(g, s, true)) {
 					strcpy(g->Message, "Failed making selector");
-					return true;
+					return NULL;
 				}	// endif Selector
 
 				To_Filter = NULL;   // Not needed anymore
@@ -827,7 +823,7 @@ bool TDBMGO::MakeCursor(PGLOBAL g, mongoc_cursor_t *cursor)
 
 			if (!Query) {
 				sprintf(g->Message, "Wrong filter: %s", Error.message);
-				return true;
+				return NULL;
 			}	// endif Query
 
 		} else
@@ -858,13 +854,13 @@ bool TDBMGO::MakeCursor(PGLOBAL g, mongoc_cursor_t *cursor)
 
 		if (!Opts) {
 			sprintf(g->Message, "Wrong options: %s", Error.message);
-			return true;
+			return NULL;
 		} // endif Opts
 
-		Cursor = mongoc_collection_find_with_opts(Collection, Query, Opts, NULL);
+		cursor = mongoc_collection_find_with_opts(Collection, Query, Opts, NULL);
 	} // endif Pipe
 
-	return false;
+	return cursor;
 } // end of MakeCursor
 
 /***********************************************************************/
@@ -876,33 +872,37 @@ bool TDBMGO::OpenDB(PGLOBAL g)
 		/*******************************************************************/
 		/*  Table already open replace it at its beginning.                */
 		/*******************************************************************/
+		mongoc_cursor_t *cursor = mongoc_cursor_clone(Cursor);
+
+		mongoc_cursor_destroy(Cursor);
+		Cursor = cursor;
 		Fpos = -1;
-	} else {
-		/*******************************************************************/
-		/*  First opening.                                                 */
-		/*******************************************************************/
-		if (Pipe && Mode != MODE_READ) {
-			strcpy(g->Message, "Pipeline tables are read only");
-			return true;
-		}	// endif Pipe
-
-		if (Init(g))
-			return true;
-
-		if (Mode == MODE_DELETE && !Next) {
-			// Delete all documents
-			if (!mongoc_collection_remove(Collection, MONGOC_REMOVE_NONE,
-				                            Query, NULL, &Error)) {
-				sprintf(g->Message, "Mongo remove all: %s", Error.message);
-				return true;
-			}	// endif remove
-
-		} else if (Mode == MODE_INSERT)
-			MakeColumnGroups(g);
-		else if (MakeCursor(g, Cursor))
-			return true;
-
+		return false;
 	} // endif Use
+
+	/*********************************************************************/
+	/*  First opening.                                                   */
+	/*********************************************************************/
+	if (Pipe && Mode != MODE_READ) {
+		strcpy(g->Message, "Pipeline tables are read only");
+		return true;
+	}	// endif Pipe
+
+	if (Init(g))
+		return true;
+
+	if (Mode == MODE_DELETE && !Next) {
+		// Delete all documents
+		if (!mongoc_collection_remove(Collection, MONGOC_REMOVE_NONE,
+			Query, NULL, &Error)) {
+			sprintf(g->Message, "Mongo remove all: %s", Error.message);
+			return true;
+		}	// endif remove
+
+	} else if (Mode == MODE_INSERT)
+		MakeColumnGroups(g);
+	else if (!(Cursor = MakeCursor(g)))
+		return true;
 
 	return false;
 } // end of OpenDB
@@ -1081,6 +1081,12 @@ int TDBMGO::WriteDB(PGLOBAL g)
 		} // endif iter
 
 		if (b) {
+			if (trace) {
+				char *str = bson_as_json(query, NULL);
+				htrc("update query: %s\n", str);
+				bson_free(str);
+			}	// endif trace
+
 			if (Mode == MODE_UPDATE) {
 				bson_t  child;
 				bson_t *update = bson_new();
