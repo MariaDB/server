@@ -1003,28 +1003,35 @@ public:
 };
 
 
-class Item_func_rpad :public Item_str_func
+class Item_func_pad: public Item_str_func
 {
-  String tmp_value, rpad_str;
+protected:
+  String tmp_value, pad_str;
+public:
+  Item_func_pad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
+    Item_str_func(thd, arg1, arg2, arg3) {}
+  void fix_length_and_dec();
+};
+
+
+class Item_func_rpad :public Item_func_pad
+{
 public:
   Item_func_rpad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
-    Item_str_func(thd, arg1, arg2, arg3) {}
+    Item_func_pad(thd, arg1, arg2, arg3) {}
   String *val_str(String *);
-  void fix_length_and_dec();
   const char *func_name() const { return "rpad"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_rpad>(thd, mem_root, this); }
 };
 
 
-class Item_func_lpad :public Item_str_func
+class Item_func_lpad :public Item_func_pad
 {
-  String tmp_value, lpad_str;
 public:
   Item_func_lpad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
-    Item_str_func(thd, arg1, arg2, arg3) {}
+    Item_func_pad(thd, arg1, arg2, arg3) {}
   String *val_str(String *);
-  void fix_length_and_dec();
   const char *func_name() const { return "lpad"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_lpad>(thd, mem_root, this); }

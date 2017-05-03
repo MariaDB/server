@@ -3152,7 +3152,7 @@ err:
 }
 
 
-void Item_func_rpad::fix_length_and_dec()
+void Item_func_pad::fix_length_and_dec()
 {
   // Handle character set for args[0] and args[2].
   if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
@@ -3187,7 +3187,7 @@ String *Item_func_rpad::val_str(String *str)
   longlong count= args[1]->val_int();
   longlong byte_count;
   String *res= args[0]->val_str(str);
-  String *rpad= args[2]->val_str(&rpad_str);
+  String *rpad= args[2]->val_str(&pad_str);
 
   if (!res || args[1]->null_value || !rpad || 
       ((count < 0) && !args[1]->unsigned_flag))
@@ -3260,32 +3260,6 @@ String *Item_func_rpad::val_str(String *str)
 }
 
 
-void Item_func_lpad::fix_length_and_dec()
-{
-  // Handle character set for args[0] and args[2].
-  if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
-    return;
-  
-  if (args[1]->const_item())
-  {
-    ulonglong char_length= (ulonglong) args[1]->val_int();
-    DBUG_ASSERT(collation.collation->mbmaxlen > 0);
-    /* Assumes that the maximum length of a String is < INT_MAX32. */
-    /* Set here so that rest of code sees out-of-bound value as such. */
-    if (args[1]->null_value)
-      char_length= 0;
-    else if (char_length > INT_MAX32)
-      char_length= INT_MAX32;
-    fix_char_length_ulonglong(char_length);
-  }
-  else
-  {
-    max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
-  }
-}
-
-
 String *Item_func_lpad::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -3294,7 +3268,7 @@ String *Item_func_lpad::val_str(String *str)
   longlong count= args[1]->val_int();
   longlong byte_count;
   String *res= args[0]->val_str(&tmp_value);
-  String *pad= args[2]->val_str(&lpad_str);
+  String *pad= args[2]->val_str(&pad_str);
 
   if (!res || args[1]->null_value || !pad ||  
       ((count < 0) && !args[1]->unsigned_flag))
