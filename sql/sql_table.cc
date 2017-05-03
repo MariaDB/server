@@ -9449,8 +9449,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       {
         if (table->versioned_by_sql())
         {
-          // Failure of this function may result in corruption of
-          // an original table.
+          // Failure of this function may result in corruption of an original table.
           vers_reset_alter_copy(thd, table);
         }
       }
@@ -9987,15 +9986,13 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
     else if (make_unversioned)
     {
-      // Drop history rows.
       if (!from_sys_trx_end->is_max())
-        continue;
+        continue; // Drop history rows.
     }
     else if (keep_versioned && thd->variables.vers_ddl_survival)
     {
-      // Do not copy history rows.
       if (!from_sys_trx_end->is_max())
-        continue;
+        continue; // Do not copy history rows.
 
       store_record(from, record[1]);
       from->vers_end_field()->store_time(&now);
