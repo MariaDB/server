@@ -120,7 +120,9 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 		return NULL;
 	} // endif Fn
 
-  tdp->Database = SetPath(g, db);
+	if (!(tdp->Database = SetPath(g, db)))
+		return NULL;
+
   tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
   tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
   tdp->Pretty = GetIntegerTableOption(g, topt, "Pretty", 2);
