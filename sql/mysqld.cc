@@ -9439,14 +9439,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     between options, setting of multiple variables, etc.
     Do them here.
   */
-
-  if ((opt_log_slow_admin_statements || opt_log_queries_not_using_indexes ||
-       opt_log_slow_slave_statements) &&
-      !global_system_variables.sql_log_slow)
-    sql_print_information("options --log-slow-admin-statements, "
-                          "--log-queries-not-using-indexes and "
-                          "--log-slow-slave-statements have no "
-                          "effect if --log-slow-queries is not set");
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)
   {
