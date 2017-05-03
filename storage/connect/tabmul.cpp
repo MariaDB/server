@@ -1299,8 +1299,8 @@ int TDBSDR::ReadDB(PGLOBAL g)
       if (lstat(Fpath, &Fileinfo) < 0) {
         sprintf(g->Message, "%s: %s", Fpath, strerror(errno));
         rc = RC_FX;
-      } else if (S_ISDIR(Fileinfo.st_mode) && strcmp(Entry->d_name, "."
-			                                     && strcmp(Entry->d_name, "..") {
+      } else if (S_ISDIR(Fileinfo.st_mode) && strcmp(Entry->d_name, ".")
+			                                     && strcmp(Entry->d_name, "..")) {
         // Look in the name sub-directory
         if (!Sub->Next) {
           PSUBDIR sup;
