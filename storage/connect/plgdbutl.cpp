@@ -412,8 +412,9 @@ char *SetPath(PGLOBAL g, const char *path)
 	if (path) {
 		size_t len= strlen(path) + (*path != '.' ? 4 : 1);
 
-		buf= (char*)PlugSubAlloc(g, NULL, len);
-		
+		if (!(buf = (char*)PlgDBSubAlloc(g, NULL, len)))
+			return NULL;
+
 		if (PlugIsAbsolutePath(path)) {
 		  strcpy(buf, path);
 		  return buf;

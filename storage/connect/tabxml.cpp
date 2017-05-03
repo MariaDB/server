@@ -157,8 +157,11 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
   tdp = new(g) XMLDEF;
   tdp->Fn = fn;
-  tdp->Database = SetPath(g, db);
-  tdp->Tabname = tab;
+
+	if (!(tdp->Database = SetPath(g, db)))
+		return NULL;
+
+	tdp->Tabname = tab;
 	tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false);
 	tdp->Entry = GetStringTableOption(g, topt, "Entry", NULL);
 

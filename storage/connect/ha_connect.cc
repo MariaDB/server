@@ -1739,9 +1739,9 @@ void ha_connect::AddColName(char *cp, Field *fp)
 /***********************************************************************/
 /*  This function sets the current database path.                      */
 /***********************************************************************/
-void ha_connect::SetDataPath(PGLOBAL g, const char *path) 
+bool ha_connect::SetDataPath(PGLOBAL g, const char *path)
 {
-  datapath= SetPath(g, path);
+	return (!(datapath = SetPath(g, path)));
 } // end of SetDataPath
 
 /****************************************************************************/
@@ -2721,6 +2721,8 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 
     if (x)
       return NULL;
+		else
+			pb0 = pb1 = pb2 = ph0 = ph1 = ph2 = NULL;
 
     if (trace)
       htrc("Cond: Ftype=%d name=%s\n", cond_item->functype(),
@@ -4110,10 +4112,14 @@ int ha_connect::info(uint flag)
       } // endif xmod
 
     // This is necessary for getting file length
-    if (table)
-      SetDataPath(g, table->s->db.str);
-    else
-      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
+    if (table) {
+			if (SetDataPath(g, table->s->db.str)) {
+				my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+			}	// endif SetDataPath
+
+		} else
+			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
 
     if (!(tdbp= GetTDB(g)))
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
@@ -6563,9 +6569,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
-        SetDataPath(g, table_arg->s->db.str);
-
-        if (cat) {
+				if (SetDataPath(g, table_arg->s->db.str)) {
+					my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+					rc = HA_ERR_INTERNAL_ERROR;
+				} else if (cat) {
 //        cat->SetDataPath(g, table_arg->s->db.str);
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
@@ -7137,6 +7144,6 @@ maria_declare_plugin(connect)
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
   "1.05.0003",                                  /* string version */
-  MariaDB_PLUGIN_MATURITY_GAMMA                 /* maturity */
+	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;

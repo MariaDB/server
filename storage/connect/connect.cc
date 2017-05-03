@@ -117,7 +117,8 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
            handler);
 
   // Set the database path for this table
-  handler->SetDataPath(g, pathname);
+	if (handler->SetDataPath(g, pathname))
+		return true;
 
   if (dbuserp->Catalog) {
 //  ((MYCAT *)dbuserp->Catalog)->SetHandler(handler);   done later

@@ -199,7 +199,7 @@ public:
   bool     IsUnique(uint n);
   char    *GetDataPath(void) {return (char*)datapath;}
 
-  void     SetDataPath(PGLOBAL g, const char *path); 
+  bool     SetDataPath(PGLOBAL g, const char *path); 
   PTDB     GetTDB(PGLOBAL g);
   int      OpenTable(PGLOBAL g, bool del= false);
   bool     CheckColumnList(PGLOBAL g);

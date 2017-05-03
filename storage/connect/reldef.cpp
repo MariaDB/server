@@ -1,11 +1,11 @@
 /************* RelDef CPP Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: RELDEF                                                */
 /* -------------                                                       */
-/*  Version 1.6                                                        */
+/*  Version 1.7                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -277,8 +277,13 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
   // Take care of the column definitions
 	i= poff= nof= nlg= 0;
 
+#if defined(__WIN__)
 	// Offsets of HTML and DIR tables start from 0, DBF at 1
-	loff= (tc == TAB_DBF) ? 1 : (tc == TAB_XML || tc == TAB_DIR) ? -1 : 0; 
+	loff = (tc == TAB_DBF) ? 1 : (tc == TAB_XML || tc == TAB_DIR) ? -1 : 0;
+#else   // !__WIN__
+	// Offsets of HTML tables start from 0, DIR and DBF at 1
+	loff = (tc == TAB_DBF || tc == TAB_DIR) ? 1 : (tc == TAB_XML) ? -1 : 0;
+#endif  // !__WIN__
 
   while (true) {
 		// Default Offset depends on table type
