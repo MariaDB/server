@@ -150,3 +150,22 @@ unique_constraint_name
 PRIMARY
 DROP TABLE t2;
 DROP TABLE t1;
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE staff (
+staff_id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
+store_id TINYINT UNSIGNED NOT NULL,
+PRIMARY KEY  (staff_id),
+KEY idx_fk_store_id (store_id),
+CONSTRAINT fk_staff_store FOREIGN KEY (store_id) REFERENCES store (store_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE store (
+store_id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
+manager_staff_id TINYINT UNSIGNED NOT NULL,
+PRIMARY KEY  (store_id),
+UNIQUE KEY idx_unique_manager (manager_staff_id),
+CONSTRAINT fk_store_staff FOREIGN KEY (manager_staff_id) REFERENCES staff (staff_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS=DEFAULT;
+LOCK TABLE staff WRITE;
+UNLOCK TABLES;
+DROP TABLES staff, store;
