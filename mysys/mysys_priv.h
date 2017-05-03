@@ -89,8 +89,12 @@ void sf_free(void *ptr);
 
 void my_error_unregister_all(void);
 
-#if !defined(O_PATH) && defined(O_EXEC) /* FreeBSD */
+#ifndef O_PATH        /* not Linux */
+#if defined(O_SEARCH) /* Illumos */
+#define O_PATH O_SEARCH
+#elif defined(O_EXEC) /* FreeBSD */
 #define O_PATH O_EXEC
+#endif
 #endif
 
 #ifdef O_PATH
