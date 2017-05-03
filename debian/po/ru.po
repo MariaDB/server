@@ -1,32 +1,22 @@
 # translation of ru.po to Russian
-# Russian messages:
-#    Translators, if you are not familiar with the PO format, gettext
-#    documentation is worth reading, especially sections dedicated to
-#    this format, e.g. by running:
-#         info -n '(gettext)PO Files'
-#         info -n '(gettext)Header Entry'#
-#    Some information specific to po-debconf are available at
-#            /usr/share/doc/po-debconf/README-trans
-#         or http://www.debian.org/intl/l10n/po-debconf/README-trans#
-#    Developers do not need to manually edit POT or PO files.
 #
 # Ilgiz Kalmetev <translator@ilgiz.pp.ru>, 2003.
 # Yuriy Talakan' <yt@amur.elektra.ru>, 2005, 2006.
 # Yuriy Talakan' <yt@drsk.ru>, 2007.
-# Yuri Kozlov <yuray@komyakino.ru>, 2009.
+# Yuri Kozlov <yuray@komyakino.ru>, 2009, 2014, 2016.
 msgid ""
 msgstr ""
-"Project-Id-Version: mysql-dfsg-5.1 5.1.37-1\n"
+"Project-Id-Version: mariadb-10.3 10.0.25-1\n"
 "Report-Msgid-Bugs-To: mariadb-10.3@packages.debian.org\n"
-"POT-Creation-Date: 2016-10-08 01:26+0300\n"
-"PO-Revision-Date: 2009-08-06 20:27+0400\n"
+"POT-Creation-Date: 2016-04-13 11:44+0300\n"
+"PO-Revision-Date: 2016-05-04 18:56+0300\n"
 "Last-Translator: Yuri Kozlov <yuray@komyakino.ru>\n"
 "Language-Team: Russian <debian-l10n-russian@lists.debian.org>\n"
 "Language: ru\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.4\n"
+"X-Generator: Lokalize 1.5\n"
 "Plural-Forms:  nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
 "%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
@@ -34,7 +24,7 @@ msgstr ""
 #. Description
 #: ../mariadb-server-10.3.templates:2001
 msgid "The old data directory will be saved at new location"
-msgstr ""
+msgstr "Каталог со старыми данными будет сохранён в новом месте"
 
 #. Type: note
 #. Description
@@ -44,6 +34,9 @@ msgid ""
 "indicates a database binary format version that cannot automatically be "
 "upgraded (or downgraded)."
 msgstr ""
+"В системе найден файл /var/lib/mysql/debian-*.flag. Число представляет версию "
+"двоичного формата базы данных, которую невозможно обновить автоматически "
+"(или откатить к старой версии)."
 
 #. Type: note
 #. Description
@@ -52,6 +45,9 @@ msgid ""
 "Therefore the previous data directory will be renamed to /var/lib/mysql-* "
 "and a new data directory will be initialized at /var/lib/mysql."
 msgstr ""
+"В следствии этого, предыдущий каталог с данными будет переименован в "
+"/var/lib/mysql-*, а в /var/lib/mysql будет инициализирован каталог для "
+"новых данных."
 
 #. Type: note
 #. Description
@@ -59,6 +55,8 @@ msgstr ""
 msgid ""
 "Please manually export/import your data (e.g. with mysqldump) if needed."
 msgstr ""
+"Если нужно, выполните экспорт/импорт данных вручную (например, с помощью "
+"mysqldump)."
 
 #. Type: note
 #. Description
@@ -111,88 +109,11 @@ msgstr ""
 "есть другие пакеты mariadb-server, использующие этот каталог, то данные "
 "лучше сохранить."
 
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "New password for the MariaDB \"root\" user:"
-msgstr "Новый пароль для MariaDB пользователя \"root\":"
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid ""
-"While not mandatory, it is highly recommended that you set a password for "
-"the MariaDB administrative \"root\" user."
-msgstr ""
-"Хотя и необязательно, но настоятельно рекомендуется установить пароль для "
-"административного пользователя MariaDB \"root\"."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "If this field is left blank, the password will not be changed."
-msgstr "Если оставить поле пустым, то пароль изменён не будет."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:6001
-msgid "Repeat password for the MariaDB \"root\" user:"
-msgstr "Повторите ввод пароля для MariaDB пользователя \"root\":"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "Unable to set password for the MariaDB \"root\" user"
-msgstr "Невозможно задать пароль MariaDB пользователю \"root\""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid ""
-"An error occurred while setting the password for the MariaDB administrative "
-"user. This may have happened because the account already has a password, or "
-"because of a communication problem with the MariaDB server."
-msgstr ""
-"В процессе задания пароля административного MariaDB пользователя произошла "
-"ошибка. Это могло произойти, если у пользователя уже был задан пароль, или "
-"из-за проблем соединения с сервером MariaDB."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "You should check the account's password after the package installation."
-msgstr "Проверьте пароль учётной записи после установки пакета."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-#| "more information."
-msgid ""
-"Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-"more information."
-msgstr ""
-"Подробности см. в файле /usr/share/doc/mariadb-server-10.3/README.Debian."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "Password input error"
-msgstr "Ошибка ввода пароля"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "The two passwords you entered were not the same. Please try again."
-msgstr "Два введённых пароля не одинаковы. Повторите ввод."
+#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
+#~ msgstr "В системе найден файл /var/lib/mysql/debian-*.flag."
 
 #~ msgid "Really proceed with downgrade?"
 #~ msgstr "Действительно установить более старую версию?"
-
-#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
-#~ msgstr "В системе найден файл /var/lib/mysql/debian-*.flag."
 
 #~ msgid ""
 #~ "Such a file is an indication that a mariadb-server package with a higher "
@@ -208,12 +129,68 @@ msgstr "Два введённых пароля не одинаковы. Повт
 #~ "Нет гарантий, что версия, которая устанавливается сейчас, будет способна "
 #~ "работать с имеющимися базами данных."
 
-#~ msgid "Start the MariaDB server on boot?"
-#~ msgstr "Запускать MariaDB при загрузке системы?"
+#~ msgid "Really migrate to MariaDB?"
+#~ msgstr "Хотите перейти на MariaDB?"
 
 #~ msgid ""
-#~ "The MariaDB server can be launched automatically at boot time or manually "
-#~ "with the '/etc/init.d/mysql start' command."
+#~ "MariaDB is a drop-in replacement for MySQL. It will use your current "
+#~ "configuration file (my.cnf) and current databases."
 #~ msgstr ""
-#~ "Сервер MariaDB можно запускать автоматически при загрузке системы или "
-#~ "вручную по команде '/etc/init.d/mysql start'."
+#~ "MariaDB — современная замена MySQL. Будет использован ваш файл настроек "
+#~ "(my.cnf) и имеющиеся базы данных."
+
+#~ msgid ""
+#~ "Note that MariaDB has some enhanced features, which do not exist in MySQL "
+#~ "and thus migration back to MySQL might not always work, at least not as "
+#~ "automatically as migrating from MySQL to MariaDB."
+#~ msgstr ""
+#~ "Заметим, что MariaDB имеет дополнительные возможности, которые "
+#~ "отсутствуют в MySQL, и поэтому обратный переход на MySQL не всегда может "
+#~ "быть выполнен, по крайней мере, не в автоматическом режиме как с MySQL на "
+#~ "MariaDB."
+
+#~ msgid "Unable to set password for the MariaDB \"root\" user"
+#~ msgstr "Невозможно задать пароль MariaDB пользователю «root»"
+
+#~ msgid ""
+#~ "An error occurred while setting the password for the MariaDB "
+#~ "administrative user. This may have happened because the account already "
+#~ "has a password, or because of a communication problem with the MariaDB "
+#~ "server."
+#~ msgstr ""
+#~ "В процессе задания пароля административного MariaDB пользователя "
+#~ "произошла ошибка. Это могло произойти, если у пользователя уже был задан "
+#~ "пароль, или из-за проблем соединения с сервером MariaDB."
+
+#~ msgid ""
+#~ "You should check the account's password after the package installation."
+#~ msgstr "Проверьте пароль учётной записи после установки пакета."
+
+#~ msgid ""
+#~ "Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
+#~ "more information."
+#~ msgstr ""
+#~ "Подробности смотрите в файле /usr/share/doc/mariadb-server-10.3/README."
+#~ "Debian."
+
+#~ msgid "New password for the MariaDB \"root\" user:"
+#~ msgstr "Новый пароль для MariaDB пользователя «root»:"
+
+#~ msgid ""
+#~ "While not mandatory, it is highly recommended that you set a password for "
+#~ "the MariaDB administrative \"root\" user."
+#~ msgstr ""
+#~ "Хотя и необязательно, но настоятельно рекомендуется установить пароль для "
+#~ "административного пользователя MariaDB «root»."
+
+#~ msgid "If this field is left blank, the password will not be changed."
+#~ msgstr "Если оставить поле пустым, то пароль изменён не будет."
+
+#~ msgid "Repeat password for the MariaDB \"root\" user:"
+#~ msgstr "Повторите ввод пароля для MariaDB пользователя «root»:"
+
+#~ msgid "Password input error"
+#~ msgstr "Ошибка ввода пароля"
+
+#~ msgid "The two passwords you entered were not the same. Please try again."
+#~ msgstr "Два введённых пароля не одинаковы. Повторите ввод."

@@ -1,26 +1,29 @@
-# Dutch mysql-dfsg-5.1 po-debconf translation,
+# Dutch mariadb-10.3.24-7 po-debconf translation,
 # Copyright (C) 2006 THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the mysql-dfsg-5.1 package.
+# This file is distributed under the same license as the mariadb-10.3 package.
 # Vincent Zweije <zweije@xs4all.nl>, 2006.
+# Frans Spiesschaert <Frans.Spiesschaert@yucom.be>, 2014, 2016.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: mysql-dfsg-5.1 5.0.30-1\n"
+"Project-Id-Version: mariadb-10.3.24-7\n"
 "Report-Msgid-Bugs-To: mariadb-10.3@packages.debian.org\n"
-"POT-Creation-Date: 2016-10-08 01:26+0300\n"
-"PO-Revision-Date: 2006-02-19 10.30+0100\n"
-"Last-Translator: Thijs Kinkhorst <thijs@debian.org>\n"
-"Language-Team: Debian-Dutch <debian-l10n-dutch@lists.debian.org>\n"
-"Language: \n"
+"POT-Creation-Date: 2016-04-13 11:44+0300\n"
+"PO-Revision-Date: 2016-04-18 20:55+0200\n"
+"Last-Translator: Frans Spiesschaert <Frans.Spiesschaert@yucom.be>\n"
+"Language-Team: Debian Dutch l10n Team <debian-l10n-dutch@lists.debian.org>\n"
+"Language: nl\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Gtranslator 2.91.6\n"
 
 #. Type: note
 #. Description
 #: ../mariadb-server-10.3.templates:2001
 msgid "The old data directory will be saved at new location"
-msgstr ""
+msgstr "De oude data-map zal op een nieuwe locatie bewaard worden"
 
 #. Type: note
 #. Description
@@ -30,6 +33,9 @@ msgid ""
 "indicates a database binary format version that cannot automatically be "
 "upgraded (or downgraded)."
 msgstr ""
+"Er bestaat op dit systeem een bestand met als naam /var/lib/mysql/debian-*."
+"flag. Het nummer duidt op een versie van het binair database-bestandsformaat "
+"dat niet automatisch opgewaardeerd (of gedegradeerd) kan worden."
 
 #. Type: note
 #. Description
@@ -38,6 +44,8 @@ msgid ""
 "Therefore the previous data directory will be renamed to /var/lib/mysql-* "
 "and a new data directory will be initialized at /var/lib/mysql."
 msgstr ""
+"Daarom zal de vroegere data-map hernoemd worden naar /var/lib/mysql-* en zal "
+"er een nieuwe data-map geïnitialiseerd worden op /var/lib/mysql."
 
 #. Type: note
 #. Description
@@ -45,14 +53,14 @@ msgstr ""
 msgid ""
 "Please manually export/import your data (e.g. with mysqldump) if needed."
 msgstr ""
+"Gelieve uw data zo nodig handmatig te exporteren/importeren (bijv. met "
+"mysqldump)."
 
 #. Type: note
 #. Description
 #: ../mariadb-server-10.3.templates:3001
-#, fuzzy
-#| msgid "Important note for NIS/YP users!"
 msgid "Important note for NIS/YP users"
-msgstr "Belangrijke opmerking voor gebruikers van NIS/YP!"
+msgstr "Belangrijke opmerking voor gebruikers van NIS/YP"
 
 #. Type: note
 #. Description
@@ -61,6 +69,8 @@ msgid ""
 "Using MariaDB under NIS/YP requires a mysql user account to be added on the "
 "local system with:"
 msgstr ""
+"Het gebruik van MariaDB onder NIS/YP vereist dat een mysql gebruikersaccount "
+"wordt toegevoegd aan het lokale systeem met:"
 
 #. Type: note
 #. Description
@@ -69,12 +79,14 @@ msgid ""
 "You should also check the permissions and ownership of the /var/lib/mysql "
 "directory:"
 msgstr ""
+"U moet ook controleren wie eigenaar is en wat de gebruikersrechten zijn van "
+"de map /var/lib/mysql:"
 
 #. Type: boolean
 #. Description
 #: ../mariadb-server-10.3.templates:4001
 msgid "Remove all MariaDB databases?"
-msgstr ""
+msgstr "Wilt u alle MariaDB-databases verwijderen?"
 
 #. Type: boolean
 #. Description
@@ -83,209 +95,110 @@ msgid ""
 "The /var/lib/mysql directory which contains the MariaDB databases is about "
 "to be removed."
 msgstr ""
+"De map /var/lib/mysql die de MariaDB-databases bevat staat op het punt om "
+"verwijderd te worden."
 
 #. Type: boolean
 #. Description
 #: ../mariadb-server-10.3.templates:4001
-#, fuzzy
-#| msgid ""
-#| "The script is about to remove the data directory /var/lib/mysql. If it is "
-#| "planned to just install a higher MySQL version or if a different mysql-"
-#| "server package is already using it, the data should be kept."
 msgid ""
 "If you're removing the MariaDB package in order to later install a more "
 "recent version or if a different mariadb-server package is already using it, "
 "the data should be kept."
 msgstr ""
-"Het script staat op het punt de datamap /var/lib/mysql te verwijderen. Als "
-"het plan alleen maar is om een hogere MariaDB versie te installeren, of als "
-"een ander mariadb-serverpakket de datamap al gebruikt, dan zou de data "
-"moeten worden behouden."
+"Als u het MariaDB-pakket verwijdert om later een meer recente versie te "
+"installeren of als een ander mariadb-serverpakket het al gebruikt, zou de "
+"data behouden moeten worden."
 
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-#, fuzzy
-#| msgid "New password for MySQL \"root\" user:"
-msgid "New password for the MariaDB \"root\" user:"
-msgstr "Nieuw wachtwoord voor de MariaDB \"root\"-gebruiker:"
+#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
+#~ msgstr ""
+#~ "Er bestaat een bestand genaamd /var/lib/mysql/debian-*.flag op dit "
+#~ "systeem."
 
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-#, fuzzy
-#| msgid ""
-#| "It is highly recommended that you set a password for the MySQL "
-#| "administrative \"root\" user."
-msgid ""
-"While not mandatory, it is highly recommended that you set a password for "
-"the MariaDB administrative \"root\" user."
-msgstr ""
-"Het wordt sterk aangeraden een wachtwoord in te stellen voor de "
-"administratieve MariaDB \"root\"-gebruiker."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "If this field is left blank, the password will not be changed."
-msgstr ""
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:6001
-#, fuzzy
-#| msgid "New password for MySQL \"root\" user:"
-msgid "Repeat password for the MariaDB \"root\" user:"
-msgstr "Nieuw wachtwoord voor de MariaDB \"root\"-gebruiker:"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid "Unable to set password for MySQL \"root\" user"
-msgid "Unable to set password for the MariaDB \"root\" user"
-msgstr "Kan het wachtwoord voor de MariaDB \"root\"-gebruiker niet instellen"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "It seems an error occurred while setting the password for the MySQL "
-#| "administrative user.  This may have happened because the user already has "
-#| "a password, or because there was a problem communicating with the MySQL "
-#| "server."
-msgid ""
-"An error occurred while setting the password for the MariaDB administrative "
-"user. This may have happened because the account already has a password, or "
-"because of a communication problem with the MariaDB server."
-msgstr ""
-"Er lijkt een fout te zijn opgetreden bij het instellen van het wachtwoord "
-"van de MariaDB administratieve gebruiker. Dat kan komen doordat de gebruiker "
-"al een wachtwoord heeft, of omdat er een probleem was bij het communiceren "
-"met de MariaDB server."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "You should check the account's password after the package installation."
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid ""
-"Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-"more information."
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "Password input error"
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
-
-#, fuzzy
-#~| msgid "Do you really want to downgrade?"
 #~ msgid "Really proceed with downgrade?"
 #~ msgstr "Wilt u echt een oude versie herstellen?"
 
-#, fuzzy
-#~| msgid ""
-#~| "WARNING: The file /var/lib/mysql/debian-*.flag exists. This indicates "
-#~| "that a mysql-server package with a higher version has been installed "
-#~| "before. It can not be guaranteed that this version can use its data."
 #~ msgid ""
 #~ "Such a file is an indication that a mariadb-server package with a higher "
 #~ "version has been installed previously."
 #~ msgstr ""
-#~ "Waarschuwing: waarschijnlijk is een hogere versie van het mariadb-server "
-#~ "pakket geïnstalleerd geweest (het bestand /var/lib/mysql/debian-*.flag "
-#~ "bestaat). Er is geen garantie dat de gegevensbestanden, bewerkt met die "
-#~ "hogere versie, kunnen worden gebruikt met de versie van mysql die u nu "
-#~ "installeert."
-
-#, fuzzy
-#~| msgid "Should MySQL start on boot?"
-#~ msgid "Start the MariaDB server on boot?"
-#~ msgstr "Moet MariaDB starten als de computer start?"
-
-#, fuzzy
-#~| msgid ""
-#~| "The MySQL can start automatically on boot time or only if you manually "
-#~| "type '/etc/init.d/mysql start'."
-#~ msgid ""
-#~ "The MariaDB server can be launched automatically at boot time or manually "
-#~ "with the '/etc/init.d/mysql start' command."
-#~ msgstr ""
-#~ "MariaDB kan automatisch starten bij het starten van de computer, of "
-#~ "slechts wanneer u '/etc/init.d/mysql start' handmatig uitvoert."
+#~ "Zulk een bestand geeft aan dat er eerder een pakket mariadb-server met "
+#~ "een hogere versie is geĩnstalleerd."
 
 #~ msgid ""
-#~ "Support MySQL connections from hosts running Debian \"sarge\" or older?"
+#~ "There is no guarantee that the version you're currently installing will "
+#~ "be able to use the current databases."
 #~ msgstr ""
-#~ "Moet u MySQL-verbindingen accepteren van computers die Debian \"sarge\" "
-#~ "of ouder draaien?"
+#~ "Er is geen garantie dat de versie die u op dit moment installeert de "
+#~ "huidige databases kan gebruiken."
 
-#, fuzzy
-#~| msgid ""
-#~| "The way passwords were stored was not very secure. This has been "
-#~| "improved with the drawback that clients (e.g. PHP) from hosts running "
-#~| "Debian 3.1 Sarge will not be able to connect to account which are new or "
-#~| "whose password have been changed. See /usr/share/doc/mysql-server-5.1/"
-#~| "README.Debian."
-#~ msgid ""
-#~ "In old versions of MySQL clients on Debian, passwords were not stored "
-#~ "securely. This has been improved since then, however clients (such as "
-#~ "PHP) from hosts running Debian 3.1 Sarge will not be able to connect to "
-#~ "recent accounts or accounts whose password have been changed."
-#~ msgstr ""
-#~ "De wijze waarop wachtwoorden werden bewaard was niet erg veilig. Dit is "
-#~ "verbeterd, maar helaas zullen programma's van computers die Debian 3.1 "
-#~ "Sarge draaien, geen verbinding meer kunnen maken met accounts die nieuw "
-#~ "zijn, of waarvan het wachtwoord is gewijzigd. Zie /usr/share/doc/mysql-"
-#~ "server-5.1/README.Debian."
+#~ msgid "Really migrate to MariaDB?"
+#~ msgstr "Wilt u echt overschakelen op MariaDB?"
 
 #~ msgid ""
-#~ "To use mysql you must install an equivalent user and group to the "
-#~ "following and ensure yourself that /var/lib/mysql has the right "
-#~ "permissions (the uid/gid may be different)."
+#~ "MariaDB is a drop-in replacement for MySQL. It will use your current "
+#~ "configuration file (my.cnf) and current databases."
 #~ msgstr ""
-#~ "Om mysql te gebruiken dient u een gebruiker en groep aan te maken, "
-#~ "gelijkwaardig aan onderstaand voorbeeld, en u dient ervoor te zorgen dat /"
-#~ "var/lib/mysql de bijbehorende toegangsrechten heeft (uid en gid mogen "
-#~ "anders zijn)."
+#~ "MariaDB is een volwaardige vervanger voor MySQL. Het zal de bestaande "
+#~ "configuratiebestanden (my.cnf) en de bestaande databases gebruiken."
 
 #~ msgid ""
-#~ "/etc/passwd:      mysql:x:100:101:MySQL Server:/var/lib/mysql:/bin/false"
+#~ "Note that MariaDB has some enhanced features, which do not exist in MySQL "
+#~ "and thus migration back to MySQL might not always work, at least not as "
+#~ "automatically as migrating from MySQL to MariaDB."
 #~ msgstr ""
-#~ "/etc/passwd:      mysql:x:100:101:MySQL Server:/var/lib/mysql:/bin/false"
+#~ "Merk op dat MariaDB een aantal uitbreidingen heeft die niet bestaan in "
+#~ "MySQL. Daardoor zal terug overschakelen op MySQL niet altijd lukken, of "
+#~ "althans niet even automatisch als overschakelen van MySQL op MariaDB."
 
-#~ msgid "/etc/group:       mysql:x:101:"
-#~ msgstr "/etc/group:       mysql:x:101:"
-
-#~ msgid "/var/lib/mysql:   drwxr-xr-x   mysql    mysql"
-#~ msgstr "/var/lib/mysql:   drwxr-xr-x   mysql    mysql"
-
-#~ msgid "Remove the databases used by all MySQL versions?"
-#~ msgstr "Databases verwijderen die door alle MySQL versies worden gebruikt?"
+#~ msgid "Unable to set password for the MariaDB \"root\" user"
+#~ msgstr ""
+#~ "Kan het wachtwoord voor de MariaDB \"root\"-gebruiker niet instellen"
 
 #~ msgid ""
-#~ "If you do not provide a password no changes will be made to the account."
+#~ "An error occurred while setting the password for the MariaDB "
+#~ "administrative user. This may have happened because the account already "
+#~ "has a password, or because of a communication problem with the MariaDB "
+#~ "server."
 #~ msgstr ""
-#~ "Indien u geen wachtwoord opgeeft zal het account niet worden gewijzigd."
+#~ "Er is een fout opgetreden bij het instellen van het wachtwoord voor de "
+#~ "MariaDB-beheerder. Dat kan komen doordat het account al een wachtwoord "
+#~ "heeft, of omdat er een probleem was bij het communiceren met de MariaDB-"
+#~ "server."
 
 #~ msgid ""
-#~ "When installation finishes, you should verify that the account is "
-#~ "properly protected with a password (see README.Debian for more "
-#~ "information)."
+#~ "You should check the account's password after the package installation."
 #~ msgstr ""
-#~ "Wanneer de installatie klaar is, dient u te verifiëren dat het account "
-#~ "netjes beschermd is met een wachtwoord (zie README.Debian voor meer "
-#~ "informatie)."
+#~ "U zou het wachtwoord van het account moeten controleren nadat het pakket "
+#~ "is geĩnstalleerd."
+
+#~ msgid ""
+#~ "Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
+#~ "more information."
+#~ msgstr ""
+#~ "Raadpleeg voor bijkomende informatie het bestand /usr/share/doc/mariadb-"
+#~ "server-10.3/README.Debian."
+
+#~ msgid "New password for the MariaDB \"root\" user:"
+#~ msgstr "Nieuw wachtwoord voor de MariaDB \"root\"-gebruiker:"
+
+#~ msgid ""
+#~ "While not mandatory, it is highly recommended that you set a password for "
+#~ "the MariaDB administrative \"root\" user."
+#~ msgstr ""
+#~ "Hoewel niet verplicht, wordt het sterk aangeraden een wachtwoord in te "
+#~ "stellen voor de \"root\"-gebruiker (beheerder) van MariaDB."
+
+#~ msgid "If this field is left blank, the password will not be changed."
+#~ msgstr ""
+#~ "Als dit veld leeg wordt gelaten, zal het wachtwoord niet worden veranderd."
+
+#~ msgid "Repeat password for the MariaDB \"root\" user:"
+#~ msgstr "Herhaal het wachtwoord voor de MariaDB \"root\"-gebruiker:"
+
+#~ msgid "Password input error"
+#~ msgstr "Fout bij het invoeren van het wachtwoord"
+
+#~ msgid "The two passwords you entered were not the same. Please try again."
+#~ msgstr ""
+#~ "De twee wachtwoorden die u invoerde waren niet gelijk. Probeer opnieuw."

@@ -1,0 +1,48 @@
+#!/bin/sh
+set -ex
+
+# dep8 smoke test for mysql-server
+# Author: Robie Basak <robie.basak at canonical.com>
+#
+# This test should be declared in debian/tests/control with a dependency
+# on the package that provides a configured MariaDB server (eg.
+# mariadb-server-<ver>).
+#
+# This test should be declared in debian/tests/control with the
+# following restrictions:
+#
+# needs-root (to be able to log into the database)
+# allow-stderr
+#
+# This test:
+#
+# 1) Creates a test database and test user as the root user.
+#
+# 2) Creates a test table and checks it appears to operate normally
+# using the test user and test database.
+
+mysql <<EOT
+CREATE DATABASE testdatabase;
+CREATE USER 'testuser'@'localhost' identified by 'testpassword';
+GRANT ALL ON testdatabase.* TO 'testuser'@'localhost';
+EOT
+
+mysql testdatabase <<EOT
+CREATE TABLE foo (bar INTEGER);
+INSERT INTO foo (bar) VALUES (41);
+EOT
+
+result=`echo 'SELECT bar+1 FROM foo;'|mysql --batch --skip-column-names --user=testuser --password=testpassword testdatabase`
+if [ "$result" != "42" ]; then
+       echo "Unexpected result" >&2
+       exit 1
+fi
+
+mysql --user=testuser --password=testpassword testdatabase <<EOT
+DROP TABLE foo;
+EOT
+
+mysql <<EOT
+DROP DATABASE testdatabase;
+DROP USER 'testuser'@'localhost';
+EOT

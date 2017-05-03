@@ -1,0 +1,17 @@
+spider.basic_sql : https://jira.mariadb.org/browse/MDEV-9329
+spider.basic_sql_part : MDEV-9329
+spider/bg.ha : MDEV-9329
+spider/bg.ha_part : MDEV-9329
+spider/bg.vp_fixes : MDEV-9329
+spider.spider_fixes : MDEV-9329
+spider.spider3_fixes : MDEV-9329
+spider.spider3_fixes_part : MDEV-9329
+spider.direct_update : MDEV-9329
+spider.function : MDEV-9329
+spider.direct_aggregate : MDEV-9329
+spider.direct_aggregate_part : MDEV-9329
+sys_vars.autocommit_func2 : MDEV-9329
+rpl.rpl_row_sp001 : MDEV-9329
+rpl.rpl_insert : MDEV-9329
+rpl.rpl_insert_delayed : MDEV-9329
+main.delayed : https://jira.mariadb.org/browse/MDEV-9679

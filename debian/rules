@@ -6,24 +6,16 @@ export DH_VERBOSE=1
 # see: https://wiki.debian.org/Hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie
 DPKG_EXPORT_BUILDFLAGS = 1
-include /usr/share/dpkg/buildflags.mk
+include /usr/share/dpkg/default.mk
 
-ARCH := $(shell dpkg-architecture -qDEB_BUILD_ARCH)
-ARCH_OS := $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)
 BUILDDIR := builddir
-DEB_HOST_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
-DEB_BUILD_GNU_SYSTEM ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_SYSTEM)
-DEB_BUILD_ARCH ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
-DEBVERSION := $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed 's/^.*-//' )
-DEB_SOURCE_PACKAGE ?= $(strip $(shell egrep '^Source: ' debian/control | cut -f 2 -d ':'))
-DEB_VERSION ?= $(shell dpkg-parsechangelog | egrep '^Version:' | cut -f 2 -d ' ')
-DEB_NOEPOCH_VERSION ?= $(shell echo $(DEB_VERSION) | cut -d: -f2-)
-DEB_UPSTREAM_VERSION ?= $(shell echo $(DEB_NOEPOCH_VERSION) | sed 's/-[^-]*$$//')
-DEB_UPSTREAM_VERSION_MAJOR_MINOR := $(shell echo $(DEB_UPSTREAM_VERSION) | sed -r -n 's/^([0-9]+\.[0-9]+).*/\1/p')
-DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
-DISTRIBUTION := $(shell lsb_release -i -s)
-RELEASE := $(shell lsb_release -r -s)
+DEB_VERSION_REVISION := $(shell echo '$(DEB_VERSION)' | sed -e 's/^.*-//')
+MARIADB_SERIES := $(shell echo '$(DEB_VERSION_UPSTREAM)' | sed -e 's/\.[0-9]*$$//')
+RELEASE := $(shell lsb_release -r -s) # Use changelog based DEB_DISTRIBUTION instead?
 TMP:=$(CURDIR)/debian/tmp
+
+GENERATED_SOURCES=$(shell find debian/ -name '*@MARIADB_SERIES@*')
+GENERATED_FILES=$(shell echo $(GENERATED_SOURCES) | sed -e 's/@MARIADB_SERIES@/$(MARIADB_SERIES)/g')
 
 CC := $(DEB_HOST_GNU_TYPE)-gcc
 CXX := $(DEB_HOST_GNU_TYPE)-g++
@@ -39,106 +31,78 @@ else
 endif
 
 # Ignore test suite exit code on unstable platforms
-ifneq (,$(filter $(ARCH), mips mipsel))
+ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),mips mipsel alpha powerpc sh4 s390x))
     TESTSUITE_FAIL_CMD:=true
 else
     TESTSUITE_FAIL_CMD:=exit 1
 endif
 
-# Skip TokuDB if arch is not amd64
-ifneq ($(ARCH), amd64)
+ifeq (32,$(DEB_HOST_ARCH_BITS))
+    CMAKEFLAGS += -DWITHOUT_ROCKSDB=true
+endif
+
+# Skip TokuDB if arch is not amd64 (also disable for kfreebsd-amd64 as it FTBFS)
+# Skipped on the x32 ABI too; untested, but unlikely to work given i386 is not
+# supported.
+ifneq ($(DEB_HOST_ARCH_ABI)-$(DEB_HOST_ARCH_CPU), base-amd64)
     CMAKEFLAGS += -DWITHOUT_TOKUDB=true
 endif
 
 # Add support for verbose builds
+ifneq (,$(filter verbose,$(DEB_BUILD_OPTIONS)))
 MAKEFLAGS += VERBOSE=1
+endif
 
-override_dh_auto_clean:
-	@echo "RULES.$@"
-	dh_testdir
-	dh_testroot
-	[ ! -d mysql-test/var ] || rm -rf mysql-test/var
+override_dh_auto_clean: generated-files
+	rm -rf mysql-test/var
+	rm -f storage/mroonga/mysql-test/mroonga/storage/r/information_schema_plugins.result
+	rm -f storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
+	rm -f debian/mariadb-server-$(MARIADB_SERIES).mariadb.service
+	rm -f debian/mariadb-server-$(MARIADB_SERIES).mariadb@.service
 	rm -rf $(BUILDDIR)
-	debconf-updatepo # Update po-files when clean runs before each build
 
-override_dh_prep:
-        # Don't clean /tmp/ away, it is needed by all binary packages
+	[ ! -f debian/mysql-test-unstable-tests.orig ] || \
+	    mv debian/mysql-test-unstable-tests.orig mysql-test/unstable-tests
+
+	debconf-updatepo # Update po-files when clean runs before each build
+	rm -f $(GENERATED_FILES)
+
+override_dh_auto_build:
+	cd $(BUILDDIR) && ninja -j $(NUMJOBS)
 
 override_dh_auto_configure:
-	@echo "RULES.$@"
-	dh_testdir
-
-	# Versioned symbols are only available on Linux.
-	# Remove symbols file on kFreeBSD builds so that
-	# dpkg-gensymbols will not fail the build.
-ifneq (,$(filter $(ARCH), kfreebsd-i386 kfreebsd-amd64))
-	rm debian/libmariadb3.symbols
-endif
-
 	mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && \
-	sh -c  'PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
-	    	CC=${CC} \
-	    	CXX=${CXX} \
-	    cmake -DCMAKE_INSTALL_PREFIX=/usr \
+	PATH=$${MYSQL_BUILD_PATH:-"/usr/local/bin:/usr/bin:/bin"} \
+	CC=$(CC) \
+	CXX=$(CXX) \
+	cmake \
+	    -G Ninja -DCMAKE_MAKE_PROGRAM=/usr/bin/ninja \
+	    -DCMAKE_INSTALL_PREFIX=/usr \
 	    $(CMAKEFLAGS) \
-	    -DCOMPILATION_COMMENT="mariadb.org binary distribution" \
-	    -DMYSQL_SERVER_SUFFIX="-$(DEBVERSION)" \
-	    -DSYSTEM_TYPE="debian-$(DEB_BUILD_GNU_SYSTEM)" \
-	    $${MYSQL_BUILD_CXX:+-DCMAKE_CXX_COMPILER=$${MYSQL_BUILD_CXX}} \
-	    $${MYSQL_BUILD_CC:+-DCMAKE_C_COMPILER=$${MYSQL_BUILD_CC}} \
-	    $${MYSQL_COMPILER_LAUNCHER:+-DCMAKE_CXX_COMPILER_LAUNCHER=${MYSQL_COMPILER_LAUNCHER}} \
-	    $${MYSQL_COMPILER_LAUNCHER:+-DCMAKE_C_COMPILER_LAUNCHER=${MYSQL_COMPILER_LAUNCHER}} \
-	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_BUILD_ARCH) \
+	    -DAWS_SDK_EXTERNAL_PROJECT=OFF \
+	    -DWITH_SSL=bundled \
+	    -DCOMPILATION_COMMENT="$(DEB_VENDOR) $(RELEASE)" \
+	    -DMYSQL_SERVER_SUFFIX="-$(DEB_VERSION_REVISION)" \
+	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
+	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
 	    -DINSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH) \
-	    -DINSTALL_PLUGINDIR=lib/mysql/plugin \
+	    -DINSTALL_PLUGINDIR=lib/$(DEB_HOST_MULTIARCH)/mariadb3/plugin \
 	    -DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test \
-	    -DDEB=$(DISTRIBUTION) ..'
-	touch $@
-
-# This is needed, otherwise 'make test' will run before binaries have been built
-override_dh_auto_build:
-	@echo "RULES.$@"
-	# Print build env info to help debug builds on different platforms
-	dpkg-architecture
-	cd $(BUILDDIR) && $(MAKE)
-	touch $@
+	    -DPLUGIN_AUTH_SOCKET=STATIC \
+	    -DDEB=$(DEB_VENDOR) ..
 
 override_dh_auto_test:
-	@echo "RULES.$@"
-	dh_testdir
-	# Skip unstable tests if such are defined for arch
-	[ ! -f debian/unstable-tests.$(ARCH) ] || cat debian/unstable-tests.$(ARCH) >> mysql-test/unstable-tests
-	# Run testsuite
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	cd $(BUILDDIR)/mysql-test && ./mtr --force --mem --parallel=$(NUMJOBS) --skip-rpl --suite=main --skip-test-list=unstable-tests  || $(TESTSUITE_FAIL_CMD) ;
+	# Skip unstable tests if such are defined for arch
+	cp mysql-test/unstable-tests debian/mysql-test-unstable-tests.orig
+	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
+	# Run testsuite
+	cd $(BUILDDIR)/mysql-test && ./mtr --force --testcase-timeout=30 --suite-timeout=540 --retry=3 --parallel=$(NUMJOBS) --skip-test-list=unstable-tests  || $(TESTSUITE_FAIL_CMD) ;
 endif
 
-override_dh_auto_install:
-	@echo "RULES.$@"
-	dh_testdir
-	dh_testroot
-
-	# If TokuDB plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/tokudb/ha_tokudb.so ] || sed -i -e "/Package: mariadb-plugin-tokudb/,+16d" debian/control
-
-	# If Mroonga plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/mroonga/ha_mroonga.so ] || sed -i -e "/Package: mariadb-plugin-mroonga/,+15d" debian/control
-
-	# If libthrift-dev was available (manually installed, as it is
-	# not in Debian) and ha_cassandra.so was thus built, create package,
-	# otherwise skip it.
-	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+18d" debian/control
-
-	# If Spider plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/spider/ha_spider.so ] || sed -i -e "/Package: mariadb-plugin-spider/,+16d" debian/control
-
-	# Copy systemd files to a location available for dh_installinit
-	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.3.mariadb.service
-	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.3.mariadb@.service
-
-	# make install
-	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP)
+override_dh_auto_install: generated-files
+	cd $(BUILDDIR) && DESTDIR=$(CURDIR)/debian/tmp ninja -j $(NUMJOBS) install
 
 	# Delete runnable files we don't want to have in the test data package.
 	# This avoids triggering multiple Lintian errors.
@@ -147,50 +111,61 @@ override_dh_auto_install:
 
 	# nm numeric soft is not enough, therefore extra sort in command
 	# to satisfy Debian reproducible build requirements
-	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.3/mysqld.sym.gz
-
-	# For 5.0 -> 10.3 transition
-	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
-	mkdir -p $$d; \
-	cp debian/mariadb-server-10.3.mysql.init $$d/_etc_init.d_mysql; \
-	cp debian/mariadb-server-10.3.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
-	cp debian/additions/debian-start $$d/_etc_mysql_debian-start;
+	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-$(MARIADB_SERIES)/mysqld.sym.gz
 
 	# rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
-	# install Apport hook
-	install -D -m 644 debian/mariadb-server-10.3.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.3.py
-
-	# Install libmariadbclient18 compatibility links
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
-
-	# Install libmysqlclientclientXX compatibility links
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.18
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
-
-	touch $@
 
 override_dh_installlogrotate-arch:
-	dh_installlogrotate --name mysql-server
+	dh_installlogrotate --name mariadb
 
 override_dh_systemd_enable:
 	dh_systemd_enable --name=mariadb
 	dh_systemd_enable --no-enable --name=mariadb@
 
-# Start mysql at sequence number 19 before 20 where apache, proftpd etc gets
+# Start mariadb at sequence number 19 before 20 where apache, proftpd etc gets
 # started which might depend on a running database server.
 override_dh_installinit-arch:
-	dh_installinit --name=mysql -- defaults 19 21
+	dh_installinit --name=mariadb -- defaults 19 21
 	dh_systemd_start --restart-after-upgrade
 
 override_dh_installcron-arch:
-	dh_installcron --name mysql-server
+	dh_installcron --name mariadb
 
 get-orig-source:
 	uscan --force-download --verbose
 
+%: prepared-files
 %:
-	dh $@ --parallel --with dpatch --with systemd
+	dh $@ -B$(BUILDDIR) --parallel --with systemd --fail-missing -Xtrace_example.so
+
+
+generated-files: $(GENERATED_FILES)
+
+$(GENERATED_FILES): $(GENERATED_SOURCES)
+	for in in $(GENERATED_SOURCES); do \
+	  out=$$(echo $$in | sed -e 's/@MARIADB_SERIES@/$(MARIADB_SERIES)/g'); \
+	  sed -e 's/@MARIADB_SERIES@/$(MARIADB_SERIES)/g' \
+	    < "$$in" \
+	    > "$$out"; \
+	  chmod --reference="$$in" "$$out"; \
+	done
+
+prepared-files: debian/control debian/tests/control debian/po/templates.pot debian/po/POTFILES.in
+	wrap-and-sort -a
+
+debian/control: debian/control.in debian/rules debian/changelog
+	sed -e "s/@MARIADB_SERIES@/$(MARIADB_SERIES)/g" >$@ <debian/control.in
+
+debian/tests/control: debian/tests/control.in debian/rules debian/changelog
+	sed -e "s/@MARIADB_SERIES@/$(MARIADB_SERIES)/g" >$@ <debian/tests/control.in
+
+debian/po/templates.pot: debian/po/templates.pot.in debian/rules debian/changelog
+	sed -e "s/@MARIADB_SERIES@/$(MARIADB_SERIES)/g" >$@ <debian/po/templates.pot.in
+
+debian/po/POTFILES.in: debian/po/POTFILES.in.in debian/rules debian/changelog
+	sed -e "s/@MARIADB_SERIES@/$(MARIADB_SERIES)/g" >$@ <debian/po/POTFILES.in.in
+
+.PHONY: get-orig-source prepared-files generated-files $(GENERATED_FILES)
 
 # vim: ts=8

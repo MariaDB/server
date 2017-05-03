@@ -4,6 +4,8 @@
 #
 # Changes to this file will be preserved when updating the Debian package.
 #
+# NOTE: This file is read only by the traditional SysV init script, not systemd.
+#
 
 source /usr/share/mysql/debian-start.inc.sh
 

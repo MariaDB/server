@@ -1,3 +1,2 @@
-usr/bin/mariadb_config
 usr/lib/*/libmysqld.a
 usr/lib/*/libmysqld.so

@@ -14,15 +14,12 @@ set -e
 # at this stage at all.
 if [[ ! $TRAVIS ]]
 then
-  export DEB_BUILD_OPTIONS="nocheck"
+  export DEB_BUILD_OPTIONS="nocheck ${DEB_BUILD_OPTIONS}"
 fi
 
 # Travis-CI optimizations
 if [[ $TRAVIS ]]
 then
-  # On Travis-CI, the log must stay under 4MB so make the build less verbose
-  sed -i -e '/Add support for verbose builds/,+2d' debian/rules
-
   # Don't include test suite package on Travis-CI to make the build time shorter
   sed '/Package: mariadb-test-data/,+28d' -i debian/control
   sed '/Package: mariadb-test/,+36d' -i debian/control
@@ -67,9 +64,9 @@ then
   sed 's/ --with systemd//' -i debian/rules
   sed '/systemd/d' -i debian/rules
   sed '/\.service/d' -i debian/rules
-  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.3.install
-  sed '/galera_recovery/d' -i debian/mariadb-server-10.3.install
-  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.3.install
+  sed '/galera_new_cluster/d' -i debian/mariadb-server-@MARIADB_SERIES@.install
+  sed '/galera_recovery/d' -i debian/mariadb-server-@MARIADB_SERIES@.install
+  sed '/mariadb-service-convert/d' -i debian/mariadb-server-@MARIADB_SERIES@.install
 fi
 
 # Convert gcc version to numberical value. Format is Mmmpp where M is Major
@@ -88,11 +85,11 @@ echo "Incrementing changelog and starting build scripts"
 # Find major.minor version
 source ./VERSION
 UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${MYSQL_VERSION_EXTRA}"
-PATCHLEVEL="+maria"
+PATCHLEVEL="-0+maria"
 LOGSTRING="MariaDB build"
 CODENAME="$(lsb_release -sc)"
 
-dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
+dch --force-bad-version --force-distribution -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
 
 echo "Creating package version ${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
 

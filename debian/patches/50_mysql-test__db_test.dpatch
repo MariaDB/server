@@ -1,16 +1,16 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 50_mysql-test__db_test.dpatch by Christian Hammers <ch@debian.org>
-##
-## All lines beginning with `## DP:' are a description of the patch.
-## DP: Patch 33_scripts__mysql_create_system_tables__no_test removes the
-## DP: rights for anybody to connect to the test database but the test
-## DP: suite depends on them.
+From: Christian Hammers <ch@debian.org>
+Date: Wed, 3 May 2017 13:51:59 +0200
+Subject: mysql-test db_test
 
-@DPATCH@
+---
+ mysql-test/mysql-test-run.pl | 5 +++++
+ 1 file changed, 5 insertions(+)
 
---- old/mysql-test/mysql-test-run.pl	2009-06-16 14:24:09.000000000 +0200
-+++ new/mysql-test/mysql-test-run.pl	2009-07-04 00:03:34.000000000 +0200
-@@ -3578,6 +3578,11 @@ sub mysql_install_db {
+diff --git a/mysql-test/mysql-test-run.pl b/mysql-test/mysql-test-run.pl
+index 0b61bfc..d0faeee 100755
+--- a/mysql-test/mysql-test-run.pl
++++ b/mysql-test/mysql-test-run.pl
+@@ -3164,6 +3164,11 @@ sub mysql_install_db {
      mtr_appendfile_to_file("$sql_dir/mysql_system_tables_data.sql",
  			   $bootstrap_sql_file);
  

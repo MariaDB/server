@@ -1,0 +1,102 @@
+# README for Debian packaging contributors #
+
+This documentation describes how to contribute to the official Debian packages
+of MariaDB. The packaging in Debian repositories is not identical to the packaging
+in mariadb.org repositories, but whatever is in Debian repositories will eventually
+be upstreamed.
+
+
+## Development environment and tools
+
+Use a recent version of Debian or Ubuntu as the environment for Debian packaging
+testing and development. Preferred environment is Debian Sid (unstable).
+
+Install the tool used to manage and build the source
+  sudo apt-get install git-buildpackage
+
+
+## Getting the source
+
+The official Debian package source is available at
+  * git://git.debian.org/git/pkg-mysql/mariadb.git
+  * browseable at https://anonscm.debian.org/git/pkg-mysql/mariadb.git
+
+However, git.debian.org does not provide any kind of pull request or gerrit
+work-flow, so it is recommended to fork the Github mirror available at
+  * https://gitlab.sury.org/pkg-mariadb/mariadb
+
+Once you have a fork at Github, clone the source repository with all relevant
+branches (master, upstream, pristine-tar) to your local environment
+  gbp clone --pristine-tar git@github.com:{username}/mariadb.git
+
+Clone needs to be run only once. On later runs you can refresh your clone with
+relevant branches using
+  gbp pull --pristine-tar --force
+
+
+## Building the packages
+
+Build binaries, run testsuite and build Debian packages with
+  gbp buildpackage
+
+On the first run git-buildpackage will complain if some of the build dependencies
+defined in debian/control is missing. Simply install those packages and run the
+build again.
+
+If the build fails, the easiest way to clean up before a new run is
+  git clean -fdx && git reset --hard
+
+
+### Build options
+
+If you want to skip the mysql-test-run step (which takes a lot of time) set
+the following environment variable:
+  export DEB_BUILD_OPTIONS="nocheck"
+
+If you want to run the build in parallel on 2 CPUs and have verbose output:
+  export DEB_BUILD_OPTIONS="parallel=2 verbose"
+
+The options above can also be combined freely to get desired behavior.
+
+
+## Creating a feature or bugfix branch
+
+The repository has the following branch layout:
+  * upstream - contains the upstream source releases without modifications
+  * pristine-tar - contains extra delta needed to re-create the original
+    tarballs with the exactly same SHA-1 hash as the original tarballs by upstream
+  * master - packaging for Debian Sid (unstable)
+  * jessie - release branch for Debian Jessie
+  * ubuntu-15.04 - release branch for Ubuntu 15.04
+
+All new features and also bugfixes are done only in the master branch. The
+release branches for Debian and Ubuntu are only used for security updates.
+
+To prepare the Github pull request, create a bugfix branch from master with:
+  git checkout -b fix-example-name
+
+After this you can develop with all the usual git commit and push commands
+until you have in your fork at Github the desired change and you are ready
+to open the pull request.
+
+
+### Notes about how to make changes in the proper way
+
+First consider submitting your patch upstream. Upstream MariaDB makes frequent
+maintenance releases and any fix done upstream will therefore be included in
+Debian relatively quickly. You can send email to the developers mailing list
+or open a pull request at https://github.com/MariaDB/server.
+
+Follow these instructions is your fix is about packaging in Debian specifically.
+Start by using gitk or similar tool to browse the previous changes. Try to follow
+similar pattern in your new changes.
+
+Keep in mind that all changes must done only for files residing in the debian/
+subdirectory. If you need to create changes outside the debian/ directory,
+then you need to create a patch file using the same pattern as the patches
+found in debian/patches and activated by a line in debian/patches/series
+
+Do not bundle in you commit any changes to debian/changelog. The correct changelog
+entries will be created later by the maintainer using git-dch.
+
+For an example of a patch adding commit see https://github.com/ottok/mariadb-10.0/commit/8d2a7c909

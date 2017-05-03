@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/$(basename $0)

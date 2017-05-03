@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "install" ] || [ "$1" = "upgrade" ]; then
+    if dpkg --compare-versions "$2" lt-nl "10.0.20-3~" ; then
+
+        # revert fallback my.cnf symlink setup performed by mariadb-common
+        # from 10.0.17-1~exp2 upto 10.0.20-2
+        if [ -L /etc/mysql/my.cnf ] && [ -f /etc/mysql/my.cnf.old ]; then
+            if [ "$(readlink /etc/mysql/my.cnf)" = "mariadb.cnf" ]; then
+                echo "Reverting my.cnf -> mariadb.cnf symlink setup by mariadb-common"
+                rm /etc/mysql/my.cnf
+                mv /etc/mysql/my.cnf.old /etc/mysql/my.cnf
+            fi
+        fi
+
+    fi
+fi
+
+#DEBHELPER#

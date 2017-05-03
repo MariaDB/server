@@ -1,0 +1,35 @@
+#!/bin/sh
+# autopkgtest check: Build and run the upstream test suite.
+# (C) 2012 Canonical Ltd.
+# Author: Daniel Kessel <d.kessel@gmx.de>
+
+# running the mysql testsuite as described in:
+# https://bugs.launchpad.net/ubuntu/+source/mysql-5.5/+bug/959683
+
+echo "running test 'testsuite'"
+set -e
+
+SKIP_TEST_LST="/tmp/skip-test.lst"
+WORKDIR=$(mktemp -d)
+trap "rm -rf $WORKDIRi $SKIP_TEST_LST" 0 INT QUIT ABRT PIPE TERM
+cd $WORKDIR
+
+mkdir var
+mkdir tmp
+
+echo "using vardir: $WORKDIR/var"
+echo "using tmpdir: $WORKDIR/tmp"
+
+echo "Setting up skip-tests-list"
+cat > $SKIP_TEST_LST << EOF
+binlog.binlog_server_start_options : Requires writable /usr
+main.ctype_uca : Requires writable /usr
+rpl.rpl_gtid_mode : Requires starting server as root ref http://bugs.mysql.com/bug.php?id=70517
+EOF
+
+cd /usr/share/mysql/mysql-test
+echo "starting mysql-test-tun.pl..."
+perl -I. ./mysql-test-run.pl --suite=main --vardir=$WORKDIR/var --tmpdir=$WORKDIR/tmp \
+    --parallel=auto --skip-rpl \
+    --force --skip-test-list=$SKIP_TEST_LST $@ 2>&1
+echo "run: OK"

@@ -1,0 +1,8 @@
+Name: MariaDB
+Bug-Database: https://mariadb.org/jira
+Bug-Submit: https://mariadb.org/jira
+Contact: maria-developers@lists.launchpad.net
+Donation: https://mariadb.org/donate/
+Repository: git://github.com/MariaDB/server.git
+Repository-Browse: https://github.com/MariaDB/server
+Security-Contact: security@mariadb.org

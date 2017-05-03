@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: po-debconf://mysql-dfsg\n"
 "Report-Msgid-Bugs-To: mariadb-10.3@packages.debian.org\n"
-"POT-Creation-Date: 2016-10-08 01:26+0300\n"
+"POT-Creation-Date: 2016-04-30 22:44+0300\n"
 "PO-Revision-Date: 2006-12-20 21:27+0200\n"
 "Last-Translator: stan ioan-eugen <stan.ieugen@gmail.com>\n"
 "Language-Team: romanian <debian-l10n-romanian@lists.debian.org>\n"
@@ -102,95 +102,6 @@ msgstr ""
 "doar să instalaţi o versiune nouă MariaDB sau datele sunt folosite de către "
 "un alt pachet mariadb-server, atunci ar trebui păstraţi datele."
 
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-#, fuzzy
-#| msgid "New password for MySQL \"root\" user:"
-msgid "New password for the MariaDB \"root\" user:"
-msgstr "Noua parolă pentru utilizatorul „root” al MariaDB:"
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-#, fuzzy
-#| msgid ""
-#| "It is highly recommended that you set a password for the MySQL "
-#| "administrative \"root\" user."
-msgid ""
-"While not mandatory, it is highly recommended that you set a password for "
-"the MariaDB administrative \"root\" user."
-msgstr ""
-"Este recomandat să stabiliţi o parolă pentru utilizatorul administrativ "
-"„root” al MariaDB."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "If this field is left blank, the password will not be changed."
-msgstr ""
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:6001
-#, fuzzy
-#| msgid "New password for MySQL \"root\" user:"
-msgid "Repeat password for the MariaDB \"root\" user:"
-msgstr "Noua parolă pentru utilizatorul „root” al MariaDB:"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid "Unable to set password for MySQL \"root\" user"
-msgid "Unable to set password for the MariaDB \"root\" user"
-msgstr "Nu s-a putut stabili parola pentru utilizatorul „root” al MariaDB"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "It seems an error occurred while setting the password for the MySQL "
-#| "administrative user.  This may have happened because the user already has "
-#| "a password, or because there was a problem communicating with the MySQL "
-#| "server."
-msgid ""
-"An error occurred while setting the password for the MariaDB administrative "
-"user. This may have happened because the account already has a password, or "
-"because of a communication problem with the MariaDB server."
-msgstr ""
-"Se pare că a intervenit o eroare în stabilirea parolei pentru utilizatorul "
-"administrativ al MariaDB. Acest lucru se poate întâmpla dacă utilizatorul "
-"are deja o parolă, sau a existat o problemă în comunicarea cu serverul "
-"MariaDB."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "You should check the account's password after the package installation."
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid ""
-"Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-"more information."
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "Password input error"
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
-
 #, fuzzy
 #~| msgid "Do you really want to downgrade?"
 #~ msgid "Really proceed with downgrade?"
@@ -211,99 +122,44 @@ msgstr ""
 #~ "folosi datele versiunii instalate anterior."
 
 #, fuzzy
-#~| msgid "Should MySQL start on boot?"
-#~ msgid "Start the MariaDB server on boot?"
-#~ msgstr "Doriţi ca MariaDB să pornească la initializarea sistemului?"
+#~| msgid "Unable to set password for MySQL \"root\" user"
+#~ msgid "Unable to set password for the MariaDB \"root\" user"
+#~ msgstr "Nu s-a putut stabili parola pentru utilizatorul „root” al MariaDB"
 
 #, fuzzy
 #~| msgid ""
-#~| "The MySQL can start automatically on boot time or only if you manually "
-#~| "type '/etc/init.d/mysql start'."
+#~| "It seems an error occurred while setting the password for the MySQL "
+#~| "administrative user.  This may have happened because the user already "
+#~| "has a password, or because there was a problem communicating with the "
+#~| "MySQL server."
 #~ msgid ""
-#~ "The MariaDB server can be launched automatically at boot time or manually "
-#~ "with the '/etc/init.d/mysql start' command."
+#~ "An error occurred while setting the password for the MariaDB "
+#~ "administrative user. This may have happened because the account already "
+#~ "has a password, or because of a communication problem with the MariaDB "
+#~ "server."
 #~ msgstr ""
-#~ "MariaDB poate porni automat la iniţializarea sistemului sau doar dacă "
-#~ "rulaţi comanda „/etc/init.d/mysql start”."
+#~ "Se pare că a intervenit o eroare în stabilirea parolei pentru "
+#~ "utilizatorul administrativ al MariaDB. Acest lucru se poate întâmpla dacă "
+#~ "utilizatorul are deja o parolă, sau a existat o problemă în comunicarea "
+#~ "cu serverul MariaDB."
 
-#~ msgid "Cannot upgrade if ISAM tables are present!"
-#~ msgstr "Nu se poate face actualizarea dacă sunt prezente tabele ISAM!"
-
-#~ msgid ""
-#~ "Recent versions of MySQL can no longer use the old ISAM table format and "
-#~ "it is necessary to convert your tables to e.g. MyISAM before upgrading by "
-#~ "using \"mysql_convert_table_format\" or \"ALTER TABLE x ENGINE=MyISAM\". "
-#~ "The installation of mysql-server-5.1 will now abort. In case your old "
-#~ "mysql-server-4.1 gets removed nevertheless just reinstall it to convert "
-#~ "those tables."
-#~ msgstr ""
-#~ "Versiunile recente MySQL nu mai pot folosi vechiul format de tabele ISAM "
-#~ "şieste necesar să convertiţi tabelele dumneavoastră de ex. la formatul "
-#~ "MyISAM înainte de a face actualizarea folosind comanda "
-#~ "„mysql_convert_table_format” sau „ALTER TABLE x ENGINE=MyISAM”. "
-#~ "Instalarea mysql-server-5.1 va eşua. În caz că ştergeţiversiunea "
-#~ "anterioară mysql-server-4.1 va trebui reinstalată pentru a converti "
-#~ "tabelele."
-
-#~ msgid ""
-#~ "Support MySQL connections from hosts running Debian \"sarge\" or older?"
-#~ msgstr ""
-#~ "Suportaţi conexiuni MySQL de la staţii ce rulează sistemul Debian „sarge” "
-#~ "sau mai vechi?"
+#, fuzzy
+#~| msgid "New password for MySQL \"root\" user:"
+#~ msgid "New password for the MariaDB \"root\" user:"
+#~ msgstr "Noua parolă pentru utilizatorul „root” al MariaDB:"
 
 #, fuzzy
 #~| msgid ""
-#~| "The way passwords were stored was not very secure. This has been "
-#~| "improved with the drawback that clients (e.g. PHP) from hosts running "
-#~| "Debian 3.1 Sarge will not be able to connect to account which are new or "
-#~| "whose password have been changed. See /usr/share/doc/mysql-server-5.1/"
-#~| "README.Debian."
+#~| "It is highly recommended that you set a password for the MySQL "
+#~| "administrative \"root\" user."
 #~ msgid ""
-#~ "In old versions of MySQL clients on Debian, passwords were not stored "
-#~ "securely. This has been improved since then, however clients (such as "
-#~ "PHP) from hosts running Debian 3.1 Sarge will not be able to connect to "
-#~ "recent accounts or accounts whose password have been changed."
+#~ "While not mandatory, it is highly recommended that you set a password for "
+#~ "the MariaDB administrative \"root\" user."
 #~ msgstr ""
-#~ "Modul în care erau păstrate parolele nu era foarte sigur. Acest lucru a "
-#~ "fost îmbunătăţitcu dezajantajul că clienţii (de ex. PHP) de pe staţii ce "
-#~ "rulează sistemul Debian 3.1 Sargenu se vor putea conecta la conturi noi "
-#~ "sau ale căror parole au fost schimbate. Citiţi /usr/share/doc/mysql-"
-#~ "server-5.1/README.Debian."
+#~ "Este recomandat să stabiliţi o parolă pentru utilizatorul administrativ "
+#~ "„root” al MariaDB."
 
-#~ msgid ""
-#~ "To use mysql you must install an equivalent user and group to the "
-#~ "following and ensure yourself that /var/lib/mysql has the right "
-#~ "permissions (the uid/gid may be different)."
-#~ msgstr ""
-#~ "Pentru a folosi mysql trebuie să adăugaţi un utilizator şi grup "
-#~ "echivalent şi să vă asiguraţi că /var/lib/mysql are permisiunile "
-#~ "stabilite corect (uid/gid pot aveavalori diferite)."
-
-#~ msgid ""
-#~ "/etc/passwd:      mysql:x:100:101:MySQL Server:/var/lib/mysql:/bin/false"
-#~ msgstr ""
-#~ "/etc/passwd:\tmysql:x:100:101:MySQL Server:/var/lib/mysql:/bin/false"
-
-#~ msgid "/etc/group:       mysql:x:101:"
-#~ msgstr "/etc/group:\tmysql:x:101:"
-
-#~ msgid "/var/lib/mysql:   drwxr-xr-x   mysql    mysql"
-#~ msgstr "/var/lib/mysql:\tdrwxr-xr-x\tmysql\tmysql"
-
-#~ msgid "Remove the databases used by all MySQL versions?"
-#~ msgstr "Doriţi să ştergeţi bazele de date folosite de toate versiune MySQL?"
-
-#~ msgid ""
-#~ "If you do not provide a password no changes will be made to the account."
-#~ msgstr ""
-#~ "Dacă nu introduceţi nici o parolă, nici o schimbare nu va fi luată în "
-#~ "considerare."
-
-#~ msgid ""
-#~ "When installation finishes, you should verify that the account is "
-#~ "properly protected with a password (see README.Debian for more "
-#~ "information)."
-#~ msgstr ""
-#~ "După finalizarea instalării, ar trebui să verificaţi dacă contul este "
-#~ "protejat cu o parolă (citiţi fişierul README.Debian pentru informaţii "
-#~ "suplimentare)."
+#, fuzzy
+#~| msgid "New password for MySQL \"root\" user:"
+#~ msgid "Repeat password for the MariaDB \"root\" user:"
+#~ msgstr "Noua parolă pentru utilizatorul „root” al MariaDB:"

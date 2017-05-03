@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: templates\n"
 "Report-Msgid-Bugs-To: mariadb-10.3@packages.debian.org\n"
-"POT-Creation-Date: 2016-10-08 01:26+0300\n"
+"POT-Creation-Date: 2016-04-30 22:44+0300\n"
 "PO-Revision-Date: 2007-05-01 13:04+0300\n"
 "Last-Translator: Ossama M. Khayat <okhayat@yahoo.com>\n"
 "Language-Team: Arabic <support@arabeyes.org>\n"
@@ -106,96 +106,11 @@ msgstr ""
 "إن كنت تقوم بإزالة حزمة MariaDB كي تقوم لاحقاً بتثبيت نسخة أحدث أو إن كانت "
 "حزمة mariadb-server مختلفة تستخدمها، فيجب إبقاء البيانات."
 
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "New password for the MariaDB \"root\" user:"
-msgstr "كلمة المرور الجديدة لمستخد \"root\" الخاص بـMariaDB:"
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid ""
-"While not mandatory, it is highly recommended that you set a password for "
-"the MariaDB administrative \"root\" user."
-msgstr ""
-"مع أنه ليس إجبارياً، ولكن من المستحسن أن تقوم بتعيين كلمة مرور خاصة بمستخدم "
-"MariaDB الإداري \"root\"."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-#, fuzzy
-#| msgid "If that field is left blank, the password will not be changed."
-msgid "If this field is left blank, the password will not be changed."
-msgstr "إن ترك الحقل فارغاً، فلن يتم تغيير كلمة المرور."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:6001
-#, fuzzy
-#| msgid "New password for the MariaDB \"root\" user:"
-msgid "Repeat password for the MariaDB \"root\" user:"
-msgstr "كلمة المرور الجديدة لمستخد \"root\" الخاص بـMariaDB:"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "Unable to set password for the MariaDB \"root\" user"
-msgstr "تعذر تعيين كلمة مرور للمستخدم \"root\" الخاص بـMariaDB."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid ""
-"An error occurred while setting the password for the MariaDB administrative "
-"user. This may have happened because the account already has a password, or "
-"because of a communication problem with the MariaDB server."
-msgstr ""
-"حدث خطأ أثناء تعيين كلمة المرور لمستخدم MariaDB الإداري. قد يكون هذا حدث "
-"بسبب أن حساب المستخدم له كلمة مرور معيّنة مسبقاً، أو بسبب مشكلة في الاتصال مع "
-"خادم MariaDB."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "You should check the account's password after tha package installation."
-msgid "You should check the account's password after the package installation."
-msgstr "يجب عليك التحقق من كلمة مرور الحساب عقب تثبيت الحزمة."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "Please read the /usr/share/doc/mysql-server-5.1/README.Debian file for "
-#| "more information."
-msgid ""
-"Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-"more information."
-msgstr ""
-"الرجاء قراءة الملف /usr/share/doc/mariadb-server-10.3/README.Debian للمزيد "
-"من المعلومات."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "Password input error"
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
+#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
+#~ msgstr "هناك ملف مسمى /var/lib/mysql/debian-*.flag موجود على هذا النظام."
 
 #~ msgid "Really proceed with downgrade?"
 #~ msgstr "هل فعلاً تريد التثبيط؟"
-
-#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
-#~ msgstr "هناك ملف مسمى /var/lib/mysql/debian-*.flag موجود على هذا النظام."
 
 #, fuzzy
 #~| msgid ""
@@ -214,36 +129,53 @@ msgstr ""
 #~ "ليست هناك أية ضمانة أن النسخة التي تقوم بتثبيتها ستكون قادرة على استخدام "
 #~ "قواعد البيانات الحالية."
 
-#~ msgid "Start the MariaDB server on boot?"
-#~ msgstr "تشغيل خادم MariaDB عند الإقلاع؟"
+#~ msgid "Unable to set password for the MariaDB \"root\" user"
+#~ msgstr "تعذر تعيين كلمة مرور للمستخدم \"root\" الخاص بـMariaDB."
 
 #~ msgid ""
-#~ "The MariaDB server can be launched automatically at boot time or manually "
-#~ "with the '/etc/init.d/mysql start' command."
+#~ "An error occurred while setting the password for the MariaDB "
+#~ "administrative user. This may have happened because the account already "
+#~ "has a password, or because of a communication problem with the MariaDB "
+#~ "server."
 #~ msgstr ""
-#~ "يمكن تشغيل خادم MariaDB آلياً وقت الإقلاع أو يدوياً باستخدام الأمر '/etc/"
-#~ "init.d/mysql start'."
+#~ "حدث خطأ أثناء تعيين كلمة المرور لمستخدم MariaDB الإداري. قد يكون هذا حدث "
+#~ "بسبب أن حساب المستخدم له كلمة مرور معيّنة مسبقاً، أو بسبب مشكلة في الاتصال "
+#~ "مع خادم MariaDB."
+
+#, fuzzy
+#~| msgid ""
+#~| "You should check the account's password after tha package installation."
+#~ msgid ""
+#~ "You should check the account's password after the package installation."
+#~ msgstr "يجب عليك التحقق من كلمة مرور الحساب عقب تثبيت الحزمة."
+
+#, fuzzy
+#~| msgid ""
+#~| "Please read the /usr/share/doc/mysql-server-5.1/README.Debian file for "
+#~| "more information."
+#~ msgid ""
+#~ "Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
+#~ "more information."
+#~ msgstr ""
+#~ "الرجاء قراءة الملف /usr/share/doc/mariadb-server-10.3/README.Debian "
+#~ "للمزيد من المعلومات."
+
+#~ msgid "New password for the MariaDB \"root\" user:"
+#~ msgstr "كلمة المرور الجديدة لمستخد \"root\" الخاص بـMariaDB:"
 
 #~ msgid ""
-#~ "To use MariaDB, the following entries for users and groups should be "
-#~ "added to the system:"
+#~ "While not mandatory, it is highly recommended that you set a password for "
+#~ "the MariaDB administrative \"root\" user."
 #~ msgstr ""
-#~ "كي تستخدم MariaDB، يجب إضافة المُدخلات التالية الخاصة بالمستخدمين "
-#~ "والمجموعات إلى النظام:"
+#~ "مع أنه ليس إجبارياً، ولكن من المستحسن أن تقوم بتعيين كلمة مرور خاصة "
+#~ "بمستخدم MariaDB الإداري \"root\"."
 
-#~ msgid ""
-#~ "Support MySQL connections from hosts running Debian \"sarge\" or older?"
-#~ msgstr ""
-#~ "هل تريد دعم اتصالات MySQL من الأجهزة التي تعمل على ديبيان \"sarge\" أو "
-#~ "أقدم؟"
+#, fuzzy
+#~| msgid "If that field is left blank, the password will not be changed."
+#~ msgid "If this field is left blank, the password will not be changed."
+#~ msgstr "إن ترك الحقل فارغاً، فلن يتم تغيير كلمة المرور."
 
-#~ msgid ""
-#~ "In old versions of MySQL clients on Debian, passwords were not stored "
-#~ "securely. This has been improved since then, however clients (such as "
-#~ "PHP) from hosts running Debian 3.1 Sarge will not be able to connect to "
-#~ "recent accounts or accounts whose password have been changed."
-#~ msgstr ""
-#~ "في إصدارات عملاء MySQL القديمة من ديبيان، لم تكن كلمات المرور تحفظ بشكل "
-#~ "آمن. ولقد حل هذه المشكلة بعدها، غير أن العملاء (مثل PHP) المتصلين من "
-#~ "أجهزة تعمل على ديبيان Sarge 3.1 لن يكونوا قادرين على الاتصال باستخدام "
-#~ "الحسابات الحديثة أو الحسابات التي تم تغيير كلمة مرورها."
+#, fuzzy
+#~| msgid "New password for the MariaDB \"root\" user:"
+#~ msgid "Repeat password for the MariaDB \"root\" user:"
+#~ msgstr "كلمة المرور الجديدة لمستخد \"root\" الخاص بـMariaDB:"

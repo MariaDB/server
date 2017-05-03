@@ -1,0 +1,5 @@
+version=3
+opts=\
+pgpsigurlmangle=s/$/.asc/,\
+uversionmangle=s/-(rc|beta)/$1/,pasv \
+ftp://ftp.osuosl.org/pub/mariadb/mariadb-10.3.([\d\.]*(?:-beta|-rc)?)/source/mariadb-([\d\.]*(?:-beta|-rc)?).tar.gz

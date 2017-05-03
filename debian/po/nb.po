@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mysql_nb\n"
 "Report-Msgid-Bugs-To: mariadb-10.3@packages.debian.org\n"
-"POT-Creation-Date: 2016-10-08 01:26+0300\n"
+"POT-Creation-Date: 2016-04-30 22:44+0300\n"
 "PO-Revision-Date: 2007-02-18 12:13+0100\n"
 "Last-Translator: Bjørn Steensrud <bjornst@powertech.no>\n"
 "Language-Team: Norwegian Bokmål <i18n-nb@lister.ping.uio.no>\n"
@@ -102,95 +102,6 @@ msgstr ""
 "beholdes hvis det bare skal installeres en høyere MariaDB-versjon, eller "
 "hvis en annen mariadb-server-pakke allerede bruker den."
 
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-#, fuzzy
-#| msgid "New password for MySQL \"root\" user:"
-msgid "New password for the MariaDB \"root\" user:"
-msgstr "Nytt passord for MariaDBs «root»-bruker:"
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-#, fuzzy
-#| msgid ""
-#| "It is highly recommended that you set a password for the MySQL "
-#| "administrative \"root\" user."
-msgid ""
-"While not mandatory, it is highly recommended that you set a password for "
-"the MariaDB administrative \"root\" user."
-msgstr ""
-"Det anbefales sterkt at du oppgir et passord for den administrative «root»-"
-"brukeren i MariaDB."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "If this field is left blank, the password will not be changed."
-msgstr ""
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:6001
-#, fuzzy
-#| msgid "New password for MySQL \"root\" user:"
-msgid "Repeat password for the MariaDB \"root\" user:"
-msgstr "Nytt passord for MariaDBs «root»-bruker:"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid "Unable to set password for MySQL \"root\" user"
-msgid "Unable to set password for the MariaDB \"root\" user"
-msgstr "Klarer ikke angi passord for MariaDBs «root»-bruker"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "It seems an error occurred while setting the password for the MySQL "
-#| "administrative user.  This may have happened because the user already has "
-#| "a password, or because there was a problem communicating with the MySQL "
-#| "server."
-msgid ""
-"An error occurred while setting the password for the MariaDB administrative "
-"user. This may have happened because the account already has a password, or "
-"because of a communication problem with the MariaDB server."
-msgstr ""
-"Det ser ut til at det oppsto en feil mens det ble satt et passord for "
-"MariaDBs administrative bruker. Dette kan være fordi brukeren allerede har "
-"et passord, eller fordi det var et kommunikasjonsproblem med MariaDB-"
-"tjeneren."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "You should check the account's password after the package installation."
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid ""
-"Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-"more information."
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "Password input error"
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
-
 #, fuzzy
 #~| msgid "Do you really want to downgrade?"
 #~ msgid "Really proceed with downgrade?"
@@ -211,78 +122,44 @@ msgstr ""
 #~ "høyere versjonen."
 
 #, fuzzy
-#~| msgid "Should MySQL start on boot?"
-#~ msgid "Start the MariaDB server on boot?"
-#~ msgstr "Skal MariaDB startes ved maskinoppstart?"
+#~| msgid "Unable to set password for MySQL \"root\" user"
+#~ msgid "Unable to set password for the MariaDB \"root\" user"
+#~ msgstr "Klarer ikke angi passord for MariaDBs «root»-bruker"
 
 #, fuzzy
 #~| msgid ""
-#~| "The MySQL can start automatically on boot time or only if you manually "
-#~| "type '/etc/init.d/mysql start'."
+#~| "It seems an error occurred while setting the password for the MySQL "
+#~| "administrative user.  This may have happened because the user already "
+#~| "has a password, or because there was a problem communicating with the "
+#~| "MySQL server."
 #~ msgid ""
-#~ "The MariaDB server can be launched automatically at boot time or manually "
-#~ "with the '/etc/init.d/mysql start' command."
+#~ "An error occurred while setting the password for the MariaDB "
+#~ "administrative user. This may have happened because the account already "
+#~ "has a password, or because of a communication problem with the MariaDB "
+#~ "server."
 #~ msgstr ""
-#~ "MariaDB kan startes automatisk når maskinen starter, eller bare hvis du "
-#~ "skriver «/etc/init.d/mysql start»."
+#~ "Det ser ut til at det oppsto en feil mens det ble satt et passord for "
+#~ "MariaDBs administrative bruker. Dette kan være fordi brukeren allerede "
+#~ "har et passord, eller fordi det var et kommunikasjonsproblem med MariaDB-"
+#~ "tjeneren."
 
-#~ msgid ""
-#~ "Support MySQL connections from hosts running Debian \"sarge\" or older?"
-#~ msgstr ""
-#~ "Skal MySQL-tilkoblinger støttes fra vertsmaskiner som kjører Debian "
-#~ "«sarge» eller eldre?"
+#, fuzzy
+#~| msgid "New password for MySQL \"root\" user:"
+#~ msgid "New password for the MariaDB \"root\" user:"
+#~ msgstr "Nytt passord for MariaDBs «root»-bruker:"
 
 #, fuzzy
 #~| msgid ""
-#~| "The way passwords were stored was not very secure. This has been "
-#~| "improved with the drawback that clients (e.g. PHP) from hosts running "
-#~| "Debian 3.1 Sarge will not be able to connect to account which are new or "
-#~| "whose password have been changed. See /usr/share/doc/mysql-server-5.1/"
-#~| "README.Debian."
+#~| "It is highly recommended that you set a password for the MySQL "
+#~| "administrative \"root\" user."
 #~ msgid ""
-#~ "In old versions of MySQL clients on Debian, passwords were not stored "
-#~ "securely. This has been improved since then, however clients (such as "
-#~ "PHP) from hosts running Debian 3.1 Sarge will not be able to connect to "
-#~ "recent accounts or accounts whose password have been changed."
+#~ "While not mandatory, it is highly recommended that you set a password for "
+#~ "the MariaDB administrative \"root\" user."
 #~ msgstr ""
-#~ "Passord ble tidligere lagret på en lite sikker måte. Dette er nå "
-#~ "forbedret, med den ulempen at klienter (f.eks. PHP) fra verter som kjører "
-#~ "Debian 3.1 Sarge ikke vil kunne koble til en konto som er ny eller har "
-#~ "fått endret passordet. Se /usr/share/doc/mysql-server-5.1/README.Debian."
+#~ "Det anbefales sterkt at du oppgir et passord for den administrative "
+#~ "«root»-brukeren i MariaDB."
 
-#~ msgid ""
-#~ "To use mysql you must install an equivalent user and group to the "
-#~ "following and ensure yourself that /var/lib/mysql has the right "
-#~ "permissions (the uid/gid may be different)."
-#~ msgstr ""
-#~ "For å bruke MySQL må du installere en bruker og gruppe tilsvarende den "
-#~ "nedenfor og se til at /var/lib/mysql har riktige rettigheter (uid/gid kan "
-#~ "være forskjellig)."
-
-#~ msgid ""
-#~ "/etc/passwd:      mysql:x:100:101:MySQL Server:/var/lib/mysql:/bin/false"
-#~ msgstr ""
-#~ "/etc/passwd:      mysql:x:100:101:MySQL Server:/var/lib/mysql:/bin/false"
-
-#~ msgid "/etc/group:       mysql:x:101:"
-#~ msgstr "/etc/group:       mysql:x:101:"
-
-#~ msgid "/var/lib/mysql:   drwxr-xr-x   mysql    mysql"
-#~ msgstr "/var/lib/mysql:   drwxr-xr-x   mysql    mysql"
-
-#~ msgid "Remove the databases used by all MySQL versions?"
-#~ msgstr "Skal databasene brukt av alle MySQL-versjoner fjernes?"
-
-#~ msgid ""
-#~ "If you do not provide a password no changes will be made to the account."
-#~ msgstr ""
-#~ "Hvis du ikke oppgir et passord blir det ikke gjort noen endringer med "
-#~ "kontoen."
-
-#~ msgid ""
-#~ "When installation finishes, you should verify that the account is "
-#~ "properly protected with a password (see README.Debian for more "
-#~ "information)."
-#~ msgstr ""
-#~ "Når installasjonen er ferdig bør det sjekkes at kontoen er ordentlig "
-#~ "beskyttet med et passord (mer informasjon finnes i README.Debian)."
+#, fuzzy
+#~| msgid "New password for MySQL \"root\" user:"
+#~ msgid "Repeat password for the MariaDB \"root\" user:"
+#~ msgstr "Nytt passord for MariaDBs «root»-bruker:"

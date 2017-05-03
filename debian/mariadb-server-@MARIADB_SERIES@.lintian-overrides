@@ -1,0 +1,9 @@
+# ash's buildin has no "-e" so use /bin/echo
+mariadb-server-@MARIADB_SERIES@: command-with-path-in-maintainer-script postinst:154 /bin/echo
+# OK, path /usr/sbin/invoke-rc.d is only used in check, executes are run without the path
+mariadb-server-@MARIADB_SERIES@: command-with-path-in-maintainer-script postinst:17 /usr/sbin/invoke-rc.d
+mariadb-server-@MARIADB_SERIES@: command-with-path-in-maintainer-script postrm:15 /usr/sbin/invoke-rc.d
+mariadb-server-@MARIADB_SERIES@: command-with-path-in-maintainer-script preinst:31 /usr/sbin/invoke-rc.d
+# False positive: unfortified calls have already been fully validated at compile-time
+# See full research at https://jira.mariadb.org/browse/MDEV-8377
+mariadb-server-@MARIADB_SERIES@: hardening-no-fortify-functions usr/lib/*/mariadb3/plugin/auth_pam.so
