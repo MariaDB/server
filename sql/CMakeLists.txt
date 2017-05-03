@@ -46,6 +46,7 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
   COMMAND gen_lex_token > lex_token.h
+  DEPENDS gen_lex_token
 )
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER) 
@@ -294,6 +295,7 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
   COMMAND gen_lex_hash > lex_hash.h
+  DEPENDS gen_lex_hash
 )
 
 MYSQL_ADD_EXECUTABLE(mysql_tzinfo_to_sql tztime.cc COMPONENT Server)
@@ -418,7 +420,7 @@ IF(WIN32)
     ${CMAKE_CURRENT_BINARY_DIR}/my_bootstrap.sql
     mysql_bootstrap_sql.c
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS ${my_bootstrap_sql}
+    DEPENDS comp_sql ${my_bootstrap_sql}
   )
 
   MYSQL_ADD_EXECUTABLE(mysql_install_db 
