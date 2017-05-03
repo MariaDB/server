@@ -383,17 +383,17 @@ static Sys_var_charptr Sys_basedir(
        IN_FS_CHARSET, DEFAULT(0));
 
 static Sys_var_vers_asof Sys_vers_current_time(
-       "vers_current_time", "Default AS OF value for versioned tables",
+       "versioning_current_timestamp", "Default AS OF value for versioned tables",
        SESSION_VAR(vers_current_time), CMD_LINE(REQUIRED_ARG, OPT_VERS_CURRENT_TIME),
        IN_FS_CHARSET, DEFAULT("now"));
 
 static Sys_var_mybool Sys_vers_force(
-       "vers_force", "Force system versioning for all created tables",
+       "versioning_force", "Force system versioning for all created tables",
        SESSION_VAR(vers_force), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static const char *vers_hide_keywords[]= {"AUTO", "IMPLICIT", "FULL", "NEVER", NullS};
 static Sys_var_enum Sys_vers_hide(
-       "vers_hide", "Hide system versioning from being displayed in table info. "
+       "versioning_hide", "Hide system versioning from being displayed in table info. "
        "AUTO: hide implicit system fields only in non-versioned and AS OF queries; "
        "IMPLICIT: hide implicit system fields in all queries; "
        "FULL: hide any system fields in all queries and hide versioning info in SHOW commands; "
@@ -401,7 +401,7 @@ static Sys_var_enum Sys_vers_hide(
        SESSION_VAR(vers_hide), CMD_LINE(OPT_ARG), vers_hide_keywords, DEFAULT(VERS_HIDE_AUTO));
 
 static Sys_var_mybool Sys_vers_innodb_algorithm_simple(
-       "vers_innodb_algorithm_simple",
+       "versioning_innodb_algorithm_simple",
        "Use simple algorithm of timestamp handling in InnoDB instead of TRX_SEES",
        SESSION_VAR(vers_innodb_algorithm_simple), CMD_LINE(OPT_ARG),
        DEFAULT(TRUE));
