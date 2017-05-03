@@ -116,6 +116,8 @@ ELSE()
   # We increase the version for macs however, so the newest mac could built it.
   IF(APPLE)
     SET(GIT_TAG "1.0.100")
+  ELSEIF(_OPENSSL_VERSION VERSION_EQUAL "1.1")
+    SET(GIT_TAG "1.0.114")
   ELSE()
     SET(GIT_TAG "1.0.8")
   ENDIF()

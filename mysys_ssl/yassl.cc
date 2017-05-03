@@ -24,7 +24,6 @@
 
 #include <openssl/ssl.h>
 #include "aes.hpp"
-#include <my_sys.h>
 
 using yaSSL::yaERR_remove_state;
 
@@ -45,7 +44,6 @@ typedef struct
   int buf_len;
   int final_used;
   uchar tao_buf[sizeof(TaoCrypt::AES)];   // TaoCrypt::AES object
-  uchar oiv[TaoCrypt::AES::BLOCK_SIZE];   // original IV
   uchar buf[TaoCrypt::AES::BLOCK_SIZE];   // last partial input block
   uchar final[TaoCrypt::AES::BLOCK_SIZE]; // last decrypted (output) block
 } EVP_CIPHER_CTX;
@@ -76,24 +74,10 @@ static void EVP_CIPHER_CTX_init(EVP_CIPHER_CTX *ctx)
   ctx->final_used= ctx->buf_len= ctx->flags= 0;
 }
 
-static EVP_CIPHER_CTX *EVP_CIPHER_CTX_new()
-{
-  EVP_CIPHER_CTX *ctx= (EVP_CIPHER_CTX *)my_malloc(sizeof(EVP_CIPHER_CTX), MYF(0));
-  if (ctx)
-    EVP_CIPHER_CTX_init(ctx);
-  return ctx;
-}
-
 static int EVP_CIPHER_CTX_cleanup(EVP_CIPHER_CTX *ctx)
 {
   TAO(ctx)->~AES();
   return 1;
-}
-
-static void EVP_CIPHER_CTX_free(EVP_CIPHER_CTX *ctx)
-{
-  EVP_CIPHER_CTX_cleanup(ctx);
-  my_free(ctx);
 }
 
 static int EVP_CIPHER_CTX_set_padding(EVP_CIPHER_CTX *ctx, int pad)
@@ -112,10 +96,7 @@ static int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
                                        : TaoCrypt::DECRYPTION, cipher->mode);
   TAO(ctx)->SetKey(key, cipher->key_len);
   if (iv)
-  {
     TAO(ctx)->SetIV(iv);
-    memcpy(ctx->oiv, iv, TaoCrypt::AES::BLOCK_SIZE);
-  }
   ctx->encrypt= enc;
   ctx->key_len= cipher->key_len;
   ctx->flags|= cipher->mode == TaoCrypt::CBC ? EVP_CIPH_CBC_MODE : EVP_CIPH_ECB_MODE;
