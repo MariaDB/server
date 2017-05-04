@@ -517,6 +517,19 @@ protected:
 };
 
 
+class Create_func_chr : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_chr s_singleton;
+
+protected:
+  Create_func_chr() {}
+  virtual ~Create_func_chr() {}
+};
+
+
 class Create_func_convexhull : public Create_func_arg1
 {
 public:
@@ -3788,6 +3801,16 @@ Create_func_centroid::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_chr Create_func_chr::s_singleton;
+
+Item*
+Create_func_chr::create_1_arg(THD *thd, Item *arg1)
+{
+  CHARSET_INFO *cs_db= thd->variables.collation_database;
+  return new (thd->mem_root) Item_func_chr(thd, arg1, cs_db);
+}
+
+
 Create_func_convexhull Create_func_convexhull::s_singleton;
 
 Item*
@@ -6831,6 +6854,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("CONV") }, BUILDER(Create_func_conv)},
   { { C_STRING_WITH_LEN("CONVERT_TZ") }, BUILDER(Create_func_convert_tz)},
   { { C_STRING_WITH_LEN("CONVEXHULL") }, GEOM_BUILDER(Create_func_convexhull)},
+  { { C_STRING_WITH_LEN("CHR") }, BUILDER(Create_func_chr)},
   { { C_STRING_WITH_LEN("COS") }, BUILDER(Create_func_cos)},
   { { C_STRING_WITH_LEN("COT") }, BUILDER(Create_func_cot)},
   { { C_STRING_WITH_LEN("CRC32") }, BUILDER(Create_func_crc32)},

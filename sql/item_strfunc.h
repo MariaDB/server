@@ -947,7 +947,11 @@ public:
   Item_func_char(THD *thd, List<Item> &list, CHARSET_INFO *cs):
     Item_str_func(thd, list)
   { collation.set(cs); }
+  Item_func_char(THD *thd, Item *arg1, CHARSET_INFO *cs):
+    Item_str_func(thd, arg1)
+  { collation.set(cs); }
   String *val_str(String *);
+  void append_char(String * str, int32 num);
   void fix_length_and_dec()
   {
     max_length= arg_count * 4;
@@ -957,6 +961,20 @@ public:
   { return get_item_copy<Item_func_char>(thd, mem_root, this); }
 };
 
+class Item_func_chr :public Item_func_char
+{
+public:
+  Item_func_chr(THD *thd, Item *arg1, CHARSET_INFO *cs):
+    Item_func_char(thd, arg1, cs) {}
+  String *val_str(String *);
+  void fix_length_and_dec()
+  {
+    max_length= 4;
+  }
+  const char *func_name() const { return "chr"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_chr>(thd, mem_root, this); }
+};
 
 class Item_func_repeat :public Item_str_func
 {

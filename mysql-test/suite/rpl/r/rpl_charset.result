@@ -121,4 +121,27 @@ primary key (`pk`)
 set @p=_latin1 'test';
 update t1 set pk='test' where pk=@p;
 drop table t1;
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12685 Oracle-compatible function CHR()
+#
+connection master;
+CREATE DATABASE db1 DEFAULT CHARACTER SET latin1 COLLATE latin1_bin;
+USE db1;
+CREATE TABLE t1 AS SELECT CHR(0x60);
+connection slave;
+SHOW CREATE TABLE db1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CHR(0x60)` varchar(4) COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_bin
+connection master;
+USE test;
+DROP DATABASE db1;
+connection slave;
+#
+# End of 10.3 tests
+#
 include/rpl_end.inc
