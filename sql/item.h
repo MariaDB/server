@@ -3151,7 +3151,10 @@ public:
   Item_int(THD *thd, const char *str_arg, uint length=64);
   enum Type type() const { return INT_ITEM; }
   enum Item_result result_type () const { return INT_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  enum_field_types field_type() const
+  {
+    return Item_int::type_handler()->field_type();
+  }
   const Type_handler *type_handler() const
   {
     // The same condition is repeated in Item::create_tmp_field()

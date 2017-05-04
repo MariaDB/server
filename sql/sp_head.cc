@@ -2985,7 +2985,7 @@ sp_head::show_routine_code(THD *thd)
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, tmp);
     }
     protocol->prepare_for_resend();
-    protocol->store((longlong)ip);
+    protocol->store_long(ip);
 
     buffer.set("", 0, system_charset_info);
     i->print(&buffer);
