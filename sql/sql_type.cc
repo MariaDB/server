@@ -2713,6 +2713,25 @@ Type_handler_string_result::Item_func_hybrid_field_type_get_date(
 
 /***************************************************************************/
 
+bool Type_handler_numeric::
+       Item_func_between_fix_length_and_dec(Item_func_between *func) const
+{
+  return func->fix_length_and_dec_numeric(current_thd);
+}
+
+bool Type_handler_temporal_result::
+       Item_func_between_fix_length_and_dec(Item_func_between *func) const
+{
+  return func->fix_length_and_dec_numeric(current_thd);
+}
+
+bool Type_handler_string_result::
+       Item_func_between_fix_length_and_dec(Item_func_between *func) const
+{
+  return func->fix_length_and_dec_string(current_thd);
+}
+
+
 longlong Type_handler_row::
            Item_func_between_val_int(Item_func_between *func) const
 {

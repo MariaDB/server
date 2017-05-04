@@ -2032,7 +2032,6 @@ void Item_func_between::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 
 void Item_func_between::fix_length_and_dec()
 {
-  THD *thd= current_thd;
   max_length= 1;
 
   /*
@@ -2044,14 +2043,16 @@ void Item_func_between::fix_length_and_dec()
   if (m_comparator.aggregate_for_comparison(Item_func_between::func_name(),
                                             args, 3, true))
   {
-    DBUG_ASSERT(thd->is_error());
+    DBUG_ASSERT(current_thd->is_error());
     return;
   }
 
-  if (m_comparator.cmp_type() == STRING_RESULT &&
-      agg_arg_charsets_for_comparison(cmp_collation, args, 3))
-   return;
+  m_comparator.type_handler()->Item_func_between_fix_length_and_dec(this);
+}
 
+
+bool Item_func_between::fix_length_and_dec_numeric(THD *thd)
+{
   /* See the comment about the similar block in Item_bool_func2 */
   if (args[0]->real_item()->type() == FIELD_ITEM &&
       !thd->lex->is_ps_or_view_context_analysis())
@@ -2069,6 +2070,7 @@ void Item_func_between::fix_length_and_dec()
       }
     }
   }
+  return false;
 }
 
 

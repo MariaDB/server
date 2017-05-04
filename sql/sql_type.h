@@ -779,6 +779,8 @@ public:
   virtual
   bool Item_func_min_max_get_date(Item_func_min_max*,
                                   MYSQL_TIME *, ulonglong fuzzydate) const= 0;
+  virtual bool
+  Item_func_between_fix_length_and_dec(Item_func_between *func) const= 0;
   virtual longlong
   Item_func_between_val_int(Item_func_between *func) const= 0;
 
@@ -1012,6 +1014,11 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
+  bool Item_func_between_fix_length_and_dec(Item_func_between *func) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
   longlong Item_func_between_val_int(Item_func_between *func) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const;
@@ -1093,6 +1100,7 @@ public:
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const) const;
+  bool Item_func_between_fix_length_and_dec(Item_func_between *func) const;
   bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *) const;
 };
 
@@ -1321,6 +1329,7 @@ public:
                                             my_decimal *) const;
   bool Item_func_min_max_get_date(Item_func_min_max*,
                                   MYSQL_TIME *, ulonglong fuzzydate) const;
+  bool Item_func_between_fix_length_and_dec(Item_func_between *func) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
@@ -1406,6 +1415,7 @@ public:
                                             my_decimal *) const;
   bool Item_func_min_max_get_date(Item_func_min_max*,
                                   MYSQL_TIME *, ulonglong fuzzydate) const;
+  bool Item_func_between_fix_length_and_dec(Item_func_between *func) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
