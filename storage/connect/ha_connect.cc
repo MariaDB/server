@@ -4567,9 +4567,11 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       DBUG_RETURN(0);
     } else if (g->Xchk) {
       if (!tdbp) {
-        if (!(tdbp= GetTDB(g)))
-          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-        else if (!tdbp->GetDef()->Indexable()) {
+				if (!(tdbp = GetTDB(g))) {
+//        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);  causes assert error
+					push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+					DBUG_RETURN(0);
+				} else if (!tdbp->GetDef()->Indexable()) {
           sprintf(g->Message, "external_lock: Table %s is not indexable", tdbp->GetName());
 //        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);  causes assert error
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);

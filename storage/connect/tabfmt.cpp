@@ -517,7 +517,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
     /*******************************************************************/
 		if (Zipped) {
 #if defined(ZIP_SUPPORT)
-			if (mode == MODE_READ || mode == MODE_ANY) {
+			if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
 				txfp = new(g) UNZFAM(this);
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);
