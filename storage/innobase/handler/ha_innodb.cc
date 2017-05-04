@@ -133,6 +133,12 @@ void reset_thd(MYSQL_THD thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 			const char *tb, size_t tblen);
 
+/** Check if user has used xtradb extended system variable that
+is not currently supported by innodb or marked as deprecated. */
+static
+void
+innodb_check_deprecated(void);
+
 #ifdef MYSQL_DYNAMIC_PLUGIN
 #define tc_size  400
 #define tdc_size 400
@@ -4045,6 +4051,8 @@ innobase_init(
 				"encryption plugin is not available");
 		goto error;
 	}
+
+	innodb_check_deprecated();
 
 
 	/* First calculate the default path for innodb_data_home_dir etc.,
@@ -21885,6 +21893,8 @@ static MYSQL_SYSVAR_BOOL(instrument_semaphores, innodb_instrument_semaphores,
   "DEPRECATED. This setting has no effect.",
   NULL, innodb_instrument_semaphores_update, FALSE);
 
+#include "ha_xtradb.h"
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
@@ -22097,6 +22107,11 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(instrument_semaphores),
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
+
+  /* XtraDB compatibility system variables */
+#define HA_XTRADB_SYSVARS
+#include "ha_xtradb.h"
+
   NULL
 };
 
