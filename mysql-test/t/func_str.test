@@ -1853,6 +1853,16 @@ SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64(
 SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("Yq==") OR f2= from_base64("YQ=="));
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-12685 Oracle-compatible function CHR()
+--echo #
+select chr(65);
+create database mysqltest1 CHARACTER SET = 'utf8' COLLATE = 'utf8_bin';
+use mysqltest1;
+select charset(chr(65)), length(chr(65)),char_length(chr(65));
+select charset(chr(14844588)), length(chr(14844588)),char_length(chr(14844588));
+drop database mysqltest1;
+use test;
 
 --echo #
 --echo # End of 10.1 tests

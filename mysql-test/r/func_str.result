@@ -4843,6 +4843,22 @@ YQ==	61
 Yq==	62
 DROP TABLE t1;
 #
+# MDEV-12685 Oracle-compatible function CHR()
+#
+select chr(65);
+chr(65)
+A
+create database mysqltest1 CHARACTER SET = 'utf8' COLLATE = 'utf8_bin';
+use mysqltest1;
+select charset(chr(65)), length(chr(65)),char_length(chr(65));
+charset(chr(65))	length(chr(65))	char_length(chr(65))
+utf8	1	1
+select charset(chr(14844588)), length(chr(14844588)),char_length(chr(14844588));
+charset(chr(14844588))	length(chr(14844588))	char_length(chr(14844588))
+utf8	3	1
+drop database mysqltest1;
+use test;
+#
 # End of 10.1 tests
 #
 #

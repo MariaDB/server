@@ -117,4 +117,32 @@ update t1 set pk='test' where pk=@p;
 drop table t1;
 
 # End of 4.1 tests
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-12685 Oracle-compatible function CHR()
+--echo #
+
+connection master;
+CREATE DATABASE db1 DEFAULT CHARACTER SET latin1 COLLATE latin1_bin;
+USE db1;
+CREATE TABLE t1 AS SELECT CHR(0x60);
+sync_slave_with_master;
+SHOW CREATE TABLE db1.t1;
+connection master;
+USE test;
+DROP DATABASE db1;
+sync_slave_with_master;
+
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+
 --source include/rpl_end.inc

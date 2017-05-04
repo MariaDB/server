@@ -2905,29 +2905,51 @@ String *Item_func_char::val_str(String *str)
   {
     int32 num=(int32) args[i]->val_int();
     if (!args[i]->null_value)
-    {
-      char tmp[4];
-      if (num & 0xFF000000L)
-      {
-        mi_int4store(tmp, num);
-        str->append(tmp, 4, &my_charset_bin);
-      }
-      else if (num & 0xFF0000L)
-      {
-        mi_int3store(tmp, num);
-        str->append(tmp, 3, &my_charset_bin);
-      }
-      else if (num & 0xFF00L)
-      {
-        mi_int2store(tmp, num);
-        str->append(tmp, 2, &my_charset_bin);
-      }
-      else
-      {
-        tmp[0]= (char) num;
-        str->append(tmp, 1, &my_charset_bin);
-      }
-    }
+      append_char(str, num);
+  }
+  str->realloc(str->length());			// Add end 0 (for Purify)
+  return check_well_formed_result(str);
+}
+
+
+void Item_func_char::append_char(String *str, int32 num)
+{
+  char tmp[4];
+  if (num & 0xFF000000L)
+  {
+    mi_int4store(tmp, num);
+    str->append(tmp, 4, &my_charset_bin);
+  }
+  else if (num & 0xFF0000L)
+  {
+    mi_int3store(tmp, num);
+    str->append(tmp, 3, &my_charset_bin);
+  }
+  else if (num & 0xFF00L)
+  {
+    mi_int2store(tmp, num);
+    str->append(tmp, 2, &my_charset_bin);
+  }
+  else
+  {
+    tmp[0]= (char) num;
+    str->append(tmp, 1, &my_charset_bin);
+  }
+}
+
+
+String *Item_func_chr::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  str->length(0);
+  str->set_charset(collation.collation);
+  int32 num=(int32) args[0]->val_int();
+  if (!args[0]->null_value)
+    append_char(str, num);
+  else
+  {
+    null_value= 1;
+    return 0;
   }
   str->realloc(str->length());			// Add end 0 (for Purify)
   return check_well_formed_result(str);
