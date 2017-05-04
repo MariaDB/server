@@ -3154,9 +3154,20 @@ err:
 
 void Item_func_pad::fix_length_and_dec()
 {
-  // Handle character set for args[0] and args[2].
-  if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
-    return;
+  if (arg_count == 3)
+  {
+    // Handle character set for args[0] and args[2].
+    if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
+      return;
+  }
+  else
+  {
+    if (agg_arg_charsets_for_string_result(collation, &args[0], 1, 1))
+      return;
+    pad_str.set_charset(collation.collation);
+    pad_str.append(" ", 1);
+  }
+
   if (args[1]->const_item())
   {
     ulonglong char_length= (ulonglong) args[1]->val_int();
@@ -3187,11 +3198,15 @@ String *Item_func_rpad::val_str(String *str)
   longlong count= args[1]->val_int();
   longlong byte_count;
   String *res= args[0]->val_str(str);
-  String *rpad= args[2]->val_str(&pad_str);
+  String *rpad= arg_count == 2 ? &pad_str : args[2]->val_str(&pad_str);
 
   if (!res || args[1]->null_value || !rpad || 
       ((count < 0) && !args[1]->unsigned_flag))
     goto err;
+
+  if (count == 0)
+    return make_empty_result();
+
   null_value=0;
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
@@ -3216,7 +3231,6 @@ String *Item_func_rpad::val_str(String *str)
     res->length(res->charpos((int) count));	// Shorten result if longer
     return (res);
   }
-  pad_char_length= rpad->numchars();
 
   byte_count= count * collation.collation->mbmaxlen;
   {
@@ -3230,8 +3244,15 @@ String *Item_func_rpad::val_str(String *str)
       goto err;
     }
   }
-  if (args[2]->null_value || !pad_char_length)
-    goto err;
+
+  if (arg_count == 3)
+  {
+    if (args[2]->null_value || !(pad_char_length= rpad->numchars()))
+      goto err;
+  }
+  else
+    pad_char_length= 1; // Implicit space
+
   res_byte_length= res->length();	/* Must be done before alloc_buffer */
   if (!(res= alloc_buffer(res,str,&tmp_value, (ulong) byte_count)))
     goto err;
@@ -3268,11 +3289,15 @@ String *Item_func_lpad::val_str(String *str)
   longlong count= args[1]->val_int();
   longlong byte_count;
   String *res= args[0]->val_str(&tmp_value);
-  String *pad= args[2]->val_str(&pad_str);
+  String *pad= arg_count == 2 ? &pad_str : args[2]->val_str(&pad_str);
 
   if (!res || args[1]->null_value || !pad ||  
       ((count < 0) && !args[1]->unsigned_flag))
     goto err;  
+
+  if (count == 0)
+    return make_empty_result();
+
   null_value=0;
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
@@ -3301,7 +3326,6 @@ String *Item_func_lpad::val_str(String *str)
     return res;
   }
   
-  pad_char_length= pad->numchars();
   byte_count= count * collation.collation->mbmaxlen;
   
   {
@@ -3316,9 +3340,16 @@ String *Item_func_lpad::val_str(String *str)
     }
   }
 
-  if (args[2]->null_value || !pad_char_length ||
-      str->alloc((uint32) byte_count))
+  if (str->alloc((uint32) byte_count))
     goto err;
+
+  if (arg_count == 3)
+  {
+    if (args[2]->null_value || !(pad_char_length= pad->numchars()))
+      goto err;
+  }
+  else
+    pad_char_length= 1; // Implicit space
   
   str->length(0);
   str->set_charset(collation.collation);
