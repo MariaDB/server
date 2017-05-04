@@ -740,7 +740,13 @@ int UNZFAM::Cardinality(PGLOBAL g)
 	int card = -1;
 	int len = GetFileLength(g);
 
-	card = (len / (int)Lrecl) * 2;           // Estimated ???
+	if (len) {
+		// Estimated ???
+		card = (len / (int)Lrecl) * 2;
+		card = card ? card : 10;				// Lrecl can be too big 
+	} else
+		card = 0;
+
 	return card;
 } // end of Cardinality
 

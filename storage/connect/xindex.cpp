@@ -969,8 +969,8 @@ bool XINDEX::Init(PGLOBAL g)
     // For DBF tables, Cardinality includes bad or soft deleted lines
     // that are not included in the index, and can be larger then the
     // index size.
-    estim = (Tdbp->Ftype == RECFM_DBF);
-    n = Tdbp->Cardinality(g);      // n is exact table size
+		estim = (Tdbp->Ftype == RECFM_DBF || Tdbp->Txfp->GetAmType() == TYPE_AM_ZIP);
+		n = Tdbp->Cardinality(g);      // n is exact table size
   } else {
     // Variable table not optimized
     estim = true;                  // n is an estimate of the size

@@ -353,7 +353,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 	if (Zipped) {
 #if defined(ZIP_SUPPORT)
 		if (Recfm == RECFM_VAR) {
-			if (mode == MODE_READ || mode == MODE_ANY) {
+			if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
 				txfp = new(g) UNZFAM(this);
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);
@@ -364,7 +364,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 
 			tdbp = new(g) TDBDOS(this, txfp);
 		} else {
-			if (mode == MODE_READ || mode == MODE_ANY) {
+			if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
 				txfp = new(g) UZXFAM(this);
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZPXFAM(this);

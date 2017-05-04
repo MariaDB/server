@@ -443,7 +443,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 
 		if (Zipped) {
 #if defined(ZIP_SUPPORT)
-			if (m == MODE_READ || m == MODE_UPDATE) {
+			if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
 				txfp = new(g) UNZFAM(this);
 			} else if (m == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);
