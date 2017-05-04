@@ -513,6 +513,21 @@ Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
 }
 
 
+/*
+  This method is called for CASE (and its abbreviations) and LEAST/GREATEST
+  when data type aggregation returned LONGLONG and there were some BIT
+  expressions. This helps to adjust the data type from LONGLONG to LONG
+  if all expressions fit.
+*/
+const Type_handler *
+Type_handler::bit_and_int_mixture_handler(uint max_char_length)
+{
+  if (max_char_length <= MY_INT32_NUM_DECIMAL_DIGITS)
+    return &type_handler_long;
+  return &type_handler_longlong;
+}
+
+
 /**
   @brief Aggregates field types from the array of items.
 
@@ -552,6 +567,8 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
                                                      Item **items, uint nitems,
                                                      bool treat_bit_as_number)
 {
+  bool bit_and_non_bit_mixture_found= false;
+  uint32 max_display_length;
   if (!nitems || items[0]->result_type() == ROW_RESULT)
   {
     DBUG_ASSERT(0);
@@ -559,12 +576,15 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
     return true;
   }
   set_handler(items[0]->type_handler());
+  max_display_length= items[0]->max_display_length();
   for (uint i= 1 ; i < nitems ; i++)
   {
     const Type_handler *cur= items[i]->type_handler();
+    set_if_bigger(max_display_length, items[i]->max_display_length());
     if (treat_bit_as_number &&
         ((type_handler() == &type_handler_bit) ^ (cur == &type_handler_bit)))
     {
+      bit_and_non_bit_mixture_found= true;
       if (type_handler() == &type_handler_bit)
         set_handler(&type_handler_longlong); // BIT + non-BIT
       else
@@ -577,6 +597,8 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
       return true;
     }
   }
+  if (bit_and_non_bit_mixture_found && type_handler() == &type_handler_longlong)
+    set_handler(Type_handler::bit_and_int_mixture_handler(max_display_length));
   return false;
 }
 
@@ -728,7 +750,9 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
   }
   else
   {
-    m_type_handler= &type_handler_double;
+    // Preserve FLOAT if two FLOATs, set to DOUBLE otherwise.
+    if (m_type_handler != &type_handler_float || h != &type_handler_float)
+      m_type_handler= &type_handler_double;
   }
   return false;
 }
@@ -738,12 +762,19 @@ bool
 Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
                                                       Item **items, uint nitems)
 {
+  bool bit_and_non_bit_mixture_found= false;
+  uint32 max_display_length;
   // LEAST/GREATEST require at least two arguments
   DBUG_ASSERT(nitems > 1);
   set_handler(items[0]->type_handler());
+  max_display_length= items[0]->max_display_length();
   for (uint i= 1; i < nitems;  i++)
   {
     const Type_handler *cur= items[i]->type_handler();
+    set_if_bigger(max_display_length, items[i]->max_display_length());
+    // Check if BIT + non-BIT, or non-BIT + BIT
+    bit_and_non_bit_mixture_found|= (m_type_handler == &type_handler_bit) !=
+                                    (cur == &type_handler_bit);
     if (aggregate_for_min_max(cur))
     {
       my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
@@ -751,6 +782,8 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
       return true;
     }
   }
+  if (bit_and_non_bit_mixture_found && type_handler() == &type_handler_longlong)
+    set_handler(Type_handler::bit_and_int_mixture_handler(max_display_length));
   return false;
 }
 

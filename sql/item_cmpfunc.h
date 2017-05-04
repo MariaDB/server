@@ -965,13 +965,13 @@ public:
 };
 
 
-class Item_func_coalesce :public Item_func_hybrid_field_type
+class Item_func_coalesce :public Item_func_case_expression
 {
 public:
   Item_func_coalesce(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_field_type(thd, a, b) {}
+    Item_func_case_expression(thd, a, b) {}
   Item_func_coalesce(THD *thd, List<Item> &list):
-    Item_func_hybrid_field_type(thd, list) {}
+    Item_func_case_expression(thd, list) {}
   double real_op();
   longlong int_op();
   String *str_op(String *);
@@ -995,7 +995,7 @@ public:
     IF(switch, arg1, arg2)
     NVL2(switch, arg1, arg2)
 */
-class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
+class Item_func_case_abbreviation2 :public Item_func_case_expression
 {
 protected:
   void fix_length_and_dec2(Item **items)
@@ -1034,9 +1034,9 @@ protected:
 
 public:
   Item_func_case_abbreviation2(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_field_type(thd, a, b) { }
+    Item_func_case_expression(thd, a, b) { }
   Item_func_case_abbreviation2(THD *thd, Item *a, Item *b, Item *c):
-    Item_func_hybrid_field_type(thd, a, b, c) { }
+    Item_func_case_expression(thd, a, b, c) { }
 };
 
 
@@ -1056,8 +1056,6 @@ public:
     maybe_null= args[1]->maybe_null;
   }
   const char *func_name() const { return "ifnull"; }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
 
   table_map not_null_tables() const { return 0; }
   uint decimal_precision() const
@@ -1161,7 +1159,7 @@ public:
 };
 
 
-class Item_func_nullif :public Item_func_hybrid_field_type
+class Item_func_nullif :public Item_func_case_expression
 {
   Arg_comparator cmp;
   /*
@@ -1199,7 +1197,7 @@ public:
     See also Item_func_nullif::fix_length_and_dec().
   */
   Item_func_nullif(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_field_type(thd, a, b, a),
+    Item_func_case_expression(thd, a, b, a),
     m_cache(NULL),
     m_arg0(NULL)
   { arg_count--; }
@@ -2031,7 +2029,7 @@ public:
   function and only comparators for there result types are used.
 */
 
-class Item_func_case :public Item_func_hybrid_field_type,
+class Item_func_case :public Item_func_case_expression,
                       public Predicant_to_list_comparator
 {
   int first_expr_num, else_expr_num;

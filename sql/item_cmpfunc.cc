@@ -2786,7 +2786,7 @@ Item_func_nullif::is_null()
 
 Item_func_case::Item_func_case(THD *thd, List<Item> &list,
                                Item *first_expr_arg, Item *else_expr_arg):
-  Item_func_hybrid_field_type(thd),
+  Item_func_case_expression(thd),
   Predicant_to_list_comparator(thd, list.elements/*QQ*/),
   first_expr_num(-1), else_expr_num(-1),
   left_cmp_type(INT_RESULT), m_found_types(0)

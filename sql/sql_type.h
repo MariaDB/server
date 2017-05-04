@@ -535,6 +535,7 @@ protected:
 public:
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
+  static const Type_handler *bit_and_int_mixture_handler(uint max_char_len);
   /**
     Return a string type handler for Item
     If too_big_for_varchar() returns a BLOB variant, according to length.
