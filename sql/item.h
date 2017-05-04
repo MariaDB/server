@@ -55,6 +55,23 @@ struct st_value
 
 C_MODE_END
 
+
+template<size_t buffer_size>
+class ValueBuffer: public st_value
+{
+  char buffer[buffer_size];
+  void reset_buffer()
+  {
+    m_string.set(buffer, buffer_size, &my_charset_bin);
+  }
+public:
+  ValueBuffer()
+  {
+    reset_buffer();
+  }
+};
+
+
 const char *dbug_print_item(Item *item);
 
 class Protocol;
@@ -693,7 +710,10 @@ public:
   { return NULL; }
   virtual int save_safe_in_field(Field *field)
   { return save_in_field(field, 1); }
-  virtual bool send(Protocol *protocol, String *str);
+  virtual bool send(Protocol *protocol, st_value *buffer)
+  {
+    return type_handler()->Item_send(this, protocol, buffer);
+  }
   virtual bool eq(const Item *, bool binary_cmp) const;
   virtual enum_field_types field_type() const= 0;
   virtual const Type_handler *type_handler() const
@@ -2089,7 +2109,7 @@ public:
   inline bool const_item() const;
   
   inline int save_in_field(Field *field, bool no_conversions);
-  inline bool send(Protocol *protocol, String *str);
+  inline bool send(Protocol *protocol, st_value *buffer);
   bool check_vcol_func_processor(void *arg) 
   {
     return mark_unsupported_function(m_name.str, arg, VCOL_IMPOSSIBLE);
@@ -2110,9 +2130,9 @@ inline int Item_sp_variable::save_in_field(Field *field, bool no_conversions)
   return this_item()->save_in_field(field, no_conversions);
 }
 
-inline bool Item_sp_variable::send(Protocol *protocol, String *str)
+inline bool Item_sp_variable::send(Protocol *protocol, st_value *buffer)
 {
-  return this_item()->send(protocol, str);
+  return this_item()->send(protocol, buffer);
 }
 
 
@@ -2398,9 +2418,9 @@ public:
     return  value_item->save_in_field(field, no_conversions);
   }
 
-  bool send(Protocol *protocol, String *str)
+  bool send(Protocol *protocol, st_value *buffer)
   {
-    return value_item->send(protocol, str);
+    return value_item->send(protocol, buffer);
   }
   bool check_vcol_func_processor(void *arg) 
   {
@@ -2532,7 +2552,6 @@ public:
   {
     Type_std_attributes::set(par_field);
   }
-
   enum Type type() const { return FIELD_ITEM; }
   double val_real() { return field->val_real(); }
   longlong val_int() { return field->val_int(); }
@@ -2591,7 +2610,7 @@ public:
   my_decimal *val_decimal_result(my_decimal *);
   bool val_bool_result();
   bool is_null_result();
-  bool send(Protocol *protocol, String *str_arg);
+  bool send(Protocol *protocol, st_value *buffer);
   void reset_field(Field *f);
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
@@ -2829,7 +2848,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   int save_in_field(Field *field, bool no_conversions);
   int save_safe_in_field(Field *field);
-  bool send(Protocol *protocol, String *str);
+  bool send(Protocol *protocol, st_value *buffer);
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const   { return MYSQL_TYPE_NULL; }
   bool basic_const_item() const { return 1; }
@@ -4229,7 +4248,7 @@ public:
   my_decimal *val_decimal_result(my_decimal *);
   bool val_bool_result();
   bool is_null_result();
-  bool send(Protocol *prot, String *tmp);
+  bool send(Protocol *prot, st_value *buffer);
   void make_field(THD *thd, Send_field *field);
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
@@ -4498,7 +4517,7 @@ public:
   bool val_bool();
   bool is_null();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool send(Protocol *protocol, String *buffer);
+  bool send(Protocol *protocol, st_value *buffer);
   void save_org_in_field(Field *field,
                          fast_field_copier data __attribute__ ((__unused__)))
   {
@@ -4712,7 +4731,7 @@ public:
     }
     return Item_direct_ref::get_date(ltime, fuzzydate);
   }
-  bool send(Protocol *protocol, String *buffer);
+  bool send(Protocol *protocol, st_value *buffer);
   void save_org_in_field(Field *field,
                          fast_field_copier data __attribute__ ((__unused__)))
   {
@@ -5226,7 +5245,7 @@ public:
   longlong val_int();
   my_decimal *val_decimal(my_decimal *decimal_value);
   bool get_date(MYSQL_TIME *ltime,ulonglong fuzzydate);
-  bool send(Protocol *protocol, String *buffer);
+  bool send(Protocol *protocol, st_value *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
   bool save_in_param(THD *thd, Item_param *param)
   {
@@ -5278,7 +5297,7 @@ public:
   longlong val_int();
   my_decimal *val_decimal(my_decimal *decimal_value);
   bool get_date(MYSQL_TIME *ltime,ulonglong fuzzydate);
-  bool send(Protocol *protocol, String *buffer);
+  bool send(Protocol *protocol, st_value *buffer);
 };
 
 

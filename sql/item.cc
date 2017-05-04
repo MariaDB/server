@@ -6861,125 +6861,9 @@ bool Item_time_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   Pack data in buffer for sending.
 */
 
-bool Item_null::send(Protocol *protocol, String *packet)
+bool Item_null::send(Protocol *protocol, st_value *buffer)
 {
   return protocol->store_null();
-}
-
-/**
-  This is only called from items that is not of type item_field.
-*/
-
-bool Item::send(Protocol *protocol, String *buffer)
-{
-  bool UNINIT_VAR(result);                       // Will be set if null_value == 0
-  enum_field_types f_type;
-
-  switch ((f_type=field_type())) {
-  default:
-  case MYSQL_TYPE_NULL:
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_ENUM:
-  case MYSQL_TYPE_SET:
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-  case MYSQL_TYPE_GEOMETRY:
-  case MYSQL_TYPE_STRING:
-  case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_VARCHAR:
-  case MYSQL_TYPE_BIT:
-  case MYSQL_TYPE_NEWDECIMAL:
-  {
-    String *res;
-    if ((res=val_str(buffer)))
-    {
-      DBUG_ASSERT(!null_value);
-      result= protocol->store(res->ptr(),res->length(),res->charset());
-    }
-    else
-    {
-      DBUG_ASSERT(null_value);
-    }
-    break;
-  }
-  case MYSQL_TYPE_TINY:
-  {
-    longlong nr;
-    nr= val_int();
-    if (!null_value)
-      result= protocol->store_tiny(nr);
-    break;
-  }
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_YEAR:
-  {
-    longlong nr;
-    nr= val_int();
-    if (!null_value)
-      result= protocol->store_short(nr);
-    break;
-  }
-  case MYSQL_TYPE_INT24:
-  case MYSQL_TYPE_LONG:
-  {
-    longlong nr;
-    nr= val_int();
-    if (!null_value)
-      result= protocol->store_long(nr);
-    break;
-  }
-  case MYSQL_TYPE_LONGLONG:
-  {
-    longlong nr;
-    nr= val_int();
-    if (!null_value)
-      result= protocol->store_longlong(nr, unsigned_flag);
-    break;
-  }
-  case MYSQL_TYPE_FLOAT:
-  {
-    float nr;
-    nr= (float) val_real();
-    if (!null_value)
-      result= protocol->store(nr, decimals, buffer);
-    break;
-  }
-  case MYSQL_TYPE_DOUBLE:
-  {
-    double nr= val_real();
-    if (!null_value)
-      result= protocol->store(nr, decimals, buffer);
-    break;
-  }
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_TIMESTAMP:
-  {
-    MYSQL_TIME tm;
-    get_date(&tm, sql_mode_for_dates(current_thd));
-    if (!null_value)
-    {
-      if (f_type == MYSQL_TYPE_DATE)
-	return protocol->store_date(&tm);
-      else
-	result= protocol->store(&tm, decimals);
-    }
-    break;
-  }
-  case MYSQL_TYPE_TIME:
-  {
-    MYSQL_TIME tm;
-    get_time(&tm);
-    if (!null_value)
-      result= protocol->store_time(&tm, decimals);
-    break;
-  }
-  }
-  if (null_value)
-    result= protocol->store_null();
-  return result;
 }
 
 
@@ -7053,7 +6937,7 @@ bool Item::find_item_processor(void *arg)
   return (this == ((Item *) arg));
 }
 
-bool Item_field::send(Protocol *protocol, String *buffer)
+bool Item_field::send(Protocol *protocol, st_value *buffer)
 {
   return protocol->store(result_field);
 }
@@ -7783,11 +7667,11 @@ void Item_ref::print(String *str, enum_query_type query_type)
 }
 
 
-bool Item_ref::send(Protocol *prot, String *tmp)
+bool Item_ref::send(Protocol *prot, st_value *buffer)
 {
   if (result_field)
     return prot->store(result_field);
-  return (*ref)->send(prot, tmp);
+  return (*ref)->send(prot, buffer);
 }
 
 
@@ -8142,7 +8026,7 @@ bool Item_cache_wrapper::fix_fields(THD *thd  __attribute__((unused)),
   return FALSE;
 }
 
-bool Item_cache_wrapper::send(Protocol *protocol, String *buffer)
+bool Item_cache_wrapper::send(Protocol *protocol, st_value *buffer)
 {
   if (result_field)
     return protocol->store(result_field);
@@ -8473,7 +8357,7 @@ Item* Item_cache_wrapper::get_tmp_table_item(THD *thd)
 }
 
 
-bool Item_direct_view_ref::send(Protocol *protocol, String *buffer)
+bool Item_direct_view_ref::send(Protocol *protocol, st_value *buffer)
 {
   if (check_null_ref())
     return protocol->store_null();
@@ -8850,7 +8734,7 @@ bool Item_default_value::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   return Item_field::get_date(ltime, fuzzydate);
 }
 
-bool Item_default_value::send(Protocol *protocol, String *buffer)
+bool Item_default_value::send(Protocol *protocol, st_value *buffer)
 {
   calculate();
   return Item_field::send(protocol, buffer);
@@ -8957,7 +8841,7 @@ bool Item_ignore_value::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   return TRUE;
 }
 
-bool Item_ignore_value::send(Protocol *protocol, String *buffer)
+bool Item_ignore_value::send(Protocol *protocol, st_value *buffer)
 {
   DBUG_ASSERT(0); // never should be called
   return TRUE;

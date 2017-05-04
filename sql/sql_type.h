@@ -63,6 +63,7 @@ class in_vector;
 class Sort_param;
 class Arg_comparator;
 struct st_value;
+class Protocol;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 
@@ -532,6 +533,16 @@ protected:
   bool
   Item_func_or_sum_illegal_param(const Item_func_or_sum *) const;
   bool check_null(const Item *item, st_value *value) const;
+  bool Item_send_str(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_tiny(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_short(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_long(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_longlong(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_float(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_double(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_time(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_date(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_datetime(Item *item, Protocol *protocol, st_value *buf) const;
 public:
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
@@ -672,6 +683,7 @@ public:
 
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual bool Item_save_in_value(Item *item, st_value *value) const= 0;
+  virtual bool Item_send(Item *item, Protocol *p, st_value *buf) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
 
@@ -888,6 +900,11 @@ public:
     return 0;
   }
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const
   {
     DBUG_ASSERT(0);
@@ -1157,6 +1174,10 @@ public:
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_str(item, protocol, buf);
+  }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -1342,6 +1363,10 @@ public:
     return Item_temporal_precision(item, false);
   }
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_str(item, protocol, buf);
+  }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const
   {
@@ -1426,6 +1451,10 @@ public:
   const Name name() const { return m_name_tiny; }
   enum_field_types field_type() const { return MYSQL_TYPE_TINY; }
   uint32 max_display_length(const Item *item) const { return 4; }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_tiny(item, protocol, buf);
+  }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -1442,6 +1471,10 @@ public:
   virtual ~Type_handler_short() {}
   const Name name() const { return m_name_short; }
   enum_field_types field_type() const { return MYSQL_TYPE_SHORT; }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_short(item, protocol, buf);
+  }
   uint32 max_display_length(const Item *item) const { return 6; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
@@ -1463,6 +1496,10 @@ public:
   {
     return MY_INT32_NUM_DECIMAL_DIGITS;
   }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_long(item, protocol, buf);
+  }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -1480,6 +1517,10 @@ public:
   const Name name() const { return m_name_longlong; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   uint32 max_display_length(const Item *item) const { return 20; }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_longlong(item, protocol, buf);
+  }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -1496,6 +1537,10 @@ public:
   virtual ~Type_handler_int24() {}
   const Name name() const { return m_name_mediumint; }
   enum_field_types field_type() const { return MYSQL_TYPE_INT24; }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_long(item, protocol, buf);
+  }
   uint32 max_display_length(const Item *item) const { return 8; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1514,6 +1559,10 @@ public:
   const Name name() const { return m_name_year; }
   enum_field_types field_type() const { return MYSQL_TYPE_YEAR; }
   uint32 max_display_length(const Item *item) const;
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_short(item, protocol, buf);
+  }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -1531,6 +1580,10 @@ public:
   const Name name() const { return m_name_bit; }
   enum_field_types field_type() const { return MYSQL_TYPE_BIT; }
   uint32 max_display_length(const Item *item) const;
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_str(item, protocol, buf);
+  }
   String *print_item_value(THD *thd, Item *item, String *str) const
   {
     return print_item_value_csstr(thd, item, str);
@@ -1552,6 +1605,10 @@ public:
   const Name name() const { return m_name_float; }
   enum_field_types field_type() const { return MYSQL_TYPE_FLOAT; }
   uint32 max_display_length(const Item *item) const { return 25; }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_float(item, protocol, buf);
+  }
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1570,6 +1627,10 @@ public:
   const Name name() const { return m_name_double; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   uint32 max_display_length(const Item *item) const { return 53; }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_double(item, protocol, buf);
+  }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -1600,6 +1661,10 @@ public:
   }
   const Type_handler *type_handler_for_comparison() const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_time(item, protocol, buf);
+  }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1642,6 +1707,10 @@ public:
   virtual ~Type_handler_temporal_with_date() {}
   const Type_handler *type_handler_for_comparison() const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_date(item, protocol, buf);
+  }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
@@ -1710,6 +1779,10 @@ public:
   {
     return Item_divisor_precision_increment_with_seconds(item);
   }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_datetime(item, protocol, buf);
+  }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -1761,6 +1834,10 @@ public:
   uint Item_divisor_precision_increment(const Item *item) const
   {
     return Item_divisor_precision_increment_with_seconds(item);
+  }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
+  {
+    return Item_send_datetime(item, protocol, buf);
   }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1841,6 +1918,7 @@ public:
   const Type_handler *type_handler_for_union(const Item *) const;
   uint32 max_display_length(const Item *item) const { return 0; }
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,

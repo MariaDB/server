@@ -4061,3 +4061,114 @@ bool Type_handler_time_common::
 }
 
 /***************************************************************************/
+
+bool Type_handler_null::
+      Item_send(Item *item, Protocol *protocol, st_value *buf) const
+{
+  return protocol->store_null();
+}
+
+
+bool Type_handler::
+       Item_send_str(Item *item, Protocol *protocol, st_value *buf) const
+{
+  String *res;
+  if ((res= item->val_str(&buf->m_string)))
+  {
+    DBUG_ASSERT(!item->null_value);
+    return protocol->store(res->ptr(), res->length(), res->charset());
+  }
+  DBUG_ASSERT(item->null_value);
+  return protocol->store_null();
+}
+
+
+bool Type_handler::
+       Item_send_tiny(Item *item, Protocol *protocol, st_value *buf) const
+{
+  longlong nr= item->val_int();
+  if (!item->null_value)
+    return protocol->store_tiny(nr);
+  return protocol->store_null();
+}
+
+
+bool Type_handler::
+       Item_send_short(Item *item, Protocol *protocol, st_value *buf) const
+{
+  longlong nr= item->val_int();
+  if (!item->null_value)
+    return protocol->store_short(nr);
+  return protocol->store_null();
+}
+
+
+bool Type_handler::
+       Item_send_long(Item *item, Protocol *protocol, st_value *buf) const
+{
+  longlong nr= item->val_int();
+  if (!item->null_value)
+    return protocol->store_long(nr);
+  return protocol->store_null();
+}
+
+bool Type_handler::
+       Item_send_longlong(Item *item, Protocol *protocol, st_value *buf) const
+{
+  longlong nr= item->val_int();
+  if (!item->null_value)
+    return protocol->store_longlong(nr, item->unsigned_flag);
+  return protocol->store_null();
+}
+
+
+bool Type_handler::
+       Item_send_float(Item *item, Protocol *protocol, st_value *buf) const
+{
+  float nr= (float) item->val_real();
+  if (!item->null_value)
+    return protocol->store(nr, item->decimals, &buf->m_string);
+  return protocol->store_null();
+}
+
+
+bool Type_handler::
+       Item_send_double(Item *item, Protocol *protocol, st_value *buf) const
+{
+  double nr= item->val_real();
+  if (!item->null_value)
+    return protocol->store(nr, item->decimals, &buf->m_string);
+  return protocol->store_null();
+}
+
+
+bool Type_handler::
+       Item_send_datetime(Item *item, Protocol *protocol, st_value *buf) const
+{
+  item->get_date(&buf->value.m_time, sql_mode_for_dates(current_thd));
+  if (!item->null_value)
+    return protocol->store(&buf->value.m_time, item->decimals);
+  return protocol->store_null();
+}
+
+
+bool Type_handler::
+       Item_send_date(Item *item, Protocol *protocol, st_value *buf) const
+{
+  item->get_date(&buf->value.m_time, sql_mode_for_dates(current_thd));
+  if (!item->null_value)
+    return protocol->store_date(&buf->value.m_time);
+  return protocol->store_null();
+}
+
+
+bool Type_handler::
+       Item_send_time(Item *item, Protocol *protocol, st_value *buf) const
+{
+  item->get_time(&buf->value.m_time);
+  if (!item->null_value)
+    return protocol->store_time(&buf->value.m_time, item->decimals);
+  return protocol->store_null();
+}
+
+/***************************************************************************/
