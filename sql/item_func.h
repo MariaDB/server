@@ -599,6 +599,38 @@ public:
 };
 
 
+/*
+  This class resembles SQL standard CASE-alike expressions:
+  CASE and its abbreviations COALESCE, NULLIF, IFNULL, IF.
+
+  <case expression> ::=   <case abbreviation>
+                        | <case specification>
+*/
+class Item_func_case_expression: public Item_func_hybrid_field_type
+{
+public:
+  Item_func_case_expression(THD *thd)
+   :Item_func_hybrid_field_type(thd)
+  { }
+  Item_func_case_expression(THD *thd, Item *a)
+   :Item_func_hybrid_field_type(thd, a)
+  { }
+  Item_func_case_expression(THD *thd, Item *a, Item *b)
+   :Item_func_hybrid_field_type(thd, a, b)
+  { }
+  Item_func_case_expression(THD *thd, Item *a, Item *b, Item *c)
+   :Item_func_hybrid_field_type(thd, a, b, c)
+  { }
+  Item_func_case_expression(THD *thd, List<Item> &list):
+    Item_func_hybrid_field_type(thd, list)
+  { }
+  Field *create_tmp_field(bool group, TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
+  Field *create_field_for_create_select(TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
+};
+
+
 class Item_func_numhybrid: public Item_func_hybrid_field_type
 {
 protected:
@@ -1404,6 +1436,10 @@ public:
   Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):
     Item_hybrid_func(thd, list), cmp_sign(cmp_sign_arg)
   {}
+  Field *create_tmp_field(bool group, TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
+  Field *create_field_for_create_select(TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
   String *val_str_native(String *str);
   double val_real_native();
   longlong val_int_native();
@@ -2212,7 +2248,7 @@ public:
   bool is_null_result();
   bool update_hash(void *ptr, uint length, enum Item_result type,
                    CHARSET_INFO *cs, bool unsigned_arg);
-  bool send(Protocol *protocol, String *str_arg);
+  bool send(Protocol *protocol, st_value *buffer);
   void make_field(THD *thd, Send_field *tmp_field);
   bool check(bool use_result_field);
   void save_item_result(Item *item);

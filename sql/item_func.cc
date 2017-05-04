@@ -4981,7 +4981,7 @@ void Item_func_set_user_var::print_as_stmt(String *str,
   args[0]->print_parenthesised(str, query_type, precedence());
 }
 
-bool Item_func_set_user_var::send(Protocol *protocol, String *str_arg)
+bool Item_func_set_user_var::send(Protocol *protocol, st_value *buffer)
 {
   if (result_field)
   {
@@ -4989,7 +4989,7 @@ bool Item_func_set_user_var::send(Protocol *protocol, String *str_arg)
     update();
     return protocol->store(result_field);
   }
-  return Item::send(protocol, str_arg);
+  return Item::send(protocol, buffer);
 }
 
 void Item_func_set_user_var::make_field(THD *thd, Send_field *tmp_field)

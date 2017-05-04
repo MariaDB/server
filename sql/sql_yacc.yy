@@ -772,6 +772,11 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   Lex_dyncol_type_st Lex_dyncol_type;
   Lex_for_loop_st for_loop;
   Lex_for_loop_bounds_st for_loop_bounds;
+  struct
+  {
+    LEX_CSTRING name;
+    uint offset;
+  } sp_cursor_name_and_offset;
 
   /* pointers */
   Create_field *create_field;
@@ -860,10 +865,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 103 shift/reduce conflicts.
+  Currently there are 102 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 103
+%expect 102
 
 /*
    Comments for TOKENS.
@@ -1642,6 +1647,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <field_type> int_type real_type
 
 %type <Lex_field_type> type_with_opt_collate field_type
+        field_type_numeric
+        field_type_string
+        field_type_lob
+        field_type_temporal
+        field_type_misc
 
 %type <Lex_dyncol_type> opt_dyncol_type dyncol_type
         numeric_dyncol_type temporal_dyncol_type string_dyncol_type
@@ -1788,6 +1798,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <Lex_length_and_dec> precision opt_precision float_options
 
 %type <symbol> keyword keyword_sp
+               keyword_sp_data_type
+               keyword_sp_not_data_type
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
                  admin_option_for_role user_maybe_role
@@ -6244,6 +6256,14 @@ column_default_expr:
         ;
 
 field_type:
+          field_type_numeric
+        | field_type_temporal
+        | field_type_string
+        | field_type_lob
+        | field_type_misc
+        ;
+
+field_type_numeric:
           int_type opt_field_length field_options { $$.set($1, $2); }
         | real_type opt_precision field_options   { $$.set($1, $2); }
         | FLOAT_SYM float_options field_options
@@ -6274,7 +6294,17 @@ field_type:
           {
             $$.set(MYSQL_TYPE_TINY, "1");
           }
-        | char opt_field_length_default_1 opt_binary
+        | DECIMAL_SYM float_options field_options
+          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
+        | NUMERIC_SYM float_options field_options
+          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
+        | FIXED_SYM float_options field_options
+          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
+        ;
+
+
+field_type_string:
+          char opt_field_length_default_1 opt_binary
           {
             $$.set(MYSQL_TYPE_STRING, $2);
           }
@@ -6302,7 +6332,10 @@ field_type:
             Lex->charset=&my_charset_bin;
             $$.set(MYSQL_TYPE_VARCHAR, $2);
           }
-        | YEAR_SYM opt_field_length field_options
+        ;
+
+field_type_temporal:
+          YEAR_SYM opt_field_length field_options
           {
             if ($2)
             {
@@ -6345,7 +6378,11 @@ field_type:
         | DATETIME opt_field_length
           { $$.set(opt_mysql56_temporal_format ?
                    MYSQL_TYPE_DATETIME2 : MYSQL_TYPE_DATETIME, $2); }
-        | TINYBLOB
+        ;
+
+
+field_type_lob:
+          TINYBLOB
           {
             Lex->charset=&my_charset_bin;
             $$.set(MYSQL_TYPE_TINY_BLOB);
@@ -6391,18 +6428,16 @@ field_type:
           { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
         | LONGTEXT opt_binary
           { $$.set(MYSQL_TYPE_LONG_BLOB); }
-        | DECIMAL_SYM float_options field_options
-          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
-        | NUMERIC_SYM float_options field_options
-          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
-        | FIXED_SYM float_options field_options
-          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
-        | ENUM '(' string_list ')' opt_binary
+        | LONG_SYM opt_binary
+          { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
+        ;
+
+
+field_type_misc:
+          ENUM '(' string_list ')' opt_binary
           { $$.set(MYSQL_TYPE_ENUM); }
         | SET '(' string_list ')' opt_binary
           { $$.set(MYSQL_TYPE_SET); }
-        | LONG_SYM opt_binary
-          { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
         ;
 
 spatial_type:
@@ -12202,17 +12237,17 @@ drop:
             Lex->set_command(SQLCOM_DROP_SERVER, $3);
             Lex->server_options.reset($4);
           }
-       | DROP opt_temporary SEQUENCE_SYM opt_if_exists
+        | DROP opt_temporary SEQUENCE_SYM opt_if_exists
 
-         {
-           LEX *lex= Lex;
-           lex->set_command(SQLCOM_DROP_SEQUENCE, $2, $4);
-           lex->table_type= TABLE_TYPE_SEQUENCE;
-           YYPS->m_lock_type= TL_UNLOCK;
-           YYPS->m_mdl_type= MDL_EXCLUSIVE;
-         }
-         table_list
-         {}
+          {
+            LEX *lex= Lex;
+            lex->set_command(SQLCOM_DROP_SEQUENCE, $2, $4);
+            lex->table_type= TABLE_TYPE_SEQUENCE;
+            YYPS->m_lock_type= TL_UNLOCK;
+            YYPS->m_mdl_type= MDL_EXCLUSIVE;
+          }
+          table_list
+          {}
         ;
 
 table_list:
@@ -14094,7 +14129,7 @@ simple_ident:
                                              lip->get_tok_end())))
               MYSQL_YYABORT;
           }
-        | simple_ident_q2 { $$= $1; }
+        | simple_ident_q2
         | ident '.' ident
           {
             LEX *lex= thd->lex;
@@ -14481,6 +14516,49 @@ keyword:
  * conflicts.
  */
 keyword_sp:
+          keyword_sp_data_type
+        | keyword_sp_not_data_type
+        ;
+
+
+/*
+  These keywords are generally allowed as identifiers,
+  but not allowed as non-delimited SP variable names in sql_mode=ORACLE.
+*/
+keyword_sp_data_type:
+          BIT_SYM                  {}
+        | BOOLEAN_SYM              {} /* PLSQL-R */
+        | BOOL_SYM                 {}
+        | CLOB                     {}
+        | DATE_SYM                 {} /* Oracle-R, PLSQL-R */
+        | DATETIME                 {}
+        | ENUM                     {}
+        | FIXED_SYM                {}
+        | GEOMETRYCOLLECTION       {}
+        | GEOMETRY_SYM             {}
+        | LINESTRING               {}
+        | MEDIUM_SYM               {}
+        | MULTILINESTRING          {}
+        | MULTIPOINT               {}
+        | MULTIPOLYGON             {}
+        | NATIONAL_SYM             {}
+        | NCHAR_SYM                {}
+        | NUMBER_SYM               {} /* Oracle-R, PLSQL-R */
+        | NVARCHAR_SYM             {}
+        | POINT_SYM                {}
+        | POLYGON                  {}
+        | RAW                      {} /* Oracle-R */
+        | ROW_SYM                  {}
+        | SERIAL_SYM               {}
+        | TEXT_SYM                 {}
+        | TIMESTAMP                {}
+        | TIME_SYM                 {} /* Oracle-R */
+        | VARCHAR2                 {} /* Oracle-R, PLSQL-R */
+        | YEAR_SYM                 {}
+        ;
+
+
+keyword_sp_not_data_type:
           ACTION                   {}
         | ADDDATE_SYM              {}
         | ADMIN_SYM                {}
@@ -14498,10 +14576,7 @@ keyword_sp:
         | AUTO_SYM                 {}
         | AVG_ROW_LENGTH           {}
         | AVG_SYM                  {}
-        | BIT_SYM                  {}
         | BLOCK_SYM                {}
-        | BOOL_SYM                 {}
-        | BOOLEAN_SYM              {}
         | BTREE_SYM                {}
         | CASCADED                 {}
         | CATALOG_NAME_SYM         {}
@@ -14510,7 +14585,6 @@ keyword_sp:
         | CIPHER_SYM               {}
         | CLIENT_SYM               {}
         | CLASS_ORIGIN_SYM         {}
-        | CLOB                     {}
         | COALESCE                 {}
         | CODE_SYM                 {}
         | COLLATION_SYM            {}
@@ -14540,8 +14614,6 @@ keyword_sp:
         | CYCLE_SYM                {}
         | DATA_SYM                 {}
         | DATAFILE_SYM             {}
-        | DATETIME                 {}
-        | DATE_SYM                 {}
         | DAY_SYM                  {}
         | DECODE_SYM               {}
         | DEFINER_SYM              {}
@@ -14557,7 +14629,6 @@ keyword_sp:
         | DYNAMIC_SYM              {}
         | ELSIF_SYM                {}
         | ENDS_SYM                 {}
-        | ENUM                     {}
         | ENGINE_SYM               {}
         | ENGINES_SYM              {}
         | ERROR_SYM                {}
@@ -14579,11 +14650,8 @@ keyword_sp:
         | FULL                     {}
         | FILE_SYM                 {}
         | FIRST_SYM                {}
-        | FIXED_SYM                {}
         | GENERAL                  {}
         | GENERATED_SYM            {}
-        | GEOMETRY_SYM             {}
-        | GEOMETRYCOLLECTION       {}
         | GET_FORMAT               {}
         | GRANTS                   {}
         | GLOBAL_SYM               {}
@@ -14615,7 +14683,6 @@ keyword_sp:
         | LEAVES                   {}
         | LESS_SYM                 {}
         | LEVEL_SYM                {}
-        | LINESTRING               {}
         | LIST_SYM                 {}
         | LOCAL_SYM                {}
         | LOCKS_SYM                {}
@@ -14649,7 +14716,6 @@ keyword_sp:
         | MAX_STATEMENT_TIME_SYM   {}
         | MAX_UPDATES_PER_HOUR     {}
         | MAX_USER_CONNECTIONS_SYM {}
-        | MEDIUM_SYM               {}
         | MEMORY_SYM               {}
         | MERGE_SYM                {}
         | MESSAGE_TEXT_SYM         {}
@@ -14661,16 +14727,11 @@ keyword_sp:
         | MODIFY_SYM               {}
         | MODE_SYM                 {}
         | MONTH_SYM                {}
-        | MULTILINESTRING          {}
-        | MULTIPOINT               {}
-        | MULTIPOLYGON             {}
         | MUTEX_SYM                {}
         | MYSQL_SYM                {}
         | MYSQL_ERRNO_SYM          {}
         | NAME_SYM                 {}
         | NAMES_SYM                {}
-        | NATIONAL_SYM             {}
-        | NCHAR_SYM                {}
         | NEXT_SYM                 {}
         | NEXTVAL_SYM              {}
         | NEW_SYM                  {}
@@ -14683,8 +14744,6 @@ keyword_sp:
         | NODEGROUP_SYM            {}
         | NONE_SYM                 {}
         | NOTFOUND_SYM             {}
-        | NUMBER_SYM               {}
-        | NVARCHAR_SYM             {}
         | OF_SYM                   {} /* SQL-1999-R, Oracle-R */
         | OFFSET_SYM               {}
         | OLD_PASSWORD_SYM         {}
@@ -14701,8 +14760,6 @@ keyword_sp:
         | PHASE_SYM                {}
         | PLUGIN_SYM               {}
         | PLUGINS_SYM              {}
-        | POINT_SYM                {}
-        | POLYGON                  {}
         | PRESERVE_SYM             {}
         | PREV_SYM                 {}
         | PREVIOUS_SYM             {}
@@ -14716,7 +14773,6 @@ keyword_sp:
         | QUERY_SYM                {}
         | QUICK                    {}
         | RAISE_SYM                {}
-        | RAW                      {}
         | READ_ONLY_SYM            {}
         | REBUILD_SYM              {}
         | RECOVER_SYM              {}
@@ -14736,7 +14792,7 @@ keyword_sp:
         | RESUME_SYM               {}
         | RETURNED_SQLSTATE_SYM    {}
         | RETURNS_SYM              {}
-        | REUSE_SYM                {}
+        | REUSE_SYM                {} /* Oracle-R */
         | REVERSE_SYM              {}
         | ROLE_SYM                 {}
         | ROLLUP_SYM               {}
@@ -14745,13 +14801,11 @@ keyword_sp:
         | ROWTYPE_SYM              {}
         | ROW_COUNT_SYM            {}
         | ROW_FORMAT_SYM           {}
-        | ROW_SYM                  {}
         | RTREE_SYM                {}
         | SCHEDULE_SYM             {}
         | SCHEMA_NAME_SYM          {}
         | SECOND_SYM               {}
         | SEQUENCE_SYM             {}
-        | SERIAL_SYM               {}
         | SERIALIZABLE_SYM         {}
         | SESSION_SYM              {}
         | SIMPLE_SYM               {}
@@ -14786,15 +14840,12 @@ keyword_sp:
         | TABLESPACE               {}
         | TEMPORARY                {}
         | TEMPTABLE_SYM            {}
-        | TEXT_SYM                 {}
         | THAN_SYM                 {}
         | TRANSACTION_SYM          {}
         | TRANSACTIONAL_SYM        {}
         | TRIGGERS_SYM             {}
-        | TIMESTAMP                {}
         | TIMESTAMP_ADD            {}
         | TIMESTAMP_DIFF           {}
-        | TIME_SYM                 {}
         | TYPES_SYM                {}
         | TYPE_SYM                 {}
         | UDF_RETURNS_SYM          {}
@@ -14807,7 +14858,6 @@ keyword_sp:
         | UNTIL_SYM                {}
         | USER_SYM                 {}
         | USE_FRM                  {}
-        | VARCHAR2                 {}
         | VARIABLES                {}
         | VIEW_SYM                 {}
         | VIRTUAL_SYM              {}
@@ -14819,7 +14869,6 @@ keyword_sp:
         | WORK_SYM                 {}
         | X509_SYM                 {}
         | XML_SYM                  {}
-        | YEAR_SYM                 {}
         | VIA_SYM                  {}
         ;
 
@@ -15975,11 +16024,6 @@ opt_release:
         | NO_SYM RELEASE_SYM { $$= TVL_NO; }
 ;
 
-opt_savepoint:
-          /* empty */ {}
-        | SAVEPOINT_SYM {}
-        ;
-
 commit:
           COMMIT_SYM opt_work opt_chain opt_release
           {
@@ -16002,12 +16046,17 @@ rollback:
             lex->tx_chain= $3;
             lex->tx_release= $4;
           }
-        | ROLLBACK_SYM opt_work
-          TO_SYM opt_savepoint ident
+        | ROLLBACK_SYM opt_work TO_SYM SAVEPOINT_SYM ident
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_ROLLBACK_TO_SAVEPOINT;
             lex->ident= $5;
+          }
+        | ROLLBACK_SYM opt_work TO_SYM ident
+          {
+            LEX *lex=Lex;
+            lex->sql_command= SQLCOM_ROLLBACK_TO_SAVEPOINT;
+            lex->ident= $4;
           }
         ;
 

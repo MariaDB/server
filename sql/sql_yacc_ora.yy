@@ -274,10 +274,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 105 shift/reduce conflicts.
+  Currently there are 104 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 105
+%expect 104
 
 /*
    Comments for TOKENS.
@@ -14721,7 +14721,7 @@ keyword_sp:
 
 /*
   These keywords are generally allowed as identifiers,
-  but not allowed as non-delimited SP variable names.
+  but not allowed as non-delimited SP variable names in sql_mode=ORACLE.
 */
 keyword_sp_data_type:
           BIT_SYM                  {}
@@ -16262,11 +16262,6 @@ opt_release:
         | NO_SYM RELEASE_SYM { $$= TVL_NO; }
 ;
 
-opt_savepoint:
-          /* empty */ {}
-        | SAVEPOINT_SYM {}
-        ;
-
 commit:
           COMMIT_SYM opt_work opt_chain opt_release
           {
@@ -16289,12 +16284,17 @@ rollback:
             lex->tx_chain= $3;
             lex->tx_release= $4;
           }
-        | ROLLBACK_SYM opt_work
-          TO_SYM opt_savepoint ident
+        | ROLLBACK_SYM opt_work TO_SYM SAVEPOINT_SYM ident
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_ROLLBACK_TO_SAVEPOINT;
             lex->ident= $5;
+          }
+        | ROLLBACK_SYM opt_work TO_SYM ident
+          {
+            LEX *lex=Lex;
+            lex->sql_command= SQLCOM_ROLLBACK_TO_SAVEPOINT;
+            lex->ident= $4;
           }
         ;
 

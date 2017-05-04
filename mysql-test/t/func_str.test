@@ -119,6 +119,7 @@ select rpad('abcd',7,'ab'),lpad('abcd',7,'ab');
 select rpad('abcd',1,'ab'),lpad('abcd',1,'ab');
 select rpad('STRING', 20, CONCAT('p','a','d') );
 select lpad('STRING', 20, CONCAT('p','a','d') );
+select rpad('abcd',7),lpad('abcd',7);
 
 select LEAST(NULL,'HARRY','HARRIOT',NULL,'HAROLD'),GREATEST(NULL,'HARRY','HARRIOT',NULL,'HAROLD');
 select least(1,2,3) | greatest(16,32,8), least(5,4)*1,greatest(-1.0,1.0)*1,least(3,2,1)*1.0,greatest(1,1.1,1.0),least("10",9),greatest("A","B","0");
@@ -373,7 +374,9 @@ select collation(right(_latin2'a',1)), coercibility(right(_latin2'a',1));
 select collation(substring(_latin2'a',1,1)), coercibility(substring(_latin2'a',1,1));
 select collation(concat(_latin2'a',_latin2'b')), coercibility(concat(_latin2'a',_latin2'b'));
 select collation(lpad(_latin2'a',4,_latin2'b')), coercibility(lpad(_latin2'a',4,_latin2'b'));
+select collation(lpad(_latin2'a',4)), coercibility(lpad(_latin2'a',4));
 select collation(rpad(_latin2'a',4,_latin2'b')), coercibility(rpad(_latin2'a',4,_latin2'b'));
+select collation(rpad(_latin2'a',4)), coercibility(rpad(_latin2'a',4));
 select collation(concat_ws(_latin2'a',_latin2'b')), coercibility(concat_ws(_latin2'a',_latin2'b'));
 select collation(make_set(255,_latin2'a',_latin2'b',_latin2'c')), coercibility(make_set(255,_latin2'a',_latin2'b',_latin2'c'));
 select collation(export_set(255,_latin2'y',_latin2'n',_latin2' ')), coercibility(export_set(255,_latin2'y',_latin2'n',_latin2' '));
@@ -408,6 +411,8 @@ select
   concat(_latin2'a',_latin2'b'),
   lpad(_latin2'a',4,_latin2'b'),
   rpad(_latin2'a',4,_latin2'b'),
+  lpad(_latin2'a',4),
+  rpad(_latin2'a',4),
   concat_ws(_latin2'a',_latin2'b'),
   make_set(255,_latin2'a',_latin2'b',_latin2'c'),
   export_set(255,_latin2'y',_latin2'n',_latin2' '),
@@ -485,6 +490,8 @@ explain extended select concat('*',space(5),'*');
 explain extended select reverse('abc');
 explain extended select rpad('a',4,'1');
 explain extended select lpad('a',4,'1');
+explain extended select rpad('a',4);
+explain extended select lpad('a',4);
 explain extended select concat_ws(',','',NULL,'a');
 explain extended select make_set(255,_latin2'a', _latin2'b', _latin2'c');
 explain extended select elt(2,1);
@@ -1105,6 +1112,21 @@ select rpad('hello', -18446744073709551616, '1');
 select rpad('hello', 18446744073709551616, '1');
 select rpad('hello', -18446744073709551617, '1');
 select rpad('hello', 18446744073709551617, '1');
+select rpad('hello', -1);
+select rpad('hello', -4294967295);
+select rpad('hello', 4294967295);
+select rpad('hello', -4294967296);
+select rpad('hello', 4294967296);
+select rpad('hello', -4294967297);
+select rpad('hello', 4294967297);
+select rpad('hello', -18446744073709551615);
+select rpad('hello', 18446744073709551615);
+select rpad('hello', -18446744073709551616);
+select rpad('hello', 18446744073709551616);
+select rpad('hello', -18446744073709551617);
+select rpad('hello', 18446744073709551617);
+select rpad('hello', 0, 'x');
+select rpad('hello', 0);
 
 select lpad('hello', -1, '1');
 select lpad('hello', -4294967295, '1');
@@ -1119,7 +1141,32 @@ select lpad('hello', -18446744073709551616, '1');
 select lpad('hello', 18446744073709551616, '1');
 select lpad('hello', -18446744073709551617, '1');
 select lpad('hello', 18446744073709551617, '1');
+select lpad('hello', -1);
+select lpad('hello', -4294967295);
+select lpad('hello', 4294967295);
+select lpad('hello', -4294967296);
+select lpad('hello', 4294967296);
+select lpad('hello', -4294967297);
+select lpad('hello', 4294967297);
+select lpad('hello', -18446744073709551615);
+select lpad('hello', 18446744073709551615);
+select lpad('hello', -18446744073709551616);
+select lpad('hello', 18446744073709551616);
+select lpad('hello', -18446744073709551617);
+select lpad('hello', 18446744073709551617);
+select lpad('hello', 0, 'x');
+select lpad('hello', 0);
 
+--echo Check parameters count rpad / lpad
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select rpad('x');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select rpad('x',2,'.','z');
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select lpad('x');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select lpad('x',2,'.','z');
 
 #
 # BUG#17047: CHAR() and IN() can return NULL without signaling NULL
@@ -1141,6 +1188,8 @@ select substring('abc', cast(2 as unsigned int));
 select repeat('a', cast(2 as unsigned int));
 select rpad('abc', cast(5 as unsigned integer), 'x');
 select lpad('abc', cast(5 as unsigned integer), 'x');
+select rpad('abc', cast(5 as unsigned integer));
+select lpad('abc', cast(5 as unsigned integer));
 
 #
 # Bug#15757: Wrong SUBSTRING() result when a tmp table was employed.
@@ -1403,6 +1452,8 @@ SELECT RIGHT('1', DAY(FROM_UNIXTIME(-1)));
 SELECT REPEAT('1', DAY(FROM_UNIXTIME(-1)));
 SELECT RPAD('hi', DAY(FROM_UNIXTIME(-1)),'?');
 SELECT LPAD('hi', DAY(FROM_UNIXTIME(-1)),'?');
+SELECT RPAD('hi', DAY(FROM_UNIXTIME(-1)));
+SELECT LPAD('hi', DAY(FROM_UNIXTIME(-1)));
 
 #
 # MDEV-4289 Assertion `0' fails in make_sortkey with GROUP_CONCAT, MAKE_SET, GROUP BY
