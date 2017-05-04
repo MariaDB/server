@@ -1200,7 +1200,7 @@ ft-query-expansion-limit 20
 ft-stopword-file (No default value)
 gdb FALSE
 general-log FALSE
-getopt-prefix-matching TRUE
+getopt-prefix-matching FALSE
 group-concat-max-len 1024
 gtid-domain-id 0
 gtid-ignore-duplicates FALSE
