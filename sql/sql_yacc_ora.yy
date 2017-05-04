@@ -14720,7 +14720,7 @@ keyword_sp:
 
 /*
   These keywords are generally allowed as identifiers,
-  but not allowed as non-delimited SP variable names.
+  but not allowed as non-delimited SP variable names in sql_mode=ORACLE.
 */
 keyword_sp_data_type:
           BIT_SYM                  {}
@@ -15278,7 +15278,7 @@ option_value_no_option_type:
             if (Lex->init_default_internal_variable(&var, $3) ||
                 Lex->set_variable(&var, $5))
               MYSQL_YYABORT;
-           }
+          }
         | '@' ident_or_text equal expr
           {
             Item_func_set_user_var *item;
