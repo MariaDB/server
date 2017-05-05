@@ -31,6 +31,7 @@ call mtr.add_suppression("InnoDB: Only one log file found");
 call mtr.add_suppression("InnoDB: Log file .*ib_logfile[01].* size");
 call mtr.add_suppression("InnoDB: Unable to open .*ib_logfile0. to check native AIO read support");
 # InnoDB shutdown after refused startup is not clean in 10.0 or 10.1!
+--source include/not_valgrind.inc
 call mtr.add_suppression("mysqld got signal 11");
 call mtr.add_suppression("Attempting backtrace");
 FLUSH TABLES;
