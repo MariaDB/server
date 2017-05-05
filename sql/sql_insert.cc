@@ -4313,7 +4313,7 @@ bool select_create::send_eof()
     */
     if (!table->s->tmp_table)
     {
- #ifdef WITH_WSREP
+#ifdef WITH_WSREP
       /*
          append table level exclusive key for CTAS
       */
