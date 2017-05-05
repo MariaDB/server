@@ -295,7 +295,7 @@ page_is_comp(
 /*=========*/
 	const page_t*	page)	/*!< in: index page */
 {
-	return(page_header_get_field(page, PAGE_N_HEAP) & 0x8000);
+	return(page[PAGE_HEADER + PAGE_N_HEAP] & 0x80);
 }
 
 /************************************************************//**

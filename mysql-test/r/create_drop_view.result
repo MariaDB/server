@@ -55,5 +55,5 @@ id
 DROP VIEW IF EXISTS v1;
 DROP VIEW IF EXISTS v1;
 Warnings:
-Note	4067	Unknown VIEW: 'test.v1'
+Note	4068	Unknown VIEW: 'test.v1'
 DROP TABLE t1;

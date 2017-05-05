@@ -2339,7 +2339,8 @@ public:
   in List<Item> and desire to place this code somewhere near other functions
   working with user variables.
 */
-class Item_user_var_as_out_param :public Item
+class Item_user_var_as_out_param :public Item,
+                                  public Load_data_out_param
 {
   LEX_CSTRING name;
   user_var_entry *entry;
@@ -2355,9 +2356,10 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_buffer);
   /* fix_fields() binds variable name with its entry structure */
   bool fix_fields(THD *thd, Item **ref);
-  void print_for_load(THD *thd, String *str);
-  void set_null_value(CHARSET_INFO* cs);
-  void set_value(const char *str, uint length, CHARSET_INFO* cs);
+  Load_data_out_param *get_load_data_out_param() { return this; }
+  void load_data_print(THD *thd, String *str);
+  void load_data_set_null_value(CHARSET_INFO* cs);
+  void load_data_set_value(const char *str, uint length, CHARSET_INFO* cs);
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_user_var_as_out_param>(thd, mem_root, this); }

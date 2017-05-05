@@ -540,15 +540,16 @@ dict_tf_is_valid(
 
 	/* Make sure there are no bits that we do not know about. */
 	if (unused != 0) {
-
 		fprintf(stderr,
-			"InnoDB: Error: table unused flags are %ld"
+			"InnoDB: Error: table unused flags are " ULINTPF
 			" in the data dictionary and are corrupted\n"
 			"InnoDB: Error: data dictionary flags are\n"
-			"InnoDB: compact %ld atomic_blobs %ld\n"
-			"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-			"InnoDB: page_compression %ld page_compression_level %ld\n"
-			"InnoDB: atomic_writes %ld\n",
+			"InnoDB: compact " ULINTPF " atomic_blobs " ULINTPF
+			"\nInnoDB: unused " ULINTPF " data_dir " ULINTPF
+			" zip_ssize " ULINTPF
+			"\nInnoDB: page_compression " ULINTPF
+			" page_compression_level " ULINTPF
+			"\nInnoDB: atomic_writes " ULINTPF "\n",
 			unused,
 			compact, atomic_blobs, unused, data_dir, zip_ssize,
 			page_compression, page_compression_level, atomic_writes
@@ -564,17 +565,20 @@ dict_tf_is_valid(
 
 		if (!compact) {
 			fprintf(stderr,
-				"InnoDB: Error: table compact flags are %ld"
+				"InnoDB: Error: table compact flags are "
+				ULINTPF
 				" in the data dictionary and are corrupted\n"
 				"InnoDB: Error: data dictionary flags are\n"
-				"InnoDB: compact %ld atomic_blobs %ld\n"
-				"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-				"InnoDB: page_compression %ld page_compression_level %ld\n"
-				"InnoDB: atomic_writes %ld\n",
+				"InnoDB: compact " ULINTPF
+				" atomic_blobs " ULINTPF "\n"
+				"InnoDB: unused " ULINTPF
+				" data_dir " ULINTPF " zip_ssize " ULINTPF
+				"\nInnoDB: page_compression " ULINTPF
+				" page_compression_level " ULINTPF
+				"\nInnoDB: atomic_writes " ULINTPF "\n",
 				compact, compact, atomic_blobs, unused, data_dir, zip_ssize,
 				page_compression, page_compression_level, atomic_writes
 			);
-
 			return(false);
 		}
 
@@ -582,17 +586,18 @@ dict_tf_is_valid(
 
 		/* Antelope does not support COMPRESSED row format. */
 		fprintf(stderr,
-			"InnoDB: Error: table flags are %ld"
+			"InnoDB: Error: table flags are " ULINTPF
 			" in the data dictionary and are corrupted\n"
 			"InnoDB: Error: data dictionary flags are\n"
-			"InnoDB: compact %ld atomic_blobs %ld\n"
-			"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-			"InnoDB: page_compression %ld page_compression_level %ld\n"
-			"InnoDB: atomic_writes %ld\n",
+			"InnoDB: compact " ULINTPF " atomic_blobs " ULINTPF
+			"\nInnoDB: unused " ULINTPF " data_dir " ULINTPF
+			" zip_ssize " ULINTPF
+			"\nInnoDB: page_compression " ULINTPF
+			" page_compression_level " ULINTPF
+			"\nInnoDB: atomic_writes " ULINTPF "\n",
 			flags, compact, atomic_blobs, unused, data_dir, zip_ssize,
 			page_compression, page_compression_level, atomic_writes
 		);
-
 		return(false);
 	}
 
@@ -606,12 +611,17 @@ dict_tf_is_valid(
 		    || zip_ssize > PAGE_ZIP_SSIZE_MAX) {
 
 			fprintf(stderr,
-				"InnoDB: Error: table compact flags are %ld in the data dictionary and are corrupted\n"
+				"InnoDB: Error: table compact flags are "
+				ULINTPF
+				" in the data dictionary and are corrupted\n"
 				"InnoDB: Error: data dictionary flags are\n"
-				"InnoDB: compact %ld atomic_blobs %ld\n"
-				"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-				"InnoDB: page_compression %ld page_compression_level %ld\n"
-				"InnoDB: atomic_writes %ld\n",
+				"InnoDB: compact " ULINTPF
+				" atomic_blobs " ULINTPF "\n"
+				"InnoDB: unused " ULINTPF
+				" data_dir " ULINTPF " zip_ssize " ULINTPF
+				"\nInnoDB: page_compression " ULINTPF
+				" page_compression_level " ULINTPF
+				"\nInnoDB: atomic_writes " ULINTPF "\n",
 				flags,
 				compact, atomic_blobs, unused, data_dir, zip_ssize,
 				page_compression, page_compression_level, atomic_writes
@@ -630,16 +640,19 @@ dict_tf_is_valid(
 			|| !atomic_blobs) {
 
 			fprintf(stderr,
-				"InnoDB: Error: table flags are %ld in the data dictionary and are corrupted\n"
+				"InnoDB: Error: table flags are " ULINTPF
+				" in the data dictionary and are corrupted\n"
 				"InnoDB: Error: data dictionary flags are\n"
-				"InnoDB: compact %ld atomic_blobs %ld\n"
-				"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-				"InnoDB: page_compression %ld page_compression_level %ld\n"
-				"InnoDB: atomic_writes %ld\n",
+				"InnoDB: compact " ULINTPF
+				" atomic_blobs " ULINTPF "\n"
+				"InnoDB: unused " ULINTPF
+				" data_dir " ULINTPF " zip_ssize " ULINTPF
+				"\nInnoDB: page_compression " ULINTPF
+				" page_compression_level " ULINTPF
+				"\nInnoDB: atomic_writes " ULINTPF "\n",
 				flags, compact, atomic_blobs, unused, data_dir, zip_ssize,
 				page_compression, page_compression_level, atomic_writes
 			);
-
 			return(false);
 		}
 	}
@@ -649,12 +662,16 @@ dict_tf_is_valid(
 		if(atomic_writes > ATOMIC_WRITES_OFF) {
 
 			fprintf(stderr,
-				"InnoDB: Error: table flags are %ld in the data dictionary and are corrupted\n"
+				"InnoDB: Error: table flags are " ULINTPF
+				" in the data dictionary and are corrupted\n"
 				"InnoDB: Error: data dictionary flags are\n"
-				"InnoDB: compact %ld atomic_blobs %ld\n"
-				"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-				"InnoDB: page_compression %ld page_compression_level %ld\n"
-				"InnoDB: atomic_writes %ld\n",
+				"InnoDB: compact " ULINTPF
+				" atomic_blobs " ULINTPF "\n"
+				"InnoDB: unused " ULINTPF
+				" data_dir " ULINTPF " zip_ssize " ULINTPF
+				"\nInnoDB: page_compression " ULINTPF
+				" page_compression_level " ULINTPF
+				"\nInnoDB: atomic_writes " ULINTPF "\n",
 				flags, compact, atomic_blobs, unused, data_dir, zip_ssize,
 				page_compression, page_compression_level, atomic_writes
 			);
@@ -699,7 +716,7 @@ dict_sys_tables_type_validate(
 
 	if (redundant) {
 		if (zip_ssize || atomic_blobs) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=Redundant, zip_ssize %lu atomic_blobs %lu\n",
+			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=Redundant, zip_ssize " ULINTPF " atomic_blobs " ULINTPF "\n",
 				zip_ssize, atomic_blobs);
 			return(ULINT_UNDEFINED);
 		}
@@ -707,7 +724,7 @@ dict_sys_tables_type_validate(
 
 	/* Make sure there are no bits that we do not know about. */
 	if (unused) {
-		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, unused %lu\n",
+		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", unused " ULINTPF "\n",
 			type, unused);
 		return(ULINT_UNDEFINED);
 	}
@@ -723,7 +740,7 @@ dict_sys_tables_type_validate(
 
 	} else if (zip_ssize) {
 		/* Antelope does not support COMPRESSED format. */
-		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, zip_ssize %lu\n",
+		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", zip_ssize " ULINTPF "\n",
 			type, zip_ssize);
 		return(ULINT_UNDEFINED);
 	}
@@ -734,14 +751,14 @@ dict_sys_tables_type_validate(
 		should be in N_COLS, but we already know about the
 		low_order_bit and DICT_N_COLS_COMPACT flags. */
 		if (!atomic_blobs) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, zip_ssize %lu atomic_blobs %lu\n",
+			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", zip_ssize " ULINTPF " atomic_blobs " ULINTPF "\n",
 				type, zip_ssize, atomic_blobs);
 			return(ULINT_UNDEFINED);
 		}
 
 		/* Validate that the number is within allowed range. */
 		if (zip_ssize > PAGE_ZIP_SSIZE_MAX) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, zip_ssize %lu max %d\n",
+			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", zip_ssize " ULINTPF " max %d\n",
 				type, zip_ssize, PAGE_ZIP_SSIZE_MAX);
 			return(ULINT_UNDEFINED);
 		}
@@ -759,8 +776,8 @@ dict_sys_tables_type_validate(
 		low_order_bit and DICT_N_COLS_COMPACT flags. */
 
                 if (!atomic_blobs || !page_compression) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, page_compression %lu page_compression_level %lu\n"
-				"InnoDB: Error: atomic_blobs %lu\n",
+			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", page_compression " ULINTPF " page_compression_level " ULINTPF "\n"
+				"InnoDB: Error: atomic_blobs " ULINTPF "\n",
 				type, page_compression, page_compression_level, atomic_blobs);
 			return(ULINT_UNDEFINED);
 		}
@@ -768,7 +785,7 @@ dict_sys_tables_type_validate(
 
 	/* Validate that the atomic writes number is within allowed range. */
 	if (atomic_writes > ATOMIC_WRITES_OFF) {
-		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, atomic_writes %lu\n",
+		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", atomic_writes " ULINTPF "\n",
 				type, atomic_writes);
 			return(ULINT_UNDEFINED);
 	}

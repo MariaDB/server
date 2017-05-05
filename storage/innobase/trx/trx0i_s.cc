@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1612,7 +1613,8 @@ trx_i_s_create_lock_id(
 	if (row->lock_space != ULINT_UNDEFINED) {
 		/* record lock */
 		res_len = ut_snprintf(lock_id, lock_id_size,
-				      TRX_ID_FMT ":%lu:%lu:%lu",
+				      TRX_ID_FMT
+				      ":" ULINTPF ":" ULINTPF ":" ULINTPF,
 				      row->lock_trx_id, row->lock_space,
 				      row->lock_page, row->lock_rec);
 	} else {

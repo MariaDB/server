@@ -1,0 +1,83 @@
+
+#
+# Let's understand the topology.
+# * Independent Master with server-id = 1
+# * Galera cluster with 2 nodes: node#1 and node#2 with server-id = 2, 3
+#   node#1 act as slave to Independent Master with server-id = 1
+# * Independent Slave with server-id = 4 replicating from galera node#2
+#
+
+# Use default setting for mysqld processes
+!include include/default_mysqld.cnf
+
+[mysqld]
+log-slave-updates
+log-bin=mysqld-bin
+binlog-format=row
+gtid-mode=on
+enforce-gtid-consistency=true
+
+[mysqld.1]
+server-id=1
+
+[mysqld.2]
+server-id=2
+
+wsrep_provider=@ENV.WSREP_PROVIDER
+wsrep_cluster_address='gcomm://'
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;evs.install_timeout = PT15S; evs.max_install_timeouts=1;'
+
+# enforce read-committed characteristics across the cluster
+wsrep_causal_reads=ON
+wsrep_sync_wait = 7
+
+wsrep_node_address=127.0.0.1
+wsrep_sst_receive_address=127.0.0.2:@mysqld.2.#sst_port
+wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
+
+# Required for Galera
+innodb_autoinc_lock_mode=2
+
+innodb_flush_log_at_trx_commit=2
+
+[mysqld.3]
+server-id=3
+
+wsrep_provider=@ENV.WSREP_PROVIDER
+wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.2.#galera_port'
+wsrep_provider_options='base_port=@mysqld.3.#galera_port;evs.install_timeout = PT15S; evs.max_install_timeouts = 1;'
+
+# enforce read-committed characteristics across the cluster
+wsrep_causal_reads=ON
+wsrep_sync_wait = 7
+
+wsrep_node_address=127.0.0.1
+wsrep_sst_receive_address=127.0.0.2:@mysqld.3.#sst_port
+wsrep_node_incoming_address=127.0.0.1:@mysqld.3.port
+
+# Required for Galera
+innodb_autoinc_lock_mode=2
+
+innodb_flush_log_at_trx_commit=2
+
+[mysqld.4]
+server-id=4
+
+[ENV]
+NODE_MYPORT_1= @mysqld.1.port
+NODE_MYSOCK_1= @mysqld.1.socket
+
+NODE_MYPORT_2= @mysqld.2.port
+NODE_MYSOCK_2= @mysqld.2.socket
+
+NODE_MYPORT_3= @mysqld.3.port
+NODE_MYSOCK_3= @mysqld.3.socket
+
+NODE_MYPORT_4= @mysqld.4.port
+NODE_MYSOCK_4= @mysqld.4.socket
+
+NODE_GALERAPORT_2= @mysqld.2.#galera_port
+NODE_GALERAPORT_3= @mysqld.3.#galera_port
+
+NODE_SSTPORT_2= @mysqld.2.#sst_port
+NODE_SSTPORT_3= @mysqld.3.#sst_port

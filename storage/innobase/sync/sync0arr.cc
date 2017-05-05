@@ -514,17 +514,17 @@ sync_array_cell_print(
 
 		if (mutex) {
 		fprintf(file,
-			"Mutex at %p, %s, lock var %lu\n"
+			"Mutex at %p, %s, lock var %x\n"
 #ifdef UNIV_DEBUG
-			"Last time reserved in file %s line %lu"
+			"Last time reserved in file %s line %u"
 #endif /* UNIV_DEBUG */
 			"\n",
 			(void*) mutex,
 			policy.to_string().c_str(),
-			(ulong) mutex->state()
+			mutex->state()
 #ifdef UNIV_DEBUG
 			,name,
-			(ulong) policy.get_enter_line()
+			policy.get_enter_line()
 #endif /* UNIV_DEBUG */
 			);
 		}
@@ -569,42 +569,47 @@ sync_array_cell_print(
 
 		if (rwlock) {
 			fprintf(file,
-				" RW-latch at %p created in file %s line %lu\n",
+				" RW-latch at %p created in file %s line %u\n",
 				(void*) rwlock, innobase_basename(rwlock->cfile_name),
-				(ulong) rwlock->cline);
+				rwlock->cline);
 
 			writer = rw_lock_get_writer(rwlock);
 
 			if (writer != RW_LOCK_NOT_LOCKED) {
 
 				fprintf(file,
-					"a writer (thread id %lu) has"
+					"a writer (thread id " ULINTPF ") has"
 					" reserved it in mode %s",
-					(ulong) os_thread_pf(rwlock->writer_thread),
+					os_thread_pf(rwlock->writer_thread),
 				writer == RW_LOCK_X ? " exclusive\n"
 				: writer == RW_LOCK_SX ? " SX\n"
 					: " wait exclusive\n");
 			}
 
 			fprintf(file,
-				"number of readers %lu, waiters flag %lu,"
-				" lock_word: %lx\n"
+				"number of readers " ULINTPF
+				", waiters flag %u, "
+				"lock_word: " ULINTPFx "\n"
 				"Last time read locked in file %s line %u\n"
-				"Last time write locked in file %s line %u\n",
-				(ulint) rw_lock_get_reader_count(rwlock),
-				(ulint) rwlock->waiters,
+				"Last time write locked in file %s line %u"
+#if 0 /* JAN: TODO: FIX LATER */
+				"\nHolder thread " ULINTPF
+				" file %s line " ULINTPF
+#endif
+				"\n",
+				rw_lock_get_reader_count(rwlock),
+				rwlock->waiters,
 				rwlock->lock_word,
 				innobase_basename(rwlock->last_s_file_name),
 				rwlock->last_s_line,
-				rwlock->last_x_file_name,
-				rwlock->last_x_line);
-
-			/* JAN: TODO: FIX LATER
-			fprintf(file,
-				"Holder thread %lu file %s line %lu\n",
-				rwlock->thread_id, rwlock->file_name,
-			rwlock->line);
-			*/
+				innobase_basename(rwlock->last_x_file_name),
+				rwlock->last_x_line
+#if 0 /* JAN: TODO: FIX LATER */
+				, os_thread_pf(rwlock->thread_id),
+				innobase_basename(rwlock->file_name),
+				rwlock->line
+#endif
+				);
 		}
 
 	} else {
@@ -1093,9 +1098,10 @@ sync_array_print_long_waits(
 		now the values of pending calls of these. */
 
 		fprintf(stderr,
-			"InnoDB: Pending preads %lu, pwrites %lu\n",
-			(ulong) os_n_pending_reads,
-			(ulong) os_n_pending_writes);
+			"InnoDB: Pending reads " UINT64PF
+			", writes " UINT64PF "\n",
+			MONITOR_VALUE(MONITOR_OS_PENDING_READS),
+			MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
 		srv_print_innodb_monitor = TRUE;
 

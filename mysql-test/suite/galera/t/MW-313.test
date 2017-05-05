@@ -1,0 +1,51 @@
+#
+# MW-313 Enforce wsrep_max_ws_rows also when binlog is enabled
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+
+# No error expected for SELECT and SHOW
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+
+SET GLOBAL wsrep_max_ws_rows = 2;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+SELECT * FROM t1 GROUP BY f1;
+SELECT * FROM t1 GROUP BY f1;
+
+--error 0
+SELECT * FROM t1 GROUP BY f1;
+
+--disable_result_log
+--error 0
+SHOW STATUS LIKE '%wsrep%';
+--enable_result_log
+
+# Error expected for DML
+
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 SELECT * FROM t1;
+
+START TRANSACTION;
+INSERT INTO t1 (f1) VALUES (1);
+
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 (f1) VALUES (2),(3),(4);
+
+ROLLBACK;
+START TRANSACTION;
+--error ER_ERROR_DURING_COMMIT
+DELETE FROM t1;
+
+DROP TABLE t1;
+SET GLOBAL wsrep_max_ws_rows = 0;

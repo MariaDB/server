@@ -43,6 +43,7 @@ CALL mtr.add_suppression("failed to open gcomm backend connection: 110: failed t
 CALL mtr.add_suppression("Failed to open backend connection: -110 \\(Connection timed out\\)");
 CALL mtr.add_suppression("gcs connect failed: Connection timed out");
 CALL mtr.add_suppression("WSREP: wsrep::connect\\(foo://\\) failed: 7");
+CALL mtr.add_suppression("WSREP: wsrep::connect\\(gcomm://192.0.2.1\\) failed: 7");
 disconnect node_2;
 disconnect node_1;
 # End of test

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -227,20 +228,11 @@ mlog_write_initial_log_record_fast(
 
 	if (space == TRX_SYS_SPACE
 	    && offset >= FSP_EXTENT_SIZE && offset < 3 * FSP_EXTENT_SIZE) {
-		if (buf_dblwr_being_created) {
-			/* Do nothing: we only come to this branch in an
-			InnoDB database creation. We do not redo log
-			anything for the doublewrite buffer pages. */
-			return(log_ptr);
-		} else {
-			ib::error() << "Trying to redo log a record of type "
-				<< type << "  on page "
-				<< page_id_t(space, offset) << "in the"
-				" doublewrite buffer, continuing anyway."
-				" Please post a bug report to"
-				" bugs.mysql.com.";
-			ut_ad(0);
-		}
+		ut_ad(buf_dblwr_being_created);
+		/* Do nothing: we only come to this branch in an
+		InnoDB database creation. We do not redo log
+		anything for the doublewrite buffer pages. */
+		return(log_ptr);
 	}
 
 	return(mlog_write_initial_log_record_low(type, space, offset,

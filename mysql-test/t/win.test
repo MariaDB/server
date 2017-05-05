@@ -1856,3 +1856,24 @@ from
 ) q;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-11990: window function over min/max aggregation
+--echo #
+
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2), (4), (2);
+
+select sum(max(id)) over (order by max(id)) from t1;
+explain
+select sum(max(id)) over (order by max(id)) from t1;
+
+create index idx on t1(id);
+select sum(max(id)) over (order by max(id)) from t1;
+explain
+select sum(max(id)) over (order by max(id)) from t1;
+select sum(max(id)) over (order by max(id)) from t1 where id < 3;
+select count(max(id)) over (order by max(id)) from t1 where id < 3;
+select max(id), rank() over (order by max(id)) from t1 where id < 3;
+
+drop table t1;

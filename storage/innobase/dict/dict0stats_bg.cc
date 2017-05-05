@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,6 +31,7 @@ Created Apr 25, 2012 Vasil Dimov
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "ut0new.h"
+#include "fil0fil.h"
 
 #include <vector>
 
@@ -318,8 +319,9 @@ dict_stats_process_entry_from_recalc_pool()
 		return;
 	}
 
-	/* Check whether table is corrupted */
-	if (table->corrupted) {
+	ut_ad(!dict_table_is_temporary(table));
+
+	if (!fil_table_accessible(table)) {
 		dict_table_close(table, TRUE, FALSE);
 		mutex_exit(&dict_sys->mutex);
 		return;

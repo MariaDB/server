@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
 Copyright (c) 2014, 2017, MariaDB Corporation.
 
@@ -105,12 +105,6 @@ static time_t	log_last_margine_warning_time;
 /* Margins for free space in the log buffer after a log entry is catenated */
 #define LOG_BUF_FLUSH_RATIO	2
 #define LOG_BUF_FLUSH_MARGIN	(LOG_BUF_WRITE_MARGIN + 4 * UNIV_PAGE_SIZE)
-
-/* Margin for the free space in the smallest log group, before a new query
-step which modifies the database, is started */
-
-#define LOG_CHECKPOINT_FREE_PER_THREAD	(4 * UNIV_PAGE_SIZE)
-#define LOG_CHECKPOINT_EXTRA_FREE	(8 * UNIV_PAGE_SIZE)
 
 /* This parameter controls asynchronous making of a new checkpoint; the value
 should be bigger than LOG_POOL_PREFLUSH_RATIO_SYNC */
@@ -742,14 +736,11 @@ failure:
 
 	if (!success) {
 		ib::error() << "Cannot continue operation. ib_logfiles are too"
-			" small for innodb_thread_concurrency "
+			" small for innodb_thread_concurrency="
 			<< srv_thread_concurrency << ". The combined size of"
 			" ib_logfiles should be bigger than"
-			" 200 kB * innodb_thread_concurrency. To get mysqld"
-			" to start up, set innodb_thread_concurrency in"
-			" my.cnf to a lower value, for example, to 8. After"
-			" an ERROR-FREE shutdown of mysqld you can adjust"
-			" the size of ib_logfiles. " << INNODB_PARAMETERS_MSG;
+			" 200 kB * innodb_thread_concurrency. "
+			<< INNODB_PARAMETERS_MSG;
 	}
 
 	return(success);
@@ -2181,7 +2172,8 @@ wait_suspend_loop:
 	bool	freed = buf_all_freed();
 	ut_a(freed);
 
-	ut_a(lsn == log_sys->lsn);
+	ut_a(lsn == log_sys->lsn
+	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
 
 	if (lsn < srv_start_lsn) {
 		ib::error() << "Shutdown LSN=" << lsn
@@ -2207,7 +2199,8 @@ wait_suspend_loop:
 	freed = buf_all_freed();
 	ut_a(freed);
 
-	ut_a(lsn == log_sys->lsn);
+	ut_a(lsn == log_sys->lsn
+	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
 }
 
 /******************************************************//**

@@ -9571,6 +9571,65 @@ int spider_oracle_handler::append_explain_select(
   DBUG_RETURN(0);
 }
 
+/********************************************************************
+ * Determine whether the current query's projection list
+ * consists solely of the specified column.
+ *
+ * Params   IN      - field_index:
+ *                    Field index of the column of interest within
+ *                    its table.
+ *
+ * Returns  TRUE    - if the query's projection list consists
+ *                    solely of the specified column.
+ *          FALSE   - otherwise.
+ ********************************************************************/
+bool spider_oracle_handler::is_sole_projection_field( uint16 field_index )
+{
+    // Determine whether the projection list consists solely of the field of interest
+    bool            is_field_in_projection_list = FALSE;
+    TABLE*          table                       = spider->get_table();
+    uint16          projection_field_count      = 0;
+    uint16          projection_field_index;
+    Field**         field;
+    DBUG_ENTER( "spider_oracle_handler::is_sole_projection_field" );
+
+    for ( field = table->field; *field; field++ )
+    {
+        projection_field_index = ( *field )->field_index;
+
+        if ( !( minimum_select_bit_is_set( projection_field_index ) ) )
+        {
+            // Current field is not in the projection list
+            continue;
+        }
+
+        projection_field_count++;
+
+        if ( !is_field_in_projection_list )
+        {
+            if (field_index == projection_field_index)
+            {
+                // Field of interest is in the projection list
+                is_field_in_projection_list     = TRUE;
+            }
+        }
+
+        if ( is_field_in_projection_list && ( projection_field_count != 1 ) )
+        {
+            // Field of interest is not the sole column in the projection list
+            DBUG_RETURN( FALSE );
+        }
+    }
+
+    if ( is_field_in_projection_list && ( projection_field_count == 1 ) )
+    {
+        // Field of interest is the only column in the projection list
+        DBUG_RETURN( TRUE );
+    }
+
+    DBUG_RETURN( FALSE );
+}
+
 bool spider_oracle_handler::is_bulk_insert_exec_period(
   bool bulk_end
 ) {

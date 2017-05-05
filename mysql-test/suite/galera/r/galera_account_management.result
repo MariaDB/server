@@ -5,6 +5,15 @@ SELECT COUNT(*) = 2 FROM mysql.user WHERE user IN ('user1', 'user2');
 COUNT(*) = 2
 1
 connection node_1;
+ALTER USER user1 PASSWORD EXPIRE;
+SELECT password_expired = 'Y' FROM mysql.user WHERE user = 'user1';
+password_expired = 'Y'
+1
+connection node_2;
+SELECT password_expired = 'Y' FROM mysql.user WHERE user = 'user1';
+password_expired = 'Y'
+1
+connection node_1;
 RENAME USER user2 TO user3;
 connection node_2;
 SELECT COUNT(*) = 0 FROM mysql.user WHERE user = 'user2';

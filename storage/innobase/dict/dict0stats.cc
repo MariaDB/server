@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2009, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2009, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -138,7 +139,7 @@ then we would store 5,7,10,11,12 in the array. */
 typedef std::vector<ib_uint64_t, ut_allocator<ib_uint64_t> >	boundaries_t;
 
 /** Allocator type used for index_map_t. */
-typedef ut_allocator<std::pair<const char*, dict_index_t*> >
+typedef ut_allocator<std::pair<const char* const, dict_index_t*> >
 	index_map_t_allocator;
 
 /** Auxiliary map used for sorting indexes by name in dict_stats_save(). */
@@ -1046,8 +1047,8 @@ dict_stats_analyze_index_level(
 	ulint*		prev_rec_offsets;
 	ulint		i;
 
-	DEBUG_PRINTF("    %s(table=%s, index=%s, level=%lu)\n", __func__,
-		     index->table->name, index->name, level);
+	DEBUG_PRINTF("    %s(table=%s, index=%s, level=" ULINTPF ")\n",
+		     __func__, index->table->name, index->name, level);
 
 	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
 				MTR_MEMO_SX_LOCK));
@@ -1151,10 +1152,11 @@ dict_stats_analyze_index_level(
 		them away) which brings non-determinism. We skip only
 		leaf-level delete marks because delete marks on
 		non-leaf level do not make sense. */
-		if (level == 0 &&
+
+		if (level == 0 && (srv_stats_include_delete_marked ? 0:
 		    rec_get_deleted_flag(
 			    rec,
-			    page_is_comp(btr_pcur_get_page(&pcur)))) {
+			    page_is_comp(btr_pcur_get_page(&pcur))))) {
 
 			if (rec_is_last_on_page
 			    && !prev_rec_is_copied
@@ -1175,7 +1177,6 @@ dict_stats_analyze_index_level(
 
 			continue;
 		}
-
 		rec_offsets = rec_get_offsets(
 			rec, index, rec_offsets, n_uniq, &heap);
 
@@ -1292,7 +1293,7 @@ dict_stats_analyze_index_level(
 
 		DEBUG_PRINTF("    %s(): total recs: " UINT64PF
 			     ", total pages: " UINT64PF
-			     ", n_diff[%lu]: " UINT64PF "\n",
+			     ", n_diff[" ULINTPF "]: " UINT64PF "\n",
 			     __func__, *total_recs,
 			     *total_pages,
 			     i, n_diff[i]);
@@ -1333,8 +1334,12 @@ enum page_scan_method_t {
 				the given page and count the number of
 				distinct ones, also ignore delete marked
 				records */
-	QUIT_ON_FIRST_NON_BORING/* quit when the first record that differs
+	QUIT_ON_FIRST_NON_BORING,/* quit when the first record that differs
 				from its right neighbor is found */
+	COUNT_ALL_NON_BORING_INCLUDE_DEL_MARKED/* scan all records on
+				the given page and count the number of
+				distinct ones, include delete marked
+				records */
 };
 /* @} */
 
@@ -1553,7 +1558,7 @@ dict_stats_analyze_index_below_cur(
 
 		page = buf_block_get_frame(block);
 
-		if (btr_page_get_level(page, mtr) == 0) {
+		if (page_is_leaf(page)) {
 			/* leaf level */
 			break;
 		}
@@ -1598,7 +1603,7 @@ dict_stats_analyze_index_below_cur(
 	}
 
 	/* make sure we got a leaf page as a result from the above loop */
-	ut_ad(btr_page_get_level(page, &mtr) == 0);
+	ut_ad(page_is_leaf(page));
 
 	/* scan the leaf page and find the number of distinct keys,
 	when looking only at the first n_prefix columns; also estimate
@@ -1607,6 +1612,8 @@ dict_stats_analyze_index_below_cur(
 
 	offsets_rec = dict_stats_scan_page(
 		&rec, offsets1, offsets2, index, page, n_prefix,
+		srv_stats_include_delete_marked ?
+		COUNT_ALL_NON_BORING_INCLUDE_DEL_MARKED:
 		COUNT_ALL_NON_BORING_AND_SKIP_DEL_MARKED, n_diff,
 		n_external_pages);
 
@@ -1912,8 +1919,9 @@ dict_stats_index_set_n_diff(
 		index->stat_n_sample_sizes[n_prefix - 1]
 			= data->n_leaf_pages_to_analyze;
 
-		DEBUG_PRINTF("    %s(): n_diff=" UINT64PF " for n_prefix=%lu"
-			     " (%lu"
+		DEBUG_PRINTF("    %s(): n_diff=" UINT64PF
+			     " for n_prefix=" ULINTPF
+			     " (" ULINTPF
 			     " * " UINT64PF " / " UINT64PF
 			     " * " UINT64PF " / " UINT64PF ")\n",
 			     __func__,
@@ -2068,8 +2076,8 @@ dict_stats_analyze_index(
 
 	for (n_prefix = n_uniq; n_prefix >= 1; n_prefix--) {
 
-		DEBUG_PRINTF("  %s(): searching level with >=%llu"
-			     " distinct records, n_prefix=%lu\n",
+		DEBUG_PRINTF("  %s(): searching level with >=%llu "
+			     "distinct records, n_prefix=" ULINTPF "\n",
 			     __func__, N_DIFF_REQUIRED(index), n_prefix);
 
 		/* Commit the mtr to release the tree S lock to allow
@@ -2173,8 +2181,9 @@ dict_stats_analyze_index(
 		}
 found_level:
 
-		DEBUG_PRINTF("  %s(): found level %lu that has " UINT64PF
-			     " distinct records for n_prefix=%lu\n",
+		DEBUG_PRINTF("  %s(): found level " ULINTPF
+			     " that has " UINT64PF
+			     " distinct records for n_prefix=" ULINTPF "\n",
 			     __func__, level, n_diff_on_level[n_prefix - 1],
 			     n_prefix);
 		/* here we are either on level 1 or the level that we are on
@@ -2535,20 +2544,19 @@ dict_stats_save(
 
 		ut_ad(!dict_index_is_ibuf(index));
 
-		for (ulint i = 0; i < index->n_uniq; i++) {
+		for (unsigned i = 0; i < index->n_uniq; i++) {
 
 			char	stat_name[16];
 			char	stat_description[1024];
-			ulint	j;
 
 			ut_snprintf(stat_name, sizeof(stat_name),
-				    "n_diff_pfx%02lu", i + 1);
+				    "n_diff_pfx%02u", i + 1);
 
 			/* craft a string that contains the column names */
 			ut_snprintf(stat_description,
 				    sizeof(stat_description),
 				    "%s", index->fields[0].name());
-			for (j = 1; j <= i; j++) {
+			for (unsigned j = 1; j <= i; j++) {
 				size_t	len;
 
 				len = strlen(stat_description);

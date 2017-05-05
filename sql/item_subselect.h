@@ -32,6 +32,7 @@ class subselect_engine;
 class subselect_hash_sj_engine;
 class Item_bool_func2;
 class Comp_creator;
+class With_element;
 
 typedef class st_select_lex SELECT_LEX;
 
@@ -134,6 +135,9 @@ public:
     strategies cannot be applied for the subquery;
   */
   bool with_recursive_reference; 
+
+  /* To link Item_subselects containing references to the same recursive CTE */ 
+  Item_subselect *next_with_rec_ref;
 
   enum subs_type {UNKNOWN_SUBS, SINGLEROW_SUBS,
 		  EXISTS_SUBS, IN_SUBS, ALL_SUBS, ANY_SUBS};
@@ -256,6 +260,7 @@ public:
     return TRUE;
   }
 
+  void register_as_with_rec_ref(With_element *with_elem);
   void init_expr_cache_tracker(THD *thd);
   
   Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
@@ -831,6 +836,7 @@ public:
   virtual bool no_rows() = 0;
   virtual enum_engine_type engine_type() { return ABSTRACT_ENGINE; }
   virtual int get_identifier() { DBUG_ASSERT(0); return 0; }
+  virtual void force_reexecution() {}
 protected:
   void set_row(List<Item> &item_list, Item_cache **row);
 };
@@ -864,6 +870,7 @@ public:
   bool no_rows();
   virtual enum_engine_type engine_type() { return SINGLE_SELECT_ENGINE; }
   int get_identifier();
+  void force_reexecution();
 
   friend class subselect_hash_sj_engine;
   friend class Item_in_subselect;
@@ -894,6 +901,7 @@ public:
                      bool temp= FALSE);
   bool no_tables();
   bool is_executed() const;
+  void force_reexecution();
   bool no_rows();
   virtual enum_engine_type engine_type() { return UNION_ENGINE; }
 };

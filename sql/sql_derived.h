@@ -39,10 +39,6 @@ bool mysql_derived_cleanup(THD *thd, LEX *lex, TABLE_LIST *derived);
 
 Item *delete_not_needed_parts(THD *thd, Item *cond);
 
-#if 0
-bool pushdown_cond_for_derived(THD *thd, Item **cond, TABLE_LIST *derived);
-#else
 bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived);
-#endif
 
 #endif /* SQL_DERIVED_INCLUDED */

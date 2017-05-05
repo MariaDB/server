@@ -604,8 +604,9 @@ void Item::print_value(String *str)
     str->append("NULL");
   else
   {
-    switch (result_type()) {
+    switch (cmp_type()) {
     case STRING_RESULT:
+    case TIME_RESULT:
       append_unescaped(str, ptr->ptr(), ptr->length());
       break;
     case DECIMAL_RESULT:
@@ -614,7 +615,6 @@ void Item::print_value(String *str)
       str->append(*ptr);
       break;
     case ROW_RESULT:
-    case TIME_RESULT:
       DBUG_ASSERT(0);
     }
   }
@@ -956,7 +956,7 @@ bool Item_field::register_field_in_write_map(void *arg)
   This means:
   - For default fields we can't access the same field or a field after
     itself that doesn't have a non-constant default value.
-  - A virtual fields can't access itself or a virtual field after itself.
+  - A virtual field can't access itself or a virtual field after itself.
   - user-specified values will not see virtual fields or default expressions,
     as in INSERT t1 (a) VALUES (b);
   - no virtual fields can access auto-increment values
@@ -4279,7 +4279,7 @@ Item_param::eq(const Item *item, bool binary_cmp) const
 
 void Item_param::print(String *str, enum_query_type query_type)
 {
-  if (state == NO_VALUE || query_type & QT_NO_DATA_EXPANSION)
+  if (state == NO_VALUE)
   {
     str->append('?');
   }
@@ -9303,6 +9303,14 @@ void Item_cache::store(Item *item)
 
 void Item_cache::print(String *str, enum_query_type query_type)
 {
+  if (example &&                                          // There is a cached item
+      (query_type & QT_NO_DATA_EXPANSION))                // Caller is show-create-table
+  {
+    // Instead of "cache" or the cached value, print the cached item name
+    example->print(str, query_type);
+    return;
+  }
+
   if (value_cached)
   {
     print_value(str);
@@ -9538,7 +9546,7 @@ int Item_cache_temporal::save_in_field(Field *field, bool no_conversions)
 
 void Item_cache_temporal::store_packed(longlong val_arg, Item *example_arg)
 {
-  /* An explicit values is given, save it. */
+  /* An explicit value is given, save it. */
   store(example_arg);
   value_cached= true;
   value= val_arg;
@@ -10362,7 +10370,7 @@ void Virtual_column_info::print(String *str)
                    (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                      QT_ITEM_IDENT_SKIP_DB_NAMES |
                                      QT_ITEM_IDENT_SKIP_TABLE_NAMES |
-                                     QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
+                                     QT_NO_DATA_EXPANSION |
                                      QT_TO_SYSTEM_CHARSET),
                    LOWEST_PRECEDENCE);
 }

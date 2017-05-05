@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -54,6 +54,9 @@ extern ulong innodb_lock_schedule_algorithm;
 
 // Forward declaration
 class ReadView;
+
+/** The value of innodb_deadlock_detect */
+extern my_bool	innobase_deadlock_detect;
 
 /*********************************************************************//**
 Gets the size of a lock struct.

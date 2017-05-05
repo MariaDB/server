@@ -3,7 +3,7 @@ Warnings:
 Note	1051	Unknown table 'test.t1'
 drop view if exists view_t1;
 Warnings:
-Note	4067	Unknown VIEW: 'test.view_t1'
+Note	4068	Unknown VIEW: 'test.view_t1'
 SET sql_mode=ONLY_FULL_GROUP_BY;
 CREATE TABLE t1 (
 pk INT, 

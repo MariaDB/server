@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,28 +25,6 @@ Created 31/03/2015 Jan Lindström
 
 #ifndef fil0fil_ic
 #define fil0fil_ic
-
-/*******************************************************************//**
-Return space name */
-UNIV_INLINE
-char*
-fil_space_name(
-/*===========*/
-	fil_space_t*	space)	/*!< in: space */
-{
-	return (space->name);
-}
-
-/*******************************************************************//**
-Return space flags */
-UNIV_INLINE
-ulint
-fil_space_flags(
-/*===========*/
-	fil_space_t*	space)	/*!< in: space */
-{
-	return (space->flags);
-}
 
 /*******************************************************************//**
 Return page type name */
@@ -137,7 +115,7 @@ fil_page_type_validate(
 		page_type == FIL_PAGE_TYPE_ZBLOB2 ||
 		page_type == FIL_PAGE_TYPE_COMPRESSED))) {
 
-		uint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+		ulint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 		bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED);
 		bool page_compressed_encrypted = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 		ulint space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -148,30 +126,18 @@ fil_page_type_validate(
 		fil_space_t* rspace = fil_space_get_by_id(space);
 		fil_system_exit();
 
-
 		/* Dump out the page info */
-		fprintf(stderr, "InnoDB: Space %lu offset %lu name %s page_type %lu page_type_name %s\n"
-			"InnoDB: key_version %u page_compressed %d page_compressed_encrypted %d lsn %llu compressed_len %lu\n",
-			space, offset, rspace->name, page_type, fil_get_page_type_name(page_type),
-			key_version, page_compressed, page_compressed_encrypted, (ulonglong)lsn, compressed_len);
-		fflush(stderr);
-
-		ut_ad(page_type == FIL_PAGE_PAGE_COMPRESSED ||
-			page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ||
-			page_type == FIL_PAGE_INDEX ||
-			page_type == FIL_PAGE_UNDO_LOG ||
-			page_type == FIL_PAGE_INODE ||
-			page_type == FIL_PAGE_IBUF_FREE_LIST ||
-			page_type == FIL_PAGE_TYPE_ALLOCATED ||
-			page_type == FIL_PAGE_IBUF_BITMAP ||
-			page_type == FIL_PAGE_TYPE_SYS ||
-			page_type == FIL_PAGE_TYPE_TRX_SYS ||
-			page_type == FIL_PAGE_TYPE_FSP_HDR ||
-			page_type == FIL_PAGE_TYPE_XDES ||
-			page_type == FIL_PAGE_TYPE_BLOB ||
-			page_type == FIL_PAGE_TYPE_ZBLOB ||
-			page_type == FIL_PAGE_TYPE_ZBLOB2 ||
-			page_type == FIL_PAGE_TYPE_COMPRESSED);
+		fprintf(stderr, "InnoDB: Page " ULINTPF ":" ULINTPF
+			" name %s page_type " ULINTPF " page_type_name %s\n"
+			"InnoDB: key_version " ULINTPF
+			" page_compressed %d page_compressed_encrypted %d lsn "
+			LSN_PF " compressed_len " ULINTPF "\n",
+			space, offset, rspace->name, page_type,
+			fil_get_page_type_name(page_type),
+			key_version,
+			page_compressed, page_compressed_encrypted,
+			lsn, compressed_len);
+		ut_error;
 		return false;
 	}
 

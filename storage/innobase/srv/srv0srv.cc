@@ -87,7 +87,7 @@ UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPH
 
 /* How much data manipulation language (DML) statements need to be delayed,
 in microseconds, in order to reduce the lagging of the purge thread. */
-ulint	srv_dml_needed_delay = 0;
+ulint	srv_dml_needed_delay;
 
 bool	srv_monitor_active;
 bool	srv_error_monitor_active;
@@ -107,34 +107,34 @@ const char		srv_mysql50_table_name_prefix[10] = "#mysql50#";
 /* The following three are dir paths which are catenated before file
 names, where the file name itself may also contain a path */
 
-char*	srv_data_home	= NULL;
+char*	srv_data_home;
 
 /** Rollback files directory, can be absolute. */
-char*	srv_undo_dir = NULL;
+char*	srv_undo_dir;
 
 /** The number of tablespaces to use for rollback segments. */
-ulong	srv_undo_tablespaces = 0;
+ulong	srv_undo_tablespaces;
 
 /** The number of UNDO tablespaces that are open and ready to use. */
-ulint	srv_undo_tablespaces_open = 0;
+ulint	srv_undo_tablespaces_open;
 
 /** The number of UNDO tablespaces that are active (hosting some rollback
 segment). It is quite possible that some of the tablespaces doesn't host
 any of the rollback-segment based on configuration used. */
-ulint	srv_undo_tablespaces_active = 0;
+ulint	srv_undo_tablespaces_active;
 
 /* The number of rollback segments to use */
-ulong	srv_undo_logs = 1;
+ulong	srv_undo_logs;
 
 /** Rate at which UNDO records should be purged. */
-ulong	srv_purge_rseg_truncate_frequency = 128;
+ulong	srv_purge_rseg_truncate_frequency;
 
 /** Enable or Disable Truncate of UNDO tablespace.
 Note: If enabled then UNDO tablespace will be selected for truncate.
 While Server waits for undo-tablespace to truncate if user disables
 it, truncate action is completed but no new tablespace is marked
 for truncate (action is never aborted). */
-my_bool	srv_undo_log_truncate = FALSE;
+my_bool	srv_undo_log_truncate;
 
 /** Maximum size of undo tablespace. */
 unsigned long long	srv_max_undo_log_size;
@@ -151,7 +151,7 @@ my_bool	srv_read_only_mode;
 dictionary tables are in the system tablespace 0 */
 my_bool	srv_file_per_table;
 /** The file format to use on new *.ibd files. */
-ulint	srv_file_format = 0;
+ulint	srv_file_format;
 /** Whether to check file format during startup.  A value of
 UNIV_FORMAT_MAX + 1 means no checking ie. FALSE.  The default is to
 set it to the highest format we support. */
@@ -166,9 +166,9 @@ my_bool	high_level_read_only;
 
 /** Place locks to records only i.e. do not use next-key locking except
 on duplicate key checking and foreign key checking */
-ibool	srv_locks_unsafe_for_binlog = FALSE;
+ibool	srv_locks_unsafe_for_binlog;
 /** Sort buffer size in index creation */
-ulong	srv_sort_buf_size = 1048576;
+ulong	srv_sort_buf_size;
 /** Maximum modification log file size for online index creation */
 unsigned long long	srv_online_max_size;
 
@@ -176,19 +176,19 @@ unsigned long long	srv_online_max_size;
 OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
-my_bool	srv_use_native_aio = TRUE;
-my_bool	srv_numa_interleave = FALSE;
-/* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
-to the pages */
-UNIV_INTERN my_bool	srv_use_trim;
-/* If this flag is TRUE, then we disable doublewrite buffer */
-UNIV_INTERN my_bool	srv_use_atomic_writes = FALSE;
-/* If this flag IS TRUE, then we use this algorithm for page compressing the pages */
-UNIV_INTERN ulong	innodb_compression_algorithm = PAGE_ZLIB_ALGORITHM;
-/* Number of threads used for multi-threaded flush */
-UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;
-/* If this flag is TRUE, then we will use multi threaded flush. */
-UNIV_INTERN my_bool	srv_use_mtflush                 = FALSE;
+my_bool	srv_use_native_aio;
+my_bool	srv_numa_interleave;
+/** innodb_use_trim; whether to use fallocate(PUNCH_HOLE) with
+page_compression */
+my_bool	srv_use_trim;
+/** copy of innodb_use_atomic_writes; @see innobase_init() */
+my_bool	srv_use_atomic_writes;
+/** innodb_compression_algorithm; used with page compression */
+ulong	innodb_compression_algorithm;
+/** innodb_mtflush_threads; number of threads used for multi-threaded flush */
+long srv_mtflush_threads;
+/** innodb_use_mtflush; whether to use multi threaded flush. */
+my_bool	srv_use_mtflush;
 
 #ifdef UNIV_DEBUG
 /** Used by SET GLOBAL innodb_master_thread_disabled_debug = X. */
@@ -215,22 +215,27 @@ During startup, this is in bytes, and later converted to pages. */
 ib_uint64_t	srv_log_file_size;
 /** The value of the startup parameter innodb_log_file_size */
 ib_uint64_t	srv_log_file_size_requested;
-/* size in database pages */
-ulint		srv_log_buffer_size = ULINT_MAX;
-ulong		srv_flush_log_at_trx_commit = 1;
-uint		srv_flush_log_at_timeout = 1;
-ulong		srv_page_size = UNIV_PAGE_SIZE_DEF;
-ulong		srv_page_size_shift = UNIV_PAGE_SIZE_SHIFT_DEF;
-ulong		srv_log_write_ahead_size = 0;
+/** copy of innodb_log_buffer_size, but in database pages */
+ulint		srv_log_buffer_size;
+/** innodb_flush_log_at_trx_commit */
+ulong		srv_flush_log_at_trx_commit;
+/** innodb_flush_log_at_timeout */
+uint		srv_flush_log_at_timeout;
+/** innodb_page_size */
+ulong		srv_page_size;
+/** log2 of innodb_page_size; @see innobase_init() */
+ulong		srv_page_size_shift;
+/** innodb_log_write_ahead_size */
+ulong		srv_log_write_ahead_size;
 
 page_size_t	univ_page_size(0, 0, false);
 
-/* Try to flush dirty pages so as to avoid IO bursts at
-the checkpoints. */
-char	srv_adaptive_flushing	= TRUE;
+/** innodb_adaptive_flushing; try to flush dirty pages so as to avoid
+IO bursts at the checkpoints. */
+my_bool	srv_adaptive_flushing;
 
-/* Allow IO bursts at the checkpoints ignoring io_capacity setting. */
-my_bool	srv_flush_sync		= TRUE;
+/** innodb_flush_sync; whether to ignore io_capacity at log checkpoints */
+my_bool	srv_flush_sync;
 
 /** Maximum number of times allowed to conditionally acquire
 mutex before switching to blocking wait on the mutex */
@@ -246,93 +251,100 @@ with mutex_enter(), which will wait until it gets the mutex. */
 UNIV_INTERN os_event_t	srv_allow_writes_event;
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
-/** Requested size in bytes */
-ulint	srv_buf_pool_size	= ULINT_MAX;
+/** copy of innodb_buffer_pool_size */
+ulint	srv_buf_pool_size;
 const ulint	srv_buf_pool_min_size	= 5 * 1024 * 1024;
 /** Default pool size in bytes */
 const ulint	srv_buf_pool_def_size	= 128 * 1024 * 1024;
 /** Requested buffer pool chunk size. Each buffer pool instance consists
 of one or more chunks. */
 ulong	srv_buf_pool_chunk_unit;
-/** Requested number of buffer pool instances */
+/** innodb_buffer_pool_instances (0 is interpreted as 1) */
 ulong	srv_buf_pool_instances;
-/** Default number of buffer pool instances */
+/** Default value of innodb_buffer_pool_instances */
 const ulong	srv_buf_pool_instances_default = 0;
-/** Number of locks to protect buf_pool->page_hash */
+/** innodb_page_hash_locks (a debug-only parameter);
+number of locks to protect buf_pool->page_hash */
 ulong	srv_n_page_hash_locks = 16;
-/** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
-ulong	srv_LRU_scan_depth	= 1024;
-/** Whether or not to flush neighbors of a block */
-ulong	srv_flush_neighbors	= 1;
+/** innodb_lru_scan_depth; number of blocks scanned in LRU flush batch */
+ulong	srv_LRU_scan_depth;
+/** innodb_flush_neighbors; whether or not to flush neighbors of a block */
+ulong	srv_flush_neighbors;
 /** Previously requested size */
-ulint	srv_buf_pool_old_size	= 0;
+ulint	srv_buf_pool_old_size;
 /** Current size as scaling factor for the other components */
-ulint	srv_buf_pool_base_size	= 0;
+ulint	srv_buf_pool_base_size;
 /** Current size in bytes */
-ulint	srv_buf_pool_curr_size	= 0;
+ulint	srv_buf_pool_curr_size;
 /** Dump this % of each buffer pool during BP dump */
 ulong	srv_buf_pool_dump_pct;
 /** Lock table size in bytes */
 ulint	srv_lock_table_size	= ULINT_MAX;
 
-UNIV_INTERN ulong	srv_idle_flush_pct = 100;
+/** innodb_idle_flush_pct */
+ulong	srv_idle_flush_pct;
 
-/* This parameter is deprecated. Use srv_n_io_[read|write]_threads
-instead. */
-ulint	srv_n_read_io_threads	= ULINT_MAX;
-ulint	srv_n_write_io_threads	= ULINT_MAX;
+/** copy of innodb_read_io_threads */
+ulint	srv_n_read_io_threads;
+/** copy of innodb_write_io_threads */
+ulint	srv_n_write_io_threads;
 
-/* Switch to enable random read ahead. */
-my_bool	srv_random_read_ahead	= FALSE;
-/* User settable value of the number of pages that must be present
+/** innodb_random_read_ahead */
+my_bool	srv_random_read_ahead;
+/** innodb_read_ahead_threshold; the number of pages that must be present
 in the buffer cache and accessed sequentially for InnoDB to trigger a
 readahead request. */
-ulong	srv_read_ahead_threshold	= 56;
+ulong	srv_read_ahead_threshold;
 
-/** Maximum on-disk size of change buffer in terms of percentage
-of the buffer pool. */
-uint	srv_change_buffer_max_size = CHANGE_BUFFER_DEFAULT_SIZE;
+/** innodb_change_buffer_max_size; maximum on-disk size of change
+buffer in terms of percentage of the buffer pool. */
+uint	srv_change_buffer_max_size;
 
-char*	srv_file_flush_method_str = NULL;
+char*	srv_file_flush_method_str;
 
 
 enum srv_flush_t	srv_file_flush_method = IF_WIN(SRV_ALL_O_DIRECT_FSYNC,SRV_FSYNC);
 
 
-ulint	srv_max_n_open_files	  = 300;
+/** copy of innodb_open_files, initialized by innobase_init() */
+ulint	srv_max_n_open_files;
 
-/* Number of IO operations per second the server can do */
-ulong	srv_io_capacity         = 200;
-ulong	srv_max_io_capacity     = 400;
+/** innodb_io_capacity */
+ulong	srv_io_capacity;
+/** innodb_io_capacity_max */
+ulong	srv_max_io_capacity;
 
-/* The number of page cleaner threads to use.*/
-ulong	srv_n_page_cleaners = 4;
+/** innodb_page_cleaners; the number of page cleaner threads */
+ulong	srv_n_page_cleaners;
 
 /* The InnoDB main thread tries to keep the ratio of modified pages
 in the buffer pool to all database pages in the buffer pool smaller than
 the following number. But it is not guaranteed that the value stays below
 that during a time of heavy update/insert activity. */
 
-double	srv_max_buf_pool_modified_pct	= 75.0;
-double	srv_max_dirty_pages_pct_lwm	= 0.0;
+/** innodb_max_dirty_pages_pct */
+double	srv_max_buf_pool_modified_pct;
+/** innodb_max_dirty_pages_pct_lwm */
+double	srv_max_dirty_pages_pct_lwm;
 
-/* This is the percentage of log capacity at which adaptive flushing,
-if enabled, will kick in. */
-UNIV_INTERN double	srv_adaptive_flushing_lwm	= 10.0;
+/** innodb_adaptive_flushing_lwm; the percentage of log capacity at
+which adaptive flushing, if enabled, will kick in. */
+double	srv_adaptive_flushing_lwm;
 
-/* Number of iterations over which adaptive flushing is averaged. */
-ulong	srv_flushing_avg_loops		= 30;
+/** innodb_flushing_avg_loops; number of iterations over which
+adaptive flushing is averaged */
+ulong	srv_flushing_avg_loops;
 
-/* The number of purge threads to use.*/
-ulong	srv_n_purge_threads = 4;
+/** innodb_purge_threads; the number of purge threads to use */
+ulong	srv_n_purge_threads;
 
-/* the number of pages to purge in one batch */
-ulong	srv_purge_batch_size = 20;
+/** innodb_purge_batch_size, in pages */
+ulong	srv_purge_batch_size;
 
-/* Internal setting for "innodb_stats_method". Decides how InnoDB treats
+/** innodb_stats_method decides how InnoDB treats
 NULL value when collecting statistics. By default, it is set to
 SRV_STATS_NULLS_EQUAL(0), ie. all NULL value are treated equal */
-ulong srv_innodb_stats_method = SRV_STATS_NULLS_EQUAL;
+ulong srv_innodb_stats_method;
 
 srv_stats_t	srv_stats;
 
@@ -345,59 +357,67 @@ by SELECT or mysqldump. When this is nonzero, we do not allow any user
 modifications to the data. */
 ulong	srv_force_recovery;
 
-/** Print all user-level transactions deadlocks to mysqld stderr */
+/** innodb_print_all_deadlocks; whether to print all user-level
+transactions deadlocks to the error log */
+my_bool	srv_print_all_deadlocks;
 
-my_bool	srv_print_all_deadlocks = FALSE;
+/** innodb_cmp_per_index_enabled; enable
+INFORMATION_SCHEMA.innodb_cmp_per_index */
+my_bool	srv_cmp_per_index_enabled;
 
-/** Enable INFORMATION_SCHEMA.innodb_cmp_per_index */
-my_bool	srv_cmp_per_index_enabled = FALSE;
-
-/* If the following is set to 1 then we do not run purge and insert buffer
+/** innodb_fast_shutdown; if 1 then we do not run purge and insert buffer
 merge to completion before shutdown. If it is set to 2, do not even flush the
 buffer pool to data files at the shutdown: we effectively 'crash'
 InnoDB (but lose no committed transactions). */
 uint	srv_fast_shutdown;
 
-/* Generate a innodb_status.<pid> file */
-ibool	srv_innodb_status	= FALSE;
+/** copy of innodb_status_file; generate a innodb_status.<pid> file */
+ibool	srv_innodb_status;
 
-/* Optimize prefix index queries to skip cluster index lookup when possible */
-/* Enables or disables this prefix optimization.  Disabled by default. */
-UNIV_INTERN my_bool	srv_prefix_index_cluster_optimization = 0;
+/** innodb_prefix_index_cluster_optimization; whether to optimize
+prefix index queries to skip cluster index lookup when possible */
+my_bool	srv_prefix_index_cluster_optimization;
 
-/* When estimating number of different key values in an index, sample
+/** innodb_stats_transient_sample_pages;
+When estimating number of different key values in an index, sample
 this many index pages, there are 2 ways to calculate statistics:
 * persistent stats that are calculated by ANALYZE TABLE and saved
   in the innodb database.
 * quick transient stats, that are used if persistent stats for the given
   table/index are not found in the innodb database */
-unsigned long long	srv_stats_transient_sample_pages = 8;
-my_bool		srv_stats_persistent = TRUE;
-unsigned long long	srv_stats_persistent_sample_pages = 20;
-my_bool		srv_stats_auto_recalc = TRUE;
+unsigned long long	srv_stats_transient_sample_pages;
+/** innodb_stats_persistent */
+my_bool		srv_stats_persistent;
+/** innodb_stats_include_delete_marked */
+my_bool		srv_stats_include_delete_marked;
+/** innodb_stats_persistent_sample_pages */
+unsigned long long	srv_stats_persistent_sample_pages;
+/** innodb_stats_auto_recalc */
+my_bool		srv_stats_auto_recalc;
 
-/* The number of rows modified before we calculate new statistics (default 0
-= current limits) */
-UNIV_INTERN unsigned long long srv_stats_modified_counter = 0;
+/** innodb_stats_modified_counter; The number of rows modified before
+we calculate new statistics (default 0 = current limits) */
+unsigned long long srv_stats_modified_counter;
 
-/* Enable traditional statistic calculation based on number of configured
-pages default true. */
-UNIV_INTERN my_bool	srv_stats_sample_traditional = TRUE;
+/** innodb_stats_traditional; enable traditional statistic calculation
+based on number of configured pages */
+my_bool	srv_stats_sample_traditional;
 
-ibool	srv_use_doublewrite_buf	= TRUE;
+/** copy of innodb_doublewrite */
+ibool	srv_use_doublewrite_buf;
 
-/** doublewrite buffer is 1MB is size i.e.: it can hold 128 16K pages.
-The following parameter is the size of the buffer that is used for
-batch flushing i.e.: LRU flushing and flush_list flushing. The rest
-of the pages are used for single page flushing. */
-ulong	srv_doublewrite_batch_size	= 120;
+/** innodb_doublewrite_batch_size (a debug parameter) specifies the
+number of pages to use in LRU and flush_list batch flushing.
+The rest of the doublewrite buffer is used for single-page flushing. */
+ulong	srv_doublewrite_batch_size = 120;
 
-ulong	srv_replication_delay		= 0;
+/** innodb_replication_delay */
+ulong	srv_replication_delay;
 
-/*-------------------------------------------*/
-UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 15;
+/** innodb_sync_spin_loops */
+ulong	srv_n_spin_wait_rounds;
+/** innodb_spin_wait_delay */
 uint	srv_spin_wait_delay;
-ibool	srv_priority_boost	= TRUE;
 
 static ulint		srv_n_rows_inserted_old;
 static ulint		srv_n_rows_updated_old;
@@ -424,23 +444,29 @@ UNIV_INTERN ib_uint64_t srv_index_page_decompressed;
 
 /* Defragmentation */
 UNIV_INTERN my_bool	srv_defragment;
-UNIV_INTERN uint	srv_defragment_n_pages = 7;
+/** innodb_defragment_n_pages */
+UNIV_INTERN uint	srv_defragment_n_pages;
 UNIV_INTERN uint	srv_defragment_stats_accuracy;
-UNIV_INTERN uint	srv_defragment_fill_factor_n_recs = 20;
-UNIV_INTERN double	srv_defragment_fill_factor = 0.9;
-UNIV_INTERN uint	srv_defragment_frequency =
-	SRV_DEFRAGMENT_FREQUENCY_DEFAULT;
+/** innodb_defragment_fill_factor_n_recs */
+UNIV_INTERN uint	srv_defragment_fill_factor_n_recs;
+/** innodb_defragment_fill_factor */
+UNIV_INTERN double	srv_defragment_fill_factor;
+/** innodb_defragment_frequency */
+UNIV_INTERN uint	srv_defragment_frequency;
+/** derived from innodb_defragment_frequency;
+@see innodb_defragment_frequency_update() */
 UNIV_INTERN ulonglong	srv_defragment_interval;
 
 /* Set the following to 0 if you want InnoDB to write messages on
-stderr on startup/shutdown. */
-ibool	srv_print_verbose_log			= TRUE;
-my_bool	srv_print_innodb_monitor		= FALSE;
-my_bool	srv_print_innodb_lock_monitor		= FALSE;
-my_bool	srv_print_innodb_tablespace_monitor 	= FALSE;
-my_bool	srv_print_innodb_table_monitor 		= FALSE;
-/** If this flag is set tables without primary key are not allowed */
-my_bool	srv_force_primary_key			= FALSE;
+stderr on startup/shutdown. Not enabled on the embedded server. */
+ibool	srv_print_verbose_log;
+my_bool	srv_print_innodb_monitor;
+my_bool	srv_print_innodb_lock_monitor;
+my_bool	srv_print_innodb_tablespace_monitor;
+my_bool	srv_print_innodb_table_monitor;
+/** innodb_force_primary_key; whether to disallow CREATE TABLE without
+PRIMARY KEY */
+my_bool	srv_force_primary_key;
 
 /* Array of English strings describing the current state of an
 i/o handler thread */
@@ -473,19 +499,19 @@ ib_mutex_t	srv_misc_tmpfile_mutex;
 /** Temporary file for miscellanous diagnostic output */
 FILE*	srv_misc_tmpfile;
 
-static ulint	srv_main_thread_process_no	= 0;
-static ulint	srv_main_thread_id		= 0;
+static ulint	srv_main_thread_process_no;
+static ulint	srv_main_thread_id;
 
 /* The following counts are used by the srv_master_thread. */
 
 /** Iterations of the loop bounded by 'srv_active' label. */
-static ulint		srv_main_active_loops		= 0;
+static ulint		srv_main_active_loops;
 /** Iterations of the loop bounded by the 'srv_idle' label. */
-static ulint		srv_main_idle_loops		= 0;
+static ulint		srv_main_idle_loops;
 /** Iterations of the loop bounded by the 'srv_shutdown' label. */
-static ulint		srv_main_shutdown_loops		= 0;
+static ulint		srv_main_shutdown_loops;
 /** Log writes involving flush. */
-static ulint		srv_log_writes_and_flush	= 0;
+static ulint		srv_log_writes_and_flush;
 
 /* This is only ever touched by the master thread. It records the
 time when the last flush of log file has happened. The master
@@ -506,10 +532,10 @@ current_time % 5 != 0. */
 # define	SRV_MASTER_DICT_LRU_INTERVAL		(47)
 
 /** Simulate compression failures. */
-UNIV_INTERN uint srv_simulate_comp_failures = 0;
+UNIV_INTERN uint srv_simulate_comp_failures;
 
 /** Buffer pool dump status frequence in percentages */
-UNIV_INTERN ulong srv_buf_dump_status_frequency = 0;
+UNIV_INTERN ulong srv_buf_dump_status_frequency;
 
 /** Acquire the system_mutex. */
 #define srv_sys_mutex_enter() do {			\
@@ -622,14 +648,16 @@ struct srv_sys_t{
 
 	ulint		n_threads_active[SRV_MASTER + 1];
 						/*!< number of threads active
-						in a thread class */
+						in a thread class; protected
+						by both my_atomic_addlint()
+						and mutex */
 
 	srv_stats_t::ulint_ctr_1_t
 			activity_count;		/*!< For tracking server
 						activity */
 };
 
-static srv_sys_t*	srv_sys	= NULL;
+static srv_sys_t*	srv_sys;
 
 /** Event to signal srv_monitor_thread. Not protected by a mutex.
 Set after setting srv_print_innodb_monitor. */
@@ -709,13 +737,12 @@ srv_print_master_thread_info(
 /*=========================*/
 	FILE  *file)    /* in: output stream */
 {
-	fprintf(file, "srv_master_thread loops: %lu srv_active,"
-		" %lu srv_shutdown, %lu srv_idle\n",
+	fprintf(file, "srv_master_thread loops: " ULINTPF " srv_active, "
+		ULINTPF " srv_shutdown, " ULINTPF " srv_idle\n"
+		"srv_master_thread log flush and writes: " ULINTPF "\n",
 		srv_main_active_loops,
 		srv_main_shutdown_loops,
-		srv_main_idle_loops);
-	fprintf(file,
-		"srv_master_thread log flush and writes: " ULINTPF "\n",
+		srv_main_idle_loops,
 		srv_log_writes_and_flush);
 }
 
@@ -828,7 +855,7 @@ srv_reserve_slot(
 
 	ut_ad(srv_slot_get_type(slot) == type);
 
-	++srv_sys->n_threads_active[type];
+	my_atomic_addlint(&srv_sys->n_threads_active[type], 1);
 
 	srv_sys_mutex_exit();
 
@@ -869,16 +896,15 @@ srv_suspend_thread_low(
 
 	case SRV_WORKER:
 		ut_a(srv_n_purge_threads > 1);
-		ut_a(srv_sys->n_threads_active[type] > 0);
 		break;
 	}
 
 	ut_a(!slot->suspended);
 	slot->suspended = TRUE;
 
-	ut_a(srv_sys->n_threads_active[type] > 0);
-
-	srv_sys->n_threads_active[type]--;
+	if (my_atomic_addlint(&srv_sys->n_threads_active[type], -1) < 0) {
+		ut_error;
+	}
 
 	return(os_event_reset(slot->event));
 }
@@ -933,7 +959,7 @@ srv_resume_thread(srv_slot_t* slot, int64_t sig_count = 0, bool wait = true,
 	ut_ad(slot->suspended);
 
 	slot->suspended = FALSE;
-	++srv_sys->n_threads_active[slot->type];
+	my_atomic_addlint(&srv_sys->n_threads_active[slot->type], 1);
 	srv_sys_mutex_exit();
 	return(timeout);
 }
@@ -1384,13 +1410,13 @@ srv_printf_innodb_monitor(
 		srv_conc_get_waiting_threads());
 
 	/* This is a dirty read, without holding trx_sys->mutex. */
-	fprintf(file, "%lu read views open inside InnoDB\n",
+	fprintf(file, ULINTPF " read views open inside InnoDB\n",
 		trx_sys->mvcc->size());
 
 	n_reserved = fil_space_get_n_reserved_extents(0);
 	if (n_reserved > 0) {
 		fprintf(file,
-			"%lu tablespace extents now reserved for"
+			ULINTPF " tablespace extents now reserved for"
 			" B-tree split operations\n",
 			n_reserved);
 	}
@@ -1482,10 +1508,10 @@ srv_export_innodb_status(void)
 	mutex_enter(&srv_innodb_monitor_mutex);
 
 	export_vars.innodb_data_pending_reads =
-		os_n_pending_reads;
+		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
 
 	export_vars.innodb_data_pending_writes =
-		os_n_pending_writes;
+		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
 	export_vars.innodb_data_pending_fsyncs =
 		fil_n_pending_log_flushes
@@ -1948,8 +1974,8 @@ loop:
 			"WSREP: avoiding InnoDB self crash due to long "
 			"semaphore wait of  > %lu seconds\n"
 			"Server is processing SST donor operation, "
-			"fatal_cnt now: %lu",
-			(ulong) srv_fatal_semaphore_wait_threshold, fatal_cnt);
+			"fatal_cnt now: " ULINTPF,
+			srv_fatal_semaphore_wait_threshold, fatal_cnt);
 	  }
 #endif /* WITH_WSREP */
 		if (fatal_cnt > 10) {
@@ -2041,22 +2067,16 @@ srv_get_active_thread_type(void)
 	return(ret);
 }
 
-/*******************************************************************//**
-Tells the InnoDB server that there has been activity in the database
-and wakes up the master thread if it is suspended (not sleeping). Used
-in the MySQL interface. Note that there is a small chance that the master
-thread stays suspended (we do not protect our operation with the
-srv_sys_t->mutex, for performance reasons). */
+/** Wake up the InnoDB master thread if it was suspended (not sleeping). */
 void
 srv_active_wake_master_thread_low()
-/*===============================*/
 {
 	ut_ad(!srv_read_only_mode);
 	ut_ad(!srv_sys_mutex_own());
 
 	srv_inc_activity_count();
 
-	if (srv_sys->n_threads_active[SRV_MASTER] == 0) {
+	if (my_atomic_loadlint(&srv_sys->n_threads_active[SRV_MASTER]) == 0) {
 		srv_slot_t*	slot;
 
 		srv_sys_mutex_enter();
@@ -2074,35 +2094,25 @@ srv_active_wake_master_thread_low()
 	}
 }
 
-/*******************************************************************//**
-Tells the purge thread that there has been activity in the database
-and wakes up the purge thread if it is suspended (not sleeping).  Note
-that there is a small chance that the purge thread stays suspended
-(we do not protect our check with the srv_sys_t:mutex and the
-purge_sys->latch, for performance reasons). */
+/** Wake up the purge threads if there is work to do. */
 void
-srv_wake_purge_thread_if_not_active(void)
-/*=====================================*/
+srv_wake_purge_thread_if_not_active()
 {
 	ut_ad(!srv_sys_mutex_own());
 
 	if (purge_sys->state == PURGE_STATE_RUN
-	    && srv_sys->n_threads_active[SRV_PURGE] == 0) {
+	    && !my_atomic_loadlint(&srv_sys->n_threads_active[SRV_PURGE])
+	    && my_atomic_loadlint(&trx_sys->rseg_history_len)) {
 
 		srv_release_threads(SRV_PURGE, 1);
 	}
 }
 
-/*******************************************************************//**
-Wakes up the master thread if it is suspended or being suspended. */
+/** Wake up the master thread if it is suspended or being suspended. */
 void
-srv_wake_master_thread(void)
-/*========================*/
+srv_wake_master_thread()
 {
-	ut_ad(!srv_sys_mutex_own());
-
 	srv_inc_activity_count();
-
 	srv_release_threads(SRV_MASTER, 1);
 }
 
@@ -2688,12 +2698,8 @@ DECLARE_THREAD(srv_worker_thread)(
 	slot = srv_reserve_slot(SRV_WORKER);
 
 	ut_a(srv_n_purge_threads > 1);
-
-	srv_sys_mutex_enter();
-
-	ut_a(srv_sys->n_threads_active[SRV_WORKER] < srv_n_purge_threads);
-
-	srv_sys_mutex_exit();
+	ut_a(my_atomic_loadlint(&srv_sys->n_threads_active[SRV_WORKER])
+	     < static_cast<lint>(srv_n_purge_threads));
 
 	/* We need to ensure that the worker threads exit after the
 	purge coordinator thread. Otherwise the purge coordinator can
@@ -2966,14 +2972,9 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	ut_a(srv_purge_should_exit(thd, n_total_purged));
 
-	ulint	n_pages_purged = ULINT_MAX;
-
-	/* Ensure that all records are purged if it is not a fast shutdown.
-	This covers the case where a record can be added after we exit the
-	loop above. */
-	while (srv_fast_shutdown == 0 && n_pages_purged > 0) {
-		n_pages_purged = trx_purge(1, srv_purge_batch_size, false);
-	}
+	/* Ensure that all records are purged on slow shutdown. */
+	while (srv_fast_shutdown == 0
+	       && trx_purge(1, srv_purge_batch_size, false));
 
 #ifdef UNIV_DEBUG
 	if (srv_fast_shutdown == 0) {
@@ -2987,12 +2988,10 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	delay in shutdown ,so reducing the batch size to magic number 20
 	(which was default in 5.5), which we hope will be sufficient to
 	remove all the undo records */
-	const	uint temp_batch_size = 20;
 
-	n_pages_purged = trx_purge(1, srv_purge_batch_size <= temp_batch_size
-				      ? srv_purge_batch_size : temp_batch_size,
-				   true);
-	ut_a(n_pages_purged == 0 || srv_fast_shutdown != 0);
+	if (trx_purge(1, std::min(srv_purge_batch_size, 20UL), true)) {
+		ut_a(srv_fast_shutdown);
+	}
 
 	/* The task queue should always be empty, independent of fast
 	shutdown state. */

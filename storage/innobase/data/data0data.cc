@@ -429,7 +429,7 @@ print_hex:
 		fputs(" Hex: ",stderr);
 
 		for (i = 0; i < len; i++) {
-			fprintf(stderr, "%02lx", static_cast<ulong>(*data++));
+			fprintf(stderr, "%02x", *data++);
 		}
 
 		if (dfield_is_ext(dfield)) {

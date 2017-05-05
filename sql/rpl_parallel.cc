@@ -1164,7 +1164,8 @@ handle_rpl_parallel_thread(void *arg)
 
         thd->wait_for_commit_ptr= &rgi->commit_orderer;
 
-        if (opt_gtid_ignore_duplicates)
+        if (opt_gtid_ignore_duplicates &&
+            rgi->rli->mi->using_gtid != Master_info::USE_GTID_NO)
         {
           int res=
             rpl_global_gtid_slave_state->check_duplicate_gtid(&rgi->current_gtid,

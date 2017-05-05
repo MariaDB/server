@@ -1222,10 +1222,6 @@ protected:
 		uchar*	pos);
 
 	int
-	records(
-		ha_rows*	num_rows);
-
-	int
 	index_next(
 		uchar*	record)
 	{

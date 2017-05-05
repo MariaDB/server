@@ -1661,3 +1661,270 @@ select * from applied_modules;
 
 drop table value_nodes, module_nodes, module_arguments, module_results;
 
+--echo #
+--echo # mdev-12519: recursive references in subqueries 
+--echo #             
+
+create table t1 (lp char(4) not null, rp char(4) not null);
+insert into t1 values
+   ('p1','p2'), ('p2','p3'), ('p3','p4'), ('p4','p5'),
+   ('p2','p7'), ('p7','p8'), ('p8','p3'), ('p8','p4');
+
+set standard_compliant_cte=0;
+
+with recursive
+reachables(p) as 
+( 
+   select lp from t1 where lp = 'p1'
+   union 
+   select t1.rp from reachables, t1 
+       where t1.lp = reachables.p
+)
+select * from reachables;
+
+with recursive 
+reachables(p) as
+(
+   select lp from t1 where lp = 'p1'
+   union 
+   select t1.rp from reachables, t1 
+      where 'p3' not in (select * from reachables) and
+                 t1.lp = reachables.p
+)
+select * from reachables;
+
+with recursive 
+reachables(p) as
+(
+   select lp from t1 where lp = 'p1'
+   union 
+   select t1.rp from reachables, t1 
+      where 'p3' not in (select p from reachables where p <= 'p5'
+                         union
+                         select p from reachables where p > 'p5') and
+                 t1.lp = reachables.p
+)
+select * from reachables;
+
+prepare stmt from "
+with recursive 
+reachables(p) as
+(
+   select lp from t1 where lp = 'p1'
+   union 
+   select t1.rp from reachables, t1 
+      where 'p3' not in (select p from reachables where p <= 'p5'
+                         union
+                         select p from reachables where p > 'p5') and
+                 t1.lp = reachables.p
+)
+select * from reachables;
+";
+
+execute stmt;
+execute stmt;
+
+deallocate prepare stmt;
+
+drop table t1;
+
+create table objects(v char(4) not null);
+insert into objects values
+  ('v1'), ('v2'), ('v3'), ('v4'), ('v5'),
+  ('v6'), ('v7'), ('v8'), ('v9'), ('v10');
+
+create table modules(m char(4) not null);
+insert into modules values
+  ('m1'), ('m2'), ('m3'), ('m4');
+
+create table module_arguments(m char(4) not null, v char(4) not null);
+insert into module_arguments values
+  ('m1','v3'), ('m1','v9'),
+  ('m2','v4'), ('m2','v7'),
+  ('m3','v6'), ('m4','v2');
+
+create table module_results(m char(4) not null, v char(4) not null);
+insert into module_results values
+  ('m1','v4'),
+  ('m2','v1'), ('m2','v6'),
+  ('m3','v10'), ('m4','v7');
+
+set standard_compliant_cte=0;
+
+with recursive
+reached_objects as 
+(
+  select v, 'init' as m from objects where v in ('v3','v7','v9')
+  union
+  select module_results.v, module_results.m from module_results, applied_modules
+     where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+  select * from modules where 1=0
+  union
+  select modules.m
+  from
+    modules
+    where
+      not exists (select * from module_arguments
+                    where module_arguments.m = modules.m and
+                          module_arguments.v not in 
+                          (select v from reached_objects))
+)
+select * from reached_objects;
+
+with recursive
+reached_objects as 
+(
+  select v, 'init' as m from objects where v in ('v3','v7','v9')
+  union
+  select module_results.v, module_results.m from module_results, applied_modules
+     where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+  select * from modules where 1=0
+  union
+  select modules.m
+  from
+    modules
+    where 
+      'v6' not in (select v from reached_objects) and
+      not exists (select * from module_arguments
+                    where module_arguments.m = modules.m and
+                          module_arguments.v not in 
+                          (select v from reached_objects))
+)
+select * from reached_objects;
+
+prepare stmt from "
+with recursive
+reached_objects as 
+(
+  select v, 'init' as m from objects where v in ('v3','v7','v9')
+  union
+  select module_results.v, module_results.m from module_results, applied_modules
+     where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+  select * from modules where 1=0
+  union
+  select modules.m
+  from
+    modules
+    where 
+      'v6' not in (select v from reached_objects) and
+      not exists (select * from module_arguments
+                    where module_arguments.m = modules.m and
+                          module_arguments.v not in 
+                          (select v from reached_objects))
+)
+select * from reached_objects;
+";
+
+execute stmt;
+execute stmt;
+
+deallocate prepare stmt;
+
+drop table objects, modules, module_arguments, module_results;
+
+set standard_compliant_cte=default;
+select @@standard_compliant_cte;
+
+--echo #
+--echo # mdev-12554: impossible where in recursive select 
+--echo #             
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2);
+
+WITH RECURSIVE
+cte(f) AS ( SELECT i FROM t1 UNION SELECT f FROM t1, cte WHERE 1=0 )
+SELECT * FROM cte;
+
+DROP TABLE t1;
+
+--echo #
+--echo # mdev-12556: recursive execution uses Aria temporary tables 
+--echo #             
+
+CREATE TABLE t (c1 varchar(255), c2 tinytext);
+INSERT INTO t VALUES ('a','a'),('b','b'),('c','c'),('d','d');
+
+let $q1=
+WITH RECURSIVE cte(f) AS (
+  SELECT c1 FROM t
+  UNION
+  SELECT c1 FROM t, cte
+) SELECT COUNT(*) FROM cte;
+
+let $q2=
+WITH RECURSIVE cte(f) AS (
+  SELECT c2 FROM t
+  UNION
+  SELECT c2 FROM t, cte
+) SELECT COUNT(*) FROM cte;
+
+eval ANALYZE $q1;
+eval $q1;
+
+eval ANALYZE $q2;
+eval $q2;
+
+DROP TABLE t;
+
+--echo #
+--echo # mdev-12563: no recursive references on the top level of the CTE spec 
+--echo #  
+
+CREATE TABLE t (i int);
+INSERT INTO t VALUES (3), (1),(2);
+ 
+SET standard_compliant_cte=0;
+ 
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte )
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte WHERE i < 2 )
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte WHERE i > 2 )
+) SELECT * FROM cte;
+           
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t
+    WHERE i NOT IN ( SELECT * FROM cte WHERE i < 2
+                     UNION
+                     SELECT * FROM cte WHERE i > 2)
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t 
+    WHERE i NOT IN ( SELECT * FROM t
+                       WHERE i IN ( SELECT * FROM cte ) GROUP BY i )
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte )
+  UNION 
+  SELECT * FROM cte WHERE f > 2
+) SELECT * FROM cte;           
+
+set standard_compliant_cte=default;
+
+DROP TABLE t;
+

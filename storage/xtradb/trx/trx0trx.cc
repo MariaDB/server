@@ -2161,6 +2161,118 @@ trx_print_latched(
 		      mem_heap_get_size(trx->lock.lock_heap));
 }
 
+#ifdef WITH_WSREP
+/**********************************************************************//**
+Prints info about a transaction.
+Transaction information may be retrieved without having trx_sys->mutex acquired
+so it may not be completely accurate. The caller must own lock_sys->mutex
+and the trx must have some locks to make sure that it does not escape
+without locking lock_sys->mutex. */
+UNIV_INTERN
+void
+wsrep_trx_print_locking(
+/*==========*/
+	FILE*		f,
+			/*!< in: output stream */
+	const trx_t*	trx,
+			/*!< in: transaction */
+	ulint		max_query_len)
+			/*!< in: max query length to print,
+			or 0 to use the default max length */
+{
+	ibool		newline;
+	const char*	op_info;
+
+	ut_ad(lock_mutex_own());
+	ut_ad(trx->lock.trx_locks.count > 0);
+
+	fprintf(f, "TRANSACTION " TRX_ID_FMT, trx->id);
+
+	/* trx->state may change since trx_sys->mutex is not required */
+	switch (trx->state) {
+	case TRX_STATE_NOT_STARTED:
+		fputs(", not started", f);
+		goto state_ok;
+	case TRX_STATE_ACTIVE:
+		fprintf(f, ", ACTIVE %lu sec",
+			(ulong) difftime(time(NULL), trx->start_time));
+		goto state_ok;
+	case TRX_STATE_PREPARED:
+		fprintf(f, ", ACTIVE (PREPARED) %lu sec",
+			(ulong) difftime(time(NULL), trx->start_time));
+		goto state_ok;
+	case TRX_STATE_COMMITTED_IN_MEMORY:
+		fputs(", COMMITTED IN MEMORY", f);
+		goto state_ok;
+	}
+	fprintf(f, ", state %lu", (ulong) trx->state);
+	ut_ad(0);
+state_ok:
+
+	/* prevent a race condition */
+	op_info = trx->op_info;
+
+	if (*op_info) {
+		putc(' ', f);
+		fputs(op_info, f);
+	}
+
+	if (trx->is_recovered) {
+		fputs(" recovered trx", f);
+	}
+
+	if (trx->declared_to_be_inside_innodb) {
+		fprintf(f, ", thread declared inside InnoDB %lu",
+			(ulong) trx->n_tickets_to_enter_innodb);
+	}
+
+	putc('\n', f);
+
+	if (trx->n_mysql_tables_in_use > 0 || trx->mysql_n_tables_locked > 0) {
+		fprintf(f, "mysql tables in use %lu, locked %lu\n",
+			(ulong) trx->n_mysql_tables_in_use,
+			(ulong) trx->mysql_n_tables_locked);
+	}
+
+	newline = TRUE;
+
+	/* trx->lock.que_state of an ACTIVE transaction may change
+	while we are not holding trx->mutex. We perform a dirty read
+	for performance reasons. */
+
+	switch (trx->lock.que_state) {
+	case TRX_QUE_RUNNING:
+		newline = FALSE; break;
+	case TRX_QUE_LOCK_WAIT:
+		fputs("LOCK WAIT ", f); break;
+	case TRX_QUE_ROLLING_BACK:
+		fputs("ROLLING BACK ", f); break;
+	case TRX_QUE_COMMITTING:
+		fputs("COMMITTING ", f); break;
+	default:
+		fprintf(f, "que state %lu ", (ulong) trx->lock.que_state);
+	}
+
+	if (trx->has_search_latch) {
+		newline = TRUE;
+		fputs(", holds adaptive hash latch", f);
+	}
+
+	if (trx->undo_no != 0) {
+		newline = TRUE;
+		fprintf(f, ", undo log entries " TRX_ID_FMT, trx->undo_no);
+	}
+
+	if (newline) {
+		putc('\n', f);
+	}
+
+	if (trx->mysql_thd != NULL) {
+		innobase_mysql_print_thd(
+			f, trx->mysql_thd, static_cast<uint>(max_query_len));
+	}
+}
+#endif /* WITH_WSREP */
 /**********************************************************************//**
 Prints info about a transaction.
 Acquires and releases lock_sys->mutex and trx_sys->mutex. */

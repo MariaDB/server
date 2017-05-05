@@ -1,0 +1,50 @@
+#
+# WL#6965: Truncate UNDO logs.
+#
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+# With larger innodb_page_size, the undo log tablespaces do not grow enough.
+--source include/have_innodb_max_16k.inc
+--source include/have_undo_tablespaces.inc
+
+# Valgrind would complain about memory leaks when we crash on purpose.
+--source include/not_valgrind.inc
+# Embedded server does not support crashing
+--source include/not_embedded.inc
+# Avoid CrashReporter popup on Mac
+--source include/not_crashrep.inc
+
+--disable_query_log
+# FIXME: The doublewrite buffer should not issue these warnings.
+# FIXME: Maybe buf_dblwr_process() should empty the buffer at the end?
+call mtr.add_suppression("InnoDB: A copy of page.*in the doublewrite buffer slot.*is not within space bounds");
+FLUSH TABLES;
+--enable_query_log
+
+--let $restart_parameters=--innodb-undo-logs=4 --innodb-undo-tablespaces=2 --innodb-undo-log-truncate=1 --innodb-max-undo-log-size=10485760 --innodb-purge-rseg-truncate-frequency=1 --innodb-fast-shutdown=0
+--source include/restart_mysqld.inc
+
+let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+
+create table t1(keyc int primary key, c char(100)) engine = innodb;
+begin;
+--disable_query_log
+let $i=30000;
+while ($i) {
+  eval insert into t1 values(30000-$i, '');
+  dec $i;
+}
+--enable_query_log
+commit;
+
+let SEARCH_PATTERN = ib_undo_trunc_before_truncate;
+--source include/truncate_recover.inc
+
+let SEARCH_PATTERN = ib_undo_trunc_before_ddl_log_end;
+--source include/truncate_recover.inc
+
+let SEARCH_PATTERN = ib_undo_trunc_trunc_done;
+let $restart_parameters=
+--source include/truncate_recover.inc
+drop table t1;

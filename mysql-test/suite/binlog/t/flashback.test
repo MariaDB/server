@@ -160,4 +160,8 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 SELECT * FROM t1;
 
+SET binlog_format=statement;
+--error ER_FLASHBACK_NOT_SUPPORTED
+SET GLOBAL binlog_format=statement;
+
 DROP TABLE t1;

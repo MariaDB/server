@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -629,7 +629,7 @@ fil_space_encrypt(
 
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 	const page_size_t	page_size(space->flags);
-	ut_ad(space->n_pending_ops);
+	ut_ad(space->n_pending_ios > 0);
 	byte* tmp = fil_encrypt_buf(crypt_data, space->id, offset, lsn,
 				    src_frame, page_size, dst_frame);
 
@@ -647,7 +647,8 @@ fil_space_encrypt(
 			comp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
 			uncomp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
 			memcpy(comp_mem, src_frame, UNIV_PAGE_SIZE);
-			fil_decompress_page(uncomp_mem, comp_mem, page_size.physical(), NULL);
+			fil_decompress_page(uncomp_mem, comp_mem,
+					    srv_page_size, NULL);
 			src = uncomp_mem;
 		}
 
@@ -657,7 +658,8 @@ fil_space_encrypt(
 		/* Need to decompress the page if it was also compressed */
 		if (page_compressed_encrypted) {
 			memcpy(comp_mem, tmp_mem, UNIV_PAGE_SIZE);
-			fil_decompress_page(tmp_mem, comp_mem, page_size.physical(), NULL);
+			fil_decompress_page(tmp_mem, comp_mem,
+					    srv_page_size, NULL);
 		}
 
 		bool corrupted = buf_page_is_corrupted(true, tmp_mem, page_size, space);
@@ -731,7 +733,8 @@ fil_space_decrypt(
 				 << " carries key_version " << key_version
 				 << " (should be undefined)");
 
-			mach_write_to_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0);
+			memset(src_frame
+			       + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 4);
 		}
 
 		return false;
@@ -818,7 +821,7 @@ fil_space_decrypt(
 	*decrypted = false;
 
 	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->n_pending_ios > 0);
 
 	bool encrypted = fil_space_decrypt(space->crypt_data, tmp_frame,
 					   page_size, src_frame, &err);
@@ -1305,26 +1308,28 @@ fil_crypt_realloc_iops(
 
 	if (10 * state->cnt_waited > state->batch) {
 		/* if we waited more than 10% re-estimate max_iops */
-		uint avg_wait_time_us =
+		ulint avg_wait_time_us =
 			state->sum_waited_us / state->cnt_waited;
-
-		DBUG_PRINT("ib_crypt",
-			("thr_no: %u - update estimated_max_iops from %u to %u.",
-			state->thread_no,
-			state->estimated_max_iops,
-			1000000 / avg_wait_time_us));
 
 		if (avg_wait_time_us == 0) {
 			avg_wait_time_us = 1; // prevent division by zero
 		}
 
-		state->estimated_max_iops = 1000000 / avg_wait_time_us;
+		DBUG_PRINT("ib_crypt",
+			("thr_no: %u - update estimated_max_iops from %u to "
+			 ULINTPF ".",
+			state->thread_no,
+			state->estimated_max_iops,
+			1000000 / avg_wait_time_us));
+
+		state->estimated_max_iops = uint(1000000 / avg_wait_time_us);
 		state->cnt_waited = 0;
 		state->sum_waited_us = 0;
 	} else {
 
 		DBUG_PRINT("ib_crypt",
-			("thr_no: %u only waited %lu%% skip re-estimate.",
+			("thr_no: %u only waited " ULINTPF
+			 "%% skip re-estimate.",
 			state->thread_no,
 			(100 * state->cnt_waited) / state->batch));
 	}
@@ -1552,33 +1557,27 @@ fil_crypt_find_page_to_rotate(
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
-	/* Space might already be dropped */
-	if (crypt_data) {
-		mutex_enter(&crypt_data->mutex);
-		ut_ad(key_state->key_id == crypt_data->key_id);
+	mutex_enter(&crypt_data->mutex);
+	ut_ad(key_state->key_id == crypt_data->key_id);
 
-		if (crypt_data->rotate_state.next_offset <
-		    crypt_data->rotate_state.max_offset) {
+	bool found = crypt_data->rotate_state.max_offset >=
+		crypt_data->rotate_state.next_offset;
 
-			state->offset = crypt_data->rotate_state.next_offset;
-			ulint remaining = crypt_data->rotate_state.max_offset -
-				crypt_data->rotate_state.next_offset;
+	if (found) {
+		state->offset = crypt_data->rotate_state.next_offset;
+		ulint remaining = crypt_data->rotate_state.max_offset -
+			crypt_data->rotate_state.next_offset;
 
-			if (batch <= remaining) {
-				state->batch = batch;
-			} else {
-				state->batch = remaining;
-			}
-
-			crypt_data->rotate_state.next_offset += batch;
-			mutex_exit(&crypt_data->mutex);
-			return true;
+		if (batch <= remaining) {
+			state->batch = batch;
+		} else {
+			state->batch = remaining;
 		}
-
-		mutex_exit(&crypt_data->mutex);
 	}
 
-	return false;
+	crypt_data->rotate_state.next_offset += batch;
+	mutex_exit(&crypt_data->mutex);
+	return found;
 }
 
 /***********************************************************************
@@ -2160,7 +2159,7 @@ DECLARE_THREAD(fil_crypt_thread)(
 			fil_crypt_start_rotate_space(&new_state, &thr);
 
 			/* iterate all pages (cooperativly with other threads) */
-			while (!thr.should_shutdown() && thr.space &&
+			while (!thr.should_shutdown() &&
 			       fil_crypt_find_page_to_rotate(&new_state, &thr)) {
 
 				/* rotate a (set) of pages */
@@ -2169,6 +2168,8 @@ DECLARE_THREAD(fil_crypt_thread)(
 				/* If space is marked as stopping, release
 				space and stop rotation. */
 				if (thr.space->is_stopping()) {
+					fil_crypt_complete_rotate_space(
+						&new_state, &thr);
 					fil_space_release(thr.space);
 					thr.space = NULL;
 					break;
@@ -2491,10 +2492,6 @@ bool
 fil_space_verify_crypt_checksum(
 	byte* 			page,
 	const page_size_t&	page_size,
-#ifdef UNIV_INNOCHECKSUM
-	bool			strict_check,	/*!< --strict-check */
-	FILE*			log_file,	/*!< --log */
-#endif /* UNIV_INNOCHECKSUM */
 	ulint			space,
 	ulint			offset)
 {
@@ -2540,14 +2537,7 @@ fil_space_verify_crypt_checksum(
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 
 		bool valid = page_zip_verify_checksum(page,
-						      page_size.physical()
-#ifdef UNIV_INNOCHECKSUM
-						      , offset,
-						      strict_check,
-						      log_file != NULL,
-						      log_file
-#endif
-						      );
+						      page_size.physical());
 
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, old);
 
@@ -2593,19 +2583,11 @@ fil_space_verify_crypt_checksum(
 	ulint checksum2 = mach_read_from_4(
 		page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
 
-#ifdef UNIV_INNOCHECKSUM
-# define CKARGS page, checksum1, checksum2,			\
-		offset, log_file != NULL, log_file, algorithm
-#else
-# define CKARGS page, checksum1, checksum2
-#endif
-
 	bool valid = buf_page_is_checksum_valid_crc32(
-		CKARGS, false
+		page, checksum1, checksum2, false
 		/* FIXME: also try the original crc32 that was
 		buggy on big-endian architectures? */)
-		|| buf_page_is_checksum_valid_innodb(CKARGS);
-#undef CKARGS
+		|| buf_page_is_checksum_valid_innodb(page, checksum1, checksum2);
 
 	if (encrypted && valid) {
 		/* If page is encrypted and traditional checksums match,

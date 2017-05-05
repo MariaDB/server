@@ -1,4 +1,5 @@
 // Copyright (c) 2014, Google Inc.
+// Copyright (c) 2017, MariaDB Corporation.
 
 /**************************************************//**
 @file btr/btr0scrub.cc
@@ -102,16 +103,9 @@ log_scrub_failure(
 		scrub_data->scrub_stat.page_split_failures_unknown++;
 	}
 
-	buf_frame_t* buf = buf_block_get_frame(block);
-	const ulint	space_id = mach_read_from_4(buf + FIL_PAGE_SPACE_ID);
-	const ulint	page_no = mach_read_from_4(buf + FIL_PAGE_OFFSET);
-	fprintf(stderr,
-		"InnoDB: Warning: Failed to scrub index %s table %s page %lu in space %lu : %s\n",
-		index->name(),
-		index->table->name.m_name,
-		page_no,
-		space_id,
-		reason);
+	ib::warn() << "Failed to scrub index " << index->name
+		   << " of table " << index->table->name
+		   << " page " << block->page.id << ": " << reason;
 }
 
 /****************************************************************
@@ -152,11 +146,10 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 
 		if (now >= last + 30) {
 			fprintf(stderr,
-				"WARNING: %s:%u waited %lu seconds for"
+				"WARNING: %s:%u waited %ld seconds for"
 				" dict_sys lock, space: " ULINTPF
-				" lock_to_close_table: %u\n",
-				file, line, (unsigned long)(now - start),
-				space_id,
+				" lock_to_close_table: %d\n",
+				file, line, long(now - start), space_id,
 				lock_to_close_table);
 
 			last = now;

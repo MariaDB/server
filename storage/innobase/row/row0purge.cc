@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,6 +43,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "srv0start.h"
 #include "handler.h"
 #include "ha_innodb.h"
+#include "fil0fil.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -852,7 +853,14 @@ try_again:
 		/* The table has been dropped: no need to do purge */
 		goto err_exit;
 	}
+
 	ut_ad(!dict_table_is_temporary(node->table));
+
+	if (!fil_table_accessible(node->table)) {
+		dict_table_close(node->table, FALSE, FALSE);
+		node->table = NULL;
+		goto err_exit;
+	}
 
 	if (node->table->n_v_cols && !node->table->vc_templ
 	    && dict_table_has_indexed_v_cols(node->table)) {
@@ -870,16 +878,6 @@ try_again:
 
 		/* Initialize the template for the table */
 		innobase_init_vc_templ(node->table);
-	}
-
-	if (node->table->ibd_file_missing) {
-		/* We skip purge of missing .ibd files */
-
-		dict_table_close(node->table, FALSE, FALSE);
-
-		node->table = NULL;
-
-		goto err_exit;
 	}
 
 	clust_index = dict_table_get_first_index(node->table);

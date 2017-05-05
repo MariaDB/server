@@ -1,0 +1,75 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/big_test.inc
+# Embedded server tests do not support restarting
+--source include/not_embedded.inc
+# We are crashing the server on purpose
+--source include/not_valgrind.inc
+--source include/not_crashrep.inc
+
+# The test does work with any page size, but we want to reduce the
+# test running time by limiting the combinations. The redo log format
+# is independent of the page size.
+--source include/have_innodb_16k.inc
+
+SET GLOBAL innodb_page_cleaner_disabled_debug = 1;
+SET GLOBAL innodb_dict_stats_disabled_debug = 1;
+SET GLOBAL innodb_master_thread_disabled_debug = 1;
+SET GLOBAL innodb_log_checkpoint_now = 1;
+
+CREATE DATABASE very_long_database_name;
+USE very_long_database_name;
+let $i=1300;
+--disable_query_log
+while ($i)
+{
+  eval CREATE TABLE veryLongTableNameToCreateMLOG_FILE_NAMErecords$i (a SERIAL)
+  ENGINE=InnoDB;
+  dec $i;
+}
+--enable_query_log
+
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--exec echo "wait" > $_expect_file_name
+
+set debug_dbug = '+d,increase_mtr_checkpoint_size';
+set debug_dbug = '+d,crash_after_checkpoint';
+--error 2013
+set global innodb_log_checkpoint_now = 1;
+
+--echo # Skip MLOG_FILE_NAME redo records during recovery
+--source include/start_mysqld.inc
+
+DROP DATABASE very_long_database_name;
+
+SET GLOBAL innodb_page_cleaner_disabled_debug = 1;
+SET GLOBAL innodb_dict_stats_disabled_debug = 1;
+SET GLOBAL innodb_master_thread_disabled_debug = 1;
+SET GLOBAL innodb_log_checkpoint_now = 1;
+
+--echo # Commit the multi-rec mini transaction if mtr size
+--echo # exceeds LOG_CHECKPOINT_FREE_PER_THREAD size during checkpoint.
+
+CREATE DATABASE very_long_database_name;
+USE very_long_database_name;
+let $i=1300;
+--disable_query_log
+while ($i)
+{
+  eval CREATE TABLE veryLongTableNameToCreateMLOG_FILE_NAMErecords$i (a SERIAL)
+  ENGINE=InnoDB;
+  dec $i;
+}
+--enable_query_log
+
+--exec echo "wait" > $_expect_file_name
+set debug_dbug = '+d,crash_after_checkpoint';
+--error 2013
+set global innodb_log_checkpoint_now = 1;
+
+--echo # Skip MLOG_FILE_NAME redo records during recovery
+--let $restart_parameters = --debug-dbug=d,reduce_recv_parsing_buf
+--source include/start_mysqld.inc
+
+DROP DATABASE very_long_database_name;
