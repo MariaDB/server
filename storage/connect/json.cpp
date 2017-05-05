@@ -370,16 +370,16 @@ PJVAL ParseValue(PGLOBAL g, int& i, STRG& src, bool *pty)
   PJVAL jvp = new(g) JVALUE;
 
   for (; i < len; i++)
-    switch (s[i]) {
-		case '\n':
-			pty[0] = pty[1] = false;
-		case '\r':
-		case ' ':
-      case '\t':
-        break;
-      default:
-        goto suite;
-    } // endswitch
+		switch (s[i]) {
+			case '\n':
+				pty[0] = pty[1] = false;
+			case '\r':
+			case ' ':
+			case '\t':
+				break;
+			default:
+				goto suite;
+		} // endswitch
 
  suite:
   switch (s[i]) {
@@ -1432,7 +1432,7 @@ void JVALUE::SetTiny(PGLOBAL g, char n)
 {
 	Value = AllocateValue(g, &n, TYPE_TINY);
 	Jsp = NULL;
-} // end of SetInteger
+} // end of SetTiny
 
 /***********************************************************************/
 /* Set the Value's value as the given big integer.                     */
@@ -1466,6 +1466,6 @@ void JVALUE::SetString(PGLOBAL g, PSZ s, short c)
 /***********************************************************************/
 bool JVALUE::IsNull(void)
 {
-  return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsZero() : true;
+	return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsNull() : true;
 } // end of IsNull
 

@@ -1,7 +1,7 @@
 /*********** File AM Zip C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMZIP                                              */
 /* -------------                                                       */
-/*  Version 1.2                                                        */
+/*  Version 1.3                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -634,6 +634,28 @@ bool UNZIPUTL::OpenTable(PGLOBAL g, MODE mode, char *fn)
 } // end of OpenTableFile
 
 /***********************************************************************/
+/*  Insert only if the entry does not exist.   												 */
+/***********************************************************************/
+bool UNZIPUTL::IsInsertOk(PGLOBAL g, char *fn)
+{
+	bool ok = true, b = open(g, fn);
+
+	if (!b) {
+		if (!target || *target == 0) {
+			unz_global_info64 ginfo;
+			int err = unzGetGlobalInfo64(zipfile, &ginfo);
+
+			ok = !(err == UNZ_OK && ginfo.number_entry > 0);
+		} else						// Check if the target exist
+			ok = (unzLocateFile(zipfile, target, 0) != UNZ_OK);
+
+		unzClose(zipfile);
+	} // endif b
+
+	return ok;
+} // end of IsInsertOk
+
+/***********************************************************************/
 /*  Open target in zip file.						      												 */
 /***********************************************************************/
 bool UNZIPUTL::openEntry(PGLOBAL g)
@@ -1006,6 +1028,25 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 {
 	char filename[_MAX_PATH];
 	MODE mode = Tdbp->GetMode();
+	int  len = TXTFAM::GetFileLength(g);
+
+	//  We used the file name relative to recorded datapath
+	PlugSetPath(filename, To_File, Tdbp->GetPath());
+
+	if (len < 0)
+		return true;
+	else if (!append && len > 0) {
+		strcpy(g->Message, "No insert into existing zip file");
+		return true;
+	} else if (append && len > 0) {
+		UNZIPUTL *zutp = new(g) UNZIPUTL(target, false);
+
+		if (!zutp->IsInsertOk(g, filename)) {
+			strcpy(g->Message, "No insert into existing entry");
+			return true;
+		}	// endif Ok
+
+	} // endif's
 
 	/*********************************************************************/
 	/*  Allocate the ZIP utility class.                                  */
@@ -1065,15 +1106,31 @@ ZPXFAM::ZPXFAM(PDOSDEF tdp) : FIXFAM(tdp)
 	target = tdp->GetEntry();
 	append = tdp->GetAppend();
 	//Lrecl = tdp->GetLrecl();
-} // end of UZXFAM standard constructor
+} // end of ZPXFAM standard constructor
 
 /***********************************************************************/
 /*  OpenTableFile: Open a DOS/UNIX table file from a ZIP file.         */
 /***********************************************************************/
 bool ZPXFAM::OpenTableFile(PGLOBAL g)
 {
-	char    filename[_MAX_PATH];
-	MODE    mode = Tdbp->GetMode();
+	char filename[_MAX_PATH];
+	MODE mode = Tdbp->GetMode();
+	int  len = TXTFAM::GetFileLength(g);
+
+	if (len < 0)
+		return true;
+	else if (!append && len > 0) {
+		strcpy(g->Message, "No insert into existing zip file");
+		return true;
+	} else if (append && len > 0) {
+		UNZIPUTL *zutp = new(g) UNZIPUTL(target, false);
+
+		if (!zutp->IsInsertOk(g, filename)) {
+			strcpy(g->Message, "No insert into existing entry");
+			return true;
+		}	// endif Ok
+
+	} // endif's
 
 	/*********************************************************************/
 	/*  Allocate the ZIP utility class.                                  */

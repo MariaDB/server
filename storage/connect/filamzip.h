@@ -1,5 +1,5 @@
 /************** filamzip H Declares Source Code File (.H) **************/
-/*  Name: filamzip.h   Version 1.1                                     */
+/*  Name: filamzip.h   Version 1.2                                     */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
 /*                                                                     */
@@ -77,6 +77,7 @@ class DllExport UNZIPUTL : public BLOCK {
 	bool WildMatch(PSZ pat, PSZ str);
 	int  findEntry(PGLOBAL g, bool next);
 	int  nextEntry(PGLOBAL g);
+	bool IsInsertOk(PGLOBAL g, char *fn);
 
 	// Members
 	unzFile         zipfile;							// The ZIP container file
