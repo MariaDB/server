@@ -460,16 +460,6 @@ inline bool is_temporal_type_with_date(enum_field_types type)
 
 
 /**
-   Recognizer for concrete data type (called real_type for some reason),
-   returning true if it is one of the TIMESTAMP types.
-*/
-inline bool is_timestamp_type(enum_field_types type)
-{
-  return type == MYSQL_TYPE_TIMESTAMP || type == MYSQL_TYPE_TIMESTAMP2;
-}
-
-
-/**
   Convert temporal real types as retuned by field->real_type()
   to field type as returned by field->type().
   
@@ -859,7 +849,6 @@ public:
   {
     return type_handler()->cmp_type();
   }
-  static bool type_can_have_key_part(enum_field_types);
   static enum_field_types field_type_merge(enum_field_types, enum_field_types);
   virtual bool eq(Field *field)
   {
@@ -3786,7 +3775,7 @@ extern const LEX_CSTRING null_clex_str;
 Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                   uchar *ptr, uint32 field_length,
                   uchar *null_pos, uchar null_bit,
-                  uint pack_flag, enum_field_types field_type,
+                  uint pack_flag, const Type_handler *handler,
                   CHARSET_INFO *cs,
                   Field::geometry_type geom_type, uint srid,
                   Field::utype unireg_check,
@@ -3795,7 +3784,8 @@ Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
 /*
   Create field class for CREATE TABLE
 */
-class Column_definition: public Sql_alloc
+class Column_definition: public Sql_alloc,
+                         public Type_handler_hybrid_field_type
 {
   /**
     Create "interval" from "interval_list".
@@ -3835,11 +3825,11 @@ class Column_definition: public Sql_alloc
       set_if_bigger(*max_length, (uint32)length);
     }
   }
+  const Type_handler *field_type() const; // Prevent using this
 public:
   LEX_CSTRING field_name;
   LEX_CSTRING comment;			// Comment for field
   Item *on_update;		        // ON UPDATE NOW()
-  enum	enum_field_types sql_type;
   /*
     At various stages in execution this can be length of field in bytes or
     max number of characters. 
@@ -3871,9 +3861,10 @@ public:
     *default_value,                  // Default value
     *check_constraint;               // Check constraint
 
-  Column_definition():
+  Column_definition()
+   :Type_handler_hybrid_field_type(&type_handler_null),
     comment(null_clex_str),
-    on_update(NULL), sql_type(MYSQL_TYPE_NULL), length(0), decimals(0),
+    on_update(NULL), length(0), decimals(0),
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
@@ -3882,20 +3873,6 @@ public:
   {
     interval_list.empty();
   }
-
-  Column_definition(LEX_CSTRING *name, enum_field_types type):
-    field_name(*name),
-    comment(null_clex_str),
-    on_update(NULL), sql_type(type), length(0), decimals(0),
-    flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
-    interval(0), charset(&my_charset_bin),
-    srid(0), geom_type(Field::GEOM_GEOMETRY),
-    option_list(NULL), pack_flag(0),
-    vcol_info(0), default_value(0), check_constraint(0)
-  {
-    interval_list.empty();
-  }
-
   Column_definition(THD *thd, Field *field, Field *orig_field);
   void set_attributes(const Lex_field_type_st &type, CHARSET_INFO *cs);
   void create_length_to_internal_length(void);
@@ -3917,7 +3894,7 @@ public:
   void prepare_interval_field_calc_length()
   {
     uint32 field_length, dummy;
-    if (sql_type == MYSQL_TYPE_SET)
+    if (real_field_type() == MYSQL_TYPE_SET)
     {
       calculate_interval_lengths(&dummy, &field_length);
       length= field_length + (interval->count - 1);
@@ -3963,7 +3940,7 @@ public:
   {
     return ::make_field(share, mem_root, ptr,
                         (uint32)length, null_pos, null_bit,
-                        pack_flag, sql_type, charset,
+                        pack_flag, type_handler(), charset,
                         geom_type, srid, unireg_check, interval,
                         field_name_arg);
   }
@@ -4063,7 +4040,7 @@ public:
   {
     return is_row() || is_table_rowtype_ref() || is_cursor_rowtype_ref() ?
            &type_handler_row :
-           Type_handler::get_handler_by_field_type(sql_type);
+           Type_handler_hybrid_field_type::type_handler();
   }
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
   bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }

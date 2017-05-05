@@ -381,7 +381,8 @@ public:
   Functions whose returned field type is determined at fix_fields() time.
 */
 class Item_hybrid_func: public Item_func,
-                        public Type_handler_hybrid_field_type
+                        public Type_handler_hybrid_field_type,
+                        public Type_geometry_attributes
 {
 protected:
   bool fix_attributes(Item **item, uint nitems);
@@ -402,6 +403,8 @@ public:
   { return Type_handler_hybrid_field_type::result_type(); }
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
+  Field::geometry_type get_geometry_type() const
+  { return Type_geometry_attributes::get_geometry_type(); };
 };
 
 

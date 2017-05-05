@@ -626,7 +626,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
       We mark first TIMESTAMP field with NOW() in DEFAULT or ON UPDATE
       as auto-update field.
     */
-    if (field->sql_type == MYSQL_TYPE_TIMESTAMP &&
+    if (field->real_field_type() == MYSQL_TYPE_TIMESTAMP &&
         MTYP_TYPENR(field->unireg_check) != Field::NONE &&
 	!time_stamp_pos)
       time_stamp_pos= (uint) field->offset+ (uint) data_offset + 1;
@@ -808,8 +808,8 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
     int2store(buff+8,field->pack_flag);
     buff[10]= (uchar) field->unireg_check;
     buff[12]= (uchar) field->interval_id;
-    buff[13]= (uchar) field->sql_type;
-    if (field->sql_type == MYSQL_TYPE_GEOMETRY)
+    buff[13]= (uchar) field->real_field_type();
+    if (field->real_field_type() == MYSQL_TYPE_GEOMETRY)
     {
       buff[11]= 0;
       buff[14]= (uchar) field->geom_type;
@@ -954,7 +954,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
                                 null_pos + null_count / 8,
                                 null_count & 7,
                                 field->pack_flag,
-                                field->sql_type,
+                                field->type_handler(),
                                 field->charset,
                                 field->geom_type, field->srid,
                                 field->unireg_check,
@@ -976,7 +976,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
       null_count++;
     }
 
-    if (field->sql_type == MYSQL_TYPE_BIT && !f_bit_as_char(field->pack_flag))
+    if (field->real_field_type() == MYSQL_TYPE_BIT &&
+        !f_bit_as_char(field->pack_flag))
       null_count+= field->length & 7;
 
     if (field->default_value && !field->default_value->flags &&

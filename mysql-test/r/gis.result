@@ -2792,19 +2792,18 @@ t2	CREATE TABLE `t2` (
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
 Illegal parameter data types set and geometry for operation 'UNION'
-# This does not preserve geometry type (MDEV-12560)
 CREATE TABLE t1 AS SELECT COALESCE(NULL, Point(1,1));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `COALESCE(NULL, Point(1,1))` geometry DEFAULT NULL
+  `COALESCE(NULL, Point(1,1))` point DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT NULL UNION SELECT Point(1,1);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `NULL` geometry DEFAULT NULL
+  `NULL` point DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -3889,12 +3888,11 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,b)` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-# This does not preserve geometry type (MDEV-9405)
 CREATE TABLE t1 AS SELECT LEAST(NULL, Point(1,1));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `LEAST(NULL, Point(1,1))` geometry DEFAULT NULL
+  `LEAST(NULL, Point(1,1))` point DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -4121,6 +4119,186 @@ SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
 ERROR HY000: Illegal parameter data types geometry and varchar for operation 'str_to_date'
 SELECT STR_TO_DATE('2001-01-01', POINT(1,1));
 ERROR HY000: Illegal parameter data types varchar and geometry for operation 'str_to_date'
+#
+# MDEV-12665 Hybrid functions do not preserve geometry type
+#
+CREATE TABLE t1 AS SELECT
+Point(0,0) AS p0,
+COALESCE(Point(0,0)) AS p1,
+CASE WHEN 0 THEN Point(0,0) ELSE Point(1,1) END AS p2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `p0` point DEFAULT NULL,
+  `p1` point DEFAULT NULL,
+  `p2` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT LEAST(Point(0,0),Point(0,0)) AS p1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `p1` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (
+c_geometry GEOMETRY,
+c_point POINT,
+c_linestring LINESTRING,
+c_polygon POLYGON,
+c_multipoint  MULTIPOINT,
+c_multilinestring MULTILINESTRING,
+c_multipolygon MULTIPOLYGON,
+c_geometrycollection GEOMETRYCOLLECTION
+);
+CREATE TABLE t2 AS SELECT
+COALESCE(NULL, c_geometry),
+COALESCE(NULL, c_point),
+COALESCE(NULL, c_linestring),
+COALESCE(NULL, c_polygon),
+COALESCE(NULL, c_multipoint),
+COALESCE(NULL, c_multilinestring),
+COALESCE(NULL, c_multipolygon),
+COALESCE(NULL, c_geometrycollection)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(NULL, c_geometry)` geometry DEFAULT NULL,
+  `COALESCE(NULL, c_point)` point DEFAULT NULL,
+  `COALESCE(NULL, c_linestring)` linestring DEFAULT NULL,
+  `COALESCE(NULL, c_polygon)` polygon DEFAULT NULL,
+  `COALESCE(NULL, c_multipoint)` multipoint DEFAULT NULL,
+  `COALESCE(NULL, c_multilinestring)` multilinestring DEFAULT NULL,
+  `COALESCE(NULL, c_multipolygon)` multipolygon DEFAULT NULL,
+  `COALESCE(NULL, c_geometrycollection)` geometrycollection DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+COALESCE(c_geometry, NULL),
+COALESCE(c_point, NULL),
+COALESCE(c_linestring, NULL),
+COALESCE(c_polygon, NULL),
+COALESCE(c_multipoint, NULL),
+COALESCE(c_multilinestring, NULL),
+COALESCE(c_multipolygon, NULL),
+COALESCE(c_geometrycollection, NULL)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c_geometry, NULL)` geometry DEFAULT NULL,
+  `COALESCE(c_point, NULL)` point DEFAULT NULL,
+  `COALESCE(c_linestring, NULL)` linestring DEFAULT NULL,
+  `COALESCE(c_polygon, NULL)` polygon DEFAULT NULL,
+  `COALESCE(c_multipoint, NULL)` multipoint DEFAULT NULL,
+  `COALESCE(c_multilinestring, NULL)` multilinestring DEFAULT NULL,
+  `COALESCE(c_multipolygon, NULL)` multipolygon DEFAULT NULL,
+  `COALESCE(c_geometrycollection, NULL)` geometrycollection DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+COALESCE(c_geometry, c_geometry),
+COALESCE(c_point, c_point),
+COALESCE(c_linestring, c_linestring),
+COALESCE(c_polygon, c_polygon),
+COALESCE(c_multipoint, c_multipoint),
+COALESCE(c_multilinestring, c_multilinestring),
+COALESCE(c_multipolygon, c_multipolygon),
+COALESCE(c_geometrycollection, c_geometrycollection)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c_geometry, c_geometry)` geometry DEFAULT NULL,
+  `COALESCE(c_point, c_point)` point DEFAULT NULL,
+  `COALESCE(c_linestring, c_linestring)` linestring DEFAULT NULL,
+  `COALESCE(c_polygon, c_polygon)` polygon DEFAULT NULL,
+  `COALESCE(c_multipoint, c_multipoint)` multipoint DEFAULT NULL,
+  `COALESCE(c_multilinestring, c_multilinestring)` multilinestring DEFAULT NULL,
+  `COALESCE(c_multipolygon, c_multipolygon)` multipolygon DEFAULT NULL,
+  `COALESCE(c_geometrycollection, c_geometrycollection)` geometrycollection DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-12560 Wrong data type for SELECT NULL UNION SELECT Point(1,1)
+#
+CREATE TABLE t1 AS SELECT NULL AS c1 UNION SELECT POINT(1,1);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE PROCEDURE p1(name TEXT)
+BEGIN
+EXECUTE IMMEDIATE CONCAT('CREATE TABLE t1 (a ', name, ')');
+CREATE TABLE t2 AS
+SELECT a AS a1, a    AS a2, NULL AS a3 FROM t1 UNION
+SELECT a AS a1, NULL AS a2, a    AS a3 FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+END;
+$$
+CALL p1('geometry');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` geometry DEFAULT NULL,
+  `a2` geometry DEFAULT NULL,
+  `a3` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('point');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` point DEFAULT NULL,
+  `a2` point DEFAULT NULL,
+  `a3` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('linestring');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` linestring DEFAULT NULL,
+  `a2` linestring DEFAULT NULL,
+  `a3` linestring DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('polygon');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` polygon DEFAULT NULL,
+  `a2` polygon DEFAULT NULL,
+  `a3` polygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('multipoint');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` multipoint DEFAULT NULL,
+  `a2` multipoint DEFAULT NULL,
+  `a3` multipoint DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('multilinestring');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` multilinestring DEFAULT NULL,
+  `a2` multilinestring DEFAULT NULL,
+  `a3` multilinestring DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('multipolygon');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` multipolygon DEFAULT NULL,
+  `a2` multipolygon DEFAULT NULL,
+  `a3` multipolygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('geometrycollection');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` geometrycollection DEFAULT NULL,
+  `a2` geometrycollection DEFAULT NULL,
+  `a3` geometrycollection DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE p1;
 #
 # End of 10.3 tests
 #

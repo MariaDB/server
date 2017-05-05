@@ -2869,7 +2869,7 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
   */
   DBUG_ASSERT(charset);
 
-  switch (sql_type) {
+  switch (real_field_type()) {
   case MYSQL_TYPE_BLOB:
   case MYSQL_TYPE_MEDIUM_BLOB:
   case MYSQL_TYPE_TINY_BLOB:
@@ -2905,8 +2905,8 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
     if (table_flags & HA_NO_VARCHAR)
     {
       /* convert VARCHAR to CHAR because handler is not yet up to date */
-      sql_type= MYSQL_TYPE_VAR_STRING;
-      pack_length= calc_pack_length(sql_type, (uint) length);
+      set_handler(&type_handler_var_string);
+      pack_length= calc_pack_length(real_field_type(), (uint) length);
       if ((length / charset->mbmaxlen) > MAX_FIELD_CHARLENGTH)
       {
         my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name.str,
@@ -2950,7 +2950,7 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
   case MYSQL_TYPE_TIME2:
   case MYSQL_TYPE_DATETIME2:
   case MYSQL_TYPE_NULL:
-    pack_flag= f_settype((uint) sql_type);
+    pack_flag= f_settype((uint) real_field_type());
     break;
   case MYSQL_TYPE_BIT:
     /* 
@@ -2981,7 +2981,7 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
     pack_flag= (FIELDFLAG_NUMBER |
                 (flags & UNSIGNED_FLAG ? 0 : FIELDFLAG_DECIMAL) |
                 (flags & ZEROFILL_FLAG ? FIELDFLAG_ZEROFILL : 0) |
-                f_settype((uint) sql_type) |
+                f_settype((uint) real_field_type()) |
                 (decimals_orig << FIELDFLAG_DEC_SHIFT));
     break;
   }
@@ -3044,7 +3044,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
 
   while ((column_definition= it++) != NULL)
   {
-    if (is_timestamp_type(column_definition->sql_type) ||    // TIMESTAMP
+    if (column_definition->is_timestamp_type() ||    // TIMESTAMP
         column_definition->unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
       if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
@@ -3229,8 +3229,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	!(sql_field->charset= find_bin_collation(sql_field->charset)))
       DBUG_RETURN(TRUE);
 
-    if (sql_field->sql_type == MYSQL_TYPE_SET ||
-        sql_field->sql_type == MYSQL_TYPE_ENUM)
+    if (sql_field->real_field_type() == MYSQL_TYPE_SET ||
+        sql_field->real_field_type() == MYSQL_TYPE_ENUM)
     {
       /*
         Create the typelib in runtime memory - we will free the
@@ -3244,7 +3244,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(true); // E.g. wrong values with commas: SET('a,b')
     }
 
-    if (sql_field->sql_type == MYSQL_TYPE_BIT)
+    if (sql_field->real_field_type() == MYSQL_TYPE_BIT)
     { 
       sql_field->pack_flag= FIELDFLAG_NUMBER;
       if (file->ha_table_flags() & HA_CAN_BIT_FIELD)
@@ -3265,14 +3265,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (sql_field->default_value &&
         sql_field->default_value->expr->basic_const_item() &&
         save_cs != sql_field->default_value->expr->collation.collation &&
-        (sql_field->sql_type == MYSQL_TYPE_VAR_STRING ||
-         sql_field->sql_type == MYSQL_TYPE_STRING ||
-         sql_field->sql_type == MYSQL_TYPE_SET ||
-         sql_field->sql_type == MYSQL_TYPE_TINY_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_MEDIUM_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_LONG_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_ENUM))
+        (sql_field->real_field_type() == MYSQL_TYPE_VAR_STRING ||
+         sql_field->real_field_type() == MYSQL_TYPE_STRING ||
+         sql_field->real_field_type() == MYSQL_TYPE_SET ||
+         sql_field->real_field_type() == MYSQL_TYPE_TINY_BLOB ||
+         sql_field->real_field_type() == MYSQL_TYPE_MEDIUM_BLOB ||
+         sql_field->real_field_type() == MYSQL_TYPE_LONG_BLOB ||
+         sql_field->real_field_type() == MYSQL_TYPE_BLOB ||
+         sql_field->real_field_type() == MYSQL_TYPE_ENUM))
     {
       Item *item;
       if (!(item= sql_field->default_value->expr->
@@ -3288,8 +3288,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
     if (sql_field->default_value &&
         sql_field->default_value->expr->basic_const_item() &&
-        (sql_field->sql_type == MYSQL_TYPE_SET ||
-         sql_field->sql_type == MYSQL_TYPE_ENUM))
+        (sql_field->real_field_type() == MYSQL_TYPE_SET ||
+         sql_field->real_field_type() == MYSQL_TYPE_ENUM))
     {
       StringBuffer<MAX_FIELD_WIDTH> str;
       String *def= sql_field->default_value->expr->val_str(&str);
@@ -3301,7 +3301,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       else
       {
         not_found= false;
-        if (sql_field->sql_type == MYSQL_TYPE_SET)
+        if (sql_field->real_field_type() == MYSQL_TYPE_SET)
         {
           char *not_used;
           uint not_used2;
@@ -3357,12 +3357,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             If we are replacing a BIT field, revert the increment
             of total_uneven_bit_length that was done above.
           */
-          if (sql_field->sql_type == MYSQL_TYPE_BIT &&
+          if (sql_field->real_field_type() == MYSQL_TYPE_BIT &&
               file->ha_table_flags() & HA_CAN_BIT_FIELD)
             total_uneven_bit_length-= sql_field->length & 7;
 
 	  sql_field->default_value=	dup_field->default_value;
-	  sql_field->sql_type=		dup_field->sql_type;
+	  sql_field->set_handler(dup_field->type_handler());
 
           /*
             If we are replacing a field with a BIT field, we need
@@ -3370,7 +3370,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             increment total_uneven_bit_length here as this dup_field
             has already been processed.
           */
-          if (sql_field->sql_type == MYSQL_TYPE_BIT)
+          if (sql_field->real_field_type() == MYSQL_TYPE_BIT)
           {
             sql_field->pack_flag= FIELDFLAG_NUMBER;
             if (!(file->ha_table_flags() & HA_CAN_BIT_FIELD))
@@ -3404,7 +3404,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
     /* Don't pack rows in old tables if the user has requested this */
     if ((sql_field->flags & BLOB_FLAG) ||
-	(sql_field->sql_type == MYSQL_TYPE_VARCHAR &&
+	(sql_field->real_field_type() == MYSQL_TYPE_VARCHAR &&
          create_info->row_type != ROW_TYPE_FIXED))
       (*db_options)|= HA_OPTION_PACK_RECORD;
     it2.rewind();
@@ -3421,7 +3421,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
     if (sql_field->prepare_create_field(&blob_columns, file->ha_table_flags()))
       DBUG_RETURN(TRUE);
-    if (sql_field->sql_type == MYSQL_TYPE_VARCHAR)
+    if (sql_field->real_field_type() == MYSQL_TYPE_VARCHAR)
       create_info->varchar= TRUE;
     sql_field->offset= record_offset;
     if (MTYP_TYPENR(sql_field->unireg_check) == Field::NEXT_NUMBER)
@@ -3721,8 +3721,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cols2.rewind();
       if (key->type == Key::FULLTEXT)
       {
-	if ((sql_field->sql_type != MYSQL_TYPE_STRING &&
-	     sql_field->sql_type != MYSQL_TYPE_VARCHAR &&
+	if ((sql_field->real_field_type() != MYSQL_TYPE_STRING &&
+	     sql_field->real_field_type() != MYSQL_TYPE_VARCHAR &&
 	     !f_is_blob(sql_field->pack_flag)) ||
 	    sql_field->charset == &my_charset_bin ||
 	    sql_field->charset->mbminlen > 1 || // ucs2 doesn't work yet
@@ -3848,7 +3848,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	if (f_is_blob(sql_field->pack_flag))
 	{
 	  key_part_length= MY_MIN(column->length,
-                               blob_length_by_type(sql_field->sql_type)
+                               blob_length_by_type(sql_field->real_field_type())
                                * sql_field->charset->mbmaxlen);
 	  if (key_part_length > max_key_length ||
 	      key_part_length > file->max_key_part_length())
@@ -3878,7 +3878,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                  // is prefix length bigger than field length? 
                  (column->length > key_part_length ||
                   // can the field have a partial key? 
-                  !Field::type_can_have_key_part (sql_field->sql_type) ||
+                  !sql_field->type_handler()->type_can_have_key_part() ||
                   // a packed field can't be used in a partial key
                   f_is_packed(sql_field->pack_flag) ||
                   // does the storage engine allow prefixed search?
@@ -3922,12 +3922,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (!((*db_options) & HA_OPTION_NO_PACK_KEYS) &&
           !((create_info->table_options & HA_OPTION_NO_PACK_KEYS)) &&
 	  (key_part_length >= KEY_DEFAULT_PACK_LENGTH &&
-	   (sql_field->sql_type == MYSQL_TYPE_STRING ||
-	    sql_field->sql_type == MYSQL_TYPE_VARCHAR ||
+	   (sql_field->real_field_type() == MYSQL_TYPE_STRING ||
+	    sql_field->real_field_type() == MYSQL_TYPE_VARCHAR ||
 	    sql_field->pack_flag & FIELDFLAG_BLOB)))
       {
 	if ((column_nr == 0 && (sql_field->pack_flag & FIELDFLAG_BLOB)) ||
-            sql_field->sql_type == MYSQL_TYPE_VARCHAR)
+            sql_field->real_field_type() == MYSQL_TYPE_VARCHAR)
 	  key_info->flags|= HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY;
 	else
 	  key_info->flags|= HA_PACK_KEY;
@@ -4028,7 +4028,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (!sql_field->default_value &&
         !sql_field->has_default_function() &&
         (sql_field->flags & NOT_NULL_FLAG) &&
-        !is_timestamp_type(sql_field->sql_type))
+        !sql_field->is_timestamp_type())
     {
       sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
       sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
@@ -4036,7 +4036,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
         !sql_field->default_value && !sql_field->vcol_info &&
-        is_timestamp_type(sql_field->sql_type) &&
+        sql_field->is_timestamp_type() &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
     {
@@ -4219,7 +4219,7 @@ bool Column_definition::prepare_blob_field(THD *thd)
                static_cast<ulong>(MAX_FIELD_VARCHARLENGTH / charset->mbmaxlen));
       DBUG_RETURN(1);
     }
-    sql_type= MYSQL_TYPE_BLOB;
+    set_handler(&type_handler_blob);
     flags|= BLOB_FLAG;
     my_snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_AUTO_CONVERT),
                 field_name.str,
@@ -4231,13 +4231,13 @@ bool Column_definition::prepare_blob_field(THD *thd)
 
   if ((flags & BLOB_FLAG) && length)
   {
-    if (sql_type == FIELD_TYPE_BLOB ||
-        sql_type == FIELD_TYPE_TINY_BLOB ||
-        sql_type == FIELD_TYPE_MEDIUM_BLOB)
+    if (real_field_type() == FIELD_TYPE_BLOB ||
+        real_field_type() == FIELD_TYPE_TINY_BLOB ||
+        real_field_type() == FIELD_TYPE_MEDIUM_BLOB)
     {
       /* The user has given a length to the blob column */
-      sql_type= get_blob_type_from_length(length);
-      pack_length= calc_pack_length(sql_type, 0);
+      set_handler(Type_handler::blob_type_handler(length));
+      pack_length= calc_pack_length(real_field_type(), 0);
     }
     length= 0;
   }
@@ -4262,7 +4262,8 @@ bool Column_definition::prepare_blob_field(THD *thd)
 
 bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 {
-  if (sql_type == MYSQL_TYPE_SET || sql_type == MYSQL_TYPE_ENUM)
+  if (real_field_type() == MYSQL_TYPE_SET ||
+      real_field_type() == MYSQL_TYPE_ENUM)
   {
     /*
       Pass "false" as the last argument to allocate TYPELIB values on mem_root,
@@ -4272,7 +4273,7 @@ bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
       return true; // E.g. wrong values with commas: SET('a,b')
   }
 
-  if (sql_type == MYSQL_TYPE_BIT)
+  if (real_field_type() == MYSQL_TYPE_BIT)
     pack_flag= FIELDFLAG_NUMBER | FIELDFLAG_TREAT_BIT_AS_CHAR;
   create_length_to_internal_length();
   DBUG_ASSERT(default_value == 0);
@@ -6819,7 +6820,7 @@ bool mysql_compare_tables(TABLE *table,
     if (create_info->row_type == ROW_TYPE_DYNAMIC ||
         create_info->row_type == ROW_TYPE_PAGE ||
 	(tmp_new_field->flags & BLOB_FLAG) ||
-	(tmp_new_field->sql_type == MYSQL_TYPE_VARCHAR &&
+	(tmp_new_field->real_field_type() == MYSQL_TYPE_VARCHAR &&
 	create_info->row_type != ROW_TYPE_FIXED))
       create_info->table_options|= HA_OPTION_PACK_RECORD;
 
@@ -7611,10 +7612,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       If the '0000-00-00' value isn't allowed then raise the error_if_not_empty
       flag to allow ALTER TABLE only if the table to be altered is empty.
     */
-    if ((def->sql_type == MYSQL_TYPE_DATE ||
-         def->sql_type == MYSQL_TYPE_NEWDATE ||
-         def->sql_type == MYSQL_TYPE_DATETIME ||
-         def->sql_type == MYSQL_TYPE_DATETIME2) &&
+    if ((def->real_field_type() == MYSQL_TYPE_DATE ||
+         def->real_field_type() == MYSQL_TYPE_NEWDATE ||
+         def->real_field_type() == MYSQL_TYPE_DATETIME ||
+         def->real_field_type() == MYSQL_TYPE_DATETIME2) &&
          !alter_ctx->datetime_field &&
          !(~def->flags & (NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG)) &&
          thd->variables.sql_mode & MODE_NO_ZERO_DATE)
@@ -7776,16 +7777,17 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           - data type maximum length is 255.
           - key_part_length is 1016 (=254*4, where 4 is mbmaxlen)
          */
-        if (!Field::type_can_have_key_part(cfield->field->type()) ||
-            !Field::type_can_have_key_part(cfield->sql_type) ||
+        if (!cfield->field->type_handler()->type_can_have_key_part() ||
+            !cfield->type_handler()->type_can_have_key_part() ||
             /* spatial keys can't have sub-key length */
             (key_info->flags & HA_SPATIAL) ||
             (cfield->field->field_length == key_part_length &&
              !f_is_blob(key_part->key_type)) ||
-            (cfield->length && (((cfield->sql_type >= MYSQL_TYPE_TINY_BLOB &&
-                                  cfield->sql_type <= MYSQL_TYPE_BLOB) ? 
-                                blob_length_by_type(cfield->sql_type) :
-                                cfield->length) <
+            (cfield->length &&
+             (((cfield->real_field_type() >= MYSQL_TYPE_TINY_BLOB &&
+                cfield->real_field_type() <= MYSQL_TYPE_BLOB) ?
+                blob_length_by_type(cfield->real_field_type()) :
+                cfield->length) <
 	     key_part_length / key_part->field->charset()->mbmaxlen)))
 	  key_part_length= 0;			// Use whole field
       }
@@ -9494,7 +9496,7 @@ err_new_table_cleanup:
   {
     const char *f_val= 0;
     enum enum_mysql_timestamp_type t_type= MYSQL_TIMESTAMP_DATE;
-    switch (alter_ctx.datetime_field->sql_type)
+    switch (alter_ctx.datetime_field->real_field_type())
     {
       case MYSQL_TYPE_DATE:
       case MYSQL_TYPE_NEWDATE:

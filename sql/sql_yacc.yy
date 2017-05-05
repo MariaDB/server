@@ -3818,7 +3818,7 @@ sp_proc_stmt_return:
 
             i= new (thd->mem_root)
                  sp_instr_freturn(sp->instructions(), lex->spcont, $3,
-                                  sp->m_return_field_def.sql_type, lex);
+                                  sp->m_return_field_def.type_handler(), lex);
             if (i == NULL || sp->add_instr(i))
               MYSQL_YYABORT;
             sp->m_flags|= sp_head::HAS_RETURN;
@@ -6117,7 +6117,7 @@ field_type_or_serial:
           field_def
         | SERIAL_SYM
           {
-            Lex->last_field->sql_type= MYSQL_TYPE_LONGLONG;
+            Lex->last_field->set_handler(&type_handler_longlong);
             Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG
                                      | UNSIGNED_FLAG | UNIQUE_KEY_FLAG;
           }

@@ -3784,7 +3784,7 @@ sp_instr_freturn::print(String *str)
   if (str->reserve(1024+8+32)) // Add some for the expr. too
     return;
   str->qs_append(STRING_WITH_LEN("freturn "));
-  str->qs_append((uint)m_type);
+  str->qs_append(m_type_handler->name().ptr());
   str->qs_append(' ');
   m_value->print(str, enum_query_type(QT_ORDINARY |
                                       QT_ITEM_ORIGINAL_FUNC_NULLIF));

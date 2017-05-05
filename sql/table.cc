@@ -1753,6 +1753,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     Virtual_column_info *vcol_info= 0;
     uint gis_length, gis_decimals, srid= 0;
     Field::utype unireg_check;
+    const Type_handler *handler;
 
     if (new_frm_ver >= 3)
     {
@@ -1964,9 +1965,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     unireg_check= (Field::utype) MTYP_TYPENR(unireg_type);
     name.str= fieldnames.type_names[i];
     name.length= strlen(name.str);
+    if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
+      goto err; // Not supported field type
     *field_ptr= reg_field=
       make_field(share, &share->mem_root, record+recpos, (uint32) field_length,
-		 null_pos, null_bit_pos, pack_flag, field_type, charset,
+		 null_pos, null_bit_pos, pack_flag, handler, charset,
 		 geom_type, srid, unireg_check,
 		 (interval_nr ? share->intervals+interval_nr-1 : NULL),
 		 &name);

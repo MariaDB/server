@@ -1430,8 +1430,8 @@ class sp_instr_freturn : public sp_instr
 public:
 
   sp_instr_freturn(uint ip, sp_pcontext *ctx,
-		   Item *val, enum enum_field_types type_arg, LEX *lex)
-    : sp_instr(ip, ctx), m_value(val), m_type(type_arg),
+		   Item *val, const Type_handler *handler, LEX *lex)
+    : sp_instr(ip, ctx), m_value(val), m_type_handler(handler),
       m_lex_keeper(lex, TRUE)
   {}
 
@@ -1453,7 +1453,7 @@ public:
 protected:
 
   Item *m_value;
-  enum enum_field_types m_type;
+  const Type_handler *m_type_handler;
   sp_lex_keeper m_lex_keeper;
 
 }; // class sp_instr_freturn : public sp_instr

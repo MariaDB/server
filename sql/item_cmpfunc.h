@@ -885,6 +885,11 @@ public:
   const char *func_name() const { return "between"; }
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
   void fix_length_and_dec();
+  bool fix_length_and_dec_string(THD *)
+  {
+    return agg_arg_charsets_for_comparison(cmp_collation, args, 3);
+  }
+  bool fix_length_and_dec_numeric(THD *);
   virtual void print(String *str, enum_query_type query_type);
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
