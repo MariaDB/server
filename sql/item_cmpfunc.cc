@@ -552,20 +552,20 @@ bool Arg_comparator::set_cmp_func_string()
 }
 
 
-bool Arg_comparator::set_cmp_func_temporal()
+bool Arg_comparator::set_cmp_func_time()
 {
-  enum_field_types f_type= a[0]->field_type_for_temporal_comparison(b[0]);
   m_compare_collation= &my_charset_numeric;
-  if (f_type == MYSQL_TYPE_TIME)
-  {
-    func= is_owner_equal_func() ? &Arg_comparator::compare_e_time :
-                                  &Arg_comparator::compare_time;
-  }
-  else
-  {
-    func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
-                                  &Arg_comparator::compare_datetime;
-  }
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_time :
+                                &Arg_comparator::compare_time;
+  return false;
+}
+
+
+bool Arg_comparator::set_cmp_func_datetime()
+{
+  m_compare_collation= &my_charset_numeric;
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
+                                &Arg_comparator::compare_datetime;
   return false;
 }
 

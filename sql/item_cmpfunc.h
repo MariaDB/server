@@ -82,7 +82,8 @@ public:
   bool set_cmp_func_for_row_arguments();
   bool set_cmp_func_row();
   bool set_cmp_func_string();
-  bool set_cmp_func_temporal();
+  bool set_cmp_func_time();
+  bool set_cmp_func_datetime();
   bool set_cmp_func_int();
   bool set_cmp_func_real();
   bool set_cmp_func_decimal();
