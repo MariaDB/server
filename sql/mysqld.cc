@@ -630,6 +630,7 @@ Time_zone *default_tz;
 
 const char *mysql_real_data_home_ptr= mysql_real_data_home;
 char server_version[SERVER_VERSION_LENGTH], *server_version_ptr;
+bool using_custom_server_version= false;
 char *mysqld_unix_port, *opt_mysql_tmpdir;
 ulong thread_handling;
 
@@ -8960,6 +8961,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     {
       strmake(server_version, argument, sizeof(server_version) - 1);
       set_sys_var_value_origin(&server_version_ptr, sys_var::CONFIG);
+      using_custom_server_version= true;
     }
 #ifndef EMBEDDED_LIBRARY
     else
