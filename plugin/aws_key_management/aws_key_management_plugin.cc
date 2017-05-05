@@ -154,7 +154,7 @@ static vector<string> traverse_current_directory()
   if (!dir)
     return v;
   struct dirent *e;
-  while ((e= readdir(dir))
+  while ((e= readdir(dir)))
     v.push_back(e->d_name);
   closedir(dir);
 #endif
