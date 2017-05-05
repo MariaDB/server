@@ -439,6 +439,19 @@ typedef struct replace_equal_field_arg
   struct st_join_table *context_tab;
 } REPLACE_EQUAL_FIELD_ARG;
 
+
+class Load_data_out_param
+{
+public:
+  Load_data_out_param() { }
+  virtual ~Load_data_out_param() { }
+  virtual void load_data_set_null_value(CHARSET_INFO *cs) = 0;
+  virtual void load_data_set_value(const char *str, uint length,
+                                   CHARSET_INFO *cs) = 0;
+  virtual void load_data_print(THD *thd, String *str) = 0;
+};
+
+
 class Settable_routine_parameter
 {
 public:
@@ -1789,6 +1802,14 @@ public:
     delete this;
   }
 
+  virtual Load_data_out_param *get_load_data_out_param() { return 0; }
+  Load_data_out_param *get_load_data_out_param_or_error()
+  {
+    Load_data_out_param *res= get_load_data_out_param();
+    if (!res)
+      my_error(ER_LOAD_DATA_INVALID_COLUMN, MYF(0), full_name());
+    return res;
+  }
   virtual Item_splocal *get_item_splocal() { return 0; }
   virtual Rewritable_query_parameter *get_rewritable_query_parameter()
   { return 0; }
