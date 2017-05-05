@@ -13033,8 +13033,7 @@ static void wsrep_fake_trx_id(
 	mutex_enter(&kernel_mutex);
 	trx_id_t trx_id = trx_sys_get_new_trx_id();
 	mutex_exit(&kernel_mutex);
-	WSREP_DEBUG("innodb fake trx id: %llu thd: %s",
-		trx_id, wsrep_thd_query(thd));
+	WSREP_DEBUG("innodb fake trx id: %llu thd: %s", trx_id, wsrep_thd_query(thd));
 
 	(void *)wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd), trx_id);
 }
