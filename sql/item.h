@@ -1825,6 +1825,55 @@ inline Item* get_item_copy (THD *thd, MEM_ROOT *mem_root, T* item)
 }	
 
 
+class Type_geometry_attributes
+{
+  uint m_geometry_type;
+  static const uint m_geometry_type_unknown= Field::GEOM_GEOMETRYCOLLECTION + 1;
+  void copy(const Item *item)
+  {
+    // Ignore implicit NULLs
+    m_geometry_type= item->type_handler() == &type_handler_geometry ?
+                     item->uint_geometry_type() :
+                     m_geometry_type_unknown;
+  }
+public:
+  Type_geometry_attributes()
+   :m_geometry_type(m_geometry_type_unknown)
+  { }
+  Type_geometry_attributes(const Item *item)
+   :m_geometry_type(m_geometry_type_unknown)
+  {
+    copy(item);
+  }
+  void join(const Item *item)
+  {
+    // Ignore implicit NULLs
+    if (m_geometry_type == m_geometry_type_unknown)
+      copy(item);
+    else if (item->type_handler() == &type_handler_geometry)
+    {
+      m_geometry_type=
+        Field_geom::geometry_type_merge((Field_geom::geometry_type)
+                                         m_geometry_type,
+                                        (Field_geom::geometry_type)
+                                         item->uint_geometry_type());
+    }
+  }
+  Field::geometry_type get_geometry_type() const
+  {
+    return m_geometry_type == m_geometry_type_unknown ?
+           Field::GEOM_GEOMETRY :
+           (Field::geometry_type) m_geometry_type;
+  }
+  void set_geometry_type(uint type)
+  {
+    DBUG_ASSERT(type <= m_geometry_type_unknown);
+    m_geometry_type= type;
+  }
+};
+
+
+
 /**
   Compare two Items for List<Item>::add_unique()
 */
@@ -5796,12 +5845,11 @@ public:
   single SP/PS execution.
 */
 class Item_type_holder: public Item,
-                        public Type_handler_hybrid_field_type
+                        public Type_handler_hybrid_field_type,
+                        public Type_geometry_attributes
 {
 protected:
   TYPELIB *enum_set_typelib;
-  Field::geometry_type geometry_type;
-
   void get_full_info(Item *item);
 
   /* It is used to count decimal precision in join_types */
@@ -5850,7 +5898,10 @@ public:
            make_and_init_table_field(&name, Record_addr(maybe_null),
                                      *this, table);
   }
-  Field::geometry_type get_geometry_type() const { return geometry_type; };
+  Field::geometry_type get_geometry_type() const
+  {
+    return Type_geometry_attributes::get_geometry_type();
+  }
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 };
 

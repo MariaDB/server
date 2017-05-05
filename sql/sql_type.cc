@@ -2148,6 +2148,26 @@ bool Type_handler_timestamp_common::
   return false;
 }
 
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+{
+  DBUG_ASSERT(nitems > 0);
+  Type_geometry_attributes gattr(items[0]);
+  for (uint i= 1; i < nitems; i++)
+    gattr.join(items[i]);
+  func->set_geometry_type(gattr.get_geometry_type());
+  func->collation.set(&my_charset_bin);
+  func->unsigned_flag= false;
+  func->decimals= 0;
+  func->max_length= (uint32) UINT_MAX32;
+  func->maybe_null= true;
+  return false;
+}
+#endif
+
+
 /*************************************************************************/
 
 bool Type_handler::

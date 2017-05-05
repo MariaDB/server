@@ -1789,7 +1789,6 @@ CALL p1('CREATE TABLE t1 (a ENUM(0x61), b Point)');
 CALL p1('CREATE TABLE t1 (a SET(0x61), b Point)');
 --enable_query_log
 
---echo # This does not preserve geometry type (MDEV-12560)
 CREATE TABLE t1 AS SELECT COALESCE(NULL, Point(1,1));
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
@@ -1932,7 +1931,6 @@ CALL p1('CREATE TABLE t1 (a ENUM(0x61), b Point)');
 CALL p1('CREATE TABLE t1 (a SET(0x61), b Point)');
 --enable_query_log
 
---echo # This does not preserve geometry type (MDEV-9405)
 CREATE TABLE t1 AS SELECT LEAST(NULL, Point(1,1));
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
@@ -2195,6 +2193,105 @@ SELECT ADDTIME(TIMESTAMP'2001-01-01 10:10:10', POINT(1,1));
 SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT STR_TO_DATE('2001-01-01', POINT(1,1));
+
+--echo #
+--echo # MDEV-12665 Hybrid functions do not preserve geometry type
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  Point(0,0) AS p0,
+  COALESCE(Point(0,0)) AS p1,
+  CASE WHEN 0 THEN Point(0,0) ELSE Point(1,1) END AS p2;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT LEAST(Point(0,0),Point(0,0)) AS p1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  c_geometry GEOMETRY,
+  c_point POINT,
+  c_linestring LINESTRING,
+  c_polygon POLYGON,
+  c_multipoint  MULTIPOINT,
+  c_multilinestring MULTILINESTRING,
+  c_multipolygon MULTIPOLYGON,
+  c_geometrycollection GEOMETRYCOLLECTION
+);
+
+CREATE TABLE t2 AS SELECT
+  COALESCE(NULL, c_geometry),
+  COALESCE(NULL, c_point),
+  COALESCE(NULL, c_linestring),
+  COALESCE(NULL, c_polygon),
+  COALESCE(NULL, c_multipoint),
+  COALESCE(NULL, c_multilinestring),
+  COALESCE(NULL, c_multipolygon),
+  COALESCE(NULL, c_geometrycollection)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  COALESCE(c_geometry, NULL),
+  COALESCE(c_point, NULL),
+  COALESCE(c_linestring, NULL),
+  COALESCE(c_polygon, NULL),
+  COALESCE(c_multipoint, NULL),
+  COALESCE(c_multilinestring, NULL),
+  COALESCE(c_multipolygon, NULL),
+  COALESCE(c_geometrycollection, NULL)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  COALESCE(c_geometry, c_geometry),
+  COALESCE(c_point, c_point),
+  COALESCE(c_linestring, c_linestring),
+  COALESCE(c_polygon, c_polygon),
+  COALESCE(c_multipoint, c_multipoint),
+  COALESCE(c_multilinestring, c_multilinestring),
+  COALESCE(c_multipolygon, c_multipolygon),
+  COALESCE(c_geometrycollection, c_geometrycollection)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-12560 Wrong data type for SELECT NULL UNION SELECT Point(1,1)
+--echo #
+
+CREATE TABLE t1 AS SELECT NULL AS c1 UNION SELECT POINT(1,1);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1(name TEXT)
+BEGIN
+  EXECUTE IMMEDIATE CONCAT('CREATE TABLE t1 (a ', name, ')');
+  CREATE TABLE t2 AS
+    SELECT a AS a1, a    AS a2, NULL AS a3 FROM t1 UNION
+    SELECT a AS a1, NULL AS a2, a    AS a3 FROM t1;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1('geometry');
+CALL p1('point');
+CALL p1('linestring');
+CALL p1('polygon');
+CALL p1('multipoint');
+CALL p1('multilinestring');
+CALL p1('multipolygon');
+CALL p1('geometrycollection');
+DROP PROCEDURE p1;
 
 --echo #
 --echo # End of 10.3 tests
