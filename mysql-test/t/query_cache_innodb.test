@@ -30,26 +30,26 @@ select * from t2;
 drop table t2;
 drop table t1;
 
-create database `testdatabase$Ї`;
-use `testdatabase$Ї`;
-create table `t1$Ї` ( id int unsigned auto_increment, primary key(id) ) engine=innodb;
+create database `testdatabase$ї`;
+use `testdatabase$ї`;
+create table `t1$ї` ( id int unsigned auto_increment, primary key(id) ) engine=innodb;
 
-create table `t2$Ї` ( t2id int unsigned, id int unsigned, primary key(t2id, id), foreign key (`id`) references `t1$Ї`(`id`) on delete cascade ) engine=innodb;
+create table `t2$ї` ( t2id int unsigned, id int unsigned, primary key(t2id, id), foreign key (`id`) references `t1$ї`(`id`) on delete cascade ) engine=innodb;
 
-insert into `t1$Ї` values (1);
-insert into  `t2$Ї`values (1,1);
-select * from `t2$Ї`;
+insert into `t1$ї` values (1);
+insert into  `t2$ї`values (1,1);
+select * from `t2$ї`;
 show status like "Qcache_queries_in_cache";
 
-delete from `t1$Ї`;
+delete from `t1$ї`;
 show status like "Qcache_queries_in_cache";
-select * from `t2$Ї`;
+select * from `t2$ї`;
 
-optimize table `t2$Ї`;
-select * from `t2$Ї`;
+optimize table `t2$ї`;
+select * from `t2$ї`;
 
 use test;
-drop database `testdatabase$Ї`;
+drop database `testdatabase$ї`;
 SET NAMES default;
 
 create database `#mysql50#-`;
