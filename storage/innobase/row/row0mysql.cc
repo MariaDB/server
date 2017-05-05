@@ -4077,13 +4077,11 @@ row_drop_table_for_mysql(
 
 	switch (err) {
 		ulint	space_id;
-		bool	file_unreadable;
 		bool	is_discarded;
 		ulint	table_flags;
 
 	case DB_SUCCESS:
 		space_id = table->space;
-		file_unreadable = table->file_unreadable;
 		is_discarded = dict_table_is_discarded(table);
 		table_flags = table->flags;
 		ut_ad(!dict_table_is_temporary(table));
