@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_query_cache.inc
+--source include/not_embedded.inc
 
 --echo #
 --echo # MDEV-12485: foreign key on delete cascade stale entries with
