@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2016, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -744,8 +744,7 @@ btr_root_block_get(
 
 	if (!block) {
 		if (index && index->table) {
-			index->table->is_encrypted = TRUE;
-			index->table->corrupted = FALSE;
+			index->table->file_unreadable = true;
 
 			ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
 				"Table %s in tablespace %lu is encrypted but encryption service or"
@@ -760,6 +759,7 @@ btr_root_block_get(
 	SRV_CORRUPT_TABLE_CHECK(block, return(0););
 
 	btr_assert_not_corrupted(block, index);
+
 #ifdef UNIV_BTR_DEBUG
 	if (!dict_index_is_ibuf(index)) {
 		const page_t*	root = buf_block_get_frame(block);
@@ -5211,7 +5211,7 @@ btr_validate_index(
 
 	page_t*	root = btr_root_get(index, &mtr);
 
-	if (root == NULL && index->table->is_encrypted) {
+	if (root == NULL && index->table->file_unreadable) {
 		err = DB_DECRYPTION_FAILED;
 		mtr_commit(&mtr);
 		return err;

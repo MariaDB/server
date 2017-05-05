@@ -1656,7 +1656,7 @@ row_ins_check_foreign_constraint(
 	}
 
 	if (check_table == NULL
-	    || check_table->ibd_file_missing
+	    || check_table->file_unreadable
 	    || check_index == NULL) {
 
 		if (!srv_read_only_mode && check_ref) {
@@ -2613,8 +2613,14 @@ row_ins_clust_index_entry_low(
 	/* Note that we use PAGE_CUR_LE as the search mode, because then
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
-	btr_pcur_open_low(index, 0, entry, PAGE_CUR_LE, mode, &pcur,
+ 	err = btr_pcur_open_low(index, 0, entry, PAGE_CUR_LE, mode, &pcur,
 			  __FILE__, __LINE__, auto_inc, &mtr);
+	if (err != DB_SUCCESS) {
+		index->table->file_unreadable = true;
+		mtr.commit();
+		goto func_exit;
+	}
+
 	cursor = btr_pcur_get_btr_cur(&pcur);
 	cursor->thr = thr;
 
@@ -2950,7 +2956,7 @@ row_ins_sec_index_entry_low(
 				" used key_id is not available. "
 				" Can't continue reading table.",
 				index->table->name);
-			index->table->is_encrypted = true;
+			index->table->file_unreadable = true;
 		}
 		goto func_exit;
 	}

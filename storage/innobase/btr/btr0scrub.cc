@@ -140,6 +140,7 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 		} else {
 			return false;
 		}
+
 		os_thread_sleep(250000);
 
 		time_t now = time(0);
@@ -571,7 +572,7 @@ btr_scrub_table_needs_scrubbing(
 		return false;
 	}
 
-	if (table->corrupted) {
+	if (!table->is_readable()) {
 		return false;
 	}
 

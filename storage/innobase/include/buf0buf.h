@@ -1270,16 +1270,21 @@ buf_page_init_for_read(
 	const page_size_t&	page_size,
 	ibool			unzip);
 
-/********************************************************************//**
-Completes an asynchronous read or write request of a file page to or from
-the buffer pool.
-@return true if successful */
-bool
-buf_page_io_complete(
-/*=================*/
-	buf_page_t*	bpage,	/*!< in: pointer to the block in question */
-	bool		evict = false);/*!< in: whether or not to evict
-				the page from LRU list. */
+/** Complete a read or write request of a file page to or from the buffer pool.
+@param[in,out]		bpage		Page to complete
+@param[in]		evict		whether or not to evict the page
+					from LRU list.
+@return whether the operation succeeded
+@retval	DB_SUCCESS		always when writing, or if a read page was OK
+@retval	DB_PAGE_CORRUPTED	if the checksum fails on a page read
+@retval	DB_DECRYPTION_FAILED	if page post encryption checksum matches but
+				after decryption normal page checksum does
+				not match */
+UNIV_INTERN
+dberr_t
+buf_page_io_complete(buf_page_t* bpage, bool evict = false)
+	MY_ATTRIBUTE((nonnull));
+
 /********************************************************************//**
 Calculates the index of a buffer pool to the buf_pool[] array.
 @return the position of the buffer pool in buf_pool[] */
@@ -1586,7 +1591,6 @@ public:
 					if written again we check is TRIM
 					operation needed. */
 
-	unsigned        key_version;	/*!< key version for this block */
 	bool            encrypted;	/*!< page is still encrypted */
 
 	ulint           real_size;	/*!< Real size of the page

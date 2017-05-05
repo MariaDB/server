@@ -1681,10 +1681,13 @@ row_truncate_sanity_checks(
 
 		return(DB_TABLESPACE_DELETED);
 
-	} else if (table->ibd_file_missing) {
+	} else if (!table->is_readable()) {
+		if (fil_space_get(table->space) == NULL) {
+			return(DB_TABLESPACE_NOT_FOUND);
 
-		return(DB_TABLESPACE_NOT_FOUND);
-
+		} else {
+			return(DB_DECRYPTION_FAILED);
+		}
 	} else if (dict_table_is_corrupted(table)) {
 
 		return(DB_TABLE_CORRUPT);

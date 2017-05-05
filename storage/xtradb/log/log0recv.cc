@@ -1383,7 +1383,12 @@ recv_parse_or_apply_log_rec_body(
 		}
 		break;
 	case MLOG_FILE_WRITE_CRYPT_DATA:
-		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block));
+		dberr_t err;
+		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block, &err));
+
+		if (err != DB_SUCCESS) {
+			recv_sys->found_corrupt_log = TRUE;
+		}
 		break;
 	default:
 		ptr = NULL;
@@ -1868,6 +1873,11 @@ recv_apply_hashed_log_recs(bool last_batch)
 			break;
 		}
 
+		if (recv_sys->found_corrupt_log) {
+			mutex_exit(&recv_sys->mutex);
+			return;
+		}
+
 		mutex_exit(&recv_sys->mutex);
 		os_thread_sleep(500000);
 	}
@@ -1931,6 +1941,10 @@ recv_apply_hashed_log_recs(bool last_batch)
 	while (recv_sys->n_addrs != 0) {
 
 		mutex_exit(&(recv_sys->mutex));
+
+		if (recv_sys->found_corrupt_log) {
+			return;
+		}
 
 		os_thread_sleep(500000);
 

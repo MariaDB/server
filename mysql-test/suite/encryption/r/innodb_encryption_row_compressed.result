@@ -1,3 +1,7 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+SET GLOBAL innodb_file_per_table = ON;
 create table innodb_compressed1(c1 bigint not null primary key, d int, a varchar(20), b char(200)) engine=innodb row_format=compressed encrypted=yes;
 create table innodb_compressed2(c1 bigint not null primary key, d int, a varchar(20), b char(200)) engine=innodb row_format=compressed key_block_size=1 encrypted=yes;
 create table innodb_compressed3(c1 bigint not null primary key, d int, a varchar(20), b char(200)) engine=innodb row_format=compressed key_block_size=2 encrypted=yes;
@@ -23,6 +27,10 @@ NOT FOUND /private/ in innodb_compressed2.ibd
 NOT FOUND /private/ in innodb_compressed3.ibd
 # t4 yes on expecting NOT FOUND
 NOT FOUND /private/ in innodb_compressed4.ibd
+SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+SET GLOBAL innodb_file_per_table = ON;
 select * from innodb_compressed1 where d = 20;
 c1	d	a	b
 1	20	private	evenmoreprivate
@@ -147,3 +155,5 @@ drop table innodb_compressed1;
 drop table innodb_compressed2;
 drop table innodb_compressed3;
 drop table innodb_compressed4;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

@@ -1,4 +1,6 @@
 call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded");
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_compression_algorithm = 1;
 create table t1(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb encrypted=yes encryption_key_id=4;
 create table t2(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;

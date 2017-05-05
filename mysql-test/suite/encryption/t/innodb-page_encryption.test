@@ -1,6 +1,14 @@
 -- source include/have_innodb.inc
 -- source include/have_file_key_management_plugin.inc
 
+--disable_query_log
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+--enable_query_log
+
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 show warnings;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1;
@@ -77,6 +85,9 @@ SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_
 
 --source include/restart_mysqld.inc
 
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
 update innodb_normal set c1 = c1 +1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
@@ -113,6 +124,9 @@ show create table innodb_redundant;
 
 --source include/restart_mysqld.inc
 
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
 show create table innodb_compact;
 show create table innodb_compressed;
 show create table innodb_dynamic;
@@ -147,3 +161,9 @@ drop table innodb_compressed;
 drop table innodb_dynamic;
 drop table innodb_redundant;
 drop table innodb_defkey;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
+--enable_query_log

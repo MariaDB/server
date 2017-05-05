@@ -5,9 +5,15 @@
 # MDEV-8817: Failing assertion: new_state->key_version != ENCRYPTION_KEY_VERSION_INVALID
 #
 
+--disable_query_log
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
 let $encrypt_tables = `SELECT @@innodb_encrypt_tables`;
 let $threads = `SELECT @@innodb_encryption_threads`;
+--enable_query_log
 
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_encrypt_tables = ON;
 SET GLOBAL innodb_encryption_threads = 4;
 
@@ -85,6 +91,8 @@ drop table t1,t2;
 
 # reset system
 --disable_query_log
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
 EVAL SET GLOBAL innodb_encrypt_tables = $encrypt_tables;
 EVAL SET GLOBAL innodb_encryption_threads = $threads;
 --enable_query_log

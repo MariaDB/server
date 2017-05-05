@@ -690,17 +690,6 @@ buf_page_is_corrupted(
 	const fil_space_t* 	space)
 	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
-Check if page is maybe compressed, encrypted or both when we encounter
-corrupted page. Note that we can't be 100% sure if page is corrupted
-or decrypt/decompress just failed.
-@param[in]	bpage		Page
-@return true if page corrupted, false if not */
-bool
-buf_page_check_corrupt(
-	buf_page_t*	bpage)	/*!< in/out: buffer page read from disk */
-	MY_ATTRIBUTE(( warn_unused_result));
-
-/********************************************************************//**
 Checks if a page is all zeroes.
 @return	TRUE if the page is all zeroes */
 bool
@@ -1273,12 +1262,15 @@ buf_page_init_for_read(
 /********************************************************************//**
 Completes an asynchronous read or write request of a file page to or from
 the buffer pool.
-@return true if successful */
+@param[in,out]	bpage		pointer to the block in question
+@return DB_SUCCESS if page has been read and is not corrupted,
+DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
+DB_DECRYPTION_FAILED if page post encryption checksum matches but
+after decryption normal page checksum does not match.*/
 UNIV_INTERN
-bool
+dberr_t
 buf_page_io_complete(
-/*=================*/
-	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
+	buf_page_t*	bpage);
 /********************************************************************//**
 Calculates a folded value of a file page address to use in the page hash
 table.
@@ -1680,7 +1672,6 @@ struct buf_page_t{
 					if written again we check is TRIM
 					operation needed. */
 
-	unsigned        key_version;	/*!< key version for this block */
 	bool            encrypted;	/*!< page is still encrypted */
 
 	ulint           real_size;	/*!< Real size of the page

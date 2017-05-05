@@ -99,7 +99,7 @@ btr_pcur_free(
 Initializes and opens a persistent cursor to an index tree. It should be
 closed with btr_pcur_close. */
 UNIV_INLINE
-void
+dberr_t
 btr_pcur_open_low(
 /*==============*/
 	dict_index_t*	index,	/*!< in: index */

@@ -26,7 +26,6 @@ i	10
 j	10
 drop table t1;
 set global binlog_cache_size=8192;
-connect con1, localhost, root;
 create table t1 (a text) engine=innodb;
 start transaction;
 insert t1 select repeat(seq, 1000) from seq_1_to_15;
@@ -35,8 +34,6 @@ start transaction;
 insert t1 select repeat(seq, 1000) from seq_1_to_8;
 commit;
 drop table t1;
-disconnect con1;
-connect con2, localhost, root;
 create table t1 (a text) engine=innodb;
 start transaction;
 insert t1 select repeat(seq, 1000) from seq_1_to_15;
@@ -46,6 +43,4 @@ rollback to savepoint foo;
 insert t1 select repeat(seq, 1000) from seq_31_to_40;
 commit;
 drop table t1;
-disconnect con2;
-connection default;
 set global binlog_cache_size=default;

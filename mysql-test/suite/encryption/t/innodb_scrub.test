@@ -7,7 +7,7 @@ let INNODB_PAGE_SIZE= `select @@innodb_page_size`;
 
 create table snapshot_status engine = myisam
 select * from information_schema.global_status
-where variable_name like 'innodb_scrub_background%';
+where variable_name like 'innodb_scrub%';
 
 let $rowcount=500;
 let $maxformatno= 4;

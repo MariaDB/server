@@ -2030,15 +2030,12 @@ PageConverter::validate(
 	buf_block_t*	block) UNIV_NOTHROW
 {
 	buf_frame_t*	page = get_frame(block);
-	ulint space_id = mach_read_from_4(
-		page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-	fil_space_t* space = fil_space_found_by_id(space_id);
 
 	/* Check that the page number corresponds to the offset in
 	the file. Flag as corrupt if it doesn't. Disable the check
 	for LSN in buf_page_is_corrupted() */
 
-	if (buf_page_is_corrupted(false, page, get_zip_size(), space)
+	if (buf_page_is_corrupted(false, page, get_zip_size(), NULL)
 	    || (page_get_page_no(page) != offset / m_page_size
 		&& page_get_page_no(page) != 0)) {
 
@@ -2201,7 +2198,7 @@ row_import_discard_changes(
 		index->space = FIL_NULL;
 	}
 
-	table->ibd_file_missing = TRUE;
+	table->file_unreadable = true;
 
 	fil_close_tablespace(trx, table->space);
 }
@@ -3447,7 +3444,7 @@ row_import_for_mysql(
 
 	ut_a(table->space);
 	ut_ad(prebuilt->trx);
-	ut_a(table->ibd_file_missing);
+	ut_a(table->file_unreadable);
 
 	trx_start_if_not_started(prebuilt->trx);
 
@@ -3752,7 +3749,7 @@ row_import_for_mysql(
 		return(row_import_error(prebuilt, trx, err));
 	}
 
-	table->ibd_file_missing = false;
+	table->file_unreadable = false;
 	table->flags2 &= ~DICT_TF2_DISCARDED;
 
 	if (autoinc != 0) {

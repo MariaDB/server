@@ -994,7 +994,13 @@ buf_flush_write_block_low(
 	if (sync) {
 		ut_ad(flush_type == BUF_FLUSH_SINGLE_PAGE);
 		fil_flush(space);
+
+#ifdef UNIV_DEBUG
+		dberr_t err =
+#endif
 		buf_page_io_complete(bpage);
+
+		ut_ad(err == DB_SUCCESS);
 	}
 
 	fil_space_release(space);

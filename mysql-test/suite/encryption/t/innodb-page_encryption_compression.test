@@ -1,15 +1,19 @@
 -- source include/have_innodb.inc
--- source include/not_embedded.inc
 -- source include/have_file_key_management_plugin.inc
--- source include/big_test.inc
-# Test heavy not tested on valgrind
--- source include/not_valgrind.inc
+-- source include/not_embedded.inc
 
+--disable_query_log
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
-let $encryption = `SELECT @@innodb_encrypt_tables`;
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+--enable_query_log
 
+--disable_warnings
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
+--enable_warnings
 
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb page_compressed=1;
 show warnings;
@@ -35,50 +39,24 @@ end//
 delimiter ;//
 commit;
 
-set autocommit=0;
-call innodb_insert_proc(5000);
-commit;
-set autocommit=1;
-
+begin;
+call innodb_insert_proc(2000);
 insert into innodb_compact select * from innodb_normal;
 insert into innodb_dynamic select * from innodb_normal;
+commit;
 
-update innodb_normal set c1 = c1 + 1;
-update innodb_compact set c1 = c1 + 1;
-update innodb_dynamic set c1 = c1 + 1;
-select count(*) from innodb_normal;
-select count(*) from innodb_compact where c1 < 1500000;
-select count(*) from innodb_dynamic where c1 < 1500000;
-select count(*) from innodb_compact t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_dynamic t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
+let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
+--source include/wait_condition.inc
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_compressed';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decompressed';
-
+--let $restart_parameters=--innodb-encrypt-tables=OFF
 --source include/restart_mysqld.inc
 
+--disable_warnings
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
-
-update innodb_normal set c1 = c1 + 1;
-update innodb_compact set c1 = c1 + 1;
-update innodb_dynamic set c1 = c1 + 1;
-select count(*) from innodb_normal;
-select count(*) from innodb_compact where c1 < 1500000;
-select count(*) from innodb_dynamic where c1 < 1500000;
-select count(*) from innodb_compact t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_dynamic t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_compressed';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decompressed';
+--enable_warnings
 
 alter table innodb_normal engine=innodb page_compressed=DEFAULT;
 show create table innodb_normal;
@@ -87,27 +65,8 @@ show create table innodb_compact;
 alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT page_compressed=DEFAULT;
 show create table innodb_dynamic;
 
---source include/restart_mysqld.inc
-
-show create table innodb_normal;
-show create table innodb_compact;
-show create table innodb_dynamic;
-
-update innodb_normal set c1 = c1 + 1;
-update innodb_compact set c1 = c1 + 1;
-update innodb_dynamic set c1 = c1 + 1;
-select count(*) from innodb_normal;
-select count(*) from innodb_compact where c1 < 1500000;
-select count(*) from innodb_dynamic where c1 < 1500000;
-select count(*) from innodb_compact t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_dynamic t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-
-SELECT variable_value = 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_compressed';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decompressed';
+let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_PAGE_DECOMPRESSED';
+--source include/wait_condition.inc
 
 drop procedure innodb_insert_proc;
 drop table innodb_normal;
@@ -117,5 +76,6 @@ drop table innodb_dynamic;
 # reset system
 --disable_query_log
 EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
-EVAL SET GLOBAL innodb_encrypt_tables = $encryption;
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
 --enable_query_log

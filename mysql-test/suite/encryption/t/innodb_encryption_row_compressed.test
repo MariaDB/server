@@ -2,6 +2,14 @@
 -- source include/have_file_key_management_plugin.inc
 -- source include/not_embedded.inc
 
+--disable_query_log
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+--enable_query_log
+
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
 create table innodb_compressed1(c1 bigint not null primary key, d int, a varchar(20), b char(200)) engine=innodb row_format=compressed encrypted=yes;
 create table innodb_compressed2(c1 bigint not null primary key, d int, a varchar(20), b char(200)) engine=innodb row_format=compressed key_block_size=1 encrypted=yes;
 create table innodb_compressed3(c1 bigint not null primary key, d int, a varchar(20), b char(200)) engine=innodb row_format=compressed key_block_size=2 encrypted=yes;
@@ -43,6 +51,9 @@ insert into innodb_compressed4 select * from innodb_compressed1;
 --echo # t4 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$t4_IBD
 -- source include/search_pattern_in_file.inc
+
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
 
 select * from innodb_compressed1 where d = 20;
 select * from innodb_compressed1 where d = 30;
@@ -106,3 +117,9 @@ drop table innodb_compressed1;
 drop table innodb_compressed2;
 drop table innodb_compressed3;
 drop table innodb_compressed4;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
+--enable_query_log

@@ -1,4 +1,8 @@
 call mtr.add_suppression("trying to do an operation on a dropped tablespace .*");
+SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_encrypt_tables = OFF;
 SET GLOBAL innodb_encryption_threads = 4;
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB;
@@ -61,5 +65,7 @@ COUNT(1)
 SELECT COUNT(1) FROM t5;
 COUNT(1)
 400
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 drop table t1,t2,t3,t4, t5;
 set GLOBAL innodb_default_encryption_key_id=1;

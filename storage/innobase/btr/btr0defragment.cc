@@ -227,7 +227,7 @@ btr_defragment_add_index(
 		page = buf_block_get_frame(block);
 	}
 
-	if (page == NULL && index->table->is_encrypted) {
+	if (page == NULL && index->table->file_unreadable) {
 		mtr_commit(&mtr);
 		*err = DB_DECRYPTION_FAILED;
 		return NULL;
