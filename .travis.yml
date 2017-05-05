@@ -103,30 +103,27 @@ addons:
       - cmake
       - debhelper
       - dh-apparmor
-      - dpatch
+      - dh-exec
       - gdb
       - libaio-dev
       - libboost-dev
-      - libcurl3-dev
+      - libcrack2-dev
+      - libgnutls28-dev
+      - libjemalloc-dev
       - libjudy-dev
       - libncurses5-dev
       - libpam0g-dev
       - libpcre3-dev
       - libreadline-gplv2-dev
-      - libstemmer-dev
-      - libssl-dev
       - libnuma-dev
       - libxml2-dev
       - lsb-release
       - perl
       - po-debconf
       - psmisc
+      - unixodbc-dev
       - zlib1g-dev
-      - libcrack2-dev
-      - libjemalloc-dev
-      - libsnappy-dev
-      - liblzma-dev
-      - libzmq-dev
+      - libsnappy-dev # ???
       - libdistro-info-perl
       - devscripts # implicit for any build on Ubuntu
 

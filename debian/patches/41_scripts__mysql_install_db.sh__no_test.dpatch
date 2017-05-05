@@ -1,15 +1,16 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 41_scripts__mysql_install_db.sh__no_test.dpatch by  <ch@debian.org>
-##
-## All lines beginning with `## DP:' are a description of the patch.
-## DP: scripts__mysql_install_db.sh__no_test
-## DP: http://bugs.mysql.com/bug.php?id=6901
+From: Christian Hammers <ch@debian.org>
+Date: Wed, 3 May 2017 13:51:59 +0200
+Subject: scripts mysql_install_db.sh no_test
 
-@DPATCH@
+---
+ scripts/mysql_install_db.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
---- mysql-dfsg-5.1-5.1.23rc.orig/scripts/mysql_install_db.sh	2008-01-29 22:41:20.000000000 +0100
-+++ mysql-dfsg-5.1-5.1.23rc/scripts/mysql_install_db.sh	2008-02-28 10:08:11.000000000 +0100
-@@ -372,7 +372,7 @@ then
+diff --git a/scripts/mysql_install_db.sh b/scripts/mysql_install_db.sh
+index f8f4859..16738a0 100644
+--- a/scripts/mysql_install_db.sh
++++ b/scripts/mysql_install_db.sh
+@@ -407,7 +407,7 @@ then
  fi
  
  # Create database directories

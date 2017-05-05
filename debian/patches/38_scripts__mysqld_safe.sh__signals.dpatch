@@ -1,15 +1,16 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 38_scripts__mysqld_safe.sh__signals.dpatch by  <ch@debian.org>
-##
-## All lines beginning with `## DP:' are a description of the patch.
-## DP: Executes /etc/init.d/mysql on signals
-## DP: Reported as http://bugs.mysql.com/bug.php?id=31361
+From: Christian Hammers <ch@debian.org>
+Date: Wed, 3 May 2017 13:51:59 +0200
+Subject: scripts/mysqld_safe.sh signals
 
-@DPATCH@
+---
+ scripts/mysqld_safe.sh | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
 
---- a/scripts/mysqld_safe.sh	2013-01-11 16:02:41 +0000
-+++ b/scripts/mysqld_safe.sh	2013-01-11 16:03:14 +0000
-@@ -32,7 +32,6 @@ err_log=
+diff --git a/scripts/mysqld_safe.sh b/scripts/mysqld_safe.sh
+index 48baf61..5946adb 100644
+--- a/scripts/mysqld_safe.sh
++++ b/scripts/mysqld_safe.sh
+@@ -36,7 +36,6 @@ skip_err_log=0
  syslog_tag_mysqld=mysqld
  syslog_tag_mysqld_safe=mysqld_safe
  
@@ -17,7 +18,7 @@
  
  # MySQL-specific environment variable. First off, it's not really a umask,
  # it's the desired mode. Second, it follows umask(2), not umask(3) in that
-@@ -163,7 +162,7 @@ eval_log_error () {
+@@ -181,7 +180,7 @@ eval_log_error () {
        # sed buffers output (only GNU sed supports a -u (unbuffered) option)
        # which means that messages may not get sent to syslog until the
        # mysqld process quits.
@@ -26,7 +27,7 @@
        ;;
      *)
        echo "Internal program error (non-fatal):" \
-@@ -805,6 +804,13 @@ then
+@@ -895,6 +894,13 @@ then
  fi
  
  #
@@ -40,4 +41,3 @@
  # Uncomment the following lines if you want all tables to be automatically
  # checked and repaired during startup. You should add sensible key_buffer
  # and sort_buffer values to my.cnf to improve check performance or require
-

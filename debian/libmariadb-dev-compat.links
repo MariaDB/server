@@ -1,0 +1,3 @@
+#!/usr/bin/dh-exec
+usr/lib/${DEB_HOST_MULTIARCH}/libmariadb.so usr/lib/${DEB_HOST_MULTIARCH}/libmysqlclient.so
+usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/mariadb.pc usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/mysqlclient.pc

@@ -1,0 +1,115 @@
+#!/usr/bin/dh-exec
+[linux-any] lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
+[linux-any] usr/bin/galera_new_cluster
+[linux-any] usr/bin/galera_recovery
+[linux-any] usr/bin/mariadb-service-convert
+debian/additions/debian-start etc/mysql
+debian/additions/debian-start.inc.sh usr/share/mysql
+debian/additions/echo_stderr usr/share/mysql
+debian/additions/mariadb.conf.d/50-mysqld_safe.cnf etc/mysql/mariadb.conf.d
+debian/additions/mariadb.conf.d/50-server.cnf etc/mysql/mariadb.conf.d
+debian/additions/source_mariadb-*.py usr/share/apport/package-hooks
+etc/apparmor.d/usr.sbin.mysqld
+usr/bin/aria_chk
+usr/bin/aria_dump_log
+usr/bin/aria_ftdump
+usr/bin/aria_pack
+usr/bin/aria_read_log
+usr/bin/msql2mysql
+usr/bin/my_print_defaults
+usr/bin/myisam_ftdump
+usr/bin/myisamchk
+usr/bin/myisamlog
+usr/bin/myisampack
+usr/bin/mysql_convert_table_format
+usr/bin/mysql_install_db
+usr/bin/mysql_plugin
+usr/bin/mysql_secure_installation
+usr/bin/mysql_setpermission
+usr/bin/mysql_tzinfo_to_sql
+usr/bin/mysqld_multi
+usr/bin/mysqld_safe
+usr/bin/mysqld_safe_helper
+usr/bin/mysqlhotcopy
+usr/bin/perror
+usr/bin/replace
+usr/bin/resolve_stack_dump
+usr/bin/resolveip
+usr/bin/wsrep_sst_common
+usr/bin/wsrep_sst_mysqldump
+usr/bin/wsrep_sst_rsync
+usr/bin/wsrep_sst_xtrabackup
+usr/bin/wsrep_sst_xtrabackup-v2
+usr/lib/*/mariadb3/plugin/auth_pam.so
+usr/lib/*/mariadb3/plugin/file_key_management.so
+usr/lib/*/mariadb3/plugin/ha_archive.so
+usr/lib/*/mariadb3/plugin/ha_blackhole.so
+usr/lib/*/mariadb3/plugin/ha_federated.so
+usr/lib/*/mariadb3/plugin/ha_federatedx.so
+usr/lib/*/mariadb3/plugin/ha_sphinx.so
+usr/lib/*/mariadb3/plugin/handlersocket.so
+usr/lib/*/mariadb3/plugin/locales.so
+usr/lib/*/mariadb3/plugin/metadata_lock_info.so
+usr/lib/*/mariadb3/plugin/query_cache_info.so
+usr/lib/*/mariadb3/plugin/query_response_time.so
+usr/lib/*/mariadb3/plugin/semisync_master.so
+usr/lib/*/mariadb3/plugin/semisync_slave.so
+usr/lib/*/mariadb3/plugin/server_audit.so
+usr/lib/*/mariadb3/plugin/simple_password_check.so
+usr/lib/*/mariadb3/plugin/sql_errlog.so
+usr/lib/*/mariadb3/plugin/wsrep_info.so
+usr/lib/*/mariadb3/plugin/user_variables.so
+usr/lib/*/mariadb3/plugin/auth_ed25519.so
+usr/share/doc/mariadb-server-*/mysqld.sym.gz
+usr/share/mysql/errmsg-utf8.txt
+usr/share/mysql/fill_help_tables.sql
+usr/share/mysql/maria_add_gis_sp.sql
+usr/share/mysql/maria_add_gis_sp_bootstrap.sql
+usr/share/mysql/mysql_performance_tables.sql
+usr/share/mysql/mysql_system_tables.sql
+usr/share/mysql/mysql_system_tables_data.sql
+usr/share/mysql/mysql_test_data_timezone.sql
+usr/share/mysql/policy/apparmor/README
+usr/share/mysql/policy/apparmor/usr.sbin.mysqld
+usr/share/mysql/policy/apparmor/usr.sbin.mysqld.local
+usr/share/mysql/policy/selinux/README
+usr/share/mysql/policy/selinux/mariadb-server.fc
+usr/share/mysql/policy/selinux/mariadb-server.te
+usr/share/mysql/wsrep_notify
+usr/share/mysql/mysqld_multi.server
+usr/share/man/man1/aria_chk.1
+usr/share/man/man1/aria_dump_log.1
+usr/share/man/man1/aria_ftdump.1
+usr/share/man/man1/aria_pack.1
+usr/share/man/man1/aria_read_log.1
+usr/share/man/man1/galera_new_cluster.1
+usr/share/man/man1/galera_recovery.1
+usr/share/man/man1/mariadb-service-convert.1
+usr/share/man/man1/msql2mysql.1
+usr/share/man/man1/my_print_defaults.1
+usr/share/man/man1/myisam_ftdump.1
+usr/share/man/man1/myisamchk.1
+usr/share/man/man1/myisamlog.1
+usr/share/man/man1/myisampack.1
+usr/share/man/man1/mysql_convert_table_format.1
+usr/share/man/man1/mysql_install_db.1
+usr/share/man/man1/mysql_plugin.1
+usr/share/man/man1/mysql_secure_installation.1
+usr/share/man/man1/mysql_setpermission.1
+usr/share/man/man1/mysql_tzinfo_to_sql.1
+usr/share/man/man1/mysqld_multi.1
+usr/share/man/man1/mysqld_safe.1
+usr/share/man/man1/mysqld_safe_helper.1
+usr/share/man/man1/mysqlhotcopy.1
+usr/share/man/man1/perror.1
+usr/share/man/man1/replace.1
+usr/share/man/man1/resolve_stack_dump.1
+usr/share/man/man1/resolveip.1
+usr/share/man/man1/wsrep_sst_common.1
+usr/share/man/man1/wsrep_sst_mysqldump.1
+usr/share/man/man1/wsrep_sst_rsync.1
+usr/share/man/man1/wsrep_sst_xtrabackup-v2.1
+usr/share/man/man1/wsrep_sst_xtrabackup.1
+lib/systemd/system/mariadb.service
+lib/systemd/system/mariadb@.service
+usr/share/mysql/mysql_to_mariadb.sql

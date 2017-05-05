@@ -1,19 +1,23 @@
-# MariaDB-specific config file.
-# Read by /etc/mysql/my.cnf
-
-[client]
-# Default is Latin1, if you need UTF-8 set this (also in server section)
-#default-character-set = utf8 
-
-[mysqld]
+# The MariaDB configuration file
 #
-# * Character sets
-# 
-# Default is Latin1, if you need UTF-8 set all this (also in client section)
+# The MariaDB/MySQL tools read configuration files in the following order:
+# 1. "/etc/mysql/mariadb.cnf" (this file) to set global defaults,
+# 2. "/etc/mysql/conf.d/*.cnf" to set global options.
+# 3. "/etc/mysql/mariadb.conf.d/*.cnf" to set MariaDB-only options.
+# 4. "~/.my.cnf" to set user-specific options.
 #
-#character-set-server  = utf8 
-#collation-server      = utf8_general_ci 
-#character_set_server   = utf8 
-#collation_server       = utf8_general_ci 
+# If the same option is defined multiple times, the last one will apply.
+#
+# One can use all long options that the program supports.
+# Run program with --help to get a list of available options and with
+# --print-defaults to see which it would actually understand and use.
+
+#
+# This group is read both both by the client and the server
+# use it for options that affect everything
+#
+[client-server]
+
 # Import all .cnf files from configuration directory
+!includedir /etc/mysql/conf.d/
 !includedir /etc/mysql/mariadb.conf.d/

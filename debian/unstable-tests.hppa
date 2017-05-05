@@ -1,0 +1,3 @@
+sys_vars.sysvars_server_notembedded : MDEV-XXXX
+perfschema.global_read_lock : MDEV-XXXX
+sys_vars.sysvars_wsrep : MDEV-XXXX

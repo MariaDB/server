@@ -17,7 +17,7 @@
 
 # You should have received a copy of the GNU General Public License along with
 # this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-# Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 use strict;
 use warnings FATAL => 'all';
@@ -1438,8 +1438,8 @@ systems, you can issue `man perlgpl' or `man perlartistic' to read these
 licenses.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-Street, Fifth Floor, Boston, MA 02111-1301 USA.
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place, Suite 330, Boston, MA  02111-1307  USA.
 LICENSE
 
 # Configuration information and global setup {{{1
@@ -12233,8 +12233,8 @@ systems, you can issue `man perlgpl' or `man perlartistic' to read these
 licenses.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-Street, Fifth Floor, Boston, MA 02111-1301 USA.
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place, Suite 330, Boston, MA  02111-1307  USA.
 
 Execute innotop and press '!' to see this information at any time.
 

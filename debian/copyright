@@ -1,61 +1,1803 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: MariaDB Server
+Upstream-Contact: https://mariadb.org/jira
+Source: https://github.com/MariaDB/server
+Comment:
+ Originally produced by a modified version of licensecheck2dep5
+ from CDBS by Clint Byrum <clint@ubuntu.com>. Hand modified to reduce
+ redundancy in the output and add appropriate license text. The file
+ has been rechecked against the source using the development version
+ of license-reconcile, see #686485.
+ .
+ Also, MySQL carries the "FOSS License Exception" specified in README
+ .
+ Quoting from README:
+ .
+ MySQL FOSS License Exception We want free and open source
+ software applications under certain licenses to be able to use
+ specified GPL-licensed MySQL client libraries despite the fact
+ that not all such FOSS licenses are compatible with version
+ 2 of the GNU General Public License.  Therefore there are
+ special exceptions to the terms and conditions of the GPLv2
+ as applied to these client libraries, which are identified
+ and described in more detail in the FOSS License Exception at
+ <http://www.mysql.com/about/legal/licensing/foss-exception.html>.
+ .
+ The text of the Above URL is quoted below, as of Aug 17, 2011.
+ .
+ > FOSS License Exception
+ > .
+ > Updated July 1, 2010
+ > .
+ > What is the FOSS License Exception?  Oracle's Free and Open Source
+ > Software ("FOSS") License Exception (formerly known as the FLOSS
+ > License Exception) allows developers of FOSS applications to include
+ > Oracle's MySQL Client Libraries (also referred to as "MySQL Drivers"
+ > or "MySQL Connectors") with their FOSS applications. MySQL Client
+ > Libraries are typically licensed pursuant to version 2 of the General
+ > Public License ("GPL"), but this exception permits distribution of
+ > certain MySQL Client Libraries with a developer's FOSS applications
+ > licensed under the terms of another FOSS license listed below,
+ > even though such other FOSS license may be incompatible with the GPL.
+ > .
+ > The following terms and conditions describe the circumstances under
+ > which Oracle's FOSS License Exception applies.
+ > .
+ > Oracle's FOSS License Exception Terms and Conditions Definitions.
+ > "Derivative Work" means a derivative work, as defined under applicable
+ > copyright law, formed entirely from the Program and one or more
+ > FOSS Applications.
+ > .
+ > "FOSS Application" means a free and open source software application
+ > distributed subject to a license listed in the section below titled
+ > "FOSS License List."
+ > .
+ > "FOSS Notice" means a notice placed by Oracle or MySQL in a copy
+ > of the MySQL Client Libraries stating that such copy of the MySQL
+ > Client Libraries may be distributed under Oracle's or MySQL's FOSS
+ > (or FLOSS) License Exception.
+ > .
+ > "Independent Work" means portions of the Derivative Work that are not
+ > derived from the Program and can reasonably be considered independent
+ > and separate works.
+ > .
+ > "Program" means a copy of Oracle's MySQL Client Libraries that
+ > contains a FOSS Notice.
+ > .
+ > A FOSS application developer ("you" or "your") may distribute a
+ > Derivative Work provided that you and the Derivative Work meet all
+ > of the following conditions: You obey the GPL in all respects for
+ > the Program and all portions (including modifications) of the Program
+ > included in the Derivative Work (provided that this condition does not
+ > apply to Independent Works); The Derivative Work does not include any
+ > work licensed under the GPL other than the Program; You distribute
+ > Independent Works subject to a license listed in the section below
+ > titled "FOSS License List"; You distribute Independent Works in
+ > object code or executable form with the complete corresponding
+ > machine-readable source code on the same medium and under the same
+ > FOSS license applying to the object code or executable forms; All
+ > works that are aggregated with the Program or the Derivative Work
+ > on a medium or volume of storage are not derivative works of the
+ > Program, Derivative Work or FOSS Application, and must reasonably
+ > be considered independent and separate works.  Oracle reserves all
+ > rights not expressly granted in these terms and conditions. If all
+ > of the above conditions are not met, then this FOSS License Exception
+ > does not apply to you or your Derivative Work.
+ > .
+ > FOSS License List
+ > .
+ > License Name    Version(s)/Copyright Date
+ > Release Early    Certified Software
+ > Academic Free License    2.0
+ > Apache Software License  1.0/1.1/2.0
+ > Apple Public Source License  2.0
+ > Artistic license     From Perl 5.8.0
+ > BSD license  "July 22 1999"
+ > Common Development and Distribution License (CDDL)   1.0
+ > Common Public License    1.0
+ > Eclipse Public License   1.0
+ > European Union Public License (EUPL)[1]    1.1
+ > GNU Library or "Lesser" General Public License (LGPL)    2.0/2.1/3.0
+ > GNU General Public License (GPL)     3.0
+ > IBM Public License   1.0
+ > Jabber Open Source License   1.0
+ > MIT License (As listed in file MIT-License.txt)  -
+ > Mozilla Public License (MPL)     1.0/1.1
+ > Open Software License    2.0
+ > OpenSSL license (with original SSLeay license)   "2003" ("1998")
+ > PHP License  3.0/3.01
+ > Python license (CNRI Python License)     -
+ > Python Software Foundation License   2.1.1
+ > Sleepycat License   "1999"
+ > University of Illinois/NCSA Open Source License  -
+ > W3C License  "2001"
+ > X11 License  "2001"
+ > Zlib/libpng License  -
+ > Zope Public License  2.0
+ > [1] When an Independent Work is licensed under a "Compatible License"
+ > pursuant to the EUPL, the Compatible License rather than the EUPL is
+ > the applicable license for purposes of these FOSS License Exception
+ > Terms and Conditions.
+ .
+ The above text is subject to this copyright notice:
+ © 2010, Oracle and/or its affiliates.
 
-== MariaDB ==
-
-The Debian package of MySQL was first debianzed on 1997-04-12 by Christian
-Schwarz <schwarz@debian.org> and ist maintained since 1999-04-20 by
-Christian Hammers <ch@debian.org>.
-
-The MariaDB packages were initally made by http://ourdelta.org/, and
-are now managed by the MariaDB development team,
-maria-developers@lists.launchpad.net
-
-MariaDB can be downloaded from https://downloads.mariadb.org/
-
+Files: *
 Copyright:
+ 2000-2016, Oracle and/or its affiliates. All rights reserved.
+ 2008-2013 Monty Program AB
+ 2008-2014 SkySQL Ab
+ 2013-2016 MariaDB Corporation
+ 2012-2016 MariaDB Foundation
+License: GPL-2
 
-According to the file "COPYING" all parts of this package are licenced
-under the terms of the GNU GPL Version 2 of which a copy is available
-in /usr/share/common-licenses.
+Files: debian/*
+Copyright:
+ 1997-1998, Scott Hanson <shanson@debian.org>
+ 1997 Christian Schwarz <schwarz@debian.org>
+ 1999-2007, 2009, Christian Hammers <ch@debian.org>
+ 2000-2001, Christopher C. Chimelis <chris@debian.org>
+ 2001 Matthew Wilcox <willy@debian.org>
+ 2005-2007, Sean Finney <seanius@debian.org>
+ 2006 Adam Conrad <adconrad@0c3.net>
+ 2007-2011, Norbert Tretkowski <norbert@tretkowski.de>
+ 2007-2008, Monty Taylor <mordred@inaugust.com>
+ 2008 Devin Carraway <devin@debian.org>
+ 2008 Steffen Joeris <white@debian.org>
+ 2009 Canonical Ltd
+ 2010 Xavier Oswald <xoswald@debian.org>
+ 2011 Clint Byrum <clint@ubuntu.com>
+ 2011 Ondřej Surý <ondrej@debian.org>
+ 2012 Nicholas Bamber <nicholas@periapt.co.uk>
+ 2013,2016 Kristian Nielsen <knielsen@askmonty.org>
+ 2013-2016 Otto Kekäläinen <otto@seravo.fi>
+ 2014 Julien Muchembled <jm@jmuchemb.eu>
+ 2014 Tobias Frost <tobi@coldtobi.de>
+ 2015 Andreas Beckmann <anbe@debian.org>
+ 2015-2016 Arnaud Fontaine <arnau@debian.org>
+ 2015-2016 Daniel Black <daniel.black@openquery.com.au>
+ 2015 Israel Tsadok <itsadok@gmail.com>
+ 2015 Jan Wagner <waja@cyconet.org>
+ 2015 Jean Weisbuch <jean@phpnet.org>
+ 2015 Olaf van der Spek <olafvdspek@gmail.com>
+ 2015-2106 Robie Basak <robie.basak@canonical.com>
+ 2016 Axel Beckert <abe@debian.org>
+ 2016 Dieter Adriaenssens <dieter.adriaenssens@gmail.com>
+ 2016 Ian Gilfillan <ian@mariadb.org>
+ 2016 James Cowgill <jcowgill@debian.org>
+ 2016 Paul Gevers <elbrus@debian.org>
+ 2016 Samuel Thibault <sthibault@debian.org>
+ 2016 Vicențiu Ciorbaru <vicentiu@mariadb.org>
+License: GPL-2+
 
-To allow free software with other licences than the GPL to link against the
-shared library, special terms for "derived works" are granted in the README file of MySQL 5.5, as follows:
+Files: plugin/feedback/*
+Copyright: 2010 Sergei Golubchik and Monty Program Ab
+License: GPL-2
 
-> MySQL FOSS License Exception
-> We want free and open source software applications under certain
-> licenses to be able to use specified GPL-licensed MySQL client
-> libraries despite the fact that not all such FOSS licenses are
-> compatible with version 2 of the GNU General Public License.
-> Therefore there are special exceptions to the terms and conditions
-> of the GPLv2 as applied to these client libraries, which are
-> identified and described in more detail in the FOSS License
-> Exception at
-> <http://www.mysql.com/about/legal/licensing/foss-exception.html>.
+Files: debian/additions/mysqlreport*
+Copyright: 2006-2008 Daniel Nichter <public@codenode.com>
+ 2012-2015 Jean Weisbuch
+License: GPL-2+
 
-The manual had to be removed as it is not free in the sense of the
-Debian Free Software Guidelines (DFSG).
+Files:
+ dbug/example1.c
+ dbug/example2.c
+ dbug/example3.c
+ dbug/factorial.c
+ dbug/main.c
+ dbug/my_main.c
+ dbug/remove_function_from_trace.pl
+ dbug/tests.c
+ dbug/tests-t.pl
+ include/probes_mysql_nodtrace.h.in
+ libmysqld/resource.h
+ mysql-test/*
+ support-files/binary-configure.sh
+ support-files/my-huge.cnf.sh
+ support-files/my-innodb-heavy-4G.cnf.sh
+ support-files/my-large.cnf.sh
+ support-files/my-medium.cnf.sh
+ support-files/my-small.cnf.sh
+ support-files/mysqld_multi.server.sh
+ support-files/mysql-log-rotate.sh
+ support-files/mysql.server-sys5.sh
+ Docs/*
+Copyright: UNKNOWN
+Comment: These files fall under the blanket license specified in the file
+ COPYING and README
+ GPLv2 Disclaimer:
+ For the avoidance of doubt, except that if any license choice
+ other than GPL or LGPL is available it will apply instead,
+ Oracle elects to use only the General Public License version 2
+ (GPLv2) at this time for any software where a choice of GPL
+ license versions is made available with the language indicating
+ that GPLv2 or any later version may be used, or where a choice
+ of which version of the GPL is applied is otherwise unspecified.
+License: GPL-2
+
+Files: BUILD/*
+ client/*
+ client/echo.c
+ client/get_password.c
+ cmake/*
+ dbug/dbug_add_tags.pl
+ extra/*
+ include/*
+ libmariadb/*
+ libmysqld/*
+ libservices/*
+ mysql-test/include/have_perfschema.inc
+ mysql-test/lib/mtr_cases.pm
+ mysql-test/lib/mtr_gcov.pl
+ mysql-test/lib/mtr_gprof.pl
+ mysql-test/lib/mtr_io.pl
+ mysql-test/lib/mtr_match.pm
+ mysql-test/lib/mtr_process.pl
+ mysql-test/lib/mtr_report.pm
+ mysql-test/lib/mtr_results.pm
+ mysql-test/lib/mtr_stress.pl
+ mysql-test/lib/mtr_unique.pm
+ mysql-test/lib/My/Config.pm
+ mysql-test/lib/My/CoreDump.pm
+ mysql-test/lib/My/File/*
+ mysql-test/lib/My/Find.pm
+ mysql-test/lib/My/Handles.pm
+ mysql-test/lib/My/Options.pm
+ mysql-test/lib/My/Platform.pm
+ mysql-test/lib/My/SafeProcess/Base.pm
+ mysql-test/lib/My/SafeProcess/safe_kill_win.cc
+ mysql-test/lib/My/SafeProcess/safe_process.cc
+ mysql-test/lib/My/SafeProcess/safe_process_win.cc
+ mysql-test/lib/My/SysInfo.pm
+ mysql-test/lib/My/Test.pm
+ mysql-test/lib/t/*
+ mysql-test/lib/v1/mtr_cases.pl
+ mysql-test/lib/v1/mtr_gcov.pl
+ mysql-test/lib/v1/mtr_gprof.pl
+ mysql-test/lib/v1/mtr_im.pl
+ mysql-test/lib/v1/mtr_io.pl
+ mysql-test/lib/v1/mtr_match.pl
+ mysql-test/lib/v1/mtr_process.pl
+ mysql-test/lib/v1/mtr_report.pl
+ mysql-test/lib/v1/mtr_stress.pl
+ mysql-test/lib/v1/mtr_timer.pl
+ mysql-test/lib/v1/mtr_unique.pl
+ mysql-test/lib/v1/My/*
+ mysql-test/lib/v1/mysql-test-run.pl
+ mysql-test/lib/v1/mtr_misc.pl
+ mysql-test/mysql-stress-test.pl
+ mysql-test/mysql-test-run.pl
+ mysql-test/std_data/*
+ mysql-test/suite/perfschema/include/*
+ mysql-test/suite/perfschema_stress/include/*
+ mysys/*
+ win/packaging/ca/*
+ plugin/audit_null/*
+ plugin/auth_*
+ plugin/daemon_example/*
+ plugin/fulltext/*
+ scripts/*
+ sql/*
+ sql-common/*
+ storage/*
+ strings/*
+ support-files/MacOSX/*
+ support-files/compiler_warnings.supp
+ support-files/mysql.*
+ support-files/dtrace/*
+ tests/*
+ unittest/*
+ vio/*
+Copyright: 1979-2009 MySQL AB
+           1995-2010 Sun Microsystems Inc
+           1994-1997,2000-2014 Oracle and/or its affiliates
+           2010 Kristian Nielsen
+           2012 MariaDB Services
+           2013 MariaDB Foundation
+           2010,2013 Sergei Golubchik
+           1985,1995,2008-2011,2012-2014 Monty Program AB
+           2008-2014 SykSQL Ab
+           1993-2014 Olivier Bertrand
+           2008-2014 Kentoku Shiba
+           2013 Sergey Vojtovich and MariaDB Foundation
+           2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+           2012 Michael Widenius
+           2010-2011 DeNA Co.,Ltd.
+           2011 Kentoku SHIBA
+License: GPL-2
+
+Files: extra/yassl/COPYING* extra/yassl/taocrypt/COPYING*
+Copyright: 1989, 1991 Free Software Foundation, Inc
+License: GPL-verbatim
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+Files: include/maria.h include/myisamchk.h
+Copyright: 2006-2008 MySQL AB
+ 2008-2009 Sun Microsystems, Inc
+ 2009, 2013, Monty Program Ab
+License: GPL-2+
+
+Files: plugin/auth_pam/testing/pam_mariadb_mtr.c
+Copyright: none
+License: public-domain
+
+Files:  plugin/locale_info/locale_info.cc
+Copyright: 2013, Spaempresarial - Brazil, Roberto Spadim
+License: BSD-3-clause
+
+Files:  plugin/qc_info/qc_info.cc
+Copyright:  2008, Roland Bouman
+License: BSD-3-clause
+
+Files: tests/async_queries.c tests/nonblock-wrappers.h  sql-common/mysql_async.c
+Copyright: 2011 Kristian Nielsen and Monty Program Ab
+License: LGPL-2.1+
+
+Files: include/ma_dyncol.h include/queues.h mysys/ma_dyncol.c mysys/queues.c
+ unittest/mysys/ma_dyncol-t.c
+Copyright: 2010,2011,2013 Monty Program Ab
+ 2011,2012 Oleksandr Byelkin
+License: BSD-2-clause
+
+Files: include/my_context.h mysys/my_context.c
+Copyright: 2011,2012 Kristian Nielsen and Monty Program Ab
+License: LGPL-2.1+
+
+Files: mysys/my_port.c
+Copyright: 2002 MySQL AB
+License: LGPL-2
+
+Files: mysys/my_safehash.*
+Copyright: 2003-2007 MySQL AB
+License: GPL-2+
+
+Files: strings/bmove_upp.c strings/is_prefix.c strings/llstr.c
+ strings/longlong2str.c strings/strcont.c strings/strfill.c strings/strmov.c
+ strings/strnmov.c strings/bchange.c strings/int2str.c strings/my_strtoll10.c
+ strings/str2int.c strings/strappend.c strings/strcend.c
+Copyright: 2009-2013, Monty Program Ab
+           2000,2003 TXT DataKonsult Ab & Monty Program Ab
+License: BSD-2-clause
+
+Files: strings/strxmov.c  strings/strxnmov.c strings/strxnmov.c  strings/strxmov.c
+ strings/strnlen.c
+Copyright: 2009-2011, Monty Program Ab
+           2000 TXT DataKonsult Ab & Monty Program Ab
+           Richard A. O'Keefe
+License: BSD-2-clause
+
+Files: client/async_example.c
+Copyright: 2011 Kristian Nielsen and Monty Program Ab
+License: LGPL-2.1+
+
+Files: storage/oqgraph/*
+Copyright:
+ 2007-2013 Arjen G Lentz & Antony T Curtis for Open Query
+ 2000-2006 MySQL AB
+License: GPL-2+
+
+Files: storage/connect/connect.cc
+Copyright: 2004-2012 Olivier Bertrand
+License: GPL-2+
+
+Files: storage/connect/inihandl.c
+Copyright: 1993 Miguel de Icaza
+ 1996 Alexandre Julliard
+License: LGPL-2.1+
+
+Files: storage/oqgraph/ha_oqgraph.*
+ storage/oqgraph/oqgraph_probes.d
+Copyright:
+ 2007-2013 Arjen G Lentz & Antony T Curtis for Open Query
+ 2000-2006 MySQL AB
+License: GPL-2
+
+Files: storage/rocksdb/*
+Copyright: 2015-present Facebook, Inc.
+           2012,2013,2015 Monty Program Ab
+	   2014 SkySQL Ab
+	   2017 Percona and/or its affiliates
+	   2012 Oracle and/or its affiliates
+License: GPL-2
+
+Files: storage/rocksdb/rocksdb/*
+       storage/rocksdb/tools/*
+       storage/rocksdb
+Copyright: 2011-present, Facebook, Inc.
+           2011 The LevelDB Authors
+License: BSD-3-clause
+
+Files: storage/rocksdb/atomic_stat.h
+Copyright: 2012 - 2014 Steaphan Greene
+License: GPL-2+
+
+Files: extra/*/INSTALL
+Copyright: 1994-1996, 1999-2002, 2004-2006, Free Software Foundation, Inc.
+License: unlimited-free-doc
+ This file is free documentation; the Free Software Foundation gives
+ unlimited permission to copy, distribute and modify it.
+
+Files: mysql-test/lib/mtr_misc.pl
+ mysql-test/lib/My/SafeProcess.pm
+Copyright: 2004, 2007, 2011, Oracle and/or its affiliates
+License: LGPL
+
+Files:
+ storage/myisam/ft_update.c
+ storage/myisam/fulltext.h
+ storage/myisam/ft_boolean_search.c
+ storage/myisam/ft_stopwords.c
+ storage/myisam/ft_nlq_search.c
+ storage/myisam/ft_parser.c
+ storage/myisam/myisam_ftdump.c
+Copyright:
+ 2000, 2001, 2010, 2011, Oracle and/or its affiliates
+ Sergei A. Golubchik
+License: GPL-2
+
+Files: storage/myisam/ft_myisam.c
+Copyright: 2000 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+License: GPL-2+
+
+Files: storage/innobase/*
+Copyright:
+ 1994-2011 Sergei A. Golubchik
+ 1996 Michael Widenius
+ 1994-2014 Oracle and/or its affiliates
+ 2008-2009 Google Inc
+ 2009 Sun Microsystems, Inc
+ 2009 Percona Inc
+ 2013, 2014 SkySQL Ab
+ 2012 Facebook Inc
+License: GPL-2
+
+Files: storage/maria/*
+Copyright:
+ 2008-2009 Sun Microsystems, Inc
+ 2008 Sun AB
+ 2006 MySQL Finland AB
+ 2006 TCX DataKonsult AB
+ 2003-2008 MySQL AB
+ 2007-2008 Michael Widenius
+ 2007 Guilhem Bichot
+ 2006 Sergei A. Golubchik
+ 2007 Sanja Belkin
+ 2006 Ramil Kalimullin
+ 2006 Alexey Botchkov
+ 2008-2011 Monty Program Ab
+ 2004-2008 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+License: GPL-2
+
+Files: storage/xtradb/*
+Copyright:
+  1994-2014 Oracle and/or its affiliate
+  2011-2013 Orcale Corpn
+  1994-2013 Innobase Oy
+  2008-2009 Google Inc
+  2009-2010,2012 Facebook Inc
+  2009-2012 Percona Inc
+  2013, 2014, SkySQL Ab
+License: GPL-2
+
+Files: storage/innobase/ut/ut0crc32.cc storage/xtradb/ut/ut0crc32.cc
+Copyright: 2009, 2010 Facebook, Inc.
+           2011 Oracle and/or its affiliates.
+License: GPL-2 and BSD-2-clause
+
+Files: storage/innobase/COPYING.Google storage/xtradb/COPYING.Google
+Copyright: 2008 Google Inc
+License: BSD-3-clause
+
+Files: storage/innobase/COPYING.Percona storage/xtradb/COPYING.Percona
+Copyright: 2008-2009 Percona Inc
+License: BSD-3-clause
+
+Files: storage/sphinx/*
+Copyright: 2001-2014 Andrew Aksyonoff
+ 2008-2014 Sphinx Technologies Inc
+License: GPL-2
+
+Files: extra/readline/*
+Copyright: 1987-2006 Free Software Foundation Inc
+License: GPL-2+
+
+Files: sql-bench/*.sh
+Copyright: 2009 Sun Microsystems, Inc
+           2000-2007 MySQL AB
+License: LGPL
+
+Files: client/completion_hash.h
+ scripts/mysqlaccess.sh
+ scripts/mysql_fix_extensions.sh
+ scripts/mysql_setpermission.sh
+ storage/myisam/ftbench/ft-test-run.sh
+ storage/myisam/mi_test_all.sh
+ strings/ctype-uca.c
+ strings/ctype-ucs2.c
+ strings/ctype-utf8.c
+ support-files/MacOSX/postflight.sh
+ support-files/MacOSX/preflight.sh
+ mysql-test/lib/My/ConfigFactory.pm
+ mysql-test/mysql-stress-test.pl
+ BUILD/*.sh
+ BUILD/compile-amd64-debug-max-no-ndb
+ BUILD/compile-solaris-amd64
+ BUILD/compile-amd64-valgrind-max
+ BUILD/compile-pentium64-max
+ BUILD/compile-pentium64
+ BUILD/compile-pentium-valgrind-max-no-ndb
+ scripts/mysqlhotcopy.sh
+ scripts/mysqld_multi.sh
+ mysql-test/mysql-stress-test.pl
+ mysql-test/std_data/checkDBI_DBD-mysql.pl
+Copyright: 2000-2013 Oracle and/or its affiliates
+           2000-2007 MySQL AB
+           2009 Sun Microsystems Inc
+License: LGPL
+
+Files: BUILD/util.sh
+Copyright: 2010 Kristian Nielsen and Monty Program AB
+License: GPL-2
+
+Files: storage/archive/azio.c
+ storage/archive/azlib.h
+ zlib/*
+Copyright:
+ 1995-2005 Jean-loup Gailly
+ 1995-2005 Mark Adler
+License: zlib/libpng
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+  .
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+  .
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+Files: sql-bench/innotest1.sh
+ sql-bench/innotest1a.sh
+ sql-bench/innotest1b.sh
+ sql-bench/innotest2.sh
+ sql-bench/innotest2a.sh
+ sql-bench/innotest2b.sh
+Copyright: 2000-2002 Innobase Oy & MySQL AB
+Comment: These files fall under the blanket license specified in the file COPYING
+License: GPL-2
+
+Files: storage/myisam/rt_index.h
+ storage/myisam/rt_key.*
+ storage/myisam/rt_mbr.*
+ storage/myisam/sp_defs.h
+Copyright:
+ 2000,2002-2007 MySQL AB
+ Ramil Kalimullin
+License: GPL-2
+
+Files: strings/ctype-bin.c
+ strings/ctype-eucjpms.c
+ strings/ctype-ujis.c
+Copyright:
+ 2000,2002,2005-2011 Oracle and/or its affiliates
+ tommy@valley.ne.jp
+License: LGPL
+
+Files: scripts/mysqld_safe.sh
+ support-files/mysql-multi.server.sh
+ support-files/mysql.server.sh
+Copyright: 1996 Abandoned TCX DataKonsult AB & Monty Program KB & Detron HB
+License: public-domain
+
+Files: sql/sql_yacc.cc sql/sql_yacc.h storage/xtradb/fts/fts0pars.cc
+ storage/xtradb/include/fts0pars.h
+Copyright: 1984,1989-1990,2000-2011 Free Software Foundation, Inc.
+License: GPL-3+-with-bison-exception
+
+Files: storage/innobase/include/pars0grm.h storage/xtradb/include/pars0grm.h
+ storage/xtradb/pars/pars0grm.cc storage/innobase/pars/pars0grm.cc
+Copyright: 1995-2009 Innobase Oy.
+ 1984,1989-1990,2000-2004 Free Software Foundation Inc.
+License: GPL-2+-with-bison-exception
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2, or (at your option)
+ any later version.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin Street, Fifth Floor,
+ Boston, MA 02110-1301, USA.
+ .
+ As a special exception, you may create a larger work that contains
+ part or all of the Bison parser skeleton and distribute that work
+ under terms of your choice, so long as that work isn't itself a
+ parser generator using the skeleton or a modified version thereof
+ as a parser skeleton.  Alternatively, if you modify or redistribute
+ the parser skeleton itself, you may (at your option) remove this
+ special exception, which will cause the skeleton and the resulting
+ Bison output files to be licensed under the GNU General Public
+ License without this special exception.
+ .
+ This special exception was added by the Free Software Foundation in
+ version 2.2 of Bison.
+
+Files: storage/innobase/fts/fts0pars.cc
+ storage/innobase/fts/fts0pars.cc
+ storage/innobase/include/fts0pars.h
+Copyright: 1984, 1989-1990, 2000-2006  Free Software Foundation, Inc.
+License: GPL-3+-with-bison-exception
+
+License: GPL-3+-with-bison-exception
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ .
+ As a special exception, you may create a larger work that contains
+ part or all of the Bison parser skeleton and distribute that work
+ under terms of your choice, so long as that work isn't itself a
+ parser generator using the skeleton or a modified version thereof
+ as a parser skeleton.  Alternatively, if you modify or redistribute
+ the parser skeleton itself, you may (at your option) remove this
+ special exception, which will cause the skeleton and the resulting
+ Bison output files to be licensed under the GNU General Public
+ License without this special exception.
+ .
+ This special exception was added by the Free Software Foundation in
+ version 2.2 of Bison.
 
 
-== innotop ==
+Files: include/t_ctype.h
+ strings/t_ctype.h
+Copyright: 2000 MySQL AB
+ 1998 Theppitak Karoonboonyanan
+ 1998-1999 Pruet Boonma
+License: GPL-2
 
-Copyright 2006-2009, Baron Schwartz <baron@xaprb.com>
-URL:    http://innotop.sourceforge.net
+Files: strings/strend.c
+Copyright: Richard A. O'Keefe.
+   2000 TXT DataKonsult Ab & Monty Program Ab
+   2009-2011, Monty Program Ab
+License: BSD-2-clause
 
-License:
-> This software is dual licensed, either GPL version 2 or Artistic License.
->
-> This package is free software; you can redistribute it and/or modify
-> it under the terms of the GNU General Public License as published by
-> the Free Software Foundation; either version 2 of the License, or
-> (at your option) any later version.
->
-> This package is distributed in the hope that it will be useful,
-> but WITHOUT ANY WARRANTY; without even the implied warranty of
-> MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-> GNU General Public License for more details.
->
-> You should have received a copy of the GNU General Public License
-> along with this package; if not, write to the Free Software
-> Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+Files: sql/nt_servc.cc
+ sql/nt_servc.h
+Copyright: 1998 Abandoned Irena Pancirov - Irnet Snc
+License: public-domain
 
-On Debian systems, the complete text of the GNU General Public License and the
-Artistic License can be found in `/usr/share/common-licenses/'.
+Files: dbug/dbug.c
+ dbug/dbug_long.h
+Copyright: 1987 Abandoned Fred Fish
+License: public-domain
+
+Files: scripts/dheadgen.pl
+Copyright: 2008-2009 Sun Microsystems Inc
+License: BSD-3-clause
+
+Files: plugin/handler_socket/*
+Copyright:
+ 2010 DeNA Co.,Ltd.
+License: BSD-3-clause
+
+Files: plugin/auth_gssapi/*
+Copyright: 2015 Shuang Qiu
+ 2015 Robbie Harwood
+License: BSD-2-clause
+
+Files: plugin/file_key_management/*
+Copyright: 2002-2012 eperi GmbH
+License: GPL-2
+
+Files: storage/mroonga/*
+Copyright: 2011-2015 Kouhei Sutou <kou@clear-code.com>
+ 2011-2013 Kentoku SHIBA
+ 2010 Tetsuro IKEDA
+ 2014 Kenji Maruyama <mmmaru777@gmail.com>
+ 2014-2015 Naoya Murakami <naoya@createfield.com>
+License: LGPL-2.1+
+
+Files: storage/mroonga/vendor/groonga/vendor/plugins/groonga-normalizer-mysql/*
+Copyright: 2009-2015 Brazil
+License: LGPL-2.1+
+
+Files: storage/spider/*
+Copyright: 2008-2015 Kentoku Shiba
+License: GPL-2
+
+Files: pcre/*
+Copyright: 1997-2016 University of Cambridge
+           2003-2014 Google Inc
+           2009-2016 Zoltan Herczeg
+License: BSD-3-clause
+
+Files: plugin/auth_ed25519/ref10/*
+       plugin/auth_ed25519/crypto_*
+Copyright: Daniel J. Bernstein, Niels Duif, Tanja Lange, Peter Schwabe, Bo-Yin Yang
+License: public-domain
+
+Files: plugin/semisync/*
+Copyright:
+ 2007 Google Inc
+ 1995-2008 MySQL AB
+ 2008-2010 Sun Microsystems Inc
+License: GPL-2
+
+Files: */CMakeLists.txt
+Copyright:
+ 2006-2011,2013 Oracle and/or its affiliates
+ 2009, 2010 Sun Microsystems, Inc
+ 2006,2007 MySQL AB
+License: GPL-2
+
+Files: mysys/CMakeLists.txt
+Copyright: 2006, 2014, Oracle and/or its affiliates
+License: GPL-2
+
+Files: plugin/server_audit/CMakeLists.txt
+Copyright: 2013 Alexey Botchkov and SkySQL Ab
+License: GPL-2
+
+Files: strings/ctype-win1250ch.c
+Copyright: 2002-2010 Oracle and/or its affiliates.
+ 2001 Jan Pazdziora
+License: GPL-2
+
+Files: strings/ctype-tis620.c
+Copyright: 1998 Theppitak Karoonboonyanan <thep@links.nectec.or.th>
+ 1989-1991 Samphan Raruenrom <samphan@thai.com>
+ 2000-2010 Oracle and/or its affiliates.
+ 2003 Sathit Jittanupat
+ 2001 Korakot Chaovavanich <korakot@iname.com> and
+ 1998-1999 Pruet Boonma <pruet@eng.cmu.ac.th>
+License: GPL-2
+
+Files: storage/innobase/handler/ha_innodb.h
+Copyright: 2000-2010 MySQL AB & Innobase Oy.
+License: GPL-2
+
+Files: strings/dtoa.c
+Copyright: 2007-2012 Oracle and/or its affiliates.
+ 1991,2000-2001 Lucent Technologies
+License: LGPL
+
+Files: scripts/mysqldumpslow.sh
+Copyright:
+ 2000-2002,2005-2008 MySQL AB
+ 2008-2009 Sun Microsystems Inc
+License: LGPL
+
+Files: libmysqld/lib_sql.cc
+Copyright: 2000 SWsoft  company
+License: SWsoft
+ This material is provided "as is", with absolutely no warranty expressed
+ or implied. Any use is at your own risk.
+ .
+ Permission to use or copy this software for any purpose is hereby granted
+ without fee, provided the above notices are retained on all copies.
+ Permission to modify the code and to distribute modified code is granted,
+ provided the above notices are retained, and a notice that the code was
+ modified is included with the above copyright notice.
+
+Files: tests/mail_to_db.pl
+Copyright: 1998 Abandoned TCX DataKonsult AB & Monty Program KB & Detron HB
+License: public-domain
+
+Files: scripts/mysqlaccess.conf
+Copyright: 1997, Yves.Carlier@rug.ac.be
+License: GPL-2
+
+Files: debian/additions/innotop/*
+Copyright: 2006-2009, Baron Schwartz <baron@xaprb.com>
+License: GPL-2 or Artistic
+
+Files: include/mysql_version.h.in
+Copyright: 1996, 1999, 2001 MySQL AB
+License: public-domain
+
+Files: storage/federatedx/*
+Copyright:
+ 2007 Antony T Curtis
+ 2008-2009 Patrick Galbraith
+License: BSD-3-clause
+
+Files: storage/tokudb/*
+Copyright: 2006-2015 Percona and/or its affiliates
+License: GPL-2 or AGPL-3
+
+Files: storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/build-aux/ltmain.sh
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/build-aux/depcomp
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/build-aux/config.guess
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/build-aux/compile
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/src/scripts/xzless.in
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/build-aux/config.sub
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/src/scripts/xzdiff.in
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/lib/getopt_int.h
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/lib/Makefile.am
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/src/scripts/xzmore.in
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/src/scripts/xzgrep.in
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/extra/scanlzma/scanlzma.c
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/build-aux/missing
+ storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/m4/*
+Copyright: 1987-2009 Free Software Foundation, Inc.
+ 1992,1993 Jean-loup Gailly
+ Andrew Dudman
+ Lasse Collin
+ 2006 Timo Lindfors
+ 1996 Fran,cois Pinard <pinard@iro.umontreal.ca>
+ 1996 Gordon Matzigkeit
+License: GPL-2+
+
+Files: storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/m4/acx_pthread.m4
+Copyright:  2007 Steven G. Johnson <stevenj@alum.mit.edu>
+License: GPL-3+
+
+Files: storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/lib/getopt*
+Copyright: 1987-2009 Free Software Foundation, Inc.
+License: LGPL-2.1+
+
+Files: storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/lib/getopt_int.h
+Copyright: 1989-1994,1996-1999,2001,2003,2004 Free Software Foundation, Inc.
+License: GPL-2+
+
+Files: storage/tokudb/PerconaFT/third_party/xz-4.999.9beta/build-aux/install-sh
+Copyright: Copyright (C) 1994 X Consortium
+License: MIT/X11
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to
+ deal in the Software without restriction, including without limitation the
+ rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ sell copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ X CONSORTIUM BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
+ AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNEC-
+ TION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ .
+ Except as contained in this notice, the name of the X Consortium shall not
+ be used in advertising or otherwise to promote the sale, use or other deal-
+ ings in this Software without prior written authorization from the X Consor-
+ tium.
+ .
+ FSF changes to this file are in the public domain.
+
+Files: storage/tokudb/PerconaFT/third_party/snappy-1.1.2/*
+Copyright: 2005-2011 Google Inc.
+License: BSD-3-clause
+
+Files: zlib/CMakeLists.txt
+Copyright: 2006, 2014, Oracle and/or its affiliates
+License: GPL-2
+
+Files: cmake/systemd.cmake
+ include/my_systemd.h
+ scripts/mariadb-service-convert
+Copyright: 2015 Daniel Black
+License: GPL-2
+
+Files: wsrep/*
+ sql/wsrep_*
+ scripts/wsrep_*
+Copyright: 2008-2015 Codership Oy <http://www.codership.com>
+License: GPL-2
+
+License: GPL-2
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; version 2 of the License.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ On Debian and systems the full text of the GNU General Public
+ License version 2 can be found in the file
+ `/usr/share/common-licenses/GPL-2`
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+License: GPL-2+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ On Debian and systems the full text of the GNU General Public
+ License version 2 can be found in the file
+ `/usr/share/common-licenses/GPL-2`
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+License: LGPL-2.1+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU Lesser General Public License as published by
+ the Free Software Foundation; either version 2.1, or (at your option)
+ any later version.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Lesser General Public License for more details.
+ .
+ You should have received a copy of the GNU Lesser General Public License along
+ with this program; if not, write to the Free Software Foundation,
+ Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
+ .
+ On Debian and systems the full text of the GNU Library General Public
+ License version 2.1 can be found in the file
+ `/usr/share/common-licenses/LGPL-2.1`
+
+License: LGPL
+ This library is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Library General Public
+ License as published by the Free Software Foundation; version 2
+ of the License.
+ .
+ This library is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Library General Public License for more details.
+ .
+ You should have received a copy of the GNU Library General Public
+ License along with this library; if not, write to the Free
+ Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+ MA 02110-1301, USA
+ .
+ On Debian and systems the full text of the GNU Library General Public
+ License version 2 can be found in the file
+ `/usr/share/common-licenses/LGPL-2`
+
+License: BSD-2-clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+ .
+  1. Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+ .
+  2. Redistributions in binary form must the following disclaimer in
+    the documentation and/or other materials provided with the
+    distribution.
+
+License: BSD-3-clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+ 3. Neither the name of the copyright holder nor the names of its contributors
+    may be used to endorse or promote products derived from this software
+    without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ SUCH DAMAGE.
+
+License: Artistic
+ 			 The "Artistic License"
+ .
+ 				Preamble
+ .
+ The intent of this document is to state the conditions under which a
+ Package may be copied, such that the Copyright Holder maintains some
+ semblance of artistic control over the development of the package,
+ while giving the users of the package the right to use and distribute
+ the Package in a more-or-less customary fashion, plus the right to make
+ reasonable modifications.
+ .
+ Definitions:
+ .
+ 	"Package" refers to the collection of files distributed by the
+ 	Copyright Holder, and derivatives of that collection of files
+ 	created through textual modification.
+ .
+ 	"Standard Version" refers to such a Package if it has not been
+ 	modified, or has been modified in accordance with the wishes
+ 	of the Copyright Holder as specified below.
+ .
+ 	"Copyright Holder" is whoever is named in the copyright or
+ 	copyrights for the package.
+ .
+ 	"You" is you, if you're thinking about copying or distributing
+ 	this Package.
+ .
+ 	"Reasonable copying fee" is whatever you can justify on the
+ 	basis of media cost, duplication charges, time of people involved,
+ 	and so on.  (You will not be required to justify it to the
+ 	Copyright Holder, but only to the computing community at large
+ 	as a market that must bear the fee.)
+ .
+ 	"Freely Available" means that no fee is charged for the item
+ 	itself, though there may be fees involved in handling the item.
+ 	It also means that recipients of the item may redistribute it
+ 	under the same conditions they received it.
+ .
+ 1. You may make and give away verbatim copies of the source form of the
+ Standard Version of this Package without restriction, provided that you
+ duplicate all of the original copyright notices and associated disclaimers.
+ .
+ 2. You may apply bug fixes, portability fixes and other modifications
+ derived from the Public Domain or from the Copyright Holder.  A Package
+ modified in such a way shall still be considered the Standard Version.
+ .
+ 3. You may otherwise modify your copy of this Package in any way, provided
+ that you insert a prominent notice in each changed file stating how and
+ when you changed that file, and provided that you do at least ONE of the
+ following:
+ .
+     a) place your modifications in the Public Domain or otherwise make them
+     Freely Available, such as by posting said modifications to Usenet or
+     an equivalent medium, or placing the modifications on a major archive
+     site such as uunet.uu.net, or by allowing the Copyright Holder to include
+     your modifications in the Standard Version of the Package.
+ .
+     b) use the modified Package only within your corporation or organization.
+ .
+     c) rename any non-standard executables so the names do not conflict
+     with standard executables, which must also be provided, and provide
+     a separate manual page for each non-standard executable that clearly
+     documents how it differs from the Standard Version.
+ .
+     d) make other distribution arrangements with the Copyright Holder.
+ .
+ 4. You may distribute the programs of this Package in object code or
+ executable form, provided that you do at least ONE of the following:
+ .
+     a) distribute a Standard Version of the executables and library files,
+     together with instructions (in the manual page or equivalent) on where
+     to get the Standard Version.
+ .
+     b) accompany the distribution with the machine-readable source of
+     the Package with your modifications.
+ .
+     c) give non-standard executables non-standard names, and clearly
+     document the differences in manual pages (or equivalent), together
+     with instructions on where to get the Standard Version.
+ .
+     d) make other distribution arrangements with the Copyright Holder.
+ .
+ 5. You may charge a reasonable copying fee for any distribution of this
+ Package.  You may charge any fee you choose for support of this
+ Package.  You may not charge a fee for this Package itself.  However,
+ you may distribute this Package in aggregate with other (possibly
+ commercial) programs as part of a larger (possibly commercial) software
+ distribution provided that you do not advertise this Package as a
+ product of your own.  You may embed this Package's interpreter within
+ an executable of yours (by linking); this shall be construed as a mere
+ form of aggregation, provided that the complete Standard Version of the
+ interpreter is so embedded.
+ .
+ 6. The scripts and library files supplied as input to or produced as
+ output from the programs of this Package do not automatically fall
+ under the copyright of this Package, but belong to whoever generated
+ them, and may be sold commercially, and may be aggregated with this
+ Package.  If such scripts or library files are aggregated with this
+ Package via the so-called "undump" or "unexec" methods of producing a
+ binary executable image, then distribution of such an image shall
+ neither be construed as a distribution of this Package nor shall it
+ fall under the restrictions of Paragraphs 3 and 4, provided that you do
+ not represent such an executable image as a Standard Version of this
+ Package.
+ .
+ 7. C subroutines (or comparably compiled subroutines in other
+ languages) supplied by you and linked into this Package in order to
+ emulate subroutines and variables of the language defined by this
+ Package shall not be considered part of this Package, but are the
+ equivalent of input as in Paragraph 6, provided these subroutines do
+ not change the language in any way that would cause it to fail the
+ regression tests for the language.
+ .
+ 8. Aggregation of this Package with a commercial distribution is always
+ permitted provided that the use of this Package is embedded; that is,
+ when no overt attempt is made to make this Package's interfaces visible
+ to the end user of the commercial distribution.  Such use shall not be
+ construed as a distribution of this Package.
+ .
+ 9. The name of the Copyright Holder may not be used to endorse or promote
+ products derived from this software without specific prior written permission.
+ .
+ 10. THIS PACKAGE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR
+ IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+ WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+ .
+ 				The End
+
+License: public-domain
+ The work is public domain (no license).
+
+License: GPL-3+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <http://www.gnu.org/licenses/>.
+ .
+ On Debian systems, the complete text of the GNU General
+ Public License version 3 can be found in "/usr/share/common-licenses/GPL-3".
+
+License: LGPL-2
+ This package is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License Version 2 as published by the Free Software Foundation.
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <http://www.gnu.org/licenses/>.
+ .
+ On Debian systems, the complete text of the GNU Lesser General
+ Public License can be found in "/usr/share/common-licenses/LGPL-2".
+
+License: AGPL-3
+                     GNU AFFERO GENERAL PUBLIC LICENSE
+                        Version 3, 19 November 2007
+ .
+  Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
+  Everyone is permitted to copy and distribute verbatim copies
+  of this license document, but changing it is not allowed.
+ .
+                             Preamble
+ .
+   The GNU Affero General Public License is a free, copyleft license for
+ software and other kinds of works, specifically designed to ensure
+ cooperation with the community in the case of network server software.
+ .
+   The licenses for most software and other practical works are designed
+ to take away your freedom to share and change the works.  By contrast,
+ our General Public Licenses are intended to guarantee your freedom to
+ share and change all versions of a program--to make sure it remains free
+ software for all its users.
+ .
+   When we speak of free software, we are referring to freedom, not
+ price.  Our General Public Licenses are designed to make sure that you
+ have the freedom to distribute copies of free software (and charge for
+ them if you wish), that you receive source code or can get it if you
+ want it, that you can change the software or use pieces of it in new
+ free programs, and that you know you can do these things.
+ .
+   Developers that use our General Public Licenses protect your rights
+ with two steps: (1) assert copyright on the software, and (2) offer
+ you this License which gives you legal permission to copy, distribute
+ and/or modify the software.
+ .
+   A secondary benefit of defending all users' freedom is that
+ improvements made in alternate versions of the program, if they
+ receive widespread use, become available for other developers to
+ incorporate.  Many developers of free software are heartened and
+ encouraged by the resulting cooperation.  However, in the case of
+ software used on network servers, this result may fail to come about.
+ The GNU General Public License permits making a modified version and
+ letting the public access it on a server without ever releasing its
+ source code to the public.
+ .
+   The GNU Affero General Public License is designed specifically to
+ ensure that, in such cases, the modified source code becomes available
+ to the community.  It requires the operator of a network server to
+ provide the source code of the modified version running there to the
+ users of that server.  Therefore, public use of a modified version, on
+ a publicly accessible server, gives the public access to the source
+ code of the modified version.
+ .
+   An older license, called the Affero General Public License and
+ published by Affero, was designed to accomplish similar goals.  This is
+ a different license, not a version of the Affero GPL, but Affero has
+ released a new version of the Affero GPL which permits relicensing under
+ this license.
+ .
+   The precise terms and conditions for copying, distribution and
+ modification follow.
+ .
+                        TERMS AND CONDITIONS
+ .
+   0. Definitions.
+ .
+   "This License" refers to version 3 of the GNU Affero General Public License.
+ .
+   "Copyright" also means copyright-like laws that apply to other kinds of
+ works, such as semiconductor masks.
+ .
+   "The Program" refers to any copyrightable work licensed under this
+ License.  Each licensee is addressed as "you".  "Licensees" and
+ "recipients" may be individuals or organizations.
+ .
+   To "modify" a work means to copy from or adapt all or part of the work
+ in a fashion requiring copyright permission, other than the making of an
+ exact copy.  The resulting work is called a "modified version" of the
+ earlier work or a work "based on" the earlier work.
+ .
+   A "covered work" means either the unmodified Program or a work based
+ on the Program.
+ .
+   To "propagate" a work means to do anything with it that, without
+ permission, would make you directly or secondarily liable for
+ infringement under applicable copyright law, except executing it on a
+ computer or modifying a private copy.  Propagation includes copying,
+ distribution (with or without modification), making available to the
+ public, and in some countries other activities as well.
+ .
+   To "convey" a work means any kind of propagation that enables other
+ parties to make or receive copies.  Mere interaction with a user through
+ a computer network, with no transfer of a copy, is not conveying.
+ .
+   An interactive user interface displays "Appropriate Legal Notices"
+ to the extent that it includes a convenient and prominently visible
+ feature that (1) displays an appropriate copyright notice, and (2)
+ tells the user that there is no warranty for the work (except to the
+ extent that warranties are provided), that licensees may convey the
+ work under this License, and how to view a copy of this License.  If
+ the interface presents a list of user commands or options, such as a
+ menu, a prominent item in the list meets this criterion.
+ .
+   1. Source Code.
+ .
+   The "source code" for a work means the preferred form of the work
+ for making modifications to it.  "Object code" means any non-source
+ form of a work.
+ .
+   A "Standard Interface" means an interface that either is an official
+ standard defined by a recognized standards body, or, in the case of
+ interfaces specified for a particular programming language, one that
+ is widely used among developers working in that language.
+ .
+   The "System Libraries" of an executable work include anything, other
+ than the work as a whole, that (a) is included in the normal form of
+ packaging a Major Component, but which is not part of that Major
+ Component, and (b) serves only to enable use of the work with that
+ Major Component, or to implement a Standard Interface for which an
+ implementation is available to the public in source code form.  A
+ "Major Component", in this context, means a major essential component
+ (kernel, window system, and so on) of the specific operating system
+ (if any) on which the executable work runs, or a compiler used to
+ produce the work, or an object code interpreter used to run it.
+ .
+   The "Corresponding Source" for a work in object code form means all
+ the source code needed to generate, install, and (for an executable
+ work) run the object code and to modify the work, including scripts to
+ control those activities.  However, it does not include the work's
+ System Libraries, or general-purpose tools or generally available free
+ programs which are used unmodified in performing those activities but
+ which are not part of the work.  For example, Corresponding Source
+ includes interface definition files associated with source files for
+ the work, and the source code for shared libraries and dynamically
+ linked subprograms that the work is specifically designed to require,
+ such as by intimate data communication or control flow between those
+ subprograms and other parts of the work.
+ .
+   The Corresponding Source need not include anything that users
+ can regenerate automatically from other parts of the Corresponding
+ Source.
+ .
+   The Corresponding Source for a work in source code form is that
+ same work.
+ .
+   2. Basic Permissions.
+ .
+   All rights granted under this License are granted for the term of
+ copyright on the Program, and are irrevocable provided the stated
+ conditions are met.  This License explicitly affirms your unlimited
+ permission to run the unmodified Program.  The output from running a
+ covered work is covered by this License only if the output, given its
+ content, constitutes a covered work.  This License acknowledges your
+ rights of fair use or other equivalent, as provided by copyright law.
+ .
+   You may make, run and propagate covered works that you do not
+ convey, without conditions so long as your license otherwise remains
+ in force.  You may convey covered works to others for the sole purpose
+ of having them make modifications exclusively for you, or provide you
+ with facilities for running those works, provided that you comply with
+ the terms of this License in conveying all material for which you do
+ not control copyright.  Those thus making or running the covered works
+ for you must do so exclusively on your behalf, under your direction
+ and control, on terms that prohibit them from making any copies of
+ your copyrighted material outside their relationship with you.
+ .
+   Conveying under any other circumstances is permitted solely under
+ the conditions stated below.  Sublicensing is not allowed; section 10
+ makes it unnecessary.
+ .
+   3. Protecting Users' Legal Rights From Anti-Circumvention Law.
+ .
+   No covered work shall be deemed part of an effective technological
+ measure under any applicable law fulfilling obligations under article
+ 11 of the WIPO copyright treaty adopted on 20 December 1996, or
+ similar laws prohibiting or restricting circumvention of such
+ measures.
+ .
+   When you convey a covered work, you waive any legal power to forbid
+ circumvention of technological measures to the extent such circumvention
+ is effected by exercising rights under this License with respect to
+ the covered work, and you disclaim any intention to limit operation or
+ modification of the work as a means of enforcing, against the work's
+ users, your or third parties' legal rights to forbid circumvention of
+ technological measures.
+ .
+   4. Conveying Verbatim Copies.
+ .
+   You may convey verbatim copies of the Program's source code as you
+ receive it, in any medium, provided that you conspicuously and
+ appropriately publish on each copy an appropriate copyright notice;
+ keep intact all notices stating that this License and any
+ non-permissive terms added in accord with section 7 apply to the code;
+ keep intact all notices of the absence of any warranty; and give all
+ recipients a copy of this License along with the Program.
+ .
+   You may charge any price or no price for each copy that you convey,
+ and you may offer support or warranty protection for a fee.
+ .
+   5. Conveying Modified Source Versions.
+ .
+   You may convey a work based on the Program, or the modifications to
+ produce it from the Program, in the form of source code under the
+ terms of section 4, provided that you also meet all of these conditions:
+ .
+     a) The work must carry prominent notices stating that you modified
+     it, and giving a relevant date.
+ .
+     b) The work must carry prominent notices stating that it is
+     released under this License and any conditions added under section
+     7.  This requirement modifies the requirement in section 4 to
+     "keep intact all notices".
+ .
+     c) You must license the entire work, as a whole, under this
+     License to anyone who comes into possession of a copy.  This
+     License will therefore apply, along with any applicable section 7
+     additional terms, to the whole of the work, and all its parts,
+     regardless of how they are packaged.  This License gives no
+     permission to license the work in any other way, but it does not
+     invalidate such permission if you have separately received it.
+ .
+     d) If the work has interactive user interfaces, each must display
+     Appropriate Legal Notices; however, if the Program has interactive
+     interfaces that do not display Appropriate Legal Notices, your
+     work need not make them do so.
+ .
+   A compilation of a covered work with other separate and independent
+ works, which are not by their nature extensions of the covered work,
+ and which are not combined with it such as to form a larger program,
+ in or on a volume of a storage or distribution medium, is called an
+ "aggregate" if the compilation and its resulting copyright are not
+ used to limit the access or legal rights of the compilation's users
+ beyond what the individual works permit.  Inclusion of a covered work
+ in an aggregate does not cause this License to apply to the other
+ parts of the aggregate.
+ .
+   6. Conveying Non-Source Forms.
+ .
+   You may convey a covered work in object code form under the terms
+ of sections 4 and 5, provided that you also convey the
+ machine-readable Corresponding Source under the terms of this License,
+ in one of these ways:
+ .
+     a) Convey the object code in, or embodied in, a physical product
+     (including a physical distribution medium), accompanied by the
+     Corresponding Source fixed on a durable physical medium
+     customarily used for software interchange.
+ .
+     b) Convey the object code in, or embodied in, a physical product
+     (including a physical distribution medium), accompanied by a
+     written offer, valid for at least three years and valid for as
+     long as you offer spare parts or customer support for that product
+     model, to give anyone who possesses the object code either (1) a
+     copy of the Corresponding Source for all the software in the
+     product that is covered by this License, on a durable physical
+     medium customarily used for software interchange, for a price no
+     more than your reasonable cost of physically performing this
+     conveying of source, or (2) access to copy the
+     Corresponding Source from a network server at no charge.
+ .
+     c) Convey individual copies of the object code with a copy of the
+     written offer to provide the Corresponding Source.  This
+     alternative is allowed only occasionally and noncommercially, and
+     only if you received the object code with such an offer, in accord
+     with subsection 6b.
+ .
+     d) Convey the object code by offering access from a designated
+     place (gratis or for a charge), and offer equivalent access to the
+     Corresponding Source in the same way through the same place at no
+     further charge.  You need not require recipients to copy the
+     Corresponding Source along with the object code.  If the place to
+     copy the object code is a network server, the Corresponding Source
+     may be on a different server (operated by you or a third party)
+     that supports equivalent copying facilities, provided you maintain
+     clear directions next to the object code saying where to find the
+     Corresponding Source.  Regardless of what server hosts the
+     Corresponding Source, you remain obligated to ensure that it is
+     available for as long as needed to satisfy these requirements.
+ .
+     e) Convey the object code using peer-to-peer transmission, provided
+     you inform other peers where the object code and Corresponding
+     Source of the work are being offered to the general public at no
+     charge under subsection 6d.
+ .
+   A separable portion of the object code, whose source code is excluded
+ from the Corresponding Source as a System Library, need not be
+ included in conveying the object code work.
+ .
+   A "User Product" is either (1) a "consumer product", which means any
+ tangible personal property which is normally used for personal, family,
+ or household purposes, or (2) anything designed or sold for incorporation
+ into a dwelling.  In determining whether a product is a consumer product,
+ doubtful cases shall be resolved in favor of coverage.  For a particular
+ product received by a particular user, "normally used" refers to a
+ typical or common use of that class of product, regardless of the status
+ of the particular user or of the way in which the particular user
+ actually uses, or expects or is expected to use, the product.  A product
+ is a consumer product regardless of whether the product has substantial
+ commercial, industrial or non-consumer uses, unless such uses represent
+ the only significant mode of use of the product.
+ .
+   "Installation Information" for a User Product means any methods,
+ procedures, authorization keys, or other information required to install
+ and execute modified versions of a covered work in that User Product from
+ a modified version of its Corresponding Source.  The information must
+ suffice to ensure that the continued functioning of the modified object
+ code is in no case prevented or interfered with solely because
+ modification has been made.
+ .
+   If you convey an object code work under this section in, or with, or
+ specifically for use in, a User Product, and the conveying occurs as
+ part of a transaction in which the right of possession and use of the
+ User Product is transferred to the recipient in perpetuity or for a
+ fixed term (regardless of how the transaction is characterized), the
+ Corresponding Source conveyed under this section must be accompanied
+ by the Installation Information.  But this requirement does not apply
+ if neither you nor any third party retains the ability to install
+ modified object code on the User Product (for example, the work has
+ been installed in ROM).
+ .
+   The requirement to provide Installation Information does not include a
+ requirement to continue to provide support service, warranty, or updates
+ for a work that has been modified or installed by the recipient, or for
+ the User Product in which it has been modified or installed.  Access to a
+ network may be denied when the modification itself materially and
+ adversely affects the operation of the network or violates the rules and
+ protocols for communication across the network.
+ .
+   Corresponding Source conveyed, and Installation Information provided,
+ in accord with this section must be in a format that is publicly
+ documented (and with an implementation available to the public in
+ source code form), and must require no special password or key for
+ unpacking, reading or copying.
+ .
+   7. Additional Terms.
+ .
+   "Additional permissions" are terms that supplement the terms of this
+ License by making exceptions from one or more of its conditions.
+ Additional permissions that are applicable to the entire Program shall
+ be treated as though they were included in this License, to the extent
+ that they are valid under applicable law.  If additional permissions
+ apply only to part of the Program, that part may be used separately
+ under those permissions, but the entire Program remains governed by
+ this License without regard to the additional permissions.
+ .
+   When you convey a copy of a covered work, you may at your option
+ remove any additional permissions from that copy, or from any part of
+ it.  (Additional permissions may be written to require their own
+ removal in certain cases when you modify the work.)  You may place
+ additional permissions on material, added by you to a covered work,
+ for which you have or can give appropriate copyright permission.
+ .
+   Notwithstanding any other provision of this License, for material you
+ add to a covered work, you may (if authorized by the copyright holders of
+ that material) supplement the terms of this License with terms:
+ .
+     a) Disclaiming warranty or limiting liability differently from the
+     terms of sections 15 and 16 of this License; or
+ .
+     b) Requiring preservation of specified reasonable legal notices or
+     author attributions in that material or in the Appropriate Legal
+     Notices displayed by works containing it; or
+ .
+     c) Prohibiting misrepresentation of the origin of that material, or
+     requiring that modified versions of such material be marked in
+     reasonable ways as different from the original version; or
+ .
+     d) Limiting the use for publicity purposes of names of licensors or
+     authors of the material; or
+ .
+     e) Declining to grant rights under trademark law for use of some
+     trade names, trademarks, or service marks; or
+ .
+     f) Requiring indemnification of licensors and authors of that
+     material by anyone who conveys the material (or modified versions of
+     it) with contractual assumptions of liability to the recipient, for
+     any liability that these contractual assumptions directly impose on
+     those licensors and authors.
+ .
+   All other non-permissive additional terms are considered "further
+ restrictions" within the meaning of section 10.  If the Program as you
+ received it, or any part of it, contains a notice stating that it is
+ governed by this License along with a term that is a further
+ restriction, you may remove that term.  If a license document contains
+ a further restriction but permits relicensing or conveying under this
+ License, you may add to a covered work material governed by the terms
+ of that license document, provided that the further restriction does
+ not survive such relicensing or conveying.
+ .
+   If you add terms to a covered work in accord with this section, you
+ must place, in the relevant source files, a statement of the
+ additional terms that apply to those files, or a notice indicating
+ where to find the applicable terms.
+ .
+   Additional terms, permissive or non-permissive, may be stated in the
+ form of a separately written license, or stated as exceptions;
+ the above requirements apply either way.
+ .
+   8. Termination.
+ .
+   You may not propagate or modify a covered work except as expressly
+ provided under this License.  Any attempt otherwise to propagate or
+ modify it is void, and will automatically terminate your rights under
+ this License (including any patent licenses granted under the third
+ paragraph of section 11).
+ .
+   However, if you cease all violation of this License, then your
+ license from a particular copyright holder is reinstated (a)
+ provisionally, unless and until the copyright holder explicitly and
+ finally terminates your license, and (b) permanently, if the copyright
+ holder fails to notify you of the violation by some reasonable means
+ prior to 60 days after the cessation.
+ .
+   Moreover, your license from a particular copyright holder is
+ reinstated permanently if the copyright holder notifies you of the
+ violation by some reasonable means, this is the first time you have
+ received notice of violation of this License (for any work) from that
+ copyright holder, and you cure the violation prior to 30 days after
+ your receipt of the notice.
+ .
+   Termination of your rights under this section does not terminate the
+ licenses of parties who have received copies or rights from you under
+ this License.  If your rights have been terminated and not permanently
+ reinstated, you do not qualify to receive new licenses for the same
+ material under section 10.
+ .
+   9. Acceptance Not Required for Having Copies.
+ .
+   You are not required to accept this License in order to receive or
+ run a copy of the Program.  Ancillary propagation of a covered work
+ occurring solely as a consequence of using peer-to-peer transmission
+ to receive a copy likewise does not require acceptance.  However,
+ nothing other than this License grants you permission to propagate or
+ modify any covered work.  These actions infringe copyright if you do
+ not accept this License.  Therefore, by modifying or propagating a
+ covered work, you indicate your acceptance of this License to do so.
+ .
+   10. Automatic Licensing of Downstream Recipients.
+ .
+   Each time you convey a covered work, the recipient automatically
+ receives a license from the original licensors, to run, modify and
+ propagate that work, subject to this License.  You are not responsible
+ for enforcing compliance by third parties with this License.
+ .
+   An "entity transaction" is a transaction transferring control of an
+ organization, or substantially all assets of one, or subdividing an
+ organization, or merging organizations.  If propagation of a covered
+ work results from an entity transaction, each party to that
+ transaction who receives a copy of the work also receives whatever
+ licenses to the work the party's predecessor in interest had or could
+ give under the previous paragraph, plus a right to possession of the
+ Corresponding Source of the work from the predecessor in interest, if
+ the predecessor has it or can get it with reasonable efforts.
+ .
+   You may not impose any further restrictions on the exercise of the
+ rights granted or affirmed under this License.  For example, you may
+ not impose a license fee, royalty, or other charge for exercise of
+ rights granted under this License, and you may not initiate litigation
+ (including a cross-claim or counterclaim in a lawsuit) alleging that
+ any patent claim is infringed by making, using, selling, offering for
+ sale, or importing the Program or any portion of it.
+ .
+   11. Patents.
+ .
+   A "contributor" is a copyright holder who authorizes use under this
+ License of the Program or a work on which the Program is based.  The
+ work thus licensed is called the contributor's "contributor version".
+ .
+   A contributor's "essential patent claims" are all patent claims
+ owned or controlled by the contributor, whether already acquired or
+ hereafter acquired, that would be infringed by some manner, permitted
+ by this License, of making, using, or selling its contributor version,
+ but do not include claims that would be infringed only as a
+ consequence of further modification of the contributor version.  For
+ purposes of this definition, "control" includes the right to grant
+ patent sublicenses in a manner consistent with the requirements of
+ this License.
+ .
+   Each contributor grants you a non-exclusive, worldwide, royalty-free
+ patent license under the contributor's essential patent claims, to
+ make, use, sell, offer for sale, import and otherwise run, modify and
+ propagate the contents of its contributor version.
+ .
+   In the following three paragraphs, a "patent license" is any express
+ agreement or commitment, however denominated, not to enforce a patent
+ (such as an express permission to practice a patent or covenant not to
+ sue for patent infringement).  To "grant" such a patent license to a
+ party means to make such an agreement or commitment not to enforce a
+ patent against the party.
+ .
+   If you convey a covered work, knowingly relying on a patent license,
+ and the Corresponding Source of the work is not available for anyone
+ to copy, free of charge and under the terms of this License, through a
+ publicly available network server or other readily accessible means,
+ then you must either (1) cause the Corresponding Source to be so
+ available, or (2) arrange to deprive yourself of the benefit of the
+ patent license for this particular work, or (3) arrange, in a manner
+ consistent with the requirements of this License, to extend the patent
+ license to downstream recipients.  "Knowingly relying" means you have
+ actual knowledge that, but for the patent license, your conveying the
+ covered work in a country, or your recipient's use of the covered work
+ in a country, would infringe one or more identifiable patents in that
+ country that you have reason to believe are valid.
+ .
+   If, pursuant to or in connection with a single transaction or
+ arrangement, you convey, or propagate by procuring conveyance of, a
+ covered work, and grant a patent license to some of the parties
+ receiving the covered work authorizing them to use, propagate, modify
+ or convey a specific copy of the covered work, then the patent license
+ you grant is automatically extended to all recipients of the covered
+ work and works based on it.
+ .
+   A patent license is "discriminatory" if it does not include within
+ the scope of its coverage, prohibits the exercise of, or is
+ conditioned on the non-exercise of one or more of the rights that are
+ specifically granted under this License.  You may not convey a covered
+ work if you are a party to an arrangement with a third party that is
+ in the business of distributing software, under which you make payment
+ to the third party based on the extent of your activity of conveying
+ the work, and under which the third party grants, to any of the
+ parties who would receive the covered work from you, a discriminatory
+ patent license (a) in connection with copies of the covered work
+ conveyed by you (or copies made from those copies), or (b) primarily
+ for and in connection with specific products or compilations that
+ contain the covered work, unless you entered into that arrangement,
+ or that patent license was granted, prior to 28 March 2007.
+ .
+   Nothing in this License shall be construed as excluding or limiting
+ any implied license or other defenses to infringement that may
+ otherwise be available to you under applicable patent law.
+ .
+   12. No Surrender of Others' Freedom.
+ .
+   If conditions are imposed on you (whether by court order, agreement or
+ otherwise) that contradict the conditions of this License, they do not
+ excuse you from the conditions of this License.  If you cannot convey a
+ covered work so as to satisfy simultaneously your obligations under this
+ License and any other pertinent obligations, then as a consequence you may
+ not convey it at all.  For example, if you agree to terms that obligate you
+ to collect a royalty for further conveying from those to whom you convey
+ the Program, the only way you could satisfy both those terms and this
+ License would be to refrain entirely from conveying the Program.
+ .
+   13. Remote Network Interaction; Use with the GNU General Public License.
+ .
+   Notwithstanding any other provision of this License, if you modify the
+ Program, your modified version must prominently offer all users
+ interacting with it remotely through a computer network (if your version
+ supports such interaction) an opportunity to receive the Corresponding
+ Source of your version by providing access to the Corresponding Source
+ from a network server at no charge, through some standard or customary
+ means of facilitating copying of software.  This Corresponding Source
+ shall include the Corresponding Source for any work covered by version 3
+ of the GNU General Public License that is incorporated pursuant to the
+ following paragraph.
+ .
+   Notwithstanding any other provision of this License, you have
+ permission to link or combine any covered work with a work licensed
+ under version 3 of the GNU General Public License into a single
+ combined work, and to convey the resulting work.  The terms of this
+ License will continue to apply to the part which is the covered work,
+ but the work with which it is combined will remain governed by version
+ 3 of the GNU General Public License.
+ .
+   14. Revised Versions of this License.
+ .
+   The Free Software Foundation may publish revised and/or new versions of
+ the GNU Affero General Public License from time to time.  Such new versions
+ will be similar in spirit to the present version, but may differ in detail to
+ address new problems or concerns.
+ .
+   Each version is given a distinguishing version number.  If the
+ Program specifies that a certain numbered version of the GNU Affero General
+ Public License "or any later version" applies to it, you have the
+ option of following the terms and conditions either of that numbered
+ version or of any later version published by the Free Software
+ Foundation.  If the Program does not specify a version number of the
+ GNU Affero General Public License, you may choose any version ever published
+ by the Free Software Foundation.
+ .
+   If the Program specifies that a proxy can decide which future
+ versions of the GNU Affero General Public License can be used, that proxy's
+ public statement of acceptance of a version permanently authorizes you
+ to choose that version for the Program.
+ .
+   Later license versions may give you additional or different
+ permissions.  However, no additional obligations are imposed on any
+ author or copyright holder as a result of your choosing to follow a
+ later version.
+ .
+   15. Disclaimer of Warranty.
+ .
+   THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
+ APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
+ HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
+ OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
+ THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
+ IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+ ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+ .
+   16. Limitation of Liability.
+ .
+   IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+ WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS
+ THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
+ GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE
+ USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF
+ DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD
+ PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS),
+ EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
+ SUCH DAMAGES.
+ .
+   17. Interpretation of Sections 15 and 16.
+ .
+   If the disclaimer of warranty and limitation of liability provided
+ above cannot be given local legal effect according to their terms,
+ reviewing courts shall apply local law that most closely approximates
+ an absolute waiver of all civil liability in connection with the
+ Program, unless a warranty or assumption of liability accompanies a
+ copy of the Program in return for a fee.

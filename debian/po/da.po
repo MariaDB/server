@@ -1,35 +1,27 @@
+# Danish translation mariadb-10.3.
+# Copyright (C) 2014 mariadb-10.3 og nedenstÃ¥ende oversÃ¦ttere.
+# This file is distributed under the same license as the mariadb-10.3 package.
+# Claus Hindsgaul <claus.hindsgaul@gmail.com>, 2005, 2006, 2007.
+# Joe Hansen <joedalton2@yahoo.dk>, 2014, 2016.
 #
-#    Translators, if you are not familiar with the PO format, gettext
-#    documentation is worth reading, especially sections dedicated to
-#    this format, e.g. by running:
-#         info -n '(gettext)PO Files'
-#         info -n '(gettext)Header Entry'
-#    Some information specific to po-debconf are available at
-#            /usr/share/doc/po-debconf/README-trans
-#         or http://www.debian.org/intl/l10n/po-debconf/README-trans#
-#    Developers do not need to manually edit POT or PO files.
-#
-# Claus Hindsgaul <claus_h@image.dk>, 2005, 2006.
-# Claus Hindsgaul <claus.hindsgaul@gmail.com>, 2006, 2007.
 msgid ""
 msgstr ""
-"Project-Id-Version: mysql-dfsg-4.1\n"
+"Project-Id-Version: mariadb-10.3\n"
 "Report-Msgid-Bugs-To: mariadb-10.3@packages.debian.org\n"
-"POT-Creation-Date: 2016-10-08 01:26+0300\n"
-"PO-Revision-Date: 2007-05-30 22:41+0200\n"
-"Last-Translator: Claus Hindsgaul <claus.hindsgaul@gmail.com>\n"
-"Language-Team: Danish\n"
-"Language: \n"
+"POT-Creation-Date: 2016-04-30 22:44+0300\n"
+"PO-Revision-Date: 2016-07-09 22:41+0200\n"
+"Last-Translator: Joe Hansen <joedalton2@yahoo.dk>\n"
+"Language-Team: Danish <debian-l10n-danish@lists.debian.org>\n"
+"Language: da\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=ISO-8859-1\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.4\n"
 
 #. Type: note
 #. Description
 #: ../mariadb-server-10.3.templates:2001
 msgid "The old data directory will be saved at new location"
-msgstr ""
+msgstr "Den gamle datamappe vil blive gemt pÃ¥ en ny placering"
 
 #. Type: note
 #. Description
@@ -39,6 +31,9 @@ msgid ""
 "indicates a database binary format version that cannot automatically be "
 "upgraded (or downgraded)."
 msgstr ""
+"En fil navngivet /var/lib/msyql/debian-*.flag findes pÃ¥ dette system. "
+"Nummeret antyder en databaseversion i binÃ¦rt format, som ikke automatisk "
+"kan opgraderes (eller nedgraderes)."
 
 #. Type: note
 #. Description
@@ -47,6 +42,8 @@ msgid ""
 "Therefore the previous data directory will be renamed to /var/lib/mysql-* "
 "and a new data directory will be initialized at /var/lib/mysql."
 msgstr ""
+"Derfor vil den tidligere datamappe blive omdÃ¸bt til /var/lib/mysql-* "
+"og en ny datamappe vil blive initialiseret i /var/lib/msyql."
 
 #. Type: note
 #. Description
@@ -54,6 +51,8 @@ msgstr ""
 msgid ""
 "Please manually export/import your data (e.g. with mysqldump) if needed."
 msgstr ""
+"Eksporter/importer venligst manuelt dine data (f.eks. med mysqldump) hvis "
+"krÃ¦vet."
 
 #. Type: note
 #. Description
@@ -68,19 +67,18 @@ msgid ""
 "Using MariaDB under NIS/YP requires a mysql user account to be added on the "
 "local system with:"
 msgstr ""
+"Brug af MariaDB under NIS/YP krÃ¦ver, at en mysql-brugerkonto tilfÃ¸jes pÃ¥ det "
+"lokale system med:"
 
 #. Type: note
 #. Description
 #: ../mariadb-server-10.3.templates:3001
-#, fuzzy
-#| msgid ""
-#| "You should also check the permissions and the owner of the /var/lib/mysql "
-#| "directory:"
 msgid ""
 "You should also check the permissions and ownership of the /var/lib/mysql "
 "directory:"
 msgstr ""
-"Du bør også tjekke filrettighederne og ejerskabet af mappen /var/lib/mysql:"
+"Du bÃ¸r ogsÃ¥ kontrollere filrettighederne og ejerskabet af mappen /var/lib/"
+"mysql:"
 
 #. Type: boolean
 #. Description
@@ -107,273 +105,6 @@ msgid ""
 "the data should be kept."
 msgstr ""
 "Hvis du fjerner MariaDB-pakken for senere at installere en nyere version, "
-"eller hvis en anden mariadb-server-pakke allerede benytter den, bør dataene "
+"eller hvis en anden mariadb-server-pakke allerede benytter den, bÃ¸r dataene "
 "bevares."
 
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "New password for the MariaDB \"root\" user:"
-msgstr "Ny adgangskode for MariaDB's \"root\"-bruger:"
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid ""
-"While not mandatory, it is highly recommended that you set a password for "
-"the MariaDB administrative \"root\" user."
-msgstr ""
-"Selvom det ikke kræves, anbefales det kraftigt, at du sætter en adgangskode "
-"for MariaDB's administrationsbruger \"root\"."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-#, fuzzy
-#| msgid "If that field is left blank, the password will not be changed."
-msgid "If this field is left blank, the password will not be changed."
-msgstr "Hvis du lader dette felt stå tomt, vil adgangskoden ikke blive ændret."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:6001
-#, fuzzy
-#| msgid "New password for the MySQL \"root\" user:"
-msgid "Repeat password for the MariaDB \"root\" user:"
-msgstr "Ny adgangskode for MariaDB's \"root\"-bruger:"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "Unable to set password for the MariaDB \"root\" user"
-msgstr "Kunne ikke sætte adgangskoden for MariaDB's \"root\"-bruger"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid ""
-"An error occurred while setting the password for the MariaDB administrative "
-"user. This may have happened because the account already has a password, or "
-"because of a communication problem with the MariaDB server."
-msgstr ""
-"Der opstod en fejl, da adgangskoden for MariaDB's administrationsbruger blev "
-"forsøgt ændret. Dette kan være sket, fordi brugeren allerede har en "
-"adgangskode, eller fordi der var problemer med at kommunikere med MariaDB-"
-"serveren."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "You should check the account's password after the package installation."
-msgstr "Du bør tjekke kontoens adgangskode efter pakkeinstallationen."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "Please read the /usr/share/doc/mysql-server-5.1/README.Debian file for "
-#| "more information."
-msgid ""
-"Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-"more information."
-msgstr ""
-"Se filen /usr/share/doc/mariadb-server-10.3/README.Debian for yderligere "
-"oplysninger."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "Password input error"
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
-
-#~ msgid "Really proceed with downgrade?"
-#~ msgstr "Ønsker du virkelig at fortsætte nedgraderingen?"
-
-#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
-#~ msgstr ""
-#~ "Der er en fil med navnet  /var/lib/mysql/debian-*.flag på dette system."
-
-#, fuzzy
-#~| msgid ""
-#~| "Such file is an indication that a mariadb-server package with a higher "
-#~| "version has been installed earlier."
-#~ msgid ""
-#~ "Such a file is an indication that a mariadb-server package with a higher "
-#~ "version has been installed previously."
-#~ msgstr ""
-#~ "Sådan en fil tyder på at der tidligere har været installeret en højere "
-#~ "version af mariadb-server-pakken."
-
-#~ msgid ""
-#~ "There is no guarantee that the version you're currently installing will "
-#~ "be able to use the current databases."
-#~ msgstr ""
-#~ "Det kan ikke garanteres at den version, du er ved at installere, kan "
-#~ "benytte data fra de eksisterende databaser."
-
-#~ msgid "Start the MariaDB server on boot?"
-#~ msgstr "Start MariaDB-serveren under systemopstart?"
-
-#~ msgid ""
-#~ "The MariaDB server can be launched automatically at boot time or manually "
-#~ "with the '/etc/init.d/mysql start' command."
-#~ msgstr ""
-#~ "MariaDB-serveren kan enten startes op automatisk under systemopstarten, "
-#~ "eller manuelt med kommandoen '/etc/init.d/mysql start'."
-
-#~ msgid ""
-#~ "To use MariaDB, the following entries for users and groups should be "
-#~ "added to the system:"
-#~ msgstr ""
-#~ "Nedenstående linjer for brugere og grupper skal tilføjes dette system for "
-#~ "at benytte MariaDB:"
-
-#~ msgid "Cannot upgrade if ISAM tables are present!"
-#~ msgstr "Kan ikke opgradere hvis der er ISAM-tabeller!"
-
-#~ msgid ""
-#~ "Recent versions of MySQL can no longer use the old ISAM table format and "
-#~ "it is necessary to convert your tables to e.g. MyISAM before upgrading by "
-#~ "using \"mysql_convert_table_format\" or \"ALTER TABLE x ENGINE=MyISAM\". "
-#~ "The installation of mysql-server-5.1 will now abort. In case your old "
-#~ "mysql-server-4.1 gets removed nevertheless just reinstall it to convert "
-#~ "those tables."
-#~ msgstr ""
-#~ "Nyere versioner af MySQL kan ikke længere benytte det gamle ISAM-"
-#~ "tabelformat, og det er derfor nødvendigt at konvertere dine tabeller til "
-#~ "f.eks. MyISAM forud for opgraderingen med \"mysql_convert_table_format\" "
-#~ "eller \"ALTER TABLE x ENGINE=MyISAM\". Installationen af mysql-server-5.1 "
-#~ "afbrydes nu. Skulle din gamle mysql-server-4.1 alligevel bliver "
-#~ "afinstalleret, så geninstallér den blot og konverter tabellerne."
-
-#~ msgid ""
-#~ "Support MySQL connections from hosts running Debian \"sarge\" or older?"
-#~ msgstr ""
-#~ "Understøt MySQL-forbindelser fra maskiner, der kører Debian \"Sarge\" "
-#~ "eller ældre?"
-
-#~ msgid ""
-#~ "In old versions of MySQL clients on Debian, passwords were not stored "
-#~ "securely. This has been improved since then, however clients (such as "
-#~ "PHP) from hosts running Debian 3.1 Sarge will not be able to connect to "
-#~ "recent accounts or accounts whose password have been changed."
-#~ msgstr ""
-#~ "Gamle udgaver af MySQL-klienter på Debian gemte ikke adgangskoderne "
-#~ "sikkert. Dette er blevet forbedret siden da, men klienter (f.eks. PHP) "
-#~ "fra maskiner, der kører Debian 3.1 Sarge vil ikke kunne forbinde til "
-#~ "nyere konti eller konti, hvis adgangskode er blevet ændret."
-
-#~ msgid ""
-#~ "To use mysql you must install an equivalent user and group to the "
-#~ "following and ensure yourself that /var/lib/mysql has the right "
-#~ "permissions (the uid/gid may be different)."
-#~ msgstr ""
-#~ "For at kunne bruge mysql skal du installere en bruger og en gruppe, der "
-#~ "svarer til nedenstående, og sikre dig at /var/lib/mysql har de rigtige "
-#~ "adgangsrettigheder (uid/gid kan afvige)."
-
-#~ msgid ""
-#~ "/etc/passwd:      mysql:x:100:101:MySQL Server:/var/lib/mysql:/bin/false"
-#~ msgstr ""
-#~ "etc/passwd:      mysql:x:100:101:MySQL Server:/var/lib/mysql:/bin/false"
-
-#~ msgid "/etc/group:       mysql:x:101:"
-#~ msgstr "/etc/group:       mysql:x:101:"
-
-#~ msgid "/var/lib/mysql:   drwxr-xr-x   mysql    mysql"
-#~ msgstr "/var/lib/mysql:   drwxr-xr-x   mysql    mysql"
-
-#~ msgid "Remove the databases used by all MySQL versions?"
-#~ msgstr "Fjern de databaser, der benyttes af samtlige MySQL-versioner?"
-
-#~ msgid ""
-#~ "If you do not provide a password no changes will be made to the account."
-#~ msgstr "Hvis du ikke angiver en adgangskode, vil kontoen ikke blive ændret."
-
-#~ msgid ""
-#~ "When installation finishes, you should verify that the account is "
-#~ "properly protected with a password (see README.Debian for more "
-#~ "information)."
-#~ msgstr ""
-#~ "Når installationen afsluttes, bør du tjekke at kontoen er ordentligt "
-#~ "beskyttet med en adgangskode (se README.Debian for yderligere "
-#~ "oplysninger)."
-
-#~ msgid "Update Hints"
-#~ msgstr "Opdateringstips"
-
-#~ msgid ""
-#~ "You have to run \"mysql_upgrade\" after the upgrade, else tables can be  "
-#~ "corrupted! This script also enhances the privilege tables but is not  "
-#~ "supposed to give any user more rights that he had before,"
-#~ msgstr ""
-#~ "Du skal køre \"mysql_upgrade\" efter opgraderingen, da tabellerne eller "
-#~ "kan blive ødelagt! Dette script forbedrer også rettighedstabellerne, men "
-#~ "burde ikke give nogen bruger flere rettigheder, end han havde tidligere,"
-
-#~ msgid "Please also read http://www.mysql.com/doc/en/Upgrade.html"
-#~ msgstr "Læs også http://www.mysql.com/doc/en/Upgrade.html"
-
-#~ msgid "Install Hints"
-#~ msgstr "Installationstips"
-
-#~ msgid ""
-#~ "On upgrades from MySQL 3.23, as shipped with Debian Woody, symlinks in "
-#~ "place of /var/lib/mysql or /var/log/mysql gets accidently removed and "
-#~ "have manually be restored."
-#~ msgstr ""
-#~ "Ved opgraderinger fra MySQL 3.23, der fulgte med Debian Woody, kan de "
-#~ "symbolske /var/lib/mysql or /var/log/mysql blive fjernet ved et uheld, og "
-#~ "må genskabes manuelt."
-
-#~ msgid ""
-#~ "MySQL will only install if you have a non-numeric hostname that is "
-#~ "resolvable via the /etc/hosts file. E.g. if the \"hostname\" command "
-#~ "returns \"myhostname\" then there must be a line like \"10.3.0.1 "
-#~ "myhostname\"."
-#~ msgstr ""
-#~ "MySQL vil kun blive installeret, hvis du har et ikke-numerisk værtsnavn, "
-#~ "som kan slås op i filen /ets/hosts. Hvis f.eks. kommandoen \"hostname\" "
-#~ "svarer med \"mitvaertsnavn\", skal du have en linje a'la \"10.3.0.1 "
-#~ "mitvaertsnavn\" i /etc/hosts."
-
-#~ msgid ""
-#~ "A new mysql user \"debian-sys-maint\" will be created. This mysql account "
-#~ "is used in the start/stop and cron scripts. Don't delete."
-#~ msgstr ""
-#~ "Det vil blive oprettet en ny mysql-bruger, \"debian-sys-maint\". Denne "
-#~ "mysql-konto bruges i start/stop-cron-scripterne. Slet den ikke."
-
-#~ msgid ""
-#~ "Please remember to set a PASSWORD for the MySQL root user! If you use a /"
-#~ "root/.my.cnf, always write the \"user\" and the \"password\" lines in "
-#~ "there, never only the password!"
-#~ msgstr ""
-#~ "Husk at sætte en ADGANGSKODE for MySQLs root-bruger! Hvis du bruger en /"
-#~ "etc/.my.cnf, så skriv altid \"user\"- og \"password\"-linjer ind her, "
-#~ "ikke kun adgangskoden!"
-
-#~ msgid ""
-#~ "Should I remove the complete /var/lib/mysql directory tree which is used "
-#~ "by all MySQL versions, not necessarily only the one you are about to "
-#~ "purge?"
-#~ msgstr ""
-#~ "Skal jeg fjerne hele mappetræet /var/lib/mysql, som benyttes af alle "
-#~ "MySQL-versioner, ikke kun den version, du er ved at slette?"
-
-#~ msgid ""
-#~ "Rarely, e.g. on new major versions, the privilege system is improved. To "
-#~ "make use of it mysql_fix_privilege_tables must be executed manually. The "
-#~ "script is not supposed to give any user more rights that he had before,"
-#~ msgstr ""
-#~ "En sjælden gang imellem, f.eks. ved nye hovedversioner, sker det at "
-#~ "rettighedssystemet forbedres. For at gøre brug af dette, skal "
-#~ "mysql_fix_privilege_tables køres manuelt. Scriptet vil ikke give nogen "
-#~ "bruger flere rettigheder, end vedkommende havde tidligere,"

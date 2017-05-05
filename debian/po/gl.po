@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mysql-dfsg-5.1\n"
 "Report-Msgid-Bugs-To: mariadb-10.3@packages.debian.org\n"
-"POT-Creation-Date: 2016-10-08 01:26+0300\n"
+"POT-Creation-Date: 2016-04-30 22:44+0300\n"
 "PO-Revision-Date: 2007-04-20 09:44+0200\n"
 "Last-Translator: Jacobo Tarrio <jtarrio@debian.org>\n"
 "Language-Team: Galician <proxecto@trasno.net>\n"
@@ -101,96 +101,11 @@ msgstr ""
 "recente ou se xa hai un paquete mariadb-server diferente a empregalo, "
 "debería conservar os datos."
 
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "New password for the MariaDB \"root\" user:"
-msgstr "Novo contrasinal para o usuario \"root\" de MariaDB:"
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid ""
-"While not mandatory, it is highly recommended that you set a password for "
-"the MariaDB administrative \"root\" user."
-msgstr ""
-"Aínda que non é obrigatorio, recoméndase encarecidamente que estableza un "
-"contrasinal para o usuario administrativo \"root\" de MariaDB."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-#, fuzzy
-#| msgid "If that field is left blank, the password will not be changed."
-msgid "If this field is left blank, the password will not be changed."
-msgstr "Se deixa o campo en branco, non se ha cambiar o contrasinal."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:6001
-#, fuzzy
-#| msgid "New password for the MySQL \"root\" user:"
-msgid "Repeat password for the MariaDB \"root\" user:"
-msgstr "Novo contrasinal para o usuario \"root\" de MariaDB:"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "Unable to set password for the MariaDB \"root\" user"
-msgstr "Non se puido establecer o contrasinal do usuario \"root\" de MariaDB"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid ""
-"An error occurred while setting the password for the MariaDB administrative "
-"user. This may have happened because the account already has a password, or "
-"because of a communication problem with the MariaDB server."
-msgstr ""
-"Houbo un erro ao establecer o contrasinal do usuario administrativo de "
-"MariaDB. Puido ocorrer porque o usuario xa teña un contrasinal ou debido a "
-"un problema de comunicacións co servidor MariaDB."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "You should check the account's password after tha package installation."
-msgid "You should check the account's password after the package installation."
-msgstr "Debería comprobar o contrasinal da conta trala instalación do paquete."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "Please read the /usr/share/doc/mysql-server-5.1/README.Debian file for "
-#| "more information."
-msgid ""
-"Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-"more information."
-msgstr ""
-"Consulte o ficheiro /usr/share/doc/mariadb-server-10.3/README.Debian para "
-"máis información."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "Password input error"
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
+#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
+#~ msgstr "Neste sistema hai un ficheiro chamado /var/lib/mysql/debian-*.flag."
 
 #~ msgid "Really proceed with downgrade?"
 #~ msgstr "¿Quere pasar a unha versión anterior?"
-
-#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
-#~ msgstr "Neste sistema hai un ficheiro chamado /var/lib/mysql/debian-*.flag."
 
 #, fuzzy
 #~| msgid ""
@@ -210,37 +125,55 @@ msgstr ""
 #~ "Non se pode garantir que a versión que está a instalar poida empregar as "
 #~ "bases de datos actuais."
 
-#~ msgid "Start the MariaDB server on boot?"
-#~ msgstr "¿Iniciar o servidor MariaDB co ordenador?"
+#~ msgid "Unable to set password for the MariaDB \"root\" user"
+#~ msgstr ""
+#~ "Non se puido establecer o contrasinal do usuario \"root\" de MariaDB"
 
 #~ msgid ""
-#~ "The MariaDB server can be launched automatically at boot time or manually "
-#~ "with the '/etc/init.d/mysql start' command."
+#~ "An error occurred while setting the password for the MariaDB "
+#~ "administrative user. This may have happened because the account already "
+#~ "has a password, or because of a communication problem with the MariaDB "
+#~ "server."
 #~ msgstr ""
-#~ "Pódese iniciar automaticamente o servidor MariaDB ao iniciar o ordenador, "
-#~ "ou manualmente coa orde \"/etc/init.d/mysql start\"."
+#~ "Houbo un erro ao establecer o contrasinal do usuario administrativo de "
+#~ "MariaDB. Puido ocorrer porque o usuario xa teña un contrasinal ou debido "
+#~ "a un problema de comunicacións co servidor MariaDB."
+
+#, fuzzy
+#~| msgid ""
+#~| "You should check the account's password after tha package installation."
+#~ msgid ""
+#~ "You should check the account's password after the package installation."
+#~ msgstr ""
+#~ "Debería comprobar o contrasinal da conta trala instalación do paquete."
+
+#, fuzzy
+#~| msgid ""
+#~| "Please read the /usr/share/doc/mysql-server-5.1/README.Debian file for "
+#~| "more information."
+#~ msgid ""
+#~ "Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
+#~ "more information."
+#~ msgstr ""
+#~ "Consulte o ficheiro /usr/share/doc/mariadb-server-10.3/README.Debian para "
+#~ "máis información."
+
+#~ msgid "New password for the MariaDB \"root\" user:"
+#~ msgstr "Novo contrasinal para o usuario \"root\" de MariaDB:"
 
 #~ msgid ""
-#~ "To use MariaDB, the following entries for users and groups should be "
-#~ "added to the system:"
+#~ "While not mandatory, it is highly recommended that you set a password for "
+#~ "the MariaDB administrative \"root\" user."
 #~ msgstr ""
-#~ "Para empregar MariaDB deberían engadirse ao sistema as seguintes entradas "
-#~ "de usuarios e grupos:"
+#~ "Aínda que non é obrigatorio, recoméndase encarecidamente que estableza un "
+#~ "contrasinal para o usuario administrativo \"root\" de MariaDB."
 
-#~ msgid ""
-#~ "Support MySQL connections from hosts running Debian \"sarge\" or older?"
-#~ msgstr ""
-#~ "¿Soportar as conexións a MySQL de máquinas que empreguen Debian \"sarge\" "
-#~ "ou anterior?"
+#, fuzzy
+#~| msgid "If that field is left blank, the password will not be changed."
+#~ msgid "If this field is left blank, the password will not be changed."
+#~ msgstr "Se deixa o campo en branco, non se ha cambiar o contrasinal."
 
-#~ msgid ""
-#~ "In old versions of MySQL clients on Debian, passwords were not stored "
-#~ "securely. This has been improved since then, however clients (such as "
-#~ "PHP) from hosts running Debian 3.1 Sarge will not be able to connect to "
-#~ "recent accounts or accounts whose password have been changed."
-#~ msgstr ""
-#~ "Nas versións antigas dos clientes MySQL de Debian, os contrasinais non se "
-#~ "armacenaban de xeito seguro. Isto mellorouse desde aquela; nembargantes, "
-#~ "os clientes (tales coma PHP) das máquinas que executen Debian 3.1 Sarge "
-#~ "non se han poder conectar a contas recentes ou a contas nas que se "
-#~ "cambiara o contrasinal."
+#, fuzzy
+#~| msgid "New password for the MySQL \"root\" user:"
+#~ msgid "Repeat password for the MariaDB \"root\" user:"
+#~ msgstr "Novo contrasinal para o usuario \"root\" de MariaDB:"

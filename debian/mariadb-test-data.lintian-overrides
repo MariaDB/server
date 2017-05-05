@@ -1,0 +1,18 @@
+# OK, this file is part of test suite and only used for a test
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_myisam.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_7_innodb.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_innodb.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_6.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_3.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_myisam_innodb.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_11.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_5_innodb.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_4_myisam.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_7_myisam.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_14.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_8_myisam.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_8_innodb.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_5_myisam.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/suite/parts/r/partition_exch_qa_4_innodb.result
+mariadb-test-data: executable-not-elf-or-script usr/share/mysql/mysql-test/plugin/oqgraph/oqgraph/maintainer-general-record.sh

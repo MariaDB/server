@@ -1,0 +1,33 @@
+#!/bin/sh
+# prerm script for #PACKAGE#
+#
+# see: dh_installdeb(1)
+
+set -e
+
+# summary of how this script can be called:
+#        * <prerm> `remove'
+#        * <old-prerm> `upgrade' <new-version>
+#        * <new-prerm> `failed-upgrade' <old-version>
+#        * <conflictor's-prerm> `remove' `in-favour' <package> <new-version>
+#        * <deconfigured's-prerm> `deconfigure' `in-favour'
+#          <package-being-installed> <version> `removing'
+#          <conflicting-package> <version>
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+if [ -n "$DEBIAN_SCRIPT_DEBUG" ]; then set -v -x; DEBIAN_SCRIPT_TRACE=1; fi
+${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
+
+#DEBHELPER#
+
+# If MySQL server is still running let the admin do it himself. No
+# database directories should be removed while the server is running!
+# Another mysqld in e.g. a different chroot is fine for us.
+if pidof -c /usr/sbin/mysqld 2>/dev/null; then
+  echo "There is a MySQL server running, but we failed in our attempts to stop it." 1>&2
+  echo "Stop it yourself and try again!" 1>&2
+  exit 1
+fi
+
+exit 0

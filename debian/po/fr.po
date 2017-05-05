@@ -1,30 +1,31 @@
-# Translation of mysql-dfsg-* debconf templates to French
-# Copyright (C) 2004-2009 Debian French l10n team <debian-l10n-french@lists.debian.org>
-# This file is distributed under the same license as the mysql-dfsg-* packages.
+# Translation of mariadb-10.3 debconf templates to French
+# Copyright (C) 2004-2016 Debian French l10n team <debian-l10n-french@lists.debian.org>
+# This file is distributed under the same license as the mariadb-10.3 packages.
 #
 # Translators:
-# Christian Perrier <bubulle@debian.org>, 2004, 2006, 2007, 2009.
+# Christian Perrier <bubulle@debian.org>, 2004, 2006, 2007, 2009, 2013.
+# Baptiste Jammet <baptiste@mailoo.org>, 2016.
 msgid ""
 msgstr ""
 "Project-Id-Version: fr\n"
 "Report-Msgid-Bugs-To: mariadb-10.3@packages.debian.org\n"
-"POT-Creation-Date: 2016-10-08 01:26+0300\n"
-"PO-Revision-Date: 2009-08-08 14:56+0200\n"
-"Last-Translator: Christian Perrier <bubulle@debian.org>\n"
+"POT-Creation-Date: 2016-04-30 22:44+0300\n"
+"PO-Revision-Date: 2016-12-31 18:35+0100\n"
+"Last-Translator: Baptiste Jammet <baptiste@mailoo.org>\n"
 "Language-Team: French <debian-l10n-french@lists.debian.org>\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "debian.org>\n"
-"X-Generator: Lokalize 0.3\n"
+"X-Generator: Lokalize 1.5\n"
 "Plural-Forms: Plural-Forms: nplurals=2; plural=n>1;\n"
 
 #. Type: note
 #. Description
 #: ../mariadb-server-10.3.templates:2001
 msgid "The old data directory will be saved at new location"
-msgstr ""
+msgstr "L'ancien répertoire de données sera sauvegardé à un nouvel emplacement"
 
 #. Type: note
 #. Description
@@ -34,6 +35,9 @@ msgid ""
 "indicates a database binary format version that cannot automatically be "
 "upgraded (or downgraded)."
 msgstr ""
+"Un fichier nommé /var/lib/mysql/debian-*.flag existe déjà sur ce système. Le "
+"numéro indique une version de base de données au format binaire qui ne peut "
+"pas être mise à niveau (ou rétrogradée) automatiquement."
 
 #. Type: note
 #. Description
@@ -42,6 +46,8 @@ msgid ""
 "Therefore the previous data directory will be renamed to /var/lib/mysql-* "
 "and a new data directory will be initialized at /var/lib/mysql."
 msgstr ""
+"L'ancien répertoire sera renommé en /var/lib/mysql-* et un nouveau "
+"répertoire de données sera initialisé à l'emplacement /var/lib/mysql."
 
 #. Type: note
 #. Description
@@ -49,6 +55,8 @@ msgstr ""
 msgid ""
 "Please manually export/import your data (e.g. with mysqldump) if needed."
 msgstr ""
+"Veuillez exporter puis importer vos données manuellement si besoin (par "
+"exemple avec mysqldump)."
 
 #. Type: note
 #. Description
@@ -100,97 +108,15 @@ msgid ""
 "recent version or if a different mariadb-server package is already using it, "
 "the data should be kept."
 msgstr ""
-"Si vous prévoyez d'installer une version plus récente de MariaDB ou si un "
-"autre paquet mariadb-server les utilise déjà, vous devriez les conserver."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "New password for the MariaDB \"root\" user:"
-msgstr "Nouveau mot de passe du superutilisateur de MariaDB :"
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid ""
-"While not mandatory, it is highly recommended that you set a password for "
-"the MariaDB administrative \"root\" user."
-msgstr ""
-"Il est très fortement recommandé d'établir un mot de passe pour le compte "
-"d'administration de MariaDB (« root »)."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "If this field is left blank, the password will not be changed."
-msgstr "Si ce champ est laissé vide, le mot de passe ne sera pas changé."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:6001
-msgid "Repeat password for the MariaDB \"root\" user:"
-msgstr "Confirmation du mot de passe du superutilisateur de MariaDB :"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "Unable to set password for the MariaDB \"root\" user"
-msgstr ""
-"Impossible de changer le mot de passe de l'utilisateur « root » de MariaDB"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid ""
-"An error occurred while setting the password for the MariaDB administrative "
-"user. This may have happened because the account already has a password, or "
-"because of a communication problem with the MariaDB server."
-msgstr ""
-"Une erreur s'est produite lors du changement de mot de passe du compte "
-"d'administration. Un mot de passe existait peut-être déjà ou il n'a pas été "
-"possible de communiquer avec le serveur MariaDB."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "You should check the account's password after the package installation."
-msgstr ""
-"Vous devriez vérifier le mot de passe de ce compte après l'installation du "
-"paquet."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-#| "more information."
-msgid ""
-"Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-"more information."
-msgstr ""
-"Veuillez consulter le fichier /usr/share/doc/mysql-server-10.3/README.Debian "
-"pour plus d'informations."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "Password input error"
-msgstr "Erreur de saisie du mot de passe"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
-"Le mot de passe et sa confirmation ne sont pas identiques. Veuillez "
-"recommencer."
-
-#~ msgid "Really proceed with downgrade?"
-#~ msgstr "Faut-il vraiment revenir à la version précédente ?"
+"Si vous retirez le paquet MariaDB en vue d'en installer une version plus "
+"récente ou si un autre paquet mariadb-server les utilise déjà, vous devriez "
+"les conserver."
 
 #~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
 #~ msgstr "Un fichier /var/lib/mysql/debian-*.flag est présent sur ce système."
+
+#~ msgid "Really proceed with downgrade?"
+#~ msgstr "Faut-il vraiment revenir à la version précédente ?"
 
 #~ msgid ""
 #~ "Such a file is an indication that a mariadb-server package with a higher "
@@ -203,39 +129,76 @@ msgstr ""
 #~ "There is no guarantee that the version you're currently installing will "
 #~ "be able to use the current databases."
 #~ msgstr ""
-#~ "Il n'est pas garanti que cette version puisse en utiliser les données."
+#~ "Il n'est pas garanti que cette version puisse en utiliser les bases de "
+#~ "données."
 
-#~ msgid "Start the MariaDB server on boot?"
-#~ msgstr "Faut-il lancer MariaDB au démarrage ?"
-
-#~ msgid ""
-#~ "The MariaDB server can be launched automatically at boot time or manually "
-#~ "with the '/etc/init.d/mysql start' command."
-#~ msgstr ""
-#~ "MariaDB peut être lancé soit au démarrage, soit en entrant la commande « /"
-#~ "etc/init.d/mysql start »."
+#~ msgid "Really migrate to MariaDB?"
+#~ msgstr "Souhaitez-vous migrer vers MariaDB ?"
 
 #~ msgid ""
-#~ "To use MySQL, the following entries for users and groups should be added "
-#~ "to the system:"
+#~ "MariaDB is a drop-in replacement for MySQL. It will use your current "
+#~ "configuration file (my.cnf) and current databases."
 #~ msgstr ""
-#~ "Pour pouvoir utiliser MySQL, les utilisateurs et les groupes suivants "
-#~ "doivent être ajoutés au système :"
+#~ "MariaDB remplace à l'identique MySQL. Le fichier de configuration actuel "
+#~ "(my.cnf) ainsi que les bases de données existantes seront utilisés."
 
 #~ msgid ""
-#~ "Support MySQL connections from hosts running Debian \"sarge\" or older?"
+#~ "Note that MariaDB has some enhanced features, which do not exist in MySQL "
+#~ "and thus migration back to MySQL might not always work, at least not as "
+#~ "automatically as migrating from MySQL to MariaDB."
 #~ msgstr ""
-#~ "Gérer les connexions d'hôtes qui utilisent les versions Debian « sarge » "
-#~ "ou antérieures  ?"
+#~ "Veuillez noter que MariaDB fournit des fonctionnalités améliorées qui "
+#~ "n'existent pas dans MySQL ce qui peut interdire un retour ultérieur à "
+#~ "MySQL, tout au moins de manière moins automatique que la migration de "
+#~ "MySQL vers MariaDB."
+
+#~ msgid "Unable to set password for the MariaDB \"root\" user"
+#~ msgstr ""
+#~ "Impossible de changer le mot de passe de l'utilisateur « root » de MariaDB"
 
 #~ msgid ""
-#~ "In old versions of MySQL clients on Debian, passwords were not stored "
-#~ "securely. This has been improved since then, however clients (such as "
-#~ "PHP) from hosts running Debian 3.1 Sarge will not be able to connect to "
-#~ "recent accounts or accounts whose password have been changed."
+#~ "An error occurred while setting the password for the MariaDB "
+#~ "administrative user. This may have happened because the account already "
+#~ "has a password, or because of a communication problem with the MariaDB "
+#~ "server."
 #~ msgstr ""
-#~ "La méthode de stockage des mots de passe n'était pas très sûre dans les "
-#~ "version précédentes de ce paquet. Cette méthode a été améliorée mais les "
-#~ "modifications empêchent la connexion avec de nouveaux comptes ou des "
-#~ "comptes dont le mot de passe a été modifié, pour les clients (p. ex. PHP) "
-#~ "depuis des hôtes qui utilisent Debian 3.1 « sarge »."
+#~ "Une erreur s'est produite lors du changement de mot de passe du compte "
+#~ "d'administration. Un mot de passe existait peut-être déjà ou il n'a pas "
+#~ "été possible de communiquer avec le serveur MariaDB."
+
+#~ msgid ""
+#~ "You should check the account's password after the package installation."
+#~ msgstr ""
+#~ "Vous devriez vérifier le mot de passe de ce compte après l'installation "
+#~ "du paquet."
+
+#~ msgid ""
+#~ "Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
+#~ "more information."
+#~ msgstr ""
+#~ "Veuillez consulter le fichier /usr/share/doc/mariadb-server-10.3/README."
+#~ "Debian pour plus d'informations."
+
+#~ msgid "New password for the MariaDB \"root\" user:"
+#~ msgstr "Nouveau mot de passe du superutilisateur de MariaDB :"
+
+#~ msgid ""
+#~ "While not mandatory, it is highly recommended that you set a password for "
+#~ "the MariaDB administrative \"root\" user."
+#~ msgstr ""
+#~ "Il est très fortement recommandé d'établir un mot de passe pour le compte "
+#~ "d'administration de MariaDB (« root »)."
+
+#~ msgid "If this field is left blank, the password will not be changed."
+#~ msgstr "Si ce champ est laissé vide, le mot de passe ne sera pas changé."
+
+#~ msgid "Repeat password for the MariaDB \"root\" user:"
+#~ msgstr "Confirmation du mot de passe du superutilisateur de MariaDB :"
+
+#~ msgid "Password input error"
+#~ msgstr "Erreur de saisie du mot de passe"
+
+#~ msgid "The two passwords you entered were not the same. Please try again."
+#~ msgstr ""
+#~ "Le mot de passe et sa confirmation ne sont pas identiques. Veuillez "
+#~ "recommencer."

@@ -1,37 +1,27 @@
-# translation of mysql-dfsg-5.1_5.1.37-1_de.po to Deutsch
-#
-#    Translators, if you are not familiar with the PO format, gettext
-#    documentation is worth reading, especially sections dedicated to
-#    this format, e.g. by running:
-#         info -n '(gettext)PO Files'
-#         info -n '(gettext)Header Entry'
-#    Some information specific to po-debconf are available at
-#            /usr/share/doc/po-debconf/README-trans
-#         or http://www.debian.org/intl/l10n/po-debconf/README-trans#
-#    Developers do not need to manually edit POT or PO files.
-#
+# German translation of mariadb-10.3 10.0.13-1
 # Alwin Meschede <ameschede@gmx.de>, 2006, 2007.
 # Thomas Mueller <thomas.mueller@tmit.eu>, 2009.
+# Chris Leick <c.leick@vollbio.de>, 2014-2016.
+#
 msgid ""
 msgstr ""
-"Project-Id-Version: mysql-dfsg-5.1_5.1.37-1_de\n"
+"Project-Id-Version: mariadb 10.0.25-1\n"
 "Report-Msgid-Bugs-To: mariadb-10.3@packages.debian.org\n"
-"POT-Creation-Date: 2016-10-08 01:26+0300\n"
-"PO-Revision-Date: 2009-08-27 22:41+0200\n"
-"Last-Translator: Thomas Mueller <thomas.mueller@tmit.eu>\n"
+"POT-Creation-Date: 2016-04-13 11:44+0300\n"
+"PO-Revision-Date: 2016-05-12 22:39+0100\n"
+"Last-Translator: Chris Leick <c.leick@vollbio.de>\n"
 "Language-Team: german <debian-l10n-german@lists.debian.org>\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.4\n"
 "Plural-Forms:  nplurals=2; plural=(n != 1);\n"
 
 #. Type: note
 #. Description
 #: ../mariadb-server-10.3.templates:2001
 msgid "The old data directory will be saved at new location"
-msgstr ""
+msgstr "Das alte Datenverzeichnis wird an einer neuen Stelle gespeichert"
 
 #. Type: note
 #. Description
@@ -41,6 +31,10 @@ msgid ""
 "indicates a database binary format version that cannot automatically be "
 "upgraded (or downgraded)."
 msgstr ""
+"Auf diesem System gibt es bereits eine Datei namens "
+"/var/lib/mysql/debian-*.flag. Die Zahl gibt eine Binärformatversion der "
+"Datenbank an, von der nicht automatisch ein Upgrade (oder Downgrade) "
+"durchgeführt werden kann."
 
 #. Type: note
 #. Description
@@ -49,6 +43,8 @@ msgid ""
 "Therefore the previous data directory will be renamed to /var/lib/mysql-* "
 "and a new data directory will be initialized at /var/lib/mysql."
 msgstr ""
+"Daher wird das vorherige Datenverzeichnis in /var/lib/mysql-* umbenannt und "
+"unter /var/lib/mysql wird ein neues Datenverzeichnis initialisiert."
 
 #. Type: note
 #. Description
@@ -56,6 +52,8 @@ msgstr ""
 msgid ""
 "Please manually export/import your data (e.g. with mysqldump) if needed."
 msgstr ""
+"Bitte exportieren/importieren Sie im Bedarfsfall Ihre Daten (z.B. mit "
+"Mysqldump)."
 
 #. Type: note
 #. Description
@@ -70,8 +68,8 @@ msgid ""
 "Using MariaDB under NIS/YP requires a mysql user account to be added on the "
 "local system with:"
 msgstr ""
-"Falls MariaDB mit NIS/YP genutzt wird, ist ein »mysql«-Benutzerkonto auf dem "
-"lokalen System notwendig:"
+"Falls MariaDB mit NIS/YP genutzt wird, muss ein »mysql«-Benutzerkonto auf "
+"dem lokalen System hinzugefügt werden mit:"
 
 #. Type: note
 #. Description
@@ -107,122 +105,6 @@ msgid ""
 "recent version or if a different mariadb-server package is already using it, "
 "the data should be kept."
 msgstr ""
-"Falls geplant ist, nur eine höhere Version von MariaDB zu installieren oder "
-"ein anderes mariadb-server-Paket dieses bereits benutzt, sollten die Daten "
-"behalten werden."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "New password for the MariaDB \"root\" user:"
-msgstr "Neues Passwort für den MariaDB »root«-Benutzer:"
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid ""
-"While not mandatory, it is highly recommended that you set a password for "
-"the MariaDB administrative \"root\" user."
-msgstr ""
-"Obwohl es nicht zwingend erforderlich ist, wird nachdrücklich empfohlen für "
-"den administrativen MariaDB »root«-Benutzer ein Passwort zu setzen."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:5001
-msgid "If this field is left blank, the password will not be changed."
-msgstr "Wenn dieses Feld freigelassen wird, wird das Passwort nicht geändert."
-
-#. Type: password
-#. Description
-#: ../mariadb-server-10.3.templates:6001
-msgid "Repeat password for the MariaDB \"root\" user:"
-msgstr "Wiederholen Sie das Passwort für den MariaDB-»root«-Benutzer:"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "Unable to set password for the MariaDB \"root\" user"
-msgstr "Konnte für den MariaDB-»root«-Benutzer kein Passwort setzen"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid ""
-"An error occurred while setting the password for the MariaDB administrative "
-"user. This may have happened because the account already has a password, or "
-"because of a communication problem with the MariaDB server."
-msgstr ""
-"Beim setzen des Passworts für den administrativen MariaDB-Benutzer ist ein "
-"Fehler aufgetreten. Dies könnte daran liegen, dass der Benutzer bereits ein "
-"Passwort hat oder dass es ein Problem mit der Kommunikation mit dem MariaDB-"
-"Server gibt."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-msgid "You should check the account's password after the package installation."
-msgstr ""
-"Sie sollten das Passwort des administrativen Benutzers nach der "
-"Paketinstallation prüfen."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:7001
-#, fuzzy
-#| msgid ""
-#| "Please read the /usr/share/doc/mariadb-server-5.1/README.Debian file for "
-#| "more information."
-msgid ""
-"Please read the /usr/share/doc/mariadb-server-10.3/README.Debian file for "
-"more information."
-msgstr ""
-"Für weitere Informationen lesen Sie /usr/share/doc/mariadb-server-5.1/README."
-"Debian."
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "Password input error"
-msgstr "Passwort-Eingabefehler"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.3.templates:8001
-msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
-"Die beiden von Ihnen eingegebenen Passwörter sind nicht identisch. Bitte "
-"erneut versuchen."
-
-#~ msgid "Really proceed with downgrade?"
-#~ msgstr "Möchten Sie wirklich eine ältere Version einspielen?"
-
-#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
-#~ msgstr ""
-#~ "Auf diesem System existiert eine Datei mit dem Namen /var/lib/mysql/"
-#~ "debian-*.flag"
-
-#~ msgid ""
-#~ "Such a file is an indication that a mariadb-server package with a higher "
-#~ "version has been installed previously."
-#~ msgstr ""
-#~ "Diese Datei ist ein Hinweis darauf, dass früher ein MariaDB-Server-Paket "
-#~ "mit einer höheren Version installiert war."
-
-#~ msgid ""
-#~ "There is no guarantee that the version you're currently installing will "
-#~ "be able to use the current databases."
-#~ msgstr ""
-#~ "Es kann nicht garantiert werden, dass die gegenwärtig zu installierende "
-#~ "Version dessen Daten benutzen kann."
-
-#~ msgid "Start the MariaDB server on boot?"
-#~ msgstr "Soll der MariaDB-Server automatisch beim Booten starten?"
-
-#~ msgid ""
-#~ "The MariaDB server can be launched automatically at boot time or manually "
-#~ "with the '/etc/init.d/mysql start' command."
-#~ msgstr ""
-#~ "Der MariaDB-Dienst kann entweder automatisch beim Systemstart oder "
-#~ "manuell durch Eingabe des Befehls »/etc/init.d/mysql start« gestartet "
-#~ "werden."
+"Falls geplant ist, das MariaDB-Paket zu entfernen, um lediglich eine höhere "
+"Version zu installieren oder ein anderes mariadb-server-Paket die Daten "
+"benutzt, sollten diese beibehalten werden."

@@ -1,47 +1,956 @@
-mariadb-10.3 (10.3.0) unstable; urgency=low
+mariadb-10.3 (10.3.0-0+exp2) experimental; urgency=medium
 
-  * Initial release.
+  * Separate RocksDB storage engine into separate package and build it
+    only on 64-bit architectures
+  * Add s390x into a list with unstable tests
+  * Attempt to build TokuDB on all amd64 archs
 
- -- Vicențiu Ciorbaru <vicentiu@mariadb.org>  Wed, 5 Apr 2017 21:18:02 +0200
+ -- Ondřej Surý <ondrej@debian.org>  Tue, 02 May 2017 15:21:14 +0200
 
-mariadb-10.2 (10.2.0) unstable; urgency=low
+mariadb-10.3 (10.3.0-0+exp1) experimental; urgency=medium
 
-  * Initial release.
+  * New upstream version 10.3.0
+  * Remove several patches already merged upstream
+  * [MDEV-12516]: Move mysqlbinlog to mariadb-client-* package
+  * Rewrite the major.minor specific parts to be generated
+    according to the latest changelog entry.  That would help to
+    keep the history between MariaDB series (10.3 -> 10.4 ...)
+    and to keep the more in the sync in the future.
+  * Rename the client libraries libmariadb{3,-dev}
+  * Build the client library with GnuTLS
+  * Bump the libmariadbd SOVERSION in the package name
+  * (EXPERIMENTAL) Use ninja build CMake backend
+  * Install various additional files added in MariaDB 10.3
+    and enable --fail-missing feature of dh_install
+  * Make the mysql_config mariadb_config multi-arch compatible
+    by moving the real commands to /usr/lib/$(DEB_HOST_MULTIARCH)
+    and putting simple wrappers that call real commands into
+    /usr/bin
+  * Update debian/copyright with information about added files
+    between MariaDB 10.1 and MariaDB 10.3
 
- -- Otto Kekäläinen <otto@mariadb.org>  Sat, 14 Nov 2015 21:26:45 +0200
+ -- Ondřej Surý <ondrej@debian.org>  Sun, 30 Apr 2017 22:59:48 +0200
 
-mariadb-10.1 (10.1.0) unstable; urgency=low
+mariadb-10.1 (10.1.22-3) unstable; urgency=medium
 
-  * Initial release.
+  * Use pidof instead of pgrep, so we don't have to depend on procps
+  * Stop stopping mariadb server that many times and just add a simple
+    check to preinst that it has been really stopped (Closes: #852495)
+  * Fix small typo in gettid patch
+  * Disable TokuDB on kfreebsd-amd64
 
- -- Sergei Golubchik <serg@askmonty.org>  Fri, 23 May 2014 09:44:38 -0200
+ -- Ondřej Surý <ondrej@debian.org>  Tue, 28 Mar 2017 22:59:06 +0200
 
-mariadb-10.0 (10.0.0) unstable; urgency=low
+mariadb-10.1 (10.1.22-2) unstable; urgency=medium
 
-  * Initial release.
+  [ Ondřej Surý ]
+  * Add correct kfreebsd-i386 symbols file (but this needs to be fixed in
+    how upstream uses linker)
+  * Update italian translation (Closes: #858300)
 
- -- Sergei Golubchik <serg@askmonty.org>  Sat, 20 Oct 2012 17:18:44 -0100
+  [ Otto Kekäläinen ]
+  * Add Vietnamese translation by Trần Ngọc Quân
+  * Add Finnish translation by Antti Järvinen
 
-mariadb-5.5 (5.5.1) unstable; urgency=low
+  [ Ondřej Surý ]
+  * Disable test suite on hppa, don't fail test suite on more unstable
+    platforms: alpha, powerpc, and x32
+  * Add swedish debconf translation (Closes: #858536)
+  * Add Catalan debconf translation (Closes: #858632)
+  * Use thr_self() as gettid implementation onf __FreeBSD_kernel__
+  * Make mariadb-server-10.1 installable on kFreeBSD and Hurd (Closes: #851687)
+  * Update Turkish debconf translation (Closes: #858340)
+  * Disable specific tests on hppa to make the build succeed (Courtesy of
+    John David Anglin) (Closes: #858869)
 
-  * Initial release.
+ -- Ondřej Surý <ondrej@debian.org>  Tue, 28 Mar 2017 22:59:01 +0200
 
- -- Kristian Nielsen <knielsen@askmonty.org>  Fri, 6 Jan 2012 15:17:23 -0100
+mariadb-10.1 (10.1.22-1) unstable; urgency=high
 
-mariadb-5.3 (5.3.0) unstable; urgency=low
+  [ Otto Kekäläinen ]
+  * New upstream release 10.1.22. Includes fixes for the following
+    security vulnerabilities:
+    - CVE-2017-3313
+    - CVE-2017-3302
+  * New upstream also includes fix to logrotate so that it no longer
+    risks interrupting binary/relay log processing on the server.
+    https://github.com/MariaDB/server/commit/156cf86defdc59353f37f6
+  * Add a NEWS.Debian item with same contents as the Stretch release notes
 
-  * Initial release.
+  [ Ondřej Surý ]
+  * Add myself to Uploaders
+  * Use https URI for Homepage
+  * Use /usr/share/dpkg/default.mk to define dpkg-architecture and other
+    build variables
+  * Install and use non-versioned symbols files for kFreeBSD and Hurd
+    architectures
+  * Make mysql_config and mariadb.pc return -lmariadbclient instead of
+    missing -lmysqlclient
+  * Add mysqlclient.pc -> mariadb.pc symlink into
+    libmariadbclient-dev-compat package
+  * MDEV-11884: Fix logrotate failing if mysqld is not running (Closes: #830976)
 
- -- Sergei Golubchik <serg@askmonty.org>  Mon, 1 Nov 2010 09:16:01 -0100
+ -- Ondřej Surý <ondrej@debian.org>  Sun, 19 Mar 2017 15:23:26 +0100
 
-mariadb-5.2 (5.2.0) unstable; urgency=low
+mariadb-10.1 (10.1.21-5) unstable; urgency=low
 
-  * Initial release.
+  [ James Clarke ]
+  * Make debian/mariadb-server-10.1.install executable (Closes: #852728)
+  * Allow mariadb-plugin-tokudb/mroonga on non-linux and non-release arches
+  * Detect whether libatomic is needed rather than hard-coding for mips
+  * Use host architecture, not build architecture, and clean up variables
+  * General clean-up in d/rules
 
- -- Kristian Nielsen <knielsen@askmonty.org>  Wed, 17 Mar 2010 12:54:51 -0100
+ -- Otto Kekäläinen <otto@debian.org>  Fri, 27 Jan 2017 20:42:36 +0200
 
-mariadb-5.1 (5.1.0) unstable; urgency=low
+mariadb-10.1 (10.1.21-4) unstable; urgency=low
 
-  * Initial release.
+  * Hotfix to full build failure: Add missing galera_new_cluster.1 to patch
 
- -- Peter Lieverdink <peter@openquery.com>  Tue, 29 Sep 2009 17:05:03 +1000
+ -- Otto Kekäläinen <otto@debian.org>  Thu, 26 Jan 2017 23:33:32 +0200
+
+mariadb-10.1 (10.1.21-3) unstable; urgency=low
+
+  [ Ian Gilfillan ]
+  * Extend WSREP and Galera man pages patch to cover all commands
+
+  [ Dieter Adriaenssens ]
+  * Specify Architecture for mariadb-plugin-mroonga and mariadb-plugin-tokudb 
+    (Closes: #852709)
+
+  [ James Clarke ]
+  * Fix FTBFS on non-Linux architectures (Closes: #852728)
+
+ -- Otto Kekäläinen <otto@debian.org>  Thu, 26 Jan 2017 22:18:26 +0200
+
+mariadb-10.1 (10.1.21-2) unstable; urgency=low
+
+  [ Otto Kekäläinen ]
+  * Implement systemd packaging the Debian way
+  * Extend README.Debian regarding new systemd files
+  * Add config file comments about SysV init and systemd differences
+  * Extend Debian.README with section about mixing with packages MariaDB.org
+  * Update /etc/init.d/mysql after comparison with upstream MariaDB 10.1.21
+  * Run chown much faster on the datadir during install/update
+  * Check if /var/lib/mysql exists before running 'find' on it
+  * Skip mysqld stopping if no mysqld process is running at all
+  * Update French debconf translation by Baptiste Jammet (Closes: #850066)
+  * Remove unnecessary XS-Testsuite field (as instructed by Lintian)
+  * Add a modified version of upstream autobake-deb script to utilize CI tools
+  * Fix server config example on how to enable SSL with YaSSL (Closes: #851132)
+  * Make commands mariadb and mariadbcheck available with symlinks
+
+  [ Jean Weisbuch ]
+  * Update Innotop to latest version
+
+  [ Ian Gilfillan ]
+  * Add wsrep_* man pages
+
+ -- Otto Kekäläinen <otto@debian.org>  Wed, 25 Jan 2017 10:42:45 +0200
+
+mariadb-10.1 (10.1.21-1) unstable; urgency=low
+
+  [ Otto Kekäläinen ]
+  * New upstream release 10.0.28. Includes fixes for the following
+    security vulnerabilities (Closes: #851759, Closes: ##849435):
+    - CVE-2017-3318
+    - CVE-2017-3317
+    - CVE-2017-3312
+    - CVE-2017-3291
+    - CVE-2017-3265
+    - CVE-2017-3258
+    - CVE-2017-3257
+    - CVE-2017-3244
+    - CVE-2017-3243
+    - CVE-2017-3238
+    - CVE-2016-6664
+  * Add new program introduced in upstream 10.1.21: mysqld_safe_helper
+  * Deb-CI: remove parameter --skip-ndbcluster not available in 10.1 any more
+  * Make libmariadbclient18 depend on mysql-common only (Closes: #850216)
+  * Fix misleading config file comment (Closes: #677223)
+  * Update preinst variable $this_version from 10.0 to 10.1 (Closes: #851257)
+
+  [ Kristian Nielsen ]
+  * Re-implement passwordless root login (Closes: #851131)
+
+ -- Otto Kekäläinen <otto@debian.org>  Thu, 19 Jan 2017 11:33:01 +0200
+
+mariadb-10.1 (10.1.20-3) unstable; urgency=low
+
+  [ Vicențiu Ciorbaru ]
+  * Update debian rules to also account for mipsel
+
+ -- Otto Kekäläinen <otto@debian.org>  Sat, 24 Dec 2016 20:23:23 +0200
+
+mariadb-10.1 (10.1.20-2) unstable; urgency=low
+
+  [ Otto Kekäläinen ]
+  * Upload to unstable
+  * Previous version string should had been ~exp1, thus this
+    first upload to unstable is -2 and not -1 as normal
+  * Disable test suite temporairly due to false regressions
+
+  [ Dieter Adriaenssens ]
+  * fix Vcs-git link format and repo name
+  * update 10.0 to 10.1 in README files
+
+  [ Vicențiu Ciorbaru ]
+  * Fix mips missing atomics primitives
+
+ -- Otto Kekäläinen <otto@debian.org>  Sat, 24 Dec 2016 09:54:59 +0200
+
+mariadb-10.1 (10.1.20-1) experimental; urgency=low
+
+  * Upgrade package to new MariaDB 10.1.x series:
+    - New upstream release  10.1.20
+    - Refresh patches after 10.1.20 import
+    - Update strings 10.0 -> 10.1 after importing 10.1.20
+    - Refresh patches after 10.1.20 import
+    - Update d/control after 10.1 import
+    - Use https protected git url in d/control
+    - Backwards compatible XS-Testsuite syntax in d/control
+    - Import debian/* changes done in upstream 10.1
+    - Replace deprecated iproute with iproute2
+    - Remove unnecessary dependencies as packages are Essential anyway
+    - Remove unnecessary and big file mysql_embedded
+    - Switch to 10.1 style build flag for unix socket auth module in d/rules
+    - Update d/copyright after 10.1 import
+    - Add missing aria_add_gis_sp.sql to mariadb-server-10.1
+    - Ship SELinux and AppArmor files with the server, but as inactive
+    - New package from upstream 10.1: GSS API (Kerberos) client and server
+    - Extend GSSAPI plugin descriptions to satisfy Lintian
+    - New plugin from upstream 10.1: Cracklib password validation
+
+ -- Otto Kekäläinen <otto@debian.org>  Tue, 20 Dec 2016 22:46:59 +0200
+
+mariadb-10.0 (10.0.28-3) unstable; urgency=low
+
+  [ Otto Kekäläinen ]
+  * Move libmariadbd and -dev next to each other for a more logical flow in d/control
+  * Move mariadb-test to last in file for a more logical flow in d/control
+  * Clean away unused Lintian overrides
+  * Add Lintian override for impossible mysql_config multi-arch requirement
+  * Update Debian copyright based on the 2016 git log author list
+  * Remove unnecessary /var/lib/mysql-upgrade (Closes: #848620)
+
+  [ Vicențiu Ciorbaru ]
+  * Fix connect.upd test in armhf
+  * Fix mroonga/storage.index_read_multiple_double test in armhf
+
+ -- Otto Kekäläinen <otto@debian.org>  Tue, 20 Dec 2016 21:59:47 +0200
+
+mariadb-10.0 (10.0.28-2) unstable; urgency=low
+
+  [ Samuel Thibault ]
+  * patches/hurd_socket.patch: Also avoid non-working socket path length check
+    on hurd-i386.
+  * rules: Drop symbols on hurd-i386 too (Closes: #842696).
+
+  [ Daniel Black ]
+  * Don't install private mysql header files in libmariadbclient-dev
+
+  [ Otto Kekäläinen ]
+  * Update libmariadbd18 description and contents to match latest upstream
+  * Mark missing Multi-Arch as suggested by Multiarch hinter
+  * Move plugins to $ARCH/*/mariadb18 to meet multiarch needs (Closes: #739452)
+
+ -- Otto Kekäläinen <otto@debian.org>  Fri, 11 Nov 2016 22:03:33 +0200
+
+mariadb-10.0 (10.0.28-1) unstable; urgency=low
+
+  [ Vicențiu Ciorbaru ]
+  * Fix tokudb jemalloc linking
+
+  [ Otto Kekäläinen ]
+  * New upstream release 10.0.28. Includes fixes for the following
+    security vulnerabilities:
+    - CVE-2016-8283
+    - CVE-2016-7440
+    - CVE-2016-6663
+    - CVE-2016-5629
+    - CVE-2016-5626
+    - CVE-2016-5624
+    - CVE-2016-5616
+    - CVE-2016-5584
+    - CVE-2016-3492
+  * Drop 4 patches that have been applied upstream.
+  * Delete runnable files from mariadb-test-data as they were only
+    needed at build time to generate tests.
+
+ -- Otto Kekäläinen <otto@debian.org>  Fri, 28 Oct 2016 22:51:14 +0300
+
+mariadb-10.0 (10.0.27-2) unstable; urgency=low
+
+  [ Dieter Adriaenssens ]
+  * Fix typo in README.Contributor
+  * Improve documentation on how to clean the build env
+
+  [ James Cowgill ]
+  * Mips build and testsuite fixes (Closes: #838557, Closes: #838914)
+    - Permit 93 as a valid value of the ENOTEMPTY error in the testsuite
+    - Correctly fix mips64 multiplication in taocrypt
+    - Ensure groonga is built with libatomic
+    - Handle unaligned buffers in connect's TYPBLK class
+    - Fix DEFAULT_MACHINE on mips
+    - Remove various tests from unstable-tests which now pass on MIPS
+    - Update debian/unstable-tests.mips*
+
+  [ Kristian Nielsen ]
+  * Fix missing path for perl in autopkgtest (Closes: #809022)
+  * Fix test failures on hppa due to wrong enoempty (Closes: #837369)
+
+ -- Otto Kekäläinen <otto@debian.org>  Sun, 02 Oct 2016 09:22:59 +0300
+
+mariadb-10.0 (10.0.27-1) unstable; urgency=low
+
+  * New upstream release 10.0.27
+  * Remove 3 patches after 10.0.27 import as they have been applied
+    upstream.
+
+ -- Otto Kekäläinen <otto@debian.org>  Wed, 07 Sep 2016 23:05:28 +0300
+
+mariadb-10.0 (10.0.26-3) unstable; urgency=low
+
+  [ Dieter Adriaenssens ]
+  * Add DEP-12 formatted upstream metadata file (Closes: #808421)
+
+  [ Vicențiu Ciorbaru ]
+  * Update innodb_xtradb patch to introduce memory barrier after lock
+  * Fix failing shutdown with gcc v6
+
+  [ Otto Kekäläinen ]
+  * Extend commit d5af196 with old name of package libmariadb-dev-compat
+  * Extend commit 8d2a7c9 and actually install the tokuftdump man page
+  * Update mariadb-test dependencies to include also libmariadbclient18
+  * Add path to fix for sporadically failing test main.information_schema_stats
+  * d/rules: NUMJOBS must have a default value
+
+ -- Otto Kekäläinen <otto@debian.org>  Wed, 17 Aug 2016 00:31:02 +0300
+
+mariadb-10.0 (10.0.26-2) unstable; urgency=low
+
+  [ Vicențiu Ciorbaru ]
+  * Add patch to correctly revert changes from 10.0.26 that caused
+    build failure regression on PPC64el
+
+  [ Paul Gevers ]
+  * Add autopkg tests for MariaDB 10.0 (Closes: #809022)
+
+  [ Axel Beckert ]
+  * Extend mariadb-server to purge gracefully if datadir is a mountpoint
+    (Closes: #829491)
+
+  [ Ian Gilfillan ]
+  * Add a patch to provide a man page for tokuftdump
+
+  [ Robie Basak ]
+  * Re-add libmariadbclient18 and libmariadbclient-dev
+  * Add libmariadbclient-dev-compat package
+
+  [ Otto Kekäläinen ]
+  * d/control: libmariadbclient18 must be 'Multi-Arch: same'
+  * Make libmariadbclient-dev-compat conflict with libmariadb-dev-compat
+    (Closes: #831229)
+  * Add libmariadbclient-dev as dependency for libmariadbd-dev
+  * Replace hacky sed of libmysqlclient->libmariadbclient with proper patch
+  * Update symbols file to match newest libmariadbclient18
+  * Updated Danish translation by Joe Hansen (Closes: #830592)
+  * Remove mariadb-plugin-cassandra until libthrif-dev lands in unstable
+  * Make libdbd-mysql-perl and friends Recommends instead of strict Depends
+    (Closes: #793787)
+  * Documentation and spelling fixes
+  * Remove mysqlbug binary as it is not used for MariaDB
+  * Update default config files with more secure TLS examples
+
+ -- Otto Kekäläinen <otto@debian.org>  Fri, 29 Jul 2016 21:42:50 +0300
+
+mariadb-10.0 (10.0.26-1) unstable; urgency=low
+
+  * Updated French translation by Baptiste Jammet (Closes: #826879)
+  * New upstream release 10.0.26. Includes fixes for the following
+    security vulnerabilities:
+    - CVE-2016-5440
+    - CVE-2016-3615
+    - CVE-2016-3521
+    - CVE-2016-3477
+  * Updated old changelog entries to include new CVE identifiers.
+  * Refresh patches after 10.0.26 import
+
+ -- Otto Kekäläinen <otto@debian.org>  Fri, 24 Jun 2016 17:05:44 +0300
+
+mariadb-10.0 (10.0.25-1) unstable; urgency=low
+
+  [ Otto Kekäläinen ]
+  * Revert previous changes tailored for Ubuntu 16.04 compatibility.
+  * New upstream release 10.0.25. Includes fixes for the following
+    security vulnerabilities (Closes: #823325):
+    - CVE-2016-0666
+    - CVE-2016-0655
+    - CVE-2016-0648
+    - CVE-2016-0647
+    - CVE-2016-0643
+    - CVE-2016-5444
+    - CVE-2016-3459
+    - CVE-2016-3452
+  * Updated old changelog entries to include new CVE identifiers.
+  * Upstream included changes to logrotate script that supports systems that
+    has multiple mysqld processes running (Closes: #810968).
+  * Updated Dutch translation by Frans Spiesschaert (Closes: #822894).
+  * Updated Spanish translation by Javier Fernández-Sanguino Peña
+    (Closes: #823099).
+  * Updated Russian translation by Yuri Kozlov (Closes: #823422).
+  * Updated German translation by Chris Leick (Closes: #824487).
+  * Updated Brazilian Portuguese translation (Closes: #824644).
+  * Updated Turkish translation by Atila KOÇ (Closes: #825802).
+  * Add patch to provide passwordless root accounts for test suite.
+  * Updated Japanese translation by Takuma Yamada (Closes: #825813).
+
+  [ Vicențiu Ciorbaru ]
+  * Backport upstream MDEV-9479 fix: oqgraph fails to build with boost 1.60
+
+ -- Otto Kekäläinen <otto@debian.org>  Mon, 30 May 2016 22:43:30 +0300
+
+mariadb-10.0 (10.0.24-7) unstable; urgency=low
+
+  * Temporarily remove mariadb-plugin-cassandra as Debian FTP bot thinks
+    it wasn't there before 10.0.24-6 and put the package in the NEW queue.
+
+ -- Otto Kekäläinen <otto@debian.org>  Wed, 13 Apr 2016 13:24:28 +0300
+
+mariadb-10.0 (10.0.24-6) unstable; urgency=low
+
+  * Move mysql_embedded from client package to client-core package,
+    equally as is in mysql-client-core-5.6 and -5.7 (LP: #1568077).
+  * Add breaks/replaces for mariadb-client to accommodate the above.
+  * Add conflicts/breaks/replaces for MySQL 5.7 series packages now
+    when mysql-5.7 entered the Ubuntu repositories (LP: #1568285).
+  * Detect properly if there is an incompatible data directory from 5.7,
+    save it to another location and initialize a new data directory so that the
+    installation can complete properly without leaving dpkg in an inconsistent
+    state.
+  * Remove all old passwordless root account lines to close a potential
+    security vulnerability (LP: #1561062).
+
+ -- Otto Kekäläinen <otto@debian.org>  Wed, 13 Apr 2016 10:56:10 +0300
+
+mariadb-10.0 (10.0.24-5) unstable; urgency=low
+
+  * Disable sporadically failing rpl_binlog_index test on PowerPC.
+  * Disable another sporadic on amd64 and update all Jira links.
+  * Fix typo in Mroonga prerm script.
+
+ -- Otto Kekäläinen <otto@debian.org>  Sat, 12 Mar 2016 10:08:23 +0200
+
+mariadb-10.0 (10.0.24-4) unstable; urgency=low
+
+  * Update contributor documentation to match git-buildpackage version in sid.
+  * Add libxml and unixOBDC as build-depends for ConnectSE as done by in
+    upstream (Closes: #814944).
+  * Upload to via NEW as mariadb-10.0 was accidentally removed from Debian
+    unstable archives.
+
+ -- Otto Kekäläinen <otto@debian.org>  Thu, 10 Mar 2016 18:40:51 +0200
+
+mariadb-10.0 (10.0.24-3) unstable; urgency=low
+
+  * Fix typo in rules file about Mroonga control section
+  * Add main.delayed test exception to more platforms
+  * Install mysql_embedded man page correctly
+
+ -- Otto Kekäläinen <otto@debian.org>  Sun, 06 Mar 2016 22:20:52 +0200
+
+mariadb-10.0 (10.0.24-2) unstable; urgency=low
+
+  * Make new plugin packages breaks+replaces mariadb-server-10.0 as
+    the files used to reside there (Closes: #815377).
+  * Disable main.delayed that has been confirmed to be a false positive
+    caused by built platform resource limits.
+  * Disable multiple s390x tests that only fail on Ubuntu/Launchpad and
+    cannot be reproduced anywhere else.
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 04 Mar 2016 08:38:25 +0200
+
+mariadb-10.0 (10.0.24-1) unstable; urgency=low
+
+  [ Otto Kekäläinen ]
+  * New upstream release 10.0.24
+    - Drop auth_socket patches as MDEV-8375 was partially fixed upstream
+    - Refresh other patches
+  * New upstream release includes fixes for the following security
+    vulnerabilities:
+    - CVE-2016-0668
+    - CVE-2016-0650
+    - CVE-2016-0649
+    - CVE-2016-0646
+    - CVE-2016-0644
+    - CVE-2016-0641
+    - CVE-2016-0640
+  * Update filenames in d/copyright
+
+  [ Ian Gilfillan ]
+  * Add missing mysql_embedded man page
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Sat, 20 Feb 2016 14:23:50 +0200
+
+mariadb-10.0 (10.0.23-3) unstable; urgency=low
+
+  * Add Lintian overrides for TokuDB sources that indeed need autotools files
+  * Split TokuDB, Mroonga, Spider and Cassandra into their own packages and
+    start using new naming scheme 'mariadb-plugin-xzy' and rename existing
+    Connect and OQGraph packages accordingly (Closes: #773727)
+  * There is no need for mariadb-test packages to contain the version in the
+    package name, so remove it. It only makes sense to keep the version number
+    in the client and server packages, which users actually want to pin to.
+  * Update standards version
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Tue, 26 Jan 2016 11:34:48 +0200
+
+mariadb-10.0 (10.0.23-2) unstable; urgency=low
+
+  * Skip unstable Spider tests on Launchpad s390x builds
+  * Extend install lists with missing files after reviewing the list
+    of files produced by the build process
+  * Update server README.Debian to match current unix socekt authentication
+  * Lintian fixes and more updates to TokuDB plugin copyright paths
+  * Move mysql_upgrade to server core package so that Akonadi and similar
+    core package consumers can upgrade the database. Also update control file
+    with breaks/replaces to allow smooth upgrades (Closes: #793977).
+  * Update slow_query_log_file configuration syntax to match upstream's. Also
+    fixes #677222 in MariaDB packages.
+  * Rename and install Apport hook correctly
+  * Remove Taocrypt workaround fixed upstream long since #627208
+  * Removed CFLAGS and CXXFLAGS as suggested by Lars Tangvald and also done
+    in mysql-5.6 packaging commit id 16a64e810e28f1d0b66ede274cd4c2b1a425fecb
+  * Unmask the systemd mysql.service if left behind by a mysql-server-5.6
+    installation, otherwise the MariaDB service would remain masked too.
+  * Add gdb to build-deps as suggested in #627208 to get automatic stack traces
+  * Updated Turkish translation by Atila KOÇ (Closes: #811414)
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Sat, 23 Jan 2016 23:07:15 +0200
+
+mariadb-10.0 (10.0.23-1) unstable; urgency=low
+
+  * New upstream release 10.0.23. Includes fixes for the following
+    security vulnerabilities:
+    - CVE-2016-2047
+    - CVE-2016-0651
+    - CVE-2016-0642
+    - CVE-2016-0616
+    - CVE-2016-0609
+    - CVE-2016-0608
+    - CVE-2016-0606
+    - CVE-2016-0600
+    - CVE-2016-0598
+    - CVE-2016-0597
+    - CVE-2016-0596
+    - CVE-2016-0546
+    - CVE-2016-0505
+  * Ignore test suite exit code on unstable platforms (mips, mipsel)
+  * Update TokuDB plugin install and copyright paths to match latest
+    release done under Percona ownership
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Sun, 20 Dec 2015 14:18:33 +0200
+
+mariadb-10.0 (10.0.22-6) unstable; urgency=low
+
+  * Add patches to make passwordless root login default on all new
+    installs in all situations. Make auth_socket a built-in plugin.
+  * Clean up previous passwordless root implementation so that it
+    applies only to new installs and existing databases continue
+    to operate with the passwords defined in their user tables
+  * As disabled.def intrepreted test names in a special way, switch
+    back to using --skip-test-list option
+  * Make the watch file to make it better suited for the
+    git-buildpackage workflow and remove call to uupdate
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Sat, 19 Dec 2015 22:28:23 +0200
+
+mariadb-10.0 (10.0.22-5) unstable; urgency=low
+
+  * Fix non-working path of unstable-test in d/rules
+  * Add unstable test for amd64 to fix reproducible builds
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Thu, 17 Dec 2015 13:31:56 +0200
+
+mariadb-10.0 (10.0.22-4) unstable; urgency=low
+
+  * Upload to unstable
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Mon, 14 Dec 2015 00:49:14 +0200
+
+mariadb-10.0 (10.0.22-4~exp1) experimental; urgency=low
+
+  * Rewrite unstable tests section in d/rules that was not working
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Sun, 13 Dec 2015 21:36:48 +0200
+
+mariadb-10.0 (10.0.22-3) unstable; urgency=low
+
+  * Fix typo in d/rules
+  * Extend list of unstable tests for arch mips, mipsel64 and alpha
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 11 Dec 2015 21:57:23 +0200
+
+mariadb-10.0 (10.0.22-2) unstable; urgency=low
+
+  * Escape d/rules file correctly to avoid parse error.
+  * Remove patches/os_sync_Free patch that is not intended for production use.
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 20 Nov 2015 23:11:09 +0200
+
+mariadb-10.0 (10.0.22-2~exp2) experimental; urgency=low
+
+  [ Alexander Barkov ]
+  * Backport patch from upstream to fix MDEV-9091: mysqld crashes on shutdown
+    after running TokuDB tests on Ubuntu
+  * Backport patch from upstream to fix MDEV-8692: prefschema test failures
+
+  [ Otto Kekäläinen ]
+  * Replace old 'make test' structure with direct call on mysql-test-run and
+    parallelize the test suite run in the Debian build.
+  * Print in build log env info to help debug builds on different platforms.
+  * Keep a list of unstable tests that are to be skipped on official builds.
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 13 Nov 2015 22:08:49 +0200
+
+mariadb-10.0 (10.0.22-2~exp1) experimental; urgency=low
+
+  * Add diagnostics to find out the problem in os_sync_free()
+  * Backport fix for TokuDB crashes in build tests on Launchpad
+    and enable TokuDB builds
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 13 Nov 2015 08:54:05 +0200
+
+mariadb-10.0 (10.0.22-1) unstable; urgency=low
+
+  [ Otto Kekäläinen ]
+  * New upstream release. Includes fixes for the following security
+    vulnerabilities (Closes: #802874):
+    - CVE-2016-0610
+    - CVE-2016-3471
+    - CVE-2015-7744
+    - CVE-2015-4802
+    - CVE-2015-4807
+    - CVE-2015-4815
+    - CVE-2015-4826
+    - CVE-2015-4830
+    - CVE-2015-4836
+    - CVE-2015-4858
+    - CVE-2015-4861
+    - CVE-2015-4870
+    - CVE-2015-4913
+    - CVE-2015-4792
+  * New release includes updated man pages (Closes: #779992)
+  * Update the most recent patches with proper DEP-3 compliant headers
+  * Add CVE IDs to previous changelog entries
+
+  [ Jean Weisbuch ]
+  * Update mysqlreport to version 4.0
+
+  [ Otto Kekäläinen ]
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 30 Oct 2015 11:42:30 +0200
+
+mariadb-10.0 (10.0.21-3) unstable; urgency=low
+
+  * Updated Brazilian Portuguese translation (Closes: #798048)
+  * Upload 10.0.21 and all changes tested initially in experimental
+    to unstable. Now sensible as mysql-5.6 has entered testing.
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 18 Sep 2015 23:04:53 +0300
+
+mariadb-10.0 (10.0.21-2) experimental; urgency=low
+
+  * Update gdb.conf to have tags signed by default
+  * Add CVE IDs to previous changelog entries
+  * Pass DEB_BUILD_ARCH to CMake options to enhance buils on some platforms
+  * Test suite failures are now fatal on all platforms and not ignored anywhere
+  * Revert most of commit 579282f and re-enable Mroonga
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Wed, 26 Aug 2015 18:20:54 +0300
+
+mariadb-10.0 (10.0.21-1) experimental; urgency=low
+
+  [ Otto Kekäläinen ]
+  * Created libmariadbd18 and moved .so file from libmariadbd-dev there
+  * Reproducible build improvement: Add LC_ALL=C to mysql.sym sort command
+  * New upstream release.
+    - Upstream added skip_log_error to mysqld_safe config (Closes: #781945)
+    - Diffie-Helman modulus increased to 2048-bits (Closes: #788905)
+  * New upstream release fixes the following security vulnerabilities:
+    - CVE-2015-4816
+    - CVE-2015-4819
+    - CVE-2015-4879
+    - CVE-2015-4895
+  * Split mariadb-test-data-10.0 out of the main test package. This will save
+    disk space in Debian archives as the arch independent data files are
+    in one single package that can be used on all platforms and the package
+    that is built on multiple platform shrinks significantly.
+
+  [ Jean Weisbuch ]
+  * The MYCHECK_RCPT variable can now be set from the default file.
+  * The check_for_crashed_tables() function on the debian-start script has been
+    fixed to be able to log (and email) the errors it encountered : Errors are
+    sent to stderr by the CLI while only stdout was captured by the function.
+  * The same function now also checks Aria tables along with MyISAM ones.
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Thu, 13 Aug 2015 10:08:38 +0200
+
+mariadb-10.0 (10.0.20-3) unstable; urgency=medium
+
+  [ Andreas Beckmann ]
+  * mariadb-common: Depend on a version of mysql-common that ships
+    /usr/share/mysql-common/configure-symlinks.  (Closes: #787533)
+  * mariadb-common.postinst: Drop fallback my.cnf symlink management.
+  * mariadb-common.preinst: Clean up my.cnf/my.cnf.old from the fallback.
+
+  [ Otto Kekäläinen ]
+  * Clean up old cruft from rules file after review by Sergei Golubchik
+  * Unified config file layout with upstream .cnf layout
+  * Recover mysql-upgrade dir/link handlig wrongly removed in f7caa041db
+  * Minor Lintian and documentation fixes
+  * Switch 'nm -n' to 'nm --defined-only' to improve reproducible builds
+
+  [ Olaf van der Spek ]
+  * Minor spell checking (Closes: #792123)
+
+  [ Israel Tsadok ]
+  * Fix mariadb-server-10.0.preinst script that failed to save a new
+    /var/lib/mysql-upgrade/DATADIR.link if a previous DATADIR.link existed and
+    the /var/lib/mysql directory was a symbolic link with an absolute path
+    as target (Closes: #792918)
+
+  [ Jean Weisbuch ]
+  * Added a Debian default file for the mariadb-server-10.0 package which allows
+    one to set the MYSQLD_STARTUP_TIMEOUT variable used in the init script
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 24 Jul 2015 23:00:00 +0300
+
+mariadb-10.0 (10.0.20-2) unstable; urgency=low
+
+  * Fix bash test logic in postinstall (Closes: #789589)
+  * Add extra sort in d/rules mysqld.sym.gz command to satisfy Debian
+    reproducible build requirements
+  * Switch to utf8mb4 as default character set
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 03 Jul 2015 17:11:01 +0300
+
+mariadb-10.0 (10.0.20-1) unstable; urgency=low
+
+  * New upstream release. Includes fixes for the following security
+    vulnerabilities:
+    - CVE-2015-2582
+    - CVE-2015-2620
+    - CVE-2015-2643
+    - CVE-2015-2648
+    - CVE-2015-3152: Client command line option --ssl-verify-server-cert (and
+      MYSQL_OPT_SSL_VERIFY_SERVER_CERT option of the client API) when used
+      together with --ssl will ensure that the established connection is
+      SSL-encrypted and the MariaDB server has a valid certificate.
+    - CVE-2015-4752
+    - CVE-2015-4864
+  * New release includes fix for memory corruption on arm64 (Closes: #787221)
+  * Added patch to enhance build reproducibility regarding the file INFO_BIN
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 19 Jun 2015 13:01:56 +0300
+
+mariadb-10.0 (10.0.19-1) unstable; urgency=low
+
+  * New upstream release. Fixed the server crash caused by mysql_upgrade
+    (MDEV-8115).
+  * Upload to unstable from master branch as Jessie is not released.
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Sat, 09 May 2015 22:24:03 +0300
+
+mariadb-10.0 (10.0.18-1~exp1) experimental; urgency=low
+
+  * New upstream release. Includes fixes for the following security
+    vulnerabilities:
+    - CVE-2015-4866
+    - CVE-2014-8964 bundled PCRE contained heap-based buffer overflow
+      vulnerability that allowed the server to crash or have other unspecified
+      impact via a crafted regular expression made possible with the
+      REGEXP_SUBSTR function (MDEV-8006).
+    - CVE-2015-0501
+    - CVE-2015-2571
+    - CVE-2015-0505
+    - CVE-2015-0499
+    - CVE-2015-4757
+    - CVE-2015-4866
+  * Cleanup in d/copyright
+  * Make the mariadb-common depends versioned to guarantee that latest
+    config files are installed
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Thu, 07 May 2015 23:21:20 +0300
+
+mariadb-10.0 (10.0.17-1~exp2) experimental; urgency=low
+
+  * d/control: Related to innochecksum manpage move, also break/replace
+    the mysql-client-5.5/6 packages (Closes: #779873)
+  * Add automatic fallback to the new /etc/mysql/my.cnf management scheme
+    for cases where mysql-common/configure-symlinks is not yet available
+    and users complain the installation ends up broken.
+  * New release confirmed to build with GCC-5 (Closes: #777996)
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 06 Mar 2015 16:42:21 +0200
+
+mariadb-10.0 (10.0.17-1~exp1) experimental; urgency=low
+
+  [ Jan Wagner ]
+  * Adding mysqld_multi.server_lsb-header.patch, provides LSB headers for
+    example initscript (Closes: #778762)
+  * Adding mysqld_multi_confd.patch, makes mysqld_multi reading conf.d
+    (Closes: #778761)
+
+  [ Robie Basak ]
+  * Move innochecksum back to mariadb-server-core-10.0 to align with other
+    variants (LP: #1421520).
+  * Fix typo in mariadb-server-10.0.postinst.
+  * Fix typo in postinst mktemp call (LP: #1420831).
+
+  [ Arnaud Fontaine ]
+  * d/control: innochecksum manpage has been moved to mariadb-client-10.0 in
+    10.0.13-1 (ba97056), thus add Breaks/Replaces in mariadb-client-10.0
+    against mariadb-server-10.0 << 10.0.13-1~.
+
+  [ Otto Kekäläinen ]
+  * Follow to new /etc/mysql/my.cnf management scheme
+  * Remove the my.cnf move command as it increases complexity too much and might
+    emit an error code if mariadb-common is upgraded before mysql-common is.
+  * Add patch to enhance build reproducibility
+  * Remove /var/log/mysql.log from logrotate. Everything should be inside
+    the mysql directory (/var/log/mysql/) and not directly on plain /var/log
+  * New upstream release. Includes fixes for the following security
+    vulnerabilities (changelog updated post release):
+    - CVE-2015-2568
+    - CVE-2015-2573
+    - CVE-2015-0433
+    - CVE-2015-0441
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Mon, 02 Mar 2015 20:01:13 +0200
+
+mariadb-10.0 (10.0.16-1~exp3) experimental; urgency=low
+
+  * Update the mail.ssl test to match new cacert.pem
+  * Stop asking and setting a database root user password. Instead enable
+    the auth_socket plugin and let unix user root access MariaDB without
+    a separate password. Admins using sudo or cron scripts can use the
+    same access too, and there is no debian-sys-maint password either anymore.
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 30 Jan 2015 18:52:55 +0200
+
+mariadb-10.0 (10.0.16-1~exp2) experimental; urgency=low
+
+  * Fix typo in preinstall script (Closes: #776494).
+  * Backported new cacert.pem etc from 5.5 the replace the expired ones.
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Wed, 28 Jan 2015 20:57:23 +0200
+
+mariadb-10.0 (10.0.16-1~exp1) experimental; urgency=low
+
+  * New upstream release. Includes fixes for the following security
+    vulnerabilities:
+    - CVE-2015-0411
+    - CVE-2015-0382
+    - CVE-2015-0381
+    - CVE-2015-0432
+    - CVE-2014-6568
+    - CVE-2015-0374
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Tue, 27 Jan 2015 17:04:21 +0200
+
+mariadb-10.0 (10.0.15-2~exp1) experimental; urgency=low
+
+  * Fix mariadb-server-10.0.postinst so that the flag removal will not emit
+    an error code if there are no previous debian-*.flag files. This will
+    fix a dpkg issue caught by piuparts testing.
+  * Increase the debconf downgrade warning dialog priority to critical to make
+    sure all users see it and understand why their system broke after downgrade.
+  * Attempt to fix FTBFS on mips, mipsel, powerpc introduced by upstream
+    release 10.0.15 (Closes: #772964).
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Fri, 12 Dec 2014 14:07:50 +0200
+
+mariadb-10.0 (10.0.15-1) unstable; urgency=low
+
+  [ Arnaud Fontaine ]
+  * Bump libpcre3-dev Build-Depends to >= 2:8.35-3.2~ (Closes: #767903).
+
+  [ Otto Kekäläinen }
+  * New upstream release, includes fixes for the following security issues:
+    - CVE-2014-6507
+    - CVE-2014-6491
+    - CVE-2014-6500
+    - CVE-2014-6469
+    - CVE-2014-6555
+    - CVE-2014-6559
+    - CVE-2014-6494
+    - CVE-2014-6496
+    - CVE-2014-6464
+  * Disable on non-amd64 platforms the new Mroonga storage engine which
+    was introduced in the new upstream release.
+  * Allow mariadb-server-10.0 to overwrite file man1/mysql_plugin.1.gz in
+    mysql-client-5.5 with breaks and replaces (Closes: #771213).
+  * Clean up old debian-*.flag files from datadir to avoid unexpected
+    behavior at later upgrades (Closes: #770177).
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Tue, 25 Nov 2014 21:45:43 +0200
+
+mariadb-10.0 (10.0.14-4) unstable; urgency=low
+
+  * Updated patch d/username-in-tests-replace.patch to fix the
+    obfuscation done by anti-spam measures in the MariaDB
+    commit message view (Closes: #769865).
+  * Unified indentantion to two spaces in init file for easier
+    debugging of #609537
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Mon, 17 Nov 2014 11:45:11 +0200
+
+mariadb-10.0 (10.0.14-3) unstable; urgency=low
+
+  * Added patch d/username-in-tests-replace.patch to fix
+    test failure (Closes: #769212).
+  * Added versioned dependency on libpcre3 (Closes: #767903).
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Wed, 12 Nov 2014 15:00:11 +0300
+
+mariadb-10.0 (10.0.14-2) unstable; urgency=low
+
+  [ Tobias Frost ]
+  * Fix two lintian warnings in d/copyright (missing "-" between GPL and 2)
+  * Always be verbose when building the package and show compiler args
+
+  [ Otto Kekäläinen ]
+  * Upload to unstable
+  * Updated German translation by Chris Leick and Holger Wansing
+    (Closes: #763952)
+  * Updated Dutch translation by Frans Spiesschaert (Closes: #764013)
+  * Removed libssl-dev from build dependencies in favour of using
+    bundled YaSSL instead (Closes: #761911)
+  * Fixed debconf value saving (Closes: #761452)
+  * Re-enabled TokuDB after backporting upstream fix in MDEV-6815
+  * Removed libmariadbclient packages that provided the Debian-only
+    libmariadbclient.so library that nobody used. Instead developers are
+    encouraged to use the libraries from the package libmariadb-client-lgpl
+    instead (Closes: #739452) (Closes: #742172).
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Sat, 18 Oct 2014 19:00:11 +0300
+
+mariadb-10.0 (10.0.14-1) experimental; urgency=low
+
+  * New upstream release. (Closes: #757026)
+  * d/control: Removed Provides: libmysqlclient-dev (Closes: #759309)
+  * d/control: Removed Provides: libmysqld-dev with same motivation
+  * Updated Swedish translation by Martin Bagge
+    and Anders Jonsson (Closes: #762795)
+  * Updated Spanish translation by Javier Fernandez-Sanguino (Closes: #762751)
+  * Updated Portuguese translation by Miguel Figueiredo (Closes: #763194)
+  * Updated Czech translation by Miroslav Kure (Closes: #763309)
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Thu, 28 Aug 2014 00:39:02 +0300
+
+mariadb-10.0 (10.0.10-1) experimental; urgency=low
+
+  * Initial Upload (Closes: #740473)
+
+ -- Otto Kekäläinen <otto@seravo.fi>  Tue, 01 Apr 2014 09:56:38 +0300

@@ -1,0 +1,8 @@
+rpl.rpl_skip_replication : https://jira.mariadb.org/browse/MDEV-9268
+main.mysqltest : MDEV-9269
+mroonga/storage.column_datetime_32bit_2038 : MDEV-9270
+mroonga/storage.column_datetime_32bit_before_unix_epoch : MDEV-9270
+mroonga/storage.column_datetime_32bit_max : MDEV-9270
+mroonga/storage.column_datetime_32bit_out_of_range : MDEV-9270
+mroonga/storage.index_multiple_column_unique_date_32bit_equal : MDEV-9270
+mroonga/storage.index_multiple_column_unique_date_order_32bit_desc : MDEV-9270

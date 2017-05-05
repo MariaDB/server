@@ -1,0 +1,7 @@
+Tests: smoke
+Depends: mariadb-server-@MARIADB_SERIES@
+Restrictions: allow-stderr needs-root
+
+Tests: upstream
+Depends: mariadb-test
+Restrictions: allow-stderr breaks-testbed
