@@ -60,7 +60,7 @@ public:
   Spvar_definition field_def;
 
   /// Field-type of the SP-variable.
-  enum_field_types sql_type() const { return field_def.sql_type; }
+  enum_field_types sql_type() const { return field_def.real_field_type(); }
 
   const Type_handler *type_handler() const { return field_def.type_handler(); }
 

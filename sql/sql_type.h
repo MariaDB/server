@@ -584,6 +584,20 @@ public:
   {
     return MYSQL_TIMESTAMP_ERROR;
   }
+  virtual bool is_timestamp_type() const
+  {
+    return false;
+  }
+  /**
+    Check whether a field type can be partially indexed by a key.
+    @param  type   field type
+    @retval true   Type can have a prefixed key
+    @retval false  Type can not have a prefixed key
+  */
+  virtual bool type_can_have_key_part() const
+  {
+    return false;
+  }
   /**
     Prepared statement long data:
     Check whether this parameter data type is compatible with long data.
@@ -1837,6 +1851,10 @@ public:
   {
     return MYSQL_TIMESTAMP_DATETIME;
   }
+  bool is_timestamp_type() const
+  {
+    return true;
+  }
   uint Item_decimal_scale(const Item *item) const
   {
     return Item_decimal_scale_with_seconds(item);
@@ -1938,7 +1956,17 @@ public:
 };
 
 
-class Type_handler_string: public Type_handler_string_result
+class Type_handler_longstr: public Type_handler_string_result
+{
+public:
+  bool type_can_have_key_part() const
+  {
+    return true;
+  }
+};
+
+
+class Type_handler_string: public Type_handler_longstr
 {
   static const Name m_name_char;
 public:
@@ -1979,7 +2007,7 @@ public:
 };
 
 
-class Type_handler_varchar: public Type_handler_string_result
+class Type_handler_varchar: public Type_handler_longstr
 {
   static const Name m_name_varchar;
 public:
@@ -2004,7 +2032,7 @@ public:
 };
 
 
-class Type_handler_blob_common: public Type_handler_string_result
+class Type_handler_blob_common: public Type_handler_longstr
 {
 public:
   virtual ~Type_handler_blob_common() { }
@@ -2101,6 +2129,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
   bool is_param_long_data_type() const { return true; }
   const Type_handler *type_handler_for_comparison() const;
+  bool type_can_have_key_part() const
+  {
+    return true;
+  }
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const
   {
@@ -2212,6 +2244,10 @@ public:
   enum_mysql_timestamp_type mysql_timestamp_type() const
   {
     return m_type_handler->mysql_timestamp_type();
+  }
+  bool is_timestamp_type() const
+  {
+    return m_type_handler->is_timestamp_type();
   }
   void set_handler(const Type_handler *other)
   {

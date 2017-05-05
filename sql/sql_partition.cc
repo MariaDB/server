@@ -2214,7 +2214,7 @@ static int add_column_list_values(File fptr, partition_info *part_info,
             my_error(ER_FIELD_NOT_FOUND_PART_ERROR, MYF(0));
             return 1;
           }
-          if (check_part_field(sql_field->sql_type,
+          if (check_part_field(sql_field->real_field_type(),
                                sql_field->field_name.str,
                                &result_type,
                                &need_cs_check))

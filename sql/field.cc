@@ -999,37 +999,6 @@ CPP_UNNAMED_NS_END
   Static help functions
 *****************************************************************************/
 
-/**
-  Check whether a field type can be partially indexed by a key.
-
-  This is a static method, rather than a virtual function, because we need
-  to check the type of a non-Field in mysql_alter_table().
-
-  @param type  field type
-
-  @retval
-    TRUE  Type can have a prefixed key
-  @retval
-    FALSE Type can not have a prefixed key
-*/
-
-bool Field::type_can_have_key_part(enum enum_field_types type)
-{
-  switch (type) {
-  case MYSQL_TYPE_VARCHAR:
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-  case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_STRING:
-  case MYSQL_TYPE_GEOMETRY:
-    return TRUE;
-  default:
-    return FALSE;
-  }
-}
-
 
 void Field::make_sort_key(uchar *buff,uint length)
 {
@@ -3294,7 +3263,7 @@ bool Field_new_decimal::compatible_field_size(uint field_metadata,
 
 uint Field_new_decimal::is_equal(Create_field *new_field)
 {
-  return ((new_field->sql_type == real_type()) &&
+  return ((new_field->type_handler() == type_handler()) &&
           ((new_field->flags & UNSIGNED_FLAG) == 
            (uint) (flags & UNSIGNED_FLAG)) &&
           ((new_field->flags & AUTO_INCREMENT_FLAG) ==
@@ -5378,7 +5347,7 @@ my_time_t Field_timestampf::get_timestamp(const uchar *pos,
 /*************************************************************/
 uint Field_temporal::is_equal(Create_field *new_field)
 {
-  return new_field->sql_type == real_type() &&
+  return new_field->type_handler() == type_handler() &&
          new_field->length == max_display_length();
 }
 
@@ -6851,15 +6820,15 @@ int Field_str::store(double nr)
 
 uint Field::is_equal(Create_field *new_field)
 {
-  return (new_field->sql_type == real_type());
+  return new_field->type_handler() == type_handler();
 }
 
 
 uint Field_str::is_equal(Create_field *new_field)
 {
-  return ((new_field->sql_type == real_type()) &&
-	  new_field->charset == field_charset &&
-	  new_field->length == max_display_length());
+  return new_field->type_handler() == type_handler() &&
+         new_field->charset == field_charset &&
+         new_field->length == max_display_length();
 }
 
 
@@ -7717,7 +7686,7 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 uint Field_varstring::is_equal(Create_field *new_field)
 {
-  if (new_field->sql_type == real_type() &&
+  if (new_field->type_handler() == type_handler() &&
       new_field->charset == field_charset)
   {
     if (new_field->length == max_display_length())
@@ -8292,9 +8261,9 @@ uint Field_blob::max_packed_col_length(uint max_length)
 
 uint Field_blob::is_equal(Create_field *new_field)
 {
-  return ((new_field->sql_type == get_blob_type_from_length(max_data_length()))
-          && new_field->charset == field_charset &&
-          new_field->pack_length == pack_length());
+  return new_field->type_handler() == type_handler() &&
+         new_field->charset == field_charset &&
+         new_field->pack_length == pack_length();
 }
 
 
@@ -8321,7 +8290,7 @@ uint gis_field_options_image(uchar *buff, List<Create_field> &create_fields)
   Create_field *field;
   while ((field= it++))
   {
-    if (field->sql_type != MYSQL_TYPE_GEOMETRY)
+    if (field->real_field_type() != MYSQL_TYPE_GEOMETRY)
       continue;
    if (buff)
    {
@@ -8514,7 +8483,7 @@ Field::geometry_type Field_geom::geometry_type_merge(geometry_type a,
 
 uint Field_geom::is_equal(Create_field *new_field)
 {
-  return new_field->sql_type == MYSQL_TYPE_GEOMETRY &&
+  return new_field->type_handler() == type_handler() &&
          /*
            - Allow ALTER..INPLACE to supertype (GEOMETRY),
              e.g. POINT to GEOMETRY or POLYGON to GEOMETRY.
@@ -8941,7 +8910,7 @@ uint Field_enum::is_equal(Create_field *new_field)
     The fields are compatible if they have the same flags,
     type, charset and have the same underlying length.
   */
-  if (new_field->sql_type != real_type() ||
+  if (new_field->type_handler() != type_handler() ||
       new_field->charset != field_charset ||
       new_field->pack_length != pack_length())
     return IS_EQUAL_NO;
@@ -9006,7 +8975,7 @@ bool Field_num::eq_def(const Field *field) const
 
 uint Field_num::is_equal(Create_field *new_field)
 {
-  return ((new_field->sql_type == real_type()) &&
+  return ((new_field->type_handler() == type_handler()) &&
           ((new_field->flags & UNSIGNED_FLAG) == 
            (uint) (flags & UNSIGNED_FLAG)) &&
 	  ((new_field->flags & AUTO_INCREMENT_FLAG) ==
@@ -9160,8 +9129,8 @@ Field *Field_bit::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 uint Field_bit::is_equal(Create_field *new_field) 
 {
-  return (new_field->sql_type == real_type() &&
-          new_field->length == max_display_length());
+  return new_field->type_handler() == type_handler() &&
+         new_field->length == max_display_length();
 }
 
                        
@@ -9699,7 +9668,7 @@ bool Column_definition::create_interval_from_interval_list(MEM_ROOT *mem_root,
     value.length= charset->cset->lengthsp(charset, value.str, value.length);
     ((char*) value.str)[value.length]= '\0';
 
-    if (sql_type == MYSQL_TYPE_SET)
+    if (real_field_type() == MYSQL_TYPE_SET)
     {
       if (charset->coll->instr(charset, value.str, value.length,
                                comma_buf, comma_length, NULL, 0))
@@ -9726,7 +9695,8 @@ bool Column_definition::prepare_interval_field(MEM_ROOT *mem_root,
                                                bool reuse_interval_list_values)
 {
   DBUG_ENTER("Column_definition::prepare_interval_field");
-  DBUG_ASSERT(sql_type == MYSQL_TYPE_ENUM || sql_type == MYSQL_TYPE_SET);
+  DBUG_ASSERT(real_field_type() == MYSQL_TYPE_ENUM ||
+              real_field_type() == MYSQL_TYPE_SET);
   /*
     Interval values are either in "interval" or in "interval_list",
     but not in both at the same time, and are not empty at the same time.
@@ -9779,12 +9749,12 @@ bool Column_definition::prepare_interval_field(MEM_ROOT *mem_root,
 void Column_definition::set_attributes(const Lex_field_type_st &type,
                                        CHARSET_INFO *cs)
 {
-  DBUG_ASSERT(sql_type == MYSQL_TYPE_NULL);
+  DBUG_ASSERT(type_handler() == &type_handler_null);
   DBUG_ASSERT(charset == &my_charset_bin || charset == NULL);
   DBUG_ASSERT(length == 0);
   DBUG_ASSERT(decimals == 0);
 
-  sql_type= type.field_type();
+  set_handler_by_real_type(type.field_type());
   charset= cs;
 
   if (type.length())
@@ -9806,7 +9776,7 @@ void Column_definition::set_attributes(const Lex_field_type_st &type,
 
 void Column_definition::create_length_to_internal_length(void)
 {
-  switch (sql_type) {
+  switch (real_field_type()) {
   case MYSQL_TYPE_TINY_BLOB:
   case MYSQL_TYPE_MEDIUM_BLOB:
   case MYSQL_TYPE_LONG_BLOB:
@@ -9817,7 +9787,7 @@ void Column_definition::create_length_to_internal_length(void)
   case MYSQL_TYPE_VARCHAR:
     length*= charset->mbmaxlen;
     key_length= length;
-    pack_length= calc_pack_length(sql_type, length);
+    pack_length= calc_pack_length(real_field_type(), length);
     break;
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
@@ -9846,7 +9816,7 @@ void Column_definition::create_length_to_internal_length(void)
 				 decimals);
     break;
   default:
-    key_length= pack_length= calc_pack_length(sql_type, length);
+    key_length= pack_length= calc_pack_length(real_field_type(), length);
     break;
   }
 }
@@ -9901,7 +9871,7 @@ bool Column_definition::check(THD *thd)
   if (vcol_info)
   {
     DBUG_ASSERT(vcol_info->expr);
-    vcol_info->set_field_type(sql_type);
+    vcol_info->set_field_type(real_field_type());
     if (check_expression(vcol_info, &field_name, vcol_info->stored_in_db
                          ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))
       DBUG_RETURN(TRUE);
@@ -9939,7 +9909,7 @@ bool Column_definition::check(THD *thd)
   }
 
   if (default_value && !default_value->expr->basic_const_item() &&
-      mysql_type_to_time_type(sql_type) == MYSQL_TIMESTAMP_DATETIME &&
+      mysql_timestamp_type() == MYSQL_TIMESTAMP_DATETIME &&
       default_value->expr->type() == Item::FUNC_ITEM)
   {
     /*
@@ -9957,7 +9927,7 @@ bool Column_definition::check(THD *thd)
 
   if (on_update)
   {
-    if (mysql_type_to_time_type(sql_type) != MYSQL_TIMESTAMP_DATETIME ||
+    if (mysql_timestamp_type() != MYSQL_TIMESTAMP_DATETIME ||
         on_update->decimals < length)
     {
       my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name.str);
@@ -9971,7 +9941,7 @@ bool Column_definition::check(THD *thd)
 
   sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
 
-  switch (sql_type) {
+  switch (real_field_type()) {
   case MYSQL_TYPE_TINY:
     if (!length)
       length= MAX_TINYINT_WIDTH+sign_len;
@@ -10098,7 +10068,7 @@ bool Column_definition::check(THD *thd)
     break;
   case MYSQL_TYPE_DATE:
     /* We don't support creation of MYSQL_TYPE_DATE anymore */
-    sql_type= MYSQL_TYPE_NEWDATE;
+    set_handler(&type_handler_newdate);
     /* fall trough */
   case MYSQL_TYPE_NEWDATE:
     length= MAX_DATE_WIDTH;
@@ -10165,12 +10135,13 @@ bool Column_definition::check(THD *thd)
       explicit_defaults_for_timestamp is not set.
     */
     if (opt_explicit_defaults_for_timestamp ||
-        !is_timestamp_type(sql_type))
+        !is_timestamp_type())
     {
       flags|= NO_DEFAULT_VALUE_FLAG;
     }
   }
 
+  enum_field_types sql_type= real_field_type();
   if (!(flags & BLOB_FLAG) &&
       ((length > max_field_charlength &&
         sql_type != MYSQL_TYPE_VARCHAR) ||
@@ -10295,7 +10266,7 @@ Field *make_field(TABLE_SHARE *share,
                   uchar *ptr, uint32 field_length,
 		  uchar *null_pos, uchar null_bit,
 		  uint pack_flag,
-		  enum_field_types field_type,
+		  const Type_handler *handler,
 		  CHARSET_INFO *field_charset,
 		  Field::geometry_type geom_type, uint srid,
 		  Field::utype unireg_check,
@@ -10305,7 +10276,7 @@ Field *make_field(TABLE_SHARE *share,
   uchar *UNINIT_VAR(bit_ptr);
   uchar UNINIT_VAR(bit_offset);
 
-  if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
+  if (handler->real_field_type() == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
   {
     bit_ptr= null_pos;
     bit_offset= null_bit;
@@ -10326,8 +10297,8 @@ Field *make_field(TABLE_SHARE *share,
     null_bit= ((uchar) 1) << null_bit;
   }
 
-  DBUG_PRINT("debug", ("field_type: %d, field_length: %u, interval: %p, pack_flag: %s%s%s%s%s",
-                       field_type, field_length, interval,
+  DBUG_PRINT("debug", ("field_type: %s, field_length: %u, interval: %p, pack_flag: %s%s%s%s%s",
+                       handler->name().ptr(), field_length, interval,
                        FLAGSTR(pack_flag, FIELDFLAG_BINARY),
                        FLAGSTR(pack_flag, FIELDFLAG_INTERVAL),
                        FLAGSTR(pack_flag, FIELDFLAG_NUMBER),
@@ -10338,6 +10309,7 @@ Field *make_field(TABLE_SHARE *share,
   {
     if (!f_is_packed(pack_flag))
     {
+      enum_field_types field_type= handler->real_field_type();
       if (field_type == MYSQL_TYPE_STRING ||
           field_type == MYSQL_TYPE_DECIMAL ||   // 3.23 or 4.0 string
           field_type == MYSQL_TYPE_VAR_STRING)
@@ -10390,7 +10362,7 @@ Field *make_field(TABLE_SHARE *share,
     }
   }
 
-  switch (field_type) {
+  switch (handler->real_field_type()) {
   case MYSQL_TYPE_DECIMAL:
     return new (mem_root)
       Field_decimal(ptr,field_length,null_pos,null_bit,
@@ -10548,7 +10520,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   unireg_check=old_field->unireg_check;
   pack_length=old_field->pack_length();
   key_length= old_field->key_length();
-  sql_type=   old_field->real_type();
+  set_handler(old_field->type_handler());
   charset=    old_field->charset();		// May be NULL ptr
   comment=    old_field->comment;
   decimals=   old_field->decimals();
@@ -10558,21 +10530,18 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   option_list= old_field->option_list;
   pack_flag= 0;
 
-  switch (sql_type) {
+  switch (real_field_type()) {
+  case MYSQL_TYPE_TINY_BLOB:
   case MYSQL_TYPE_BLOB:
-    switch (pack_length - portable_sizeof_char_ptr) {
-    case  1: sql_type= MYSQL_TYPE_TINY_BLOB; break;
-    case  2: sql_type= MYSQL_TYPE_BLOB; break;
-    case  3: sql_type= MYSQL_TYPE_MEDIUM_BLOB; break;
-    default: sql_type= MYSQL_TYPE_LONG_BLOB; break;
-    }
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
     length/= charset->mbmaxlen;
     key_length/= charset->mbmaxlen;
     break;
   case MYSQL_TYPE_STRING:
     /* Change CHAR -> VARCHAR if dynamic record length */
     if (old_field->type() == MYSQL_TYPE_VAR_STRING)
-      sql_type= MYSQL_TYPE_VARCHAR;
+      set_handler(&type_handler_varchar);
     /* fall through */
 
   case MYSQL_TYPE_ENUM:

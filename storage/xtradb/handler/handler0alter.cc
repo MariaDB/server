@@ -452,7 +452,7 @@ ha_innobase::check_if_supported_inplace_alter(
 			is TIMESTAMP and it is defined as NOT NULL and
 			it has either constant default or function default
 			we must use "Copy" method. */
-			if (is_timestamp_type(def->sql_type)) {
+			if (def->is_timestamp_type()) {
 				if ((def->flags & NOT_NULL_FLAG) != 0 && // NOT NULL
 					(def->default_value != NULL || // constant default ?
 					 def->unireg_check != Field::NONE)) { // function default

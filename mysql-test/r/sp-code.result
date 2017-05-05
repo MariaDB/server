@@ -11,7 +11,7 @@ returns int
 return 0;
 show function code almost_empty;
 Pos	Instruction
-0	freturn 3 0
+0	freturn int 0
 drop function almost_empty;
 create procedure code_sample(x int, out err int, out nulls int)
 begin
@@ -957,10 +957,10 @@ END
 $
 SHOW FUNCTION CODE testf_bug11763507;
 Pos	Instruction
-0	freturn 3 0
+0	freturn int 0
 SHOW FUNCTION CODE TESTF_bug11763507;
 Pos	Instruction
-0	freturn 3 0
+0	freturn int 0
 SHOW PROCEDURE CODE testp_bug11763507;
 Pos	Instruction
 0	stmt 0 "SELECT "PROCEDURE testp_bug11763507""
