@@ -136,7 +136,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 		tdp->Collname = GetStringTableOption(g, topt, "Name", NULL);
 		tdp->Collname = GetStringTableOption(g, topt, "Tabname", tdp->Collname);
 		tdp->Schema = GetStringTableOption(g, topt, "Dbname", "test");
-		tdp->Options = GetStringTableOption(g, topt, "Colist", NULL);
+		tdp->Options = (char*)GetStringTableOption(g, topt, "Colist", NULL);
 		tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
 		tdp->Pretty = 0;
 #else   // !MONGO_SUPPORT

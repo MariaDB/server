@@ -239,8 +239,8 @@ char *ODBCCheckConnection(PGLOBAL g, char *dsn, int cop)
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
 /***********************************************************************/
-static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *db,
-	char *tab, PQRYRES qrp)
+static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, PCSZ db,
+	                                      PCSZ tab, PQRYRES qrp)
 {
 	size_t   i, m, n;
 	CATPARM *cap;
@@ -256,8 +256,8 @@ static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *db,
 		memset(cap, 0, sizeof(CATPARM));
 		cap->Id = fid;
 		cap->Qrp = qrp;
-		cap->DB = (PUCHAR)db;
-		cap->Tab = (PUCHAR)tab;
+		cap->DB = db;
+		cap->Tab = tab;
 		cap->Vlen = (SQLLEN* *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN *));
 
 		for (i = 0; i < n; i++)
@@ -305,8 +305,8 @@ static void ResetNullValues(CATPARM *cap)
 /*  ODBCColumns: constructs the result blocks containing all columns   */
 /*  of an ODBC table that will be retrieved by GetData commands.       */
 /***********************************************************************/
-PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
-                    char *colpat, int maxres, bool info, POPARM sop)
+PQRYRES ODBCColumns(PGLOBAL g, PCSZ dsn, PCSZ db, PCSZ table,
+	                  PCSZ colpat, int maxres, bool info, POPARM sop)
   {
   int  buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING,
                    TYPE_SHORT,  TYPE_STRING, TYPE_INT,    TYPE_INT,
@@ -379,7 +379,7 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
   if (!(cap = AllocCatInfo(g, CAT_COL, db, table, qrp)))
     return NULL;
 
-  cap->Pat = (PUCHAR)colpat;
+  cap->Pat = colpat;
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
@@ -614,8 +614,8 @@ PQRYRES ODBCDataSources(PGLOBAL g, int maxres, bool info)
 /*  ODBCTables: constructs the result blocks containing all tables in     */
 /*  an ODBC database that will be retrieved by GetData commands.          */
 /**************************************************************************/
-PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
-                   char *tabtyp, int maxres, bool info, POPARM sop)
+PQRYRES ODBCTables(PGLOBAL g, PCSZ dsn, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
+	                 int maxres, bool info, POPARM sop)
   {
   int      buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
                        TYPE_STRING, TYPE_STRING};
@@ -677,7 +677,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
   if (!(cap = AllocCatInfo(g, CAT_TAB, db, tabpat, qrp)))
     return NULL;
 
-	cap->Pat = (PUCHAR)tabtyp;
+	cap->Pat = tabtyp;
 
   if (trace)
     htrc("Getting table results ncol=%d\n", cap->Qrp->Nbcol);
@@ -1106,7 +1106,7 @@ void ODBConn::OnSetOptions(HSTMT hstmt)
 /***********************************************************************/
 /*  Open: connect to a data source.                                    */
 /***********************************************************************/
-int ODBConn::Open(PSZ ConnectString, POPARM sop, DWORD options)
+int ODBConn::Open(PCSZ ConnectString, POPARM sop, DWORD options)
   {
   PGLOBAL& g = m_G;
 //ASSERT_VALID(this);
@@ -1917,7 +1917,7 @@ bool ODBConn::ExecSQLcommand(char *sql)
 /*  GetMetaData: constructs the result blocks containing the              */
 /*  description of all the columns of an SQL command.                     */
 /**************************************************************************/
-PQRYRES ODBConn::GetMetaData(PGLOBAL g, char *dsn, char *src)
+PQRYRES ODBConn::GetMetaData(PGLOBAL g, PCSZ dsn, PCSZ src)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_INT,
                           TYPE_SHORT,  TYPE_SHORT};
@@ -2279,22 +2279,20 @@ int ODBConn::GetCatInfo(CATPARM *cap)
     // Now do call the proper ODBC API
     switch (cap->Id) {
       case CAT_TAB:
-//      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
-//                                (SQLPOINTER)false, 0);
         fnc = "SQLTables";
         rc = SQLTables(hstmt, name.ptr(2), name.length(2),
                               name.ptr(1), name.length(1),
                               name.ptr(0), name.length(0),
-															cap->Pat, cap->Pat ? SQL_NTS : 0);
+					                    (SQLCHAR *)cap->Pat, 
+					                    cap->Pat ? SQL_NTS : 0);
         break;
       case CAT_COL:
-//      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
-//                                (SQLPOINTER)true, 0);
         fnc = "SQLColumns";
         rc = SQLColumns(hstmt, name.ptr(2), name.length(2),
                                name.ptr(1), name.length(1),
                                name.ptr(0), name.length(0),
-															 cap->Pat, cap->Pat ? SQL_NTS : 0);
+															 (SQLCHAR *)cap->Pat, 
+					                     cap->Pat ? SQL_NTS : 0);
         break;
       case CAT_KEY:
         fnc = "SQLPrimaryKeys";

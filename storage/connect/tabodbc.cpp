@@ -231,7 +231,7 @@ PCOL TDBODBC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /*  This used for Multiple(1) tables. Also prepare a connect string    */
 /*  with a place holder to be used by SetFile.                         */
 /***********************************************************************/
-PSZ TDBODBC::GetFile(PGLOBAL g)
+PCSZ TDBODBC::GetFile(PGLOBAL g)
   {
   if (Connect) {
     char  *p1, *p2;
@@ -297,7 +297,8 @@ void TDBODBC::SetFile(PGLOBAL g, PSZ fn)
 /***********************************************************************/
 bool TDBODBC::MakeInsert(PGLOBAL g)
   {
-	char  *schmp = NULL, *catp = NULL, buf[NAM_LEN * 3];
+	PCSZ   schmp = NULL;
+	char  *catp = NULL, buf[NAM_LEN * 3];
 	int    len = 0;
 	bool   oom, b = false;
 	PTABLE tablep = To_Table;

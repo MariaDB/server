@@ -31,7 +31,7 @@ class DllExport DBFBASE {
   DBFBASE(PDBF txfp);
 
   // Implementation
-  int  ScanHeader(PGLOBAL g, PSZ fname, int lrecl, int *rlen, char *defpath);
+  int  ScanHeader(PGLOBAL g, PCSZ fname, int lrecl, int *rlen, PSZ defpath);
 
  protected:
   // Default constructor, not to be used

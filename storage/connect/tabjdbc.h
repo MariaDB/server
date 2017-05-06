@@ -210,9 +210,9 @@ protected:
 	virtual PQRYRES GetResult(PGLOBAL g);
 
 	// Members
-	char    *Schema;            // Points to schema name or NULL
-	char    *Tab;               // Points to JDBC table name or pattern
-	char    *Tabtype;           // Points to JDBC table type
+	PCSZ     Schema;            // Points to schema name or NULL
+	PCSZ     Tab;               // Points to JDBC table name or pattern
+	PCSZ     Tabtype;           // Points to JDBC table type
 	JDBCPARM Ops;               // Additional parameters
 }; // end of class TDBJTB
 
@@ -229,7 +229,7 @@ protected:
 	virtual PQRYRES GetResult(PGLOBAL g);
 
 	// Members
-	char    *Colpat;            // Points to catalog column pattern
+	PCSZ Colpat;            // Points to catalog column pattern
 }; // end of class TDBJDBCL
 
 #endif // !NJDBC

@@ -60,10 +60,10 @@ public:
 
 	// Implementation
 	virtual const char *GetType(void) { return "EXT"; }
-	inline PSZ  GetTabname(void) { return Tabname; }
-	inline PSZ  GetTabschema(void) { return Tabschema; }
-	inline PSZ  GetUsername(void) { return Username; };
-	inline PSZ  GetPassword(void) { return Password; };
+	inline PCSZ GetTabname(void) { return Tabname; }
+	inline PCSZ GetTabschema(void) { return Tabschema; }
+	inline PCSZ GetUsername(void) { return Username; };
+	inline PCSZ GetPassword(void) { return Password; };
 	inline PSZ  GetTabcat(void) { return Tabcat; }
 	inline PSZ  GetSrcdef(void) { return Srcdef; }
 	inline char GetSep(void) { return (Sep) ? *Sep : 0; }
@@ -76,10 +76,10 @@ public:
 
 protected:
 	// Members
-	PSZ     Tabname;              /* External table name                 */
-	PSZ     Tabschema;            /* External table schema               */
-	PSZ     Username;             /* User connect name                   */
-	PSZ     Password;             /* Password connect info               */
+	PCSZ    Tabname;              /* External table name                 */
+	PCSZ    Tabschema;            /* External table schema               */
+	PCSZ    Username;             /* User connect name                   */
+	PCSZ    Password;             /* Password connect info               */
 	PSZ     Tabcat;               /* External table catalog              */
 	PSZ     Tabtyp;               /* Catalog table type                  */
 	PSZ     Colpat;               /* Catalog column pattern              */
@@ -127,19 +127,19 @@ protected:
 	virtual bool MakeSQL(PGLOBAL g, bool cnt);
 	//virtual bool MakeInsert(PGLOBAL g);
 	virtual bool MakeCommand(PGLOBAL g);
-	int  Decode(char *utf, char *buf, size_t n);
+	int Decode(PCSZ utf, char *buf, size_t n);
 
 	// Members
 	PQRYRES Qrp;                // Points to storage result
 	PSTRG   Query;              // Constructed SQL query
-	char   *TableName;          // Points to ODBC table name
-	char   *Schema;             // Points to ODBC table Schema
-	char   *User;               // User connect info
-	char   *Pwd;                // Password connect info
+	PCSZ    TableName;          // Points to ODBC table name
+	PCSZ    Schema;             // Points to ODBC table Schema
+	PCSZ    User;               // User connect info
+	PCSZ    Pwd;                // Password connect info
 	char   *Catalog;            // Points to ODBC table Catalog
 	char   *Srcdef;             // The source table SQL definition
 	char   *Count;              // Points to count(*) SQL statement
-	//char   *Where;              // Points to local where clause
+ //char   *Where;              // Points to local where clause
 	char   *Quote;              // The identifier quoting character
 	char   *MulConn;            // Used for multiple ODBC tables
 	char   *DBQ;                // The address part of Connect string

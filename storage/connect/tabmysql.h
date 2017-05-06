@@ -242,10 +242,10 @@ class TDBMCL : public TDBCAT {
 	virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
-  PSZ     Host;                  // Host machine to use            
-  PSZ     Db;                    // Database to be used by server  
-  PSZ     Tab;                   // External table name            
-  PSZ     User;                  // User logon name                
-  PSZ     Pwd;                   // Password logon info            
-  int     Port;                  // MySQL port number (0 = default)
+  PCSZ Host;                      // Host machine to use            
+	PCSZ Db;                        // Database to be used by server  
+	PCSZ Tab;                       // External table name            
+	PCSZ User;                      // User logon name                
+	PCSZ Pwd;                       // Password logon info            
+	int  Port;                      // MySQL port number (0 = default)
   }; // end of class TDBMCL

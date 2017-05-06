@@ -89,7 +89,7 @@ DOMDOC::DOMDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
 /******************************************************************/
 /*  Initialize XML parser and check library compatibility.        */
 /******************************************************************/
-bool DOMDOC::Initialize(PGLOBAL g, char *entry, bool zipped)
+bool DOMDOC::Initialize(PGLOBAL g, PCSZ entry, bool zipped)
 {
 	if (zipped && InitZip(g, entry))
 		return true;

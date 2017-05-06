@@ -54,9 +54,9 @@ enum CATINFO {CAT_TAB   =     1,      /* SQLTables                     */
 typedef struct tagCATPARM { 
   CATINFO  Id;                 // Id to indicate function 
   PQRYRES  Qrp;                // Result set pointer
-  PUCHAR   DB;                 // Database (Schema)
-  PUCHAR   Tab;                // Table name or pattern
-  PUCHAR   Pat;                // Table type or column pattern
+	PCSZ     DB;                 // Database (Schema)
+	PCSZ     Tab;                // Table name or pattern
+	PCSZ     Pat;                // Table type or column pattern
   SQLLEN* *Vlen;               // To array of indicator values
   UWORD   *Status;             // To status block
   // For SQLStatistics
@@ -119,7 +119,7 @@ class ODBConn : public BLOCK {
     noOdbcDialog =    0x0008,     // Don't display ODBC Connect dialog
     forceOdbcDialog = 0x0010};    // Always display ODBC connect dialog
 
-  int  Open(PSZ ConnectString, POPARM sop, DWORD Options = 0);
+  int  Open(PCSZ ConnectString, POPARM sop, DWORD Options = 0);
   int  Rewind(char *sql, ODBCCOL *tocols);
   void Close(void);
   PQRYRES AllocateResult(PGLOBAL g);
@@ -131,7 +131,7 @@ class ODBConn : public BLOCK {
   bool  IsOpen(void) {return m_hdbc != SQL_NULL_HDBC;}
   PSZ   GetStringInfo(ushort infotype);
   int   GetMaxValue(ushort infotype);
-  PSZ   GetConnect(void) {return m_Connect;}
+  PCSZ  GetConnect(void) {return m_Connect;}
 
  public:
   // Operations
@@ -149,7 +149,7 @@ class ODBConn : public BLOCK {
   int  GetCatInfo(CATPARM *cap);
   bool GetDataSources(PQRYRES qrp);
   bool GetDrivers(PQRYRES qrp);
-  PQRYRES GetMetaData(PGLOBAL g, char *dsn, char *src);
+  PQRYRES GetMetaData(PGLOBAL g, PCSZ dsn, PCSZ src);
 
  public:
   // Set special options
@@ -187,9 +187,9 @@ class ODBConn : public BLOCK {
   DWORD    m_UpdateOptions;
   DWORD    m_RowsetSize;
   char     m_IDQuoteChar[2];
-  PSZ      m_Connect;
-  PSZ      m_User;
-  PSZ      m_Pwd;
+  PCSZ     m_Connect;
+  PCSZ     m_User;
+  PCSZ     m_Pwd;
   int      m_Catver;
   int      m_Rows;
   int      m_Fetch;

@@ -617,11 +617,10 @@ DllExport void   *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 DllExport void    NewPointer(PTABS, void *, void *);
 //lExport char   *GetIni(int n= 0);    // Not used anymore
 DllExport void    SetTrc(void);
-DllExport char   *GetListOption(PGLOBAL, const char *, const char *,
-                                         const char *def=NULL);
-DllExport char   *GetStringTableOption(PGLOBAL, PTOS, char *, char *);
-DllExport bool    GetBooleanTableOption(PGLOBAL, PTOS, char *, bool);
-DllExport int     GetIntegerTableOption(PGLOBAL, PTOS, char *, int);
+DllExport PCSZ    GetListOption(PGLOBAL, PCSZ, PCSZ, PCSZ def=NULL);
+DllExport PCSZ    GetStringTableOption(PGLOBAL, PTOS, PCSZ, PCSZ);
+DllExport bool    GetBooleanTableOption(PGLOBAL, PTOS, PCSZ, bool);
+DllExport int     GetIntegerTableOption(PGLOBAL, PTOS, PCSZ, int);
 
 #define MSGID_NONE                         0
 #define MSGID_CANNOT_OPEN                  1

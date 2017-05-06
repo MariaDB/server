@@ -39,7 +39,7 @@ class DllExport TDBMUL : public TDBASE {
   virtual void ResetDB(void);
   virtual PTDB Clone(PTABS t);
   virtual bool IsSame(PTDB tp) {return tp == (PTDB)Tdbp;}
-  virtual PSZ  GetFile(PGLOBAL g) {return Tdbp->GetFile(g);}
+  virtual PCSZ GetFile(PGLOBAL g) {return Tdbp->GetFile(g);}
   virtual int  GetRecpos(void) {return 0;}
   virtual PCOL ColDB(PGLOBAL g, PSZ name, int num);
           bool InitFileNames(PGLOBAL g);

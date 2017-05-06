@@ -61,7 +61,7 @@ class DllExport VCTFAM : public FIXFAM {
   virtual bool WriteBlock(PGLOBAL g, PVCTCOL colp);
 
  protected:
-  virtual bool MakeEmptyFile(PGLOBAL g, char *fn);
+  virtual bool MakeEmptyFile(PGLOBAL g, PCSZ fn);
   virtual bool OpenTempFile(PGLOBAL g);
   virtual bool MoveLines(PGLOBAL g) {return false;}
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
@@ -235,7 +235,7 @@ class BGVFAM : public VCTFAM {
           bool BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, bool b = false);
           bool BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req);
           bool BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req);
-  virtual bool MakeEmptyFile(PGLOBAL g, char *fn);
+  virtual bool MakeEmptyFile(PGLOBAL g, PCSZ fn);
   virtual bool OpenTempFile(PGLOBAL g);
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
   virtual bool CleanUnusedSpace(PGLOBAL g);

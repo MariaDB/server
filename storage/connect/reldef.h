@@ -42,13 +42,13 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
 
   // Methods
   PTOS    GetTopt(void);
-  bool    GetBoolCatInfo(PSZ what, bool bdef);
-  bool    SetIntCatInfo(PSZ what, int ival);
+  bool    GetBoolCatInfo(PCSZ what, bool bdef);
+  bool    SetIntCatInfo(PCSZ what, int ival);
   bool    Partitioned(void);
-  int     GetIntCatInfo(PSZ what, int idef);
-  int     GetSizeCatInfo(PSZ what, PSZ sdef);
-  int     GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size);
-  char   *GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef);
+  int     GetIntCatInfo(PCSZ what, int idef);
+  int     GetSizeCatInfo(PCSZ what, PSZ sdef);
+  int     GetCharCatInfo(PCSZ what, PSZ sdef, char *buf, int size);
+  char   *GetStringCatInfo(PGLOBAL g, PCSZ what, PCSZ sdef);
   virtual int  Indexable(void) {return 0;}
   virtual bool Define(PGLOBAL g, PCATLG cat, 
 		                  LPCSTR name, LPCSTR schema, LPCSTR am) = 0;
@@ -105,8 +105,8 @@ public:
 
  protected:
   // Members
-  PSZ     Schema;               /* Table schema (for ODBC)             */
-  PSZ     Desc;                 /* Table description                   */
+  PCSZ    Schema;               /* Table schema (for ODBC)             */
+  PCSZ    Desc;                 /* Table description                   */
   uint    Catfunc;              /* Catalog function ID                 */
   int     Card;                 /* (max) number of rows in table       */
   int     Elemt;                /* Number of rows in blocks or rowset  */

@@ -54,8 +54,8 @@ public:
  protected:
   // Members
   JMODE Jmode;                  /* MODE_OBJECT by default              */
-  char *Objname;                /* Name of first level object          */
-  char *Xcol;                   /* Name of expandable column           */
+	PCSZ  Objname;                /* Name of first level object          */
+	PCSZ  Xcol;                   /* Name of expandable column           */
   int   Limit;                  /* Limit of multiple values            */
   int   Pretty;                 /* Depends on file structure           */
   int   Level;                  /* Used for catalog table              */
@@ -63,8 +63,8 @@ public:
   bool  Strict;                 /* Strict syntax checking              */
 	const char *Uri;							/* MongoDB connection URI              */
 #if defined(MONGO_SUPPORT)
-	PSZ   Collname;               /* External collection name            */
-	PSZ   Schema;                 /* External schema (DB) name           */
+	PCSZ  Collname;               /* External collection name            */
+	PCSZ  Schema;                 /* External schema (DB) name           */
 	PSZ   Options;                /* Colist ; filter                     */
 	bool  Pipe;							      /* True if Colist is a pipeline        */
 #endif   // MONGO_SUPPORT
@@ -122,8 +122,8 @@ public:
 	PJSON   Val;                     // The value of the current row
 	PJCOL   Colp;                    // The multiple column
 	JMODE   Jmode;                   // MODE_OBJECT by default
-  char   *Objname;                 // The table object name
-  char   *Xcol;                    // Name of expandable column
+	PCSZ    Objname;                 // The table object name
+	PCSZ    Xcol;                    // Name of expandable column
 	int     Fpos;                    // The current row index
 	int     N;                       // The current Rownum
 	int     M;                       // Index of multiple value

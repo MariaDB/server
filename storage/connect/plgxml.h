@@ -76,7 +76,7 @@ class XMLDOCUMENT : public BLOCK {
   virtual void    SetNofree(bool b) = 0;
 
   // Methods
-	virtual bool    Initialize(PGLOBAL, char *, bool) = 0;
+	virtual bool    Initialize(PGLOBAL, PCSZ, bool) = 0;
   virtual bool    ParseFile(PGLOBAL, char *) = 0;
   virtual bool    NewDoc(PGLOBAL, char *) = 0;
   virtual void    AddComment(PGLOBAL, char *) = 0;
@@ -95,7 +95,7 @@ class XMLDOCUMENT : public BLOCK {
 
   // Utility
   bool  MakeNSlist(PGLOBAL g);
-	bool  InitZip(PGLOBAL g, char *entry);
+	bool  InitZip(PGLOBAL g, PCSZ entry);
 	char *GetMemDoc(PGLOBAL g, char *fn);
 	void  CloseZip(void);
 

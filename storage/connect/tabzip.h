@@ -34,7 +34,7 @@ public:
 
 protected:
 	// Members
-	PSZ         target;								 // The inside file to query
+	PCSZ        target;								 // The inside file to query
 }; // end of ZIPDEF
 
 /***********************************************************************/
@@ -68,7 +68,7 @@ protected:
 
 	// Members
 	unzFile         zipfile;							   // The ZIP container file
-	PSZ             zfn;									   // The ZIP file name
+	PCSZ            zfn;									   // The ZIP file name
 //PSZ             target;
 	unz_file_info64 finfo;									 // The current file info
 	char            fn[FILENAME_MAX];     	 // The current file name

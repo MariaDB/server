@@ -24,6 +24,8 @@ typedef longlong  BIGINT;
 #define FILE_END      SEEK_END  
 #endif  // !__WIN__
 
+typedef _Null_terminated_ const char *PCSZ;
+
 #if !defined(__WIN__)
 typedef const void *LPCVOID;
 typedef const char *LPCTSTR;

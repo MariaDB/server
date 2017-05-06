@@ -108,7 +108,7 @@ class TDBDCL : public TDBCAT {
       {return DBFColumns(g, ((PTABDEF)To_Def)->GetPath(), Fn, false);}
 
   // Members
-  char *Fn;                       // The DBF file (path) name
+	PCSZ Fn;                    // The DBF file (path) name
   }; // end of class TDBOCL
 
 

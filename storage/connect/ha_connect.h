@@ -61,7 +61,7 @@ public:
               oldopn= newopn= NULL;
               oldpix= newpix= NULL;}
 
-  inline char *SetName(PGLOBAL g, char *name) {return PlugDup(g, name);}
+  inline char *SetName(PGLOBAL g, PCSZ name) {return PlugDup(g, name);}
 
   bool         oldsep;              // Sepindex before create/alter
   bool         newsep;              // Sepindex after create/alter
@@ -168,18 +168,18 @@ public:
   static   bool connect_init(void);
   static   bool connect_end(void);
   TABTYPE  GetRealType(PTOS pos= NULL);
-  char    *GetRealString(const char *s);
-  char    *GetStringOption(char *opname, char *sdef= NULL);
+  char    *GetRealString(PCSZ s);
+	PCSZ     GetStringOption(PCSZ opname, PCSZ sdef= NULL);
   PTOS     GetTableOptionStruct(TABLE_SHARE *s= NULL);
-  bool     GetBooleanOption(char *opname, bool bdef);
-  bool     SetBooleanOption(char *opname, bool b);
-  int      GetIntegerOption(char *opname);
-  bool     GetIndexOption(KEY *kp, char *opname);
-  bool     CheckString(const char *str1, const char *str2);
-  bool     SameString(TABLE *tab, char *opn);
-  bool     SetIntegerOption(char *opname, int n);
-  bool     SameInt(TABLE *tab, char *opn);
-  bool     SameBool(TABLE *tab, char *opn);
+  bool     GetBooleanOption(PCSZ opname, bool bdef);
+  bool     SetBooleanOption(PCSZ opname, bool b);
+  int      GetIntegerOption(PCSZ opname);
+  bool     GetIndexOption(KEY *kp, PCSZ opname);
+  bool     CheckString(PCSZ str1, PCSZ str2);
+  bool     SameString(TABLE *tab, PCSZ opn);
+  bool     SetIntegerOption(PCSZ opname, int n);
+  bool     SameInt(TABLE *tab, PCSZ opn);
+  bool     SameBool(TABLE *tab, PCSZ opn);
   bool     FileExists(const char *fn, bool bf);
   bool     NoFieldOptionChange(TABLE *tab);
   PFOS     GetFieldOptionStruct(Field *fp);
@@ -187,7 +187,7 @@ public:
   PXOS     GetIndexOptionStruct(KEY *kp);
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
   bool     CheckVirtualIndex(TABLE_SHARE *s);
-  const char *GetDBName(const char *name);
+  const char *GetDBName(PCSZ name);
   const char *GetTableName(void);
   char    *GetPartName(void);
 //int      GetColNameLen(Field *fp);
@@ -199,7 +199,7 @@ public:
   bool     IsUnique(uint n);
   char    *GetDataPath(void) {return (char*)datapath;}
 
-  bool     SetDataPath(PGLOBAL g, const char *path); 
+  bool     SetDataPath(PGLOBAL g, PCSZ path);
   PTDB     GetTDB(PGLOBAL g);
   int      OpenTable(PGLOBAL g, bool del= false);
   bool     CheckColumnList(PGLOBAL g);

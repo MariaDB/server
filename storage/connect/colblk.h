@@ -154,7 +154,7 @@ class DllExport FIDBLK : public SPCBLK {
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
-  PSZ   Fn;                         // The current To_File of the table
+  PCSZ  Fn;                         // The current To_File of the table
   OPVAL Op;                         // The file part operator
   }; // end of class FIDBLK
 

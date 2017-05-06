@@ -153,7 +153,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 		tdp->Lrecl = 4096;
 
 	tdp->Multiple = GetIntegerTableOption(g, topt, "Multiple", 0);
-	p = GetStringTableOption(g, topt, "Separator", ",");
+	p = (char*)GetStringTableOption(g, topt, "Separator", ",");
 	tdp->Sep = (strlen(p) == 2 && p[0] == '\\' && p[1] == 't') ? '\t' : *p;
 
 #if defined(__WIN__)
@@ -167,7 +167,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 
 	sep = tdp->Sep;
 	tdp->Quoted = GetIntegerTableOption(g, topt, "Quoted", -1);
-	p = GetStringTableOption(g, topt, "Qchar", "");
+	p = (char*)GetStringTableOption(g, topt, "Qchar", "");
 	tdp->Qot = *p;
 
 	if (tdp->Qot && tdp->Quoted < 0)

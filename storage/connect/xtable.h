@@ -98,8 +98,8 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
 	virtual int    GetMaxSize(PGLOBAL) = 0;
   virtual int    GetProgMax(PGLOBAL) = 0;
 	virtual int    GetProgCur(void) {return GetRecpos();}
-	virtual PSZ    GetFile(PGLOBAL) {return "Not a file";}
-	virtual void   SetFile(PGLOBAL, PSZ) {}
+	virtual PCSZ   GetFile(PGLOBAL) {return "Not a file";}
+	virtual void   SetFile(PGLOBAL, PCSZ) {}
 	virtual void   ResetDB(void) {}
 	virtual void   ResetSize(void) {MaxSize = -1;}
 	virtual int    RowNumber(PGLOBAL g, bool b = false);
@@ -168,9 +168,6 @@ class DllExport TDBASE : public TDB {
 
   // Implementation
   inline  int     GetKnum(void) {return Knum;}
-//inline  PTABDEF GetDef(void) {return To_Def;}
-//inline  PCOL    GetSetCols(void) {return To_SetCols;}
-//inline  void    SetSetCols(PCOL colp) {To_SetCols = colp;}
   inline  void    SetKey_Col(PCOL *cpp) {To_Key_Col = cpp;}
   inline  void    SetXdp(PIXDEF xdp) {To_Xdp = xdp;}
   inline  void    SetKindex(PKXBASE kxp) {To_Kindex = kxp;}
@@ -182,36 +179,14 @@ class DllExport TDBASE : public TDB {
 
   // Methods
   virtual bool   IsUsingTemp(PGLOBAL) {return false;}
-//virtual bool   IsIndexed(void) {return false;}
-//virtual bool   IsSpecial(PSZ name);
   virtual PCATLG GetCat(void);
-//virtual PSZ    GetPath(void);
   virtual void   PrintAM(FILE *f, char *m);
-//virtual RECFM  GetFtype(void) {return RECFM_NAF;}
-//virtual int    GetAffectedRows(void) {return -1;}
-//virtual int    GetRecpos(void) = 0;
-//virtual bool   SetRecpos(PGLOBAL g, int recpos);
-//virtual bool   IsReadOnly(void) {return Read_Only;}
-//virtual bool   IsView(void) {return FALSE;}
-//virtual CHARSET_INFO *data_charset(void);
   virtual int    GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
-//virtual int    GetProgCur(void) {return GetRecpos();}
-//virtual PSZ    GetFile(PGLOBAL) {return "Not a file";}
-//virtual int    GetRemote(void) {return 0;}
-//virtual void   SetFile(PGLOBAL, PSZ) {}
-//virtual void   ResetDB(void) {}
-//virtual void   ResetSize(void) {MaxSize = -1;}
   virtual void   RestoreNrec(void) {}
   virtual int    ResetTableOpt(PGLOBAL g, bool dop, bool dox);
   virtual PSZ    GetServer(void) {return "Current";}
 
   // Database routines
-//virtual PCOL ColDB(PGLOBAL g, PSZ name, int num);
-//virtual PCOL MakeCol(PGLOBAL, PCOLDEF, PCOL, int)
-//                    {assert(false); return NULL;}
-//virtual PCOL InsertSpecialColumn(PCOL colp);
-//virtual PCOL InsertSpcBlk(PGLOBAL g, PCOLDEF cdp);
-//virtual void MarkDB(PGLOBAL g, PTDB tdb2);
   virtual int  MakeIndex(PGLOBAL g, PIXDEF, bool)
                 {strcpy(g->Message, "Remote index"); return RC_INFO;}
   virtual bool ReadKey(PGLOBAL, OPVAL, const key_range *)
@@ -222,18 +197,12 @@ class DllExport TDBASE : public TDB {
     "This function should not be called for this table"); return true;}
 
   // Members
-//PTABDEF  To_Def;            // Points to catalog description block
   PXOB    *To_Link;           // Points to column of previous relations
   PCOL    *To_Key_Col;        // Points to key columns in current file
   PKXBASE  To_Kindex;         // Points to table key index
   PIXDEF   To_Xdp;            // To the index definition block
-//PCOL     To_SetCols;        // Points to updated columns
   RECFM    Ftype;             // File type: 0-var 1-fixed 2-binary (VCT)
-//int      MaxSize;           // Max size in number of lines
   int      Knum;              // Size of key arrays
-//bool     Read_Only;         // True for read only tables
-//const CHARSET_INFO *m_data_charset;
-//const char *csname;         // Table charset name
 }; // end of class TDBASE
 
 /***********************************************************************/

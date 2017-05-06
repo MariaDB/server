@@ -45,7 +45,7 @@ XMLDOCUMENT::XMLDOCUMENT(char *nsl, char *nsdf, char *enc)
 /******************************************************************/
 /*  Initialize zipped file processing.                            */
 /******************************************************************/
-bool XMLDOCUMENT::InitZip(PGLOBAL g, char *entry)
+bool XMLDOCUMENT::InitZip(PGLOBAL g, PCSZ entry)
 {
 #if defined(ZIP_SUPPORT)
 	bool mul = (entry) ? strchr(entry, '*') || strchr(entry, '?') : false;

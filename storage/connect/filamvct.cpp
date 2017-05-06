@@ -143,9 +143,9 @@ int VCTFAM::GetFileLength(PGLOBAL g)
   {
   if (Split) {
     // Get the total file length
-    char    filename[_MAX_PATH];
-    char   *savfile = To_File;
-    int     i, len = 0;
+    char filename[_MAX_PATH];
+    PCSZ savfile = To_File;
+    int  i, len = 0;
 
     //  Initialize the array of file structures
     if (!Colfn) {
@@ -313,8 +313,8 @@ int VCTFAM::Cardinality(PGLOBAL g)
       // and Last must be set from the file cardinality.
       // Only happens when called by sub classes.
       char    filename[_MAX_PATH];
-      PSZ     savfn = To_File;
-      int    len, clen, card = -1;
+      PCSZ    savfn = To_File;
+      int     len, clen, card = -1;
       PCOLDEF cdp = Tdbp->GetDef()->GetCols();
 
       if (!Colfn) {
@@ -368,7 +368,7 @@ int VCTFAM::GetRowID(void)
 /***********************************************************************/
 /*  VCT Create an empty file for Vector formatted tables.              */
 /***********************************************************************/
-bool VCTFAM::MakeEmptyFile(PGLOBAL g, char *fn)
+bool VCTFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   {
   // Vector formatted file: this will create an empty file of the
   // required length if it does not exists yet.
@@ -3319,7 +3319,7 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
 /***********************************************************************/
 /*  VEC Create an empty file for new Vector formatted tables.          */
 /***********************************************************************/
-bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
+bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   {
   // Vector formatted file this will create an empty file of the
   // required length if it does not exists yet.

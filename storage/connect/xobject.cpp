@@ -246,7 +246,7 @@ char *STRING::Realloc(uint len)
 /***********************************************************************/
 /*  Set a STRING new PSZ value.                                        */
 /***********************************************************************/
-bool STRING::Set(PSZ s)
+bool STRING::Set(PCSZ s)
 {
   if (!s)
     return false;
@@ -336,9 +336,9 @@ bool STRING::Append(const char *s, uint ln, bool nq)
 } // end of Append
 
 /***********************************************************************/
-/*  Append a PSZ to a STRING.                                          */
+/*  Append a PCSZ to a STRING.                                         */
 /***********************************************************************/
-bool STRING::Append(PSZ s)
+bool STRING::Append(PCSZ s)
 {
   if (!s)
     return false;
@@ -395,11 +395,11 @@ bool STRING::Append(char c)
 /***********************************************************************/
 /*  Append a quoted PSZ to a STRING.                                   */
 /***********************************************************************/
-bool STRING::Append_quoted(PSZ s)
+bool STRING::Append_quoted(PCSZ s)
 {
   bool b = Append('\'');
 
-  if (s) for (char *p = s; !b && *p; p++)
+  if (s) for (const char *p = s; !b && *p; p++)
     switch (*p) {
       case '\'':
       case '\\':

@@ -118,10 +118,11 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
                           FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
   static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
-  char   *fn, *op, colname[65], fmt[129], buf[512];
+  char    colname[65], fmt[129], buf[512];
   int     i, j, lvl, n = 0;
   int     ncol = sizeof(buftyp) / sizeof(int);
   bool    ok = true;
+	PCSZ    fn, op;
   PXCL    xcol, xcp, fxcp = NULL, pxcp = NULL;
   PLVL   *lvlp, vp;
   PXNODE  node = NULL;

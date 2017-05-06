@@ -365,7 +365,8 @@ PCOL TDBJDBC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 bool TDBJDBC::MakeInsert(PGLOBAL g)
 {
-	char  *schmp = NULL, *catp = NULL, buf[NAM_LEN * 3];
+	PCSZ   schmp = NULL;
+	char  *catp = NULL, buf[NAM_LEN * 3];
 	int    len = 0;
 	uint   pos;
 	bool   b = false;

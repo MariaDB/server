@@ -216,9 +216,9 @@ PQRYRES MGOColumns(PGLOBAL g, char *db, PTOS topt, bool info);
 #endif   // MONGO_SUPPORT
 int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
-bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
-                  const char *db, char *tab, const char *src, int port);
-bool    ZipLoadFile(PGLOBAL, char*, char*, char*, bool, bool);
+bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
+	                                           PCSZ tab, PCSZ src, int port);
+bool    ZipLoadFile(PGLOBAL, PCSZ, PCSZ, PCSZ, bool, bool);
 bool    ExactInfo(void);
 void    mongo_init(bool);
 USETEMP UseTemp(void);
@@ -1030,15 +1030,14 @@ ulonglong ha_connect::table_flags() const
 /****************************************************************************/
 /*  Return the value of an option specified in an option list.              */
 /****************************************************************************/
-char *GetListOption(PGLOBAL g, const char *opname,
-                               const char *oplist, const char *def)
+PCSZ GetListOption(PGLOBAL g, PCSZ opname, PCSZ oplist, PCSZ def)
 {
   if (!oplist)
     return (char*)def;
 
   char  key[16], val[256];
   char *pk, *pv, *pn;
-  char *opval= (char*)def;
+	PCSZ  opval= def;
   int   n;
 
   for (pk= (char*)oplist; pk; pk= ++pn) {
@@ -1074,9 +1073,9 @@ char *GetListOption(PGLOBAL g, const char *opname,
 /****************************************************************************/
 /*  Return the value of a string option or NULL if not specified.           */
 /****************************************************************************/
-char *GetStringTableOption(PGLOBAL g, PTOS options, char *opname, char *sdef)
+PCSZ GetStringTableOption(PGLOBAL g, PTOS options, PCSZ opname, PCSZ sdef)
 {
-  const char *opval= NULL;
+	PCSZ opval= NULL;
 
   if (!options)
     return sdef;
@@ -1119,10 +1118,10 @@ char *GetStringTableOption(PGLOBAL g, PTOS options, char *opname, char *sdef)
 /****************************************************************************/
 /*  Return the value of a Boolean option or bdef if not specified.          */
 /****************************************************************************/
-bool GetBooleanTableOption(PGLOBAL g, PTOS options, char *opname, bool bdef)
+bool GetBooleanTableOption(PGLOBAL g, PTOS options, PCSZ opname, bool bdef)
 {
-  bool  opval= bdef;
-  char *pv;
+  bool opval= bdef;
+	PCSZ pv;
 
   if (!options)
     return bdef;
@@ -1150,7 +1149,7 @@ bool GetBooleanTableOption(PGLOBAL g, PTOS options, char *opname, bool bdef)
 /****************************************************************************/
 /*  Return the value of an integer option or NO_IVAL if not specified.      */
 /****************************************************************************/
-int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
+int GetIntegerTableOption(PGLOBAL g, PTOS options, PCSZ opname, int idef)
 {
   ulonglong opval= (ulonglong) NO_IVAL;
 
@@ -1172,10 +1171,10 @@ int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
     opval= (options->compressed);
 
   if ((ulonglong) opval == (ulonglong)NO_IVAL) {
-    char *pv;
+		PCSZ pv;
 
     if ((pv= GetListOption(g, opname, options->oplist)))
-      opval= CharToNumber(pv, strlen(pv), ULONGLONG_MAX, true);
+      opval= CharToNumber((char*)pv, strlen(pv), ULONGLONG_MAX, true);
     else
       return idef;
 
@@ -1200,7 +1199,7 @@ PTOS ha_connect::GetTableOptionStruct(TABLE_SHARE *s)
 /****************************************************************************/
 /*  Return the string eventually formatted with partition name.             */
 /****************************************************************************/
-char *ha_connect::GetRealString(const char *s)
+char *ha_connect::GetRealString(PCSZ s)
 {
   char *sv;
 
@@ -1217,10 +1216,10 @@ char *ha_connect::GetRealString(const char *s)
 /****************************************************************************/
 /*  Return the value of a string option or sdef if not specified.           */
 /****************************************************************************/
-char *ha_connect::GetStringOption(char *opname, char *sdef)
+PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
 {
-  char *opval= NULL;
-  PTOS  options= GetTableOptionStruct();
+	PCSZ opval= NULL;
+  PTOS options= GetTableOptionStruct();
 
   if (!stricmp(opname, "Connect")) {
     LEX_STRING cnc= (tshp) ? tshp->connect_string 
@@ -1279,7 +1278,7 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
 /****************************************************************************/
 /*  Return the value of a Boolean option or bdef if not specified.          */
 /****************************************************************************/
-bool ha_connect::GetBooleanOption(char *opname, bool bdef)
+bool ha_connect::GetBooleanOption(PCSZ opname, bool bdef)
 {
   bool  opval;
   PTOS  options= GetTableOptionStruct();
@@ -1296,7 +1295,7 @@ bool ha_connect::GetBooleanOption(char *opname, bool bdef)
 /*  Set the value of the opname option (does not work for oplist options)   */
 /*  Currently used only to set the Sepindex value.                          */
 /****************************************************************************/
-bool ha_connect::SetBooleanOption(char *opname, bool b)
+bool ha_connect::SetBooleanOption(PCSZ opname, bool b)
 {
   PTOS options= GetTableOptionStruct();
 
@@ -1314,7 +1313,7 @@ bool ha_connect::SetBooleanOption(char *opname, bool b)
 /****************************************************************************/
 /*  Return the value of an integer option or NO_IVAL if not specified.      */
 /****************************************************************************/
-int ha_connect::GetIntegerOption(char *opname)
+int ha_connect::GetIntegerOption(PCSZ opname)
 {
   int          opval;
   PTOS         options= GetTableOptionStruct();
@@ -1334,7 +1333,7 @@ int ha_connect::GetIntegerOption(char *opname)
 /*  Set the value of the opname option (does not work for oplist options)   */
 /*  Currently used only to set the Lrecl value.                             */
 /****************************************************************************/
-bool ha_connect::SetIntegerOption(char *opname, int n)
+bool ha_connect::SetIntegerOption(PCSZ opname, int n)
 {
   PTOS options= GetTableOptionStruct();
 
@@ -1534,7 +1533,7 @@ PXOS ha_connect::GetIndexOptionStruct(KEY *kp)
 /****************************************************************************/
 /*  Return a Boolean index option or false if not specified.                */
 /****************************************************************************/
-bool ha_connect::GetIndexOption(KEY *kp, char *opname)
+bool ha_connect::GetIndexOption(KEY *kp, PCSZ opname)
 {
   bool opval= false;
   PXOS options= GetIndexOptionStruct(kp);
@@ -1546,7 +1545,7 @@ bool ha_connect::GetIndexOption(KEY *kp, char *opname)
       opval= options->mapped;
 
   } else if (kp->comment.str && kp->comment.length) {
-    char *pv, *oplist= strz(xp->g, kp->comment);
+		PCSZ pv, oplist= strz(xp->g, kp->comment);
 
     if ((pv= GetListOption(xp->g, opname, oplist)))
       opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
@@ -5036,8 +5035,8 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
 } // end of records_in_range
 
 // Used to check whether a MYSQL table is created on itself
-bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
-                      const char *db, char *tab, const char *src, int port)
+bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host,
+	             PCSZ db, PCSZ tab, PCSZ src, int port)
 {
   if (src)
     return false;
@@ -5273,41 +5272,41 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *create_info)
 {
-  char        v=0;
-  const char *fncn= "?";
-  const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
-  const char *col, *ocl, *rnk, *pic, *fcl, *skc, *zfn;
-  char       *tab, *dsn, *shm, *dpath; 
+  char     v=0;
+	PCSZ     fncn= "?";
+	PCSZ     user, fn, db, host, pwd, sep, tbl, src;
+	PCSZ     col, ocl, rnk, pic, fcl, skc, zfn;
+  char    *tab, *dsn, *shm, *dpath; 
 #if defined(__WIN__)
-  char       *nsp= NULL, *cls= NULL;
+	PCSZ     nsp= NULL, cls= NULL;
 #endif   // __WIN__
-//int         hdr, mxe;
-	int         port = 0, mxr = 0, rc = 0, mul = 0, lrecl = 0;
+//int      hdr, mxe;
+	int      port = 0, mxr = 0, rc = 0, mul = 0, lrecl = 0;
 #if defined(ODBC_SUPPORT)
-  POPARM      sop= NULL;
-  char       *ucnc= NULL;
-  bool        cnc= false;
-  int         cto= -1, qto= -1;
+  POPARM   sop= NULL;
+	PCSZ     ucnc= NULL;
+  bool     cnc= false;
+  int      cto= -1, qto= -1;
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
-	PJPARM      sjp= NULL;
-	char       *driver= NULL;
-	char       *url= NULL;
-//char       *prop= NULL;
-	char       *tabtyp= NULL;
+	PJPARM   sjp= NULL;
+	PCSZ     driver= NULL;
+	char    *url= NULL;
+//char    *prop= NULL;
+	PCSZ     tabtyp= NULL;
 #endif   // JDBC_SUPPORT
-  uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
-  bool        bif, ok= false, dbf= false;
-  TABTYPE     ttp= TAB_UNDEF;
-  PQRYRES     qrp= NULL;
-  PCOLRES     crp;
-  PCONNECT    xp= NULL;
-  PGLOBAL     g= GetPlug(thd, xp);
-  PDBUSER     dup= PlgGetUser(g);
-  PCATLG      cat= (dup) ? dup->Catalog : NULL;
-  PTOS        topt= table_s->option_struct;
-  char        buf[1024];
-  String      sql(buf, sizeof(buf), system_charset_info);
+  uint     tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
+  bool     bif, ok= false, dbf= false;
+  TABTYPE  ttp= TAB_UNDEF;
+  PQRYRES  qrp= NULL;
+  PCOLRES  crp;
+  PCONNECT xp= NULL;
+  PGLOBAL  g= GetPlug(thd, xp);
+  PDBUSER  dup= PlgGetUser(g);
+  PCATLG   cat= (dup) ? dup->Catalog : NULL;
+  PTOS     topt= table_s->option_struct;
+  char     buf[1024];
+  String   sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
 
@@ -5472,7 +5471,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 						ok = true;
 					} else if (rc == RC_NF) {
 						if (jdef->GetTabname())
-							tab = jdef->GetTabname();
+							tab = (char*)jdef->GetTabname();
 
 						ok = jdef->SetParms(sjp);
 					} // endif rc
@@ -5518,7 +5517,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 							db = mydef->GetTabschema();
 
 						if (mydef->GetTabname())
-							tab = mydef->GetTabname();
+							tab = (char*)mydef->GetTabname();
 
 						if (mydef->GetPortnumber())
 							port = mydef->GetPortnumber();
@@ -6143,8 +6142,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         if (!part_info)
 #endif   // WITH_PARTITION_STORAGE_ENGINE
        {const char *src= options->srcdef;
-        char *host, *db, *tab= (char*)options->tabname;
-        int   port;
+				PCSZ host, db, tab= options->tabname;
+        int  port;
 
         host= GetListOption(g, "host", options->oplist, NULL);
         db= GetStringOption("database", NULL);
@@ -6188,8 +6187,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
      } // endswitch ttp
 
   if (type == TAB_XML) {
-    bool  dom;                  // True: MS-DOM, False libxml2
-    char *xsup= GetListOption(g, "Xmlsup", options->oplist, "*");
+    bool dom;                  // True: MS-DOM, False libxml2
+		PCSZ xsup= GetListOption(g, "Xmlsup", options->oplist, "*");
 
     // Note that if no support is specified, the default is MS-DOM
     // on Windows and libxml2 otherwise
@@ -6449,15 +6448,15 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 	if (options->zipped) {
 		// Check whether the zip entry must be made from a file
-		char *fn = GetListOption(g, "Load", options->oplist, NULL);
+		PCSZ fn = GetListOption(g, "Load", options->oplist, NULL);
 
 		if (fn) {
-			char  zbuf[_MAX_PATH], buf[_MAX_PATH], dbpath[_MAX_PATH];
-			char *entry = GetListOption(g, "Entry", options->oplist, NULL);
-			char *a = GetListOption(g, "Append", options->oplist, "NO");
-			bool  append = *a == '1' || *a == 'Y' || *a == 'y' || !stricmp(a, "ON");
-			char *m = GetListOption(g, "Mulentries", options->oplist, "NO");
-			bool  mul = *m == '1' || *m == 'Y' || *m == 'y' || !stricmp(m, "ON");
+			char zbuf[_MAX_PATH], buf[_MAX_PATH], dbpath[_MAX_PATH];
+			PCSZ entry = GetListOption(g, "Entry", options->oplist, NULL);
+			PCSZ a = GetListOption(g, "Append", options->oplist, "NO");
+			bool append = *a == '1' || *a == 'Y' || *a == 'y' || !stricmp(a, "ON");
+			PCSZ m = GetListOption(g, "Mulentries", options->oplist, "NO");
+			bool mul = *m == '1' || *m == 'Y' || *m == 'y' || !stricmp(m, "ON");
 
 			if (!entry && !mul) {
 				my_message(ER_UNKNOWN_ERROR, "Missing entry name", MYF(0));
@@ -6642,9 +6641,9 @@ bool ha_connect::CheckString(const char *str1, const char *str2)
 /**
   check whether a string option have changed
   */
-bool ha_connect::SameString(TABLE *tab, char *opn)
+bool ha_connect::SameString(TABLE *tab, PCSZ opn)
 {
-  char *str1, *str2;
+  PCSZ str1, str2;
 
   tshp= tab->s;                 // The altered table
   str1= GetStringOption(opn);
@@ -6656,7 +6655,7 @@ bool ha_connect::SameString(TABLE *tab, char *opn)
 /**
   check whether a Boolean option have changed
   */
-bool ha_connect::SameBool(TABLE *tab, char *opn)
+bool ha_connect::SameBool(TABLE *tab, PCSZ opn)
 {
   bool b1, b2;
 
@@ -6670,7 +6669,7 @@ bool ha_connect::SameBool(TABLE *tab, char *opn)
 /**
   check whether an integer option have changed
   */
-bool ha_connect::SameInt(TABLE *tab, char *opn)
+bool ha_connect::SameInt(TABLE *tab, PCSZ opn)
 {
   int i1, i2;
 
@@ -6849,7 +6848,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
       // Conversion to outward table is only allowed for file based
       // tables whose file does not exist.
       tshp= altered_table->s;
-      char *fn= GetStringOption("filename");
+			PCSZ fn= GetStringOption("filename");
       tshp= NULL;
 
       if (FileExists(fn, false)) {
