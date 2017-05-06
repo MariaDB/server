@@ -6021,10 +6021,11 @@ Item *Item_bool_rowready_func2::negated_item(THD *thd)
   of the type Item_field or Item_direct_view_ref(Item_field). 
 */
 
-Item_equal::Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item):
+Item_equal::Item_equal(THD *thd, const Type_handler *handler,
+                       Item *f1, Item *f2, bool with_const_item):
   Item_bool_func(thd), eval_item(0), cond_false(0), cond_true(0),
   context_field(NULL), link_equal_fields(FALSE),
-  m_compare_type(item_cmp_type(f1, f2)),
+  m_compare_handler(handler),
   m_compare_collation(f2->collation.collation)
 {
   const_item_cache= 0;
@@ -6050,7 +6051,7 @@ Item_equal::Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item):
 Item_equal::Item_equal(THD *thd, Item_equal *item_equal):
   Item_bool_func(thd), eval_item(0), cond_false(0), cond_true(0),
   context_field(NULL), link_equal_fields(FALSE),
-  m_compare_type(item_equal->m_compare_type),
+  m_compare_handler(item_equal->m_compare_handler),
   m_compare_collation(item_equal->m_compare_collation)
 {
   const_item_cache= 0;
@@ -6093,7 +6094,7 @@ void Item_equal::add_const(THD *thd, Item *c)
     return;
   }
   Item *const_item= get_const();
-  switch (Item_equal::compare_type()) {
+  switch (Item_equal::compare_type_handler()->cmp_type()) {
   case TIME_RESULT:
     {
       enum_field_types f_type= context_field->field_type();

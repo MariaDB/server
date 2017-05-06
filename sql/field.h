@@ -380,10 +380,10 @@ public:
        m_compare_collation(cs)
     { DBUG_ASSERT(h == h->type_handler_for_comparison()); }
     Subst_constraint subst_constraint() const { return m_subst_constraint; }
-    Item_result compare_type() const
+    const Type_handler *compare_type_handler() const
     {
       DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
-      return m_compare_handler->cmp_type();
+      return m_compare_handler;
     }
     CHARSET_INFO *compare_collation() const
     {
@@ -2645,6 +2645,8 @@ public:
     :Field_temporal(ptr_arg, length_arg, null_ptr_arg, null_bit_arg,
                     unireg_check_arg, field_name_arg), curdays(0)
     {}
+  bool can_be_substituted_to_equal_item(const Context &ctx,
+                                        const Item_equal *item_equal);
   const Type_handler *type_handler() const { return &type_handler_time; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
   Copy_func *get_copy_func(const Field *from) const

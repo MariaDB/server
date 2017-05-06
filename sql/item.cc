@@ -6031,7 +6031,8 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
         comparison context, and it's safe to replace it to the constant from
         item_equal.
       */
-      DBUG_ASSERT(cmp_type() == item_equal->compare_type());
+      DBUG_ASSERT(type_handler()->type_handler_for_comparison()->cmp_type() ==
+                  item_equal->compare_type_handler()->cmp_type());
       return const_item2;
     }
     Item_field *subst= 

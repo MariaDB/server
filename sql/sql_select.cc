@@ -12829,10 +12829,15 @@ static bool check_simple_equality(THD *thd, const Item::Context &ctx,
       else 
       {
         /* None of the fields was found in multiple equalities */
-        Item_equal *item_equal= new (thd->mem_root) Item_equal(thd,
-                                                               orig_left_item,
-                                                               orig_right_item,
-                                                               FALSE);
+        Type_handler_hybrid_field_type
+          tmp(orig_left_item->type_handler_for_comparison());
+        if (tmp.aggregate_for_comparison(orig_right_item->
+                                         type_handler_for_comparison()))
+          return false;
+        Item_equal *item_equal=
+          new (thd->mem_root) Item_equal(thd, tmp.type_handler(),
+                                         orig_left_item, orig_right_item,
+                                         false);
         item_equal->set_context_field((Item_field*)left_item);
         cond_equal->current_level.push_back(item_equal, thd->mem_root);
       }
@@ -12917,8 +12922,14 @@ static bool check_simple_equality(THD *thd, const Item::Context &ctx,
       }
       else
       {
-        item_equal= new (thd->mem_root) Item_equal(thd, const_item2,
-                                                   orig_field_item, TRUE);
+        Type_handler_hybrid_field_type
+          tmp(orig_left_item->type_handler_for_comparison());
+        if (tmp.aggregate_for_comparison(orig_right_item->
+                                         type_handler_for_comparison()))
+          return false;
+        item_equal= new (thd->mem_root) Item_equal(thd, tmp.type_handler(),
+                                                   const_item2,
+                                                   orig_field_item, true);
         item_equal->set_context_field(field_item);
         cond_equal->current_level.push_back(item_equal, thd->mem_root);
       }

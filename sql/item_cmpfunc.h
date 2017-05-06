@@ -2899,14 +2899,15 @@ class Item_equal: public Item_bool_func
 
   bool link_equal_fields;
 
-  Item_result m_compare_type;
+  const Type_handler *m_compare_handler;
   CHARSET_INFO *m_compare_collation;
   String cmp_value1, cmp_value2;
 public:
 
   COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
 
-  Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item);
+  Item_equal(THD *thd, const Type_handler *handler,
+             Item *f1, Item *f2, bool with_const_item);
   Item_equal(THD *thd, Item_equal *item_equal);
   /* Currently the const item is always the first in the list of equal items */
   inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
@@ -2939,7 +2940,7 @@ public:
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
-  Item_result compare_type() const { return m_compare_type; }
+  const Type_handler *compare_type_handler() const { return m_compare_handler; }
   CHARSET_INFO *compare_collation() const { return m_compare_collation; }
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
