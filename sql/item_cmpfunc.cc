@@ -2791,7 +2791,7 @@ Item_func_case::Item_func_case(THD *thd, List<Item> &list,
   Item_func_case_expression(thd),
   Predicant_to_list_comparator(thd, list.elements/*QQ*/),
   first_expr_num(-1), else_expr_num(-1),
-  left_cmp_type(INT_RESULT), m_found_types(0)
+  m_found_types(0)
 {
   ncases= list.elements;
   if (first_expr_arg)
@@ -3057,7 +3057,6 @@ void Item_func_case::fix_length_and_dec()
     }
 
     agg[0]= args[first_expr_num];
-    left_cmp_type= agg[0]->cmp_type();
 
     /*
       As the first expression and WHEN expressions
@@ -3119,6 +3118,7 @@ void Item_func_case::fix_length_and_dec()
 
 Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
 {
+  const Type_handler *first_expr_cmp_handler;
   if (first_expr_num == -1)
   {
     // None of the arguments are in a comparison context
@@ -3126,6 +3126,7 @@ Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_
     return this;
   }
 
+  first_expr_cmp_handler= args[first_expr_num]->type_handler_for_comparison();
   for (uint i= 0; i < arg_count; i++)
   {
     /*
@@ -3164,11 +3165,11 @@ Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_
                   WHEN 'str2' THEN TRUE
                   ELSE FALSE END;
       */
-      if (m_found_types == (1UL << left_cmp_type))
+      if (m_found_types == (1UL << first_expr_cmp_handler->cmp_type()))
         new_item= args[i]->propagate_equal_fields(thd,
                                                   Context(
                                                     ANY_SUBST,
-                                                    left_cmp_type,
+                                                    first_expr_cmp_handler,
                                                     cmp_collation.collation),
                                                   cond);
     }
@@ -3181,13 +3182,14 @@ Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_
         replaced to zero-filled constants (only IDENTITY_SUBST allows this).
         Such a change for WHEN arguments would require rebuilding cmp_items.
       */
-      Item_result tmp_cmp_type= item_cmp_type(args[first_expr_num], args[i]);
-      new_item= args[i]->propagate_equal_fields(thd,
-                                                Context(
-                                                  ANY_SUBST,
-                                                  tmp_cmp_type,
-                                                  cmp_collation.collation),
-                                                cond);
+      Type_handler_hybrid_field_type tmp(first_expr_cmp_handler);
+      if (!tmp.aggregate_for_comparison(args[i]->type_handler_for_comparison()))
+        new_item= args[i]->propagate_equal_fields(thd,
+                                                  Context(
+                                                    ANY_SUBST,
+                                                    tmp.type_handler(),
+                                                    cmp_collation.collation),
+                                                  cond);
     }
     else // THEN and ELSE arguments (they are not in comparison)
     {

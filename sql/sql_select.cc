@@ -12987,7 +12987,7 @@ static bool check_row_equality(THD *thd, const Arg_comparator *comparators,
       const Arg_comparator *tmp= &comparators[i];
       is_converted= check_simple_equality(thd,
                                           Item::Context(Item::ANY_SUBST,
-                                                        tmp->compare_type(),
+                                                  tmp->compare_type_handler(),
                                                   tmp->compare_collation()),
                                           left_item, right_item,
                                           cond_equal);
@@ -13063,7 +13063,7 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
   }
   return check_simple_equality(thd,
                                Context(ANY_SUBST,
-                                       compare_type_handler()->cmp_type(),
+                                       compare_type_handler(),
                                        compare_collation()),
                                left_item, right_item, cond_equal);
 }

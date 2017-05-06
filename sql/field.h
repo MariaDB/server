@@ -365,24 +365,25 @@ public:
     Subst_constraint m_subst_constraint;
     /*
       Comparison type.
-      Impostant only when ANY_SUBSTS.
+      Important only when ANY_SUBSTS.
     */
-    Item_result m_compare_type;
+    const Type_handler *m_compare_handler;
     /*
       Collation of the comparison operation.
       Important only when ANY_SUBST.
     */
     CHARSET_INFO *m_compare_collation;
   public:
-    Context(Subst_constraint subst, Item_result type, CHARSET_INFO *cs)
+    Context(Subst_constraint subst, const Type_handler *h, CHARSET_INFO *cs)
       :m_subst_constraint(subst),
-       m_compare_type(type),
-       m_compare_collation(cs) { }
+       m_compare_handler(h),
+       m_compare_collation(cs)
+    { DBUG_ASSERT(h == h->type_handler_for_comparison()); }
     Subst_constraint subst_constraint() const { return m_subst_constraint; }
     Item_result compare_type() const
     {
       DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
-      return m_compare_type;
+      return m_compare_handler->cmp_type();
     }
     CHARSET_INFO *compare_collation() const
     {
@@ -394,12 +395,13 @@ public:
   { // Use this to request only exact value, no invariants.
   public:
      Context_identity()
-      :Context(IDENTITY_SUBST, STRING_RESULT, &my_charset_bin) { }
+      :Context(IDENTITY_SUBST, &type_handler_long_blob, &my_charset_bin) { }
   };
   class Context_boolean: public Context
   { // Use this when an item is [a part of] a boolean expression
   public:
-    Context_boolean() :Context(ANY_SUBST, INT_RESULT, &my_charset_bin) { }
+    Context_boolean()
+      :Context(ANY_SUBST, &type_handler_longlong, &my_charset_bin) { }
   };
 };
 
