@@ -3866,7 +3866,8 @@ fil_ibd_create(
 	int	ret;
 	do {
 		ret = posix_fallocate(file, 0, size * UNIV_PAGE_SIZE);
-	} while (ret != 0 && ret != EINTR);
+	} while (ret == EINTR
+		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
 	if (ret == 0) {
 		success = true;
