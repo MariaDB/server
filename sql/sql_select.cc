@@ -1138,6 +1138,8 @@ int JOIN::init_join_caches()
     }
     if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
       revise_cache_usage(tab);
+    else
+      tab->remove_redundant_bnl_scan_conds();
   }
   return 0;
 }
@@ -11161,8 +11163,8 @@ void JOIN_TAB::remove_redundant_bnl_scan_conds()
     select->cond is not processed separately. This method assumes it is always
     the same as select_cond.
   */
-  DBUG_ASSERT(!select || !select->cond ||
-              (select->cond == select_cond));
+  if (select && select->cond != select_cond)
+    return;
 
   if (is_cond_and(select_cond))
   {
@@ -11472,7 +11474,6 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       /* purecov: end */
     }
 
-    tab->remove_redundant_bnl_scan_conds();
     DBUG_EXECUTE("where",
                  char buff[256];
                  String str(buff,sizeof(buff),system_charset_info);
