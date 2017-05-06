@@ -92,11 +92,6 @@ public:
   bool const_item() const { return const_item_cache; };
   enum Item_result result_type() const { return ROW_RESULT; }
   Item_result cmp_type() const { return ROW_RESULT; }
-  enum_field_types field_type() const
-  {
-    DBUG_ASSERT(0);
-    return MYSQL_TYPE_DOUBLE;
-  }
   void update_used_tables()
   {
     used_tables_and_const_cache_init();

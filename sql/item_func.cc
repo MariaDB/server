@@ -6450,14 +6450,6 @@ Item_func_sp::make_field(THD *thd, Send_field *tmp_field)
 }
 
 
-enum enum_field_types
-Item_func_sp::field_type() const
-{
-  DBUG_ENTER("Item_func_sp::field_type");
-  DBUG_ASSERT(sp_result_field);
-  DBUG_RETURN(sp_result_field->type());
-}
-
 const Type_handler *Item_func_sp::type_handler() const
 {
   DBUG_ENTER("Item_func_sp::type_handler");

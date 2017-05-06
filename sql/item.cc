@@ -6071,7 +6071,7 @@ void Item::make_field(THD *thd, Send_field *tmp_field)
 
 void Item_empty_string::make_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_field(tmp_field, string_field_type());
+  init_make_field(tmp_field, string_type_handler()->field_type());
 }
 
 

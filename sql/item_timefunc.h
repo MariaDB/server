@@ -156,7 +156,6 @@ public:
   }
   const char *func_name() const { return "month"; }
   enum Item_result result_type () const { return INT_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec()
   { 
@@ -407,7 +406,6 @@ public:
      return (odbc_type ? "dayofweek" : "weekday");
   }
   enum Item_result result_type () const { return INT_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec()
   {
@@ -433,7 +431,6 @@ class Item_func_dayname :public Item_func_weekday
   const char *func_name() const { return "dayname"; }
   String *val_str(String *str);
   enum Item_result result_type () const { return STRING_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   const Type_handler *type_handler() const { return &type_handler_varchar; }
   void fix_length_and_dec();
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
@@ -588,7 +585,6 @@ public:
   Item_datefunc(THD *thd): Item_temporal_func(thd) { }
   Item_datefunc(THD *thd, Item *a): Item_temporal_func(thd, a) { }
   Item_datefunc(THD *thd, Item *a, Item *b): Item_temporal_func(thd, a, b) { }
-  enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   const Type_handler *type_handler() const { return &type_handler_newdate; }
   void fix_length_and_dec()
   {
@@ -606,7 +602,6 @@ public:
   Item_timefunc(THD *thd, Item *a, Item *b): Item_temporal_func(thd, a, b) {}
   Item_timefunc(THD *thd, Item *a, Item *b, Item *c):
     Item_temporal_func(thd, a, b ,c) {}
-  enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   const Type_handler *type_handler() const { return &type_handler_time2; }
 };
 
@@ -618,7 +613,6 @@ public:
   Item_datetimefunc(THD *thd, Item *a): Item_temporal_func(thd, a) {}
   Item_datetimefunc(THD *thd, Item *a, Item *b, Item *c):
     Item_temporal_func(thd, a, b ,c) {}
-  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
 };
 
@@ -943,10 +937,6 @@ class Item_extract :public Item_int_func
   const interval_type int_type; // keep it public
   Item_extract(THD *thd, interval_type type_arg, Item *a):
     Item_int_func(thd, a), int_type(type_arg) {}
-  enum_field_types field_type() const
-  {
-    return Item_extract::type_handler()->field_type();
-  }
   const Type_handler *type_handler() const
   {
     switch (int_type) {
@@ -1083,7 +1073,6 @@ public:
   const char *func_name() const { return "cast_as_date"; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   const char *cast_type() const { return "date"; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   const Type_handler *type_handler() const { return &type_handler_newdate; }
   void fix_length_and_dec()
   {
@@ -1102,7 +1091,6 @@ public:
   const char *func_name() const { return "cast_as_time"; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   const char *cast_type() const { return "time"; }
-  enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   const Type_handler *type_handler() const { return &type_handler_time2; }
   void fix_length_and_dec()
   {
@@ -1120,7 +1108,6 @@ public:
     Item_temporal_typecast(thd, a) { decimals= dec_arg; }
   const char *func_name() const { return "cast_as_datetime"; }
   const char *cast_type() const { return "datetime"; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   void fix_length_and_dec()

@@ -670,7 +670,7 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
           to print DATE constants using proper format:
           'YYYY-MM-DD' rather than 'YYYY-MM-DD 00:00:00'.
       */
-      if (field_type() != h->field_type())
+      if (m_type_handler->field_type() != h->field_type())
         m_type_handler= &type_handler_datetime;
     }
   }

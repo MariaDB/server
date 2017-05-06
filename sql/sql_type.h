@@ -2263,7 +2263,6 @@ public:
     :m_type_handler(other->m_type_handler)
   { }
   const Type_handler *type_handler() const { return m_type_handler; }
-  enum_field_types field_type() const { return m_type_handler->field_type(); }
   enum_field_types real_field_type() const
   {
     return m_type_handler->real_field_type();

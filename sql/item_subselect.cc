@@ -1187,15 +1187,6 @@ const Type_handler *Item_singlerow_subselect::type_handler() const
   return engine->type_handler();
 }
 
-/* 
- Don't rely on the result type to calculate field type. 
- Ask the engine instead.
-*/
-enum_field_types Item_singlerow_subselect::field_type() const
-{
-  return engine->field_type();
-}
-
 void Item_singlerow_subselect::fix_length_and_dec()
 {
   if ((max_columns= engine->cols()) == 1)

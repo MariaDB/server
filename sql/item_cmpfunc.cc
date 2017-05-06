@@ -2082,7 +2082,7 @@ longlong Item_func_between::val_int_cmp_temporal()
   bool value_is_null, a_is_null, b_is_null;
 
   ptr= &args[0];
-  enum_field_types f_type= m_comparator.field_type();
+  enum_field_types f_type= m_comparator.type_handler()->field_type();
   value= get_datetime_value(thd, &ptr, &cache, f_type, &value_is_null);
   if (ptr != &args[0])
     thd->change_item_tree(&args[0], *ptr);

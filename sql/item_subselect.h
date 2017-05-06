@@ -305,7 +305,6 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   enum Item_result result_type() const;
   enum Item_result cmp_type() const;
-  enum_field_types field_type() const;
   const Type_handler *type_handler() const;
   void fix_length_and_dec();
 
@@ -397,7 +396,6 @@ public:
   void no_rows_in_result();
 
   enum Item_result result_type() const { return INT_RESULT;}
-  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   longlong val_int();
   double val_real();
