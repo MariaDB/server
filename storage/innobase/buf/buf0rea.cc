@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -366,6 +366,7 @@ read_ahead:
 
 			switch(err) {
 			case DB_SUCCESS:
+			case DB_ERROR:
 				break;
 			case DB_TABLESPACE_DELETED:
 				ib_logf(IB_LOG_LEVEL_WARN,
@@ -503,6 +504,7 @@ buf_read_page_async(
 				  tablespace_version, offset);
 	switch(err) {
 	case DB_SUCCESS:
+	case DB_ERROR:
 		break;
 	case DB_TABLESPACE_DELETED:
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -784,6 +786,7 @@ buf_read_ahead_linear(
 
 			switch(err) {
 			case DB_SUCCESS:
+			case DB_ERROR:
 				break;
 			case DB_TABLESPACE_DELETED:
 				ib_logf(IB_LOG_LEVEL_WARN,
@@ -885,6 +888,7 @@ buf_read_ibuf_merge_pages(
 
 		switch(err) {
 		case DB_SUCCESS:
+		case DB_ERROR:
 			break;
 		case DB_TABLESPACE_DELETED:
 
