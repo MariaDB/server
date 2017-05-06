@@ -6900,7 +6900,7 @@ ha_innobase::open(
 	if (m_prebuilt->table == NULL
 	    || dict_table_is_temporary(m_prebuilt->table)
 	    || m_prebuilt->table->persistent_autoinc
-	    || m_prebuilt->table->file_unreadable) {
+	    || !m_prebuilt->table->is_readable()) {
 	} else if (const Field* ai = table->found_next_number_field) {
 		initialize_auto_increment(m_prebuilt->table, ai);
 	}
@@ -15372,7 +15372,7 @@ ha_innobase::check(
 
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
 
-	} else if (m_prebuilt->table->file_unreadable &&
+	} else if (!m_prebuilt->table->is_readable() &&
 		   !fil_space_get(m_prebuilt->table->space)) {
 
 		ib_senderrf(

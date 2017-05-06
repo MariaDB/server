@@ -6010,7 +6010,7 @@ btr_estimate_number_of_different_key_vals(
 		because otherwise our algorithm would give a wrong estimate
 		for an index where there is just one key value. */
 
-		if (index->table->file_unreadable) {
+		if (!index->is_readable()) {
 			mtr_commit(&mtr);
 			goto exit_loop;
 		}

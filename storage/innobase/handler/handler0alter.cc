@@ -6393,7 +6393,7 @@ ok_exit:
 
 	ctx->m_stage = UT_NEW_NOKEY(ut_stage_alter_t(pk));
 
-	if (m_prebuilt->table->file_unreadable
+	if (!m_prebuilt->table->is_readable()
 	    || dict_table_is_discarded(m_prebuilt->table)) {
 		goto all_done;
 	}
@@ -8469,10 +8469,10 @@ ha_innobase::commit_inplace_alter_table(
 
 		/* If decryption failed for old table or new table
 		fail here. */
-		if ((ctx->old_table->file_unreadable &&
-		     fil_space_get(ctx->old_table->space) != NULL)||
-		    (ctx->new_table->file_unreadable &&
-		     fil_space_get(ctx->new_table->space) != NULL)) {
+		if ((!ctx->old_table->is_readable()
+		     && fil_space_get(ctx->old_table->space))
+		    || (!ctx->new_table->is_readable()
+			&& fil_space_get(ctx->new_table->space))) {
 			String str;
 			const char* engine= table_type();
 			get_error_message(HA_ERR_DECRYPTION_FAILED, &str);

@@ -3354,7 +3354,7 @@ row_import_for_mysql(
 
 	ut_a(table->space);
 	ut_ad(prebuilt->trx);
-	ut_a(table->file_unreadable);
+	ut_a(!table->is_readable());
 
 	ibuf_delete_for_discarded_space(table->space);
 
