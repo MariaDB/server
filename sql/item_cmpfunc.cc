@@ -735,8 +735,8 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
   {
     if (!thd)
       thd= current_thd;
-
-    Item_cache_temporal *cache= new (thd->mem_root) Item_cache_temporal(thd, f_type);
+    const Type_handler *h= Type_handler::get_handler_by_field_type(f_type);
+    Item_cache_temporal *cache= new (thd->mem_root) Item_cache_temporal(thd, h);
     cache->store_packed(value, item);
     *cache_arg= cache;
     *item_arg= cache_arg;

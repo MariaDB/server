@@ -9322,9 +9322,8 @@ Item *Item_cache_int::convert_to_basic_const_item(THD *thd)
 } 
 
 
-Item_cache_temporal::Item_cache_temporal(THD *thd,
-                                         enum_field_types field_type_arg):
-  Item_cache_int(thd, field_type_arg)
+Item_cache_temporal::Item_cache_temporal(THD *thd, const Type_handler *handler)
+ :Item_cache_int(thd, handler)
 {
   if (mysql_timestamp_type() == MYSQL_TIMESTAMP_ERROR)
     set_handler(&type_handler_datetime2);
@@ -9470,7 +9469,7 @@ void Item_cache_temporal::store_packed(longlong val_arg, Item *example_arg)
 Item *Item_cache_temporal::clone_item(THD *thd)
 {
   Item_cache_temporal *item= new (thd->mem_root)
-    Item_cache_temporal(thd, Item_cache_temporal::field_type());
+    Item_cache_temporal(thd, Item_cache_temporal::type_handler());
   item->store_packed(value, example);
   return item;
 }

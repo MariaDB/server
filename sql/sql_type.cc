@@ -2050,7 +2050,7 @@ Type_handler_row::Item_get_cache(THD *thd, const Item *item) const
 Item_cache *
 Type_handler_int_result::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_int(thd, item->field_type());
+  return new (thd->mem_root) Item_cache_int(thd, item->type_handler());
 }
 
 Item_cache *
@@ -2074,7 +2074,7 @@ Type_handler_string_result::Item_get_cache(THD *thd, const Item *item) const
 Item_cache *
 Type_handler_temporal_result::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_temporal(thd, item->field_type());
+  return new (thd->mem_root) Item_cache_temporal(thd, item->type_handler());
 }
 
 /*************************************************************************/
@@ -4290,7 +4290,7 @@ Item *Type_handler_time_common::
   longlong value= item->val_time_packed();
   if (item->null_value)
     return new (thd->mem_root) Item_null(thd, item->name.str);
-  cache= new (thd->mem_root) Item_cache_temporal(thd, field_type());
+  cache= new (thd->mem_root) Item_cache_temporal(thd, this);
   if (cache)
     cache->store_packed(value, item);
   return cache;
@@ -4304,7 +4304,7 @@ Item *Type_handler_temporal_with_date::
   longlong value= item->val_datetime_packed();
   if (item->null_value)
     return new (thd->mem_root) Item_null(thd, item->name.str);
-  cache= new (thd->mem_root) Item_cache_temporal(thd, field_type());
+  cache= new (thd->mem_root) Item_cache_temporal(thd, this);
   if (cache)
     cache->store_packed(value, item);
   return cache;

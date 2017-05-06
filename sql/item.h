@@ -5537,7 +5537,7 @@ protected:
 public:
   Item_cache(THD *thd):
     Item_basic_constant(thd),
-    Type_handler_hybrid_field_type(MYSQL_TYPE_STRING),
+    Type_handler_hybrid_field_type(&type_handler_string),
     example(0), cached_field(0),
     value_cached(0)
   {
@@ -5546,9 +5546,9 @@ public:
     null_value= 1;
   }
 protected:
-  Item_cache(THD *thd, enum_field_types field_type_arg):
+  Item_cache(THD *thd, const Type_handler *handler):
     Item_basic_constant(thd),
-    Type_handler_hybrid_field_type(field_type_arg),
+    Type_handler_hybrid_field_type(handler),
     example(0), cached_field(0),
     value_cached(0)
   {
@@ -5668,10 +5668,10 @@ class Item_cache_int: public Item_cache
 protected:
   longlong value;
 public:
-  Item_cache_int(THD *thd): Item_cache(thd, MYSQL_TYPE_LONGLONG),
+  Item_cache_int(THD *thd): Item_cache(thd, &type_handler_longlong),
     value(0) {}
-  Item_cache_int(THD *thd, enum_field_types field_type_arg):
-    Item_cache(thd, field_type_arg), value(0) {}
+  Item_cache_int(THD *thd, const Type_handler *handler):
+    Item_cache(thd, handler), value(0) {}
 
   double val_real();
   longlong val_int();
@@ -5689,7 +5689,7 @@ public:
 class Item_cache_temporal: public Item_cache_int
 {
 public:
-  Item_cache_temporal(THD *thd, enum_field_types field_type_arg);
+  Item_cache_temporal(THD *thd, const Type_handler *handler);
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
   longlong val_int();
@@ -5717,7 +5717,7 @@ class Item_cache_real: public Item_cache
 {
   double value;
 public:
-  Item_cache_real(THD *thd): Item_cache(thd, MYSQL_TYPE_DOUBLE),
+  Item_cache_real(THD *thd): Item_cache(thd, &type_handler_double),
     value(0) {}
 
   double val_real();
@@ -5737,7 +5737,7 @@ class Item_cache_decimal: public Item_cache
 protected:
   my_decimal decimal_value;
 public:
-  Item_cache_decimal(THD *thd): Item_cache(thd, MYSQL_TYPE_NEWDECIMAL) {}
+  Item_cache_decimal(THD *thd): Item_cache(thd, &type_handler_newdecimal) {}
 
   double val_real();
   longlong val_int();
@@ -5759,7 +5759,7 @@ class Item_cache_str: public Item_cache
   
 public:
   Item_cache_str(THD *thd, const Item *item):
-    Item_cache(thd, item->field_type()), value(0),
+    Item_cache(thd, item->type_handler()), value(0),
     is_varbinary(item->type() == FIELD_ITEM &&
                  Item_cache_str::field_type() == MYSQL_TYPE_VARCHAR &&
                  !((const Item_field *) item)->field->has_charset())
