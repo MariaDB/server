@@ -5318,7 +5318,7 @@ void Item_func_get_user_var::fix_length_and_dec()
       break;
     case STRING_RESULT:
       max_length= MAX_BLOB_WIDTH - 1;
-      set_handler_by_field_type(MYSQL_TYPE_MEDIUM_BLOB);
+      set_handler(&type_handler_medium_blob);
       break;
     case DECIMAL_RESULT:
       fix_char_length(DECIMAL_MAX_STR_LENGTH);
@@ -5334,7 +5334,7 @@ void Item_func_get_user_var::fix_length_and_dec()
   {
     collation.set(&my_charset_bin, DERIVATION_IMPLICIT);
     null_value= 1;
-    set_handler_by_field_type(MYSQL_TYPE_LONG_BLOB);
+    set_handler(&type_handler_long_blob);
     max_length= MAX_BLOB_WIDTH;
   }
 }

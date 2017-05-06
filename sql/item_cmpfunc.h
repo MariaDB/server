@@ -1026,7 +1026,7 @@ protected:
       cache_type_info(items[1], true);
       // If both arguments are NULL, make resulting type BINARY(0).
       if (items[1]->type() == NULL_ITEM)
-        set_handler_by_field_type(MYSQL_TYPE_STRING);
+        set_handler(&type_handler_string);
     }
     else if (items[1]->type() == NULL_ITEM)
     {

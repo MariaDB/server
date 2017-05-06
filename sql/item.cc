@@ -3511,7 +3511,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
                        uint pos_in_query_arg, uint len_in_query_arg):
   Item_basic_value(thd),
   Rewritable_query_parameter(pos_in_query_arg, len_in_query_arg),
-  Type_handler_hybrid_field_type(MYSQL_TYPE_VARCHAR),
+  Type_handler_hybrid_field_type(&type_handler_varchar),
   state(NO_VALUE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
@@ -3793,11 +3793,11 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     switch (item->cmp_type()) {
     case REAL_RESULT:
       set_double(tmp.value.m_double);
-      set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
+      set_handler(&type_handler_double);
       break;
     case INT_RESULT:
       set_int(tmp.value.m_longlong, MY_INT64_NUM_DECIMAL_DIGITS);
-      set_handler_by_field_type(MYSQL_TYPE_LONGLONG);
+      set_handler(&type_handler_longlong);
       break;
     case STRING_RESULT:
     {
@@ -3806,7 +3806,7 @@ bool Item_param::set_from_item(THD *thd, Item *item)
         Exact value of max_length is not known unless data is converted to
         charset of connection, so we have to set it later.
       */
-      set_handler_by_field_type(MYSQL_TYPE_VARCHAR);
+      set_handler(&type_handler_varchar);
 
       if (set_str(tmp.m_string.ptr(), tmp.m_string.length()))
         DBUG_RETURN(1);
@@ -3815,7 +3815,7 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     case DECIMAL_RESULT:
     {
       set_decimal(&tmp.m_decimal, unsigned_flag);
-      set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
+      set_handler(&type_handler_newdecimal);
       break;
     }
     case TIME_RESULT:

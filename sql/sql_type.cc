@@ -2241,7 +2241,7 @@ bool Type_handler_numeric::
   /* MIN/MAX can return NULL for empty set indepedent of the used column */
   func->maybe_null= func->null_value= true;
   if (item2->type() == Item::FIELD_ITEM)
-    func->set_handler_by_field_type(item2->field_type());
+    func->set_handler(item2->type_handler());
   else
     func->set_handler(handler);
   return false;
@@ -2292,7 +2292,7 @@ bool Type_handler_string_result::
   if (item2->type() == Item::FIELD_ITEM)
   {
     // Fields: convert ENUM/SET to CHAR, preserve the type otherwise.
-    func->set_handler_by_field_type(item->field_type());
+    func->set_handler(item->type_handler());
   }
   else
   {

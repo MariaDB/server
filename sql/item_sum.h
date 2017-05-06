@@ -1027,7 +1027,7 @@ protected:
   public:
   Item_sum_hybrid(THD *thd, Item *item_par,int sign):
     Item_sum(thd, item_par),
-    Type_handler_hybrid_field_type(MYSQL_TYPE_LONGLONG),
+    Type_handler_hybrid_field_type(&type_handler_longlong),
     value(0), arg_cache(0), cmp(0),
     cmp_sign(sign), was_values(TRUE)
   { collation.set(&my_charset_bin); }

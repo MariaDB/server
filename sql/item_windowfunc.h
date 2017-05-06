@@ -285,13 +285,13 @@ class Item_sum_hybrid_simple : public Item_sum,
  public:
   Item_sum_hybrid_simple(THD *thd, Item *arg):
    Item_sum(thd, arg),
-   Type_handler_hybrid_field_type(MYSQL_TYPE_LONGLONG),
+   Type_handler_hybrid_field_type(&type_handler_longlong),
    value(NULL)
   { collation.set(&my_charset_bin); }
 
   Item_sum_hybrid_simple(THD *thd, Item *arg1, Item *arg2):
    Item_sum(thd, arg1, arg2),
-   Type_handler_hybrid_field_type(MYSQL_TYPE_LONGLONG),
+   Type_handler_hybrid_field_type(&type_handler_longlong),
    value(NULL)
   { collation.set(&my_charset_bin); }
 

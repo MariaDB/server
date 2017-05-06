@@ -2259,9 +2259,6 @@ public:
   Type_handler_hybrid_field_type(const Type_handler *handler)
    :m_type_handler(handler)
   { }
-  Type_handler_hybrid_field_type(enum_field_types type)
-    :m_type_handler(Type_handler::get_handler_by_field_type(type))
-  { }
   Type_handler_hybrid_field_type(const Type_handler_hybrid_field_type *other)
     :m_type_handler(other->m_type_handler)
   { }

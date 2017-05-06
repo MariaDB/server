@@ -243,9 +243,9 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
 
   Item *item2= args[0]->real_item();
   if (item2->type() == Item::FIELD_ITEM)
-    set_handler_by_field_type(((Item_field*) item2)->field->type());
+    set_handler(item2->type_handler());
   else if (args[0]->cmp_type() == TIME_RESULT)
-    set_handler_by_field_type(item2->field_type());
+    set_handler(item2->type_handler());
   else
     set_handler_by_result_type(item2->result_type(),
                                max_length, collation.collation);
