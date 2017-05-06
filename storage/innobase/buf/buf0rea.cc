@@ -368,6 +368,7 @@ read_ahead:
 			switch (err) {
 			case DB_SUCCESS:
 			case DB_TABLESPACE_TRUNCATED:
+			case DB_ERROR:
 				break;
 			case DB_TABLESPACE_DELETED:
 				ib::info() << "Random readahead trying to"
@@ -470,6 +471,7 @@ buf_read_page_background(
 	switch (err) {
 	case DB_SUCCESS:
 	case DB_TABLESPACE_TRUNCATED:
+	case DB_ERROR:
 		break;
 	case DB_TABLESPACE_DELETED:
 		ib::info() << "trying to read page " << page_id
@@ -750,6 +752,7 @@ buf_read_ahead_linear(
 			switch (err) {
 			case DB_SUCCESS:
 			case DB_TABLESPACE_TRUNCATED:
+			case DB_ERROR:
 				break;
 			case DB_TABLESPACE_DELETED:
 				ib::info() << "linear readahead trying to"
@@ -848,6 +851,7 @@ tablespace_deleted:
 		switch(err) {
 		case DB_SUCCESS:
 		case DB_TABLESPACE_TRUNCATED:
+		case DB_ERROR:
 			break;
 		case DB_TABLESPACE_DELETED:
 			goto tablespace_deleted;
