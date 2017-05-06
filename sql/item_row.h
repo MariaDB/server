@@ -114,7 +114,7 @@ public:
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   bool eval_not_null_tables(void *opt_arg);
 
-  uint cols() { return arg_count; }
+  uint cols() const { return arg_count; }
   Item* element_index(uint i) { return args[i]; }
   Item** addr(uint i) { return args + i; }
   bool check_cols(uint c);

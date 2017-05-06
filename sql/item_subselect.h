@@ -309,7 +309,7 @@ public:
   const Type_handler *type_handler() const;
   void fix_length_and_dec();
 
-  uint cols();
+  uint cols() const;
   Item* element_index(uint i) { return reinterpret_cast<Item*>(row[i]); }
   Item** addr(uint i) { return (Item**)row + i; }
   bool check_cols(uint c);
@@ -819,7 +819,7 @@ public:
           caller should call exec() again for the new engine.
   */
   virtual int exec()= 0;
-  virtual uint cols()= 0; /* return number of columns in select */
+  virtual uint cols() const= 0; /* return number of columns in select */
   virtual uint8 uncacheable()= 0; /* query is uncacheable */
   virtual void exclude()= 0;
   virtual bool may_be_null() { return maybe_null; };
@@ -856,7 +856,7 @@ public:
   int prepare(THD *thd);
   void fix_length_and_dec(Item_cache** row);
   int exec();
-  uint cols();
+  uint cols() const;
   uint8 uncacheable();
   void exclude();
   table_map upper_select_const_tables();
@@ -891,7 +891,7 @@ public:
   int prepare(THD *);
   void fix_length_and_dec(Item_cache** row);
   int exec();
-  uint cols();
+  uint cols() const;
   uint8 uncacheable();
   void exclude();
   table_map upper_select_const_tables();
@@ -949,7 +949,7 @@ public:
   int prepare(THD *);
   void fix_length_and_dec(Item_cache** row);
   int exec();
-  uint cols() { return 1; }
+  uint cols() const { return 1; }
   uint8 uncacheable() { return UNCACHEABLE_DEPENDENT_INJECTED; }
   void exclude();
   table_map upper_select_const_tables() { return 0; }
@@ -1087,7 +1087,7 @@ public:
   int prepare(THD *);
   int exec();
   void print(String *str, enum_query_type query_type);
-  uint cols() { return materialize_engine->cols(); }
+  uint cols() const { return materialize_engine->cols(); }
   uint8 uncacheable() { return materialize_engine->uncacheable(); }
   table_map upper_select_const_tables() { return 0; }
   bool no_rows() { return !tmp_table->file->stats.records; }
@@ -1370,7 +1370,7 @@ public:
   int prepare(THD *thd_arg) { set_thd(thd_arg); return 0; }
   int exec();
   void fix_length_and_dec(Item_cache**) {}
-  uint cols() { /* TODO: what is the correct value? */ return 1; }
+  uint cols() const { /* TODO: what is the correct value? */ return 1; }
   uint8 uncacheable() { return UNCACHEABLE_DEPENDENT; }
   void exclude() {}
   table_map upper_select_const_tables() { return 0; }

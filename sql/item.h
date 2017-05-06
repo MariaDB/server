@@ -1604,7 +1604,7 @@ public:
   virtual Item **this_item_addr(THD *thd, Item **addr_arg) { return addr_arg; }
 
   // Row emulation
-  virtual uint cols() { return 1; }
+  virtual uint cols() const { return 1; }
   virtual Item* element_index(uint i) { return this; }
   virtual bool element_index_by_name(uint *idx, const LEX_CSTRING &name) const
   {
@@ -2236,7 +2236,7 @@ public:
   { return Type_handler_hybrid_field_type::result_type(); }
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
-  uint cols() { return this_item()->cols(); }
+  uint cols() const { return this_item()->cols(); }
   Item* element_index(uint i) { return this_item()->element_index(i); }
   Item** addr(uint i) { return this_item()->addr(i); }
   bool check_cols(uint c);
@@ -2836,7 +2836,7 @@ public:
   const Type_handler *type_handler() const { return &type_handler_row; }
   Item_result result_type() const{ return ROW_RESULT ; }
   Item_result cmp_type() const { return ROW_RESULT; }
-  uint cols() { return arg_count; }
+  uint cols() const { return arg_count; }
   bool element_index_by_name(uint *idx, const LEX_CSTRING &name) const;
   Item* element_index(uint i) { return arg_count ? args[i] : this; }
   Item** addr(uint i) { return arg_count ? args + i : NULL; }
@@ -4390,7 +4390,7 @@ public:
   virtual Ref_Type ref_type() { return REF; }
 
   // Row emulation: forwarding of ROW-related calls to ref
-  uint cols()
+  uint cols() const
   {
     return ref && result_type() == ROW_RESULT ? (*ref)->cols() : 1;
   }
@@ -4638,7 +4638,7 @@ public:
   { return orig_item->field_for_view_update(); }
 
   /* Row emulation: forwarding of ROW-related calls to orig_item */
-  uint cols()
+  uint cols() const
   { return result_type() == ROW_RESULT ? orig_item->cols() : 1; }
   Item* element_index(uint i)
   { return result_type() == ROW_RESULT ? orig_item->element_index(i) : this; }
@@ -5854,7 +5854,7 @@ public:
 
   enum Item_result result_type() const { return ROW_RESULT; }
   
-  uint cols() { return item_count; }
+  uint cols() const { return item_count; }
   Item *element_index(uint i) { return values[i]; }
   Item **addr(uint i) { return (Item **) (values + i); }
   bool check_cols(uint c);

@@ -4236,7 +4236,7 @@ bool Type_handler::
 /***************************************************************************/
 
 Item *Type_handler_int_result::
-        make_const_item_for_comparison(THD *thd, Item *item, Item *cmp) const
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
 {
   longlong result= item->val_int();
   if (item->null_value)
@@ -4247,7 +4247,7 @@ Item *Type_handler_int_result::
 
 
 Item *Type_handler_real_result::
-        make_const_item_for_comparison(THD *thd, Item *item, Item *cmp) const
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
 {
   double result= item->val_real();
   if (item->null_value)
@@ -4258,7 +4258,7 @@ Item *Type_handler_real_result::
 
 
 Item *Type_handler_decimal_result::
-        make_const_item_for_comparison(THD *thd, Item *item, Item *cmp) const
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
 {
   my_decimal decimal_value;
   my_decimal *result= item->val_decimal(&decimal_value);
@@ -4270,7 +4270,7 @@ Item *Type_handler_decimal_result::
 
 
 Item *Type_handler_string_result::
-        make_const_item_for_comparison(THD *thd, Item *item, Item *cmp) const
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
 {
   StringBuffer<MAX_FIELD_WIDTH> tmp;
   String *result= item->val_str(&tmp);
@@ -4284,7 +4284,7 @@ Item *Type_handler_string_result::
 
 
 Item *Type_handler_time_common::
-        make_const_item_for_comparison(THD *thd, Item *item, Item *cmp) const
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
 {
   Item_cache_temporal *cache;
   longlong value= item->val_time_packed();
@@ -4298,7 +4298,7 @@ Item *Type_handler_time_common::
 
 
 Item *Type_handler_temporal_with_date::
-        make_const_item_for_comparison(THD *thd, Item *item, Item *cmp) const
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
 {
   Item_cache_temporal *cache;
   longlong value= item->val_datetime_packed();
@@ -4312,7 +4312,7 @@ Item *Type_handler_temporal_with_date::
 
 
 Item *Type_handler_row::
-        make_const_item_for_comparison(THD *thd, Item *item, Item *cmp) const
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
 {
   if (item->type() == Item::ROW_ITEM && cmp->type() == Item::ROW_ITEM)
   {
