@@ -3858,17 +3858,20 @@ fil_ibd_create(
 
         success= false;
 #ifdef HAVE_POSIX_FALLOCATE
-        /*
-          Extend the file using posix_fallocate(). This is required by
-          FusionIO HW/Firmware but should also be the prefered way to extend
-          a file.
-        */
-        int	ret = posix_fallocate(file, 0, size * UNIV_PAGE_SIZE);
+	/*
+	  Extend the file using posix_fallocate(). This is required by
+	  FusionIO HW/Firmware but should also be the prefered way to extend
+	  a file.
+	*/
+	int	ret;
+	do {
+		ret = posix_fallocate(file, 0, size * UNIV_PAGE_SIZE);
+	} while (ret != 0 && ret != EINTR);
 
-        if (ret == 0) {
+	if (ret == 0) {
 		success = true;
 	} else if (ret != EINVAL) {
-          	ib::error() <<
+		ib::error() <<
 			"posix_fallocate(): Failed to preallocate"
 			" data for file " << path
 			<< ", desired size "
