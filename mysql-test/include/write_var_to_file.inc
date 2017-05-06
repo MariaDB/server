@@ -43,9 +43,8 @@ if ($write_to_file == 'GENERATE')
 
 if (`SELECT LENGTH(@@secure_file_priv) > 0`)
 {
-  --let $_wvtf_secure_file_priv= `SELECT @@secure_file_priv`
   --let $_wvtf_suffix= `SELECT UUID()`
-  --let $_wvtf_tmp_file= $_wvtf_secure_file_priv/_wvtf_$_wvtf_suffix
+  --let $_wvtf_tmp_file= $MYSQLTEST_VARDIR/_wvtf_$_wvtf_suffix
 
   --eval SELECT '$write_var' INTO DUMPFILE '$_wvtf_tmp_file'
   --copy_file $_wvtf_tmp_file $write_to_file

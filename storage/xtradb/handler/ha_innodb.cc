@@ -289,7 +289,8 @@ static TYPELIB innodb_stats_method_typelib = {
 
 /** Possible values for system variables "innodb_checksum_algorithm" and
 "innodb_log_checksum_algorithm". */
-static const char* innodb_checksum_algorithm_names[] = {
+UNIV_INTERN
+const char* innodb_checksum_algorithm_names[] = {
 	"CRC32",
 	"STRICT_CRC32",
 	"INNODB",
@@ -301,7 +302,8 @@ static const char* innodb_checksum_algorithm_names[] = {
 
 /** Used to define an enumerate type of the system variables
 innodb_checksum_algorithm and innodb_log_checksum_algorithm. */
-static TYPELIB innodb_checksum_algorithm_typelib = {
+UNIV_INTERN
+TYPELIB innodb_checksum_algorithm_typelib = {
 	array_elements(innodb_checksum_algorithm_names) - 1,
 	"innodb_checksum_algorithm_typelib",
 	innodb_checksum_algorithm_names,
@@ -2018,7 +2020,9 @@ thd_supports_xa(
 	THD*	thd)	/*!< in: thread handle, or NULL to query
 			the global innodb_supports_xa */
 {
-	return(THDVAR(thd, support_xa));
+	/* THDVAR cannot be used in xtrabackup,
+	plugin variables  for innodb are not loaded. */
+	return (thd || !IS_XTRABACKUP())? THDVAR(thd, support_xa): FALSE;
 }
 
 /** Get the value of innodb_tmpdir.
@@ -2051,7 +2055,9 @@ thd_fake_changes(
 	THD*	thd)	/*!< in: thread handle, or NULL to query
 			the global innodb_supports_xa */
 {
-	return(THDVAR((THD*) thd, fake_changes));
+	/* THDVAR cannot be used in xtrabackup,
+	plugin variables  for innodb are not loaded */
+	return (thd || !IS_XTRABACKUP())? THDVAR((THD*) thd, fake_changes) : FALSE ;
 }
 
 /******************************************************************//**
@@ -2091,7 +2097,10 @@ thd_flush_log_at_trx_commit(
 /*================================*/
 	void*	thd)
 {
-	return(THDVAR((THD*) thd, flush_log_at_trx_commit));
+	/* THDVAR cannot be used in xtrabackup,
+	plugin variables  for innodb are not loaded,
+	this makes xtrabackup crash when trying to use them. */
+	return (thd || !IS_XTRABACKUP())? THDVAR((THD*)thd, flush_log_at_trx_commit) : FALSE;
 }
 
 /********************************************************************//**
@@ -3058,7 +3067,7 @@ trx_is_started(
 /****************************************************************//**
 Update log_checksum_algorithm_ptr with a pointer to the function corresponding
 to a given checksum algorithm. */
-static
+
 void
 innodb_log_checksum_func_update(
 /*============================*/
@@ -17397,11 +17406,11 @@ innodb_log_archive_update(
 
 	if (in_val) {
 		/* turn archiving on */
-		srv_log_archive_on = innobase_log_archive = 1;
+		innobase_log_archive = srv_log_archive_on = 1;
 		log_archive_archivelog();
 	} else {
 		/* turn archivng off */
-		srv_log_archive_on = innobase_log_archive = 0;
+		innobase_log_archive = srv_log_archive_on = 0;
 		log_archive_noarchivelog();
 	}
 }
@@ -21956,22 +21965,27 @@ ib_logf(
 	str = static_cast<char*>(malloc(BUFSIZ));
 	my_vsnprintf(str, BUFSIZ, format, args);
 #endif /* __WIN__ */
-
-	switch(level) {
-	case IB_LOG_LEVEL_INFO:
-		sql_print_information("InnoDB: %s", str);
-		break;
-	case IB_LOG_LEVEL_WARN:
-		sql_print_warning("InnoDB: %s", str);
-		break;
-	case IB_LOG_LEVEL_ERROR:
-		sql_print_error("InnoDB: %s", str);
-		sd_notifyf(0, "STATUS=InnoDB: Error: %s", str);
-		break;
-	case IB_LOG_LEVEL_FATAL:
-		sql_print_error("InnoDB: %s", str);
-		sd_notifyf(0, "STATUS=InnoDB: Fatal: %s", str);
-		break;
+	if (!IS_XTRABACKUP()) {
+		switch (level) {
+		case IB_LOG_LEVEL_INFO:
+			sql_print_information("InnoDB: %s", str);
+			break;
+		case IB_LOG_LEVEL_WARN:
+			sql_print_warning("InnoDB: %s", str);
+			break;
+		case IB_LOG_LEVEL_ERROR:
+			sql_print_error("InnoDB: %s", str);
+			sd_notifyf(0, "STATUS=InnoDB: Error: %s", str);
+			break;
+		case IB_LOG_LEVEL_FATAL:
+			sql_print_error("InnoDB: %s", str);
+			sd_notifyf(0, "STATUS=InnoDB: Fatal: %s", str);
+			break;
+		}
+	}
+	else {
+		/* Don't use server logger for XtraBackup, just print to stderr. */
+		fprintf(stderr, "InnoDB: %s\n", str);
 	}
 
 	va_end(args);

@@ -721,9 +721,16 @@ trx_resurrect_insert(
 
 			if (srv_force_recovery == 0) {
 
-				trx->state = TRX_STATE_PREPARED;
-				trx_sys->n_prepared_trx++;
-				trx_sys->n_prepared_recovered_trx++;
+				/* XtraBackup should rollback prepared XA
+				transactions */
+				if (IS_XTRABACKUP()) {
+					trx->state = TRX_STATE_ACTIVE;
+				}
+				else {
+					trx->state = TRX_STATE_PREPARED;
+					trx_sys->n_prepared_trx++;
+					trx_sys->n_prepared_recovered_trx++;
+				}
 			} else {
 				fprintf(stderr,
 					"InnoDB: Since innodb_force_recovery"
@@ -790,13 +797,16 @@ trx_resurrect_update_in_prepared_state(
 
 		if (srv_force_recovery == 0) {
 			if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
-				trx_sys->n_prepared_trx++;
-				trx_sys->n_prepared_recovered_trx++;
+				if (!IS_XTRABACKUP()) {
+					trx_sys->n_prepared_trx++;
+					trx_sys->n_prepared_recovered_trx++;
+				}
 			} else {
 				ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
 			}
-
-			trx->state = TRX_STATE_PREPARED;
+			/* XtraBackup should rollback prepared XA
+			transactions */
+			trx->state = IS_XTRABACKUP()?TRX_STATE_ACTIVE: TRX_STATE_PREPARED;
 		} else {
 			fprintf(stderr,
 				"InnoDB: Since innodb_force_recovery"

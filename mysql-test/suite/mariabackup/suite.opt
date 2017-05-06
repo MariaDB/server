@@ -1,0 +1,1 @@
+--innodb --changed_page_bitmaps --innodb-file-format=Barracuda
