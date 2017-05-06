@@ -750,6 +750,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec()
   { decimals=0; max_length=21; maybe_null=null_value=0; }
 };
@@ -982,6 +983,7 @@ public:
   Field *create_tmp_field(bool group, TABLE *table);
   enum Item_result result_type () const { return REAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE;}
+  const Type_handler *type_handler() const { return &type_handler_double; }
   void cleanup()
   {
     count= 0;
@@ -1265,6 +1267,7 @@ public:
   { }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   enum Item_result result_type () const { return REAL_RESULT; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
   longlong val_int() { return val_int_from_real(); }
   my_decimal *val_decimal(my_decimal *dec) { return val_decimal_from_real(dec); }
   String *val_str(String *str) { return val_string_from_real(str); }
@@ -1286,6 +1289,7 @@ public:
   { }
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
   enum Item_result result_type () const { return DECIMAL_RESULT; }
+  const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   double val_real() { return val_real_from_decimal(); }
   longlong val_int() { return val_int_from_decimal(); }
   String *val_str(String *str) { return val_string_from_decimal(str); }
@@ -1311,6 +1315,7 @@ public:
   { return val_decimal_from_real(dec_buf); }
   bool is_null() { update_null_value(); return null_value; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
   enum Item_result result_type () const { return REAL_RESULT; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_variance_field>(thd, mem_root, this); }
@@ -1412,6 +1417,7 @@ class Item_sum_udf_float :public Item_udf_sum
   enum Item_result result_type () const { return REAL_RESULT; }
   enum Item_result cmp_type () const { return REAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1435,6 +1441,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec() { decimals=0; max_length=21; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1477,6 +1484,7 @@ public:
   my_decimal *val_decimal(my_decimal *dec);
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return string_field_type(); }
+  const Type_handler *type_handler() const { return string_type_handler(); }
   void fix_length_and_dec();
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1499,6 +1507,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return DECIMAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
+  const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1651,10 +1660,13 @@ public:
   virtual Item_result cmp_type () const { return STRING_RESULT; }
   enum_field_types field_type() const
   {
+    return Item_func_group_concat::type_handler()->field_type();
+  }
+  const Type_handler *type_handler() const
+  {
     if (too_big_for_varchar())
-      return MYSQL_TYPE_BLOB;
-    else
-      return MYSQL_TYPE_VARCHAR;
+      return &type_handler_blob;
+    return &type_handler_varchar;
   }
   void clear();
   bool add();

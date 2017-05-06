@@ -398,6 +398,7 @@ public:
 
   enum Item_result result_type() const { return INT_RESULT;}
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   longlong val_int();
   double val_real();
   String *val_str(String*);

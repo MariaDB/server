@@ -372,6 +372,7 @@ public:
     { DBUG_ASSERT(fixed == 1); return (longlong) rint(val_real()); }
   enum Item_result result_type () const { return REAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
   void fix_length_and_dec()
   { decimals= NOT_FIXED_DEC; max_length= float_length(decimals); }
 };
@@ -737,6 +738,7 @@ public:
   String *val_str(String*str);
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec() {}
 };
 
@@ -909,6 +911,7 @@ public:
   my_decimal *val_decimal(my_decimal*);
   enum Item_result result_type () const { return DECIMAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
+  const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec_generic() {}
   void fix_length_and_dec()
   {
@@ -932,7 +935,6 @@ public:
     max_length= (uint32) len;
   }
   double val_real();
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   void fix_length_and_dec_generic() { maybe_null= 1; }
   void fix_length_and_dec()
   {
@@ -1546,6 +1548,7 @@ public:
   bool const_item() const { return 0; }
   Item_result result_type() const { return args[0]->result_type(); }
   enum_field_types field_type() const { return args[0]->field_type(); }
+  const Type_handler *type_handler() const { return args[0]->type_handler(); }
   void fix_length_and_dec()
   {
     collation= args[0]->collation;
@@ -1953,6 +1956,7 @@ class Item_func_udf_float :public Item_udf_func
   double val_real();
   String *val_str(String *str);
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_udf_float>(thd, mem_root, this); }
@@ -1972,6 +1976,7 @@ public:
   String *val_str(String *str);
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec() { decimals= 0; max_length= 21; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_udf_int>(thd, mem_root, this); }
@@ -1991,6 +1996,7 @@ public:
   String *val_str(String *str);
   enum Item_result result_type () const { return DECIMAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
+  const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_udf_decimal>(thd, mem_root, this); }
@@ -2031,6 +2037,7 @@ public:
   }
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return string_field_type(); }
+  const Type_handler *type_handler() const { return string_type_handler(); }
   void fix_length_and_dec();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_udf_str>(thd, mem_root, this); }
@@ -2360,6 +2367,7 @@ public:
   void load_data_print(THD *thd, String *str);
   void load_data_set_null_value(CHARSET_INFO* cs);
   void load_data_set_value(const char *str, uint length, CHARSET_INFO* cs);
+  const Type_handler *type_handler() const { return &type_handler_double; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_user_var_as_out_param>(thd, mem_root, this); }
@@ -2396,7 +2404,11 @@ public:
   bool const_item() const { return true; }
   table_map used_tables() const { return 0; }
   enum Item_result result_type() const;
-  enum_field_types field_type() const;
+  enum_field_types field_type() const
+  {
+    return Item_func_get_system_var::type_handler()->field_type();
+  }
+  const Type_handler *type_handler() const;
   double val_real();
   longlong val_int();
   String* val_str(String*);
@@ -2658,6 +2670,8 @@ public:
 
   enum enum_field_types field_type() const;
 
+  const Type_handler *type_handler() const;
+
   Field *create_field_for_create_select(TABLE *table)
   {
     return result_type() != STRING_RESULT ?
@@ -2843,6 +2857,7 @@ public:
   const char *func_name() const { return "last_value"; }
   table_map not_null_tables() const { return 0; }
   enum_field_types field_type() const { return last_value->field_type(); }
+  const Type_handler *type_handler() const { return last_value->type_handler(); }
   bool const_item() const { return 0; }
   void evaluate_sideeffects();
   void update_used_tables()

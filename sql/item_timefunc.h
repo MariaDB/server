@@ -157,6 +157,7 @@ public:
   const char *func_name() const { return "month"; }
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec()
   { 
     decimals= 0;
@@ -407,6 +408,7 @@ public:
   }
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec()
   {
     decimals= 0;
@@ -432,6 +434,7 @@ class Item_func_dayname :public Item_func_weekday
   String *val_str(String *str);
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  const Type_handler *type_handler() const { return &type_handler_varchar; }
   void fix_length_and_dec();
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
   bool check_vcol_func_processor(void *arg)
@@ -586,6 +589,7 @@ public:
   Item_datefunc(THD *thd, Item *a): Item_temporal_func(thd, a) { }
   Item_datefunc(THD *thd, Item *a, Item *b): Item_temporal_func(thd, a, b) { }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  const Type_handler *type_handler() const { return &type_handler_newdate; }
   void fix_length_and_dec()
   {
     fix_attributes_date();
@@ -603,6 +607,7 @@ public:
   Item_timefunc(THD *thd, Item *a, Item *b, Item *c):
     Item_temporal_func(thd, a, b ,c) {}
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  const Type_handler *type_handler() const { return &type_handler_time2; }
 };
 
 
@@ -614,6 +619,7 @@ public:
   Item_datetimefunc(THD *thd, Item *a, Item *b, Item *c):
     Item_temporal_func(thd, a, b ,c) {}
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  const Type_handler *type_handler() const { return &type_handler_datetime2; }
 };
 
 
@@ -939,6 +945,10 @@ class Item_extract :public Item_int_func
     Item_int_func(thd, a), int_type(type_arg) {}
   enum_field_types field_type() const
   {
+    return Item_extract::type_handler()->field_type();
+  }
+  const Type_handler *type_handler() const
+  {
     switch (int_type) {
     case INTERVAL_YEAR:
     case INTERVAL_YEAR_MONTH:
@@ -957,16 +967,16 @@ class Item_extract :public Item_int_func
     case INTERVAL_SECOND:
     case INTERVAL_MICROSECOND:
     case INTERVAL_SECOND_MICROSECOND:
-      return MYSQL_TYPE_LONG;
+      return &type_handler_long;
     case INTERVAL_DAY_MICROSECOND:
     case INTERVAL_HOUR_MICROSECOND:
     case INTERVAL_MINUTE_MICROSECOND:
-      return MYSQL_TYPE_LONGLONG;
+      return &type_handler_longlong;
     case INTERVAL_LAST:
       break;
     }
     DBUG_ASSERT(0);
-    return MYSQL_TYPE_LONGLONG;
+    return &type_handler_longlong;
   }
   longlong val_int();
   enum Functype functype() const { return EXTRACT_FUNC; }
@@ -1074,6 +1084,7 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   const char *cast_type() const { return "date"; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  const Type_handler *type_handler() const { return &type_handler_newdate; }
   void fix_length_and_dec()
   {
     args[0]->type_handler()->Item_date_typecast_fix_length_and_dec(this);
@@ -1092,6 +1103,7 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   const char *cast_type() const { return "time"; }
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  const Type_handler *type_handler() const { return &type_handler_time2; }
   void fix_length_and_dec()
   {
     args[0]->type_handler()->Item_time_typecast_fix_length_and_dec(this);
@@ -1109,6 +1121,7 @@ public:
   const char *func_name() const { return "cast_as_datetime"; }
   const char *cast_type() const { return "datetime"; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  const Type_handler *type_handler() const { return &type_handler_datetime2; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   void fix_length_and_dec()
   {

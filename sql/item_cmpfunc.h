@@ -1014,7 +1014,7 @@ protected:
   void cache_type_info(const Item *source, bool maybe_null_arg)
   {
     Type_std_attributes::set(source);
-    set_handler_by_field_type(source->field_type());
+    set_handler(source->type_handler());
     maybe_null= maybe_null_arg;
   }
 
@@ -2767,7 +2767,6 @@ public:
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   void traverse_cond(Cond_traverser, void *arg, traverse_order order);
   void neg_arguments(THD *thd);
-  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   Item *compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);

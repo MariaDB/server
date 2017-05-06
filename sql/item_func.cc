@@ -5612,7 +5612,7 @@ enum Item_result Item_func_get_system_var::result_type() const
 }
 
 
-enum_field_types Item_func_get_system_var::field_type() const
+const Type_handler *Item_func_get_system_var::type_handler() const
 {
   switch (var->show_type())
   {
@@ -5625,16 +5625,16 @@ enum_field_types Item_func_get_system_var::field_type() const
     case SHOW_ULONG:
     case SHOW_ULONGLONG:
     case SHOW_HA_ROWS:
-      return MYSQL_TYPE_LONGLONG;
+      return &type_handler_longlong;
     case SHOW_CHAR: 
     case SHOW_CHAR_PTR: 
     case SHOW_LEX_STRING:
-      return MYSQL_TYPE_VARCHAR;
+      return &type_handler_varchar;
     case SHOW_DOUBLE:
-      return MYSQL_TYPE_DOUBLE;
+      return &type_handler_double;
     default:
       my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
-      return MYSQL_TYPE_VARCHAR;              // keep the compiler happy
+      return &type_handler_varchar;              // keep the compiler happy
   }
 }
 
@@ -6456,6 +6456,15 @@ Item_func_sp::field_type() const
   DBUG_ENTER("Item_func_sp::field_type");
   DBUG_ASSERT(sp_result_field);
   DBUG_RETURN(sp_result_field->type());
+}
+
+const Type_handler *Item_func_sp::type_handler() const
+{
+  DBUG_ENTER("Item_func_sp::type_handler");
+  DBUG_ASSERT(sp_result_field);
+  // This converts ENUM/SET to STRING
+  const Type_handler *handler= sp_result_field->type_handler();
+  DBUG_RETURN(handler->type_handler_for_item_field());
 }
 
 Item_result

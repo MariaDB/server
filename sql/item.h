@@ -729,10 +729,7 @@ public:
   }
   virtual bool eq(const Item *, bool binary_cmp) const;
   virtual enum_field_types field_type() const= 0;
-  virtual const Type_handler *type_handler() const
-  {
-    return Type_handler::get_handler_by_field_type(field_type());
-  }
+  virtual const Type_handler *type_handler() const= 0;
   const Type_handler *type_handler_for_comparison() const
   {
     return type_handler()->type_handler_for_comparison();
@@ -758,6 +755,10 @@ public:
   enum_field_types string_field_type() const
   {
     return Type_handler::string_type_handler(max_length)->field_type();
+  }
+  const Type_handler *string_type_handler() const
+  {
+    return Type_handler::string_type_handler(max_length);
   }
   /*
     Calculate the maximum length of an expression.
@@ -2395,6 +2396,7 @@ public:
   inline enum Type type() const;
   inline Item_result result_type() const;
   enum_field_types field_type() const { return this_item()->field_type(); }
+  const Type_handler *type_handler() const { return this_item()->type_handler(); }
 
 public:
   /*
@@ -2455,6 +2457,11 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool is_null();
   virtual void print(String *str, enum_query_type query_type);
+
+  const Type_handler *type_handler() const
+  {
+    return value_item->type_handler();
+  }
 
   enum_field_types field_type() const
   {
@@ -2617,6 +2624,11 @@ public:
   my_decimal *val_decimal(my_decimal *dec) { return field->val_decimal(dec); }
   void make_field(THD *thd, Send_field *tmp_field);
   enum_field_types field_type() const { return field->type(); }
+  const Type_handler *type_handler() const
+  {
+    const Type_handler *handler= field->type_handler();
+    return handler->type_handler_for_item_field();
+  }
   Item* get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_ident_for_show>(thd, mem_root, this); }
 };
@@ -2916,6 +2928,7 @@ public:
   bool send(Protocol *protocol, st_value *buffer);
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const   { return MYSQL_TYPE_NULL; }
+  const Type_handler *type_handler() const { return &type_handler_null; }
   bool basic_const_item() const { return 1; }
   Item *clone_item(THD *thd);
   bool is_null() { return 1; }
@@ -3332,6 +3345,7 @@ public:
   enum Type type() const { return DECIMAL_ITEM; }
   enum Item_result result_type () const { return DECIMAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
+  const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   longlong val_int();
   double val_real();
   String *val_str(String*);
@@ -3373,6 +3387,7 @@ public:
   int save_in_field(Field *field, bool no_conversions);
   enum Type type() const { return REAL_ITEM; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
   double val_real() { DBUG_ASSERT(fixed == 1); return value; }
   longlong val_int()
   {
@@ -3513,6 +3528,7 @@ public:
   int save_in_field(Field *field, bool no_conversions);
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  const Type_handler *type_handler() const { return &type_handler_varchar; }
   bool basic_const_item() const { return 1; }
   bool eq(const Item *item, bool binary_cmp) const
   {
@@ -3698,6 +3714,10 @@ public:
     date_time_field_type(field_type_arg)
   { decimals= 0; }
   enum_field_types field_type() const { return date_time_field_type; }
+  const Type_handler *type_handler() const
+  {
+    return Type_handler::get_handler_by_field_type(field_type());
+  }
 };
 
 
@@ -3787,6 +3807,7 @@ public:
   enum Type type() const { return VARBIN_ITEM; }
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  const Type_handler *type_handler() const { return &type_handler_varchar; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   {
     return const_charset_converter(thd, tocs, true);
@@ -3964,6 +3985,7 @@ public:
     maybe_null= !ltime->month || !ltime->day;
   }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  const Type_handler *type_handler() const { return &type_handler_newdate; }
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
@@ -3985,6 +4007,7 @@ public:
     fixed= 1;
   }
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  const Type_handler *type_handler() const { return &type_handler_time2; }
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
@@ -4008,6 +4031,7 @@ public:
     maybe_null= !ltime->month || !ltime->day;
   }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  const Type_handler *type_handler() const { return &type_handler_datetime2; }
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
@@ -4323,6 +4347,7 @@ public:
   { return (*ref)->setup_fast_field_copier(field); }
   enum Item_result result_type () const { return (*ref)->result_type(); }
   enum_field_types field_type() const   { return (*ref)->field_type(); }
+  const Type_handler *type_handler() const { return (*ref)->type_handler(); }
   const Type_handler *real_type_handler() const
   { return (*ref)->real_type_handler(); }
   Field *get_tmp_table_field()
@@ -4618,6 +4643,7 @@ public:
     orig_item->fix_after_pullout(new_parent, &orig_item);
   }
   int save_in_field(Field *to, bool no_conversions);
+  const Type_handler *type_handler() const { return orig_item->type_handler(); }
   enum Item_result result_type () const { return orig_item->result_type(); }
   enum_field_types field_type() const   { return orig_item->field_type(); }
   table_map used_tables() const { return orig_item->used_tables(); }
@@ -5011,7 +5037,7 @@ protected:
     null_value=maybe_null=item->maybe_null;
     Type_std_attributes::set(item);
     name= item->name;
-    set_handler_by_field_type(item->field_type());
+    set_handler(item->type_handler());
     fixed= item->fixed;
   }
 
