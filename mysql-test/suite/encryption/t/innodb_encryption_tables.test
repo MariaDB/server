@@ -2,6 +2,14 @@
 -- source include/have_example_key_management_plugin.inc
 -- source include/not_embedded.inc
 
+--disable_query_log
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+--enable_query_log
+
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact;
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic;
@@ -65,6 +73,9 @@ SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_
 
 --source include/restart_mysqld.inc
 
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
 update innodb_normal set c1 = c1 + 1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
@@ -95,3 +106,9 @@ drop table innodb_compact;
 drop table innodb_dynamic;
 drop table innodb_compressed;
 drop table innodb_redundant;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
+--enable_query_log

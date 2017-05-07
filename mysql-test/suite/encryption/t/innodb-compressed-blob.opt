@@ -1,0 +1,4 @@
+--innodb-tablespaces-encryption
+--innodb-encrypt-tables=on
+--innodb-encryption-threads=2
+--max_allowed_packet=64K

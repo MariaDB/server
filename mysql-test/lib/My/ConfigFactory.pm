@@ -182,55 +182,6 @@ sub fix_log_slow_queries {
   return "$dir/mysqld-slow.log";
 }
 
-sub fix_std_data {
-  my ($self, $config, $group_name, $group)= @_;
-  my $testdir= $self->get_testdir($group);
-  return "$testdir/std_data";
-}
-
-sub ssl_supported {
-  my ($self)= @_;
-  return $self->{ARGS}->{ssl};
-}
-
-sub fix_skip_ssl {
-  return if !ssl_supported(@_);
-  # Add skip-ssl if ssl is supported to avoid
-  # that mysqltest connects with SSL by default
-  return 1;
-}
-
-sub fix_ssl_ca {
-  return if !ssl_supported(@_);
-  my $std_data= fix_std_data(@_);
-  return "$std_data/cacert.pem"
-}
-
-sub fix_ssl_server_cert {
-  return if !ssl_supported(@_);
-  my $std_data= fix_std_data(@_);
-  return "$std_data/server-cert.pem"
-}
-
-sub fix_ssl_client_cert {
-  return if !ssl_supported(@_);
-  my $std_data= fix_std_data(@_);
-  return "$std_data/client-cert.pem"
-}
-
-sub fix_ssl_server_key {
-  return if !ssl_supported(@_);
-  my $std_data= fix_std_data(@_);
-  return "$std_data/server-key.pem"
-}
-
-sub fix_ssl_client_key {
-  return if !ssl_supported(@_);
-  my $std_data= fix_std_data(@_);
-  return "$std_data/client-key.pem"
-}
-
-
 #
 # Rules to run for each mysqld in the config
 #  - will be run in order listed here
@@ -255,9 +206,6 @@ my @mysqld_rules=
  { '#user' => sub { return shift->{ARGS}->{user} || ""; } },
  { '#password' => sub { return shift->{ARGS}->{password} || ""; } },
  { 'server-id' => \&fix_server_id, },
- { 'ssl-ca' => \&fix_ssl_ca },
- { 'ssl-cert' => \&fix_ssl_server_cert },
- { 'ssl-key' => \&fix_ssl_server_key },
  { 'bind-address' => \&fix_bind_address },
   );
 
@@ -284,10 +232,6 @@ my @client_rules=
 #
 my @mysqltest_rules=
 (
- { 'ssl-ca' => \&fix_ssl_ca },
- { 'ssl-cert' => \&fix_ssl_client_cert },
- { 'ssl-key' => \&fix_ssl_client_key },
- { 'skip-ssl' => \&fix_skip_ssl },
 );
 
 

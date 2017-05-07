@@ -6,12 +6,15 @@
 -- source include/not_embedded.inc
 
 --disable_query_log
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
 let $innodb_encryption_threads_orig = `SELECT @@global.innodb_encryption_threads`;
 --enable_query_log
 
 # empty the change buffer and the undo logs to avoid extra reads
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/restart_mysqld.inc
+
+SET GLOBAL innodb_file_per_table = ON;
 
 SHOW VARIABLES LIKE 'innodb_encrypt%';
 
@@ -270,5 +273,6 @@ drop database innodb_encrypted_2;
 drop database innodb_encrypted_3;
 
 --disable_query_log
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
 EVAL SET GLOBAL innodb_encryption_threads = $innodb_encryption_threads_orig;
 --enable_query_log

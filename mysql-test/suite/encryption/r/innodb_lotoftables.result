@@ -1,4 +1,5 @@
 SET GLOBAL innodb_fast_shutdown=0;
+SET GLOBAL innodb_file_per_table = ON;
 SHOW VARIABLES LIKE 'innodb_encrypt%';
 Variable_name	Value
 innodb_encrypt_log	OFF

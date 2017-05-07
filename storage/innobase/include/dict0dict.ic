@@ -1680,7 +1680,7 @@ dict_index_is_corrupted(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return((index->type & DICT_CORRUPT)
-	       || (index->table && index->table->corrupted));
+	        || (index->table && index->table->corrupted));
 }
 
 /********************************************************************//**

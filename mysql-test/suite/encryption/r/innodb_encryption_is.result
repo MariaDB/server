@@ -1,3 +1,7 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+SET GLOBAL innodb_file_per_table = ON;
 CREATE TABLE t1 (c VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
 CREATE TABLE t2 (c VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=2;
 INSERT INTO t1 VALUES ('foobar');
@@ -10,3 +14,5 @@ NAME	ENCRYPTION_SCHEME	MIN_KEY_VERSION	CURRENT_KEY_VERSION	CURRENT_KEY_ID
 test/t1	1	1	1	1
 test/t2	1	1	1	2
 DROP TABLE t1, t2;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

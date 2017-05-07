@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,7 +31,7 @@ Created Aug 11, 2011 Vasil Dimov
 
 #include "buf0types.h"
 
-/** Calculates the CRC32 checksum of a page. The value is stored to the page
+/** Calculate the CRC32 checksum of a page. The value is stored to the page
 when it is written to a file and also checked for a match when reading from
 the file. When reading we allow both normal CRC32 and CRC-legacy-big-endian
 variants. Note that we must be careful to calculate the same value on 32-bit
@@ -44,37 +45,30 @@ buf_calc_page_crc32(
 	const byte*	page,
 	bool		use_legacy_big_endian = false);
 
-/********************************************************************//**
-Calculates a page checksum which is stored to the page when it is written
+/** Calculate a checksum which is stored to the page when it is written
 to a file. Note that we must be careful to calculate the same value on
 32-bit and 64-bit architectures.
+@param[in]	page	file page (srv_page_size bytes)
 @return checksum */
-ulint
-buf_calc_page_new_checksum(
-/*=======================*/
-	const byte*	page);	/*!< in: buffer page */
+uint32_t
+buf_calc_page_new_checksum(const byte* page);
 
-/********************************************************************//**
-In versions < 4.0.14 and < 4.1.1 there was a bug that the checksum only
-looked at the first few bytes of the page. This calculates that old
-checksum.
+/** In MySQL before 4.0.14 or 4.1.1 there was an InnoDB bug that
+the checksum only looked at the first few bytes of the page.
+This calculates that old checksum.
 NOTE: we must first store the new formula checksum to
 FIL_PAGE_SPACE_OR_CHKSUM before calculating and storing this old checksum
 because this takes that field as an input!
+@param[in]	page	file page (srv_page_size bytes)
 @return checksum */
-ulint
-buf_calc_page_old_checksum(
-/*=======================*/
-	const byte*	page);	/*!< in: buffer page */
+uint32_t
+buf_calc_page_old_checksum(const byte* page);
 
-
-/********************************************************************//**
-Return a printable string describing the checksum algorithm.
+/** Return a printable string describing the checksum algorithm.
+@param[in]	algo	algorithm
 @return algorithm name */
 const char*
-buf_checksum_algorithm_name(
-/*========================*/
-	srv_checksum_algorithm_t	algo);	/*!< in: algorithm */
+buf_checksum_algorithm_name(srv_checksum_algorithm_t algo);
 
 extern ulong	srv_checksum_algorithm;
 extern bool	legacy_big_endian_checksum;

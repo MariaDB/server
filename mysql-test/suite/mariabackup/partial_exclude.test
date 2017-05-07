@@ -1,0 +1,30 @@
+# Test --databases-exclude and --tables-exclude feature of xtrabackup 2.3.8
+
+CREATE TABLE t1(i INT) ENGINE INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t2(i int) ENGINE INNODB;
+
+CREATE DATABASE db2;
+USE db2;
+CREATE TABLE t1(i INT) ENGINE INNODB;
+
+USE test;
+
+echo # xtrabackup backup;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables-exclude=test.*2" "--databases-exclude=db2" --target-dir=$targetdir;
+--enable_result_log
+
+# check that only t1 table is in backup (t2 is excluded)
+list_files $targetdir/test *.ibd;
+# check that db2 database is not in the backup (excluded)
+--error 1
+list_files $targetdir/db2 *.ibd;
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP DATABASE db2;
+rmdir $targetdir;
+

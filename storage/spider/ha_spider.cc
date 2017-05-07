@@ -2109,6 +2109,7 @@ int ha_spider::index_read_map_internal(
   result_list.desc_flg = FALSE;
   result_list.sorted = TRUE;
   result_list.key_info = &table->key_info[active_index];
+  check_distinct_key_query();
   result_list.limit_num =
     result_list.internal_limit >= result_list.split_read ?
     result_list.split_read : result_list.internal_limit;
@@ -2624,6 +2625,7 @@ int ha_spider::index_read_last_map_internal(
   result_list.desc_flg = TRUE;
   result_list.sorted = TRUE;
   result_list.key_info = &table->key_info[active_index];
+  check_distinct_key_query();
   result_list.limit_num =
     result_list.internal_limit >= result_list.split_read ?
     result_list.split_read : result_list.internal_limit;
@@ -3089,6 +3091,7 @@ int ha_spider::index_first_internal(
     result_list.sorted = TRUE;
     result_list.key_info = &table->key_info[active_index];
     result_list.key_order = 0;
+    check_distinct_key_query();
     result_list.limit_num =
       result_list.internal_limit >= result_list.split_read ?
       result_list.split_read : result_list.internal_limit;
@@ -3472,6 +3475,7 @@ int ha_spider::index_last_internal(
     result_list.sorted = TRUE;
     result_list.key_info = &table->key_info[active_index];
     result_list.key_order = 0;
+    check_distinct_key_query();
     result_list.limit_num =
       result_list.internal_limit >= result_list.split_read ?
       result_list.split_read : result_list.internal_limit;
@@ -3914,6 +3918,7 @@ int ha_spider::read_range_first_internal(
   result_list.desc_flg = FALSE;
   result_list.sorted = sorted;
   result_list.key_info = &table->key_info[active_index];
+  check_distinct_key_query();
   result_list.limit_num =
     result_list.internal_limit >= result_list.split_read ?
     result_list.split_read : result_list.internal_limit;
@@ -12075,6 +12080,81 @@ void ha_spider::check_direct_order_limit()
     result_list.check_direct_order_limit = TRUE;
   }
   DBUG_VOID_RETURN;
+}
+
+/********************************************************************
+ * Check whether the current query is a SELECT DISTINCT using an
+ * index in a non-partitioned Spider configuration, with a
+ * projection list that consists solely of the first key prefix
+ * column.
+ *
+ * For a SELECT DISTINCT query using an index in a non-partitioned
+ * Spider configuration, with a projection list that consists
+ * solely of the first key prefix, set the internal row retrieval
+ * limit to avoid visiting each row multiple times.
+ ********************************************************************/
+void ha_spider::check_distinct_key_query()
+{
+    DBUG_ENTER( "ha_spider::check_distinct_key_query" );
+
+    if ( result_list.direct_distinct && !partition_handler_share->handlers &&
+         result_list.keyread && result_list.check_direct_order_limit )
+    {
+        // SELECT DISTINCT query using an index in a non-partitioned configuration
+        KEY_PART_INFO*  key_part = result_list.key_info->key_part;
+        Field*          key_field = key_part->field;
+
+        if ( is_sole_projection_field( key_field->field_index ) )
+        {
+            // Projection list consists solely of the first key prefix column
+
+            // Set the internal row retrieval limit to avoid visiting each row
+            // multiple times.  This fixes a Spider performance bug that
+            // caused each row to be visited multiple times.
+            result_list.internal_limit = 1;
+        }
+    }
+
+    DBUG_VOID_RETURN;
+}
+
+/********************************************************************
+ * Determine whether the current query's projection list
+ * consists solely of the specified column.
+ *
+ * Params   IN      - field_index:
+ *                    Field index of the column of interest within
+ *                    its table.
+ *
+ * Returns  TRUE    - if the query's projection list consists
+ *                    solely of the specified column.
+ *          FALSE   - otherwise.
+ ********************************************************************/
+bool ha_spider::is_sole_projection_field( uint16 field_index )
+{
+    // NOTE: It is assumed that spider_db_append_select_columns() has already been called
+    //       to build the bitmap of projection fields
+    bool                is_ha_sole_projection_field;
+    uint                loop_index, dbton_id;
+    spider_db_handler*  dbton_hdl;
+    DBUG_ENTER( "ha_spider::is_sole_projection_field" );
+
+    for ( loop_index = 0; loop_index < share->use_sql_dbton_count; loop_index++ )
+    {
+        dbton_id    = share->use_sql_dbton_ids[ loop_index ];
+        dbton_hdl   = dbton_handler[ dbton_id ];
+
+        if ( dbton_hdl->first_link_idx >= 0 )
+        {
+            is_ha_sole_projection_field = dbton_hdl->is_sole_projection_field( field_index );
+            if ( !is_ha_sole_projection_field )
+            {
+                DBUG_RETURN( FALSE );
+            }
+        }
+    }
+
+    DBUG_RETURN( TRUE );
 }
 
 int ha_spider::check_ha_range_eof()

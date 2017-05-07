@@ -7,7 +7,9 @@ source include/have_sequence.inc;
 # Row binlog format to fill binlog cache faster
 source include/have_binlog_format_row.inc;
 
-source include/have_innodb.inc;
+# Nothing XtraDB specific in this test, it just needs *some* transactional
+# engine. But there's no need to run it twice for InnoDB and XtraDB.
+source include/have_xtradb.inc;
 
 #
 # MyISAM messing around with IO_CACHE::file

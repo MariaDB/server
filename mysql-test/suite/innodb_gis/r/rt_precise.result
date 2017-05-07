@@ -55,5 +55,8 @@ count(*)
 SELECT fid, ST_AsText(g) FROM t1 WHERE ST_Within(g,
 ST_GeomFromText('Polygon((40 40,60 40,60 60,40 40))')) ORDER BY fid;
 fid	ST_AsText(g)
+45	LINESTRING(51 51,60 60)
+46	LINESTRING(51 41,60 50)
+56	LINESTRING(41 41,50 50)
 DROP TABLE t1;
 End of 5.5 tests.

@@ -418,6 +418,11 @@ btr_pcur_move_to_next_page(
 	cursor->old_stored = false;
 
 	page = btr_pcur_get_page(cursor);
+
+	if (UNIV_UNLIKELY(!page)) {
+		return;
+	}
+
 	next_page_no = btr_page_get_next(page, mtr);
 
 	ut_ad(next_page_no != FIL_NULL);
@@ -437,6 +442,10 @@ btr_pcur_move_to_next_page(
 		page_id_t(block->page.id.space(), next_page_no),
 		block->page.size, mode,
 		btr_pcur_get_btr_cur(cursor)->index, mtr);
+
+	if (UNIV_UNLIKELY(!next_block)) {
+		return;
+	}
 
 	next_page = buf_block_get_frame(next_block);
 #ifdef UNIV_BTR_DEBUG

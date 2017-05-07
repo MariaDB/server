@@ -117,8 +117,7 @@ struct fil_space_crypt_t : st_encryption_scheme
 		min_key_version(new_min_key_version),
 		page0_offset(0),
 		encryption(new_encryption),
-		mutex(),
-		key_found(new_min_key_version),
+		key_found(0),
 		rotate_state()
 	{
 		key_id = new_key_id;
@@ -136,6 +135,8 @@ struct fil_space_crypt_t : st_encryption_scheme
 			type = CRYPT_SCHEME_1;
 			min_key_version = key_get_latest_version();
 		}
+
+		key_found = min_key_version;
 	}
 
 	/** Destructor */
@@ -298,13 +299,15 @@ Parse a MLOG_FILE_WRITE_CRYPT_DATA log entry
 @param[in]	ptr		Log entry start
 @param[in]	end_ptr		Log entry end
 @param[in]	block		buffer block
+@param[out]	err		DB_SUCCESS or DB_DECRYPTION_FAILED
 @return position on log buffer */
 UNIV_INTERN
-const byte*
+byte*
 fil_parse_write_crypt_data(
-	const byte*		ptr,
+	byte*			ptr,
 	const byte*		end_ptr,
-	const buf_block_t*	block)
+	const buf_block_t*	block,
+	dberr_t*		err)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************************

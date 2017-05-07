@@ -336,8 +336,9 @@ trx_sys_update_wsrep_checkpoint(
         trx_sysf_t*     sys_header,  /*!< in: sys_header */
         mtr_t*          mtr);        /*!< in: mtr       */
 
-void
-/** Read WSREP checkpoint XID from sys header. */
+/** Read WSREP checkpoint XID from sys header. 
+@return  true on success, false on error. */
+bool
 trx_sys_read_wsrep_checkpoint(
         XID* xid); /*!< out: WSREP XID */
 #endif /* WITH_WSREP */

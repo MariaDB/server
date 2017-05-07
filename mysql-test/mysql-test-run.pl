@@ -184,6 +184,7 @@ my @DEFAULT_SUITES= qw(
     innodb_zip-
     json-
     maria-
+    mariabackup-
     multi_source-
     optimizer_unfixed_bugs-
     parts-

@@ -1,0 +1,57 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+SET GLOBAL innodb_file_per_table = ON;
+create table t1(c1 bigint not null, b char(200), c varchar(200)) engine=innodb encrypted=yes encryption_key_id=1;
+show warnings;
+Level	Code	Message
+create procedure innodb_insert_proc (repeat_count int)
+begin
+declare current_num int;
+set current_num = 0;
+while current_num < repeat_count do
+insert into t1 values(current_num, substring(MD5(RAND()), -64), REPEAT('privatejanprivate',10));
+set current_num = current_num + 1;
+end while;
+end//
+commit;
+begin;
+call innodb_insert_proc(2000);
+commit;
+update t1 set c1 = c1 +1;
+select count(*) from t1;
+count(*)
+2000
+# Kill the server
+# ibdata1 yes on expecting NOT FOUND
+NOT FOUND /privatejanprivate/ in ibdata1
+# t1 yes on expecting NOT FOUND
+NOT FOUND /privatejanprivate/ in t1.ibd
+# log0 yes on expecting NOT FOUND
+NOT FOUND /privatejanprivate/ in ib_logfile0
+# log1 yes on expecting NOT FOUND
+NOT FOUND /privatejanprivate/ in ib_logfile1
+# Restart mysqld --innodb_encrypt_log=0
+insert into t1 values(5000, substring(MD5(RAND()), -64), REPEAT('publicmessage',10));
+insert into t1 values(5001, substring(MD5(RAND()), -64), REPEAT('publicmessage',10));
+insert into t1 values(5002, substring(MD5(RAND()), -64), REPEAT('publicmessage',10));
+insert into t1 values(5003, substring(MD5(RAND()), -64), REPEAT('publicmessage',10));
+insert into t1 values(5004, substring(MD5(RAND()), -64), REPEAT('publicmessage',10));
+# ibdata1 yes on expecting NOT FOUND
+NOT FOUND /privatejanprivate/ in ibdata1
+# t1 yes on expecting NOT FOUND
+NOT FOUND /privatejanprivate/ in t1.ibd
+# log0 yes on expecting NOT FOUND
+NOT FOUND /privatejanprivate/ in ib_logfile0
+# log1 yes on expecting NOT FOUND
+NOT FOUND /privatejanprivate/ in ib_logfile1
+# ibdata1 yes on expecting NOT FOUND
+NOT FOUND /publicmessage/ in ibdata1
+# t1 yes on expecting NOT FOUND
+NOT FOUND /publicmessage/ in t1.ibd
+# log0 no on expecting FOUND/NOTFOUND depending where insert goes
+FOUND 48 /publicmessage/ in ib_logfile0
+# log1 no on expecting FOUND/NOTFOUND depending where insert goes
+NOT FOUND /publicmessage/ in ib_logfile1
+drop procedure innodb_insert_proc;
+drop table t1;

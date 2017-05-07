@@ -17,10 +17,12 @@ SET(SEMISYNC_MASTER_SOURCES
  semisync.cc semisync_master.cc semisync_master_plugin.cc
  semisync.h semisync_master.h)
 
-MYSQL_ADD_PLUGIN(semisync_master ${SEMISYNC_MASTER_SOURCES})
+MYSQL_ADD_PLUGIN(semisync_master ${SEMISYNC_MASTER_SOURCES}
+  RECOMPILE_FOR_EMBEDDED)
 
 SET(SEMISYNC_SLAVE_SOURCES  semisync.cc semisync_slave.cc 
   semisync_slave_plugin.cc semisync.h semisync_slave.h )
 
-MYSQL_ADD_PLUGIN(semisync_slave ${SEMISYNC_SLAVE_SOURCES})
+MYSQL_ADD_PLUGIN(semisync_slave ${SEMISYNC_SLAVE_SOURCES}
+  RECOMPILE_FOR_EMBEDDED)
 

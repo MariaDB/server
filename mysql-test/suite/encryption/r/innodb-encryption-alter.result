@@ -1,3 +1,7 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_encrypt_tables = ON;
 SET GLOBAL innodb_encryption_threads = 4;
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=NO ENCRYPTION_KEY_ID=4;
@@ -49,3 +53,5 @@ Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create 
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 set innodb_default_encryption_key_id = 1;
 drop table t1,t2;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

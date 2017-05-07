@@ -6,9 +6,9 @@
 #
 # MDEV-11004: Unable to start (Segfault or os error 2) when encryption key missing
 #
-call mtr.add_suppression("InnoDB: The page .* in file test/t. cannot be decrypted");
 
---echo
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[123]\\.ibd' cannot be decrypted\\.");
+
 --echo # Start server with keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc

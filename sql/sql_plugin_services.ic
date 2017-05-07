@@ -133,7 +133,7 @@ static struct base64_service_st base64_handler= {
   my_base64_decode
 };
 
-static struct thd_error_context_service_st thd_error_conext_handler= {
+static struct thd_error_context_service_st thd_error_context_handler= {
   thd_get_error_message,
   thd_get_error_number,
   thd_get_error_row,
@@ -196,6 +196,24 @@ static struct encryption_scheme_service_st encryption_scheme_handler=
  encryption_scheme_decrypt
 };
 
+static struct my_crypt_service_st crypt_handler=
+{
+  my_aes_crypt_init,
+  my_aes_crypt_update,
+  my_aes_crypt_finish,
+  my_aes_crypt,
+  my_aes_get_size,
+  my_aes_ctx_size,
+  my_random_bytes
+};
+
+static struct my_print_error_service_st my_print_error_handler=
+{
+  my_error,
+  my_printf_error,
+  my_printv_error
+};
+
 static struct st_service_ref list_of_services[]=
 {
   { "base64_service",              VERSION_base64,              &base64_handler },
@@ -203,19 +221,21 @@ static struct st_service_ref list_of_services[]=
   { "encryption_scheme_service",   VERSION_encryption_scheme,   &encryption_scheme_handler },
   { "encryption_service",          VERSION_encryption,          &encryption_handler },
   { "logger_service",              VERSION_logger,              &logger_service_handler },
+  { "my_crypt_service",            VERSION_my_crypt,            &crypt_handler},
   { "my_md5_service",              VERSION_my_md5,              &my_md5_handler},
+  { "my_print_error_service",      VERSION_my_print_error,      &my_print_error_handler},
   { "my_sha1_service",             VERSION_my_sha1,             &my_sha1_handler},
   { "my_sha2_service",             VERSION_my_sha2,             &my_sha2_handler},
   { "my_snprintf_service",         VERSION_my_snprintf,         &my_snprintf_handler },
   { "progress_report_service",     VERSION_progress_report,     &progress_report_handler },
   { "thd_alloc_service",           VERSION_thd_alloc,           &thd_alloc_handler },
   { "thd_autoinc_service",         VERSION_thd_autoinc,         &thd_autoinc_handler },
-  { "thd_error_context_service",   VERSION_thd_error_context,   &thd_error_conext_handler },
+  { "thd_error_context_service",   VERSION_thd_error_context,   &thd_error_context_handler },
   { "thd_kill_statement_service",  VERSION_kill_statement,      &thd_kill_statement_handler },
   { "thd_rnd_service",             VERSION_thd_rnd,             &thd_rnd_handler },
   { "thd_specifics_service",       VERSION_thd_specifics,       &thd_specifics_handler },
   { "thd_timezone_service",        VERSION_thd_timezone,        &thd_timezone_handler },
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
-  { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
+  { "wsrep_service",               VERSION_wsrep,               &wsrep_handler }
 };
 

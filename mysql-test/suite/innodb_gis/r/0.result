@@ -610,7 +610,7 @@ set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
 set transaction isolation level read uncommitted;
 select count(*) from t1 where ST_Within(t1.c2, @g1);
 count(*)
-0
+1
 disconnect con1;
 connection a;
 commit;

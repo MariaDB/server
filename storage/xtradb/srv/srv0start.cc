@@ -140,7 +140,7 @@ SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
 UNIV_INTERN enum srv_shutdown_state	srv_shutdown_state = SRV_SHUTDOWN_NONE;
 
 /** Files comprising the system tablespace */
-static os_file_t	files[1000];
+os_file_t	files[1000];
 
 /** io_handler_thread parameters for thread identification */
 static ulint		n[SRV_MAX_N_IO_THREADS];
@@ -826,7 +826,7 @@ open_log_file(
 /*********************************************************************//**
 Creates or opens database data files and closes them.
 @return	DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 open_or_create_data_files(
 /*======================*/
@@ -1080,8 +1080,10 @@ skip_size_check:
 			/* This is the earliest location where we can load
 			the double write buffer. */
 			if (i == 0) {
+				/* XtraBackup never loads corrupted pages from
+				the doublewrite buffer */
 				buf_dblwr_init_or_load_pages(
-					files[i], srv_data_file_names[i], true);
+					files[i], srv_data_file_names[i], !IS_XTRABACKUP());
 			}
 
 			bool retry = true;
@@ -1365,12 +1367,15 @@ srv_undo_tablespace_open(
 /********************************************************************
 Opens the configured number of undo tablespaces.
 @return	DB_SUCCESS or error code */
-static
 dberr_t
 srv_undo_tablespaces_init(
 /*======================*/
 	ibool		create_new_db,		/*!< in: TRUE if new db being
 						created */
+	ibool		backup_mode,		/*!< in: TRUE disables reading
+						the system tablespace (used in
+						XtraBackup), FALSE is passed on
+						recovery. */
 	const ulint	n_conf_tablespaces,	/*!< in: configured undo
 						tablespaces */
 	ulint*		n_opened)		/*!< out: number of UNDO
@@ -1424,7 +1429,7 @@ srv_undo_tablespaces_init(
 	we build the undo_tablespace_ids ourselves since they don't
 	already exist. */
 
-	if (!create_new_db) {
+	if (!create_new_db && !backup_mode) {
 		n_undo_tablespaces = trx_rseg_get_n_undo_tablespaces(
 			undo_tablespace_ids);
 	} else {
@@ -2287,11 +2292,11 @@ innobase_start_or_create_for_mysql(void)
 					max_flushed_lsn = min_flushed_lsn
 						= log_get_lsn();
 					goto files_checked;
-				} else if (i < 2) {
-					/* must have at least 2 log files */
-					ib_logf(IB_LOG_LEVEL_ERROR,
-						"Only one log file found.");
-					return(err);
+				} else if (i < 2 && !IS_XTRABACKUP()) {
+						/* must have at least 2 log files */
+						ib_logf(IB_LOG_LEVEL_ERROR,
+							"Only one log file found.");
+						return(err);
 				}
 
 				/* opened all files */
@@ -2385,6 +2390,7 @@ files_checked:
 
 	err = srv_undo_tablespaces_init(
 		create_new_db,
+		FALSE,
 		srv_undo_tablespaces,
 		&srv_undo_tablespaces_open);
 
@@ -2531,6 +2537,11 @@ files_checked:
 			recv_group_scan_log_recs(). */
 
 			recv_apply_hashed_log_recs(true);
+
+			if (recv_sys->found_corrupt_log) {
+				return (DB_CORRUPTION);
+			}
+
 			DBUG_PRINT("ib_log", ("apply completed"));
 		}
 
@@ -2652,6 +2663,17 @@ files_checked:
 			/* This function assumes that SYS_DATAFILES exists */
 			dict_check_tablespaces_and_store_max_id(dict_check);
 		}
+
+		if (IS_XTRABACKUP()
+			&& !srv_backup_mode
+			&& srv_read_only_mode
+			&& srv_log_file_size_requested != srv_log_file_size) {
+
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Log files size mismatch, ignored in readonly mode");
+			srv_log_file_size_requested = srv_log_file_size;
+		}
+
 
 		if (!srv_force_recovery
 		    && !recv_sys->found_corrupt_log
@@ -3287,7 +3309,8 @@ innobase_shutdown_for_mysql(void)
 
 	srv_was_started = FALSE;
 	srv_start_has_been_called = FALSE;
-
+	/* reset io_tid_i, in case current process does second innodb start (xtrabackup might do that).*/
+	io_tid_i = 0;
 	return(DB_SUCCESS);
 }
 #endif /* !UNIV_HOTBACKUP */

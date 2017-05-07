@@ -1,4 +1,8 @@
 # Restart mysqld --loose-file-key-management-filename=keys2.txt
+SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+SET GLOBAL innodb_file_per_table = ON;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 show warnings;
 Level	Code	Message
@@ -102,6 +106,10 @@ variable_value >= 0
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 variable_value >= 0
 1
+SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+SET GLOBAL innodb_file_per_table = ON;
 alter table innodb_compact engine=innodb encryption_key_id = 2;
 alter table innodb_compressed engine=innodb encryption_key_id = 3;
 alter table innodb_dynamic engine=innodb encryption_key_id = 4;
@@ -147,3 +155,5 @@ drop table innodb_compact;
 drop table innodb_compressed;
 drop table innodb_dynamic;
 drop table innodb_redundant;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

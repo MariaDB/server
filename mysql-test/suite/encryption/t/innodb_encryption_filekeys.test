@@ -5,9 +5,15 @@
 
 call mtr.add_suppression("trying to do an operation on a dropped tablespace .*");
 
+--disable_query_log
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
 let $encrypt_tables = `SELECT @@innodb_encrypt_tables`;
 let $threads = `SELECT @@innodb_encryption_threads`;
+--enable_query_log
 
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_encrypt_tables = OFF;
 SET GLOBAL innodb_encryption_threads = 4;
 
@@ -127,6 +133,8 @@ SELECT COUNT(1) FROM t5;
 
 # reset system
 --disable_query_log
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
 EVAL SET GLOBAL innodb_encrypt_tables = $encrypt_tables;
 EVAL SET GLOBAL innodb_encryption_threads = $threads;
 --enable_query_log
@@ -134,3 +142,4 @@ EVAL SET GLOBAL innodb_encryption_threads = $threads;
 drop table t1,t2,t3,t4, t5;
 
 set GLOBAL innodb_default_encryption_key_id=1;
+
