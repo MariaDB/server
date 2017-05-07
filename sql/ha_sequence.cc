@@ -201,7 +201,7 @@ int ha_sequence::write_row(uchar *buf)
 
   /*
     User tries to write a row
-    - Check that row is an accurate object
+    - Check that the new row is an accurate object
     - Update the first row in the table
   */
 
@@ -289,6 +289,25 @@ int ha_sequence::info(uint flag)
   stats.records= 1;
   DBUG_RETURN(false);
 }
+
+
+int ha_sequence::extra(enum ha_extra_function operation)
+{
+  if (operation == HA_EXTRA_PREPARE_FOR_ALTER_TABLE)
+  {
+    /* In case of ALTER TABLE allow ::write_row() to copy rows */
+    sequence->initialized= SEQUENCE::SEQ_IN_PREPARE;
+  }
+  return file->extra(operation);
+}
+
+bool ha_sequence::check_if_incompatible_data(HA_CREATE_INFO *create_info,
+                                             uint table_changes)
+{
+  /* Table definition is locked for SEQUENCE tables */
+  return(COMPATIBLE_DATA_YES);
+}
+
 
 int ha_sequence::external_lock(THD *thd, int lock_type)
 {

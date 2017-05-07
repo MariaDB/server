@@ -2480,6 +2480,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_DROP_SEQUENCE:
   case SQLCOM_RENAME_TABLE:
   case SQLCOM_ALTER_TABLE:
+  case SQLCOM_ALTER_SEQUENCE:
   case SQLCOM_COMMIT:
   case SQLCOM_CREATE_INDEX:
   case SQLCOM_DROP_INDEX:

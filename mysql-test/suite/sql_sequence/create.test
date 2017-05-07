@@ -118,6 +118,8 @@ create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
 create sequence t1 start with 10 maxvalue=9223372036854775807;
 --error ER_PARSE_ERROR
 create sequence t1 start with 10 minvalue=-9223372036854775808;
+--error ER_PARSE_ERROR
+create sequence t1 RESTART WITH 10;
 
 # This should probably give an error
 create or replace sequence t1 start with 10 NO MINVALUE minvalue=1;

@@ -385,6 +385,29 @@ public:
 
 
 /**
+  Sql_cmd_alter_sequence represents the ALTER SEQUENCE statement.
+*/
+class Sql_cmd_alter_sequence : public Sql_cmd
+{
+public:
+  /**
+    Constructor, used to represent a ALTER TABLE statement.
+  */
+  Sql_cmd_alter_sequence()
+  {}
+
+  ~Sql_cmd_alter_sequence()
+  {}
+
+  enum_sql_command sql_command_code() const
+  {
+    return SQLCOM_ALTER_SEQUENCE;
+  }
+  bool execute(THD *thd);
+};
+
+
+/**
   Sql_cmd_alter_table_tablespace represents ALTER TABLE
   IMPORT/DISCARD TABLESPACE statements.
 */

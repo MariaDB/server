@@ -6786,7 +6786,7 @@ longlong Item_func_nextval::val_int()
     }
   }
   entry->null_value= null_value= 0;
-  value= table->s->sequence->next_value(table,0, &error);
+  value= table->s->sequence->next_value(table, 0, &error);
   entry->value= value;
   entry->set_version(table);
 
@@ -6877,4 +6877,77 @@ longlong Item_func_lastval::val_int()
 
   null_value= entry->null_value;
   DBUG_RETURN(entry->value);
+}
+
+
+/*
+  Sets next value to be returned from sequences
+
+  SELECT setval('foo', 42, 0);           Next nextval will return 43
+  SELECT setval('foo', 42, 0, true);     Same as above
+  SELECT setval('foo', 42, 0, false);    Next nextval will return 42
+*/
+
+longlong Item_func_setval::val_int()
+{
+  longlong value;
+  int error;
+  TABLE *table= table_list->table;
+  DBUG_ASSERT(table && table->s->sequence);
+  DBUG_ENTER("Item_func_setval::val_int");
+
+  value= nextval;
+  error= table->s->sequence->set_value(table, nextval, round, is_used);
+  if (error)
+  {
+    null_value= 1;
+    value= 0;
+  }
+  DBUG_RETURN(value);
+}
+
+
+/* Print for setval */
+
+void Item_func_setval::print(String *str, enum_query_type query_type)
+{
+  char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
+  const char *d_name= table_list->db, *t_name= table_list->table_name;
+  bool use_db_name= d_name && d_name[0];
+  THD *thd= table_list->table->in_use;
+
+  str->append(func_name());
+  str->append('(');
+
+  /*
+    for next_val we assume that table_list has been updated to contain
+    the current db.
+  */
+
+  if (lower_case_table_names > 0)
+  {
+    strmake(t_name_buff, t_name, MAX_ALIAS_NAME-1);
+    my_casedn_str(files_charset_info, t_name_buff);
+    t_name= t_name_buff;
+    if (use_db_name)
+    {
+      strmake(d_name_buff, d_name, MAX_ALIAS_NAME-1);
+      my_casedn_str(files_charset_info, d_name_buff);
+      d_name= d_name_buff;
+    }
+  }
+
+  if (use_db_name)
+  {
+    append_identifier(thd, str, d_name, (uint)strlen(d_name));
+    str->append('.');
+  }
+  append_identifier(thd, str, t_name, (uint) strlen(t_name));
+  str->append(',');
+  str->append_longlong(nextval);
+  str->append(',');
+  str->append_longlong(is_used);
+  str->append(',');
+  str->append_ulonglong(round);
+  str->append(')');
 }

@@ -9631,6 +9631,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
   from->file->info(HA_STATUS_VARIABLE);
+  to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
   to->file->ha_start_bulk_insert(from->file->stats.records,
                                  ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
 

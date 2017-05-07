@@ -6404,7 +6404,6 @@ Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
                                                  MDL_SHARED_WRITE)))
     return NULL;
   return new (thd->mem_root) Item_func_nextval(thd, table);
-
 }
 
 
@@ -6439,6 +6438,21 @@ Item *LEX::create_item_func_lastval(THD *thd,
   if (!(table_ident= new (thd->mem_root) Table_ident(thd, db, name, false)))
     return NULL;
   return create_item_func_lastval(thd, table_ident);
+}
+
+
+Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
+                                   longlong nextval, ulonglong round,
+                                   bool is_used)
+{
+  TABLE_LIST *table;
+  if (!(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                 TL_OPTION_SEQUENCE,
+                                                 TL_WRITE_ALLOW_WRITE,
+                                                 MDL_SHARED_WRITE)))
+    return NULL;
+  return new (thd->mem_root) Item_func_setval(thd, table, nextval, round,
+                                              is_used);
 }
 
 

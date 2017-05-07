@@ -463,6 +463,9 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
   case HA_EXTRA_PREPARE_FOR_DROP:
     inspected = "HA_EXTRA_PREPARE_FOR_DROP";
     break;
+  case HA_EXTRA_PREPARE_FOR_ALTER_TABLE:
+    inspected = "HA_EXTRA_PREPARE_FOR_ALTER_TABLE";
+    break;
   case HA_EXTRA_PREPARE_FOR_UPDATE:
     inspected = "HA_EXTRA_PREPARE_FOR_UPDATE";
     break;

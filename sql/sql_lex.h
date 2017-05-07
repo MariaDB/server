@@ -3276,6 +3276,12 @@ public:
                                            const LEX_CSTRING *name);
   
   /*
+    Create an item for "SETVAL(sequence_name, value [, is_used [, round]])
+  */
+  Item *create_item_func_setval(THD *thd, Table_ident *ident, longlong value,
+                                ulonglong round, bool is_used);
+
+  /*
     Create an item for a name in LIMIT clause: LIMIT var
       @param THD         - THD, for mem_root
       @param var_name    - the variable name

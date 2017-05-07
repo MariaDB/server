@@ -454,6 +454,7 @@ static bool stmt_causes_implicit_commit(THD *thd, uint mask)
            (thd->variables.option_bits & OPTION_GTID_BEGIN));
     break;
   case SQLCOM_ALTER_TABLE:
+  case SQLCOM_ALTER_SEQUENCE:
     /* If ALTER TABLE of non-temporary table, do implicit commit */
     skip= (lex->tmp_table());
     break;
@@ -555,6 +556,8 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_TABLE]=    CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
                                             CF_INSERTS_DATA;
+  sql_command_flags[SQLCOM_ALTER_SEQUENCE]= CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
+                                            CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_TRUNCATE]=       CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_TABLE]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_SCHEMA_CHANGE;
@@ -6213,8 +6216,10 @@ end_with_restore_list:
   case SQLCOM_REPAIR:
   case SQLCOM_TRUNCATE:
   case SQLCOM_ALTER_TABLE:
-      thd->query_plan_flags|= QPLAN_ADMIN;
       DBUG_ASSERT(first_table == all_tables && first_table != 0);
+    /* fall through */
+  case SQLCOM_ALTER_SEQUENCE:
+      thd->query_plan_flags|= QPLAN_ADMIN;
     /* fall through */
   case SQLCOM_SIGNAL:
   case SQLCOM_RESIGNAL:
