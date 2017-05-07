@@ -369,12 +369,18 @@ select @a;
 --echo #
 --echo # BUG LP:1008487 virtual bool Item_cache::is_expensive(): Assertion `example' failed
 --echo #
+SET TIMESTAMP=UNIX_TIMESTAMP('2017-01-03 00:00:00');
 create table t1(a date,key(a));
 insert into t1 values ('2012-01-01'),('2012-02-02');
 explain
 select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
 select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
+SET TIMESTAMP=UNIX_TIMESTAMP('2012-01-03 00:00:01');
+explain
+select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
+select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
 drop table t1;
+SET TIMESTAMP=DEFAULT;
 
 --echo #
 --echo # MDEV-9521 Least function returns 0000-00-00 for null date columns instead of null
@@ -579,4 +585,23 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12721 Wrong execution plan for WHERE (date_field <=> timestamp_expr AND TRUE)
+--echo #
+CREATE TABLE t1(a DATE,KEY(a));
+INSERT INTO t1 VALUES ('2012-01-01'),('2012-02-02');
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP'2001-01-01 00:00:01' AND TRUE;
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP('2001-01-01', '00:00:01') AND TRUE;
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP'2001-01-01 00:00:00' AND TRUE;
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP('2001-01-01', '00:00:00') AND TRUE;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
 --echo #
