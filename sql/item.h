@@ -751,7 +751,7 @@ public:
     return type_handler()->result_type();
   }
   /* ... while cmp_type() specifies how it should be compared */
-  virtual Item_result cmp_type() const
+  Item_result cmp_type() const
   {
     return type_handler()->cmp_type();
   }
@@ -2232,8 +2232,6 @@ public:
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const
   { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
   uint cols() const { return this_item()->cols(); }
   Item* element_index(uint i) { return this_item()->element_index(i); }
   Item** addr(uint i) { return this_item()->addr(i); }
@@ -2833,7 +2831,6 @@ public:
 
   const Type_handler *type_handler() const { return &type_handler_row; }
   Item_result result_type() const{ return ROW_RESULT ; }
-  Item_result cmp_type() const { return ROW_RESULT; }
   uint cols() const { return arg_count; }
   bool element_index_by_name(uint *idx, const LEX_CSTRING &name) const;
   Item* element_index(uint i) { return arg_count ? args[i] : this; }
@@ -3094,8 +3091,6 @@ public:
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const
   { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
 
   Item_param(THD *thd, const LEX_CSTRING *name_arg,
              uint pos_in_query_arg, uint len_in_query_arg);
@@ -3913,7 +3908,6 @@ public:
   enum Type type() const { return DATE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
   enum Item_result result_type () const { return STRING_RESULT; }
-  Item_result cmp_type() const { return TIME_RESULT; }
 
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
 
@@ -5031,8 +5025,6 @@ public:
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const
   { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
 
   void make_field(THD *thd, Send_field *field) { item->make_field(thd, field); }
   table_map used_tables() const { return (table_map) 1L; }
@@ -5561,8 +5553,6 @@ public:
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const
   { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
 
   virtual void keep_array() {}
   virtual void print(String *str, enum_query_type query_type);
@@ -5685,7 +5675,6 @@ public:
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);
-  Item_result cmp_type() const { return TIME_RESULT; }
   void store_packed(longlong val_arg, Item *example);
   /*
     Having a clone_item method tells optimizer that this object

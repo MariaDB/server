@@ -304,7 +304,6 @@ public:
   bool val_bool();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   enum Item_result result_type() const;
-  enum Item_result cmp_type() const;
   const Type_handler *type_handler() const;
   void fix_length_and_dec();
 

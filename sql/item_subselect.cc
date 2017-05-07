@@ -1177,11 +1177,6 @@ enum Item_result Item_singlerow_subselect::result_type() const
   return engine->result_type();
 }
 
-enum Item_result Item_singlerow_subselect::cmp_type() const
-{
-  return engine->cmp_type();
-}
-
 const Type_handler *Item_singlerow_subselect::type_handler() const
 {
   return engine->type_handler();

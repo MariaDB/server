@@ -399,8 +399,6 @@ public:
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const
   { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
   Field::geometry_type get_geometry_type() const
   { return Type_geometry_attributes::get_geometry_type(); };
 };
@@ -2298,7 +2296,7 @@ public:
   void fix_length_and_dec();
   Field *create_field_for_create_select(TABLE *table)
   {
-    return cmp_type() == STRING_RESULT ?
+    return Type_handler_hybrid_field_type::cmp_type() == STRING_RESULT ?
       type_handler_long_blob.make_and_init_table_field(&(Item::name),
                                                        Record_addr(maybe_null),
                                                        *this, table) :

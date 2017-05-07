@@ -91,7 +91,6 @@ public:
   table_map used_tables() const { return used_tables_cache; };
   bool const_item() const { return const_item_cache; };
   enum Item_result result_type() const { return ROW_RESULT; }
-  Item_result cmp_type() const { return ROW_RESULT; }
   void update_used_tables()
   {
     used_tables_and_const_cache_init();

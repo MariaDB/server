@@ -305,8 +305,6 @@ class Item_sum_hybrid_simple : public Item_sum,
   String *val_str(String *);
   enum Item_result result_type() const
   { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type() const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   void update_field();

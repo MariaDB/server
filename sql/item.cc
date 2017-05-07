@@ -1694,7 +1694,7 @@ CALL p1();
 bool Item_splocal::check_cols(uint n)
 {
   DBUG_ASSERT(m_thd->spcont);
-  if (cmp_type() != ROW_RESULT)
+  if (Type_handler_hybrid_field_type::cmp_type() != ROW_RESULT)
     return Item::check_cols(n);
 
   if (n != this_item()->cols() || n == 1)

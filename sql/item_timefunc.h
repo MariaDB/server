@@ -528,7 +528,6 @@ public:
   Item_temporal_func(THD *thd, Item *a, Item *b): Item_func(thd, a, b) {}
   Item_temporal_func(THD *thd, Item *a, Item *b, Item *c): Item_func(thd, a, b, c) {}
   enum Item_result result_type () const { return STRING_RESULT; }
-  Item_result cmp_type() const { return TIME_RESULT; }
   String *val_str(String *str);
   longlong val_int() { return val_int_from_date(); }
   double val_real() { return val_real_from_date(); }

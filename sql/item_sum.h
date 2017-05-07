@@ -785,8 +785,6 @@ public:
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const
   { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
   void reset_field();
@@ -1052,8 +1050,6 @@ protected:
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const
   { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
   void update_field();
   void min_max_update_str_field();
   void min_max_update_real_field();
@@ -1406,7 +1402,6 @@ class Item_sum_udf_float :public Item_udf_sum
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return REAL_RESULT; }
-  enum Item_result cmp_type () const { return REAL_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_double; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *copy_or_same(THD* thd);
@@ -1644,7 +1639,6 @@ public:
   enum Sumfunctype sum_func () const {return GROUP_CONCAT_FUNC;}
   const char *func_name() const { return "group_concat("; }
   virtual Item_result result_type () const { return STRING_RESULT; }
-  virtual Item_result cmp_type () const { return STRING_RESULT; }
   const Type_handler *type_handler() const
   {
     if (too_big_for_varchar())
