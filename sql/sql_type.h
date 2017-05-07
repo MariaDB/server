@@ -2199,7 +2199,7 @@ public:
   bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *) const;
 };
 
-extern Type_handler_geometry type_handler_geometry;
+extern MYSQL_PLUGIN_IMPORT Type_handler_geometry type_handler_geometry;
 #endif
 
 
@@ -2319,49 +2319,49 @@ public:
 };
 
 
-extern Type_handler_row         type_handler_row;
-extern Type_handler_null        type_handler_null;
+extern MYSQL_PLUGIN_IMPORT Type_handler_row         type_handler_row;
+extern MYSQL_PLUGIN_IMPORT Type_handler_null        type_handler_null;
 
-extern Type_handler_float       type_handler_float;
-extern Type_handler_double      type_handler_double;
+extern MYSQL_PLUGIN_IMPORT Type_handler_float       type_handler_float;
+extern MYSQL_PLUGIN_IMPORT Type_handler_double      type_handler_double;
 
-extern Type_handler_bit         type_handler_bit;
+extern MYSQL_PLUGIN_IMPORT Type_handler_bit         type_handler_bit;
 
-extern Type_handler_enum        type_handler_enum;
-extern Type_handler_set         type_handler_set;
+extern MYSQL_PLUGIN_IMPORT Type_handler_enum        type_handler_enum;
+extern MYSQL_PLUGIN_IMPORT Type_handler_set         type_handler_set;
 
-extern Type_handler_string      type_handler_string;
-extern Type_handler_var_string  type_handler_var_string;
-extern Type_handler_varchar     type_handler_varchar;
+extern MYSQL_PLUGIN_IMPORT Type_handler_string      type_handler_string;
+extern MYSQL_PLUGIN_IMPORT Type_handler_var_string  type_handler_var_string;
+extern MYSQL_PLUGIN_IMPORT Type_handler_varchar     type_handler_varchar;
 
-extern Type_handler_tiny_blob   type_handler_tiny_blob;
-extern Type_handler_medium_blob type_handler_medium_blob;
-extern Type_handler_long_blob   type_handler_long_blob;
-extern Type_handler_blob        type_handler_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
 
-extern Type_handler_tiny        type_handler_tiny;
-extern Type_handler_short       type_handler_short;
-extern Type_handler_int24       type_handler_int24;
-extern Type_handler_long        type_handler_long;
-extern Type_handler_longlong    type_handler_longlong;
+extern MYSQL_PLUGIN_IMPORT Type_handler_tiny        type_handler_tiny;
+extern MYSQL_PLUGIN_IMPORT Type_handler_short       type_handler_short;
+extern MYSQL_PLUGIN_IMPORT Type_handler_int24       type_handler_int24;
+extern MYSQL_PLUGIN_IMPORT Type_handler_long        type_handler_long;
+extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_longlong;
 
-extern Type_handler_newdecimal  type_handler_newdecimal;
-extern Type_handler_olddecimal  type_handler_olddecimal;
+extern MYSQL_PLUGIN_IMPORT Type_handler_newdecimal  type_handler_newdecimal;
+extern MYSQL_PLUGIN_IMPORT Type_handler_olddecimal  type_handler_olddecimal;
 
-extern Type_handler_year        type_handler_year;
-extern Type_handler_newdate     type_handler_newdate;
-extern Type_handler_date        type_handler_date;
-extern Type_handler_time        type_handler_time;
-extern Type_handler_time2       type_handler_time2;
-extern Type_handler_datetime    type_handler_datetime;
-extern Type_handler_datetime2   type_handler_datetime2;
-extern Type_handler_timestamp   type_handler_timestamp;
-extern Type_handler_timestamp2  type_handler_timestamp2;
+extern MYSQL_PLUGIN_IMPORT Type_handler_year        type_handler_year;
+extern MYSQL_PLUGIN_IMPORT Type_handler_newdate     type_handler_newdate;
+extern MYSQL_PLUGIN_IMPORT Type_handler_date        type_handler_date;
+extern MYSQL_PLUGIN_IMPORT Type_handler_time        type_handler_time;
+extern MYSQL_PLUGIN_IMPORT Type_handler_time2       type_handler_time2;
+extern MYSQL_PLUGIN_IMPORT Type_handler_datetime    type_handler_datetime;
+extern MYSQL_PLUGIN_IMPORT Type_handler_datetime2   type_handler_datetime2;
+extern MYSQL_PLUGIN_IMPORT Type_handler_timestamp   type_handler_timestamp;
+extern MYSQL_PLUGIN_IMPORT Type_handler_timestamp2  type_handler_timestamp2;
 
-extern Type_handler_tiny_blob   type_handler_tiny_blob;
-extern Type_handler_blob        type_handler_blob;
-extern Type_handler_medium_blob type_handler_medium_blob;
-extern Type_handler_long_blob   type_handler_long_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
 
 class Type_aggregator
 {
