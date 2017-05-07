@@ -302,7 +302,8 @@ int select_union_recursive::send_data(List<Item> &values)
 {
   int rc= select_unit::send_data(values);
 
-  if (write_err != HA_ERR_FOUND_DUPP_KEY)
+  if (write_err != HA_ERR_FOUND_DUPP_KEY && 
+      write_err != HA_ERR_FOUND_DUPP_UNIQUE)
   { 
     int err;
     if ((err= incr_table->file->ha_write_tmp_row(table->record[0])))
@@ -1538,7 +1539,7 @@ bool st_select_lex_unit::exec_recursive()
                                                  !is_unrestricted);
     if (!with_element->rec_result->first_rec_table_to_update)
       with_element->rec_result->first_rec_table_to_update= rec_table;
-    if (with_element->level == 1)
+    if (with_element->level == 1 && rec_table->reginfo.join_tab)
       rec_table->reginfo.join_tab->preread_init_done= true;  
   }
   for (Item_subselect *sq= with_element->sq_with_rec_ref.first;

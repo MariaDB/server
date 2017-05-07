@@ -769,10 +769,6 @@ buf_block_unfix(
 @param[in]	read_buf		database page
 @param[in]	checksum_field1		new checksum field
 @param[in]	checksum_field2		old checksum field
-@param[in]	page_no			page number of given read_buf
-@param[in]	is_log_enabled		true if log option is enabled
-@param[in]	log_file		file pointer to log_file
-@param[in]	curr_algo		current checksum algorithm
 @param[in]	use_legacy_big_endian   use legacy big endian algorithm
 @return true if the page is in crc32 checksum format. */
 bool
@@ -780,12 +776,6 @@ buf_page_is_checksum_valid_crc32(
 	const byte*			read_buf,
 	ulint				checksum_field1,
 	ulint				checksum_field2,
-#ifdef UNIV_INNOCHECKSUM
-	uintmax_t			page_no,
-	bool				is_log_enabled,
-	FILE*				log_file,
-	const srv_checksum_algorithm_t	curr_algo,
-#endif /* UNIV_INNOCHECKSUM */
 	bool				use_legacy_big_endian)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
@@ -793,58 +783,25 @@ buf_page_is_checksum_valid_crc32(
 @param[in]	read_buf	database page
 @param[in]	checksum_field1	new checksum field
 @param[in]	checksum_field2	old checksum field
-@param[in]	page_no		page number of given read_buf
-@param[in]	is_log_enabled	true if log option is enabled
-@param[in]	log_file	file pointer to log_file
-@param[in]	curr_algo	current checksum algorithm
 @return true if the page is in innodb checksum format. */
 bool
 buf_page_is_checksum_valid_innodb(
 	const byte*			read_buf,
 	ulint				checksum_field1,
-	ulint				checksum_field2
-#ifdef UNIV_INNOCHECKSUM
-	,uintmax_t			page_no,
-	bool				is_log_enabled,
-	FILE*				log_file,
-	const srv_checksum_algorithm_t	curr_algo
-#endif /* UNIV_INNOCHECKSUM */
-	)
+	ulint				checksum_field2)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /** Checks if the page is in none checksum format.
 @param[in]	read_buf	database page
 @param[in]	checksum_field1	new checksum field
 @param[in]	checksum_field2	old checksum field
-@param[in]	page_no		page number of given read_buf
-@param[in]	is_log_enabled	true if log option is enabled
-@param[in]	log_file	file pointer to log_file
-@param[in]	curr_algo	current checksum algorithm
 @return true if the page is in none checksum format. */
 bool
 buf_page_is_checksum_valid_none(
 	const byte*			read_buf,
 	ulint				checksum_field1,
-	ulint				checksum_field2
-#ifdef	UNIV_INNOCHECKSUM
-	,uintmax_t			page_no,
-	bool				is_log_enabled,
-	FILE*				log_file,
-	const srv_checksum_algorithm_t	curr_algo
-#endif	/* UNIV_INNOCHECKSUM */
-	)
+	ulint				checksum_field2)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
-/********************************************************************//**
-Check if page is maybe compressed, encrypted or both when we encounter
-corrupted page. Note that we can't be 100% sure if page is corrupted
-or decrypt/decompress just failed.
-@param[in]	bpage		Page
-@return true if page corrupted, false if not */
-bool
-buf_page_check_corrupt(
-	buf_page_t*	bpage)	/*!< in/out: buffer page read from disk */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Checks if a page contains only zeroes.
 @param[in]	read_buf	database page
@@ -861,10 +818,6 @@ the LSN
 @param[in]	read_buf	database page
 @param[in]	page_size	page size
 @param[in]	space		tablespace
-@param[in]	page_no		page number of given read_buf
-@param[in]	strict_check	true if strict-check option is enabled
-@param[in]	is_log_enabled	true if log option is enabled
-@param[in]	log_file	file pointer to log_file
 @return whether the page is corrupted */
 bool
 buf_page_is_corrupted(
@@ -872,12 +825,6 @@ buf_page_is_corrupted(
 	const byte*		read_buf,
 	const page_size_t&	page_size,
 	const fil_space_t* 	space = NULL
-#ifdef UNIV_INNOCHECKSUM
-	,uintmax_t		page_no = 0,
-	bool			strict_check = false,
-	bool			is_log_enabled = false,
-	FILE*			log_file = NULL
-#endif /* UNIV_INNOCHECKSUM */
 ) MY_ATTRIBUTE((warn_unused_result));
 #ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**
@@ -1836,23 +1783,58 @@ struct buf_block_t{
 	/* @} */
 
 	/** @name Hash search fields
-	These 5 fields may only be modified when we have
-	an x-latch on search system AND
-	- we are holding an s-latch or x-latch on buf_block_t::lock or
-	- we know that buf_block_t::buf_fix_count == 0.
+	These 5 fields may only be modified when:
+	we are holding the appropriate x-latch in btr_search_latches[], and
+	one of the following holds:
+	(1) the block state is BUF_BLOCK_FILE_PAGE, and
+	we are holding an s-latch or x-latch on buf_block_t::lock, or
+	(2) buf_block_t::buf_fix_count == 0, or
+	(3) the block state is BUF_BLOCK_REMOVE_HASH.
 
 	An exception to this is when we init or create a page
 	in the buffer pool in buf0buf.cc.
 
-	Another exception is that assigning block->index = NULL
-	is allowed whenever holding an x-latch on search system. */
+	Another exception for buf_pool_clear_hash_index() is that
+	assigning block->index = NULL (and block->n_pointers = 0)
+	is allowed whenever btr_search_own_all(RW_LOCK_X).
+
+	Another exception is that ha_insert_for_fold_func() may
+	decrement n_pointers without holding the appropriate latch
+	in btr_search_latches[]. Thus, n_pointers must be
+	protected by atomic memory access.
+
+	This implies that the fields may be read without race
+	condition whenever any of the following hold:
+	- the btr_search_latches[] s-latch or x-latch is being held, or
+	- the block state is not BUF_BLOCK_FILE_PAGE or BUF_BLOCK_REMOVE_HASH,
+	and holding some latch prevents the state from changing to that.
+
+	Some use of assert_block_ahi_empty() or assert_block_ahi_valid()
+	is prone to race conditions while buf_pool_clear_hash_index() is
+	executing (the adaptive hash index is being disabled). Such use
+	is explicitly commented. */
 
 	/* @{ */
 
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	ulint		n_pointers;	/*!< used in debugging: the number of
 					pointers in the adaptive hash index
-					pointing to this frame */
+					pointing to this frame;
+					protected by atomic memory access
+					or btr_search_own_all(). */
+#  define assert_block_ahi_empty(block)					\
+	ut_a(my_atomic_addlint(&(block)->n_pointers, 0) == 0)
+#  define assert_block_ahi_empty_on_init(block) do {			\
+	UNIV_MEM_VALID(&(block)->n_pointers, sizeof (block)->n_pointers); \
+	assert_block_ahi_empty(block);					\
+} while (0)
+#  define assert_block_ahi_valid(block)					\
+	ut_a((block)->index						\
+	     || my_atomic_addlint(&(block)->n_pointers, 0) == 0)
+# else /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+#  define assert_block_ahi_empty(block) /* nothing */
+#  define assert_block_ahi_empty_on_init(block) /* nothing */
+#  define assert_block_ahi_valid(block) /* nothing */
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 	unsigned	curr_n_fields:10;/*!< prefix length for hash indexing:
 					number of full fields */
@@ -1868,11 +1850,15 @@ struct buf_block_t{
 					complete, though: there may
 					have been hash collisions,
 					record deletions, etc. */
+	/* @} */
+#else /* BTR_CUR_HASH_ADAPT */
+# define assert_block_ahi_empty(block) /* nothing */
+# define assert_block_ahi_empty_on_init(block) /* nothing */
+# define assert_block_ahi_valid(block) /* nothing */
 #endif /* BTR_CUR_HASH_ADAPT */
 	bool		skip_flush_check;
 					/*!< Skip check in buf_dblwr_check_block
 					during bulk load, protected by lock.*/
-	/* @} */
 # ifdef UNIV_DEBUG
 	/** @name Debug fields */
 	/* @{ */

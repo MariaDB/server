@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -168,8 +168,7 @@ doublewrite buffer is placed on the trx system header page.
 @return true if successful, false if not. */
 MY_ATTRIBUTE((warn_unused_result))
 bool
-buf_dblwr_create(void)
-/*==================*/
+buf_dblwr_create()
 {
 	buf_block_t*	block2;
 	buf_block_t*	new_block;
@@ -510,7 +509,7 @@ buf_dblwr_init_or_load_pages(
 
 /** Process and remove the double write buffer pages for all tablespaces. */
 void
-buf_dblwr_process(void)
+buf_dblwr_process()
 {
 	ulint		page_no_dblwr	= 0;
 	byte*		read_buf;
@@ -527,9 +526,7 @@ buf_dblwr_process(void)
 	     i != recv_dblwr.pages.end();
 	     ++i, ++page_no_dblwr) {
 		byte*	page		= *i;
-		ulint	page_no		= page_get_page_no(page);
 		ulint	space_id	= page_get_space_id(page);
-
 		fil_space_t*	space = fil_space_get(space_id);
 
 		if (space == NULL) {
@@ -540,6 +537,7 @@ buf_dblwr_process(void)
 
 		fil_space_open_if_needed(space);
 
+		const ulint		page_no	= page_get_page_no(page);
 		const page_id_t		page_id(space_id, page_no);
 
 		if (page_no >= space->size) {
@@ -676,8 +674,7 @@ buf_dblwr_process(void)
 /****************************************************************//**
 Frees doublewrite buffer. */
 void
-buf_dblwr_free(void)
-/*================*/
+buf_dblwr_free()
 {
 	/* Free the double write data structures. */
 	ut_a(buf_dblwr != NULL);
@@ -932,8 +929,7 @@ important to call this function after a batch of writes has been posted,
 and also when we may have to wait for a page latch! Otherwise a deadlock
 of threads can occur. */
 void
-buf_dblwr_flush_buffered_writes(void)
-/*=================================*/
+buf_dblwr_flush_buffered_writes()
 {
 	byte*		write_buf;
 	ulint		first_free;

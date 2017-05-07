@@ -444,6 +444,7 @@ void Item_func_json_value::fix_length_and_dec()
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   path.set_constant_flag(args[1]->const_item());
+  maybe_null= 1;
 }
 
 
@@ -582,6 +583,7 @@ void Item_func_json_unquote::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8_general_ci);
   max_length= args[0]->max_length;
+  maybe_null= 1;
 }
 
 
@@ -683,6 +685,7 @@ void Item_func_json_extract::fix_length_and_dec()
   max_length= args[0]->max_length * (arg_count - 1);
 
   mark_constant_paths(paths, args+1, arg_count-1);
+  maybe_null= 1;
 }
 
 
@@ -884,6 +887,7 @@ void Item_func_json_contains::fix_length_and_dec()
 {
   a2_constant= args[1]->const_item();
   a2_parsed= FALSE;
+  maybe_null= 1;
   if (arg_count > 2)
     path.set_constant_flag(args[2]->const_item());
   Item_int_func::fix_length_and_dec();
@@ -1129,6 +1133,7 @@ void Item_func_json_contains_path::fix_length_and_dec()
 {
   ooa_constant= args[1]->const_item();
   ooa_parsed= FALSE;
+  maybe_null= 1;
   mark_constant_paths(paths, args+2, arg_count-2);
   Item_int_func::fix_length_and_dec();
 }
@@ -2042,6 +2047,7 @@ void Item_func_json_length::fix_length_and_dec()
 {
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
+  maybe_null= 1;
 }
 
 
@@ -2178,6 +2184,7 @@ void Item_func_json_type::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8_general_ci);
   max_length= 12;
+  maybe_null= 1;
 }
 
 
@@ -2245,6 +2252,7 @@ void Item_func_json_insert::fix_length_and_dec()
   }
 
   fix_char_length_ulonglong(char_length);
+  maybe_null= 1;
 }
 
 
@@ -2491,6 +2499,7 @@ void Item_func_json_remove::fix_length_and_dec()
   max_length= args[0]->max_length;
 
   mark_constant_paths(paths, args+1, arg_count-1);
+  maybe_null= 1;
 }
 
 
@@ -2674,6 +2683,7 @@ void Item_func_json_keys::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
+  maybe_null= 1;
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
 }
@@ -2815,6 +2825,7 @@ void Item_func_json_search::fix_length_and_dec()
 
   if (arg_count > 4)
     mark_constant_paths(paths, args+4, arg_count-4);
+  maybe_null= 1;
 }
 
 
@@ -2898,7 +2909,7 @@ String *Item_func_json_search::val_str(String *str)
     json_path_with_flags *c_path= paths + n_arg - 4;
     if (!c_path->parsed)
     {
-      String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-1));
+      String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-4));
       if (s_p &&
           json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
                           (const uchar *) s_p->ptr() + s_p->length()))
@@ -2996,6 +3007,7 @@ void Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
   max_length= args[0]->max_length;
+  maybe_null= 1;
 }
 
 

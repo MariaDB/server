@@ -552,20 +552,20 @@ bool Arg_comparator::set_cmp_func_string()
 }
 
 
-bool Arg_comparator::set_cmp_func_temporal()
+bool Arg_comparator::set_cmp_func_time()
 {
-  enum_field_types f_type= a[0]->field_type_for_temporal_comparison(b[0]);
   m_compare_collation= &my_charset_numeric;
-  if (f_type == MYSQL_TYPE_TIME)
-  {
-    func= is_owner_equal_func() ? &Arg_comparator::compare_e_time :
-                                  &Arg_comparator::compare_time;
-  }
-  else
-  {
-    func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
-                                  &Arg_comparator::compare_datetime;
-  }
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_time :
+                                &Arg_comparator::compare_time;
+  return false;
+}
+
+
+bool Arg_comparator::set_cmp_func_datetime()
+{
+  m_compare_collation= &my_charset_numeric;
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
+                                &Arg_comparator::compare_datetime;
   return false;
 }
 
@@ -735,8 +735,8 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
   {
     if (!thd)
       thd= current_thd;
-
-    Item_cache_temporal *cache= new (thd->mem_root) Item_cache_temporal(thd, f_type);
+    const Type_handler *h= Type_handler::get_handler_by_field_type(f_type);
+    Item_cache_temporal *cache= new (thd->mem_root) Item_cache_temporal(thd, h);
     cache->store_packed(value, item);
     *cache_arg= cache;
     *item_arg= cache_arg;
@@ -2082,7 +2082,7 @@ longlong Item_func_between::val_int_cmp_temporal()
   bool value_is_null, a_is_null, b_is_null;
 
   ptr= &args[0];
-  enum_field_types f_type= m_comparator.field_type();
+  enum_field_types f_type= m_comparator.type_handler()->field_type();
   value= get_datetime_value(thd, &ptr, &cache, f_type, &value_is_null);
   if (ptr != &args[0])
     thd->change_item_tree(&args[0], *ptr);
@@ -2791,7 +2791,7 @@ Item_func_case::Item_func_case(THD *thd, List<Item> &list,
   Item_func_case_expression(thd),
   Predicant_to_list_comparator(thd, list.elements/*QQ*/),
   first_expr_num(-1), else_expr_num(-1),
-  left_cmp_type(INT_RESULT), m_found_types(0)
+  m_found_types(0)
 {
   ncases= list.elements;
   if (first_expr_arg)
@@ -3057,7 +3057,6 @@ void Item_func_case::fix_length_and_dec()
     }
 
     agg[0]= args[first_expr_num];
-    left_cmp_type= agg[0]->cmp_type();
 
     /*
       As the first expression and WHEN expressions
@@ -3119,6 +3118,7 @@ void Item_func_case::fix_length_and_dec()
 
 Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
 {
+  const Type_handler *first_expr_cmp_handler;
   if (first_expr_num == -1)
   {
     // None of the arguments are in a comparison context
@@ -3126,6 +3126,7 @@ Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_
     return this;
   }
 
+  first_expr_cmp_handler= args[first_expr_num]->type_handler_for_comparison();
   for (uint i= 0; i < arg_count; i++)
   {
     /*
@@ -3164,11 +3165,11 @@ Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_
                   WHEN 'str2' THEN TRUE
                   ELSE FALSE END;
       */
-      if (m_found_types == (1UL << left_cmp_type))
+      if (m_found_types == (1UL << first_expr_cmp_handler->cmp_type()))
         new_item= args[i]->propagate_equal_fields(thd,
                                                   Context(
                                                     ANY_SUBST,
-                                                    left_cmp_type,
+                                                    first_expr_cmp_handler,
                                                     cmp_collation.collation),
                                                   cond);
     }
@@ -3181,13 +3182,14 @@ Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_
         replaced to zero-filled constants (only IDENTITY_SUBST allows this).
         Such a change for WHEN arguments would require rebuilding cmp_items.
       */
-      Item_result tmp_cmp_type= item_cmp_type(args[first_expr_num], args[i]);
-      new_item= args[i]->propagate_equal_fields(thd,
-                                                Context(
-                                                  ANY_SUBST,
-                                                  tmp_cmp_type,
-                                                  cmp_collation.collation),
-                                                cond);
+      Type_handler_hybrid_field_type tmp(first_expr_cmp_handler);
+      if (!tmp.aggregate_for_comparison(args[i]->type_handler_for_comparison()))
+        new_item= args[i]->propagate_equal_fields(thd,
+                                                  Context(
+                                                    ANY_SUBST,
+                                                    tmp.type_handler(),
+                                                    cmp_collation.collation),
+                                                  cond);
     }
     else // THEN and ELSE arguments (they are not in comparison)
     {
@@ -6019,10 +6021,11 @@ Item *Item_bool_rowready_func2::negated_item(THD *thd)
   of the type Item_field or Item_direct_view_ref(Item_field). 
 */
 
-Item_equal::Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item):
+Item_equal::Item_equal(THD *thd, const Type_handler *handler,
+                       Item *f1, Item *f2, bool with_const_item):
   Item_bool_func(thd), eval_item(0), cond_false(0), cond_true(0),
   context_field(NULL), link_equal_fields(FALSE),
-  m_compare_type(item_cmp_type(f1, f2)),
+  m_compare_handler(handler),
   m_compare_collation(f2->collation.collation)
 {
   const_item_cache= 0;
@@ -6048,7 +6051,7 @@ Item_equal::Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item):
 Item_equal::Item_equal(THD *thd, Item_equal *item_equal):
   Item_bool_func(thd), eval_item(0), cond_false(0), cond_true(0),
   context_field(NULL), link_equal_fields(FALSE),
-  m_compare_type(item_equal->m_compare_type),
+  m_compare_handler(item_equal->m_compare_handler),
   m_compare_collation(item_equal->m_compare_collation)
 {
   const_item_cache= 0;
@@ -6091,7 +6094,7 @@ void Item_equal::add_const(THD *thd, Item *c)
     return;
   }
   Item *const_item= get_const();
-  switch (Item_equal::compare_type()) {
+  switch (Item_equal::compare_type_handler()->cmp_type()) {
   case TIME_RESULT:
     {
       enum_field_types f_type= context_field->field_type();

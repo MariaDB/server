@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1505,6 +1505,8 @@ run_again:
 
 	row_ins_step(thr);
 
+	DEBUG_SYNC_C("ib_after_row_insert_step");
+
 	err = trx->error_state;
 
 	if (err != DB_SUCCESS) {
@@ -2888,12 +2890,26 @@ loop:
 		return(n_tables + n_tables_dropped);
 	}
 
+	DBUG_EXECUTE_IF("row_drop_tables_in_background_sleep",
+		os_thread_sleep(5000000);
+	);
+
 	table = dict_table_open_on_name(drop->table_name, FALSE, FALSE,
 					DICT_ERR_IGNORE_NONE);
 
 	if (table == NULL) {
 		/* If for some reason the table has already been dropped
 		through some other mechanism, do not try to drop it */
+
+		goto already_dropped;
+	}
+
+	if (!table->to_be_dropped) {
+		/* There is a scenario: the old table is dropped
+		just after it's added into drop list, and new
+		table with the same name is created, then we try
+		to drop the new table in background. */
+		dict_table_close(table, FALSE, FALSE);
 
 		goto already_dropped;
 	}
@@ -3766,6 +3782,13 @@ row_drop_table_for_mysql(
 		}
 	}
 
+
+	DBUG_EXECUTE_IF("row_drop_table_add_to_background",
+		row_add_table_to_background_drop_list(table->name.m_name);
+		err = DB_SUCCESS;
+		goto funct_exit;
+	);
+
 	/* TODO: could we replace the counter n_foreign_key_checks_running
 	with lock checks on the table? Acquire here an exclusive lock on the
 	table, and rewrite lock0lock.cc and the lock wait in srv0srv.cc so that
@@ -4272,6 +4295,19 @@ loop:
 	row_mysql_lock_data_dictionary(trx);
 
 	while ((table_name = dict_get_first_table_name_in_db(name))) {
+		/* Drop parent table if it is a fts aux table, to
+		avoid accessing dropped fts aux tables in information
+		scheam when parent table still exists.
+		Note: Drop parent table will drop fts aux tables. */
+		char*	parent_table_name;
+		parent_table_name = fts_get_parent_table_name(
+				table_name, strlen(table_name));
+
+		if (parent_table_name != NULL) {
+			ut_free(table_name);
+			table_name = parent_table_name;
+		}
+
 		ut_a(memcmp(table_name, name, namelen) == 0);
 
 		table = dict_table_open_on_name(
@@ -5010,9 +5046,6 @@ row_scan_index_for_mysql(
 	row_prebuilt_t*		prebuilt,	/*!< in: prebuilt struct
 						in MySQL handle */
 	const dict_index_t*	index,		/*!< in: index */
-	bool			check_keys,	/*!< in: true=check for mis-
-						ordered or duplicate records,
-						false=count the rows only */
 	ulint*			n_rows)		/*!< out: number of entries
 						seen in the consistent read */
 {
@@ -5079,7 +5112,7 @@ loop:
 		goto func_exit;
 	default:
 	{
-		const char* doing = check_keys? "CHECK TABLE" : "COUNT(*)";
+		const char* doing = "CHECK TABLE";
 		ib::warn() << doing << " on index " << index->name << " of"
 			" table " << index->table->name << " returned " << ret;
 		/* fall through (this error is ignored by CHECK TABLE) */
@@ -5095,9 +5128,6 @@ func_exit:
 
 	*n_rows = *n_rows + 1;
 
-	if (!check_keys) {
-		goto next_rec;
-	}
 	/* else this code is doing handler::check() for CHECK TABLE */
 
 	/* row_search... returns the index record in buf, record origin offset
@@ -5179,7 +5209,6 @@ not_ok:
 		}
 	}
 
-next_rec:
 	ret = row_search_for_mysql(
 		buf, PAGE_CUR_G, prebuilt, 0, ROW_SEL_NEXT);
 

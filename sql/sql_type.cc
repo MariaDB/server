@@ -457,7 +457,19 @@ const Type_handler *Type_handler_time_common::type_handler_for_comparison() cons
   return &type_handler_time;
 }
 
-const Type_handler *Type_handler_temporal_with_date::type_handler_for_comparison() const
+const Type_handler *Type_handler_date_common::type_handler_for_comparison() const
+{
+  return &type_handler_newdate;
+}
+
+
+const Type_handler *Type_handler_datetime_common::type_handler_for_comparison() const
+{
+  return &type_handler_datetime;
+}
+
+
+const Type_handler *Type_handler_timestamp_common::type_handler_for_comparison() const
 {
   return &type_handler_datetime;
 }
@@ -652,9 +664,14 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
     {
       /*
         We're here if both m_type_handler and h are temporal data types.
+        - If both data types are TIME, we preserve TIME.
+        - If both data types are DATE, we preserve DATE.
+          Preserving DATE is needed for EXPLAIN FORMAT=JSON,
+          to print DATE constants using proper format:
+          'YYYY-MM-DD' rather than 'YYYY-MM-DD 00:00:00'.
       */
-      if (field_type() != MYSQL_TYPE_TIME || h->field_type() != MYSQL_TYPE_TIME)
-        m_type_handler= &type_handler_datetime; // DATETIME bits TIME
+      if (m_type_handler->field_type() != h->field_type())
+        m_type_handler= &type_handler_datetime;
     }
   }
   else if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
@@ -1917,9 +1934,15 @@ bool Type_handler_string_result::set_comparator_func(Arg_comparator *cmp) const
   return cmp->set_cmp_func_string();
 }
 
-bool Type_handler_temporal_result::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_time_common::set_comparator_func(Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_temporal();
+  return cmp->set_cmp_func_time();
+}
+
+bool
+Type_handler_temporal_with_date::set_comparator_func(Arg_comparator *cmp) const
+{
+  return cmp->set_cmp_func_datetime();
 }
 
 
@@ -2027,7 +2050,7 @@ Type_handler_row::Item_get_cache(THD *thd, const Item *item) const
 Item_cache *
 Type_handler_int_result::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_int(thd, item->field_type());
+  return new (thd->mem_root) Item_cache_int(thd, item->type_handler());
 }
 
 Item_cache *
@@ -2051,7 +2074,7 @@ Type_handler_string_result::Item_get_cache(THD *thd, const Item *item) const
 Item_cache *
 Type_handler_temporal_result::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_temporal(thd, item->field_type());
+  return new (thd->mem_root) Item_cache_temporal(thd, item->type_handler());
 }
 
 /*************************************************************************/
@@ -2218,7 +2241,7 @@ bool Type_handler_numeric::
   /* MIN/MAX can return NULL for empty set indepedent of the used column */
   func->maybe_null= func->null_value= true;
   if (item2->type() == Item::FIELD_ITEM)
-    func->set_handler_by_field_type(item2->field_type());
+    func->set_handler(item2->type_handler());
   else
     func->set_handler(handler);
   return false;
@@ -2269,7 +2292,7 @@ bool Type_handler_string_result::
   if (item2->type() == Item::FIELD_ITEM)
   {
     // Fields: convert ENUM/SET to CHAR, preserve the type otherwise.
-    func->set_handler_by_field_type(item->field_type());
+    func->set_handler(item->type_handler());
   }
   else
   {
@@ -4208,6 +4231,116 @@ bool Type_handler::
   if (!item->null_value)
     return protocol->store_time(&buf->value.m_time, item->decimals);
   return protocol->store_null();
+}
+
+/***************************************************************************/
+
+Item *Type_handler_int_result::
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
+{
+  longlong result= item->val_int();
+  if (item->null_value)
+    return new (thd->mem_root) Item_null(thd, item->name.str);
+  return  new (thd->mem_root) Item_int(thd, item->name.str, result,
+                                       item->max_length);
+}
+
+
+Item *Type_handler_real_result::
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
+{
+  double result= item->val_real();
+  if (item->null_value)
+    return new (thd->mem_root) Item_null(thd, item->name.str);
+  return new (thd->mem_root) Item_float(thd, item->name.str, result,
+                                        item->decimals, item->max_length);
+}
+
+
+Item *Type_handler_decimal_result::
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
+{
+  my_decimal decimal_value;
+  my_decimal *result= item->val_decimal(&decimal_value);
+  if (item->null_value)
+    return new (thd->mem_root) Item_null(thd, item->name.str);
+  return new (thd->mem_root) Item_decimal(thd, item->name.str, result,
+                                          item->max_length, item->decimals);
+}
+
+
+Item *Type_handler_string_result::
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
+{
+  StringBuffer<MAX_FIELD_WIDTH> tmp;
+  String *result= item->val_str(&tmp);
+  if (item->null_value)
+    return new (thd->mem_root) Item_null(thd, item->name.str);
+  uint length= result->length();
+  char *tmp_str= thd->strmake(result->ptr(), length);
+  return new (thd->mem_root) Item_string(thd, item->name.str,
+                                         tmp_str, length, result->charset());
+}
+
+
+Item *Type_handler_time_common::
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
+{
+  Item_cache_temporal *cache;
+  longlong value= item->val_time_packed();
+  if (item->null_value)
+    return new (thd->mem_root) Item_null(thd, item->name.str);
+  cache= new (thd->mem_root) Item_cache_temporal(thd, this);
+  if (cache)
+    cache->store_packed(value, item);
+  return cache;
+}
+
+
+Item *Type_handler_temporal_with_date::
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
+{
+  Item_cache_temporal *cache;
+  longlong value= item->val_datetime_packed();
+  if (item->null_value)
+    return new (thd->mem_root) Item_null(thd, item->name.str);
+  cache= new (thd->mem_root) Item_cache_temporal(thd, this);
+  if (cache)
+    cache->store_packed(value, item);
+  return cache;
+}
+
+
+Item *Type_handler_row::
+  make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
+{
+  if (item->type() == Item::ROW_ITEM && cmp->type() == Item::ROW_ITEM)
+  {
+    /*
+      Substitute constants only in Item_row's. Don't affect other Items
+      with ROW_RESULT (eg Item_singlerow_subselect).
+
+      For such Items more optimal is to detect if it is constant and replace
+      it with Item_row. This would optimize queries like this:
+      SELECT * FROM t1 WHERE (a,b) = (SELECT a,b FROM t2 LIMIT 1);
+    */
+    Item_row *item_row= (Item_row*) item;
+    Item_row *comp_item_row= (Item_row*) cmp;
+    uint col;
+    /*
+      If item and comp_item are both Item_row's and have same number of cols
+      then process items in Item_row one by one.
+      We can't ignore NULL values here as this item may be used with <=>, in
+      which case NULL's are significant.
+    */
+    DBUG_ASSERT(item->result_type() == cmp->result_type());
+    DBUG_ASSERT(item_row->cols() == comp_item_row->cols());
+    col= item_row->cols();
+    while (col-- > 0)
+      resolve_const_item(thd, item_row->addr(col),
+                         comp_item_row->element_index(col));
+  }
+  return NULL;
 }
 
 /***************************************************************************/

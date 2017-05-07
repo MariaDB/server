@@ -1834,3 +1834,97 @@ drop table objects, modules, module_arguments, module_results;
 set standard_compliant_cte=default;
 select @@standard_compliant_cte;
 
+--echo #
+--echo # mdev-12554: impossible where in recursive select 
+--echo #             
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2);
+
+WITH RECURSIVE
+cte(f) AS ( SELECT i FROM t1 UNION SELECT f FROM t1, cte WHERE 1=0 )
+SELECT * FROM cte;
+
+DROP TABLE t1;
+
+--echo #
+--echo # mdev-12556: recursive execution uses Aria temporary tables 
+--echo #             
+
+CREATE TABLE t (c1 varchar(255), c2 tinytext);
+INSERT INTO t VALUES ('a','a'),('b','b'),('c','c'),('d','d');
+
+let $q1=
+WITH RECURSIVE cte(f) AS (
+  SELECT c1 FROM t
+  UNION
+  SELECT c1 FROM t, cte
+) SELECT COUNT(*) FROM cte;
+
+let $q2=
+WITH RECURSIVE cte(f) AS (
+  SELECT c2 FROM t
+  UNION
+  SELECT c2 FROM t, cte
+) SELECT COUNT(*) FROM cte;
+
+eval ANALYZE $q1;
+eval $q1;
+
+eval ANALYZE $q2;
+eval $q2;
+
+DROP TABLE t;
+
+--echo #
+--echo # mdev-12563: no recursive references on the top level of the CTE spec 
+--echo #  
+
+CREATE TABLE t (i int);
+INSERT INTO t VALUES (3), (1),(2);
+ 
+SET standard_compliant_cte=0;
+ 
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte )
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte WHERE i < 2 )
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte WHERE i > 2 )
+) SELECT * FROM cte;
+           
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t
+    WHERE i NOT IN ( SELECT * FROM cte WHERE i < 2
+                     UNION
+                     SELECT * FROM cte WHERE i > 2)
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t 
+    WHERE i NOT IN ( SELECT * FROM t
+                       WHERE i IN ( SELECT * FROM cte ) GROUP BY i )
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte )
+  UNION 
+  SELECT * FROM cte WHERE f > 2
+) SELECT * FROM cte;           
+
+set standard_compliant_cte=default;
+
+DROP TABLE t;
+

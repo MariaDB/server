@@ -1576,7 +1576,7 @@ dict_stats_analyze_index_below_cur(
 
 		page = buf_block_get_frame(block);
 
-		if (btr_page_get_level(page, mtr) == 0) {
+		if (page_is_leaf(page)) {
 			/* leaf level */
 			break;
 		}
@@ -1620,7 +1620,7 @@ dict_stats_analyze_index_below_cur(
 	}
 
 	/* make sure we got a leaf page as a result from the above loop */
-	ut_ad(btr_page_get_level(page, &mtr) == 0);
+	ut_ad(page_is_leaf(page));
 
 	/* scan the leaf page and find the number of distinct keys,
 	when looking only at the first n_prefix columns; also estimate

@@ -3496,7 +3496,8 @@ SyncFileIO::execute(Slot* slot)
 		/* Wait for async io to complete */
 		ret = GetOverlappedResult(slot->file, &slot->control, &slot->n_bytes, TRUE);
 	}
-	return(ret ? slot->n_bytes : -1);
+
+	return(ret ? static_cast<ssize_t>(slot->n_bytes) : -1);
 }
 
 /* Startup/shutdown */

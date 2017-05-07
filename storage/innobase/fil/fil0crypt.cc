@@ -629,7 +629,7 @@ fil_space_encrypt(
 
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 	const page_size_t	page_size(space->flags);
-	ut_ad(space->n_pending_ops);
+	ut_ad(space->n_pending_ios > 0);
 	byte* tmp = fil_encrypt_buf(crypt_data, space->id, offset, lsn,
 				    src_frame, page_size, dst_frame);
 
@@ -821,7 +821,7 @@ fil_space_decrypt(
 	*decrypted = false;
 
 	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->n_pending_ios > 0);
 
 	bool encrypted = fil_space_decrypt(space->crypt_data, tmp_frame,
 					   page_size, src_frame, &err);
@@ -2492,10 +2492,6 @@ bool
 fil_space_verify_crypt_checksum(
 	byte* 			page,
 	const page_size_t&	page_size,
-#ifdef UNIV_INNOCHECKSUM
-	bool			strict_check,	/*!< --strict-check */
-	FILE*			log_file,	/*!< --log */
-#endif /* UNIV_INNOCHECKSUM */
 	ulint			space,
 	ulint			offset)
 {
@@ -2541,14 +2537,7 @@ fil_space_verify_crypt_checksum(
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 
 		bool valid = page_zip_verify_checksum(page,
-						      page_size.physical()
-#ifdef UNIV_INNOCHECKSUM
-						      , offset,
-						      strict_check,
-						      log_file != NULL,
-						      log_file
-#endif
-						      );
+						      page_size.physical());
 
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, old);
 
@@ -2594,19 +2583,11 @@ fil_space_verify_crypt_checksum(
 	ulint checksum2 = mach_read_from_4(
 		page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
 
-#ifdef UNIV_INNOCHECKSUM
-# define CKARGS page, checksum1, checksum2,			\
-		offset, log_file != NULL, log_file, algorithm
-#else
-# define CKARGS page, checksum1, checksum2
-#endif
-
 	bool valid = buf_page_is_checksum_valid_crc32(
-		CKARGS, false
+		page, checksum1, checksum2, false
 		/* FIXME: also try the original crc32 that was
 		buggy on big-endian architectures? */)
-		|| buf_page_is_checksum_valid_innodb(CKARGS);
-#undef CKARGS
+		|| buf_page_is_checksum_valid_innodb(page, checksum1, checksum2);
 
 	if (encrypted && valid) {
 		/* If page is encrypted and traditional checksums match,

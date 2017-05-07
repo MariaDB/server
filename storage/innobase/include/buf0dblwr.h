@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,8 +44,7 @@ doublewrite buffer is placed on the trx system header page.
 @return true if successful, false if not. */
 MY_ATTRIBUTE((warn_unused_result))
 bool
-buf_dblwr_create(void);
-/*==================*/
+buf_dblwr_create();
 
 /****************************************************************//**
 At a database startup initializes the doublewrite buffer memory structure if
@@ -61,13 +60,13 @@ buf_dblwr_init_or_load_pages(
 
 /** Process and remove the double write buffer pages for all tablespaces. */
 void
-buf_dblwr_process(void);
+buf_dblwr_process();
 
 /****************************************************************//**
 frees doublewrite buffer. */
 void
-buf_dblwr_free(void);
-/*================*/
+buf_dblwr_free();
+
 /********************************************************************//**
 Updates the doublewrite buffer when an IO request is completed. */
 void
@@ -105,8 +104,8 @@ important to call this function after a batch of writes has been posted,
 and also when we may have to wait for a page latch! Otherwise a deadlock
 of threads can occur. */
 void
-buf_dblwr_flush_buffered_writes(void);
-/*=================================*/
+buf_dblwr_flush_buffered_writes();
+
 /********************************************************************//**
 Writes a page to the doublewrite buffer on disk, sync it, then write
 the page to the datafile and sync the datafile. This function is used

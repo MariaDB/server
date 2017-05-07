@@ -11,3 +11,12 @@ SET storage_engine=innodb;
 create table t1 (g geometry not null, spatial gk(g)) engine=innodb;
 drop table t1;
 
+#
+# MDEV-12462 SPATIAL index fails to work with CONTAINS
+#
+
+create table t1(id int not null primary key, g1 geometry not null, spatial index(g1));
+insert into t1 values(1, polygonfromtext('POLYGON((0 0, 0 5, 5 5, 5 0, 0 0))'));
+explain select id from t1 where contains(g1, pointfromtext('POINT(1 1)'));
+select id from t1 where contains(g1, pointfromtext('POINT(1 1)'));
+drop table t1;

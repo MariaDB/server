@@ -274,3 +274,25 @@ insert into t1 values
       ('{"a":1,"b":2,"c":3}','$.c');
 select j, p, json_remove(j, p) from t1;
 drop table t1;
+
+#
+# MDEV-12364 Server crashes in __memcpy_sse2_unaligned / String::copy on JSON_SEARCH with variables.
+#
+SET @str = 'bar', @path = '$';
+SELECT JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path);
+
+#
+# MDEV-12351 Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path.
+#
+
+SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
+
+#
+# MDEV-12363 Assertion `0' failed in Type_handler_string_result::make_sort_key(uchar*, Item*, const SORT_FIELD_ATTR*, Sort_param*)      
+#
+
+CREATE TABLE t1 (f INT NOT NULL);
+INSERT INTO t1 VALUES (0);
+SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
+DROP TABLE t1;
+

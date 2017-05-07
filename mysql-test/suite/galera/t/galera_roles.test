@@ -102,6 +102,7 @@ REVOKE EXECUTE ON PROCEDURE test1.pr1 FROM role1;
 --echo # Connect with foo_node_1
 --connection foo_node_1
 
+--sleep 1
 --error ER_PROCACCESS_DENIED_ERROR
 CALL test1.pr1();
 

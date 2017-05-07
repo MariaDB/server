@@ -1,0 +1,77 @@
+#
+# Kill entire cluster while gcache.recover=yes. Expect that node #2 will rejoin using IST
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) > 0 FROM t1;
+--source include/wait_condition.inc
+
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+INSERT INTO t1 VALUES (2);
+
+--source include/kill_galera.inc
+
+--sleep 1
+
+--connection node_1
+--let $galera_wsrep_recover_server_id=1
+--source suite/galera/include/galera_wsrep_recover.inc
+
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/start_mysqld.inc
+
+INSERT INTO t1 VALUES (3);
+
+--connection node_2
+--let $galera_wsrep_recover_server_id=2
+--source suite/galera/include/galera_wsrep_recover.inc
+
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+--connection node_1
+--source include/wait_until_connected_again.inc
+--source include/galera_wait_ready.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+--let $diff_servers = 1 2
+--source include/diff_servers.inc
+
+--connection node_1
+# Warning happens when the cluster is started for the first time
+CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
+
+# Confirm that IST took place
+--let $assert_text = async IST sender starting to serve
+--let $assert_select = async IST sender starting to serve
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_only_after = starting as process
+--source include/assert_grep.inc
+
+--connection node_2
+CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
+
+# Confirm that gcache recovery took place
+
+--let $assert_text = Recovering GCache ring buffer: found gapless sequence
+--let $assert_select = Recovering GCache ring buffer: found gapless sequence
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_only_after = starting as process
+--source include/assert_grep.inc
+
+DROP TABLE t1;

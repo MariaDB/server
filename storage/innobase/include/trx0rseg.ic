@@ -42,7 +42,9 @@ trx_rsegf_get(
 	buf_block_t*	block;
 	trx_rsegf_t*	header;
 
-	ut_ad(space <= srv_undo_tablespaces || space == SRV_TMP_SPACE_ID);
+	ut_ad(space <= srv_undo_tablespaces_active || space == SRV_TMP_SPACE_ID
+	      || !srv_was_started);
+	ut_ad(space <= TRX_SYS_MAX_UNDO_SPACES || space == SRV_TMP_SPACE_ID);
 
 	block = buf_page_get(
 		page_id_t(space, page_no), univ_page_size, RW_X_LATCH, mtr);
@@ -69,7 +71,9 @@ trx_rsegf_get_new(
 	buf_block_t*	block;
 	trx_rsegf_t*	header;
 
-	ut_ad(space <= srv_undo_tablespaces || space == SRV_TMP_SPACE_ID);
+	ut_ad(space <= srv_undo_tablespaces_active || space == SRV_TMP_SPACE_ID
+	      || !srv_was_started);
+	ut_ad(space <= TRX_SYS_MAX_UNDO_SPACES || space == SRV_TMP_SPACE_ID);
 
 	block = buf_page_get(
 		page_id_t(space, page_no), univ_page_size, RW_X_LATCH, mtr);

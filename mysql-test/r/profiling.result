@@ -415,7 +415,7 @@ select @@profiling;
 drop table if exists t1, t2, t3;
 drop view if exists v1;
 Warnings:
-Note	4067	Unknown VIEW: 'test.v1'
+Note	4068	Unknown VIEW: 'test.v1'
 drop function if exists f1;
 set session profiling = OFF;
 set global profiling_history_size= @start_value;

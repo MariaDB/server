@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -142,14 +142,21 @@ struct fil_space_t {
 	ulint		n_pending_flushes; /*!< this is positive when flushing
 				the tablespace to disk; dropping of the
 				tablespace is forbidden if this is positive */
-	ulint		n_pending_ops;/*!< this is positive when we
-				have pending operations against this
-				tablespace. The pending operations can
-				be ibuf merges or lock validation code
-				trying to read a block.
-				Dropping of the tablespace is forbidden
-				if this is positive.
-				Protected by fil_system->mutex. */
+	/** Number of pending buffer pool operations accessing the tablespace
+	without holding a table lock or dict_operation_lock S-latch
+	that would prevent the table (and tablespace) from being
+	dropped. An example is change buffer merge.
+	The tablespace cannot be dropped while this is nonzero,
+	or while fil_node_t::n_pending is nonzero.
+	Protected by fil_system->mutex. */
+	ulint		n_pending_ops;
+	/** Number of pending block read or write operations
+	(when a write is imminent or a read has recently completed).
+	The tablespace object cannot be freed while this is nonzero,
+	but it can be detached from fil_system.
+	Note that fil_node_t::n_pending tracks actual pending I/O requests.
+	Protected by fil_system->mutex. */
+	ulint		n_pending_ios;
 	hash_node_t	hash;	/*!< hash chain node */
 	hash_node_t	name_hash;/*!< hash chain the name_hash table */
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
@@ -552,15 +559,6 @@ void
 fil_space_set_imported(
 	ulint	id);
 
-#ifdef UNIV_DEBUG
-/** Determine if a tablespace is temporary.
-@param[in]	id	tablespace identifier
-@return whether it is a temporary tablespace */
-bool
-fsp_is_temporary(ulint id)
-MY_ATTRIBUTE((warn_unused_result, pure));
-#endif /* UNIV_DEBUG */
-
 /** Append a file to the chain of files of a space.
 @param[in]	name		file name of a file that is not open
 @param[in]	size		file size in entire database blocks
@@ -735,12 +733,10 @@ MY_ATTRIBUTE((warn_unused_result));
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
-@param[in]	for_io	whether to look up the tablespace while performing I/O
-			(possibly executing TRUNCATE)
 @return	the tablespace
 @retval	NULL if missing or being deleted or truncated */
 fil_space_t*
-fil_space_acquire(ulint id, bool for_io = false)
+fil_space_acquire(ulint id)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Acquire a tablespace that may not exist.
@@ -757,6 +753,19 @@ fil_space_acquire_silent(ulint id)
 @param[in,out]	space	tablespace to release  */
 void
 fil_space_release(fil_space_t* space);
+
+/** Acquire a tablespace for reading or writing a block,
+when it could be dropped concurrently.
+@param[in]	id	tablespace ID
+@return	the tablespace
+@retval	NULL if missing */
+fil_space_t*
+fil_space_acquire_for_io(ulint id);
+
+/** Release a tablespace acquired with fil_space_acquire_for_io().
+@param[in,out]	space	tablespace to release  */
+void
+fil_space_release_for_io(fil_space_t* space);
 
 /** Return the next fil_space_t.
 Once started, the caller must keep calling this until it returns NULL.
@@ -794,12 +803,9 @@ public:
 
 	/** Constructor: Look up the tablespace and increment the
 	reference count if found.
-	@param[in]	space_id	tablespace ID
-	@param[in]	for_io		whether to look up the tablespace
-					while performing I/O
-					(possibly executing TRUNCATE) */
-	explicit FilSpace(ulint space_id, bool for_io = false)
-		: m_space(fil_space_acquire(space_id, for_io)) {}
+	@param[in]	space_id	tablespace ID */
+	explicit FilSpace(ulint space_id)
+		: m_space(fil_space_acquire(space_id)) {}
 
 	/** Assignment operator: This assumes that fil_space_acquire()
 	has already been done for the fil_space_t. The caller must
@@ -892,6 +898,17 @@ fil_op_replay_rename(
 	const char*	new_name)
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Determine whether a table can be accessed in operations that are
+not (necessarily) protected by meta-data locks.
+(Rollback would generally be protected, but rollback of
+FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
+but only by InnoDB table locks, which may be broken by TRUNCATE TABLE.)
+@param[in]	table	persistent table
+checked @return whether the table is accessible */
+bool
+fil_table_accessible(const dict_table_t* table)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
 /** Deletes an IBD tablespace, either general or single-table.
 The tablespace must be cached in the memory cache. This will delete the
 datafile, fil_space_t & fil_node_t entries from the file_system_t cache.
@@ -923,14 +940,18 @@ dberr_t
 fil_prepare_for_truncate(
 /*=====================*/
 	ulint	id);			/*!< in: space id */
-/**********************************************************************//**
-Reinitialize the original tablespace header with the same space id
-for single tablespace */
+
+/** Reinitialize the original tablespace header with the same space id
+for single tablespace
+@param[in]	id		space id of the tablespace
+@param[in]	size            size in blocks
+@param[in]	trx		Transaction covering truncate */
 void
 fil_reinit_space_header(
-/*====================*/
-	ulint		id,	/*!< in: space id */
-	ulint		size);	/*!< in: size in blocks */
+	ulint		id,
+	ulint		size,
+	trx_t*		trx);
+
 /*******************************************************************//**
 Closes a single-table tablespace. The tablespace must be cached in the
 memory cache. Free all pages used by the tablespace.
@@ -1479,7 +1500,7 @@ fil_mtr_rename_log(
 	const dict_table_t*	new_table,
 	const char*		tmp_name,
 	mtr_t*			mtr)
-	MY_ATTRIBUTE((warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Acquire the fil_system mutex. */
 #define fil_system_enter()	mutex_enter(&fil_system->mutex)
@@ -1586,7 +1607,6 @@ fil_names_clear(
 void test_make_filepath();
 #endif /* UNIV_ENABLE_UNIT_TEST_MAKE_FILEPATH */
 
-
 /** Determine the block size of the data file.
 @param[in]	space		tablespace
 @param[in]	offset		page number
@@ -1594,22 +1614,6 @@ void test_make_filepath();
 UNIV_INTERN
 ulint
 fil_space_get_block_size(const fil_space_t* space, unsigned offset);
-/*******************************************************************//**
-Increments the count of pending operation, if space is not being deleted.
-@return	TRUE if being deleted, and operation should be skipped */
-UNIV_INTERN
-ibool
-fil_inc_pending_ops(
-/*================*/
-	ulint	id,		/*!< in: space id */
-	ibool	print_err);	/*!< in: need to print error or not */
-/*******************************************************************//**
-Decrements the count of pending operations. */
-UNIV_INTERN
-void
-fil_decr_pending_ops(
-/*=================*/
-	ulint	id);	/*!< in: space id */
 
 #include "fil0fil.ic"
 #endif /* UNIV_INNOCHECKSUM */

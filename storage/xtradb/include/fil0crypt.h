@@ -109,7 +109,7 @@ struct fil_space_crypt_t : st_encryption_scheme
 	The object is expected to be placed in a buffer that
 	has been zero-initialized. */
 	fil_space_crypt_t(
-		ulint new_type,
+		uint new_type,
 		uint new_min_key_version,
 		uint new_key_id,
 		fil_encryption_t new_encryption)
@@ -117,10 +117,10 @@ struct fil_space_crypt_t : st_encryption_scheme
 		min_key_version(new_min_key_version),
 		page0_offset(0),
 		encryption(new_encryption),
-		key_found(),
+		mutex(),
+		key_found(new_min_key_version),
 		rotate_state()
 	{
-		key_found = new_min_key_version;
 		key_id = new_key_id;
 		my_random_bytes(iv, sizeof(iv));
 		mutex_create(fil_crypt_data_mutex_key,

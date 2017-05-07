@@ -337,6 +337,19 @@ typedef struct replace_equal_field_arg
   struct st_join_table *context_tab;
 } REPLACE_EQUAL_FIELD_ARG;
 
+
+class Load_data_out_param
+{
+public:
+  Load_data_out_param() { }
+  virtual ~Load_data_out_param() { }
+  virtual void load_data_set_null_value(CHARSET_INFO *cs) = 0;
+  virtual void load_data_set_value(const char *str, uint length,
+                                   CHARSET_INFO *cs) = 0;
+  virtual void load_data_print(THD *thd, String *str) = 0;
+};
+
+
 class Settable_routine_parameter
 {
 public:
@@ -715,10 +728,14 @@ public:
     return type_handler()->Item_send(this, protocol, buffer);
   }
   virtual bool eq(const Item *, bool binary_cmp) const;
-  virtual enum_field_types field_type() const= 0;
-  virtual const Type_handler *type_handler() const
+  enum_field_types field_type() const
   {
-    return Type_handler::get_handler_by_field_type(field_type());
+    return type_handler()->field_type();
+  }
+  virtual const Type_handler *type_handler() const= 0;
+  const Type_handler *type_handler_for_comparison() const
+  {
+    return type_handler()->type_handler_for_comparison();
   }
   virtual const Type_handler *real_type_handler() const
   {
@@ -729,18 +746,18 @@ public:
     return type_handler();
   }
   /* result_type() of an item specifies how the value should be returned */
-  virtual Item_result result_type() const
+  Item_result result_type() const
   {
     return type_handler()->result_type();
   }
   /* ... while cmp_type() specifies how it should be compared */
-  virtual Item_result cmp_type() const
+  Item_result cmp_type() const
   {
     return type_handler()->cmp_type();
   }
-  enum_field_types string_field_type() const
+  const Type_handler *string_type_handler() const
   {
-    return Type_handler::string_type_handler(max_length)->field_type();
+    return Type_handler::string_type_handler(max_length);
   }
   /*
     Calculate the maximum length of an expression.
@@ -1304,23 +1321,6 @@ public:
     return f_type == MYSQL_TYPE_TIME ? val_time_packed() :
                                        val_datetime_packed();
   }
-  enum_field_types field_type_for_temporal_comparison(const Item *other) const
-  {
-    if (cmp_type() == TIME_RESULT)
-    {
-      if (other->cmp_type() == TIME_RESULT)
-        return Field::field_type_merge(field_type(), other->field_type());
-      else
-        return field_type();
-    }
-    else
-    {
-      if (other->cmp_type() == TIME_RESULT)
-        return other->field_type();
-      DBUG_ASSERT(0); // Two non-temporal data types, we should not get to here
-      return MYSQL_TYPE_DATETIME;
-    }
-  }
   bool get_seconds(ulonglong *sec, ulong *sec_part);
   virtual bool get_date_result(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return get_date(ltime,fuzzydate); }
@@ -1604,7 +1604,7 @@ public:
   virtual Item **this_item_addr(THD *thd, Item **addr_arg) { return addr_arg; }
 
   // Row emulation
-  virtual uint cols() { return 1; }
+  virtual uint cols() const { return 1; }
   virtual Item* element_index(uint i) { return this; }
   virtual bool element_index_by_name(uint *idx, const LEX_CSTRING &name) const
   {
@@ -1690,6 +1690,14 @@ public:
     delete this;
   }
 
+  virtual Load_data_out_param *get_load_data_out_param() { return 0; }
+  Load_data_out_param *get_load_data_out_param_or_error()
+  {
+    Load_data_out_param *res= get_load_data_out_param();
+    if (!res)
+      my_error(ER_LOAD_DATA_INVALID_COLUMN, MYF(0), full_name());
+    return res;
+  }
   virtual Item_splocal *get_item_splocal() { return 0; }
   virtual Rewritable_query_parameter *get_rewritable_query_parameter()
   { return 0; }
@@ -2222,13 +2230,7 @@ public:
   inline enum Type type() const;
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  enum_field_types field_type() const
-  { return Type_handler_hybrid_field_type::field_type(); }
-  enum Item_result result_type () const
-  { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
-  uint cols() { return this_item()->cols(); }
+  uint cols() const { return this_item()->cols(); }
   Item* element_index(uint i) { return this_item()->element_index(i); }
   Item** addr(uint i) { return this_item()->addr(i); }
   bool check_cols(uint c);
@@ -2385,8 +2387,7 @@ public:
   Item **this_item_addr(THD *thd, Item **);
 
   inline enum Type type() const;
-  inline Item_result result_type() const;
-  enum_field_types field_type() const { return this_item()->field_type(); }
+  const Type_handler *type_handler() const { return this_item()->type_handler(); }
 
 public:
   /*
@@ -2409,12 +2410,6 @@ inline enum Item::Type Item_case_expr::type() const
 {
   return this_item()->type();
 }
-
-inline Item_result Item_case_expr::result_type() const
-{
-  return this_item()->result_type();
-}
-
 
 /*
   NAME_CONST(given_name, const_value). 
@@ -2448,14 +2443,9 @@ public:
   bool is_null();
   virtual void print(String *str, enum_query_type query_type);
 
-  enum_field_types field_type() const
+  const Type_handler *type_handler() const
   {
-    return value_item->field_type();
-  }
-
-  Item_result result_type() const
-  {
-    return value_item->result_type();
+    return value_item->type_handler();
   }
 
   bool const_item() const
@@ -2608,7 +2598,11 @@ public:
   String *val_str(String *str) { return field->val_str(str); }
   my_decimal *val_decimal(my_decimal *dec) { return field->val_decimal(dec); }
   void make_field(THD *thd, Send_field *tmp_field);
-  enum_field_types field_type() const { return field->type(); }
+  const Type_handler *type_handler() const
+  {
+    const Type_handler *handler= field->type_handler();
+    return handler->type_handler_for_item_field();
+  }
   Item* get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_ident_for_show>(thd, mem_root, this); }
 };
@@ -2675,17 +2669,9 @@ public:
     const Type_handler *handler= field->type_handler();
     return handler->type_handler_for_item_field();
   }
-  enum Item_result result_type () const
-  {
-    return field->result_type();
-  }
   const Type_handler *cast_to_int_type_handler() const
   {
     return field->type_handler()->cast_to_int_type_handler();
-  }
-  enum_field_types field_type() const
-  {
-    return field->type();
   }
   const Type_handler *real_type_handler() const
   {
@@ -2826,9 +2812,7 @@ public:
   { return get_item_copy<Item_field_row>(thd, mem_root, this); }
 
   const Type_handler *type_handler() const { return &type_handler_row; }
-  Item_result result_type() const{ return ROW_RESULT ; }
-  Item_result cmp_type() const { return ROW_RESULT; }
-  uint cols() { return arg_count; }
+  uint cols() const { return arg_count; }
   bool element_index_by_name(uint *idx, const LEX_CSTRING &name) const;
   Item* element_index(uint i) { return arg_count ? args[i] : this; }
   Item** addr(uint i) { return arg_count ? args + i : NULL; }
@@ -2906,8 +2890,7 @@ public:
   int save_in_field(Field *field, bool no_conversions);
   int save_safe_in_field(Field *field);
   bool send(Protocol *protocol, st_value *buffer);
-  enum Item_result result_type () const { return STRING_RESULT; }
-  enum_field_types field_type() const   { return MYSQL_TYPE_NULL; }
+  const Type_handler *type_handler() const { return &type_handler_null; }
   bool basic_const_item() const { return 1; }
   Item *clone_item(THD *thd);
   bool is_null() { return 1; }
@@ -3086,12 +3069,6 @@ public:
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  enum_field_types field_type() const
-  { return Type_handler_hybrid_field_type::field_type(); }
-  enum Item_result result_type () const
-  { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
 
   Item_param(THD *thd, const LEX_CSTRING *name_arg,
              uint pos_in_query_arg, uint len_in_query_arg);
@@ -3226,11 +3203,6 @@ public:
     }
   Item_int(THD *thd, const char *str_arg, uint length=64);
   enum Type type() const { return INT_ITEM; }
-  enum Item_result result_type () const { return INT_RESULT; }
-  enum_field_types field_type() const
-  {
-    return Item_int::type_handler()->field_type();
-  }
   const Type_handler *type_handler() const
   {
     // The same condition is repeated in Item::create_tmp_field()
@@ -3322,8 +3294,7 @@ public:
   Item_decimal(THD *thd, const uchar *bin, int precision, int scale);
 
   enum Type type() const { return DECIMAL_ITEM; }
-  enum Item_result result_type () const { return DECIMAL_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
+  const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   longlong val_int();
   double val_real();
   String *val_str(String*);
@@ -3364,7 +3335,7 @@ public:
   }
   int save_in_field(Field *field, bool no_conversions);
   enum Type type() const { return REAL_ITEM; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
   double val_real() { DBUG_ASSERT(fixed == 1); return value; }
   longlong val_int()
   {
@@ -3503,8 +3474,7 @@ public:
   }
   my_decimal *val_decimal(my_decimal *);
   int save_in_field(Field *field, bool no_conversions);
-  enum Item_result result_type () const { return STRING_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  const Type_handler *type_handler() const { return &type_handler_varchar; }
   bool basic_const_item() const { return 1; }
   bool eq(const Item *item, bool binary_cmp) const
   {
@@ -3689,7 +3659,10 @@ public:
     Item_partition_func_safe_string(thd, name_arg, length_arg, &my_charset_bin),
     date_time_field_type(field_type_arg)
   { decimals= 0; }
-  enum_field_types field_type() const { return date_time_field_type; }
+  const Type_handler *type_handler() const
+  {
+    return Type_handler::get_handler_by_field_type(date_time_field_type);
+  }
 };
 
 
@@ -3700,10 +3673,6 @@ public:
     Item_partition_func_safe_string(thd, name_arg, safe_strlen(name_arg), &my_charset_bin)
   { max_length= length; }
   enum Type type() const { return TYPE_HOLDER; }
-  enum_field_types field_type() const
-  {
-    return Item_blob::type_handler()->field_type();
-  }
   const Type_handler *type_handler() const
   {
     return Type_handler::blob_type_handler(max_length);
@@ -3751,7 +3720,6 @@ public:
   {
     unsigned_flag=1;
   }
-  enum_field_types field_type() const { return int_field_type; }
   const Type_handler *type_handler() const
   {
     return Type_handler::get_handler_by_field_type(int_field_type);
@@ -3777,8 +3745,7 @@ public:
     hex_string_init(thd, str, str_length);
   }
   enum Type type() const { return VARBIN_ITEM; }
-  enum Item_result result_type () const { return STRING_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  const Type_handler *type_handler() const { return &type_handler_varchar; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   {
     return const_charset_converter(thd, tocs, true);
@@ -3914,8 +3881,6 @@ public:
   bool const_item() const { return true; }
   enum Type type() const { return DATE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
-  enum Item_result result_type () const { return STRING_RESULT; }
-  Item_result cmp_type() const { return TIME_RESULT; }
 
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
 
@@ -3955,7 +3920,7 @@ public:
     */
     maybe_null= !ltime->month || !ltime->day;
   }
-  enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  const Type_handler *type_handler() const { return &type_handler_newdate; }
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
@@ -3976,7 +3941,7 @@ public:
     max_length= MIN_TIME_WIDTH + (decimals ? decimals + 1 : 0);
     fixed= 1;
   }
-  enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  const Type_handler *type_handler() const { return &type_handler_time2; }
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
@@ -3999,7 +3964,7 @@ public:
     // See the comment on maybe_null in Item_date_literal
     maybe_null= !ltime->month || !ltime->day;
   }
-  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  const Type_handler *type_handler() const { return &type_handler_datetime2; }
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
@@ -4313,8 +4278,7 @@ public:
   void save_org_in_field(Field *field, fast_field_copier optimizer_data);
   fast_field_copier setup_fast_field_copier(Field *field)
   { return (*ref)->setup_fast_field_copier(field); }
-  enum Item_result result_type () const { return (*ref)->result_type(); }
-  enum_field_types field_type() const   { return (*ref)->field_type(); }
+  const Type_handler *type_handler() const { return (*ref)->type_handler(); }
   const Type_handler *real_type_handler() const
   { return (*ref)->real_type_handler(); }
   Field *get_tmp_table_field()
@@ -4382,7 +4346,7 @@ public:
   virtual Ref_Type ref_type() { return REF; }
 
   // Row emulation: forwarding of ROW-related calls to ref
-  uint cols()
+  uint cols() const
   {
     return ref && result_type() == ROW_RESULT ? (*ref)->cols() : 1;
   }
@@ -4610,8 +4574,7 @@ public:
     orig_item->fix_after_pullout(new_parent, &orig_item);
   }
   int save_in_field(Field *to, bool no_conversions);
-  enum Item_result result_type () const { return orig_item->result_type(); }
-  enum_field_types field_type() const   { return orig_item->field_type(); }
+  const Type_handler *type_handler() const { return orig_item->type_handler(); }
   table_map used_tables() const { return orig_item->used_tables(); }
   void update_used_tables()
   {
@@ -4630,7 +4593,7 @@ public:
   { return orig_item->field_for_view_update(); }
 
   /* Row emulation: forwarding of ROW-related calls to orig_item */
-  uint cols()
+  uint cols() const
   { return result_type() == ROW_RESULT ? orig_item->cols() : 1; }
   Item* element_index(uint i)
   { return result_type() == ROW_RESULT ? orig_item->element_index(i) : this; }
@@ -5003,7 +4966,7 @@ protected:
     null_value=maybe_null=item->maybe_null;
     Type_std_attributes::set(item);
     name= item->name;
-    set_handler_by_field_type(item->field_type());
+    set_handler(item->type_handler());
     fixed= item->fixed;
   }
 
@@ -5031,12 +4994,6 @@ public:
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  enum_field_types field_type() const
-  { return Type_handler_hybrid_field_type::field_type(); }
-  enum Item_result result_type () const
-  { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
 
   void make_field(THD *thd, Send_field *field) { item->make_field(thd, field); }
   table_map used_tables() const { return (table_map) 1L; }
@@ -5529,7 +5486,7 @@ protected:
 public:
   Item_cache(THD *thd):
     Item_basic_constant(thd),
-    Type_handler_hybrid_field_type(MYSQL_TYPE_STRING),
+    Type_handler_hybrid_field_type(&type_handler_string),
     example(0), cached_field(0),
     value_cached(0)
   {
@@ -5538,9 +5495,9 @@ public:
     null_value= 1;
   }
 protected:
-  Item_cache(THD *thd, enum_field_types field_type_arg):
+  Item_cache(THD *thd, const Type_handler *handler):
     Item_basic_constant(thd),
-    Type_handler_hybrid_field_type(field_type_arg),
+    Type_handler_hybrid_field_type(handler),
     example(0), cached_field(0),
     value_cached(0)
   {
@@ -5563,12 +5520,6 @@ public:
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  enum_field_types field_type() const
-  { return Type_handler_hybrid_field_type::field_type(); }
-  enum Item_result result_type () const
-  { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type () const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
 
   virtual void keep_array() {}
   virtual void print(String *str, enum_query_type query_type);
@@ -5586,16 +5537,15 @@ public:
     {
       Item::vcol_func_processor_result *res= (Item::vcol_func_processor_result*)arg;
       example->check_vcol_func_processor(arg);
+      /*
+        Item_cache of a non-deterministic function requires re-fixing
+        even if the function itself doesn't (e.g. CURRENT_TIMESTAMP)
+      */
       if (res->errors & VCOL_NOT_STRICTLY_DETERMINISTIC)
         res->errors|= VCOL_SESSION_FUNC;
       return false;
     }
     return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
-  }
-  bool cleanup_excluding_fields_processor(void* arg)
-  {
-    cleanup();
-    return 0;
   }
   void cleanup()
   {
@@ -5661,16 +5611,15 @@ class Item_cache_int: public Item_cache
 protected:
   longlong value;
 public:
-  Item_cache_int(THD *thd): Item_cache(thd, MYSQL_TYPE_LONGLONG),
+  Item_cache_int(THD *thd): Item_cache(thd, &type_handler_longlong),
     value(0) {}
-  Item_cache_int(THD *thd, enum_field_types field_type_arg):
-    Item_cache(thd, field_type_arg), value(0) {}
+  Item_cache_int(THD *thd, const Type_handler *handler):
+    Item_cache(thd, handler), value(0) {}
 
   double val_real();
   longlong val_int();
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type() const { return INT_RESULT; }
   bool cache_value();
   int save_in_field(Field *field, bool no_conversions);
   Item *convert_to_basic_const_item(THD *thd);
@@ -5682,7 +5631,7 @@ public:
 class Item_cache_temporal: public Item_cache_int
 {
 public:
-  Item_cache_temporal(THD *thd, enum_field_types field_type_arg);
+  Item_cache_temporal(THD *thd, const Type_handler *handler);
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
   longlong val_int();
@@ -5692,7 +5641,6 @@ public:
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);
-  Item_result cmp_type() const { return TIME_RESULT; }
   void store_packed(longlong val_arg, Item *example);
   /*
     Having a clone_item method tells optimizer that this object
@@ -5710,14 +5658,13 @@ class Item_cache_real: public Item_cache
 {
   double value;
 public:
-  Item_cache_real(THD *thd): Item_cache(thd, MYSQL_TYPE_DOUBLE),
+  Item_cache_real(THD *thd): Item_cache(thd, &type_handler_double),
     value(0) {}
 
   double val_real();
   longlong val_int();
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type() const { return REAL_RESULT; }
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -5730,13 +5677,12 @@ class Item_cache_decimal: public Item_cache
 protected:
   my_decimal decimal_value;
 public:
-  Item_cache_decimal(THD *thd): Item_cache(thd, MYSQL_TYPE_NEWDECIMAL) {}
+  Item_cache_decimal(THD *thd): Item_cache(thd, &type_handler_newdecimal) {}
 
   double val_real();
   longlong val_int();
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type() const { return DECIMAL_RESULT; }
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -5752,7 +5698,7 @@ class Item_cache_str: public Item_cache
   
 public:
   Item_cache_str(THD *thd, const Item *item):
-    Item_cache(thd, item->field_type()), value(0),
+    Item_cache(thd, item->type_handler()), value(0),
     is_varbinary(item->type() == FIELD_ITEM &&
                  Item_cache_str::field_type() == MYSQL_TYPE_VARCHAR &&
                  !((const Item_field *) item)->field->has_charset())
@@ -5763,7 +5709,6 @@ public:
   longlong val_int();
   String* val_str(String *);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type() const { return STRING_RESULT; }
   CHARSET_INFO *charset() const { return value->charset(); };
   int save_in_field(Field *field, bool no_conversions);
   bool cache_value();
@@ -5845,9 +5790,7 @@ public:
     return 0;
   };
 
-  enum Item_result result_type() const { return ROW_RESULT; }
-  
-  uint cols() { return item_count; }
+  uint cols() const { return item_count; }
   Item *element_index(uint i) { return values[i]; }
   Item **addr(uint i) { return (Item **) (values + i); }
   bool check_cols(uint c);
@@ -5895,24 +5838,6 @@ public:
   {
     const Type_handler *handler= Type_handler_hybrid_field_type::type_handler();
     return handler->type_handler_for_item_field();
-  }
-  enum_field_types field_type() const
-  { return Type_handler_hybrid_field_type::field_type(); }
-  enum Item_result result_type () const
-  {
-    /*
-      In 10.1 Item_type_holder::result_type() returned
-      Field::result_merge_type(field_type()), which returned STRING_RESULT
-      for the BIT data type. In 10.2 it returns INT_RESULT, similar
-      to what Field_bit::result_type() does. This should not be
-      important because Item_type_holder is a limited purpose Item
-      and its result_type() should not be called from outside of
-      Item_type_holder. It's called only internally from decimal_int_part()
-      from join_types(), to calculate "decimals" of the result data type.
-      As soon as we get BIT as one of the joined types, the result field
-      type cannot be numeric: it's either BIT, or VARBINARY.
-    */
-    return Type_handler_hybrid_field_type::result_type();
   }
   const Type_handler *real_type_handler() const
   {

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -218,9 +218,6 @@ public:
 		key_range*		max_key);
 
 	ha_rows estimate_rows_upper_bound();
-
-	// JAN: TODO: MySQL 5.7
-	// int records(ha_rows* num_rows);
 
 	void update_create_info(HA_CREATE_INFO* create_info);
 

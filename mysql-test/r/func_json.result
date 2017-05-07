@@ -629,3 +629,16 @@ j	p	json_remove(j, p)
 {"a":1,"b":2,"c":3}	$.b	{"a": 1, "c": 3}
 {"a":1,"b":2,"c":3}	$.c	{"a": 1, "b": 2}
 drop table t1;
+SET @str = 'bar', @path = '$';
+SELECT JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path);
+JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path)
+"$.foo"
+SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
+JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]')
+bar
+CREATE TABLE t1 (f INT NOT NULL);
+INSERT INTO t1 VALUES (0);
+SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
+JSON_KEYS(f)
+NULL
+DROP TABLE t1;

@@ -1092,7 +1092,7 @@ int JOIN::optimize()
                       !skip_sort_order && !no_order && (order || group_list),
                       select_distinct);
     uint select_nr= select_lex->select_number;
-    JOIN_TAB *curr_tab= join_tab + top_join_tab_count;
+    JOIN_TAB *curr_tab= join_tab + exec_join_tab_cnt();
     for (uint i= 0; i < aggr_tables; i++, curr_tab++)
     {
       if (select_nr == INT_MAX) 
@@ -1446,7 +1446,8 @@ JOIN::optimize_inner()
       }
 
       DBUG_PRINT("info",("Select tables optimized away"));
-      zero_result_cause= "Select tables optimized away";
+      if (!select_lex->have_window_funcs())
+        zero_result_cause= "Select tables optimized away";
       tables_list= 0;				// All tables resolved
       const_tables= top_join_tab_count= table_count;
       /*
@@ -2239,13 +2240,14 @@ bool JOIN::make_aggr_tables_info()
 
   bool implicit_grouping_with_window_funcs= implicit_grouping &&
                                             select_lex->have_window_funcs();
-  
+  bool implicit_grouping_without_tables= implicit_grouping &&
+                                         !tables_list;
 
   /*
     Setup last table to provide fields and all_fields lists to the next
     node in the plan.
   */
-  if (join_tab && top_join_tab_count)
+  if (join_tab && top_join_tab_count && tables_list)
   {
     join_tab[top_join_tab_count - 1].fields= &fields_list;
     join_tab[top_join_tab_count - 1].all_fields= &all_fields;
@@ -2291,7 +2293,7 @@ bool JOIN::make_aggr_tables_info()
         order= query.order_by;
 
         aggr_tables++;
-        curr_tab= join_tab + top_join_tab_count;
+        curr_tab= join_tab + exec_join_tab_cnt();
         bzero(curr_tab, sizeof(JOIN_TAB));
         curr_tab->ref.key= -1;
         curr_tab->join= this;
@@ -2369,7 +2371,7 @@ bool JOIN::make_aggr_tables_info()
     single table queries, thus it is sufficient to test only the first
     join_tab element of the plan for its access method.
   */
-  if (join_tab && top_join_tab_count &&
+  if (join_tab && top_join_tab_count && tables_list &&
       join_tab->is_using_loose_index_scan())
     tmp_table_param.precomputed_group_by=
       !join_tab->is_using_agg_loose_index_scan();
@@ -2379,7 +2381,7 @@ bool JOIN::make_aggr_tables_info()
   if (need_tmp)
   {
     aggr_tables++;
-    curr_tab= join_tab + top_join_tab_count;
+    curr_tab= join_tab + exec_join_tab_cnt();
     bzero(curr_tab, sizeof(JOIN_TAB));
     curr_tab->ref.key= -1;
     if (only_const_tables())
@@ -2438,8 +2440,9 @@ bool JOIN::make_aggr_tables_info()
 
    /* Change sum_fields reference to calculated fields in tmp_table */
     items1= ref_ptr_array_slice(2);
-    if (sort_and_group || curr_tab->table->group ||
-        tmp_table_param.precomputed_group_by)
+    if ((sort_and_group || curr_tab->table->group ||
+         tmp_table_param.precomputed_group_by) && 
+         !implicit_grouping_without_tables)
     {
       if (change_to_use_tmp_fields(thd, items1,
                                    tmp_fields_list1, tmp_all_fields1,
@@ -2779,7 +2782,7 @@ bool JOIN::make_aggr_tables_info()
     - duplicate value removal
     Both of these operations are done after window function computation step.
   */
-  curr_tab= join_tab + top_join_tab_count + aggr_tables - 1;
+  curr_tab= join_tab + exec_join_tab_cnt() + aggr_tables - 1;
   if (select_lex->window_funcs.elements)
   {
     curr_tab->window_funcs_step= new Window_funcs_computation;
@@ -2794,7 +2797,7 @@ bool JOIN::make_aggr_tables_info()
   // Reset before execution
   set_items_ref_array(items0);
   if (join_tab)
-    join_tab[top_join_tab_count + aggr_tables - 1].next_select=
+    join_tab[exec_join_tab_cnt() + aggr_tables - 1].next_select=
       setup_end_select_func(this, NULL);
   group= has_group_by;
 
@@ -2835,7 +2838,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   tmp_table_param.using_outer_summary_function=
     tab->tmp_table_param->using_outer_summary_function;
   tab->join= this;
-  DBUG_ASSERT(tab > join_tab || select_lex->have_window_funcs());
+  DBUG_ASSERT(tab > tab->join->join_tab || !top_join_tab_count || !tables_list);
   if (tab > join_tab)
     (tab - 1)->next_select= sub_select_postjoin_aggr;
   tab->aggr= new (thd->mem_root) AGGR_OP(tab);
@@ -2862,7 +2865,8 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
     if (make_sum_func_list(all_fields, fields_list, true))
       goto err;
     if (prepare_sum_aggregators(sum_funcs,
-                                !join_tab->is_using_agg_loose_index_scan()))
+                                !(tables_list && 
+                                  join_tab->is_using_agg_loose_index_scan())))
       goto err;
     if (setup_sum_funcs(thd, sum_funcs))
       goto err;
@@ -3123,7 +3127,7 @@ JOIN::reinit()
 
   if (aggr_tables)
   {
-    JOIN_TAB *curr_tab= join_tab + top_join_tab_count;
+    JOIN_TAB *curr_tab= join_tab + exec_join_tab_cnt();
     JOIN_TAB *end_tab= curr_tab + aggr_tables;
     for ( ; curr_tab < end_tab; curr_tab++)
     {
@@ -3250,7 +3254,7 @@ void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     Explain_union *eu= output->get_union(nr);
     explain= &eu->fake_select_lex_explain;
     join_tab[0].tracker= eu->get_fake_select_lex_tracker();
-    for (uint i=0 ; i < top_join_tab_count + aggr_tables; i++)
+    for (uint i=0 ; i < exec_join_tab_cnt() + aggr_tables; i++)
     {
       if (join_tab[i].filesort)
       {
@@ -3319,7 +3323,8 @@ void JOIN::exec_inner()
   if (result->prepare2())
     DBUG_VOID_RETURN;
 
-  if (!tables_list && (table_count || !select_lex->with_sum_func))
+  if (!tables_list && (table_count || !select_lex->with_sum_func) &&
+      !select_lex->have_window_funcs())
   {                                           // Only test of functions
     if (select_options & SELECT_DESCRIBE)
       select_describe(this, FALSE, FALSE, FALSE,
@@ -12011,7 +12016,7 @@ void JOIN::cleanup(bool full)
         w/o tables: they don't have some members initialized and
         WALK_OPTIMIZATION_TABS may not work correctly for them.
       */
-      if (table_count)
+      if (top_join_tab_count && tables_list)
       {
         for (tab= first_breadth_first_tab(); tab;
              tab= next_breadth_first_tab(first_breadth_first_tab(),
@@ -12025,7 +12030,7 @@ void JOIN::cleanup(bool full)
       cleaned= true;
       //psergey2: added (Q: why not in the above loop?)
       {
-        JOIN_TAB *curr_tab= join_tab + top_join_tab_count;
+        JOIN_TAB *curr_tab= join_tab + exec_join_tab_cnt();
         for (uint i= 0; i < aggr_tables; i++, curr_tab++)
         {
           if (curr_tab->aggr)
@@ -12824,10 +12829,15 @@ static bool check_simple_equality(THD *thd, const Item::Context &ctx,
       else 
       {
         /* None of the fields was found in multiple equalities */
-        Item_equal *item_equal= new (thd->mem_root) Item_equal(thd,
-                                                               orig_left_item,
-                                                               orig_right_item,
-                                                               FALSE);
+        Type_handler_hybrid_field_type
+          tmp(orig_left_item->type_handler_for_comparison());
+        if (tmp.aggregate_for_comparison(orig_right_item->
+                                         type_handler_for_comparison()))
+          return false;
+        Item_equal *item_equal=
+          new (thd->mem_root) Item_equal(thd, tmp.type_handler(),
+                                         orig_left_item, orig_right_item,
+                                         false);
         item_equal->set_context_field((Item_field*)left_item);
         cond_equal->current_level.push_back(item_equal, thd->mem_root);
       }
@@ -12912,8 +12922,14 @@ static bool check_simple_equality(THD *thd, const Item::Context &ctx,
       }
       else
       {
-        item_equal= new (thd->mem_root) Item_equal(thd, const_item2,
-                                                   orig_field_item, TRUE);
+        Type_handler_hybrid_field_type
+          tmp(orig_left_item->type_handler_for_comparison());
+        if (tmp.aggregate_for_comparison(orig_right_item->
+                                         type_handler_for_comparison()))
+          return false;
+        item_equal= new (thd->mem_root) Item_equal(thd, tmp.type_handler(),
+                                                   const_item2,
+                                                   orig_field_item, true);
         item_equal->set_context_field(field_item);
         cond_equal->current_level.push_back(item_equal, thd->mem_root);
       }
@@ -12982,7 +12998,7 @@ static bool check_row_equality(THD *thd, const Arg_comparator *comparators,
       const Arg_comparator *tmp= &comparators[i];
       is_converted= check_simple_equality(thd,
                                           Item::Context(Item::ANY_SUBST,
-                                                        tmp->compare_type(),
+                                                  tmp->compare_type_handler(),
                                                   tmp->compare_collation()),
                                           left_item, right_item,
                                           cond_equal);
@@ -13058,7 +13074,7 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
   }
   return check_simple_equality(thd,
                                Context(ANY_SUBST,
-                                       compare_type_handler()->cmp_type(),
+                                       compare_type_handler(),
                                        compare_collation()),
                                left_item, right_item, cond_equal);
 }
@@ -17786,7 +17802,7 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab)
     }
   }
   else if (join->sort_and_group && !tmp_tbl->precomputed_group_by &&
-           !join->sort_and_group_aggr_tab)
+           !join->sort_and_group_aggr_tab && join->tables_list)
   {
     DBUG_PRINT("info",("Using end_write_group"));
     aggr->set_write_func(end_write_group);
@@ -17878,7 +17894,8 @@ do_select(JOIN *join, Procedure *procedure)
 
     if (join->pushdown_query->store_data_in_temp_table)
     {
-      JOIN_TAB *last_tab= join->join_tab + join->table_count;
+      JOIN_TAB *last_tab= join->join_tab + join->table_count -
+                          join->exec_join_tab_cnt();      
       last_tab->next_select= end_send;
 
       enum_nested_loop_state state= last_tab->aggr->end_send();
@@ -17949,7 +17966,8 @@ do_select(JOIN *join, Procedure *procedure)
                           dbug_serve_apcs(join->thd, 1);
                    );
 
-    JOIN_TAB *join_tab= join->join_tab + join->const_tables;
+    JOIN_TAB *join_tab= join->join_tab +
+                        (join->tables_list ? join->const_tables : 0);
     if (join->outer_ref_cond && !join->outer_ref_cond->val_int())
       error= NESTED_LOOP_NO_MORE_ROWS;
     else
@@ -23193,8 +23211,11 @@ change_refs_to_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   uint i, border= all_fields.elements - elements;
   for (i= 0; (item= it++); i++)
   {
-    res_all_fields.push_back(new_item= item->get_tmp_table_item(thd),
-                             thd->mem_root);
+    if (item->type() == Item::SUM_FUNC_ITEM && item->const_item())
+      new_item= item;
+    else
+      new_item= item->get_tmp_table_item(thd); 
+    res_all_fields.push_back(new_item, thd->mem_root);
     ref_pointer_array[((i < border)? all_fields.elements-i-1 : i-border)]=
       new_item;
   }
@@ -24449,7 +24470,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
 
 void save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
 {
-  JOIN_TAB *join_tab=join->join_tab + join->top_join_tab_count;
+  JOIN_TAB *join_tab=join->join_tab + join->exec_join_tab_cnt();
   Explain_aggr_node *prev_node;
   Explain_aggr_node *node= xpl_sel->aggr_tree;
   bool is_analyze= join->thd->lex->analyze_stmt;
@@ -24541,6 +24562,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
 
     if (select_lex->master_unit()->derived)
       explain->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
+    save_agg_explain_data(this, explain);
     output->add_node(explain);
   }
   else if (pushdown_query)

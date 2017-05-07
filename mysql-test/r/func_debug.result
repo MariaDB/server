@@ -173,29 +173,29 @@ SELECT DATE'2001-01-01' IN ('2001-01-01','2001-02-02');
 DATE'2001-01-01' IN ('2001-01-01','2001-02-02')
 1
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 SELECT DATE'2001-01-01' IN ('2001-01-01','2001-02-02',NULL);
 DATE'2001-01-01' IN ('2001-01-01','2001-02-02',NULL)
 1
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 SELECT DATE'2001-01-01' NOT IN ('2001-01-01','2001-02-02');
 DATE'2001-01-01' NOT IN ('2001-01-01','2001-02-02')
 0
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 SELECT DATE'2001-01-01' NOT IN ('2001-01-01','2001-02-02',NULL);
 DATE'2001-01-01' NOT IN ('2001-01-01','2001-02-02',NULL)
 0
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 # Column predicant, compatible types, bisect
 CREATE TABLE t1 (a INT UNSIGNED);
@@ -354,38 +354,38 @@ CREATE TABLE t1 (a DATE);
 SELECT a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0) FROM t1;
 a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0)
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
-Note	1105	DBUG: [2] arg=3 handler=0 (datetime)
-Note	1105	DBUG: [3] arg=4 handler=0 (datetime)
-Note	1105	DBUG: [4] arg=5 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
+Note	1105	DBUG: [2] arg=3 handler=0 (date)
+Note	1105	DBUG: [3] arg=4 handler=0 (date)
+Note	1105	DBUG: [4] arg=5 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 SELECT a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL) FROM t1;
 a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL)
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
-Note	1105	DBUG: [2] arg=3 handler=0 (datetime)
-Note	1105	DBUG: [3] arg=4 handler=0 (datetime)
-Note	1105	DBUG: [4] arg=5 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
+Note	1105	DBUG: [2] arg=3 handler=0 (date)
+Note	1105	DBUG: [3] arg=4 handler=0 (date)
+Note	1105	DBUG: [4] arg=5 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 SELECT a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0) FROM t1;
 a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0)
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
-Note	1105	DBUG: [2] arg=3 handler=0 (datetime)
-Note	1105	DBUG: [3] arg=4 handler=0 (datetime)
-Note	1105	DBUG: [4] arg=5 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
+Note	1105	DBUG: [2] arg=3 handler=0 (date)
+Note	1105	DBUG: [3] arg=4 handler=0 (date)
+Note	1105	DBUG: [4] arg=5 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 SELECT a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL) FROM t1;
 a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL)
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
-Note	1105	DBUG: [2] arg=3 handler=0 (datetime)
-Note	1105	DBUG: [3] arg=4 handler=0 (datetime)
-Note	1105	DBUG: [4] arg=5 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
+Note	1105	DBUG: [2] arg=3 handler=0 (date)
+Note	1105	DBUG: [3] arg=4 handler=0 (date)
+Note	1105	DBUG: [4] arg=5 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 DROP TABLE t1;
 CREATE TABLE t1 (a TIME);
@@ -610,26 +610,26 @@ CREATE TABLE t1 (a DATE);
 SELECT DATE'2001-01-01' IN (a,'2001-01-01') FROM t1;
 DATE'2001-01-01' IN (a,'2001-01-01')
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=no
 SELECT DATE'2001-01-01' IN (a,'2001-01-01',NULL) FROM t1;
 DATE'2001-01-01' IN (a,'2001-01-01',NULL)
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=no
 SELECT DATE'2001-01-01' NOT IN (a,'2001-01-01') FROM t1;
 DATE'2001-01-01' NOT IN (a,'2001-01-01')
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=no
 SELECT DATE'2001-01-01' NOT IN (a,'2001-01-01',NULL) FROM t1;
 DATE'2001-01-01' NOT IN (a,'2001-01-01',NULL)
 Warnings:
-Note	1105	DBUG: [0] arg=1 handler=0 (datetime)
-Note	1105	DBUG: [1] arg=2 handler=0 (datetime)
+Note	1105	DBUG: [0] arg=1 handler=0 (date)
+Note	1105	DBUG: [1] arg=2 handler=0 (date)
 Note	1105	DBUG: types_compatible=yes bisect=no
 DROP TABLE t1;
 CREATE TABLE t1 (a TIME);
@@ -1147,25 +1147,25 @@ SELECT a IN (1,DATE'2001-01-01') FROM t1;
 a IN (1,DATE'2001-01-01')
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (double)
-Note	1105	DBUG: [1] arg=2 handler=1 (datetime)
+Note	1105	DBUG: [1] arg=2 handler=1 (date)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a IN (1,DATE'2001-01-01',NULL) FROM t1;
 a IN (1,DATE'2001-01-01',NULL)
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (double)
-Note	1105	DBUG: [1] arg=2 handler=1 (datetime)
+Note	1105	DBUG: [1] arg=2 handler=1 (date)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a NOT IN (1,DATE'2001-01-01') FROM t1;
 a NOT IN (1,DATE'2001-01-01')
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (double)
-Note	1105	DBUG: [1] arg=2 handler=1 (datetime)
+Note	1105	DBUG: [1] arg=2 handler=1 (date)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a NOT IN (1,DATE'2001-01-01',NULL) FROM t1;
 a NOT IN (1,DATE'2001-01-01',NULL)
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (double)
-Note	1105	DBUG: [1] arg=2 handler=1 (datetime)
+Note	1105	DBUG: [1] arg=2 handler=1 (date)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a IN (1,TIMESTAMP'2001-01-01 10:20:30') FROM t1;
 a IN (1,TIMESTAMP'2001-01-01 10:20:30')

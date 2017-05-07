@@ -4,17 +4,21 @@ COUNT(@@GLOBAL.innodb_max_undo_log_size)
 1
 1 Expected
 '#---------------------BS_STVARS_035_02----------------------#'
+SET @save = @@GLOBAL.innodb_max_undo_log_size;
 SET @@GLOBAL.innodb_max_undo_log_size=1073741824;
 SELECT COUNT(@@GLOBAL.innodb_max_undo_log_size);
 COUNT(@@GLOBAL.innodb_max_undo_log_size)
 1
 1 Expected
 SET @@GLOBAL.innodb_max_undo_log_size=18446744073709551615;
-SELECT @@GLOBAL.innodb_max_undo_log_size;
-@@GLOBAL.innodb_max_undo_log_size
-18446744073709551615
-18446744073709551615 Expected
+Warnings:
+Warning	1292	Truncated incorrect innodb_max_undo_log_size value: '18446744073709551615'
+SELECT FLOOR(@@GLOBAL.innodb_max_undo_log_size / @@GLOBAL.innodb_page_size);
+FLOOR(@@GLOBAL.innodb_max_undo_log_size / @@GLOBAL.innodb_page_size)
+4294967296
+4294967296 Expected
 SET @@GLOBAL.innodb_max_undo_log_size=1073741824;
+SET GLOBAL innodb_max_undo_log_size = @save;
 '#---------------------BS_STVARS_035_03----------------------#'
 SELECT @@GLOBAL.innodb_max_undo_log_size = VARIABLE_VALUE
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES

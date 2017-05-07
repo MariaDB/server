@@ -121,22 +121,22 @@ lsn_t	srv_start_lsn;
 lsn_t	srv_shutdown_lsn;
 
 /** TRUE if a raw partition is in use */
-ibool	srv_start_raw_disk_in_use = FALSE;
+ibool	srv_start_raw_disk_in_use;
 
 /** Number of IO threads to use */
-ulint	srv_n_file_io_threads = 0;
+ulint	srv_n_file_io_threads;
 
 /** TRUE if the server is being started, before rolling back any
 incomplete transactions */
-bool	srv_startup_is_before_trx_rollback_phase = false;
+bool	srv_startup_is_before_trx_rollback_phase;
 /** TRUE if the server is being started */
-bool	srv_is_being_started = false;
+bool	srv_is_being_started;
 /** TRUE if SYS_TABLESPACES is available for lookups */
-bool	srv_sys_tablespaces_open = false;
+bool	srv_sys_tablespaces_open;
 /** TRUE if the server was successfully started */
-ibool	srv_was_started = FALSE;
+bool	srv_was_started;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
-static ibool	srv_start_has_been_called = FALSE;
+static bool	srv_start_has_been_called;
 #ifdef UNIV_DEBUG
 /** InnoDB system tablespace to set during recovery */
 UNIV_INTERN uint	srv_sys_space_size_debug;
@@ -894,6 +894,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 			}
 		}
 	} else {
+		srv_undo_tablespaces_active = srv_undo_tablespaces;
 		n_undo_tablespaces = srv_undo_tablespaces;
 
 		for (i = 1; i <= n_undo_tablespaces; ++i) {
@@ -975,12 +976,10 @@ srv_undo_tablespaces_init(bool create_new_db)
 
 		return(err != DB_SUCCESS ? err : DB_ERROR);
 
-	} else  if (n_undo_tablespaces > 0) {
+	} else if (n_undo_tablespaces > 0) {
 
 		ib::info() << "Opened " << n_undo_tablespaces
-			<< " undo tablespaces ("
-			<< srv_undo_tablespaces_active
-			<< " active)";
+			<< " undo tablespaces";
 
 		if (srv_undo_tablespaces == 0) {
 			ib::warn() << "innodb_undo_tablespaces=0 disables"
@@ -1443,6 +1442,10 @@ innobase_start_or_create_for_mysql(void)
 	size_t		dirnamelen;
 	unsigned	i = 0;
 
+	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
+		srv_read_only_mode = true;
+	}
+
 	high_level_read_only = srv_read_only_mode
 		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
 
@@ -1519,7 +1522,7 @@ innobase_start_or_create_for_mysql(void)
 			" once during the process lifetime.";
 	}
 
-	srv_start_has_been_called = TRUE;
+	srv_start_has_been_called = true;
 
 	srv_is_being_started = true;
 
@@ -2889,8 +2892,8 @@ innodb_shutdown()
 	}
 
 	srv_start_state = SRV_START_STATE_NONE;
-	srv_was_started = FALSE;
-	srv_start_has_been_called = FALSE;
+	srv_was_started = false;
+	srv_start_has_been_called = false;
 }
 
 #if 0 // TODO: Enable this in WL#6608

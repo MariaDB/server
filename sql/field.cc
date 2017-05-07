@@ -1179,7 +1179,7 @@ bool Field::test_if_equality_guarantees_uniqueness(const Item *item) const
 bool Field::can_be_substituted_to_equal_item(const Context &ctx,
                                              const Item_equal *item_equal)
 {
-  DBUG_ASSERT(item_equal->compare_type() != STRING_RESULT);
+  DBUG_ASSERT(item_equal->compare_type_handler()->cmp_type() != STRING_RESULT);
   DBUG_ASSERT(cmp_type() != STRING_RESULT);
   switch (ctx.subst_constraint()) {
   case ANY_SUBST:
@@ -1192,7 +1192,7 @@ bool Field::can_be_substituted_to_equal_item(const Context &ctx,
       Items don't know the context they are in and there are functions like
       IF (<hex_string>, 'yes', 'no').
     */
-    return ctx.compare_type() == item_equal->compare_type();
+    return ctx.compare_type_handler() == item_equal->compare_type_handler();
   case IDENTITY_SUBST:
     return true;
   }
@@ -1308,7 +1308,7 @@ Item *Field_num::get_equal_zerofill_const_item(THD *thd, const Context &ctx,
     break;
   }
   DBUG_ASSERT(const_item->const_item());
-  DBUG_ASSERT(ctx.compare_type() != STRING_RESULT);
+  DBUG_ASSERT(ctx.compare_type_handler()->cmp_type() != STRING_RESULT);
   return const_item;
 }
 
@@ -2013,11 +2013,11 @@ bool Field_str::test_if_equality_guarantees_uniqueness(const Item *item) const
 bool Field_str::can_be_substituted_to_equal_item(const Context &ctx,
                                                   const Item_equal *item_equal)
 {
-  DBUG_ASSERT(item_equal->compare_type() == STRING_RESULT);
+  DBUG_ASSERT(item_equal->compare_type_handler()->cmp_type() == STRING_RESULT);
   switch (ctx.subst_constraint()) {
   case ANY_SUBST:
-    return ctx.compare_type() == item_equal->compare_type() &&
-          (ctx.compare_type() != STRING_RESULT ||
+    return ctx.compare_type_handler() == item_equal->compare_type_handler() &&
+          (ctx.compare_type_handler()->cmp_type() != STRING_RESULT ||
            ctx.compare_collation() == item_equal->compare_collation());
   case IDENTITY_SUBST:
     return ((charset()->state & MY_CS_BINSORT) &&
@@ -5856,6 +5856,39 @@ int Field_time::store_decimal(const my_decimal *d)
   int have_smth_to_conv= !number_to_time(neg, nr, sec_part, &ltime, &was_cut);
 
   return store_TIME_with_warning(&ltime, &str, was_cut, have_smth_to_conv);
+}
+
+
+bool Field_time::can_be_substituted_to_equal_item(const Context &ctx,
+                                                  const Item_equal *item_equal)
+{
+  DBUG_ASSERT(item_equal->compare_type_handler()->cmp_type() != STRING_RESULT);
+  switch (ctx.subst_constraint()) {
+  case ANY_SUBST:
+    /*
+      A TIME field in a DATETIME comparison can be substituted to
+      Item_equal with TIME comparison.
+
+        SET timestamp=UNIX_TIMESTAMP('2015-08-30 10:20:30');
+        CREATE OR REPLACE TABLE t1 (a TIME);
+        INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+        SELECT * FROM t1 WHERE a>=TIMESTAMP'2015-08-30 00:00:00'
+                         AND a='00:00:00';
+
+      The above query can be simplified to:
+        SELECT * FROM t1 WHERE TIME'00:00:00'>=TIMESTAMP'2015-08-30 00:00:00'
+                           AND a='00:00:00';
+      And further to:
+        SELECT * FROM t1 WHERE a=TIME'00:00:00';
+    */
+    if (ctx.compare_type_handler() == &type_handler_datetime &&
+        item_equal->compare_type_handler() == &type_handler_time)
+      return true;
+    return ctx.compare_type_handler() == item_equal->compare_type_handler();
+  case IDENTITY_SUBST:
+    return true;
+  }
+  return false;
 }
 
 

@@ -4426,7 +4426,10 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     for (derived= unit->derived;
          derived;
          derived= derived->select_lex->master_unit()->derived)
+    {
       derived->set_materialized_derived();
+      derived->prohibit_cond_pushdown= true;
+    }
   }
 
   return FALSE;
@@ -4743,7 +4746,7 @@ Item_func_set_user_var::check(bool use_result_field)
   if (use_result_field && !result_field)
     use_result_field= FALSE;
 
-  switch (Item_func_set_user_var::result_type()) {
+  switch (result_type()) {
   case REAL_RESULT:
   {
     save_result.vreal= use_result_field ? result_field->val_real() :
@@ -4836,7 +4839,7 @@ Item_func_set_user_var::update()
   bool res= 0;
   DBUG_ENTER("Item_func_set_user_var::update");
 
-  switch (Item_func_set_user_var::result_type()) {
+  switch (result_type()) {
   case REAL_RESULT:
   {
     res= update_hash((void*) &save_result.vreal,sizeof(save_result.vreal),
@@ -5306,7 +5309,7 @@ void Item_func_get_user_var::fix_length_and_dec()
     max_length= m_var_entry->length;
     collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
     set_handler_by_result_type(m_var_entry->type);
-    switch (Item_func_get_user_var::result_type()) {
+    switch (result_type()) {
     case REAL_RESULT:
       fix_char_length(DBL_DIG + 8);
       break;
@@ -5316,7 +5319,7 @@ void Item_func_get_user_var::fix_length_and_dec()
       break;
     case STRING_RESULT:
       max_length= MAX_BLOB_WIDTH - 1;
-      set_handler_by_field_type(MYSQL_TYPE_MEDIUM_BLOB);
+      set_handler(&type_handler_medium_blob);
       break;
     case DECIMAL_RESULT:
       fix_char_length(DECIMAL_MAX_STR_LENGTH);
@@ -5332,7 +5335,7 @@ void Item_func_get_user_var::fix_length_and_dec()
   {
     collation.set(&my_charset_bin, DERIVATION_IMPLICIT);
     null_value= 1;
-    set_handler_by_field_type(MYSQL_TYPE_LONG_BLOB);
+    set_handler(&type_handler_long_blob);
     max_length= MAX_BLOB_WIDTH;
   }
 }
@@ -5401,14 +5404,15 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
 }
 
 
-void Item_user_var_as_out_param::set_null_value(CHARSET_INFO* cs)
+void Item_user_var_as_out_param::load_data_set_null_value(CHARSET_INFO* cs)
 {
   ::update_hash(entry, TRUE, 0, 0, STRING_RESULT, cs, 0 /* unsigned_arg */);
 }
 
 
-void Item_user_var_as_out_param::set_value(const char *str, uint length,
-                                           CHARSET_INFO* cs)
+void Item_user_var_as_out_param::load_data_set_value(const char *str,
+                                                     uint length,
+                                                     CHARSET_INFO* cs)
 {
   ::update_hash(entry, FALSE, (void*)str, length, STRING_RESULT, cs,
                 0 /* unsigned_arg */);
@@ -5443,7 +5447,7 @@ my_decimal* Item_user_var_as_out_param::val_decimal(my_decimal *decimal_buffer)
 }
 
 
-void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
+void Item_user_var_as_out_param::load_data_print(THD *thd, String *str)
 {
   str->append('@');
   append_identifier(thd, str, name.str, name.length);
@@ -5582,7 +5586,8 @@ bool Item_func_get_system_var::check_vcol_func_processor(void *arg)
   return mark_unsupported_function("@@", var->name.str, arg, VCOL_SESSION_FUNC);
 }
 
-enum Item_result Item_func_get_system_var::result_type() const
+
+const Type_handler *Item_func_get_system_var::type_handler() const
 {
   switch (var->show_type())
   {
@@ -5595,43 +5600,16 @@ enum Item_result Item_func_get_system_var::result_type() const
     case SHOW_ULONG:
     case SHOW_ULONGLONG:
     case SHOW_HA_ROWS:
-      return INT_RESULT;
+      return &type_handler_longlong;
     case SHOW_CHAR: 
     case SHOW_CHAR_PTR: 
     case SHOW_LEX_STRING:
-      return STRING_RESULT;
+      return &type_handler_varchar;
     case SHOW_DOUBLE:
-      return REAL_RESULT;
+      return &type_handler_double;
     default:
       my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
-      return STRING_RESULT;                   // keep the compiler happy
-  }
-}
-
-
-enum_field_types Item_func_get_system_var::field_type() const
-{
-  switch (var->show_type())
-  {
-    case SHOW_BOOL:
-    case SHOW_MY_BOOL:
-    case SHOW_SINT:
-    case SHOW_SLONG:
-    case SHOW_SLONGLONG:
-    case SHOW_UINT:
-    case SHOW_ULONG:
-    case SHOW_ULONGLONG:
-    case SHOW_HA_ROWS:
-      return MYSQL_TYPE_LONGLONG;
-    case SHOW_CHAR: 
-    case SHOW_CHAR_PTR: 
-    case SHOW_LEX_STRING:
-      return MYSQL_TYPE_VARCHAR;
-    case SHOW_DOUBLE:
-      return MYSQL_TYPE_DOUBLE;
-    default:
-      my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
-      return MYSQL_TYPE_VARCHAR;              // keep the compiler happy
+      return &type_handler_varchar;              // keep the compiler happy
   }
 }
 
@@ -6447,22 +6425,16 @@ Item_func_sp::make_field(THD *thd, Send_field *tmp_field)
 }
 
 
-enum enum_field_types
-Item_func_sp::field_type() const
+const Type_handler *Item_func_sp::type_handler() const
 {
-  DBUG_ENTER("Item_func_sp::field_type");
-  DBUG_ASSERT(sp_result_field);
-  DBUG_RETURN(sp_result_field->type());
-}
-
-Item_result
-Item_func_sp::result_type() const
-{
-  DBUG_ENTER("Item_func_sp::result_type");
+  DBUG_ENTER("Item_func_sp::type_handler");
   DBUG_PRINT("info", ("m_sp = %p", (void *) m_sp));
   DBUG_ASSERT(sp_result_field);
-  DBUG_RETURN(sp_result_field->result_type());
+  // This converts ENUM/SET to STRING
+  const Type_handler *handler= sp_result_field->type_handler();
+  DBUG_RETURN(handler->type_handler_for_item_field());
 }
+
 
 longlong Item_func_found_rows::val_int()
 {

@@ -646,6 +646,23 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   SELECT_LEX *first_select= unit->first_select();
 
+  if (derived->is_recursive_with_table() &&
+      !derived->is_with_table_recursive_reference() &&
+      !derived->with->rec_result && derived->with->get_sq_rec_ref())
+  {
+    /*
+      This is a non-recursive reference to a recursive CTE whose
+      specification unit has not been prepared at the regular processing of
+      derived table references. This can happen  only in the case when
+      the specification unit has no recursive references at the top level. 
+      Force the preparation of the specification unit. Use a recursive
+      table reference from a subquery for this.
+    */
+    DBUG_ASSERT(derived->with->get_sq_rec_ref());
+    if (mysql_derived_prepare(lex->thd, lex, derived->with->get_sq_rec_ref()))
+      DBUG_RETURN(TRUE);
+  }
+
   if (unit->prepared && derived->is_recursive_with_table() &&
       !derived->table)
   {
@@ -1147,6 +1164,9 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
 
   st_select_lex_unit *unit= derived->get_unit();
   st_select_lex *sl= unit->first_select();
+
+  if (derived->prohibit_cond_pushdown)
+    DBUG_RETURN(false);
 
   /* Do not push conditions into constant derived */
   if (unit->executed)

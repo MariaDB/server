@@ -2761,7 +2761,7 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
 bool Window_funcs_sort::exec(JOIN *join)
 {
   THD *thd= join->thd;
-  JOIN_TAB *join_tab= &join->join_tab[join->top_join_tab_count];
+  JOIN_TAB *join_tab= join->join_tab + join->exec_join_tab_cnt();
 
   /* Sort the table based on the most specific sorting criteria of
      the window functions. */
@@ -2841,11 +2841,6 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     sort_order= order;
   }
   filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, true, NULL);
-  if (!join_tab->join->top_join_tab_count)
-  {
-    filesort->tracker=
-      new (thd->mem_root) Filesort_tracker(thd->lex->analyze_stmt);
-  }
 
   /* Apply the same condition that the subsequent sort has. */
   filesort->select= sel;

@@ -2390,7 +2390,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
       vcol_info->set_vcol_type((enum_vcol_info_type) type);
-      vcol_info->name.length= name_length;
       if (name_length)
       {
         vcol_info->name.str= strmake_root(&share->mem_root,

@@ -972,6 +972,13 @@ bool Item_field::check_field_expression_processor(void *arg)
   Field *org_field= (Field*) arg;
   if (field->flags & NO_DEFAULT_VALUE_FLAG)
     return 0;
+  if (field->flags & AUTO_INCREMENT_FLAG)
+  {
+      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
+               MYF(0),
+               org_field->field_name.str, field->field_name.str);
+      return 1;
+  }
   if ((field->default_value && field->default_value->flags) || field->vcol_info)
   {
     if (field == org_field ||
@@ -1687,7 +1694,7 @@ CALL p1();
 bool Item_splocal::check_cols(uint n)
 {
   DBUG_ASSERT(m_thd->spcont);
-  if (cmp_type() != ROW_RESULT)
+  if (Type_handler_hybrid_field_type::cmp_type() != ROW_RESULT)
     return Item::check_cols(n);
 
   if (n != this_item()->cols() || n == 1)
@@ -3504,7 +3511,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
                        uint pos_in_query_arg, uint len_in_query_arg):
   Item_basic_value(thd),
   Rewritable_query_parameter(pos_in_query_arg, len_in_query_arg),
-  Type_handler_hybrid_field_type(MYSQL_TYPE_VARCHAR),
+  Type_handler_hybrid_field_type(&type_handler_varchar),
   state(NO_VALUE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
@@ -3786,11 +3793,11 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     switch (item->cmp_type()) {
     case REAL_RESULT:
       set_double(tmp.value.m_double);
-      set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
+      set_handler(&type_handler_double);
       break;
     case INT_RESULT:
       set_int(tmp.value.m_longlong, MY_INT64_NUM_DECIMAL_DIGITS);
-      set_handler_by_field_type(MYSQL_TYPE_LONGLONG);
+      set_handler(&type_handler_longlong);
       break;
     case STRING_RESULT:
     {
@@ -3799,7 +3806,7 @@ bool Item_param::set_from_item(THD *thd, Item *item)
         Exact value of max_length is not known unless data is converted to
         charset of connection, so we have to set it later.
       */
-      set_handler_by_field_type(MYSQL_TYPE_VARCHAR);
+      set_handler(&type_handler_varchar);
 
       if (set_str(tmp.m_string.ptr(), tmp.m_string.length()))
         DBUG_RETURN(1);
@@ -3808,7 +3815,7 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     case DECIMAL_RESULT:
     {
       set_decimal(&tmp.m_decimal, unsigned_flag);
-      set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
+      set_handler(&type_handler_newdecimal);
       break;
     }
     case TIME_RESULT:
@@ -6024,7 +6031,8 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
         comparison context, and it's safe to replace it to the constant from
         item_equal.
       */
-      DBUG_ASSERT(cmp_type() == item_equal->compare_type());
+      DBUG_ASSERT(type_handler()->type_handler_for_comparison()->cmp_type() ==
+                  item_equal->compare_type_handler()->cmp_type());
       return const_item2;
     }
     Item_field *subst= 
@@ -6064,7 +6072,7 @@ void Item::make_field(THD *thd, Send_field *tmp_field)
 
 void Item_empty_string::make_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_field(tmp_field, string_field_type());
+  init_make_field(tmp_field, string_type_handler()->field_type());
 }
 
 
@@ -9094,101 +9102,14 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
   Item *item= *ref;
   if (item->basic_const_item())
     return;                                     // Can't be better
-
-  Item *new_item= NULL;
-  Item_result res_type= item_cmp_type(comp_item, item);
-  const char *name= item->name.str;                       // Alloced on THD::mem_root
-  MEM_ROOT *mem_root= thd->mem_root;
-
-  switch (res_type) {
-  case TIME_RESULT:
+  Type_handler_hybrid_field_type cmp(comp_item->type_handler_for_comparison());
+  if (!cmp.aggregate_for_comparison(item->type_handler_for_comparison()))
   {
-    bool is_null;
-    Item **ref_copy= ref;
-    /* the following call creates a constant and puts it in new_item */
-    enum_field_types type= item->field_type_for_temporal_comparison(comp_item);
-    get_datetime_value(thd, &ref_copy, &new_item, type, &is_null);
-    if (is_null)
-      new_item= new (mem_root) Item_null(thd, name);
-    break;
+    Item *new_item= cmp.type_handler()->
+                     make_const_item_for_comparison(thd, item, comp_item);
+    if (new_item)
+      thd->change_item_tree(ref, new_item);
   }
-  case STRING_RESULT:
-  {
-    char buff[MAX_FIELD_WIDTH];
-    String tmp(buff,sizeof(buff),&my_charset_bin),*result;
-    result=item->val_str(&tmp);
-    if (item->null_value)
-      new_item= new (mem_root) Item_null(thd, name);
-    else
-    {
-      uint length= result->length();
-      char *tmp_str= thd->strmake(result->ptr(), length);
-      new_item= new (mem_root) Item_string(thd, name, tmp_str, length, result->charset());
-    }
-    break;
-  }
-  case INT_RESULT:
-  {
-    longlong result=item->val_int();
-    uint length=item->max_length;
-    bool null_value=item->null_value;
-    new_item= (null_value ? (Item*) new (mem_root) Item_null(thd, name) :
-               (Item*) new (mem_root) Item_int(thd, name, result, length));
-    break;
-  }
-  case ROW_RESULT:
-  if (item->type() == Item::ROW_ITEM && comp_item->type() == Item::ROW_ITEM)
-  {
-    /*
-      Substitute constants only in Item_row's. Don't affect other Items
-      with ROW_RESULT (eg Item_singlerow_subselect).
-
-      For such Items more optimal is to detect if it is constant and replace
-      it with Item_row. This would optimize queries like this:
-      SELECT * FROM t1 WHERE (a,b) = (SELECT a,b FROM t2 LIMIT 1);
-    */
-    Item_row *item_row= (Item_row*) item;
-    Item_row *comp_item_row= (Item_row*) comp_item;
-    uint col;
-    new_item= 0;
-    /*
-      If item and comp_item are both Item_row's and have same number of cols
-      then process items in Item_row one by one.
-      We can't ignore NULL values here as this item may be used with <=>, in
-      which case NULL's are significant.
-    */
-    DBUG_ASSERT(item->result_type() == comp_item->result_type());
-    DBUG_ASSERT(item_row->cols() == comp_item_row->cols());
-    col= item_row->cols();
-    while (col-- > 0)
-      resolve_const_item(thd, item_row->addr(col),
-                         comp_item_row->element_index(col));
-    break;
-  }
-  /* Fallthrough */
-  case REAL_RESULT:
-  {						// It must REAL_RESULT
-    double result= item->val_real();
-    uint length=item->max_length,decimals=item->decimals;
-    bool null_value=item->null_value;
-    new_item= (null_value ? (Item*) new (mem_root) Item_null(thd, name) : (Item*)
-               new (mem_root) Item_float(thd, name, result, decimals, length));
-    break;
-  }
-  case DECIMAL_RESULT:
-  {
-    my_decimal decimal_value;
-    my_decimal *result= item->val_decimal(&decimal_value);
-    uint length= item->max_length, decimals= item->decimals;
-    bool null_value= item->null_value;
-    new_item= (null_value ?
-               (Item*) new (mem_root) Item_null(thd, name) :
-               (Item*) new (mem_root) Item_decimal(thd, name, result, length, decimals));
-    break;
-  }
-  }
-  if (new_item)
-    thd->change_item_tree(ref, new_item);
 }
 
 /**
@@ -9297,27 +9218,24 @@ void Item_cache::store(Item *item)
 void Item_cache::print(String *str, enum_query_type query_type)
 {
   if (example &&                                          // There is a cached item
-      (query_type & QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS))  // Caller is show-create-table
+      (query_type & QT_NO_DATA_EXPANSION))                // Caller is show-create-table
   {
     // Instead of "cache" or the cached value, print the cached item name
     example->print(str, query_type);
+    return;
   }
-  else
+
+  if (value_cached)
   {
-    if (value_cached && !(query_type & QT_NO_DATA_EXPANSION))
-    {
-      print_value(str);
-      return;
-    }
-    if (!(query_type & QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS))
-      str->append(STRING_WITH_LEN("<cache>("));
-    if (example)
-      example->print(str, query_type);
-    else
-      Item::print(str, query_type);
-    if (!(query_type & QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS))
-      str->append(')');
+    print_value(str);
+    return;
   }
+  str->append(STRING_WITH_LEN("<cache>("));
+  if (example)
+    example->print(str, query_type);
+  else
+    Item::print(str, query_type);
+  str->append(')');
 }
 
 /**
@@ -9405,9 +9323,8 @@ Item *Item_cache_int::convert_to_basic_const_item(THD *thd)
 } 
 
 
-Item_cache_temporal::Item_cache_temporal(THD *thd,
-                                         enum_field_types field_type_arg):
-  Item_cache_int(thd, field_type_arg)
+Item_cache_temporal::Item_cache_temporal(THD *thd, const Type_handler *handler)
+ :Item_cache_int(thd, handler)
 {
   if (mysql_timestamp_type() == MYSQL_TIMESTAMP_ERROR)
     set_handler(&type_handler_datetime2);
@@ -9553,7 +9470,7 @@ void Item_cache_temporal::store_packed(longlong val_arg, Item *example_arg)
 Item *Item_cache_temporal::clone_item(THD *thd)
 {
   Item_cache_temporal *item= new (thd->mem_root)
-    Item_cache_temporal(thd, Item_cache_temporal::field_type());
+    Item_cache_temporal(thd, Item_cache_temporal::type_handler());
   item->store_packed(value, example);
   return item;
 }
@@ -9923,7 +9840,7 @@ Item_type_holder::Item_type_holder(THD *thd, Item *item)
   DBUG_ASSERT(item->fixed);
   maybe_null= item->maybe_null;
   get_full_info(item);
-  DBUG_ASSERT(!decimals || Item_type_holder::result_type() != INT_RESULT);
+  DBUG_ASSERT(!decimals || result_type() != INT_RESULT);
   prev_decimal_int_part= item->decimal_int_part();
 }
 
@@ -9972,14 +9889,14 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     which is on the right side of the UNION, the data type handler
     changes to type_handler_longlong, while decimals is still NOT_FIXED_DEC.
   */
-  if (Item_type_holder::result_type() == INT_RESULT)
+  if (result_type() == INT_RESULT)
     decimals= 0;
   else
     decimals= MY_MAX(decimals, item->decimals);
 
   Type_geometry_attributes::join(item);
 
-  if (Item_type_holder::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
   {
     decimals= MY_MIN(MY_MAX(decimals, item->decimals), DECIMAL_MAX_SCALE);
     int item_int_part= item->decimal_int_part();
@@ -9991,7 +9908,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
                                                              unsigned_flag);
   }
 
-  switch (Item_type_holder::result_type())
+  switch (result_type())
   {
   case STRING_RESULT:
   {
@@ -10366,8 +10283,7 @@ void Virtual_column_info::print(String *str)
                    (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                      QT_ITEM_IDENT_SKIP_DB_NAMES |
                                      QT_ITEM_IDENT_SKIP_TABLE_NAMES |
-                                     QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
-                                     QT_TO_SYSTEM_CHARSET |
-                                     QT_NO_DATA_EXPANSION),
+                                     QT_NO_DATA_EXPANSION |
+                                     QT_TO_SYSTEM_CHARSET),
                    LOWEST_PRECEDENCE);
 }

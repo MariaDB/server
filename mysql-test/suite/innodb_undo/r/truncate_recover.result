@@ -1,0 +1,15 @@
+create table t1(keyc int primary key, c char(100)) engine = innodb;
+begin;
+commit;
+begin;
+update t1 set c = 'MariaDB';
+update t1 set c = 'InnoDB';
+set global debug_dbug = '+d,ib_undo_trunc_before_truncate';
+commit;
+FOUND 1 /ib_undo_trunc_before_truncate/ in mysqld.1.err
+begin;
+update t1 set c = 'MariaDB';
+update t1 set c = 'InnoDB';
+set global debug_dbug = '+d,ib_undo_trunc_before_ddl_log_end';
+commit;
+FOUND 1 /ib_undo_trunc_before_ddl_log_end/ in mysqld.1.err

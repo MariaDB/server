@@ -1,0 +1,6 @@
+create table t1 (f1 int not null, f2 int, f3 int, primary key (f1,f2), key(f2,f3)) engine=innodb;
+create view v1 as select * from t1 where f2 = 1;
+select distinct f1 from v1;
+f1
+drop view v1;
+drop table t1;

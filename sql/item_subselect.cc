@@ -1172,28 +1172,9 @@ void Item_singlerow_subselect::store(uint i, Item *item)
   row[i]->cache_value();
 }
 
-enum Item_result Item_singlerow_subselect::result_type() const
-{
-  return engine->result_type();
-}
-
-enum Item_result Item_singlerow_subselect::cmp_type() const
-{
-  return engine->cmp_type();
-}
-
 const Type_handler *Item_singlerow_subselect::type_handler() const
 {
   return engine->type_handler();
-}
-
-/* 
- Don't rely on the result type to calculate field type. 
- Ask the engine instead.
-*/
-enum_field_types Item_singlerow_subselect::field_type() const
-{
-  return engine->field_type();
 }
 
 void Item_singlerow_subselect::fix_length_and_dec()
@@ -1264,7 +1245,7 @@ Item* Item_singlerow_subselect::expr_cache_insert_transformer(THD *tmp_thd,
 }
 
 
-uint Item_singlerow_subselect::cols()
+uint Item_singlerow_subselect::cols() const
 {
   return engine->cols();
 }
@@ -2396,7 +2377,8 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                   &list_ref));
       Item *col_item= new (thd->mem_root)
         Item_cond_or(thd, item_eq, item_isnull);
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null)
+      if (!abort_on_null && left_expr->element_index(i)->maybe_null &&
+          get_cond_guard(i))
       {
         disable_cond_guard_for_const_null_left_expr(i);
         if (!(col_item= new (thd->mem_root)
@@ -2414,7 +2396,8 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                        ref_pointer_array[i],
                                        (char *)"<no matter>",
                                        &list_ref));
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null)
+      if (!abort_on_null && left_expr->element_index(i)->maybe_null &&
+          get_cond_guard(i) )
       {
         disable_cond_guard_for_const_null_left_expr(i);
         if (!(item_nnull_test= 
@@ -2474,7 +2457,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                            (char *)"<no matter>",
                                            &list_ref));
         item= new (thd->mem_root) Item_cond_or(thd, item, item_isnull);
-        if (left_expr->element_index(i)->maybe_null)
+        if (left_expr->element_index(i)->maybe_null && get_cond_guard(i))
         {
           disable_cond_guard_for_const_null_left_expr(i);
           if (!(item= new (thd->mem_root)
@@ -2486,7 +2469,8 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
         }
         *having_item= and_items(thd, *having_item, having_col_item);
       }
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null)
+      if (!abort_on_null && left_expr->element_index(i)->maybe_null &&
+          get_cond_guard(i))
       {
         if (!(item= new (thd->mem_root)
               Item_func_trig_cond(thd, item, get_cond_guard(i))))
@@ -4260,7 +4244,7 @@ int subselect_indexsubquery_engine::exec()
 }
 
 
-uint subselect_single_select_engine::cols()
+uint subselect_single_select_engine::cols() const
 {
   //psergey-sj-backport: the following assert was gone in 6.0:
   //DBUG_ASSERT(select_lex->join != 0); // should be called after fix_fields()
@@ -4269,7 +4253,7 @@ uint subselect_single_select_engine::cols()
 }
 
 
-uint subselect_union_engine::cols()
+uint subselect_union_engine::cols() const
 {
   DBUG_ASSERT(unit->is_prepared());  // should be called after fix_fields()
   return unit->types.elements;

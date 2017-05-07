@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
 Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
@@ -45,6 +45,12 @@ struct log_group_t;
 
 /** Magic value to use instead of log checksums when they are disabled */
 #define LOG_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
+
+/* Margin for the free space in the smallest log group, before a new query
+step which modifies the database, is started */
+
+#define LOG_CHECKPOINT_FREE_PER_THREAD	(4 * UNIV_PAGE_SIZE)
+#define LOG_CHECKPOINT_EXTRA_FREE	(8 * UNIV_PAGE_SIZE)
 
 typedef ulint (*log_checksum_func_t)(const byte* log_block);
 

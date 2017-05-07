@@ -1,0 +1,72 @@
+#
+# WL#6965: Truncate UNDO logs.
+#
+
+--source include/have_innodb.inc
+--source include/have_innodb_max_16k.inc
+--source include/have_undo_tablespaces.inc
+
+# The test is restarting the server to force undo truncation.
+--source include/not_embedded.inc
+
+SET GLOBAL innodb_fast_shutdown=0;
+--let $restart_parameters=--innodb_undo_tablespaces=2 --innodb_undo_logs=4
+--source include/restart_mysqld.inc
+
+let MYSQLD_DATADIR = `select @@datadir`;
+
+#-----------------------------------------------------------------------------
+#
+# 1. Perform enough DML action so that undo tablespace size grows beyond
+#    set threshold and then wait and see if it is being truncated.
+#
+create table t1(keyc int primary key, c1 char(100)) engine = innodb;
+begin;
+--disable_query_log
+let $i=30000;
+while ($i) {
+  eval insert into t1 values(30000-$i, '');
+  dec $i;
+}
+--enable_query_log
+update t1 set c1 = 'mysql';
+update t1 set c1 = 'oracle';
+delete from t1;
+commit;
+drop table t1;
+
+let CHECKFILE = $MYSQL_TMP_DIR/check.txt;
+perl;
+($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size1)
+	= stat("$ENV{MYSQLD_DATADIR}/undo001");
+($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size2)
+	= stat("$ENV{MYSQLD_DATADIR}/undo002");
+open(OUT, ">$ENV{CHECKFILE}") || die;
+print OUT "let \$size1='$size1,$size2';\n";
+close(OUT);
+EOF
+SET GLOBAL innodb_fast_shutdown=0;
+SET GLOBAL innodb_undo_log_truncate=1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+--source include/shutdown_mysqld.inc
+--source $CHECKFILE
+perl;
+($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size1)
+	= stat("$ENV{MYSQLD_DATADIR}/undo001");
+($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size2)
+	= stat("$ENV{MYSQLD_DATADIR}/undo002");
+open(OUT, ">$ENV{CHECKFILE}") || die;
+print OUT "let \$size2='$size1,$size2';\n";
+close(OUT);
+EOF
+
+--source $CHECKFILE
+--remove_file $CHECKFILE
+
+if ($size1 == $size2)
+{
+   echo Truncation did not happen: $size1 == $size2;
+}
+
+--let $restart_parameters=
+--source include/start_mysqld.inc

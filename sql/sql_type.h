@@ -746,6 +746,26 @@ public:
   virtual bool
   subquery_type_allows_materialization(const Item *inner,
                                        const Item *outer) const= 0;
+  /**
+    Make a simple constant replacement item for a constant "src",
+    so the new item can futher be used for comparison with "cmp", e.g.:
+      src = cmp   ->  replacement = cmp
+
+    "this" is the type handler that is used to compare "src" and "cmp".
+
+    @param thd - current thread, for mem_root
+    @param src - The item that we want to replace. It's a const item,
+                 but it can be complex enough to calculate on every row.
+    @param cmp - The src's comparand.
+    @retval    - a pointer to the created replacement Item
+    @retval    - NULL, if could not create a replacement (e.g. on EOM).
+                 NULL is also returned for ROWs, because instead of replacing
+                 a Item_row to a new Item_row, Type_handler_row just replaces
+                 its elements.
+  */
+  virtual Item *make_const_item_for_comparison(THD *thd,
+                                               Item *src,
+                                               const Item *cmp) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -935,6 +955,7 @@ public:
     DBUG_ASSERT(0);
     return false;
   }
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1137,6 +1158,7 @@ public:
                   SORT_FIELD_ATTR *attr) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1201,6 +1223,7 @@ public:
     return Item_send_str(item, protocol, buf);
   }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1257,6 +1280,7 @@ public:
                   SORT_FIELD_ATTR *attr) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1318,7 +1342,6 @@ public:
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
-  bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
@@ -1401,6 +1424,7 @@ public:
                                    Item *source_expr, Item *source_const) const;
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1693,6 +1717,8 @@ public:
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
+  bool set_comparator_func(Arg_comparator *cmp) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
 };
@@ -1729,13 +1755,14 @@ class Type_handler_temporal_with_date: public Type_handler_temporal_result
 {
 public:
   virtual ~Type_handler_temporal_with_date() {}
-  const Type_handler *type_handler_for_comparison() const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_date(item, protocol, buf);
   }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
+  bool set_comparator_func(Arg_comparator *cmp) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
 };
@@ -1747,6 +1774,7 @@ class Type_handler_date_common: public Type_handler_temporal_with_date
 public:
   virtual ~Type_handler_date_common() {}
   const Name name() const { return m_name_date; }
+  const Type_handler *type_handler_for_comparison() const;
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   enum_mysql_timestamp_type mysql_timestamp_type() const
   {
@@ -1790,6 +1818,7 @@ class Type_handler_datetime_common: public Type_handler_temporal_with_date
 public:
   virtual ~Type_handler_datetime_common() {}
   const Name name() const { return m_name_datetime; }
+  const Type_handler *type_handler_for_comparison() const;
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   enum_mysql_timestamp_type mysql_timestamp_type() const
   {
@@ -1846,6 +1875,7 @@ class Type_handler_timestamp_common: public Type_handler_temporal_with_date
 public:
   virtual ~Type_handler_timestamp_common() {}
   const Name name() const { return m_name_timestamp; }
+  const Type_handler *type_handler_for_comparison() const;
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
   enum_mysql_timestamp_type mysql_timestamp_type() const
   {
@@ -2169,7 +2199,7 @@ public:
   bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *) const;
 };
 
-extern Type_handler_geometry type_handler_geometry;
+extern MYSQL_PLUGIN_IMPORT Type_handler_geometry type_handler_geometry;
 #endif
 
 
@@ -2229,19 +2259,14 @@ public:
   Type_handler_hybrid_field_type(const Type_handler *handler)
    :m_type_handler(handler)
   { }
-  Type_handler_hybrid_field_type(enum_field_types type)
-    :m_type_handler(Type_handler::get_handler_by_field_type(type))
-  { }
   Type_handler_hybrid_field_type(const Type_handler_hybrid_field_type *other)
     :m_type_handler(other->m_type_handler)
   { }
   const Type_handler *type_handler() const { return m_type_handler; }
-  enum_field_types field_type() const { return m_type_handler->field_type(); }
   enum_field_types real_field_type() const
   {
     return m_type_handler->real_field_type();
   }
-  Item_result result_type() const { return m_type_handler->result_type(); }
   Item_result cmp_type() const { return m_type_handler->cmp_type(); }
   enum_mysql_timestamp_type mysql_timestamp_type() const
   {
@@ -2294,49 +2319,49 @@ public:
 };
 
 
-extern Type_handler_row         type_handler_row;
-extern Type_handler_null        type_handler_null;
+extern MYSQL_PLUGIN_IMPORT Type_handler_row         type_handler_row;
+extern MYSQL_PLUGIN_IMPORT Type_handler_null        type_handler_null;
 
-extern Type_handler_float       type_handler_float;
-extern Type_handler_double      type_handler_double;
+extern MYSQL_PLUGIN_IMPORT Type_handler_float       type_handler_float;
+extern MYSQL_PLUGIN_IMPORT Type_handler_double      type_handler_double;
 
-extern Type_handler_bit         type_handler_bit;
+extern MYSQL_PLUGIN_IMPORT Type_handler_bit         type_handler_bit;
 
-extern Type_handler_enum        type_handler_enum;
-extern Type_handler_set         type_handler_set;
+extern MYSQL_PLUGIN_IMPORT Type_handler_enum        type_handler_enum;
+extern MYSQL_PLUGIN_IMPORT Type_handler_set         type_handler_set;
 
-extern Type_handler_string      type_handler_string;
-extern Type_handler_var_string  type_handler_var_string;
-extern Type_handler_varchar     type_handler_varchar;
+extern MYSQL_PLUGIN_IMPORT Type_handler_string      type_handler_string;
+extern MYSQL_PLUGIN_IMPORT Type_handler_var_string  type_handler_var_string;
+extern MYSQL_PLUGIN_IMPORT Type_handler_varchar     type_handler_varchar;
 
-extern Type_handler_tiny_blob   type_handler_tiny_blob;
-extern Type_handler_medium_blob type_handler_medium_blob;
-extern Type_handler_long_blob   type_handler_long_blob;
-extern Type_handler_blob        type_handler_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
 
-extern Type_handler_tiny        type_handler_tiny;
-extern Type_handler_short       type_handler_short;
-extern Type_handler_int24       type_handler_int24;
-extern Type_handler_long        type_handler_long;
-extern Type_handler_longlong    type_handler_longlong;
+extern MYSQL_PLUGIN_IMPORT Type_handler_tiny        type_handler_tiny;
+extern MYSQL_PLUGIN_IMPORT Type_handler_short       type_handler_short;
+extern MYSQL_PLUGIN_IMPORT Type_handler_int24       type_handler_int24;
+extern MYSQL_PLUGIN_IMPORT Type_handler_long        type_handler_long;
+extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_longlong;
 
-extern Type_handler_newdecimal  type_handler_newdecimal;
-extern Type_handler_olddecimal  type_handler_olddecimal;
+extern MYSQL_PLUGIN_IMPORT Type_handler_newdecimal  type_handler_newdecimal;
+extern MYSQL_PLUGIN_IMPORT Type_handler_olddecimal  type_handler_olddecimal;
 
-extern Type_handler_year        type_handler_year;
-extern Type_handler_newdate     type_handler_newdate;
-extern Type_handler_date        type_handler_date;
-extern Type_handler_time        type_handler_time;
-extern Type_handler_time2       type_handler_time2;
-extern Type_handler_datetime    type_handler_datetime;
-extern Type_handler_datetime2   type_handler_datetime2;
-extern Type_handler_timestamp   type_handler_timestamp;
-extern Type_handler_timestamp2  type_handler_timestamp2;
+extern MYSQL_PLUGIN_IMPORT Type_handler_year        type_handler_year;
+extern MYSQL_PLUGIN_IMPORT Type_handler_newdate     type_handler_newdate;
+extern MYSQL_PLUGIN_IMPORT Type_handler_date        type_handler_date;
+extern MYSQL_PLUGIN_IMPORT Type_handler_time        type_handler_time;
+extern MYSQL_PLUGIN_IMPORT Type_handler_time2       type_handler_time2;
+extern MYSQL_PLUGIN_IMPORT Type_handler_datetime    type_handler_datetime;
+extern MYSQL_PLUGIN_IMPORT Type_handler_datetime2   type_handler_datetime2;
+extern MYSQL_PLUGIN_IMPORT Type_handler_timestamp   type_handler_timestamp;
+extern MYSQL_PLUGIN_IMPORT Type_handler_timestamp2  type_handler_timestamp2;
 
-extern Type_handler_tiny_blob   type_handler_tiny_blob;
-extern Type_handler_blob        type_handler_blob;
-extern Type_handler_medium_blob type_handler_medium_blob;
-extern Type_handler_long_blob   type_handler_long_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
 
 class Type_aggregator
 {

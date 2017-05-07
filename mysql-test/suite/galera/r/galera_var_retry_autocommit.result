@@ -1,0 +1,32 @@
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.f2 = SLEEP(5);
+SET SESSION wsrep_retry_autocommit = 0;
+INSERT INTO t1 (f1) VALUES (1),(2);;
+TRUNCATE TABLE t1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SET SESSION wsrep_retry_autocommit = 1;
+INSERT INTO t1 (f1) VALUES (3),(4);;
+TRUNCATE TABLE t1;
+SELECT * FROM test.t1;
+f1	f2
+3	0
+4	0
+CREATE PROCEDURE repeated_truncate ()
+BEGIN
+DECLARE i INT;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET i = 0;
+WHILE i <= 1000 DO
+TRUNCATE TABLE t1;
+SET i = i + 1;
+END WHILE;
+END|
+CALL repeated_truncate();
+SET SESSION wsrep_retry_autocommit = 1;
+INSERT INTO t1 (f1) VALUES (5),(6);
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SET SESSION wsrep_retry_autocommit = 1024;
+INSERT INTO t1 (f1) VALUES (7),(8);;
+include/diff_servers.inc [servers=1 2]
+DROP TABLE t1;
+DROP PROCEDURE repeated_truncate;

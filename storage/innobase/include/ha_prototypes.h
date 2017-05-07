@@ -38,7 +38,6 @@ simple headers.
 class THD;
 
 // JAN: TODO missing features:
-#undef MYSQL_57_SELECT_COUNT_OPTIMIZATION
 #undef MYSQL_FT_INIT_EXT
 #undef MYSQL_INNODB_PARTITIONING
 #undef MYSQL_PFS

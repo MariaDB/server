@@ -3955,6 +3955,8 @@ i_s_fts_config_fill(
 		DBUG_RETURN(0);
 	}
 
+	DEBUG_SYNC_C("i_s_fts_config_fille_check");
+
 	fields = table->field;
 
 	/* Prevent DDL to drop fts aux tables. */
@@ -5147,6 +5149,10 @@ i_s_innodb_buffer_page_get_info(
 			block = reinterpret_cast<const buf_block_t*>(bpage);
 			frame = block->frame;
 #ifdef BTR_CUR_HASH_ADAPT
+			/* Note: this may be a false positive, that
+			is, block->index will not always be set to
+			NULL when the last adaptive hash index
+			reference is dropped. */
 			page_info->hashed = (block->index != NULL);
 #endif /* BTR_CUR_HASH_ADAPT */
 		} else {

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -488,7 +488,9 @@ dict_boot(void)
 	err = ibuf_init_at_db_start();
 
 	if (err == DB_SUCCESS) {
-		if (srv_read_only_mode && !ibuf_is_empty()) {
+		if (srv_read_only_mode
+		    && srv_force_recovery != SRV_FORCE_NO_LOG_REDO
+		    && !ibuf_is_empty()) {
 
 			if (srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE) {
 				ib::error() << "Change buffer must be empty when"

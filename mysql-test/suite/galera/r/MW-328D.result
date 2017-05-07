@@ -1,0 +1,20 @@
+CREATE TABLE t1 (i INT) ENGINE = InnoDB;
+INSERT INTO t1 (i) VALUES(1);
+CREATE TABLE t2 (i INT) ENGINE = InnoDB;
+connection node_1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+SELECT * FROM t1 WHERE i = 1 LOCK IN SHARE MODE;
+i
+1
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT IGNORE INTO t2 SELECT * FROM t1 WHERE i = 1 FOR UPDATE;;
+connection node_1;
+DELETE FROM t1 WHERE i = 1;
+COMMIT;
+connection node_1a;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1, t2;

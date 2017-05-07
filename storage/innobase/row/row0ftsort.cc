@@ -1144,7 +1144,7 @@ fts_parallel_merge(
 	os_event_set(psort_info->psort_common->merge_event);
 	psort_info->child_status = FTS_CHILD_EXITING;
 
-	os_thread_exit();
+	os_thread_exit(false);
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -1157,15 +1157,16 @@ row_fts_start_parallel_merge(
 	fts_psort_t*	merge_info)	/*!< in: parallel sort info */
 {
 	int		i = 0;
-	os_thread_id_t	thd_id;
 
 	/* Kick off merge/insert threads */
 	for (i = 0; i <  FTS_NUM_AUX_INDEX; i++) {
 		merge_info[i].psort_id = i;
 		merge_info[i].child_status = 0;
 
-		merge_info[i].thread_hdl = os_thread_create(fts_parallel_merge,
-			(void*) &merge_info[i], &thd_id);
+		merge_info[i].thread_hdl = os_thread_create(
+			fts_parallel_merge,
+			(void*) &merge_info[i],
+			&merge_info[i].thread_hdl);
 	}
 }
 
