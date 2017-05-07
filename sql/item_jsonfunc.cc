@@ -1258,6 +1258,7 @@ longlong Item_func_json_contains_path::val_int()
   longlong result;
   json_path_t p;
   int n_found;
+  LINT_INIT(n_found);
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -1985,6 +1986,7 @@ String *Item_func_json_merge::val_str(String *str)
   json_engine_t je1, je2;
   String *js1= args[0]->val_json(&tmp_js1), *js2;
   uint n_arg;
+  LINT_INIT(js2);
 
   if (args[0]->null_value)
     goto null_return;

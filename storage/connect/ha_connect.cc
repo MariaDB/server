@@ -2692,7 +2692,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
     htrc("Cond type=%d\n", cond->type());
 
   if (cond->type() == COND::COND_ITEM) {
-    char      *pb0, *pb1, *pb2, *ph0, *ph1, *ph2;
+    char      *pb0, *pb1, *pb2, *ph0= 0, *ph1= 0, *ph2= 0;
 		bool       bb = false, bh = false;
     Item_cond *cond_item= (Item_cond *)cond;
 

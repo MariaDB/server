@@ -2046,7 +2046,7 @@ innobase_release_temporary_latches(
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	if (!srv_was_started) {
-	} else if (trx_t* trx = thd_to_trx(thd)) {
+	} else if (trx_t* trx __attribute__((unused))= thd_to_trx(thd)) {
 		trx_assert_no_search_latch(trx);
 	}
 
@@ -13107,7 +13107,7 @@ create_table_info_t::set_tablespace_type(
 int
 create_table_info_t::initialize()
 {
-	trx_t*		parent_trx;
+	trx_t*		parent_trx __attribute__((unused));
 
 	DBUG_ENTER("create_table_info_t::initialize");
 

@@ -55,7 +55,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
   char kfilename[FN_REFLEN], klinkname[FN_REFLEN], *klinkname_ptr;
-  char dfilename[FN_REFLEN], dlinkname[FN_REFLEN], *dlinkname_ptr;
+  char dfilename[FN_REFLEN], dlinkname[FN_REFLEN], *dlinkname_ptr= 0;
   ulong pack_reclength;
   ulonglong tot_length,max_rows, tmp;
   enum en_fieldtype type;
