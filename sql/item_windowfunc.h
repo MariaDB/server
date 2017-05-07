@@ -303,8 +303,6 @@ class Item_sum_hybrid_simple : public Item_sum,
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   String *val_str(String *);
-  enum Item_result result_type() const
-  { return Type_handler_hybrid_field_type::result_type(); }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   void update_field();
@@ -509,7 +507,6 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
     row_number= 0;
   }
   bool add();
-  enum Item_result result_type () const { return REAL_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_double; }
 
   void fix_length_and_dec()
@@ -595,7 +592,6 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
   }
 
   void update_field() {}
-  enum Item_result result_type () const { return REAL_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_double; }
 
   void fix_length_and_dec()
@@ -672,7 +668,6 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
   void update_field() {}
 
-  enum Item_result result_type () const { return INT_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)

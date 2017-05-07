@@ -303,7 +303,6 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  enum Item_result result_type() const;
   const Type_handler *type_handler() const;
   void fix_length_and_dec();
 
@@ -394,7 +393,6 @@ public:
   }
   void no_rows_in_result();
 
-  enum Item_result result_type() const { return INT_RESULT;}
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   longlong val_int();
   double val_real();

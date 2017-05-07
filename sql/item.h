@@ -746,7 +746,7 @@ public:
     return type_handler();
   }
   /* result_type() of an item specifies how the value should be returned */
-  virtual Item_result result_type() const
+  Item_result result_type() const
   {
     return type_handler()->result_type();
   }
@@ -2230,8 +2230,6 @@ public:
   inline enum Type type() const;
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  enum Item_result result_type () const
-  { return Type_handler_hybrid_field_type::result_type(); }
   uint cols() const { return this_item()->cols(); }
   Item* element_index(uint i) { return this_item()->element_index(i); }
   Item** addr(uint i) { return this_item()->addr(i); }
@@ -2389,7 +2387,6 @@ public:
   Item **this_item_addr(THD *thd, Item **);
 
   inline enum Type type() const;
-  inline Item_result result_type() const;
   const Type_handler *type_handler() const { return this_item()->type_handler(); }
 
 public:
@@ -2413,12 +2410,6 @@ inline enum Item::Type Item_case_expr::type() const
 {
   return this_item()->type();
 }
-
-inline Item_result Item_case_expr::result_type() const
-{
-  return this_item()->result_type();
-}
-
 
 /*
   NAME_CONST(given_name, const_value). 
@@ -2455,11 +2446,6 @@ public:
   const Type_handler *type_handler() const
   {
     return value_item->type_handler();
-  }
-
-  Item_result result_type() const
-  {
-    return value_item->result_type();
   }
 
   bool const_item() const
@@ -2683,10 +2669,6 @@ public:
     const Type_handler *handler= field->type_handler();
     return handler->type_handler_for_item_field();
   }
-  enum Item_result result_type () const
-  {
-    return field->result_type();
-  }
   const Type_handler *cast_to_int_type_handler() const
   {
     return field->type_handler()->cast_to_int_type_handler();
@@ -2830,7 +2812,6 @@ public:
   { return get_item_copy<Item_field_row>(thd, mem_root, this); }
 
   const Type_handler *type_handler() const { return &type_handler_row; }
-  Item_result result_type() const{ return ROW_RESULT ; }
   uint cols() const { return arg_count; }
   bool element_index_by_name(uint *idx, const LEX_CSTRING &name) const;
   Item* element_index(uint i) { return arg_count ? args[i] : this; }
@@ -2909,7 +2890,6 @@ public:
   int save_in_field(Field *field, bool no_conversions);
   int save_safe_in_field(Field *field);
   bool send(Protocol *protocol, st_value *buffer);
-  enum Item_result result_type () const { return STRING_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_null; }
   bool basic_const_item() const { return 1; }
   Item *clone_item(THD *thd);
@@ -3089,8 +3069,6 @@ public:
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  enum Item_result result_type () const
-  { return Type_handler_hybrid_field_type::result_type(); }
 
   Item_param(THD *thd, const LEX_CSTRING *name_arg,
              uint pos_in_query_arg, uint len_in_query_arg);
@@ -3225,7 +3203,6 @@ public:
     }
   Item_int(THD *thd, const char *str_arg, uint length=64);
   enum Type type() const { return INT_ITEM; }
-  enum Item_result result_type () const { return INT_RESULT; }
   const Type_handler *type_handler() const
   {
     // The same condition is repeated in Item::create_tmp_field()
@@ -3317,7 +3294,6 @@ public:
   Item_decimal(THD *thd, const uchar *bin, int precision, int scale);
 
   enum Type type() const { return DECIMAL_ITEM; }
-  enum Item_result result_type () const { return DECIMAL_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   longlong val_int();
   double val_real();
@@ -3498,7 +3474,6 @@ public:
   }
   my_decimal *val_decimal(my_decimal *);
   int save_in_field(Field *field, bool no_conversions);
-  enum Item_result result_type () const { return STRING_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_varchar; }
   bool basic_const_item() const { return 1; }
   bool eq(const Item *item, bool binary_cmp) const
@@ -3770,7 +3745,6 @@ public:
     hex_string_init(thd, str, str_length);
   }
   enum Type type() const { return VARBIN_ITEM; }
-  enum Item_result result_type () const { return STRING_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_varchar; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   {
@@ -3907,7 +3881,6 @@ public:
   bool const_item() const { return true; }
   enum Type type() const { return DATE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
-  enum Item_result result_type () const { return STRING_RESULT; }
 
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
 
@@ -4305,7 +4278,6 @@ public:
   void save_org_in_field(Field *field, fast_field_copier optimizer_data);
   fast_field_copier setup_fast_field_copier(Field *field)
   { return (*ref)->setup_fast_field_copier(field); }
-  enum Item_result result_type () const { return (*ref)->result_type(); }
   const Type_handler *type_handler() const { return (*ref)->type_handler(); }
   const Type_handler *real_type_handler() const
   { return (*ref)->real_type_handler(); }
@@ -4603,7 +4575,6 @@ public:
   }
   int save_in_field(Field *to, bool no_conversions);
   const Type_handler *type_handler() const { return orig_item->type_handler(); }
-  enum Item_result result_type () const { return orig_item->result_type(); }
   table_map used_tables() const { return orig_item->used_tables(); }
   void update_used_tables()
   {
@@ -5023,8 +4994,6 @@ public:
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  enum Item_result result_type () const
-  { return Type_handler_hybrid_field_type::result_type(); }
 
   void make_field(THD *thd, Send_field *field) { item->make_field(thd, field); }
   table_map used_tables() const { return (table_map) 1L; }
@@ -5551,8 +5520,6 @@ public:
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  enum Item_result result_type () const
-  { return Type_handler_hybrid_field_type::result_type(); }
 
   virtual void keep_array() {}
   virtual void print(String *str, enum_query_type query_type);
@@ -5653,7 +5620,6 @@ public:
   longlong val_int();
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type() const { return INT_RESULT; }
   bool cache_value();
   int save_in_field(Field *field, bool no_conversions);
   Item *convert_to_basic_const_item(THD *thd);
@@ -5699,7 +5665,6 @@ public:
   longlong val_int();
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type() const { return REAL_RESULT; }
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -5718,7 +5683,6 @@ public:
   longlong val_int();
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type() const { return DECIMAL_RESULT; }
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -5745,7 +5709,6 @@ public:
   longlong val_int();
   String* val_str(String *);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type() const { return STRING_RESULT; }
   CHARSET_INFO *charset() const { return value->charset(); };
   int save_in_field(Field *field, bool no_conversions);
   bool cache_value();
@@ -5827,8 +5790,6 @@ public:
     return 0;
   };
 
-  enum Item_result result_type() const { return ROW_RESULT; }
-  
   uint cols() const { return item_count; }
   Item *element_index(uint i) { return values[i]; }
   Item **addr(uint i) { return (Item **) (values + i); }
@@ -5877,22 +5838,6 @@ public:
   {
     const Type_handler *handler= Type_handler_hybrid_field_type::type_handler();
     return handler->type_handler_for_item_field();
-  }
-  enum Item_result result_type () const
-  {
-    /*
-      In 10.1 Item_type_holder::result_type() returned
-      Field::result_merge_type(field_type()), which returned STRING_RESULT
-      for the BIT data type. In 10.2 it returns INT_RESULT, similar
-      to what Field_bit::result_type() does. This should not be
-      important because Item_type_holder is a limited purpose Item
-      and its result_type() should not be called from outside of
-      Item_type_holder. It's called only internally from decimal_int_part()
-      from join_types(), to calculate "decimals" of the result data type.
-      As soon as we get BIT as one of the joined types, the result field
-      type cannot be numeric: it's either BIT, or VARBINARY.
-    */
-    return Type_handler_hybrid_field_type::result_type();
   }
   const Type_handler *real_type_handler() const
   {

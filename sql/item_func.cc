@@ -4745,7 +4745,7 @@ Item_func_set_user_var::check(bool use_result_field)
   if (use_result_field && !result_field)
     use_result_field= FALSE;
 
-  switch (Item_func_set_user_var::result_type()) {
+  switch (result_type()) {
   case REAL_RESULT:
   {
     save_result.vreal= use_result_field ? result_field->val_real() :
@@ -4838,7 +4838,7 @@ Item_func_set_user_var::update()
   bool res= 0;
   DBUG_ENTER("Item_func_set_user_var::update");
 
-  switch (Item_func_set_user_var::result_type()) {
+  switch (result_type()) {
   case REAL_RESULT:
   {
     res= update_hash((void*) &save_result.vreal,sizeof(save_result.vreal),
@@ -5308,7 +5308,7 @@ void Item_func_get_user_var::fix_length_and_dec()
     max_length= m_var_entry->length;
     collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
     set_handler_by_result_type(m_var_entry->type);
-    switch (Item_func_get_user_var::result_type()) {
+    switch (result_type()) {
     case REAL_RESULT:
       fix_char_length(DBL_DIG + 8);
       break;
@@ -5583,32 +5583,6 @@ void Item_func_get_system_var::print(String *str, enum_query_type query_type)
 bool Item_func_get_system_var::check_vcol_func_processor(void *arg)
 {
   return mark_unsupported_function("@@", var->name.str, arg, VCOL_SESSION_FUNC);
-}
-
-enum Item_result Item_func_get_system_var::result_type() const
-{
-  switch (var->show_type())
-  {
-    case SHOW_BOOL:
-    case SHOW_MY_BOOL:
-    case SHOW_SINT:
-    case SHOW_SLONG:
-    case SHOW_SLONGLONG:
-    case SHOW_UINT:
-    case SHOW_ULONG:
-    case SHOW_ULONGLONG:
-    case SHOW_HA_ROWS:
-      return INT_RESULT;
-    case SHOW_CHAR: 
-    case SHOW_CHAR_PTR: 
-    case SHOW_LEX_STRING:
-      return STRING_RESULT;
-    case SHOW_DOUBLE:
-      return REAL_RESULT;
-    default:
-      my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
-      return STRING_RESULT;                   // keep the compiler happy
-  }
 }
 
 
@@ -6453,20 +6427,13 @@ Item_func_sp::make_field(THD *thd, Send_field *tmp_field)
 const Type_handler *Item_func_sp::type_handler() const
 {
   DBUG_ENTER("Item_func_sp::type_handler");
+  DBUG_PRINT("info", ("m_sp = %p", (void *) m_sp));
   DBUG_ASSERT(sp_result_field);
   // This converts ENUM/SET to STRING
   const Type_handler *handler= sp_result_field->type_handler();
   DBUG_RETURN(handler->type_handler_for_item_field());
 }
 
-Item_result
-Item_func_sp::result_type() const
-{
-  DBUG_ENTER("Item_func_sp::result_type");
-  DBUG_PRINT("info", ("m_sp = %p", (void *) m_sp));
-  DBUG_ASSERT(sp_result_field);
-  DBUG_RETURN(sp_result_field->result_type());
-}
 
 longlong Item_func_found_rows::val_int()
 {

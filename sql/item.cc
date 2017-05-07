@@ -9840,7 +9840,7 @@ Item_type_holder::Item_type_holder(THD *thd, Item *item)
   DBUG_ASSERT(item->fixed);
   maybe_null= item->maybe_null;
   get_full_info(item);
-  DBUG_ASSERT(!decimals || Item_type_holder::result_type() != INT_RESULT);
+  DBUG_ASSERT(!decimals || result_type() != INT_RESULT);
   prev_decimal_int_part= item->decimal_int_part();
 }
 
@@ -9889,14 +9889,14 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     which is on the right side of the UNION, the data type handler
     changes to type_handler_longlong, while decimals is still NOT_FIXED_DEC.
   */
-  if (Item_type_holder::result_type() == INT_RESULT)
+  if (result_type() == INT_RESULT)
     decimals= 0;
   else
     decimals= MY_MAX(decimals, item->decimals);
 
   Type_geometry_attributes::join(item);
 
-  if (Item_type_holder::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
   {
     decimals= MY_MIN(MY_MAX(decimals, item->decimals), DECIMAL_MAX_SCALE);
     int item_int_part= item->decimal_int_part();
@@ -9908,7 +9908,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
                                                              unsigned_flag);
   }
 
-  switch (Item_type_holder::result_type())
+  switch (result_type())
   {
   case STRING_RESULT:
   {

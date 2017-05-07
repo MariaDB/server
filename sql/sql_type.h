@@ -2267,7 +2267,6 @@ public:
   {
     return m_type_handler->real_field_type();
   }
-  Item_result result_type() const { return m_type_handler->result_type(); }
   Item_result cmp_type() const { return m_type_handler->cmp_type(); }
   enum_mysql_timestamp_type mysql_timestamp_type() const
   {

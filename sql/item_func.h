@@ -370,7 +370,6 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value);
   longlong val_int()
     { DBUG_ASSERT(fixed == 1); return (longlong) rint(val_real()); }
-  enum Item_result result_type () const { return REAL_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_double; }
   void fix_length_and_dec()
   { decimals= NOT_FIXED_DEC; max_length= float_length(decimals); }
@@ -397,8 +396,6 @@ public:
     :Item_func(thd, item), Type_handler_hybrid_field_type(item) { }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  enum Item_result result_type () const
-  { return Type_handler_hybrid_field_type::result_type(); }
   Field::geometry_type get_geometry_type() const
   { return Type_geometry_attributes::get_geometry_type(); };
 };
@@ -731,7 +728,6 @@ public:
   { collation.set_numeric(); }
   double val_real();
   String *val_str(String*str);
-  enum Item_result result_type () const { return INT_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec() {}
 };
@@ -903,7 +899,6 @@ public:
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal*);
-  enum Item_result result_type () const { return DECIMAL_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec_generic() {}
   void fix_length_and_dec()
@@ -1539,7 +1534,6 @@ public:
   my_decimal *val_decimal(my_decimal *dec) { return args[0]->val_decimal(dec); }
   const char *func_name() const { return "rollup_const"; }
   bool const_item() const { return 0; }
-  Item_result result_type() const { return args[0]->result_type(); }
   const Type_handler *type_handler() const { return args[0]->type_handler(); }
   void fix_length_and_dec()
   {
@@ -1913,7 +1907,6 @@ public:
     }
   }
   void cleanup();
-  Item_result result_type () const { return udf.result_type(); }
   table_map not_null_tables() const { return 0; }
   bool is_expensive() { return 1; }
   virtual void print(String *str, enum_query_type query_type);
@@ -1965,7 +1958,6 @@ public:
   longlong val_int();
   double val_real() { return (double) Item_func_udf_int::val_int(); }
   String *val_str(String *str);
-  enum Item_result result_type () const { return INT_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec() { decimals= 0; max_length= 21; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1984,7 +1976,6 @@ public:
   double val_real();
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String *str);
-  enum Item_result result_type () const { return DECIMAL_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -2024,7 +2015,6 @@ public:
     string2my_decimal(E_DEC_FATAL_ERROR, res, dec_buf);
     return dec_buf;
   }
-  enum Item_result result_type () const { return STRING_RESULT; }
   const Type_handler *type_handler() const { return string_type_handler(); }
   void fix_length_and_dec();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -2077,7 +2067,6 @@ public:
     { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
   double val_real() { DBUG_ASSERT(fixed == 1); null_value= 1; return 0.0; }
   longlong val_int() { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
-  enum Item_result result_type () const { return STRING_RESULT; }
   void fix_length_and_dec() { maybe_null=1; max_length=0; }
 };
 
@@ -2390,7 +2379,6 @@ public:
   void print(String *str, enum_query_type query_type);
   bool const_item() const { return true; }
   table_map used_tables() const { return 0; }
-  enum Item_result result_type() const;
   const Type_handler *type_handler() const;
   double val_real();
   longlong val_int();
@@ -2661,8 +2649,6 @@ public:
   }
   void make_field(THD *thd, Send_field *tmp_field);
 
-  Item_result result_type() const;
-
   longlong val_int()
   {
     if (execute())
@@ -2834,7 +2820,6 @@ public:
   String *val_str(String *);
   my_decimal *val_decimal(my_decimal *);
   void fix_length_and_dec();
-  enum Item_result result_type () const { return last_value->result_type(); }
   const char *func_name() const { return "last_value"; }
   table_map not_null_tables() const { return 0; }
   const Type_handler *type_handler() const { return last_value->type_handler(); }

@@ -155,7 +155,6 @@ public:
     return str;
   }
   const char *func_name() const { return "month"; }
-  enum Item_result result_type () const { return INT_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec()
   { 
@@ -405,7 +404,6 @@ public:
   {
      return (odbc_type ? "dayofweek" : "weekday");
   }
-  enum Item_result result_type () const { return INT_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec()
   {
@@ -430,7 +428,6 @@ class Item_func_dayname :public Item_func_weekday
   Item_func_dayname(THD *thd, Item *a): Item_func_weekday(thd, a, 0) {}
   const char *func_name() const { return "dayname"; }
   String *val_str(String *str);
-  enum Item_result result_type () const { return STRING_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_varchar; }
   void fix_length_and_dec();
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
@@ -527,7 +524,6 @@ public:
   Item_temporal_func(THD *thd, Item *a): Item_func(thd, a) {}
   Item_temporal_func(THD *thd, Item *a, Item *b): Item_func(thd, a, b) {}
   Item_temporal_func(THD *thd, Item *a, Item *b, Item *c): Item_func(thd, a, b, c) {}
-  enum Item_result result_type () const { return STRING_RESULT; }
   String *val_str(String *str);
   longlong val_int() { return val_int_from_date(); }
   double val_real() { return val_real_from_date(); }

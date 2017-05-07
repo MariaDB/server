@@ -71,7 +71,6 @@ public:
   {
      decimals=dec; max_length=float_length(dec);
   }
-  enum Item_result result_type () const { return REAL_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_double; }
   void set(double nr) { value=nr; }
   void set(longlong nr) { value=(double) nr; }
@@ -98,7 +97,6 @@ class Item_proc_int :public Item_proc
 public:
   Item_proc_int(THD *thd, const char *name_par): Item_proc(thd, name_par)
   { max_length=11; }
-  enum Item_result result_type () const { return INT_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   void set(double nr) { value=(longlong) nr; }
   void set(longlong nr) { value=nr; }
@@ -117,7 +115,6 @@ class Item_proc_string :public Item_proc
 public:
   Item_proc_string(THD *thd, const char *name_par, uint length):
     Item_proc(thd, name_par) { this->max_length=length; }
-  enum Item_result result_type () const { return STRING_RESULT; }
   const Type_handler *type_handler() const { return &type_handler_varchar; }
   void set(double nr) { str_value.set_real(nr, 2, default_charset()); }
   void set(longlong nr) { str_value.set(nr, default_charset()); }

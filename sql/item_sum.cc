@@ -1229,7 +1229,7 @@ Item_sum_sum::Item_sum_sum(THD *thd, Item_sum_sum *item)
    count(item->count)
 {
   /* TODO: check if the following assignments are really needed */
-  if (Item_sum_sum::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
   {
     my_decimal2decimal(item->dec_buffs, dec_buffs);
     my_decimal2decimal(item->dec_buffs + 1, dec_buffs + 1);
@@ -1249,7 +1249,7 @@ void Item_sum_sum::clear()
   DBUG_ENTER("Item_sum_sum::clear");
   null_value=1;
   count= 0;
-  if (Item_sum_sum::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
   {
     curr_dec_buff= 0;
     my_decimal_set_zero(dec_buffs);
@@ -1304,7 +1304,7 @@ void Item_sum_sum::add_helper(bool perform_removal)
 {
   DBUG_ENTER("Item_sum_sum::add_helper");
 
-  if (Item_sum_sum::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
   {
     my_decimal value;
     const my_decimal *val= aggr->arg_val_decimal(&value);
@@ -1361,7 +1361,7 @@ longlong Item_sum_sum::val_int()
   DBUG_ASSERT(fixed == 1);
   if (aggr)
     aggr->endup();
-  if (Item_sum_sum::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
   {
     longlong result;
     my_decimal2int(E_DEC_FATAL_ERROR, dec_buffs + curr_dec_buff, unsigned_flag,
@@ -1377,7 +1377,7 @@ double Item_sum_sum::val_real()
   DBUG_ASSERT(fixed == 1);
   if (aggr)
     aggr->endup();
-  if (Item_sum_sum::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
     my_decimal2double(E_DEC_FATAL_ERROR, dec_buffs + curr_dec_buff, &sum);
   return sum;
 }
@@ -1387,7 +1387,7 @@ String *Item_sum_sum::val_str(String *str)
 {
   if (aggr)
     aggr->endup();
-  if (Item_sum_sum::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
     return val_string_from_decimal(str);
   return val_string_from_real(str);
 }
@@ -1397,7 +1397,7 @@ my_decimal *Item_sum_sum::val_decimal(my_decimal *val)
 {
   if (aggr)
     aggr->endup();
-  if (Item_sum_sum::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
     return null_value ? NULL : (dec_buffs + curr_dec_buff);
   return val_decimal_from_real(val);
 }
@@ -1642,7 +1642,7 @@ Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
       and unpack on access.
     */
     Field *field= new (table->in_use->mem_root)
-      Field_string(((Item_sum_avg::result_type() == DECIMAL_RESULT) ?
+      Field_string(((result_type() == DECIMAL_RESULT) ?
                    dec_bin_size : sizeof(double)) + sizeof(longlong),
                    0, &name, &my_charset_bin);
     if (field)
@@ -1710,7 +1710,7 @@ my_decimal *Item_sum_avg::val_decimal(my_decimal *val)
     For non-DECIMAL result_type() the division will be done in
     Item_sum_avg::val_real().
   */
-  if (Item_sum_avg::result_type() != DECIMAL_RESULT)
+  if (result_type() != DECIMAL_RESULT)
     return val_decimal_from_real(val);
 
   sum_dec= dec_buffs + curr_dec_buff;
@@ -1724,7 +1724,7 @@ String *Item_sum_avg::val_str(String *str)
 {
   if (aggr)
     aggr->endup();
-  if (Item_sum_avg::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
     return val_string_from_decimal(str);
   return val_string_from_real(str);
 }
@@ -2307,7 +2307,7 @@ void Item_sum_num::reset_field()
 
 void Item_sum_hybrid::reset_field()
 {
-  switch(Item_sum_hybrid::result_type()) {
+  switch(result_type()) {
   case STRING_RESULT:
   {
     char buff[MAX_FIELD_WIDTH];
@@ -2390,7 +2390,7 @@ void Item_sum_hybrid::reset_field()
 void Item_sum_sum::reset_field()
 {
   DBUG_ASSERT (aggr->Aggrtype() != Aggregator::DISTINCT_AGGREGATOR);
-  if (Item_sum_sum::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
   {
     my_decimal value, *arg_val= args[0]->val_decimal(&value);
     if (!arg_val)                               // Null
@@ -2426,7 +2426,7 @@ void Item_sum_avg::reset_field()
 {
   uchar *res=result_field->ptr;
   DBUG_ASSERT (aggr->Aggrtype() != Aggregator::DISTINCT_AGGREGATOR);
-  if (Item_sum_avg::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
   {
     longlong tmp;
     my_decimal value, *arg_dec= args[0]->val_decimal(&value);
@@ -2484,7 +2484,7 @@ void Item_sum_bit::update_field()
 void Item_sum_sum::update_field()
 {
   DBUG_ASSERT (aggr->Aggrtype() != Aggregator::DISTINCT_AGGREGATOR);
-  if (Item_sum_sum::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
   {
     my_decimal value, *arg_val= args[0]->val_decimal(&value);
     if (!args[0]->null_value)
@@ -2539,7 +2539,7 @@ void Item_sum_avg::update_field()
 
   DBUG_ASSERT (aggr->Aggrtype() != Aggregator::DISTINCT_AGGREGATOR);
 
-  if (Item_sum_avg::result_type() == DECIMAL_RESULT)
+  if (result_type() == DECIMAL_RESULT)
   {
     my_decimal value, *arg_val= args[0]->val_decimal(&value);
     if (!args[0]->null_value)
@@ -2578,7 +2578,7 @@ void Item_sum_avg::update_field()
 Item *Item_sum_avg::result_item(THD *thd, Field *field)
 {
   return
-    Item_sum_avg::result_type() == DECIMAL_RESULT ?
+    result_type() == DECIMAL_RESULT ?
     (Item_avg_field*) new (thd->mem_root) Item_avg_field_decimal(thd, this) :
     (Item_avg_field*) new (thd->mem_root) Item_avg_field_double(thd, this);
 }
@@ -2586,7 +2586,7 @@ Item *Item_sum_avg::result_item(THD *thd, Field *field)
 
 void Item_sum_hybrid::update_field()
 {
-  switch (Item_sum_hybrid::result_type()) {
+  switch (result_type()) {
   case STRING_RESULT:
     min_max_update_str_field();
     break;

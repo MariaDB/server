@@ -1172,11 +1172,6 @@ void Item_singlerow_subselect::store(uint i, Item *item)
   row[i]->cache_value();
 }
 
-enum Item_result Item_singlerow_subselect::result_type() const
-{
-  return engine->result_type();
-}
-
 const Type_handler *Item_singlerow_subselect::type_handler() const
 {
   return engine->type_handler();

@@ -250,7 +250,7 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
     set_handler_by_result_type(item2->result_type(),
                                max_length, collation.collation);
 
-  switch (Item_sum_hybrid_simple::result_type()) {
+  switch (result_type()) {
   case INT_RESULT:
   case DECIMAL_RESULT:
   case STRING_RESULT:
@@ -352,7 +352,7 @@ Field *Item_sum_hybrid_simple::create_tmp_field(bool group, TABLE *table)
 
 void Item_sum_hybrid_simple::reset_field()
 {
-  switch(Item_sum_hybrid_simple::result_type()) {
+  switch(result_type()) {
   case STRING_RESULT:
   {
     char buff[MAX_FIELD_WIDTH];
