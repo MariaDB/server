@@ -1279,11 +1279,19 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       while(tag && strcmp(tag->field.c_ptr(), item->name) != 0)
         tag= xmlit++;
       
+      Item_field *real_item= item->field_for_view_update();
       if (!tag) // found null
       {
-        if (item->type() == Item::FIELD_ITEM)
+        if (item->type() == Item::STRING_ITEM)
+          ((Item_user_var_as_out_param *) item)->set_null_value(cs);
+        else if (!real_item)
         {
-          Field *field= ((Item_field *) item)->field;
+          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+          DBUG_RETURN(1);
+        }
+        else
+        {
+          Field *field= real_item->field;
           field->reset();
           field->set_null();
           if (field == table->next_number_field)
@@ -1299,12 +1307,19 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           /* Do not auto-update this field. */
           field->set_has_explicit_value();
         }
-        else
-          ((Item_user_var_as_out_param *) item)->set_null_value(cs);
         continue;
       }
 
-      if (item->type() == Item::FIELD_ITEM)
+      if (item->type() == Item::STRING_ITEM)
+        ((Item_user_var_as_out_param *) item)->set_value(
+                                                 (char *) tag->value.ptr(),
+                                                 tag->value.length(), cs);
+      else if (!real_item)
+      {
+        my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+        DBUG_RETURN(1);
+      }
+      else
       {
 
         Field *field= ((Item_field *)item)->field;
@@ -1314,10 +1329,6 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         field->store((char *) tag->value.ptr(), tag->value.length(), cs);
         field->set_has_explicit_value();
       }
-      else
-        ((Item_user_var_as_out_param *) item)->set_value(
-                                                 (char *) tag->value.ptr(), 
-                                                 tag->value.length(), cs);
     }
     
     if (read_info.error)
@@ -1337,7 +1348,15 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       
       for ( ; item; item= it++)
       {
-        if (item->type() == Item::FIELD_ITEM)
+        Item_field *real_item= item->field_for_view_update();
+        if (item->type() == Item::STRING_ITEM)
+          ((Item_user_var_as_out_param *)item)->set_null_value(cs);
+        else if (!real_item)
+        {
+          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+          DBUG_RETURN(1);
+        }
+        else
         {
           /*
             QQ: We probably should not throw warning for each field.
@@ -1351,8 +1370,6 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                               ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
                               thd->get_stmt_da()->current_row_for_warning());
         }
-        else
-          ((Item_user_var_as_out_param *)item)->set_null_value(cs);
       }
     }
 
