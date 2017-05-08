@@ -11,6 +11,8 @@
 call mtr.add_suppression("InnoDB: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
 call mtr.add_suppression("InnoDB: Cannot open table test/t1 from the internal data dictionary of InnoDB though the .frm file for the table exists. Please refer to http://dev.mysql.com/doc/refman/5.7/en/innodb-troubleshooting.html for how to resolve the issue.");
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed file read of tablespace test/t1 page \[page id: space=[0-9]+, page number=[0-9]+\]. You may have to recover from a backup.");
+call mtr.add_suppression("InnoDB: We detected index corruption in an InnoDB type table.*");
+call mtr.add_suppression("mysqld: Index for table 't1' is corrupt; try to repair it");
 --enable_query_log
 
 --echo # Create and populate the table to be corrupted
@@ -63,18 +65,16 @@ EOF
 
 --source include/start_mysqld.inc
 
---echo # The below SELECT query will return that table is not
---echo # in engine because table is corrupted
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--echo # Now t1 is corrupted but we should not crash
+
+--error 1030,1712,1932
 SELECT * FROM t1;
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error 126,1030,1034,1712,1932
 INSERT INTO t1(b) VALUES('abcdef');
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error 1030,1712,1932
 UPDATE t1 set b = 'deadbeef' where a = 1;
 
-CHECK TABLE t1;
-
---echo # Cleanup
+--echo # Cleanup, this must be possible
 DROP TABLE t1;
