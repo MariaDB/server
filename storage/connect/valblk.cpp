@@ -1,5 +1,5 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALBLK.CPP  Version 2.2                                      */
+/*  Name: VALBLK.CPP  Version 2.3                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
 /*                                                                     */
@@ -145,7 +145,7 @@ PSZ VALBLK::GetCharValue(int)
 /***********************************************************************/
 /*  Set format so formatted dates can be converted on input.           */
 /***********************************************************************/
-bool VALBLK::SetFormat(PGLOBAL g, PSZ, int, int)
+bool VALBLK::SetFormat(PGLOBAL g, PCSZ, int, int)
   {
   sprintf(g->Message, MSG(NO_DATE_FMT), Type);
   return true;
@@ -335,7 +335,7 @@ uchar TYPBLK<uchar>::GetTypedValue(PVAL valp)
 /*  Set one value in a block from a zero terminated string.            */
 /***********************************************************************/
 template <class TYPE>
-void TYPBLK<TYPE>::SetValue(PSZ p, int n)
+void TYPBLK<TYPE>::SetValue(PCSZ p, int n)
   {
   ChkIndx(n);
 
@@ -385,7 +385,7 @@ template <>
 ulonglong TYPBLK<ulonglong>::MaxVal(void) {return ULONGLONG_MAX;}
 
 template <>
-void TYPBLK<double>::SetValue(PSZ p, int n)
+void TYPBLK<double>::SetValue(PCSZ p, int n)
   {
   ChkIndx(n);
 
@@ -403,7 +403,7 @@ void TYPBLK<double>::SetValue(PSZ p, int n)
 /*  Set one value in a block from an array of characters.              */
 /***********************************************************************/
 template <class TYPE>
-void TYPBLK<TYPE>::SetValue(char *sp, uint len, int n)
+void TYPBLK<TYPE>::SetValue(PCSZ sp, uint len, int n)
   {
   PGLOBAL& g = Global;
   PSZ spz = (PSZ)PlugSubAlloc(g, NULL, 0);    // Temporary
@@ -778,7 +778,7 @@ void CHRBLK::SetValue(PVAL valp, int n)
 /***********************************************************************/
 /*  Set one value in a block from a zero terminated string.            */
 /***********************************************************************/
-void CHRBLK::SetValue(PSZ sp, int n)
+void CHRBLK::SetValue(PCSZ sp, int n)
   {
   uint len = (sp) ? strlen(sp) : 0;
   SetValue(sp, len, n);
@@ -787,7 +787,7 @@ void CHRBLK::SetValue(PSZ sp, int n)
 /***********************************************************************/
 /*  Set one value in a block from an array of characters.              */
 /***********************************************************************/
-void CHRBLK::SetValue(char *sp, uint len, int n)
+void CHRBLK::SetValue(const char *sp, uint len, int n)
   {
   char  *p = Chrp + n * Long;
 
@@ -1152,7 +1152,7 @@ void STRBLK::SetValue(PVAL valp, int n)
 /***********************************************************************/
 /*  Set one value in a block from a zero terminated string.            */
 /***********************************************************************/
-void STRBLK::SetValue(PSZ p, int n)
+void STRBLK::SetValue(PCSZ p, int n)
   {
   if (p) {
     if (!Sorted || !n || !Strp[n-1] || strcmp(p, Strp[n-1]))
@@ -1168,7 +1168,7 @@ void STRBLK::SetValue(PSZ p, int n)
 /***********************************************************************/
 /*  Set one value in a block from an array of characters.              */
 /***********************************************************************/
-void STRBLK::SetValue(char *sp, uint len, int n)
+void STRBLK::SetValue(const char *sp, uint len, int n)
   {
   PSZ p;
 
@@ -1316,7 +1316,7 @@ DATBLK::DATBLK(void *mp, int nval) : TYPBLK<int>(mp, nval, TYPE_INT)
 /***********************************************************************/
 /*  Set format so formatted dates can be converted on input.           */
 /***********************************************************************/
-bool DATBLK::SetFormat(PGLOBAL g, PSZ fmt, int len, int year)
+bool DATBLK::SetFormat(PGLOBAL g, PCSZ fmt, int len, int year)
   {
   if (!(Dvalp = AllocateValue(g, TYPE_DATE, len, year, false, fmt)))
     return true;
@@ -1343,7 +1343,7 @@ char *DATBLK::GetCharString(char *p, int n)
 /***********************************************************************/
 /*  Set one value in a block from a char string.                       */
 /***********************************************************************/
-void DATBLK::SetValue(PSZ p, int n)
+void DATBLK::SetValue(PCSZ p, int n)
   {
   if (Dvalp) {
     // Decode the string according to format

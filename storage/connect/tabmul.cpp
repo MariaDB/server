@@ -924,7 +924,7 @@ void TDBDIR::CloseDB(PGLOBAL)
 /***********************************************************************/
 /*  DIRCOL public constructor.                                         */
 /***********************************************************************/
-DIRCOL::DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
+DIRCOL::DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ)
   : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
@@ -1556,8 +1556,8 @@ void TDBDHR::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  DHRCOL public constructor.                                         */
 /***********************************************************************/
-DHRCOL::DHRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
-  : COLBLK(cdp, tdbp, i)
+DHRCOL::DHRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
+      : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
     Next = cprec->GetNext();

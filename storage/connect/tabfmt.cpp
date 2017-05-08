@@ -81,7 +81,7 @@ USETEMP UseTemp(void);
 /* of types (TYPE_STRING < TYPE_DOUBLE < TYPE_INT) (1 < 2 < 7).        */
 /* If these values are changed, this will have to be revisited.        */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
+PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,   TYPE_INT, TYPE_SHORT};
@@ -153,7 +153,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 		tdp->Lrecl = 4096;
 
 	tdp->Multiple = GetIntegerTableOption(g, topt, "Multiple", 0);
-	p = GetStringTableOption(g, topt, "Separator", ",");
+	p = (char*)GetStringTableOption(g, topt, "Separator", ",");
 	tdp->Sep = (strlen(p) == 2 && p[0] == '\\' && p[1] == 't') ? '\t' : *p;
 
 #if defined(__WIN__)
@@ -167,7 +167,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 
 	sep = tdp->Sep;
 	tdp->Quoted = GetIntegerTableOption(g, topt, "Quoted", -1);
-	p = GetStringTableOption(g, topt, "Qchar", "");
+	p = (char*)GetStringTableOption(g, topt, "Qchar", "");
 	tdp->Qot = *p;
 
 	if (tdp->Qot && tdp->Quoted < 0)
@@ -517,7 +517,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
     /*******************************************************************/
 		if (Zipped) {
 #if defined(ZIP_SUPPORT)
-			if (mode == MODE_READ || mode == MODE_ANY) {
+			if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
 				txfp = new(g) UNZFAM(this);
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);

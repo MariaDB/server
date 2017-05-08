@@ -83,8 +83,8 @@ public:
 
 protected:
 	// Members
-	const char *Uri;							/* MongoDB connection URI              */
-	char *Colist;                 /* Options list                        */
+	PCSZ  Uri;							      /* MongoDB connection URI              */
+	PCSZ  Colist;                 /* Options list                        */
 	char *Filter;									/* Filtering query                     */						
 	int   Level;                  /* Used for catalog table              */
 	int   Base;                   /* The array index base                */

@@ -355,7 +355,7 @@ void TDBINI::CloseDB(PGLOBAL)
 /***********************************************************************/
 /*  INICOL public constructor.                                         */
 /***********************************************************************/
-INICOL::INICOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
+INICOL::INICOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ)
   : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
@@ -769,7 +769,7 @@ int TDBXIN::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  XINCOL public constructor.                                         */
 /***********************************************************************/
-XINCOL::XINCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+XINCOL::XINCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
       : INICOL(cdp, tdbp, cprec, i, am)
   {
   } // end of XINCOL constructor

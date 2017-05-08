@@ -269,7 +269,7 @@ int TDBVIR::DeleteDB(PGLOBAL g, int)
 /***********************************************************************/
 /*  VIRCOL public constructor.                                         */
 /***********************************************************************/
-VIRCOL::VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
+VIRCOL::VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ)
       : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {

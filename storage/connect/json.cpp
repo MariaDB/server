@@ -309,16 +309,16 @@ PJVAL ParseValue(PGLOBAL g, int& i, STRG& src, bool *pty)
   PJVAL jvp = new(g) JVALUE;
 
   for (; i < len; i++)
-    switch (s[i]) {
-		case '\n':
-			pty[0] = pty[1] = false;
-		case '\r':
-		case ' ':
-      case '\t':
-        break;
-      default:
-        goto suite;
-    } // endswitch
+		switch (s[i]) {
+			case '\n':
+				pty[0] = pty[1] = false;
+			case '\r':
+			case ' ':
+			case '\t':
+				break;
+			default:
+				goto suite;
+		} // endswitch
 
  suite:
   switch (s[i]) {
@@ -936,7 +936,7 @@ return false;
 /***********************************************************************/
 /* Add a new pair to an Object.                                        */
 /***********************************************************************/
-PJPR JOBJECT::AddPair(PGLOBAL g, PSZ key)
+PJPR JOBJECT::AddPair(PGLOBAL g, PCSZ key)
 {
   PJPR jpp = new(g) JPAIR(key);
 
@@ -1022,7 +1022,7 @@ bool JOBJECT::Merge(PGLOBAL g, PJSON jsp)
 /***********************************************************************/
 /* Set or add a value corresponding to the given key.                  */
 /***********************************************************************/
-void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PSZ key)
+void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PCSZ key)
 {
 	PJPR jp;
 
@@ -1042,7 +1042,7 @@ void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PSZ key)
 /***********************************************************************/
 /* Delete a value corresponding to the given key.                  */
 /***********************************************************************/
-void JOBJECT::DeleteKey(PSZ key)
+void JOBJECT::DeleteKey(PCSZ key)
 {
 	PJPR jp, *pjp = &First;
 
@@ -1221,10 +1221,10 @@ JVALUE::JVALUE(PGLOBAL g, PVAL valp) : JSON()
 /***********************************************************************/
 /* Constructor for a given string.                                     */
 /***********************************************************************/
-JVALUE::JVALUE(PGLOBAL g, PSZ strp) : JSON()
+JVALUE::JVALUE(PGLOBAL g, PCSZ strp) : JSON()
 {
 	Jsp = NULL;
-	Value = AllocateValue(g, strp, TYPE_STRING);
+	Value = AllocateValue(g, (void*)strp, TYPE_STRING);
 	Next = NULL;
 	Del = false;
 } // end of JVALUE constructor
@@ -1345,7 +1345,7 @@ void JVALUE::SetTiny(PGLOBAL g, char n)
 {
 	Value = AllocateValue(g, &n, TYPE_TINY);
 	Jsp = NULL;
-} // end of SetInteger
+} // end of SetTiny
 
 /***********************************************************************/
 /* Set the Value's value as the given big integer.                     */
@@ -1379,6 +1379,6 @@ void JVALUE::SetString(PGLOBAL g, PSZ s, short c)
 /***********************************************************************/
 bool JVALUE::IsNull(void)
 {
-  return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsZero() : true;
+  return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsNull() : true;
 } // end of IsNull
 

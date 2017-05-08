@@ -89,7 +89,7 @@ DOMDOC::DOMDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
 /******************************************************************/
 /*  Initialize XML parser and check library compatibility.        */
 /******************************************************************/
-bool DOMDOC::Initialize(PGLOBAL g, char *entry, bool zipped)
+bool DOMDOC::Initialize(PGLOBAL g, PCSZ entry, bool zipped)
 {
 	if (zipped && InitZip(g, entry))
 		return true;
@@ -155,7 +155,7 @@ PFBLOCK DOMDOC::LinkXblock(PGLOBAL g, MODE m, int rc, char *fn)
 /******************************************************************/
 /* Create the XML node.                                           */
 /******************************************************************/
-bool DOMDOC::NewDoc(PGLOBAL g, char *ver)
+bool DOMDOC::NewDoc(PGLOBAL g, PCSZ ver)
   {
   char buf[64];
   MSXML2::IXMLDOMProcessingInstructionPtr pip;
@@ -490,9 +490,9 @@ PXATTR DOMNODE::GetAttribute(PGLOBAL g, char *name, PXATTR ap)
 /******************************************************************/
 /*  Add a new element child node to this node and return it.      */
 /******************************************************************/
-PXNODE DOMNODE::AddChildNode(PGLOBAL g, char *name, PXNODE np)
+PXNODE DOMNODE::AddChildNode(PGLOBAL g, PCSZ name, PXNODE np)
   {
-  char *p, *pn;
+  const char *p, *pn;
 //  char *p, *pn, *epf, *pf = NULL;
   MSXML2::IXMLDOMNodePtr ep;
 //  _bstr_t   uri((wchar_t*)NULL);
@@ -585,7 +585,7 @@ PXATTR DOMNODE::AddProperty(PGLOBAL g, char *name, PXATTR ap)
 /******************************************************************/
 /*  Add a new text node to this node.                             */
 /******************************************************************/
-void DOMNODE::AddText(PGLOBAL g, char *txtp)
+void DOMNODE::AddText(PGLOBAL g, PCSZ txtp)
   {
   MSXML2::IXMLDOMTextPtr tp= Docp->createTextNode((_bstr_t)txtp);
 

@@ -1496,7 +1496,7 @@ static PSZ MakePSZ(PGLOBAL g, UDF_ARGS *args, int i)
 /*********************************************************************************/
 /*  Make a valid key from the passed argument.                                   */
 /*********************************************************************************/
-static PSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
+static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 {
 	if (args->arg_count > (unsigned)i) {
 		int     j = 0, n = args->attribute_lengths[i];
@@ -2253,7 +2253,8 @@ my_bool json_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 char *json_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	                    unsigned long *res_length, char *is_null, char *error)
 {
-	char   *key, *str = NULL;
+	PCSZ    key;
+	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
 	if (g->Xchk) {
@@ -2358,7 +2359,7 @@ char *json_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 1, false, true, true)) {
-		char *key;
+		PCSZ  key;
 		PJOB  jobp;
 		PJSON jsp, top;
 		PJVAL jvp = MakeValue(g, args, 0, &top);
@@ -4541,7 +4542,7 @@ char *jbin_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif bsp
 
 	if (!CheckMemory(g, initid, args, 2, false, true, true)) {
-		char *key;
+		PCSZ  key;
 		PJOB  jobp;
 		PJVAL jvp = MakeValue(g, args, 0, &top);
 		PJSON jsp = jvp->GetJson();
@@ -4621,7 +4622,7 @@ char *jbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif bsp
 
 	if (!CheckMemory(g, initid, args, 1, false, true, true)) {
-		char *key;
+		PCSZ  key;
 		PJOB  jobp;
 		PJVAL jvp = MakeValue(g, args, 0, &top);
 		PJSON jsp = jvp->GetJson();

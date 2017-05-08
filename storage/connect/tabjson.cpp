@@ -136,7 +136,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 		tdp->Collname = GetStringTableOption(g, topt, "Name", NULL);
 		tdp->Collname = GetStringTableOption(g, topt, "Tabname", tdp->Collname);
 		tdp->Schema = GetStringTableOption(g, topt, "Dbname", "test");
-		tdp->Options = GetStringTableOption(g, topt, "Colist", NULL);
+		tdp->Options = (char*)GetStringTableOption(g, topt, "Colist", NULL);
 		tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
 		tdp->Pretty = 0;
 #else   // !MONGO_SUPPORT
@@ -362,7 +362,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 
  skipit:
   if (trace)
-    htrc("CSVColumns: n=%d len=%d\n", n, length[0]);
+    htrc("JSONColumns: n=%d len=%d\n", n, length[0]);
 
   /*********************************************************************/
   /*  Allocate the structures used to refer to the result set.         */
@@ -494,7 +494,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 #endif  // !MONGO_SUPPORT
 		} else if (Zipped) {
 #if defined(ZIP_SUPPORT)
-			if (m == MODE_READ || m == MODE_READX) {
+			if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
 				txfp = new(g) UNZFAM(this);
 			} else if (m == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);
@@ -539,7 +539,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 	} else {
 		if (Zipped)	{
 #if defined(ZIP_SUPPORT)
-			if (m == MODE_READ || m == MODE_READX) {
+			if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
 				txfp = new(g) UNZFAM(this);
 			} else if (m == MODE_INSERT) {
 				strcpy(g->Message, "INSERT supported only for zipped JSON when pretty=0");
@@ -1294,11 +1294,11 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 //        } // endif Type
      
       default:
-        vp->Reset();
-      } // endswitch Type
+				vp->SetNull(true);
+		} // endswitch Type
 
   } else
-    vp->Reset();
+    vp->SetNull(true);
 
   } // end of SetJsonValue
 
@@ -1312,7 +1312,7 @@ void JSONCOL::ReadColumn(PGLOBAL g)
 
   // Set null when applicable
   if (Nullable)
-    Value->SetNull(Value->IsZero());
+    Value->SetNull(Value->IsNull());
 
   } // end of ReadColumn
 
@@ -1637,6 +1637,7 @@ void JSONCOL::WriteColumn(PGLOBAL g)
       // Passthru
     case TYPE_DATE:
     case TYPE_INT:
+		case TYPE_TINY:
 		case TYPE_SHORT:
 		case TYPE_BIGINT:
 		case TYPE_DOUBLE:

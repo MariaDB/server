@@ -99,7 +99,7 @@ CHARSET_INFO *TDB::data_charset(void)
 /***********************************************************************/
 /*  Return the datapath of the DB this table belongs to.               */
 /***********************************************************************/
-PSZ TDB::GetPath(void)
+PCSZ TDB::GetPath(void)
 {
 	return To_Def->GetPath();
 }  // end of GetPath

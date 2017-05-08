@@ -123,7 +123,7 @@ class DllExport CONSTANT : public XOBJECT {
 class DllExport STRING : public BLOCK {
  public:
   // Constructor
-  STRING(PGLOBAL g, uint n, PSZ str = NULL);
+  STRING(PGLOBAL g, uint n, PCSZ str = NULL);
 
   // Implementation
   inline int    GetLength(void) {return (int)Length;}
@@ -134,14 +134,14 @@ class DllExport STRING : public BLOCK {
 
   // Methods
   inline void   Reset(void) {*Strp = 0;}
-         bool   Set(PSZ s);
+         bool   Set(PCSZ s);
          bool   Set(char *s, uint n);
          bool   Append(const char *s, uint ln, bool nq = false);
-         bool   Append(PSZ s);
+         bool   Append(PCSZ s);
          bool   Append(STRING &str);
          bool   Append(char c);
          bool   Resize(uint n);
-         bool   Append_quoted(PSZ s);
+         bool   Append_quoted(PCSZ s);
   inline void   Trim(void) {(void)Resize(Length + 1);}
   inline void   Chop(void) {if (Length) Strp[--Length] = 0;}
   inline void   RepLast(char c) {if (Length) Strp[Length-1] = c;}

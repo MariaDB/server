@@ -118,10 +118,11 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
                           FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
   static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
-  char   *fn, *op, colname[65], fmt[129], buf[512];
+  char    colname[65], fmt[129], buf[512];
   int     i, j, lvl, n = 0;
   int     ncol = sizeof(buftyp) / sizeof(int);
   bool    ok = true;
+	PCSZ    fn, op;
   PXCL    xcol, xcp, fxcp = NULL, pxcp = NULL;
   PLVL   *lvlp, vp;
   PXNODE  node = NULL;
@@ -362,7 +363,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
  skipit:
   if (trace)
-    htrc("CSVColumns: n=%d len=%d\n", n, length[0]);
+    htrc("XMLColumns: n=%d len=%d\n", n, length[0]);
 
   /*********************************************************************/
   /*  Allocate the structures used to refer to the result set.         */
@@ -451,7 +452,8 @@ XMLDEF::XMLDEF(void)
 /***********************************************************************/
 bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char *defrow, *defcol, buf[10];
+	PCSZ defrow, defcol;
+	char buf[10];
 
   Fn = GetStringCatInfo(g, "Filename", NULL);
   Encoding = GetStringCatInfo(g, "Encoding", "UTF-8");
@@ -1360,8 +1362,8 @@ void TDBXML::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  XMLCOL public constructor.                                        */
 /***********************************************************************/
-XMLCOL::XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
-  : COLBLK(cdp, tdbp, i)
+XMLCOL::XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
+      : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
     Next = cprec->GetNext();

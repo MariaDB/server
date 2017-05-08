@@ -168,7 +168,7 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
 
 //  info->mean_rec_length= tdbp->GetLrecl();
     info->mean_rec_length= 0;
-    info->data_file_name= (b) ? NULL : tdbp->GetFile(g);
+    info->data_file_name= (b) ? NULL : (char*)tdbp->GetFile(g);
     return true;
   } else {
     info->data_file_length= 0;

@@ -231,7 +231,7 @@ PCOL TDBODBC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /*  This used for Multiple(1) tables. Also prepare a connect string    */
 /*  with a place holder to be used by SetFile.                         */
 /***********************************************************************/
-PSZ TDBODBC::GetFile(PGLOBAL g)
+PCSZ TDBODBC::GetFile(PGLOBAL g)
   {
   if (Connect) {
     char  *p1, *p2;
@@ -297,7 +297,8 @@ void TDBODBC::SetFile(PGLOBAL g, PSZ fn)
 /***********************************************************************/
 bool TDBODBC::MakeInsert(PGLOBAL g)
   {
-	char  *schmp = NULL, *catp = NULL, buf[NAM_LEN * 3];
+	PCSZ   schmp = NULL;
+	char  *catp = NULL, buf[NAM_LEN * 3];
 	int    len = 0;
 	bool   oom, b = false;
 	PTABLE tablep = To_Table;
@@ -883,7 +884,7 @@ void TDBODBC::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  ODBCCOL public constructor.                                        */
 /***********************************************************************/
-ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
        : EXTCOL(cdp, tdbp, cprec, i, am)
   {
   // Set additional ODBC access method information for column.
@@ -1301,7 +1302,7 @@ int TDBXDBC::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  XSRCCOL public constructor.                                        */
 /***********************************************************************/
-XSRCCOL::XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+XSRCCOL::XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
        : ODBCCOL(cdp, tdbp, cprec, i, am)
   {
   // Set additional ODBC access method information for column.

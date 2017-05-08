@@ -555,7 +555,7 @@ typedef  struct _qryres {
 typedef  struct _colres {
   PCOLRES Next;                    /* To next result column            */
   PCOL    Colp;                    /* To matching column block         */
-  PSZ     Name;                    /* Column header                    */
+  PCSZ    Name;                    /* Column header                    */
   PVBLK   Kdata;                   /* Column block of values           */
   char   *Nulls;                   /* Column null value array          */
   int     Type;                    /* Internal type                    */
@@ -585,7 +585,7 @@ void     PlugLineDB(PGLOBAL, PSZ, short, void *, uint);
 char    *SetPath(PGLOBAL g, const char *path);
 char    *ExtractFromPath(PGLOBAL, char *, char *, OPVAL);
 void     AddPointer(PTABS, void *);
-PDTP     MakeDateFormat(PGLOBAL, PSZ, bool, bool, int);
+PDTP     MakeDateFormat(PGLOBAL, PCSZ, bool, bool, int);
 int      ExtractDate(char *, PDTP, int, int val[6]);
 
 /**************************************************************************/
@@ -617,11 +617,10 @@ DllExport void   *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 DllExport void    NewPointer(PTABS, void *, void *);
 //lExport char   *GetIni(int n= 0);    // Not used anymore
 DllExport void    SetTrc(void);
-DllExport char   *GetListOption(PGLOBAL, const char *, const char *,
-                                         const char *def=NULL);
-DllExport char   *GetStringTableOption(PGLOBAL, PTOS, char *, char *);
-DllExport bool    GetBooleanTableOption(PGLOBAL, PTOS, char *, bool);
-DllExport int     GetIntegerTableOption(PGLOBAL, PTOS, char *, int);
+DllExport PCSZ    GetListOption(PGLOBAL, PCSZ, PCSZ, PCSZ def=NULL);
+DllExport PCSZ    GetStringTableOption(PGLOBAL, PTOS, PCSZ, PCSZ);
+DllExport bool    GetBooleanTableOption(PGLOBAL, PTOS, PCSZ, bool);
+DllExport int     GetIntegerTableOption(PGLOBAL, PTOS, PCSZ, int);
 
 #define MSGID_NONE                         0
 #define MSGID_CANNOT_OPEN                  1

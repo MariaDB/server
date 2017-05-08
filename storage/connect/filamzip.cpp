@@ -1,7 +1,7 @@
 /*********** File AM Zip C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMZIP                                              */
 /* -------------                                                       */
-/*  Version 1.2                                                        */
+/*  Version 1.3                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -45,12 +45,12 @@
 
 #define WRITEBUFFERSIZE (16384)
 
-bool ZipLoadFile(PGLOBAL g, char *zfn, char *fn, char *entry, bool append, bool mul);
+bool ZipLoadFile(PGLOBAL g, PCSZ zfn, PCSZ fn, PCSZ entry, bool append, bool mul);
 
 /***********************************************************************/
 /*  Compress a file in zip when creating a table.                      */
 /***********************************************************************/
-static bool ZipFile(PGLOBAL g, ZIPUTIL *zutp, char *fn, char *entry, char *buf)
+static bool ZipFile(PGLOBAL g, ZIPUTIL *zutp, PCSZ fn, PCSZ entry, char *buf)
 {
 	int   rc = RC_OK, size_read, size_buf = WRITEBUFFERSIZE;
 	FILE *fin;
@@ -88,7 +88,7 @@ static bool ZipFile(PGLOBAL g, ZIPUTIL *zutp, char *fn, char *entry, char *buf)
 /***********************************************************************/
 /*  Find and Compress several files in zip when creating a table.      */
 /***********************************************************************/
-static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, char *pat, char *buf)
+static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 {
 	char filename[_MAX_PATH];
 	int  rc;
@@ -203,7 +203,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, char *pat, char *buf)
 /***********************************************************************/
 /*  Load and Compress a file in zip when creating a table.             */
 /***********************************************************************/
-bool ZipLoadFile(PGLOBAL g, char *zfn, char *fn, char *entry, bool append, bool mul)
+bool ZipLoadFile(PGLOBAL g, PCSZ zfn, PCSZ fn, PCSZ entry, bool append, bool mul)
 {
 	char    *buf;
 	bool     err;
@@ -228,7 +228,7 @@ bool ZipLoadFile(PGLOBAL g, char *zfn, char *fn, char *entry, bool append, bool 
 /***********************************************************************/
 /*  Constructors.                                                      */
 /***********************************************************************/
-ZIPUTIL::ZIPUTIL(PSZ tgt)
+ZIPUTIL::ZIPUTIL(PCSZ tgt)
 {
 	zipfile = NULL;
 	target = tgt;
@@ -269,7 +269,7 @@ void ZIPUTIL::getTime(tm_zip& tmZip)
 /*	append:		set true to append the zip file													 */
 /*  return:	true if open, false otherwise.														 */
 /***********************************************************************/
-bool ZIPUTIL::open(PGLOBAL g, char *filename, bool append)
+bool ZIPUTIL::open(PGLOBAL g, PCSZ filename, bool append)
 {
 	if (!zipfile && !(zipfile = zipOpen64(filename,
 		                               append ? APPEND_STATUS_ADDINZIP
@@ -295,7 +295,7 @@ void ZIPUTIL::close()
 /***********************************************************************/
 /*  OpenTableFile: Open a DOS/UNIX table file from a ZIP file.         */
 /***********************************************************************/
-bool ZIPUTIL::OpenTable(PGLOBAL g, MODE mode, char *fn, bool append)
+bool ZIPUTIL::OpenTable(PGLOBAL g, MODE mode, PCSZ fn, bool append)
 {
 	/*********************************************************************/
 	/*  The file will be compressed.                                     */
@@ -338,7 +338,7 @@ bool ZIPUTIL::OpenTable(PGLOBAL g, MODE mode, char *fn, bool append)
 /***********************************************************************/
 /*  Add target in zip file.				   		      												 */
 /***********************************************************************/
-bool ZIPUTIL::addEntry(PGLOBAL g, char *entry)
+bool ZIPUTIL::addEntry(PGLOBAL g, PCSZ entry)
 {
 	//?? we dont need the stinking time
 	zip_fileinfo zi = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -382,7 +382,7 @@ void ZIPUTIL::closeEntry()
 /***********************************************************************/
 /*  Constructors.                                                      */
 /***********************************************************************/
-UNZIPUTL::UNZIPUTL(PSZ tgt, bool mul)
+UNZIPUTL::UNZIPUTL(PCSZ tgt, bool mul)
 {
 	zipfile = NULL;
 	target = tgt;
@@ -439,8 +439,8 @@ UNZIPUTL::UNZIPUTL(PZIPUTIL zutp)
 /* This code is the copyright property of Alessandro Felice Cantatore. */
 /* http://xoomer.virgilio.it/acantato/dev/wildcard/wildmatch.html			 */
 /***********************************************************************/
-bool UNZIPUTL::WildMatch(PSZ pat, PSZ str) {
-	PSZ  s, p;
+bool UNZIPUTL::WildMatch(PCSZ pat, PCSZ str) {
+	PCSZ s, p;
 	bool star = FALSE;
 
 loopStart:
@@ -474,7 +474,7 @@ starCheck:
 /*  param: filename	path and the filename of the zip file to open.		 */
 /*  return:	true if open, false otherwise.														 */
 /***********************************************************************/
-bool UNZIPUTL::open(PGLOBAL g, char *filename)
+bool UNZIPUTL::open(PGLOBAL g, PCSZ filename)
 {
 	if (!zipfile && !(zipfile = unzOpen64(filename)))
 		sprintf(g->Message, "Zipfile open error on %s", filename);
@@ -564,7 +564,7 @@ int UNZIPUTL::nextEntry(PGLOBAL g)
 /***********************************************************************/
 /*  OpenTableFile: Open a DOS/UNIX table file from a ZIP file.         */
 /***********************************************************************/
-bool UNZIPUTL::OpenTable(PGLOBAL g, MODE mode, char *fn)
+bool UNZIPUTL::OpenTable(PGLOBAL g, MODE mode, PCSZ fn)
 {
 	/*********************************************************************/
 	/*  The file will be decompressed into virtual memory.               */
@@ -602,7 +602,7 @@ bool UNZIPUTL::OpenTable(PGLOBAL g, MODE mode, char *fn)
 			if (openEntry(g))
 				return true;
 
-			if (size > 0)	{
+			if (size > 0) {
 				/*******************************************************************/
 				/*  Link a Fblock. This make possible to automatically close it    */
 				/*  in case of error g->jump.                                      */
@@ -632,6 +632,28 @@ bool UNZIPUTL::OpenTable(PGLOBAL g, MODE mode, char *fn)
 
 	return false;
 } // end of OpenTableFile
+
+/***********************************************************************/
+/*  Insert only if the entry does not exist.   												 */
+/***********************************************************************/
+bool UNZIPUTL::IsInsertOk(PGLOBAL g, PCSZ fn)
+{
+	bool ok = true, b = open(g, fn);
+
+	if (!b) {
+		if (!target || *target == 0) {
+			unz_global_info64 ginfo;
+			int err = unzGetGlobalInfo64(zipfile, &ginfo);
+
+			ok = !(err == UNZ_OK && ginfo.number_entry > 0);
+		} else						// Check if the target exist
+			ok = (unzLocateFile(zipfile, target, 0) != UNZ_OK);
+
+		unzClose(zipfile);
+	} // endif b
+
+	return ok;
+} // end of IsInsertOk
 
 /***********************************************************************/
 /*  Open target in zip file.						      												 */
@@ -740,7 +762,13 @@ int UNZFAM::Cardinality(PGLOBAL g)
 	int card = -1;
 	int len = GetFileLength(g);
 
-	card = (len / (int)Lrecl) * 2;           // Estimated ???
+	if (len) {
+		// Estimated ???
+		card = (len / (int)Lrecl) * 2;
+		card = card ? card : 10;				// Lrecl can be too big 
+	} else
+		card = 0;
+
 	return card;
 } // end of Cardinality
 
@@ -1000,6 +1028,25 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 {
 	char filename[_MAX_PATH];
 	MODE mode = Tdbp->GetMode();
+	int  len = TXTFAM::GetFileLength(g);
+
+	//  We used the file name relative to recorded datapath
+	PlugSetPath(filename, To_File, Tdbp->GetPath());
+
+	if (len < 0)
+		return true;
+	else if (!append && len > 0) {
+		strcpy(g->Message, "No insert into existing zip file");
+		return true;
+	} else if (append && len > 0) {
+		UNZIPUTL *zutp = new(g) UNZIPUTL(target, false);
+
+		if (!zutp->IsInsertOk(g, filename)) {
+			strcpy(g->Message, "No insert into existing entry");
+			return true;
+		}	// endif Ok
+
+	} // endif's
 
 	/*********************************************************************/
 	/*  Allocate the ZIP utility class.                                  */
@@ -1059,15 +1106,31 @@ ZPXFAM::ZPXFAM(PDOSDEF tdp) : FIXFAM(tdp)
 	target = tdp->GetEntry();
 	append = tdp->GetAppend();
 	//Lrecl = tdp->GetLrecl();
-} // end of UZXFAM standard constructor
+} // end of ZPXFAM standard constructor
 
 /***********************************************************************/
 /*  OpenTableFile: Open a DOS/UNIX table file from a ZIP file.         */
 /***********************************************************************/
 bool ZPXFAM::OpenTableFile(PGLOBAL g)
 {
-	char    filename[_MAX_PATH];
-	MODE    mode = Tdbp->GetMode();
+	char filename[_MAX_PATH];
+	MODE mode = Tdbp->GetMode();
+	int  len = TXTFAM::GetFileLength(g);
+
+	if (len < 0)
+		return true;
+	else if (!append && len > 0) {
+		strcpy(g->Message, "No insert into existing zip file");
+		return true;
+	} else if (append && len > 0) {
+		UNZIPUTL *zutp = new(g) UNZIPUTL(target, false);
+
+		if (!zutp->IsInsertOk(g, filename)) {
+			strcpy(g->Message, "No insert into existing entry");
+			return true;
+		}	// endif Ok
+
+	} // endif's
 
 	/*********************************************************************/
 	/*  Allocate the ZIP utility class.                                  */

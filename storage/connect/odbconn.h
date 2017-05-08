@@ -54,9 +54,9 @@ enum CATINFO {CAT_TAB   =     1,      /* SQLTables                     */
 typedef struct tagCATPARM { 
   CATINFO  Id;                 // Id to indicate function 
   PQRYRES  Qrp;                // Result set pointer
-  PUCHAR   DB;                 // Database (Schema)
-  PUCHAR   Tab;                // Table name or pattern
-  PUCHAR   Pat;                // Table type or column pattern
+	PCSZ     DB;                 // Database (Schema)
+	PCSZ     Tab;                // Table name or pattern
+	PCSZ     Pat;                // Table type or column pattern
   SQLLEN* *Vlen;               // To array of indicator values
   UWORD   *Status;             // To status block
   // For SQLStatistics
@@ -80,23 +80,23 @@ class DBX : public BLOCK {
   friend class ODBConn;
   // Construction (by ThrowDBX only) -- destruction
  protected:
-  DBX(RETCODE rc, PSZ msg = NULL);
+  DBX(RETCODE rc, PCSZ msg = NULL);
  public:
 //virtual ~DBX() {}
 //void operator delete(void*, PGLOBAL, void*) {};
 
   // Implementation (use ThrowDBX to create)
   RETCODE GetRC(void) {return m_RC;}
-  PSZ     GetMsg(void) {return m_Msg;}
-  const char *GetErrorMessage(int i);
+  PCSZ    GetMsg(void) {return m_Msg;}
+  PCSZ    GetErrorMessage(int i);
 
  protected:
   bool    BuildErrorMessage(ODBConn* pdb, HSTMT hstmt = SQL_NULL_HSTMT);
 
   // Attributes
   RETCODE m_RC;
-  PSZ     m_Msg;
-  PSZ     m_ErrMsg[MAX_NUM_OF_MSG];
+  PCSZ    m_Msg;
+  PCSZ    m_ErrMsg[MAX_NUM_OF_MSG];
   }; // end of DBX class definition
 
 /***********************************************************************/
@@ -119,7 +119,7 @@ class ODBConn : public BLOCK {
     noOdbcDialog =    0x0008,     // Don't display ODBC Connect dialog
     forceOdbcDialog = 0x0010};    // Always display ODBC connect dialog
 
-  int  Open(PSZ ConnectString, POPARM sop, DWORD Options = 0);
+  int  Open(PCSZ ConnectString, POPARM sop, DWORD Options = 0);
   int  Rewind(char *sql, ODBCCOL *tocols);
   void Close(void);
   PQRYRES AllocateResult(PGLOBAL g);
@@ -131,7 +131,7 @@ class ODBConn : public BLOCK {
   bool  IsOpen(void) {return m_hdbc != SQL_NULL_HDBC;}
   PSZ   GetStringInfo(ushort infotype);
   int   GetMaxValue(ushort infotype);
-  PSZ   GetConnect(void) {return m_Connect;}
+  PCSZ  GetConnect(void) {return m_Connect;}
 
  public:
   // Operations
@@ -149,7 +149,7 @@ class ODBConn : public BLOCK {
   int  GetCatInfo(CATPARM *cap);
   bool GetDataSources(PQRYRES qrp);
   bool GetDrivers(PQRYRES qrp);
-  PQRYRES GetMetaData(PGLOBAL g, char *dsn, char *src);
+  PQRYRES GetMetaData(PGLOBAL g, PCSZ dsn, PCSZ src);
 
  public:
   // Set special options
@@ -162,8 +162,8 @@ class ODBConn : public BLOCK {
   // ODBC operations
  protected:
   bool Check(RETCODE rc);
-  void ThrowDBX(RETCODE rc, PSZ msg, HSTMT hstmt = SQL_NULL_HSTMT);
-  void ThrowDBX(PSZ msg);
+  void ThrowDBX(RETCODE rc, PCSZ msg, HSTMT hstmt = SQL_NULL_HSTMT);
+  void ThrowDBX(PCSZ msg);
   void AllocConnect(DWORD dwOptions);
   void Connect(void);
   bool DriverConnect(DWORD Options);
@@ -187,9 +187,9 @@ class ODBConn : public BLOCK {
   DWORD    m_UpdateOptions;
   DWORD    m_RowsetSize;
   char     m_IDQuoteChar[2];
-  PSZ      m_Connect;
-  PSZ      m_User;
-  PSZ      m_Pwd;
+  PCSZ     m_Connect;
+  PCSZ     m_User;
+  PCSZ     m_Pwd;
   int      m_Catver;
   int      m_Rows;
   int      m_Fetch;

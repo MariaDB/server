@@ -1,5 +1,5 @@
 /************** filamzip H Declares Source Code File (.H) **************/
-/*  Name: filamzip.h   Version 1.1                                     */
+/*  Name: filamzip.h   Version 1.2                                     */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
 /*                                                                     */
@@ -27,16 +27,13 @@ typedef class ZPXFAM *PZPXFAM;
 class DllExport ZIPUTIL : public BLOCK {
  public:
 	// Constructor
-	ZIPUTIL(PSZ tgt);
+	ZIPUTIL(PCSZ tgt);
 	//ZIPUTIL(ZIPUTIL *zutp);
 
-	// Implementation
-	//PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)UNZFAM(this); }
-
 	// Methods
-	bool OpenTable(PGLOBAL g, MODE mode, char *fn, bool append);
-	bool open(PGLOBAL g, char *fn, bool append);
-	bool addEntry(PGLOBAL g, char *entry);
+	bool OpenTable(PGLOBAL g, MODE mode, PCSZ fn, bool append);
+	bool open(PGLOBAL g, PCSZ fn, bool append);
+	bool addEntry(PGLOBAL g, PCSZ entry);
 	void close(void);
 	void closeEntry(void);
   int  writeEntry(PGLOBAL g, char *buf, int len);
@@ -44,16 +41,10 @@ class DllExport ZIPUTIL : public BLOCK {
 
 	// Members
 	zipFile         zipfile;							// The ZIP container file
-	PSZ             target;								// The target file name
-	PSZ             pwd;								  // The ZIP file password
-//unz_file_info   finfo;								// The current file info
+	PCSZ            target;								// The target file name
+	PCSZ            pwd;								  // The ZIP file password
 	PFBLOCK         fp;
-//char           *memory;
-//uint            size;
-//int             multiple;             // Multiple targets
 	bool            entryopen;						// True when open current entry
-//char            fn[FILENAME_MAX];     // The current entry file name
-//char            mapCaseTable[256];
 }; // end of ZIPUTIL
 
 /***********************************************************************/
@@ -62,26 +53,27 @@ class DllExport ZIPUTIL : public BLOCK {
 class DllExport UNZIPUTL : public BLOCK {
  public:
 	// Constructor
-  UNZIPUTL(PSZ tgt, bool mul);
+  UNZIPUTL(PCSZ tgt, bool mul);
   UNZIPUTL(PDOSDEF tdp);
 
 	// Implementation
 //PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)UNZFAM(this); }
 
 	// Methods
-	bool OpenTable(PGLOBAL g, MODE mode, char *fn);
-	bool open(PGLOBAL g, char *fn);
+	bool OpenTable(PGLOBAL g, MODE mode, PCSZ fn);
+	bool open(PGLOBAL g, PCSZ fn);
 	bool openEntry(PGLOBAL g);
 	void close(void);
 	void closeEntry(void);
-	bool WildMatch(PSZ pat, PSZ str);
+	bool WildMatch(PCSZ pat, PCSZ str);
 	int  findEntry(PGLOBAL g, bool next);
 	int  nextEntry(PGLOBAL g);
+	bool IsInsertOk(PGLOBAL g, PCSZ fn);
 
 	// Members
 	unzFile         zipfile;							// The ZIP container file
-	PSZ             target;								// The target file name
-	PSZ             pwd;								  // The ZIP file password
+	PCSZ            target;								// The target file name
+	PCSZ            pwd;								  // The ZIP file password
 	unz_file_info   finfo;								// The current file info
 	PFBLOCK         fp;
 	char           *memory;
@@ -122,8 +114,6 @@ class DllExport UNZFAM : public MAPFAM {
 	// Members
 	UNZIPUTL *zutp;
 	PDOSDEF   tdfp;
-//PSZ       target;
-//bool      mul;
 }; // end of UNZFAM
 
 /***********************************************************************/
@@ -151,8 +141,6 @@ class DllExport UZXFAM : public MPXFAM {
 	// Members
 	UNZIPUTL *zutp;
 	PDOSDEF   tdfp;
-//PSZ       target;
-//bool      mul;
 }; // end of UZXFAM
 
 /***********************************************************************/
@@ -179,8 +167,9 @@ class DllExport ZIPFAM : public DOSFAM {
  protected:
 	// Members
 	ZIPUTIL *zutp;
-	PSZ      target;
+	PCSZ     target;
 	bool     append;
+//bool     replace;
 }; // end of ZIPFAM
 
 /***********************************************************************/
@@ -204,7 +193,7 @@ class DllExport ZPXFAM : public FIXFAM {
  protected:
 	// Members
 	ZIPUTIL *zutp;
-	PSZ      target;
+	PCSZ      target;
 	bool     append;
 }; // end of ZPXFAM
 

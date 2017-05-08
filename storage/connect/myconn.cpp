@@ -137,7 +137,8 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                    FLD_CHARSET};
   //unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
 	unsigned int length[] = {0, 4, 0, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
-	char   *fld, *colname, *chset, *fmt, v, buf[128], uns[16], zero[16];
+	PCSZ    fmt;
+	char   *fld, *colname, *chset, v, buf[128], uns[16], zero[16];
   int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
 	bool    b;
@@ -874,7 +875,8 @@ MYSQL_FIELD *MYSQLC::GetNextField(void)
 /***********************************************************************/
 PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   {
-  char        *fmt, v;
+	PCSZ         fmt;
+  char        *name, v;
   int          n;
   bool         uns;
   PCOLRES     *pcrp, crp;
@@ -912,8 +914,9 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     memset(crp, 0, sizeof(COLRES));
     crp->Ncol = ++qrp->Nbcol;
 
-    crp->Name = (char*)PlugSubAlloc(g, NULL, fld->name_length + 1);
-    strcpy(crp->Name, fld->name);
+    name = (char*)PlugSubAlloc(g, NULL, fld->name_length + 1);
+    strcpy(name, fld->name);
+		crp->Name = name;
 
     if ((crp->Type = MYSQLtoPLG(fld->type, &v)) == TYPE_ERROR) {
       sprintf(g->Message, "Type %d not supported for column %s",

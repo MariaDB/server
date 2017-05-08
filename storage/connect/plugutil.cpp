@@ -517,7 +517,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
           memp, size, pph->To_Free, pph->FreeBlk);
 
   if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
-    char     *pname = "Work";
+    PCSZ pname = "Work";
 
     sprintf(g->Message,
       "Not enough memory in %s area for request of %u (used=%d free=%d)",

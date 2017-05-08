@@ -70,10 +70,10 @@ class TDBODBC : public TDBEXT {
   // Methods
   virtual PTDB Clone(PTABS t);
   virtual bool SetRecpos(PGLOBAL g, int recpos);
-  virtual PSZ  GetFile(PGLOBAL g);
+  virtual PCSZ GetFile(PGLOBAL g);
   virtual void SetFile(PGLOBAL g, PSZ fn);
   virtual void ResetSize(void);
-  virtual PSZ  GetServer(void) {return "ODBC";}
+  virtual PCSZ GetServer(void) {return "ODBC";}
   virtual int  Indexable(void) {return 2;}
 
   // Database routines
@@ -108,7 +108,7 @@ class ODBCCOL : public EXTCOL {
   friend class TDBODBC;
  public:
   // Constructors
-  ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "ODBC");
+  ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "ODBC");
   ODBCCOL(ODBCCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
@@ -179,7 +179,7 @@ class XSRCCOL : public ODBCCOL {
   friend class TDBXDBC;
  public:
   // Constructors
-  XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "ODBC");
+  XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "ODBC");
   XSRCCOL(XSRCCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
@@ -239,10 +239,10 @@ class TDBOTB : public TDBDRV {
 	virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
-  char    *Dsn;               // Points to connection string
-  char    *Schema;            // Points to schema name or NULL
-  char    *Tab;               // Points to ODBC table name or pattern
-	char    *Tabtyp;            // Points to ODBC table type
+	PCSZ     Dsn;               // Points to connection string
+	PCSZ     Schema;            // Points to schema name or NULL
+	PCSZ     Tab;               // Points to ODBC table name or pattern
+	PCSZ     Tabtyp;            // Points to ODBC table type
 	ODBCPARM Ops;               // Additional parameters
   }; // end of class TDBOTB
 

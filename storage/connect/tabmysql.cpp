@@ -68,8 +68,8 @@ void PrintResult(PGLOBAL, PSEM, PQRYRES);
 #endif   // _CONSOLE
 
 // Used to check whether a MYSQL table is created on itself
-bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
-                      const char *db, char *tab, const char *src, int port);
+bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
+	                                        PCSZ tab, PCSZ src, int port);
 
 /***********************************************************************/
 /*  External function.                                                 */
@@ -183,19 +183,22 @@ bool MYSQLDEF::GetServerInfo(PGLOBAL g, const char *server_name)
 /***********************************************************************/
 bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
   {
+	char *tabn, *pwd, *schema;
+
   if ((!strstr(url, "://") && (!strchr(url, '@')))) {
     // No :// or @ in connection string. Must be a straight
     // connection name of either "server" or "server/table"
     // ok, so we do a little parsing, but not completely!
-    if ((Tabname= strchr(url, '/'))) {
+    if ((tabn= strchr(url, '/'))) {
       // If there is a single '/' in the connection string,
       // this means the user is specifying a table name
-      *Tabname++= '\0';
+      *tabn++= '\0';
 
       // there better not be any more '/'s !
-      if (strchr(Tabname, '/'))
+      if (strchr(tabn, '/'))
         return true;
 
+			Tabname = tabn;
     } else
       // Otherwise, straight server name, 
       Tabname = (b) ? GetStringCatInfo(g, "Tabname", Name) : NULL;
@@ -223,7 +226,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
 
     Username += 3;
 
-    if (!(Hostname = strchr(Username, '@'))) {
+    if (!(Hostname = (char*)strchr(Username, '@'))) {
       strcpy(g->Message, "No host specified in URL");
       return true;
     } else {
@@ -231,11 +234,11 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
       Server = Hostname;
     } // endif Hostname
 
-    if ((Password = strchr(Username, ':'))) {
-      *Password++ = 0;                   // End username
+    if ((pwd = (char*)strchr(Username, ':'))) {
+      *pwd++ = 0;                   // End username
 
-      // Make sure there isn't an extra / or @
-      if ((strchr(Password, '/') || strchr(Hostname, '@'))) {
+      // Make sure there isn't an extra /
+      if (strchr(pwd, '/')) {
         strcpy(g->Message, "Syntax error in URL");
         return true;
         } // endif
@@ -243,8 +246,10 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
       // Found that if the string is:
       // user:@hostname:port/db/table
       // Then password is a null string, so set to NULL
-      if ((Password[0] == 0))
-        Password = NULL;
+			if ((pwd[0] == 0))
+				Password = NULL;
+			else
+				Password = pwd;
 
       } // endif password
 
@@ -254,21 +259,23 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
       return true;
       } // endif
 
-    if ((Tabschema = strchr(Hostname, '/'))) {
-      *Tabschema++ = 0;
+    if ((schema = strchr(Hostname, '/'))) {
+      *schema++ = 0;
 
-      if ((Tabname = strchr(Tabschema, '/'))) {
-        *Tabname++ = 0;
+      if ((tabn = strchr(schema, '/'))) {
+        *tabn++ = 0;
 
         // Make sure there's not an extra /
-        if ((strchr(Tabname, '/'))) {
+        if ((strchr(tabn, '/'))) {
           strcpy(g->Message, "Syntax error in URL");
           return true;
           } // endif /
 
+				Tabname = tabn;
         } // endif TableName
 
-      } // endif database
+			Tabschema = schema;
+		} // endif database
 
     if ((sport = strchr(Hostname, ':')))
       *sport++ = 0;
@@ -349,7 +356,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
       Portnumber = GetIntCatInfo("Port", GetDefaultPort());
       Server = Hostname;
     } else {
-      char *locdb = Tabschema;
+      PCSZ locdb = Tabschema;
 
       if (ParseURL(g, url))
         return true;
@@ -581,7 +588,7 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
 /***********************************************************************/
 bool TDBMYSQL::MakeInsert(PGLOBAL g)
   {
-  char *tk = "`";
+  const char *tk = "`";
   uint  len = 0;
   bool  oom, b = false;
   PCOL  colp;
@@ -1233,7 +1240,7 @@ void TDBMYSQL::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  MYSQLCOL public constructor.                                       */
 /***********************************************************************/
-MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
         : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
@@ -1259,7 +1266,7 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
 /***********************************************************************/
 /*  MYSQLCOL public constructor.                                       */
 /***********************************************************************/
-MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
+MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
         : COLBLK(NULL, tdbp, i)
   {
   const char *chset = get_charset_name(fld->charsetnr);
@@ -1668,7 +1675,7 @@ int TDBMYEXC::WriteDB(PGLOBAL g)
 /***********************************************************************/
 /*  MYXCOL public constructor.                                         */
 /***********************************************************************/
-MYXCOL::MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+MYXCOL::MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
       : MYSQLCOL(cdp, tdbp, cprec, i, am)
   {
   // Set additional EXEC MYSQL access method information for column.
@@ -1678,7 +1685,7 @@ MYXCOL::MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
 /***********************************************************************/
 /*  MYSQLCOL public constructor.                                       */
 /***********************************************************************/
-MYXCOL::MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
+MYXCOL::MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
       : MYSQLCOL(fld, tdbp, i, am)
   {
   if (trace)

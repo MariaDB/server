@@ -61,7 +61,7 @@ int CONDFIL::Init(PGLOBAL g, PHC hc)
 	bool  h;
 
 	if (options)
-    alt = GetListOption(g, "Alias", options->oplist, NULL);
+    alt = (char*)GetListOption(g, "Alias", options->oplist, NULL);
 
 	while (alt) {
 		if (!(p = strchr(alt, '='))) {
@@ -267,7 +267,7 @@ TDBEXT::TDBEXT(PTDBEXT tdbp) : TDB(tdbp)
 /******************************************************************/
 /*  Convert an UTF-8 string to latin characters.                  */
 /******************************************************************/
-int TDBEXT::Decode(char *txt, char *buf, size_t n)
+int TDBEXT::Decode(PCSZ txt, char *buf, size_t n)
 {
 	uint   dummy_errors;
 	uint32 len = copy_and_convert(buf, n, &my_charset_latin1,
@@ -285,7 +285,8 @@ int TDBEXT::Decode(char *txt, char *buf, size_t n)
 /***********************************************************************/
 bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 {
-	char  *schmp = NULL, *catp = NULL, buf[NAM_LEN * 3];
+	PCSZ   schmp = NULL;
+	char  *catp = NULL, buf[NAM_LEN * 3];
 	int    len;
 	bool   first = true;
 	PTABLE tablep = To_Table;
@@ -294,7 +295,7 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 	if (Srcdef) {
 		if ((catp = strstr(Srcdef, "%s"))) {
 			char *fil1, *fil2;
-			PSZ   ph = ((EXTDEF*)To_Def)->Phpos;
+			PCSZ  ph = ((EXTDEF*)To_Def)->Phpos;
 
 			if (!ph)
 				ph = (strstr(catp + 2, "%s")) ? "WH" : "W";
@@ -435,7 +436,8 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 /***********************************************************************/
 bool TDBEXT::MakeCommand(PGLOBAL g)
 {
-	char *p, *stmt, name[132], *body = NULL, *schmp = NULL;
+	PCSZ  schmp = NULL;
+	char *p, *stmt, name[132], *body = NULL;
 	char *qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 1);
 	bool  qtd = Quoted > 0;
 	char  q = qtd ? *Quote : ' ';
@@ -563,7 +565,7 @@ int TDBEXT::GetProgMax(PGLOBAL g)
 /***********************************************************************/
 /*  EXTCOL public constructor.                                         */
 /***********************************************************************/
-EXTCOL::EXTCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+EXTCOL::EXTCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 	: COLBLK(cdp, tdbp, i)
 {
 	if (cprec) {
