@@ -34,9 +34,6 @@ let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
 
 --source include/shutdown_mysqld.inc
 
---echo # Backup the t1.ibd before corrupting
---copy_file $t1_IBD $MYSQLD_DATADIR/test/t1.ibd.backup
-
 --echo # Corrupt the table
 
 perl;

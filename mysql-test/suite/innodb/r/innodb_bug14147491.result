@@ -3,7 +3,6 @@ set global innodb_file_per_table=ON;
 CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 INSERT INTO t1 (b) VALUES ('corrupt me');
 INSERT INTO t1 (b) VALUES ('corrupt me');
-# Backup the t1.ibd before corrupting
 # Corrupt the table
 Munged a string.
 Munged a string.
