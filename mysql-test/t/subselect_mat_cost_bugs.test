@@ -424,3 +424,42 @@ explain select * from t1 where c1 = 'a2' and (c1, c2) not in (select * from t2);
 select * from t1 where c1 = 'a2' and (c1, c2) not in (select * from t2);
 
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-12673: cost-based choice between materialization and in-to-exists
+--echo #
+
+CREATE TABLE t1 (
+ pk1 int, a1 varchar(3), b1 varchar(3), PRIMARY KEY (pk1), KEY(a1), KEY(b1)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'foo','bar'),(2,'bar','foo');
+
+CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 VARCHAR(3), KEY(a2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,'abc'),(2,'xyz'),(3,'foo');
+
+SELECT 'qux' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
+SELECT 'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
+EXPLAIN 
+SELECT 'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (i1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (i2 int, c2 varchar(3), KEY(i2,c2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,'abc'),(2,'foo');
+
+CREATE TABLE t3 (pk3 int PRIMARY KEY, c3 varchar(3)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1,'foo'),(2,'bar');
+
+SELECT * FROM t1 WHERE i1 NOT IN ( 
+  SELECT i2 FROM t2 RIGHT JOIN t3 ON (c3 = c2) WHERE pk3 = i1 
+);
+
+EXPLAIN
+SELECT * FROM t1 WHERE i1 NOT IN ( 
+  SELECT i2 FROM t2 RIGHT JOIN t3 ON (c3 = c2) WHERE pk3 = i1 
+);
+
+DROP TABLE t1,t2,t3;
