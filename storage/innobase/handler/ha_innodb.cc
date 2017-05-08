@@ -15295,7 +15295,8 @@ ha_innobase::optimize(
 	This works OK otherwise, but MySQL locks the entire table during
 	calls to OPTIMIZE, which is undesirable. */
 
-	if (srv_defragment) {
+	/* TODO: Defragment is disabled for now */
+	if (0) {
 		int err;
 
 		err = defragment_table(m_prebuilt->table->name.m_name, NULL, false);
