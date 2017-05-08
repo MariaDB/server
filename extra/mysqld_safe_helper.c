@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
   MY_INIT(argv[0]);
 
   if (argc < 3)
-    do_usage(argv[0]);
+    do_usage();
 
   user_info= my_check_user(argv[1], MYF(0));
   if (user_info ? my_set_user(argv[1], user_info, MYF(MY_WME))

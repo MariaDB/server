@@ -8562,12 +8562,14 @@ get_best_combination(JOIN *join)
   {
     if (j->bush_children)
       j= j->bush_children->start;
-      
-    used_tables|= j->table->map;
-    if ((keyuse= join->best_positions[tablenr].key) &&
-        create_ref_for_key(join, j, keyuse, TRUE, used_tables))
-     DBUG_RETURN(TRUE);              // Something went wrong
 
+    used_tables|= j->table->map;
+    if (j->type != JT_CONST && j->type != JT_SYSTEM)
+    {
+      if ((keyuse= join->best_positions[tablenr].key) &&
+          create_ref_for_key(join, j, keyuse, TRUE, used_tables))
+        DBUG_RETURN(TRUE);              // Something went wrong
+    }
     if (j->last_leaf_in_bush)
       j= j->bush_root_tab;
   }
