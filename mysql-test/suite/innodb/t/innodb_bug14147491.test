@@ -33,13 +33,8 @@ INSERT INTO t1 (b) VALUES ('corrupt me');
 
 let $MYSQLD_DATADIR=`select @@datadir`;
 let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
-let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
-let MYSQLD_DATADIR=`select @@datadir`;
 
 --source include/shutdown_mysqld.inc
-
---echo # Backup the t1.ibd before corrupting
---copy_file $t1_IBD $MYSQLD_DATADIR/test/t1.ibd.backup
 
 --echo # Corrupt the table
 
