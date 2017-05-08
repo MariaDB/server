@@ -1290,10 +1290,6 @@ sub command_line_setup {
   
   fix_vs_config_dir();
 
-  # Respect MTR_BINDIR variable, which is typically set in to the 
-  # build directory in out-of-source builds.
-  $bindir=$ENV{MTR_BINDIR}||$basedir;
-  
   # Look for the client binaries directory
   if ($path_client_bindir)
   {
