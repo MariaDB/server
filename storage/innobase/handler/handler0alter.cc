@@ -722,35 +722,6 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 	}
 
-	/* If we have column that has changed from NULL -> NOT NULL
-	and column default has changed we need to do additional
-	check. */
-	if ((ha_alter_info->handler_flags
-			& Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE) &&
-	    (ha_alter_info->handler_flags
-		    & Alter_inplace_info::ALTER_COLUMN_DEFAULT)) {
-		Alter_info *alter_info = ha_alter_info->alter_info;
-		List_iterator<Create_field> def_it(alter_info->create_list);
-		Create_field *def;
-		while ((def=def_it++)) {
-
-			/* If this is first column definition whose SQL type
-			is TIMESTAMP and it is defined as NOT NULL and
-			it has either constant default or function default
-			we must use "Copy" method. */
-			if (is_timestamp_type(def->sql_type)) {
-				if ((def->flags & NOT_NULL_FLAG) != 0 && // NOT NULL
-					(def->default_value != NULL || // constant default ?
-					 def->unireg_check != Field::NONE)) { // function default
-					ha_alter_info->unsupported_reason = innobase_get_err_msg(
-						ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
-					DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-				}
-				break;
-			}
-		}
-	}
-
 	ulint n_indexes = UT_LIST_GET_LEN((m_prebuilt->table)->indexes);
 
 	/* If InnoDB dictionary and MySQL frm file are not consistent
@@ -1034,6 +1005,72 @@ ha_innobase::check_if_supported_inplace_alter(
 			}
 		}
 	}
+
+	/* When changing a NULL column to NOT NULL and specifying a
+	DEFAULT value, ensure that the DEFAULT expression is a constant.
+	Also, in ADD COLUMN, for now we only support a
+	constant DEFAULT expression. */
+	cf_it.rewind();
+	Field **af = altered_table->field;
+	while (Create_field* cf = cf_it++) {
+		DBUG_ASSERT(cf->field
+			    || (ha_alter_info->handler_flags
+				& Alter_inplace_info::ADD_COLUMN));
+
+		if (const Field* f = cf->field) {
+			/* This could be changing an existing column
+			from NULL to NOT NULL. For now, ensure that
+			the DEFAULT is a constant. */
+			if (~ha_alter_info->handler_flags
+			    & (Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE
+			       | Alter_inplace_info::ALTER_COLUMN_DEFAULT)
+			    || (*af)->real_maybe_null()) {
+				/* This ALTER TABLE is not both changing
+				a column to NOT NULL and changing the
+				DEFAULT value of a column, or this column
+				does allow NULL after the ALTER TABLE. */
+				goto next_column;
+			}
+
+			/* Find the matching column in the old table. */
+			Field** fp;
+			for (fp = table->field; *fp; fp++) {
+				if (f != *fp) {
+					continue;
+				}
+				if (!f->real_maybe_null()) {
+					/* The column already is NOT NULL. */
+					goto next_column;
+				}
+				break;
+			}
+
+			/* The column must be found in the old table. */
+			DBUG_ASSERT(fp < &table->field[table->s->fields]);
+		}
+
+		if (!(*af)->default_value
+		    || (*af)->default_value->flags == 0) {
+			/* The NOT NULL column is not
+			carrying a non-constant DEFAULT. */
+			goto next_column;
+		}
+
+		/* TODO: Allow NULL column values to
+		be replaced with a non-constant DEFAULT. */
+		if (cf->field) {
+			ha_alter_info->unsupported_reason
+				= innobase_get_err_msg(
+					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
+		}
+
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
+next_column:
+		af++;
+	}
+
+	cf_it.rewind();
 
 	DBUG_RETURN(online
 		    ? HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
