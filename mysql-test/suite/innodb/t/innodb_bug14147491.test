@@ -65,18 +65,16 @@ EOF
 
 --source include/start_mysqld.inc
 
---echo # The below SELECT query will return that table is not
---echo # in engine because table is corrupted
---error 1932
+--echo # Now t1 is corrupted but we should not crash
+
+--error 1712,1932
 SELECT * FROM t1;
 
---error 1932
+--error 1034,1712,1932
 INSERT INTO t1(b) VALUES('abcdef');
 
---error 1932
+--error 1712,1932
 UPDATE t1 set b = 'deadbeef' where a = 1;
 
-CHECK TABLE t1;
-
---echo # Cleanup
+--echo # Cleanup, this must be possible
 DROP TABLE t1;
