@@ -160,7 +160,7 @@ class DllExport VECFAM : public VCTFAM {
   virtual bool MoveLines(PGLOBAL g);
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
   virtual int  RenameTempFile(PGLOBAL g);
-          bool OpenColumnFile(PGLOBAL g, char *opmode, int i);
+          bool OpenColumnFile(PGLOBAL g, PCSZ opmode, int i);
 
   // Members
   FILE*   *Streams;             // Points to Dos file structure array

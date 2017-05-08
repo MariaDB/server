@@ -73,7 +73,7 @@ class TDBODBC : public TDBEXT {
   virtual PCSZ GetFile(PGLOBAL g);
   virtual void SetFile(PGLOBAL g, PSZ fn);
   virtual void ResetSize(void);
-  virtual PSZ  GetServer(void) {return "ODBC";}
+  virtual PCSZ GetServer(void) {return "ODBC";}
   virtual int  Indexable(void) {return 2;}
 
   // Database routines
@@ -108,7 +108,7 @@ class ODBCCOL : public EXTCOL {
   friend class TDBODBC;
  public:
   // Constructors
-  ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "ODBC");
+  ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "ODBC");
   ODBCCOL(ODBCCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
@@ -179,7 +179,7 @@ class XSRCCOL : public ODBCCOL {
   friend class TDBXDBC;
  public:
   // Constructors
-  XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "ODBC");
+  XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "ODBC");
   XSRCCOL(XSRCCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation

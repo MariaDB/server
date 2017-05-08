@@ -116,7 +116,7 @@ bool RELDEF::GetBoolCatInfo(PCSZ what, bool bdef)
 /***********************************************************************/
 /*  This function returns size catalog information.                    */
 /***********************************************************************/
-int RELDEF::GetSizeCatInfo(PCSZ what, PSZ sdef)
+int RELDEF::GetSizeCatInfo(PCSZ what, PCSZ sdef)
 	{
 	char c;
 	PCSZ s;
@@ -139,7 +139,7 @@ int RELDEF::GetSizeCatInfo(PCSZ what, PSZ sdef)
 /***********************************************************************/
 /*  This function sets char table information in buf.                  */
 /***********************************************************************/
-int RELDEF::GetCharCatInfo(PCSZ what, PSZ sdef, char *buf, int size)
+int RELDEF::GetCharCatInfo(PCSZ what, PCSZ sdef, char *buf, int size)
 	{
 	PCSZ s= Hc->GetStringOption(what);
 
@@ -253,9 +253,9 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat,
 /***********************************************************************/
 /*  This function returns the database data path.                      */
 /***********************************************************************/
-PSZ TABDEF::GetPath(void)
+PCSZ TABDEF::GetPath(void)
   {
-  return (Database) ? (PSZ)Database : (Hc) ? Hc->GetDataPath() : NULL;
+  return (Database) ? Database : (Hc) ? Hc->GetDataPath() : NULL;
   } // end of GetPath
 
 /***********************************************************************/

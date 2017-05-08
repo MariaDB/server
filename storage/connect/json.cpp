@@ -936,7 +936,7 @@ return false;
 /***********************************************************************/
 /* Add a new pair to an Object.                                        */
 /***********************************************************************/
-PJPR JOBJECT::AddPair(PGLOBAL g, PSZ key)
+PJPR JOBJECT::AddPair(PGLOBAL g, PCSZ key)
 {
   PJPR jpp = new(g) JPAIR(key);
 
@@ -1022,7 +1022,7 @@ bool JOBJECT::Merge(PGLOBAL g, PJSON jsp)
 /***********************************************************************/
 /* Set or add a value corresponding to the given key.                  */
 /***********************************************************************/
-void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PSZ key)
+void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PCSZ key)
 {
 	PJPR jp;
 
@@ -1042,7 +1042,7 @@ void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PSZ key)
 /***********************************************************************/
 /* Delete a value corresponding to the given key.                  */
 /***********************************************************************/
-void JOBJECT::DeleteKey(PSZ key)
+void JOBJECT::DeleteKey(PCSZ key)
 {
 	PJPR jp, *pjp = &First;
 
@@ -1221,10 +1221,10 @@ JVALUE::JVALUE(PGLOBAL g, PVAL valp) : JSON()
 /***********************************************************************/
 /* Constructor for a given string.                                     */
 /***********************************************************************/
-JVALUE::JVALUE(PGLOBAL g, PSZ strp) : JSON()
+JVALUE::JVALUE(PGLOBAL g, PCSZ strp) : JSON()
 {
 	Jsp = NULL;
-	Value = AllocateValue(g, strp, TYPE_STRING);
+	Value = AllocateValue(g, (void*)strp, TYPE_STRING);
 	Next = NULL;
 	Del = false;
 } // end of JVALUE constructor

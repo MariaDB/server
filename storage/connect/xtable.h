@@ -89,7 +89,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual bool   IsSpecial(PSZ name);
 	virtual bool   IsReadOnly(void) {return Read_Only;}
   virtual bool   IsView(void) {return FALSE;}
-	virtual PSZ    GetPath(void);
+	virtual PCSZ   GetPath(void);
 	virtual RECFM  GetFtype(void) {return RECFM_NAF;}
 	virtual bool   GetBlockValues(PGLOBAL) { return false; }
   virtual int    Cardinality(PGLOBAL) {return 0;}
@@ -111,7 +111,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
                   {fprintf(f, "%s AM(%d)\n",  m, GetAmType());}
   virtual void   Print(PGLOBAL g, FILE *f, uint n);
   virtual void   Print(PGLOBAL g, char *ps, uint z);
-  virtual PSZ    GetServer(void) = 0;
+  virtual PCSZ   GetServer(void) = 0;
   virtual int    GetBadLines(void) {return 0;}
 	virtual CHARSET_INFO *data_charset(void);
 
@@ -184,7 +184,7 @@ class DllExport TDBASE : public TDB {
   virtual int    GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
   virtual void   RestoreNrec(void) {}
   virtual int    ResetTableOpt(PGLOBAL g, bool dop, bool dox);
-  virtual PSZ    GetServer(void) {return "Current";}
+  virtual PCSZ   GetServer(void) {return "Current";}
 
   // Database routines
   virtual int  MakeIndex(PGLOBAL g, PIXDEF, bool)

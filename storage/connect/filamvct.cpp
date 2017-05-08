@@ -880,8 +880,9 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 bool VCTFAM::OpenTempFile(PGLOBAL g)
   {
-  char *opmode, tempname[_MAX_PATH];
-  bool  rc = false;
+  PCSZ  opmode;
+	char  tempname[_MAX_PATH];
+	bool  rc = false;
 
   /*********************************************************************/
   /*  Open the temporary file, Spos is at the beginning of file.       */
@@ -1998,7 +1999,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
 /***********************************************************************/
 /*  Open the file corresponding to one column.                         */
 /***********************************************************************/
-bool VECFAM::OpenColumnFile(PGLOBAL g, char *opmode, int i)
+bool VECFAM::OpenColumnFile(PGLOBAL g, PCSZ opmode, int i)
   {
   char    filename[_MAX_PATH];
   PDBUSER dup = PlgGetUser(g);
@@ -3143,7 +3144,8 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
     htrc("after write req=%d brc=%d nbw=%d\n", req, brc, nbw);
 
   if (!brc || nbw != len) {
-    char buf[256], *fn = (h == Hfile) ? To_File : "Tempfile";
+		char buf[256];
+		PCSZ fn = (h == Hfile) ? To_File : "Tempfile";
 
     if (brc)
       strcpy(buf, MSG(BAD_BYTE_NUM));
@@ -3329,7 +3331,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   PlugSetPath(filename, fn, Tdbp->GetPath());
 
 #if defined(__WIN__)
-  char         *p;
+  PCSZ          p;
   DWORD         rc;
   bool          brc;
   LARGE_INTEGER of;

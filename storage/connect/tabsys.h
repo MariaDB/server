@@ -93,7 +93,7 @@ class TDBINI : public TDBASE {
 class INICOL : public COLBLK {
  public:
   // Constructors
-  INICOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "INI");
+  INICOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "INI");
   INICOL(INICOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
@@ -165,7 +165,7 @@ class TDBXIN : public TDBINI {
 class XINCOL : public INICOL {
  public:
   // Constructors
-  XINCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "INI");
+  XINCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "INI");
   XINCOL(XINCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation

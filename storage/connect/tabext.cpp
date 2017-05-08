@@ -295,7 +295,7 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 	if (Srcdef) {
 		if ((catp = strstr(Srcdef, "%s"))) {
 			char *fil1, *fil2;
-			PSZ   ph = ((EXTDEF*)To_Def)->Phpos;
+			PCSZ  ph = ((EXTDEF*)To_Def)->Phpos;
 
 			if (!ph)
 				ph = (strstr(catp + 2, "%s")) ? "WH" : "W";
@@ -565,7 +565,7 @@ int TDBEXT::GetProgMax(PGLOBAL g)
 /***********************************************************************/
 /*  EXTCOL public constructor.                                         */
 /***********************************************************************/
-EXTCOL::EXTCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+EXTCOL::EXTCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 	: COLBLK(cdp, tdbp, i)
 {
 	if (cprec) {

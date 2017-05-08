@@ -1845,7 +1845,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		PGLOBAL& g = m_G;
 //	void    *buffer;
 		int      i, ncol;
-		PSZ      fnc = "Unknown";
+		PCSZ     fnc = "Unknown";
 		uint     n;
 		short    len, tp;
 		int      crow = 0;

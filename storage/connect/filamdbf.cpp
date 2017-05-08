@@ -186,7 +186,7 @@ static int dbfhead(PGLOBAL g, FILE *file, PCSZ fn, DBFHEADER *buf)
 /*  DBFColumns: constructs the result blocks containing the description     */
 /*  of all the columns of a DBF file that will be retrieved by #GetData.    */
 /****************************************************************************/
-PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
+PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, bool info)
   {
   int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                    TYPE_INT,    TYPE_INT,   TYPE_SHORT};
@@ -393,7 +393,7 @@ DBFBASE::DBFBASE(DBFBASE *txfp)
 /*  and header length. Set Records, check that Reclen is equal to lrecl and */
 /*  return the header length or 0 in case of error.                         */
 /****************************************************************************/
-int DBFBASE::ScanHeader(PGLOBAL g, PCSZ fn, int lrecl, int *rln, PSZ defpath)
+int DBFBASE::ScanHeader(PGLOBAL g, PCSZ fn, int lrecl, int *rln, PCSZ defpath)
   {
   int       rc;
   char      filename[_MAX_PATH];

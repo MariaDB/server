@@ -138,7 +138,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 			strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
 			goto err;
 		} else
-			query = Tabsrc;
+			query = (char*)Tabsrc;
 
 		// Open a MySQL connection for this table
 		if (!Myc.Open(g, Host, Database, User, Pwd, Port)) {

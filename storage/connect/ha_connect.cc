@@ -1972,7 +1972,8 @@ int ha_connect::CloseTable(PGLOBAL g)
 /***********************************************************************/
 int ha_connect::MakeRecord(char *buf)
 {
-  char          *p, *fmt, val[32];
+	PCSZ           fmt;
+  char          *p, val[32];
   int            rc= 0;
   Field*        *field;
   Field         *fp;
@@ -2108,7 +2109,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
 {
   char    attr_buffer[1024];
   char    data_buffer[1024];
-  char   *fmt;
+  PCSZ    fmt;
   int     rc= 0;
   PCOL    colp;
   PVAL    value, sdvalin;
@@ -4232,28 +4233,28 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
     case TAB_INI:
     case TAB_VEC:
     case TAB_JSON:
-      if (options->filename && *options->filename) {
-        if (!quick) {
-        char *s, path[FN_REFLEN], dbpath[FN_REFLEN];
+			if (options->filename && *options->filename) {
+				if (!quick) {
+					char path[FN_REFLEN], dbpath[FN_REFLEN];
+
+ 					strcpy(dbpath, mysql_real_data_home);
+
+					if (db)
 #if defined(__WIN__)
-        s= "\\";
+						strcat(strcat(dbpath, db), "\\");
 #else   // !__WIN__
-        s= "/";
+						strcat(strcat(dbpath, db), "/");
 #endif  // !__WIN__
-        strcpy(dbpath, mysql_real_data_home);
 
-        if (db)
-          strcat(strcat(dbpath, db), s);
+					(void)fn_format(path, options->filename, dbpath, "",
+						MY_RELATIVE_PATH | MY_UNPACK_FILENAME);
 
-        (void) fn_format(path, options->filename, dbpath, "",
-                         MY_RELATIVE_PATH | MY_UNPACK_FILENAME);
-
-        if (!is_secure_file_path(path)) {
-          my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--secure-file-priv");
-          return true;
-          } // endif path
-        }
-      } else
+					if (!is_secure_file_path(path)) {
+						my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--secure-file-priv");
+						return true;
+					} // endif path
+				}
+			} else
         return false;
 
       /* Fall through to check FILE_ACL */
@@ -5597,8 +5598,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 		} // endif src
 
 		if (ok) {
-			char   *cnm, *rem, *dft, *xtra, *key, *fmt;
-			int     i, len, prec, dec, typ, flg;
+			const char *cnm, *rem;
+			char *dft, *xtra, *key, *fmt;
+			int   i, len, prec, dec, typ, flg;
 
 			if (!(dpath = SetPath(g, table_s->db.str))) {
 				rc = HA_ERR_INTERNAL_ERROR;
@@ -6583,8 +6585,9 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     return true;
 
   if (table) {
-    char *s, tfn[_MAX_PATH], filename[_MAX_PATH], path[_MAX_PATH];
-    bool  b= false;
+    const char *s;
+		char  tfn[_MAX_PATH], filename[_MAX_PATH], path[_MAX_PATH];
+		bool  b= false;
     int   n;
     struct stat info;
 

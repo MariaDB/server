@@ -819,7 +819,7 @@ bool XINDEX::Reorder(PGLOBAL g __attribute__((unused)))
 /***********************************************************************/
 bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   {
-  char   *ftype;
+  PCSZ    ftype;
   char    fn[_MAX_PATH];
   int     n[NZ], nof = (Mul) ? (Ndif + 1) : 0;
   int     id = -1, size = 0;
@@ -948,7 +948,7 @@ bool XINDEX::Init(PGLOBAL g)
   /*  Table will be accessed through an index table.                   */
   /*  If sorting is required, this will be done later.                 */
   /*********************************************************************/
-  char   *ftype;
+  PCSZ    ftype;
   char    fn[_MAX_PATH];
   int     k, n, nv[NZ], id = -1;
   bool    estim = false;
@@ -1412,7 +1412,7 @@ err:
 /***********************************************************************/
 bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
   {
-  char   *ftype;
+  PCSZ    ftype;
   char    fn[_MAX_PATH];
   int     nv[NZ], id = -1; // n
 //bool    estim = false;
@@ -2320,9 +2320,9 @@ XFILE::XFILE(void) : XLOAD()
 /***********************************************************************/
 bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   {
-  char *pmod;
-  bool  rc;
-  IOFF  noff[MAX_INDX];
+  PCSZ pmod;
+  bool rc;
+  IOFF noff[MAX_INDX];
 
   /*********************************************************************/
   /*  Open the index file according to mode.                           */

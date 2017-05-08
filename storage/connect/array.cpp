@@ -977,7 +977,7 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
   size_t  z, len = 2;
 
   if (Type == TYPE_LIST)
-    return "(?" "?" "?)";             // To be implemented
+    return (PSZ)("(?" "?" "?)");             // To be implemented
 
   z = MY_MAX(24, GetTypeSize(Type, Len) + 4);
   tp = (char*)PlugSubAlloc(g, NULL, z);

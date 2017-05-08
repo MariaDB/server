@@ -67,7 +67,7 @@ public:
   virtual PTDB Clone(PTABS t);
 	virtual bool SetRecpos(PGLOBAL g, int recpos);
 	virtual void ResetSize(void);
-	virtual PSZ  GetServer(void) { return "JDBC"; }
+	virtual PCSZ GetServer(void) { return "JDBC"; }
 	virtual int  Indexable(void) { return 2; }
 
 	// Database routines
@@ -103,7 +103,7 @@ class JDBCCOL : public EXTCOL {
 	friend class TDBJDBC;
 public:
 	// Constructors
-	JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "JDBC");
+	JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "JDBC");
   JDBCCOL(JDBCCOL *colp, PTDB tdbp); // Constructor used in copy process
 
 	// Implementation
@@ -165,7 +165,7 @@ class JSRCCOL : public JDBCCOL {
 	friend class TDBXJDC;
 public:
 	// Constructors
-	JSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "JDBC");
+	JSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "JDBC");
 
 	// Implementation
 	virtual int  GetAmType(void) {return TYPE_AM_JDBC;}

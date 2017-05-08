@@ -226,7 +226,7 @@ class TDBSDR : public TDBDIR {
 class DIRCOL : public COLBLK {
  public:
   // Constructors
-  DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "DIR");
+  DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "DIR");
   DIRCOL(DIRCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation

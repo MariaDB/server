@@ -115,7 +115,7 @@ public:
 	virtual bool IsRemote(void) { return true; }
 
 	// Methods
-	virtual PSZ  GetServer(void) { return "Remote"; }
+	virtual PCSZ GetServer(void) { return "Remote"; }
 	virtual int  GetRecpos(void);
 
 	// Database routines
@@ -170,7 +170,7 @@ class DllExport EXTCOL : public COLBLK {
 	friend class TDBEXT;
 public:
 	// Constructor
-	EXTCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am);
+	EXTCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am);
 	EXTCOL(PEXTCOL colp, PTDB tdbp); // Constructor used in copy process
 
 	// Implementation

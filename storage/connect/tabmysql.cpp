@@ -588,7 +588,7 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
 /***********************************************************************/
 bool TDBMYSQL::MakeInsert(PGLOBAL g)
   {
-  char *tk = "`";
+  const char *tk = "`";
   uint  len = 0;
   bool  oom, b = false;
   PCOL  colp;
@@ -1240,7 +1240,7 @@ void TDBMYSQL::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  MYSQLCOL public constructor.                                       */
 /***********************************************************************/
-MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
         : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
@@ -1266,7 +1266,7 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
 /***********************************************************************/
 /*  MYSQLCOL public constructor.                                       */
 /***********************************************************************/
-MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
+MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
         : COLBLK(NULL, tdbp, i)
   {
   const char *chset = get_charset_name(fld->charsetnr);
@@ -1675,7 +1675,7 @@ int TDBMYEXC::WriteDB(PGLOBAL g)
 /***********************************************************************/
 /*  MYXCOL public constructor.                                         */
 /***********************************************************************/
-MYXCOL::MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+MYXCOL::MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
       : MYSQLCOL(cdp, tdbp, cprec, i, am)
   {
   // Set additional EXEC MYSQL access method information for column.
@@ -1685,7 +1685,7 @@ MYXCOL::MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
 /***********************************************************************/
 /*  MYSQLCOL public constructor.                                       */
 /***********************************************************************/
-MYXCOL::MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
+MYXCOL::MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
       : MYSQLCOL(fld, tdbp, i, am)
   {
   if (trace)

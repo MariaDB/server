@@ -123,7 +123,7 @@ class DllExport CONSTANT : public XOBJECT {
 class DllExport STRING : public BLOCK {
  public:
   // Constructor
-  STRING(PGLOBAL g, uint n, PSZ str = NULL);
+  STRING(PGLOBAL g, uint n, PCSZ str = NULL);
 
   // Implementation
   inline int    GetLength(void) {return (int)Length;}

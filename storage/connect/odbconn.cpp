@@ -875,7 +875,7 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
 /***********************************************************************/
 /*  Implementation of DBX class.                                       */
 /***********************************************************************/
-DBX::DBX(RETCODE rc, PSZ msg)
+DBX::DBX(RETCODE rc, PCSZ msg)
   {
   m_RC = rc;
   m_Msg = msg;
@@ -1016,7 +1016,7 @@ bool ODBConn::Check(RETCODE rc)
 /***********************************************************************/
 /*  DB exception throw routines.                                       */
 /***********************************************************************/
-void ODBConn::ThrowDBX(RETCODE rc, PSZ msg, HSTMT hstmt)
+void ODBConn::ThrowDBX(RETCODE rc, PCSZ msg, HSTMT hstmt)
   {
   DBX* xp = new(m_G) DBX(rc, msg);
 
@@ -1026,7 +1026,7 @@ void ODBConn::ThrowDBX(RETCODE rc, PSZ msg, HSTMT hstmt)
 
   } // end of ThrowDBX
 
-void ODBConn::ThrowDBX(PSZ msg)
+void ODBConn::ThrowDBX(PCSZ msg)
   {
   DBX* xp = new(m_G) DBX(0, "Error");
 
@@ -2240,7 +2240,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   void    *buffer;
   int      i, irc;
   bool     b;
-  PSZ      fnc = "Unknown";
+  PCSZ     fnc = "Unknown";
   UWORD    n;
   SWORD    ncol, len, tp;
   SQLULEN  crow = 0;

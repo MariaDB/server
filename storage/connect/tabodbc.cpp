@@ -884,7 +884,7 @@ void TDBODBC::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  ODBCCOL public constructor.                                        */
 /***********************************************************************/
-ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
        : EXTCOL(cdp, tdbp, cprec, i, am)
   {
   // Set additional ODBC access method information for column.
@@ -1302,7 +1302,7 @@ int TDBXDBC::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  XSRCCOL public constructor.                                        */
 /***********************************************************************/
-XSRCCOL::XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+XSRCCOL::XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
        : ODBCCOL(cdp, tdbp, cprec, i, am)
   {
   // Set additional ODBC access method information for column.

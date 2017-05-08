@@ -173,7 +173,7 @@ void XMLNODE::Delete(PXNODE dnp)
 /******************************************************************/
 /*  Store a string in Buf, enventually reallocating it.           */
 /******************************************************************/
-char *XMLNODE::BufAlloc(PGLOBAL g, char *p, int n)
+char *XMLNODE::BufAlloc(PGLOBAL g, const char *p, int n)
   {
   if (Len < n) {
     Len = n;

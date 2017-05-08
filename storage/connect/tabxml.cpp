@@ -363,7 +363,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
  skipit:
   if (trace)
-    htrc("CSVColumns: n=%d len=%d\n", n, length[0]);
+    htrc("XMLColumns: n=%d len=%d\n", n, length[0]);
 
   /*********************************************************************/
   /*  Allocate the structures used to refer to the result set.         */
@@ -452,7 +452,8 @@ XMLDEF::XMLDEF(void)
 /***********************************************************************/
 bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char *defrow, *defcol, buf[10];
+	PCSZ defrow, defcol;
+	char buf[10];
 
   Fn = GetStringCatInfo(g, "Filename", NULL);
   Encoding = GetStringCatInfo(g, "Encoding", "UTF-8");
@@ -1361,8 +1362,8 @@ void TDBXML::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  XMLCOL public constructor.                                        */
 /***********************************************************************/
-XMLCOL::XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
-  : COLBLK(cdp, tdbp, i)
+XMLCOL::XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
+      : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
     Next = cprec->GetNext();

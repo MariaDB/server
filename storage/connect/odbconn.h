@@ -80,23 +80,23 @@ class DBX : public BLOCK {
   friend class ODBConn;
   // Construction (by ThrowDBX only) -- destruction
  protected:
-  DBX(RETCODE rc, PSZ msg = NULL);
+  DBX(RETCODE rc, PCSZ msg = NULL);
  public:
 //virtual ~DBX() {}
 //void operator delete(void*, PGLOBAL, void*) {};
 
   // Implementation (use ThrowDBX to create)
   RETCODE GetRC(void) {return m_RC;}
-  PSZ     GetMsg(void) {return m_Msg;}
-  const char *GetErrorMessage(int i);
+  PCSZ    GetMsg(void) {return m_Msg;}
+  PCSZ    GetErrorMessage(int i);
 
  protected:
   bool    BuildErrorMessage(ODBConn* pdb, HSTMT hstmt = SQL_NULL_HSTMT);
 
   // Attributes
   RETCODE m_RC;
-  PSZ     m_Msg;
-  PSZ     m_ErrMsg[MAX_NUM_OF_MSG];
+  PCSZ    m_Msg;
+  PCSZ    m_ErrMsg[MAX_NUM_OF_MSG];
   }; // end of DBX class definition
 
 /***********************************************************************/
@@ -162,8 +162,8 @@ class ODBConn : public BLOCK {
   // ODBC operations
  protected:
   bool Check(RETCODE rc);
-  void ThrowDBX(RETCODE rc, PSZ msg, HSTMT hstmt = SQL_NULL_HSTMT);
-  void ThrowDBX(PSZ msg);
+  void ThrowDBX(RETCODE rc, PCSZ msg, HSTMT hstmt = SQL_NULL_HSTMT);
+  void ThrowDBX(PCSZ msg);
   void AllocConnect(DWORD dwOptions);
   void Connect(void);
   bool DriverConnect(DWORD Options);

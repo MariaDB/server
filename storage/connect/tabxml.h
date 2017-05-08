@@ -155,7 +155,7 @@ class DllExport TDBXML : public TDBASE {
 class XMLCOL : public COLBLK {
  public:
   // Constructors
-  XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "XML");
+  XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "XML");
   XMLCOL(XMLCOL *colp, PTDB tdbp);   // Constructor used in copy process
 
   // Implementation

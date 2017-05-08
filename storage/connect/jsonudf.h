@@ -232,7 +232,7 @@ extern "C" {
 /*********************************************************************************/
 typedef struct _jpn {
 	enum JTYP Type;
-	PSZ       Key;
+	PCSZ      Key;
 	int       N;
 } JPN, *PJPN;
 

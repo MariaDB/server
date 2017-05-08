@@ -967,7 +967,7 @@ void TDBJDBC::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  JDBCCOL public constructor.                                        */
 /***********************************************************************/
-JDBCCOL::JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+JDBCCOL::JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 	     : EXTCOL(cdp, tdbp, cprec, i, am)
 {
 } // end of JDBCCOL constructor
@@ -1212,8 +1212,8 @@ int TDBXJDC::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  JSRCCOL public constructor.                                        */
 /***********************************************************************/
-JSRCCOL::JSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
-	: JDBCCOL(cdp, tdbp, cprec, i, am)
+JSRCCOL::JSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
+	     : JDBCCOL(cdp, tdbp, cprec, i, am)
 {
 	// Set additional JDBC access method information for column.
 	Flag = cdp->GetOffset();

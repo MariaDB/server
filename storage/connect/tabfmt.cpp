@@ -81,7 +81,7 @@ USETEMP UseTemp(void);
 /* of types (TYPE_STRING < TYPE_DOUBLE < TYPE_INT) (1 < 2 < 7).        */
 /* If these values are changed, this will have to be revisited.        */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
+PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,   TYPE_INT, TYPE_SHORT};

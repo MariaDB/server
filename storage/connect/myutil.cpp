@@ -269,9 +269,9 @@ int MYSQLtoPLG(int mytype, char *var)
 /************************************************************************/
 /*  Returns the format corresponding to a MySQL date type number.       */
 /************************************************************************/
-char *MyDateFmt(int mytype)
+PCSZ MyDateFmt(int mytype)
   {
-  char *fmt;
+  PCSZ fmt;
 
   switch (mytype) {
     case MYSQL_TYPE_TIMESTAMP:
@@ -297,9 +297,9 @@ char *MyDateFmt(int mytype)
 /************************************************************************/
 /*  Returns the format corresponding to a MySQL date type name.         */
 /************************************************************************/
-char *MyDateFmt(char *typname)
+PCSZ MyDateFmt(char *typname)
   {
-  char *fmt;
+  PCSZ fmt;
 
   if (!stricmp(typname, "datetime") || !stricmp(typname, "timestamp"))
     fmt = "YYYY-MM-DD hh:mm:ss";

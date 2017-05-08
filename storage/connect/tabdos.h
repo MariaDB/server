@@ -214,7 +214,7 @@ class DllExport DOSCOL : public COLBLK {
   friend class TDBFIX;
  public:
   // Constructors
-  DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am = "DOS");
+  DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am = "DOS");
   DOSCOL(DOSCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation

@@ -555,7 +555,7 @@ typedef  struct _qryres {
 typedef  struct _colres {
   PCOLRES Next;                    /* To next result column            */
   PCOL    Colp;                    /* To matching column block         */
-  PSZ     Name;                    /* Column header                    */
+  PCSZ    Name;                    /* Column header                    */
   PVBLK   Kdata;                   /* Column block of values           */
   char   *Nulls;                   /* Column null value array          */
   int     Type;                    /* Internal type                    */
@@ -585,7 +585,7 @@ void     PlugLineDB(PGLOBAL, PSZ, short, void *, uint);
 char    *SetPath(PGLOBAL g, const char *path);
 char    *ExtractFromPath(PGLOBAL, char *, char *, OPVAL);
 void     AddPointer(PTABS, void *);
-PDTP     MakeDateFormat(PGLOBAL, PSZ, bool, bool, int);
+PDTP     MakeDateFormat(PGLOBAL, PCSZ, bool, bool, int);
 int      ExtractDate(char *, PDTP, int, int val[6]);
 
 /**************************************************************************/

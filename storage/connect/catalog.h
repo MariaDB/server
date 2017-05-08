@@ -36,7 +36,7 @@ typedef struct _curtab {
 /*  Defines the structure used to get column catalog info.             */
 /***********************************************************************/
 typedef struct _colinfo {
-  char  *Name;
+  PCSZ   Name;
   int    Type;
   int    Offset;
   int    Length;
@@ -45,9 +45,9 @@ typedef struct _colinfo {
   int    Scale;
   int    Opt;
   int    Freq;
-  char  *Remark;
-  char  *Datefmt;
-  char  *Fieldfmt;
+  PCSZ   Remark;
+  PCSZ   Datefmt;
+  PCSZ   Fieldfmt;
   ushort Flags;         // Used by MariaDB CONNECT handlers
   } COLINFO, *PCOLINFO;
 

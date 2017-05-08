@@ -187,8 +187,8 @@ public:
   PXOS     GetIndexOptionStruct(KEY *kp);
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
   bool     CheckVirtualIndex(TABLE_SHARE *s);
-  const char *GetDBName(PCSZ name);
-  const char *GetTableName(void);
+  PCSZ     GetDBName(PCSZ name);
+  PCSZ     GetTableName(void);
   char    *GetPartName(void);
 //int      GetColNameLen(Field *fp);
 //char    *GetColName(Field *fp);
@@ -197,7 +197,7 @@ public:
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
   bool     IsPartitioned(void);
   bool     IsUnique(uint n);
-  char    *GetDataPath(void) {return (char*)datapath;}
+  PCSZ     GetDataPath(void) {return datapath;}
 
   bool     SetDataPath(PGLOBAL g, PCSZ path);
   PTDB     GetTDB(PGLOBAL g);
@@ -513,7 +513,7 @@ protected:
   ulong         hnum;                 // The number of this handler
   query_id_t    valid_query_id;       // The one when tdbp was allocated
   query_id_t    creat_query_id;       // The one when handler was allocated
-  char         *datapath;             // Is the Path of DB data directory
+  PCSZ          datapath;             // Is the Path of DB data directory
   PTDB          tdbp;                 // To table class object
   PVAL          sdvalin1;             // Used to convert date values
   PVAL          sdvalin2;             // Used to convert date values

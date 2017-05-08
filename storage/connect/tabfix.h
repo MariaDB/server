@@ -65,7 +65,7 @@ class DllExport BINCOL : public DOSCOL {
   friend class TDBFIX;
  public:
   // Constructors
-  BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am = "BIN");
+  BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am = "BIN");
   BINCOL(BINCOL *colp, PTDB tdbp);  // Constructor used in copy process
 
   // Implementation

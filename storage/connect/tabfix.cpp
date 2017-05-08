@@ -373,7 +373,7 @@ int TDBFIX::WriteDB(PGLOBAL g)
 /***********************************************************************/
 /*  BINCOL public constructor.                                         */
 /***********************************************************************/
-BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
+BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am)
   : DOSCOL(g, cdp, tp, cp, i, am)
   {
   char c, *fmt = cdp->GetFmt();

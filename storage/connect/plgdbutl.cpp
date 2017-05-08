@@ -399,9 +399,9 @@ char *SetPath(PGLOBAL g, const char *path)
 
 		if (*path != '.') {
 #if defined(__WIN__)
-			char *s = "\\";
+			const char *s = "\\";
 #else   // !__WIN__
-			char *s = "/";
+			const char *s = "/";
 #endif  // !__WIN__
 			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
 		} else
@@ -673,7 +673,7 @@ void PlugConvertConstant(PGLOBAL g, void* & value, short& type)
 /*  format and a Strftime output format. Flag if not 0 indicates that  */
 /*  non quoted blanks are not included in the output format.           */
 /***********************************************************************/
-PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
+PDTP MakeDateFormat(PGLOBAL g, PCSZ dfmt, bool in, bool out, int flag)
 {
 	int  rc;
   PDTP pdp = (PDTP)PlugSubAlloc(g, NULL, sizeof(DATPAR));
@@ -682,7 +682,7 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
     htrc("MakeDateFormat: dfmt=%s\n", dfmt);
 
   memset(pdp, 0, sizeof(DATPAR));
-  pdp->Format = pdp->Curp = dfmt;
+  pdp->Format = pdp->Curp = PlugDup(g, dfmt);
   pdp->Outsize = 2 * strlen(dfmt) + 1;
 
   if (in)
@@ -724,10 +724,11 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
 /***********************************************************************/
 int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
   {
-  char *fmt, c, d, e, W[8][12];
-  int   i, k, m, numval;
-  int   n, y = 30;
-  bool  b = true;           // true for null dates
+	PCSZ fmt;
+	char c, d, e, W[8][12];
+  int  i, k, m, numval;
+  int  n, y = 30;
+  bool b = true;           // true for null dates
 
   if (pdp)
     fmt = pdp->InFmt;

@@ -82,7 +82,7 @@ class DllExport ZIPCOL : public COLBLK {
 	friend class TDBZIP;
 public:
 	// Constructors
-	ZIPCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "ZIP");
+	ZIPCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "ZIP");
 
 	// Implementation
 	virtual int  GetAmType(void) { return TYPE_AM_ZIP; }

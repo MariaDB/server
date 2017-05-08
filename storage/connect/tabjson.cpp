@@ -362,7 +362,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 
  skipit:
   if (trace)
-    htrc("CSVColumns: n=%d len=%d\n", n, length[0]);
+    htrc("JSONColumns: n=%d len=%d\n", n, length[0]);
 
   /*********************************************************************/
   /*  Allocate the structures used to refer to the result set.         */

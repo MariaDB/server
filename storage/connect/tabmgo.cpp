@@ -69,7 +69,7 @@ PQRYRES MGOColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 
 skipit:
 	if (trace)
-		htrc("CSVColumns: n=%d len=%d\n", n, length[0]);
+		htrc("MGOColumns: n=%d len=%d\n", n, length[0]);
 
 	/*********************************************************************/
 	/*  Allocate the structures used to refer to the result set.         */

@@ -192,7 +192,7 @@ void CONSTANT::Print(PGLOBAL g, char *ps, uint z)
 /*  STRING public constructor for new char values. Alloc Size must be  */
 /*  calculated because PlugSubAlloc rounds up size to multiple of 8.   */
 /***********************************************************************/
-STRING::STRING(PGLOBAL g, uint n, PSZ str)
+STRING::STRING(PGLOBAL g, uint n, PCSZ str)
 {
   G = g;
   Length = (str) ? strlen(str) : 0;

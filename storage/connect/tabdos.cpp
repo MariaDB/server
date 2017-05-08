@@ -184,7 +184,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
 /***********************************************************************/
 bool DOSDEF::GetOptFileName(PGLOBAL g, char *filename)
   {
-  char   *ftype;
+  PCSZ ftype;
 
   switch (Recfm) {
     case RECFM_VAR: ftype = ".dop"; break;
@@ -241,9 +241,9 @@ void DOSDEF::RemoveOptValues(PGLOBAL g)
 /***********************************************************************/
 bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   {
-  char   *ftype;
-  char    filename[_MAX_PATH];
-  bool    sep, rc = false;
+  PCSZ ftype;
+  char filename[_MAX_PATH];
+  bool sep, rc = false;
 
   if (!To_Indx)
     return false;           // No index
@@ -2310,8 +2310,8 @@ void TDBDOS::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  DOSCOL public constructor (also called by MAPCOL).                 */
 /***********************************************************************/
-DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
-  : COLBLK(cdp, tp, i)
+DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am)
+      : COLBLK(cdp, tp, i)
   {
   char *p;
   int   prec = Format.Prec;

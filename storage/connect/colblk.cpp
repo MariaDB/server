@@ -377,7 +377,7 @@ PRTBLK::PRTBLK(PCOLUMN cp) : SPCBLK(cp)
 void PRTBLK::ReadColumn(PGLOBAL g)
   {
   if (Pname == NULL) {
-    char   *p;
+    const char *p;
 
     Pname = To_Tdb->GetDef()->GetStringCatInfo(g, "partname", "?");
     p = strrchr(Pname, '#');
@@ -407,7 +407,7 @@ SIDBLK::SIDBLK(PCOLUMN cp) : SPCBLK(cp)
 void SIDBLK::ReadColumn(PGLOBAL)
   {
 //if (Sname == NULL) {
-    Sname = (char*)To_Tdb->GetServer();
+    Sname = To_Tdb->GetServer();
     Value->SetValue_psz(Sname);
 //  } // endif Sname
 
