@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -2457,7 +2457,7 @@ row_log_table_apply_op(
 		rec_init_offsets_temp(mrec, new_index, offsets);
 		next_mrec = mrec + rec_offs_data_size(offsets) + ext_size;
 		if (log->table->n_v_cols) {
-			if (next_mrec + 2 >= mrec_end) {
+			if (next_mrec + 2 > mrec_end) {
 				return(NULL);
 			}
 
