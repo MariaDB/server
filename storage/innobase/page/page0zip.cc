@@ -4634,6 +4634,7 @@ page_zip_write_header_log(
 #if PAGE_DATA > 255
 # error "PAGE_DATA > 255"
 #endif
+	ut_ad(length > 0);
 	ut_ad(length < 256);
 
 	/* If no logging is requested, we may return now */

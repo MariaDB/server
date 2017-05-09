@@ -1991,10 +1991,9 @@ btr_root_raise_and_insert(
 		longer is a leaf page. (Older versions of InnoDB did
 		set PAGE_MAX_TRX_ID on all secondary index pages.) */
 		if (root_page_zip) {
-			page_zip_write_header(
-				root_page_zip,
-				PAGE_HEADER + PAGE_MAX_TRX_ID
-				+ root, 0, mtr);
+			byte* p = PAGE_HEADER + PAGE_MAX_TRX_ID + root;
+			memset(p, 0, 8);
+			page_zip_write_header(root_page_zip, p, 8, mtr);
 		} else {
 			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID
 				       + root, 0, mtr);
@@ -2004,10 +2003,9 @@ btr_root_raise_and_insert(
 		root page; on other clustered index pages, we want to reserve
 		the field PAGE_MAX_TRX_ID for future use. */
 		if (new_page_zip) {
-			page_zip_write_header(
-				new_page_zip,
-				PAGE_HEADER + PAGE_MAX_TRX_ID
-				+ new_page, 0, mtr);
+			byte* p = PAGE_HEADER + PAGE_MAX_TRX_ID + new_page;
+			memset(p, 0, 8);
+			page_zip_write_header(new_page_zip, p, 8, mtr);
 		} else {
 			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID
 				       + new_page, 0, mtr);
