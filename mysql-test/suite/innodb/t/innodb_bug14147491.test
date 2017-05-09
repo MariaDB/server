@@ -13,6 +13,7 @@ call mtr.add_suppression("InnoDB: Cannot open table test/t1 from the internal da
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed file read of tablespace test/t1 page \[page id: space=[0-9]+, page number=[0-9]+\]. You may have to recover from a backup.");
 call mtr.add_suppression("InnoDB: We detected index corruption in an InnoDB type table.*");
 call mtr.add_suppression("mysqld: Index for table 't1' is corrupt; try to repair it");
+call mtr.add_suppression("mysqld.exe: Index for table 't1' is corrupt; try to repair it");
 --enable_query_log
 
 --echo # Create and populate the table to be corrupted
