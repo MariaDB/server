@@ -1835,6 +1835,7 @@ innobase_srv_conc_enter_innodb(
 #endif /* WITH_WSREP */
 
 	trx_t*	trx	= prebuilt->trx;
+
 	if (srv_thread_concurrency) {
 		if (trx->n_tickets_to_enter_innodb > 0) {
 
@@ -10348,8 +10349,6 @@ ha_innobase::general_fetch(
 		DBUG_RETURN(convert_error_code_to_mysql(
 			DB_FORCED_ABORT, 0,  m_user_thd));
 	}
-
-	innobase_srv_conc_enter_innodb(m_prebuilt);
 
 	if (m_prebuilt->table->is_readable()) {
 	} else if (m_prebuilt->table->corrupted) {
