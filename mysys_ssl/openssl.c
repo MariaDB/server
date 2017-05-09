@@ -56,13 +56,13 @@ int check_openssl_compatibility()
   allocated_size= allocated_count= 0;
   evp_ctx= EVP_CIPHER_CTX_new();
   EVP_CIPHER_CTX_free(evp_ctx);
-  if (allocated_count != 1 || allocated_size > EVP_CIPHER_CTX_SIZE)
+  if (allocated_count > 1 || allocated_size > EVP_CIPHER_CTX_SIZE)
     return 1;
 
   allocated_size= allocated_count= 0;
   md5_ctx= EVP_MD_CTX_create();
   EVP_MD_CTX_destroy(md5_ctx);
-  if (allocated_count != 1 || allocated_size > EVP_MD_CTX_SIZE)
+  if (allocated_count > 1 || allocated_size > EVP_MD_CTX_SIZE)
     return 1;
 
   CRYPTO_set_mem_functions(CRYPTO_malloc, CRYPTO_realloc, CRYPTO_free);
