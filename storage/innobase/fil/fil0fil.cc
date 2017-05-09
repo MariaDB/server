@@ -4773,7 +4773,7 @@ fsp_flags_try_adjust(ulint space_id, ulint flags)
 	ut_ad(fsp_flags_is_valid(flags));
 
 	mtr_t	mtr;
-	mtr_start(&mtr);
+	mtr.start();
 	if (buf_block_t* b = buf_page_get(
 		    page_id_t(space_id, 0), page_size_t(flags),
 		    RW_X_LATCH, &mtr)) {
@@ -4787,12 +4787,13 @@ fsp_flags_try_adjust(ulint space_id, ulint flags)
 				<< " to " << ib::hex(flags);
 		}
 		if (f != flags) {
+			mtr.set_named_space(space_id);
 			mlog_write_ulint(FSP_HEADER_OFFSET
 					 + FSP_SPACE_FLAGS + b->frame,
 					 flags, MLOG_4BYTES, &mtr);
 		}
 	}
-	mtr_commit(&mtr);
+	mtr.commit();
 }
 
 /** Determine if a matching tablespace exists in the InnoDB tablespace

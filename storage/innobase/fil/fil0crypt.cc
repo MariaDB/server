@@ -1004,7 +1004,8 @@ fil_crypt_start_encrypting_space(
 	do
 	{
 		mtr_t mtr;
-		mtr_start(&mtr);
+		mtr.start();
+		mtr.set_named_space(space);
 
 		/* 2 - get page 0 */
 		dberr_t err = DB_SUCCESS;
@@ -1020,7 +1021,7 @@ fil_crypt_start_encrypting_space(
 		crypt_data->type = CRYPT_SCHEME_1;
 		crypt_data->write_page0(space, frame, &mtr);
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
 		/* record lsn of update */
 		lsn_t end_lsn = mtr.commit_lsn();
@@ -1758,12 +1759,11 @@ fil_crypt_rotate_page(
 	}
 
 	mtr_t mtr;
-	mtr_start(&mtr);
-	buf_block_t* block = fil_crypt_get_page_throttle(state,
-							 offset, &mtr,
-							 &sleeptime_ms);
-
-	if (block) {
+	mtr.start();
+	if (buf_block_t* block = fil_crypt_get_page_throttle(state,
+							     offset, &mtr,
+							     &sleeptime_ms)) {
+		mtr.set_named_space(space);
 
 		bool modified = false;
 		int needs_scrubbing = BTR_SCRUB_SKIP_PAGE;
@@ -1804,11 +1804,11 @@ fil_crypt_rotate_page(
 				BTR_SCRUB_PAGE_ALLOCATION_UNKNOWN);
 		}
 
-		mtr_commit(&mtr);
+		mtr.commit();
 		lsn_t end_lsn = mtr.commit_lsn();
 
 		if (needs_scrubbing == BTR_SCRUB_PAGE) {
-			mtr_start(&mtr);
+			mtr.start();
 			/*
 			* refetch page and allocation status
 			*/
@@ -1820,6 +1820,7 @@ fil_crypt_rotate_page(
 				&sleeptime_ms);
 
 			if (block) {
+				mtr.set_named_space(space);
 
 				/* get required table/index and index-locks */
 				needs_scrubbing = btr_scrub_recheck_page(
@@ -1981,6 +1982,7 @@ fil_crypt_flush_space(
 		    page_id_t(space->id, 0), page_size_t(space->flags),
 		    RW_X_LATCH, NULL, BUF_GET,
 		    __FILE__, __LINE__, &mtr, &err)) {
+		mtr.set_named_space(space);
 		crypt_data->write_page0(space, block->frame, &mtr);
 	}
 

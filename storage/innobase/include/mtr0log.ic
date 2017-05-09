@@ -76,10 +76,10 @@ mlog_catenate_ulint(
 	ulint		val,		/*!< in: value to write */
 	mlog_id_t	type)		/*!< in: type of value to write */
 {
-	ut_ad(MLOG_1BYTE == 1);
-	ut_ad(MLOG_2BYTES == 2);
-	ut_ad(MLOG_4BYTES == 4);
-	ut_ad(MLOG_8BYTES == 8);
+	compile_time_assert(MLOG_1BYTE == 1);
+	compile_time_assert(MLOG_2BYTES == 2);
+	compile_time_assert(MLOG_4BYTES == 4);
+	compile_time_assert(MLOG_8BYTES == 8);
 
 	byte*	ptr = mtr_buf->push<byte*>(type);
 
@@ -182,6 +182,14 @@ mlog_write_initial_log_record_low(
 	mtr_t*		mtr)
 {
 	ut_ad(type <= MLOG_BIGGEST_TYPE || EXTRA_CHECK_MLOG_NUMBER(type));
+	ut_ad(type == MLOG_FILE_NAME
+	      || type == MLOG_FILE_DELETE
+	      || type == MLOG_FILE_CREATE2
+	      || type == MLOG_FILE_RENAME2
+	      || type == MLOG_INDEX_LOAD
+	      || type == MLOG_TRUNCATE
+	      || type == MLOG_FILE_WRITE_CRYPT_DATA
+	      || mtr->is_named_space(space_id));
 
 	mach_write_to_1(log_ptr, type);
 	log_ptr++;
