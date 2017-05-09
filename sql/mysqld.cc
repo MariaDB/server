@@ -4126,7 +4126,6 @@ static int init_common_variables()
   init_libstrings();
   tzset();			// Set tzname
 
-  sf_leaking_memory= 0; // no memory leaks from now on
 #ifdef SAFEMALLOC
   sf_malloc_dbug_id= mariadb_dbug_id;
 #endif
@@ -4140,23 +4139,22 @@ static int init_common_variables()
   if (!global_rpl_filter || !binlog_filter)
   {
     sql_perror("Could not allocate replication and binlog filters");
-    return 1;
+    exit(1);
   }
 
 #ifdef HAVE_OPENSSL
   if (check_openssl_compatibility())
   {
     sql_print_error("Incompatible OpenSSL version. Cannot continue...");
-    return 1;
+    exit(1);
   }
 #endif
 
-  if (init_thread_environment() ||
-      mysql_init_variables())
-    return 1;
+  if (init_thread_environment() || mysql_init_variables())
+    exit(1);
 
   if (ignore_db_dirs_init())
-    return 1;
+    exit(1);
 
 #ifdef HAVE_TZNAME
   struct tm tm_tmp;
@@ -4210,7 +4208,7 @@ static int init_common_variables()
   if (!IS_TIME_T_VALID_FOR_TIMESTAMP(server_start_time))
   {
     sql_print_error("This MySQL server doesn't support dates later then 2038");
-    return 1;
+    exit(1);
   }
 
   opt_log_basename= const_cast<char *>("mysql");
@@ -4259,7 +4257,7 @@ static int init_common_variables()
     new entries could be added to that list.
   */
   if (add_status_vars(status_vars))
-    return 1; // an error was already reported
+    exit(1); // an error was already reported
 
 #ifndef DBUG_OFF
   /*
@@ -4290,7 +4288,7 @@ static int init_common_variables()
 #endif
 
   if (get_options(&remaining_argc, &remaining_argv))
-    return 1;
+    exit(1);
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     set_server_version(server_version, sizeof(server_version));
 
@@ -4308,6 +4306,8 @@ static int init_common_variables()
                             (ulong) getpid());
     }
   }
+
+  sf_leaking_memory= 0; // no memory leaks from now on
 
 #ifndef EMBEDDED_LIBRARY
   if (opt_abort && !opt_verbose)
