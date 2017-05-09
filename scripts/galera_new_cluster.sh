@@ -12,7 +12,7 @@ Usage: ${0}
 
     The script galera_new_cluster is used to bootstrap new Galera Cluster,
     when all the nodes are down. Run galera_new_cluster on the first node only.
-    On the remaing nodes simply run 'service @DAEMON_NAME@ start'.
+    On the remaining nodes simply run 'service @DAEMON_NAME@ start'.
 
     For more information on Galera Cluster configuration and usage see:
     https://mariadb.com/kb/en/mariadb/getting-started-with-mariadb-galera-cluster/
