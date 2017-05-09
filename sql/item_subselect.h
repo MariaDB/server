@@ -466,6 +466,8 @@ public:
       NULL              - for all other locations
   */
   TABLE_LIST *emb_on_expr_nest;
+  /* May be TRUE only for the candidates to semi-join conversion */ 
+  bool do_not_convert_to_sj; 
   /*
     Types of left_expr and subquery's select list allow to perform subquery
     materialization. Currently, we set this to FALSE when it as well could
@@ -554,9 +556,9 @@ public:
   Item_in_subselect()
     :Item_exists_subselect(), left_expr_cache(0), first_execution(TRUE),
      abort_on_null(0), in_strategy(SUBS_NOT_TRANSFORMED), optimizer(0),
-    pushed_cond_guards(NULL), func(NULL), emb_on_expr_nest(NULL), 
-    is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE),
-    upper_item(0)
+    pushed_cond_guards(NULL), func(NULL), emb_on_expr_nest(NULL),
+    do_not_convert_to_sj(FALSE), is_jtbm_merged(FALSE),
+    is_jtbm_const_tab(FALSE), upper_item(0)
     {}
   void cleanup();
   subs_type substype() { return IN_SUBS; }
@@ -616,6 +618,8 @@ public:
   {
     emb_on_expr_nest= embedding;
   }
+
+  void block_conversion_to_sj () { do_not_convert_to_sj= TRUE; }
 
   bool test_strategy(uchar strategy)
   { return test(in_strategy & strategy); }

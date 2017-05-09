@@ -1366,7 +1366,7 @@ Item_in_subselect::Item_in_subselect(Item * left_exp,
   Item_exists_subselect(), 
   left_expr_cache(0), first_execution(TRUE), in_strategy(SUBS_NOT_TRANSFORMED),
   optimizer(0), pushed_cond_guards(NULL), emb_on_expr_nest(NULL),
-  is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE), 
+  do_not_convert_to_sj(FALSE), is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE), 
   is_flattenable_semijoin(FALSE),
   is_registered_semijoin(FALSE), 
   upper_item(0)
