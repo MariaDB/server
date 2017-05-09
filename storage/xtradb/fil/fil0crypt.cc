@@ -1976,11 +1976,6 @@ fil_crypt_rotate_page(
 					kv, key_state->key_version,
 					key_state->rotate_key_age)) {
 
-				/* page can be "fresh" i.e never written in case
-				* kv == 0 or it should have a key version at least
-				* as big as the space minimum key version*/
-				ut_a(kv == 0 || kv >= crypt_data->min_key_version);
-
 				modified = true;
 
 				/* force rotation by dummy updating page */
@@ -1992,9 +1987,6 @@ fil_crypt_rotate_page(
 				state->crypt_stat.pages_modified++;
 			} else {
 				if (crypt_data->is_encrypted()) {
-					ut_a(kv >= crypt_data->min_key_version ||
-						(kv == 0 && key_state->key_version == 0));
-
 					if (kv < state->min_key_version_found) {
 						state->min_key_version_found = kv;
 					}
@@ -2266,6 +2258,11 @@ fil_crypt_complete_rotate_space(
 			crypt_data->rotate_state.flushing = false;
 			mutex_exit(&crypt_data->mutex);
 		}
+	} else {
+		mutex_enter(&crypt_data->mutex);
+		ut_a(crypt_data->rotate_state.active_threads > 0);
+		crypt_data->rotate_state.active_threads--;
+		mutex_exit(&crypt_data->mutex);
 	}
 }
 
@@ -2551,8 +2548,9 @@ fil_space_crypt_close_tablespace(
 
 		if (now >= last + 30) {
 			ib_logf(IB_LOG_LEVEL_WARN,
-				"Waited %ld seconds to drop space: %s(" ULINTPF ").",
-				now - start, space->name, space->id);
+				"Waited %ld seconds to drop space: %s (" ULINTPF
+				") active threads %u flushing=%d.",
+				now - start, space->name, space->id, cnt, flushing);
 			last = now;
 		}
 	}

@@ -8780,8 +8780,6 @@ bool JOIN::get_best_combination()
   full_join=0;
   hash_join= FALSE;
 
-  used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
-
   fix_semijoin_strategies_for_picked_join_order(this);
    
   JOIN_TAB_RANGE *root_range;
@@ -8845,7 +8843,6 @@ bool JOIN::get_best_combination()
     j->bush_root_tab= sjm_nest_root;
 
     form= table[tablenr]= j->table;
-    used_tables|= form->map;
     form->reginfo.join_tab=j;
     DBUG_PRINT("info",("type: %d", j->type));
     if (j->type == JT_CONST)
@@ -8872,9 +8869,6 @@ bool JOIN::get_best_combination()
                              best_positions[tablenr].loosescan_picker.loosescan_key);
       j->index= best_positions[tablenr].loosescan_picker.loosescan_key;
     }*/
-    
-    if (keyuse && create_ref_for_key(this, j, keyuse, TRUE, used_tables))
-      DBUG_RETURN(TRUE);                        // Something went wrong
 
     if ((j->type == JT_REF || j->type == JT_EQ_REF) &&
         is_hash_join_key_no(j->ref.key))
@@ -8900,6 +8894,23 @@ bool JOIN::get_best_combination()
   }
   root_range->end= j;
 
+  used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
+  for (j=join_tab, tablenr=0 ; tablenr < table_count ; tablenr++,j++)
+  {
+    if (j->bush_children)
+      j= j->bush_children->start;
+
+    used_tables|= j->table->map;
+    if (j->type != JT_CONST && j->type != JT_SYSTEM)
+    {
+      if ((keyuse= best_positions[tablenr].key) &&
+          create_ref_for_key(this, j, keyuse, TRUE, used_tables))
+        DBUG_RETURN(TRUE);              // Something went wrong
+    }
+    if (j->last_leaf_in_bush)
+      j= j->bush_root_tab;
+  }
+ 
   top_join_tab_count= join_tab_ranges.head()->end - 
                       join_tab_ranges.head()->start;
 
@@ -9752,7 +9763,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	It solve problem with select like SELECT * FROM t1 WHERE rand() > 0.5
       */
       if (tab == join->join_tab + join->top_join_tab_count - 1)
-	current_map|= OUTER_REF_TABLE_BIT | RAND_TABLE_BIT;
+        current_map|= RAND_TABLE_BIT;
       used_tables|=current_map;
 
       if (tab->type == JT_REF && tab->quick &&

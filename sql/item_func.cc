@@ -5675,15 +5675,14 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
 }
 
 
-void Item_user_var_as_out_param::load_data_set_null_value(CHARSET_INFO* cs)
+void Item_user_var_as_out_param::set_null_value(CHARSET_INFO* cs)
 {
   ::update_hash(entry, TRUE, 0, 0, STRING_RESULT, cs, 0 /* unsigned_arg */);
 }
 
 
-void Item_user_var_as_out_param::load_data_set_value(const char *str,
-                                                     uint length,
-                                                     CHARSET_INFO* cs)
+void Item_user_var_as_out_param::set_value(const char *str, uint length,
+                                           CHARSET_INFO* cs)
 {
   ::update_hash(entry, FALSE, (void*)str, length, STRING_RESULT, cs,
                 0 /* unsigned_arg */);
@@ -5718,7 +5717,7 @@ my_decimal* Item_user_var_as_out_param::val_decimal(my_decimal *decimal_buffer)
 }
 
 
-void Item_user_var_as_out_param::load_data_print(THD *thd, String *str)
+void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
 {
   str->append('@');
   append_identifier(thd, str, name.str, name.length);
