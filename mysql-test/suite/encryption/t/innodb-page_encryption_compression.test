@@ -1,19 +1,11 @@
 -- source include/have_innodb.inc
--- source include/have_file_key_management_plugin.inc
 -- source include/not_embedded.inc
+-- source include/have_file_key_management_plugin.inc
 
---disable_query_log
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
 
---disable_warnings
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
---enable_warnings
 
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb page_compressed=1;
 show warnings;
@@ -51,12 +43,8 @@ let $wait_condition= select variable_value > 0 from information_schema.global_st
 --let $restart_parameters=--innodb-encrypt-tables=OFF
 --source include/restart_mysqld.inc
 
---disable_warnings
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
---enable_warnings
 
 alter table innodb_normal engine=innodb page_compressed=DEFAULT;
 show create table innodb_normal;
@@ -64,7 +52,6 @@ alter table innodb_compact engine=innodb encrypted=DEFAULT encryption_key_id=DEF
 show create table innodb_compact;
 alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT page_compressed=DEFAULT;
 show create table innodb_dynamic;
-
 let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_PAGE_DECOMPRESSED';
 --source include/wait_condition.inc
 
@@ -76,6 +63,4 @@ drop table innodb_dynamic;
 # reset system
 --disable_query_log
 EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
 --enable_query_log

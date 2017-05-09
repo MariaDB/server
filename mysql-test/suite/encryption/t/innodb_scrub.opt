@@ -2,8 +2,6 @@
 --innodb-background-scrub-data-uncompressed=OFF
 --innodb-encrypt-tables=OFF
 --innodb-encryption-threads=0
---innodb-file-format=Barracuda
---innodb-file-per-table=1
 --innodb-immediate-scrub-data-uncompressed=ON
 --loose-innodb-debug-force-scrubbing=ON
 --innodb-tablespaces-scrubbing

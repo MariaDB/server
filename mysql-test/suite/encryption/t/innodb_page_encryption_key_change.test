@@ -7,14 +7,6 @@
 -- let $restart_parameters=--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
 
---disable_query_log
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
-
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
-
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 show warnings;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=2;
@@ -65,9 +57,6 @@ select * from innodb_redundant;
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
-
 alter table innodb_compact engine=innodb encryption_key_id = 2;
 alter table innodb_compressed engine=innodb encryption_key_id = 3;
 alter table innodb_dynamic engine=innodb encryption_key_id = 4;
@@ -88,9 +77,3 @@ drop table innodb_compact;
 drop table innodb_compressed;
 drop table innodb_dynamic;
 drop table innodb_redundant;
-
-# reset system
---disable_query_log
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
---enable_query_log

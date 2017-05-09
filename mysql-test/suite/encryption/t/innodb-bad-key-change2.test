@@ -11,14 +11,15 @@
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t1(new)?\\.ibd' cannot be decrypted\\.");
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
-call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as discarded.");
+call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as discarded\\.");
 
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
 SET GLOBAL innodb_file_per_table = ON;
 
-CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(8)) ENGINE=InnoDB
+ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
 INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
 
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
@@ -26,26 +27,24 @@ INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
 
 --error ER_GET_ERRMSG
 SELECT * FROM t1;
---replace_regex /tablespace [0-9]*/tablespace / /key_id [0-9]*/key_id /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
-ALTER TABLE t1 engine=InnoDB;
---replace_regex /tablespace [0-9]*/tablespace / /key_id [0-9]*/key_id /
+ALTER TABLE t1 ENGINE=InnoDB;
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
-
 OPTIMIZE TABLE t1;
---replace_regex /tablespace [0-9]*/tablespace / /key_id [0-9]*/key_id /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 
 CHECK TABLE t1;
---replace_regex /tablespace [0-9]*/tablespace / /key_id [0-9]*/key_id /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
-let MYSQLD_TMPDIR = `SELECT @@tmpdir`;
 
 FLUSH TABLES t1 FOR EXPORT;
 perl;
@@ -58,7 +57,7 @@ UNLOCK TABLES;
 --source include/restart_mysqld.inc
 
 # Discard should pass even with incorrect keys
---replace_regex /tablespace [0-9]*/tablespace / /key_id [0-9]*/key_id /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 ALTER TABLE t1 DISCARD TABLESPACE;
 
 perl;
@@ -67,32 +66,23 @@ ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
 
+
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
 ALTER TABLE t1 IMPORT TABLESPACE;
 SHOW CREATE TABLE t1;
 
---let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+--let $restart_parameters= --innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
 # Rename table should pass even with incorrect keys
 RENAME TABLE t1 TO t1new;
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 
 # Alter table rename is not allowed with incorrect keys
---replace_regex /tablespace [0-9]*/tablespace / /key_id [0-9]*/key_id /
 --error ER_GET_ERRMSG
 ALTER TABLE t1new RENAME TO t2new;
-
 # Drop should pass even with incorrect keys
---replace_regex /tablespace [0-9]*/tablespace / /key_id [0-9]*/key_id /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 DROP TABLE t1new;
-
-#
-# Reset environment
-#
---let $restart_parameters=
---source include/restart_mysqld.inc
-
---error ER_BAD_TABLE_ERROR
-DROP TABLE t1, t1new;
