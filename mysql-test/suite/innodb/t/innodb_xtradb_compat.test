@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/not_embedded.inc
+--source include/not_windows.inc
 
 select @@innodb_adaptive_hash_index_partitions, @@innodb_adaptive_hash_index_parts;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
