@@ -1,6 +1,15 @@
---- suite/sys_vars/r/sysvars_innodb.result
-+++ suite/sys_vars/r/sysvars_innodb.result
+--- suite/sys_vars/r/sysvars_innodb.result	2017-05-10 10:25:27.196836832 +0200
++++ suite/sys_vars/r/sysvars_innodb.reject	2017-05-10 10:57:12.668442437 +0200
 @@ -54,7 +54,7 @@
+ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+ DEFAULT_VALUE	8
+ VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	BIGINT UNSIGNED
++VARIABLE_TYPE	INT UNSIGNED
+ VARIABLE_COMMENT	It is an alias for innodb_adaptive_hash_index_parts; only exists to allow easier upgrade from earlier XtraDB versions.
+ NUMERIC_MIN_VALUE	1
+ NUMERIC_MAX_VALUE	512
+@@ -68,7 +68,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	8
  VARIABLE_SCOPE	GLOBAL
@@ -9,7 +18,7 @@
  VARIABLE_COMMENT	Number of InnoDB Adaptive Hash Index Partitions (default 8)
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	512
-@@ -68,7 +68,7 @@
+@@ -82,7 +82,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	150000
  VARIABLE_SCOPE	GLOBAL
@@ -18,16 +27,7 @@
  VARIABLE_COMMENT	The upper limit of the sleep delay in usec. Value of 0 disables it.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1000000
-@@ -82,7 +82,7 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
- DEFAULT_VALUE	5
- VARIABLE_SCOPE	GLOBAL
--VARIABLE_TYPE	BIGINT UNSIGNED
-+VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Background commit interval in seconds
- NUMERIC_MIN_VALUE	1
- NUMERIC_MAX_VALUE	1073741824
-@@ -152,7 +152,7 @@
+@@ -96,7 +96,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	64
  VARIABLE_SCOPE	GLOBAL
@@ -36,7 +36,7 @@
  VARIABLE_COMMENT	Data file autoextend increment in megabytes
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	1000
-@@ -166,7 +166,7 @@
+@@ -110,7 +110,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	GLOBAL
@@ -45,7 +45,7 @@
  VARIABLE_COMMENT	The AUTOINC lock modes supported by InnoDB: 0 => Old style AUTOINC locking (for backward compatibility); 1 => New style AUTOINC locking; 2 => No AUTOINC locking (unsafe for SBR)
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2
-@@ -250,10 +250,10 @@
+@@ -194,10 +194,10 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	134217728
  VARIABLE_SCOPE	GLOBAL

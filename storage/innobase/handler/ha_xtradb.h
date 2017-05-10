@@ -94,14 +94,15 @@ Each partition is protected by its own latch and so we have parts number
 of latches protecting complete search system. */
 static MYSQL_SYSVAR_ULONG(adaptive_hash_index_partitions, btr_ahi_parts,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Number of InnoDB Adaptive Hash Index Partitions (default 8)",
+  "It is an alias for innodb_adaptive_hash_index_parts; "
+  "only exists to allow easier upgrade from earlier XtraDB versions.",
   NULL, NULL, 8, 1, 512, 0);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 static MYSQL_SYSVAR_BOOL(buffer_pool_populate, innodb_buffer_pool_populate,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Deprecated. This option has no effect and "
-  "will be removed in MariaDB 10.3.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, NULL, FALSE);
 
 #if defined UNIV_DEBUG || defined UNIV_PERF_DEBUG
@@ -117,8 +118,8 @@ set_cleaner_max_lru_time(THD*thd, st_mysql_sys_var*, void*, const void*)
 /* Original default 1000 */
 static MYSQL_SYSVAR_ULONG(cleaner_max_lru_time, srv_cleaner_max_lru_time,
   PLUGIN_VAR_RQCMDARG,
-  "Deprecated. The maximum time limit for a single LRU tail flush iteration by the page "
-  "cleaner thread in miliseconds",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, set_cleaner_max_lru_time, 0, 0, ~0UL, 0);
 
 static
@@ -133,8 +134,8 @@ set_cleaner_max_flush_time(THD*thd, st_mysql_sys_var*, void*, const void*)
 /* Original default 1000 */
 static MYSQL_SYSVAR_ULONG(cleaner_max_flush_time, srv_cleaner_max_flush_time,
   PLUGIN_VAR_RQCMDARG,
-  "The maximum time limit for a single flush list flush iteration by the page "
-  "cleaner thread in miliseconds",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_cleaner_max_flush_time, 0, 0, ~0UL, 0);
 
 static
@@ -150,7 +151,8 @@ set_cleaner_flush_chunk_size(THD*thd, st_mysql_sys_var*, void*, const void*)
 static MYSQL_SYSVAR_ULONG(cleaner_flush_chunk_size,
   srv_cleaner_flush_chunk_size,
   PLUGIN_VAR_RQCMDARG,
-  "Divide page cleaner flush list flush batches into chunks of this size",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_cleaner_flush_chunk_size, 0, 0, ~0UL, 0);
 
 static
@@ -166,7 +168,8 @@ set_cleaner_lru_chunk_size(THD*thd, st_mysql_sys_var*, void*, const void*)
 static MYSQL_SYSVAR_ULONG(cleaner_lru_chunk_size,
   srv_cleaner_lru_chunk_size,
   PLUGIN_VAR_RQCMDARG,
-  "Divide page cleaner LRU list flush batches into chunks of this size",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_cleaner_lru_chunk_size, 0, 0, ~0UL, 0);
 
 static
@@ -181,8 +184,8 @@ set_cleaner_free_list_lwm(THD* thd, st_mysql_sys_var*, void*, const void*)
 /* Original default 10 */
 static MYSQL_SYSVAR_ULONG(cleaner_free_list_lwm, srv_cleaner_free_list_lwm,
   PLUGIN_VAR_RQCMDARG,
-  "Page cleaner will keep on flushing the same buffer pool instance if its "
-  "free list length is below this percentage of innodb_lru_scan_depth",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_cleaner_free_list_lwm, 0, 0, 100, 0);
 
 static
@@ -196,8 +199,8 @@ set_cleaner_eviction_factor(THD* thd, st_mysql_sys_var*, void*, const void*)
 }
 static MYSQL_SYSVAR_BOOL(cleaner_eviction_factor, srv_cleaner_eviction_factor,
   PLUGIN_VAR_OPCMDARG,
-  "Make page cleaner LRU flushes use evicted instead of flushed page counts "
-  "for its heuristics",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_cleaner_eviction_factor, FALSE);
 
 #endif /* defined UNIV_DEBUG || defined UNIV_PERF_DEBUG */
@@ -273,9 +276,8 @@ set_cleaner_lsn_age_factor(THD* thd, st_mysql_sys_var*, void*, const void*)
 static MYSQL_SYSVAR_ENUM(cleaner_lsn_age_factor,
   srv_cleaner_lsn_age_factor,
   PLUGIN_VAR_OPCMDARG,
-  "Deprecated. The formula for LSN age factor for page cleaner adaptive flushing. "
-  "LEGACY: Original Oracle MySQL 5.6 formula. "
-  "HIGH_CHECKPOINT: (the default) Percona Server 5.6 formula.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_cleaner_lsn_age_factor, SRV_CLEANER_LSN_AGE_FACTOR_DEPRECATED,
   &innodb_cleaner_lsn_age_factor_typelib);
 
@@ -306,10 +308,8 @@ set_corrupt_table_action(THD* thd, st_mysql_sys_var*, void*, const void*)
 }
 static	MYSQL_SYSVAR_ENUM(corrupt_table_action, srv_pass_corrupt_table,
   PLUGIN_VAR_RQCMDARG,
-  "Deprecated. Warn corruptions of user tables as 'corrupt table' instead of not crashing itself, "
-  "when used with file_per_table. "
-  "All file io for the datafile after detected as corrupt are disabled, "
-  "except for the deletion.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_corrupt_table_action, 3, &corrupt_table_action_typelib);
 
 /* Added new default DEPRECATED */
@@ -341,9 +341,8 @@ set_empty_free_list_algorithm(THD* thd, st_mysql_sys_var*, void*, const void*)
 static MYSQL_SYSVAR_ENUM(empty_free_list_algorithm,
   srv_empty_free_list_algorithm,
   PLUGIN_VAR_OPCMDARG,
-  "Deprecated. The algorithm to use for empty free list handling.  Allowed values: "
-  "LEGACY: Original Oracle MySQL 5.6 handling with single page flushes; "
-  "BACKOFF: (default) Wait until cleaner produces a free page.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_empty_free_list_algorithm, SRV_EMPTY_FREE_LIST_DEPRECATED,
   &innodb_empty_free_list_algorithm_typelib);
 
@@ -357,15 +356,15 @@ set_fake_changes(THD* thd, st_mysql_sys_var*, void*, const void*)
                             "innodb_fake_changes");
 }
 static MYSQL_THDVAR_BOOL(fake_changes, PLUGIN_VAR_OPCMDARG,
-  "Deprecated. In the transaction after enabled, UPDATE, INSERT and DELETE only move the cursor to the records "
-  "and do nothing other operations (no changes, no ibuf, no undo, no transaction log) in the transaction. "
-  "This is to cause replication prefetch IO. ATTENTION: the transaction started after enabled is affected.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_fake_changes, FALSE);
 
 /* Original default, min 4. */
 static MYSQL_SYSVAR_ULONG(file_io_threads, innobase_file_io_threads,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_NOSYSVAR,
-  "Deprecated. Number of file I/O threads in InnoDB.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, NULL, 0, 0, 64, 0);
 
 /** Possible values for system variable "innodb_foreground_preflush".  */
@@ -395,10 +394,8 @@ set_foreground_preflush(THD* thd, st_mysql_sys_var*, void*, const void*)
 }
 static MYSQL_SYSVAR_ENUM(foreground_preflush, srv_foreground_preflush,
   PLUGIN_VAR_OPCMDARG,
-  "Deprecated: The algorithm InnoDB uses for the query threads at sync preflush.  "
-  "Possible values are "
-  "SYNC_PREFLUSH: perform a sync preflush as Oracle MySQL; "
-  "EXPONENTIAL_BACKOFF: (default) wait for the page cleaner flush.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_foreground_preflush, SRV_FOREGROUND_PREFLUSH_DEPRECATED,
   &innodb_foreground_preflush_typelib);
 
@@ -432,14 +429,15 @@ set_locking_fake_changes(THD* thd, st_mysql_sys_var*, void*, const void*)
 /* Original default: TRUE */
 static MYSQL_SYSVAR_BOOL(locking_fake_changes, srv_fake_changes_locks,
   PLUGIN_VAR_NOCMDARG,
-  "Deprecated. ###EXPERIMENTAL### if enabled, transactions will get S row locks instead "
-  "of X locks for fake changes.  If disabled, fake change transactions will "
-  "not take any locks at all.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_locking_fake_changes, FALSE);
 
 static MYSQL_SYSVAR_STR(log_arch_dir, innobase_log_arch_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Deprecated. Where full logs should be archived.", NULL, NULL, NULL);
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
+  NULL, NULL, NULL);
 
 static
 void
@@ -452,7 +450,8 @@ set_log_archive(THD* thd, st_mysql_sys_var*, void*, const void*)
 }
 static MYSQL_SYSVAR_BOOL(log_archive, innobase_log_archive,
   PLUGIN_VAR_OPCMDARG,
-  "Deprecated. Set to 1 if you want to have logs archived.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_log_archive, FALSE);
 
 static
@@ -466,13 +465,15 @@ set_log_arch_expire_sec(THD* thd, st_mysql_sys_var*, void*, const void*)
 }
 static MYSQL_SYSVAR_ULONG(log_arch_expire_sec,
   srv_log_arch_expire_sec, PLUGIN_VAR_OPCMDARG,
-  "Deprecated. Expiration time for archived innodb transaction logs.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_log_arch_expire_sec, 0, 0, ~0UL, 0);
 
 /* Original default, min 512 */
 static MYSQL_SYSVAR_ULONG(log_block_size, innobase_log_block_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Deprecated. ###EXPERIMENTAL###: The log block size of the transaction log file. Changing for created log file is not supported. Use on your own risk!",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, NULL, 0, 0,
   (1 << UNIV_PAGE_SIZE_SHIFT_MAX), 0);
 
@@ -521,26 +522,9 @@ set_log_checksum_algorithm(THD* thd, st_mysql_sys_var*, void*, const void* save)
 }
 static MYSQL_SYSVAR_ENUM(log_checksum_algorithm, srv_log_checksum_algorithm,
   PLUGIN_VAR_RQCMDARG,
-  "Deprecated. The algorithm InnoDB uses for log block checksums. Possible values are "
-  "CRC32 (hardware accelerated if the CPU supports it) "
-    "write crc32, allow any of the other checksums to match when reading; "
-  "STRICT_CRC32 "
-    "write crc32, do not allow other algorithms to match when reading; "
-  "INNODB "
-    "write a software calculated checksum, allow any other checksums "
-    "to match when reading; "
-  "STRICT_INNODB "
-    "write a software calculated checksum, do not allow other algorithms "
-    "to match when reading; "
-  "NONE "
-    "write a constant magic number, do not do any checksum verification "
-    "when reading (same as innodb_checksums=OFF); "
-  "STRICT_NONE "
-    "write a constant magic number, do not allow values other than that "
-    "magic number when reading; "
-  "Logs created when this option is set to crc32/strict_crc32/none/strict_none "
-  "will not be readable by any MySQL version or Percona Server versions that do"
-  "not support this feature",
+  "Deprecated and translated to innodb_log_checksums (NONE to OFF, "
+  "everything else to ON); only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_log_checksum_algorithm, SRV_CHECKSUM_ALGORITHM_DEPRECATED,
   &innodb_checksum_algorithm_typelib2);
 
@@ -556,7 +540,8 @@ set_max_bitmap_file_size(THD* thd, st_mysql_sys_var*, void*, const void*)
 /* Original default 100M, min 4K */
 static MYSQL_SYSVAR_ULONGLONG(max_bitmap_file_size, srv_max_bitmap_file_size,
     PLUGIN_VAR_RQCMDARG,
-    "Deprecated. The maximum size of changed page bitmap files",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
     NULL, &set_max_bitmap_file_size, 0, 0, ULONGLONG_MAX, 0);
 
 static
@@ -571,16 +556,16 @@ set_max_changed_pages(THD* thd, st_mysql_sys_var*, void*, const void*)
 /* Original default 1000000 */
 static MYSQL_SYSVAR_ULONGLONG(max_changed_pages, srv_max_changed_pages,
   PLUGIN_VAR_RQCMDARG,
-  "Deprecated. The maximum number of rows for "
-  "INFORMATION_SCHEMA.INNODB_CHANGED_PAGES table, "
-  "0 - unlimited",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_max_changed_pages, 0, 0, ~0ULL, 0);
 
 /* Note that the default and minimum values are set to 0 to
 detect if the option is passed and print deprecation message */
 static MYSQL_SYSVAR_ULONG(mirrored_log_groups, innobase_mirrored_log_groups,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Number of identical copies of log groups we keep for the database. Currently this should be set to 1.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, NULL, 0, 0, 10, 0);
 
 #ifdef UNIV_LINUX
@@ -597,7 +582,8 @@ set_sched_priority_cleaner(THD* thd, st_mysql_sys_var*, void*, const void*)
 /* Original default 19 */
 static MYSQL_SYSVAR_ULONG(sched_priority_cleaner, srv_sched_priority_cleaner,
   PLUGIN_VAR_RQCMDARG,
-  "Deprecated. Nice value for the cleaner and LRU manager thread scheduling",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_sched_priority_cleaner, 0, 0, 39, 0);
 
 #if defined UNIV_DEBUG || defined UNIV_PERF_DEBUG
@@ -612,8 +598,8 @@ set_priority_cleaner(THD* thd, st_mysql_sys_var*, void*, const void*)
 }
 static MYSQL_SYSVAR_BOOL(priority_cleaner, srv_cleaner_thread_priority,
   PLUGIN_VAR_OPCMDARG,
-  "Deprecated. Make buffer pool cleaner and LRU manager threads acquire shared resources "
-  "with priority",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_priority_cleaner, FALSE);
 
 static
@@ -627,7 +613,8 @@ set_priority_io(THD* thd, st_mysql_sys_var*, void*, const void*)
 }
 static MYSQL_SYSVAR_BOOL(priority_io, srv_io_thread_priority,
   PLUGIN_VAR_OPCMDARG,
-  "Deprecated. Make I/O threads acquire shared resources with priority",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
    NULL, &set_priority_io, FALSE);
 
 static
@@ -641,7 +628,8 @@ set_priority_master(THD* thd, st_mysql_sys_var*, void*, const void*)
 }
 static MYSQL_SYSVAR_BOOL(priority_master, srv_master_thread_priority,
   PLUGIN_VAR_OPCMDARG,
-  "Make buffer pool cleaner thread acquire shared resources with priority",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
    NULL, &set_priority_master, FALSE);
 
 static
@@ -655,8 +643,9 @@ set_priority_purge(THD* thd, st_mysql_sys_var*, void*, const void*)
 }
 static MYSQL_SYSVAR_BOOL(priority_purge, srv_purge_thread_priority,
   PLUGIN_VAR_OPCMDARG,
-  "Deprecated. Make purge coordinator and worker threads acquire shared resources with "
-  "priority", NULL, &set_priority_purge, FALSE);
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
+  NULL, &set_priority_purge, FALSE);
 
 static
 void
@@ -670,7 +659,8 @@ set_sched_priority_io(THD* thd, st_mysql_sys_var*, void*, const void*)
 /* Original default 19 */
 static MYSQL_SYSVAR_ULONG(sched_priority_io, srv_sched_priority_io,
   PLUGIN_VAR_RQCMDARG,
-  "Deprecated. Nice value for the I/O handler thread scheduling",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_sched_priority_io, 0, 0, 39, 0);
 
 static
@@ -685,7 +675,8 @@ set_sched_priority_master(THD* thd, st_mysql_sys_var*, void*, const void*)
 /* Original default 19 */
 static MYSQL_SYSVAR_ULONG(sched_priority_master, srv_sched_priority_master,
   PLUGIN_VAR_RQCMDARG,
-  "Deprecated. Nice value for the master thread scheduling",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_sched_priority_master, 0, 0, 39, 0);
 
 static
@@ -700,7 +691,8 @@ set_sched_priority_purge(THD* thd, st_mysql_sys_var*, void*, const void*)
 /* Original default 19 */
 static MYSQL_SYSVAR_ULONG(sched_priority_purge, srv_sched_priority_purge,
   PLUGIN_VAR_RQCMDARG,
-  "Deprecated. Nice value for the purge thread scheduling",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_sched_priority_purge, 0, 0, 39, 0);
 #endif /* UNIV_DEBUG || UNIV_PERF_DEBUG */
 #endif /* UNIV_LINUX */
@@ -717,7 +709,8 @@ set_show_locks_held(THD* thd, st_mysql_sys_var*, void*, const void*)
 /* TODO: Implement */
 static MYSQL_SYSVAR_ULONG(show_locks_held, srv_show_locks_held,
   PLUGIN_VAR_RQCMDARG,
-  "Number of locks held to print for each InnoDB transaction in SHOW INNODB STATUS.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_show_locks_held, 0, 0, 1000, 0);
 
 static
@@ -732,12 +725,14 @@ set_show_verbose_locks(THD* thd, st_mysql_sys_var*, void*, const void*)
 /* TODO: Implement */
 static MYSQL_SYSVAR_ULONG(show_verbose_locks, srv_show_verbose_locks,
   PLUGIN_VAR_RQCMDARG,
-  "Whether to show records locked in SHOW INNODB STATUS.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_show_verbose_locks, 0, 0, 1, 0);
 
 static MYSQL_SYSVAR_BOOL(track_changed_pages, srv_track_changed_pages,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Deprecated. Track the redo log for changed pages and output a changed page bitmap",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, NULL, FALSE);
 
 static
@@ -752,7 +747,8 @@ set_track_redo_log_now(THD* thd, st_mysql_sys_var*, void*, const void*)
 static MYSQL_SYSVAR_BOOL(track_redo_log_now,
   innodb_track_redo_log_now,
   PLUGIN_VAR_OPCMDARG,
-  "Deprecated. Force log tracker to catch up with checkpoint now",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_track_redo_log_now, FALSE);
 
 static
@@ -766,12 +762,14 @@ set_use_global_flush_log_at_trx_commit(THD* thd, st_mysql_sys_var*, void*, const
 }
 static MYSQL_SYSVAR_BOOL(use_global_flush_log_at_trx_commit, srv_use_global_flush_log_at_trx_commit,
   PLUGIN_VAR_NOCMDARG,
-  "Deprecated. Use global innodb_flush_log_at_trx_commit value.",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, &set_use_global_flush_log_at_trx_commit, FALSE);
 
 static MYSQL_SYSVAR_BOOL(use_stacktrace, srv_use_stacktrace,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Deprecated. Print stacktrace on long semaphore wait (off by default supported only on linux)",
+  "Deprecated and ignored; only exists to allow easier upgrade from "
+  "earlier XtraDB versions.",
   NULL, NULL, FALSE);
 
 /** Print deprecation message for a given system variable.
