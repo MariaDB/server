@@ -9787,7 +9787,7 @@ void Column_definition::set_attributes(const Lex_field_type_st &type,
   DBUG_ASSERT(length == 0);
   DBUG_ASSERT(decimals == 0);
 
-  set_handler_by_real_type(type.field_type());
+  set_handler(type.type_handler());
   charset= cs;
 
   if (type.length())

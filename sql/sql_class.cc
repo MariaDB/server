@@ -1246,6 +1246,17 @@ extern "C" my_thread_id next_thread_id_noinline()
 }
 #endif
 
+
+const Type_handler *THD::type_handler_for_date() const
+{
+  if (!(variables.sql_mode & MODE_ORACLE))
+    return &type_handler_newdate;
+  if (opt_mysql56_temporal_format)
+    return &type_handler_datetime2;
+  return &type_handler_datetime;
+}
+
+
 /*
   Init common variables that has to be reset on start and on change_user
 */
