@@ -2,6 +2,18 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 
+--connection slave
+--source include/stop_slave.inc
+# Since we inject an error updating mysql.gtid_slave_pos, we will get different
+# output depending on whether it is InnoDB or MyISAM (roll back or no roll
+# back). So fix it to make sure we are consistent, in case an earlier test case
+# left it as InnoDB.
+SET sql_log_bin=0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+SET sql_log_bin=1;
+--source include/start_slave.inc
+
+--connection master
 CREATE TABLE t1 (i int) ENGINE=InnoDB;
 
 --sync_slave_with_master
@@ -20,10 +32,6 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,gtid_slave_pos_simulate_failed_delete";
 SET sql_log_bin= 0;
 CALL mtr.add_suppression("Can't find file");
-# Since we inject an error updating mysql.gtid_slave_pos, we will get different
-# output depending on whether it is InnoDB or MyISAM (roll back or no roll
-# back). So fix it to make sure we are consistent.
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 SET sql_log_bin= 1;
 --source include/start_slave.inc
 
