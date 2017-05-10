@@ -206,10 +206,13 @@ struct rpl_slave_state
     The list can be read without lock by an SQL driver thread or worker thread
     by reading the gtid_pos_tables pointer atomically with acquire semantics,
     to ensure that it will see the correct next pointer of a new head element.
+
+    The type is struct gtid_pos_table *, but needs to be void * to allow using
+    my_atomic operations without violating C strict aliasing semantics.
   */
-  struct gtid_pos_table *gtid_pos_tables;
+  void * volatile gtid_pos_tables;
   /* The default entry in gtid_pos_tables, mysql.gtid_slave_pos. */
-  struct gtid_pos_table *default_gtid_pos_table;
+  void * volatile default_gtid_pos_table;
   bool loaded;
 
   rpl_slave_state();

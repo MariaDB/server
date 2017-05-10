@@ -383,7 +383,8 @@ handle_gtid_pos_auto_create_request(THD *thd, void *hton)
 
   /* Find the entry for the table to auto-create. */
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
-  entry= rpl_global_gtid_slave_state->gtid_pos_tables;
+  entry= (rpl_slave_state::gtid_pos_table *)
+    rpl_global_gtid_slave_state->gtid_pos_tables;
   while (entry)
   {
     if (entry->table_hton == hton &&
@@ -419,7 +420,8 @@ handle_gtid_pos_auto_create_request(THD *thd, void *hton)
 
   /* Now enable the entry for the auto-created table. */
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
-  entry= rpl_global_gtid_slave_state->gtid_pos_tables;
+  entry= (rpl_slave_state::gtid_pos_table *)
+    rpl_global_gtid_slave_state->gtid_pos_tables;
   while (entry)
   {
     if (entry->table_hton == hton &&

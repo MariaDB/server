@@ -1973,7 +1973,8 @@ find_gtid_slave_pos_tables(THD *thd)
     */
     rpl_slave_state::gtid_pos_table *old_entry, *new_entry, **next_ptr_ptr;
 
-    old_entry= rpl_global_gtid_slave_state->gtid_pos_tables;
+    old_entry= (rpl_slave_state::gtid_pos_table *)
+      rpl_global_gtid_slave_state->gtid_pos_tables;
     while (old_entry)
     {
       new_entry= cb_data.table_list;
@@ -1995,7 +1996,8 @@ find_gtid_slave_pos_tables(THD *thd)
     while (new_entry)
     {
       /* Check if we already have a table with this storage engine. */
-      old_entry= rpl_global_gtid_slave_state->gtid_pos_tables;
+      old_entry= (rpl_slave_state::gtid_pos_table *)
+        rpl_global_gtid_slave_state->gtid_pos_tables;
       while (old_entry)
       {
         if (new_entry->table_hton == old_entry->table_hton)
