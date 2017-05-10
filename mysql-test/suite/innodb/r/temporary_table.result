@@ -130,7 +130,6 @@ ERROR HY000: The table 't1' is full
 drop procedure populate_t1;
 # test read-only mode
 # files in MYSQL_DATA_DIR
-ibtmp1
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 show tables;
