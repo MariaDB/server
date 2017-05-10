@@ -1289,6 +1289,7 @@ public:
   uint fill_cache_field(struct st_cache_field *copy);
   virtual bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime) { return get_date(ltime, TIME_TIME_ONLY); }
+  virtual TYPELIB *get_typelib() const { return NULL; }
   virtual CHARSET_INFO *charset(void) const { return &my_charset_bin; }
   virtual CHARSET_INFO *charset_for_protocol(void) const
   { return binary() ? &my_charset_bin : charset(); }
@@ -3547,6 +3548,7 @@ public:
   /* enum and set are sorted as integers */
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
   uint decimals() const { return 0; }
+  TYPELIB *get_typelib() const { return typelib; }
 
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,

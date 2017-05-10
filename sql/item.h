@@ -787,6 +787,7 @@ public:
   {
     return type_handler()->max_display_length(this);
   }
+  virtual TYPELIB *get_typelib() const { return NULL; }
   Item_cache* get_cache(THD *thd) const
   {
     return type_handler()->Item_get_cache(thd, this);
@@ -2682,6 +2683,7 @@ public:
       return &type_handler_null;
     return field->type_handler();
   }
+  TYPELIB *get_typelib() const { return field->get_typelib(); }
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -4321,6 +4323,11 @@ public:
   {
     return ref ? (*ref)->real_item() : this;
   }
+  TYPELIB *get_typelib() const
+  {
+    return ref ? (*ref)->get_typelib() : NULL;
+  }
+
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
     if (ref && *ref)

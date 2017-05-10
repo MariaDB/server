@@ -9986,21 +9986,14 @@ void Item_type_holder::get_full_info(Item *item)
   if (Item_type_holder::real_type_handler() == &type_handler_enum ||
       Item_type_holder::real_type_handler() == &type_handler_set)
   {
-    if (item->type() == Item::SUM_FUNC_ITEM &&
-        (((Item_sum*)item)->sum_func() == Item_sum::MAX_FUNC ||
-         ((Item_sum*)item)->sum_func() == Item_sum::MIN_FUNC))
-      item = ((Item_sum*)item)->get_arg(0);
+    TYPELIB *item_typelib= item->get_typelib();
     /*
       We can have enum/set type after merging only if we have one enum|set
       field (or MIN|MAX(enum|set field)) and number of NULL fields
     */
-    DBUG_ASSERT((enum_set_typelib &&
-                 item->real_type_handler() == &type_handler_null) ||
-                (!enum_set_typelib &&
-                 item->real_item()->type() == Item::FIELD_ITEM &&
-                 (item->real_type_handler() == &type_handler_enum ||
-                  item->real_type_handler() == &type_handler_set) &&
-                 ((Field_enum*)((Item_field *) item->real_item())->field)->typelib));
+    DBUG_ASSERT(item->real_type_handler() == &type_handler_null ||
+                (enum_set_typelib && !item_typelib) ||
+                (!enum_set_typelib && item_typelib));
     if (!enum_set_typelib)
     {
       enum_set_typelib= ((Field_enum*)((Item_field *) item->real_item())->field)->typelib;
