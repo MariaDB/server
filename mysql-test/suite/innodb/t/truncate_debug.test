@@ -103,7 +103,6 @@ send set global innodb_adaptive_hash_index=off;
 
 connection default;
 SET DEBUG_SYNC= 'now SIGNAL finish_scan';
-SET DEBUG_SYNC= 'RESET';
 
 connection con1;
 reap;
@@ -114,6 +113,7 @@ reap;
 disconnect con2;
 
 connection default;
+SET DEBUG_SYNC= 'RESET';
 
 SET session lock_wait_timeout=default;
 set global innodb_adaptive_hash_index=on;
