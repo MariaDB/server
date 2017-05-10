@@ -541,28 +541,6 @@ Item::Item(THD *thd, Item *item):
 }
 
 
-uint Item::decimal_precision() const
-{
-  Item_result restype= result_type();
-
-  if ((restype == DECIMAL_RESULT) || (restype == INT_RESULT))
-  {
-    uint prec= 
-      my_decimal_length_to_precision(max_char_length(), decimals,
-                                     unsigned_flag);
-    return MY_MIN(prec, DECIMAL_MAX_PRECISION);
-  }
-  uint res= max_char_length();
-  /*
-    Return at least one decimal digit, even if Item::max_char_length()
-    returned  0. This is important to avoid attempts to create fields of types
-    INT(0) or DECIMAL(0,0) when converting NULL or empty strings to INT/DECIMAL:
-      CREATE TABLE t1 AS SELECT CONVERT(NULL,SIGNED) AS a;
-  */
-  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
-}
-
-
 void Item::print_parenthesised(String *str, enum_query_type query_type,
                                enum precedence parent_prec)
 {

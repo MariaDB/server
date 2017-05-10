@@ -950,10 +950,10 @@ sec_to_time(1) + 0, from_unixtime(1) + 0;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `now() - now()` bigint(21) NOT NULL,
-  `curtime() - curtime()` bigint(12) NOT NULL,
-  `sec_to_time(1) + 0` bigint(12) DEFAULT NULL,
-  `from_unixtime(1) + 0` bigint(21) DEFAULT NULL
+  `now() - now()` bigint(16) NOT NULL,
+  `curtime() - curtime()` int(9) NOT NULL,
+  `sec_to_time(1) + 0` int(9) DEFAULT NULL,
+  `from_unixtime(1) + 0` bigint(16) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 SELECT SEC_TO_TIME(3300000);
@@ -2054,11 +2054,11 @@ SEC_TO_TIME(1.123456)+0.1,
 SEC_TO_TIME(1.1234567)+0.1;
 SHOW COLUMNS FROM t1;
 Field	Type	Null	Key	Default	Extra
-SEC_TO_TIME(1)+0.1	decimal(12,1)	YES		NULL	
-SEC_TO_TIME(1.1)+0.1	decimal(13,1)	YES		NULL	
-SEC_TO_TIME(1.12)+0.1	decimal(14,2)	YES		NULL	
-SEC_TO_TIME(1.123456)+0.1	decimal(18,6)	YES		NULL	
-SEC_TO_TIME(1.1234567)+0.1	decimal(18,6)	YES		NULL	
+SEC_TO_TIME(1)+0.1	decimal(9,1)	YES		NULL	
+SEC_TO_TIME(1.1)+0.1	decimal(9,1)	YES		NULL	
+SEC_TO_TIME(1.12)+0.1	decimal(10,2)	YES		NULL	
+SEC_TO_TIME(1.123456)+0.1	decimal(14,6)	YES		NULL	
+SEC_TO_TIME(1.1234567)+0.1	decimal(14,6)	YES		NULL	
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('2005-05-04'),('2000-02-23');

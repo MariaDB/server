@@ -221,7 +221,7 @@ MAX(t0)+1
 101011
 SHOW COLUMNS FROM t2;
 Field	Type	Null	Key	Default	Extra
-MAX(t0)+1	bigint(12)	YES		NULL	
+MAX(t0)+1	int(9)	YES		NULL	
 DROP TABLE t2,t1;
 CREATE TABLE t1 (t0 TIME);
 INSERT INTO t1 VALUES ('10:10:10');
@@ -234,7 +234,7 @@ MAX(t0)+1.1
 101011.1
 SHOW COLUMNS FROM t2;
 Field	Type	Null	Key	Default	Extra
-MAX(t0)+1.1	decimal(12,1)	YES		NULL	
+MAX(t0)+1.1	decimal(9,1)	YES		NULL	
 DROP TABLE t2,t1;
 CREATE TABLE t1 (t0 TIME);
 INSERT INTO t1 VALUES ('10:10:10');
@@ -260,7 +260,7 @@ MAX(t1)+1
 101011.0
 SHOW COLUMNS FROM t2;
 Field	Type	Null	Key	Default	Extra
-MAX(t1)+1	decimal(13,1)	YES		NULL	
+MAX(t1)+1	decimal(9,1)	YES		NULL	
 DROP TABLE t2,t1;
 CREATE TABLE t1 (t0 DATETIME);
 INSERT INTO t1 VALUES ('2001-01-01 10:10:10');
@@ -273,7 +273,7 @@ MAX(t0)+1
 20010101101011
 SHOW COLUMNS FROM t2;
 Field	Type	Null	Key	Default	Extra
-MAX(t0)+1	bigint(21)	YES		NULL	
+MAX(t0)+1	bigint(16)	YES		NULL	
 DROP TABLE t2,t1;
 CREATE TABLE t1 (t0 DATETIME);
 INSERT INTO t1 VALUES ('2001-01-01 10:10:10');
@@ -286,7 +286,7 @@ MAX(t0)+1.1
 20010101101011.1
 SHOW COLUMNS FROM t2;
 Field	Type	Null	Key	Default	Extra
-MAX(t0)+1.1	decimal(21,1)	YES		NULL	
+MAX(t0)+1.1	decimal(16,1)	YES		NULL	
 DROP TABLE t2,t1;
 CREATE TABLE t1 (t0 DATETIME);
 INSERT INTO t1 VALUES ('2001-01-01 10:10:10');
@@ -312,7 +312,7 @@ MAX(t1)+1
 20010101101011.0
 SHOW COLUMNS FROM t2;
 Field	Type	Null	Key	Default	Extra
-MAX(t1)+1	decimal(22,1)	YES		NULL	
+MAX(t1)+1	decimal(16,1)	YES		NULL	
 DROP TABLE t2,t1;
 #
 # MDEV-4858 Wrong results for a huge unsigned value inserted into a TIME column

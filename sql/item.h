@@ -1143,7 +1143,10 @@ public:
   inline uint float_length(uint decimals_par) const
   { return decimals < FLOATING_POINT_DECIMALS ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
   /* Returns total number of decimal digits */
-  virtual uint decimal_precision() const;
+  virtual uint decimal_precision() const
+  {
+    return type_handler()->Item_decimal_precision(this);
+  }
   /* Returns the number of integer part digits only */
   inline int decimal_int_part() const
   { return my_decimal_int_part(decimal_precision(), decimals); }

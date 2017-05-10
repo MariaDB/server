@@ -639,6 +639,7 @@ public:
   virtual uint Item_time_precision(Item *item) const;
   virtual uint Item_datetime_precision(Item *item) const;
   virtual uint Item_decimal_scale(const Item *item) const;
+  virtual uint Item_decimal_precision(const Item *item) const= 0;
   /*
     Returns how many digits a divisor adds into a division result.
     See Item::divisor_precision_increment() in item.h for more comments.
@@ -935,6 +936,11 @@ public:
     DBUG_ASSERT(0);
     return 0;
   }
+  uint Item_decimal_precision(const Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return DECIMAL_MAX_PRECISION;
+  }
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -1156,6 +1162,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
@@ -1217,6 +1224,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
+  uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -1278,6 +1286,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
@@ -1408,6 +1417,7 @@ public:
   {
     return Item_temporal_precision(item, false);
   }
+  uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -1703,6 +1713,7 @@ public:
   {
     return Item_decimal_scale_with_seconds(item);
   }
+  uint Item_decimal_precision(const Item *item) const;
   uint Item_divisor_precision_increment(const Item *item) const
   {
     return Item_divisor_precision_increment_with_seconds(item);
@@ -1780,6 +1791,7 @@ public:
   {
     return MYSQL_TIMESTAMP_DATE;
   }
+  uint Item_decimal_precision(const Item *item) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -1828,6 +1840,7 @@ public:
   {
     return Item_decimal_scale_with_seconds(item);
   }
+  uint Item_decimal_precision(const Item *item) const;
   uint Item_divisor_precision_increment(const Item *item) const
   {
     return Item_divisor_precision_increment_with_seconds(item);
@@ -1889,6 +1902,7 @@ public:
   {
     return Item_decimal_scale_with_seconds(item);
   }
+  uint Item_decimal_precision(const Item *item) const;
   uint Item_divisor_precision_increment(const Item *item) const
   {
     return Item_divisor_precision_increment_with_seconds(item);

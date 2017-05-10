@@ -145,18 +145,18 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` time(4) DEFAULT NULL,
-  `a+0` decimal(16,4) DEFAULT NULL,
-  `a-1` decimal(16,4) DEFAULT NULL,
-  `a*1` decimal(16,4) DEFAULT NULL,
-  `a/2` decimal(19,8) DEFAULT NULL
+  `a+0` decimal(12,4) DEFAULT NULL,
+  `a-1` decimal(12,4) DEFAULT NULL,
+  `a*1` decimal(12,4) DEFAULT NULL,
+  `a/2` decimal(15,8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `max(a)` time(4) DEFAULT NULL,
   `min(a)` time(4) DEFAULT NULL,
-  `sum(a)` decimal(37,4) DEFAULT NULL,
-  `avg(a)` decimal(19,8) DEFAULT NULL
+  `sum(a)` decimal(33,4) DEFAULT NULL,
+  `avg(a)` decimal(15,8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1, t2, t3;
 create table t1 (f0_time time(0), f1_time time(1), f2_time time(2), f3_time time(3), f4_time time(4), f5_time time(5), f6_time time(6));

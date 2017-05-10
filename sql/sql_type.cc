@@ -3953,6 +3953,62 @@ uint Type_handler_temporal_result::
 
 /***************************************************************************/
 
+uint Type_handler_string_result::Item_decimal_precision(const Item *item) const
+{
+  uint res= item->max_char_length();
+  /*
+    Return at least one decimal digit, even if Item::max_char_length()
+    returned  0. This is important to avoid attempts to create fields of types
+    INT(0) or DECIMAL(0,0) when converting NULL or empty strings to INT/DECIMAL:
+      CREATE TABLE t1 AS SELECT CONVERT(NULL,SIGNED) AS a;
+  */
+  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
+}
+
+uint Type_handler_real_result::Item_decimal_precision(const Item *item) const
+{
+  uint res= item->max_char_length();
+  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
+}
+
+uint Type_handler_decimal_result::Item_decimal_precision(const Item *item) const
+{
+  uint prec= my_decimal_length_to_precision(item->max_char_length(),
+                                            item->decimals,
+                                            item->unsigned_flag);
+  return MY_MIN(prec, DECIMAL_MAX_PRECISION);
+}
+
+uint Type_handler_int_result::Item_decimal_precision(const Item *item) const
+{
+ uint prec= my_decimal_length_to_precision(item->max_char_length(),
+                                           item->decimals,
+                                           item->unsigned_flag);
+ return MY_MIN(prec, DECIMAL_MAX_PRECISION);
+}
+
+uint Type_handler_time_common::Item_decimal_precision(const Item *item) const
+{
+  return 7 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+}
+
+uint Type_handler_date_common::Item_decimal_precision(const Item *item) const
+{
+  return 8;
+}
+
+uint Type_handler_datetime_common::Item_decimal_precision(const Item *item) const
+{
+  return 14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+}
+
+uint Type_handler_timestamp_common::Item_decimal_precision(const Item *item) const
+{
+  return 14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+}
+
+/***************************************************************************/
+
 bool Type_handler_real_result::
        subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const
