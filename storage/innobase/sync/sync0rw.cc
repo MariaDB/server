@@ -277,6 +277,9 @@ rw_lock_free_func(
 
 	/* We did an in-place new in rw_lock_create_func() */
 	ut_d(lock->~rw_lock_t());
+	/* Sometimes (maybe when compiled with GCC -O3) the above call
+	to rw_lock_t::~rw_lock_t() will not actually assign magic_n=0. */
+	ut_d(lock->magic_n = 0);
 }
 
 /******************************************************************//**
