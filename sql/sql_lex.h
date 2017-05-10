@@ -640,6 +640,14 @@ protected:
   ulonglong found_rows_for_union;
   bool saved_error;
 
+  bool prepare_join(THD *thd, SELECT_LEX *sl, select_result *result,
+                    ulong additional_options,
+                    bool is_union_select);
+  bool join_union_item_types(THD *thd, List<Item> &types, uint count);
+  bool join_union_type_handlers(THD *thd,
+                                class Type_holder *holders, uint count);
+  bool join_union_type_attributes(THD *thd,
+                                  class Type_holder *holders, uint count);
 public:
   // Ensures that at least all members used during cleanup() are initialized.
   st_select_lex_unit()
@@ -749,9 +757,6 @@ public:
 
   /* UNION methods */
   bool prepare(THD *thd, select_result *result, ulong additional_options);
-  bool prepare_join(THD *thd, SELECT_LEX *sl, select_result *result,
-                    ulong additional_options,
-                    bool is_union_select);
   bool optimize();
   bool exec();
   bool exec_recursive();

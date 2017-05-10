@@ -61,6 +61,7 @@ class Item_func_div;
 class Item_func_mod;
 class cmp_item;
 class in_vector;
+class Type_handler_hybrid_field_type;
 class Sort_param;
 class Arg_comparator;
 struct st_value;
@@ -468,6 +469,7 @@ public:
    :Type_std_attributes(other)
   { }
   virtual ~Type_all_attributes() {}
+  virtual void set_maybe_null(bool maybe_null_arg)= 0;
   // Returns total number of decimal digits
   virtual uint decimal_precision() const= 0;
   /*
@@ -477,7 +479,9 @@ public:
     datatype indepented method.
   */
   virtual uint uint_geometry_type() const= 0;
-  virtual TYPELIB *get_typelib() const { return NULL; }
+  virtual void set_geometry_type(uint type)= 0;
+  virtual TYPELIB *get_typelib() const= 0;
+  virtual void set_typelib(TYPELIB *typelib)= 0;
 };
 
 
@@ -774,7 +778,10 @@ public:
                                                const Item *cmp) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
-  virtual bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  virtual bool Item_hybrid_func_fix_attributes(THD *thd,
+                                               const char *name,
+                                               Type_handler_hybrid_field_type *,
+                                               Type_all_attributes *atrr,
                                                Item **items,
                                                uint nitems) const= 0;
   virtual bool Item_func_min_max_fix_attributes(THD *thd,
@@ -973,7 +980,10 @@ public:
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const
   {
     DBUG_ASSERT(0);
@@ -1181,7 +1191,10 @@ public:
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
                                         Item **items, uint nitems) const;
@@ -1251,7 +1264,10 @@ public:
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
@@ -1313,7 +1329,10 @@ public:
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
@@ -1466,7 +1485,10 @@ public:
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
@@ -1755,7 +1777,10 @@ public:
   }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -1822,7 +1847,10 @@ public:
   }
   uint Item_decimal_precision(const Item *item) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
 };
 
@@ -1879,7 +1907,10 @@ public:
     return Item_send_datetime(item, protocol, buf);
   }
   String *print_item_value(THD *thd, Item *item, String *str) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
 };
 
@@ -1941,7 +1972,10 @@ public:
     return Item_send_datetime(item, protocol, buf);
   }
   String *print_item_value(THD *thd, Item *item, String *str) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
 };
 
@@ -2123,7 +2157,10 @@ public:
     return false; // Materialization does not work with BLOB columns
   }
   bool is_param_long_data_type() const { return true; }
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
 };
 
@@ -2230,7 +2267,10 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *h,
+                                       Type_all_attributes *attr,
                                        Item **items, uint nitems) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
@@ -2250,16 +2290,28 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_geometry type_handler_geometry;
 #endif
 
 
-class Type_handler_enum: public Type_handler_string_result
+class Type_handler_typelib: public Type_handler_string_result
+{
+public:
+  virtual ~Type_handler_typelib() { }
+  enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
+  const Type_handler *type_handler_for_item_field() const;
+  const Type_handler *cast_to_int_type_handler() const;
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
+                                       Item **items, uint nitems) const;
+};
+
+
+class Type_handler_enum: public Type_handler_typelib
 {
   static const Name m_name_enum;
 public:
   virtual ~Type_handler_enum() {}
   const Name name() const { return m_name_enum; }
-  enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
-  const Type_handler *type_handler_for_item_field() const;
-  const Type_handler *cast_to_int_type_handler() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -2269,16 +2321,13 @@ public:
 };
 
 
-class Type_handler_set: public Type_handler_string_result
+class Type_handler_set: public Type_handler_typelib
 {
   static const Name m_name_set;
 public:
   virtual ~Type_handler_set() {}
   const Name name() const { return m_name_set; }
-  enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
-  const Type_handler *type_handler_for_item_field() const;
-  const Type_handler *cast_to_int_type_handler() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,

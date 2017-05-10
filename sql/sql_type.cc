@@ -482,28 +482,17 @@ const Type_handler *Type_handler_row::type_handler_for_comparison() const
 
 /***************************************************************************/
 
-const Type_handler *Type_handler_enum::type_handler_for_item_field() const
+const Type_handler *Type_handler_typelib::type_handler_for_item_field() const
 {
   return &type_handler_string;
 }
 
 
-const Type_handler *Type_handler_enum::cast_to_int_type_handler() const
+const Type_handler *Type_handler_typelib::cast_to_int_type_handler() const
 {
   return &type_handler_longlong;
 }
 
-
-const Type_handler *Type_handler_set::type_handler_for_item_field() const
-{
-  return &type_handler_string;
-}
-
-
-const Type_handler *Type_handler_set::cast_to_int_type_handler() const
-{
-  return &type_handler_longlong;
-}
 
 /***************************************************************************/
 
@@ -2080,7 +2069,10 @@ Type_handler_temporal_result::Item_get_cache(THD *thd, const Item *item) const
 /*************************************************************************/
 
 bool Type_handler_int_result::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   uint unsigned_flag= items[0]->unsigned_flag;
@@ -2089,7 +2081,7 @@ bool Type_handler_int_result::
     if (unsigned_flag != items[i]->unsigned_flag)
     {
       // Convert a mixture of signed and unsigned int to decimal
-      func->set_handler(&type_handler_newdecimal);
+      handler->set_handler(&type_handler_newdecimal);
       func->aggregate_attributes_decimal(items, nitems);
       return false;
     }
@@ -2100,7 +2092,10 @@ bool Type_handler_int_result::
 
 
 bool Type_handler_real_result::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->aggregate_attributes_real(items, nitems);
@@ -2109,7 +2104,10 @@ bool Type_handler_real_result::
 
 
 bool Type_handler_decimal_result::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->aggregate_attributes_decimal(items, nitems);
@@ -2118,26 +2116,59 @@ bool Type_handler_decimal_result::
 
 
 bool Type_handler_string_result::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
-  return func->aggregate_attributes_string(func->func_name(), items, nitems);
+  return func->aggregate_attributes_string(func_name, items, nitems);
+}
+
+
+
+/*
+  We can have enum/set type after merging only if we have one enum|set
+  field (or MIN|MAX(enum|set field)) and number of NULL fields
+*/
+bool Type_handler_typelib::
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
+                                       Item **items, uint nitems) const
+{
+  TYPELIB *typelib= NULL;
+  for (uint i= 0; i < nitems; i++)
+  {
+    if ((typelib= items[i]->get_typelib()))
+      break;
+  }
+  DBUG_ASSERT(typelib); // There must be at least one typelib
+  func->set_typelib(typelib);
+  return func->aggregate_attributes_string(func_name, items, nitems);
 }
 
 
 bool Type_handler_blob_common::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
-  if (func->aggregate_attributes_string(func->func_name(), items, nitems))
+  if (func->aggregate_attributes_string(func_name, items, nitems))
     return true;
-  func->set_handler(blob_type_handler(func->max_length));
+  handler->set_handler(blob_type_handler(func->max_length));
   return false;
 }
 
 
 bool Type_handler_date_common::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->fix_attributes_date();
@@ -2146,7 +2177,10 @@ bool Type_handler_date_common::
 
 
 bool Type_handler_time_common::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->aggregate_attributes_temporal(MIN_TIME_WIDTH, items, nitems);
@@ -2155,7 +2189,10 @@ bool Type_handler_time_common::
 
 
 bool Type_handler_datetime_common::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->aggregate_attributes_temporal(MAX_DATETIME_WIDTH, items, nitems);
@@ -2164,7 +2201,10 @@ bool Type_handler_datetime_common::
 
 
 bool Type_handler_timestamp_common::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->aggregate_attributes_temporal(MAX_DATETIME_WIDTH, items, nitems);
@@ -2173,11 +2213,14 @@ bool Type_handler_timestamp_common::
 
 #ifdef HAVE_SPATIAL
 bool Type_handler_geometry::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   DBUG_ASSERT(nitems > 0);
-  Type_geometry_attributes gattr(items[0]);
+  Type_geometry_attributes gattr(items[0]->type_handler(), items[0]);
   for (uint i= 1; i < nitems; i++)
     gattr.join(items[i]);
   func->set_geometry_type(gattr.get_geometry_type());
@@ -2185,7 +2228,7 @@ bool Type_handler_geometry::
   func->unsigned_flag= false;
   func->decimals= 0;
   func->max_length= (uint32) UINT_MAX32;
-  func->maybe_null= true;
+  func->set_maybe_null(true);
   return false;
 }
 #endif
@@ -2202,7 +2245,8 @@ bool Type_handler::
     with aggregating for CASE-alike functions (e.g. COALESCE)
     for the majority of data type handlers.
   */
-  return Item_hybrid_func_fix_attributes(thd, func, items, nitems);
+  return Item_hybrid_func_fix_attributes(thd, func->func_name(),
+                                         func, func, items, nitems);
 }
 
 

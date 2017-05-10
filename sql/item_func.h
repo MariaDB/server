@@ -398,6 +398,10 @@ public:
   { return Type_handler_hybrid_field_type::type_handler(); }
   Field::geometry_type get_geometry_type() const
   { return Type_geometry_attributes::get_geometry_type(); };
+  void set_geometry_type(uint type)
+  {
+    Type_geometry_attributes::set_geometry_type(type);
+  }
 };
 
 
