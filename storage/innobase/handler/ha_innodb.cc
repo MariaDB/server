@@ -11974,8 +11974,7 @@ err_col:
 			err = row_create_table_for_mysql(
 				table, m_trx, false,
 				(fil_encryption_t)options->encryption,
-				(ulint)options->encryption_key_id);
-
+				options->encryption_key_id);
 		}
 
 		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",

@@ -140,7 +140,7 @@ public:
 
 	/** Get the tablespace encryption key_id
 	@return m_key_id tablespace encryption key_id */
-	ulint key_id() const
+	uint32_t key_id() const
 	{
 		return (m_key_id);
 	}
@@ -226,7 +226,7 @@ private:
 
 	/** Encryption mode and key_id */
 	fil_encryption_t m_mode;
-	ulint		m_key_id;
+	uint32_t	m_key_id;
 
 protected:
 	/** Ignore server read only configuration for this tablespace. */

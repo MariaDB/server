@@ -1063,7 +1063,7 @@ fil_ibd_create(
 	ulint		flags,
 	ulint		size,
 	fil_encryption_t mode,
-	ulint		key_id)
+	uint32_t	key_id)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.

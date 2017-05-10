@@ -1246,7 +1246,7 @@ tab_create_graph_create(
 				structure */
 	mem_heap_t*	heap,	/*!< in: heap where created */
 	fil_encryption_t mode,	/*!< in: encryption mode */
-	ulint		key_id)	/*!< in: encryption key_id */
+	uint32_t	key_id)	/*!< in: encryption key_id */
 {
 	tab_node_t*	node;
 
@@ -2054,7 +2054,7 @@ dict_foreign_def_get_fields(
 	trx_t*		trx,	/*!< in: trx */
 	char**		field,  /*!< out: foreign column */
 	char**		field2, /*!< out: referenced column */
-	int		col_no) /*!< in: column number */
+	ulint		col_no) /*!< in: column number */
 {
 	char* bufend;
 	char* fieldbuf = (char *)mem_heap_alloc(foreign->heap, MAX_TABLE_NAME_LEN+1);

@@ -7117,11 +7117,11 @@ i_s_dict_fill_sys_virtual(
 
 	fields = table_to_fill->field;
 
-	OK(fields[SYS_VIRTUAL_TABLE_ID]->store((longlong) table_id, TRUE));
+	OK(fields[SYS_VIRTUAL_TABLE_ID]->store(table_id, true));
 
-	OK(fields[SYS_VIRTUAL_POS]->store(pos));
+	OK(fields[SYS_VIRTUAL_POS]->store(pos, true));
 
-	OK(fields[SYS_VIRTUAL_BASE_POS]->store(base_pos));
+	OK(fields[SYS_VIRTUAL_BASE_POS]->store(base_pos, true));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -8601,31 +8601,31 @@ i_s_dict_fill_tablespaces_encryption(
 
 	fil_space_crypt_get_status(space, &status);
 
-	OK(fields[TABLESPACES_ENCRYPTION_SPACE]->store(space->id));
+	OK(fields[TABLESPACES_ENCRYPTION_SPACE]->store(space->id, true));
 
 	OK(field_store_string(fields[TABLESPACES_ENCRYPTION_NAME],
 			      space->name));
 
 	OK(fields[TABLESPACES_ENCRYPTION_ENCRYPTION_SCHEME]->store(
-		   status.scheme));
+		   status.scheme, true));
 	OK(fields[TABLESPACES_ENCRYPTION_KEYSERVER_REQUESTS]->store(
-		   status.keyserver_requests));
+		   status.keyserver_requests, true));
 	OK(fields[TABLESPACES_ENCRYPTION_MIN_KEY_VERSION]->store(
-		   status.min_key_version));
+		   status.min_key_version, true));
 	OK(fields[TABLESPACES_ENCRYPTION_CURRENT_KEY_VERSION]->store(
-		   status.current_key_version));
+		   status.current_key_version, true));
 	OK(fields[TABLESPACES_ENCRYPTION_CURRENT_KEY_ID]->store(
-		   status.key_id));
+		   status.key_id, true));
 	OK(fields[TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING]->store(
-			(status.rotating || status.flushing) ? 1 : 0));
+		   status.rotating || status.flushing, true));
 
 	if (status.rotating) {
 		fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_PAGE_NUMBER]->set_notnull();
 		OK(fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_PAGE_NUMBER]->store(
-			   status.rotate_next_page_number));
+			   status.rotate_next_page_number, true));
 		fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_MAX_PAGE_NUMBER]->set_notnull();
 		OK(fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_MAX_PAGE_NUMBER]->store(
-			   status.rotate_max_page_number));
+			   status.rotate_max_page_number, true));
 	} else {
 		fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_PAGE_NUMBER]
 			->set_null();
@@ -8910,13 +8910,13 @@ i_s_dict_fill_tablespaces_scrubbing(
 
 	fil_space_get_scrub_status(space, &status);
 
-	OK(fields[TABLESPACES_SCRUBBING_SPACE]->store(space->id));
+	OK(fields[TABLESPACES_SCRUBBING_SPACE]->store(space->id, true));
 
 	OK(field_store_string(fields[TABLESPACES_SCRUBBING_NAME],
 			      space->name));
 
 	OK(fields[TABLESPACES_SCRUBBING_COMPRESSED]->store(
-		   status.compressed ? 1 : 0));
+		   status.compressed ? 1 : 0, true));
 
 	if (status.last_scrub_completed == 0) {
 		fields[TABLESPACES_SCRUBBING_LAST_SCRUB_COMPLETED]->set_null();
@@ -8943,11 +8943,11 @@ i_s_dict_fill_tablespaces_scrubbing(
 			   fields[TABLESPACES_SCRUBBING_CURRENT_SCRUB_STARTED],
 			   status.current_scrub_started));
 		OK(fields[TABLESPACES_SCRUBBING_CURRENT_SCRUB_ACTIVE_THREADS]
-		   ->store(status.current_scrub_active_threads));
+		   ->store(status.current_scrub_active_threads, true));
 		OK(fields[TABLESPACES_SCRUBBING_CURRENT_SCRUB_PAGE_NUMBER]
-		   ->store(status.current_scrub_page_number));
+		   ->store(status.current_scrub_page_number, true));
 		OK(fields[TABLESPACES_SCRUBBING_CURRENT_SCRUB_MAX_PAGE_NUMBER]
-		   ->store(status.current_scrub_max_page_number));
+		   ->store(status.current_scrub_max_page_number, true));
 	} else {
 		for (uint i = 0; i < array_elements(field_numbers); i++) {
 			fields[field_numbers[i]]->set_null();

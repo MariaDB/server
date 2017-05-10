@@ -713,7 +713,7 @@ btr_page_free_low(
 		* pages should be possible
 		*/
 		uint cnt = 0;
-		uint bytes = 0;
+		ulint bytes = 0;
 		page_t* page = buf_block_get_frame(block);
 		mem_heap_t* heap = NULL;
 		ulint* offsets = NULL;
@@ -731,7 +731,7 @@ btr_page_free_low(
 #ifdef UNIV_DEBUG_SCRUBBING
 		fprintf(stderr,
 			"btr_page_free_low: scrub %lu/%lu - "
-			"%u records %u bytes\n",
+			"%u records " ULINTPF " bytes\n",
 			buf_block_get_space(block),
 			buf_block_get_page_no(block),
 			cnt, bytes);

@@ -277,8 +277,8 @@ fil_space_read_crypt_data(const page_size_t& page_size, const byte* page)
 		return NULL;
 	}
 
-	ulint type = mach_read_from_1(page + offset + MAGIC_SZ + 0);
-	ulint iv_length = mach_read_from_1(page + offset + MAGIC_SZ + 1);
+	uint8_t type = mach_read_from_1(page + offset + MAGIC_SZ + 0);
+	uint8_t iv_length = mach_read_from_1(page + offset + MAGIC_SZ + 1);
 	fil_space_crypt_t* crypt_data;
 
 	if (!(type == CRYPT_SCHEME_UNENCRYPTED ||
@@ -537,14 +537,14 @@ fil_encrypt_buf(
 	const page_size_t&	page_size,
 	byte*			dst_frame)
 {
-	ulint size = page_size.physical();
+	uint size = uint(page_size.physical());
 	uint key_version = fil_crypt_get_latest_key_version(crypt_data);
 
 	ut_a(key_version != ENCRYPTION_KEY_VERSION_INVALID);
 
 	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	ibool page_compressed = (orig_page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
-	ulint header_len = FIL_PAGE_DATA;
+	uint header_len = FIL_PAGE_DATA;
 
 	if (page_compressed) {
 		header_len += (FIL_PAGE_COMPRESSED_SIZE + FIL_PAGE_COMPRESSION_METHOD_SIZE);
@@ -557,8 +557,8 @@ fil_encrypt_buf(
 	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, key_version);
 
 	/* Calculate the start offset in a page */
-	ulint unencrypted_bytes = header_len + FIL_PAGE_DATA_END;
-	ulint srclen = size - unencrypted_bytes;
+	uint unencrypted_bytes = header_len + FIL_PAGE_DATA_END;
+	uint srclen = size - unencrypted_bytes;
 	const byte* src = src_frame + header_len;
 	byte* dst = dst_frame + header_len;
 	uint32 dstlen = 0;
@@ -719,8 +719,8 @@ fil_space_decrypt(
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
-	ulint offset = mach_read_from_4(src_frame + FIL_PAGE_OFFSET);
-	ulint space = mach_read_from_4(src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	uint offset = mach_read_from_4(src_frame + FIL_PAGE_OFFSET);
+	uint space = mach_read_from_4(src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
 
 	*err = DB_SUCCESS;
@@ -732,7 +732,7 @@ fil_space_decrypt(
 	ut_a(crypt_data != NULL && crypt_data->is_encrypted());
 
 	/* read space & lsn */
-	ulint header_len = FIL_PAGE_DATA;
+	uint header_len = FIL_PAGE_DATA;
 
 	if (page_compressed) {
 		header_len += (FIL_PAGE_COMPRESSED_SIZE + FIL_PAGE_COMPRESSION_METHOD_SIZE);
@@ -745,7 +745,8 @@ fil_space_decrypt(
 	const byte* src = src_frame + header_len;
 	byte* dst = tmp_frame + header_len;
 	uint32 dstlen = 0;
-	ulint srclen = page_size.physical() - (header_len + FIL_PAGE_DATA_END);
+	uint srclen = uint(page_size.physical())
+		- header_len - FIL_PAGE_DATA_END;
 
 	if (page_compressed) {
 		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
@@ -833,12 +834,12 @@ Calculate post encryption checksum
 @return page checksum or BUF_NO_CHECKSUM_MAGIC
 not needed. */
 UNIV_INTERN
-ulint
+uint32_t
 fil_crypt_calculate_checksum(
 	const page_size_t&	page_size,
 	const byte*		dst_frame)
 {
-	ib_uint32_t checksum = 0;
+	uint32_t checksum = 0;
 	srv_checksum_algorithm_t algorithm =
 			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
@@ -1084,7 +1085,7 @@ struct rotate_thread_t {
 
 	uint estimated_max_iops;   /*!< estimation of max iops */
 	uint allocated_iops;	   /*!< allocated iops */
-	uint cnt_waited;	   /*!< #times waited during this slot */
+	ulint cnt_waited;	   /*!< #times waited during this slot */
 	uintmax_t sum_waited_us;   /*!< wait time during this slot */
 
 	fil_crypt_stat_t crypt_stat; // statistics
@@ -1602,7 +1603,7 @@ fil_crypt_get_page_throttle_func(
 	mtr_t*			mtr,
 	ulint*			sleeptime_ms,
 	const char*		file,
-	ulint 			line)
+	unsigned		line)
 {
 	fil_space_t* space = state->space;
 	const page_size_t page_size = page_size_t(space->flags);
@@ -2334,7 +2335,7 @@ fil_space_crypt_close_tablespace(
 	mutex_enter(&crypt_data->mutex);
 	mutex_exit(&fil_crypt_threads_mutex);
 
-	uint cnt = crypt_data->rotate_state.active_threads;
+	ulint cnt = crypt_data->rotate_state.active_threads;
 	bool flushing = crypt_data->rotate_state.flushing;
 
 	while (cnt > 0 || flushing) {

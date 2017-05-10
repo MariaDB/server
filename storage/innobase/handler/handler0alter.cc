@@ -4557,7 +4557,7 @@ prepare_inplace_alter_table_dict(
 		dtuple_t*	add_cols;
 		ulint		space_id = 0;
 		ulint		z = 0;
-		ulint		key_id = FIL_DEFAULT_ENCRYPTION_KEY;
+		uint32_t	key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t mode = FIL_ENCRYPTION_DEFAULT;
 
 		fil_space_t* space = fil_space_acquire(ctx->prebuilt->table->space);

@@ -2448,7 +2448,7 @@ row_create_table_for_mysql(
 	trx_t*		trx,	/*!< in/out: transaction */
 	bool		commit,	/*!< in: if true, commit the transaction */
 	fil_encryption_t mode,	/*!< in: encryption mode */
-	ulint		key_id)	/*!< in: encryption key_id */
+	uint32_t	key_id)	/*!< in: encryption key_id */
 {
 	tab_node_t*	node;
 	mem_heap_t*	heap;

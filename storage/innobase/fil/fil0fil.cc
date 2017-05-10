@@ -3794,7 +3794,7 @@ fil_ibd_create(
 	ulint		flags,
 	ulint		size,
 	fil_encryption_t mode,
-	ulint		key_id)
+	uint32_t	key_id)
 {
 	os_file_t	file;
 	dberr_t		err;
@@ -6960,9 +6960,10 @@ fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 		block_size = node->block_size;
 		if (node->size > offset) {
+			ut_ad(node->size <= 0xFFFFFFFFU);
 			break;
 		}
-		offset -= node->size;
+		offset -= static_cast<unsigned>(node->size);
 	}
 
 	/* Currently supporting block size up to 4K,

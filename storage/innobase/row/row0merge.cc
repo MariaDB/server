@@ -4641,7 +4641,7 @@ row_merge_build_indexes(
 
 	double total_static_cost = 0;
 	double total_dynamic_cost = 0;
-	uint total_index_blocks = 0;
+	ulint total_index_blocks = 0;
 	double pct_cost=0;
 	double pct_progress=0;
 
