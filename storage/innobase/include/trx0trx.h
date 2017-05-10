@@ -1508,17 +1508,15 @@ private:
 		}
 
 		/* Avoid excessive mutex acquire/release */
-		++trx->in_depth;
-
-		/* If trx->in_depth is greater than 1 then
-		transaction is already in InnoDB. */
-		if (trx->in_depth > 1) {
-
+		if (++trx->in_depth > 1) {
+			/* The transaction is already inside InnoDB. */
+			ut_ad(trx->in_depth > 1);
 			return;
 		}
 
 		/* Only the owning thread should release the latch. */
 
+		ut_ad(trx->in_depth == 1);
 		trx_assert_no_search_latch(trx);
 
 		trx_mutex_enter(trx);
@@ -1545,15 +1543,14 @@ private:
 
 		ut_ad(trx->in_depth > 0);
 
-		--trx->in_depth;
-
-		if (trx->in_depth > 0) {
-
+		if (--trx->in_depth > 0) {
+			ut_ad(trx->in_depth);
 			return;
 		}
 
 		/* Only the owning thread should release the latch. */
 
+		ut_ad(trx->in_depth == 0);
 		trx_assert_no_search_latch(trx);
 
 		trx_mutex_enter(trx);

@@ -10574,6 +10574,8 @@ ha_innobase::rnd_next(
 
 	DBUG_ENTER("rnd_next");
 
+	TrxInInnoDB	trx_in_innodb(m_prebuilt->trx);
+
 	if (m_start_of_scan) {
 		error = index_first(buf);
 
