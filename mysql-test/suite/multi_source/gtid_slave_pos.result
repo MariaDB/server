@@ -53,6 +53,11 @@ STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 START SLAVE;
 include/wait_for_slave_to_start.inc
+connection master1;
+INSERT INTO t1 VALUES (2, "followup");
+include/save_master_gtid.inc
+connection slave1;
+include/sync_with_master_gtid.inc
 connection master2;
 INSERT INTO t2 VALUES (2, "secondary2");
 include/save_master_gtid.inc
@@ -60,7 +65,7 @@ connection slave1;
 include/sync_with_master_gtid.inc
 SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	max(seq_no)
-1	5
+1	6
 2	2
 SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos_innodb GROUP BY domain_id;
 domain_id	max(seq_no)
@@ -80,12 +85,11 @@ include/wait_for_slave_to_start.inc
 CALL mtr.add_suppression("The table mysql.gtid_slave_pos_innodb was removed.");
 connection master2;
 INSERT INTO t2 VALUES (3, "tertiary 2");
-include/save_master_gtid.inc
 connection slave1;
 include/wait_for_slave_sql_error.inc [errno=1942]
 SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	max(seq_no)
-1	5
+1	6
 2	2
 *** Stop both slaves, see that the drop of mysql.gtid_slave_pos_innodb is now picked up ***
 connection slave1;
@@ -98,13 +102,23 @@ include/wait_for_slave_to_stop.inc
 set default_master_connection = 'slave1';
 START SLAVE;
 include/wait_for_slave_to_start.inc
+connection master1;
+INSERT INTO t1 VALUES (3, "more stuff");
+include/save_master_gtid.inc
+connection slave1;
+include/sync_with_master_gtid.inc
 set default_master_connection = 'slave2';
 START SLAVE;
 include/wait_for_slave_to_start.inc
+connection master2;
+include/save_master_gtid.inc
+connection slave1;
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	initial
+2	followup
+3	more stuff
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	initial
@@ -116,7 +130,7 @@ a	b
 102	secondary
 SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	max(seq_no)
-1	5
+1	7
 2	4
 connection master1;
 DROP TABLE t1;
