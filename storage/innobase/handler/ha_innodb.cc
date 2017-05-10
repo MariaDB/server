@@ -16698,6 +16698,8 @@ innodb_show_status(
 		DBUG_RETURN(0);
 	}
 
+	srv_wake_purge_thread_if_not_active();
+
 	trx_t*	trx = check_trx_exists(thd);
 
 	trx_assert_no_search_latch(trx);
