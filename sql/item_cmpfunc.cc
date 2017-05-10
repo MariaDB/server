@@ -2218,16 +2218,6 @@ void Item_func_between::print(String *str, enum_query_type query_type)
 }
 
 
-uint Item_func_case_abbreviation2::decimal_precision2(Item **args) const
-{
-  int arg0_int_part= args[0]->decimal_int_part();
-  int arg1_int_part= args[1]->decimal_int_part();
-  int max_int_part= MY_MAX(arg0_int_part, arg1_int_part);
-  int precision= max_int_part + decimals;
-  return MY_MIN(precision, DECIMAL_MAX_PRECISION);
-}
-
-
 double
 Item_func_ifnull::real_op()
 {
@@ -3198,18 +3188,6 @@ Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_
       thd->change_item_tree(&args[i], new_item);
   }
   return this;
-}
-
-
-uint Item_func_case::decimal_precision() const
-{
-  int max_int_part=0;
-  for (uint i=0 ; i < ncases ; i+=2)
-    set_if_bigger(max_int_part, args[i+1]->decimal_int_part());
-
-  if (else_expr_num != -1) 
-    set_if_bigger(max_int_part, args[else_expr_num]->decimal_int_part());
-  return MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
 }
 
 

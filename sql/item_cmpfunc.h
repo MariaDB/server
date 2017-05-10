@@ -1009,7 +1009,6 @@ protected:
     if (!aggregate_for_result(func_name(), items, 2, true))
       fix_attributes(items, 2);
   }
-  uint decimal_precision2(Item **args) const;
 
   void cache_type_info(const Item *source, bool maybe_null_arg)
   {
@@ -1064,10 +1063,6 @@ public:
   const char *func_name() const { return "ifnull"; }
 
   table_map not_null_tables() const { return 0; }
-  uint decimal_precision() const
-  {
-    return Item_func_case_abbreviation2::decimal_precision2(args);
-  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_ifnull>(thd, mem_root, this); }
 };
@@ -1128,10 +1123,6 @@ public:
   {
     fix_length_and_dec2_eliminate_null(args + 1);
   }
-  uint decimal_precision() const
-  {
-    return Item_func_case_abbreviation2::decimal_precision2(args + 1);
-  }
   const char *func_name() const { return "if"; }
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
@@ -1155,10 +1146,6 @@ public:
   void fix_length_and_dec()
   {
     fix_length_and_dec2_eliminate_null(args + 1);
-  }
-  uint decimal_precision() const
-  {
-    return Item_func_case_abbreviation2::decimal_precision2(args + 1);
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_nvl2>(thd, mem_root, this); }
@@ -1219,7 +1206,6 @@ public:
   my_decimal *decimal_op(my_decimal *);
   void fix_length_and_dec();
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
-  uint decimal_precision() const { return args[2]->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
   void print(String *str, enum_query_type query_type);
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array, 
@@ -2056,7 +2042,6 @@ public:
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  uint decimal_precision() const;
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
