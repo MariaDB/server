@@ -36,7 +36,7 @@ class DllExport JSONDEF : public DOSDEF {         /* Table description */
   friend class TDBJSON;
   friend class TDBJSN;
   friend class TDBJCL;
-  friend PQRYRES JSONColumns(PGLOBAL, char*, char*, PTOS, bool);
+  friend PQRYRES JSONColumns(PGLOBAL, char*, PTOS, bool);
 public:
   // Constructor
   JSONDEF(void);
@@ -58,7 +58,6 @@ public:
   int   Level;                  /* Used for catalog table              */
   int   Base;                   /* The array index base                */
   bool  Strict;                 /* Strict syntax checking              */
-	const char *Uri;							/* MongoDB connection URI              */
   }; // end of JSONDEF
 
 /* -------------------------- TDBJSN class --------------------------- */

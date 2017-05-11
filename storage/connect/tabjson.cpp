@@ -63,7 +63,7 @@ typedef struct _jncol {
 /* JSONColumns: construct the result blocks containing the description */
 /* of all the columns of a table contained inside a JSON file.         */
 /***********************************************************************/
-PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
+PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING, TYPE_INT, 
                           TYPE_INT, TYPE_SHORT, TYPE_SHORT, TYPE_STRING};
@@ -112,7 +112,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 #endif   // ZIP_SUPPORT
 	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
-	if (!tdp->Fn && !dsn) {
+	if (!tdp->Fn) {
 		strcpy(g->Message, MSG(MISSING_FNAME));
 		return NULL;
 	} // endif Fn
@@ -424,7 +424,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
   Pretty = GetIntCatInfo("Pretty", 2);
   Limit = GetIntCatInfo("Limit", 10);
   Base = GetIntCatInfo("Base", 0) ? 1 : 0;
-	return DOSDEF::DefineAM(g, (Uri ? "XMGO" : "DOS"), poff);
+	return DOSDEF::DefineAM(g, "DOS", poff);
 } // end of DefineAM
 
 /***********************************************************************/
@@ -2048,7 +2048,6 @@ TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
   {
   Topt = tdp->GetTopt();
   Db = (char*)tdp->GetDB();
-	Dsn = (char*)tdp->Uri;
   } // end of TDBJCL constructor
 
 /***********************************************************************/
@@ -2056,7 +2055,7 @@ TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBJCL::GetResult(PGLOBAL g)
   {
-  return JSONColumns(g, Db, Dsn, Topt, false);
+  return JSONColumns(g, Db, Topt, false);
   } // end of GetResult
 
 /* --------------------------- End of json --------------------------- */

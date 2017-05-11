@@ -132,7 +132,6 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   bool   map = (am && (*am == 'M' || *am == 'm'));
   LPCSTR dfm = (am && (*am == 'F' || *am == 'f')) ? "F"
              : (am && (*am == 'B' || *am == 'b')) ? "B"
-		         : (am && (*am == 'X' || *am == 'x')) ? "X"
 		         : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
 	if ((Zipped = GetBoolCatInfo("Zipped", false))) {
@@ -149,7 +148,6 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
           (toupper(*buf) == 'B') ? RECFM_BIN :
-		      (toupper(*buf) == 'X') ? RECFM_NAF : // MGO
 		      (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
   Lrecl = GetIntCatInfo("Lrecl", 0);
 

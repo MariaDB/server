@@ -209,7 +209,7 @@ pthread_mutex_t parmut = PTHREAD_MUTEX_INITIALIZER;
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
-PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info);
+PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
 int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
@@ -5557,9 +5557,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_XML:
 #endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
 			case TAB_JSON:
-				dsn = strz(g, create_info->connect_string);
-
-				if (!fn && !zfn && !mul && !dsn)
+				if (!fn && !zfn && !mul)
 					sprintf(g->Message, "Missing %s file name", topt->type);
 				else
 					ok = true;
@@ -5705,7 +5703,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					qrp = VirColumns(g, fnc == FNC_COL);
 					break;
 				case TAB_JSON:
-					qrp = JSONColumns(g, (char*)db, dsn, topt, fnc == FNC_COL);
+					qrp = JSONColumns(g, (char*)db, topt, fnc == FNC_COL);
 					break;
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
 				case TAB_XML:
