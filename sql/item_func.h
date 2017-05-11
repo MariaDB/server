@@ -1548,24 +1548,24 @@ public:
 };
 
 
-class Item_func_length :public Item_int_func
+class Item_func_octet_length :public Item_int_func
 {
   String value;
 public:
-  Item_func_length(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_octet_length(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "length"; }
+  const char *func_name() const { return "octet_length"; }
   void fix_length_and_dec() { max_length=10; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_length>(thd, mem_root, this); }
+  { return get_item_copy<Item_func_octet_length>(thd, mem_root, this); }
 };
 
-class Item_func_bit_length :public Item_func_length
+class Item_func_bit_length :public Item_func_octet_length
 {
 public:
-  Item_func_bit_length(THD *thd, Item *a): Item_func_length(thd, a) {}
+  Item_func_bit_length(THD *thd, Item *a): Item_func_octet_length(thd, a) {}
   longlong val_int()
-    { DBUG_ASSERT(fixed == 1); return Item_func_length::val_int()*8; }
+    { DBUG_ASSERT(fixed == 1); return Item_func_octet_length::val_int()*8; }
   const char *func_name() const { return "bit_length"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_bit_length>(thd, mem_root, this); }

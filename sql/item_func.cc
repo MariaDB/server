@@ -2770,7 +2770,7 @@ my_decimal *Item_func_min_max::val_decimal_native(my_decimal *dec)
 }
 
 
-longlong Item_func_length::val_int()
+longlong Item_func_octet_length::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   String *res=args[0]->val_str(&value);
