@@ -5158,6 +5158,7 @@ fil_report_invalid_page_access(
 			aligned
 @param[in] message	message for aio handler if non-sync aio
 			used, else ignored
+@param[in] ignore_missing_space true=ignore missing space duging read
 @return DB_SUCCESS, DB_TABLESPACE_DELETED or DB_TABLESPACE_TRUNCATED
 	if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
@@ -5169,7 +5170,8 @@ fil_io(
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf,
-	void*			message)
+	void*			message,
+	bool			ignore_missing_space)
 {
 	os_offset_t		offset;
 	IORequest		req_type(type);
@@ -5248,7 +5250,7 @@ fil_io(
 
 		mutex_exit(&fil_system->mutex);
 
-		if (!req_type.ignore_missing()) {
+		if (!req_type.ignore_missing() && !ignore_missing_space) {
 			ib::error()
 				<< "Trying to do I/O to a tablespace which"
 				" does not exist. I/O type: "

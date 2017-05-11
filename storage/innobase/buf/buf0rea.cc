@@ -105,6 +105,7 @@ flag is cleared and the x-lock released by an i/o-handler thread.
 @param[in] mode		BUF_READ_IBUF_PAGES_ONLY, ...,
 @param[in] page_id	page id
 @param[in] unzip	true=request uncompressed page
+@param[in] ignore_missing_space  true=ignore missing space when reading
 @return 1 if a read request was queued, 0 if the page already resided
 in buf_pool, or if the page is in the doublewrite buffer blocks in
 which case it is never read into the pool, or if the tablespace does
@@ -118,7 +119,8 @@ buf_read_page_low(
 	ulint			mode,
 	const page_id_t&	page_id,
 	const page_size_t&	page_size,
-	bool			unzip)
+	bool			unzip,
+	bool			ignore_missing_space = false)
 {
 	buf_page_t*	bpage;
 
@@ -178,7 +180,7 @@ buf_read_page_low(
 
 	*err = fil_io(
 		request, sync, page_id, page_size, 0, page_size.physical(),
-		dst, bpage);
+		dst, bpage, ignore_missing_space);
 
 	if (sync) {
 		thd_wait_end(NULL);
@@ -847,7 +849,7 @@ tablespace_deleted:
 				  sync && (i + 1 == n_stored),
 				  0,
 				  BUF_READ_ANY_PAGE, page_id, page_size,
-				  true);
+				  true, true /* ignore_missing_space */);
 
 		switch(err) {
 		case DB_SUCCESS:
