@@ -58,13 +58,15 @@ void CloseXMLFile(PGLOBAL g, PFBLOCK fp, bool all)
   if (xp && xp->Count > 1 && !all) {
     xp->Count--;
   } else if (xp && xp->Count > 0) {
-    try  {
+    try {
       if (xp->Docp)
         xp->Docp->Release();
 
-    }  catch(_com_error e)  {
-      sprintf(g->Message, "%s %s", MSG(COM_ERROR), e.Description());
-    }  catch(...) {}
+    } catch(_com_error e)  {
+			char *p = _com_util::ConvertBSTRToString(e.Description());
+      sprintf(g->Message, "%s %s", MSG(COM_ERROR), p);
+			delete[] p;
+    } catch(...) {}
 
     CoUninitialize();
     xp->Count = 0;

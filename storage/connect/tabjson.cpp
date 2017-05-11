@@ -1294,11 +1294,14 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 //        } // endif Type
      
       default:
+				vp->Reset();
 				vp->SetNull(true);
 		} // endswitch Type
 
-  } else
-    vp->SetNull(true);
+	} else {
+		vp->Reset();
+		vp->SetNull(true);
+	} // endif val
 
   } // end of SetJsonValue
 
@@ -1311,8 +1314,8 @@ void JSONCOL::ReadColumn(PGLOBAL g)
     Value->SetValue_pval(GetColumnValue(g, Tjp->Row, 0));
 
   // Set null when applicable
-  if (Nullable)
-    Value->SetNull(Value->IsNull());
+  if (!Nullable)
+    Value->SetNull(false);
 
   } // end of ReadColumn
 

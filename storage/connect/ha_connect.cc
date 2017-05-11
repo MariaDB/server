@@ -4655,7 +4655,9 @@ int ha_connect::external_lock(THD *thd, int lock_type)
               push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 
                                 0, g->Message);
               rc= 0;
-              } // endif MakeIndex
+							//my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+							//rc= HA_ERR_INTERNAL_ERROR;
+						} // endif MakeIndex
       
         } else if (tdbp->GetDef()->Indexable() == 3) {
           if (CheckVirtualIndex(NULL)) {
@@ -4676,9 +4678,12 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       // Make it a warning to avoid crash
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
       rc= 0;
-      } // endif Close
+			//my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+			//rc = HA_ERR_INTERNAL_ERROR;
+		} // endif Close
 
     locked= 0;
+//	m_lock_type= lock_type;
     xmod= MODE_ANY;              // For info commands
     DBUG_RETURN(rc);
     } // endif MODE_ANY

@@ -125,7 +125,7 @@ bool MYSQLDEF::GetServerInfo(PGLOBAL g, const char *server_name)
     } // endif server
 
   DBUG_PRINT("info", ("get_server_by_name returned server at %lx",
-                      (long unsigned int) server));
+                      (size_t) server));
 
   // TODO: We need to examine which of these can really be NULL
   Hostname = PlugDup(g, server->host);
