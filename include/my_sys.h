@@ -227,9 +227,6 @@ extern void (*fatal_error_handler_hook)(uint my_err, const char *str,
 				       myf MyFlags);
 extern uint my_file_limit;
 extern ulonglong my_thread_stack_size;
-#ifndef EMBEDDED_LIBRARY
-extern ulonglong my_pcre_frame_size;
-#endif
 extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
@@ -908,6 +905,12 @@ extern ulonglong my_getcputime(void);
 #define hrtime_to_double(X)             ((X).val/(double)HRTIME_RESOLUTION)
 #define hrtime_sec_part(X)              ((ulong)((X).val % HRTIME_RESOLUTION))
 #define my_time(X)                      hrtime_to_time(my_hrtime())
+
+#if STACK_DIRECTION < 0
+#define available_stack_size(CUR,END) (long) ((char*)(CUR) - (char*)(END))
+#else
+#define available_stack_size(CUR,END) (long) ((char*)(END) - (char*)(CUR))
+#endif
 
 #ifdef HAVE_SYS_MMAN_H
 #include <sys/mman.h>

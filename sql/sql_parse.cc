@@ -6163,12 +6163,6 @@ bool check_fk_parent_table_access(THD *thd,
 ****************************************************************************/
 
 
-#if STACK_DIRECTION < 0
-#define used_stack(A,B) (long) (A - B)
-#else
-#define used_stack(A,B) (long) (B - A)
-#endif
-
 #ifndef DBUG_OFF
 long max_stack_used;
 #endif
@@ -6185,7 +6179,7 @@ bool check_stack_overrun(THD *thd, long margin,
 {
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
-  if ((stack_used=used_stack(thd->thread_stack,(char*) &stack_used)) >=
+  if ((stack_used= available_stack_size(thd->thread_stack, &stack_used)) >=
       (long) (my_thread_stack_size - margin))
   {
     thd->is_fatal_error= 1;
@@ -6208,14 +6202,6 @@ bool check_stack_overrun(THD *thd, long margin,
   return 0;
 }
 
-long check_stack_available(long margin,
-			   uchar *buf __attribute__((unused)))
-{
-  long stack_top;
-  DBUG_ASSERT(current_thd);
-  return my_thread_stack_size - margin \
-         - used_stack(current_thd->thread_stack,(char*) &stack_top);
-}
 
 #define MY_YACC_INIT 1000			// Start with big alloc
 #define MY_YACC_MAX  32000			// Because of 'short'

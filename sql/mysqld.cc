@@ -3497,6 +3497,7 @@ static void init_libstrings()
 #endif
 }
 
+ulonglong my_pcre_frame_size;
 
 static void init_pcre()
 {
@@ -3504,9 +3505,8 @@ static void init_pcre()
   pcre_free= pcre_stack_free= my_str_free_mysqld;
 #ifndef EMBEDDED_LIBRARY
   pcre_stack_guard= check_enough_stack_size_slow;
-  /* my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0) + 16;
-  http://pcre.org/original/doc/html/pcrestack.html has reason for + 16 
-  my_pcre_frame_size= -pcre_match(NULL, NULL, NULL, 0, NULL, NULL, 0) + 16; */
+  /* See http://pcre.org/original/doc/html/pcrestack.html */
+  my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0) + 16;
 #endif
 }
 
