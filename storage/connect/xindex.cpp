@@ -3032,7 +3032,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
     return true;
 
   Klen = Valp->GetClen();
-  Keys.Size = n * Klen;
+  Keys.Size = (size_t)n * (size_t)Klen;
 
   if (!PlgDBalloc(g, NULL, Keys)) {
     sprintf(g->Message, MSG(KEY_ALLOC_ERROR), Klen, n);

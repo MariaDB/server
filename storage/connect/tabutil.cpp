@@ -742,7 +742,14 @@ void PRXCOL::ReadColumn(PGLOBAL g)
     if (Nullable)
       Value->SetNull(Value->IsNull());
 
-    } // endif Colp
+	} else {
+		Value->Reset();
+
+		// Set null when applicable
+		if (Nullable)
+			Value->SetNull(true);
+
+	}	// endif Colp
 
   } // end of ReadColumn
 

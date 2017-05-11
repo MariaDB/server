@@ -1188,7 +1188,7 @@ void ODBConn::AllocConnect(DWORD Options)
 
 #if defined(_DEBUG)
   if (Options & traceSQL) {
-    SQLSetConnectOption(m_hdbc, SQL_OPT_TRACEFILE, (DWORD)"xodbc.out");
+    SQLSetConnectOption(m_hdbc, SQL_OPT_TRACEFILE, (SQLULEN)"xodbc.out");
     SQLSetConnectOption(m_hdbc, SQL_OPT_TRACE, 1);
     } // endif
 #endif // _DEBUG
@@ -1211,7 +1211,7 @@ void ODBConn::AllocConnect(DWORD Options)
 
   // Turn on cursor lib support
   if (Options & useCursorLib)
-    rc = SQLSetConnectOption(m_hdbc, SQL_ODBC_CURSORS, SQL_CUR_USE_ODBC);
+    rc = SQLSetConnectOption(m_hdbc, SQL_ODBC_CURSORS, SQL_CUR_USE_DRIVER);
 
   return;
   } // end of AllocConnect

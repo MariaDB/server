@@ -445,7 +445,7 @@ char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
 static bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
   {
   if (pat && strlen(pat)) {
-    // This leaves 512 bytes (MAX_STR / 2) for each components
+    // This leaves 2048 bytes (MAX_STR / 2) for each components
     LPSTR name = g->Message + MAX_STR / 2;
 
     strlwr(strcpy(name, string));
@@ -1253,7 +1253,7 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
     // in the area, do allocate from virtual storage.
 #if defined(__WIN__)
     if (mp.Size >= BIGMEM)
-      mp.Memp = VirtualAlloc(NULL, mp.Size, MEM_COMMIT, PAGE_READWRITE);
+      mp.Memp = VirtualAlloc(NULL, mp.Size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     else
 #endif
       mp.Memp = malloc(mp.Size);

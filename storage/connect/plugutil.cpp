@@ -164,7 +164,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     /*  Allocate the main work segment.                                */
     /*******************************************************************/
     if (worksize && !(g->Sarea = PlugAllocMem(g, worksize))) {
-      char errmsg[256];
+      char errmsg[MAX_STR];
       sprintf(errmsg, MSG(WORK_AREA), g->Message);
       strcpy(g->Message, errmsg);
       g->Sarea_Size = 0;

@@ -174,7 +174,7 @@ bool VCTDEF::Erase(char *filename)
 /***********************************************************************/
 int VCTDEF::MakeFnPattern(char *fpat)
   {
-  char    pat[8];
+  char    pat[16];
 #if defined(__WIN__)
   char    drive[_MAX_DRIVE];
 #else
