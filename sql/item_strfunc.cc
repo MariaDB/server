@@ -3187,6 +3187,7 @@ void Item_func_pad::fix_length_and_dec()
     if (agg_arg_charsets_for_string_result(collation, &args[0], 1, 1))
       return;
     pad_str.set_charset(collation.collation);
+    pad_str.length(0);
     pad_str.append(" ", 1);
   }
 
