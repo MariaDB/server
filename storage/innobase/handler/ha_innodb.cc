@@ -132,6 +132,7 @@ void destroy_thd(MYSQL_THD thd);
 void reset_thd(MYSQL_THD thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 			const char *tb, size_t tblen);
+TABLE *get_purge_table(THD *thd);
 
 /** Check if user has used xtradb extended system variable that
 is not currently supported by innodb or marked as deprecated. */
@@ -22119,8 +22120,17 @@ innobase_find_mysql_table_for_vc(
 	THD*		thd,
 	dict_table_t*	table)
 {
-	if (table->vc_templ->mysql_table_query_id == thd_get_query_id(thd)) {
-		return table->vc_templ->mysql_table;
+	TABLE *mysql_table;
+	bool	bg_thread = THDVAR(thd, background_thread);
+
+	if (bg_thread) {
+		if ((mysql_table = get_purge_table(thd))) {
+			return mysql_table;
+		}
+	} else {
+		if (table->vc_templ->mysql_table_query_id == thd_get_query_id(thd)) {
+			return table->vc_templ->mysql_table;
+		}
 	}
 
 	char	dbname[MAX_DATABASE_NAME_LEN + 1];
@@ -22150,14 +22160,13 @@ innobase_find_mysql_table_for_vc(
 	tbnamelen = filename_to_tablename(tbname, t_tbname,
 					  MAX_TABLE_NAME_LEN + 1);
 
-	TABLE *mysql_table = find_fk_open_table(thd, t_dbname, dbnamelen,
-						t_tbname, tbnamelen);
-
-	if (!mysql_table && THDVAR(thd, background_thread)) {
-		/* only open the table in background purge threads */
-		mysql_table = open_purge_table(thd, t_dbname, dbnamelen,
-					       t_tbname, tbnamelen);
+	if (bg_thread) {
+		return open_purge_table(thd, t_dbname, dbnamelen,
+					t_tbname, tbnamelen);
 	}
+
+	mysql_table = find_fk_open_table(thd, t_dbname, dbnamelen,
+					t_tbname, tbnamelen);
 
 	table->vc_templ->mysql_table = mysql_table;
 	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);

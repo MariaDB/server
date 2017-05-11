@@ -4448,6 +4448,14 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_RETURN(error ? NULL : tl->table);
 }
 
+TABLE *get_purge_table(THD *thd)
+{
+  /* see above, at most one table can be opened */
+  DBUG_ASSERT(thd->open_tables == NULL || thd->open_tables->next == NULL);
+  return thd->open_tables;
+}
+
+
 /** Find an open table in the list of prelocked tabled
 
   Used for foreign key actions, for example, in UPDATE t1 SET a=1;
