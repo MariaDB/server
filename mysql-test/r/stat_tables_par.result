@@ -235,7 +235,7 @@ connect  con1, localhost, root,,;
 connect  con2, localhost, root,,;
 connection con1;
 set debug_sync='statistics_update_start SIGNAL parker WAIT_FOR go1 EXECUTE 1';
-set debug_sync='thr_multi_lock_after_thr_lock SIGNAL go2 EXECUTE 2';
+set debug_sync='thr_multi_lock_before_thr_lock SIGNAL go2 EXECUTE 3';
 use dbt3_s001;
 analyze table lineitem persistent for all;
 connection con2;
