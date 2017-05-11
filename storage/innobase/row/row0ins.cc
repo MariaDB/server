@@ -3985,7 +3985,7 @@ void vers_notify_vtq(trx_t* trx)
 
 	timeval begin_ts, commit_ts;
 	begin_ts.tv_sec = trx->start_time;
-	begin_ts.tv_usec = trx->start_time_micro;
+	begin_ts.tv_usec = trx->start_time_micro % 1000000;
 
 	mutex_enter(&trx_sys->mutex);
 	trx_id_t commit_id = trx_sys_get_new_trx_id();

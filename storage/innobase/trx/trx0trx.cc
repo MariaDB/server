@@ -882,6 +882,7 @@ trx_resurrect_insert(
 
 		ut_usectime((ulong *)&trx->start_time,
 			(ulong *)&trx->start_time_micro);
+		trx->start_time_micro += trx->start_time * 1000000;
 	}
 
 	if (undo->dict_operation) {
@@ -983,6 +984,7 @@ trx_resurrect_update(
 	    || trx->state == TRX_STATE_PREPARED) {
 		ut_usectime((ulong *)&trx->start_time,
 			(ulong *)&trx->start_time_micro);
+		trx->start_time_micro += trx->start_time * 1000000;
 	}
 
 	if (undo->dict_operation) {
@@ -1351,18 +1353,14 @@ trx_start_low(
 		}
 	}
 
-	ut_usectime((ulong *)&trx->start_time,
-		(ulong *)&trx->start_time_micro);
+	if (trx->mysql_thd != NULL &&
+		(trx->start_time_micro = thd_query_start_micro(trx->mysql_thd))) {
+		trx->start_time = trx->start_time_micro / 1000000;
 
-	if (trx->mysql_thd != NULL) {
-		time_t start_time = thd_start_time_in_secs(trx->mysql_thd);
-		ib_uint64_t start_utime = thd_query_start_micro(trx->mysql_thd);
-		if (start_time < trx->start_time ||
-			(start_time == trx->start_time && start_utime < trx->start_time_micro))
-		{
-			trx->start_time = start_time;
-			trx->start_time_micro = start_utime;
-		}
+	} else {
+		ut_usectime((ulong *)&trx->start_time,
+			(ulong *)&trx->start_time_micro);
+		trx->start_time_micro += trx->start_time * 1000000;
 	}
 
 	trx->vtq_notify_on_commit = false;
