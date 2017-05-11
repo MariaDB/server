@@ -139,10 +139,17 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     htrc("PlugInit: Language='%s'\n",
           ((!Language) ? "Null" : (char*)Language));
 
-  if (!(g = (PGLOBAL)malloc(sizeof(GLOBAL)))) {
-    fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
-    return NULL;
-  } else {
+	try {
+		g = new GLOBAL;
+	} catch (...) {
+		fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
+		return NULL;
+	} // end try/catch
+
+	//if (!(g = (PGLOBAL)malloc(sizeof(GLOBAL)))) {
+ //   fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
+ //   return NULL;
+ // } else {
     g->Sarea = NULL;
     g->Createas = 0;
     g->Alchecked = 0;
@@ -157,14 +164,14 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     /*  Allocate the main work segment.                                */
     /*******************************************************************/
     if (worksize && !(g->Sarea = PlugAllocMem(g, worksize))) {
-      char errmsg[256];
+      char errmsg[MAX_STR];
       sprintf(errmsg, MSG(WORK_AREA), g->Message);
       strcpy(g->Message, errmsg);
       g->Sarea_Size = 0;
     } else
       g->Sarea_Size = worksize;
 
-  } /* endif g */
+  //} /* endif g */
 
   g->jump_level = -1;   /* New setting to allow recursive call of Plug */
   return(g);
@@ -183,7 +190,7 @@ int PlugExit(PGLOBAL g)
   if (g->Sarea)
     free(g->Sarea);
 
-  free(g);
+  delete g;
   return rc;
   } /* end of PlugExit */
 
@@ -510,7 +517,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
           memp, size, pph->To_Free, pph->FreeBlk);
 
   if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
-    char     *pname = "Work";
+    PCSZ pname = "Work";
 
     sprintf(g->Message,
       "Not enough memory in %s area for request of %u (used=%d free=%d)",
@@ -519,13 +526,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
     if (trace)
       htrc("PlugSubAlloc: %s\n", g->Message);
 
-#if defined(USE_TRY)
 		throw 1234;
-#else   // !USE_TRY
-		/* Nothing we can do if longjmp is not initialized.	*/
-		assert(g->jump_level >= 0);
-		longjmp(g->jumper[g->jump_level], 1);
-#endif  // !USE_TRY
     } /* endif size OS32 code */
 
   /*********************************************************************/

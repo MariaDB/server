@@ -365,10 +365,11 @@ PCOL TDBJDBC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 bool TDBJDBC::MakeInsert(PGLOBAL g)
 {
-	char  *schmp = NULL, *catp = NULL, buf[NAM_LEN * 3];
+	PCSZ   schmp = NULL;
+	char  *catp = NULL, buf[NAM_LEN * 3];
 	int    len = 0;
 	uint   pos;
-	bool   b = false, oom = false;
+	bool   b = false;
 	PTABLE tablep = To_Table;
 	PCOL   colp;
 
@@ -405,32 +406,32 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 	Query = new(g)STRING(g, len, "INSERT INTO ");
 
 	if (catp) {
-		oom |= Query->Append(catp);
+		Query->Append(catp);
 
 		if (schmp) {
-			oom |= Query->Append('.');
-			oom |= Query->Append(schmp);
+			Query->Append('.');
+			Query->Append(schmp);
 		} // endif schmp
 
-		oom |= Query->Append('.');
+		Query->Append('.');
 	} else if (schmp) {
-		oom |= Query->Append(schmp);
-		oom |= Query->Append('.');
+		Query->Append(schmp);
+		Query->Append('.');
 	} // endif schmp
 
 	if (Quote) {
 		// Put table name between identifier quotes in case in contains blanks
-		oom |= Query->Append(Quote);
-		oom |= Query->Append(buf);
-		oom |= Query->Append(Quote);
+		Query->Append(Quote);
+		Query->Append(buf);
+		Query->Append(Quote);
 	} else
-		oom |= Query->Append(buf);
+		Query->Append(buf);
 
-	oom |= Query->Append('(');
+	Query->Append('(');
 
 	for (colp = Columns; colp; colp = colp->GetNext()) {
 		if (b)
-			oom |= Query->Append(", ");
+			Query->Append(", ");
 		else
 			b = true;
 
@@ -439,15 +440,15 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 
 		if (Quote) {
 			// Put column name between identifier quotes in case in contains blanks
-			oom |= Query->Append(Quote);
-			oom |= Query->Append(buf);
-			oom |= Query->Append(Quote);
+			Query->Append(Quote);
+			Query->Append(buf);
+			Query->Append(Quote);
 		} else
-			oom |= Query->Append(buf);
+			Query->Append(buf);
 
 	} // endfor colp
 
-	if ((oom |= Query->Append(") VALUES ("))) {
+	if ((Query->Append(") VALUES ("))) {
 		strcpy(g->Message, "MakeInsert: Out of memory");
 		return true;
 	} else // in case prepared statement fails
@@ -455,9 +456,9 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 
 	// Make prepared statement
 	for (int i = 0; i < Nparm; i++)
-		oom |= Query->Append("?,");
+		Query->Append("?,");
 
-	if (oom) {
+	if (Query->IsTruncated()) {
 		strcpy(g->Message, "MakeInsert: Out of memory");
 		return true;
 	} else
@@ -750,7 +751,7 @@ bool TDBJDBC::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 				To_CondFil->Body= (char*)PlugSubAlloc(g, NULL, 0);
 				*To_CondFil->Body= 0;
 
-				if ((To_CondFil = hc->CheckCond(g, To_CondFil, To_CondFil->Cond)))
+				if ((To_CondFil = hc->CheckCond(g, To_CondFil, Cond)))
 					PlugSubAlloc(g, NULL, strlen(To_CondFil->Body) + 1);
 
 			} // endif active_index
@@ -864,7 +865,6 @@ int TDBJDBC::WriteDB(PGLOBAL g)
 	// an insert query for each line to insert
 	uint len = Query->GetLength();
 	char buf[64];
-	bool oom = false;
 
 	// Make the Insert command value list
 	for (PCOL colp = Columns; colp; colp = colp->GetNext()) {
@@ -872,28 +872,28 @@ int TDBJDBC::WriteDB(PGLOBAL g)
 			char *s = colp->GetValue()->GetCharString(buf);
 
 			if (colp->GetResultType() == TYPE_STRING)
-				oom |= Query->Append_quoted(s);
+				Query->Append_quoted(s);
 			else if (colp->GetResultType() == TYPE_DATE) {
 				DTVAL *dtv = (DTVAL*)colp->GetValue();
 
 				if (dtv->IsFormatted())
-					oom |= Query->Append_quoted(s);
+					Query->Append_quoted(s);
 				else
-					oom |= Query->Append(s);
+					Query->Append(s);
 
 			} else
-				oom |= Query->Append(s);
+				Query->Append(s);
 
 		} else
-			oom |= Query->Append("NULL");
+			Query->Append("NULL");
 
-		oom |= Query->Append(',');
+		Query->Append(',');
 	} // endfor colp
 
-	if (unlikely(oom)) {
+	if (unlikely(Query->IsTruncated())) {
 		strcpy(g->Message, "WriteDB: Out of memory");
 		return RC_FX;
-	} // endif oom
+	} // endif Query
 
 	Query->RepLast(')');
 
@@ -967,7 +967,7 @@ void TDBJDBC::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  JDBCCOL public constructor.                                        */
 /***********************************************************************/
-JDBCCOL::JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+JDBCCOL::JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 	     : EXTCOL(cdp, tdbp, cprec, i, am)
 {
 } // end of JDBCCOL constructor
@@ -1212,8 +1212,8 @@ int TDBXJDC::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  JSRCCOL public constructor.                                        */
 /***********************************************************************/
-JSRCCOL::JSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
-	: JDBCCOL(cdp, tdbp, cprec, i, am)
+JSRCCOL::JSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
+	     : JDBCCOL(cdp, tdbp, cprec, i, am)
 {
 	// Set additional JDBC access method information for column.
 	Flag = cdp->GetOffset();

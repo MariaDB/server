@@ -39,7 +39,7 @@ class DllExport TDBMUL : public TDBASE {
   virtual void ResetDB(void);
   virtual PTDB Clone(PTABS t);
   virtual bool IsSame(PTDB tp) {return tp == (PTDB)Tdbp;}
-  virtual PSZ  GetFile(PGLOBAL g) {return Tdbp->GetFile(g);}
+  virtual PCSZ GetFile(PGLOBAL g) {return Tdbp->GetFile(g);}
   virtual int  GetRecpos(void) {return 0;}
   virtual PCOL ColDB(PGLOBAL g, PSZ name, int num);
           bool InitFileNames(PGLOBAL g);
@@ -118,9 +118,9 @@ class DllExport DIRDEF : public TABDEF {    /* Directory listing table */
   // Members
   PSZ     Fn;                 /* Path/Name of file search              */
   bool    Incl;               /* true to include sub-directories       */
-  bool    Huge;               /* true if files can be larger than 2GB  */
+	bool    Huge;               /* true if files can be larger than 2GB  */
 	bool    Nodir;							/* true to exclude directories           */
-}; // end of DIRDEF
+  }; // end of DIRDEF
 
 /***********************************************************************/
 /*  This is the DIR Access Method class declaration for tables that    */
@@ -177,7 +177,7 @@ public:
   char Fname[_MAX_FNAME];       // File name
   char Ftype[_MAX_EXT];         // File extention
 	bool Nodir;                   // Exclude directories from file list
-}; // end of class TDBDIR
+  }; // end of class TDBDIR
 
 /***********************************************************************/
 /*  This is the DIR Access Method class declaration for tables that    */
@@ -226,7 +226,7 @@ class TDBSDR : public TDBDIR {
 class DIRCOL : public COLBLK {
  public:
   // Constructors
-  DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "DIR");
+  DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "DIR");
   DIRCOL(DIRCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation

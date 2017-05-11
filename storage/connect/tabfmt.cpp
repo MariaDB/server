@@ -81,7 +81,7 @@ USETEMP UseTemp(void);
 /* of types (TYPE_STRING < TYPE_DOUBLE < TYPE_INT) (1 < 2 < 7).        */
 /* If these values are changed, this will have to be revisited.        */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
+PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,   TYPE_INT, TYPE_SHORT};
@@ -153,7 +153,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 		tdp->Lrecl = 4096;
 
 	tdp->Multiple = GetIntegerTableOption(g, topt, "Multiple", 0);
-	p = GetStringTableOption(g, topt, "Separator", ",");
+	p = (char*)GetStringTableOption(g, topt, "Separator", ",");
 	tdp->Sep = (strlen(p) == 2 && p[0] == '\\' && p[1] == 't') ? '\t' : *p;
 
 #if defined(__WIN__)
@@ -167,7 +167,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 
 	sep = tdp->Sep;
 	tdp->Quoted = GetIntegerTableOption(g, topt, "Quoted", -1);
-	p = GetStringTableOption(g, topt, "Qchar", "");
+	p = (char*)GetStringTableOption(g, topt, "Qchar", "");
 	tdp->Qot = *p;
 
 	if (tdp->Qot && tdp->Quoted < 0)
@@ -1435,11 +1435,7 @@ void CSVCOL::ReadColumn(PGLOBAL g)
       if (rc == RC_EF)
         sprintf(g->Message, MSG(INV_DEF_READ), rc);
 
-#if defined(USE_TRY)
 			throw 34;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 34);
-#endif  // !USE_TRY
 		} // endif
 
   if (tdbp->Mode != MODE_UPDATE) {
@@ -1457,11 +1453,7 @@ void CSVCOL::ReadColumn(PGLOBAL g)
       Long = colen;                       // Restore column length
       sprintf(g->Message, MSG(FLD_TOO_LNG_FOR),
               Fldnum + 1, Name, To_Tdb->RowNumber(g), tdbp->GetFile(g));
-#if defined(USE_TRY)
 			throw 34;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 34);
-#endif  // !USE_TRY
 		} // endif Long
 
     // Now do the reading
@@ -1524,11 +1516,7 @@ void CSVCOL::WriteColumn(PGLOBAL g)
   if ((signed)strlen(p) > flen) {
     sprintf(g->Message, MSG(BAD_FLD_LENGTH), Name, p, flen,
                         tdbp->RowNumber(g), tdbp->GetFile(g));
-#if defined(USE_TRY)
 		throw 34;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 34);
-#endif  // !USE_TRY
 	} else if (Dsp)
     for (int i = 0; p[i]; i++)
       if (p[i] == '.')
@@ -1544,11 +1532,7 @@ void CSVCOL::WriteColumn(PGLOBAL g)
   if (Fldnum < 0) {
     // This can happen for wrong offset value in XDB files
     sprintf(g->Message, MSG(BAD_FIELD_RANK), Fldnum + 1, Name);
-#if defined(USE_TRY)
 		throw 34;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 34);
-#endif  // !USE_TRY
 	} else
     strncpy(tdbp->Field[Fldnum], p, flen);
 

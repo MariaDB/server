@@ -603,10 +603,10 @@ bool TDBMSD::InitFileNames(PGLOBAL g)
 bool DIRDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   {
   Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
-	Incl = GetBoolCatInfo("Subdir", false);
+  Incl = GetBoolCatInfo("Subdir", false);
 	Huge = GetBoolCatInfo("Huge", false);
 	Nodir = GetBoolCatInfo("Nodir", true);
-	return false;
+  return false;
   } // end of DefineAM
 
 /***********************************************************************/
@@ -924,7 +924,7 @@ void TDBDIR::CloseDB(PGLOBAL)
 /***********************************************************************/
 /*  DIRCOL public constructor.                                         */
 /***********************************************************************/
-DIRCOL::DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
+DIRCOL::DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ)
   : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
@@ -1016,11 +1016,7 @@ void DIRCOL::ReadColumn(PGLOBAL g)
 #endif  // !__WIN__
     default:
       sprintf(g->Message, MSG(INV_DIRCOL_OFST), N);
-#if defined(USE_TRY)
 			throw GetAmType();
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], GetAmType());
-#endif  // !USE_TRY
 	} // endswitch N
 
   } // end of ReadColumn
@@ -1247,8 +1243,8 @@ int TDBSDR::ReadDB(PGLOBAL g)
 				break;
       } // endif findnext
 
-		} while (!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
-			  (*FileData.cFileName == '.' &&
+    } while(!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
+    		(*FileData.cFileName == '.' && 
 			  (!FileData.cFileName[1] || FileData.cFileName[1] == '.')));
 
     if (Sub->H == INVALID_HANDLE_VALUE) {
@@ -1303,9 +1299,9 @@ int TDBSDR::ReadDB(PGLOBAL g)
       if (lstat(Fpath, &Fileinfo) < 0) {
         sprintf(g->Message, "%s: %s", Fpath, strerror(errno));
         rc = RC_FX;
-			} else if (S_ISDIR(Fileinfo.st_mode) && strcmp(Entry->d_name, ".")
-				                                   && strcmp(Entry->d_name, "..")) {
-				// Look in the name sub-directory
+      } else if (S_ISDIR(Fileinfo.st_mode) && strcmp(Entry->d_name, ".")
+			                                     && strcmp(Entry->d_name, "..")) {
+        // Look in the name sub-directory
         if (!Sub->Next) {
           PSUBDIR sup;
 
@@ -1548,11 +1544,7 @@ void TDBDHR::CloseDB(PGLOBAL g)
   // Close the search handle.
   if (!FindClose(Hsearch)) {
     strcpy(g->Message, MSG(SRCH_CLOSE_ERR));
-#if defined(USE_TRY)
 		throw GetAmType();
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], GetAmType());
-#endif  // !USE_TRY
 	} // endif FindClose
 
   iFile = 0;
@@ -1564,8 +1556,8 @@ void TDBDHR::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  DHRCOL public constructor.                                         */
 /***********************************************************************/
-DHRCOL::DHRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
-  : COLBLK(cdp, tdbp, i)
+DHRCOL::DHRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
+      : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
     Next = cprec->GetNext();

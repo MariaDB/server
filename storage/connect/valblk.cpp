@@ -1,5 +1,5 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALBLK.CPP  Version 2.2                                      */
+/*  Name: VALBLK.CPP  Version 2.3                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
 /*                                                                     */
@@ -138,18 +138,14 @@ PSZ VALBLK::GetCharValue(int)
 
   assert(g);
   sprintf(g->Message, MSG(NO_CHAR_FROM), Type);
-#if defined(USE_TRY)
 	throw Type;
-#else   // !USE_TRY
-	longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	return NULL;
   } // end of GetCharValue
 
 /***********************************************************************/
 /*  Set format so formatted dates can be converted on input.           */
 /***********************************************************************/
-bool VALBLK::SetFormat(PGLOBAL g, PSZ, int, int)
+bool VALBLK::SetFormat(PGLOBAL g, PCSZ, int, int)
   {
   sprintf(g->Message, MSG(NO_DATE_FMT), Type);
   return true;
@@ -210,11 +206,7 @@ void VALBLK::ChkIndx(int n)
   if (n < 0 || n >= Nval) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BAD_VALBLK_INDX));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif n
 
   } // end of ChkIndx
@@ -224,11 +216,7 @@ void VALBLK::ChkTyp(PVAL v)
   if (Check && (Type != v->GetType() || Unsigned != v->IsUnsigned())) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(VALTYPE_NOMATCH));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Type
 
   } // end of ChkTyp
@@ -238,11 +226,7 @@ void VALBLK::ChkTyp(PVBLK vb)
   if (Check && (Type != vb->GetType() || Unsigned != vb->IsUnsigned())) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(VALTYPE_NOMATCH));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Type
 
   } // end of ChkTyp
@@ -351,18 +335,14 @@ uchar TYPBLK<uchar>::GetTypedValue(PVAL valp)
 /*  Set one value in a block from a zero terminated string.            */
 /***********************************************************************/
 template <class TYPE>
-void TYPBLK<TYPE>::SetValue(PSZ p, int n)
+void TYPBLK<TYPE>::SetValue(PCSZ p, int n)
   {
   ChkIndx(n);
 
   if (Check) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BAD_SET_STRING));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Check
 
   bool      minus;
@@ -405,18 +385,14 @@ template <>
 ulonglong TYPBLK<ulonglong>::MaxVal(void) {return ULONGLONG_MAX;}
 
 template <>
-void TYPBLK<double>::SetValue(PSZ p, int n)
+void TYPBLK<double>::SetValue(PCSZ p, int n)
   {
   ChkIndx(n);
 
   if (Check) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BAD_SET_STRING));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Check
 
   Typp[n] = atof(p);
@@ -427,7 +403,7 @@ void TYPBLK<double>::SetValue(PSZ p, int n)
 /*  Set one value in a block from an array of characters.              */
 /***********************************************************************/
 template <class TYPE>
-void TYPBLK<TYPE>::SetValue(char *sp, uint len, int n)
+void TYPBLK<TYPE>::SetValue(PCSZ sp, uint len, int n)
   {
   PGLOBAL& g = Global;
   PSZ spz = (PSZ)PlugSubAlloc(g, NULL, 0);    // Temporary
@@ -802,7 +778,7 @@ void CHRBLK::SetValue(PVAL valp, int n)
 /***********************************************************************/
 /*  Set one value in a block from a zero terminated string.            */
 /***********************************************************************/
-void CHRBLK::SetValue(PSZ sp, int n)
+void CHRBLK::SetValue(PCSZ sp, int n)
   {
   uint len = (sp) ? strlen(sp) : 0;
   SetValue(sp, len, n);
@@ -811,7 +787,7 @@ void CHRBLK::SetValue(PSZ sp, int n)
 /***********************************************************************/
 /*  Set one value in a block from an array of characters.              */
 /***********************************************************************/
-void CHRBLK::SetValue(char *sp, uint len, int n)
+void CHRBLK::SetValue(const char *sp, uint len, int n)
   {
   char  *p = Chrp + n * Long;
 
@@ -819,11 +795,7 @@ void CHRBLK::SetValue(char *sp, uint len, int n)
   if (Check && (signed)len > Long) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(SET_STR_TRUNC));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Check
 #endif   // _DEBUG
 
@@ -851,11 +823,7 @@ void CHRBLK::SetValue(PVBLK pv, int n1, int n2)
   if (Type != pv->GetType() || Long != ((CHRBLK*)pv)->Long) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BLKTYPLEN_MISM));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Type
 
   if (!(b = pv->IsNull(n2)))
@@ -906,11 +874,7 @@ void CHRBLK::SetValues(PVBLK pv, int k, int n)
   if (Type != pv->GetType() || Long != ((CHRBLK*)pv)->Long) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BLKTYPLEN_MISM));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Type
 #endif   // _DEBUG
   char *p = ((CHRBLK*)pv)->Chrp;
@@ -1188,7 +1152,7 @@ void STRBLK::SetValue(PVAL valp, int n)
 /***********************************************************************/
 /*  Set one value in a block from a zero terminated string.            */
 /***********************************************************************/
-void STRBLK::SetValue(PSZ p, int n)
+void STRBLK::SetValue(PCSZ p, int n)
   {
   if (p) {
     if (!Sorted || !n || !Strp[n-1] || strcmp(p, Strp[n-1]))
@@ -1204,7 +1168,7 @@ void STRBLK::SetValue(PSZ p, int n)
 /***********************************************************************/
 /*  Set one value in a block from an array of characters.              */
 /***********************************************************************/
-void STRBLK::SetValue(char *sp, uint len, int n)
+void STRBLK::SetValue(const char *sp, uint len, int n)
   {
   PSZ p;
 
@@ -1352,7 +1316,7 @@ DATBLK::DATBLK(void *mp, int nval) : TYPBLK<int>(mp, nval, TYPE_INT)
 /***********************************************************************/
 /*  Set format so formatted dates can be converted on input.           */
 /***********************************************************************/
-bool DATBLK::SetFormat(PGLOBAL g, PSZ fmt, int len, int year)
+bool DATBLK::SetFormat(PGLOBAL g, PCSZ fmt, int len, int year)
   {
   if (!(Dvalp = AllocateValue(g, TYPE_DATE, len, year, false, fmt)))
     return true;
@@ -1379,7 +1343,7 @@ char *DATBLK::GetCharString(char *p, int n)
 /***********************************************************************/
 /*  Set one value in a block from a char string.                       */
 /***********************************************************************/
-void DATBLK::SetValue(PSZ p, int n)
+void DATBLK::SetValue(PCSZ p, int n)
   {
   if (Dvalp) {
     // Decode the string according to format

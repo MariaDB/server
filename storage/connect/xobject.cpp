@@ -84,11 +84,7 @@ double XOBJECT::GetFloatValue(void)
 CONSTANT::CONSTANT(PGLOBAL g, void *value, short type)
   {
   if (!(Value = AllocateValue(g, value, (int)type)))
-#if defined(USE_TRY)
 		throw TYPE_CONST;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], TYPE_CONST);
-#endif  // !USE_TRY
 
   Constant = true;
   } // end of CONSTANT constructor
@@ -99,11 +95,7 @@ CONSTANT::CONSTANT(PGLOBAL g, void *value, short type)
 CONSTANT::CONSTANT(PGLOBAL g, int n)
   {
   if (!(Value = AllocateValue(g, &n, TYPE_INT)))
-#if defined(USE_TRY)
 		throw TYPE_CONST;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], TYPE_CONST);
-#endif  // !USE_TRY
 
   Constant = true;
   } // end of CONSTANT constructor
@@ -125,11 +117,7 @@ void CONSTANT::Convert(PGLOBAL g, int newtype)
   {
   if (Value->GetType() != newtype)
     if (!(Value = AllocateValue(g, Value, newtype)))
-#if defined(USE_TRY)
 			throw TYPE_CONST;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], TYPE_CONST);
-#endif  // !USE_TRY
 
   } // end of Convert
 
@@ -204,7 +192,7 @@ void CONSTANT::Print(PGLOBAL g, char *ps, uint z)
 /*  STRING public constructor for new char values. Alloc Size must be  */
 /*  calculated because PlugSubAlloc rounds up size to multiple of 8.   */
 /***********************************************************************/
-STRING::STRING(PGLOBAL g, uint n, char *str)
+STRING::STRING(PGLOBAL g, uint n, PCSZ str)
 {
   G = g;
   Length = (str) ? strlen(str) : 0;
@@ -217,10 +205,12 @@ STRING::STRING(PGLOBAL g, uint n, char *str)
 
     Next = GetNext();
     Size = Next - Strp;
+		Trc = false;
   } else {
     // This should normally never happen
     Next = NULL;
     Size = 0;
+		Trc = true;
   } // endif Strp
 
 } // end of STRING constructor
@@ -241,6 +231,7 @@ char *STRING::Realloc(uint len)
   if (!p) {
     // No more room in Sarea; this is very unlikely
     strcpy(G->Message, "No more room in work area");
+		Trc = true;
     return NULL;
     } // endif p
 
@@ -255,7 +246,7 @@ char *STRING::Realloc(uint len)
 /***********************************************************************/
 /*  Set a STRING new PSZ value.                                        */
 /***********************************************************************/
-bool STRING::Set(PSZ s)
+bool STRING::Set(PCSZ s)
 {
   if (!s)
     return false;
@@ -345,9 +336,9 @@ bool STRING::Append(const char *s, uint ln, bool nq)
 } // end of Append
 
 /***********************************************************************/
-/*  Append a PSZ to a STRING.                                          */
+/*  Append a PCSZ to a STRING.                                         */
 /***********************************************************************/
-bool STRING::Append(PSZ s)
+bool STRING::Append(PCSZ s)
 {
   if (!s)
     return false;
@@ -404,11 +395,11 @@ bool STRING::Append(char c)
 /***********************************************************************/
 /*  Append a quoted PSZ to a STRING.                                   */
 /***********************************************************************/
-bool STRING::Append_quoted(PSZ s)
+bool STRING::Append_quoted(PCSZ s)
 {
   bool b = Append('\'');
 
-  if (s) for (char *p = s; !b && *p; p++)
+  if (s) for (const char *p = s; !b && *p; p++)
     switch (*p) {
       case '\'':
       case '\\':

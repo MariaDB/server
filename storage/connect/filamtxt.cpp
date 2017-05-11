@@ -71,8 +71,23 @@ TXTFAM::TXTFAM(PDOSDEF tdp)
   {
   Tdbp = NULL;
   To_Fb = NULL;
-  To_File = tdp->Fn;
-  Lrecl = tdp->Lrecl;
+
+	if (tdp) {
+		To_File = tdp->Fn;
+		Lrecl = tdp->Lrecl;
+		Eof = tdp->Eof;
+		Ending = tdp->Ending;
+	} else {
+		To_File = NULL;
+		Lrecl = 0;
+		Eof = false;
+#if defined(__WIN__)
+		Ending = 2;
+#else
+		Ending = 1;
+#endif
+	}	// endif tdp
+
   Placed = false;
   IsRead = true;
   Blocked = false;
@@ -103,8 +118,6 @@ TXTFAM::TXTFAM(PDOSDEF tdp)
   Blksize = 0;
   Fpos = Spos = Tpos = 0;
   Padded = false;
-  Eof = tdp->Eof;
-  Ending = tdp->Ending;
   Abort = false;
   CrLf = (char*)(Ending == 1 ? "\n" : "\r\n");
   } // end of TXTFAM standard constructor
@@ -973,7 +986,7 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } else {
       /*****************************************************************/
-      /*  Move of eventual preceding lines is not required here.      */
+      /*  Move of eventual preceding lines is not required here.       */
       /*  Set the target file as being the source file itself.         */
       /*  Set the future Tpos, and give Spos a value to block copying. */
       /*****************************************************************/
@@ -1161,20 +1174,12 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
     if (rename(filename, filetemp)) {    // Save file for security
       sprintf(g->Message, MSG(RENAME_ERROR),
               filename, filetemp, strerror(errno));
-#if defined(USE_TRY)
 			throw 51;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 51);
-#endif  // !USE_TRY
 		} else if (rename(tempname, filename)) {
       sprintf(g->Message, MSG(RENAME_ERROR),
               tempname, filename, strerror(errno));
       rc = rename(filetemp, filename);   // Restore saved file
-#if defined(USE_TRY)
 			throw 52;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 52);
-#endif  // !USE_TRY
 		} else if (remove(filetemp)) {
       sprintf(g->Message, MSG(REMOVE_ERROR),
               filetemp, strerror(errno));

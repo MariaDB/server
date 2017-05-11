@@ -446,11 +446,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 #if 0
     if (!dup->Step) {
       strcpy(g->Message, MSG(QUERY_CANCELLED));
-#if defined(USE_TRY)
 			throw 99;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 99);
-#endif  // !USE_TRY
 	} // endif Step
 #endif // 0
 
@@ -823,7 +819,7 @@ bool XINDEX::Reorder(PGLOBAL g __attribute__((unused)))
 /***********************************************************************/
 bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   {
-  char   *ftype;
+  PCSZ    ftype;
   char    fn[_MAX_PATH];
   int     n[NZ], nof = (Mul) ? (Ndif + 1) : 0;
   int     id = -1, size = 0;
@@ -952,7 +948,7 @@ bool XINDEX::Init(PGLOBAL g)
   /*  Table will be accessed through an index table.                   */
   /*  If sorting is required, this will be done later.                 */
   /*********************************************************************/
-  char   *ftype;
+  PCSZ    ftype;
   char    fn[_MAX_PATH];
   int     k, n, nv[NZ], id = -1;
   bool    estim = false;
@@ -969,8 +965,8 @@ bool XINDEX::Init(PGLOBAL g)
     // For DBF tables, Cardinality includes bad or soft deleted lines
     // that are not included in the index, and can be larger then the
     // index size.
-		estim = (Tdbp->Ftype == RECFM_DBF || Tdbp->Txfp->GetAmType() == TYPE_AM_ZIP);
-		n = Tdbp->Cardinality(g);      // n is exact table size
+    estim = (Tdbp->Ftype == RECFM_DBF || Tdbp->Txfp->GetAmType() == TYPE_AM_ZIP);
+    n = Tdbp->Cardinality(g);      // n is exact table size
   } else {
     // Variable table not optimized
     estim = true;                  // n is an estimate of the size
@@ -1416,7 +1412,7 @@ err:
 /***********************************************************************/
 bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
   {
-  char   *ftype;
+  PCSZ    ftype;
   char    fn[_MAX_PATH];
   int     nv[NZ], id = -1; // n
 //bool    estim = false;
@@ -2324,9 +2320,9 @@ XFILE::XFILE(void) : XLOAD()
 /***********************************************************************/
 bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   {
-  char *pmod;
-  bool  rc;
-  IOFF  noff[MAX_INDX];
+  PCSZ pmod;
+  bool rc;
+  IOFF noff[MAX_INDX];
 
   /*********************************************************************/
   /*  Open the index file according to mode.                           */
@@ -3036,7 +3032,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
     return true;
 
   Klen = Valp->GetClen();
-  Keys.Size = n * Klen;
+  Keys.Size = (size_t)n * (size_t)Klen;
 
   if (!PlgDBalloc(g, NULL, Keys)) {
     sprintf(g->Message, MSG(KEY_ALLOC_ERROR), Klen, n);

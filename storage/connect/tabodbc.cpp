@@ -1,11 +1,11 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 3.1                                                        */
+/*  Version 3.2                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -231,7 +231,7 @@ PCOL TDBODBC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /*  This used for Multiple(1) tables. Also prepare a connect string    */
 /*  with a place holder to be used by SetFile.                         */
 /***********************************************************************/
-PSZ TDBODBC::GetFile(PGLOBAL g)
+PCSZ TDBODBC::GetFile(PGLOBAL g)
   {
   if (Connect) {
     char  *p1, *p2;
@@ -297,9 +297,10 @@ void TDBODBC::SetFile(PGLOBAL g, PSZ fn)
 /***********************************************************************/
 bool TDBODBC::MakeInsert(PGLOBAL g)
   {
-	char  *schmp = NULL, *catp = NULL, buf[NAM_LEN * 3];
+	PCSZ   schmp = NULL;
+	char  *catp = NULL, buf[NAM_LEN * 3];
 	int    len = 0;
-	bool   b = false, oom = false;
+	bool   oom, b = false;
 	PTABLE tablep = To_Table;
 	PCOL   colp;
 
@@ -336,32 +337,32 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 	Query = new(g) STRING(g, len, "INSERT INTO ");
 
 	if (catp) {
-		oom |= Query->Append(catp);
+		Query->Append(catp);
 
 		if (schmp) {
-			oom |= Query->Append('.');
-			oom |= Query->Append(schmp);
+			Query->Append('.');
+			Query->Append(schmp);
 		} // endif schmp
 
-		oom |= Query->Append('.');
+		Query->Append('.');
 	}	else if (schmp) {
-		oom |= Query->Append(schmp);
-		oom |= Query->Append('.');
+		Query->Append(schmp);
+		Query->Append('.');
 	} // endif schmp
 
 	if (Quote) {
 		// Put table name between identifier quotes in case in contains blanks
-		oom |= Query->Append(Quote);
-		oom |= Query->Append(buf);
-		oom |= Query->Append(Quote);
+		Query->Append(Quote);
+		Query->Append(buf);
+		Query->Append(Quote);
 	}	else
-		oom |= Query->Append(buf);
+		Query->Append(buf);
 
-	oom |= Query->Append('(');
+	Query->Append('(');
 
 	for (colp = Columns; colp; colp = colp->GetNext()) {
 		if (b)
-			oom |= Query->Append(", ");
+			Query->Append(", ");
 		else
 			b = true;
 
@@ -370,20 +371,20 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 
 		if (Quote) {
 			// Put column name between identifier quotes in case in contains blanks
-			oom |= Query->Append(Quote);
-			oom |= Query->Append(buf);
-			oom |= Query->Append(Quote);
+			Query->Append(Quote);
+			Query->Append(buf);
+			Query->Append(Quote);
 		}	else
-			oom |= Query->Append(buf);
+			Query->Append(buf);
 
 		} // endfor colp
 
-	oom |= Query->Append(") VALUES (");
+	Query->Append(") VALUES (");
 
 	for (int i = 0; i < Nparm; i++)
-		oom |= Query->Append("?,");
+		Query->Append("?,");
 
-	if (oom)
+	if ((oom = Query->IsTruncated()))
 		strcpy(g->Message, "MakeInsert: Out of memory");
 	else
 		Query->RepLast(')');
@@ -733,7 +734,7 @@ bool TDBODBC::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 				To_CondFil->Body= (char*)PlugSubAlloc(g, NULL, 0);
 				*To_CondFil->Body= 0;
 
-				if ((To_CondFil = hc->CheckCond(g, To_CondFil, To_CondFil->Cond)))
+				if ((To_CondFil = hc->CheckCond(g, To_CondFil, Cond)))
 					PlugSubAlloc(g, NULL, strlen(To_CondFil->Body) + 1);
 
 				} // endif active_index
@@ -883,7 +884,7 @@ void TDBODBC::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  ODBCCOL public constructor.                                        */
 /***********************************************************************/
-ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
        : EXTCOL(cdp, tdbp, cprec, i, am)
   {
   // Set additional ODBC access method information for column.
@@ -1301,7 +1302,7 @@ int TDBXDBC::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  XSRCCOL public constructor.                                        */
 /***********************************************************************/
-XSRCCOL::XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+XSRCCOL::XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
        : ODBCCOL(cdp, tdbp, cprec, i, am)
   {
   // Set additional ODBC access method information for column.

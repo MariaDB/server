@@ -59,7 +59,7 @@
 #define  NO_IVAL   -95684275        /* Used by GetIntegerOption        */
 #define  VMLANG          370        /* Size of olf VM lang blocks      */
 #define  MAX_JUMP         24        /* Maximum jump level number       */
-#define  MAX_STR        1024        /* Maximum string length           */
+#define  MAX_STR        4160        /* Maximum message length          */
 #define  STR_SIZE        501        /* Length of char strings.         */
 #define  STD_INPUT         0        /* Standard language input         */
 #define  STD_OUTPUT        1        /* Standard language output        */

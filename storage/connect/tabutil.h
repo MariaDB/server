@@ -71,7 +71,7 @@ class DllExport TDBPRX : public TDBASE {
   virtual int   GetRecpos(void) {return Tdbp->GetRecpos();}
 	virtual void  ResetDB(void) {Tdbp->ResetDB();}
 	virtual int   RowNumber(PGLOBAL g, bool b = FALSE);
-  virtual PSZ   GetServer(void) {return (Tdbp) ? Tdbp->GetServer() : (PSZ)"?";}
+  virtual PCSZ  GetServer(void) {return (Tdbp) ? Tdbp->GetServer() : (PSZ)"?";}
 
   // Database routines
 	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -101,7 +101,7 @@ class DllExport PRXCOL : public COLBLK {
   friend class TDBOCCUR;
  public:
   // Constructors
-  PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "PRX");
+  PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "PRX");
   PRXCOL(PRXCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation

@@ -192,7 +192,7 @@ bool MACINFO::GetOneInfo(PGLOBAL g, int flag, void *v, int lv)
       case 23:
         break;
       default:
-        p = "";
+        p = PlugDup(g, "");
       } // endswitch flag
 
   } else switch (flag) {

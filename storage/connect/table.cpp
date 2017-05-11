@@ -47,6 +47,7 @@ TDB::TDB(PTABDEF tdp) : Tdb_No(++Tnum)
   To_Orig = NULL;
   To_Filter = NULL;
   To_CondFil = NULL;
+	Cond = NULL;
   Next = NULL;
   Name = (tdp) ? tdp->GetName() : NULL;
   To_Table = NULL;
@@ -68,6 +69,7 @@ TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
   To_Orig = tdbp;
   To_Filter = NULL;
   To_CondFil = NULL;
+	Cond = NULL;
   Next = NULL;
   Name = tdbp->Name;
   To_Table = tdbp->To_Table;
@@ -97,7 +99,7 @@ CHARSET_INFO *TDB::data_charset(void)
 /***********************************************************************/
 /*  Return the datapath of the DB this table belongs to.               */
 /***********************************************************************/
-PSZ TDB::GetPath(void)
+PCSZ TDB::GetPath(void)
 {
 	return To_Def->GetPath();
 }  // end of GetPath

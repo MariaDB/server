@@ -63,7 +63,7 @@ typedef struct _jncol {
 /* JSONColumns: construct the result blocks containing the description */
 /* of all the columns of a table contained inside a JSON file.         */
 /***********************************************************************/
-PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
+PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING, TYPE_INT, 
                           TYPE_INT, TYPE_SHORT, TYPE_SHORT, TYPE_STRING};
@@ -112,7 +112,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 #endif   // ZIP_SUPPORT
 	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
-	if (!tdp->Fn) {
+	if (!tdp->Fn && !dsn) {
 		strcpy(g->Message, MSG(MISSING_FNAME));
 		return NULL;
 	} // endif Fn
@@ -120,7 +120,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 	if (!(tdp->Database = SetPath(g, db)))
 		return NULL;
 
-	tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
+  tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
   tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
   tdp->Pretty = GetIntegerTableOption(g, topt, "Pretty", 2);
 
@@ -153,7 +153,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 
 		if (tdp->Zipped) {
 #if defined(ZIP_SUPPORT)
-			tjnp = new(g)TDBJSN(tdp, new(g)UNZFAM(tdp));
+			tjnp = new(g)TDBJSN(tdp, new(g) UNZFAM(tdp));
 #else   // !ZIP_SUPPORT
 			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
 			return NULL;
@@ -264,8 +264,13 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
           break;
   
       if (jcp) {
-        if (jcp->Type != jcol.Type)
-          jcp->Type = TYPE_STRING;
+				if (jcp->Type != jcol.Type) {
+					if (jcp->Type == TYPE_UNKNOWN)
+						jcp->Type = jcol.Type;
+					else if (jcol.Type != TYPE_UNKNOWN)
+					  jcp->Type = TYPE_STRING;
+
+				} // endif Type
 
         if (*fmt && (!jcp->Fmt || strlen(jcp->Fmt) < strlen(fmt))) {
           jcp->Fmt = PlugDup(g, fmt);
@@ -338,7 +343,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 
  skipit:
   if (trace)
-    htrc("CSVColumns: n=%d len=%d\n", n, length[0]);
+    htrc("JSONColumns: n=%d len=%d\n", n, length[0]);
 
   /*********************************************************************/
   /*  Allocate the structures used to refer to the result set.         */
@@ -419,7 +424,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
   Pretty = GetIntCatInfo("Pretty", 2);
   Limit = GetIntCatInfo("Limit", 10);
   Base = GetIntCatInfo("Base", 0) ? 1 : 0;
-  return DOSDEF::DefineAM(g, "DOS", poff);
+	return DOSDEF::DefineAM(g, (Uri ? "XMGO" : "DOS"), poff);
 } // end of DefineAM
 
 /***********************************************************************/
@@ -465,7 +470,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
       sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
 #endif  // !GZ_SUPPORT
-    } else if (map)
+		} else if (map)
       txfp = new(g) MAPFAM(this);
     else
       txfp = new(g) DOSFAM(this);
@@ -488,7 +493,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 	} else {
 		if (Zipped)	{
 #if defined(ZIP_SUPPORT)
-			if (m == MODE_READ || m == MODE_UPDATE) {
+			if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
 				txfp = new(g) UNZFAM(this);
 			} else if (m == MODE_INSERT) {
 				strcpy(g->Message, "INSERT supported only for zipped JSON when pretty=0");
@@ -537,7 +542,7 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   } else {
     Jmode = MODE_OBJECT;
     Objname = NULL;
-    Xcol = NULL;
+		Xcol = NULL;
     Limit = 1;
     Pretty = 0;
     B = 0;
@@ -696,6 +701,9 @@ bool TDBJSN::OpenDB(PGLOBAL g)
           sprintf(g->Message, "Invalid Jmode %d", Jmode);
           return true;
         } // endswitch Jmode
+
+		if (Xcol && Txfp->GetAmType() != TYPE_AM_MGO)
+			To_Filter = NULL;							 // Imcompatible
 
 	} // endif Use
 
@@ -867,24 +875,21 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
 
   } // end of PrepareWriting
 
-	/***********************************************************************/
-	/*  WriteDB: Data Base write routine for DOS access method.            */
-	/***********************************************************************/
-	int TDBJSN::WriteDB(PGLOBAL g)
+/***********************************************************************/
+/*  WriteDB: Data Base write routine for DOS access method.            */
+/***********************************************************************/
+int TDBJSN::WriteDB(PGLOBAL g)
 {
 	int rc = TDBDOS::WriteDB(g);
 
 #if USE_G
-	if (rc == RC_FX)
-		strcpy(g->Message, G->Message);
-
 	PlugSubSet(G, G->Sarea, G->Sarea_Size);
 #endif
 	Row->Clear();
 	return rc;
 } // end of WriteDB
 
-	/* ---------------------------- JSONCOL ------------------------------ */
+/* ---------------------------- JSONCOL ------------------------------ */
 
 /***********************************************************************/
 /*  JSONCOL public constructor.                                        */
@@ -1149,11 +1154,61 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
   } // end of ParseJpath
 
 /***********************************************************************/
+/*  Get Jpath converted to Mongo path.                                 */
+/***********************************************************************/
+char *JSONCOL::GetJpath(PGLOBAL g, bool proj)
+{
+	if (Jpath) {
+		char *p1, *p2, *mgopath;
+		int   i = 0;
+
+		if (strcmp(Jpath, "*"))
+			mgopath = PlugDup(g, Jpath);
+		else
+			return NULL;
+
+		for (p1 = p2 = mgopath; *p1; p1++)
+			if (i) {								 // Inside []
+				if (isdigit(*p1)) {
+					if (!proj)
+					  *p2++ = *p1;
+
+					i = 2;
+				} else if (*p1 == ']' && i == 2) {
+					if (proj && *(p1 + 1) == ':')
+						p1++;
+
+					i = 0;
+				} else if (proj)
+					i = 2;
+				else
+					return NULL;
+			
+			} else switch (*p1) {
+				case ':':	*p2++ = '.'; break;
+				case '[':	i = 1;       break;
+				case '*':
+					if (*(p2 - 1) == '.' && !*(p1 + 1)) {
+						p2--;							 // Suppress last :*
+						break;
+					} // endif p2
+
+				default:	*p2++ = *p1; break;
+		  } // endswitch p1;
+
+			*p2 = 0;
+			return mgopath;
+	} else
+		return NULL;
+
+} // end of GetJpath
+
+/***********************************************************************/
 /*  MakeJson: Serialize the json item and set value to it.             */
 /***********************************************************************/
 PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
-  {
-  if (Value->IsTypeNum()) {
+{
+	if (Value->IsTypeNum()) {
     strcpy(g->Message, "Cannot make Json for a numeric column");
     Value->Reset();
   } else
@@ -1174,7 +1229,7 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 			case TYPE_BINT:
 			case TYPE_DBL:
 			case TYPE_DATE:
-        vp->SetValue_pval(val->GetValue());
+				vp->SetValue_pval(val->GetValue());
         break;
       case TYPE_BOOL:
         if (vp->IsTypeNum())
@@ -1193,11 +1248,14 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 //        } // endif Type
      
       default:
+				vp->Reset();
 				vp->SetNull(true);
 		} // endswitch Type
 
-  } else
+	} else {
+		vp->Reset();
 		vp->SetNull(true);
+	} // endif val
 
   } // end of SetJsonValue
 
@@ -1210,8 +1268,8 @@ void JSONCOL::ReadColumn(PGLOBAL g)
     Value->SetValue_pval(GetColumnValue(g, Tjp->Row, 0));
 
   // Set null when applicable
-  if (Nullable)
-		Value->SetNull(Value->IsNull());
+  if (!Nullable)
+    Value->SetNull(false);
 
   } // end of ReadColumn
 
@@ -1292,11 +1350,7 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
 
   if (!(jvp = arp->GetValue((Nodes[n].Rx = Nodes[n].Nx)))) {
     strcpy(g->Message, "Logical error expanding array");
-#if defined(USE_TRY)
 		throw 666;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 666);
-#endif  // !USE_TRY
 	} // endif jvp
 
   if (n < Nod - 1 && jvp->GetJson()) {
@@ -1482,11 +1536,7 @@ void JSONCOL::WriteColumn(PGLOBAL g)
   {
 	if (Xpd && Tjp->Pretty < 2) {
 		strcpy(g->Message, "Cannot write expanded column when Pretty is not 2");
-#if defined(USE_TRY)
 		throw 666;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 666);
-#endif  // !USE_TRY
 	}	// endif Xpd
 
   /*********************************************************************/
@@ -1521,11 +1571,7 @@ void JSONCOL::WriteColumn(PGLOBAL g)
 
         if (!(jsp = ParseJson(G, s, (int)strlen(s)))) {
           strcpy(g->Message, s);
-#if defined(USE_TRY)
 					throw 666;
-#else   // !USE_TRY
-					longjmp(g->jumper[g->jump_level], 666);
-#endif  // !USE_TRY
 				} // endif jsp
 
         if (arp) {
@@ -1876,8 +1922,11 @@ bool TDBJSON::OpenDB(PGLOBAL g)
         return true;
       } // endswitch Jmode
 
-  Use = USE_OPEN;
-  return false;
+	if (Xcol)
+		To_Filter = NULL;							 // Imcompatible
+
+	Use = USE_OPEN;
+	return false;
   } // end of OpenDB
 
 /***********************************************************************/
@@ -1887,7 +1936,7 @@ int TDBJSON::ReadDB(PGLOBAL)
   {
   int rc;
 
-  N++;
+	N++;
 
   if (NextSame) {
     SameRow = NextSame;
@@ -1999,6 +2048,7 @@ TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
   {
   Topt = tdp->GetTopt();
   Db = (char*)tdp->GetDB();
+	Dsn = (char*)tdp->Uri;
   } // end of TDBJCL constructor
 
 /***********************************************************************/
@@ -2006,7 +2056,7 @@ TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBJCL::GetResult(PGLOBAL g)
   {
-  return JSONColumns(g, Db, Topt, false);
+  return JSONColumns(g, Db, Dsn, Topt, false);
   } // end of GetResult
 
 /* --------------------------- End of json --------------------------- */

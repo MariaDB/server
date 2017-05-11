@@ -238,90 +238,74 @@ void ptrc(char const *fmt, ...)
 PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
                        int *buftyp, XFLD *fldtyp, 
                        unsigned int *length, bool blank, bool nonull)
-  {
+{
   char     cname[NAM_LEN+1];
   int      i;
   PCOLRES *pcrp, crp;
   PQRYRES  qrp;
 
-#if defined(USE_TRY)
 	try {
-#else   // !USE_TRY
-	// Save stack and allocation environment and prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-		return NULL;
-	} // endif jump_level
+		/**********************************************************************/
+		/*  Allocate the structure used to contain the result set.            */
+		/**********************************************************************/
+		qrp = (PQRYRES)PlugSubAlloc(g, NULL, sizeof(QRYRES));
+		pcrp = &qrp->Colresp;
+		qrp->Continued = false;
+		qrp->Truncated = false;
+		qrp->Info = false;
+		qrp->Suball = true;
+		qrp->Maxres = maxres;
+		qrp->Maxsize = 0;
+		qrp->Nblin = 0;
+		qrp->Nbcol = 0;                                     // will be ncol
+		qrp->Cursor = 0;
+		qrp->BadLines = 0;
 
-	if (setjmp(g->jumper[++g->jump_level]) != 0) {
-		printf("%s\n", g->Message);
-		qrp = NULL;
-		goto fin;
-	} // endif rc
-#endif  // !USE_TRY
+		for (i = 0; i < ncol; i++) {
+			*pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
+			crp = *pcrp;
+			pcrp = &crp->Next;
+			memset(crp, 0, sizeof(COLRES));
+			crp->Colp = NULL;
+			crp->Ncol = ++qrp->Nbcol;
+			crp->Type = buftyp[i];
+			crp->Length = length[i];
+			crp->Clen = GetTypeSize(crp->Type, length[i]);
+			crp->Prec = 0;
 
-  /************************************************************************/
-  /*  Allocate the structure used to contain the result set.              */
-  /************************************************************************/
-  qrp = (PQRYRES)PlugSubAlloc(g, NULL, sizeof(QRYRES));
-  pcrp = &qrp->Colresp;
-  qrp->Continued = false;
-  qrp->Truncated = false;
-  qrp->Info = false;
-  qrp->Suball = true;
-  qrp->Maxres = maxres;
-  qrp->Maxsize = 0;
-  qrp->Nblin = 0;
-  qrp->Nbcol = 0;                                     // will be ncol
-  qrp->Cursor = 0;
-  qrp->BadLines = 0;
-
-  for (i = 0; i < ncol; i++) {
-    *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
-    crp = *pcrp;
-    pcrp = &crp->Next;
-    memset(crp, 0, sizeof(COLRES));
-    crp->Colp = NULL;
-    crp->Ncol = ++qrp->Nbcol;
-    crp->Type = buftyp[i];
-    crp->Length = length[i];
-    crp->Clen = GetTypeSize(crp->Type, length[i]);
-    crp->Prec = 0;
-
-    if (ids > 0) {
+			if (ids > 0) {
 #if defined(XMSG)
-      // Get header from message file
-			strncpy(cname, PlugReadMessage(g, ids + crp->Ncol, NULL), NAM_LEN);
-			cname[NAM_LEN] = 0;					// for truncated long names
+				// Get header from message file
+				strncpy(cname, PlugReadMessage(g, ids + crp->Ncol, NULL), NAM_LEN);
+				cname[NAM_LEN] = 0;					// for truncated long names
 #else   // !XMSG
-      GetRcString(ids + crp->Ncol, cname, sizeof(cname));
+				GetRcString(ids + crp->Ncol, cname, sizeof(cname));
 #endif  // !XMSG
-      crp->Name = (PSZ)PlugDup(g, cname);
-    } else
-      crp->Name = NULL;           // Will be set by caller
+				crp->Name = (PSZ)PlugDup(g, cname);
+			} else
+				crp->Name = NULL;           // Will be set by caller
 
-    if (fldtyp)
-      crp->Fld = fldtyp[i];
-    else
-      crp->Fld = FLD_NO;
+			if (fldtyp)
+				crp->Fld = fldtyp[i];
+			else
+				crp->Fld = FLD_NO;
 
-    // Allocate the Value Block that will contain data
-    if (crp->Length || nonull)
-      crp->Kdata = AllocValBlock(g, NULL, crp->Type, maxres,
-                                    crp->Length, 0, true, blank, false);
-    else
-      crp->Kdata = NULL;
+			// Allocate the Value Block that will contain data
+			if (crp->Length || nonull)
+				crp->Kdata = AllocValBlock(g, NULL, crp->Type, maxres,
+					crp->Length, 0, true, blank, false);
+			else
+				crp->Kdata = NULL;
 
-    if (trace)
-      htrc("Column(%d) %s type=%d len=%d value=%p\n",
-              crp->Ncol, crp->Name, crp->Type, crp->Length, crp->Kdata);
+			if (trace)
+				htrc("Column(%d) %s type=%d len=%d value=%p\n",
+					crp->Ncol, crp->Name, crp->Type, crp->Length, crp->Kdata);
 
-    } // endfor i
+		} // endfor i
 
-  *pcrp = NULL;
+		*pcrp = NULL;
 
-#if defined(USE_TRY)
-  } catch (int n) {
+	} catch (int n) {
   	htrc("Exception %d: %s\n", n, g->Message);
 	  qrp = NULL;
   } catch (const char *msg) {
@@ -329,12 +313,9 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 	  htrc("%s\n", g->Message);
 	  qrp = NULL;
   } // end catch
-#else   // !USE_TRY
- fin:
-	g->jump_level--;
-#endif  // !USE_TRY
+
 	return qrp;
-  } // end of PlgAllocResult
+} // end of PlgAllocResult
 
 /***********************************************************************/
 /*  Allocate and initialize the new DB User Block.                     */
@@ -380,11 +361,7 @@ PCATLG PlgGetCatalog(PGLOBAL g, bool jump)
   if (!cat && jump) {
     // Raise exception so caller doesn't have to check return value
     strcpy(g->Message, MSG(NO_ACTIVE_DB));
-#if defined(USE_TRY)
 		throw 1;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 1);
-#endif  // !USE_TRY
 	} // endif cat
 
   return cat;
@@ -410,27 +387,27 @@ char *SetPath(PGLOBAL g, const char *path)
   char *buf= NULL;
 
 	if (path) {
-		size_t len= strlen(path) + (*path != '.' ? 4 : 1);
+		size_t len = strlen(path) + (*path != '.' ? 4 : 1);
 
 		if (!(buf = (char*)PlgDBSubAlloc(g, NULL, len)))
 			return NULL;
 
 		if (PlugIsAbsolutePath(path)) {
-		  strcpy(buf, path);
-		  return buf;
-		  } // endif path
+			strcpy(buf, path);
+			return buf;
+		} // endif path
 
 		if (*path != '.') {
 #if defined(__WIN__)
-			char *s= "\\";
+			const char *s = "\\";
 #else   // !__WIN__
-			char *s= "/";
+			const char *s = "/";
 #endif  // !__WIN__
 			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
 		} else
 			strcpy(buf, path);
 
-		} // endif path
+	} // endif path
 
   return buf;
 } // end of SetPath
@@ -468,7 +445,7 @@ char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
 static bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
   {
   if (pat && strlen(pat)) {
-    // This leaves 512 bytes (MAX_STR / 2) for each components
+    // This leaves 2048 bytes (MAX_STR / 2) for each components
     LPSTR name = g->Message + MAX_STR / 2;
 
     strlwr(strcpy(name, string));
@@ -496,11 +473,7 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
       tp = g->Message;
     else if (!(tp = new char[strlen(pat) + strlen(strg) + 2])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
-#if defined(USE_TRY)
 			throw OP_LIKE;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], OP_LIKE);
-#endif  // !USE_TRY
 		} /* endif tp */
     
     sp = tp + strlen(pat) + 1;
@@ -511,11 +484,7 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
       tp = g->Message;            /* Use this as temporary work space. */
     else if (!(tp = new char[strlen(pat) + 1])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
-#if defined(USE_TRY)
 			throw OP_LIKE;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], OP_LIKE);
-#endif  // !USE_TRY
 		} /* endif tp */
     
     strcpy(tp, pat);                  /* Make a copy to be worked into */
@@ -704,7 +673,7 @@ void PlugConvertConstant(PGLOBAL g, void* & value, short& type)
 /*  format and a Strftime output format. Flag if not 0 indicates that  */
 /*  non quoted blanks are not included in the output format.           */
 /***********************************************************************/
-PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
+PDTP MakeDateFormat(PGLOBAL g, PCSZ dfmt, bool in, bool out, int flag)
 {
 	int  rc;
   PDTP pdp = (PDTP)PlugSubAlloc(g, NULL, sizeof(DATPAR));
@@ -713,7 +682,7 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
     htrc("MakeDateFormat: dfmt=%s\n", dfmt);
 
   memset(pdp, 0, sizeof(DATPAR));
-  pdp->Format = pdp->Curp = dfmt;
+  pdp->Format = pdp->Curp = PlugDup(g, dfmt);
   pdp->Outsize = 2 * strlen(dfmt) + 1;
 
   if (in)
@@ -755,10 +724,11 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
 /***********************************************************************/
 int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
   {
-  char *fmt, c, d, e, W[8][12];
-  int   i, k, m, numval;
-  int   n, y = 30;
-  bool  b = true;           // true for null dates
+	PCSZ fmt;
+	char c, d, e, W[8][12];
+  int  i, k, m, numval;
+  int  n, y = 30;
+  bool b = true;           // true for null dates
 
   if (pdp)
     fmt = pdp->InFmt;
@@ -1283,7 +1253,7 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
     // in the area, do allocate from virtual storage.
 #if defined(__WIN__)
     if (mp.Size >= BIGMEM)
-      mp.Memp = VirtualAlloc(NULL, mp.Size, MEM_COMMIT, PAGE_READWRITE);
+      mp.Memp = VirtualAlloc(NULL, mp.Size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     else
 #endif
       mp.Memp = malloc(mp.Size);
@@ -1548,11 +1518,7 @@ DllExport void NewPointer(PTABS t, void *oldv, void *newv)
       PGLOBAL g = t->G;
 
       sprintf(g->Message, "NewPointer: %s", MSG(MEM_ALLOC_ERROR));
-#if defined(USE_TRY)
 			throw 3;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 3);
-#endif  // !USE_TRY
 		} else {
       tp->Next = t->P1;
       tp->Num = 0;
@@ -1589,22 +1555,14 @@ int FileComp(PGLOBAL g, char *file1, char *file2)
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "rb", (int)errno, fn[i]);
         strcat(strcat(g->Message, ": "), strerror(errno));
-#if defined(USE_TRY)
 				throw 666;
-#else   // !USE_TRY
-				longjmp(g->jumper[g->jump_level], 666);
-#endif  // !USE_TRY
 				//      } else
 //        len[i] = 0;          // File does not exist yet
 
     } else {
       if ((len[i] = _filelength(h[i])) < 0) {
         sprintf(g->Message, MSG(FILELEN_ERROR), "_filelength", fn[i]);
-#if defined(USE_TRY)
 				throw 666;
-#else   // !USE_TRY
-				longjmp(g->jumper[g->jump_level], 666);
-#endif  // !USE_TRY
 			} // endif len
 
     } // endif h

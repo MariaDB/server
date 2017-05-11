@@ -174,7 +174,7 @@ bool VCTDEF::Erase(char *filename)
 /***********************************************************************/
 int VCTDEF::MakeFnPattern(char *fpat)
   {
-  char    pat[8];
+  char    pat[16];
 #if defined(__WIN__)
   char    drive[_MAX_DRIVE];
 #else
@@ -490,11 +490,7 @@ void VCTCOL::ReadBlock(PGLOBAL g)
 #if defined(_DEBUG)
   if (!Blk) {
     strcpy(g->Message, MSG(TO_BLK_IS_NULL));
-#if defined(USE_TRY)
 		throw 58;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 58);
-#endif  // !USE_TRY
 	} // endif
 #endif
 
@@ -502,11 +498,7 @@ void VCTCOL::ReadBlock(PGLOBAL g)
   /*  Read column block according to used access method.               */
   /*********************************************************************/
   if (txfp->ReadBlock(g, this))
-#if defined(USE_TRY)
 		throw 6;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 6);
-#endif  // !USE_TRY
 
   ColBlk = txfp->CurBlk;
   ColPos = -1;                       // Any invalid position
@@ -526,11 +518,7 @@ void VCTCOL::WriteBlock(PGLOBAL g)
 #if defined(_DEBUG)
     if (!Blk) {
       strcpy(g->Message, MSG(BLK_IS_NULL));
-#if defined(USE_TRY)
 			throw 56;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 56);
-#endif  // !USE_TRY
 		} // endif
 #endif
 
@@ -538,11 +526,7 @@ void VCTCOL::WriteBlock(PGLOBAL g)
     /*  Write column block according to used access method.            */
     /*******************************************************************/
     if (txfp->WriteBlock(g, this))
-#if defined(USE_TRY)
 			throw 6;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 6);
-#endif  // !USE_TRY
 
     Modif = 0;
     } // endif Modif

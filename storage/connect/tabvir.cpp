@@ -269,7 +269,7 @@ int TDBVIR::DeleteDB(PGLOBAL g, int)
 /***********************************************************************/
 /*  VIRCOL public constructor.                                         */
 /***********************************************************************/
-VIRCOL::VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
+VIRCOL::VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ)
       : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
@@ -289,11 +289,7 @@ void VIRCOL::ReadColumn(PGLOBAL g)
   {
   // This should never be called
   sprintf(g->Message, "ReadColumn: Column %s is not virtual", Name);
-#if defined(USE_TRY)
 	throw TYPE_COLBLK;
-#else   // !USE_TRY
-	longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
-#endif  // !USE_TRY
 } // end of ReadColumn
 
 /* ---------------------------TDBVICL class -------------------------- */

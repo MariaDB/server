@@ -81,123 +81,70 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 	if (s[0] == '[' && (s[1] == '\n' || (s[1] == '\r' && s[2] == '\n')))
 		pty[0] = false;
 
-
-#if defined(USE_TRY)
-  try {
-#else   // !USE_TRY
-	// Save stack and allocation environment and prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-		return NULL;
-	} // endif jump_level
-
-#if defined(SE_CATCH)
-		// Let's try to recover from any kind of interrupt
-	_se_translator_function f = _set_se_translator(trans_func);
-
 	try {
-#endif   // SE_CATCH  --------------------- try section --------------------
-		if (setjmp(g->jumper[++g->jump_level])) {
-			goto fin;
-		} // endif rc
+		for (i = 0; i < len; i++)
+			switch (s[i]) {
+				case '[':
+					if (jsp)
+						goto tryit;
+					else if (!(jsp = ParseArray(g, ++i, src, pty)))
+						throw 1;
 
-#if defined(SE_CATCH) // ------------- end of try section -----------------
-} catch (SE_Exception e) {
-	sprintf(g->Message, "ParseJson: exception doing setjmp: %s (rc=%hd)",
-		GetExceptionDesc(g, e.nSE), e.nSE);
-	_set_se_translator(f);
-	goto err;
-} catch (...) {
-	strcpy(g->Message, "Exception doing setjmp");
-	_set_se_translator(f);
-	goto err;
-} // end of try-catches
+					break;
+				case '{':
+					if (jsp)
+						goto tryit;
+					else if (!(jsp = ParseObject(g, ++i, src, pty)))
+						throw 2;
 
-_set_se_translator(f);
-#endif   // SE_CATCH
-#endif  // !USE_TRY
+					break;
+				case ' ':
+				case '\t':
+				case '\n':
+				case '\r':
+					break;
+				case ',':
+					if (jsp && (pretty == 1 || pretty == 3)) {
+						if (comma)
+							*comma = true;
 
-	for (i = 0; i < len; i++)
-    switch (s[i]) {
-      case '[':
-        if (jsp)
-					goto tryit;
-        else if (!(jsp = ParseArray(g, ++i, src, pty)))
-#if defined(USE_TRY)
-					throw 1;
-#else   // !USE_TRY
-					goto fin;
-#endif  // !USE_TRY
+						pty[0] = pty[2] = false;
+						break;
+					} // endif pretty
 
-        break;
-      case '{':
-        if (jsp)
-					goto tryit;
-				else if (!(jsp = ParseObject(g, ++i, src, pty)))
-#if defined(USE_TRY)
-					throw 2;
-#else   // !USE_TRY
-					goto fin;
-#endif  // !USE_TRY
+					sprintf(g->Message, "Unexpected ',' (pretty=%d)", pretty);
+					throw 3;
+				case '(':
+					b = true;
+					break;
+				case ')':
+					if (b) {
+						b = false;
+						break;
+					} // endif b
 
-        break;
-      case ' ':
-      case '\t':
-      case '\n':
-      case '\r':
-        break;
-      case ',':
-        if (jsp && (pretty == 1 || pretty == 3)) {
-          if (comma)
-            *comma = true;
+				default:
+					if (jsp)
+						goto tryit;
+					else if (!(jsp = ParseValue(g, i, src, pty)))
+						throw 4;
 
-					pty[0] = pty[2] = false;
-          break;
-          } // endif pretty
+					break;
+			}; // endswitch s[i]
 
-        sprintf(g->Message, "Unexpected ',' (pretty=%d)", pretty);
-#if defined(USE_TRY)
-				throw 3;
-#else   // !USE_TRY
-				jsp = NULL;
-				goto fin;
-#endif  // !USE_TRY
-      case '(':
-        b = true;
-        break;
-      case ')':
-        if (b) {
-          b = false;
-          break;
-          } // endif b
+		if (!jsp)
+			sprintf(g->Message, "Invalid Json string '%.*s'", 50, s);
+		else if (ptyp && pretty == 3) {
+			*ptyp = 3;     // Not recognized pretty
 
-      default:
-				if (jsp)
-					goto tryit;
-				else if (!(jsp = ParseValue(g, i, src, pty)))
-#if defined(USE_TRY)
-					throw 4;
-#else   // !USE_TRY
-				  goto fin;
-#endif  // !USE_TRY
+			for (i = 0; i < 3; i++)
+				if (pty[i]) {
+					*ptyp = i;
+					break;
+				} // endif pty
 
-				break;
-	}; // endswitch s[i]
+		} // endif ptyp
 
-	if (!jsp)
-		sprintf(g->Message, "Invalid Json string '%.*s'", 50, s);
-	else if (ptyp && pretty == 3) {
-		*ptyp = 3;     // Not recognized pretty
-
-		for (i = 0; i < 3; i++)
-			if (pty[i]) {
-				*ptyp = i;
-				break;
-			} // endif pty
-
-	} // endif ptyp
-
-#if defined(USE_TRY)
 	} catch (int n) {
 		if (trace)
 			htrc("Exception %d: %s\n", n, g->Message);
@@ -208,20 +155,12 @@ _set_se_translator(f);
 	} // end catch
 
 	return jsp;
-#else   // !USE_TRY
-fin:
-	g->jump_level--;
-	return jsp;
-#endif  // !USE_TRY
 
 tryit:
 	if (pty[0] && (!pretty || pretty > 2)) {
 		if ((jsp = ParseArray(g, (i = 0), src, pty)) && ptyp && pretty == 3)
 			*ptyp = (pty[0]) ? 0 : 3;
 
-#if !defined(USE_TRY)
-		g->jump_level--;
-#endif   // !USE_TRY
 		return jsp;
 	} else
 		strcpy(g->Message, "More than one item in file");
@@ -620,101 +559,75 @@ PVAL ParseNumeric(PGLOBAL g, int& i, STRG& src)
 PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
 {
 	PSZ   str = NULL;
-  bool  b = false, err = true;
-  JOUT *jp;
+	bool  b = false, err = true;
+	JOUT *jp;
 	FILE *fs = NULL;
 
 	g->Message[0] = 0;
 
-#if defined(USE_TRY)
 	try {
-#else   // !USE_TRY
-	// Save stack and allocation environment and prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-		return NULL;
-	} // endif jump_level
-
-	if (setjmp(g->jumper[++g->jump_level])) {
-		str = NULL;
-		goto fin;
-	} // endif jmp
-#endif  // !USE_TRY
-
-	if (!jsp) {
-    strcpy(g->Message, "Null json tree");
-#if defined(USE_TRY)
-		throw 1;
-#else   // !USE_TRY
-		goto fin;
-#endif  // !USE_TRY
-	} else if (!fn) {
-    // Serialize to a string
-    jp = new(g) JOUTSTR(g);
-    b = pretty == 1;
-	} else {
-		if (!(fs = fopen(fn, "wb"))) {
-			sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-				"w", (int)errno, fn);
-			strcat(strcat(g->Message, ": "), strerror(errno));
-#if defined(USE_TRY)
-			throw 2;
-#else   // !USE_TRY
-			goto fin;
-#endif  // !USE_TRY
-		} else if (pretty >= 2) {
-			// Serialize to a pretty file
-			jp = new(g)JOUTPRT(g, fs);
+		if (!jsp) {
+			strcpy(g->Message, "Null json tree");
+			throw 1;
+		} else if (!fn) {
+			// Serialize to a string
+			jp = new(g) JOUTSTR(g);
+			b = pretty == 1;
 		} else {
-			// Serialize to a flat file
-			b = true;
-			jp = new(g)JOUTFILE(g, fs, pretty);
+			if (!(fs = fopen(fn, "wb"))) {
+				sprintf(g->Message, MSG(OPEN_MODE_ERROR),
+					"w", (int)errno, fn);
+				strcat(strcat(g->Message, ": "), strerror(errno));
+				throw 2;
+			} else if (pretty >= 2) {
+				// Serialize to a pretty file
+				jp = new(g)JOUTPRT(g, fs);
+			} else {
+				// Serialize to a flat file
+				b = true;
+				jp = new(g)JOUTFILE(g, fs, pretty);
+			} // endif's
+
+		}	// endif's
+
+		switch (jsp->GetType()) {
+			case TYPE_JAR:
+				err = SerializeArray(jp, (PJAR)jsp, b);
+				break;
+			case TYPE_JOB:
+				err = ((b && jp->Prty()) && jp->WriteChr('\t'));
+				err |= SerializeObject(jp, (PJOB)jsp);
+				break;
+			case TYPE_JVAL:
+				err = SerializeValue(jp, (PJVAL)jsp);
+				break;
+			default:
+				strcpy(g->Message, "Invalid json tree");
+		} // endswitch Type
+
+		if (fs) {
+			fputs(EL, fs);
+			fclose(fs);
+			str = (err) ? NULL : strcpy(g->Message, "Ok");
+		} else if (!err) {
+			str = ((JOUTSTR*)jp)->Strp;
+			jp->WriteChr('\0');
+			PlugSubAlloc(g, NULL, ((JOUTSTR*)jp)->N);
+		} else {
+			if (!g->Message[0])
+				strcpy(g->Message, "Error in Serialize");
+
 		} // endif's
 
-	}	// endif's
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		str = NULL;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		str = NULL;
+	} // end catch
 
-  switch (jsp->GetType()) {
-    case TYPE_JAR:
-      err = SerializeArray(jp, (PJAR)jsp, b);
-      break;
-    case TYPE_JOB:
-      err = ((b && jp->Prty()) && jp->WriteChr('\t'));
-      err |= SerializeObject(jp, (PJOB)jsp);
-      break;
-    case TYPE_JVAL:
-      err = SerializeValue(jp, (PJVAL)jsp);
-      break;
-    default:
-      strcpy(g->Message, "Invalid json tree");
-    } // endswitch Type
-
-  if (fs) {
-		fputs(EL, fs);
-    fclose(fs);
-		str = (err) ? NULL : strcpy(g->Message, "Ok");
-  } else if (!err) {
-    str = ((JOUTSTR*)jp)->Strp;
-    jp->WriteChr('\0');
-    PlugSubAlloc(g, NULL, ((JOUTSTR*)jp)->N);
-  } else {
-    if (!g->Message[0])
-      strcpy(g->Message, "Error in Serialize");
-
-  } // endif's
-
-#if defined(USE_TRY)
-} catch (int n) {
-	if (trace)
-		htrc("Exception %d: %s\n", n, g->Message);
-	str = NULL;
-} catch (const char *msg) {
-	strcpy(g->Message, msg);
-	str = NULL;
-} // end catch
-#else   // !USE_TRY
-fin:
-	g->jump_level--;
-#endif  // !USE_TRY
 	return str;
 } // end of Serialize
 
@@ -1023,7 +936,7 @@ return false;
 /***********************************************************************/
 /* Add a new pair to an Object.                                        */
 /***********************************************************************/
-PJPR JOBJECT::AddPair(PGLOBAL g, PSZ key)
+PJPR JOBJECT::AddPair(PGLOBAL g, PCSZ key)
 {
   PJPR jpp = new(g) JPAIR(key);
 
@@ -1109,7 +1022,7 @@ bool JOBJECT::Merge(PGLOBAL g, PJSON jsp)
 /***********************************************************************/
 /* Set or add a value corresponding to the given key.                  */
 /***********************************************************************/
-void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PSZ key)
+void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PCSZ key)
 {
 	PJPR jp;
 
@@ -1129,7 +1042,7 @@ void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PSZ key)
 /***********************************************************************/
 /* Delete a value corresponding to the given key.                  */
 /***********************************************************************/
-void JOBJECT::DeleteKey(PSZ key)
+void JOBJECT::DeleteKey(PCSZ key)
 {
 	PJPR jp, *pjp = &First;
 
@@ -1308,10 +1221,10 @@ JVALUE::JVALUE(PGLOBAL g, PVAL valp) : JSON()
 /***********************************************************************/
 /* Constructor for a given string.                                     */
 /***********************************************************************/
-JVALUE::JVALUE(PGLOBAL g, PSZ strp) : JSON()
+JVALUE::JVALUE(PGLOBAL g, PCSZ strp) : JSON()
 {
 	Jsp = NULL;
-	Value = AllocateValue(g, strp, TYPE_STRING);
+	Value = AllocateValue(g, (void*)strp, TYPE_STRING);
 	Next = NULL;
 	Del = false;
 } // end of JVALUE constructor
@@ -1466,6 +1379,6 @@ void JVALUE::SetString(PGLOBAL g, PSZ s, short c)
 /***********************************************************************/
 bool JVALUE::IsNull(void)
 {
-	return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsNull() : true;
+  return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsNull() : true;
 } // end of IsNull
 

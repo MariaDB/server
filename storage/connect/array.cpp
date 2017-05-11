@@ -519,11 +519,7 @@ bool ARRAY::FilTest(PGLOBAL g, PVAL valp, OPVAL opc, int opm)
 
   } else if (opc != OP_EXIST) {
 		sprintf(g->Message, MSG(MISSING_ARG), opc);
-#if defined(USE_TRY)
 		throw	TYPE_ARRAY;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
-#endif  // !USE_TRY
   } else    // OP_EXIST
     return Nval > 0;
 
@@ -685,22 +681,14 @@ void ARRAY::SetPrecision(PGLOBAL g, int p)
   {
   if (Vblp == NULL) {
     strcpy(g->Message, MSG(PREC_VBLP_NULL));
-#if defined(USE_TRY)
 		throw TYPE_ARRAY;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
-#endif  // !USE_TRY
     } // endif Vblp
 
   bool was = Vblp->IsCi();
 
   if (was && !p) {
     strcpy(g->Message, MSG(BAD_SET_CASE));
-#if defined(USE_TRY)
 		throw TYPE_ARRAY;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
-#endif  // !USE_TRY
 	} // endif Vblp
 
   if (was || !p)
@@ -711,11 +699,7 @@ void ARRAY::SetPrecision(PGLOBAL g, int p)
   if (!was && Type == TYPE_STRING)
     // Must be resorted to eliminate duplicate strings
     if (Sort(g))
-#if defined(USE_TRY)
 			throw TYPE_ARRAY;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
-#endif  // !USE_TRY
 
   } // end of SetPrecision
 
@@ -993,7 +977,7 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
   size_t  z, len = 2;
 
   if (Type == TYPE_LIST)
-    return "(?" "?" "?)";             // To be implemented
+    return (PSZ)("(?" "?" "?)");             // To be implemented
 
   z = MY_MAX(24, GetTypeSize(Type, Len) + 4);
   tp = (char*)PlugSubAlloc(g, NULL, z);

@@ -87,11 +87,7 @@ BYTE OpBmp(PGLOBAL g, OPVAL opc)
     case OP_EXIST: bt = 0x00; break;
     default:
       sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
-#if defined(USE_TRY)
 			throw TYPE_ARRAY;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
-#endif  // !USE_TRY
 	} // endswitch opc
 
   return bt;
@@ -1715,11 +1711,7 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
         break;  // Remove eventual ending separator(s)
 
 //  if (fp->Convert(g, having))
-//#if defined(USE_TRY)
 //			throw TYPE_ARRAY;
-//#else   // !USE_TRY
-//			longjmp(g->jumper[g->jump_level], TYPE_FILTER);
-//#endif  // !USE_TRY
 
     filp = fp;
     fp = fp->Next;
@@ -1752,11 +1744,7 @@ DllExport bool ApplyFilter(PGLOBAL g, PFIL filp)
 //  return TRUE;
 
   if (filp->Eval(g))
-#if defined(USE_TRY)
 		throw TYPE_FILTER;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], TYPE_FILTER);
-#endif  // !USE_TRY
 
   if (trace > 1)
     htrc("PlugFilter filp=%p result=%d\n",

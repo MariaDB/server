@@ -35,9 +35,9 @@
 /***********************************************************************/
 /*  CONDFIL Constructor.                                               */
 /***********************************************************************/
-CONDFIL::CONDFIL(const Item *cond, uint idx, AMT type)
+CONDFIL::CONDFIL(uint idx, AMT type)
 {
-	Cond = cond; 
+//Cond = cond; 
 	Idx = idx; 
 	Type = type;
 	Op = OP_XX;
@@ -61,7 +61,7 @@ int CONDFIL::Init(PGLOBAL g, PHC hc)
 	bool  h;
 
 	if (options)
-    alt = GetListOption(g, "Alias", options->oplist, NULL);
+    alt = (char*)GetListOption(g, "Alias", options->oplist, NULL);
 
 	while (alt) {
 		if (!(p = strchr(alt, '='))) {
@@ -267,7 +267,7 @@ TDBEXT::TDBEXT(PTDBEXT tdbp) : TDB(tdbp)
 /******************************************************************/
 /*  Convert an UTF-8 string to latin characters.                  */
 /******************************************************************/
-int TDBEXT::Decode(char *txt, char *buf, size_t n)
+int TDBEXT::Decode(PCSZ txt, char *buf, size_t n)
 {
 	uint   dummy_errors;
 	uint32 len = copy_and_convert(buf, n, &my_charset_latin1,
@@ -285,16 +285,17 @@ int TDBEXT::Decode(char *txt, char *buf, size_t n)
 /***********************************************************************/
 bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 {
-	char  *schmp = NULL, *catp = NULL, buf[NAM_LEN * 3];
+	PCSZ   schmp = NULL;
+	char  *catp = NULL, buf[NAM_LEN * 3];
 	int    len;
-	bool   oom = false, first = true;
+	bool   first = true;
 	PTABLE tablep = To_Table;
 	PCOL   colp;
 
 	if (Srcdef) {
 		if ((catp = strstr(Srcdef, "%s"))) {
 			char *fil1, *fil2;
-			PSZ   ph = ((EXTDEF*)To_Def)->Phpos;
+			PCSZ  ph = ((EXTDEF*)To_Def)->Phpos;
 
 			if (!ph)
 				ph = (strstr(catp + 2, "%s")) ? "WH" : "W";
@@ -341,7 +342,7 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 			for (colp = Columns; colp; colp = colp->GetNext())
 				if (!colp->IsSpecial()) {
 					if (!first)
-						oom |= Query->Append(", ");
+						Query->Append(", ");
 					else
 						first = false;
 
@@ -350,11 +351,11 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 
 					if (Quote) {
 						// Put column name between identifier quotes in case in contains blanks
-						oom |= Query->Append(Quote);
-						oom |= Query->Append(buf);
-						oom |= Query->Append(Quote);
+						Query->Append(Quote);
+						Query->Append(buf);
+						Query->Append(Quote);
 					} else
-						oom |= Query->Append(buf);
+						Query->Append(buf);
 
 					((PEXTCOL)colp)->SetRank(++Ncol);
 				} // endif colp
@@ -362,13 +363,13 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 		} else
 			// !Columns can occur for queries such that sql count(*) from...
 			// for which we will count the rows from sql * from...
-			oom |= Query->Append('*');
+			Query->Append('*');
 
 	} else
 		// SQL statement used to retrieve the size of the result
-		oom |= Query->Append("count(*)");
+		Query->Append("count(*)");
 
-	oom |= Query->Append(" FROM ");
+	Query->Append(" FROM ");
 
 	if (Catalog && *Catalog)
 		catp = Catalog;
@@ -380,17 +381,17 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 		schmp = Schema;
 
 	if (catp) {
-		oom |= Query->Append(catp);
+		Query->Append(catp);
 
 		if (schmp) {
-			oom |= Query->Append('.');
-			oom |= Query->Append(schmp);
+			Query->Append('.');
+			Query->Append(schmp);
 		} // endif schmp
 
-		oom |= Query->Append('.');
+		Query->Append('.');
 	} else if (schmp) {
-		oom |= Query->Append(schmp);
-		oom |= Query->Append('.');
+		Query->Append(schmp);
+		Query->Append('.');
 	} // endif schmp
 
 	// Table name can be encoded in UTF-8
@@ -398,18 +399,18 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 
 	if (Quote) {
 		// Put table name between identifier quotes in case in contains blanks
-		oom |= Query->Append(Quote);
-		oom |= Query->Append(buf);
-		oom |= Query->Append(Quote);
+		Query->Append(Quote);
+		Query->Append(buf);
+		Query->Append(Quote);
 	} else
-		oom |= Query->Append(buf);
+		Query->Append(buf);
 
 	len = Query->GetLength();
 
 	if (To_CondFil) {
 		if (Mode == MODE_READ) {
-			oom |= Query->Append(" WHERE ");
-			oom |= Query->Append(To_CondFil->Body);
+			Query->Append(" WHERE ");
+			Query->Append(To_CondFil->Body);
 			len = Query->GetLength() + 1;
 		} else
 			len += (strlen(To_CondFil->Body) + 256);
@@ -417,10 +418,11 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 	} else
 		len += ((Mode == MODE_READX) ? 256 : 1);
 
-	if (oom || Query->Resize(len)) {
+	if (Query->IsTruncated()) {
 		strcpy(g->Message, "MakeSQL: Out of memory");
 		return true;
-	} // endif oom
+	} else
+		Query->Resize(len);
 
 	if (trace)
 		htrc("Query=%s\n", Query->GetStr());
@@ -434,7 +436,8 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 /***********************************************************************/
 bool TDBEXT::MakeCommand(PGLOBAL g)
 {
-	char *p, *stmt, name[132], *body = NULL, *schmp = NULL;
+	PCSZ  schmp = NULL;
+	char *p, *stmt, name[132], *body = NULL;
 	char *qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 1);
 	bool  qtd = Quoted > 0;
 	char  q = qtd ? *Quote : ' ';
@@ -562,7 +565,7 @@ int TDBEXT::GetProgMax(PGLOBAL g)
 /***********************************************************************/
 /*  EXTCOL public constructor.                                         */
 /***********************************************************************/
-EXTCOL::EXTCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+EXTCOL::EXTCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 	: COLBLK(cdp, tdbp, i)
 {
 	if (cprec) {
