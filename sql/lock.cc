@@ -380,12 +380,15 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
 void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
 {
   DBUG_ENTER("mysql_unlock_tables");
+  bool errors= thd->is_error();
   if (sql_lock->table_count)
     unlock_external(thd, sql_lock->table, sql_lock->table_count);
   if (sql_lock->lock_count)
     thr_multi_unlock(sql_lock->locks, sql_lock->lock_count, 0);
   if (free_lock)
     my_free(sql_lock);
+  if (!errors)
+    thd->clear_error();
   DBUG_VOID_RETURN;
 }
 
