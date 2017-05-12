@@ -3047,10 +3047,11 @@ row_sel_get_clust_rec_for_mysql(
 	dberr_t		err;
 	trx_t*		trx;
 
-	srv_stats.n_sec_rec_cluster_reads.inc();
-
 	*out_rec = NULL;
 	trx = thr_get_trx(thr);
+
+	srv_stats.n_sec_rec_cluster_reads.inc(
+		thd_get_thread_id(trx->mysql_thd));
 
 	row_build_row_ref_in_tuple(prebuilt->clust_ref, rec,
 				   sec_index, *offsets, trx);
