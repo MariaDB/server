@@ -288,8 +288,13 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
           break;
   
       if (jcp) {
-        if (jcp->Type != jcol.Type)
-          jcp->Type = TYPE_STRING;
+				if (jcp->Type != jcol.Type) {
+					if (jcp->Type == TYPE_UNKNOWN)
+						jcp->Type = jcol.Type;
+					else if (jcol.Type != TYPE_UNKNOWN)
+					  jcp->Type = TYPE_STRING;
+
+				} // endif Type
 
         if (*fmt && (!jcp->Fmt || strlen(jcp->Fmt) < strlen(fmt))) {
           jcp->Fmt = PlugDup(g, fmt);
