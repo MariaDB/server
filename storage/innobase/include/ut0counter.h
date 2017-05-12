@@ -56,8 +56,6 @@ struct generic_indexer_t {
 to index into the counter array. See the comments for my_timer_cycles() */
 template <typename Type=ulint, int N=1>
 struct counter_indexer_t : public generic_indexer_t<Type, N> {
-
-	/** Default constructor/destructor should be OK. */
 	/** @return result from RDTSC or similar functions. */
 	static size_t get_rnd_index() UNIV_NOTHROW
 	{
@@ -77,6 +75,12 @@ struct counter_indexer_t : public generic_indexer_t<Type, N> {
 			return(static_cast<size_t>(cnt.QuadPart));
 #endif /* !_WIN32 */
 		}
+	}
+
+	/** @return a random offset to the array */
+	static size_t get_rnd_offset() UNIV_NOTHROW
+	{
+		return(generic_indexer_t<Type, N>::offset(get_rnd_index()));
 	}
 };
 

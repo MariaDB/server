@@ -57,10 +57,9 @@ Created 10/10/1995 Heikki Tuuri
 #include "ut0counter.h"
 #include "fil0fil.h"
 
-struct fil_space_t;
-
-/* Global counters used inside InnoDB. */
-struct srv_stats_t {
+/** Global counters used inside InnoDB. */
+struct srv_stats_t
+{
 	typedef ib_counter_t<ulint, 64> ulint_ctr_64_t;
 	typedef simple_counter<lsn_t> lsn_ctr_1_t;
 	typedef simple_counter<ulint> ulint_ctr_1_t;

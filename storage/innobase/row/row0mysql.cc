@@ -2135,7 +2135,6 @@ run_again:
 		} else {
 			srv_stats.n_rows_deleted.inc(size_t(trx->id));
 		}
-
 	} else {
 		if (table->is_system_db) {
 			srv_stats.n_system_rows_updated.inc(size_t(trx->id));
