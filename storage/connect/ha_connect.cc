@@ -3998,7 +3998,7 @@ int ha_connect::rnd_pos(uchar *buf, uchar *pos)
 	} else {
 		PGLOBAL g = GetPlug((table) ? table->in_use : NULL, xp);
 		strcpy(g->Message, "Not supported by this table type");
-		my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+		my_message(ER_ILLEGAL_HA, g->Message, MYF(0));
 		rc= HA_ERR_INTERNAL_ERROR;
 	}	// endif SetRecpos
 
