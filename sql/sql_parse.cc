@@ -6208,6 +6208,14 @@ bool check_stack_overrun(THD *thd, long margin,
   return 0;
 }
 
+long check_stack_available(long margin,
+			   uchar *buf __attribute__((unused)))
+{
+  long stack_top;
+  DBUG_ASSERT(current_thd);
+  return my_thread_stack_size - margin \
+         - used_stack(current_thd->thread_stack,(char*) &stack_top);
+}
 
 #define MY_YACC_INIT 1000			// Start with big alloc
 #define MY_YACC_MAX  32000			// Because of 'short'
