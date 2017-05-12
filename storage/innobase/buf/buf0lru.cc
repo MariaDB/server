@@ -1420,7 +1420,7 @@ loop:
 		++flush_failures;
 	}
 
-	srv_stats.buf_pool_wait_free.add(n_iterations, 1);
+	srv_stats.buf_pool_wait_free.inc();
 
 	n_iterations++;
 

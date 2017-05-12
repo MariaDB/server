@@ -1633,9 +1633,9 @@ error_exit:
 	que_thr_stop_for_mysql_no_error(thr, trx);
 
 	if (table->is_system_db) {
-		srv_stats.n_system_rows_inserted.inc();
+		srv_stats.n_system_rows_inserted.inc(size_t(trx->id));
 	} else {
-		srv_stats.n_rows_inserted.inc();
+		srv_stats.n_rows_inserted.inc(size_t(trx->id));
 	}
 
 	/* Not protected by dict_table_stats_lock() for performance
@@ -2114,9 +2114,9 @@ run_again:
 			than protecting the following code with a latch. */
 			dict_table_n_rows_dec(node->table);
 
-			srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+			srv_stats.n_rows_deleted.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+			srv_stats.n_rows_updated.inc(size_t(trx->id));
 		}
 
 		row_update_statistics_if_needed(node->table);
@@ -2130,17 +2130,17 @@ run_again:
 		with a latch. */
 		dict_table_n_rows_dec(prebuilt->table);
 
-		if (table->is_system_db) {	
-			srv_stats.n_system_rows_deleted.inc();
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_deleted.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_deleted.inc();
+			srv_stats.n_rows_deleted.inc(size_t(trx->id));
 		}
 
 	} else {
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_updated.inc();
+			srv_stats.n_system_rows_updated.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_updated.inc();
+			srv_stats.n_rows_updated.inc(size_t(trx->id));
 		}
 	}
 
