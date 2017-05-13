@@ -4713,8 +4713,7 @@ my_bool STDCALL mysql_stmt_close(MYSQL_STMT *stmt)
     {
       uchar buff[MYSQL_STMT_HEADER];             /* 4 bytes - stmt id */
 
-      if ((rc= reset_stmt_handle(stmt, RESET_ALL_BUFFERS | RESET_CLEAR_ERROR)))
-        return rc;
+      reset_stmt_handle(stmt, RESET_ALL_BUFFERS | RESET_CLEAR_ERROR);
 
       int4store(buff, stmt->stmt_id);
       if ((rc= stmt_command(mysql, COM_STMT_CLOSE, buff, 4, stmt)))
