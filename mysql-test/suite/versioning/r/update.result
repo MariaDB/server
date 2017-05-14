@@ -170,9 +170,9 @@ begin
 set @str= concat('
   create table t1(
     x int unsigned,
-    y int unsigned,
-    sys_start ', sys_type, ' generated always as row start,
     sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' generated always as row start,
+    y int unsigned,
     period for system_time (sys_start, sys_end),
     primary key(x, y))
   with system versioning
