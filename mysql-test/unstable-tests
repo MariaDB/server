@@ -41,7 +41,7 @@ main.keyread                       : Added in 10.2.6
 main.limit_rows_examined           : Modified in 10.2.6
 main.loaddata                      : Modified in 10.2.6
 main.loadxml                       : Modified in 10.2.6
-main.log_tables-big                : Modified in 10.2.6
+main.log_tables-big                : MDEV-12764	- Mismatch; modified in 10.2.6
 main.mix2_myisam                   : MDEV-11646 - Valgrind
 main.mrr_icp_extra                 : MDEV-11646 - Valgrind
 main.myisam                        : MDEV-11646 - Valgrind
@@ -258,7 +258,7 @@ innodb_undo.truncate                 : Added in 10.2.6
 innodb_undo.truncate_multi_client    : Added in 10.2.6
 innodb_undo.truncate_recover         : Added in 10.2.6
 
-innodb_zip.recover                   : Added in 10.2.6
+innodb_zip.recover                   : MDEV-12794 - Table crashed; added in 10.2.6
 innodb_zip.wl6501_1                  : MDEV-10891 - Can't create UNIX socket, MDEV-12748 - Unknown engine InnoDB
 innodb_zip.wl5522_debug_zip          : MDEV-11600 - Operating system error number 2
 
@@ -301,7 +301,7 @@ perfschema.bad_option_3                        : MDEV-12728 - Timeout on Power
 perfschema.hostcache_ipv4_addrinfo_again_allow : MDEV-12759 - Crash
 perfschema.hostcache_ipv6_addrinfo_again_allow : MDEV-12752 - Crash
 perfschema.stage_mdl_procedure                 : MDEV-11545 - Missing row
-	
+
 #----------------------------------------------------------------
 
 perfschema_stress.*                : MDEV-10996 - Not maintained
@@ -330,6 +330,7 @@ rpl.rpl_mariadb_slave_capability     : MDEV-11018 - Extra lines in binlog
 rpl.rpl_parallel                     : MDEV-12730 - Assertion failure
 rpl.rpl_parallel_optimistic_nobinlog : MDEV-12746 - Timeouts, mismatch
 rpl.rpl_parallel_retry               : MDEV-11119 - Crash
+rpl.rpl_temporal_mysql56_to_mariadb53 : MDEV-9501 - Failed registering on master
 rpl.rpl_semi_sync_uninstall_plugin   : MDEV-10892 - Assertion failure
 rpl.rpl_slave_grp_exec               : MDEV-10514 - Deadlock
 rpl.rpl_stm_multi_query              : MDEV-9501 - Failed registering on master
@@ -349,7 +350,7 @@ sphinx.sphinx                      : MDEV-10986 - Sporadic failures
 sphinx.union-5539                  : MDEV-10986 - Sporadic failures
 
 #----------------------------------------------------------------
-	
+
 sys_vars.innodb_deadlock_detect_basic   : Added in 10.2.6
 sys_vars.innodb_max_undo_log_size_basic : Modified in 10.2.6
 sys_vars.innodb_support_xa_basic        : Modified in 10.2.6
@@ -366,12 +367,12 @@ tokudb_backup.*                    : MDEV-11001 - Missing include file
 tokudb_sys_vars.*                  : MDEV-11001 - Missing include file
 tokudb_rpl.*                       : MDEV-11001 - Missing include file
 
-
 #----------------------------------------------------------------
 
-unit.conc_features-10_2            : CONC-252 - Failure on Power
-unit.conc_misc                     : CONC-252 - Failure on Power
-unit.conc_thread                   : CONC-252 - Failure on Power
+unit.conc_connection               : CONC-252 - Connector tests fail
+unit.conc_features-10_2            : CONC-252 - Connector tests fail
+unit.conc_misc                     : CONC-252 - Connector tests fail
+unit.conc_thread                   : CONC-252 - Connector tests fail
 
 #----------------------------------------------------------------
 
