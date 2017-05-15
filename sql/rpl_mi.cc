@@ -401,7 +401,7 @@ file '%s')", fname);
     mi->connect_retry= (uint) connect_retry;
     mi->ssl= (my_bool) ssl;
     mi->ssl_verify_server_cert= ssl_verify_server_cert;
-    mi->heartbeat_period= master_heartbeat_period;
+    mi->heartbeat_period= min(SLAVE_MAX_HEARTBEAT_PERIOD, master_heartbeat_period);
   }
   DBUG_PRINT("master_info",("log_file_name: %s  position: %ld",
                             mi->master_log_name,
@@ -518,8 +518,8 @@ int flush_master_info(Master_info* mi,
      contents of file). But because of number of lines in the first line
      of file we don't care about this garbage.
   */
-  char heartbeat_buf[sizeof(mi->heartbeat_period) * 4]; // buffer to suffice always
-  sprintf(heartbeat_buf, "%.3f", mi->heartbeat_period);
+  char heartbeat_buf[FLOATING_POINT_BUFFER];
+  my_fcvt(mi->heartbeat_period, 3, heartbeat_buf, NULL);
   my_b_seek(file, 0L);
   my_b_printf(file,
               "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n",
