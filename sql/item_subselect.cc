@@ -2493,6 +2493,27 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
   DBUG_ENTER("Item_in_subselect::inject_in_to_exists_cond");
   DBUG_ASSERT(thd == join_arg->thd);
 
+  if (select_lex->min_max_opt_list.elements)
+  {
+    /*
+      MIN/MAX optimizations have been applied to Item_sum objects
+      of the subquery this subquery predicate in opt_sum_query().
+      Injection of new condition invalidates this optimizations.
+      Thus those optimizations must be rolled back.
+    */
+    List_iterator_fast<Item_sum> it(select_lex->min_max_opt_list);
+    Item_sum *item;
+    while ((item= it++))
+    {
+      item->clear();
+      item->reset_forced_const();
+    }
+    if (where_item)
+      where_item->update_used_tables();
+    if (having_item)
+      having_item->update_used_tables();
+  }
+
   if (where_item)
   {
     List<Item> *and_args= NULL;

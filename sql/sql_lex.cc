@@ -1875,6 +1875,7 @@ void st_select_lex::init_query()
   leaf_tables_prep.empty();
   leaf_tables.empty();
   item_list.empty();
+  min_max_opt_list.empty();
   join= 0;
   having= prep_having= where= prep_where= 0;
   olap= UNSPECIFIED_OLAP_TYPE;
