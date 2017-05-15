@@ -28,6 +28,7 @@
 
 class Field;
 class Item;
+class Item_param;
 class Item_cache;
 class Item_func_or_sum;
 class Item_sum_hybrid;
@@ -698,6 +699,10 @@ public:
 
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual bool Item_save_in_value(Item *item, st_value *value) const= 0;
+  virtual bool Item_param_set_from_value(THD *thd,
+                                         Item_param *param,
+                                         const Type_all_attributes *attr,
+                                         const st_value *value) const= 0;
   virtual bool Item_send(Item *item, Protocol *p, st_value *buf) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
@@ -942,6 +947,10 @@ public:
     return DECIMAL_MAX_PRECISION;
   }
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     DBUG_ASSERT(0);
@@ -1164,6 +1173,10 @@ public:
                   SORT_FIELD_ATTR *attr) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
@@ -1226,6 +1239,10 @@ public:
   uint32 max_display_length(const Item *item) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_str(item, protocol, buf);
@@ -1288,6 +1305,10 @@ public:
                   SORT_FIELD_ATTR *attr) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
@@ -1343,6 +1364,10 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   uint32 max_display_length(const Item *item) const;
   bool can_change_cond_ref_to_const(Item_bool_func2 *target,
                                    Item *target_expr, Item *target_value,
@@ -1419,6 +1444,10 @@ public:
   }
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_str(item, protocol, buf);
@@ -2182,6 +2211,10 @@ public:
   {
     return false; // Materialization does not work with GEOMETRY columns
   }
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,

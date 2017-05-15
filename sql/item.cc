@@ -3767,45 +3767,8 @@ bool Item_param::set_from_item(THD *thd, Item *item)
   struct st_value tmp;
   if (!item->save_in_value(&tmp))
   {
-    unsigned_flag= item->unsigned_flag;
-    switch (item->cmp_type()) {
-    case REAL_RESULT:
-      set_double(tmp.value.m_double);
-      set_handler(&type_handler_double);
-      break;
-    case INT_RESULT:
-      set_int(tmp.value.m_longlong, MY_INT64_NUM_DECIMAL_DIGITS);
-      set_handler(&type_handler_longlong);
-      break;
-    case STRING_RESULT:
-    {
-      value.cs_info.set(thd, item->collation.collation);
-      /*
-        Exact value of max_length is not known unless data is converted to
-        charset of connection, so we have to set it later.
-      */
-      set_handler(&type_handler_varchar);
-
-      if (set_str(tmp.m_string.ptr(), tmp.m_string.length()))
-        DBUG_RETURN(1);
-      break;
-    }
-    case DECIMAL_RESULT:
-    {
-      set_decimal(&tmp.m_decimal, unsigned_flag);
-      set_handler(&type_handler_newdecimal);
-      break;
-    }
-    case TIME_RESULT:
-    {
-      set_time(&tmp.value.m_time, item->max_length, item->decimals);
-      set_handler(item->type_handler());
-      break;
-    }
-    case ROW_RESULT:
-      DBUG_ASSERT(0);
-      set_null();
-    }
+    if (item->type_handler()->Item_param_set_from_value(thd, this, item, &tmp))
+      DBUG_RETURN(true);
   }
   else
     set_null();

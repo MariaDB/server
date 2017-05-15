@@ -2943,7 +2943,8 @@ public:
 class Item_param :public Item_basic_value,
                   private Settable_routine_parameter,
                   public Rewritable_query_parameter,
-                  public Type_handler_hybrid_field_type
+                  public Type_handler_hybrid_field_type,
+                  public Type_geometry_attributes
 {
   /*
     NO_VALUE is a special value meaning that the parameter has not been
@@ -3074,6 +3075,9 @@ public:
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
+
+  Field::geometry_type get_geometry_type() const
+  { return Type_geometry_attributes::get_geometry_type(); };
 
   Item_param(THD *thd, const LEX_CSTRING *name_arg,
              uint pos_in_query_arg, uint len_in_query_arg);

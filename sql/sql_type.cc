@@ -4180,6 +4180,104 @@ bool Type_handler_time_common::
 
 /***************************************************************************/
 
+bool Type_handler_row::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  DBUG_ASSERT(0);
+  param->set_null();
+  return true;
+}
+
+
+bool Type_handler_real_result::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= attr->unsigned_flag;
+  param->set_double(val->value.m_double);
+  param->set_handler(&type_handler_double);
+  return false;
+}
+
+
+bool Type_handler_int_result::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= attr->unsigned_flag;
+  param->set_int(val->value.m_longlong, MY_INT64_NUM_DECIMAL_DIGITS);
+  param->set_handler(&type_handler_longlong);
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= attr->unsigned_flag;
+  param->set_decimal(&val->m_decimal, attr->unsigned_flag);
+  param->set_handler(&type_handler_newdecimal);
+  return false;
+}
+
+
+bool Type_handler_string_result::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= false;
+  param->value.cs_info.set(thd, attr->collation.collation);
+  /*
+    Exact value of max_length is not known unless data is converted to
+    charset of connection, so we have to set it later.
+  */
+  param->set_handler(&type_handler_varchar);
+  return param->set_str(val->m_string.ptr(), val->m_string.length());
+}
+
+
+bool Type_handler_temporal_result::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= attr->unsigned_flag;
+  param->set_time(&val->value.m_time, attr->max_length, attr->decimals);
+  param->set_handler(this);
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= false;
+  param->value.cs_info.set(thd, &my_charset_bin);
+  param->set_handler(&type_handler_geometry);
+  param->set_geometry_type(attr->uint_geometry_type());
+  return param->set_str(val->m_string.ptr(), val->m_string.length());
+}
+#endif
+
+/***************************************************************************/
+
 bool Type_handler_null::
       Item_send(Item *item, Protocol *protocol, st_value *buf) const
 {
