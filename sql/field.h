@@ -3919,6 +3919,14 @@ public:
 
   bool prepare_create_field(uint *blob_columns, ulonglong table_flags);
 
+  uint sign_length() const { return flags & UNSIGNED_FLAG ? 0 : 1; }
+  bool check_length(uint mysql_errno, uint max_allowed_length) const;
+  bool fix_attributes_real(uint default_length);
+  bool fix_attributes_int(uint default_length);
+  bool fix_attributes_decimal();
+  bool fix_attributes_temporal_with_time(uint int_part_length);
+  bool fix_attributes_bit();
+
   bool check(THD *thd);
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }

@@ -9893,11 +9893,98 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
 }
 
 
+bool Column_definition::check_length(uint mysql_errno, uint limit) const
+{
+  if (length <= limit)
+    return false;
+  my_error(mysql_errno, MYF(0), field_name.str, static_cast<ulong>(limit));
+  return true;
+}
+
+
+bool Column_definition::fix_attributes_int(uint default_length)
+{
+  if (length)
+    return check_length(ER_TOO_BIG_DISPLAYWIDTH, MAX_FIELD_CHARLENGTH);
+  length= default_length;
+  return false;
+}
+
+
+bool Column_definition::fix_attributes_real(uint default_length)
+{
+  /* change FLOAT(precision) to FLOAT or DOUBLE */
+  if (!length && !decimals)
+  {
+    length= default_length;
+    decimals= NOT_FIXED_DEC;
+  }
+  if (length < decimals && decimals != NOT_FIXED_DEC)
+  {
+    my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name.str);
+    return true;
+  }
+  if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
+  {
+    my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
+             field_name.str, static_cast<uint>(FLOATING_POINT_DECIMALS-1));
+    return true;
+  }
+  return check_length(ER_TOO_BIG_DISPLAYWIDTH, MAX_FIELD_CHARLENGTH);
+}
+
+
+bool Column_definition::fix_attributes_decimal()
+{
+  if (decimals >= NOT_FIXED_DEC)
+  {
+    my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
+             field_name.str, static_cast<uint>(NOT_FIXED_DEC - 1));
+    return true;
+  }
+  my_decimal_trim(&length, &decimals);
+  if (length > DECIMAL_MAX_PRECISION)
+  {
+    my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
+             DECIMAL_MAX_PRECISION);
+    return true;
+  }
+  if (length < decimals)
+  {
+    my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name.str);
+    return true;
+  }
+  length= my_decimal_precision_to_length(length, decimals,
+                                         flags & UNSIGNED_FLAG);
+  pack_length= my_decimal_get_binary_size(length, decimals);
+  return false;
+}
+
+
+bool Column_definition::fix_attributes_bit()
+{
+  if (!length)
+    length= 1;
+  pack_length= (length + 7) / 8;
+  return check_length(ER_TOO_BIG_DISPLAYWIDTH, MAX_BIT_FIELD_LENGTH);
+}
+
+
+bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
+{
+  if (length > MAX_DATETIME_PRECISION)
+  {
+    my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
+             MAX_DATETIME_PRECISION);
+    return true;
+  }
+  length+= int_part_length + (length ? 1 : 0);
+  return false;
+}
+
+
 bool Column_definition::check(THD *thd)
 {
-  const uint conditional_type_modifiers= AUTO_INCREMENT_FLAG;
-  uint sign_len, allowed_type_modifier= 0;
-  ulong max_field_charlength= MAX_FIELD_CHARLENGTH;
   DBUG_ENTER("Column_definition::check");
 
   /* Initialize data for a computed field */
@@ -9972,186 +10059,9 @@ bool Column_definition::check(THD *thd)
   else if (flags & AUTO_INCREMENT_FLAG)
     unireg_check= Field::NEXT_NUMBER;
 
-  sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
+  if (type_handler()->Column_definition_fix_attributes(this))
+    DBUG_RETURN(true);
 
-  switch (real_field_type()) {
-  case MYSQL_TYPE_TINY:
-    if (!length)
-      length= MAX_TINYINT_WIDTH+sign_len;
-    allowed_type_modifier= AUTO_INCREMENT_FLAG;
-    break;
-  case MYSQL_TYPE_SHORT:
-    if (!length)
-      length= MAX_SMALLINT_WIDTH+sign_len;
-    allowed_type_modifier= AUTO_INCREMENT_FLAG;
-    break;
-  case MYSQL_TYPE_INT24:
-    if (!length)
-      length= MAX_MEDIUMINT_WIDTH+sign_len;
-    allowed_type_modifier= AUTO_INCREMENT_FLAG;
-    break;
-  case MYSQL_TYPE_LONG:
-    if (!length)
-      length= MAX_INT_WIDTH+sign_len;
-    allowed_type_modifier= AUTO_INCREMENT_FLAG;
-    break;
-  case MYSQL_TYPE_LONGLONG:
-    if (!length)
-      length= MAX_BIGINT_WIDTH;
-    allowed_type_modifier= AUTO_INCREMENT_FLAG;
-    break;
-  case MYSQL_TYPE_NULL:
-    break;
-  case MYSQL_TYPE_NEWDECIMAL:
-    if (decimals >= NOT_FIXED_DEC)
-    {
-      my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
-               field_name.str, static_cast<uint>(NOT_FIXED_DEC - 1));
-      DBUG_RETURN(TRUE);
-    }
-    my_decimal_trim(&length, &decimals);
-    if (length > DECIMAL_MAX_PRECISION)
-    {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
-               DECIMAL_MAX_PRECISION);
-      DBUG_RETURN(TRUE);
-    }
-    if (length < decimals)
-    {
-      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name.str);
-      DBUG_RETURN(TRUE);
-    }
-    length=
-      my_decimal_precision_to_length(length, decimals, flags & UNSIGNED_FLAG);
-    pack_length=
-      my_decimal_get_binary_size(length, decimals);
-    break;
-  case MYSQL_TYPE_VARCHAR:
-    /*
-      Long VARCHAR's are automaticly converted to blobs in mysql_prepare_table
-      if they don't have a default value
-    */
-    max_field_charlength= MAX_FIELD_VARCHARLENGTH;
-    break;
-  case MYSQL_TYPE_STRING:
-    break;
-  case MYSQL_TYPE_BLOB:
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_GEOMETRY:
-    flags|= BLOB_FLAG;
-    break;
-  case MYSQL_TYPE_YEAR:
-    if (!length || length != 2)
-      length= 4; /* Default length */
-    flags|= ZEROFILL_FLAG | UNSIGNED_FLAG;
-    break;
-  case MYSQL_TYPE_FLOAT:
-    /* change FLOAT(precision) to FLOAT or DOUBLE */
-    allowed_type_modifier= AUTO_INCREMENT_FLAG;
-    if (!length && !decimals)
-    {
-      length=  MAX_FLOAT_STR_LENGTH;
-      decimals= NOT_FIXED_DEC;
-    }
-    if (length < decimals &&
-        decimals != NOT_FIXED_DEC)
-    {
-      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name.str);
-      DBUG_RETURN(TRUE);
-    }
-    if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
-    {
-      my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
-               field_name.str, static_cast<uint>(FLOATING_POINT_DECIMALS-1));
-      DBUG_RETURN(TRUE);
-    }
-    break;
-  case MYSQL_TYPE_DOUBLE:
-    allowed_type_modifier= AUTO_INCREMENT_FLAG;
-    if (!length && !decimals)
-    {
-      length= DBL_DIG+7;
-      decimals= NOT_FIXED_DEC;
-    }
-    if (length < decimals &&
-        decimals != NOT_FIXED_DEC)
-    {
-      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name.str);
-      DBUG_RETURN(TRUE);
-    }
-    if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
-    {
-      my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
-               field_name.str, static_cast<uint>(FLOATING_POINT_DECIMALS-1));
-      DBUG_RETURN(TRUE);
-    }
-    break;
-  case MYSQL_TYPE_TIMESTAMP:
-  case MYSQL_TYPE_TIMESTAMP2:
-    if (length > MAX_DATETIME_PRECISION)
-    {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
-               MAX_DATETIME_PRECISION);
-      DBUG_RETURN(TRUE);
-    }
-    length+= MAX_DATETIME_WIDTH + (length ? 1 : 0);
-    flags|= UNSIGNED_FLAG;
-    break;
-  case MYSQL_TYPE_DATE:
-    /* We don't support creation of MYSQL_TYPE_DATE anymore */
-    set_handler(&type_handler_newdate);
-    /* fall trough */
-  case MYSQL_TYPE_NEWDATE:
-    length= MAX_DATE_WIDTH;
-    break;
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_TIME2:
-    if (length > MAX_DATETIME_PRECISION)
-    {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
-               MAX_DATETIME_PRECISION);
-      DBUG_RETURN(TRUE);
-    }
-    length+= MIN_TIME_WIDTH + (length ? 1 : 0);
-    break;
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_DATETIME2:
-    if (length > MAX_DATETIME_PRECISION)
-    {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
-               MAX_DATETIME_PRECISION);
-      DBUG_RETURN(TRUE);
-    }
-    length+= MAX_DATETIME_WIDTH + (length ? 1 : 0);
-    break;
-  case MYSQL_TYPE_SET:
-    pack_length= get_set_pack_length(interval_list.elements);
-    break;
-  case MYSQL_TYPE_ENUM:
-    /* Should be safe. */
-    pack_length= get_enum_pack_length(interval_list.elements);
-    break;
-  case MYSQL_TYPE_VAR_STRING:
-    DBUG_ASSERT(0);  /* Impossible. */
-    break;
-  case MYSQL_TYPE_BIT:
-    {
-      if (!length)
-        length= 1;
-      if (length > MAX_BIT_FIELD_LENGTH)
-      {
-        my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name.str,
-                 static_cast<ulong>(MAX_BIT_FIELD_LENGTH));
-        DBUG_RETURN(TRUE);
-      }
-      pack_length= (length + 7) / 8;
-      break;
-    }
-  case MYSQL_TYPE_DECIMAL:
-    DBUG_ASSERT(0); /* Was obsolete */
-  }
   /* Remember the value of length */
   char_length= length;
 
@@ -10174,32 +10084,9 @@ bool Column_definition::check(THD *thd)
     }
   }
 
-  enum_field_types sql_type= real_field_type();
-  if (!(flags & BLOB_FLAG) &&
-      ((length > max_field_charlength &&
-        sql_type != MYSQL_TYPE_VARCHAR) ||
-       (length == 0 &&
-        sql_type != MYSQL_TYPE_NULL /* e.g. a ROW variable */ &&
-        sql_type != MYSQL_TYPE_ENUM && sql_type != MYSQL_TYPE_SET &&
-        sql_type != MYSQL_TYPE_STRING && sql_type != MYSQL_TYPE_VARCHAR &&
-        sql_type != MYSQL_TYPE_GEOMETRY)))
-  {
-    my_error((sql_type == MYSQL_TYPE_VAR_STRING ||
-              sql_type == MYSQL_TYPE_VARCHAR ||
-              sql_type == MYSQL_TYPE_STRING) ?  ER_TOO_BIG_FIELDLENGTH :
-                                                ER_TOO_BIG_DISPLAYWIDTH,
-              MYF(0),
-              field_name.str, max_field_charlength); /* purecov: inspected */
-    DBUG_RETURN(TRUE);
-  }
-  else if (length > MAX_FIELD_BLOBLENGTH)
-  {
-    my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name.str,
-             MAX_FIELD_BLOBLENGTH);
-    DBUG_RETURN(1);
-  }
 
-  if ((~allowed_type_modifier) & flags & conditional_type_modifiers)
+  if ((flags & AUTO_INCREMENT_FLAG) &&
+      !type_handler()->type_can_have_auto_increment_attribute())
   {
     my_error(ER_WRONG_FIELD_SPEC, MYF(0), field_name.str);
     DBUG_RETURN(TRUE);
