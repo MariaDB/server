@@ -13339,7 +13339,8 @@ fill_foreign_key_list(THD* thd,
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	for (dict_foreign_set::iterator it = table->referenced_set.begin();
+	for (dict_foreign_set::const_iterator it
+		     = table->referenced_set.begin();
 	     it != table->referenced_set.end(); ++it) {
 
 		dict_foreign_t* foreign = *it;
