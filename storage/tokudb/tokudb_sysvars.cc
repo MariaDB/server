@@ -25,6 +25,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
 #include "hatoku_hton.h"
+#include "sql_acl.h"
+#include "tokudb_dir_cmd.h"
+#include "sql_parse.h"
 
 namespace tokudb {
 namespace sysvars {
@@ -39,6 +42,8 @@ namespace sysvars {
 #else
 #define TOKUDB_VERSION_STR NULL
 #endif
+
+const size_t error_buffer_max_size = 1024;
 
 ulonglong   cache_size = 0;
 uint        cachetable_pool_threads = 0;
@@ -918,7 +923,70 @@ static MYSQL_THDVAR_BOOL(
     true);
 #endif
 
+static int dir_cmd_check(THD* thd, struct st_mysql_sys_var* var,
+                         void* save, struct st_mysql_value* value) ;
 
+static MYSQL_THDVAR_INT(dir_cmd_last_error,
+    PLUGIN_VAR_THDLOCAL,
+    "error from the last dir command. 0 is success",
+    NULL, NULL, 0, 0, 0, 1);
+
+static MYSQL_THDVAR_STR(dir_cmd_last_error_string,
+    PLUGIN_VAR_THDLOCAL + PLUGIN_VAR_MEMALLOC,
+    "error string from the last dir command",
+    NULL, NULL, NULL);
+
+static MYSQL_THDVAR_STR(dir_cmd,
+    PLUGIN_VAR_THDLOCAL + PLUGIN_VAR_MEMALLOC,
+    "name of the directory where the backup is stored",
+    dir_cmd_check, NULL, NULL);
+
+static void dir_cmd_set_error(THD *thd,
+                              int error,
+                              const char *error_fmt,
+                              ...) {
+    char   buff[error_buffer_max_size];
+    va_list varargs;
+
+    assert(thd);
+    assert(error_fmt);
+
+    va_start(varargs, error_fmt);
+    vsnprintf(buff, sizeof(buff), error_fmt, varargs);
+    va_end(varargs);
+
+    THDVAR_SET(thd, dir_cmd_last_error, &error);
+    THDVAR_SET(thd, dir_cmd_last_error_string, buff);
+}
+
+static int dir_cmd_check(THD* thd, struct st_mysql_sys_var* var,
+                         void* save, struct st_mysql_value* value) {
+    int error = 0;
+    dir_cmd_set_error(thd, error, "");
+
+    if (check_global_access(thd, SUPER_ACL)) {
+        return 1;
+    }
+
+    char buff[STRING_BUFFER_USUAL_SIZE];
+    int length = sizeof(buff);
+    const char *str = value->val_str(value, buff, &length);
+    if (str) {
+        str = thd->strmake(str, length);
+        *(const char**)save = str;
+    }
+
+    if (str) {
+        dir_cmd_callbacks callbacks { .set_error = dir_cmd_set_error };
+        process_dir_cmd(thd, str, callbacks);
+
+        error = THDVAR(thd, dir_cmd_last_error);
+    } else {
+        error = EINVAL;
+    }
+
+    return error;
+}
 
 //******************************************************************************
 // all system variables
@@ -949,7 +1017,6 @@ st_mysql_sys_var* system_variables[] = {
     MYSQL_SYSVAR(version),
     MYSQL_SYSVAR(write_status_frequency),
     MYSQL_SYSVAR(dir_per_db),
-
 #if TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
     MYSQL_SYSVAR(gdb_path),
     MYSQL_SYSVAR(gdb_on_fatal),
@@ -1008,6 +1075,9 @@ st_mysql_sys_var* system_variables[] = {
 #if TOKUDB_DEBUG
    MYSQL_SYSVAR(debug_pause_background_job_manager),
 #endif // TOKUDB_DEBUG
+    MYSQL_SYSVAR(dir_cmd_last_error),
+    MYSQL_SYSVAR(dir_cmd_last_error_string),
+    MYSQL_SYSVAR(dir_cmd),
 
     NULL
 };

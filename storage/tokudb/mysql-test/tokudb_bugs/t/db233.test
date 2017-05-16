@@ -29,24 +29,6 @@ ANALYZE TABLE t1;
 # lets flip to another connection
 connect(conn1, localhost, root);
 
-# set up the DEBUG_SYNC point
-set DEBUG_SYNC = 'tokudb_icp_desc_scan_invalidate SIGNAL hit1 WAIT_FOR done1';
-
-# send the query
-send SELECT c FROM t1 WHERE id BETWEEN 5 AND 8 ORDER BY id DESC;
-
-# back to default connection
-connection default;
-
-# wait for the ICP reverse scan to invalidate
-set DEBUG_SYNC = 'now WAIT_FOR hit1';
-
-# lets release and clean up
-set DEBUG_SYNC = 'now SIGNAL done1';
-
-connection conn1;
-reap;
-
 # set up the DEBUG_SYNC point again, but for the out of range
 set DEBUG_SYNC = 'tokudb_icp_asc_scan_out_of_range SIGNAL hit2 WAIT_FOR done2';
 
