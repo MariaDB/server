@@ -1220,6 +1220,7 @@ sync_thread_add_level(
 			upgrading in innobase_start_or_create_for_mysql(). */
 			break;
 		}
+		/* fall through */
 	case SYNC_MEM_POOL:
 	case SYNC_MEM_HASH:
 	case SYNC_RECV:
@@ -1282,9 +1283,9 @@ sync_thread_add_level(
 			}
 		}
 		ut_ad(found_current);
-
-		/* fallthrough */
 	}
+
+		/* fall through */
 	case SYNC_BUF_FLUSH_LIST:
 	case SYNC_BUF_LRU_LIST:
 	case SYNC_BUF_FREE_LIST:

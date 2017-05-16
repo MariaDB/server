@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -488,8 +489,9 @@ row_purge_remove_sec_if_poss_leaf(
 				success = false;
 			}
 		}
-		/* fall through (the index entry is still needed,
+		/* (The index entry is still needed,
 		or the deletion succeeded) */
+		/* fall through */
 	case ROW_NOT_DELETED_REF:
 		/* The index entry is still needed. */
 	case ROW_BUFFERED:

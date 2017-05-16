@@ -1193,7 +1193,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
           Arg(0) = pXVOID;
           } // endif void
 
-        // pass thru
+        // fall through
       case OP_IN:
         // For IN operator do optimize if operand is an array
         if (GetArgType(1) != TYPE_ARRAY)
@@ -1260,6 +1260,7 @@ bool FILTER::Eval(PGLOBAL g)
         } // endif Opm
 
       // For modified operators, pass thru
+      /* fall through */
     case OP_IN:
     case OP_EXIST:
       // For IN operations, special processing is done here
