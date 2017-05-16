@@ -681,6 +681,12 @@ struct mysql_row_templ_t {
 					Innobase record in the current index;
 					not defined if template_type is
 					ROW_MYSQL_WHOLE_ROW */
+	bool	rec_field_is_prefix;	/* is this field in a prefix index? */
+	ulint	rec_prefix_field_no;	/* record field, even if just a
+					prefix; same as rec_field_no when not a
+					prefix, otherwise rec_field_no is
+					ULINT_UNDEFINED but this is the true
+					field number*/
 	ulint	clust_rec_field_no;	/*!< field number of the column in an
 					Innobase record in the clustered index;
 					not defined if template_type is
@@ -728,6 +734,8 @@ struct mysql_row_templ_t {
 
 #define ROW_PREBUILT_ALLOCATED	78540783
 #define ROW_PREBUILT_FREED	26423527
+
+class ha_innobase;
 
 /** A struct for (sometimes lazily) prebuilt structures in an Innobase table
 handle used within MySQL; these are used to save CPU time. */
@@ -784,7 +792,9 @@ struct row_prebuilt_t {
 					columns through a secondary index
 					and at least one column is not in
 					the secondary index, then this is
-					set to TRUE */
+					set to TRUE; note that sometimes this
+					is set but we later optimize out the
+					clustered index lookup */
 	unsigned	templ_contains_blob:1;/*!< TRUE if the template contains
 					a column with DATA_BLOB ==
 					get_innobase_type_from_mysql_type();
@@ -957,6 +967,12 @@ struct row_prebuilt_t {
 					search key values from MySQL format
 					to InnoDB format.*/
 	uint		srch_key_val_len; /*!< Size of search key */
+
+	/** MySQL handler object. */
+	ha_innobase*	mysql_handler;
+
+	/** True if exceeded the end_range while filling the prefetch cache. */
+	bool		end_range;
 
 };
 

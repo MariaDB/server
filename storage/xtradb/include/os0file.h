@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 
 Portions of this file contain modifications contributed and copyrighted
@@ -78,7 +78,6 @@ typedef ib_uint64_t os_offset_t;
 #define SRV_PATH_SEPARATOR	'\\'
 /** File handle */
 # define os_file_t	HANDLE
-# define os_file_invalid	INVALID_HANDLE_VALUE
 /** Convert a C file descriptor to a native file handle
 @param fd	file descriptor
 @return		native file handle */
@@ -87,12 +86,21 @@ typedef ib_uint64_t os_offset_t;
 #define SRV_PATH_SEPARATOR	'/'
 /** File handle */
 typedef int	os_file_t;
-# define os_file_invalid	(-1)
 /** Convert a C file descriptor to a native file handle
 @param fd	file descriptor
 @return		native file handle */
 # define OS_FILE_FROM_FD(fd) fd
 #endif
+
+/*Common file descriptor for file IO instrumentation with PFS
+on windows and other platforms */
+struct pfs_os_file_t
+{
+	os_file_t   m_file;
+#ifdef UNIV_PFS_IO
+	struct PSI_file *m_psi;
+#endif
+};
 
 /** Umask for creating files */
 extern ulint	os_innodb_umask;
@@ -127,6 +135,21 @@ enum os_file_create_t {
 					the log unless it is a fatal error,
 					this flag is only used if
 					ON_ERROR_NO_EXIT is set */
+};
+
+/** Options for os_file_advise_func @{ */
+enum os_file_advise_t {
+	OS_FILE_ADVISE_NORMAL = 1, 	/*!< no advice on access pattern
+					(default) */
+	OS_FILE_ADVISE_RANDOM = 2,	/*!< access in random order */
+	OS_FILE_ADVISE_SEQUENTIAL = 4,	/*!< access the specified data
+					sequentially (with lower offsets read
+					before higher ones) */
+	OS_FILE_ADVISE_WILLNEED = 8,	/*!< specified data will be accessed
+					in the near future */
+	OS_FILE_ADVISE_DONTNEED = 16,	/*!< specified data will not be
+					accessed in the near future */
+	OS_FILE_ADVISE_NOREUSE = 32	/*!< access only once */
 };
 
 #define OS_FILE_READ_ONLY		333
@@ -230,6 +253,8 @@ extern mysql_pfs_key_t	innodb_file_bmp_key;
 various file I/O operations with performance schema.
 1) register_pfs_file_open_begin() and register_pfs_file_open_end() are
 used to register file creation, opening, closing and renaming.
+2) register_pfs_file_rename_begin() and  register_pfs_file_rename_end()
+are used to register file renaming
 2) register_pfs_file_io_begin() and register_pfs_file_io_end() are
 used to register actual file read, write and flush
 3) register_pfs_file_close_begin() and register_pfs_file_close_end()
@@ -239,17 +264,30 @@ are used to register file deletion operations*/
 do {									\
 	locker = PSI_FILE_CALL(get_thread_file_name_locker)(		\
 		state, key, op, name, &locker);				\
-	if (UNIV_LIKELY(locker != NULL)) {				\
+	if (locker != NULL) {				\
 		PSI_FILE_CALL(start_file_open_wait)(			\
 			locker, src_file, src_line);			\
 	}								\
 } while (0)
 
-# define register_pfs_file_open_end(locker, file)			\
+# define register_pfs_file_open_end(locker, file, result)		\
 do {									\
-	if (UNIV_LIKELY(locker != NULL)) {				\
-		PSI_FILE_CALL(end_file_open_wait_and_bind_to_descriptor)(\
-			locker, file);					\
+	if (locker != NULL) {				\
+		file.m_psi = PSI_FILE_CALL(				\
+		end_file_open_wait)(		\
+			locker, result);					\
+	}								\
+} while (0)
+
+# define register_pfs_file_rename_begin(state, locker, key, op, name,	\
+				src_file, src_line)			\
+	register_pfs_file_open_begin(state, locker, key, op, name,	\
+					src_file, src_line)		\
+
+# define register_pfs_file_rename_end(locker, result)			\
+do {									\
+	if (locker != NULL) {				\
+		PSI_FILE_CALL(end_file_open_wait)(locker, result);	\
 	}								\
 } while (0)
 
@@ -275,9 +313,9 @@ do {									\
 # define register_pfs_file_io_begin(state, locker, file, count, op,	\
 				    src_file, src_line)			\
 do {									\
-	locker = PSI_FILE_CALL(get_thread_file_descriptor_locker)(	\
-		state, file, op);					\
-	if (UNIV_LIKELY(locker != NULL)) {				\
+	locker = PSI_FILE_CALL(get_thread_file_stream_locker)(	\
+		state, file.m_psi, op);					\
+	if (locker != NULL) {				\
 		PSI_FILE_CALL(start_file_wait)(				\
 			locker, count, src_file, src_line);		\
 	}								\
@@ -285,7 +323,7 @@ do {									\
 
 # define register_pfs_file_io_end(locker, count)			\
 do {									\
-	if (UNIV_LIKELY(locker != NULL)) {				\
+	if (locker != NULL) {				\
 		PSI_FILE_CALL(end_file_wait)(locker, count);		\
 	}								\
 } while (0)
@@ -299,11 +337,16 @@ os_file_create
 os_file_create_simple
 os_file_create_simple_no_error_handling
 os_file_close
+os_file_close_no_error_handling
 os_file_rename
 os_aio
 os_file_read
 os_file_read_no_error_handling
+os_file_read_no_error_handling_int_fd
 os_file_write
+os_file_write_int_fd
+os_file_set_eof_at
+os_file_allocate
 
 The wrapper functions have the prefix of "innodb_". */
 
@@ -321,8 +364,11 @@ The wrapper functions have the prefix of "innodb_". */
 	pfs_os_file_create_simple_no_error_handling_func(		\
 		key, name, create_mode, access, success, __FILE__, __LINE__)
 
-# define os_file_close(file)						\
+# define os_file_close_pfs(file)						\
 	pfs_os_file_close_func(file, __FILE__, __LINE__)
+
+# define os_file_close_no_error_handling_pfs(file)			\
+	pfs_os_file_close_no_error_handling_func(file, __FILE__, __LINE__)
 
 # define os_aio(type, mode, name, file, buf, offset,			\
 		n, message1, message2, space_id, trx)			\
@@ -330,11 +376,11 @@ The wrapper functions have the prefix of "innodb_". */
 		n, message1, message2, space_id, trx,			\
 		__FILE__, __LINE__)
 
-# define os_file_read(file, buf, offset, n)				\
+# define os_file_read_pfs(file, buf, offset, n)				\
 	pfs_os_file_read_func(file, buf, offset, n, NULL,		\
 			      __FILE__, __LINE__)
 
-# define os_file_read_trx(file, buf, offset, n, trx)			\
+# define os_file_read_trx_pfs(file, buf, offset, n, trx)			\
 	pfs_os_file_read_func(file, buf, offset, n, trx,		\
 			      __FILE__, __LINE__)
 
@@ -342,11 +388,20 @@ The wrapper functions have the prefix of "innodb_". */
 	pfs_os_file_read_no_error_handling_func(file, buf, offset, n,	\
 						__FILE__, __LINE__)
 
-# define os_file_write(name, file, buf, offset, n)	\
+# define os_file_read_no_error_handling_int_fd(                         \
+	file, buf, offset, n)						\
+	pfs_os_file_read_no_error_handling_int_fd_func(                 \
+		file, buf, offset, n, __FILE__, __LINE__)
+
+# define os_file_write_pfs(name, file, buf, offset, n)	\
 	pfs_os_file_write_func(name, file, buf, offset,	\
 			       n, __FILE__, __LINE__)
 
-# define os_file_flush(file)						\
+# define os_file_write_int_fd(name, file, buf, offset, n)		\
+	pfs_os_file_write_int_fd_func(name, file, buf, offset,		\
+		n, __FILE__, __LINE__)
+
+# define os_file_flush_pfs(file)						\
 	pfs_os_file_flush_func(file, __FILE__, __LINE__)
 
 # define os_file_rename(key, oldpath, newpath)				\
@@ -357,6 +412,15 @@ The wrapper functions have the prefix of "innodb_". */
 
 # define os_file_delete_if_exists(key, name)				\
 	pfs_os_file_delete_if_exists_func(key, name, __FILE__, __LINE__)
+
+# define os_file_set_eof_at_pfs(file, new_len)				\
+	pfs_os_file_set_eof_at_func(file, new_len, __FILE__, __LINE__)
+
+# ifdef HAVE_POSIX_FALLOCATE
+#  define os_file_allocate_pfs(file, offset, len)			\
+	pfs_os_file_allocate_func(file, offset, len, __FILE__, __LINE__)
+# endif
+
 #else /* UNIV_PFS_IO */
 
 /* If UNIV_PFS_IO is not defined, these I/O APIs point
@@ -372,26 +436,36 @@ to original un-instrumented file I/O APIs */
 	os_file_create_simple_no_error_handling_func(			\
 		name, create_mode, access, success)
 
-# define os_file_close(file)	os_file_close_func(file)
+# define os_file_close_pfs(file)						\
+	os_file_close_func(file)
+
+# define os_file_close_no_error_handling_pfs(file)			\
+	os_file_close_no_error_handling_func(file)
 
 # define os_aio(type, mode, name, file, buf, offset, n, message1,	\
 		message2, space_id, trx)				\
 	os_aio_func(type, mode, name, file, buf, offset, n,		\
 		    message1, message2, space_id, trx)
 
-# define os_file_read(file, buf, offset, n)				\
+# define os_file_read_pfs(file, buf, offset, n)				\
 	os_file_read_func(file, buf, offset, n, NULL)
 
-# define os_file_read_trx(file, buf, offset, n, trx)			\
+# define os_file_read_trx_pfs(file, buf, offset, n, trx)			\
 	os_file_read_func(file, buf, offset, n, trx)
 
 # define os_file_read_no_error_handling(file, buf, offset, n)		\
 	os_file_read_no_error_handling_func(file, buf, offset, n)
+# define os_file_read_no_error_handling_int_fd(                         \
+		file, buf, offset, n)                                   \
+	 os_file_read_no_error_handling_func(file, buf, offset, n)
 
-# define os_file_write(name, file, buf, offset, n)			\
+# define os_file_write_int_fd(name, file, buf, offset, n)               \
+	os_file_write_func(name, file, buf, offset, n)
+# define os_file_write_pfs(name, file, buf, offset, n)			\
 	os_file_write_func(name, file, buf, offset, n)
 
-# define os_file_flush(file)	os_file_flush_func(file)
+
+# define os_file_flush_pfs(file)	os_file_flush_func(file)
 
 # define os_file_rename(key, oldpath, newpath)				\
 	os_file_rename_func(oldpath, newpath)
@@ -401,7 +475,77 @@ to original un-instrumented file I/O APIs */
 # define os_file_delete_if_exists(key, name)				\
 	os_file_delete_if_exists_func(name)
 
+# define os_file_set_eof_at_pfs(file, new_len)				\
+	os_file_set_eof_at_func(file, new_len)
+
+# ifdef HAVE_POSIX_FALLOCATE
+#  define os_file_allocate_pfs(file, offset, len)			\
+	os_file_allocate_func(file, offset, len)
+# endif
+
 #endif /* UNIV_PFS_IO */
+
+#ifdef UNIV_PFS_IO
+	#define os_file_close(file) os_file_close_pfs(file)
+#else
+	#define os_file_close(file) os_file_close_pfs((file).m_file)
+#endif
+
+#ifdef UNIV_PFS_IO
+	#define os_file_close_no_error_handling(file) \
+			os_file_close_no_error_handling_pfs(file)
+#else
+	#define os_file_close_no_error_handling(file) \
+			os_file_close_no_error_handling_pfs((file).m_file)
+#endif
+
+#ifdef UNIV_PFS_IO
+	#define os_file_read(file, buf, offset, n)		\
+			os_file_read_pfs(file, buf, offset, n)
+#else
+	#define os_file_read(file, buf, offset, n)              \
+			os_file_read_pfs(file.m_file, buf, offset, n)
+#endif
+
+#ifdef UNIV_PFS_IO
+	# define os_file_read_trx(file, buf, offset, n, trx) \
+			os_file_read_trx_pfs(file, buf, offset, n, trx)
+#else
+	# define os_file_read_trx(file, buf, offset, n, trx) \
+			os_file_read_trx_pfs(file.m_file, buf, offset, n, trx)
+#endif
+
+#ifdef UNIV_PFS_IO
+	#define os_file_flush(file)	os_file_flush_pfs(file)
+#else
+	#define os_file_flush(file)	os_file_flush_pfs(file.m_file)
+#endif
+
+#ifdef UNIV_PFS_IO
+	#define os_file_write(name, file, buf, offset, n)                      \
+			os_file_write_pfs(name, file, buf, offset, n)
+#else
+	#define os_file_write(name, file, buf, offset, n)                      \
+			os_file_write_pfs(name, file.m_file, buf, offset, n)
+#endif
+
+#ifdef UNIV_PFS_IO
+	#define os_file_set_eof_at(file, new_len) \
+			os_file_set_eof_at_pfs(file, new_len)
+#else
+	#define os_file_set_eof_at(file, new_len) \
+			os_file_set_eof_at_pfs(file.m_file, new_len)
+#endif
+
+#ifdef HAVE_POSIX_FALLOCATE
+#ifdef UNIV_PFS_IO
+	#define os_file_allocate(file, offset, len) \
+		os_file_allocate_pfs(file, offset, len)
+#else
+	#define os_file_allocate(file, offset, len) \
+		os_file_allocate_pfs(file.m_file, offset, len)
+#endif
+#endif
 
 /* File types for directory entry data type */
 
@@ -536,7 +680,7 @@ A simple function to open or create a file.
 @return own: handle to the file, not defined if error, error number
 can be retrieved with os_file_get_last_error */
 UNIV_INTERN
-os_file_t
+pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 /*=========================================*/
 	const char*	name,	/*!< in: name of the file or path as a
@@ -569,7 +713,7 @@ Opens an existing file or creates a new.
 @return own: handle to the file, not defined if error, error number
 can be retrieved with os_file_get_last_error */
 UNIV_INTERN
-os_file_t
+pfs_os_file_t
 os_file_create_func(
 /*================*/
 	const char*	name,	/*!< in: name of the file or path as a
@@ -628,6 +772,42 @@ ibool
 os_file_close_func(
 /*===============*/
 	os_file_t	file);	/*!< in, own: handle to a file */
+/***********************************************************************//**
+NOTE! Use the corresponding macro os_file_close(), not directly this
+function!
+Closes a file handle. In case of error, error number can be retrieved with
+os_file_get_last_error.
+@return	TRUE if success */
+UNIV_INTERN
+bool
+os_file_close_no_error_handling_func(
+/*===============*/
+	os_file_t	file);	/*!< in, own: handle to a file */
+
+/***********************************************************************//**
+NOTE! Please use the corresponding macro os_file_set_eof_at(), not
+directly this function!
+Truncates a file at the specified position.
+@return TRUE if success */
+UNIV_INTERN
+bool
+os_file_set_eof_at_func(
+	os_file_t	file,	/*!< in: handle to a file */
+	ib_uint64_t	new_len);/*!< in: new file length */
+
+#ifdef HAVE_POSIX_FALLOCATE
+/***********************************************************************//**
+NOTE! Please use the corresponding macro os_file_allocate(), not
+directly this function!
+Ensures that disk space is allocated for the file.
+@return TRUE if success */
+UNIV_INTERN
+bool
+os_file_allocate_func(
+	os_file_t	file,	/*!< in, own: handle to a file */
+	os_offset_t	offset,	/*!< in: file region offset  */
+	os_offset_t	len);	/*!< in: file region length  */
+#endif
 
 #ifdef UNIV_PFS_IO
 /****************************************************************//**
@@ -638,7 +818,7 @@ os_file_create_simple() which opens or creates a file.
 @return own: handle to the file, not defined if error, error number
 can be retrieved with os_file_get_last_error */
 UNIV_INLINE
-os_file_t
+pfs_os_file_t
 pfs_os_file_create_simple_func(
 /*===========================*/
 	mysql_pfs_key_t key,	/*!< in: Performance Schema Key */
@@ -661,7 +841,7 @@ monitor file creation/open.
 @return own: handle to the file, not defined if error, error number
 can be retrieved with os_file_get_last_error */
 UNIV_INLINE
-os_file_t
+pfs_os_file_t
 pfs_os_file_create_simple_no_error_handling_func(
 /*=============================================*/
 	mysql_pfs_key_t key,	/*!< in: Performance Schema Key */
@@ -685,7 +865,7 @@ Add instrumentation to monitor file creation/open.
 @return own: handle to the file, not defined if error, error number
 can be retrieved with os_file_get_last_error */
 UNIV_INLINE
-os_file_t
+pfs_os_file_t
 pfs_os_file_create_func(
 /*====================*/
 	mysql_pfs_key_t key,	/*!< in: Performance Schema Key */
@@ -714,7 +894,20 @@ UNIV_INLINE
 ibool
 pfs_os_file_close_func(
 /*===================*/
-        os_file_t	file,	/*!< in, own: handle to a file */
+        pfs_os_file_t	file,	/*!< in, own: handle to a file */
+	const char*	src_file,/*!< in: file name where func invoked */
+	ulint		src_line);/*!< in: line where the func invoked */
+/***********************************************************************//**
+NOTE! Please use the corresponding macro os_file_close_no_error_handling(),
+not directly this function!
+A performance schema instrumented wrapper function for
+os_file_close_no_error_handling().
+@return TRUE if success */
+UNIV_INLINE
+bool
+pfs_os_file_close_no_error_handling_func(
+/*===================*/
+	pfs_os_file_t	file,	/*!< in, own: handle to a file */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 /*******************************************************************//**
@@ -727,7 +920,7 @@ UNIV_INLINE
 ibool
 pfs_os_file_read_func(
 /*==================*/
-	os_file_t	file,	/*!< in: handle to a file */
+	pfs_os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
@@ -746,7 +939,7 @@ UNIV_INLINE
 ibool
 pfs_os_file_read_no_error_handling_func(
 /*====================================*/
-	os_file_t	file,	/*!< in: handle to a file */
+	pfs_os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
@@ -767,7 +960,7 @@ pfs_os_aio_func(
 	ulint		mode,	/*!< in: OS_AIO_NORMAL etc. I/O mode */
 	const char*	name,	/*!< in: name of the file or path as a
 				null-terminated string */
-	os_file_t	file,	/*!< in: handle to a file */
+	pfs_os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read or from which
 				to write */
 	os_offset_t	offset,	/*!< in: file offset where to read or write */
@@ -796,7 +989,7 @@ pfs_os_file_write_func(
 /*===================*/
 	const char*	name,	/*!< in: name of the file or path as a
 				null-terminated string */
-	os_file_t	file,	/*!< in: handle to a file */
+	pfs_os_file_t	file,	/*!< in: handle to a file */
 	const void*	buf,	/*!< in: buffer from which to write */
 	os_offset_t	offset,	/*!< in: file offset where to write */
 	ulint		n,	/*!< in: number of bytes to write */
@@ -813,7 +1006,7 @@ UNIV_INLINE
 ibool
 pfs_os_file_flush_func(
 /*===================*/
-	os_file_t	file,	/*!< in, own: handle to a file */
+	pfs_os_file_t	file,	/*!< in, own: handle to a file */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 
@@ -865,16 +1058,66 @@ pfs_os_file_delete_if_exists_func(
 				string */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
+
+/***********************************************************************//**
+NOTE! Please use the corresponding macro os_file_set_eof_at(), not
+directly this function!
+This is the performance schema instrumented wrapper function for
+os_file_set_eof_at()
+@return TRUE if success */
+UNIV_INLINE
+bool
+pfs_os_file_set_eof_at_func(
+	pfs_os_file_t	file,	/*!< in: handle to a file */
+	ib_uint64_t	new_len,/*!< in: new file length */
+	const char*	src_file,/*!< in: file name where func invoked */
+	ulint		src_line);/*!< in: line where the func invoked */
+
+#ifdef HAVE_POSIX_FALLOCATE
+/***********************************************************************//**
+NOTE! Please use the corresponding macro os_file_allocate(), not
+directly this function!
+Ensures that disk space is allocated for the file.
+@return TRUE if success */
+UNIV_INLINE
+bool
+pfs_os_file_allocate_func(
+	pfs_os_file_t	file,	/*!< in, own: handle to a file */
+	os_offset_t	offset,	/*!< in: file region offset  */
+	os_offset_t	len,	/*!< in: file region length  */
+	const char*	src_file,/*!< in: file name where func invoked */
+	ulint		src_line);/*!< in: line where the func invoked */
+#endif
+
 #endif	/* UNIV_PFS_IO */
 
 /***********************************************************************//**
-Closes a file handle.
-@return	TRUE if success */
+Checks if the file is marked as invalid.
+@return TRUE if invalid */
 UNIV_INTERN
-ibool
-os_file_close_no_error_handling(
-/*============================*/
-	os_file_t	file);	/*!< in, own: handle to a file */
+bool
+os_file_is_invalid(
+	pfs_os_file_t	file);	/*!< in, own: handle to a file */
+
+/***********************************************************************//**
+Marks the file as invalid. */
+UNIV_INTERN
+void
+os_file_mark_invalid(
+	pfs_os_file_t*	file);	/*!< out: pointer to a handle to a file */
+
+/***********************************************************************//**
+Announces an intention to access file data in a specific pattern in the
+future.
+@return TRUE if success */
+UNIV_INTERN
+bool
+os_file_advise(
+	pfs_os_file_t	file,	/*!< in, own: handle to a file */
+	os_offset_t	offset,	/*!< in: file region offset  */
+	os_offset_t	len,	/*!< in: file region length  */
+	ulint		advice);/*!< in: advice for access pattern */
+
 /***********************************************************************//**
 Gets a file size.
 @return	file size, or (os_offset_t) -1 on failure */
@@ -882,7 +1125,7 @@ UNIV_INTERN
 os_offset_t
 os_file_get_size(
 /*=============*/
-	os_file_t	file)	/*!< in: handle to a file */
+	pfs_os_file_t	file)	/*!< in: handle to a file */
 	MY_ATTRIBUTE((warn_unused_result));
 /***********************************************************************//**
 Write the specified number of zeros to a newly created file.
@@ -893,7 +1136,7 @@ os_file_set_size(
 /*=============*/
 	const char*	name,	/*!< in: name of the file or path as a
 				null-terminated string */
-	os_file_t	file,	/*!< in: handle to a file */
+	pfs_os_file_t	file,	/*!< in: handle to a file */
 	os_offset_t	size)	/*!< in: file size */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************************//**
@@ -904,14 +1147,6 @@ ibool
 os_file_set_eof(
 /*============*/
 	FILE*		file);	/*!< in: file to be truncated */
-/***********************************************************************//**
-Truncates a file at the specified position.
-@return TRUE if success */
-UNIV_INTERN
-ibool
-os_file_set_eof_at(
-	os_file_t	file,	/*!< in: handle to a file */
-	ib_uint64_t	new_len);/*!< in: new file length */
 /***********************************************************************//**
 NOTE! Use the corresponding macro os_file_flush(), not directly this function!
 Flushes the write buffers of a given file to the disk.
@@ -1140,7 +1375,7 @@ os_aio_func(
 				caution! */
 	const char*	name,	/*!< in: name of the file or path as a
 				null-terminated string */
-	os_file_t	file,	/*!< in: handle to a file */
+	pfs_os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read or from which
 				to write */
 	os_offset_t	offset,	/*!< in: file offset where to read or write */

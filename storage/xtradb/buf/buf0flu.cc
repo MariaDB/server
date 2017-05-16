@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -356,6 +356,7 @@ buf_flush_insert_into_flush_list(
 	buf_block_t*	block,		/*!< in/out: block which is modified */
 	lsn_t		lsn)		/*!< in: oldest modification */
 {
+	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
 	ut_ad(log_flush_order_mutex_own());
 	ut_ad(mutex_own(&block->mutex));
 
@@ -414,6 +415,7 @@ buf_flush_insert_sorted_into_flush_list(
 	buf_page_t*	prev_b;
 	buf_page_t*	b;
 
+	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
 	ut_ad(log_flush_order_mutex_own());
 	ut_ad(mutex_own(&block->mutex));
 	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
@@ -724,6 +726,7 @@ buf_flush_write_complete(
 	buf_page_set_io_fix(bpage, BUF_IO_NONE);
 
 	buf_pool->n_flush[flush_type]--;
+	ut_ad(buf_pool->n_flush[flush_type] != ULINT_MAX);
 
 	/* fprintf(stderr, "n pending flush %lu\n",
 	buf_pool->n_flush[flush_type]); */
@@ -1061,6 +1064,7 @@ buf_flush_page(
 		}
 
 		++buf_pool->n_flush[flush_type];
+		ut_ad(buf_pool->n_flush[flush_type] != 0);
 
 		mutex_exit(&buf_pool->flush_state_mutex);
 
@@ -2206,13 +2210,14 @@ Clears up tail of the LRU lists:
 * Flush dirty pages at the tail of LRU to the disk
 The depth to which we scan each buffer pool is controlled by dynamic
 config parameter innodb_LRU_scan_depth.
-@return number of pages flushed */
+@return number of flushed and evicted pages */
 UNIV_INTERN
 ulint
 buf_flush_LRU_tail(void)
 /*====================*/
 {
 	ulint	total_flushed = 0;
+	ulint	total_evicted = 0;
 	ulint	start_time = ut_time_ms();
 	ulint	scan_depth[MAX_BUFFER_POOLS];
 	ulint	requested_pages[MAX_BUFFER_POOLS];
@@ -2278,6 +2283,7 @@ buf_flush_LRU_tail(void)
 				limited_scan[i]
 					= (previous_evicted[i] > n.evicted);
 				previous_evicted[i] = n.evicted;
+				total_evicted += n.evicted;
 
 				requested_pages[i] += lru_chunk_size;
 
@@ -2310,7 +2316,7 @@ buf_flush_LRU_tail(void)
 			MONITOR_LRU_BATCH_PAGES,
 			total_flushed);
 	}
-	return(total_flushed);
+	return(total_flushed + total_evicted);
 }
 
 /*********************************************************************//**
@@ -2604,6 +2610,23 @@ buf_get_total_free_list_length(void)
 	return result;
 }
 
+/** Returns the aggregate LRU list length over all buffer pool instances.
+@return total LRU list length. */
+MY_ATTRIBUTE((warn_unused_result))
+static
+ulint
+buf_get_total_LRU_list_length(void)
+{
+        ulint result = 0;
+
+        for (ulint i = 0; i < srv_buf_pool_instances; i++) {
+
+                result += UT_LIST_GET_LEN(buf_pool_from_array(i)->LRU);
+        }
+
+        return result;
+}
+
 /*********************************************************************//**
 Adjust the desired page cleaner thread sleep time for LRU flushes.  */
 MY_ATTRIBUTE((nonnull))
@@ -2616,8 +2639,9 @@ page_cleaner_adapt_lru_sleep_time(
 	ulint	lru_n_flushed) /*!< in: number of flushed in previous batch */
 
 {
-	ulint free_len = buf_get_total_free_list_length();
-	ulint max_free_len = srv_LRU_scan_depth * srv_buf_pool_instances;
+        ulint free_len = buf_get_total_free_list_length();
+        ulint max_free_len = ut_min(buf_get_total_LRU_list_length(),
+                        srv_LRU_scan_depth * srv_buf_pool_instances);
 
 	if (free_len < max_free_len / 100 && lru_n_flushed) {
 
@@ -2629,7 +2653,7 @@ page_cleaner_adapt_lru_sleep_time(
 
 		/* Free lists filled more than 20%
 		or no pages flushed in previous batch, sleep a bit more */
-		*lru_sleep_time += 50;
+		*lru_sleep_time += 1;
 		if (*lru_sleep_time > srv_cleaner_max_lru_time)
 			*lru_sleep_time = srv_cleaner_max_lru_time;
 	} else if (free_len < max_free_len / 20 && *lru_sleep_time >= 50) {
@@ -2676,6 +2700,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
 	ulint	next_loop_time = ut_time_ms() + 1000;
 	ulint	n_flushed = 0;
 	ulint	last_activity = srv_get_activity_count();
@@ -2812,6 +2837,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 thread_exit:
 	buf_page_cleaner_is_active = FALSE;
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);

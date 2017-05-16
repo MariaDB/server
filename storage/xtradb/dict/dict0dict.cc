@@ -835,16 +835,24 @@ dict_index_get_nth_col_or_prefix_pos(
 /*=================================*/
 	const dict_index_t*	index,		/*!< in: index */
 	ulint			n,		/*!< in: column number */
-	ibool			inc_prefix)	/*!< in: TRUE=consider
+	ibool			inc_prefix,	/*!< in: TRUE=consider
 						column prefixes too */
+	ulint*			prefix_col_pos)	/*!< out: col num if prefix */
 {
 	const dict_field_t*	field;
 	const dict_col_t*	col;
 	ulint			pos;
 	ulint			n_fields;
+	ulint			prefixed_pos_dummy;
 
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+	ut_ad((inc_prefix && !prefix_col_pos) || (!inc_prefix));
+
+	if (!prefix_col_pos) {
+		prefix_col_pos = &prefixed_pos_dummy;
+	}
+	*prefix_col_pos = ULINT_UNDEFINED;
 
 	col = dict_table_get_nth_col(index->table, n);
 
@@ -858,10 +866,11 @@ dict_index_get_nth_col_or_prefix_pos(
 	for (pos = 0; pos < n_fields; pos++) {
 		field = dict_index_get_nth_field(index, pos);
 
-		if (col == field->col
-		    && (inc_prefix || field->prefix_len == 0)) {
-
-			return(pos);
+		if (col == field->col) {
+			*prefix_col_pos = pos;
+			if (inc_prefix || field->prefix_len == 0) {
+				return(pos);
+			}
 		}
 	}
 
@@ -1005,7 +1014,7 @@ dict_table_get_nth_col_pos(
 	ulint			n)	/*!< in: column number */
 {
 	return(dict_index_get_nth_col_pos(dict_table_get_first_index(table),
-					  n));
+					  n, NULL));
 }
 
 /********************************************************************//**

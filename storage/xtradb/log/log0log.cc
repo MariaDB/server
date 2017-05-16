@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -2627,7 +2627,7 @@ log_group_archive(
 /*==============*/
 	log_group_t*	group)	/*!< in: log group */
 {
-	os_file_t	file_handle;
+	pfs_os_file_t	file_handle;
 	lsn_t		start_lsn;
 	lsn_t		end_lsn;
 	char		name[OS_FILE_MAX_PATH];
@@ -3607,9 +3607,15 @@ loop:
 
 	lsn = log_sys->lsn;
 
-	if (lsn != log_sys->last_checkpoint_lsn
-	    || (srv_track_changed_pages
-		&& (tracked_lsn != log_sys->last_checkpoint_lsn))
+	const bool	is_last =
+		((srv_force_recovery == SRV_FORCE_NO_LOG_REDO
+		  && lsn == log_sys->last_checkpoint_lsn
+		            + LOG_BLOCK_HDR_SIZE)
+		 || lsn == log_sys->last_checkpoint_lsn)
+		&& (!srv_track_changed_pages
+		    || tracked_lsn == log_sys->last_checkpoint_lsn);
+
+	if (!is_last
 #ifdef UNIV_LOG_ARCHIVE
 	    || (srv_log_archive_on
 		&& lsn != log_sys->archived_lsn + LOG_BLOCK_HDR_SIZE)
@@ -3675,7 +3681,8 @@ loop:
 	ut_a(freed);
 
 	ut_a(lsn == log_sys->lsn);
-	ut_ad(lsn == log_sys->last_checkpoint_lsn);
+	ut_ad(srv_force_recovery >= SRV_FORCE_NO_LOG_REDO
+	      || lsn == log_sys->last_checkpoint_lsn);
 
 	if (lsn < srv_start_lsn) {
 		ib_logf(IB_LOG_LEVEL_ERROR,

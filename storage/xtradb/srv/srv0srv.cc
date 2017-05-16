@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 
@@ -155,7 +155,8 @@ UNIV_INTERN unsigned long long	srv_online_max_size;
 OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
-UNIV_INTERN my_bool	srv_use_native_aio = TRUE;
+/* make srv_use_native_aio to be visible for other plugins */
+my_bool	srv_use_native_aio = TRUE;
 UNIV_INTERN my_bool	srv_numa_interleave = FALSE;
 
 #ifdef __WIN__
@@ -573,6 +574,12 @@ static ulint		srv_main_idle_loops		= 0;
 static ulint		srv_main_shutdown_loops		= 0;
 /** Log writes involving flush. */
 static ulint		srv_log_writes_and_flush	= 0;
+
+/** Number of times secondary index lookup triggered cluster lookup */
+ulint	srv_sec_rec_cluster_reads		= 0;
+
+/** Number of times prefix optimization avoided triggering cluster lookup */
+ulint	srv_sec_rec_cluster_reads_avoided	= 0;
 
 /* This is only ever touched by the master thread. It records the
 time when the last flush of log file has happened. The master
@@ -1895,6 +1902,12 @@ srv_export_innodb_status(void)
 	}
 #endif /* UNIV_DEBUG */
 
+	os_rmb;
+	export_vars.innodb_sec_rec_cluster_reads =
+		srv_sec_rec_cluster_reads;
+	export_vars.innodb_sec_rec_cluster_reads_avoided =
+		srv_sec_rec_cluster_reads_avoided;
+
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
 
@@ -2956,6 +2969,8 @@ DECLARE_THREAD(srv_master_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
+
 	srv_slot_t*	slot;
 	ulint		old_activity_count = srv_get_activity_count();
 	ulint		old_ibuf_merge_activity_count
@@ -3029,6 +3044,7 @@ suspend_thread:
 	os_event_wait(slot->event);
 
 	if (srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS) {
+		my_thread_end();
 		os_thread_exit(NULL);
 	}
 
@@ -3115,6 +3131,8 @@ DECLARE_THREAD(srv_worker_thread)(
 	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
+	my_thread_init();
+
 	srv_slot_t*	slot;
 	ulint		tid_i = os_atomic_increment_ulint(&purge_tid_i, 1);
 
@@ -3181,6 +3199,7 @@ DECLARE_THREAD(srv_worker_thread)(
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);
@@ -3383,6 +3402,8 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
+	my_thread_init();
+
 	srv_slot_t*	slot;
 	ulint           n_total_purged = ULINT_UNDEFINED;
 
@@ -3495,6 +3516,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		srv_release_threads(SRV_WORKER, srv_n_purge_threads - 1);
 	}
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);
@@ -3563,3 +3585,18 @@ srv_purge_wakeup(void)
 	}
 }
 
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+bool
+srv_is_undo_tablespace(
+	ulint	space_id)
+{
+	if (srv_undo_space_id_start == 0) {
+		return (false);
+	}
+
+	return(space_id >= srv_undo_space_id_start
+	       && space_id < (srv_undo_space_id_start
+			      + srv_undo_tablespaces_open));
+}

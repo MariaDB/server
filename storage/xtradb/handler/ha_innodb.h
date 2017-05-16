@@ -295,8 +295,12 @@ class ha_innobase: public handler
 	COLUMN_FORMAT_TYPE_COMPRESSED flag and updates
 	zip_dict_name / zip_dict_data for those which have associated
 	compression dictionaries.
+
+	@param part_name Full table name (including partition part).
+			 Must be non-NULL only if called from ha_partition.
 	*/
-	virtual void update_field_defs_with_zip_dict_info();
+	virtual void update_field_defs_with_zip_dict_info(
+		const char* part_name);
 
 private:
 	/** Builds a 'template' to the prebuilt struct.
