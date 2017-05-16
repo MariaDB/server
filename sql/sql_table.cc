@@ -9938,7 +9938,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
   if (to->file->ha_end_bulk_insert() && error <= 0)
   {
-    to->file->print_error(my_errno,MYF(0));
+    /* Give error, if not already given */
+    if (!thd->is_error())
+      to->file->print_error(my_errno,MYF(0));
     error= 1;
   }
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);

@@ -577,7 +577,10 @@ extern "C" {
 
 int killed_ptr(HA_CHECK *param)
 {
-  return thd_killed((THD*)param->thd);
+  if (likely(thd_killed((THD*)param->thd)) == 0)
+    return 0;
+  my_errno= HA_ERR_ABORTED_BY_USER;
+  return 1;
 }
 
 void mi_check_print_error(HA_CHECK *param, const char *fmt,...)
@@ -1213,6 +1216,11 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
     if (remap)
       mi_munmap_file(file);
 #endif
+    /*
+      The following is to catch errors when my_errno is no set properly
+      during repairt
+    */
+    my_errno= 0;
     if (mi_test_if_sort_rep(file,file->state->records,tmp_key_map,0) &&
 	(local_testflag & T_REP_BY_SORT))
     {
@@ -1235,8 +1243,11 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)
+      {
+        my_errno= HA_ERR_FOUND_DUPP_KEY;
         print_keydup_error(table, &table->key_info[share->state.dupp_key],
                            MYF(0));
+      }
     }
     else
     {
