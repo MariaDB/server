@@ -43,34 +43,6 @@ PSZ strlwr(PSZ p)
   return (p);
   } /* end of strlwr */
 
-#if defined(NOT_USED) /*&& !defined(sun) && !defined(LINUX) && !defined(AIX)*/
-/***********************************************************************/
-/*  Define stricmp function not existing in some UNIX libraries.       */
-/***********************************************************************/
-int stricmp(char *str1, char *str2)
-  {
-  register int i;
-  int  n;
-  char c;
-  char *sup1 = malloc(strlen(str1) + 1);
-  char *sup2 = malloc(strlen(str2) + 1);
-
-  for (i = 0; c = str1[i]; i++)
-    sup1[i] = toupper(c);
-
-  sup1[i] = 0;
-
-  for (i = 0; c = str2[i]; i++)
-   sup2[i] = toupper(c);
-
-  sup2[i] = 0;
-  n = strcmp(sup1, sup2);
-  free(sup1);
-  free(sup2);
-  return (n);
-  } /* end of stricmp */
-#endif   /* sun */
-
 /***********************************************************************/
 /*  Define the splitpath function not existing in the UNIX library.    */
 /***********************************************************************/
@@ -143,13 +115,6 @@ my_bool CloseFileHandle(HANDLE h)
   return (close(h)) ? TRUE : FALSE;
   }  /* end of CloseFileHandle */
 
-#if 0
-void Sleep(DWORD time) 
-  {
-  //FIXME: TODO
-  }  /* end of Sleep */
-#endif
-
 int GetLastError() 
   {
   return errno;
@@ -209,22 +174,5 @@ BOOL MessageBeep(uint i __attribute__((unused)))
   // Fixme
   return TRUE;
   } /* end of MessageBeep */
-
-#if 0
-/* This function is ridiculous and should be revisited */
-DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
-                    DWORD dwLanguageId, LPSTR lpBuffer, DWORD nSize, ...)
-  {
-  char buff[32];
-  int n;
-
-//if (dwFlags & FORMAT_MESSAGE_ALLOCATE_BUFFER)
-//  return 0;                         /* means error */
-
-  n = sprintf(buff, "Error code: %d", (int) dwMessageId);
-  strncpy(lpBuffer, buff, nSize);
-  return min(n, nSize);
-  }  /* end of FormatMessage */
-#endif
 
 #endif  // UNIX

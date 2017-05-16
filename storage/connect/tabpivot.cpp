@@ -106,214 +106,211 @@ bool PIVAID::SkipColumn(PCOLRES crp, char *skc)
 /*  Make the Pivot table column list.                                  */
 /***********************************************************************/
 PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
-  {
+{
   char    *p, *query, *colname, *skc, buf[64];
-  int      rc, ndif, nblin, w = 0;
+  int      ndif, nblin, w = 0;
   bool     b = false;
   PVAL     valp;   
   PQRYRES  qrp;
   PCOLRES *pcrp, crp, fncrp = NULL;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return NULL;
-    } // endif jump_level
+	try {
+		// Are there columns to skip?
+		if (Skcol) {
+			uint n = strlen(Skcol);
 
-  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
-    goto err;
-    } // endif rc
+			skc = (char*)PlugSubAlloc(g, NULL, n + 2);
+			strcpy(skc, Skcol);
+			skc[n + 1] = 0;
 
-  // Are there columns to skip?
-  if (Skcol) {
-    uint n = strlen(Skcol);
+			// Replace ; by nulls in skc
+			for (p = strchr(skc, ';'); p; p = strchr(p, ';'))
+				*p++ = 0;
 
-    skc = (char*)PlugSubAlloc(g, NULL, n + 2);
-    strcpy(skc, Skcol);
-    skc[n + 1] = 0;
+		} else
+			skc = NULL;
 
-    // Replace ; by nulls in skc
-    for (p = strchr(skc, ';'); p; p = strchr(p, ';'))
-      *p++ = 0;
+		if (!Tabsrc && Tabname) {
+			// Locate the  query
+			query = (char*)PlugSubAlloc(g, NULL, strlen(Tabname) + 26);
+			sprintf(query, "SELECT * FROM `%s` LIMIT 1", Tabname);
+		} else if (!Tabsrc) {
+			strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
+			goto err;
+		} else
+			query = (char*)Tabsrc;
 
-  } else
-    skc = NULL;
+		// Open a MySQL connection for this table
+		if (!Myc.Open(g, Host, Database, User, Pwd, Port)) {
+			b = true;
 
-  if (!Tabsrc && Tabname) {
-    // Locate the  query
-    query = (char*)PlugSubAlloc(g, NULL, strlen(Tabname) + 26);
-    sprintf(query, "SELECT * FROM `%s` LIMIT 1", Tabname);
-  } else if (!Tabsrc) {
-    strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
-    return NULL;
-  } else
-    query = Tabsrc;
+			// Returned values must be in their original character set
+			if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
+				goto err;
+			else
+				Myc.FreeResult();
 
-  // Open a MySQL connection for this table
-  if (!Myc.Open(g, Host, Database, User, Pwd, Port)) {
-    b = true;
+		} else
+			goto err;
 
-    // Returned values must be in their original character set
-    if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
-      goto err;
-    else
-      Myc.FreeResult();
+		// Send the source command to MySQL
+		if (Myc.ExecSQL(g, query, &w) == RC_FX)
+			goto err;
 
-  } else
-    return NULL;
+		// We must have a storage query to get pivot column values
+		if (!(Qryp = Myc.GetResult(g, true)))
+			goto err;
 
-  // Send the source command to MySQL
-  if (Myc.ExecSQL(g, query, &w) == RC_FX)
-    goto err;
+		if (!Fncol) {
+			for (crp = Qryp->Colresp; crp; crp = crp->Next)
+				if ((!Picol || stricmp(Picol, crp->Name)) && !SkipColumn(crp, skc))
+					Fncol = crp->Name;
 
-  // We must have a storage query to get pivot column values
-  if (!(Qryp = Myc.GetResult(g, true)))
-    goto err;
+			if (!Fncol) {
+				strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+				goto err;
+			} // endif Fncol
 
-  if (!Fncol) {
-    for (crp = Qryp->Colresp; crp; crp = crp->Next)
-      if ((!Picol || stricmp(Picol, crp->Name)) && !SkipColumn(crp, skc))
-        Fncol = crp->Name;
-  
-    if (!Fncol) {
-      strcpy(g->Message, MSG(NO_DEF_FNCCOL));
-      goto err;
-      } // endif Fncol
-  
-    } // endif Fncol
-  
-  if (!Picol) {
-    // Find default Picol as the last one not equal to Fncol
-    for (crp = Qryp->Colresp; crp; crp = crp->Next)
-      if (stricmp(Fncol, crp->Name) && !SkipColumn(crp, skc))
-        Picol = crp->Name;
-  
-    if (!Picol) {
-      strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
-      goto err;
-      } // endif Picol
-  
-    } // endif picol
-  
-  // Prepare the column list
-  for (pcrp = &Qryp->Colresp; crp = *pcrp; )
-    if (SkipColumn(crp, skc)) {
-      // Ignore this column
-      *pcrp = crp->Next;
-    } else if (!stricmp(Picol, crp->Name)) {
-      if (crp->Nulls) {
-        sprintf(g->Message, "Pivot column %s cannot be nullable", Picol);
-        goto err;
-        } // endif Nulls
+		} // endif Fncol
 
-      Rblkp = crp->Kdata;
-      *pcrp = crp->Next;
-    } else if (!stricmp(Fncol, crp->Name)) {
-      fncrp = crp;
-      *pcrp = crp->Next;
-    } else
-      pcrp = &crp->Next;
+		if (!Picol) {
+			// Find default Picol as the last one not equal to Fncol
+			for (crp = Qryp->Colresp; crp; crp = crp->Next)
+				if (stricmp(Fncol, crp->Name) && !SkipColumn(crp, skc))
+					Picol = crp->Name;
 
-  if (!Rblkp) {
-    strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
-    goto err;
-  } else if (!fncrp) {
-    strcpy(g->Message, MSG(NO_DEF_FNCCOL));
-    goto err;
-  } // endif
+			if (!Picol) {
+				strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+				goto err;
+			} // endif Picol
 
-  if (Tabsrc) {
-    Myc.Close();
-    b = false;
+		} // endif picol
 
-    // Before calling sort, initialize all
-    nblin = Qryp->Nblin;
+	// Prepare the column list
+		for (pcrp = &Qryp->Colresp; crp = *pcrp; )
+			if (SkipColumn(crp, skc)) {
+				// Ignore this column
+				*pcrp = crp->Next;
+			} else if (!stricmp(Picol, crp->Name)) {
+				if (crp->Nulls) {
+					sprintf(g->Message, "Pivot column %s cannot be nullable", Picol);
+					goto err;
+				} // endif Nulls
 
-    Index.Size = nblin * sizeof(int);
-    Index.Sub = TRUE;                  // Should be small enough
+				Rblkp = crp->Kdata;
+				*pcrp = crp->Next;
+			} else if (!stricmp(Fncol, crp->Name)) {
+				fncrp = crp;
+				*pcrp = crp->Next;
+			} else
+				pcrp = &crp->Next;
 
-    if (!PlgDBalloc(g, NULL, Index))
-      return NULL;
+			if (!Rblkp) {
+				strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+				goto err;
+			} else if (!fncrp) {
+				strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+				goto err;
+			} // endif
 
-    Offset.Size = (nblin + 1) * sizeof(int);
-    Offset.Sub = TRUE;                 // Should be small enough
+			if (Tabsrc) {
+				Myc.Close();
+				b = false;
 
-    if (!PlgDBalloc(g, NULL, Offset))
-      return NULL;
+				// Before calling sort, initialize all
+				nblin = Qryp->Nblin;
 
-    ndif = Qsort(g, nblin);
+				Index.Size = nblin * sizeof(int);
+				Index.Sub = TRUE;                  // Should be small enough
 
-    if (ndif < 0)           // error
-      return NULL;
+				if (!PlgDBalloc(g, NULL, Index))
+					goto err;
 
-  } else {
-    // The query was limited, we must get pivot column values
-    // Returned values must be in their original character set
-//  if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
-//    goto err;
+				Offset.Size = (nblin + 1) * sizeof(int);
+				Offset.Sub = TRUE;                 // Should be small enough
 
-    query = (char*)PlugSubAlloc(g, NULL, 0);
-    sprintf(query, "SELECT DISTINCT `%s` FROM `%s`", Picol, Tabname);
-    PlugSubAlloc(g, NULL, strlen(query) + 1);
-    Myc.FreeResult();
+				if (!PlgDBalloc(g, NULL, Offset))
+					goto err;
 
-    // Send the source command to MySQL
-    if (Myc.ExecSQL(g, query, &w) == RC_FX)
-      goto err;
+				ndif = Qsort(g, nblin);
 
-    // We must have a storage query to get pivot column values
-    if (!(qrp = Myc.GetResult(g, true)))
-      goto err;
+				if (ndif < 0)           // error
+					goto err;
 
-    Myc.Close();
-    b = false;
+			} else {
+				// The query was limited, we must get pivot column values
+				// Returned values must be in their original character set
+		//  if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
+		//    goto err;
 
-    // Get the column list
-    crp = qrp->Colresp;
-    Rblkp = crp->Kdata;
-    ndif = qrp->Nblin;
-  } // endif Tabsrc
+				query = (char*)PlugSubAlloc(g, NULL, 0);
+				sprintf(query, "SELECT DISTINCT `%s` FROM `%s`", Picol, Tabname);
+				PlugSubAlloc(g, NULL, strlen(query) + 1);
+				Myc.FreeResult();
 
-  // Allocate the Value used to retieve column names
-  if (!(valp = AllocateValue(g, Rblkp->GetType(),
-                                Rblkp->GetVlen(),
-                                Rblkp->GetPrec())))
-    return NULL;
+				// Send the source command to MySQL
+				if (Myc.ExecSQL(g, query, &w) == RC_FX)
+					goto err;
 
-  // Now make the functional columns
-  for (int i = 0; i < ndif; i++) {
-    if (i) {
-      crp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
-      memcpy(crp, fncrp, sizeof(COLRES));
-    } else
-      crp = fncrp;
+				// We must have a storage query to get pivot column values
+				if (!(qrp = Myc.GetResult(g, true)))
+					goto err;
 
-    // Get the value that will be the generated column name
-    if (Tabsrc)
-      valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
-    else
-      valp->SetValue_pvblk(Rblkp, i);
+				Myc.Close();
+				b = false;
 
-    colname = valp->GetCharString(buf);
-    crp->Name = PlugDup(g, colname);
-    crp->Flag = 1;
+				// Get the column list
+				crp = qrp->Colresp;
+				Rblkp = crp->Kdata;
+				ndif = qrp->Nblin;
+			} // endif Tabsrc
 
-    // Add this column
-    *pcrp = crp;
-    crp->Next = NULL;
-    pcrp = &crp->Next;
-    } // endfor i
+			// Allocate the Value used to retieve column names
+			if (!(valp = AllocateValue(g, Rblkp->GetType(),
+				Rblkp->GetVlen(),
+				Rblkp->GetPrec())))
+				goto err;
 
-  // We added ndif columns and removed 2 (picol and fncol)
-  Qryp->Nbcol += (ndif - 2);
-  return Qryp;
+			// Now make the functional columns
+			for (int i = 0; i < ndif; i++) {
+				if (i) {
+					crp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
+					memcpy(crp, fncrp, sizeof(COLRES));
+				} else
+					crp = fncrp;
+
+				// Get the value that will be the generated column name
+				if (Tabsrc)
+					valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
+				else
+					valp->SetValue_pvblk(Rblkp, i);
+
+				colname = valp->GetCharString(buf);
+				crp->Name = PlugDup(g, colname);
+				crp->Flag = 1;
+
+				// Add this column
+				*pcrp = crp;
+				crp->Next = NULL;
+				pcrp = &crp->Next;
+			} // endfor i
+
+		// We added ndif columns and removed 2 (picol and fncol)
+		Qryp->Nbcol += (ndif - 2);
+		return Qryp;
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+	} // end catch
 
 err:
   if (b)
     Myc.Close();
 
   return NULL;
-  } // end of MakePivotColumns
+} // end of MakePivotColumns
 
 /***********************************************************************/
 /*  PIVAID: Compare routine for sorting pivot column values.           */

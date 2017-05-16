@@ -1,11 +1,11 @@
 /************* BlkFil C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: BLKFIL                                                */
 /* -------------                                                       */
-/*  Version 2.5                                                        */
+/*  Version 2.6                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -595,8 +595,8 @@ BLKFILIN::BLKFILIN(PGLOBAL g, PTDBDOS tdbp, int op, int opm, PXOB *xp)
 
   if (Colp->GetResultType() != Type) {
     sprintf(g->Message, "BLKFILIN: %s", MSG(VALTYPE_NOMATCH));
-    longjmp(g->jumper[g->jump_level], 99);
-  } else if (Colp->GetValue()->IsCi())
+		throw g->Message;
+	} else if (Colp->GetValue()->IsCi())
     Arap->SetPrecision(g, 1);        // Case insensitive
 
   Sorted = Colp->IsSorted() > 0;

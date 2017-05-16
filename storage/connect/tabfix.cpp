@@ -1,11 +1,11 @@
 /************* TabFix C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFIX                                                */
 /* -------------                                                       */
-/*  Version 4.9.1                                                      */
+/*  Version 4.9.2                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -373,7 +373,7 @@ int TDBFIX::WriteDB(PGLOBAL g)
 /***********************************************************************/
 /*  BINCOL public constructor.                                         */
 /***********************************************************************/
-BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
+BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am)
   : DOSCOL(g, cdp, tp, cp, i, am)
   {
   char c, *fmt = cdp->GetFmt();
@@ -411,8 +411,8 @@ BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
       case 'D': M = sizeof(double);   break;
       default:
         sprintf(g->Message, MSG(BAD_BIN_FMT), Fmt, Name);
-        longjmp(g->jumper[g->jump_level], 11);
-        } // endswitch Fmt
+				throw 11;
+		} // endswitch Fmt
 
   } else if (IsTypeChar(Buf_Type))
     Eds = 0;
@@ -486,8 +486,8 @@ void BINCOL::ReadColumn(PGLOBAL g)
       if (rc == RC_EF)
         sprintf(g->Message, MSG(INV_DEF_READ), rc);
 
-      longjmp(g->jumper[g->jump_level], 11);
-      } // endif
+			throw 11;
+		} // endif
 
   p = tdbp->To_Line + Deplac;
 
@@ -545,8 +545,8 @@ void BINCOL::ReadColumn(PGLOBAL g)
       break;
     default:
       sprintf(g->Message, MSG(BAD_BIN_FMT), Fmt, Name);
-      longjmp(g->jumper[g->jump_level], 11);
-      } // endswitch Fmt
+			throw 11;
+	} // endswitch Fmt
 
   // Set null when applicable
   if (Nullable)
@@ -595,8 +595,8 @@ void BINCOL::WriteColumn(PGLOBAL g)
 			} else if (Value->GetBinValue(p, Long, Status)) {
         sprintf(g->Message, MSG(BIN_F_TOO_LONG),
                             Name, Value->GetSize(), Long);
-        longjmp(g->jumper[g->jump_level], 31);
-      } // endif p
+				throw 31;
+			} // endif p
 
       break;
     case 'S':                 // Short integer
@@ -604,8 +604,8 @@ void BINCOL::WriteColumn(PGLOBAL g)
 
       if (n > 32767LL || n < -32768LL) {
         sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
-        longjmp(g->jumper[g->jump_level], 31);
-      } else if (Status)
+				throw 31;
+			} else if (Status)
 				Value->GetValueNonAligned<short>(p, (short)n);
 
       break;
@@ -614,8 +614,8 @@ void BINCOL::WriteColumn(PGLOBAL g)
 
       if (n > 255LL || n < -256LL) {
         sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
-        longjmp(g->jumper[g->jump_level], 31);
-      } else if (Status)
+				throw 31;
+			} else if (Status)
         *p = (char)n;
 
       break;
@@ -624,8 +624,8 @@ void BINCOL::WriteColumn(PGLOBAL g)
 
       if (n > INT_MAX || n < INT_MIN) {
         sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
-        longjmp(g->jumper[g->jump_level], 31);
-      } else if (Status)
+				throw 31;
+			} else if (Status)
 				Value->GetValueNonAligned<int>(p, (int)n);
 
       break;
@@ -648,8 +648,8 @@ void BINCOL::WriteColumn(PGLOBAL g)
     case 'C':                 // Characters
       if ((n = (signed)strlen(Value->GetCharString(Buf))) > Long) {
         sprintf(g->Message, MSG(BIN_F_TOO_LONG), Name, (int) n, Long);
-        longjmp(g->jumper[g->jump_level], 31);
-        } // endif n
+				throw 31;
+			} // endif n
 
       if (Status) {
         s = Value->GetCharString(Buf);
@@ -660,8 +660,8 @@ void BINCOL::WriteColumn(PGLOBAL g)
       break;
     default:
       sprintf(g->Message, MSG(BAD_BIN_FMT), Fmt, Name);
-      longjmp(g->jumper[g->jump_level], 11);
-    } // endswitch Fmt
+			throw 31;
+	} // endswitch Fmt
 
   if (Eds && Status) {
     p = tdbp->To_Line + Deplac;

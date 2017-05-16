@@ -80,7 +80,7 @@ class DllExport TXTFAM : public BLOCK {
  protected:
   // Members
   PTDBDOS Tdbp;              // To table class
-  PSZ     To_File;           // Points to table file name
+  PCSZ    To_File;           // Points to table file name
   PFBLOCK To_Fb;             // Pointer to file block
   PPARM   To_Pos;            // Pointer to position list
   PPARM   To_Sos;            // Pointer to start position list

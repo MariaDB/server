@@ -119,7 +119,8 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
                    FLD_LENGTH, FLD_SCALE, FLD_RADIX,    FLD_NULL,
                    FLD_REM,    FLD_NO,    FLD_CHARSET};
   unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 32, 32};
-  char        *pn, *tn, *fld, *colname, *chset, *fmt, v;
+	PCSZ         fmt;
+  char        *pn, *tn, *fld, *colname, *chset, v;
   int          i, n, ncol = sizeof(buftyp) / sizeof(int);
   int          prec, len, type, scale;
   int          zconv = GetConvSize();
@@ -227,7 +228,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
         fmt = MyDateFmt(fp->type());
         prec = len = strlen(fmt);
       } else {
-        fmt = (char*)fp->option_struct->dateformat;
+        fmt = (PCSZ)fp->option_struct->dateformat;
         prec = len = fp->field_length;
       } // endif mysql
 
@@ -314,7 +315,7 @@ bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR, int)
       strcpy(g->Message, "Missing object table definition");
       return true;
     } else
-      tab = "Noname";
+      tab = PlugDup(g, "Noname");
 
   } else
     // Analyze the table name, it may have the format: [dbname.]tabname
@@ -626,7 +627,7 @@ void TDBPRX::RemoveNext(PTABLE tp)
 /***********************************************************************/
 /*  PRXCOL public constructor.                                         */
 /***********************************************************************/
-PRXCOL::PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+PRXCOL::PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
       : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
@@ -741,7 +742,14 @@ void PRXCOL::ReadColumn(PGLOBAL g)
     if (Nullable)
       Value->SetNull(Value->IsNull());
 
-    } // endif Colp
+	} else {
+		Value->Reset();
+
+		// Set null when applicable
+		if (Nullable)
+			Value->SetNull(true);
+
+	}	// endif Colp
 
   } // end of ReadColumn
 
