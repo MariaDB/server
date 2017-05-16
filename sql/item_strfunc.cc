@@ -226,7 +226,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
     break;
   case 0: // SHA-256 is the default
     digest_length= 256;
-    /* fall trough */
+    /* fall through */
   case 256:
     my_sha256(digest_buf, input_ptr, input_len);
     break;
@@ -272,7 +272,7 @@ void Item_func_sha2::fix_length_and_dec()
   switch (sha_variant) {
   case 0: // SHA-256 is the default
     sha_variant= 256;
-    /* fall trough */
+    /* fall through */
   case 512:
   case 384:
   case 256:
@@ -5060,7 +5060,7 @@ bool Item_dyncol_get::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     goto null;
   case DYN_COL_INT:
     signed_value= 1;                                  // For error message
-    /* fall_trough */
+    /* fall through */
   case DYN_COL_UINT:
     if (signed_value || val.x.ulong_value <= LONGLONG_MAX)
     {
@@ -5073,7 +5073,7 @@ bool Item_dyncol_get::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     }
     /* let double_to_datetime_with_warn() issue the warning message */
     val.x.double_value= static_cast<double>(ULONGLONG_MAX);
-    /* fall_trough */
+    /* fall through */
   case DYN_COL_DOUBLE:
     if (double_to_datetime_with_warn(val.x.double_value, ltime, fuzzy_date,
                                      0 /* TODO */))

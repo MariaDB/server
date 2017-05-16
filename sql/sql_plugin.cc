@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, SkySQL Ab.
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1848,8 +1848,8 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
     switch ((*(p++)= *(list++))) {
     case '\0':
       list= NULL; /* terminate the loop */
-      /* fall through */
 #ifndef __WIN__
+      /* fall through */
     case ':':     /* can't use this as delimiter as it may be drive letter */
 #endif
     case ';':
@@ -1890,6 +1890,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
         str->str= p;
         continue;
       }
+      /* fall through */
     default:
       str->length++;
       continue;

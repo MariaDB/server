@@ -1,4 +1,5 @@
 /* Copyright (c) 2004, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2017, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -2945,6 +2946,7 @@ int ha_federated::extra(ha_extra_function operation)
     break;
   case HA_EXTRA_PREPARE_FOR_DROP:
     table_will_be_deleted = TRUE;
+    break;
   default:
     /* do nothing */
     DBUG_PRINT("info",("unhandled operation: %d", (uint) operation));

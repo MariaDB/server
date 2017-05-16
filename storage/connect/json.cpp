@@ -533,7 +533,7 @@ PVAL ParseNumeric(PGLOBAL g, int& i, STRG& src)
         if (!has_e)
           goto err;
 
-        // passthru
+        // fall through
       case '-':
         if (found_digit)
           goto err;
@@ -826,7 +826,7 @@ bool JOUTSTR::Escape(const char *s)
       case '\r':
       case '\b':
       case '\f': WriteChr('\\');
-        // passthru
+        // fall through
       default:
         WriteChr(s[i]);
         break;
