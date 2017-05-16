@@ -47,17 +47,6 @@ extern my_bool		innodb_dict_stats_disabled_debug;
 #endif /* UNIV_DEBUG */
 
 /*****************************************************************//**
-Add a table to the recalc pool, which is processed by the
-background stats gathering thread. Only the table id is added to the
-list, so the table can be closed after being enqueued and it will be
-opened when needed. If the table does not exist later (has been DROPped),
-then it will be removed from the pool and skipped. */
-void
-dict_stats_recalc_pool_add(
-/*=======================*/
-	const dict_table_t*	table);	/*!< in: table to add */
-
-/*****************************************************************//**
 Delete a given table from the auto recalc pool.
 dict_stats_recalc_pool_del() */
 void

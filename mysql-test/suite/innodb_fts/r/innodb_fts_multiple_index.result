@@ -46,9 +46,9 @@ id	a	b
 1	MySQL Tutorial	DBMS stands for DataBase ...
 select *, MATCH(a) AGAINST("Optimizing MySQL" IN BOOLEAN MODE) as x from t1;
 id	a	b	x
-1	MySQL Tutorial	DBMS stands for DataBase ...	0.0906190574169159
-2	How To Use MySQL Well	After you went through a ...	0.0906190574169159
-3	Optimizing MySQL	In this tutorial we will show ...	0.6961383819580078
+1	MySQL Tutorial	DBMS stands for DataBase ...	0.000000001885928302414186
+2	How To Use MySQL Well	After you went through a ...	0.000000001885928302414186
+3	Optimizing MySQL	In this tutorial we will show ...	0.22764469683170319
 select *, MATCH(b) AGAINST("collections support" IN BOOLEAN MODE) as x from t1;
 id	a	b	x
 1	MySQL Tutorial	DBMS stands for DataBase ...	0
@@ -90,9 +90,9 @@ id	a	b
 1	MySQL Tutorial	DBMS stands for DataBase ...
 select *, MATCH(a) AGAINST("Optimizing MySQL" IN BOOLEAN MODE) as x from t1;
 id	a	b	x
-1	MySQL Tutorial	DBMS stands for DataBase ...	0.0906190574169159
-2	How To Use MySQL Well	After you went through a ...	0.0906190574169159
-3	Optimizing MySQL	In this tutorial we will show ...	0.6961383819580078
+1	MySQL Tutorial	DBMS stands for DataBase ...	0.000000001885928302414186
+2	How To Use MySQL Well	After you went through a ...	0.000000001885928302414186
+3	Optimizing MySQL	In this tutorial we will show ...	0.22764469683170319
 select *, MATCH(b) AGAINST("collections support" IN BOOLEAN MODE) as x from t1;
 id	a	b	x
 1	MySQL Tutorial	DBMS stands for DataBase ...	0

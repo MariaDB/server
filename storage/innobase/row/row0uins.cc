@@ -25,6 +25,7 @@ Created 2/25/1997 Heikki Tuuri
 
 #include "row0uins.h"
 #include "dict0dict.h"
+#include "dict0stats.h"
 #include "dict0boot.h"
 #include "dict0crea.h"
 #include "trx0undo.h"
@@ -507,6 +508,23 @@ row_undo_ins(
 		    && !dict_locked) {
 
 			mutex_exit(&dict_sys->mutex);
+		}
+
+		if (err == DB_SUCCESS && node->table->stat_initialized) {
+			/* Not protected by dict_table_stats_lock() for
+			performance reasons, we would rather get garbage
+			in stat_n_rows (which is just an estimate anyway)
+			than protecting the following code with a latch. */
+			dict_table_n_rows_dec(node->table);
+
+			/* Do not attempt to update statistics when
+			executing ROLLBACK in the InnoDB SQL
+			interpreter, because in that case we would
+			already be holding dict_sys->mutex, which
+			would be acquired when updating statistics. */
+			if (!dict_locked) {
+				dict_stats_update_if_needed(node->table);
+			}
 		}
 	}
 
