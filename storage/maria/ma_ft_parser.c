@@ -61,7 +61,7 @@ FT_WORD * maria_ft_linearize(TREE *wtree, MEM_ROOT *mem_root)
     docstat.sum=0;
     tree_walk(wtree,(tree_walk_action)&walk_and_copy,&docstat,left_root_right);
   }
-  delete_tree(wtree);
+  delete_tree(wtree, 0);
   if (!wlist)
     DBUG_RETURN(NULL);
 
@@ -283,7 +283,7 @@ static int maria_ft_add_word(MYSQL_FTPARSER_PARAM *param,
   w.len= word_len;
   if (!tree_insert(wtree, &w, 0, wtree->custom_arg))
   {
-    delete_tree(wtree);
+    delete_tree(wtree, 0);
     DBUG_RETURN(1);
   }
   DBUG_RETURN(0);

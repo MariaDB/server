@@ -68,7 +68,7 @@ int compare_ulonglong2(void* cmp_arg __attribute__((unused)),
 int compare_decimal2(int* len, const char *s, const char *t);
 Procedure *proc_analyse_init(THD *thd, ORDER *param, select_result *result,
 			     List<Item> &field_list);
-void free_string(String*);
+int free_string(String*);
 class analyse;
 
 class field_info :public Sql_alloc
@@ -86,7 +86,7 @@ public:
     nulls(0), min_length(0), max_length(0), room_in_tree(1),
     found(0),item(a), pc(b) {};
 
-  virtual ~field_info() { delete_tree(&tree); }
+  virtual ~field_info() { delete_tree(&tree, 0); }
   virtual void	 add() = 0;
   virtual void	 get_opt_type(String*, ha_rows) = 0;
   virtual String *get_min_arg(String *) = 0;

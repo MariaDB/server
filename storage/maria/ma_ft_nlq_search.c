@@ -320,8 +320,8 @@ FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
               (qsort2_cmp)&FT_DOC_cmp, 0);
 
 err:
-  delete_tree(&aio.dtree);
-  delete_tree(&wtree);
+  delete_tree(&aio.dtree, 0);
+  delete_tree(&wtree, 0);
   info->cur_row.lastpos= saved_lastpos;
   DBUG_RETURN(dlist);
 }

@@ -316,8 +316,8 @@ FT_INFO *ft_init_nlq_search(MI_INFO *info, uint keynr, uchar *query,
               0);
 
 err:
-  delete_tree(&aio.dtree);
-  delete_tree(&wtree);
+  delete_tree(&aio.dtree, 0);
+  delete_tree(&wtree, 0);
   info->lastpos=saved_lastpos;
   DBUG_RETURN(dlist);
 }

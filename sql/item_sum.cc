@@ -3290,7 +3290,7 @@ void Item_func_group_concat::cleanup()
       table= 0;
       if (tree)
       {
-        delete_tree(tree);
+        delete_tree(tree, 0);
         tree= 0;
       }
       if (unique_filter)

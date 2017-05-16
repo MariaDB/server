@@ -861,7 +861,7 @@ static void free_counts_and_tree_and_queue(HUFF_TREE *huff_trees, uint trees,
       if (huff_counts[i].tree_buff)
       {
 	my_free(huff_counts[i].tree_buff);
-	delete_tree(&huff_counts[i].int_tree);
+	delete_tree(&huff_counts[i].int_tree, 0);
       }
     }
     my_free(huff_counts);
@@ -967,7 +967,7 @@ static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts)
 	      (count->field_length == 1 &&
 	       count->int_tree.elements_in_tree > 1))
 	  {
-	    delete_tree(&count->int_tree);
+	    delete_tree(&count->int_tree, 0);
 	    my_free(count->tree_buff);
 	    count->tree_buff=0;
 	  }
@@ -1366,7 +1366,7 @@ static void check_counts(HUFF_COUNTS *huff_counts, uint trees,
       else
       {
 	my_free(huff_counts->tree_buff);
-	delete_tree(&huff_counts->int_tree);
+	delete_tree(&huff_counts->int_tree, 0);
 	huff_counts->tree_buff=0;
       }
       if (tree.element_buffer)
@@ -3166,7 +3166,7 @@ static void fakebigcodes(HUFF_COUNTS *huff_counts, HUFF_COUNTS *end_count)
     if (huff_counts->tree_buff)
     {
       my_free(huff_counts->tree_buff);
-      delete_tree(&huff_counts->int_tree);
+      delete_tree(&huff_counts->int_tree, 0);
       huff_counts->tree_buff= NULL;
       DBUG_PRINT("fakebigcodes", ("freed distinct column values"));
     }

@@ -649,7 +649,7 @@ static int examine_log(char * file_name, char **table_names)
     }
   }
   end_key_cache(dflt_key_cache,1);
-  delete_tree(&tree);
+  delete_tree(&tree, 0);
   (void) end_io_cache(&cache);
   (void) my_close(file,MYF(0));
   if (write_file && my_fclose(write_file,MYF(MY_WME)))
@@ -669,7 +669,7 @@ static int examine_log(char * file_name, char **table_names)
   fflush(stderr);
  end:
   end_key_cache(dflt_key_cache, 1);
-  delete_tree(&tree);
+  delete_tree(&tree, 0);
   (void) end_io_cache(&cache);
   (void) my_close(file,MYF(0));
   if (write_file)

@@ -392,7 +392,7 @@ my_bool maria_test_if_sort_rep(MARIA_HA *info, ha_rows rows, ulonglong key_map,
 
 int maria_init_bulk_insert(MARIA_HA *info, size_t cache_size, ha_rows rows);
 void maria_flush_bulk_insert(MARIA_HA *info, uint inx);
-void maria_end_bulk_insert(MARIA_HA *info);
+int maria_end_bulk_insert(MARIA_HA *info, my_bool abort);
 int maria_preload(MARIA_HA *info, ulonglong key_map, my_bool ignore_leaves);
 void maria_versioning(MARIA_HA *info, my_bool versioning);
 void maria_ignore_trids(MARIA_HA *info);

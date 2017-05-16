@@ -418,7 +418,7 @@ my_bool mi_test_if_sort_rep(MI_INFO *info, ha_rows rows, ulonglong key_map,
 
 int mi_init_bulk_insert(MI_INFO *info, size_t cache_size, ha_rows rows);
 void mi_flush_bulk_insert(MI_INFO *info, uint inx);
-void mi_end_bulk_insert(MI_INFO *info);
+int mi_end_bulk_insert(MI_INFO *info, my_bool abort);
 int mi_assign_to_key_cache(MI_INFO *info, ulonglong key_map,
 			   KEY_CACHE *key_cache);
 void mi_change_key_cache(KEY_CACHE *old_key_cache,

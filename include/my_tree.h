@@ -48,7 +48,7 @@ typedef uint32 element_count;
 typedef int (*tree_walk_action)(void *,element_count,void *);
 
 typedef enum { free_init, free_free, free_end } TREE_FREE;
-typedef void (*tree_element_free)(void*, TREE_FREE, void *);
+typedef int (*tree_element_free)(void*, TREE_FREE, void *);
 
 typedef struct st_tree_element {
   struct st_tree_element *left,*right;
@@ -77,8 +77,8 @@ void init_tree(TREE *tree, size_t default_alloc_size, size_t memory_limit,
                int size, qsort_cmp2 compare,
 	       tree_element_free free_element, void *custom_arg,
                myf my_flags);
-void delete_tree(TREE*);
-void reset_tree(TREE*);
+int delete_tree(TREE*, my_bool abort);
+int reset_tree(TREE*);
 
   /* similar to delete tree, except we do not my_free() blocks in mem_root */
 #define is_tree_inited(tree) ((tree)->root != 0)
