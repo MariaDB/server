@@ -2591,16 +2591,11 @@ innobase_get_stmt(
 	THD*	thd,		/*!< in: MySQL thread handle */
 	size_t*	length)		/*!< out: length of the SQL statement */
 {
-	const char* query = NULL;
-	LEX_STRING *stmt = NULL;
-	if (thd) {
-		stmt = thd_query_string(thd);
-		if (stmt) {
-			*length = stmt->length;
-			query = stmt->str;
-		}
+	if (const LEX_STRING *stmt = thd_query_string(thd)) {
+		*length = stmt->length;
+		return stmt->str;
 	}
-	return (query);
+	return NULL;
 }
 
 /**********************************************************************//**
