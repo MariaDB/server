@@ -1859,17 +1859,17 @@ os_file_create_func(
 			*success = TRUE;
 			retry = FALSE;
 			if (srv_use_native_aio && ((attributes & FILE_FLAG_OVERLAPPED) != 0)) {
-				ut_a(CreateIoCompletionPort(file, completion_port, 0, 0));
+				ut_a(CreateIoCompletionPort(file.m_file, completion_port, 0, 0));
 			}
 		}
 
 	} while (retry);
 
 	if (srv_use_atomic_writes && type == OS_DATA_FILE &&
-		!os_file_set_atomic_writes(name, file)) {
-			 CloseHandle(file);
+		!os_file_set_atomic_writes(name, file.m_file)) {
+			 CloseHandle(file.m_file);
 			*success = FALSE;
-			file = INVALID_HANDLE_VALUE;
+			file.m_file = INVALID_HANDLE_VALUE;
 	}
 
 #else /* __WIN__ */
@@ -5040,7 +5040,7 @@ os_aio_windows_handle(
 
 		switch (slot->type) {
 		case OS_FILE_WRITE:
-			ret_val = os_file_write(slot->name, slot->file.m_file, slot->buf,
+			ret_val = os_file_write(slot->name, slot->file, slot->buf,
 				li.QuadPart, slot->len);
 			break;
 		case OS_FILE_READ:
