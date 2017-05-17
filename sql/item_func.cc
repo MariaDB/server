@@ -878,75 +878,12 @@ void Item_func_signed::print(String *str, enum_query_type query_type)
 }
 
 
-longlong Item::val_int_from_str(int *error)
-{
-  char buff[MAX_FIELD_WIDTH];
-  String tmp(buff,sizeof(buff), &my_charset_bin), *res;
-
-  /*
-    For a string result, we must first get the string and then convert it
-    to a longlong
-  */
-
-  if (!(res= val_str(&tmp)))
-  {
-    *error= 0;
-    return 0;
-  }
-  Converter_strtoll10_with_warn cnv(NULL, Warn_filter_all(),
-                                    res->charset(), res->ptr(), res->length());
-  *error= cnv.error();
-  return cnv.result();
-}
-
-
-longlong Item::val_int_signed_typecast()
-{
-  if (cast_to_int_type_handler()->cmp_type() != STRING_RESULT)
-    return val_int();
-
-  int error;
-  longlong value= val_int_from_str(&error);
-  if (!null_value && value < 0 && error == 0)
-    push_note_converted_to_negative_complement(current_thd);
-  return value;
-}
-
-
 void Item_func_unsigned::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("cast("));
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" as unsigned)"));
 
-}
-
-
-longlong Item::val_int_unsigned_typecast()
-{
-  if (cast_to_int_type_handler()->cmp_type() == DECIMAL_RESULT)
-  {
-    longlong value;
-    my_decimal tmp, *dec= val_decimal(&tmp);
-    if (!null_value)
-      my_decimal2int(E_DEC_FATAL_ERROR, dec, 1, &value);
-    else
-      value= 0;
-    return value;
-  }
-  else if (cast_to_int_type_handler()->cmp_type() != STRING_RESULT)
-  {
-    longlong value= val_int();
-    if (!null_value && unsigned_flag == 0 && value < 0)
-      push_note_converted_to_positive_complement(current_thd);
-    return value;
-  }
-
-  int error;
-  longlong value= val_int_from_str(&error);
-  if (!null_value && error < 0)
-    push_note_converted_to_positive_complement(current_thd);
-  return value;
 }
 
 

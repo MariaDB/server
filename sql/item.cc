@@ -311,6 +311,56 @@ bool Item::is_null_from_temporal()
 }
 
 
+longlong Item::val_int_from_str(int *error)
+{
+  char buff[MAX_FIELD_WIDTH];
+  String tmp(buff,sizeof(buff), &my_charset_bin), *res;
+
+  /*
+    For a string result, we must first get the string and then convert it
+    to a longlong
+  */
+  if (!(res= val_str(&tmp)))
+  {
+    *error= 0;
+    return 0;
+  }
+  Converter_strtoll10_with_warn cnv(NULL, Warn_filter_all(),
+                                    res->charset(), res->ptr(), res->length());
+  *error= cnv.error();
+  return cnv.result();
+}
+
+
+longlong Item::val_int_signed_typecast_from_str()
+{
+  int error;
+  longlong value= val_int_from_str(&error);
+  if (!null_value && value < 0 && error == 0)
+    push_note_converted_to_negative_complement(current_thd);
+  return value;
+}
+
+
+longlong Item::val_int_unsigned_typecast_from_str()
+{
+  int error;
+  longlong value= val_int_from_str(&error);
+  if (!null_value && error < 0)
+    push_note_converted_to_positive_complement(current_thd);
+  return value;
+}
+
+
+longlong Item::val_int_unsigned_typecast_from_int()
+{
+  longlong value= val_int();
+  if (!null_value && unsigned_flag == 0 && value < 0)
+    push_note_converted_to_positive_complement(current_thd);
+  return value;
+}
+
+
 String *Item::val_string_from_date(String *str)
 {
   MYSQL_TIME ltime;
@@ -427,6 +477,18 @@ longlong Item::val_int_from_decimal()
   my_decimal2int(E_DEC_FATAL_ERROR, dec_val, unsigned_flag, &result);
   return result;
 }
+
+
+longlong Item::val_int_unsigned_typecast_from_decimal()
+{
+  longlong result;
+  my_decimal tmp, *dec= val_decimal(&tmp);
+  if (null_value)
+    return 0;
+  my_decimal2int(E_DEC_FATAL_ERROR, dec, 1, &result);
+  return result;
+}
+
 
 int Item::save_time_in_field(Field *field, bool no_conversions)
 {

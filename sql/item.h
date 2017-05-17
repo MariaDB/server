@@ -880,14 +880,24 @@ public:
     to negative complements.
     Values of non-integer data types are adjusted to the SIGNED range.
   */
-  virtual longlong val_int_signed_typecast();
+  virtual longlong val_int_signed_typecast()
+  {
+    return cast_to_int_type_handler()->Item_val_int_signed_typecast(this);
+  }
+  longlong val_int_signed_typecast_from_str();
   /**
     Get a value for CAST(x AS UNSIGNED).
     Negative signed integer values are converted
     to positive complements.
     Values of non-integer data types are adjusted to the UNSIGNED range.
   */
-  virtual longlong val_int_unsigned_typecast();
+  virtual longlong val_int_unsigned_typecast()
+  {
+    return cast_to_int_type_handler()->Item_val_int_unsigned_typecast(this);
+  }
+  longlong val_int_unsigned_typecast_from_decimal();
+  longlong val_int_unsigned_typecast_from_int();
+  longlong val_int_unsigned_typecast_from_str();
   /*
     This is just a shortcut to avoid the cast. You should still use
     unsigned_flag to check the sign of the item.

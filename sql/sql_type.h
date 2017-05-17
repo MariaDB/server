@@ -819,6 +819,9 @@ public:
   virtual
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const= 0;
 
+  virtual longlong Item_val_int_signed_typecast(Item *item) const= 0;
+  virtual longlong Item_val_int_unsigned_typecast(Item *item) const= 0;
+
   virtual String *Item_func_hex_val_str_ascii(Item_func_hex *item,
                                               String *str) const= 0;
 
@@ -1060,6 +1063,16 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
+  longlong Item_val_int_signed_typecast(Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  longlong Item_val_int_unsigned_typecast(Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const
   {
     DBUG_ASSERT(0);
@@ -1253,6 +1266,8 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+  longlong Item_val_int_signed_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -1324,6 +1339,8 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+  longlong Item_val_int_signed_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -1389,6 +1406,8 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+  longlong Item_val_int_signed_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -1457,6 +1476,8 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+  longlong Item_val_int_signed_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -1557,6 +1578,8 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+  longlong Item_val_int_signed_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;

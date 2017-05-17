@@ -2978,6 +2978,70 @@ bool Type_handler_geometry::
 
 /*************************************************************************/
 
+longlong Type_handler_real_result::
+           Item_val_int_signed_typecast(Item *item) const
+{
+  return item->val_int();
+}
+
+longlong Type_handler_int_result::
+           Item_val_int_signed_typecast(Item *item) const
+{
+  return item->val_int();
+}
+
+longlong Type_handler_decimal_result::
+           Item_val_int_signed_typecast(Item *item) const
+{
+  return item->val_int();
+}
+
+longlong Type_handler_temporal_result::
+           Item_val_int_signed_typecast(Item *item) const
+{
+  return item->val_int();
+}
+
+longlong Type_handler_string_result::
+           Item_val_int_signed_typecast(Item *item) const
+{
+  return item->val_int_signed_typecast_from_str();
+}
+
+/*************************************************************************/
+
+longlong Type_handler_real_result::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  return item->val_int_unsigned_typecast_from_int();
+}
+
+longlong Type_handler_int_result::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  return item->val_int_unsigned_typecast_from_int();
+}
+
+longlong Type_handler_decimal_result::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  return item->val_int_unsigned_typecast_from_decimal();
+}
+
+longlong Type_handler_temporal_result::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  return item->val_int_unsigned_typecast_from_int();
+}
+
+longlong Type_handler_string_result::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  return item->val_int_unsigned_typecast_from_str();
+}
+
+/*************************************************************************/
+
 String *
 Type_handler_real_result::Item_func_hex_val_str_ascii(Item_func_hex *item,
                                                       String *str) const
