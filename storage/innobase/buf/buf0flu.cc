@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -2406,6 +2406,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
 	ulint	next_loop_time = ut_time_ms() + 1000;
 	ulint	n_flushed = 0;
 	ulint	last_activity = srv_get_activity_count();
@@ -2518,6 +2519,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 thread_exit:
 	buf_page_cleaner_is_active = FALSE;
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);
