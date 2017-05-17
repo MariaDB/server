@@ -1161,6 +1161,16 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
       in_subq->block_conversion_to_sj();
     }
   }
+
+  if (join->select_options & SELECT_STRAIGHT_JOIN)
+  {
+    /* Block conversion to semijoins for all candidates */ 
+    li.rewind();
+    while ((in_subq= li++))
+    {
+      in_subq->block_conversion_to_sj();
+    }
+  }
       
   li.rewind();
   /* First, convert child join's subqueries. We proceed bottom-up here */
