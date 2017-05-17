@@ -1290,8 +1290,10 @@ rec_convert_dtuple_to_rec_comp(
 			}
 		}
 
-		memcpy(end, dfield_get_data(field), len);
-		end += len;
+		if (len) {
+			memcpy(end, dfield_get_data(field), len);
+			end += len;
+		}
 	}
 }
 
