@@ -1164,8 +1164,6 @@ srv_init(void)
 		if (srv_track_changed_pages) {
 			os_event_set(srv_redo_log_tracked_event);
 		}
-
-		UT_LIST_INIT(srv_sys->tasks);
 	}
 
 	/* page_zip_stat_per_index_mutex is acquired from:

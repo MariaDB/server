@@ -1011,8 +1011,6 @@ srv_init(void)
 		srv_monitor_event = os_event_create();
 
 		srv_buf_dump_event = os_event_create();
-
-		UT_LIST_INIT(srv_sys->tasks);
 	}
 
 	/* page_zip_stat_per_index_mutex is acquired from:
