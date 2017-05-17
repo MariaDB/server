@@ -130,7 +130,7 @@ select t2.a+1 from t1,t2 where t1.a=t2.a
 select * from t1;
 show columns from v1;
 Field	Type	Null	Key	Default	Extra
-a	bigint(20)	YES		NULL	
+a	bigint(12)	YES		NULL	
 # WITH RECURSIVE : types of t1 columns are determined by anchor parts 
 create view v2 as
 with recursive

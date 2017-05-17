@@ -272,7 +272,7 @@ current phase.
 inline
 void
 ut_stage_alter_t::inc(
-	ulint	inc_val /* = 1 */)
+        ulint	inc_val __attribute__((unused)) /* = 1 */)
 {
 	if (m_progress == NULL) {
 		return;

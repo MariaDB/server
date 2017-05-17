@@ -2901,7 +2901,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` int(11) DEFAULT length(`a`),
+  `b` int(11) DEFAULT octet_length(`a`),
   `c` int(11) DEFAULT char_length(`a`),
   `d` int(11) DEFAULT bit_length(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

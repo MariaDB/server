@@ -3767,6 +3767,7 @@ SHOW_VAR com_status_vars[]= {
   {"alter_function",       STMT_STATUS(SQLCOM_ALTER_FUNCTION)},
   {"alter_procedure",      STMT_STATUS(SQLCOM_ALTER_PROCEDURE)},
   {"alter_server",         STMT_STATUS(SQLCOM_ALTER_SERVER)},
+  {"alter_sequence",       STMT_STATUS(SQLCOM_ALTER_SEQUENCE)},
   {"alter_table",          STMT_STATUS(SQLCOM_ALTER_TABLE)},
   {"alter_tablespace",     STMT_STATUS(SQLCOM_ALTER_TABLESPACE)},
   {"alter_user",           STMT_STATUS(SQLCOM_ALTER_USER)},

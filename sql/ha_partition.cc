@@ -7149,6 +7149,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_QUICK:
   case HA_EXTRA_PREPARE_FOR_DROP:
   case HA_EXTRA_FLUSH_CACHE:
+  case HA_EXTRA_PREPARE_FOR_ALTER_TABLE:
   {
     DBUG_RETURN(loop_extra(operation));
   }

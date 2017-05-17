@@ -202,7 +202,9 @@ enum ha_extra_function {
   HA_EXTRA_DETACH_CHILDREN,
   HA_EXTRA_DETACH_CHILD,
   /* Inform handler we will force a close as part of flush */
-  HA_EXTRA_PREPARE_FOR_FORCED_CLOSE
+  HA_EXTRA_PREPARE_FOR_FORCED_CLOSE,
+  /* Inform handler that we will do an alter table */
+  HA_EXTRA_PREPARE_FOR_ALTER_TABLE,
 };
 
 /* Compatible option, to be deleted in 6.0 */

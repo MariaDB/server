@@ -2294,5 +2294,18 @@ CALL p1('geometrycollection');
 DROP PROCEDURE p1;
 
 --echo #
+--echo # MDEV-12798 Item_param does not preserve exact field type in EXECUTE IMMEDIATE 'CREATE TABLE AS SELECT ?' USING POINT(1,1)
+--echo #
+EXECUTE IMMEDIATE 'CREATE TABLE t1 AS SELECT ?' USING POINT(1,1);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE OR REPLACE TABLE t1 AS SELECT ?';
+EXECUTE stmt USING POINT(1,1);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

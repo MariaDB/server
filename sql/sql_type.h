@@ -27,7 +27,9 @@
 #include "my_time.h"
 
 class Field;
+class Column_definition;
 class Item;
+class Item_param;
 class Item_cache;
 class Item_func_or_sum;
 class Item_sum_hybrid;
@@ -60,10 +62,12 @@ class Item_func_div;
 class Item_func_mod;
 class cmp_item;
 class in_vector;
+class Type_handler_hybrid_field_type;
 class Sort_param;
 class Arg_comparator;
 struct st_value;
 class Protocol;
+class handler;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 
@@ -467,6 +471,7 @@ public:
    :Type_std_attributes(other)
   { }
   virtual ~Type_all_attributes() {}
+  virtual void set_maybe_null(bool maybe_null_arg)= 0;
   // Returns total number of decimal digits
   virtual uint decimal_precision() const= 0;
   /*
@@ -476,7 +481,9 @@ public:
     datatype indepented method.
   */
   virtual uint uint_geometry_type() const= 0;
-  virtual TYPELIB *get_typelib() const { return NULL; }
+  virtual void set_geometry_type(uint type)= 0;
+  virtual TYPELIB *get_typelib() const= 0;
+  virtual void set_typelib(TYPELIB *typelib)= 0;
 };
 
 
@@ -543,6 +550,15 @@ protected:
   bool Item_send_time(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_date(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_datetime(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Column_definition_prepare_stage2_legacy(Column_definition *c,
+                                               enum_field_types type)
+                                               const;
+  bool Column_definition_prepare_stage2_legacy_num(Column_definition *c,
+                                                   enum_field_types type)
+                                                   const;
+  bool Column_definition_prepare_stage2_legacy_real(Column_definition *c,
+                                                    enum_field_types type)
+                                                    const;
 public:
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
@@ -598,6 +614,10 @@ public:
   {
     return false;
   }
+  virtual bool type_can_have_auto_increment_attribute() const
+  {
+    return false;
+  }
   /**
     Prepared statement long data:
     Check whether this parameter data type is compatible with long data.
@@ -639,6 +659,7 @@ public:
   virtual uint Item_time_precision(Item *item) const;
   virtual uint Item_datetime_precision(Item *item) const;
   virtual uint Item_decimal_scale(const Item *item) const;
+  virtual uint Item_decimal_precision(const Item *item) const= 0;
   /*
     Returns how many digits a divisor adds into a division result.
     See Item::divisor_precision_increment() in item.h for more comments.
@@ -680,6 +701,15 @@ public:
   virtual Field *make_conversion_table_field(TABLE *TABLE,
                                              uint metadata,
                                              const Field *target) const= 0;
+  virtual bool Column_definition_fix_attributes(Column_definition *c) const= 0;
+  virtual bool Column_definition_prepare_stage1(THD *thd,
+                                                MEM_ROOT *mem_root,
+                                                Column_definition *c,
+                                                handler *file,
+                                                ulonglong table_flags) const;
+  virtual bool Column_definition_prepare_stage2(Column_definition *c,
+                                                handler *file,
+                                                ulonglong table_flags) const= 0;
   virtual Field *make_table_field(const LEX_CSTRING *name,
                                   const Record_addr &addr,
                                   const Type_all_attributes &attr,
@@ -696,7 +726,12 @@ public:
                           SORT_FIELD_ATTR *attr) const= 0;
 
   virtual uint32 max_display_length(const Item *item) const= 0;
+  virtual uint32 calc_pack_length(uint32 length) const= 0;
   virtual bool Item_save_in_value(Item *item, st_value *value) const= 0;
+  virtual bool Item_param_set_from_value(THD *thd,
+                                         Item_param *param,
+                                         const Type_all_attributes *attr,
+                                         const st_value *value) const= 0;
   virtual bool Item_send(Item *item, Protocol *p, st_value *buf) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
@@ -768,7 +803,10 @@ public:
                                                const Item *cmp) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
-  virtual bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  virtual bool Item_hybrid_func_fix_attributes(THD *thd,
+                                               const char *name,
+                                               Type_handler_hybrid_field_type *,
+                                               Type_all_attributes *atrr,
                                                Item **items,
                                                uint nitems) const= 0;
   virtual bool Item_func_min_max_fix_attributes(THD *thd,
@@ -911,6 +949,27 @@ public:
     DBUG_ASSERT(0);
     return NULL;
   }
+  bool Column_definition_fix_attributes(Column_definition *c) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -935,7 +994,21 @@ public:
     DBUG_ASSERT(0);
     return 0;
   }
+  uint32 calc_pack_length(uint32 length) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  uint Item_decimal_precision(const Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return DECIMAL_MAX_PRECISION;
+  }
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     DBUG_ASSERT(0);
@@ -958,7 +1031,10 @@ public:
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const
   {
     DBUG_ASSERT(0);
@@ -1156,12 +1232,20 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
                                         Item **items, uint nitems) const;
@@ -1217,7 +1301,12 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
+  uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_str(item, protocol, buf);
@@ -1226,7 +1315,10 @@ public:
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
@@ -1278,12 +1370,20 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
@@ -1320,6 +1420,13 @@ public:
 };
 
 
+class Type_handler_general_purpose_int: public Type_handler_int_result
+{
+public:
+  bool type_can_have_auto_increment_attribute() const { return true; }
+};
+
+
 class Type_handler_temporal_result: public Type_handler
 {
 protected:
@@ -1334,6 +1441,10 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   uint32 max_display_length(const Item *item) const;
   bool can_change_cond_ref_to_const(Item_bool_func2 *target,
                                    Item *target_expr, Item *target_value,
@@ -1399,6 +1510,11 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
   uint32 max_display_length(const Item *item) const;
   uint Item_time_precision(Item *item) const
   {
@@ -1408,7 +1524,12 @@ public:
   {
     return Item_temporal_precision(item, false);
   }
+  uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_str(item, protocol, buf);
@@ -1427,7 +1548,10 @@ public:
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
@@ -1491,7 +1615,7 @@ public:
 */
 
 
-class Type_handler_tiny: public Type_handler_int_result
+class Type_handler_tiny: public Type_handler_general_purpose_int
 {
   static const Name m_name_tiny;
 public:
@@ -1499,12 +1623,18 @@ public:
   const Name name() const { return m_name_tiny; }
   enum_field_types field_type() const { return MYSQL_TYPE_TINY; }
   uint32 max_display_length(const Item *item) const { return 4; }
+  uint32 calc_pack_length(uint32 length) const { return 1; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_tiny(item, protocol, buf);
   }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_TINY); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1512,7 +1642,7 @@ public:
 };
 
 
-class Type_handler_short: public Type_handler_int_result
+class Type_handler_short: public Type_handler_general_purpose_int
 {
   static const Name m_name_short;
 public:
@@ -1524,8 +1654,14 @@ public:
     return Item_send_short(item, protocol, buf);
   }
   uint32 max_display_length(const Item *item) const { return 6; }
+  uint32 calc_pack_length(uint32 length) const { return 2; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_SHORT); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1533,7 +1669,7 @@ public:
 };
 
 
-class Type_handler_long: public Type_handler_int_result
+class Type_handler_long: public Type_handler_general_purpose_int
 {
   static const Name m_name_int;
 public:
@@ -1544,12 +1680,18 @@ public:
   {
     return MY_INT32_NUM_DECIMAL_DIGITS;
   }
+  uint32 calc_pack_length(uint32 length) const { return 4; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_long(item, protocol, buf);
   }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_LONG); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1557,7 +1699,7 @@ public:
 };
 
 
-class Type_handler_longlong: public Type_handler_int_result
+class Type_handler_longlong: public Type_handler_general_purpose_int
 {
   static const Name m_name_longlong;
 public:
@@ -1565,12 +1707,20 @@ public:
   const Name name() const { return m_name_longlong; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   uint32 max_display_length(const Item *item) const { return 20; }
+  uint32 calc_pack_length(uint32 length) const { return 8; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_longlong(item, protocol, buf);
   }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  {
+    return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_LONGLONG);
+  }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1578,7 +1728,7 @@ public:
 };
 
 
-class Type_handler_int24: public Type_handler_int_result
+class Type_handler_int24: public Type_handler_general_purpose_int
 {
   static const Name m_name_mediumint;
 public:
@@ -1590,8 +1740,14 @@ public:
     return Item_send_long(item, protocol, buf);
   }
   uint32 max_display_length(const Item *item) const { return 8; }
+  uint32 calc_pack_length(uint32 length) const { return 3; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_INT24); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1607,12 +1763,18 @@ public:
   const Name name() const { return m_name_year; }
   enum_field_types field_type() const { return MYSQL_TYPE_YEAR; }
   uint32 max_display_length(const Item *item) const;
+  uint32 calc_pack_length(uint32 length) const { return 1; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_short(item, protocol, buf);
   }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_YEAR); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1628,6 +1790,7 @@ public:
   const Name name() const { return m_name_bit; }
   enum_field_types field_type() const { return MYSQL_TYPE_BIT; }
   uint32 max_display_length(const Item *item) const;
+  uint32 calc_pack_length(uint32 length) const { return length / 8; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_str(item, protocol, buf);
@@ -1638,6 +1801,15 @@ public:
   }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1652,7 +1824,9 @@ public:
   virtual ~Type_handler_float() {}
   const Name name() const { return m_name_float; }
   enum_field_types field_type() const { return MYSQL_TYPE_FLOAT; }
+  bool type_can_have_auto_increment_attribute() const { return true; }
   uint32 max_display_length(const Item *item) const { return 25; }
+  uint32 calc_pack_length(uint32 length) const { return sizeof(float); }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_float(item, protocol, buf);
@@ -1660,6 +1834,11 @@ public:
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy_real(c, MYSQL_TYPE_FLOAT); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1674,13 +1853,20 @@ public:
   virtual ~Type_handler_double() {}
   const Name name() const { return m_name_double; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  bool type_can_have_auto_increment_attribute() const { return true; }
   uint32 max_display_length(const Item *item) const { return 53; }
+  uint32 calc_pack_length(uint32 length) const { return sizeof(double); }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_double(item, protocol, buf);
   }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy_real(c, MYSQL_TYPE_DOUBLE); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1703,11 +1889,13 @@ public:
   {
     return Item_decimal_scale_with_seconds(item);
   }
+  uint Item_decimal_precision(const Item *item) const;
   uint Item_divisor_precision_increment(const Item *item) const
   {
     return Item_divisor_precision_increment_with_seconds(item);
   }
   const Type_handler *type_handler_for_comparison() const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -1715,7 +1903,10 @@ public:
   }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -1726,10 +1917,18 @@ public:
 
 class Type_handler_time: public Type_handler_time_common
 {
+  /* number of bytes to store TIME(N) */
+  static uint m_hires_bytes[MAX_DATETIME_PRECISION+1];
 public:
+  static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
   virtual ~Type_handler_time() {}
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy(c, MYSQL_TYPE_TIME); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1742,8 +1941,13 @@ class Type_handler_time2: public Type_handler_time_common
 public:
   virtual ~Type_handler_time2() {}
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIME2; }
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy(c, MYSQL_TYPE_TIME2); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1780,8 +1984,13 @@ public:
   {
     return MYSQL_TIMESTAMP_DATE;
   }
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  uint Item_decimal_precision(const Item *item) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
 };
 
@@ -1789,8 +1998,13 @@ class Type_handler_date: public Type_handler_date_common
 {
 public:
   virtual ~Type_handler_date() {}
+  uint32 calc_pack_length(uint32 length) const { return 4; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy(c, MYSQL_TYPE_DATE); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1803,8 +2017,13 @@ class Type_handler_newdate: public Type_handler_date_common
 public:
   virtual ~Type_handler_newdate() {}
   enum_field_types real_field_type() const { return MYSQL_TYPE_NEWDATE; }
+  uint32 calc_pack_length(uint32 length) const { return 3; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy(c, MYSQL_TYPE_NEWDATE); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1824,10 +2043,12 @@ public:
   {
     return MYSQL_TIMESTAMP_DATETIME;
   }
+  bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_scale(const Item *item) const
   {
     return Item_decimal_scale_with_seconds(item);
   }
+  uint Item_decimal_precision(const Item *item) const;
   uint Item_divisor_precision_increment(const Item *item) const
   {
     return Item_divisor_precision_increment_with_seconds(item);
@@ -1837,17 +2058,28 @@ public:
     return Item_send_datetime(item, protocol, buf);
   }
   String *print_item_value(THD *thd, Item *item, String *str) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
 };
 
 
 class Type_handler_datetime: public Type_handler_datetime_common
 {
+  /* number of bytes to store DATETIME(N) */
+  static uint m_hires_bytes[MAX_DATETIME_PRECISION + 1];
 public:
+  static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
   virtual ~Type_handler_datetime() {}
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy(c, MYSQL_TYPE_DATETIME); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1860,8 +2092,13 @@ class Type_handler_datetime2: public Type_handler_datetime_common
 public:
   virtual ~Type_handler_datetime2() {}
   enum_field_types real_field_type() const { return MYSQL_TYPE_DATETIME2; }
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy(c, MYSQL_TYPE_DATETIME2); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1885,10 +2122,12 @@ public:
   {
     return true;
   }
+  bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_scale(const Item *item) const
   {
     return Item_decimal_scale_with_seconds(item);
   }
+  uint Item_decimal_precision(const Item *item) const;
   uint Item_divisor_precision_increment(const Item *item) const
   {
     return Item_divisor_precision_increment_with_seconds(item);
@@ -1898,17 +2137,28 @@ public:
     return Item_send_datetime(item, protocol, buf);
   }
   String *print_item_value(THD *thd, Item *item, String *str) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
 };
 
 
 class Type_handler_timestamp: public Type_handler_timestamp_common
 {
+  /* number of bytes to store second_part part of the TIMESTAMP(N) */
+  static uint m_sec_part_bytes[MAX_DATETIME_PRECISION + 1];
 public:
+  static uint sec_part_bytes(uint dec) { return m_sec_part_bytes[dec]; }
   virtual ~Type_handler_timestamp() {}
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_TIMESTAMP); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1921,8 +2171,15 @@ class Type_handler_timestamp2: public Type_handler_timestamp_common
 public:
   virtual ~Type_handler_timestamp2() {}
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIMESTAMP2; }
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  {
+    return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_TIMESTAMP2);
+  }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1937,10 +2194,16 @@ public:
   virtual ~Type_handler_olddecimal() {}
   const Name name() const { return m_name_decimal; }
   enum_field_types field_type() const { return MYSQL_TYPE_DECIMAL; }
+  uint32 calc_pack_length(uint32 length) const { return length; }
   const Type_handler *type_handler_for_tmp_table(const Item *item) const;
   const Type_handler *type_handler_for_union(const Item *item) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_DECIMAL); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1955,8 +2218,18 @@ public:
   virtual ~Type_handler_newdecimal() {}
   const Name name() const { return m_name_decimal; }
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -1975,10 +2248,21 @@ public:
   const Type_handler *type_handler_for_tmp_table(const Item *item) const;
   const Type_handler *type_handler_for_union(const Item *) const;
   uint32 max_display_length(const Item *item) const { return 0; }
+  uint32 calc_pack_length(uint32 length) const { return 0; }
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy(c, MYSQL_TYPE_NULL); }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -2004,12 +2288,17 @@ public:
   const Name name() const { return m_name_char; }
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   bool is_param_long_data_type() const { return true; }
+  uint32 calc_pack_length(uint32 length) const { return length; }
   const Type_handler *type_handler_for_tmp_table(const Item *item) const
   {
     return varstring_type_handler(item);
   }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -2030,6 +2319,11 @@ public:
   {
     return varstring_type_handler(item);
   }
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const
+  { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_STRING); }
   const Type_handler *type_handler_for_union(const Item *item) const
   {
     return varstring_type_handler(item);
@@ -2044,6 +2338,10 @@ public:
   virtual ~Type_handler_varchar() {}
   const Name name() const { return m_name_varchar; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  uint32 calc_pack_length(uint32 length) const
+  {
+    return (length + (length < 256 ? 1: 2));
+  }
   const Type_handler *type_handler_for_tmp_table(const Item *item) const
   {
     return varstring_type_handler(item);
@@ -2055,6 +2353,10 @@ public:
   bool is_param_long_data_type() const { return true; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -2080,7 +2382,14 @@ public:
     return false; // Materialization does not work with BLOB columns
   }
   bool is_param_long_data_type() const { return true; }
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
 };
 
@@ -2092,6 +2401,7 @@ public:
   virtual ~Type_handler_tiny_blob() {}
   const Name name() const { return m_name_tinyblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_TINY_BLOB; }
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -2108,6 +2418,7 @@ public:
   virtual ~Type_handler_medium_blob() {}
   const Name name() const { return m_name_mediumblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_MEDIUM_BLOB; }
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -2124,6 +2435,7 @@ public:
   virtual ~Type_handler_long_blob() {}
   const Name name() const { return m_name_longblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONG_BLOB; }
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -2140,6 +2452,7 @@ public:
   virtual ~Type_handler_blob() {}
   const Name name() const { return m_name_blob; }
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -2158,6 +2471,7 @@ public:
   const Name name() const { return m_name_geometry; }
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
   bool is_param_long_data_type() const { return true; }
+  uint32 calc_pack_length(uint32 length) const;
   const Type_handler *type_handler_for_comparison() const;
   bool type_can_have_key_part() const
   {
@@ -2168,8 +2482,21 @@ public:
   {
     return false; // Materialization does not work with GEOMETRY columns
   }
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -2183,7 +2510,10 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
-  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *h,
+                                       Type_all_attributes *attr,
                                        Item **items, uint nitems) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
@@ -2203,18 +2533,40 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_geometry type_handler_geometry;
 #endif
 
 
-class Type_handler_enum: public Type_handler_string_result
+class Type_handler_typelib: public Type_handler_string_result
+{
+public:
+  virtual ~Type_handler_typelib() { }
+  enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
+  const Type_handler *type_handler_for_item_field() const;
+  const Type_handler *cast_to_int_type_handler() const;
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
+                                       Item **items, uint nitems) const;
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
+};
+
+
+class Type_handler_enum: public Type_handler_typelib
 {
   static const Name m_name_enum;
 public:
   virtual ~Type_handler_enum() {}
   const Name name() const { return m_name_enum; }
-  enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
-  const Type_handler *type_handler_for_item_field() const;
-  const Type_handler *cast_to_int_type_handler() const;
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -2222,18 +2574,20 @@ public:
 };
 
 
-class Type_handler_set: public Type_handler_string_result
+class Type_handler_set: public Type_handler_typelib
 {
   static const Name m_name_set;
 public:
   virtual ~Type_handler_set() {}
   const Name name() const { return m_name_set; }
-  enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
-  const Type_handler *type_handler_for_item_field() const;
-  const Type_handler *cast_to_int_type_handler() const;
+  uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool Column_definition_fix_attributes(Column_definition *c) const;
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,

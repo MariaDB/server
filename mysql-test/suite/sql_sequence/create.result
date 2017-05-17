@@ -186,6 +186,8 @@ create sequence t1 start with 10 maxvalue=9223372036854775807;
 ERROR HY000: Sequence 'test.t1' values are conflicting
 create sequence t1 start with 10 minvalue=-9223372036854775808;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '9223372036854775808' at line 1
+create sequence t1 RESTART WITH 10;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RESTART' at line 1
 create or replace sequence t1 start with 10 NO MINVALUE minvalue=1;
 drop sequence t1;
 create sequence t1;

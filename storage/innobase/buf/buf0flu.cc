@@ -1873,7 +1873,7 @@ buf_flush_batch(
 
 	buf_pool_mutex_enter(buf_pool);
 
-	ulint	count = 0;
+	ulint	count __attribute__((unused))= 0;
 
 	/* Note: The buffer pool mutex is released and reacquired within
 	the flush functions. */

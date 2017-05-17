@@ -29,6 +29,7 @@
 #include <mysql_com.h>                  /* USERNAME_LENGTH */
 
 struct TABLE;
+class Type_handler;
 class Field;
 class Index_statistics;
 
@@ -581,27 +582,27 @@ public:
 struct Lex_field_type_st: public Lex_length_and_dec_st
 {
 private:
-  enum_field_types m_type;
-  void set(enum_field_types type, const char *length, const char *dec)
+  const Type_handler *m_handler;
+  void set(const Type_handler *handler, const char *length, const char *dec)
   {
-    m_type= type;
+    m_handler= handler;
     Lex_length_and_dec_st::set(length, dec);
   }
 public:
-  void set(enum_field_types type, Lex_length_and_dec_st length_and_dec)
+  void set(const Type_handler *handler, Lex_length_and_dec_st length_and_dec)
   {
-    m_type= type;
+    m_handler= handler;
     Lex_length_and_dec_st::operator=(length_and_dec);
   }
-  void set(enum_field_types type, const char *length)
+  void set(const Type_handler *handler, const char *length)
   {
-    set(type, length, 0);
+    set(handler, length, 0);
   }
-  void set(enum_field_types type)
+  void set(const Type_handler *handler)
   {
-    set(type, 0, 0);
+    set(handler, 0, 0);
   }
-  enum_field_types field_type() const { return m_type; }
+  const Type_handler *type_handler() const { return m_handler; }
 };
 
 

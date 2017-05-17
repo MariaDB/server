@@ -517,6 +517,19 @@ protected:
 };
 
 
+class Create_func_chr : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_chr s_singleton;
+
+protected:
+  Create_func_chr() {}
+  virtual ~Create_func_chr() {}
+};
+
+
 class Create_func_convexhull : public Create_func_arg1
 {
 public:
@@ -2153,6 +2166,18 @@ protected:
   virtual ~Create_func_length() {}
 };
 
+class Create_func_octet_length : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_octet_length s_singleton;
+
+protected:
+  Create_func_octet_length() {}
+  virtual ~Create_func_octet_length() {}
+};
+
 
 #ifndef DBUG_OFF
 class Create_func_like_range_min : public Create_func_arg2
@@ -3785,6 +3810,16 @@ Item*
 Create_func_centroid::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_centroid(thd, arg1);
+}
+
+
+Create_func_chr Create_func_chr::s_singleton;
+
+Item*
+Create_func_chr::create_1_arg(THD *thd, Item *arg1)
+{
+  CHARSET_INFO *cs_db= thd->variables.collation_database;
+  return new (thd->mem_root) Item_func_chr(thd, arg1, cs_db);
 }
 
 
@@ -5649,7 +5684,20 @@ Create_func_length Create_func_length::s_singleton;
 Item*
 Create_func_length::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_length(thd, arg1);
+#if 0 // Not yet
+  if (thd->variables.sql_mode & MODE_ORACLE)
+    return new (thd->mem_root) Item_func_char_length(thd, arg1);
+  else
+#endif
+    return new (thd->mem_root) Item_func_octet_length(thd, arg1);
+}
+
+Create_func_octet_length Create_func_octet_length::s_singleton;
+
+Item*
+Create_func_octet_length::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_octet_length(thd, arg1);
 }
 
 
@@ -6831,6 +6879,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("CONV") }, BUILDER(Create_func_conv)},
   { { C_STRING_WITH_LEN("CONVERT_TZ") }, BUILDER(Create_func_convert_tz)},
   { { C_STRING_WITH_LEN("CONVEXHULL") }, GEOM_BUILDER(Create_func_convexhull)},
+  { { C_STRING_WITH_LEN("CHR") }, BUILDER(Create_func_chr)},
   { { C_STRING_WITH_LEN("COS") }, BUILDER(Create_func_cos)},
   { { C_STRING_WITH_LEN("COT") }, BUILDER(Create_func_cot)},
   { { C_STRING_WITH_LEN("CRC32") }, BUILDER(Create_func_crc32)},
@@ -6981,7 +7030,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("NUMINTERIORRINGS") }, GEOM_BUILDER(Create_func_numinteriorring)},
   { { C_STRING_WITH_LEN("NUMPOINTS") }, GEOM_BUILDER(Create_func_numpoints)},
   { { C_STRING_WITH_LEN("OCT") }, BUILDER(Create_func_oct)},
-  { { C_STRING_WITH_LEN("OCTET_LENGTH") }, BUILDER(Create_func_length)},
+  { { C_STRING_WITH_LEN("OCTET_LENGTH") }, BUILDER(Create_func_octet_length)},
   { { C_STRING_WITH_LEN("ORD") }, BUILDER(Create_func_ord)},
   { { C_STRING_WITH_LEN("OVERLAPS") }, GEOM_BUILDER(Create_func_mbr_overlaps)},
   { { C_STRING_WITH_LEN("PERIOD_ADD") }, BUILDER(Create_func_period_add)},

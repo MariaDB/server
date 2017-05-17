@@ -98,6 +98,7 @@ enum enum_sql_command {
   SQLCOM_EXECUTE_IMMEDIATE,
   SQLCOM_CREATE_SEQUENCE,
   SQLCOM_DROP_SEQUENCE,
+  SQLCOM_ALTER_SEQUENCE,
 
   /*
     When a command is added here, be sure it's also added in mysqld.cc

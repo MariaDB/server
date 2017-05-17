@@ -1044,6 +1044,7 @@ protected:
   }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
+  TYPELIB *get_typelib() const { return args[0]->get_typelib(); }
   void update_field();
   void min_max_update_str_field();
   void min_max_update_real_field();

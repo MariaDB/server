@@ -3037,7 +3037,7 @@ EXPLAIN EXTENDED SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where `test`.`t1`.`a` = 'a'
+Note	1003	select `test`.`t1`.`a` AS `a`,octet_length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 DROP TABLE t1;
 #
 # End of MDEV-8694
@@ -3070,7 +3070,7 @@ EXPLAIN EXTENDED SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)`,crc32(`test`.`t1`.`a`) AS `CRC32(a)` from `test`.`t1` where `test`.`t1`.`a` = 'a'
+Note	1003	select `test`.`t1`.`a` AS `a`,octet_length(`test`.`t1`.`a`) AS `LENGTH(a)`,crc32(`test`.`t1`.`a`) AS `CRC32(a)` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 SELECT a, HEX(a) FROM t1 WHERE HEX(a)='61';
 a	HEX(a)
 a	61

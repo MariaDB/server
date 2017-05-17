@@ -5407,13 +5407,8 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
   spcont->declare_var_boundary(1);
   spvar->field_def.field_name= spvar->name;
   spvar->field_def.set_handler(&type_handler_longlong);
-  /*
-    The below is a simplified version of what
-    Column_definition::prepare_create_field() does for a LONGLONG field.
-  */
-  spvar->field_def.pack_flag= (FIELDFLAG_NUMBER |
-                               f_settype((uint) MYSQL_TYPE_LONGLONG));
-
+  type_handler_longlong.Column_definition_prepare_stage2(&spvar->field_def,
+                                                         NULL, HA_CAN_GEOMETRY);
   if (!value && !(value= new (thd->mem_root) Item_null(thd)))
     return NULL;
 
@@ -6404,7 +6399,6 @@ Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
                                                  MDL_SHARED_WRITE)))
     return NULL;
   return new (thd->mem_root) Item_func_nextval(thd, table);
-
 }
 
 
@@ -6439,6 +6433,21 @@ Item *LEX::create_item_func_lastval(THD *thd,
   if (!(table_ident= new (thd->mem_root) Table_ident(thd, db, name, false)))
     return NULL;
   return create_item_func_lastval(thd, table_ident);
+}
+
+
+Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
+                                   longlong nextval, ulonglong round,
+                                   bool is_used)
+{
+  TABLE_LIST *table;
+  if (!(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                 TL_OPTION_SEQUENCE,
+                                                 TL_WRITE_ALLOW_WRITE,
+                                                 MDL_SHARED_WRITE)))
+    return NULL;
+  return new (thd->mem_root) Item_func_setval(thd, table, nextval, round,
+                                              is_used);
 }
 
 

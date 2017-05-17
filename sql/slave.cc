@@ -3728,8 +3728,7 @@ int
 apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
                                         rpl_group_info *rgi)
 {
-  Relay_log_info* rli= rgi->rli;
-  mysql_mutex_assert_not_owner(&rli->data_lock);
+  mysql_mutex_assert_not_owner(&rgi->rli->data_lock);
   int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
   /*
     In parallel replication, sql_slave_skip_counter is handled in the SQL

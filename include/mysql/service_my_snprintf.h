@@ -96,7 +96,7 @@ extern struct my_snprintf_service_st {
 #define ATTRIBUTE_FORMAT_DEFINED
 #define ATTRIBUTE_FORMAT(A,B,C)
 #endif
-#ifdef MYSQL_ABI_CHECK
+#if defined(MYSQL_ABI_CHECK) || defined(USING_MARIADB_SNPRINTF_EXTENSIONS)
 #undef ATTRIBUTE_FORMAT
 #define ATTRIBUTE_FORMAT(A,B,C)
 #endif

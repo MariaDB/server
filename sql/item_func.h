@@ -398,6 +398,10 @@ public:
   { return Type_handler_hybrid_field_type::type_handler(); }
   Field::geometry_type get_geometry_type() const
   { return Type_geometry_attributes::get_geometry_type(); };
+  void set_geometry_type(uint type)
+  {
+    Type_geometry_attributes::set_geometry_type(type);
+  }
 };
 
 
@@ -1548,24 +1552,24 @@ public:
 };
 
 
-class Item_func_length :public Item_int_func
+class Item_func_octet_length :public Item_int_func
 {
   String value;
 public:
-  Item_func_length(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_octet_length(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "length"; }
+  const char *func_name() const { return "octet_length"; }
   void fix_length_and_dec() { max_length=10; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_length>(thd, mem_root, this); }
+  { return get_item_copy<Item_func_octet_length>(thd, mem_root, this); }
 };
 
-class Item_func_bit_length :public Item_func_length
+class Item_func_bit_length :public Item_func_octet_length
 {
 public:
-  Item_func_bit_length(THD *thd, Item *a): Item_func_length(thd, a) {}
+  Item_func_bit_length(THD *thd, Item *a): Item_func_octet_length(thd, a) {}
   longlong val_int()
-    { DBUG_ASSERT(fixed == 1); return Item_func_length::val_int()*8; }
+    { DBUG_ASSERT(fixed == 1); return Item_func_octet_length::val_int()*8; }
   const char *func_name() const { return "bit_length"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_bit_length>(thd, mem_root, this); }
@@ -2863,6 +2867,7 @@ public:
   }
 };
 
+
 /* Implementation for sequences: LASTVAL(sequence), PostgreSQL style */
 
 class Item_func_lastval :public Item_func_nextval
@@ -2874,6 +2879,27 @@ public:
   const char *func_name() const { return "lastval"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_lastval>(thd, mem_root, this); }
+};
+
+
+/* Implementation for sequences: SETVAL(sequence), PostgreSQL style */
+
+class Item_func_setval :public Item_func_nextval
+{
+  longlong nextval;
+  ulonglong round;
+  bool is_used;
+public:
+  Item_func_setval(THD *thd, TABLE_LIST *table, longlong nextval_arg,
+                   ulonglong round_arg, bool is_used_arg)
+    : Item_func_nextval(thd, table),
+    nextval(nextval_arg), round(round_arg), is_used(is_used_arg)
+  {}
+  longlong val_int();
+  const char *func_name() const { return "setval"; }
+  void print(String *str, enum_query_type query_type);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_setval>(thd, mem_root, this); }
 };
 
 

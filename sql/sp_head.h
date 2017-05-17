@@ -626,7 +626,8 @@ public:
   */
   bool fill_field_definition(THD *thd, Column_definition *field_def)
   {
-    return field_def->check(thd) ||
+    const Type_handler *h= field_def->type_handler();
+    return h->Column_definition_fix_attributes(field_def) ||
            field_def->sp_prepare_create_field(thd, mem_root);
   }
   bool row_fill_field_definitions(THD *thd, Row_definition_list *row)

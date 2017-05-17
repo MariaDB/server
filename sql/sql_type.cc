@@ -380,6 +380,20 @@ Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
 
 
 /***************************************************************************/
+
+/* number of bytes to store second_part part of the TIMESTAMP(N) */
+uint Type_handler_timestamp::m_sec_part_bytes[MAX_DATETIME_PRECISION + 1]=
+     { 0, 1, 1, 2, 2, 3, 3 };
+
+/* number of bytes to store DATETIME(N) */
+uint Type_handler_datetime::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
+     { 5, 6, 6, 7, 7, 7, 8 };
+
+/* number of bytes to store TIME(N) */
+uint Type_handler_time::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
+     { 3, 4, 4, 5, 5, 5, 6 };
+
+/***************************************************************************/
 const Name Type_handler_row::m_name_row(C_STRING_WITH_LEN("row"));
 
 const Name Type_handler_null::m_name_null(C_STRING_WITH_LEN("null"));
@@ -482,28 +496,17 @@ const Type_handler *Type_handler_row::type_handler_for_comparison() const
 
 /***************************************************************************/
 
-const Type_handler *Type_handler_enum::type_handler_for_item_field() const
+const Type_handler *Type_handler_typelib::type_handler_for_item_field() const
 {
   return &type_handler_string;
 }
 
 
-const Type_handler *Type_handler_enum::cast_to_int_type_handler() const
+const Type_handler *Type_handler_typelib::cast_to_int_type_handler() const
 {
   return &type_handler_longlong;
 }
 
-
-const Type_handler *Type_handler_set::type_handler_for_item_field() const
-{
-  return &type_handler_string;
-}
-
-
-const Type_handler *Type_handler_set::cast_to_int_type_handler() const
-{
-  return &type_handler_longlong;
-}
 
 /***************************************************************************/
 
@@ -1392,6 +1395,452 @@ Field *Type_handler_set::make_conversion_table_field(TABLE *table,
 }
 
 /*************************************************************************/
+bool Type_handler_null::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return false;
+}
+
+bool Type_handler_tiny::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_int(MAX_TINYINT_WIDTH + def->sign_length());
+}
+
+bool Type_handler_short::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_int(MAX_SMALLINT_WIDTH + def->sign_length());
+}
+
+bool Type_handler_int24::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_int(MAX_MEDIUMINT_WIDTH + def->sign_length());
+}
+
+bool Type_handler_long::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_int(MAX_INT_WIDTH + def->sign_length());
+}
+
+bool Type_handler_longlong::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_int(MAX_BIGINT_WIDTH/*no sign_length() added*/);
+}
+
+bool Type_handler_newdecimal::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_decimal();
+}
+
+bool Type_handler_olddecimal::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  DBUG_ASSERT(0); // Obsolete
+  return true;
+}
+
+bool Type_handler_var_string::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  DBUG_ASSERT(0); // Obsolete
+  return true;
+}
+
+bool Type_handler_varchar::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  /*
+    Long VARCHAR's are automaticly converted to blobs in mysql_prepare_table
+    if they don't have a default value
+  */
+  return def->check_length(ER_TOO_BIG_DISPLAYWIDTH, MAX_FIELD_BLOBLENGTH);
+}
+
+bool Type_handler_string::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->check_length(ER_TOO_BIG_FIELDLENGTH, MAX_FIELD_CHARLENGTH);
+}
+
+bool Type_handler_blob_common::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  def->flags|= BLOB_FLAG;
+  return def->check_length(ER_TOO_BIG_DISPLAYWIDTH, MAX_FIELD_BLOBLENGTH);
+}
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  def->flags|= BLOB_FLAG;
+  return false;
+}
+#endif
+
+bool Type_handler_year::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  if (!def->length || def->length != 2)
+    def->length= 4; // Default length
+  def->flags|= ZEROFILL_FLAG | UNSIGNED_FLAG;
+  return false;
+}
+
+bool Type_handler_float::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_real(MAX_FLOAT_STR_LENGTH);
+}
+
+
+bool Type_handler_double::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_real(DBL_DIG + 7);
+}
+
+bool Type_handler_timestamp_common::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  def->flags|= UNSIGNED_FLAG;
+  return def->fix_attributes_temporal_with_time(MAX_DATETIME_WIDTH);
+}
+
+bool Type_handler_date_common::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  // We don't support creation of MYSQL_TYPE_DATE anymore
+  def->set_handler(&type_handler_newdate);
+  def->length= MAX_DATE_WIDTH;
+  return false;
+}
+
+bool Type_handler_time_common::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_temporal_with_time(MIN_TIME_WIDTH);
+}
+
+bool Type_handler_datetime_common::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_temporal_with_time(MAX_DATETIME_WIDTH);
+}
+
+bool Type_handler_set::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  def->pack_length= get_set_pack_length(def->interval_list.elements);
+  return false;
+}
+
+bool Type_handler_enum::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  def->pack_length= get_enum_pack_length(def->interval_list.elements);
+  return false;
+}
+
+bool Type_handler_bit::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  return def->fix_attributes_bit();
+}
+
+/*************************************************************************/
+
+bool Type_handler::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->create_length_to_internal_length_simple();
+  return false;
+}
+
+bool Type_handler_null::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->create_length_to_internal_length_null();
+  return false;
+}
+
+bool Type_handler_newdecimal::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->create_length_to_internal_length_newdecimal();
+  return false;
+}
+
+bool Type_handler_bit::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  return def->prepare_stage1_bit(thd, mem_root, file, table_flags);
+}
+
+bool Type_handler_typelib::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  return def->prepare_stage1_typelib(thd, mem_root, file, table_flags);
+}
+
+
+bool Type_handler_string_result::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  return def->prepare_stage1_string(thd, mem_root, file, table_flags);
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->create_length_to_internal_length_string();
+  return def->prepare_blob_field(thd);
+}
+#endif
+
+
+/*************************************************************************/
+
+bool Type_handler::
+       Column_definition_prepare_stage2_legacy(Column_definition *def,
+                                               enum_field_types type) const
+{
+  def->pack_flag= f_settype((uint) type);
+  return false;
+}
+
+bool Type_handler::
+       Column_definition_prepare_stage2_legacy_num(Column_definition *def,
+                                                   enum_field_types type) const
+{
+  def->pack_flag= def->pack_flag_numeric(def->decimals) |
+                  f_settype((uint) type);
+  return false;
+}
+
+bool Type_handler::
+       Column_definition_prepare_stage2_legacy_real(Column_definition *def,
+                                                    enum_field_types type) const
+{
+  uint dec= def->decimals;
+  /*
+    User specified FLOAT() or DOUBLE() without precision. Change to
+    FLOATING_POINT_DECIMALS to keep things compatible with earlier MariaDB
+    versions.
+  */
+  if (dec >= FLOATING_POINT_DECIMALS)
+    dec= FLOATING_POINT_DECIMALS;
+  def->pack_flag= def->pack_flag_numeric(dec) | f_settype((uint) type);
+  return false;
+}
+
+bool Type_handler_newdecimal::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->pack_flag= def->pack_flag_numeric(def->decimals);
+  return false;
+}
+
+bool Type_handler_blob_common::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  return def->prepare_stage2_blob(file, table_flags, FIELDFLAG_BLOB);
+}
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  if (!(table_flags & HA_CAN_GEOMETRY))
+  {
+    my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), "GEOMETRY");
+    return true;
+  }
+  return def->prepare_stage2_blob(file, table_flags, FIELDFLAG_GEOM);
+}
+#endif
+
+bool Type_handler_varchar::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  return def->prepare_stage2_varchar(table_flags);
+}
+
+bool Type_handler_string::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->pack_flag= (def->charset->state & MY_CS_BINSORT) ? FIELDFLAG_BINARY : 0;
+  return false;
+}
+
+bool Type_handler_enum::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  uint dummy;
+  return def->prepare_stage2_typelib("ENUM", FIELDFLAG_INTERVAL, &dummy);
+}
+
+bool Type_handler_set::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  uint dup_count;
+  if (def->prepare_stage2_typelib("SET", FIELDFLAG_BITFIELD, &dup_count))
+    return true;
+  /* Check that count of unique members is not more then 64 */
+  if (def->interval->count - dup_count > sizeof(longlong)*8)
+  {
+     my_error(ER_TOO_BIG_SET, MYF(0), def->field_name.str);
+     return true;
+  }
+  return false;
+}
+
+bool Type_handler_bit::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  /* 
+    We have sql_field->pack_flag already set here, see
+    mysql_prepare_create_table().
+  */
+  return false;
+}
+
+/*************************************************************************/
+
+uint32 Type_handler_time::calc_pack_length(uint32 length) const
+{
+  return length > MIN_TIME_WIDTH ?
+         hires_bytes(length - 1 - MIN_TIME_WIDTH) : 3;
+}
+
+uint32 Type_handler_time2::calc_pack_length(uint32 length) const
+{
+  return length > MIN_TIME_WIDTH ?
+         my_time_binary_length(length - MIN_TIME_WIDTH - 1) : 3;
+}
+
+uint32 Type_handler_timestamp::calc_pack_length(uint32 length) const
+{
+  return length > MAX_DATETIME_WIDTH ?
+         4 + sec_part_bytes(length - 1 - MAX_DATETIME_WIDTH) : 4;
+}
+
+uint32 Type_handler_timestamp2::calc_pack_length(uint32 length) const
+{
+  return length > MAX_DATETIME_WIDTH ?
+         my_timestamp_binary_length(length - MAX_DATETIME_WIDTH - 1) : 4;
+}
+
+uint32 Type_handler_datetime::calc_pack_length(uint32 length) const
+{
+  return length > MAX_DATETIME_WIDTH ?
+         hires_bytes(length - 1 - MAX_DATETIME_WIDTH) : 8;
+}
+
+uint32 Type_handler_datetime2::calc_pack_length(uint32 length) const
+{
+  return length > MAX_DATETIME_WIDTH ?
+         my_datetime_binary_length(length - MAX_DATETIME_WIDTH - 1) : 5;
+}
+
+uint32 Type_handler_tiny_blob::calc_pack_length(uint32 length) const
+{
+  return 1 + portable_sizeof_char_ptr;
+}
+
+uint32 Type_handler_blob::calc_pack_length(uint32 length) const
+{
+  return 2 + portable_sizeof_char_ptr;
+}
+
+uint32 Type_handler_medium_blob::calc_pack_length(uint32 length) const
+{
+  return 3 + portable_sizeof_char_ptr;
+}
+
+uint32 Type_handler_long_blob::calc_pack_length(uint32 length) const
+{
+  return 4 + portable_sizeof_char_ptr;
+}
+
+#ifdef HAVE_SPATIAL
+uint32 Type_handler_geometry::calc_pack_length(uint32 length) const
+{
+  return 4 + portable_sizeof_char_ptr;
+}
+#endif
+
+uint32 Type_handler_newdecimal::calc_pack_length(uint32 length) const
+{
+  abort();  // This shouldn't happen
+  return 0;
+}
+
+uint32 Type_handler_set::calc_pack_length(uint32 length) const
+{
+  abort();  // This shouldn't happen
+  return 0;
+}
+
+uint32 Type_handler_enum::calc_pack_length(uint32 length) const
+{
+  abort();  // This shouldn't happen
+  return 0;
+}
+
+
+/*************************************************************************/
 Field *Type_handler::make_and_init_table_field(const LEX_CSTRING *name,
                                                const Record_addr &addr,
                                                const Type_all_attributes &attr,
@@ -2080,7 +2529,10 @@ Type_handler_temporal_result::Item_get_cache(THD *thd, const Item *item) const
 /*************************************************************************/
 
 bool Type_handler_int_result::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   uint unsigned_flag= items[0]->unsigned_flag;
@@ -2089,7 +2541,7 @@ bool Type_handler_int_result::
     if (unsigned_flag != items[i]->unsigned_flag)
     {
       // Convert a mixture of signed and unsigned int to decimal
-      func->set_handler(&type_handler_newdecimal);
+      handler->set_handler(&type_handler_newdecimal);
       func->aggregate_attributes_decimal(items, nitems);
       return false;
     }
@@ -2100,7 +2552,10 @@ bool Type_handler_int_result::
 
 
 bool Type_handler_real_result::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->aggregate_attributes_real(items, nitems);
@@ -2109,7 +2564,10 @@ bool Type_handler_real_result::
 
 
 bool Type_handler_decimal_result::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->aggregate_attributes_decimal(items, nitems);
@@ -2118,26 +2576,59 @@ bool Type_handler_decimal_result::
 
 
 bool Type_handler_string_result::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
-  return func->aggregate_attributes_string(func->func_name(), items, nitems);
+  return func->aggregate_attributes_string(func_name, items, nitems);
+}
+
+
+
+/*
+  We can have enum/set type after merging only if we have one enum|set
+  field (or MIN|MAX(enum|set field)) and number of NULL fields
+*/
+bool Type_handler_typelib::
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
+                                       Item **items, uint nitems) const
+{
+  TYPELIB *typelib= NULL;
+  for (uint i= 0; i < nitems; i++)
+  {
+    if ((typelib= items[i]->get_typelib()))
+      break;
+  }
+  DBUG_ASSERT(typelib); // There must be at least one typelib
+  func->set_typelib(typelib);
+  return func->aggregate_attributes_string(func_name, items, nitems);
 }
 
 
 bool Type_handler_blob_common::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
-  if (func->aggregate_attributes_string(func->func_name(), items, nitems))
+  if (func->aggregate_attributes_string(func_name, items, nitems))
     return true;
-  func->set_handler(blob_type_handler(func->max_length));
+  handler->set_handler(blob_type_handler(func->max_length));
   return false;
 }
 
 
 bool Type_handler_date_common::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->fix_attributes_date();
@@ -2146,7 +2637,10 @@ bool Type_handler_date_common::
 
 
 bool Type_handler_time_common::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->aggregate_attributes_temporal(MIN_TIME_WIDTH, items, nitems);
@@ -2155,7 +2649,10 @@ bool Type_handler_time_common::
 
 
 bool Type_handler_datetime_common::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->aggregate_attributes_temporal(MAX_DATETIME_WIDTH, items, nitems);
@@ -2164,7 +2661,10 @@ bool Type_handler_datetime_common::
 
 
 bool Type_handler_timestamp_common::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   func->aggregate_attributes_temporal(MAX_DATETIME_WIDTH, items, nitems);
@@ -2173,11 +2673,14 @@ bool Type_handler_timestamp_common::
 
 #ifdef HAVE_SPATIAL
 bool Type_handler_geometry::
-       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
   DBUG_ASSERT(nitems > 0);
-  Type_geometry_attributes gattr(items[0]);
+  Type_geometry_attributes gattr(items[0]->type_handler(), items[0]);
   for (uint i= 1; i < nitems; i++)
     gattr.join(items[i]);
   func->set_geometry_type(gattr.get_geometry_type());
@@ -2185,7 +2688,7 @@ bool Type_handler_geometry::
   func->unsigned_flag= false;
   func->decimals= 0;
   func->max_length= (uint32) UINT_MAX32;
-  func->maybe_null= true;
+  func->set_maybe_null(true);
   return false;
 }
 #endif
@@ -2202,7 +2705,8 @@ bool Type_handler::
     with aggregating for CASE-alike functions (e.g. COALESCE)
     for the majority of data type handlers.
   */
-  return Item_hybrid_func_fix_attributes(thd, func, items, nitems);
+  return Item_hybrid_func_fix_attributes(thd, func->func_name(),
+                                         func, func, items, nitems);
 }
 
 
@@ -3953,6 +4457,62 @@ uint Type_handler_temporal_result::
 
 /***************************************************************************/
 
+uint Type_handler_string_result::Item_decimal_precision(const Item *item) const
+{
+  uint res= item->max_char_length();
+  /*
+    Return at least one decimal digit, even if Item::max_char_length()
+    returned  0. This is important to avoid attempts to create fields of types
+    INT(0) or DECIMAL(0,0) when converting NULL or empty strings to INT/DECIMAL:
+      CREATE TABLE t1 AS SELECT CONVERT(NULL,SIGNED) AS a;
+  */
+  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
+}
+
+uint Type_handler_real_result::Item_decimal_precision(const Item *item) const
+{
+  uint res= item->max_char_length();
+  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
+}
+
+uint Type_handler_decimal_result::Item_decimal_precision(const Item *item) const
+{
+  uint prec= my_decimal_length_to_precision(item->max_char_length(),
+                                            item->decimals,
+                                            item->unsigned_flag);
+  return MY_MIN(prec, DECIMAL_MAX_PRECISION);
+}
+
+uint Type_handler_int_result::Item_decimal_precision(const Item *item) const
+{
+ uint prec= my_decimal_length_to_precision(item->max_char_length(),
+                                           item->decimals,
+                                           item->unsigned_flag);
+ return MY_MIN(prec, DECIMAL_MAX_PRECISION);
+}
+
+uint Type_handler_time_common::Item_decimal_precision(const Item *item) const
+{
+  return 7 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+}
+
+uint Type_handler_date_common::Item_decimal_precision(const Item *item) const
+{
+  return 8;
+}
+
+uint Type_handler_datetime_common::Item_decimal_precision(const Item *item) const
+{
+  return 14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+}
+
+uint Type_handler_timestamp_common::Item_decimal_precision(const Item *item) const
+{
+  return 14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+}
+
+/***************************************************************************/
+
 bool Type_handler_real_result::
        subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const
@@ -4121,6 +4681,104 @@ bool Type_handler_time_common::
   item->get_time(&value->value.m_time);
   return check_null(item, value);
 }
+
+/***************************************************************************/
+
+bool Type_handler_row::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  DBUG_ASSERT(0);
+  param->set_null();
+  return true;
+}
+
+
+bool Type_handler_real_result::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= attr->unsigned_flag;
+  param->set_double(val->value.m_double);
+  param->set_handler(&type_handler_double);
+  return false;
+}
+
+
+bool Type_handler_int_result::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= attr->unsigned_flag;
+  param->set_int(val->value.m_longlong, MY_INT64_NUM_DECIMAL_DIGITS);
+  param->set_handler(&type_handler_longlong);
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= attr->unsigned_flag;
+  param->set_decimal(&val->m_decimal, attr->unsigned_flag);
+  param->set_handler(&type_handler_newdecimal);
+  return false;
+}
+
+
+bool Type_handler_string_result::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= false;
+  param->value.cs_info.set(thd, attr->collation.collation);
+  /*
+    Exact value of max_length is not known unless data is converted to
+    charset of connection, so we have to set it later.
+  */
+  param->set_handler(&type_handler_varchar);
+  return param->set_str(val->m_string.ptr(), val->m_string.length());
+}
+
+
+bool Type_handler_temporal_result::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= attr->unsigned_flag;
+  param->set_time(&val->value.m_time, attr->max_length, attr->decimals);
+  param->set_handler(this);
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+  Item_param_set_from_value(THD *thd,
+                            Item_param *param,
+                            const Type_all_attributes *attr,
+                            const st_value *val) const
+{
+  param->unsigned_flag= false;
+  param->value.cs_info.set(thd, &my_charset_bin);
+  param->set_handler(&type_handler_geometry);
+  param->set_geometry_type(attr->uint_geometry_type());
+  return param->set_str(val->m_string.ptr(), val->m_string.length());
+}
+#endif
 
 /***************************************************************************/
 
