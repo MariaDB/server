@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -782,7 +782,7 @@ fil_create_new_single_table_tablespace(
 	ulint		size)		/*!< in: the initial size of the
 					tablespace file in pages,
 					must be >= FIL_IBD_FILE_INITIAL_SIZE */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull(2), warn_unused_result));
 #ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Tries to open a single-table tablespace and optionally checks the space id is

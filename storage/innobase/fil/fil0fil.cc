@@ -2271,14 +2271,12 @@ fil_op_log_parse_or_replay(
 		} else if (log_flags & MLOG_FILE_FLAG_TEMP) {
 			/* Temporary table, do nothing */
 		} else {
-			const char*	path = NULL;
-
 			/* Create the database directory for name, if it does
 			not exist yet */
 			fil_create_directory_for_tablename(name);
 
 			if (fil_create_new_single_table_tablespace(
-				    space_id, name, path, flags,
+				    space_id, name, NULL, flags,
 				    DICT_TF2_USE_TABLESPACE,
 				    FIL_IBD_FILE_INITIAL_SIZE) != DB_SUCCESS) {
 				ut_error;
