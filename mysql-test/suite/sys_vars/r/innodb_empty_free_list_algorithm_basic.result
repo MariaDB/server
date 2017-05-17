@@ -1,7 +1,7 @@
 SET @start_value = @@GLOBAL.innodb_empty_free_list_algorithm;
 SELECT @@GLOBAL.innodb_empty_free_list_algorithm;
 @@GLOBAL.innodb_empty_free_list_algorithm
-backoff
+legacy
 SELECT @@SESSION.innodb_empty_free_list_algorithm;
 ERROR HY000: Variable 'innodb_empty_free_list_algorithm' is a GLOBAL variable
 SET GLOBAL innodb_empty_free_list_algorithm='legacy';
