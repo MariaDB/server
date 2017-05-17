@@ -454,6 +454,7 @@ public:
     used_tables_cache= 0; 
     forced_const= TRUE; 
   }
+  void reset_forced_const() { forced_const= FALSE; }
   virtual bool const_item() const { return forced_const; }
   virtual bool const_during_execution() const { return false; }
   virtual void print(String *str, enum_query_type query_type);
