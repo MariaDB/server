@@ -380,6 +380,20 @@ Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
 
 
 /***************************************************************************/
+
+/* number of bytes to store second_part part of the TIMESTAMP(N) */
+uint Type_handler_timestamp::m_sec_part_bytes[MAX_DATETIME_PRECISION + 1]=
+     { 0, 1, 1, 2, 2, 3, 3 };
+
+/* number of bytes to store DATETIME(N) */
+uint Type_handler_datetime::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
+     { 5, 6, 6, 7, 7, 7, 8 };
+
+/* number of bytes to store TIME(N) */
+uint Type_handler_time::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
+     { 3, 4, 4, 5, 5, 5, 6 };
+
+/***************************************************************************/
 const Name Type_handler_row::m_name_row(C_STRING_WITH_LEN("row"));
 
 const Name Type_handler_null::m_name_null(C_STRING_WITH_LEN("null"));
@@ -1538,6 +1552,293 @@ bool Type_handler_bit::
 {
   return def->fix_attributes_bit();
 }
+
+/*************************************************************************/
+
+bool Type_handler::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->create_length_to_internal_length_simple();
+  return false;
+}
+
+bool Type_handler_null::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->create_length_to_internal_length_null();
+  return false;
+}
+
+bool Type_handler_newdecimal::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->create_length_to_internal_length_newdecimal();
+  return false;
+}
+
+bool Type_handler_bit::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  return def->prepare_stage1_bit(thd, mem_root, file, table_flags);
+}
+
+bool Type_handler_typelib::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  return def->prepare_stage1_typelib(thd, mem_root, file, table_flags);
+}
+
+
+bool Type_handler_string_result::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  return def->prepare_stage1_string(thd, mem_root, file, table_flags);
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->create_length_to_internal_length_string();
+  return def->prepare_blob_field(thd);
+}
+#endif
+
+
+/*************************************************************************/
+
+bool Type_handler::
+       Column_definition_prepare_stage2_legacy(Column_definition *def,
+                                               enum_field_types type) const
+{
+  def->pack_flag= f_settype((uint) type);
+  return false;
+}
+
+bool Type_handler::
+       Column_definition_prepare_stage2_legacy_num(Column_definition *def,
+                                                   enum_field_types type) const
+{
+  def->pack_flag= def->pack_flag_numeric(def->decimals) |
+                  f_settype((uint) type);
+  return false;
+}
+
+bool Type_handler::
+       Column_definition_prepare_stage2_legacy_real(Column_definition *def,
+                                                    enum_field_types type) const
+{
+  uint dec= def->decimals;
+  /*
+    User specified FLOAT() or DOUBLE() without precision. Change to
+    FLOATING_POINT_DECIMALS to keep things compatible with earlier MariaDB
+    versions.
+  */
+  if (dec >= FLOATING_POINT_DECIMALS)
+    dec= FLOATING_POINT_DECIMALS;
+  def->pack_flag= def->pack_flag_numeric(dec) | f_settype((uint) type);
+  return false;
+}
+
+bool Type_handler_newdecimal::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->pack_flag= def->pack_flag_numeric(def->decimals);
+  return false;
+}
+
+bool Type_handler_blob_common::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  return def->prepare_stage2_blob(file, table_flags, FIELDFLAG_BLOB);
+}
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  if (!(table_flags & HA_CAN_GEOMETRY))
+  {
+    my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), "GEOMETRY");
+    return true;
+  }
+  return def->prepare_stage2_blob(file, table_flags, FIELDFLAG_GEOM);
+}
+#endif
+
+bool Type_handler_varchar::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  return def->prepare_stage2_varchar(table_flags);
+}
+
+bool Type_handler_string::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  def->pack_flag= (def->charset->state & MY_CS_BINSORT) ? FIELDFLAG_BINARY : 0;
+  return false;
+}
+
+bool Type_handler_enum::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  uint dummy;
+  return def->prepare_stage2_typelib("ENUM", FIELDFLAG_INTERVAL, &dummy);
+}
+
+bool Type_handler_set::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  uint dup_count;
+  if (def->prepare_stage2_typelib("SET", FIELDFLAG_BITFIELD, &dup_count))
+    return true;
+  /* Check that count of unique members is not more then 64 */
+  if (def->interval->count - dup_count > sizeof(longlong)*8)
+  {
+     my_error(ER_TOO_BIG_SET, MYF(0), def->field_name.str);
+     return true;
+  }
+  return false;
+}
+
+bool Type_handler_bit::
+       Column_definition_prepare_stage2(Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags) const
+{
+  /* 
+    We have sql_field->pack_flag already set here, see
+    mysql_prepare_create_table().
+  */
+  return false;
+}
+
+/*************************************************************************/
+
+uint32 Type_handler_time::calc_pack_length(uint32 length) const
+{
+  return length > MIN_TIME_WIDTH ?
+         hires_bytes(length - 1 - MIN_TIME_WIDTH) : 3;
+}
+
+uint32 Type_handler_time2::calc_pack_length(uint32 length) const
+{
+  return length > MIN_TIME_WIDTH ?
+         my_time_binary_length(length - MIN_TIME_WIDTH - 1) : 3;
+}
+
+uint32 Type_handler_timestamp::calc_pack_length(uint32 length) const
+{
+  return length > MAX_DATETIME_WIDTH ?
+         4 + sec_part_bytes(length - 1 - MAX_DATETIME_WIDTH) : 4;
+}
+
+uint32 Type_handler_timestamp2::calc_pack_length(uint32 length) const
+{
+  return length > MAX_DATETIME_WIDTH ?
+         my_timestamp_binary_length(length - MAX_DATETIME_WIDTH - 1) : 4;
+}
+
+uint32 Type_handler_datetime::calc_pack_length(uint32 length) const
+{
+  return length > MAX_DATETIME_WIDTH ?
+         hires_bytes(length - 1 - MAX_DATETIME_WIDTH) : 8;
+}
+
+uint32 Type_handler_datetime2::calc_pack_length(uint32 length) const
+{
+  return length > MAX_DATETIME_WIDTH ?
+         my_datetime_binary_length(length - MAX_DATETIME_WIDTH - 1) : 5;
+}
+
+uint32 Type_handler_tiny_blob::calc_pack_length(uint32 length) const
+{
+  return 1 + portable_sizeof_char_ptr;
+}
+
+uint32 Type_handler_blob::calc_pack_length(uint32 length) const
+{
+  return 2 + portable_sizeof_char_ptr;
+}
+
+uint32 Type_handler_medium_blob::calc_pack_length(uint32 length) const
+{
+  return 3 + portable_sizeof_char_ptr;
+}
+
+uint32 Type_handler_long_blob::calc_pack_length(uint32 length) const
+{
+  return 4 + portable_sizeof_char_ptr;
+}
+
+#ifdef HAVE_SPATIAL
+uint32 Type_handler_geometry::calc_pack_length(uint32 length) const
+{
+  return 4 + portable_sizeof_char_ptr;
+}
+#endif
+
+uint32 Type_handler_newdecimal::calc_pack_length(uint32 length) const
+{
+  abort();  // This shouldn't happen
+  return 0;
+}
+
+uint32 Type_handler_set::calc_pack_length(uint32 length) const
+{
+  abort();  // This shouldn't happen
+  return 0;
+}
+
+uint32 Type_handler_enum::calc_pack_length(uint32 length) const
+{
+  abort();  // This shouldn't happen
+  return 0;
+}
+
 
 /*************************************************************************/
 Field *Type_handler::make_and_init_table_field(const LEX_CSTRING *name,

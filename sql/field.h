@@ -2454,6 +2454,10 @@ public:
 
 
 class Field_timestamp_hires :public Field_timestamp_with_dec {
+  uint sec_part_bytes(uint dec) const
+  {
+    return Type_handler_timestamp::sec_part_bytes(dec);
+  }
 public:
   Field_timestamp_hires(uchar *ptr_arg,
                         uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2468,7 +2472,7 @@ public:
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   void store_TIME(my_time_t timestamp, ulong sec_part);
   int cmp(const uchar *,const uchar *);
-  uint32 pack_length() const;
+  uint32 pack_length() const { return 4 + sec_part_bytes(dec); }
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -2735,7 +2739,7 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
-  uint32 pack_length() const;
+  uint32 pack_length() const { return Type_handler_time::hires_bytes(dec); }
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -2894,7 +2898,7 @@ public:
     DBUG_ASSERT(dec);
   }
   int cmp(const uchar *,const uchar *);
-  uint32 pack_length() const;
+  uint32 pack_length() const { return Type_handler_datetime::hires_bytes(dec); }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_datetime_hires::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
@@ -3831,6 +3835,8 @@ class Column_definition: public Sql_alloc,
       set_if_bigger(*max_length, (uint32)length);
     }
   }
+  bool prepare_stage1_check_typelib_default();
+  bool prepare_stage1_convert_default(THD *, MEM_ROOT *, CHARSET_INFO *to);
   const Type_handler *field_type() const; // Prevent using this
 public:
   LEX_CSTRING field_name;
@@ -3882,6 +3888,29 @@ public:
   Column_definition(THD *thd, Field *field, Field *orig_field);
   void set_attributes(const Lex_field_type_st &type, CHARSET_INFO *cs);
   void create_length_to_internal_length(void);
+  void create_length_to_internal_length_null()
+  {
+    DBUG_ASSERT(length == 0);
+    key_length= pack_length= 0;
+  }
+  void create_length_to_internal_length_simple()
+  {
+    key_length= pack_length= type_handler()->calc_pack_length(length);
+  }
+  void create_length_to_internal_length_string()
+  {
+    length*= charset->mbmaxlen;
+    key_length= length;
+    pack_length= type_handler()->calc_pack_length(length);
+  }
+  void create_length_to_internal_length_typelib()
+  {
+    /* Pack_length already calculated in sql_parse.cc */
+    length*= charset->mbmaxlen;
+    key_length= pack_length;
+  }
+  void create_length_to_internal_length_bit();
+  void create_length_to_internal_length_newdecimal();
 
   /**
     Prepare a SET/ENUM field.
@@ -3917,8 +3946,22 @@ public:
 
   bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root);
 
-  bool prepare_create_field(uint *blob_columns, ulonglong table_flags);
+  bool prepare_stage1(THD *thd, MEM_ROOT *mem_root,
+                      handler *file, ulonglong table_flags);
+  bool prepare_stage1_typelib(THD *thd, MEM_ROOT *mem_root,
+                              handler *file, ulonglong table_flags);
+  bool prepare_stage1_string(THD *thd, MEM_ROOT *mem_root,
+                             handler *file, ulonglong table_flags);
+  bool prepare_stage1_bit(THD *thd, MEM_ROOT *mem_root,
+                          handler *file, ulonglong table_flags);
 
+  bool prepare_stage2(handler *handler, ulonglong table_flags);
+  bool prepare_stage2_blob(handler *handler,
+                           ulonglong table_flags, uint field_flags);
+  bool prepare_stage2_varchar(ulonglong table_flags);
+  bool prepare_stage2_typelib(const char *type_name, uint field_flags,
+                              uint *dup_val_count);
+  uint pack_flag_numeric(uint dec) const;
   uint sign_length() const { return flags & UNSIGNED_FLAG ? 0 : 1; }
   bool check_length(uint mysql_errno, uint max_allowed_length) const;
   bool fix_attributes_real(uint default_length);
@@ -4212,7 +4255,6 @@ public:
 
 uint pack_length_to_packflag(uint type);
 enum_field_types get_blob_type_from_length(ulong length);
-uint32 calc_pack_length(enum_field_types type,uint32 length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);

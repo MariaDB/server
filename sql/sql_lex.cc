@@ -5407,13 +5407,8 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
   spcont->declare_var_boundary(1);
   spvar->field_def.field_name= spvar->name;
   spvar->field_def.set_handler(&type_handler_longlong);
-  /*
-    The below is a simplified version of what
-    Column_definition::prepare_create_field() does for a LONGLONG field.
-  */
-  spvar->field_def.pack_flag= (FIELDFLAG_NUMBER |
-                               f_settype((uint) MYSQL_TYPE_LONGLONG));
-
+  type_handler_longlong.Column_definition_prepare_stage2(&spvar->field_def,
+                                                         NULL, HA_CAN_GEOMETRY);
   if (!value && !(value= new (thd->mem_root) Item_null(thd)))
     return NULL;
 

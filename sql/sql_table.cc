@@ -2845,23 +2845,82 @@ bool check_duplicates_in_interval(const char *set_or_name,
 }
 
 
+bool Column_definition::prepare_stage2_blob(handler *file,
+                                            ulonglong table_flags,
+                                            uint field_flags)
+{
+  if (table_flags & HA_NO_BLOBS)
+  {
+    my_error(ER_TABLE_CANT_HANDLE_BLOB, MYF(0), file->table_type());
+    return true;
+  }
+  pack_flag= field_flags |
+             pack_length_to_packflag(pack_length - portable_sizeof_char_ptr);
+  if (charset->state & MY_CS_BINSORT)
+    pack_flag|= FIELDFLAG_BINARY;
+  length= 8;                        // Unireg field length
+  return false;
+}
+
+
+bool Column_definition::prepare_stage2_typelib(const char *type_name,
+                                               uint field_flags,
+                                               uint *dup_val_count)
+{
+  pack_flag= pack_length_to_packflag(pack_length) | field_flags;
+  if (charset->state & MY_CS_BINSORT)
+    pack_flag|= FIELDFLAG_BINARY;
+  return check_duplicates_in_interval(type_name, field_name.str, interval,
+                                      charset, dup_val_count);
+}
+
+
+uint Column_definition::pack_flag_numeric(uint dec) const
+{
+  return (FIELDFLAG_NUMBER |
+          (flags & UNSIGNED_FLAG ? 0 : FIELDFLAG_DECIMAL)  |
+          (flags & ZEROFILL_FLAG ? FIELDFLAG_ZEROFILL : 0) |
+          (dec << FIELDFLAG_DEC_SHIFT));
+}
+
+
+bool Column_definition::prepare_stage2_varchar(ulonglong table_flags)
+{
+#ifndef QQ_ALL_HANDLERS_SUPPORT_VARCHAR
+  if (table_flags & HA_NO_VARCHAR)
+  {
+    /* convert VARCHAR to CHAR because handler is not yet up to date */
+    set_handler(&type_handler_var_string);
+    pack_length= type_handler()->calc_pack_length((uint) length);
+    if ((length / charset->mbmaxlen) > MAX_FIELD_CHARLENGTH)
+    {
+      my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name.str,
+               static_cast<ulong>(MAX_FIELD_CHARLENGTH));
+      return true;
+    }
+  }
+#endif
+  pack_flag= (charset->state & MY_CS_BINSORT) ? FIELDFLAG_BINARY : 0;
+  return false;
+}
+
+
 /*
   Prepare a Column_definition instance for packing
   Members such as pack_flag are valid after this call.
 
-  @param IN/OUT blob_columns - count for BLOBs
+  @param IN     handler      - storage engine handler,
+                               or NULL if preparing for an SP variable
   @param IN     table_flags  - table flags
 
   @retval false  -  ok
   @retval true   -  error (not supported type, bad definition, etc)
 */
 
-bool Column_definition::prepare_create_field(uint *blob_columns,
-                                             ulonglong table_flags)
+bool Column_definition::prepare_stage2(handler *file,
+                                       ulonglong table_flags)
 {
-  uint dup_val_count;
-  uint decimals_orig= decimals;
-  DBUG_ENTER("Column_definition::prepare_create_field");
+  DBUG_ENTER("Column_definition::prepare_stage2");
 
   /*
     This code came from mysql_prepare_create_table.
@@ -2869,122 +2928,9 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
   */
   DBUG_ASSERT(charset);
 
-  switch (real_field_type()) {
-  case MYSQL_TYPE_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-    pack_flag= FIELDFLAG_BLOB |
-      pack_length_to_packflag(pack_length - portable_sizeof_char_ptr);
-    if (charset->state & MY_CS_BINSORT)
-      pack_flag|= FIELDFLAG_BINARY;
-    length= 8;                        // Unireg field length
-    (*blob_columns)++;
-    break;
-  case MYSQL_TYPE_GEOMETRY:
-#ifdef HAVE_SPATIAL
-    if (!(table_flags & HA_CAN_GEOMETRY))
-    {
-      my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), "GEOMETRY");
-      DBUG_RETURN(1);
-    }
-    pack_flag= FIELDFLAG_GEOM |
-      pack_length_to_packflag(pack_length - portable_sizeof_char_ptr);
-    if (charset->state & MY_CS_BINSORT)
-      pack_flag|= FIELDFLAG_BINARY;
-    length= 8;                        // Unireg field length
-    (*blob_columns)++;
-    break;
-#else
-    my_error(ER_FEATURE_DISABLED, MYF(0),
-             sym_group_geom.name, sym_group_geom.needed_define);
+  if (type_handler()->Column_definition_prepare_stage2(this, file, table_flags))
     DBUG_RETURN(true);
-#endif /*HAVE_SPATIAL*/
-  case MYSQL_TYPE_VARCHAR:
-#ifndef QQ_ALL_HANDLERS_SUPPORT_VARCHAR
-    if (table_flags & HA_NO_VARCHAR)
-    {
-      /* convert VARCHAR to CHAR because handler is not yet up to date */
-      set_handler(&type_handler_var_string);
-      pack_length= calc_pack_length(real_field_type(), (uint) length);
-      if ((length / charset->mbmaxlen) > MAX_FIELD_CHARLENGTH)
-      {
-        my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name.str,
-                 static_cast<ulong>(MAX_FIELD_CHARLENGTH));
-        DBUG_RETURN(true);
-      }
-    }
-#endif
-    /* fall through */
-  case MYSQL_TYPE_STRING:
-    pack_flag= 0;
-    if (charset->state & MY_CS_BINSORT)
-      pack_flag|= FIELDFLAG_BINARY;
-    break;
-  case MYSQL_TYPE_ENUM:
-    pack_flag= pack_length_to_packflag(pack_length) | FIELDFLAG_INTERVAL;
-    if (charset->state & MY_CS_BINSORT)
-      pack_flag|= FIELDFLAG_BINARY;
-    if (check_duplicates_in_interval("ENUM", field_name.str, interval,
-                                     charset, &dup_val_count))
-      DBUG_RETURN(true);
-    break;
-  case MYSQL_TYPE_SET:
-    pack_flag= pack_length_to_packflag(pack_length) | FIELDFLAG_BITFIELD;
-    if (charset->state & MY_CS_BINSORT)
-      pack_flag|= FIELDFLAG_BINARY;
-    if (check_duplicates_in_interval("SET", field_name.str, interval,
-                                     charset, &dup_val_count))
-      DBUG_RETURN(true);
-    /* Check that count of unique members is not more then 64 */
-    if (interval->count - dup_val_count > sizeof(longlong)*8)
-    {
-       my_error(ER_TOO_BIG_SET, MYF(0), field_name.str);
-       DBUG_RETURN(true);
-    }
-    break;
-  case MYSQL_TYPE_DATE:			// Rest of string types
-  case MYSQL_TYPE_NEWDATE:
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_TIME2:
-  case MYSQL_TYPE_DATETIME2:
-  case MYSQL_TYPE_NULL:
-    pack_flag= f_settype((uint) real_field_type());
-    break;
-  case MYSQL_TYPE_BIT:
-    /* 
-      We have sql_field->pack_flag already set here, see
-      mysql_prepare_create_table().
-    */
-    break;
-  case MYSQL_TYPE_NEWDECIMAL:
-    pack_flag= (FIELDFLAG_NUMBER |
-                (flags & UNSIGNED_FLAG ? 0 : FIELDFLAG_DECIMAL) |
-                (flags & ZEROFILL_FLAG ? FIELDFLAG_ZEROFILL : 0) |
-                (decimals_orig << FIELDFLAG_DEC_SHIFT));
-    break;
-  case MYSQL_TYPE_FLOAT:
-  case MYSQL_TYPE_DOUBLE:
-    /*
-      User specified FLOAT() or DOUBLE() without precision. Change to
-      FLOATING_POINT_DECIMALS to keep things compatible with earlier MariaDB
-      versions.
-    */
-    if (decimals_orig >= FLOATING_POINT_DECIMALS)
-      decimals_orig= FLOATING_POINT_DECIMALS;
-    /* fall-trough */
-  case MYSQL_TYPE_TIMESTAMP:
-  case MYSQL_TYPE_TIMESTAMP2:
-    /* fall-through */
-  default:
-    pack_flag= (FIELDFLAG_NUMBER |
-                (flags & UNSIGNED_FLAG ? 0 : FIELDFLAG_DECIMAL) |
-                (flags & ZEROFILL_FLAG ? FIELDFLAG_ZEROFILL : 0) |
-                f_settype((uint) real_field_type()) |
-                (decimals_orig << FIELDFLAG_DEC_SHIFT));
-    break;
-  }
+
   if (!(flags & NOT_NULL_FLAG) ||
       (vcol_info))  /* Make virtual columns allow NULL values */
     pack_flag|= FIELDFLAG_MAYBE_NULL;
@@ -3007,7 +2953,7 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
     cs                        Character set
 */
 
-CHARSET_INFO* get_sql_field_charset(Create_field *sql_field,
+CHARSET_INFO* get_sql_field_charset(Column_definition *sql_field,
                                     HA_CREATE_INFO *create_info)
 {
   CHARSET_INFO *cs= sql_field->charset;
@@ -3146,6 +3092,143 @@ static void check_duplicate_key(THD *thd, Key *key, KEY *key_info,
 }
 
 
+bool Column_definition::prepare_stage1_typelib(THD *thd,
+                                               MEM_ROOT *mem_root,
+                                               handler *file,
+                                               ulonglong table_flags)
+{
+  /*
+    Pass the last parameter to prepare_interval_field() as follows:
+    - If we are preparing for an SP variable (file is NULL), we pass "false",
+      to force allocation and full copying of TYPELIB values on the given
+      mem_root, even if no character set conversion is needed. This is needed
+      because a life cycle of an SP variable is longer than the current query.
+
+    - If we are preparing for a CREATE TABLE, (file != NULL), we pass "true".
+      This will create the typelib in runtime memory - we will free the
+      occupied memory at the same time when we free this
+      sql_field -- at the end of execution.
+      Pass "true" as the last argument to reuse "interval_list"
+      values in "interval" in cases when no character conversion is needed,
+      to avoid extra copying.
+  */
+  if (prepare_interval_field(mem_root, file != NULL))
+    return true; // E.g. wrong values with commas: SET('a,b')
+  create_length_to_internal_length_typelib();
+
+  DBUG_ASSERT(file || !default_value); // SP variables have no default_value
+  if (default_value && default_value->expr->basic_const_item())
+  {
+    if ((charset != default_value->expr->collation.collation &&
+         prepare_stage1_convert_default(thd, mem_root, charset)) ||
+         prepare_stage1_check_typelib_default())
+      return true;
+  }
+  return false;
+}
+
+
+bool Column_definition::prepare_stage1_string(THD *thd,
+                                              MEM_ROOT *mem_root,
+                                              handler *file,
+                                              ulonglong table_flags)
+{
+  create_length_to_internal_length_string();
+  if (prepare_blob_field(thd))
+    return true;
+  DBUG_ASSERT(file || !default_value); // SP variables have no default_value
+  /*
+    Convert the default value from client character
+    set into the column character set if necessary.
+    We can only do this for constants as we have not yet run fix_fields.
+  */
+  if (default_value &&
+      default_value->expr->basic_const_item() &&
+      charset != default_value->expr->collation.collation)
+  {
+    if (prepare_stage1_convert_default(thd, mem_root, charset))
+      return true;
+  }
+  return false;
+}
+
+
+bool Column_definition::prepare_stage1_bit(THD *thd,
+                                           MEM_ROOT *mem_root,
+                                           handler *file,
+                                           ulonglong table_flags)
+{
+  pack_flag= FIELDFLAG_NUMBER;
+  if (!(table_flags & HA_CAN_BIT_FIELD))
+    pack_flag|= FIELDFLAG_TREAT_BIT_AS_CHAR;
+  create_length_to_internal_length_bit();
+  return false;
+}
+
+
+bool Column_definition::prepare_stage1(THD *thd,
+                                       MEM_ROOT *mem_root,
+                                       handler *file,
+                                       ulonglong table_flags)
+{
+  return type_handler()->Column_definition_prepare_stage1(thd, mem_root,
+                                                          this, file,
+                                                          table_flags);
+}
+
+
+bool Column_definition::prepare_stage1_convert_default(THD *thd,
+                                                       MEM_ROOT *mem_root,
+                                                       CHARSET_INFO *cs)
+{
+  DBUG_ASSERT(thd->mem_root == mem_root);
+  Item *item;
+  if (!(item= default_value->expr->safe_charset_converter(thd, cs)))
+  {
+    my_error(ER_INVALID_DEFAULT, MYF(0), field_name.str);
+    return true; // Could not convert
+  }
+  /* Fix for prepare statement */
+  thd->change_item_tree(&default_value->expr, item);
+  return false;
+}
+
+
+bool Column_definition::prepare_stage1_check_typelib_default()
+{
+  StringBuffer<MAX_FIELD_WIDTH> str;
+  String *def= default_value->expr->val_str(&str);
+  bool not_found;
+  if (def == NULL) /* SQL "NULL" maps to NULL */
+  {
+    not_found= flags & NOT_NULL_FLAG;
+  }
+  else
+  {
+    not_found= false;
+    if (real_field_type() == MYSQL_TYPE_SET)
+    {
+      char *not_used;
+      uint not_used2;
+      find_set(interval, def->ptr(), def->length(),
+               charset, &not_used, &not_used2, &not_found);
+    }
+    else /* MYSQL_TYPE_ENUM */
+    {
+      def->length(charset->cset->lengthsp(charset,
+                                          def->ptr(), def->length()));
+      not_found= !find_type2(interval, def->ptr(), def->length(), charset);
+    }
+  }
+  if (not_found)
+  {
+    my_error(ER_INVALID_DEFAULT, MYF(0), field_name.str);
+    return true;
+  }
+  return false;
+}
+
+
 /*
   Preparation for table creation
 
@@ -3180,7 +3263,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 {
   const char	*key_name;
   Create_field	*sql_field,*dup_field;
-  uint		field,null_fields,blob_columns,max_key_length;
+  uint		field,null_fields,max_key_length;
   ulong		record_offset= 0;
   KEY		*key_info;
   KEY_PART_INFO *key_part_info;
@@ -3193,7 +3276,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   DBUG_ENTER("mysql_prepare_create_table");
 
-  null_fields=blob_columns=0;
+  null_fields= 0;
   create_info->varchar= 0;
   max_key_length= file->max_key_length();
 
@@ -3215,8 +3298,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   select_field_pos= alter_info->create_list.elements - select_field_count;
   for (field_no=0; (sql_field=it++) ; field_no++)
   {
-    CHARSET_INFO *save_cs;
-
     /*
       Initialize length from its original value (number of characters),
       which was set in the parser. This is necessary if we're
@@ -3224,105 +3305,18 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     sql_field->length= sql_field->char_length;
     /* Set field charset. */
-    save_cs= sql_field->charset= get_sql_field_charset(sql_field, create_info);
+    sql_field->charset= get_sql_field_charset(sql_field, create_info);
     if ((sql_field->flags & BINCMP_FLAG) &&
-	!(sql_field->charset= find_bin_collation(sql_field->charset)))
-      DBUG_RETURN(TRUE);
+        !(sql_field->charset= find_bin_collation(sql_field->charset)))
+      DBUG_RETURN(true);
 
-    if (sql_field->real_field_type() == MYSQL_TYPE_SET ||
-        sql_field->real_field_type() == MYSQL_TYPE_ENUM)
-    {
-      /*
-        Create the typelib in runtime memory - we will free the
-        occupied memory at the same time when we free this
-        sql_field -- at the end of execution.
-        Pass "true" as the last argument to reuse "interval_list"
-        values in "interval" in cases when no character conversion is needed,
-        to avoid extra copying.
-      */
-      if (sql_field->prepare_interval_field(thd->mem_root, true))
-        DBUG_RETURN(true); // E.g. wrong values with commas: SET('a,b')
-    }
+    if (sql_field->prepare_stage1(thd, thd->mem_root,
+                                  file, file->ha_table_flags()))
+      DBUG_RETURN(true);
 
-    if (sql_field->real_field_type() == MYSQL_TYPE_BIT)
-    { 
-      sql_field->pack_flag= FIELDFLAG_NUMBER;
-      if (file->ha_table_flags() & HA_CAN_BIT_FIELD)
-        total_uneven_bit_length+= sql_field->length & 7;
-      else
-        sql_field->pack_flag|= FIELDFLAG_TREAT_BIT_AS_CHAR;
-    }
-
-    sql_field->create_length_to_internal_length();
-    if (sql_field->prepare_blob_field(thd))
-      DBUG_RETURN(TRUE);
-
-    /*
-      Convert the default value from client character
-      set into the column character set if necessary.
-      We can only do this for constants as we have not yet run fix_fields.
-    */
-    if (sql_field->default_value &&
-        sql_field->default_value->expr->basic_const_item() &&
-        save_cs != sql_field->default_value->expr->collation.collation &&
-        (sql_field->real_field_type() == MYSQL_TYPE_VAR_STRING ||
-         sql_field->real_field_type() == MYSQL_TYPE_STRING ||
-         sql_field->real_field_type() == MYSQL_TYPE_SET ||
-         sql_field->real_field_type() == MYSQL_TYPE_TINY_BLOB ||
-         sql_field->real_field_type() == MYSQL_TYPE_MEDIUM_BLOB ||
-         sql_field->real_field_type() == MYSQL_TYPE_LONG_BLOB ||
-         sql_field->real_field_type() == MYSQL_TYPE_BLOB ||
-         sql_field->real_field_type() == MYSQL_TYPE_ENUM))
-    {
-      Item *item;
-      if (!(item= sql_field->default_value->expr->
-            safe_charset_converter(thd, save_cs)))
-      {
-        /* Could not convert */
-        my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name.str);
-        DBUG_RETURN(TRUE);
-      }
-      /* Fix for prepare statement */
-      thd->change_item_tree(&sql_field->default_value->expr, item);
-    }
-
-    if (sql_field->default_value &&
-        sql_field->default_value->expr->basic_const_item() &&
-        (sql_field->real_field_type() == MYSQL_TYPE_SET ||
-         sql_field->real_field_type() == MYSQL_TYPE_ENUM))
-    {
-      StringBuffer<MAX_FIELD_WIDTH> str;
-      String *def= sql_field->default_value->expr->val_str(&str);
-      bool not_found;
-      if (def == NULL) /* SQL "NULL" maps to NULL */
-      {
-        not_found= sql_field->flags & NOT_NULL_FLAG;
-      }
-      else
-      {
-        not_found= false;
-        if (sql_field->real_field_type() == MYSQL_TYPE_SET)
-        {
-          char *not_used;
-          uint not_used2;
-          find_set(sql_field->interval, def->ptr(), def->length(),
-                   sql_field->charset, &not_used, &not_used2, &not_found);
-        }
-        else /* MYSQL_TYPE_ENUM */
-        {
-          def->length(sql_field->charset->cset->lengthsp(sql_field->charset,
-                                                  def->ptr(), def->length()));
-          not_found= !find_type2(sql_field->interval, def->ptr(),
-                                 def->length(), sql_field->charset);
-        }
-      }
-
-      if (not_found)
-      {
-        my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name.str);
-        DBUG_RETURN(TRUE);
-      }
-    }
+    if (sql_field->real_field_type() == MYSQL_TYPE_BIT &&
+        file->ha_table_flags() & HA_CAN_BIT_FIELD)
+      total_uneven_bit_length+= sql_field->length & 7;
 
     if (!(sql_field->flags & NOT_NULL_FLAG))
       null_fields++;
@@ -3419,7 +3413,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   {
     DBUG_ASSERT(sql_field->charset != 0);
 
-    if (sql_field->prepare_create_field(&blob_columns, file->ha_table_flags()))
+    if (sql_field->prepare_stage2(file, file->ha_table_flags()))
       DBUG_RETURN(TRUE);
     if (sql_field->real_field_type() == MYSQL_TYPE_VARCHAR)
       create_info->varchar= TRUE;
@@ -3458,12 +3452,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       (file->ha_table_flags() & HA_NO_AUTO_INCREMENT))
   {
     my_error(ER_TABLE_CANT_HANDLE_AUTO_INCREMENT, MYF(0), file->table_type());
-    DBUG_RETURN(TRUE);
-  }
-
-  if (blob_columns && (file->ha_table_flags() & HA_NO_BLOBS))
-  {
-    my_error(ER_TABLE_CANT_HANDLE_BLOB, MYF(0), file->table_type());
     DBUG_RETURN(TRUE);
   }
 
@@ -4237,7 +4225,7 @@ bool Column_definition::prepare_blob_field(THD *thd)
     {
       /* The user has given a length to the blob column */
       set_handler(Type_handler::blob_type_handler(length));
-      pack_length= calc_pack_length(real_field_type(), 0);
+      pack_length= type_handler()->calc_pack_length(0);
     }
     length= 0;
   }
@@ -4262,30 +4250,8 @@ bool Column_definition::prepare_blob_field(THD *thd)
 
 bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 {
-  if (real_field_type() == MYSQL_TYPE_SET ||
-      real_field_type() == MYSQL_TYPE_ENUM)
-  {
-    /*
-      Pass "false" as the last argument to allocate TYPELIB values on mem_root,
-      even if no character set conversion is needed.
-    */
-    if (prepare_interval_field(mem_root, false))
-      return true; // E.g. wrong values with commas: SET('a,b')
-  }
-
-  if (real_field_type() == MYSQL_TYPE_BIT)
-    pack_flag= FIELDFLAG_NUMBER | FIELDFLAG_TREAT_BIT_AS_CHAR;
-  create_length_to_internal_length();
-  DBUG_ASSERT(default_value == 0);
-  /*
-    prepare_blob_field() can return an error on attempt to create a too long
-    VARCHAR/VARBINARY field when the current sql_mode does not allow automatic
-    conversion to TEXT/BLOB.
-  */
-  if (prepare_blob_field(thd))
-    return true;
-  uint unused1;
-  return prepare_create_field(&unused1, HA_CAN_GEOMETRY);
+  return prepare_stage1(thd, mem_root, NULL, HA_CAN_GEOMETRY) ||
+         prepare_stage2(NULL, HA_CAN_GEOMETRY);
 }
 
 
