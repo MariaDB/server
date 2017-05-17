@@ -1,3 +1,4 @@
+skip TokuDB dir CMD disabled in MariaDB;
 source include/have_tokudb.inc;
 
 --let $MYSQL_DATADIR=`select @@datadir`

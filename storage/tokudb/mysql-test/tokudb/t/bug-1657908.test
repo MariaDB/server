@@ -1,3 +1,4 @@
+--source include/have_partition.inc
 # See https://bugs.launchpad.net/percona-server/+bug/1657908
 
 source include/have_tokudb.inc;

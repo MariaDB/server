@@ -1,3 +1,4 @@
+skip Background Job Manager not supported in MariaDB;
 # This test for DB-938 tests a race condition where a scheduled background job
 # (analyze) ends up operating on a set of DB* key_file[] in TOKUDB_SHARE that
 # were set to NULL during a TRUNCATE TABLE operation.
