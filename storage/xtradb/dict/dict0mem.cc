@@ -321,8 +321,8 @@ dict_mem_table_col_rename_low(
 	ut_ad(from_len <= NAME_LEN);
 	ut_ad(to_len <= NAME_LEN);
 
-	char from[NAME_LEN];
-	strncpy(from, s, NAME_LEN);
+	char from[NAME_LEN + 1];
+	strncpy(from, s, NAME_LEN + 1);
 
 	if (from_len == to_len) {
 		/* The easy case: simply replace the column name in

@@ -7702,7 +7702,7 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff)
 {
   struct st_data {
     KEY_CACHE_STATISTICS stats;
-    SHOW_VAR var[8];
+    SHOW_VAR var[9];
   } *data;
   SHOW_VAR *v;
 

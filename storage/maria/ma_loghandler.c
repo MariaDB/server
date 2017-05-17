@@ -953,6 +953,7 @@ static File create_logfile_by_number_no_cache(uint32 file_no)
   {
     DBUG_PRINT("error", ("Error %d during syncing directory '%s'",
                          errno, log_descriptor.directory));
+    mysql_file_close(file, MYF(0));
     translog_stop_writing();
     DBUG_RETURN(-1);
   }
@@ -1454,17 +1455,16 @@ LSN translog_get_file_max_lsn_stored(uint32 file)
     if (translog_read_file_header(&info, fd))
     {
       DBUG_PRINT("error", ("Can't read file header"));
-      DBUG_RETURN(LSN_ERROR);
+      info.max_lsn= LSN_ERROR;
     }
 
     if (mysql_file_close(fd, MYF(MY_WME)))
     {
       DBUG_PRINT("error", ("Can't close file"));
-      DBUG_RETURN(LSN_ERROR);
+      info.max_lsn= LSN_ERROR;
     }
 
-    DBUG_PRINT("info", ("Max lsn: (%lu,0x%lx)",
-                         LSN_IN_PARTS(info.max_lsn)));
+    DBUG_PRINT("info", ("Max lsn: (%lu,0x%lx)", LSN_IN_PARTS(info.max_lsn)));
     DBUG_RETURN(info.max_lsn);
   }
 }
@@ -1638,13 +1638,15 @@ static my_bool translog_create_new_file()
   if (allocate_dynamic(&log_descriptor.open_files,
                        log_descriptor.max_file - log_descriptor.min_file + 2))
     goto error_lock;
-  if ((file->handler.file=
-       create_logfile_by_number_no_cache(file_no)) == -1)
+
+  /* this call just expand the array */
+  if (insert_dynamic(&log_descriptor.open_files, (uchar*)&file))
+    goto error_lock;
+
+  if ((file->handler.file= create_logfile_by_number_no_cache(file_no)) == -1)
     goto error_lock;
   translog_file_init(file, file_no, 0);
 
-  /* this call just expand the array */
-  insert_dynamic(&log_descriptor.open_files, (uchar*)&file);
   log_descriptor.max_file++;
   {
     char *start= (char*) dynamic_element(&log_descriptor.open_files, 0,
@@ -1678,6 +1680,7 @@ error_lock:
   mysql_rwlock_unlock(&log_descriptor.open_files_lock);
 error:
   translog_stop_writing();
+  my_free(file);
   DBUG_RETURN(1);
 }
 
@@ -3985,11 +3988,14 @@ my_bool translog_init_with_table(const char *directory,
     /* Start new log system from scratch */
     log_descriptor.horizon= MAKE_LSN(start_file_num,
                                      TRANSLOG_PAGE_SIZE); /* header page */
-    if ((file->handler.file=
-         create_logfile_by_number_no_cache(start_file_num)) == -1)
-      goto err;
     translog_file_init(file, start_file_num, 0);
     if (insert_dynamic(&log_descriptor.open_files, (uchar*)&file))
+    {
+      my_free(file);
+      goto err;
+    }
+    if ((file->handler.file=
+         create_logfile_by_number_no_cache(start_file_num)) == -1)
       goto err;
     log_descriptor.min_file= log_descriptor.max_file= start_file_num;
     if (translog_write_file_header())

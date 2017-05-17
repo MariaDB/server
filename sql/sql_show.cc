@@ -3016,7 +3016,7 @@ static bool show_status_array(THD *thd, const char *wild,
 
   for (; variables->name; variables++)
   {
-    bool wild_checked;
+    bool wild_checked= 0;
     strnmov(prefix_end, variables->name, len);
     name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
     if (ucase_names)

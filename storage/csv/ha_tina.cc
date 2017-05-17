@@ -1484,13 +1484,13 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
 
   /* Don't assert in field::val() functions */
   table->use_all_columns();
-  if (!(buf= (uchar*) my_malloc(table->s->reclength, MYF(MY_WME))))
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   /* position buffer to the start of the file */
   if (init_data_file())
     DBUG_RETURN(HA_ERR_CRASHED_ON_REPAIR);
 
+  if (!(buf= (uchar*) my_malloc(table->s->reclength, MYF(MY_WME))))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   /*
     Local_saved_data_file_length is initialized during the lock phase.
     Sometimes this is not getting executed before ::repair (e.g. for
@@ -1574,9 +1574,9 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
       DBUG_RETURN(my_errno ? my_errno : -1);
     share->tina_write_opened= FALSE;
   }
-  if (mysql_file_close(data_file, MYF(0)) ||
-      mysql_file_close(repair_file, MYF(0)) ||
-      mysql_file_rename(csv_key_file_data,
+  mysql_file_close(data_file, MYF(0));
+  mysql_file_close(repair_file, MYF(0));
+  if (mysql_file_rename(csv_key_file_data,
                         repaired_fname, share->data_file_name, MYF(0)))
     DBUG_RETURN(-1);
 
@@ -1698,12 +1698,13 @@ int ha_tina::check(THD* thd, HA_CHECK_OPT* check_opt)
   DBUG_ENTER("ha_tina::check");
 
   old_proc_info= thd_proc_info(thd, "Checking table");
-  if (!(buf= (uchar*) my_malloc(table->s->reclength, MYF(MY_WME))))
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   /* position buffer to the start of the file */
    if (init_data_file())
      DBUG_RETURN(HA_ERR_CRASHED);
+
+  if (!(buf= (uchar*) my_malloc(table->s->reclength, MYF(MY_WME))))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   /*
     Local_saved_data_file_length is initialized during the lock phase.

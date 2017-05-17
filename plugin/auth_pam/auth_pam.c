@@ -141,6 +141,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   if (new_username && strcmp(new_username, info->user_name))
     strncpy(info->authenticated_as, new_username,
             sizeof(info->authenticated_as));
+  info->authenticated_as[sizeof(info->authenticated_as)-1]= 0;
 
 end:
   pam_end(pamh, status);

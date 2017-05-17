@@ -1660,7 +1660,10 @@ Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
     return true;
   }
   if (res->length() == 0)
+  {
     list= NULL;
+    list_len= 0;
+  }
   else if (!(list= gtid_parse_string_to_list(res->ptr(), res->length(),
                                              &list_len)))
   {

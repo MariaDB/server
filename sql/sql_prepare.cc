@@ -3022,7 +3022,7 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
   {
     stmt->state= Query_arena::STMT_ERROR;
     stmt->last_errno= thd->get_stmt_da()->sql_errno();
-    strncpy(stmt->last_error, thd->get_stmt_da()->message(), MYSQL_ERRMSG_SIZE);
+    strmake_buf(stmt->last_error, thd->get_stmt_da()->message());
   }
   thd->set_stmt_da(save_stmt_da);
 

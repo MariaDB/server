@@ -3685,9 +3685,6 @@ bool mysql_show_binlog_events(THD* thd)
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
 
-  Format_description_log_event *description_event= new
-    Format_description_log_event(3); /* MySQL 4.0 by default */
-
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS ||
               thd->lex->sql_command == SQLCOM_SHOW_RELAYLOG_EVENTS);
 
@@ -3712,6 +3709,9 @@ bool mysql_show_binlog_events(THD* thd)
     }
     binary_log= &(mi->rli.relay_log);
   }
+
+  Format_description_log_event *description_event= new
+    Format_description_log_event(3); /* MySQL 4.0 by default */
 
   if (binary_log->is_open())
   {
