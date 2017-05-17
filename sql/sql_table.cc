@@ -3355,30 +3355,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
               file->ha_table_flags() & HA_CAN_BIT_FIELD)
             total_uneven_bit_length-= sql_field->length & 7;
 
-	  sql_field->default_value=	dup_field->default_value;
-	  sql_field->set_handler(dup_field->type_handler());
-
-          /*
-            If we are replacing a field with a BIT field, we need
-            to initialize pack_flag. Note that we do not need to
-            increment total_uneven_bit_length here as this dup_field
-            has already been processed.
-          */
-          if (sql_field->real_field_type() == MYSQL_TYPE_BIT)
-          {
-            sql_field->pack_flag= FIELDFLAG_NUMBER;
-            if (!(file->ha_table_flags() & HA_CAN_BIT_FIELD))
-              sql_field->pack_flag|= FIELDFLAG_TREAT_BIT_AS_CHAR;
-          }
-
-	  sql_field->charset=		(dup_field->charset ?
-					 dup_field->charset :
-					 create_info->default_table_charset);
-	  sql_field->length=		dup_field->char_length;
-          sql_field->pack_length=	dup_field->pack_length;
-          sql_field->key_length=	dup_field->key_length;
-	  sql_field->decimals=		dup_field->decimals;
-	  sql_field->unireg_check=	dup_field->unireg_check;
           /* 
             We're making one field from two, the result field will have
             dup_field->flags as flags. If we've incremented null_fields
@@ -3386,10 +3362,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           */
           if (!(sql_field->flags & NOT_NULL_FLAG))
             null_fields--;
-	  sql_field->flags=		dup_field->flags;
-	  sql_field->create_length_to_internal_length();
-          sql_field->interval=          dup_field->interval;
-          sql_field->vcol_info=         dup_field->vcol_info;
+
+          if (sql_field->redefine_stage1(dup_field, file, create_info))
+            DBUG_RETURN(true);
+
 	  it2.remove();			// Remove first (create) definition
 	  select_field_pos--;
 	  break;

@@ -1637,6 +1637,93 @@ bool Type_handler_geometry::
 /*************************************************************************/
 
 bool Type_handler::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  def->create_length_to_internal_length_simple();
+  return false;
+}
+
+
+bool Type_handler_null::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  def->create_length_to_internal_length_null();
+  return false;
+}
+
+
+bool Type_handler_newdecimal::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  def->create_length_to_internal_length_newdecimal();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  def->create_length_to_internal_length_string();
+  return false;
+}
+
+
+bool Type_handler_typelib::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  def->create_length_to_internal_length_typelib();
+  return false;
+}
+
+
+bool Type_handler_bit::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  /*
+    If we are replacing a field with a BIT field, we need
+    to initialize pack_flag.
+  */
+  def->pack_flag= FIELDFLAG_NUMBER;
+  if (!(file->ha_table_flags() & HA_CAN_BIT_FIELD))
+    def->pack_flag|= FIELDFLAG_TREAT_BIT_AS_CHAR;
+  def->create_length_to_internal_length_bit();
+  return false;
+}
+
+
+/*************************************************************************/
+
+bool Type_handler::
        Column_definition_prepare_stage2_legacy(Column_definition *def,
                                                enum_field_types type) const
 {

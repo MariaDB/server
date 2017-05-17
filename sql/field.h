@@ -3887,7 +3887,6 @@ public:
   }
   Column_definition(THD *thd, Field *field, Field *orig_field);
   void set_attributes(const Lex_field_type_st &type, CHARSET_INFO *cs);
-  void create_length_to_internal_length(void);
   void create_length_to_internal_length_null()
   {
     DBUG_ASSERT(length == 0);
@@ -3955,6 +3954,16 @@ public:
   bool prepare_stage1_bit(THD *thd, MEM_ROOT *mem_root,
                           handler *file, ulonglong table_flags);
 
+  void redefine_stage1_common(const Column_definition *dup_field,
+                              const handler *file,
+                              const Schema_specification_st *schema);
+  bool redefine_stage1(const Column_definition *dup_field, const handler *file,
+                       const Schema_specification_st *schema)
+  {
+    const Type_handler *handler= dup_field->type_handler();
+    return handler->Column_definition_redefine_stage1(this, dup_field,
+                                                      file, schema);
+  }
   bool prepare_stage2(handler *handler, ulonglong table_flags);
   bool prepare_stage2_blob(handler *handler,
                            ulonglong table_flags, uint field_flags);

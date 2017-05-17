@@ -68,6 +68,7 @@ class Arg_comparator;
 struct st_value;
 class Protocol;
 class handler;
+struct Schema_specification_st;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 
@@ -707,6 +708,28 @@ public:
                                                 Column_definition *c,
                                                 handler *file,
                                                 ulonglong table_flags) const;
+  /*
+    This method is called on queries like:
+      CREATE TABLE t2 (a INT) AS SELECT a FROM t1;
+    I.e. column "a" is queried from another table,
+    but its data type is redefined.
+    @param OUT def   - The column definition to be redefined
+    @param IN  dup   - The column definition to take the data type from
+                       (i.e. "a INT" in the above example).
+    @param IN file   - Table owner handler. If it does not support certain
+                       data types, some conversion can be applied.
+                       I.g. true BIT to BIT-AS-CHAR.
+    @param IN schema - the owner schema definition, e.g. for the default
+                       character set and collation.
+    @retval true     - on error
+    @retval false    - on success
+  */
+  virtual bool Column_definition_redefine_stage1(Column_definition *def,
+                                                 const Column_definition *dup,
+                                                 const handler *file,
+                                                 const Schema_specification_st *
+                                                       schema)
+                                                 const;
   virtual bool Column_definition_prepare_stage2(Column_definition *c,
                                                 handler *file,
                                                 ulonglong table_flags) const= 0;
@@ -962,6 +985,15 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
   {
     DBUG_ASSERT(0);
     return true;
@@ -1536,6 +1568,11 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const;
   uint32 max_display_length(const Item *item) const;
   uint Item_time_precision(Item *item) const
   {
@@ -1830,6 +1867,11 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
@@ -2250,6 +2292,11 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
@@ -2282,6 +2329,11 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const
@@ -2573,6 +2625,11 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const;
 };
 
 
