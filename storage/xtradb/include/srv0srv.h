@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2017, MariaDB Corporation.
@@ -610,6 +610,11 @@ extern my_bool srv_print_all_deadlocks;
 
 extern my_bool	srv_cmp_per_index_enabled;
 
+/** Number of times secondary index lookup triggered cluster lookup */
+extern ulint	srv_sec_rec_cluster_reads;
+/** Number of times prefix optimization avoided triggering cluster lookup */
+extern ulint	srv_sec_rec_cluster_reads_avoided;
+
 /** Status variables to be passed to MySQL */
 extern struct export_var_t export_vars;
 
@@ -990,6 +995,13 @@ UNIV_INTERN
 void
 srv_purge_wakeup();
 
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+bool
+srv_is_undo_tablespace(
+	ulint	space_id);
+
 /** Status variables to be passed to MySQL */
 struct export_var_t{
 	ulint innodb_adaptive_hash_hash_searches;
@@ -1106,6 +1118,9 @@ struct export_var_t{
 #endif /* UNIV_DEBUG */
 	ulint innodb_column_compressed;		/*!< srv_column_compressed */
 	ulint innodb_column_decompressed;	/*!< srv_column_decompressed */
+
+	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
+	ulint innodb_sec_rec_cluster_reads_avoided; /*!< srv_sec_rec_cluster_reads_avoided */
 };
 
 /** Thread slot in the thread table.  */
