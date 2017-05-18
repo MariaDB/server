@@ -752,14 +752,9 @@ buf_read_ahead_linear(
 			switch (err) {
 			case DB_SUCCESS:
 			case DB_TABLESPACE_TRUNCATED:
+			case DB_TABLESPACE_DELETED:
 			case DB_ERROR:
 				break;
-			case DB_TABLESPACE_DELETED:
-				ib::info() << "linear readahead trying to"
-					" access page "
-					<< page_id_t(page_id.space(), i)
-					<< " in nonexisting or being-dropped"
-					" tablespace";
 			case DB_DECRYPTION_FAILED:
 				ib::error() << "linear readahead failed to"
 					" decrypt page "

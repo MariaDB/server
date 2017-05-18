@@ -2622,7 +2622,8 @@ srv_purge_should_exit(
 			/* Normal operation. */
 			break;
 		}
-		/* close_connections() was called; fall through */
+		/* close_connections() was called */
+		/* fall through */
 	case SRV_SHUTDOWN_CLEANUP:
 	case SRV_SHUTDOWN_EXIT_THREADS:
 		/* Exit unless slow shutdown requested or all done. */
