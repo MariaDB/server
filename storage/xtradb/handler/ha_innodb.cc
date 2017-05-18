@@ -769,43 +769,6 @@ innobase_purge_changed_page_bitmaps(
 	ulonglong lsn) __attribute__((unused));	/*!< in: LSN to purge files up to */
 
 
-/*****************************************************************//**
-Check whether this is a fake change transaction.
-@return TRUE if a fake change transaction */
-static
-my_bool
-innobase_is_fake_change(
-/*====================*/
-	handlerton	*hton,  /*!< in: InnoDB handlerton */
-	THD*		thd) __attribute__((unused));	/*!< in: MySQL thread handle of the user for
-				  whom the transaction is being committed */
-
-/** Empty free list algorithm.
-Checks if buffer pool is big enough to enable backoff algorithm.
-InnoDB empty free list algorithm backoff requires free pages
-from LRU for the best performance.
-buf_LRU_buf_pool_running_out cancels query if 1/4 of
-buffer pool belongs to LRU or freelist.
-At the same time buf_flush_LRU_list_batch
-keeps up to BUF_LRU_MIN_LEN in LRU.
-In order to avoid deadlock baclkoff requires buffer pool
-to be at least 4*BUF_LRU_MIN_LEN,
-but flush peformance is bad because of trashing
-and additional BUF_LRU_MIN_LEN pages are requested.
-@param[in]	algorithm	desired algorithm from srv_empty_free_list_t
-@return	true if it's possible to enable backoff. */
-static inline
-bool
-innodb_empty_free_list_algorithm_allowed(
-	srv_empty_free_list_t	algorithm)
-{
-	long long buf_pool_pages = srv_buf_pool_size / srv_page_size
-				/ srv_buf_pool_instances;
-
-	return(buf_pool_pages >= BUF_LRU_MIN_LEN * (4 + 1)
-			|| algorithm != SRV_EMPTY_FREE_LIST_BACKOFF);
-}
-
 /** Get the list of foreign keys referencing a specified table
 table.
 @param thd		The thread handle
@@ -2332,15 +2295,11 @@ innobase_get_stmt(
 	THD*	thd,		/*!< in: MySQL thread handle */
 	size_t*	length)		/*!< out: length of the SQL statement */
 {
-	const char* query = NULL;
-	LEX_STRING *stmt = NULL;
-	ut_ad(thd != NULL);
-	stmt = thd_query_string(thd);
-	if (stmt) {
+	if (const LEX_STRING *stmt = thd_query_string(thd)) {
 		*length = stmt->length;
-		query = stmt->str;
+		return stmt->str;
 	}
-	return (query);
+	return NULL;
 }
 
 /**********************************************************************//**
@@ -4251,22 +4210,6 @@ innobase_purge_changed_page_bitmaps(
 	ulonglong lsn)	/*!< in: LSN to purge files up to */
 {
 	return (my_bool)log_online_purge_changed_page_bitmaps(lsn);
-}
-
-/*****************************************************************//**
-Check whether this is a fake change transaction.
-@return TRUE if a fake change transaction */
-static
-my_bool
-innobase_is_fake_change(
-/*====================*/
-	handlerton	*hton MY_ATTRIBUTE((unused)),
-				/*!< in: InnoDB handlerton */
-	THD*		thd)	/*!< in: MySQL thread handle of the user for
-				whom the transaction is being committed */
-{
-	trx_t*	trx = check_trx_exists(thd);
-	return UNIV_UNLIKELY(trx->fake_changes);
 }
 
 /*****************************************************************//**
@@ -7779,8 +7722,8 @@ ha_innobase::innobase_lock_autoinc(void)
 				break;
 			}
 		}
-		/* Fall through to old style locking. */
-
+		/* Use old style locking. */
+		/* fall through */
 	case AUTOINC_OLD_STYLE_LOCKING:
 		DBUG_EXECUTE_IF("die_if_autoinc_old_lock_style_used",
 				ut_ad(0););
@@ -8263,8 +8206,8 @@ calc_row_difference(
 			}
 		}
 
-		if (o_len != n_len || (o_len != UNIV_SQL_NULL &&
-					0 != memcmp(o_ptr, n_ptr, o_len))) {
+		if (o_len != n_len || (o_len != 0 && o_len != UNIV_SQL_NULL
+				       && 0 != memcmp(o_ptr, n_ptr, o_len))) {
 			/* The field has changed */
 
 			ufield = uvect->fields + n_changed;
@@ -10503,7 +10446,8 @@ create_options_are_invalid(
 	case ROW_TYPE_DYNAMIC:
 		CHECK_ERROR_ROW_TYPE_NEEDS_FILE_PER_TABLE(use_tablespace);
 		CHECK_ERROR_ROW_TYPE_NEEDS_GT_ANTELOPE;
-		/* fall through since dynamic also shuns KBS */
+		/* ROW_FORMAT=DYNAMIC also shuns KEY_BLOCK_SIZE */
+		/* fall through */
 	case ROW_TYPE_COMPACT:
 	case ROW_TYPE_REDUNDANT:
 		if (kbs_specified) {
@@ -10885,7 +10829,8 @@ index_bad:
 			break;
 		}
 		zip_allowed = FALSE;
-		/* fall through to set row_format = COMPACT */
+		/* Set ROW_FORMAT = COMPACT */
+		/* fall through */
 	case ROW_TYPE_NOT_USED:
 	case ROW_TYPE_FIXED:
 	case ROW_TYPE_PAGE:
@@ -10894,6 +10839,7 @@ index_bad:
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_ILLEGAL_HA_CREATE_OPTION,
 			"InnoDB: assuming ROW_FORMAT=COMPACT.");
+		/* fall through */
 	case ROW_TYPE_DEFAULT:
 		/* If we fell through, set row format to Compact. */
 		row_format = ROW_TYPE_COMPACT;
@@ -13370,7 +13316,8 @@ fill_foreign_key_list(THD* thd,
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	for (dict_foreign_set::iterator it = table->referenced_set.begin();
+	for (dict_foreign_set::const_iterator it
+		     = table->referenced_set.begin();
 	     it != table->referenced_set.end(); ++it) {
 
 		dict_foreign_t* foreign = *it;

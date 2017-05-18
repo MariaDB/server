@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+   Copyright (c) 2008, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1050,6 +1050,7 @@ static int maxmin_in_range(bool max_fl, Field* field, COND *cond)
   case Item_func::LT_FUNC:
   case Item_func::LE_FUNC:
     less_fl= 1;
+    /* fall through */
   case Item_func::GT_FUNC:
   case Item_func::GE_FUNC:
   {

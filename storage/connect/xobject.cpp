@@ -408,7 +408,7 @@ bool STRING::Append_quoted(PCSZ s)
       case '\r':
       case '\b':
       case '\f': b |= Append('\\');
-        // passthru
+        // fall through
       default:
         b |= Append(*p);
         break;

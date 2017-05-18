@@ -440,6 +440,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
         } // endif
 
       // Selective delete, pass thru
+      /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
       strcpy(opmode, (UseTemp) ? "rb" : "r+b");
@@ -1919,6 +1920,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
         } // endif filter
 
       // Selective delete, pass thru
+      /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
       strcpy(opmode, (UseTemp) ? "rb": "r+b");
@@ -3586,6 +3588,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
         } // endif
 
       // Selective delete, pass thru
+      /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
       oflag = (UseTemp) ? O_RDONLY : O_RDWR;

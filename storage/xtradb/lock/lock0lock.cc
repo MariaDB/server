@@ -4788,13 +4788,11 @@ lock_rec_unlock(
 	trx_mutex_exit(trx);
 
 	stmt = innobase_get_stmt(trx->mysql_thd, &stmt_len);
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: Error: unlock row could not"
-		" find a %lu mode lock on the record\n",
-		(ulong) lock_mode);
-	ut_print_timestamp(stderr);
-	fprintf(stderr, " InnoDB: current statement: %.*s\n",
+
+	ib_logf(IB_LOG_LEVEL_ERROR,
+		"unlock row could not find a %u mode lock on the record;"
+		" statement=%.*s",
+		lock_mode,
 		(int) stmt_len, stmt);
 
 	return;

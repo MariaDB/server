@@ -507,7 +507,9 @@ fill_trx_row(
 
 	row->trx_mysql_thread_id = thd_get_thread_id(trx->mysql_thd);
 
-	stmt = innobase_get_stmt(trx->mysql_thd, &stmt_len);
+	stmt = trx->mysql_thd
+		? innobase_get_stmt(trx->mysql_thd, &stmt_len)
+		: NULL;
 
 	if (stmt != NULL) {
 		char	query[TRX_I_S_TRX_QUERY_MAX_LEN + 1];

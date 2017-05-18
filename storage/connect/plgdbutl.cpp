@@ -915,7 +915,7 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
 
       fp->Memory = NULL;
       fp->Mode = MODE_ANY;
-      // Passthru
+      // fall through
     case TYPE_FB_HANDLE:
       if (fp->Handle && fp->Handle != INVALID_HANDLE_VALUE)
         if (CloseFileHandle(fp->Handle))

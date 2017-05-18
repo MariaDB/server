@@ -118,7 +118,7 @@ ulonglong CharToNumber(const char *p, int n, ulonglong maxval,
         maxval++;
         if (minus) *minus = true;
       } // endif Unsigned
-
+      /* fall through */
     case '+':
       p++;
       break;

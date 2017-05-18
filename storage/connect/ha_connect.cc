@@ -1427,7 +1427,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     case MYSQL_TYPE_VARCHAR:
     case MYSQL_TYPE_VAR_STRING:
       pcf->Flags |= U_VAR;
-      /* no break */
+      /* fall through */
     default:
       pcf->Type= MYSQLtoPLG(fp->type(), &v);
       break;
@@ -2802,6 +2802,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 			case Item_func::LIKE_FUNC:   vop= OP_LIKE; break;
 			case Item_func::ISNOTNULL_FUNC:
 				neg = true;
+				/* fall through */
 			case Item_func::ISNULL_FUNC: vop= OP_NULL; break;
 			case Item_func::IN_FUNC:     vop= OP_IN;
       case Item_func::BETWEEN:
@@ -4246,7 +4247,8 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 			} else
         return false;
 
-      /* Fall through to check FILE_ACL */
+      /* check FILE_ACL */
+      /* fall through */
     case TAB_ODBC:
 		case TAB_JDBC:
 		case TAB_MYSQL:
@@ -5475,16 +5477,16 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				supfnc |= (FNC_DRIVER | FNC_TABLE);
 				break;
 #endif   // JDBC_SUPPORT
-			case TAB_DBF:
-				dbf = true;
-				// Passthru
-			case TAB_CSV:
-				if (!fn && fnc != FNC_NO)
-					sprintf(g->Message, "Missing %s file name", topt->type);
-				else if (sep && strlen(sep) > 1)
-					sprintf(g->Message, "Invalid separator %s", sep);
-				else
-					ok = true;
+		case TAB_DBF:
+      dbf= true;
+      // fall through
+    case TAB_CSV:
+      if (!fn && fnc != FNC_NO)
+        sprintf(g->Message, "Missing %s file name", topt->type);
+			else if (sep && strlen(sep) > 1)
+				sprintf(g->Message, "Invalid separator %s", sep);
+			else
+				ok= true;
 
 				break;
 			case TAB_MYSQL:

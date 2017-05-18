@@ -1591,7 +1591,7 @@ void JSONCOL::WriteColumn(PGLOBAL g)
         break;
         } // endif Op
 
-      // Passthru
+      // fall through
     case TYPE_DATE:
     case TYPE_INT:
 		case TYPE_TINY:

@@ -464,7 +464,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
         if (ApplyFilter(g, filp))
           break;
 
-        // passthru
+        // fall through
       case RC_NF:
         continue;
       case RC_EF:

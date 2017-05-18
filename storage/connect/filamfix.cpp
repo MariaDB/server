@@ -920,7 +920,8 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
         break;
         } // endif
 
-      // Selective delete, pass thru
+      // Selective delete
+      /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
       oflag |= (UseTemp) ? O_RDONLY : O_RDWR;
