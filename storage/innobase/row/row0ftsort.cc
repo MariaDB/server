@@ -94,7 +94,6 @@ row_merge_create_fts_sort_index(
 	new_index->n_def = FTS_NUM_FIELDS_SORT;
 	new_index->cached = TRUE;
 	new_index->parser = index->parser;
-	new_index->is_ngram = index->is_ngram;
 
 	idx_field = dict_index_get_nth_field(index, 0);
 	charset = fts_index_get_charset(index);
@@ -515,7 +514,6 @@ row_merge_fts_doc_tokenize(
 	ulint		data_size[FTS_NUM_AUX_INDEX];
 	ulint		n_tuple[FTS_NUM_AUX_INDEX];
 	st_mysql_ftparser*	parser;
-	bool			is_ngram;
 
 	t_str.f_n_char = 0;
 	t_ctx->buf_used = 0;
@@ -524,7 +522,6 @@ row_merge_fts_doc_tokenize(
 	memset(data_size, 0, FTS_NUM_AUX_INDEX * sizeof(ulint));
 
 	parser = sort_buf[0]->index->parser;
-	is_ngram = sort_buf[0]->index->is_ngram;
 
 	/* Tokenize the data and add each word string, its corresponding
 	doc id and position to sort buffer */
@@ -570,7 +567,7 @@ row_merge_fts_doc_tokenize(
 
 		/* Ignore string whose character number is less than
 		"fts_min_token_size" or more than "fts_max_token_size" */
-		if (!fts_check_token(&str, NULL, is_ngram, NULL)) {
+		if (!fts_check_token(&str, NULL, NULL)) {
 			if (parser != NULL) {
 				UT_LIST_REMOVE(t_ctx->fts_token_list, fts_token);
 				ut_free(fts_token);
@@ -589,7 +586,7 @@ row_merge_fts_doc_tokenize(
 
 		/* if "cached_stopword" is defined, ignore words in the
 		stopword list */
-		if (!fts_check_token(&str, t_ctx->cached_stopword, is_ngram,
+		if (!fts_check_token(&str, t_ctx->cached_stopword,
 				     doc->charset)) {
 			if (parser != NULL) {
 				UT_LIST_REMOVE(t_ctx->fts_token_list, fts_token);

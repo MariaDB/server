@@ -1200,7 +1200,6 @@ fts_tokenizer_word_get(
 	/* If it is a stopword, do not index it */
 	if (!fts_check_token(text,
 		    cache->stopword_info.cached_stopword,
-		    index_cache->index->is_ngram,
 		    index_cache->charset)) {
 
 		return(NULL);
@@ -3241,7 +3240,6 @@ fts_query_expansion_fetch_doc(
 		}
 
 		doc.charset = doc_charset;
-		doc.is_ngram = result_doc->is_ngram;
 
 		if (dfield_is_ext(dfield)) {
 			/* We ignore columns that are stored externally, this
@@ -3347,7 +3345,6 @@ fts_fetch_doc_from_rec(
 
 		doc->found = TRUE;
 		doc->charset = get_doc->index_cache->charset;
-		doc->is_ngram = index->is_ngram;
 
 		/* Null Field */
 		if (doc->text.f_len == UNIV_SQL_NULL || doc->text.f_len == 0) {
@@ -4379,13 +4376,10 @@ fts_sync_table(
 	return(err);
 }
 
-/** Check fts token
-1. for ngram token, check whether the token contains any words in stopwords
-2. for non-ngram token, check if it's stopword or less than fts_min_token_size
+/** Check if a fts token is a stopword or less than fts_min_token_size
 or greater than fts_max_token_size.
 @param[in]	token		token string
 @param[in]	stopwords	stopwords rb tree
-@param[in]	is_ngram	is ngram parser
 @param[in]	cs		token charset
 @retval	true	if it is not stopword and length in range
 @retval	false	if it is stopword or lenght not in range */
@@ -4393,96 +4387,16 @@ bool
 fts_check_token(
 	const fts_string_t*		token,
 	const ib_rbt_t*			stopwords,
-	bool				is_ngram,
 	const CHARSET_INFO*		cs)
 {
 	ut_ad(cs != NULL || stopwords == NULL);
 
-	if (!is_ngram) {
-		ib_rbt_bound_t  parent;
+	ib_rbt_bound_t  parent;
 
-		if (token->f_n_char < fts_min_token_size
-		    || token->f_n_char > fts_max_token_size
-		    || (stopwords != NULL
-			&& rbt_search(stopwords, &parent, token) == 0)) {
-			return(false);
-		} else {
-			return(true);
-		}
-	}
-
-	/* Check token for ngram. */
-	DBUG_EXECUTE_IF(
-		"fts_instrument_ignore_ngram_check",
-		return(true);
-	);
-
-	/* We ignore fts_min_token_size when ngram */
-	ut_ad(token->f_n_char > 0
-	      && token->f_n_char <= fts_max_token_size);
-
-	if (stopwords == NULL) {
-		return(true);
-	}
-
-	/*Ngram checks whether the token contains any words in stopwords.
-	We can't simply use CONTAIN to search in stopwords, because it's
-	built on COMPARE. So we need to tokenize the token into words
-	from unigram to f_n_char, and check them separately. */
-	for (ulint ngram_token_size = 1; ngram_token_size <= token->f_n_char;
-	     ngram_token_size ++) {
-		const char*	start;
-		const char*	next;
-		const char*	end;
-		ulint		char_len;
-		ulint		n_chars;
-
-		start = reinterpret_cast<char*>(token->f_str);
-		next = start;
-		end = start + token->f_len;
-		n_chars = 0;
-
-		while (next < end) {
-			char_len = my_charlen(cs, next, end);
-
-			if (next + char_len > end || char_len == 0) {
-				break;
-			} else {
-				/* Skip SPACE */
-				if (char_len == 1 && *next == ' ') {
-					start = next + 1;
-					next = start;
-					n_chars = 0;
-
-					continue;
-				}
-
-				next += char_len;
-				n_chars++;
-			}
-
-			if (n_chars == ngram_token_size) {
-				fts_string_t	ngram_token;
-				ngram_token.f_str =
-					reinterpret_cast<byte*>(
-					const_cast<char*>(start));
-				ngram_token.f_len = next - start;
-				ngram_token.f_n_char = ngram_token_size;
-
-				ib_rbt_bound_t  parent;
-				if (rbt_search(stopwords, &parent,
-					       &ngram_token) == 0) {
-					return(false);
-				}
-
-				/* Move a char forward */
-				start += my_charlen(cs, start, end);
-				n_chars = ngram_token_size - 1;
-			}
-		}
-	}
-
-	return(true);
+	return(token->f_n_char >= fts_min_token_size
+	       && token->f_n_char <= fts_max_token_size
+	       && (stopwords == NULL
+		   || rbt_search(stopwords, &parent, token) != 0));
 }
 
 /** Add the token and its start position to the token's list of positions.
@@ -4499,8 +4413,7 @@ fts_add_token(
 	/* Ignore string whose character number is less than
 	"fts_min_token_size" or more than "fts_max_token_size" */
 
-	if (fts_check_token(&str, NULL, result_doc->is_ngram,
-			    result_doc->charset)) {
+	if (fts_check_token(&str, NULL, result_doc->charset)) {
 
 		mem_heap_t*	heap;
 		fts_string_t	t_str;
@@ -7487,7 +7400,6 @@ fts_init_recover_doc(
 		}
 
 		doc.charset = get_doc->index_cache->charset;
-		doc.is_ngram = get_doc->index_cache->index->is_ngram;
 
 		if (dfield_is_ext(dfield)) {
 			dict_table_t*	table = cache->sync->table;

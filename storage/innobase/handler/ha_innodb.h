@@ -619,8 +619,6 @@ extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
 
 extern const struct _ft_vft ft_vft_result;
 
-#define FTS_NGRAM_PARSER_NAME "ngram"
-
 /** Structure Returned by ha_innobase::ft_init_ext() */
 typedef struct new_ft_info
 {

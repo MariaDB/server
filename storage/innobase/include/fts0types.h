@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -276,8 +276,6 @@ struct fts_doc_t {
 	CHARSET_INFO*	charset;	/*!< Document's charset info */
 
 	st_mysql_ftparser* parser;	/*!< fts plugin parser */
-
-	bool		is_ngram;	/*!< Whether it is a ngram parser */
 
 	ib_rbt_t*	stopwords;	/*!< Stopwords */
 };

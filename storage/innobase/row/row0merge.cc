@@ -4504,7 +4504,6 @@ row_merge_create_index(
 		ut_a(index);
 
 		index->parser = index_def->parser;
-		index->is_ngram = index_def->is_ngram;
 		index->has_new_v_col = has_new_v_col;
 
 		/* Note the id of the transaction that created this

@@ -129,7 +129,6 @@ struct index_def_t {
 	index_field_t*	fields;		/*!< field definitions */
 	st_mysql_ftparser*
 			parser;		/*!< fulltext parser plugin */
-	bool		is_ngram;	/*!< true if it's ngram parser */
 };
 
 /** Structure for reporting duplicate records. */

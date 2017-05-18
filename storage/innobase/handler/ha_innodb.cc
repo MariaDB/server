@@ -6915,11 +6915,6 @@ ha_innobase::open(
 				static_cast<st_mysql_ftparser *>(
 					plugin_decl(parser)->info);
 
-			index->is_ngram = strncmp(
-				plugin_name(parser)->str,
-				FTS_NGRAM_PARSER_NAME,
-				plugin_name(parser)->length) == 0;
-
 			DBUG_EXECUTE_IF("fts_instrument_use_default_parser",
 				index->parser = &fts_default_parser;);
 		}

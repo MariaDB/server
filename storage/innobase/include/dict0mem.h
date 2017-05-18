@@ -918,8 +918,6 @@ struct dict_index_t{
 	dict_field_t*	fields;	/*!< array of field descriptions */
 	st_mysql_ftparser*
 			parser;	/*!< fulltext parser plugin */
-	bool		is_ngram;
-				/*!< true if it's ngram parser */
 	bool		has_new_v_col;
 				/*!< whether it has a newly added virtual
 				column in ALTER */
