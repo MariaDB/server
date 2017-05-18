@@ -1883,6 +1883,11 @@ INSERT INTO t1 VALUES (0x09),('a');
 SELECT IF(a<' ',HEX(a),a) FROM t1 ORDER BY a;
 DROP TABLE  t1;
 
+--echo #
+--echo # MDEV-12783 sql_mode=ORACLE: Functions LENGTH() and LENGTHB()
+--echo #
+SELECT LENGTHB('a'), LENGTHB(_utf8 0xC39F), LENGTHB(123), LENGTH(null);
+EXPLAIN EXTENDED SELECT LENGTH('a'), LENGTHB('a');
 
 --echo #
 --echo # End of 10.3 tests
