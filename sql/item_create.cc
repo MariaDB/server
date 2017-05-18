@@ -5684,11 +5684,9 @@ Create_func_length Create_func_length::s_singleton;
 Item*
 Create_func_length::create_1_arg(THD *thd, Item *arg1)
 {
-#if 0 // Not yet
   if (thd->variables.sql_mode & MODE_ORACLE)
     return new (thd->mem_root) Item_func_char_length(thd, arg1);
   else
-#endif
     return new (thd->mem_root) Item_func_octet_length(thd, arg1);
 }
 
@@ -6978,6 +6976,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("LCASE") }, BUILDER(Create_func_lcase)},
   { { C_STRING_WITH_LEN("LEAST") }, BUILDER(Create_func_least)},
   { { C_STRING_WITH_LEN("LENGTH") }, BUILDER(Create_func_length)},
+  { { C_STRING_WITH_LEN("LENGTHB") }, BUILDER(Create_func_octet_length)},
 #ifndef DBUG_OFF
   { { C_STRING_WITH_LEN("LIKE_RANGE_MIN") }, BUILDER(Create_func_like_range_min)},
   { { C_STRING_WITH_LEN("LIKE_RANGE_MAX") }, BUILDER(Create_func_like_range_max)},
