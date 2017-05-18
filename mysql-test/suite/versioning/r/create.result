@@ -63,16 +63,16 @@ end~~
 drop table if exists t1;
 create table t1 (
 x1 int unsigned,
-Sys_start SYS_TRX_TYPE generated always as row start,
-Sys_end SYS_TRX_TYPE generated always as row end,
+Sys_start SYS_TRX_TYPE generated always as row start comment 'start',
+Sys_end SYS_TRX_TYPE generated always as row end comment 'end',
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x1` int(10) unsigned DEFAULT NULL,
-  `Sys_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
-  `Sys_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  `Sys_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START COMMENT 'start',
+  `Sys_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END COMMENT 'end',
   PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
 ) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 # Implicit fields test

@@ -6262,6 +6262,15 @@ opt_serial_attribute_list:
         | serial_attribute
         ;
 
+opt_asrow_attribute:
+          /* empty */ {}
+        | opt_asrow_attribute_list {}
+        ;
+
+opt_asrow_attribute_list:
+          opt_asrow_attribute_list asrow_attribute {}
+        | asrow_attribute
+        ;
 
 field_def:
           opt_attribute
@@ -6271,7 +6280,7 @@ field_def:
            Lex->last_field->flags&= ~NOT_NULL_FLAG; // undo automatic NOT NULL for timestamps
          }
           vcol_opt_specifier vcol_opt_attribute
-        | opt_generated_always AS ROW_SYM start_or_end
+        | opt_generated_always AS ROW_SYM start_or_end opt_asrow_attribute
           {
             LEX *lex= Lex;
             Vers_parse_info &info= lex->vers_get_info();
@@ -6743,7 +6752,7 @@ attribute:
         | serial_attribute
         ;
 
-serial_attribute:
+asrow_attribute:
           not NULL_SYM
           {
             Lex->last_field->flags|= NOT_NULL_FLAG;
@@ -6768,6 +6777,10 @@ serial_attribute:
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX; 
           }
         | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
+        ;
+
+serial_attribute:
+          asrow_attribute
         | IDENT_sys equal TEXT_STRING_sys
           {
             if ($3.length > ENGINE_OPTION_MAX_LENGTH)
