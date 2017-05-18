@@ -6082,10 +6082,10 @@ i_s_dict_fill_sys_tables(
 
 	OK(field_store_string(fields[SYS_TABLES_ROW_FORMAT], row_format));
 
-	OK(fields[SYS_TABLES_ZIP_PAGE_SIZE]->store(static_cast<double>(
+	OK(fields[SYS_TABLES_ZIP_PAGE_SIZE]->store(
 				page_size.is_compressed()
 				? page_size.physical()
-				: 0)));
+				: 0, true));
 
 	OK(field_store_string(fields[SYS_TABLES_SPACE_TYPE], space_type));
 
@@ -6385,7 +6385,7 @@ i_s_dict_fill_sys_tablestats(
 
 	OK(fields[SYS_TABLESTATS_AUTONINC]->store(table->autoinc, true));
 
-	OK(fields[SYS_TABLESTATS_TABLE_REF_COUNT]->store(static_cast<double>(ref_count)));
+	OK(fields[SYS_TABLESTATS_TABLE_REF_COUNT]->store(ref_count, true));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -7321,11 +7321,11 @@ i_s_dict_fill_sys_fields(
 
 	fields = table_to_fill->field;
 
-	OK(fields[SYS_FIELD_INDEX_ID]->store((longlong) index_id, TRUE));
+	OK(fields[SYS_FIELD_INDEX_ID]->store(index_id, true));
 
 	OK(field_store_string(fields[SYS_FIELD_NAME], field->name));
 
-	OK(fields[SYS_FIELD_POS]->store(static_cast<double>(pos)));
+	OK(fields[SYS_FIELD_POS]->store(pos, true));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
