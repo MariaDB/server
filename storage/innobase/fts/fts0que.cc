@@ -2430,7 +2430,8 @@ fts_query_terms_in_document(
 /*****************************************************************//**
 Retrieve the document and match the phrase tokens.
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+MY_ATTRIBUTE((nonnull(1,2,3,6), warn_unused_result))
+static
 dberr_t
 fts_query_match_document(
 /*=====================*/

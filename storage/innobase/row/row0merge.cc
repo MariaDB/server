@@ -4030,7 +4030,7 @@ row_merge_drop_temp_indexes(void)
 
 /** Create temporary merge files in the given paramater path, and if
 UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
-@param[in]	path	location for creating temporary merge files.
+@param[in]	path	location for creating temporary merge files, or NULL
 @return File descriptor */
 int
 row_merge_file_create_low(
@@ -4063,7 +4063,7 @@ row_merge_file_create_low(
 
 /** Create a merge file in the given location.
 @param[out]	merge_file	merge file structure
-@param[in]	path		location for creating temporary file
+@param[in]	path		location for creating temporary file, or NULL
 @return file descriptor, or -1 on failure */
 int
 row_merge_file_create(
@@ -4373,7 +4373,8 @@ row_merge_rename_tables_dict(
 @param[in,out]	index	index
 @param[in]	add_v	new virtual columns added along with add index call
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+MY_ATTRIBUTE((nonnull(1,2,3), warn_unused_result))
+static
 dberr_t
 row_merge_create_index_graph(
 	trx_t*			trx,
