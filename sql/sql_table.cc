@@ -5459,7 +5459,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 
   if (src_table->table->versioned() &&
       local_create_info.vers_info.fix_create_like(thd, &local_alter_info,
-                                                  &local_create_info))
+                                                  &local_create_info, src_table))
   {
     goto err;
   }

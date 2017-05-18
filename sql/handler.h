@@ -1728,7 +1728,7 @@ public:
   bool check_and_fix_alter(THD *thd, Alter_info *alter_info,
                            HA_CREATE_INFO *create_info, TABLE_SHARE *share);
   bool fix_create_like(THD *thd, Alter_info *alter_info,
-                       HA_CREATE_INFO *create_info);
+                       HA_CREATE_INFO *create_info, TABLE_LIST *table);
 
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
   bool declared_with_system_versioning : 1;

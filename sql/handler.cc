@@ -6926,28 +6926,45 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
 }
 
 bool Vers_parse_info::fix_create_like(THD *thd, Alter_info *alter_info,
-                                      HA_CREATE_INFO *create_info)
+                                      HA_CREATE_INFO *create_info, TABLE_LIST *table)
 {
   List_iterator<Create_field> it(alter_info->create_list);
-  Create_field *f= NULL;
+  Create_field *f, *f_start=NULL, *f_end= NULL;
 
   DBUG_ASSERT(alter_info->create_list.elements > 2);
-  for (uint i= 0; i < alter_info->create_list.elements - 1; ++i)
-    f= it++;
-  DBUG_ASSERT(f->flags & VERS_SYS_START_FLAG);
-  if (create_string(thd->mem_root, &generated_as_row.start, f->field_name) ||
-      create_string(thd->mem_root, &period_for_system_time.start,
-                    f->field_name))
-    return true;
+  while ((f= it++))
+  {
+    if (f->flags & VERS_SYS_START_FLAG)
+    {
+      f_start= f;
+      if (f_end)
+        break;
+    }
+    else if (f->flags & VERS_SYS_END_FLAG)
+    {
+      f_end= f;
+      if (f_start)
+        break;
+    }
+  }
 
-  f= it++;
-  DBUG_ASSERT(f->flags & VERS_SYS_END_FLAG);
-  if (create_string(thd->mem_root, &generated_as_row.end, f->field_name) ||
-      create_string(thd->mem_root, &period_for_system_time.end, f->field_name))
+  if (!f_start || !f_end)
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table->table_name,
+              "Missed one of system versioning fields from source");
     return true;
+  }
+
+  if (create_string(thd->mem_root, &generated_as_row.start, f_start->field_name) ||
+      create_string(thd->mem_root, &period_for_system_time.start, f_start->field_name) ||
+      create_string(thd->mem_root, &generated_as_row.end, f_end->field_name) ||
+      create_string(thd->mem_root, &period_for_system_time.end, f_end->field_name))
+  {
+    sql_print_error("Failed to allocate memory for Vers_parse_info::fix_create_like()");
+    return true;
+  }
 
   create_info->options|= HA_VERSIONED_TABLE;
-
   return false;
 }
 
