@@ -3,19 +3,16 @@
 *.reject
 *.spec
 *.bak
-*.dgcov
-*.rpm
 .*.swp
 *.ninja
 .ninja_*
 .gdb_history
 errmsg.sys
 typescript
-_CPack_Packages
 CMakeCache.txt
 CMakeFiles/
 MakeFile
-install_manifest*.txt
+install_manifest.txt
 CPackConfig.cmake
 CPackSourceConfig.cmake
 CTestTestfile.cmake
@@ -49,8 +46,6 @@ extra/comp_err
 extra/innochecksum
 extra/jemalloc/build/
 extra/jemalloc/tmp/
-extra/mariabackup/mariabackup
-extra/mariabackup/mbstream
 extra/my_print_defaults
 extra/mysql_waitpid
 extra/mysqld_safe_helper
@@ -84,9 +79,6 @@ mysql-test/lib/My/SafeProcess/my_safe_process
 mysql-test/mtr
 mysql-test/mysql-test-run
 mysql-test/var
-mysql-test-gcov.err
-mysql-test-gcov.msg
-mysys/test_hash
 mysys/thr_lock
 mysys/thr_timer
 packaging/rpm-oel/mysql.spec
@@ -126,7 +118,6 @@ scripts/mytop
 scripts/wsrep_sst_common
 scripts/wsrep_sst_mysqldump
 scripts/wsrep_sst_rsync
-scripts/wsrep_sst_mariabackup
 scripts/wsrep_sst_xtrabackup
 scripts/wsrep_sst_xtrabackup-v2
 scripts/maria_add_gis_sp.sql
@@ -185,9 +176,6 @@ storage/myisam/myisamlog
 storage/myisam/myisampack
 storage/myisam/rt_test
 storage/myisam/sp_test
-storage/rocksdb/ldb
-storage/rocksdb/mysql_ldb
-storage/rocksdb/sst_dump
 storage/tokudb/PerconaFT/buildheader/db.h
 storage/tokudb/PerconaFT/buildheader/make_tdb
 storage/tokudb/PerconaFT/buildheader/runcat.sh
@@ -214,7 +202,6 @@ storage/tokudb/PerconaFT/tools/tokudb_load
 storage/tokudb/PerconaFT/tools/tokuftdump
 storage/tokudb/PerconaFT/tools/tokuft_logprint
 storage/tokudb/PerconaFT/xz/
-strings/conf_to_src
 support-files/MySQL-shared-compat.spec
 support-files/binary-configure
 support-files/config.huge.ini
@@ -251,10 +238,6 @@ storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 storage/mroonga/mysql-test/mroonga/storage/r/information_schema_plugins.result
 storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
-xxx/*
-yyy/*
-zzz/*
-
 # C and C++
 
 # Compiled Object files
