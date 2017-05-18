@@ -247,7 +247,7 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
 #ifdef WITH_WSREP
   if (!strcmp(db->str, "wsrep_schema"))
   {
-    return TABLE_CATEGORY_RPL_INFO;
+    return TABLE_CATEGORY_INFORMATION;
   }
 #endif /* WITH_WSREP */
 

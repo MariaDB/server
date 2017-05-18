@@ -17,7 +17,7 @@
 #include <sql_class.h>
 #include <mysql/service_wsrep.h>
 
-my_bool wsrep_thd_is_BF(THD *, my_bool)
+my_bool wsrep_thd_is_BF(void *, my_bool)
 { return 0; }
 
 int wsrep_trx_order_before(THD *, THD *)
@@ -26,7 +26,8 @@ int wsrep_trx_order_before(THD *, THD *)
 enum wsrep_conflict_state wsrep_thd_conflict_state(THD *, my_bool)
 { return NO_CONFLICT; }
 
-int wsrep_is_wsrep_xid(const XID*)
+//int wsrep_is_wsrep_xid(const XID*)
+int wsrep_is_wsrep_xid(const void* xid)
 { return 0; }
 
 bool wsrep_prepare_key(const uchar*, size_t, const uchar*, size_t, struct wsrep_buf*, size_t*)

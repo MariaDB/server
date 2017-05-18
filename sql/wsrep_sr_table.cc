@@ -14,6 +14,7 @@
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
 
+#include "wsrep_priv.h"
 #include "wsrep_sr_table.h"
 #include "wsrep_schema.h"
 
@@ -60,7 +61,7 @@ THD* SR_storage_table::append_frag(THD*         thd,
     WSREP_ERROR("Failed to append frag to persistent storage");
   }
   else {
-    WSREP_DEBUG("SR_storage_table::append_frag(): thd %lu, seqno %lld, "
+    WSREP_DEBUG("SR_storage_table::append_frag(): thd %lld, seqno %lld, "
                 "trx_id: %ld, thd_ret: %p",
                 thd->thread_id, (long long)thd->wsrep_trx_meta.gtid.seqno,
                 thd->wsrep_trx_meta.stid.trx, ret);
@@ -136,7 +137,7 @@ void SR_storage_table::append_frag_commit(THD*         thd,
 
 void SR_storage_table::remove_trx(THD* thd)
 {
-  WSREP_DEBUG("SR_storage_table::remove_trx(%lu) seqno %lld, trx %ld",
+  WSREP_DEBUG("SR_storage_table::remove_trx(%lld) seqno %lld, trx %ld",
               thd->thread_id, (long long)thd->wsrep_trx_meta.gtid.seqno,
               thd->wsrep_trx_meta.stid.trx);
   int err= wsrep_schema_->remove_trx(thd, &thd->wsrep_SR_fragments);
@@ -154,7 +155,7 @@ void SR_storage_table::remove_trx(wsrep_SR_trx_info* trx)
 
 void SR_storage_table::rollback_trx(THD* thd)
 {
-  WSREP_DEBUG("SR_storage_table::rollback_trx(%lu) seqno %lld, trx %ld",
+  WSREP_DEBUG("SR_storage_table::rollback_trx(%lld) seqno %lld, trx %ld",
               thd->thread_id, (long long)thd->wsrep_trx_meta.gtid.seqno,
               thd->wsrep_trx_meta.stid.trx);
   int err= wsrep_schema_->rollback_trx(thd);

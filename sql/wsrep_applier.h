@@ -21,10 +21,6 @@
 
 #include "sql_class.h" // THD class
 
-int               wsrep_apply_events(THD*        thd,
-                                     const void* events_buf,
-                                     size_t      buf_len);
-
 void wsrep_set_apply_format(THD* thd, Format_description_log_event* ev);
 Format_description_log_event* wsrep_get_apply_format(THD* thd);
 
@@ -66,5 +62,4 @@ wsrep_cb_status_t wsrep_commit_cb(void*                   ctx,
 wsrep_cb_status_t wsrep_unordered_cb(void*              ctx,
                                      const wsrep_buf_t* data);
 
-} /* extern "C" */
 #endif /* WSREP_APPLIER_H */

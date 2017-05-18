@@ -10740,7 +10740,7 @@ wsrep_append_key(
 	DBUG_ENTER("wsrep_append_key");
 	bool const copy = true;
         DBUG_PRINT("enter",
-                   ("thd: %lu trx: %lld", wsrep_thd_thread_id(thd),
+                   ("thd: %lld trx: %lld", wsrep_thd_thread_id(thd),
                     (long long)trx->id));
 #ifdef WSREP_DEBUG_PRINT
 	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s\n Query: %s ",

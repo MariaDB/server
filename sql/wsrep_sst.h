@@ -63,7 +63,7 @@ extern void wsrep_sst_grab();
 /*! Init thread waits for SST completion */
 extern bool wsrep_sst_wait();
 /*! Signals wsrep that initialization is complete, writesets can be applied */
-extern bool wsrep_sst_continue();
+extern void wsrep_sst_continue();
 extern void wsrep_sst_auth_init();
 extern void wsrep_sst_auth_free();
 
@@ -73,7 +73,7 @@ extern void wsrep_SE_init_grab();   /*! grab init critical section */
 
   Return zero on success, non-zero on error
 */
-+extern int  wsrep_SE_init_wait();
+extern int  wsrep_SE_init_wait();
 extern void wsrep_SE_init_done();   /*! signal that SE init is complte */
 extern void wsrep_SE_initialized(); /*! mark SE initialization complete */
 extern void wsrep_SE_init_failed(); /*! mark SE initialization failed */

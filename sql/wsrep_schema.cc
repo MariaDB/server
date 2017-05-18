@@ -92,14 +92,14 @@ static int execute_SQL(THD* thd, const char* sql, uint length) {
               (long long)thd->thread_id);
   if (parser_state.init(thd, (char*)sql, length) == 0) {
     lex_start(thd);
-    mysql_reset_thd_for_next_command(thd);
+    thd->reset_for_next_command();
 
     thd->m_statement_psi= NULL;
 
     thd->set_query((char*)sql, length);
     thd->set_query_id(next_query_id());
 
-    mysql_parse(thd, (char*)sql, length, & parser_state);
+    mysql_parse(thd, (char*)sql, length, & parser_state, FALSE, FALSE);
 
     if (thd->is_error()) {
       WSREP_WARN("Wsrep_schema::execute_sql() failed, %d %s\nSQL: %s",
@@ -125,7 +125,7 @@ static int execute_SQL(THD* thd, const char* sql, uint length) {
  */
 static void init_stmt(THD* thd) {
   lex_start(thd);
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 }
 
 static void finish_stmt(THD* thd) {
@@ -148,8 +148,7 @@ static int open_table(THD* thd,
   uint flags= (MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
                MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY |
                MYSQL_OPEN_IGNORE_FLUSH |
-               MYSQL_LOCK_IGNORE_TIMEOUT |
-               MYSQL_LOCK_RPL_INFO_TABLE);
+               MYSQL_LOCK_IGNORE_TIMEOUT);
 
   tables.init_one_table(schema_name.str, schema_name.length,
                         table_name.str, table_name.length,
@@ -188,30 +187,23 @@ static void store(TABLE* table, uint field, const wsrep_uuid_t& uuid) {
   assert(field < table->s->fields);
   char uuid_str[37]= {'\0', };
   wsrep_uuid_print(&uuid, uuid_str, sizeof(uuid_str));
-  type_conversion_status status;
-  if ((status= table->field[field]->store(uuid_str, strlen(uuid_str),
-                                          &my_charset_bin)) != TYPE_OK) {
-    WSREP_ERROR("type conversion status: %d", status);
-  }
+  table->field[field]->store(uuid_str,
+                             strlen(uuid_str),
+                             &my_charset_bin);
 }
 
 template <typename INTTYPE>
 static void store(TABLE* table, uint field, const INTTYPE val) {
   assert(field < table->s->fields);
-  type_conversion_status status;
-  if ((status= table->field[field]->store(val)) != TYPE_OK) {
-    WSREP_ERROR("type conversion status: %d", status);
-  }
+  table->field[field]->store(val);
 }
 
 template <typename CHARTYPE>
 static void store(TABLE* table, uint field, const CHARTYPE* str, size_t str_len) {
   assert(field < table->s->fields);
-  type_conversion_status status;
-  if ((status= table->field[field]->store((const char*)str, str_len,
-                                          &my_charset_bin)) != TYPE_OK) {
-    WSREP_ERROR("type conversion status: %d", status);
-  }
+  table->field[field]->store((const char*)str,
+                             str_len,
+                             &my_charset_bin);
 }
 
 static int update_or_insert(TABLE* table) {
@@ -233,8 +225,7 @@ static int update_or_insert(TABLE* table) {
   /*
     Find the record and update or insert a new one if not found.
   */
-  if (!(key= (char*) my_safe_alloca(table->s->max_unique_length,
-                                    MAX_KEY_LENGTH))) {
+  if (!(key= (char*) my_safe_alloca(table->s->max_unique_length))) {
     WSREP_ERROR("Error allocating %ud bytes for key",
                 table->s->max_unique_length);
     DBUG_RETURN(1);
@@ -260,7 +251,7 @@ static int update_or_insert(TABLE* table) {
       ret= 1;
     }
   }
-  else if (!records_are_comparable(table) || compare_records(table)) {
+  else if (!records_are_comparable(table) || compare_record(table)) {
     /*
       Record has changed
     */
@@ -276,7 +267,7 @@ static int update_or_insert(TABLE* table) {
     }
   }
 
-  my_safe_afree(key, table->s->max_unique_length, MAX_KEY_LENGTH);
+  my_safe_afree(key, table->s->max_unique_length);
 
   DBUG_RETURN(ret);
 }
@@ -945,7 +936,7 @@ out:
 int Wsrep_schema::update_frag_seqno(THD* thd, const wsrep_trx_meta_t& meta)
 {
   DBUG_ENTER("Wsrep_schema::update_frag_seqno");
-  WSREP_DEBUG("update_frag_seqno(%lu) trx %ld, seqno %lld",
+  WSREP_DEBUG("update_frag_seqno(%lld) trx %ld, seqno %lld",
               thd->thread_id, meta.stid.trx, (long long)meta.gtid.seqno);
   int error, ret= 1;
   uchar key[MAX_KEY_LENGTH];
@@ -1031,7 +1022,7 @@ void Wsrep_schema::release_SR_thd(THD* thd)
 static int remove_fragment(THD* thd, TABLE* frag_table,
                            const wsrep_trx_meta& meta)
 {
-  WSREP_DEBUG("remove_fragment(%lu) trx %ld, seqno %lld",
+  WSREP_DEBUG("remove_fragment(%lld) trx %ld, seqno %lld",
               thd->thread_id, meta.stid.trx, (long long)meta.gtid.seqno);
   int error, ret= 1;
   uchar key[MAX_KEY_LENGTH];
@@ -1077,7 +1068,7 @@ static int remove_fragment(THD* thd, TABLE* frag_table,
 int Wsrep_schema::remove_trx(THD* thd, wsrep_fragment_set* fragments)
 {
   DBUG_ENTER("Wsrep_schema::remove_trx()");
-  WSREP_DEBUG("Wsrep_schema::remove_trx(%lu)", thd->thread_id);
+  WSREP_DEBUG("Wsrep_schema::remove_trx(%lld)", thd->thread_id);
   int wsrep_on= thd->variables.wsrep_on;
   int sql_log_bin= thd->variables.sql_log_bin;
   int log_bin_option= (thd->variables.option_bits & OPTION_BIN_LOG);
@@ -1141,7 +1132,7 @@ int Wsrep_schema::remove_trx(THD* thd, wsrep_fragment_set* fragments)
 int Wsrep_schema::rollback_trx(THD* caller)
 {
   DBUG_ENTER("Wsrep_schema::rollback_trx");
-  WSREP_DEBUG("Wsrep_schema::rollback_trx(%lu)", caller->thread_id);
+  WSREP_DEBUG("Wsrep_schema::rollback_trx(%lld)", caller->thread_id);
 
   /*
      There are cases where rollback_trx is called unnecessarily from
@@ -1154,7 +1145,7 @@ int Wsrep_schema::rollback_trx(THD* caller)
      statement with assert.
    */
   if (caller->wsrep_SR_fragments.empty()) {
-      WSREP_DEBUG("Wsrep_schema::rollback_trx(%lu) no fragments to remove",
+      WSREP_DEBUG("Wsrep_schema::rollback_trx(%lld) no fragments to remove",
                  caller->thread_id);
       DBUG_RETURN(0);
   }

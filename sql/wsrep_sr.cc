@@ -27,7 +27,7 @@ void Wsrep_SR_rollback_queue::append_SR_rollback(THD *thd)
 {
   if (thd->wsrep_SR_rollback_replicated_for_trx == thd->wsrep_trx_id())
   {
-    WSREP_DEBUG("SR rollback append skipped for thd: %lu conf %d",
+    WSREP_DEBUG("SR rollback append skipped for thd: %lld conf %d",
                 thd->thread_id, thd->wsrep_conflict_state());
     return;
   }
@@ -35,7 +35,7 @@ void Wsrep_SR_rollback_queue::append_SR_rollback(THD *thd)
   thd->wsrep_SR_rollback_replicated_for_trx = thd->wsrep_ws_handle.trx_id;
 
   mysql_mutex_lock(&mutex_);
-  WSREP_DEBUG("SR rollback append for thd: %lu "
+  WSREP_DEBUG("SR rollback append for thd: %lld "
               "query %lld  srctrx: %ld trx %ld  conf %d",
               thd->thread_id, thd->query_id, thd->wsrep_trx_meta.stid.trx,
               thd->wsrep_ws_handle.trx_id, thd->wsrep_conflict_state());
@@ -71,7 +71,7 @@ void Wsrep_SR_rollback_queue::send_SR_rollbacks(THD *thd)
 
     if (ret != WSREP_OK)
     {
-      WSREP_WARN("SR rollback replication failure, thd: %lu, trx_id: %lu SQL: %s",
+      WSREP_WARN("SR rollback replication failure, thd: %lld, trx_id: %lu SQL: %s",
                  thd->thread_id, thd->wsrep_trx_id(), thd->query());
     }
     delete event;
@@ -82,7 +82,7 @@ void Wsrep_SR_rollback_queue::send_SR_rollbacks(THD *thd)
 
 void wsrep_SR_trx_info::remove(THD* caller, bool persistent)
 {
-  WSREP_DEBUG("wsrep_SR_trx_info::remove for thd: %ld trx: %lu",
+  WSREP_DEBUG("wsrep_SR_trx_info::remove for thd: %lld trx: %lu",
               (thd_) ? thd_->thread_id : -1,
               (thd_) ? thd_->wsrep_trx_id() : -1);
 
@@ -95,7 +95,7 @@ void wsrep_SR_trx_info::remove(THD* caller, bool persistent)
                                   WSREP_CB_FAILURE : WSREP_CB_SUCCESS);
 
     if (rcode != WSREP_CB_SUCCESS)
-      WSREP_INFO("SR rollback failed, ret: %d, thd: %lu", rcode,thd_->thread_id);
+      WSREP_INFO("SR rollback failed, ret: %d, thd: %lld", rcode,thd_->thread_id);
 
     /* remove persistency records */
     if (wsrep_SR_store && persistent) wsrep_SR_store->rollback_trx(this);
@@ -201,7 +201,7 @@ bool SR_pool::remove(THD* caller, THD *victim, bool persistent)
 
   if (mysql_mutex_lock (&LOCK_wsrep_SR_pool)) abort();
   src_pool_t::iterator si;
-  WSREP_DEBUG("sr_pool remove for THD %lu, persistent: %d",
+  WSREP_DEBUG("sr_pool remove for THD %lld, persistent: %d",
               (victim) ? victim->thread_id : -1, persistent);
 
   for( si = pool_.begin(); si != pool_.end(); ++si )
@@ -216,7 +216,7 @@ bool SR_pool::remove(THD* caller, THD *victim, bool persistent)
 
       if (!victim || trx->get_THD() == victim)
       {
-        WSREP_DEBUG("Found SR transaction to remove: %ld", 
+        WSREP_DEBUG("Found SR transaction to remove: %lld", 
                     (victim) ? victim->thread_id : -1);
         ret = true;
 
@@ -272,7 +272,7 @@ void SR_pool::trimToNodes (THD* caller, const wsrep_member_info_t nodes[], int n
       {
         wsrep_SR_trx_info *trx = (wsrep_SR_trx_info*)ti->second;
 
-        WSREP_DEBUG("SR transaction to remove: %lu", trx->get_THD()->thread_id);
+        WSREP_DEBUG("SR transaction to remove: %lld", trx->get_THD()->thread_id);
 
         trx->remove(caller, true);
         delete trx;
@@ -404,7 +404,7 @@ void wsrep_handle_SR_rollback(void *BF_thd_ptr, void *victim_thd_ptr)
   if (!victim_thd_ptr) return;
 
   THD *victim_thd = (THD*) victim_thd_ptr;
-  WSREP_DEBUG("handle SR rollback, for deadlock: thd %lu trx_id %lu frags %lu conf %d",
+  WSREP_DEBUG("handle SR rollback, for deadlock: thd %lld trx_id %lu frags %lu conf %d",
               victim_thd->thread_id,
               victim_thd->wsrep_trx_id(),
               victim_thd->wsrep_fragments_sent,

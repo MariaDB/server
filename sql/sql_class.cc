@@ -881,6 +881,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   wsrep_retry_query_len   = 0;
   wsrep_retry_command     = COM_CONNECT;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
+  wsrep_status_vars       = 0;
   wsrep_mysql_replicated  = 0;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
@@ -2092,7 +2093,7 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         {
 #ifdef WITH_WSREP
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-          if (WSREP_NNULL(this) && wsrep_thd_is_BF((void *)this, FALSE))
+          if (WSREP_NNULL(this) && wsrep_thd_is_BF((void*)this, FALSE))
           {
             WSREP_DEBUG("remove_table_from_cache: %llu",
                         (unsigned long long) this->real_id);
@@ -2103,12 +2104,6 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         {
 #else
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-          if (WSREP(this) && wsrep_thd_is_BF(this, FALSE))
-          {
-            WSREP_DEBUG("remove_table_from_cache: %llu",
-                        (unsigned long long) this->real_id);
-            wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
-          }
 #endif /* WITH_WSREP */
         }
       }

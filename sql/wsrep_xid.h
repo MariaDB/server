@@ -15,22 +15,22 @@
 
 #ifndef WSREP_XID_H
 #define WSREP_XID_H
-
 #include <my_config.h>
-
+ 
 #ifdef WITH_WSREP
 
 #include "../wsrep/wsrep_api.h"
 #include "handler.h" // XID typedef
 
 void wsrep_xid_init(xid_t*, const wsrep_uuid_t&, wsrep_seqno_t);
+int wsrep_is_wsrep_xid(const void* xid);
 const wsrep_uuid_t* wsrep_xid_uuid(const XID&);
 wsrep_seqno_t wsrep_xid_seqno(const XID&);
 
-//void wsrep_get_SE_checkpoint(XID&);             /* uncomment if needed */
-bool wsrep_get_SE_checkpoint(wsrep_uuid_t&, wsrep_seqno_t&);
-//void wsrep_set_SE_checkpoint(XID&);             /* uncomment if needed */
-bool wsrep_set_SE_checkpoint(const wsrep_uuid_t&, wsrep_seqno_t);
+//void wsrep_get_SE_checkpoint(XID&); uncomment if needed
+void wsrep_get_SE_checkpoint(wsrep_uuid_t&, wsrep_seqno_t&);
+//void wsrep_set_SE_checkpoint(XID&); uncomment if needed
+void wsrep_set_SE_checkpoint(const wsrep_uuid_t&, wsrep_seqno_t);
 
 #endif /* WITH_WSREP */
 #endif /* WSREP_UTILS_H */

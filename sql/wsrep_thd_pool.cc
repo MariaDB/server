@@ -14,29 +14,29 @@
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
 
+#include "wsrep_mysqld.h"
 #include "wsrep_thd_pool.h"
 #include "wsrep_utils.h"
-#include "wsrep_mysqld.h"
 #include "sql_class.h"
-#include "global_threads.h"
+//#include "global_threads.h"
 
 #include <list>
 
 static THD* wsrep_thd_pool_new_thd()
 {
-  THD *thd = new THD;
+  THD *thd = new THD(0);
   thd->thread_stack= (char*) &thd;
   thd->security_ctx->skip_grants();
-  thd->system_thread= SYSTEM_THREAD_SLAVE_WORKER;
+  thd->system_thread= SYSTEM_THREAD_GENERIC;
 
   mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id=thread_id++;
+  thd->thread_id= next_thread_id();
 
   thd->real_id=pthread_self(); // Keep purify happy
 
   WSREP_DEBUG("Wsrep_thd_pool: creating system thread: %lld",
               (long long)thd->thread_id);
-  thd->prior_thr_create_utime= thd->start_utime= my_micro_time();
+  thd->prior_thr_create_utime= thd->start_utime= thd->thr_create_utime;
   (void) mysql_mutex_unlock(&LOCK_thread_count);
 
   thd->variables.wsrep_on     = 0;
@@ -72,8 +72,7 @@ Wsrep_thd_pool::~Wsrep_thd_pool()
     WSREP_DEBUG("Wsrep_thd_pool: closing thread %lld",
                 (long long)thd->thread_id);
 
-    thd->release_resources();
-    delete thd;
+     delete thd;
 
     pool_.pop_back();
   }
@@ -116,7 +115,6 @@ void Wsrep_thd_pool::release_thd(THD* thd)
   }
   else
   {
-    thd->release_resources();
     delete thd;
   }
 }

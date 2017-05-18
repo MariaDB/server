@@ -157,7 +157,7 @@ bool wsrep_set_local_position(THD* thd, const char* const value,
   wsrep_seqno_t const seqno = strtoll(value + uuid_len + 1, NULL, 10);
 
   if (sst) {
-    return wsrep_sst_received (thd, wsrep, uuid, seqno, NULL, 0, false);
+    wsrep_sst_received (thd, wsrep, uuid, seqno, NULL, 0, false);
   } else {
     // initialization
     local_uuid = uuid;
@@ -644,7 +644,7 @@ bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
   }
   return refresh_provider_options();
 }
-
+#ifdef OLD_MARIADB
 static SHOW_VAR wsrep_status_vars[]=
 {
   {"connected",         (char*) &wsrep_connected,         SHOW_BOOL},
@@ -665,7 +665,33 @@ static int show_var_cmp(const void *var1, const void *var2)
 {
   return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
 }
+#endif
 
+/*
+ * Status variables stuff below
+ */
+static inline void
+wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep)
+{
+  mysql->name = wsrep->name;
+  switch (wsrep->type) {
+  case WSREP_VAR_INT64:
+    mysql->value = (char*) &wsrep->value._int64;
+    mysql->type  = SHOW_LONGLONG;
+    break;
+  case WSREP_VAR_STRING:
+    mysql->value = (char*) &wsrep->value._string;
+    mysql->type  = SHOW_CHAR_PTR;
+    break;
+  case WSREP_VAR_DOUBLE:
+    mysql->value = (char*) &wsrep->value._double;
+    mysql->type  = SHOW_DOUBLE;
+    break;
+  }
+}
+
+
+#ifdef OLD_MARIADB
 int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
                        enum enum_var_type scope)
 {
@@ -711,4 +737,75 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
   v->name= 0;                                   // terminator
   return 0;
 }
+#endif
 
+#if DYNAMIC
+// somehow this mysql status thing works only with statically allocated arrays.
+static SHOW_VAR*          mysql_status_vars = NULL;
+static int                mysql_status_len  = -1;
+#else
+static SHOW_VAR           mysql_status_vars[512 + 1];
+static const int          mysql_status_len  = 512;
+#endif
+
+static void export_wsrep_status_to_mysql(THD* thd)
+{
+  int wsrep_status_len, i;
+
+  wsrep_free_status(thd);
+
+  thd->wsrep_status_vars = wsrep->stats_get(wsrep);
+
+  if (!thd->wsrep_status_vars) {
+    return;
+  }
+
+  for (wsrep_status_len = 0;
+       thd->wsrep_status_vars[wsrep_status_len].name != NULL;
+       wsrep_status_len++) {
+      /* */
+  }
+
+#if DYNAMIC
+  if (wsrep_status_len != mysql_status_len) {
+    void* tmp = realloc (mysql_status_vars,
+                         (wsrep_status_len + 1) * sizeof(SHOW_VAR));
+    if (!tmp) {
+
+      sql_print_error ("Out of memory for wsrep status variables."
+                       "Number of variables: %d", wsrep_status_len);
+      return;
+    }
+
+    mysql_status_len  = wsrep_status_len;
+    mysql_status_vars = (SHOW_VAR*)tmp;
+  }
+  /* @TODO: fix this: */
+#else
+  if (mysql_status_len < wsrep_status_len) wsrep_status_len= mysql_status_len;
+#endif
+
+  for (i = 0; i < wsrep_status_len; i++)
+    wsrep_assign_to_mysql (mysql_status_vars + i, thd->wsrep_status_vars + i);
+
+  mysql_status_vars[wsrep_status_len].name  = NullS;
+  mysql_status_vars[wsrep_status_len].value = NullS;
+  mysql_status_vars[wsrep_status_len].type  = SHOW_LONG;
+}
+
+int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff)
+{
+  export_wsrep_status_to_mysql(thd);
+  var->type= SHOW_ARRAY;
+  var->value= (char *) &mysql_status_vars;
+  return 0;
+}
+
+void wsrep_free_status (THD* thd)
+{
+  if (thd->wsrep_status_vars)
+  {
+    wsrep->stats_free (wsrep, thd->wsrep_status_vars);
+    thd->wsrep_status_vars = 0;
+  }
+}

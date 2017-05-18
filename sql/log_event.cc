@@ -5710,7 +5710,7 @@ compare_errors:
       if (thd->wsrep_apply_toi && wsrep_must_ignore_error(thd))
       {
         clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
-        thd->killed= THD::NOT_KILLED;
+        thd->killed= NOT_KILLED;
         thd->wsrep_has_ignored_error= true;
       }
 #endif /* WITH_WSREP */

@@ -77,7 +77,7 @@ void wsrep_return_from_bf_mode(THD*, struct wsrep_thd_shadow*);
 
 int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
                           enum enum_var_type scope);
-void wsrep_client_rollback(THD *thd);
+void wsrep_client_rollback(THD *thd, bool rollbacker = false);
 void wsrep_replay_transaction(THD *thd);
 void wsrep_create_appliers(long threads);
 void wsrep_create_rollbacker();
@@ -89,7 +89,8 @@ int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
   PA = Parallel Applying (on the slave side)
 */
 extern void  wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe);
-extern my_bool  wsrep_thd_is_BF(THD *thd, my_bool sync);
+//extern my_bool  wsrep_thd_is_BF(THD *thd, my_bool sync);
+extern my_bool  wsrep_thd_is_BF(void *thd_ptr, my_bool sync);
 extern my_bool wsrep_thd_is_wsrep(void *thd_ptr);
 
 //enum wsrep_conflict_state wsrep_thd_conflict_state(void *thd_ptr, my_bool sync);

@@ -428,7 +428,7 @@ static bool some_non_temp_table_to_be_updated(THD *thd, TABLE_LIST *tables)
   @return 0     No implicit commit
   @return 1     Do a commit
 */
-static bool stmt_causes_implicit_commit(THD *thd, uint mask)
+bool stmt_causes_implicit_commit(THD *thd, uint mask)
 {
   LEX *lex= thd->lex;
   bool skip= FALSE;
@@ -1796,7 +1796,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       {
         WSREP_DEBUG("Deadlock error for: %s", thd->query());
         mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-        thd->killed               = THD::NOT_KILLED;
+        thd->killed               = NOT_KILLED;
         thd->mysys_var->abort     = 0;
         thd->wsrep_retry_counter  = 0;
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
@@ -1910,7 +1910,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         {
           WSREP_DEBUG("Deadlock error for: %s", thd->query());
           mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-          thd->killed               = THD::NOT_KILLED;
+          thd->killed               = NOT_KILLED;
           thd->mysys_var->abort     = 0;
           thd->wsrep_retry_counter  = 0;
           mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
@@ -2371,8 +2371,8 @@ com_multi_end:
       BF aborted before sending response back to client
      */
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-    do_end_of_statement= thd->wsrep_conflict_state != REPLAYING &&
-                         thd->wsrep_conflict_state != RETRY_AUTOCOMMIT;
+    do_end_of_statement= thd->wsrep_conflict_state() != REPLAYING &&
+                         thd->wsrep_conflict_state() != RETRY_AUTOCOMMIT;
     if (thd->wsrep_conflict_state() == MUST_ABORT)
     {
       wsrep_client_rollback(thd);
@@ -3637,7 +3637,7 @@ mysql_execute_command(THD *thd)
     not run in it's own transaction it may simply never appear on
     the slave in case the outside transaction rolls back.
   */
-  if (stmt_causes_implicit_commit(thd, CF_IMPLICT_COMMIT_BEGIN))
+  if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_BEGIN))
   {
     /*
       Note that this should never happen inside of stored functions
@@ -7969,7 +7969,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
         }
         else
         {
-          WSREP_DEBUG("%s, thd: %lu is_AC: %d, retry: %lu - %lu SQL: %s",
+          WSREP_DEBUG("%s, thd: %lld is_AC: %d, retry: %lu - %lu SQL: %s",
                       (thd->wsrep_conflict_state_unsafe() == ABORTED) ?
                       "BF Aborted" : "cert failure",
                       (longlong) thd->thread_id, is_autocommit,
@@ -7988,7 +7988,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
         set_if_smaller(thd->wsrep_retry_counter, 0); // reset; eventually ok
       }
     }
-  }  while (thd->wsrep_conflict_state== RETRY_AUTOCOMMIT);
+  }  while (thd->wsrep_conflict_state()== RETRY_AUTOCOMMIT);
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   if (thd->wsrep_retry_query)
@@ -9000,7 +9000,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
 
     if (((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
-	!wsrep_thd_is_BF(tmp, true))
+	!wsrep_thd_is_BF((void*)tmp, true))
     {
       tmp->awake_no_mutex(kill_signal);
       error=0;

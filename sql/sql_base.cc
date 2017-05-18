@@ -879,7 +879,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
                                              table->s->db.str,
                                              table->s->table_name.str,
                                              MDL_SHARED));
-#emdif /* WITH_WSSREP */
+#endif /* WITH_WSSREP */
   table->mdl_ticket= NULL;
 
   if (table->file)

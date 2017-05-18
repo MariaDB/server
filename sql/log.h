@@ -1227,6 +1227,15 @@ static inline TC_LOG *get_tc_log_implementation()
     return &mysql_bin_log;
   return &tc_log_mmap;
 }
+#ifdef WITH_WSREP
+IO_CACHE* wsrep_get_trans_cache(THD *);
+void wsrep_thd_binlog_trx_reset(THD * thd);
+#define WSREP_BINLOG_FORMAT(my_format)                         \
+   ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?     \
+   wsrep_forced_binlog_format : my_format)
+#else
+#define WSREP_BINLOG_FORMAT(my_format) my_format
+#endif /* WITH_WSREP */
 
 
 class Gtid_list_log_event;

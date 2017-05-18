@@ -19,7 +19,9 @@
 #define WSREP_MYSQLD_H
 
 #include <mysql/plugin.h>
-#include <mysql/service_wsrep.h>
+//#include <mysql/service_wsrep.h>
+
+#include <my_pthread.h>
 
 #ifdef WITH_WSREP
 
@@ -37,12 +39,43 @@ typedef struct st_mysql_show_var SHOW_VAR;
 class set_var;
 class THD;
 
+#define SEPPO_ADDED
+#ifdef SEPPO_ADDED
+enum wsrep_exec_mode {
+    LOCAL_STATE,
+    REPL_RECV,
+    TOTAL_ORDER,
+    LOCAL_COMMIT,
+    LOCAL_ROLLBACK
+};
+
+enum wsrep_query_state {
+    QUERY_IDLE,
+    QUERY_EXEC,
+    QUERY_COMMITTING,
+    QUERY_EXITING
+};
+
+enum wsrep_conflict_state {
+    NO_CONFLICT,
+    MUST_ABORT,
+    ABORTING,
+    ABORTED,
+    MUST_REPLAY,
+    REPLAYING,
+    RETRY_AUTOCOMMIT,
+    CERT_FAILURE
+};
+
+#endif
+
 enum wsrep_consistency_check_mode {
     NO_CONSISTENCY_CHECK,
     CONSISTENCY_CHECK_DECLARED,
     CONSISTENCY_CHECK_RUNNING,
 };
 
+#ifdef OLD_MARIADB
 struct wsrep_thd_shadow {
   ulonglong            options;
   uint                 server_status;
@@ -54,7 +87,7 @@ struct wsrep_thd_shadow {
   my_hrtime_t          user_time;
   longlong             row_count_func;
 };
-
+#endif
 // Global wsrep parameters
 extern wsrep_t*    wsrep;
 
@@ -70,19 +103,26 @@ extern const char* wsrep_data_home_dir;
 extern const char* wsrep_dbug_option;
 extern long        wsrep_slave_threads;
 extern int         wsrep_slave_count_change;
+extern MYSQL_PLUGIN_IMPORT my_bool wsrep_debug;
 extern my_bool     wsrep_convert_LOCK_to_trx;
 extern ulong       wsrep_retry_autocommit;
 extern my_bool     wsrep_auto_increment_control;
+extern my_bool     wsrep_drupal_282555_workaround;
 extern my_bool     wsrep_incremental_data_collection;
 extern const char* wsrep_start_position;
 extern ulong       wsrep_max_ws_size;
 extern ulong       wsrep_max_ws_rows;
 extern const char* wsrep_notify_cmd;
+extern my_bool     wsrep_certify_nonPK;
 //extern int        wsrep_protocol_version;
 extern ulong       wsrep_forced_binlog_format;
 extern my_bool     wsrep_desync;
+extern ulong       wsrep_reject_queries;
+extern my_bool     wsrep_recovery;
 extern my_bool     wsrep_replicate_myisam;
+extern my_bool     wsrep_log_conflicts;
 extern ulong       wsrep_mysql_replication_bundle;
+extern my_bool     wsrep_load_data_splitting;
 extern my_bool     wsrep_restart_slave;
 extern my_bool     wsrep_restart_slave_activated;
 extern my_bool     wsrep_slave_FK_checks;
@@ -134,8 +174,10 @@ extern const char* wsrep_provider_name;
 extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 
-int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff,
-                       enum enum_var_type scope);
+//int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff,
+//                       enum enum_var_type scope);
+int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
+void wsrep_free_status(THD *thd);
 int  wsrep_init();
 void wsrep_deinit(bool free_options);
 
@@ -154,33 +196,48 @@ void wsrep_init_startup(bool before);
 // Other wsrep global variables
 extern my_bool     wsrep_inited; // whether wsrep is initialized ?
 
+extern "C" {
+  enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
+  enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd);
+  void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
+  void wsrep_thd_set_conflict_state(
+        THD *thd, enum wsrep_conflict_state state);
+//void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
+//void wsrep_thd_set_conflict_state(
+//         THD *thd, enum wsrep_conflict_state state);
 
-extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
-extern "C" void wsrep_thd_set_conflict_state(
-         THD *thd, enum wsrep_conflict_state state);
+enum wsrep_query_state wsrep_thd_query_state(THD *thd);
 
-extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
+const char * wsrep_thd_exec_mode_str(THD *thd);
+const char * wsrep_thd_conflict_state_str(THD *thd);
+const char * wsrep_thd_query_state_str(THD *thd);
+wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd);
+}
+#ifdef OUT
+void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
 
-extern "C" void wsrep_fire_rollbacker(THD *thd);
-extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
-extern "C" time_t wsrep_thd_query_start(THD *thd);
-extern "C" query_id_t wsrep_thd_query_id(THD *thd);
-extern "C" wsrep_trx_id_t wsrep_thd_next_trx_id(THD *thd);
-extern "C" wsrep_trx_id_t wsrep_thd_trx_id(THD *thd);
-extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
-extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
+void wsrep_fire_rollbacker(THD *thd);
+uint32 wsrep_thd_wsrep_rand(THD *thd);
+time_t wsrep_thd_query_start(THD *thd);
+my_thread_id wsrep_thd_thread_id(THD *thd);
+int64_t wsrep_thd_trx_seqno(const THD *thd);
+query_id_t wsrep_thd_query_id(THD *thd);
+wsrep_trx_id_t wsrep_thd_next_trx_id(THD *thd);
+wsrep_trx_id_t wsrep_thd_trx_id(THD *thd);
+query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
+void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
 
-extern "C" void wsrep_thd_last_written_gtid(THD *thd, wsrep_gtid_t *t);
-extern "C" ulong wsrep_thd_trx_fragment_size(THD *thd);
-extern void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
+void wsrep_thd_last_written_gtid(THD *thd, wsrep_gtid_t *t);
+ulong wsrep_thd_trx_fragment_size(THD *thd);
 
-extern void wsrep_close_client_connections(my_bool wait_to_end,
-                                           THD *except_caller_thd = NULL);
+void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
+
 extern int  wsrep_wait_committing_connections_close(int wait_time);
 extern void wsrep_close_applier(THD *thd);
 extern void wsrep_wait_appliers_close(THD *thd);
 extern void wsrep_close_applier_threads(int count);
 extern void wsrep_kill_mysql(THD *thd);
+
 
 /* new defines */
 extern void wsrep_stop_replication(THD *thd);
@@ -192,6 +249,46 @@ extern wsrep_status_t wsrep_sync_wait_upto (THD* thd, wsrep_gtid_t* upto, int ti
 extern void wsrep_last_committed_id (wsrep_gtid_t* gtid);
 extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
+
+
+#else
+extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
+
+extern "C" void wsrep_fire_rollbacker(THD *thd);
+extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
+extern "C" time_t wsrep_thd_query_start(THD *thd);
+extern "C" my_thread_id wsrep_thd_thread_id(THD *thd);
+extern "C" int64_t wsrep_thd_trx_seqno(const THD *thd);
+extern "C" query_id_t wsrep_thd_query_id(THD *thd);
+extern "C" wsrep_trx_id_t wsrep_thd_next_trx_id(THD *thd);
+extern "C" wsrep_trx_id_t wsrep_thd_trx_id(THD *thd);
+extern "C" char * wsrep_thd_query(THD *thd);
+extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
+extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
+
+extern "C" void wsrep_thd_last_written_gtid(THD *thd, wsrep_gtid_t *t);
+extern "C" ulong wsrep_thd_trx_fragment_size(THD *thd);
+extern void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
+
+extern int  wsrep_wait_committing_connections_close(int wait_time);
+extern void wsrep_close_applier(THD *thd);
+extern void wsrep_wait_appliers_close(THD *thd);
+extern void wsrep_close_applier_threads(int count);
+extern void wsrep_kill_mysql(THD *thd);
+
+
+/* new defines */
+extern void wsrep_stop_replication(THD *thd);
+extern bool wsrep_start_replication();
+extern void wsrep_shutdown_replication();
+extern bool wsrep_must_sync_wait(THD* thd, uint mask = WSREP_SYNC_WAIT_BEFORE_READ);
+extern bool wsrep_sync_wait(THD* thd, uint mask = WSREP_SYNC_WAIT_BEFORE_READ);
+extern wsrep_status_t wsrep_sync_wait_upto (THD* thd, wsrep_gtid_t* upto, int timeout);
+extern void wsrep_last_committed_id (wsrep_gtid_t* gtid);
+extern int  wsrep_check_opts();
+extern void wsrep_prepend_PATH (const char* path);
+#endif
+
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
@@ -229,14 +326,26 @@ extern wsrep_seqno_t wsrep_locked_seqno;
     ? wsrep_forced_binlog_format : (ulong)(my_format))
 
 // prefix all messages with "WSREP"
-void wsrep_log(void (*fun)(const char *, ...), const char *format, ...);
-#define WSREP_LOG(fun, ...) wsrep_log(fun,  ## __VA_ARGS__)
+#define WSREP_LOG(fun, ...)                                       \
+    do {                                                          \
+        char msg[1024] = {'\0'};                                  \
+        snprintf(msg, sizeof(msg) - 1, ## __VA_ARGS__);           \
+        fun("WSREP: %s", msg);                                    \
+    } while(0)
+
+#define WSREP_DEBUG(...)                                                \
+    if (wsrep_debug)     WSREP_LOG(sql_print_information, ##__VA_ARGS__)
+#define WSREP_INFO(...)  WSREP_LOG(sql_print_information, ##__VA_ARGS__)
+#define WSREP_WARN(...)  WSREP_LOG(sql_print_warning,     ##__VA_ARGS__)
+#define WSREP_ERROR(...) WSREP_LOG(sql_print_error,       ##__VA_ARGS__)
+
+
 #define WSREP_LOG_CONFLICT_THD(thd, role)                                      \
     WSREP_LOG(sql_print_information, 	                                       \
       "%s: \n "       	                                                       \
-      "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %lld\n "          \
+      "  THD: %lld, mode: %s, state: %s, conflict: %s, seqno: %lld\n "         \
       "  SQL: %s",							       \
-      role, thd_get_thread_id(thd), wsrep_thd_exec_mode_str(thd),            \
+      role, wsrep_thd_thread_id(thd), wsrep_thd_exec_mode_str(thd),            \
       wsrep_thd_query_state_str(thd),                                          \
       wsrep_thd_conflict_state_str(thd), (long long)wsrep_thd_trx_seqno(thd),  \
       wsrep_thd_query(thd)                                                     \
@@ -260,7 +369,7 @@ void wsrep_log(void (*fun)(const char *, ...), const char *format, ...);
 
 extern void wsrep_ready_wait();
 
-#ifdef OUT
+#ifndef OUT
 enum wsrep_trx_status {
     WSREP_TRX_OK,
     WSREP_TRX_CERT_FAIL,      /* certification failure, must abort */
@@ -527,8 +636,9 @@ class Wsrep_thd_args
 
 void* start_wsrep_THD(void*);
 
+extern void wsrep_close_client_connections(my_bool wait_to_end,
+                                           THD *except_caller_thd = NULL);
 int wsrep_wait_committing_connections_close(int wait_time);
-void wsrep_close_client_connections(my_bool wait_to_end);
 void wsrep_close_applier(THD *thd);
 void wsrep_close_applier_threads(int count);
 void wsrep_wait_appliers_close(THD *thd);

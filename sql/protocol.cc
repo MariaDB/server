@@ -567,7 +567,8 @@ void Protocol::end_statement()
     WSREP_ERROR("attempting net_end_statement while replaying");
     return;
   }
-  DBUG_ASSERT_IF_WSREP(!(WSREP(thd) && thd->wsrep_conflict_state == REPLAYING));
+  DBUG_ASSERT_IF_WSREP(!(WSREP(thd) &&
+                         thd->wsrep_conflict_state() == REPLAYING));
   DBUG_ENTER("Protocol::end_statement");
   DBUG_ASSERT(! thd->get_stmt_da()->is_sent());
   bool error= FALSE;

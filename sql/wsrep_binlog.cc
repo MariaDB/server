@@ -212,7 +212,7 @@ static wsrep_trx_status wsrep_write_cache_once(wsrep_t*  const wsrep,
             if (used <= STACK_SIZE && used > 0) // there's data in stack_buf
             {
                 DBUG_ASSERT(buf == stack_buf);
-                memcpy(heap_buf, stack_buf, used);
+                memcpy(thd->wsrep_rbr_buf, stack_buf, used);
             }
         }
 

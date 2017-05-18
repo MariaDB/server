@@ -598,7 +598,6 @@ thd_get_work_part_info(
 struct trx_t;
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
-//extern "C" int wsrep_trx_order_before(void *thd1, void *thd2);
 
 extern "C" bool wsrep_thd_is_wsrep_on(THD *thd);
 
@@ -658,10 +657,6 @@ innobase_index_name_is_reserved(
 	ulint		num_of_keys)	/*!< in: Number of indexes to
 					be created. */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
-#ifdef WITH_WSREP
-//extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
 
 /** Parse hint for table and its indexes, and update the information
 in dictionary.

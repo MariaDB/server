@@ -42,8 +42,10 @@ void wsrep_xid_init(XID* xid, const wsrep_uuid_t& uuid, wsrep_seqno_t seqno)
   memcpy(xid->data + WSREP_XID_SEQNO_OFFSET, &seqno, sizeof(wsrep_seqno_t));
 }
 
-int wsrep_is_wsrep_xid(const XID* xid)
+//int wsrep_is_wsrep_xid(const XID* xid)
+int wsrep_is_wsrep_xid(const void* xid_ptr)
 {
+  const XID* xid= reinterpret_cast<const XID*>(xid_ptr);
   return (xid->formatID      == 1                   &&
           xid->gtrid_length  == WSREP_XID_GTRID_LEN &&
           xid->bqual_length  == 0                   &&
@@ -90,17 +92,16 @@ static my_bool set_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
   return FALSE;
 }
 
-bool wsrep_set_SE_checkpoint(XID& xid)
+void wsrep_set_SE_checkpoint(XID& xid)
 {
-  return plugin_foreach(NULL, set_SE_checkpoint, MYSQL_STORAGE_ENGINE_PLUGIN,
-                        &xid);
+  plugin_foreach(NULL, set_SE_checkpoint, MYSQL_STORAGE_ENGINE_PLUGIN, &xid);
 }
 
-bool wsrep_set_SE_checkpoint(const wsrep_uuid_t& uuid, wsrep_seqno_t seqno)
+void wsrep_set_SE_checkpoint(const wsrep_uuid_t& uuid, wsrep_seqno_t seqno)
 {
   XID xid;
   wsrep_xid_init(&xid, uuid, seqno);
-  return wsrep_set_SE_checkpoint(xid);
+  wsrep_set_SE_checkpoint(xid);
 }
 
 static my_bool get_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
@@ -120,13 +121,13 @@ static my_bool get_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
   return FALSE;
 }
 
-bool wsrep_get_SE_checkpoint(XID& xid)
+void wsrep_get_SE_checkpoint(XID& xid)
 {
-  return plugin_foreach(NULL, get_SE_checkpoint, MYSQL_STORAGE_ENGINE_PLUGIN,
+  plugin_foreach(NULL, get_SE_checkpoint, MYSQL_STORAGE_ENGINE_PLUGIN,
                         &xid);
 }
 
-bool wsrep_get_SE_checkpoint(wsrep_uuid_t& uuid, wsrep_seqno_t& seqno)
+void wsrep_get_SE_checkpoint(wsrep_uuid_t& uuid, wsrep_seqno_t& seqno)
 {
   uuid= WSREP_UUID_UNDEFINED;
   seqno= WSREP_SEQNO_UNDEFINED;
@@ -135,26 +136,18 @@ bool wsrep_get_SE_checkpoint(wsrep_uuid_t& uuid, wsrep_seqno_t& seqno)
   memset(&xid, 0, sizeof(xid));
   xid.formatID= -1;
 
-  if (wsrep_get_SE_checkpoint(xid))
-  {
-    return true;
-  }
+  wsrep_get_SE_checkpoint(xid);
 
-  if (xid.formatID == -1)                       // nil XID
-  {
-    return false;
-  }
+  if (xid.formatID == -1) return; // nil XID
 
   if (!wsrep_is_wsrep_xid(&xid))
   {
     WSREP_WARN("Read non-wsrep XID from storage engines.");
-    return false;
+    return;
   }
 
   uuid= *wsrep_xid_uuid(xid);
   seqno= wsrep_xid_seqno(xid);
-
-  return false;
 }
 
 void

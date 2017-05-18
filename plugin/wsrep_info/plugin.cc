@@ -202,9 +202,11 @@ static int wsrep_status_fill_table(THD *thd, TABLE_LIST *tables, COND *cond)
     ->store(view.state_id.seqno, 0);
   table->field[COLUMN_WSREP_STATUS_CLUSTER_CONF_ID]->store(view.view, 0);
 
+#ifdef OLD_MARIADB
   const char *gap= (view.state_gap == true) ? "YES" : "NO";
   table->field[COLUMN_WSREP_STATUS_GAP]->store(gap, strlen(gap),
                                                system_charset_info);
+#endif
   table->field[COLUMN_WSREP_STATUS_PROTO_VERSION]->store(view.proto_ver, 0);
 
   if (schema_table_store_record(thd, table))

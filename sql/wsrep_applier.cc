@@ -123,14 +123,14 @@ void wsrep_get_thd_error(const THD* const thd, wsrep_error& err)
   *slider= '\0';
   err.len= slider - err.str + 1; // +1: add \0
 
-  WSREP_INFO("Error buffer for thd %lu seqno %lld, %zu bytes: %s",
-             thd->thread_id, (long long)wsrep_thd_trx_seqno(thd),
+  WSREP_INFO("Error buffer for thd %lld seqno %lld, %zu bytes: %s",
+             thd->thread_id, (long long)wsrep_thd_trx_seqno((THD*)thd),
              err.len, err.str ? err.str : "(null)");
 }
 
-wsrep_cb_status_t wsrep_apply_events(THD*        thd,
-                                     const void* events_buf,
-                                     size_t      buf_len)
+int wsrep_apply_events(THD*        thd,
+                       const void* events_buf,
+                       size_t      buf_len)
 {
   char *buf= (char *)events_buf;
   int rcode= 0;
@@ -233,7 +233,7 @@ wsrep_cb_status_t wsrep_apply_events(THD*        thd,
     if (thd->wsrep_conflict_state() != NO_CONFLICT &&
         thd->wsrep_conflict_state() != REPLAYING)
       WSREP_WARN("conflict state after RBR event applying: %d, %lld",
-                 thd->wsrep_query_state, (long long)wsrep_thd_trx_seqno(thd));
+                 thd->wsrep_query_state(), (long long)wsrep_thd_trx_seqno(thd));
 
     if (thd->wsrep_conflict_state() == MUST_ABORT) {
       WSREP_WARN("Event apply failed, rolling back: %lld",
@@ -252,7 +252,7 @@ wsrep_cb_status_t wsrep_apply_events(THD*        thd,
 
  error:
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-  thd->wsrep_query_state= QUERY_IDLE;
+  thd->set_wsrep_query_state(QUERY_IDLE);
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   assert(thd->wsrep_exec_mode== REPL_RECV);
@@ -295,7 +295,7 @@ static wsrep_SR_trx_info* wsrep_prepare_applier_ctx(
     SR_trx->set_applier_thread(orig_thd->thread_id);
     *thd = SR_trx->get_THD();
     (*thd)->thread_stack = orig_thd->thread_stack;
-    WSREP_DEBUG("fragment trx found, thread_id: %lu", (*thd)->thread_id);
+    WSREP_DEBUG("fragment trx found, thread_id: %lld", (*thd)->thread_id);
     (*thd)->store_globals();
   }
   else
@@ -320,7 +320,7 @@ static inline void wsrep_restore_applier_ctx(wsrep_SR_trx_info* const SR_trx,
                                              THD* const               orig_thd)
 {
   DBUG_ENTER("wsrep_restore_applier_ctx");
-  WSREP_DEBUG("resetting default thd for applier, id: %lu, thd: %p",
+  WSREP_DEBUG("resetting default thd for applier, id: %lld, thd: %p",
               orig_thd->thread_id, orig_thd);
   SR_trx->set_applier_thread(0);
   orig_thd->store_globals();
@@ -370,9 +370,10 @@ static wsrep_cb_status_t wsrep_rollback_common(THD* thd, wsrep_error& err)
 //#else
 //  thd_proc_info(thd, "rolled back");
 //#endif /* WSREP_PROC_INFO */
-  thd->wsrep_rli->cleanup_context(thd, 0);
+  thd->wsrep_rgi->cleanup_context(thd, 0);
+#ifdef GTID_SUPPORT
   thd->variables.gtid_next.set_automatic();
-
+#endif
   DBUG_RETURN(rcode);
 }
 
@@ -518,15 +519,7 @@ static int wsrep_apply_trx(THD*                    orig_thd,
     }
   }
 
-  TABLE *tmp;
-  while ((tmp = thd->temporary_tables))
-  {
-    WSREP_DEBUG("Applier %lu, has temporary tables: %s.%s",
-                thd->thread_id,
-                (tmp->s) ? tmp->s->db.str : "void",
-                (tmp->s) ? tmp->s->table_name.str : "void");
-    close_temporary_table(thd, tmp, 1, 1);
-  }
+  thd->close_temporary_tables();
 
   if (SR_trx)
   {
@@ -578,15 +571,7 @@ static int wsrep_apply_toi(THD*        const thd,
     if (0 != rcode) wsrep_get_thd_error(thd, err);
   }
 
-  TABLE *tmp;
-  while ((tmp = thd->temporary_tables))
-  {
-    WSREP_DEBUG("Applier %lu, has temporary tables: %s.%s",
-                thd->thread_id,
-                (tmp->s) ? tmp->s->db.str : "void",
-                (tmp->s) ? tmp->s->table_name.str : "void");
-    close_temporary_table(thd, tmp, 1, 1);
-  }
+  thd->close_temporary_tables();
 
   DBUG_RETURN(rcode);
 }
@@ -728,7 +713,7 @@ int wsrep_apply_cb(void* const              ctx,
 #ifdef WSREP_PROC_INFO
   snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
            "applying write set %lld: %p, %zu",
-           (long long)wsrep_thd_trx_seqno(thd), buf->ptr, buf_len);
+           (long long)wsrep_thd_trx_seqno(thd), buf->ptr, buf->len);
   thd_proc_info(thd, thd->wsrep_info);
 #else
   thd_proc_info(thd, "Applying write set");
@@ -838,6 +823,7 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd)
   return rcode;
 }
 
+#ifdef OLD_MARIADB
 static wsrep_cb_status_t wsrep_rollback(THD* const thd)
 {
 #ifdef WSREP_PROC_INFO
@@ -861,7 +847,8 @@ static wsrep_cb_status_t wsrep_rollback(THD* const thd)
 
   return rcode;
 }
-
+#endif
+ 
 wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
                                   uint32_t      const     flags,
                                   const wsrep_trx_meta_t* meta,
@@ -889,8 +876,8 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
   {
     WSREP_DEBUG("SR trxid %ld seqno %lld has been aborted already, skipping "
                 "commit_cb", meta->stid.trx, (long long)meta->gtid.seqno);
-//gcf487    assert(0); // how can we be here?
-//gcf487    DBUG_RETURN(WSREP_CB_SUCCESS); still need to binlog the event
+    //gcf487    assert(0); // how can we be here?
+    //gcf487    DBUG_RETURN(WSREP_CB_SUCCESS); still need to binlog the event
     wsrep_write_dummy_event(thd);
   }
   else
@@ -954,9 +941,11 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
   }
 
   DBUG_RETURN(rcode);
-}
-
-wsrep_cb_status_t wsrep_unordered_cb(void*              const ctx,
-                                     const wsrep_buf_t* const data)
+  }
+  
+wsrep_cb_status_t wsrep_unordered_cb(void*  const ctx,
+      const wsrep_buf_t* const data)
 {
     return WSREP_CB_SUCCESS;
+}
+ 

@@ -21,6 +21,27 @@
 
 unsigned int wsrep_check_ip (const char* const addr, bool *is_ipv6);
 size_t wsrep_guess_ip (char* buf, size_t buf_len);
+namespace wsp {
+class node_status
+{
+public:
+  node_status() : status(WSREP_MEMBER_UNDEFINED) {}
+  void set(wsrep_member_status_t new_status,
+           const wsrep_view_info_t* view = 0)
+  {
+    if (status != new_status || 0 != view)
+    {
+      wsrep_notify_status(new_status, view);
+      status = new_status;
+    }
+  }
+  wsrep_member_status_t get() const { return status; }
+private:
+  wsrep_member_status_t status;
+};
+} /* namespace wsp */
+
+extern wsp::node_status local_status;
 
 /* returns the length of the host part of the address string */
 size_t wsrep_host_len(const char* addr, size_t addr_len);

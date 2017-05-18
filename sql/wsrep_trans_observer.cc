@@ -65,7 +65,7 @@
 #include "sql_class.h"  /* THD */
 #include "sql_parse.h"  /* stmt_causes_implicit_commit() */
 #include "rpl_filter.h" /* Rpl_filter */
-#include "binlog.h"
+#include "log.h"
 #include "debug_sync.h" /* DEBUG_SYNC */
 
 #include <map>
@@ -84,7 +84,7 @@ static void wsrep_wait_for_replayers(THD *thd)
   int replay_round= 0;
   while (wsrep_replaying > 0                        &&
          thd->wsrep_conflict_state() == NO_CONFLICT &&
-         thd->killed == THD::NOT_KILLED             &&
+         thd->killed == NOT_KILLED             &&
          !shutdown_in_progress)
   {
 
@@ -110,7 +110,7 @@ static void wsrep_wait_for_replayers(THD *thd)
                          &wtime);
 
     if (replay_round++ % 100000 == 0)
-      WSREP_DEBUG("commit waiting for replaying: replayers %d, thd: (%lu) "
+      WSREP_DEBUG("commit waiting for replaying: replayers %d, thd: (%lld) "
                   "conflict: %d (round: %d)",
                   wsrep_replaying, thd->thread_id,
                   thd->wsrep_conflict_state_unsafe(), replay_round);
@@ -161,7 +161,7 @@ static int wsrep_prepare_data_for_replication(THD *thd)
                   "wsrep status (%d %d %d)",
                   WSREP_QUERY(thd),
                   thd->get_stmt_da()->affected_rows(),
-                  stmt_has_updated_trans_table(thd->transaction.stmt.ha_list),
+                  stmt_has_updated_trans_table(thd),
                   thd->variables.sql_log_bin,
                   thd->wsrep_exec_mode, thd->wsrep_query_state_unsafe(),
                   thd->wsrep_conflict_state_unsafe());
@@ -230,9 +230,9 @@ static int wsrep_pre_commit(THD *thd)
   }
 
 
-  if (thd->killed != THD::NOT_KILLED)
+  if (thd->killed != NOT_KILLED)
   {
-    WSREP_INFO("thd %lu killed with signal %d, skipping replication",
+    WSREP_INFO("thd %lld killed with signal %d, skipping replication",
                thd->thread_id, thd->killed);
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     wsrep_override_error(thd, ER_LOCK_DEADLOCK);
@@ -243,7 +243,7 @@ static int wsrep_pre_commit(THD *thd)
   DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
   if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_trx_id())
   {
-    WSREP_WARN("SQL statement was ineffective, THD: %lu\n"
+    WSREP_WARN("SQL statement was ineffective, THD: %lld\n"
                "schema: %s \n"
                "QUERY: %s\n"
                " => Skipping replication",
@@ -272,7 +272,7 @@ static int wsrep_pre_commit(THD *thd)
                       &thd->wsrep_ws_handle,
                       flags,
                       &thd->wsrep_trx_meta);
-  WSREP_DEBUG("Trx pre_commit(%lu): rcode %d, seqno %lld, trx %ld, "
+  WSREP_DEBUG("Trx pre_commit(%lld): rcode %d, seqno %lld, trx %ld, "
               "flags %u, conf %d, SQL: %s",
               thd->thread_id, rcode,(long long)thd->wsrep_trx_meta.gtid.seqno,
               thd->wsrep_trx_meta.stid.trx, flags, thd->wsrep_conflict_state_unsafe(),
@@ -288,7 +288,7 @@ static int wsrep_pre_commit(THD *thd)
   switch (rcode)
   {
   case WSREP_TRX_MISSING:
-    WSREP_WARN("Transaction missing in provider thd: %ld schema: %s SQL: %s",
+    WSREP_WARN("Transaction missing in provider thd: %lld schema: %s SQL: %s",
                thd->thread_id, (thd->db ? thd->db : "(null)"),
                WSREP_QUERY(thd));
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_TRX_MISSING);
@@ -313,7 +313,7 @@ static int wsrep_pre_commit(THD *thd)
     */
     if (thd->wsrep_conflict_state() == MUST_ABORT)
     {
-      thd->killed= THD::NOT_KILLED;
+      thd->killed= NOT_KILLED;
       thd->set_wsrep_conflict_state(NO_CONFLICT);
     }
 
@@ -338,12 +338,12 @@ static int wsrep_pre_commit(THD *thd)
     my_error(ER_LOCK_DEADLOCK, MYF(0), WSREP_TRX_FAIL);
     break;
   case WSREP_SIZE_EXCEEDED:
-    WSREP_ERROR("wsrep_run_wsrep_commit(%lu): transaction size exceeded",
+    WSREP_ERROR("wsrep_run_wsrep_commit(%lld): transaction size exceeded",
                 thd->thread_id);
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED);
     break;
   case WSREP_CONN_FAIL:
-    WSREP_DEBUG("wsrep_run_wsrep_commit(%lu): replication aborted",
+    WSREP_DEBUG("wsrep_run_wsrep_commit(%lld): replication aborted",
                 thd->thread_id);
     my_error(ER_LOCK_DEADLOCK, MYF(0), WSREP_CONN_FAIL);
     break;
@@ -360,7 +360,7 @@ static int wsrep_pre_commit(THD *thd)
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_NOT_IMPLEMENTED);
     break;
   default:
-    WSREP_ERROR("wsrep_run_wsrep_commit(%lu): unknown provider failure",
+    WSREP_ERROR("wsrep_run_wsrep_commit(%lld): unknown provider failure",
                 thd->thread_id);
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), rcode);
     break;
@@ -442,7 +442,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
                  "sql_log_bin: %d, "
                  "wsrep status (%d %d %d)",
                  thd->query(), thd->get_stmt_da()->affected_rows(),
-                 stmt_has_updated_trans_table(thd->transaction.stmt.ha_list),
+                 stmt_has_updated_trans_table(thd),
                  thd->variables.sql_log_bin,
                  thd->wsrep_exec_mode, thd->wsrep_query_state(),
                  thd->wsrep_conflict_state_unsafe());
@@ -460,7 +460,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
   DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
   if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_trx_id())
   {
-    WSREP_WARN("SQL statement was ineffective, THD: %lu, buf: %zu\n"
+    WSREP_WARN("SQL statement was ineffective, THD: %lld, buf: %zu\n"
                "QUERY: %s\n"
                " => Skipping fragment replication",
                thd->thread_id, data_len, thd->query());
@@ -499,7 +499,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
                                           &thd->wsrep_trx_meta);
 
 
-  WSREP_DEBUG("Fragment pre_commit(%lu): rcode %d, seqno %lld, trx %ld, "
+  WSREP_DEBUG("Fragment pre_commit(%lld): rcode %d, seqno %lld, trx %ld, "
               "flags %u, conf %d, SQL: %s",
               thd->thread_id, rcode,(long long)thd->wsrep_trx_meta.gtid.seqno,
               thd->wsrep_trx_meta.stid.trx, flags,
@@ -537,9 +537,9 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
   case WSREP_OK:
     DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT);
     DBUG_PRINT("wsrep", ("replicating commit success"));
-    if (thd->killed != THD::NOT_KILLED)
+    if (thd->killed != NOT_KILLED)
     {
-      WSREP_DEBUG("thd %lu killed with signal %d, during fragment replication",
+      WSREP_DEBUG("thd %lld killed with signal %d, during fragment replication",
                 thd->thread_id, thd->killed);
     }
     DBUG_EXECUTE_IF("crash_replicate_fragment_success",
@@ -1007,7 +1007,7 @@ static int wsrep_after_commit(Trans_param *param)
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     if (wsrep->release(wsrep, &thd->wsrep_ws_handle))
     {
-      WSREP_WARN("wsrep::release fail: %llu %d",
+      WSREP_WARN("wsrep::release fail: %lld %d",
                  (long long)thd->thread_id, thd->get_stmt_da()->status());
     }
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
@@ -1065,7 +1065,7 @@ static int wsrep_before_rollback(Trans_param *param)
                                             thd->wsrep_trx_id(), NULL);
       if (rcode != WSREP_OK)
       {
-        WSREP_WARN("failed to send SR rollback for %lu", thd->thread_id);
+        WSREP_WARN("failed to send SR rollback for %lld", thd->thread_id);
       }
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     }
@@ -1127,7 +1127,8 @@ static int wsrep_after_rollback(Trans_param *param)
       ha_rollback_trans(thd, TRUE);
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       thd->variables.option_bits&= ~OPTION_BEGIN;
-      thd->transaction.all.reset_unsafe_rollback_flags();
+      //thd->transaction.all.reset_unsafe_rollback_flags();
+      thd->transaction.all.m_unsafe_rollback_flags= 0;
       thd->lex->start_transaction_opt= 0;
     }
   }
@@ -1213,7 +1214,7 @@ static int wsrep_after_command(Trans_param *param)
       {
         /* SR transactions do not retry */
         should_retry= !thd->wsrep_is_streaming();
-        wsrep_client_rollback(thd, false);
+        wsrep_client_rollback(thd);
       }
       wsrep_post_rollback(thd);
       wsrep_cleanup_transaction(thd);
@@ -1282,7 +1283,7 @@ static int wsrep_before_GTID_binlog(Trans_param *param)
 
   if (wsrep->release(wsrep, &thd->wsrep_ws_handle))
   {
-    WSREP_WARN("wsrep::release fail: %llu %d",
+    WSREP_WARN("wsrep::release fail: %lld %d",
                (long long)thd->thread_id, thd->get_stmt_da()->status());
   }
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);

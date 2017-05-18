@@ -13,8 +13,8 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
-#include "wsrep_api.h"
 #include "wsrep_priv.h"
+#include "wsrep_api.h"
 #include "wsrep_sr_file.h"
 #include "wsrep_applier.h" // wsrep_apply_cb()
 #include "wsrep_thd.h"

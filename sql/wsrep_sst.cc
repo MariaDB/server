@@ -284,8 +284,6 @@ void wsrep_sst_received (THD*                thd,
     OK from wsrep provider. By doing so, the values remain consistent across
     the server & wsrep provider.
   */
-  bool do_update= false;
-
     /*
       TODO: Handle backwards compatibility. WSREP API v25 does not have
       wsrep schema.
@@ -340,14 +338,13 @@ void wsrep_sst_received (THD*                thd,
 }
 
 // Let applier threads to continue
-bool wsrep_sst_continue ()
+void wsrep_sst_continue ()
 {
   if (sst_needed)
   {
     WSREP_INFO("Signalling provider to continue.");
-    return wsrep_sst_received (0, wsrep, local_uuid, local_seqno, NULL, 0, true);
+    wsrep_sst_received (0, wsrep, local_uuid, local_seqno, NULL, 0, true);
   }
-  return false;
 }
 
 struct sst_thread_arg
@@ -714,8 +711,6 @@ static enum
     WSREP_SE_INITIALIZED,
     WSREP_SE_INIT_ERROR
 } SE_init_status;
-
-static bool SE_initialized = false;
 
 ssize_t wsrep_sst_prepare (void** msg)
 {

@@ -1498,7 +1498,8 @@ trx_write_serialisation_history(
 	if (wsrep_on(trx->mysql_thd) &&
 	    !wsrep_thd_is_SR(trx->mysql_thd))
 	{
-		xid_t xid = {-1, 0, 0, {}};
+          //xid_t xid = {-1, 0, 0, {}};
+          xid_t xid = xid_t();
 		wsrep_thd_xid(trx->mysql_thd, &xid, sizeof(xid));
 		if (wsrep_is_wsrep_xid(&xid))
 		{
@@ -2506,6 +2507,9 @@ wsrep_trx_print_locking(
 		goto state_ok;
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		fputs(", COMMITTED IN MEMORY", f);
+		goto state_ok;
+	case TRX_STATE_FORCED_ROLLBACK:
+		fputs(", FORCED ROLLBACK", f);
 		goto state_ok;
 	}
 	fprintf(f, ", state %lu", (ulong) trx->state);
