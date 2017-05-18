@@ -768,6 +768,31 @@ innobase_purge_changed_page_bitmaps(
 /*================================*/
 	ulonglong lsn) __attribute__((unused));	/*!< in: LSN to purge files up to */
 
+/** Empty free list algorithm.
+Checks if buffer pool is big enough to enable backoff algorithm.
+InnoDB empty free list algorithm backoff requires free pages
+from LRU for the best performance.
+buf_LRU_buf_pool_running_out cancels query if 1/4 of
+buffer pool belongs to LRU or freelist.
+At the same time buf_flush_LRU_list_batch
+keeps up to BUF_LRU_MIN_LEN in LRU.
+In order to avoid deadlock baclkoff requires buffer pool
+to be at least 4*BUF_LRU_MIN_LEN,
+but flush peformance is bad because of trashing
+and additional BUF_LRU_MIN_LEN pages are requested.
+@param[in]	algorithm	desired algorithm from srv_empty_free_list_t
+@return	true if it's possible to enable backoff. */
+static inline
+bool
+innodb_empty_free_list_algorithm_allowed(
+	srv_empty_free_list_t	algorithm)
+{
+	long long buf_pool_pages = srv_buf_pool_size / srv_page_size
+				/ srv_buf_pool_instances;
+
+	return(buf_pool_pages >= BUF_LRU_MIN_LEN * (4 + 1)
+			|| algorithm != SRV_EMPTY_FREE_LIST_BACKOFF);
+}
 
 /** Get the list of foreign keys referencing a specified table
 table.
