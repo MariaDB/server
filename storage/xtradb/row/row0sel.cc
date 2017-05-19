@@ -3646,30 +3646,6 @@ row_search_idx_cond_check(
 	return(result);
 }
 
-
-/** Return the record field length in characters.
-@param[in]	col		table column of the field
-@param[in]	field_no	field number
-@param[in]	rec		physical record
-@param[in]	offsets		field offsets in the physical record
-
-@return field length in characters */
-static
-size_t
-rec_field_len_in_chars(const dict_col_t &col,
-		       const ulint field_no,
-		       const rec_t *rec,
-		       const ulint *offsets)
-{
-	const ulint cset = dtype_get_charset_coll(col.prtype);
-	const CHARSET_INFO* cs = all_charsets[cset];
-	ulint rec_field_len;
-	const char* rec_field = reinterpret_cast<const char *>(
-		rec_get_nth_field(
-			rec, offsets, field_no, &rec_field_len));
-	return(cs->cset->numchars(cs, rec_field, rec_field + rec_field_len));
-}
-
 /********************************************************************//**
 Searches for rows in the database. This is used in the interface to
 MySQL. This function opens a cursor, and also implements fetch next
