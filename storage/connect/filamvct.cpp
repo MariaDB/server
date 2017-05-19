@@ -143,9 +143,9 @@ int VCTFAM::GetFileLength(PGLOBAL g)
   {
   if (Split) {
     // Get the total file length
-    char    filename[_MAX_PATH];
-    char   *savfile = To_File;
-    int     i, len = 0;
+    char filename[_MAX_PATH];
+    PCSZ savfile = To_File;
+    int  i, len = 0;
 
     //  Initialize the array of file structures
     if (!Colfn) {
@@ -313,8 +313,8 @@ int VCTFAM::Cardinality(PGLOBAL g)
       // and Last must be set from the file cardinality.
       // Only happens when called by sub classes.
       char    filename[_MAX_PATH];
-      PSZ     savfn = To_File;
-      int    len, clen, card = -1;
+      PCSZ    savfn = To_File;
+      int     len, clen, card = -1;
       PCOLDEF cdp = Tdbp->GetDef()->GetCols();
 
       if (!Colfn) {
@@ -368,7 +368,7 @@ int VCTFAM::GetRowID(void)
 /***********************************************************************/
 /*  VCT Create an empty file for Vector formatted tables.              */
 /***********************************************************************/
-bool VCTFAM::MakeEmptyFile(PGLOBAL g, char *fn)
+bool VCTFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   {
   // Vector formatted file: this will create an empty file of the
   // required length if it does not exists yet.
@@ -560,7 +560,9 @@ bool VCTFAM::AllocateBuffer(PGLOBAL g)
 /*  Do initial action when inserting.                                  */
 /***********************************************************************/
 bool VCTFAM::InitInsert(PGLOBAL g)
-  {
+{
+	bool rc = false;
+
   // We come here in MODE_INSERT only
   if (Last == Nrec) {
     CurBlk = Block;
@@ -574,27 +576,27 @@ bool VCTFAM::InitInsert(PGLOBAL g)
     CurBlk = Block - 1;
     CurNum = Last;
 
-    //  Prepare error return
-    if (g->jump_level == MAX_JUMP) {
-      strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-      return true;
-      } // endif
+		try {
+			// Last block must be updated by new values
+			for (; cp; cp = (PVCTCOL)cp->Next)
+				cp->ReadBlock(g);
 
-    if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
-      g->jump_level--;
-      return true;
-      } // endif
+		} catch (int n) {
+			if (trace)
+				htrc("Exception %d: %s\n", n, g->Message);
+			rc = true;
+		} catch (const char *msg) {
+			strcpy(g->Message, msg);
+			rc = true;
+		} // end catch
 
-    // Last block must be updated by new values
-    for (; cp; cp = (PVCTCOL)cp->Next)
-      cp->ReadBlock(g);
-
-    g->jump_level--;
   } // endif Last
 
-  // We are not currently using a temporary file for Insert
-  T_Stream = Stream;
-  return false;
+	if (!rc)
+    // We are not currently using a temporary file for Insert
+    T_Stream = Stream;
+
+  return rc;
   } // end of InitInsert
 
 /***********************************************************************/
@@ -879,8 +881,9 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 bool VCTFAM::OpenTempFile(PGLOBAL g)
   {
-  char *opmode, tempname[_MAX_PATH];
-  bool  rc = false;
+  PCSZ  opmode;
+	char  tempname[_MAX_PATH];
+	bool  rc = false;
 
   /*********************************************************************/
   /*  Open the temporary file, Spos is at the beginning of file.       */
@@ -1108,7 +1111,7 @@ void VCTFAM::CloseTableFile(PGLOBAL g, bool abort)
     } else if (AddBlock) {
       // Last block was not written
       rc = ResetTableSize(g, CurBlk, Nrec);
-      longjmp(g->jumper[g->jump_level], 44);
+			throw 44;
     } // endif
 
   } else if (mode == MODE_UPDATE) {
@@ -1528,8 +1531,8 @@ bool VCMFAM::AllocateBuffer(PGLOBAL g)
 /*  Do initial action when inserting.                                  */
 /***********************************************************************/
 bool VCMFAM::InitInsert(PGLOBAL g)
-  {
-  int     rc;
+{
+  bool     rc = false;
   volatile PVCTCOL cp = (PVCTCOL)Tdbp->GetColumns();
 
   // We come here in MODE_INSERT only
@@ -1543,24 +1546,22 @@ bool VCMFAM::InitInsert(PGLOBAL g)
     CurNum = Last;
   } // endif Last
 
-  //  Prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return true;
-    } // endif
+	try {
+		// Initialize the column block pointer
+		for (; cp; cp = (PVCTCOL)cp->Next)
+			cp->ReadBlock(g);
 
-  if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
-    g->jump_level--;
-    return true;
-    } // endif
+	} catch (int n) {
+	  if (trace)
+		  htrc("Exception %d: %s\n", n, g->Message);
+		rc = true;
+  } catch (const char *msg) {
+	  strcpy(g->Message, msg);
+		rc = true;
+  } // end catch
 
-  // Initialize the column block pointer
-  for (; cp; cp = (PVCTCOL)cp->Next)
-    cp->ReadBlock(g);
-
-  g->jump_level--;
-  return false;
-  } // end of InitInsert
+  return rc;
+} // end of InitInsert
 
 /***********************************************************************/
 /*  Data Base write routine for VMP access method.                     */
@@ -2000,7 +2001,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
 /***********************************************************************/
 /*  Open the file corresponding to one column.                         */
 /***********************************************************************/
-bool VECFAM::OpenColumnFile(PGLOBAL g, char *opmode, int i)
+bool VECFAM::OpenColumnFile(PGLOBAL g, PCSZ opmode, int i)
   {
   char    filename[_MAX_PATH];
   PDBUSER dup = PlgGetUser(g);
@@ -2505,7 +2506,7 @@ void VECFAM::CloseTableFile(PGLOBAL g, bool abort)
     if (wrc != RC_FX)
       rc = ResetTableSize(g, Block, Last);
     else
-      longjmp(g->jumper[g->jump_level], 44);
+			throw 44;
 
   } else if (mode == MODE_UPDATE) {
     if (UseTemp && !InitUpdate && !Abort) {
@@ -3145,7 +3146,8 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
     htrc("after write req=%d brc=%d nbw=%d\n", req, brc, nbw);
 
   if (!brc || nbw != len) {
-    char buf[256], *fn = (h == Hfile) ? To_File : "Tempfile";
+		char buf[256];
+		PCSZ fn = (h == Hfile) ? To_File : "Tempfile";
 
     if (brc)
       strcpy(buf, MSG(BAD_BYTE_NUM));
@@ -3321,7 +3323,7 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
 /***********************************************************************/
 /*  VEC Create an empty file for new Vector formatted tables.          */
 /***********************************************************************/
-bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
+bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   {
   // Vector formatted file this will create an empty file of the
   // required length if it does not exists yet.
@@ -3331,7 +3333,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
   PlugSetPath(filename, fn, Tdbp->GetPath());
 
 #if defined(__WIN__)
-  char         *p;
+  PCSZ          p;
   DWORD         rc;
   bool          brc;
   LARGE_INTEGER of;
@@ -4167,8 +4169,8 @@ void BGVFAM::CloseTableFile(PGLOBAL g, bool abort)
     } else if (AddBlock) {
       // Last block was not written
       rc = ResetTableSize(g, CurBlk, Nrec);
-      longjmp(g->jumper[g->jump_level], 44);
-    } // endif
+			throw 44;
+		} // endif
 
   } else if (mode == MODE_UPDATE) {
     // Write back to file any pending modifications

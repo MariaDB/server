@@ -1192,7 +1192,7 @@ dict_index_get_nth_col_pos(
 	const dict_index_t*	index,	/*!< in: index */
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos) /*!< out: col num if prefix */
-	__attribute__((nonnull(1), warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 /********************************************************************//**
 Looks for column n in an index.
 @return position in internal representation of the index;
@@ -1207,7 +1207,7 @@ dict_index_get_nth_col_or_prefix_pos(
 						column prefixes too */
 	ulint*			prefix_col_pos)	/*!< out: col num if prefix */
 
-	__attribute__((nonnull(1), warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 /********************************************************************//**
 Returns TRUE if the index contains a column or a prefix of that column.
 @return	TRUE if contains the column or its prefix */

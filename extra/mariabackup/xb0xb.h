@@ -23,7 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 
 extern void os_io_init_simple(void);
-extern os_file_t	files[1000];
+extern pfs_os_file_t	files[1000];
 extern const char *innodb_checksum_algorithm_names[];
 extern TYPELIB innodb_checksum_algorithm_typelib;
 extern dberr_t open_or_create_data_files(

@@ -4,10 +4,10 @@
 
 typedef struct jdbc_parms {
 	int   CheckSize(int rows);
-	char *Driver;               // JDBC driver
-	char *Url;                  // Driver URL
-	char *User;                 // User connect info
-	char *Pwd;                  // Password connect info
+	PCSZ  Driver;               // JDBC driver
+	PCSZ  Url;                  // Driver URL
+	PCSZ  User;                 // User connect info
+	PCSZ  Pwd;                  // Password connect info
 //char *Properties;						// Connection property list
 //int   Cto;                  // Connect timeout
 //int   Qto;                  // Query timeout
@@ -19,12 +19,12 @@ typedef struct jdbc_parms {
 /*  JDBC catalog function prototypes.                                  */
 /***********************************************************************/
 #if defined(PROMPT_OK)
-char   *JDBCCheckConnection(PGLOBAL g, char *dsn, int cop);
+char   *JDBCCheckConnection(PGLOBAL g, PCSZ dsn, int cop);
 #endif   // PROMPT_OK
 //PQRYRES JDBCDataSources(PGLOBAL g, int maxres, bool info);
-PQRYRES JDBCColumns(PGLOBAL g, char *db, char *table,
-	char *colpat, int maxres, bool info, PJPARM sop);
-PQRYRES JDBCSrcCols(PGLOBAL g, char *src, PJPARM sop);
-PQRYRES JDBCTables(PGLOBAL g, char *db, char *tabpat,
-	char *tabtyp, int maxres, bool info, PJPARM sop);
+PQRYRES JDBCColumns(PGLOBAL g, PCSZ db, PCSZ table,
+	PCSZ colpat, int maxres, bool info, PJPARM sop);
+PQRYRES JDBCSrcCols(PGLOBAL g, PCSZ src, PJPARM sop);
+PQRYRES JDBCTables(PGLOBAL g, PCSZ db, PCSZ tabpat,
+	PCSZ tabtyp, int maxres, bool info, PJPARM sop);
 PQRYRES JDBCDrivers(PGLOBAL g, int maxres, bool info);

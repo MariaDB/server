@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
@@ -209,7 +209,7 @@ struct os_aio_slot_t{
 	ulint		page_size;      /*!< UNIV_PAGE_SIZE or zip_size */
 
 	os_offset_t	offset;		/*!< file offset in bytes */
-	os_file_t	file;		/*!< file where to read or write */
+	pfs_os_file_t	file;		/*!< file where to read or write */
 	const char*	name;		/*!< file name or path */
 	ibool		io_already_done;/*!< used only in simulated aio:
 					TRUE if the physical i/o already
@@ -1462,7 +1462,7 @@ A simple function to open or create a file.
 @return own: handle to the file, not defined if error, error number
 can be retrieved with os_file_get_last_error */
 UNIV_INTERN
-os_file_t
+pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 /*=========================================*/
 	const char*	name,	/*!< in: name of the file or path as a
@@ -1476,7 +1476,7 @@ os_file_create_simple_no_error_handling_func(
 	ulint           atomic_writes) /*! in: atomic writes table option
 				       value */
 {
-	os_file_t	file;
+	pfs_os_file_t	file;
 	atomic_writes_t awrites = (atomic_writes_t) atomic_writes;
 
 	*success = FALSE;
@@ -1485,7 +1485,6 @@ os_file_create_simple_no_error_handling_func(
 	DWORD		create_flag;
 	DWORD		attributes	= 0;
 	DWORD		share_mode	= FILE_SHARE_READ;
-
 	ut_a(name);
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
@@ -1502,8 +1501,8 @@ os_file_create_simple_no_error_handling_func(
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Unknown file create mode (%lu) for file '%s'",
 			create_mode, name);
-
-		return((os_file_t) -1);
+		file = INVALID_HANDLE_VALUE;
+		return(file);
 	}
 
 	if (access_type == OS_FILE_READ_ONLY) {
@@ -1526,8 +1525,8 @@ os_file_create_simple_no_error_handling_func(
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Unknown file access type (%lu) for file '%s'",
 			access_type, name);
-
-		return((os_file_t) -1);
+		file = INVALID_HANDLE_VALUE;
+		return(file);
 	}
 
 	file = CreateFile((LPCTSTR) name,
@@ -1555,11 +1554,10 @@ os_file_create_simple_no_error_handling_func(
 		}
 	}
 
-	*success = (file != INVALID_HANDLE_VALUE);
+	*success = file != INVALID_HANDLE_VALUE;
 #else /* __WIN__ */
 	int		create_flag;
 	const char*	mode_str	= NULL;
-
 	ut_a(name);
 	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW)
 		WAIT_ALLOW_WRITES();
@@ -1603,13 +1601,13 @@ os_file_create_simple_no_error_handling_func(
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Unknown file create mode (%lu) for file '%s'",
 			create_mode, name);
-
-		return((os_file_t) -1);
+		file = -1;
+		return(file);
 	}
 
-	file = ::open(name, create_flag, os_innodb_umask);
+	file = open(name, create_flag, os_innodb_umask);
 
-	*success = file == -1 ? FALSE : TRUE;
+	*success = file != -1;
 
 	/* This function is always called for data files, we should disable
 	OS caching (O_DIRECT) here as we do in os_file_create_func(), so
@@ -1619,13 +1617,13 @@ os_file_create_simple_no_error_handling_func(
 	   && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
 	       || srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
 
-	       os_file_set_nocache(file, name, mode_str);
+		os_file_set_nocache(file, name, mode_str);
 	}
 
 #ifdef USE_FILE_LOCK
 	if (!srv_read_only_mode
 	    && *success
-	    && (access_type == OS_FILE_READ_WRITE)
+	    && access_type == OS_FILE_READ_WRITE
 	    && os_file_lock(file, name)) {
 
 		*success = FALSE;
@@ -1723,7 +1721,7 @@ Opens an existing file or creates a new.
 @return own: handle to the file, not defined if error, error number
 can be retrieved with os_file_get_last_error */
 UNIV_INTERN
-os_file_t
+pfs_os_file_t
 os_file_create_func(
 /*================*/
 	const char*	name,	/*!< in: name of the file or path as a
@@ -1741,7 +1739,7 @@ os_file_create_func(
 	ulint           atomic_writes) /*! in: atomic writes table option
 				       value */
 {
-	os_file_t	file;
+	pfs_os_file_t	file;
 	ibool		retry;
 	ibool		on_error_no_exit;
 	ibool		on_error_silent;
@@ -1752,14 +1750,16 @@ os_file_create_func(
 		"ib_create_table_fail_disk_full",
 		*success = FALSE;
 		SetLastError(ERROR_DISK_FULL);
-		return((os_file_t) -1);
+		file = INVALID_HANDLE_VALUE;
+		return(file);
 	);
 #else /* __WIN__ */
 	DBUG_EXECUTE_IF(
 		"ib_create_table_fail_disk_full",
 		*success = FALSE;
 		errno = ENOSPC;
-		return((os_file_t) -1);
+		file = -1;
+		return(file);
 	);
 #endif /* __WIN__ */
 
@@ -1810,7 +1810,8 @@ os_file_create_func(
 			"Unknown file create mode (%lu) for file '%s'",
 			create_mode, name);
 
-		return((os_file_t) -1);
+		file = INVALID_HANDLE_VALUE;
+		return(file);
 	}
 
 	DWORD		attributes = 0;
@@ -1835,8 +1836,8 @@ os_file_create_func(
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Unknown purpose flag (%lu) while opening file '%s'",
 			purpose, name);
-
-		return((os_file_t)(-1));
+		file = INVALID_HANDLE_VALUE;
+		return(file);
 	}
 
 #ifdef UNIV_NON_BUFFERED_IO
@@ -1948,7 +1949,8 @@ os_file_create_func(
 			"Unknown file create mode (%lu) for file '%s'",
 			create_mode, name);
 
-		return((os_file_t) -1);
+		file = -1;
+		return(file);
 	}
 
 	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
@@ -1968,7 +1970,7 @@ os_file_create_func(
 #endif /* O_SYNC */
 
 	do {
-		file = ::open(name, create_flag, os_innodb_umask);
+		file = open(name, create_flag, os_innodb_umask);
 
 		if (file == -1) {
 			const char*	operation;
@@ -1993,13 +1995,13 @@ os_file_create_func(
 	} while (retry);
 
 	/* We disable OS caching (O_DIRECT) only on data files */
-       if (!srv_read_only_mode
-	   && *success
-	   && type != OS_LOG_FILE
-	   && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
-	       || srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
+	if (!srv_read_only_mode
+	    && *success
+	    && type != OS_LOG_FILE
+	    && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
+		|| srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
 
-	       os_file_set_nocache(file, name, mode_str);
+		os_file_set_nocache(file, name, mode_str);
 	}
 
 #ifdef USE_FILE_LOCK
@@ -2317,7 +2319,7 @@ UNIV_INTERN
 os_offset_t
 os_file_get_size(
 /*=============*/
-	os_file_t	file)	/*!< in: handle to a file */
+	pfs_os_file_t	file)	/*!< in: handle to a file */
 {
 #ifdef __WIN__
 	os_offset_t	offset;
@@ -2335,6 +2337,7 @@ os_file_get_size(
 	return(offset);
 #else
 	return((os_offset_t) lseek(file, 0, SEEK_END));
+
 #endif /* __WIN__ */
 }
 
@@ -2348,7 +2351,7 @@ UNIV_INTERN
 bool
 os_file_set_size(
 	const char*	name,
-	os_file_t	file,
+	pfs_os_file_t	file,
 	os_offset_t	size,
 	bool		is_sparse)
 {
@@ -4368,7 +4371,7 @@ os_aio_array_reserve_slot(
 				the aio operation */
 	void*		message2,/*!< in: message to be passed along with
 				the aio operation */
-	os_file_t	file,	/*!< in: file handle */
+	pfs_os_file_t	file,	/*!< in: file handle */
 	const char*	name,	/*!< in: name of the file or path as a
 				null-terminated string */
 	void*		buf,	/*!< in: buffer where to read or from which
@@ -4744,7 +4747,7 @@ os_aio_func(
 				caution! */
 	const char*	name,	/*!< in: name of the file or path as a
 				null-terminated string */
-	os_file_t	file,	/*!< in: handle to a file */
+	pfs_os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read or from which
 				to write */
 	os_offset_t	offset,	/*!< in: file offset where to read or write */
@@ -4776,7 +4779,6 @@ os_aio_func(
 	ulint		dummy_type;
 #endif /* WIN_ASYNC_IO */
 	ulint		wake_later;
-
 	ut_ad(buf);
 	ut_ad(n > 0);
 	ut_ad(n % OS_FILE_LOG_BLOCK_SIZE == 0);
@@ -4886,7 +4888,6 @@ try_again:
 #ifdef WIN_ASYNC_IO
 			ret = ReadFile(file, buf, (DWORD) n, &len,
 				       &(slot->control));
-
 #elif defined(LINUX_NATIVE_AIO)
 			if (!os_aio_linux_dispatch(array, slot)) {
 				goto err_exit;
@@ -4909,7 +4910,6 @@ try_again:
 			buffer = buf;
 			ret = WriteFile(file, buffer, (DWORD) n, &len,
 					&(slot->control));
-
 #elif defined(LINUX_NATIVE_AIO)
 			if (!os_aio_linux_dispatch(array, slot)) {
 				goto err_exit;
@@ -5063,8 +5063,7 @@ os_aio_windows_handle(
 		srv_set_io_thread_op_info(
 			orig_seg, "get windows aio return value");
 	}
-
-	ret = GetOverlappedResult(slot->file, &(slot->control), &len, TRUE);
+	ret = GetOverlappedResult(slot->file, &slot->control, &len, TRUE);
 
 	*message1 = slot->message1;
 	*message2 = slot->message2;
@@ -5101,7 +5100,8 @@ os_aio_windows_handle(
 		and os_file_write APIs, need to register with
 		performance schema explicitly here. */
 		struct PSI_file_locker* locker = NULL;
-		register_pfs_file_io_begin(locker, slot->file, slot->len,
+		PSI_file_locker_state	state;
+		register_pfs_file_io_begin(&state, locker, slot->file, slot->len,
 					   (slot->type == OS_FILE_WRITE)
 						? PSI_FILE_WRITE
 						: PSI_FILE_READ,
@@ -5110,8 +5110,8 @@ os_aio_windows_handle(
 
 		ut_a((slot->len & 0xFFFFFFFFUL) == slot->len);
 
- 		switch (slot->type) {
- 		case OS_FILE_WRITE:
+		switch (slot->type) {
+		case OS_FILE_WRITE:
 			ret = WriteFile(slot->file, slot->buf,
 					(DWORD) slot->len, &len,
 					&(slot->control));
@@ -5120,7 +5120,6 @@ os_aio_windows_handle(
 			ret = ReadFile(slot->file, slot->buf,
 				       (DWORD) slot->len, &len,
 				       &(slot->control));
-
 			break;
 		default:
 			ut_error;
@@ -5136,7 +5135,6 @@ os_aio_windows_handle(
 			file where we also use async i/o: in Windows
 			we must use the same wait mechanism as for
 			async i/o */
-
 			ret = GetOverlappedResult(slot->file,
 						  &(slot->control),
 						  &len, TRUE);
@@ -5607,7 +5605,6 @@ consecutive_loop:
 		os_aio_slot_t*	slot;
 
 		slot = os_aio_array_get_nth_slot(array, i + segment * n);
-
 		if (slot->reserved
 		    && slot != aio_slot
 		    && slot->offset == aio_slot->offset + aio_slot->len
@@ -6161,7 +6158,9 @@ os_file_trim(
 
 #ifdef __linux__
 #if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
-	int ret = fallocate(slot->file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
+	int ret = fallocate(slot->file,
+			    FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+			    off, trim_len);
 
 	if (ret) {
 		/* After first failure do not try to trim again */

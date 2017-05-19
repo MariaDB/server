@@ -45,7 +45,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	6
-#define INNODB_VERSION_BUGFIX	35
+#define INNODB_VERSION_BUGFIX	36
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -134,14 +134,8 @@ HAVE_PSI_INTERFACE is defined. */
 #if defined HAVE_PSI_INTERFACE && !defined UNIV_HOTBACKUP
 # define UNIV_PFS_MUTEX
 # define UNIV_PFS_RWLOCK
-/* For I/O instrumentation, performance schema rely
-on a native descriptor to identify the file, this
-descriptor could conflict with our OS level descriptor.
-Disable IO instrumentation on Windows until this is
-resolved */
-# ifndef __WIN__
-#  define UNIV_PFS_IO
-# endif
+
+# define UNIV_PFS_IO
 # define UNIV_PFS_THREAD
 
 /* There are mutexes/rwlocks that we want to exclude from

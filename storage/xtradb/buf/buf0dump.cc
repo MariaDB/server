@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -685,6 +685,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(buf_dump_thread)(void*)
 {
+	my_thread_init();
 	ut_ad(!srv_read_only_mode);
 
 	buf_dump_status(STATUS_INFO, "Dumping buffer pool(s) not yet started");
@@ -721,6 +722,7 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 
 	srv_buf_dump_thread_active = false;
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);

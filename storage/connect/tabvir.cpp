@@ -1,6 +1,6 @@
 /************* tdbvir C++ Program Source Code File (.CPP) **************/
-/* PROGRAM NAME: tdbvir.cpp  Version 1.1                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2014         */
+/* PROGRAM NAME: tdbvir.cpp  Version 1.2                               */
+/*  (C) Copyright to the author Olivier BERTRAND          2014-2017    */
 /*  This program are the VIR classes DB execution routines.            */
 /***********************************************************************/
 
@@ -269,7 +269,7 @@ int TDBVIR::DeleteDB(PGLOBAL g, int)
 /***********************************************************************/
 /*  VIRCOL public constructor.                                         */
 /***********************************************************************/
-VIRCOL::VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
+VIRCOL::VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ)
       : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
@@ -289,8 +289,8 @@ void VIRCOL::ReadColumn(PGLOBAL g)
   {
   // This should never be called
   sprintf(g->Message, "ReadColumn: Column %s is not virtual", Name);
-  longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
-  } // end of ReadColumn
+	throw TYPE_COLBLK;
+} // end of ReadColumn
 
 /* ---------------------------TDBVICL class -------------------------- */
 

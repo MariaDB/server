@@ -1,11 +1,11 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.9.2                                                      */
+/*  Version 4.9.3                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -98,6 +98,7 @@ DOSDEF::DOSDEF(void)
   Ofn = NULL;
 	Entry = NULL;
   To_Indx = NULL;
+	Pwd = NULL;
   Recfm = RECFM_VAR;
   Mapped = false;
 	Zipped = false;
@@ -131,7 +132,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   bool   map = (am && (*am == 'M' || *am == 'm'));
   LPCSTR dfm = (am && (*am == 'F' || *am == 'f')) ? "F"
              : (am && (*am == 'B' || *am == 'b')) ? "B"
-             : (am && !stricmp(am, "DBF"))        ? "D" : "V";
+		         : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
 	if ((Zipped = GetBoolCatInfo("Zipped", false))) {
 		Entry = GetStringCatInfo(g, "Entry", NULL);
@@ -139,14 +140,15 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
 		                               : false;
 		Mulentries = GetBoolCatInfo("Mulentries", Mulentries);
 		Append = GetBoolCatInfo("Append", false);
-	}
+		Pwd = GetStringCatInfo(g, "Password", NULL);
+	}	// endif Zipped
 
   Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
   Ofn = GetStringCatInfo(g, "Optname", Fn);
   GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
           (toupper(*buf) == 'B') ? RECFM_BIN :
-          (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
+		      (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
   Lrecl = GetIntCatInfo("Lrecl", 0);
 
   if (Recfm != RECFM_DBF)
@@ -180,7 +182,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
 /***********************************************************************/
 bool DOSDEF::GetOptFileName(PGLOBAL g, char *filename)
   {
-  char   *ftype;
+  PCSZ ftype;
 
   switch (Recfm) {
     case RECFM_VAR: ftype = ".dop"; break;
@@ -237,9 +239,9 @@ void DOSDEF::RemoveOptValues(PGLOBAL g)
 /***********************************************************************/
 bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   {
-  char   *ftype;
-  char    filename[_MAX_PATH];
-  bool    sep, rc = false;
+  PCSZ ftype;
+  char filename[_MAX_PATH];
+  bool sep, rc = false;
 
   if (!To_Indx)
     return false;           // No index
@@ -351,7 +353,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 	if (Zipped) {
 #if defined(ZIP_SUPPORT)
 		if (Recfm == RECFM_VAR) {
-			if (mode == MODE_READ || mode == MODE_ANY) {
+			if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
 				txfp = new(g) UNZFAM(this);
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);
@@ -362,7 +364,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 
 			tdbp = new(g) TDBDOS(this, txfp);
 		} else {
-			if (mode == MODE_READ || mode == MODE_ANY) {
+			if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
 				txfp = new(g) UZXFAM(this);
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZPXFAM(this);
@@ -1510,8 +1512,8 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
     if (n == 8 && ctype != TYPE_LIST) {
       // Should never happen
       strcpy(g->Message, "Block opt: bad constant");
-      longjmp(g->jumper[g->jump_level], 99);
-      } // endif Conv
+			throw 99;
+		} // endif Conv
 
     if (type[0] == 1) {
       // Make it always as Column-op-Value
@@ -1791,8 +1793,8 @@ err:
 /*  Make a dynamic index.                                              */
 /***********************************************************************/
 bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
-  {
-  int     k, rc;
+{
+  int     k;
   volatile bool dynamic;
   bool    brc;
   PCOL    colp;
@@ -1862,13 +1864,7 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
   } else                      // Column contains same values as ROWID
     kxp = new(g) XXROW(this);
 
-  //  Prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return true;
-    } // endif
-
-  if (!(rc = setjmp(g->jumper[++g->jump_level])) != 0) {
+	try {
     if (dynamic) {
       ResetBlockFilter(g);
       kxp->SetDynamic(dynamic);
@@ -1893,12 +1889,17 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
 
       } // endif brc
 
-  } else
-    brc = true;
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		brc = true;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		brc = true;
+	} // end catch
 
-  g->jump_level--;
-  return brc;
-  } // end of InitialyzeIndex
+	return brc;
+} // end of InitialyzeIndex
 
 /***********************************************************************/
 /*  DOS GetProgMax: get the max value for progress information.        */
@@ -2119,7 +2120,8 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     return false;
     } // endif use
 
-  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() != TYPE_AM_DOS) {
+  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() != TYPE_AM_DOS
+		                               && Txfp->GetAmType() != TYPE_AM_MGO) {
     // Delete all lines. Not handled in MAP or block mode
     Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
     Txfp->SetTdbp(this);
@@ -2157,16 +2159,18 @@ bool TDBDOS::OpenDB(PGLOBAL g)
   To_BlkFil = InitBlockFilter(g, To_Filter);
 
   /*********************************************************************/
-  /*  Allocate the line buffer plus a null character.                  */
-  /*********************************************************************/
-  To_Line = (char*)PlugSubAlloc(g, NULL, Lrecl + 1);
+	/*  Lrecl does not include line ending															 */
+	/*********************************************************************/
+	size_t linelen = Lrecl + ((PDOSDEF)To_Def)->Ending + 1;
+
+  To_Line = (char*)PlugSubAlloc(g, NULL, linelen);
 
   if (Mode == MODE_INSERT) {
     // Spaces between fields must be filled with blanks
     memset(To_Line, ' ', Lrecl);
     To_Line[Lrecl] = '\0';
   } else
-    memset(To_Line, 0, Lrecl + 1);
+    memset(To_Line, 0, linelen);
 
   if (trace)
     htrc("OpenDos: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
@@ -2305,8 +2309,8 @@ void TDBDOS::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  DOSCOL public constructor (also called by MAPCOL).                 */
 /***********************************************************************/
-DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
-  : COLBLK(cdp, tp, i)
+DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am)
+      : COLBLK(cdp, tp, i)
   {
   char *p;
   int   prec = Format.Prec;
@@ -2336,7 +2340,7 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   Dval = NULL;
   Buf = NULL;
 
-  if (txfp->Blocked && Opt && (cdp->GetMin() || cdp->GetDval())) {
+  if (txfp && txfp->Blocked && Opt && (cdp->GetMin() || cdp->GetDval())) {
     int nblk = txfp->GetBlock();
 
     Clustered = (cdp->GetXdb2()) ? 2 : 1;
@@ -2515,8 +2519,8 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       if (rc == RC_EF)
         sprintf(g->Message, MSG(INV_DEF_READ), rc);
 
-      longjmp(g->jumper[g->jump_level], 11);
-      } // endif
+			throw 11;
+		} // endif
 
   p = tdbp->To_Line + Deplac;
   field = Long;
@@ -2571,8 +2575,8 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       break;
     default:
       sprintf(g->Message, MSG(BAD_RECFM), tdbp->Ftype);
-      longjmp(g->jumper[g->jump_level], 34);
-    } // endswitch Ftype
+			throw 34;
+	} // endswitch Ftype
 
   // Set null when applicable
   if (Nullable)
@@ -2680,8 +2684,8 @@ void DOSCOL::WriteColumn(PGLOBAL g)
           break;
         default:
           sprintf(g->Message, "Invalid field format for column %s", Name);
-          longjmp(g->jumper[g->jump_level], 31);
-        } // endswitch BufType
+					throw 31;
+			} // endswitch BufType
 
       p2 = Buf;
     } else                 // Standard CONNECT format
@@ -2692,8 +2696,8 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 
     if ((len = strlen(p2)) > field) {
       sprintf(g->Message, MSG(VALUE_TOO_LONG), p2, Name, field);
-      longjmp(g->jumper[g->jump_level], 31);
-    } else if (Dsp)
+			throw 31;
+		} else if (Dsp)
       for (i = 0; i < len; i++)
         if (p2[i] == '.')
           p2[i] = Dsp; 

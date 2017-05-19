@@ -2412,7 +2412,7 @@ check_if_skip_table(
 Reads the space flags from a given data file and returns the compressed
 page size, or 0 if the space is not compressed. */
 ulint
-xb_get_zip_size(os_file_t file)
+xb_get_zip_size(pfs_os_file_t file)
 {
 	byte	*buf;
 	byte	*page;
@@ -4856,7 +4856,7 @@ end:
 static my_bool
 xtrabackup_init_temp_log(void)
 {
-	os_file_t	src_file = XB_FILE_UNDEFINED;
+	pfs_os_file_t	src_file;
 	char		src_path[FN_REFLEN];
 	char		dst_path[FN_REFLEN];
 	ibool		success;
@@ -5183,7 +5183,7 @@ xb_space_create_file(
 	ulint		space_id,	/*!<in: space id */
 	ulint		flags __attribute__((unused)),/*!<in: tablespace
 					flags */
-	os_file_t*	file)		/*!<out: file handle */
+	pfs_os_file_t*	file)		/*!<out: file handle */
 {
 	ibool		ret;
 	byte*		buf;
@@ -5262,7 +5262,7 @@ mismatching ID, renames it to xtrabackup_tmp_#ID.ibd. If there was no
 matching file, creates a new tablespace.
 @return file handle of matched or created file */
 static
-os_file_t
+pfs_os_file_t
 xb_delta_open_matching_space(
 	const char*	dbname,		/* in: path to destination database dir */
 	const char*	name,		/* in: name of delta file (without .delta) */
@@ -5276,7 +5276,7 @@ xb_delta_open_matching_space(
 	char			dest_space_name[FN_REFLEN];
 	ibool			ok;
 	fil_space_t*		fil_space;
-	os_file_t		file	= 0;
+	pfs_os_file_t		file;
 	ulint			tablespace_flags;
 	xb_filter_entry_t*	table;
 
@@ -5440,8 +5440,8 @@ xtrabackup_apply_delta(
 					including the .delta extension */
 	void*		/*data*/)
 {
-	os_file_t	src_file = XB_FILE_UNDEFINED;
-	os_file_t	dst_file = XB_FILE_UNDEFINED;
+	pfs_os_file_t	src_file;
+	pfs_os_file_t	dst_file;
 	char	src_path[FN_REFLEN];
 	char	dst_path[FN_REFLEN];
 	char	meta_path[FN_REFLEN];
@@ -5815,7 +5815,7 @@ xtrabackup_apply_deltas()
 static my_bool
 xtrabackup_close_temp_log(my_bool clear_flag)
 {
-	os_file_t	src_file = XB_FILE_UNDEFINED;
+	pfs_os_file_t	src_file;
 	char	src_path[FN_REFLEN];
 	char	dst_path[FN_REFLEN];
 	ibool	success;
@@ -6597,7 +6597,7 @@ skip_check:
 
 	if (xtrabackup_export) {
 		msg("xtrabackup: export option is specified.\n");
-		os_file_t	info_file = XB_FILE_UNDEFINED;
+		pfs_os_file_t	info_file;
 		char		info_file_path[FN_REFLEN];
 		ibool		success;
 		char		table_name[FN_REFLEN];

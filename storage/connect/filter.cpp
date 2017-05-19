@@ -1,7 +1,7 @@
 /***************** Filter C++ Class Filter Code (.CPP) *****************/
-/*  Name: FILTER.CPP  Version 3.9                                      */
+/*  Name: FILTER.CPP  Version 4.0                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /*  This file contains the class FILTER function code.                 */
 /***********************************************************************/
@@ -87,8 +87,8 @@ BYTE OpBmp(PGLOBAL g, OPVAL opc)
     case OP_EXIST: bt = 0x00; break;
     default:
       sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
-      longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
-    } // endswitch opc
+			throw TYPE_ARRAY;
+	} // endswitch opc
 
   return bt;
   } // end of OpBmp
@@ -1712,7 +1712,7 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
         break;  // Remove eventual ending separator(s)
 
 //  if (fp->Convert(g, having))
-//    longjmp(g->jumper[g->jump_level], TYPE_FILTER);
+//			throw TYPE_ARRAY;
 
     filp = fp;
     fp = fp->Next;
@@ -1745,7 +1745,7 @@ DllExport bool ApplyFilter(PGLOBAL g, PFIL filp)
 //  return TRUE;
 
   if (filp->Eval(g))
-    longjmp(g->jumper[g->jump_level], TYPE_FILTER);
+		throw TYPE_FILTER;
 
   if (trace > 1)
     htrc("PlugFilter filp=%p result=%d\n",

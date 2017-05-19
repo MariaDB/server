@@ -86,7 +86,7 @@ class TDBMYSQL : public TDBEXT {
   virtual void ResetDB(void) {N = 0;}
   virtual int  RowNumber(PGLOBAL g, bool b = false);
   virtual bool IsView(void) {return Isview;}
-  virtual PSZ  GetServer(void) {return Server;}
+  virtual PCSZ GetServer(void) {return Server;}
           void SetDatabase(LPCSTR db) {Schema = (char*)db;}
 
   // Schema routines
@@ -109,7 +109,7 @@ class TDBMYSQL : public TDBEXT {
   // Internal functions
   bool MakeSelect(PGLOBAL g, bool mx);
   bool MakeInsert(PGLOBAL g);
-  int  BindColumns(PGLOBAL g);
+  int  BindColumns(PGLOBAL g __attribute__((unused)));
   virtual bool MakeCommand(PGLOBAL g);
 //int  MakeUpdate(PGLOBAL g);  
 //int  MakeDelete(PGLOBAL g);
@@ -146,8 +146,8 @@ class MYSQLCOL : public COLBLK {
   friend class TDBMYSQL;
  public:
   // Constructors
-  MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i,  PSZ am = "MYSQL");
-  MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i,  PSZ am = "MYSQL");
+  MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i,  PCSZ am = "MYSQL");
+  MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i,  PCSZ am = "MYSQL");
   MYSQLCOL(MYSQLCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
@@ -215,8 +215,8 @@ class MYXCOL : public MYSQLCOL {
   friend class TDBMYEXC;
  public:
   // Constructors
-  MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i,  PSZ am = "MYSQL");
-  MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i,  PSZ am = "MYSQL");
+  MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i,  PCSZ am = "MYSQL");
+  MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i,  PCSZ am = "MYSQL");
   MYXCOL(MYXCOL *colp, PTDB tdbp);   // Constructor used in copy process
 
   // Methods
@@ -242,10 +242,10 @@ class TDBMCL : public TDBCAT {
 	virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
-  PSZ     Host;                  // Host machine to use            
-  PSZ     Db;                    // Database to be used by server  
-  PSZ     Tab;                   // External table name            
-  PSZ     User;                  // User logon name                
-  PSZ     Pwd;                   // Password logon info            
-  int     Port;                  // MySQL port number (0 = default)
+  PCSZ Host;                      // Host machine to use            
+	PCSZ Db;                        // Database to be used by server  
+	PCSZ Tab;                       // External table name            
+	PCSZ User;                      // User logon name                
+	PCSZ Pwd;                       // Password logon info            
+	int  Port;                      // MySQL port number (0 = default)
   }; // end of class TDBMCL

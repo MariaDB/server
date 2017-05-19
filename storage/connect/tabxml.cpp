@@ -1,9 +1,9 @@
 /************* Tabxml C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABXML                                                */
 /* -------------                                                       */
-/*  Version 2.9                                                        */
+/*  Version 3.0                                                        */
 /*                                                                     */
-/*  Author Olivier BERTRAND          2007 - 2016                       */
+/*  Author Olivier BERTRAND          2007 - 2017                       */
 /*                                                                     */
 /*  This program are the XML tables classes using MS-DOM or libxml2.   */
 /***********************************************************************/
@@ -118,10 +118,11 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
                           FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
   static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
-  char   *fn, *op, colname[65], fmt[129], buf[512];
+  char    colname[65], fmt[129], buf[512];
   int     i, j, lvl, n = 0;
   int     ncol = sizeof(buftyp) / sizeof(int);
   bool    ok = true;
+	PCSZ    fn, op;
   PXCL    xcol, xcp, fxcp = NULL, pxcp = NULL;
   PLVL   *lvlp, vp;
   PXNODE  node = NULL;
@@ -157,7 +158,10 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
   tdp = new(g) XMLDEF;
   tdp->Fn = fn;
-  tdp->Database = SetPath(g, db);
+
+	if (!(tdp->Database = SetPath(g, db)))
+		return NULL;
+
   tdp->Tabname = tab;
 	tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false);
 	tdp->Entry = GetStringTableOption(g, topt, "Entry", NULL);
@@ -359,7 +363,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
  skipit:
   if (trace)
-    htrc("CSVColumns: n=%d len=%d\n", n, length[0]);
+    htrc("XMLColumns: n=%d len=%d\n", n, length[0]);
 
   /*********************************************************************/
   /*  Allocate the structures used to refer to the result set.         */
@@ -448,7 +452,8 @@ XMLDEF::XMLDEF(void)
 /***********************************************************************/
 bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char *defrow, *defcol, buf[10];
+	PCSZ defrow, defcol;
+	char buf[10];
 
   Fn = GetStringCatInfo(g, "Filename", NULL);
   Encoding = GetStringCatInfo(g, "Encoding", "UTF-8");
@@ -1314,8 +1319,8 @@ void TDBXML::CloseDB(PGLOBAL g)
         Docp->CloseDoc(g, To_Xb);
 
         // This causes a crash in Diagnostics_area::set_error_status
-//      longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-        } // endif DumpDoc
+//				throw TYPE_AM_XML;
+			} // endif DumpDoc
       
       } // endif Changed
 
@@ -1357,8 +1362,8 @@ void TDBXML::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  XMLCOL public constructor.                                        */
 /***********************************************************************/
-XMLCOL::XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
-  : COLBLK(cdp, tdbp, i)
+XMLCOL::XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
+      : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
     Next = cprec->GetNext();
@@ -1637,8 +1642,8 @@ void XMLCOL::ReadColumn(PGLOBAL g)
     if (ValNode->GetType() != XML_ELEMENT_NODE &&
         ValNode->GetType() != XML_ATTRIBUTE_NODE) {
       sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
-      longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-      } // endif type
+			throw TYPE_AM_XML;
+		} // endif type
 
     // Get the Xname value from the XML file
     switch (ValNode->GetContent(g, Valbuf, Long + 1)) {
@@ -1648,8 +1653,8 @@ void XMLCOL::ReadColumn(PGLOBAL g)
         PushWarning(g, Tdbp);
         break;
       default:
-        longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-      } // endswitch
+				throw TYPE_AM_XML;
+		} // endswitch
 
     Value->SetValue_psz(Valbuf);
   } else {
@@ -1699,7 +1704,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   /*  For columns having an Xpath, the Clist must be updated.          */
   /*********************************************************************/
   if (Tdbp->CheckRow(g, Nod || Tdbp->Colname))
-    longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+		throw TYPE_AM_XML;
 
   /*********************************************************************/
   /*  Null values are represented by no node.                          */
@@ -1771,8 +1776,8 @@ void XMLCOL::WriteColumn(PGLOBAL g)
 
     if (ColNode == NULL) {
       strcpy(g->Message, MSG(COL_ALLOC_ERR));
-      longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-      } // endif ColNode
+			throw TYPE_AM_XML;
+		} // endif ColNode
 
     } // endif ColNode
 
@@ -1800,8 +1805,8 @@ void XMLCOL::WriteColumn(PGLOBAL g)
 
   if (strlen(p) > (unsigned)Long) {
     sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
-    longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-  } else
+		throw TYPE_AM_XML;
+	} else
     strcpy(Valbuf, p);
 
   /*********************************************************************/
@@ -1850,8 +1855,8 @@ void XMULCOL::ReadColumn(PGLOBAL g)
         if (ValNode->GetType() != XML_ELEMENT_NODE &&
             ValNode->GetType() != XML_ATTRIBUTE_NODE) {
           sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
-          longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-          } // endif type
+					throw TYPE_AM_XML;
+				} // endif type
 
         // Get the Xname value from the XML file
         switch (ValNode->GetContent(g, p, (b ? Long : len))) {
@@ -1936,7 +1941,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
   /*  For columns having an Xpath, the Clist must be updated.          */
   /*********************************************************************/
   if (Tdbp->CheckRow(g, Nod))
-    longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+		throw TYPE_AM_XML;
 
   /*********************************************************************/
   /*  Find the column and value nodes to update or insert.             */
@@ -1985,8 +1990,8 @@ void XMULCOL::WriteColumn(PGLOBAL g)
 
         if (len > 1 && !Tdbp->Xpand) {
           sprintf(g->Message, MSG(BAD_VAL_UPDATE), Name);
-          longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-        } else
+					throw TYPE_AM_XML;
+				} else
           ValNode = Nlx->GetItem(g, Tdbp->Nsub, Vxnp);
 
       } else  // Inod != Nod
@@ -2027,8 +2032,8 @@ void XMULCOL::WriteColumn(PGLOBAL g)
 
     if (ColNode == NULL) {
       strcpy(g->Message, MSG(COL_ALLOC_ERR));
-      longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-      } // endif ColNode
+			throw TYPE_AM_XML;
+		} // endif ColNode
 
     } // endif ColNode
 
@@ -2056,8 +2061,8 @@ void XMULCOL::WriteColumn(PGLOBAL g)
 
   if (strlen(p) > (unsigned)Long) {
     sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
-    longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-  } else
+		throw TYPE_AM_XML;
+	} else
     strcpy(Valbuf, p);
 
   /*********************************************************************/
@@ -2088,8 +2093,8 @@ void XPOSCOL::ReadColumn(PGLOBAL g)
 
   if (Tdbp->Clist == NULL) {
     strcpy(g->Message, MSG(MIS_TAG_LIST));
-    longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-    } // endif Clist
+		throw TYPE_AM_XML;
+	} // endif Clist
 
   if ((ValNode = Tdbp->Clist->GetItem(g, Rank, Vxnp))) {
     // Get the column value from the XML file
@@ -2100,8 +2105,8 @@ void XPOSCOL::ReadColumn(PGLOBAL g)
         PushWarning(g, Tdbp);
         break;
       default:
-        longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-      } // endswitch
+				throw TYPE_AM_XML;
+		} // endswitch
 
     Value->SetValue_psz(Valbuf);
   } else {
@@ -2151,15 +2156,15 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
   /*  For all columns the Clist must be updated.                       */
   /*********************************************************************/
   if (Tdbp->CheckRow(g, true))
-    longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+		throw TYPE_AM_XML;
 
   /*********************************************************************/
   /*  Find the column and value nodes to update or insert.             */
   /*********************************************************************/
   if (Tdbp->Clist == NULL) {
     strcpy(g->Message, MSG(MIS_TAG_LIST));
-    longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-    } // endif Clist
+		throw TYPE_AM_XML;
+	} // endif Clist
 
   n =  Tdbp->Clist->GetLength();
   k = Rank;
@@ -2183,8 +2188,8 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
 
   if (strlen(p) > (unsigned)Long) {
     sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
-    longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-  } else
+		throw TYPE_AM_XML;
+	} else
     strcpy(Valbuf, p);
 
   /*********************************************************************/

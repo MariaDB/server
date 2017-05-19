@@ -888,6 +888,12 @@ dict_index_get_nth_col_or_prefix_pos(
 
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+	ut_ad((inc_prefix && !prefix_col_pos) || (!inc_prefix));
+
+	if (!prefix_col_pos) {
+		prefix_col_pos = &prefixed_pos_dummy;
+	}
+	*prefix_col_pos = ULINT_UNDEFINED;
 
 	if (!prefix_col_pos) {
 		prefix_col_pos = &prefixed_pos_dummy;

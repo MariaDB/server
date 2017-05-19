@@ -195,8 +195,8 @@ void TDBZIP::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  ZIPCOL public constructor.                                         */
 /***********************************************************************/
-ZIPCOL::ZIPCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
-	: COLBLK(cdp, tdbp, i)
+ZIPCOL::ZIPCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
+	    : COLBLK(cdp, tdbp, i)
 {
 	if (cprec) {
 		Next = cprec->GetNext();

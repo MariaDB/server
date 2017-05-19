@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -529,6 +529,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(dict_stats_thread)(void*)
 {
+	my_thread_init();
 	ut_a(!srv_read_only_mode);
 
 	while (!SHUTTING_DOWN()) {
@@ -555,6 +556,7 @@ DECLARE_THREAD(dict_stats_thread)(void*)
 
 	srv_dict_stats_thread_active = false;
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit instead of return(). */
 	os_thread_exit(NULL);

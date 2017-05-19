@@ -489,6 +489,8 @@ public:
   Item *left_expr_orig;
   /* Priority of this predicate in the convert-to-semi-join-nest process. */
   int sj_convert_priority;
+  /* May be TRUE only for the candidates to semi-join conversion */
+  bool do_not_convert_to_sj; 
   /*
     Types of left_expr and subquery's select list allow to perform subquery
     materialization. Currently, we set this to FALSE when it as well could
@@ -579,8 +581,8 @@ public:
   Item_in_subselect(THD *thd_arg):
     Item_exists_subselect(thd_arg), left_expr_cache(0), first_execution(TRUE),
     in_strategy(SUBS_NOT_TRANSFORMED),
-    pushed_cond_guards(NULL), func(NULL), is_jtbm_merged(FALSE),
-    is_jtbm_const_tab(FALSE), upper_item(0) {}
+    pushed_cond_guards(NULL), func(NULL), do_not_convert_to_sj(FALSE),
+    is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE), upper_item(0) {}
   void cleanup();
   subs_type substype() { return IN_SUBS; }
   void reset() 
@@ -633,6 +635,8 @@ public:
     user.
   */
   int get_identifier();
+
+  void block_conversion_to_sj () { do_not_convert_to_sj= TRUE; }
 
   bool test_strategy(uchar strategy)
   { return MY_TEST(in_strategy & strategy); }
