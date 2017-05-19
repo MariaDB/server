@@ -73,7 +73,7 @@ PTABLE XTAB::Link(PTABLE tab2)
 /***********************************************************************/
 /*  Make file output of XTAB contents.                                 */
 /***********************************************************************/
-void XTAB::Print(PGLOBAL g, FILE *f, uint n)
+void XTAB::Printf(PGLOBAL g, FILE *f, uint n)
   {
   char  m[64];
 
@@ -91,7 +91,7 @@ void XTAB::Print(PGLOBAL g, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of XTAB contents.                               */
 /***********************************************************************/
-void XTAB::Print(PGLOBAL, char *ps, uint z)
+void XTAB::Prints(PGLOBAL, char *ps, uint z)
   {
   char buf[128];
   int  i, n = (int)z - 1;
@@ -134,7 +134,7 @@ bool COLUMN::SetFormat(PGLOBAL g, FORMAT&)
 /***********************************************************************/
 /*  Make file output of COLUMN contents.                               */
 /***********************************************************************/
-void COLUMN::Print(PGLOBAL g, FILE *f, uint n)
+void COLUMN::Printf(PGLOBAL g, FILE *f, uint n)
   {
   char  m[64];
 
@@ -154,7 +154,7 @@ void COLUMN::Print(PGLOBAL g, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of COLUMN contents.                             */
 /***********************************************************************/
-void COLUMN::Print(PGLOBAL, char *ps, uint z)
+void COLUMN::Prints(PGLOBAL, char *ps, uint z)
   {
   char buf[80];
 

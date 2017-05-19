@@ -1034,7 +1034,7 @@ PCSZ GetListOption(PGLOBAL g, PCSZ opname, PCSZ oplist, PCSZ def)
     pv= strchr(pk, '=');
 
     if (pv && (!pn || pv < pn)) {
-			n= MY_MIN(pv - pk, sizeof(key) - 1);
+			n= MY_MIN(pv - pk, (int)sizeof(key) - 1);
       memcpy(key, pk, n);
       key[n]= 0;
       pv++;

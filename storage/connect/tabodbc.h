@@ -187,7 +187,7 @@ class XSRCCOL : public ODBCCOL {
   // Methods
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
-//        void Print(PGLOBAL g, FILE *, uint);
+//        void Printf(PGLOBAL g, FILE *, uint);
 
  protected:
   // Members

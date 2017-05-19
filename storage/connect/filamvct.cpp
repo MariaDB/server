@@ -569,7 +569,6 @@ bool VCTFAM::InitInsert(PGLOBAL g)
     CurNum = 0;
     AddBlock = !MaxBlk;
   } else {
-    int     rc;
     PVCTCOL cp = (PVCTCOL)Tdbp->GetColumns();
 
     // The starting point must be at the end of file as for append.

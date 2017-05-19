@@ -62,7 +62,7 @@ class TDBINI : public TDBASE {
   virtual int   GetProgCur(void) {return N;}
 //virtual int   GetAffectedRows(void) {return 0;}
   virtual PCSZ  GetFile(PGLOBAL g) {return Ifile;}
-  virtual void  SetFile(PGLOBAL g, PSZ fn) {Ifile = fn;}
+  virtual void  SetFile(PGLOBAL g, PCSZ fn) {Ifile = fn;}
   virtual void  ResetDB(void) {Seclist = Section = NULL; N = 0;}
   virtual void  ResetSize(void) {MaxSize = -1; Seclist = NULL;}
   virtual int   RowNumber(PGLOBAL g, bool b = false) {return N;}
@@ -80,7 +80,7 @@ class TDBINI : public TDBASE {
 
  protected:
   // Members
-  char *Ifile;                               // The INI file
+  PCSZ  Ifile;                               // The INI file
   char *Seclist;                             // The section list
   char *Section;                             // The current section
   int   Seclen;                              // Length of seclist buffer

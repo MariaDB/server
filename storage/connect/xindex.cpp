@@ -181,7 +181,7 @@ XXBASE::XXBASE(PTDBDOS tbxp, bool b) : CSORT(b),
 /***********************************************************************/
 /*  Make file output of XINDEX contents.                               */
 /***********************************************************************/
-void XXBASE::Print(PGLOBAL, FILE *f, uint n)
+void XXBASE::Printf(PGLOBAL, FILE *f, uint n)
   {
   char m[64];
 
@@ -193,7 +193,7 @@ void XXBASE::Print(PGLOBAL, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of XINDEX contents.                             */
 /***********************************************************************/
-void XXBASE::Print(PGLOBAL, char *ps, uint z)
+void XXBASE::Prints(PGLOBAL, char *ps, uint z)
   {
   *ps = '\0';
   strncat(ps, "Xindex", z);

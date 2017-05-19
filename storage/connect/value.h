@@ -122,8 +122,8 @@ class DllExport VALUE : public BLOCK {
   virtual bool   IsEqual(PVAL vp, bool chktype) = 0;
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual bool   FormatValue(PVAL vp, PCSZ fmt) = 0;
-	virtual void   Print(PGLOBAL g, FILE *, uint);
-	virtual void   Print(PGLOBAL g, char *ps, uint z);
+	virtual void   Printf(PGLOBAL g, FILE *, uint);
+	virtual void   Prints(PGLOBAL g, char *ps, uint z);
 
 	/**
 	Set value from a non-aligned in-memory value in the machine byte order.
@@ -308,7 +308,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual bool   FormatValue(PVAL vp, PCSZ fmt);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
-	virtual void   Print(PGLOBAL g, char *ps, uint z);
+	virtual void   Prints(PGLOBAL g, char *ps, uint z);
 
  protected:
   // Members

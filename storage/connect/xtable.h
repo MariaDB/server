@@ -109,8 +109,8 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual PTDB   Copy(PTABS t);
   virtual void   PrintAM(FILE *f, char *m)
                   {fprintf(f, "%s AM(%d)\n",  m, GetAmType());}
-  virtual void   Print(PGLOBAL g, FILE *f, uint n);
-  virtual void   Print(PGLOBAL g, char *ps, uint z);
+  virtual void   Printf(PGLOBAL g, FILE *f, uint n);
+  virtual void   Prints(PGLOBAL g, char *ps, uint z);
   virtual PCSZ   GetServer(void) = 0;
   virtual int    GetBadLines(void) {return 0;}
 	virtual CHARSET_INFO *data_charset(void);
