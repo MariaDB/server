@@ -161,6 +161,19 @@ drop procedure concat_exec2;
 drop procedure concat_exec3;
 drop function get_historical_table_name;
 drop procedure drop_last_historical;
+select * from mysql.vtmd_template;
+start	end	name	frm_image	col_renames
+show create table mysql.vtmd_template;
+Table	Create Table
+vtmd_template	CREATE TABLE `vtmd_template` (
+  `start` bigint(20) unsigned GENERATED ALWAYS AS ROW START COMMENT 'TRX_ID of table lifetime start',
+  `end` bigint(20) unsigned NOT NULL GENERATED ALWAYS AS ROW END COMMENT 'TRX_ID of table lifetime end',
+  `name` varchar(64) COLLATE utf8_bin NOT NULL COMMENT 'Table name during period [start, end)',
+  `frm_image` blob NOT NULL COMMENT 'Table structure during period [start, end)',
+  `col_renames` blob DEFAULT NULL COMMENT 'Column name mapping from previous lifetime',
+  PRIMARY KEY (`end`),
+  PERIOD FOR SYSTEM_TIME (`start`, `end`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0 WITH SYSTEM VERSIONING
 call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1

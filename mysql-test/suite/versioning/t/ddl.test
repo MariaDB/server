@@ -98,6 +98,9 @@ drop procedure concat_exec3;
 drop function get_historical_table_name;
 drop procedure drop_last_historical;
 
+select * from mysql.vtmd_template;
+show create table mysql.vtmd_template;
+
 call verify_vtq;
 drop table t;
 

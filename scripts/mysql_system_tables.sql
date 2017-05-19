@@ -129,12 +129,27 @@ SET @create_innodb_index_stats="CREATE TABLE IF NOT EXISTS innodb_index_stats (
 	PRIMARY KEY (database_name, table_name, index_name, stat_name)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0";
 
+SET @create_vtmd_template="CREATE TABLE IF NOT EXISTS vtmd_template (
+	start		BIGINT UNSIGNED GENERATED ALWAYS AS ROW START	COMMENT 'TRX_ID of table lifetime start',
+	end		BIGINT UNSIGNED GENERATED ALWAYS AS ROW END	COMMENT 'TRX_ID of table lifetime end',
+	name		VARCHAR(64) NOT NULL				COMMENT 'Table name during period [start, end)',
+	frm_image	BLOB NOT NULL					COMMENT 'Table structure during period [start, end)',
+	col_renames	BLOB						COMMENT 'Column name mapping from previous lifetime',
+	PERIOD FOR SYSTEM_TIME(start, end),
+	PRIMARY KEY (end)
+) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0 WITH SYSTEM VERSIONING";
+
 SET @str=IF(@have_innodb <> 0, @create_innodb_table_stats, "SET @dummy = 0");
 PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
 SET @str=IF(@have_innodb <> 0, @create_innodb_index_stats, "SET @dummy = 0");
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;
+
+SET @str=IF(@have_innodb <> 0, @create_vtmd_template, "SET @dummy = 0");
 PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;

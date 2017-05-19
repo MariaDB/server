@@ -265,6 +265,11 @@ def	mysql	user	Update_priv	6	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	e
 def	mysql	user	User	2		NO	char	80	240	NULL	NULL	NULL	utf8	utf8_bin	char(80)	PRI		select,insert,update,references		NEVER	NULL
 def	mysql	user	x509_issuer	35	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select,insert,update,references		NEVER	NULL
 def	mysql	user	x509_subject	36	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select,insert,update,references		NEVER	NULL
+def	mysql	vtmd_template	col_renames	5	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select,insert,update,references	Column name mapping from previous lifetime	NEVER	NULL
+def	mysql	vtmd_template	end	2	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned	PRI		select,insert,update,references	TRX_ID of table lifetime end	NEVER	NULL
+def	mysql	vtmd_template	frm_image	4	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select,insert,update,references	Table structure during period [start, end)	NEVER	NULL
+def	mysql	vtmd_template	name	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)			select,insert,update,references	Table name during period [start, end)	NEVER	NULL
+def	mysql	vtmd_template	start	1	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	TRX_ID of table lifetime start	NEVER	NULL
 ##########################################################################
 # Show the quotient of CHARACTER_OCTET_LENGTH and CHARACTER_MAXIMUM_LENGTH
 ##########################################################################
@@ -600,3 +605,8 @@ NULL	mysql	user	max_user_connections	int	NULL	NULL	NULL	NULL	int(11)
 3.0000	mysql	user	is_role	enum	1	3	utf8	utf8_general_ci	enum('N','Y')
 3.0000	mysql	user	default_role	char	80	240	utf8	utf8_bin	char(80)
 NULL	mysql	user	max_statement_time	decimal	NULL	NULL	NULL	NULL	decimal(12,6)
+NULL	mysql	vtmd_template	start	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
+NULL	mysql	vtmd_template	end	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
+3.0000	mysql	vtmd_template	name	varchar	64	192	utf8	utf8_bin	varchar(64)
+1.0000	mysql	vtmd_template	frm_image	blob	65535	65535	NULL	NULL	blob
+1.0000	mysql	vtmd_template	col_renames	blob	65535	65535	NULL	NULL	blob
