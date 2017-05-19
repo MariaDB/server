@@ -3639,8 +3639,8 @@ wait_suspend_loop:
 
 	switch (srv_get_active_thread_type()) {
 	case SRV_NONE:
-		srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 		if (!srv_n_fil_crypt_threads_started) {
+			srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 			break;
 		}
 		os_event_set(fil_crypt_threads_event);

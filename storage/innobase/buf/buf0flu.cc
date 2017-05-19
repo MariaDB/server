@@ -150,6 +150,7 @@ buf_flush_insert_in_flush_rbt(
 	buf_page_t*		prev = NULL;
 	buf_pool_t*		buf_pool = buf_pool_from_bpage(bpage);
 
+	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
 	ut_ad(buf_flush_list_mutex_own(buf_pool));
 
 	/* Insert this buffer into the rbt. */
@@ -359,6 +360,7 @@ buf_flush_insert_sorted_into_flush_list(
 	buf_page_t*	prev_b;
 	buf_page_t*	b;
 
+	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
 	ut_ad(!buf_pool_mutex_own(buf_pool));
 	ut_ad(log_flush_order_mutex_own());
 	ut_ad(mutex_own(&block->mutex));
@@ -678,6 +680,7 @@ buf_flush_write_complete(
 
 	flush_type = buf_page_get_flush_type(bpage);
 	buf_pool->n_flush[flush_type]--;
+	ut_ad(buf_pool->n_flush[flush_type] != ULINT_MAX);
 
 	ut_ad(buf_pool_mutex_own(buf_pool));
 
@@ -1051,6 +1054,7 @@ buf_flush_page(
 		}
 
 		++buf_pool->n_flush[flush_type];
+		ut_ad(buf_pool->n_flush[flush_type] != 0);
 
 		mutex_exit(block_mutex);
 		buf_pool_mutex_exit(buf_pool);
@@ -2273,6 +2277,11 @@ page_cleaner_sleep_if_needed(
 	ulint	next_loop_time)	/*!< in: time when next loop iteration
 				should start */
 {
+	/* No sleep if we are cleaning the buffer pool during the shutdown
+	with everything else finished */
+	if (srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)
+		return;
+
 	ulint	cur_time = ut_time_ms();
 
 	if (next_loop_time > cur_time) {
