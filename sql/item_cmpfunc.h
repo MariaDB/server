@@ -1892,6 +1892,7 @@ public:
 class Regexp_processor_pcre
 {
   pcre *m_pcre;
+  pcre_extra m_pcre_extra;
   bool m_conversion_is_needed;
   bool m_is_const;
   int m_library_flags;
@@ -1916,8 +1917,12 @@ public:
     m_data_charset(&my_charset_utf8_general_ci),
     m_library_charset(&my_charset_utf8_general_ci),
     m_subpatterns_needed(0)
-  {}
+  {
+    m_pcre_extra.flags= PCRE_EXTRA_MATCH_LIMIT_RECURSION;
+    m_pcre_extra.match_limit_recursion= 100L;
+  }
   int default_regex_flags();
+  void set_recursion_limit(THD *);
   void init(CHARSET_INFO *data_charset, int extra_flags, uint nsubpatterns_arg)
   {
     m_library_flags= default_regex_flags() | extra_flags |

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2016, Oracle and/or its affiliates
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2303,10 +2303,10 @@ online_retry_drop_indexes_with_trx(
 @param drop_fk		constraints being dropped
 @param n_drop_fk	number of constraints that are being dropped
 @return whether the constraint is being dropped */
-inline MY_ATTRIBUTE((pure, nonnull, warn_unused_result))
+MY_ATTRIBUTE((pure, nonnull(1), warn_unused_result))
+inline
 bool
 innobase_dropping_foreign(
-/*======================*/
 	const dict_foreign_t*	foreign,
 	dict_foreign_t**	drop_fk,
 	ulint			n_drop_fk)
@@ -2330,10 +2330,10 @@ column that is being dropped or modified to NOT NULL.
 @retval true		Not allowed (will call my_error())
 @retval false		Allowed
 */
-static MY_ATTRIBUTE((pure, nonnull, warn_unused_result))
+MY_ATTRIBUTE((pure, nonnull(1,4), warn_unused_result))
+static
 bool
 innobase_check_foreigns_low(
-/*========================*/
 	const dict_table_t*	user_table,
 	dict_foreign_t**	drop_fk,
 	ulint			n_drop_fk,
@@ -2430,10 +2430,10 @@ column that is being dropped or modified to NOT NULL.
 @retval true		Not allowed (will call my_error())
 @retval false		Allowed
 */
-static MY_ATTRIBUTE((pure, nonnull, warn_unused_result))
+MY_ATTRIBUTE((pure, nonnull(1,2,3,4), warn_unused_result))
+static
 bool
 innobase_check_foreigns(
-/*====================*/
 	Alter_inplace_info*	ha_alter_info,
 	const TABLE*		altered_table,
 	const TABLE*		old_table,

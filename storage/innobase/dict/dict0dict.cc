@@ -6322,6 +6322,7 @@ dict_set_corrupted_index_cache_only(
 	dict_table_t*	table)		/*!< in/out: table */
 {
 	ut_ad(index != NULL);
+	ut_ad(table != NULL);
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_tables));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_indexes));
@@ -6329,9 +6330,6 @@ dict_set_corrupted_index_cache_only(
 	/* Mark the table as corrupted only if the clustered index
 	is corrupted */
 	if (dict_index_is_clust(index)) {
-		ut_ad((index->table != NULL) || (table != NULL)
-		      || index->table  == table);
-
 		table->corrupted = TRUE;
 	}
 

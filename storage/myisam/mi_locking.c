@@ -29,7 +29,7 @@ static void mi_update_status_with_lock(MI_INFO *info);
 
 int mi_lock_database(MI_INFO *info, int lock_type)
 {
-  int error;
+  int error, mark_crashed= 0;
   uint count;
   MYISAM_SHARE *share=info->s;
   DBUG_ENTER("mi_lock_database");
@@ -52,6 +52,7 @@ int mi_lock_database(MI_INFO *info, int lock_type)
   }
 
   error= 0;
+  DBUG_EXECUTE_IF ("mi_lock_database_failure", error= EINVAL;);
   mysql_mutex_lock(&share->intern_lock);
   if (share->kfile >= 0)		/* May only be false on windows */
   {
@@ -75,17 +76,15 @@ int mi_lock_database(MI_INFO *info, int lock_type)
                                                       &share->dirty_part_map,
                                                       FLUSH_KEEP))
       {
-	error=my_errno;
+	mark_crashed= error=my_errno;
         mi_print_error(info->s, HA_ERR_CRASHED);
-	mi_mark_crashed(info);		/* Mark that table must be checked */
       }
       if (info->opt_flag & (READ_CACHE_USED | WRITE_CACHE_USED))
       {
 	if (end_io_cache(&info->rec_cache))
 	{
-	  error=my_errno;
+	  mark_crashed= error=my_errno;
           mi_print_error(info->s, HA_ERR_CRASHED);
-	  mi_mark_crashed(info);
 	}
       }
       if (!count)
@@ -110,22 +109,19 @@ int mi_lock_database(MI_INFO *info, int lock_type)
 	  share->state.unique=   info->last_unique=  info->this_unique;
 	  share->state.update_count= info->last_loop= ++info->this_loop;
           if (mi_state_info_write(share->kfile, &share->state, 1))
-	    error=my_errno;
+	    mark_crashed= error=my_errno;
 	  share->changed=0;
 	  if (myisam_flush)
 	  {
             if (mysql_file_sync(share->kfile, MYF(0)))
-	      error= my_errno;
+	      mark_crashed= error= my_errno;
             if (mysql_file_sync(info->dfile, MYF(0)))
-	      error= my_errno;
+	      mark_crashed= error= my_errno;
 	  }
 	  else
 	    share->not_flushed=1;
 	  if (error)
-          {
             mi_print_error(info->s, HA_ERR_CRASHED);
-	    mi_mark_crashed(info);
-          }
 	}
 	if (info->lock_type != F_EXTRA_LCK)
 	{
@@ -260,6 +256,8 @@ int mi_lock_database(MI_INFO *info, int lock_type)
   }
 #endif
   mysql_mutex_unlock(&share->intern_lock);
+  if (mark_crashed)
+    mi_mark_crashed(info);
   DBUG_RETURN(error);
 } /* mi_lock_database */
 

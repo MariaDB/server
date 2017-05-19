@@ -105,6 +105,7 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
+#include "pcre.h"
 
 #ifdef HAVE_POLL_H
 #include <poll.h>
@@ -3631,6 +3632,7 @@ static void init_libstrings()
 #endif
 }
 
+ulonglong my_pcre_frame_size;
 
 static void init_pcre()
 {
@@ -3638,6 +3640,8 @@ static void init_pcre()
   pcre_free= pcre_stack_free= my_str_free_mysqld;
 #ifndef EMBEDDED_LIBRARY
   pcre_stack_guard= check_enough_stack_size_slow;
+  /* See http://pcre.org/original/doc/html/pcrestack.html */
+  my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0) + 16;
 #endif
 }
 
@@ -9271,8 +9275,8 @@ mysql_getopt_value(const char *name, uint length,
   }
   /* We return in all cases above. Let us silence -Wimplicit-fallthrough */
   DBUG_ASSERT(0);
-  /* fall through */
 #ifdef HAVE_REPLICATION
+  /* fall through */
   case OPT_REPLICATE_DO_DB:
   case OPT_REPLICATE_DO_TABLE:
   case OPT_REPLICATE_IGNORE_DB:

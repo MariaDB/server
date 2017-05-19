@@ -872,17 +872,6 @@ innobase_purge_changed_page_bitmaps(
 	ulonglong lsn) __attribute__((unused));	/*!< in: LSN to purge files up to */
 
 
-/*****************************************************************//**
-Check whether this is a fake change transaction.
-@return TRUE if a fake change transaction */
-static
-my_bool
-innobase_is_fake_change(
-/*====================*/
-	handlerton	*hton,  /*!< in: InnoDB handlerton */
-	THD*		thd) __attribute__((unused));	/*!< in: MySQL thread handle of the user for
-				  whom the transaction is being committed */
-
 /** Get the list of foreign keys referencing a specified table
 table.
 @param thd		The thread handle
@@ -4596,22 +4585,6 @@ innobase_purge_changed_page_bitmaps(
 	ulonglong lsn)	/*!< in: LSN to purge files up to */
 {
 	return (my_bool)log_online_purge_changed_page_bitmaps(lsn);
-}
-
-/*****************************************************************//**
-Check whether this is a fake change transaction.
-@return TRUE if a fake change transaction */
-static
-my_bool
-innobase_is_fake_change(
-/*====================*/
-	handlerton	*hton MY_ATTRIBUTE((unused)),
-				/*!< in: InnoDB handlerton */
-	THD*		thd)	/*!< in: MySQL thread handle of the user for
-				whom the transaction is being committed */
-{
-	trx_t*	trx = check_trx_exists(thd);
-	return UNIV_UNLIKELY(trx->fake_changes);
 }
 
 /*****************************************************************//**
@@ -9140,8 +9113,8 @@ calc_row_difference(
 			}
 		}
 
-		if (o_len != n_len || (o_len != UNIV_SQL_NULL &&
-					0 != memcmp(o_ptr, n_ptr, o_len))) {
+		if (o_len != n_len || (o_len != 0 && o_len != UNIV_SQL_NULL
+				       && 0 != memcmp(o_ptr, n_ptr, o_len))) {
 			/* The field has changed */
 
 			ufield = uvect->fields + n_changed;
@@ -15071,7 +15044,8 @@ fill_foreign_key_list(THD* thd,
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	for (dict_foreign_set::iterator it = table->referenced_set.begin();
+	for (dict_foreign_set::const_iterator it
+		     = table->referenced_set.begin();
 	     it != table->referenced_set.end(); ++it) {
 
 		dict_foreign_t* foreign = *it;

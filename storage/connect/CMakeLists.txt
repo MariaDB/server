@@ -270,8 +270,8 @@ IF(CONNECT_WITH_JDBC)
     # Find required libraries and include directories
     SET (JAVA_SOURCES JdbcInterface.java)
     add_jar(JdbcInterface ${JAVA_SOURCES})
-    install_jar(JdbcInterface DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
     INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar
+      ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
       DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
     add_definitions(-DJDBC_SUPPORT)
   ELSE()

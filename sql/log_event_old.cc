@@ -1584,8 +1584,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
       default:
 	rli->report(ERROR_LEVEL, thd->net.last_errno, NULL,
                     "Error in %s event: row application failed. %s",
-                    get_type_str(),
-                    thd->net.last_error ? thd->net.last_error : "");
+                    get_type_str(), thd->net.last_error);
        thd->is_slave_error= 1;
 	break;
       }
@@ -1624,8 +1623,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
                 "Error in %s event: error during transaction execution "
                 "on table %s.%s. %s",
                 get_type_str(), table->s->db.str,
-                table->s->table_name.str,
-                thd->net.last_error ? thd->net.last_error : "");
+                table->s->table_name.str, thd->net.last_error);
 
     /*
       If one day we honour --skip-slave-errors in row-based replication, and

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2148,14 +2149,10 @@ for a clustered index!
 @retval DB_SUCCESS if no error
 @retval DB_DUPLICATE_KEY if error,
 @retval DB_LOCK_WAIT if we have to wait for a lock on a possible duplicate
-record
-@retval DB_SUCCESS_LOCKED_REC if an exact match of the record was found
-in online table rebuild (flags & (BTR_KEEP_SYS_FLAG | BTR_NO_LOCKING_FLAG)) */
+record */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_ins_duplicate_error_in_clust(
-/*=============================*/
-	ulint		flags,	/*!< in: undo logging and locking flags */
 	btr_cur_t*	cursor,	/*!< in: B-tree cursor */
 	const dtuple_t*	entry,	/*!< in: entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread */
@@ -2419,7 +2416,7 @@ row_ins_clust_index_entry_low(
 			DB_LOCK_WAIT */
 
 			err = row_ins_duplicate_error_in_clust(
-				flags, &cursor, entry, thr, &mtr);
+				&cursor, entry, thr, &mtr);
 		}
 
 		if (err != DB_SUCCESS) {

@@ -300,7 +300,7 @@ static int read_meta_file(File meta_file, ha_rows *rows)
   mysql_file_seek(meta_file, 0, MY_SEEK_SET, MYF(0));
   if (mysql_file_read(meta_file, (uchar*)meta_buffer, META_BUFFER_SIZE, 0)
       != META_BUFFER_SIZE)
-    DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED_ON_USAGE);
 
   /*
     Parse out the meta data, we ignore version at the moment
@@ -429,10 +429,13 @@ static int free_share(TINA_SHARE *share)
   int result_code= 0;
   if (!--share->use_count){
     /* Write the meta file. Mark it as crashed if needed. */
-    (void)write_meta_file(share->meta_file, share->rows_recorded,
-                          share->crashed ? TRUE :FALSE);
-    if (mysql_file_close(share->meta_file, MYF(0)))
-      result_code= 1;
+    if (share->meta_file != -1)
+    {
+      (void)write_meta_file(share->meta_file, share->rows_recorded,
+                            share->crashed ? TRUE :FALSE);
+      if (mysql_file_close(share->meta_file, MYF(0)))
+        result_code= 1;
+    }
     if (share->tina_write_opened)
     {
       if (mysql_file_close(share->tina_write_filedes, MYF(0)))
@@ -954,7 +957,7 @@ int ha_tina::open(const char *name, int mode, uint open_options)
   if (share->crashed && !(open_options & HA_OPEN_FOR_REPAIR))
   {
     free_share(share);
-    DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
+    DBUG_RETURN(my_errno ? my_errno : HA_ERR_CRASHED_ON_USAGE);
   }
 
   local_data_file_version= share->data_file_version;

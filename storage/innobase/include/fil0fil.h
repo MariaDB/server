@@ -1006,7 +1006,7 @@ fil_create_new_single_table_tablespace(
 					must be >= FIL_IBD_FILE_INITIAL_SIZE */
 	fil_encryption_t mode,	/*!< in: encryption mode */
 	ulint		key_id)	/*!< in: encryption key_id */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull(2), warn_unused_result));
 #ifndef UNIV_HOTBACKUP
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
 (Typically when upgrading from MariaDB 10.1.0..10.1.20.)

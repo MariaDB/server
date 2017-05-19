@@ -934,6 +934,12 @@ extern ulonglong my_getcputime(void);
 #define hrtime_sec_part(X)              ((ulong)((X).val % HRTIME_RESOLUTION))
 #define my_time(X)                      hrtime_to_time(my_hrtime())
 
+#if STACK_DIRECTION < 0
+#define available_stack_size(CUR,END) (long) ((char*)(CUR) - (char*)(END))
+#else
+#define available_stack_size(CUR,END) (long) ((char*)(END) - (char*)(CUR))
+#endif
+
 #ifdef HAVE_SYS_MMAN_H
 #include <sys/mman.h>
 
