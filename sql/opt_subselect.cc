@@ -1103,7 +1103,26 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
     do
     {
       embedded= embedding;
-      if (MY_TEST(embedded->outer_join))
+      bool block_conversion_to_sj= false;
+      if (embedded->on_expr)
+      {
+        /*
+          Conversion of an IN subquery predicate into semi-join
+          is blocked now if the predicate occurs:
+          - in the ON expression of an outer join
+          - in the ON expression of an inner join embedded directly
+            or indirectly in the inner nest of an outer join
+	*/
+        for (TABLE_LIST *tl= embedded; tl; tl= tl->embedding)
+	{
+          if (tl->outer_join)
+	  {
+            block_conversion_to_sj= true;
+            break;
+          }
+        }
+      }
+      if (block_conversion_to_sj)
       {
 	Item *cond= embedded->on_expr;
         if (!cond)
@@ -1138,6 +1157,16 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
   {
     if (in_subq->emb_on_expr_nest != NO_JOIN_NEST &&
         in_subq->emb_on_expr_nest->effective_with_check)
+    {
+      in_subq->block_conversion_to_sj();
+    }
+  }
+
+  if (join->select_options & SELECT_STRAIGHT_JOIN)
+  {
+    /* Block conversion to semijoins for all candidates */ 
+    li.rewind();
+    while ((in_subq= li++))
     {
       in_subq->block_conversion_to_sj();
     }

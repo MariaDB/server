@@ -1911,6 +1911,26 @@ explain select * from v1;
 drop view v1;
 drop table t1,t2;
 
+--echo #
+--echo # Bug mdev-12812: mergeable derived / view with subqueries
+--echo #                 NOT subject to semi-join optimizations
+--echo #
+
+CREATE TABLE t1 (c1 varchar(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('foo');
+
+CREATE TABLE t2 (c2 varchar(3)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('bar'),('qux'),('foo');
+
+let $q=
+SELECT STRAIGHT_JOIN * 
+  FROM ( SELECT * FROM t1 WHERE c1 IN ( SELECT c2 FROM t2 ) ) AS sq;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+DROP TABLE t1, t2;
+
 # The following command must be the last one the file 
 set optimizer_switch=@exit_optimizer_switch;
 set join_cache_level=@exit_join_cache_level;
