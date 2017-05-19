@@ -6718,6 +6718,22 @@ void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 }
 
 
+uint Item_hex_hybrid::decimal_precision() const
+{
+  switch (max_length) {// HEX                                 DEC
+  case 0:              // ----                                ---
+  case 1: return 3;    // 0xFF                                255
+  case 2: return 5;    // 0xFFFF                            65535
+  case 3: return 8;    // 0xFFFFFF                       16777215
+  case 4: return 10;   // 0xFFFFFFFF                   4294967295
+  case 5: return 13;   // 0xFFFFFFFFFF              1099511627775
+  case 6: return 15;   // 0xFFFFFFFFFFFF          281474976710655
+  case 7: return 17;   // 0xFFFFFFFFFFFFFF      72057594037927935
+  }
+  return 20;           // 0xFFFFFFFFFFFFFFFF 18446744073709551615
+}
+
+
 void Item_hex_string::print(String *str, enum_query_type query_type)
 {
   str->append("X'");

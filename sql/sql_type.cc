@@ -4168,6 +4168,22 @@ bool Type_handler::
 }
 
 
+bool Type_handler_string_result::
+       Item_func_signed_fix_length_and_dec(Item_func_signed *item) const
+{
+  item->fix_length_and_dec_string();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
+{
+  item->fix_length_and_dec_string();
+  return false;
+}
+
+
 bool Type_handler::
        Item_double_typecast_fix_length_and_dec(Item_double_typecast *item) const
 {

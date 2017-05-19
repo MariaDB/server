@@ -852,6 +852,19 @@ public:
     set_if_bigger(char_length, 1U + (unsigned_flag ? 0 : 1));
     fix_char_length(char_length);
   }
+  void fix_length_and_dec_string()
+  {
+    /*
+      For strings, use decimal_int_part() instead of max_char_length().
+      This is important for Item_hex_hybrid:
+        SELECT CAST(0x1FFFFFFFF AS SIGNED);
+      Length is 5, decimal_int_part() is 13.
+    */
+    uint32 char_length= MY_MIN(args[0]->decimal_int_part(),
+                               MY_INT64_NUM_DECIMAL_DIGITS);
+    set_if_bigger(char_length, 1U + (unsigned_flag ? 0 : 1));
+    fix_char_length(char_length);
+  }
   void fix_length_and_dec()
   {
     args[0]->type_handler()->Item_func_signed_fix_length_and_dec(this);
