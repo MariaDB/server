@@ -903,6 +903,7 @@ DROP TABLE t1;
 #
 # MDEV-12849 Out-of-range errors when casting hex-hybrid to SIGNED and UNSIGNED
 #
+SET sql_mode=STRICT_ALL_TABLES;
 CREATE PROCEDURE p1(hh TEXT)
 BEGIN
 EXECUTE IMMEDIATE
@@ -957,9 +958,9 @@ c	int(10) unsigned	NO		NULL
 c	LENGTH(c)
 4294967295	10
 Field	Type	Null	Key	Default	Extra
-c	int(10)	NO		NULL	
+c	bigint(10)	NO		NULL	
 c	LENGTH(c)
-2147483647	10
+4294967295	10
 ------
 
 CALL p1('FFFFFFFFFF');
@@ -1128,3 +1129,4 @@ c	LENGTH(c)
 ------
 
 DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;

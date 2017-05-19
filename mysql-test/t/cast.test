@@ -520,6 +520,7 @@ DROP TABLE t1;
 --echo # MDEV-12849 Out-of-range errors when casting hex-hybrid to SIGNED and UNSIGNED
 --echo #
 
+SET sql_mode=STRICT_ALL_TABLES;
 DELIMITER $$;
 CREATE PROCEDURE p1(hh TEXT)
 BEGIN
@@ -559,3 +560,4 @@ CALL p1('80FFFFFFFFFFFFFF');
 CALL p1('8FFFFFFFFFFFFFFF');
 
 DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;

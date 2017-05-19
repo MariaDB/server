@@ -834,6 +834,14 @@ public:
     unsigned_flag= 0;
   }
   const char *func_name() const { return "cast_as_signed"; }
+  Field *create_tmp_field(bool group, TABLE *table)
+  {
+    return Item::create_tmp_field(false, table,
+                                  MY_INT32_NUM_DECIMAL_DIGITS - 2 +
+                                  unsigned_flag);
+  }
+  Field *create_field_for_create_select(TABLE *table)
+  { return Item_func_signed::create_tmp_field(false, table); }
   longlong val_int()
   {
     longlong value= args[0]->val_int_signed_typecast();
