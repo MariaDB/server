@@ -1984,7 +1984,8 @@ JOIN::optimize_inner()
       having= new (thd->mem_root) Item_int(thd, (longlong) 0,1);
       zero_result_cause= "Impossible HAVING noticed after reading const tables";
       error= 0;
-      DBUG_RETURN(0);
+      select_lex->mark_const_derived(zero_result_cause);
+      goto setup_subq_exit;
     }
   }
 
@@ -3377,7 +3378,8 @@ void JOIN::exec_inner()
     condtions may be arbitrarily costly, and because the optimize phase
     might not have produced a complete executable plan for EXPLAINs.
   */
-  if (exec_const_cond && !(select_options & SELECT_DESCRIBE) &&
+  if (!zero_result_cause &&
+      exec_const_cond && !(select_options & SELECT_DESCRIBE) &&
       !exec_const_cond->val_int())
     zero_result_cause= "Impossible WHERE noticed after reading const tables";
 
