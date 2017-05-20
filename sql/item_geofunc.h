@@ -506,14 +506,14 @@ public:
   { return get_item_copy<Item_func_isempty>(thd, mem_root, this); }
 };
 
-class Item_func_issimple: public Item_int_func
+class Item_func_issimple: public Item_long_func
 {
   Gcalc_heap collector;
   Gcalc_function func;
   Gcalc_scan_iterator scan_it;
   String tmp;
 public:
-  Item_func_issimple(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_issimple(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_issimple"; }
   void fix_length_and_dec() { decimals=0; max_length=2; }
@@ -522,10 +522,10 @@ public:
   { return get_item_copy<Item_func_issimple>(thd, mem_root, this); }
 };
 
-class Item_func_isclosed: public Item_int_func
+class Item_func_isclosed: public Item_long_func
 {
 public:
-  Item_func_isclosed(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_isclosed(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_isclosed"; }
   void fix_length_and_dec() { decimals=0; max_length=2; }
@@ -544,11 +544,11 @@ public:
   { return get_item_copy<Item_func_isring>(thd, mem_root, this); }
 };
 
-class Item_func_dimension: public Item_int_func
+class Item_func_dimension: public Item_long_func
 {
   String value;
 public:
-  Item_func_dimension(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_dimension(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_dimension"; }
   void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
@@ -590,11 +590,11 @@ public:
 };
 
 
-class Item_func_numgeometries: public Item_int_func
+class Item_func_numgeometries: public Item_long_func
 {
   String value;
 public:
-  Item_func_numgeometries(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_numgeometries(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numgeometries"; }
   void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
@@ -603,11 +603,11 @@ public:
 };
 
 
-class Item_func_numinteriorring: public Item_int_func
+class Item_func_numinteriorring: public Item_long_func
 {
   String value;
 public:
-  Item_func_numinteriorring(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_numinteriorring(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numinteriorrings"; }
   void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
@@ -616,11 +616,11 @@ public:
 };
 
 
-class Item_func_numpoints: public Item_int_func
+class Item_func_numpoints: public Item_long_func
 {
   String value;
 public:
-  Item_func_numpoints(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_numpoints(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numpoints"; }
   void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
@@ -663,11 +663,11 @@ public:
 };
 
 
-class Item_func_srid: public Item_int_func
+class Item_func_srid: public Item_long_func
 {
   String value;
 public:
-  Item_func_srid(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_srid(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "srid"; }
   void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
@@ -709,11 +709,12 @@ public:
 
 
 #ifndef DBUG_OFF
-class Item_func_gis_debug: public Item_int_func
+class Item_func_gis_debug: public Item_long_func
 {
   public:
-    Item_func_gis_debug(THD *thd, Item *a): Item_int_func(thd, a)
+    Item_func_gis_debug(THD *thd, Item *a): Item_long_func(thd, a)
     { null_value= false; }
+    void fix_length_and_dec() { fix_char_length(10); }
     const char *func_name() const  { return "st_gis_debug"; }
     longlong val_int();
     bool check_vcol_func_processor(void *arg)

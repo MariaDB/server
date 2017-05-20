@@ -2307,5 +2307,24 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+SELECT
+  ST_ISSIMPLE(POINT(1,1)),
+  ST_ISRING(POINT(1,1)),
+  ST_ISCLOSED(POINT(1,1)),
+  ST_DIMENSION(POINT(1,1)),
+  ST_NUMGEOMETRIES(POINT(1,1)),
+  ST_NUMINTERIORRINGS(POINT(1,1)),
+  ST_NUMPOINTS(POINT(1,1)),
+  ST_SRID(POINT(1,1));
+--enable_ps_protocol
+--disable_metadata
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

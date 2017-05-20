@@ -252,3 +252,77 @@ drop table t1;
 --enable_metadata
 select cast('01:01:01' as time), cast('01:01:01' as time(2));
 --disable_metadata
+
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+SELECT
+  STRCMP('a','b'),
+  OCTET_LENGTH('a'),
+  CHAR_LENGTH('a'),
+  COERCIBILITY('a'),
+  ASCII('a'),
+  ORD('a'),
+  CRC32('a'),
+  UNCOMPRESSED_LENGTH(COMPRESS('a'));
+
+SELECT
+  INTERVAL(2,1,2,3),
+  REGEXP_INSTR('a','a'),
+  LOCATE('a','a'),
+  FIND_IN_SET('b','a,b,c,d'),
+  FIELD('a','a','b');
+
+SELECT
+  SIGN(1),
+  BIT_COUNT(1);
+
+
+SELECT
+  BENCHMARK(0,0),
+  SLEEP(0);
+
+SELECT
+  GET_LOCK('metadata',0),
+  IS_FREE_LOCK('metadata'),
+  RELEASE_LOCK('metadata');
+
+# Metadata the following functions is not deterministic
+#SELECT CONNECTION_ID();
+#SELECT IS_FREE_LOCK('metadata');
+#SELECT UUID_SHORT();
+
+
+SELECT
+  PERIOD_ADD(200801,2),
+  PERIOD_DIFF(200802,200703),
+  TO_DAYS('2007-10-07'),
+  DAYOFMONTH('2007-02-03'),
+  DAYOFWEEK('2007-02-03'),
+  TO_SECONDS('2013-06-13');
+
+SELECT
+  YEAR('2001-02-03 04:05:06.000007'),
+  DAY('2001-02-03 04:05:06.000007'),
+  HOUR('2001-02-03 04:05:06.000007'),
+  MINUTE('2001-02-03 04:05:06.000007'),
+  SECOND('2001-02-03 04:05:06.000007'),
+  MICROSECOND('2001-02-03 04:05:06.000007');
+
+SELECT
+  WEEK('2001-02-03 04:05:06.000007'),
+  QUARTER('2001-02-03 04:05:06.000007'),
+  YEARWEEK('2001-02-03 04:05:06.000007');
+
+--disable_metadata
+
+--enable_metadata
+SELECT BIT_LENGTH(10);
+SELECT 1|2, 1&2, 1<<2, 1>>2, ~0, 1^2;
+SELECT LAST_INSERT_ID();
+SELECT ROW_COUNT(), FOUND_ROWS();
+SELECT TIMESTAMPDIFF(MONTH,'2003-02-01','2003-05-01');
+--disable_metadata

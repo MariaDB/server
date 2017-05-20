@@ -306,3 +306,14 @@ DROP TABLE t1;
 #
 # End of MDEV-10578 sql_mode=ORACLE: SP control functions SQLCODE, SQLERRM
 #
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+BEGIN
+SELECT SQLCODE;
+END
+$$
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					SQLCODE	3	11	1	N	32897	0	63
+SQLCODE
+0

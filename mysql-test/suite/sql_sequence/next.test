@@ -200,3 +200,17 @@ select next value for t1;
 --error ER_BAD_FIELD_ERROR
 select next value for t1, min_value;
 drop sequence t1;
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+CREATE SEQUENCE s1;
+SELECT
+  NEXT VALUE FOR s1,
+  PREVIOUS VALUE FOR s1;
+DROP SEQUENCE s1;
+--enable_ps_protocol
+--disable_metadata

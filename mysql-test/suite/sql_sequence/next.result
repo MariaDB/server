@@ -412,3 +412,16 @@ next value for t1
 select next value for t1, min_value;
 ERROR 42S22: Unknown column 'min_value' in 'field list'
 drop sequence t1;
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+CREATE SEQUENCE s1;
+SELECT
+NEXT VALUE FOR s1,
+PREVIOUS VALUE FOR s1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					NEXT VALUE FOR s1	8	20	1	Y	32896	0	63
+def					PREVIOUS VALUE FOR s1	8	20	1	Y	32896	0	63
+NEXT VALUE FOR s1	PREVIOUS VALUE FOR s1
+1	1
+DROP SEQUENCE s1;

@@ -296,3 +296,26 @@ INSERT INTO t1 VALUES (0);
 SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
 DROP TABLE t1;
 
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+
+SELECT
+  JSON_VALID('{"id": 1, "name": "Monty"}') AS json_valid,
+  JSON_EXISTS('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2") AS json_exists,
+  JSON_CONTAINS('{"A": 0, "B": {"C": 1}, "D": 2}', '2', '$.A') AS ison_contains,
+  JSON_CONTAINS_PATH('{"A": 1, "B": [2], "C": [3, 4]}', 'one', '$.A', '$.D') AS json_contains_path;
+
+SELECT
+  JSON_LENGTH('{"a": 1, "b": {"c": 30}}') AS json_length,
+  JSON_DEPTH('[10, {"a": 20}]') AS json_depnth;
+
+--enable_ps_protocol
+--disable_metadata

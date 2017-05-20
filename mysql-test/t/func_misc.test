@@ -1127,3 +1127,19 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+
+SELECT INET_ATON("255.255.255.255.255.255.255.255");
+
+--enable_ps_protocol
+--disable_metadata

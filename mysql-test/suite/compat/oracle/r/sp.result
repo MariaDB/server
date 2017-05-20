@@ -2274,3 +2274,11 @@ This is p2
 DROP PROCEDURE p3;
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+SELECT SQL%ROWCOUNT;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					SQL%ROWCOUNT	8	21	1	N	32897	0	63
+SQL%ROWCOUNT
+0

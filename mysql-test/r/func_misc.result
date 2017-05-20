@@ -1494,3 +1494,14 @@ DROP TABLE t1;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+SELECT INET_ATON("255.255.255.255.255.255.255.255");
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					INET_ATON("255.255.255.255.255.255.255.255")	8	21	20	Y	32928	0	63
+INET_ATON("255.255.255.255.255.255.255.255")
+18446744073709551615

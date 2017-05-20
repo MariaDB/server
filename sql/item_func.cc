@@ -632,7 +632,7 @@ String *Item_int_func::val_str(String *str)
 
 void Item_func_connection_id::fix_length_and_dec()
 {
-  Item_int_func::fix_length_and_dec();
+  Item_long_func::fix_length_and_dec();
   max_length= 10;
 }
 
@@ -2709,6 +2709,14 @@ my_decimal *Item_func_min_max::val_decimal_native(my_decimal *dec)
 }
 
 
+longlong Item_func_bit_length::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  String *res= args[0]->val_str(&value);
+  return (null_value= !res) ? 0 : (longlong) res->length() * 8;
+}
+
+
 longlong Item_func_octet_length::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -2742,13 +2750,6 @@ longlong Item_func_coercibility::val_int()
   DBUG_ASSERT(fixed == 1);
   null_value= 0;
   return (longlong) args[0]->collation.derivation;
-}
-
-
-void Item_func_locate::fix_length_and_dec()
-{
-  max_length= MY_INT32_NUM_DECIMAL_DIGITS;
-  agg_arg_charsets_for_comparison(cmp_collation, args, 2);
 }
 
 
@@ -6624,14 +6625,14 @@ void Item_func_last_value::fix_length_and_dec()
 }
 
 
-void Item_func_cursor_int_attr::print(String *str, enum_query_type query_type)
+void Cursor_ref::print_func(String *str, const char *func_name)
 {
   append_identifier(current_thd, str, m_cursor_name.str, m_cursor_name.length);
-  str->append(func_name());
+  str->append(func_name);
 }
 
 
-sp_cursor *Item_func_cursor_int_attr::get_open_cursor_or_error()
+sp_cursor *Cursor_ref::get_open_cursor_or_error()
 {
   THD *thd= current_thd;
   sp_cursor *c= thd->spcont->get_cursor(m_cursor_offset);
