@@ -1,0 +1,11 @@
+SET GLOBAL innodb_fast_shutdown=0;
+create table t1(keyc int primary key, c1 char(100)) engine = innodb;
+begin;
+update t1 set c1 = 'mysql';
+update t1 set c1 = 'oracle';
+delete from t1;
+commit;
+drop table t1;
+SET GLOBAL innodb_fast_shutdown=0;
+SET GLOBAL innodb_undo_log_truncate=1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;

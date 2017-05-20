@@ -937,11 +937,7 @@ The following options may be given as the first argument:
  --session-track-state-change 
  Track changes to the session state.
  --session-track-system-variables=name 
- Track changes in registered system variables. For
- compatibility with MySQL defaults this variable should be
- set to "autocommit, character_set_client,
- character_set_connection, character_set_results,
- time_zone"
+ Track changes in registered system variables. 
  --session-track-transaction-info=name 
  Track changes to the transaction attributes. OFF to
  disable; STATE to track just transaction state (Is there
@@ -1408,7 +1404,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 189
+performance-schema-max-statement-classes 190
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
@@ -1457,7 +1453,7 @@ secure-file-priv (No default value)
 server-id 1
 session-track-schema TRUE
 session-track-state-change FALSE
-session-track-system-variables 
+session-track-system-variables autocommit,character_set_client,character_set_connection,character_set_results,time_zone
 session-track-transaction-info OFF
 show-slave-auth-info FALSE
 silent-startup FALSE

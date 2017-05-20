@@ -411,7 +411,7 @@ int ha_cassandra::check_field_options(Field **fields)
     {
       if (dyncol_set || (*field)->type() != MYSQL_TYPE_BLOB)
       {
-         my_error(ER_WRONG_FIELD_SPEC, MYF(0), (*field)->field_name);
+         my_error(ER_WRONG_FIELD_SPEC, MYF(0), (*field)->field_name.str);
          DBUG_RETURN(HA_WRONG_CREATE_OPTION);
       }
       dyncol_set= 1;
@@ -1497,14 +1497,14 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
     for (field= field_arg + 1, i= 1; *field; field++, i++)
     {
       if ((!dyncol_set || dyncol_field != i) &&
-          !strcmp((*field)->field_name, col_name))
+          !strcmp((*field)->field_name.str, col_name))
       {
         n_mapped++;
         ColumnDataConverter **conv= field_converters + (*field)->field_index;
         if (!(*conv= map_field_to_validator(*field, col_type)))
         {
           se->print_error("Failed to map column %s to datatype %s",
-                          (*field)->field_name, col_type);
+                          (*field)->field_name.str, col_type);
           my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
           DBUG_RETURN(true);
         }
@@ -1543,7 +1543,7 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
     DBUG_ASSERT(first_unmapped);
 
     se->print_error("Field `%s` could not be mapped to any field in Cassandra",
-                    first_unmapped->field_name);
+                    first_unmapped->field_name.str);
     my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
     DBUG_RETURN(true);
   }
@@ -1552,14 +1552,14 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
     Setup type conversion for row_key.
   */
   se->get_rowkey_type(&col_name, &col_type);
-  if (col_name && strcmp(col_name, (*field_arg)->field_name))
+  if (col_name && strcmp(col_name, (*field_arg)->field_name.str))
   {
     se->print_error("PRIMARY KEY column must match Cassandra's name '%s'",
                     col_name);
     my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
     DBUG_RETURN(true);
   }
-  if (!col_name && strcmp("rowkey", (*field_arg)->field_name))
+  if (!col_name && strcmp("rowkey", (*field_arg)->field_name.str))
   {
     se->print_error("target column family has no key_alias defined, "
                     "PRIMARY KEY column must be named 'rowkey'");
@@ -1742,14 +1742,14 @@ int ha_cassandra::read_cassandra_columns(bool unpack_pk)
     {
       uint fieldnr= (*field)->field_index;
       if ((!dyncol_set || dyncol_field != fieldnr) &&
-          !strcmp((*field)->field_name, cass_name))
+          !strcmp((*field)->field_name.str, cass_name))
       {
         found= 1;
         (*field)->set_notnull();
         if (field_converters[fieldnr]->cassandra_to_mariadb(cass_value,
                                                             cass_value_len))
         {
-          print_conversion_error((*field)->field_name, cass_value,
+          print_conversion_error((*field)->field_name.str, cass_value,
                                  cass_value_len);
           res=1;
           goto err;
@@ -1770,7 +1770,7 @@ int ha_cassandra::read_cassandra_columns(bool unpack_pk)
         se->print_error("Unable to convert value for field `%s`"
                         " from Cassandra's data format. Name"
                         " length exceed limit of %u: '%s'",
-                        table->field[dyncol_field]->field_name,
+                        table->field[dyncol_field]->field_name.str,
                         (uint)MAX_NAME_LENGTH, cass_name);
         my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
         res=1;
@@ -1782,7 +1782,7 @@ int ha_cassandra::read_cassandra_columns(bool unpack_pk)
         se->print_error("Unable to convert value for field `%s`"
                         " from Cassandra's data format. Sum of all names"
                         " length exceed limit of %lu",
-                        table->field[dyncol_field]->field_name,
+                        table->field[dyncol_field]->field_name.str,
                         cass_name, (uint)MAX_TOTAL_NAME_LENGTH);
         my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
         res=1;
@@ -1841,7 +1841,7 @@ int ha_cassandra::read_cassandra_columns(bool unpack_pk)
     se->get_read_rowkey(&cass_value, &cass_value_len);
     if (rowkey_converter->cassandra_to_mariadb(cass_value, cass_value_len))
     {
-      print_conversion_error((*field)->field_name, cass_value, cass_value_len);
+      print_conversion_error((*field)->field_name.str, cass_value, cass_value_len);
       res=1;
       goto err;
     }
@@ -1953,7 +1953,7 @@ int ha_cassandra::write_row(uchar *buf)
   if (rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len))
   {
     my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
-             rowkey_converter->field->field_name, insert_lineno);
+             rowkey_converter->field->field_name.str, insert_lineno);
     dbug_tmp_restore_column_map(table->read_set, old_map);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   }
@@ -1987,11 +1987,11 @@ int ha_cassandra::write_row(uchar *buf)
                                                     &cass_data_len))
       {
         my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
-                 field_converters[i]->field->field_name, insert_lineno);
+                 field_converters[i]->field->field_name.str, insert_lineno);
         dbug_tmp_restore_column_map(table->read_set, old_map);
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       }
-      se->add_insert_column(field_converters[i]->field->field_name, 0,
+      se->add_insert_column(field_converters[i]->field->field_name.str, 0,
                             cass_data, cass_data_len);
     }
   }
@@ -2074,7 +2074,7 @@ int ha_cassandra::rnd_init(bool scan)
   {
     se->clear_read_columns();
     for (uint i= 1; i < table->s->fields; i++)
-      se->add_read_column(table->field[i]->field_name);
+      se->add_read_column(table->field[i]->field_name.str);
   }
 
   se->read_batch_size= THDVAR(table->in_use, rnd_batch_size);
@@ -2171,7 +2171,7 @@ int ha_cassandra::info(uint flag)
 }
 
 
-void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
+void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
               uint key_length, bool with_zerofill);
 
 
@@ -2355,7 +2355,7 @@ public:
     if (idx == obj->table->s->fields)
       return NULL;
     else
-      return obj->table->field[idx++]->field_name;
+      return obj->table->field[idx++]->field_name.str;
   }
 };
 
@@ -2386,7 +2386,7 @@ int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
   if (rowkey_converter->mariadb_to_cassandra(&new_key, &new_key_len))
   {
     my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
-             rowkey_converter->field->field_name, insert_lineno);
+             rowkey_converter->field->field_name.str, insert_lineno);
     dbug_tmp_restore_column_map(table->read_set, old_map);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   }
@@ -2449,11 +2449,11 @@ int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
       if (field_converters[i]->mariadb_to_cassandra(&cass_data, &cass_data_len))
       {
         my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
-                 field_converters[i]->field->field_name, insert_lineno);
+                 field_converters[i]->field->field_name.str, insert_lineno);
         dbug_tmp_restore_column_map(table->read_set, old_map);
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       }
-      se->add_insert_column(field_converters[i]->field->field_name, 0,
+      se->add_insert_column(field_converters[i]->field->field_name.str, 0,
                             cass_data, cass_data_len);
     }
   }

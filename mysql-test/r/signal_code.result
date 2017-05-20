@@ -31,5 +31,5 @@ Pos	Instruction
 1	stmt 130 "SIGNAL foo SET MESSAGE_TEXT = "This i..."
 2	stmt 131 "RESIGNAL foo"
 3	stmt 131 "RESIGNAL foo SET MESSAGE_TEXT = "This..."
-4	freturn 3 0
+4	freturn int 0
 drop function signal_func;

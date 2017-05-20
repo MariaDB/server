@@ -3904,7 +3904,7 @@ int spider_handlersocket_share::create_column_name_str()
     str->init_calc_mem(202);
     str->set_charset(spider_share->access_charset);
     if ((error_num = spider_db_append_name_with_quote_str(str,
-      (char *) (*field)->field_name, dbton_id)))
+      (char *) (*field)->field_name.str, dbton_id)))
       goto error;
   }
   DBUG_RETURN(0);
@@ -4990,6 +4990,15 @@ int spider_handlersocket_handler::append_explain_select_part(
 ) {
   DBUG_ENTER("spider_handlersocket_handler::append_explain_select_part");
   DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
+int spider_handlersocket_handler::is_sole_projection_field(
+  uint16 field_index
+) {
+  DBUG_ENTER("spider_handlersocket_handler::is_sole_projection_field");
+  DBUG_PRINT("info", ("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }

@@ -1104,7 +1104,7 @@ int ha_myisammrg::write_row(uchar * buf)
   DBUG_RETURN(myrg_write(file,buf));
 }
 
-int ha_myisammrg::update_row(const uchar * old_data, uchar * new_data)
+int ha_myisammrg::update_row(const uchar * old_data, const uchar * new_data)
 {
   DBUG_ASSERT(this->file->children_attached);
   return myrg_update(file,old_data,new_data);
@@ -1609,7 +1609,7 @@ void ha_myisammrg::append_create_info(String *packet)
   for (first= open_table= children_l;;
        open_table= open_table->next_global)
   {
-    LEX_STRING db= { open_table->db, open_table->db_length };
+    LEX_CSTRING db= { open_table->db, open_table->db_length };
 
     if (open_table != first)
       packet->append(',');
@@ -1646,7 +1646,7 @@ bool ha_myisammrg::inplace_alter_table(TABLE *altered_table,
                                        Alter_inplace_info *ha_alter_info)
 {
   char tmp_path[FN_REFLEN];
-  char *name= table->s->normalized_path.str;
+  const char *name= table->s->normalized_path.str;
   DBUG_ENTER("ha_myisammrg::inplace_alter_table");
   fn_format(tmp_path, name, "", MYRG_NAME_TMPEXT, MY_UNPACK_FILENAME | MY_APPEND_EXT);
   int res= create_mrg(tmp_path, ha_alter_info->create_info);

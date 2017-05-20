@@ -2336,7 +2336,7 @@ void Query_cache::invalidate(THD *thd, const char *key, uint32  key_length,
    Remove all cached queries that uses the given database.
 */
 
-void Query_cache::invalidate(THD *thd, char *db)
+void Query_cache::invalidate(THD *thd, const char *db)
 {
   DBUG_ENTER("Query_cache::invalidate (db)");
   if (is_disabled())

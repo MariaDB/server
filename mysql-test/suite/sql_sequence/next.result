@@ -390,6 +390,16 @@ next_value	min_value	max_value	start	increment	cache	cycle	round
 select next value for s1;
 next value for s1
 3984356
+explain extended select next value for s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select nextval(`test`.`s1`) AS `next value for s1`
+explain extended select previous value for s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select lastval(`test`.`s1`) AS `previous value for s1`
 drop sequence s1;
 create table t1 (a int);
 select next value for t1;

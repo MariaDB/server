@@ -19,7 +19,7 @@ SET @sum = @sum + NEW.val + 1
 connection master;
 CREATE TRIGGER IF NOT EXISTS val_sum AFTER INSERT ON t1 FOR EACH ROW SET @sum = @sum + NEW.val + 2;
 Warnings:
-Note	1359	Trigger already exists
+Note	1359	Trigger 'db1.val_sum' already exists
 SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Master FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
 ACTION_STATEMENT_Master
 SET @sum = @sum + NEW.val + 1

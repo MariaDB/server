@@ -18,7 +18,8 @@
 
 #include "myrg_def.h"
 
-int myrg_update(register MYRG_INFO *info,const uchar *oldrec, uchar *newrec)
+int myrg_update(register MYRG_INFO *info,const uchar *oldrec,
+                const uchar *newrec)
 {
   if (!info->current_table)
     return (my_errno=HA_ERR_NO_ACTIVE_RECORD);

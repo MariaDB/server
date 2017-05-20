@@ -364,7 +364,7 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
 Unique::~Unique()
 {
   close_cached_file(&file);
-  delete_tree(&tree);
+  delete_tree(&tree, 0);
   delete_dynamic(&file_ptrs);
 }
 
@@ -384,7 +384,7 @@ bool Unique::flush()
 		(void*) this, left_root_right) ||
       insert_dynamic(&file_ptrs, (uchar*) &file_ptr))
     return 1;
-  delete_tree(&tree);
+  delete_tree(&tree, 0);
   return 0;
 }
 

@@ -5257,8 +5257,8 @@ ER_SP_GOTO_IN_HNDLR
         eng "GOTO is not allowed in a stored procedure handler"
         ger "GOTO ist im Handler einer gespeicherten Prozedur nicht erlaubt"
 ER_TRG_ALREADY_EXISTS  
-        eng "Trigger already exists"
-        ger "Trigger existiert bereits"
+        eng "Trigger '%s' already exists"
+        ger "Trigger '%s' existiert bereits"
 ER_TRG_DOES_NOT_EXIST  
         eng "Trigger does not exist"
         ger "Trigger existiert nicht"
@@ -6471,7 +6471,7 @@ ER_CANNOT_LOAD_FROM_TABLE_V2
   ger "Kann %s.%s nicht einlesen. Tabelle ist wahrscheinlich beschädigt"
 
 ER_MASTER_DELAY_VALUE_OUT_OF_RANGE
-  eng "The requested value %u for the master delay exceeds the maximum %u"
+  eng "The requested value %lu for the master delay exceeds the maximum %lu"
 ER_ONLY_FD_AND_RBR_EVENTS_ALLOWED_IN_BINLOG_STATEMENT
   eng "Only Format_description_log_event and row events are allowed in BINLOG statements (but %s was provided)"
 
@@ -7351,7 +7351,7 @@ ER_WITH_COL_WRONG_LIST
 ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE
         eng "Too many WITH elements in WITH clause"
 ER_DUP_QUERY_NAME
-        eng "Duplicate query name in WITH clause"
+        eng "Duplicate query name %`-.64s in WITH clause"
 ER_RECURSIVE_WITHOUT_ANCHORS
         eng "No anchors for recursive WITH element '%s'"
 ER_UNACCEPTABLE_MUTUAL_RECURSION
@@ -7453,6 +7453,8 @@ ER_JSON_PATH_EMPTY
         eng "Path expression '$' is not allowed in argument %d to function '%s'."
 ER_SLAVE_SAME_ID
         eng "A slave with the same server_uuid/server_id as this slave has connected to the master"
+ER_FLASHBACK_NOT_SUPPORTED
+        eng "Flashback does not support %s %s"
 ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
         eng "Illegal parameter data types %s and %s for operation '%s'"
 ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION

@@ -72,7 +72,7 @@ Procedure *
 proc_analyse_init(THD *thd, ORDER *param, select_result *result,
 		  List<Item> &field_list)
 {
-  char *proc_name = (*param->item)->name;
+  const char *proc_name = (*param->item)->name.str;
   analyse *pc = new analyse(result);
   field_info **f_info;
   DBUG_ENTER("proc_analyse_init");
@@ -298,9 +298,10 @@ bool get_ev_num_info(EV_NUM_INFO *ev_info, NUM_INFO *info, const char *num)
 } // get_ev_num_info
 
 
-void free_string(String *s)
+int free_string(String *s)
 {
   s->free();
+  return 0;
 }
 
 
@@ -374,7 +375,7 @@ void field_str::add()
       if (!tree_insert(&tree, (void*) &s, 0, tree.custom_arg))
       {
 	room_in_tree = 0;      // Remove tree, out of RAM ?
-	delete_tree(&tree);
+	delete_tree(&tree, 0);
       }
       else
       {
@@ -382,7 +383,7 @@ void field_str::add()
 	if ((treemem += length) > pc->max_treemem)
 	{
 	  room_in_tree = 0;	 // Remove tree, too big tree
-	  delete_tree(&tree);
+	  delete_tree(&tree, 0);
 	}
       }
     }
@@ -441,7 +442,7 @@ void field_real::add()
     if (!(element = tree_insert(&tree, (void*) &num, 0, tree.custom_arg)))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
-      delete_tree(&tree);
+      delete_tree(&tree, 0);
     }
     /*
       if element->count == 1, this element can be found only once from tree
@@ -450,7 +451,7 @@ void field_real::add()
     else if (element->count == 1 && (tree_elements++) >= pc->max_tree_elements)
     {
       room_in_tree = 0;  // Remove tree, too many elements
-      delete_tree(&tree);
+      delete_tree(&tree, 0);
     }
   }
 
@@ -507,7 +508,7 @@ void field_decimal::add()
     if (!(element = tree_insert(&tree, (void*)buf, 0, tree.custom_arg)))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
-      delete_tree(&tree);
+      delete_tree(&tree, 0);
     }
     /*
       if element->count == 1, this element can be found only once from tree
@@ -516,7 +517,7 @@ void field_decimal::add()
     else if (element->count == 1 && (tree_elements++) >= pc->max_tree_elements)
     {
       room_in_tree = 0;  // Remove tree, too many elements
-      delete_tree(&tree);
+      delete_tree(&tree, 0);
     }
   }
 
@@ -574,7 +575,7 @@ void field_longlong::add()
     if (!(element = tree_insert(&tree, (void*) &num, 0, tree.custom_arg)))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
-      delete_tree(&tree);
+      delete_tree(&tree, 0);
     }
     /*
       if element->count == 1, this element can be found only once from tree
@@ -583,7 +584,7 @@ void field_longlong::add()
     else if (element->count == 1 && (tree_elements++) >= pc->max_tree_elements)
     {
       room_in_tree = 0;  // Remove tree, too many elements
-      delete_tree(&tree);
+      delete_tree(&tree, 0);
     }
   }
 
@@ -630,7 +631,7 @@ void field_ulonglong::add()
     if (!(element = tree_insert(&tree, (void*) &num, 0, tree.custom_arg)))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
-      delete_tree(&tree);
+      delete_tree(&tree, 0);
     }
     /*
       if element->count == 1, this element can be found only once from tree
@@ -639,7 +640,7 @@ void field_ulonglong::add()
     else if (element->count == 1 && (tree_elements++) >= pc->max_tree_elements)
     {
       room_in_tree = 0;  // Remove tree, too many elements
-      delete_tree(&tree);
+      delete_tree(&tree, 0);
     }
   }
 

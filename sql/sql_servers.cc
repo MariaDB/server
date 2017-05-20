@@ -64,7 +64,7 @@ static int insert_server_record_into_cache(FOREIGN_SERVER *server);
 static FOREIGN_SERVER *
 prepare_server_struct_for_insert(LEX_SERVER_OPTIONS *server_options);
 /* drop functions */ 
-static int delete_server_record(TABLE *table, LEX_STRING *name);
+static int delete_server_record(TABLE *table, LEX_CSTRING *name);
 static int delete_server_record_in_cache(LEX_SERVER_OPTIONS *server_options);
 
 /* update functions */
@@ -939,7 +939,7 @@ end:
 */
 
 static int 
-delete_server_record(TABLE *table, LEX_STRING *name)
+delete_server_record(TABLE *table, LEX_CSTRING *name)
 {
   int error;
   DBUG_ENTER("delete_server_record");

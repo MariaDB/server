@@ -22,29 +22,29 @@
 #include "my_global.h"
 #include "pfs_column_values.h"
 
-LEX_STRING PERFORMANCE_SCHEMA_str=
-{ C_STRING_WITH_LEN("performance_schema") };
+LEX_CSTRING PERFORMANCE_SCHEMA_str=
+{ STRING_WITH_LEN("performance_schema") };
 
-LEX_STRING mutex_instrument_prefix=
-{ C_STRING_WITH_LEN("wait/synch/mutex/") };
+LEX_CSTRING mutex_instrument_prefix=
+{ STRING_WITH_LEN("wait/synch/mutex/") };
 
-LEX_STRING rwlock_instrument_prefix=
-{ C_STRING_WITH_LEN("wait/synch/rwlock/") };
+LEX_CSTRING rwlock_instrument_prefix=
+{ STRING_WITH_LEN("wait/synch/rwlock/") };
 
-LEX_STRING cond_instrument_prefix=
-{ C_STRING_WITH_LEN("wait/synch/cond/") };
+LEX_CSTRING cond_instrument_prefix=
+{ STRING_WITH_LEN("wait/synch/cond/") };
 
-LEX_STRING thread_instrument_prefix=
-{ C_STRING_WITH_LEN("thread/") };
+LEX_CSTRING thread_instrument_prefix=
+{ STRING_WITH_LEN("thread/") };
 
-LEX_STRING file_instrument_prefix=
-{ C_STRING_WITH_LEN("wait/io/file/") };
+LEX_CSTRING file_instrument_prefix=
+{ STRING_WITH_LEN("wait/io/file/") };
 
-LEX_STRING stage_instrument_prefix=
-{ C_STRING_WITH_LEN("stage/") };
+LEX_CSTRING stage_instrument_prefix=
+{ STRING_WITH_LEN("stage/") };
 
-LEX_STRING statement_instrument_prefix=
-{ C_STRING_WITH_LEN("statement/") };
+LEX_CSTRING statement_instrument_prefix=
+{ STRING_WITH_LEN("statement/") };
 
-LEX_STRING socket_instrument_prefix=
-{ C_STRING_WITH_LEN("wait/io/socket/") };
+LEX_CSTRING socket_instrument_prefix=
+{ STRING_WITH_LEN("wait/io/socket/") };

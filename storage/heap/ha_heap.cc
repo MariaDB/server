@@ -251,7 +251,7 @@ int ha_heap::write_row(uchar * buf)
   return res;
 }
 
-int ha_heap::update_row(const uchar * old_data, uchar * new_data)
+int ha_heap::update_row(const uchar * old_data, const uchar * new_data)
 {
   int res;
   res= heap_update(file,old_data,new_data);

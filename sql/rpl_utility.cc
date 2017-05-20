@@ -825,7 +825,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
     {
       DBUG_PRINT("debug", ("Checking column %d -"
                            " field '%s' can be converted - order: %d",
-                           col, field->field_name, order));
+                           col, field->field_name.str, order));
       DBUG_ASSERT(order >= -1 && order <= 1);
 
       /*
@@ -855,7 +855,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
     {
       DBUG_PRINT("debug", ("Checking column %d -"
                            " field '%s' can not be converted",
-                           col, field->field_name));
+                           col, field->field_name.str));
       DBUG_ASSERT(col < size() && col < table->s->fields);
       DBUG_ASSERT(table->s->db.str && table->s->table_name.str);
       DBUG_ASSERT(table->in_use);
@@ -891,7 +891,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
         table->field[col]->sql_type(target_type);
         DBUG_PRINT("debug", ("Field %s - conversion required."
                              " Source type: '%s', Target type: '%s'",
-                             tmp_table->field[col]->field_name,
+                             tmp_table->field[col]->field_name.str,
                              source_type.c_ptr_safe(), target_type.c_ptr_safe()));
       }
   }
@@ -928,7 +928,7 @@ public:
                       (int) sql_type,
                       target_field->table->s->db.str,
                       target_field->table->s->table_name.str,
-                      target_field->field_name);
+                      target_field->field_name.str);
       return true;
     }
     Field *tmp= handler->make_conversion_table_field(this, metadata,
@@ -938,7 +938,7 @@ public:
     Virtual_tmp_table::add(tmp);
     DBUG_PRINT("debug", ("sql_type: %d, target_field: '%s', max_length: %d, decimals: %d,"
                          " maybe_null: %d, unsigned_flag: %d, pack_length: %u",
-                         sql_type, target_field->field_name,
+                         sql_type, target_field->field_name.str,
                          tmp->field_length, tmp->decimals(), TRUE,
                          tmp->flags, tmp->pack_length()));
     return false;
@@ -980,7 +980,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
       DBUG_PRINT("debug", ("binlog_type: %d, metadata: %04X, target_field: '%s'"
                            " make_conversion_table_field() failed",
                            binlog_type(col), field_metadata(col),
-                           target_table->field[col]->field_name));
+                           target_table->field[col]->field_name.str));
       goto err;
     }
   }

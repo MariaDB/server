@@ -238,11 +238,13 @@ Event_queue::create_event(THD *thd, Event_queue_element *new_element,
 */
 
 void
-Event_queue::update_event(THD *thd, LEX_STRING dbname, LEX_STRING name,
+Event_queue::update_event(THD *thd, const LEX_CSTRING *dbname,
+                          const LEX_CSTRING *name,
                           Event_queue_element *new_element)
 {
   DBUG_ENTER("Event_queue::update_event");
-  DBUG_PRINT("enter", ("thd: 0x%lx  et=[%s.%s]", (long) thd, dbname.str, name.str));
+  DBUG_PRINT("enter", ("thd: %p  et: [%s.%s]", thd, dbname->str,
+                       name->str));
 
   if ((new_element->status == Event_parse_data::DISABLED) ||
       (new_element->status == Event_parse_data::SLAVESIDE_DISABLED))
@@ -287,11 +289,12 @@ Event_queue::update_event(THD *thd, LEX_STRING dbname, LEX_STRING name,
 */
 
 void
-Event_queue::drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name)
+Event_queue::drop_event(THD *thd, const LEX_CSTRING *dbname,
+                        const LEX_CSTRING *name)
 {
   DBUG_ENTER("Event_queue::drop_event");
-  DBUG_PRINT("enter", ("thd: 0x%lx  db :%s  name: %s", (long) thd,
-                       dbname.str, name.str));
+  DBUG_PRINT("enter", ("thd: %p  db: %s  name: %s", thd,
+                       dbname->str, name->str));
 
   LOCK_QUEUE_DATA();
   find_n_remove_event(dbname, name);
@@ -325,12 +328,12 @@ Event_queue::drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name)
 */
 
 void
-Event_queue::drop_matching_events(THD *thd, LEX_STRING pattern,
-                           bool (*comparator)(LEX_STRING, Event_basic *))
+Event_queue::drop_matching_events(THD *thd, const LEX_CSTRING *pattern,
+                           bool (*comparator)(const LEX_CSTRING *, Event_basic *))
 {
   uint i;
   DBUG_ENTER("Event_queue::drop_matching_events");
-  DBUG_PRINT("enter", ("pattern=%s", pattern.str));
+  DBUG_PRINT("enter", ("pattern: %s", pattern->str));
 
   for (i= queue_first_element(&queue) ;
        i <= queue_last_element(&queue) ;
@@ -380,7 +383,7 @@ Event_queue::drop_matching_events(THD *thd, LEX_STRING pattern,
 */
 
 void
-Event_queue::drop_schema_events(THD *thd, LEX_STRING schema)
+Event_queue::drop_schema_events(THD *thd, const LEX_CSTRING *schema)
 {
   DBUG_ENTER("Event_queue::drop_schema_events");
   LOCK_QUEUE_DATA();
@@ -404,7 +407,8 @@ Event_queue::drop_schema_events(THD *thd, LEX_STRING schema)
 */
 
 void
-Event_queue::find_n_remove_event(LEX_STRING db, LEX_STRING name)
+Event_queue::find_n_remove_event(const LEX_CSTRING *db,
+                                 const LEX_CSTRING *name)
 {
   uint i;
   DBUG_ENTER("Event_queue::find_n_remove_event");
@@ -414,7 +418,7 @@ Event_queue::find_n_remove_event(LEX_STRING db, LEX_STRING name)
        i++)
   {
     Event_queue_element *et= (Event_queue_element *) queue_element(&queue, i);
-    DBUG_PRINT("info", ("[%s.%s]==[%s.%s]?", db.str, name.str,
+    DBUG_PRINT("info", ("[%s.%s]==[%s.%s]?", db->str, name->str,
                         et->dbname.str, et->name.str));
     if (event_basic_identifier_equal(db, name, et))
     {
@@ -683,7 +687,7 @@ end:
 
     Event_db_repository *db_repository= Events::get_db_repository();
     (void) db_repository->update_timing_fields_for_event(thd,
-                            (*event_name)->dbname, (*event_name)->name,
+                            &(*event_name)->dbname, &(*event_name)->name,
                             last_executed, (ulonglong) status);
   }
 

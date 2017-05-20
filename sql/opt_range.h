@@ -594,6 +594,17 @@ public:
 };
 
 
+class SEL_ARG_IMPOSSIBLE: public SEL_ARG
+{
+public:
+  SEL_ARG_IMPOSSIBLE(Field *field)
+   :SEL_ARG(field, 0, 0)
+  {
+    type= SEL_ARG::IMPOSSIBLE;
+  }
+};
+
+
 class RANGE_OPT_PARAM
 {
 public:

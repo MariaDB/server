@@ -1036,7 +1036,7 @@ void maria_ft_boolean_close_search(FT_INFO *ftb)
 {
   if (is_tree_inited(& ftb->no_dupes))
   {
-    delete_tree(& ftb->no_dupes);
+    delete_tree(&ftb->no_dupes, 0);
   }
   free_root(& ftb->mem_root, MYF(0));
   my_free(ftb);

@@ -155,6 +155,8 @@ CREATE TABLE t1 (a TIMESTAMP);
 INSERT INTO t1 VALUES ('2010-01-01 10:20:30');
 # Expect TIMESTAMP type (7) in metadata 
 SELECT GREATEST(a,a) FROM t1;
+# Similar to this one
+SELECT COALESCE(a,a) FROM t1;
 DROP TABLE t1;
 --disable_metadata
 --enable_ps_protocol
@@ -459,3 +461,80 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12497 Wrong data type for LEAST(latin1_expr, utf8_expr)
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  LEAST(_latin1'aaa',_utf8 0xC39F) AS c1,
+  COALESCE(_latin1'aaa',_utf8 0xC39F) AS c2;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12504 Wrong data type for LEAST(date_expr,time_expr)
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  LEAST(DATE'2001-01-01', TIME'10:20:30') AS c1,
+  CONCAT(LEAST(DATE'2001-01-01', TIME'10:20:30')) AS c2;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12505 Wrong data type for GREATEST(bit_column, int_column)
+--echo #
+
+CREATE TABLE t1 (a BIT(64),b INT);
+INSERT INTO t1 VALUES (0xFFFFFFFFFFFFFFFF,-1);
+SELECT a>b, COALESCE(a,b), GREATEST(a,b) FROM t1;
+CREATE TABLE t2 AS SELECT COALESCE(a,b),GREATEST(a,b) FROM t1;
+SELECT * FROM t2;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12601 Hybrid functions create a column of an impossible type DOUBLE(256,4)
+--echo #
+
+CREATE TABLE t1 (a DOUBLE(255,4),b DOUBLE(255,3));
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12617 CASE and CASE-alike hybrid functions do not preserve exact data types
+--echo #
+
+CREATE TABLE t1 (a FLOAT(10,2));
+CREATE TABLE t2 AS SELECT COALESCE(a) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+CREATE TABLE t1 (a FLOAT(10,2));
+CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+CREATE TABLE t1 (a TINYINT(1));
+CREATE TABLE t2 AS SELECT COALESCE(a) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+CREATE TABLE t1 (a TINYINT(1));
+CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+

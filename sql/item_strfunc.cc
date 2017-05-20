@@ -450,7 +450,7 @@ String *Item_func_from_base64::val_str(String *str)
     THD *thd= current_thd;
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_BAD_BASE64_DATA, ER_THD(thd, ER_BAD_BASE64_DATA),
-                        end_ptr - res->ptr());
+                        (int) (end_ptr - res->ptr()));
     goto err;
   }
 
@@ -2905,29 +2905,51 @@ String *Item_func_char::val_str(String *str)
   {
     int32 num=(int32) args[i]->val_int();
     if (!args[i]->null_value)
-    {
-      char tmp[4];
-      if (num & 0xFF000000L)
-      {
-        mi_int4store(tmp, num);
-        str->append(tmp, 4, &my_charset_bin);
-      }
-      else if (num & 0xFF0000L)
-      {
-        mi_int3store(tmp, num);
-        str->append(tmp, 3, &my_charset_bin);
-      }
-      else if (num & 0xFF00L)
-      {
-        mi_int2store(tmp, num);
-        str->append(tmp, 2, &my_charset_bin);
-      }
-      else
-      {
-        tmp[0]= (char) num;
-        str->append(tmp, 1, &my_charset_bin);
-      }
-    }
+      append_char(str, num);
+  }
+  str->realloc(str->length());			// Add end 0 (for Purify)
+  return check_well_formed_result(str);
+}
+
+
+void Item_func_char::append_char(String *str, int32 num)
+{
+  char tmp[4];
+  if (num & 0xFF000000L)
+  {
+    mi_int4store(tmp, num);
+    str->append(tmp, 4, &my_charset_bin);
+  }
+  else if (num & 0xFF0000L)
+  {
+    mi_int3store(tmp, num);
+    str->append(tmp, 3, &my_charset_bin);
+  }
+  else if (num & 0xFF00L)
+  {
+    mi_int2store(tmp, num);
+    str->append(tmp, 2, &my_charset_bin);
+  }
+  else
+  {
+    tmp[0]= (char) num;
+    str->append(tmp, 1, &my_charset_bin);
+  }
+}
+
+
+String *Item_func_chr::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  str->length(0);
+  str->set_charset(collation.collation);
+  int32 num=(int32) args[0]->val_int();
+  if (!args[0]->null_value)
+    append_char(str, num);
+  else
+  {
+    null_value= 1;
+    return 0;
   }
   str->realloc(str->length());			// Add end 0 (for Purify)
   return check_well_formed_result(str);
@@ -3152,11 +3174,23 @@ err:
 }
 
 
-void Item_func_rpad::fix_length_and_dec()
+void Item_func_pad::fix_length_and_dec()
 {
-  // Handle character set for args[0] and args[2].
-  if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
-    return;
+  if (arg_count == 3)
+  {
+    // Handle character set for args[0] and args[2].
+    if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
+      return;
+  }
+  else
+  {
+    if (agg_arg_charsets_for_string_result(collation, &args[0], 1, 1))
+      return;
+    pad_str.set_charset(collation.collation);
+    pad_str.length(0);
+    pad_str.append(" ", 1);
+  }
+
   if (args[1]->const_item())
   {
     ulonglong char_length= (ulonglong) args[1]->val_int();
@@ -3187,11 +3221,15 @@ String *Item_func_rpad::val_str(String *str)
   longlong count= args[1]->val_int();
   longlong byte_count;
   String *res= args[0]->val_str(str);
-  String *rpad= args[2]->val_str(&rpad_str);
+  String *rpad= arg_count == 2 ? &pad_str : args[2]->val_str(&pad_str);
 
   if (!res || args[1]->null_value || !rpad || 
       ((count < 0) && !args[1]->unsigned_flag))
     goto err;
+
+  if (count == 0)
+    return make_empty_result();
+
   null_value=0;
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
@@ -3216,7 +3254,6 @@ String *Item_func_rpad::val_str(String *str)
     res->length(res->charpos((int) count));	// Shorten result if longer
     return (res);
   }
-  pad_char_length= rpad->numchars();
 
   byte_count= count * collation.collation->mbmaxlen;
   {
@@ -3230,8 +3267,15 @@ String *Item_func_rpad::val_str(String *str)
       goto err;
     }
   }
-  if (args[2]->null_value || !pad_char_length)
-    goto err;
+
+  if (arg_count == 3)
+  {
+    if (args[2]->null_value || !(pad_char_length= rpad->numchars()))
+      goto err;
+  }
+  else
+    pad_char_length= 1; // Implicit space
+
   res_byte_length= res->length();	/* Must be done before alloc_buffer */
   if (!(res= alloc_buffer(res,str,&tmp_value, (ulong) byte_count)))
     goto err;
@@ -3260,32 +3304,6 @@ String *Item_func_rpad::val_str(String *str)
 }
 
 
-void Item_func_lpad::fix_length_and_dec()
-{
-  // Handle character set for args[0] and args[2].
-  if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
-    return;
-  
-  if (args[1]->const_item())
-  {
-    ulonglong char_length= (ulonglong) args[1]->val_int();
-    DBUG_ASSERT(collation.collation->mbmaxlen > 0);
-    /* Assumes that the maximum length of a String is < INT_MAX32. */
-    /* Set here so that rest of code sees out-of-bound value as such. */
-    if (args[1]->null_value)
-      char_length= 0;
-    else if (char_length > INT_MAX32)
-      char_length= INT_MAX32;
-    fix_char_length_ulonglong(char_length);
-  }
-  else
-  {
-    max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
-  }
-}
-
-
 String *Item_func_lpad::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -3294,11 +3312,15 @@ String *Item_func_lpad::val_str(String *str)
   longlong count= args[1]->val_int();
   longlong byte_count;
   String *res= args[0]->val_str(&tmp_value);
-  String *pad= args[2]->val_str(&lpad_str);
+  String *pad= arg_count == 2 ? &pad_str : args[2]->val_str(&pad_str);
 
   if (!res || args[1]->null_value || !pad ||  
       ((count < 0) && !args[1]->unsigned_flag))
     goto err;  
+
+  if (count == 0)
+    return make_empty_result();
+
   null_value=0;
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
@@ -3327,7 +3349,6 @@ String *Item_func_lpad::val_str(String *str)
     return res;
   }
   
-  pad_char_length= pad->numchars();
   byte_count= count * collation.collation->mbmaxlen;
   
   {
@@ -3342,9 +3363,16 @@ String *Item_func_lpad::val_str(String *str)
     }
   }
 
-  if (args[2]->null_value || !pad_char_length ||
-      str->alloc((uint32) byte_count))
+  if (str->alloc((uint32) byte_count))
     goto err;
+
+  if (arg_count == 3)
+  {
+    if (args[2]->null_value || !(pad_char_length= pad->numchars()))
+      goto err;
+  }
+  else
+    pad_char_length= 1; // Implicit space
   
   str->length(0);
   str->set_charset(collation.collation);

@@ -577,7 +577,7 @@ bool trans_rollback_stmt(THD *thd)
 
 /* Find a named savepoint in the current transaction. */
 static SAVEPOINT **
-find_savepoint(THD *thd, LEX_STRING name)
+find_savepoint(THD *thd, LEX_CSTRING name)
 {
   SAVEPOINT **sv= &thd->transaction.savepoints;
 
@@ -603,7 +603,7 @@ find_savepoint(THD *thd, LEX_STRING name)
   @retval TRUE   Failure
 */
 
-bool trans_savepoint(THD *thd, LEX_STRING name)
+bool trans_savepoint(THD *thd, LEX_CSTRING name)
 {
   SAVEPOINT **sv, *newsv;
   DBUG_ENTER("trans_savepoint");
@@ -680,7 +680,7 @@ bool trans_savepoint(THD *thd, LEX_STRING name)
   @retval TRUE   Failure
 */
 
-bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name)
+bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
 {
   int res= FALSE;
   SAVEPOINT *sv= *find_savepoint(thd, name);
@@ -757,7 +757,7 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name)
   @retval TRUE   Failure
 */
 
-bool trans_release_savepoint(THD *thd, LEX_STRING name)
+bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
 {
   int res= FALSE;
   SAVEPOINT *sv= *find_savepoint(thd, name);

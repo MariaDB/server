@@ -51,6 +51,7 @@ struct wsrep_thd_shadow {
   char                 *db;
   size_t               db_length;
   my_hrtime_t          user_time;
+  longlong             row_count_func;
 };
 
 // Global wsrep parameters
@@ -280,7 +281,7 @@ extern PSI_mutex_key key_LOCK_wsrep_desync;
 extern PSI_file_key key_file_wsrep_gra_log;
 #endif /* HAVE_PSI_INTERFACE */
 struct TABLE_LIST;
-int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
+int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list);
 void wsrep_to_isolation_end(THD *thd);
 void wsrep_cleanup_transaction(THD *thd);

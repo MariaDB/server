@@ -41,7 +41,7 @@ public:
   };
 
   /// Name of the SP-variable.
-  LEX_STRING name;
+  LEX_CSTRING name;
 
   /// Mode of the SP-variable.
   enum_mode mode;
@@ -60,16 +60,16 @@ public:
   Spvar_definition field_def;
 
   /// Field-type of the SP-variable.
-  enum_field_types sql_type() const { return field_def.sql_type; }
+  enum_field_types sql_type() const { return field_def.real_field_type(); }
 
   const Type_handler *type_handler() const { return field_def.type_handler(); }
 
 public:
-  sp_variable(LEX_STRING _name, uint _offset)
+  sp_variable(const LEX_CSTRING *name_arg, uint offset_arg)
    :Sql_alloc(),
-    name(_name),
+    name(*name_arg),
     mode(MODE_IN),
-    offset(_offset),
+    offset(offset_arg),
     default_value(NULL)
   { }
   /*
@@ -83,8 +83,8 @@ public:
              with the given name, or a non-null pointer otherwise.
              row_field_offset[0] is set only when the method returns !NULL.
   */
-  const Spvar_definition *find_row_field(const LEX_STRING &var_name,
-                                         const LEX_STRING &field_name,
+  const Spvar_definition *find_row_field(const LEX_CSTRING *var_name,
+                                         const LEX_CSTRING *field_name,
                                          uint *row_field_offset);
 };
 
@@ -117,7 +117,7 @@ public:
   };
 
   /// Name of the label.
-  LEX_STRING name;
+  LEX_CSTRING name;
 
   /// Instruction pointer of the label.
   uint ip;
@@ -129,10 +129,10 @@ public:
   class sp_pcontext *ctx;
 
 public:
-  sp_label(const LEX_STRING _name,
+  sp_label(const LEX_CSTRING *_name,
            uint _ip, enum_type _type, sp_pcontext *_ctx)
    :Sql_alloc(),
-    name(_name),
+    name(*_name),
     ip(_ip),
     type(_type),
     ctx(_ctx)
@@ -243,29 +243,29 @@ class sp_condition : public Sql_alloc
 {
 public:
   /// Name of the condition.
-  LEX_STRING name;
+  LEX_CSTRING name;
 
   /// Value of the condition.
   sp_condition_value *value;
 
 public:
-  sp_condition(const LEX_STRING _name, sp_condition_value *_value)
+  sp_condition(const LEX_CSTRING *name_arg, sp_condition_value *value_arg)
    :Sql_alloc(),
-    name(_name),
-    value(_value)
+    name(*name_arg),
+    value(value_arg)
   { }
   sp_condition(const char *name_arg, size_t name_length_arg,
                sp_condition_value *value_arg)
    :value(value_arg)
   {
-    name.str= (char *) name_arg;
+    name.str=    name_arg;
     name.length= name_length_arg;
   }
-  bool eq_name(const LEX_STRING str) const
+  bool eq_name(const LEX_CSTRING *str) const
   {
     return my_strnncoll(system_charset_info,
                         (const uchar *) name.str, name.length,
-                        (const uchar *) str.str, str.length) == 0;
+                        (const uchar *) str->str, str->length) == 0;
   }
 };
 
@@ -288,14 +288,14 @@ public:
     Note, m_param_context can be not NULL, but have no variables.
     This is also means a cursor with no parameters (similar to NULL).
 */
-class sp_pcursor: public LEX_STRING
+class sp_pcursor: public LEX_CSTRING
 {
   class sp_pcontext *m_param_context; // Formal parameters
   class sp_lex_cursor *m_lex;         // The cursor statement LEX
 public:
-  sp_pcursor(const LEX_STRING &name, class sp_pcontext *param_ctx,
+  sp_pcursor(const LEX_CSTRING *name, class sp_pcontext *param_ctx,
              class sp_lex_cursor *lex)
-   :LEX_STRING(name), m_param_context(param_ctx), m_lex(lex)
+   :LEX_CSTRING(*name), m_param_context(param_ctx), m_lex(lex)
   { }
   class sp_pcontext *param_context() const { return m_param_context; }
   class sp_lex_cursor *lex() const { return m_lex; }
@@ -462,7 +462,7 @@ public:
   /// @param name Name of the SP-variable.
   ///
   /// @return instance of newly added SP-variable.
-  sp_variable *add_variable(THD *thd, LEX_STRING name);
+  sp_variable *add_variable(THD *thd, const LEX_CSTRING *name);
 
   /// Retrieve full type information about SP-variables in this parsing
   /// context and its children.
@@ -481,7 +481,7 @@ public:
   /// @param current_scope_only A flag if we search only in current scope.
   ///
   /// @return instance of found SP-variable, or NULL if not found.
-  sp_variable *find_variable(LEX_STRING name, bool current_scope_only) const;
+  sp_variable *find_variable(const LEX_CSTRING *name, bool current_scope_only) const;
 
   /// Find SP-variable by the offset in the root parsing context.
   ///
@@ -524,28 +524,28 @@ public:
   // Labels.
   /////////////////////////////////////////////////////////////////////////
 
-  sp_label *push_label(THD *thd, const LEX_STRING name, uint ip,
+  sp_label *push_label(THD *thd, const LEX_CSTRING *name, uint ip,
                        sp_label::enum_type type, List<sp_label> * list);
 
-  sp_label *push_label(THD *thd, LEX_STRING name, uint ip,
-                                    sp_label::enum_type type)
+  sp_label *push_label(THD *thd, const LEX_CSTRING *name, uint ip,
+                       sp_label::enum_type type)
   { return push_label(thd, name, ip, type, &m_labels); }
 
-  sp_label *push_goto_label(THD *thd, LEX_STRING name, uint ip,
-                                         sp_label::enum_type type)
+  sp_label *push_goto_label(THD *thd, const LEX_CSTRING *name, uint ip,
+                            sp_label::enum_type type)
   { return push_label(thd, name, ip, type, &m_goto_labels); }
 
-  sp_label *push_label(THD *thd, const LEX_STRING name, uint ip)
+  sp_label *push_label(THD *thd, const LEX_CSTRING *name, uint ip)
   { return push_label(thd, name, ip, sp_label::IMPLICIT); }
 
-  sp_label *push_goto_label(THD *thd, const LEX_STRING name, uint ip)
+  sp_label *push_goto_label(THD *thd, const LEX_CSTRING *name, uint ip)
   { return push_goto_label(thd, name, ip, sp_label::GOTO); }
 
-  sp_label *find_label(const LEX_STRING name);
+  sp_label *find_label(const LEX_CSTRING *name);
 
-  sp_label *find_goto_label(const LEX_STRING name, bool recusive);
+  sp_label *find_goto_label(const LEX_CSTRING *name, bool recusive);
 
-  sp_label *find_goto_label(const LEX_STRING name)
+  sp_label *find_goto_label(const LEX_CSTRING *name)
   { return find_goto_label(name, true); }
 
   sp_label *find_label_current_loop_start();
@@ -568,12 +568,12 @@ public:
   sp_label *pop_label()
   { return m_labels.pop(); }
 
-  bool block_label_declare(LEX_STRING label)
+  bool block_label_declare(LEX_CSTRING *label)
   {
     sp_label *lab= find_label(label);
     if (lab)
     {
-      my_error(ER_SP_LABEL_REDEFINE, MYF(0), label.str);
+      my_error(ER_SP_LABEL_REDEFINE, MYF(0), label->str);
       return true;
     }
     return false;
@@ -583,15 +583,15 @@ public:
   // Conditions.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_condition(THD *thd, const LEX_STRING name,
+  bool add_condition(THD *thd, const LEX_CSTRING *name,
                                sp_condition_value *value);
 
   /// See comment for find_variable() above.
-  sp_condition_value *find_condition(const LEX_STRING name,
+  sp_condition_value *find_condition(const LEX_CSTRING *name,
                                      bool current_scope_only) const;
 
   sp_condition_value *
-  find_declared_or_predefined_condition(const LEX_STRING name) const
+  find_declared_or_predefined_condition(const LEX_CSTRING *name) const
   {
     sp_condition_value *p= find_condition(name, false);
     if (p)
@@ -599,12 +599,12 @@ public:
     return find_predefined_condition(name);
   }
 
-  bool declare_condition(THD *thd, const LEX_STRING name,
+  bool declare_condition(THD *thd, const LEX_CSTRING *name,
                                    sp_condition_value *val)
   {
     if (find_condition(name, true))
     {
-      my_error(ER_SP_DUP_COND, MYF(0), name.str);
+      my_error(ER_SP_DUP_COND, MYF(0), name->str);
       return true;
     }
     return add_condition(thd, name, val);
@@ -646,21 +646,21 @@ public:
   // Cursors.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_cursor(const LEX_STRING name, sp_pcontext *param_ctx,
+  bool add_cursor(const LEX_CSTRING *name, sp_pcontext *param_ctx,
                   class sp_lex_cursor *lex);
 
   /// See comment for find_variable() above.
-  const sp_pcursor *find_cursor(const LEX_STRING name,
+  const sp_pcursor *find_cursor(const LEX_CSTRING *name,
                                 uint *poff, bool current_scope_only) const;
 
-  const sp_pcursor *find_cursor_with_error(const LEX_STRING name,
+  const sp_pcursor *find_cursor_with_error(const LEX_CSTRING *name,
                                            uint *poff,
                                            bool current_scope_only) const
   {
     const sp_pcursor *pcursor= find_cursor(name, poff, current_scope_only);
     if (!pcursor)
     {
-      my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+      my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
       return NULL;
     }
     return pcursor;
@@ -704,7 +704,7 @@ private:
   sp_pcontext(const sp_pcontext &);
   void operator=(sp_pcontext &);
 
-  sp_condition_value *find_predefined_condition(const LEX_STRING name) const;
+  sp_condition_value *find_predefined_condition(const LEX_CSTRING *name) const;
 
 private:
   /// m_max_var_index -- number of variables (including all types of arguments)

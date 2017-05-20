@@ -31,3 +31,13 @@ SELECT * FROM v1;
 SHOW CREATE VIEW v1;
 DROP VIEW v1;
 DROP SEQUENCE s1;
+
+--echo #
+--echo # MDEV-12533 sql_mode=ORACLE: Add support for database qualified sequence names in NEXTVAL and CURRVAL
+--echo #
+CREATE SEQUENCE s1;
+SELECT test.s1.nextval;
+SELECT test.s1.currval;
+SELECT .s1.nextval;
+SELECT .s1.currval;
+DROP SEQUENCE s1;

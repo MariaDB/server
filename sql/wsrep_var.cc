@@ -313,7 +313,7 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
                                      //when fails
   if (wsrep_init())
   {
-    my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp);
+    my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
     rcode = true;
   }
   free(tmp);
@@ -614,7 +614,7 @@ bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
 
   char max_ws_size_opt[128];
   my_snprintf(max_ws_size_opt, sizeof(max_ws_size_opt),
-              "repl.max_ws_size=%d", wsrep_max_ws_size);
+              "repl.max_ws_size=%lu", wsrep_max_ws_size);
   wsrep_status_t ret= wsrep->options_set(wsrep, max_ws_size_opt);
   if (ret != WSREP_OK)
   {

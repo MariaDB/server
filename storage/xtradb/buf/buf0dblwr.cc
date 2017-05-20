@@ -538,7 +538,7 @@ buf_dblwr_process()
 				/* Decompress the page before
 				validating the checksum. */
 				fil_decompress_page(
-					NULL, read_buf, UNIV_PAGE_SIZE,
+					NULL, read_buf, srv_page_size,
 					NULL, true);
 			}
 
@@ -565,7 +565,7 @@ buf_dblwr_process()
 			/* Decompress the page before
 			validating the checksum. */
 			fil_decompress_page(
-				NULL, page, UNIV_PAGE_SIZE, NULL, true);
+				NULL, page, srv_page_size, NULL, true);
 		}
 
 		if (!fil_space_verify_crypt_checksum(page, zip_size, NULL, page_no)
@@ -1001,7 +1001,7 @@ flush:
 	srv_stats.dblwr_writes.inc();
 
 	/* Now flush the doublewrite buffer data to disk */
-	fil_flush(TRX_SYS_SPACE);
+	fil_flush(ulint(TRX_SYS_SPACE));
 
 	/* We know that the writes have been flushed to disk now
 	and in recovery we will find them in the doublewrite buffer
@@ -1249,7 +1249,7 @@ retry:
 	}
 
 	/* Now flush the doublewrite buffer data to disk */
-	fil_flush(TRX_SYS_SPACE);
+	fil_flush(ulint(TRX_SYS_SPACE));
 
 	/* We know that the write has been flushed to disk now
 	and during recovery we will find it in the doublewrite buffer

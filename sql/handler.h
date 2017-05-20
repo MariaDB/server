@@ -1341,7 +1341,7 @@ struct handlerton
 
      Returns 0 on success and 1 on error.
    */
-   int (*discover_table_names)(handlerton *hton, LEX_STRING *db, MY_DIR *dir,
+   int (*discover_table_names)(handlerton *hton, LEX_CSTRING *db, MY_DIR *dir,
                                discovered_list *result);
 
    /*
@@ -1387,7 +1387,7 @@ struct handlerton
 };
 
 
-static inline LEX_STRING *hton_name(const handlerton *hton)
+static inline LEX_CSTRING *hton_name(const handlerton *hton)
 {
   return &(hton2plugin[hton->slot]->name);
 }
@@ -1483,13 +1483,15 @@ struct THD_TRANS
 
   unsigned int m_unsafe_rollback_flags;
  /*
-    Define the type of statemens which cannot be rolled back safely.
+    Define the type of statements which cannot be rolled back safely.
     Each type occupies one bit in m_unsafe_rollback_flags.
   */
-  static unsigned int const MODIFIED_NON_TRANS_TABLE= 0x01;
-  static unsigned int const CREATED_TEMP_TABLE= 0x02;
-  static unsigned int const DROPPED_TEMP_TABLE= 0x04;
-  static unsigned int const DID_WAIT= 0x08;
+  enum unsafe_statement_types
+  {
+    CREATED_TEMP_TABLE= 2,
+    DROPPED_TEMP_TABLE= 4,
+    DID_WAIT= 8
+  };
 
   void mark_created_temp_table()
   {
@@ -1678,9 +1680,9 @@ struct Table_scope_and_contents_source_st
 {
   CHARSET_INFO *table_charset;
   LEX_CUSTRING tabledef_version;
-  LEX_STRING connect_string;
+  LEX_CSTRING connect_string;
+  LEX_CSTRING comment;
   const char *password, *tablespace;
-  LEX_STRING comment;
   const char *data_file_name, *index_file_name;
   const char *alias;
   ulonglong max_rows,min_rows;
@@ -2175,8 +2177,8 @@ typedef struct st_key_create_information
 {
   enum ha_key_alg algorithm;
   ulong block_size;
-  LEX_STRING parser_name;
-  LEX_STRING comment;
+  LEX_CSTRING parser_name;
+  LEX_CSTRING comment;
   /**
     A flag to determine if we will check for duplicate indexes.
     This typically means that the key information was specified
@@ -2890,17 +2892,16 @@ public:
   */
   int ha_external_lock(THD *thd, int lock_type);
   int ha_write_row(uchar * buf);
-  int ha_update_row(const uchar * old_data, uchar * new_data);
+  int ha_update_row(const uchar * old_data, const uchar * new_data);
   int ha_delete_row(const uchar * buf);
   void ha_release_auto_increment();
 
   bool keyread_enabled() { return keyread < MAX_KEY; }
   int ha_start_keyread(uint idx)
   {
-    if (keyread_enabled())
-      return 0;
+    int res= keyread_enabled() ? 0 : extra(HA_EXTRA_KEYREAD);
     keyread= idx;
-    return extra(HA_EXTRA_KEYREAD);
+    return res;
   }
   int ha_end_keyread()
   {
@@ -2929,7 +2930,7 @@ public:
     int ret= end_bulk_insert();
     DBUG_RETURN(ret);
   }
-  int ha_bulk_update_row(const uchar *old_data, uchar *new_data,
+  int ha_bulk_update_row(const uchar *old_data, const uchar *new_data,
                          uint *dup_key_found);
   int ha_delete_all_rows();
   int ha_truncate();
@@ -3531,7 +3532,7 @@ public:
         cached
   */
 
-  virtual my_bool register_query_cache_table(THD *thd, char *table_key,
+  virtual my_bool register_query_cache_table(THD *thd, const char *table_key,
                                              uint key_length,
                                              qc_engine_callback
                                              *engine_callback,
@@ -3960,7 +3961,7 @@ public:
     return 0;
   }
 
-  virtual LEX_STRING *engine_name();
+  virtual LEX_CSTRING *engine_name();
   
   TABLE* get_table() { return table; }
   TABLE_SHARE* get_table_share() { return table_share; }
@@ -4047,7 +4048,7 @@ private:
     message will contain garbage.
   */
   virtual int update_row(const uchar *old_data __attribute__((unused)),
-                         uchar *new_data __attribute__((unused)))
+                         const uchar *new_data __attribute__((unused)))
   {
     return HA_ERR_WRONG_COMMAND;
   }
@@ -4135,7 +4136,7 @@ public:
     @retval  0   Bulk delete used by handler
     @retval  1   Bulk delete not used, normal operation used
   */
-  virtual int bulk_update_row(const uchar *old_data, uchar *new_data,
+  virtual int bulk_update_row(const uchar *old_data, const uchar *new_data,
                               uint *dup_key_found)
   {
     DBUG_ASSERT(FALSE);
@@ -4264,7 +4265,7 @@ extern const char *myisam_stats_method_names[];
 extern ulong total_ha, total_ha_2pc;
 
 /* lookups */
-plugin_ref ha_resolve_by_name(THD *thd, const LEX_STRING *name, bool tmp_table);
+plugin_ref ha_resolve_by_name(THD *thd, const LEX_CSTRING *name, bool tmp_table);
 plugin_ref ha_lock_engine(THD *thd, const handlerton *hton);
 handlerton *ha_resolve_by_legacy_type(THD *thd, enum legacy_db_type db_type);
 handler *get_new_handler(TABLE_SHARE *share, MEM_ROOT *alloc,
@@ -4332,11 +4333,11 @@ class Discovered_table_list: public handlerton::discovered_list
   const char *wild, *wend;
   bool with_temps; // whether to include temp tables in the result
 public:
-  Dynamic_array<LEX_STRING*> *tables;
+  Dynamic_array<LEX_CSTRING*> *tables;
 
-  Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_STRING*> *tables_arg,
-                        const LEX_STRING *wild_arg);
-  Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_STRING*> *tables_arg)
+  Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_CSTRING*> *tables_arg,
+                        const LEX_CSTRING *wild_arg);
+  Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_CSTRING*> *tables_arg)
     : thd(thd_arg), wild(NULL), with_temps(true), tables(tables_arg) {}
   ~Discovered_table_list() {}
 
@@ -4348,7 +4349,7 @@ public:
 };
 
 int ha_discover_table(THD *thd, TABLE_SHARE *share);
-int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
+int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const char *db, const char *table_name,
                      handlerton **hton= 0, bool *is_sequence= 0);
@@ -4431,5 +4432,5 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
-int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
+int del_global_table_stat(THD *thd, LEX_CSTRING *db, LEX_CSTRING *table);
 #endif /* HANDLER_INCLUDED */

@@ -62,7 +62,7 @@ ut_dbg_assertion_failed(
 
 /** Debug assertion */
 #define ut_ad	DBUG_ASSERT
-#ifdef UNIV_DEBUG
+#if defined(UNIV_DEBUG) || !defined(DBUG_OFF)
 /** Debug statement. Does nothing unless UNIV_DEBUG is defined. */
 #define ut_d(EXPR)	EXPR
 #else

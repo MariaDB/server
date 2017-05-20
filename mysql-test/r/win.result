@@ -3055,3 +3055,33 @@ name	row_cnt	pct_of_total
 Fred	2	66.67
 Joe	1	33.33
 drop table t1;
+#
+# MDEV-11990: window function over min/max aggregation
+#
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2), (4), (2);
+select sum(max(id)) over (order by max(id)) from t1;
+sum(max(id)) over (order by max(id))
+4
+explain
+select sum(max(id)) over (order by max(id)) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary
+create index idx on t1(id);
+select sum(max(id)) over (order by max(id)) from t1;
+sum(max(id)) over (order by max(id))
+4
+explain
+select sum(max(id)) over (order by max(id)) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+select sum(max(id)) over (order by max(id)) from t1 where id < 3;
+sum(max(id)) over (order by max(id))
+2
+select count(max(id)) over (order by max(id)) from t1 where id < 3;
+count(max(id)) over (order by max(id))
+1
+select max(id), rank() over (order by max(id)) from t1 where id < 3;
+max(id)	rank() over (order by max(id))
+2	1
+drop table t1;

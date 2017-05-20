@@ -2207,14 +2207,23 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
 
 int ha_maria::end_bulk_insert()
 {
-  int err;
+  int first_error, error;
+  my_bool abort= file->s->deleting;
   DBUG_ENTER("ha_maria::end_bulk_insert");
-  maria_end_bulk_insert(file);
-  if ((err= maria_extra(file, HA_EXTRA_NO_CACHE, 0)))
-    goto end;
-  if (can_enable_indexes && !file->s->deleting)
-    err= enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
-end:
+
+  if ((first_error= maria_end_bulk_insert(file, abort)))
+    abort= 1;
+
+  if ((error= maria_extra(file, HA_EXTRA_NO_CACHE, 0)))
+  {
+    first_error= first_error ? first_error : error;
+    abort= 1;
+  }
+
+  if (!abort && can_enable_indexes)
+    if ((error= enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE)))
+      first_error= first_error ? first_error : error;
+
   if (bulk_insert_single_undo != BULK_INSERT_NONE)
   {
     DBUG_ASSERT(can_enable_indexes);
@@ -2222,12 +2231,12 @@ end:
       Table was transactional just before start_bulk_insert().
       No need to flush pages if we did a repair (which already flushed).
     */
-    err|=
-      _ma_reenable_logging_for_table(file,
-                                     bulk_insert_single_undo ==
-                                     BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR);
+    if ((error= _ma_reenable_logging_for_table(file,
+                                               bulk_insert_single_undo ==
+                                               BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR)))
+      first_error= first_error ? first_error : error;
   }
-  DBUG_RETURN(err);
+  DBUG_RETURN(first_error);
 }
 
 
@@ -2268,7 +2277,7 @@ bool ha_maria::check_and_repair(THD *thd)
   if (!file->state->del && (maria_recover_options & HA_RECOVER_QUICK))
     check_opt.flags |= T_QUICK;
 
-  thd->set_query(table->s->table_name.str,
+  thd->set_query((char*) table->s->table_name.str,
                  (uint) table->s->table_name.length, system_charset_info);
 
   if (!(crashed= maria_is_crashed(file)))
@@ -2311,7 +2320,7 @@ bool ha_maria::is_crashed() const
     } \
   } while(0)
 
-int ha_maria::update_row(const uchar * old_data, uchar * new_data)
+int ha_maria::update_row(const uchar * old_data, const uchar * new_data)
 {
   CHECK_UNTIL_WE_FULLY_IMPLEMENTED_VERSIONING("UPDATE in WRITE CONCURRENT");
   return maria_update(file, old_data, new_data);
@@ -3403,7 +3412,7 @@ bool maria_show_status(handlerton *hton,
                        stat_print_fn *print,
                        enum ha_stat_type stat)
 {
-  const LEX_STRING *engine_name= hton_name(hton);
+  const LEX_CSTRING *engine_name= hton_name(hton);
   switch (stat) {
   case HA_ENGINE_LOGS:
   {
@@ -3643,7 +3652,7 @@ static int ha_maria_init(void *p)
     @retval FALSE An error occurred
 */
 
-my_bool ha_maria::register_query_cache_table(THD *thd, char *table_name,
+my_bool ha_maria::register_query_cache_table(THD *thd, const char *table_name,
 					     uint table_name_len,
 					     qc_engine_callback
 					     *engine_callback,

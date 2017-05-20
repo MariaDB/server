@@ -112,7 +112,7 @@ public:
   virtual sys_var_pluginvar *cast_pluginvar() { return 0; }
 
   bool check(THD *thd, set_var *var);
-  uchar *value_ptr(THD *thd, enum_var_type type, const LEX_STRING *base);
+  uchar *value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base);
 
   /**
      Update the system variable with the default value from either
@@ -123,9 +123,9 @@ public:
   bool update(THD *thd, set_var *var);
 
   String *val_str_nolock(String *str, THD *thd, const uchar *value);
-  longlong val_int(bool *is_null, THD *thd, enum_var_type type, const LEX_STRING *base);
-  String *val_str(String *str, THD *thd, enum_var_type type, const LEX_STRING *base);
-  double val_real(bool *is_null, THD *thd, enum_var_type type, const LEX_STRING *base);
+  longlong val_int(bool *is_null, THD *thd, enum_var_type type, const LEX_CSTRING *base);
+  String *val_str(String *str, THD *thd, enum_var_type type, const LEX_CSTRING *base);
+  double val_real(bool *is_null, THD *thd, enum_var_type type, const LEX_CSTRING *base);
 
   SHOW_TYPE show_type() { return show_val_type; }
   int scope() const { return flags & SCOPE_MASK; }
@@ -229,8 +229,8 @@ protected:
     It must be of show_val_type type (my_bool for SHOW_MY_BOOL,
     int for SHOW_INT, longlong for SHOW_LONGLONG, etc).
   */
-  virtual uchar *session_value_ptr(THD *thd, const LEX_STRING *base);
-  virtual uchar *global_value_ptr(THD *thd, const LEX_STRING *base);
+  virtual uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base);
+  virtual uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
 
   /**
     A pointer to a storage area of the variable, to the raw data.
@@ -290,10 +290,10 @@ public:
     LEX_STRING string_value;            ///< for Sys_var_charptr and others
     const void *ptr;                    ///< for Sys_var_struct
   } save_result;
-  LEX_STRING base; /**< for structured variables, like keycache_name.variable_name */
+  LEX_CSTRING base; /**< for structured variables, like keycache_name.variable_name */
 
   set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
-          const LEX_STRING *base_name_arg, Item *value_arg);
+          const LEX_CSTRING *base_name_arg, Item *value_arg);
   virtual bool is_system() { return 1; }
   int check(THD *thd);
   int update(THD *thd);
@@ -330,10 +330,10 @@ public:
 
 class set_var_role: public set_var_base
 {
-  LEX_STRING role;
+  LEX_CSTRING role;
   ulonglong access;
 public:
-  set_var_role(LEX_STRING role_arg) : role(role_arg) {}
+  set_var_role(LEX_CSTRING role_arg) : role(role_arg) {}
   int check(THD *thd);
   int update(THD *thd);
 };
@@ -343,9 +343,9 @@ public:
 class set_var_default_role: public set_var_base
 {
   LEX_USER *user, *real_user;
-  LEX_STRING role;
+  LEX_CSTRING role;
 public:
-  set_var_default_role(LEX_USER *user_arg, LEX_STRING role_arg) :
+  set_var_default_role(LEX_USER *user_arg, LEX_CSTRING role_arg) :
     user(user_arg), role(role_arg) {}
   int check(THD *thd);
   int update(THD *thd);
@@ -412,7 +412,8 @@ inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 
 sql_mode_t expand_sql_mode(sql_mode_t sql_mode);
-bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode, LEX_STRING *ls);
+bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
+                                    LEX_CSTRING *ls);
 int default_regex_flags_pcre(const THD *thd);
 
 extern sys_var *Sys_autocommit_ptr;

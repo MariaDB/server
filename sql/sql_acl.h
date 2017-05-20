@@ -182,10 +182,10 @@ enum mysql_db_table_field
 extern const TABLE_FIELD_DEF mysql_db_table_def;
 extern bool mysql_user_table_is_in_short_password_format;
 
-extern LEX_STRING host_not_specified;
-extern LEX_STRING current_user;
-extern LEX_STRING current_role;
-extern LEX_STRING current_user_and_current_role;
+extern LEX_CSTRING host_not_specified;
+extern LEX_CSTRING current_user;
+extern LEX_CSTRING current_role;
+extern LEX_CSTRING current_user_and_current_role;
 
 
 static inline int access_denied_error_code(int passwd_used)
@@ -193,7 +193,6 @@ static inline int access_denied_error_code(int passwd_used)
   return passwd_used == 2 ? ER_ACCESS_DENIED_NO_PASSWORD_ERROR
                           : ER_ACCESS_DENIED_ERROR;
 }
-
 
 /* prototypes */
 
@@ -204,8 +203,8 @@ void acl_free(bool end=0);
 ulong acl_get(const char *host, const char *ip,
               const char *user, const char *db, my_bool db_is_pattern);
 bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
-bool acl_getroot(Security_context *sctx, char *user, char *host,
-                 char *ip, char *db);
+bool acl_getroot(Security_context *sctx, const char *user, const char *host,
+                 const char *ip, const char *db);
 bool acl_check_host(const char *host, const char *ip);
 bool check_change_password(THD *thd, LEX_USER *user);
 bool change_password(THD *thd, LEX_USER *user);
@@ -243,7 +242,7 @@ ulong get_column_grant(THD *thd, GRANT_INFO *grant,
                        const char *db_name, const char *table_name,
                        const char *field_name);
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
-                                  const char *name);
+                                  const char *name, size_t length);
 bool mysql_show_grants(THD *thd, LEX_USER *user);
 bool mysql_show_create_user(THD *thd, LEX_USER *user);
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond);
@@ -385,7 +384,7 @@ public:
 class ACL_internal_schema_registry
 {
 public:
-  static void register_schema(const LEX_STRING *name,
+  static void register_schema(const LEX_CSTRING *name,
                               const ACL_internal_schema_access *access);
   static const ACL_internal_schema_access *lookup(const char *name);
 };
@@ -401,8 +400,8 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
 
 bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
                                    bool with_grant);
-int acl_setrole(THD *thd, char *rolename, ulonglong access);
-int acl_check_setrole(THD *thd, char *rolename, ulonglong *access);
+int acl_setrole(THD *thd, const char *rolename, ulonglong access);
+int acl_check_setrole(THD *thd, const char *rolename, ulonglong *access);
 int acl_check_set_default_role(THD *thd, const char *host, const char *user);
 int acl_set_default_role(THD *thd, const char *host, const char *user,
                          const char *rolename);

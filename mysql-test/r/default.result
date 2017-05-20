@@ -1932,6 +1932,21 @@ SELECT * FROM t1;
 a	b	c
 2003-02-01	2003-05-01 12:05:55	128885
 DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 ( col INT DEFAULT ( 1 LIKE ( NOW() BETWEEN '2000-01-01' AND '2012-12-12' ) ) );
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `col` int(11) DEFAULT (1 like (current_timestamp() between '2000-01-01' and '2012-12-12'))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SET timestamp = UNIX_TIMESTAMP( '2004-04-04' );
+INSERT INTO t1 VALUES( DEFAULT );
+SET timestamp = DEFAULT;
+INSERT INTO t1 VALUES( DEFAULT );
+SELECT * FROM t1;
+col
+1
+0
+DROP TABLE t1;
 #
 # Hybrid type functions
 #
@@ -2886,7 +2901,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` int(11) DEFAULT length(`a`),
+  `b` int(11) DEFAULT octet_length(`a`),
   `c` int(11) DEFAULT char_length(`a`),
   `d` int(11) DEFAULT bit_length(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

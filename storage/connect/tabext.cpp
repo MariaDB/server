@@ -293,7 +293,7 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 
 	if (Srcdef) {
 		if ((catp = strstr(Srcdef, "%s"))) {
-			char *fil1, *fil2;
+			char *fil1= 0, *fil2;
 			PSZ   ph = ((EXTDEF*)To_Def)->Phpos;
 
 			if (!ph)

@@ -130,7 +130,7 @@ public:
     @param new_data the row new values
     @return 0 on success
   */
-  int update_row(const uchar *old_data, uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data);
 
   /**
     Delete a row.
@@ -188,7 +188,8 @@ public:
   { return HA_CACHE_TBL_NOCACHE; }
 
   virtual my_bool register_query_cache_table
-    (THD *, char *, uint , qc_engine_callback *engine_callback, ulonglong *)
+    (THD *, const char *, uint , qc_engine_callback *engine_callback,
+     ulonglong *)
   {
     *engine_callback= 0;
     return FALSE;

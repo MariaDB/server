@@ -82,7 +82,8 @@ public:
   bool set_cmp_func_for_row_arguments();
   bool set_cmp_func_row();
   bool set_cmp_func_string();
-  bool set_cmp_func_temporal();
+  bool set_cmp_func_time();
+  bool set_cmp_func_datetime();
   bool set_cmp_func_int();
   bool set_cmp_func_real();
   bool set_cmp_func_decimal();
@@ -496,7 +497,7 @@ public:
   {
     Item_args::propagate_equal_fields(thd,
                                       Context(ANY_SUBST,
-                                              cmp.compare_type(),
+                                              cmp.compare_type_handler(),
                                               compare_collation()),
                                       cond);
     return this;
@@ -885,6 +886,11 @@ public:
   const char *func_name() const { return "between"; }
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
   void fix_length_and_dec();
+  bool fix_length_and_dec_string(THD *)
+  {
+    return agg_arg_charsets_for_comparison(cmp_collation, args, 3);
+  }
+  bool fix_length_and_dec_numeric(THD *);
   virtual void print(String *str, enum_query_type query_type);
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
@@ -897,7 +903,7 @@ public:
   {
     Item_args::propagate_equal_fields(thd,
                                       Context(ANY_SUBST,
-                                              m_comparator.cmp_type(),
+                                              m_comparator.type_handler(),
                                               compare_collation()),
                                       cond);
     return this;
@@ -965,13 +971,13 @@ public:
 };
 
 
-class Item_func_coalesce :public Item_func_hybrid_field_type
+class Item_func_coalesce :public Item_func_case_expression
 {
 public:
   Item_func_coalesce(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_field_type(thd, a, b) {}
+    Item_func_case_expression(thd, a, b) {}
   Item_func_coalesce(THD *thd, List<Item> &list):
-    Item_func_hybrid_field_type(thd, list) {}
+    Item_func_case_expression(thd, list) {}
   double real_op();
   longlong int_op();
   String *str_op(String *);
@@ -995,7 +1001,7 @@ public:
     IF(switch, arg1, arg2)
     NVL2(switch, arg1, arg2)
 */
-class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
+class Item_func_case_abbreviation2 :public Item_func_case_expression
 {
 protected:
   void fix_length_and_dec2(Item **items)
@@ -1003,12 +1009,11 @@ protected:
     if (!aggregate_for_result(func_name(), items, 2, true))
       fix_attributes(items, 2);
   }
-  uint decimal_precision2(Item **args) const;
 
   void cache_type_info(const Item *source, bool maybe_null_arg)
   {
     Type_std_attributes::set(source);
-    set_handler_by_field_type(source->field_type());
+    set_handler(source->type_handler());
     maybe_null= maybe_null_arg;
   }
 
@@ -1020,7 +1025,7 @@ protected:
       cache_type_info(items[1], true);
       // If both arguments are NULL, make resulting type BINARY(0).
       if (items[1]->type() == NULL_ITEM)
-        set_handler_by_field_type(MYSQL_TYPE_STRING);
+        set_handler(&type_handler_string);
     }
     else if (items[1]->type() == NULL_ITEM)
     {
@@ -1034,9 +1039,9 @@ protected:
 
 public:
   Item_func_case_abbreviation2(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_field_type(thd, a, b) { }
+    Item_func_case_expression(thd, a, b) { }
   Item_func_case_abbreviation2(THD *thd, Item *a, Item *b, Item *c):
-    Item_func_hybrid_field_type(thd, a, b, c) { }
+    Item_func_case_expression(thd, a, b, c) { }
 };
 
 
@@ -1056,14 +1061,8 @@ public:
     maybe_null= args[1]->maybe_null;
   }
   const char *func_name() const { return "ifnull"; }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table, false, false); }
 
   table_map not_null_tables() const { return 0; }
-  uint decimal_precision() const
-  {
-    return Item_func_case_abbreviation2::decimal_precision2(args);
-  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_ifnull>(thd, mem_root, this); }
 };
@@ -1124,10 +1123,6 @@ public:
   {
     fix_length_and_dec2_eliminate_null(args + 1);
   }
-  uint decimal_precision() const
-  {
-    return Item_func_case_abbreviation2::decimal_precision2(args + 1);
-  }
   const char *func_name() const { return "if"; }
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
@@ -1152,16 +1147,12 @@ public:
   {
     fix_length_and_dec2_eliminate_null(args + 1);
   }
-  uint decimal_precision() const
-  {
-    return Item_func_case_abbreviation2::decimal_precision2(args + 1);
-  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_nvl2>(thd, mem_root, this); }
 };
 
 
-class Item_func_nullif :public Item_func_hybrid_field_type
+class Item_func_nullif :public Item_func_case_expression
 {
   Arg_comparator cmp;
   /*
@@ -1199,7 +1190,7 @@ public:
     See also Item_func_nullif::fix_length_and_dec().
   */
   Item_func_nullif(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_field_type(thd, a, b, a),
+    Item_func_case_expression(thd, a, b, a),
     m_cache(NULL),
     m_arg0(NULL)
   { arg_count--; }
@@ -1215,7 +1206,6 @@ public:
   my_decimal *decimal_op(my_decimal *);
   void fix_length_and_dec();
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
-  uint decimal_precision() const { return args[2]->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
   void print(String *str, enum_query_type query_type);
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array, 
@@ -1225,7 +1215,8 @@ public:
   bool is_null();
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
-    Context cmpctx(ANY_SUBST, cmp.compare_type(), cmp.compare_collation());
+    Context cmpctx(ANY_SUBST, cmp.compare_type_handler(),
+                              cmp.compare_collation());
     const Item *old0= args[0];
     args[0]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
                                                          cond, &args[0]);
@@ -2031,11 +2022,10 @@ public:
   function and only comparators for there result types are used.
 */
 
-class Item_func_case :public Item_func_hybrid_field_type,
+class Item_func_case :public Item_func_case_expression,
                       public Predicant_to_list_comparator
 {
   int first_expr_num, else_expr_num;
-  enum Item_result left_cmp_type;
   String tmp_value;
   uint ncases;
   DTCollation cmp_collation;
@@ -2052,7 +2042,6 @@ public:
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  uint decimal_precision() const;
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
@@ -2212,14 +2201,14 @@ public:
     */
     if (arg_types_compatible)
     {
-      Context cmpctx(ANY_SUBST, m_comparator.cmp_type(),
+      Context cmpctx(ANY_SUBST, m_comparator.type_handler(),
                      Item_func_in::compare_collation());
       args[0]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
                                                            cond, &args[0]);
     }
     for (uint i= 0; i < comparator_count(); i++)
     {
-      Context cmpctx(ANY_SUBST, get_comparator_type_handler(i)->cmp_type(),
+      Context cmpctx(ANY_SUBST, get_comparator_type_handler(i),
                      Item_func_in::compare_collation());
       uint idx= get_comparator_arg_index(i);
       args[idx]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
@@ -2529,7 +2518,7 @@ public:
     if ((flags & MY_CS_NOPAD) && !(flags & MY_CS_NON1TO1))
       Item_args::propagate_equal_fields(thd,
                                         Context(ANY_SUBST,
-                                                STRING_RESULT,
+                                                &type_handler_long_blob,
                                                 compare_collation()),
                                         cond);
     return this;
@@ -2763,7 +2752,6 @@ public:
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   void traverse_cond(Cond_traverser, void *arg, traverse_order order);
   void neg_arguments(THD *thd);
-  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   Item *compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
@@ -2896,14 +2884,15 @@ class Item_equal: public Item_bool_func
 
   bool link_equal_fields;
 
-  Item_result m_compare_type;
+  const Type_handler *m_compare_handler;
   CHARSET_INFO *m_compare_collation;
   String cmp_value1, cmp_value2;
 public:
 
   COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
 
-  Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item);
+  Item_equal(THD *thd, const Type_handler *handler,
+             Item *f1, Item *f2, bool with_const_item);
   Item_equal(THD *thd, Item_equal *item_equal);
   /* Currently the const item is always the first in the list of equal items */
   inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
@@ -2936,7 +2925,7 @@ public:
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
-  Item_result compare_type() const { return m_compare_type; }
+  const Type_handler *compare_type_handler() const { return m_compare_handler; }
   CHARSET_INFO *compare_collation() const { return m_compare_collation; }
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }

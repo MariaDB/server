@@ -247,6 +247,8 @@ btr_get_search_table(const dict_index_t* index);
 # define btr_search_drop_page_hash_index(block)
 # define btr_search_s_lock(index)
 # define btr_search_s_unlock(index)
+# define btr_search_s_lock_all(index)
+# define btr_search_s_unlock_all(index)
 # define btr_search_x_lock(index)
 # define btr_search_x_unlock(index)
 # define btr_search_info_update(index, cursor)

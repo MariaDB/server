@@ -34,7 +34,7 @@ UNLOCK TABLES;
 
 --connection node_1
 --echo value after RSU:
---sleep 2
+--sleep 3
 SHOW STATUS LIKE 'wsrep_desync_count';
 SHOW VARIABLES LIKE 'wsrep_desync';
 SET GLOBAL wsrep_desync=0;

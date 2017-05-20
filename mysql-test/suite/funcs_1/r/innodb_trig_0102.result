@@ -253,7 +253,7 @@ Testcase 3.5.1.10:
 ------------------
 CREATE TRIGGER trg7_1 BEFORE UPDATE on tb3 for each row set new.f120 ='X';
 CREATE TRIGGER trg7_1 AFTER INSERT on tb3 for each row set @x ='Y';
-ERROR HY000: Trigger already exists
+ERROR HY000: Trigger 'test.trg7_1' already exists
 drop trigger trg7_1;
 
 Testcase 3.5.1.?:
@@ -266,7 +266,7 @@ create trigger trig before insert on t1
 for each row set new.f1 ='trig t1';
 create trigger trig before update on t2
 for each row set new.f1 ='trig t2';
-ERROR HY000: Trigger already exists
+ERROR HY000: Trigger 'test.trig' already exists
 insert into t1 value ('insert to t1',1);
 select * from t1;
 f1	f2

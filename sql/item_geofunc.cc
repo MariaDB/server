@@ -40,20 +40,11 @@
 #include "opt_range.h"
 
 
-Field *Item_geometry_func::create_field_for_create_select(TABLE *t_arg)
-{
-  Field *result;
-  if ((result= new Field_geom(max_length, maybe_null, name, t_arg->s,
-                              get_geometry_type())))
-    result->init(t_arg);
-  return result;
-}
-
 void Item_geometry_func::fix_length_and_dec()
 {
   collation.set(&my_charset_bin);
   decimals=0;
-  max_length= (uint32) 4294967295U;
+  max_length= (uint32) UINT_MAX32;
   maybe_null= 1;
 }
 
@@ -206,7 +197,7 @@ String *Item_func_as_wkt::val_str_ascii(String *str)
 void Item_func_as_wkt::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-  max_length=MAX_BLOB_WIDTH;
+  max_length= (uint32) UINT_MAX32;
   maybe_null= 1;
 }
 
@@ -1072,11 +1063,11 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
     tree->max_flag= NO_MAX_RANGE;
     break;
   case SP_WITHIN_FUNC:
-    tree->min_flag= GEOM_FLAG | HA_READ_MBR_WITHIN;// NEAR_MIN;//512;
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_CONTAIN;// NEAR_MIN;//512;
     tree->max_flag= NO_MAX_RANGE;
     break;
   case SP_CONTAINS_FUNC:
-    tree->min_flag= GEOM_FLAG | HA_READ_MBR_CONTAIN;// NEAR_MIN;//512;
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_WITHIN;// NEAR_MIN;//512;
     tree->max_flag= NO_MAX_RANGE;
     break;
   case SP_OVERLAPS_FUNC:

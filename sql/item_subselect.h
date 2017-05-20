@@ -32,6 +32,7 @@ class subselect_engine;
 class subselect_hash_sj_engine;
 class Item_bool_func2;
 class Comp_creator;
+class With_element;
 
 typedef class st_select_lex SELECT_LEX;
 
@@ -134,6 +135,9 @@ public:
     strategies cannot be applied for the subquery;
   */
   bool with_recursive_reference; 
+
+  /* To link Item_subselects containing references to the same recursive CTE */ 
+  Item_subselect *next_with_rec_ref;
 
   enum subs_type {UNKNOWN_SUBS, SINGLEROW_SUBS,
 		  EXISTS_SUBS, IN_SUBS, ALL_SUBS, ANY_SUBS};
@@ -256,6 +260,7 @@ public:
     return TRUE;
   }
 
+  void register_as_with_rec_ref(With_element *with_elem);
   void init_expr_cache_tracker(THD *thd);
   
   Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
@@ -298,13 +303,10 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  enum Item_result result_type() const;
-  enum Item_result cmp_type() const;
-  enum_field_types field_type() const;
   const Type_handler *type_handler() const;
   void fix_length_and_dec();
 
-  uint cols();
+  uint cols() const;
   Item* element_index(uint i) { return reinterpret_cast<Item*>(row[i]); }
   Item** addr(uint i) { return (Item**)row + i; }
   bool check_cols(uint c);
@@ -391,8 +393,7 @@ public:
   }
   void no_rows_in_result();
 
-  enum Item_result result_type() const { return INT_RESULT;}
-  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   longlong val_int();
   double val_real();
   String *val_str(String*);
@@ -814,7 +815,7 @@ public:
           caller should call exec() again for the new engine.
   */
   virtual int exec()= 0;
-  virtual uint cols()= 0; /* return number of columns in select */
+  virtual uint cols() const= 0; /* return number of columns in select */
   virtual uint8 uncacheable()= 0; /* query is uncacheable */
   virtual void exclude()= 0;
   virtual bool may_be_null() { return maybe_null; };
@@ -831,6 +832,7 @@ public:
   virtual bool no_rows() = 0;
   virtual enum_engine_type engine_type() { return ABSTRACT_ENGINE; }
   virtual int get_identifier() { DBUG_ASSERT(0); return 0; }
+  virtual void force_reexecution() {}
 protected:
   void set_row(List<Item> &item_list, Item_cache **row);
 };
@@ -850,7 +852,7 @@ public:
   int prepare(THD *thd);
   void fix_length_and_dec(Item_cache** row);
   int exec();
-  uint cols();
+  uint cols() const;
   uint8 uncacheable();
   void exclude();
   table_map upper_select_const_tables();
@@ -864,6 +866,7 @@ public:
   bool no_rows();
   virtual enum_engine_type engine_type() { return SINGLE_SELECT_ENGINE; }
   int get_identifier();
+  void force_reexecution();
 
   friend class subselect_hash_sj_engine;
   friend class Item_in_subselect;
@@ -884,7 +887,7 @@ public:
   int prepare(THD *);
   void fix_length_and_dec(Item_cache** row);
   int exec();
-  uint cols();
+  uint cols() const;
   uint8 uncacheable();
   void exclude();
   table_map upper_select_const_tables();
@@ -894,6 +897,7 @@ public:
                      bool temp= FALSE);
   bool no_tables();
   bool is_executed() const;
+  void force_reexecution();
   bool no_rows();
   virtual enum_engine_type engine_type() { return UNION_ENGINE; }
 };
@@ -941,7 +945,7 @@ public:
   int prepare(THD *);
   void fix_length_and_dec(Item_cache** row);
   int exec();
-  uint cols() { return 1; }
+  uint cols() const { return 1; }
   uint8 uncacheable() { return UNCACHEABLE_DEPENDENT_INJECTED; }
   void exclude();
   table_map upper_select_const_tables() { return 0; }
@@ -1079,7 +1083,7 @@ public:
   int prepare(THD *);
   int exec();
   void print(String *str, enum_query_type query_type);
-  uint cols() { return materialize_engine->cols(); }
+  uint cols() const { return materialize_engine->cols(); }
   uint8 uncacheable() { return materialize_engine->uncacheable(); }
   table_map upper_select_const_tables() { return 0; }
   bool no_rows() { return !tmp_table->file->stats.records; }
@@ -1362,7 +1366,7 @@ public:
   int prepare(THD *thd_arg) { set_thd(thd_arg); return 0; }
   int exec();
   void fix_length_and_dec(Item_cache**) {}
-  uint cols() { /* TODO: what is the correct value? */ return 1; }
+  uint cols() const { /* TODO: what is the correct value? */ return 1; }
   uint8 uncacheable() { return UNCACHEABLE_DEPENDENT; }
   void exclude() {}
   table_map upper_select_const_tables() { return 0; }

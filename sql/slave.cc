@@ -82,7 +82,7 @@ ulonglong opt_read_binlog_speed_limit = 0;
 const char *relay_log_index= 0;
 const char *relay_log_basename= 0;
 
-LEX_STRING default_master_connection_name= { (char*) "", 0 };
+LEX_CSTRING default_master_connection_name= { (char*) "", 0 };
 
 /*
   When slave thread exits, we need to remember the temporary tables so we
@@ -3728,8 +3728,7 @@ int
 apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
                                         rpl_group_info *rgi)
 {
-  Relay_log_info* rli= rgi->rli;
-  mysql_mutex_assert_not_owner(&rli->data_lock);
+  mysql_mutex_assert_not_owner(&rgi->rli->data_lock);
   int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
   /*
     In parallel replication, sql_slave_skip_counter is handled in the SQL
@@ -3977,7 +3976,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         DBUG_RETURN(1);
       }
 
-      if (opt_gtid_ignore_duplicates)
+      if (opt_gtid_ignore_duplicates &&
+          rli->mi->using_gtid != Master_info::USE_GTID_NO)
       {
         int res= rpl_global_gtid_slave_state->check_duplicate_gtid
           (&serial_rgi->current_gtid, serial_rgi);

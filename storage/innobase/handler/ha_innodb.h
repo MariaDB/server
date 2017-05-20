@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -138,7 +138,7 @@ public:
 
 	int write_row(uchar * buf);
 
-	int update_row(const uchar * old_data, uchar * new_data);
+	int update_row(const uchar * old_data, const uchar * new_data);
 
 	int delete_row(const uchar * buf);
 
@@ -219,9 +219,6 @@ public:
 
 	ha_rows estimate_rows_upper_bound();
 
-	// JAN: TODO: MySQL 5.7
-	// int records(ha_rows* num_rows);
-
 	void update_create_info(HA_CREATE_INFO* create_info);
 
 	int create(
@@ -288,7 +285,7 @@ public:
 	*/
 	my_bool register_query_cache_table(
 		THD*			thd,
-		char*			table_key,
+		const char*		table_key,
 		uint			key_length,
 		qc_engine_callback*	call_back,
 		ulonglong*		engine_data);

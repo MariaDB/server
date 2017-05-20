@@ -74,47 +74,6 @@ fil_page_is_compressed_encrypted(
 	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 }
 
-#ifndef UNIV_INNOCHECKSUM
-/*******************************************************************//**
-Returns the page compression level of the space, or 0 if the space
-is not compressed. The tablespace must be cached in the memory cache.
-@return	page compression level, 0 if space not found */
-UNIV_INLINE
-ulint
-fil_space_get_page_compression_level(
-/*=================================*/
-	ulint	id)	/*!< in: space id */
-{
-	ulint	flags;
-
-	flags = fil_space_get_flags(id);
-
-	if (flags && flags != ULINT_UNDEFINED) {
-
-		return(fsp_flags_get_page_compression_level(flags));
-	}
-
-	return(0);
-}
-
-/*******************************************************************//**
-Extract the page compression from space.
-@return true if space is page compressed, false if space is not found
-or space is not page compressed. */
-UNIV_INLINE
-bool
-fil_space_is_page_compressed(
-/*=========================*/
-	ulint	id)	/*!< in: space id */
-{
-	ulint	flags = fil_space_get_flags(id);
-
-	return(flags != ULINT_UNDEFINED
-	       && FSP_FLAGS_HAS_PAGE_COMPRESSION(flags));
-}
-
-#endif /* UNIV_INNOCHECKSUM */
-
 /****************************************************************//**
 Get the name of the compression algorithm used for page
 compression.
@@ -154,31 +113,6 @@ fil_get_compression_alg_name(
 }
 
 #ifndef UNIV_INNOCHECKSUM
-/*******************************************************************//**
-Returns the atomic writes flag of the space, or false if the space
-is not using atomic writes. The tablespace must be cached in the memory cache.
-@return	1 if atomic writes can be used for the file */
-UNIV_INLINE
-bool
-fil_space_get_atomic_writes(
-/*========================*/
-	ulint	id)	/*!< in: space id */
-{
-	struct fil_space_t*	space;
-	bool ret= 0;
-
-	ut_ad(fil_system);
-
-	mutex_enter(&fil_system->mutex);
-
-	if ((space = fil_space_get_by_id(id)))
-	  ret= space->atomic_write_supported;
-
-        mutex_exit(&fil_system->mutex);
-	return(ret);
-}
-
-
 /*******************************************************************//**
 Find out wheather the page is page compressed with lzo method
 @return	true if page is page compressed with lzo method, false if not */

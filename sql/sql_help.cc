@@ -92,10 +92,14 @@ static bool init_fields(THD *thd, TABLE_LIST *tables,
   context->resolve_in_table_list_only(tables);
   for (; count-- ; find_fields++)
   {
+    LEX_CSTRING field_name= {find_fields->field_name,
+                             strlen(find_fields->field_name) };
     /* We have to use 'new' here as field will be re_linked on free */
-    Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                      "mysql", find_fields->table_name,
-                                      find_fields->field_name);
+    Item_field *field= (new (thd->mem_root)
+                        Item_field(thd, context,
+                                   "mysql",
+                                   find_fields->table_name,
+                                   &field_name));
     if (!(find_fields->field= find_field_in_tables(thd, field, tables, NULL,
 						   0, REPORT_ALL_ERRORS, 1,
                                                    TRUE)))

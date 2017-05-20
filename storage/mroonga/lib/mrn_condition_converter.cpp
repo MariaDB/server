@@ -28,8 +28,8 @@
 #  define MRN_ITEM_FIELD_GET_NAME(item)        ((item)->item_name.ptr())
 #  define MRN_ITEM_FIELD_GET_NAME_LENGTH(item) ((item)->item_name.length())
 #else
-#  define MRN_ITEM_FIELD_GET_NAME(item)        ((item)->name)
-#  define MRN_ITEM_FIELD_GET_NAME_LENGTH(item) (strlen((item)->name))
+#  define MRN_ITEM_FIELD_GET_NAME(item)        ((item)->name.str)
+#  define MRN_ITEM_FIELD_GET_NAME_LENGTH(item) ((item)->name.length)
 #endif
 
 namespace mrn {

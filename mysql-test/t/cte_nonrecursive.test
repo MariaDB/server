@@ -644,7 +644,7 @@ show create view v1;
 drop view v1;
 
 --echo #
---echo # MDEV-12440: the same CTE table is used in twice
+--echo # MDEV-12440: the same CTE table is used twice
 --echo #
 
 create table t1 (a int, b  varchar(32));
@@ -666,3 +666,18 @@ cte3 as (select * from cte2 where a > 1 union select * from cte2 where a > 1)
 select * from cte3;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-12558: CTE with the same name as temporary table
+--echo #
+
+CREATE TABLE t ENGINE=MyISAM AS SELECT 1 AS i;
+CREATE TEMPORARY TABLE cte ENGINE=MyISAM AS SELECT 2 AS f;
+
+WITH cte AS ( SELECT i FROM t ) SELECT * FROM cte;
+WITH cte AS ( SELECT i FROM t GROUP BY i) SELECT * FROM cte;
+
+SELECT * FROM cte;
+
+DROP TABLE cte;
+DROP TABLE t;

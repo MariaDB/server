@@ -251,10 +251,10 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
     while ((sql_field= it++) &&
            my_strcasecmp(system_charset_info,
                          column->field_name.str,
-                         sql_field->field_name)) {}
+                         sql_field->field_name.str)) {}
     if (!sql_field)
     {
-      my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name);
+      my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
       DBUG_RETURN(TRUE);
     }
     if (type == Key::FOREIGN_KEY && sql_field->vcol_info)
@@ -566,8 +566,8 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   const char *proc_info= thd->proc_info;
 
   len= my_snprintf(header, sizeof(header),
-                   "MySQL thread id %lu, OS thread handle 0x%lx, query id %lu",
-                   thd->thread_id, (ulong) thd->real_id, (ulong) thd->query_id);
+                   "MySQL thread id %lu, OS thread handle %p, query id %lu",
+                   (ulong) thd->thread_id, (void*) thd->real_id, (ulong) thd->query_id);
   str.length(0);
   str.append(header, len);
 
@@ -1193,11 +1193,11 @@ char *thd_strmake(MYSQL_THD thd, const char *str, unsigned int size)
 }
 
 extern "C"
-LEX_STRING *thd_make_lex_string(THD *thd, LEX_STRING *lex_str,
+LEX_CSTRING *thd_make_lex_string(THD *thd, LEX_CSTRING *lex_str,
                                 const char *str, unsigned int size,
                                 int allocate_lex_string)
 {
-  return allocate_lex_string ? thd->make_lex_string(str, size)
+  return allocate_lex_string ? thd->make_clex_string(str, size)
                              : thd->make_lex_string(lex_str, str, size);
 }
 
@@ -1246,6 +1246,17 @@ extern "C" my_thread_id next_thread_id_noinline()
 }
 #endif
 
+
+const Type_handler *THD::type_handler_for_date() const
+{
+  if (!(variables.sql_mode & MODE_ORACLE))
+    return &type_handler_newdate;
+  if (opt_mysql56_temporal_format)
+    return &type_handler_datetime2;
+  return &type_handler_datetime;
+}
+
+
 /*
   Init common variables that has to be reset on start and on change_user
 */
@@ -1263,7 +1274,7 @@ void THD::init(void)
   variables.pseudo_thread_id= thread_id;
 
   variables.default_master_connection.str= default_master_connection_buff;
-  ::strmake(variables.default_master_connection.str,
+  ::strmake(default_master_connection_buff,
             global_system_variables.default_master_connection.str,
             variables.default_master_connection.length);
 
@@ -2352,6 +2363,26 @@ bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
 }
 
 
+Item_string *THD::make_string_literal(const char *str, size_t length,
+                                      uint repertoire)
+{
+  if (!charset_is_collation_connection &&
+      (repertoire != MY_REPERTOIRE_ASCII ||
+       !my_charset_is_ascii_based(variables.collation_connection)))
+  {
+    LEX_STRING to;
+    if (convert_string(&to, variables.collation_connection,
+                       str, length, variables.character_set_client))
+      return NULL;
+    str= to.str;
+    length= to.length;
+  }
+  return new (mem_root) Item_string(this, str, length,
+                                    variables.collation_connection,
+                                    DERIVATION_COERCIBLE, repertoire);
+}
+
+
 /*
   Update some cache variables when character set changes
 */
@@ -2705,7 +2736,7 @@ static String default_field_term("\t",default_charset_info);
 static String default_enclosed_and_line_start("", default_charset_info);
 static String default_xml_row_term("<row>", default_charset_info);
 
-sql_exchange::sql_exchange(char *name, bool flag,
+sql_exchange::sql_exchange(const char *name, bool flag,
                            enum enum_filetype filetype_arg)
   :file_name(name), opt_enclosed(0), dumpfile(flag), skip_lines(0)
 {
@@ -3114,7 +3145,7 @@ int select_export::send_data(List<Item> &items)
                             ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                             ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                             "string", printable_buff,
-                            item->name, static_cast<long>(row_count));
+                            item->name.str, static_cast<long>(row_count));
       }
       else if (copier.source_end_pos() < res->ptr() + res->length())
       { 
@@ -3867,7 +3898,7 @@ Statement_map::~Statement_map()
 
 bool my_var_user::set(THD *thd, Item *item)
 {
-  Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, name, item);
+  Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, &name, item);
   suv->save_item_result(item);
   return suv->fix_fields(thd, 0) || suv->update();
 }
@@ -4119,7 +4150,7 @@ void Security_context::destroy()
   }
   if (user != delayed_user)
   {
-    my_free(user);
+    my_free((char*) user);
     user= NULL;
   }
 
@@ -4129,7 +4160,7 @@ void Security_context::destroy()
     user= NULL;
   }
 
-  my_free(ip);
+  my_free((char*) ip);
   ip= NULL;
 }
 
@@ -4145,7 +4176,7 @@ void Security_context::skip_grants()
 
 bool Security_context::set_user(char *user_arg)
 {
-  my_free(user);
+  my_free((char*) user);
   user= my_strdup(user_arg, MYF(0));
   return user == 0;
 }
@@ -4203,9 +4234,9 @@ bool Security_context::set_user(char *user_arg)
 bool
 Security_context::
 change_security_context(THD *thd,
-                        LEX_STRING *definer_user,
-                        LEX_STRING *definer_host,
-                        LEX_STRING *db,
+                        LEX_CSTRING *definer_user,
+                        LEX_CSTRING *definer_host,
+                        LEX_CSTRING *db,
                         Security_context **backup)
 {
   bool needs_change;
@@ -5341,7 +5372,7 @@ void THD::get_definer(LEX_USER *definer, bool role)
   if (slave_thread && has_invoker())
 #endif
   {
-    definer->user = invoker_user;
+    definer->user= invoker_user;
     definer->host= invoker_host;
     definer->reset_auth();
   }

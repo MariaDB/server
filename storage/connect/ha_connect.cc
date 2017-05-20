@@ -241,7 +241,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 /****************************************************************************/
 /*  Return str as a zero terminated string.                                 */
 /****************************************************************************/
-static char *strz(PGLOBAL g, LEX_STRING &ls)
+static char *strz(PGLOBAL g, LEX_CSTRING &ls)
 {
   char *str= (char*)PlugSubAlloc(g, NULL, ls.length + 1);
 
@@ -1211,7 +1211,7 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
   PTOS  options= GetTableOptionStruct();
 
   if (!stricmp(opname, "Connect")) {
-    LEX_STRING cnc= (tshp) ? tshp->connect_string 
+    LEX_CSTRING cnc= (tshp) ? tshp->connect_string 
                            : table->s->connect_string;
 
     if (cnc.length)
@@ -1391,7 +1391,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   pcf->Flags= 0;
 
   // Now get column information
-  pcf->Name= (char*)fp->field_name;
+  pcf->Name= (char*)fp->field_name.str;
 
   if (fop && fop->special) {
     pcf->Fieldfmt= (char*)fop->special;
@@ -1588,7 +1588,7 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
 
     // Get the the key parts info
     for (int k= 0; (unsigned)k < kp.user_defined_key_parts; k++) {
-      pn= (char*)kp.key_part[k].field->field_name;
+      pn= (char*)kp.key_part[k].field->field_name.str;
       name= PlugDup(g, pn);
 
       // Allocate the key part description block
@@ -1704,7 +1704,7 @@ int ha_connect::GetColNameLen(Field *fp)
   if (fop && fop->special)
     n= strlen(fop->special) + 1;
   else
-    n= strlen(fp->field_name);
+    n= fp->field_name.length;
 
   return n;
 } // end of GetColNameLen
@@ -1716,7 +1716,7 @@ char *ha_connect::GetColName(Field *fp)
 {
   PFOS fop= GetFieldOptionStruct(fp);
 
-  return (fop && fop->special) ? fop->special : (char*)fp->field_name;
+  return (fop && fop->special) ? fop->special : (char*)fp->field_name.str;
 } // end of GetColName
 
 /****************************************************************************/
@@ -1731,7 +1731,7 @@ void ha_connect::AddColName(char *cp, Field *fp)
     // The prefix * mark the column as "special"
     strcat(strcpy(cp, "*"), strupr(fop->special));
   else
-    strcpy(cp, (char*)fp->field_name);
+    strcpy(cp, fp->field_name.str);
 
 } // end of AddColName
 #endif // 0
@@ -1818,12 +1818,12 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
 
     for (field= table->field; fp= *field; field++) {
       if (bitmap_is_set(map, fp->field_index)) {
-        n1+= (strlen(fp->field_name) + 1);
+        n1+= (fp->field_name.length + 1);
         k1++;
         } // endif
 
       if (ump && bitmap_is_set(ump, fp->field_index)) {
-        n2+= (strlen(fp->field_name) + 1);
+        n2+= (fp->field_name.length + 1);
         k2++;
         } // endif
 
@@ -1834,8 +1834,8 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
 
       for (field= table->field; fp= *field; field++)
         if (bitmap_is_set(map, fp->field_index)) {
-          strcpy(p, (char*)fp->field_name);
-          p+= (strlen(p) + 1);
+          strcpy(p, fp->field_name.str);
+          p+= (fp->field_name.length + 1);
           } // endif used field
 
       *p= '\0';          // mark end of list
@@ -1846,7 +1846,7 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
 
       for (field= table->field; fp= *field; field++)
         if (bitmap_is_set(ump, fp->field_index)) {
-          strcpy(p, (char*)fp->field_name);
+          strcpy(p, fp->field_name.str);
 
           if (part_id && bitmap_is_set(part_id, fp->field_index)) {
             // Trying to update a column used for partitioning
@@ -1911,9 +1911,9 @@ bool ha_connect::CheckColumnList(PGLOBAL g)
   if ((rc= setjmp(g->jumper[++g->jump_level])) == 0) {
     for (field= table->field; fp= *field; field++)
       if (bitmap_is_set(map, fp->field_index)) {
-        if (!(colp= tdbp->ColDB(g, (PSZ)fp->field_name, 0))) {
+        if (!(colp= tdbp->ColDB(g, (PSZ)fp->field_name.str, 0))) {
           sprintf(g->Message, "Column %s not found in %s", 
-                  fp->field_name, tdbp->GetName());
+                  fp->field_name.str, tdbp->GetName());
           brc= true;
           goto fin;
           } // endif colp
@@ -2003,14 +2003,14 @@ int ha_connect::MakeRecord(char *buf)
       // This is a used field, fill the buffer with value
       for (colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
         if ((!mrr || colp->GetKcol()) &&
-            !stricmp(colp->GetName(), (char*)fp->field_name))
+            !stricmp(colp->GetName(), fp->field_name.str))
           break;
 
       if (!colp) {
         if (mrr)
           continue;
 
-        htrc("Column %s not found\n", fp->field_name);
+        htrc("Column %s not found\n", fp->field_name.str);
         dbug_tmp_restore_column_map(table->write_set, org_bitmap);
         DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
         } // endif colp
@@ -2066,7 +2066,7 @@ int ha_connect::MakeRecord(char *buf)
 
           sprintf(buf, "Out of range value %.140s for column '%s' at row %ld",
             value->GetCharString(val),
-            fp->field_name, 
+            fp->field_name.str, 
             thd->get_stmt_da()->current_row_for_warning());
 
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, buf);
@@ -2097,7 +2097,7 @@ int ha_connect::MakeRecord(char *buf)
 /***********************************************************************/
 /*  Set row values from a MySQL pseudo record. Specific to MySQL.      */
 /***********************************************************************/
-int ha_connect::ScanRecord(PGLOBAL g, uchar *)
+int ha_connect::ScanRecord(PGLOBAL g, const uchar *)
 {
   char    attr_buffer[1024];
   char    data_buffer[1024];
@@ -2125,11 +2125,11 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
 														 && tdbp->GetAmType() != TYPE_AM_JDBC) ||
 														 bitmap_is_set(table->write_set, fp->field_index)) {
       for (colp= tdbp->GetSetCols(); colp; colp= colp->GetNext())
-        if (!stricmp(colp->GetName(), fp->field_name))
+        if (!stricmp(colp->GetName(), fp->field_name.str))
           break;
 
       if (!colp) {
-        htrc("Column %s not found\n", fp->field_name);
+        htrc("Column %s not found\n", fp->field_name.str);
         rc= HA_ERR_WRONG_IN_RECORD;
         goto err;
       } else
@@ -2239,7 +2239,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
 /*  Check change in index column. Specific to MySQL.                   */
 /*  Should be elaborated to check for real changes.                    */
 /***********************************************************************/
-int ha_connect::CheckRecord(PGLOBAL g, const uchar *, uchar *newbuf)
+int ha_connect::CheckRecord(PGLOBAL g, const uchar *, const uchar *newbuf)
 {
 	return ScanRecord(g, newbuf);
 } // end of dummy CheckRecord
@@ -2321,10 +2321,10 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 
 			if (q) {
 				oom|= qry->Append(q);
-				oom|= qry->Append((PSZ)fp->field_name);
+				oom|= qry->Append((PSZ)fp->field_name.str);
 				oom|= qry->Append(q);
 			}	else
-				oom|= qry->Append((PSZ)fp->field_name);
+				oom|= qry->Append((PSZ)fp->field_name.str);
 
 			switch (ranges[i]->flag) {
 			case HA_READ_KEY_EXACT:
@@ -2581,7 +2581,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
           return NULL;
 
         if (pField->field->table != table ||
-            !(colp[i]= tdbp->ColDB(g, (PSZ)pField->field->field_name, 0)))
+            !(colp[i]= tdbp->ColDB(g, (PSZ)pField->field->field_name.str, 0)))
           return NULL;  // Column does not belong to this table
 
 				// These types are not yet implemented (buggy)
@@ -2599,7 +2599,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
 
         if (trace) {
           htrc("Field index=%d\n", pField->field->field_index);
-          htrc("Field name=%s\n", pField->field->field_name);
+          htrc("Field name=%s\n", pField->field->field_name.str);
           } // endif trace
 
       } else {
@@ -2692,7 +2692,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
     htrc("Cond type=%d\n", cond->type());
 
   if (cond->type() == COND::COND_ITEM) {
-    char      *pb0, *pb1, *pb2, *ph0, *ph1, *ph2;
+    char      *pb0, *pb1, *pb2, *ph0= 0, *ph1= 0, *ph2= 0;
 		bool       bb = false, bh = false;
     Item_cond *cond_item= (Item_cond *)cond;
 
@@ -2856,7 +2856,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 				} else {
 					bool h;
 
-					fnm = filp->Chk(pField->field->field_name, &h);
+					fnm = filp->Chk(pField->field->field_name.str, &h);
 
 					if (h && i && !ishav)
 						return NULL;			// Having should be	col VOP arg
@@ -2867,7 +2867,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 
         if (trace) {
           htrc("Field index=%d\n", pField->field->field_index);
-          htrc("Field name=%s\n", pField->field->field_name);
+          htrc("Field name=%s\n", pField->field->field_name.str);
           htrc("Field type=%d\n", pField->field->type());
           htrc("Field_type=%d\n", args[i]->field_type());
           } // endif trace
@@ -3417,7 +3417,7 @@ int ha_connect::write_row(uchar *buf)
     @see
   sql_select.cc, sql_acl.cc, sql_update.cc and sql_insert.cc
 */
-int ha_connect::update_row(const uchar *old_data, uchar *new_data)
+int ha_connect::update_row(const uchar *old_data, const uchar *new_data)
 {
   int      rc= 0;
   PGLOBAL& g= xp->g;
@@ -4169,7 +4169,7 @@ int ha_connect::delete_all_rows()
 } // end of delete_all_rows
 
 
-bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
+bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool quick)
 {
   const char *db= (dbn && *dbn) ? dbn : NULL;
   TABTYPE     type=GetRealType(options);
@@ -5380,7 +5380,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         } // endif p
 
     } else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
-      tab= table_s->table_name.str;           // Default value
+      tab= (char*) table_s->table_name.str;           // Default value
 
     } // endif tab
 
@@ -6221,7 +6221,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     if (fp->flags & (BLOB_FLAG | ENUM_FLAG | SET_FLAG)) {
       sprintf(g->Message, "Unsupported type for column %s",
-                          fp->field_name);
+                          fp->field_name.str);
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       rc= HA_ERR_INTERNAL_ERROR;
       DBUG_RETURN(rc);
@@ -6257,11 +6257,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case MYSQL_TYPE_STRING:
         if (!fp->field_length) {
           sprintf(g->Message, "Unsupported 0 length for column %s",
-                              fp->field_name);
+                              fp->field_name.str);
           rc= HA_ERR_INTERNAL_ERROR;
           my_printf_error(ER_UNKNOWN_ERROR,
                           "Unsupported 0 length for column %s",
-                          MYF(0), fp->field_name);
+                          MYF(0), fp->field_name.str);
           DBUG_RETURN(rc);
           } // endif fp
 
@@ -6276,12 +6276,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case MYSQL_TYPE_BLOB:
       case MYSQL_TYPE_GEOMETRY:
       default:
-//      fprintf(stderr, "Unsupported type column %s\n", fp->field_name);
+//      fprintf(stderr, "Unsupported type column %s\n", fp->field_name.str);
         sprintf(g->Message, "Unsupported type for column %s",
-                            fp->field_name);
+                            fp->field_name.str);
         rc= HA_ERR_INTERNAL_ERROR;
         my_printf_error(ER_UNKNOWN_ERROR, "Unsupported type for column %s",
-                        MYF(0), fp->field_name);
+                        MYF(0), fp->field_name.str);
         DBUG_RETURN(rc);
         break;
       } // endswitch type
@@ -6296,12 +6296,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     if (dbf) {
       bool b= false;
 
-      if ((b= strlen(fp->field_name) > 10))
+      if ((b= fp->field_name.length > 10))
         sprintf(g->Message, "DBF: Column name '%s' is too long (max=10)",
-                            fp->field_name);
+                            fp->field_name.str);
       else if ((b= fp->field_length > 255))
         sprintf(g->Message, "DBF: Column length too big for '%s' (max=255)",
-                            fp->field_name);
+                            fp->field_name.str);
 
       if (b) {
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));

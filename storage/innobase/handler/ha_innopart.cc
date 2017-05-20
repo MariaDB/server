@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2014, 2016, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2014, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -3002,41 +3002,6 @@ ha_innopart::truncate()
 		break;
 	}
 	DBUG_RETURN(error);
-}
-
-/** Total number of rows in all used partitions.
-Returns the exact number of records that this client can see using this
-handler object.
-@param[out]	num_rows	Number of rows.
-@return	0 or error number. */
-int
-ha_innopart::records(
-	ha_rows*	num_rows)
-{
-	ha_rows	n_rows;
-	int	err;
-	DBUG_ENTER("ha_innopart::records()");
-
-	*num_rows = 0;
-
-	/* The index scan is probably so expensive, so the overhead
-	of the rest of the function is neglectable for each partition.
-	So no current reason for optimizing this further. */
-
-	for (uint i = m_part_info->get_first_used_partition();
-	     i < m_tot_parts;
-	     i = m_part_info->get_next_used_partition(i)) {
-
-		set_partition(i);
-		err = ha_innobase::records(&n_rows);
-		update_partition(i);
-		if (err != 0) {
-			*num_rows = HA_POS_ERROR;
-			DBUG_RETURN(err);
-		}
-		*num_rows += n_rows;
-	}
-	DBUG_RETURN(0);
 }
 
 /** Estimates the number of index records in a range.

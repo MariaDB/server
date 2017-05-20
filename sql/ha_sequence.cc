@@ -110,6 +110,8 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       if ((error= table->s->sequence->read_initial_values(table)))
         file->ha_close();
     }
+    else
+      table->m_needs_reopen= true;
   }
   DBUG_RETURN(error);
 }
@@ -189,15 +191,17 @@ int ha_sequence::write_row(uchar *buf)
   DBUG_ASSERT(table->record[0] == buf);
 
   row_already_logged= 0;
-  if (!sequence->initialized)
+  if (unlikely(sequence->initialized == SEQUENCE::SEQ_IN_PREPARE))
   {
     /* This calls is from ha_open() as part of create table */
     DBUG_RETURN(file->write_row(buf));
   }
+  if (unlikely(sequence->initialized != SEQUENCE::SEQ_READY_TO_USE))
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
   /*
     User tries to write a row
-    - Check that row is an accurate object
+    - Check that the new row is an accurate object
     - Update the first row in the table
   */
 
@@ -231,7 +235,7 @@ int ha_sequence::write_row(uchar *buf)
 }
 
 
-int ha_sequence::update_row(const uchar *old_data, uchar *new_data)
+int ha_sequence::update_row(const uchar *old_data, const uchar *new_data)
 {
   int error;
   sequence_definition tmp_seq;
@@ -286,6 +290,25 @@ int ha_sequence::info(uint flag)
   DBUG_RETURN(false);
 }
 
+
+int ha_sequence::extra(enum ha_extra_function operation)
+{
+  if (operation == HA_EXTRA_PREPARE_FOR_ALTER_TABLE)
+  {
+    /* In case of ALTER TABLE allow ::write_row() to copy rows */
+    sequence->initialized= SEQUENCE::SEQ_IN_PREPARE;
+  }
+  return file->extra(operation);
+}
+
+bool ha_sequence::check_if_incompatible_data(HA_CREATE_INFO *create_info,
+                                             uint table_changes)
+{
+  /* Table definition is locked for SEQUENCE tables */
+  return(COMPATIBLE_DATA_YES);
+}
+
+
 int ha_sequence::external_lock(THD *thd, int lock_type)
 {
   int error= file->external_lock(thd, lock_type);
@@ -304,8 +327,8 @@ int ha_sequence::external_lock(THD *thd, int lock_type)
 
 void ha_sequence::print_error(int error, myf errflag)
 {
-  char *sequence_db=   table_share->db.str;
-  char *sequence_name= table_share->table_name.str;
+  const char *sequence_db=   table_share->db.str;
+  const char *sequence_name= table_share->table_name.str;
   DBUG_ENTER("ha_sequence::print_error");
 
   switch (error) {
@@ -321,8 +344,7 @@ void ha_sequence::print_error(int error, myf errflag)
     DBUG_VOID_RETURN;
   }
   case HA_ERR_WRONG_COMMAND:
-    my_error(ER_ILLEGAL_HA, MYF(0), "SEQUENCE", table_share->db.str,
-             table_share->table_name.str);
+    my_error(ER_ILLEGAL_HA, MYF(0), "SEQUENCE", sequence_db, sequence_name);
     DBUG_VOID_RETURN;
   }
   file->print_error(error, errflag);

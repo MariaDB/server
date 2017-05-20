@@ -91,7 +91,7 @@ void hp_clear_keys(HP_SHARE *info)
     HP_KEYDEF *keyinfo = info->keydef + key;
     if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
     {
-      delete_tree(&keyinfo->rb_tree);
+      delete_tree(&keyinfo->rb_tree, 0);
     }
     else
     {

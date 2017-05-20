@@ -69,7 +69,7 @@ public:
              HA_CREATE_INFO *create_info);
   handler *clone(const char *name, MEM_ROOT *mem_root);
   int write_row(uchar *buf);
-  int update_row(const uchar *old_data, uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data);
   Table_flags table_flags() const;
   /* One can't delete from sequence engine */
   int delete_row(const uchar *buf)
@@ -82,8 +82,12 @@ public:
   { return HA_CACHE_TBL_NOCACHE; }
   void print_error(int error, myf errflag);
   int info(uint);
-  LEX_STRING *engine_name() { return hton_name(file->ht); }
+  LEX_CSTRING *engine_name() { return hton_name(file->ht); }
   int external_lock(THD *thd, int lock_type);
+  int extra(enum ha_extra_function operation);
+  /* For ALTER ONLINE TABLE */
+  bool check_if_incompatible_data(HA_CREATE_INFO *create_info,
+                                  uint table_changes);
 
   /* Functions that are directly mapped to the underlying handler */
   int rnd_init(bool scan)

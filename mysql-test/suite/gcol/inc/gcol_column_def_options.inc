@@ -198,7 +198,7 @@ drop table t1;
 create table t1 (a int, b int generated always as(-b) virtual, c int generated always as (b + 1) virtual);
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create table t1 (a int, b int generated always as(-c) virtual, c int generated always as (b + 1) virtual);
---error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (pk int auto_increment primary key, col_int_nokey int generated always as (pk + col_int_key) stored, col_int_key int);
 
 --echo # Bug#20339347: FAIL TO USE CREATE ....SELECT STATEMENT TO CREATE A NEW TABLE

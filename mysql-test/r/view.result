@@ -2268,12 +2268,32 @@ create table t1 (s1 int);
 create view abc as select * from t1 as abc;
 drop table t1;
 drop view abc;
+flush status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
-select * from (select f1 as f2 from v1) v where v.f2='a';
-f2
+select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+f2	f3
+show status like "Created_tmp%";
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	0
 drop view v1;
 drop table t1;
+set @tmp=@@optimizer_switch;
+set @@optimizer_switch='derived_merge=OFF';
+create table t1(f1 char(1));
+create view v1 as select * from t1;
+select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+f2	f3
+show status like "Created_tmp%";
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	1
+drop view v1;
+drop table t1;
+set @@optimizer_switch=@tmp;
 create view v1 as SELECT CONVERT_TZ('2004-01-01 12:00:00','GMT','MET');
 select * from v1;
 CONVERT_TZ('2004-01-01 12:00:00','GMT','MET')
@@ -4562,7 +4582,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where `test`.`t1`.`b` = 1 or `test`.`t1`.`a` = 'a' and length(`test`.`t1`.`a`) >= `test`.`t1`.`b`
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where `test`.`t1`.`b` = 1 or `test`.`t1`.`a` = 'a' and octet_length(`test`.`t1`.`a`) >= `test`.`t1`.`b`
 DROP VIEW v1;
 DROP TABLE t1,t2;
 # Bug#798625: duplicate of the previous one, but without crash  
@@ -5222,7 +5242,7 @@ CREATE TABLE t4 (i4 INT);
 INSERT INTO t4 VALUES (1),(2);
 DROP VIEW IF EXISTS v1;
 Warnings:
-Note	4067	Unknown VIEW: 'test.v1'
+Note	4068	Unknown VIEW: 'test.v1'
 CREATE VIEW v1 AS select coalesce(j1,i3) AS v1_field1 from t2 join t3 left join t1 on ( i1 = i2 );
 CREATE VIEW v2 AS select v1_field1 from t4 join v1;
 prepare my_stmt from "select v1_field1 from v2";

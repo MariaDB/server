@@ -1,0 +1,23 @@
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 CHAR(20) DEFAULT 'abc') ENGINE=InnoDB;
+INSERT INTO t1 (f1) VALUES (1);
+CREATE TABLE t2 (f1 CHAR(20)) ENGINE=InnoDB;
+CREATE PROCEDURE proc_update ()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET SESSION wsrep_sync_wait = 0;
+WHILE 1 DO
+UPDATE t1 SET f2 = LEFT(MD5(RAND()), 4);
+END WHILE;
+END|
+connect node_1X, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1X;
+CALL proc_update();;
+connection node_2;
+SET SESSION wsrep_retry_autocommit = 0;
+connection node_1;
+connection node_1X;
+Got one of the listed errors
+connection node_1;
+DROP PROCEDURE proc_update;
+DROP TABLE t1, t2;
+CALL mtr.add_suppression("conflict state 3 after post commit");

@@ -182,8 +182,9 @@ drop table t1,s1;
 CREATE OR REPLACE SEQUENCE s1 MINVALUE 1 MAXVALUE 9999999999 INCREMENT BY 1 START WITH 3984356 nocache CYCLE engine='innodb';
 select * from s1;
 select next value for s1;
+explain extended select next value for s1;
+explain extended select previous value for s1;
 drop sequence s1;
-
 
 #
 # Some error testing

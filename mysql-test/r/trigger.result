@@ -301,11 +301,11 @@ create trigger trg before insert on t2 for each row set @a:=1;
 ERROR 42S02: Table 'test.t2' doesn't exist
 create trigger trg before insert on t1 for each row set @a:=1;
 create trigger trg after insert on t1 for each row set @a:=1;
-ERROR HY000: Trigger already exists
+ERROR HY000: Trigger 'test.trg' already exists
 create trigger trg2 before insert on t1 for each row set @a:=1;
 drop trigger trg2;
 create trigger trg before insert on t3 for each row set @a:=1;
-ERROR HY000: Trigger already exists
+ERROR HY000: Trigger 'test.trg' already exists
 create trigger trg2 before insert on t3 for each row set @a:=1;
 drop trigger trg2;
 drop trigger trg;
@@ -1986,7 +1986,7 @@ drop table if exists t1;
 create table t1 (i int, j int);
 create trigger t1_bi before insert on t1 for each row begin end;
 create trigger t1_bi before insert on t1 for each row begin end;
-ERROR HY000: Trigger already exists
+ERROR HY000: Trigger 'test.t1_bi' already exists
 create trigger t1_bi2 before insert on t1 for each row begin end;
 drop trigger t1_bi;
 drop trigger t1_bi2;

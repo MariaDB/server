@@ -742,7 +742,7 @@ emb_transfer_connect_attrs(MYSQL *mysql)
 int check_embedded_connection(MYSQL *mysql, const char *db)
 {
   int result;
-  LEX_STRING db_str = { (char*)db, db ? strlen(db) : 0 };
+  LEX_CSTRING db_str = { db, safe_strlen(db) };
   THD *thd= (THD*)mysql->thd;
 
   /* the server does the same as the client */
@@ -1046,12 +1046,14 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
                                   strlen(server_field.db_name), cs, thd_cs);
     client_field->table= dup_str_aux(field_alloc, server_field.table_name,
                                      strlen(server_field.table_name), cs, thd_cs);
-    client_field->name= dup_str_aux(field_alloc, server_field.col_name,
-                                    strlen(server_field.col_name), cs, thd_cs);
+    client_field->name= dup_str_aux(field_alloc, server_field.col_name.str,
+                                    server_field.col_name.length, cs, thd_cs);
     client_field->org_table= dup_str_aux(field_alloc, server_field.org_table_name,
                                          strlen(server_field.org_table_name), cs, thd_cs);
-    client_field->org_name= dup_str_aux(field_alloc, server_field.org_col_name,
-                                        strlen(server_field.org_col_name), cs, thd_cs);
+    client_field->org_name= dup_str_aux(field_alloc,
+                                        server_field.org_col_name.str,
+                                        server_field.org_col_name.length,
+                                        cs, thd_cs);
     if (item->charset_for_protocol() == &my_charset_bin || thd_cs == NULL)
     {
       /* No conversion */

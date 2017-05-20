@@ -203,7 +203,7 @@ extern DATE_TIME_FORMAT global_date_format;
 extern DATE_TIME_FORMAT global_datetime_format;
 extern DATE_TIME_FORMAT global_time_format;
 extern KNOWN_DATE_TIME_FORMAT known_date_time_formats[];
-extern LEX_STRING interval_type_to_name[];
+extern LEX_CSTRING interval_type_to_name[];
 
 static inline bool
 non_zero_hhmmssuu(const MYSQL_TIME *ltime)

@@ -283,13 +283,13 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   killed_state killed_status;
   bool is_concurrent;
 #endif
-  char *db = table_list->db;			// This is never null
+  const char *db = table_list->db;		// This is never null
   /*
     If path for file is not defined, we will use the current database.
     If this is not set, we will use the directory where the table to be
     loaded is located
   */
-  char *tdb= thd->db ? thd->db : db;		// Result is never null
+  const char *tdb= thd->db ? thd->db : db;	// Result is never null
   ulong skip_lines= ex->skip_lines;
   bool transactional_table __attribute__((unused));
   DBUG_ENTER("mysql_load");
@@ -431,7 +431,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
       else
         tot_length+= field->field_length;
     }
-    else if (item->type() == Item::STRING_ITEM)
+    else if (item->get_load_data_out_param())
       use_vars= 1;
   }
   if (use_blobs && !ex->line_term->length() && !field_term->length())
@@ -812,13 +812,9 @@ static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
       if (n++)
         query_str.append(", ");
       if (item->real_type() == Item::FIELD_ITEM)
-        append_identifier(thd, &query_str, item->name, strlen(item->name));
+        append_identifier(thd, &query_str, item->name.str, item->name.length);
       else
-      {
-        /* Actually Item_user_var_as_out_param despite claiming STRING_ITEM. */
-        DBUG_ASSERT(item->type() == Item::STRING_ITEM);
-        ((Item_user_var_as_out_param *)item)->print_for_load(thd, &query_str);
-      }
+        item->get_load_data_out_param()->load_data_print(thd, &query_str);
     }
     query_str.append(")");
   }
@@ -836,8 +832,8 @@ static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
       val= lv++;
       if (n++)
         query_str.append(STRING_WITH_LEN(", "));
-      append_identifier(thd, &query_str, item->name, strlen(item->name));
-      query_str.append(val->name);
+      append_identifier(thd, &query_str, item->name.str, item->name.length);
+      query_str.append(val->name.str, val->name.length);
     }
   }
 
@@ -1062,6 +1058,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       uint length;
       uchar *pos;
       Item *real_item;
+      Load_data_out_param *out_param;
 
       if (read_info.read_field())
 	break;
@@ -1085,7 +1082,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           Field *field= ((Item_field *)real_item)->field;
           if (field->reset())
           {
-            my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0), field->field_name,
+            my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0), field->field_name.str,
                      thd->get_stmt_da()->current_row_for_warning());
             DBUG_RETURN(1);
           }
@@ -1104,18 +1101,11 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           }
           /* Do not auto-update this field. */
           field->set_has_explicit_value();
-	}
-        else if (item->type() == Item::STRING_ITEM)
-        {
-          ((Item_user_var_as_out_param *)item)->set_null_value(
-                                                  read_info.read_charset);
         }
+        else if ((out_param= item->get_load_data_out_param_or_error()))
+          out_param->load_data_set_null_value(read_info.read_charset);
         else
-        {
-          my_error(ER_LOAD_DATA_INVALID_COLUMN, MYF(0), item->full_name());
           DBUG_RETURN(1);
-        }
-
 	continue;
       }
 
@@ -1129,16 +1119,11 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         field->store((char*) pos, length, read_info.read_charset);
         field->set_has_explicit_value();
       }
-      else if (item->type() == Item::STRING_ITEM)
-      {
-        ((Item_user_var_as_out_param *)item)->set_value((char*) pos, length,
-                                                        read_info.read_charset);
-      }
+      else if ((out_param= item->get_load_data_out_param_or_error()))
+        out_param->load_data_set_value((const char *) pos, length,
+                                       read_info.read_charset);
       else
-      {
-        my_error(ER_LOAD_DATA_INVALID_COLUMN, MYF(0), item->full_name());
         DBUG_RETURN(1);
-      }
     }
 
     if (thd->is_error())
@@ -1158,13 +1143,14 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 	break;
       for (; item ; item= it++)
       {
+        Load_data_out_param *out_param;
         Item *real_item= item->real_item();
         if (real_item->type() == Item::FIELD_ITEM)
         {
           Field *field= ((Item_field *)real_item)->field;
           if (field->reset())
           {
-            my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0),field->field_name,
+            my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0),field->field_name.str,
                      thd->get_stmt_da()->current_row_for_warning());
             DBUG_RETURN(1);
           }
@@ -1183,16 +1169,10 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                               ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
                               thd->get_stmt_da()->current_row_for_warning());
         }
-        else if (item->type() == Item::STRING_ITEM)
-        {
-          ((Item_user_var_as_out_param *)item)->set_null_value(
-                                                  read_info.read_charset);
-        }
+        else if ((out_param= item->get_load_data_out_param_or_error()))
+          out_param->load_data_set_null_value(read_info.read_charset);
         else
-        {
-          my_error(ER_LOAD_DATA_INVALID_COLUMN, MYF(0), item->full_name());
           DBUG_RETURN(1);
-        }
       }
     }
 
@@ -1288,6 +1268,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     
     while ((item= it++))
     {
+      Load_data_out_param *out_param;
       /* If this line is to be skipped we don't want to fill field or var */
       if (skip_lines)
         continue;
@@ -1296,7 +1277,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       xmlit.rewind();
       tag= xmlit++;
       
-      while(tag && strcmp(tag->field.c_ptr(), item->name) != 0)
+      while(tag && strcmp(tag->field.c_ptr(), item->name.str) != 0)
         tag= xmlit++;
       
       if (!tag) // found null
@@ -1319,14 +1300,15 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           /* Do not auto-update this field. */
           field->set_has_explicit_value();
         }
+        else if ((out_param= item->get_load_data_out_param_or_error()))
+          out_param->load_data_set_null_value(cs);
         else
-          ((Item_user_var_as_out_param *) item)->set_null_value(cs);
+          DBUG_RETURN(1);
         continue;
       }
 
       if (item->type() == Item::FIELD_ITEM)
       {
-
         Field *field= ((Item_field *)item)->field;
         field->set_notnull();
         if (field == table->next_number_field)
@@ -1334,10 +1316,12 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         field->store((char *) tag->value.ptr(), tag->value.length(), cs);
         field->set_has_explicit_value();
       }
+      else if ((out_param= item->get_load_data_out_param_or_error()))
+        out_param->load_data_set_value((const char *) tag->value.ptr(),
+                                       tag->value.length(), cs);
       else
-        ((Item_user_var_as_out_param *) item)->set_value(
-                                                 (char *) tag->value.ptr(), 
-                                                 tag->value.length(), cs);
+        DBUG_RETURN(1);
+
     }
     
     if (read_info.error)
@@ -1357,6 +1341,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       
       for ( ; item; item= it++)
       {
+        Load_data_out_param *out_param;
         if (item->type() == Item::FIELD_ITEM)
         {
           /*
@@ -1371,8 +1356,10 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                               ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
                               thd->get_stmt_da()->current_row_for_warning());
         }
+        else if ((out_param= item->get_load_data_out_param_or_error()))
+          out_param->load_data_set_null_value(cs);
         else
-          ((Item_user_var_as_out_param *)item)->set_null_value(cs);
+          DBUG_RETURN(1);
       }
     }
 

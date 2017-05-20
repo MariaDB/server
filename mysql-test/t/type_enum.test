@@ -179,10 +179,12 @@ DROP TABLE t1;
 #
 # Bug#28729: Field_enum wrongly reported an error while storing an empty string.
 #
-create table t1(f1 set('a','b'), index(f1));
+SET sql_mode='';
+create table t1(f1 enum('a','b'), index(f1));
 insert into t1 values(''),(''),('a'),('b');
 select * from t1 where f1='';
 drop table t1;
+SET sql_mode=DEFAULT;
 
 #
 # Bug#29360: Confluence of the special 0 enum value with the normal empty string
@@ -453,4 +455,66 @@ INSERT INTO t1 VALUES ('2001');
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY a ENUM('2001','2002');
 SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12432 Range optimizer for ENUM and SET does not return "Impossible WHERE" in some case
+--echo #
+
+CREATE TABLE t1 (a ENUM('a','b','c','1'),KEY(a));
+INSERT INTO t1 VALUES ('a'),('b'),('c'),('1');
+EXPLAIN SELECT * FROM t1 WHERE a='xx';
+EXPLAIN SELECT * FROM t1 WHERE a='99999999';
+EXPLAIN SELECT * FROM t1 WHERE a=100.1e0;
+EXPLAIN SELECT * FROM t1 WHERE a=100;
+EXPLAIN SELECT * FROM t1 WHERE a=100.1;
+EXPLAIN SELECT * FROM t1 WHERE a='100';
+EXPLAIN SELECT * FROM t1 WHERE a='1x';
+EXPLAIN SELECT * FROM t1 WHERE a='1.0';
+EXPLAIN SELECT * FROM t1 WHERE a='1.1';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12656 Crash in CREATE..SELECT..UNION with a ENUM column and NULL
+--echo #
+
+CREATE TABLE t1 (a ENUM('a'));
+--echo # non-UNION + table column
+CREATE TABLE t2 AS SELECT (SELECT a FROM t1);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+--echo # UNION + table column
+CREATE TABLE t2 AS SELECT (SELECT a FROM t1 UNION SELECT NULL);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+--echo # UNION + SP variable
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE va ENUM('a');
+  CREATE TABLE t2 AS SELECT (SELECT va FROM t1 UNION SELECT NULL);
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+--echo # UNION + anchored SP variable
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE va TYPE OF t1.a;
+  CREATE TABLE t2 AS SELECT (SELECT va FROM t1 UNION SELECT NULL);
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
 DROP TABLE t1;

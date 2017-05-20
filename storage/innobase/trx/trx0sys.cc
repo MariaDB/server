@@ -258,8 +258,8 @@ trx_sys_print_mysql_binlog_offset(void)
 		+ TRX_SYS_MYSQL_LOG_OFFSET_LOW);
 
 	fprintf(stderr,
-		"InnoDB: Last MySQL binlog file position %lu %lu,"
-		" file name %s\n",
+		"InnoDB: Last MySQL binlog file position " ULINTPF " " ULINTPF
+		", file name %s\n",
 		trx_sys_mysql_bin_log_pos_high, trx_sys_mysql_bin_log_pos_low,
 		sys_header + TRX_SYS_MYSQL_LOG_INFO
 		+ TRX_SYS_MYSQL_LOG_NAME);
@@ -446,7 +446,6 @@ trx_sysf_create(
 	page_t*		page;
 	ulint		page_no;
 	byte*		ptr;
-	ulint		len;
 
 	ut_ad(mtr);
 
@@ -481,13 +480,12 @@ trx_sysf_create(
 	mach_write_to_8(sys_header + TRX_SYS_TRX_ID_STORE, 1);
 
 	/* Reset the rollback segment slots.  Old versions of InnoDB
-	define TRX_SYS_N_RSEGS as 256 (TRX_SYS_OLD_N_RSEGS) and expect
+	(before MySQL 5.5) define TRX_SYS_N_RSEGS as 256 and expect
 	that the whole array is initialized. */
 	ptr = TRX_SYS_RSEGS + sys_header;
-	len = ut_max(TRX_SYS_OLD_N_RSEGS, TRX_SYS_N_RSEGS)
-		* TRX_SYS_RSEG_SLOT_SIZE;
-	memset(ptr, 0xff, len);
-	ptr += len;
+	compile_time_assert(256 >= TRX_SYS_N_RSEGS);
+	memset(ptr, 0xff, 256 * TRX_SYS_RSEG_SLOT_SIZE);
+	ptr += 256 * TRX_SYS_RSEG_SLOT_SIZE;
 	ut_a(ptr <= page + (UNIV_PAGE_SIZE - FIL_PAGE_DATA_END));
 
 	/* Initialize all of the page.  This part used to be uninitialized. */
@@ -881,7 +879,7 @@ trx_sys_create_rsegs()
 	srv_undo_logs determines how many of the
 	srv_available_undo_logs rollback segments may be used for
 	logging new transactions. */
-	ut_ad(srv_undo_tablespaces < TRX_SYS_N_RSEGS);
+	ut_ad(srv_undo_tablespaces <= TRX_SYS_MAX_UNDO_SPACES);
 	ut_ad(srv_undo_logs <= TRX_SYS_N_RSEGS);
 
 	if (srv_read_only_mode) {
@@ -923,13 +921,28 @@ trx_sys_create_rsegs()
 					" requested innodb_undo_logs";
 				return(false);
 			}
+
+			/* Increase the number of active undo
+			tablespace in case new rollback segment
+			assigned to new undo tablespace. */
+			if (space > srv_undo_tablespaces_active) {
+				srv_undo_tablespaces_active++;
+
+				ut_ad(srv_undo_tablespaces_active == space);
+			}
 		}
 	}
 
 	ut_ad(srv_undo_logs <= srv_available_undo_logs);
 
-	ib::info() << srv_undo_logs << " out of " << srv_available_undo_logs
-		<< " rollback segments are active.";
+	ib::info info;
+	info << srv_undo_logs << " out of " << srv_available_undo_logs;
+	if (srv_undo_tablespaces_active) {
+		info << " rollback segments in " << srv_undo_tablespaces_active
+		<< " undo tablespaces are active.";
+	} else {
+		info << " rollback segments are active.";
+	}
 
 	return(true);
 }

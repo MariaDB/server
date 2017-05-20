@@ -40,13 +40,14 @@ class Item_proc :public Item
 public:
   Item_proc(THD *thd, const char *name_par): Item(thd)
   {
-     this->name=(char*) name_par;
+     this->name.str=    name_par;
+     this->name.length= strlen(name_par);
   }
   enum Type type() const { return Item::PROC_ITEM; }
   virtual void set(double nr)=0;
   virtual void set(const char *str,uint length,CHARSET_INFO *cs)=0;
   virtual void set(longlong nr)=0;
-  virtual enum_field_types field_type() const=0;
+  const Type_handler *type_handler() const=0;
   void set(const char *str) { set(str,(uint) strlen(str), default_charset()); }
   void make_field(THD *thd, Send_field *tmp_field)
   {
@@ -70,9 +71,7 @@ public:
   {
      decimals=dec; max_length=float_length(dec);
   }
-  enum Item_result result_type () const { return REAL_RESULT; }
-  enum Item_result cmp_type () const { return REAL_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
   void set(double nr) { value=nr; }
   void set(longlong nr) { value=(double) nr; }
   void set(const char *str,uint length,CHARSET_INFO *cs)
@@ -98,9 +97,7 @@ class Item_proc_int :public Item_proc
 public:
   Item_proc_int(THD *thd, const char *name_par): Item_proc(thd, name_par)
   { max_length=11; }
-  enum Item_result result_type () const { return INT_RESULT; }
-  enum Item_result cmp_type () const { return INT_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   void set(double nr) { value=(longlong) nr; }
   void set(longlong nr) { value=nr; }
   void set(const char *str,uint length, CHARSET_INFO *cs)
@@ -118,9 +115,7 @@ class Item_proc_string :public Item_proc
 public:
   Item_proc_string(THD *thd, const char *name_par, uint length):
     Item_proc(thd, name_par) { this->max_length=length; }
-  enum Item_result result_type () const { return STRING_RESULT; }
-  enum Item_result cmp_type () const { return STRING_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  const Type_handler *type_handler() const { return &type_handler_varchar; }
   void set(double nr) { str_value.set_real(nr, 2, default_charset()); }
   void set(longlong nr) { str_value.set(nr, default_charset()); }
   void set(const char *str, uint length, CHARSET_INFO *cs)

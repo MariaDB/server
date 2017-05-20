@@ -20,6 +20,11 @@
 #define seq_field_used_min_value 1
 #define seq_field_used_max_value 2
 #define seq_field_used_start     4
+#define seq_field_used_increment 8
+#define seq_field_used_cache     16
+#define seq_field_used_cycle     32
+#define seq_field_used_restart   64
+#define seq_field_used_restart_value 128
 
 /**
    sequence_definition is used when defining a sequence as part of create
@@ -41,11 +46,14 @@ public:
   ulonglong round;
   bool     cycle;
   uint used_fields;              // Which fields where used in CREATE
+  longlong restart;              // alter sequence restart value
 
   bool check_and_adjust();
   void store_fields(TABLE *table);
   void read_fields(TABLE *table);
-  void print_dbug()
+  int write_initial_sequence(TABLE *table);
+  int write(TABLE *table);
+  inline void print_dbug()
   {
     DBUG_PRINT("sequence", ("reserved: %lld  start: %lld  increment: %lld  min_value: %lld  max_value: %lld  cache: %lld  round: %lld",
                       reserved_until, start, increment, min_value,
@@ -66,6 +74,7 @@ public:
 class SEQUENCE :public sequence_definition
 {
 public:
+  enum seq_init { SEQ_UNINTIALIZED, SEQ_IN_PREPARE, SEQ_READY_TO_USE };
   SEQUENCE();
   ~SEQUENCE();
   int  read_initial_values(TABLE *table);
@@ -79,16 +88,39 @@ public:
     mysql_mutex_unlock(&mutex);
   }
   /* This must be called after sequence data has been updated */
-  void adjust_values();
+  void adjust_values(longlong next_value);
   void copy(sequence_definition *seq)
   {
     sequence_definition::operator= (*seq);
-    adjust_values();
+    adjust_values(reserved_until);
   }
   longlong next_value(TABLE *table, bool second_round, int *error);
+  bool set_value(TABLE *table, longlong next_value, ulonglong round_arg,
+                 bool is_used);
+  longlong increment_value(longlong value)
+  {
+    if (real_increment > 0)
+    {
+      if (value + real_increment > max_value ||
+          value > max_value - real_increment)
+        value= max_value + 1;
+      else
+        value+= real_increment;
+    }
+    else
+    {
+      if (value + real_increment < min_value ||
+          value < min_value - real_increment)
+        value= min_value - 1;
+      else
+        value+= real_increment;
+    }
+    return value;
+  }
 
-  bool initialized;                         // If row has been read
   bool all_values_used;
+  seq_init initialized;
+
 private:
   TABLE         *table;
   mysql_mutex_t mutex;
@@ -98,7 +130,6 @@ private:
     merged with global auto_increment_offset and auto_increment_increment
   */
   longlong real_increment;
-  longlong offset;
 };
 
 

@@ -189,7 +189,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
   if (!mysql_file_stat(key_file_misc, from, &stat_info, MYF(0)))
     goto end;				// Can't use USE_FRM flag
 
-  my_snprintf(tmp, sizeof(tmp), "%s-%lx_%lx",
+  my_snprintf(tmp, sizeof(tmp), "%s-%lx_%llx",
 	      from, current_pid, thd->thread_id);
 
   if (table_list->table)
@@ -394,7 +394,9 @@ static bool open_only_one_table(THD* thd, TABLE_LIST* table,
                  open_and_lock_tables(thd, table, TRUE, 0));
   }
 
+#ifndef DBUG_OFF
 dbug_err:
+#endif
 
   thd->prepare_derived_at_open= FALSE;
 
@@ -489,7 +491,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   for (table= tables; table; table= table->next_local)
   {
     char table_name[SAFE_NAME_LEN*2+2];
-    char* db = table->db;
+    const char *db= table->db;
     bool fatal_error=0;
     bool open_error;
     bool collect_eis=  FALSE;
@@ -842,7 +844,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_NO_EIS_FOR_FIELD,
                                   ER_THD(thd, ER_NO_EIS_FOR_FIELD),
-                                  (*field_ptr)->field_name);
+                                  (*field_ptr)->field_name.str);
           }
         }
         else
@@ -1234,7 +1236,7 @@ err2:
 */
 
 bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* tables,
-			     LEX_STRING *key_cache_name)
+			     const LEX_CSTRING *key_cache_name)
 {
   HA_CHECK_OPT check_opt;
   KEY_CACHE *key_cache;

@@ -275,7 +275,7 @@ extern int mi_rsame(struct st_myisam_info *file,uchar *record,int inx);
 extern int mi_rsame_with_pos(struct st_myisam_info *file,uchar *record,
 			     int inx, my_off_t pos);
 extern int mi_update(struct st_myisam_info *file,const uchar *old,
-		     uchar *new_record);
+		     const uchar *new_record);
 extern int mi_write(struct st_myisam_info *file,uchar *buff);
 extern my_off_t mi_position(struct st_myisam_info *file);
 extern int mi_status(struct st_myisam_info *info, MI_ISAMINFO *x, uint flag);
@@ -418,7 +418,7 @@ my_bool mi_test_if_sort_rep(MI_INFO *info, ha_rows rows, ulonglong key_map,
 
 int mi_init_bulk_insert(MI_INFO *info, size_t cache_size, ha_rows rows);
 void mi_flush_bulk_insert(MI_INFO *info, uint inx);
-void mi_end_bulk_insert(MI_INFO *info);
+int mi_end_bulk_insert(MI_INFO *info, my_bool abort);
 int mi_assign_to_key_cache(MI_INFO *info, ulonglong key_map,
 			   KEY_CACHE *key_cache);
 void mi_change_key_cache(KEY_CACHE *old_key_cache,

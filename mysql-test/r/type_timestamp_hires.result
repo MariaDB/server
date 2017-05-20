@@ -131,18 +131,18 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp(4) NOT NULL DEFAULT current_timestamp(4) ON UPDATE current_timestamp(4),
-  `a+0` decimal(25,4) NOT NULL,
-  `a-1` decimal(25,4) NOT NULL,
-  `a*1` decimal(25,4) NOT NULL,
-  `a/2` decimal(28,8) DEFAULT NULL
+  `a+0` decimal(19,4) NOT NULL,
+  `a-1` decimal(19,4) NOT NULL,
+  `a*1` decimal(19,4) NOT NULL,
+  `a/2` decimal(22,8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `max(a)` timestamp(4) NULL DEFAULT NULL,
   `min(a)` timestamp(4) NULL DEFAULT NULL,
-  `sum(a)` decimal(46,4) DEFAULT NULL,
-  `avg(a)` decimal(28,8) DEFAULT NULL
+  `sum(a)` decimal(40,4) DEFAULT NULL,
+  `avg(a)` decimal(22,8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1, t2, t3;
 create table t1 (f0_timestamp timestamp(0), f1_timestamp timestamp(1), f2_timestamp timestamp(2), f3_timestamp timestamp(3), f4_timestamp timestamp(4), f5_timestamp timestamp(5), f6_timestamp timestamp(6));

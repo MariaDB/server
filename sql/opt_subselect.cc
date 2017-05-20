@@ -843,34 +843,9 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
     all_are_fields &= (outer->real_item()->type() == Item::FIELD_ITEM && 
                        inner->real_item()->type() == Item::FIELD_ITEM);
     total_key_length += inner->max_length;
-    if (outer->cmp_type() != inner->cmp_type())
+    if (!inner->type_handler()->subquery_type_allows_materialization(inner,
+                                                                     outer))
       DBUG_RETURN(FALSE);
-    switch (outer->cmp_type()) {
-    case STRING_RESULT:
-      if (!(outer->collation.collation == inner->collation.collation))
-        DBUG_RETURN(FALSE);
-      // Materialization does not work with BLOB columns
-      if (inner->field_type() == MYSQL_TYPE_BLOB || 
-          inner->field_type() == MYSQL_TYPE_GEOMETRY)
-        DBUG_RETURN(FALSE);
-      /* 
-        Materialization also is unable to work when create_tmp_table() will
-        create a blob column because item->max_length is too big.
-        The following check is copied from Item::make_string_field():
-      */ 
-      if (inner->too_big_for_varchar())
-      {
-        DBUG_RETURN(FALSE);
-      }
-      break;
-    case TIME_RESULT:
-      if (mysql_type_to_time_type(outer->field_type()) !=
-          mysql_type_to_time_type(inner->field_type()))
-        DBUG_RETURN(FALSE);
-    default:
-      /* suitable for materialization */
-      break;
-    }
   }
 
   /*
@@ -4019,12 +3994,13 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
 
   /* Create the field */
   {
+    LEX_CSTRING field_name= {STRING_WITH_LEN("rowids") };
     /*
       For the sake of uniformity, always use Field_varstring (altough we could
       use Field_string for shorter keys)
     */
-    field= new Field_varstring(uniq_tuple_length_arg, FALSE, "rowids", share,
-                               &my_charset_bin);
+    field= new Field_varstring(uniq_tuple_length_arg, FALSE, &field_name,
+                               share, &my_charset_bin);
     if (!field)
       DBUG_RETURN(0);
     field->table= table;
@@ -4894,7 +4870,7 @@ int rewrite_to_index_subquery_engine(JOIN *join)
     {
       Item *where= join->conds;
       if (join_tab[0].type == JT_EQ_REF &&
-	  join_tab[0].ref.items[0]->name == in_left_expr_name)
+	  join_tab[0].ref.items[0]->name.str == in_left_expr_name.str)
       {
         remove_subq_pushed_predicates(join, &where);
         save_index_subquery_explain_info(join_tab, where);
@@ -4908,7 +4884,7 @@ int rewrite_to_index_subquery_engine(JOIN *join)
                                                                   where)));
       }
       else if (join_tab[0].type == JT_REF &&
-	       join_tab[0].ref.items[0]->name == in_left_expr_name)
+	       join_tab[0].ref.items[0]->name.str == in_left_expr_name.str)
       {
 	remove_subq_pushed_predicates(join, &where);
         save_index_subquery_explain_info(join_tab, where);
@@ -4924,8 +4900,8 @@ int rewrite_to_index_subquery_engine(JOIN *join)
                                                                  0)));
       }
     } else if (join_tab[0].type == JT_REF_OR_NULL &&
-	       join_tab[0].ref.items[0]->name == in_left_expr_name &&
-               join->having->name == in_having_cond)
+	       join_tab[0].ref.items[0]->name.str == in_left_expr_name.str &&
+               join->having->name.str == in_having_cond.str)
     {
       join_tab[0].type= JT_INDEX_SUBQUERY;
       join->error= 0;
@@ -4956,7 +4932,7 @@ int rewrite_to_index_subquery_engine(JOIN *join)
 
 static Item *remove_additional_cond(Item* conds)
 {
-  if (conds->name == in_additional_cond)
+  if (conds->name.str == in_additional_cond.str)
     return 0;
   if (conds->type() == Item::COND_ITEM)
   {
@@ -4965,7 +4941,7 @@ static Item *remove_additional_cond(Item* conds)
     Item *item;
     while ((item= li++))
     {
-      if (item->name == in_additional_cond)
+      if (item->name.str == in_additional_cond.str)
       {
 	li.remove();
 	if (cnd->argument_list()->elements == 1)

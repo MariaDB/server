@@ -2707,7 +2707,7 @@ void spider_db_mysql::set_dup_key_idx(
   uint roop_count, pk_idx = table->s->primary_key;
   int key_name_length;
   int max_length = 0;
-  char *key_name;
+  const char *key_name;
   DBUG_ENTER("spider_db_mysql::set_dup_key_idx");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider error_str=%s", conn->error_str));
@@ -4560,7 +4560,7 @@ int spider_mysql_share::create_column_name_str()
     str->init_calc_mem(89);
     str->set_charset(spider_share->access_charset);
     if ((error_num = spider_db_append_name_with_quote_str(str,
-      (char *) (*field)->field_name, dbton_id)))
+      (char *) (*field)->field_name.str, dbton_id)))
       goto error;
   }
   DBUG_RETURN(0);
@@ -9516,6 +9516,65 @@ int spider_mysql_handler::append_explain_select(
   DBUG_RETURN(0);
 }
 
+/********************************************************************
+ * Determine whether the current query's projection list
+ * consists solely of the specified column.
+ *
+ * Params   IN      - field_index:
+ *                    Field index of the column of interest within
+ *                    its table.
+ *
+ * Returns  TRUE    - if the query's projection list consists
+ *                    solely of the specified column.
+ *          FALSE   - otherwise.
+ ********************************************************************/
+bool spider_mysql_handler::is_sole_projection_field( uint16 field_index )
+{
+    // Determine whether the projection list consists solely of the field of interest
+    bool            is_field_in_projection_list = FALSE;
+    TABLE*          table                       = spider->get_table();
+    uint16          projection_field_count      = 0;
+    uint16          projection_field_index;
+    Field**         field;
+    DBUG_ENTER( "spider_mysql_handler::is_sole_projection_field" );
+
+    for ( field = table->field; *field ; field++ )
+    {
+        projection_field_index = ( *field )->field_index;
+
+        if ( !( minimum_select_bit_is_set( projection_field_index ) ) )
+        {
+            // Current field is not in the projection list
+            continue;
+        }
+
+        projection_field_count++;
+
+        if ( !is_field_in_projection_list )
+        {
+            if ( field_index == projection_field_index )
+            {
+                // Field of interest is in the projection list
+                is_field_in_projection_list = TRUE;
+            }
+        }
+
+        if ( is_field_in_projection_list && ( projection_field_count != 1 ) )
+        {
+            // Field of interest is not the sole column in the projection list
+            DBUG_RETURN( FALSE );
+        }
+    }
+
+    if ( is_field_in_projection_list && ( projection_field_count == 1 ) )
+    {
+        // Field of interest is the only column in the projection list
+        DBUG_RETURN( TRUE );
+    }
+
+    DBUG_RETURN( FALSE );
+}
+
 bool spider_mysql_handler::is_bulk_insert_exec_period(
   bool bulk_end
 ) {
@@ -11882,7 +11941,7 @@ int spider_mysql_copy_table::append_table_columns(
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     sql.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
     if ((error_num = spider_db_append_name_with_quote_str(&sql,
-      (char *) (*field)->field_name, spider_dbton_mysql.dbton_id)))
+      (char *) (*field)->field_name.str, spider_dbton_mysql.dbton_id)))
       DBUG_RETURN(error_num);
     if (sql.reserve(SPIDER_SQL_NAME_QUOTE_LEN + SPIDER_SQL_COMMA_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -12011,7 +12070,7 @@ int spider_mysql_copy_table::append_key_order_str(
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         sql.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
         if ((error_num = spider_db_append_name_with_quote_str(&sql,
-          (char *) field->field_name, spider_dbton_mysql.dbton_id)))
+          (char *) field->field_name.str, spider_dbton_mysql.dbton_id)))
           DBUG_RETURN(error_num);
         if (key_part->key_part_flag & HA_REVERSE_SORT)
         {
@@ -12041,7 +12100,7 @@ int spider_mysql_copy_table::append_key_order_str(
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         sql.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
         if ((error_num = spider_db_append_name_with_quote_str(&sql,
-          (char *) field->field_name, spider_dbton_mysql.dbton_id)))
+          (char *) field->field_name.str, spider_dbton_mysql.dbton_id)))
           DBUG_RETURN(error_num);
         if (key_part->key_part_flag & HA_REVERSE_SORT)
         {
@@ -12173,7 +12232,7 @@ int spider_mysql_copy_table::copy_key_row(
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   sql.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
   if ((error_num = spider_db_append_name_with_quote_str(&sql,
-    (char *) field->field_name, spider_dbton_mysql.dbton_id)))
+    (char *) field->field_name.str, spider_dbton_mysql.dbton_id)))
     DBUG_RETURN(error_num);
   if (sql.reserve(SPIDER_SQL_NAME_QUOTE_LEN + joint_length + *length +
     SPIDER_SQL_AND_LEN))

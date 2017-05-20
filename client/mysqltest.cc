@@ -1563,7 +1563,7 @@ static void make_error_message(char *buf, size_t len, const char *fmt, va_list a
     fmt= "unknown error";
 
   s+= my_vsnprintf(s, end - s, fmt, args);
-  s+= my_snprintf(s, end -s, "\n", start_lineno);
+  s+= my_snprintf(s, end -s, "\n");
 }
 
 void die(const char *fmt, ...)

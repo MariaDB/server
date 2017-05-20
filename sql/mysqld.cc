@@ -297,6 +297,7 @@ static TYPELIB tc_heuristic_recover_typelib=
 
 const char *first_keyword= "first", *binary_keyword= "BINARY";
 const char *my_localhost= "localhost", *delayed_user= "DELAYED";
+const char *quoted_string= "%`s";
 
 bool opt_large_files= sizeof(my_off_t) > 4;
 static my_bool opt_autocommit; ///< for --autocommit command-line option
@@ -629,10 +630,10 @@ my_bool encrypt_binlog;
 my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 
 /** name of reference on left expression in rewritten IN subquery */
-const char *in_left_expr_name= "<left expr>";
+const LEX_CSTRING in_left_expr_name= {STRING_WITH_LEN("<left expr>") };
 /** name of additional condition */
-const char *in_additional_cond= "<IN COND>";
-const char *in_having_cond= "<IN HAVING>";
+const LEX_CSTRING in_having_cond= {STRING_WITH_LEN("<IN HAVING>") };
+const LEX_CSTRING in_additional_cond= {STRING_WITH_LEN("<IN COND>") };
 
 /** Number of connection errors when selecting on the listening port */
 ulong connection_errors_select= 0;
@@ -3766,6 +3767,7 @@ SHOW_VAR com_status_vars[]= {
   {"alter_function",       STMT_STATUS(SQLCOM_ALTER_FUNCTION)},
   {"alter_procedure",      STMT_STATUS(SQLCOM_ALTER_PROCEDURE)},
   {"alter_server",         STMT_STATUS(SQLCOM_ALTER_SERVER)},
+  {"alter_sequence",       STMT_STATUS(SQLCOM_ALTER_SEQUENCE)},
   {"alter_table",          STMT_STATUS(SQLCOM_ALTER_TABLE)},
   {"alter_tablespace",     STMT_STATUS(SQLCOM_ALTER_TABLESPACE)},
   {"alter_user",           STMT_STATUS(SQLCOM_ALTER_USER)},
@@ -4884,7 +4886,7 @@ static int init_default_storage_engine_impl(const char *opt_name,
     return 0;
   }
 
-  LEX_STRING name= { engine_name, strlen(engine_name) };
+  LEX_CSTRING name= { engine_name, strlen(engine_name) };
   plugin_ref plugin;
   handlerton *hton;
   if ((plugin= ha_resolve_by_name(0, &name, false)))
@@ -5323,7 +5325,7 @@ static int init_server_components()
   else
   {
     /* fall back to the log files if tables are not present */
-    LEX_STRING csv_name={C_STRING_WITH_LEN("csv")};
+    LEX_CSTRING csv_name={STRING_WITH_LEN("csv")};
     if (!plugin_is_ready(&csv_name, MYSQL_STORAGE_ENGINE_PLUGIN))
     {
       /* purecov: begin inspected */
@@ -9444,14 +9446,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     between options, setting of multiple variables, etc.
     Do them here.
   */
-
-  if ((opt_log_slow_admin_statements || opt_log_queries_not_using_indexes ||
-       opt_log_slow_slave_statements) &&
-      !global_system_variables.sql_log_slow)
-    sql_print_information("options --log-slow-admin-statements, "
-                          "--log-queries-not-using-indexes and "
-                          "--log-slow-slave-statements have no "
-                          "effect if --log-slow-queries is not set");
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)
   {

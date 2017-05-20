@@ -46,6 +46,16 @@ private:
   /* Dependency map of with elements mutually recursive with this with element */
   table_map mutually_recursive;
   /* 
+    Dependency map built only for the top level references i.e. for those that
+    are encountered in from lists of the selects of the specification unit
+  */ 
+  table_map top_level_dep_map;
+  /*
+    Points to a recursive reference in subqueries.
+    Used only for specifications without recursive references on the top level.
+  */
+  TABLE_LIST *sq_rec_ref;
+  /* 
     The next with element from the circular chain of the with elements
     mutually recursive with this with element. 
     (If This element is simply recursive than next_mutually_recursive contains
@@ -63,7 +73,7 @@ private:
     Unparsed specification of the query that specifies this element.
     It used to build clones of the specification if they are needed.
   */
-  LEX_STRING unparsed_spec;
+  LEX_CSTRING unparsed_spec;
 
   /* Return the map where 1 is set only in the position for this element */
   table_map get_elem_map() { return (table_map) 1 << number; }
@@ -73,14 +83,14 @@ public:
     The name of the table introduced by this with elememt. The name
      can be used in FROM lists of the queries in the scope of the element.
   */
-  LEX_STRING *query_name;
+  LEX_CSTRING *query_name;
   /*
     Optional list of column names to name the columns of the table introduced
     by this with element. It is used in the case when the names are not
     inherited from the query that specified the table. Otherwise the list is
     always empty.
   */
-  List <LEX_STRING> column_list;
+  List <LEX_CSTRING> column_list;
   /* The query that specifies the table introduced by this with element */
   st_select_lex_unit *spec;
   /* 
@@ -119,11 +129,15 @@ public:
   */
   select_union_recursive *rec_result;
 
-  With_element(LEX_STRING *name,
-               List <LEX_STRING> list,
+  /* List of Item_subselects containing recursive references to this CTE */
+  SQL_I_List<Item_subselect> sq_with_rec_ref; 
+
+  With_element(LEX_CSTRING *name,
+               List <LEX_CSTRING> list,
                st_select_lex_unit *unit)
     : next(NULL), base_dep_map(0), derived_dep_map(0),
       sq_dep_map(0), work_dep_map(0), mutually_recursive(0),
+      top_level_dep_map(0), sq_rec_ref(NULL),
       next_mutually_recursive(NULL), references(0), 
       query_name(name), column_list(list), spec(unit),
       is_recursive(false), with_anchor(false),
@@ -151,6 +165,8 @@ public:
   bool check_dependency_on(With_element *with_elem)
   { return base_dep_map & with_elem->get_elem_map(); }
 
+  TABLE_LIST *find_first_sq_rec_ref_in_select(st_select_lex *sel);
+
   bool set_unparsed_spec(THD *thd, char *spec_start, char *spec_end);
 
   st_select_lex_unit *clone_parsed_spec(THD *thd, TABLE_LIST *with_table);
@@ -174,10 +190,15 @@ public:
   bool contains_sq_with_recursive_reference()
   { return sq_dep_map & mutually_recursive; }
 
+  bool no_rec_ref_on_top_level()
+  { return !(top_level_dep_map & mutually_recursive); }
+
   table_map get_mutually_recursive() { return mutually_recursive; }
 
   With_element *get_next_mutually_recursive()
   { return next_mutually_recursive; }
+
+  TABLE_LIST *get_sq_rec_ref() { return sq_rec_ref; }
 
   bool is_anchor(st_select_lex *sel);
 

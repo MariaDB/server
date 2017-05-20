@@ -1260,7 +1260,7 @@ a
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` bigint(20) NOT NULL
+  `a` int(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (a int);
@@ -7204,3 +7204,17 @@ f1	f2	f3
 DROP TABLE t1, t2;
 SET NAMES default;
 End of 10.1 tests
+#
+# MDEV-12564: IN TO EXISTS transformation for rows after 
+#             conversion an outer join to inner join
+#
+CREATE TABLE t (
+pk int PRIMARY KEY, i int NOT NULL, c varchar(8), KEY(c)
+) ENGINE=MyISAM;
+INSERT INTO t VALUES (1,10,'foo'),(2,20,'bar');
+SELECT * FROM t t1 RIGHT JOIN t t2 ON (t2.pk = t1.pk)
+WHERE (t2.i, t2.pk) NOT IN ( SELECT t3.i, t3.i FROM t t3, t t4 ) AND t1.c = 'foo';
+pk	i	c	pk	i	c
+1	10	foo	1	10	foo
+DROP TABLE t;
+End of 10.2 tests

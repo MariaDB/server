@@ -709,7 +709,7 @@ def	test	t1	t1	g	g	255	4294967295	0	Y	144	0	63
 g
 select asbinary(g) from t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					asbinary(g)	252	4294967295	0	Y	128	0	63
+def					asbinary(g)	251	4294967295	0	Y	128	0	63
 asbinary(g)
 drop table t1;
 create table t1 (a TEXT, b GEOMETRY NOT NULL, SPATIAL KEY(b));
@@ -2792,19 +2792,18 @@ t2	CREATE TABLE `t2` (
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
 Illegal parameter data types set and geometry for operation 'UNION'
-# This does not preserve geometry type (MDEV-9405)
 CREATE TABLE t1 AS SELECT COALESCE(NULL, Point(1,1));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `COALESCE(NULL, Point(1,1))` geometry DEFAULT NULL
+  `COALESCE(NULL, Point(1,1))` point DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT NULL UNION SELECT Point(1,1);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `NULL` geometry DEFAULT NULL
+  `NULL` point DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -3711,6 +3710,194 @@ CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 #
+# MDEV-12506 Split Item_func_min_max::fix_length_and_dec() into methods in Type_handler
+#
+CREATE PROCEDURE p2(query TEXT)
+BEGIN
+DECLARE errcount INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+BEGIN
+SET errcount = errcount+1;
+#SHOW WARNINGS;
+GET DIAGNOSTICS CONDITION 1 @p= MESSAGE_TEXT;
+SELECT @p AS `ERROR: `;
+END;
+SELECT query AS ``;
+EXECUTE IMMEDIATE query;
+IF errcount = 0
+THEN
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END IF;
+END;
+$$
+CREATE PROCEDURE p1(query TEXT)
+BEGIN
+SELECT query AS `-------------------------------------`;
+EXECUTE IMMEDIATE query;
+CALL p2('CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1');
+DROP TABLE t1;
+END;
+$$
+-------------------------------------
+CREATE TABLE t1 (a CHAR(10), b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a VARCHAR(10), b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a TINYTEXT, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a TEXT, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a MEDIUMTEXT, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a LONGTEXT, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a TINYINT, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a SMALLINT, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types smallint and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a MEDIUMINT, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a INT, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a BIGINT, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a FLOAT, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a DOUBLE, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a DECIMAL(10,2), b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a BIT(8), b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types bit and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a TIME, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a DATE, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a DATETIME, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a TIMESTAMP, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'least'
+-------------------------------------
+CREATE TABLE t1 (a YEAR, b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'least'
+# This LEAST(ENUM,GEOMETRY) creates BLOB, but fails on error with UNION (see MDEV-12503)
+-------------------------------------
+CREATE TABLE t1 (a ENUM(0x61), b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a SET(0x61), b Point)
+
+CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t1 AS SELECT LEAST(NULL, Point(1,1));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `LEAST(NULL, Point(1,1))` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+#
 # MDEV-12001 Split Item_func_round::fix_length_and_dec to virtual methods in Type_handler
 #
 CREATE TABLE t1 (a GEOMETRY);
@@ -3841,65 +4028,294 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a GEOMETRY);
 SELECT POINT(1,1) + 1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '+'
+ERROR HY000: Illegal parameter data types geometry and int for operation '+'
 SELECT POINT(1,1) - 1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '-'
+ERROR HY000: Illegal parameter data types geometry and int for operation '-'
 SELECT POINT(1,1) * 1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '*'
+ERROR HY000: Illegal parameter data types geometry and int for operation '*'
 SELECT POINT(1,1) / 1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '/'
+ERROR HY000: Illegal parameter data types geometry and int for operation '/'
 SELECT POINT(1,1) MOD 1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '%'
+ERROR HY000: Illegal parameter data types geometry and int for operation '%'
 SELECT 1 + POINT(1,1);
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '+'
+ERROR HY000: Illegal parameter data types int and geometry for operation '+'
 SELECT 1 - POINT(1,1);
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '-'
+ERROR HY000: Illegal parameter data types int and geometry for operation '-'
 SELECT 1 * POINT(1,1);
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '*'
+ERROR HY000: Illegal parameter data types int and geometry for operation '*'
 SELECT 1 / POINT(1,1);
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '/'
+ERROR HY000: Illegal parameter data types int and geometry for operation '/'
 SELECT 1 MOD POINT(1,1);
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '%'
+ERROR HY000: Illegal parameter data types int and geometry for operation '%'
 SELECT a + 1 FROM t1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '+'
+ERROR HY000: Illegal parameter data types geometry and int for operation '+'
 SELECT a - 1 FROM t1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '-'
+ERROR HY000: Illegal parameter data types geometry and int for operation '-'
 SELECT a * 1 FROM t1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '*'
+ERROR HY000: Illegal parameter data types geometry and int for operation '*'
 SELECT a / 1 FROM t1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '/'
+ERROR HY000: Illegal parameter data types geometry and int for operation '/'
 SELECT a MOD 1 FROM t1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '%'
+ERROR HY000: Illegal parameter data types geometry and int for operation '%'
 SELECT 1 + a FROM t1;
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '+'
+ERROR HY000: Illegal parameter data types int and geometry for operation '+'
 SELECT 1 - a FROM t1;
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '-'
+ERROR HY000: Illegal parameter data types int and geometry for operation '-'
 SELECT 1 * a FROM t1;
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '*'
+ERROR HY000: Illegal parameter data types int and geometry for operation '*'
 SELECT 1 / a FROM t1;
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '/'
+ERROR HY000: Illegal parameter data types int and geometry for operation '/'
 SELECT 1 MOD a FROM t1;
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '%'
+ERROR HY000: Illegal parameter data types int and geometry for operation '%'
 SELECT COALESCE(a) + 1 FROM t1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '+'
+ERROR HY000: Illegal parameter data types geometry and int for operation '+'
 SELECT COALESCE(a) - 1 FROM t1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '-'
+ERROR HY000: Illegal parameter data types geometry and int for operation '-'
 SELECT COALESCE(a) * 1 FROM t1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '*'
+ERROR HY000: Illegal parameter data types geometry and int for operation '*'
 SELECT COALESCE(a) / 1 FROM t1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '/'
+ERROR HY000: Illegal parameter data types geometry and int for operation '/'
 SELECT COALESCE(a) MOD 1 FROM t1;
-ERROR HY000: Illegal parameter data types geometry and bigint for operation '%'
+ERROR HY000: Illegal parameter data types geometry and int for operation '%'
 SELECT 1 + COALESCE(a) FROM t1;
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '+'
+ERROR HY000: Illegal parameter data types int and geometry for operation '+'
 SELECT 1 - COALESCE(a) FROM t1;
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '-'
+ERROR HY000: Illegal parameter data types int and geometry for operation '-'
 SELECT 1 * COALESCE(a) FROM t1;
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '*'
+ERROR HY000: Illegal parameter data types int and geometry for operation '*'
 SELECT 1 / COALESCE(a) FROM t1;
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '/'
+ERROR HY000: Illegal parameter data types int and geometry for operation '/'
 SELECT 1 MOD COALESCE(a) FROM t1;
-ERROR HY000: Illegal parameter data types bigint and geometry for operation '%'
+ERROR HY000: Illegal parameter data types int and geometry for operation '%'
+DROP TABLE t1;
+#
+# MDEV-12514 Split Item_temporal_func::fix_length_and_dec()
+#
+SELECT DATE_ADD(POINT(1,1), INTERVAL 10 DAY);
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT DATE_SUB(POINT(1,1), INTERVAL 10 DAY);
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT POINT(1,1) + INTERVAL 10 DAY;
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT POINT(1,1) - INTERVAL 10 DAY;
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT INTERVAL 10 DAY + POINT(1,1);
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT INTERVAL 10 DAY + POINT(1,1);
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT ADDTIME(POINT(1,1), '10:10:10');
+ERROR HY000: Illegal parameter data types geometry and varchar for operation 'add_time'
+SELECT ADDTIME('10:10:10', POINT(1,1));
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'add_time'
+SELECT ADDTIME(POINT(1,1), TIME'10:10:10');
+ERROR HY000: Illegal parameter data types geometry and time for operation 'add_time'
+SELECT ADDTIME(TIME'10:10:10', POINT(1,1));
+ERROR HY000: Illegal parameter data types time and geometry for operation 'add_time'
+SELECT ADDTIME(POINT(1,1), TIMESTAMP'2001-01-01 10:10:10');
+ERROR HY000: Illegal parameter data types geometry and datetime for operation 'add_time'
+SELECT ADDTIME(TIMESTAMP'2001-01-01 10:10:10', POINT(1,1));
+ERROR HY000: Illegal parameter data types datetime and geometry for operation 'add_time'
+SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
+ERROR HY000: Illegal parameter data types geometry and varchar for operation 'str_to_date'
+SELECT STR_TO_DATE('2001-01-01', POINT(1,1));
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'str_to_date'
+#
+# MDEV-12665 Hybrid functions do not preserve geometry type
+#
+CREATE TABLE t1 AS SELECT
+Point(0,0) AS p0,
+COALESCE(Point(0,0)) AS p1,
+CASE WHEN 0 THEN Point(0,0) ELSE Point(1,1) END AS p2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `p0` point DEFAULT NULL,
+  `p1` point DEFAULT NULL,
+  `p2` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT LEAST(Point(0,0),Point(0,0)) AS p1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `p1` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (
+c_geometry GEOMETRY,
+c_point POINT,
+c_linestring LINESTRING,
+c_polygon POLYGON,
+c_multipoint  MULTIPOINT,
+c_multilinestring MULTILINESTRING,
+c_multipolygon MULTIPOLYGON,
+c_geometrycollection GEOMETRYCOLLECTION
+);
+CREATE TABLE t2 AS SELECT
+COALESCE(NULL, c_geometry),
+COALESCE(NULL, c_point),
+COALESCE(NULL, c_linestring),
+COALESCE(NULL, c_polygon),
+COALESCE(NULL, c_multipoint),
+COALESCE(NULL, c_multilinestring),
+COALESCE(NULL, c_multipolygon),
+COALESCE(NULL, c_geometrycollection)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(NULL, c_geometry)` geometry DEFAULT NULL,
+  `COALESCE(NULL, c_point)` point DEFAULT NULL,
+  `COALESCE(NULL, c_linestring)` linestring DEFAULT NULL,
+  `COALESCE(NULL, c_polygon)` polygon DEFAULT NULL,
+  `COALESCE(NULL, c_multipoint)` multipoint DEFAULT NULL,
+  `COALESCE(NULL, c_multilinestring)` multilinestring DEFAULT NULL,
+  `COALESCE(NULL, c_multipolygon)` multipolygon DEFAULT NULL,
+  `COALESCE(NULL, c_geometrycollection)` geometrycollection DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+COALESCE(c_geometry, NULL),
+COALESCE(c_point, NULL),
+COALESCE(c_linestring, NULL),
+COALESCE(c_polygon, NULL),
+COALESCE(c_multipoint, NULL),
+COALESCE(c_multilinestring, NULL),
+COALESCE(c_multipolygon, NULL),
+COALESCE(c_geometrycollection, NULL)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c_geometry, NULL)` geometry DEFAULT NULL,
+  `COALESCE(c_point, NULL)` point DEFAULT NULL,
+  `COALESCE(c_linestring, NULL)` linestring DEFAULT NULL,
+  `COALESCE(c_polygon, NULL)` polygon DEFAULT NULL,
+  `COALESCE(c_multipoint, NULL)` multipoint DEFAULT NULL,
+  `COALESCE(c_multilinestring, NULL)` multilinestring DEFAULT NULL,
+  `COALESCE(c_multipolygon, NULL)` multipolygon DEFAULT NULL,
+  `COALESCE(c_geometrycollection, NULL)` geometrycollection DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+COALESCE(c_geometry, c_geometry),
+COALESCE(c_point, c_point),
+COALESCE(c_linestring, c_linestring),
+COALESCE(c_polygon, c_polygon),
+COALESCE(c_multipoint, c_multipoint),
+COALESCE(c_multilinestring, c_multilinestring),
+COALESCE(c_multipolygon, c_multipolygon),
+COALESCE(c_geometrycollection, c_geometrycollection)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c_geometry, c_geometry)` geometry DEFAULT NULL,
+  `COALESCE(c_point, c_point)` point DEFAULT NULL,
+  `COALESCE(c_linestring, c_linestring)` linestring DEFAULT NULL,
+  `COALESCE(c_polygon, c_polygon)` polygon DEFAULT NULL,
+  `COALESCE(c_multipoint, c_multipoint)` multipoint DEFAULT NULL,
+  `COALESCE(c_multilinestring, c_multilinestring)` multilinestring DEFAULT NULL,
+  `COALESCE(c_multipolygon, c_multipolygon)` multipolygon DEFAULT NULL,
+  `COALESCE(c_geometrycollection, c_geometrycollection)` geometrycollection DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-12560 Wrong data type for SELECT NULL UNION SELECT Point(1,1)
+#
+CREATE TABLE t1 AS SELECT NULL AS c1 UNION SELECT POINT(1,1);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE PROCEDURE p1(name TEXT)
+BEGIN
+EXECUTE IMMEDIATE CONCAT('CREATE TABLE t1 (a ', name, ')');
+CREATE TABLE t2 AS
+SELECT a AS a1, a    AS a2, NULL AS a3 FROM t1 UNION
+SELECT a AS a1, NULL AS a2, a    AS a3 FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+END;
+$$
+CALL p1('geometry');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` geometry DEFAULT NULL,
+  `a2` geometry DEFAULT NULL,
+  `a3` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('point');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` point DEFAULT NULL,
+  `a2` point DEFAULT NULL,
+  `a3` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('linestring');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` linestring DEFAULT NULL,
+  `a2` linestring DEFAULT NULL,
+  `a3` linestring DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('polygon');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` polygon DEFAULT NULL,
+  `a2` polygon DEFAULT NULL,
+  `a3` polygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('multipoint');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` multipoint DEFAULT NULL,
+  `a2` multipoint DEFAULT NULL,
+  `a3` multipoint DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('multilinestring');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` multilinestring DEFAULT NULL,
+  `a2` multilinestring DEFAULT NULL,
+  `a3` multilinestring DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('multipolygon');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` multipolygon DEFAULT NULL,
+  `a2` multipolygon DEFAULT NULL,
+  `a3` multipolygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('geometrycollection');
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a1` geometrycollection DEFAULT NULL,
+  `a2` geometrycollection DEFAULT NULL,
+  `a3` geometrycollection DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE p1;
+#
+# MDEV-12798 Item_param does not preserve exact field type in EXECUTE IMMEDIATE 'CREATE TABLE AS SELECT ?' USING POINT(1,1)
+#
+EXECUTE IMMEDIATE 'CREATE TABLE t1 AS SELECT ?' USING POINT(1,1);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `?` point NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE OR REPLACE TABLE t1 AS SELECT ?';
+EXECUTE stmt USING POINT(1,1);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `?` point NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
 # End of 10.3 tests

@@ -64,8 +64,7 @@ public:
   longlong val_int();
   double val_real();
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type () const { return STRING_RESULT; }
-  enum_field_types field_type() const { return string_field_type(); }
+  const Type_handler *type_handler() const { return string_type_handler(); }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
   void update_null_value()
@@ -947,7 +946,11 @@ public:
   Item_func_char(THD *thd, List<Item> &list, CHARSET_INFO *cs):
     Item_str_func(thd, list)
   { collation.set(cs); }
+  Item_func_char(THD *thd, Item *arg1, CHARSET_INFO *cs):
+    Item_str_func(thd, arg1)
+  { collation.set(cs); }
   String *val_str(String *);
+  void append_char(String * str, int32 num);
   void fix_length_and_dec()
   {
     max_length= arg_count * 4;
@@ -957,6 +960,20 @@ public:
   { return get_item_copy<Item_func_char>(thd, mem_root, this); }
 };
 
+class Item_func_chr :public Item_func_char
+{
+public:
+  Item_func_chr(THD *thd, Item *arg1, CHARSET_INFO *cs):
+    Item_func_char(thd, arg1, cs) {}
+  String *val_str(String *);
+  void fix_length_and_dec()
+  {
+    max_length= 4;
+  }
+  const char *func_name() const { return "chr"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_chr>(thd, mem_root, this); }
+};
 
 class Item_func_repeat :public Item_str_func
 {
@@ -1003,28 +1020,41 @@ public:
 };
 
 
-class Item_func_rpad :public Item_str_func
+class Item_func_pad: public Item_str_func
 {
-  String tmp_value, rpad_str;
+protected:
+  String tmp_value, pad_str;
+public:
+  Item_func_pad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
+    Item_str_func(thd, arg1, arg2, arg3) {}
+  Item_func_pad(THD *thd, Item *arg1, Item *arg2):
+    Item_str_func(thd, arg1, arg2) {}
+  void fix_length_and_dec();
+};
+
+
+class Item_func_rpad :public Item_func_pad
+{
 public:
   Item_func_rpad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
-    Item_str_func(thd, arg1, arg2, arg3) {}
+    Item_func_pad(thd, arg1, arg2, arg3) {}
+  Item_func_rpad(THD *thd, Item *arg1, Item *arg2):
+    Item_func_pad(thd, arg1, arg2) {}
   String *val_str(String *);
-  void fix_length_and_dec();
   const char *func_name() const { return "rpad"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_rpad>(thd, mem_root, this); }
 };
 
 
-class Item_func_lpad :public Item_str_func
+class Item_func_lpad :public Item_func_pad
 {
-  String tmp_value, lpad_str;
 public:
   Item_func_lpad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
-    Item_str_func(thd, arg1, arg2, arg3) {}
+    Item_func_pad(thd, arg1, arg2, arg3) {}
+  Item_func_lpad(THD *thd, Item *arg1, Item *arg2):
+    Item_func_pad(thd, arg1, arg2) {}
   String *val_str(String *);
-  void fix_length_and_dec();
   const char *func_name() const { return "lpad"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_lpad>(thd, mem_root, this); }
@@ -1074,7 +1104,7 @@ public:
   }
   void fix_length_and_dec()
   {
-    collation.set(default_charset());
+    collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     decimals=0;
     fix_char_length(args[0]->max_length * 2);
     m_arg0_type_handler= args[0]->type_handler();

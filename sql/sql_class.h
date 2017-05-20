@@ -234,14 +234,11 @@ typedef struct st_copy_info {
 
 class Key_part_spec :public Sql_alloc {
 public:
-  LEX_STRING field_name;
+  LEX_CSTRING field_name;
   uint length;
-  Key_part_spec(const LEX_STRING &name, uint len)
-    : field_name(name), length(len)
+  Key_part_spec(const LEX_CSTRING *name, uint len)
+    : field_name(*name), length(len)
   {}
-  Key_part_spec(const char *name, const size_t name_len, uint len)
-    : length(len)
-  { field_name.str= (char *)name; field_name.length= name_len; }
   bool operator==(const Key_part_spec& other) const;
   /**
     Construct a copy of this Key_part_spec. field_name is copied
@@ -304,37 +301,26 @@ public:
   enum Keytype type;
   KEY_CREATE_INFO key_create_info;
   List<Key_part_spec> columns;
-  LEX_STRING name;
+  LEX_CSTRING name;
   engine_option_value *option_list;
   bool generated;
 
-  Key(enum Keytype type_par, const LEX_STRING &name_arg,
+  Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
       ha_key_alg algorithm_arg, bool generated_arg, DDL_options_st ddl_options)
     :DDL_options(ddl_options),
      type(type_par), key_create_info(default_key_create_info),
-    name(name_arg), option_list(NULL), generated(generated_arg)
+    name(*name_arg), option_list(NULL), generated(generated_arg)
   {
     key_create_info.algorithm= algorithm_arg;
   } 
-  Key(enum Keytype type_par, const LEX_STRING &name_arg,
+  Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
       KEY_CREATE_INFO *key_info_arg,
-      bool generated_arg, List<Key_part_spec> &cols,
+      bool generated_arg, List<Key_part_spec> *cols,
       engine_option_value *create_opt, DDL_options_st ddl_options)
     :DDL_options(ddl_options),
-     type(type_par), key_create_info(*key_info_arg), columns(cols),
-    name(name_arg), option_list(create_opt), generated(generated_arg)
+     type(type_par), key_create_info(*key_info_arg), columns(*cols),
+    name(*name_arg), option_list(create_opt), generated(generated_arg)
   {}
-  Key(enum Keytype type_par, const char *name_arg, size_t name_len_arg,
-      KEY_CREATE_INFO *key_info_arg, bool generated_arg,
-      List<Key_part_spec> &cols,
-      engine_option_value *create_opt, DDL_options_st ddl_options)
-    :DDL_options(ddl_options),
-    type(type_par), key_create_info(*key_info_arg), columns(cols),
-    option_list(create_opt), generated(generated_arg)
-  {
-    name.str= (char *)name_arg;
-    name.length= name_len_arg;
-  }
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() {}
   /* Equality comparison of keys (ignoring name) */
@@ -352,19 +338,18 @@ class Foreign_key: public Key {
 public:
   enum fk_match_opt { FK_MATCH_UNDEF, FK_MATCH_FULL,
 		      FK_MATCH_PARTIAL, FK_MATCH_SIMPLE};
-
-  LEX_STRING ref_db;
-  LEX_STRING ref_table;
+  LEX_CSTRING ref_db;
+  LEX_CSTRING ref_table;
   List<Key_part_spec> ref_columns;
   uint delete_opt, update_opt, match_opt;
-  Foreign_key(const LEX_STRING &name_arg, List<Key_part_spec> &cols,
-	      const LEX_STRING &ref_db_arg, const LEX_STRING &ref_table_arg,
-              List<Key_part_spec> &ref_cols,
+  Foreign_key(const LEX_CSTRING *name_arg, List<Key_part_spec> *cols,
+	      const LEX_CSTRING *ref_db_arg, const LEX_CSTRING *ref_table_arg,
+              List<Key_part_spec> *ref_cols,
 	      uint delete_opt_arg, uint update_opt_arg, uint match_opt_arg,
 	      DDL_options ddl_options)
     :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL,
          ddl_options),
-    ref_db(ref_db_arg), ref_table(ref_table_arg), ref_columns(ref_cols),
+    ref_db(*ref_db_arg), ref_table(*ref_table_arg), ref_columns(*ref_cols),
     delete_opt(delete_opt_arg), update_opt(update_opt_arg),
     match_opt(match_opt_arg)
    {
@@ -668,7 +653,7 @@ typedef struct system_variables
   CHARSET_INFO  *collation_connection;
 
   /* Names. These will be allocated in buffers in thd */
-  LEX_STRING default_master_connection;
+  LEX_CSTRING default_master_connection;
 
   /* Error messages */
   MY_LOCALE *lc_messages;
@@ -1053,7 +1038,7 @@ public:
   */
   enum enum_mark_columns mark_used_columns;
 
-  LEX_STRING name; /* name for named prepared statements */
+  LEX_CSTRING name; /* name for named prepared statements */
   LEX *lex;                                     // parse tree descriptor
   /*
     Points to the query associated with this statement. It's const, but
@@ -1151,7 +1136,7 @@ public:
 
   int insert(THD *thd, Statement *statement);
 
-  Statement *find_by_name(LEX_STRING *name)
+  Statement *find_by_name(LEX_CSTRING *name)
   {
     Statement *stmt;
     stmt= (Statement*)my_hash_search(&names_hash, (uchar*)name->str,
@@ -1234,7 +1219,7 @@ public:
     ip - client IP
   */
   const char *host;
-  char   *user, *ip;
+  const char *user, *ip;
   char   priv_user[USERNAME_LENGTH];
   char   proxy_user[USERNAME_LENGTH + MAX_HOSTNAME + 5];
   /* The host privilege we are using */
@@ -1261,9 +1246,9 @@ public:
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   bool
   change_security_context(THD *thd,
-                          LEX_STRING *definer_user,
-                          LEX_STRING *definer_host,
-                          LEX_STRING *db,
+                          LEX_CSTRING *definer_user,
+                          LEX_CSTRING *definer_host,
+                          LEX_CSTRING *db,
                           Security_context **backup);
 
   void
@@ -2884,7 +2869,7 @@ public:
     If this is a slave, the name of the connection stored here.
     This is used for taging error messages in the log files.
   */
-  LEX_STRING connection_name;
+  LEX_CSTRING connection_name;
   char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
   uint8      password; /* 0, 1 or 2 */
   uint8      failed_com_change_user;
@@ -3211,6 +3196,7 @@ public:
   {
     return !MY_TEST(variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
   }
+  const Type_handler *type_handler_for_date() const;
   inline my_time_t query_start() { query_start_used=1; return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
@@ -3362,7 +3348,20 @@ public:
   LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, uint length)
   {
     if (!(lex_str->str= strmake_root(mem_root, str, length)))
+    {
+      lex_str->length= 0;
       return 0;
+    }
+    lex_str->length= length;
+    return lex_str;
+  }
+  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str, uint length)
+  {
+    if (!(lex_str->str= strmake_root(mem_root, str, length)))
+    {
+      lex_str->length= 0;
+      return 0;
+    }
     lex_str->length= length;
     return lex_str;
   }
@@ -3371,6 +3370,14 @@ public:
   {
     LEX_STRING *lex_str;
     if (!(lex_str= (LEX_STRING *)alloc_root(mem_root, sizeof(LEX_STRING))))
+      return 0;
+    return make_lex_string(lex_str, str, length);
+  }
+
+  LEX_CSTRING *make_clex_string(const char* str, uint length)
+  {
+    LEX_CSTRING *lex_str;
+    if (!(lex_str= (LEX_CSTRING *)alloc_root(mem_root, sizeof(LEX_CSTRING))))
       return 0;
     return make_lex_string(lex_str, str, length);
   }
@@ -3420,6 +3427,20 @@ public:
                        CHARSET_INFO *srccs, const char *src, uint src_length);
 
   bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
+
+  /*
+    Create a string literal with optional client->connection conversion.
+    @param str        - the string in the client character set
+    @param length     - length of the string
+    @param repertoire - the repertoire of the string
+  */
+  Item_string *make_string_literal(const char *str, size_t length,
+                                   uint repertoire);
+  Item_string *make_string_literal(const Lex_string_with_metadata_st &str)
+  {
+    uint repertoire= str.repertoire(variables.character_set_client);
+    return make_string_literal(str.str, str.length, repertoire);
+  }
 
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, long key_length);
@@ -3810,7 +3831,7 @@ public:
     allocate memory for a deep copy: current database may be freed after
     a statement is parsed but before it's executed.
   */
-  bool copy_db_to(char **p_db, size_t *p_db_length)
+  bool copy_db_to(const char **p_db, size_t *p_db_length)
   {
     if (db == NULL)
     {
@@ -3916,11 +3937,11 @@ public:
   }
   void parse_error(uint err_number, const char *yytext= 0)
   {
-    return parse_error(ER_THD(this, err_number), yytext);
+    parse_error(ER_THD(this, err_number), yytext);
   }
   void parse_error()
   {
-    return parse_error(ER_SYNTAX_ERROR);
+    parse_error(ER_SYNTAX_ERROR);
   }
 private:
   /*
@@ -4061,13 +4082,13 @@ public:
   void binlog_invoker(bool role) { m_binlog_invoker= role ? INVOKER_ROLE : INVOKER_USER; }
   enum need_invoker need_binlog_invoker() { return m_binlog_invoker; }
   void get_definer(LEX_USER *definer, bool role);
-  void set_invoker(const LEX_STRING *user, const LEX_STRING *host)
+  void set_invoker(const LEX_CSTRING *user, const LEX_CSTRING *host)
   {
     invoker_user= *user;
     invoker_host= *host;
   }
-  LEX_STRING get_invoker_user() { return invoker_user; }
-  LEX_STRING get_invoker_host() { return invoker_host; }
+  LEX_CSTRING get_invoker_user() { return invoker_user; }
+  LEX_CSTRING get_invoker_host() { return invoker_host; }
   bool has_invoker() { return invoker_user.length > 0; }
 
   void print_aborted_warning(uint threshold, const char *reason)
@@ -4167,8 +4188,8 @@ private:
     TRIGGER or VIEW statements or current user in account management
     statements if it is not NULL.
    */
-  LEX_STRING invoker_user;
-  LEX_STRING invoker_host;
+  LEX_CSTRING invoker_user;
+  LEX_CSTRING invoker_host;
 
 public:
 #ifndef EMBEDDED_LIBRARY
@@ -4486,13 +4507,13 @@ class sql_exchange :public Sql_alloc
 {
 public:
   enum enum_filetype filetype; /* load XML, Added by Arnold & Erik */
-  char *file_name;
+  const char *file_name;
   String *field_term,*enclosed,*line_term,*line_start,*escaped;
   bool opt_enclosed;
   bool dumpfile;
   ulong skip_lines;
   CHARSET_INFO *cs;
-  sql_exchange(char *name, bool dumpfile_flag,
+  sql_exchange(const char *name, bool dumpfile_flag,
                enum_filetype filetype_arg= FILETYPE_CSV);
   bool escaped_given(void);
 };
@@ -5364,22 +5385,23 @@ typedef struct st_sort_buffer {
 class Table_ident :public Sql_alloc
 {
 public:
-  LEX_STRING db;
-  LEX_STRING table;
+  LEX_CSTRING db;
+  LEX_CSTRING table;
   SELECT_LEX_UNIT *sel;
-  inline Table_ident(THD *thd, LEX_STRING db_arg, LEX_STRING table_arg,
+  inline Table_ident(THD *thd, const LEX_CSTRING *db_arg,
+                     const LEX_CSTRING *table_arg,
 		     bool force)
-    :table(table_arg), sel((SELECT_LEX_UNIT *)0)
+    :table(*table_arg), sel((SELECT_LEX_UNIT *)0)
   {
     if (!force && (thd->client_capabilities & CLIENT_NO_SCHEMA))
-      db.str=0;
+      db= null_clex_str;
     else
-      db= db_arg;
+      db= *db_arg;
   }
-  inline Table_ident(LEX_STRING table_arg)
-    :table(table_arg), sel((SELECT_LEX_UNIT *)0)
+  inline Table_ident(const LEX_CSTRING *table_arg)
+    :table(*table_arg), sel((SELECT_LEX_UNIT *)0)
   {
-    db.str=0;
+    db= null_clex_str;
   }
   /*
     This constructor is used only for the case when we create a derived
@@ -5396,9 +5418,9 @@ public:
     table.length=1;
   }
   bool is_derived_table() const { return MY_TEST(sel); }
-  inline void change_db(char *db_name)
+  inline void change_db(LEX_CSTRING *db_name)
   {
-    db.str= db_name; db.length= (uint) strlen(db_name);
+    db= *db_name;
   }
 };
 
@@ -5406,22 +5428,22 @@ public:
 class Qualified_column_ident: public Table_ident
 {
 public:
-  LEX_STRING m_column;
+  LEX_CSTRING m_column;
 public:
-  Qualified_column_ident(const LEX_STRING column)
-   :Table_ident(null_lex_str),
-    m_column(column)
+  Qualified_column_ident(const LEX_CSTRING *column)
+    :Table_ident(&null_clex_str),
+    m_column(*column)
   { }
-  Qualified_column_ident(const LEX_STRING table, const LEX_STRING column)
+  Qualified_column_ident(const LEX_CSTRING *table, const LEX_CSTRING *column)
    :Table_ident(table),
-    m_column(column)
+    m_column(*column)
   { }
   Qualified_column_ident(THD *thd,
-                         const LEX_STRING db,
-                         const LEX_STRING table,
-                         const LEX_STRING column)
+                         const LEX_CSTRING *db,
+                         const LEX_CSTRING *table,
+                         const LEX_CSTRING *column)
    :Table_ident(thd, db, table, false),
-    m_column(column)
+    m_column(*column)
   { }
 };
 
@@ -5432,7 +5454,7 @@ class user_var_entry
   CHARSET_INFO *m_charset;
  public:
   user_var_entry() {}                         /* Remove gcc warning */
-  LEX_STRING name;
+  LEX_CSTRING name;
   char *value;
   ulong length;
   query_id_t update_query_id, used_query_id;
@@ -5447,7 +5469,7 @@ class user_var_entry
   void set_charset(CHARSET_INFO *cs) { m_charset= cs; }
 };
 
-user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
+user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
 				    bool create_if_not_exists);
 
 class SORT_INFO;
@@ -5535,10 +5557,10 @@ public:
 
 class my_var : public Sql_alloc  {
 public:
-  const LEX_STRING name;
+  const LEX_CSTRING name;
   enum type { SESSION_VAR, LOCAL_VAR, PARAM_VAR };
   type scope;
-  my_var(const LEX_STRING& j, enum type s) : name(j), scope(s) { }
+  my_var(const LEX_CSTRING *j, enum type s) : name(*j), scope(s) { }
   virtual ~my_var() {}
   virtual bool set(THD *thd, Item *val) = 0;
   virtual class my_var_sp *get_my_var_sp() { return NULL; }
@@ -5553,7 +5575,7 @@ public:
     runtime context is used for variable handling.
   */
   sp_head *sp;
-  my_var_sp(const LEX_STRING& j, uint o, const Type_handler *type_handler,
+  my_var_sp(const LEX_CSTRING *j, uint o, const Type_handler *type_handler,
             sp_head *s)
     : my_var(j, LOCAL_VAR), m_type_handler(type_handler), offset(o), sp(s) { }
   ~my_var_sp() { }
@@ -5570,7 +5592,7 @@ class my_var_sp_row_field: public my_var_sp
 {
   uint m_field_offset;
 public:
-  my_var_sp_row_field(const LEX_STRING &varname, const LEX_STRING &fieldname,
+  my_var_sp_row_field(const LEX_CSTRING *varname, const LEX_CSTRING *fieldname,
                       uint var_idx, uint field_idx, sp_head *s)
    :my_var_sp(varname, var_idx, &type_handler_double/*Not really used*/, s),
     m_field_offset(field_idx)
@@ -5580,7 +5602,7 @@ public:
 
 class my_var_user: public my_var {
 public:
-  my_var_user(const LEX_STRING& j)
+  my_var_user(const LEX_CSTRING *j)
     : my_var(j, SESSION_VAR) { }
   ~my_var_user() { }
   bool set(THD *thd, Item *val);
@@ -5942,13 +5964,13 @@ class Sql_mode_save
 class Database_qualified_name
 {
 public:
-  LEX_STRING m_db;
-  LEX_STRING m_name;
-  Database_qualified_name(const LEX_STRING db, const LEX_STRING name)
-   :m_db(db), m_name(name)
+  LEX_CSTRING m_db;
+  LEX_CSTRING m_name;
+  Database_qualified_name(const LEX_CSTRING *db, const LEX_CSTRING *name)
+   :m_db(*db), m_name(*name)
   { }
-  Database_qualified_name(char *db, size_t db_length,
-                          char *name, size_t name_length)
+  Database_qualified_name(const char *db, size_t db_length,
+                          const char *name, size_t name_length)
   {
     m_db.str= db;
     m_db.length= db_length;
@@ -5979,14 +6001,15 @@ public:
                        (int) m_name.length, m_name.str);
   }
   // Export db and name as a qualified name string, allocate on mem_root.
-  bool make_qname(THD *thd, LEX_STRING *dst) const
+  bool make_qname(THD *thd, LEX_CSTRING *dst) const
   {
     const uint dot= !!m_db.length;
+    char *tmp;
     /* format: [database + dot] + name + '\0' */
     dst->length= m_db.length + dot + m_name.length;
-    if (!(dst->str= (char*) thd->alloc(dst->length + 1)))
+    if (!(dst->str= tmp= (char*) thd->alloc(dst->length + 1)))
       return true;
-    sprintf(dst->str, "%.*s%.*s%.*s",
+    sprintf(tmp, "%.*s%.*s%.*s",
             (int) m_db.length, (m_db.length ? m_db.str : ""),
             dot, ".",
             (int) m_name.length, m_name.str);

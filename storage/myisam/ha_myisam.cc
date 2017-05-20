@@ -1689,8 +1689,9 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
   which have been activated by start_bulk_insert().
 
   SYNOPSIS
-    end_bulk_insert()
-    no arguments
+    end_bulk_insert(fatal_error)
+    abort         0 normal end, store everything
+                  1 abort quickly. No need to flush/write anything. Table will be deleted
 
   RETURN
     0     OK
@@ -1699,10 +1700,20 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
 
 int ha_myisam::end_bulk_insert()
 {
+  int first_error, error;
+  my_bool abort= file->s->deleting;
   DBUG_ENTER("ha_myisam::end_bulk_insert");
-  mi_end_bulk_insert(file);
-  int err=mi_extra(file, HA_EXTRA_NO_CACHE, 0);
-  if (!err && !file->s->deleting)
+
+  if ((first_error= mi_end_bulk_insert(file, abort)))
+    abort= 1;
+
+  if ((error= mi_extra(file, HA_EXTRA_NO_CACHE, 0)))
+  {
+    first_error= first_error ? first_error : error;
+    abort= 1;
+  }
+
+  if (!abort)
   {
     if (can_enable_indexes)
     {
@@ -1713,16 +1724,17 @@ int ha_myisam::end_bulk_insert()
         setting the indexes as active and  trying to recreate them. 
      */
    
-      if (((err= enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE)) != 0) && 
+      if (((first_error= enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE)) != 0) && 
           table->in_use->killed)
       {
         delete_all_rows();
         /* not crashed, despite being killed during repair */
         file->s->state.changed&= ~(STATE_CRASHED|STATE_CRASHED_ON_REPAIR);
       }
-    } 
+    }
   }
-  DBUG_RETURN(err);
+  DBUG_PRINT("exit", ("first_error: %d", first_error));
+  DBUG_RETURN(first_error);
 }
 
 
@@ -1741,7 +1753,7 @@ bool ha_myisam::check_and_repair(THD *thd)
   sql_print_warning("Checking table:   '%s'",table->s->path.str);
 
   const CSET_STRING query_backup= thd->query_string;
-  thd->set_query(table->s->table_name.str,
+  thd->set_query((char*) table->s->table_name.str,
                  (uint) table->s->table_name.length, system_charset_info);
 
   if ((marked_crashed= mi_is_crashed(file)) || check(thd, &check_opt))
@@ -1779,7 +1791,7 @@ bool ha_myisam::is_crashed() const
 	  (my_disable_locking && file->s->state.open_count));
 }
 
-int ha_myisam::update_row(const uchar *old_data, uchar *new_data)
+int ha_myisam::update_row(const uchar *old_data, const uchar *new_data)
 {
   return mi_update(file,old_data,new_data);
 }
@@ -2575,7 +2587,7 @@ maria_declare_plugin_end;
     @retval FALSE An error occurred
 */
 
-my_bool ha_myisam::register_query_cache_table(THD *thd, char *table_name,
+my_bool ha_myisam::register_query_cache_table(THD *thd, const char *table_name,
                                               uint table_name_len,
                                               qc_engine_callback
                                               *engine_callback,

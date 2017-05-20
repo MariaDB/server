@@ -1236,7 +1236,7 @@ static enum_operation_type socket_operation_map[]=
   @param [out] output_length  Length of the resulting output string.
   @return 0 for success, non zero for errors
 */
-static int build_prefix(const LEX_STRING *prefix, const char *category,
+static int build_prefix(const LEX_CSTRING *prefix, const char *category,
                         char *output, int *output_length)
 {
   int len= strlen(category);

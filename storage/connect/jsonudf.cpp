@@ -1500,7 +1500,8 @@ static PSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 	if (args->arg_count > (unsigned)i) {
 		int     j = 0, n = args->attribute_lengths[i];
 		my_bool b;  // true if attribute is zero terminated
-		PSZ     p, s = args->attributes[i];
+		PSZ     p;
+                const char *s = args->attributes[i];
 
 		if (s && *s && (n || *s == '\'')) {
 			if ((b = (!n || !s[n])))
@@ -1519,7 +1520,7 @@ static PSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 			} // endif *s
 
 			if (n < 1)
-				return "Key";
+                                return (char*) "Key";
 
 			if (!b) {
 				p = (PSZ)PlugSubAlloc(g, NULL, n + 1);
@@ -1530,10 +1531,10 @@ static PSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 
 		} // endif s
 
-		return s;
+		return (char*) s;
 	} // endif count
 
-  return "Key";
+  return (char*) "Key";
 } // end of MakeKey
 
 /*********************************************************************************/

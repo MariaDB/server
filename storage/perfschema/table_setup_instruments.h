@@ -92,7 +92,7 @@ protected:
 
   virtual int update_row_values(TABLE *table,
                                 const unsigned char *old_buf,
-                                unsigned char *new_buf,
+                                const unsigned char *new_buf,
                                 Field **fields);
 
   table_setup_instruments();

@@ -1512,8 +1512,8 @@ int ha_partition::prepare_new_partition(TABLE *tbl,
     That file name may be different from part_name, which will be
     attached in append_file_to_dir().
   */
-  truncate_partition_filename(p_elem->data_file_name);
-  truncate_partition_filename(p_elem->index_file_name);
+  truncate_partition_filename((char*) p_elem->data_file_name);
+  truncate_partition_filename((char*) p_elem->index_file_name);
 
   if ((error= set_up_table_before_create(tbl, part_name, create_info, p_elem)))
     goto error_create;
@@ -2086,7 +2086,7 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
   my_bool from_alter = (create_info->data_file_name == (const char*) -1);
   create_info->data_file_name= create_info->index_file_name = NULL;
 
-  create_info->connect_string= null_lex_str;
+  create_info->connect_string= null_clex_str;
 
   /*
     We do not need to update the individual partition DATA DIRECTORY settings
@@ -2957,27 +2957,29 @@ bool ha_partition::read_par_file(const char *name)
   m_file_buffer= file_buffer;          // Will be freed in clear_handler_file()
   m_name_buffer_ptr= (char*) (tot_name_len_offset + PAR_WORD_SIZE);
 
-  if (!(m_connect_string= (LEX_STRING*)
-        alloc_root(&m_mem_root, m_tot_parts * sizeof(LEX_STRING))))
+  if (!(m_connect_string= (LEX_CSTRING*)
+        alloc_root(&m_mem_root, m_tot_parts * sizeof(LEX_CSTRING))))
     goto err2;
-  bzero(m_connect_string, m_tot_parts * sizeof(LEX_STRING));
+  bzero(m_connect_string, m_tot_parts * sizeof(LEX_CSTRING));
 
   /* Read connection arguments (for federated X engine) */
   for (i= 0; i < m_tot_parts; i++)
   {
-    LEX_STRING connect_string;
+    LEX_CSTRING connect_string;
     uchar buffer[4];
+    char *tmp;
     if (my_read(file, buffer, 4, MYF(MY_NABP)))
     {
       /* No extra options; Probably not a federatedx engine */
       break;
     }
     connect_string.length= uint4korr(buffer);
-    connect_string.str= (char*) alloc_root(&m_mem_root, connect_string.length+1);
+    connect_string.str= tmp= (char*) alloc_root(&m_mem_root,
+                                                connect_string.length+1);
     if (my_read(file, (uchar*) connect_string.str, connect_string.length,
                 MYF(MY_NABP)))
       break;
-    connect_string.str[connect_string.length]= 0;
+    tmp[connect_string.length]= 0;
     m_connect_string[i]= connect_string;
   }
 
@@ -4204,7 +4206,7 @@ exit:
     old_data is always record[1]
 */
 
-int ha_partition::update_row(const uchar *old_data, uchar *new_data)
+int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
 {
   THD *thd= ha_thd();
   uint32 new_part_id, old_part_id;
@@ -4280,7 +4282,7 @@ int ha_partition::update_row(const uchar *old_data, uchar *new_data)
     DBUG_PRINT("info", ("Update from partition %d to partition %d",
 			old_part_id, new_part_id));
     tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
-    error= m_file[new_part_id]->ha_write_row(new_data);
+    error= m_file[new_part_id]->ha_write_row((uchar*) new_data);
     reenable_binlog(thd);
     table->next_number_field= saved_next_number_field;
     if (error)
@@ -7147,6 +7149,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_QUICK:
   case HA_EXTRA_PREPARE_FOR_DROP:
   case HA_EXTRA_FLUSH_CACHE:
+  case HA_EXTRA_PREPARE_FOR_ALTER_TABLE:
   {
     DBUG_RETURN(loop_extra(operation));
   }
@@ -7951,7 +7954,7 @@ void ha_partition::append_row_to_str(String &str)
     {
       Field *field= key_part->field;
       str.append(" ");
-      str.append(field->field_name);
+      str.append(&field->field_name);
       str.append(":");
       field_unpack(&str, field, rec, 0, false);
     }
@@ -7971,7 +7974,7 @@ void ha_partition::append_row_to_str(String &str)
     {
       Field *field= *field_ptr;
       str.append(" ");
-      str.append(field->field_name);
+      str.append(&field->field_name);
       str.append(":");
       field_unpack(&str, field, rec, 0, false);
     }

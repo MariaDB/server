@@ -297,6 +297,9 @@ STRINGpadpadpadpadpa
 select lpad('STRING', 20, CONCAT('p','a','d') );
 lpad('STRING', 20, CONCAT('p','a','d') )
 padpadpadpadpaSTRING
+select rpad('abcd',7),lpad('abcd',7);
+rpad('abcd',7)	lpad('abcd',7)
+abcd   	   abcd
 select LEAST(NULL,'HARRY','HARRIOT',NULL,'HAROLD'),GREATEST(NULL,'HARRY','HARRIOT',NULL,'HAROLD');
 LEAST(NULL,'HARRY','HARRIOT',NULL,'HAROLD')	GREATEST(NULL,'HARRY','HARRIOT',NULL,'HAROLD')
 NULL	NULL
@@ -637,8 +640,14 @@ latin2_general_ci	4
 select collation(lpad(_latin2'a',4,_latin2'b')), coercibility(lpad(_latin2'a',4,_latin2'b'));
 collation(lpad(_latin2'a',4,_latin2'b'))	coercibility(lpad(_latin2'a',4,_latin2'b'))
 latin2_general_ci	4
+select collation(lpad(_latin2'a',4)), coercibility(lpad(_latin2'a',4));
+collation(lpad(_latin2'a',4))	coercibility(lpad(_latin2'a',4))
+latin2_general_ci	4
 select collation(rpad(_latin2'a',4,_latin2'b')), coercibility(rpad(_latin2'a',4,_latin2'b'));
 collation(rpad(_latin2'a',4,_latin2'b'))	coercibility(rpad(_latin2'a',4,_latin2'b'))
+latin2_general_ci	4
+select collation(rpad(_latin2'a',4)), coercibility(rpad(_latin2'a',4));
+collation(rpad(_latin2'a',4))	coercibility(rpad(_latin2'a',4))
 latin2_general_ci	4
 select collation(concat_ws(_latin2'a',_latin2'b')), coercibility(concat_ws(_latin2'a',_latin2'b'));
 collation(concat_ws(_latin2'a',_latin2'b'))	coercibility(concat_ws(_latin2'a',_latin2'b'))
@@ -707,6 +716,8 @@ substring(_latin2'a',1,1),
 concat(_latin2'a',_latin2'b'),
 lpad(_latin2'a',4,_latin2'b'),
 rpad(_latin2'a',4,_latin2'b'),
+lpad(_latin2'a',4),
+rpad(_latin2'a',4),
 concat_ws(_latin2'a',_latin2'b'),
 make_set(255,_latin2'a',_latin2'b',_latin2'c'),
 export_set(255,_latin2'y',_latin2'n',_latin2' '),
@@ -742,6 +753,8 @@ t1	CREATE TABLE `t1` (
   `concat(_latin2'a',_latin2'b')` varchar(2) CHARACTER SET latin2 DEFAULT NULL,
   `lpad(_latin2'a',4,_latin2'b')` varchar(4) CHARACTER SET latin2 DEFAULT NULL,
   `rpad(_latin2'a',4,_latin2'b')` varchar(4) CHARACTER SET latin2 DEFAULT NULL,
+  `lpad(_latin2'a',4)` varchar(4) CHARACTER SET latin2 DEFAULT NULL,
+  `rpad(_latin2'a',4)` varchar(4) CHARACTER SET latin2 DEFAULT NULL,
   `concat_ws(_latin2'a',_latin2'b')` varchar(1) CHARACTER SET latin2 DEFAULT NULL,
   `make_set(255,_latin2'a',_latin2'b',_latin2'c')` varchar(5) CHARACTER SET latin2 DEFAULT NULL,
   `export_set(255,_latin2'y',_latin2'n',_latin2' ')` varchar(127) CHARACTER SET latin2 DEFAULT NULL,
@@ -869,6 +882,16 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select lpad('a',4,'1') AS `lpad('a',4,'1')`
+explain extended select rpad('a',4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select rpad('a',4) AS `rpad('a',4)`
+explain extended select lpad('a',4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select lpad('a',4) AS `lpad('a',4)`
 explain extended select concat_ws(',','',NULL,'a');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -943,7 +966,7 @@ explain extended select length('\n\t\r\b\0\_\%\\');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select length('\n	\r\0\\_\\%\\') AS `length('\n\t\r\b\0\_\%\\')`
+Note	1003	select octet_length('\n	\r\0\\_\\%\\') AS `length('\n\t\r\b\0\_\%\\')`
 explain extended select bit_length('\n\t\r\b\0\_\%\\');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -963,7 +986,7 @@ explain extended select length('hello');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select length('hello') AS `length('hello')`
+Note	1003	select octet_length('hello') AS `length('hello')`
 explain extended select char(ascii('h'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -1402,7 +1425,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	const	PRIMARY	PRIMARY	12	const	1	100.00	Using index
 1	SIMPLE	t1	ref	code	code	13	const	3	100.00	Using where; Using index
 Warnings:
-Note	1003	select `test`.`t1`.`code` AS `code`,'a12' AS `id` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`code` = 'a12' and length(`test`.`t1`.`code`) = 5
+Note	1003	select `test`.`t1`.`code` AS `code`,'a12' AS `id` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`code` = 'a12' and octet_length(`test`.`t1`.`code`) = 5
 DROP TABLE t1,t2;
 select encode(NULL, NULL);
 encode(NULL, NULL)
@@ -2213,6 +2236,76 @@ Warnings:
 Warning	1916	Got overflow when converting '18446744073709551617' to INT. Value truncated
 Warning	1916	Got overflow when converting '18446744073709551617' to INT. Value truncated
 Warning	1301	Result of rpad() was larger than max_allowed_packet (1048576) - truncated
+select rpad('hello', -1);
+rpad('hello', -1)
+NULL
+select rpad('hello', -4294967295);
+rpad('hello', -4294967295)
+NULL
+select rpad('hello', 4294967295);
+rpad('hello', 4294967295)
+NULL
+Warnings:
+Warning	1301	Result of rpad() was larger than max_allowed_packet (1048576) - truncated
+select rpad('hello', -4294967296);
+rpad('hello', -4294967296)
+NULL
+select rpad('hello', 4294967296);
+rpad('hello', 4294967296)
+NULL
+Warnings:
+Warning	1301	Result of rpad() was larger than max_allowed_packet (1048576) - truncated
+select rpad('hello', -4294967297);
+rpad('hello', -4294967297)
+NULL
+select rpad('hello', 4294967297);
+rpad('hello', 4294967297)
+NULL
+Warnings:
+Warning	1301	Result of rpad() was larger than max_allowed_packet (1048576) - truncated
+select rpad('hello', -18446744073709551615);
+rpad('hello', -18446744073709551615)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '-18446744073709551615' to INT. Value truncated
+Warning	1916	Got overflow when converting '-18446744073709551615' to INT. Value truncated
+select rpad('hello', 18446744073709551615);
+rpad('hello', 18446744073709551615)
+NULL
+Warnings:
+Warning	1301	Result of rpad() was larger than max_allowed_packet (1048576) - truncated
+select rpad('hello', -18446744073709551616);
+rpad('hello', -18446744073709551616)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '-18446744073709551616' to INT. Value truncated
+Warning	1916	Got overflow when converting '-18446744073709551616' to INT. Value truncated
+select rpad('hello', 18446744073709551616);
+rpad('hello', 18446744073709551616)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated
+Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated
+Warning	1301	Result of rpad() was larger than max_allowed_packet (1048576) - truncated
+select rpad('hello', -18446744073709551617);
+rpad('hello', -18446744073709551617)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '-18446744073709551617' to INT. Value truncated
+Warning	1916	Got overflow when converting '-18446744073709551617' to INT. Value truncated
+select rpad('hello', 18446744073709551617);
+rpad('hello', 18446744073709551617)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '18446744073709551617' to INT. Value truncated
+Warning	1916	Got overflow when converting '18446744073709551617' to INT. Value truncated
+Warning	1301	Result of rpad() was larger than max_allowed_packet (1048576) - truncated
+select rpad('hello', 0, 'x');
+rpad('hello', 0, 'x')
+
+select rpad('hello', 0);
+rpad('hello', 0)
+
 select lpad('hello', -1, '1');
 lpad('hello', -1, '1')
 NULL
@@ -2277,6 +2370,85 @@ Warnings:
 Warning	1916	Got overflow when converting '18446744073709551617' to INT. Value truncated
 Warning	1916	Got overflow when converting '18446744073709551617' to INT. Value truncated
 Warning	1301	Result of lpad() was larger than max_allowed_packet (1048576) - truncated
+select lpad('hello', -1);
+lpad('hello', -1)
+NULL
+select lpad('hello', -4294967295);
+lpad('hello', -4294967295)
+NULL
+select lpad('hello', 4294967295);
+lpad('hello', 4294967295)
+NULL
+Warnings:
+Warning	1301	Result of lpad() was larger than max_allowed_packet (1048576) - truncated
+select lpad('hello', -4294967296);
+lpad('hello', -4294967296)
+NULL
+select lpad('hello', 4294967296);
+lpad('hello', 4294967296)
+NULL
+Warnings:
+Warning	1301	Result of lpad() was larger than max_allowed_packet (1048576) - truncated
+select lpad('hello', -4294967297);
+lpad('hello', -4294967297)
+NULL
+select lpad('hello', 4294967297);
+lpad('hello', 4294967297)
+NULL
+Warnings:
+Warning	1301	Result of lpad() was larger than max_allowed_packet (1048576) - truncated
+select lpad('hello', -18446744073709551615);
+lpad('hello', -18446744073709551615)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '-18446744073709551615' to INT. Value truncated
+Warning	1916	Got overflow when converting '-18446744073709551615' to INT. Value truncated
+select lpad('hello', 18446744073709551615);
+lpad('hello', 18446744073709551615)
+NULL
+Warnings:
+Warning	1301	Result of lpad() was larger than max_allowed_packet (1048576) - truncated
+select lpad('hello', -18446744073709551616);
+lpad('hello', -18446744073709551616)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '-18446744073709551616' to INT. Value truncated
+Warning	1916	Got overflow when converting '-18446744073709551616' to INT. Value truncated
+select lpad('hello', 18446744073709551616);
+lpad('hello', 18446744073709551616)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated
+Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated
+Warning	1301	Result of lpad() was larger than max_allowed_packet (1048576) - truncated
+select lpad('hello', -18446744073709551617);
+lpad('hello', -18446744073709551617)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '-18446744073709551617' to INT. Value truncated
+Warning	1916	Got overflow when converting '-18446744073709551617' to INT. Value truncated
+select lpad('hello', 18446744073709551617);
+lpad('hello', 18446744073709551617)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '18446744073709551617' to INT. Value truncated
+Warning	1916	Got overflow when converting '18446744073709551617' to INT. Value truncated
+Warning	1301	Result of lpad() was larger than max_allowed_packet (1048576) - truncated
+select lpad('hello', 0, 'x');
+lpad('hello', 0, 'x')
+
+select lpad('hello', 0);
+lpad('hello', 0)
+
+Check parameters count rpad / lpad
+select rpad('x');
+ERROR 42000: Incorrect parameter count in the call to native function 'rpad'
+select rpad('x',2,'.','z');
+ERROR 42000: Incorrect parameter count in the call to native function 'rpad'
+select lpad('x');
+ERROR 42000: Incorrect parameter count in the call to native function 'lpad'
+select lpad('x',2,'.','z');
+ERROR 42000: Incorrect parameter count in the call to native function 'lpad'
 SET @orig_sql_mode = @@SQL_MODE;
 SET SQL_MODE=traditional;
 SELECT CHAR(0xff,0x8f USING utf8);
@@ -2302,6 +2474,12 @@ abcxx
 select lpad('abc', cast(5 as unsigned integer), 'x');
 lpad('abc', cast(5 as unsigned integer), 'x')
 xxabc
+select rpad('abc', cast(5 as unsigned integer));
+rpad('abc', cast(5 as unsigned integer))
+abc  
+select lpad('abc', cast(5 as unsigned integer));
+lpad('abc', cast(5 as unsigned integer))
+  abc
 create table t1(f1 longtext);
 insert into t1 values ("123"),("456");
 select substring(f1,1,1) from t1 group by 1;
@@ -2662,6 +2840,12 @@ RPAD('hi', DAY(FROM_UNIXTIME(-1)),'?')
 NULL
 SELECT LPAD('hi', DAY(FROM_UNIXTIME(-1)),'?');
 LPAD('hi', DAY(FROM_UNIXTIME(-1)),'?')
+NULL
+SELECT RPAD('hi', DAY(FROM_UNIXTIME(-1)));
+RPAD('hi', DAY(FROM_UNIXTIME(-1)))
+NULL
+SELECT LPAD('hi', DAY(FROM_UNIXTIME(-1)));
+LPAD('hi', DAY(FROM_UNIXTIME(-1)))
 NULL
 create table t1 (i int);
 insert into t1 values (null),(8);
@@ -4659,5 +4843,38 @@ YQ==	61
 Yq==	62
 DROP TABLE t1;
 #
+# MDEV-12685 Oracle-compatible function CHR()
+#
+select chr(65);
+chr(65)
+A
+create database mysqltest1 CHARACTER SET = 'utf8' COLLATE = 'utf8_bin';
+use mysqltest1;
+select charset(chr(65)), length(chr(65)),char_length(chr(65));
+charset(chr(65))	length(chr(65))	char_length(chr(65))
+utf8	1	1
+select charset(chr(14844588)), length(chr(14844588)),char_length(chr(14844588));
+charset(chr(14844588))	length(chr(14844588))	char_length(chr(14844588))
+utf8	3	1
+drop database mysqltest1;
+use test;
+#
 # End of 10.1 tests
+#
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12592 Illegal mix of collations with the HEX function
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES (0x09),('a');
+SELECT IF(a<' ',HEX(a),a) FROM t1 ORDER BY a;
+IF(a<' ',HEX(a),a)
+09
+a
+DROP TABLE  t1;
+#
+# End of 10.3 tests
 #

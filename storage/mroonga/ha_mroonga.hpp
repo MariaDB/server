@@ -192,7 +192,7 @@ extern "C" {
 #  define MRN_HAVE_HTON_ALTER_TABLE_FLAGS
 #endif
 
-#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#if MYSQL_VERSION_ID >= 50706
 #  define MRN_FOREIGN_KEY_USE_CONST_STRING
 #endif
 
@@ -384,7 +384,7 @@ public:
 
   int delete_table(const char *name);
   int write_row(uchar *buf);
-  int update_row(const uchar *old_data, uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data);
   int delete_row(const uchar *buf);
 
   uint max_supported_record_length()   const;
@@ -559,7 +559,7 @@ protected:
   void rebind_psi();
 #endif
   my_bool register_query_cache_table(THD *thd,
-                                     char *table_key,
+                                     const char *table_key,
                                      uint key_length,
                                      qc_engine_callback *engine_callback,
                                      ulonglong *engine_data);
@@ -692,7 +692,7 @@ private:
                                   int nth_column, grn_id record_id);
   void storage_store_fields(uchar *buf, grn_id record_id);
   void storage_store_fields_for_prep_update(const uchar *old_data,
-                                            uchar *new_data,
+                                            const uchar *new_data,
                                             grn_id record_id);
   void storage_store_fields_by_index(uchar *buf);
 
@@ -827,18 +827,21 @@ private:
                                               KEY *key_info,
                                               grn_obj *index_column);
   int storage_write_row_multiple_column_indexes(uchar *buf, grn_id record_id);
-  int storage_write_row_unique_index(uchar *buf,
+  int storage_write_row_unique_index(const uchar *buf,
                                      KEY *key_info,
                                      grn_obj *index_table,
                                      grn_obj *index_column,
                                      grn_id *key_id);
   int storage_write_row_unique_indexes(uchar *buf);
-  int wrapper_get_record_id(uchar *data, grn_id *record_id, const char *context);
-  int wrapper_update_row(const uchar *old_data, uchar *new_data);
-  int wrapper_update_row_index(const uchar *old_data, uchar *new_data);
-  int storage_update_row(const uchar *old_data, uchar *new_data);
-  int storage_update_row_index(const uchar *old_data, uchar *new_data);
-  int storage_update_row_unique_indexes(uchar *new_data);
+  int wrapper_get_record_id(uchar *data, grn_id *record_id,
+                            const char *context);
+  int wrapper_update_row(const uchar *old_data, const uchar *new_data);
+  int wrapper_update_row_index(const uchar *old_data,
+                               const uchar *new_data);
+  int storage_update_row(const uchar *old_data, const uchar *new_data);
+  int storage_update_row_index(const uchar *old_data,
+                               const uchar *new_data);
+  int storage_update_row_unique_indexes(const uchar *new_data);
   int wrapper_delete_row(const uchar *buf);
   int wrapper_delete_row_index(const uchar *buf);
   int storage_delete_row(const uchar *buf);
@@ -1216,13 +1219,13 @@ private:
   void storage_rebind_psi();
 #endif
   my_bool wrapper_register_query_cache_table(THD *thd,
-                                             char *table_key,
+                                             const char *table_key,
                                              uint key_length,
                                              qc_engine_callback
                                              *engine_callback,
                                              ulonglong *engine_data);
   my_bool storage_register_query_cache_table(THD *thd,
-                                             char *table_key,
+                                             const char *table_key,
                                              uint key_length,
                                              qc_engine_callback
                                              *engine_callback,

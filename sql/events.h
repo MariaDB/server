@@ -36,7 +36,7 @@ extern PSI_stage_info stage_waiting_on_empty_queue;
 extern PSI_stage_info stage_waiting_for_next_activation;
 extern PSI_stage_info stage_waiting_for_scheduler_to_stop;
 
-#include "sql_string.h"                         /* LEX_STRING */
+#include "sql_string.h"                         /* LEX_CSTRING */
 #include "my_time.h"                            /* interval_type */
 
 class Event_db_repository;
@@ -48,7 +48,8 @@ class THD;
 typedef class Item COND;
 
 int
-sortcmp_lex_string(LEX_STRING s, LEX_STRING t, CHARSET_INFO *cs);
+sortcmp_lex_string(const LEX_CSTRING *s, const LEX_CSTRING *t,
+                   const CHARSET_INFO *cs);
 
 /**
   @brief A facade to the functionality of the Event Scheduler.
@@ -109,16 +110,18 @@ public:
 
   static bool
   update_event(THD *thd, Event_parse_data *parse_data,
-               LEX_STRING *new_dbname, LEX_STRING *new_name);
+               LEX_CSTRING *new_dbname, LEX_CSTRING *new_name);
 
   static bool
-  drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name, bool if_exists);
+  drop_event(THD *thd, const LEX_CSTRING *dbname, const LEX_CSTRING *name,
+             bool if_exists);
 
   static void
-  drop_schema_events(THD *thd, char *db);
+  drop_schema_events(THD *thd, const char *db);
 
   static bool
-  show_create_event(THD *thd, LEX_STRING dbname, LEX_STRING name);
+  show_create_event(THD *thd, const LEX_CSTRING *dbname,
+                    const LEX_CSTRING *name);
 
   /* Needed for both SHOW CREATE EVENT and INFORMATION_SCHEMA */
   static int

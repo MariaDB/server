@@ -865,7 +865,6 @@ get_binlog_list(MEM_ROOT *memroot)
         !(e->name= strmake_root(memroot, fname, length)))
     {
       mysql_bin_log.unlock_index();
-      my_error(ER_OUTOFMEMORY, MYF(0), length + 1 + sizeof(*e));
       DBUG_RETURN(NULL);
     }
     e->next= current_list;
@@ -3045,7 +3044,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   {
     /* connection was deleted while we waited for lock_slave_threads */
     mi->unlock_slave_threads();
-    my_error(WARN_NO_MASTER_INFO, mi->connection_name.length,
+    my_error(WARN_NO_MASTER_INFO, MYF(0), (int) mi->connection_name.length,
              mi->connection_name.str);
     DBUG_RETURN(-1);
   }
@@ -3303,7 +3302,7 @@ int reset_slave(THD *thd, Master_info* mi)
   {
     /* connection was deleted while we waited for lock_slave_threads */
     mi->unlock_slave_threads();
-    my_error(WARN_NO_MASTER_INFO, mi->connection_name.length,
+    my_error(WARN_NO_MASTER_INFO, MYF(0), (int) mi->connection_name.length,
              mi->connection_name.str);
     DBUG_RETURN(-1);
   }
@@ -3445,7 +3444,7 @@ static bool get_string_parameter(char *to, const char *from, size_t length,
     uint from_numchars= cs->cset->numchars(cs, from, from + from_length);
     if (from_numchars > length / cs->mbmaxlen)
     {
-      my_error(ER_WRONG_STRING_LENGTH, MYF(0), from, name, length / cs->mbmaxlen);
+      my_error(ER_WRONG_STRING_LENGTH, MYF(0), from, name, (int) (length / cs->mbmaxlen));
       return 1;
     }
     memcpy(to, from, from_length+1);
@@ -3514,7 +3513,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   {
     /* connection was deleted while we waited for lock_slave_threads */
     mi->unlock_slave_threads();
-    my_error(WARN_NO_MASTER_INFO, mi->connection_name.length,
+    my_error(WARN_NO_MASTER_INFO, MYF(0), (int) mi->connection_name.length,
              mi->connection_name.str);
     DBUG_RETURN(TRUE);
   }

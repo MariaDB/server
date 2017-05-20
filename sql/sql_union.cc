@@ -302,7 +302,8 @@ int select_union_recursive::send_data(List<Item> &values)
 {
   int rc= select_unit::send_data(values);
 
-  if (write_err != HA_ERR_FOUND_DUPP_KEY)
+  if (write_err != HA_ERR_FOUND_DUPP_KEY && 
+      write_err != HA_ERR_FOUND_DUPP_UNIQUE)
   { 
     int err;
     if ((err= incr_table->file->ha_write_tmp_row(table->record[0])))
@@ -636,6 +637,232 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
 }
 
 
+bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
+                                      select_result *tmp_result,
+                                      ulong additional_options,
+                                      bool is_union_select)
+{
+  DBUG_ENTER("st_select_lex_unit::prepare_join");
+  bool can_skip_order_by;
+  sl->options|=  SELECT_NO_UNLOCK;
+  JOIN *join= new JOIN(thd_arg, sl->item_list,
+                       (sl->options | thd_arg->variables.option_bits |
+                        additional_options),
+                       tmp_result);
+  if (!join)
+    DBUG_RETURN(true);
+
+  thd_arg->lex->current_select= sl;
+
+  can_skip_order_by= is_union_select && !(sl->braces && sl->explicit_limit);
+
+  saved_error= join->prepare(sl->table_list.first,
+                             sl->with_wild,
+                             sl->where,
+                             (can_skip_order_by ? 0 :
+                              sl->order_list.elements) +
+                             sl->group_list.elements,
+                             can_skip_order_by ?
+                             NULL : sl->order_list.first,
+                             can_skip_order_by,
+                             sl->group_list.first,
+                             sl->having,
+                             (is_union_select ? NULL :
+                              thd_arg->lex->proc_list.first),
+                             sl, this);
+
+  /* There are no * in the statement anymore (for PS) */
+  sl->with_wild= 0;
+  last_procedure= join->procedure;
+
+  if (saved_error || (saved_error= thd_arg->is_fatal_error))
+    DBUG_RETURN(true);
+  /*
+    Remove all references from the select_lex_units to the subqueries that
+    are inside the ORDER BY clause.
+  */
+  if (can_skip_order_by)
+  {
+    for (ORDER *ord= (ORDER *)sl->order_list.first; ord; ord= ord->next)
+    {
+      (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
+class Type_holder: public Sql_alloc,
+                   public Item_args,
+                   public Type_handler_hybrid_field_type,
+                   public Type_all_attributes,
+                   public Type_geometry_attributes
+{
+  TYPELIB *m_typelib;
+  bool m_maybe_null;
+public:
+  Type_holder()
+   :m_typelib(NULL),
+    m_maybe_null(false)
+  { }
+
+  void set_maybe_null(bool maybe_null_arg) { m_maybe_null= maybe_null_arg; }
+  bool get_maybe_null() const { return m_maybe_null; }
+
+  uint decimal_precision() const
+  {
+    /*
+      Type_holder is not used directly to create fields, so
+      its virtual decimal_precision() is never called.
+      We should eventually extend create_result_table() to accept
+      an array of Type_holders directly, without having to allocate
+      Item_type_holder's and put them into List<Item>.
+    */
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  void set_geometry_type(uint type)
+  {
+    Type_geometry_attributes::set_geometry_type(type);
+  }
+  uint uint_geometry_type() const
+  {
+    return Type_geometry_attributes::get_geometry_type();
+  }
+  void set_typelib(TYPELIB *typelib)
+  {
+    m_typelib= typelib;
+  }
+  TYPELIB *get_typelib() const
+  {
+    return m_typelib;
+  }
+
+  bool aggregate_attributes(THD *thd)
+  {
+    for (uint i= 0; i < arg_count; i++)
+      m_maybe_null|= args[i]->maybe_null;
+    return
+       type_handler()->Item_hybrid_func_fix_attributes(thd,
+                                                       "UNION", this, this,
+                                                       args, arg_count);
+  }
+};
+
+
+/**
+  Aggregate data type handlers for the "count" leftmost UNION parts.
+*/
+bool st_select_lex_unit::join_union_type_handlers(THD *thd_arg,
+                                                  Type_holder *holders,
+                                                  uint count)
+{
+  DBUG_ENTER("st_select_lex_unit::join_union_type_handlers");
+  SELECT_LEX *first_sl= first_select(), *sl= first_sl;
+  for (uint i= 0; i < count ; sl= sl->next_select(), i++)
+  {
+    Item *item;
+    List_iterator_fast<Item> it(sl->item_list);
+    for (uint pos= 0; (item= it++); pos++)
+    {
+      const Type_handler *item_type_handler= item->real_type_handler();
+      if (sl == first_sl)
+        holders[pos].set_handler(item_type_handler);
+      else
+      {
+        if (first_sl->item_list.elements != sl->item_list.elements)
+        {
+          my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
+                     ER_THD(thd_arg, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT),
+                     MYF(0));
+          DBUG_RETURN(true);
+        }
+        if (holders[pos].aggregate_for_result(item_type_handler))
+        {
+          my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+                   holders[pos].type_handler()->name().ptr(),
+                   item_type_handler->name().ptr(),
+                   "UNION");
+          DBUG_RETURN(true);
+        }
+      }
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
+/**
+  Aggregate data type attributes for the "count" leftmost UNION parts.
+*/
+bool st_select_lex_unit::join_union_type_attributes(THD *thd_arg,
+                                                    Type_holder *holders,
+                                                    uint count)
+{
+  DBUG_ENTER("st_select_lex_unit::join_union_type_attributes");
+  SELECT_LEX *sl, *first_sl= first_select();
+  uint item_pos;
+  for (uint pos= 0; pos < first_sl->item_list.elements; pos++)
+  {
+    if (holders[pos].alloc_arguments(thd_arg, count))
+      DBUG_RETURN(true);
+  }
+  for (item_pos= 0, sl= first_sl ;
+       item_pos < count;
+       sl= sl->next_select(), item_pos++)
+  {
+    Item *item_tmp;
+    List_iterator_fast<Item> itx(sl->item_list);
+    for (uint holder_pos= 0 ; (item_tmp= itx++); holder_pos++)
+    {
+      DBUG_ASSERT(item_tmp->fixed);
+      holders[holder_pos].add_argument(item_tmp);
+    }
+  }
+  for (uint pos= 0; pos < first_sl->item_list.elements; pos++)
+  {
+    if (holders[pos].aggregate_attributes(thd_arg))
+      DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
+}
+
+
+/**
+  Join data types for the leftmost "count" UNION parts
+  and store corresponding Item_type_holder's into "types".
+*/
+bool st_select_lex_unit::join_union_item_types(THD *thd_arg,
+                                               List<Item> &types,
+                                               uint count)
+{
+  DBUG_ENTER("st_select_lex_unit::join_union_select_list_types");
+  SELECT_LEX *first_sl= first_select();
+  Type_holder *holders;
+
+  if (!(holders= new (thd_arg->mem_root)
+                 Type_holder[first_sl->item_list.elements]) ||
+     join_union_type_handlers(thd_arg, holders, count) ||
+     join_union_type_attributes(thd_arg, holders, count))
+    DBUG_RETURN(true);
+
+  types.empty();
+  List_iterator_fast<Item> it(first_sl->item_list);
+  Item *item_tmp;
+  for (uint pos= 0; (item_tmp= it++); pos++)
+  {
+    /* Error's in 'new' will be detected after loop */
+    types.push_back(new (thd_arg->mem_root)
+                    Item_type_holder(thd_arg,
+                                     &item_tmp->name,
+                                     holders[pos].type_handler(),
+                                     &holders[pos]/*Type_all_attributes*/,
+                                     holders[pos].get_maybe_null()));
+  }
+  if (thd_arg->is_fatal_error)
+    DBUG_RETURN(true); // out of memory
+  DBUG_RETURN(false);
+}
 
 
 bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
@@ -645,6 +872,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   SELECT_LEX *sl, *first_sl= first_select();
   bool is_recursive= with_element && with_element->is_recursive;
   bool is_rec_result_table_created= false;
+  uint union_part_count= 0;
   select_result *tmp_result;
   bool is_union_select;
   bool have_except= FALSE, have_intersect= FALSE;
@@ -747,15 +975,22 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
     tmp_result= sel_result;
 
   sl->context.resolve_in_select_list= TRUE;
+
+  if (!is_union_select && !is_recursive)
+  {
+    if (prepare_join(thd_arg, first_sl, tmp_result, additional_options,
+                     is_union_select))
+      goto err;
+    types= first_sl->item_list;
+    goto cont;
+  }
  
-  for (;sl; sl= sl->next_select())
-  {  
-    bool can_skip_order_by;
-    sl->options|=  SELECT_NO_UNLOCK;
-    JOIN *join= new JOIN(thd_arg, sl->item_list,
-			 (sl->options | thd_arg->variables.option_bits |
-                          additional_options),
-			 tmp_result);
+  for (;sl; sl= sl->next_select(), union_part_count++)
+  {
+    if (prepare_join(thd_arg, sl, tmp_result, additional_options,
+                     is_union_select))
+      goto err;
+
     /*
       setup_tables_done_option should be set only for very first SELECT,
       because it protect from secont setup_tables call for select-like non
@@ -763,92 +998,19 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       SELECT (for union it can be only INSERT ... SELECT).
     */
     additional_options&= ~OPTION_SETUP_TABLES_DONE;
-    if (!join)
-      goto err;
-
-    thd_arg->lex->current_select= sl;
-
-    can_skip_order_by= is_union_select && !(sl->braces && sl->explicit_limit);
-
-    saved_error= join->prepare(sl->table_list.first,
-                               sl->with_wild,
-                               sl->where,
-                               (can_skip_order_by ? 0 :
-                                sl->order_list.elements) +
-                               sl->group_list.elements,
-                               can_skip_order_by ?
-                               NULL : sl->order_list.first,
-                               can_skip_order_by,
-                               sl->group_list.first,
-                               sl->having,
-                               (is_union_select ? NULL :
-                                thd_arg->lex->proc_list.first),
-                               sl, this);
-
-    /* There are no * in the statement anymore (for PS) */
-    sl->with_wild= 0;
-    last_procedure= join->procedure;
-
-    if (saved_error || (saved_error= thd_arg->is_fatal_error))
-      goto err;
-    /*
-      Remove all references from the select_lex_units to the subqueries that
-      are inside the ORDER BY clause.
-    */
-    if (can_skip_order_by)
-    {
-      for (ORDER *ord= (ORDER *)sl->order_list.first; ord; ord= ord->next)
-      {
-        (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
-      }
-    }
 
     /*
       Use items list of underlaid select for derived tables to preserve
       information about fields lengths and exact types
     */
-    if (!is_union_select && !is_recursive)
-      types= first_sl->item_list;
-    else if (sl == first_sl)
+    if (sl == first_sl)
     {
       if (is_recursive)
       {
         if (derived->with->rename_columns_of_derived_unit(thd, this))
-	  goto err; 
+          goto err;
         if (check_duplicate_names(thd, sl->item_list, 0))
           goto err;
-      }
-      types.empty();
-      List_iterator_fast<Item> it(sl->item_list);
-      Item *item_tmp;
-      while ((item_tmp= it++))
-      {
-	/* Error's in 'new' will be detected after loop */
-	types.push_back(new (thd_arg->mem_root)
-                        Item_type_holder(thd_arg, item_tmp));
-      }
-
-      if (thd_arg->is_fatal_error)
-	goto err; // out of memory
-    }
-    else
-    {
-      if (types.elements != sl->item_list.elements)
-      {
-	my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
-		   ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT),MYF(0));
-	goto err;
-      }
-      if (!is_rec_result_table_created)
-      {
-        List_iterator_fast<Item> it(sl->item_list);
-        List_iterator_fast<Item> tp(types);	
-        Item *type, *item_tmp;
-        while ((type= tp++, item_tmp= it++))
-        {
-          if (((Item_type_holder*)type)->join_types(thd_arg, item_tmp))
-	    DBUG_RETURN(TRUE);
-        }
       }
     }
     if (is_recursive)
@@ -862,6 +1024,9 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
         ulonglong create_options;
         create_options= (first_sl->options | thd_arg->variables.option_bits |
                          TMP_TABLE_ALL_COLUMNS);
+        // Join data types for all non-recursive parts of a recursive UNION
+        if (join_union_item_types(thd, types, union_part_count + 1))
+          goto err;
         if (union_result->create_result_table(thd, &types,
                                               MY_TEST(union_distinct),
                                               create_options, derived->alias,
@@ -877,7 +1042,11 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       }
     }      
   }
+  // In case of a non-recursive UNION, join data types for all UNION parts.
+  if (!is_recursive && join_union_item_types(thd, types, union_part_count))
+    goto err;
 
+cont:
   /*
     If the query is using select_union_direct, we have postponed
     preparation of the underlying select_result until column types
@@ -976,7 +1145,8 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
         else
           intersect_mark->value= 0; //reset
         types.push_front(union_result->intersect_mark= intersect_mark);
-        union_result->intersect_mark->name= (char *)"___";
+        union_result->intersect_mark->name.str= "___";
+        union_result->intersect_mark->name.length= 3;
       }
       bool error=
         union_result->create_result_table(thd, &types,
@@ -1183,7 +1353,8 @@ bool st_select_lex_unit::exec()
   if (executed && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
   executed= 1;
-  if (!(uncacheable & ~UNCACHEABLE_EXPLAIN) && item)
+  if (!(uncacheable & ~UNCACHEABLE_EXPLAIN) && item &&
+      !item->with_recursive_reference)
     item->make_const();
   
   saved_error= optimize();
@@ -1515,9 +1686,15 @@ bool st_select_lex_unit::exec_recursive()
                                                  !is_unrestricted);
     if (!with_element->rec_result->first_rec_table_to_update)
       with_element->rec_result->first_rec_table_to_update= rec_table;
-    if (with_element->level == 1)
+    if (with_element->level == 1 && rec_table->reginfo.join_tab)
       rec_table->reginfo.join_tab->preread_init_done= true;  
   }
+  for (Item_subselect *sq= with_element->sq_with_rec_ref.first;
+       sq;
+       sq= sq->next_with_rec_ref)
+  {
+    sq->engine->force_reexecution();
+  }   
 
   thd->lex->current_select= lex_select_save;
 err:

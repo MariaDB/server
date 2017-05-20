@@ -4977,7 +4977,7 @@ int ha_rocksdb::create_cfs(
               ER_UNKNOWN_ERROR, "Unsupported collation on string indexed "
                                 "column %s.%s Use binary collation (%s).",
               MYF(0), tbl_def_arg->full_tablename().c_str(),
-              table_arg->key_info[i].key_part[part].field->field_name,
+              table_arg->key_info[i].key_part[part].field->field_name.str,
               collation_err.c_str());
           DBUG_RETURN(HA_EXIT_FAILURE);
         }
@@ -5181,8 +5181,8 @@ int ha_rocksdb::compare_key_parts(const KEY *const old_key,
 
   /* Check to see that key parts themselves match */
   for (uint i = 0; i < old_key->user_defined_key_parts; i++) {
-    if (strcmp(old_key->key_part[i].field->field_name,
-               new_key->key_part[i].field->field_name) != 0) {
+    if (strcmp(old_key->key_part[i].field->field_name.str,
+               new_key->key_part[i].field->field_name.str) != 0) {
       DBUG_RETURN(HA_EXIT_FAILURE);
     }
   }
@@ -8303,7 +8303,8 @@ void ha_rocksdb::calc_updated_indexes() {
   }
 }
 
-int ha_rocksdb::update_row(const uchar *const old_data, uchar *const new_data) {
+int ha_rocksdb::update_row(const uchar *const old_data,
+                           const uchar *const new_data) {
   DBUG_ENTER_FUNC();
 
   DBUG_ASSERT(old_data != nullptr);

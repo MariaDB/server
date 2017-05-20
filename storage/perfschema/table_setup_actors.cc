@@ -217,7 +217,7 @@ int table_setup_actors::read_row_values(TABLE *table,
 
 int table_setup_actors::update_row_values(TABLE *table,
                                           const unsigned char *old_buf,
-                                          unsigned char *new_buf,
+                                          const unsigned char *new_buf,
                                           Field **fields)
 {
   Field *f;

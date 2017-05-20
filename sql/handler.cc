@@ -76,12 +76,12 @@ ulong total_ha_2pc= 0;
 /* size of savepoint storage area (see ha_init) */
 ulong savepoint_alloc_size= 0;
 
-static const LEX_STRING sys_table_aliases[]=
+static const LEX_CSTRING sys_table_aliases[]=
 {
-  { C_STRING_WITH_LEN("INNOBASE") },  { C_STRING_WITH_LEN("INNODB") },
-  { C_STRING_WITH_LEN("HEAP") },      { C_STRING_WITH_LEN("MEMORY") },
-  { C_STRING_WITH_LEN("MERGE") },     { C_STRING_WITH_LEN("MRG_MYISAM") },
-  { C_STRING_WITH_LEN("Maria") },      { C_STRING_WITH_LEN("Aria") },
+  { STRING_WITH_LEN("INNOBASE") },  { STRING_WITH_LEN("INNODB") },
+  { STRING_WITH_LEN("HEAP") },      { STRING_WITH_LEN("MEMORY") },
+  { STRING_WITH_LEN("MERGE") },     { STRING_WITH_LEN("MRG_MYISAM") },
+  { STRING_WITH_LEN("Maria") },     { STRING_WITH_LEN("Aria") },
   {NullS, 0}
 };
 
@@ -160,9 +160,10 @@ handlerton *ha_default_tmp_handlerton(THD *thd)
   RETURN
     pointer to storage engine plugin handle
 */
-plugin_ref ha_resolve_by_name(THD *thd, const LEX_STRING *name, bool tmp_table)
+plugin_ref ha_resolve_by_name(THD *thd, const LEX_CSTRING *name,
+                              bool tmp_table)
 {
-  const LEX_STRING *table_alias;
+  const LEX_CSTRING *table_alias;
   plugin_ref plugin;
 
 redo:
@@ -405,7 +406,7 @@ static int full_discover_for_existence(handlerton *, const char *, const char *)
 static int ext_based_existence(handlerton *, const char *, const char *)
 { return 0; }
 
-static int hton_ext_based_table_discovery(handlerton *hton, LEX_STRING *db,
+static int hton_ext_based_table_discovery(handlerton *hton, LEX_CSTRING *db,
                              MY_DIR *dir, handlerton::discovered_list *result)
 {
   /*
@@ -2429,7 +2430,7 @@ err:
   return NULL;
 }
 
-LEX_STRING *handler::engine_name()
+LEX_CSTRING *handler::engine_name()
 {
   return hton_name(ht);
 }
@@ -3601,7 +3602,7 @@ void handler::print_error(int error, myf errflag)
     break;
   case HA_ERR_AUTOINC_ERANGE:
     textno= error;
-    my_error(textno, errflag, table->next_number_field->field_name,
+    my_error(textno, errflag, table->next_number_field->field_name.str,
              table->in_use->get_stmt_da()->current_row_for_warning());
     DBUG_VOID_RETURN;
     break;
@@ -4042,7 +4043,7 @@ int handler::ha_repair(THD* thd, HA_CHECK_OPT* check_opt)
 */
 
 int
-handler::ha_bulk_update_row(const uchar *old_data, uchar *new_data,
+handler::ha_bulk_update_row(const uchar *old_data, const uchar *new_data,
                             uint *dup_key_found)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
@@ -5080,11 +5081,12 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
     if (hton)
     {
       char engine_buf[NAME_CHAR_LEN + 1];
-      LEX_STRING engine= { engine_buf, 0 };
+      LEX_CSTRING engine= { engine_buf, 0 };
 
       if (dd_frm_type(thd, path, &engine, is_sequence) != TABLE_TYPE_VIEW)
       {
-        plugin_ref p=  plugin_lock_by_name(thd, &engine,  MYSQL_STORAGE_ENGINE_PLUGIN);
+        plugin_ref p=  plugin_lock_by_name(thd, &engine,
+                                           MYSQL_STORAGE_ENGINE_PLUGIN);
         *hton= p ? plugin_hton(p) : NULL;
         if (*hton)
           // verify that the table really exists
@@ -5146,7 +5148,7 @@ static int cmp_file_names(const void *a, const void *b)
   return my_strnncoll(cs, (uchar*)aa, strlen(aa), (uchar*)bb, strlen(bb));
 }
 
-static int cmp_table_names(LEX_STRING * const *a, LEX_STRING * const *b)
+static int cmp_table_names(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
 {
   return my_strnncoll(&my_charset_bin, (uchar*)((*a)->str), (*a)->length,
                                        (uchar*)((*b)->str), (*b)->length);
@@ -5155,8 +5157,8 @@ static int cmp_table_names(LEX_STRING * const *a, LEX_STRING * const *b)
 }
 
 Discovered_table_list::Discovered_table_list(THD *thd_arg,
-                 Dynamic_array<LEX_STRING*> *tables_arg,
-                 const LEX_STRING *wild_arg) :
+                 Dynamic_array<LEX_CSTRING*> *tables_arg,
+                 const LEX_CSTRING *wild_arg) :
   thd(thd_arg), with_temps(false), tables(tables_arg)
 {
   if (wild_arg->str && wild_arg->str[0])
@@ -5180,7 +5182,7 @@ bool Discovered_table_list::add_table(const char *tname, size_t tlen)
                          wild_prefix, wild_one, wild_many))
       return 0;
 
-  LEX_STRING *name= thd->make_lex_string(tname, tlen);
+  LEX_CSTRING *name= thd->make_clex_string(tname, tlen);
   if (!name || tables->append(name))
     return 1;
   return 0;
@@ -5206,11 +5208,11 @@ void Discovered_table_list::sort()
 
 void Discovered_table_list::remove_duplicates()
 {
-  LEX_STRING **src= tables->front();
-  LEX_STRING **dst= src;
+  LEX_CSTRING **src= tables->front();
+  LEX_CSTRING **dst= src;
   while (++dst <= tables->back())
   {
-    LEX_STRING *s= *src, *d= *dst;
+    LEX_CSTRING *s= *src, *d= *dst;
     DBUG_ASSERT(strncmp(s->str, d->str, MY_MIN(s->length, d->length)) <= 0);
     if ((s->length != d->length || strncmp(s->str, d->str, d->length)))
     {
@@ -5224,7 +5226,7 @@ void Discovered_table_list::remove_duplicates()
 
 struct st_discover_names_args
 {
-  LEX_STRING *db;
+  LEX_CSTRING *db;
   MY_DIR *dirp;
   Discovered_table_list *result;
   uint possible_duplicates;
@@ -5269,7 +5271,7 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
   for DROP DATABASE (as it needs to know and delete non-table files).
 */
 
-int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
+int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable)
 {
   int error;
@@ -5619,7 +5621,7 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
   {
     if (db_type->state != SHOW_OPTION_YES)
     {
-      const LEX_STRING *name= hton_name(db_type);
+      const LEX_CSTRING *name= hton_name(db_type);
       result= stat_print(thd, name->str, name->length,
                          "", 0, "DISABLED", 8) ? 1 : 0;
     }
@@ -5998,7 +6000,7 @@ int handler::ha_write_row(uchar *buf)
 }
 
 
-int handler::ha_update_row(const uchar *old_data, uchar *new_data)
+int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 {
   int error;
   Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
@@ -6497,7 +6499,7 @@ int del_global_index_stats_for_table(THD *thd, uchar* cache_key, uint cache_key_
 
 /* Remove a table from global table statistics */
 
-int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table)
+int del_global_table_stat(THD *thd, LEX_CSTRING *db, LEX_CSTRING *table)
 {
   TABLE_STATS *table_stats;
   int res = 0;

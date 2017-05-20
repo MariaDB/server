@@ -92,9 +92,22 @@ extern struct my_snprintf_service_st {
 
 #else
 
-size_t my_snprintf(char* to, size_t n, const char* fmt, ...);
+#ifndef ATTRIBUTE_FORMAT
+#define ATTRIBUTE_FORMAT_DEFINED
+#define ATTRIBUTE_FORMAT(A,B,C)
+#endif
+#if defined(MYSQL_ABI_CHECK) || defined(USING_MARIADB_SNPRINTF_EXTENSIONS)
+#undef ATTRIBUTE_FORMAT
+#define ATTRIBUTE_FORMAT(A,B,C)
+#endif
+size_t my_snprintf(char* to, size_t n, const char* fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 3, 4);
 size_t my_vsnprintf(char *to, size_t n, const char* fmt, va_list ap);
 
+#ifdef ATTRIBUTE_FORMAT_DEFINED
+#undef ATTRIBUTE_FORMAT_DEFINED
+#undef ATTRIBUTE_FORMAT
+#endif
 #endif
 
 #ifdef __cplusplus

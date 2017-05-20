@@ -259,7 +259,7 @@ ERROR 01000: Expression for field `b` is refering to uninitialized field `b`
 create table t1 (a int, b int generated always as(-c) virtual, c int generated always as (b + 1) virtual);
 ERROR 01000: Expression for field `b` is refering to uninitialized field `c`
 create table t1 (pk int auto_increment primary key, col_int_nokey int generated always as (pk + col_int_key) stored, col_int_key int);
-ERROR 01000: Expression for field `col_int_nokey` is refering to uninitialized field `pk`
+ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the GENERATED ALWAYS AS clause of `pk`
 # Bug#20339347: FAIL TO USE CREATE ....SELECT STATEMENT TO CREATE A NEW TABLE
 create table t1 (a int, b int generated always as(-a) virtual, c int generated always as (b + 1) stored);
 insert into t1(a) values(1),(2);

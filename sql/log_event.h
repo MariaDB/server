@@ -2013,8 +2013,8 @@ protected:
 */
 class Query_log_event: public Log_event
 {
-  LEX_STRING user;
-  LEX_STRING host;
+  LEX_CSTRING user;
+  LEX_CSTRING host;
 protected:
   Log_event::Byte* data_buf;
 public:
@@ -3041,9 +3041,9 @@ public:
     UNDEF_F= 0,
     UNSIGNED_F= 1
   };
-  char *name;
+  const char *name;
   uint name_len;
-  char *val;
+  const char *val;
   ulong val_len;
   Item_result type;
   uint charset_number;
@@ -3052,8 +3052,8 @@ public:
 #ifdef MYSQL_SERVER
   bool deferred;
   query_id_t query_id;
-  User_var_log_event(THD* thd_arg, char *name_arg, uint name_len_arg,
-                     char *val_arg, ulong val_len_arg, Item_result type_arg,
+  User_var_log_event(THD* thd_arg, const char *name_arg, uint name_len_arg,
+                     const char *val_arg, ulong val_len_arg, Item_result type_arg,
 		     uint charset_number_arg, uchar flags_arg,
                      bool using_trans, bool direct)
     :Log_event(thd_arg, 0, using_trans),
@@ -3459,7 +3459,7 @@ public:
 
   The three elements in the body repeat COUNT times to form the GTID list.
 
-  At the time of writing, only one flag bit is in use.
+  At the time of writing, only two flag bit are in use.
 
   Bit 28 of `count' is used for flag FLAG_UNTIL_REACHED, which is sent in a
   Gtid_list event from the master to the slave to indicate that the START
@@ -3477,9 +3477,12 @@ public:
   uint64 *sub_id_list;
 
   static const uint element_size= 4+4+8;
-  static const uint32 FLAG_UNTIL_REACHED= (1<<28);
-  static const uint32 FLAG_IGN_GTIDS= (1<<29);
-
+  /* Upper bits stored in 'count'. See comment above */
+  enum gtid_flags
+  {
+    FLAG_UNTIL_REACHED= (1<<28),
+    FLAG_IGN_GTIDS= (1<<29),
+  };
 #ifdef MYSQL_SERVER
   Gtid_list_log_event(rpl_binlog_state *gtid_set, uint32 gl_flags);
   Gtid_list_log_event(slave_connection_state *gtid_set, uint32 gl_flags);

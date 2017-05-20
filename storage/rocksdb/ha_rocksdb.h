@@ -887,7 +887,7 @@ public:
 
   int write_row(uchar *const buf) override
       MY_ATTRIBUTE((__warn_unused_result__));
-  int update_row(const uchar *const old_data, uchar *const new_data) override
+  int update_row(const uchar *const old_data, const uchar *const new_data) override
       MY_ATTRIBUTE((__warn_unused_result__));
   int delete_row(const uchar *const buf) override
       MY_ATTRIBUTE((__warn_unused_result__));
@@ -1139,7 +1139,7 @@ public:
                              enum thr_lock_type lock_type) override
       MY_ATTRIBUTE((__warn_unused_result__));
 
-  my_bool register_query_cache_table(THD *const thd, char *const table_key,
+  my_bool register_query_cache_table(THD *const thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback *const engine_callback,
                                      ulonglong *const engine_data) override {

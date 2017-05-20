@@ -285,13 +285,13 @@ class Item_sum_hybrid_simple : public Item_sum,
  public:
   Item_sum_hybrid_simple(THD *thd, Item *arg):
    Item_sum(thd, arg),
-   Type_handler_hybrid_field_type(MYSQL_TYPE_LONGLONG),
+   Type_handler_hybrid_field_type(&type_handler_longlong),
    value(NULL)
   { collation.set(&my_charset_bin); }
 
   Item_sum_hybrid_simple(THD *thd, Item *arg1, Item *arg2):
    Item_sum(thd, arg1, arg2),
-   Type_handler_hybrid_field_type(MYSQL_TYPE_LONGLONG),
+   Type_handler_hybrid_field_type(&type_handler_longlong),
    value(NULL)
   { collation.set(&my_charset_bin); }
 
@@ -303,12 +303,8 @@ class Item_sum_hybrid_simple : public Item_sum,
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   String *val_str(String *);
-  enum Item_result result_type() const
-  { return Type_handler_hybrid_field_type::result_type(); }
-  enum Item_result cmp_type() const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
-  enum enum_field_types field_type() const
-  { return Type_handler_hybrid_field_type::field_type(); }
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
   void update_field();
   Field *create_tmp_field(bool group, TABLE *table);
   void clear()
@@ -511,8 +507,7 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
     row_number= 0;
   }
   bool add();
-  enum Item_result result_type () const { return REAL_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
 
   void fix_length_and_dec()
   {
@@ -597,8 +592,7 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
   }
 
   void update_field() {}
-  enum Item_result result_type () const { return REAL_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
 
   void fix_length_and_dec()
   {
@@ -674,8 +668,7 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
   void update_field() {}
 
-  enum Item_result result_type () const { return INT_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_ntile>(thd, mem_root, this); }
@@ -690,12 +683,12 @@ class Item_window_func : public Item_func_or_sum
 {
   /* Window function parameters as we've got them from the parser */
 public:
-  LEX_STRING *window_name;
+  LEX_CSTRING *window_name;
 public:
   Window_spec *window_spec;
   
 public:
-  Item_window_func(THD *thd, Item_sum *win_func, LEX_STRING *win_name)
+  Item_window_func(THD *thd, Item_sum *win_func, LEX_CSTRING *win_name)
     : Item_func_or_sum(thd, (Item *) win_func),
       window_name(win_name), window_spec(NULL), 
       force_return_blank(true),
@@ -800,9 +793,9 @@ public:
   */
   void setup_partition_border_check(THD *thd);
 
-  enum_field_types field_type() const
-  { 
-    return ((Item_sum *) args[0])->field_type(); 
+  const Type_handler *type_handler() const
+  {
+    return ((Item_sum *) args[0])->type_handler();
   }
   enum Item::Type type() const { return Item::WINDOW_FUNC_ITEM; }
 

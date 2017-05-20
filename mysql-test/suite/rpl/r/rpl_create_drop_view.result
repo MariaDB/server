@@ -99,7 +99,7 @@ DROP VIEW v1;
 ERROR 42S02: Unknown VIEW: 'test.v1'
 DROP VIEW IF EXISTS v2;
 Warnings:
-Note	4067	Unknown VIEW: 'test.v2'
+Note	4068	Unknown VIEW: 'test.v2'
 # Syncing slave with master
 connection slave;
 SELECT * FROM v1;

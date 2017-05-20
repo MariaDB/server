@@ -223,22 +223,12 @@ sym_tab_add_bound_lit(
 
 	switch (blit->type) {
 	case DATA_FIXBINARY:
-		len = blit->length;
-		*lit_type = PARS_FIXBINARY_LIT;
-		break;
-
-	case DATA_BLOB:
-		*lit_type = PARS_BLOB_LIT;
-		break;
-
-	case DATA_VARCHAR:
-		*lit_type = PARS_STR_LIT;
-		break;
-
 	case DATA_CHAR:
-		ut_a(blit->length > 0);
-
+		ut_ad(blit->length > 0);
 		len = blit->length;
+		/* fall through */
+	case DATA_BLOB:
+	case DATA_VARCHAR:
 		*lit_type = PARS_STR_LIT;
 		break;
 

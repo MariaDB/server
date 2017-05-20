@@ -186,7 +186,7 @@ public:
     We implement this in ha_example.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-  int update_row(const uchar *old_data, uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data);
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;

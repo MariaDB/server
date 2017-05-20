@@ -1472,8 +1472,8 @@ ibuf_print_ops(
 	ut_a(UT_ARR_SIZE(op_names) == IBUF_OP_COUNT);
 
 	for (i = 0; i < IBUF_OP_COUNT; i++) {
-		fprintf(file, "%s %lu%s", op_names[i],
-			(ulong) ops[i], (i < (IBUF_OP_COUNT - 1)) ? ", " : "");
+		fprintf(file, "%s " ULINTPF "%s", op_names[i],
+			ops[i], (i < (IBUF_OP_COUNT - 1)) ? ", " : "");
 	}
 
 	putc('\n', file);
@@ -3953,7 +3953,11 @@ ibuf_insert_to_index_page(
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
 #ifdef BTR_CUR_HASH_ADAPT
+	/* A change buffer merge must occur before users are granted
+	any access to the page. No adaptive hash index entries may
+	point to a freshly read page. */
 	ut_ad(!block->index);
+	assert_block_ahi_empty(block);
 #endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
@@ -4928,12 +4932,12 @@ ibuf_print(
 	mutex_enter(&ibuf_mutex);
 
 	fprintf(file,
-		"Ibuf: size %lu, free list len %lu,"
-		" seg size %lu, %lu merges\n",
-		(ulong) ibuf->size,
-		(ulong) ibuf->free_list_len,
-		(ulong) ibuf->seg_size,
-		(ulong) ibuf->n_merges);
+		"Ibuf: size " ULINTPF ", free list len " ULINTPF ","
+		" seg size " ULINTPF ", " ULINTPF " merges\n",
+		ibuf->size,
+		ibuf->free_list_len,
+		ibuf->seg_size,
+		ibuf->n_merges);
 
 	fputs("merged operations:\n ", file);
 	ibuf_print_ops(ibuf->n_merged_ops, file);
@@ -4948,9 +4952,10 @@ ibuf_print(
 
 			if (count > 0) {
 				fprintf(stderr,
-					"Ibuf count for space/page %lu/%lu"
-					" is %lu\n",
-					(ulong) i, (ulong) j, (ulong) count);
+					"Ibuf count for page "
+					ULINTPF ":" ULINTPF ""
+					" is " ULINTPF "\n",
+					i, j, count);
 			}
 		}
 	}

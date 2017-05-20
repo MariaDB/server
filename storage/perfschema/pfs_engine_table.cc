@@ -284,7 +284,7 @@ int PFS_engine_table::read_row(TABLE *table,
 */
 int PFS_engine_table::update_row(TABLE *table,
                                  const unsigned char *old_buf,
-                                 unsigned char *new_buf,
+                                 const unsigned char *new_buf,
                                  Field **fields)
 {
   my_bitmap_map *org_bitmap;
@@ -396,7 +396,7 @@ void PFS_engine_table::set_field_enum(Field *f, ulonglong value)
 
 void PFS_engine_table::set_field_timestamp(Field *f, ulonglong value)
 {
-  DBUG_ASSERT(is_timestamp_type(f->real_type()));
+  DBUG_ASSERT(f->type_handler()->is_timestamp_type());
   Field_timestamp *f2= (Field_timestamp*) f;
   f2->store_TIME((long)(value / 1000000), (value % 1000000));
 }
@@ -428,7 +428,7 @@ PFS_engine_table::get_field_varchar_utf8(Field *f, String *val)
 
 int PFS_engine_table::update_row_values(TABLE *,
                                         const unsigned char *,
-                                        unsigned char *,
+                                        const unsigned char *,
                                         Field **)
 {
   return HA_ERR_WRONG_COMMAND;
@@ -1372,7 +1372,7 @@ end:
 }
 
 int pfs_discover_table_names(handlerton *hton __attribute__((unused)),
-                             LEX_STRING *db,
+                             LEX_CSTRING *db,
                              MY_DIR *dir __attribute__((unused)),
                              handlerton::discovered_list *result)
 {

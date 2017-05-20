@@ -112,7 +112,7 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
   @param with_zerofill  skipped bytes in the key buffer to be filled with 0
 */
 
-void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
+void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
               uint key_length, bool with_zerofill)
 {
   uint length;

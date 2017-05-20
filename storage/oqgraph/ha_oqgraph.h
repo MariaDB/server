@@ -84,7 +84,7 @@ public:
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   int write_row(byte * buf);
-  int update_row(const byte * old_data, byte * new_data);
+  int update_row(const uchar * old_data, const uchar * new_data);
   int delete_row(const byte * buf);
   int index_read(byte * buf, const byte * key,
 		 uint key_len, enum ha_rkey_function find_flag);
@@ -118,7 +118,7 @@ public:
   virtual const char *table_type() const { return hton_name(ht)->str; }
 #endif
 
-  my_bool register_query_cache_table(THD *thd, char *table_key,
+  my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,

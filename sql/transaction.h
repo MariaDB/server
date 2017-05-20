@@ -34,9 +34,9 @@ bool trans_rollback_implicit(THD *thd);
 bool trans_commit_stmt(THD *thd);
 bool trans_rollback_stmt(THD *thd);
 
-bool trans_savepoint(THD *thd, LEX_STRING name);
-bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name);
-bool trans_release_savepoint(THD *thd, LEX_STRING name);
+bool trans_savepoint(THD *thd, LEX_CSTRING name);
+bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name);
+bool trans_release_savepoint(THD *thd, LEX_CSTRING name);
 
 bool trans_xa_start(THD *thd);
 bool trans_xa_end(THD *thd);

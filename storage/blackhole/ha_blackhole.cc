@@ -105,7 +105,7 @@ int ha_blackhole::write_row(uchar * buf)
   DBUG_RETURN(table->next_number_field ? update_auto_increment() : 0);
 }
 
-int ha_blackhole::update_row(const uchar *old_data, uchar *new_data)
+int ha_blackhole::update_row(const uchar *old_data, const uchar *new_data)
 {
   DBUG_ENTER("ha_blackhole::update_row");
   THD *thd= ha_thd();

@@ -28,6 +28,8 @@ void _ma_ft_segiterator_init(MARIA_HA *info, uint keynr, const uchar *record,
   ftsi->num=info->s->keyinfo[keynr].keysegs;
   ftsi->seg=info->s->keyinfo[keynr].seg;
   ftsi->rec=record;
+  ftsi->pos= 0;                          /* Avoid warnings from gcc */
+  ftsi->len= 0;                          /* Avoid warnings from gcc */
   DBUG_VOID_RETURN;
 }
 

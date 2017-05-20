@@ -429,17 +429,26 @@ select @a;
 #
 # BUG LP:1008487 virtual bool Item_cache::is_expensive(): Assertion `example' failed
 #
+SET TIMESTAMP=UNIX_TIMESTAMP('2017-01-03 00:00:00');
 create table t1(a date,key(a));
 insert into t1 values ('2012-01-01'),('2012-02-02');
 explain
 select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_0	ref	a	a	4	const	0	Using where; Using index
+1	SIMPLE	t1_0	ref	a	a	4	const	1	Using where; Using index
 1	SIMPLE	t2	index	NULL	a	4	NULL	2	Using index; Using join buffer (flat, BNL join)
 1	SIMPLE	t1	index	NULL	a	4	NULL	2	Using index; Using join buffer (incremental, BNL join)
 select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
 1
+SET TIMESTAMP=UNIX_TIMESTAMP('2012-01-03 00:00:01');
+explain
+select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
+1
 drop table t1;
+SET TIMESTAMP=DEFAULT;
 #
 # MDEV-9521 Least function returns 0000-00-00 for null date columns instead of null
 # MDEV-9972 Least function retuns date in date time format
@@ -606,14 +615,14 @@ SELECT * FROM t1 WHERE LENGTH(a)=11+RAND() AND a=' 2001-01-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'2001-01-01' and <cache>(length(DATE'2001-01-01')) = 11 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'2001-01-01' and <cache>(octet_length(DATE'2001-01-01')) = 11 + rand()
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=11+RAND() AND a=' garbage ';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Warning	1292	Incorrect datetime value: ' garbage '
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'0000-00-00' and <cache>(length(DATE'0000-00-00')) = 11 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'0000-00-00' and <cache>(octet_length(DATE'0000-00-00')) = 11 + rand()
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE);
 INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-01');
@@ -632,7 +641,7 @@ SELECT * FROM t1 WHERE LENGTH(a)=8+RAND() AND a='20010101';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'2001-01-01' and <cache>(length(DATE'2001-01-01')) = 8 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'2001-01-01' and <cache>(octet_length(DATE'2001-01-01')) = 8 + rand()
 DROP TABLE t1;
 #
 # MDEV-8706 Wrong result for SELECT..WHERE time_column=TIMESTAMP'2015-08-30 00:00:00' AND time_column='00:00:00'
@@ -661,7 +670,7 @@ SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'2015-08-30' and <cache>(length(DATE'2015-08-30')) = 30 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'2015-08-30' and <cache>(octet_length(DATE'2015-08-30')) = 30 + rand()
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE);
 INSERT INTO t1 VALUES ('2015-08-30'),('2015-08-31');
@@ -686,7 +695,7 @@ SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'24:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'2015-08-31' and <cache>(length(DATE'2015-08-31')) = 30 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'2015-08-31' and <cache>(octet_length(DATE'2015-08-31')) = 30 + rand()
 DROP TABLE t1;
 # In this example '00:00:00' is not recognized as TIME'00:00:00'
 # and is treated as DATE'0000-00-00'.
@@ -712,7 +721,7 @@ SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'0000-00-00' and <cache>(length(DATE'0000-00-00')) = 30 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'0000-00-00' and <cache>(octet_length(DATE'0000-00-00')) = 30 + rand()
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE);
 INSERT INTO t1 VALUES ('2015-08-30'),('2015-08-31');
@@ -737,7 +746,7 @@ SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2015-08-30 00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2015-08-30 00:00:00' and <cache>(length(DATE'2015-08-30')) = 30 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2015-08-30 00:00:00' and <cache>(octet_length(DATE'2015-08-30')) = 30 + rand()
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE);
 INSERT INTO t1 VALUES ('2015-08-30'),('2015-08-31');
@@ -760,7 +769,7 @@ SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2015-08-30 00:00:00.1
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2015-08-30 00:00:00.1' and <cache>(length(DATE'2015-08-30')) = 30 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2015-08-30 00:00:00.1' and <cache>(octet_length(DATE'2015-08-30')) = 30 + rand()
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE);
 INSERT INTO t1 VALUES ('2015-08-30'),('2015-08-31');
@@ -785,7 +794,7 @@ SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='2015-08-30 00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'2015-08-30' and <cache>(length(DATE'2015-08-30')) = 30 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = DATE'2015-08-30' and <cache>(octet_length(DATE'2015-08-30')) = 30 + rand()
 DROP TABLE t1;
 SET timestamp=DEFAULT;
 #
@@ -844,4 +853,28 @@ Warning	1292	Incorrect datetime value: '1'
 DROP TABLE t1;
 #
 # End of 10.1 tests
+#
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12721 Wrong execution plan for WHERE (date_field <=> timestamp_expr AND TRUE)
+#
+CREATE TABLE t1(a DATE,KEY(a));
+INSERT INTO t1 VALUES ('2012-01-01'),('2012-02-02');
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP'2001-01-01 00:00:01' AND TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP('2001-01-01', '00:00:01') AND TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP'2001-01-01 00:00:00' AND TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	4	const	1	Using where; Using index
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP('2001-01-01', '00:00:00') AND TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	4	const	1	Using where; Using index
+DROP TABLE t1;
+#
+# End of 10.3 tests
 #

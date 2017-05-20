@@ -1012,7 +1012,7 @@ int Log_to_csv_event_handler::
 {
   TABLE_LIST table_list;
   TABLE *table;
-  LEX_STRING *UNINIT_VAR(log_name);
+  LEX_CSTRING *UNINIT_VAR(log_name);
   int result;
   Open_tables_backup open_tables_backup;
 

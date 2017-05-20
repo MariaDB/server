@@ -368,14 +368,14 @@ mysql_event_fill_row(THD *thd,
 
   if (rs)
   {
-    my_error(ER_EVENT_STORE_FAILED, MYF(0), fields[f_num]->field_name, rs);
+    my_error(ER_EVENT_STORE_FAILED, MYF(0), fields[f_num]->field_name.str, rs);
     DBUG_RETURN(TRUE);
   }
 
   DBUG_RETURN(FALSE);
 
 err_truncate:
-  my_error(ER_EVENT_DATA_TOO_LONG, MYF(0), fields[f_num]->field_name);
+  my_error(ER_EVENT_DATA_TOO_LONG, MYF(0), fields[f_num]->field_name.str);
   DBUG_RETURN(TRUE);
 }
 
@@ -670,7 +670,7 @@ Event_db_repository::create_event(THD *thd, Event_parse_data *parse_data,
              parse_data->name.str));
 
   DBUG_PRINT("info", ("check existance of an event with the same name"));
-  if (!find_named_event(parse_data->dbname, parse_data->name, table))
+  if (!find_named_event(&parse_data->dbname, &parse_data->name, table))
   {
     if (thd->lex->create_info.or_replace())
     {
@@ -768,8 +768,8 @@ end:
 
 bool
 Event_db_repository::update_event(THD *thd, Event_parse_data *parse_data,
-                                  LEX_STRING *new_dbname,
-                                  LEX_STRING *new_name)
+                                  LEX_CSTRING *new_dbname,
+                                  LEX_CSTRING *new_name)
 {
   CHARSET_INFO *scs= system_charset_info;
   TABLE *table= NULL;
@@ -802,7 +802,7 @@ Event_db_repository::update_event(THD *thd, Event_parse_data *parse_data,
   if (new_name)
   {
     DBUG_PRINT("info", ("rename to: %s@%s", new_dbname->str, new_name->str));
-    if (!find_named_event(*new_dbname, *new_name, table))
+    if (!find_named_event(new_dbname, new_name, table))
     {
       my_error(ER_EVENT_ALREADY_EXISTS, MYF(0), new_name->str);
       goto end;
@@ -814,7 +814,7 @@ Event_db_repository::update_event(THD *thd, Event_parse_data *parse_data,
     overwrite the key and SE will tell us that it cannot find the already found
     row (copied into record[1] later
   */
-  if (find_named_event(parse_data->dbname, parse_data->name, table))
+  if (find_named_event(&parse_data->dbname, &parse_data->name, table))
   {
     my_error(ER_EVENT_DOES_NOT_EXIST, MYF(0), parse_data->name.str);
     goto end;
@@ -878,7 +878,8 @@ end:
 */
 
 bool
-Event_db_repository::drop_event(THD *thd, LEX_STRING db, LEX_STRING name,
+Event_db_repository::drop_event(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *name,
                                 bool drop_if_exists)
 {
   TABLE *table= NULL;
@@ -891,7 +892,7 @@ Event_db_repository::drop_event(THD *thd, LEX_STRING db, LEX_STRING name,
   int ret= 1;
 
   DBUG_ENTER("Event_db_repository::drop_event");
-  DBUG_PRINT("enter", ("%s@%s", db.str, name.str));
+  DBUG_PRINT("enter", ("%s@%s", db->str, name->str));
 
   if (open_event_table(thd, TL_WRITE, &table))
     goto end;
@@ -906,13 +907,13 @@ Event_db_repository::drop_event(THD *thd, LEX_STRING db, LEX_STRING name,
   /* Event not found */
   if (!drop_if_exists)
   {
-    my_error(ER_EVENT_DOES_NOT_EXIST, MYF(0), name.str);
+    my_error(ER_EVENT_DOES_NOT_EXIST, MYF(0), name->str);
     goto end;
   }
 
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                       ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
-                      "Event", name.str);
+                      "Event", name->str);
   ret= 0;
 
 end:
@@ -939,12 +940,13 @@ end:
 */
 
 bool
-Event_db_repository::find_named_event(LEX_STRING db, LEX_STRING name,
+Event_db_repository::find_named_event(const LEX_CSTRING *db,
+                                      const LEX_CSTRING *name,
                                       TABLE *table)
 {
   uchar key[MAX_KEY_LENGTH];
   DBUG_ENTER("Event_db_repository::find_named_event");
-  DBUG_PRINT("enter", ("name: %.*s", (int) name.length, name.str));
+  DBUG_PRINT("enter", ("name: %.*s", (int) name->length, name->str));
 
   /*
     Create key to find row. We have to use field->store() to be able to
@@ -953,16 +955,16 @@ Event_db_repository::find_named_event(LEX_STRING db, LEX_STRING name,
     'db' and 'name' and the first key is the primary key over the
     same fields.
   */
-  if (db.length > table->field[ET_FIELD_DB]->field_length ||
-      name.length > table->field[ET_FIELD_NAME]->field_length ||
+  if (db->length > table->field[ET_FIELD_DB]->field_length ||
+      name->length > table->field[ET_FIELD_NAME]->field_length ||
       table->s->keys == 0 ||
       table->key_info[0].user_defined_key_parts != 2 ||
       table->key_info[0].key_part[0].fieldnr != ET_FIELD_DB+1 ||
       table->key_info[0].key_part[1].fieldnr != ET_FIELD_NAME+1)
     DBUG_RETURN(TRUE);
 
-  table->field[ET_FIELD_DB]->store(db.str, db.length, &my_charset_bin);
-  table->field[ET_FIELD_NAME]->store(name.str, name.length, &my_charset_bin);
+  table->field[ET_FIELD_DB]->store(db->str, db->length, &my_charset_bin);
+  table->field[ET_FIELD_NAME]->store(name->str, name->length, &my_charset_bin);
 
   key_copy(key, table->record[0], table->key_info, table->key_info->key_length);
 
@@ -989,7 +991,7 @@ Event_db_repository::find_named_event(LEX_STRING db, LEX_STRING name,
 */
 
 void
-Event_db_repository::drop_schema_events(THD *thd, LEX_STRING schema)
+Event_db_repository::drop_schema_events(THD *thd, const LEX_CSTRING *schema)
 {
   int ret= 0;
   TABLE *table= NULL;
@@ -997,7 +999,7 @@ Event_db_repository::drop_schema_events(THD *thd, LEX_STRING schema)
   enum enum_events_table_field field= ET_FIELD_DB;
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   DBUG_ENTER("Event_db_repository::drop_schema_events");
-  DBUG_PRINT("enter", ("field=%d schema=%s", field, schema.str));
+  DBUG_PRINT("enter", ("field: %d  schema: %s", field, schema->str));
 
   if (open_event_table(thd, TL_WRITE, &table))
     DBUG_VOID_RETURN;
@@ -1013,12 +1015,12 @@ Event_db_repository::drop_schema_events(THD *thd, LEX_STRING schema)
     /* et_field may be NULL if the table is corrupted or out of memory */
     if (et_field)
     {
-      LEX_STRING et_field_lex= { et_field, strlen(et_field) };
+      LEX_CSTRING et_field_lex= { et_field, strlen(et_field) };
       DBUG_PRINT("info", ("Current event %s name=%s", et_field,
                           get_field(thd->mem_root,
                                     table->field[ET_FIELD_NAME])));
 
-      if (!sortcmp_lex_string(et_field_lex, schema, system_charset_info))
+      if (!sortcmp_lex_string(&et_field_lex, schema, system_charset_info))
       {
         DBUG_PRINT("info", ("Dropping"));
         if ((ret= table->file->ha_delete_row(table->record[0])))
@@ -1051,8 +1053,9 @@ end:
 */
 
 bool
-Event_db_repository::load_named_event(THD *thd, LEX_STRING dbname,
-                                      LEX_STRING name, Event_basic *etn)
+Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
+                                      const LEX_CSTRING *name,
+                                      Event_basic *etn)
 {
   bool ret;
   ulonglong saved_mode= thd->variables.sql_mode;
@@ -1061,7 +1064,7 @@ Event_db_repository::load_named_event(THD *thd, LEX_STRING dbname,
 
   DBUG_ENTER("Event_db_repository::load_named_event");
   DBUG_PRINT("enter",("thd: 0x%lx  name: %*s", (long) thd,
-                      (int) name.length, name.str));
+                      (int) name->length, name->str));
 
   event_table.init_one_table("mysql", 5, "event", 5, "event", TL_READ);
 
@@ -1084,7 +1087,7 @@ Event_db_repository::load_named_event(THD *thd, LEX_STRING dbname,
     }
 
     if ((ret= find_named_event(dbname, name, event_table.table)))
-      my_error(ER_EVENT_DOES_NOT_EXIST, MYF(0), name.str);
+      my_error(ER_EVENT_DOES_NOT_EXIST, MYF(0), name->str);
     else if ((ret= etn->load_from_row(thd, event_table.table)))
       my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0), "mysql", "event");
 
@@ -1106,8 +1109,8 @@ Event_db_repository::load_named_event(THD *thd, LEX_STRING dbname,
 bool
 Event_db_repository::
 update_timing_fields_for_event(THD *thd,
-                               LEX_STRING event_db_name,
-                               LEX_STRING event_name,
+                               const LEX_CSTRING *event_db_name,
+                               const LEX_CSTRING *event_name,
                                my_time_t last_executed,
                                ulonglong status)
 {
@@ -1211,7 +1214,7 @@ Event_db_repository::check_system_tables(THD *thd)
   else
   {
     if (tables.table->s->fields < event_priv_column_position ||
-        strncmp(tables.table->field[event_priv_column_position]->field_name,
+        strncmp(tables.table->field[event_priv_column_position]->field_name.str,
                 STRING_WITH_LEN("Event_priv")))
     {
       sql_print_error("mysql.user has no `Event_priv` column at position %d",

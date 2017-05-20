@@ -160,7 +160,7 @@ Note	1050	Table 'v1' already exists
 DROP VIEW IF EXISTS v1;
 DROP VIEW IF EXISTS v1;
 Warnings:
-Note	4067	Unknown VIEW: 'test.v1'
+Note	4068	Unknown VIEW: 'test.v1'
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Format_desc	1	#	VER
@@ -274,7 +274,7 @@ DROP TRIGGER tr1;
 CREATE TRIGGER IF NOT EXISTS tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=20;
 CREATE TRIGGER IF NOT EXISTS tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=21;
 Warnings:
-Note	1359	Trigger already exists
+Note	1359	Trigger 'test.tr1' already exists
 DROP TRIGGER IF EXISTS tr1;
 DROP TRIGGER IF EXISTS tr1;
 Warnings:

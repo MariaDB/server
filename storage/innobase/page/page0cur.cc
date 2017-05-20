@@ -1324,7 +1324,8 @@ use_heap:
 		data_len = rec_offs_data_size(offsets);
 
 		fprintf(stderr, "InnoDB: Error: current_rec == insert_rec "
-			" extra_len %lu data_len %lu insert_buf %p rec %p\n",
+			" extra_len " ULINTPF
+			" data_len " ULINTPF " insert_buf %p rec %p\n",
 			extra_len, data_len, insert_buf, rec);
 		fprintf(stderr, "InnoDB; Physical record: \n");
 		rec_print(stderr, rec, index);

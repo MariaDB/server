@@ -27,8 +27,8 @@ typedef struct st_key_part_info KEY_PART_INFO;
 
 int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
                  uint *key_length, uint *keypart);
-void key_copy(uchar *to_key, uchar *from_record, KEY *key_info, uint key_length,
-              bool with_zerofill= FALSE);
+void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
+              uint key_length, bool with_zerofill= FALSE);
 void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
                  uint key_length);
 bool key_cmp_if_same(TABLE *form,const uchar *key,uint index,uint key_length);

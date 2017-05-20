@@ -3359,7 +3359,7 @@ innobase_query_caching_of_table_permitted(
 	THD*	thd,		/*!< in: thd of the user who is trying to
 				store a result to the query cache or
 				retrieve it */
-	char*	full_name,	/*!< in: normalized path to the table */
+	const char* full_name,	/*!< in: normalized path to the table */
 	uint	full_name_len,	/*!< in: length of the normalized path
                                 to the table */
 	ulonglong *unused)	/*!< unused for this engine */
@@ -6212,7 +6212,7 @@ ha_innobase::innobase_initialize_autoinc()
 
 		ut_a(prebuilt->trx == thd_to_trx(user_thd));
 
-		col_name = field->field_name;
+		col_name = field->field_name.str;
 		index = innobase_get_index(table->s->next_number_index);
 
 		/* Execute SELECT MAX(col_name) FROM TABLE; */
@@ -8121,7 +8121,7 @@ build_template_field(
 				"MySQL table %s field %lu name %s",
 				table->s->table_name.str,
 				j,
-				table->field[j]->field_name);
+				table->field[j]->field_name.str);
 		}
 
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -9125,7 +9125,7 @@ calc_row_difference(
 		if (field_mysql_type == MYSQL_TYPE_LONGLONG
 		    && prebuilt->table->fts
 		    && innobase_strcasecmp(
-			field->field_name, FTS_DOC_ID_COL_NAME) == 0) {
+			field->field_name.str, FTS_DOC_ID_COL_NAME) == 0) {
 			doc_id = (doc_id_t) mach_read_from_n_little_endian(
 				n_ptr, 8);
 			if (doc_id == 0) {
@@ -9389,7 +9389,7 @@ int
 ha_innobase::update_row(
 /*====================*/
 	const uchar*	old_row,	/*!< in: old row in MySQL format */
-	uchar*		new_row)	/*!< in: new row in MySQL format */
+	const uchar*	new_row)	/*!< in: new row in MySQL format */
 {
 	upd_t*		uvect;
 	dberr_t		error;
@@ -11310,7 +11310,7 @@ create_table_check_doc_id_col(
 
 		col_len = field->pack_length();
 
-		if (innobase_strcasecmp(field->field_name,
+		if (innobase_strcasecmp(field->field_name.str,
 					FTS_DOC_ID_COL_NAME) == 0) {
 
 			/* Note the name is case sensitive due to
@@ -11318,7 +11318,7 @@ create_table_check_doc_id_col(
 			if (col_type == DATA_INT
 			    && !field->real_maybe_null()
 			    && col_len == sizeof(doc_id_t)
-			    && (strcmp(field->field_name,
+			    && (strcmp(field->field_name.str,
 				      FTS_DOC_ID_COL_NAME) == 0)) {
 				*doc_id_col = i;
 			} else {
@@ -11330,7 +11330,7 @@ create_table_check_doc_id_col(
 					"of BIGINT NOT NULL type, and named "
 					"in all capitalized characters");
 				my_error(ER_WRONG_COLUMN_NAME, MYF(0),
-					 field->field_name);
+					 field->field_name.str);
 				*doc_id_col = ULINT_UNDEFINED;
 			}
 
@@ -11476,7 +11476,7 @@ create_table_def(
 				"column type and try to re-create "
 				"the table with an appropriate "
 				"column type.",
-				table->name, field->field_name);
+				table->name, field->field_name.str);
 			goto err_col;
 		}
 
@@ -11526,9 +11526,9 @@ create_table_def(
 
 		/* First check whether the column to be added has a
 		system reserved name. */
-		if (dict_col_name_is_reserved(field->field_name)){
+		if (dict_col_name_is_reserved(field->field_name.str)){
 			my_error(ER_WRONG_COLUMN_NAME, MYF(0),
-				 field->field_name);
+				 field->field_name.str);
 err_col:
 			dict_mem_table_free(table);
 			mem_heap_free(heap);
@@ -11539,7 +11539,7 @@ err_col:
 		}
 
 		dict_mem_table_add_col(table, heap,
-			field->field_name,
+			field->field_name.str,
 			col_type,
 			dtype_form_prtype(
 				(ulint) field->type()
@@ -11617,7 +11617,7 @@ create_index(
 		for (ulint i = 0; i < key->user_defined_key_parts; i++) {
 			KEY_PART_INFO*	key_part = key->key_part + i;
 			dict_mem_index_add_field(
-				index, key_part->field->field_name, 0);
+				index, key_part->field->field_name.str, 0);
 		}
 
 		DBUG_RETURN(convert_error_code_to_mysql(
@@ -11668,8 +11668,8 @@ create_index(
 			field = form->field[j];
 
 			if (0 == innobase_strcasecmp(
-				    field->field_name,
-				    key_part->field->field_name)) {
+				    field->field_name.str,
+				    key_part->field->field_name.str)) {
 				/* Found the corresponding column */
 
 				goto found;
@@ -11702,7 +11702,7 @@ found:
 					"inappropriate data type. Table "
 					"name %s, column name %s.",
 					table_name,
-					key_part->field->field_name);
+					key_part->field->field_name.str);
 
 				prefix_len = 0;
 			}
@@ -11713,7 +11713,7 @@ found:
 		field_lengths[i] = key_part->length;
 
 		dict_mem_index_add_field(
-			index, key_part->field->field_name, prefix_len);
+			index, key_part->field->field_name.str, prefix_len);
 	}
 
 	ut_ad(key->flags & HA_FULLTEXT || !(index->type & DICT_FTS));
@@ -12188,7 +12188,7 @@ innobase_table_flags(
 		/* Do a pre-check on FTS DOC ID index */
 		if (!(key->flags & HA_NOSAME)
 		    || strcmp(key->name, FTS_DOC_ID_INDEX_NAME)
-		    || strcmp(key->key_part[0].field->field_name,
+		    || strcmp(key->key_part[0].field->field_name.str,
 			      FTS_DOC_ID_COL_NAME)) {
 			fts_doc_id_index_bad = key->name;
 		}
@@ -16976,7 +16976,7 @@ my_bool
 ha_innobase::register_query_cache_table(
 /*====================================*/
 	THD*		thd,		/*!< in: user thread handle */
-	char*		table_key,	/*!< in: normalized path to the
+	const char*	table_key,	/*!< in: normalized path to the
 					table */
 	uint		key_length,	/*!< in: length of the normalized
 					path to the table */

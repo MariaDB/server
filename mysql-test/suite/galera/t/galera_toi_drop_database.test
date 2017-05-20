@@ -1,0 +1,56 @@
+#
+# Test the operation of DDLs that affect multiple database objects
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+--connection node_1
+CREATE DATABASE database1;
+USE database1;
+
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+
+# Make sure autocommit retrying does not kick in as this will mask the error we expect to get
+SET SESSION wsrep_retry_autocommit = 0;
+# Attemp to insert 1M rows
+--send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;
+
+--connection node_1a
+USE database1;
+SET SESSION wsrep_retry_autocommit = 0;
+--send INSERT INTO t2 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;
+
+--connection node_2
+--sleep 1
+--send DROP DATABASE database1;
+
+--connection node_1
+--sleep 1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_1a
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_2
+--reap
+
+--connection node_1
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = 'database1';
+--error ER_BAD_DB_ERROR
+USE database1;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = 'database1';
+--error ER_BAD_DB_ERROR
+USE database1;

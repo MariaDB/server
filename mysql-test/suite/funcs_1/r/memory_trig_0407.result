@@ -459,7 +459,7 @@ Create trigger trg_3_406010_2 AFTER DELETE
 on tb3 for each row set @test_var=@test_var+50;
 Create trigger trg_3_406010_1 AFTER INSERT
 on tb3 for each row set @test_var=@test_var+1;
-ERROR HY000: Trigger already exists
+ERROR HY000: Trigger 'test.trg_3_406010_1' already exists
 select @test_var;
 @test_var
 1

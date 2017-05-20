@@ -86,7 +86,7 @@ public:
 	int				close ();
 
 	int				write_row ( byte * buf );
-	int				update_row ( const byte * old_data, byte * new_data );
+	int				update_row ( const byte * old_data, const byte * new_data );
 	int				delete_row ( const byte * buf );
 	int				extra ( enum ha_extra_function op );
 

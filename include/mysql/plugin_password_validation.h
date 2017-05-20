@@ -42,8 +42,8 @@ struct st_mariadb_password_validation
     Function provided by the plugin which should perform password validation
     and return 0 if the password has passed the validation.
   */
-  int (*validate_password)(MYSQL_LEX_STRING *username,
-                           MYSQL_LEX_STRING *password);
+  int (*validate_password)(MYSQL_CONST_LEX_STRING *username,
+                           MYSQL_CONST_LEX_STRING *password);
 };
 
 #ifdef __cplusplus

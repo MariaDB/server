@@ -3277,7 +3277,7 @@ func_start:
 	btr_page_create(new_block, new_page_zip, cursor->index,
 			btr_page_get_level(page, mtr), mtr);
 	/* Only record the leaf level page splits. */
-	if (btr_page_get_level(page, mtr) == 0) {
+	if (page_is_leaf(page)) {
 		cursor->index->stat_defrag_n_page_split ++;
 		cursor->index->stat_defrag_modified_counter ++;
 		btr_defragment_save_defrag_stats_if_needed(cursor->index);

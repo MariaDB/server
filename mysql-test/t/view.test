@@ -2124,12 +2124,24 @@ drop view abc;
 #
 # Bug#12993 View column rename broken in subselect
 #
+
+flush status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
-select * from (select f1 as f2 from v1) v where v.f2='a';
+select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+show status like "Created_tmp%";
 drop view v1;
 drop table t1;
 
+set @tmp=@@optimizer_switch;
+set @@optimizer_switch='derived_merge=OFF';
+create table t1(f1 char(1));
+create view v1 as select * from t1;
+select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+show status like "Created_tmp%";
+drop view v1;
+drop table t1;
+set @@optimizer_switch=@tmp;
 
 #
 # Bug#11416 Server crash if using a view that uses function convert_tz

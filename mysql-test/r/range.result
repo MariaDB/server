@@ -2581,7 +2581,7 @@ EXPLAIN
       "ref": ["test.t1.a"],
       "rows": 12,
       "filtered": 100,
-      "attached_condition": "(t1.a,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and length(t2.f) = 1"
+      "attached_condition": "(t1.a,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
     }
   }
 }
@@ -2666,7 +2666,7 @@ EXPLAIN
       "used_key_parts": ["e"],
       "rows": 6,
       "filtered": 100,
-      "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and length(t2.f) = 1 and t2.d is not null"
+      "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1 and t2.d is not null"
     },
     "table": {
       "table_name": "t1",
@@ -2716,7 +2716,7 @@ EXPLAIN
       "rows": 5,
       "filtered": 100,
       "index_condition": "t2.d is not null",
-      "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and length(t2.f) = 1"
+      "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
     },
     "table": {
       "table_name": "t1",
@@ -2776,7 +2776,7 @@ EXPLAIN
       "ref": ["test.t1.a"],
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "(t1.a,t2.e) in ((4,t1.a + 1),(7,t1.a + 1),(8,t1.a + 1)) and length(t2.f) = 1"
+      "attached_condition": "(t1.a,t2.e) in ((4,t1.a + 1),(7,t1.a + 1),(8,t1.a + 1)) and octet_length(t2.f) = 1"
     }
   }
 }
@@ -2830,7 +2830,7 @@ EXPLAIN
       "ref": ["test.t1.a"],
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "(t1.a,t2.e) in ((t2.e,t1.a + 1),<cache>((7,7)),<cache>((8,8))) and length(t2.f) = 1"
+      "attached_condition": "(t1.a,t2.e) in ((t2.e,t1.a + 1),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
     }
   }
 }
@@ -2870,7 +2870,7 @@ EXPLAIN
       "rows": 13,
       "filtered": 100,
       "index_condition": "t1.a is not null",
-      "attached_condition": "(t1.a,2) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and length(t1.c) = 1"
+      "attached_condition": "(t1.a,2) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and octet_length(t1.c) = 1"
     },
     "table": {
       "table_name": "t2",
@@ -2882,7 +2882,7 @@ EXPLAIN
       "ref": ["test.t1.a"],
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "length(t2.f) = 1"
+      "attached_condition": "octet_length(t2.f) = 1"
     }
   }
 }
@@ -2958,7 +2958,7 @@ EXPLAIN
       "rows": 13,
       "filtered": 100,
       "index_condition": "t1.a is not null",
-      "attached_condition": "(t1.a,1 + 1) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and length(t1.c) = 1"
+      "attached_condition": "(t1.a,1 + 1) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and octet_length(t1.c) = 1"
     },
     "table": {
       "table_name": "t2",
@@ -2970,7 +2970,7 @@ EXPLAIN
       "ref": ["test.t1.a"],
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "length(t2.f) = 1"
+      "attached_condition": "octet_length(t2.f) = 1"
     }
   }
 }

@@ -1000,14 +1000,14 @@ t2	CREATE TABLE `t2` (
   `least____a_a` int(11) DEFAULT NULL,
   `greatest_a_a` int(11) DEFAULT NULL,
   `___________b` bit(8) DEFAULT NULL,
-  `case_______b` int(8) unsigned DEFAULT NULL,
-  `case_____b_b` int(8) unsigned DEFAULT NULL,
-  `coalesce___b` int(8) unsigned DEFAULT NULL,
-  `coalesce_b_b` int(8) unsigned DEFAULT NULL,
-  `if_______b_b` int(8) unsigned DEFAULT NULL,
+  `case_______b` bit(8) DEFAULT NULL,
+  `case_____b_b` bit(8) DEFAULT NULL,
+  `coalesce___b` bit(8) DEFAULT NULL,
+  `coalesce_b_b` bit(8) DEFAULT NULL,
+  `if_______b_b` bit(8) DEFAULT NULL,
   `ifnull___b_b` bit(8) DEFAULT NULL,
-  `least____b_b` int(8) unsigned DEFAULT NULL,
-  `greatest_b_b` int(8) unsigned DEFAULT NULL
+  `least____b_b` bit(8) DEFAULT NULL,
+  `greatest_b_b` bit(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
@@ -1119,18 +1119,18 @@ GREATEST(a, b)                            AS greatest_a_b,
 GREATEST(b, a)                            AS greatest_b_a
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					case_____a_b	8	10	10	Y	32928	0	63
-def					case_____b_a	8	10	2	Y	32928	0	63
-def					coalesce_a_b	8	10	10	Y	32928	0	63
-def					coalesce_b_a	8	10	2	Y	32928	0	63
-def					if_______a_b	8	10	2	Y	32928	0	63
-def					if_______b_a	8	10	10	Y	32928	0	63
-def					ifnull___a_b	8	10	10	Y	32928	0	63
-def					ifnull___b_a	8	10	2	Y	32928	0	63
-def					least____a_b	8	10	2	Y	32928	0	63
-def					least____b_a	8	10	2	Y	32928	0	63
-def					greatest_a_b	8	10	10	Y	32928	0	63
-def					greatest_b_a	8	10	10	Y	32928	0	63
+def					case_____a_b	3	10	10	Y	32928	0	63
+def					case_____b_a	3	10	2	Y	32928	0	63
+def					coalesce_a_b	3	10	10	Y	32928	0	63
+def					coalesce_b_a	3	10	2	Y	32928	0	63
+def					if_______a_b	3	10	2	Y	32928	0	63
+def					if_______b_a	3	10	10	Y	32928	0	63
+def					ifnull___a_b	3	10	10	Y	32928	0	63
+def					ifnull___b_a	3	10	2	Y	32928	0	63
+def					least____a_b	3	10	2	Y	32928	0	63
+def					least____b_a	3	10	2	Y	32928	0	63
+def					greatest_a_b	3	10	10	Y	32928	0	63
+def					greatest_b_a	3	10	10	Y	32928	0	63
 case_____a_b	4294967295
 case_____b_a	50
 coalesce_a_b	4294967295
@@ -1177,14 +1177,14 @@ t2	CREATE TABLE `t2` (
   `least____a_a` int(10) unsigned DEFAULT NULL,
   `greatest_a_a` int(10) unsigned DEFAULT NULL,
   `___________b` bit(8) DEFAULT NULL,
-  `case_______b` int(8) unsigned DEFAULT NULL,
-  `case_____b_b` int(8) unsigned DEFAULT NULL,
-  `coalesce___b` int(8) unsigned DEFAULT NULL,
-  `coalesce_b_b` int(8) unsigned DEFAULT NULL,
-  `if_______b_b` int(8) unsigned DEFAULT NULL,
+  `case_______b` bit(8) DEFAULT NULL,
+  `case_____b_b` bit(8) DEFAULT NULL,
+  `coalesce___b` bit(8) DEFAULT NULL,
+  `coalesce_b_b` bit(8) DEFAULT NULL,
+  `if_______b_b` bit(8) DEFAULT NULL,
   `ifnull___b_b` bit(8) DEFAULT NULL,
-  `least____b_b` int(8) unsigned DEFAULT NULL,
-  `greatest_b_b` int(8) unsigned DEFAULT NULL
+  `least____b_b` bit(8) DEFAULT NULL,
+  `greatest_b_b` bit(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
@@ -1212,8 +1212,8 @@ t2	CREATE TABLE `t2` (
   `coalesce_b_a` int(10) unsigned DEFAULT NULL,
   `if_______a_b` int(10) unsigned DEFAULT NULL,
   `if_______b_a` int(10) unsigned DEFAULT NULL,
-  `ifnull___a_b` bigint(10) unsigned DEFAULT NULL,
-  `ifnull___b_a` bigint(10) unsigned DEFAULT NULL,
+  `ifnull___a_b` int(10) unsigned DEFAULT NULL,
+  `ifnull___b_a` int(10) unsigned DEFAULT NULL,
   `least____a_b` int(10) unsigned DEFAULT NULL,
   `least____b_a` int(10) unsigned DEFAULT NULL,
   `greatest_a_b` int(10) unsigned DEFAULT NULL,
@@ -1345,23 +1345,23 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `___________a` bit(7) DEFAULT NULL,
-  `case_______a` int(7) unsigned DEFAULT NULL,
-  `case_____a_a` int(7) unsigned DEFAULT NULL,
-  `coalesce___a` int(7) unsigned DEFAULT NULL,
-  `coalesce_a_a` int(7) unsigned DEFAULT NULL,
-  `if_______a_a` int(7) unsigned DEFAULT NULL,
+  `case_______a` bit(7) DEFAULT NULL,
+  `case_____a_a` bit(7) DEFAULT NULL,
+  `coalesce___a` bit(7) DEFAULT NULL,
+  `coalesce_a_a` bit(7) DEFAULT NULL,
+  `if_______a_a` bit(7) DEFAULT NULL,
   `ifnull___a_a` bit(7) DEFAULT NULL,
-  `least____a_a` int(7) unsigned DEFAULT NULL,
-  `greatest_a_a` int(7) unsigned DEFAULT NULL,
+  `least____a_a` bit(7) DEFAULT NULL,
+  `greatest_a_a` bit(7) DEFAULT NULL,
   `___________b` bit(8) DEFAULT NULL,
-  `case_______b` int(8) unsigned DEFAULT NULL,
-  `case_____b_b` int(8) unsigned DEFAULT NULL,
-  `coalesce___b` int(8) unsigned DEFAULT NULL,
-  `coalesce_b_b` int(8) unsigned DEFAULT NULL,
-  `if_______b_b` int(8) unsigned DEFAULT NULL,
+  `case_______b` bit(8) DEFAULT NULL,
+  `case_____b_b` bit(8) DEFAULT NULL,
+  `coalesce___b` bit(8) DEFAULT NULL,
+  `coalesce_b_b` bit(8) DEFAULT NULL,
+  `if_______b_b` bit(8) DEFAULT NULL,
   `ifnull___b_b` bit(8) DEFAULT NULL,
-  `least____b_b` int(8) unsigned DEFAULT NULL,
-  `greatest_b_b` int(8) unsigned DEFAULT NULL
+  `least____b_b` bit(8) DEFAULT NULL,
+  `greatest_b_b` bit(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
@@ -1383,18 +1383,18 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `case_____a_b` int(8) unsigned DEFAULT NULL,
-  `case_____b_a` int(8) unsigned DEFAULT NULL,
-  `coalesce_a_b` int(8) unsigned DEFAULT NULL,
-  `coalesce_b_a` int(8) unsigned DEFAULT NULL,
-  `if_______a_b` int(8) unsigned DEFAULT NULL,
-  `if_______b_a` int(8) unsigned DEFAULT NULL,
+  `case_____a_b` bit(8) DEFAULT NULL,
+  `case_____b_a` bit(8) DEFAULT NULL,
+  `coalesce_a_b` bit(8) DEFAULT NULL,
+  `coalesce_b_a` bit(8) DEFAULT NULL,
+  `if_______a_b` bit(8) DEFAULT NULL,
+  `if_______b_a` bit(8) DEFAULT NULL,
   `ifnull___a_b` bit(8) DEFAULT NULL,
   `ifnull___b_a` bit(8) DEFAULT NULL,
-  `least____a_b` int(8) unsigned DEFAULT NULL,
-  `least____b_a` int(8) unsigned DEFAULT NULL,
-  `greatest_a_b` int(8) unsigned DEFAULT NULL,
-  `greatest_b_a` int(8) unsigned DEFAULT NULL
+  `least____a_b` bit(8) DEFAULT NULL,
+  `least____b_a` bit(8) DEFAULT NULL,
+  `greatest_a_b` bit(8) DEFAULT NULL,
+  `greatest_b_a` bit(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 DROP TABLE t1;
@@ -1429,8 +1429,8 @@ def					coalesce___a	4	12	1	Y	32896	31	63
 def					coalesce_a_a	4	12	1	Y	32896	31	63
 def					if_______a_a	4	12	1	Y	32896	31	63
 def					ifnull___a_a	4	12	1	Y	32896	31	63
-def					least____a_a	5	23	1	Y	32896	31	63
-def					greatest_a_a	5	23	1	Y	32896	31	63
+def					least____a_a	4	23	1	Y	32896	31	63
+def					greatest_a_a	4	23	1	Y	32896	31	63
 def	test	t1	t1	b	___________b	2	6	6	Y	32768	0	63
 def					case_______b	2	6	6	Y	32896	0	63
 def					case_____b_b	2	6	6	Y	32896	0	63
@@ -1522,23 +1522,23 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `___________a` float DEFAULT NULL,
-  `case_______a` double DEFAULT NULL,
-  `case_____a_a` double DEFAULT NULL,
-  `coalesce___a` double DEFAULT NULL,
-  `coalesce_a_a` double DEFAULT NULL,
-  `if_______a_a` double DEFAULT NULL,
+  `case_______a` float DEFAULT NULL,
+  `case_____a_a` float DEFAULT NULL,
+  `coalesce___a` float DEFAULT NULL,
+  `coalesce_a_a` float DEFAULT NULL,
+  `if_______a_a` float DEFAULT NULL,
   `ifnull___a_a` float DEFAULT NULL,
-  `least____a_a` double DEFAULT NULL,
-  `greatest_a_a` double DEFAULT NULL,
+  `least____a_a` float DEFAULT NULL,
+  `greatest_a_a` float DEFAULT NULL,
   `___________b` smallint(6) DEFAULT NULL,
-  `case_______b` int(6) DEFAULT NULL,
-  `case_____b_b` int(6) DEFAULT NULL,
-  `coalesce___b` int(6) DEFAULT NULL,
-  `coalesce_b_b` int(6) DEFAULT NULL,
-  `if_______b_b` int(6) DEFAULT NULL,
+  `case_______b` smallint(6) DEFAULT NULL,
+  `case_____b_b` smallint(6) DEFAULT NULL,
+  `coalesce___b` smallint(6) DEFAULT NULL,
+  `coalesce_b_b` smallint(6) DEFAULT NULL,
+  `if_______b_b` smallint(6) DEFAULT NULL,
   `ifnull___b_b` smallint(6) DEFAULT NULL,
-  `least____b_b` int(6) DEFAULT NULL,
-  `greatest_b_b` int(6) DEFAULT NULL
+  `least____b_b` smallint(6) DEFAULT NULL,
+  `greatest_b_b` smallint(6) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
@@ -1560,12 +1560,12 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `case_____a_b` double DEFAULT NULL,
-  `case_____b_a` double DEFAULT NULL,
-  `coalesce_a_b` double DEFAULT NULL,
-  `coalesce_b_a` double DEFAULT NULL,
-  `if_______a_b` double DEFAULT NULL,
-  `if_______b_a` double DEFAULT NULL,
+  `case_____a_b` float DEFAULT NULL,
+  `case_____b_a` float DEFAULT NULL,
+  `coalesce_a_b` float DEFAULT NULL,
+  `coalesce_b_a` float DEFAULT NULL,
+  `if_______a_b` float DEFAULT NULL,
+  `if_______b_a` float DEFAULT NULL,
   `ifnull___a_b` float DEFAULT NULL,
   `ifnull___b_a` float DEFAULT NULL,
   `least____a_b` double DEFAULT NULL,
@@ -1615,8 +1615,8 @@ def					coalesce___b	254	1	1	Y	0	39	8
 def					coalesce_b_b	254	1	1	Y	0	39	8
 def					if_______b_b	254	1	1	Y	0	39	8
 def					ifnull___b_b	254	1	1	Y	0	39	8
-def					least____b_b	254	1	1	Y	0	0	8
-def					greatest_b_b	254	1	1	Y	0	0	8
+def					least____b_b	254	1	1	Y	0	39	8
+def					greatest_b_b	254	1	1	Y	0	39	8
 ___________a	a
 case_______a	a
 case_____a_a	a
@@ -1885,14 +1885,14 @@ t2	CREATE TABLE `t2` (
   `least____a_a` int(11) DEFAULT NULL,
   `greatest_a_a` int(11) DEFAULT NULL,
   `___________b` year(4) DEFAULT NULL,
-  `case_______b` int(4) unsigned DEFAULT NULL,
-  `case_____b_b` int(4) unsigned DEFAULT NULL,
-  `coalesce___b` int(4) unsigned DEFAULT NULL,
-  `coalesce_b_b` int(4) unsigned DEFAULT NULL,
-  `if_______b_b` int(4) unsigned DEFAULT NULL,
+  `case_______b` year(4) DEFAULT NULL,
+  `case_____b_b` year(4) DEFAULT NULL,
+  `coalesce___b` year(4) DEFAULT NULL,
+  `coalesce_b_b` year(4) DEFAULT NULL,
+  `if_______b_b` year(4) DEFAULT NULL,
   `ifnull___b_b` year(4) DEFAULT NULL,
-  `least____b_b` int(4) unsigned DEFAULT NULL,
-  `greatest_b_b` int(4) unsigned DEFAULT NULL
+  `least____b_b` year(4) DEFAULT NULL,
+  `greatest_b_b` year(4) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
@@ -2062,14 +2062,14 @@ t2	CREATE TABLE `t2` (
   `least____a_a` int(10) unsigned DEFAULT NULL,
   `greatest_a_a` int(10) unsigned DEFAULT NULL,
   `___________b` year(4) DEFAULT NULL,
-  `case_______b` int(4) unsigned DEFAULT NULL,
-  `case_____b_b` int(4) unsigned DEFAULT NULL,
-  `coalesce___b` int(4) unsigned DEFAULT NULL,
-  `coalesce_b_b` int(4) unsigned DEFAULT NULL,
-  `if_______b_b` int(4) unsigned DEFAULT NULL,
+  `case_______b` year(4) DEFAULT NULL,
+  `case_____b_b` year(4) DEFAULT NULL,
+  `coalesce___b` year(4) DEFAULT NULL,
+  `coalesce_b_b` year(4) DEFAULT NULL,
+  `if_______b_b` year(4) DEFAULT NULL,
   `ifnull___b_b` year(4) DEFAULT NULL,
-  `least____b_b` int(4) unsigned DEFAULT NULL,
-  `greatest_b_b` int(4) unsigned DEFAULT NULL
+  `least____b_b` year(4) DEFAULT NULL,
+  `greatest_b_b` year(4) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
@@ -2190,10 +2190,10 @@ def					if_______a_b	12	19	19	Y	128	0	63
 def					if_______b_a	12	19	19	Y	128	0	63
 def					ifnull___a_b	12	19	19	Y	128	0	63
 def					ifnull___b_a	12	19	19	Y	128	0	63
-def					least____a_b	12	10	19	Y	128	0	63
-def					least____b_a	12	10	19	Y	128	0	63
-def					greatest_a_b	12	10	19	Y	128	0	63
-def					greatest_b_a	12	10	19	Y	128	0	63
+def					least____a_b	12	19	19	Y	128	0	63
+def					least____b_a	12	19	19	Y	128	0	63
+def					greatest_a_b	12	19	19	Y	128	0	63
+def					greatest_b_a	12	19	19	Y	128	0	63
 case_____a_b	2010-01-01 00:00:00
 case_____b_a	2001-01-01 10:20:30
 coalesce_a_b	2010-01-01 00:00:00
@@ -2317,8 +2317,8 @@ def					coalesce___a	7	19	19	N	129	0	63
 def					coalesce_a_a	7	19	19	N	129	0	63
 def					if_______a_a	7	19	19	N	129	0	63
 def					ifnull___a_a	7	19	19	N	129	0	63
-def					least____a_a	7	19	19	N	161	0	63
-def					greatest_a_a	7	19	19	N	161	0	63
+def					least____a_a	7	19	19	N	129	0	63
+def					greatest_a_a	7	19	19	N	129	0	63
 def	test	t1	t1	b	___________b	11	10	8	Y	128	0	63
 def					case_______b	11	10	8	Y	128	0	63
 def					case_____b_b	11	10	8	Y	128	0	63
@@ -3050,7 +3050,7 @@ DROP TABLE t1;
 SET timestamp=UNIX_TIMESTAMP('2010-01-01 01:02:03');
 SELECT GREATEST(CURRENT_TIME, CURRENT_DATE), COALESCE(CURRENT_TIME, CURRENT_DATE);
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					GREATEST(CURRENT_TIME, CURRENT_DATE)	12	10	19	N	129	0	63
+def					GREATEST(CURRENT_TIME, CURRENT_DATE)	12	19	19	N	129	0	63
 def					COALESCE(CURRENT_TIME, CURRENT_DATE)	12	19	19	N	129	0	63
 GREATEST(CURRENT_TIME, CURRENT_DATE)	COALESCE(CURRENT_TIME, CURRENT_DATE)
 2010-01-01 01:02:03	2010-01-01 01:02:03
@@ -3058,8 +3058,13 @@ CREATE TABLE t1 (a TIMESTAMP);
 INSERT INTO t1 VALUES ('2010-01-01 10:20:30');
 SELECT GREATEST(a,a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					GREATEST(a,a)	7	19	19	N	161	0	63
+def					GREATEST(a,a)	7	19	19	N	129	0	63
 GREATEST(a,a)
+2010-01-01 10:20:30
+SELECT COALESCE(a,a) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(a,a)	7	19	19	N	129	0	63
+COALESCE(a,a)
 2010-01-01 10:20:30
 DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP, b DATETIME);
@@ -3444,4 +3449,103 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 #
 # End of 10.1 tests
+#
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12497 Wrong data type for LEAST(latin1_expr, utf8_expr)
+#
+CREATE TABLE t1 AS SELECT
+LEAST(_latin1'aaa',_utf8 0xC39F) AS c1,
+COALESCE(_latin1'aaa',_utf8 0xC39F) AS c2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(3) CHARACTER SET utf8 NOT NULL,
+  `c2` varchar(3) CHARACTER SET utf8 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+c1	c2
+aaa	aaa
+DROP TABLE t1;
+#
+# MDEV-12504 Wrong data type for LEAST(date_expr,time_expr)
+#
+CREATE TABLE t1 AS SELECT
+LEAST(DATE'2001-01-01', TIME'10:20:30') AS c1,
+CONCAT(LEAST(DATE'2001-01-01', TIME'10:20:30')) AS c2;
+SELECT * FROM t1;
+c1	c2
+2001-01-01 00:00:00	2001-01-01 00:00:00
+DROP TABLE t1;
+#
+# MDEV-12505 Wrong data type for GREATEST(bit_column, int_column)
+#
+CREATE TABLE t1 (a BIT(64),b INT);
+INSERT INTO t1 VALUES (0xFFFFFFFFFFFFFFFF,-1);
+SELECT a>b, COALESCE(a,b), GREATEST(a,b) FROM t1;
+a>b	COALESCE(a,b)	GREATEST(a,b)
+1	18446744073709551615	18446744073709551615
+CREATE TABLE t2 AS SELECT COALESCE(a,b),GREATEST(a,b) FROM t1;
+SELECT * FROM t2;
+COALESCE(a,b)	GREATEST(a,b)
+18446744073709551615	18446744073709551615
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` decimal(64,0) DEFAULT NULL,
+  `GREATEST(a,b)` decimal(64,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-12601 Hybrid functions create a column of an impossible type DOUBLE(256,4)
+#
+CREATE TABLE t1 (a DOUBLE(255,4),b DOUBLE(255,3));
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` double(255,4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-12617 CASE and CASE-alike hybrid functions do not preserve exact data types
+#
+CREATE TABLE t1 (a FLOAT(10,2));
+CREATE TABLE t2 AS SELECT COALESCE(a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a)` float(10,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+CREATE TABLE t1 (a FLOAT(10,2));
+CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,a)` float(19,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+CREATE TABLE t1 (a TINYINT(1));
+CREATE TABLE t2 AS SELECT COALESCE(a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a)` tinyint(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+CREATE TABLE t1 (a TINYINT(1));
+CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,a)` tinyint(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+#
+# End of 10.3 tests
 #

@@ -1492,6 +1492,8 @@ public:
 
   /* True if the plan guarantees that it will be returned zero or one row */
   bool only_const_tables()  { return const_tables == table_count; }
+  /* Number of tables actually joined at the top level */
+  uint exec_join_tab_cnt() { return tables_list ? top_join_tab_count : 0; }
 
   int prepare(TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,
@@ -1714,7 +1716,7 @@ void copy_fields(TMP_TABLE_PARAM *param);
 bool copy_funcs(Item **func_ptr, const THD *thd);
 uint find_shortest_key(TABLE *table, const key_map *usable_keys);
 Field* create_tmp_field_from_field(THD *thd, Field* org_field,
-                                   const char *name, TABLE *table,
+                                   LEX_CSTRING *name, TABLE *table,
                                    Item_field *item);
 
 bool is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args);

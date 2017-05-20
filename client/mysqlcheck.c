@@ -19,6 +19,8 @@
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
 #define CHECK_VERSION "2.7.4-MariaDB"
+/* Avoid warnings from %'s format */
+#define USING_MARIADB_SNPRINTF_EXTENSIONS
 
 #include "client_priv.h"
 #include <m_ctype.h>
@@ -581,6 +583,7 @@ static int process_selected_tables(char *db, char **table_names, int tables)
     my_free(table_names_comma_sep);
   }
   else
+  {
     for (; tables > 0; tables--, table_names++)
     {
       table= *table_names;
@@ -590,6 +593,7 @@ static int process_selected_tables(char *db, char **table_names, int tables)
         continue;
       handle_request_for_tables(table, table_len, view == 1, opt_all_in_1);
     }
+  }
   DBUG_RETURN(0);
 } /* process_selected_tables */
 
@@ -909,16 +913,29 @@ static int handle_request_for_tables(char *tables, size_t length,
     }
     break;
   case DO_ANALYZE:
+    if (view)
+    {
+      printf("%-50s %s\n", tables, "Can't run anaylyze on a view");
+      DBUG_RETURN(1);
+    }
     DBUG_ASSERT(!view);
     op= (opt_write_binlog) ? "ANALYZE" : "ANALYZE NO_WRITE_TO_BINLOG";
     if (opt_persistent_all) end = strmov(end, " PERSISTENT FOR ALL");
     break;
   case DO_OPTIMIZE:
-    DBUG_ASSERT(!view);
+    if (view)
+    {
+      printf("%-50s %s\n", tables, "Can't run optimize on a view");
+      DBUG_RETURN(1);
+    }
     op= (opt_write_binlog) ? "OPTIMIZE" : "OPTIMIZE NO_WRITE_TO_BINLOG";
     break;
   case DO_FIX_NAMES:
-    DBUG_ASSERT(!view);
+    if (view)
+    {
+      printf("%-50s %s\n", tables, "Can't run fix names on a view");
+      DBUG_RETURN(1);
+    }
     DBUG_RETURN(fix_table_storage_name(tables));
   }
 

@@ -113,14 +113,15 @@ class sp_name : public Sql_alloc,
 public:
   bool       m_explicit_name;                   /**< Prepend the db name? */
 
-  sp_name(LEX_STRING db, LEX_STRING name, bool use_explicit_name)
+  sp_name(const LEX_CSTRING *db, const LEX_CSTRING *name,
+          bool use_explicit_name)
     : Database_qualified_name(db, name), m_explicit_name(use_explicit_name)
   {
     if (lower_case_table_names && m_db.str)
-      m_db.length= my_casedn_str(files_charset_info, m_db.str);
+      m_db.length= my_casedn_str(files_charset_info, (char*) m_db.str);
   }
 
-  /** Create temporary sp_name object from MDL key. */
+  /** Create temporary sp_name object from MDL key. Store in qname_buff */
   sp_name(const MDL_key *key, char *qname_buff);
 
   ~sp_name()
@@ -129,7 +130,7 @@ public:
 
 
 bool
-check_routine_name(LEX_STRING *ident);
+check_routine_name(LEX_CSTRING *ident);
 
 class sp_head :private Query_arena,
                public Database_qualified_name
@@ -180,14 +181,14 @@ public:
   const char *m_tmp_query;	///< Temporary pointer to sub query string
   st_sp_chistics *m_chistics;
   sql_mode_t m_sql_mode;		///< For SHOW CREATE and execution
-  LEX_STRING m_qname;		///< db.name
-  bool m_explicit_name;         ///< Prepend the db name? */
-  LEX_STRING m_params;
-  LEX_STRING m_body;
-  LEX_STRING m_body_utf8;
-  LEX_STRING m_defstr;
-  LEX_STRING m_definer_user;
-  LEX_STRING m_definer_host;
+  bool       m_explicit_name;                   /**< Prepend the db name? */
+  LEX_CSTRING m_qname;		///< db.name
+  LEX_CSTRING m_params;
+  LEX_CSTRING m_body;
+  LEX_CSTRING m_body_utf8;
+  LEX_CSTRING m_defstr;
+  LEX_CSTRING m_definer_user;
+  LEX_CSTRING m_definer_host;
 
   /**
     Is this routine being executed?
@@ -325,8 +326,8 @@ public:
 
   bool
   execute_trigger(THD *thd,
-                  const LEX_STRING *db_name,
-                  const LEX_STRING *table_name,
+                  const LEX_CSTRING *db_name,
+                  const LEX_CSTRING *table_name,
                   GRANT_INFO *grant_info);
 
   bool
@@ -382,7 +383,7 @@ public:
                                     Item *val, LEX *lex);
   bool set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
                                             sp_variable *spv,
-                                            const LEX_STRING &field_name,
+                                            const LEX_CSTRING *field_name,
                                             Item *val, LEX *lex);
 private:
   /**
@@ -602,16 +603,12 @@ public:
   /// Add cpush instructions for all cursors declared in the current frame
   bool sp_add_instr_cpush_for_cursors(THD *thd, sp_pcontext *pcontext);
 
-  char *name(uint *lenp = 0) const
-  {
-    if (lenp)
-      *lenp= (uint) m_name.length;
-    return m_name.str;
-  }
+  const LEX_CSTRING *name() const
+  { return &m_name; }
 
   char *create_string(THD *thd, ulong *lenp);
 
-  Field *create_result_field(uint field_max_length, const char *field_name,
+  Field *create_result_field(uint field_max_length, const LEX_CSTRING *field_name,
                              TABLE *table);
 
 
@@ -629,7 +626,8 @@ public:
   */
   bool fill_field_definition(THD *thd, Column_definition *field_def)
   {
-    return field_def->check(thd) ||
+    const Type_handler *h= field_def->type_handler();
+    return h->Column_definition_fix_attributes(field_def) ||
            field_def->sp_prepare_create_field(thd, mem_root);
   }
   bool row_fill_field_definitions(THD *thd, Row_definition_list *row)
@@ -657,9 +655,10 @@ public:
     def->pack_flag|= FIELDFLAG_MAYBE_NULL;
     return false;
   }
-  bool fill_spvar_definition(THD *thd, Column_definition *def, const char *name)
+  bool fill_spvar_definition(THD *thd, Column_definition *def,
+                             LEX_CSTRING *name)
   {
-    def->field_name= name;
+    def->field_name= *name;
     return fill_spvar_definition(thd, def);
   }
   /**
@@ -669,7 +668,7 @@ public:
                                        Qualified_column_ident *ref)
   {
     spvar->field_def.set_column_type_ref(ref);
-    spvar->field_def.field_name= spvar->name.str;
+    spvar->field_def.field_name= spvar->name;
     m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
   }
 
@@ -677,7 +676,7 @@ public:
 		st_sp_chistics *chistics, sql_mode_t sql_mode);
 
   void set_definer(const char *definer, uint definerlen);
-  void set_definer(const LEX_STRING *user_name, const LEX_STRING *host_name);
+  void set_definer(const LEX_CSTRING *user_name, const LEX_CSTRING *host_name);
 
   void reset_thd_mem_root(THD *thd);
 
@@ -763,7 +762,7 @@ public:
     DBUG_PRINT("info", ("lex->get_stmt_unsafe_flags(): 0x%x",
                         prelocking_ctx->get_stmt_unsafe_flags()));
     DBUG_PRINT("info", ("sp_head(0x%p=%s)->unsafe_flags: 0x%x",
-                        this, name(), unsafe_flags));
+                        this, name()->str, unsafe_flags));
     prelocking_ctx->set_stmt_unsafe_flags(unsafe_flags);
     DBUG_VOID_RETURN;
   }
@@ -837,12 +836,12 @@ private:
 
 class sp_lex_cursor: public sp_lex_local, public Query_arena
 {
-  LEX_STRING m_cursor_name;
+  LEX_CSTRING m_cursor_name;
 public:
   sp_lex_cursor(THD *thd, const LEX *oldlex, MEM_ROOT *mem_root_arg)
    :sp_lex_local(thd, oldlex),
     Query_arena(mem_root_arg, STMT_INITIALIZED_FOR_SP),
-    m_cursor_name(null_lex_str)
+    m_cursor_name(null_clex_str)
   { }
   sp_lex_cursor(THD *thd, const LEX *oldlex)
    :sp_lex_local(thd, oldlex),
@@ -870,8 +869,8 @@ public:
     thd->free_list= NULL;
     return false;
   }
-  const LEX_STRING *cursor_name() const { return &m_cursor_name; }
-  void set_cursor_name(const LEX_STRING &name) { m_cursor_name= name; }
+  const LEX_CSTRING *cursor_name() const { return &m_cursor_name; }
+  void set_cursor_name(const LEX_CSTRING *name) { m_cursor_name= *name; }
 };
 
 
@@ -1045,7 +1044,7 @@ public:
     m_lex->safe_to_cache_query= 0;
   }
 
-  const LEX_STRING *cursor_name() const
+  const LEX_CSTRING *cursor_name() const
   {
     return m_lex->cursor_name();
   }
@@ -1197,12 +1196,12 @@ class sp_instr_set_row_field_by_name : public sp_instr_set
   // Prevent use of this
   sp_instr_set_row_field_by_name(const sp_instr_set_row_field &);
   void operator=(sp_instr_set_row_field_by_name &);
-  const LEX_STRING m_field_name;
+  const LEX_CSTRING m_field_name;
 
 public:
 
   sp_instr_set_row_field_by_name(uint ip, sp_pcontext *ctx,
-                                 uint offset, const LEX_STRING &field_name,
+                                 uint offset, const LEX_CSTRING &field_name,
                                  Item *val,
                                  LEX *lex, bool lex_resp)
     : sp_instr_set(ip, ctx, offset, val, lex, lex_resp),
@@ -1432,8 +1431,8 @@ class sp_instr_freturn : public sp_instr
 public:
 
   sp_instr_freturn(uint ip, sp_pcontext *ctx,
-		   Item *val, enum enum_field_types type_arg, LEX *lex)
-    : sp_instr(ip, ctx), m_value(val), m_type(type_arg),
+		   Item *val, const Type_handler *handler, LEX *lex)
+    : sp_instr(ip, ctx), m_value(val), m_type_handler(handler),
       m_lex_keeper(lex, TRUE)
   {}
 
@@ -1455,7 +1454,7 @@ public:
 protected:
 
   Item *m_value;
-  enum enum_field_types m_type;
+  const Type_handler *m_type_handler;
   sp_lex_keeper m_lex_keeper;
 
 }; // class sp_instr_freturn : public sp_instr

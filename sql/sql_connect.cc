@@ -382,7 +382,7 @@ void reset_mqh(LEX_USER *lu, bool get_them= 0)
 static const char mysql_system_user[]= "#mysql_system#";
 
 // Returns 'user' if it's not NULL.  Returns 'mysql_system_user' otherwise.
-static const char * get_valid_user_string(char* user)
+static const char * get_valid_user_string(const char* user)
 {
   return user ? user : mysql_system_user;
 }
@@ -1108,7 +1108,7 @@ bool login_connection(THD *thd)
   /*  Updates global user connection stats. */
   if (increment_connection_count(thd, TRUE))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), 2*sizeof(USER_STATS));
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) (2*sizeof(USER_STATS)));
     error= 1;
     goto exit;
   }

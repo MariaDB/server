@@ -560,6 +560,10 @@ public:
     memcpy(Ptr + str_length, data, data_len);
     str_length += data_len;
   }
+  void q_append(const LEX_CSTRING *ls)
+  {
+    q_append(ls->str, ls->length);
+  }
 
   void write_at_position(int position, uint32 value)
   {

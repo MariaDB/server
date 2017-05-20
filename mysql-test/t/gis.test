@@ -1789,7 +1789,6 @@ CALL p1('CREATE TABLE t1 (a ENUM(0x61), b Point)');
 CALL p1('CREATE TABLE t1 (a SET(0x61), b Point)');
 --enable_query_log
 
---echo # This does not preserve geometry type (MDEV-9405)
 CREATE TABLE t1 AS SELECT COALESCE(NULL, Point(1,1));
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
@@ -1868,6 +1867,76 @@ CALL p1('CREATE TABLE t1 (a Point, b Point, c Point)');
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 
+
+--echo #
+--echo # MDEV-12506 Split Item_func_min_max::fix_length_and_dec() into methods in Type_handler
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p2(query TEXT)
+BEGIN
+  DECLARE errcount INT DEFAULT 0;
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+  BEGIN
+    SET errcount = errcount+1;
+    #SHOW WARNINGS;
+    GET DIAGNOSTICS CONDITION 1 @p= MESSAGE_TEXT;
+    SELECT @p AS `ERROR: `;
+  END;
+  SELECT query AS ``;
+  EXECUTE IMMEDIATE query;
+  IF errcount = 0
+  THEN
+    SHOW CREATE TABLE t2;
+    DROP TABLE t2;
+  END IF;
+END;
+$$
+CREATE PROCEDURE p1(query TEXT)
+BEGIN
+  SELECT query AS `-------------------------------------`;
+  EXECUTE IMMEDIATE query;
+  CALL p2('CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1');
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+
+--disable_query_log
+CALL p1('CREATE TABLE t1 (a CHAR(10), b Point)');
+CALL p1('CREATE TABLE t1 (a VARCHAR(10), b Point)');
+CALL p1('CREATE TABLE t1 (a TINYTEXT, b Point)');
+CALL p1('CREATE TABLE t1 (a TEXT, b Point)');
+CALL p1('CREATE TABLE t1 (a MEDIUMTEXT, b Point)');
+CALL p1('CREATE TABLE t1 (a LONGTEXT, b Point)');
+
+CALL p1('CREATE TABLE t1 (a TINYINT, b Point)');
+CALL p1('CREATE TABLE t1 (a SMALLINT, b Point)');
+CALL p1('CREATE TABLE t1 (a MEDIUMINT, b Point)');
+CALL p1('CREATE TABLE t1 (a INT, b Point)');
+CALL p1('CREATE TABLE t1 (a BIGINT, b Point)');
+CALL p1('CREATE TABLE t1 (a FLOAT, b Point)');
+CALL p1('CREATE TABLE t1 (a DOUBLE, b Point)');
+CALL p1('CREATE TABLE t1 (a DECIMAL(10,2), b Point)');
+CALL p1('CREATE TABLE t1 (a BIT(8), b Point)');
+
+CALL p1('CREATE TABLE t1 (a TIME, b Point)');
+CALL p1('CREATE TABLE t1 (a DATE, b Point)');
+CALL p1('CREATE TABLE t1 (a DATETIME, b Point)');
+CALL p1('CREATE TABLE t1 (a TIMESTAMP, b Point)');
+CALL p1('CREATE TABLE t1 (a YEAR, b Point)');
+
+--echo # This LEAST(ENUM,GEOMETRY) creates BLOB, but fails on error with UNION (see MDEV-12503)
+CALL p1('CREATE TABLE t1 (a ENUM(0x61), b Point)');
+CALL p1('CREATE TABLE t1 (a SET(0x61), b Point)');
+--enable_query_log
+
+CREATE TABLE t1 AS SELECT LEAST(NULL, Point(1,1));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
 
 --echo #
 --echo # MDEV-12001 Split Item_func_round::fix_length_and_dec to virtual methods in Type_handler
@@ -2088,6 +2157,152 @@ SELECT 1 / COALESCE(a) FROM t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT 1 MOD COALESCE(a) FROM t1;
 
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12514 Split Item_temporal_func::fix_length_and_dec()
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT DATE_ADD(POINT(1,1), INTERVAL 10 DAY);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT DATE_SUB(POINT(1,1), INTERVAL 10 DAY);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT POINT(1,1) + INTERVAL 10 DAY;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT POINT(1,1) - INTERVAL 10 DAY;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT INTERVAL 10 DAY + POINT(1,1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT INTERVAL 10 DAY + POINT(1,1);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ADDTIME(POINT(1,1), '10:10:10');
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ADDTIME('10:10:10', POINT(1,1));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ADDTIME(POINT(1,1), TIME'10:10:10');
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ADDTIME(TIME'10:10:10', POINT(1,1));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ADDTIME(POINT(1,1), TIMESTAMP'2001-01-01 10:10:10');
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ADDTIME(TIMESTAMP'2001-01-01 10:10:10', POINT(1,1));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT STR_TO_DATE('2001-01-01', POINT(1,1));
+
+--echo #
+--echo # MDEV-12665 Hybrid functions do not preserve geometry type
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  Point(0,0) AS p0,
+  COALESCE(Point(0,0)) AS p1,
+  CASE WHEN 0 THEN Point(0,0) ELSE Point(1,1) END AS p2;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT LEAST(Point(0,0),Point(0,0)) AS p1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  c_geometry GEOMETRY,
+  c_point POINT,
+  c_linestring LINESTRING,
+  c_polygon POLYGON,
+  c_multipoint  MULTIPOINT,
+  c_multilinestring MULTILINESTRING,
+  c_multipolygon MULTIPOLYGON,
+  c_geometrycollection GEOMETRYCOLLECTION
+);
+
+CREATE TABLE t2 AS SELECT
+  COALESCE(NULL, c_geometry),
+  COALESCE(NULL, c_point),
+  COALESCE(NULL, c_linestring),
+  COALESCE(NULL, c_polygon),
+  COALESCE(NULL, c_multipoint),
+  COALESCE(NULL, c_multilinestring),
+  COALESCE(NULL, c_multipolygon),
+  COALESCE(NULL, c_geometrycollection)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  COALESCE(c_geometry, NULL),
+  COALESCE(c_point, NULL),
+  COALESCE(c_linestring, NULL),
+  COALESCE(c_polygon, NULL),
+  COALESCE(c_multipoint, NULL),
+  COALESCE(c_multilinestring, NULL),
+  COALESCE(c_multipolygon, NULL),
+  COALESCE(c_geometrycollection, NULL)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  COALESCE(c_geometry, c_geometry),
+  COALESCE(c_point, c_point),
+  COALESCE(c_linestring, c_linestring),
+  COALESCE(c_polygon, c_polygon),
+  COALESCE(c_multipoint, c_multipoint),
+  COALESCE(c_multilinestring, c_multilinestring),
+  COALESCE(c_multipolygon, c_multipolygon),
+  COALESCE(c_geometrycollection, c_geometrycollection)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-12560 Wrong data type for SELECT NULL UNION SELECT Point(1,1)
+--echo #
+
+CREATE TABLE t1 AS SELECT NULL AS c1 UNION SELECT POINT(1,1);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1(name TEXT)
+BEGIN
+  EXECUTE IMMEDIATE CONCAT('CREATE TABLE t1 (a ', name, ')');
+  CREATE TABLE t2 AS
+    SELECT a AS a1, a    AS a2, NULL AS a3 FROM t1 UNION
+    SELECT a AS a1, NULL AS a2, a    AS a3 FROM t1;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1('geometry');
+CALL p1('point');
+CALL p1('linestring');
+CALL p1('polygon');
+CALL p1('multipoint');
+CALL p1('multilinestring');
+CALL p1('multipolygon');
+CALL p1('geometrycollection');
+DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-12798 Item_param does not preserve exact field type in EXECUTE IMMEDIATE 'CREATE TABLE AS SELECT ?' USING POINT(1,1)
+--echo #
+EXECUTE IMMEDIATE 'CREATE TABLE t1 AS SELECT ?' USING POINT(1,1);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE OR REPLACE TABLE t1 AS SELECT ?';
+EXECUTE stmt USING POINT(1,1);
+SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 
