@@ -65,9 +65,8 @@ fil_compress_page(
 	ulint	level,		/* in: compression level */
 	ulint	block_size,	/*!< in: block size */
 	bool	encrypted,	/*!< in: is page also encrypted */
-	ulint*	out_len,	/*!< out: actual length of compressed
+	ulint*	out_len);	/*!< out: actual length of compressed
 				page */
-	byte*	lzo_mem);	/*!< in: temporal memory used by LZO */
 
 /****************************************************************//**
 For page compressed pages decompress the page after actual read

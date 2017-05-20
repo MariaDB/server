@@ -7090,8 +7090,7 @@ fil_iterate(
 					0,/* FIXME: compression level */
 					512,/* FIXME: use proper block size */
 					encrypted,
-					&len,
-					NULL);
+					&len);
 
 				updated = true;
 			}
