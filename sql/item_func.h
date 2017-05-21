@@ -738,7 +738,11 @@ public:
   { collation.set_numeric(); }
   double val_real();
   String *val_str(String*str);
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const= 0;
+  Field *create_tmp_field(bool group, TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
+  Field *create_field_for_create_select(TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
   void fix_length_and_dec() {}
 };
 
@@ -753,10 +757,6 @@ public:
   Item_long_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
   Item_long_func(THD *thd, Item_long_func *item) :Item_int_func(thd, item) {}
   const Type_handler *type_handler() const { return &type_handler_long; }
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
   void fix_length_and_dec() { max_length= 11; }
 };
 
@@ -773,10 +773,6 @@ public:
   Item_longlong_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
   Item_longlong_func(THD *thd, Item_longlong_func *item) :Item_int_func(thd, item) {}
   const Type_handler *type_handler() const { return &type_handler_longlong; }
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
 };
 
 
@@ -843,6 +839,7 @@ public:
     unsigned_flag= 0;
   }
   const char *func_name() const { return "cast_as_signed"; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   Field *create_tmp_field(bool group, TABLE *table)
   {
     return Item::create_tmp_field(false, table,
@@ -1074,6 +1071,13 @@ public:
   longlong val_int();
   const char *func_name() const { return "DIV"; }
   enum precedence precedence() const { return MUL_PRECEDENCE; }
+  const Type_handler *type_handler() const
+  {
+    // The same condition is repeated in Item::create_tmp_field()
+    if (max_length > MY_INT32_NUM_DECIMAL_DIGITS - 2)
+      return &type_handler_longlong;
+    return &type_handler_long;
+  }
   void fix_length_and_dec();
   void print(String *str, enum_query_type query_type)
   {
@@ -2095,6 +2099,7 @@ public:
     Item_int_func(thd) {}
   Item_func_udf_int(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_int_func(thd, list) {}
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return 0; }
 };
 
@@ -2106,6 +2111,7 @@ public:
     Item_int_func(thd) {}
   Item_func_udf_decimal(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_int_func(thd, list) {}
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed == 1); return 0; }
 };
 

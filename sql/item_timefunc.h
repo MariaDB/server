@@ -1012,11 +1012,6 @@ class Item_extract :public Item_int_func
     }
     return true;
   }
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_extract>(thd, mem_root, this); }
 };

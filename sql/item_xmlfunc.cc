@@ -461,13 +461,13 @@ public:
 };
 
 
-class Item_func_xpath_position :public Item_int_func
+class Item_func_xpath_position :public Item_long_func
 {
   String *pxml;
   String tmp_value;
 public:
   Item_func_xpath_position(THD *thd, Item *a, String *p):
-    Item_int_func(thd, a), pxml(p) {}
+    Item_long_func(thd, a), pxml(p) {}
   const char *func_name() const { return "xpath_position"; }
   void fix_length_and_dec() { max_length=10; }
   longlong val_int()
@@ -482,13 +482,13 @@ public:
 };
 
 
-class Item_func_xpath_count :public Item_int_func
+class Item_func_xpath_count :public Item_long_func
 {
   String *pxml;
   String tmp_value;
 public:
   Item_func_xpath_count(THD *thd, Item *a, String *p):
-    Item_int_func(thd, a), pxml(p) {}
+    Item_long_func(thd, a), pxml(p) {}
   const char *func_name() const { return "xpath_count"; }
   void fix_length_and_dec() { max_length=10; }
   longlong val_int()

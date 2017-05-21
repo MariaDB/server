@@ -536,3 +536,16 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					TIMESTAMPDIFF(MONTH,'2003-02-01','2003-05-01')	8	21	1	Y	32896	0	63
 TIMESTAMPDIFF(MONTH,'2003-02-01','2003-05-01')
 3
+#
+# MDEV-12856 Wrong result set metadata for DIV
+#
+SELECT
+2 DIV 1 AS d0l,
+222222222 DIV 1 AS d09,
+2222222222 DIV 1 AS d10;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					d0l	3	1	1	Y	32896	0	63
+def					d09	3	9	9	Y	32896	0	63
+def					d10	8	10	10	Y	32896	0	63
+d0l	d09	d10
+2	222222222	2222222222
