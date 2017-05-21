@@ -351,9 +351,9 @@ int print_explain_row(select_result_sink *result,
                       mem_root);
   
   /* 'possible_keys' */
+  StringBuffer<64> possible_keys_buf;
   if (possible_keys && !possible_keys->is_empty())
   {
-    StringBuffer<64> possible_keys_buf;
     push_string_list(thd, &item_list, *possible_keys, &possible_keys_buf);
   }
   else
