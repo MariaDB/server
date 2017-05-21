@@ -848,9 +848,7 @@ ibx_get_one_option(int optid,
 		opt_ibx_decrypt = true;
 		break;
 	case OPT_STREAM:
-		if (!strcasecmp(argument, "tar"))
-			xtrabackup_stream_fmt = XB_STREAM_FMT_TAR;
-		else if (!strcasecmp(argument, "xbstream"))
+    if (!strcasecmp(argument, "xbstream"))
 			xtrabackup_stream_fmt = XB_STREAM_FMT_XBSTREAM;
 		else {
 			ibx_msg("Invalid --stream argument: %s\n", argument);
