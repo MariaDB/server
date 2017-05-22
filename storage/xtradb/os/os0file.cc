@@ -6423,22 +6423,27 @@ os_file_trim(
 	flt.Ranges[0].Offset = off;
 	flt.Ranges[0].Length = trim_len;
 
+	OVERLAPPED overlapped = { 0 };
+	overlapped.hEvent = win_get_syncio_event();
 	BOOL ret = DeviceIoControl(slot->file, FSCTL_FILE_LEVEL_TRIM,
-		&flt, sizeof(flt), NULL, NULL, NULL, NULL);
-
+		&flt, sizeof(flt), NULL, NULL, NULL, &overlapped);
+	DWORD tmp;
+	if (ret) {
+		ret = GetOverlappedResult(slot->file, &overlapped, &tmp, FALSE);
+	}
+	else if (GetLastError() == ERROR_IO_PENDING) {
+		ret = GetOverlappedResult(slot->file, &overlapped, &tmp, TRUE);
+	}
 	if (!ret) {
+		DWORD last_error = GetLastError();
 		/* After first failure do not try to trim again */
 		os_fallocate_failed = true;
 		srv_use_trim = FALSE;
 		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: Warning: fallocate call failed with error.\n"
-			"  InnoDB: start: %lu len: %lu payload: %lu\n"
-			"  InnoDB: Disabling fallocate for now.\n", off, trim_len, len);
 
-		os_file_handle_error_no_exit(slot->name,
-			" DeviceIOControl(FSCTL_FILE_LEVEL_TRIM) ",
-			FALSE, __FILE__, __LINE__);
+		fprintf(stderr,
+			"  InnoDB: Warning: DeviceIoControl(FSCTL_FILE_LEVEL_TRIM) call failed with error %u%s. Disabling trimming.\n",
+			last_error,  last_error == ERROR_NOT_SUPPORTED ? "(ERROR_NOT_SUPPORTED)" : "");
 
 		if (slot->write_size) {
 			*slot->write_size = 0;
