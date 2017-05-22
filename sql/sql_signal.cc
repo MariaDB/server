@@ -434,13 +434,19 @@ bool Sql_cmd_resignal::execute(THD *thd)
     /* Check if the old condition still exists. */
     if (da->has_sql_condition(signaled->message, strlen(signaled->message)))
     {
-      /* Make room for the new RESIGNAL condition. */
-      da->reserve_space(thd, 1);
+      /*
+        Make room for the new RESIGNAL condition and one for the stack trace
+        note.
+      */
+      da->reserve_space(thd, 2);
     }
     else
     {
-      /* Make room for old condition + the new RESIGNAL condition. */
-      da->reserve_space(thd, 2);
+      /*
+        Make room for old condition + the new RESIGNAL condition + the stack
+        trace note.
+      */
+      da->reserve_space(thd, 3);
 
       da->push_warning(thd, &signaled_err);
     }
