@@ -1167,8 +1167,13 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
   if (test_all_bits(sctx->master_access, DB_ACLS))
     db_access=DB_ACLS;
   else
-    db_access= (acl_get(sctx->host, sctx->ip, sctx->priv_user, dbname->str, 0) |
-		sctx->master_access);
+  {
+    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user, dbname->str, 0) |
+               sctx->master_access;
+    if (sctx->priv_role[0])
+      db_access|= acl_get("", "", sctx->priv_role, dbname->str, 0);
+  }
+
   if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
   {
     status_var_increment(thd->status_var.access_denied_errors);
@@ -5118,8 +5123,10 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-	acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, 0) ||
-	!check_grant_db(thd, db_name->str))
+        acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, false) ||
+        (sctx->priv_role[0] ?
+             acl_get("", "", sctx->priv_role, db_name->str, false) : 0) ||
+        !check_grant_db(thd, db_name->str))
 #endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);
