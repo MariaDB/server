@@ -89,16 +89,16 @@ public:
 };
 
 
-class Item_func_to_seconds :public Item_long_func
+class Item_func_to_seconds :public Item_longlong_func
 {
 public:
-  Item_func_to_seconds(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_to_seconds(THD *thd, Item *a): Item_longlong_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "to_seconds"; }
   void fix_length_and_dec()
   { 
     decimals=0; 
-    max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
+    fix_char_length(12);
     maybe_null= 1;
   }
   enum_monotonicity_info get_monotonicity_info() const;
