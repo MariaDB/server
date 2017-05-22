@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2009, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -779,13 +780,13 @@ mach_swap_byte_order(
         dest += len;
 
         switch (len & 0x7) {
-        case 0: *--dest = *from++;
-        case 7: *--dest = *from++;
-        case 6: *--dest = *from++;
-        case 5: *--dest = *from++;
-        case 4: *--dest = *from++;
-        case 3: *--dest = *from++;
-        case 2: *--dest = *from++;
+        case 0: *--dest = *from++; /* fall through */
+        case 7: *--dest = *from++; /* fall through */
+        case 6: *--dest = *from++; /* fall through */
+        case 5: *--dest = *from++; /* fall through */
+        case 4: *--dest = *from++; /* fall through */
+        case 3: *--dest = *from++; /* fall through */
+        case 2: *--dest = *from++; /* fall through */
         case 1: *--dest = *from;
         }
 }

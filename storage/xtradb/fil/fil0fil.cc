@@ -2063,8 +2063,6 @@ fil_init(
 	fil_system->spaces = hash_create(hash_size);
 	fil_system->name_hash = hash_create(hash_size);
 
-	UT_LIST_INIT(fil_system->LRU);
-
 	fil_system->max_n_open = max_n_open;
 
 	fil_space_crypt_init();
@@ -2791,14 +2789,12 @@ fil_op_log_parse_or_replay(
 		} else if (log_flags & MLOG_FILE_FLAG_TEMP) {
 			/* Temporary table, do nothing */
 		} else {
-			const char*	path = NULL;
-
 			/* Create the database directory for name, if it does
 			not exist yet */
 			fil_create_directory_for_tablename(name);
 
 			if (fil_create_new_single_table_tablespace(
-				    space_id, name, path, flags,
+				    space_id, name, NULL, flags,
 				    DICT_TF2_USE_TABLESPACE,
 				    FIL_IBD_FILE_INITIAL_SIZE,
 				    FIL_ENCRYPTION_DEFAULT,
@@ -6929,15 +6925,15 @@ fil_iterate(
 	/* TODO: For compressed tables we do a lot of useless
 	copying for non-index pages. Unfortunately, it is
 	required by buf_zip_decompress() */
+	const bool	row_compressed = callback.get_zip_size() > 0;
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 
 		byte*		io_buffer = iter.io_buffer;
-		bool		row_compressed = false;
 
 		block->frame = io_buffer;
 
-		if (callback.get_zip_size() > 0) {
+		if (row_compressed) {
 			page_zip_des_init(&block->page.zip);
 			page_zip_set_size(&block->page.zip, iter.page_size);
 			block->page.zip.data = block->frame + UNIV_PAGE_SIZE;
@@ -6946,9 +6942,6 @@ fil_iterate(
 
 			/* Zip IO is done in the compressed page buffer. */
 			io_buffer = block->page.zip.data;
-			row_compressed = true;
-		} else {
-			io_buffer = iter.io_buffer;
 		}
 
 		/* We have to read the exact number of bytes. Otherwise the
@@ -6961,16 +6954,12 @@ fil_iterate(
 		ut_ad(n_bytes > 0);
 		ut_ad(!(n_bytes % iter.page_size));
 
-		byte* readptr = io_buffer;
-		byte* writeptr = io_buffer;
-		bool encrypted = false;
-
+		const bool encrypted = iter.crypt_data != NULL
+			&& iter.crypt_data->should_encrypt();
 		/* Use additional crypt io buffer if tablespace is encrypted */
-		if (iter.crypt_data != NULL && iter.crypt_data->should_encrypt()) {
-			encrypted = true;
-			readptr = iter.crypt_io_buffer;
-			writeptr = iter.crypt_io_buffer;
-		}
+		byte* const readptr = encrypted
+			? iter.crypt_io_buffer : io_buffer;
+		byte* const writeptr = readptr;
 
 		if (!os_file_read(iter.file, readptr, offset, (ulint) n_bytes)) {
 
@@ -6993,8 +6982,9 @@ fil_iterate(
 
 			ulint page_type = mach_read_from_2(src+FIL_PAGE_TYPE);
 
-			bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ||
-				page_type == FIL_PAGE_PAGE_COMPRESSED);
+			const bool page_compressed
+				= page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+				|| page_type == FIL_PAGE_PAGE_COMPRESSED;
 
 			/* If tablespace is encrypted, we need to decrypt
 			the page. Note that tablespaces are not in

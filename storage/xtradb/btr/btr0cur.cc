@@ -1329,18 +1329,21 @@ btr_cur_ins_lock_and_undo(
 					     index, thr, mtr, inherit);
 
 	if (err != DB_SUCCESS
+	    || !(~flags | (BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG))
 	    || !dict_index_is_clust(index) || dict_index_is_ibuf(index)) {
 
 		return(err);
 	}
 
-	err = trx_undo_report_row_operation(flags, TRX_UNDO_INSERT_OP,
-					    thr, index, entry,
-					    NULL, 0, NULL, NULL,
-					    &roll_ptr);
-	if (err != DB_SUCCESS) {
-
-		return(err);
+	if (flags & BTR_NO_UNDO_LOG_FLAG) {
+		roll_ptr = 0;
+	} else {
+		err = trx_undo_report_row_operation(thr, index, entry,
+						    NULL, 0, NULL, NULL,
+						    &roll_ptr);
+		if (err != DB_SUCCESS) {
+			return(err);
+		}
 	}
 
 	/* Now we can fill in the roll ptr field in entry */
@@ -1389,15 +1392,17 @@ btr_cur_optimistic_insert(
 	btr_cur_t*	cursor,	/*!< in: cursor on page after which to insert;
 				cursor stays valid */
 	ulint**		offsets,/*!< out: offsets on *rec */
-	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
+	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap */
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
 	rec_t**		rec,	/*!< out: pointer to inserted record if
 				succeed */
 	big_rec_t**	big_rec,/*!< out: big rec vector whose fields have to
-				be stored externally by the caller, or
-				NULL */
+				be stored externally by the caller */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	que_thr_t*	thr,	/*!< in: query thread or NULL */
+	que_thr_t*	thr,	/*!< in/out: query thread; can be NULL if
+				!(~flags
+				& (BTR_NO_LOCKING_FLAG
+				| BTR_NO_UNDO_LOG_FLAG)) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction;
 				if this function returns DB_SUCCESS on
 				a leaf page of a secondary index in a
@@ -1418,6 +1423,7 @@ btr_cur_optimistic_insert(
 	ulint		rec_size;
 	dberr_t		err;
 
+	ut_ad(thr || !(~flags & (BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG)));
 	*big_rec = NULL;
 
 	block = btr_cur_get_block(cursor);
@@ -1427,7 +1433,10 @@ btr_cur_optimistic_insert(
 	page = buf_block_get_frame(block);
 	index = cursor->index;
 
-	ut_ad((thr && thr_get_trx(thr)->fake_changes)
+	const bool fake_changes = (~flags & (BTR_NO_LOCKING_FLAG
+					     | BTR_NO_UNDO_LOG_FLAG))
+		&& thr_get_trx(thr)->fake_changes;
+	ut_ad(fake_changes
 	      || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
@@ -1568,7 +1577,7 @@ fail_err:
 		goto fail_err;
 	}
 
-	if (UNIV_UNLIKELY(thr && thr_get_trx(thr)->fake_changes)) {
+	if (UNIV_UNLIKELY(fake_changes)) {
 		/* skip CHANGE, LOG */
 		*big_rec = big_rec_vec;
 		return(err); /* == DB_SUCCESS */
@@ -1686,15 +1695,17 @@ btr_cur_pessimistic_insert(
 				cursor stays valid */
 	ulint**		offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap
-				that can be emptied, or NULL */
+				that can be emptied */
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
 	rec_t**		rec,	/*!< out: pointer to inserted record if
 				succeed */
 	big_rec_t**	big_rec,/*!< out: big rec vector whose fields have to
-				be stored externally by the caller, or
-				NULL */
+				be stored externally by the caller */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	que_thr_t*	thr,	/*!< in: query thread or NULL */
+	que_thr_t*	thr,	/*!< in/out: query thread; can be NULL if
+				!(~flags
+				& (BTR_NO_LOCKING_FLAG
+				| BTR_NO_UNDO_LOG_FLAG)) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	dict_index_t*	index		= cursor->index;
@@ -1706,13 +1717,17 @@ btr_cur_pessimistic_insert(
 	ulint		n_reserved	= 0;
 
 	ut_ad(dtuple_check_typed(entry));
+	ut_ad(thr || !(~flags & (BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG)));
 
 	*big_rec = NULL;
 
-	ut_ad((thr && thr_get_trx(thr)->fake_changes) || mtr_memo_contains(mtr,
+	const bool fake_changes = (~flags & (BTR_NO_LOCKING_FLAG
+					     | BTR_NO_UNDO_LOG_FLAG))
+		&& thr_get_trx(thr)->fake_changes;
+	ut_ad(fake_changes || mtr_memo_contains(mtr,
 				dict_index_get_lock(btr_cur_get_index(cursor)),
 				MTR_MEMO_X_LOCK));
-	ut_ad((thr && thr_get_trx(thr)->fake_changes) || mtr_memo_contains(mtr, btr_cur_get_block(cursor),
+	ut_ad(fake_changes || mtr_memo_contains(mtr, btr_cur_get_block(cursor),
 				MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
@@ -1773,7 +1788,7 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
-	if (UNIV_UNLIKELY(thr && thr_get_trx(thr)->fake_changes)) {
+	if (UNIV_UNLIKELY(fake_changes)) {
 		/* skip CHANGE, LOG */
 		if (n_reserved > 0) {
 			fil_space_release_free_extents(index->space,
@@ -1871,7 +1886,9 @@ btr_cur_upd_lock_and_undo(
 	const rec_t*	rec;
 	dberr_t		err;
 
-	if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
+	ut_ad((thr != NULL) || (flags & BTR_NO_LOCKING_FLAG));
+
+	if (!(flags & BTR_NO_LOCKING_FLAG) && thr_get_trx(thr)->fake_changes) {
 		/* skip LOCK, UNDO */
 		return(DB_SUCCESS);
 	}
@@ -1906,9 +1923,10 @@ btr_cur_upd_lock_and_undo(
 
 	/* Append the info about the update in the undo log */
 
-	return(trx_undo_report_row_operation(
-		       flags, TRX_UNDO_MODIFY_OP, thr,
-		       index, NULL, update,
+	return((flags & BTR_NO_UNDO_LOG_FLAG)
+	       ? DB_SUCCESS
+	       : trx_undo_report_row_operation(
+		       thr, index, NULL, update,
 		       cmpl_info, rec, offsets, roll_ptr));
 }
 
@@ -2659,12 +2677,12 @@ btr_cur_pessimistic_update(
 	ulint**		offsets,/*!< out: offsets on cursor->page_cur.rec */
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: pointer to memory heap
-				that can be emptied, or NULL */
+				that can be emptied */
 	mem_heap_t*	entry_heap,
 				/*!< in/out: memory heap for allocating
 				big_rec and the index tuple */
 	big_rec_t**	big_rec,/*!< out: big rec vector whose fields have to
-				be stored externally by the caller, or NULL */
+				be stored externally by the caller */
 	const upd_t*	update,	/*!< in: update vector; this is allowed also
 				contain trx id and roll ptr fields, but
 				the values in update vector have no effect */
@@ -3239,7 +3257,7 @@ btr_cur_del_mark_set_clust_rec(
 		return(err);
 	}
 
-	err = trx_undo_report_row_operation(0, TRX_UNDO_MODIFY_OP, thr,
+	err = trx_undo_report_row_operation(thr,
 					    index, NULL, NULL, 0, rec, offsets,
 					    &roll_ptr);
 	if (err != DB_SUCCESS) {

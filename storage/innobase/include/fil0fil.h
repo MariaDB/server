@@ -1064,7 +1064,7 @@ fil_ibd_create(
 	ulint		size,
 	fil_encryption_t mode,
 	uint32_t	key_id)
-	MY_ATTRIBUTE((warn_unused_result));
+	MY_ATTRIBUTE((nonnull(2), warn_unused_result));
 
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
 (Typically when upgrading from MariaDB 10.1.0..10.1.20.)

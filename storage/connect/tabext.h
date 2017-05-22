@@ -7,7 +7,7 @@
 /***********************************************************************/
 
 #ifndef __TABEXT_H
-#define __TABEXTF_H
+#define __TABEXT_H
 
 #include "reldef.h"
 

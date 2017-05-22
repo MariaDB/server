@@ -155,6 +155,7 @@ ARRAY::ARRAY(PGLOBAL g, int type, int size, int length, int prec)
   switch (type) {
     case TYPE_STRING:
       Len = length;
+      /* fall through */
     case TYPE_SHORT:
     case TYPE_INT:
     case TYPE_DOUBLE:
@@ -592,6 +593,7 @@ int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
   switch (Type) {
     case TYPE_DOUBLE:
       prec = 2;
+      /* fall through */
     case TYPE_SHORT:
     case TYPE_INT:
     case TYPE_DATE:

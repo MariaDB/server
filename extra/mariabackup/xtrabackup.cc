@@ -2169,7 +2169,7 @@ xb_write_delta_metadata(const char *filename, const xb_delta_info_t *info)
 void
 xtrabackup_io_throttling(void)
 {
-	if (xtrabackup_throttle && (io_ticket--) < 0) {
+	if (xtrabackup_backup && xtrabackup_throttle && (io_ticket--) < 0) {
 		os_event_reset(wait_throttle);
 		os_event_wait(wait_throttle);
 	}
@@ -3962,6 +3962,7 @@ xtrabackup_backup_func(void)
 	mysql_data_home[0]=FN_CURLIB;		// all paths are relative from here
 	mysql_data_home[1]=0;
 
+	srv_n_purge_threads = 1;
 	srv_read_only_mode = TRUE;
 
 	srv_backup_mode = TRUE;
@@ -4650,6 +4651,7 @@ xtrabackup_stats_func(int argc, char **argv)
 	mysql_data_home[0]=FN_CURLIB;		// all paths are relative from here
 	mysql_data_home[1]=0;
 
+	srv_n_purge_threads = 1;
 	/* set read only */
 	srv_read_only_mode = TRUE;
 
@@ -6407,6 +6409,7 @@ skip_check:
 
 	/* Create logfiles for recovery from 'xtrabackup_logfile', before start InnoDB */
 	srv_max_n_threads = 1000;
+	srv_n_purge_threads = 1;
 	ut_mem_init();
 	/* temporally dummy value to avoid crash */
 	srv_page_size_shift = 14;

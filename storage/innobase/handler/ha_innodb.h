@@ -656,14 +656,11 @@ and returns true.
 @return true if the index name matches the reserved name */
 bool
 innobase_index_name_is_reserved(
-	THD*			thd,		/*!< in/out: MySQL connection */
-	const KEY*		key_info,	/*!< in: Indexes to be
-						created */
-	ulint			num_of_keys)	/*!< in: Number of indexes to
-						be created. */
-	MY_ATTRIBUTE((warn_unused_result));
-
-extern const char reserved_file_per_table_space_name[];
+	THD*		thd,		/*!< in/out: MySQL connection */
+	const KEY*	key_info,	/*!< in: Indexes to be created */
+	ulint		num_of_keys)	/*!< in: Number of indexes to
+					be created. */
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 #ifdef WITH_WSREP
 //extern "C" int wsrep_trx_is_aborting(void *thd_ptr);

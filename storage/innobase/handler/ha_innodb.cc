@@ -2479,25 +2479,16 @@ Thread unsafe, can only be called from the thread owning the THD.
 @return			SQL statement string */
 const char*
 innobase_get_stmt_unsafe(
-/*=====================*/
 	THD*	thd,
 	size_t*	length)
 {
-	LEX_STRING* stmt;
-	const char* query=NULL;
-
-	stmt =  thd ? thd_query_string(thd) : NULL;
-	// MySQL 5.7
-	//stmt = thd_query_unsafe(thd);
-
-	if (stmt && stmt->str) {
+	if (const LEX_STRING *stmt = thd_query_string(thd)) {
 		*length = stmt->length;
-		query = stmt->str;
-	} else {
-		*length = 0;
+		return stmt->str;
 	}
 
-	return(query);
+	*length = 0;
+	return NULL;
 }
 
 /** Determines the current SQL statement.
@@ -2509,7 +2500,6 @@ into the provided buffer.
 @return			Length of the SQL statement */
 size_t
 innobase_get_stmt_safe(
-/*===================*/
 	THD*	thd,
 	char*	buf,
 	size_t	buflen)
@@ -8522,8 +8512,8 @@ ha_innobase::innobase_lock_autoinc(void)
 				break;
 			}
 		}
-		/* Fall through to old style locking. */
-
+		/* Use old style locking. */
+		/* fall through */
 	case AUTOINC_OLD_STYLE_LOCKING:
 		DBUG_EXECUTE_IF("die_if_autoinc_old_lock_style_used",
 				ut_ad(0););
@@ -9193,8 +9183,8 @@ calc_row_difference(
 			}
 		}
 
-		if (o_len != n_len || (o_len != UNIV_SQL_NULL &&
-					0 != memcmp(o_ptr, n_ptr, o_len))) {
+		if (o_len != n_len || (o_len != 0 && o_len != UNIV_SQL_NULL
+				       && 0 != memcmp(o_ptr, n_ptr, o_len))) {
 			/* The field has changed */
 
 			ufield = uvect->fields + n_changed;
@@ -12384,7 +12374,8 @@ create_table_info_t::create_options_are_invalid()
 				get_row_format_name(row_format));
 			ret = "ROW_FORMAT";
 		}
-		/* FALLTRHOUGH */
+		/* ROW_FORMAT=DYNAMIC also shuns KEY_BLOCK_SIZE */
+		/* fall through */
 	case ROW_TYPE_COMPACT:
 	case ROW_TYPE_REDUNDANT:
 		if (has_key_block_size) {
@@ -12901,7 +12892,8 @@ index_bad:
 			break;
 		}
 		zip_allowed = false;
-		/* fall through to set row_type = DYNAMIC */
+		/* Set ROW_FORMAT = COMPACT */
+		/* fall through */
 	case ROW_TYPE_NOT_USED:
 	case ROW_TYPE_FIXED:
 	case ROW_TYPE_PAGE:
@@ -12909,6 +12901,7 @@ index_bad:
 			m_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_ILLEGAL_HA_CREATE_OPTION,
 			"InnoDB: assuming ROW_FORMAT=DYNAMIC.");
+		/* fall through */
 	case ROW_TYPE_DYNAMIC:
 		innodb_row_format = REC_FORMAT_DYNAMIC;
 		break;

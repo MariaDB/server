@@ -128,6 +128,7 @@ int RELDEF::GetSizeCatInfo(PSZ what, PSZ sdef)
     switch (toupper(c)) {
       case 'M':
         n *= 1024;
+        // fall through
       case 'K':
         n *= 1024;
       } // endswitch c

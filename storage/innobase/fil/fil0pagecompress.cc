@@ -155,7 +155,6 @@ fil_compress_page(
 	switch(comp_method) {
 #ifdef HAVE_LZ4
 	case PAGE_LZ4_ALGORITHM:
-
 #ifdef HAVE_LZ4_COMPRESS_DEFAULT
 		err = LZ4_compress_default((const char *)buf,
 			(char *)out_buf+header_len, len, write_size);

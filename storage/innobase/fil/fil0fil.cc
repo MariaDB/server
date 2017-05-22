@@ -5875,18 +5875,15 @@ fil_iterate(
 
 	ut_ad(!srv_read_only_mode);
 
-	/* For old style compressed tables we do a lot of useless copying
-	for non-index pages. Unfortunately, it is required by
-	buf_zip_decompress() */
-
-	ulint	read_type = IORequest::READ;
-	ulint	write_type = IORequest::WRITE;
+	/* TODO: For compressed tables we do a lot of useless
+	copying for non-index pages. Unfortunately, it is
+	required by buf_zip_decompress() */
+	const bool	row_compressed
+		= callback.get_page_size().is_compressed();
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 
 		byte*		io_buffer = iter.io_buffer;
-		const bool	row_compressed
-			= callback.get_page_size().is_compressed();
 
 		block->frame = io_buffer;
 
@@ -5906,8 +5903,6 @@ fil_iterate(
 
 			/* Zip IO is done in the compressed page buffer. */
 			io_buffer = block->page.zip.data;
-		} else {
-			io_buffer = iter.io_buffer;
 		}
 
 		/* We have to read the exact number of bytes. Otherwise the
@@ -5920,22 +5915,14 @@ fil_iterate(
 		ut_ad(n_bytes > 0);
 		ut_ad(!(n_bytes % iter.page_size));
 
-		dberr_t		err = DB_SUCCESS;
-		IORequest	read_request(read_type);
-
-		byte* readptr = io_buffer;
-		byte* writeptr = io_buffer;
-		bool encrypted = false;
-
+		const bool	encrypted = iter.crypt_data != NULL
+			&& iter.crypt_data->should_encrypt();
 		/* Use additional crypt io buffer if tablespace is encrypted */
-		if (iter.crypt_data != NULL && iter.crypt_data->should_encrypt()) {
-
-			encrypted = true;
-			readptr = iter.crypt_io_buffer;
-			writeptr = iter.crypt_io_buffer;
-		}
-
-		err = os_file_read(
+		byte* const	readptr = encrypted
+			? iter.crypt_io_buffer : io_buffer;
+		byte* const	writeptr = readptr;
+		IORequest	read_request(IORequest::READ);
+		dberr_t		err = os_file_read(
 			read_request, iter.file, readptr, offset,
 			(ulint) n_bytes);
 
@@ -5960,9 +5947,9 @@ fil_iterate(
 
 			ulint page_type = mach_read_from_2(src+FIL_PAGE_TYPE);
 
-			bool page_compressed =
-				(page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
-				 || page_type == FIL_PAGE_PAGE_COMPRESSED);
+			const bool page_compressed
+				= page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+				|| page_type == FIL_PAGE_PAGE_COMPRESSED;
 
 			/* If tablespace is encrypted, we need to decrypt
 			the page. Note that tablespaces are not in
@@ -6107,7 +6094,7 @@ fil_iterate(
 			block->frame += iter.page_size;
 		}
 
-		IORequest	write_request(write_type);
+		IORequest	write_request(IORequest::WRITE);
 
 		/* A page was updated in the set, write back to disk.
 		Note: We don't have the compression algorithm, we write

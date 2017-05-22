@@ -4774,9 +4774,11 @@ size_number:
                 case 'g':
                 case 'G':
                   text_shift_number+=10;
+                  /* fall through */
                 case 'm':
                 case 'M':
                   text_shift_number+=10;
+                  /* fall through */
                 case 'k':
                 case 'K':
                   text_shift_number+=10;

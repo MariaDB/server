@@ -240,7 +240,7 @@ void mysql_audit_finalize()
 
 /**
   Initialize an Audit plug-in
-  
+
   @param[in] plugin
 
   @retval FALSE  OK
@@ -251,12 +251,13 @@ int initialize_audit_plugin(st_plugin_int *plugin)
 {
   st_mysql_audit *data= (st_mysql_audit*) plugin->plugin->info;
 
-  if (!data->event_notify || !data->class_mask[0]) {
+  if (!data->event_notify || !data->class_mask[0])
+  {
     sql_print_error("Plugin '%s' has invalid data.",
                     plugin->name.str);
     return 1;
   }
-  
+
   if (plugin->plugin->init && plugin->plugin->init(NULL))
   {
     sql_print_error("Plugin '%s' init function returned error.",
@@ -266,7 +267,7 @@ int initialize_audit_plugin(st_plugin_int *plugin)
 
   /* Make the interface info more easily accessible */
   plugin->data= plugin->plugin->info;
-  
+
   /* Add the bits the plugin is interested in to the global mask */
   mysql_mutex_lock(&LOCK_audit_mask);
   add_audit_mask(mysql_global_audit_mask, data->class_mask);

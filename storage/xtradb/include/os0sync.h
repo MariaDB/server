@@ -959,7 +959,14 @@ struct MY_ALIGNED(CACHE_LINE_SIZE) simple_counter
 	{
 		compile_time_assert(!atomic || sizeof(Type) == sizeof(ulint));
 		if (atomic) {
-			return os_atomic_increment_ulint(&m_counter, i);
+			/* GCC would perform a type check in this code
+			also in case the template is instantiated with
+			simple_counter<Type=not_ulint, atomic=false>.
+			On Solaris, os_atomic_increment_ulint() maps
+			to atomic_add_long_nv(), which expects the
+			parameter to be correctly typed. */
+			return os_atomic_increment_ulint(
+				reinterpret_cast<ulint*>(&m_counter), i);
 		} else {
 			return m_counter += i;
 		}

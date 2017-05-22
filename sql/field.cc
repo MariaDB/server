@@ -10026,7 +10026,7 @@ bool Column_definition::check(THD *thd)
   case MYSQL_TYPE_DATE:
     /* We don't support creation of MYSQL_TYPE_DATE anymore */
     sql_type= MYSQL_TYPE_NEWDATE;
-    /* fall trough */
+    /* fall through */
   case MYSQL_TYPE_NEWDATE:
     length= MAX_DATE_WIDTH;
     break;

@@ -5082,12 +5082,10 @@ loop:
 	case DB_INTERRUPTED:
 		goto func_exit;
 	default:
-	{
-		const char* doing = "CHECK TABLE";
-		ib::warn() << doing << " on index " << index->name << " of"
+		ib::warn() << "CHECK TABLE on index " << index->name << " of"
 			" table " << index->table->name << " returned " << ret;
-		/* fall through (this error is ignored by CHECK TABLE) */
-	}
+		/* (this error is ignored by CHECK TABLE) */
+		/* fall through */
 	case DB_END_OF_INDEX:
 		ret = DB_SUCCESS;
 func_exit:
