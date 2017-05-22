@@ -2112,6 +2112,15 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
     else
     {
+      if (field->flags & VERS_SYS_START_FLAG)
+      {
+        packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW START"));
+      }
+      else if (field->flags & VERS_SYS_END_FLAG)
+      {
+        packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW END"));
+      }
+
       if (flags & NOT_NULL_FLAG)
         packet->append(STRING_WITH_LEN(" NOT NULL"));
       else if (field->type() == MYSQL_TYPE_TIMESTAMP && !field->vers_sys_field())
@@ -2128,14 +2137,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       {
         packet->append(STRING_WITH_LEN(" DEFAULT "));
         packet->append(def_value.ptr(), def_value.length(), system_charset_info);
-      }
-      else if (field->flags & VERS_SYS_START_FLAG)
-      {
-        packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW START"));
-      }
-      else if (field->flags & VERS_SYS_END_FLAG)
-      {
-        packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW END"));
       }
 
       if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG)
