@@ -1263,6 +1263,7 @@ Item *Item::const_charset_converter(CHARSET_INFO *tocs,
   DBUG_ASSERT(fixed);
   StringBuffer<64>tmp;
   String *s= val_str(&tmp);
+
   if (!s)
     return new Item_null((char *) func_name, tocs);
 

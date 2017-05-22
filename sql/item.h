@@ -1476,7 +1476,7 @@ public:
   virtual Item *expr_cache_insert_transformer(uchar *thd_arg) { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(CHARSET_INFO *tocs);
-  bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs)
+  bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs) const
   {
     /*
       This will return "true" if conversion happens:
