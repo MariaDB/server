@@ -510,7 +510,7 @@ public:
   Item *get_tmp_table_item(THD *thd);
   Field *create_tmp_field(bool group, TABLE *table)
   {
-    return Item::create_tmp_field(group, table, MY_INT32_NUM_DECIMAL_DIGITS);
+    return Item::create_tmp_field(group, table);
   }
   virtual bool collect_outer_ref_processor(void *param);
   bool init_sum_func_check(THD *thd);

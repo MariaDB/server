@@ -171,7 +171,7 @@ public:
   Field *create_field_for_create_select(TABLE *table)
   {
     return result_type() != STRING_RESULT ?
-           create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS) :
+           Item::create_tmp_field(false, table) :
            tmp_table_field_from_field_type(table);
   }
   Item *get_tmp_table_item(THD *thd);
@@ -842,9 +842,9 @@ public:
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   Field *create_tmp_field(bool group, TABLE *table)
   {
-    return Item::create_tmp_field(false, table,
-                                  MY_INT32_NUM_DECIMAL_DIGITS - 2 +
-                                  unsigned_flag);
+    return create_tmp_field_int(table,
+                                MY_INT32_NUM_DECIMAL_DIGITS - 2 +
+                                unsigned_flag);
   }
   Field *create_field_for_create_select(TABLE *table)
   { return Item_func_signed::create_tmp_field(false, table); }
@@ -2352,7 +2352,7 @@ public:
       type_handler_long_blob.make_and_init_table_field(&(Item::name),
                                                        Record_addr(maybe_null),
                                                        *this, table) :
-      create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS);
+      create_tmp_field(false, table);
   }
   virtual void print(String *str, enum_query_type query_type);
   /*

@@ -15869,7 +15869,17 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
 }
 
 
-Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
+Field *Item::create_tmp_field_int(TABLE *table, uint convert_int_length)
+{
+  const Type_handler *h= &type_handler_long;
+  if (max_char_length() > convert_int_length)
+    h= &type_handler_longlong;
+  return h->make_and_init_table_field(&name, Record_addr(maybe_null),
+                                      *this, table);
+}
+
+
+Field *Item::create_tmp_field(bool group, TABLE *table)
 {
   Field *UNINIT_VAR(new_field);
   MEM_ROOT *mem_root= table->in_use->mem_root;
@@ -15878,23 +15888,11 @@ Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
   case REAL_RESULT:
   {
     new_field= new (mem_root)
-      Field_double(max_length, maybe_null, &name, decimals, TRUE);
+      Field_double(max_char_length(), maybe_null, &name, decimals, TRUE);
     break;
   }
   case INT_RESULT:
-  {
-    /*
-      Select an integer type with the minimal fit precision.
-      convert_int_length is sign inclusive, don't consider the sign.
-    */
-    if (max_char_length() > convert_int_length)
-      new_field= new (mem_root)
-        Field_longlong(max_char_length(), maybe_null, &name, unsigned_flag);
-    else
-      new_field= new (mem_root)
-        Field_long(max_char_length(), maybe_null, &name, unsigned_flag);
-    break;
-  }
+    return create_tmp_field_int(table, MY_INT32_NUM_DECIMAL_DIGITS - 2);
   case TIME_RESULT:
   case DECIMAL_RESULT:
   case STRING_RESULT:

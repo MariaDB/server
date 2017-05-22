@@ -549,3 +549,22 @@ def					d09	3	9	9	Y	32896	0	63
 def					d10	8	10	10	Y	32896	0	63
 d0l	d09	d10
 2	222222222	2222222222
+#
+# MDEV-12862 Data type of @a:=1e0 depends on the session character set
+#
+SET NAMES utf8;
+CREATE TABLE t1 AS SELECT @:=1e0;
+SELECT * FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	@:=1e0	@:=1e0	5	3	1	N	36865	31	63
+@:=1e0
+1
+DROP TABLE t1;
+SET NAMES latin1;
+CREATE TABLE t1 AS SELECT @:=1e0;
+SELECT * FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	@:=1e0	@:=1e0	5	3	1	N	36865	31	63
+@:=1e0
+1
+DROP TABLE t1;

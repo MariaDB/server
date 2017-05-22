@@ -582,7 +582,7 @@ protected:
     return h->make_and_init_table_field(&name, Record_addr(maybe_null),
                                         *this, table);
   }
-  Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
+  Field *create_tmp_field_int(TABLE *table, uint convert_int_length);
 
   void push_note_converted_to_negative_complement(THD *thd);
   void push_note_converted_to_positive_complement(THD *thd);
@@ -1637,14 +1637,7 @@ public:
   // used in row subselects to get value of elements
   virtual void bring_value() {}
 
-  virtual Field *create_tmp_field(bool group, TABLE *table)
-  {
-    /*
-      Values with MY_INT32_NUM_DECIMAL_DIGITS digits may or may not fit into
-      Field_long : make them Field_longlong.
-    */
-    return create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS - 2);
-  }
+  virtual Field *create_tmp_field(bool group, TABLE *table);
 
   virtual Item_field *field_for_view_update() { return 0; }
 
