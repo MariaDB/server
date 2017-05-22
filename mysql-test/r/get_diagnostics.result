@@ -587,6 +587,10 @@ DROP PROCEDURE p1;
 
 # The same statement information item can be used multiple times.
 
+SHOW WARNINGS;
+Level	Code	Message
+Error	54321	MESSAGE_TEXT text
+Note	4070	At line 16 in test.p1
 CREATE PROCEDURE p1()
 BEGIN
 DECLARE var INT;
@@ -595,7 +599,7 @@ SELECT var, @var;
 END|
 CALL p1();
 var	@var
-1	1
+2	2
 DROP PROCEDURE p1;
 
 # Setting TABLE_NAME is currently not implemented.

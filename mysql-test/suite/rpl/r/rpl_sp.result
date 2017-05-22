@@ -128,6 +128,7 @@ show warnings;
 Level	Code	Message
 Error	1062	Duplicate entry '20' for key 'a'
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
+Note	4070	At line 4 in mysqltest1.foo4
 select * from t2;
 a
 20
@@ -290,6 +291,7 @@ end|
 do fn1(100);
 Warnings:
 Error	1062	Duplicate entry '100' for key 'a'
+Note	4070	At line 3 in mysqltest1.fn1
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
 select fn1(20);
 ERROR 23000: Duplicate entry '20' for key 'a'

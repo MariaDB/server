@@ -5790,9 +5790,15 @@ end_with_restore_list:
       if (!(sp= sp_find_routine(thd, TYPE_ENUM_PROCEDURE, lex->spname,
                                 &thd->sp_proc_cache, TRUE)))
       {
-	my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PROCEDURE",
-                 ErrConvDQName(lex->spname).ptr());
-	goto error;
+        /*
+          sp_find_routine can have issued an ER_SP_RECURSION_LIMIT error.
+          Send message ER_SP_DOES_NOT_EXIST only if procedure is not found in
+          cache.
+        */
+        if (!sp_cache_lookup(&thd->sp_proc_cache, lex->spname))
+          my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PROCEDURE",
+                   ErrConvDQName(lex->spname).ptr());
+        goto error;
       }
       else
       {

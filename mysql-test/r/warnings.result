@@ -353,6 +353,7 @@ ERROR 23000: Duplicate entry '11' for key 'a'
 
 SHOW WARNINGS;
 Level	Code	Message
+Note	4070	At line 4 in test.f1
 Error	1062	Duplicate entry '11' for key 'a'
 
 DROP TABLE t1;
