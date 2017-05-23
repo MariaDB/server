@@ -96,6 +96,9 @@
 #if defined(XML_SUPPORT)
 #include "tabxml.h"
 #endif   // XML_SUPPORT
+#if defined(MONGO_SUPPORT)
+#include "tabmgo.h"
+#endif   // MONGO_SUPPORT
 #if defined(ZIP_SUPPORT)
 #include "tabzip.h"
 #endif   // ZIP_SUPPORT
@@ -161,7 +164,10 @@ TABTYPE GetTypeID(const char *type)
 #ifdef ZIP_SUPPORT
 								 : (!stricmp(type, "ZIP"))   ? TAB_ZIP
 #endif
-								 : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
+#ifdef MONGO_SUPPORT
+		             : (!stricmp(type, "MONGO")) ? TAB_MONGO
+#endif
+		             : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
 /***********************************************************************/
@@ -307,6 +313,7 @@ int GetIndexType(TABTYPE type)
     case TAB_MYSQL:
     case TAB_ODBC:
 		case TAB_JDBC:
+		case TAB_MONGO:
 			xtyp= 2;
       break;
     case TAB_VIR:
@@ -477,39 +484,6 @@ void MYCAT::Reset(void)
   {
   } // end of Reset
 
-#if 0
-/***********************************************************************/
-/*  This function sets the current database path.                      */
-/***********************************************************************/
-void MYCAT::SetPath(PGLOBAL g, LPCSTR *datapath, const char *path)
-	{
-	if (path) {
-		size_t len= strlen(path) + (*path != '.' ? 4 : 1);
-		char  *buf= (char*)PlugSubAlloc(g, NULL, len);
-		
-		if (PlugIsAbsolutePath(path))
-		{
-		  strcpy(buf, path);
-		  *datapath= buf;
-		  return;
-		}
-
-		if (*path != '.') {
-#if defined(__WIN__)
-			char *s= "\\";
-#else   // !__WIN__
-			char *s= "/";
-#endif  // !__WIN__
-			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
-		} else
-			strcpy(buf, path);
-
-		*datapath= buf;
-		} // endif path
-
-	} // end of SetDataPath
-#endif // 0
-
 /***********************************************************************/
 /*  GetTableDesc: retrieve a table descriptor.                         */
 /*  Look for a table descriptor matching the name and type.            */
@@ -583,6 +557,9 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
 #endif   // PIVOT_SUPPORT
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
     case TAB_JSON: tdp= new(g) JSONDEF; break;
+#if defined(MONGO_SUPPORT)
+		case TAB_MONGO: tdp = new(g) MGODEF; break;
+#endif   // MONGO_SUPPORT
 #if defined(ZIP_SUPPORT)
 		case TAB_ZIP: tdp= new(g) ZIPDEF;   break;
 #endif   // ZIP_SUPPORT

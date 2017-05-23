@@ -1,10 +1,5 @@
-connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
-connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
-connection master;
 CREATE DATABASE connect;
-connection slave;
 CREATE DATABASE connect;
-connection slave;
 CREATE TABLE t1 (a int, b char(10));
 INSERT INTO t1 VALUES (NULL,NULL),(0,'test00'),(1,'test01'),(2,'test02'),(3,'test03');
 SELECT * FROM t1;
@@ -17,7 +12,6 @@ NULL	NULL
 #
 # Testing errors
 #
-connection master;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
 CONNECTION='mysql://unknown@127.0.0.1:SLAVE_PORT/test/t1';
 ERROR HY000: (1045) Access denied for user 'unknown'@'localhost' (using password: NO)
@@ -45,14 +39,10 @@ ERROR HY000: Got error 174 '(1054) Unknown column 'x' in 'field list' [SELECT `x
 DROP TABLE t1;
 CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL
 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
-connection slave;
 ALTER TABLE t1 RENAME t1backup;
-connection master;
 SELECT * FROM t1;
 ERROR HY000: Got error 174 '(1146) Table 'test.t1' doesn't exist [SELECT `a`, `b` FROM `t1`]' from CONNECT
-connection slave;
 ALTER TABLE t1backup RENAME t1;
-connection master;
 DROP TABLE t1;
 #
 # Testing SELECT, etc.
@@ -121,7 +111,6 @@ NULL	NULL
 2	0
 3	0
 DROP TABLE t1;
-connection slave;
 DROP TABLE t1;
 #
 # Testing numeric data types
@@ -140,7 +129,6 @@ t1	CREATE TABLE `t1` (
   `h` decimal(20,5) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES(100,3333,41235,1234567890,235000000000,3.14159265,3.14159265,3141.59265);
-connection master;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
 OPTION_LIST='host=127.0.0.1,user=root,port=SLAVE_PORT';
 SHOW CREATE TABLE t1;
@@ -159,7 +147,6 @@ SELECT * FROM t1;
 a	b	c	d	e	f	g	h
 100	3333	41235	1234567890	235000000000	3.14159	3.14159265	3141.59265
 DROP TABLE t1;
-connection slave;
 DROP TABLE t1;
 #
 # Testing character data types
@@ -175,7 +162,6 @@ INSERT INTO t1 VALUES('Welcome','Hello, World');
 SELECT * FROM t1;
 a	b
 Welcome	Hello, World
-connection master;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT';
 SHOW CREATE TABLE t1;
@@ -188,7 +174,6 @@ SELECT * FROM t1;
 a	b
 Welcome	Hello, World
 DROP TABLE t1;
-connection slave;
 DROP TABLE t1;
 #
 # Testing temporal data types
@@ -200,10 +185,10 @@ t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL,
   `b` datetime DEFAULT NULL,
   `c` time DEFAULT NULL,
-  `d` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `d` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `e` year(4) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT IGNORE INTO t1 VALUES('2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23');
+INSERT INTO t1 VALUES('2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23');
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'c' at row 1
@@ -211,7 +196,6 @@ Warning	1265	Data truncated for column 'e' at row 1
 SELECT * FROM t1;
 a	b	c	d	e
 2003-05-27	2003-05-27 10:45:23	10:45:23	2003-05-27 10:45:23	2003
-connection master;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT';
 SHOW CREATE TABLE t1;
@@ -220,18 +204,15 @@ t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL,
   `b` datetime DEFAULT NULL,
   `c` time DEFAULT NULL,
-  `d` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `d` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `e` year(4) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT' `TABLE_TYPE`='MYSQL'
 SELECT * FROM t1;
 a	b	c	d	e
 2003-05-27	2003-05-27 10:45:23	10:45:23	2003-05-27 10:45:23	2003
 DROP TABLE t1;
-connection slave;
 DROP TABLE t1;
-connection master;
 DROP TABLE IF EXISTS connect.t1;
 DROP DATABASE IF EXISTS connect;
-connection slave;
 DROP TABLE IF EXISTS connect.t1;
 DROP DATABASE IF EXISTS connect;

@@ -1,11 +1,11 @@
 /************* BlkFil C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: BLKFIL                                                */
 /* -------------                                                       */
-/*  Version 2.5                                                        */
+/*  Version 2.6                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -56,7 +56,7 @@ BLOCKFILTER::BLOCKFILTER(PTDBDOS tdbp, int op)
 /***********************************************************************/
 /*  Make file output of BLOCKFILTER contents.                          */
 /***********************************************************************/
-void BLOCKFILTER::Print(PGLOBAL, FILE *f, uint n)
+void BLOCKFILTER::Printf(PGLOBAL, FILE *f, uint n)
   {
   char m[64];
 
@@ -65,15 +65,15 @@ void BLOCKFILTER::Print(PGLOBAL, FILE *f, uint n)
 
   fprintf(f, "%sBLOCKFILTER: at %p opc=%d opm=%d result=%d\n",
           m, this, Opc, Opm, Result);
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of BLOCKFILTER contents.                        */
 /***********************************************************************/
-void BLOCKFILTER::Print(PGLOBAL, char *ps, uint z)
+void BLOCKFILTER::Prints(PGLOBAL, char *ps, uint z)
   {
   strncat(ps, "BlockFilter(s)", z);
-  } // end of Print
+  } // end of Prints
 
 
 /* ---------------------- Class BLKFILLOG ---------------------------- */
@@ -412,7 +412,7 @@ void BLKFILMR2::MakeValueBitmap(void)
   Void = !Bmp[N];          // There are no good values in the file
 
   for (i = 0; i < N; i++) {
-    Bxp[i] = ~0U;
+    Bxp[i] = ~0;
 
     if (noteq)
       Bmp[i] = Bxp[i];
@@ -595,8 +595,8 @@ BLKFILIN::BLKFILIN(PGLOBAL g, PTDBDOS tdbp, int op, int opm, PXOB *xp)
 
   if (Colp->GetResultType() != Type) {
     sprintf(g->Message, "BLKFILIN: %s", MSG(VALTYPE_NOMATCH));
-    longjmp(g->jumper[g->jump_level], 99);
-  } else if (Colp->GetValue()->IsCi())
+		throw g->Message;
+	} else if (Colp->GetValue()->IsCi())
     Arap->SetPrecision(g, 1);        // Case insensitive
 
   Sorted = Colp->IsSorted() > 0;
@@ -708,7 +708,7 @@ void BLKFILIN2::MakeValueBitmap(void)
   Void = !Bmp[N];          // There are no good values in the file
 
   for (i = 0; i < N; i++) {
-    Bxp[i] = ~0U;
+    Bxp[i] = ~0;
 
     if (noteq) {
       Bmp[i] = Bxp[i];
@@ -828,7 +828,7 @@ BLKFILIN2::BLKFILIN2(PGLOBAL g, PTDBDOS tdbp, int op, int opm, PXOB *xp)
         Bxp[i] |= btp;
 
       for (N = i--; i >= 0; i--)
-        Bxp[i] = ~0U;
+        Bxp[i] = ~0;
 
       break;
       } // endif Bmp
@@ -995,7 +995,7 @@ int BLOCKINDEX::BlockEval(PGLOBAL g)
 /***********************************************************************/
 /*  Make file output of BLOCKINDEX contents.                           */
 /***********************************************************************/
-void BLOCKINDEX::Print(PGLOBAL g, FILE *f, UINT n)
+void BLOCKINDEX::Printf(PGLOBAL g, FILE *f, UINT n)
   {
   char m[64];
 
@@ -1006,17 +1006,17 @@ void BLOCKINDEX::Print(PGLOBAL g, FILE *f, UINT n)
     m, this, Next, (Colp) ? Colp->GetName() : "Rowid", Kxp, Result);
 
   if (Next)
-    Next->Print(g, f, n);
+    Next->Printf(g, f, n);
 
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of BLOCKINDEX contents.                         */
 /***********************************************************************/
-void BLOCKINDEX::Print(PGLOBAL g, char *ps, UINT z)
+void BLOCKINDEX::Prints(PGLOBAL g, char *ps, UINT z)
   {
   strncat(ps, "BlockIndex(es)", z);
-  } // end of Print
+  } // end of Prints
 
 /* ------------------------------------------------------------------- */
 

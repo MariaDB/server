@@ -1,7 +1,7 @@
 /*************** tabjson H Declares Source Code File (.H) **************/
-/*  Name: tabjson.h   Version 1.1                                      */
+/*  Name: tabjson.h   Version 1.3                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
 /*                                                                     */
 /*  This file contains the JSON classes declares.                      */
 /***********************************************************************/
@@ -32,12 +32,15 @@ typedef struct _jnode {
 /***********************************************************************/
 /*  JSON table.                                                        */
 /***********************************************************************/
-class JSONDEF : public DOSDEF {                   /* Table description */
+class DllExport JSONDEF : public DOSDEF {         /* Table description */
   friend class TDBJSON;
   friend class TDBJSN;
   friend class TDBJCL;
-  friend PQRYRES JSONColumns(PGLOBAL, char*, PTOS, bool);
- public:
+  friend PQRYRES JSONColumns(PGLOBAL, char*, char*, PTOS, bool);
+#if defined(MONGO_SUPPORT)
+	friend class MGOFAM;
+#endif   // MONGO_SUPPORT
+public:
   // Constructor
   JSONDEF(void);
 
@@ -51,13 +54,21 @@ class JSONDEF : public DOSDEF {                   /* Table description */
  protected:
   // Members
   JMODE Jmode;                  /* MODE_OBJECT by default              */
-  char *Objname;                /* Name of first level object          */
-  char *Xcol;                   /* Name of expandable column           */
+	PCSZ  Objname;                /* Name of first level object          */
+	PCSZ  Xcol;                   /* Name of expandable column           */
   int   Limit;                  /* Limit of multiple values            */
   int   Pretty;                 /* Depends on file structure           */
   int   Level;                  /* Used for catalog table              */
-  int   Base;                   /* Tne array index base                */
+  int   Base;                   /* The array index base                */
   bool  Strict;                 /* Strict syntax checking              */
+	char  Sep;                    /* The Jpath separator                 */
+	const char *Uri;							/* MongoDB connection URI              */
+#if defined(MONGO_SUPPORT)
+	PCSZ  Collname;               /* External collection name            */
+	PCSZ  Schema;                 /* External schema (DB) name           */
+	PSZ   Options;                /* Colist ; filter                     */
+	bool  Pipe;							      /* True if Colist is a pipeline        */
+#endif   // MONGO_SUPPORT
   }; // end of JSONDEF
 
 /* -------------------------- TDBJSN class --------------------------- */
@@ -66,9 +77,12 @@ class JSONDEF : public DOSDEF {                   /* Table description */
 /*  This is the JSN Access Method class declaration.                   */
 /*  The table is a DOS file, each record being a JSON object.          */
 /***********************************************************************/
-class TDBJSN : public TDBDOS {
+class DllExport TDBJSN : public TDBDOS {
   friend class JSONCOL;
 	friend class JSONDEF;
+#if defined(MONGO_SUPPORT)
+	friend class MGOFAM;
+#endif   // MONGO_SUPPORT
 public:
   // Constructor
    TDBJSN(PJDEF tdp, PTXF txfp);
@@ -87,6 +101,8 @@ public:
   virtual PCOL  InsertSpecialColumn(PCOL colp);
   virtual int   RowNumber(PGLOBAL g, bool b = FALSE)
                  {return (b) ? M : N;}
+	virtual bool  CanBeFiltered(void) 
+	              {return Txfp->GetAmType() == TYPE_AM_MGO || !Xcol;}
 
   // Database routines
   virtual int   Cardinality(PGLOBAL g);
@@ -107,8 +123,8 @@ public:
 	PJSON   Val;                     // The value of the current row
 	PJCOL   Colp;                    // The multiple column
 	JMODE   Jmode;                   // MODE_OBJECT by default
-  char   *Objname;                 // The table object name
-  char   *Xcol;                    // Name of expandable column
+	PCSZ    Objname;                 // The table object name
+	PCSZ    Xcol;                    // Name of expandable column
 	int     Fpos;                    // The current row index
 	int     N;                       // The current Rownum
 	int     M;                       // Index of multiple value
@@ -118,6 +134,7 @@ public:
 	int     SameRow;                 // Same row nb
 	int     Xval;                    // Index of expandable array
 	int     B;                       // Array index base
+	char    Sep;                     // The Jpath separator
 	bool    Strict;                  // Strict syntax checking
 	bool    Comma;                   // Row has final comma
   }; // end of class TDBJSN
@@ -127,9 +144,10 @@ public:
 /***********************************************************************/
 /*  Class JSONCOL: JSON access method column descriptor.               */
 /***********************************************************************/
-class JSONCOL : public DOSCOL {
+class DllExport JSONCOL : public DOSCOL {
   friend class TDBJSN;
   friend class TDBJSON;
+	friend class MGOFAM;
  public:
   // Constructors
   JSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);
@@ -139,20 +157,21 @@ class JSONCOL : public DOSCOL {
   virtual int  GetAmType(void) {return Tjp->GetAmType();}
 
   // Methods
-  virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-          bool ParseJpath(PGLOBAL g);
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  virtual bool  SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
+          bool  ParseJpath(PGLOBAL g);
+					char *GetJpath(PGLOBAL g, bool proj);
+	virtual void  ReadColumn(PGLOBAL g);
+  virtual void  WriteColumn(PGLOBAL g);
 
  protected:
-  bool    CheckExpand(PGLOBAL g, int i, PSZ nm, bool b);
-  bool    SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm);
-  PVAL    GetColumnValue(PGLOBAL g, PJSON row, int i);
-  PVAL    ExpandArray(PGLOBAL g, PJAR arp, int n);
-  PVAL    CalculateArray(PGLOBAL g, PJAR arp, int n);
-  PVAL    MakeJson(PGLOBAL g, PJSON jsp);
-  void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
-  PJSON   GetRow(PGLOBAL g);
+  bool  CheckExpand(PGLOBAL g, int i, PSZ nm, bool b);
+  bool  SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm);
+  PVAL  GetColumnValue(PGLOBAL g, PJSON row, int i);
+  PVAL  ExpandArray(PGLOBAL g, PJAR arp, int n);
+  PVAL  CalculateArray(PGLOBAL g, PJAR arp, int n);
+  PVAL  MakeJson(PGLOBAL g, PJSON jsp);
+  void  SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
+  PJSON GetRow(PGLOBAL g);
 
   // Default constructor not to be used
   JSONCOL(void) {}
@@ -165,7 +184,8 @@ class JSONCOL : public DOSCOL {
   JNODE  *Nodes;                // The intermediate objects
   int     Nod;                  // The number of intermediate objects
   int     Xnod;                 // Index of multiple values
-  bool    Xpd;                  // True for expandable column
+	char    Sep;                  // The Jpath separator
+	bool    Xpd;                  // True for expandable column
   bool    Parsed;               // True when parsed
   }; // end of class JSONCOL
 
@@ -174,7 +194,7 @@ class JSONCOL : public DOSCOL {
 /***********************************************************************/
 /*  This is the JSON Access Method class declaration.                  */
 /***********************************************************************/
-class TDBJSON : public TDBJSN {
+class DllExport TDBJSON : public TDBJSN {
 	friend class JSONDEF;
 	friend class JSONCOL;
  public:
@@ -221,7 +241,7 @@ class TDBJSON : public TDBJSN {
 /***********************************************************************/
 /*  This is the class declaration for the JSON catalog table.          */
 /***********************************************************************/
-class TDBJCL : public TDBCAT {
+class DllExport TDBJCL : public TDBCAT {
  public:
   // Constructor
   TDBJCL(PJDEF tdp);
@@ -233,4 +253,5 @@ class TDBJCL : public TDBCAT {
   // Members
   PTOS  Topt;
   char *Db;
+	char *Dsn;
   }; // end of class TDBJCL

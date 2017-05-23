@@ -18,10 +18,10 @@ SET(CONNECT_PLUGIN_DYNAMIC "connect")
 
 SET(CONNECT_SOURCES
 ha_connect.cc connect.cc user_connect.cc mycat.cc
-fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
+fmdlex.c osutil.c rcmsg.c rcmsg.h
 array.cpp blkfil.cpp colblk.cpp csort.cpp
-filamap.cpp filamdbf.cpp filamfix.cpp filamgz.cpp filamtxt.cpp
-filter.cpp json.cpp jsonudf.cpp maputil.cpp myconn.cpp myutil.cpp plgdbutl.cpp
+filamap.cpp filamdbf.cpp filamfix.cpp filamgz.cpp filamtxt.cpp filter.cpp
+json.cpp jsonudf.cpp maputil.cpp myconn.cpp myutil.cpp plgdbutl.cpp plugutil.cpp
 reldef.cpp tabcol.cpp tabdos.cpp tabext.cpp tabfix.cpp tabfmt.cpp tabjson.cpp
 table.cpp tabmul.cpp tabmysql.cpp taboccur.cpp tabpivot.cpp tabsys.cpp tabtbl.cpp
 tabutil.cpp tabvir.cpp tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
@@ -291,6 +291,31 @@ IF(CONNECT_WITH_ZIP)
   add_definitions(-DZIP_SUPPORT -DNOCRYPT)
 ENDIF(CONNECT_WITH_ZIP)
 
+#
+# MONGO (CMAKE NOT YET WORKING)
+#
+
+#OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
+
+#IF(CONNECT_WITH_MONGO)
+#  IF(WIN32)
+#    # Adding some typical places to search in
+#    SET(PC_MONGO_INCLUDE_DIRS
+#        C:/mongo-c-driver/include
+#				D:/mongo-c-driver/include)
+#    SET(PC_MONGO_LIBRARY_DIRS
+#        C:/mongo-c-driver/lib
+#				D:/mongo-c-driver/lib)
+#  ENDIF(WIN32)
+#  FIND_PACKAGE(libmongoc)
+#  IF (MONGO_FOUND)
+#    INCLUDE_DIRECTORIES(${MONGO_INCLUDE_DIR})
+#    SET(MONGO_LIBRARY   ${MONGO_LIBRARIES})
+#    SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongofam.cpp mongofam.h)
+#    add_definitions(-DMONGO_SUPPORT)
+#  ENDIF(MONGO_FOUND)
+#ENDIF(CONNECT_WITH_MONGO)
+
 
 #
 # XMAP
@@ -310,6 +335,7 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   STORAGE_ENGINE
   COMPONENT connect-engine
   RECOMPILE_FOR_EMBEDDED
+#  LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY} $(MONGO_LIBRARY)
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
                  ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${IPHLPAPI_LIBRARY})
 

@@ -44,8 +44,8 @@ class DllExport BLOCK {
     return (PlugSubAlloc(g, p, size));
     } // end of new
 
-  virtual void Print(PGLOBAL, FILE *, uint) {}   // Produce file desc
-  virtual void Print(PGLOBAL, char *, uint) {}   // Produce string desc
+  virtual void Printf(PGLOBAL, FILE *, uint) {}   // Produce file desc
+  virtual void Prints(PGLOBAL, char *, uint) {}   // Produce string desc
   
 #if !defined(__BORLANDC__)
   // Avoid warning C4291 by defining a matching dummy delete operator

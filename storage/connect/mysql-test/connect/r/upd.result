@@ -1,4 +1,3 @@
-SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE employee
 (
 serialno CHAR(5) NOT NULL,
@@ -1626,4 +1625,3 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 DROP PROCEDURE test.tst_up;
 DROP TABLE employee;
-SET sql_mode = DEFAULT;

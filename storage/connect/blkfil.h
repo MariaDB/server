@@ -27,8 +27,8 @@ class DllExport BLOCKFILTER : public BLOCK {           /* Block Filter */
   // Methods
   virtual void Reset(PGLOBAL) = 0;
   virtual int  BlockEval(PGLOBAL) = 0;
-  virtual void Print(PGLOBAL g, FILE *f, uint n);
-  virtual void Print(PGLOBAL g, char *ps, uint z);
+  virtual void Printf(PGLOBAL g, FILE *f, uint n);
+  virtual void Prints(PGLOBAL g, char *ps, uint z);
 
  protected:
   BLOCKFILTER(void) {}       // Standard constructor not to be used
@@ -234,8 +234,8 @@ class DllExport BLOCKINDEX : public BLOCK {     /* Indexing Test Block */
   // Methods
           void Reset(void);
   virtual int  BlockEval(PGLOBAL);
-  virtual void Print(PGLOBAL g, FILE *f, UINT n);
-  virtual void Print(PGLOBAL g, char *ps, UINT z);
+  virtual void Printf(PGLOBAL g, FILE *f, UINT n);
+  virtual void Prints(PGLOBAL g, char *ps, UINT z);
 
  protected:
   BLOCKINDEX(void) {}   // Standard constructor not to be used

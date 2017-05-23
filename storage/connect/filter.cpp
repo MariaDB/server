@@ -1,7 +1,7 @@
 /***************** Filter C++ Class Filter Code (.CPP) *****************/
-/*  Name: FILTER.CPP  Version 3.9                                      */
+/*  Name: FILTER.CPP  Version 4.0                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /*  This file contains the class FILTER function code.                 */
 /***********************************************************************/
@@ -38,6 +38,13 @@
 //#include "token.h"
 //#include "select.h"
 #include "xindex.h"
+#if defined(MONGO_SUPPORT)
+#include "filamtxt.h"
+#include "tabdos.h"
+#include "tabjson.h"
+#include "tabext.h"
+#include "tabmgo.h"
+#endif   // MONGO_SUPPORT
 
 /***********************************************************************/
 /*  Utility routines.                                                  */
@@ -87,8 +94,8 @@ BYTE OpBmp(PGLOBAL g, OPVAL opc)
     case OP_EXIST: bt = 0x00; break;
     default:
       sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
-      longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
-    } // endswitch opc
+			throw TYPE_ARRAY;
+	} // endswitch opc
 
   return bt;
   } // end of OpBmp
@@ -1405,10 +1412,98 @@ PFIL FILTER::Copy(PTABS t)
   } // end of Copy
 #endif // 0
 
+/***********************************************************************/
+/*  Make selector json representation for Mongo tables.                */
+/***********************************************************************/
+#if defined(MONGO_SUPPORT)
+bool FILTER::MakeSelector(PGLOBAL g, PSTRG s, bool m)
+{
+	s->Append('{');
+
+	if (Opc == OP_AND || Opc == OP_OR) {
+		if (GetArgType(0) != TYPE_FILTER || GetArgType(1) != TYPE_FILTER)
+			return true;
+
+		s->Append("\"$");
+		s->Append(Opc == OP_AND ? "and" : "or");
+		s->Append("\":[");
+
+		if (((PFIL)Arg(0))->MakeSelector(g, s, m))
+			return true;
+
+		s->Append(',');
+
+		if (((PFIL)Arg(1))->MakeSelector(g, s, m))
+			return true;
+
+		s->Append(']');
+	} else {
+		char *pth, buf[501];
+
+		if (GetArgType(0) != TYPE_COLBLK)
+			return true;
+
+		s->Append('"');
+
+		if (m)
+		  pth = ((PMGOCOL)Arg(0))->Jpath;
+		else if (!(pth = ((PJCOL)Arg(0))->GetJpath(g, false)))
+			return true;
+
+		s->Append(pth);
+		s->Append("\":{\"$");
+
+		switch (Opc) {
+			case OP_EQ:
+				s->Append("eq");
+				break;
+			case OP_NE:
+				s->Append("ne");
+				break;
+			case OP_GT:
+				s->Append("gt");
+				break;
+			case OP_GE:
+				s->Append("gte");
+				break;
+			case OP_LT:
+				s->Append("lt");
+				break;
+			case OP_LE:
+				s->Append("lte");
+				break;
+				//case OP_NULL:
+				//	s->Append("ne");
+				//	break;
+				//case OP_LIKE:
+				//	s->Append("ne");
+				//	break;
+				//case OP_EXIST:
+				//	s->Append("ne");
+				//	break;
+			default:
+				return true;
+		} // endswitch Opc
+
+		s->Append("\":");
+
+		if (GetArgType(1) == TYPE_COLBLK)
+			return true;
+
+		Arg(1)->Prints(g, buf, 500);
+		s->Append(buf);
+		s->Append('}');
+	} // endif Opc
+
+	s->Append('}');
+	return false;
+} // end of MakeSelector
+#endif   // MONGO_SUPPORT
+
 /*********************************************************************/
 /*  Make file output of FILTER contents.                             */
 /*********************************************************************/
-void FILTER::Print(PGLOBAL g, FILE *f, uint n)
+void FILTER::Printf(PGLOBAL g, FILE *f, uint n)
   {
   char m[64];
 
@@ -1430,18 +1525,18 @@ void FILTER::Print(PGLOBAL g, FILE *f, uint n)
       if (lin && fp->GetArgType(i) == TYPE_FILTER)
         fprintf(f, "%s  Filter at %p\n", m, fp->Arg(i));
       else
-        fp->Arg(i)->Print(g, f, n + 2);
+        fp->Arg(i)->Printf(g, f, n + 2);
 
       } // endfor i
 
     } // endfor fp
 
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of TABLE contents (z should be checked).        */
 /***********************************************************************/
-void FILTER::Print(PGLOBAL g, char *ps, uint z)
+void FILTER::Prints(PGLOBAL g, char *ps, uint z)
   {
   #define FLEN 100
 
@@ -1469,7 +1564,7 @@ void FILTER::Print(PGLOBAL g, char *ps, uint z)
       bcp = bxp;
       p = bcp->Cold;
       n = FLEN;
-      fp->Arg(0)->Print(g, p, n);
+      fp->Arg(0)->Prints(g, p, n);
       n = FLEN - strlen(p);
 
       switch (fp->Opc) {
@@ -1515,7 +1610,7 @@ void FILTER::Print(PGLOBAL g, char *ps, uint z)
 
       n = FLEN - strlen(p);
       p += strlen(p);
-      fp->Arg(1)->Print(g, p, n);
+      fp->Arg(1)->Prints(g, p, n);
     } else
       if (!bcp) {
         strncat(ps, "???", z);
@@ -1578,7 +1673,7 @@ void FILTER::Print(PGLOBAL g, char *ps, uint z)
     bcp = bxp;
     } while (bcp); // enddo
 
-  } // end of Print
+  } // end of Prints
 
 
 /* -------------------- Derived Classes Functions -------------------- */
@@ -1696,8 +1791,6 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
 
   if (trace)
     htrc("PrepareFilter: fp=%p having=%d\n", fp, having);
-//if (fp)
-//  fp->Print(g, debug, 0);
 
   while (fp) {
     if (fp->Opc == OP_SEP)
@@ -1711,7 +1804,7 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
         break;  // Remove eventual ending separator(s)
 
 //  if (fp->Convert(g, having))
-//    longjmp(g->jumper[g->jump_level], TYPE_FILTER);
+//			throw TYPE_ARRAY;
 
     filp = fp;
     fp = fp->Next;
@@ -1744,7 +1837,7 @@ DllExport bool ApplyFilter(PGLOBAL g, PFIL filp)
 //  return TRUE;
 
   if (filp->Eval(g))
-    longjmp(g->jumper[g->jump_level], TYPE_FILTER);
+		throw TYPE_FILTER;
 
   if (trace > 1)
     htrc("PlugFilter filp=%p result=%d\n",

@@ -5,14 +5,11 @@ set sql_mode="";
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 set sql_mode=default;
-connect user,localhost,user,,;
-connection user;
 SELECT user();
 user()
 user@localhost
 CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL OPTION_LIST='host=localhost,user=root1,port=PORT';
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
-connection default;
 SELECT user();
 user()
 root@localhost
@@ -24,7 +21,6 @@ a
 10
 20
 30
-connection user;
 SELECT user();
 user()
 user@localhost
@@ -43,12 +39,10 @@ ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
 CREATE VIEW v1 AS SELECT * FROM t1;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
 # Testing a VIEW created with FILE privileges but accessed with no FILE
-connection default;
 SELECT user();
 user()
 root@localhost
 CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT * FROM t1;
-connection user;
 SELECT user();
 user()
 user@localhost
@@ -60,8 +54,6 @@ UPDATE v1 SET a=123;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
 DELETE FROM v1;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
-disconnect user;
-connection default;
 SELECT user();
 user()
 root@localhost

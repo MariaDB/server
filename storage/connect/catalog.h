@@ -36,7 +36,7 @@ typedef struct _curtab {
 /*  Defines the structure used to get column catalog info.             */
 /***********************************************************************/
 typedef struct _colinfo {
-  char  *Name;
+  PCSZ   Name;
   int    Type;
   int    Offset;
   int    Length;
@@ -45,9 +45,9 @@ typedef struct _colinfo {
   int    Scale;
   int    Opt;
   int    Freq;
-  char  *Remark;
-  char  *Datefmt;
-  char  *Fieldfmt;
+  PCSZ   Remark;
+  PCSZ   Datefmt;
+  PCSZ   Fieldfmt;
   ushort Flags;         // Used by MariaDB CONNECT handlers
   } COLINFO, *PCOLINFO;
 
@@ -68,11 +68,9 @@ class DllExport CATALOG {
   bool    GetDefHuge(void) {return DefHuge;}
   void    SetDefHuge(bool b) {DefHuge = b;}
   char   *GetCbuf(void) {return Cbuf;}
-//char   *GetDataPath(void) {return (char*)DataPath;}
 
   // Methods
   virtual void    Reset(void) {}
-//virtual void    SetDataPath(PGLOBAL g, const char *path) {}
   virtual bool    CheckName(PGLOBAL, char*) {return true;}
   virtual bool    ClearName(PGLOBAL, PSZ) {return true;}
   virtual PRELDEF MakeOneTableDesc(PGLOBAL, LPCSTR, LPCSTR) {return NULL;}
@@ -102,7 +100,6 @@ class DllExport CATALOG {
   int     Cblen;                       /* Length of suballoc. buffer   */
   CURTAB  Ctb;                         /* Used to enumerate tables     */
   bool    DefHuge;                     /* true: tables default to huge */
-//LPCSTR  DataPath;                    /* Is the Path of DB data dir   */
   }; // end of class CATALOG
 
 #endif // __CATALOG__H

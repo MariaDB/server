@@ -98,10 +98,7 @@ class MYCAT : public CATALOG {
 
   // Methods
   void    Reset(void);
-//void    SetDataPath(PGLOBAL g, const char *path) 
-//            {SetPath(g, &DataPath, path);}
   bool    StoreIndex(PGLOBAL, PTABDEF) {return false;}  // Temporary
-//  PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name,
 	PRELDEF GetTableDesc(PGLOBAL g, PTABLE tablep,
 		                   LPCSTR type, PRELDEF *prp = NULL);
   PTDB    GetTable(PGLOBAL g, PTABLE tablep, 
@@ -109,9 +106,7 @@ class MYCAT : public CATALOG {
   void    ClearDB(PGLOBAL g);
 
  protected:
-//  PRELDEF MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am);
 	PRELDEF MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am);
-	//void    SetPath(PGLOBAL g, LPCSTR *datapath, const char *path);
 
   // Members
   ha_connect *Hc;                          // The Connect handler

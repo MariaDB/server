@@ -31,7 +31,7 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
 
  protected:
   // Members
-  char   *Fn;                     /* Path/Name of corresponding file   */
+	PCSZ    Fn;                     /* Path/Name of corresponding file   */
   char   *Encoding;               /* New XML table file encoding       */
   char   *Tabname;                /* Name of Table node                */
   char   *Rowname;                /* Name of first level nodes         */
@@ -42,7 +42,7 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   char   *DefNs;                  /* Dummy name of default namespace   */
   char   *Attrib;                 /* Table node attributes             */
   char   *Hdattr;                 /* Header node attributes            */
-	char   *Entry;						      /* Zip entry name or pattern				 */
+	PCSZ    Entry;						      /* Zip entry name or pattern				 */
 	int     Coltype;                /* Default column type               */
   int     Limit;                  /* Limit of multiple values          */
   int     Header;                 /* n first rows are header rows      */
@@ -74,8 +74,8 @@ class DllExport TDBXML : public TDBASE {
   virtual PTDB  Clone(PTABS t);
   virtual int   GetRecpos(void);
   virtual int   GetProgCur(void) {return N;}
-  virtual PSZ   GetFile(PGLOBAL g) {return Xfile;}
-  virtual void  SetFile(PGLOBAL g, PSZ fn) {Xfile = fn;}
+  virtual PCSZ  GetFile(PGLOBAL g) {return Xfile;}
+  virtual void  SetFile(PGLOBAL g, PCSZ fn) {Xfile = fn;}
   virtual void  ResetDB(void) {N = 0;}
   virtual void  ResetSize(void) {MaxSize = -1;}
   virtual int   RowNumber(PGLOBAL g, bool b = false);
@@ -127,7 +127,7 @@ class DllExport TDBXML : public TDBASE {
   bool    Void;                     // True if the file does not exist
 	bool    Zipped;                   // True if Zipped XML file(s)
 	bool    Mulentries;               // True if multiple entries in zip file
-	char   *Xfile;                    // The XML file
+	PCSZ    Xfile;                    // The XML file
   char   *Enc;                      // New XML table file encoding
   char   *Tabname;                  // Name of Table node
   char   *Rowname;                  // Name of first level nodes
@@ -138,7 +138,7 @@ class DllExport TDBXML : public TDBASE {
   char   *DefNs;                    // Dummy name of default namespace
   char   *Attrib;                   // Table node attribut(s)
   char   *Hdattr;                   // Header node attribut(s)
-	char   *Entry;						        // Zip entry name or pattern
+	PCSZ    Entry;						        // Zip entry name or pattern
 	int     Coltype;                  // Default column type
   int     Limit;                    // Limit of multiple values
   int     Header;                   // n first rows are header rows
@@ -155,7 +155,7 @@ class DllExport TDBXML : public TDBASE {
 class XMLCOL : public COLBLK {
  public:
   // Constructors
-  XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "XML");
+  XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "XML");
   XMLCOL(XMLCOL *colp, PTDB tdbp);   // Constructor used in copy process
 
   // Implementation
