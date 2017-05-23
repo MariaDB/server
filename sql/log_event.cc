@@ -12525,7 +12525,9 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     TODO: Add safety measures against infinite looping. 
    */
 
-  while ((error= table->file->ha_write_row(table->record[0])))
+  if (table->s->sequence)
+    error= update_sequence();
+  else while ((error= table->file->ha_write_row(table->record[0])))
   {
     if (error == HA_ERR_LOCK_DEADLOCK ||
         error == HA_ERR_LOCK_WAIT_TIMEOUT ||
@@ -12691,6 +12693,33 @@ Rows_log_event::write_row(rpl_group_info *rgi,
 
   DBUG_RETURN(error);
 }
+
+
+int Rows_log_event::update_sequence()
+{
+  TABLE *table= m_table;  // pointer to event's table
+
+  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO))
+  {
+    /* This event come from a setval function executed on the master.
+       Update the sequence next_number and round, like we do with setval()
+    */
+    my_bitmap_map *old_map= dbug_tmp_use_all_columns(table,
+                                                     table->read_set);
+    longlong nextval= table->field[NEXT_FIELD_NO]->val_int();
+    longlong round= table->field[ROUND_FIELD_NO]->val_int();
+    dbug_tmp_restore_column_map(table->read_set, old_map);
+
+    return table->s->sequence->set_value(table, nextval, round, 0);
+  }
+
+  /*
+    Update all fields in table and update the active sequence, like with
+    ALTER SEQUENCE
+  */
+  return table->file->ha_write_row(table->record[0]);
+}
+
 
 #endif
 

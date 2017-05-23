@@ -5922,8 +5922,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
             table->table->file->ht)
           multi_write_engine= TRUE;
         if (table->table->s->non_determinstic_insert &&
-            lex->sql_command != SQLCOM_CREATE_SEQUENCE &&
-            lex->sql_command != SQLCOM_CREATE_TABLE)
+            !(sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE))
           has_write_tables_with_unsafe_statements= true;
 
         trans= table->table->file->has_transactions();

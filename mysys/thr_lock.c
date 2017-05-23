@@ -357,7 +357,8 @@ static void check_locks(THR_LOCK *lock, const char *where,
                data && count < MAX_LOCKS;
                data=data->next)
           {
-            if (data->type != TL_WRITE_CONCURRENT_INSERT)
+            if (data->type != TL_WRITE_CONCURRENT_INSERT &&
+                data->type != TL_WRITE_ALLOW_WRITE)
             {
               fprintf(stderr,
                       "Warning at '%s': Found TL_WRITE_CONCURRENT_INSERT lock mixed with other write lock: %d\n",

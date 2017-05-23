@@ -1949,7 +1949,7 @@ create:
          {
             LEX *lex= thd->lex;
 
-            if (lex->create_info.seq_create_info->check_and_adjust())
+            if (lex->create_info.seq_create_info->check_and_adjust(1))
             {
               my_error(ER_SEQUENCE_INVALID_DATA, MYF(0),
                        lex->select_lex.table_list.first->db,

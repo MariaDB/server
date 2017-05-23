@@ -40,3 +40,45 @@ select * from s1;
 next_value	min_value	max_value	start	increment	cache	cycle	round
 2001	1	9223372036854775806	1	1	1000	0	0
 drop sequence s1;
+#
+# ÌNSERT
+#
+create sequence s1;
+create sequence s2;
+insert into s1 (next_value, min_value) values (100,1000);
+ERROR HY000: Field 'max_value' doesn't have a default value
+insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
+ERROR HY000: Table 's1' is specified twice, both as a target for 'INSERT' and as a separate source for data
+insert into s1 values (next value for s2, 1,9223372036854775806,1,1,1000,0,0);
+ERROR HY000: Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a squence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead.
+insert into s1 select * from s2;
+ERROR HY000: Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a squence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead.
+insert into s1 values(1000,9223372036854775806,1,1,1,1000,0,0);
+ERROR HY000: Sequence 'test.s1' values are conflicting
+insert into s1 values(0,9223372036854775806,1,1,1,1000,0,0);
+ERROR HY000: Sequence 'test.s1' values are conflicting
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	0	0
+insert into s1 values(1000,1,9223372036854775806,1,1,1000,0,0);
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1000	1	9223372036854775806	1	1	1000	0	0
+select next value for s1;
+next value for s1
+1000
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+2000	1	9223372036854775806	1	1	1000	0	0
+insert into s2 values(0, 1, 10, 1, 2, 1, 1, 0);
+ERROR HY000: Sequence 'test.s2' values are conflicting
+drop sequence s1,s2;
+#
+# UPDATE and DELETE
+#
+create sequence s1;
+update s1 set next_value=100;
+ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this option
+delete from s1 where next_value > 0;
+ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this option
+drop sequence s1;

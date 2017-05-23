@@ -20,6 +20,7 @@
 #include "sql_sequence.h"
 #include "ha_sequence.h"
 #include "sql_base.h"
+#include "sql_table.h"                          // write_bin_log
 #include "transaction.h"
 #include "lock.h"
 #include "sql_acl.h"
@@ -70,50 +71,60 @@ static Field_definition sequence_structure[]=
   Check whether sequence values are valid.
   Sets default values for fields that are not used, according to Oracle spec.
 
-  Note that reserved_until is not checked as it's ok that it's outside of
-  the range (to indicate that sequence us used up).
-
   RETURN VALUES
      false      valid
      true       invalid
 */
 
-bool sequence_definition::check_and_adjust()
+bool sequence_definition::check_and_adjust(bool set_reserved_until)
 {
   longlong max_increment;
   DBUG_ENTER("sequence_definition::check");
+
+  if (!(real_increment= increment))
+    real_increment= global_system_variables.auto_increment_increment;
 
   /*
     If min_value is not set, set it to LONGLONG_MIN or 1, depending on
     increment
   */
   if (!(used_fields & seq_field_used_min_value))
-    min_value= increment < 0 ? LONGLONG_MIN+1 : 1;
+    min_value= real_increment < 0 ? LONGLONG_MIN+1 : 1;
 
   /*
     If min_value is not set, set it to LONGLONG_MAX or -1, depending on
-    increment
+    real_increment
   */
   if (!(used_fields & seq_field_used_max_value))
-    max_value= increment < 0 ? -1 : LONGLONG_MAX-1;
+    max_value= real_increment < 0 ? -1 : LONGLONG_MAX-1;
 
   if (!(used_fields & seq_field_used_start))
   {
-    /* Use min_value or max_value for start depending on increment */
-    start= increment < 0 ? max_value : min_value;
+    /* Use min_value or max_value for start depending on real_increment */
+    start= real_increment < 0 ? max_value : min_value;
   }
 
-  /* To ensure that cache * increment will never overflow */
-  max_increment= increment ? labs(increment) : MAX_AUTO_INCREMENT_VALUE;
+  if (set_reserved_until)
+    reserved_until= start;
+
+  adjust_values(reserved_until);
+
+  /* To ensure that cache * real_increment will never overflow */
+  max_increment= (real_increment ?
+                  labs(real_increment) :
+                  MAX_AUTO_INCREMENT_VALUE);
 
   if (max_value >= start &&
       max_value > min_value &&
       start >= min_value &&
       max_value != LONGLONG_MAX &&
       min_value != LONGLONG_MIN &&
-      cache < (LONGLONG_MAX - max_increment) / max_increment)
+      cache < (LONGLONG_MAX - max_increment) / max_increment &&
+      ((real_increment > 0 && reserved_until >= min_value) ||
+       (real_increment < 0 && reserved_until <= max_value)))
     DBUG_RETURN(FALSE);
-  DBUG_RETURN(TRUE);
+
+  DBUG_RETURN(TRUE);                           // Error
 }
 
 
@@ -448,7 +459,7 @@ int SEQUENCE::read_stored_values()
   Adjust values after reading a the stored state
 */
 
-void SEQUENCE::adjust_values(longlong next_value)
+void sequence_definition::adjust_values(longlong next_value)
 {
   next_free_value= next_value;
   if (!(real_increment= increment))
@@ -531,17 +542,26 @@ int sequence_definition::write_initial_sequence(TABLE *table)
    Store current sequence values into the sequence table
 */
 
-int sequence_definition::write(TABLE *table)
+int sequence_definition::write(TABLE *table, bool all_fields)
 {
   int error;
   MY_BITMAP *save_rpl_write_set, *save_write_set;
 
-  /* Log a full insert (ok as table is small) */
   save_rpl_write_set= table->rpl_write_set;
+  if (likely(!all_fields))
+  {
+    /* Only write next_value and round to binary log */
+    table->rpl_write_set= &table->def_rpl_write_set;
+    bitmap_clear_all(table->rpl_write_set);
+    bitmap_set_bit(table->rpl_write_set, NEXT_FIELD_NO);
+    bitmap_set_bit(table->rpl_write_set, ROUND_FIELD_NO);
+  }
+  else
+    table->rpl_write_set= &table->s->all_set;
 
   /* Update table */
   save_write_set= table->write_set;
-  table->rpl_write_set= table->write_set= &table->s->all_set;
+  table->write_set= &table->s->all_set;
   store_fields(table);
   /* Tell ha_sequence::write_row that we already hold the mutex */
   ((ha_sequence*) table->file)->sequence_locked= 1;
@@ -612,7 +632,7 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
     The cache value is checked on insert so the following can't
     overflow
   */
-  add_to= cache ? real_increment * cache : 1;
+  add_to= cache ? real_increment * cache : real_increment;
   out_of_values= 0;
 
   if (real_increment > 0)
@@ -651,7 +671,7 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
     DBUG_RETURN(next_value(table, 1, error));
   }
 
-  if ((*error= write(table)))
+  if ((*error= write(table, 0)))
   {
     reserved_until= org_reserved_until;
     next_free_value= res_value;
@@ -751,7 +771,7 @@ bool SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
       needs_to_be_stored)
   {
     reserved_until= next_free_value;
-    if (write(table))
+    if (write(table, 0))
     {
       reserved_until=  org_reserved_until;
       next_free_value= org_next_free_value;
@@ -842,7 +862,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
 
   /* Let check_and_adjust think all fields are used */
   new_seq->used_fields= ~0;
-  if (new_seq->check_and_adjust())
+  if (new_seq->check_and_adjust(0))
   {
     my_error(ER_SEQUENCE_INVALID_DATA, MYF(0),
              first_table->db,
@@ -851,17 +871,22 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
     goto end;
   }
 
-  if (!(error= new_seq->write(table)))
+  if (!(error= new_seq->write(table, 1)))
   {
     /* Store the sequence values in table share */
     table->s->sequence->copy(new_seq);
   }
-  trans_commit_stmt(thd);
-  trans_commit_implicit(thd);
+  else
+    table->file->print_error(error, MYF(0));
+  if (trans_commit_stmt(thd))
+    error= 1;
+  if (trans_commit_implicit(thd))
+    error= 1;
+  if (!error)
+    error= write_bin_log(thd, 1, thd->query(), thd->query_length());
   if (!error)
     my_ok(thd);
 
 end:
-  close_thread_tables(thd);
   DBUG_RETURN(error);
 }

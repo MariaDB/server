@@ -69,9 +69,10 @@ public:
              HA_CREATE_INFO *create_info);
   handler *clone(const char *name, MEM_ROOT *mem_root);
   int write_row(uchar *buf);
-  int update_row(const uchar *old_data, const uchar *new_data);
   Table_flags table_flags() const;
-  /* One can't delete from sequence engine */
+  /* One can't update or delete from sequence engine */
+  int update_row(const uchar *old_data, const uchar *new_data)
+  { return HA_ERR_WRONG_COMMAND; }
   int delete_row(const uchar *buf)
   { return HA_ERR_WRONG_COMMAND; }
   /* One can't delete from sequence engine */

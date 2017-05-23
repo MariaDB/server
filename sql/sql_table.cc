@@ -2243,7 +2243,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       uint32 comment_len;
 
       built_query.set_charset(thd->charset());
-      built_query.append("DROP TABLE ");
+      built_query.append("DROP ");
+      built_query.append(object_to_drop);
+      built_query.append(' ');
       if (if_exists)
         built_query.append("IF EXISTS ");
 
@@ -5556,9 +5558,8 @@ int mysql_discard_or_import_tablespace(THD *thd,
   error= trans_commit_stmt(thd);
   if (trans_commit_implicit(thd))
     error=1;
-  if (error)
-    goto err;
-  error= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+  if (!error)
+    error= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
 err:
   thd->tablespace_op=FALSE;

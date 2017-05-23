@@ -1,3 +1,7 @@
+#
+# This test is based on tests from ALISQL test suite
+#
+
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
 --source include/have_innodb.inc
@@ -30,7 +34,6 @@ create sequence s1;
 show create table s1;
 
 --sync_slave_with_master
-connection slave;
 use s_db;
 show create table s1;
 
@@ -164,7 +167,9 @@ show status like 'Qcache_inserts';
 --echo ###########################################
 connection m_normal_1;
 create sequence s_db.s1;
+select * from s_db.s1;
 select next value for s_db.s1;
+select * from s_db.s1;
 create sequence s_db.s2;
 drop sequence s_db.s2;
 
@@ -240,9 +245,9 @@ connection s_normal_3;
 use s_db;
 select * from s_t;
 
-
 connection m_normal_1;
 select next value for s_t;
+select * from s_t;
 
 connection master;
 --sync_slave_with_master
@@ -255,7 +260,9 @@ select * from s_t;
 --echo ------------------------------------------
 connection m_normal_1;
 select next value for s_t;
+--error ER_ILLEGAL_HA
 update s_t set next_value= 11;
+alter sequence s_t restart=11;
 commit;
 
 select * from s_t;
@@ -285,8 +292,10 @@ select * from s_t;
 --echo ------------------------------------------
 connection m_normal_1;
 select * from s_t;
---error ER_SEQUENCE_INVALID_DATA
+--error ER_ILLEGAL_HA
 update s_t set next_value= 11,start=10, min_value=11;
+--error ER_SEQUENCE_INVALID_DATA
+ALTER SEQUENCE s_t restart with 11 start=10 minvalue=11;
 commit;
 
 create table t_1(id int);
@@ -495,11 +504,11 @@ select next value for s1;
 
 set session binlog_format=row;
 select next value for s1;
+select * from s1;
 
 connection master;
 --sync_slave_with_master
 
-connection slave;
 use s_db;
 select * from s1;
 
@@ -568,7 +577,6 @@ select * from t;
 connection master;
 --sync_slave_with_master
 
-connection slave;
 use s_db;
 select * from t;
 
@@ -655,6 +663,4 @@ drop user normal_2@'%';
 drop user normal_3@'%';
 drop user normal_4@'%';
 
-
---sync_slave_with_master
 --source include/rpl_end.inc

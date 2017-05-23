@@ -26,6 +26,11 @@
 #define seq_field_used_restart   64
 #define seq_field_used_restart_value 128
 
+/* Field position in sequence table for some fields we refer to directly */
+#define NEXT_FIELD_NO 0
+#define MIN_VALUE_FIELD_NO 1
+#define ROUND_FIELD_NO 7
+
 /**
    sequence_definition is used when defining a sequence as part of create
 */
@@ -48,17 +53,26 @@ public:
   uint used_fields;              // Which fields where used in CREATE
   longlong restart;              // alter sequence restart value
 
-  bool check_and_adjust();
+  bool check_and_adjust(bool set_reserved_until);
   void store_fields(TABLE *table);
   void read_fields(TABLE *table);
   int write_initial_sequence(TABLE *table);
-  int write(TABLE *table);
+  int write(TABLE *table, bool all_fields);
+  /* This must be called after sequence data has been updated */
+  void adjust_values(longlong next_value);
   inline void print_dbug()
   {
     DBUG_PRINT("sequence", ("reserved: %lld  start: %lld  increment: %lld  min_value: %lld  max_value: %lld  cache: %lld  round: %lld",
                       reserved_until, start, increment, min_value,
                         max_value, cache, round));
   }
+protected:
+  /*
+    The following values are the values from sequence_definition
+    merged with global auto_increment_offset and auto_increment_increment
+  */
+  longlong real_increment;
+  longlong next_free_value;
 };
 
 /**
@@ -87,8 +101,6 @@ public:
   {
     mysql_mutex_unlock(&mutex);
   }
-  /* This must be called after sequence data has been updated */
-  void adjust_values(longlong next_value);
   void copy(sequence_definition *seq)
   {
     sequence_definition::operator= (*seq);
@@ -124,12 +136,6 @@ public:
 private:
   TABLE         *table;
   mysql_mutex_t mutex;
-  longlong next_free_value;
-  /*
-    The following values are the values from sequence_definition
-    merged with global auto_increment_offset and auto_increment_increment
-  */
-  longlong real_increment;
 };
 
 

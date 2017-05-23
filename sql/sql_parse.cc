@@ -557,7 +557,7 @@ void init_update_queries(void)
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
                                             CF_INSERTS_DATA;
   sql_command_flags[SQLCOM_ALTER_SEQUENCE]= CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
-                                            CF_AUTO_COMMIT_TRANS;
+                                            CF_AUTO_COMMIT_TRANS | CF_SCHEMA_CHANGE;
   sql_command_flags[SQLCOM_TRUNCATE]=       CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_TABLE]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_SCHEMA_CHANGE;
@@ -1456,7 +1456,7 @@ static my_bool deny_updates_if_read_only_option(THD *thd,
   if (lex->sql_command == SQLCOM_UPDATE_MULTI)
     DBUG_RETURN(FALSE);
 
-  /* Check if we created and dropped temporary tables */
+  /* Check if we created or dropped temporary tables */
   if ((sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE) &&
       lex->tmp_table())
     DBUG_RETURN(FALSE);
