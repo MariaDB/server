@@ -1,0 +1,67 @@
+SHOW CREATE TABLE wsrep_schema.cluster;
+Table	Create Table
+cluster	CREATE TABLE `cluster` (
+  `cluster_uuid` char(36) NOT NULL,
+  `view_id` bigint(20) NOT NULL,
+  `view_seqno` bigint(20) NOT NULL,
+  `protocol_version` int(11) NOT NULL,
+  PRIMARY KEY (`cluster_uuid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE wsrep_schema.members;
+Table	Create Table
+members	CREATE TABLE `members` (
+  `node_uuid` char(36) NOT NULL,
+  `cluster_uuid` char(36) NOT NULL,
+  `node_name` char(32) NOT NULL,
+  `node_incoming_address` varchar(256) NOT NULL,
+  PRIMARY KEY (`node_uuid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 1 FROM wsrep_schema.cluster;
+COUNT(*) = 1
+1
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.cluster;
+cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid')
+1
+SELECT COUNT(*) = 3 FROM wsrep_schema.members;
+COUNT(*) = 3
+1
+SELECT COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size') FROM wsrep_schema.members;
+COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size')
+1
+SELECT COUNT(*) = 1 FROM wsrep_schema.members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
+COUNT(*) = 1
+1
+SELECT node_incoming_address LIKE '127.0.0.1:%' from wsrep_schema.members;
+node_incoming_address LIKE '127.0.0.1:%'
+1
+1
+1
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.members;
+cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid')
+1
+1
+1
+SELECT COUNT(*) = 1 FROM wsrep_schema.members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
+COUNT(*) = 1
+1
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.cluster;
+cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid')
+1
+SELECT COUNT(*) = 2 FROM wsrep_schema.members;
+COUNT(*) = 2
+1
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.cluster;
+cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid')
+1
+SELECT COUNT(*) = 3 FROM wsrep_schema.members;
+COUNT(*) = 3
+1
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.cluster;
+cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid')
+1
+SELECT COUNT(*) = 3 FROM wsrep_schema.members;
+COUNT(*) = 3
+1
+CALL mtr.add_suppression("SYNC message from member");
+CALL mtr.add_suppression("SYNC message from member");
+CALL mtr.add_suppression("SYNC message from member");

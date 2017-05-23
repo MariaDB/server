@@ -306,13 +306,16 @@ void wsrep_sst_received (THD*                thd,
       wsrep_seqno_t se_seqno= -1;
       wsrep_uuid_t se_uuid= WSREP_UUID_UNDEFINED;
       wsrep_set_SE_checkpoint(se_uuid, se_seqno);
+      wsrep_set_SE_checkpoint(uuid, seqno);
+//      wsrep_recover_view();
     }
-    wsrep_recover_view();
+    wsrep_verify_SE_checkpoint(uuid, seqno);
+//remove    wsrep_recover_view();
     wsrep_init_SR();
     if (thd) mysql_mutex_lock(&LOCK_global_system_variables);
 
     /*
-      Both wsrep_init_schema_and_SR() and wsrep_recover_view() may use
+//remove      Both wsrep_init_schema_and_SR() and wsrep_recover_view() may use
       wsrep thread pool. Restore original thd context before returning.
     */
     if (thd) {
@@ -328,13 +331,13 @@ void wsrep_sst_received (THD*                thd,
 
     if (wsrep)
     {
-        int const rcode(seqno < 0 ? seqno : 0);
-        wsrep_gtid_t const state_id = {
-            uuid, (rcode ? WSREP_SEQNO_UNDEFINED : seqno)
-        };
+      int const rcode(seqno < 0 ? seqno : 0);
+      wsrep_gtid_t const state_id = {
+          uuid, (rcode ? WSREP_SEQNO_UNDEFINED : seqno)
+      };
 
-        wsrep_buf_t const st= { state, state_len };
-        wsrep->sst_received(wsrep, &state_id, &st, rcode);
+      wsrep_buf_t const st= { state, state_len };
+      wsrep->sst_received(wsrep, &state_id, &st, rcode);
     }
 }
 

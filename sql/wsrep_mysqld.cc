@@ -544,9 +544,21 @@ wsrep_view_handler_cb (void*                    app_ctx,
         }
       }
 
-      local_uuid=  cluster_uuid;
-      local_seqno= view->state_id.seqno;
+//remove      wsrep_get_SE_checkpoint(local_uuid, local_seqno);
+//remove      local_uuid=  cluster_uuid; // workaround when starting from scratch
+      /* Init storage engine XIDs from first view */
+//remove      if (wsrep_uuid_compare(&local_uuid, &WSREP_UUID_UNDEFINED) == 0)
+      if (view->memb_num == 1)
+      {
+//remove        assert(WSREP_SEQNO_UNDEFINED == local_seqno);
+        wsrep_set_SE_checkpoint(cluster_uuid, view->state_id.seqno);
+      }
+      else
+      {
+        // must get from state transfer
+      }
 
+      wsrep_verify_SE_checkpoint(cluster_uuid, view->state_id.seqno);
       new_status= WSREP_MEMBER_JOINED;
 #ifdef GTID_SUPPORT
       wsrep_init_sidno(local_uuid);
@@ -554,23 +566,18 @@ wsrep_view_handler_cb (void*                    app_ctx,
   }
   else
   {
-      local_seqno= view->state_id.seqno;
+      wsrep_get_SE_checkpoint(local_uuid, local_seqno);
+
+      // just a sanity check
+      if (wsrep_uuid_compare(&local_uuid, &cluster_uuid) != 0)
+      {
+          WSREP_ERROR("Undetected state gap. Can't continue.");
+          wsrep_log_states(WSREP_LOG_FATAL, &cluster_uuid, view->state_id.seqno,
+                           &local_uuid, local_seqno);
+          unireg_abort(1);
+      }
   }
 
-  // just some sanity check
-  if (memcmp (&local_uuid, &cluster_uuid, sizeof (wsrep_uuid_t)))
-  {
-      WSREP_ERROR("Undetected state gap. Can't continue.");
-      wsrep_log_states(WSREP_LOG_FATAL, &cluster_uuid, view->state_id.seqno,
-                       &local_uuid, -1);
-      unireg_abort(1);
-  }
-
-  /* Init storage engine XIDs from first view */
-  wsrep_set_SE_checkpoint(local_uuid, local_seqno);
-#ifdef GTID_SUPPORT
-  wsrep_init_sidno(local_uuid);
-#endif
   if (wsrep_auto_increment_control && view->my_idx >= 0)
   {
       global_system_variables.auto_increment_offset= view->my_idx + 1;
@@ -626,7 +633,7 @@ out:
   return ret;
 }
 
-void wsrep_recover_view()
+void wsrep_recover_view() //remove
 {
 
 #ifndef NDEBUG
@@ -647,10 +654,31 @@ void wsrep_recover_view()
     unireg_abort(1);
   }
 
-  wsrep_view_handler_cb(0, 0, view_info, 0, 0);
+//remove  wsrep_view_handler_cb(0, 0, view_info, 0, 0);
   free(view_info);
 }
 
+/* Verifies that SE position is consistent with the group position
+ * and initializes other variables */
+void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& group_uuid,
+                                wsrep_seqno_t const group_seqno)
+{
+  wsrep_get_SE_checkpoint(local_uuid, local_seqno);
+
+  if (memcmp(&local_uuid, &group_uuid, sizeof (wsrep_uuid_t)) ||
+             local_seqno > group_seqno)
+  {
+    WSREP_ERROR("Failed to update SE checkpoint. Can't continue.");
+    wsrep_log_states(WSREP_LOG_FATAL, &group_uuid, group_seqno,
+                     &local_uuid, local_seqno);
+    assert(0);
+    unireg_abort(1);
+  }
+
+#ifdef GTID_SUPPORT
+  wsrep_init_sidno(local_uuid);
+#endif
+}
 
 static wsrep_cb_status_t
 wsrep_sst_request_cb (void**                   sst_req,
@@ -790,7 +818,7 @@ static void wsrep_init_position()
   wsrep_seqno_t seqno;
   wsrep_get_SE_checkpoint(uuid, seqno);
 
-  if (!memcmp(&uuid, &WSREP_UUID_UNDEFINED, sizeof(wsrep_uuid_t)))
+  if (wsrep_uuid_compare(&uuid, &WSREP_UUID_UNDEFINED) == 0)
   {
     WSREP_INFO("Read nil XID from storage engines, skipping position init");
     return;
@@ -798,9 +826,10 @@ static void wsrep_init_position()
 
   char uuid_str[40] = {0, };
   wsrep_uuid_print(&uuid, uuid_str, sizeof(uuid_str));
-  WSREP_INFO("Initial position: %s:%lld", uuid_str, (long long)seqno);
+  WSREP_INFO("Storage engines initial position: %s:%lld",
+             uuid_str, (long long)seqno);
 
-  if (!memcmp(&local_uuid, &WSREP_UUID_UNDEFINED, sizeof(local_uuid)) &&
+  if (wsrep_uuid_compare(&local_uuid, &WSREP_UUID_UNDEFINED) == 0 &&
       local_seqno == WSREP_SEQNO_UNDEFINED)
   {
     // Initial state
@@ -1165,9 +1194,13 @@ void wsrep_thr_deinit()
 
 void wsrep_recover()
 {
-  char uuid_str[40];
+  wsrep_uuid_t uuid;
+  wsrep_seqno_t seqno;
+  wsrep_get_SE_checkpoint(uuid, seqno);
+  char uuid_str[40] = {0, };;
+  wsrep_uuid_print(&uuid, uuid_str, sizeof(uuid_str));
 
-  if (!memcmp(&local_uuid, &WSREP_UUID_UNDEFINED, sizeof(wsrep_uuid_t)) &&
+  if (wsrep_uuid_compare(&local_uuid, &WSREP_UUID_UNDEFINED) == 0 &&
       local_seqno == -2)
   {
     wsrep_uuid_print(&local_uuid, uuid_str, sizeof(uuid_str));
@@ -1175,10 +1208,6 @@ void wsrep_recover()
                uuid_str, (long long)local_seqno);
     return;
   }
-  wsrep_uuid_t uuid;
-  wsrep_seqno_t seqno;
-  wsrep_get_SE_checkpoint(uuid, seqno);
-  wsrep_uuid_print(&uuid, uuid_str, sizeof(uuid_str));
   WSREP_INFO("Recovered position: %s:%lld", uuid_str, (long long)seqno);
 }
 

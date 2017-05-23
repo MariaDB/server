@@ -51,6 +51,7 @@ static const std::string create_members_table_str=
   "node_incoming_address VARCHAR(256) NOT NULL"
   ") ENGINE=InnoDB";
 
+#ifdef WSREP_SCHEMA_MEMBERS_HISTORY
 static const std::string create_members_history_table_str=
   "CREATE TABLE IF NOT EXISTS wsrep_schema.members_history"
   "("
@@ -61,6 +62,7 @@ static const std::string create_members_history_table_str=
   "node_name CHAR(32) NOT NULL,"
   "node_incoming_address VARCHAR(256) NOT NULL"
   ") ENGINE=InnoDB";
+#endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
 
 static const std::string create_frag_table_str=
   "CREATE TABLE IF NOT EXISTS wsrep_schema.SR"
@@ -577,9 +579,11 @@ int Wsrep_schema::init()
                                      create_cluster_table_str.size()) ||
       Wsrep_schema_impl::execute_SQL(thd, create_members_table_str.c_str(),
                                      create_members_table_str.size()) ||
+#ifdef WSREP_SCHEMA_MEMBERS_HISTORY
       Wsrep_schema_impl::execute_SQL(thd,
                                      create_members_history_table_str.c_str(),
                                      create_members_history_table_str.size()) ||
+#endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
       Wsrep_schema_impl::execute_SQL(thd,
                                      create_frag_table_str.c_str(),
                                      create_frag_table_str.size())) {
@@ -601,7 +605,9 @@ int Wsrep_schema::store_view(const wsrep_view_info_t* view)
 
   TABLE* cluster_table= 0;
   TABLE* members_table= 0;
+#ifdef WSREP_SCHEMA_MEMBERS_HISTORY
   TABLE* members_history_table= 0;
+#endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
 
   THD* thd= thd_pool_->get_thd(0);
   if (!thd) {
@@ -669,6 +675,7 @@ int Wsrep_schema::store_view(const wsrep_view_info_t* view)
   }
   Wsrep_schema_impl::finish_stmt(thd);
 
+#ifdef WSREP_SCHEMA_MEMBERS_HISTORY
   /*
     Store members history
   */
@@ -697,6 +704,7 @@ int Wsrep_schema::store_view(const wsrep_view_info_t* view)
     }
   }
   Wsrep_schema_impl::finish_stmt(thd);
+#endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
 
   if (!trans_commit(thd)) {
     /* Success */
