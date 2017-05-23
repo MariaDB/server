@@ -1,0 +1,40 @@
+#
+# SR: Node hang with one thread waiting in InnoDB
+#
+--source include/galera_cluster.inc
+--source include/big_test.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 CHAR(255)) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 64;
+SET SESSION innodb_lock_wait_timeout = 1000;
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_trx_fragment_size = 64;
+SET SESSION innodb_lock_wait_timeout = 1000;
+
+--let $count = 500
+--disable_query_log
+while ($count)
+{
+        --connection node_1
+        --send INSERT INTO t1 (f2) VALUES ('abc'),('abc');
+
+        --connection node_2
+        --send DELETE FROM t1 ORDER BY f1 DESC LIMIT 2;
+
+        --connection node_1
+        --error 0,ER_LOCK_DEADLOCK,ER_DUP_ENTRY,ER_LOCK_WAIT_TIMEOUT,ER_QUERY_INTERRUPTED
+        --reap
+
+        --connection node_2
+        --error 0,ER_LOCK_DEADLOCK,ER_DUP_ENTRY,ER_LOCK_WAIT_TIMEOUT,ER_QUERY_INTERRUPTED
+        --reap
+
+        --dec $count
+}
+--enable_query_log
+
+DROP TABLE t1;

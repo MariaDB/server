@@ -1,0 +1,47 @@
+#
+# Test wsrep_fragment_unit = statements
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+SET SESSION wsrep_trx_fragment_size = 3;
+SET SESSION wsrep_trx_fragment_unit = 'statements';
+
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+
+# The table count on the slave should jump from 0
+--connection node_2
+--sleep 1
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) = 0 FROM t1;
+
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+# to 3
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_1
+INSERT INTO t1 VALUES (6);
+
+# and then to to 6
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 6 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_1
+COMMIT;
+
+DROP TABLE t1;

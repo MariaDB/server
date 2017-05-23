@@ -1,0 +1,56 @@
+SET AUTOCOMMIT=OFF;
+CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('%abcdef%');
+INSERT INTO t1 VALUES ('%abcdef%');
+INSERT INTO t1 VALUES ('%abcdef%');
+INSERT INTO t1 VALUES ('%abcdef%');
+SAVEPOINT A;
+INSERT INTO t1 VALUES ('xyzxyz');
+INSERT INTO t1 VALUES ('xyzxyz');
+INSERT INTO t1 VALUES ('xyzxyz');
+INSERT INTO t1 VALUES ('xyzxyz');
+INSERT INTO t1 VALUES ('xyzxyz');
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%abcdef%';
+COUNT(*) > 0
+1
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%xyz%';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%SAVEPOINT `A`%';
+COUNT(*) = 1
+1
+ROLLBACK TO SAVEPOINT A;
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%abcdef%';
+COUNT(*) > 0
+1
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%xyz%';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%SAVEPOINT `A`%';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%ROLLBACK TO `A`%';
+COUNT(*) = 1
+1
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%abcdef%';
+COUNT(*) > 0
+1
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%xyz%';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%SAVEPOINT `A`%';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%ROLLBACK TO `A`%';
+COUNT(*) = 1
+1
+ROLLBACK;
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+DROP TABLE t1;

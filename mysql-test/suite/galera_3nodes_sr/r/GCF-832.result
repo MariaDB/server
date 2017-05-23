@@ -1,0 +1,15 @@
+SET GLOBAL debug="d,crash_last_fragment_commit_after_fragment_removal";
+CREATE TABLE t1 (f1 VARCHAR(30)) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+COMMIT;
+ERROR HY000: Lost connection to MySQL server during query
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+DROP TABLE t1;

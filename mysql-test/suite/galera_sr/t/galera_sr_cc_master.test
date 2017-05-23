@@ -1,0 +1,87 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test the effect of Cluster Configuration Change on a concurrently-running SR transaction
+# We use SET GLOBAL wsrep_cluster_address = '' to cause the master (node_2) to temporarily
+# leave the cluster.
+#
+
+--connection node_2
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+--let $wsrep_trx_fragment_size_orig = `SELECT @@wsrep_trx_fragment_size`
+SET SESSION wsrep_trx_fragment_size = 1;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+
+--connection node_1
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+
+#
+# Trigger CC . The transaction is aborted and we expect the SR tables to be cleaned up
+#
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
+SET GLOBAL wsrep_cluster_address = '';
+
+--sleep 2
+--connection node_2
+
+--error 2013,ER_UNKNOWN_COM_ERROR
+INSERT INTO t1 VALUES (6);
+
+--connection node_1
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+
+# Restore cluster
+
+--connection node_2a
+--disable_query_log
+--eval SET GLOBAL wsrep_cluster_address='gcomm://127.0.0.1:$NODE_GALERAPORT_1';
+--enable_query_log
+--sleep 2
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2b
+--source include/galera_wait_ready.inc
+SELECT * FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+
+# Repeat transaction to confirm no locks are left from previous transaction
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+COMMIT;
+
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+
+--connection node_1
+SELECT COUNT(*) = 5 FROM t1;
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+
+DROP TABLE t1;
+
+--connection node_2b
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for");
+

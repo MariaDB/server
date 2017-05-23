@@ -1,0 +1,17 @@
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+SELECT flags FROM wsrep_schema.SR;
+flags
+64
+0
+ROLLBACK;
+INSERT INTO t1 VALUES (3),(4);
+SELECT flags FROM wsrep_schema.SR;
+flags
+64
+0
+ROLLBACK;
+DROP TABLE t1;

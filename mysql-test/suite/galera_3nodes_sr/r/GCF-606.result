@@ -1,0 +1,26 @@
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (21);
+INSERT INTO t1 VALUES (22);
+INSERT INTO t1 VALUES (23);
+INSERT INTO t1 VALUES (24);
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+SELECT COUNT(DISTINCT node_uuid) = 0 FROM wsrep_schema.SR;
+COUNT(DISTINCT node_uuid) = 0
+1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+COUNT(DISTINCT node_uuid) = 1
+0
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1
+COMMIT;
+SELECT * FROM t1;
+f1
+DROP TABLE t1;
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");

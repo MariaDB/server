@@ -1,0 +1,752 @@
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+SET DEBUG_SYNC = 'now SIGNAL continue';
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+DROP TABLE t1;
