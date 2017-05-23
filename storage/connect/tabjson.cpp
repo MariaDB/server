@@ -131,13 +131,11 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
   tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
   tdp->Pretty = GetIntegerTableOption(g, topt, "Pretty", 2);
 	tdp->Xcol = GetStringTableOption(g, topt, "Expand", NULL);
+	tdp->Uri = (dsn && *dsn ? dsn : NULL);
 
   if (trace)
     htrc("File %s objname=%s pretty=%d lvl=%d\n", 
           tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
-
-	if (dsn && *dsn)
-		tdp->Uri = dsn;
 
 	if (tdp->Uri) {
 #if defined(MONGO_SUPPORT)
