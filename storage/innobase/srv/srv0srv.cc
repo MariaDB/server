@@ -1457,8 +1457,10 @@ srv_export_innodb_status(void)
 	buf_get_total_stat(&stat);
 	buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
 	buf_get_total_list_size_in_bytes(&buf_pools_list_size);
-	fil_crypt_total_stat(&crypt_stat);
-	btr_scrub_total_stat(&scrub_stat);
+	if (!srv_read_only_mode) {
+		fil_crypt_total_stat(&crypt_stat);
+		btr_scrub_total_stat(&scrub_stat);
+	}
 
 	mutex_enter(&srv_innodb_monitor_mutex);
 
@@ -1660,6 +1662,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_sec_rec_cluster_reads_avoided =
 		srv_stats.n_sec_rec_cluster_reads_avoided;
 
+	if (!srv_read_only_mode) {
 	export_vars.innodb_encryption_rotation_pages_read_from_cache =
 		crypt_stat.pages_read_from_cache;
 	export_vars.innodb_encryption_rotation_pages_read_from_disk =
@@ -1687,6 +1690,7 @@ srv_export_innodb_status(void)
 		scrub_stat.page_split_failures_missing_index;
 	export_vars.innodb_scrub_page_split_failures_unknown =
 		scrub_stat.page_split_failures_unknown;
+	}
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
