@@ -2281,6 +2281,18 @@ public:
   bool append_for_log(THD *thd, String *str);
   
   Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+
+  /*
+    Override the inherited create_field_for_create_select(),
+    because we want to preserve the exact data type for:
+      DECLARE a1 INT;
+      DECLARE a2 TYPE OF t1.a2;
+      CREATE TABLE t1 AS SELECT a1, a2;
+    The inherited implementation would create a column
+    based on result_type(), which is less exact.
+  */
+  Field *create_field_for_create_select(TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
 };
 
 
@@ -2312,23 +2324,6 @@ public:
    :Item_splocal(thd, sp_var_name, sp_var_idx, MYSQL_TYPE_NULL,
                  pos_in_q, len_in_q)
   { }
-  bool fix_fields(THD *thd, Item **it)
-  {
-    if (Item_splocal::fix_fields(thd, it))
-      return true;
-    set_handler(this_item()->type_handler());
-    return false;
-  }
-  /*
-    Override the inherited create_field_for_create_select(),
-    because we want to preserve the exact data type for:
-      DECLARE a t1.a%TYPE;
-      CREATE TABLE t1 AS SELECT a;
-    The inherited implementation would create a column
-    based on result_type(), which is less exact.
-  */
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
 };
 
 

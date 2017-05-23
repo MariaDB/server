@@ -1625,7 +1625,9 @@ Item_splocal::Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name,
 
 bool Item_splocal::fix_fields(THD *thd, Item **ref)
 {
-  return fix_fields_from_item(thd, ref, thd->spcont->get_item(m_var_idx));
+  Item *item= thd->spcont->get_item(m_var_idx);
+  set_handler(item->type_handler());
+  return fix_fields_from_item(thd, ref, item);
 }
 
 

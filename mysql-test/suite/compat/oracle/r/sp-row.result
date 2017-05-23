@@ -832,8 +832,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -842,8 +842,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -852,8 +852,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -862,8 +862,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -872,8 +872,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -882,8 +882,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -892,8 +892,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -902,8 +902,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -912,8 +912,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -922,8 +922,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -932,8 +932,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -942,8 +942,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -952,8 +952,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(12) DEFAULT NULL,
-  "rec.var" bigint(12) DEFAULT NULL
+  "var" int(12) DEFAULT NULL,
+  "rec.var" int(12) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -962,8 +962,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(13) DEFAULT NULL,
-  "rec.var" bigint(13) DEFAULT NULL
+  "var" int(13) DEFAULT NULL,
+  "rec.var" int(13) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -972,8 +972,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(14) DEFAULT NULL,
-  "rec.var" bigint(14) DEFAULT NULL
+  "var" int(14) DEFAULT NULL,
+  "rec.var" int(14) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -982,8 +982,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(20) DEFAULT NULL,
-  "rec.var" bigint(20) DEFAULT NULL
+  "var" int(20) DEFAULT NULL,
+  "rec.var" int(20) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -992,8 +992,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(21) DEFAULT NULL,
-  "rec.var" bigint(21) DEFAULT NULL
+  "var" int(21) DEFAULT NULL,
+  "rec.var" int(21) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1005,8 +1005,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(4) DEFAULT NULL,
-  "rec.var" int(4) DEFAULT NULL
+  "var" tinyint(4) DEFAULT NULL,
+  "rec.var" tinyint(4) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1015,8 +1015,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(4) DEFAULT NULL,
-  "rec.var" int(4) DEFAULT NULL
+  "var" tinyint(4) DEFAULT NULL,
+  "rec.var" tinyint(4) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1025,8 +1025,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(4) DEFAULT NULL,
-  "rec.var" int(4) DEFAULT NULL
+  "var" tinyint(4) DEFAULT NULL,
+  "rec.var" tinyint(4) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1035,8 +1035,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(4) DEFAULT NULL,
-  "rec.var" int(4) DEFAULT NULL
+  "var" tinyint(4) DEFAULT NULL,
+  "rec.var" tinyint(4) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1045,8 +1045,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(4) DEFAULT NULL,
-  "rec.var" int(4) DEFAULT NULL
+  "var" tinyint(4) DEFAULT NULL,
+  "rec.var" tinyint(4) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1055,8 +1055,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(5) DEFAULT NULL,
-  "rec.var" int(5) DEFAULT NULL
+  "var" tinyint(5) DEFAULT NULL,
+  "rec.var" tinyint(5) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1065,8 +1065,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(6) DEFAULT NULL,
-  "rec.var" int(6) DEFAULT NULL
+  "var" tinyint(6) DEFAULT NULL,
+  "rec.var" tinyint(6) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1075,8 +1075,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(7) DEFAULT NULL,
-  "rec.var" int(7) DEFAULT NULL
+  "var" tinyint(7) DEFAULT NULL,
+  "rec.var" tinyint(7) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1085,8 +1085,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(8) DEFAULT NULL,
-  "rec.var" int(8) DEFAULT NULL
+  "var" tinyint(8) DEFAULT NULL,
+  "rec.var" tinyint(8) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1095,8 +1095,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" tinyint(9) DEFAULT NULL,
+  "rec.var" tinyint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1105,8 +1105,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(10) DEFAULT NULL,
-  "rec.var" bigint(10) DEFAULT NULL
+  "var" tinyint(10) DEFAULT NULL,
+  "rec.var" tinyint(10) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1115,8 +1115,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" tinyint(11) DEFAULT NULL,
+  "rec.var" tinyint(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1125,8 +1125,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(12) DEFAULT NULL,
-  "rec.var" bigint(12) DEFAULT NULL
+  "var" tinyint(12) DEFAULT NULL,
+  "rec.var" tinyint(12) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1135,8 +1135,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(13) DEFAULT NULL,
-  "rec.var" bigint(13) DEFAULT NULL
+  "var" tinyint(13) DEFAULT NULL,
+  "rec.var" tinyint(13) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1145,8 +1145,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(14) DEFAULT NULL,
-  "rec.var" bigint(14) DEFAULT NULL
+  "var" tinyint(14) DEFAULT NULL,
+  "rec.var" tinyint(14) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1155,8 +1155,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(20) DEFAULT NULL,
-  "rec.var" bigint(20) DEFAULT NULL
+  "var" tinyint(20) DEFAULT NULL,
+  "rec.var" tinyint(20) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1165,8 +1165,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(21) DEFAULT NULL,
-  "rec.var" bigint(21) DEFAULT NULL
+  "var" tinyint(21) DEFAULT NULL,
+  "rec.var" tinyint(21) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1178,8 +1178,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(6) DEFAULT NULL,
-  "rec.var" int(6) DEFAULT NULL
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1188,8 +1188,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(6) DEFAULT NULL,
-  "rec.var" int(6) DEFAULT NULL
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1198,8 +1198,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(6) DEFAULT NULL,
-  "rec.var" int(6) DEFAULT NULL
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1208,8 +1208,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(6) DEFAULT NULL,
-  "rec.var" int(6) DEFAULT NULL
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1218,8 +1218,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(6) DEFAULT NULL,
-  "rec.var" int(6) DEFAULT NULL
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1228,8 +1228,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(6) DEFAULT NULL,
-  "rec.var" int(6) DEFAULT NULL
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1238,8 +1238,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(6) DEFAULT NULL,
-  "rec.var" int(6) DEFAULT NULL
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1248,8 +1248,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(7) DEFAULT NULL,
-  "rec.var" int(7) DEFAULT NULL
+  "var" smallint(7) DEFAULT NULL,
+  "rec.var" smallint(7) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1258,8 +1258,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(8) DEFAULT NULL,
-  "rec.var" int(8) DEFAULT NULL
+  "var" smallint(8) DEFAULT NULL,
+  "rec.var" smallint(8) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1268,8 +1268,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" smallint(9) DEFAULT NULL,
+  "rec.var" smallint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1278,8 +1278,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(10) DEFAULT NULL,
-  "rec.var" bigint(10) DEFAULT NULL
+  "var" smallint(10) DEFAULT NULL,
+  "rec.var" smallint(10) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1288,8 +1288,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" smallint(11) DEFAULT NULL,
+  "rec.var" smallint(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1298,8 +1298,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(12) DEFAULT NULL,
-  "rec.var" bigint(12) DEFAULT NULL
+  "var" smallint(12) DEFAULT NULL,
+  "rec.var" smallint(12) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1308,8 +1308,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(13) DEFAULT NULL,
-  "rec.var" bigint(13) DEFAULT NULL
+  "var" smallint(13) DEFAULT NULL,
+  "rec.var" smallint(13) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1318,8 +1318,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(14) DEFAULT NULL,
-  "rec.var" bigint(14) DEFAULT NULL
+  "var" smallint(14) DEFAULT NULL,
+  "rec.var" smallint(14) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1328,8 +1328,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(20) DEFAULT NULL,
-  "rec.var" bigint(20) DEFAULT NULL
+  "var" smallint(20) DEFAULT NULL,
+  "rec.var" smallint(20) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1338,8 +1338,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(21) DEFAULT NULL,
-  "rec.var" bigint(21) DEFAULT NULL
+  "var" smallint(21) DEFAULT NULL,
+  "rec.var" smallint(21) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1351,8 +1351,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1361,8 +1361,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1371,8 +1371,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1381,8 +1381,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1391,8 +1391,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1401,8 +1401,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1411,8 +1411,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1421,8 +1421,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1431,8 +1431,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1441,8 +1441,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" int(9) DEFAULT NULL,
-  "rec.var" int(9) DEFAULT NULL
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1451,8 +1451,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(10) DEFAULT NULL,
-  "rec.var" bigint(10) DEFAULT NULL
+  "var" mediumint(10) DEFAULT NULL,
+  "rec.var" mediumint(10) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1461,8 +1461,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(11) DEFAULT NULL,
-  "rec.var" bigint(11) DEFAULT NULL
+  "var" mediumint(11) DEFAULT NULL,
+  "rec.var" mediumint(11) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1471,8 +1471,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(12) DEFAULT NULL,
-  "rec.var" bigint(12) DEFAULT NULL
+  "var" mediumint(12) DEFAULT NULL,
+  "rec.var" mediumint(12) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1481,8 +1481,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(13) DEFAULT NULL,
-  "rec.var" bigint(13) DEFAULT NULL
+  "var" mediumint(13) DEFAULT NULL,
+  "rec.var" mediumint(13) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1491,8 +1491,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(14) DEFAULT NULL,
-  "rec.var" bigint(14) DEFAULT NULL
+  "var" mediumint(14) DEFAULT NULL,
+  "rec.var" mediumint(14) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1501,8 +1501,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(20) DEFAULT NULL,
-  "rec.var" bigint(20) DEFAULT NULL
+  "var" mediumint(20) DEFAULT NULL,
+  "rec.var" mediumint(20) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1511,8 +1511,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" bigint(21) DEFAULT NULL,
-  "rec.var" bigint(21) DEFAULT NULL
+  "var" mediumint(21) DEFAULT NULL,
+  "rec.var" mediumint(21) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -2235,7 +2235,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE "t2" (
-  "rec.a" bigint(11) DEFAULT NULL,
+  "rec.a" int(11) DEFAULT NULL,
   "rec.b" varchar(10) DEFAULT NULL,
   "rec.c" double DEFAULT NULL,
   "rec.d" decimal(10,0) DEFAULT NULL
@@ -2260,7 +2260,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE "t2" (
-  "rec.a" bigint(11) DEFAULT NULL,
+  "rec.a" int(11) DEFAULT NULL,
   "rec.b" varchar(10) DEFAULT NULL,
   "rec.c" double DEFAULT NULL,
   "rec.d" decimal(10,0) DEFAULT NULL
@@ -2286,7 +2286,7 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE "t2" (
-  "rec.a" bigint(11) DEFAULT NULL,
+  "rec.a" int(11) DEFAULT NULL,
   "rec.b" varchar(10) DEFAULT NULL,
   "rec.c" double DEFAULT NULL,
   "rec.d" decimal(10,0) DEFAULT NULL
@@ -2313,7 +2313,7 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE "t2" (
-  "rec.a" bigint(11) DEFAULT NULL,
+  "rec.a" int(11) DEFAULT NULL,
   "rec.b" varchar(10) DEFAULT NULL,
   "rec.c" double DEFAULT NULL,
   "rec.d" decimal(10,0) DEFAULT NULL
