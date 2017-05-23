@@ -35,6 +35,7 @@ a	b
 1	ZZ
 connection slave;
 call mtr.add_suppression("Slave SQL.*Table .test.t3. doesn.t exist.* error.* 1146");
+call mtr.add_suppression("At line *");
 include/wait_for_slave_sql_error.inc [errno=1146]
 SHOW TABLES LIKE 't%';
 Tables_in_test (t%)
