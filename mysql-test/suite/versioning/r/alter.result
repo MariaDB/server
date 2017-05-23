@@ -77,9 +77,9 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
   `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
   `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `b` int(11) DEFAULT NULL,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column c int;
@@ -87,10 +87,10 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT NULL,
   `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
   `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column d int first;
@@ -99,10 +99,10 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `d` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT NULL,
   `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
   `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column e int after d;
@@ -112,26 +112,22 @@ t	CREATE TABLE `t` (
   `d` int(11) DEFAULT NULL,
   `e` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT NULL,
   `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
   `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-alter table t add column f int after sys_trx_start;
-ERROR HY000: Wrong parameters for `t`: Can not put new field after system versioning field
-alter table t add column f int after sys_trx_end;
-ERROR HY000: Wrong parameters for `t`: Can not put new field after system versioning field
 alter table t drop column a;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `d` int(11) DEFAULT NULL,
   `e` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT NULL,
   `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
   `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop column sys_trx_start;
@@ -179,9 +175,9 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
   `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
   `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `b` int(11) DEFAULT NULL,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t;
@@ -339,9 +335,9 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
   `sys_trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
   `sys_trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
+  `b` int(11) DEFAULT NULL,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t;
@@ -366,9 +362,9 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
   `sys_trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
   `sys_trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
+  `b` int(11) DEFAULT NULL,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t;

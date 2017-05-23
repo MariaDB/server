@@ -59,11 +59,6 @@ show create table t;
 alter table t add column e int after d;
 show create table t;
 
---error ER_VERS_WRONG_PARAMS
-alter table t add column f int after sys_trx_start;
---error ER_VERS_WRONG_PARAMS
-alter table t add column f int after sys_trx_end;
-
 alter table t drop column a;
 show create table t;
 

@@ -6874,31 +6874,11 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
 
     if (alter_info->create_list.elements)
     {
-      DBUG_ASSERT(share->fields > 2);
-      const char *after_this= share->field[share->fields - 3]->field_name;
-      List_iterator<Create_field> it(alter_info->create_list);
+      List_iterator_fast<Create_field> it(alter_info->create_list);
       while (Create_field *f= it++)
       {
         if (f->versioning == Column_definition::WITHOUT_VERSIONING)
           f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
-
-        if (f->change)
-          continue;
-
-        if (f->after)
-        {
-          if (is_trx_start(f->after) || is_trx_end(f->after))
-          {
-            my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-                     "Can not put new field after system versioning field");
-            return true;
-          }
-
-          continue;
-        }
-
-        // TODO: ALTER_COLUMN_ORDER?
-        f->after= after_this;
       }
     }
 
