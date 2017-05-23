@@ -1492,7 +1492,7 @@ void PlugPutOut(PGLOBAL g, FILE *f, short t, void *v, uint n)
     case TYPE_TABLE:
     case TYPE_TDB:
     case TYPE_XOBJECT:
-      ((PBLOCK)v)->Print(g, f, n-2);
+      ((PBLOCK)v)->Printf(g, f, n-2);
       break;
 
     default:

@@ -561,7 +561,7 @@ bool VALUE::Compute(PGLOBAL g, PVAL *, int, OPVAL)
 /***********************************************************************/
 /*  Make file output of an object value.                               */
 /***********************************************************************/
-void VALUE::Print(PGLOBAL g, FILE *f, uint n)
+void VALUE::Printf(PGLOBAL g, FILE *f, uint n)
 {
 	char m[64], buf[64];
 
@@ -571,14 +571,14 @@ void VALUE::Print(PGLOBAL g, FILE *f, uint n)
 	if (Null)
 		fprintf(f, "%s<null>\n", m);
 	else
-		fprintf(f, strcat(strcat(GetCharString(buf), "\n"), m));
+		fprintf(f, "%s%s%s", GetCharString(buf), "\n", m);
 
 } /* end of Print */
 
 /***********************************************************************/
 /*  Make string output of an object value.                             */
 /***********************************************************************/
-void VALUE::Print(PGLOBAL g, char *ps, uint z)
+void VALUE::Prints(PGLOBAL g, char *ps, uint z)
 {
 	char *p, buf[64];
 
@@ -1712,7 +1712,7 @@ bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL, FORMAT& fmt)
 /***********************************************************************/
 /*  Make string output of an object value.                             */
 /***********************************************************************/
-void TYPVAL<PSZ>::Print(PGLOBAL g, char *ps, uint z)
+void TYPVAL<PSZ>::Prints(PGLOBAL g, char *ps, uint z)
 {
 	if (Null)
 		strncpy(ps, "null", z);

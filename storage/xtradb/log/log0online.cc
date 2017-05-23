@@ -1444,6 +1444,7 @@ log_online_setup_bitmap_file_range(
 		if (UNIV_UNLIKELY(array_pos >= bitmap_files->count)) {
 
 			log_online_diagnose_inconsistent_dir(bitmap_files);
+			os_file_closedir(bitmap_dir);
 			return FALSE;
 		}
 

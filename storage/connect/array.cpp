@@ -986,7 +986,7 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
 
   for (i = 0; i < Nval; i++) {
     Value->SetValue_pvblk(Vblp, i);
-    Value->Print(g, tp, z);
+    Value->Prints(g, tp, z);
     len += strlen(tp);
     } // enfor i
 
@@ -998,7 +998,7 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
 
   for (i = 0; i < Nval;) {
     Value->SetValue_pvblk(Vblp, i);
-    Value->Print(g, tp, z);
+    Value->Prints(g, tp, z);
     strcat(p, tp);
     strcat(p, (++i == Nval) ? ")" : ",");
     } // enfor i
@@ -1012,7 +1012,7 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
 /***********************************************************************/
 /*  Make file output of ARRAY  contents.                               */
 /***********************************************************************/
-void ARRAY::Print(PGLOBAL g, FILE *f, uint n)
+void ARRAY::Printf(PGLOBAL g, FILE *f, uint n)
   {
   char m[64];
   int  lim = MY_MIN(Nval,10);
@@ -1029,7 +1029,7 @@ void ARRAY::Print(PGLOBAL g, FILE *f, uint n)
     if (Vblp)
       for (int i = 0; i < lim; i++) {
         Value->SetValue_pvblk(Vblp, i);
-        Value->Print(g, f, n+4);
+        Value->Printf(g, f, n+4);
         } // endfor i
 
   } else
@@ -1040,7 +1040,7 @@ void ARRAY::Print(PGLOBAL g, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of ARRAY  contents.                             */
 /***********************************************************************/
-void ARRAY::Print(PGLOBAL, char *ps, uint z)
+void ARRAY::Prints(PGLOBAL, char *ps, uint z)
   {
   if (z < 16)
     return;

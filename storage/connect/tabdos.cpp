@@ -2871,9 +2871,9 @@ bool DOSCOL::AddDistinctValue(PGLOBAL g)
 /***********************************************************************/
 /*  Make file output of a Dos column descriptor block.                 */
 /***********************************************************************/
-void DOSCOL::Print(PGLOBAL g, FILE *f, uint n)
+void DOSCOL::Printf(PGLOBAL g, FILE *f, uint n)
   {
-  COLBLK::Print(g, f, n);
+  COLBLK::Printf(g, f, n);
   } // end of Print
 
 /* ------------------------------------------------------------------- */

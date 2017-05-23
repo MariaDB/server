@@ -614,6 +614,7 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
 
 static int execute_commands(MYSQL *mysql,int argc, char **argv)
 {
+  int ret = 0;
   const char *status;
   /*
     MySQL documentation relies on the fact that mysqladmin will
@@ -1104,7 +1105,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
         if (strcmp(typed_password, verified) != 0)
         {
           my_printf_error(0,"Passwords don't match",MYF(ME_BELL));
-          return -1;
+          ret = -1;
+          goto password_done;
         }
       }
       else
@@ -1131,7 +1133,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
           {
             my_printf_error(0, "Could not determine old_passwords setting from server; error: '%s'",
                 	    error_flags, mysql_error(mysql));
-            return -1;
+            ret = -1;
+            goto password_done;
           }
           else
           {
@@ -1142,7 +1145,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
                               "Could not get old_passwords setting from "
                               "server; error: '%s'",
         		      error_flags, mysql_error(mysql));
-              return -1;
+              ret = -1;
+              goto password_done;
             }
             if (!mysql_num_rows(res))
               old= 1;
@@ -1167,15 +1171,15 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       {
 	my_printf_error(0, "Can't turn off logging; error: '%s'",
 			error_flags, mysql_error(mysql));
-	return -1;
+        ret = -1;
       }
+      else
       if (mysql_query(mysql,buff))
       {
 	if (mysql_errno(mysql)!=1290)
 	{
 	  my_printf_error(0,"unable to change password; error: '%s'",
 			  error_flags, mysql_error(mysql));
-	  return -1;
 	}
 	else
 	{
@@ -1189,9 +1193,10 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 			  " --skip-grant-tables).\n"
 			  "Use: \"mysqladmin flush-privileges password '*'\""
 			  " instead", error_flags);
-	  return -1;
 	}
+        ret = -1;
       }
+password_done:
       /* free up memory from prompted password */
       if (typed_password != argv[1]) 
       {
@@ -1293,7 +1298,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       return 1;
     }
   }
-  return 0;
+  return ret;
 }
 
 /**

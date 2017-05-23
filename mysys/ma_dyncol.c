@@ -4038,6 +4038,7 @@ mariadb_dyncol_val_double(double *dbl, DYNAMIC_COLUMN_VALUE *val)
         *dbl= strtod(str, &end);
         if (*end != '\0')
           rc= ER_DYNCOL_TRUNCATED;
+        free(str);
         break;
       }
     case DYN_COL_DECIMAL:
