@@ -79,6 +79,10 @@ Created 11/5/1995 Heikki Tuuri
 #include "ut0byte.h"
 #include <new>
 
+#ifdef UNIV_LINUX
+#include <stdlib.h>
+#endif
+
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
 #endif
@@ -125,6 +129,30 @@ struct set_numa_interleave_t
 #else
 #define NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE
 #endif /* HAVE_LIBNUMA */
+
+#ifdef HAVE_SNAPPY
+#include "snappy-c.h"
+#endif
+
+inline void* aligned_malloc(size_t size, size_t align) {
+    void *result;
+#ifdef _MSC_VER
+    result = _aligned_malloc(size, align);
+#else
+    if(posix_memalign(&result, align, size)) {
+	    result = 0;
+    }
+#endif
+    return result;
+}
+
+inline void aligned_free(void *ptr) {
+#ifdef _MSC_VER
+        _aligned_free(ptr);
+#else
+      free(ptr);
+#endif
+}
 
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
@@ -1943,20 +1971,14 @@ buf_pool_free_instance(
 	if (buf_pool->tmp_arr) {
 		for(ulint i = 0; i < buf_pool->tmp_arr->n_slots; i++) {
 			buf_tmp_buffer_t* slot = &(buf_pool->tmp_arr->slots[i]);
-#ifdef HAVE_LZO
-			if (slot && slot->lzo_mem) {
-				ut_free(slot->lzo_mem);
-				slot->lzo_mem = NULL;
-			}
-#endif
-			if (slot && slot->crypt_buf_free) {
-				ut_free(slot->crypt_buf_free);
-				slot->crypt_buf_free = NULL;
+			if (slot && slot->crypt_buf) {
+				aligned_free(slot->crypt_buf);
+				slot->crypt_buf = NULL;
 			}
 
-			if (slot && slot->comp_buf_free) {
-				ut_free(slot->comp_buf_free);
-				slot->comp_buf_free = NULL;
+			if (slot && slot->comp_buf) {
+				aligned_free(slot->comp_buf);
+				slot->comp_buf = NULL;
 			}
 		}
 
@@ -7220,22 +7242,27 @@ buf_pool_reserve_tmp_slot(
 	buf_pool_mutex_exit(buf_pool);
 
 	/* Allocate temporary memory for encryption/decryption */
-	if (free_slot->crypt_buf_free == NULL) {
-		free_slot->crypt_buf_free = static_cast<byte *>(ut_malloc_nokey(UNIV_PAGE_SIZE*2));
-		free_slot->crypt_buf = static_cast<byte *>(ut_align(free_slot->crypt_buf_free, UNIV_PAGE_SIZE));
-		memset(free_slot->crypt_buf_free, 0, UNIV_PAGE_SIZE *2);
+	if (free_slot->crypt_buf == NULL) {
+		free_slot->crypt_buf = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE, UNIV_PAGE_SIZE));
+		memset(free_slot->crypt_buf, 0, UNIV_PAGE_SIZE);
 	}
 
 	/* For page compressed tables allocate temporary memory for
 	compression/decompression */
-	if (compressed && free_slot->comp_buf_free == NULL) {
-		free_slot->comp_buf_free = static_cast<byte *>(ut_malloc_nokey(UNIV_PAGE_SIZE*2));
-		free_slot->comp_buf = static_cast<byte *>(ut_align(free_slot->comp_buf_free, UNIV_PAGE_SIZE));
-		memset(free_slot->comp_buf_free, 0, UNIV_PAGE_SIZE *2);
-#ifdef HAVE_LZO
-		free_slot->lzo_mem = static_cast<byte *>(ut_malloc_nokey(LZO1X_1_15_MEM_COMPRESS));
-		memset(free_slot->lzo_mem, 0, LZO1X_1_15_MEM_COMPRESS);
+	if (compressed && free_slot->comp_buf == NULL) {
+		ulint size = UNIV_PAGE_SIZE;
+
+		/* Both snappy and lzo compression methods require that
+		output buffer used for compression is bigger than input
+		buffer. Increase the allocated buffer size accordingly. */
+#if HAVE_SNAPPY
+		size = snappy_max_compressed_length(size);
 #endif
+#if HAVE_LZO
+		size += LZO1X_1_15_MEM_COMPRESS;
+#endif
+		free_slot->comp_buf = static_cast<byte*>(aligned_malloc(size, UNIV_PAGE_SIZE));
+		memset(free_slot->comp_buf, 0, size);
 	}
 
 	return (free_slot);
@@ -7320,8 +7347,7 @@ buf_page_encrypt_before_write(
 			fsp_flags_get_page_compression_level(space->flags),
 			fil_space_get_block_size(space, bpage->id.page_no()),
 			encrypted,
-			&out_len,
-			IF_LZO(slot->lzo_mem, NULL));
+			&out_len);
 
 		bpage->real_size = out_len;
 

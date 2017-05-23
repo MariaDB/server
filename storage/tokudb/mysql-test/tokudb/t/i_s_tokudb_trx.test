@@ -1,3 +1,4 @@
+skip Tokudb trx not in I_S in MariaDB;
 # verify that information_schema.tokudb_trx gets populated with transactions
 
 source include/have_tokudb.inc;

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2017, MariaDB Corporation.
@@ -171,7 +171,8 @@ UNIV_INTERN unsigned long long	srv_online_max_size;
 OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
-UNIV_INTERN my_bool	srv_use_native_aio = TRUE;
+/* make srv_use_native_aio to be visible for other plugins */
+my_bool	srv_use_native_aio = TRUE;
 UNIV_INTERN my_bool	srv_numa_interleave = FALSE;
 
 /* Default compression level if page compression is used and no compression
@@ -2584,7 +2585,8 @@ purge_archived_logs(
 		if (dirnamelen + strlen(fileinfo.name) + 2 > OS_FILE_MAX_PATH)
 			continue;
 
-		snprintf(archived_log_filename + dirnamelen, OS_FILE_MAX_PATH,
+		snprintf(archived_log_filename + dirnamelen,
+			 OS_FILE_MAX_PATH - dirnamelen - 1,
 				"%s", fileinfo.name);
 
 		if (before_no) {
@@ -3148,6 +3150,8 @@ DECLARE_THREAD(srv_master_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
+
 	srv_slot_t*	slot;
 	ulint		old_activity_count = srv_get_activity_count();
 	ulint		old_ibuf_merge_activity_count
@@ -3221,6 +3225,7 @@ suspend_thread:
 	srv_resume_thread(slot);
 
 	if (srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS) {
+		my_thread_end();
 		os_thread_exit(NULL);
 	}
 
@@ -3307,6 +3312,8 @@ DECLARE_THREAD(srv_worker_thread)(
 	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
+	my_thread_init();
+
 	srv_slot_t*	slot;
 	ulint		tid_i = os_atomic_increment_ulint(&purge_tid_i, 1);
 
@@ -3372,6 +3379,7 @@ DECLARE_THREAD(srv_worker_thread)(
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);
@@ -3540,6 +3548,8 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
+	my_thread_init();
+
 	srv_slot_t*	slot;
 	ulint           n_total_purged = ULINT_UNDEFINED;
 
@@ -3653,6 +3663,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		srv_release_threads(SRV_WORKER, srv_n_purge_threads - 1);
 	}
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);
@@ -3717,4 +3728,20 @@ srv_purge_wakeup()
 			srv_release_threads(SRV_WORKER, n_workers);
 		}
 	}
+}
+
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+bool
+srv_is_undo_tablespace(
+	ulint	space_id)
+{
+	if (srv_undo_space_id_start == 0) {
+		return (false);
+	}
+
+	return(space_id >= srv_undo_space_id_start
+	       && space_id < (srv_undo_space_id_start
+			      + srv_undo_tablespaces_open));
 }

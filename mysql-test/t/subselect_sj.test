@@ -2773,5 +2773,77 @@ WHERE ( SELECT z.country
 drop table t1, t2, t3;
 set optimizer_switch= @tmp_mdev6859;
 
+--echo #
+--echo # MDEV-12675: subquery subject to semi-join optimizations  
+--echo #             in ON expression of INNER JOIN
+--echo #
+
+set @tmp_mdev12675=@@optimizer_switch;
+set optimizer_switch=default;
+create table t1 (a int) engine=myisam;
+insert into t1  values (5),(3),(2),(7),(2),(5),(1); 
+create table t2 (b int, index idx(b)) engine=myisam;
+insert into t2 values (2),(3),(2),(1),(3),(4);
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+analyze table t1,t2;
+
+explain
+select a from t1, t2 where b between 1 and 2 and a in (select b from t2);
+explain 
+select a from t1 join t2 on b between 1 and 2 and a in (select b from t2);
+
+drop table t1,t2;
+set optimizer_switch= @tmp_mdev12675;
+
+--echo #
+--echo # MDEV-12817: subquery NOT subject to semi-join optimizations  
+--echo #             in ON expression of INNER JOIN
+--echo #
+
+CREATE TABLE t1 (c1 int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (c2 int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+ 
+CREATE TABLE t3 (c3 int) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (5),(6);
+ 
+CREATE TABLE t4 (c4 int) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (7),(8);
+
+let $q1= 
+SELECT c1 
+FROM t1 
+LEFT JOIN
+( t2 INNER JOIN t3 ON ( 1 IN ( SELECT c4 FROM t4 ) ) )
+ON (c1 = c3);
+
+eval $q1;
+eval EXPLAIN EXTENDED $q1;
+
+let $q2= 
+SELECT *
+FROM t1
+LEFT JOIN
+( ( SELECT * FROM t2 WHERE c2 IN ( SELECT c3 FROM t3 ) ) AS sq INNER JOIN t4 )
+ON (c1 = c2);
+
+--echo # mdev-12820
+eval $q2;
+eval EXPLAIN EXTENDED $q2;
+
+DROP TABLE t1,t2,t3,t4;
+
 # The following command must be the last one the file 
 set optimizer_switch=@subselect_sj_tmp;

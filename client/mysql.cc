@@ -3061,7 +3061,6 @@ static int com_server_help(String *buffer __attribute__((unused)),
   {
     unsigned int num_fields= mysql_num_fields(result);
     my_ulonglong num_rows= mysql_num_rows(result);
-    mysql_fetch_fields(result);
     if (num_fields==3 && num_rows==1)
     {
       if (!(cur= mysql_fetch_row(result)))

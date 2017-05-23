@@ -61,8 +61,8 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
 //virtual PXOB   CheckSubQuery(PGLOBAL, PSQL);
 //virtual bool   CheckLocal(PTDB);
 //virtual int    CheckSpcCol(PTDB tdbp, int n);
-  virtual void   Print(PGLOBAL g, FILE *f, uint n);
-  virtual void   Print(PGLOBAL g, char *ps, uint z);
+	virtual void   Printf(PGLOBAL g, FILE *f, uint n);
+  virtual void   Prints(PGLOBAL g, char *ps, uint z);
 //        PFIL   Linearize(bool nosep);
 //        PFIL   Link(PGLOBAL g, PFIL fil2);
 //        PFIL   RemoveLastSep(void);

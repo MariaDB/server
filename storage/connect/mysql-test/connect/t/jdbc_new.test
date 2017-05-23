@@ -24,11 +24,9 @@ SET GLOBAL time_zone='+1:00';
 # Bad user name
 # Suppress "mysql_real_connect failed:" (printed in _DEBUG build)
 --replace_result $SLAVE_MYPORT SLAVE_PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
 eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
   CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=unknown';
---error ER_GET_ERRMSG
-SELECT * FROM t1;
-DROP TABLE t1;
 
 # Bad database name
 --replace_result $SLAVE_MYPORT SLAVE_PORT "mysql_real_connect failed: " ""

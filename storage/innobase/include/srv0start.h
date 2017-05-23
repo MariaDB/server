@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -127,6 +127,22 @@ extern	bool	srv_startup_is_before_trx_rollback_phase;
 
 /** TRUE if a raw partition is in use */
 extern	ibool	srv_start_raw_disk_in_use;
+
+/** Undo tablespaces starts with space_id. */
+extern	ulint	srv_undo_space_id_start;
+
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+inline
+bool
+srv_is_undo_tablespace(ulint space_id)
+{
+	return srv_undo_space_id_start > 0
+		&& space_id >= srv_undo_space_id_start
+		&& space_id < (srv_undo_space_id_start
+			       + srv_undo_tablespaces_open);
+}
 
 /** Shutdown state */
 enum srv_shutdown_t {

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -148,12 +148,10 @@ TrxUndoRsegsIterator::set_next()
 	ut_a(purge_sys->rseg->last_page_no != FIL_NULL);
 	ut_ad(purge_sys->rseg->last_trx_no == m_trx_undo_rsegs.get_trx_no());
 
-	/* We assume in purge of externally stored fields that
-	space id is in the range of UNDO tablespace space ids
-	unless space is system tablespace */
-	ut_a(purge_sys->rseg->space <= srv_undo_tablespaces_open
-		|| is_system_tablespace(
-			purge_sys->rseg->space));
+	/* We assume in purge of externally stored fields that space id is
+	in the range of UNDO tablespace space ids */
+	ut_a(purge_sys->rseg->space == TRX_SYS_SPACE
+	     || srv_is_undo_tablespace(purge_sys->rseg->space));
 
 	ut_a(purge_sys->iter.trx_no <= purge_sys->rseg->last_trx_no);
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -46,16 +46,18 @@ MY_ATTRIBUTE((warn_unused_result))
 bool
 buf_dblwr_create();
 
-/****************************************************************//**
-At a database startup initializes the doublewrite buffer memory structure if
+/**
+At database startup initializes the doublewrite buffer memory structure if
 we already have a doublewrite buffer created in the data files. If we are
 upgrading to an InnoDB version which supports multiple tablespaces, then this
 function performs the necessary update operations. If we are in a crash
 recovery, this function loads the pages from double write buffer into memory.
+@param[in]	file		File handle
+@param[in]	path		Path name of file
 @return DB_SUCCESS or error code */
 dberr_t
 buf_dblwr_init_or_load_pages(
-	os_file_t	file,
+	pfs_os_file_t	file,
 	const char*	path);
 
 /** Process and remove the double write buffer pages for all tablespaces. */

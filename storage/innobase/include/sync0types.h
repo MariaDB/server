@@ -1284,7 +1284,10 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 	{
 		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
 		if (atomic) {
-			return Type(my_atomic_addlint(&m_counter, i));
+			/* Silence MSVS warnings when instantiating
+			this template with atomic=false. */
+			return Type(my_atomic_addlint(reinterpret_cast<lint*>
+						      (&m_counter), i));
 		} else {
 			return m_counter += i;
 		}

@@ -704,11 +704,7 @@ struct my_option xb_client_options[] =
 
   {"stream", OPT_XTRA_STREAM, "Stream all backup files to the standard output "
    "in the specified format." 
-#ifdef HAVE_LIBARCHIVE
-   "Supported formats are 'tar' and 'xbstream'."
-#else
    "Supported format is 'xbstream'."
-#endif
    ,
    (G_PTR*) &xtrabackup_stream_str, (G_PTR*) &xtrabackup_stream_str, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1453,9 +1449,7 @@ xb_get_one_option(int optid,
     xtrabackup_target_dir= xtrabackup_real_target_dir;
     break;
   case OPT_XTRA_STREAM:
-    if (!strcasecmp(argument, "tar"))
-      xtrabackup_stream_fmt = XB_STREAM_FMT_TAR;
-    else if (!strcasecmp(argument, "xbstream"))
+    if (!strcasecmp(argument, "xbstream"))
       xtrabackup_stream_fmt = XB_STREAM_FMT_XBSTREAM;
     else
     {
@@ -2412,7 +2406,7 @@ check_if_skip_table(
 Reads the space flags from a given data file and returns the compressed
 page size, or 0 if the space is not compressed. */
 ulint
-xb_get_zip_size(os_file_t file)
+xb_get_zip_size(pfs_os_file_t file)
 {
 	byte	*buf;
 	byte	*page;
@@ -3106,14 +3100,6 @@ files first, and then streams them in a serialized way when closed. */
 static void
 xtrabackup_init_datasinks(void)
 {
-	if (xtrabackup_parallel > 1 && xtrabackup_stream &&
-	    xtrabackup_stream_fmt == XB_STREAM_FMT_TAR) {
-		msg("xtrabackup: warning: the --parallel option does not have "
-		    "any effect when streaming in the 'tar' format. "
-		    "You can use the 'xbstream' format instead.\n");
-		xtrabackup_parallel = 1;
-	}
-
 	/* Start building out the pipelines from the terminus back */
 	if (xtrabackup_stream) {
 		/* All streaming goes to stdout */
@@ -3131,30 +3117,17 @@ xtrabackup_init_datasinks(void)
 	/* Stream formatting */
 	if (xtrabackup_stream) {
 		ds_ctxt_t	*ds;
-		if (xtrabackup_stream_fmt == XB_STREAM_FMT_TAR) {
-			ds = ds_create(xtrabackup_target_dir, DS_TYPE_ARCHIVE);
-		} else if (xtrabackup_stream_fmt == XB_STREAM_FMT_XBSTREAM) {
-			ds = ds_create(xtrabackup_target_dir, DS_TYPE_XBSTREAM);
-		} else {
-			/* bad juju... */
-			ds = NULL;
-		}
+
+	 ut_a(xtrabackup_stream_fmt == XB_STREAM_FMT_XBSTREAM);
+	 ds = ds_create(xtrabackup_target_dir, DS_TYPE_XBSTREAM);
 
 		xtrabackup_add_datasink(ds);
 
 		ds_set_pipe(ds, ds_data);
 		ds_data = ds;
 
-		if (xtrabackup_stream_fmt != XB_STREAM_FMT_XBSTREAM) {
 
-			/* 'tar' does not allow parallel streams */
-			ds_redo = ds_meta = ds_create(xtrabackup_target_dir,
-						      DS_TYPE_TMPFILE);
-			xtrabackup_add_datasink(ds_meta);
-			ds_set_pipe(ds_meta, ds);
-		} else {
-			ds_redo = ds_meta = ds_data;
-		}
+		ds_redo = ds_meta = ds_data;
 	}
 
 	/* Encryption */
@@ -4856,7 +4829,7 @@ end:
 static my_bool
 xtrabackup_init_temp_log(void)
 {
-	os_file_t	src_file = XB_FILE_UNDEFINED;
+	pfs_os_file_t	src_file;
 	char		src_path[FN_REFLEN];
 	char		dst_path[FN_REFLEN];
 	ibool		success;
@@ -5183,7 +5156,7 @@ xb_space_create_file(
 	ulint		space_id,	/*!<in: space id */
 	ulint		flags __attribute__((unused)),/*!<in: tablespace
 					flags */
-	os_file_t*	file)		/*!<out: file handle */
+	pfs_os_file_t*	file)		/*!<out: file handle */
 {
 	ibool		ret;
 	byte*		buf;
@@ -5262,7 +5235,7 @@ mismatching ID, renames it to xtrabackup_tmp_#ID.ibd. If there was no
 matching file, creates a new tablespace.
 @return file handle of matched or created file */
 static
-os_file_t
+pfs_os_file_t
 xb_delta_open_matching_space(
 	const char*	dbname,		/* in: path to destination database dir */
 	const char*	name,		/* in: name of delta file (without .delta) */
@@ -5276,7 +5249,7 @@ xb_delta_open_matching_space(
 	char			dest_space_name[FN_REFLEN];
 	ibool			ok;
 	fil_space_t*		fil_space;
-	os_file_t		file	= 0;
+	pfs_os_file_t		file;
 	ulint			tablespace_flags;
 	xb_filter_entry_t*	table;
 
@@ -5440,8 +5413,8 @@ xtrabackup_apply_delta(
 					including the .delta extension */
 	void*		/*data*/)
 {
-	os_file_t	src_file = XB_FILE_UNDEFINED;
-	os_file_t	dst_file = XB_FILE_UNDEFINED;
+	pfs_os_file_t	src_file;
+	pfs_os_file_t	dst_file;
 	char	src_path[FN_REFLEN];
 	char	dst_path[FN_REFLEN];
 	char	meta_path[FN_REFLEN];
@@ -5815,7 +5788,7 @@ xtrabackup_apply_deltas()
 static my_bool
 xtrabackup_close_temp_log(my_bool clear_flag)
 {
-	os_file_t	src_file = XB_FILE_UNDEFINED;
+	pfs_os_file_t	src_file;
 	char	src_path[FN_REFLEN];
 	char	dst_path[FN_REFLEN];
 	ibool	success;
@@ -6597,7 +6570,7 @@ skip_check:
 
 	if (xtrabackup_export) {
 		msg("xtrabackup: export option is specified.\n");
-		os_file_t	info_file = XB_FILE_UNDEFINED;
+		pfs_os_file_t	info_file;
 		char		info_file_path[FN_REFLEN];
 		ibool		success;
 		char		table_name[FN_REFLEN];
@@ -7404,22 +7377,6 @@ int main(int argc, char **argv)
 		msg("xtrabackup: auto-enabling --innodb-file-per-table due to "
 		    "the --export option\n");
 		innobase_file_per_table = TRUE;
-	}
-
-	if (xtrabackup_incremental && xtrabackup_stream &&
-	    xtrabackup_stream_fmt == XB_STREAM_FMT_TAR) {
-		msg("xtrabackup: error: "
-		    "streaming incremental backups are incompatible with the \n"
-		    "'tar' streaming format. Use --stream=xbstream instead.\n");
-		exit(EXIT_FAILURE);
-	}
-
-	if ((xtrabackup_compress || xtrabackup_encrypt) && xtrabackup_stream &&
-	    xtrabackup_stream_fmt == XB_STREAM_FMT_TAR) {
-		msg("xtrabackup: error: "
-		    "compressed and encrypted backups are incompatible with the \n"
-		    "'tar' streaming format. Use --stream=xbstream instead.\n");
-		exit(EXIT_FAILURE);
 	}
 
 	if (!xtrabackup_prepare &&

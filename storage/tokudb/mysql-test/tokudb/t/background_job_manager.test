@@ -1,3 +1,4 @@
+skip Background Job Manager not supported in MariaDB;
 # This is a comprehensive test for the background job manager and
 # the information_schema.tokudb_background_job_status table
 #

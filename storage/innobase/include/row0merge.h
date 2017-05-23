@@ -464,10 +464,9 @@ row_merge_file_destroy(
 	merge_file_t*	merge_file)	/*!< in/out: merge file structure */
 	MY_ATTRIBUTE((nonnull));
 
-/********************************************************************//**
-Read a merge block from the file system.
-@return TRUE if request was successful, FALSE if fail */
-ibool
+/** Read a merge block from the file system.
+@return whether the request was successful */
+bool
 row_merge_read(
 /*===========*/
 	int			fd,	/*!< in: file descriptor */

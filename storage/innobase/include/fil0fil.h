@@ -217,7 +217,7 @@ struct fil_node_t {
 	/** file name; protected by fil_system->mutex and log_sys->mutex. */
 	char*		name;
 	/** file handle (valid if is_open) */
-	os_file_t	handle;
+	pfs_os_file_t	handle;
 	/** event that groups and serializes calls to fsync;
 	os_event_set() and os_event_reset() are protected by
 	fil_system_t::mutex */
@@ -1404,19 +1404,19 @@ struct PageCallback {
 	/** Called for every page in the tablespace. If the page was not
 	updated then its state must be set to BUF_PAGE_NOT_USED. For
 	compressed tables the page descriptor memory will be at offset:
-	block->frame + UNIV_PAGE_SIZE;
+		block->frame + UNIV_PAGE_SIZE;
 	@param offset physical offset within the file
 	@param block block read from file, note it is not from the buffer pool
 	@retval DB_SUCCESS or error code. */
 	virtual dberr_t operator()(
-		os_offset_t 	offset,
+		os_offset_t	offset,
 		buf_block_t*	block) UNIV_NOTHROW = 0;
 
 	/** Set the name of the physical file and the file handle that is used
 	to open it for the file that is being iterated over.
-	@param filename then physical name of the tablespace file.
+	@param filename the name of the tablespace file
 	@param file OS file handle */
-	void set_file(const char* filename, os_file_t file) UNIV_NOTHROW
+	void set_file(const char* filename, pfs_os_file_t file) UNIV_NOTHROW
 	{
 		m_file = file;
 		m_filepath = filename;
@@ -1441,7 +1441,7 @@ struct PageCallback {
 	page_size_t		m_page_size;
 
 	/** File handle to the tablespace */
-	os_file_t		m_file;
+	pfs_os_file_t		m_file;
 
 	/** Physical file path. */
 	const char*		m_filepath;

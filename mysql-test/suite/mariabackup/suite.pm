@@ -21,11 +21,6 @@ $ENV{XBSTREAM}= ::mtr_exe_maybe_exists(
       "$::bindir/extra/mariabackup/$::opt_vs_config/mbstream",
       "$::path_client_bindir/mbstream");
 
-my $tar_version = `tar --version 2>&1`;
-$ENV{HAVE_TAR} = $! ? 0: 1;
-my $mariabackup_help=`$mariabackup_exe --help 2>&1`;
-$ENV{HAVE_XTRABACKUP_TAR_SUPPORT} =  (index($mariabackup_help,"'tar'") == -1) ? 0 : 1;
-
 $ENV{INNOBACKUPEX}= "$mariabackup_exe --innobackupex";
 
 sub skip_combinations {

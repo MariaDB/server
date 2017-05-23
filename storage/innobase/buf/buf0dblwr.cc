@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -338,7 +338,7 @@ recovery, this function loads the pages from double write buffer into memory.
 @return DB_SUCCESS or error code */
 dberr_t
 buf_dblwr_init_or_load_pages(
-	os_file_t	file,
+	pfs_os_file_t	file,
 	const char*	path)
 {
 	byte*		buf;

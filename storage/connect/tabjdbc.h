@@ -1,7 +1,7 @@
 /*************** Tabjdbc H Declares Source Code File (.H) **************/
-/*  Name: TABJDBC.H   Version 1.0                                      */
+/*  Name: TABJDBC.H   Version 1.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2016         */
+/*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
 /*                                                                     */
 /*  This file contains the TDBJDBC classes declares.                   */
 /***********************************************************************/
@@ -14,9 +14,6 @@ typedef class TDBJDBC *PTDBJDBC;
 typedef class JDBCCOL *PJDBCCOL;
 typedef class TDBXJDC *PTDBXJDC;
 typedef class JSRCCOL *PJSRCCOL;
-//typedef class TDBOIF  *PTDBOIF;
-//typedef class OIFCOL  *POIFCOL;
-//typedef class TDBJSRC *PTDBJSRC;
 
 /***********************************************************************/
 /*  JDBC table.                                                        */
@@ -68,20 +65,14 @@ public:
 
 	// Methods
   virtual PTDB Clone(PTABS t);
-//virtual int  GetRecpos(void);
 	virtual bool SetRecpos(PGLOBAL g, int recpos);
-//virtual PSZ  GetFile(PGLOBAL g);
-//virtual void SetFile(PGLOBAL g, PSZ fn);
 	virtual void ResetSize(void);
-//virtual int  GetAffectedRows(void) {return AftRows;}
-	virtual PSZ  GetServer(void) { return "JDBC"; }
+	virtual PCSZ GetServer(void) { return "JDBC"; }
 	virtual int  Indexable(void) { return 2; }
 
 	// Database routines
 	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
 	virtual int  Cardinality(PGLOBAL g);
-//virtual int  GetMaxSize(PGLOBAL g);
-//virtual int  GetProgMax(PGLOBAL g);
 	virtual bool OpenDB(PGLOBAL g);
 	virtual int  ReadDB(PGLOBAL g);
 	virtual int  WriteDB(PGLOBAL g);
@@ -91,21 +82,14 @@ public:
 
 protected:
 	// Internal functions
-//int   Decode(char *utf, char *buf, size_t n);
-//bool  MakeSQL(PGLOBAL g, bool cnt);
 	bool  MakeInsert(PGLOBAL g);
-//virtual bool  MakeCommand(PGLOBAL g);
-//bool  MakeFilter(PGLOBAL g, bool c);
 	bool  SetParameters(PGLOBAL g);
-//char *MakeUpdate(PGLOBAL g);
-//char *MakeDelete(PGLOBAL g);
 
 	// Members
 	JDBConn *Jcp;               // Points to a JDBC connection class
 	JDBCCOL *Cnp;               // Points to count(*) column
 	JDBCPARM Ops;               // Additional parameters
 	char    *WrapName;          // Points to Java wrapper name
-//int      Ncol;							// The column number
 	bool     Prepared;          // True when using prepared statement
 	bool     Werr;							// Write error
 	bool     Rerr;							// Rewind error
@@ -119,7 +103,7 @@ class JDBCCOL : public EXTCOL {
 	friend class TDBJDBC;
 public:
 	// Constructors
-	JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "JDBC");
+	JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "JDBC");
   JDBCCOL(JDBCCOL *colp, PTDB tdbp); // Constructor used in copy process
 
 	// Implementation
@@ -152,12 +136,6 @@ public:
 	virtual AMT  GetAmType(void) {return TYPE_AM_XDBC;}
 
 	// Methods
-	//virtual int  GetRecpos(void);
-	//virtual PSZ  GetFile(PGLOBAL g);
-	//virtual void SetFile(PGLOBAL g, PSZ fn);
-	//virtual void ResetSize(void);
-	//virtual int  GetAffectedRows(void) {return AftRows;}
-	//virtual PSZ  GetServer(void) {return "JDBC";}
 
 	// Database routines
 	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -172,7 +150,6 @@ public:
 protected:
 	// Internal functions
 	PCMD  MakeCMD(PGLOBAL g);
-	//bool  BindParameters(PGLOBAL g);
 
 	// Members
 	PCMD     Cmdlist;           // The commands to execute
@@ -188,7 +165,7 @@ class JSRCCOL : public JDBCCOL {
 	friend class TDBXJDC;
 public:
 	// Constructors
-	JSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "JDBC");
+	JSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "JDBC");
 
 	// Implementation
 	virtual int  GetAmType(void) {return TYPE_AM_JDBC;}
@@ -196,7 +173,7 @@ public:
 	// Methods
 	virtual void ReadColumn(PGLOBAL g);
 	virtual void WriteColumn(PGLOBAL g);
-	//        void Print(PGLOBAL g, FILE *, uint);
+	//        void Printf(PGLOBAL g, FILE *, uint);
 
 protected:
 	// Members
@@ -233,9 +210,9 @@ protected:
 	virtual PQRYRES GetResult(PGLOBAL g);
 
 	// Members
-	char    *Schema;            // Points to schema name or NULL
-	char    *Tab;               // Points to JDBC table name or pattern
-	char    *Tabtype;           // Points to JDBC table type
+	PCSZ     Schema;            // Points to schema name or NULL
+	PCSZ     Tab;               // Points to JDBC table name or pattern
+	PCSZ     Tabtype;           // Points to JDBC table type
 	JDBCPARM Ops;               // Additional parameters
 }; // end of class TDBJTB
 
@@ -252,24 +229,7 @@ protected:
 	virtual PQRYRES GetResult(PGLOBAL g);
 
 	// Members
-	char    *Colpat;            // Points to catalog column pattern
+	PCSZ Colpat;            // Points to catalog column pattern
 }; // end of class TDBJDBCL
-
-#if 0
-/***********************************************************************/
-/*  This is the class declaration for the Data Sources catalog table.  */
-/***********************************************************************/
-class TDBJSRC : public TDBJDRV {
-public:
-	// Constructor
-	TDBJSRC(PJDBCDEF tdp) : TDBJDRV(tdp) {}
-
-protected:
-	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
-
-	// No additional Members
-}; // end of class TDBJSRC
-#endif // 0
 
 #endif // !NJDBC

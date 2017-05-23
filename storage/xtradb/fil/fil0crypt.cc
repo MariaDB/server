@@ -1294,10 +1294,10 @@ struct rotate_thread_t {
 	bool should_shutdown() const {
 		switch (srv_shutdown_state) {
 		case SRV_SHUTDOWN_NONE:
-		case SRV_SHUTDOWN_CLEANUP:
 			return thread_no >= srv_n_fil_crypt_threads;
-		case SRV_SHUTDOWN_FLUSH_PHASE:
+		case SRV_SHUTDOWN_CLEANUP:
 			return true;
+		case SRV_SHUTDOWN_FLUSH_PHASE:
 		case SRV_SHUTDOWN_LAST_PHASE:
 		case SRV_SHUTDOWN_EXIT_THREADS:
 			break;

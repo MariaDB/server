@@ -19,7 +19,7 @@ typedef class DBMFAM  *PDBMFAM;
 /****************************************************************************/
 /*  Functions used externally.                                              */
 /****************************************************************************/
-PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info);
+PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, bool info);
 
 /****************************************************************************/
 /*  This is the base class for dBASE file access methods.                   */
@@ -31,7 +31,7 @@ class DllExport DBFBASE {
   DBFBASE(PDBF txfp);
 
   // Implementation
-  int  ScanHeader(PGLOBAL g, PSZ fname, int lrecl, int *rlen, char *defpath);
+  int  ScanHeader(PGLOBAL g, PCSZ fname, int lrecl, int *rlen, PCSZ defpath);
 
  protected:
   // Default constructor, not to be used

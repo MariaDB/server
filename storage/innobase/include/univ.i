@@ -41,7 +41,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	14
+#define INNODB_VERSION_BUGFIX	18
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -121,14 +121,7 @@ HAVE_PSI_INTERFACE is defined. */
 #ifdef HAVE_PSI_INTERFACE
 # define UNIV_PFS_MUTEX
 # define UNIV_PFS_RWLOCK
-/* For I/O instrumentation, performance schema rely
-on a native descriptor to identify the file, this
-descriptor could conflict with our OS level descriptor.
-Disable IO instrumentation on Windows until this is
-resolved */
-# ifndef _WIN32
-#  define UNIV_PFS_IO
-# endif
+# define UNIV_PFS_IO
 # define UNIV_PFS_THREAD
 
 // JAN: TODO: MySQL 5.7 PSI

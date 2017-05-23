@@ -200,8 +200,8 @@ class DllExport XXBASE : public CSORT, public BLOCK {
           void FreeIndex(void) {PlgDBfree(Index);}
 
   // Methods
-  virtual void Print(PGLOBAL g, FILE *f, uint n);
-  virtual void Print(PGLOBAL g, char *ps, uint z);
+  virtual void Printf(PGLOBAL g, FILE *f, uint n);
+  virtual void Prints(PGLOBAL g, char *ps, uint z);
   virtual bool Init(PGLOBAL g) = 0;
   virtual bool Make(PGLOBAL g, PIXDEF sxp) = 0;
 #if defined(XMAP)

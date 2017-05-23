@@ -25,6 +25,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
 #include "hatoku_hton.h"
+#include "sql_acl.h"
+#include "tokudb_dir_cmd.h"
+#include "sql_parse.h"
 
 namespace tokudb {
 namespace sysvars {
@@ -39,6 +42,7 @@ namespace sysvars {
 #else
 #define TOKUDB_VERSION_STR NULL
 #endif
+
 
 ulonglong   cache_size = 0;
 uint        cachetable_pool_threads = 0;
@@ -918,8 +922,6 @@ static MYSQL_THDVAR_BOOL(
     true);
 #endif
 
-
-
 //******************************************************************************
 // all system variables
 //******************************************************************************
@@ -949,7 +951,6 @@ st_mysql_sys_var* system_variables[] = {
     MYSQL_SYSVAR(version),
     MYSQL_SYSVAR(write_status_frequency),
     MYSQL_SYSVAR(dir_per_db),
-
 #if TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
     MYSQL_SYSVAR(gdb_path),
     MYSQL_SYSVAR(gdb_on_fatal),

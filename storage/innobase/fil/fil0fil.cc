@@ -167,13 +167,13 @@ UNIV_INTERN extern ib_mutex_t fil_crypt_threads_mutex;
 /** Determine if the space id is a user tablespace id or not.
 @param[in]	space_id	Space ID to check
 @return true if it is a user tablespace ID */
-UNIV_INLINE
+inline
 bool
-fil_is_user_tablespace_id(
-	ulint	space_id)
+fil_is_user_tablespace_id(ulint space_id)
 {
-	return(space_id > srv_undo_tablespaces_open
-	       && space_id != SRV_TMP_SPACE_ID);
+	return(space_id != TRX_SYS_SPACE
+	       && space_id != SRV_TMP_SPACE_ID
+	       && !srv_is_undo_tablespace(space_id));
 }
 
 #ifdef UNIV_DEBUG
@@ -3796,7 +3796,7 @@ fil_ibd_create(
 	fil_encryption_t mode,
 	uint32_t	key_id)
 {
-	os_file_t	file;
+	pfs_os_file_t	file;
 	dberr_t		err;
 	byte*		buf2;
 	byte*		page;
@@ -5833,7 +5833,7 @@ fil_buf_block_init(
 }
 
 struct fil_iterator_t {
-	os_file_t	file;			/*!< File handle */
+	pfs_os_file_t	file;			/*!< File handle */
 	const char*	filepath;		/*!< File path name */
 	os_offset_t	start;			/*!< From where to start */
 	os_offset_t	end;			/*!< Where to stop */
@@ -6051,8 +6051,7 @@ fil_iterate(
 					dict_table_page_compression_level(iter.table),
 					512,/* FIXME: use proper block size */
 					encrypted,
-					&len,
-					NULL);
+					&len);
 
 				if (len != size) {
 					memset(res+len, 0, size-len);
@@ -6131,7 +6130,7 @@ fil_tablespace_iterate(
 	PageCallback&	callback)
 {
 	dberr_t		err;
-	os_file_t	file;
+	pfs_os_file_t	file;
 	char*		filepath;
 	bool		success;
 

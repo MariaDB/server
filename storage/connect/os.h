@@ -17,12 +17,15 @@ typedef off_t off64_t;
 
 #if defined(__WIN__)
 typedef __int64 BIGINT;
+typedef _Null_terminated_ const char *PCSZ;
 #else   // !__WIN__
 typedef longlong  BIGINT;
 #define FILE_BEGIN    SEEK_SET  
 #define FILE_CURRENT  SEEK_CUR  
 #define FILE_END      SEEK_END  
+typedef const char *PCSZ;
 #endif  // !__WIN__
+
 
 #if !defined(__WIN__)
 typedef const void *LPCVOID;

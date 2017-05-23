@@ -440,6 +440,7 @@ extern "C"
 os_thread_ret_t
 DECLARE_THREAD(dict_stats_thread)(void*)
 {
+	my_thread_init();
 	ut_a(!srv_read_only_mode);
 
 #ifdef UNIV_PFS_THREAD

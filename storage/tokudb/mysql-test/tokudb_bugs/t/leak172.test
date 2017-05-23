@@ -132,6 +132,7 @@ CREATE TABLE `t2` (
 );
 
 LOAD DATA INFILE 'leak172_t1.data' INTO TABLE `t1` fields terminated by ',';
+remove_file $MYSQLD_DATADIR/test/leak172_t1.data;
 
 connect(conn1,localhost,root,,);
 set session debug_dbug="+d,tokudb_end_bulk_insert_sleep";
@@ -145,6 +146,7 @@ UPDATE t1, t2 SET t1.`c5` = 4 WHERE t1.`c6` <= 'o';
 
 connection conn1;
 reap;
+remove_file $MYSQLD_DATADIR/test/leak172_t2.data;
 
 connection default;
 disconnect conn1;

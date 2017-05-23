@@ -254,6 +254,8 @@ int opt_sum_query(THD *thd,
   int error= 0;
   DBUG_ENTER("opt_sum_query");
 
+  thd->lex->current_select->min_max_opt_list.empty();
+
   if (conds)
     where_tables= conds->used_tables();
 
@@ -447,7 +449,14 @@ int opt_sum_query(THD *thd,
           item_sum->aggregator_clear();
         }
         else
+        {
           item_sum->reset_and_add();
+          /*
+            Save a reference to the item for possible rollback
+            of the min/max optimizations for this select
+          */
+	  thd->lex->current_select->min_max_opt_list.push_back(item_sum);
+        }
         item_sum->make_const();
         recalc_const_item= 1;
         break;

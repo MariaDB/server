@@ -1,7 +1,7 @@
 /***************** Filter C++ Class Filter Code (.CPP) *****************/
-/*  Name: FILTER.CPP  Version 3.9                                      */
+/*  Name: FILTER.CPP  Version 4.0                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /*  This file contains the class FILTER function code.                 */
 /***********************************************************************/
@@ -87,8 +87,8 @@ BYTE OpBmp(PGLOBAL g, OPVAL opc)
     case OP_EXIST: bt = 0x00; break;
     default:
       sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
-      longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
-    } // endswitch opc
+			throw TYPE_ARRAY;
+	} // endswitch opc
 
   return bt;
   } // end of OpBmp
@@ -1409,7 +1409,7 @@ PFIL FILTER::Copy(PTABS t)
 /*********************************************************************/
 /*  Make file output of FILTER contents.                             */
 /*********************************************************************/
-void FILTER::Print(PGLOBAL g, FILE *f, uint n)
+void FILTER::Printf(PGLOBAL g, FILE *f, uint n)
   {
   char m[64];
 
@@ -1431,7 +1431,7 @@ void FILTER::Print(PGLOBAL g, FILE *f, uint n)
       if (lin && fp->GetArgType(i) == TYPE_FILTER)
         fprintf(f, "%s  Filter at %p\n", m, fp->Arg(i));
       else
-        fp->Arg(i)->Print(g, f, n + 2);
+        fp->Arg(i)->Printf(g, f, n + 2);
 
       } // endfor i
 
@@ -1442,7 +1442,7 @@ void FILTER::Print(PGLOBAL g, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of TABLE contents (z should be checked).        */
 /***********************************************************************/
-void FILTER::Print(PGLOBAL g, char *ps, uint z)
+void FILTER::Prints(PGLOBAL g, char *ps, uint z)
   {
   #define FLEN 100
 
@@ -1470,7 +1470,7 @@ void FILTER::Print(PGLOBAL g, char *ps, uint z)
       bcp = bxp;
       p = bcp->Cold;
       n = FLEN;
-      fp->Arg(0)->Print(g, p, n);
+      fp->Arg(0)->Prints(g, p, n);
       n = FLEN - strlen(p);
 
       switch (fp->Opc) {
@@ -1516,7 +1516,7 @@ void FILTER::Print(PGLOBAL g, char *ps, uint z)
 
       n = FLEN - strlen(p);
       p += strlen(p);
-      fp->Arg(1)->Print(g, p, n);
+      fp->Arg(1)->Prints(g, p, n);
     } else
       if (!bcp) {
         strncat(ps, "???", z);
@@ -1712,7 +1712,7 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
         break;  // Remove eventual ending separator(s)
 
 //  if (fp->Convert(g, having))
-//    longjmp(g->jumper[g->jump_level], TYPE_FILTER);
+//			throw TYPE_ARRAY;
 
     filp = fp;
     fp = fp->Next;
@@ -1745,7 +1745,7 @@ DllExport bool ApplyFilter(PGLOBAL g, PFIL filp)
 //  return TRUE;
 
   if (filp->Eval(g))
-    longjmp(g->jumper[g->jump_level], TYPE_FILTER);
+		throw TYPE_FILTER;
 
   if (trace > 1)
     htrc("PlugFilter filp=%p result=%d\n",

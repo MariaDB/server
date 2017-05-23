@@ -1,3 +1,4 @@
+skip Background Job Manager not supported in MariaDB;
 # Test the auto analyze on lots of tables
 -- source include/have_tokudb.inc
 

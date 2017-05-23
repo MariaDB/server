@@ -1096,6 +1096,7 @@ static void test_wl4435_2()
   \
   rs_metadata= mysql_stmt_result_metadata(ps); \
   fields= mysql_fetch_fields(rs_metadata); \
+  mysql_free_result(rs_metadata);               \
   \
   rc= mysql_stmt_bind_result(ps, &psp); \
   check_execute(ps, rc); \

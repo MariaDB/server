@@ -27,7 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include "changed_page_bitmap.h"
 
 #ifdef __WIN__
-#define XB_FILE_UNDEFINED NULL
+#define XB_FILE_UNDEFINED INVALID_HANDLE_VALUE
 #else
 #define XB_FILE_UNDEFINED (-1)
 #endif
@@ -194,7 +194,7 @@ void xb_data_files_close(void);
 /***********************************************************************
 Reads the space flags from a given data file and returns the compressed
 page size, or 0 if the space is not compressed. */
-ulint xb_get_zip_size(os_file_t file);
+ulint xb_get_zip_size(pfs_os_file_t file);
 
 /************************************************************************
 Checks if a table specified as a name in the form "database/name" (InnoDB 5.6)

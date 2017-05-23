@@ -66,6 +66,8 @@ Created 12/19/1997 Heikki Tuuri
 
 #include "my_compare.h" /* enum icp_result */
 
+#include <vector>
+
 /* Maximum number of rows to prefetch; MySQL interface has another parameter */
 #define SEL_MAX_N_PREFETCH	16
 
@@ -2715,7 +2717,8 @@ row_sel_field_store_in_mysql_format_func(
 		      || !(templ->mysql_col_len % templ->mbmaxlen));
 		ut_ad(len * templ->mbmaxlen >= templ->mysql_col_len
 		      || (field_no == templ->icp_rec_field_no
-			  && field->prefix_len > 0));
+			  && field->prefix_len > 0)
+		      || templ->rec_field_is_prefix);
 		ut_ad(!(field->prefix_len % templ->mbmaxlen));
 
 		if (templ->mbminlen == 1 && templ->mbmaxlen != 1) {
@@ -2757,27 +2760,32 @@ row_sel_field_store_in_mysql_format_func(
 # define row_sel_store_mysql_field(m,p,r,i,o,f,t) \
 	row_sel_store_mysql_field_func(m,p,r,o,f,t)
 #endif /* UNIV_DEBUG */
-/**************************************************************//**
-Convert a field in the Innobase format to a field in the MySQL format. */
+/** Convert a field in the Innobase format to a field in the MySQL format.
+@param[out]	mysql_rec		record in the MySQL format
+@param[in,out]	prebuilt		prebuilt struct
+@param[in]	rec			InnoDB record; must be protected
+					by a page latch
+@param[in]	index			index of rec
+@param[in]	offsets			array returned by rec_get_offsets()
+@param[in]	field_no		templ->rec_field_no or
+					templ->clust_rec_field_no
+					or templ->icp_rec_field_no
+					or sec field no if clust_templ_for_sec
+					is TRUE
+@param[in]	templ			row template
+*/
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
 row_sel_store_mysql_field_func(
-/*===========================*/
-	byte*			mysql_rec,	/*!< out: record in the
-						MySQL format */
-	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt struct */
-	const rec_t*		rec,		/*!< in: InnoDB record;
-						must be protected by
-						a page latch */
+	byte*			mysql_rec,
+	row_prebuilt_t*		prebuilt,
+	const rec_t*		rec,
 #ifdef UNIV_DEBUG
-	const dict_index_t*	index,		/*!< in: index of rec */
+	const dict_index_t*	index,
 #endif
-	const ulint*		offsets,	/*!< in: array returned by
-						rec_get_offsets() */
-	ulint			field_no,	/*!< in: templ->rec_field_no or
-						templ->clust_rec_field_no or
-						templ->icp_rec_field_no */
-	const mysql_row_templ_t*templ)		/*!< in: row template */
+	const ulint*		offsets,
+	ulint			field_no,
+	const mysql_row_templ_t*templ)
 {
 	const byte*	data;
 	ulint		len;
@@ -2906,31 +2914,31 @@ row_sel_store_mysql_field_func(
 	return(TRUE);
 }
 
-/**************************************************************//**
-Convert a row in the Innobase format to a row in the MySQL format.
+/** Convert a row in the Innobase format to a row in the MySQL format.
 Note that the template in prebuilt may advise us to copy only a few
 columns to mysql_rec, other columns are left blank. All columns may not
 be needed in the query.
+@param[out]	mysql_rec		row in the MySQL format
+@param[in]	prebuilt		prebuilt structure
+@param[in]	rec			Innobase record in the index
+					which was described in prebuilt's
+					template, or in the clustered index;
+					must be protected by a page latch
+@param[in]	rec_clust		TRUE if the rec in the clustered index
+@param[in]	index			index of rec
+@param[in]	offsets			array returned by rec_get_offsets(rec)
 @return TRUE on success, FALSE if not all columns could be retrieved */
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
 row_sel_store_mysql_rec(
-/*====================*/
-	byte*		mysql_rec,	/*!< out: row in the MySQL format */
-	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct */
-	const rec_t*	rec,		/*!< in: Innobase record in the index
-					which was described in prebuilt's
-					template, or in the clustered index;
-					must be protected by a page latch */
-	ibool		rec_clust,	/*!< in: TRUE if rec is in the
-					clustered index instead of
-					prebuilt->index */
-	const dict_index_t* index,	/*!< in: index of rec */
-	const ulint*	offsets)	/*!< in: array returned by
- 					rec_get_offsets(rec) */
+	byte*		mysql_rec,
+	row_prebuilt_t*	prebuilt,
+	const rec_t*	rec,
+	ibool		rec_clust,
+	const dict_index_t* index,
+	const ulint*	offsets)
 {
 	ulint	i;
-
 	ut_ad(rec_clust || index == prebuilt->index);
 	ut_ad(!rec_clust || dict_index_is_clust(index));
 
@@ -2946,12 +2954,14 @@ row_sel_store_mysql_rec(
 			? templ->clust_rec_field_no
 			: templ->rec_field_no;
 		/* We should never deliver column prefixes to MySQL,
-		except for evaluating innobase_index_cond(). */
+		except for evaluating innobase_index_cond() and if the prefix
+		index is longer than the actual row data. */
 		/* ...actually, we do want to do this in order to
 		support the prefix query optimization.
 
 		ut_ad(dict_index_get_nth_field(index, field_no)->prefix_len
-		      == 0);
+		      == 0 || templ->rec_field_is_prefix);
+
 
 		...so we disable this assert. */
 
@@ -3681,7 +3691,7 @@ row_search_for_mysql(
 	trx_t*		trx		= prebuilt->trx;
 	dict_index_t*	clust_index;
 	que_thr_t*	thr;
-	const rec_t*	rec;
+	const rec_t*	rec = NULL;
 	const rec_t*	result_rec = NULL;
 	const rec_t*	clust_rec;
 	dberr_t		err				= DB_SUCCESS;
@@ -3706,7 +3716,7 @@ row_search_for_mysql(
 	ulint*		offsets				= offsets_;
 	ibool		table_lock_waited		= FALSE;
 	byte*		next_buf			= 0;
-	ibool		use_clustered_index		= FALSE;
+	bool		use_clustered_index		= false;
 
 	rec_offs_init(offsets_);
 
@@ -3966,7 +3976,8 @@ row_search_for_mysql(
 
 				if (!row_sel_store_mysql_rec(
 					    buf, prebuilt,
-					    rec, FALSE, index, offsets)) {
+					    rec, FALSE, index,
+					    offsets)) {
 					/* Only fresh inserts may contain
 					incomplete externally stored
 					columns. Pretend that such
@@ -4248,7 +4259,6 @@ rec_loop:
 	}
 
 	if (page_rec_is_supremum(rec)) {
-
 		if (set_also_gap_locks
 		    && !(srv_locks_unsafe_for_binlog
 			 || trx->isolation_level <= TRX_ISO_READ_COMMITTED)
@@ -4777,17 +4787,17 @@ locks_ok:
 		   indexes are shorter than the prefix size
 		This optimization can avoid many IOs for certain schemas.
 		*/
-		ibool row_contains_all_values = TRUE;
-		int i;
+		bool row_contains_all_values = true;
+		unsigned int i;
 		for (i = 0; i < prebuilt->n_template; i++) {
 			/* Condition (1) from above: is the field in the
 			index (prefix or not)? */
-			mysql_row_templ_t* templ =
+			const mysql_row_templ_t* templ =
 				prebuilt->mysql_template + i;
 			ulint secondary_index_field_no =
 				templ->rec_prefix_field_no;
 			if (secondary_index_field_no == ULINT_UNDEFINED) {
-				row_contains_all_values = FALSE;
+				row_contains_all_values = false;
 				break;
 			}
 			/* Condition (2) from above: if this is a
@@ -4802,8 +4812,9 @@ locks_ok:
 						index,
 						secondary_index_field_no);
 				ut_a(field->prefix_len > 0);
-				if (record_size >= field->prefix_len) {
-					row_contains_all_values = FALSE;
+				if (record_size >= field->prefix_len
+				    / templ->mbmaxlen) {
+					row_contains_all_values = false;
 					break;
 				}
 			}
@@ -4819,7 +4830,7 @@ locks_ok:
 					templ->rec_prefix_field_no;
 				ut_a(templ->rec_field_no != ULINT_UNDEFINED);
 			}
-			use_clustered_index = FALSE;
+			use_clustered_index = false;
 			srv_stats.n_sec_rec_cluster_reads_avoided.inc();
 		}
 	}

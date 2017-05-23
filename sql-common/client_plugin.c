@@ -375,8 +375,7 @@ mysql_load_plugin_v(MYSQL *mysql, const char *name, int type,
   if (!(sym= dlsym(dlhandle, plugin_declarations_sym)))
   {
     errmsg= "not a plugin";
-    (void)dlclose(dlhandle);
-    goto err;
+    goto errc;
   }
 
   plugin= (struct st_mysql_client_plugin*)sym;
@@ -384,19 +383,19 @@ mysql_load_plugin_v(MYSQL *mysql, const char *name, int type,
   if (type >=0 && type != plugin->type)
   {
     errmsg= "type mismatch";
-    goto err;
+    goto errc;
   }
 
   if (strcmp(name, plugin->name))
   {
     errmsg= "name mismatch";
-    goto err;
+    goto errc;
   }
 
   if (type < 0 && find_plugin(name, plugin->type))
   {
     errmsg= "it is already loaded";
-    goto err;
+    goto errc;
   }
 
   plugin= add_plugin(mysql, plugin, dlhandle, argc, args);
@@ -406,6 +405,8 @@ mysql_load_plugin_v(MYSQL *mysql, const char *name, int type,
   DBUG_PRINT ("leave", ("plugin loaded ok"));
   DBUG_RETURN (plugin);
 
+errc:
+  dlclose(dlhandle);
 err:
   mysql_mutex_unlock(&LOCK_load_client_plugin);
   DBUG_PRINT ("leave", ("plugin load error : %s", errmsg));
