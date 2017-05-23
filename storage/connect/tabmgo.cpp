@@ -144,13 +144,20 @@ MGODISC::MGODISC(PGLOBAL g, int *lg) {
 /***********************************************************************/
 int MGODISC::GetColumns(PGLOBAL g, char *db, PTOS topt)
 {
-	bson_iter_t iter;
+	PCSZ          level;
+	bson_iter_t   iter;
 	const bson_t *doc;
-	PMGODEF tdp;
-	TDBMGO *tmgp = NULL;
+	PMGODEF       tdp;
+	TDBMGO       *tmgp = NULL;
 
-	lvl = GetIntegerTableOption(g, topt, "Level", 0);
-	lvl = (lvl > 16) ? 16 : lvl;
+	level = GetStringTableOption(g, topt, "Level", NULL);
+
+	if (level) {
+		lvl = atoi(level);
+		lvl = (lvl > 16) ? 16 : lvl;
+	} else
+		lvl = 0;
+
 	all = GetBooleanTableOption(g, topt, "Fullarray", false);
 
 	/*********************************************************************/
@@ -162,7 +169,7 @@ int MGODISC::GetColumns(PGLOBAL g, char *db, PTOS topt)
 	tdp->Tabname = GetStringTableOption(g, topt, "Tabname", tdp->Tabname);
 	tdp->Tabschema = GetStringTableOption(g, topt, "Dbname", db);
 	tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
-	tdp->Colist = GetStringTableOption(g, topt, "Colist", NULL);
+	tdp->Colist = GetStringTableOption(g, topt, "Colist", "all");
 	tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
 
 	if (tdp->Colist) {
@@ -726,8 +733,21 @@ void TDBMGO::SetFilter(PFIL fp)
 mongoc_cursor_t *TDBMGO::MakeCursor(PGLOBAL g)
 {
 	const char      *p;
+	bool             b = false, id = (Mode != MODE_READ), all = false;
 	mongoc_cursor_t *cursor;
+	PCOL             cp;
 	PSTRG            s = NULL;
+
+	if (Options && !stricmp(Options, "all")) {
+		Options = NULL;
+		all = true;
+	} // endif Options
+
+	for (cp = Columns; cp; cp = cp->GetNext())
+		if (!strcmp(cp->GetName(), "_id"))
+			id = true;
+		else if (cp->GetFmt() && !strcmp(cp->GetFmt(), "*"))
+			all = true;
 
 	if (Pipe) {
 		if (trace)
@@ -755,16 +775,31 @@ mongoc_cursor_t *TDBMGO::MakeCursor(PGLOBAL g)
 			To_Filter = NULL;   // Not needed anymore
 		} // endif To_Filter
 
-		// Project list
-		s->Append(",{\"$project\":{\"_id\":0");
+		if (!all) {
+			// Project list
+			if (Columns) {
+				s->Append(",{\"$project\":{\"");
 
-		for (PCOL cp = Columns; cp; cp = cp->GetNext()) {
-			s->Append(",\"");
-			s->Append(((PMGOCOL)cp)->GetProjPath(g));
-			s->Append("\":1");
-		} // endfor cp
+				if (!id)
+					s->Append("_id\":0,\"");
 
-		s->Append("}}]}");
+				for (cp = Columns; cp; cp = cp->GetNext()) {
+					if (b)
+						s->Append(",\"");
+					else
+						b = true;
+
+					s->Append(((PMGOCOL)cp)->GetProjPath(g));
+					s->Append("\":1");
+				} // endfor cp
+
+				s->Append("}}");
+			} else
+				s->Append(",{\"$project\":{\"_id\":1}}");
+
+		} // endif all
+
+		s->Append("]}");
 		s->Resize(s->GetLength() + 1);
 		p = s->GetStr();
 
@@ -795,7 +830,7 @@ mongoc_cursor_t *TDBMGO::MakeCursor(PGLOBAL g)
 				if (To_Filter) {
 					char buf[512];
 
-					To_Filter->Print(g, buf, 511);
+					To_Filter->Prints(g, buf, 511);
 					htrc("To_Filter: %s\n", buf);
 				} // endif To_Filter
 
@@ -829,33 +864,48 @@ mongoc_cursor_t *TDBMGO::MakeCursor(PGLOBAL g)
 		} else
 			Query = bson_new();
 
-		if (Options && *Options) {
-			if (trace)
-				htrc("options=%s\n", Options);
+		if (!all) {
+			if (Options && *Options) {
+				if (trace)
+					htrc("options=%s\n", Options);
 
-			Opts = bson_new_from_json((const uint8_t *)Options, -1, &Error);
-		} else {
-			// Projection list
-			if (s)
-				s->Set("{\"projection\":{\"_id\":0");
-			else
-				s = new(g) STRING(g, 511, "{\"projection\":{\"_id\":0");
+				p = Options;
+			} else if (Columns) {
+				// Projection list
+				if (s)
+					s->Set("{\"projection\":{\"");
+				else
+					s = new(g) STRING(g, 511, "{\"projection\":{\"");
 
-			for (PCOL cp = Columns; cp; cp = cp->GetNext()) {
-				s->Append(",\"");
-				s->Append(((PMGOCOL)cp)->GetProjPath(g));
-				s->Append("\":1");
-			} // endfor cp
+				if (!id)
+					s->Append("_id\":0,\"");
 
-			s->Append("}}");
-			s->Resize(s->GetLength() + 1);
-			Opts = bson_new_from_json((const uint8_t *)s->GetStr(), -1, &Error);
-		} // endif Options
+				for (cp = Columns; cp; cp = cp->GetNext()) {
+					if (b)
+						s->Append(",\"");
+					else
+						b = true;
 
-		if (!Opts) {
-			sprintf(g->Message, "Wrong options: %s", Error.message);
-			return NULL;
-		} // endif Opts
+					s->Append(((PMGOCOL)cp)->GetProjPath(g));
+					s->Append("\":1");
+				} // endfor cp
+
+				s->Append("}}");
+				s->Resize(s->GetLength() + 1);
+				p = s->GetStr();
+			} else {
+				// count(*)	?
+				p = "{\"projection\":{\"_id\":1}}";
+			} // endif Options
+
+			Opts = bson_new_from_json((const uint8_t *)p, -1, &Error);
+
+			if (!Opts) {
+				sprintf(g->Message, "Wrong options: %s", Error.message);
+				return NULL;
+			} // endif Opts
+
+		} // endif all
 
 		cursor = mongoc_collection_find_with_opts(Collection, Query, Opts, NULL);
 	} // endif Pipe
@@ -893,6 +943,8 @@ bool TDBMGO::OpenDB(PGLOBAL g)
 
 	if (Mode == MODE_DELETE && !Next) {
 		// Delete all documents
+		Query = bson_new();
+
 		if (!mongoc_collection_remove(Collection, MONGOC_REMOVE_NONE,
 			Query, NULL, &Error)) {
 			sprintf(g->Message, "Mongo remove all: %s", Error.message);

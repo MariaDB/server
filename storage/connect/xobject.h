@@ -112,8 +112,8 @@ class DllExport CONSTANT : public XOBJECT {
                  {return Value->SetConstFormat(g, fmt);}
           void   Convert(PGLOBAL g, int newtype);
           void   SetValue(PVAL vp) {Value = vp;}
-  virtual void   Print(PGLOBAL g, FILE *, uint);
-  virtual void   Print(PGLOBAL g, char *, uint);
+  virtual void   Printf(PGLOBAL g, FILE *, uint);
+  virtual void   Prints(PGLOBAL g, char *, uint);
   }; // end of class CONSTANT
 
 /***********************************************************************/

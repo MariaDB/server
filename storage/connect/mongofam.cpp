@@ -297,9 +297,22 @@ bool MGOFAM::Init(PGLOBAL g)
 bool MGOFAM::MakeCursor(PGLOBAL g)
 {
 	const char *p;
+	bool  b = false, id = (Mode != MODE_READ), all = false;
 	uint  len;
 	PSZ   jp;
+	PCOL  cp;
 	PSTRG s = NULL;
+
+	if (Options && !stricmp(Options, "all")) {
+		Options = NULL;
+		all = true;
+	} // endif Options
+
+	for (cp = Tdbp->GetColumns(); cp; cp = cp->GetNext())
+		if (!strcmp(cp->GetName(), "_id"))
+			id = true;
+		else if (cp->GetFmt() && !strcmp(cp->GetFmt(), "*"))
+			all = true;
 
 	if (Pipe) {
 		if (trace)
@@ -332,24 +345,37 @@ bool MGOFAM::MakeCursor(PGLOBAL g)
 
 		} // endif To_Filter
 
-		// Project list
-		len = s->GetLength();
-		s->Append(",{\"$project\":{\"_id\":0");
+		if (!all) {
+			// Project list
+			len = s->GetLength();
 
-		for (PCOL cp = Tdbp->GetColumns(); cp; cp = cp->GetNext()) {
-			s->Append(",\"");
+			if (Tdbp->GetColumns()) {
+				s->Append(",{\"$project\":{\"");
 
-			if ((jp = ((PJCOL)cp)->GetJpath(g, true)))
-				s->Append(jp);
-			else {
-				s->Truncate(len);
-				goto nop;
-			}	// endif Jpath
+				if (!id)
+					s->Append("_id\":0,\"");
 
-			s->Append("\":1");
-		} // endfor cp
+				for (PCOL cp = Tdbp->GetColumns(); cp; cp = cp->GetNext()) {
+					if (b)
+						s->Append(",\"");
+					else
+						b = true;
 
-		s->Append("}}");
+					if ((jp = ((PJCOL)cp)->GetJpath(g, true)))
+						s->Append(jp);
+					else {
+						s->Truncate(len);
+						goto nop;
+					}	// endif Jpath
+
+					s->Append("\":1");
+				} // endfor cp
+
+			} else
+				s->Append(",{\"$project\":{\"_id\":1}}");
+
+			s->Append("}}");
+		} // endif all
 
 	 nop:
 		s->Append("]}");
@@ -383,7 +409,7 @@ bool MGOFAM::MakeCursor(PGLOBAL g)
 				if (Tdbp->GetFilter()) {
 					char buf[512];
 
-					Tdbp->GetFilter()->Print(g, buf, 511);
+					Tdbp->GetFilter()->Prints(g, buf, 511);
 					htrc("To_Filter: %s\n", buf);
 				} // endif To_Filter
 
@@ -426,41 +452,55 @@ bool MGOFAM::MakeCursor(PGLOBAL g)
 		} else
 			Query = bson_new();
 
-		if (Options && *Options) {
-			if (trace)
-				htrc("options=%s\n", Options);
+		if (!all) {
+			if (Options && *Options) {
+				if (trace)
+					htrc("options=%s\n", Options);
 
-			Opts = bson_new_from_json((const uint8_t *)Options, -1, &Error);
-		} else {
-			// Projection list
-			if (s)
-				s->Set("{\"projection\":{\"_id\":0");
-			else
-				s = new(g) STRING(g, 511, "{\"projection\":{\"_id\":0");
+				p = Options;
+			} else if (Tdbp->GetColumns()) {
+				// Projection list
+				if (s)
+					s->Set("{\"projection\":{\"");
+				else
+					s = new(g) STRING(g, 511, "{\"projection\":{\"");
 
-			for (PCOL cp = Tdbp->GetColumns(); cp; cp = cp->GetNext()) {
-				s->Append(",\"");
+				if (!id)
+					s->Append("_id\":0,\"");
 
-				if ((jp = ((PJCOL)cp)->GetJpath(g, true)))
-					s->Append(jp);
-				else {
-					s->Reset();
-					s->Resize(0);
-					goto nope;
-				}	// endif Jpath
+				for (PCOL cp = Tdbp->GetColumns(); cp; cp = cp->GetNext()) {
+					if (b)
+						s->Append(",\"");
+					else
+						b = true;
 
-				s->Append("\":1");
-			} // endfor cp
+					if ((jp = ((PJCOL)cp)->GetJpath(g, true)))
+						s->Append(jp);
+					else {
+						s->Reset();
+						s->Resize(0);
+						goto nope;
+					}	// endif Jpath
 
-			s->Append("}}");
-			s->Resize(s->GetLength() + 1);
-			Opts = bson_new_from_json((const uint8_t *)s->GetStr(), -1, &Error);
-		} // endif Options
+					s->Append("\":1");
+				} // endfor cp
 
-		if (!Opts) {
-			sprintf(g->Message, "Wrong options: %s", Error.message);
-			return true;
-		} // endif Opts
+				s->Append("}}");
+				s->Resize(s->GetLength() + 1);
+				p = s->GetStr();
+			} else {
+				// count(*)	?
+				p = "{\"projection\":{\"_id\":1}}";
+			} // endif Options
+
+			Opts = bson_new_from_json((const uint8_t *)p, -1, &Error);
+
+			if (!Opts) {
+				sprintf(g->Message, "Wrong options: %s", Error.message);
+				return true;
+			} // endif Opts
+
+		} // endif all
 
 	nope:
 		Cursor = mongoc_collection_find_with_opts(Collection, Query, Opts, NULL);

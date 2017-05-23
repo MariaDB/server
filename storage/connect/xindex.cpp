@@ -181,23 +181,23 @@ XXBASE::XXBASE(PTDBDOS tbxp, bool b) : CSORT(b),
 /***********************************************************************/
 /*  Make file output of XINDEX contents.                               */
 /***********************************************************************/
-void XXBASE::Print(PGLOBAL, FILE *f, uint n)
+void XXBASE::Printf(PGLOBAL, FILE *f, uint n)
   {
   char m[64];
 
   memset(m, ' ', n);                    // Make margin string
   m[n] = '\0';
   fprintf(f, "%sXINDEX: Tbxp=%p Num=%d\n", m, Tbxp, Num_K);
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of XINDEX contents.                             */
 /***********************************************************************/
-void XXBASE::Print(PGLOBAL, char *ps, uint z)
+void XXBASE::Prints(PGLOBAL, char *ps, uint z)
   {
   *ps = '\0';
   strncat(ps, "Xindex", z);
-  } // end of Print
+  } // end of Prints
 
 /* -------------------------- XINDEX Class --------------------------- */
 

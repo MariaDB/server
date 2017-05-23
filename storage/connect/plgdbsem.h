@@ -36,8 +36,6 @@ enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
              TYPE_COLCRT     = 71,    /* Column creation block         */
              TYPE_CONST      = 72,    /* Constant                      */
 
-/*-------------------- type tokenized string --------------------------*/
-             TYPE_DATE       =  8,    /* Timestamp                     */
 /*-------------------- additional values used by LNA ------------------*/
              TYPE_COLIST     = 14,    /* Column list                   */
              TYPE_COL        = 41,    /* Column                        */

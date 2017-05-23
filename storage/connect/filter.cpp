@@ -1490,7 +1490,7 @@ bool FILTER::MakeSelector(PGLOBAL g, PSTRG s, bool m)
 		if (GetArgType(1) == TYPE_COLBLK)
 			return true;
 
-		Arg(1)->Print(g, buf, 500);
+		Arg(1)->Prints(g, buf, 500);
 		s->Append(buf);
 		s->Append('}');
 	} // endif Opc
@@ -1503,7 +1503,7 @@ bool FILTER::MakeSelector(PGLOBAL g, PSTRG s, bool m)
 /*********************************************************************/
 /*  Make file output of FILTER contents.                             */
 /*********************************************************************/
-void FILTER::Print(PGLOBAL g, FILE *f, uint n)
+void FILTER::Printf(PGLOBAL g, FILE *f, uint n)
   {
   char m[64];
 
@@ -1525,18 +1525,18 @@ void FILTER::Print(PGLOBAL g, FILE *f, uint n)
       if (lin && fp->GetArgType(i) == TYPE_FILTER)
         fprintf(f, "%s  Filter at %p\n", m, fp->Arg(i));
       else
-        fp->Arg(i)->Print(g, f, n + 2);
+        fp->Arg(i)->Printf(g, f, n + 2);
 
       } // endfor i
 
     } // endfor fp
 
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of TABLE contents (z should be checked).        */
 /***********************************************************************/
-void FILTER::Print(PGLOBAL g, char *ps, uint z)
+void FILTER::Prints(PGLOBAL g, char *ps, uint z)
   {
   #define FLEN 100
 
@@ -1564,7 +1564,7 @@ void FILTER::Print(PGLOBAL g, char *ps, uint z)
       bcp = bxp;
       p = bcp->Cold;
       n = FLEN;
-      fp->Arg(0)->Print(g, p, n);
+      fp->Arg(0)->Prints(g, p, n);
       n = FLEN - strlen(p);
 
       switch (fp->Opc) {
@@ -1610,7 +1610,7 @@ void FILTER::Print(PGLOBAL g, char *ps, uint z)
 
       n = FLEN - strlen(p);
       p += strlen(p);
-      fp->Arg(1)->Print(g, p, n);
+      fp->Arg(1)->Prints(g, p, n);
     } else
       if (!bcp) {
         strncat(ps, "???", z);
@@ -1673,7 +1673,7 @@ void FILTER::Print(PGLOBAL g, char *ps, uint z)
     bcp = bxp;
     } while (bcp); // enddo
 
-  } // end of Print
+  } // end of Prints
 
 
 /* -------------------- Derived Classes Functions -------------------- */
@@ -1791,8 +1791,6 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
 
   if (trace)
     htrc("PrepareFilter: fp=%p having=%d\n", fp, having);
-//if (fp)
-//  fp->Print(g, debug, 0);
 
   while (fp) {
     if (fp->Opc == OP_SEP)

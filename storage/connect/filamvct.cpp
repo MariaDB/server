@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -568,7 +568,6 @@ bool VCTFAM::InitInsert(PGLOBAL g)
     CurNum = 0;
     AddBlock = !MaxBlk;
   } else {
-    int     rc;
     PVCTCOL cp = (PVCTCOL)Tdbp->GetColumns();
 
     // The starting point must be at the end of file as for append.
