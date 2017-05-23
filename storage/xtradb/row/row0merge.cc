@@ -4037,6 +4037,7 @@ row_merge_build_indexes(
 
 	for (i = 0; i < n_indexes; i++) {
 		merge_files[i].fd = -1;
+		merge_files[i].offset = 0;
 	}
 
 	total_static_cost = COST_BUILD_INDEX_STATIC * n_indexes + COST_READ_CLUSTERED_INDEX;
