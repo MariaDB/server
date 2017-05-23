@@ -848,6 +848,10 @@ public:
     null_value= args[0]->null_value;
     return value;
   }
+  void fix_length_and_dec_double()
+  {
+    fix_char_length(MAX_BIGINT_WIDTH);
+  }
   void fix_length_and_dec_generic()
   {
     uint32 char_length= MY_MIN(args[0]->max_char_length(),
