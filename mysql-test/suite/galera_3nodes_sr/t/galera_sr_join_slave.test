@@ -49,7 +49,6 @@ SELECT COUNT(*) = 10 FROM t1;
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
---source include/galera_wait_ready.inc
 SELECT COUNT(*) = 10 FROM t1;
 
 --connection node_1

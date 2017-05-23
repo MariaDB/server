@@ -42,10 +42,9 @@ INSERT INTO t1 VALUES (1);
 
 --connection node_2
 --source include/start_mysqld.inc
-# --sleep 5
+--sleep 5
 --source include/wait_until_connected_again.inc
 --source include/galera_wait_ready.inc
---sleep 1
 
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 SELECT COUNT(*) = 1 FROM t1;

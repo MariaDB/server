@@ -39,25 +39,20 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
 --connection node_2
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
---source include/galera_wait_ready.inc
-
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
---let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
---source include/wait_condition.inc
---source include/galera_wait_ready.inc
 
 #
 # Expect that the transaction is cleaned up entirely across the cluster and in all wsrep_schema.SR tables
 #
 
 --connection node_2
-SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM t1;
 
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
-SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM t1;
 
 #
@@ -71,16 +66,12 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
 --let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 
---connection node_3
---let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
---source include/wait_condition.inc
-
---connection node_1a
---source include/galera_wait_ready.inc
-
 #
 # Confirm that the previous transaction is gone on Node #1 as well
 #
+
+--connection node_1a
+--source include/galera_wait_ready.inc
 
 --connection node_1
 --error ER_LOCK_DEADLOCK
@@ -88,10 +79,6 @@ COMMIT;
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM t1;
-
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
---source include/wait_condition.inc
-
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
 #
@@ -107,14 +94,10 @@ INSERT INTO t1 VALUES (5);
 COMMIT;
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
---source include/wait_condition.inc
 SELECT COUNT(*) = 5 FROM t1;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
 --connection node_3
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
---source include/wait_condition.inc
 SELECT COUNT(*) = 5 FROM t1;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
