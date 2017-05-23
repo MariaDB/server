@@ -528,6 +528,14 @@ Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
 }
 
 
+const Type_handler *
+Type_handler::type_handler_long_or_longlong(uint max_char_length)
+{
+  if (max_char_length <= MY_INT32_NUM_DECIMAL_DIGITS - 2)
+    return &type_handler_long;
+  return &type_handler_longlong;
+}
+
 /*
   This method is called for CASE (and its abbreviations) and LEAST/GREATEST
   when data type aggregation returned LONGLONG and there were some BIT
@@ -4168,6 +4176,16 @@ bool Type_handler::
 bool Type_handler::
        Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
 {
+  const Item *arg= item->arguments()[0];
+  if (!arg->unsigned_flag && arg->val_int_min() < 0)
+  {
+    /*
+      Negative arguments produce long results:
+        CAST(1-2 AS UNSIGNED) -> 18446744073709551615
+    */
+    item->max_length= MAX_BIGINT_WIDTH;
+    return false;
+  }
   item->fix_length_and_dec_generic();
   return false;
 }
@@ -4184,6 +4202,14 @@ bool Type_handler_string_result::
 bool Type_handler_string_result::
        Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
 {
+  const Item *arg= item->arguments()[0];
+  if (!arg->unsigned_flag &&       // Not HEX hybrid
+      arg->max_char_length() > 1)  // Can be negative
+  {
+    // String arguments can give long results: '-1' -> 18446744073709551614
+    item->max_length= MAX_BIGINT_WIDTH;
+    return false;
+  }
   item->fix_length_and_dec_string();
   return false;
 }

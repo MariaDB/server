@@ -482,8 +482,8 @@ from t1;
 explain t2;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	bigint(11)	NO		NULL	
-c	bigint(10) unsigned	NO		NULL	
+b	int(11)	NO		NULL	
+c	int(10) unsigned	NO		NULL	
 d	date	YES		NULL	
 e	varchar(1)	YES		NULL	
 f	datetime	YES		NULL	

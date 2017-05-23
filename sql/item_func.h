@@ -396,6 +396,10 @@ public:
     :Item_func(thd, item), Type_handler_hybrid_field_type(item) { }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
+  Field *create_tmp_field(bool group, TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
+  Field *create_field_for_create_select(TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
   Field::geometry_type get_geometry_type() const
   { return Type_geometry_attributes::get_geometry_type(); };
   void set_geometry_type(uint type)
@@ -624,10 +628,6 @@ public:
   Item_func_case_expression(THD *thd, List<Item> &list):
     Item_func_hybrid_field_type(thd, list)
   { }
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
 };
 
 
@@ -700,13 +700,14 @@ class Item_num_op :public Item_func_numhybrid
     unsigned_flag= args[0]->unsigned_flag | args[1]->unsigned_flag;
     result_precision();
     decimals= 0;
+    set_handler(type_handler_long_or_longlong());
   }
   void fix_length_and_dec_temporal()
   {
     set_handler(&type_handler_newdecimal);
     fix_length_and_dec_decimal();
     if (decimals == 0)
-      set_handler(&type_handler_longlong);
+      set_handler(type_handler_long_or_longlong());
   }
   bool need_parentheses_in_default() { return true; }
 };
@@ -839,15 +840,8 @@ public:
     unsigned_flag= 0;
   }
   const char *func_name() const { return "cast_as_signed"; }
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
-  Field *create_tmp_field(bool group, TABLE *table)
-  {
-    return create_tmp_field_int(table,
-                                MY_INT32_NUM_DECIMAL_DIGITS - 2 +
-                                unsigned_flag);
-  }
-  Field *create_field_for_create_select(TABLE *table)
-  { return Item_func_signed::create_tmp_field(false, table); }
+  const Type_handler *type_handler() const
+  { return type_handler_long_or_longlong(); }
   longlong val_int()
   {
     longlong value= args[0]->val_int_signed_typecast();
@@ -899,6 +893,12 @@ public:
     unsigned_flag= 1;
   }
   const char *func_name() const { return "cast_as_unsigned"; }
+  const Type_handler *type_handler() const
+  {
+    if (max_char_length() <= MY_INT32_NUM_DECIMAL_DIGITS - 1)
+      return &type_handler_long;
+    return &type_handler_longlong;
+  }
   longlong val_int()
   {
     longlong value= args[0]->val_int_unsigned_typecast();
@@ -909,6 +909,7 @@ public:
   {
     args[0]->type_handler()->Item_func_unsigned_fix_length_and_dec(this);
   }
+  uint decimal_precision() const { return max_length; }
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_unsigned>(thd, mem_root, this); }
@@ -1072,12 +1073,7 @@ public:
   const char *func_name() const { return "DIV"; }
   enum precedence precedence() const { return MUL_PRECEDENCE; }
   const Type_handler *type_handler() const
-  {
-    // The same condition is repeated in Item::create_tmp_field()
-    if (max_length > MY_INT32_NUM_DECIMAL_DIGITS - 2)
-      return &type_handler_longlong;
-    return &type_handler_long;
-  }
+  { return type_handler_long_or_longlong(); }
   void fix_length_and_dec();
   void print(String *str, enum_query_type query_type)
   {
@@ -1118,6 +1114,7 @@ public:
     max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
     decimals= 0;
     unsigned_flag= args[0]->unsigned_flag;
+    set_handler(type_handler_long_or_longlong());
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -1469,10 +1466,6 @@ public:
   Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):
     Item_hybrid_func(thd, list), cmp_sign(cmp_sign_arg)
   {}
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
   String *val_str_native(String *str);
   double val_real_native();
   longlong val_int_native();
@@ -2244,6 +2237,10 @@ public:
   Item_func_user_var(THD *thd, Item_func_user_var *item)
     :Item_hybrid_func(thd, item),
     m_var_entry(item->m_var_entry), name(item->name) { }
+  Field *create_tmp_field(bool group, TABLE *table)
+  { return Item::create_tmp_field(group, table); }
+  Field *create_field_for_create_select(TABLE *table)
+  { return Item::create_field_for_create_select(table); }
   bool check_vcol_func_processor(void *arg);
 };
 

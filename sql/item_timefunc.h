@@ -155,7 +155,7 @@ public:
     return str;
   }
   const char *func_name() const { return "month"; }
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const { return &type_handler_long; }
   void fix_length_and_dec()
   { 
     decimals= 0;
@@ -449,7 +449,10 @@ public:
     decimals= dec;
     max_length=17 + (decimals ? decimals + 1 : 0);
     maybe_null= true;
-    set_handler_by_result_type(decimals ? DECIMAL_RESULT : INT_RESULT);
+    if (decimals)
+      set_handler(&type_handler_newdecimal);
+    else
+      set_handler(type_handler_long_or_longlong());
   }
   double real_op() { DBUG_ASSERT(0); return 0; }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }

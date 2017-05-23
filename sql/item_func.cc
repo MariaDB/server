@@ -1740,8 +1740,8 @@ my_decimal *Item_func_neg::decimal_op(my_decimal *decimal_value)
 
 void Item_func_neg::fix_length_and_dec_int()
 {
-  set_handler(&type_handler_longlong);
   max_length= args[0]->max_length + 1;
+  set_handler(type_handler_long_or_longlong());
 
   /*
     If this is in integer context keep the context as integer if possible
@@ -1834,9 +1834,9 @@ my_decimal *Item_func_abs::decimal_op(my_decimal *decimal_value)
 
 void Item_func_abs::fix_length_and_dec_int()
 {
-  set_handler(&type_handler_longlong);
   max_length= args[0]->max_length;
   unsigned_flag= args[0]->unsigned_flag;
+  set_handler(type_handler_long_or_longlong());
 }
 
 
@@ -2117,7 +2117,7 @@ void Item_func_int_val::fix_length_and_dec_int_or_decimal()
   else
   {
     unsigned_flag= args[0]->unsigned_flag;
-    set_handler(&type_handler_longlong);
+    set_handler(type_handler_long_or_longlong());
   }
 }
 
@@ -2308,9 +2308,9 @@ void Item_func_round::fix_arg_int()
       int length_can_increase= MY_TEST(!truncate && val1_is_negative);
       max_length= args[0]->max_length + length_can_increase;
       // Here we can keep INT_RESULT
-      set_handler(&type_handler_longlong);
       unsigned_flag= args[0]->unsigned_flag;
       decimals= 0;
+      set_handler(type_handler_long_or_longlong());
     }
     else
       fix_length_and_dec_decimal(decimals_to_set);

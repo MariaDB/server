@@ -627,6 +627,11 @@ protected:
     return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
   }
 
+  const Type_handler *type_handler_long_or_longlong() const
+  {
+    return Type_handler::type_handler_long_or_longlong(max_char_length());
+  }
+
 public:
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
@@ -1209,6 +1214,10 @@ public:
   {
     return const_item() ? type_handler()->Item_datetime_precision(this) :
                           MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
+  }
+  virtual longlong val_int_min() const
+  {
+    return LONGLONG_MIN;
   }
   /* 
     Returns true if this is constant (during query execution, i.e. its value
@@ -3234,17 +3243,13 @@ public:
   Item_int(THD *thd, const char *str_arg, uint length=64);
   enum Type type() const { return INT_ITEM; }
   const Type_handler *type_handler() const
-  {
-    // The same condition is repeated in Item::create_tmp_field()
-    if (max_length > MY_INT32_NUM_DECIMAL_DIGITS - 2)
-      return &type_handler_longlong;
-    return &type_handler_long;
-  }
+  { return type_handler_long_or_longlong(); }
   Field *create_tmp_field(bool group, TABLE *table)
   { return tmp_table_field_from_field_type(table); }
   Field *create_field_for_create_select(TABLE *table)
   { return tmp_table_field_from_field_type(table); }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return value; }
+  longlong val_int_min() const { DBUG_ASSERT(fixed == 1); return value; }
   double val_real() { DBUG_ASSERT(fixed == 1); return (double) value; }
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*);

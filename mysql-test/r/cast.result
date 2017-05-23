@@ -762,7 +762,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CONCAT(CAST(REPEAT('9', 1000) AS SIGNED))` varchar(21) NOT NULL,
-  `CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED))` varchar(21) NOT NULL
+  `CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED))` varchar(20) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 # End of test for Bug#13581962, Bug#14096619
@@ -1129,4 +1129,42 @@ c	LENGTH(c)
 ------
 
 DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-12852 Out-of-range errors when CAST(1-2 AS UNSIGNED
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT
+CAST(-1 AS UNSIGNED),
+CAST(1-2 AS UNSIGNED);
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CAST(-1 AS UNSIGNED)` bigint(20) unsigned NOT NULL,
+  `CAST(1-2 AS UNSIGNED)` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+CAST(-1 AS UNSIGNED)	CAST(1-2 AS UNSIGNED)
+18446744073709551615	18446744073709551615
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-12853 Out-of-range errors when CAST('-1' AS UNSIGNED
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT CAST('-1' AS UNSIGNED);
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CAST('-1' AS UNSIGNED)` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+CAST('-1' AS UNSIGNED)
+18446744073709551615
+DROP TABLE t1;
 SET sql_mode=DEFAULT;
