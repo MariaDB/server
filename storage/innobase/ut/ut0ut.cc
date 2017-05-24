@@ -38,8 +38,6 @@ Created 5/11/1994 Heikki Tuuri
 #include <string>
 #include "log.h"
 
-/** A constant to prevent the compiler from optimizing ut_delay() away. */
-ibool	ut_always_false	= FALSE;
 #ifdef _WIN32
 /*****************************************************************//**
 NOTE: The Windows epoch starts from 1601/01/01 whereas the Unix
