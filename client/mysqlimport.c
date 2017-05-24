@@ -675,7 +675,7 @@ int main(int argc, char **argv)
                                                  MYF(0))))
       return -2;
 
-    for (counter= 0; *argv != NULL; argv++) /* Loop through tables */
+    for (; *argv != NULL; argv++) /* Loop through tables */
     {
       pthread_mutex_lock(&counter_mutex);
       while (counter == opt_use_threads)

@@ -1083,6 +1083,8 @@ int main(int argc, char **argv)
   {
     int fd= create_temp_file(cnf_file_path, opt_tmpdir[0] ? opt_tmpdir : NULL,
                              "mysql_upgrade-", O_CREAT | O_WRONLY, MYF(MY_FAE));
+    if (fd < 0)
+      die(NULL);
     my_write(fd, USTRING_WITH_LEN( "[client]\n"), MYF(MY_FAE));
     my_write(fd, (uchar*)ds_args.str, ds_args.length, MYF(MY_FAE));
     my_close(fd, MYF(0));

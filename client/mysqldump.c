@@ -92,8 +92,7 @@
 
 static void add_load_option(DYNAMIC_STRING *str, const char *option,
                              const char *option_value);
-static ulong find_set(TYPELIB *lib, const char *x, size_t length,
-                      char **err_pos, uint *err_len);
+static ulong find_set(TYPELIB *, const char *, size_t, char **, uint *);
 static char *alloc_query_str(ulong size);
 
 static void field_escape(DYNAMIC_STRING* in, const char *from);
@@ -5373,7 +5372,7 @@ static ulong find_set(TYPELIB *lib, const char *x, size_t length,
       var_len= (uint) (pos - start);
       strmake(buff, start, MY_MIN(sizeof(buff) - 1, var_len));
       find= find_type(buff, lib, FIND_TYPE_BASIC);
-      if (!find)
+      if (find <= 0)
       {
         *err_pos= (char*) start;
         *err_len= var_len;
