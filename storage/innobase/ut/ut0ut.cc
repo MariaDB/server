@@ -837,7 +837,7 @@ error::~error()
 fatal::~fatal()
 {
 	sql_print_error("[FATAL] InnoDB: %s", m_oss.str().c_str());
-	ut_error;
+	abort();
 }
 
 error_or_warn::~error_or_warn()
@@ -851,8 +851,11 @@ error_or_warn::~error_or_warn()
 
 fatal_or_error::~fatal_or_error()
 {
-	sql_print_error("InnoDB: %s", m_oss.str().c_str());
-	ut_a(!m_fatal);
+	sql_print_error(m_fatal ? "[FATAL] InnoDB: %s" : "InnoDB: %s",
+			m_oss.str().c_str());
+	if (m_fatal) {
+		abort();
+	}
 }
 
 } // namespace ib
