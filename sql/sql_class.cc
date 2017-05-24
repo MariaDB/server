@@ -1717,15 +1717,15 @@ THD::~THD()
   mysql_mutex_lock(&LOCK_thd_kill);
   mysql_mutex_unlock(&LOCK_thd_kill);
 
+  if (!free_connection_done)
+    free_connection();
+
 #ifdef WITH_WSREP
   mysql_mutex_lock(&LOCK_wsrep_thd);
   mysql_mutex_unlock(&LOCK_wsrep_thd);
   mysql_mutex_destroy(&LOCK_wsrep_thd);
   delete wsrep_rgi;
 #endif
-  if (!free_connection_done)
-    free_connection();
-
   mdl_context.destroy();
 
   free_root(&transaction.mem_root,MYF(0));

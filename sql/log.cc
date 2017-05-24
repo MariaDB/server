@@ -10635,6 +10635,43 @@ maria_declare_plugin(binlog)
 maria_declare_plugin_end;
 
 #ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#include "wsrep_mysqld.h"
+
+static int wsrep_plugin_init(void *p)
+{
+  WSREP_INFO("wsrep_plugin_init()");
+  return wsrep_register_trans_observer(p);
+}
+
+static int wsrep_plugin_deinit(void *p)
+{
+  WSREP_INFO("wsrep_plugin_deinit()");
+  return wsrep_unregister_trans_observer(p);
+}
+
+struct Mysql_replication wsrep_plugin= {
+  MYSQL_REPLICATION_INTERFACE_VERSION
+};
+
+maria_declare_plugin(wsrep)
+{
+  MYSQL_REPLICATION_PLUGIN,
+  &wsrep_plugin,
+  "wsrep",
+  "Codership Oy",
+  "Wsrep replication plugin",
+  PLUGIN_LICENSE_GPL,
+  wsrep_plugin_init,
+  wsrep_plugin_deinit,
+  0x0100,
+  NULL, /* Status variables */
+  NULL, /* System variables */
+  "1.0", /* Version (string) */
+  MariaDB_PLUGIN_MATURITY_STABLE     /* Maturity */
+}
+maria_declare_plugin_end;
+
 IO_CACHE *wsrep_get_trans_cache(THD * thd)
 {
   DBUG_ASSERT(binlog_hton->slot != HA_SLOT_UNDEF);
@@ -10705,6 +10742,54 @@ ulong wsrep_get_fragment_base(THD *thd)
   if (cache_mngr)
   {
     return cache_mngr->trx_cache.wsrep_get_fragment_base();
+  }
+  return 0;
+}
+void wsrep_append_fill_rate(THD *thd, ulong size)
+{
+  DBUG_ASSERT(binlog_hton && WSREP(thd) &&
+              thd->variables.wsrep_trx_fragment_size > 0);
+  if (!binlog_hton || !WSREP(thd) ||
+      thd->variables.wsrep_trx_fragment_size == 0) return;
+
+  binlog_cache_mngr *const cache_mngr=
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+
+  if (cache_mngr)
+  {
+    cache_mngr->trx_cache.wsrep_append_fill_rate(size);
+  }
+}
+
+void wsrep_reset_fragment_fill(THD *thd, ulong size)
+{
+  DBUG_ASSERT(binlog_hton && WSREP(thd) &&
+              thd->variables.wsrep_trx_fragment_size > 0);
+  if (!binlog_hton || !WSREP(thd) ||
+      thd->variables.wsrep_trx_fragment_size == 0) return;
+
+  binlog_cache_mngr *const cache_mngr=
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+
+  if (cache_mngr)
+  {
+    cache_mngr->trx_cache.wsrep_reset_fragment_fill(size);
+  }
+}
+
+ulong wsrep_get_fragment_fill(THD *thd)
+{
+  DBUG_ASSERT(binlog_hton && WSREP(thd) &&
+              thd->variables.wsrep_trx_fragment_size > 0);
+  if (!binlog_hton || !WSREP(thd) ||
+      thd->variables.wsrep_trx_fragment_size == 0) return 0;
+
+  binlog_cache_mngr *const cache_mngr=
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+
+  if (cache_mngr)
+  {
+    return cache_mngr->trx_cache.wsrep_get_fragment_fill();
   }
   return 0;
 }

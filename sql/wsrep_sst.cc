@@ -1320,6 +1320,7 @@ wsrep_cb_status_t wsrep_sst_donate_cb (void*               const app_ctx,
    * Should we set wsrep_ready to FALSE here too? */
 
   wsrep_config_state->set(WSREP_MEMBER_DONOR);
+  local_status.set(WSREP_MEMBER_DONOR);
 
   const char* method = (char*)msg->ptr;
   size_t method_len  = strlen (method);

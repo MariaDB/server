@@ -246,13 +246,13 @@ int wsrep_apply_events(THD*        thd,
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       DBUG_RETURN(rcode ? rcode : WSREP_ERR_ABORTED);
     }
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
     delete_or_keep_event_post_apply(thd->wsrep_rgi, typ, ev);
   }
 
  error:
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-  thd->set_wsrep_query_state(QUERY_IDLE);
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   assert(thd->wsrep_exec_mode== REPL_RECV);

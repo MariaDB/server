@@ -428,7 +428,7 @@ static bool some_non_temp_table_to_be_updated(THD *thd, TABLE_LIST *tables)
   @return 0     No implicit commit
   @return 1     Do a commit
 */
-bool stmt_causes_implicit_commit(THD *thd, uint mask)
+bool stmt_causes_implicit_commit(const THD *thd, uint mask)
 {
   LEX *lex= thd->lex;
   bool skip= FALSE;
@@ -2391,12 +2391,6 @@ com_multi_end:
       WSREP_LOG_THD(thd, "leave");
     }
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-    /*
-      Send response back to client
-     */
-    thd->update_server_status();
-    thd->protocol->end_statement();
-    query_cache_end_of_result(thd);
 
     /*
       Final check after sending response back to client. Handle possible
@@ -5861,19 +5855,18 @@ end_with_restore_list:
       thd->print_aborted_warning(3, "RELEASE");
     }
 #ifdef WITH_WSREP
-    if (WSREP(thd)) {
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-
-      bool send_ok= (thd->wsrep_conflict_state() == NO_CONFLICT ||
-                     thd->wsrep_conflict_state() == REPLAYING);
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    if (WSREP(thd) && (thd->wsrep_conflict_state() != NO_CONFLICT &&
+                       thd->wsrep_conflict_state() != REPLAYING))
+    {
+      DBUG_ASSERT(thd->is_error()); // the error is already issued
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-      if (send_ok)
-      {
-        my_ok(thd);
-      }
-    } else {
+    }
+    else
+    {
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 #endif /* WITH_WSREP */
-	my_ok(thd);
+      my_ok(thd);
 #ifdef WITH_WSREP
     }
 #endif /* WITH_WSREP */

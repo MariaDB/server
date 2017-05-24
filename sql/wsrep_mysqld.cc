@@ -741,6 +741,7 @@ static wsrep_cb_status_t wsrep_synced_cb(void* app_ctx)
 
   }
   wsrep_config_state->set(WSREP_MEMBER_SYNCED);
+  local_status.set(WSREP_MEMBER_SYNCED);
   mysql_mutex_unlock (&LOCK_wsrep_ready);
 
   if (signal_main)
@@ -1544,10 +1545,10 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
       goto err;
     }
   }
-  return 0;
+  return false;
 err:
     wsrep_keys_free(ka);
-    return 1;
+    return true;
 }
 
 
@@ -1571,6 +1572,7 @@ bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
     case 1:
     case 2:
     case 3:
+    case 4:
     {
         key[0].ptr = cache_key;
         key[0].len = strlen( (char*)cache_key );

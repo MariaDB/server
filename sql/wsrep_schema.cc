@@ -91,8 +91,8 @@ static int execute_SQL(THD* thd, const char* sql, uint length) {
   WSREP_DEBUG("SQL: %d %s thd: %lld", length, sql,
               (long long)thd->thread_id);
   if (parser_state.init(thd, (char*)sql, length) == 0) {
-    lex_start(thd);
     thd->reset_for_next_command();
+    lex_start(thd);
 
     thd->m_statement_psi= NULL;
 
@@ -112,6 +112,7 @@ static int execute_SQL(THD* thd, const char* sql, uint length) {
     thd->end_statement();
     thd->reset_query();
     close_thread_tables(thd);
+    delete_explain_query(thd->lex);
   }
   else {
     WSREP_WARN("SR init failure");
