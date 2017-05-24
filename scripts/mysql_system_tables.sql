@@ -133,8 +133,8 @@ SET @create_vtmd_template="CREATE TABLE IF NOT EXISTS vtmd_template (
 	start		BIGINT UNSIGNED GENERATED ALWAYS AS ROW START	COMMENT 'TRX_ID of table lifetime start',
 	end		BIGINT UNSIGNED GENERATED ALWAYS AS ROW END	COMMENT 'TRX_ID of table lifetime end',
 	name		VARCHAR(64) NOT NULL				COMMENT 'Table name during period [start, end)',
-	frm_image	BLOB NOT NULL					COMMENT 'Table structure during period [start, end)',
-	col_renames	BLOB						COMMENT 'Column name mapping from previous lifetime',
+	archive_name	VARCHAR(64) NULL				COMMENT 'Name of archive table',
+	col_renames	BLOB						COMMENT 'Column name mappings from previous lifetime',
 	PERIOD FOR SYSTEM_TIME(start, end),
 	PRIMARY KEY (end)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0 WITH SYSTEM VERSIONING";
