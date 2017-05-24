@@ -772,3 +772,33 @@ def					ROUND(11111111)	3	8	0	N	32897	0	63
 def					ROUND(111111111)	3	9	0	N	32897	0	63
 def					ROUND(1111111111)	8	10	0	N	32897	0	63
 ROUND(1)	ROUND(11)	ROUND(111)	ROUND(1111)	ROUND(11111)	ROUND(111111)	ROUND(1111111)	ROUND(11111111)	ROUND(111111111)	ROUND(1111111111)
+#
+# MDEV-12546 Wrong metadata or data type for string user variables
+#
+SET @a='test';
+SELECT @a;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					@a	251	16777215	4	Y	0	39	8
+@a
+test
+CREATE TABLE t1 AS SELECT @a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `@a` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SELECT @b1:=10, @b2:=@b2:=111111111111;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					@b1:=10	3	2	2	N	32897	0	63
+def					@b2:=@b2:=111111111111	8	12	12	N	32897	0	63
+@b1:=10	@b2:=@b2:=111111111111
+10	111111111111
+CREATE TABLE t1 AS SELECT @b1:=10, @b2:=111111111111;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `@b1:=10` int(2) NOT NULL,
+  `@b2:=111111111111` bigint(12) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

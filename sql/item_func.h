@@ -2242,9 +2242,9 @@ public:
     :Item_hybrid_func(thd, item),
     m_var_entry(item->m_var_entry), name(item->name) { }
   Field *create_tmp_field(bool group, TABLE *table)
-  { return Item::create_tmp_field(group, table); }
+  { return create_table_field_from_handler(table); }
   Field *create_field_for_create_select(TABLE *table)
-  { return Item::create_field_for_create_select(table); }
+  { return create_table_field_from_handler(table); }
   bool check_vcol_func_processor(void *arg);
 };
 
@@ -2347,14 +2347,6 @@ public:
   my_decimal *val_decimal(my_decimal*);
   String *val_str(String* str);
   void fix_length_and_dec();
-  Field *create_field_for_create_select(TABLE *table)
-  {
-    return Type_handler_hybrid_field_type::cmp_type() == STRING_RESULT ?
-      type_handler_long_blob.make_and_init_table_field(&(Item::name),
-                                                       Record_addr(maybe_null),
-                                                       *this, table) :
-      create_tmp_field(false, table);
-  }
   virtual void print(String *str, enum_query_type query_type);
   /*
     We must always return variables as strings to guard against selects of type

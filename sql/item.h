@@ -567,6 +567,15 @@ protected:
   SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param);
 
   /**
+    Create a field based on the exact data type handler.
+  */
+  Field *create_table_field_from_handler(TABLE *table)
+  {
+    const Type_handler *h= type_handler();
+    return h->make_and_init_table_field(&name, Record_addr(maybe_null),
+                                        *this, table);
+  }
+  /**
     Create a field based on field_type of argument.
     This is used to create a field for
     - IFNULL(x,something)

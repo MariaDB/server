@@ -465,3 +465,21 @@ SELECT
   ROUND(1111111111) LIMIT 0;
 
 --disable_metadata
+
+--echo #
+--echo # MDEV-12546 Wrong metadata or data type for string user variables
+--echo #
+SET @a='test';
+--enable_metadata
+SELECT @a;
+--disable_metadata
+CREATE TABLE t1 AS SELECT @a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--enable_metadata
+SELECT @b1:=10, @b2:=@b2:=111111111111;
+--disable_metadata
+CREATE TABLE t1 AS SELECT @b1:=10, @b2:=111111111111;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

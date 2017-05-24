@@ -4351,8 +4351,27 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     m_var_entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
                              default_charset() : args[0]->collation.collation);
   collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
-  set_handler_by_result_type(args[0]->result_type(),
-                             max_length, collation.collation);
+  switch (args[0]->result_type()) {
+  case STRING_RESULT:
+  case TIME_RESULT:
+    set_handler(type_handler_long_blob.
+                type_handler_adjusted_to_max_octet_length(max_length,
+                                                          collation.collation));
+    break;
+  case REAL_RESULT:
+    set_handler(&type_handler_double);
+    break;
+  case INT_RESULT:
+    set_handler(Type_handler::type_handler_long_or_longlong(max_char_length()));
+    break;
+  case DECIMAL_RESULT:
+    set_handler(&type_handler_newdecimal);
+    break;
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    set_handler(&type_handler_row);
+    break;
+  }
   if (thd->lex->current_select)
   {
     /*
@@ -5258,7 +5277,6 @@ void Item_func_get_user_var::fix_length_and_dec()
       break;
     case STRING_RESULT:
       max_length= MAX_BLOB_WIDTH - 1;
-      set_handler(&type_handler_medium_blob);
       break;
     case DECIMAL_RESULT:
       fix_char_length(DECIMAL_MAX_STR_LENGTH);
