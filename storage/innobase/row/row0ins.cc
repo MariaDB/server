@@ -3726,10 +3726,10 @@ row_ins_step(
 	it again here. But we must write trx->id to node->trx_id_buf. */
 
 	if (node->table->no_rollback()) {
-		/* No-rollback tables should only be accessed by a
-		single thread at a time. Concurrency control (mutual
-		exclusion) must be guaranteed by the SQL layer. */
-		DBUG_ASSERT(node->table->n_ref_count == 1);
+		/* No-rollback tables should only be written to by a
+		single thread at a time, but there can be multiple
+		concurrent readers. We must hold an open table handle. */
+		DBUG_ASSERT(node->table->n_ref_count > 0);
 		DBUG_ASSERT(node->ins_type == INS_DIRECT);
 		/* No-rollback tables can consist only of a single index. */
 		DBUG_ASSERT(UT_LIST_GET_LEN(node->entry_list) == 1);

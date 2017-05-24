@@ -1888,7 +1888,9 @@ row_update_for_mysql_using_upd_graph(
 
 	init_fts_doc_id_for_ref(table, &fk_depth);
 
-	trx_start_if_not_started_xa(trx, true);
+	if (!table->no_rollback()) {
+		trx_start_if_not_started_xa(trx, true);
+	}
 
 	if (dict_table_is_referenced_by_foreign_key(table)) {
 		/* Share lock the data dictionary to prevent any

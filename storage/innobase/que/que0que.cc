@@ -1031,6 +1031,7 @@ que_thr_step(
 	} else if (type == QUE_NODE_INSERT) {
 		thr = row_ins_step(thr);
 	} else if (type == QUE_NODE_UPDATE) {
+		trx_start_if_not_started_xa(thr_get_trx(thr), true);
 		thr = row_upd_step(thr);
 	} else if (type == QUE_NODE_FETCH) {
 		thr = fetch_step(thr);

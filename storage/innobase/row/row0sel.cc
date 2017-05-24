@@ -4481,8 +4481,6 @@ row_search_mvcc(
 	      || MVCC::is_view_active(trx->read_view)
 	      || srv_read_only_mode);
 
-	trx_start_if_not_started(trx, false);
-
 	if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
 	    && prebuilt->select_lock_type != LOCK_NONE
 	    && trx->mysql_thd != NULL
@@ -4533,9 +4531,14 @@ row_search_mvcc(
 			fputc('\n', stderr);
 			ut_error;
 		}
+	} else if (prebuilt->table->no_rollback()) {
+		/* NO_ROLLBACK tables do not support MVCC or locking. */
+		prebuilt->select_lock_type = LOCK_NONE;
+		prebuilt->sql_stat_start = FALSE;
 	} else if (prebuilt->select_lock_type == LOCK_NONE) {
 		/* This is a consistent read */
 		/* Assign a read view for the query */
+		trx_start_if_not_started(trx, false);
 
 		if (!srv_read_only_mode) {
 			trx_assign_read_view(trx);
@@ -4543,6 +4546,7 @@ row_search_mvcc(
 
 		prebuilt->sql_stat_start = FALSE;
 	} else {
+		trx_start_if_not_started(trx, false);
 wait_table_again:
 		err = lock_table(0, prebuilt->table,
 				 prebuilt->select_lock_type == LOCK_S
