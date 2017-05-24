@@ -184,9 +184,9 @@ command. */
 #define UNIV_ENABLE_UNIT_TEST_ROW_RAW_FORMAT_INT
 */
 
-#if defined HAVE_valgrind && defined HAVE_VALGRIND
+#if defined HAVE_valgrind && defined HAVE_VALGRIND_MEMCHECK_H
 # define UNIV_DEBUG_VALGRIND
-#endif /* HAVE_VALGRIND */
+#endif
 
 #ifdef DBUG_OFF
 # undef UNIV_DEBUG
