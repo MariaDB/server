@@ -18,7 +18,7 @@
 # so WSREP_VERSION is produced regardless
 
 # Set the patch version
-SET(WSREP_PATCH_VERSION "19")
+SET(WSREP_PATCH_VERSION "20")
 
 # MariaDB addition: Revision number of the last revision merged from
 # codership branch visible in @@visible_comment.
