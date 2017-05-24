@@ -82,3 +82,34 @@ ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this 
 delete from s1 where next_value > 0;
 ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this option
 drop sequence s1;
+#
+# SHOW TABLES
+#
+create sequence s1;
+create table t1 (a int);
+create view v1 as select * from s1;
+show full tables;
+Tables_in_test	Table_type
+s1	SEQUENCE
+t1	BASE TABLE
+v1	VIEW
+SELECT TABLE_TYPE,ENGINE FROM INFORMATION_SCHEMA.TABLES where table_schema="test";
+TABLE_TYPE	ENGINE
+SEQUENCE	MyISAM
+BASE TABLE	MyISAM
+VIEW	NULL
+drop table t1,s1;
+drop view v1;
+#
+# LOCK TABLES (as in mysqldump)
+#
+create sequence s1 engine=innodb;
+LOCK TABLES s1 READ;
+SELECT * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	0	0
+UNLOCK TABLES;
+LOCK TABLES s1 WRITE;
+insert into s1 values (1,1,9223372036854775806, 1, 1, 1000, 0, 0);
+UNLOCK TABLES;
+drop table s1;

@@ -65,3 +65,28 @@ update s1 set next_value=100;
 --error ER_ILLEGAL_HA
 delete from s1 where next_value > 0;
 drop sequence s1;
+
+--echo #
+--echo # SHOW TABLES
+--echo #
+
+create sequence s1;
+create table t1 (a int);
+create view v1 as select * from s1;
+show full tables;
+SELECT TABLE_TYPE,ENGINE FROM INFORMATION_SCHEMA.TABLES where table_schema="test";
+drop table t1,s1;
+drop view v1;
+
+--echo #
+--echo # LOCK TABLES (as in mysqldump)
+--echo #
+
+create sequence s1 engine=innodb;
+LOCK TABLES s1 READ;
+SELECT * from s1;
+UNLOCK TABLES;
+LOCK TABLES s1 WRITE;
+insert into s1 values (1,1,9223372036854775806, 1, 1, 1000, 0, 0);
+UNLOCK TABLES;
+drop table s1;

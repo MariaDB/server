@@ -1,0 +1,41 @@
+CREATE SEQUENCE a1 engine=aria;
+CREATE TABLE t1(a INT, KEY (a)) KEY_BLOCK_SIZE=1024;
+insert into t1 values (1),(2);
+CREATE SEQUENCE x1 engine=innodb;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `a1` (
+  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
+  `min_value` bigint(21) NOT NULL COMMENT 'min value',
+  `max_value` bigint(21) NOT NULL COMMENT 'max value',
+  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache` bigint(21) NOT NULL COMMENT 'cache size',
+  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
+  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+) ENGINE=Aria SEQUENCE=1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `a1` VALUES (1,1,9223372036854775806,1,1,1000,0,0);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=1024;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES (1),(2);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `x1` (
+  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
+  `min_value` bigint(21) NOT NULL COMMENT 'min value',
+  `max_value` bigint(21) NOT NULL COMMENT 'max value',
+  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache` bigint(21) NOT NULL COMMENT 'cache size',
+  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
+  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+) ENGINE=InnoDB SEQUENCE=1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `x1` VALUES (1,1,9223372036854775806,1,1,1000,0,0);
+DROP TABLE a1,t1,x1;
