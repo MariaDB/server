@@ -9445,13 +9445,11 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                  alter_info->keys_onoff,
                                  &alter_ctx))
     {
-      if (versioned && new_versioned && thd->variables.vers_ddl_survival)
+      if (table->versioned_by_sql() && new_versioned &&
+          thd->variables.vers_ddl_survival)
       {
-        if (table->versioned_by_sql())
-        {
-          // Failure of this function may result in corruption of an original table.
-          vers_reset_alter_copy(thd, table);
-        }
+        // Failure of this function may result in corruption of an original table.
+        vers_reset_alter_copy(thd, table);
       }
       goto err_new_table_cleanup;
     }
