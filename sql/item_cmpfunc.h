@@ -1467,8 +1467,6 @@ public:
   virtual int cmp(Item *item)= 0;
   // for optimized IN with row
   virtual int compare(cmp_item *item)= 0;
-  static cmp_item* get_comparator(Item_result type, Item * warn_item,
-                                  CHARSET_INFO *cs);
   virtual cmp_item *make_same()= 0;
   virtual void store_value_by_template(THD *thd, cmp_item *tmpl, Item *item)
   {
