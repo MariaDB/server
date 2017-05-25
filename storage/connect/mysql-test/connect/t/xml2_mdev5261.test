@@ -1,23 +1,27 @@
+--source have_libxml2.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
 SET NAMES utf8;
+
+#
+#--echo Testing indexing on not indexable table type
+#
+--error ER_UNKNOWN_ERROR
 CREATE TABLE t1 (i INT UNIQUE NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='Rownode=N';
-ERROR HY000: Table type XML is not indexable
 CREATE TABLE t1 (i INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='Rownode=N';
 DESCRIBE t1;
-Field	Type	Null	Key	Default	Extra
-i	int(11)	NO		NULL	
+# one could *add* an index to an existing table
+--error ER_UNKNOWN_ERROR
 ALTER TABLE t1 ADD UNIQUE(i);
-ERROR HY000: Table type XML is not indexable
+--error ER_UNKNOWN_ERROR
 CREATE UNIQUE INDEX i ON t1(i);
-ERROR HY000: Table type XML is not indexable
 DESCRIBE t1;
-Field	Type	Null	Key	Default	Extra
-i	int(11)	NO		NULL	
 INSERT INTO t1 VALUES(2),(5),(7);
 SELECT * FROM t1 WHERE i = 5;
-i
-5
+--error ER_CANT_DROP_FIELD_OR_KEY
 ALTER TABLE t1 DROP INDEX i;
-ERROR 42000: Can't DROP INDEX `i`; check that it exists
+--error ER_CANT_DROP_FIELD_OR_KEY
 DROP INDEX i ON t1;
-ERROR 42000: Can't DROP INDEX `i`; check that it exists
 DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/xt1.xml

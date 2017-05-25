@@ -1,6 +1,4 @@
-Warnings:
-Warning	1105	No file name. Table will use t1.xml
-create table t1 (i int) engine=Connect table_type=XML;
+create table t1 (i int) engine=Connect table_type=XML option_list='xmlsup=domdoc';
 Warnings:
 Warning	1105	No file name. Table will use t1.xml
 select * from information_schema.tables where create_options like '%table_type=XML%';

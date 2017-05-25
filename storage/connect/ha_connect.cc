@@ -6199,7 +6199,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     // Note that if no support is specified, the default is MS-DOM
     // on Windows and libxml2 otherwise
-    switch (*xsup) {
+    switch (toupper(*xsup)) {
       case '*':
 #if defined(__WIN__)
         dom= true;

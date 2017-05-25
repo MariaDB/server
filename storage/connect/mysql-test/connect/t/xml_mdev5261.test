@@ -1,4 +1,4 @@
---source have_libxml2.inc
+--source windows.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
