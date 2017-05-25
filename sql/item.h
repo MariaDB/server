@@ -636,11 +636,6 @@ protected:
     return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
   }
 
-  const Type_handler *type_handler_long_or_longlong() const
-  {
-    return Type_handler::type_handler_long_or_longlong(max_char_length());
-  }
-
 public:
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
@@ -1655,7 +1650,15 @@ public:
   // used in row subselects to get value of elements
   virtual void bring_value() {}
 
-  virtual Field *create_tmp_field(bool group, TABLE *table);
+  const Type_handler *type_handler_long_or_longlong() const
+  {
+    return Type_handler::type_handler_long_or_longlong(max_char_length());
+  }
+
+  virtual Field *create_tmp_field(bool group, TABLE *table)
+  {
+    return tmp_table_field_from_field_type(table);
+  }
 
   virtual Item_field *field_for_view_update() { return 0; }
 

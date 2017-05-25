@@ -272,3 +272,24 @@ $$
 DELIMITER ;$$
 CALL p1();
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12916 Wrong column data type for an INT field of a cursor-anchored ROW variable
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a INT DEFAULT 10;
+  CURSOR cur1 IS SELECT a;
+  rec1 cur1%ROWTYPE;
+BEGIN
+  CREATE TABLE t1 AS SELECT rec1.a;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;

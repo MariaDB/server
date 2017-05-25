@@ -15879,7 +15879,7 @@ Field *Item::create_tmp_field_int(TABLE *table, uint convert_int_length)
 }
 
 
-Field *Item::create_tmp_field(bool group, TABLE *table)
+Field *Item_sum::create_tmp_field(bool group, TABLE *table)
 {
   Field *UNINIT_VAR(new_field);
   MEM_ROOT *mem_root= table->in_use->mem_root;
@@ -15892,7 +15892,6 @@ Field *Item::create_tmp_field(bool group, TABLE *table)
     break;
   }
   case INT_RESULT:
-    return create_tmp_field_int(table, MY_INT32_NUM_DECIMAL_DIGITS - 2);
   case TIME_RESULT:
   case DECIMAL_RESULT:
   case STRING_RESULT:
@@ -15909,6 +15908,22 @@ Field *Item::create_tmp_field(bool group, TABLE *table)
   return new_field;
 }
 
+
+static void create_tmp_field_from_item_finalize(THD *thd,
+                                                Field *new_field,
+                                                Item *item,
+                                                Item ***copy_func,
+                                                bool modify_item)
+{
+  if (copy_func &&
+      (item->is_result_field() ||
+       (item->real_item()->is_result_field())))
+    *((*copy_func)++) = item;			// Save for copy_funcs
+  if (modify_item)
+    item->set_result_field(new_field);
+  if (item->type() == Item::NULL_ITEM)
+    new_field->is_created_from_null_item= TRUE;
+}
 
 
 /**
@@ -15940,16 +15955,9 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
 {
   Field *UNINIT_VAR(new_field);
   DBUG_ASSERT(thd == table->in_use);
-  new_field= item->Item::create_tmp_field(false, table);
-    
-  if (copy_func &&
-      (item->is_result_field() || 
-       (item->real_item()->is_result_field())))
-    *((*copy_func)++) = item;			// Save for copy_funcs
-  if (modify_item)
-    item->set_result_field(new_field);
-  if (item->type() == Item::NULL_ITEM)
-    new_field->is_created_from_null_item= TRUE;
+  if ((new_field= item->create_tmp_field(false, table)))
+    create_tmp_field_from_item_finalize(thd, new_field, item,
+                                        copy_func, modify_item);
   return new_field;
 }
 
@@ -16024,6 +16032,8 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   Item::Type orig_type= type;
   Item *orig_item= 0;
 
+  DBUG_ASSERT(thd == table->in_use);
+
   if (type != Item::FIELD_ITEM &&
       item->real_item()->type() == Item::FIELD_ITEM)
   {
@@ -16082,9 +16092,14 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
     else if (table_cant_handle_bit_fields && field->field->type() ==
              MYSQL_TYPE_BIT)
     {
+      const Type_handler *handler= item->type_handler_long_or_longlong();
       *from_field= field->field;
-      result= create_tmp_field_from_item(thd, item, table, copy_func,
-                                         modify_item);
+      if ((result=
+             handler->make_and_init_table_field(&item->name,
+                                                Record_addr(item->maybe_null),
+                                                *item, table)))
+        create_tmp_field_from_item_finalize(thd, result, item,
+                                            copy_func, modify_item);
       if (result && modify_item)
         field->result_field= result;
     }

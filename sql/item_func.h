@@ -169,11 +169,7 @@ public:
   void signal_divide_by_null();
   friend class udf_handler;
   Field *create_field_for_create_select(TABLE *table)
-  {
-    return result_type() != STRING_RESULT ?
-           Item::create_tmp_field(false, table) :
-           tmp_table_field_from_field_type(table);
-  }
+  { return tmp_table_field_from_field_type(table); }
   Item *get_tmp_table_item(THD *thd);
 
   my_decimal *val_decimal(my_decimal *);
@@ -396,10 +392,6 @@ public:
     :Item_func(thd, item), Type_handler_hybrid_field_type(item) { }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
   Field::geometry_type get_geometry_type() const
   { return Type_geometry_attributes::get_geometry_type(); };
   void set_geometry_type(uint type)
@@ -740,10 +732,6 @@ public:
   double val_real();
   String *val_str(String*str);
   const Type_handler *type_handler() const= 0;
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
   void fix_length_and_dec() {}
 };
 
