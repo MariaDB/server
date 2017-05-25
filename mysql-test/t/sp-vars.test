@@ -1492,6 +1492,10 @@ DROP PROCEDURE vctest;
 --echo # Start of 10.3 tests
 --echo #
 
+--echo #
+--echo # MDEV-12876 Wrong data type for CREATE..SELECT sp_var
+--echo #
+
 DELIMITER $$;
 CREATE PROCEDURE p1()
 BEGIN
@@ -1514,4 +1518,21 @@ DELIMITER ;$$
 CALL p1;
 DESCRIBE t1;
 DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-12917 Wrong data type for CREATE..SELECT year_sp_variable
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a YEAR;
+  CREATE OR REPLACE TABLE t1 AS SELECT a;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
 DROP PROCEDURE p1;
