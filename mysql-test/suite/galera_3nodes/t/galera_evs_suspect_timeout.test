@@ -59,9 +59,9 @@ DROP TABLE t1;
 --source include/galera_resume.inc
 --source include/wait_until_connected_again.inc
 
-CALL mtr.add_suppression("WSREP: gcs_caused() returned -1 \\(Operation not permitted\\)");
-
 --disable_query_log
 --eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_node3';
 --enable_query_log
---source include/wait_until_connected_again.inc
+--source include/galera_wait_ready.inc
+
+CALL mtr.add_suppression("WSREP: gcs_caused() returned -1 \\(Operation not permitted\\)");

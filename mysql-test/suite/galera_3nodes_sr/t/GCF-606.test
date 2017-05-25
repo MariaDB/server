@@ -47,7 +47,8 @@ SET WSREP_ON=ON;
 # Confirm that node_1 has no transactions in SR table
 #
 
-SELECT COUNT(DISTINCT node_uuid) = 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(DISTINCT node_uuid) = 0 FROM wsrep_schema.SR;
+--source include/wait_condition.inc
 
 #
 # Restore cluster

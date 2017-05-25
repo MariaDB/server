@@ -8,9 +8,6 @@ INSERT INTO t1 VALUES (22);
 INSERT INTO t1 VALUES (23);
 INSERT INTO t1 VALUES (24);
 SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
-SELECT COUNT(DISTINCT node_uuid) = 0 FROM wsrep_schema.SR;
-COUNT(DISTINCT node_uuid) = 0
-1
 SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
 SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
 COUNT(DISTINCT node_uuid) = 1

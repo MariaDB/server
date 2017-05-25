@@ -550,6 +550,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
 //remove      if (wsrep_uuid_compare(&local_uuid, &WSREP_UUID_UNDEFINED) == 0)
       if (view->memb_num == 1)
       {
+        wsrep_set_SE_checkpoint(WSREP_UUID_UNDEFINED, WSREP_SEQNO_UNDEFINED);
 //remove        assert(WSREP_SEQNO_UNDEFINED == local_seqno);
         wsrep_set_SE_checkpoint(cluster_uuid, view->state_id.seqno);
       }
