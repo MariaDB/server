@@ -5,6 +5,7 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+CALL mtr.add_suppression("WSREP: .*conflict state . after post commit .*");
 CREATE TABLE t1 (f1 INTEGER, f2 CHAR(20) DEFAULT 'abc') ENGINE=InnoDB;
 
 # We start with a populated table
@@ -41,7 +42,8 @@ DELIMITER ;|
 #
 
 --connection node_2
---let $count = 10
+CALL mtr.add_suppression("WSREP: Failed to report last committed .*");
+--let $count = 200
 while ($count)
 {
 	--let $signature = `SELECT LEFT(MD5(RAND()), 10)`

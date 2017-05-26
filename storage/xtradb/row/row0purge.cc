@@ -777,7 +777,7 @@ row_purge_parse_undo_rec(
 		goto err_exit;
 	}
 
-	if (node->table->ibd_file_missing) {
+	if (node->table->file_unreadable) {
 		/* We skip purge of missing .ibd files */
 
 		dict_table_close(node->table, FALSE, FALSE);

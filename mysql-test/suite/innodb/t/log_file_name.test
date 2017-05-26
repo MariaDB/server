@@ -170,6 +170,7 @@ call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`.`u[1-3]` becaus
 call mtr.add_suppression("InnoDB: Failed to find tablespace for table .* in the cache. Attempting to load the tablespace with space id");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' \(init function returned error\|registration as a STORAGE ENGINE failed\)");
+call mtr.add_suppression("InnoDB: Table test/u[123] in the InnoDB data dictionary has tablespace id [1-9][0-9]*, but tablespace with that id or name does not exist\\. Have you deleted or moved \\.ibd files\\?");
 FLUSH TABLES;
 --enable_query_log
 
@@ -265,7 +266,6 @@ let SEARCH_PATTERN= \[Warning\] InnoDB: Tablespace \d+ was not found at .*u[1-5]
 
 DROP TABLE u1,u2,u3,u6;
 
---remove_file $MYSQLD_DATADIR/test/u1.ibd
 --echo # List of files:
 --list_files $MYSQLD_DATADIR/test
 

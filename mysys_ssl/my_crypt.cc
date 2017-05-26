@@ -1,6 +1,6 @@
 /*
  Copyright (c) 2014 Google Inc.
- Copyright (c) 2014, 2015 MariaDB Corporation
+ Copyright (c) 2014, 2017 MariaDB Corporation
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -17,52 +17,60 @@
 
 #include <my_global.h>
 #include <string.h>
-#include <my_crypt.h>
 
 #ifdef HAVE_YASSL
 #include "yassl.cc"
 #else
-
 #include <openssl/evp.h>
 #include <openssl/aes.h>
 #include <openssl/err.h>
-
-#ifdef HAVE_ERR_remove_thread_state
-#define ERR_remove_state(X) ERR_remove_thread_state(NULL)
+#include <openssl/rand.h>
 #endif
 
-#endif
+#include <my_crypt.h>
+#include <ssl_compat.h>
 
 class MyCTX
 {
 public:
-  EVP_CIPHER_CTX ctx;
-  MyCTX() { EVP_CIPHER_CTX_init(&ctx); }
-  virtual ~MyCTX() { EVP_CIPHER_CTX_cleanup(&ctx); ERR_remove_state(0); }
+  char ctx_buf[EVP_CIPHER_CTX_SIZE];
+  EVP_CIPHER_CTX *ctx;
+
+  MyCTX()
+  {
+    ctx= (EVP_CIPHER_CTX *)ctx_buf;
+    EVP_CIPHER_CTX_init(ctx);
+  }
+  virtual ~MyCTX()
+  {
+    EVP_CIPHER_CTX_cleanup(ctx);
+    ERR_remove_state(0);
+  }
 
   virtual int init(const EVP_CIPHER *cipher, int encrypt, const uchar *key,
                    uint klen, const uchar *iv, uint ivlen)
   {
+    compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX));
     if (unlikely(!cipher))
       return MY_AES_BAD_KEYSIZE;
 
-    if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, encrypt))
+    if (!EVP_CipherInit_ex(ctx, cipher, NULL, key, iv, encrypt))
       return MY_AES_OPENSSL_ERROR;
 
-    DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)klen);
-    DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) <= (int)ivlen);
+    DBUG_ASSERT(EVP_CIPHER_CTX_key_length(ctx) == (int)klen);
+    DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(ctx) <= (int)ivlen);
 
     return MY_AES_OK;
   }
   virtual int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
   {
-    if (!EVP_CipherUpdate(&ctx, dst, (int*)dlen, src, slen))
+    if (!EVP_CipherUpdate(ctx, dst, (int*)dlen, src, slen))
       return MY_AES_OPENSSL_ERROR;
     return MY_AES_OK;
   }
   virtual int finish(uchar *dst, uint *dlen)
   {
-    if (!EVP_CipherFinal_ex(&ctx, dst, (int*)dlen))
+    if (!EVP_CipherFinal_ex(ctx, dst, (int*)dlen))
       return MY_AES_BAD_DATA;
     return MY_AES_OK;
   }
@@ -72,7 +80,8 @@ class MyCTX_nopad : public MyCTX
 {
 public:
   const uchar *key;
-  int klen;
+  uint klen, buf_len;
+  uchar oiv[MY_AES_BLOCK_SIZE];
 
   MyCTX_nopad() : MyCTX() { }
   ~MyCTX_nopad() { }
@@ -83,32 +92,48 @@ public:
     compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX_nopad));
     this->key= key;
     this->klen= klen;
+    this->buf_len= 0;
+    memcpy(oiv, iv, ivlen);
+    DBUG_ASSERT(ivlen == 0 || ivlen == sizeof(oiv));
+
     int res= MyCTX::init(cipher, encrypt, key, klen, iv, ivlen);
-    memcpy(ctx.oiv, iv, ivlen); // in ECB mode OpenSSL doesn't do that itself
-    EVP_CIPHER_CTX_set_padding(&ctx, 0);
+
+    EVP_CIPHER_CTX_set_padding(ctx, 0);
     return res;
+  }
+
+  int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
+  {
+    buf_len+= slen;
+    return MyCTX::update(src, slen, dst, dlen);
   }
 
   int finish(uchar *dst, uint *dlen)
   {
-    if (ctx.buf_len)
+    buf_len %= MY_AES_BLOCK_SIZE;
+    if (buf_len)
     {
+      uchar *buf= EVP_CIPHER_CTX_buf_noconst(ctx);
       /*
         Not much we can do, block ciphers cannot encrypt data that aren't
         a multiple of the block length. At least not without padding.
         Let's do something CTR-like for the last partial block.
+
+        NOTE this assumes that there are only buf_len bytes in the buf.
+        If OpenSSL will change that, we'll need to change the implementation
+        of this class too.
       */
       uchar mask[MY_AES_BLOCK_SIZE];
       uint mlen;
 
       my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
-                   ctx.oiv, sizeof(mask), mask, &mlen, key, klen, 0, 0);
+                   oiv, sizeof(mask), mask, &mlen, key, klen, 0, 0);
       DBUG_ASSERT(mlen == sizeof(mask));
 
-      for (int i=0; i < ctx.buf_len; i++)
-        dst[i]= ctx.buf[i] ^ mask[i];
+      for (uint i=0; i < buf_len; i++)
+        dst[i]= buf[i] ^ mask[i];
     }
-    *dlen= ctx.buf_len;
+    *dlen= buf_len;
     return MY_AES_OK;
   }
 };
@@ -152,7 +177,7 @@ public:
   {
     compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX_gcm));
     int res= MyCTX::init(cipher, encrypt, key, klen, iv, ivlen);
-    int real_ivlen= EVP_CIPHER_CTX_iv_length(&ctx);
+    int real_ivlen= EVP_CIPHER_CTX_iv_length(ctx);
     aad= iv + real_ivlen;
     aadlen= ivlen - real_ivlen;
     return res;
@@ -166,18 +191,18 @@ public:
       before decrypting the data. it can encrypt data piecewise, like, first
       half, then the second half, but it must decrypt all at once
     */
-    if (!ctx.encrypt)
+    if (!EVP_CIPHER_CTX_encrypting(ctx))
     {
       /* encrypted string must contain authenticaton tag (see MDEV-11174) */
       if (slen < MY_AES_BLOCK_SIZE)
         return MY_AES_BAD_DATA;
       slen-= MY_AES_BLOCK_SIZE;
-      if(!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_SET_TAG, MY_AES_BLOCK_SIZE,
+      if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, MY_AES_BLOCK_SIZE,
                               (void*)(src + slen)))
         return MY_AES_OPENSSL_ERROR;
     }
     int unused;
-    if (aadlen && !EVP_CipherUpdate(&ctx, NULL, &unused, aad, aadlen))
+    if (aadlen && !EVP_CipherUpdate(ctx, NULL, &unused, aad, aadlen))
       return MY_AES_OPENSSL_ERROR;
     aadlen= 0;
     return MyCTX::update(src, slen, dst, dlen);
@@ -186,13 +211,13 @@ public:
   int finish(uchar *dst, uint *dlen)
   {
     int fin;
-    if (!EVP_CipherFinal_ex(&ctx, dst, &fin))
+    if (!EVP_CipherFinal_ex(ctx, dst, &fin))
       return MY_AES_BAD_DATA;
     DBUG_ASSERT(fin == 0);
 
-    if (ctx.encrypt)
+    if (EVP_CIPHER_CTX_encrypting(ctx))
     {
-      if(!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_GET_TAG, MY_AES_BLOCK_SIZE, dst))
+      if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, MY_AES_BLOCK_SIZE, dst))
         return MY_AES_OPENSSL_ERROR;
       *dlen= MY_AES_BLOCK_SIZE;
     }
@@ -260,13 +285,42 @@ int my_aes_crypt(enum my_aes_mode mode, int flags,
 {
   void *ctx= alloca(MY_AES_CTX_SIZE);
   int res1, res2;
-  uint d1, d2;
+  uint d1= 0, d2;
   if ((res1= my_aes_crypt_init(ctx, mode, flags, key, klen, iv, ivlen)))
     return res1;
   res1= my_aes_crypt_update(ctx, src, slen, dst, &d1);
   res2= my_aes_crypt_finish(ctx, dst + d1, &d2);
-  *dlen= d1 + d2;
+  if (res1 || res2)
+    ERR_remove_state(0); /* in case of failure clear error queue */
+  else
+    *dlen= d1 + d2;
   return res1 ? res1 : res2;
+}
+
+
+/*
+  calculate the length of the cyphertext from the length of the plaintext
+  for different AES encryption modes with padding enabled.
+  Without padding (ENCRYPTION_FLAG_NOPAD) cyphertext has the same length
+  as the plaintext
+*/
+unsigned int my_aes_get_size(enum my_aes_mode mode __attribute__((unused)), unsigned int source_length)
+{
+#ifdef HAVE_EncryptAes128Ctr
+  if (mode == MY_AES_CTR)
+    return source_length;
+#ifdef HAVE_EncryptAes128Gcm
+  if (mode == MY_AES_GCM)
+    return source_length + MY_AES_BLOCK_SIZE;
+#endif
+#endif
+  return (source_length / MY_AES_BLOCK_SIZE + 1) * MY_AES_BLOCK_SIZE;
+}
+
+
+unsigned int my_aes_ctx_size(enum my_aes_mode)
+{
+  return MY_AES_CTX_SIZE;
 }
 
 #ifdef HAVE_YASSL
@@ -278,17 +332,10 @@ int my_random_bytes(uchar* buf, int num)
   return MY_AES_OK;
 }
 #else
-#include <openssl/rand.h>
 
 int my_random_bytes(uchar *buf, int num)
 {
-  /*
-    Unfortunately RAND_bytes manual page does not provide any guarantees
-    in relation to blocking behavior. Here we explicitly use SSLeay random
-    instead of whatever random engine is currently set in OpenSSL. That way
-    we are guaranteed to have a non-blocking random.
-  */
-  RAND_METHOD *rand = RAND_SSLeay();
+  RAND_METHOD *rand = RAND_OpenSSL();
   if (rand == NULL || rand->bytes(buf, num) != 1)
     return MY_AES_OPENSSL_ERROR;
   return MY_AES_OK;

@@ -406,7 +406,7 @@ select 3 from t1 ;
 --disable_abort_on_error ONCE
 garbage;
 --disable_abort_on_error ONCE
---remove_file DoesNotExist
+--remove_file $MYSQLTEST_VARDIR/DoesNotExist
 
 --disable_result_log
 select 2;
@@ -1939,8 +1939,6 @@ remove_file $MYSQLTEST_VARDIR/tmp/zero_length_file.result;
 remove_file $MYSQLTEST_VARDIR/tmp/zero_length_file.reject;
 --error 0,1
 remove_file $MYSQLTEST_VARDIR/tmp/zero_length_file.log;
---error 0,1
-remove_file $MYSQL_TEST_DIR/r/zero_length_file.reject;
 --enable_warnings
 
 #
@@ -2083,9 +2081,11 @@ drop table t1;
 --let $patt= /a /b / /less/more/
 --replace_regex $patt
 select "a is a and less is more" as txt;
+--replace_regex $patt /and /or /
+select "a is a and less is more" as txt2;
 --let $patt=
 --replace_regex $patt
-select "a is a and less is more" as txt;
+select "a is a and less is more" as txt3;
 --enable_query_log
 
 #
@@ -2193,7 +2193,7 @@ drop table t1;
 --exec echo "remove_file ;" | $MYSQL_TEST 2>&1
 
 --error 1
-remove_file non_existing_file;
+remove_file $MYSQLTEST_VARDIR/non_existing_file;
 --enable_warnings
 
 # ----------------------------------------------------------------------------
@@ -2204,10 +2204,10 @@ remove_file non_existing_file;
 --exec echo "remove_files_wildcard ;" | $MYSQL_TEST 2>&1
 
 --error 1
-remove_files_wildcard non_existing_dir;
+remove_files_wildcard $MYSQLTEST_VARDIR/non_existing_dir;
 
 --error 1
-remove_files_wildcard non_existing_dir non_existing_file;
+remove_files_wildcard $MYSQLTEST_VARDIR/non_existing_dir non_existing_file;
 
 # ----------------------------------------------------------------------------
 # test for write_file
@@ -2216,7 +2216,7 @@ remove_files_wildcard non_existing_dir non_existing_file;
 --exec echo "write_file ;" | $MYSQL_TEST 2>&1
 
 --error 1
---exec echo "write_file filename ;" | $MYSQL_TEST 2>&1
+--exec echo "write_file $MYSQLTEST_VARDIR/filename ;" | $MYSQL_TEST 2>&1
 
 # Comment out this test as it confuses cmd.exe with unmatched "
 #--error 1
@@ -2462,19 +2462,19 @@ remove_file $MYSQLTEST_VARDIR/tmp/file1.tmp;
 --exec echo "chmod ;" | $MYSQL_TEST 2>&1
 
 --error 1
---exec echo "chmod 0 from_file;" | $MYSQL_TEST 2>&1
+--exec echo "chmod 0 $MYSQLTEST_VARDIR/from_file;" | $MYSQL_TEST 2>&1
 
 --error 1
---exec echo "chmod 08 from_file;" | $MYSQL_TEST 2>&1
+--exec echo "chmod 08 $MYSQLTEST_VARDIR/from_file;" | $MYSQL_TEST 2>&1
 
 --error 1
---exec echo "chmod from_file;" | $MYSQL_TEST 2>&1
+--exec echo "chmod $MYSQLTEST_VARDIR/from_file;" | $MYSQL_TEST 2>&1
 
 --error 1
---exec echo "chmod ABZD from_file;" | $MYSQL_TEST 2>&1
+--exec echo "chmod ABZD $MYSQLTEST_VARDIR/from_file;" | $MYSQL_TEST 2>&1
 
 --error 1
---exec echo "chmod 06789 from_file;" | $MYSQL_TEST 2>&1
+--exec echo "chmod 06789 $MYSQLTEST_VARDIR/from_file;" | $MYSQL_TEST 2>&1
 
 
 # ----------------------------------------------------------------------------
@@ -2875,8 +2875,6 @@ list_files_append_file $MYSQLTEST_VARDIR/tmp/testdir/file2.txt $MYSQLTEST_VARDIR
 list_files_write_file $MYSQLTEST_VARDIR/tmp/testdir/file2.txt $MYSQLTEST_VARDIR/tmp/testdir file?.txt;
 list_files_append_file $MYSQLTEST_VARDIR/tmp/testdir/file3.txt $MYSQLTEST_VARDIR/tmp/testdir file*.txt;
 diff_files $MYSQLTEST_VARDIR/tmp/testdir/file2.txt $MYSQLTEST_VARDIR/tmp/testdir/file3.txt;
---error 1
-rmdir $MYSQLTEST_VARDIR/tmp/testdir;
 
 cat_file $MYSQLTEST_VARDIR/tmp/testdir/file3.txt;
 

@@ -812,9 +812,8 @@ buf_page_is_zeroes(
 	const byte*		read_buf,
 	const page_size_t&	page_size);
 
-/** Checks if a page is corrupt.
-@param[in]	check_lsn	true if we need to check and complain about
-the LSN
+/** Check if a page is corrupt.
+@param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
 @param[in]	page_size	page size
 @param[in]	space		tablespace
@@ -824,8 +823,8 @@ buf_page_is_corrupted(
 	bool			check_lsn,
 	const byte*		read_buf,
 	const page_size_t&	page_size,
-	const fil_space_t* 	space = NULL
-) MY_ATTRIBUTE((warn_unused_result));
+	const fil_space_t* 	space = NULL)
+	MY_ATTRIBUTE((warn_unused_result));
 #ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a
@@ -1249,7 +1248,7 @@ buf_pointer_is_block_field(
 #define buf_pool_is_block_lock(l)			\
 	buf_pointer_is_block_field((const void*)(l))
 
-/** Inits a page for read to the buffer buf_pool. If the page is
+/** Initialize a page for read to the buffer buf_pool. If the page is
 (1) already in buf_pool, or
 (2) if we specify to read only ibuf pages and the page is not an ibuf page, or
 (3) if the space is deleted or being deleted,
@@ -1260,26 +1259,33 @@ and the lock released later.
 @param[out]	err			DB_SUCCESS or DB_TABLESPACE_DELETED
 @param[in]	mode			BUF_READ_IBUF_PAGES_ONLY, ...
 @param[in]	page_id			page id
-@param[in]	unzip			TRUE=request uncompressed page
-@return pointer to the block or NULL */
+@param[in]	unzip			whether the uncompressed page is
+					requested (for ROW_FORMAT=COMPRESSED)
+@return pointer to the block
+@retval	NULL	in case of an error */
 buf_page_t*
 buf_page_init_for_read(
 	dberr_t*		err,
 	ulint			mode,
 	const page_id_t&	page_id,
 	const page_size_t&	page_size,
-	ibool			unzip);
+	bool			unzip);
 
-/********************************************************************//**
-Completes an asynchronous read or write request of a file page to or from
-the buffer pool.
-@return true if successful */
-bool
-buf_page_io_complete(
-/*=================*/
-	buf_page_t*	bpage,	/*!< in: pointer to the block in question */
-	bool		evict = false);/*!< in: whether or not to evict
-				the page from LRU list. */
+/** Complete a read or write request of a file page to or from the buffer pool.
+@param[in,out]		bpage		Page to complete
+@param[in]		evict		whether or not to evict the page
+					from LRU list.
+@return whether the operation succeeded
+@retval	DB_SUCCESS		always when writing, or if a read page was OK
+@retval	DB_PAGE_CORRUPTED	if the checksum fails on a page read
+@retval	DB_DECRYPTION_FAILED	if page post encryption checksum matches but
+				after decryption normal page checksum does
+				not match */
+UNIV_INTERN
+dberr_t
+buf_page_io_complete(buf_page_t* bpage, bool evict = false)
+	MY_ATTRIBUTE((nonnull));
+
 /********************************************************************//**
 Calculates the index of a buffer pool to the buf_pool[] array.
 @return the position of the buffer pool in buf_pool[] */
@@ -1586,7 +1592,6 @@ public:
 					if written again we check is TRIM
 					operation needed. */
 
-	unsigned        key_version;	/*!< key version for this block */
 	bool            encrypted;	/*!< page is still encrypted */
 
 	ulint           real_size;	/*!< Real size of the page

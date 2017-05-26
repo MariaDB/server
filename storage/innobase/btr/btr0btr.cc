@@ -169,8 +169,7 @@ btr_root_block_get(
 
 	if (!block) {
 		if (index && index->table) {
-			index->table->is_encrypted = TRUE;
-			index->table->corrupted = FALSE;
+			index->table->file_unreadable = true;
 
 			ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
 				"Table %s in tablespace %lu is encrypted but encryption service or"
@@ -183,6 +182,7 @@ btr_root_block_get(
 	}
 
 	btr_assert_not_corrupted(block, index);
+
 #ifdef UNIV_BTR_DEBUG
 	if (!dict_index_is_ibuf(index)) {
 		const page_t*	root = buf_block_get_frame(block);
@@ -713,7 +713,7 @@ btr_page_free_low(
 		* pages should be possible
 		*/
 		uint cnt = 0;
-		uint bytes = 0;
+		ulint bytes = 0;
 		page_t* page = buf_block_get_frame(block);
 		mem_heap_t* heap = NULL;
 		ulint* offsets = NULL;
@@ -731,7 +731,7 @@ btr_page_free_low(
 #ifdef UNIV_DEBUG_SCRUBBING
 		fprintf(stderr,
 			"btr_page_free_low: scrub %lu/%lu - "
-			"%u records %u bytes\n",
+			"%u records " ULINTPF " bytes\n",
 			buf_block_get_space(block),
 			buf_block_get_page_no(block),
 			cnt, bytes);
@@ -1991,10 +1991,9 @@ btr_root_raise_and_insert(
 		longer is a leaf page. (Older versions of InnoDB did
 		set PAGE_MAX_TRX_ID on all secondary index pages.) */
 		if (root_page_zip) {
-			page_zip_write_header(
-				root_page_zip,
-				PAGE_HEADER + PAGE_MAX_TRX_ID
-				+ root, 0, mtr);
+			byte* p = PAGE_HEADER + PAGE_MAX_TRX_ID + root;
+			memset(p, 0, 8);
+			page_zip_write_header(root_page_zip, p, 8, mtr);
 		} else {
 			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID
 				       + root, 0, mtr);
@@ -2004,10 +2003,9 @@ btr_root_raise_and_insert(
 		root page; on other clustered index pages, we want to reserve
 		the field PAGE_MAX_TRX_ID for future use. */
 		if (new_page_zip) {
-			page_zip_write_header(
-				new_page_zip,
-				PAGE_HEADER + PAGE_MAX_TRX_ID
-				+ new_page, 0, mtr);
+			byte* p = PAGE_HEADER + PAGE_MAX_TRX_ID + new_page;
+			memset(p, 0, 8);
+			page_zip_write_header(new_page_zip, p, 8, mtr);
 		} else {
 			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID
 				       + new_page, 0, mtr);
@@ -5418,7 +5416,7 @@ btr_validate_index(
 
 	page_t*	root = btr_root_get(index, &mtr);
 
-	if (root == NULL && index->table->is_encrypted) {
+	if (root == NULL && !index->is_readable()) {
 		err = DB_DECRYPTION_FAILED;
 		mtr_commit(&mtr);
 		return err;

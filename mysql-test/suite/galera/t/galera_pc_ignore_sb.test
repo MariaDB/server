@@ -20,6 +20,7 @@ SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
 --source include/kill_galera.inc
 
 --connection node_1
+--sleep 2
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 DROP TABLE t1;

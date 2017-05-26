@@ -1538,21 +1538,6 @@ dict_max_field_len_store_undo(
 }
 
 /********************************************************************//**
-Check whether the table is corrupted.
-@return	nonzero for corrupted table, zero for valid tables */
-UNIV_INLINE
-ulint
-dict_table_is_corrupted(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	ut_ad(table);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	return(table->corrupted);
-}
-
-/********************************************************************//**
 Check whether the index is corrupted.
 @return	nonzero for corrupted index, zero for valid indexes */
 UNIV_INLINE
@@ -1564,7 +1549,7 @@ dict_index_is_corrupted(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return((index->type & DICT_CORRUPT)
-	       || (index->table && index->table->corrupted));
+	        || (index->table && index->table->corrupted));
 }
 
 /********************************************************************//**

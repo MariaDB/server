@@ -1,49 +1,88 @@
 --source include/have_innodb.inc
 # embedded does not support restart
 -- source include/not_embedded.inc
--- source include/not_valgrind.inc
-# Avoid CrashReporter popup on Mac
--- source include/not_crashrep.inc
 -- source filekeys_plugin_exists.inc
 #
 # MDEV-8750: Server crashes in page_cur_is_after_last on altering table using a wrong encryption key
+# MDEV-8769: Server crash at file btr0btr.ic line 122 when defragmenting encrypted table using incorrect keys
+# MDEV-8768: Server crash at file btr0btr.ic line 122 when checking encrypted table using incorrect keys
+# MDEV-8727: Server/InnoDB hangs on shutdown after trying to read an encrypted table with a wrong key
 #
-call mtr.add_suppression("InnoDB: The page .* in file test/t1 cannot be decrypted");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t1(new)?\\.ibd' cannot be decrypted\\.");
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
+call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as discarded\\.");
 
---write_file $MYSQLTEST_VARDIR/keys1.txt
-1;770A8A65DA156D24EE2A093277530142
-4;770A8A65DA156D24EE2A093277530143
-EOF
-
---let $restart_parameters= --innodb-encrypt-tables --innodb-stats-persistent --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt
+--let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
-CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(8)) ENGINE=InnoDB ENCRYPTION_KEY_ID=4;
+SET GLOBAL innodb_file_per_table = ON;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(8)) ENGINE=InnoDB
+ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
 INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
 
---write_file $MYSQLTEST_VARDIR/keys2.txt
-1;770A8A65DA156D24EE2A093277530142
-4;770A8A65DA156D24EE2A093277530144
+--let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+--source include/restart_mysqld.inc
+
+--error ER_GET_ERRMSG
+SELECT * FROM t1;
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+SHOW WARNINGS;
+--error ER_GET_ERRMSG
+ALTER TABLE t1 ENGINE=InnoDB;
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+SHOW WARNINGS;
+OPTIMIZE TABLE t1;
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+SHOW WARNINGS;
+
+CHECK TABLE t1;
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+SHOW WARNINGS;
+
+--let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+--source include/restart_mysqld.inc
+
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+
+FLUSH TABLES t1 FOR EXPORT;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+UNLOCK TABLES;
+
+--let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+--source include/restart_mysqld.inc
+
+# Discard should pass even with incorrect keys
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
 EOF
 
---let $restart_parameters= --innodb-encrypt-tables --innodb-stats-persistent --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys2.txt
+
+--let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
---error ER_GET_ERRMSG
-select * from t1;
-show warnings;
---error ER_GET_ERRMSG
-alter table t1 discard tablespace;
-show warnings;
---error ER_GET_ERRMSG
-alter table t1 engine=InnoDB;
-show warnings;
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
 
---let $restart_parameters= --innodb-encrypt-tables --innodb-stats-persistent --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt
+--let $restart_parameters= --innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
-DROP TABLE t1;
---remove_file $MYSQLTEST_VARDIR/keys1.txt
---remove_file $MYSQLTEST_VARDIR/keys2.txt
+# Rename table should pass even with incorrect keys
+RENAME TABLE t1 TO t1new;
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+
+# Alter table rename is not allowed with incorrect keys
+--error ER_GET_ERRMSG
+ALTER TABLE t1new RENAME TO t2new;
+# Drop should pass even with incorrect keys
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+DROP TABLE t1new;

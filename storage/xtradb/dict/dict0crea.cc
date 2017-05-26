@@ -692,7 +692,7 @@ dict_create_index_tree_step(
 	dberr_t		err = DB_SUCCESS;
 	ulint		zip_size = dict_table_zip_size(index->table);
 
-	if (node->index->table->ibd_file_missing
+	if (node->index->table->file_unreadable
 	    || dict_table_is_discarded(node->index->table)) {
 
 		node->page_no = FIL_NULL;

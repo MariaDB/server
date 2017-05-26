@@ -1,23 +1,56 @@
-call mtr.add_suppression("InnoDB: The page .* in file test/t1 cannot be decrypted");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t1(new)?\\.ibd' cannot be decrypted\\.");
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
-CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(8)) ENGINE=InnoDB ENCRYPTION_KEY_ID=4;
+call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as discarded\\.");
+SET GLOBAL innodb_file_per_table = ON;
+CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(8)) ENGINE=InnoDB
+ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
 INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
-select * from t1;
+SELECT * FROM t1;
 ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
-show warnings;
+SHOW WARNINGS;
 Level	Code	Message
-Warning	192	Table test/t1 is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
-Warning	192	Table test/t1 is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
+Warning	192	Table test/t1 in tablespace  is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
+Warning	192	Table t1 in file ./test/t1.ibd is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
 Error	1296	Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
-alter table t1 discard tablespace;
+ALTER TABLE t1 ENGINE=InnoDB;
 ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
-show warnings;
+SHOW WARNINGS;
 Level	Code	Message
+Warning	192	Table t1 in file ./test/t1.ibd is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
 Error	1296	Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
-alter table t1 engine=InnoDB;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	Warning	Table t1 in file ./test/t1.ibd is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
+test.t1	optimize	Error	Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
+test.t1	optimize	error	Corrupt
+SHOW WARNINGS;
+Level	Code	Message
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	Table t1 in file ./test/t1.ibd is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
+test.t1	check	Error	Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
+test.t1	check	error	Corrupt
+SHOW WARNINGS;
+Level	Code	Message
+FLUSH TABLES t1 FOR EXPORT;
+backup: t1
+UNLOCK TABLES;
+ALTER TABLE t1 DISCARD TABLESPACE;
+Warnings:
+Warning	192	Table test/t1 in tablespace  is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
+Warning	1812	Tablespace is missing for table 'test/t1'
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t1`
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) NOT NULL,
+  `f` varchar(8) DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=4
+RENAME TABLE t1 TO t1new;
+ALTER TABLE t1new RENAME TO t2new;
 ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
-show warnings;
-Level	Code	Message
-Warning	192	Table test/t1 is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
-Error	1296	Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
-DROP TABLE t1;
+DROP TABLE t1new;

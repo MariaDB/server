@@ -36,73 +36,12 @@ set current_num = current_num + 1;
 end while;
 end//
 commit;
-set autocommit=0;
-call innodb_insert_proc(5000);
-commit;
-set autocommit=1;
+begin;
+call innodb_insert_proc(2000);
 insert into innodb_compact select * from innodb_normal;
 insert into innodb_dynamic select * from innodb_normal;
-update innodb_normal set c1 = c1 + 1;
-update innodb_compact set c1 = c1 + 1;
-update innodb_dynamic set c1 = c1 + 1;
-select count(*) from innodb_normal;
-count(*)
-5000
-select count(*) from innodb_compact where c1 < 1500000;
-count(*)
-5000
-select count(*) from innodb_dynamic where c1 < 1500000;
-count(*)
-5000
-select count(*) from innodb_compact t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-count(*)
-5000
-select count(*) from innodb_dynamic t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-count(*)
-5000
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-variable_value >= 0
-1
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
-variable_value >= 0
-1
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_compressed';
-variable_value >= 0
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decompressed';
-variable_value >= 0
+commit;
 set global innodb_compression_algorithm = 1;
-update innodb_normal set c1 = c1 + 1;
-update innodb_compact set c1 = c1 + 1;
-update innodb_dynamic set c1 = c1 + 1;
-select count(*) from innodb_normal;
-count(*)
-5000
-select count(*) from innodb_compact where c1 < 1500000;
-count(*)
-5000
-select count(*) from innodb_dynamic where c1 < 1500000;
-count(*)
-5000
-select count(*) from innodb_compact t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-count(*)
-5000
-select count(*) from innodb_dynamic t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-count(*)
-5000
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-variable_value >= 0
-1
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
-variable_value >= 0
-1
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_compressed';
-variable_value >= 0
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decompressed';
-variable_value >= 0
 alter table innodb_normal engine=innodb page_compressed=DEFAULT;
 show create table innodb_normal;
 Table	Create Table
@@ -124,54 +63,6 @@ innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
-show create table innodb_normal;
-Table	Create Table
-innodb_normal	CREATE TABLE `innodb_normal` (
-  `c1` bigint(20) NOT NULL,
-  `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
-show create table innodb_compact;
-Table	Create Table
-innodb_compact	CREATE TABLE `innodb_compact` (
-  `c1` bigint(20) NOT NULL,
-  `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
-show create table innodb_dynamic;
-Table	Create Table
-innodb_dynamic	CREATE TABLE `innodb_dynamic` (
-  `c1` bigint(20) NOT NULL,
-  `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
-update innodb_normal set c1 = c1 + 1;
-update innodb_compact set c1 = c1 + 1;
-update innodb_dynamic set c1 = c1 + 1;
-select count(*) from innodb_normal;
-count(*)
-5000
-select count(*) from innodb_compact where c1 < 1500000;
-count(*)
-5000
-select count(*) from innodb_dynamic where c1 < 1500000;
-count(*)
-5000
-select count(*) from innodb_compact t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-count(*)
-5000
-select count(*) from innodb_dynamic t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-count(*)
-5000
-SELECT variable_value = 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-variable_value = 0
-1
-SELECT variable_value = 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
-variable_value = 0
-1
-SELECT variable_value = 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_compressed';
-variable_value = 0
-SELECT variable_value = 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decompressed';
-variable_value = 0
 drop procedure innodb_insert_proc;
 drop table innodb_normal;
 drop table innodb_compact;

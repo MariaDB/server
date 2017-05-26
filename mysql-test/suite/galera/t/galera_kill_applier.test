@@ -6,8 +6,8 @@
 --source include/have_innodb.inc
 
 --connection node_1
-
---let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND NOT STATE <=> 'wsrep aborter idle' AND STATE NOT LIKE 'InnoDB%' LIMIT 1`
+--sleep 1
+--let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE IS NULL LIMIT 1`
 
 --disable_query_log
 --error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR

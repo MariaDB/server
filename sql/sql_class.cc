@@ -1985,7 +1985,7 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         if (!thd_table->needs_reopen())
         {
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-          if (this && WSREP(this) && wsrep_thd_is_BF(this, FALSE))
+          if (WSREP(this) && wsrep_thd_is_BF(this, FALSE))
           {
             WSREP_DEBUG("remove_table_from_cache: %llu",
                         (unsigned long long) this->real_id);
@@ -4106,16 +4106,12 @@ my_bool thd_net_is_killed()
 
 void thd_increment_bytes_received(void *thd, ulong length)
 {
-  if (unlikely(!thd))                           // Called from federatedx
-    thd= current_thd;
   ((THD*) thd)->status_var.bytes_received+= length;
 }
 
 
 void thd_increment_net_big_packet_count(void *thd, ulong length)
 {
-  if (unlikely(!thd))                           // Called from federatedx
-    thd= current_thd;
   ((THD*) thd)->status_var.net_big_packet_count+= length;
 }
 

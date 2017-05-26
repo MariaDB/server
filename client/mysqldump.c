@@ -2211,7 +2211,6 @@ static void print_comment(FILE *sql_file, my_bool is_error, const char *format,
   print_xml_comment(sql_file, strlen(comment_buff), comment_buff);
 }
 
-
 /*
  create_delimiter
  Generate a new (null-terminated) string that does not exist in  query 
@@ -2556,7 +2555,7 @@ static uint dump_routines_for_db(char *db)
                           query_buff);
             print_comment(sql_file, 1,
                           "-- does %s have permissions on mysql.proc?\n\n",
-                          current_user);
+                          fix_for_comment(current_user));
             maybe_die(EX_MYSQLERR,"%s has insufficent privileges to %s!",
                       current_user, query_buff);
           }

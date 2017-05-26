@@ -3674,7 +3674,7 @@ row_log_apply(
 
 	rw_lock_x_lock(dict_index_get_lock(index));
 
-	if (!dict_table_is_corrupted(index->table)) {
+	if (!index->table->corrupted) {
 		error = row_log_apply_ops(trx, index, &dup);
 	} else {
 		error = DB_SUCCESS;

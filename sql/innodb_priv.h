@@ -28,6 +28,7 @@ void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
 uint strconvert(CHARSET_INFO *from_cs, const char *from, uint from_length,
                 CHARSET_INFO *to_cs, char *to, uint to_length,
                 uint *errors);
+
 void sql_print_error(const char *format, ...);
 
 #define thd_binlog_pos(X, Y, Z) mysql_bin_log_commit_pos(X, Z, Y)

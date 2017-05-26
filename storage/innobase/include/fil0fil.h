@@ -733,11 +733,26 @@ MY_ATTRIBUTE((warn_unused_result));
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
+@param[in]	silent	whether to silently ignore missing tablespaces
 @return	the tablespace
 @retval	NULL if missing or being deleted or truncated */
+UNIV_INTERN
+fil_space_t*
+fil_space_acquire_low(ulint id, bool silent)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Acquire a tablespace when it could be dropped concurrently.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
+@return	the tablespace
+@retval	NULL if missing or being deleted or truncated */
+inline
 fil_space_t*
 fil_space_acquire(ulint id)
-	MY_ATTRIBUTE((warn_unused_result));
+{
+	return (fil_space_acquire_low(id, false));
+}
 
 /** Acquire a tablespace that may not exist.
 Used by background threads that do not necessarily hold proper locks
@@ -745,9 +760,12 @@ for concurrency control.
 @param[in]	id	tablespace ID
 @return	the tablespace
 @retval	NULL if missing or being deleted */
+inline
 fil_space_t*
 fil_space_acquire_silent(ulint id)
-	MY_ATTRIBUTE((warn_unused_result));
+{
+	return (fil_space_acquire_low(id, true));
+}
 
 /** Release a tablespace acquired with fil_space_acquire().
 @param[in,out]	space	tablespace to release  */
@@ -803,9 +821,10 @@ public:
 
 	/** Constructor: Look up the tablespace and increment the
 	reference count if found.
-	@param[in]	space_id	tablespace ID */
-	explicit FilSpace(ulint space_id)
-		: m_space(fil_space_acquire(space_id)) {}
+	@param[in]	space_id	tablespace ID
+	@param[in]	silent		whether not to display errors */
+	explicit FilSpace(ulint space_id, bool silent = false)
+		: m_space(fil_space_acquire_low(space_id, silent)) {}
 
 	/** Assignment operator: This assumes that fil_space_acquire()
 	has already been done for the fil_space_t. The caller must
@@ -1044,7 +1063,7 @@ fil_ibd_create(
 	ulint		flags,
 	ulint		size,
 	fil_encryption_t mode,
-	ulint		key_id)
+	uint32_t	key_id)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
@@ -1506,13 +1525,6 @@ fil_mtr_rename_log(
 #define fil_system_enter()	mutex_enter(&fil_system->mutex)
 /** Release the fil_system mutex. */
 #define fil_system_exit()	mutex_exit(&fil_system->mutex)
-
-/*******************************************************************//**
-Returns the table space by a given id, NULL if not found. */
-fil_space_t*
-fil_space_found_by_id(
-/*==================*/
-	ulint	id);	/*!< in: space id */
 
 /*******************************************************************//**
 Returns the table space by a given id, NULL if not found. */

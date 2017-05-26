@@ -185,6 +185,7 @@ my @DEFAULT_SUITES= qw(
     innodb_zip-
     json-
     maria-
+    mariabackup-
     multi_source-
     optimizer_unfixed_bugs-
     parts-
@@ -2280,6 +2281,11 @@ sub environment_setup {
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
 
+  my $client_config_exe=
+    native_path("$bindir/libmariadb/mariadb_config$opt_vs_config/mariadb_config");
+  my $tls_info= `$client_config_exe --tlsinfo`;
+  ($ENV{CLIENT_TLS_LIBRARY},$ENV{CLIENT_TLS_LIBRARY_VERSION})=
+    split(/ /, $tls_info, 2);
   my $exe_mysqld= find_mysqld($basedir);
   $ENV{'MYSQLD'}= $exe_mysqld;
   my $extra_opts= join (" ", @opt_extra_mysqld_opt);
@@ -2793,13 +2799,10 @@ sub mysql_server_start($) {
     if (! $opt_start_dirty)	# If dirty, keep possibly grown system db
     {
       # Copy datadir from installed system db
-      for my $path ( "$opt_vardir", "$opt_vardir/..") {
-        my $install_db= "$path/install.db";
-        copytree($install_db, $datadir)
-          if -d $install_db;
-      }
-      mtr_error("Failed to copy system db to '$datadir'")
-        unless -d $datadir;
+      my $path= ($opt_parallel == 1) ? "$opt_vardir" : "$opt_vardir/..";
+      my $install_db= "$path/install.db";
+      copytree($install_db, $datadir) if -d $install_db;
+      mtr_error("Failed to copy system db to '$datadir'") unless -d $datadir;
     }
   }
   else

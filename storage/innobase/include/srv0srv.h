@@ -57,15 +57,13 @@ Created 10/10/1995 Heikki Tuuri
 #include "ut0counter.h"
 #include "fil0fil.h"
 
-struct fil_space_t;
-
-/* Global counters used inside InnoDB. */
-struct srv_stats_t {
+/** Global counters used inside InnoDB. */
+struct srv_stats_t
+{
 	typedef ib_counter_t<ulint, 64> ulint_ctr_64_t;
-	typedef ib_counter_t<lsn_t, 1, single_indexer_t> lsn_ctr_1_t;
-	typedef ib_counter_t<ulint, 1, single_indexer_t> ulint_ctr_1_t;
-	typedef ib_counter_t<lint, 1, single_indexer_t> lint_ctr_1_t;
-	typedef ib_counter_t<int64_t, 1, single_indexer_t> int64_ctr_1_t;
+	typedef simple_counter<lsn_t> lsn_ctr_1_t;
+	typedef simple_counter<ulint> ulint_ctr_1_t;
+	typedef simple_counter<int64_t> int64_ctr_1_t;
 
 	/** Count the amount of data written in total (in bytes) */
 	ulint_ctr_1_t		data_written;
@@ -82,8 +80,9 @@ struct srv_stats_t {
 	/** Amount of data written to the log files in bytes */
 	lsn_ctr_1_t		os_log_written;
 
-	/** Number of writes being done to the log files */
-	lint_ctr_1_t		os_log_pending_writes;
+	/** Number of writes being done to the log files.
+	Protected by log_sys->write_mutex. */
+	ulint_ctr_1_t		os_log_pending_writes;
 
 	/** We increase this counter, when we don't have enough
 	space in the log buffer and have to flush it */
@@ -141,7 +140,7 @@ struct srv_stats_t {
 	ulint_ctr_1_t		n_lock_wait_count;
 
 	/** Number of threads currently waiting on database locks */
-	lint_ctr_1_t		n_lock_wait_current_count;
+	simple_counter<ulint, true> n_lock_wait_current_count;
 
 	/** Number of rows read. */
 	ulint_ctr_64_t		n_rows_read;

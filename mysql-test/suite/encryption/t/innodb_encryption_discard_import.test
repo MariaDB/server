@@ -3,11 +3,7 @@
 -- source include/not_valgrind.inc
 -- source include/not_embedded.inc
 
-call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
-call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
-
-let $MYSQLD_TMPDIR = `SELECT @@tmpdir`;
-let $MYSQLD_DATADIR = `SELECT @@datadir`;
+let MYSQLD_DATADIR = `SELECT @@datadir`;
 
 --let SEARCH_RANGE = 10000000
 --let $id = `SELECT RAND()`
@@ -59,7 +55,6 @@ set autocommit=1;
 -- let SEARCH_FILE=$t3_IBD
 -- source include/search_pattern_in_file.inc
 
-let MYSQLD_DATADIR =`SELECT @@datadir`;
 --list_files $MYSQLD_DATADIR/test
 FLUSH TABLES t1, t2, t3 FOR EXPORT;
 perl;

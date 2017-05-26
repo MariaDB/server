@@ -45,16 +45,3 @@ galera_lock_table   : MDEV-11229
 GAL-480 : Investigate
 galera_fk_no_pk :Investigate
 galera_account_management : Investigate
-galera.galera_var_retry_autocommit : MDEV-12319 #Sparodic Faliure
-galera.galera_gcs_fc_limit : MDEV-12319 #Sparodic Faliure
-galera.galera_toi_ddl_nonconflicting : MDEV-12319 #Sparodic Faliure
-galera.mysql-wsrep#198 : MDEV-12319 #Sparodic Faliure
-galera.galera_pc_ignore_sb : MDEV-12319 #Sparodic Faliure
-galera.MW-329 : MDEV-12319 #Sparodic Faliure
-galera.galera_ist_recv_bind : MDEV-12319 #Failed to start mysqld
-galera.galera_ist_restart_joiner : MDEV-12319 #Failed to start mysqld
-galera.galera_ssl_compression : MDEV-12319 #Failed to start mysqld
-galera.galera_wan : MDEV-12319 #Failed to start mysqld
-galera.rpl_row_annotate : MDEV-12319 #Failed to start mysqld
-galera_restart_on_unknown_option : Solve
-galera_kill_applier : Investigate; problem introduced in merge from 10.1

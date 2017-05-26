@@ -1,6 +1,0 @@
---source include/have_rocksdb.inc
-
---let $sys_var=ROCKSDB_USE_DIRECT_WRITES
---let $read_only=1
---let $session=0
---source include/rocksdb_sys_var.inc

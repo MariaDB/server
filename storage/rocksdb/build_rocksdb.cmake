@@ -143,7 +143,9 @@ set(LIBS ${ROCKSDB_LIBS} ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 # Main library source code
 
 set(ROCKSDB_SOURCES
-        db/auto_roll_logger.cc
+        cache/clock_cache.cc
+        cache/lru_cache.cc
+        cache/sharded_cache.cc
         db/builder.cc
         db/c.cc
         db/column_family.cc
@@ -152,19 +154,23 @@ set(ROCKSDB_SOURCES
         db/compaction_iterator.cc
         db/compaction_job.cc
         db/compaction_picker.cc
+        db/compaction_picker_universal.cc
         db/convenience.cc
-        db/dbformat.cc
         db/db_filesnapshot.cc
         db/db_impl.cc
+        db/db_impl_write.cc
+        db/db_impl_compaction_flush.cc
+        db/db_impl_files.cc
+        db/db_impl_open.cc
         db/db_impl_debug.cc
         db/db_impl_experimental.cc
         db/db_impl_readonly.cc
         db/db_info_dumper.cc
         db/db_iter.cc
+        db/dbformat.cc
         db/event_helpers.cc
-        db/external_sst_file_ingestion_job.cc
         db/experimental.cc
-        db/filename.cc
+        db/external_sst_file_ingestion_job.cc
         db/file_indexer.cc
         db/flush_job.cc
         db/flush_scheduler.cc
@@ -174,7 +180,6 @@ set(ROCKSDB_SOURCES
         db/log_writer.cc
         db/managed_iterator.cc
         db/memtable.cc
-        db/memtable_allocator.cc
         db/memtable_list.cc
         db/merge_helper.cc
         db/merge_operator.cc
@@ -192,11 +197,33 @@ set(ROCKSDB_SOURCES
         db/write_batch_base.cc
         db/write_controller.cc
         db/write_thread.cc
+        env/env.cc
+        env/env_chroot.cc
+        env/env_hdfs.cc
+        env/memenv.cc
         memtable/hash_cuckoo_rep.cc
         memtable/hash_linklist_rep.cc
         memtable/hash_skiplist_rep.cc
+        memtable/memtable_allocator.cc
         memtable/skiplistrep.cc
         memtable/vectorrep.cc
+        monitoring/histogram.cc
+        monitoring/histogram_windowing.cc
+        monitoring/instrumented_mutex.cc
+        monitoring/iostats_context.cc
+        monitoring/perf_context.cc
+        monitoring/perf_level.cc
+        monitoring/statistics.cc
+        monitoring/thread_status_impl.cc
+        monitoring/thread_status_updater.cc
+        monitoring/thread_status_util.cc
+        monitoring/thread_status_util_debug.cc
+        options/cf_options.cc
+        options/db_options.cc
+        options/options.cc
+        options/options_helper.cc
+        options/options_parser.cc
+        options/options_sanity_check.cc
         port/stack_trace.cc
         table/adaptive_table_factory.cc
         table/block.cc
@@ -214,65 +241,47 @@ set(ROCKSDB_SOURCES
         table/format.cc
         table/full_filter_block.cc
         table/get_context.cc
+        table/index_builder.cc
         table/iterator.cc
         table/merging_iterator.cc
-        table/sst_file_writer.cc
         table/meta_blocks.cc
+        table/partitioned_filter_block.cc
+        table/persistent_cache_helper.cc
         table/plain_table_builder.cc
         table/plain_table_factory.cc
         table/plain_table_index.cc
         table/plain_table_key_coding.cc
         table/plain_table_reader.cc
-        table/persistent_cache_helper.cc
+        table/sst_file_writer.cc
         table/table_properties.cc
         table/two_level_iterator.cc
-        tools/sst_dump_tool.cc
         tools/db_bench_tool.cc
         tools/dump/db_dump_tool.cc
+        tools/ldb_cmd.cc
+        tools/ldb_tool.cc
+        tools/sst_dump_tool.cc
         util/arena.cc
+        util/auto_roll_logger.cc
         util/bloom.cc
-        util/cf_options.cc
-        util/clock_cache.cc
         util/coding.cc
         util/compaction_job_stats_impl.cc
         util/comparator.cc
         util/concurrent_arena.cc
         util/crc32c.cc
-        util/db_options.cc
         util/delete_scheduler.cc
         util/dynamic_bloom.cc
-        util/env.cc
-        util/env_chroot.cc
-        util/env_hdfs.cc
         util/event_logger.cc
-        util/file_util.cc
         util/file_reader_writer.cc
-        util/sst_file_manager_impl.cc
+        util/file_util.cc
+        util/filename.cc
         util/filter_policy.cc
         util/hash.cc
-        util/histogram.cc
-        util/histogram_windowing.cc
-        util/instrumented_mutex.cc
-        util/iostats_context.cc
-        
-        util/lru_cache.cc
-        tools/ldb_cmd.cc
-        tools/ldb_tool.cc
-        util/logging.cc
         util/log_buffer.cc
-        util/memenv.cc
         util/murmurhash.cc
-        util/options.cc
-        util/options_helper.cc
-        util/options_parser.cc
-        util/options_sanity_check.cc
-        util/perf_context.cc
-        util/perf_level.cc
         util/random.cc
         util/rate_limiter.cc
-        util/sharded_cache.cc
         util/slice.cc
-        util/statistics.cc
+        util/sst_file_manager_impl.cc
         util/status.cc
         util/status_message.cc
         util/string_util.cc
@@ -280,29 +289,29 @@ set(ROCKSDB_SOURCES
         util/testutil.cc
         util/thread_local.cc
         util/threadpool_imp.cc
-        util/thread_status_impl.cc
-        util/thread_status_updater.cc
-        util/thread_status_util.cc
-        util/thread_status_util_debug.cc
         util/transaction_test_util.cc
         util/xxhash.cc
         utilities/backupable/backupable_db.cc
         utilities/blob_db/blob_db.cc
-        utilities/checkpoint/checkpoint.cc
+        utilities/checkpoint/checkpoint_impl.cc
+        utilities/col_buf_decoder.cc
+        utilities/col_buf_encoder.cc
+        utilities/column_aware_encoding_util.cc
         utilities/compaction_filters/remove_emptyvalue_compactionfilter.cc
         utilities/date_tiered/date_tiered_db_impl.cc
         utilities/document/document_db.cc
         utilities/document/json_document.cc
         utilities/document/json_document_builder.cc
         utilities/env_mirror.cc
+        utilities/env_timed.cc
         utilities/geodb/geodb_impl.cc
         utilities/leveldb_options/leveldb_options.cc
         utilities/lua/rocks_lua_compaction_filter.cc
         utilities/memory/memory_util.cc
+        utilities/merge_operators/max.cc
+        utilities/merge_operators/put.cc
         utilities/merge_operators/string_append/stringappend.cc
         utilities/merge_operators/string_append/stringappend2.cc
-        utilities/merge_operators/put.cc
-        utilities/merge_operators/max.cc
         utilities/merge_operators/uint64add.cc
         utilities/option_change_migration/option_change_migration.cc
         utilities/options/options_util.cc
@@ -315,20 +324,17 @@ set(ROCKSDB_SOURCES
         utilities/simulator_cache/sim_cache.cc
         utilities/spatialdb/spatial_db.cc
         utilities/table_properties_collectors/compact_on_deletion_collector.cc
-        utilities/transactions/optimistic_transaction_impl.cc
         utilities/transactions/optimistic_transaction_db_impl.cc
+        utilities/transactions/optimistic_transaction_impl.cc
         utilities/transactions/transaction_base.cc
-        utilities/transactions/transaction_impl.cc
         utilities/transactions/transaction_db_impl.cc
         utilities/transactions/transaction_db_mutex_impl.cc
+        utilities/transactions/transaction_impl.cc
         utilities/transactions/transaction_lock_mgr.cc
         utilities/transactions/transaction_util.cc
         utilities/ttl/db_ttl_impl.cc
         utilities/write_batch_with_index/write_batch_with_index.cc
         utilities/write_batch_with_index/write_batch_with_index_internal.cc
-        utilities/col_buf_encoder.cc
-        utilities/col_buf_decoder.cc
-        utilities/column_aware_encoding_util.cc
 )
 
 if(WIN32)
@@ -343,8 +349,8 @@ if(WIN32)
 else()
   list(APPEND ROCKSDB_SOURCES
     port/port_posix.cc
-    util/env_posix.cc
-    util/io_posix.cc)
+    env/env_posix.cc
+    env/io_posix.cc)
 endif()
 SET(SOURCES)
 FOREACH(s ${ROCKSDB_SOURCES})

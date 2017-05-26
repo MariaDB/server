@@ -6,6 +6,11 @@
 CALL mtr.add_suppression("Aborting");
 CALL mtr.add_suppression("unknown option '--galera-unknown-option'");
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 #
 # We should count the number of "Assertion failed" warnings
 # in the log file before and after testing. To do this we need
@@ -125,6 +130,7 @@ SELECT * FROM t1;
 --connection node_1
 
 DROP TABLE t1;
+--source include/auto_increment_offset_restore.inc
 
 #
 # We should count the number of "Assertion failed" warnings

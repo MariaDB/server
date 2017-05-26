@@ -129,8 +129,8 @@ DROP TABLE t1;
 CREATE TABLE t1 (c1 TEXT);
 CREATE VIEW v1 AS SELECT CONCAT(c1,'') AS c1, NULL AS c2 FROM t1;
 LOAD XML INFILE '../../std_data/loaddata/mdev12696.xml' INTO TABLE v1 (c1);
-ERROR HY000: Invalid column reference (v1.c1) in LOAD DATA
+ERROR HY000: Column 'c1' is not updatable
 LOAD XML INFILE '../../std_data/loaddata/mdev12696.xml' INTO TABLE v1 (c2);
-ERROR HY000: Invalid column reference (v1.c2) in LOAD DATA
+ERROR HY000: Column 'c2' is not updatable
 DROP VIEW v1;
 DROP TABLE t1;

@@ -10,5 +10,12 @@
 #
 ##############################################################################
 
-innodb_defragment_fill_factor : MDEV-10771
-innodb_bug14147491            : MDEV-12253 ut_ad(buf_pool->n_pend_reads > 0)
+innodb_defragment_fill_factor : MDEV-11336 Fix and enable innodb_defragment
+innodb.defrag_mdl-9155 : MDEV-11336 Fix and enable innodb_defragment
+innodb.innodb_defrag_concurrent : MDEV-11336 Fix and enable innodb_defragment
+innodb.innodb_defrag_stats : MDEV-11336 Fix and enable innodb_defragment
+innodb.innodb_defrag_stats_many_tables : MDEV-11336 Fix and enable innodb_defragment
+innodb.innodb_defragment : MDEV-11336 Fix and enable innodb_defragment
+innodb.innodb_defragment_fill_factor : MDEV-11336 Fix and enable innodb_defragment
+innodb.innodb_defragment_small : MDEV-11336 Fix and enable innodb_defragment
+innodb.innodb_defrag_binlog : MDEV-11336 Fix and enable innodb_defragment

@@ -3900,6 +3900,18 @@ SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user WHERE password_expired = 
 
 set join_cache_level=default;
 
+#
+# MDEV-12580 Wrong query result in join when using an index (Version > "10.2.3")
+#
+create table t1 (c1 date not null, key (c1)) engine=innodb;
+insert t1 values ('2017-12-27');
+create table t2 (pk int, f1 int, f2 int);
+insert t2 values (4,1,1), (6,1,1);
+set join_buffer_size = 222222208;
+select f2 from t2,t1 where f2 = 0;
+drop table t1, t2;
+set join_buffer_size = default;
+
 # The following command must be the last one the file 
 # this must be the last command in the file
 set @@optimizer_switch=@save_optimizer_switch;

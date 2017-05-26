@@ -9662,6 +9662,8 @@ binlog_background_thread(void *arg __attribute__((unused)))
     {
       THD_STAGE_INFO(thd, stage_binlog_processing_checkpoint_notify);
       DEBUG_SYNC(thd, "binlog_background_thread_before_mark_xid_done");
+      /* Set the thread start time */
+      thd->set_time();
       /* Grab next pointer first, as mark_xid_done() may free the element. */
       next= queue->next_in_queue;
       mysql_bin_log.mark_xid_done(queue->binlog_id, true);

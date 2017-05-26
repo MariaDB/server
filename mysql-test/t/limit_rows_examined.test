@@ -489,7 +489,6 @@ GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 120;
 
 FLUSH STATUS;
---error 1028
 SELECT a AS field1, alias2.d AS field2, alias2.f AS field3, alias2.e AS field4, b AS field5
 FROM t1, t2 AS alias2, t2 AS alias3 
 WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 ) 

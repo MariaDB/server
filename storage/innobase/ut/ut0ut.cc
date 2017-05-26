@@ -285,26 +285,21 @@ ut_sprintf_timestamp(
 Runs an idle loop on CPU. The argument gives the desired delay
 in microseconds on 100 MHz Pentium + Visual C++.
 @return dummy value */
-ulint
+void
 ut_delay(
 /*=====*/
 	ulint	delay)	/*!< in: delay in microseconds on 100 MHz Pentium */
 {
-	ulint	i, j;
+	ulint	i;
 
 	UT_LOW_PRIORITY_CPU();
 
-	j = 0;
-
 	for (i = 0; i < delay * 50; i++) {
-		j += i;
 		UT_RELAX_CPU();
 		UT_COMPILER_BARRIER();
 	}
 
 	UT_RESUME_PRIORITY_CPU();
-
-	return(j);
 }
 
 /*************************************************************//**
@@ -757,6 +752,8 @@ ut_strerr(
 		       "of stored column");
 	case DB_IO_NO_PUNCH_HOLE:
 		return ("File system does not support punch hole (trim) operation.");
+	case DB_PAGE_CORRUPTED:
+		return("Page read from tablespace is corrupted.");
 
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */

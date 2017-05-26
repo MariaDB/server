@@ -4,10 +4,10 @@ have_ssl
 1
 SHOW STATUS LIKE 'Ssl_server_not_before';
 Variable_name	Value
-Ssl_server_not_before	Apr 25 14:55:05 2015 GMT
+Ssl_server_not_before	Apr 25 20:52:21 2017 GMT
 SHOW STATUS LIKE 'Ssl_server_not_after';
 Variable_name	Value
-Ssl_server_not_after	Apr 20 14:55:05 2035 GMT
+Ssl_server_not_after	Apr 20 20:52:21 2037 GMT
 drop table if exists t1,t2,t3,t4;
 CREATE TABLE t1 (
 Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,

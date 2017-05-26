@@ -884,5 +884,55 @@ a
 deallocate prepare stmt;
 drop view v1;
 drop table t1,t2;
+#
+#MDEV-10053: EXIST to IN transformation turned down
+#
+CREATE TABLE t1 (
+pk INT, f1 INT NOT NULL, f2 VARCHAR(3), f3 INT NULL, PRIMARY KEY(pk))
+ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1,'foo',8), (2,5,'bar',7);
+set @optimizer_switch_save=@@optimizer_switch;
+set optimizer_switch='exists_to_in=off';
+explain extended SELECT STRAIGHT_JOIN sq1.f2 
+FROM ( SELECT * FROM t1 ) AS sq1
+WHERE EXISTS ( SELECT * FROM t1 AS sq2 
+WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DEPENDENT SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
+Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1
+Note	1003	/* select#1 */ select straight_join `test`.`t1`.`f2` AS `f2` from `test`.`t1` where <expr_cache><`test`.`t1`.`f1`,`test`.`t1`.`pk`>(exists(/* select#3 */ select 1 from `test`.`t1` `sq2` semi join (`test`.`t1`) where `test`.`sq2`.`f1` = `test`.`t1`.`f1` and `test`.`t1`.`pk` = `test`.`t1`.`f1`))
+SELECT STRAIGHT_JOIN sq1.f2 
+FROM ( SELECT * FROM t1 ) AS sq1
+WHERE EXISTS ( SELECT * FROM t1 AS sq2 
+WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
+f2
+foo
+set optimizer_switch='exists_to_in=on';
+explain extended SELECT STRAIGHT_JOIN sq1.f2 
+FROM ( SELECT * FROM t1 ) AS sq1
+WHERE EXISTS ( SELECT * FROM t1 AS sq2 
+WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DEPENDENT SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
+Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1
+Note	1003	/* select#1 */ select straight_join `test`.`t1`.`f2` AS `f2` from `test`.`t1` where <expr_cache><`test`.`t1`.`f1`,`test`.`t1`.`pk`>(<in_optimizer>(`test`.`t1`.`f1`,<exists>(/* select#3 */ select `test`.`sq2`.`f1` from `test`.`t1` `sq2` semi join (`test`.`t1`) where `test`.`t1`.`pk` = `test`.`t1`.`f1` and <cache>(`test`.`t1`.`f1`) = `test`.`sq2`.`f1`)))
+SELECT STRAIGHT_JOIN sq1.f2 
+FROM ( SELECT * FROM t1 ) AS sq1
+WHERE EXISTS ( SELECT * FROM t1 AS sq2 
+WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
+f2
+foo
+set optimizer_switch= @optimizer_switch_save;
+DROP TABLE t1;
 # End of 10.0 tests
 set optimizer_switch=default;

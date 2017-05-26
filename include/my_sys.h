@@ -42,6 +42,7 @@ typedef struct my_aio_result {
 #include <malloc.h> /*for alloca*/
 #endif
 #include <mysql/plugin.h>
+#include <mysql/service_my_print_error.h>
 
 #define MY_INIT(name)   { my_progname= name; my_init(); }
 
@@ -104,18 +105,10 @@ typedef struct my_aio_result {
 #define MY_GIVE_INFO	2U	/* Give time info about process*/
 #define MY_DONT_FREE_DBUG 4U    /* Do not call DBUG_END() in my_end() */
 
-#define ME_HIGHBYTE	8U	/* Shift for colours */
-#define ME_NOCUR	1U	/* Don't use curses message */
-#define ME_OLDWIN	2U	/* Use old window */
-#define ME_BELL		4U	/* Ring bell then printing message */
-#define ME_HOLDTANG	8U	/* Don't delete last keys */
-#define ME_WAITTOT	16U	/* Wait for errtime secs of for a action */
-#define ME_WAITTANG	32U	/* Wait for a user action  */
-#define ME_NOREFRESH	64U	/* Write the error message to error log */
-#define ME_NOINPUT	128U	/* Dont use the input libary */
-#define ME_COLOUR1	((1U << ME_HIGHBYTE))	/* Possibly error-colours */
-#define ME_COLOUR2	((2U << ME_HIGHBYTE))
-#define ME_COLOUR3	((3U << ME_HIGHBYTE))
+#define ME_BELL         4U      /* Ring bell then printing message */
+#define ME_WAITTANG     0       /* Wait for a user action  */
+#define ME_NOREFRESH    64U     /* Write the error message to error log */
+#define ME_NOINPUT      0       /* Dont use the input libary */
 #define ME_JUST_INFO    1024U   /**< not error but just info */
 #define ME_JUST_WARNING 2048U   /**< not error but just warning */
 #define ME_FATALERROR   4096U   /* Fatal statement error */
@@ -725,12 +718,6 @@ extern int my_sync(File fd, myf my_flags);
 extern int my_sync_dir(const char *dir_name, myf my_flags);
 extern int my_sync_dir_by_file(const char *file_name, myf my_flags);
 extern const char *my_get_err_msg(uint nr);
-extern void my_error(uint nr,myf MyFlags, ...);
-extern void my_printf_error(uint my_err, const char *format,
-                            myf MyFlags, ...)
-                            ATTRIBUTE_FORMAT(printf, 2, 4);
-extern void my_printv_error(uint error, const char *format, myf MyFlags,
-                            va_list ap);
 extern int my_error_register(const char** (*get_errmsgs) (int nr),
                              uint first, uint last);
 extern my_bool my_error_unregister(uint first, uint last);

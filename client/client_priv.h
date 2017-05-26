@@ -120,4 +120,3 @@ enum options_client
   Name of the performance schema database.
 */
 #define PERFORMANCE_SCHEMA_DB_NAME "performance_schema"
-

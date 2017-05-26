@@ -1,0 +1,40 @@
+source include/have_file_key_management.inc;
+
+CREATE TABLE t(c VARCHAR(10)) ENGINE INNODB encrypted=yes;
+INSERT INTO t VALUES('foobar1');
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+--let SEARCH_RANGE = 10000000
+--let SEARCH_PATTERN=foobar1
+--let SEARCH_FILE=$targetdir/xtrabackup_logfile
+--source include/search_pattern_in_file.inc
+--echo # expect NOT FOUND
+
+INSERT INTO t VALUES('foobar2');
+echo # xtrabackup prepare;
+
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+exec $XTRABACKUP  --defaults-file=$targetdir/backup-my.cnf --stats --datadir=$targetdir ;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+#
+# Recheck that plain text data (
+# in not in the log, after prepare
+# (MDEV-11538)
+
+--let SEARCH_RANGE = 10000000
+--let SEARCH_PATTERN=foobar1
+--let SEARCH_FILE=$targetdir/xtrabackup_logfile
+--source include/search_pattern_in_file.inc
+--echo # expect NOT FOUND
+
+SELECT * FROM t;
+DROP TABLE t;
+rmdir $targetdir;
+

@@ -1,0 +1,17 @@
+#
+# MDEV-12720 recovery fails with "Generic error"
+# for ROW_FORMAT=compressed
+#
+CREATE TABLE a(i INT PRIMARY KEY AUTO_INCREMENT, s VARCHAR(255)) ENGINE=InnoDB
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+BEGIN;
+insert into a(i) select null;
+insert into a select null, uuid() from a a, a b, a c;
+insert into a select null, uuid() from a a, a b, a c;
+insert into a select null, uuid() from a a, a b, a c;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+COMMIT;
+SELECT COUNT(*) from a;
+COUNT(*)
+1010
+DROP TABLE a;

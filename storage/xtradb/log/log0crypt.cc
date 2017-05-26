@@ -25,16 +25,13 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 *******************************************************/
 #include "m_string.h"
 #include "log0crypt.h"
-#include <my_crypt.h>
-#include <my_crypt.h>
+#include <mysql/service_my_crypt.h>
 
 #include "log0log.h"
 #include "srv0start.h" // for srv_start_lsn
 #include "log0recv.h"  // for recv_sys
 
 #include "ha_prototypes.h" // IB_LOG_
-
-#include "my_crypt.h"
 
 /* Used for debugging */
 // #define DEBUG_CRYPT 1

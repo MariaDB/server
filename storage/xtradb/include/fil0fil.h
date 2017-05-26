@@ -136,6 +136,7 @@ extern fil_addr_t	fil_addr_null;
 
 #define FIL_PAGE_DATA		38	/*!< start of the data on the page */
 /* Following are used when page compression is used */
+
 #define FIL_PAGE_COMPRESSED_SIZE 2      /*!< Number of bytes used to store
 					actual payload data size on
 					compressed pages. */
@@ -313,13 +314,21 @@ struct fil_space_t {
 	ulint		n_pending_flushes; /*!< this is positive when flushing
 				the tablespace to disk; dropping of the
 				tablespace is forbidden if this is positive */
-	ulint		n_pending_ops;/*!< this is positive when we
-				have pending operations against this
-				tablespace. The pending operations can
-				be ibuf merges or lock validation code
-				trying to read a block.
-				Dropping of the tablespace is forbidden
-				if this is positive */
+	/** Number of pending buffer pool operations accessing the tablespace
+	without holding a table lock or dict_operation_lock S-latch
+	that would prevent the table (and tablespace) from being
+	dropped. An example is change buffer merge.
+	The tablespace cannot be dropped while this is nonzero,
+	or while fil_node_t::n_pending is nonzero.
+	Protected by fil_system->mutex. */
+	ulint		n_pending_ops;
+	/** Number of pending block read or write operations
+	(when a write is imminent or a read has recently completed).
+	The tablespace object cannot be freed while this is nonzero,
+	but it can be detached from fil_system.
+	Note that fil_node_t::n_pending tracks actual pending I/O requests.
+	Protected by fil_system->mutex. */
+	ulint		n_pending_ios;
 	hash_node_t	hash;	/*!< hash chain node */
 	hash_node_t	name_hash;/*!< hash chain the name_hash table */
 #ifndef UNIV_HOTBACKUP
@@ -650,13 +659,28 @@ fil_write_flushed_lsn_to_data_files(
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
+@param[in]	silent	whether to silently ignore missing tablespaces
+@return	the tablespace
+@retval	NULL if missing or being deleted or truncated */
+UNIV_INTERN
+fil_space_t*
+fil_space_acquire_low(ulint id, bool silent)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Acquire a tablespace when it could be dropped concurrently.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
 @param[in]	for_io	whether to look up the tablespace while performing I/O
 			(possibly executing TRUNCATE)
 @return	the tablespace
 @retval	NULL if missing or being deleted or truncated */
+inline
 fil_space_t*
-fil_space_acquire(ulint id, bool for_io = false)
-	MY_ATTRIBUTE((warn_unused_result));
+fil_space_acquire(ulint id)
+{
+	return(fil_space_acquire_low(id, false));
+}
 
 /** Acquire a tablespace that may not exist.
 Used by background threads that do not necessarily hold proper locks
@@ -664,14 +688,33 @@ for concurrency control.
 @param[in]	id	tablespace ID
 @return	the tablespace
 @retval	NULL if missing or being deleted */
+inline
 fil_space_t*
 fil_space_acquire_silent(ulint id)
-	MY_ATTRIBUTE((warn_unused_result));
+{
+	return(fil_space_acquire_low(id, true));
+}
 
 /** Release a tablespace acquired with fil_space_acquire().
 @param[in,out]	space	tablespace to release  */
+UNIV_INTERN
 void
 fil_space_release(fil_space_t* space);
+
+/** Acquire a tablespace for reading or writing a block,
+when it could be dropped concurrently.
+@param[in]	id	tablespace ID
+@return	the tablespace
+@retval	NULL if missing */
+UNIV_INTERN
+fil_space_t*
+fil_space_acquire_for_io(ulint id);
+
+/** Release a tablespace acquired with fil_space_acquire_for_io().
+@param[in,out]	space	tablespace to release  */
+UNIV_INTERN
+void
+fil_space_release_for_io(fil_space_t* space);
 
 /** Return the next fil_space_t.
 Once started, the caller must keep calling this until it returns NULL.
@@ -681,6 +724,7 @@ blocks a concurrent operation from dropping the tablespace.
 If NULL, use the first fil_space_t on fil_system->space_list.
 @return pointer to the next fil_space_t.
 @retval NULL if this was the last  */
+UNIV_INTERN
 fil_space_t*
 fil_space_next(
 	fil_space_t*	prev_space)
@@ -694,10 +738,66 @@ blocks a concurrent operation from dropping the tablespace.
 If NULL, use the first fil_space_t on fil_system->space_list.
 @return pointer to the next fil_space_t.
 @retval NULL if this was the last*/
+UNIV_INTERN
 fil_space_t*
 fil_space_keyrotate_next(
 	fil_space_t*	prev_space)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Wrapper with reference-counting for a fil_space_t. */
+class FilSpace
+{
+public:
+	/** Default constructor: Use this when reference counting
+	is done outside this wrapper. */
+	FilSpace() : m_space(NULL) {}
+
+	/** Constructor: Look up the tablespace and increment the
+	reference count if found.
+	@param[in]	space_id	tablespace ID
+	@param[in]	silent		whether not to print any errors */
+	explicit FilSpace(ulint space_id, bool silent = false)
+		: m_space(fil_space_acquire_low(space_id, silent)) {}
+
+	/** Assignment operator: This assumes that fil_space_acquire()
+	has already been done for the fil_space_t. The caller must
+	assign NULL if it calls fil_space_release().
+	@param[in]	space	tablespace to assign */
+	class FilSpace& operator=(fil_space_t* space)
+	{
+		/* fil_space_acquire() must have been invoked. */
+		ut_ad(space == NULL || space->n_pending_ops > 0);
+		m_space = space;
+		return(*this);
+	}
+
+	/** Destructor - Decrement the reference count if a fil_space_t
+	is still assigned. */
+	~FilSpace()
+	{
+		if (m_space != NULL) {
+			fil_space_release(m_space);
+		}
+	}
+
+	/** Implicit type conversion
+	@return the wrapped object */
+	operator const fil_space_t*() const
+	{
+		return(m_space);
+	}
+
+	/** Explicit type conversion
+	@return the wrapped object */
+	const fil_space_t* operator()() const
+	{
+		return(m_space);
+	}
+
+private:
+	/** The wrapped pointer */
+	fil_space_t*	m_space;
+};
 
 /*******************************************************************//**
 Reads the flushed lsn, arch no, and tablespace flag fields from a data
@@ -721,22 +821,6 @@ fil_read_first_page(
 	fil_space_crypt_t** crypt_data)		/*!< out: crypt data */
 
 	__attribute__((warn_unused_result));
-/*******************************************************************//**
-Increments the count of pending operation, if space is not being deleted.
-@return	TRUE if being deleted, and operation should be skipped */
-UNIV_INTERN
-ibool
-fil_inc_pending_ops(
-/*================*/
-	ulint	id,		/*!< in: space id */
-	ibool	print_err);	/*!< in: need to print error or not */
-/*******************************************************************//**
-Decrements the count of pending operations. */
-UNIV_INTERN
-void
-fil_decr_pending_ops(
-/*=================*/
-	ulint	id);	/*!< in: space id */
 #endif /* !UNIV_HOTBACKUP */
 /*******************************************************************//**
 Parses the body of a log record written about an .ibd file operation. That is,
@@ -978,7 +1062,7 @@ space id is != 0.
 @return	DB_SUCCESS or error number */
 UNIV_INTERN
 dberr_t
-fil_load_single_table_tablespaces(void);
+fil_load_single_table_tablespaces(ibool (*pred)(const char*, const char*)=0);
 /*===================================*/
 /*******************************************************************//**
 Returns TRUE if a single-table tablespace does not exist in the memory cache,
@@ -1017,6 +1101,9 @@ fil_space_for_table_exists_in_mem(
 					information to the .err log if a
 					matching tablespace is not found from
 					memory */
+	bool		remove_from_data_dict_if_does_not_exist,
+					/*!< in: remove from the data dictionary
+					if tablespace does not exist */
 	bool		adjust_space,	/*!< in: whether to adjust space id
 					when find table space mismatch */
 	mem_heap_t*	heap,		/*!< in: heap memory */
@@ -1427,36 +1514,6 @@ fil_space_t*
 fil_space_get_by_id(
 /*================*/
 	ulint	id);	/*!< in: space id */
-
-/******************************************************************
-Get id of first tablespace or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_first_space();
-/*=================*/
-
-/******************************************************************
-Get id of next tablespace or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_next_space(
-/*===============*/
-	ulint id);      /*!< in: space id */
-
-/******************************************************************
-Get id of first tablespace that has node or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_first_space_safe();
-/*======================*/
-
-/******************************************************************
-Get id of next tablespace that has node or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_next_space_safe(
-/*====================*/
-	ulint	id);	/*!< in: previous space id */
 
 #endif /*  UNIV_INNOCHECKSUM */
 

@@ -9,7 +9,7 @@ IF(ESSENTIALS)
  ENDIF()
 ELSE()
   SET(CPACK_COMPONENTS_USED 
-    "Server;Client;Development;SharedLibraries;Documentation;Readme;Debuginfo;Common;VCCRT;connect-engine;ClientPlugins;gssapi-server;gssapi-client;aws-key-management;rocksdb-engine")
+    "Server;Client;Development;SharedLibraries;Documentation;Readme;Debuginfo;Common;VCCRT;connect-engine;ClientPlugins;gssapi-server;gssapi-client;aws-key-management;rocksdb-engine;backup")
 ENDIF()
 
 SET( WIX_FEATURE_MySQLServer_EXTRA_FEATURES "DBInstance;SharedClientServerComponents")
@@ -56,6 +56,11 @@ SET(CPACK_COMPONENT_GROUP_MYSQLSERVER_DESCRIPTION "Install server")
    "Debug/trace versions of executables and libraries" )
  #SET(CPACK_COMPONENT_DEBUGBINARIES_WIX_LEVEL 2)
  
+ # Subfeature "Backup"
+ SET(CPACK_COMPONENT_BACKUP_GROUP "MySQLServer")
+ SET(CPACK_COMPONENT_BACKUP_DISPLAY_NAME "Backup utilities")
+ SET(CPACK_COMPONENT_BACKUP_DESCRIPTION "Installs backup utilities(mariabackup and mbstream)")
+
  
  #Miscellaneous (hidden) components, part of server / or client programs
  FOREACH(comp connect-engine ClientPlugins gssapi-server gssapi-client aws-key-management rocksdb-engine)

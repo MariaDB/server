@@ -201,13 +201,15 @@ MACRO(MYSQL_ADD_PLUGIN)
     # executable to the linker command line (it would result into link error). 
     # Thus we skip TARGET_LINK_LIBRARIES on Linux, as it would only generate
     # an additional dependency.
-    IF(NOT ARG_CLIENT)
+    IF(ARG_RECOMPILE_FOR_EMBEDDED OR ARG_STORAGE_ENGINE)
       IF(MSVC)
         ADD_DEPENDENCIES(${target} gen_mysqld_lib)
         TARGET_LINK_LIBRARIES(${target} mysqld_import_lib)
       ELSEIF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
         TARGET_LINK_LIBRARIES (${target} mysqld)
       ENDIF()
+    ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT WITH_ASAN)
+      TARGET_LINK_LIBRARIES (${target} "-Wl,--no-undefined")
     ENDIF()
 
     ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDENCIES})

@@ -13,10 +13,7 @@ if (!$INNOCHECKSUM) {
   --die Need innochecksum binary
 }
 
---disable_query_log
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
-let MYSQLD_DATADIR= `SELECT @@datadir`;
---enable_query_log
 
 # zlib
 set global innodb_compression_algorithm = 1;

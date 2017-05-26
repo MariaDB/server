@@ -1,5 +1,3 @@
-call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
-call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
 CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB;
 CREATE TABLE t3 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB row_format=compressed encrypted=yes;

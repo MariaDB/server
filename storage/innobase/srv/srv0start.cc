@@ -2210,6 +2210,11 @@ files_checked:
 			recv_group_scan_log_recs(). */
 
 			recv_apply_hashed_log_recs(true);
+
+			if (recv_sys->found_corrupt_log) {
+				return (DB_CORRUPTION);
+			}
+
 			DBUG_PRINT("ib_log", ("apply completed"));
 
 			if (recv_needed_recovery) {
@@ -2470,14 +2475,6 @@ files_checked:
 	ut_ad(err == DB_SUCCESS);
 	ut_a(sum_of_new_sizes != ULINT_UNDEFINED);
 
-	/* Open temp-tablespace and keep it open until shutdown. */
-
-	err = srv_open_tmp_tablespace(create_new_db);
-
-	if (err != DB_SUCCESS) {
-		return(srv_init_abort(err));
-	}
-
 	/* Create the doublewrite buffer to a new tablespace */
 	if (!srv_read_only_mode && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
 	    && !buf_dblwr_create()) {
@@ -2550,6 +2547,18 @@ files_checked:
 		/* fall through */
 	default:
 		return(srv_init_abort(err));
+	}
+
+	if (!srv_read_only_mode) {
+		/* Initialize the innodb_temporary tablespace and keep
+		it open until shutdown. */
+		err = srv_open_tmp_tablespace(create_new_db);
+
+		if (err != DB_SUCCESS) {
+			return(srv_init_abort(err));
+		}
+
+		trx_temp_rseg_create();
 	}
 
 	srv_is_being_started = false;

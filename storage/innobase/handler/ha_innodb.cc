@@ -133,6 +133,12 @@ void reset_thd(MYSQL_THD thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 			const char *tb, size_t tblen);
 
+/** Check if user has used xtradb extended system variable that
+is not currently supported by innodb or marked as deprecated. */
+static
+void
+innodb_check_deprecated(void);
+
 #ifdef MYSQL_DYNAMIC_PLUGIN
 #define tc_size  400
 #define tdc_size 400
@@ -1835,6 +1841,7 @@ innobase_srv_conc_enter_innodb(
 #endif /* WITH_WSREP */
 
 	trx_t*	trx	= prebuilt->trx;
+
 	if (srv_thread_concurrency) {
 		if (trx->n_tickets_to_enter_innodb > 0) {
 
@@ -3443,11 +3450,35 @@ innobase_invalidate_query_cache(
 	above the InnoDB trx_sys_t->lock. The caller of this function must
 	not have latches of a lower rank. */
 
-	/* Argument TRUE below means we are using transactions */
-	mysql_query_cache_invalidate4(trx->mysql_thd,
-				      full_name,
-				      (uint32) full_name_len,
-				      TRUE);
+#ifdef HAVE_QUERY_CACHE
+        char    qcache_key_name[2 * (NAME_LEN + 1)];
+        char db_name[NAME_CHAR_LEN * MY_CS_MBMAXLEN + 1];
+        const char *key_ptr;
+        size_t  tabname_len;
+        size_t  dbname_len;
+
+        // Extract the database name.
+        key_ptr= strchr(full_name, '/');
+        DBUG_ASSERT(key_ptr != NULL); // Database name should be present
+        memcpy(db_name, full_name, (dbname_len= (key_ptr - full_name)));
+        db_name[dbname_len]= '\0';
+
+        /* Construct the key("db-name\0table$name\0") for the query cache using
+        the path name("db@002dname\0table@0024name\0") of the table in its
+        canonical form. */
+        dbname_len = filename_to_tablename(db_name, qcache_key_name,
+                                           sizeof(qcache_key_name));
+        tabname_len = filename_to_tablename(++key_ptr,
+                                            (qcache_key_name + dbname_len + 1),
+                                            sizeof(qcache_key_name) -
+                                            dbname_len - 1);
+
+        /* Argument TRUE below means we are using transactions */
+        mysql_query_cache_invalidate4(trx->mysql_thd,
+                                      qcache_key_name,
+                                      (dbname_len + tabname_len + 2),
+                                      TRUE);
+#endif
 }
 
 /** Quote a standard SQL identifier like index or column name.
@@ -4022,6 +4053,8 @@ innobase_init(
 				"encryption plugin is not available");
 		goto error;
 	}
+
+	innodb_check_deprecated();
 
 
 	/* First calculate the default path for innodb_data_home_dir etc.,
@@ -6603,6 +6636,7 @@ ha_innobase::open(
 
 		/* Mark this table as corrupted, so the drop table
 		or force recovery can still use it, but not others. */
+		ib_table->file_unreadable = true;
 		ib_table->corrupted = true;
 		dict_table_close(ib_table, FALSE, FALSE);
 		ib_table = NULL;
@@ -6631,7 +6665,7 @@ ha_innobase::open(
 	ib_table->thd = (void*)thd;
 
 	/* No point to init any statistics if tablespace is still encrypted. */
-	if (!ib_table->is_encrypted) {
+	if (ib_table->is_readable()) {
 		dict_stats_init(ib_table);
 	} else {
 		ib_table->stat_initialized = 1;
@@ -6639,7 +6673,9 @@ ha_innobase::open(
 
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
-	bool	no_tablespace;
+	bool	no_tablespace = false;
+	bool	encrypted = false;
+	FilSpace space;
 
 	if (dict_table_is_discarded(ib_table)) {
 
@@ -6654,21 +6690,28 @@ ha_innobase::open(
 
 		no_tablespace = false;
 
-	} else if (ib_table->ibd_file_missing) {
+	} else if (!ib_table->is_readable()) {
+		space = fil_space_acquire_silent(ib_table->space);
 
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_WARN,
-			ER_TABLESPACE_MISSING, norm_name);
+		if (space()) {
+			if (space()->crypt_data && space()->crypt_data->is_encrypted()) {
+				/* This means that tablespace was found but we could not
+				decrypt encrypted page. */
+				no_tablespace = true;
+				encrypted = true;
+			} else {
+				no_tablespace = true;
+			}
+		} else {
+			ib_senderrf(
+				thd, IB_LOG_LEVEL_WARN,
+				ER_TABLESPACE_MISSING, norm_name);
 
-		/* This means we have no idea what happened to the tablespace
-		file, best to play it safe. */
+			/* This means we have no idea what happened to the tablespace
+			file, best to play it safe. */
 
-		no_tablespace = true;
-	} else if (ib_table->is_encrypted) {
-		/* This means that tablespace was found but we could not
-		decrypt encrypted page. */
-		no_tablespace = true;
-		ib_table->ibd_file_missing = true;
+			no_tablespace = true;
+		}
 	} else {
 		no_tablespace = false;
 	}
@@ -6681,34 +6724,35 @@ ha_innobase::open(
 		/* If table has no talespace but it has crypt data, check
 		is tablespace made unaccessible because encryption service
 		or used key_id is not available. */
-		if (ib_table) {
+		if (encrypted) {
 			bool warning_pushed = false;
-			fil_space_crypt_t* crypt_data = ib_table->crypt_data;
 
-			if (crypt_data && crypt_data->should_encrypt()) {
-
-				if (!encryption_key_id_exists(crypt_data->key_id)) {
-					push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-						HA_ERR_DECRYPTION_FAILED,
-						"Table %s is encrypted but encryption service or"
-						" used key_id %u is not available. "
-						" Can't continue reading table.",
-						ib_table->name, crypt_data->key_id);
-					ret_err = HA_ERR_DECRYPTION_FAILED;
-					warning_pushed = true;
-				}
+			if (!encryption_key_id_exists(space()->crypt_data->key_id)) {
+				push_warning_printf(
+					thd, Sql_condition::WARN_LEVEL_WARN,
+					HA_ERR_DECRYPTION_FAILED,
+					"Table %s in file %s is encrypted but encryption service or"
+					" used key_id %u is not available. "
+					" Can't continue reading table.",
+					table_share->table_name.str,
+					space()->chain.start->name,
+					space()->crypt_data->key_id);
+				ret_err = HA_ERR_DECRYPTION_FAILED;
+				warning_pushed = true;
 			}
 
 			/* If table is marked as encrypted then we push
 			warning if it has not been already done as used
 			key_id might be found but it is incorrect. */
-			if (ib_table->is_encrypted && !warning_pushed) {
-				push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			if (!warning_pushed) {
+				push_warning_printf(
+					thd, Sql_condition::WARN_LEVEL_WARN,
 					HA_ERR_DECRYPTION_FAILED,
-					"Table %s is encrypted but encryption service or"
+					"Table %s in file %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
-					ib_table->name);
+					table_share->table_name.str,
+					space()->chain.start->name);
 				ret_err = HA_ERR_DECRYPTION_FAILED;
 			}
 		}
@@ -6867,7 +6911,7 @@ ha_innobase::open(
 	if (m_prebuilt->table == NULL
 	    || dict_table_is_temporary(m_prebuilt->table)
 	    || m_prebuilt->table->persistent_autoinc
-	    || m_prebuilt->table->ibd_file_missing) {
+	    || !m_prebuilt->table->is_readable()) {
 	} else if (const Field* ai = table->found_next_number_field) {
 		initialize_auto_increment(m_prebuilt->table, ai);
 	}
@@ -10305,7 +10349,6 @@ ha_innobase::general_fetch(
 	DBUG_ENTER("general_fetch");
 
 	const trx_t*	trx = m_prebuilt->trx;
-	dberr_t	ret;
 
 	ut_ad(trx == thd_to_trx(m_user_thd));
 
@@ -10317,9 +10360,20 @@ ha_innobase::general_fetch(
 			DB_FORCED_ABORT, 0,  m_user_thd));
 	}
 
+	if (m_prebuilt->table->is_readable()) {
+	} else if (m_prebuilt->table->corrupted) {
+		DBUG_RETURN(HA_ERR_CRASHED);
+	} else {
+		FilSpace space(m_prebuilt->table->space, true);
+
+		DBUG_RETURN(space()
+			    ? HA_ERR_DECRYPTION_FAILED
+			    : HA_ERR_NO_SUCH_TABLE);
+	}
+
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	ret = row_search_mvcc(
+	dberr_t	ret = row_search_mvcc(
 		buf, PAGE_CUR_UNSUPP, m_prebuilt, match_mode, direction);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
@@ -10521,6 +10575,8 @@ ha_innobase::rnd_next(
 	int	error;
 
 	DBUG_ENTER("rnd_next");
+
+	TrxInInnoDB	trx_in_innodb(m_prebuilt->trx);
 
 	if (m_start_of_scan) {
 		error = index_first(buf);
@@ -11922,8 +11978,7 @@ err_col:
 			err = row_create_table_for_mysql(
 				table, m_trx, false,
 				(fil_encryption_t)options->encryption,
-				(ulint)options->encryption_key_id);
-
+				options->encryption_key_id);
 		}
 
 		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
@@ -13656,7 +13711,7 @@ ha_innobase::discard_or_import_tablespace(
 		user may want to set the DISCARD flag in order to IMPORT
 		a new tablespace. */
 
-		if (dict_table->ibd_file_missing) {
+		if (!dict_table->is_readable()) {
 			ib_senderrf(
 				m_prebuilt->trx->mysql_thd,
 				IB_LOG_LEVEL_WARN, ER_TABLESPACE_MISSING,
@@ -13666,7 +13721,7 @@ ha_innobase::discard_or_import_tablespace(
 		err = row_discard_tablespace_for_mysql(
 			dict_table->name.m_name, m_prebuilt->trx);
 
-	} else if (!dict_table->ibd_file_missing) {
+	} else if (dict_table->is_readable()) {
 		/* Commit the transaction in order to
 		release the table lock. */
 		trx_commit_for_mysql(m_prebuilt->trx);
@@ -15258,7 +15313,8 @@ ha_innobase::optimize(
 	This works OK otherwise, but MySQL locks the entire table during
 	calls to OPTIMIZE, which is undesirable. */
 
-	if (srv_defragment) {
+	/* TODO: Defragment is disabled for now */
+	if (0) {
 		int err;
 
 		err = defragment_table(m_prebuilt->table->name.m_name, NULL, false);
@@ -15335,7 +15391,8 @@ ha_innobase::check(
 
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
 
-	} else if (m_prebuilt->table->ibd_file_missing) {
+	} else if (!m_prebuilt->table->is_readable() &&
+		   !fil_space_get(m_prebuilt->table->space)) {
 
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR,
@@ -16651,6 +16708,8 @@ innodb_show_status(
 	if (srv_read_only_mode) {
 		DBUG_RETURN(0);
 	}
+
+	srv_wake_purge_thread_if_not_active();
 
 	trx_t*	trx = check_trx_exists(thd);
 
@@ -21851,6 +21910,8 @@ static MYSQL_SYSVAR_BOOL(instrument_semaphores, innodb_instrument_semaphores,
   "DEPRECATED. This setting has no effect.",
   NULL, innodb_instrument_semaphores_update, FALSE);
 
+#include "ha_xtradb.h"
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
@@ -22063,6 +22124,11 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(instrument_semaphores),
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
+
+  /* XtraDB compatibility system variables */
+#define HA_XTRADB_SYSVARS
+#include "ha_xtradb.h"
+
   NULL
 };
 
