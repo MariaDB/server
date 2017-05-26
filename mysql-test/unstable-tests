@@ -90,6 +90,7 @@ archive.mysqlhotcopy_archive : Uses mysqlhotcopy.inc modified in 10.1.23
 #----------------------------------------------------------------
 
 binlog.binlog_commit_wait                 : MDEV-10150 - Error: too much time elapsed
+binlog.binlog_killed                      : MDEV-12925 - Wrong result
 binlog.binlog_xa_recover                  : MDEV-8517 - Extra checkpoint
 binlog.mysqladmin                         : Added in 10.1.24
 
@@ -115,7 +116,7 @@ csv.read_only                               : Added in 10.1.24
 encryption.create_or_replace                : MDEV-9359 - Assertion failure
 encryption.debug_key_management             : Modified in 10.1.23
 encryption.encrypt_and_grep                 : Modified in 10.1.23
-encryption.innodb-bad-key-change            : Modified in 10.1.23
+encryption.innodb-bad-key-change            : MDEV-12926 - Valgrind; modified in 10.1.23
 encryption.innodb-bad-key-change2           : MDEV-12632 - Valgrind warnings, modified in 10.1.23
 encryption.innodb-bad-key-change4           : Modified in 10.1.23
 encryption.innodb-compressed-blob           : Added in 10.1.23
@@ -130,7 +131,7 @@ encryption.innodb-force-corrupt             : Added in 10.1.23
 encryption.innodb-key-rotation-disable      : Modified in 10.1.24
 encryption.innodb_lotoftables               : MDEV-11531 - InnoDB error
 encryption.innodb-missing-key               : MDEV-9359 - assertion failure; also modified in 10.1.23
-encryption.innodb_onlinealter_encryption    : Modified in 10.1.23
+encryption.innodb_onlinealter_encryption    : MDEV-12926 - Valgrind; modified in 10.1.23
 encryption.innodb-page_encryption           : MDEV-10641 - mutex problem
 encryption.innodb-page_encryption_compression : Modified in 10.1.23
 encryption.innodb-page_encryption_log_encryption : Modified in 10.1.23
@@ -169,11 +170,14 @@ galera.GAL-419                : Added in 10.1.23
 galera.GAL-480                : Added in 10.1.23
 galera.galera_account_management : Modified in 10.1.23
 galera.galera_admin           : Added in 10.1.23
+galera.galera_autoinc_sst_xtrabackup : Config modified in 10.1.24
 galera.galera_bf_abort        : Modified in 10.1.23
+galera.galera_defaults        : Include file modified in 10.1.24
 galera.galera_desync_overlapped : Added in 10.1.23
 galera.galera_gcache_recover  : Added in 10.1.23
 galera.galera_gcache_recover_full_gcache : Added in 10.1.23
 galera.galera_gcache_recover_manytrx : Added in 10.1.23
+galera.galera_gcs_fc_limit    : Modified in 10.1.24
 galera.galera_many_tables_pk  : Modified in 10.1.23
 galera.galera_restart_on_unknown_option : Added in 10.1.23
 galera.galera_roles           : Modified in 10.1.23
@@ -191,6 +195,7 @@ galera.lp1376747-2            : Added in 10.1.23
 galera.lp1376747-3            : Added in 10.1.23
 galera.lp1376747-4            : Added in 10.1.23
 galera.MW-258                 : Modified in 10.1.23
+galera.MW-309                 : Added in 10.1.24
 galera.MW-313                 : Added in 10.1.23
 galera.MW-328A                : Added in 10.1.23
 galera.MW-328B                : Added in 10.1.23
@@ -200,7 +205,7 @@ galera.MW-328E                : Added in 10.1.23
 galera.MW-329                 : Added in 10.1.23
 galera.pxc-421                : Added in 10.1.23
 
-galera_3nodes.*               : MDEV-11490 - Warnings not suppressed
+galera_3nodes.*               : MDEV-11490 - Warnings not suppressed; config files modified in 10.1.24
 
 galera_3nodes.galera_safe_to_bootstrap : Added in 10.1.23
 
@@ -209,6 +214,7 @@ galera_3nodes.galera_safe_to_bootstrap : Added in 10.1.23
 innodb.autoinc_debug                  : Added in 10.1.23
 innodb.binlog_consistent              : MDEV-10618 - Server fails to start
 innodb.doublewrite                    : MDEV-12905 - Lost connection to MySQL server
+innodb.drop_table_background          : Added in 10.1.24
 innodb.innodb-alter-debug             : Added in 10.1.23
 innodb.innodb-alter-nullable          : Added in 10.1.23
 innodb.innodb-alter-table             : MDEV-10619 - Testcase timeout
@@ -330,8 +336,10 @@ rpl.rpl_temporary_error2              : MDEV-10634 - Wrong number of retries
 
 spider.* : MDEV-9329 - tests are too memory-consuming
 
+spider.spider_fixes             : MDEV-12900 - Valgrind
 spider.spider_fixes_part        : MDEV-12900 - Valgrind
 
+spider/bg.basic_sql             : MDEV-12900 - Valgrind
 spider/bg.direct_aggregate      : MDEV-7098 - Trying to unlock mutex that wasn't locked
 spider/bg.direct_aggregate_part : MDEV-7098 - Trying to unlock mutex that wasn't locked
 spider/bg.function              : MDEV-12900 - Valgrind
@@ -415,6 +423,7 @@ vcol.vcol_keys_innodb : MDEV-10639 - Testcase timeout
 
 wsrep.binlog_format   : MDEV-11532 - WSREP has not yet prepared node
 wsrep.pool_of_threads : MDEV-12234 - Library problem on Power
+wsrep.variables       : Include file modified in 10.1.24
 wsrep.wsrep_rpl       : Modified in 10.1.23
 
 wsrep_info.plugin     : MDEV-12909 - Wrong result
