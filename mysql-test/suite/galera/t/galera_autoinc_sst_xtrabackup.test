@@ -1,6 +1,6 @@
 #
 # Test that autoincrement works correctly while the cluster membership
-# is changing and IST takes place.
+# is changing and SST takes place.
 #
 
 --source include/big_test.inc

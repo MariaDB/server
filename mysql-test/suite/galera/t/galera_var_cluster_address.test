@@ -76,4 +76,3 @@ CALL mtr.add_suppression("WSREP: wsrep::connect\\(gcomm://192.0.2.1\\) failed: 7
 
 --source include/galera_end.inc
 --echo # End of test
-

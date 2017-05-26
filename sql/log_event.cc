@@ -7587,7 +7587,6 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
     consistent.
   */
 #ifdef WITH_WSREP
-  /*Set wsrep_affected_rows = 0 */
   thd->wsrep_affected_rows= 0;
 #endif
 
