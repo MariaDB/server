@@ -4472,13 +4472,17 @@ row_search_mvcc(
 	thread that is currently serving the transaction. Because we
 	are that thread, we can read trx->state without holding any
 	mutex. */
-	ut_ad(prebuilt->sql_stat_start || trx->state == TRX_STATE_ACTIVE);
+	ut_ad(prebuilt->sql_stat_start
+	      || trx->state == TRX_STATE_ACTIVE
+	      || (prebuilt->table->no_rollback()
+		  && trx->state == TRX_STATE_NOT_STARTED));
 
 	ut_ad(!trx_is_started(trx) || trx->state == TRX_STATE_ACTIVE);
 
 	ut_ad(prebuilt->sql_stat_start
 	      || prebuilt->select_lock_type != LOCK_NONE
 	      || MVCC::is_view_active(trx->read_view)
+	      || prebuilt->table->no_rollback()
 	      || srv_read_only_mode);
 
 	if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
@@ -4517,7 +4521,11 @@ row_search_mvcc(
 
 	/* Do some start-of-statement preparations */
 
-	if (!prebuilt->sql_stat_start) {
+	if (prebuilt->table->no_rollback()) {
+		/* NO_ROLLBACK tables do not support MVCC or locking. */
+		prebuilt->select_lock_type = LOCK_NONE;
+		prebuilt->sql_stat_start = FALSE;
+	} else if (!prebuilt->sql_stat_start) {
 		/* No need to set an intention lock or assign a read view */
 
 		if (!MVCC::is_view_active(trx->read_view)
@@ -4531,10 +4539,6 @@ row_search_mvcc(
 			fputc('\n', stderr);
 			ut_error;
 		}
-	} else if (prebuilt->table->no_rollback()) {
-		/* NO_ROLLBACK tables do not support MVCC or locking. */
-		prebuilt->select_lock_type = LOCK_NONE;
-		prebuilt->sql_stat_start = FALSE;
 	} else if (prebuilt->select_lock_type == LOCK_NONE) {
 		/* This is a consistent read */
 		/* Assign a read view for the query */
