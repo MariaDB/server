@@ -154,7 +154,6 @@ btr_defragment_init()
 	srv_defragment_interval = ut_microseconds_to_timer(
 		(ulonglong) (1000000.0 / srv_defragment_frequency));
 	mutex_create(LATCH_ID_BTR_DEFRAGMENT_MUTEX, &btr_defragment_mutex);
-	os_thread_create(btr_defragment_thread, NULL, NULL);
 }
 
 /******************************************************************//**
@@ -736,14 +735,13 @@ btr_defragment_n_pages(
 	return current_block;
 }
 
-/******************************************************************//**
-Thread that merges consecutive b-tree pages into fewer pages to defragment
-the index. */
+/** Whether btr_defragment_thread is active */
+bool btr_defragment_thread_active;
+
+/** Merge consecutive b-tree pages into fewer pages to defragment indexes */
 extern "C" UNIV_INTERN
 os_thread_ret_t
-DECLARE_THREAD(btr_defragment_thread)(
-/*==========================================*/
-	void*	arg)	/*!< in: work queue */
+DECLARE_THREAD(btr_defragment_thread)(void*)
 {
 	btr_pcur_t*	pcur;
 	btr_cur_t*	cursor;
@@ -753,6 +751,8 @@ DECLARE_THREAD(btr_defragment_thread)(
 	buf_block_t*	last_block;
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+		ut_ad(btr_defragment_thread_active);
+
 		/* If defragmentation is disabled, sleep before
 		checking whether it's enabled. */
 		if (!srv_defragment) {
@@ -844,7 +844,8 @@ DECLARE_THREAD(btr_defragment_thread)(
 			btr_defragment_remove_item(item);
 		}
 	}
-	btr_defragment_shutdown();
+
+	btr_defragment_thread_active = false;
 	os_thread_exit();
 	OS_THREAD_DUMMY_RETURN;
 }

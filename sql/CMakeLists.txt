@@ -60,15 +60,22 @@ SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES}
 
 # Gen_lex_token
 # Make sure sql_yacc.h is generated before compiling gen_lex_token
+
+IF(NOT CMAKE_GENERATOR MATCHES "Visual Studio")
+  SET(DEPENDS_gen_lex_token DEPENDS gen_lex_token)
+  SET(DEPENDS_gen_lex_hash DEPENDS gen_lex_hash)
+ENDIF()
+
+
 IF(NOT CMAKE_CROSSCOMPILING)
-  ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc)
-  ADD_DEPENDENCIES(gen_lex_token GenServerSource)
+  ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
+    ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h)
 ENDIF()
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
   COMMAND gen_lex_token > lex_token.h
-  DEPENDS gen_lex_token
+  ${DEPENDS_gen_lex_token}
 )
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER)
@@ -328,7 +335,7 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
   COMMAND gen_lex_hash > lex_hash.h
-  DEPENDS gen_lex_hash
+  ${DEPENDS_gen_lex_hash}
 )
 
 MYSQL_ADD_EXECUTABLE(mysql_tzinfo_to_sql tztime.cc COMPONENT Server)

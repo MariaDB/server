@@ -38,6 +38,40 @@ id	group	a\\b	a\\	name
 1	1	2	NULL	foo
 2	1	2	NULL	fee
 DROP TABLE t1;
+create table t1 (
+a bigint(20) not null auto_increment,
+b bigint(20) not null,
+c tinyint(4) not null,
+d varchar(4096) not null,
+primary key (a),
+key (b,c,d(255))
+);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) NOT NULL AUTO_INCREMENT,
+  `b` bigint(20) NOT NULL,
+  `c` tinyint(4) NOT NULL,
+  `d` varchar(4096) NOT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`,`c`,`d`(255))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master;
+create table t1 engine=federated
+connection='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) NOT NULL AUTO_INCREMENT,
+  `b` bigint(20) NOT NULL,
+  `c` tinyint(4) NOT NULL,
+  `d` varchar(4096) NOT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`,`c`,`d`(255))
+) ENGINE=FEDERATED DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
+drop table t1;
+connection slave;
+drop table t1;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

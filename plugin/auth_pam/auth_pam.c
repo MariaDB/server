@@ -166,7 +166,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
 end:
   pam_end(pamh, status);
-  PAM_DEBUG((stderr, "PAM: status = %d user = %s\n", status, new_username));
+  PAM_DEBUG((stderr, "PAM: status = %d user = %s\n", status, info->authenticated_as));
   return status == PAM_SUCCESS ? CR_OK : CR_ERROR;
 }
 

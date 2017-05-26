@@ -1230,7 +1230,7 @@ row_merge_write(
 
 	IORequest	request(IORequest::WRITE);
 	const bool	success = os_file_write_int_fd(
-		request, "(merge)", fd, buf, ofs, buf_len);
+		request, "(merge)", fd, out_buf, ofs, buf_len);
 
 #ifdef POSIX_FADV_DONTNEED
 	/* The block will be needed on the next merge pass,
@@ -4738,6 +4738,7 @@ row_merge_build_indexes(
 
 	for (i = 0; i < n_indexes; i++) {
 		merge_files[i].fd = -1;
+		merge_files[i].offset = 0;
 	}
 
 	total_static_cost = COST_BUILD_INDEX_STATIC * n_indexes + COST_READ_CLUSTERED_INDEX;

@@ -184,6 +184,35 @@ CREATE TABLE t1 (a LONGTEXT COLLATE latin1_general_ci);
 ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
-#
-# End of MDEV-8948 ALTER ... INPLACE does work for BINARY, BLOB
-#
+select @@global.delay_key_write;
+@@global.delay_key_write
+ON
+create table t1 (a int, b int, key(b));
+flush tables;
+flush status;
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	0
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	0
+alter online table t1 delay_key_write=1;
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	1
+flush tables;
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	2
+alter online table t1 delay_key_write=0;
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	2
+flush tables;
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	2
+drop table t1;

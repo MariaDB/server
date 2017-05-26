@@ -4553,7 +4553,7 @@ public:
     select_result(thd_arg), suppress_my_ok(false)
   {
     DBUG_ENTER("select_result_interceptor::select_result_interceptor");
-    DBUG_PRINT("enter", ("this 0x%lx", (ulong) this));
+    DBUG_PRINT("enter", ("this %p", this));
     DBUG_VOID_RETURN;
   }              /* Remove gcc warning */
   uint field_count(List<Item> &fields) const { return 0; }

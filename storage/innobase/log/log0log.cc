@@ -44,6 +44,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "dict0boot.h"
 #include "dict0stats_bg.h"
+#include "btr0defragment.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "trx0sys.h"
@@ -2010,6 +2011,8 @@ loop:
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";
+	} else if (btr_defragment_thread_active) {
+		thread_name = "btr_defragment_thread";
 	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {
 		thread_name = "rollback of recovered transactions";
 	} else {

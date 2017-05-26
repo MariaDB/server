@@ -3058,13 +3058,15 @@ files_checked:
 		fil_system_enter();
 		fil_crypt_threads_init();
 		fil_system_exit();
+
+		/* Init data for datafile scrub threads */
+		btr_scrub_init();
+
+		/* Initialize online defragmentation. */
+		btr_defragment_init();
+		btr_defragment_thread_active = true;
+		os_thread_create(btr_defragment_thread, NULL, NULL);
 	}
-
-	/* Init data for datafile scrub threads */
-	btr_scrub_init();
-
-	/* Initialize online defragmentation. */
-	btr_defragment_init();
 
 	srv_was_started = TRUE;
 
@@ -3229,10 +3231,9 @@ innobase_shutdown_for_mysql(void)
 	if (!srv_read_only_mode) {
 		dict_stats_thread_deinit();
 		fil_crypt_threads_cleanup();
+		btr_scrub_cleanup();
+		btr_defragment_shutdown();
 	}
-
-	/* Cleanup data for datafile scrubbing */
-	btr_scrub_cleanup();
 
 #ifdef __WIN__
 	/* MDEV-361: ha_innodb.dll leaks handles on Windows

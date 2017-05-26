@@ -2724,6 +2724,8 @@ files_checked:
 
 		/* Initialize online defragmentation. */
 		btr_defragment_init();
+		btr_defragment_thread_active = true;
+		os_thread_create(btr_defragment_thread, NULL, NULL);
 
 		srv_start_state_set(SRV_START_STATE_STAT);
 	}
@@ -2846,7 +2848,7 @@ innodb_shutdown()
 
 		fil_crypt_threads_cleanup();
 		btr_scrub_cleanup();
-		/* FIXME: call btr_defragment_shutdown(); */
+		btr_defragment_shutdown();
 	}
 
 	/* This must be disabled before closing the buffer pool

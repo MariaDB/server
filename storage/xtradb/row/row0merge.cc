@@ -1023,7 +1023,7 @@ row_merge_write(
 		mach_write_to_4((byte *)out_buf, 0);
 	}
 
-	ret = os_file_write_int_fd("(merge)", fd, buf, ofs, buf_len);
+	ret = os_file_write_int_fd("(merge)", fd, out_buf, ofs, buf_len);
 
 #ifdef UNIV_DEBUG
 	if (row_merge_print_block_write) {
@@ -4037,6 +4037,7 @@ row_merge_build_indexes(
 
 	for (i = 0; i < n_indexes; i++) {
 		merge_files[i].fd = -1;
+		merge_files[i].offset = 0;
 	}
 
 	total_static_cost = COST_BUILD_INDEX_STATIC * n_indexes + COST_READ_CLUSTERED_INDEX;
