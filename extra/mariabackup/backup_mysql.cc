@@ -1435,7 +1435,6 @@ write_xtrabackup_info(MYSQL *connection)
 		"partial = %s\n"
 		"incremental = %s\n"
 		"format = %s\n"
-		"compact = %s\n"
 		"compressed = %s\n"
 		"encrypted = %s\n",
 		uuid, /* uuid */
@@ -1455,7 +1454,6 @@ write_xtrabackup_info(MYSQL *connection)
 		is_partial? "Y" : "N",
 		xtrabackup_incremental ? "Y" : "N", /* incremental */
 		xb_stream_name[xtrabackup_stream_fmt], /* format */
-		"N", /* compact */
 		xtrabackup_compress ? "compressed" : "N", /* compressed */
 		xtrabackup_encrypt ? "Y" : "N"); /* encrypted */
 
@@ -1483,7 +1481,6 @@ write_xtrabackup_info(MYSQL *connection)
 		"partial ENUM('Y', 'N') DEFAULT NULL,"
 		"incremental ENUM('Y', 'N') DEFAULT NULL,"
 		"format ENUM('file', 'tar', 'xbstream') DEFAULT NULL,"
-		"compact ENUM('Y', 'N') DEFAULT NULL,"
 		"compressed ENUM('Y', 'N') DEFAULT NULL,"
 		"encrypted ENUM('Y', 'N') DEFAULT NULL"
 		") CHARACTER SET utf8 ENGINE=innodb", false);
@@ -1495,7 +1492,7 @@ write_xtrabackup_info(MYSQL *connection)
 		<< "uuid, name, tool_name, tool_command, tool_version,"
 		<< "ibbackup_version, server_version, start_time, end_time,"
 		<< "lock_time, binlog_pos, innodb_from_lsn, innodb_to_lsn,"
-		<< "partial, incremental, format, compact, compressed, "
+		<< "partial, incremental, format, compressed, "
 		<< "encrypted) values("
 		<< escape_and_quote(connection, uuid) << ","
 		<< escape_and_quote(connection, opt_history) << ","
@@ -1513,7 +1510,6 @@ write_xtrabackup_info(MYSQL *connection)
 		<< ESCAPE_BOOL(is_partial) << ","
 		<< ESCAPE_BOOL(xtrabackup_incremental)<< ","
 		<< escape_and_quote(connection,xb_stream_name[xtrabackup_stream_fmt]) <<","
-		<< ESCAPE_BOOL(false) << ","
 		<< ESCAPE_BOOL(xtrabackup_compress) << ","
 		<< ESCAPE_BOOL(xtrabackup_encrypt) <<")";
 

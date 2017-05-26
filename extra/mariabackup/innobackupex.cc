@@ -121,7 +121,6 @@ char *ibx_backup_directory = NULL;
 
 /* copy of proxied xtrabackup options */
 my_bool ibx_xb_close_files;
-my_bool	ibx_xtrabackup_compact;
 const char *ibx_xtrabackup_compress_alg;
 uint ibx_xtrabackup_compress_threads;
 ulonglong ibx_xtrabackup_compress_chunk_size;
@@ -138,8 +137,6 @@ my_bool	ibx_xtrabackup_incremental_force_scan;
 ulint ibx_xtrabackup_log_copy_interval;
 char *ibx_xtrabackup_incremental;
 int ibx_xtrabackup_parallel;
-my_bool ibx_xtrabackup_rebuild_indexes;
-ulint ibx_xtrabackup_rebuild_threads;
 char *ibx_xtrabackup_stream_str;
 char *ibx_xtrabackup_tables_file;
 long ibx_xtrabackup_throttle;
@@ -533,12 +530,6 @@ static struct my_option ibx_long_options[] =
 	 (uchar*) &ibx_xb_close_files, (uchar*) &ibx_xb_close_files, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"compact", OPT_COMPACT, "Create a compact backup with all secondary "
-	 "index pages omitted. This option is passed directly to xtrabackup. "
-	 "See xtrabackup documentation for details.",
-	 (uchar*) &ibx_xtrabackup_compact, (uchar*) &ibx_xtrabackup_compact,
-	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-
 	{"compress", OPT_COMPRESS, "This option instructs xtrabackup to "
 	 "compress backup copies of InnoDB data files. It is passed directly "
 	 "to the xtrabackup child process. Try 'xtrabackup --help' for more "
@@ -748,7 +739,7 @@ innobackupex [--compress] [--compress-threads=NUMBER-OF-THREADS] [--compress-chu
              [--incremental] [--incremental-basedir]\n\
              [--incremental-dir] [--incremental-force-scan] [--incremental-lsn]\n\
              [--incremental-history-name=NAME] [--incremental-history-uuid=UUID]\n\
-             [--close-files] [--compact]     \n\
+             [--close-files]\n\
              BACKUP-ROOT-DIR\n\
 \n\
 innobackupex --apply-log [--use-memory=B]\n\
