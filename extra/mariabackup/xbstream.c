@@ -25,9 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <my_pthread.h>
 #include "common.h"
 #include "xbstream.h"
-#include "xbcrypt_common.h"
 #include "datasink.h"
-#include "ds_decrypt.h"
 #include "crc_glue.h"
 
 #define XBSTREAM_VERSION "1.0"
@@ -41,33 +39,18 @@ typedef enum {
 	RUN_MODE_EXTRACT
 } run_mode_t;
 
-const char *xbstream_encrypt_algo_names[] =
-{ "NONE", "AES128", "AES192", "AES256", NullS};
-TYPELIB xbstream_encrypt_algo_typelib=
-{array_elements(xbstream_encrypt_algo_names)-1,"",
-	xbstream_encrypt_algo_names, NULL};
-
 /* Need the following definitions to avoid linking with ds_*.o and their link
 dependencies */
 datasink_t datasink_archive;
 datasink_t datasink_xbstream;
 datasink_t datasink_compress;
 datasink_t datasink_tmpfile;
-datasink_t datasink_encrypt;
 datasink_t datasink_buffer;
 
 static run_mode_t	opt_mode;
 static char *		opt_directory = NULL;
 static my_bool		opt_verbose = 0;
 static int		opt_parallel = 1;
-static ulong 		opt_encrypt_algo;
-static char 		*opt_encrypt_key_file = NULL;
-static void 		*opt_encrypt_key = NULL;
-static int		opt_encrypt_threads = 1;
-
-enum {
-	OPT_ENCRYPT_THREADS = 256
-};
 
 static struct my_option my_long_options[] =
 {
@@ -86,20 +69,6 @@ static struct my_option my_long_options[] =
 	{"parallel", 'p', "Number of worker threads for reading / writing.",
 	 &opt_parallel, &opt_parallel, 0, GET_INT, REQUIRED_ARG,
 	 1, 1, INT_MAX, 0, 0, 0},
-	{"decrypt", 'd', "Decrypt files ending with .xbcrypt.",
-	 &opt_encrypt_algo, &opt_encrypt_algo, &xbstream_encrypt_algo_typelib,
-	 GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-	{"encrypt-key", 'k', "Encryption key.",
-	 &opt_encrypt_key, &opt_encrypt_key, 0,
-	 GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-	{"encrypt-key-file", 'f', "File which contains encryption key.",
-	 &opt_encrypt_key_file, &opt_encrypt_key_file, 0,
-	 GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-	{"encrypt-threads", OPT_ENCRYPT_THREADS,
-	 "Number of threads for parallel data encryption. "
-	 "The default value is 1.",
-	 &opt_encrypt_threads, &opt_encrypt_threads,
-	 0, GET_INT, REQUIRED_ARG, 1, 1, INT_MAX, 0, 0, 0},
 
 	{0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -108,7 +77,6 @@ typedef struct {
 	HASH			*filehash;
 	xb_rstream_t		*stream;
 	ds_ctxt_t		*ds_ctxt;
-	ds_ctxt_t		*ds_decrypt_ctxt;
 	pthread_mutex_t		*mutex;
 } extract_ctxt_t;
 
@@ -348,19 +316,6 @@ err:
 	return 1;
 }
 
-/************************************************************************
-Check if string ends with given suffix.
-@return true if string ends with given suffix. */
-static
-my_bool
-ends_with(const char *str, const char *suffix)
-{
-	size_t suffix_len = strlen(suffix);
-	size_t str_len = strlen(str);
-	return(str_len >= suffix_len
-	       && strcmp(str + str_len - suffix_len, suffix) == 0);
-}
-
 static
 file_entry_t *
 file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen)
@@ -380,11 +335,8 @@ file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen)
 	}
 	entry->pathlen = pathlen;
 
-	if (ctxt->ds_decrypt_ctxt && ends_with(path, ".xbcrypt")) {
-		file = ds_open(ctxt->ds_decrypt_ctxt, path, NULL);
-	} else {
-		file = ds_open(ctxt->ds_ctxt, path, NULL);
-	}
+	file = ds_open(ctxt->ds_ctxt, path, NULL);
+
 	if (file == NULL) {
 		msg("%s: failed to create file.\n", my_progname);
 		goto err;
@@ -534,7 +486,6 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 	xb_rstream_t		*stream = NULL;
 	HASH			filehash;
 	ds_ctxt_t		*ds_ctxt = NULL;
-	ds_ctxt_t		*ds_decrypt_ctxt = NULL;
 	extract_ctxt_t		ctxt;
 	int			i;
 	pthread_t		*tids = NULL;
@@ -574,7 +525,6 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 	ctxt.stream = stream;
 	ctxt.filehash = &filehash;
 	ctxt.ds_ctxt = ds_ctxt;
-	ctxt.ds_decrypt_ctxt = ds_decrypt_ctxt;
 	ctxt.mutex = &mutex;
 
 	tids = malloc(sizeof(pthread_t) * n_threads);
@@ -604,9 +554,6 @@ exit:
 	if (ds_ctxt != NULL) {
 		ds_destroy(ds_ctxt);
 	}
- 	if (ds_decrypt_ctxt) {
- 		ds_destroy(ds_decrypt_ctxt);
- 	}
 	xb_stream_read_done(stream);
 
 	return ret;

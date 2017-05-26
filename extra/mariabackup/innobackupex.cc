@@ -101,8 +101,6 @@ char *opt_ibx_login_path = NULL;
 ulong opt_ibx_lock_wait_query_type;
 ulong opt_ibx_kill_long_query_type;
 
-ulong opt_ibx_decrypt_algo = 0;
-
 uint opt_ibx_kill_long_queries_timeout = 0;
 uint opt_ibx_lock_wait_timeout = 0;
 uint opt_ibx_lock_wait_threshold = 0;
@@ -110,7 +108,6 @@ uint opt_ibx_debug_sleep_before_unlock = 0;
 uint opt_ibx_safe_slave_backup_timeout = 0;
 
 const char *opt_ibx_history = NULL;
-bool opt_ibx_decrypt = false;
 
 char *opt_ibx_include = NULL;
 char *opt_ibx_databases = NULL;
@@ -124,11 +121,6 @@ my_bool ibx_xb_close_files;
 const char *ibx_xtrabackup_compress_alg;
 uint ibx_xtrabackup_compress_threads;
 ulonglong ibx_xtrabackup_compress_chunk_size;
-ulong ibx_xtrabackup_encrypt_algo;
-char *ibx_xtrabackup_encrypt_key;
-char *ibx_xtrabackup_encrypt_key_file;
-uint ibx_xtrabackup_encrypt_threads;
-ulonglong ibx_xtrabackup_encrypt_chunk_size;
 my_bool ibx_xtrabackup_export;
 char *ibx_xtrabackup_extra_lsndir;
 char *ibx_xtrabackup_incremental_basedir;
@@ -198,7 +190,6 @@ enum innobackupex_options
 	OPT_NO_VERSION_CHECK,
 	OPT_NO_BACKUP_LOCKS,
 	OPT_DATABASES,
-	OPT_DECRYPT,
 	OPT_DECOMPRESS,
 
 	/* options wich are passed directly to xtrabackup */
@@ -207,11 +198,6 @@ enum innobackupex_options
 	OPT_COMPRESS,
 	OPT_COMPRESS_THREADS,
 	OPT_COMPRESS_CHUNK_SIZE,
-	OPT_ENCRYPT,
-	OPT_ENCRYPT_KEY,
-	OPT_ENCRYPT_KEY_FILE,
-	OPT_ENCRYPT_THREADS,
-	OPT_ENCRYPT_CHUNK_SIZE,
 	OPT_EXPORT,
 	OPT_EXTRA_LSNDIR,
 	OPT_INCREMENTAL_BASEDIR,
@@ -427,12 +413,6 @@ static struct my_option ibx_long_options[] =
 	 (uchar*) &opt_ibx_incremental_history_uuid, 0, GET_STR,
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"decrypt", OPT_DECRYPT, "Decrypts all files with the .xbcrypt "
-	 "extension in a backup previously made with --encrypt option.",
-	 &opt_ibx_decrypt_algo, &opt_ibx_decrypt_algo,
-	 &xtrabackup_encrypt_algo_typelib, GET_ENUM, REQUIRED_ARG,
-	 0, 0, 0, 0, 0, 0},
-
 	{"ftwrl-wait-query-type", OPT_LOCK_WAIT_QUERY_TYPE,
 	 "This option specifies which types of queries are allowed to complete "
 	 "before innobackupex will issue the global lock. Default is all.",
@@ -549,46 +529,6 @@ static struct my_option ibx_long_options[] =
 	 "buffer(s) for compression threads in bytes. The default value "
 	 "is 64K.", (uchar*) &ibx_xtrabackup_compress_chunk_size,
 	 (uchar*) &ibx_xtrabackup_compress_chunk_size,
-	 0, GET_ULL, REQUIRED_ARG, (1 << 16), 1024, ULONGLONG_MAX, 0, 0, 0},
-
-	{"encrypt", OPT_ENCRYPT, "This option instructs xtrabackup to encrypt "
-	 "backup copies of InnoDB data files using the algorithm specified in "
-	 "the ENCRYPTION-ALGORITHM. It is passed directly to the xtrabackup "
-	 "child process. Try 'xtrabackup --help' for more details.",
-	 &ibx_xtrabackup_encrypt_algo, &ibx_xtrabackup_encrypt_algo,
-	 &xtrabackup_encrypt_algo_typelib, GET_ENUM, REQUIRED_ARG,
-	 0, 0, 0, 0, 0, 0},
-
-	{"encrypt-key", OPT_ENCRYPT_KEY, "This option instructs xtrabackup to "
-	 "use the given ENCRYPTION-KEY when using the --encrypt or --decrypt "
-	 "options. During backup it is passed directly to the xtrabackup child "
-	 "process. Try 'xtrabackup --help' for more details.",
-	 (uchar*) &ibx_xtrabackup_encrypt_key,
-	 (uchar*) &ibx_xtrabackup_encrypt_key, 0,
-	 GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-
-	{"encrypt-key-file", OPT_ENCRYPT_KEY_FILE, "This option instructs "
-	 "xtrabackup to use the encryption key stored in the given "
-	 "ENCRYPTION-KEY-FILE when using the --encrypt or --decrypt options.",
-	 (uchar*) &ibx_xtrabackup_encrypt_key_file,
-	 (uchar*) &ibx_xtrabackup_encrypt_key_file, 0,
-	 GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-
-	{"encrypt-threads", OPT_ENCRYPT_THREADS,
-	 "This option specifies the number of worker threads that will be used "
-	 "for parallel encryption. It is passed directly to the xtrabackup "
-	 "child process. Try 'xtrabackup --help' for more details.",
-	 (uchar*) &ibx_xtrabackup_encrypt_threads,
-	 (uchar*) &ibx_xtrabackup_encrypt_threads,
-	 0, GET_UINT, REQUIRED_ARG, 1, 1, UINT_MAX, 0, 0, 0},
-
-	{"encrypt-chunk-size", OPT_ENCRYPT_CHUNK_SIZE,
-	 "This option specifies the size of the internal working buffer for "
-	 "each encryption thread, measured in bytes. It is passed directly to "
-	 "the xtrabackup child process. Try 'xtrabackup --help' for more "
-	 "details.",
-	 (uchar*) &ibx_xtrabackup_encrypt_chunk_size,
-	 (uchar*) &ibx_xtrabackup_encrypt_chunk_size,
 	 0, GET_ULL, REQUIRED_ARG, (1 << 16), 1024, ULONGLONG_MAX, 0, 0, 0},
 
 	{"export", OPT_EXPORT, "This option is passed directly to xtrabackup's "
@@ -726,8 +666,6 @@ You can download full text of the license on http://www.gnu.org/licenses/gpl-2.0
 SYNOPOSIS\n\
 \n\
 innobackupex [--compress] [--compress-threads=NUMBER-OF-THREADS] [--compress-chunk-size=CHUNK-SIZE]\n\
-             [--encrypt=ENCRYPTION-ALGORITHM] [--encrypt-threads=NUMBER-OF-THREADS] [--encrypt-chunk-size=CHUNK-SIZE]\n\
-             [--encrypt-key=LITERAL-ENCRYPTION-KEY] | [--encryption-key-file=MY.KEY]\n\
              [--include=REGEXP] [--user=NAME]\n\
              [--password=WORD] [--port=PORT] [--socket=SOCKET]\n\
              [--no-timestamp] [--ibbackup=IBBACKUP-BINARY]\n\
@@ -751,8 +689,7 @@ innobackupex --copy-back [--defaults-file=MY.CNF] [--defaults-group=GROUP-NAME] 
 \n\
 innobackupex --move-back [--defaults-file=MY.CNF] [--defaults-group=GROUP-NAME] BACKUP-DIR\n\
 \n\
-innobackupex [--decompress] [--decrypt=ENCRYPTION-ALGORITHM]\n\
-             [--encrypt-key=LITERAL-ENCRYPTION-KEY] | [--encryption-key-file=MY.KEY]\n\
+innobackupex [--decompress]\n\
              [--parallel=NUMBER-OF-FORKS] BACKUP-DIR\n\
 \n\
 DESCRIPTION\n\
@@ -789,15 +726,12 @@ it moves files to their original locations rather than copies them. As this\n\
 option removes backup files, it must be used with caution. It may be useful in\n\
 cases when there is not enough free disk space to copy files.\n\
 \n\
-The --decompress --decrypt command will decrypt and/or decompress a backup made\n\
-with the --compress and/or --encrypt options. When decrypting, the encryption\n\
-algorithm and key used when the backup was taken MUST be provided via the\n\
-specified options. --decrypt and --decompress may be used together at the same\n\
-time to completely normalize a previously compressed and encrypted backup. The\n\
---parallel option will allow multiple files to be decrypted and/or decompressed\n\
+The --decompress command will decompress a backup made\n\
+with the --compress option. The\n\
+--parallel option will allow multiple files to be decompressed\n\
 simultaneously. In order to decompress, the qpress utility MUST be installed\n\
 and accessable within the path. This process will remove the original\n\
-compressed/encrypted files and leave the results in the same location.\n\
+compressed files and leave the results in the same location.\n\
 \n\
 On success the exit code innobackupex is 0. A non-zero exit code \n\
 indicates an error.\n");
@@ -830,14 +764,6 @@ ibx_get_one_option(int optid,
 			opt_ibx_history = "";
 		}
 		break;
-	case OPT_DECRYPT:
-		if (argument == NULL) {
-			ibx_msg("Missing --decrypt argument, must specify a "
-				"valid encryption  algorithm.\n");
-			return(1);
-		}
-		opt_ibx_decrypt = true;
-		break;
 	case OPT_STREAM:
     if (!strcasecmp(argument, "xbstream"))
 			xtrabackup_stream_fmt = XB_STREAM_FMT_XBSTREAM;
@@ -856,15 +782,6 @@ ibx_get_one_option(int optid,
 			return 1;
 		}
 		xtrabackup_compress = TRUE;
-		break;
-	case OPT_ENCRYPT:
-		if (argument == NULL)
-		{
-			msg("Missing --encrypt argument, must specify a "
-				"valid encryption algorithm.\n");
-			return 1;
-		}
-		xtrabackup_encrypt = TRUE;
 		break;
 	case 'p':
 		if (argument)
@@ -919,7 +836,7 @@ ibx_handle_options(int *argc, char ***argv)
 		ibx_mode = IBX_MODE_COPY_BACK;
 	} else if (opt_ibx_move_back) {
 		ibx_mode = IBX_MODE_MOVE_BACK;
-	} else if (opt_ibx_decrypt || opt_ibx_decompress) {
+	} else if (opt_ibx_decompress) {
 		ibx_mode = IBX_MODE_DECRYPT_DECOMPRESS;
 	} else {
 		ibx_mode = IBX_MODE_BACKUP;
@@ -997,8 +914,6 @@ ibx_init()
 	opt_lock_wait_query_type = opt_ibx_lock_wait_query_type;
 	opt_kill_long_query_type = opt_ibx_kill_long_query_type;
 
-	opt_decrypt_algo = opt_ibx_decrypt_algo;
-
 	opt_kill_long_queries_timeout = opt_ibx_kill_long_queries_timeout;
 	opt_lock_wait_timeout = opt_ibx_lock_wait_timeout;
 	opt_lock_wait_threshold = opt_ibx_lock_wait_threshold;
@@ -1006,18 +921,12 @@ ibx_init()
 	opt_safe_slave_backup_timeout = opt_ibx_safe_slave_backup_timeout;
 
 	opt_history = opt_ibx_history;
-	opt_decrypt = opt_ibx_decrypt;
 
 	/* setup xtrabackup options */
 	xb_close_files = ibx_xb_close_files;
 	xtrabackup_compress_alg = ibx_xtrabackup_compress_alg;
 	xtrabackup_compress_threads = ibx_xtrabackup_compress_threads;
 	xtrabackup_compress_chunk_size = ibx_xtrabackup_compress_chunk_size;
-	xtrabackup_encrypt_algo = ibx_xtrabackup_encrypt_algo;
-	xtrabackup_encrypt_key = ibx_xtrabackup_encrypt_key;
-	xtrabackup_encrypt_key_file = ibx_xtrabackup_encrypt_key_file;
-	xtrabackup_encrypt_threads = ibx_xtrabackup_encrypt_threads;
-	xtrabackup_encrypt_chunk_size = ibx_xtrabackup_encrypt_chunk_size;
 	xtrabackup_export = ibx_xtrabackup_export;
 	xtrabackup_extra_lsndir = ibx_xtrabackup_extra_lsndir;
 	xtrabackup_incremental_basedir = ibx_xtrabackup_incremental_basedir;
@@ -1098,7 +1007,7 @@ ibx_init()
 	case IBX_MODE_DECRYPT_DECOMPRESS:
 		xtrabackup_decrypt_decompress = TRUE;
 		xtrabackup_target_dir = ibx_position_arg;
-		run = "decrypt and decompress";
+		run = "decompress";
 		break;
 	default:
 		ut_error;

@@ -1435,8 +1435,7 @@ write_xtrabackup_info(MYSQL *connection)
 		"partial = %s\n"
 		"incremental = %s\n"
 		"format = %s\n"
-		"compressed = %s\n"
-		"encrypted = %s\n",
+		"compressed = %s\n",
 		uuid, /* uuid */
 		opt_history ? opt_history : "",  /* name */
 		tool_name,  /* tool_name */
@@ -1454,8 +1453,7 @@ write_xtrabackup_info(MYSQL *connection)
 		is_partial? "Y" : "N",
 		xtrabackup_incremental ? "Y" : "N", /* incremental */
 		xb_stream_name[xtrabackup_stream_fmt], /* format */
-		xtrabackup_compress ? "compressed" : "N", /* compressed */
-		xtrabackup_encrypt ? "Y" : "N"); /* encrypted */
+		xtrabackup_compress ? "compressed" : "N"); /* compressed */
 
 	if (!opt_history) {
 		goto cleanup;
@@ -1481,8 +1479,7 @@ write_xtrabackup_info(MYSQL *connection)
 		"partial ENUM('Y', 'N') DEFAULT NULL,"
 		"incremental ENUM('Y', 'N') DEFAULT NULL,"
 		"format ENUM('file', 'tar', 'xbstream') DEFAULT NULL,"
-		"compressed ENUM('Y', 'N') DEFAULT NULL,"
-		"encrypted ENUM('Y', 'N') DEFAULT NULL"
+		"compressed ENUM('Y', 'N') DEFAULT NULL"
 		") CHARACTER SET utf8 ENGINE=innodb", false);
 
 
@@ -1492,8 +1489,8 @@ write_xtrabackup_info(MYSQL *connection)
 		<< "uuid, name, tool_name, tool_command, tool_version,"
 		<< "ibbackup_version, server_version, start_time, end_time,"
 		<< "lock_time, binlog_pos, innodb_from_lsn, innodb_to_lsn,"
-		<< "partial, incremental, format, compressed, "
-		<< "encrypted) values("
+		<< "partial, incremental, format, compressed) "
+		<< "values("
 		<< escape_and_quote(connection, uuid) << ","
 		<< escape_and_quote(connection, opt_history) << ","
 		<< escape_and_quote(connection, tool_name) << ","
@@ -1510,8 +1507,7 @@ write_xtrabackup_info(MYSQL *connection)
 		<< ESCAPE_BOOL(is_partial) << ","
 		<< ESCAPE_BOOL(xtrabackup_incremental)<< ","
 		<< escape_and_quote(connection,xb_stream_name[xtrabackup_stream_fmt]) <<","
-		<< ESCAPE_BOOL(xtrabackup_compress) << ","
-		<< ESCAPE_BOOL(xtrabackup_encrypt) <<")";
+		<< ESCAPE_BOOL(xtrabackup_compress) << ")";
 
 	xb_mysql_query(mysql_connection, oss.str().c_str(), false);
 
@@ -1576,14 +1572,6 @@ char *make_argv(char *buf, size_t len, int argc, char **argv)
 		arg = *argv;
 		if (strncmp(*argv, "--password", strlen("--password")) == 0) {
 			arg = "--password=...";
-		}
-		if (strncmp(*argv, "--encrypt-key",
-				strlen("--encrypt-key")) == 0) {
-			arg = "--encrypt-key=...";
-		}
-		if (strncmp(*argv, "--encrypt_key",
-				strlen("--encrypt_key")) == 0) {
-			arg = "--encrypt_key=...";
 		}
 		left-= ut_snprintf(buf + len - left, left,
 			"%s%c", arg, argc > 1 ? ' ' : 0);

@@ -195,19 +195,6 @@ ibool xtrabackup_compress = FALSE;
 uint xtrabackup_compress_threads;
 ulonglong xtrabackup_compress_chunk_size = 0;
 
-const char *xtrabackup_encrypt_algo_names[] =
-{ "NONE", "AES128", "AES192", "AES256", NullS};
-TYPELIB xtrabackup_encrypt_algo_typelib=
-{array_elements(xtrabackup_encrypt_algo_names)-1,"",
-	xtrabackup_encrypt_algo_names, NULL};
-
-ibool xtrabackup_encrypt = FALSE;
-ulong xtrabackup_encrypt_algo;
-char *xtrabackup_encrypt_key = NULL;
-char *xtrabackup_encrypt_key_file = NULL;
-uint xtrabackup_encrypt_threads;
-ulonglong xtrabackup_encrypt_chunk_size = 0;
-
 /* sleep interval beetween log copy iterations in log copying thread
 in milliseconds (default is 1 second) */
 ulint xtrabackup_log_copy_interval = 1000;
@@ -366,8 +353,6 @@ TYPELIB query_type_typelib= {array_elements(query_type_names) - 1, "",
 ulong opt_lock_wait_query_type;
 ulong opt_kill_long_query_type;
 
-ulong opt_decrypt_algo = 0;
-
 uint opt_kill_long_queries_timeout = 0;
 uint opt_lock_wait_timeout = 0;
 uint opt_lock_wait_threshold = 0;
@@ -375,7 +360,6 @@ uint opt_debug_sleep_before_unlock = 0;
 uint opt_safe_slave_backup_timeout = 0;
 
 const char *opt_history = NULL;
-my_bool opt_decrypt = FALSE;
 
 #if defined(HAVE_OPENSSL)
 my_bool opt_ssl_verify_server_cert = FALSE;
@@ -501,11 +485,6 @@ enum options_xtrabackup
   OPT_XTRA_COMPRESS,
   OPT_XTRA_COMPRESS_THREADS,
   OPT_XTRA_COMPRESS_CHUNK_SIZE,
-  OPT_XTRA_ENCRYPT,
-  OPT_XTRA_ENCRYPT_KEY,
-  OPT_XTRA_ENCRYPT_KEY_FILE,
-  OPT_XTRA_ENCRYPT_THREADS,
-  OPT_XTRA_ENCRYPT_CHUNK_SIZE,
   OPT_LOG,
   OPT_INNODB,
   OPT_INNODB_CHECKSUMS,
@@ -576,7 +555,6 @@ enum options_xtrabackup
   OPT_DECOMPRESS,
   OPT_INCREMENTAL_HISTORY_NAME,
   OPT_INCREMENTAL_HISTORY_UUID,
-  OPT_DECRYPT,
   OPT_REMOVE_ORIGINAL,
   OPT_LOCK_WAIT_QUERY_TYPE,
   OPT_KILL_LONG_QUERY_TYPE,
@@ -697,29 +675,6 @@ struct my_option xb_client_options[] =
   {"compress-chunk-size", OPT_XTRA_COMPRESS_CHUNK_SIZE,
    "Size of working buffer(s) for compression threads in bytes. The default value is 64K.",
    (G_PTR*) &xtrabackup_compress_chunk_size, (G_PTR*) &xtrabackup_compress_chunk_size,
-   0, GET_ULL, REQUIRED_ARG, (1 << 16), 1024, ULONGLONG_MAX, 0, 0, 0},
-
-  {"encrypt", OPT_XTRA_ENCRYPT, "Encrypt individual backup files using the "
-   "specified encryption algorithm.",
-   &xtrabackup_encrypt_algo, &xtrabackup_encrypt_algo,
-   &xtrabackup_encrypt_algo_typelib, GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-
-  {"encrypt-key", OPT_XTRA_ENCRYPT_KEY, "Encryption key to use.",
-   (G_PTR*) &xtrabackup_encrypt_key, (G_PTR*) &xtrabackup_encrypt_key, 0,
-   GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-
-  {"encrypt-key-file", OPT_XTRA_ENCRYPT_KEY_FILE, "File which contains encryption key to use.",
-   (G_PTR*) &xtrabackup_encrypt_key_file, (G_PTR*) &xtrabackup_encrypt_key_file, 0,
-   GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-
-  {"encrypt-threads", OPT_XTRA_ENCRYPT_THREADS,
-   "Number of threads for parallel data encryption. The default value is 1.",
-   (G_PTR*) &xtrabackup_encrypt_threads, (G_PTR*) &xtrabackup_encrypt_threads,
-   0, GET_UINT, REQUIRED_ARG, 1, 1, UINT_MAX, 0, 0, 0},
-
-  {"encrypt-chunk-size", OPT_XTRA_ENCRYPT_CHUNK_SIZE,
-   "Size of working buffer(S) for encryption threads in bytes. The default value is 64K.",
-   (G_PTR*) &xtrabackup_encrypt_chunk_size, (G_PTR*) &xtrabackup_encrypt_chunk_size,
    0, GET_ULL, REQUIRED_ARG, (1 << 16), 1024, ULONGLONG_MAX, 0, 0, 0},
 
   {"incremental-force-scan", OPT_XTRA_INCREMENTAL_FORCE_SCAN,
@@ -891,18 +846,6 @@ struct my_option xb_client_options[] =
    (uchar*) &opt_incremental_history_uuid,
    (uchar*) &opt_incremental_history_uuid, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-
-  {"decrypt", OPT_DECRYPT, "Decrypts all files with the .xbcrypt "
-   "extension in a backup previously made with --encrypt option.",
-   &opt_decrypt_algo, &opt_decrypt_algo,
-   &xtrabackup_encrypt_algo_typelib, GET_ENUM, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
-
-  {"remove-original", OPT_REMOVE_ORIGINAL, "Remove .qp and .xbcrypt files "
-   "after decryption and decompression.",
-   (uchar *) &opt_remove_original,
-   (uchar *) &opt_remove_original,
-   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
   {"ftwrl-wait-query-type", OPT_LOCK_WAIT_QUERY_TYPE,
    "This option specifies which types of queries are allowed to complete "
@@ -1420,24 +1363,6 @@ xb_get_one_option(int optid,
       return 1;
     }
     xtrabackup_compress = TRUE;
-    break;
-  case OPT_XTRA_ENCRYPT:
-    if (argument == NULL)
-    {
-      msg("Missing --encrypt argument, must specify a valid encryption "
-          " algorithm.\n");
-      return 1;
-    }
-    xtrabackup_encrypt = TRUE;
-    break;
-  case OPT_DECRYPT:
-    if (argument == NULL) {
-      msg("Missing --decrypt argument, must specify a "
-          "valid encryption  algorithm.\n");
-      return(1);
-    }
-    opt_decrypt = TRUE;
-    xtrabackup_decrypt_decompress = true;
     break;
   case OPT_DECOMPRESS:
     opt_decompress = TRUE;
@@ -2377,25 +2302,13 @@ xb_get_copy_action(const char *dflt)
 
 	if (xtrabackup_stream) {
 		if (xtrabackup_compress) {
-			if (xtrabackup_encrypt) {
-				action = "Compressing, encrypting and streaming";
-			} else {
-				action = "Compressing and streaming";
-			}
-		} else if (xtrabackup_encrypt) {
-			action = "Encrypting and streaming";
+			action = "Compressing and streaming";
 		} else {
 			action = "Streaming";
 		}
 	} else {
 		if (xtrabackup_compress) {
-			if (xtrabackup_encrypt) {
-				action = "Compressing and encrypting";
-			} else {
-				action = "Compressing";
-			}
-		} else if (xtrabackup_encrypt) {
-			action = "Encrypting";
+			action = "Compressing";
 		} else {
 			action = dflt;
 		}
@@ -3067,28 +2980,6 @@ xtrabackup_init_datasinks(void)
 
 
 		ds_redo = ds_meta = ds_data;
-	}
-
-	/* Encryption */
-	if (xtrabackup_encrypt) {
-		ds_ctxt_t	*ds;
-
-
-
-		ds = ds_create(xtrabackup_target_dir, DS_TYPE_ENCRYPT);
-		xtrabackup_add_datasink(ds);
-
-		ds_set_pipe(ds, ds_data);
-		if (ds_data != ds_meta) {
-			ds_data = ds;
-			ds = ds_create(xtrabackup_target_dir, DS_TYPE_ENCRYPT);
-			xtrabackup_add_datasink(ds);
-
-			ds_set_pipe(ds, ds_meta);
-			ds_redo = ds_meta = ds;
-		} else {
-			ds_redo = ds_data = ds_meta = ds;
-		}
 	}
 
 	/* Compression for ds_data and ds_redo */
@@ -6726,8 +6617,6 @@ xb_init()
 
 	if (opt_decompress) {
 		mixed_options[n_mixed_options++] = "--decompress";
-	} else if (opt_decrypt) {
-		mixed_options[n_mixed_options++] = "--decrypt";
 	}
 
 	if (xtrabackup_copy_back) {
