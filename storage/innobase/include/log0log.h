@@ -151,24 +151,24 @@ UNIV_INLINE
 lsn_t
 log_get_max_modified_age_async(void);
 /*================================*/
-/******************************************************//**
-Initializes the log. */
+/** Initializes the redo logging subsystem. */
 void
-log_init(void);
-/*==========*/
-/******************************************************************//**
-Inits a log group to the log system.
-@return true if success, false if not */
-MY_ATTRIBUTE((warn_unused_result))
+log_sys_init();
+
+/** Initialize the redo log.
+@param[in]	n_files		number of files
+@param[in]	file_size	file size in bytes */
+void
+log_init(ulint n_files, lsn_t file_size);
+/** Calculate the recommended highest values for lsn - last_checkpoint_lsn
+and lsn - buf_get_oldest_modification().
+@retval true on success
+@retval false if the smallest log group is too small to
+accommodate the number of OS threads in the database server */
 bool
-log_group_init(
-/*===========*/
-	ulint	id,			/*!< in: group id */
-	ulint	n_files,		/*!< in: number of log files */
-	lsn_t	file_size,		/*!< in: log file size in bytes */
-	ulint	space_id);		/*!< in: space id of the file space
-					which contains the log files of this
-					group */
+log_set_capacity()
+	MY_ATTRIBUTE((warn_unused_result));
+
 /******************************************************//**
 Completes an i/o to a log file. */
 void
@@ -552,16 +552,12 @@ Currently, this is only protected by log_sys->mutex. However, in the case
 of log_write_up_to(), we will access some members only with the protection
 of log_sys->write_mutex, which should affect nothing for now. */
 struct log_group_t{
-	/** log group identifier (always 0) */
-	ulint				id;
 	/** number of files in the group */
 	ulint				n_files;
 	/** format of the redo log: e.g., LOG_HEADER_FORMAT_CURRENT */
 	ulint				format;
 	/** individual log file size in bytes, including the header */
-	lsn_t				file_size
-	/** file space which implements the log group */;
-	ulint				space_id;
+	lsn_t				file_size;
 	/** corruption status */
 	log_group_state_t		state;
 	/** lsn used to fix coordinates within the log group */
@@ -580,8 +576,6 @@ struct log_group_t{
 	byte*				checkpoint_buf_ptr;
 	/** buffer for writing a checkpoint header */
 	byte*				checkpoint_buf;
-	/** list of log groups */
-	UT_LIST_NODE_T(log_group_t)	log_groups;
 
 	/** @return whether the redo log is encrypted */
 	bool is_encrypted() const
@@ -639,8 +633,8 @@ struct log_t{
 					max_checkpoint_age; this flag is
 					peeked at by log_free_check(), which
 					does not reserve the log mutex */
-	UT_LIST_BASE_NODE_T(log_group_t)
-			log_groups;	/*!< log groups */
+	/** the redo log */
+	log_group_t			log;
 
 	/** The fields involved in the log buffer flush @{ */
 
@@ -729,7 +723,7 @@ struct log_t{
 	/** @return whether the redo log is encrypted */
 	bool is_encrypted() const
 	{
-		return(UT_LIST_GET_FIRST(log_groups)->is_encrypted());
+		return(log.is_encrypted());
 	}
 };
 

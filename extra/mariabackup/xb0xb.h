@@ -66,7 +66,6 @@ void
 innodb_log_checksum_func_update(
 /*============================*/
 ulint	algorithm)	/*!< in: algorithm */;
-dberr_t recv_find_max_checkpoint(log_group_t**	max_group, ulint*		max_field);
 dberr_t
 srv_undo_tablespaces_init(
 /*======================*/

@@ -182,15 +182,6 @@ datafiles_iter_t *datafiles_iter_new(fil_system_t *f_system);
 fil_node_t *datafiles_iter_next(datafiles_iter_t *it);
 void datafiles_iter_free(datafiles_iter_t *it);
 
-/************************************************************************
-Initialize the tablespace memory cache and populate it by scanning for and
-opening data files */
-ulint xb_data_files_init(void);
-
-/************************************************************************
-Destroy the tablespace memory cache. */
-void xb_data_files_close(void);
-
 /***********************************************************************
 Reads the space flags from a given data file and returns the compressed
 page size, or 0 if the space is not compressed. */

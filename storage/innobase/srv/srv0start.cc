@@ -478,9 +478,8 @@ create_log_files(
 		}
 	}
 
-	if (!log_group_init(0, srv_n_log_files,
-			    srv_log_file_size * UNIV_PAGE_SIZE,
-			    SRV_LOG_SPACE_FIRST_ID)) {
+	log_init(srv_n_log_files, srv_log_file_size * UNIV_PAGE_SIZE);
+	if (!log_set_capacity()) {
 		return(DB_ERROR);
 	}
 
@@ -1835,7 +1834,7 @@ innobase_start_or_create_for_mysql(void)
 #endif /* UNIV_DEBUG */
 
 	fsp_init();
-	log_init();
+	log_sys_init();
 
 	recv_sys_create();
 	recv_sys_init(buf_pool_get_curr_size());
@@ -2091,8 +2090,9 @@ innobase_start_or_create_for_mysql(void)
 			}
 		}
 
-		if (!log_group_init(0, i, srv_log_file_size * UNIV_PAGE_SIZE,
-				    SRV_LOG_SPACE_FIRST_ID)) {
+		log_init(i, srv_log_file_size * UNIV_PAGE_SIZE);
+
+		if (!log_set_capacity()) {
 			return(srv_init_abort(DB_ERROR));
 		}
 	}
