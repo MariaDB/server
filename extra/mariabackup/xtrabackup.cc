@@ -144,8 +144,6 @@ char xtrabackup_real_incremental_basedir[FN_REFLEN];
 char xtrabackup_real_extra_lsndir[FN_REFLEN];
 char xtrabackup_real_incremental_dir[FN_REFLEN];
 
-lsn_t xtrabackup_archived_to_lsn = 0; /* for --archived-to-lsn */
-
 char *xtrabackup_tmpdir;
 
 char *xtrabackup_tables = NULL;
@@ -271,7 +269,6 @@ are determined in innobase_init below: */
 char*	innobase_ignored_opt			= NULL;
 char*	innobase_data_home_dir			= NULL;
 char*	innobase_data_file_path 		= NULL;
-char*	innobase_log_arch_dir			= NULL;/* unused */
 /* The following has a misleading name: starting from 4.0.5, this also
 affects Windows: */
 char*	innobase_unix_file_flush_method		= NULL;
@@ -280,7 +277,6 @@ char*	innobase_unix_file_flush_method		= NULL;
 values */
 
 ulong	innobase_fast_shutdown			= 1;
-my_bool innobase_log_archive			= FALSE;/* unused */
 my_bool innobase_use_doublewrite    = TRUE;
 my_bool innobase_use_checksums      = TRUE;
 my_bool innobase_use_large_pages    = FALSE;
@@ -310,13 +306,6 @@ my_bool xtrabackup_incremental_force_scan = FALSE;
 
 /* The flushed lsn which is read from data files */
 lsn_t	flushed_lsn= 0;
-
-/* The size of archived log file */
-ib_int64_t xtrabackup_arch_file_size = 0ULL;
-/* The minimal LSN of found archived log files */
-lsn_t xtrabackup_arch_first_file_lsn = 0ULL;
-/* The maximum LSN of found archived log files */
-lsn_t xtrabackup_arch_last_file_lsn = 0ULL;
 
 ulong xb_open_files_limit= 0;
 char *xb_plugin_dir;
@@ -507,7 +496,6 @@ enum options_xtrabackup
   OPT_XTRA_INCREMENTAL_BASEDIR,
   OPT_XTRA_EXTRA_LSNDIR,
   OPT_XTRA_INCREMENTAL_DIR,
-  OPT_XTRA_ARCHIVED_TO_LSN,
   OPT_XTRA_TABLES,
   OPT_XTRA_TABLES_FILE,
   OPT_XTRA_DATABASES,
@@ -535,8 +523,6 @@ enum options_xtrabackup
   OPT_INNODB_FLUSH_LOG_AT_TRX_COMMIT,
   OPT_INNODB_FLUSH_METHOD,
   OPT_INNODB_LOCKS_UNSAFE_FOR_BINLOG,
-  OPT_INNODB_LOG_ARCH_DIR,
-  OPT_INNODB_LOG_ARCHIVE,
   OPT_INNODB_LOG_GROUP_HOME_DIR,
   OPT_INNODB_MAX_DIRTY_PAGES_PCT,
   OPT_INNODB_MAX_PURGE_LAG,
@@ -670,10 +656,6 @@ struct my_option xb_client_options[] =
   {"incremental-dir", OPT_XTRA_INCREMENTAL_DIR, "(for --prepare): apply .delta files and logfile in the specified directory.",
    (G_PTR*) &xtrabackup_incremental_dir, (G_PTR*) &xtrabackup_incremental_dir,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
- {"to-archived-lsn", OPT_XTRA_ARCHIVED_TO_LSN,
-   "Don't apply archived logs with bigger log sequence number.",
-   (G_PTR*) &xtrabackup_archived_to_lsn, (G_PTR*) &xtrabackup_archived_to_lsn, 0,
-   GET_LL, REQUIRED_ARG, 0, 0, LONGLONG_MAX, 0, 0, 0},
   {"tables", OPT_XTRA_TABLES, "filtering by regexp for table names.",
    (G_PTR*) &xtrabackup_tables, (G_PTR*) &xtrabackup_tables,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1126,9 +1108,6 @@ Disable with --skip-innodb-doublewrite.", (G_PTR*) &innobase_use_doublewrite,
    (G_PTR*) &innobase_force_recovery, (G_PTR*) &innobase_force_recovery, 0,
    GET_LONG, REQUIRED_ARG, 0, 0, 6, 0, 1, 0},
 
-  {"innodb_log_arch_dir", OPT_INNODB_LOG_ARCH_DIR,
-   "Where full logs should be archived.", (G_PTR*) &innobase_log_arch_dir,
-   (G_PTR*) &innobase_log_arch_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
    "The size of the buffer which InnoDB uses to write log to the log files on disk.",
    (G_PTR*) &innobase_log_buffer_size, (G_PTR*) &innobase_log_buffer_size, 0,
@@ -1732,7 +1711,6 @@ mem_free_and_error:
 	msg("xtrabackup:   innodb_log_file_size = %lld\n",
 	    (long long int) srv_log_file_size);
 
-	srv_log_archive_on = (ulint) innobase_log_archive;
 	srv_log_buffer_size = (ulint) innobase_log_buffer_size;
 
         /* We set srv_pool_size here in units of 1 kB. InnoDB internally
@@ -1761,11 +1739,8 @@ mem_free_and_error:
 
 	os_use_large_pages = (ibool) innobase_use_large_pages;
 	os_large_page_size = (ulint) innobase_large_page_size;
-
-	if (!innobase_log_arch_dir) {
-		static char default_dir[3] = "./";
-		srv_arch_dir = default_dir;
-	}
+	static char default_dir[3] = "./";
+	srv_arch_dir = default_dir;
 	row_rollback_on_timeout = (ibool) innobase_rollback_on_timeout;
 
 	srv_file_per_table = (my_bool) innobase_file_per_table;
@@ -6191,74 +6166,6 @@ xb_export_cfg_write(
 
 }
 
-/********************************************************************//**
-Searches archived log files in archived log directory. The min and max
-LSN's of found files as well as archived log file size are stored in
-xtrabackup_arch_first_file_lsn, xtrabackup_arch_last_file_lsn and
-xtrabackup_arch_file_size respectively.
-@return true on success
-*/
-static
-bool
-xtrabackup_arch_search_files(
-/*=========================*/
-	ib_uint64_t	start_lsn)		/*!< in: filter out log files
-						witch does not contain data
-						with lsn < start_lsn */
-{
-	os_file_dir_t	dir;
-	os_file_stat_t	fileinfo;
-	ut_ad(innobase_log_arch_dir);
-
-	dir = os_file_opendir(innobase_log_arch_dir, FALSE);
-	if (!dir) {
-		msg("xtrabackup: error: cannot open archived log directory %s\n",
-		    innobase_log_arch_dir);
-		return false;
-	}
-
-	while(!os_file_readdir_next_file(innobase_log_arch_dir,
-					 dir,
-					 &fileinfo) ) {
-		lsn_t	log_file_lsn;
-		char*	log_str_end_lsn_ptr;
-
-		if (strncmp(fileinfo.name,
-			    IB_ARCHIVED_LOGS_PREFIX,
-			    sizeof(IB_ARCHIVED_LOGS_PREFIX) - 1)) {
-			continue;
-		}
-
-		log_file_lsn = strtoll(fileinfo.name +
-				       sizeof(IB_ARCHIVED_LOGS_PREFIX) - 1,
-				       &log_str_end_lsn_ptr, 10);
-
-		if (*log_str_end_lsn_ptr) {
-			continue;
-		}
-
-		if (log_file_lsn + (fileinfo.size - LOG_FILE_HDR_SIZE)	< start_lsn) {
-			continue;
-		}
-
-		if (!xtrabackup_arch_first_file_lsn ||
-		    log_file_lsn < xtrabackup_arch_first_file_lsn) {
-			xtrabackup_arch_first_file_lsn = log_file_lsn;
-		}
-		if (log_file_lsn > xtrabackup_arch_last_file_lsn) {
-			xtrabackup_arch_last_file_lsn = log_file_lsn;
-		}
-
-		//TODO: find the more suitable way to extract archived log file
-		//size
-		if (fileinfo.size > (ib_int64_t)xtrabackup_arch_file_size) {
-			xtrabackup_arch_file_size = fileinfo.size;
-		}
-	}
-
-	return xtrabackup_arch_first_file_lsn != 0;
-}
-
 static
 void
 innodb_free_param()
@@ -6324,8 +6231,7 @@ xtrabackup_prepare_func(int argc, char ** argv)
 	xtrabackup_target_dir[1]=0;
 
 	/*
-	  read metadata of target, we don't need metadata reading in the case
-	  archived logs applying
+	  read metadata of target
 	*/
 	sprintf(metadata_path, "%s/%s", xtrabackup_target_dir,
 		XTRABACKUP_METADATA_FILENAME);
@@ -6336,38 +6242,33 @@ xtrabackup_prepare_func(int argc, char ** argv)
 		exit(EXIT_FAILURE);
 	}
 
-	if (!innobase_log_arch_dir)
-	{
-		if (!strcmp(metadata_type, "full-backuped")) {
-			msg("xtrabackup: This target seems to be not prepared "
-			    "yet.\n");
-		} else if (!strcmp(metadata_type, "log-applied")) {
-			msg("xtrabackup: This target seems to be already "
-			    "prepared with --apply-log-only.\n");
-			goto skip_check;
-		} else if (!strcmp(metadata_type, "full-prepared")) {
-			msg("xtrabackup: This target seems to be already "
-			    "prepared.\n");
-		} else {
-			msg("xtrabackup: This target seems not to have correct "
-			    "metadata...\n");
-			exit(EXIT_FAILURE);
-		}
+	if (!strcmp(metadata_type, "full-backuped")) {
+		msg("xtrabackup: This target seems to be not prepared yet.\n");
+	} else if (!strcmp(metadata_type, "log-applied")) {
+		msg("xtrabackup: This target seems to be already "
+		    "prepared with --apply-log-only.\n");
+		goto skip_check;
+	} else if (!strcmp(metadata_type, "full-prepared")) {
+		msg("xtrabackup: This target seems to be already prepared.\n");
+	} else {
+		msg("xtrabackup: This target seems not to have correct "
+		    "metadata...\n");
+		exit(EXIT_FAILURE);
+	}
 
-		if (xtrabackup_incremental) {
-			msg("xtrabackup: error: applying incremental backup "
-			    "needs target prepared with --apply-log-only.\n");
-			exit(EXIT_FAILURE);
-		}
+	if (xtrabackup_incremental) {
+		msg("xtrabackup: error: applying incremental backup "
+		    "needs target prepared with --apply-log-only.\n");
+		exit(EXIT_FAILURE);
+	}
 skip_check:
-		if (xtrabackup_incremental
-		    && metadata_to_lsn != incremental_lsn) {
-			msg("xtrabackup: error: This incremental backup seems "
-			    "not to be proper for the target.\n"
-			    "xtrabackup:  Check 'to_lsn' of the target and "
-			    "'from_lsn' of the incremental.\n");
-			exit(EXIT_FAILURE);
-		}
+	if (xtrabackup_incremental
+	    && metadata_to_lsn != incremental_lsn) {
+		msg("xtrabackup: error: This incremental backup seems "
+		    "not to be proper for the target.\n"
+		    "xtrabackup:  Check 'to_lsn' of the target and "
+		    "'from_lsn' of the incremental.\n");
+		exit(EXIT_FAILURE);
 	}
 
 	/* Create logfiles for recovery from 'xtrabackup_logfile', before start InnoDB */
@@ -6390,7 +6291,7 @@ skip_check:
 
 	xb_filters_init();
 
-	if(!innobase_log_arch_dir && xtrabackup_init_temp_log())
+	if (xtrabackup_init_temp_log())
 		goto error_cleanup;
 
 	if(innodb_init_param()) {
@@ -6399,7 +6300,7 @@ skip_check:
 
 	xb_normalize_init_values();
 
-	if (xtrabackup_incremental || innobase_log_arch_dir) {
+	if (xtrabackup_incremental) {
 		err = xb_data_files_init();
 		if (err != DB_SUCCESS) {
 			msg("xtrabackup: error: xb_data_files_init() failed "
@@ -6416,7 +6317,7 @@ skip_check:
 			goto error_cleanup;
 		}
 	}
-	if (xtrabackup_incremental || innobase_log_arch_dir) {
+	if (xtrabackup_incremental) {
 		xb_data_files_close();
 	}
 	if (xtrabackup_incremental) {
@@ -6450,53 +6351,6 @@ skip_check:
 	if(srv_n_file_io_threads < 10) {
 		srv_n_read_io_threads = 4;
 		srv_n_write_io_threads = 4;
-	}
-
-	if (innobase_log_arch_dir) {
-		srv_arch_dir = innobase_log_arch_dir;
-		srv_archive_recovery = true;
-		if (xtrabackup_archived_to_lsn) {
-			if (xtrabackup_archived_to_lsn < metadata_last_lsn) {
-				msg("xtrabackup: warning: logs applying lsn "
-				    "limit " UINT64PF " is "
-				    "less than metadata last-lsn " UINT64PF
-				    " and will be set to metadata last-lsn value\n",
-				    xtrabackup_archived_to_lsn,
-				    metadata_last_lsn);
-				xtrabackup_archived_to_lsn = metadata_last_lsn;
-			}
-			if (xtrabackup_archived_to_lsn < flushed_lsn) {
-				msg("xtrabackup: error: logs applying "
-				    "lsn limit " UINT64PF " is less than "
-				    "min_flushed_lsn " UINT64PF
-				    ", there is nothing to do\n",
-				    xtrabackup_archived_to_lsn,
-				    flushed_lsn);
-				goto error_cleanup;
-			}
-		}
-		srv_archive_recovery_limit_lsn= xtrabackup_archived_to_lsn;
-		/*
-		  Unfinished transactions are not rolled back during log applying
-		  as they can be finished at the firther files applyings.
-		*/
-		xtrabackup_apply_log_only = srv_apply_log_only = true;
-
-		if (!xtrabackup_arch_search_files(flushed_lsn)) {
-			goto error_cleanup;
-		}
-
-		/*
-		  Check if last log file last lsn is big enough to overlap
-		  last scanned lsn read from metadata.
-		*/
-		if (xtrabackup_arch_last_file_lsn +
-		    xtrabackup_arch_file_size -
-		    LOG_FILE_HDR_SIZE < metadata_last_lsn) {
-			msg("xtrabackup: error: there are no enough archived logs "
-			    "to apply\n");
-			goto error_cleanup;
-		}
 	}
 
 	msg("xtrabackup: Starting InnoDB instance for recovery.\n"
@@ -6726,9 +6580,6 @@ next_node:
 
 		exit(EXIT_FAILURE);
 	}
-
-	if (innobase_log_arch_dir)
-		srv_start_lsn = log_sys->lsn = recv_sys->recovered_lsn;
 
 	/* Check whether the log is applied enough or not. */
 	if ((xtrabackup_incremental
@@ -7364,18 +7215,6 @@ int main(int argc, char **argv)
 		msg("xtrabackup: auto-enabling --innodb-file-per-table due to "
 		    "the --export option\n");
 		innobase_file_per_table = TRUE;
-	}
-
-	if (!xtrabackup_prepare &&
-	    (innobase_log_arch_dir || xtrabackup_archived_to_lsn)) {
-
-		/* Default my.cnf can contain innobase_log_arch_dir option set
-		for server, reset it to allow backup. */
-		innobase_log_arch_dir= NULL;
-		xtrabackup_archived_to_lsn= 0;
-		msg("xtrabackup: warning: "
-		    "as --innodb-log-arch-dir and --to-archived-lsn can be used "
-		    "only with --prepare they will be reset\n");
 	}
 
 	/* cannot execute both for now */
