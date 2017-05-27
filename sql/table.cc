@@ -1721,6 +1721,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     keyinfo= share->key_info;
     uint primary_key= my_strcasecmp(system_charset_info, share->keynames.type_names[0],
                                     primary_key_name) ? MAX_KEY : 0;
+    KEY* key_first_info;
 
     if (primary_key >= MAX_KEY && keyinfo->flags & HA_NOSAME)
     {
@@ -1800,24 +1801,60 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                keyinfo->name_length+1);
       }
 
+      if (!key)
+        key_first_info= keyinfo;
+
       if (ext_key_parts > share->key_parts && key)
       {
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
         uint add_keyparts_for_this_key= add_first_key_parts;
+        uint length_bytes= 0, len_null_byte= 0, ext_key_length= 0;
+        Field *field;
 
         /* 
           Do not extend the key that contains a component
           defined over the beginning of a field.
 	*/ 
         for (i= 0; i < keyinfo->user_defined_key_parts; i++)
-	{
+        {
           uint fieldnr= keyinfo->key_part[i].fieldnr;
+          field= share->field[keyinfo->key_part[i].fieldnr-1];
+
+          if (field->null_ptr)
+            len_null_byte= HA_KEY_NULL_LENGTH;
+
+          if (field->type() == MYSQL_TYPE_BLOB ||
+             field->real_type() == MYSQL_TYPE_VARCHAR ||
+             field->type() == MYSQL_TYPE_GEOMETRY)
+          {
+            length_bytes= HA_KEY_BLOB_LENGTH;
+          }
+
+          ext_key_length+= keyinfo->key_part[i].length + len_null_byte
+                            + length_bytes;
           if (share->field[fieldnr-1]->key_length() !=
               keyinfo->key_part[i].length)
 	  {
             add_keyparts_for_this_key= 0;
             break;
+          }
+        }
+
+        if (add_keyparts_for_this_key)
+        {
+          for (i= 0; i < add_keyparts_for_this_key; i++)
+          {
+            uint pk_part_length= key_first_info->key_part[i].store_length;
+            if (keyinfo->ext_key_part_map & 1<<i)
+            {
+              if (ext_key_length + pk_part_length > MAX_KEY_LENGTH)
+              {
+                add_keyparts_for_this_key= i;
+                break;
+              }
+              ext_key_length+= pk_part_length;
+            }
           }
         }
 
