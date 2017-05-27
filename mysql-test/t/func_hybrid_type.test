@@ -545,6 +545,15 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-10309 COALESCE(12345678900) makes a column of a wrong type and truncates the data
+--echo #
+
+CREATE TABLE t1 AS SELECT 12345678900 AS c1, COALESCE(12345678900) AS c2;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 
