@@ -2576,40 +2576,37 @@ public:
   { return get_item_copy<Item_func_is_used_lock>(thd, mem_root, this); }
 };
 
-/* For type casts */
-
-enum Cast_target
-{
-  ITEM_CAST_BINARY, ITEM_CAST_SIGNED_INT, ITEM_CAST_UNSIGNED_INT,
-  ITEM_CAST_DATE, ITEM_CAST_TIME, ITEM_CAST_DATETIME, ITEM_CAST_CHAR,
-  ITEM_CAST_DECIMAL, ITEM_CAST_DOUBLE
-};
-
 
 struct Lex_cast_type_st: public Lex_length_and_dec_st
 {
 private:
-  Cast_target m_type;
+  const Type_handler *m_type_handler;
 public:
-  void set(Cast_target type, const char *length, const char *dec)
+  void set(const Type_handler *handler, const char *length, const char *dec)
   {
-    m_type= type;
+    m_type_handler= handler;
     Lex_length_and_dec_st::set(length, dec);
   }
-  void set(Cast_target type, Lex_length_and_dec_st length_and_dec)
+  void set(const Type_handler *handler, Lex_length_and_dec_st length_and_dec)
   {
-    m_type= type;
+    m_type_handler= handler;
     Lex_length_and_dec_st::operator=(length_and_dec);
   }
-  void set(Cast_target type, const char *length)
+  void set(const Type_handler *handler, const char *length)
   {
-    set(type, length, 0);
+    set(handler, length, 0);
   }
-  void set(Cast_target type)
+  void set(const Type_handler *handler)
   {
-    set(type, 0, 0);
+    set(handler, 0, 0);
   }
-  Cast_target type() const { return m_type; }
+  const Type_handler *type_handler() const { return m_type_handler; }
+  Item *create_typecast_item(THD *thd, Item *item, CHARSET_INFO *cs= NULL)
+  {
+    return m_type_handler->
+      create_typecast_item(thd, item,
+                           Type_cast_attributes(length(), dec(), cs));
+  }
 };
 
 

@@ -488,6 +488,44 @@ public:
 };
 
 
+class Type_cast_attributes
+{
+  CHARSET_INFO *m_charset;
+  ulonglong m_length;
+  ulonglong m_decimals;
+  bool m_length_specified;
+  bool m_decimals_specified;
+public:
+  Type_cast_attributes(const char *c_len, const char *c_dec, CHARSET_INFO *cs)
+    :m_charset(cs), m_length(0), m_decimals(0),
+     m_length_specified(false), m_decimals_specified(false)
+  {
+    set_length_and_dec(c_len, c_dec);
+  }
+  Type_cast_attributes(CHARSET_INFO *cs)
+    :m_charset(cs), m_length(0), m_decimals(0),
+     m_length_specified(false), m_decimals_specified(false)
+  { }
+  void set_length_and_dec(const char *c_len, const char *c_dec)
+  {
+    int error;
+    /*
+      We don't have to check for error here as sql_yacc.yy has guaranteed
+      that the values are in range of ulonglong
+    */
+    if ((m_length_specified= (c_len != NULL)))
+      m_length= (ulonglong) my_strtoll10(c_len, NULL, &error);
+    if ((m_decimals_specified= (c_dec != NULL)))
+      m_decimals= (ulonglong) my_strtoll10(c_dec, NULL, &error);
+  }
+  CHARSET_INFO *charset() const { return m_charset; }
+  bool length_specified() const { return m_length_specified; }
+  bool decimals_specified() const { return m_decimals_specified; }
+  ulonglong length() const { return m_length; }
+  ulonglong decimals() const { return m_decimals; }
+};
+
+
 class Name: private LEX_CSTRING
 {
 public:
@@ -826,6 +864,12 @@ public:
                                                Item *src,
                                                const Item *cmp) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
+  virtual Item *create_typecast_item(THD *thd, Item *item,
+                                     const Type_cast_attributes &attr) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd,
                                                const char *name,
@@ -1351,6 +1395,8 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_param_set_from_value(THD *thd,
@@ -1773,6 +1819,8 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   uint32 max_display_length(const Item *item) const { return 20; }
   uint32 calc_pack_length(uint32 length) const { return 8; }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_longlong(item, protocol, buf);
@@ -1926,6 +1974,8 @@ public:
   bool type_can_have_auto_increment_attribute() const { return true; }
   uint32 max_display_length(const Item *item) const { return 53; }
   uint32 calc_pack_length(uint32 length) const { return sizeof(double); }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_double(item, protocol, buf);
@@ -1955,6 +2005,8 @@ public:
   {
     return MYSQL_TIMESTAMP_TIME;
   }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   uint Item_decimal_scale(const Item *item) const
   {
     return Item_decimal_scale_with_seconds(item);
@@ -2054,6 +2106,8 @@ public:
   {
     return MYSQL_TIMESTAMP_DATE;
   }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_precision(const Item *item) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
@@ -2113,6 +2167,8 @@ public:
   {
     return MYSQL_TIMESTAMP_DATETIME;
   }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_scale(const Item *item) const
   {
@@ -2516,6 +2572,8 @@ public:
   const Name name() const { return m_name_longblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONG_BLOB; }
   uint32 calc_pack_length(uint32 length) const;
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -2783,6 +2841,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_short       type_handler_short;
 extern MYSQL_PLUGIN_IMPORT Type_handler_int24       type_handler_int24;
 extern MYSQL_PLUGIN_IMPORT Type_handler_long        type_handler_long;
 extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_longlong;
+extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_ulonglong;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_newdecimal  type_handler_newdecimal;
 extern MYSQL_PLUGIN_IMPORT Type_handler_olddecimal  type_handler_olddecimal;

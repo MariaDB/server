@@ -30,6 +30,7 @@ Type_handler_short       type_handler_short;
 Type_handler_long        type_handler_long;
 Type_handler_int24       type_handler_int24;
 Type_handler_longlong    type_handler_longlong;
+Type_handler_longlong    type_handler_ulonglong; // Only used for CAST() for now
 Type_handler_float       type_handler_float;
 Type_handler_double      type_handler_double;
 Type_handler_bit         type_handler_bit;
@@ -5212,6 +5213,168 @@ Item *Type_handler_row::
                          comp_item_row->element_index(col));
   }
   return NULL;
+}
+
+/***************************************************************************/
+
+static const char* item_name(Item *a, String *str)
+{
+  if (a->name.str)
+    return a->name.str;
+  str->length(0);
+  a->print(str, QT_ORDINARY);
+  return str->c_ptr_safe();
+}
+
+
+static void wrong_precision_error(uint errcode, Item *a,
+                                  ulonglong number, uint maximum)
+{
+  StringBuffer<1024> buf(system_charset_info);
+  my_error(errcode, MYF(0), number, item_name(a, &buf), maximum);
+}
+
+
+/**
+  Get precision and scale for a declaration
+ 
+  return
+    0  ok
+    1  error
+*/
+
+bool get_length_and_scale(ulonglong length, ulonglong decimals,
+                          ulong *out_length, uint *out_decimals,
+                          uint max_precision, uint max_scale,
+                          Item *a)
+{
+  if (length > (ulonglong) max_precision)
+  {
+    wrong_precision_error(ER_TOO_BIG_PRECISION, a, length, max_precision);
+    return 1;
+  }
+  if (decimals > (ulonglong) max_scale)
+  {
+    wrong_precision_error(ER_TOO_BIG_SCALE, a, decimals, max_scale);
+    return 1;
+  }
+
+  *out_decimals=  (uint) decimals;
+  my_decimal_trim(&length, out_decimals);
+  *out_length=  (ulong) length;
+  
+  if (*out_length < *out_decimals)
+  {
+    my_error(ER_M_BIGGER_THAN_D, MYF(0), "");
+    return 1;
+  }
+  return 0;
+}
+
+
+Item *Type_handler_longlong::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  if (this != &type_handler_ulonglong)
+    return new (thd->mem_root) Item_func_signed(thd, item);
+  return new (thd->mem_root) Item_func_unsigned(thd, item);
+
+}
+
+
+Item *Type_handler_date_common::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  return new (thd->mem_root) Item_date_typecast(thd, item);
+}
+
+
+
+Item *Type_handler_time_common::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  if (attr.decimals() > MAX_DATETIME_PRECISION)
+  {
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
+                          MAX_DATETIME_PRECISION);
+    return 0;
+  }
+  return new (thd->mem_root)
+         Item_time_typecast(thd, item, (uint) attr.decimals());
+}
+
+
+Item *Type_handler_datetime_common::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  if (attr.decimals() > MAX_DATETIME_PRECISION)
+  {
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
+                          MAX_DATETIME_PRECISION);
+    return 0;
+  }
+  return new (thd->mem_root)
+         Item_datetime_typecast(thd, item, (uint) attr.decimals());
+
+}
+
+
+Item *Type_handler_decimal_result::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  ulong len;
+  uint dec;
+  if (get_length_and_scale(attr.length(), attr.decimals(), &len, &dec,
+                           DECIMAL_MAX_PRECISION, DECIMAL_MAX_SCALE, item))
+    return NULL;
+  return new (thd->mem_root) Item_decimal_typecast(thd, item, len, dec);
+}
+
+
+Item *Type_handler_double::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  ulong len;
+  uint dec;
+  if (!attr.length_specified())
+    return new (thd->mem_root) Item_double_typecast(thd, item,
+                                                    DBL_DIG + 7,
+                                                    NOT_FIXED_DEC);
+
+  if (get_length_and_scale(attr.length(), attr.decimals(), &len, &dec,
+                           DECIMAL_MAX_PRECISION, NOT_FIXED_DEC - 1, item))
+    return NULL;
+  return new (thd->mem_root) Item_double_typecast(thd, item, len, dec);
+}
+
+
+Item *Type_handler_long_blob::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  int len= -1;
+  CHARSET_INFO *real_cs= attr.charset() ?
+                         attr.charset() :
+                         thd->variables.collation_connection;
+  if (attr.length_specified())
+  {
+    if (attr.length() > MAX_FIELD_BLOBLENGTH)
+    {
+      char buff[1024];
+      String buf(buff, sizeof(buff), system_charset_info);
+      my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), item_name(item, &buf),
+               MAX_FIELD_BLOBLENGTH);
+      return NULL;
+    }
+    len= (int) attr.length();
+  }
+  return new (thd->mem_root) Item_char_typecast(thd, item, len, real_cs);
 }
 
 /***************************************************************************/
