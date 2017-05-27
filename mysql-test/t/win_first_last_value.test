@@ -75,3 +75,13 @@ select i,
 from t1;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-12861 FIRST_VALUE() does not preserve the exact data type
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c FLOAT);
+INSERT INTO t1 VALUES (1,1,1),(1,2,2),(2,1,1),(2,2,2);
+CREATE TABLE t2 AS SELECT a, FIRST_VALUE(b) OVER(), FIRST_VALUE(c) OVER() FROM t1 GROUP BY a;
+SHOW CREATE TABLE t2;
+DROP TABLE t2,t1;
