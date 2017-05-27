@@ -1087,7 +1087,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         }
         else if (!real_item)
         {
-          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
           DBUG_RETURN(1);
         }
         else
@@ -1126,7 +1126,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       }
       else if (!real_item)
       {
-        my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+        my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
         DBUG_RETURN(1);
       }
       else
@@ -1166,7 +1166,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         }
         else if (!real_item)
         {
-          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
           DBUG_RETURN(1);
         }
         else
@@ -1306,7 +1306,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           ((Item_user_var_as_out_param *) item)->set_null_value(cs);
         else if (!real_item)
         {
-          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
           DBUG_RETURN(1);
         }
         else
@@ -1336,7 +1336,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                                                  tag->value.length(), cs);
       else if (!real_item)
       {
-        my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+        my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
         DBUG_RETURN(1);
       }
       else
@@ -1373,7 +1373,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           ((Item_user_var_as_out_param *)item)->set_null_value(cs);
         else if (!real_item)
         {
-          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
           DBUG_RETURN(1);
         }
         else
