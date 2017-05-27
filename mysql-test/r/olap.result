@@ -792,3 +792,27 @@ LENGTH(a)	int(10)	YES		NULL
 COUNT(*)	bigint(21)	NO		0	
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-9410 VIEW over a ROLLUP query reports too large columns
+#
+CREATE TABLE t1 (a int(10) NOT NULL, b int(20) NOT NULL);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE VIEW v1 AS SELECT a,b FROM t1;
+DESC v1;
+Field	Type	Null	Key	Default	Extra
+a	int(10)	NO		NULL	
+b	int(20)	NO		NULL	
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT a, b FROM t1 GROUP BY a,b;
+DESC v1;
+Field	Type	Null	Key	Default	Extra
+a	int(10)	NO		NULL	
+b	int(20)	NO		NULL	
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT a, b FROM t1 GROUP BY a,b WITH ROLLUP;
+DESC v1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		0	
+b	int(20)	YES		0	
+DROP VIEW v1;
+DROP TABLE t1;
