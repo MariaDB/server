@@ -4440,9 +4440,9 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
           break;
 //        } // endif partitioned
 
-      case SQLCOM_END:
-        // Met in procedures: IF(EXISTS(SELECT...
-        newmode= MODE_READ;
+			case SQLCOM_CHECK: // TODO implement it
+			case SQLCOM_END:	 // Met in procedures: IF(EXISTS(SELECT...
+				newmode= MODE_READ;
         break;
       default:
         htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
