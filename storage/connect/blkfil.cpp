@@ -56,7 +56,7 @@ BLOCKFILTER::BLOCKFILTER(PTDBDOS tdbp, int op)
 /***********************************************************************/
 /*  Make file output of BLOCKFILTER contents.                          */
 /***********************************************************************/
-void BLOCKFILTER::Print(PGLOBAL, FILE *f, uint n)
+void BLOCKFILTER::Printf(PGLOBAL, FILE *f, uint n)
   {
   char m[64];
 
@@ -65,15 +65,15 @@ void BLOCKFILTER::Print(PGLOBAL, FILE *f, uint n)
 
   fprintf(f, "%sBLOCKFILTER: at %p opc=%d opm=%d result=%d\n",
           m, this, Opc, Opm, Result);
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of BLOCKFILTER contents.                        */
 /***********************************************************************/
-void BLOCKFILTER::Print(PGLOBAL, char *ps, uint z)
+void BLOCKFILTER::Prints(PGLOBAL, char *ps, uint z)
   {
   strncat(ps, "BlockFilter(s)", z);
-  } // end of Print
+  } // end of Prints
 
 
 /* ---------------------- Class BLKFILLOG ---------------------------- */
@@ -995,7 +995,7 @@ int BLOCKINDEX::BlockEval(PGLOBAL g)
 /***********************************************************************/
 /*  Make file output of BLOCKINDEX contents.                           */
 /***********************************************************************/
-void BLOCKINDEX::Print(PGLOBAL g, FILE *f, UINT n)
+void BLOCKINDEX::Printf(PGLOBAL g, FILE *f, UINT n)
   {
   char m[64];
 
@@ -1006,17 +1006,17 @@ void BLOCKINDEX::Print(PGLOBAL g, FILE *f, UINT n)
     m, this, Next, (Colp) ? Colp->GetName() : "Rowid", Kxp, Result);
 
   if (Next)
-    Next->Print(g, f, n);
+    Next->Printf(g, f, n);
 
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of BLOCKINDEX contents.                         */
 /***********************************************************************/
-void BLOCKINDEX::Print(PGLOBAL g, char *ps, UINT z)
+void BLOCKINDEX::Prints(PGLOBAL g, char *ps, UINT z)
   {
   strncat(ps, "BlockIndex(es)", z);
-  } // end of Print
+  } // end of Prints
 
 /* ------------------------------------------------------------------- */
 

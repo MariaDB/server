@@ -61,6 +61,7 @@ public:
   int   Level;                  /* Used for catalog table              */
   int   Base;                   /* The array index base                */
   bool  Strict;                 /* Strict syntax checking              */
+	char  Sep;                    /* The Jpath separator                 */
 	const char *Uri;							/* MongoDB connection URI              */
 #if defined(MONGO_SUPPORT)
 	PCSZ  Collname;               /* External collection name            */
@@ -133,6 +134,7 @@ public:
 	int     SameRow;                 // Same row nb
 	int     Xval;                    // Index of expandable array
 	int     B;                       // Array index base
+	char    Sep;                     // The Jpath separator
 	bool    Strict;                  // Strict syntax checking
 	bool    Comma;                   // Row has final comma
   }; // end of class TDBJSN
@@ -182,7 +184,8 @@ class DllExport JSONCOL : public DOSCOL {
   JNODE  *Nodes;                // The intermediate objects
   int     Nod;                  // The number of intermediate objects
   int     Xnod;                 // Index of multiple values
-  bool    Xpd;                  // True for expandable column
+	char    Sep;                  // The Jpath separator
+	bool    Xpd;                  // True for expandable column
   bool    Parsed;               // True when parsed
   }; // end of class JSONCOL
 

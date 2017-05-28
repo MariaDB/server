@@ -1045,8 +1045,8 @@ PCSZ GetListOption(PGLOBAL g, PCSZ opname, PCSZ oplist, PCSZ def)
     pv= strchr(pk, '=');
 
     if (pv && (!pn || pv < pn)) {
-			n= MY_MIN(pv - pk, sizeof(key) - 1);
-      memcpy(key, pk, n);
+			n = MY_MIN(static_cast<size_t>(pv - pk), sizeof(key) - 1);
+			memcpy(key, pk, n);
       key[n]= 0;
       pv++;
 			n= MY_MIN((pn ? pn - pv : strlen(pv)), sizeof(val) - 1);
@@ -4440,8 +4440,8 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
           break;
 //        } // endif partitioned
 
-      case SQLCOM_END:
-        // Met in procedures: IF(EXISTS(SELECT...
+			case SQLCOM_CHECK: // TODO implement it
+			case SQLCOM_END:	 // Met in procedures: IF(EXISTS(SELECT...
         newmode= MODE_READ;
         break;
       default:

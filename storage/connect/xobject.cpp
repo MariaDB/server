@@ -173,18 +173,18 @@ bool CONSTANT::Rephrase(PGLOBAL g, PSZ work)
 /***********************************************************************/
 /*  Make file output of a constant object.                             */
 /***********************************************************************/
-void CONSTANT::Print(PGLOBAL g, FILE *f, uint n)
+void CONSTANT::Printf(PGLOBAL g, FILE *f, uint n)
   {
-  Value->Print(g, f, n);
-  } /* end of Print */
+  Value->Printf(g, f, n);
+  } /* end of Printf */
 
 /***********************************************************************/
 /*  Make string output of a constant object.                           */
 /***********************************************************************/
-void CONSTANT::Print(PGLOBAL g, char *ps, uint z)
+void CONSTANT::Prints(PGLOBAL g, char *ps, uint z)
   {
-  Value->Print(g, ps, z);
-  } /* end of Print */
+  Value->Prints(g, ps, z);
+  } /* end of Prints */
 
 /* -------------------------- Class STRING --------------------------- */
 

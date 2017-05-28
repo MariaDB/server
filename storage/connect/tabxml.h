@@ -75,7 +75,7 @@ class DllExport TDBXML : public TDBASE {
   virtual int   GetRecpos(void);
   virtual int   GetProgCur(void) {return N;}
   virtual PCSZ  GetFile(PGLOBAL g) {return Xfile;}
-  virtual void  SetFile(PGLOBAL g, PSZ fn) {Xfile = fn;}
+  virtual void  SetFile(PGLOBAL g, PCSZ fn) {Xfile = fn;}
   virtual void  ResetDB(void) {N = 0;}
   virtual void  ResetSize(void) {MaxSize = -1;}
   virtual int   RowNumber(PGLOBAL g, bool b = false);

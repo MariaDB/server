@@ -72,8 +72,8 @@ class DllExport COLBLK : public XOBJECT {
   virtual void    SetTo_Val(PVAL) {}
   virtual void    ReadColumn(PGLOBAL g);
   virtual void    WriteColumn(PGLOBAL g);
-  virtual void    Print(PGLOBAL g, FILE *, uint);
-  virtual void    Print(PGLOBAL g, char *, uint);
+  virtual void    Printf(PGLOBAL g, FILE *, uint);
+  virtual void    Prints(PGLOBAL g, char *, uint);
   virtual bool    VarSize(void) {return false;}
           bool    InitValue(PGLOBAL g);
 

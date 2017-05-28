@@ -38,8 +38,8 @@ class DllExport XTAB: public BLOCK {  // Table Name-Schema-Srcdef block.
 
   // Methods
   PTABLE Link(PTABLE);
-  void   Print(PGLOBAL g, FILE *f, uint n);
-  void   Print(PGLOBAL g, char *ps, uint z);
+  void   Printf(PGLOBAL g, FILE *f, uint n);
+  void   Prints(PGLOBAL g, char *ps, uint z);
 
  protected:
   // Members
@@ -78,8 +78,8 @@ class DllExport COLUMN: public XOBJECT {  // Column Name/Qualifier block.
           void   SetTo_Col(PCOL colp) {To_Col = colp;}
 
   // Methods
-  virtual void   Print(PGLOBAL g, FILE *f, uint n);
-  virtual void   Print(PGLOBAL g, char *ps, uint z);
+  virtual void   Printf(PGLOBAL g, FILE *f, uint n);
+  virtual void   Prints(PGLOBAL g, char *ps, uint z);
   // All methods below should never be used for COLUMN's
   virtual void   Reset(void) {assert(false);}
   virtual bool   Compare(PXOB) {assert(false); return false;}

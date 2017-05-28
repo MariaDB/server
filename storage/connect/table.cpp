@@ -299,7 +299,7 @@ bool TDB::SetRecpos(PGLOBAL g, int)
 	return true;
 } // end of SetRecpos
 
-void TDB::Print(PGLOBAL g, FILE *f, uint n)
+void TDB::Printf(PGLOBAL g, FILE *f, uint n)
   {
   PCOL cp;
   char m[64];
@@ -315,16 +315,16 @@ void TDB::Print(PGLOBAL g, FILE *f, uint n)
     fprintf(f, "%s Columns (deg=%d):\n", m, tp->Degree);
 
     for (cp = tp->Columns; cp; cp = cp->GetNext())
-      cp->Print(g, f, n);
+      cp->Printf(g, f, n);
 
     } /* endfor tp */
 
-  } // end of Print
+  } // end of Printf
 
-void TDB::Print(PGLOBAL, char *ps, uint)
+void TDB::Prints(PGLOBAL, char *ps, uint)
   {
   sprintf(ps, "R%d.%s", Tdb_No, Name);
-  } // end of Print
+  } // end of Prints
 
 /* -------------------------- class TDBASE --------------------------- */
 
