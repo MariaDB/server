@@ -2560,6 +2560,9 @@ err:
   if (non_trans_tmp_table_deleted ||
       trans_tmp_table_deleted || non_tmp_table_deleted)
   {
+    if (non_trans_tmp_table_deleted || trans_tmp_table_deleted)
+      thd->transaction.stmt.mark_dropped_temp_table();
+
     query_cache_invalidate3(thd, tables, 0);
     if (!dont_log_query && mysql_bin_log.is_open())
     {
@@ -5073,6 +5076,9 @@ err:
   if (thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
     DBUG_RETURN(result);
 
+  if (create_info->tmp_table())
+    thd->transaction.stmt.mark_created_temp_table();
+
   /* Write log if no error or if we already deleted a table */
   if (!result || thd->log_current_statement)
   {
@@ -5567,13 +5573,17 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     DBUG_PRINT("info",
                ("res: %d  tmp_table: %d  create_info->table: %p",
                 res, create_info->tmp_table(), local_create_info.table));
-    if (!res && create_info->tmp_table() && local_create_info.table)
+    if (create_info->tmp_table())
     {
-      /*
-        Remember that tmp table creation was logged so that we know if
-        we should log a delete of it.
-      */
-      local_create_info.table->s->table_creation_was_logged= 1;
+      thd->transaction.stmt.mark_created_temp_table();
+      if (!res && local_create_info.table)
+      {
+        /*
+          Remember that tmp table creation was logged so that we know if
+          we should log a delete of it.
+        */
+        local_create_info.table->s->table_creation_was_logged= 1;
+      }
     }
     do_logging= TRUE;
   }
@@ -9366,7 +9376,11 @@ bool mysql_trans_prepare_alter_copy_data(THD *thd)
 bool mysql_trans_commit_alter_copy_data(THD *thd)
 {
   bool error= FALSE;
+  uint save_unsafe_rollback_flags;
   DBUG_ENTER("mysql_trans_commit_alter_copy_data");
+
+  /* Save flags as transcommit_implicit_are_deleting_them */
+  save_unsafe_rollback_flags= thd->transaction.stmt.m_unsafe_rollback_flags;
 
   if (ha_enable_transaction(thd, TRUE))
     DBUG_RETURN(TRUE);
@@ -9382,6 +9396,7 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
   if (trans_commit_implicit(thd))
     error= TRUE;
 
+  thd->transaction.stmt.m_unsafe_rollback_flags= save_unsafe_rollback_flags;
   DBUG_RETURN(error);
 }
 

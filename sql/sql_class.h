@@ -4048,6 +4048,16 @@ public:
   {
     main_lex.restore_set_statement_var();
   }
+  /* Copy relevant `stmt` transaction flags to `all` transaction. */
+  void merge_unsafe_rollback_flags()
+  {
+    if (transaction.stmt.modified_non_trans_table)
+      transaction.all.modified_non_trans_table= TRUE;
+    transaction.all.m_unsafe_rollback_flags|=
+      (transaction.stmt.m_unsafe_rollback_flags &
+       (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
+        THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL));
+  }
 };
 
 

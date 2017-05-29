@@ -1245,6 +1245,7 @@ bool close_temporary_tables(THD *thd)
       thd->variables.character_set_client= cs_save;
 
       thd->get_stmt_da()->set_overwrite_status(true);
+      thd->transaction.stmt.mark_dropped_temp_table();
       if ((error= (mysql_bin_log.write(&qinfo) || error)))
       {
         /*
