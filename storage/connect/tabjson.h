@@ -66,7 +66,8 @@ public:
 #if defined(MONGO_SUPPORT)
 	PCSZ  Collname;               /* External collection name            */
 	PCSZ  Schema;                 /* External schema (DB) name           */
-	PSZ   Options;                /* Colist ; filter                     */
+	PSZ   Options;                /* Colist ; Pipe                       */
+	PSZ   Filter;                 /* Filter                              */
 	bool  Pipe;							      /* True if Colist is a pipeline        */
 #endif   // MONGO_SUPPORT
   }; // end of JSONDEF

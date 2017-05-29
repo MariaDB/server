@@ -508,7 +508,8 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_STRING("CATFUNC", catfunc),
   HA_TOPTION_STRING("SRCDEF", srcdef),
   HA_TOPTION_STRING("COLIST", colist),
-  HA_TOPTION_STRING("OPTION_LIST", oplist),
+	HA_TOPTION_STRING("FILTER", filter),
+	HA_TOPTION_STRING("OPTION_LIST", oplist),
   HA_TOPTION_STRING("DATA_CHARSET", data_charset),
   HA_TOPTION_NUMBER("LRECL", lrecl, 0, 0, INT_MAX32, 1),
   HA_TOPTION_NUMBER("BLOCK_SIZE", elements, 0, 0, INT_MAX32, 1),
@@ -1106,7 +1107,9 @@ PCSZ GetStringTableOption(PGLOBAL g, PTOS options, PCSZ opname, PCSZ sdef)
     opval= options->srcdef;
   else if (!stricmp(opname, "Colist"))
     opval= options->colist;
-  else if (!stricmp(opname, "Data_charset"))
+	else if (!stricmp(opname, "Filter"))
+		opval = options->filter;
+	else if (!stricmp(opname, "Data_charset"))
     opval= options->data_charset;
 
   if (!opval && options->oplist)

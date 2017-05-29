@@ -463,7 +463,7 @@ JSONDEF::JSONDEF(void)
 	Sep = '.';
 #if defined(MONGO_SUPPORT)
 	Uri = NULL;
-	Collname = Schema = Options = NULL;
+	Collname = Schema = Options = Filter = NULL;
 	Pipe = false;
 #endif   // MONGO_SUPPORT
 } // end of JSONDEF constructor
@@ -488,6 +488,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 		Collname = GetStringCatInfo(g, "Tabname", Collname);
 		Schema = GetStringCatInfo(g, "Dbname", "test");
 		Options = GetStringCatInfo(g, "Colist", NULL);
+		Filter = GetStringCatInfo(g, "Filter", NULL);
 		Pipe = GetBoolCatInfo("Pipeline", false);
 		Pretty = 0;
 #else   // !MONGO_SUPPORT
@@ -1323,7 +1324,7 @@ char *JSONCOL::GetJpath(PGLOBAL g, bool proj)
 					*p2++ = '.';
 					break;
 				case '[':
-					if (*p2 != '.')
+					if (*(p2 - 1) != '.')
 						*p2++ = '.';
 
 					i = 1;

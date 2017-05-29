@@ -85,7 +85,7 @@ protected:
 	// Members
 	PCSZ  Uri;							      /* MongoDB connection URI              */
 	PCSZ  Colist;                 /* Options list                        */
-	char *Filter;									/* Filtering query                     */						
+	PCSZ  Filter;									/* Filtering query                     */						
 	int   Level;                  /* Used for catalog table              */
 	int   Base;                   /* The array index base                */
 	bool  Pipe;                   /* True is Colist is a pipeline        */
