@@ -883,3 +883,12 @@ SELECT 1 FROM dual WHERE ('Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,StrataCentral,
 1
 Warnings:
 Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT REGEXP_INSTR('a_kollision', 'oll');
+REGEXP_INSTR('a_kollision', 'oll')
+4
+SELECT REGEXP_INSTR('a_kollision', '(oll)');
+REGEXP_INSTR('a_kollision', '(oll)')
+4
+SELECT REGEXP_INSTR('a_kollision', 'o([lm])\\1');
+REGEXP_INSTR('a_kollision', 'o([lm])\\1')
+4
