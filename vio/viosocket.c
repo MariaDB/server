@@ -37,6 +37,14 @@
 # include <sys/filio.h>
 #endif
 
+#ifndef SOL_TCP
+#  ifdef IPPROTO_TCP
+#    define SOL_TCP IPPROTO_TCP
+#  else
+#    define SOL_TCP 6
+#  endif /* IPPROTO_TCP */
+#endif /* SOL_TCP */
+
 /* Network io wait callbacks  for threadpool */
 static void (*before_io_wait)(void)= 0;
 static void (*after_io_wait)(void)= 0;
@@ -522,6 +530,81 @@ int vio_keepalive(Vio* vio, my_bool set_keep_alive)
   DBUG_RETURN(r);
 }
 
+/*
+  Set socket options for keepalive e.g., TCP_KEEPCNT, TCP_KEEPIDLE/TCP_KEEPALIVE, TCP_KEEPINTVL
+*/
+void vio_set_keepalive_options(Vio* vio, const struct vio_keepalive_opts *opts)
+{
+  struct vio_keepalive_opts current_opts = vio_get_keepalive_options(vio);
+#if defined(WIN32) && defined(SIO_KEEPALIVE_VALS)
+  struct keepalive lpvInBuffer;
+  DWORD  cbInBuffer;
+
+  lpvInBuffer.onoff = 1;
+  lpvInBuffer.keepalivetime = opts->idle * 1000;
+  lpvInBuffer.keepaliveinterval = opts->interval * 1000;
+ 
+  WSAIoctl(port->sock, SIO_KEEPALIVE_VALS, (LPVOID) &lpvInBuffer, sizeof(lpvInBuffer),
+           NULL, 0, &cbInBuffer, NULL, NULL)
+#else
+  if (vio->type != VIO_TYPE_NAMEDPIPE && vio->type != VIO_TYPE_SHARED_MEMORY) {
+    if (current_opts.idle != opts->idle)
+  #ifdef TCP_KEEPIDLE // Linux only
+      mysql_socket_setsockopt(vio->mysql_socket, SOL_TCP, TCP_KEEPIDLE, (char *)&opts->idle, sizeof(&opts->idle));
+  #else // BSD
+      mysql_socket_setsockopt(vio->mysql_socket, SOL_TCP, TCP_KEEPALIVE, (char *)&opts->idle, sizeof(&opts->idle));
+  #endif
+
+  #ifdef TCP_KEEPCNT // Linux only
+    if (current_opts.probes != opts->probes)
+      mysql_socket_setsockopt(vio->mysql_socket, SOL_TCP, TCP_KEEPCNT, (char *)&opts->probes, sizeof(&opts->probes));
+  #endif
+
+  #ifdef TCP_KEEPINTVL  // Linux only
+    if (current_opts.interval != opts->interval)
+      mysql_socket_setsockopt(vio->mysql_socket, SOL_TCP, TCP_KEEPINTVL, (char *)&opts->interval, sizeof(&opts->interval));
+  #endif
+  }
+#endif
+}
+
+struct vio_keepalive_opts
+vio_get_keepalive_options(Vio* vio)
+{
+  struct vio_keepalive_opts opts;
+  #if defined(WIN32) && defined(SIO_KEEPALIVE_VALS)
+  // It is impossible to get default values on windows
+  opts.idle = -1;
+  opts.interval = -1;
+  opts.probes = -1;
+  #else
+  int optval;
+  IF_WIN(int, socklen_t) optlen= sizeof(optval);
+    #ifdef TCP_KEEPIDLE // Linux only
+  if (mysql_socket_getsockopt(vio->mysql_socket, SOL_TCP, TCP_KEEPIDLE, &optval, &optlen) < 0)
+    #else
+  if (mysql_socket_getsockopt(vio->mysql_socket, SOL_TCP, TCP_KEEPALIVE, &optval, &optlen) < 0)
+    #endif
+    opts.idle = -1;
+  else 
+    opts.idle = optval;
+   
+    #ifdef TCP_KEEPCNT // Linux only
+  if (mysql_socket_getsockopt(vio->mysql_socket, SOL_TCP, TCP_KEEPCNT, &optval, &optlen) < 0)
+    opts.probes = -1;
+  else
+    opts.probes = optval;
+    #endif
+
+    #ifdef TCP_KEEPINTVL  // Linux only
+  if (mysql_socket_getsockopt(vio->mysql_socket, SOL_TCP, TCP_KEEPINTVL, &optval, &optlen) < 0)
+    opts.interval = -1;
+  else
+    opts.interval = optval;
+    #endif
+  #endif // WIN32
+  return opts;
+}
 
 /**
   Indicate whether a I/O operation must be retried later.

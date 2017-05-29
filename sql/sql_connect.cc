@@ -853,6 +853,7 @@ static int check_connection(THD *thd)
   uint connect_errors= 0;
   int auth_rc;
   NET *net= &thd->net;
+  vio_keepalive_opts opts;
 
   DBUG_PRINT("info",
              ("New connection received on %s", vio_description(net->vio)));
@@ -1000,7 +1001,12 @@ static int check_connection(THD *thd)
     bzero((char*) &net->vio->remote, sizeof(net->vio->remote));
   }
   vio_keepalive(net->vio, TRUE);
-  
+
+  opts.interval = global_system_variables.keepalive_intvl;
+  opts.idle = global_system_variables.keepalive_time;
+  opts.probes = global_system_variables.keepalive_probes;
+  vio_set_keepalive_options(net->vio, &opts);
+
   if (thd->packet.alloc(thd->variables.net_buffer_length))
   {
     /*

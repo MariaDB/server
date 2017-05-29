@@ -51,11 +51,26 @@ enum enum_vio_io_event
   VIO_IO_EVENT_CONNECT
 };
 
+struct vio_keepalive_opts
+{
+  int interval;
+  int idle;
+  int probes;
+};
+
+
 #define VIO_LOCALHOST 1U                        /* a localhost connection */
 #define VIO_BUFFERED_READ 2U                    /* use buffered read */
 #define VIO_READ_BUFFER_SIZE 16384U             /* size of read buffer */
 #define VIO_DESCRIPTION_SIZE 30                 /* size of description */
 
+#define VIO_DEFAULT_KEEPALIVE_TIME          7200
+#define VIO_DEFAULT_KEEPALIVE_PROBES        9
+#ifdef WIN32
+#define VIO_DEFAULT_KEEPALIVE_INTVL         1
+#else
+#define VIO_DEFAULT_KEEPALIVE_INTVL         75
+#endif
 Vio* vio_new(my_socket sd, enum enum_vio_type type, uint flags);
 Vio*  mysql_socket_vio_new(MYSQL_SOCKET mysql_socket, enum enum_vio_type type, uint flags);
 #ifdef __WIN__
@@ -84,6 +99,8 @@ my_bool	vio_is_blocking(Vio *vio);
 int	vio_fastsend(Vio *vio);
 /* setsockopt SO_KEEPALIVE at SOL_SOCKET level, when possible */
 int	vio_keepalive(Vio *vio, my_bool	onoff);
+void	vio_set_keepalive_options(Vio * vio, const struct vio_keepalive_opts *opts);
+struct vio_keepalive_opts	vio_get_keepalive_options(Vio * vio);
 /* Whenever we should retry the last read/write operation. */
 my_bool	vio_should_retry(Vio *vio);
 /* Check that operation was timed out */
@@ -211,7 +228,6 @@ enum SSL_type
   SSL_TYPE_X509,
   SSL_TYPE_SPECIFIED
 };
-
 
 /* HFTODO - hide this if we don't want client in embedded server */
 /* This structure is for every connection on both sides */
