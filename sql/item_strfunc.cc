@@ -1278,7 +1278,7 @@ void Item_func_regexp_replace::fix_length_and_dec()
   if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 3))
     return;
   max_length= MAX_BLOB_WIDTH;
-  re.init(collation.collation, 0, 10);
+  re.init(collation.collation, 0);
   re.fix_owner(this, args[0], args[1]);
 }
 
@@ -1413,7 +1413,7 @@ void Item_func_regexp_substr::fix_length_and_dec()
   if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 2))
     return;
   fix_char_length(args[0]->max_char_length());
-  re.init(collation.collation, 0, 10);
+  re.init(collation.collation, 0);
   re.fix_owner(this, args[0], args[1]);
 }
 

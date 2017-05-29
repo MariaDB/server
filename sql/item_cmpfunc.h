@@ -1901,7 +1901,6 @@ class Regexp_processor_pcre
   String m_prev_pattern;
   int m_pcre_exec_rc;
   int m_SubStrVec[30];
-  uint m_subpatterns_needed;
   void pcre_exec_warn(int rc) const;
   int pcre_exec_with_warn(const pcre *code, const pcre_extra *extra,
                           const char *subject, int length, int startoffset,
@@ -1915,15 +1914,14 @@ public:
     m_pcre(NULL), m_conversion_is_needed(true), m_is_const(0),
     m_library_flags(0),
     m_data_charset(&my_charset_utf8_general_ci),
-    m_library_charset(&my_charset_utf8_general_ci),
-    m_subpatterns_needed(0)
+    m_library_charset(&my_charset_utf8_general_ci)
   {
     m_pcre_extra.flags= PCRE_EXTRA_MATCH_LIMIT_RECURSION;
     m_pcre_extra.match_limit_recursion= 100L;
   }
   int default_regex_flags();
   void set_recursion_limit(THD *);
-  void init(CHARSET_INFO *data_charset, int extra_flags, uint nsubpatterns_arg)
+  void init(CHARSET_INFO *data_charset, int extra_flags)
   {
     m_library_flags= default_regex_flags() | extra_flags |
                     (data_charset != &my_charset_bin ?
@@ -1937,7 +1935,6 @@ public:
 
     m_conversion_is_needed= (data_charset != &my_charset_bin) &&
                             !my_charset_same(data_charset, m_library_charset);
-    m_subpatterns_needed= nsubpatterns_arg;
   }
   void fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
   bool compile(String *pattern, bool send_error);
