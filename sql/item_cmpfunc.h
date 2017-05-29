@@ -481,12 +481,14 @@ class Item_bool_rowready_func2 :public Item_bool_func2_with_rev
 {
 protected:
   Arg_comparator cmp;
+  bool check_arguments() const
+  {
+    return check_argument_types_like_args0();
+  }
 public:
   Item_bool_rowready_func2(THD *thd, Item *a, Item *b):
     Item_bool_func2_with_rev(thd, a, b), cmp(tmp_arg, tmp_arg + 1)
-  {
-    allowed_arg_cols= 0;  // Fetch this value from first argument
-  }
+  { }
   void print(String *str, enum_query_type query_type)
   {
     Item_func::print_op(str, query_type);
@@ -952,12 +954,14 @@ class Item_func_interval :public Item_long_func
   Item_row *row;
   bool use_decimal_comparison;
   interval_range *intervals;
+  bool check_arguments() const
+  {
+    return check_argument_types_like_args0();
+  }
 public:
   Item_func_interval(THD *thd, Item_row *a):
     Item_long_func(thd, a), row(a), intervals(0)
-  {
-    allowed_arg_cols= 0;    // Fetch this value from first argument
-  }
+  { }
   longlong val_int();
   void fix_length_and_dec();
   const char *func_name() const { return "interval"; }
@@ -2117,6 +2121,10 @@ class Item_func_in :public Item_func_opt_neg,
     return true;
   }
   bool prepare_predicant_and_values(THD *thd, uint *found_types);
+  bool check_arguments() const
+  {
+    return check_argument_types_like_args0();
+  }
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value);
@@ -2141,9 +2149,7 @@ public:
     Predicant_to_list_comparator(thd, arg_count - 1),
     array(0), have_null(0),
     arg_types_compatible(FALSE)
-  {
-    allowed_arg_cols= 0;  // Fetch this value from first argument
-  }
+  { }
   longlong val_int();
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();

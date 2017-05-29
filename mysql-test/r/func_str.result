@@ -3124,7 +3124,7 @@ sha1('P'),
 )
 )
 ) AS r;
-ERROR HY000: Illegal parameter data types geometry and decimal for operation 'coalesce'
+ERROR HY000: Illegal parameter data type varchar for operation 'st_geometryfromwkb'
 connection conn1;
 SET @@global.max_allowed_packet:= @tmp_max;
 disconnect newconn;

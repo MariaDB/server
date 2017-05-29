@@ -1044,7 +1044,7 @@ DROP TABLE t1;
 CREATE TABLE t1(f1 int);
 INSERT INTO t1 values (0),(0);
 SELECT POLYGON((SELECT 1 FROM (SELECT 1 IN (GROUP_CONCAT(t1.f1)) FROM t1, t1 t GROUP BY t.f1 ) d));
-ERROR 22007: Illegal non geometric '(select 1 from (select 1 = group_concat(`test`.`t1`.`f1` separator ',') AS `1 IN (GROUP_CONCAT(t1.f1))` from `test`.`t1` join `test`.`t1` `t` group by `test`.`t`.`f1`) `d`)' value found during parsing
+ERROR HY000: Illegal parameter data type int for operation 'geometrycollection'
 DROP TABLE t1;
 #
 # Bug#58396 group_concat and explain extended are still crashy

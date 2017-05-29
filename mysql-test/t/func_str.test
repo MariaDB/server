@@ -1606,7 +1606,7 @@ format(rpad('111111111.1',
 # and can't suppress prepare time warnings for DO.
 #
 
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT
 round(
   concat( (

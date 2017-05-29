@@ -696,6 +696,10 @@ public:
   {
     return true;
   }
+  virtual bool is_scalar_type() const { return true; }
+  virtual bool can_return_int() const { return true; }
+  virtual bool can_return_real() const { return true; }
+  virtual bool is_general_purpose_string_type() const { return false; }
   virtual uint Item_time_precision(Item *item) const;
   virtual uint Item_datetime_precision(Item *item) const;
   virtual uint Item_decimal_scale(const Item *item) const;
@@ -988,6 +992,9 @@ class Type_handler_row: public Type_handler
 public:
   virtual ~Type_handler_row() {}
   const Name name() const { return m_name_row; }
+  bool is_scalar_type() const { return false; }
+  bool can_return_int() const { return false; }
+  bool can_return_real() const { return false; }
   enum_field_types field_type() const
   {
     DBUG_ASSERT(0);
@@ -1706,6 +1713,13 @@ public:
 };
 
 
+class Type_handler_general_purpose_string: public Type_handler_string_result
+{
+public:
+  bool is_general_purpose_string_type() const { return true; }
+};
+
+
 /***
   Instantiable classes for every MYSQL_TYPE_XXX
 
@@ -2368,7 +2382,7 @@ public:
 };
 
 
-class Type_handler_null: public Type_handler_string_result
+class Type_handler_null: public Type_handler_general_purpose_string
 {
   static const Name m_name_null;
 public:
@@ -2406,7 +2420,7 @@ public:
 };
 
 
-class Type_handler_longstr: public Type_handler_string_result
+class Type_handler_longstr: public Type_handler_general_purpose_string
 {
 public:
   bool type_can_have_key_part() const
@@ -2640,6 +2654,8 @@ public:
                           const Type_all_attributes &attr,
                           TABLE *table) const;
 
+  bool can_return_int() const { return false; }
+  bool can_return_real() const { return false; }
   bool is_traditional_type() const
   {
     return false;
@@ -2671,7 +2687,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_geometry type_handler_geometry;
 #endif
 
 
-class Type_handler_typelib: public Type_handler_string_result
+class Type_handler_typelib: public Type_handler_general_purpose_string
 {
 public:
   virtual ~Type_handler_typelib() { }

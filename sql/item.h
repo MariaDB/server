@@ -1632,6 +1632,12 @@ public:
   }
   virtual Item** addr(uint i) { return 0; }
   virtual bool check_cols(uint c);
+  bool check_type_traditional_scalar(const char *opname) const;
+  bool check_type_scalar(const char *opname) const;
+  bool check_type_or_binary(const char *opname, const Type_handler *handler) const;
+  bool check_type_general_purpose_string(const char *opname) const;
+  bool check_type_can_return_int(const char *opname) const;
+  bool check_type_can_return_real(const char *opname) const;
   // It is not row => null inside is impossible
   virtual bool null_inside() { return 0; }
   // used in row subselects to get value of elements

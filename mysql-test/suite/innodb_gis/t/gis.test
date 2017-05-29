@@ -732,7 +732,7 @@ drop table t1;
 # Bug#44684: valgrind reports invalid reads in
 # Item_func_spatial_collection::val_str
 #
---error ER_ILLEGAL_VALUE_FOR_TYPE
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT MultiPoint(12345,'');
 #SELECT MultiPoint(123451,'');
 #SELECT MultiPoint(1234512,'');
@@ -759,7 +759,7 @@ SELECT MultiPoint(12345,'');
 #
 # Bug55531 crash with conversions of geometry types / strings
 #
---error ER_ILLEGAL_VALUE_FOR_TYPE
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT 1 FROM (SELECT GREATEST(1,GEOMETRYCOLLECTION('00000','00000')) b FROM DUAL) AS d WHERE (LINESTRING(d.b));
 
 
@@ -870,7 +870,7 @@ SELECT ST_ISCLOSED(CONVERT(CONCAT('     ', 0x2), BINARY(20)));
 --echo # GEOMETRY FUNCTION ARGUMENTS
 --echo #
 --replace_regex /non geometric .* value/non geometric '' value/
---error ER_ILLEGAL_VALUE_FOR_TYPE
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT GEOMETRYCOLLECTION((SELECT @@OLD));
 
 
@@ -1443,4 +1443,5 @@ DROP DATABASE gis_ogs;
 --echo #
 
 # --error ER_GIS_INVALID_DATA
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT ST_Union('', ''), md5(1);

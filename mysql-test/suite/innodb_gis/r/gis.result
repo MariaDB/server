@@ -1020,9 +1020,9 @@ f5	datetime	YES		NULL
 drop view v1;
 drop table t1;
 SELECT MultiPoint(12345,'');
-ERROR 22007: Illegal non geometric '12345' value found during parsing
+ERROR HY000: Illegal parameter data type int for operation 'geometrycollection'
 SELECT 1 FROM (SELECT GREATEST(1,GEOMETRYCOLLECTION('00000','00000')) b FROM DUAL) AS d WHERE (LINESTRING(d.b));
-ERROR 22007: Illegal non geometric ''00000'' value found during parsing
+ERROR HY000: Illegal parameter data type varchar for operation 'geometrycollection'
 #
 # BUG#51875: crash when loading data into geometry function ST_polyfromwkb
 #
@@ -1091,7 +1091,7 @@ ST_ISCLOSED(CONVERT(CONCAT('     ', 0x2), BINARY(20)))
 # GEOMETRY FUNCTION ARGUMENTS
 #
 SELECT GEOMETRYCOLLECTION((SELECT @@OLD));
-ERROR 22007: Illegal non geometric '' value found during parsing
+ERROR HY000: Illegal parameter data type bigint for operation 'geometrycollection'
 End of 5.1 tests
 #
 # Bug#11908153: CRASH AND/OR VALGRIND ERRORS IN FIELD_BLOB::GET_KEY_IMAGE
@@ -1481,5 +1481,4 @@ DROP DATABASE gis_ogs;
 # Bug#13362660 ASSERTION `FIELD_POS < FIELD_COUNT' FAILED. IN PROTOCOL_TEXT::STORE
 #
 SELECT ST_Union('', ''), md5(1);
-ST_Union('', '')	md5(1)
-NULL	c4ca4238a0b923820dcc509a6f75849b
+ERROR HY000: Illegal parameter data type varchar for operation 'st_union'

@@ -1059,6 +1059,75 @@ bool Item::check_cols(uint c)
   return 0;
 }
 
+
+bool Item::check_type_or_binary(const char *opname,
+                                const Type_handler *expect) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler == expect ||
+      (handler->is_general_purpose_string_type() &&
+       collation.collation == &my_charset_bin))
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Item::check_type_general_purpose_string(const char *opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->is_general_purpose_string_type())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Item::check_type_traditional_scalar(const char *opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->is_traditional_type() && handler->is_scalar_type())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Item::check_type_can_return_int(const char *opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->can_return_int())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Item::check_type_can_return_real(const char *opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->can_return_real())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Item::check_type_scalar(const char *opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->is_scalar_type())
+    return false;
+  my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
+  return true;
+}
+
+
 void Item::set_name(THD *thd, const char *str, uint length, CHARSET_INFO *cs)
 {
   if (!length)
@@ -3553,7 +3622,16 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
                        uint pos_in_query_arg, uint len_in_query_arg):
   Item_basic_value(thd),
   Rewritable_query_parameter(pos_in_query_arg, len_in_query_arg),
-  Type_handler_hybrid_field_type(&type_handler_varchar),
+  /*
+    Set handler to type_handler_null. Its data type test methods such as:
+    - is_scalar_type()
+    - can_return_int()
+    - can_return_real(),
+    - is_general_purpose_string_type()
+    all return "true". This is needed to avoid any "illegal parameter type"
+    errors in Item::check_type_xxx() at PS prepare time.
+  */
+  Type_handler_hybrid_field_type(&type_handler_null),
   state(NO_VALUE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),

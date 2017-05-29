@@ -151,15 +151,81 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
 }
 
 
-bool Item_func::check_allowed_arg_cols(uint n)
+bool Item_func::check_argument_types_like_args0() const
 {
-  if (allowed_arg_cols)
-    return args[n]->check_cols(allowed_arg_cols);
+  uint cols;
+  if (arg_count == 0)
+    return false;
+  cols= args[0]->cols();
+  for (uint i= 1; i < arg_count; i++)
+  {
+    if (args[i]->check_cols(cols))
+      return true;
+  }
+  return false;
+}
 
-  /*  we have to fetch allowed_arg_cols from first argument */
-  DBUG_ASSERT(n == 0); // it is first argument
-  allowed_arg_cols= args[n]->cols();
-  DBUG_ASSERT(allowed_arg_cols); // Can't be 0 any more
+
+bool Item_func::check_argument_types_or_binary(const Type_handler *handler,
+                                               uint start, uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_or_binary(func_name(), handler))
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_func::check_argument_types_traditional_scalar(uint start,
+                                                        uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_traditional_scalar(func_name()))
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_func::check_argument_types_can_return_int(uint start,
+                                                    uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_can_return_int(func_name()))
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_func::check_argument_types_can_return_real(uint start,
+                                                     uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_can_return_real(func_name()))
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_func::check_argument_types_scalar(uint start, uint end) const
+{
+  for (uint i= start; i < end; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_scalar(func_name()))
+      return true;
+  }
   return false;
 }
 
@@ -236,9 +302,6 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	return TRUE;				/* purecov: inspected */
       item= *arg;
 
-      if (check_allowed_arg_cols(arg - args))
-        return true;
-
       if (item->maybe_null)
 	maybe_null=1;
 
@@ -249,6 +312,8 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_subselect|=        item->has_subquery();
     }
   }
+  if (check_arguments())
+    return true;
   fix_length_and_dec();
   if (thd->is_error()) // An error inside fix_length_and_dec occurred
     return TRUE;

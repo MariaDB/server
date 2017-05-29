@@ -35,14 +35,19 @@ class Item_func :public Item_func_or_sum
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
 protected:
-  /*
-    Allowed numbers of columns in result (usually 1, which means scalar value)
-    0 means get this number from first argument
-  */
-  uint allowed_arg_cols;
   String *val_str_from_val_str_ascii(String *str, String *str2);
 
-  virtual bool check_allowed_arg_cols(uint argno);
+  virtual bool check_arguments() const
+  {
+    return check_argument_types_scalar(0, arg_count);
+  }
+  bool check_argument_types_like_args0() const;
+  bool check_argument_types_scalar(uint start, uint end) const;
+  bool check_argument_types_traditional_scalar(uint start, uint end) const;
+  bool check_argument_types_or_binary(const Type_handler *handler,
+                                      uint start, uint end) const;
+  bool check_argument_types_can_return_int(uint start, uint end) const;
+  bool check_argument_types_can_return_real(uint start, uint end) const;
 public:
 
   table_map not_null_tables_cache;
@@ -65,30 +70,30 @@ public:
                   NEG_FUNC, GSYSVAR_FUNC, DYNCOL_FUNC };
   enum Type type() const { return FUNC_ITEM; }
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
-  Item_func(THD *thd): Item_func_or_sum(thd), allowed_arg_cols(1)
+  Item_func(THD *thd): Item_func_or_sum(thd)
   {
     with_sum_func= 0;
     with_field= 0;
   }
-  Item_func(THD *thd, Item *a): Item_func_or_sum(thd, a), allowed_arg_cols(1)
+  Item_func(THD *thd, Item *a): Item_func_or_sum(thd, a)
   {
     with_sum_func= a->with_sum_func;
     with_field= a->with_field;
   }
   Item_func(THD *thd, Item *a, Item *b):
-    Item_func_or_sum(thd, a, b), allowed_arg_cols(1)
+    Item_func_or_sum(thd, a, b)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func;
     with_field= a->with_field || b->with_field;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c):
-    Item_func_or_sum(thd, a, b, c), allowed_arg_cols(1)
+    Item_func_or_sum(thd, a, b, c)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
     with_field= a->with_field || b->with_field || c->with_field;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
-    Item_func_or_sum(thd, a, b, c, d), allowed_arg_cols(1)
+    Item_func_or_sum(thd, a, b, c, d)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func ||
                    c->with_sum_func || d->with_sum_func;
@@ -96,7 +101,7 @@ public:
                 c->with_field || d->with_field;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e):
-    Item_func_or_sum(thd, a, b, c, d, e), allowed_arg_cols(1)
+    Item_func_or_sum(thd, a, b, c, d, e)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func ||
                    c->with_sum_func || d->with_sum_func || e->with_sum_func;
@@ -104,14 +109,13 @@ public:
                 c->with_field || d->with_field || e->with_field;
   }
   Item_func(THD *thd, List<Item> &list):
-    Item_func_or_sum(thd, list), allowed_arg_cols(1)
+    Item_func_or_sum(thd, list)
   {
     set_arguments(thd, list);
   }
   // Constructor used for Item_cond_and/or (see Item comment)
   Item_func(THD *thd, Item_func *item):
     Item_func_or_sum(thd, item),
-    allowed_arg_cols(item->allowed_arg_cols),
     not_null_tables_cache(item->not_null_tables_cache)
   {
   }
@@ -141,7 +145,6 @@ public:
   virtual Item *key_item() const { return args[0]; }
   void set_arguments(THD *thd, List<Item> &list)
   {
-    allowed_arg_cols= 1;
     Item_args::set_arguments(thd, list);
     sync_with_sum_func_and_with_field(list);
     list.empty();                                     // Fields are used
@@ -2657,7 +2660,7 @@ protected:
   bool is_expensive_processor(void *arg)
   { return is_expensive(); }
 
-  bool check_allowed_arg_cols(uint n)
+  bool check_arguments() const
   {
     // sp_prepare_func_item() checks that the number of columns is correct
     return false;
