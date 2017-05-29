@@ -59,7 +59,6 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 
 #include <btr0sea.h>
 #include <dict0priv.h>
-#include <dict0stats.h>
 #include <lock0lock.h>
 #include <log0recv.h>
 #include <row0mysql.h>
@@ -112,7 +111,6 @@ char xtrabackup_real_target_dir[FN_REFLEN] = "./xtrabackup_backupfiles/";
 char *xtrabackup_target_dir= xtrabackup_real_target_dir;
 my_bool xtrabackup_version = FALSE;
 my_bool xtrabackup_backup = FALSE;
-my_bool xtrabackup_stats = FALSE;
 my_bool xtrabackup_prepare = FALSE;
 my_bool xtrabackup_copy_back = FALSE;
 my_bool xtrabackup_move_back = FALSE;
@@ -463,7 +461,6 @@ enum options_xtrabackup
   OPT_XTRA_TARGET_DIR = 1000,     /* make sure it is larger
                                      than OPT_MAX_CLIENT_OPTION */
   OPT_XTRA_BACKUP,
-  OPT_XTRA_STATS,
   OPT_XTRA_PREPARE,
   OPT_XTRA_EXPORT,
   OPT_XTRA_APPLY_LOG_ONLY,
@@ -584,9 +581,6 @@ struct my_option xb_client_options[] =
    (G_PTR*) &xtrabackup_target_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"backup", OPT_XTRA_BACKUP, "take backup to target-dir",
    (G_PTR*) &xtrabackup_backup, (G_PTR*) &xtrabackup_backup,
-   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"stats", OPT_XTRA_STATS, "calc statistic of datadir (offline mysqld is recommended)",
-   (G_PTR*) &xtrabackup_stats, (G_PTR*) &xtrabackup_stats,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"prepare", OPT_XTRA_PREPARE, "prepare a backup for starting mysql server on the backup.",
    (G_PTR*) &xtrabackup_prepare, (G_PTR*) &xtrabackup_prepare,
@@ -1517,7 +1511,7 @@ innodb_init_param(void)
 	/* Set InnoDB initialization parameters according to the values
 	read from MySQL .cnf file */
 
-	if (xtrabackup_backup || xtrabackup_stats) {
+	if (xtrabackup_backup) {
 		msg("xtrabackup: using the following InnoDB configuration:\n");
 	} else {
 		msg("xtrabackup: using the following InnoDB configuration "
@@ -1528,7 +1522,7 @@ innodb_init_param(void)
 
 	/* The default dir for data files is the datadir of MySQL */
 
-	srv_data_home = ((xtrabackup_backup || xtrabackup_stats) && innobase_data_home_dir
+	srv_data_home = (xtrabackup_backup && innobase_data_home_dir
 			 ? innobase_data_home_dir : default_path);
 	msg("xtrabackup:   innodb_data_home_dir = %s\n", srv_data_home);
 
@@ -1577,8 +1571,7 @@ mem_free_and_error:
 
 	/* The default dir for log files is the datadir of MySQL */
 
-	if (!((xtrabackup_backup || xtrabackup_stats) &&
-	      srv_log_group_home_dir)) {
+	if (!(xtrabackup_backup && srv_log_group_home_dir)) {
 		srv_log_group_home_dir = default_path;
 	}
 	if (xtrabackup_prepare && xtrabackup_incremental_dir) {
@@ -4228,431 +4221,6 @@ skip_last_cp:
 	}
 }
 
-/* ================= stats ================= */
-static my_bool
-xtrabackup_stats_level(
-	dict_index_t*	index,
-	ulint		level)
-{
-	ulint	space;
-	page_t*	page;
-
-	rec_t*	node_ptr;
-
-	ulint	right_page_no;
-
-	page_cur_t	cursor;
-
-	mtr_t	mtr;
-	mem_heap_t*	heap	= mem_heap_create(256);
-
-	ulint*	offsets = NULL;
-
-	ulonglong n_pages, n_pages_extern;
-	ulonglong sum_data, sum_data_extern;
-	ulonglong n_recs;
-	ulint	page_size;
-	buf_block_t*	block;
-	ulint	zip_size;
-
-	n_pages = sum_data = n_recs = 0;
-	n_pages_extern = sum_data_extern = 0;
-
-
-	if (level == 0)
-		fprintf(stdout, "        leaf pages: ");
-	else
-		fprintf(stdout, "     level %lu pages: ", level);
-
-	mtr_start(&mtr);
-
-	mtr_x_lock(&(index->lock), &mtr);
-	block = btr_root_block_get(index, RW_X_LATCH, &mtr);
-	page = buf_block_get_frame(block);
-
-	space = page_get_space_id(page);
-	zip_size = fil_space_get_zip_size(space);
-
-	while (level != btr_page_get_level(page, &mtr)) {
-
-		ut_a(space == buf_block_get_space(block));
-		ut_a(space == page_get_space_id(page));
-		ut_a(!page_is_leaf(page));
-
-		page_cur_set_before_first(block, &cursor);
-		page_cur_move_to_next(&cursor);
-
-		node_ptr = page_cur_get_rec(&cursor);
-		offsets = rec_get_offsets(node_ptr, index, offsets,
-					ULINT_UNDEFINED, &heap);
-		block = btr_node_ptr_get_child(node_ptr, index, offsets, &mtr);
-		page = buf_block_get_frame(block);
-	}
-
-loop:
-	mem_heap_empty(heap);
-	offsets = NULL;
-	mtr_x_lock(&(index->lock), &mtr);
-
-	right_page_no = btr_page_get_next(page, &mtr);
-
-
-	/*=================================*/
-	//fprintf(stdout, "%lu ", (ulint) buf_frame_get_page_no(page));
-
-	n_pages++;
-	sum_data += page_get_data_size(page);
-	n_recs += page_get_n_recs(page);
-
-
-	if (level == 0) {
-		page_cur_t	cur;
-		ulint	n_fields;
-		ulint	i;
-		mem_heap_t*	local_heap	= NULL;
-		ulint	offsets_[REC_OFFS_NORMAL_SIZE];
-		ulint*	local_offsets	= offsets_;
-
-		*offsets_ = (sizeof offsets_) / sizeof *offsets_;
-
-		page_cur_set_before_first(block, &cur);
-		page_cur_move_to_next(&cur);
-
-		for (;;) {
-			if (page_cur_is_after_last(&cur)) {
-				break;
-			}
-
-			local_offsets = rec_get_offsets(cur.rec, index, local_offsets,
-						ULINT_UNDEFINED, &local_heap);
-			n_fields = rec_offs_n_fields(local_offsets);
-
-			for (i = 0; i < n_fields; i++) {
-				if (rec_offs_nth_extern(local_offsets, i)) {
-					page_t*	local_page;
-					ulint	space_id;
-					ulint	page_no;
-					ulint	offset;
-					byte*	blob_header;
-					ulint	part_len;
-					mtr_t	local_mtr;
-					ulint	local_len;
-					byte*	data;
-					buf_block_t*	local_block;
-
-					data = rec_get_nth_field(cur.rec, local_offsets, i, &local_len);
-
-					ut_a(local_len >= BTR_EXTERN_FIELD_REF_SIZE);
-					local_len -= BTR_EXTERN_FIELD_REF_SIZE;
-
-					space_id = mach_read_from_4(data + local_len + BTR_EXTERN_SPACE_ID);
-					page_no = mach_read_from_4(data + local_len + BTR_EXTERN_PAGE_NO);
-					offset = mach_read_from_4(data + local_len + BTR_EXTERN_OFFSET);
-
-					if (offset != FIL_PAGE_DATA)
-						msg("\nWarning: several record may share same external page.\n");
-
-					for (;;) {
-						mtr_start(&local_mtr);
-
-						local_block = btr_block_get(space_id, zip_size, page_no, RW_S_LATCH, index, &local_mtr);
-						local_page = buf_block_get_frame(local_block);
-						blob_header = local_page + offset;
-#define BTR_BLOB_HDR_PART_LEN		0
-#define BTR_BLOB_HDR_NEXT_PAGE_NO	4
-						//part_len = btr_blob_get_part_len(blob_header);
-						part_len = mach_read_from_4(blob_header + BTR_BLOB_HDR_PART_LEN);
-
-						//page_no = btr_blob_get_next_page_no(blob_header);
-						page_no = mach_read_from_4(blob_header + BTR_BLOB_HDR_NEXT_PAGE_NO);
-
-						offset = FIL_PAGE_DATA;
-
-
-
-
-						/*=================================*/
-						//fprintf(stdout, "[%lu] ", (ulint) buf_frame_get_page_no(page));
-
-						n_pages_extern++;
-						sum_data_extern += part_len;
-
-
-						mtr_commit(&local_mtr);
-
-						if (page_no == FIL_NULL)
-							break;
-					}
-				}
-			}
-
-			page_cur_move_to_next(&cur);
-		}
-	}
-
-
-
-
-	mtr_commit(&mtr);
-	if (right_page_no != FIL_NULL) {
-		mtr_start(&mtr);
-		block = btr_block_get(space, zip_size, right_page_no,
-				      RW_X_LATCH, index, &mtr);
-		page = buf_block_get_frame(block);
-		goto loop;
-	}
-	mem_heap_free(heap);
-
-	if (zip_size) {
-		page_size = zip_size;
-	} else {
-		page_size = UNIV_PAGE_SIZE;
-	}
-
-	if (level == 0)
-		fprintf(stdout, "recs=%llu, ", n_recs);
-
-	fprintf(stdout, "pages=%llu, data=%llu bytes, data/pages=%lld%%",
-		n_pages, sum_data,
-		((sum_data * 100)/ page_size)/n_pages);
-
-
-	if (level == 0 && n_pages_extern) {
-		putc('\n', stdout);
-		/* also scan blob pages*/
-		fprintf(stdout, "    external pages: ");
-
-		fprintf(stdout, "pages=%llu, data=%llu bytes, data/pages=%lld%%",
-			n_pages_extern, sum_data_extern,
-			((sum_data_extern * 100)/ page_size)/n_pages_extern);
-	}
-
-	putc('\n', stdout);
-
-	if (level > 0) {
-		xtrabackup_stats_level(index, level - 1);
-	}
-
-	return(TRUE);
-}
-
-static void
-xtrabackup_stats_func(int argc, char **argv)
-{
-	ulint n;
-
-	/* cd to datadir */
-
-	if (my_setwd(mysql_real_data_home,MYF(MY_WME)))
-	{
-		msg("xtrabackup: cannot my_setwd %s\n", mysql_real_data_home);
-		exit(EXIT_FAILURE);
-	}
-	msg("xtrabackup: cd to %s\n", mysql_real_data_home);
-	encryption_plugin_prepare_init(argc, argv);
-	mysql_data_home= mysql_data_home_buff;
-	mysql_data_home[0]=FN_CURLIB;		// all paths are relative from here
-	mysql_data_home[1]=0;
-
-	srv_n_purge_threads = 1;
-	/* set read only */
-	srv_read_only_mode = TRUE;
-
-	/* initialize components */
-	if(innodb_init_param())
-		exit(EXIT_FAILURE);
-
-	/* Check if the log files have been created, otherwise innodb_init()
-	will crash when called with srv_read_only == TRUE */
-	for (n = 0; n < srv_n_log_files; n++) {
-		char		logname[FN_REFLEN];
-		ibool		exists;
-		os_file_type_t	type;
-
-		snprintf(logname, sizeof(logname), "%s%c%s%lu",
-			srv_log_group_home_dir, SRV_PATH_SEPARATOR,
-			"ib_logfile", (ulong) n);
-		srv_normalize_path_for_win(logname);
-
-		if (!os_file_status(logname, &exists, &type) || !exists ||
-		    type != OS_FILE_TYPE_FILE) {
-			msg("xtrabackup: Error: "
-			    "Cannot find log file %s.\n", logname);
-			msg("xtrabackup: Error: "
-			    "to use the statistics feature, you need a "
-			    "clean copy of the database including "
-			    "correctly sized log files, so you need to "
-			    "execute with --prepare twice to use this "
-			    "functionality on a backup.\n");
-			exit(EXIT_FAILURE);
-		}
-	}
-
-	msg("xtrabackup: Starting 'read-only' InnoDB instance to gather "
-	    "index statistics.\n"
-	    "xtrabackup: Using %lld bytes for buffer pool (set by "
-	    "--use-memory parameter)\n", xtrabackup_use_memory);
-
-	if(innodb_init())
-		exit(EXIT_FAILURE);
-
-	xb_filters_init();
-
-	fprintf(stdout, "\n\n<INDEX STATISTICS>\n");
-
-	/* gather stats */
-
-	{
-	dict_table_t*	sys_tables;
-	dict_index_t*	sys_index;
-	dict_table_t*	table;
-	btr_pcur_t	pcur;
-	rec_t*		rec;
-	byte*		field;
-	ulint		len;
-	mtr_t		mtr;
-
-	/* Enlarge the fatal semaphore wait timeout during the InnoDB table
-	monitor printout */
-
-	os_increment_counter_by_amount(server_mutex,
-				       srv_fatal_semaphore_wait_threshold,
-				       72000);
-
-	mutex_enter(&(dict_sys->mutex));
-
-	mtr_start(&mtr);
-
-	sys_tables = dict_table_get_low("SYS_TABLES");
-	sys_index = UT_LIST_GET_FIRST(sys_tables->indexes);
-
-	btr_pcur_open_at_index_side(TRUE, sys_index, BTR_SEARCH_LEAF, &pcur,
-				    TRUE, 0, &mtr);
-loop:
-	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-
-	rec = btr_pcur_get_rec(&pcur);
-
-	if (!btr_pcur_is_on_user_rec(&pcur))
-	{
-		/* end of index */
-
-		btr_pcur_close(&pcur);
-		mtr_commit(&mtr);
-
-		mutex_exit(&(dict_sys->mutex));
-
-		/* Restore the fatal semaphore wait timeout */
-		os_increment_counter_by_amount(server_mutex,
-					       srv_fatal_semaphore_wait_threshold,
-					       -72000);
-
-		goto end;
-	}
-
-	field = rec_get_nth_field_old(rec, 0, &len);
-
-	if (!rec_get_deleted_flag(rec, 0)) {
-
-		/* We found one */
-
-                char*	table_name = mem_strdupl((char*) field, len);
-
-		btr_pcur_store_position(&pcur, &mtr);
-
-		mtr_commit(&mtr);
-
-		table = dict_table_get_low(table_name);
-		mem_free(table_name);
-
-		if (table && check_if_skip_table(table->name))
-			goto skip;
-
-
-		if (table == NULL) {
-			fputs("InnoDB: Failed to load table ", stderr);
-			ut_print_namel(stderr, NULL, TRUE, (char*) field, len);
-			putc('\n', stderr);
-		} else {
-			dict_index_t*	index;
-
-			/* The table definition was corrupt if there
-			is no index */
-
-			if (dict_table_get_first_index(table)) {
-				dict_stats_update_transient(table);
-			}
-
-			//dict_table_print_low(table);
-
-			index = UT_LIST_GET_FIRST(table->indexes);
-			while (index != NULL) {
-{
-	ib_int64_t	n_vals;
-
-	if (index->n_user_defined_cols > 0) {
-		n_vals = index->stat_n_diff_key_vals[
-					index->n_user_defined_cols];
-	} else {
-		n_vals = index->stat_n_diff_key_vals[1];
-	}
-
-	fprintf(stdout,
-		"  table: %s, index: %s, space id: %lu, root page: %lu"
-		", zip size: %lu"
-		"\n  estimated statistics in dictionary:\n"
-		"    key vals: %lu, leaf pages: %lu, size pages: %lu\n"
-		"  real statistics:\n",
-		table->name, index->name,
-		(ulong) index->space,
-		(ulong) index->page,
-		(ulong) fil_space_get_zip_size(index->space),
-		(ulong) n_vals,
-		(ulong) index->stat_n_leaf_pages,
-		(ulong) index->stat_index_size);
-
-	{
-		mtr_t	local_mtr;
-		page_t*	root;
-		ulint	page_level;
-
-		mtr_start(&local_mtr);
-
-		mtr_x_lock(&(index->lock), &local_mtr);
-		root = btr_root_get(index, &local_mtr);
-		page_level = btr_page_get_level(root, &local_mtr);
-
-		xtrabackup_stats_level(index, page_level);
-
-		mtr_commit(&local_mtr);
-	}
-
-	putc('\n', stdout);
-}
-				index = UT_LIST_GET_NEXT(indexes, index);
-			}
-		}
-
-skip:
-		mtr_start(&mtr);
-
-		btr_pcur_restore_position(BTR_SEARCH_LEAF, &pcur, &mtr);
-	}
-
-	goto loop;
-	}
-
-end:
-	putc('\n', stdout);
-
-	fflush(stdout);
-
-	xb_filters_free();
-
-	/* shutdown InnoDB */
-	innodb_end();
-}
-
 /* ================= prepare ================= */
 
 static my_bool
@@ -7084,7 +6652,6 @@ int main(int argc, char **argv)
 		int num = 0;
 
 		if (xtrabackup_backup) num++;
-		if (xtrabackup_stats) num++;
 		if (xtrabackup_prepare) num++;
 		if (xtrabackup_copy_back) num++;
 		if (xtrabackup_move_back) num++;
@@ -7104,10 +6671,6 @@ int main(int argc, char **argv)
 	/* --backup */
 	if (xtrabackup_backup)
 		xtrabackup_backup_func();
-
-	/* --stats */
-	if (xtrabackup_stats)
-		xtrabackup_stats_func(argc_server,server_defaults);
 
 	/* --prepare */
 	if (xtrabackup_prepare) {

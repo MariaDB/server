@@ -126,7 +126,6 @@ void encryption_plugin_prepare_init(int argc, char **argv)
 
   if (!xb_plugin_load)
   {
-    /* This prevents crashes e.g in --stats with wrong my.cnf*/
     finalize_encryption_plugin(0);
     return;
   }

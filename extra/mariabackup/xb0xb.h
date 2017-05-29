@@ -44,19 +44,6 @@ dberr_t*	err,	/*!< out: this is set to DB_ERROR if an error
                 os_file_dir_t	dir,	/*!< in: directory stream */
                 os_file_stat_t*	info)	/*!< in/out: buffer where the
                                       info is returned */;
-buf_block_t* btr_node_ptr_get_child(
-  const rec_t*	node_ptr,/*!< in: node pointer */
-  dict_index_t*	index,	/*!< in: index */
-  const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-  mtr_t*		mtr)	/*!< in: mtr */;
-
-buf_block_t*
-btr_root_block_get(
-/*===============*/
-const dict_index_t*	index,	/*!< in: index tree */
-ulint			mode,	/*!< in: either RW_S_LATCH
-                or RW_X_LATCH */
-                mtr_t*			mtr)	/*!< in: mtr */;
 fil_space_t*
 fil_space_get_by_name(const char *);
 ibool
