@@ -673,7 +673,7 @@ retry:
 			if (cflags == ULINT_UNDEFINED) {
 				ib::error()
 					<< "Expected tablespace flags "
-					<< ib::hex(flags)
+					<< ib::hex(space->flags)
 					<< " but found " << ib::hex(flags)
 					<< " in the file " << node->name;
 				return(false);
