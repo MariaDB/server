@@ -48,7 +48,7 @@ handlerton *sql_sequence_hton;
 */
 
 ha_sequence::ha_sequence(handlerton *hton, TABLE_SHARE *share)
-  :handler(hton, share), sequence_locked(0)
+  :handler(hton, share), write_locked(0)
 {
   sequence= share->sequence;
   DBUG_ASSERT(share->sequence);
@@ -179,7 +179,7 @@ int ha_sequence::create(const char *name, TABLE *form,
   @retval != 0  Failure
 
   NOTES:
-    sequence_locked is set if we are called from SEQUENCE::next_value
+    write_locked is set if we are called from SEQUENCE::next_value
     In this case the mutex is already locked and we should not update
     the sequence with 'buf' as the sequence object is already up to date.
 */
@@ -188,6 +188,7 @@ int ha_sequence::write_row(uchar *buf)
 {
   int error;
   sequence_definition tmp_seq;
+  bool sequence_locked;
   DBUG_ENTER("ha_sequence::write_row");
   DBUG_ASSERT(table->record[0] == buf);
 
@@ -200,7 +201,8 @@ int ha_sequence::write_row(uchar *buf)
   if (unlikely(sequence->initialized != SEQUENCE::SEQ_READY_TO_USE))
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
-  if (!sequence_locked)                         // If not from next_value()
+  sequence_locked= write_locked;
+  if (!write_locked)                         // If not from next_value()
   {
     /*
       User tries to write a full row directly to the sequence table with
@@ -224,14 +226,13 @@ int ha_sequence::write_row(uchar *buf)
     tmp_seq.read_fields(table);
     if (tmp_seq.check_and_adjust(0))
       DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
-  }
 
-  /*
-    Lock sequence to ensure that no one can come in between
-    while sequence, table and binary log are updated.
-  */
-  if (!sequence_locked)                         // If not from next_value()
-    sequence->lock();
+    /*
+      Lock sequence to ensure that no one can come in between
+      while sequence, table and binary log are updated.
+    */
+    sequence->write_lock(table);
+  }
 
   if (!(error= file->update_first_row(buf)))
   {
@@ -246,7 +247,7 @@ int ha_sequence::write_row(uchar *buf)
 
   sequence->all_values_used= 0;
   if (!sequence_locked)
-    sequence->unlock();
+    sequence->write_unlock(table);
   DBUG_RETURN(error);
 }
 

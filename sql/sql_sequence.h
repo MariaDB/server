@@ -40,7 +40,7 @@ class sequence_definition :public Sql_alloc
 public:
   sequence_definition():
     min_value(1), max_value(LONGLONG_MAX-1), start(1), increment(1),
-    cache(1000), round(0), cycle(0), used_fields(0)
+      cache(1000), round(0), restart(0), cycle(0), used_fields(0)
   {}
   longlong reserved_until;
   longlong min_value;
@@ -49,9 +49,9 @@ public:
   longlong increment;
   longlong cache;
   ulonglong round;
+  longlong restart;              // alter sequence restart value
   bool     cycle;
   uint used_fields;              // Which fields where used in CREATE
-  longlong restart;              // alter sequence restart value
 
   bool check_and_adjust(bool set_reserved_until);
   void store_fields(TABLE *table);
@@ -93,14 +93,10 @@ public:
   ~SEQUENCE();
   int  read_initial_values(TABLE *table);
   int  read_stored_values();
-  void lock()
-  {
-    mysql_mutex_lock(&mutex);
-  }
-  void unlock()
-  {
-    mysql_mutex_unlock(&mutex);
-  }
+  void write_lock(TABLE *table);
+  void write_unlock(TABLE *table);
+  void read_lock(TABLE *table);
+  void read_unlock(TABLE *table);
   void copy(sequence_definition *seq)
   {
     sequence_definition::operator= (*seq);
@@ -135,7 +131,7 @@ public:
 
 private:
   TABLE         *table;
-  mysql_mutex_t mutex;
+  mysql_rwlock_t mutex;
 };
 
 

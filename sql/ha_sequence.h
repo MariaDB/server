@@ -60,6 +60,9 @@ private:
   SEQUENCE *sequence;                     /* From table_share->sequence */
 
 public:
+  /* Set when handler is write locked */
+  bool write_locked;
+
   ha_sequence(handlerton *hton, TABLE_SHARE *share);
   ~ha_sequence();
 
@@ -89,16 +92,36 @@ public:
   /* For ALTER ONLINE TABLE */
   bool check_if_incompatible_data(HA_CREATE_INFO *create_info,
                                   uint table_changes);
+  void write_lock() { write_locked= 1;}
+  void unlock() { write_locked= 0; }
+  bool is_locked() { return write_locked; }
 
   /* Functions that are directly mapped to the underlying handler */
   int rnd_init(bool scan)
   { return file->rnd_init(scan); }
+  /*
+    We need to have a lock here to protect engines like MyISAM from
+    simultaneous read and write. For sequence's this is not critical
+    as this function is used extremely seldom.
+  */
   int rnd_next(uchar *buf)
-  { return file->rnd_next(buf); }
+  {
+    int error;
+    table->s->sequence->read_lock(table);
+    error= file->rnd_next(buf);
+    table->s->sequence->read_unlock(table);
+    return error;
+  }
   int rnd_end()
   { return file->rnd_end(); }
   int rnd_pos(uchar *buf, uchar *pos)
-  { return file->rnd_pos(buf, pos); }
+  {
+    int error;
+    table->s->sequence->read_lock(table);
+    error= file->rnd_pos(buf, pos);
+    table->s->sequence->read_unlock(table);
+    return error;
+  }
   void position(const uchar *record)
   { return file->position(record); }
   const char *table_type() const
@@ -136,8 +159,5 @@ public:
     file= file_arg;
     init();                                     /* Update cached_table_flags */
   }
-
-  /* To inform handler that sequence is already locked by called */
-  bool sequence_locked;
 };
 #endif
