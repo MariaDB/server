@@ -2560,14 +2560,8 @@ wait_until_unfixed:
 				}
 			}
 			buf_pool_mutex_exit(buf_pool);
-			fprintf(stderr,
-				"innodb_change_buffering_debug evict %u %u\n",
-				(unsigned) space, (unsigned) offset);
 			return(NULL);
 		} else if (buf_flush_page_try(buf_pool, block)) {
-			fprintf(stderr,
-				"innodb_change_buffering_debug flush %u %u\n",
-				(unsigned) space, (unsigned) offset);
 			guess = block;
 			goto loop;
 		}
