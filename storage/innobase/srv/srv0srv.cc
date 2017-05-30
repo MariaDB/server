@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2017, MariaDB Corporation.
@@ -301,7 +301,7 @@ UNIV_INTERN double	srv_adaptive_flushing_lwm	= 10.0;
 UNIV_INTERN ulong	srv_flushing_avg_loops		= 30;
 
 /* The number of purge threads to use.*/
-UNIV_INTERN ulong	srv_n_purge_threads = 1;
+UNIV_INTERN ulong	srv_n_purge_threads;
 
 /* the number of pages to purge in one batch */
 UNIV_INTERN ulong	srv_purge_batch_size = 20;
@@ -498,16 +498,16 @@ UNIV_INTERN uint srv_simulate_comp_failures = 0;
 
 /** Acquire the system_mutex. */
 #define srv_sys_mutex_enter() do {			\
-	mutex_enter(&srv_sys->mutex);			\
+	mutex_enter(&srv_sys.mutex);			\
 } while (0)
 
 /** Test if the system mutex is owned. */
-#define srv_sys_mutex_own() (mutex_own(&srv_sys->mutex)	\
+#define srv_sys_mutex_own() (mutex_own(&srv_sys.mutex)	\
 			     && !srv_read_only_mode)
 
 /** Release the system mutex. */
 #define srv_sys_mutex_exit() do {			\
-	mutex_exit(&srv_sys->mutex);			\
+	mutex_exit(&srv_sys.mutex);			\
 } while (0)
 
 #define fetch_lock_wait_timeout(trx)			\
@@ -599,7 +599,7 @@ struct srv_sys_t{
 	ulint		n_sys_threads;		/*!< size of the sys_threads
 						array */
 
-	srv_slot_t*	sys_threads;		/*!< server thread table;
+	srv_slot_t	sys_threads[32 + 1];	/*!< server thread table;
 						os_event_set() and
 						os_event_reset() on
 						sys_threads[]->event are
@@ -619,7 +619,7 @@ struct srv_sys_t{
 UNIV_INTERN ib_mutex_t	server_mutex;
 #endif /* !HAVE_ATOMIC_BUILTINS */
 
-static srv_sys_t*	srv_sys	= NULL;
+static srv_sys_t	srv_sys;
 
 /** Event to signal srv_monitor_thread. Not protected by a mutex.
 Set after setting srv_print_innodb_monitor. */
@@ -641,10 +641,10 @@ and/or load it during startup. */
 UNIV_INTERN char	srv_buffer_pool_dump_at_shutdown = FALSE;
 UNIV_INTERN char	srv_buffer_pool_load_at_startup = FALSE;
 
-/** Slot index in the srv_sys->sys_threads array for the purge thread. */
+/** Slot index in the srv_sys.sys_threads array for the purge thread. */
 static const ulint	SRV_PURGE_SLOT	= 1;
 
-/** Slot index in the srv_sys->sys_threads array for the master thread. */
+/** Slot index in the srv_sys.sys_threads array for the master thread. */
 static const ulint	SRV_MASTER_SLOT = 0;
 
 /*********************************************************************//**
@@ -745,21 +745,21 @@ srv_reserve_slot(
 
 	switch (type) {
 	case SRV_MASTER:
-		slot = &srv_sys->sys_threads[SRV_MASTER_SLOT];
+		slot = &srv_sys.sys_threads[SRV_MASTER_SLOT];
 		break;
 
 	case SRV_PURGE:
-		slot = &srv_sys->sys_threads[SRV_PURGE_SLOT];
+		slot = &srv_sys.sys_threads[SRV_PURGE_SLOT];
 		break;
 
 	case SRV_WORKER:
 		/* Find an empty slot, skip the master and purge slots. */
-		for (slot = &srv_sys->sys_threads[2];
+		for (slot = &srv_sys.sys_threads[2];
 		     slot->in_use;
 		     ++slot) {
 
-			ut_a(slot < &srv_sys->sys_threads[
-			     srv_sys->n_sys_threads]);
+			ut_a(slot < &srv_sys.sys_threads[
+				     srv_sys.n_sys_threads]);
 		}
 		break;
 
@@ -775,7 +775,7 @@ srv_reserve_slot(
 
 	ut_ad(srv_slot_get_type(slot) == type);
 
-	++srv_sys->n_threads_active[type];
+	++srv_sys.n_threads_active[type];
 
 	srv_sys_mutex_exit();
 
@@ -805,27 +805,27 @@ srv_suspend_thread_low(
 	case SRV_MASTER:
 		/* We have only one master thread and it
 		should be the first entry always. */
-		ut_a(srv_sys->n_threads_active[type] == 1);
+		ut_a(srv_sys.n_threads_active[type] == 1);
 		break;
 
 	case SRV_PURGE:
 		/* We have only one purge coordinator thread
 		and it should be the second entry always. */
-		ut_a(srv_sys->n_threads_active[type] == 1);
+		ut_a(srv_sys.n_threads_active[type] == 1);
 		break;
 
 	case SRV_WORKER:
 		ut_a(srv_n_purge_threads > 1);
-		ut_a(srv_sys->n_threads_active[type] > 0);
+		ut_a(srv_sys.n_threads_active[type] > 0);
 		break;
 	}
 
 	ut_a(!slot->suspended);
 	slot->suspended = TRUE;
 
-	ut_a(srv_sys->n_threads_active[type] > 0);
+	ut_a(srv_sys.n_threads_active[type] > 0);
 
-	srv_sys->n_threads_active[type]--;
+	srv_sys.n_threads_active[type]--;
 
 	return(os_event_reset(slot->event));
 }
@@ -880,7 +880,7 @@ srv_resume_thread(srv_slot_t* slot, ib_int64_t sig_count = 0, bool wait = true,
 	ut_ad(slot->suspended);
 
 	slot->suspended = FALSE;
-	++srv_sys->n_threads_active[slot->type];
+	++srv_sys.n_threads_active[slot->type];
 	srv_sys_mutex_exit();
 	return(timeout);
 }
@@ -902,8 +902,8 @@ srv_release_threads(enum srv_thread_type type, ulint n)
 
 		srv_sys_mutex_enter();
 
-		for (ulint i = 0; i < srv_sys->n_sys_threads; i++) {
-			srv_slot_t*	slot = &srv_sys->sys_threads[i];
+		for (ulint i = 0; i < srv_sys.n_sys_threads; i++) {
+			srv_slot_t*	slot = &srv_sys.sys_threads[i];
 
 			if (!slot->in_use || srv_slot_get_type(slot) != type) {
 				continue;
@@ -923,7 +923,7 @@ srv_release_threads(enum srv_thread_type type, ulint n)
 				should be the first entry always. */
 				ut_a(n == 1);
 				ut_a(i == SRV_MASTER_SLOT);
-				ut_a(srv_sys->n_threads_active[type] == 0);
+				ut_a(srv_sys.n_threads_active[type] == 0);
 				break;
 
 			case SRV_PURGE:
@@ -932,12 +932,12 @@ srv_release_threads(enum srv_thread_type type, ulint n)
 				ut_a(n == 1);
 				ut_a(i == SRV_PURGE_SLOT);
 				ut_a(srv_n_purge_threads > 0);
-				ut_a(srv_sys->n_threads_active[type] == 0);
+				ut_a(srv_sys.n_threads_active[type] == 0);
 				break;
 
 			case SRV_WORKER:
 				ut_a(srv_n_purge_threads > 1);
-				ut_a(srv_sys->n_threads_active[type]
+				ut_a(srv_sys.n_threads_active[type]
 				     < srv_n_purge_threads - 1);
 				break;
 			}
@@ -975,9 +975,6 @@ void
 srv_init(void)
 /*==========*/
 {
-	ulint	n_sys_threads = 0;
-	ulint	srv_sys_sz = sizeof(*srv_sys);
-
 #ifndef HAVE_ATOMIC_BUILTINS
 	mutex_create(server_mutex_key, &server_mutex, SYNC_ANY_LATCH);
 #endif /* !HAVE_ATOMIC_BUILTINS */
@@ -985,29 +982,19 @@ srv_init(void)
 	mutex_create(srv_innodb_monitor_mutex_key,
 		     &srv_innodb_monitor_mutex, SYNC_NO_ORDER_CHECK);
 
-	if (!srv_read_only_mode) {
-
-		/* Number of purge threads + master thread */
-		n_sys_threads = srv_n_purge_threads + 1;
-
-		srv_sys_sz += n_sys_threads * sizeof(*srv_sys->sys_threads);
-	}
-
-	srv_sys = static_cast<srv_sys_t*>(mem_zalloc(srv_sys_sz));
-
-	srv_sys->n_sys_threads = n_sys_threads;
+	srv_sys.n_sys_threads = srv_read_only_mode
+		? 0
+		: srv_n_purge_threads + 1/* purge coordinator */;
 
 	if (!srv_read_only_mode) {
 
-		mutex_create(srv_sys_mutex_key, &srv_sys->mutex, SYNC_THREADS);
+		mutex_create(srv_sys_mutex_key, &srv_sys.mutex, SYNC_THREADS);
 
 		mutex_create(srv_sys_tasks_mutex_key,
-			     &srv_sys->tasks_mutex, SYNC_ANY_LATCH);
+			     &srv_sys.tasks_mutex, SYNC_ANY_LATCH);
 
-		srv_sys->sys_threads = (srv_slot_t*) &srv_sys[1];
-
-		for (ulint i = 0; i < srv_sys->n_sys_threads; ++i) {
-			srv_slot_t*	slot = &srv_sys->sys_threads[i];
+		for (ulint i = 0; i < srv_sys.n_sys_threads; ++i) {
+			srv_slot_t*	slot = &srv_sys.sys_threads[i];
 
 			slot->event = os_event_create();
 
@@ -1019,8 +1006,6 @@ srv_init(void)
 		srv_monitor_event = os_event_create();
 
 		srv_buf_dump_event = os_event_create();
-
-		UT_LIST_INIT(srv_sys->tasks);
 	}
 
 	/* page_zip_stat_per_index_mutex is acquired from:
@@ -1066,10 +1051,8 @@ srv_free(void)
 {
 	srv_conc_free();
 
-	/* The mutexes srv_sys->mutex and srv_sys->tasks_mutex should have
+	/* The mutexes srv_sys.mutex and srv_sys.tasks_mutex should have
 	been freed by sync_close() already. */
-	mem_free(srv_sys);
-	srv_sys = NULL;
 
 	trx_i_s_cache_free(trx_i_s_cache);
 
@@ -1425,10 +1408,10 @@ srv_export_innodb_status(void)
 	mutex_enter(&srv_innodb_monitor_mutex);
 
 	export_vars.innodb_data_pending_reads =
-		os_n_pending_reads;
+		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
 
 	export_vars.innodb_data_pending_writes =
-		os_n_pending_writes;
+		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
 	export_vars.innodb_data_pending_fsyncs =
 		fil_n_pending_log_flushes
@@ -1913,7 +1896,7 @@ void
 srv_inc_activity_count(void)
 /*========================*/
 {
-	srv_sys->activity_count.inc();
+	srv_sys.activity_count.inc();
 }
 
 /**********************************************************************//**
@@ -1935,7 +1918,7 @@ srv_get_active_thread_type(void)
 	srv_sys_mutex_enter();
 
 	for (ulint i = SRV_WORKER; i <= SRV_MASTER; ++i) {
-		if (srv_sys->n_threads_active[i] != 0) {
+		if (srv_sys.n_threads_active[i] != 0) {
 			ret = static_cast<srv_thread_type>(i);
 			break;
 		}
@@ -2008,12 +1991,12 @@ srv_active_wake_master_thread(void)
 
 	srv_inc_activity_count();
 
-	if (srv_sys->n_threads_active[SRV_MASTER] == 0) {
+	if (srv_sys.n_threads_active[SRV_MASTER] == 0) {
 		srv_slot_t*	slot;
 
 		srv_sys_mutex_enter();
 
-		slot = &srv_sys->sys_threads[SRV_MASTER_SLOT];
+		slot = &srv_sys.sys_threads[SRV_MASTER_SLOT];
 
 		/* Only if the master thread has been started. */
 
@@ -2040,7 +2023,7 @@ srv_wake_purge_thread_if_not_active(void)
 	ut_ad(!srv_sys_mutex_own());
 
 	if (purge_sys->state == PURGE_STATE_RUN
-	    && srv_sys->n_threads_active[SRV_PURGE] == 0) {
+	    && srv_sys.n_threads_active[SRV_PURGE] == 0) {
 
 		srv_release_threads(SRV_PURGE, 1);
 	}
@@ -2069,7 +2052,7 @@ ulint
 srv_get_activity_count(void)
 /*========================*/
 {
-	return(srv_sys->activity_count);
+	return(srv_sys.activity_count);
 }
 
 /*******************************************************************//**
@@ -2081,7 +2064,7 @@ srv_check_activity(
 /*===============*/
 	ulint		old_activity_count)	/*!< in: old activity count */
 {
-	return(srv_sys->activity_count != old_activity_count);
+	return(srv_sys.activity_count != old_activity_count);
 }
 
 /********************************************************************//**
@@ -2427,6 +2410,8 @@ DECLARE_THREAD(srv_master_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
+
 	srv_slot_t*	slot;
 	ulint		old_activity_count = srv_get_activity_count();
 	ib_time_t	last_print_time;
@@ -2446,7 +2431,7 @@ DECLARE_THREAD(srv_master_thread)(
 	srv_main_thread_id = os_thread_pf(os_thread_get_curr_id());
 
 	slot = srv_reserve_slot(SRV_MASTER);
-	ut_a(slot == srv_sys->sys_threads);
+	ut_a(slot == srv_sys.sys_threads);
 
 	last_print_time = ut_time();
 loop:
@@ -2488,6 +2473,7 @@ suspend_thread:
 	srv_resume_thread(slot);
 
 	if (srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS) {
+		my_thread_end();
 		os_thread_exit(NULL);
 	}
 
@@ -2536,18 +2522,18 @@ srv_task_execute(void)
 	ut_ad(!srv_read_only_mode);
 	ut_a(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
 
-	mutex_enter(&srv_sys->tasks_mutex);
+	mutex_enter(&srv_sys.tasks_mutex);
 
-	if (UT_LIST_GET_LEN(srv_sys->tasks) > 0) {
+	if (UT_LIST_GET_LEN(srv_sys.tasks) > 0) {
 
-		thr = UT_LIST_GET_FIRST(srv_sys->tasks);
+		thr = UT_LIST_GET_FIRST(srv_sys.tasks);
 
 		ut_a(que_node_get_type(thr->child) == QUE_NODE_PURGE);
 
-		UT_LIST_REMOVE(queue, srv_sys->tasks, thr);
+		UT_LIST_REMOVE(queue, srv_sys.tasks, thr);
 	}
 
-	mutex_exit(&srv_sys->tasks_mutex);
+	mutex_exit(&srv_sys.tasks_mutex);
 
 	if (thr != NULL) {
 
@@ -2570,6 +2556,8 @@ DECLARE_THREAD(srv_worker_thread)(
 	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
+	my_thread_init();
+
 	srv_slot_t*	slot;
 
 	ut_ad(!srv_read_only_mode);
@@ -2587,7 +2575,7 @@ DECLARE_THREAD(srv_worker_thread)(
 
 	srv_sys_mutex_enter();
 
-	ut_a(srv_sys->n_threads_active[SRV_WORKER] < srv_n_purge_threads);
+	ut_a(srv_sys.n_threads_active[SRV_WORKER] < srv_n_purge_threads);
 
 	srv_sys_mutex_exit();
 
@@ -2627,6 +2615,7 @@ DECLARE_THREAD(srv_worker_thread)(
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);
@@ -2793,6 +2782,8 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
+	my_thread_init();
+
 	srv_slot_t*	slot;
 	ulint           n_total_purged = ULINT_UNDEFINED;
 
@@ -2899,6 +2890,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		srv_release_threads(SRV_WORKER, srv_n_purge_threads - 1);
 	}
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);
@@ -2916,11 +2908,11 @@ srv_que_task_enqueue_low(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	ut_ad(!srv_read_only_mode);
-	mutex_enter(&srv_sys->tasks_mutex);
+	mutex_enter(&srv_sys.tasks_mutex);
 
-	UT_LIST_ADD_LAST(queue, srv_sys->tasks, thr);
+	UT_LIST_ADD_LAST(queue, srv_sys.tasks, thr);
 
-	mutex_exit(&srv_sys->tasks_mutex);
+	mutex_exit(&srv_sys.tasks_mutex);
 
 	srv_release_threads(SRV_WORKER, 1);
 }
@@ -2937,11 +2929,11 @@ srv_get_task_queue_length(void)
 
 	ut_ad(!srv_read_only_mode);
 
-	mutex_enter(&srv_sys->tasks_mutex);
+	mutex_enter(&srv_sys.tasks_mutex);
 
-	n_tasks = UT_LIST_GET_LEN(srv_sys->tasks);
+	n_tasks = UT_LIST_GET_LEN(srv_sys.tasks);
 
-	mutex_exit(&srv_sys->tasks_mutex);
+	mutex_exit(&srv_sys.tasks_mutex);
 
 	return(n_tasks);
 }
@@ -2963,4 +2955,20 @@ srv_purge_wakeup()
 			srv_release_threads(SRV_WORKER, n_workers);
 		}
 	}
+}
+
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+bool
+srv_is_undo_tablespace(
+	ulint	space_id)
+{
+	if (srv_undo_space_id_start == 0) {
+		return (false);
+	}
+
+	return(space_id >= srv_undo_space_id_start
+	       && space_id < (srv_undo_space_id_start
+			      + srv_undo_tablespaces_open));
 }

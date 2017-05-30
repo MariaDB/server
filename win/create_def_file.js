@@ -54,6 +54,22 @@ var is64 = args.Item(0).toLowerCase() == "x64";
 var shell = new ActiveXObject("WScript.Shell");
 var fso = new ActiveXObject("Scripting.FileSystemObject");
 
+/*
+  If .def file is used with together with lib.exe
+  the name mangling for stdcall is slightly different.
+
+  Undescore prefix for stdcall function name must be removed for
+  lib.exe but not link.exe (see ScrubSymbol())
+
+  This difference is not documented anywhere and could
+  be a bug in compiler tools.
+
+  We use a parameter /forLib, if the resulting .def file is used
+  with lib.exe .
+*/
+var forLib = false;
+
+
 OutputSymbols(CollectSymbols());
 
 
@@ -62,8 +78,8 @@ function OutputSymbols(symbols)
 {
     var out = WScript.StdOut;
     out.WriteLine("EXPORTS");
-    for (var sym in symbols)
-       out.WriteLine(sym);
+    for (var i= 0; i < symbols.length; i++)
+       out.WriteLine(symbols[i]);
 }
 
 function echo(message)
@@ -72,9 +88,10 @@ function echo(message)
 }
 
 // Extract global symbol names and type from objects
+// Returns string array with symbol names
 function CollectSymbols()
 {
-    var uniqueSymbols = new Array();
+    var uniqueSymbols = new Object();
 
     try
     {
@@ -146,7 +163,19 @@ function CollectSymbols()
         uniqueSymbols[symbol] = 1;
     }
     fso.DeleteFile(rspfilename);
-    return uniqueSymbols;
+    // Sort symbols names
+    var keys=[];
+    var sorted = {};
+    for (key in uniqueSymbols)
+    {
+        if (uniqueSymbols.hasOwnProperty(key))
+        {
+            keys.push(key);
+        }
+    }
+    keys.sort();
+
+    return keys;
 }
 
 // performs necessary cleanup on the symbol name
@@ -155,6 +184,9 @@ function ScrubSymbol(symbol)
     if (is64) return symbol;
     if (symbol.charAt(0) != "_") 
         return symbol;
+
+    if (forLib)
+       return symbol.substring(1, symbol.length);
 
     var atSign = symbol.indexOf("@");
     if (atSign != -1)
@@ -189,7 +221,11 @@ function CreateResponseFile(filename)
   var index = 1;
   for (; index < args.length; index++)
   {
-    addToResponseFile(args.Item(index),responseFile);
+    var param =  args.Item(index);
+    if (param == "/forLib")
+      forLib = true;
+    else
+      addToResponseFile(args.Item(index),responseFile);
   }
   responseFile.Close();
 }

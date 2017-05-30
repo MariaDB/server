@@ -3252,6 +3252,21 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   DBUG_ENTER("mysql_prepare_create_table");
 
+  LEX_STRING* connect_string = &create_info->connect_string;
+  if (connect_string->length != 0 &&
+      connect_string->length > CONNECT_STRING_MAXLEN &&
+      (system_charset_info->cset->charpos(system_charset_info,
+                                          connect_string->str,
+                                          (connect_string->str +
+                                           connect_string->length),
+                                          CONNECT_STRING_MAXLEN)
+      < connect_string->length))
+  {
+    my_error(ER_WRONG_STRING_LENGTH, MYF(0),
+             connect_string->str, "CONNECTION", CONNECT_STRING_MAXLEN);
+    DBUG_RETURN(TRUE);
+  }
+
   select_field_pos= alter_info->create_list.elements - select_field_count;
   null_fields=blob_columns=0;
   create_info->varchar= 0;
@@ -6899,7 +6914,8 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
   case Alter_info::LEAVE_AS_IS:
     if (!indexes_were_disabled)
       break;
-    /* fall-through: disabled indexes */
+    /* disabled indexes */
+    /* fall through */
   case Alter_info::DISABLE:
     error= table->file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
   }

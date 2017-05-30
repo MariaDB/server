@@ -4215,6 +4215,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     printf("Data records: %s\n", llstr(start_records, llbuff));
   }
 
+  bzero(&new_data_cache, sizeof(new_data_cache));
   if (initialize_variables_for_repair(param, &sort_info, &tmp_sort_param, info,
                                       rep_quick, &backup_share))
     goto err;

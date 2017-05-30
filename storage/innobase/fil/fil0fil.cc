@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -148,7 +148,8 @@ initialized. */
 fil_system_t*	fil_system	= NULL;
 
 /** Determine if (i) is a user tablespace id or not. */
-# define fil_is_user_tablespace_id(i) ((i) > srv_undo_tablespaces_open)
+# define fil_is_user_tablespace_id(i) (i != 0 \
+				       && !srv_is_undo_tablespace(i))
 
 /** Determine if user has explicitly disabled fsync(). */
 #ifndef __WIN__
@@ -1546,8 +1547,6 @@ fil_init(
 	fil_system->spaces = hash_create(hash_size);
 	fil_system->name_hash = hash_create(hash_size);
 
-	UT_LIST_INIT(fil_system->LRU);
-
 	fil_system->max_n_open = max_n_open;
 }
 
@@ -1879,7 +1878,7 @@ UNIV_INTERN
 const char*
 fil_read_first_page(
 /*================*/
-	os_file_t	data_file,		/*!< in: open data file */
+	pfs_os_file_t	data_file,		/*!< in: open data file */
 	ibool		one_read_already,	/*!< in: TRUE if min and max
 						parameters below already
 						contain sensible data */
@@ -2273,14 +2272,12 @@ fil_op_log_parse_or_replay(
 		} else if (log_flags & MLOG_FILE_FLAG_TEMP) {
 			/* Temporary table, do nothing */
 		} else {
-			const char*	path = NULL;
-
 			/* Create the database directory for name, if it does
 			not exist yet */
 			fil_create_directory_for_tablename(name);
 
 			if (fil_create_new_single_table_tablespace(
-				    space_id, name, path, flags,
+				    space_id, name, NULL, flags,
 				    DICT_TF2_USE_TABLESPACE,
 				    FIL_IBD_FILE_INITIAL_SIZE) != DB_SUCCESS) {
 				ut_error;
@@ -3214,7 +3211,7 @@ fil_open_linked_file(
 /*===============*/
 	const char*	tablename,	/*!< in: database/tablename */
 	char**		remote_filepath,/*!< out: remote filepath */
-	os_file_t*	remote_file)	/*!< out: remote file handle */
+	pfs_os_file_t*	remote_file)	/*!< out: remote file handle */
 
 {
 	ibool		success;
@@ -3274,7 +3271,8 @@ fil_create_new_single_table_tablespace(
 					tablespace file in pages,
 					must be >= FIL_IBD_FILE_INITIAL_SIZE */
 {
-	os_file_t	file;
+	pfs_os_file_t	file;
+
 	ibool		ret;
 	dberr_t		err;
 	byte*		buf2;
@@ -5025,7 +5023,7 @@ retry:
 
 		int err;
 		do {
-			err = posix_fallocate(node->handle, start_offset, len);
+			err = posix_fallocate(node->handle.m_file, start_offset, len);
 		} while (err == EINTR
 			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
@@ -5775,7 +5773,7 @@ fil_flush(
 {
 	fil_space_t*	space;
 	fil_node_t*	node;
-	os_file_t	file;
+	pfs_os_file_t	file;
 
 
 	mutex_enter(&fil_system->mutex);
@@ -6137,7 +6135,7 @@ fil_buf_block_init(
 }
 
 struct fil_iterator_t {
-	os_file_t	file;			/*!< File handle */
+	pfs_os_file_t	file;			/*!< File handle */
 	const char*	filepath;		/*!< File path name */
 	os_offset_t	start;			/*!< From where to start */
 	os_offset_t	end;			/*!< Where to stop */
@@ -6272,7 +6270,7 @@ fil_tablespace_iterate(
 	PageCallback&	callback)
 {
 	dberr_t		err;
-	os_file_t	file;
+	pfs_os_file_t	file;
 	char*		filepath;
 
 	ut_a(n_io_buffers > 0);

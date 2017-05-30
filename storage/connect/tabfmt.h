@@ -13,7 +13,7 @@ typedef class  TDBFMT    *PTDBFMT;
 /***********************************************************************/
 /*  Functions used externally.                                         */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info);
+PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info);
 
 /***********************************************************************/
 /*  CSV table.                                                         */
@@ -21,7 +21,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info);
 class DllExport CSVDEF : public DOSDEF { /* Logical table description  */
   friend class TDBCSV;
   friend class TDBCCL;
-	friend PQRYRES CSVColumns(PGLOBAL, char *, PTOS, bool);
+	friend PQRYRES CSVColumns(PGLOBAL, PCSZ, PTOS, bool);
 public:
   // Constructor
   CSVDEF(void);
@@ -53,7 +53,7 @@ public:
 class DllExport TDBCSV : public TDBDOS {
   friend class CSVCOL;
 	friend class MAPFAM;
-	friend PQRYRES CSVColumns(PGLOBAL, char *, PTOS, bool);
+	friend PQRYRES CSVColumns(PGLOBAL, PCSZ, PTOS, bool);
 public:
   // Constructor
   TDBCSV(PCSVDEF tdp, PTXF txfp);

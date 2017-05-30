@@ -65,7 +65,7 @@ class DllExport BINCOL : public DOSCOL {
   friend class TDBFIX;
  public:
   // Constructors
-  BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am = "BIN");
+  BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am = "BIN");
   BINCOL(BINCOL *colp, PTDB tdbp);  // Constructor used in copy process
 
   // Implementation
@@ -108,7 +108,7 @@ class TDBDCL : public TDBCAT {
       {return DBFColumns(g, ((PTABDEF)To_Def)->GetPath(), Fn, false);}
 
   // Members
-  char *Fn;                       // The DBF file (path) name
+	PCSZ Fn;                    // The DBF file (path) name
   }; // end of class TDBOCL
 
 

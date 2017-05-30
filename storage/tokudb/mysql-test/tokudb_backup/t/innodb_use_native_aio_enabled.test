@@ -1,0 +1,19 @@
+# Check if tokudb hot backup is prevented if innodb_use_native_aio enabled
+--source include/have_tokudb_backup.inc
+--source include/have_innodb.inc
+
+SELECT @@innodb_use_native_aio;
+
+--let BACKUP_DIR= $MYSQL_TMP_DIR/tokudb_backup
+
+--mkdir $BACKUP_DIR
+
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET SESSION tokudb_backup_dir='$BACKUP_DIR'
+
+--perl
+use File::Path 'rmtree';
+$DDIR=$ENV{"BACKUP_DIR"};
+rmtree([ "$DDIR" ]);
+EOF

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2006, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1047,7 +1047,7 @@ static int check_version_match(void)
 
 int main(int argc, char **argv)
 {
-  char self_name[FN_REFLEN];
+  char self_name[FN_REFLEN + 1];
 
   MY_INIT(argv[0]);
 
@@ -1055,7 +1055,7 @@ int main(int argc, char **argv)
   if (GetModuleFileName(NULL, self_name, FN_REFLEN) == 0)
 #endif
   {
-    strncpy(self_name, argv[0], FN_REFLEN);
+    strmake_buf(self_name, argv[0]);
   }
 
   if (init_dynamic_string(&ds_args, "", 512, 256) ||
@@ -1145,4 +1145,3 @@ end:
   my_end(my_end_arg);
   exit(0);
 }
-

@@ -1,17 +1,17 @@
 ##############################################################################
 #
 #  List the test cases which, unlike tests from disabled.def files,
-#  can still be run on the current tree meaningfully, but are known 
+#  can still be run on the current tree meaningfully, but are known
 #  or suspected to fail sporadically on different reasons.
 #
 #  Most common reasons are either test failures observed in buildbot,
-#  or recent modifications to the tests which make their stability 
-#  unknown. 
+#  or recent modifications to the tests which make their stability
+#  unknown.
 #
-#  Tests included due to recent modifications are later removed from the 
-#  list, if during a certain period they do not fail (and are not 
-#  modified again). Tests included due to intermittent failures are 
-#  removed when corresponding bug reports are closed. 
+#  Tests included due to recent modifications are later removed from the
+#  list, if during a certain period they do not fail (and are not
+#  modified again). Tests included due to intermittent failures are
+#  removed when corresponding bug reports are closed.
 #
 #  Separate the test case name and the comment with ':'.
 #
@@ -19,44 +19,46 @@
 #
 #  '*' wildcard in testcase names is supported.
 #
-#  To use the list, run MTR with --skip-test-list=unstable-tests option. 
+#  To use the list, run MTR with --skip-test-list=unstable-tests option.
 #
 ##############################################################################
 
-main.alter_table                   : Modified in 10.0.30
 main.count_distinct2               : MDEV-11768 - timeout
 main.create_delayed                : MDEV-10605 - failed with timeout
 main.debug_sync                    : MDEV-10607 - internal error
-main.derived                       : Modified in 10.0.30
 main.derived_opt                   : MDEV-11768 - timeout
-main.events_restart                : MDEV-11221 - assertion failure
-main.grant                         : Modified in 10.0.30
+main.derived_view                  : Modified in 10.0.31
+main.events_2                      : Modified in 10.0.31
+main.events_slowlog                : MDEV-12821 - wrong result
+main.func_regexp_pcre              : Modified in 10.0.31
+main.gis                           : Modified in 10.0.31
 main.host_cache_size_functionality : MDEV-10606 - sporadic failure on shutdown
 main.index_intersect_innodb        : MDEV-10643 - failed with timeout
 main.index_merge_innodb            : MDEV-7142 - wrong result
 main.innodb_mysql_lock             : MDEV-7861 - sporadic lock detection failure
-main.join_nested                   : Modified in 10.0.30
+main.loaddata                      : Modified in 10.0.31
+main.log_tables-big                : Modified in 10.0.31
 main.mdev-504                      : MDEV-10607 - sporadic "can't connect"
 main.mdev375                       : MDEV-10607 - sporadic "can't connect"
 main.merge                         : MDEV-10607 - sporadic "can't connect"
-main.mysqldump                     : Modified in 10.0.30
+main.mysqld--help                  : Modified in 10.0.31
+main.mysqldump                     : Modified in 10.0.31
 main.mysqlhotcopy_myisam           : MDEV-10995 - test hangs on debug build
 main.mysqltest                     : MDEV-9269 - fails on Alpha
-main.partition_innodb              : Modified in 10.0.30
-main.partition_myisam              : Modified in 10.0.30
 main.ps                            : MDEV-11017 - sporadic wrong Prepared_stmt_count
-main.range_vs_index_merge          : Modified in 10.0.30
-main.repair_symlink-5543           : Modified in 10.0.30
 main.show_explain                  : MDEV-10674 - wrong result
-main.signal_demo3                  : MDEV-11720 - Thread stack overrun on Solaris
-main.sp                            : Modified in 10.0.30
 main.sp_notembedded                : MDEV-10607 - internal error
 main.sp-security                   : MDEV-10607 - sporadic "can't connect"
-main.subselect_innodb              : MDEV-10614 - sporadic wrong results
-main.symlink-aria-11902            : Added in 10.0.30
-main.symlink-myisam-11902          : Added in 10.0.30
-main.table_elim                    : Modified in 10.0.30
-main.view                          : Modified in 10.0.30
+main.subselect4                    : Modified in 10.0.31
+main.subselect_exists2in           : Modified in 10.0.31
+main.subselect_innodb              : MDEV-10614 - sporadic wrong results; modified in 10.0.31
+main.subselect_mat_cost_bugs       : Modified in 10.0.31
+main.subselect_sj                  : Modified in 10.0.31
+main.subselect_sj_mat              : Modified in 10.0.31
+main.subselect_sj2_mat             : Modified in 10.0.31
+main.symlink                       : Modified in 10.0.31
+main.symlink-myisam-11902          : Modified in 10.0.31
+main.view                          : Modified in 10.0.31
 main.xa                            : MDEV-11769 - lock wait timeout
 
 #----------------------------------------------------------------
@@ -70,15 +72,16 @@ archive.mysqlhotcopy_archive : MDEV-10995 - test hangs on debug build
 #----------------------------------------------------------------
 
 binlog.binlog_commit_wait                 : MDEV-10150 - Error: too much time elapsed
-binlog.binlog_max_binlog_stmt_cache_size  : Added in 10.0.30
 binlog.binlog_xa_recover                  : MDEV-8517 - Extra checkpoint
 
 #----------------------------------------------------------------
 
+connect.jdbc_new        : Modified in 10.0.31
 connect.tbl             : MDEV-9844, MDEV-10179 - sporadic crashes, valgrind warnings, wrong results
-connect.xml             : Uses xsample2.xml modified in 10.0.30
-connect.xml_zip         : Added in 10.0.30
-connect.zip             : Added in 10.0.30
+
+#----------------------------------------------------------------
+
+csv.read_only           : Added in 10.0.31
 
 #----------------------------------------------------------------
 
@@ -86,7 +89,6 @@ engines/rr_trx.* : MDEV-10998 - tests not maintained
 
 #----------------------------------------------------------------
 
-federated_bug_35333              : Modified in 10.0.30
 federated.federatedx             : MDEV-10617 - Wrong checksum, timeouts
 federated.federated_innodb       : MDEV-10617, MDEV-10417 - Wrong checksum, timeouts, fails on Mips
 federated.federated_partition    : MDEV-10417 - Fails on Mips
@@ -101,22 +103,19 @@ funcs_2/charset.*          : MDEV-10999 - test not maintained
 
 #----------------------------------------------------------------
 
-innodb.alter_key_block_size-11757            : Added in 10.0.30
-innodb.binlog_consistent                     : MDEV-10618 - Server fails to start 
+innodb.autoinc_debug                         : Added in 10.0.31
+innodb.binlog_consistent                     : MDEV-10618 - Server fails to start
 innodb.group_commit_crash_no_optimize_thread : MDEV-11770 - checksum mismatch
+innodb.innodb-alter-debug                    : Added in 10.0.31
+innodb.innodb-alter-nullable                 : Added in 10.0.31
 innodb.innodb-alter-table                    : MDEV-10619 - Testcase timeout
-innodb.innodb_blob_unrecoverable_crash       : Modified in 10.0.30
-innodb.innodb_bug14676111                    : Modified in 10.0.30
+innodb.innodb_bug14676111                    : Modified in 10.0.31
 innodb.innodb_bug30423                       : MDEV-7311 - Wrong number of rows in the plan
-innodb.innodb_bug59641                       : Modified in 10.0.30
-innodb.innodb-get-fk                         : Modified in 10.0.30
+innodb.innodb-index-online-norebuild         : Added in 10.0.31
+innodb.log_file_size                         : Modified in 10.0.31
 innodb.innodb_monitor                        : MDEV-10939 - Testcase timeout
-innodb.log_file_size                         : Added in 10.0.30
-innodb.read_only_recovery                    : Added in 10.0.30
-innodb.xa_recovery                           : Modified in 10.0.30
 
-innodb_fts.create                            : Added in 10.0.30
-innodb_fts.innodb_fts_stopword_charset       : MDEV-12052 - Crash on shutdown
+innodb_fts.innodb_fts_stopword_charset       : MDEV-12052 - Crash on shutdown; modified in 10.0.31
 
 #----------------------------------------------------------------
 
@@ -134,29 +133,13 @@ multi_source.multisource : MDEV-10417 - Fails on Mips
 multi_source.simple      : MDEV-4633 - Wrong slave status output
 multi_source.status_vars : MDEV-4632 - failed while waiting for Slave_received_heartbeats
 
+#----------------------------------------------------------------
+
+myisam_debug             : Modified in 10.0.31
 
 #----------------------------------------------------------------
 
-oqgraph.regression_mdev6282 : Modified in 10.0.30
-oqgraph.regression_mdev6345 : Modified in 10.0.30
-
-#----------------------------------------------------------------
-
-parts.partition_bigint_innodb    : Added in 10.0.30
-parts.partition_bigint_myisam    : Added in 10.0.30
-parts.partition_double_innodb    : Added in 10.0.30
-parts.partition_double_myisam    : Added in 10.0.30
 parts.partition_exch_qa_10       : MDEV-11765 - wrong result
-parts.partition_float_innodb     : Modified in 10.0.30
-parts.partition_float_myisam     : Modified in 10.0.30
-parts.partition_int_innodb       : Modified in 10.0.30
-parts.partition_int_myisam       : Modified in 10.0.30
-parts.partition_mediumint_innodb : Added in 10.0.30
-parts.partition_mediumint_myisam : Added in 10.0.30
-parts.partition_smallint_innodb  : Added in 10.0.30
-parts.partition_smallint_myisam  : Added in 10.0.30
-parts.partition_tinyint_innodb   : Added in 10.0.30
-parts.partition_tinyint_myisam   : Added in 10.0.30
 
 #----------------------------------------------------------------
 
@@ -165,7 +148,7 @@ perfschema.func_mutex                        : MDEV-5708 - fails for s390x
 perfschema.hostcache_ipv6_ssl                : MDEV-10696 - crash on shutdown
 perfschema.socket_summary_by_event_name_func : MDEV-10622 - Socket summary tables do not match
 perfschema.stage_mdl_procedure               : MDEV-11545 - Wrong result
-perfschema.threads_mysql                     : MDEV-12177 - Wrong result
+perfschema.start_server_1_digest             : Added in 10.0.31
 
 perfschema_stress.* : MDEV-10996 - tests not maintained
 
@@ -191,13 +174,11 @@ rpl.rpl_ddl                           : MDEV-10417 - Fails on Mips
 rpl.rpl_gtid_crash                    : MDEV-9501 - Warning: failed registering on master
 rpl.rpl_gtid_stop_start               : MDEV-10629 - Crash on shutdown
 rpl.rpl_gtid_until                    : MDEV-10625 - warnings in error log
-rpl.rpl_heartbeat_basic               : Modified in 10.0.30
 rpl.rpl_innodb_bug30888               : MDEV-10417 - Fails on Mips
 rpl.rpl_insert                        : MDEV-9329 - Fails on Ubuntu/s390x
 rpl.rpl_insert_delayed                : MDEV-9329 - Fails on Ubuntu/s390x
 rpl.rpl_invoked_features              : MDEV-10417 - Fails on Mips
 rpl.rpl_mdev6020                      : MDEV-10630, MDEV-10417 - Timeouts, fails on Mips
-rpl.rpl_mdev6386                      : Modified in 10.0.30
 rpl.rpl_parallel                      : MDEV-10653 - Timeouts
 rpl.rpl_parallel_temptable            : MDEV-10356 - Crash in close_thread_tables
 rpl.rpl_partition_innodb              : MDEV-10417 - Fails on Mips
@@ -238,30 +219,45 @@ stress.ddl_innodb : MDEV-10635 - Testcase timeout
 
 sys_vars.autocommit_func2                  : MDEV-9329 - Fails on Ubuntu/s390x
 sys_vars.innodb_buffer_pool_dump_pct_basic : MDEV-10651 - sporadic failure on file_exists
-sys_vars.innodb_force_recovery_crash_basic : Modified in 10.0.30
-sys_vars.innodb_stats_include_delete_marked_basic : Added in 10.0.30
 sys_vars.innodb_status_output_basic        : MDEV-12174 - Timeout
-sys_vars.secure_file_priv                  : Modified in 10.0.30
 sys_vars.thread_cache_size_func            : MDEV-11775 - wrong result
 
 #----------------------------------------------------------------
 
+tokudb.background_job_manager        : Modified in 10.0.31
+tokudb.bug-1657908                   : Added in 10.0.31
+tokudb.card_auto_analyze_lots        : Modified in 10.0.31
+tokudb.change_column_all_1000_10     : MDEV-12640 - Lost connection during query
+tokudb.change_column_bin             : MDEV-12640 - Lost connection during query
+tokudb.change_column_char            : MDEV-12822 - Lost connection during query
 tokudb.cluster_filter_unpack_varchar : MDEV-10636 - Wrong execution plan
+tokudb.dir_cmd                       : Added in 10.0.31
 tokudb.dir_per_db                    : MDEV-11537 - wrong result
-tokudb.dir_per_db_rename_to_nonexisting_schema : Added in 10.0.30
-tokudb.gap_lock_error                : Added in 10.0.30
-tokudb.locks-select-update-3         : Modified in 10.0.30
-tokudb.percona_kill_idle_trx_tokudb  : Added in 10.0.30
+tokudb.dir_per_db_rename_to_nonexisting_schema : MDEV-12823 - Valgrind
+tokudb.hotindex-update-1             : MDEV-12640 - Lost connection during query
+tokudb.i_s_tokudb_lock_waits_timeout : Modified in 10.0.31
+tokudb.i_s_tokudb_locks              : Modified in 10.0.31
+tokudb.rows-32m-rand-insert          : MDEV-12640 - Lost connection during query
+tokudb.rows-32m-seq-insert           : MDEV-12640 - Lost connection during query
 
 tokudb_backup.*                      : MDEV-11001 - tests don't work
+
+tokudb_backup.backup_master_info     : Added in 10.0.31
+tokudb_backup.backup_master_state    : Added in 10.0.31
+tokudb_backup.empty_slave_info_file  : Added in 10.0.31
+tokudb_backup.innodb_use_native_aio_enabled : Added in 10.0.31
+tokudb_backup.rpl_safe_slave         : Added in 10.0.31
+tokudb_backup.rpl_tokudb_commit_sync : Added in 10.0.31
+
 tokudb_bugs.checkpoint_lock          : MDEV-10637 - Wrong processlist output
 tokudb_bugs.checkpoint_lock_3        : MDEV-10637 - Wrong processlist output
+tokudb_bugs.db233                    : Modified in 10.0.31
+tokudb_bugs.frm_store2               : MDEV-12823 - Valgrind
+tokudb_bugs.leak172                  : Modified in 10.0.31
 tokudb_bugs.xa                       : MDEV-11804 - Lock wait timeout
 
 tokudb_rpl.*                         : MDEV-11001 - tests don't work
 tokudb_sys_vars.*                    : MDEV-11001 - tests don't work
-
-rpl-tokudb.rpl_extra_col_slave_tokudb : Result file modified in 10.0.30
 
 #----------------------------------------------------------------
 
@@ -272,10 +268,5 @@ unit.pfs                : MySQL:84457 - unittest pft-t failing
 
 vcol.not_supported    : MDEV-10639 - Testcase timeout
 vcol.vcol_keys_innodb : MDEV-10639 - Testcase timeout
-vcol.vcol_misc              : Modified in 10.0.30
-vcol.vcol_select_myisam     : Modified in 10.0.30
-vcol.vcol_trigger_sp_innodb : Include file modified in 10.0.30
-vcol.vcol_trigger_sp_myisam : Include file modified in 10.0.30
-vcol.wrong_arena            : Added in 10.0.30
 
 #----------------------------------------------------------------

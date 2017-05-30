@@ -1248,6 +1248,7 @@ int ha_myisam::assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt)
 {
   KEY_CACHE *new_key_cache= check_opt->key_cache;
   const char *errmsg= 0;
+  char buf[STRING_BUFFER_USUAL_SIZE];
   int error= HA_ADMIN_OK;
   ulonglong map;
   TABLE_LIST *table_list= table->pos_in_table_list;
@@ -1264,7 +1265,6 @@ int ha_myisam::assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt)
 
   if ((error= mi_assign_to_key_cache(file, map, new_key_cache)))
   { 
-    char buf[STRING_BUFFER_USUAL_SIZE];
     my_snprintf(buf, sizeof(buf),
 		"Failed to flush to index file (errno: %d)", error);
     errmsg= buf;

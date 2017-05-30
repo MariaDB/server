@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -36,14 +37,13 @@ Created 9/6/1995 Heikki Tuuri
 
 #include "univ.i"
 #include "ut0lst.h"
-#include "sync0types.h"
 
-#if defined __i386__ || defined __x86_64__ || defined _M_IX86 \
-    || defined _M_X64 || defined __WIN__
-
-#define IB_STRONG_MEMORY_MODEL
-
-#endif /* __i386__ || __x86_64__ || _M_IX86 || _M_X64 || __WIN__ */
+/** CPU cache line size */
+#ifdef __powerpc__
+#define CACHE_LINE_SIZE		128
+#else
+#define CACHE_LINE_SIZE		64
+#endif
 
 #ifdef HAVE_WINDOWS_ATOMICS
 typedef LONG lock_word_t;	/*!< On Windows, InterlockedExchange operates
@@ -667,10 +667,7 @@ os_atomic_clear(volatile lock_word_t* ptr)
 
 # define HAVE_ATOMIC_BUILTINS
 # define HAVE_ATOMIC_BUILTINS_BYTE
-
-# ifndef _WIN32
-#  define HAVE_ATOMIC_BUILTINS_64
-# endif
+# define HAVE_ATOMIC_BUILTINS_64
 
 /**********************************************************//**
 Atomic compare and exchange of signed integers (both 32 and 64 bit).
@@ -891,6 +888,58 @@ for synchronization */
 # define IB_MEMORY_BARRIER_STARTUP_MSG \
 	"Memory barrier is not used"
 #endif
+
+
+/** Simple counter aligned to CACHE_LINE_SIZE
+@tparam	Type	the integer type of the counter
+@tparam	atomic	whether to use atomic memory access */
+template <typename Type = ulint, bool atomic = false>
+struct MY_ALIGNED(CACHE_LINE_SIZE) simple_counter
+{
+	/** Increment the counter */
+	Type inc() { return add(1); }
+	/** Decrement the counter */
+	Type dec() { return sub(1); }
+
+	/** Add to the counter
+	@param[in]	i	amount to be added
+	@return	the value of the counter after adding */
+	Type add(Type i)
+	{
+		compile_time_assert(!atomic || sizeof(Type) == sizeof(ulint));
+		if (atomic) {
+			/* GCC would perform a type check in this code
+			also in case the template is instantiated with
+			simple_counter<Type=not_ulint, atomic=false>.
+			On Solaris, os_atomic_increment_ulint() maps
+			to atomic_add_long_nv(), which expects the
+			parameter to be correctly typed. */
+			return os_atomic_increment_ulint(
+				reinterpret_cast<ulint*>(&m_counter), i);
+		} else {
+			return m_counter += i;
+		}
+	}
+	/** Subtract from the counter
+	@param[in]	i	amount to be subtracted
+	@return	the value of the counter after adding */
+	Type sub(Type i)
+	{
+		compile_time_assert(!atomic || sizeof(Type) == sizeof(ulint));
+		if (atomic) {
+			return os_atomic_decrement_ulint(&m_counter, i);
+		} else {
+			return m_counter -= i;
+		}
+	}
+
+	/** @return the value of the counter (non-atomic access)! */
+	operator Type() const { return m_counter; }
+
+private:
+	/** The counter */
+	Type	m_counter;
+};
 
 #ifndef UNIV_NONINL
 #include "os0sync.ic"

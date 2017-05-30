@@ -881,15 +881,11 @@ buf_read_recv_pages(
 			count++;
 
 			if (count > 1000) {
-				fprintf(stderr,
-					"InnoDB: Error: InnoDB has waited for"
-					" 10 seconds for pending\n"
-					"InnoDB: reads to the buffer pool to"
-					" be finished.\n"
-					"InnoDB: Number of pending reads %lu,"
-					" pending pread calls %lu\n",
-					(ulong) buf_pool->n_pend_reads,
-					(ulong) os_file_n_pending_preads);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"waited for 10 seconds for " ULINTPF
+					" pending reads to the buffer pool to"
+					" be finished",
+					buf_pool->n_pend_reads);
 
 				os_aio_print_debug = TRUE;
 			}

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3061,7 +3061,6 @@ static int com_server_help(String *buffer __attribute__((unused)),
   {
     unsigned int num_fields= mysql_num_fields(result);
     my_ulonglong num_rows= mysql_num_rows(result);
-    mysql_fetch_fields(result);
     if (num_fields==3 && num_rows==1)
     {
       if (!(cur= mysql_fetch_row(result)))

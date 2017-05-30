@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2785,8 +2785,8 @@ mysql_execute_command(THD *thd)
 		 MYF(0));
       goto error;
     }
-    /* no break; fall through */
   }
+    /* fall through */
   case SQLCOM_SHOW_STATUS_PROC:
   case SQLCOM_SHOW_STATUS_FUNC:
 #ifdef WITH_WSREP
@@ -3632,8 +3632,8 @@ end_with_restore_list:
     /* mysql_update return 2 if we need to switch to multi-update */
     if (up_result != 2)
       break;
-    /* Fall through */
   }
+    /* Fall through */
   case SQLCOM_UPDATE_MULTI:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
@@ -3751,6 +3751,7 @@ end_with_restore_list:
       DBUG_PRINT("debug", ("Just after generate_incident()"));
     }
 #endif
+  /* fall through */
   case SQLCOM_INSERT:
 #ifdef WITH_WSREP
       if (WSREP_CLIENT(thd) &&
@@ -4648,6 +4649,7 @@ end_with_restore_list:
       initialize this variable because RESET shares the same code as FLUSH
     */
     lex->no_write_to_binlog= 1;
+    /* fall through */
   case SQLCOM_FLUSH:
   {
     int write_to_binlog;
@@ -6694,12 +6696,6 @@ bool check_fk_parent_table_access(THD *thd,
 ****************************************************************************/
 
 
-#if STACK_DIRECTION < 0
-#define used_stack(A,B) (long) (A - B)
-#else
-#define used_stack(A,B) (long) (B - A)
-#endif
-
 #ifndef DBUG_OFF
 long max_stack_used;
 #endif
@@ -6716,7 +6712,7 @@ bool check_stack_overrun(THD *thd, long margin,
 {
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
-  if ((stack_used=used_stack(thd->thread_stack,(char*) &stack_used)) >=
+  if ((stack_used= available_stack_size(thd->thread_stack, &stack_used)) >=
       (long) (my_thread_stack_size - margin))
   {
     thd->is_fatal_error= 1;

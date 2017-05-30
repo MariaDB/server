@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2009, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2009, 2017, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1110,10 +1110,10 @@ dict_stats_analyze_index_level(
 		leaf-level delete marks because delete marks on
 		non-leaf level do not make sense. */
 
-		if (level == 0 && srv_stats_include_delete_marked? 0:
+		if (level == 0 && (srv_stats_include_delete_marked ? 0:
 		    rec_get_deleted_flag(
 			    rec,
-			    page_is_comp(btr_pcur_get_page(&pcur)))) {
+			    page_is_comp(btr_pcur_get_page(&pcur))))) {
 
 			if (rec_is_last_on_page
 			    && !prev_rec_is_copied

@@ -425,6 +425,9 @@ static void print_db_env_struct (void) {
                              "bool (*set_dir_per_db)(DB_ENV *, bool new_val)",
                              "bool (*get_dir_per_db)(DB_ENV *)",
                              "const char *(*get_data_dir)(DB_ENV *env)",
+                             "int (*dirtool_attach)(DB_ENV *, DB_TXN *, const char *, const char *)",
+                             "int (*dirtool_detach)(DB_ENV *, DB_TXN *, const char *)",
+                             "int (*dirtool_move)(DB_ENV *, DB_TXN *, const char *, const char *)",
                              NULL};
 
         sort_and_dump_fields("db_env", true, extra);

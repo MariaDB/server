@@ -76,7 +76,7 @@ class VIRCOL : public COLBLK {
   friend class TDBVIR;
  public:
   // Constructors
-  VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "VIRTUAL");
+  VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "VIRTUAL");
 
   // Implementation
   virtual int  GetAmType(void) {return TYPE_AM_VIR;}

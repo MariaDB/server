@@ -1,5 +1,5 @@
-# Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2012, 2014, SkySQL Ab.
+# Copyright (c) 2006, 2016, Oracle and/or its affiliates.
+# Copyright (c) 2012, 2017, MariaDB
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

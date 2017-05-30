@@ -1,0 +1,52 @@
+skip TokuDB dir CMD disabled in MariaDB;
+source include/have_tokudb.inc;
+
+--let $MYSQL_DATADIR=`select @@datadir`
+
+SET GLOBAL tokudb_dir_per_db = ON;
+
+SET tokudb_dir_cmd = "attach test_dname_1 test_iname_1";
+SET tokudb_dir_cmd = "attach test_dname_2 test_iname_2";
+SELECT dictionary_name, internal_file_name
+  FROM information_schema.TokuDB_file_map;
+
+SET tokudb_dir_cmd = "detach test_dname_1";
+SELECT dictionary_name, internal_file_name
+  FROM information_schema.TokuDB_file_map;
+
+SET tokudb_dir_cmd = "move test_dname_2 test_dname_3";
+SELECT dictionary_name, internal_file_name
+  FROM information_schema.TokuDB_file_map;
+
+SET tokudb_dir_cmd = "detach test_dname_3";
+SELECT dictionary_name, internal_file_name
+  FROM information_schema.TokuDB_file_map;
+
+CREATE TABLE t1(a int) ENGINE=tokudb;
+INSERT INTO t1 (a) VALUES (10);
+--source include/table_files_replace_pattern.inc
+SELECT dictionary_name, internal_file_name
+ FROM information_schema.TokuDB_file_map;
+
+SET tokudb_dir_cmd = "attach ./test/t1-main test/t1-main-renamed.tokudb";
+--source include/table_files_replace_pattern.inc
+SELECT dictionary_name, internal_file_name
+ FROM information_schema.TokuDB_file_map;
+
+--echo ### rename t1_main_id.tokudb to t1-main-renamed.tokudb
+--exec mv $MYSQL_DATADIR/test/t1_main_*.tokudb $MYSQL_DATADIR/test/t1-main-renamed.tokudb
+
+SELECT * FROM t1;
+
+--echo ### Test for errors notification
+--error 1231
+SET tokudb_dir_cmd = "detach foo";
+SELECT @@tokudb_dir_cmd_last_error;
+SELECT @@tokudb_dir_cmd_last_error_string;
+SET @@tokudb_dir_cmd_last_error_string = "blablabla";
+SELECT @@tokudb_dir_cmd_last_error_string;
+SET STATEMENT tokudb_dir_cmd_last_error_string = "statement_blablabla" FOR
+    SELECT @@tokudb_dir_cmd_last_error_string;
+
+DROP TABLE t1;
+SET GLOBAL tokudb_dir_per_db = default;

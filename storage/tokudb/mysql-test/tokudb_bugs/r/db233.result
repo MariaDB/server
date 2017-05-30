@@ -14,16 +14,6 @@ INSERT INTO t1 VALUES(1, 1, '1', '1'), (2, 2, '2', '2'), (3, 3, '3', '3'), (4, 4
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-set DEBUG_SYNC = 'tokudb_icp_desc_scan_invalidate SIGNAL hit1 WAIT_FOR done1';
-SELECT c FROM t1 WHERE id BETWEEN 5 AND 8 ORDER BY id DESC;
-set DEBUG_SYNC = 'now WAIT_FOR hit1';
-set DEBUG_SYNC = 'now SIGNAL done1';
-c
-8
-7
-6
-6
-5
 set DEBUG_SYNC = 'tokudb_icp_asc_scan_out_of_range SIGNAL hit2 WAIT_FOR done2';
 SELECT c FROM t1 WHERE id BETWEEN 5 AND 8 ORDER BY id ASC;
 set DEBUG_SYNC = 'now WAIT_FOR hit2';

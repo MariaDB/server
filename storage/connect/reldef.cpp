@@ -88,7 +88,7 @@ PTOS RELDEF::GetTopt(void)
 /***********************************************************************/
 /*  This function sets an integer table information.                   */
 /***********************************************************************/
-bool RELDEF::SetIntCatInfo(PSZ what, int n)
+bool RELDEF::SetIntCatInfo(PCSZ what, int n)
 	{
 	return Hc->SetIntegerOption(what, n);
 	} // end of SetIntCatInfo
@@ -96,7 +96,7 @@ bool RELDEF::SetIntCatInfo(PSZ what, int n)
 /***********************************************************************/
 /*  This function returns integer table information.                   */
 /***********************************************************************/
-int RELDEF::GetIntCatInfo(PSZ what, int idef)
+int RELDEF::GetIntCatInfo(PCSZ what, int idef)
 	{
 	int n= Hc->GetIntegerOption(what);
 
@@ -106,7 +106,7 @@ int RELDEF::GetIntCatInfo(PSZ what, int idef)
 /***********************************************************************/
 /*  This function returns Boolean table information.                   */
 /***********************************************************************/
-bool RELDEF::GetBoolCatInfo(PSZ what, bool bdef)
+bool RELDEF::GetBoolCatInfo(PCSZ what, bool bdef)
 	{
 	bool b= Hc->GetBooleanOption(what, bdef);
 
@@ -116,9 +116,10 @@ bool RELDEF::GetBoolCatInfo(PSZ what, bool bdef)
 /***********************************************************************/
 /*  This function returns size catalog information.                    */
 /***********************************************************************/
-int RELDEF::GetSizeCatInfo(PSZ what, PSZ sdef)
+int RELDEF::GetSizeCatInfo(PCSZ what, PCSZ sdef)
 	{
-	char * s, c;
+	char c;
+	PCSZ s;
   int  i, n= 0;
 
 	if (!(s= Hc->GetStringOption(what)))
@@ -128,6 +129,7 @@ int RELDEF::GetSizeCatInfo(PSZ what, PSZ sdef)
     switch (toupper(c)) {
       case 'M':
         n *= 1024;
+        // fall through
       case 'K':
         n *= 1024;
       } // endswitch c
@@ -138,9 +140,9 @@ int RELDEF::GetSizeCatInfo(PSZ what, PSZ sdef)
 /***********************************************************************/
 /*  This function sets char table information in buf.                  */
 /***********************************************************************/
-int RELDEF::GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size)
+int RELDEF::GetCharCatInfo(PCSZ what, PCSZ sdef, char *buf, int size)
 	{
-	char *s= Hc->GetStringOption(what);
+	PCSZ s= Hc->GetStringOption(what);
 
 	strncpy(buf, ((s) ? s : sdef), size);
 	return size;
@@ -158,9 +160,10 @@ bool RELDEF::Partitioned(void)
 /*  This function returns string table information.                    */
 /*  Default parameter is "*" to get the handler default.               */
 /***********************************************************************/
-char *RELDEF::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
+char *RELDEF::GetStringCatInfo(PGLOBAL g, PCSZ what, PCSZ sdef)
 	{
-	char *name, *sval= NULL, *s= Hc->GetStringOption(what, sdef);
+	char *sval = NULL;
+	PCSZ  name, s= Hc->GetStringOption(what, sdef);
 	
 	if (s) {
     if (!Hc->IsPartitioned() ||
@@ -168,12 +171,12 @@ char *RELDEF::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
                                    && stricmp(what, "connect")))
 		  sval= PlugDup(g, s);
     else
-      sval= s;
+      sval= (char*)s;
 
   } else if (!stricmp(what, "filename")) {
     // Return default file name
-    char *ftype= Hc->GetStringOption("Type", "*");
-    int   i, n;
+		PCSZ ftype= Hc->GetStringOption("Type", "*");
+    int  i, n;
 
     if (IsFileType(GetTypeID(ftype))) {
       name= Hc->GetPartName();
@@ -251,9 +254,9 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat,
 /***********************************************************************/
 /*  This function returns the database data path.                      */
 /***********************************************************************/
-PSZ TABDEF::GetPath(void)
+PCSZ TABDEF::GetPath(void)
   {
-  return (Database) ? (PSZ)Database : (Hc) ? Hc->GetDataPath() : NULL;
+  return (Database) ? Database : (Hc) ? Hc->GetDataPath() : NULL;
   } // end of GetPath
 
 /***********************************************************************/
@@ -277,8 +280,13 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
   // Take care of the column definitions
 	i= poff= nof= nlg= 0;
 
+#if defined(__WIN__)
 	// Offsets of HTML and DIR tables start from 0, DBF at 1
-	loff= (tc == TAB_DBF) ? 1 : (tc == TAB_XML || tc == TAB_DIR) ? -1 : 0; 
+	loff= (tc == TAB_DBF) ? 1 : (tc == TAB_XML || tc == TAB_DIR) ? -1 : 0;
+#else   // !__WIN__
+	// Offsets of HTML tables start from 0, DIR and DBF at 1
+	loff = (tc == TAB_DBF || tc == TAB_DIR) ? 1 : (tc == TAB_XML) ? -1 : 0;
+#endif  // !__WIN__
 
   while (true) {
 		// Default Offset depends on table type
@@ -610,9 +618,10 @@ bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   if (!*Module)
     Module = Subtype;
 
-  Desc = (char*)PlugSubAlloc(g, NULL, strlen(Module)
-                                    + strlen(Subtype) + 3);
-  sprintf(Desc, "%s(%s)", Module, Subtype);
+  char *desc = (char*)PlugSubAlloc(g, NULL, strlen(Module)
+                                          + strlen(Subtype) + 3);
+  sprintf(desc, "%s(%s)", Module, Subtype);
+	Desc = desc;
   return false;
   } // end of DefineAM
 

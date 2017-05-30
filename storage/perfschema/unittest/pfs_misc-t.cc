@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2015, 2017, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -67,6 +67,6 @@ int main(int, char **)
   MY_INIT("pfs_misc-t");
   do_all_tests();
   my_end(0);
-  return exit_status();
+  return (exit_status());
 }
 

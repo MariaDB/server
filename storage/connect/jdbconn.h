@@ -46,9 +46,9 @@ enum JCATINFO {
 typedef struct tagJCATPARM {
 	JCATINFO Id;                 // Id to indicate function 
 	PQRYRES  Qrp;                // Result set pointer
-	char    *DB;                 // Database (Schema)
-	char    *Tab;                // Table name or pattern
-	char    *Pat;                // Table type or column pattern
+	PCSZ     DB;                 // Database (Schema)
+	PCSZ     Tab;                // Table name or pattern
+	PCSZ     Pat;                // Table type or column pattern
 } JCATPARM;
 
 typedef jint(JNICALL *CRTJVM) (JavaVM **, void **, void *);
@@ -77,7 +77,7 @@ public:
 	JDBConn(PGLOBAL g, TDBJDBC *tdbp);
 
 	int  Open(PJPARM sop);
-	int  Rewind(char *sql);
+	int  Rewind(PCSZ sql);
 	void Close(void);
 	PQRYRES AllocateResult(PGLOBAL g);
 
@@ -96,19 +96,19 @@ public:
 	//void SetQueryTimeout(DWORD sec) {m_QueryTimeout = sec;}
 	//void SetUserName(PSZ user) {m_User = user;}
 	//void SetUserPwd(PSZ pwd) {m_Pwd = pwd;}
-	int     GetResultSize(char *sql, JDBCCOL *colp);
-	int     ExecuteQuery(char *sql);
-	int     ExecuteUpdate(char *sql);
+	int     GetResultSize(PCSZ sql, JDBCCOL *colp);
+	int     ExecuteQuery(PCSZ sql);
+	int     ExecuteUpdate(PCSZ sql);
 	int     Fetch(int pos = 0);
-	bool    PrepareSQL(char *sql);
+	bool    PrepareSQL(PCSZ sql);
 	int     ExecuteSQL(void);
 	bool    SetParam(JDBCCOL *colp);
-	int     ExecSQLcommand(char *sql);
+	int     ExecSQLcommand(PCSZ sql);
 	void    SetColumnValue(int rank, PSZ name, PVAL val);
 	int     GetCatInfo(JCATPARM *cap);
 	//bool  GetDataSources(PQRYRES qrp);
 	bool    GetDrivers(PQRYRES qrp);
-	PQRYRES GetMetaData(PGLOBAL g, char *src);
+	PQRYRES GetMetaData(PGLOBAL g, PCSZ src);
 
 public:
 	// Set static variables
@@ -174,16 +174,10 @@ protected:
 	jmethodID timfldid;									// The TimeField method ID
 	jmethodID tspfldid;									// The TimestampField method ID
 	jmethodID bigfldid;									// The BigintField method ID
-	//DWORD     m_LoginTimeout;
-//DWORD     m_QueryTimeout;
-//DWORD     m_UpdateOptions;
-	char     *Msg;
+	PCSZ      Msg;
 	char     *m_Wrap;
 	char      m_IDQuoteChar[2];
-//PSZ       m_Driver;
-//PSZ       m_Url;
-//PSZ       m_User;
-	PSZ       m_Pwd;
+	PCSZ      m_Pwd;
   int       m_Ncol;
 	int       m_Aff;
 	int       m_Rows;

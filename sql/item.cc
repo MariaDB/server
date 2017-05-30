@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5925,7 +5925,7 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
                               collation.collation);
       break;
     }
-    /* Fall through to make_string_field() */
+    /* Fall through */
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
   case MYSQL_TYPE_VAR_STRING:
@@ -7140,19 +7140,6 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
         set_if_bigger(thd->lex->in_sum_func->max_arg_level,
                       last_checked_context->select_lex->nest_level);
     }
-  }
-  else if (ref_type() != VIEW_REF)
-  {
-    /*
-      It could be that we're referring to something that's in ancestor selects.
-      We must make an appropriate mark_as_dependent() call for each such
-      outside reference.
-    */
-    Dependency_marker dep_marker;
-    dep_marker.current_select= current_sel;
-    dep_marker.thd= thd;
-    (*ref)->walk(&Item::enumerate_field_refs_processor, FALSE,
-                 (uchar*)&dep_marker);
   }
 
   DBUG_ASSERT(*ref);
@@ -9477,7 +9464,10 @@ void Item_cache_row::set_null()
 
 
 Item_type_holder::Item_type_holder(THD *thd, Item *item)
-  :Item(thd, item), enum_set_typelib(0), fld_type(get_real_type(item))
+  :Item(thd, item),
+   enum_set_typelib(0),
+   fld_type(get_real_type(item)),
+   geometry_type(Field::GEOM_GEOMETRY)
 {
   DBUG_ASSERT(item->fixed);
   maybe_null= item->maybe_null;

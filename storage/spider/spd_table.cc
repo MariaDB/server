@@ -517,7 +517,6 @@ int spider_free_share_alloc(
 ) {
   int roop_count;
   DBUG_ENTER("spider_free_share_alloc");
-  if (share->dbton_bitmap)
   {
     for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; roop_count--)
     {

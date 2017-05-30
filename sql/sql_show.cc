@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -985,6 +985,7 @@ public:
         is_handled= FALSE;
         break;
       }
+      /* fall through */
     case ER_COLUMNACCESS_DENIED_ERROR:
     case ER_VIEW_NO_EXPLAIN: /* Error was anonymized, ignore all the same. */
     case ER_PROCACCESS_DENIED_ERROR:
@@ -3048,7 +3049,7 @@ static bool show_status_array(THD *thd, const char *wild,
 
   for (; variables->name; variables++)
   {
-    bool wild_checked;
+    bool wild_checked= 0;
     strnmov(prefix_end, variables->name, len);
     name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
 

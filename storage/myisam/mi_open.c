@@ -151,7 +151,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
     }
     share->mode=open_mode;
     errpos=1;
-    if (mysql_file_read(kfile, share->state.header.file_version, head_length,
+    if (mysql_file_read(kfile, (uchar*)&share->state.header, head_length,
                         MYF(MY_NABP)))
     {
       my_errno= HA_ERR_NOT_A_TABLE;

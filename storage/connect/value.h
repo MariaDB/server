@@ -1,7 +1,7 @@
 /**************** Value H Declares Source Code File (.H) ***************/
-/*  Name: VALUE.H    Version 2.2                                       */
+/*  Name: VALUE.H    Version 2.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2017    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes declares.         */
 /***********************************************************************/
@@ -40,14 +40,14 @@ typedef struct _datpar *PDTP;         // For DTVAL
 /*  Utilities used to test types and to allocated values.              */
 /***********************************************************************/
 // Exported functions
-DllExport PSZ   GetTypeName(int);
+DllExport PCSZ  GetTypeName(int);
 DllExport int   GetTypeSize(int, int);
 #ifdef ODBC_SUPPORT
 /* This function is exported for use in OEM table type DLLs */
 DllExport int   TranslateSQLType(int stp, int prec, 
                                  int& len, char& v, bool& w);
 #endif
-DllExport char *GetFormatType(int);
+DllExport const char *GetFormatType(int);
 DllExport int   GetFormatType(char);
 DllExport bool  IsTypeChar(int type);
 DllExport bool  IsTypeNum(int type);
@@ -55,8 +55,8 @@ DllExport int   ConvertType(int, int, CONV, bool match = false);
 DllExport PVAL  AllocateValue(PGLOBAL, void *, short, short = 2);
 DllExport PVAL  AllocateValue(PGLOBAL, PVAL, int = TYPE_VOID, int = 0);
 DllExport PVAL  AllocateValue(PGLOBAL, int, int len = 0, int prec = 0,
-                              bool uns = false, PSZ fmt = NULL);
-DllExport ulonglong CharToNumber(char *, int, ulonglong, bool,
+                              bool uns = false, PCSZ fmt = NULL);
+DllExport ulonglong CharToNumber(PCSZ, int, ulonglong, bool,
                                  bool *minus = NULL, bool *rc = NULL);
 DllExport BYTE OpBmp(PGLOBAL g, OPVAL opc);
 
@@ -100,8 +100,8 @@ class DllExport VALUE : public BLOCK {
 
   // Methods
   virtual bool   SetValue_pval(PVAL valp, bool chktype = false) = 0;
-  virtual bool   SetValue_char(char *p, int n) = 0;
-  virtual void   SetValue_psz(PSZ s) = 0;
+  virtual bool   SetValue_char(const char *p, int n) = 0;
+  virtual void   SetValue_psz(PCSZ s) = 0;
   virtual void   SetValue_bool(bool) {assert(FALSE);}
   virtual int    CompareValue(PVAL vp) = 0;
   virtual BYTE   TestValue(PVAL vp);
@@ -121,7 +121,9 @@ class DllExport VALUE : public BLOCK {
   virtual char  *GetCharString(char *p) = 0;
   virtual bool   IsEqual(PVAL vp, bool chktype) = 0;
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
-  virtual bool   FormatValue(PVAL vp, char *fmt) = 0;
+  virtual bool   FormatValue(PVAL vp, PCSZ fmt) = 0;
+	virtual void   Printf(PGLOBAL g, FILE *, uint);
+	virtual void   Prints(PGLOBAL g, char *ps, uint z);
 
 	/**
 	Set value from a non-aligned in-memory value in the machine byte order.
@@ -211,8 +213,8 @@ class DllExport TYPVAL : public VALUE {
 
   // Methods
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual bool   SetValue_char(char *p, int n);
-  virtual void   SetValue_psz(PSZ s);
+  virtual bool   SetValue_char(const char *p, int n);
+  virtual void   SetValue_psz(PCSZ s);
   virtual void   SetValue_bool(bool b) {Tval = (b) ? 1 : 0;}
   virtual int    CompareValue(PVAL vp);
   virtual void   SetValue(char c) {Tval = (TYPE)c; Null = false;}
@@ -232,9 +234,7 @@ class DllExport TYPVAL : public VALUE {
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
-  virtual bool   FormatValue(PVAL vp, char *fmt);
-  virtual void   Print(PGLOBAL g, FILE *, uint);
-  virtual void   Print(PGLOBAL g, char *, uint);
+  virtual bool   FormatValue(PVAL vp, PCSZ fmt);
 
  protected:
   static  TYPE   MinMaxVal(bool b);
@@ -287,8 +287,8 @@ class DllExport TYPVAL<PSZ>: public VALUE {
 
   // Methods
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual bool   SetValue_char(char *p, int n);
-  virtual void   SetValue_psz(PSZ s);
+  virtual bool   SetValue_char(const char *p, int n);
+  virtual void   SetValue_psz(PCSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetValue(char c);
   virtual void   SetValue(uchar c);
@@ -306,8 +306,9 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
-  virtual bool   FormatValue(PVAL vp, char *fmt);
+  virtual bool   FormatValue(PVAL vp, PCSZ fmt);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
+	virtual void   Prints(PGLOBAL g, char *ps, uint z);
 
  protected:
   // Members
@@ -371,8 +372,8 @@ class DllExport BINVAL: public VALUE {
 
   // Methods
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual bool   SetValue_char(char *p, int n);
-  virtual void   SetValue_psz(PSZ s);
+  virtual bool   SetValue_char(const char *p, int n);
+  virtual void   SetValue_psz(PCSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetValue(char c);
   virtual void   SetValue(uchar c);
@@ -389,7 +390,7 @@ class DllExport BINVAL: public VALUE {
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
-  virtual bool   FormatValue(PVAL vp, char *fmt);
+  virtual bool   FormatValue(PVAL vp, PCSZ fmt);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
 
  protected:
@@ -405,18 +406,18 @@ class DllExport BINVAL: public VALUE {
 class DllExport DTVAL : public TYPVAL<int> {
  public:
   // Constructors
-  DTVAL(PGLOBAL g, int n, int p, PSZ fmt);
+  DTVAL(PGLOBAL g, int n, int p, PCSZ fmt);
   DTVAL(int n);
 
   // Implementation
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual bool   SetValue_char(char *p, int n);
-  virtual void   SetValue_psz(PSZ s);
+  virtual bool   SetValue_char(const char *p, int n);
+  virtual void   SetValue_psz(PCSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual char  *GetCharString(char *p);
   virtual char  *ShowValue(char *buf, int);
-  virtual bool   FormatValue(PVAL vp, char *fmt);
-          bool   SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
+  virtual bool   FormatValue(PVAL vp, PCSZ fmt);
+          bool   SetFormat(PGLOBAL g, PCSZ fmt, int len, int year = 0);
           bool   SetFormat(PGLOBAL g, PVAL valp);
           bool   IsFormatted(void) {return Pdtp != NULL;}
           bool   MakeTime(struct tm *ptm);

@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /*************** Mycat CC Program Source Code File (.CC) ***************/
 /* PROGRAM NAME: MYCAT                                                 */
@@ -161,7 +161,7 @@ TABTYPE GetTypeID(const char *type)
 #ifdef ZIP_SUPPORT
 								 : (!stricmp(type, "ZIP"))   ? TAB_ZIP
 #endif
-								 : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
+		             : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
 /***********************************************************************/
@@ -476,39 +476,6 @@ MYCAT::MYCAT(PHC hc) : CATALOG()
 void MYCAT::Reset(void)
   {
   } // end of Reset
-
-#if 0
-/***********************************************************************/
-/*  This function sets the current database path.                      */
-/***********************************************************************/
-void MYCAT::SetPath(PGLOBAL g, LPCSTR *datapath, const char *path)
-	{
-	if (path) {
-		size_t len= strlen(path) + (*path != '.' ? 4 : 1);
-		char  *buf= (char*)PlugSubAlloc(g, NULL, len);
-		
-		if (PlugIsAbsolutePath(path))
-		{
-		  strcpy(buf, path);
-		  *datapath= buf;
-		  return;
-		}
-
-		if (*path != '.') {
-#if defined(__WIN__)
-			char *s= "\\";
-#else   // !__WIN__
-			char *s= "/";
-#endif  // !__WIN__
-			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
-		} else
-			strcpy(buf, path);
-
-		*datapath= buf;
-		} // endif path
-
-	} // end of SetDataPath
-#endif // 0
 
 /***********************************************************************/
 /*  GetTableDesc: retrieve a table descriptor.                         */

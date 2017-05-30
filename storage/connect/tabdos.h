@@ -39,9 +39,9 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   virtual PIXDEF      GetIndx(void) {return To_Indx;}
   virtual void        SetIndx(PIXDEF xdp) {To_Indx = xdp;}
   virtual bool        IsHuge(void) {return Huge;}
-  PSZ     GetFn(void) {return Fn;}
-  PSZ     GetOfn(void) {return Ofn;}
-	PSZ     GetEntry(void) {return Entry;}
+  PCSZ    GetFn(void) {return Fn;}
+  PCSZ    GetOfn(void) {return Ofn;}
+	PCSZ    GetEntry(void) {return Entry;}
 	bool    GetMul(void) {return Mulentries;}
 	bool    GetAppend(void) {return Append;}
 	void    SetBlock(int block) { Block = block; }
@@ -74,9 +74,10 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
 //virtual bool Erase(char *filename);
 
   // Members
-  PSZ     Fn;                 /* Path/Name of corresponding file       */
-  PSZ     Ofn;                /* Base Path/Name of matching index files*/
-	PSZ     Entry;						  /* Zip entry name or pattern						 */
+  PCSZ    Fn;                 /* Path/Name of corresponding file       */
+  PCSZ    Ofn;                /* Base Path/Name of matching index files*/
+	PCSZ    Entry;						  /* Zip entry name or pattern						 */
+	PCSZ    Pwd;						    /* Zip password             						 */
 	PIXDEF  To_Indx;            /* To index definitions blocks           */
   RECFM   Recfm;              /* 0:VAR, 1:FIX, 2:BIN, 3:VCT, 6:DBF     */
   bool    Mapped;             /* 0: disk file, 1: memory mapped file   */
@@ -132,8 +133,8 @@ class DllExport TDBDOS : public TDBASE {
 
   // Implementation
   virtual AMT   GetAmType(void) {return Txfp->GetAmType();}
-  virtual PSZ   GetFile(PGLOBAL) {return Txfp->To_File;}
-  virtual void  SetFile(PGLOBAL, PSZ fn) {Txfp->To_File = fn;}
+  virtual PCSZ  GetFile(PGLOBAL) {return Txfp->To_File;}
+  virtual void  SetFile(PGLOBAL, PCSZ fn) {Txfp->To_File = fn;}
   virtual void  SetAbort(bool b) {Abort = b;}
   virtual RECFM GetFtype(void) {return Ftype;}
   virtual bool  SkipHeader(PGLOBAL) {return false;}
@@ -213,7 +214,7 @@ class DllExport DOSCOL : public COLBLK {
   friend class TDBFIX;
  public:
   // Constructors
-  DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am = "DOS");
+  DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am = "DOS");
   DOSCOL(DOSCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
@@ -231,12 +232,12 @@ class DllExport DOSCOL : public COLBLK {
   virtual PVBLK  GetDval(void) {return Dval;}
 
   // Methods
-  using COLBLK::Print;
+  //using COLBLK::Print;
   virtual bool   VarSize(void);
   virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);
-  virtual void   Print(PGLOBAL g, FILE *, uint);
+  virtual void   Printf(PGLOBAL g, FILE *, uint);
 
  protected:
   virtual bool   SetMinMax(PGLOBAL g);

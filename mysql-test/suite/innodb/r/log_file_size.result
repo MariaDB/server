@@ -1,3 +1,6 @@
+call mtr.add_suppression("mysqld got signal 11");
+call mtr.add_suppression("Attempting backtrace");
+FLUSH TABLES;
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 BEGIN;
 INSERT INTO t1 VALUES (42);

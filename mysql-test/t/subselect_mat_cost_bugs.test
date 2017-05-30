@@ -406,6 +406,8 @@ drop table t3, t4, t5;
 --echo # LP BUG#858038 The result of a query with NOT IN subquery depends on the state of the optimizer switch
 --echo #
 
+set @optimizer_switch_save= @@optimizer_switch;
+
 create table t1 (c1 char(2) not null, c2 char(2));
 create table t2 (c3 char(2),          c4 char(2));
 
@@ -424,3 +426,84 @@ explain select * from t1 where c1 = 'a2' and (c1, c2) not in (select * from t2);
 select * from t1 where c1 = 'a2' and (c1, c2) not in (select * from t2);
 
 drop table t1, t2;
+
+set optimizer_switch= @optimizer_switch_save;
+
+--echo #
+--echo # MDEV-12673: cost-based choice between materialization and in-to-exists
+--echo #
+
+CREATE TABLE t1 (
+ pk1 int, a1 varchar(3), b1 varchar(3), PRIMARY KEY (pk1), KEY(a1), KEY(b1)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'foo','bar'),(2,'bar','foo');
+
+CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 VARCHAR(3), KEY(a2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,'abc'),(2,'xyz'),(3,'foo');
+
+SELECT 'qux' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
+SELECT 'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
+EXPLAIN 
+SELECT 'bar' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 );
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (i1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (i2 int, c2 varchar(3), KEY(i2,c2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,'abc'),(2,'foo');
+
+CREATE TABLE t3 (pk3 int PRIMARY KEY, c3 varchar(3)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1,'foo'),(2,'bar');
+
+SELECT * FROM t1 WHERE i1 NOT IN ( 
+  SELECT i2 FROM t2 RIGHT JOIN t3 ON (c3 = c2) WHERE pk3 = i1 
+);
+
+EXPLAIN
+SELECT * FROM t1 WHERE i1 NOT IN ( 
+  SELECT i2 FROM t2 RIGHT JOIN t3 ON (c3 = c2) WHERE pk3 = i1 
+);
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-7599: in-to-exists chosen after min/max optimization
+--echo #
+
+set @optimizer_switch_save= @@optimizer_switch;
+
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT, c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,6),(2,4), (8,9);
+
+let $q=
+SELECT * FROM t2 WHERE b != ALL (SELECT MIN(a) FROM t1, t2 WHERE t2.c = t2.b);
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+set optimizer_switch= 'materialization=off';
+eval $q;
+eval EXPLAIN EXTENDED $q;
+set optimizer_switch= @optimizer_switch_save;
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (f1 varchar(10)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+CREATE TABLE t2 (f2 varchar(10), key(f2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('baz'),('qux');
+
+CREATE TABLE t3 (f3 varchar(10)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES ('abc'),('def');
+
+SELECT * FROM t1
+  WHERE f1 = ALL( SELECT MAX(t2a.f2)
+                  FROM t2 AS t2a INNER JOIN t2 t2b INNER JOIN t3
+                  ON (f3 = t2b.f2) );
+
+DROP TABLE t1,t2,t3;

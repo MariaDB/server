@@ -1678,8 +1678,8 @@ mysql_ssl_set(MYSQL *mysql __attribute__((unused)) ,
            mysql_options(mysql, MYSQL_OPT_SSL_CAPATH, capath) |
            mysql_options(mysql, MYSQL_OPT_SSL_CIPHER, cipher) ?
            1 : 0);
-  mysql->options.use_ssl= TRUE;
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
+  mysql->options.use_ssl= TRUE;
   DBUG_RETURN(result);
 }
 
@@ -2540,7 +2540,6 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     int3store(buff+2, net->max_packet_size);
     end= buff+5;
   }
-#ifdef HAVE_OPENSSL
 
   /*
      If client uses ssl and client also has to verify the server
@@ -2558,6 +2557,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     goto error;
   }
 
+#ifdef HAVE_OPENSSL
   if (mysql->client_flag & CLIENT_SSL)
   {
     /* Do the SSL layering. */

@@ -174,6 +174,7 @@ register char **argv[];
 	break;
       case 'V':
 	version=1;
+	/* fall through */
       case 'I':
       case '?':
 	help=1;					/* Help text written */

@@ -1161,9 +1161,10 @@ sync_array_print_long_waits(
 		now the values of pending calls of these. */
 
 		fprintf(stderr,
-			"InnoDB: Pending preads %lu, pwrites %lu\n",
-			(ulong) os_file_n_pending_preads,
-			(ulong) os_file_n_pending_pwrites);
+			"InnoDB: Pending reads " UINT64PF
+			", writes " UINT64PF "\n",
+			MONITOR_VALUE(MONITOR_OS_PENDING_READS),
+			MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
 		srv_print_innodb_monitor = TRUE;
 		os_event_set(srv_monitor_event);

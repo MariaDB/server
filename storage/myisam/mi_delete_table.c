@@ -38,11 +38,9 @@ int mi_delete_table(const char *name)
       mysql_file_delete_with_symlink(mi_key_file_dfile, name, MI_NAME_DEXT, MYF(MY_WME)))
     DBUG_RETURN(my_errno);
 
-
   // optionally present:
   mysql_file_delete_with_symlink(mi_key_file_dfile, name, ".OLD", MYF(0));
   mysql_file_delete_with_symlink(mi_key_file_dfile, name, ".TMD", MYF(0));
 
   DBUG_RETURN(0);
 }
-

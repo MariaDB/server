@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2017, MariaDB Corporation.
 
@@ -328,6 +328,7 @@ DECLARE_THREAD(recv_writer_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
 	ut_ad(!srv_read_only_mode);
 
 #ifdef UNIV_PFS_THREAD
@@ -358,6 +359,7 @@ DECLARE_THREAD(recv_writer_thread)(
 
 	recv_writer_thread_active = false;
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit().
 	A created thread should always use that to exit and not
 	use return() to exit. */
@@ -1702,7 +1704,7 @@ recv_recover_page_func(
 			}
 
 			DBUG_PRINT("ib_log",
-				   ("apply " DBUG_LSN_PF ": %u len %u "
+				   ("apply " LSN_PF ": %u len %u "
 				    "page %u:%u", recv->start_lsn,
 				    (unsigned) recv->type,
 				    (unsigned) recv->len,
@@ -2350,7 +2352,7 @@ loop:
 		recv_sys->recovered_lsn = new_recovered_lsn;
 
 		DBUG_PRINT("ib_log",
-			   ("scan " DBUG_LSN_PF ": log rec %u len %u "
+			   ("scan " LSN_PF ": log rec %u len %u "
 			    "page %u:%u", old_lsn,
 			    (unsigned) type, (unsigned) len,
 			    (unsigned) space, (unsigned) page_no));
@@ -2441,7 +2443,7 @@ loop:
 #endif /* UNIV_LOG_DEBUG */
 
 			DBUG_PRINT("ib_log",
-				   ("scan " DBUG_LSN_PF ": multi-log rec %u "
+				   ("scan " LSN_PF ": multi-log rec %u "
 				    "len %u page %u:%u",
 				    recv_sys->recovered_lsn,
 				    (unsigned) type, (unsigned) len,

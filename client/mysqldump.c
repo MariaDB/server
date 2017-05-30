@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2142,6 +2142,7 @@ static void print_xml_comment(FILE *xml_file, size_t len,
     case '-':
       if (*(comment_string + 1) == '-')         /* Only one hyphen allowed. */
         break;
+      /* fall through */
     default:
       fputc(*comment_string, xml_file);
       break;
@@ -2178,7 +2179,6 @@ static void print_comment(FILE *sql_file, my_bool is_error, const char *format,
 
   print_xml_comment(sql_file, strlen(comment_buff), comment_buff);
 }
-
 
 /*
  create_delimiter
@@ -2524,7 +2524,7 @@ static uint dump_routines_for_db(char *db)
                           query_buff);
             print_comment(sql_file, 1,
                           "-- does %s have permissions on mysql.proc?\n\n",
-                          current_user);
+                          fix_for_comment(current_user));
             maybe_die(EX_MYSQLERR,"%s has insufficent privileges to %s!",
                       current_user, query_buff);
           }
@@ -2818,6 +2818,8 @@ static uint get_table_structure(char *table, char *db, char *table_type,
 
           my_free(scv_buff);
 
+          if (path)
+            my_fclose(sql_file, MYF(MY_WME));
           DBUG_RETURN(0);
         }
         else
@@ -5827,8 +5829,7 @@ static my_bool get_view_structure(char *table, char* db)
     dynstr_free(&ds_view);
   }
 
-  if (switch_character_set_results(mysql, default_charset))
-    DBUG_RETURN(1);
+  switch_character_set_results(mysql, default_charset);
 
   /* If a separate .sql file was opened, close it now */
   if (sql_file != md_result_file)

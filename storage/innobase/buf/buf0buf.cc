@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1343,8 +1344,6 @@ buf_pool_init_instance(
 		buf_pool->chunks = chunk =
 			(buf_chunk_t*) mem_zalloc(sizeof *chunk);
 
-		UT_LIST_INIT(buf_pool->free);
-
 		if (!buf_chunk_init(buf_pool, chunk, buf_pool_size)) {
 			mem_free(chunk);
 			mem_free(buf_pool);
@@ -1366,7 +1365,7 @@ buf_pool_init_instance(
 		ut_a(srv_n_page_hash_locks != 0);
 		ut_a(srv_n_page_hash_locks <= MAX_PAGE_HASH_LOCKS);
 
-		buf_pool->page_hash = ha_create(2 * buf_pool->curr_size,
+		buf_pool->page_hash = ib_create(2 * buf_pool->curr_size,
 						srv_n_page_hash_locks,
 						MEM_HEAP_FOR_PAGE_HASH,
 						SYNC_BUF_PAGE_HASH);
@@ -5311,23 +5310,22 @@ buf_print_io_instance(
 		pool_info->pages_written_rate);
 
 	if (pool_info->n_page_get_delta) {
-		double hit_rate = ((1000 * pool_info->page_read_delta)
-				/ pool_info->n_page_get_delta);
+		double hit_rate = double(pool_info->page_read_delta)
+			/ pool_info->n_page_get_delta;
 
-		if (hit_rate > 1000) {
-			hit_rate = 1000;
+		if (hit_rate > 1) {
+			hit_rate = 1;
 		}
 
-		hit_rate = 1000 - hit_rate;
-
 		fprintf(file,
-			"Buffer pool hit rate %lu / 1000,"
-			" young-making rate %lu / 1000 not %lu / 1000\n",
-			(ulint) hit_rate,
-			(ulint) (1000 * pool_info->young_making_delta
-				 / pool_info->n_page_get_delta),
-			(ulint) (1000 * pool_info->not_young_making_delta
-				 / pool_info->n_page_get_delta));
+			"Buffer pool hit rate " ULINTPF " / 1000,"
+			" young-making rate " ULINTPF " / 1000 not "
+			ULINTPF " / 1000\n",
+			ulint(1000 * (1 - hit_rate)),
+			ulint(1000 * double(pool_info->young_making_delta)
+			      / pool_info->n_page_get_delta),
+			ulint(1000 * double(pool_info->not_young_making_delta)
+			      / pool_info->n_page_get_delta));
 	} else {
 		fputs("No buffer pool page gets since the last printout\n",
 		      file);

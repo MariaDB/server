@@ -1492,3 +1492,16 @@ SELECT ASTEXT(p) FROM v1;
 DROP VIEW v1;
 
 # --echo End of 5.5 tests
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-12495 Conditional jump depends on uninitialised value for: SELECT NULL UNION geom_expression
+--echo #
+SELECT AsText(g) FROM (SELECT NULL AS g UNION SELECT Point(1,1)) AS t1;
+
+--echo #
+--echo # End 10.0 tests
+--echo #
