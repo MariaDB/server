@@ -7524,7 +7524,7 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
   TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
   Security_context *sctx= thd->security_ctx;
   uint i;
-  ulong orig_want_access= want_access;
+  ulong original_want_access= want_access;
   bool locked= 0;
   GRANT_TABLE *grant_table;
   GRANT_TABLE *grant_table_role= NULL;
@@ -7558,6 +7558,16 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     TABLE_LIST *const t_ref=
       tl->correspondent_table ? tl->correspondent_table : tl;
     sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
+    ulong orig_want_access= original_want_access;
+
+    if (t_ref->sequence)
+    {
+      /* We want to have either SELECT or INSERT rights to sequences depending
+         on how they are accessed
+      */
+      orig_want_access= ((t_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
+                         INSERT_ACL : SELECT_ACL);
+    }
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,

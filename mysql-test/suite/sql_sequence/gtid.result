@@ -6,9 +6,11 @@ grant all on s_db.* to normal_1@'%' identified by 'pass';
 grant all on test.* to normal_2@'%' identified by 'pass';
 grant all on s_db.* to normal_3@'%' identified by 'pass';
 grant all on test.* to normal_4@'%' identified by 'pass';
+grant select on test.* to normal_5@'%' identified by 'pass';
 connection slave;
 connect m_normal_1, 127.0.0.1, normal_1, pass, s_db, $MASTER_MYPORT;
 connect m_normal_2, 127.0.0.1, normal_2, pass, test, $MASTER_MYPORT;
+connect m_normal_3, 127.0.0.1, normal_5, pass, test, $MASTER_MYPORT;
 connect s_normal_3, 127.0.0.1, normal_3, pass, s_db, $SLAVE_MYPORT;
 connect s_normal_4, 127.0.0.1, normal_4, pass, test, $SLAVE_MYPORT;
 connection slave;
@@ -171,7 +173,7 @@ create sequence s_db.s2;
 drop sequence s_db.s2;
 connection m_normal_2;
 select next value for s_db.s1;
-ERROR 42000: SELECT command denied to user 'normal_2'@'localhost' for table 's1'
+ERROR 42000: INSERT command denied to user 'normal_2'@'localhost' for table 's1'
 create sequence s_db.s2;
 ERROR 42000: CREATE command denied to user 'normal_2'@'localhost' for table 's2'
 connection m_normal_1;
@@ -771,6 +773,51 @@ next value for s1
 drop function f1;
 drop table t1;
 drop sequence s1;
+##############
+Test GRANT
+##############
+connection m_normal_2;
+create table t1 (a int);
+create sequence s1;
+select next value for s1;
+next value for s1
+1
+insert into t1 values (1);
+connection m_normal_3;
+select * from t1;
+a
+1
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1001	1	9223372036854775806	1	1	1000	0	0
+select previous value for s1;
+previous value for s1
+NULL
+insert into t1 values (2);
+ERROR 42000: INSERT command denied to user 'normal_5'@'localhost' for table 't1'
+select next value for s1;
+ERROR 42000: INSERT command denied to user 'normal_5'@'localhost' for table 's1'
+do setval(s1,1000,0);
+ERROR 42000: INSERT command denied to user 'normal_5'@'localhost' for table 's1'
+connection master;
+grant insert on test.* to normal_5@'%' identified by 'pass';
+disconnect m_normal_3;
+connect m_normal_3, 127.0.0.1, normal_5, pass, test, $MASTER_MYPORT;
+insert into t1 values (2);
+select t1.*, (next value for s1) from t1;
+a	(next value for s1)
+1	2
+2	3
+do setval(s1,10000,0);
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+10000	1	9223372036854775806	1	1	1000	0	0
+connection m_normal_2;
+drop table t1;
+drop sequence s1;
+#
+# Cleanup
+#
 connection master;
 use s_db;
 drop database s_db;
@@ -778,4 +825,5 @@ drop user normal_1@'%';
 drop user normal_2@'%';
 drop user normal_3@'%';
 drop user normal_4@'%';
+drop user normal_5@'%';
 include/rpl_end.inc

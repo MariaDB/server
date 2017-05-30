@@ -113,3 +113,38 @@ LOCK TABLES s1 WRITE;
 insert into s1 values (1,1,9223372036854775806, 1, 1, 1000, 0, 0);
 UNLOCK TABLES;
 drop table s1;
+#
+# Many sequence calls with innodb
+#
+create sequence s1 cache=1000 engine=innodb;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+count(nextval(s1))
+2000
+commit;
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+2001	1	9223372036854775806	1	1	1000	0	0
+drop sequence s1;
+create sequence s1  cache=1000 engine=innodb;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+count(nextval(s1))
+2000
+connect  addconroot, localhost, root,,;
+connection addconroot;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+count(nextval(s1))
+2000
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+4001	1	9223372036854775806	1	1	1000	0	0
+commit;
+disconnect addconroot;
+connection default;
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+4001	1	9223372036854775806	1	1	1000	0	0
+commit;
+drop sequence s1;

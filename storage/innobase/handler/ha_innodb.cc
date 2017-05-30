@@ -8129,10 +8129,11 @@ ha_innobase::build_template(
 	ibool		fetch_primary_key_cols	= FALSE;
 	ulint		i;
 
-	if (m_prebuilt->select_lock_type == LOCK_X) {
+	if (m_prebuilt->select_lock_type == LOCK_X || m_prebuilt->table->no_rollback()) {
 		/* We always retrieve the whole clustered index record if we
 		use exclusive row level locks, for example, if the read is
-		done in an UPDATE statement. */
+		done in an UPDATE statement or if we are using a no rollback
+                table */
 
 		whole_row = true;
 	} else if (!whole_row) {

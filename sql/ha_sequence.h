@@ -152,6 +152,8 @@ public:
   { return file->check_and_repair(thd); }
   bool is_crashed() const
   { return file->is_crashed(); }
+  void column_bitmaps_signal()
+  { return file->column_bitmaps_signal(); }
 
   /* New methods */
   void register_original_handler(handler *file_arg)

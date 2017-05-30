@@ -576,7 +576,7 @@ int sequence_definition::write_initial_sequence(TABLE *table)
 int sequence_definition::write(TABLE *table, bool all_fields)
 {
   int error;
-  MY_BITMAP *save_rpl_write_set, *save_write_set;
+  MY_BITMAP *save_rpl_write_set, *save_write_set, *save_read_set;
   DBUG_ASSERT(((ha_sequence*) table->file)->is_locked());
 
   save_rpl_write_set= table->rpl_write_set;
@@ -593,12 +593,16 @@ int sequence_definition::write(TABLE *table, bool all_fields)
 
   /* Update table */
   save_write_set= table->write_set;
-  table->write_set= &table->s->all_set;
+  save_read_set=  table->read_set;
+  table->read_set= table->write_set= &table->s->all_set;
+  table->file->column_bitmaps_signal();
   store_fields(table);
   if ((error= table->file->ha_write_row(table->record[0])))
     table->file->print_error(error, MYF(0));
   table->rpl_write_set= save_rpl_write_set;
+  table->read_set=  save_read_set;
   table->write_set= save_write_set;
+  table->file->column_bitmaps_signal();
   return error;
 }
 

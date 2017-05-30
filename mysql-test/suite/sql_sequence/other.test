@@ -90,3 +90,30 @@ LOCK TABLES s1 WRITE;
 insert into s1 values (1,1,9223372036854775806, 1, 1, 1000, 0, 0);
 UNLOCK TABLES;
 drop table s1;
+
+--echo #
+--echo # Many sequence calls with innodb
+--echo #
+
+create sequence s1 cache=1000 engine=innodb;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+commit;
+select * from s1;
+drop sequence s1;
+
+create sequence s1  cache=1000 engine=innodb;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+
+connect (addconroot, localhost, root,,);
+connection addconroot;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+select * from s1;
+commit;
+disconnect addconroot;
+connection default;
+select * from s1;
+commit;
+drop sequence s1;

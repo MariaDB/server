@@ -7045,6 +7045,15 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
 
     thd->security_ctx= sctx;
 
+    if (table_ref->sequence)
+    {
+      /* We want to have either SELECT or INSERT rights to sequences depending
+         on how they are accessed
+      */
+      want_access= ((table_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
+                    INSERT_ACL : SELECT_ACL);
+    }
+
     if (check_access(thd, want_access, table_ref->get_db_name(),
                      &table_ref->grant.privilege,
                      &table_ref->grant.m_internal,
