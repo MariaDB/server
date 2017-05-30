@@ -1,0 +1,741 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_crc32\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"innodb\". Accepting the page as valid. Change innodb_checksum_algorithm to \"crc32\" to silently accept such pages or rewrite all pages so that they contain \"crc32\" checksum.");
+call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_none\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"innodb\". Accepting the page as valid. Change innodb_checksum_algorithm to \"none\" to silently accept such pages or rewrite all pages so that they contain \"none\" checksum.");
+call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_crc32\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"none\". Accepting the page as valid. Change innodb_checksum_algorithm to \"crc32\" to silently accept such pages or rewrite all pages so that they contain \"crc32\" checksum.");
+call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_innodb\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"none\". Accepting the page as valid. Change innodb_checksum_algorithm to \"innodb\" to silently accept such pages or rewrite all pages so that they contain \"innodb\" checksum.");
+call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_innodb\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"crc32\". Accepting the page as valid. Change innodb_checksum_algorithm to \"innodb\" to silently accept such pages or rewrite all pages so that they contain \"innodb\" checksum.");
+call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_none\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"crc32\". Accepting the page as valid. Change innodb_checksum_algorithm to \"none\" to silently accept such pages or rewrite all pages so that they contain \"none\" checksum.");
+set GLOBAL innodb_default_encryption_key_id=4;
+create table t1(a int not null auto_increment primary key, b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes;
+create table t2(a int not null auto_increment primary key, b blob, index(b(10))) engine=innodb encrypted=yes;
+create table t3(a int not null auto_increment primary key, b blob, index(b(10))) engine=innodb row_format=compressed encrypted=no;
+create table t4(a int not null auto_increment primary key, b blob, index(b(10))) engine=innodb encrypted=no;
+create table t5(a int not null auto_increment primary key, b blob, index(b(10))) engine=innodb encrypted=yes page_compressed=yes;
+begin;
+insert into t1(b) values (repeat('secret',20));
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t2(b) select b from t1;
+insert into t3(b) select b from t1;
+insert into t4(b) select b from t1;
+insert into t5(b) select b from t1;
+commit;
+# 1 Restart mysqld --innodb-checksum-algorithm=crc32
+select count(*) from t1;
+count(*)
+32
+select count(*) from t2;
+count(*)
+32
+select count(*) from t3;
+count(*)
+32
+select count(*) from t4;
+count(*)
+32
+select count(*) from t5;
+count(*)
+32
+insert into t1(b) select b from t1;
+insert into t2(b) select b from t1;
+insert into t3(b) select b from t1;
+insert into t4(b) select b from t1;
+insert into t5(b) select b from t1;
+# 2 Restart mysqld --innodb-checksum-algorithm=innodb
+select count(*) from t1;
+count(*)
+64
+select count(*) from t2;
+count(*)
+96
+select count(*) from t3;
+count(*)
+96
+select count(*) from t4;
+count(*)
+96
+select count(*) from t5;
+count(*)
+96
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 3 Restart mysqld --innodb-checksum-algorithm=none
+select count(*) from t1;
+count(*)
+128
+select count(*) from t2;
+count(*)
+196
+select count(*) from t3;
+count(*)
+196
+select count(*) from t4;
+count(*)
+196
+select count(*) from t5;
+count(*)
+196
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 4 Restart mysqld --innodb-checksum-algorithm=innodb
+select count(*) from t1;
+count(*)
+228
+select count(*) from t2;
+count(*)
+296
+select count(*) from t3;
+count(*)
+296
+select count(*) from t4;
+count(*)
+296
+select count(*) from t5;
+count(*)
+296
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 5 Restart mysqld --innodb-checksum-algorithm=strict_innodb
+select count(*) from t1;
+count(*)
+328
+select count(*) from t2;
+count(*)
+396
+select count(*) from t3;
+count(*)
+396
+select count(*) from t4;
+count(*)
+396
+select count(*) from t5;
+count(*)
+396
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 6 Restart mysqld --innodb-checksum-algorithm=innodb
+select count(*) from t1;
+count(*)
+428
+select count(*) from t2;
+count(*)
+496
+select count(*) from t3;
+count(*)
+496
+select count(*) from t4;
+count(*)
+496
+select count(*) from t5;
+count(*)
+496
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 7 Restart mysqld --innodb-checksum-algorithm=strict_none
+select count(*) from t1;
+count(*)
+528
+select count(*) from t2;
+count(*)
+596
+select count(*) from t3;
+count(*)
+596
+select count(*) from t4;
+count(*)
+596
+select count(*) from t5;
+count(*)
+596
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 8 Restart mysqld --innodb-checksum-algorithm=innodb
+select count(*) from t1;
+count(*)
+628
+select count(*) from t2;
+count(*)
+696
+select count(*) from t3;
+count(*)
+696
+select count(*) from t4;
+count(*)
+696
+select count(*) from t5;
+count(*)
+696
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 9 Restart mysqld --innodb-checksum-algorithm=strict_crc32
+select count(*) from t1;
+count(*)
+728
+select count(*) from t2;
+count(*)
+796
+select count(*) from t3;
+count(*)
+796
+select count(*) from t4;
+count(*)
+796
+select count(*) from t5;
+count(*)
+796
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 10 Restart mysqld --innodb-checksum-algorithm=innodb
+select count(*) from t1;
+count(*)
+828
+select count(*) from t2;
+count(*)
+896
+select count(*) from t3;
+count(*)
+896
+select count(*) from t4;
+count(*)
+896
+select count(*) from t5;
+count(*)
+896
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# Restart mysqld --innodb-checksum-algorithm=crc32
+select count(*) from t1;
+count(*)
+928
+select count(*) from t2;
+count(*)
+996
+select count(*) from t3;
+count(*)
+996
+select count(*) from t4;
+count(*)
+996
+select count(*) from t5;
+count(*)
+996
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 11 Restart mysqld --innodb-checksum-algorithm=strict_crc32
+select count(*) from t1;
+count(*)
+1028
+select count(*) from t2;
+count(*)
+1096
+select count(*) from t3;
+count(*)
+1096
+select count(*) from t4;
+count(*)
+1096
+select count(*) from t5;
+count(*)
+1096
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 12 Restart mysqld --innodb-checksum-algorithm=crc32
+select count(*) from t1;
+count(*)
+1128
+select count(*) from t2;
+count(*)
+1196
+select count(*) from t3;
+count(*)
+1196
+select count(*) from t4;
+count(*)
+1196
+select count(*) from t5;
+count(*)
+1196
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 13 Restart mysqld --innodb-checksum-algorithm=strict_none
+select count(*) from t1;
+count(*)
+1228
+select count(*) from t2;
+count(*)
+1296
+select count(*) from t3;
+count(*)
+1296
+select count(*) from t4;
+count(*)
+1296
+select count(*) from t5;
+count(*)
+1296
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 14 Restart mysqld --innodb-checksum-algorithm=crc32
+select count(*) from t1;
+count(*)
+1328
+select count(*) from t2;
+count(*)
+1396
+select count(*) from t3;
+count(*)
+1396
+select count(*) from t4;
+count(*)
+1396
+select count(*) from t5;
+count(*)
+1396
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 15 Restart mysqld --innodb-checksum-algorithm=strict_innodb
+select count(*) from t1;
+count(*)
+1428
+select count(*) from t2;
+count(*)
+1496
+select count(*) from t3;
+count(*)
+1496
+select count(*) from t4;
+count(*)
+1496
+select count(*) from t5;
+count(*)
+1496
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 16 Restart mysqld --innodb-checksum-algorithm=crc32
+select count(*) from t1;
+count(*)
+1528
+select count(*) from t2;
+count(*)
+1596
+select count(*) from t3;
+count(*)
+1596
+select count(*) from t4;
+count(*)
+1596
+select count(*) from t5;
+count(*)
+1596
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 17 Restart mysqld --innodb-checksum-algorithm=none
+select count(*) from t1;
+count(*)
+1628
+select count(*) from t2;
+count(*)
+1696
+select count(*) from t3;
+count(*)
+1696
+select count(*) from t4;
+count(*)
+1696
+select count(*) from t5;
+count(*)
+1696
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 18 Restart mysqld --innodb-checksum-algorithm=crc32
+select count(*) from t1;
+count(*)
+1728
+select count(*) from t2;
+count(*)
+1796
+select count(*) from t3;
+count(*)
+1796
+select count(*) from t4;
+count(*)
+1796
+select count(*) from t5;
+count(*)
+1796
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# Restart mysqld --innodb-checksum-algorithm=strict_crc32
+select count(*) from t1;
+count(*)
+1828
+select count(*) from t2;
+count(*)
+1896
+select count(*) from t3;
+count(*)
+1896
+select count(*) from t4;
+count(*)
+1896
+select count(*) from t5;
+count(*)
+1896
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 19 Restart mysqld --innodb-checksum-algorithm=strict_none
+select count(*) from t1;
+count(*)
+1928
+select count(*) from t2;
+count(*)
+1996
+select count(*) from t3;
+count(*)
+1996
+select count(*) from t4;
+count(*)
+1996
+select count(*) from t5;
+count(*)
+1996
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 20 Restart mysqld --innodb-checksum-algorithm=strict_crc32
+select count(*) from t1;
+count(*)
+2028
+select count(*) from t2;
+count(*)
+2096
+select count(*) from t3;
+count(*)
+2096
+select count(*) from t4;
+count(*)
+2096
+select count(*) from t5;
+count(*)
+2096
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 21 Restart mysqld --innodb-checksum-algorithm=strict_innodb
+select count(*) from t1;
+count(*)
+2128
+select count(*) from t2;
+count(*)
+2196
+select count(*) from t3;
+count(*)
+2196
+select count(*) from t4;
+count(*)
+2196
+select count(*) from t5;
+count(*)
+2196
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 22 Restart mysqld --innodb-checksum-algorithm=strict_crc32
+select count(*) from t1;
+count(*)
+2228
+select count(*) from t2;
+count(*)
+2296
+select count(*) from t3;
+count(*)
+2296
+select count(*) from t4;
+count(*)
+2296
+select count(*) from t5;
+count(*)
+2296
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 23 Restart mysqld --innodb-checksum-algorithm=none
+select count(*) from t1;
+count(*)
+2328
+select count(*) from t2;
+count(*)
+2396
+select count(*) from t3;
+count(*)
+2396
+select count(*) from t4;
+count(*)
+2396
+select count(*) from t5;
+count(*)
+2396
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 24 Restart mysqld --innodb-checksum-algorithm=strict_crc32
+select count(*) from t1;
+count(*)
+2428
+select count(*) from t2;
+count(*)
+2496
+select count(*) from t3;
+count(*)
+2496
+select count(*) from t4;
+count(*)
+2496
+select count(*) from t5;
+count(*)
+2496
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# Restart mysqld --innodb-checksum-algorithm=strict_none
+select count(*) from t1;
+count(*)
+2528
+select count(*) from t2;
+count(*)
+2596
+select count(*) from t3;
+count(*)
+2596
+select count(*) from t4;
+count(*)
+2596
+select count(*) from t5;
+count(*)
+2596
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 25 Restart mysqld --innodb-checksum-algorithm=none
+select count(*) from t1;
+count(*)
+2628
+select count(*) from t2;
+count(*)
+2696
+select count(*) from t3;
+count(*)
+2696
+select count(*) from t4;
+count(*)
+2696
+select count(*) from t5;
+count(*)
+2696
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 26 Restart mysqld --innodb-checksum-algorithm=strict_none
+select count(*) from t1;
+count(*)
+2728
+select count(*) from t2;
+count(*)
+2796
+select count(*) from t3;
+count(*)
+2796
+select count(*) from t4;
+count(*)
+2796
+select count(*) from t5;
+count(*)
+2796
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 27 Restart mysqld --innodb-checksum-algorithm=strict_innodb
+select count(*) from t1;
+count(*)
+2828
+select count(*) from t2;
+count(*)
+2896
+select count(*) from t3;
+count(*)
+2896
+select count(*) from t4;
+count(*)
+2896
+select count(*) from t5;
+count(*)
+2896
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 28 Restart mysqld --innodb-checksum-algorithm=strict_none
+select count(*) from t1;
+count(*)
+2928
+select count(*) from t2;
+count(*)
+2996
+select count(*) from t3;
+count(*)
+2996
+select count(*) from t4;
+count(*)
+2996
+select count(*) from t5;
+count(*)
+2996
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# Restart mysqld --innodb-checksum-algorithm=none
+select count(*) from t1;
+count(*)
+3028
+select count(*) from t2;
+count(*)
+3096
+select count(*) from t3;
+count(*)
+3096
+select count(*) from t4;
+count(*)
+3096
+select count(*) from t5;
+count(*)
+3096
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 29 Restart mysqld --innodb-checksum-algorithm=strict_innodb
+select count(*) from t1;
+count(*)
+3128
+select count(*) from t2;
+count(*)
+3196
+select count(*) from t3;
+count(*)
+3196
+select count(*) from t4;
+count(*)
+3196
+select count(*) from t5;
+count(*)
+3196
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+# 30 Restart mysqld --innodb-checksum-algorithm=none
+select count(*) from t1;
+count(*)
+3228
+select count(*) from t2;
+count(*)
+3296
+select count(*) from t3;
+count(*)
+3296
+select count(*) from t4;
+count(*)
+3296
+select count(*) from t5;
+count(*)
+3296
+insert into t1(b) select b from t1 limit 100;
+insert into t2(b) select b from t1 limit 100;
+insert into t3(b) select b from t1 limit 100;
+insert into t4(b) select b from t1 limit 100;
+insert into t5(b) select b from t1 limit 100;
+drop table t1,t2,t3,t4,t5;
