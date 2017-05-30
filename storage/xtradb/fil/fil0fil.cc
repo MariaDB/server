@@ -6115,19 +6115,21 @@ fil_report_invalid_page_access(
 	ulint		len,		/*!< in: I/O length */
 	ulint		type)		/*!< in: I/O type */
 {
-	fprintf(stderr,
-		"InnoDB: Error: trying to access page number %lu"
-		" in space %lu,\n"
-		"InnoDB: space name %s,\n"
-		"InnoDB: which is outside the tablespace bounds.\n"
-		"InnoDB: Byte offset %lu, len %lu, i/o type %lu.\n"
-		"InnoDB: If you get this error at mysqld startup,"
-		" please check that\n"
-		"InnoDB: your my.cnf matches the ibdata files"
-		" that you have in the\n"
-		"InnoDB: MySQL server.\n",
-		(ulong) block_offset, (ulong) space_id, space_name,
-		(ulong) byte_offset, (ulong) len, (ulong) type);
+	ib_logf(IB_LOG_LEVEL_ERROR,
+		"Trying to access page number " ULINTPF
+		" in space " ULINTPF
+		" space name %s,"
+		" which is outside the tablespace bounds."
+		" Byte offset " ULINTPF ", len " ULINTPF " i/o type " ULINTPF ".",
+		block_offset, space_id, space_name,
+		byte_offset, len, type);
+
+	ib_logf(IB_LOG_LEVEL_FATAL,
+		"If you get this error at mysqld startup,"
+		" please check that"
+		" your my.cnf matches the ibdata files"
+		" that you have in the"
+		" MySQL server.");
 }
 
 /********************************************************************//**
@@ -6347,11 +6349,10 @@ _fil_io(
 			mutex_exit(&fil_system->mutex);
 			return(DB_ERROR);
 		}
+
 		fil_report_invalid_page_access(
 				block_offset, space_id, space->name,
 				byte_offset, len, type);
-
-		ut_error;
 	}
 
 	/* Open file if closed */
@@ -6363,10 +6364,11 @@ _fil_io(
 			ib_logf(IB_LOG_LEVEL_ERROR,
 				"Trying to do i/o to a tablespace which "
 				"exists without .ibd data file. "
-				"i/o type %lu, space id %lu, page no %lu, "
-				"i/o length %lu bytes",
-				(ulong) type, (ulong) space_id,
-				(ulong) block_offset, (ulong) len);
+				"i/o type " ULINTPF ", space id "
+				ULINTPF ", page no " ULINTPF ", "
+				"i/o length " ULINTPF " bytes",
+				type, space_id,
+				block_offset, len);
 
 			return(DB_TABLESPACE_DELETED);
 		}
@@ -6386,8 +6388,6 @@ _fil_io(
 		fil_report_invalid_page_access(
 			block_offset, space_id, space->name, byte_offset,
 			len, type);
-
-		ut_error;
 	}
 
 	/* Now we have made the changes in the data structures of fil_system */

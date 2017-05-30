@@ -323,9 +323,13 @@ dict_build_table_def_step(
 
 		mtr_start(&mtr);
 
-		fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
+		bool res = fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 
 		mtr_commit(&mtr);
+
+		if(!res) {
+			return (DB_ERROR);
+		}
 	} else {
 		/* Create in the system tablespace: disallow Barracuda
 		features by keeping only the first bit which says whether

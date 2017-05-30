@@ -188,6 +188,39 @@ UNIV_INTERN mysql_pfs_key_t	srv_master_thread_key;
 UNIV_INTERN mysql_pfs_key_t	srv_purge_thread_key;
 #endif /* UNIV_PFS_THREAD */
 
+/** Innobase start-up aborted. Perform cleanup actions.
+@param[in]	create_new_db	TRUE if new db is  being created
+@param[in]	file		File name
+@param[in]	line		Line number
+@param[in]	err		Reason for aborting InnoDB startup
+@return DB_SUCCESS or error code. */
+static
+dberr_t
+srv_init_abort(
+	bool		create_new_db,
+	const char*	file,
+	ulint		line,
+	dberr_t		err)
+{
+	if (create_new_db) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Database creation was aborted"
+			" at %s [" ULINTPF "]"
+			" with error %s. You may need"
+			" to delete the ibdata1 file before trying to start"
+			" up again.",
+			file, line, ut_strerr(err));
+	} else {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Plugin initialization aborted"
+			" at %s [" ULINTPF "]"
+			" with error %s.",
+			file, line, ut_strerr(err));
+	}
+
+	return(err);
+}
+
 /*********************************************************************//**
 Convert a numeric string that optionally ends in G or M or K, to a number
 containing megabytes.
@@ -1528,18 +1561,26 @@ srv_undo_tablespaces_init(
 
 	if (create_new_db) {
 		mtr_t	mtr;
+		bool ret=true;
 
 		mtr_start(&mtr);
 
 		/* The undo log tablespace */
 		for (i = 0; i < n_undo_tablespaces; ++i) {
 
-			fsp_header_init(
+			ret = fsp_header_init(
 				undo_tablespace_ids[i],
 				SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
+			if (!ret) {
+				break;
+			}
 		}
 
 		mtr_commit(&mtr);
+
+		if (!ret) {
+			return (srv_init_abort(create_new_db, __FILE__, __LINE__, DB_ERROR));
+		}
 	}
 
 	return(DB_SUCCESS);
@@ -2378,9 +2419,13 @@ files_checked:
 
 		mtr_start(&mtr);
 
-		fsp_header_init(0, sum_of_new_sizes, &mtr);
+		bool ret = fsp_header_init(0, sum_of_new_sizes, &mtr);
 
 		mtr_commit(&mtr);
+
+		if (!ret) {
+			return (srv_init_abort(create_new_db, __FILE__, __LINE__, DB_ERROR));
+		}
 
 		/* To maintain backward compatibility we create only
 		the first rollback segment before the double write buffer.
@@ -2809,6 +2854,9 @@ files_checked:
 		/* Can only happen if server is read only. */
 		ut_a(srv_read_only_mode);
 		srv_undo_logs = ULONG_UNDEFINED;
+	} else if (srv_available_undo_logs < srv_undo_logs) {
+		/* Should due to out of file space. */
+		return (srv_init_abort(create_new_db, __FILE__, __LINE__, DB_ERROR));
 	}
 
 	if (!srv_read_only_mode) {

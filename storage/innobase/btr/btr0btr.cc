@@ -1701,6 +1701,12 @@ btr_create(
 			space, 0,
 			IBUF_HEADER + IBUF_TREE_SEG_HEADER, mtr);
 
+		if (ibuf_hdr_block == NULL) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Allocation of the first ibuf header page failed.");
+			return (FIL_NULL);
+		}
+
 		buf_block_dbg_add_level(
 			ibuf_hdr_block, SYNC_IBUF_TREE_NODE_NEW);
 
@@ -1714,6 +1720,11 @@ btr_create(
 			+ IBUF_HEADER + IBUF_TREE_SEG_HEADER,
 			IBUF_TREE_ROOT_PAGE_NO,
 			FSP_UP, mtr);
+
+		if (!block) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Allocation of the tree root page segment failed.");
+		}
 		ut_ad(buf_block_get_page_no(block) == IBUF_TREE_ROOT_PAGE_NO);
 	} else {
 #ifdef UNIV_BLOB_DEBUG
@@ -1726,6 +1737,12 @@ btr_create(
 #endif /* UNIV_BLOB_DEBUG */
 		block = fseg_create(space, 0,
 				    PAGE_HEADER + PAGE_BTR_SEG_TOP, mtr);
+
+		if (!block) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Allocation of the btree segment failed.");
+		}
+
 	}
 
 	if (block == NULL) {
@@ -1754,6 +1771,8 @@ btr_create(
 			segment before return. */
 			btr_free_root(space, zip_size, page_no, mtr);
 
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Allocation of the non-ibuf tree segment for leaf pages failed.");
 			return(FIL_NULL);
 		}
 

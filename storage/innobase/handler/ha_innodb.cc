@@ -3353,6 +3353,7 @@ innobase_init(
 	char		*default_path;
 	uint		format_id;
 	ulong		num_pll_degree;
+	ulint		min_size = 0;
 
 	DBUG_ENTER("innobase_init");
 	handlerton *innobase_hton= (handlerton*) p;
@@ -3561,6 +3562,19 @@ mem_free_and_error:
 		srv_free_paths_and_sizes();
 		my_free(internal_innobase_data_file_path);
 		goto error;
+	}
+
+	/* All doublewrite buffer pages must fit to first system
+	datafile and first datafile must be at least 3M. */
+	min_size = ut_max((3*1024*1024U), (192U*UNIV_PAGE_SIZE));
+
+	if ((srv_data_file_sizes[0]*1024*1024) < min_size) {
+		sql_print_error(
+			"InnoDB: first datafile is too small current=" ULINTPF
+			"M it should be at least " ULINTPF "M.",
+			srv_data_file_sizes[0],
+			min_size / (1024 * 1024));
+		goto mem_free_and_error;
 	}
 
 	/* -------------- All log files ---------------------------*/

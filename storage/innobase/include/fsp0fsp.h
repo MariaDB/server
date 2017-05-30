@@ -520,16 +520,20 @@ fsp_header_init_fields(
 	ulint	space_id,	/*!< in: space id */
 	ulint	flags);		/*!< in: tablespace flags (FSP_SPACE_FLAGS):
 				0, or table->flags if newer than COMPACT */
-/**********************************************************************//**
-Initializes the space header of a new created space and creates also the
-insert buffer tree root if space == 0. */
+/** Initializes the space header of a new created space and creates also the
+insert buffer tree root if space == 0.
+@param[in]	space_id	space id
+@param[in]	size		current size in blocks
+@param[in,out]	mtr		min-transaction
+@return	true on success, otherwise false. */
 UNIV_INTERN
-void
+bool
 fsp_header_init(
-/*============*/
-	ulint	space,		/*!< in: space id */
-	ulint	size,		/*!< in: current size in blocks */
-	mtr_t*	mtr);		/*!< in/out: mini-transaction */
+	ulint	space_id,
+	ulint	size,
+	mtr_t*	mtr)
+	MY_ATTRIBUTE((warn_unused_result));
+
 /**********************************************************************//**
 Increases the space size field of a space. */
 UNIV_INTERN

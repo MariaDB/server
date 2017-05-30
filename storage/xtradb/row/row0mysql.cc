@@ -3614,9 +3614,15 @@ row_truncate_table_for_mysql(
 			} while (index);
 
 			mtr_start_trx(&mtr, trx);
-			fsp_header_init(space_id,
+			bool ret = fsp_header_init(space_id,
 					FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 			mtr_commit(&mtr);
+
+			if (!ret) {
+				table->file_unreadable = true;
+				err = DB_ERROR;
+				goto funct_exit;
+			}
 		}
 	} else {
 		/* Lock all index trees for this table, as we will
