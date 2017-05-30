@@ -3019,22 +3019,22 @@ recv_init_crash_recovery(void)
 	}
 }
 
-/********************************************************//**
-Recovers from a checkpoint. When this function returns, the database is able
+/** Recovers from a checkpoint. When this function returns, the database is able
 to start processing of new user transactions, but the function
 recv_recovery_from_checkpoint_finish should be called later to complete
 the recovery and free the resources used in it.
+@param[in]	type		LOG_CHECKPOINT or LOG_ARCHIVE
+@param[in]	limit_lsn	recover up to this lsn if possible
+@param[in]	flushed_lsn	flushed lsn from first data file
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
 dberr_t
 recv_recovery_from_checkpoint_start_func(
-/*=====================================*/
 #ifdef UNIV_LOG_ARCHIVE
-	ulint	type,		/*!< in: LOG_CHECKPOINT or LOG_ARCHIVE */
-	lsn_t	limit_lsn,	/*!< in: recover up to this lsn if possible */
+	ulint		type,
+	lsn_t		limit_lsn,
 #endif /* UNIV_LOG_ARCHIVE */
-	lsn_t	min_flushed_lsn,/*!< in: min flushed lsn from data files */
-	lsn_t	max_flushed_lsn)/*!< in: max flushed lsn from data files */
+	lsn_t		flushed_lsn)
 {
 	log_group_t*	group;
 	log_group_t*	max_cp_group;
@@ -3262,6 +3262,7 @@ recv_recovery_from_checkpoint_start_func(
 
 		group = UT_LIST_GET_NEXT(log_groups, group);
 	}
+
 	/* Done with startup scan. Clear the flag. */
 	recv_log_scan_is_startup_type = FALSE;
 
@@ -3274,10 +3275,9 @@ recv_recovery_from_checkpoint_start_func(
 		there is something wrong we will print a message to the
 		user about recovery: */
 
-		if (checkpoint_lsn != max_flushed_lsn
-		    || checkpoint_lsn != min_flushed_lsn) {
+		if (checkpoint_lsn != flushed_lsn) {
 
-			if (checkpoint_lsn < max_flushed_lsn) {
+			if (checkpoint_lsn <flushed_lsn) {
 
 				ib_logf(IB_LOG_LEVEL_WARN,
 					"The log sequence number "
@@ -3288,24 +3288,21 @@ recv_recovery_from_checkpoint_start_func(
 					"ib_logfiles to start up the database. "
 					"Log sequence number in the "
 					"ib_logfiles is " LSN_PF ", log"
-					"sequence numbers stamped "
-					"to ibdata file headers are between "
-					"" LSN_PF " and " LSN_PF ".",
+					"sequence number stamped "
+					"to ibdata file header is " LSN_PF ".",
 					checkpoint_lsn,
-					min_flushed_lsn,
-					max_flushed_lsn);
+					flushed_lsn);
 			}
 
 			if (!recv_needed_recovery) {
 				ib_logf(IB_LOG_LEVEL_INFO,
-					"The log sequence numbers "
-					LSN_PF " and " LSN_PF
-					" in ibdata files do not match"
+					"The log sequence number "
+					LSN_PF
+					" in ibdata file do not match"
 					" the log sequence number "
 					LSN_PF
 					" in the ib_logfiles!",
-					min_flushed_lsn,
-					max_flushed_lsn,
+					flushed_lsn,
 					checkpoint_lsn);
 
 				if (!srv_read_only_mode) {

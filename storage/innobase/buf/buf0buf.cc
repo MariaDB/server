@@ -4291,11 +4291,11 @@ buf_page_create(
 	memset(frame + FIL_PAGE_NEXT, 0xff, 4);
 	mach_write_to_2(frame + FIL_PAGE_TYPE, FIL_PAGE_TYPE_ALLOCATED);
 
-	/* Reset to zero the file flush lsn field in the page; if the first
-	page of an ibdata file is 'created' in this function into the buffer
-	pool then we lose the original contents of the file flush lsn stamp.
-	Then InnoDB could in a crash recovery print a big, false, corruption
-	warning if the stamp contains an lsn bigger than the ib_logfile lsn. */
+	/* FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION is only used on the
+	following pages:
+	(1) The first page of the InnoDB system tablespace (page 0:0)
+	(2) FIL_RTREE_SPLIT_SEQ_NUM on R-tree pages
+	(3) key_version on encrypted pages (not page 0:0) */
 
 	memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 

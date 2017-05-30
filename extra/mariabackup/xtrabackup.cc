@@ -309,8 +309,7 @@ my_bool xtrabackup_rebuild_indexes = FALSE;
 my_bool xtrabackup_incremental_force_scan = FALSE;
 
 /* The flushed lsn which is read from data files */
-lsn_t	min_flushed_lsn= 0;
-lsn_t	max_flushed_lsn= 0;
+lsn_t	flushed_lsn= 0;
 
 /* The size of archived log file */
 ib_int64_t xtrabackup_arch_file_size = 0ULL;
@@ -3249,7 +3248,7 @@ xb_load_tablespaces(void)
 /*=====================*/
 {
 	ulint	i;
-	ibool	create_new_db;
+	bool	create_new_db;
 	ulint	err;
 	ulint   sum_of_new_sizes;
 	lsn_t min_arch_logno, max_arch_logno;
@@ -3265,7 +3264,7 @@ xb_load_tablespaces(void)
 
 	err = open_or_create_data_files(&create_new_db,
 					&min_arch_logno, &max_arch_logno,
-					&min_flushed_lsn, &max_flushed_lsn,
+					&flushed_lsn,
 					&sum_of_new_sizes);
 	if (err != DB_SUCCESS) {
 		msg("xtrabackup: Could not open or create data files.\n"
@@ -6475,13 +6474,13 @@ skip_check:
 				    metadata_last_lsn);
 				xtrabackup_archived_to_lsn = metadata_last_lsn;
 			}
-			if (xtrabackup_archived_to_lsn < min_flushed_lsn) {
+			if (xtrabackup_archived_to_lsn < flushed_lsn) {
 				msg("xtrabackup: error: logs applying "
 				    "lsn limit " UINT64PF " is less than "
 				    "min_flushed_lsn " UINT64PF
 				    ", there is nothing to do\n",
 				    xtrabackup_archived_to_lsn,
-				    min_flushed_lsn);
+				    flushed_lsn);
 				goto error_cleanup;
 			}
 		}
@@ -6492,7 +6491,7 @@ skip_check:
 		*/
 		xtrabackup_apply_log_only = srv_apply_log_only = true;
 
-		if (!xtrabackup_arch_search_files(min_flushed_lsn)) {
+		if (!xtrabackup_arch_search_files(flushed_lsn)) {
 			goto error_cleanup;
 		}
 

@@ -3246,7 +3246,9 @@ logs_empty_and_mark_files_at_shutdown(void)
 /*=======================================*/
 {
 	lsn_t			lsn;
+#ifdef UNIV_LOG_ARCHIVE
 	ulint			arch_log_no;
+#endif
 	ulint			count = 0;
 	ulint			pending_io;
 	ibool			server_busy;
@@ -3454,9 +3456,9 @@ wait_suspend_loop:
 			goto loop;
 		}
 
+#ifdef UNIV_LOG_ARCHIVE
 		arch_log_no = 0;
 
-#ifdef UNIV_LOG_ARCHIVE
 		UT_LIST_GET_FIRST(log_sys->log_groups)->archived_file_no;
 
 		if (!UT_LIST_GET_FIRST(log_sys->log_groups)->archived_offset) {
@@ -3511,9 +3513,14 @@ wait_suspend_loop:
 	srv_shutdown_lsn = lsn;
 
 	if (!srv_read_only_mode) {
-		fil_write_flushed_lsn_to_data_files(lsn, arch_log_no);
+		dberr_t err = fil_write_flushed_lsn(lsn);
 
-		fil_flush_file_spaces(FIL_TABLESPACE);
+		if (err != DB_SUCCESS) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Failed to write flush lsn to the "
+				"system tablespace at shutdown err=%s",
+				ut_strerr(err));
+		}
 	}
 
 	fil_close_all_files();
