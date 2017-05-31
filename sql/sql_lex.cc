@@ -7161,3 +7161,14 @@ bool LEX::add_grant_command(THD *thd, enum_sql_command sql_command_arg,
   type= type_arg;
   return false;
 }
+
+
+Item *LEX::make_item_func_replace(THD *thd,
+                                  Item *org,
+                                  Item *find,
+                                  Item *replace)
+{
+  return (thd->variables.sql_mode & MODE_ORACLE) ?
+    new (thd->mem_root) Item_func_replace_oracle(thd, org, find, replace) :
+    new (thd->mem_root) Item_func_replace(thd, org, find, replace);
+}

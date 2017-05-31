@@ -3357,6 +3357,8 @@ public:
                           const LEX_CSTRING *field_name,
                           uint pos_in_q, uint length_in_q);
 
+  Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
+
   /*
     Create a my_var instance for a ROW field variable that was used
     as an OUT SP parameter: CALL p1(var.field);
