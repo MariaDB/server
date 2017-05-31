@@ -10128,8 +10128,7 @@ function_call_conflict:
           }
         | REPLACE '(' expr ',' expr ',' expr ')'
           {
-            $$= new (thd->mem_root) Item_func_replace(thd, $3, $5, $7);
-            if ($$ == NULL)
+            if (!($$= Lex->make_item_func_replace(thd, $3, $5, $7)))
               MYSQL_YYABORT;
           }
         | REVERSE_SYM '(' expr ')'

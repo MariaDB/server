@@ -3607,6 +3607,9 @@ public:
   SELECT_LEX *exclude_last_select();
   bool add_unit_in_brackets(SELECT_LEX *nselect);
   void check_automatic_up(enum sub_select_type type);
+
+  Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
+
 };
 
 
