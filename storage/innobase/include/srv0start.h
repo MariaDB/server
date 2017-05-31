@@ -38,28 +38,6 @@ struct dict_table_t;
 only one buffer pool instance is used. */
 #define BUF_POOL_SIZE_THRESHOLD		(1024 * 1024 * 1024)
 
-/*********************************************************************//**
-Parse temporary tablespace configuration.
-@return true if ok, false on parse error */
-bool
-srv_parse_temp_data_file_paths_and_sizes(
-/*=====================================*/
-	char*	str);	/*!< in/out: the data file path string */
-/*********************************************************************//**
-Frees the memory allocated by srv_parse_data_file_paths_and_sizes()
-and srv_parse_log_group_home_dirs(). */
-void
-srv_free_paths_and_sizes(void);
-/*==========================*/
-/*********************************************************************//**
-Adds a slash or a backslash to the end of a string if it is missing
-and the string is not empty.
-@return string which has the separator if the string is not empty */
-char*
-srv_add_path_separator_if_needed(
-/*=============================*/
-	char*	str);	/*!< in: null-terminated character string */
-
 /****************************************************************//**
 Starts Innobase and creates a new database if database files
 are not found and the user wants.
