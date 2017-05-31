@@ -14998,8 +14998,9 @@ set_stmt_option_value_following_option_type_list:
        */
           option_value_following_option_type
         | set_stmt_option_value_following_option_type_list ',' option_value_following_option_type
+        ;
 
-// Start of option value list
+/* Start of option value list */
 start_option_value_list:
           option_value_no_option_type
           {
@@ -15024,7 +15025,7 @@ start_option_value_list:
         ;
 
 
-// Start of option value list, option_type was given
+/* Start of option value list, option_type was given */
 start_option_value_list_following_option_type:
           option_value_following_option_type
           {
@@ -15039,13 +15040,13 @@ start_option_value_list_following_option_type:
           }
         ;
 
-// Remainder of the option value list after first option value.
+/* Remainder of the option value list after first option value. */
 option_value_list_continued:
           /* empty */
         | ',' option_value_list
         ;
 
-// Repeating list of option values after first option value.
+/* Repeating list of option values after first option value. */
 option_value_list:
           {
             sp_create_assignment_lex(thd, yychar == YYEMPTY);
@@ -15066,7 +15067,7 @@ option_value_list:
           }
         ;
 
-// Wrapper around option values following the first option value in the stmt.
+/* Wrapper around option values following the first option value in the stmt. */
 option_value:
           option_type
           {
@@ -15096,7 +15097,7 @@ opt_var_ident_type:
         | SESSION_SYM '.' { $$=OPT_SESSION; }
         ;
 
-// Option values with preceding option_type.
+/* Option values with preceding option_type. */
 option_value_following_option_type:
           internal_variable_name equal set_expr_or_default
           {
@@ -15120,7 +15121,7 @@ option_value_following_option_type:
           }
         ;
 
-// Option values without preceding option_type.
+/* Option values without preceding option_type. */
 option_value_no_option_type:
           internal_variable_name equal set_expr_or_default
           {
