@@ -574,7 +574,7 @@ dtuple_convert_big_rec(
 		return(NULL);
 	}
 
-	if (dict_table_get_format(index->table) < UNIV_FORMAT_B) {
+	if (!dict_table_has_atomic_blobs(index->table)) {
 		/* up to MySQL 5.1: store a 768-byte prefix locally */
 		local_len = BTR_EXTERN_FIELD_REF_SIZE
 			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;

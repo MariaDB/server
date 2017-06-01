@@ -1,7 +1,4 @@
 call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
-SET GLOBAL innodb_large_prefix = OFF;
-Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_page_size';
@@ -968,5 +965,3 @@ COL196 TEXT,
 COL197 TEXT)
 row_format=compact,ENGINE=INNODB;
 ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
-Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

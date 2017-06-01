@@ -31,7 +31,6 @@ call mtr.add_suppression("Parent table of FTS auxiliary table "
 # create test-bed
 #
 let $per_table = `select @@innodb_file_per_table`;
-let $format = `select @@innodb_file_format`;
 
 eval set global innodb_file_per_table = on;
 let $WL6501_TMP_DIR = `select @@tmpdir`;

@@ -1742,8 +1742,8 @@ row_upd_changes_ord_field_binary_func(
 			/* Get the new mbr. */
 			if (dfield_is_ext(new_field)) {
 				if (flag == ROW_BUILD_FOR_UNDO
-				    && dict_table_get_format(index->table)
-					>= UNIV_FORMAT_B) {
+				    && dict_table_has_atomic_blobs(
+					    index->table)) {
 					/* For undo, and the table is Barrcuda,
 					we need to skip the prefix data. */
 					flen = BTR_EXTERN_FIELD_REF_SIZE;
@@ -2150,10 +2150,10 @@ row_upd_store_row(
 	offsets = rec_get_offsets(rec, clust_index, offsets_,
 				  ULINT_UNDEFINED, &heap);
 
-	if (dict_table_get_format(node->table) >= UNIV_FORMAT_B) {
-		/* In DYNAMIC or COMPRESSED format, there is no prefix
-		of externally stored columns in the clustered index
-		record. Build a cache of column prefixes. */
+	if (dict_table_has_atomic_blobs(node->table)) {
+		/* There is no prefix of externally stored columns in
+		the clustered index record. Build a cache of column
+		prefixes. */
 		ext = &node->ext;
 	} else {
 		/* REDUNDANT and COMPACT formats store a local

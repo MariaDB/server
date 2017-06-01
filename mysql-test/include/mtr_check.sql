@@ -28,7 +28,7 @@ BEGIN
   -- Dump all global variables except those
   -- that are supposed to change
   SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
-    WHERE variable_name NOT IN ('timestamp', 'innodb_file_format_max')
+    WHERE variable_name NOT IN ('timestamp')
      AND variable_name not like "Last_IO_Err*"
      AND variable_name != 'INNODB_IBUF_MAX_SIZE'
      AND variable_name != 'INNODB_USE_NATIVE_AIO'

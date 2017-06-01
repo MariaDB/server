@@ -12,4 +12,3 @@
 
 innodb_scrub            : MDEV-8139 scrubbing does not work reliably
 innodb_scrub_background : MDEV-8139 scrubbing does not work reliably
-innodb_encryption-page-compression : MDEV-11420

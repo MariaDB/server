@@ -402,9 +402,8 @@ dict_build_tablespace_for_table(
 		ut_ad(!dict_table_is_temporary(table));
 		/* This table will need a new tablespace. */
 
-		ut_ad(dict_table_get_format(table) <= UNIV_FORMAT_MAX);
 		ut_ad(DICT_TF_GET_ZIP_SSIZE(table->flags) == 0
-		      || dict_table_get_format(table) >= UNIV_FORMAT_B);
+		      || dict_table_has_atomic_blobs(table));
 
 		/* Get a new tablespace ID */
 		dict_hdr_get_new_id(NULL, NULL, &space, table, false);

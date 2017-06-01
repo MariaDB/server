@@ -1,4 +1,3 @@
-SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_encryption_threads = 4;
 SET GLOBAL innodb_encrypt_tables = on;

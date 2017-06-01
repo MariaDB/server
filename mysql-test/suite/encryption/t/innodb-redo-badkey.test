@@ -18,10 +18,7 @@ call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE faile
 --let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
 --source include/wait_condition.inc
 
---disable_warnings
-SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
---enable_warnings
 
 create table t1(a int not null primary key auto_increment, c char(250), b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes encryption_key_id=4;
 create table t2(a int not null primary key auto_increment, c char(250), b blob, index(b(10))) engine=innodb row_format=compressed;

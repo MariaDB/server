@@ -1726,9 +1726,6 @@ mem_free_and_error:
 
 	srv_adaptive_flushing = FALSE;
 	srv_use_sys_malloc = TRUE;
-	srv_file_format = 1; /* Barracuda */
-	srv_max_file_format_at_startup = UNIV_FORMAT_MIN; /* on */
-	/* --------------------------------------------------*/
 
 	srv_file_flush_method_str = innobase_unix_file_flush_method;
 

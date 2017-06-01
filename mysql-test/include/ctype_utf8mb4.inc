@@ -191,8 +191,10 @@ drop table t1;
 #
 if(!$is_heap)
 {
---error ER_TOO_LONG_KEY
+--error 0,ER_TOO_LONG_KEY
 eval create table t1 (a text character set utf8mb4, primary key(a(371))) engine $engine;
+show warnings;
+drop table if exists t1;
 }
 
 #

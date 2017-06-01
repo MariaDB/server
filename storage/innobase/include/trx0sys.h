@@ -262,48 +262,11 @@ trx_sys_read_wsrep_checkpoint(
 	XID* xid); /*!< out: WSREP XID */
 #endif /* WITH_WSREP */
 
-/** Initializes the tablespace tag system. */
-void
-trx_sys_file_format_init(void);
-/*==========================*/
-
-/*****************************************************************//**
-Closes the tablespace tag system. */
-void
-trx_sys_file_format_close(void);
-/*===========================*/
-
-/********************************************************************//**
-Tags the system table space with minimum format id if it has not been
-tagged yet.
-WARNING: This function is only called during the startup and AFTER the
-redo log application during recovery has finished. */
-void
-trx_sys_file_format_tag_init(void);
-/*==============================*/
-
 /*****************************************************************//**
 Shutdown/Close the transaction system. */
 void
 trx_sys_close(void);
 /*===============*/
-/*****************************************************************//**
-Get the name representation of the file format from its id.
-@return pointer to the name */
-const char*
-trx_sys_file_format_id_to_name(
-/*===========================*/
-	const ulint	id);		/*!< in: id of the file format */
-/*****************************************************************//**
-Set the file format id unconditionally except if it's already the
-same value.
-@return TRUE if value updated */
-ibool
-trx_sys_file_format_max_set(
-/*========================*/
-	ulint		format_id,	/*!< in: file format id */
-	const char**	name);		/*!< out: max file format name or
-					NULL if not needed. */
 /** Create the rollback segments.
 @return	whether the creation succeeded */
 bool
@@ -322,35 +285,6 @@ Check if there are any active (non-prepared) transactions.
 ulint
 trx_sys_any_active_transactions(void);
 /*=================================*/
-/*****************************************************************//**
-Get the name representation of the file format from its id.
-@return pointer to the max format name */
-const char*
-trx_sys_file_format_max_get(void);
-/*=============================*/
-/*****************************************************************//**
-Check for the max file format tag stored on disk.
-@return DB_SUCCESS or error code */
-dberr_t
-trx_sys_file_format_max_check(
-/*==========================*/
-	ulint		max_format_id);	/*!< in: the max format id to check */
-/********************************************************************//**
-Update the file format tag in the system tablespace only if the given
-format id is greater than the known max id.
-@return TRUE if format_id was bigger than the known max id */
-ibool
-trx_sys_file_format_max_upgrade(
-/*============================*/
-	const char**	name,		/*!< out: max file format name */
-	ulint		format_id);	/*!< in: file format identifier */
-/*****************************************************************//**
-Get the name representation of the file format from its id.
-@return pointer to the name */
-const char*
-trx_sys_file_format_id_to_name(
-/*===========================*/
-	const ulint	id);	/*!< in: id of the file format */
 
 /**
 Add the transaction to the RW transaction set
@@ -489,24 +423,6 @@ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID. */
 
 /** Size of the doublewrite block in pages */
 #define TRX_SYS_DOUBLEWRITE_BLOCK_SIZE	FSP_EXTENT_SIZE
-/* @} */
-
-/** File format tag */
-/* @{ */
-/** The offset of the file format tag on the trx system header page
-(TRX_SYS_PAGE_NO of TRX_SYS_SPACE) */
-#define TRX_SYS_FILE_FORMAT_TAG		(UNIV_PAGE_SIZE - 16)
-
-/** Contents of TRX_SYS_FILE_FORMAT_TAG when valid. The file format
-identifier is added to this constant. */
-#define TRX_SYS_FILE_FORMAT_TAG_MAGIC_N_LOW	3645922177UL
-/** Contents of TRX_SYS_FILE_FORMAT_TAG+4 when valid */
-#define TRX_SYS_FILE_FORMAT_TAG_MAGIC_N_HIGH	2745987765UL
-/** Contents of TRX_SYS_FILE_FORMAT_TAG when valid. The file format
-identifier is added to this 64-bit constant. */
-#define TRX_SYS_FILE_FORMAT_TAG_MAGIC_N					\
-	((ib_uint64_t) TRX_SYS_FILE_FORMAT_TAG_MAGIC_N_HIGH << 32	\
-	 | TRX_SYS_FILE_FORMAT_TAG_MAGIC_N_LOW)
 /* @} */
 
 /** The transaction system central memory data structure. */

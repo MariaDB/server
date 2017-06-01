@@ -6,18 +6,10 @@
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 
---disable_query_log
---disable_warnings
-let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
 let $encryption = `SELECT @@innodb_encrypt_tables`;
-SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
---enable_warnings
---enable_query_log
 
 create database enctests;
 use enctests;
@@ -90,13 +82,3 @@ SET GLOBAL innodb_encrypt_tables=ON;
 
 use test;
 drop database enctests;
-# reset system
-
---disable_query_log
---disable_warnings
-EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
-set global innodb_compression_algorithm = DEFAULT;
---enable_warnings
---enable_query_log

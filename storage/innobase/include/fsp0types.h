@@ -217,7 +217,7 @@ fsp_skip_sanity_check(
 #define FSP_FLAGS_WIDTH_ZIP_SSIZE	4
 /** Width of the ATOMIC_BLOBS flag.  The ability to break up a long
 column into an in-record prefix and an externally stored part is available
-to the two Barracuda row formats COMPRESSED and DYNAMIC. */
+to ROW_FORMAT=REDUNDANT and ROW_FORMAT=COMPACT. */
 #define FSP_FLAGS_WIDTH_ATOMIC_BLOBS	1
 /** Number of flag bits used to indicate the tablespace page size */
 #define FSP_FLAGS_WIDTH_PAGE_SSIZE	4

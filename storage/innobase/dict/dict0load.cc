@@ -1184,7 +1184,7 @@ dict_sys_tables_rec_read(
 
 	/* The low order bit of SYS_TABLES.TYPE is always set to 1. But in
 	dict_table_t::flags the low order bit is used to determine if the
-	row format is Redundant (0) or Compact (1) when the format is Antelope.
+	ROW_FORMAT=REDUNDANT (0) or anything else (1).
 	Read the 4 byte N_COLS field and look at the high order bit.  It
 	should be set for COMPACT and later.  It should not be set for
 	REDUNDANT. */

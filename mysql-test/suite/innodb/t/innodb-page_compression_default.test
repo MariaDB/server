@@ -1,15 +1,9 @@
 --source include/have_innodb.inc
 
---disable_query_log
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
 let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
 
---disable_warnings
-SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
---enable_warnings
 
 create table t1 (c1 int not null primary key auto_increment, b char(200)) engine=innodb page_compressed=1;
 insert into t1 values(NULL,'compressed_text_aaaaaaaaabbbbbbbbbbbbbccccccccccccc');
@@ -43,9 +37,6 @@ drop table t1;
 
 # reset system
 --disable_query_log
---disable_warnings
 EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
 EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
---enable_warnings
 --enable_query_log

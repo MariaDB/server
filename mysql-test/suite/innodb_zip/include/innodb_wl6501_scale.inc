@@ -7,7 +7,6 @@
 # create test-bed
 #
 let $per_table = `select @@innodb_file_per_table`;
-let $format = `select @@innodb_file_format`;
 
 let $WL6501_TMP_DIR = `select @@tmpdir`;
 let $WL6501_DATA_DIR = `select @@datadir`;
@@ -108,5 +107,4 @@ drop procedure populate_small;
 #
 # remove test-bed
 #
-eval set global innodb_file_format = $format;
 eval set global innodb_file_per_table = $per_table;

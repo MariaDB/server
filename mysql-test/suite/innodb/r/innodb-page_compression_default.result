@@ -1,4 +1,3 @@
-SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 create table t1 (c1 int not null primary key auto_increment, b char(200)) engine=innodb page_compressed=1;
 insert into t1 values(NULL,'compressed_text_aaaaaaaaabbbbbbbbbbbbbccccccccccccc');

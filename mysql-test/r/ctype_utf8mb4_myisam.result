@@ -244,7 +244,12 @@ hex(s1)
 413F
 drop table t1;
 create table t1 (a text character set utf8mb4, primary key(a(371))) engine MyISAM;
-ERROR 42000: Specified key was too long; max key length is 1000 bytes
+show warnings;
+Level	Code	Message
+Error	1071	Specified key was too long; max key length is 1000 bytes
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
 CREATE TABLE t1 ( a varchar(10) ) CHARACTER SET utf8mb4 ENGINE MyISAM;
 INSERT INTO t1 VALUES ( 'test' );
 SELECT a.a, b.a FROM t1 a, t1 b WHERE a.a = b.a;

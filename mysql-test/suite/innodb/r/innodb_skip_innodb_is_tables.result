@@ -346,7 +346,7 @@ Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_buffer_page_lru but the InnoDB storage engine is not installed
 select * from information_schema.innodb_buffer_stats;
 select * from information_schema.innodb_sys_tables;
-TABLE_ID	NAME	FLAG	N_COLS	SPACE	FILE_FORMAT	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
+TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_sys_tables but the InnoDB storage engine is not installed
 select * from information_schema.innodb_sys_tablestats;
@@ -374,7 +374,7 @@ ID	FOR_COL_NAME	REF_COL_NAME	POS
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_sys_foreign_cols but the InnoDB storage engine is not installed
 select * from information_schema.innodb_sys_tablespaces;
-SPACE	NAME	FLAG	FILE_FORMAT	ROW_FORMAT	PAGE_SIZE	ZIP_PAGE_SIZE	SPACE_TYPE	FS_BLOCK_SIZE	FILE_SIZE	ALLOCATED_SIZE
+SPACE	NAME	FLAG	ROW_FORMAT	PAGE_SIZE	ZIP_PAGE_SIZE	SPACE_TYPE	FS_BLOCK_SIZE	FILE_SIZE	ALLOCATED_SIZE
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_sys_tablespaces but the InnoDB storage engine is not installed
 select * from information_schema.innodb_sys_datafiles;

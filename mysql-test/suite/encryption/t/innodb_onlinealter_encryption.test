@@ -75,10 +75,7 @@ set autocommit=1;
 
 -- source include/start_mysqld.inc
 
---disable_warnings
-SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
---enable_warnings
 
 ALTER TABLE t1 ADD COLUMN b int default 2;
 ALTER TABLE t2 ADD COLUMN b int default 2;
