@@ -357,7 +357,8 @@ static void check_locks(THR_LOCK *lock, const char *where,
                data && count < MAX_LOCKS;
                data=data->next)
           {
-            if (data->type != TL_WRITE_CONCURRENT_INSERT)
+            if (data->type != TL_WRITE_CONCURRENT_INSERT &&
+                data->type != TL_WRITE_ALLOW_WRITE)
             {
               fprintf(stderr,
                       "Warning at '%s': Found TL_WRITE_CONCURRENT_INSERT lock mixed with other write lock: %d\n",
@@ -1288,6 +1289,7 @@ thr_multi_lock(THR_LOCK_DATA **data, uint count, THR_LOCK_INFO *owner,
     DBUG_RETURN(THR_LOCK_SUCCESS);
 
   /* lock everything */
+  DEBUG_SYNC_C("thr_multi_lock_before_thr_lock");
   for (pos=data,end=data+count; pos < end ; pos++)
   {
     enum enum_thr_lock_result result= thr_lock(*pos, owner, lock_wait_timeout);
@@ -1299,12 +1301,12 @@ thr_multi_lock(THR_LOCK_DATA **data, uint count, THR_LOCK_INFO *owner,
         (*pos)->type= TL_UNLOCK;
       DBUG_RETURN(result);
     }
-    DEBUG_SYNC_C("thr_multi_lock_after_thr_lock");
 #ifdef MAIN
     printf("Thread: %s  Got lock: 0x%lx  type: %d\n",my_thread_name(),
 	   (long) pos[0]->lock, pos[0]->type); fflush(stdout);
 #endif
   }
+  DEBUG_SYNC_C("thr_multi_lock_after_thr_lock");
 
   /*
     Call start_trans for all locks.

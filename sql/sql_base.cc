@@ -4262,8 +4262,9 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
         else
           lock_type= TL_READ;
 
-        if (table_already_fk_prelocked(table_list, fk->foreign_db,
-                                       fk->foreign_table, lock_type))
+        if (table_already_fk_prelocked(prelocking_ctx->query_tables,
+                                       fk->foreign_db, fk->foreign_table,
+                                       lock_type))
           continue;
 
         TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));

@@ -337,19 +337,6 @@ typedef struct replace_equal_field_arg
   struct st_join_table *context_tab;
 } REPLACE_EQUAL_FIELD_ARG;
 
-
-class Load_data_out_param
-{
-public:
-  Load_data_out_param() { }
-  virtual ~Load_data_out_param() { }
-  virtual void load_data_set_null_value(CHARSET_INFO *cs) = 0;
-  virtual void load_data_set_value(const char *str, uint length,
-                                   CHARSET_INFO *cs) = 0;
-  virtual void load_data_print(THD *thd, String *str) = 0;
-};
-
-
 class Settable_routine_parameter
 {
 public:
@@ -567,6 +554,15 @@ protected:
   SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param);
 
   /**
+    Create a field based on the exact data type handler.
+  */
+  Field *create_table_field_from_handler(TABLE *table)
+  {
+    const Type_handler *h= type_handler();
+    return h->make_and_init_table_field(&name, Record_addr(maybe_null),
+                                        *this, table);
+  }
+  /**
     Create a field based on field_type of argument.
     This is used to create a field for
     - IFNULL(x,something)
@@ -582,7 +578,7 @@ protected:
     return h->make_and_init_table_field(&name, Record_addr(maybe_null),
                                         *this, table);
   }
-  Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
+  Field *create_tmp_field_int(TABLE *table, uint convert_int_length);
 
   void push_note_converted_to_negative_complement(THD *thd);
   void push_note_converted_to_positive_complement(THD *thd);
@@ -880,14 +876,24 @@ public:
     to negative complements.
     Values of non-integer data types are adjusted to the SIGNED range.
   */
-  virtual longlong val_int_signed_typecast();
+  virtual longlong val_int_signed_typecast()
+  {
+    return cast_to_int_type_handler()->Item_val_int_signed_typecast(this);
+  }
+  longlong val_int_signed_typecast_from_str();
   /**
     Get a value for CAST(x AS UNSIGNED).
     Negative signed integer values are converted
     to positive complements.
     Values of non-integer data types are adjusted to the UNSIGNED range.
   */
-  virtual longlong val_int_unsigned_typecast();
+  virtual longlong val_int_unsigned_typecast()
+  {
+    return cast_to_int_type_handler()->Item_val_int_unsigned_typecast(this);
+  }
+  longlong val_int_unsigned_typecast_from_decimal();
+  longlong val_int_unsigned_typecast_from_int();
+  longlong val_int_unsigned_typecast_from_str();
   /*
     This is just a shortcut to avoid the cast. You should still use
     unsigned_flag to check the sign of the item.
@@ -1199,6 +1205,10 @@ public:
   {
     return const_item() ? type_handler()->Item_datetime_precision(this) :
                           MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
+  }
+  virtual longlong val_int_min() const
+  {
+    return LONGLONG_MIN;
   }
   /* 
     Returns true if this is constant (during query execution, i.e. its value
@@ -1622,18 +1632,25 @@ public:
   }
   virtual Item** addr(uint i) { return 0; }
   virtual bool check_cols(uint c);
+  bool check_type_traditional_scalar(const char *opname) const;
+  bool check_type_scalar(const char *opname) const;
+  bool check_type_or_binary(const char *opname, const Type_handler *handler) const;
+  bool check_type_general_purpose_string(const char *opname) const;
+  bool check_type_can_return_int(const char *opname) const;
+  bool check_type_can_return_real(const char *opname) const;
   // It is not row => null inside is impossible
   virtual bool null_inside() { return 0; }
   // used in row subselects to get value of elements
   virtual void bring_value() {}
 
+  const Type_handler *type_handler_long_or_longlong() const
+  {
+    return Type_handler::type_handler_long_or_longlong(max_char_length());
+  }
+
   virtual Field *create_tmp_field(bool group, TABLE *table)
   {
-    /*
-      Values with MY_INT32_NUM_DECIMAL_DIGITS digits may or may not fit into
-      Field_long : make them Field_longlong.
-    */
-    return create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS - 2);
+    return tmp_table_field_from_field_type(table);
   }
 
   virtual Item_field *field_for_view_update() { return 0; }
@@ -1700,14 +1717,6 @@ public:
     delete this;
   }
 
-  virtual Load_data_out_param *get_load_data_out_param() { return 0; }
-  Load_data_out_param *get_load_data_out_param_or_error()
-  {
-    Load_data_out_param *res= get_load_data_out_param();
-    if (!res)
-      my_error(ER_LOAD_DATA_INVALID_COLUMN, MYF(0), full_name());
-    return res;
-  }
   virtual Item_splocal *get_item_splocal() { return 0; }
   virtual Rewritable_query_parameter *get_rewritable_query_parameter()
   { return 0; }
@@ -2269,6 +2278,18 @@ public:
   bool append_for_log(THD *thd, String *str);
   
   Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+
+  /*
+    Override the inherited create_field_for_create_select(),
+    because we want to preserve the exact data type for:
+      DECLARE a1 INT;
+      DECLARE a2 TYPE OF t1.a2;
+      CREATE TABLE t1 AS SELECT a1, a2;
+    The inherited implementation would create a column
+    based on result_type(), which is less exact.
+  */
+  Field *create_field_for_create_select(TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
 };
 
 
@@ -2300,23 +2321,6 @@ public:
    :Item_splocal(thd, sp_var_name, sp_var_idx, MYSQL_TYPE_NULL,
                  pos_in_q, len_in_q)
   { }
-  bool fix_fields(THD *thd, Item **it)
-  {
-    if (Item_splocal::fix_fields(thd, it))
-      return true;
-    set_handler(this_item()->type_handler());
-    return false;
-  }
-  /*
-    Override the inherited create_field_for_create_select(),
-    because we want to preserve the exact data type for:
-      DECLARE a t1.a%TYPE;
-      CREATE TABLE t1 AS SELECT a;
-    The inherited implementation would create a column
-    based on result_type(), which is less exact.
-  */
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
 };
 
 
@@ -3231,17 +3235,13 @@ public:
   Item_int(THD *thd, const char *str_arg, uint length=64);
   enum Type type() const { return INT_ITEM; }
   const Type_handler *type_handler() const
-  {
-    // The same condition is repeated in Item::create_tmp_field()
-    if (max_length > MY_INT32_NUM_DECIMAL_DIGITS - 2)
-      return &type_handler_longlong;
-    return &type_handler_long;
-  }
+  { return type_handler_long_or_longlong(); }
   Field *create_tmp_field(bool group, TABLE *table)
   { return tmp_table_field_from_field_type(table); }
   Field *create_field_for_create_select(TABLE *table)
   { return tmp_table_field_from_field_type(table); }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return value; }
+  longlong val_int_min() const { DBUG_ASSERT(fixed == 1); return value; }
   double val_real() { DBUG_ASSERT(fixed == 1); return (double) value; }
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*);
@@ -3800,6 +3800,7 @@ public:
   Item_hex_hybrid(THD *thd): Item_hex_constant(thd) {}
   Item_hex_hybrid(THD *thd, const char *str, uint str_length):
     Item_hex_constant(thd, str, str_length) {}
+  uint decimal_precision() const;
   double val_real()
   { 
     DBUG_ASSERT(fixed == 1); 

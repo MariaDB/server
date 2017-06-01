@@ -1184,3 +1184,60 @@ CALL vctest();
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'string'
 DROP PROCEDURE vctest;
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12876 Wrong data type for CREATE..SELECT sp_var
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE i8  TINYINT;
+DECLARE i16 SMALLINT;
+DECLARE i32 INT;
+DECLARE i64 BIGINT;
+DECLARE f   FLOAT;
+DECLARE d   DOUBLE;
+DECLARE b8  BIT(8);
+DECLARE y   YEAR;
+DECLARE t1  TINYTEXT;
+DECLARE t2  TEXT;
+DECLARE t3  MEDIUMTEXT;
+DECLARE t4  LONGTEXT;
+CREATE TABLE t1 AS SELECT i8, i16, i32, i64, f, d, b8, y, t1, t2, t3, t4;
+END;
+$$
+CALL p1;
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+i8	tinyint(4)	YES		NULL	
+i16	smallint(6)	YES		NULL	
+i32	int(11)	YES		NULL	
+i64	bigint(20)	YES		NULL	
+f	float	YES		NULL	
+d	double	YES		NULL	
+b8	bit(8)	YES		NULL	
+y	year(4)	YES		NULL	
+t1	tinytext	YES		NULL	
+t2	text	YES		NULL	
+t3	mediumtext	YES		NULL	
+t4	longtext	YES		NULL	
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# MDEV-12917 Wrong data type for CREATE..SELECT year_sp_variable
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a YEAR;
+CREATE OR REPLACE TABLE t1 AS SELECT a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+CALL p1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" year(4) DEFAULT NULL
+)
+DROP PROCEDURE p1;

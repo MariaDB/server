@@ -7,9 +7,6 @@
 #
 # MDEV-8164: Server crashes in pfs_mutex_enter_func after fil_crypt_is_closing or alike
 #
-
-call mtr.add_suppression("InnoDB: Error: trying to do an operation on a dropped tablespace.*");
-
 SET default_storage_engine = InnoDB;
 
 CREATE TABLE t1 (pk INT PRIMARY KEY, c VARCHAR(256));

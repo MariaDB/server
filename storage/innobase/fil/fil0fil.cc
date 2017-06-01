@@ -306,7 +306,9 @@ fil_write(
 }
 
 /*******************************************************************//**
-Returns the table space by a given id, NULL if not found. */
+Returns the table space by a given id, NULL if not found.
+It is unsafe to dereference the returned pointer. It is fine to check
+for NULL. */
 fil_space_t*
 fil_space_get_by_id(
 /*================*/
@@ -2276,7 +2278,7 @@ for concurrency control.
 @param[in]	silent	whether to silently ignore missing tablespaces
 @return	the tablespace
 @retval	NULL if missing or being deleted or truncated */
-inline
+UNIV_INTERN
 fil_space_t*
 fil_space_acquire_low(ulint id, bool silent)
 {
@@ -2300,30 +2302,6 @@ fil_space_acquire_low(ulint id, bool silent)
 	mutex_exit(&fil_system->mutex);
 
 	return(space);
-}
-
-/** Acquire a tablespace when it could be dropped concurrently.
-Used by background threads that do not necessarily hold proper locks
-for concurrency control.
-@param[in]	id	tablespace ID
-@return	the tablespace
-@retval	NULL	if missing or being deleted or truncated */
-fil_space_t*
-fil_space_acquire(ulint id)
-{
-	return(fil_space_acquire_low(id, false));
-}
-
-/** Acquire a tablespace that may not exist.
-Used by background threads that do not necessarily hold proper locks
-for concurrency control.
-@param[in]	id	tablespace ID
-@return	the tablespace
-@retval	NULL if missing or being deleted */
-fil_space_t*
-fil_space_acquire_silent(ulint id)
-{
-	return(fil_space_acquire_low(id, true));
 }
 
 /** Release a tablespace acquired with fil_space_acquire().
@@ -3102,7 +3080,7 @@ checked @return whether the table is accessible */
 bool
 fil_table_accessible(const dict_table_t* table)
 {
-	if (UNIV_UNLIKELY(table->ibd_file_missing || table->corrupted)) {
+	if (UNIV_UNLIKELY(!table->is_readable() || table->corrupted)) {
 		return(false);
 	}
 
@@ -3816,7 +3794,7 @@ fil_ibd_create(
 	ulint		flags,
 	ulint		size,
 	fil_encryption_t mode,
-	ulint		key_id)
+	uint32_t	key_id)
 {
 	os_file_t	file;
 	dberr_t		err;
@@ -3880,17 +3858,21 @@ fil_ibd_create(
 
         success= false;
 #ifdef HAVE_POSIX_FALLOCATE
-        /*
-          Extend the file using posix_fallocate(). This is required by
-          FusionIO HW/Firmware but should also be the prefered way to extend
-          a file.
-        */
-        int	ret = posix_fallocate(file, 0, size * UNIV_PAGE_SIZE);
+	/*
+	  Extend the file using posix_fallocate(). This is required by
+	  FusionIO HW/Firmware but should also be the prefered way to extend
+	  a file.
+	*/
+	int	ret;
+	do {
+		ret = posix_fallocate(file, 0, size * UNIV_PAGE_SIZE);
+	} while (ret == EINTR
+		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
-        if (ret == 0) {
+	if (ret == 0) {
 		success = true;
 	} else if (ret != EINVAL) {
-          	ib::error() <<
+		ib::error() <<
 			"posix_fallocate(): Failed to preallocate"
 			" data for file " << path
 			<< ", desired size "
@@ -4791,7 +4773,7 @@ fsp_flags_try_adjust(ulint space_id, ulint flags)
 	ut_ad(fsp_flags_is_valid(flags));
 
 	mtr_t	mtr;
-	mtr_start(&mtr);
+	mtr.start();
 	if (buf_block_t* b = buf_page_get(
 		    page_id_t(space_id, 0), page_size_t(flags),
 		    RW_X_LATCH, &mtr)) {
@@ -4805,12 +4787,13 @@ fsp_flags_try_adjust(ulint space_id, ulint flags)
 				<< " to " << ib::hex(flags);
 		}
 		if (f != flags) {
+			mtr.set_named_space(space_id);
 			mlog_write_ulint(FSP_HEADER_OFFSET
 					 + FSP_SPACE_FLAGS + b->frame,
 					 flags, MLOG_4BYTES, &mtr);
 		}
 	}
-	mtr_commit(&mtr);
+	mtr.commit();
 }
 
 /** Determine if a matching tablespace exists in the InnoDB tablespace
@@ -4921,7 +4904,7 @@ fil_space_for_table_exists_in_mem(
 				" deleted or moved .ibd files?";
 		}
 error_exit:
-		ib::warn() << TROUBLESHOOT_DATADICT_MSG;
+		ib::info() << TROUBLESHOOT_DATADICT_MSG;
 		valid = false;
 		goto func_exit;
 	}
@@ -5509,6 +5492,8 @@ fil_aio_wait(
 	mutex_enter(&fil_system->mutex);
 
 	fil_node_complete_io(node, type);
+	const fil_type_t	purpose		= node->space->purpose;
+	const ulint		space_id	= node->space->id;
 
 	mutex_exit(&fil_system->mutex);
 
@@ -5520,7 +5505,11 @@ fil_aio_wait(
 	deadlocks in the i/o system. We keep tablespace 0 data files always
 	open, and use a special i/o thread to serve insert buffer requests. */
 
-	switch (node->space->purpose) {
+	switch (purpose) {
+	case FIL_TYPE_LOG:
+		srv_set_io_thread_op_info(segment, "complete io for log");
+		log_io_complete(static_cast<log_group_t*>(message));
+		return;
 	case FIL_TYPE_TABLESPACE:
 	case FIL_TYPE_TEMPORARY:
 	case FIL_TYPE_IMPORT:
@@ -5528,13 +5517,32 @@ fil_aio_wait(
 
 		/* async single page writes from the dblwr buffer don't have
 		access to the page */
-		if (message != NULL) {
-			buf_page_io_complete(static_cast<buf_page_t*>(message));
+		buf_page_t* bpage = static_cast<buf_page_t*>(message);
+		if (!bpage) {
+			return;
 		}
-		return;
-	case FIL_TYPE_LOG:
-		srv_set_io_thread_op_info(segment, "complete io for log");
-		log_io_complete(static_cast<log_group_t*>(message));
+
+		ulint offset = bpage->id.page_no();
+		dberr_t err = buf_page_io_complete(bpage);
+		if (err == DB_SUCCESS) {
+			return;
+		}
+
+		ut_ad(type.is_read());
+		if (recv_recovery_is_on() && !srv_force_recovery) {
+			recv_sys->found_corrupt_fs = true;
+		}
+
+		if (fil_space_t* space = fil_space_acquire_for_io(space_id)) {
+			if (space == node->space) {
+				ib::error() << "Failed to read file '"
+					    << node->name
+					    << "' at offset " << offset
+					    << ": " << ut_strerr(err);
+			}
+
+			fil_space_release_for_io(space);
+		}
 		return;
 	}
 
@@ -6920,8 +6928,8 @@ fil_space_keyrotate_next(
 	or dropped or truncated. Note that rotation_list contains only
 	space->purpose == FIL_TYPE_TABLESPACE. */
 	while (space != NULL
-		&& (UT_LIST_GET_LEN(space->chain) == 0
-		    || space->is_stopping())) {
+	       && (UT_LIST_GET_LEN(space->chain) == 0
+		   || space->is_stopping())) {
 
 		old = space;
 		space = UT_LIST_GET_NEXT(rotation_list, space);
@@ -6952,9 +6960,10 @@ fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 		block_size = node->block_size;
 		if (node->size > offset) {
+			ut_ad(node->size <= 0xFFFFFFFFU);
 			break;
 		}
-		offset -= node->size;
+		offset -= static_cast<unsigned>(node->size);
 	}
 
 	/* Currently supporting block size up to 4K,

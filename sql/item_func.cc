@@ -151,15 +151,81 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
 }
 
 
-bool Item_func::check_allowed_arg_cols(uint n)
+bool Item_func::check_argument_types_like_args0() const
 {
-  if (allowed_arg_cols)
-    return args[n]->check_cols(allowed_arg_cols);
+  uint cols;
+  if (arg_count == 0)
+    return false;
+  cols= args[0]->cols();
+  for (uint i= 1; i < arg_count; i++)
+  {
+    if (args[i]->check_cols(cols))
+      return true;
+  }
+  return false;
+}
 
-  /*  we have to fetch allowed_arg_cols from first argument */
-  DBUG_ASSERT(n == 0); // it is first argument
-  allowed_arg_cols= args[n]->cols();
-  DBUG_ASSERT(allowed_arg_cols); // Can't be 0 any more
+
+bool Item_func::check_argument_types_or_binary(const Type_handler *handler,
+                                               uint start, uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_or_binary(func_name(), handler))
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_func::check_argument_types_traditional_scalar(uint start,
+                                                        uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_traditional_scalar(func_name()))
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_func::check_argument_types_can_return_int(uint start,
+                                                    uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_can_return_int(func_name()))
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_func::check_argument_types_can_return_real(uint start,
+                                                     uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_can_return_real(func_name()))
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_func::check_argument_types_scalar(uint start, uint end) const
+{
+  for (uint i= start; i < end; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_scalar(func_name()))
+      return true;
+  }
   return false;
 }
 
@@ -236,9 +302,6 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	return TRUE;				/* purecov: inspected */
       item= *arg;
 
-      if (check_allowed_arg_cols(arg - args))
-        return true;
-
       if (item->maybe_null)
 	maybe_null=1;
 
@@ -249,6 +312,8 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_subselect|=        item->has_subquery();
     }
   }
+  if (check_arguments())
+    return true;
   fix_length_and_dec();
   if (thd->is_error()) // An error inside fix_length_and_dec occurred
     return TRUE;
@@ -632,7 +697,7 @@ String *Item_int_func::val_str(String *str)
 
 void Item_func_connection_id::fix_length_and_dec()
 {
-  Item_int_func::fix_length_and_dec();
+  Item_long_func::fix_length_and_dec();
   max_length= 10;
 }
 
@@ -879,75 +944,12 @@ void Item_func_signed::print(String *str, enum_query_type query_type)
 }
 
 
-longlong Item::val_int_from_str(int *error)
-{
-  char buff[MAX_FIELD_WIDTH];
-  String tmp(buff,sizeof(buff), &my_charset_bin), *res;
-
-  /*
-    For a string result, we must first get the string and then convert it
-    to a longlong
-  */
-
-  if (!(res= val_str(&tmp)))
-  {
-    *error= 0;
-    return 0;
-  }
-  Converter_strtoll10_with_warn cnv(NULL, Warn_filter_all(),
-                                    res->charset(), res->ptr(), res->length());
-  *error= cnv.error();
-  return cnv.result();
-}
-
-
-longlong Item::val_int_signed_typecast()
-{
-  if (cast_to_int_type_handler()->cmp_type() != STRING_RESULT)
-    return val_int();
-
-  int error;
-  longlong value= val_int_from_str(&error);
-  if (!null_value && value < 0 && error == 0)
-    push_note_converted_to_negative_complement(current_thd);
-  return value;
-}
-
-
 void Item_func_unsigned::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("cast("));
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" as unsigned)"));
 
-}
-
-
-longlong Item::val_int_unsigned_typecast()
-{
-  if (cast_to_int_type_handler()->cmp_type() == DECIMAL_RESULT)
-  {
-    longlong value;
-    my_decimal tmp, *dec= val_decimal(&tmp);
-    if (!null_value)
-      my_decimal2int(E_DEC_FATAL_ERROR, dec, 1, &value);
-    else
-      value= 0;
-    return value;
-  }
-  else if (cast_to_int_type_handler()->cmp_type() != STRING_RESULT)
-  {
-    longlong value= val_int();
-    if (!null_value && unsigned_flag == 0 && value < 0)
-      push_note_converted_to_positive_complement(current_thd);
-    return value;
-  }
-
-  int error;
-  longlong value= val_int_from_str(&error);
-  if (!null_value && error < 0)
-    push_note_converted_to_positive_complement(current_thd);
-  return value;
 }
 
 
@@ -1804,8 +1806,8 @@ my_decimal *Item_func_neg::decimal_op(my_decimal *decimal_value)
 
 void Item_func_neg::fix_length_and_dec_int()
 {
-  set_handler(&type_handler_longlong);
   max_length= args[0]->max_length + 1;
+  set_handler(type_handler_long_or_longlong());
 
   /*
     If this is in integer context keep the context as integer if possible
@@ -1898,9 +1900,9 @@ my_decimal *Item_func_abs::decimal_op(my_decimal *decimal_value)
 
 void Item_func_abs::fix_length_and_dec_int()
 {
-  set_handler(&type_handler_longlong);
   max_length= args[0]->max_length;
   unsigned_flag= args[0]->unsigned_flag;
+  set_handler(type_handler_long_or_longlong());
 }
 
 
@@ -2181,7 +2183,7 @@ void Item_func_int_val::fix_length_and_dec_int_or_decimal()
   else
   {
     unsigned_flag= args[0]->unsigned_flag;
-    set_handler(&type_handler_longlong);
+    set_handler(type_handler_long_or_longlong());
   }
 }
 
@@ -2372,9 +2374,9 @@ void Item_func_round::fix_arg_int()
       int length_can_increase= MY_TEST(!truncate && val1_is_negative);
       max_length= args[0]->max_length + length_can_increase;
       // Here we can keep INT_RESULT
-      set_handler(&type_handler_longlong);
       unsigned_flag= args[0]->unsigned_flag;
       decimals= 0;
+      set_handler(type_handler_long_or_longlong());
     }
     else
       fix_length_and_dec_decimal(decimals_to_set);
@@ -2773,6 +2775,14 @@ my_decimal *Item_func_min_max::val_decimal_native(my_decimal *dec)
 }
 
 
+longlong Item_func_bit_length::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  String *res= args[0]->val_str(&value);
+  return (null_value= !res) ? 0 : (longlong) res->length() * 8;
+}
+
+
 longlong Item_func_octet_length::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -2806,13 +2816,6 @@ longlong Item_func_coercibility::val_int()
   DBUG_ASSERT(fixed == 1);
   null_value= 0;
   return (longlong) args[0]->collation.derivation;
-}
-
-
-void Item_func_locate::fix_length_and_dec()
-{
-  max_length= MY_INT32_NUM_DECIMAL_DIGITS;
-  agg_arg_charsets_for_comparison(cmp_collation, args, 2);
 }
 
 
@@ -4414,8 +4417,27 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     m_var_entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
                              default_charset() : args[0]->collation.collation);
   collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
-  set_handler_by_result_type(args[0]->result_type(),
-                             max_length, collation.collation);
+  switch (args[0]->result_type()) {
+  case STRING_RESULT:
+  case TIME_RESULT:
+    set_handler(type_handler_long_blob.
+                type_handler_adjusted_to_max_octet_length(max_length,
+                                                          collation.collation));
+    break;
+  case REAL_RESULT:
+    set_handler(&type_handler_double);
+    break;
+  case INT_RESULT:
+    set_handler(Type_handler::type_handler_long_or_longlong(max_char_length()));
+    break;
+  case DECIMAL_RESULT:
+    set_handler(&type_handler_newdecimal);
+    break;
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    set_handler(&type_handler_row);
+    break;
+  }
   if (thd->lex->current_select)
   {
     /*
@@ -5321,7 +5343,6 @@ void Item_func_get_user_var::fix_length_and_dec()
       break;
     case STRING_RESULT:
       max_length= MAX_BLOB_WIDTH - 1;
-      set_handler(&type_handler_medium_blob);
       break;
     case DECIMAL_RESULT:
       fix_char_length(DECIMAL_MAX_STR_LENGTH);
@@ -5406,15 +5427,14 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
 }
 
 
-void Item_user_var_as_out_param::load_data_set_null_value(CHARSET_INFO* cs)
+void Item_user_var_as_out_param::set_null_value(CHARSET_INFO* cs)
 {
   ::update_hash(entry, TRUE, 0, 0, STRING_RESULT, cs, 0 /* unsigned_arg */);
 }
 
 
-void Item_user_var_as_out_param::load_data_set_value(const char *str,
-                                                     uint length,
-                                                     CHARSET_INFO* cs)
+void Item_user_var_as_out_param::set_value(const char *str, uint length,
+                                           CHARSET_INFO* cs)
 {
   ::update_hash(entry, FALSE, (void*)str, length, STRING_RESULT, cs,
                 0 /* unsigned_arg */);
@@ -5449,7 +5469,7 @@ my_decimal* Item_user_var_as_out_param::val_decimal(my_decimal *decimal_buffer)
 }
 
 
-void Item_user_var_as_out_param::load_data_print(THD *thd, String *str)
+void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
 {
   str->append('@');
   append_identifier(thd, str, name.str, name.length);
@@ -6688,14 +6708,14 @@ void Item_func_last_value::fix_length_and_dec()
 }
 
 
-void Item_func_cursor_int_attr::print(String *str, enum_query_type query_type)
+void Cursor_ref::print_func(String *str, const char *func_name)
 {
   append_identifier(current_thd, str, m_cursor_name.str, m_cursor_name.length);
-  str->append(func_name());
+  str->append(func_name);
 }
 
 
-sp_cursor *Item_func_cursor_int_attr::get_open_cursor_or_error()
+sp_cursor *Cursor_ref::get_open_cursor_or_error()
 {
   THD *thd= current_thd;
   sp_cursor *c= thd->spcont->get_cursor(m_cursor_offset);

@@ -244,3 +244,13 @@ create table t1 (a int);
 select setval(t1,10);
 ERROR 42S02: 'test.t1' is not a SEQUENCE
 drop table t1;
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+CREATE SEQUENCE s1;
+SELECT SETVAL(s1,10);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					SETVAL(s1,10)	8	20	2	Y	32896	0	63
+SETVAL(s1,10)
+10
+DROP SEQUENCE s1;

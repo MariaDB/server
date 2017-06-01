@@ -7486,3 +7486,7 @@ ER_UNKNOWN_SEQUENCES 42S02
         eng "Unknown SEQUENCE: '%-.300s'"
 ER_UNKNOWN_VIEW 42S02
         eng "Unknown VIEW: '%-.300s'"
+ER_WRONG_INSERT_INTO_SEQUENCE
+        eng "Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a squence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead."
+ER_SP_STACK_TRACE
+        eng "At line %u in %s"

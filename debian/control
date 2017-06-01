@@ -31,6 +31,7 @@ Build-Depends: bison,
                po-debconf,
                psmisc,
                unixodbc-dev,
+               uuid-dev,
                zlib1g-dev (>= 1:1.1.3-5~)
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
@@ -603,6 +604,22 @@ Depends: libcrack2 (>= 2.9.0),
 Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
+
+Package: mariadb-plugin-aws-key-management-10.3
+Section: database
+Architecture: any
+Breaks: mariadb-aws-key-management-10.1,
+        mariadb-aws-key-management-10.2
+Replaces: mariadb-aws-key-management-10.1,
+          mariadb-aws-key-management-10.2
+Depends: mariadb-server-10.3,
+         libcurl3,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Amazon Web Service Key Management Service Plugin for MariaDB
+ This encryption key management plugin gives an interface to the Amazon Web
+ Services Key Management Service for managing encryption keys used for MariaDB
+ data-at-rest encryption.
 
 Package: mariadb-test
 Architecture: any

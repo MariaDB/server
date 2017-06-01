@@ -26,7 +26,7 @@ MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 *******************************************************/
 #include "m_string.h"
 #include "log0crypt.h"
-#include "my_crypt.h"
+#include <mysql/service_my_crypt.h>
 
 #include "log0crypt.h"
 #include "srv0start.h" // for srv_start_lsn

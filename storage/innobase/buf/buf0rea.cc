@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016 MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -118,8 +118,7 @@ buf_read_page_low(
 	ulint			mode,
 	const page_id_t&	page_id,
 	const page_size_t&	page_size,
-	bool			unzip,
-	buf_page_t** 	rbpage) /*!< out: page */
+	bool			unzip)
 {
 	buf_page_t*	bpage;
 
@@ -155,12 +154,9 @@ buf_read_page_low(
 		return(0);
 	}
 
-	DBUG_PRINT("ib_buf", ("read page %u:%u size=%u unzip=%u,%s",
-			      (unsigned) page_id.space(),
-			      (unsigned) page_id.page_no(),
-			      (unsigned) page_size.physical(),
-			      (unsigned) unzip,
-			      sync ? "sync" : "async"));
+	DBUG_LOG("ib_buf",
+		 "read page " << page_id << " size=" << page_size.physical()
+		 << " unzip=" << unzip << ',' << (sync ? "sync" : "async"));
 
 	ut_ad(buf_page_in_file(bpage));
 
@@ -213,17 +209,11 @@ buf_read_page_low(
 	if (sync) {
 		/* The i/o is already completed when we arrive from
 		fil_read */
+		*err = buf_page_io_complete(bpage);
 
-		if (!buf_page_io_complete(bpage)) {
-			if (rbpage) {
-				*rbpage = bpage;
-			}
+		if (*err != DB_SUCCESS) {
 			return(0);
 		}
-	}
-
-	if (rbpage) {
-		*rbpage = bpage;
 	}
 
 	return(1);
@@ -256,7 +246,7 @@ buf_read_ahead_random(
 	ulint		ibuf_mode;
 	ulint		count;
 	ulint		low, high;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	ulint		i;
 	const ulint	buf_read_ahead_random_area
 				= BUF_READ_AHEAD_AREA(buf_pool);
@@ -369,19 +359,25 @@ read_ahead:
 		const page_id_t	cur_page_id(page_id.space(), i);
 
 		if (!ibuf_bitmap_page(cur_page_id, page_size)) {
-			buf_page_t* rpage = NULL;
 			count += buf_read_page_low(
 				&err, false,
 				IORequest::DO_NOT_WAKE,
 				ibuf_mode,
-				cur_page_id, page_size, false, &rpage);
+				cur_page_id, page_size, false);
 
-			if (err == DB_TABLESPACE_DELETED) {
-				ib::warn() << "Random readahead trying to"
+			switch (err) {
+			case DB_SUCCESS:
+			case DB_TABLESPACE_TRUNCATED:
+			case DB_ERROR:
+				break;
+			case DB_TABLESPACE_DELETED:
+				ib::info() << "Random readahead trying to"
 					" access page " << cur_page_id
 					<< " in nonexisting or"
 					" being-dropped tablespace";
 				break;
+			default:
+				ut_error;
 			}
 		}
 	}
@@ -414,15 +410,18 @@ an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
 @param[in]	page_id		page id
 @param[in]	page_size	page size
-@return TRUE if page has been read in, FALSE in case of failure */
-ibool
+@retval DB_SUCCESS if the page was read and is not corrupted,
+@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
+@retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
+after decryption normal page checksum does not match.
+@retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
+dberr_t
 buf_read_page(
 	const page_id_t&	page_id,
-	const page_size_t&	page_size,
-	buf_page_t** bpage)	/*!< out: page */
+	const page_size_t&	page_size)
 {
 	ulint		count;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 
 	/* We do synchronous IO because our AIO completion code
 	is sub-optimal. See buf_page_io_complete(), we have to
@@ -432,19 +431,19 @@ buf_read_page(
 
 	count = buf_read_page_low(
 		&err, true,
-		0, BUF_READ_ANY_PAGE, page_id, page_size, false, bpage);
+		0, BUF_READ_ANY_PAGE, page_id, page_size, false);
 
 	srv_stats.buf_pool_reads.add(count);
 
 	if (err == DB_TABLESPACE_DELETED) {
-		ib::error() << "trying to read page " << page_id
+		ib::info() << "trying to read page " << page_id
 			<< " in nonexisting or being-dropped tablespace";
 	}
 
 	/* Increment number of I/O operations used for LRU policy. */
 	buf_LRU_stat_inc_io();
 
-	return(count > 0);
+	return(err);
 }
 
 /** High-level function which reads a page asynchronously from a file to the
@@ -453,9 +452,8 @@ an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
 @param[in]	page_id		page id
 @param[in]	page_size	page size
-@param[in]	sync		true if synchronous aio is desired
-@return TRUE if page has been read in, FALSE in case of failure */
-ibool
+@param[in]	sync		true if synchronous aio is desired */
+void
 buf_read_page_background(
 	const page_id_t&	page_id,
 	const page_size_t&	page_size,
@@ -463,13 +461,31 @@ buf_read_page_background(
 {
 	ulint		count;
 	dberr_t		err;
-	buf_page_t*	rbpage = NULL;
 
 	count = buf_read_page_low(
 		&err, sync,
 		IORequest::DO_NOT_WAKE | IORequest::IGNORE_MISSING,
 		BUF_READ_ANY_PAGE,
-		page_id, page_size, false, &rbpage);
+		page_id, page_size, false);
+
+	switch (err) {
+	case DB_SUCCESS:
+	case DB_TABLESPACE_TRUNCATED:
+	case DB_ERROR:
+		break;
+	case DB_TABLESPACE_DELETED:
+		ib::info() << "trying to read page " << page_id
+			<< " in the background"
+			" in a non-existing or being-dropped tablespace";
+		break;
+	case DB_DECRYPTION_FAILED:
+		ib::error()
+			<< "Background Page read failed to decrypt page "
+			<< page_id;
+		break;
+	default:
+		ut_error;
+	}
 
 	srv_stats.buf_pool_reads.add(count);
 
@@ -479,8 +495,6 @@ buf_read_page_background(
 	buffer pool. Since this function is called from buffer pool load
 	these IOs are deliberate and are not part of normal workload we can
 	ignore these in our heuristics. */
-
-	return(count > 0);
 }
 
 /** Applies linear read-ahead if in the buf_pool the page is a border page of
@@ -525,7 +539,7 @@ buf_read_ahead_linear(
 	ulint		new_offset;
 	ulint		fail_count;
 	ulint		low, high;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	ulint		i;
 	const ulint	buf_read_ahead_linear_area
 		= BUF_READ_AHEAD_AREA(buf_pool);
@@ -730,19 +744,29 @@ buf_read_ahead_linear(
 		const page_id_t	cur_page_id(page_id.space(), i);
 
 		if (!ibuf_bitmap_page(cur_page_id, page_size)) {
-			buf_page_t* rpage = NULL;
-
 			count += buf_read_page_low(
 				&err, false,
 				IORequest::DO_NOT_WAKE,
-				ibuf_mode, cur_page_id, page_size, false, &rpage);
+				ibuf_mode, cur_page_id, page_size, false);
 
-			if (err == DB_TABLESPACE_DELETED) {
-				ib::warn() << "linear readahead trying to"
+			switch (err) {
+			case DB_SUCCESS:
+			case DB_TABLESPACE_TRUNCATED:
+			case DB_ERROR:
+				break;
+			case DB_TABLESPACE_DELETED:
+				ib::info() << "linear readahead trying to"
 					" access page "
 					<< page_id_t(page_id.space(), i)
 					<< " in nonexisting or being-dropped"
 					" tablespace";
+			case DB_DECRYPTION_FAILED:
+				ib::error() << "linear readahead failed to"
+					" decrypt page "
+					<< page_id_t(page_id.space(), i);
+				break;
+			default:
+				ut_error;
 			}
 		}
 	}
@@ -797,13 +821,13 @@ buf_read_ibuf_merge_pages(
 		const page_id_t	page_id(space_ids[i], page_nos[i]);
 
 		buf_pool_t*	buf_pool = buf_pool_get(page_id);
-		buf_page_t*	rpage = NULL;
 
 		bool			found;
 		const page_size_t	page_size(fil_space_get_page_size(
 			space_ids[i], &found));
 
 		if (!found) {
+tablespace_deleted:
 			/* The tablespace was not found, remove the
 			entries for that page */
 			ibuf_merge_or_delete_for_page(NULL, page_id,
@@ -822,13 +846,21 @@ buf_read_ibuf_merge_pages(
 				  sync && (i + 1 == n_stored),
 				  0,
 				  BUF_READ_ANY_PAGE, page_id, page_size,
-				  true, &rpage);
+				  true);
 
-		if (err == DB_TABLESPACE_DELETED) {
-			/* We have deleted or are deleting the single-table
-			tablespace: remove the entries for that page */
-			ibuf_merge_or_delete_for_page(NULL, page_id,
-						      &page_size, FALSE);
+		switch(err) {
+		case DB_SUCCESS:
+		case DB_TABLESPACE_TRUNCATED:
+		case DB_ERROR:
+			break;
+		case DB_TABLESPACE_DELETED:
+			goto tablespace_deleted;
+		case DB_DECRYPTION_FAILED:
+			ib::error() << "Failed to decrypt page " << page_id
+				<< " for change buffer merge";
+			break;
+		default:
+			ut_error;
 		}
 	}
 
@@ -855,9 +887,6 @@ buf_read_recv_pages(
 	const ulint*	page_nos,
 	ulint		n_stored)
 {
-	ulint			count;
-	dberr_t			err;
-	ulint			i;
 	fil_space_t*		space	= fil_space_get(space_id);
 
 	if (space == NULL) {
@@ -869,12 +898,11 @@ buf_read_recv_pages(
 
 	const page_size_t	page_size(space->flags);
 
-	for (i = 0; i < n_stored; i++) {
+	for (ulint i = 0; i < n_stored; i++) {
 		buf_pool_t*		buf_pool;
 		const page_id_t	cur_page_id(space_id, page_nos[i]);
-		buf_page_t*		rpage = NULL;
 
-		count = 0;
+		ulint			count = 0;
 
 		buf_pool = buf_pool_get(cur_page_id);
 		while (buf_pool->n_pend_reads >= recv_n_pool_free_frames / 2) {
@@ -894,18 +922,25 @@ buf_read_recv_pages(
 			}
 		}
 
-		if ((i + 1 == n_stored) && sync) {
+		dberr_t err;
+
+		if (sync && i + 1 == n_stored) {
 			buf_read_page_low(
 				&err, true,
 				0,
 				BUF_READ_ANY_PAGE,
-				cur_page_id, page_size, true, &rpage);
+				cur_page_id, page_size, true);
 		} else {
 			buf_read_page_low(
 				&err, false,
 				IORequest::DO_NOT_WAKE,
 				BUF_READ_ANY_PAGE,
-				cur_page_id, page_size, true, &rpage);
+				cur_page_id, page_size, true);
+		}
+
+		if (err == DB_DECRYPTION_FAILED) {
+			ib::error() << "Recovery failed to decrypt page "
+				<< cur_page_id;
 		}
 	}
 

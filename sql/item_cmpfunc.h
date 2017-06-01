@@ -204,6 +204,7 @@ public:
   Item_bool_func(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
   Item_bool_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
   Item_bool_func(THD *thd, Item_bool_func *item) :Item_int_func(thd, item) {}
+  const Type_handler *type_handler() const { return &type_handler_long; }
   bool is_bool_type() { return true; }
   virtual CHARSET_INFO *compare_collation() const { return NULL; }
   void fix_length_and_dec() { decimals=0; max_length=1; }
@@ -480,12 +481,14 @@ class Item_bool_rowready_func2 :public Item_bool_func2_with_rev
 {
 protected:
   Arg_comparator cmp;
+  bool check_arguments() const
+  {
+    return check_argument_types_like_args0();
+  }
 public:
   Item_bool_rowready_func2(THD *thd, Item *a, Item *b):
     Item_bool_func2_with_rev(thd, a, b), cmp(tmp_arg, tmp_arg + 1)
-  {
-    allowed_arg_cols= 0;  // Fetch this value from first argument
-  }
+  { }
   void print(String *str, enum_query_type query_type)
   {
     Item_func::print_op(str, query_type);
@@ -919,13 +922,13 @@ public:
 };
 
 
-class Item_func_strcmp :public Item_int_func
+class Item_func_strcmp :public Item_long_func
 {
   String value1, value2;
   DTCollation cmp_collation;
 public:
   Item_func_strcmp(THD *thd, Item *a, Item *b):
-    Item_int_func(thd, a, b) {}
+    Item_long_func(thd, a, b) {}
   longlong val_int();
   uint decimal_precision() const { return 1; }
   const char *func_name() const { return "strcmp"; }
@@ -946,17 +949,19 @@ struct interval_range
   my_decimal dec;
 };
 
-class Item_func_interval :public Item_int_func
+class Item_func_interval :public Item_long_func
 {
   Item_row *row;
   bool use_decimal_comparison;
   interval_range *intervals;
+  bool check_arguments() const
+  {
+    return check_argument_types_like_args0();
+  }
 public:
   Item_func_interval(THD *thd, Item_row *a):
-    Item_int_func(thd, a), row(a), intervals(0)
-  {
-    allowed_arg_cols= 0;    // Fetch this value from first argument
-  }
+    Item_long_func(thd, a), row(a), intervals(0)
+  { }
   longlong val_int();
   void fix_length_and_dec();
   const char *func_name() const { return "interval"; }
@@ -1466,8 +1471,6 @@ public:
   virtual int cmp(Item *item)= 0;
   // for optimized IN with row
   virtual int compare(cmp_item *item)= 0;
-  static cmp_item* get_comparator(Item_result type, Item * warn_item,
-                                  CHARSET_INFO *cs);
   virtual cmp_item *make_same()= 0;
   virtual void store_value_by_template(THD *thd, cmp_item *tmpl, Item *item)
   {
@@ -2118,6 +2121,10 @@ class Item_func_in :public Item_func_opt_neg,
     return true;
   }
   bool prepare_predicant_and_values(THD *thd, uint *found_types);
+  bool check_arguments() const
+  {
+    return check_argument_types_like_args0();
+  }
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value);
@@ -2142,9 +2149,7 @@ public:
     Predicant_to_list_comparator(thd, arg_count - 1),
     array(0), have_null(0),
     arg_types_compatible(FALSE)
-  {
-    allowed_arg_cols= 0;  // Fetch this value from first argument
-  }
+  { }
   longlong val_int();
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
@@ -2661,12 +2666,19 @@ public:
 };
 
 
-class Item_func_regexp_instr :public Item_int_func
+/*
+  In the corner case REGEXP_INSTR could return (2^32 + 1),
+  which would not fit into Item_long_func range.
+  But string lengths are limited with max_allowed_packet,
+  which cannot be bigger than 1024*1024*1024.
+*/
+class Item_func_regexp_instr :public Item_long_func
 {
   Regexp_processor_pcre re;
   DTCollation cmp_collation;
 public:
-  Item_func_regexp_instr(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b)
+  Item_func_regexp_instr(THD *thd, Item *a, Item *b)
+   :Item_long_func(thd, a, b)
   {}
   void cleanup()
   {
@@ -3129,6 +3141,61 @@ public:
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_dyncol_exists>(thd, mem_root, this); }
 };
+
+
+class Item_func_cursor_bool_attr: public Item_bool_func, public Cursor_ref
+{
+public:
+  Item_func_cursor_bool_attr(THD *thd, const LEX_CSTRING *name, uint offset)
+   :Item_bool_func(thd), Cursor_ref(name, offset)
+  { }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), arg, VCOL_SESSION_FUNC);
+  }
+  void print(String *str, enum_query_type query_type)
+  {
+    Cursor_ref::print_func(str, func_name());
+  }
+};
+
+
+class Item_func_cursor_isopen: public Item_func_cursor_bool_attr
+{
+public:
+  Item_func_cursor_isopen(THD *thd, const LEX_CSTRING *name, uint offset)
+   :Item_func_cursor_bool_attr(thd, name, offset) { }
+  const char *func_name() const { return "%ISOPEN"; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_isopen>(thd, mem_root, this); }
+};
+
+
+class Item_func_cursor_found: public Item_func_cursor_bool_attr
+{
+public:
+  Item_func_cursor_found(THD *thd, const LEX_CSTRING *name, uint offset)
+   :Item_func_cursor_bool_attr(thd, name, offset) { maybe_null= true; }
+  const char *func_name() const { return "%FOUND"; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_found>(thd, mem_root, this); }
+};
+
+
+class Item_func_cursor_notfound: public Item_func_cursor_bool_attr
+{
+public:
+  Item_func_cursor_notfound(THD *thd, const LEX_CSTRING *name, uint offset)
+   :Item_func_cursor_bool_attr(thd, name, offset) { maybe_null= true; }
+  const char *func_name() const { return "%NOTFOUND"; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_notfound>(thd, mem_root, this); }
+};
+
+
 
 inline bool is_cond_or(Item *item)
 {

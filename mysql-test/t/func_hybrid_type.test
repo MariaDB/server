@@ -535,6 +535,47 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2, t1;
 
 --echo #
+--echo # MDEV-12875 Wrong VIEW column data type for COALESCE(int_column)
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE OR REPLACE VIEW v1 AS SELECT COALESCE(a) FROM t1;
+DESCRIBE v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10309 COALESCE(12345678900) makes a column of a wrong type and truncates the data
+--echo #
+
+CREATE TABLE t1 AS SELECT 12345678900 AS c1, COALESCE(12345678900) AS c2;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9406 CREATE TABLE..SELECT creates different columns for IFNULL() and equivalent COALESCE,CASE,IF
+--echo #
+CREATE TABLE t1 (a SMALLINT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 AS SELECT
+  IFNULL(a,a) AS c1,
+  COALESCE(a,a) AS c2,
+  CASE WHEN a IS NOT NULL THEN a ELSE a END AS c3,
+  IF(a IS NULL,a,a) AS c4 FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 AS SELECT
+  connection_id() AS c0,
+  IFNULL(connection_id(),connection_id()) AS c1,
+  COALESCE(connection_id(), connection_id()) AS c2,
+  CASE WHEN 0 THEN connection_id() ELSE connection_id() END AS c3,
+  IF(0,connection_id(),connection_id()) AS c4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 

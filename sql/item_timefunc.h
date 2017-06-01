@@ -33,10 +33,10 @@ enum date_time_format_types
 
 bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval);
 
-class Item_func_period_add :public Item_int_func
+class Item_func_period_add :public Item_long_func
 {
 public:
-  Item_func_period_add(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_func_period_add(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "period_add"; }
   void fix_length_and_dec()
@@ -48,10 +48,10 @@ public:
 };
 
 
-class Item_func_period_diff :public Item_int_func
+class Item_func_period_diff :public Item_long_func
 {
 public:
-  Item_func_period_diff(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_func_period_diff(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "period_diff"; }
   void fix_length_and_dec()
@@ -64,10 +64,10 @@ public:
 };
 
 
-class Item_func_to_days :public Item_int_func
+class Item_func_to_days :public Item_long_func
 {
 public:
-  Item_func_to_days(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_to_days(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "to_days"; }
   void fix_length_and_dec()
@@ -89,16 +89,16 @@ public:
 };
 
 
-class Item_func_to_seconds :public Item_int_func
+class Item_func_to_seconds :public Item_longlong_func
 {
 public:
-  Item_func_to_seconds(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_to_seconds(THD *thd, Item *a): Item_longlong_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "to_seconds"; }
   void fix_length_and_dec()
   { 
     decimals=0; 
-    max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
+    fix_char_length(12);
     maybe_null= 1;
   }
   enum_monotonicity_info get_monotonicity_info() const;
@@ -115,10 +115,10 @@ public:
 };
 
 
-class Item_func_dayofmonth :public Item_int_func
+class Item_func_dayofmonth :public Item_long_func
 {
 public:
-  Item_func_dayofmonth(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_dayofmonth(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "dayofmonth"; }
   void fix_length_and_dec()
@@ -155,7 +155,7 @@ public:
     return str;
   }
   const char *func_name() const { return "month"; }
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const { return &type_handler_long; }
   void fix_length_and_dec()
   { 
     decimals= 0;
@@ -196,10 +196,10 @@ public:
 };
 
 
-class Item_func_dayofyear :public Item_int_func
+class Item_func_dayofyear :public Item_long_func
 {
 public:
-  Item_func_dayofyear(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_dayofyear(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "dayofyear"; }
   void fix_length_and_dec()
@@ -219,10 +219,10 @@ public:
 };
 
 
-class Item_func_hour :public Item_int_func
+class Item_func_hour :public Item_long_func
 {
 public:
-  Item_func_hour(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_hour(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "hour"; }
   void fix_length_and_dec()
@@ -242,10 +242,10 @@ public:
 };
 
 
-class Item_func_minute :public Item_int_func
+class Item_func_minute :public Item_long_func
 {
 public:
-  Item_func_minute(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_minute(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "minute"; }
   void fix_length_and_dec()
@@ -265,10 +265,10 @@ public:
 };
 
 
-class Item_func_quarter :public Item_int_func
+class Item_func_quarter :public Item_long_func
 {
 public:
-  Item_func_quarter(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_quarter(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "quarter"; }
   void fix_length_and_dec()
@@ -288,10 +288,10 @@ public:
 };
 
 
-class Item_func_second :public Item_int_func
+class Item_func_second :public Item_long_func
 {
 public:
-  Item_func_second(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_second(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "second"; }
   void fix_length_and_dec()
@@ -311,11 +311,11 @@ public:
 };
 
 
-class Item_func_week :public Item_int_func
+class Item_func_week :public Item_long_func
 {
 public:
-  Item_func_week(THD *thd, Item *a): Item_int_func(thd, a) {}
-  Item_func_week(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_func_week(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_week(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "week"; }
   void fix_length_and_dec()
@@ -338,10 +338,10 @@ public:
   { return get_item_copy<Item_func_week>(thd, mem_root, this); }
 };
 
-class Item_func_yearweek :public Item_int_func
+class Item_func_yearweek :public Item_long_func
 {
 public:
-  Item_func_yearweek(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_func_yearweek(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "yearweek"; }
   void fix_length_and_dec()
@@ -361,10 +361,10 @@ public:
 };
 
 
-class Item_func_year :public Item_int_func
+class Item_func_year :public Item_long_func
 {
 public:
-  Item_func_year(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_year(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "year"; }
   enum_monotonicity_info get_monotonicity_info() const;
@@ -404,7 +404,7 @@ public:
   {
      return (odbc_type ? "dayofweek" : "weekday");
   }
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const { return &type_handler_long; }
   void fix_length_and_dec()
   {
     decimals= 0;
@@ -449,7 +449,10 @@ public:
     decimals= dec;
     max_length=17 + (decimals ? decimals + 1 : 0);
     maybe_null= true;
-    set_handler_by_result_type(decimals ? DECIMAL_RESULT : INT_RESULT);
+    if (decimals)
+      set_handler(&type_handler_newdecimal);
+    else
+      set_handler(type_handler_long_or_longlong());
   }
   double real_op() { DBUG_ASSERT(0); return 0; }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
@@ -530,8 +533,6 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date) { DBUG_ASSERT(0); return 1; }
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field, no_conversions); }
 };
@@ -1012,9 +1013,6 @@ class Item_extract :public Item_int_func
     }
     return true;
   }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_extract>(thd, mem_root, this); }
 };
@@ -1177,16 +1175,17 @@ public:
 };
 
 
-class Item_func_microsecond :public Item_int_func
+class Item_func_microsecond :public Item_long_func
 {
 public:
-  Item_func_microsecond(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_microsecond(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "microsecond"; }
   void fix_length_and_dec()
   { 
     decimals=0;
     maybe_null=1;
+    fix_char_length(6);
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -1199,12 +1198,12 @@ public:
 };
 
 
-class Item_func_timestamp_diff :public Item_int_func
+class Item_func_timestamp_diff :public Item_longlong_func
 {
   const interval_type int_type;
 public:
   Item_func_timestamp_diff(THD *thd, Item *a, Item *b, interval_type type_arg):
-    Item_int_func(thd, a, b), int_type(type_arg) {}
+    Item_longlong_func(thd, a, b), int_type(type_arg) {}
   const char *func_name() const { return "timestampdiff"; }
   longlong val_int();
   void fix_length_and_dec()

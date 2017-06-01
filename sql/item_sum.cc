@@ -1210,7 +1210,7 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
       field->flags&= ~NOT_NULL_FLAG;
     return field;
   }
-  return Item_sum::create_tmp_field(group, table);
+  return tmp_table_field_from_field_type(table);
 }
 
 

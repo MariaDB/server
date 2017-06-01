@@ -139,6 +139,14 @@ SET DEBUG_SYNC='now WAIT_FOR have_latch';
 SELECT info FROM information_schema.processlist
 WHERE state = 'debug sync point: before_row_upd_extern';
 
+connect (con3,localhost,root,,);
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1;
+ROLLBACK;
+disconnect con3;
+
+connection con2;
+
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 

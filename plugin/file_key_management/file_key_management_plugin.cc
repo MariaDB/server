@@ -13,7 +13,8 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-
+#include <my_global.h>
+#include <typelib.h>
 #include "parser.h"
 #include <mysql/plugin_encryption.h>
 #include <string.h>
@@ -65,22 +66,14 @@ static struct st_mysql_sys_var* settings[] = {
   NULL
 };
 
-Dynamic_array<keyentry> keys(static_cast<uint>(0));
+std::map<unsigned int,keyentry> keys;
 
 static keyentry *get_key(unsigned int key_id)
 {
-  keyentry *a= keys.front(), *b= keys.back() + 1, *c;
-  while (b - a > 1)
-  {
-    c= a + (b - a)/2;
-    if (c->id == key_id)
-      return c;
-    else if (c->id < key_id)
-      a= c;
-    else
-      b= c;
-  }
-  return a->id == key_id ? a : 0;
+  keyentry &key= keys[key_id];
+  if (key.id == 0)
+    return 0;
+  return &key;
 }
 
 /* the version is always the same, no automatic key rotation */
@@ -146,20 +139,37 @@ static int ctx_init(void *ctx, const unsigned char* key, unsigned int klen,
   return my_aes_crypt_init(ctx, mode(flags), flags, key, klen, iv, ivlen);
 }
 
+static int ctx_update(void *ctx, const unsigned char *src, unsigned int slen,
+  unsigned char *dst, unsigned int *dlen)
+{
+  return my_aes_crypt_update(ctx, src, slen, dst, dlen);
+}
+
+
+static int ctx_finish(void *ctx, unsigned char *dst, unsigned int *dlen)
+{
+  return my_aes_crypt_finish(ctx, dst, dlen);
+}
+
 static unsigned int get_length(unsigned int slen, unsigned int key_id,
                                unsigned int key_version)
 {
   return my_aes_get_size(mode(0), slen);
 }
 
+static uint ctx_size(uint, uint)
+{
+  return my_aes_ctx_size(mode(0));
+}
+
 struct st_mariadb_encryption file_key_management_plugin= {
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_latest_version,
   get_key_from_key_file,
-  (uint (*)(unsigned int, unsigned int))my_aes_ctx_size,
+  ctx_size,
   ctx_init,
-  my_aes_crypt_update,
-  my_aes_crypt_finish,
+  ctx_update,
+  ctx_finish,
   get_length
 };
 
@@ -171,7 +181,7 @@ static int file_key_management_plugin_init(void *p)
 
 static int file_key_management_plugin_deinit(void *p)
 {
-  keys.free_memory();
+  keys.clear();
   return 0;
 }
 

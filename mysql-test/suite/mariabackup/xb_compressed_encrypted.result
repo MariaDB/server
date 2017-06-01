@@ -1,0 +1,25 @@
+CREATE TABLE t1(c1 INT, b VARCHAR(2400), index(b(100),c1)) ENGINE=INNODB ROW_FORMAT=compressed ENCRYPTED=YES;
+CREATE PROCEDURE innodb_insert_proc (REPEAT_COUNT INT)
+BEGIN
+DECLARE CURRENT_NUM INT;
+SET CURRENT_NUM = 0;
+WHILE CURRENT_NUM < REPEAT_COUNT DO
+INSERT INTO t1 VALUES(CURRENT_NUM, concat(uuid(), CURRENT_NUM, repeat('ab', floor(rand()*100) ), uuid()));
+SET CURRENT_NUM = CURRENT_NUM + 1;
+END WHILE;
+END//
+COMMIT;
+SET AUTOCOMMIT=0;
+CALL innodb_insert_proc(50000);
+COMMIT;
+# xtrabackup backup
+drop table t1;
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+select sum(c1) from t1;
+sum(c1)
+1249975000
+DROP TABLE t1;
+drop procedure innodb_insert_proc;

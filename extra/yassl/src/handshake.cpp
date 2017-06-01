@@ -788,6 +788,16 @@ int DoProcessReply(SSL& ssl)
             needHdr = true;
         else {
             buffer >> hdr;
+            /*
+              According to RFC 4346 (see "7.4.1.3. Server Hello"), the Server Hello
+              packet needs to specify the highest supported TLS version, but not
+              higher than what client requests. YaSSL highest supported version is
+              TLSv1.1 (=3.2) - if the client requests a higher version, downgrade it
+              here to 3.2.
+              See also Appendix E of RFC 5246 (TLS 1.2)
+            */
+            if (hdr.version_.major_ == 3 && hdr.version_.minor_ > 2)
+              hdr.version_.minor_ = 2;
             ssl.verifyState(hdr);
         }
 

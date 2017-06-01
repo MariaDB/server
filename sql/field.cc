@@ -9805,61 +9805,6 @@ void Column_definition::create_length_to_internal_length_newdecimal()
 }
 
 
-/**
-  Convert create_field::length from number of characters to number of bytes.
-*/
-
-void Column_definition::create_length_to_internal_length(void)
-{
-  switch (real_field_type()) {
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-  case MYSQL_TYPE_GEOMETRY:
-  case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_STRING:
-  case MYSQL_TYPE_VARCHAR:
-    create_length_to_internal_length_string();
-    break;
-  case MYSQL_TYPE_ENUM:
-  case MYSQL_TYPE_SET:
-    create_length_to_internal_length_typelib();
-    break;
-  case MYSQL_TYPE_BIT:
-    create_length_to_internal_length_bit();
-    break;
-  case MYSQL_TYPE_NEWDECIMAL:
-    create_length_to_internal_length_newdecimal();
-    break;
-
-  case MYSQL_TYPE_NULL:
-    create_length_to_internal_length_null();
-    break;
-
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_INT24:
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_LONGLONG:
-  case MYSQL_TYPE_YEAR:
-  case MYSQL_TYPE_FLOAT:
-  case MYSQL_TYPE_DOUBLE:
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_TIME2:
-  case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_NEWDATE:
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_DATETIME2:
-  case MYSQL_TYPE_TIMESTAMP:
-  case MYSQL_TYPE_TIMESTAMP2:
-    create_length_to_internal_length_simple();
-    break;
-  }
-}
-
-
 bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
                       enum_vcol_info_type type)
 
@@ -10494,6 +10439,33 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     }
   }
 }
+
+
+/**
+  The common part for data type redefinition:
+    CREATE TABLE t1 (a INT) AS SELECT a FROM t2;
+  See Type_handler::Column_definition_redefine_stage1()
+  for data type specific code.
+*/
+void
+Column_definition::redefine_stage1_common(const Column_definition *dup_field,
+                                          const handler *file,
+                                          const Schema_specification_st *schema)
+{
+  set_handler(dup_field->type_handler());
+  default_value= dup_field->default_value;
+  charset=       dup_field->charset ? dup_field->charset :
+                                      schema->default_table_charset;
+  length=       dup_field->char_length;
+  pack_length=  dup_field->pack_length;
+  key_length=   dup_field->key_length;
+  decimals=     dup_field->decimals;
+  unireg_check= dup_field->unireg_check;
+  flags=        dup_field->flags;
+  interval=     dup_field->interval;
+  vcol_info=    dup_field->vcol_info;
+}
+
 
 
 /**

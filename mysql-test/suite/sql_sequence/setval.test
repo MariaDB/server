@@ -124,3 +124,16 @@ create table t1 (a int);
 --error ER_NOT_SEQUENCE
 select setval(t1,10);
 drop table t1;
+
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+CREATE SEQUENCE s1;
+SELECT SETVAL(s1,10);
+DROP SEQUENCE s1;
+--enable_ps_protocol
+--disable_metadata

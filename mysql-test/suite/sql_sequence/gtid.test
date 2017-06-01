@@ -1,3 +1,7 @@
+#
+# This test is based on tests from ALISQL test suite
+#
+
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
 --source include/have_innodb.inc
@@ -8,11 +12,13 @@ grant all on s_db.* to normal_1@'%' identified by 'pass';
 grant all on test.* to normal_2@'%' identified by 'pass';
 grant all on s_db.* to normal_3@'%' identified by 'pass';
 grant all on test.* to normal_4@'%' identified by 'pass';
+grant select on test.* to normal_5@'%' identified by 'pass';
 
 --sync_slave_with_master
 
 connect(m_normal_1, 127.0.0.1, normal_1, pass, s_db, $MASTER_MYPORT);
 connect(m_normal_2, 127.0.0.1, normal_2, pass, test, $MASTER_MYPORT);
+connect(m_normal_3, 127.0.0.1, normal_5, pass, test, $MASTER_MYPORT);
 
 connect(s_normal_3, 127.0.0.1, normal_3, pass, s_db, $SLAVE_MYPORT);
 connect(s_normal_4, 127.0.0.1, normal_4, pass, test, $SLAVE_MYPORT);
@@ -30,7 +36,6 @@ create sequence s1;
 show create table s1;
 
 --sync_slave_with_master
-connection slave;
 use s_db;
 show create table s1;
 
@@ -164,7 +169,9 @@ show status like 'Qcache_inserts';
 --echo ###########################################
 connection m_normal_1;
 create sequence s_db.s1;
+select * from s_db.s1;
 select next value for s_db.s1;
+select * from s_db.s1;
 create sequence s_db.s2;
 drop sequence s_db.s2;
 
@@ -240,9 +247,9 @@ connection s_normal_3;
 use s_db;
 select * from s_t;
 
-
 connection m_normal_1;
 select next value for s_t;
+select * from s_t;
 
 connection master;
 --sync_slave_with_master
@@ -255,7 +262,9 @@ select * from s_t;
 --echo ------------------------------------------
 connection m_normal_1;
 select next value for s_t;
+--error ER_ILLEGAL_HA
 update s_t set next_value= 11;
+alter sequence s_t restart=11;
 commit;
 
 select * from s_t;
@@ -285,8 +294,10 @@ select * from s_t;
 --echo ------------------------------------------
 connection m_normal_1;
 select * from s_t;
---error ER_SEQUENCE_INVALID_DATA
+--error ER_ILLEGAL_HA
 update s_t set next_value= 11,start=10, min_value=11;
+--error ER_SEQUENCE_INVALID_DATA
+ALTER SEQUENCE s_t restart with 11 start=10 minvalue=11;
 commit;
 
 create table t_1(id int);
@@ -495,11 +506,11 @@ select next value for s1;
 
 set session binlog_format=row;
 select next value for s1;
+select * from s1;
 
 connection master;
 --sync_slave_with_master
 
-connection slave;
 use s_db;
 select * from s1;
 
@@ -568,7 +579,6 @@ select * from t;
 connection master;
 --sync_slave_with_master
 
-connection slave;
 use s_db;
 select * from t;
 
@@ -647,6 +657,41 @@ drop function f1;
 drop table t1;
 drop sequence s1;
 
+--echo ##############
+--echo Test GRANT
+--echo ##############
+
+connection m_normal_2;
+create table t1 (a int);
+create sequence s1;
+select next value for s1;
+insert into t1 values (1);
+connection m_normal_3;
+select * from t1;
+select * from s1;
+select previous value for s1;
+--error ER_TABLEACCESS_DENIED_ERROR
+insert into t1 values (2);
+--error ER_TABLEACCESS_DENIED_ERROR
+select next value for s1;
+--error ER_TABLEACCESS_DENIED_ERROR
+do setval(s1,1000,0);
+connection master;
+grant insert on test.* to normal_5@'%' identified by 'pass';
+disconnect m_normal_3;
+connect(m_normal_3, 127.0.0.1, normal_5, pass, test, $MASTER_MYPORT);
+insert into t1 values (2);
+select t1.*, (next value for s1) from t1;
+do setval(s1,10000,0);
+select * from s1;
+connection m_normal_2;
+drop table t1;
+drop sequence s1;
+
+--echo #
+--echo # Cleanup
+--echo #
+
 connection master;
 use s_db;
 drop database s_db;
@@ -654,7 +699,6 @@ drop user normal_1@'%';
 drop user normal_2@'%';
 drop user normal_3@'%';
 drop user normal_4@'%';
+drop user normal_5@'%';
 
-
---sync_slave_with_master
 --source include/rpl_end.inc

@@ -3363,10 +3363,11 @@ row_sel_get_clust_rec_for_mysql(
 	dberr_t		err;
 	trx_t*		trx;
 
-	srv_stats.n_sec_rec_cluster_reads.inc();
-
 	*out_rec = NULL;
 	trx = thr_get_trx(thr);
+
+	srv_stats.n_sec_rec_cluster_reads.inc(
+		thd_get_thread_id(trx->mysql_thd));
 
 	row_build_row_ref_in_tuple(prebuilt->clust_ref, rec,
 				   sec_index, *offsets, trx);
@@ -4192,13 +4193,10 @@ row_search_mvcc(
 
 		DBUG_RETURN(DB_TABLESPACE_DELETED);
 
-	} else if (prebuilt->table->ibd_file_missing) {
-
-		DBUG_RETURN(DB_TABLESPACE_NOT_FOUND);
-
-	} else if (prebuilt->table->is_encrypted) {
-
-		return(DB_DECRYPTION_FAILED);
+	} else if (!prebuilt->table->is_readable()) {
+		DBUG_RETURN(fil_space_get(prebuilt->table->space)
+			    ? DB_DECRYPTION_FAILED
+			    : DB_TABLESPACE_NOT_FOUND);
 	} else if (!prebuilt->index_usable) {
 		DBUG_RETURN(DB_MISSING_HISTORY);
 
@@ -4472,16 +4470,18 @@ row_search_mvcc(
 	thread that is currently serving the transaction. Because we
 	are that thread, we can read trx->state without holding any
 	mutex. */
-	ut_ad(prebuilt->sql_stat_start || trx->state == TRX_STATE_ACTIVE);
+	ut_ad(prebuilt->sql_stat_start
+	      || trx->state == TRX_STATE_ACTIVE
+	      || (prebuilt->table->no_rollback()
+		  && trx->state == TRX_STATE_NOT_STARTED));
 
 	ut_ad(!trx_is_started(trx) || trx->state == TRX_STATE_ACTIVE);
 
 	ut_ad(prebuilt->sql_stat_start
 	      || prebuilt->select_lock_type != LOCK_NONE
 	      || MVCC::is_view_active(trx->read_view)
+	      || prebuilt->table->no_rollback()
 	      || srv_read_only_mode);
-
-	trx_start_if_not_started(trx, false);
 
 	if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
 	    && prebuilt->select_lock_type != LOCK_NONE
@@ -4519,7 +4519,11 @@ row_search_mvcc(
 
 	/* Do some start-of-statement preparations */
 
-	if (!prebuilt->sql_stat_start) {
+	if (prebuilt->table->no_rollback()) {
+		/* NO_ROLLBACK tables do not support MVCC or locking. */
+		prebuilt->select_lock_type = LOCK_NONE;
+		prebuilt->sql_stat_start = FALSE;
+	} else if (!prebuilt->sql_stat_start) {
 		/* No need to set an intention lock or assign a read view */
 
 		if (!MVCC::is_view_active(trx->read_view)
@@ -4536,6 +4540,7 @@ row_search_mvcc(
 	} else if (prebuilt->select_lock_type == LOCK_NONE) {
 		/* This is a consistent read */
 		/* Assign a read view for the query */
+		trx_start_if_not_started(trx, false);
 
 		if (!srv_read_only_mode) {
 			trx_assign_read_view(trx);
@@ -4543,6 +4548,7 @@ row_search_mvcc(
 
 		prebuilt->sql_stat_start = FALSE;
 	} else {
+		trx_start_if_not_started(trx, false);
 wait_table_again:
 		err = lock_table(0, prebuilt->table,
 				 prebuilt->select_lock_type == LOCK_S
@@ -4674,7 +4680,7 @@ wait_table_again:
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					prebuilt->table->name);
-				index->table->is_encrypted = true;
+				index->table->file_unreadable = true;
 			}
 			rec = NULL;
 			goto lock_wait_or_error;
@@ -4696,7 +4702,7 @@ rec_loop:
 
 	rec = btr_pcur_get_rec(pcur);
 
-	if (!rec) {
+	if (!index->table->is_readable()) {
 		err = DB_DECRYPTION_FAILED;
 		goto lock_wait_or_error;
 	}
@@ -4822,7 +4828,7 @@ wrong_offs:
 		if (!rec_validate(rec, offsets)
 		    || !btr_index_rec_validate(rec, index, FALSE)) {
 
-			ib::info() << "Index corruption: rec offs "
+			ib::error() << "Index corruption: rec offs "
 				<< page_offset(rec) << " next offs "
 				<< next_offs << ", page no "
 				<< page_get_page_no(page_align(rec))

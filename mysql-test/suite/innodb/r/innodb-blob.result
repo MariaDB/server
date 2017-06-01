@@ -97,6 +97,12 @@ SELECT info FROM information_schema.processlist
 WHERE state = 'debug sync point: before_row_upd_extern';
 info
 UPDATE t3 SET c=REPEAT('i',3000) WHERE a=2
+connect  con3,localhost,root,,;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1;
+ROLLBACK;
+disconnect con3;
+connection con2;
 disconnect con2;
 connection default;
 ERROR HY000: Lost connection to MySQL server during query

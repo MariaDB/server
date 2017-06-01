@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2016, MariaDB Corporation
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -557,7 +557,7 @@ void init_update_queries(void)
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
                                             CF_INSERTS_DATA;
   sql_command_flags[SQLCOM_ALTER_SEQUENCE]= CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
-                                            CF_AUTO_COMMIT_TRANS;
+                                            CF_AUTO_COMMIT_TRANS | CF_SCHEMA_CHANGE;
   sql_command_flags[SQLCOM_TRUNCATE]=       CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_TABLE]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_SCHEMA_CHANGE;
@@ -1456,7 +1456,7 @@ static my_bool deny_updates_if_read_only_option(THD *thd,
   if (lex->sql_command == SQLCOM_UPDATE_MULTI)
     DBUG_RETURN(FALSE);
 
-  /* Check if we created and dropped temporary tables */
+  /* Check if we created or dropped temporary tables */
   if ((sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE) &&
       lex->tmp_table())
     DBUG_RETURN(FALSE);
@@ -5790,9 +5790,15 @@ end_with_restore_list:
       if (!(sp= sp_find_routine(thd, TYPE_ENUM_PROCEDURE, lex->spname,
                                 &thd->sp_proc_cache, TRUE)))
       {
-	my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PROCEDURE",
-                 ErrConvDQName(lex->spname).ptr());
-	goto error;
+        /*
+          sp_find_routine can have issued an ER_SP_RECURSION_LIMIT error.
+          Send message ER_SP_DOES_NOT_EXIST only if procedure is not found in
+          cache.
+        */
+        if (!sp_cache_lookup(&thd->sp_proc_cache, lex->spname))
+          my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PROCEDURE",
+                   ErrConvDQName(lex->spname).ptr());
+        goto error;
       }
       else
       {
@@ -7038,6 +7044,15 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
       continue;
 
     thd->security_ctx= sctx;
+
+    if (table_ref->sequence)
+    {
+      /* We want to have either SELECT or INSERT rights to sequences depending
+         on how they are accessed
+      */
+      want_access= ((table_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
+                    INSERT_ACL : SELECT_ACL);
+    }
 
     if (check_access(thd, want_access, table_ref->get_db_name(),
                      &table_ref->grant.privilege,

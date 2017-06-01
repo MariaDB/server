@@ -2328,12 +2328,6 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
   if (mdl_ticket->has_stronger_or_equal_type(new_type))
     DBUG_RETURN(FALSE);
 
-  /* Only allow upgrades from SHARED_UPGRADABLE/NO_WRITE/NO_READ_WRITE/READ */
-  DBUG_ASSERT(mdl_ticket->m_type == MDL_SHARED_UPGRADABLE ||
-              mdl_ticket->m_type == MDL_SHARED_NO_WRITE ||
-              mdl_ticket->m_type == MDL_SHARED_NO_READ_WRITE ||
-              mdl_ticket->m_type == MDL_SHARED_READ);
-
   mdl_xlock_request.init(&mdl_ticket->m_lock->key, new_type,
                          MDL_TRANSACTION);
 

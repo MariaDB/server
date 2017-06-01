@@ -1,4 +1,5 @@
-/* Copyright (c) 2005, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2005, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -461,13 +462,13 @@ public:
 };
 
 
-class Item_func_xpath_position :public Item_int_func
+class Item_func_xpath_position :public Item_long_func
 {
   String *pxml;
   String tmp_value;
 public:
   Item_func_xpath_position(THD *thd, Item *a, String *p):
-    Item_int_func(thd, a), pxml(p) {}
+    Item_long_func(thd, a), pxml(p) {}
   const char *func_name() const { return "xpath_position"; }
   void fix_length_and_dec() { max_length=10; }
   longlong val_int()
@@ -482,13 +483,13 @@ public:
 };
 
 
-class Item_func_xpath_count :public Item_int_func
+class Item_func_xpath_count :public Item_long_func
 {
   String *pxml;
   String tmp_value;
 public:
   Item_func_xpath_count(THD *thd, Item *a, String *p):
-    Item_int_func(thd, a), pxml(p) {}
+    Item_long_func(thd, a), pxml(p) {}
   const char *func_name() const { return "xpath_count"; }
   void fix_length_and_dec() { max_length=10; }
   longlong val_int()
@@ -2836,9 +2837,9 @@ int xml_enter(MY_XML_PARSER *st,const char *attr, size_t len)
 
   node.parent= data->parent; // Set parent for the new node to old parent
   data->parent= numnodes;    // Remember current node as new parent
-  DBUG_ASSERT(data->level <= MAX_LEVEL);
+  DBUG_ASSERT(data->level < MAX_LEVEL);
   data->pos[data->level]= numnodes;
-  if (data->level < MAX_LEVEL)
+  if (data->level < MAX_LEVEL - 1)
     node.level= data->level++;
   else
     return MY_XML_ERROR;

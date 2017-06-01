@@ -49,6 +49,8 @@ extra/comp_err
 extra/innochecksum
 extra/jemalloc/build/
 extra/jemalloc/tmp/
+extra/mariabackup/mariabackup
+extra/mariabackup/mbstream
 extra/my_print_defaults
 extra/mysql_waitpid
 extra/mysqld_safe_helper
@@ -124,6 +126,7 @@ scripts/mytop
 scripts/wsrep_sst_common
 scripts/wsrep_sst_mysqldump
 scripts/wsrep_sst_rsync
+scripts/wsrep_sst_mariabackup
 scripts/wsrep_sst_xtrabackup
 scripts/wsrep_sst_xtrabackup-v2
 scripts/maria_add_gis_sp.sql
@@ -250,6 +253,10 @@ storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 storage/mroonga/mysql-test/mroonga/storage/r/information_schema_plugins.result
 storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
+xxx/*
+yyy/*
+zzz/*
+
 # C and C++
 
 # Compiled Object files

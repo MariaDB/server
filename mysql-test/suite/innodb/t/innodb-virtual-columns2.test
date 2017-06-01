@@ -1,0 +1,54 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-11724: InnoDB: Failing assertion: len <= col->len || ((col->mtype) == 5 || (col->mtype) == 16 || (col->mtype) == 14) || (((col->mtype) == 15 || (col->mtype) == 16) && len == 2 * 2 * sizeof(double)) || (col->len == 0 && col->mtype == 1)
+#
+
+CREATE TABLE t1 ( 
+ y YEAR NULL,
+ i SMALLINT NULL,
+ c VARCHAR(8) NOT NULL DEFAULT '',
+ vi SMALLINT AS (i) VIRTUAL,
+ INDEX(y)
+) ENGINE=InnoDB;
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1 WHERE y BETWEEN 2012 AND 2016 FOR UPDATE;
+INSERT INTO t1 (i) VALUES (1),(2);
+SELECT * FROM t1 WHERE y BETWEEN 2012 AND 2016 FOR UPDATE;
+DROP TABLE t1;
+
+#
+# MDEV-11725: InnoDB: Failing assertion: !rec || !cmp_dtuple_rec(tuple, rec, *offsets)
+#
+
+CREATE TABLE t1 ( 
+ y YEAR NULL,
+ i SMALLINT NULL,
+ vi SMALLINT AS (i) VIRTUAL,
+ INDEX(y)
+) ENGINE=InnoDB;
+ 
+SHOW CREATE TABLE t1;
+SELECT * FROM t1 WHERE y BETWEEN 2012 AND 2016 FOR UPDATE;
+INSERT INTO t1 (i) VALUES (1),(2);
+SELECT * FROM t1 WHERE y BETWEEN 2012 AND 2016 FOR UPDATE;
+DROP TABLE t1;
+
+#
+# MDEV-11726: Server crashes in mach_read_from_n_little_endian
+#
+
+CREATE TABLE t1 ( 
+ y YEAR NULL,
+ i SMALLINT NULL,
+ b BLOB NULL,
+ vi SMALLINT AS (i) VIRTUAL,
+ INDEX(y)
+) ENGINE=InnoDB;
+ 
+SHOW CREATE TABLE t1;
+SELECT * FROM t1 WHERE y BETWEEN 2012 AND 2016 FOR UPDATE;
+INSERT INTO t1 (i) VALUES (1),(2);
+SELECT * FROM t1 WHERE y BETWEEN 2012 AND 2016 FOR UPDATE;
+DROP TABLE t1;

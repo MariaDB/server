@@ -284,8 +284,8 @@ int plugin_init()
   {
     srv_principal_name= get_default_principal_name();
   }
-  sql_print_information("SSPI: using principal name '%s', mech '%s'",
-    srv_principal_name, srv_mech_name);
+  my_printf_error(0, "SSPI: using principal name '%s', mech '%s'",
+                  ME_ERROR_LOG | ME_NOTE, srv_principal_name, srv_mech_name);
 
   ret = AcquireCredentialsHandle(
     srv_principal_name,

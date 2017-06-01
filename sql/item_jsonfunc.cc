@@ -390,7 +390,7 @@ longlong Item_func_json_valid::val_int()
 
 void Item_func_json_exists::fix_length_and_dec()
 {
-  Item_int_func::fix_length_and_dec();
+  Item_bool_func::fix_length_and_dec();
   maybe_null= 1;
   path.set_constant_flag(args[1]->const_item());
 }
@@ -890,7 +890,7 @@ void Item_func_json_contains::fix_length_and_dec()
   maybe_null= 1;
   if (arg_count > 2)
     path.set_constant_flag(args[2]->const_item());
-  Item_int_func::fix_length_and_dec();
+  Item_bool_func::fix_length_and_dec();
 }
 
 
@@ -1135,7 +1135,7 @@ void Item_func_json_contains_path::fix_length_and_dec()
   ooa_parsed= FALSE;
   maybe_null= 1;
   mark_constant_paths(paths, args+2, arg_count-2);
-  Item_int_func::fix_length_and_dec();
+  Item_bool_func::fix_length_and_dec();
 }
 
 
@@ -2050,6 +2050,7 @@ void Item_func_json_length::fix_length_and_dec()
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
   maybe_null= 1;
+  max_length= 10;
 }
 
 

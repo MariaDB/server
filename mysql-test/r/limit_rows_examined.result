@@ -749,23 +749,25 @@ FROM t1, t2 AS alias2, t2 AS alias3
 WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 ) 
 GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 120;
-ERROR HY000: Sort aborted: 
+field1	field2	field3	field4	field5
+Warnings:
+Warning	1931	Query execution was interrupted. The query examined at least 121 rows, which exceeds LIMIT ROWS EXAMINED (120). The query result may be incomplete
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
 Handler_read_first	1
-Handler_read_key	5
+Handler_read_key	4
 Handler_read_last	0
-Handler_read_next	7
+Handler_read_next	4
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	38
+Handler_read_rnd_next	46
 SHOW STATUS LIKE 'Handler_tmp%';
 Variable_name	Value
 Handler_tmp_delete	0
 Handler_tmp_update	0
-Handler_tmp_write	70
+Handler_tmp_write	66
 FLUSH STATUS;
 SELECT a AS field1, alias2.d AS field2, alias2.f AS field3, alias2.e AS field4, b AS field5
 FROM t1, t2 AS alias2, t2 AS alias3 
@@ -773,20 +775,20 @@ WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 )
 GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 124;
 field1	field2	field3	field4	field5
-00:21:38	06:07:10	a	2007-06-08 04:35:26	2007-05-28 00:00:00
 Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 125 rows, which exceeds LIMIT ROWS EXAMINED (124). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query examined at least 127 rows, which exceeds LIMIT ROWS EXAMINED (124). The query result may be incomplete
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
 Handler_read_first	1
-Handler_read_key	5
+Handler_read_key	4
 Handler_read_last	0
-Handler_read_next	7
+Handler_read_next	4
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	2
-Handler_read_rnd_deleted	1
-Handler_read_rnd_next	39
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	48
 SHOW STATUS LIKE 'Handler_tmp%';
 Variable_name	Value
 Handler_tmp_delete	0

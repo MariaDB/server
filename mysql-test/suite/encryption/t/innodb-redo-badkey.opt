@@ -1,0 +1,5 @@
+--innodb-change-buffering=all
+--innodb-encrypt-tables=on
+--innodb-tablespaces-encryption
+--innodb-encryption-threads=2
+--innodb-default-encryption-key-id=4

@@ -329,3 +329,18 @@ DROP TABLE t1;
 --echo #
 --echo # End of MDEV-10578 sql_mode=ORACLE: SP control functions SQLCODE, SQLERRM
 --echo #
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+DELIMITER $$;
+BEGIN
+  SELECT SQLCODE;
+END
+$$
+DELIMITER ;$$
+--enable_ps_protocol
+--disable_metadata

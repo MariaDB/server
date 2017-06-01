@@ -1045,9 +1045,9 @@ f5	datetime	YES		NULL
 drop view v1;
 drop table t1;
 SELECT MultiPoint(12345,'');
-ERROR 22007: Illegal non geometric '12345' value found during parsing
+ERROR HY000: Illegal parameter data type int for operation 'geometrycollection'
 SELECT 1 FROM (SELECT GREATEST(1,GEOMETRYCOLLECTION('00000','00000')) b FROM DUAL) AS d WHERE (LINESTRING(d.b));
-ERROR 22007: Illegal non geometric ''00000'' value found during parsing
+ERROR HY000: Illegal parameter data type varchar for operation 'geometrycollection'
 #
 # BUG#51875: crash when loading data into geometry function polyfromwkb
 #
@@ -1115,7 +1115,7 @@ ISCLOSED(CONVERT(CONCAT('     ', 0x2), BINARY(20)))
 # GEOMETRY FUNCTION ARGUMENTS
 #
 SELECT GEOMETRYCOLLECTION((SELECT @@OLD));
-ERROR 22007: Illegal non geometric '' value found during parsing
+ERROR HY000: Illegal parameter data type bigint for operation 'geometrycollection'
 #
 # MDEV-4252 geometry query crashes server
 #
@@ -1614,13 +1614,7 @@ insert into t1 values(geomfromtext("POINT(0 0)"));
 insert into t1 values(geomfromtext("POINT(0 9.2233720368548e18)"));
 insert into t1 values(geomfromtext("POINT(0 9.2233720368548e18)"));
 select equals(`a`,convert(`a` using utf8)) from `t1`;
-equals(`a`,convert(`a` using utf8))
-1
-NULL
-NULL
-Warnings:
-Warning	1300	Invalid utf8 character string: '\xE0C'
-Warning	1300	Invalid utf8 character string: '\xE0C'
+ERROR HY000: Illegal parameter data type longblob for operation 'st_equals'
 select equals(`a`,left(`a`,23)) from `t1`;
 equals(`a`,left(`a`,23))
 NULL
@@ -1698,7 +1692,19 @@ SELECT ASTEXT(p) FROM v1;
 ASTEXT(p)
 POINT(1 1)
 DROP VIEW v1;
-End of 5.5 tests
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-12495 Conditional jump depends on uninitialised value for: SELECT NULL UNION geom_expression
+#
+SELECT AsText(g) FROM (SELECT NULL AS g UNION SELECT Point(1,1)) AS t1;
+AsText(g)
+NULL
+POINT(1 1)
+#
+# End 10.0 tests
+#
 SHOW CREATE TABLE information_schema.geometry_columns;
 Table	Create Table
 GEOMETRY_COLUMNS	CREATE TEMPORARY TABLE `GEOMETRY_COLUMNS` (
@@ -4317,6 +4323,332 @@ t1	CREATE TABLE `t1` (
   `?` point NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+SELECT
+ST_ISSIMPLE(POINT(1,1)),
+ST_ISRING(POINT(1,1)),
+ST_ISCLOSED(POINT(1,1)),
+ST_DIMENSION(POINT(1,1)),
+ST_NUMGEOMETRIES(POINT(1,1)),
+ST_NUMINTERIORRINGS(POINT(1,1)),
+ST_NUMPOINTS(POINT(1,1)),
+ST_SRID(POINT(1,1));
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					ST_ISSIMPLE(POINT(1,1))	3	2	1	Y	32896	0	63
+def					ST_ISRING(POINT(1,1))	3	2	2	Y	32896	0	63
+def					ST_ISCLOSED(POINT(1,1))	3	2	2	Y	32896	0	63
+def					ST_DIMENSION(POINT(1,1))	3	10	1	Y	32896	0	63
+def					ST_NUMGEOMETRIES(POINT(1,1))	3	10	0	Y	32896	0	63
+def					ST_NUMINTERIORRINGS(POINT(1,1))	3	10	0	Y	32896	0	63
+def					ST_NUMPOINTS(POINT(1,1))	3	10	0	Y	32896	0	63
+def					ST_SRID(POINT(1,1))	3	10	1	Y	32896	0	63
+ST_ISSIMPLE(POINT(1,1))	ST_ISRING(POINT(1,1))	ST_ISCLOSED(POINT(1,1))	ST_DIMENSION(POINT(1,1))	ST_NUMGEOMETRIES(POINT(1,1))	ST_NUMINTERIORRINGS(POINT(1,1))	ST_NUMPOINTS(POINT(1,1))	ST_SRID(POINT(1,1))
+1	-1	-1	0	NULL	NULL	NULL	0
+#
+# MDEV-12803 Improve function parameter data type control
+#
+#
+# Item_geometry_func_args_geometry
+#
+SELECT ST_CENTROID(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_centroid'
+SELECT ST_ENVELOPE(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_envelope'
+SELECT ST_BOUNDARY(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_boundary'
+SELECT ST_STARTPOINT(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_startpoint'
+SELECT ST_POINTONSURFACE(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_pointonsurface'
+SELECT ST_POINTN(1,1);
+ERROR HY000: Illegal parameter data type int for operation 'st_pointn'
+SELECT ST_POINTN(LineString(Point(1,1)),Point(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'st_pointn'
+SELECT ST_BUFFER(1, 1);
+ERROR HY000: Illegal parameter data type int for operation 'st_buffer'
+SELECT ST_BUFFER(Point(1,1), Point(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'st_buffer'
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ST_ENVELOPE(?) AS g';
+EXECUTE stmt USING 1;
+ERROR HY000: Illegal parameter data type bigint for operation 'st_envelope'
+EXECUTE stmt USING POINT(1,1);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` polygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT ST_ASTEXT(g) FROM t1;
+ST_ASTEXT(g)
+POLYGON((1 1,1 1,1 1,1 1,1 1))
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ST_BUFFER(?,?) AS g';
+EXECUTE stmt USING 1,1;
+ERROR HY000: Illegal parameter data type bigint for operation 'st_buffer'
+EXECUTE stmt USING POINT(1,1),POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation 'st_buffer'
+EXECUTE stmt USING POINT(1,1),0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT ST_GEOMETRYTYPE(g) FROM t1;
+ST_GEOMETRYTYPE(g)
+POINT
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt;
+#
+# Functions created GEOMETRY from non-GEOMETRY
+#
+SELECT ST_GEOMETRYFROMTEXT(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_geometryfromtext'
+SELECT ST_GEOMETRYFROMTEXT(Point(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromtext'
+SELECT ST_GEOMETRYFROMTEXT(Point(1,1), 1);
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromtext'
+SELECT ST_GEOMETRYFROMTEXT('test', Point(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromtext'
+SELECT ST_GEOMETRYFROMWKB(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_geometryfromwkb'
+SELECT ST_GEOMETRYFROMWKB(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_geometryfromwkb'
+SELECT ST_GEOMETRYFROMWKB(1, 1);
+ERROR HY000: Illegal parameter data type int for operation 'st_geometryfromwkb'
+SELECT ST_GEOMETRYFROMWKB(Point(1,1), Point(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromwkb'
+SELECT ST_GEOMFROMGEOJSON(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_geomfromgeojson'
+SELECT ST_GEOMFROMGEOJSON(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_geomfromgeojson'
+SELECT ST_GEOMFROMGEOJSON(1,1);
+ERROR HY000: Illegal parameter data type int for operation 'st_geomfromgeojson'
+SELECT ST_GEOMFROMGEOJSON(Point(1,1), Point(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geomfromgeojson'
+SELECT POINT(ROW(1,1),1);
+ERROR HY000: Illegal parameter data type row for operation 'point'
+SELECT POINT(POINT(1,1),1);
+ERROR HY000: Illegal parameter data type geometry for operation 'point'
+SELECT POINT(1,ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'point'
+SELECT POINT(1,POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'point'
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ST_GEOMFROMTEXT(?,?) AS g';
+EXECUTE stmt USING 1,1;
+ERROR HY000: Illegal parameter data type bigint for operation 'st_geometryfromtext'
+EXECUTE stmt USING POINT(1,1),POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromtext'
+EXECUTE stmt USING 'POINT(1 1)',1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT ST_ASTEXT(g), SRID(g) FROM t1;
+ST_ASTEXT(g)	SRID(g)
+POINT(1 1)	1
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt;
+# Item_func_spatial_collection
+SELECT GEOMETRYCOLLECTION(ROW(1,1), POINT(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'geometrycollection'
+SELECT GEOMETRYCOLLECTION(POINT(1,1), ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'geometrycollection'
+SELECT GEOMETRYCOLLECTION(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type int for operation 'geometrycollection'
+SELECT GEOMETRYCOLLECTION(POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type int for operation 'geometrycollection'
+# Item_func_spatial_operation
+SELECT ST_UNION(ROW(1,1), POINT(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_union'
+SELECT ST_UNION(POINT(1,1), ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_union'
+SELECT ST_UNION(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type int for operation 'st_union'
+SELECT ST_UNION(POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type int for operation 'st_union'
+# Item_binary_func_args_geometry
+SELECT ST_ASWKB(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_aswkb'
+SELECT ST_ASWKB(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_aswkb'
+SELECT ST_ASWKB('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_aswkb'
+# Item_real_func_args_geometry
+SELECT ST_X(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_x'
+SELECT ST_X(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_x'
+SELECT ST_X('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_x'
+SELECT ST_Y(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_y'
+SELECT ST_Y(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_y'
+SELECT ST_Y('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_y'
+SELECT ST_AREA(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_area'
+SELECT ST_AREA(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_area'
+SELECT ST_AREA('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_area'
+SELECT ST_LENGTH(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_length'
+SELECT ST_LENGTH(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_length'
+SELECT ST_LENGTH('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_length'
+# Item_real_func_geometry_args_geometry_geometry
+SELECT ST_DISTANCE(ROW(1,1), 1);
+ERROR HY000: Illegal parameter data type row for operation 'st_distance'
+SELECT ST_DISTANCE(1, 1);
+ERROR HY000: Illegal parameter data type int for operation 'st_distance'
+SELECT ST_DISTANCE('test', 1);
+ERROR HY000: Illegal parameter data type varchar for operation 'st_distance'
+SELECT ST_DISTANCE(POINT(1,1), ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_distance'
+SELECT ST_DISTANCE(POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type int for operation 'st_distance'
+SELECT ST_DISTANCE(POINT(1,1), 'test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_distance'
+# Item_int_func_args_geometry
+SELECT ST_ISSIMPLE(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_issimple'
+SELECT ST_ISSIMPLE(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_issimple'
+SELECT ST_ISSIMPLE('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_issimple'
+SELECT ST_ISRING(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_isring'
+SELECT ST_ISRING(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_isring'
+SELECT ST_ISRING('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_isring'
+SELECT ST_ISCLOSED(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_isclosed'
+SELECT ST_ISCLOSED(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_isclosed'
+SELECT ST_ISCLOSED('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_isclosed'
+SELECT ST_DIMENSION(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_dimension'
+SELECT ST_DIMENSION(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_dimension'
+SELECT ST_DIMENSION('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_dimension'
+SELECT ST_NUMGEOMETRIES(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_numgeometries'
+SELECT ST_NUMGEOMETRIES(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_numgeometries'
+SELECT ST_NUMGEOMETRIES('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_numgeometries'
+SELECT ST_NUMINTERIORRINGS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_numinteriorrings'
+SELECT ST_NUMINTERIORRINGS(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_numinteriorrings'
+SELECT ST_NUMINTERIORRINGS('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_numinteriorrings'
+SELECT ST_NUMPOINTS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_numpoints'
+SELECT ST_NUMPOINTS(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_numpoints'
+SELECT ST_NUMPOINTS('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_numpoints'
+SELECT ST_SRID(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'srid'
+SELECT ST_SRID(1);
+ERROR HY000: Illegal parameter data type int for operation 'srid'
+SELECT ST_SRID('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'srid'
+# Item_bool_func_args_geometry
+SELECT ST_ISEMPTY(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_isempty'
+SELECT ST_ISEMPTY(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_isempty'
+SELECT ST_ISEMPTY('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_isempty'
+# Item_bool_func_geometry_args_geometry_geometry
+SELECT ST_RELATE(ROW(1,1), POINT(1,1), 'T*F**FFF*');
+ERROR HY000: Illegal parameter data type row for operation 'st_relate'
+SELECT ST_RELATE(POINT(1,1), ROW(1,1), 'T*F**FFF*');
+ERROR HY000: Illegal parameter data type row for operation 'st_relate'
+SELECT ST_RELATE(1, POINT(1,1), 'T*F**FFF*');
+ERROR HY000: Illegal parameter data type int for operation 'st_relate'
+SELECT ST_RELATE(POINT(1,1), 1, 'T*F**FFF*');
+ERROR HY000: Illegal parameter data type int for operation 'st_relate'
+SELECT ST_RELATE(Point(1,1),Point(1,1),'T*F**FFF*') AS equals;
+equals
+1
+SELECT ST_RELATE(Point(1,1),Point(1,1),NULL);
+ST_RELATE(Point(1,1),Point(1,1),NULL)
+NULL
+SELECT ST_RELATE(Point(1,1),Point(1,1),ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_relate'
+SELECT ST_RELATE(Point(1,1),Point(1,1),1);
+ERROR HY000: Illegal parameter data type int for operation 'st_relate'
+SELECT ST_RELATE(Point(1,1),Point(1,1),1.0);
+ERROR HY000: Illegal parameter data type decimal for operation 'st_relate'
+SELECT ST_RELATE(Point(1,1),Point(1,1),1e0);
+ERROR HY000: Illegal parameter data type double for operation 'st_relate'
+SELECT ST_RELATE(Point(1,1),Point(1,1),TIME'10:10:10');
+ERROR HY000: Illegal parameter data type time for operation 'st_relate'
+SELECT ST_RELATE(Point(1,1),Point(1,1),DATE'2010-01-01');
+ERROR HY000: Illegal parameter data type date for operation 'st_relate'
+SELECT ST_RELATE(Point(1,1),Point(1,1),TIMESTAMP'2010-01-01 10:10:10');
+ERROR HY000: Illegal parameter data type datetime for operation 'st_relate'
+SELECT ST_RELATE(Point(1,1),Point(1,1),Point(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'st_relate'
+# Item_str_ascii_func_args_geometry
+SELECT ST_ASTEXT(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_astext'
+SELECT ST_ASTEXT(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_astext'
+SELECT ST_ASTEXT('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_astext'
+SELECT ST_GEOMETRYTYPE(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_geometrytype'
+SELECT ST_GEOMETRYTYPE(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_geometrytype'
+SELECT ST_GEOMETRYTYPE('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_geometrytype'
+SELECT ST_ASGEOJSON(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_asgeojson'
+SELECT ST_ASGEOJSON(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_asgeojson'
+SELECT ST_ASGEOJSON('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_asgeojson'
+SELECT ST_ASGEOJSON(POINT(1,1), POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'st_asgeojson'
+SELECT ST_ASGEOJSON(POINT(1,1), 1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'st_asgeojson'
+# Item_func_spatial_rel
+SELECT ST_TOUCHES(ROW(1,1), POINT(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_touches'
+SELECT ST_TOUCHES(POINT(1,1), ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_touches'
+SELECT ST_TOUCHES(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type int for operation 'st_touches'
+SELECT ST_TOUCHES(POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type int for operation 'st_touches'
+SELECT ST_TOUCHES('test', POINT(1,1));
+ERROR HY000: Illegal parameter data type varchar for operation 'st_touches'
+SELECT ST_TOUCHES(POINT(1,1), 'test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_touches'
+SELECT MBRTOUCHES(ROW(1,1), POINT(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_touches'
+SELECT MBRTOUCHES(POINT(1,1), ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_touches'
+SELECT MBRTOUCHES(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type int for operation 'st_touches'
+SELECT MBRTOUCHES(POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type int for operation 'st_touches'
+SELECT MBRTOUCHES('test', POINT(1,1));
+ERROR HY000: Illegal parameter data type varchar for operation 'st_touches'
+SELECT MBRTOUCHES(POINT(1,1), 'test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_touches'
 #
 # End of 10.3 tests
 #

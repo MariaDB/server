@@ -1,5 +1,5 @@
-# This test should work in embedded server after we fix mysqltest
--- source include/not_embedded.inc
+# schannel does not support keys longer than 4k
+-- source include/not_windows.inc
 
 -- source include/have_ssl_communication.inc
 #

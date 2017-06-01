@@ -129,3 +129,17 @@ i	fst_1f	last_1f	fst_1p1f	fst_1p1f	fst_2p1p	fst_2p1p	fst_1f2f	fst_1f2f
 9	9	10	8	10	7	8	10	10
 10	10	10	9	10	8	9	NULL	NULL
 drop table t1;
+#
+# MDEV-12861 FIRST_VALUE() does not preserve the exact data type
+#
+CREATE TABLE t1 (a INT, b INT, c FLOAT);
+INSERT INTO t1 VALUES (1,1,1),(1,2,2),(2,1,1),(2,2,2);
+CREATE TABLE t2 AS SELECT a, FIRST_VALUE(b) OVER(), FIRST_VALUE(c) OVER() FROM t1 GROUP BY a;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `FIRST_VALUE(b) OVER()` int(11) DEFAULT NULL,
+  `FIRST_VALUE(c) OVER()` float DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2,t1;

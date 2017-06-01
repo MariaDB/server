@@ -1444,11 +1444,11 @@ public:
   { return get_item_copy<Item_func_weight_string>(thd, mem_root, this); }
 };
 
-class Item_func_crc32 :public Item_int_func
+class Item_func_crc32 :public Item_long_func
 {
   String value;
 public:
-  Item_func_crc32(THD *thd, Item *a): Item_int_func(thd, a)
+  Item_func_crc32(THD *thd, Item *a): Item_long_func(thd, a)
   { unsigned_flag= 1; }
   const char *func_name() const { return "crc32"; }
   void fix_length_and_dec() { max_length=10; }
@@ -1457,11 +1457,11 @@ public:
   { return get_item_copy<Item_func_crc32>(thd, mem_root, this); }
 };
 
-class Item_func_uncompressed_length : public Item_int_func
+class Item_func_uncompressed_length : public Item_long_func
 {
   String value;
 public:
-  Item_func_uncompressed_length(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_uncompressed_length(THD *thd, Item *a): Item_long_func(thd, a) {}
   const char *func_name() const{return "uncompressed_length";}
   void fix_length_and_dec() { max_length=10; maybe_null= true; }
   longlong val_int();

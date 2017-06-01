@@ -1169,16 +1169,19 @@ close_table:
 	node->new_trx_id = trx_id;
 	node->cmpl_info = cmpl_info;
 
-	if (UNIV_UNLIKELY(!row_undo_search_clust_to_pcur(node))) {
-		/* This should never occur. As long as this
-		rolling-back transaction exists, the PRIMARY KEY value
-		pointed to by the undo log record must exist.
+	if (!row_undo_search_clust_to_pcur(node)) {
+		/* As long as this rolling-back transaction exists,
+		the PRIMARY KEY value pointed to by the undo log
+		record must exist. But, it is possible that the record
+		was not modified yet (the DB_ROLL_PTR does not match
+		node->roll_ptr) and thus there is nothing to roll back.
+
 		btr_cur_upd_lock_and_undo() only writes the undo log
 		record after successfully acquiring an exclusive lock
 		on the the clustered index record. That lock will not
 		be released before the transaction is committed or
 		fully rolled back. */
-		ut_ad(0);
+		ut_ad(node->pcur.btr_cur.low_match == node->ref->n_fields);
 		goto close_table;
 	}
 

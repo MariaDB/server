@@ -2509,7 +2509,7 @@ create:
          {
             LEX *lex= thd->lex;
 
-            if (lex->create_info.seq_create_info->check_and_adjust())
+            if (lex->create_info.seq_create_info->check_and_adjust(1))
             {
               my_error(ER_SEQUENCE_INVALID_DATA, MYF(0),
                        lex->select_lex.table_list.first->db,
@@ -9413,10 +9413,7 @@ column_default_non_parenthesized_expr:
           }
         | CAST_SYM '(' expr AS cast_type ')'
           {
-            LEX *lex= Lex;
-            $$= create_func_cast(thd, $3, $5.type(), $5.length(), $5.dec(),
-                                 lex->charset);
-            if ($$ == NULL)
+            if (!($$= $5.create_typecast_item(thd, $3, Lex->charset)))
               MYSQL_YYABORT;
           }
         | CASE_SYM opt_expr when_list opt_else END
@@ -9427,9 +9424,7 @@ column_default_non_parenthesized_expr:
           }
         | CONVERT_SYM '(' expr ',' cast_type ')'
           {
-            $$= create_func_cast(thd, $3, $5.type(), $5.length(), $5.dec(),
-                                 Lex->charset);
-            if ($$ == NULL)
+            if (!($$= $5.create_typecast_item(thd, $3, Lex->charset)))
               MYSQL_YYABORT;
           }
         | CONVERT_SYM '(' expr USING charset_name ')'
@@ -9508,9 +9503,8 @@ simple_expr:
         | '(' parenthesized_expr ')' { $$= $2; }
         | BINARY simple_expr %prec NEG
           {
-            $$= create_func_cast(thd, $2, ITEM_CAST_CHAR, NULL, NULL,
-                                 &my_charset_bin);
-            if ($$ == NULL)
+            Type_cast_attributes at(&my_charset_bin);
+            if (!($$= type_handler_long_blob.create_typecast_item(thd, $2, at)))
               MYSQL_YYABORT;
           }
         | simple_expr OR_OR_SYM simple_expr
@@ -9955,7 +9949,7 @@ function_call_nonkeyword:
           COLUMN_GET_SYM '(' expr ',' expr AS cast_type ')'
           {
             LEX *lex= Lex;
-            $$= create_func_dyncol_get(thd, $3, $5, $7.type(),
+            $$= create_func_dyncol_get(thd, $3, $5, $7.type_handler(),
                                         $7.length(), $7.dec(),
                                         lex->charset);
             if ($$ == NULL)
@@ -10778,34 +10772,34 @@ in_sum_expr:
 
 cast_type:
           BINARY opt_field_length
-          { $$.set(ITEM_CAST_CHAR, $2); Lex->charset= &my_charset_bin; }
+          { $$.set(&type_handler_long_blob, $2); Lex->charset= &my_charset_bin; }
         | CHAR_SYM opt_field_length
           { Lex->charset= thd->variables.collation_connection; }
           opt_binary
-          { $$.set(ITEM_CAST_CHAR, $2); }
+          { $$.set(&type_handler_long_blob, $2); }
         | NCHAR_SYM opt_field_length
           {
             Lex->charset= national_charset_info;
-            $$.set(ITEM_CAST_CHAR, $2, 0);
+            $$.set(&type_handler_long_blob, $2, 0);
           }
         | cast_type_numeric  { $$= $1; Lex->charset= NULL; }
         | cast_type_temporal { $$= $1; Lex->charset= NULL; }
         ;
 
 cast_type_numeric:
-          INT_SYM                        { $$.set(ITEM_CAST_SIGNED_INT); }
-        | SIGNED_SYM                     { $$.set(ITEM_CAST_SIGNED_INT); }
-        | SIGNED_SYM INT_SYM             { $$.set(ITEM_CAST_SIGNED_INT); }
-        | UNSIGNED                       { $$.set(ITEM_CAST_UNSIGNED_INT); }
-        | UNSIGNED INT_SYM               { $$.set(ITEM_CAST_UNSIGNED_INT); }
-        | DECIMAL_SYM float_options      { $$.set(ITEM_CAST_DECIMAL, $2); }
-        | DOUBLE_SYM opt_precision       { $$.set(ITEM_CAST_DOUBLE, $2);  }
+          INT_SYM                        { $$.set(&type_handler_longlong); }
+        | SIGNED_SYM                     { $$.set(&type_handler_longlong); }
+        | SIGNED_SYM INT_SYM             { $$.set(&type_handler_longlong); }
+        | UNSIGNED                       { $$.set(&type_handler_ulonglong); }
+        | UNSIGNED INT_SYM               { $$.set(&type_handler_ulonglong); }
+        | DECIMAL_SYM float_options      { $$.set(&type_handler_newdecimal, $2); }
+        | DOUBLE_SYM opt_precision       { $$.set(&type_handler_double, $2);  }
         ;
 
 cast_type_temporal:
-          DATE_SYM                       { $$.set(ITEM_CAST_DATE); }
-        | TIME_SYM opt_field_length      { $$.set(ITEM_CAST_TIME, 0, $2); }
-        | DATETIME opt_field_length      { $$.set(ITEM_CAST_DATETIME, 0, $2); }
+          DATE_SYM                       { $$.set(&type_handler_newdate); }
+        | TIME_SYM opt_field_length      { $$.set(&type_handler_time2, 0, $2); }
+        | DATETIME opt_field_length      { $$.set(&type_handler_datetime2, 0, $2); }
         ;
 
 opt_expr_list:

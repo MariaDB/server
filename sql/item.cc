@@ -311,6 +311,56 @@ bool Item::is_null_from_temporal()
 }
 
 
+longlong Item::val_int_from_str(int *error)
+{
+  char buff[MAX_FIELD_WIDTH];
+  String tmp(buff,sizeof(buff), &my_charset_bin), *res;
+
+  /*
+    For a string result, we must first get the string and then convert it
+    to a longlong
+  */
+  if (!(res= val_str(&tmp)))
+  {
+    *error= 0;
+    return 0;
+  }
+  Converter_strtoll10_with_warn cnv(NULL, Warn_filter_all(),
+                                    res->charset(), res->ptr(), res->length());
+  *error= cnv.error();
+  return cnv.result();
+}
+
+
+longlong Item::val_int_signed_typecast_from_str()
+{
+  int error;
+  longlong value= val_int_from_str(&error);
+  if (!null_value && value < 0 && error == 0)
+    push_note_converted_to_negative_complement(current_thd);
+  return value;
+}
+
+
+longlong Item::val_int_unsigned_typecast_from_str()
+{
+  int error;
+  longlong value= val_int_from_str(&error);
+  if (!null_value && error < 0)
+    push_note_converted_to_positive_complement(current_thd);
+  return value;
+}
+
+
+longlong Item::val_int_unsigned_typecast_from_int()
+{
+  longlong value= val_int();
+  if (!null_value && unsigned_flag == 0 && value < 0)
+    push_note_converted_to_positive_complement(current_thd);
+  return value;
+}
+
+
 String *Item::val_string_from_date(String *str)
 {
   MYSQL_TIME ltime;
@@ -427,6 +477,18 @@ longlong Item::val_int_from_decimal()
   my_decimal2int(E_DEC_FATAL_ERROR, dec_val, unsigned_flag, &result);
   return result;
 }
+
+
+longlong Item::val_int_unsigned_typecast_from_decimal()
+{
+  longlong result;
+  my_decimal tmp, *dec= val_decimal(&tmp);
+  if (null_value)
+    return 0;
+  my_decimal2int(E_DEC_FATAL_ERROR, dec, 1, &result);
+  return result;
+}
+
 
 int Item::save_time_in_field(Field *field, bool no_conversions)
 {
@@ -997,6 +1059,75 @@ bool Item::check_cols(uint c)
   return 0;
 }
 
+
+bool Item::check_type_or_binary(const char *opname,
+                                const Type_handler *expect) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler == expect ||
+      (handler->is_general_purpose_string_type() &&
+       collation.collation == &my_charset_bin))
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Item::check_type_general_purpose_string(const char *opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->is_general_purpose_string_type())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Item::check_type_traditional_scalar(const char *opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->is_traditional_type() && handler->is_scalar_type())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Item::check_type_can_return_int(const char *opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->can_return_int())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Item::check_type_can_return_real(const char *opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->can_return_real())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Item::check_type_scalar(const char *opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->is_scalar_type())
+    return false;
+  my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
+  return true;
+}
+
+
 void Item::set_name(THD *thd, const char *str, uint length, CHARSET_INFO *cs)
 {
   if (!length)
@@ -1563,7 +1694,9 @@ Item_splocal::Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name,
 
 bool Item_splocal::fix_fields(THD *thd, Item **ref)
 {
-  return fix_fields_from_item(thd, ref, thd->spcont->get_item(m_var_idx));
+  Item *item= thd->spcont->get_item(m_var_idx);
+  set_handler(item->type_handler());
+  return fix_fields_from_item(thd, ref, item);
 }
 
 
@@ -3489,7 +3622,16 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
                        uint pos_in_query_arg, uint len_in_query_arg):
   Item_basic_value(thd),
   Rewritable_query_parameter(pos_in_query_arg, len_in_query_arg),
-  Type_handler_hybrid_field_type(&type_handler_varchar),
+  /*
+    Set handler to type_handler_null. Its data type test methods such as:
+    - is_scalar_type()
+    - can_return_int()
+    - can_return_real(),
+    - is_general_purpose_string_type()
+    all return "true". This is needed to avoid any "illegal parameter type"
+    errors in Item::check_type_xxx() at PS prepare time.
+  */
+  Type_handler_hybrid_field_type(&type_handler_null),
   state(NO_VALUE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
@@ -6653,6 +6795,22 @@ void Item_hex_hybrid::print(String *str, enum_query_type query_type)
   const char *ptr= str_value.ptr() + str_value.length() - len;
   str->append("0x");
   str->append_hex(ptr, len);
+}
+
+
+uint Item_hex_hybrid::decimal_precision() const
+{
+  switch (max_length) {// HEX                                 DEC
+  case 0:              // ----                                ---
+  case 1: return 3;    // 0xFF                                255
+  case 2: return 5;    // 0xFFFF                            65535
+  case 3: return 8;    // 0xFFFFFF                       16777215
+  case 4: return 10;   // 0xFFFFFFFF                   4294967295
+  case 5: return 13;   // 0xFFFFFFFFFF              1099511627775
+  case 6: return 15;   // 0xFFFFFFFFFFFF          281474976710655
+  case 7: return 17;   // 0xFFFFFFFFFFFFFF      72057594037927935
+  }
+  return 20;           // 0xFFFFFFFFFFFFFFFF 18446744073709551615
 }
 
 

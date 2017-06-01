@@ -48,7 +48,7 @@ handlerton *sql_sequence_hton;
 */
 
 ha_sequence::ha_sequence(handlerton *hton, TABLE_SHARE *share)
-  :handler(hton, share), sequence_locked(0)
+  :handler(hton, share), write_locked(0)
 {
   sequence= share->sequence;
   DBUG_ASSERT(share->sequence);
@@ -179,7 +179,7 @@ int ha_sequence::create(const char *name, TABLE *form,
   @retval != 0  Failure
 
   NOTES:
-    sequence_locked is set if we are called from SEQUENCE::next_value
+    write_locked is set if we are called from SEQUENCE::next_value
     In this case the mutex is already locked and we should not update
     the sequence with 'buf' as the sequence object is already up to date.
 */
@@ -187,6 +187,8 @@ int ha_sequence::create(const char *name, TABLE *form,
 int ha_sequence::write_row(uchar *buf)
 {
   int error;
+  sequence_definition tmp_seq;
+  bool sequence_locked;
   DBUG_ENTER("ha_sequence::write_row");
   DBUG_ASSERT(table->record[0] == buf);
 
@@ -199,23 +201,38 @@ int ha_sequence::write_row(uchar *buf)
   if (unlikely(sequence->initialized != SEQUENCE::SEQ_READY_TO_USE))
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
-  /*
-    User tries to write a row
-    - Check that the new row is an accurate object
-    - Update the first row in the table
-  */
+  sequence_locked= write_locked;
+  if (!write_locked)                         // If not from next_value()
+  {
+    /*
+      User tries to write a full row directly to the sequence table with
+      INSERT or LOAD DATA.
 
-  sequence_definition tmp_seq;
-  tmp_seq.read_fields(table);
-  if (tmp_seq.check_and_adjust())
-    DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
+      - Get an exclusive lock for the table. This is needed to ensure that
+        we excute all full inserts (same as ALTER SEQUENCE) in same order
+        on master and slaves
+      - Check that we are only using one table.
+        This is to avoid deadlock problems when upgrading lock to exlusive.
+      - Check that the new row is an accurate SEQUENCE object
+    */
 
-  /*
-    Lock sequence to ensure that no one can come in between
-    while sequence, table and binary log are updated.
-  */
-  if (!sequence_locked)                         // If not from next_value()
-    sequence->lock();
+    THD *thd= table->in_use;
+    if (thd->lock->table_count != 1)
+      DBUG_RETURN(ER_WRONG_INSERT_INTO_SEQUENCE);
+    if (thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
+                                             thd->variables.lock_wait_timeout))
+      DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
+
+    tmp_seq.read_fields(table);
+    if (tmp_seq.check_and_adjust(0))
+      DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
+
+    /*
+      Lock sequence to ensure that no one can come in between
+      while sequence, table and binary log are updated.
+    */
+    sequence->write_lock(table);
+  }
 
   if (!(error= file->update_first_row(buf)))
   {
@@ -230,40 +247,7 @@ int ha_sequence::write_row(uchar *buf)
 
   sequence->all_values_used= 0;
   if (!sequence_locked)
-    sequence->unlock();
-  DBUG_RETURN(error);
-}
-
-
-int ha_sequence::update_row(const uchar *old_data, const uchar *new_data)
-{
-  int error;
-  sequence_definition tmp_seq;
-  DBUG_ENTER("ha_sequence::update_row");
-  DBUG_ASSERT(new_data == table->record[0]);
-
-  row_already_logged= 0;
-
-  tmp_seq.read_fields(table);
-  if (tmp_seq.check_and_adjust())
-    DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
-
-  /*
-    Lock sequence to ensure that no one can come in between
-    while sequence, table and binary log is updated.
-  */
-  sequence->lock();
-  if (!(error= file->update_row(old_data, new_data)))
-  {
-    sequence->copy(&tmp_seq);
-    rows_changed++;
-    /* We have to do the logging while we hold the sequence mutex */
-    error= binlog_log_row(table, old_data, new_data,
-                          Update_rows_log_event::binlog_row_logging_function);
-    row_already_logged= 1;
-  }
-  sequence->all_values_used= 0;
-  sequence->unlock();
+    sequence->write_unlock(table);
   DBUG_RETURN(error);
 }
 
@@ -345,6 +329,9 @@ void ha_sequence::print_error(int error, myf errflag)
   }
   case HA_ERR_WRONG_COMMAND:
     my_error(ER_ILLEGAL_HA, MYF(0), "SEQUENCE", sequence_db, sequence_name);
+    DBUG_VOID_RETURN;
+  case ER_WRONG_INSERT_INTO_SEQUENCE:
+    my_error(error, MYF(0));
     DBUG_VOID_RETURN;
   }
   file->print_error(error, errflag);

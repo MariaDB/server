@@ -182,7 +182,7 @@ os_mem_free_large(
 			<< ") failed; Windows error " << GetLastError();
 	} else {
 		my_atomic_addlint(
-			&os_total_large_mem_allocated, -size);
+			&os_total_large_mem_allocated, -lint(size));
 		UNIV_MEM_FREE(ptr, size);
 	}
 #elif !defined OS_MAP_ANON

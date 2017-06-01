@@ -1,4 +1,5 @@
 #!/usr/bin/perl -w
+use strict;
 
 # Copyright (c) 2001, 2006 MySQL AB
 #   Use is subject to license terms
@@ -21,7 +22,7 @@
 #
 # Tested a lot with:  --threads=30
 
-$opt_loop_count=500000; # Change this to make test harder/easier
+my $opt_loop_count=500000; # Change this to make test harder/easier
 
 ##################### Standard benchmark inits ##############################
 
@@ -30,6 +31,13 @@ use Getopt::Long;
 use Benchmark;
 
 package main;
+
+our ($opt_skip_create,$opt_skip_in,$opt_verbose,$opt_fast_insert);
+our ($opt_lock_tables,$opt_debug,$opt_skip_delete,$opt_fast,$opt_force);
+our ($opt_threads);
+our ($opt_host,$opt_user,$opt_password,$opt_db);
+my (@testtables, $abort_table, $numtables, $start_time, $end_time);
+my ($dbh);
 
 $opt_skip_create=$opt_skip_in=$opt_verbose=$opt_fast_insert=
 $opt_lock_tables=$opt_debug=$opt_skip_delete=$opt_fast=$opt_force=0;
@@ -94,6 +102,8 @@ $|= 1;				# Autoflush
 #### Start the tests
 ####
 
+my ($i, $pid, %work);
+
 for ($i=0 ; $i < $opt_threads ; $i ++)
 {
   test_insert() if (($pid=fork()) == 0); $work{$pid}="insert";
@@ -118,10 +128,13 @@ test_alter() if (($pid=fork()) == 0); $work{$pid}="alter";
 
 print "Started " . ($opt_threads*2+4) . " threads\n";
 
+my ($errors, $running_insert_threads);
+
 $errors=0;
 $running_insert_threads=$opt_threads+$numtables;
 while (($pid=wait()) != -1)
 {
+  my ($ret);
   $ret=$?/256;
   print "thread '" . $work{$pid} . "' finished with exit code $ret\n";
   if ($work{$pid} =~ /^insert/)
@@ -203,7 +216,7 @@ sub test_insert
 
 sub test_select
 {
-  my ($dbh, $i, $j, $count, $loop);
+  my ($dbh, $i, $j, $count, $loop, $count_query, $row_counts);
 
   $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
@@ -270,7 +283,7 @@ sub test_select_count
 
 sub test_join
 {
-  my ($dbh, $i, $j, $count, $loop);
+  my ($dbh, $i, $j, $count, $loop, $count_query, $row_counts);
 
   $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
@@ -389,7 +402,7 @@ sub test_update
 
 sub test_check
 {
-  my ($dbh, $row, $i, $j, $type, $table);
+  my ($dbh, $sth, $row, $i, $j, $type, $table);
   $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
@@ -397,7 +410,7 @@ sub test_check
   $type= "check";
   for ($i=$j=0 ; !test_if_abort($dbh) ; $i++)
   {
-    sleep(1000);
+    sleep(200);
     $table=$testtables[$j]->[0];
     $sth=$dbh->prepare("$type table $table") || die "Got error on prepare: $DBI::errstr\n";
     $sth->execute || die $DBI::errstr;
@@ -426,7 +439,7 @@ sub test_check
 
 sub test_repair
 {
-  my ($dbh, $row, $i, $type, $table);
+  my ($dbh, $sth, $row, $i, $type, $table);
   $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
@@ -434,7 +447,7 @@ sub test_repair
   $type= "repair";
   for ($i=0 ; !test_if_abort($dbh) ; $i++)
   {
-    sleep(2000);
+    sleep(100);
     $table=$testtables[0]->[0];
     $sth=$dbh->prepare("$type table $table") || die "Got error on prepare: $DBI::errstr\n";
     $sth->execute || die $DBI::errstr;
@@ -470,7 +483,7 @@ sub test_flush
   $count=0;
   while (!test_if_abort($dbh))
   {
-    sleep(3000);
+    sleep(300);
     $dbh->do("flush tables $tables") ||
       die "Got error on flush $DBI::errstr\n";
     $count++;
@@ -488,7 +501,7 @@ sub test_flush
 sub test_database
 {
   my ($database) = @_;
-  my ($dbh, $row, $i, $type, $tables);
+  my ($dbh, $sth, $row, $i, $type, $tables);
   $dbh = DBI->connect("DBI:mysql:$database:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
@@ -521,7 +534,7 @@ sub test_database
 
 sub test_alter
 {
-  my ($dbh, $row, $i, $type, $table);
+  my ($dbh, $sth, $row, $i, $type, $table);
   $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
@@ -559,6 +572,7 @@ sub signal_abort
 sub test_if_abort()
 {
   my ($dbh)=@_;
+  my ($row);
   $row=simple_query($dbh,"select * from $opt_db.$abort_table");
   return (defined($row) && defined($row->[0]) != 0) ? 1 : 0;
 }
@@ -567,7 +581,7 @@ sub test_if_abort()
 sub make_count_query
 {
   my ($table_count)= @_;
-  my ($tables, $count_query, $i, $tables_def);
+  my ($tables, $count_query, $i, $table_def);
   $tables="";
   $count_query="select high_priority ";
   $table_count--;

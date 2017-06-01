@@ -26,6 +26,11 @@
 #define seq_field_used_restart   64
 #define seq_field_used_restart_value 128
 
+/* Field position in sequence table for some fields we refer to directly */
+#define NEXT_FIELD_NO 0
+#define MIN_VALUE_FIELD_NO 1
+#define ROUND_FIELD_NO 7
+
 /**
    sequence_definition is used when defining a sequence as part of create
 */
@@ -35,7 +40,7 @@ class sequence_definition :public Sql_alloc
 public:
   sequence_definition():
     min_value(1), max_value(LONGLONG_MAX-1), start(1), increment(1),
-    cache(1000), round(0), cycle(0), used_fields(0)
+      cache(1000), round(0), restart(0), cycle(0), used_fields(0)
   {}
   longlong reserved_until;
   longlong min_value;
@@ -44,21 +49,30 @@ public:
   longlong increment;
   longlong cache;
   ulonglong round;
+  longlong restart;              // alter sequence restart value
   bool     cycle;
   uint used_fields;              // Which fields where used in CREATE
-  longlong restart;              // alter sequence restart value
 
-  bool check_and_adjust();
+  bool check_and_adjust(bool set_reserved_until);
   void store_fields(TABLE *table);
   void read_fields(TABLE *table);
   int write_initial_sequence(TABLE *table);
-  int write(TABLE *table);
+  int write(TABLE *table, bool all_fields);
+  /* This must be called after sequence data has been updated */
+  void adjust_values(longlong next_value);
   inline void print_dbug()
   {
     DBUG_PRINT("sequence", ("reserved: %lld  start: %lld  increment: %lld  min_value: %lld  max_value: %lld  cache: %lld  round: %lld",
                       reserved_until, start, increment, min_value,
                         max_value, cache, round));
   }
+protected:
+  /*
+    The following values are the values from sequence_definition
+    merged with global auto_increment_offset and auto_increment_increment
+  */
+  longlong real_increment;
+  longlong next_free_value;
 };
 
 /**
@@ -79,16 +93,10 @@ public:
   ~SEQUENCE();
   int  read_initial_values(TABLE *table);
   int  read_stored_values();
-  void lock()
-  {
-    mysql_mutex_lock(&mutex);
-  }
-  void unlock()
-  {
-    mysql_mutex_unlock(&mutex);
-  }
-  /* This must be called after sequence data has been updated */
-  void adjust_values(longlong next_value);
+  void write_lock(TABLE *table);
+  void write_unlock(TABLE *table);
+  void read_lock(TABLE *table);
+  void read_unlock(TABLE *table);
   void copy(sequence_definition *seq)
   {
     sequence_definition::operator= (*seq);
@@ -123,13 +131,7 @@ public:
 
 private:
   TABLE         *table;
-  mysql_mutex_t mutex;
-  longlong next_free_value;
-  /*
-    The following values are the values from sequence_definition
-    merged with global auto_increment_offset and auto_increment_increment
-  */
-  longlong real_increment;
+  mysql_rwlock_t mutex;
 };
 
 

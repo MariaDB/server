@@ -30,6 +30,7 @@ Type_handler_short       type_handler_short;
 Type_handler_long        type_handler_long;
 Type_handler_int24       type_handler_int24;
 Type_handler_longlong    type_handler_longlong;
+Type_handler_longlong    type_handler_ulonglong; // Only used for CAST() for now
 Type_handler_float       type_handler_float;
 Type_handler_double      type_handler_double;
 Type_handler_bit         type_handler_bit;
@@ -527,6 +528,14 @@ Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
   return false;
 }
 
+
+const Type_handler *
+Type_handler::type_handler_long_or_longlong(uint max_char_length)
+{
+  if (max_char_length <= MY_INT32_NUM_DECIMAL_DIGITS - 2)
+    return &type_handler_long;
+  return &type_handler_longlong;
+}
 
 /*
   This method is called for CASE (and its abbreviations) and LEAST/GREATEST
@@ -1637,6 +1646,93 @@ bool Type_handler_geometry::
 /*************************************************************************/
 
 bool Type_handler::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  def->create_length_to_internal_length_simple();
+  return false;
+}
+
+
+bool Type_handler_null::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  def->create_length_to_internal_length_null();
+  return false;
+}
+
+
+bool Type_handler_newdecimal::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  def->create_length_to_internal_length_newdecimal();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  def->create_length_to_internal_length_string();
+  return false;
+}
+
+
+bool Type_handler_typelib::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  def->create_length_to_internal_length_typelib();
+  return false;
+}
+
+
+bool Type_handler_bit::
+       Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
+{
+  def->redefine_stage1_common(dup, file, schema);
+  /*
+    If we are replacing a field with a BIT field, we need
+    to initialize pack_flag.
+  */
+  def->pack_flag= FIELDFLAG_NUMBER;
+  if (!(file->ha_table_flags() & HA_CAN_BIT_FIELD))
+    def->pack_flag|= FIELDFLAG_TREAT_BIT_AS_CHAR;
+  def->create_length_to_internal_length_bit();
+  return false;
+}
+
+
+/*************************************************************************/
+
+bool Type_handler::
        Column_definition_prepare_stage2_legacy(Column_definition *def,
                                                enum_field_types type) const
 {
@@ -1859,7 +1955,8 @@ Field *Type_handler_tiny::make_table_field(const LEX_CSTRING *name,
                                            TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_tiny(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+         Field_tiny(addr.ptr, attr.max_char_length(),
+                    addr.null_ptr, addr.null_bit,
                     Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
 }
 
@@ -1871,7 +1968,8 @@ Field *Type_handler_short::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_short(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+         Field_short(addr.ptr, attr.max_char_length(),
+                     addr.null_ptr, addr.null_bit,
                      Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
 }
 
@@ -1882,7 +1980,8 @@ Field *Type_handler_int24::make_table_field(const LEX_CSTRING *name,
                                             TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_medium(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+         Field_medium(addr.ptr, attr.max_char_length(),
+                      addr.null_ptr, addr.null_bit,
                       Field::NONE, name,
                       0/*zerofill*/, attr.unsigned_flag);
 }
@@ -1894,7 +1993,8 @@ Field *Type_handler_long::make_table_field(const LEX_CSTRING *name,
                                            TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_long(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+         Field_long(addr.ptr, attr.max_char_length(),
+                    addr.null_ptr, addr.null_bit,
                     Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
 }
 
@@ -1905,7 +2005,7 @@ Field *Type_handler_longlong::make_table_field(const LEX_CSTRING *name,
                                                TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_longlong(addr.ptr, attr.max_length,
+         Field_longlong(addr.ptr, attr.max_char_length(),
                         addr.null_ptr, addr.null_bit,
                         Field::NONE, name,
                         0/*zerofill*/, attr.unsigned_flag);
@@ -1918,7 +2018,8 @@ Field *Type_handler_float::make_table_field(const LEX_CSTRING *name,
                                             TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_float(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+         Field_float(addr.ptr, attr.max_char_length(),
+                     addr.null_ptr, addr.null_bit,
                      Field::NONE, name,
                      attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
 }
@@ -1930,7 +2031,7 @@ Field *Type_handler_double::make_table_field(const LEX_CSTRING *name,
                                              TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_double(addr.ptr, attr.max_length,
+         Field_double(addr.ptr, attr.max_char_length(),
                       addr.null_ptr, addr.null_bit,
                       Field::NONE, name,
                       attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
@@ -2978,6 +3079,70 @@ bool Type_handler_geometry::
 
 /*************************************************************************/
 
+longlong Type_handler_real_result::
+           Item_val_int_signed_typecast(Item *item) const
+{
+  return item->val_int();
+}
+
+longlong Type_handler_int_result::
+           Item_val_int_signed_typecast(Item *item) const
+{
+  return item->val_int();
+}
+
+longlong Type_handler_decimal_result::
+           Item_val_int_signed_typecast(Item *item) const
+{
+  return item->val_int();
+}
+
+longlong Type_handler_temporal_result::
+           Item_val_int_signed_typecast(Item *item) const
+{
+  return item->val_int();
+}
+
+longlong Type_handler_string_result::
+           Item_val_int_signed_typecast(Item *item) const
+{
+  return item->val_int_signed_typecast_from_str();
+}
+
+/*************************************************************************/
+
+longlong Type_handler_real_result::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  return item->val_int_unsigned_typecast_from_int();
+}
+
+longlong Type_handler_int_result::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  return item->val_int_unsigned_typecast_from_int();
+}
+
+longlong Type_handler_decimal_result::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  return item->val_int_unsigned_typecast_from_decimal();
+}
+
+longlong Type_handler_temporal_result::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  return item->val_int_unsigned_typecast_from_int();
+}
+
+longlong Type_handler_string_result::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  return item->val_int_unsigned_typecast_from_str();
+}
+
+/*************************************************************************/
+
 String *
 Type_handler_real_result::Item_func_hex_val_str_ascii(Item_func_hex *item,
                                                       String *str) const
@@ -4012,7 +4177,56 @@ bool Type_handler::
 bool Type_handler::
        Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
 {
+  const Item *arg= item->arguments()[0];
+  if (!arg->unsigned_flag && arg->val_int_min() < 0)
+  {
+    /*
+      Negative arguments produce long results:
+        CAST(1-2 AS UNSIGNED) -> 18446744073709551615
+    */
+    item->max_length= MAX_BIGINT_WIDTH;
+    return false;
+  }
   item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_signed_fix_length_and_dec(Item_func_signed *item) const
+{
+  item->fix_length_and_dec_string();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
+{
+  const Item *arg= item->arguments()[0];
+  if (!arg->unsigned_flag &&       // Not HEX hybrid
+      arg->max_char_length() > 1)  // Can be negative
+  {
+    // String arguments can give long results: '-1' -> 18446744073709551614
+    item->max_length= MAX_BIGINT_WIDTH;
+    return false;
+  }
+  item->fix_length_and_dec_string();
+  return false;
+}
+
+bool Type_handler_real_result::
+       Item_func_signed_fix_length_and_dec(Item_func_signed *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
+{
+  item->fix_length_and_dec_double();
   return false;
 }
 
@@ -4999,6 +5213,168 @@ Item *Type_handler_row::
                          comp_item_row->element_index(col));
   }
   return NULL;
+}
+
+/***************************************************************************/
+
+static const char* item_name(Item *a, String *str)
+{
+  if (a->name.str)
+    return a->name.str;
+  str->length(0);
+  a->print(str, QT_ORDINARY);
+  return str->c_ptr_safe();
+}
+
+
+static void wrong_precision_error(uint errcode, Item *a,
+                                  ulonglong number, uint maximum)
+{
+  StringBuffer<1024> buf(system_charset_info);
+  my_error(errcode, MYF(0), number, item_name(a, &buf), maximum);
+}
+
+
+/**
+  Get precision and scale for a declaration
+ 
+  return
+    0  ok
+    1  error
+*/
+
+bool get_length_and_scale(ulonglong length, ulonglong decimals,
+                          ulong *out_length, uint *out_decimals,
+                          uint max_precision, uint max_scale,
+                          Item *a)
+{
+  if (length > (ulonglong) max_precision)
+  {
+    wrong_precision_error(ER_TOO_BIG_PRECISION, a, length, max_precision);
+    return 1;
+  }
+  if (decimals > (ulonglong) max_scale)
+  {
+    wrong_precision_error(ER_TOO_BIG_SCALE, a, decimals, max_scale);
+    return 1;
+  }
+
+  *out_decimals=  (uint) decimals;
+  my_decimal_trim(&length, out_decimals);
+  *out_length=  (ulong) length;
+  
+  if (*out_length < *out_decimals)
+  {
+    my_error(ER_M_BIGGER_THAN_D, MYF(0), "");
+    return 1;
+  }
+  return 0;
+}
+
+
+Item *Type_handler_longlong::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  if (this != &type_handler_ulonglong)
+    return new (thd->mem_root) Item_func_signed(thd, item);
+  return new (thd->mem_root) Item_func_unsigned(thd, item);
+
+}
+
+
+Item *Type_handler_date_common::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  return new (thd->mem_root) Item_date_typecast(thd, item);
+}
+
+
+
+Item *Type_handler_time_common::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  if (attr.decimals() > MAX_DATETIME_PRECISION)
+  {
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
+                          MAX_DATETIME_PRECISION);
+    return 0;
+  }
+  return new (thd->mem_root)
+         Item_time_typecast(thd, item, (uint) attr.decimals());
+}
+
+
+Item *Type_handler_datetime_common::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  if (attr.decimals() > MAX_DATETIME_PRECISION)
+  {
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
+                          MAX_DATETIME_PRECISION);
+    return 0;
+  }
+  return new (thd->mem_root)
+         Item_datetime_typecast(thd, item, (uint) attr.decimals());
+
+}
+
+
+Item *Type_handler_decimal_result::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  ulong len;
+  uint dec;
+  if (get_length_and_scale(attr.length(), attr.decimals(), &len, &dec,
+                           DECIMAL_MAX_PRECISION, DECIMAL_MAX_SCALE, item))
+    return NULL;
+  return new (thd->mem_root) Item_decimal_typecast(thd, item, len, dec);
+}
+
+
+Item *Type_handler_double::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  ulong len;
+  uint dec;
+  if (!attr.length_specified())
+    return new (thd->mem_root) Item_double_typecast(thd, item,
+                                                    DBL_DIG + 7,
+                                                    NOT_FIXED_DEC);
+
+  if (get_length_and_scale(attr.length(), attr.decimals(), &len, &dec,
+                           DECIMAL_MAX_PRECISION, NOT_FIXED_DEC - 1, item))
+    return NULL;
+  return new (thd->mem_root) Item_double_typecast(thd, item, len, dec);
+}
+
+
+Item *Type_handler_long_blob::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  int len= -1;
+  CHARSET_INFO *real_cs= attr.charset() ?
+                         attr.charset() :
+                         thd->variables.collation_connection;
+  if (attr.length_specified())
+  {
+    if (attr.length() > MAX_FIELD_BLOBLENGTH)
+    {
+      char buff[1024];
+      String buf(buff, sizeof(buff), system_charset_info);
+      my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), item_name(item, &buf),
+               MAX_FIELD_BLOBLENGTH);
+      return NULL;
+    }
+    len= (int) attr.length();
+  }
+  return new (thd->mem_root) Item_char_typecast(thd, item, len, real_cs);
 }
 
 /***************************************************************************/

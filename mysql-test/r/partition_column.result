@@ -542,7 +542,7 @@ create table t1 as select to_seconds(null) as to_seconds;
 select data_type from information_schema.columns
 where table_schema='test' and column_name='to_seconds';
 data_type
-int
+bigint
 drop table t1;
 create table t1 (a int, b int)
 partition by list columns(a,b)

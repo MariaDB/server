@@ -35,14 +35,19 @@ class Item_func :public Item_func_or_sum
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
 protected:
-  /*
-    Allowed numbers of columns in result (usually 1, which means scalar value)
-    0 means get this number from first argument
-  */
-  uint allowed_arg_cols;
   String *val_str_from_val_str_ascii(String *str, String *str2);
 
-  virtual bool check_allowed_arg_cols(uint argno);
+  virtual bool check_arguments() const
+  {
+    return check_argument_types_scalar(0, arg_count);
+  }
+  bool check_argument_types_like_args0() const;
+  bool check_argument_types_scalar(uint start, uint end) const;
+  bool check_argument_types_traditional_scalar(uint start, uint end) const;
+  bool check_argument_types_or_binary(const Type_handler *handler,
+                                      uint start, uint end) const;
+  bool check_argument_types_can_return_int(uint start, uint end) const;
+  bool check_argument_types_can_return_real(uint start, uint end) const;
 public:
 
   table_map not_null_tables_cache;
@@ -65,30 +70,30 @@ public:
                   NEG_FUNC, GSYSVAR_FUNC, DYNCOL_FUNC };
   enum Type type() const { return FUNC_ITEM; }
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
-  Item_func(THD *thd): Item_func_or_sum(thd), allowed_arg_cols(1)
+  Item_func(THD *thd): Item_func_or_sum(thd)
   {
     with_sum_func= 0;
     with_field= 0;
   }
-  Item_func(THD *thd, Item *a): Item_func_or_sum(thd, a), allowed_arg_cols(1)
+  Item_func(THD *thd, Item *a): Item_func_or_sum(thd, a)
   {
     with_sum_func= a->with_sum_func;
     with_field= a->with_field;
   }
   Item_func(THD *thd, Item *a, Item *b):
-    Item_func_or_sum(thd, a, b), allowed_arg_cols(1)
+    Item_func_or_sum(thd, a, b)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func;
     with_field= a->with_field || b->with_field;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c):
-    Item_func_or_sum(thd, a, b, c), allowed_arg_cols(1)
+    Item_func_or_sum(thd, a, b, c)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
     with_field= a->with_field || b->with_field || c->with_field;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
-    Item_func_or_sum(thd, a, b, c, d), allowed_arg_cols(1)
+    Item_func_or_sum(thd, a, b, c, d)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func ||
                    c->with_sum_func || d->with_sum_func;
@@ -96,7 +101,7 @@ public:
                 c->with_field || d->with_field;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e):
-    Item_func_or_sum(thd, a, b, c, d, e), allowed_arg_cols(1)
+    Item_func_or_sum(thd, a, b, c, d, e)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func ||
                    c->with_sum_func || d->with_sum_func || e->with_sum_func;
@@ -104,14 +109,13 @@ public:
                 c->with_field || d->with_field || e->with_field;
   }
   Item_func(THD *thd, List<Item> &list):
-    Item_func_or_sum(thd, list), allowed_arg_cols(1)
+    Item_func_or_sum(thd, list)
   {
     set_arguments(thd, list);
   }
   // Constructor used for Item_cond_and/or (see Item comment)
   Item_func(THD *thd, Item_func *item):
     Item_func_or_sum(thd, item),
-    allowed_arg_cols(item->allowed_arg_cols),
     not_null_tables_cache(item->not_null_tables_cache)
   {
   }
@@ -141,7 +145,6 @@ public:
   virtual Item *key_item() const { return args[0]; }
   void set_arguments(THD *thd, List<Item> &list)
   {
-    allowed_arg_cols= 1;
     Item_args::set_arguments(thd, list);
     sync_with_sum_func_and_with_field(list);
     list.empty();                                     // Fields are used
@@ -169,11 +172,7 @@ public:
   void signal_divide_by_null();
   friend class udf_handler;
   Field *create_field_for_create_select(TABLE *table)
-  {
-    return result_type() != STRING_RESULT ?
-           create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS) :
-           tmp_table_field_from_field_type(table);
-  }
+  { return tmp_table_field_from_field_type(table); }
   Item *get_tmp_table_item(THD *thd);
 
   my_decimal *val_decimal(my_decimal *);
@@ -624,10 +623,6 @@ public:
   Item_func_case_expression(THD *thd, List<Item> &list):
     Item_func_hybrid_field_type(thd, list)
   { }
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
 };
 
 
@@ -700,13 +695,14 @@ class Item_num_op :public Item_func_numhybrid
     unsigned_flag= args[0]->unsigned_flag | args[1]->unsigned_flag;
     result_precision();
     decimals= 0;
+    set_handler(type_handler_long_or_longlong());
   }
   void fix_length_and_dec_temporal()
   {
     set_handler(&type_handler_newdecimal);
     fix_length_and_dec_decimal();
     if (decimals == 0)
-      set_handler(&type_handler_longlong);
+      set_handler(type_handler_long_or_longlong());
   }
   bool need_parentheses_in_default() { return true; }
 };
@@ -715,6 +711,12 @@ class Item_num_op :public Item_func_numhybrid
 class Item_int_func :public Item_func
 {
 public:
+  /*
+    QQ: shouldn't 20 characters be enough:
+    Max unsigned =  18,446,744,073,709,551,615 = 20 digits, 20 characters
+    Max signed   =   9,223,372,036,854,775,807 = 19 digits, 19 characters
+    Min signed   =  -9,223,372,036,854,775,808 = 19 digits, 20 characters
+  */
   Item_int_func(THD *thd): Item_func(thd)
   { collation.set_numeric(); fix_char_length(21); }
   Item_int_func(THD *thd, Item *a): Item_func(thd, a)
@@ -732,87 +734,82 @@ public:
   { collation.set_numeric(); }
   double val_real();
   String *val_str(String*str);
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const= 0;
   void fix_length_and_dec() {}
 };
 
 
-class Item_func_cursor_int_attr: public Item_int_func
+class Item_long_func: public Item_int_func
+{
+public:
+  Item_long_func(THD *thd): Item_int_func(thd) { }
+  Item_long_func(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_long_func(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_long_func(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
+  Item_long_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
+  Item_long_func(THD *thd, Item_long_func *item) :Item_int_func(thd, item) {}
+  const Type_handler *type_handler() const { return &type_handler_long; }
+  void fix_length_and_dec() { max_length= 11; }
+};
+
+
+class Item_longlong_func: public Item_int_func
+{
+public:
+  Item_longlong_func(THD *thd): Item_int_func(thd) { }
+  Item_longlong_func(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_longlong_func(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_longlong_func(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
+  Item_longlong_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
+    Item_int_func(thd, a, b, c, d) {}
+  Item_longlong_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
+  Item_longlong_func(THD *thd, Item_longlong_func *item) :Item_int_func(thd, item) {}
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
+};
+
+
+class Cursor_ref
 {
 protected:
   LEX_CSTRING m_cursor_name;
   uint m_cursor_offset;
   class sp_cursor *get_open_cursor_or_error();
-public:
-  Item_func_cursor_int_attr(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_int_func(thd), m_cursor_name(*name), m_cursor_offset(offset)
+  Cursor_ref(const LEX_CSTRING *name, uint offset)
+   :m_cursor_name(*name), m_cursor_offset(offset)
   { }
+  void print_func(String *str, const char *func_name);
+};
+
+
+
+class Item_func_cursor_rowcount: public Item_longlong_func,
+                                 public Cursor_ref
+{
+public:
+  Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
+   :Item_longlong_func(thd), Cursor_ref(name, offset) { maybe_null= true; }
+  const char *func_name() const { return "%ROWCOUNT"; }
+  longlong val_int();
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), arg, VCOL_SESSION_FUNC);
   }
-  void print(String *str, enum_query_type query_type);
-};
-
-
-class Item_func_cursor_isopen: public Item_func_cursor_int_attr
-{
-public:
-  Item_func_cursor_isopen(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_int_attr(thd, name, offset) { }
-  const char *func_name() const { return "%ISOPEN"; }
-  void fix_length_and_dec() { max_length= 1; }
-  longlong val_int();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_cursor_isopen>(thd, mem_root, this); }
-};
-
-
-class Item_func_cursor_found: public Item_func_cursor_int_attr
-{
-public:
-  Item_func_cursor_found(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_int_attr(thd, name, offset) { }
-  const char *func_name() const { return "%FOUND"; }
-  void fix_length_and_dec() { max_length= 1; maybe_null= true; }
-  longlong val_int();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_cursor_found>(thd, mem_root, this); }
-};
-
-
-class Item_func_cursor_notfound: public Item_func_cursor_int_attr
-{
-public:
-  Item_func_cursor_notfound(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_int_attr(thd, name, offset) { }
-  const char *func_name() const { return "%NOTFOUND"; }
-  void fix_length_and_dec() { max_length= 1; maybe_null= true; }
-  longlong val_int();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_cursor_notfound>(thd, mem_root, this); }
-};
-
-
-class Item_func_cursor_rowcount: public Item_func_cursor_int_attr
-{
-public:
-  Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_int_attr(thd, name, offset) { }
-  const char *func_name() const { return "%ROWCOUNT"; }
-  longlong val_int();
+  void print(String *str, enum_query_type query_type)
+  {
+    return Cursor_ref::print_func(str, func_name());
+  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_cursor_rowcount>(thd, mem_root, this); }
 };
 
 
 
-class Item_func_connection_id :public Item_int_func
+class Item_func_connection_id :public Item_long_func
 {
   longlong value;
 
 public:
-  Item_func_connection_id(THD *thd): Item_int_func(thd) {}
+  Item_func_connection_id(THD *thd): Item_long_func(thd) {}
   const char *func_name() const { return "connection_id"; }
   void fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
@@ -834,11 +831,17 @@ public:
     unsigned_flag= 0;
   }
   const char *func_name() const { return "cast_as_signed"; }
+  const Type_handler *type_handler() const
+  { return type_handler_long_or_longlong(); }
   longlong val_int()
   {
     longlong value= args[0]->val_int_signed_typecast();
     null_value= args[0]->null_value;
     return value;
+  }
+  void fix_length_and_dec_double()
+  {
+    fix_char_length(MAX_BIGINT_WIDTH);
   }
   void fix_length_and_dec_generic()
   {
@@ -849,6 +852,19 @@ public:
       Reserve max_length to fit at least one character for one digit,
       plus one character for the sign (if signed).
     */
+    set_if_bigger(char_length, 1U + (unsigned_flag ? 0 : 1));
+    fix_char_length(char_length);
+  }
+  void fix_length_and_dec_string()
+  {
+    /*
+      For strings, use decimal_int_part() instead of max_char_length().
+      This is important for Item_hex_hybrid:
+        SELECT CAST(0x1FFFFFFFF AS SIGNED);
+      Length is 5, decimal_int_part() is 13.
+    */
+    uint32 char_length= MY_MIN(args[0]->decimal_int_part(),
+                               MY_INT64_NUM_DECIMAL_DIGITS);
     set_if_bigger(char_length, 1U + (unsigned_flag ? 0 : 1));
     fix_char_length(char_length);
   }
@@ -872,6 +888,12 @@ public:
     unsigned_flag= 1;
   }
   const char *func_name() const { return "cast_as_unsigned"; }
+  const Type_handler *type_handler() const
+  {
+    if (max_char_length() <= MY_INT32_NUM_DECIMAL_DIGITS - 1)
+      return &type_handler_long;
+    return &type_handler_longlong;
+  }
   longlong val_int()
   {
     longlong value= args[0]->val_int_unsigned_typecast();
@@ -882,6 +904,7 @@ public:
   {
     args[0]->type_handler()->Item_func_unsigned_fix_length_and_dec(this);
   }
+  uint decimal_precision() const { return max_length; }
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_unsigned>(thd, mem_root, this); }
@@ -1044,6 +1067,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "DIV"; }
   enum precedence precedence() const { return MUL_PRECEDENCE; }
+  const Type_handler *type_handler() const
+  { return type_handler_long_or_longlong(); }
   void fix_length_and_dec();
   void print(String *str, enum_query_type query_type)
   {
@@ -1084,6 +1109,7 @@ public:
     max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
     decimals= 0;
     unsigned_flag= args[0]->unsigned_flag;
+    set_handler(type_handler_long_or_longlong());
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -1384,11 +1410,13 @@ private:
 };
 
 
-class Item_func_sign :public Item_int_func
+class Item_func_sign :public Item_long_func
 {
 public:
-  Item_func_sign(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_sign(THD *thd, Item *a): Item_long_func(thd, a) {}
   const char *func_name() const { return "sign"; }
+  uint decimal_precision() const { return 1; }
+  void fix_length_and_dec() { fix_char_length(2); }
   longlong val_int();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_sign>(thd, mem_root, this); }
@@ -1433,10 +1461,6 @@ public:
   Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):
     Item_hybrid_func(thd, list), cmp_sign(cmp_sign_arg)
   {}
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
   String *val_str_native(String *str);
   double val_real_native();
   longlong val_int_native();
@@ -1552,11 +1576,11 @@ public:
 };
 
 
-class Item_func_octet_length :public Item_int_func
+class Item_func_octet_length :public Item_long_func
 {
   String value;
 public:
-  Item_func_octet_length(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_octet_length(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "octet_length"; }
   void fix_length_and_dec() { max_length=10; }
@@ -1564,22 +1588,26 @@ public:
   { return get_item_copy<Item_func_octet_length>(thd, mem_root, this); }
 };
 
-class Item_func_bit_length :public Item_func_octet_length
+class Item_func_bit_length :public Item_longlong_func
 {
+  String value;
 public:
-  Item_func_bit_length(THD *thd, Item *a): Item_func_octet_length(thd, a) {}
-  longlong val_int()
-    { DBUG_ASSERT(fixed == 1); return Item_func_octet_length::val_int()*8; }
+  Item_func_bit_length(THD *thd, Item *a): Item_longlong_func(thd, a) {}
+  void fix_length_and_dec()
+  {
+    max_length= 11; // 0x100000000*8 = 34,359,738,368
+  }
+  longlong val_int();
   const char *func_name() const { return "bit_length"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_bit_length>(thd, mem_root, this); }
 };
 
-class Item_func_char_length :public Item_int_func
+class Item_func_char_length :public Item_long_func
 {
   String value;
 public:
-  Item_func_char_length(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_char_length(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "char_length"; }
   void fix_length_and_dec() { max_length=10; }
@@ -1587,10 +1615,10 @@ public:
   { return get_item_copy<Item_func_char_length>(thd, mem_root, this); }
 };
 
-class Item_func_coercibility :public Item_int_func
+class Item_func_coercibility :public Item_long_func
 {
 public:
-  Item_func_coercibility(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_coercibility(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "coercibility"; }
   void fix_length_and_dec() { max_length=10; maybe_null= 0; }
@@ -1602,29 +1630,42 @@ public:
   { return get_item_copy<Item_func_coercibility>(thd, mem_root, this); }
 };
 
-class Item_func_locate :public Item_int_func
+
+/*
+  In the corner case LOCATE could return (4,294,967,296 + 1),
+  which would not fit into Item_long_func range.
+  But string lengths are limited with max_allowed_packet,
+  which cannot be bigger than 1024*1024*1024.
+*/
+class Item_func_locate :public Item_long_func
 {
   String value1,value2;
   DTCollation cmp_collation;
 public:
-  Item_func_locate(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
-  Item_func_locate(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
+  Item_func_locate(THD *thd, Item *a, Item *b)
+   :Item_long_func(thd, a, b) {}
+  Item_func_locate(THD *thd, Item *a, Item *b, Item *c)
+   :Item_long_func(thd, a, b, c) {}
   const char *func_name() const { return "locate"; }
   longlong val_int();
-  void fix_length_and_dec();
+  void fix_length_and_dec()
+  {
+    max_length= MY_INT32_NUM_DECIMAL_DIGITS;
+    agg_arg_charsets_for_comparison(cmp_collation, args, 2);
+  }
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_locate>(thd, mem_root, this); }
 };
 
 
-class Item_func_field :public Item_int_func
+class Item_func_field :public Item_long_func
 {
   String value,tmp;
   Item_result cmp_type;
   DTCollation cmp_collation;
 public:
-  Item_func_field(THD *thd, List<Item> &list): Item_int_func(thd, list) {}
+  Item_func_field(THD *thd, List<Item> &list): Item_long_func(thd, list) {}
   longlong val_int();
   const char *func_name() const { return "field"; }
   void fix_length_and_dec();
@@ -1633,11 +1674,11 @@ public:
 };
 
 
-class Item_func_ascii :public Item_int_func
+class Item_func_ascii :public Item_long_func
 {
   String value;
 public:
-  Item_func_ascii(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_ascii(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "ascii"; }
   void fix_length_and_dec() { max_length=3; }
@@ -1645,18 +1686,19 @@ public:
   { return get_item_copy<Item_func_ascii>(thd, mem_root, this); }
 };
 
-class Item_func_ord :public Item_int_func
+class Item_func_ord :public Item_long_func
 {
   String value;
 public:
-  Item_func_ord(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_ord(THD *thd, Item *a): Item_long_func(thd, a) {}
+  void fix_length_and_dec() { fix_char_length(7); }
   longlong val_int();
   const char *func_name() const { return "ord"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_ord>(thd, mem_root, this); }
 };
 
-class Item_func_find_in_set :public Item_int_func
+class Item_func_find_in_set :public Item_long_func
 {
   String value,value2;
   uint enum_value;
@@ -1664,7 +1706,7 @@ class Item_func_find_in_set :public Item_int_func
   DTCollation cmp_collation;
 public:
   Item_func_find_in_set(THD *thd, Item *a, Item *b):
-    Item_int_func(thd, a, b), enum_value(0) {}
+    Item_long_func(thd, a, b), enum_value(0) {}
   longlong val_int();
   const char *func_name() const { return "find_in_set"; }
   void fix_length_and_dec();
@@ -1674,11 +1716,11 @@ public:
 
 /* Base class for all bit functions: '~', '|', '^', '&', '>>', '<<' */
 
-class Item_func_bit: public Item_int_func
+class Item_func_bit: public Item_longlong_func
 {
 public:
-  Item_func_bit(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
-  Item_func_bit(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_bit(THD *thd, Item *a, Item *b): Item_longlong_func(thd, a, b) {}
+  Item_func_bit(THD *thd, Item *a): Item_longlong_func(thd, a) {}
   void fix_length_and_dec() { unsigned_flag= 1; }
 
   virtual inline void print(String *str, enum_query_type query_type)
@@ -1710,10 +1752,10 @@ public:
   { return get_item_copy<Item_func_bit_and>(thd, mem_root, this); }
 };
 
-class Item_func_bit_count :public Item_int_func
+class Item_func_bit_count :public Item_long_func
 {
 public:
-  Item_func_bit_count(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_bit_count(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "bit_count"; }
   void fix_length_and_dec() { max_length=2; }
@@ -1760,19 +1802,18 @@ public:
 };
 
 
-class Item_func_last_insert_id :public Item_int_func
+class Item_func_last_insert_id :public Item_longlong_func
 {
 public:
-  Item_func_last_insert_id(THD *thd): Item_int_func(thd) {}
-  Item_func_last_insert_id(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_last_insert_id(THD *thd): Item_longlong_func(thd) {}
+  Item_func_last_insert_id(THD *thd, Item *a): Item_longlong_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "last_insert_id"; }
   void fix_length_and_dec()
   {
-    unsigned_flag= TRUE;
+    unsigned_flag= true;
     if (arg_count)
       max_length= args[0]->max_length;
-    unsigned_flag=1;
   }
   bool fix_fields(THD *thd, Item **ref);
   bool check_vcol_func_processor(void *arg)
@@ -1784,11 +1825,11 @@ public:
 };
 
 
-class Item_func_benchmark :public Item_int_func
+class Item_func_benchmark :public Item_long_func
 {
 public:
   Item_func_benchmark(THD *thd, Item *count_expr, Item *expr):
-    Item_int_func(thd, count_expr, expr)
+    Item_long_func(thd, count_expr, expr)
   {}
   longlong val_int();
   const char *func_name() const { return "benchmark"; }
@@ -1806,10 +1847,11 @@ public:
 void item_func_sleep_init(void);
 void item_func_sleep_free(void);
 
-class Item_func_sleep :public Item_int_func
+class Item_func_sleep :public Item_long_func
 {
 public:
-  Item_func_sleep(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_sleep(THD *thd, Item *a): Item_long_func(thd, a) {}
+  void fix_length_and_dec() { fix_char_length(1); }
   bool const_item() const { return 0; }
   const char *func_name() const { return "sleep"; }
   table_map used_tables() const
@@ -2045,6 +2087,7 @@ public:
     Item_int_func(thd) {}
   Item_func_udf_int(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_int_func(thd, list) {}
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return 0; }
 };
 
@@ -2056,6 +2099,7 @@ public:
     Item_int_func(thd) {}
   Item_func_udf_decimal(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_int_func(thd, list) {}
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed == 1); return 0; }
 };
 
@@ -2079,11 +2123,11 @@ public:
 void mysql_ull_cleanup(THD *thd);
 void mysql_ull_set_explicit_lock_duration(THD *thd);
 
-class Item_func_get_lock :public Item_int_func
+class Item_func_get_lock :public Item_long_func
 {
   String value;
  public:
-  Item_func_get_lock(THD *thd, Item *a, Item *b) :Item_int_func(thd, a, b) {}
+  Item_func_get_lock(THD *thd, Item *a, Item *b) :Item_long_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "get_lock"; }
   void fix_length_and_dec() { max_length=1; maybe_null=1;}
@@ -2101,11 +2145,11 @@ class Item_func_get_lock :public Item_int_func
   { return get_item_copy<Item_func_get_lock>(thd, mem_root, this); }
 };
 
-class Item_func_release_lock :public Item_int_func
+class Item_func_release_lock :public Item_long_func
 {
   String value;
 public:
-  Item_func_release_lock(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_release_lock(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "release_lock"; }
   void fix_length_and_dec() { max_length= 1; maybe_null= 1;}
@@ -2125,15 +2169,16 @@ public:
 
 /* replication functions */
 
-class Item_master_pos_wait :public Item_int_func
+class Item_master_pos_wait :public Item_longlong_func
 {
   String value;
 public:
-  Item_master_pos_wait(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_master_pos_wait(THD *thd, Item *a, Item *b)
+   :Item_longlong_func(thd, a, b) {}
   Item_master_pos_wait(THD *thd, Item *a, Item *b, Item *c):
-    Item_int_func(thd, a, b, c) {}
+    Item_longlong_func(thd, a, b, c) {}
   Item_master_pos_wait(THD *thd, Item *a, Item *b, Item *c, Item *d):
-    Item_int_func(thd, a, b, c, d) {}
+    Item_longlong_func(thd, a, b, c, d) {}
   longlong val_int();
   const char *func_name() const { return "master_pos_wait"; }
   void fix_length_and_dec() { max_length=21; maybe_null=1;}
@@ -2146,15 +2191,17 @@ public:
 };
 
 
-class Item_master_gtid_wait :public Item_int_func
+class Item_master_gtid_wait :public Item_long_func
 {
   String value;
 public:
-  Item_master_gtid_wait(THD *thd, Item *a): Item_int_func(thd, a) {}
-  Item_master_gtid_wait(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_master_gtid_wait(THD *thd, Item *a)
+   :Item_long_func(thd, a) {}
+  Item_master_gtid_wait(THD *thd, Item *a, Item *b)
+   :Item_long_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "master_gtid_wait"; }
-  void fix_length_and_dec() { max_length=10+1+10+1+20+1; maybe_null=0;}
+  void fix_length_and_dec() { max_length= 2; maybe_null=0;}
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
@@ -2185,6 +2232,10 @@ public:
   Item_func_user_var(THD *thd, Item_func_user_var *item)
     :Item_hybrid_func(thd, item),
     m_var_entry(item->m_var_entry), name(item->name) { }
+  Field *create_tmp_field(bool group, TABLE *table)
+  { return create_table_field_from_handler(table); }
+  Field *create_field_for_create_select(TABLE *table)
+  { return create_table_field_from_handler(table); }
   bool check_vcol_func_processor(void *arg);
 };
 
@@ -2287,14 +2338,6 @@ public:
   my_decimal *val_decimal(my_decimal*);
   String *val_str(String* str);
   void fix_length_and_dec();
-  Field *create_field_for_create_select(TABLE *table)
-  {
-    return Type_handler_hybrid_field_type::cmp_type() == STRING_RESULT ?
-      type_handler_long_blob.make_and_init_table_field(&(Item::name),
-                                                       Record_addr(maybe_null),
-                                                       *this, table) :
-      create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS);
-  }
   virtual void print(String *str, enum_query_type query_type);
   /*
     We must always return variables as strings to guard against selects of type
@@ -2327,8 +2370,7 @@ public:
   in List<Item> and desire to place this code somewhere near other functions
   working with user variables.
 */
-class Item_user_var_as_out_param :public Item,
-                                  public Load_data_out_param
+class Item_user_var_as_out_param :public Item
 {
   LEX_CSTRING name;
   user_var_entry *entry;
@@ -2344,10 +2386,9 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_buffer);
   /* fix_fields() binds variable name with its entry structure */
   bool fix_fields(THD *thd, Item **ref);
-  Load_data_out_param *get_load_data_out_param() { return this; }
-  void load_data_print(THD *thd, String *str);
-  void load_data_set_null_value(CHARSET_INFO* cs);
-  void load_data_set_value(const char *str, uint length, CHARSET_INFO* cs);
+  void print_for_load(THD *thd, String *str);
+  void set_null_value(CHARSET_INFO* cs);
+  void set_value(const char *str, uint length, CHARSET_INFO* cs);
   const Type_handler *type_handler() const { return &type_handler_double; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_user_var_as_out_param>(thd, mem_root, this); }
@@ -2506,11 +2547,11 @@ public:
   { return get_item_copy<Item_func_bit_xor>(thd, mem_root, this); }
 };
 
-class Item_func_is_free_lock :public Item_int_func
+class Item_func_is_free_lock :public Item_long_func
 {
   String value;
 public:
-  Item_func_is_free_lock(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_is_free_lock(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "is_free_lock"; }
   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=1;}
@@ -2522,11 +2563,11 @@ public:
   { return get_item_copy<Item_func_is_free_lock>(thd, mem_root, this); }
 };
 
-class Item_func_is_used_lock :public Item_int_func
+class Item_func_is_used_lock :public Item_long_func
 {
   String value;
 public:
-  Item_func_is_used_lock(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_is_used_lock(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "is_used_lock"; }
   void fix_length_and_dec() { decimals=0; max_length=10; maybe_null=1;}
@@ -2538,47 +2579,44 @@ public:
   { return get_item_copy<Item_func_is_used_lock>(thd, mem_root, this); }
 };
 
-/* For type casts */
-
-enum Cast_target
-{
-  ITEM_CAST_BINARY, ITEM_CAST_SIGNED_INT, ITEM_CAST_UNSIGNED_INT,
-  ITEM_CAST_DATE, ITEM_CAST_TIME, ITEM_CAST_DATETIME, ITEM_CAST_CHAR,
-  ITEM_CAST_DECIMAL, ITEM_CAST_DOUBLE
-};
-
 
 struct Lex_cast_type_st: public Lex_length_and_dec_st
 {
 private:
-  Cast_target m_type;
+  const Type_handler *m_type_handler;
 public:
-  void set(Cast_target type, const char *length, const char *dec)
+  void set(const Type_handler *handler, const char *length, const char *dec)
   {
-    m_type= type;
+    m_type_handler= handler;
     Lex_length_and_dec_st::set(length, dec);
   }
-  void set(Cast_target type, Lex_length_and_dec_st length_and_dec)
+  void set(const Type_handler *handler, Lex_length_and_dec_st length_and_dec)
   {
-    m_type= type;
+    m_type_handler= handler;
     Lex_length_and_dec_st::operator=(length_and_dec);
   }
-  void set(Cast_target type, const char *length)
+  void set(const Type_handler *handler, const char *length)
   {
-    set(type, length, 0);
+    set(handler, length, 0);
   }
-  void set(Cast_target type)
+  void set(const Type_handler *handler)
   {
-    set(type, 0, 0);
+    set(handler, 0, 0);
   }
-  Cast_target type() const { return m_type; }
+  const Type_handler *type_handler() const { return m_type_handler; }
+  Item *create_typecast_item(THD *thd, Item *item, CHARSET_INFO *cs= NULL)
+  {
+    return m_type_handler->
+      create_typecast_item(thd, item,
+                           Type_cast_attributes(length(), dec(), cs));
+  }
 };
 
 
-class Item_func_row_count :public Item_int_func
+class Item_func_row_count :public Item_longlong_func
 {
 public:
-  Item_func_row_count(THD *thd): Item_int_func(thd) {}
+  Item_func_row_count(THD *thd): Item_longlong_func(thd) {}
   longlong val_int();
   const char *func_name() const { return "row_count"; }
   void fix_length_and_dec() { decimals= 0; maybe_null=0; }
@@ -2622,7 +2660,7 @@ protected:
   bool is_expensive_processor(void *arg)
   { return is_expensive(); }
 
-  bool check_allowed_arg_cols(uint n)
+  bool check_arguments() const
   {
     // sp_prepare_func_item() checks that the number of columns is correct
     return false;
@@ -2734,10 +2772,10 @@ public:
 };
 
 
-class Item_func_found_rows :public Item_int_func
+class Item_func_found_rows :public Item_longlong_func
 {
 public:
-  Item_func_found_rows(THD *thd): Item_int_func(thd) {}
+  Item_func_found_rows(THD *thd): Item_longlong_func(thd) {}
   longlong val_int();
   const char *func_name() const { return "found_rows"; }
   void fix_length_and_dec() { decimals= 0; maybe_null=0; }
@@ -2750,10 +2788,10 @@ public:
 };
 
 
-class Item_func_oracle_sql_rowcount :public Item_int_func
+class Item_func_oracle_sql_rowcount :public Item_longlong_func
 {
 public:
-  Item_func_oracle_sql_rowcount(THD *thd): Item_int_func(thd) {}
+  Item_func_oracle_sql_rowcount(THD *thd): Item_longlong_func(thd) {}
   longlong val_int();
   const char *func_name() const { return "SQL%ROWCOUNT"; }
   void print(String *str, enum_query_type query_type)
@@ -2769,10 +2807,10 @@ public:
 };
 
 
-class Item_func_sqlcode: public Item_int_func
+class Item_func_sqlcode: public Item_long_func
 {
 public:
-  Item_func_sqlcode(THD *thd): Item_int_func(thd) { }
+  Item_func_sqlcode(THD *thd): Item_long_func(thd) { }
   longlong val_int();
   const char *func_name() const { return "SQLCODE"; }
   void print(String *str, enum_query_type query_type)
@@ -2795,10 +2833,10 @@ public:
 
 void uuid_short_init();
 
-class Item_func_uuid_short :public Item_int_func
+class Item_func_uuid_short :public Item_longlong_func
 {
 public:
-  Item_func_uuid_short(THD *thd): Item_int_func(thd) {}
+  Item_func_uuid_short(THD *thd): Item_longlong_func(thd) {}
   const char *func_name() const { return "uuid_short"; }
   longlong val_int();
   void fix_length_and_dec()
@@ -2841,13 +2879,13 @@ public:
 
 /* Implementation for sequences: NEXT VALUE FOR sequence and NEXTVAL() */
 
-class Item_func_nextval :public Item_int_func
+class Item_func_nextval :public Item_longlong_func
 {
 protected:
   TABLE_LIST *table_list;
 public:
   Item_func_nextval(THD *thd, TABLE_LIST *table):
-  Item_int_func(thd), table_list(table) {}
+  Item_longlong_func(thd), table_list(table) {}
   longlong val_int();
   const char *func_name() const { return "nextval"; }
   void fix_length_and_dec()

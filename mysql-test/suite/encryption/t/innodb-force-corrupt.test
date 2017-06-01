@@ -1,0 +1,84 @@
+#
+# MDEV-11759: Encryption code in MariaDB 10.1/10.2 causes compatibility problems
+#
+
+-- source include/have_innodb.inc
+-- source include/have_file_key_management_plugin.inc
+# Don't test under embedded
+-- source include/not_embedded.inc
+
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[123]\\.ibd' cannot be decrypted\\.");
+
+SET GLOBAL innodb_file_per_table = ON;
+set global innodb_compression_algorithm = 1;
+
+--echo # Create and populate tables to be corrupted
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT,c char(200)) ENGINE=InnoDB encrypted=yes;
+CREATE TABLE t2 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT,c char(200)) ENGINE=InnoDB row_format=compressed encrypted=yes;
+CREATE TABLE t3 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT, c char(200)) ENGINE=InnoDB page_compressed=yes encrypted=yes;
+
+BEGIN;
+INSERT INTO t1 (b,c) VALUES ('corrupt me','secret');
+--disable_query_log
+--let $i = 100
+while ($i)
+{
+  INSERT INTO t1 (b,c) VALUES (REPEAT('abcabcabc', 100),'secretsecret');
+  dec $i;
+}
+--enable_query_log
+
+INSERT INTO t1 (b,c) VALUES ('corrupt me','moresecretmoresecret');
+INSERT INTO t2 select * from t1;
+INSERT INTO t3 select * from t1;
+COMMIT;
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+
+--source include/shutdown_mysqld.inc
+
+--echo # Backup tables before corrupting
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd.backup
+--copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t2.ibd.backup
+--copy_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t3.ibd.backup
+
+--echo # Corrupt tables
+
+perl;
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t1.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t2.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t3.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+EOF
+
+--source include/start_mysqld.inc
+
+--error ER_GET_ERRMSG
+SELECT * FROM t1;
+--error ER_GET_ERRMSG
+SELECT * FROM t2;
+--error ER_GET_ERRMSG
+SELECT * FROM t3;
+
+--source include/shutdown_mysqld.inc
+
+--echo # Restore the original tables
+--move_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
+--move_file $MYSQLD_DATADIR/test/t2.ibd.backup $MYSQLD_DATADIR/test/t2.ibd
+--move_file $MYSQLD_DATADIR/test/t3.ibd.backup $MYSQLD_DATADIR/test/t3.ibd
+
+--source include/start_mysqld.inc
+
+DROP TABLE t1,t2,t3;

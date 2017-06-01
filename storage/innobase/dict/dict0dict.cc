@@ -1178,11 +1178,23 @@ dict_table_open_on_name(
 
 	if (table != NULL) {
 
-		/* If table is encrypted return table */
+		/* If table is encrypted or corrupted */
 		if (ignore_err == DICT_ERR_IGNORE_NONE
-			&& table->is_encrypted) {
+		    && !table->is_readable()) {
 			/* Make life easy for drop table. */
 			dict_table_prevent_eviction(table);
+
+			if (table->corrupted) {
+
+				ib::error() << "Table " << table->name
+					<< " is corrupted. Please "
+					"drop the table and recreate.";
+				if (!dict_locked) {
+					mutex_exit(&dict_sys->mutex);
+				}
+
+				DBUG_RETURN(NULL);
+			}
 
 			if (table->can_be_evicted) {
 				dict_move_to_mru(table);
@@ -1195,22 +1207,6 @@ dict_table_open_on_name(
 			}
 
 			DBUG_RETURN(table);
-		}
-		/* If table is corrupted, return NULL */
-		else if (ignore_err == DICT_ERR_IGNORE_NONE
-		    && table->corrupted) {
-			/* Make life easy for drop table. */
-			dict_table_prevent_eviction(table);
-			if (!dict_locked) {
-				mutex_exit(&dict_sys->mutex);
-			}
-
-			ib::info() << "Table "
-				<< table->name
-				<< " is corrupted. Please drop the table"
-				" and recreate it";
-
-			DBUG_RETURN(NULL);
 		}
 
 		if (table->can_be_evicted) {
@@ -6068,9 +6064,27 @@ dict_set_corrupted_by_space(
 
 	/* mark the table->corrupted bit only, since the caller
 	could be too deep in the stack for SYS_INDEXES update */
-	table->corrupted = TRUE;
+	table->corrupted = true;
+	table->file_unreadable = true;
 
 	return(TRUE);
+}
+
+
+/** Flag a table with specified space_id encrypted in the data dictionary
+cache
+@param[in]	space_id	Tablespace id */
+UNIV_INTERN
+void
+dict_set_encrypted_by_space(ulint	space_id)
+{
+	dict_table_t*   table;
+
+	table = dict_find_single_table_by_space(space_id);
+
+	if (table) {
+		table->file_unreadable = true;
+	}
 }
 
 /**********************************************************************//**
@@ -6582,7 +6596,8 @@ dict_table_schema_check(
 		}
 	}
 
-	if (table->ibd_file_missing) {
+	if (!table->is_readable() &&
+	    fil_space_get(table->space) == NULL) {
 		/* missing tablespace */
 
 		ut_snprintf(errstr, errstr_sz,
@@ -6746,7 +6761,7 @@ dict_fs2utf8(
 	db[db_len] = '\0';
 
 	strconvert(
-		&my_charset_filename, db, db_len, system_charset_info,
+		&my_charset_filename, db, uint(db_len), system_charset_info,
 		db_utf8, uint(db_utf8_size), &errors);
 
 	/* convert each # to @0023 in table name and store the result in buf */

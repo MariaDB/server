@@ -1487,3 +1487,52 @@ DELIMITER ;|
 
 CALL vctest();
 DROP PROCEDURE vctest;
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12876 Wrong data type for CREATE..SELECT sp_var
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE i8  TINYINT;
+  DECLARE i16 SMALLINT;
+  DECLARE i32 INT;
+  DECLARE i64 BIGINT;
+  DECLARE f   FLOAT;
+  DECLARE d   DOUBLE;
+  DECLARE b8  BIT(8);
+  DECLARE y   YEAR;
+  DECLARE t1  TINYTEXT;
+  DECLARE t2  TEXT;
+  DECLARE t3  MEDIUMTEXT;
+  DECLARE t4  LONGTEXT;
+  CREATE TABLE t1 AS SELECT i8, i16, i32, i64, f, d, b8, y, t1, t2, t3, t4;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DESCRIBE t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-12917 Wrong data type for CREATE..SELECT year_sp_variable
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a YEAR;
+  CREATE OR REPLACE TABLE t1 AS SELECT a;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;

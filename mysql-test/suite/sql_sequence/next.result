@@ -287,6 +287,93 @@ select * from t9;
 next_value	min_value	max_value	start	increment	cache	cycle	round
 6	1	10	1	1	5	1	2
 drop sequence t9;
+CREATE SEQUENCE s1 cache=0;
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	0	0	0
+select next value for s1;
+next value for s1
+1
+select next_value from s1;
+next_value
+2
+select next value for s1;
+next value for s1
+2
+select next_value from s1;
+next_value
+3
+DROP SEQUENCE s1;
+CREATE SEQUENCE s1 cache=1;
+select next_value from s1;
+next_value
+1
+select next value for s1;
+next value for s1
+1
+select next_value from s1;
+next_value
+2
+select next value for s1;
+next value for s1
+2
+select next_value from s1;
+next_value
+3
+DROP SEQUENCE s1;
+CREATE SEQUENCE s1 cache=2;
+select next_value from s1;
+next_value
+1
+select next value for s1;
+next value for s1
+1
+select next_value from s1;
+next_value
+3
+select next value for s1;
+next value for s1
+2
+select next_value from s1;
+next_value
+3
+DROP SEQUENCE s1;
+CREATE SEQUENCE s1;
+select next value for s1;
+next value for s1
+1
+select next value for s1;
+next value for s1
+2
+select next value for s1;
+next value for s1
+3
+select next value for s1;
+next value for s1
+4
+alter sequence s1 increment -2;
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1001	1	9223372036854775806	1	-2	1000	0	0
+select next value for s1;
+next value for s1
+1001
+select next value for s1;
+next value for s1
+999
+alter sequence s1 restart 6;
+select next value for s1;
+next value for s1
+6
+select next value for s1;
+next value for s1
+4
+select next value for s1;
+next value for s1
+2
+select next value for s1;
+ERROR HY000: Sequence 'test.s1' has run out
+DROP SEQUENCE s1;
 CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 5 cycle;
 select next value for t1;
 next value for t1
@@ -412,3 +499,16 @@ next value for t1
 select next value for t1, min_value;
 ERROR 42S22: Unknown column 'min_value' in 'field list'
 drop sequence t1;
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+CREATE SEQUENCE s1;
+SELECT
+NEXT VALUE FOR s1,
+PREVIOUS VALUE FOR s1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					NEXT VALUE FOR s1	8	20	1	Y	32896	0	63
+def					PREVIOUS VALUE FOR s1	8	20	1	Y	32896	0	63
+NEXT VALUE FOR s1	PREVIOUS VALUE FOR s1
+1	1
+DROP SEQUENCE s1;

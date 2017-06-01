@@ -501,3 +501,18 @@ eval select $tmp < $tmp2;
 --enable_column_names
 --enable_query_log
 
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12859 Out-of-range error for CREATE..SELECT @a:=EXTRACT(MINUTE_MICROSECOND FROM..
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 AS
+SELECT @a:=EXTRACT(MINUTE_MICROSECOND FROM '2001-01-01 11:22:33.999999') AS c1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;

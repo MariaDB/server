@@ -696,8 +696,8 @@ CREATE VIEW v1 AS
 SELECT a, LENGTH(a), COUNT(*) FROM t1 GROUP BY a WITH ROLLUP;
 DESC v1;
 Field	Type	Null	Key	Default	Extra
-a	bigint(11)	YES		NULL	
-LENGTH(a)	bigint(10)	YES		NULL	
+a	int(11)	YES		0	
+LENGTH(a)	int(10)	YES		NULL	
 COUNT(*)	bigint(21)	NO		0	
 SELECT * FROM v1;
 a	LENGTH(a)	COUNT(*)
@@ -766,3 +766,53 @@ b
 NULL
 DROP TABLE t1, t2;
 End of 5.0 tests
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12886 Different default for INT and BIGINT column in a VIEW for a SELECT with ROLLUP
+#
+CREATE TABLE t1 (a int(11) NOT NULL);
+INSERT INTO t1 VALUES (1),(2);
+CREATE OR REPLACE VIEW v1 AS SELECT a, LENGTH(a), COUNT(*) FROM t1 GROUP BY a WITH ROLLUP;
+DESCRIBE v1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		0	
+LENGTH(a)	int(10)	YES		NULL	
+COUNT(*)	bigint(21)	NO		0	
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (a bigint(11) NOT NULL);
+INSERT INTO t1 VALUES (1),(2);
+CREATE OR REPLACE VIEW v1 AS SELECT a, LENGTH(a), COUNT(*) FROM t1 GROUP BY a WITH ROLLUP;
+DESCRIBE v1;
+Field	Type	Null	Key	Default	Extra
+a	bigint(20)	YES		0	
+LENGTH(a)	int(10)	YES		NULL	
+COUNT(*)	bigint(21)	NO		0	
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-9410 VIEW over a ROLLUP query reports too large columns
+#
+CREATE TABLE t1 (a int(10) NOT NULL, b int(20) NOT NULL);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE VIEW v1 AS SELECT a,b FROM t1;
+DESC v1;
+Field	Type	Null	Key	Default	Extra
+a	int(10)	NO		NULL	
+b	int(20)	NO		NULL	
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT a, b FROM t1 GROUP BY a,b;
+DESC v1;
+Field	Type	Null	Key	Default	Extra
+a	int(10)	NO		NULL	
+b	int(20)	NO		NULL	
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT a, b FROM t1 GROUP BY a,b WITH ROLLUP;
+DESC v1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		0	
+b	int(20)	YES		0	
+DROP VIEW v1;
+DROP TABLE t1;

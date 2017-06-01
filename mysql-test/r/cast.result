@@ -762,7 +762,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CONCAT(CAST(REPEAT('9', 1000) AS SIGNED))` varchar(21) NOT NULL,
-  `CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED))` varchar(21) NOT NULL
+  `CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED))` varchar(20) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 # End of test for Bug#13581962, Bug#14096619
@@ -900,3 +900,271 @@ t1	CREATE TABLE `t1` (
   `CONCAT(CONVERT('',UNSIGNED))` varchar(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-12849 Out-of-range errors when casting hex-hybrid to SIGNED and UNSIGNED
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE PROCEDURE p1(hh TEXT)
+BEGIN
+EXECUTE IMMEDIATE
+CONCAT('CREATE OR REPLACE TABLE t1 AS SELECT CAST(0x', hh, ' AS UNSIGNED) AS c');
+DESCRIBE t1;
+SELECT c, LENGTH(c) FROM t1;
+DROP TABLE t1;
+EXECUTE IMMEDIATE
+CONCAT('CREATE OR REPLACE TABLE t1 AS SELECT CAST(0x', hh, ' AS SIGNED) AS c');
+DESCRIBE t1;
+SELECT c, LENGTH(c) FROM t1;
+DROP TABLE t1;
+SELECT '' AS `------`;
+END
+$$
+CALL p1('FF');
+Field	Type	Null	Key	Default	Extra
+c	int(3) unsigned	NO		NULL	
+c	LENGTH(c)
+255	3
+Field	Type	Null	Key	Default	Extra
+c	int(3)	NO		NULL	
+c	LENGTH(c)
+255	3
+------
+
+CALL p1('FFFF');
+Field	Type	Null	Key	Default	Extra
+c	int(5) unsigned	NO		NULL	
+c	LENGTH(c)
+65535	5
+Field	Type	Null	Key	Default	Extra
+c	int(5)	NO		NULL	
+c	LENGTH(c)
+65535	5
+------
+
+CALL p1('FFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	int(8) unsigned	NO		NULL	
+c	LENGTH(c)
+16777215	8
+Field	Type	Null	Key	Default	Extra
+c	int(8)	NO		NULL	
+c	LENGTH(c)
+16777215	8
+------
+
+CALL p1('FFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	int(10) unsigned	NO		NULL	
+c	LENGTH(c)
+4294967295	10
+Field	Type	Null	Key	Default	Extra
+c	bigint(10)	NO		NULL	
+c	LENGTH(c)
+4294967295	10
+------
+
+CALL p1('FFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(13) unsigned	NO		NULL	
+c	LENGTH(c)
+1099511627775	13
+Field	Type	Null	Key	Default	Extra
+c	bigint(13)	NO		NULL	
+c	LENGTH(c)
+1099511627775	13
+------
+
+CALL p1('FFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(15) unsigned	NO		NULL	
+c	LENGTH(c)
+281474976710655	15
+Field	Type	Null	Key	Default	Extra
+c	bigint(15)	NO		NULL	
+c	LENGTH(c)
+281474976710655	15
+------
+
+CALL p1('FFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(17) unsigned	NO		NULL	
+c	LENGTH(c)
+72057594037927935	17
+Field	Type	Null	Key	Default	Extra
+c	bigint(17)	NO		NULL	
+c	LENGTH(c)
+72057594037927935	17
+------
+
+CALL p1('FFFFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+18446744073709551615	20
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-1	2
+------
+
+CALL p1('FFFFFFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+18446744073709551615	20
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-1	2
+------
+
+CALL p1('FFFFFFFFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+18446744073709551615	20
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-1	2
+------
+
+CALL p1('8000000000000000');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223372036854775808	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223372036854775808	20
+------
+
+CALL p1('80000000000000FF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223372036854776063	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223372036854775553	20
+------
+
+CALL p1('800000000000FFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223372036854841343	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223372036854710273	20
+------
+
+CALL p1('8000000000FFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223372036871553023	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223372036837998593	20
+------
+
+CALL p1('80000000FFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223372041149743103	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223372032559808513	20
+------
+
+CALL p1('800000FFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223373136366403583	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223370937343148033	20
+------
+
+CALL p1('8000FFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223653511831486463	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223090561878065153	20
+------
+
+CALL p1('80FFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9295429630892703743	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9151314442816847873	20
+------
+
+CALL p1('8FFFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+10376293541461622783	20
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-8070450532247928833	20
+------
+
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-12852 Out-of-range errors when CAST(1-2 AS UNSIGNED
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT
+CAST(-1 AS UNSIGNED),
+CAST(1-2 AS UNSIGNED);
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CAST(-1 AS UNSIGNED)` bigint(20) unsigned NOT NULL,
+  `CAST(1-2 AS UNSIGNED)` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+CAST(-1 AS UNSIGNED)	CAST(1-2 AS UNSIGNED)
+18446744073709551615	18446744073709551615
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-12853 Out-of-range errors when CAST('-1' AS UNSIGNED
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT CAST('-1' AS UNSIGNED);
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CAST('-1' AS UNSIGNED)` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+CAST('-1' AS UNSIGNED)
+18446744073709551615
+DROP TABLE t1;
+SET sql_mode=DEFAULT;

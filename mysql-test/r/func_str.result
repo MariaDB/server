@@ -3124,7 +3124,7 @@ sha1('P'),
 )
 )
 ) AS r;
-ERROR HY000: Illegal parameter data types geometry and decimal for operation 'coalesce'
+ERROR HY000: Illegal parameter data type varchar for operation 'st_geometryfromwkb'
 connection conn1;
 SET @@global.max_allowed_packet:= @tmp_max;
 disconnect newconn;
@@ -4875,6 +4875,17 @@ IF(a<' ',HEX(a),a)
 09
 a
 DROP TABLE  t1;
+#
+# MDEV-12783 sql_mode=ORACLE: Functions LENGTH() and LENGTHB()
+#
+SELECT LENGTHB('a'), LENGTHB(_utf8 0xC39F), LENGTHB(123), LENGTH(null);
+LENGTHB('a')	LENGTHB(_utf8 0xC39F)	LENGTHB(123)	LENGTH(null)
+1	2	3	NULL
+EXPLAIN EXTENDED SELECT LENGTH('a'), LENGTHB('a');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select octet_length('a') AS `LENGTH('a')`,octet_length('a') AS `LENGTHB('a')`
 #
 # End of 10.3 tests
 #

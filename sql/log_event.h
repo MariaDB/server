@@ -4606,6 +4606,7 @@ protected:
   int find_key(); // Find a best key to use in find_row()
   int find_row(rpl_group_info *);
   int write_row(rpl_group_info *, const bool);
+  int update_sequence();
 
   // Unpack the current row into m_table->record[0], but with
   // a different columns bitmap.

@@ -827,7 +827,7 @@ EXPLAIN
             "buffer_type": "flat",
             "buffer_size": "256Kb",
             "join_type": "BNL",
-            "attached_condition": "t2.b <> outer_t1.a and trigcond(<cache>(outer_t1.a) = t1.a or t1.a is null)"
+            "attached_condition": "t2.b <> outer_t1.a"
           }
         }
       }
@@ -1575,7 +1575,7 @@ EXPLAIN
               "access_type": "ALL",
               "rows": 10,
               "filtered": 100,
-              "attached_condition": "t0.a < 5 and t1.b < t0.a"
+              "attached_condition": "t1.b < t0.a"
             }
           }
         }

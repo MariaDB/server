@@ -320,7 +320,7 @@ row_undo_ins_parse_undo_rec(
 
 	/* Skip the UNDO if we can't find the table or the .ibd file. */
 	if (UNIV_UNLIKELY(node->table == NULL)) {
-	} else if (UNIV_UNLIKELY(node->table->ibd_file_missing)) {
+	} else if (UNIV_UNLIKELY(node->table->file_unreadable)) {
 close_table:
 		dict_table_close(node->table, dict_locked, FALSE);
 		node->table = NULL;

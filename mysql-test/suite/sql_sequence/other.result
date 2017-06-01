@@ -40,3 +40,111 @@ select * from s1;
 next_value	min_value	max_value	start	increment	cache	cycle	round
 2001	1	9223372036854775806	1	1	1000	0	0
 drop sequence s1;
+#
+# ÌNSERT
+#
+create sequence s1;
+create sequence s2;
+insert into s1 (next_value, min_value) values (100,1000);
+ERROR HY000: Field 'max_value' doesn't have a default value
+insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
+ERROR HY000: Table 's1' is specified twice, both as a target for 'INSERT' and as a separate source for data
+insert into s1 values (next value for s2, 1,9223372036854775806,1,1,1000,0,0);
+ERROR HY000: Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a squence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead.
+insert into s1 select * from s2;
+ERROR HY000: Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a squence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead.
+insert into s1 values(1000,9223372036854775806,1,1,1,1000,0,0);
+ERROR HY000: Sequence 'test.s1' values are conflicting
+insert into s1 values(0,9223372036854775806,1,1,1,1000,0,0);
+ERROR HY000: Sequence 'test.s1' values are conflicting
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	0	0
+insert into s1 values(1000,1,9223372036854775806,1,1,1000,0,0);
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1000	1	9223372036854775806	1	1	1000	0	0
+select next value for s1;
+next value for s1
+1000
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+2000	1	9223372036854775806	1	1	1000	0	0
+insert into s2 values(0, 1, 10, 1, 2, 1, 1, 0);
+ERROR HY000: Sequence 'test.s2' values are conflicting
+drop sequence s1,s2;
+#
+# UPDATE and DELETE
+#
+create sequence s1;
+update s1 set next_value=100;
+ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this option
+delete from s1 where next_value > 0;
+ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this option
+drop sequence s1;
+#
+# SHOW TABLES
+#
+create sequence s1;
+create table t1 (a int);
+create view v1 as select * from s1;
+show full tables;
+Tables_in_test	Table_type
+s1	SEQUENCE
+t1	BASE TABLE
+v1	VIEW
+SELECT TABLE_TYPE,ENGINE FROM INFORMATION_SCHEMA.TABLES where table_schema="test";
+TABLE_TYPE	ENGINE
+SEQUENCE	MyISAM
+BASE TABLE	MyISAM
+VIEW	NULL
+drop table t1,s1;
+drop view v1;
+#
+# LOCK TABLES (as in mysqldump)
+#
+create sequence s1 engine=innodb;
+LOCK TABLES s1 READ;
+SELECT * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	0	0
+UNLOCK TABLES;
+LOCK TABLES s1 WRITE;
+insert into s1 values (1,1,9223372036854775806, 1, 1, 1000, 0, 0);
+UNLOCK TABLES;
+drop table s1;
+#
+# Many sequence calls with innodb
+#
+create sequence s1 cache=1000 engine=innodb;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+count(nextval(s1))
+2000
+commit;
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+2001	1	9223372036854775806	1	1	1000	0	0
+drop sequence s1;
+create sequence s1  cache=1000 engine=innodb;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+count(nextval(s1))
+2000
+connect  addconroot, localhost, root,,;
+connection addconroot;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+count(nextval(s1))
+2000
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+4001	1	9223372036854775806	1	1	1000	0	0
+commit;
+disconnect addconroot;
+connection default;
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+4001	1	9223372036854775806	1	1	1000	0	0
+commit;
+drop sequence s1;

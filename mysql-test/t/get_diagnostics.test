@@ -631,6 +631,7 @@ DROP PROCEDURE p1;
 --echo # The same statement information item can be used multiple times.
 --echo
 
+SHOW WARNINGS;
 DELIMITER |;
 CREATE PROCEDURE p1()
 BEGIN

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -722,35 +722,6 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 	}
 
-	/* If we have column that has changed from NULL -> NOT NULL
-	and column default has changed we need to do additional
-	check. */
-	if ((ha_alter_info->handler_flags
-			& Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE) &&
-	    (ha_alter_info->handler_flags
-		    & Alter_inplace_info::ALTER_COLUMN_DEFAULT)) {
-		Alter_info *alter_info = ha_alter_info->alter_info;
-		List_iterator<Create_field> def_it(alter_info->create_list);
-		Create_field *def;
-		while ((def=def_it++)) {
-
-			/* If this is first column definition whose SQL type
-			is TIMESTAMP and it is defined as NOT NULL and
-			it has either constant default or function default
-			we must use "Copy" method. */
-			if (def->is_timestamp_type()) {
-				if ((def->flags & NOT_NULL_FLAG) != 0 && // NOT NULL
-					(def->default_value != NULL || // constant default ?
-					 def->unireg_check != Field::NONE)) { // function default
-					ha_alter_info->unsupported_reason = innobase_get_err_msg(
-						ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
-					DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-				}
-				break;
-			}
-		}
-	}
-
 	ulint n_indexes = UT_LIST_GET_LEN((m_prebuilt->table)->indexes);
 
 	/* If InnoDB dictionary and MySQL frm file are not consistent
@@ -1034,6 +1005,72 @@ ha_innobase::check_if_supported_inplace_alter(
 			}
 		}
 	}
+
+	/* When changing a NULL column to NOT NULL and specifying a
+	DEFAULT value, ensure that the DEFAULT expression is a constant.
+	Also, in ADD COLUMN, for now we only support a
+	constant DEFAULT expression. */
+	cf_it.rewind();
+	Field **af = altered_table->field;
+	while (Create_field* cf = cf_it++) {
+		DBUG_ASSERT(cf->field
+			    || (ha_alter_info->handler_flags
+				& Alter_inplace_info::ADD_COLUMN));
+
+		if (const Field* f = cf->field) {
+			/* This could be changing an existing column
+			from NULL to NOT NULL. For now, ensure that
+			the DEFAULT is a constant. */
+			if (~ha_alter_info->handler_flags
+			    & (Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE
+			       | Alter_inplace_info::ALTER_COLUMN_DEFAULT)
+			    || (*af)->real_maybe_null()) {
+				/* This ALTER TABLE is not both changing
+				a column to NOT NULL and changing the
+				DEFAULT value of a column, or this column
+				does allow NULL after the ALTER TABLE. */
+				goto next_column;
+			}
+
+			/* Find the matching column in the old table. */
+			Field** fp;
+			for (fp = table->field; *fp; fp++) {
+				if (f != *fp) {
+					continue;
+				}
+				if (!f->real_maybe_null()) {
+					/* The column already is NOT NULL. */
+					goto next_column;
+				}
+				break;
+			}
+
+			/* The column must be found in the old table. */
+			DBUG_ASSERT(fp < &table->field[table->s->fields]);
+		}
+
+		if (!(*af)->default_value
+		    || (*af)->default_value->flags == 0) {
+			/* The NOT NULL column is not
+			carrying a non-constant DEFAULT. */
+			goto next_column;
+		}
+
+		/* TODO: Allow NULL column values to
+		be replaced with a non-constant DEFAULT. */
+		if (cf->field) {
+			ha_alter_info->unsupported_reason
+				= innobase_get_err_msg(
+					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
+		}
+
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
+next_column:
+		af++;
+	}
+
+	cf_it.rewind();
 
 	DBUG_RETURN(online
 		    ? HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
@@ -4520,7 +4557,7 @@ prepare_inplace_alter_table_dict(
 		dtuple_t*	add_cols;
 		ulint		space_id = 0;
 		ulint		z = 0;
-		ulint		key_id = FIL_DEFAULT_ENCRYPTION_KEY;
+		uint32_t	key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t mode = FIL_ENCRYPTION_DEFAULT;
 
 		fil_space_t* space = fil_space_acquire(ctx->prebuilt->table->space);
@@ -4863,7 +4900,7 @@ new_clustered_failed:
 		clustered index of the old table, later. */
 		if (new_clustered
 		    || !ctx->online
-		    || user_table->ibd_file_missing
+		    || !user_table->is_readable()
 		    || dict_table_is_discarded(user_table)) {
 			/* No need to allocate a modification log. */
 			ut_ad(!ctx->add_index[a]->online_log);
@@ -5545,30 +5582,6 @@ ha_innobase::prepare_inplace_alter_table(
 
 	indexed_table = m_prebuilt->table;
 
-	if (indexed_table->is_encrypted) {
-		String str;
-		const char* engine= table_type();
-		push_warning_printf(m_user_thd, Sql_condition::WARN_LEVEL_WARN,
-			HA_ERR_DECRYPTION_FAILED,
-			"Table %s is encrypted but encryption service or"
-			" used key_id is not available. "
-			" Can't continue reading table.",
-			indexed_table->name);
-		get_error_message(HA_ERR_DECRYPTION_FAILED, &str);
-		my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
-
-		DBUG_RETURN(true);
-	}
-
-	if (indexed_table->corrupted
-	    || dict_table_get_first_index(indexed_table) == NULL
-	    || dict_index_is_corrupted(
-		    dict_table_get_first_index(indexed_table))) {
-		/* The clustered index is corrupted. */
-		my_error(ER_CHECK_NO_SUCH_TABLE, MYF(0));
-		DBUG_RETURN(true);
-	}
-
 	/* ALTER TABLE will not implicitly move a table from a single-table
 	tablespace to the system tablespace when innodb_file_per_table=OFF.
 	But it will implicitly move a table from the system tablespace to a
@@ -5586,6 +5599,42 @@ ha_innobase::prepare_inplace_alter_table(
 		if (info.gcols_in_fulltext_or_spatial()) {
 			goto err_exit_no_heap;
 		}
+	}
+
+	if (indexed_table->is_readable()) {
+	} else {
+		if (indexed_table->corrupted) {
+			/* Handled below */
+		} else {
+			FilSpace space(indexed_table->space, true);
+
+			if (space()) {
+				String str;
+				const char* engine= table_type();
+
+				push_warning_printf(
+					m_user_thd,
+					Sql_condition::WARN_LEVEL_WARN,
+					HA_ERR_DECRYPTION_FAILED,
+					"Table %s in file %s is encrypted but encryption service or"
+					" used key_id is not available. "
+					" Can't continue reading table.",
+					table_share->table_name.str,
+					space()->chain.start->name);
+
+				my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
+				DBUG_RETURN(true);
+			}
+		}
+	}
+
+	if (indexed_table->corrupted
+	    || dict_table_get_first_index(indexed_table) == NULL
+	    || dict_index_is_corrupted(
+		    dict_table_get_first_index(indexed_table))) {
+		/* The clustered index is corrupted. */
+		my_error(ER_CHECK_NO_SUCH_TABLE, MYF(0));
+		DBUG_RETURN(true);
 	}
 
 	if (ha_alter_info->handler_flags
@@ -6381,7 +6430,7 @@ ok_exit:
 
 	ctx->m_stage = UT_NEW_NOKEY(ut_stage_alter_t(pk));
 
-	if (m_prebuilt->table->ibd_file_missing
+	if (!m_prebuilt->table->is_readable()
 	    || dict_table_is_discarded(m_prebuilt->table)) {
 		goto all_done;
 	}
@@ -7804,7 +7853,7 @@ commit_try_rebuild(
 	/* The new table must inherit the flag from the
 	"parent" table. */
 	if (dict_table_is_discarded(user_table)) {
-		rebuilt_table->ibd_file_missing = true;
+		rebuilt_table->file_unreadable = true;
 		rebuilt_table->flags2 |= DICT_TF2_DISCARDED;
 	}
 
@@ -8311,20 +8360,20 @@ alter_stats_rebuild(
 	}
 
 #ifndef DBUG_OFF
-	bool	ibd_file_missing_orig = false;
+	bool	file_unreadable_orig = false;
 #endif /* DBUG_OFF */
 
 	DBUG_EXECUTE_IF(
 		"ib_rename_index_fail2",
-		ibd_file_missing_orig = table->ibd_file_missing;
-		table->ibd_file_missing = TRUE;
+		file_unreadable_orig = table->file_unreadable;
+		table->file_unreadable = true;
 	);
 
 	dberr_t	ret = dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
 
 	DBUG_EXECUTE_IF(
 		"ib_rename_index_fail2",
-		table->ibd_file_missing = ibd_file_missing_orig;
+		table->file_unreadable = file_unreadable_orig;
 	);
 
 	if (ret != DB_SUCCESS) {
@@ -8454,6 +8503,19 @@ ha_innobase::commit_inplace_alter_table(
 		ha_innobase_inplace_ctx*	ctx
 			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
 		DBUG_ASSERT(ctx->prebuilt->trx == m_prebuilt->trx);
+
+		/* If decryption failed for old table or new table
+		fail here. */
+		if ((!ctx->old_table->is_readable()
+		     && fil_space_get(ctx->old_table->space))
+		    || (!ctx->new_table->is_readable()
+			&& fil_space_get(ctx->new_table->space))) {
+			String str;
+			const char* engine= table_type();
+			get_error_message(HA_ERR_DECRYPTION_FAILED, &str);
+			my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
+			DBUG_RETURN(true);
+		}
 
 		/* Exclusively lock the table, to ensure that no other
 		transaction is holding locks on the table while we

@@ -36,7 +36,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `rec.a` bigint(11) DEFAULT NULL,
+  `rec.a` int(11) DEFAULT NULL,
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
@@ -60,7 +60,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `rec.a` bigint(11) DEFAULT NULL,
+  `rec.a` int(11) DEFAULT NULL,
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
@@ -85,7 +85,7 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `rec.a` bigint(11) DEFAULT NULL,
+  `rec.a` int(11) DEFAULT NULL,
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
@@ -111,7 +111,7 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `rec.a` bigint(11) DEFAULT NULL,
+  `rec.a` int(11) DEFAULT NULL,
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL

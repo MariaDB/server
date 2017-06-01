@@ -1,74 +1,85 @@
 include/master-slave.inc
-Warnings:
-Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
-Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
 [connection master]
+connection master;
 create database s_db;
 grant all on s_db.* to normal_1@'%' identified by 'pass';
 grant all on test.* to normal_2@'%' identified by 'pass';
 grant all on s_db.* to normal_3@'%' identified by 'pass';
 grant all on test.* to normal_4@'%' identified by 'pass';
+grant select on test.* to normal_5@'%' identified by 'pass';
+connection slave;
+connect m_normal_1, 127.0.0.1, normal_1, pass, s_db, $MASTER_MYPORT;
+connect m_normal_2, 127.0.0.1, normal_2, pass, test, $MASTER_MYPORT;
+connect m_normal_3, 127.0.0.1, normal_5, pass, test, $MASTER_MYPORT;
+connect s_normal_3, 127.0.0.1, normal_3, pass, s_db, $SLAVE_MYPORT;
+connect s_normal_4, 127.0.0.1, normal_4, pass, test, $SLAVE_MYPORT;
+connection slave;
 set global read_only=on;
 ###########################################
 master and slave sync sequence.
 ###########################################
+connection master;
 use s_db;
 create sequence s1;
 show create table s1;
 Table	Create Table
-s1	CREATE SEQUENCE `s1` (
-  `currval` bigint(21) NOT NULL COMMENT 'current value',
-  `nextval` bigint(21) NOT NULL COMMENT 'next value',
-  `minvalue` bigint(21) NOT NULL COMMENT 'min value',
-  `maxvalue` bigint(21) NOT NULL COMMENT 'max value',
+s1	CREATE TABLE `s1` (
+  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
+  `min_value` bigint(21) NOT NULL COMMENT 'min value',
+  `max_value` bigint(21) NOT NULL COMMENT 'max value',
   `start` bigint(21) NOT NULL COMMENT 'start value',
   `increment` bigint(21) NOT NULL COMMENT 'increment value',
   `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` bigint(21) NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'already how many round'
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
+  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+) ENGINE=MyISAM SEQUENCE=1
+connection slave;
 use s_db;
 show create table s1;
 Table	Create Table
-s1	CREATE SEQUENCE `s1` (
-  `currval` bigint(21) NOT NULL COMMENT 'current value',
-  `nextval` bigint(21) NOT NULL COMMENT 'next value',
-  `minvalue` bigint(21) NOT NULL COMMENT 'min value',
-  `maxvalue` bigint(21) NOT NULL COMMENT 'max value',
+s1	CREATE TABLE `s1` (
+  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
+  `min_value` bigint(21) NOT NULL COMMENT 'min value',
+  `max_value` bigint(21) NOT NULL COMMENT 'max value',
   `start` bigint(21) NOT NULL COMMENT 'start value',
   `increment` bigint(21) NOT NULL COMMENT 'increment value',
   `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` bigint(21) NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'already how many round'
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
+  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+) ENGINE=MyISAM SEQUENCE=1
+connection master;
 use s_db;
 drop sequence s1;
 ###########################################
 not support create table engine=sequence.
 ###########################################
+connection master;
 create table t(id int)engine=sequence;
-ERROR HY000: Table storage engine 'sequence' does not support the create option 'SEQUENCE'
+ERROR 42000: Unknown storage engine 'sequence'
 create table t(id int)engine=innodb;
 alter table t engine=sequence;
-ERROR HY000: Table storage engine 'sequence' does not support the create option 'SEQUENCE'
+ERROR 42000: Unknown storage engine 'sequence'
 drop table t;
 ###########################################
 not support alter sequence table.
 ###########################################
+connection master;
 create sequence s2;
 alter table s2 add id int;
-ERROR HY000: Table storage engine 'sequence' does not support the create option 'SEQUENCE'
+ERROR HY000: Sequence 's_db.s2' table structure is invalid (Wrong number of columns)
 alter table s2 add index ind_x(start);
-ERROR HY000: Table storage engine 'sequence' does not support the create option 'SEQUENCE'
+ERROR HY000: Sequence 's_db.s2' table structure is invalid (Sequence tables cannot have any keys)
 drop sequence s2;
 ###########################################
-not support create temproary sequence.
+Support create temporary sequence.
 ###########################################
+connection master;
 create temporary sequence s2;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'sequence s2' at line 1
+drop temporary sequence s2;
 ###########################################
 all invalid sequence value
 ###########################################
+connection master;
 use s_db;
 create sequence s2 start with 1
 minvalue 1
@@ -97,73 +108,43 @@ maxvalue 100000
 increment by 1
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' structure or number is invalid.
+ERROR HY000: Sequence 's_db.s2' values are conflicting
 create sequence s2 start with 1
 minvalue 5
 maxvalue 5
 increment by 1
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' structure or number is invalid.
+ERROR HY000: Sequence 's_db.s2' values are conflicting
 create sequence s2 start with 1
 minvalue 5
 maxvalue 4
 increment by 1
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' structure or number is invalid.
+ERROR HY000: Sequence 's_db.s2' values are conflicting
 create sequence s2 start with 1
 minvalue 5
 maxvalue 4
 increment by 0
 nocache
 nocycle;
-ERROR HY000: Sequence 's_db.s2' structure or number is invalid.
+ERROR HY000: Sequence 's_db.s2' values are conflicting
 ###########################################
 global read lock prevent query sequence
 ###########################################
+connection master;
 use s_db;
 create sequence s_db.s1;
 flush table with read lock;
-select * for s1;
+select next value for s1;
 ERROR HY000: Can't execute the query because you have a conflicting read lock
 unlock tables;
 drop sequence s_db.s1;
 ###########################################
-session setting
-###########################################
-use s_db;
-create sequence s1;
-set session sequence_read_skip_cache=true;
-select * for s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	0	1	9223372036854775807	1	1	10000	0	0
-select nextval for s1;
-nextval
-0
-select * for s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	0	1	9223372036854775807	1	1	10000	0	0
-select nextval for s1;
-nextval
-0
-set session sequence_read_skip_cache=false;
-select * for s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	1	1	9223372036854775807	1	1	10000	0	0
-select nextval for s1;
-nextval
-2
-select * for s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	3	1	9223372036854775807	1	1	10000	0	0
-select nextval for s1;
-nextval
-4
-drop sequence s1;
-###########################################
 query cache test
 ###########################################
+connection master;
 use s_db;
 show global variables like 'query_cache_type';
 Variable_name	Value
@@ -177,33 +158,43 @@ Qcache_inserts	0
 ###########################################
 priv test
 ###########################################
+connection m_normal_1;
 create sequence s_db.s1;
-select * for s_db.s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	1	1	9223372036854775807	1	1	10000	0	0
+select * from s_db.s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	0	0
+select next value for s_db.s1;
+next value for s_db.s1
+1
+select * from s_db.s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1001	1	9223372036854775806	1	1	1000	0	0
 create sequence s_db.s2;
 drop sequence s_db.s2;
-select * for s_db.s1;
-ERROR 42000: SELECT command denied to user 'normal_2'@'localhost' for table 's1'
+connection m_normal_2;
+select next value for s_db.s1;
+ERROR 42000: INSERT command denied to user 'normal_2'@'localhost' for table 's1'
 create sequence s_db.s2;
 ERROR 42000: CREATE command denied to user 'normal_2'@'localhost' for table 's2'
+connection m_normal_1;
 drop sequence s_db.s1;
 ###########################################
 run out sequence value
 ###########################################
+connection m_normal_1;
 use s_db;
 create sequence s_t start with 1 cache 2 maxvalue 5;
 create table t(id int);
 insert into t values(1111);
-insert into t select nextval for s_t;
-insert into t select nextval for s_t;
-insert into t select nextval for s_t;
-insert into t select nextval for s_t;
-insert into t select nextval for s_t;
-insert into t select nextval for s_t;
-ERROR HY000: Sequence 's_db.s_t' has been run out.
-insert into t select nextval for s_t;
-ERROR HY000: Sequence 's_db.s_t' has been run out.
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+ERROR HY000: Sequence 's_db.s_t' has run out
+insert into t select next value for s_t;
+ERROR HY000: Sequence 's_db.s_t' has run out
 commit;
 select * from t;
 id
@@ -213,6 +204,9 @@ id
 3
 4
 5
+connection master;
+connection slave;
+connection s_normal_3;
 use s_db;
 select * from t;
 id
@@ -222,89 +216,125 @@ id
 3
 4
 5
+connection m_normal_1;
 use s_db;
 drop sequence s_t;
 drop table t;
 ###########################################
 read_only prevent query sequence
 ###########################################
+connection m_normal_1;
 create sequence s_db.s1;
 show global variables like 'read_only';
 Variable_name	Value
 read_only	OFF
-select * for s_db.s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	1	1	9223372036854775807	1	1	10000	0	0
+select next value for s_db.s1;
+next value for s_db.s1
+1
+connection s_normal_3;
 show global variables like 'read_only';
 Variable_name	Value
 read_only	ON
-select * for s_db.s1;
-ERROR HY000: The MySQL server is running with the --read-only option so it cannot execute this statement
+select next value for s_db.s1;
+ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+connection m_normal_1;
 drop sequence s_db.s1;
 ###########################################
 update based table
 ###########################################
+connection m_normal_1;
 use s_db;
 create sequence s_t start with 1 minvalue 1 maxvalue 20 increment by 1 cache 5 cycle;
+connection master;
+connection slave;
+connection s_normal_3;
 use s_db;
 select * from s_t;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	0	1	20	1	1	5	1	0
-select nextval for s_t;
-nextval
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	20	1	1	5	1	0
+connection m_normal_1;
+select next value for s_t;
+next value for s_t
 1
-select nextval from s_t;
-nextval
-7
+select * from s_t;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+6	1	20	1	1	5	1	0
+connection master;
+connection slave;
+connection s_normal_3;
+select * from s_t;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+6	1	20	1	1	5	1	0
 ------------------------------------------
 master update nextval;
 ------------------------------------------
-select nextval for s_t;
-nextval
+connection m_normal_1;
+select next value for s_t;
+next value for s_t
 2
-update s_t set nextval= 11;
+update s_t set next_value= 11;
+ERROR HY000: Storage engine SEQUENCE of the table `s_db`.`s_t` doesn't have this option
+alter sequence s_t restart=11;
 commit;
 select * from s_t;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	11	1	20	1	1	5	1	0
+next_value	min_value	max_value	start	increment	cache	cycle	round
+11	1	20	1	1	5	1	0
+connection master;
+connection slave;
 ------------------------------------------
 show slave nextval;
 ------------------------------------------
+connection s_normal_3;
 select * from s_t;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	11	1	20	1	1	5	1	0
-set session sequence_read_skip_cache=off;
-select * for s_t;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	11	1	20	1	1	5	1	0
+next_value	min_value	max_value	start	increment	cache	cycle	round
+11	1	20	1	1	5	1	0
+connection m_normal_1;
+select next value for s_t;
+next value for s_t
+11
 select * from s_t;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	17	1	20	1	1	5	1	0
+next_value	min_value	max_value	start	increment	cache	cycle	round
+16	1	20	1	1	5	1	0
+connection master;
+connection slave;
+connection s_normal_3;
+select * from s_t;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+16	1	20	1	1	5	1	0
 ------------------------------------------
 update into invalid sequence
 ------------------------------------------
-select nextval for s_t;
-nextval
-12
-update s_t set nextval= 11,start=10, minvalue=11;
+connection m_normal_1;
+select * from s_t;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+16	1	20	1	1	5	1	0
+update s_t set next_value= 11,start=10, min_value=11;
+ERROR HY000: Storage engine SEQUENCE of the table `s_db`.`s_t` doesn't have this option
+ALTER SEQUENCE s_t restart with 11 start=10 minvalue=11;
+ERROR HY000: Sequence 's_db.s_t' values are conflicting
 commit;
 create table t_1(id int);
 insert into t_1 value(1111);
-select nextval for s_t;
-ERROR HY000: Sequence 's_db.s_t' structure or number is invalid.
-insert into t_1 select nextval for s_t;
-ERROR HY000: Sequence 's_db.s_t' structure or number is invalid.
+select next value for s_t;
+next value for s_t
+12
+insert into t_1 select next value for s_t;
 commit;
 select * from t_1;
 id
 1111
+13
 ------------------------------------------
 delete sequence row
 ------------------------------------------
+connection m_normal_1;
 delete from s_t;
+ERROR HY000: Storage engine SEQUENCE of the table `s_db`.`s_t` doesn't have this option
 commit;
-select nextval for s_t;
-nextval
+select next value for s_t;
+next value for s_t
+14
+connection m_normal_1;
 drop sequence s_t;
 drop table t_1;
 ###########################################
@@ -314,14 +344,14 @@ test transaction context (innodb)
 transaction table and sequence
 normal transaction commit
 ------------------------------------------
+connection m_normal_1;
 use s_db;
-set session sequence_read_skip_cache=off;
 create sequence s_1 cache 5;
 create table t_1(id int)engine=innodb;
 begin;
 insert into t_1 values(1111);
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
 insert into t_1 values(2222);
 commit;
 select * from t_1;
@@ -330,7 +360,9 @@ id
 1
 2
 2222
-set session sequence_read_skip_cache=off;
+connection master;
+connection slave;
+connection s_normal_3;
 use s_db;
 select * from t_1;
 id
@@ -341,16 +373,17 @@ id
 ------------------------------------------
 normal transaction rollback
 ------------------------------------------
+connection m_normal_1;
 begin;
 insert into t_1 values(3333);
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
 select * from t_1;
 id
 1111
@@ -373,10 +406,12 @@ id
 1
 2
 2222
-select nextval for s_1;
-nextval
+select next value for s_1;
+next value for s_1
 11
-set session sequence_read_skip_cache=off;
+connection master;
+connection slave;
+connection s_normal_3;
 use s_db;
 select * from t_1;
 id
@@ -384,6 +419,7 @@ id
 1
 2
 2222
+connection m_normal_1;
 use s_db;
 drop sequence s_1;
 drop table t_1;
@@ -394,14 +430,14 @@ test transaction context (myisam)
 transaction table and sequence
 normal transaction commit
 ------------------------------------------
+connection m_normal_1;
 use s_db;
-set session sequence_read_skip_cache=off;
 create sequence s_1 cache 5;
 create table t_1(id int)engine=myisam;
 begin;
 insert into t_1 values(1111);
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
 insert into t_1 values(2222);
 commit;
 select * from t_1;
@@ -410,7 +446,9 @@ id
 1
 2
 2222
-set session sequence_read_skip_cache=off;
+connection master;
+connection slave;
+connection s_normal_3;
 use s_db;
 select * from t_1;
 id
@@ -421,16 +459,17 @@ id
 ------------------------------------------
 normal transaction rollback
 ------------------------------------------
+connection m_normal_1;
 begin;
 insert into t_1 values(3333);
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
-insert into t_1 select nextval for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
 select * from t_1;
 id
 1111
@@ -464,10 +503,12 @@ id
 8
 9
 10
-select nextval for s_1;
-nextval
+select next value for s_1;
+next value for s_1
 11
-set session sequence_read_skip_cache=off;
+connection master;
+connection slave;
+connection s_normal_3;
 use s_db;
 select * from t_1;
 id
@@ -484,58 +525,68 @@ id
 8
 9
 10
+connection m_normal_1;
 use s_db;
 drop sequence s_1;
 drop table t_1;
 ###########################################
 close binlog
 ###########################################
+connection m_normal_1;
 use s_db;
 create sequence s1 cache 2;
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 1
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 2
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 3
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 4
 commit;
 select * from s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	7	1	9223372036854775807	1	1	2	0	0
+next_value	min_value	max_value	start	increment	cache	cycle	round
+5	1	9223372036854775806	1	1	2	0	0
+connection master;
+connection slave;
+connection slave;
 use s_db;
 select * from s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	7	1	9223372036854775807	1	1	2	0	0
+next_value	min_value	max_value	start	increment	cache	cycle	round
+5	1	9223372036854775806	1	1	2	0	0
 ------------------------------------------
 close session binlog.
 ------------------------------------------
+connection master;
 set session sql_log_bin=off;
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 5
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 6
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 7
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 8
 set session sql_log_bin=on;
 select * from s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	10	1	9223372036854775807	1	1	2	0	0
+next_value	min_value	max_value	start	increment	cache	cycle	round
+9	1	9223372036854775806	1	1	2	0	0
+connection master;
+connection slave;
+connection slave;
 use s_db;
 select * from s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	7	1	9223372036854775807	1	1	2	0	0
+next_value	min_value	max_value	start	increment	cache	cycle	round
+5	1	9223372036854775806	1	1	2	0	0
+connection m_normal_1;
 use s_db;
 drop sequence s1;
 ###########################################
@@ -544,38 +595,44 @@ statement binlog
 ------------------------------------------
 set binlog_format=statement
 ------------------------------------------
-set session sequence_read_skip_cache=off;
+connection master;
 set session binlog_format=statement;
 show  session variables like '%binlog_format%';
 Variable_name	Value
 binlog_format	STATEMENT
+wsrep_forced_binlog_format	NONE
 create sequence s1 cache 2;
-select nextval for s1;
-ERROR HY000: Sequence requires binlog_format= row
+select next value for s1;
+ERROR HY000: Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging.
 set session binlog_format=row;
-select * for s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	1	1	9223372036854775807	1	1	2	0	0
+select next value for s1;
+next value for s1
+1
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+3	1	9223372036854775806	1	1	2	0	0
+connection master;
+connection slave;
 use s_db;
 select * from s1;
-currval	nextval	minvalue	maxvalue	start	increment	cache	cycle	round
-0	4	1	9223372036854775807	1	1	2	0	0
-set session sequence_read_skip_cache=off;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+3	1	9223372036854775806	1	1	2	0	0
+connection m_normal_1;
 use s_db;
 drop sequence s1;
 ###########################################
 test savepoint
 ###########################################
-set session sequence_read_skip_cache=off;
+connection master;
 set session binlog_format=row;
 create sequence s1 cache 2;
 create table t1(id int)engine=innodb;
 begin;
 insert into t1 values(1111);
 savepoint sp1;
-insert into t1 select nextval for s1;
-insert into t1 select nextval for s1;
-insert into t1 select nextval for s1;
+insert into t1 select next value for s1;
+insert into t1 select next value for s1;
+insert into t1 select next value for s1;
 insert into t1 values(2222);
 select * from t1;
 id
@@ -588,8 +645,8 @@ rollback to sp1;
 select * from t1;
 id
 1111
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 4
 commit;
 drop sequence s1;
@@ -597,7 +654,7 @@ drop table t1;
 ###########################################
 test proc
 ###########################################
-set session sequence_read_skip_cache=off;
+connection m_normal_1;
 use s_db;
 create table t(id int)engine=innodb;
 create procedure p1()
@@ -606,7 +663,7 @@ create sequence s1 cache 2;
 end//
 create procedure p2()
 begin
-insert into t select nextval for s1;
+insert into t select next value for s1;
 commit;
 end//
 call p1();
@@ -620,6 +677,8 @@ id
 2
 3
 4
+connection master;
+connection slave;
 use s_db;
 select * from t;
 id
@@ -627,6 +686,7 @@ id
 2
 3
 4
+connection m_normal_1;
 drop table t;
 drop sequence s1;
 drop procedure p1;
@@ -634,7 +694,7 @@ drop procedure p2;
 ###########################################
 test trigger
 ###########################################
-set session sequence_read_skip_cache=off;
+connection m_normal_1;
 use s_db;
 create sequence s1 cache 2;
 create table t1(id int)engine=innodb;
@@ -642,7 +702,7 @@ create table t2(id int)engine=innodb;
 CREATE TRIGGER tri_1
 before INSERT ON t2 FOR EACH ROW
 BEGIN
-INSERT INTO t1 select nextval for s1;
+INSERT INTO t1 select next value for s1;
 END//
 begin;
 insert into t2 values(1111);
@@ -666,8 +726,8 @@ select * from t2;
 id
 select * from t1;
 id
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 5
 drop trigger tri_1;
 drop table t1;
@@ -676,13 +736,13 @@ drop sequence s1;
 ###########################################
 test function
 ###########################################
-set session sequence_read_skip_cache=off;
+connection m_normal_1;
 use s_db;
 create sequence s1 cache 2;
 create table t1(id int)engine=innodb;
 CREATE function f1() returns int
 BEGIN
-INSERT INTO t1 select nextval for s1;
+INSERT INTO t1 select next value for s1;
 return (1);
 END//
 begin;
@@ -707,16 +767,63 @@ id
 rollback;
 select * from t1;
 id
-select nextval for s1;
-nextval
+select next value for s1;
+next value for s1
 5
 drop function f1;
 drop table t1;
 drop sequence s1;
+##############
+Test GRANT
+##############
+connection m_normal_2;
+create table t1 (a int);
+create sequence s1;
+select next value for s1;
+next value for s1
+1
+insert into t1 values (1);
+connection m_normal_3;
+select * from t1;
+a
+1
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1001	1	9223372036854775806	1	1	1000	0	0
+select previous value for s1;
+previous value for s1
+NULL
+insert into t1 values (2);
+ERROR 42000: INSERT command denied to user 'normal_5'@'localhost' for table 't1'
+select next value for s1;
+ERROR 42000: INSERT command denied to user 'normal_5'@'localhost' for table 's1'
+do setval(s1,1000,0);
+ERROR 42000: INSERT command denied to user 'normal_5'@'localhost' for table 's1'
+connection master;
+grant insert on test.* to normal_5@'%' identified by 'pass';
+disconnect m_normal_3;
+connect m_normal_3, 127.0.0.1, normal_5, pass, test, $MASTER_MYPORT;
+insert into t1 values (2);
+select t1.*, (next value for s1) from t1;
+a	(next value for s1)
+1	2
+2	3
+do setval(s1,10000,0);
+select * from s1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+10000	1	9223372036854775806	1	1	1000	0	0
+connection m_normal_2;
+drop table t1;
+drop sequence s1;
+#
+# Cleanup
+#
+connection master;
 use s_db;
 drop database s_db;
 drop user normal_1@'%';
 drop user normal_2@'%';
 drop user normal_3@'%';
 drop user normal_4@'%';
+drop user normal_5@'%';
 include/rpl_end.inc

@@ -24,10 +24,10 @@
   Item_func_inet_aton implements INET_ATON() SQL-function.
 *************************************************************************/
 
-class Item_func_inet_aton : public Item_int_func
+class Item_func_inet_aton : public Item_longlong_func
 {
 public:
-  Item_func_inet_aton(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_func_inet_aton(THD *thd, Item *a): Item_longlong_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "inet_aton"; }
   void fix_length_and_dec()

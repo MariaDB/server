@@ -1178,11 +1178,10 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /* Discard the initial part of executing routines. */
   thd->profiling.discard_current_query();
 #endif
+  sp_instr *i;
   DEBUG_SYNC(thd, "sp_head_execute_before_loop");
   do
   {
-    sp_instr *i;
-
 #if defined(ENABLED_PROFILING)
     /*
      Treat each "instr" of a routine as discrete unit that could be profiled.
@@ -1342,6 +1341,13 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       da->opt_clear_warning_info(thd->query_id);
       da->copy_sql_conditions_from_wi(thd, &sp_wi);
       da->remove_marked_sql_conditions();
+      if (i != NULL)
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_SP_STACK_TRACE,
+                            ER_THD(thd, ER_SP_STACK_TRACE),
+                            i->m_lineno,
+                            m_qname.str != NULL ? m_qname.str :
+                                                  "anonymous block");
     }
   }
 
@@ -2770,6 +2776,7 @@ int sp_head::add_instr(sp_instr *instr)
     entire stored procedure, as their life span is equal.
   */
   instr->mem_root= &main_mem_root;
+  instr->m_lineno= m_thd->m_parser_state->m_lip.yylineno;
   return insert_dynamic(&m_instr, (uchar*)&instr);
 }
 

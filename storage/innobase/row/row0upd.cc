@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3042,12 +3042,13 @@ row_upd_clust_step(
 	mtr_start_trx(&mtr, thr_get_trx(thr));
 	mtr.set_named_space(index->space);
 
-	/* Disable REDO logging as lifetime of temp-tables is limited to
-	server or connection lifetime and so REDO information is not needed
-	on restart for recovery.
-	Disable locking as temp-tables are not shared across connection. */
 	if (dict_table_is_temporary(node->table)) {
-		flags = BTR_NO_LOCKING_FLAG;
+		/* Disable locking, because temporary tables are
+		private to the connection (no concurrent access). */
+		flags = node->table->no_rollback()
+			? BTR_NO_ROLLBACK
+			: BTR_NO_LOCKING_FLAG;
+		/* Redo logging only matters for persistent tables. */
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		flags = node->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
@@ -3128,9 +3129,10 @@ row_upd_clust_step(
 		}
 	}
 
-	ut_ad(lock_trx_has_rec_x_lock(thr_get_trx(thr), index->table,
-				      btr_pcur_get_block(pcur),
-				      page_rec_get_heap_no(rec)));
+	ut_ad(index->table->no_rollback()
+	      || lock_trx_has_rec_x_lock(thr_get_trx(thr), index->table,
+					 btr_pcur_get_block(pcur),
+					 page_rec_get_heap_no(rec)));
 
 	/* NOTE: the following function calls will also commit mtr */
 
@@ -3329,8 +3331,6 @@ row_upd_step(
 	ut_ad(thr);
 
 	trx = thr_get_trx(thr);
-
-	trx_start_if_not_started_xa(trx, true);
 
 	node = static_cast<upd_node_t*>(thr->run_node);
 

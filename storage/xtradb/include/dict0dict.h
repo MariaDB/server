@@ -1767,16 +1767,6 @@ dict_close(void);
 /*============*/
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
-Check whether the table is corrupted.
-@return	nonzero for corrupted table, zero for valid tables */
-UNIV_INLINE
-ulint
-dict_table_is_corrupted(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/**********************************************************************//**
 Check whether the index is corrupted.
 @return	nonzero for corrupted index, zero for valid indexes */
 UNIV_INLINE
@@ -1819,6 +1809,15 @@ ibool
 dict_set_corrupted_by_space(
 /*========================*/
 	ulint		space_id);	/*!< in: space ID */
+
+/**********************************************************************//**
+Flags a table with specified space_id encrypted in the data dictionary
+cache
+@param[in]	space_id	Tablespace id */
+UNIV_INTERN
+void
+dict_set_encrypted_by_space(
+	ulint	space_id);
 
 /********************************************************************//**
 Validate the table flags.
@@ -1900,14 +1899,6 @@ dict_table_get_index_on_first_col(
 						in table */
 
 #endif /* !UNIV_HOTBACKUP */
-/*************************************************************************
-set is_corrupt flag by space_id*/
-
-void
-dict_table_set_corrupt_by_space(
-/*============================*/
-	ulint	space_id,
-	ibool	need_mutex);
 
 #ifndef UNIV_NONINL
 #include "dict0dict.ic"

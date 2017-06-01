@@ -40,27 +40,26 @@ public:
 };
 
 
-class Item_func_json_valid: public Item_int_func
+class Item_func_json_valid: public Item_bool_func
 {
 protected:
   String tmp_value;
 
 public:
-  Item_func_json_valid(THD *thd, Item *json) : Item_int_func(thd, json) {}
+  Item_func_json_valid(THD *thd, Item *json) : Item_bool_func(thd, json) {}
   longlong val_int();
   const char *func_name() const { return "json_valid"; }
   void fix_length_and_dec()
   {
-    Item_int_func::fix_length_and_dec();
+    Item_bool_func::fix_length_and_dec();
     maybe_null= 1;
   }
-  bool is_bool_type() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_valid>(thd, mem_root, this); }
 };
 
 
-class Item_func_json_exists: public Item_int_func
+class Item_func_json_exists: public Item_bool_func
 {
 protected:
   json_path_with_flags path;
@@ -68,9 +67,8 @@ protected:
 
 public:
   Item_func_json_exists(THD *thd, Item *js, Item *i_path):
-    Item_int_func(thd, js, i_path) {}
+    Item_bool_func(thd, js, i_path) {}
   const char *func_name() const { return "json_exists"; }
-  bool is_bool_type() { return true; }
   void fix_length_and_dec();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_exists>(thd, mem_root, this); }
@@ -170,7 +168,7 @@ public:
 };
 
 
-class Item_func_json_contains: public Item_int_func
+class Item_func_json_contains: public Item_bool_func
 {
 protected:
   String tmp_js;
@@ -180,7 +178,7 @@ protected:
   String tmp_val, *val;
 public:
   Item_func_json_contains(THD *thd, List<Item> &list):
-    Item_int_func(thd, list) {}
+    Item_bool_func(thd, list) {}
   const char *func_name() const { return "json_contains"; }
   void fix_length_and_dec();
   longlong val_int();
@@ -189,7 +187,7 @@ public:
 };
 
 
-class Item_func_json_contains_path: public Item_int_func
+class Item_func_json_contains_path: public Item_bool_func
 {
 protected:
   String tmp_js;
@@ -201,7 +199,7 @@ protected:
 
 public:
   Item_func_json_contains_path(THD *thd, List<Item> &list):
-    Item_int_func(thd, list), tmp_paths(0) {}
+    Item_bool_func(thd, list), tmp_paths(0) {}
   const char *func_name() const { return "json_contains_path"; }
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
@@ -290,7 +288,7 @@ public:
 };
 
 
-class Item_func_json_length: public Item_int_func
+class Item_func_json_length: public Item_long_func
 {
 protected:
   json_path_with_flags path;
@@ -298,7 +296,7 @@ protected:
   String tmp_path;
 public:
   Item_func_json_length(THD *thd, List<Item> &list):
-    Item_int_func(thd, list) {}
+    Item_long_func(thd, list) {}
   const char *func_name() const { return "json_length"; }
   void fix_length_and_dec();
   longlong val_int();
@@ -307,13 +305,14 @@ public:
 };
 
 
-class Item_func_json_depth: public Item_int_func
+class Item_func_json_depth: public Item_long_func
 {
 protected:
   String tmp_js;
 public:
-  Item_func_json_depth(THD *thd, Item *js): Item_int_func(thd, js) {}
+  Item_func_json_depth(THD *thd, Item *js): Item_long_func(thd, js) {}
   const char *func_name() const { return "json_depth"; }
+  void fix_length_and_dec() { max_length= 10; }
   longlong val_int();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_depth>(thd, mem_root, this); }

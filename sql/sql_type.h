@@ -68,6 +68,7 @@ class Arg_comparator;
 struct st_value;
 class Protocol;
 class handler;
+struct Schema_specification_st;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 
@@ -487,6 +488,44 @@ public:
 };
 
 
+class Type_cast_attributes
+{
+  CHARSET_INFO *m_charset;
+  ulonglong m_length;
+  ulonglong m_decimals;
+  bool m_length_specified;
+  bool m_decimals_specified;
+public:
+  Type_cast_attributes(const char *c_len, const char *c_dec, CHARSET_INFO *cs)
+    :m_charset(cs), m_length(0), m_decimals(0),
+     m_length_specified(false), m_decimals_specified(false)
+  {
+    set_length_and_dec(c_len, c_dec);
+  }
+  Type_cast_attributes(CHARSET_INFO *cs)
+    :m_charset(cs), m_length(0), m_decimals(0),
+     m_length_specified(false), m_decimals_specified(false)
+  { }
+  void set_length_and_dec(const char *c_len, const char *c_dec)
+  {
+    int error;
+    /*
+      We don't have to check for error here as sql_yacc.yy has guaranteed
+      that the values are in range of ulonglong
+    */
+    if ((m_length_specified= (c_len != NULL)))
+      m_length= (ulonglong) my_strtoll10(c_len, NULL, &error);
+    if ((m_decimals_specified= (c_dec != NULL)))
+      m_decimals= (ulonglong) my_strtoll10(c_dec, NULL, &error);
+  }
+  CHARSET_INFO *charset() const { return m_charset; }
+  bool length_specified() const { return m_length_specified; }
+  bool decimals_specified() const { return m_decimals_specified; }
+  ulonglong length() const { return m_length; }
+  ulonglong decimals() const { return m_decimals; }
+};
+
+
 class Name: private LEX_CSTRING
 {
 public:
@@ -563,6 +602,7 @@ public:
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
   static const Type_handler *bit_and_int_mixture_handler(uint max_char_len);
+  static const Type_handler *type_handler_long_or_longlong(uint max_char_len);
   /**
     Return a string type handler for Item
     If too_big_for_varchar() returns a BLOB variant, according to length.
@@ -656,6 +696,10 @@ public:
   {
     return true;
   }
+  virtual bool is_scalar_type() const { return true; }
+  virtual bool can_return_int() const { return true; }
+  virtual bool can_return_real() const { return true; }
+  virtual bool is_general_purpose_string_type() const { return false; }
   virtual uint Item_time_precision(Item *item) const;
   virtual uint Item_datetime_precision(Item *item) const;
   virtual uint Item_decimal_scale(const Item *item) const;
@@ -707,6 +751,28 @@ public:
                                                 Column_definition *c,
                                                 handler *file,
                                                 ulonglong table_flags) const;
+  /*
+    This method is called on queries like:
+      CREATE TABLE t2 (a INT) AS SELECT a FROM t1;
+    I.e. column "a" is queried from another table,
+    but its data type is redefined.
+    @param OUT def   - The column definition to be redefined
+    @param IN  dup   - The column definition to take the data type from
+                       (i.e. "a INT" in the above example).
+    @param IN file   - Table owner handler. If it does not support certain
+                       data types, some conversion can be applied.
+                       I.g. true BIT to BIT-AS-CHAR.
+    @param IN schema - the owner schema definition, e.g. for the default
+                       character set and collation.
+    @retval true     - on error
+    @retval false    - on success
+  */
+  virtual bool Column_definition_redefine_stage1(Column_definition *def,
+                                                 const Column_definition *dup,
+                                                 const handler *file,
+                                                 const Schema_specification_st *
+                                                       schema)
+                                                 const;
   virtual bool Column_definition_prepare_stage2(Column_definition *c,
                                                 handler *file,
                                                 ulonglong table_flags) const= 0;
@@ -802,6 +868,12 @@ public:
                                                Item *src,
                                                const Item *cmp) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
+  virtual Item *create_typecast_item(THD *thd, Item *item,
+                                     const Type_cast_attributes &attr) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd,
                                                const char *name,
@@ -818,6 +890,9 @@ public:
   virtual bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const= 0;
   virtual
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const= 0;
+
+  virtual longlong Item_val_int_signed_typecast(Item *item) const= 0;
+  virtual longlong Item_val_int_unsigned_typecast(Item *item) const= 0;
 
   virtual String *Item_func_hex_val_str_ascii(Item_func_hex *item,
                                               String *str) const= 0;
@@ -917,6 +992,9 @@ class Type_handler_row: public Type_handler
 public:
   virtual ~Type_handler_row() {}
   const Name name() const { return m_name_row; }
+  bool is_scalar_type() const { return false; }
+  bool can_return_int() const { return false; }
+  bool can_return_real() const { return false; }
   enum_field_types field_type() const
   {
     DBUG_ASSERT(0);
@@ -959,6 +1037,15 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const
   {
     DBUG_ASSERT(0);
     return true;
@@ -1059,6 +1146,16 @@ public:
   {
     DBUG_ASSERT(0);
     return true;
+  }
+  longlong Item_val_int_signed_typecast(Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  longlong Item_val_int_unsigned_typecast(Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
   }
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const
   {
@@ -1253,6 +1350,10 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+  bool Item_func_signed_fix_length_and_dec(Item_func_signed *item) const;
+  bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const;
+  longlong Item_val_int_signed_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -1301,6 +1402,8 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_param_set_from_value(THD *thd,
@@ -1324,6 +1427,8 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+  longlong Item_val_int_signed_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -1389,6 +1494,8 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+  longlong Item_val_int_signed_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -1457,6 +1564,8 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+  longlong Item_val_int_signed_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -1515,6 +1624,11 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const;
   uint32 max_display_length(const Item *item) const;
   uint Item_time_precision(Item *item) const
   {
@@ -1557,6 +1671,10 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+  bool Item_func_signed_fix_length_and_dec(Item_func_signed *item) const;
+  bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const;
+  longlong Item_val_int_signed_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -1592,6 +1710,13 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const;
+};
+
+
+class Type_handler_general_purpose_string: public Type_handler_string_result
+{
+public:
+  bool is_general_purpose_string_type() const { return true; }
 };
 
 
@@ -1708,6 +1833,8 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   uint32 max_display_length(const Item *item) const { return 20; }
   uint32 calc_pack_length(uint32 length) const { return 8; }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_longlong(item, protocol, buf);
@@ -1807,6 +1934,11 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
@@ -1856,6 +1988,8 @@ public:
   bool type_can_have_auto_increment_attribute() const { return true; }
   uint32 max_display_length(const Item *item) const { return 53; }
   uint32 calc_pack_length(uint32 length) const { return sizeof(double); }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_double(item, protocol, buf);
@@ -1885,6 +2019,8 @@ public:
   {
     return MYSQL_TIMESTAMP_TIME;
   }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   uint Item_decimal_scale(const Item *item) const
   {
     return Item_decimal_scale_with_seconds(item);
@@ -1984,6 +2120,8 @@ public:
   {
     return MYSQL_TIMESTAMP_DATE;
   }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_precision(const Item *item) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
@@ -2043,6 +2181,8 @@ public:
   {
     return MYSQL_TIMESTAMP_DATETIME;
   }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_scale(const Item *item) const
   {
@@ -2227,6 +2367,11 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
@@ -2237,7 +2382,7 @@ public:
 };
 
 
-class Type_handler_null: public Type_handler_string_result
+class Type_handler_null: public Type_handler_general_purpose_string
 {
   static const Name m_name_null;
 public:
@@ -2259,6 +2404,11 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const
@@ -2270,7 +2420,7 @@ public:
 };
 
 
-class Type_handler_longstr: public Type_handler_string_result
+class Type_handler_longstr: public Type_handler_general_purpose_string
 {
 public:
   bool type_can_have_key_part() const
@@ -2436,6 +2586,8 @@ public:
   const Name name() const { return m_name_longblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONG_BLOB; }
   uint32 calc_pack_length(uint32 length) const;
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -2502,6 +2654,8 @@ public:
                           const Type_all_attributes &attr,
                           TABLE *table) const;
 
+  bool can_return_int() const { return false; }
+  bool can_return_real() const { return false; }
   bool is_traditional_type() const
   {
     return false;
@@ -2533,7 +2687,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_geometry type_handler_geometry;
 #endif
 
 
-class Type_handler_typelib: public Type_handler_string_result
+class Type_handler_typelib: public Type_handler_general_purpose_string
 {
 public:
   virtual ~Type_handler_typelib() { }
@@ -2550,6 +2704,11 @@ public:
                                         Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Column_definition_redefine_stage1(Column_definition *def,
+                                         const Column_definition *dup,
+                                         const handler *file,
+                                         const Schema_specification_st *schema)
+                                         const;
 };
 
 
@@ -2698,6 +2857,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_short       type_handler_short;
 extern MYSQL_PLUGIN_IMPORT Type_handler_int24       type_handler_int24;
 extern MYSQL_PLUGIN_IMPORT Type_handler_long        type_handler_long;
 extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_longlong;
+extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_ulonglong;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_newdecimal  type_handler_newdecimal;
 extern MYSQL_PLUGIN_IMPORT Type_handler_olddecimal  type_handler_olddecimal;

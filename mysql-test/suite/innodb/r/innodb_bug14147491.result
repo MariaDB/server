@@ -1,17 +1,17 @@
-CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ROW_FORMAT=COMPACT ENGINE=InnoDB;
+# Create and populate the table to be corrupted
+set global innodb_file_per_table=ON;
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 INSERT INTO t1 (b) VALUES ('corrupt me');
 INSERT INTO t1 (b) VALUES ('corrupt me');
-# Backup the t1.ibd before corrupting
 # Corrupt the table
 Munged a string.
 Munged a string.
-SET DEBUG_DBUG = '+d,innodb_page_corruption_retries';
-# Write file to make mysql-test-run.pl expect the "crash", but don't
-# start it until it's told to
-# The below SELECT query will crash the server because some pages
-# on the disk are corrupted
+# Now t1 is corrupted but we should not crash
 SELECT * FROM t1;
-ERROR HY000: Lost connection to MySQL server during query
-# Restore the original t1.ibd
-# Cleanup
+Got one of the listed errors
+INSERT INTO t1(b) VALUES('abcdef');
+Got one of the listed errors
+UPDATE t1 set b = 'deadbeef' where a = 1;
+Got one of the listed errors
+# Cleanup, this must be possible
 DROP TABLE t1;

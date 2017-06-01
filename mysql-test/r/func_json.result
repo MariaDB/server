@@ -642,3 +642,29 @@ SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
 JSON_KEYS(f)
 NULL
 DROP TABLE t1;
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+SELECT
+JSON_VALID('{"id": 1, "name": "Monty"}') AS json_valid,
+JSON_EXISTS('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2") AS json_exists,
+JSON_CONTAINS('{"A": 0, "B": {"C": 1}, "D": 2}', '2', '$.A') AS ison_contains,
+JSON_CONTAINS_PATH('{"A": 1, "B": [2], "C": [3, 4]}', 'one', '$.A', '$.D') AS json_contains_path;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					json_valid	3	1	1	Y	32896	0	63
+def					json_exists	3	1	1	Y	32896	0	63
+def					ison_contains	3	1	1	Y	32896	0	63
+def					json_contains_path	3	1	1	Y	32896	0	63
+json_valid	json_exists	ison_contains	json_contains_path
+1	1	0	1
+SELECT
+JSON_LENGTH('{"a": 1, "b": {"c": 30}}') AS json_length,
+JSON_DEPTH('[10, {"a": 20}]') AS json_depnth;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					json_length	3	10	1	Y	32896	0	63
+def					json_depnth	3	10	1	N	32897	0	63
+json_length	json_depnth
+2	3

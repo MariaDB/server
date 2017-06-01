@@ -692,7 +692,6 @@ recv_synchronize_groups(
 /***********************************************************************//**
 Checks the consistency of the checkpoint info
 @return	TRUE if ok */
-static
 ibool
 recv_check_cp_is_consistent(
 /*========================*/
@@ -722,7 +721,7 @@ recv_check_cp_is_consistent(
 /********************************************************//**
 Looks for the maximum consistent checkpoint from the log groups.
 @return	error code or DB_SUCCESS */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 recv_find_max_checkpoint(
 /*=====================*/
@@ -1383,7 +1382,12 @@ recv_parse_or_apply_log_rec_body(
 		}
 		break;
 	case MLOG_FILE_WRITE_CRYPT_DATA:
-		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block));
+		dberr_t err;
+		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block, &err));
+
+		if (err != DB_SUCCESS) {
+			recv_sys->found_corrupt_log = TRUE;
+		}
 		break;
 	default:
 		ptr = NULL;
@@ -1868,6 +1872,11 @@ recv_apply_hashed_log_recs(bool last_batch)
 			break;
 		}
 
+		if (recv_sys->found_corrupt_log) {
+			mutex_exit(&recv_sys->mutex);
+			return;
+		}
+
 		mutex_exit(&recv_sys->mutex);
 		os_thread_sleep(500000);
 	}
@@ -1931,6 +1940,10 @@ recv_apply_hashed_log_recs(bool last_batch)
 	while (recv_sys->n_addrs != 0) {
 
 		mutex_exit(&(recv_sys->mutex));
+
+		if (recv_sys->found_corrupt_log) {
+			return;
+		}
 
 		os_thread_sleep(500000);
 
@@ -3460,6 +3473,7 @@ recv_recovery_from_checkpoint_finish(void)
 #ifdef __WIN__
 	if (recv_writer_thread_handle) {
 		CloseHandle(recv_writer_thread_handle);
+		recv_writer_thread_handle = 0;
 	}
 #endif /* __WIN__ */
 
@@ -3685,6 +3699,102 @@ recv_reset_log_files_for_backup(
 	ut_free(buf);
 }
 #endif /* UNIV_HOTBACKUP */
+
+/******************************************************//**
+Checks the 4-byte checksum to the trailer checksum field of a log
+block.  We also accept a log block in the old format before
+InnoDB-3.23.52 where the checksum field contains the log block number.
+@return TRUE if ok, or if the log block may be in the format of InnoDB
+version predating 3.23.52 */
+UNIV_INTERN
+ibool
+log_block_checksum_is_ok_or_old_format(
+/*===================================*/
+	const byte*	block)	/*!< in: pointer to a log block */
+{
+#ifdef UNIV_LOG_DEBUG
+	return(TRUE);
+#endif /* UNIV_LOG_DEBUG */
+
+	ulint block_checksum = log_block_get_checksum(block);
+
+	if (UNIV_LIKELY(srv_log_checksum_algorithm ==
+			SRV_CHECKSUM_ALGORITHM_NONE ||
+			log_block_calc_checksum(block) == block_checksum)) {
+
+		return(TRUE);
+	}
+
+	if (srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 ||
+	    srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB ||
+	    srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_NONE) {
+
+		const char*	algo = NULL;
+
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"log block checksum mismatch: expected " ULINTPF ", "
+			"calculated checksum " ULINTPF,
+			block_checksum,
+			log_block_calc_checksum(block));
+
+		if (block_checksum == LOG_NO_CHECKSUM_MAGIC) {
+
+			algo = "none";
+		} else if (block_checksum ==
+			   log_block_calc_checksum_crc32(block)) {
+
+			algo = "crc32";
+		} else if (block_checksum ==
+			   log_block_calc_checksum_innodb(block)) {
+
+			algo = "innodb";
+		}
+
+		if (algo) {
+
+			const char*	current_algo;
+
+			current_algo = buf_checksum_algorithm_name(
+				(srv_checksum_algorithm_t)
+				srv_log_checksum_algorithm);
+
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"current InnoDB log checksum type: %s, "
+				"detected log checksum type: %s",
+				current_algo,
+				algo);
+		}
+
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"STRICT method was specified for innodb_log_checksum, "
+			"so we intentionally assert here.");
+	}
+
+	ut_ad(srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_CRC32 ||
+	      srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_INNODB);
+
+	if (block_checksum == LOG_NO_CHECKSUM_MAGIC ||
+	    block_checksum == log_block_calc_checksum_crc32(block) ||
+	    block_checksum == log_block_calc_checksum_innodb(block)) {
+
+		return(TRUE);
+	}
+
+	if (log_block_get_hdr_no(block) == block_checksum) {
+
+		/* We assume the log block is in the format of
+		InnoDB version < 3.23.52 and the block is ok */
+#if 0
+		fprintf(stderr,
+			"InnoDB: Scanned old format < InnoDB-3.23.52"
+			" log block number %lu\n",
+			log_block_get_hdr_no(block));
+#endif
+		return(TRUE);
+	}
+
+	return(FALSE);
+}
 
 void recv_dblwr_t::add(byte* page)
 {

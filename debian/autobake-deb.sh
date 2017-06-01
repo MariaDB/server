@@ -81,6 +81,11 @@ if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]]
 then
   sed '/Package: mariadb-plugin-rocksdb/,+11d' -i debian/control
 fi
+if [[ $GCCVERSION -lt 40800 ]]
+then
+  sed '/Package: mariadb-plugin-aws-key-management-10.2/,+13d' -i debian/control
+fi
+
 
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"

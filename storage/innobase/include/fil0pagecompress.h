@@ -67,23 +67,4 @@ fil_decompress_page(
 				/*!< in: true if only an error should
 				be produced when decompression fails.
 				By default this parameter is false. */
-
-/****************************************************************//**
-Get space id from fil node
-@return space id*/
-UNIV_INTERN
-ulint
-fil_node_get_space_id(
-/*==================*/
-        fil_node_t*	node);	/*!< in: Node where to get space id*/
-
-/****************************************************************//**
-Get block size from fil node
-@return block size*/
-UNIV_INLINE
-ulint
-fil_node_get_block_size(
-/*====================*/
-	fil_node_t*	node);	/*!< in: Node where to get block
-				size */
 #endif

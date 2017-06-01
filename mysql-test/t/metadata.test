@@ -252,3 +252,234 @@ drop table t1;
 --enable_metadata
 select cast('01:01:01' as time), cast('01:01:01' as time(2));
 --disable_metadata
+
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+SELECT
+  STRCMP('a','b'),
+  OCTET_LENGTH('a'),
+  CHAR_LENGTH('a'),
+  COERCIBILITY('a'),
+  ASCII('a'),
+  ORD('a'),
+  CRC32('a'),
+  UNCOMPRESSED_LENGTH(COMPRESS('a'));
+
+SELECT
+  INTERVAL(2,1,2,3),
+  REGEXP_INSTR('a','a'),
+  LOCATE('a','a'),
+  FIND_IN_SET('b','a,b,c,d'),
+  FIELD('a','a','b');
+
+SELECT
+  SIGN(1),
+  BIT_COUNT(1);
+
+
+SELECT
+  BENCHMARK(0,0),
+  SLEEP(0);
+
+SELECT
+  GET_LOCK('metadata',0),
+  IS_FREE_LOCK('metadata'),
+  RELEASE_LOCK('metadata');
+
+# Metadata the following functions is not deterministic
+#SELECT CONNECTION_ID();
+#SELECT IS_FREE_LOCK('metadata');
+#SELECT UUID_SHORT();
+
+
+SELECT
+  PERIOD_ADD(200801,2),
+  PERIOD_DIFF(200802,200703),
+  TO_DAYS('2007-10-07'),
+  DAYOFMONTH('2007-02-03'),
+  DAYOFWEEK('2007-02-03'),
+  TO_SECONDS('2013-06-13');
+
+SELECT
+  YEAR('2001-02-03 04:05:06.000007'),
+  DAY('2001-02-03 04:05:06.000007'),
+  HOUR('2001-02-03 04:05:06.000007'),
+  MINUTE('2001-02-03 04:05:06.000007'),
+  SECOND('2001-02-03 04:05:06.000007'),
+  MICROSECOND('2001-02-03 04:05:06.000007');
+
+SELECT
+  WEEK('2001-02-03 04:05:06.000007'),
+  QUARTER('2001-02-03 04:05:06.000007'),
+  YEARWEEK('2001-02-03 04:05:06.000007');
+
+--disable_metadata
+
+--enable_metadata
+SELECT BIT_LENGTH(10);
+SELECT 1|2, 1&2, 1<<2, 1>>2, ~0, 1^2;
+SELECT LAST_INSERT_ID();
+SELECT ROW_COUNT(), FOUND_ROWS();
+SELECT TIMESTAMPDIFF(MONTH,'2003-02-01','2003-05-01');
+--disable_metadata
+
+
+--echo #
+--echo # MDEV-12856 Wrong result set metadata for DIV
+--echo #
+
+--enable_metadata
+SELECT
+  2 DIV 1 AS d0l,
+  222222222 DIV 1 AS d09,
+  2222222222 DIV 1 AS d10;
+--disable_metadata
+
+
+--echo #
+--echo # MDEV-12862 Data type of @a:=1e0 depends on the session character set
+--echo #
+--enable_metadata
+SET NAMES utf8;
+CREATE TABLE t1 AS SELECT @:=1e0;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET NAMES latin1;
+CREATE TABLE t1 AS SELECT @:=1e0;
+SELECT * FROM t1;
+DROP TABLE t1;
+--disable_metadata
+
+--echo #
+--echo # MDEV-12869 Wrong metadata for integer additive and multiplicative operators
+--echo #
+
+--enable_metadata
+SELECT
+  1+1,
+  11+1,
+  111+1,
+  1111+1,
+  11111+1,
+  111111+1,
+  1111111+1,
+  11111111+1,
+  111111111+1 LIMIT 0;
+
+SELECT
+  1-1,
+  11-1,
+  111-1,
+  1111-1,
+  11111-1,
+  111111-1,
+  1111111-1,
+  11111111-1,
+  111111111-1 LIMIT 0;
+
+SELECT
+  1*1,
+  11*1,
+  111*1,
+  1111*1,
+  11111*1,
+  111111*1,
+  1111111*1,
+  11111111*1,
+  111111111*1 LIMIT 0;
+
+SELECT
+  1 MOD 1,
+  11 MOD 1,
+  111 MOD 1,
+  1111 MOD 1,
+  11111 MOD 1,
+  111111 MOD 1,
+  1111111 MOD 1,
+  11111111 MOD 1,
+  111111111 MOD 1,
+  1111111111 MOD 1,
+  11111111111 MOD 1 LIMIT 0;
+
+SELECT
+  -(1),
+  -(11),
+  -(111),
+  -(1111),
+  -(11111),
+  -(111111),
+  -(1111111),
+  -(11111111),
+  -(111111111) LIMIT 0;
+
+SELECT
+  ABS(1),
+  ABS(11),
+  ABS(111),
+  ABS(1111),
+  ABS(11111),
+  ABS(111111),
+  ABS(1111111),
+  ABS(11111111),
+  ABS(111111111),
+  ABS(1111111111) LIMIT 0;
+
+SELECT
+  CEILING(1),
+  CEILING(11),
+  CEILING(111),
+  CEILING(1111),
+  CEILING(11111),
+  CEILING(111111),
+  CEILING(1111111),
+  CEILING(11111111),
+  CEILING(111111111),
+  CEILING(1111111111) LIMIT 0;
+
+SELECT
+  FLOOR(1),
+  FLOOR(11),
+  FLOOR(111),
+  FLOOR(1111),
+  FLOOR(11111),
+  FLOOR(111111),
+  FLOOR(1111111),
+  FLOOR(11111111),
+  FLOOR(111111111),
+  FLOOR(1111111111) LIMIT 0;
+
+SELECT
+  ROUND(1),
+  ROUND(11),
+  ROUND(111),
+  ROUND(1111),
+  ROUND(11111),
+  ROUND(111111),
+  ROUND(1111111),
+  ROUND(11111111),
+  ROUND(111111111),
+  ROUND(1111111111) LIMIT 0;
+
+--disable_metadata
+
+--echo #
+--echo # MDEV-12546 Wrong metadata or data type for string user variables
+--echo #
+SET @a='test';
+--enable_metadata
+SELECT @a;
+--disable_metadata
+CREATE TABLE t1 AS SELECT @a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--enable_metadata
+SELECT @b1:=10, @b2:=@b2:=111111111111;
+--disable_metadata
+CREATE TABLE t1 AS SELECT @b1:=10, @b2:=111111111111;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

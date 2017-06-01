@@ -10,12 +10,17 @@
 reset master; # get rid of previous tests binlog
 --enable_query_log
 
-
 create or replace sequence s1 cache 3;
 select next value for s1, min_value from s1 where max_value> 1;
 select next value for s1, min_value from s1 where max_value> 2;
 select next value for s1, min_value from s1 where max_value> 3;
 select next value for s1, min_value from s1 where max_value> 4;
+
+#
+# Alter sequence
+#
+alter sequence s1 maxvalue 1000;
+
 drop sequence s1;
 
 --let $binlog_file = LAST

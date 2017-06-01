@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,8 +45,6 @@ Created 2012/04/12 by Sunny Bains
 /** Get the offset into the counter array. */
 template <typename Type, int N>
 struct generic_indexer_t {
-	/** Default constructor/destructor should be OK. */
-
         /** @return offset within m_counter */
         static size_t offset(size_t index) UNIV_NOTHROW
 	{
@@ -57,11 +56,6 @@ struct generic_indexer_t {
 to index into the counter array. See the comments for my_timer_cycles() */
 template <typename Type=ulint, int N=1>
 struct counter_indexer_t : public generic_indexer_t<Type, N> {
-
-	/** Default constructor/destructor should be OK. */
-
-	enum { fast = 1 };
-
 	/** @return result from RDTSC or similar functions. */
 	static size_t get_rnd_index() UNIV_NOTHROW
 	{
@@ -82,27 +76,11 @@ struct counter_indexer_t : public generic_indexer_t<Type, N> {
 #endif /* !_WIN32 */
 		}
 	}
-};
 
-/** For counters where N=1 */
-template <typename Type=ulint, int N=1>
-struct single_indexer_t {
-	/** Default constructor/destructor should are OK. */
-
-	enum { fast = 0 };
-
-        /** @return offset within m_counter */
-        static size_t offset(size_t index) UNIV_NOTHROW
+	/** @return a random offset to the array */
+	static size_t get_rnd_offset() UNIV_NOTHROW
 	{
-		ut_ad(N == 1);
-                return((CACHE_LINE_SIZE / sizeof(Type)));
-        }
-
-	/** @return 1 */
-	static size_t get_rnd_index() UNIV_NOTHROW
-	{
-		ut_ad(N == 1);
-		return(1);
+		return(generic_indexer_t<Type, N>::offset(get_rnd_index()));
 	}
 };
 
@@ -116,19 +94,11 @@ template <
 	typename Type,
 	int N = IB_N_SLOTS,
 	template<typename, int> class Indexer = default_indexer_t>
-class ib_counter_t {
-public:
-	ib_counter_t() { memset(m_counter, 0x0, sizeof(m_counter)); }
-
+struct MY_ALIGNED(CACHE_LINE_SIZE) ib_counter_t
+{
+#ifdef UNIV_DEBUG
 	~ib_counter_t()
 	{
-		ut_ad(validate());
-	}
-
-	static bool is_fast() { return(Indexer<Type, N>::fast); }
-
-	bool validate() UNIV_NOTHROW {
-#ifdef UNIV_DEBUG
 		size_t	n = (CACHE_LINE_SIZE / sizeof(Type));
 
 		/* Check that we aren't writing outside our defined bounds. */
@@ -137,58 +107,29 @@ public:
 				ut_ad(m_counter[i + j] == 0);
 			}
 		}
-#endif /* UNIV_DEBUG */
-		return(true);
 	}
+#endif /* UNIV_DEBUG */
 
-	/** If you can't use a good index id. Increment by 1. */
+	/** Increment the counter by 1. */
 	void inc() UNIV_NOTHROW { add(1); }
 
-	/** If you can't use a good index id.
-	@param n is the amount to increment */
-	void add(Type n) UNIV_NOTHROW {
-		size_t	i = m_policy.offset(m_policy.get_rnd_index());
+	/** Increment the counter by 1.
+	@param[in]	index	a reasonably thread-unique identifier */
+	void inc(size_t index) UNIV_NOTHROW { add(index, 1); }
 
-		ut_ad(i < UT_ARR_SIZE(m_counter));
+	/** Add to the counter.
+	@param[in]	n	amount to be added */
+	void add(Type n) UNIV_NOTHROW { add(m_policy.get_rnd_offset(), n); }
 
-		m_counter[i] += n;
-	}
-
-	/** Use this if you can use a unique identifier, saves a
-	call to get_rnd_index().
-	@param i index into a slot
-	@param n amount to increment */
+	/** Add to the counter.
+	@param[in]	index	a reasonably thread-unique identifier
+	@param[in]	n	amount to be added */
 	void add(size_t index, Type n) UNIV_NOTHROW {
 		size_t	i = m_policy.offset(index);
 
 		ut_ad(i < UT_ARR_SIZE(m_counter));
 
 		m_counter[i] += n;
-	}
-
-	/** If you can't use a good index id. Decrement by 1. */
-	void dec() UNIV_NOTHROW { sub(1); }
-
-	/** If you can't use a good index id.
-	@param n the amount to decrement */
-	void sub(Type n) UNIV_NOTHROW {
-		size_t	i = m_policy.offset(m_policy.get_rnd_index());
-
-		ut_ad(i < UT_ARR_SIZE(m_counter));
-
-		m_counter[i] -= n;
-	}
-
-	/** Use this if you can use a unique identifier, saves a
-	call to get_rnd_index().
-	@param i index into a slot
-	@param n amount to decrement */
-	void sub(size_t index, Type n) UNIV_NOTHROW {
-		size_t	i = m_policy.offset(index);
-
-		ut_ad(i < UT_ARR_SIZE(m_counter));
-
-		m_counter[i] -= n;
 	}
 
 	/* @return total value - not 100% accurate, since it is not atomic. */

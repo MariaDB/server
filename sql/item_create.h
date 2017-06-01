@@ -157,20 +157,6 @@ protected:
 #endif
 
 
-/**
-  Builder for cast expressions.
-  @param thd The current thread
-  @param a The item to cast
-  @param cast_type the type casted into
-  @param len TODO
-  @param dec TODO
-  @param cs The character set
-*/
-Item *
-create_func_cast(THD *thd, Item *a, Cast_target cast_type,
-                 const char *len, const char *dec,
-                 CHARSET_INFO *cs);
-
 Item *create_temporal_literal(THD *thd,
                               const char *str, uint length,
                               CHARSET_INFO *cs,
@@ -194,7 +180,7 @@ Item *create_func_dyncol_add(THD *thd, Item *str,
                              List<DYNCALL_CREATE_DEF> &list);
 Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums);
 Item *create_func_dyncol_get(THD *thd, Item *num, Item *str,
-                             Cast_target cast_type,
+                             const Type_handler *handler,
                              const char *c_len, const char *c_dec,
                              CHARSET_INFO *cs);
 Item *create_func_dyncol_json(THD *thd, Item *str);

@@ -1,3 +1,4 @@
+CALL mtr.add_suppression("WSREP: .*conflict state . after post commit .*");
 CREATE TABLE t1 (f1 INTEGER, f2 CHAR(20) DEFAULT 'abc') ENGINE=InnoDB;
 INSERT INTO t1 (f1) VALUES (1),(65535);
 FLUSH STATUS;
@@ -12,9 +13,16 @@ WHILE 1 DO
 INSERT INTO t1 (f1) VALUES (FLOOR( 1 + RAND( ) * 65535 ));
 END WHILE;
 END|
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1b;
 CALL proc_insert();;
+connection node_2;
+CALL mtr.add_suppression("WSREP: Failed to report last committed .*");
 SELECT VARIABLE_VALUE > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays';
 VARIABLE_VALUE > 0
 1
+connection node_1;
+connection node_1b;
+connection node_1;
 DROP PROCEDURE proc_insert;
 DROP TABLE t1;

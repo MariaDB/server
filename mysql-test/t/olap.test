@@ -404,3 +404,46 @@ SELECT DISTINCT b FROM t1, t2 GROUP BY a, b WITH ROLLUP;
 DROP TABLE t1, t2;
 
 --echo End of 5.0 tests
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12886 Different default for INT and BIGINT column in a VIEW for a SELECT with ROLLUP
+--echo #
+
+CREATE TABLE t1 (a int(11) NOT NULL);
+INSERT INTO t1 VALUES (1),(2);
+CREATE OR REPLACE VIEW v1 AS SELECT a, LENGTH(a), COUNT(*) FROM t1 GROUP BY a WITH ROLLUP;
+DESCRIBE v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a bigint(11) NOT NULL);
+INSERT INTO t1 VALUES (1),(2);
+CREATE OR REPLACE VIEW v1 AS SELECT a, LENGTH(a), COUNT(*) FROM t1 GROUP BY a WITH ROLLUP;
+DESCRIBE v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9410 VIEW over a ROLLUP query reports too large columns
+--echo #
+
+CREATE TABLE t1 (a int(10) NOT NULL, b int(20) NOT NULL);
+INSERT INTO t1 VALUES (1,1),(2,2);
+
+CREATE VIEW v1 AS SELECT a,b FROM t1;
+DESC v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT a, b FROM t1 GROUP BY a,b;
+DESC v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT a, b FROM t1 GROUP BY a,b WITH ROLLUP;
+DESC v1;
+DROP VIEW v1;
+
+DROP TABLE t1;

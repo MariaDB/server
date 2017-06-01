@@ -1,0 +1,15 @@
+#
+# Testing mysqldump of sequences
+#
+
+# Embedded server doesn't support external clients
+--source include/not_embedded.inc
+--source include/have_aria.inc
+--source include/have_innodb.inc
+
+CREATE SEQUENCE a1 engine=aria;
+CREATE TABLE t1(a INT, KEY (a)) KEY_BLOCK_SIZE=1024;
+insert into t1 values (1),(2);
+CREATE SEQUENCE x1 engine=innodb;
+--exec $MYSQL_DUMP --compact test
+DROP TABLE a1,t1,x1;

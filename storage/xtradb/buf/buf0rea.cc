@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -103,35 +103,45 @@ flag is cleared and the x-lock released by an i/o-handler thread.
 in buf_pool, or if the page is in the doublewrite buffer blocks in
 which case it is never read into the pool, or if the tablespace does
 not exist or is being dropped
-@return 1 if read request is issued. 0 if it is not */
-UNIV_INTERN
-ulint
-buf_read_page_low(
-/*==============*/
-	dberr_t*	err,	/*!< out: DB_SUCCESS or DB_TABLESPACE_DELETED if we are
-			trying to read from a non-existent tablespace, or a
-			tablespace which is just now being dropped */
-	bool	sync,	/*!< in: true if synchronous aio is desired */
-	ulint	mode,	/*!< in: BUF_READ_IBUF_PAGES_ONLY, ...,
-			ORed to OS_AIO_SIMULATED_WAKE_LATER (see below
-			at read-ahead functions) */
-	ulint	space,	/*!< in: space id */
-	ulint	zip_size,/*!< in: compressed page size, or 0 */
-	ibool	unzip,	/*!< in: TRUE=request uncompressed page */
-	ib_int64_t tablespace_version, /*!< in: if the space memory object has
+
+@param[out]	err	 	DB_SUCCESS, DB_TABLESPACE_DELETED if we are
+				trying to read from a non-existent tablespace, or a
+				tablespace which is just now being dropped,
+				DB_PAGE_CORRUPTED if page based on checksum
+				check is corrupted, or DB_DECRYPTION_FAILED
+				if page post encryption checksum matches but
+				after decryption normal page checksum does not match.
+@param[in]	sync		true if synchronous aio is desired
+@param[in]	mode		BUF_READ_IBUF_PAGES_ONLY, ...,
+				ORed to OS_AIO_SIMULATED_WAKE_LATER (see below
+				at read-ahead functions)
+@param[in]	space		space id
+@param[in]	zip_size	compressed page size, or 0
+@param[in]	unzip		TRUE=request uncompressed page
+@param[in]	tablespace_version	if the space memory object has
 			this timestamp different from what we are giving here,
 			treat the tablespace as dropped; this is a timestamp we
 			use to stop dangling page reads from a tablespace
-			which we have DISCARDed + IMPORTed back */
-	ulint	offset,	/*!< in: page number */
-	trx_t*	trx,	/*!< in: trx */
-	buf_page_t** rbpage) /*!< out: page */
+			which we have DISCARDed + IMPORTed back
+@param[in]	offset		page number
+@param[in]	trx		transaction
+@return 1 if read request is issued. 0 if it is not */
+static
+ulint
+buf_read_page_low(
+	dberr_t*	err,
+	bool		sync,
+	ulint		mode,
+	ulint		space,
+	ulint		zip_size,
+	ibool		unzip,
+	ib_int64_t	tablespace_version,
+	ulint		offset,
+	trx_t*		trx = NULL)
 {
 	buf_page_t*	bpage;
 	ulint		wake_later;
 	ibool		ignore_nonexistent_pages;
-
-	*err = DB_SUCCESS;
 
 	wake_later = mode & OS_AIO_SIMULATED_WAKE_LATER;
 	mode = mode & ~OS_AIO_SIMULATED_WAKE_LATER;
@@ -259,16 +269,11 @@ not_to_recover:
 	if (sync) {
 		/* The i/o is already completed when we arrive from
 		fil_read */
-		if (!buf_page_io_complete(bpage)) {
-			if (rbpage) {
-				*rbpage = bpage;
-			}
+		*err = buf_page_io_complete(bpage);
+
+		if (*err != DB_SUCCESS) {
 			return(0);
 		}
-	}
-
-	if (rbpage) {
-		*rbpage = bpage;
 	}
 
 	return(1);
@@ -307,7 +312,7 @@ buf_read_ahead_random(
 	ulint		ibuf_mode;
 	ulint		count;
 	ulint		low, high;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	ulint		i;
 	const ulint	buf_read_ahead_random_area
 				= BUF_READ_AHEAD_AREA(buf_pool);
@@ -402,20 +407,34 @@ read_ahead:
 		mode: hence FALSE as the first parameter */
 
 		if (!ibuf_bitmap_page(zip_size, i)) {
+
 			count += buf_read_page_low(
 				&err, false,
 				ibuf_mode | OS_AIO_SIMULATED_WAKE_LATER,
 				space, zip_size, FALSE,
-				tablespace_version, i, trx, NULL);
-			if (err == DB_TABLESPACE_DELETED) {
-				ut_print_timestamp(stderr);
-				fprintf(stderr,
-					"  InnoDB: Warning: in random"
-					" readahead trying to access\n"
-					"InnoDB: tablespace %lu page %lu,\n"
-					"InnoDB: but the tablespace does not"
-					" exist or is just being dropped.\n",
-					(ulong) space, (ulong) i);
+				tablespace_version, i, trx);
+
+			switch(err) {
+			case DB_SUCCESS:
+			case DB_ERROR:
+				break;
+			case DB_TABLESPACE_DELETED:
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"In random"
+					" readahead trying to access"
+					" tablespace " ULINTPF ":" ULINTPF
+					" but the tablespace does not"
+					" exist or is just being dropped.",
+					space, i);
+				break;
+			case DB_DECRYPTION_FAILED:
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Random readahead failed to decrypt page "
+					ULINTPF ":" ULINTPF ".",
+					i, space);
+				break;
+			default:
+				ut_error;
 			}
 		}
 	}
@@ -449,44 +468,60 @@ High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
-@return TRUE if page has been read in, FALSE in case of failure */
+
+@param[in]	space_id		space_id
+@param[in]	zip_size	compressed page size in bytes, or 0
+@param[in]	offset		page number
+@param[in]	trx		transaction
+@param[out]	encrypted	true if page encrypted
+@return DB_SUCCESS if page has been read and is not corrupted,
+@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
+@retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
+after decryption normal page checksum does not match.
+@retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
 UNIV_INTERN
-ibool
+dberr_t
 buf_read_page(
-/*==========*/
-	ulint	space,		/*!< in: space id */
-	ulint	zip_size,	/*!< in: compressed page size in bytes, or 0 */
-	ulint	offset,		/*!< in: page number */
-	trx_t*	trx,		/*!< in: trx */
-	buf_page_t** bpage)	/*!< out: page */
+	ulint	space_id,
+	ulint	zip_size,
+	ulint	offset,
+	trx_t*	trx)
 {
 	ib_int64_t	tablespace_version;
 	ulint		count;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 
-	tablespace_version = fil_space_get_version(space);
+	tablespace_version = fil_space_get_version(space_id);
 
-	/* We do the i/o in the synchronous aio mode to save thread
-	switches: hence TRUE */
+	FilSpace space(space_id, true);
 
-	count = buf_read_page_low(&err, true, BUF_READ_ANY_PAGE, space,
+	if (space()) {
+
+		/* We do the i/o in the synchronous aio mode to save thread
+		switches: hence TRUE */
+		count = buf_read_page_low(&err, true, BUF_READ_ANY_PAGE, space_id,
 				  zip_size, FALSE,
-				  tablespace_version, offset, trx, bpage);
-	srv_stats.buf_pool_reads.add(count);
-	if (err == DB_TABLESPACE_DELETED) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: Error: trying to access"
-			" tablespace %lu page no. %lu,\n"
-			"InnoDB: but the tablespace does not exist"
-			" or is just being dropped.\n",
-			(ulong) space, (ulong) offset);
+				  tablespace_version, offset, trx);
+
+		srv_stats.buf_pool_reads.add(count);
+	}
+
+	/* Page corruption and decryption failures are already reported
+	in above function. */
+	if (!space() || err == DB_TABLESPACE_DELETED) {
+		err = DB_TABLESPACE_DELETED;
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Trying to access"
+			" tablespace [space=" ULINTPF ": page=" ULINTPF
+			"] but the tablespace does not exist"
+			" or is just being dropped.",
+			space_id, offset);
 	}
 
 	/* Increment number of I/O operations used for LRU policy. */
 	buf_LRU_stat_inc_io();
 
-	return(count > 0);
+	return(err);
 }
 
 /********************************************************************//**
@@ -494,23 +529,23 @@ High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
-@return TRUE if page has been read in, FALSE in case of failure */
+@param[in]	space		Tablespace id
+@param[in]	offset		Page no */
 UNIV_INTERN
-ibool
+void
 buf_read_page_async(
-/*================*/
-	ulint	space,	/*!< in: space id */
-	ulint	offset)	/*!< in: page number */
+	ulint	space,
+	ulint	offset)
 {
 	ulint		zip_size;
 	ib_int64_t	tablespace_version;
 	ulint		count;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 
 	zip_size = fil_space_get_zip_size(space);
 
 	if (zip_size == ULINT_UNDEFINED) {
-		return(FALSE);
+		return;
 	}
 
 	tablespace_version = fil_space_get_version(space);
@@ -519,7 +554,31 @@ buf_read_page_async(
 				  | OS_AIO_SIMULATED_WAKE_LATER
 				  | BUF_READ_IGNORE_NONEXISTENT_PAGES,
 				  space, zip_size, FALSE,
-				  tablespace_version, offset, NULL,NULL);
+				  tablespace_version, offset);
+
+	switch(err) {
+	case DB_SUCCESS:
+	case DB_ERROR:
+		break;
+	case DB_TABLESPACE_DELETED:
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"In async page read "
+			"trying to access "
+			"page " ULINTPF ":" ULINTPF
+			" in nonexisting or being-dropped tablespace",
+			space, offset);
+		break;
+
+	case DB_DECRYPTION_FAILED:
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Async page read failed to decrypt page "
+			ULINTPF ":" ULINTPF ".",
+			space, offset);
+		break;
+	default:
+		ut_error;
+	}
+
 	srv_stats.buf_pool_reads.add(count);
 
 	/* We do not increment number of I/O operations used for LRU policy
@@ -528,8 +587,6 @@ buf_read_page_async(
 	buffer pool. Since this function is called from buffer pool load
 	these IOs are deliberate and are not part of normal workload we can
 	ignore these in our heuristics. */
-
-	return(count > 0);
 }
 
 /********************************************************************//**
@@ -580,7 +637,7 @@ buf_read_ahead_linear(
 	ulint		fail_count;
 	ulint		ibuf_mode;
 	ulint		low, high;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	ulint		i;
 	const ulint	buf_read_ahead_linear_area
 		= BUF_READ_AHEAD_AREA(buf_pool);
@@ -784,19 +841,35 @@ buf_read_ahead_linear(
 		aio mode: hence FALSE as the first parameter */
 
 		if (!ibuf_bitmap_page(zip_size, i)) {
+
 			count += buf_read_page_low(
 				&err, false,
 				ibuf_mode,
-				space, zip_size, FALSE, tablespace_version, i, trx, NULL);
-			if (err == DB_TABLESPACE_DELETED) {
-				ut_print_timestamp(stderr);
-				fprintf(stderr,
-					"  InnoDB: Warning: in"
-					" linear readahead trying to access\n"
-					"InnoDB: tablespace %lu page %lu,\n"
-					"InnoDB: but the tablespace does not"
-					" exist or is just being dropped.\n",
-					(ulong) space, (ulong) i);
+				space, zip_size, FALSE, tablespace_version,
+				i, trx);
+
+			switch(err) {
+			case DB_SUCCESS:
+			case DB_ERROR:
+				break;
+			case DB_TABLESPACE_DELETED:
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"In linear"
+					" readahead trying to access"
+					" tablespace " ULINTPF ":" ULINTPF
+					" but the tablespace does not"
+					" exist or is just being dropped.",
+					space, i);
+				break;
+
+			case DB_DECRYPTION_FAILED:
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Linear readahead failed to decrypt page "
+					ULINTPF ":" ULINTPF ".",
+					i, space);
+				break;
+			default:
+				ut_error;
 			}
 		}
 	}
@@ -858,9 +931,9 @@ buf_read_ibuf_merge_pages(
 #endif
 
 	for (i = 0; i < n_stored; i++) {
-		dberr_t		err;
 		buf_pool_t*	buf_pool;
 		ulint		zip_size = fil_space_get_zip_size(space_ids[i]);
+		dberr_t		err = DB_SUCCESS;
 
 		buf_pool = buf_pool_get(space_ids[i], page_nos[i]);
 
@@ -870,23 +943,33 @@ buf_read_ibuf_merge_pages(
 		}
 
 		if (UNIV_UNLIKELY(zip_size == ULINT_UNDEFINED)) {
-
 			goto tablespace_deleted;
 		}
 
 		buf_read_page_low(&err, sync && (i + 1 == n_stored),
 				  BUF_READ_ANY_PAGE, space_ids[i],
 				  zip_size, TRUE, space_versions[i],
-				  page_nos[i], NULL, NULL);
+				  page_nos[i], NULL);
 
-		if (UNIV_UNLIKELY(err == DB_TABLESPACE_DELETED)) {
+		switch(err) {
+		case DB_SUCCESS:
+		case DB_ERROR:
+			break;
+		case DB_TABLESPACE_DELETED:
+
 tablespace_deleted:
 			/* We have deleted or are deleting the single-table
-			tablespace: remove the entries for that page */
-
-			ibuf_merge_or_delete_for_page(NULL, space_ids[i],
-						      page_nos[i],
-						      zip_size, FALSE);
+			tablespace: remove the entries for tablespace. */
+			ibuf_delete_for_discarded_space(space_ids[i]);
+			break;
+		case DB_DECRYPTION_FAILED:
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Failed to decrypt insert buffer page "
+				ULINTPF ":" ULINTPF ".",
+				space_ids[i], page_nos[i]);
+			break;
+		default:
+			ut_error;
 		}
 	}
 
@@ -924,7 +1007,7 @@ buf_read_recv_pages(
 {
 	ib_int64_t	tablespace_version;
 	ulint		count;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	ulint		i;
 
 	zip_size = fil_space_get_zip_size(space);
@@ -1013,12 +1096,20 @@ not_to_recover:
 		if ((i + 1 == n_stored) && sync) {
 			buf_read_page_low(&err, true, BUF_READ_ANY_PAGE, space,
 					  zip_size, TRUE, tablespace_version,
-					  page_nos[i], NULL, NULL);
+					  page_nos[i], NULL);
 		} else {
 			buf_read_page_low(&err, false, BUF_READ_ANY_PAGE
 					  | OS_AIO_SIMULATED_WAKE_LATER,
 					  space, zip_size, TRUE,
-					  tablespace_version, page_nos[i], NULL, NULL);
+					  tablespace_version, page_nos[i],
+					  NULL);
+		}
+
+		if (err == DB_DECRYPTION_FAILED) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Recovery failed to decrypt read page "
+				ULINTPF ":" ULINTPF ".",
+				space, page_nos[i]);
 		}
 	}
 

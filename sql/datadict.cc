@@ -88,6 +88,12 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
   engine_name->length= 0;
   dbt= header[3];
 
+  if (((header[39] >> 4) & 3) == HA_CHOICE_YES)
+  {
+    DBUG_PRINT("info", ("Sequence found"));
+    *is_sequence= 1;
+  }
+
   /* cannot use ha_resolve_by_legacy_type without a THD */
   if (thd && dbt < DB_TYPE_FIRST_DYNAMIC)
   {
@@ -98,9 +104,6 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
       goto err;
     }
   }
-
-  if (((header[39] >> 4) & 3) == HA_CHOICE_YES)
-    *is_sequence= 1;
 
   /* read the true engine name */
   {

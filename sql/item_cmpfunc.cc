@@ -3738,30 +3738,6 @@ bool Predicant_to_list_comparator::make_unique_cmp_items(THD *thd,
 }
 
 
-cmp_item* cmp_item::get_comparator(Item_result type, Item *warn_item,
-                                   CHARSET_INFO *cs)
-{
-  switch (type) {
-  case STRING_RESULT:
-    return new cmp_item_sort_string(cs);
-  case INT_RESULT:
-    return new cmp_item_int;
-  case REAL_RESULT:
-    return new cmp_item_real;
-  case ROW_RESULT:
-    return new cmp_item_row;
-  case DECIMAL_RESULT:
-    return new cmp_item_decimal;
-  case TIME_RESULT:
-    DBUG_ASSERT(warn_item);
-    return warn_item->field_type() == MYSQL_TYPE_TIME ?
-           (cmp_item *) new cmp_item_time() :
-           (cmp_item *) new cmp_item_datetime();
-  }
-  return 0; // to satisfy compiler :)
-}
-
-
 cmp_item* cmp_item_sort_string::make_same()
 {
   return new cmp_item_sort_string_in_static(cmp_charset);
@@ -3814,7 +3790,8 @@ bool cmp_item_row::alloc_comparators(THD *thd, uint cols)
 void cmp_item_row::store_value(Item *item)
 {
   DBUG_ENTER("cmp_item_row::store_value");
-  if (!alloc_comparators(current_thd, item->cols()))
+  THD *thd= current_thd;
+  if (!alloc_comparators(thd, item->cols()))
   {
     item->bring_value();
     item->null_value= 0;
@@ -3836,10 +3813,11 @@ void cmp_item_row::store_value(Item *item)
           - predicate0, value00, value01
           - predicate1, value10, value11
         */
-        DBUG_ASSERT(item->element_index(i)->cmp_type() != TIME_RESULT);
+        Item *elem= item->element_index(i);
+        const Type_handler *handler= elem->type_handler();
+        DBUG_ASSERT(elem->cmp_type() != TIME_RESULT);
         if (!(comparators[i]=
-              cmp_item::get_comparator(item->element_index(i)->result_type(), 0,
-                                       item->element_index(i)->collation.collation)))
+              handler->make_cmp_item(thd, elem->collation.collation)))
 	  break;					// new failed
       }
       comparators[i]->store_value(item->element_index(i));
@@ -5519,6 +5497,7 @@ Item_func_regexp_instr::fix_length_and_dec()
 
   re.init(cmp_collation.collation, 0, 1);
   re.fix_owner(this, args[0], args[1]);
+  max_length= MY_INT32_NUM_DECIMAL_DIGITS; // See also Item_func_locate
 }
 
 
@@ -6550,8 +6529,8 @@ longlong Item_equal::val_int()
 void Item_equal::fix_length_and_dec()
 {
   Item *item= get_first(NO_PARTICULAR_TAB, NULL);
-  eval_item= cmp_item::get_comparator(item->cmp_type(), item,
-                                      item->collation.collation);
+  const Type_handler *handler= item->type_handler();
+  eval_item= handler->make_cmp_item(current_thd, item->collation.collation);
 }
 
 

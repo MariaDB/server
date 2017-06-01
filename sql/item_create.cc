@@ -38,68 +38,6 @@
 
 /*
 =============================================================================
-  HELPER FUNCTIONS
-=============================================================================
-*/
-
-static const char* item_name(Item *a, String *str)
-{
-  if (a->name.str)
-    return a->name.str;
-  str->length(0);
-  a->print(str, QT_ORDINARY);
-  return str->c_ptr_safe();
-}
-
-
-static void wrong_precision_error(uint errcode, Item *a,
-                                  ulonglong number, uint maximum)
-{
-  char buff[1024];
-  String buf(buff, sizeof(buff), system_charset_info);
-
-  my_error(errcode, MYF(0), number, item_name(a, &buf), maximum);
-}
-
-
-/**
-  Get precision and scale for a declaration
- 
-  return
-    0  ok
-    1  error
-*/
-
-bool get_length_and_scale(ulonglong length, ulonglong decimals,
-                          ulong *out_length, uint *out_decimals,
-                          uint max_precision, uint max_scale,
-                          Item *a)
-{
-  if (length > (ulonglong) max_precision)
-  {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, a, length, max_precision);
-    return 1;
-  }
-  if (decimals > (ulonglong) max_scale)
-  {
-    wrong_precision_error(ER_TOO_BIG_SCALE, a, decimals, max_scale);
-    return 1;
-  }
-
-  *out_decimals=  (uint) decimals;
-  my_decimal_trim(&length, out_decimals);
-  *out_length=  (ulong) length;
-  
-  if (*out_length < *out_decimals)
-  {
-    my_error(ER_M_BIGGER_THAN_D, MYF(0), "");
-    return 1;
-  }
-  return 0;
-}
-
-/*
-=============================================================================
   LOCAL DECLARATIONS
 =============================================================================
 */
@@ -5684,11 +5622,9 @@ Create_func_length Create_func_length::s_singleton;
 Item*
 Create_func_length::create_1_arg(THD *thd, Item *arg1)
 {
-#if 0 // Not yet
   if (thd->variables.sql_mode & MODE_ORACLE)
     return new (thd->mem_root) Item_func_char_length(thd, arg1);
   else
-#endif
     return new (thd->mem_root) Item_func_octet_length(thd, arg1);
 }
 
@@ -6978,6 +6914,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("LCASE") }, BUILDER(Create_func_lcase)},
   { { C_STRING_WITH_LEN("LEAST") }, BUILDER(Create_func_least)},
   { { C_STRING_WITH_LEN("LENGTH") }, BUILDER(Create_func_length)},
+  { { C_STRING_WITH_LEN("LENGTHB") }, BUILDER(Create_func_octet_length)},
 #ifndef DBUG_OFF
   { { C_STRING_WITH_LEN("LIKE_RANGE_MIN") }, BUILDER(Create_func_like_range_min)},
   { { C_STRING_WITH_LEN("LIKE_RANGE_MAX") }, BUILDER(Create_func_like_range_max)},
@@ -7271,114 +7208,6 @@ find_qualified_function_builder(THD *thd)
 }
 
 
-Item *
-create_func_cast(THD *thd, Item *a, Cast_target cast_type,
-                 const char *c_len, const char *c_dec,
-                 CHARSET_INFO *cs)
-{
-  Item *UNINIT_VAR(res);
-  ulonglong length= 0, decimals= 0;
-  int error;
-  
-  /*
-    We don't have to check for error here as sql_yacc.yy has guaranteed
-    that the values are in range of ulonglong
-  */
-  if (c_len)
-    length= (ulonglong) my_strtoll10(c_len, NULL, &error);
-  if (c_dec)
-    decimals= (ulonglong) my_strtoll10(c_dec, NULL, &error);
-
-  switch (cast_type) {
-  case ITEM_CAST_BINARY:
-    res= new (thd->mem_root) Item_func_binary(thd, a);
-    break;
-  case ITEM_CAST_SIGNED_INT:
-    res= new (thd->mem_root) Item_func_signed(thd, a);
-    break;
-  case ITEM_CAST_UNSIGNED_INT:
-    res= new (thd->mem_root) Item_func_unsigned(thd, a);
-    break;
-  case ITEM_CAST_DATE:
-    res= new (thd->mem_root) Item_date_typecast(thd, a);
-    break;
-  case ITEM_CAST_TIME:
-    if (decimals > MAX_DATETIME_PRECISION)
-    {
-      wrong_precision_error(ER_TOO_BIG_PRECISION, a, decimals,
-                            MAX_DATETIME_PRECISION);
-      return 0;
-    }
-    res= new (thd->mem_root) Item_time_typecast(thd, a, (uint) decimals);
-    break;
-  case ITEM_CAST_DATETIME:
-    if (decimals > MAX_DATETIME_PRECISION)
-    {
-      wrong_precision_error(ER_TOO_BIG_PRECISION, a, decimals,
-                            MAX_DATETIME_PRECISION);
-      return 0;
-    }
-    res= new (thd->mem_root) Item_datetime_typecast(thd, a, (uint) decimals);
-    break;
-  case ITEM_CAST_DECIMAL:
-  {
-    ulong len;
-    uint dec;
-    if (get_length_and_scale(length, decimals, &len, &dec,
-                             DECIMAL_MAX_PRECISION, DECIMAL_MAX_SCALE,
-                             a))
-      return NULL;
-    res= new (thd->mem_root) Item_decimal_typecast(thd, a, len, dec);
-    break;
-  }
-  case ITEM_CAST_DOUBLE:
-  {
-    ulong len;
-    uint dec;
-
-    if (!c_len)
-    {
-      length=   DBL_DIG+7;
-      decimals= NOT_FIXED_DEC;
-    }
-    else if (get_length_and_scale(length, decimals, &len, &dec,
-                                  DECIMAL_MAX_PRECISION, NOT_FIXED_DEC-1,
-                                  a))
-      return NULL;
-    res= new (thd->mem_root) Item_double_typecast(thd, a, (uint) length,
-                                                  (uint) decimals);
-    break;
-  }
-  case ITEM_CAST_CHAR:
-  {
-    int len= -1;
-    CHARSET_INFO *real_cs= (cs ? cs : thd->variables.collation_connection);
-    if (c_len)
-    {
-      if (length > MAX_FIELD_BLOBLENGTH)
-      {
-        char buff[1024];
-        String buf(buff, sizeof(buff), system_charset_info);
-        my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), item_name(a, &buf),
-                 MAX_FIELD_BLOBLENGTH);
-        return NULL;
-      }
-      len= (int) length;
-    }
-    res= new (thd->mem_root) Item_char_typecast(thd, a, len, real_cs);
-    break;
-  }
-  default:
-  {
-    DBUG_ASSERT(0);
-    res= 0;
-    break;
-  }
-  }
-  return res;
-}
-
-
 static bool
 have_important_literal_warnings(const MYSQL_TIME_STATUS *status)
 {
@@ -7536,7 +7365,7 @@ Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums)
 
 
 Item *create_func_dyncol_get(THD *thd,  Item *str, Item *num,
-                             Cast_target cast_type,
+                             const Type_handler *handler,
                              const char *c_len, const char *c_dec,
                              CHARSET_INFO *cs)
 {
@@ -7544,5 +7373,6 @@ Item *create_func_dyncol_get(THD *thd,  Item *str, Item *num,
 
   if (!(res= new (thd->mem_root) Item_dyncol_get(thd, str, num)))
     return res;                                 // Return NULL
-  return create_func_cast(thd, res, cast_type, c_len, c_dec, cs);
+  return handler->create_typecast_item(thd, res,
+                                       Type_cast_attributes(c_len, c_dec, cs));
 }

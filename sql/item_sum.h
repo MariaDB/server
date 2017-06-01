@@ -508,10 +508,7 @@ public:
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
   Item *get_tmp_table_item(THD *thd);
-  Field *create_tmp_field(bool group, TABLE *table)
-  {
-    return Item::create_tmp_field(group, table, MY_INT32_NUM_DECIMAL_DIGITS);
-  }
+  Field *create_tmp_field(bool group, TABLE *table);
   virtual bool collect_outer_ref_processor(void *param);
   bool init_sum_func_check(THD *thd);
   bool check_sum_func(THD *thd, Item **ref);

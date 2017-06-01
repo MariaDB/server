@@ -1,14 +1,17 @@
+#
+# This test is originally sequence.test from ALISQL by Jianwei modified for
+# MariaDB
+#
+# It tests basic sequence functionallity together with replication
+#
+
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
 --source include/have_innodb.inc
 
-#
-# This test is originally sequence.test from Jianwei modified for MariaDB
-# To test basic sequence functionallity together with replication
-#
-
 connection master;
 create database s_db;
+use s_db;
 grant all on s_db.* to normal_1@'%' identified by 'pass';
 grant all on test.* to normal_2@'%' identified by 'pass';
 grant all on s_db.* to normal_3@'%' identified by 'pass';
@@ -24,23 +27,21 @@ connect(s_normal_4, 127.0.0.1, normal_4, pass, test, $SLAVE_MYPORT);
 
 connection slave;
 set global read_only=on;
+use s_db;
 
 --echo ###########################################
 --echo master and slave sync sequence.
 --echo ###########################################
 connection master;
-use s_db;
 
 create sequence s1;
 show create table s1;
 
 --sync_slave_with_master
-connection slave;
-use s_db;
+
 show create table s1;
 
 connection master;
-use s_db;
 
 drop sequence s1;
 
@@ -107,10 +108,15 @@ CREATE TABLE `s2` (
   `round` bigint(21) NOT NULL COMMENT 'already how many round'
 ) ENGINE=InnoDB sequence=1;
 
-insert into s2 values(0, 1, 10, 1, 2, 1, 1, 0);
+insert into s2 values(1, 1, 10, 1, 2, 1, 1, 0);
 commit;
 --error ER_PARSE_ERROR
 select * for s2;
+select * from s2;
+select NEXT VALUE for s2;
+select NEXT VALUE for s2;
+select NEXT VALUE for s2;
+select NEXT VALUE for s2;
 select NEXT VALUE for s2;
 select NEXT VALUE for s2;
 select NEXT VALUE for s2;
@@ -120,10 +126,6 @@ commit;
 connection master;
 --sync_slave_with_master
 select * from s2;
-
-connection slave;
-select * from s2;
-
 
 connection master;
 drop sequence s2;
@@ -191,7 +193,6 @@ drop sequence s2;
 --echo ###########################################
 
 connection master;
-use s_db;
 create sequence s2 start with 1
   minvalue 1
   maxvalue 100000
@@ -250,7 +251,6 @@ create sequence s2 start with 1
 --echo global read lock prevent query sequence
 --echo ###########################################
 connection master;
-use s_db;
 create sequence s_db.s1;
 flush table with read lock;
 --error ER_CANT_UPDATE_WITH_READLOCK
@@ -262,7 +262,6 @@ drop sequence s_db.s1;
 --echo query cache test
 --echo ###########################################
 connection master;
-use s_db;
 flush status;
 show global variables like 'query_cache_type';
 
@@ -292,7 +291,6 @@ drop sequence s_db.s1;
 --echo run out sequence value
 --echo ###########################################
 connection m_normal_1;
-use s_db;
 create sequence s_t start with 1 cache 2 maxvalue 5;
 create table t(id int);
 insert into t values(1111);
@@ -312,11 +310,9 @@ connection master;
 --sync_slave_with_master
 
 connection s_normal_3;
-use s_db;
 select * from t;
 
 connection m_normal_1;
-use s_db;
 drop sequence s_t;
 drop table t;
 
@@ -328,7 +324,10 @@ create sequence s_db.s1;
 show global variables like 'read_only';
 select * from s_db.s1;
 
+connection master;
+--sync_slave_with_master
 connection s_normal_3;
+
 show global variables like 'read_only';
 --error ER_OPTION_PREVENTS_STATEMENT
 select next value for s_db.s1;
@@ -340,14 +339,12 @@ drop sequence s_db.s1;
 --echo update based table
 --echo ###########################################
 connection m_normal_1;
-use s_db;
 create sequence s_t start with 1 minvalue 1 maxvalue 20 increment by 1 cache 5 cycle engine=innodb;
 
 connection master;
 --sync_slave_with_master
 
 connection s_normal_3;
-use s_db;
 select * from s_t;
 
 
@@ -361,15 +358,13 @@ connection s_normal_3;
 select next_value from s_t;
 
 --echo ------------------------------------------
---echo master update nextval;
+--echo master ALTER SEQUENCE
 --echo ------------------------------------------
 connection m_normal_1;
 select next value for s_t;
-update s_t set next_value= 11;
-commit;
+alter sequence s_t restart= 11;
 
 select * from s_t;
-SELECT NEXT VALUE for s_t;
 
 connection master;
 --sync_slave_with_master
@@ -397,10 +392,10 @@ connection m_normal_1;
 select next value for s_t;
 select * from s_t;
 --error ER_SEQUENCE_INVALID_DATA
-update s_t set min_value=11, max_value=9;
+alter sequence s_t minvalue=11 maxvalue=9;
 select * from s_t;
 --error ER_SEQUENCE_INVALID_DATA
-update s_t set next_value= 12, start=10, min_value=11, max_value=20;
+alter sequence s_t restart= 12 start=10 minvalue=11 maxvalue=20;
 select * from s_t;
 
 --echo ------------------------------------------
@@ -425,7 +420,6 @@ drop sequence s_t;
 --echo normal transaction commit
 --echo ------------------------------------------
 connection m_normal_1;
-use s_db;
 create sequence s_1 cache 5 engine=innodb;
 
 create table t_1(id int)engine=innodb;
@@ -443,7 +437,6 @@ connection master;
 --sync_slave_with_master
 
 connection s_normal_3;
-use s_db;
 select * from t_1;
 
 --echo ------------------------------------------
@@ -472,11 +465,9 @@ connection master;
 --sync_slave_with_master
 
 connection s_normal_3;
-use s_db;
 select * from t_1;
 
 connection m_normal_1;
-use s_db;
 drop sequence s_1;
 drop table t_1;
 
@@ -489,7 +480,6 @@ drop table t_1;
 --echo normal transaction commit
 --echo ------------------------------------------
 connection m_normal_1;
-use s_db;
 create sequence s_1 cache 5;
 
 create table t_1(id int)engine=myisam;
@@ -506,7 +496,6 @@ connection master;
 --sync_slave_with_master
 
 connection s_normal_3;
-use s_db;
 select * from t_1;
 
 --echo ------------------------------------------
@@ -534,11 +523,9 @@ connection master;
 --sync_slave_with_master
 
 connection s_normal_3;
-use s_db;
 select * from t_1;
 
 connection m_normal_1;
-use s_db;
 drop sequence s_1;
 drop table t_1;
 
@@ -546,7 +533,6 @@ drop table t_1;
 --echo close binlog
 --echo ###########################################
 connection m_normal_1;
-use s_db;
 create sequence s1 cache 2;
 select next value for s1;
 select next value for s1;
@@ -559,8 +545,6 @@ select * from s1;
 connection master;
 --sync_slave_with_master
 
-connection slave;
-use s_db;
 select * from s1;
 
 --echo ------------------------------------------
@@ -579,12 +563,16 @@ select * from s1;
 connection master;
 --sync_slave_with_master
 
-connection slave;
-use s_db;
 select * from s1;
 
-connection m_normal_1;
-use s_db;
+connection master;
+select next value for s1;
+select * from s1;
+--sync_slave_with_master
+
+select * from s1;
+connection master;
+
 drop sequence s1;
 
 --echo ###########################################
@@ -606,12 +594,9 @@ select next value for s1;
 connection master;
 --sync_slave_with_master
 
-connection slave;
-use s_db;
 select * from s1;
 
 connection m_normal_1;
-use s_db;
 drop sequence s1;
 
 --echo ------------------------------------------
@@ -625,22 +610,23 @@ select next value for s1;
 
 set session binlog_format=row;
 select next value for s1;
+select * from s1;
 
 connection master;
 --sync_slave_with_master
 
-connection slave;
-use s_db;
 select * from s1;
 
 connection m_normal_1;
-use s_db;
 drop sequence s1;
+connection master;
+--sync_slave_with_master
+
 --echo ###########################################
 --echo test savepoint
 --echo ###########################################
+
 connection master;
---sync_slave_with_master
 set session binlog_format=row;
 
 create sequence s1 cache 2;
@@ -674,11 +660,14 @@ connection master;
 connection m_normal_1;
 
 create sequence s1 cache 2;
+create table t as select * from s1;
+select * from t;
+drop table t;
 create table t as select next value for s1;
 select * from t;
+drop table t;
 
 drop sequence s1;
-drop table t;
 
 connection master;
 --sync_slave_with_master
@@ -687,7 +676,6 @@ connection master;
 --echo test proc
 --echo ###########################################
 connection m_normal_1;
-use s_db;
 create table t(id int)engine=innodb;
 
 delimiter //;
@@ -716,8 +704,6 @@ select * from t;
 connection master;
 --sync_slave_with_master
 
-connection slave;
-use s_db;
 select * from t;
 
 connection m_normal_1;
@@ -730,7 +716,6 @@ drop procedure p2;
 --echo test trigger
 --echo ###########################################
 connection m_normal_1;
-use s_db;
 create sequence s1 cache 2;
 create table t1(id int)engine=innodb;
 create table t2(id int)engine=innodb;
@@ -767,7 +752,6 @@ drop sequence s1;
 --echo test function
 --echo ###########################################
 connection m_normal_1;
-use s_db;
 create sequence s1 cache 2;
 create table t1(id int)engine=innodb;
 
@@ -799,7 +783,6 @@ drop sequence s1;
 --echo test value boundary
 --echo ###########################################
 connection m_normal_1;
-use s_db;
 
 --echo ------------------------------------------
 --echo round increment by round
@@ -823,15 +806,15 @@ drop sequence s1;
 
 create sequence s1 start with 2 minvalue 1 maxvalue 3 increment by 3 nocache cycle;
 select next value for s1;
-select * from s1;
+select next_value,round from s1;
 select next value for s1;
-select * from s1;
+select next_value,round from s1;
 select next value for s1;
-select * from s1;
+select next_value,round from s1;
 select next value for s1;
-select * from s1;
+select next_value,round from s1;
 select next value for s1;
-select * from s1;
+select next_value,round from s1;
 drop sequence s1;
 
 create sequence s1 start with 2 minvalue 1 maxvalue 3 increment by 3 cache 2 nocycle;
@@ -870,12 +853,10 @@ select next value for s1, round from s1;
 drop sequence s1;
 
 connection master;
-use s_db;
 drop database s_db;
 drop user normal_1@'%';
 drop user normal_2@'%';
 drop user normal_3@'%';
 drop user normal_4@'%';
 
---sync_slave_with_master
 --source include/rpl_end.inc

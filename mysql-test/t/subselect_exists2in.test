@@ -758,6 +758,34 @@ deallocate prepare stmt;
 drop view v1;
 drop table t1,t2;
 
+--echo #
+--echo #MDEV-10053: EXIST to IN transformation turned down
+--echo #
+
+CREATE TABLE t1 (
+ pk INT, f1 INT NOT NULL, f2 VARCHAR(3), f3 INT NULL, PRIMARY KEY(pk))
+ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1,'foo',8), (2,5,'bar',7);
+
+let $q=
+SELECT STRAIGHT_JOIN sq1.f2 
+  FROM ( SELECT * FROM t1 ) AS sq1
+    WHERE EXISTS ( SELECT * FROM t1 AS sq2 
+                     WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
+
+set @optimizer_switch_save=@@optimizer_switch;
+
+set optimizer_switch='exists_to_in=off';
+eval explain extended $q;
+eval $q;
+set optimizer_switch='exists_to_in=on';
+eval explain extended $q;
+eval $q;
+
+set optimizer_switch= @optimizer_switch_save;
+ 
+DROP TABLE t1;
+
 --echo # End of 10.0 tests
 
 #restore defaults

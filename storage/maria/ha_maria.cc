@@ -2313,7 +2313,7 @@ bool ha_maria::is_crashed() const
 
 #define CHECK_UNTIL_WE_FULLY_IMPLEMENTED_VERSIONING(msg) \
   do { \
-    if (file->lock.type == TL_WRITE_CONCURRENT_INSERT) \
+    if (file->lock.type == TL_WRITE_CONCURRENT_INSERT && !table->s->sequence) \
     { \
       my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), msg); \
       return 1; \

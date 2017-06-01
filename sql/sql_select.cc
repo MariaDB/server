@@ -1138,6 +1138,8 @@ int JOIN::init_join_caches()
     }
     if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
       revise_cache_usage(tab);
+    else
+      tab->remove_redundant_bnl_scan_conds();
   }
   return 0;
 }
@@ -8785,8 +8787,6 @@ bool JOIN::get_best_combination()
   full_join=0;
   hash_join= FALSE;
 
-  used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
-
   fix_semijoin_strategies_for_picked_join_order(this);
    
   JOIN_TAB_RANGE *root_range;
@@ -8850,7 +8850,6 @@ bool JOIN::get_best_combination()
     j->bush_root_tab= sjm_nest_root;
 
     form= table[tablenr]= j->table;
-    used_tables|= form->map;
     form->reginfo.join_tab=j;
     DBUG_PRINT("info",("type: %d", j->type));
     if (j->type == JT_CONST)
@@ -8877,9 +8876,6 @@ bool JOIN::get_best_combination()
                              best_positions[tablenr].loosescan_picker.loosescan_key);
       j->index= best_positions[tablenr].loosescan_picker.loosescan_key;
     }*/
-    
-    if (keyuse && create_ref_for_key(this, j, keyuse, TRUE, used_tables))
-      DBUG_RETURN(TRUE);                        // Something went wrong
 
     if ((j->type == JT_REF || j->type == JT_EQ_REF) &&
         is_hash_join_key_no(j->ref.key))
@@ -8905,6 +8901,23 @@ bool JOIN::get_best_combination()
   }
   root_range->end= j;
 
+  used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
+  for (j=join_tab, tablenr=0 ; tablenr < table_count ; tablenr++,j++)
+  {
+    if (j->bush_children)
+      j= j->bush_children->start;
+
+    used_tables|= j->table->map;
+    if (j->type != JT_CONST && j->type != JT_SYSTEM)
+    {
+      if ((keyuse= best_positions[tablenr].key) &&
+          create_ref_for_key(this, j, keyuse, TRUE, used_tables))
+        DBUG_RETURN(TRUE);              // Something went wrong
+    }
+    if (j->last_leaf_in_bush)
+      j= j->bush_root_tab;
+  }
+ 
   top_join_tab_count= join_tab_ranges.head()->end - 
                       join_tab_ranges.head()->start;
 
@@ -9757,7 +9770,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	It solve problem with select like SELECT * FROM t1 WHERE rand() > 0.5
       */
       if (tab == join->join_tab + join->top_join_tab_count - 1)
-	current_map|= OUTER_REF_TABLE_BIT | RAND_TABLE_BIT;
+        current_map|= RAND_TABLE_BIT;
       used_tables|=current_map;
 
       if (tab->type == JT_REF && tab->quick &&
@@ -11168,8 +11181,8 @@ void JOIN_TAB::remove_redundant_bnl_scan_conds()
     select->cond is not processed separately. This method assumes it is always
     the same as select_cond.
   */
-  DBUG_ASSERT(!select || !select->cond ||
-              (select->cond == select_cond));
+  if (select && select->cond != select_cond)
+    return;
 
   if (is_cond_and(select_cond))
   {
@@ -11479,7 +11492,6 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       /* purecov: end */
     }
 
-    tab->remove_redundant_bnl_scan_conds();
     DBUG_EXECUTE("where",
                  char buff[256];
                  String str(buff,sizeof(buff),system_charset_info);
@@ -15869,7 +15881,17 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
 }
 
 
-Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
+Field *Item::create_tmp_field_int(TABLE *table, uint convert_int_length)
+{
+  const Type_handler *h= &type_handler_long;
+  if (max_char_length() > convert_int_length)
+    h= &type_handler_longlong;
+  return h->make_and_init_table_field(&name, Record_addr(maybe_null),
+                                      *this, table);
+}
+
+
+Field *Item_sum::create_tmp_field(bool group, TABLE *table)
 {
   Field *UNINIT_VAR(new_field);
   MEM_ROOT *mem_root= table->in_use->mem_root;
@@ -15878,23 +15900,10 @@ Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
   case REAL_RESULT:
   {
     new_field= new (mem_root)
-      Field_double(max_length, maybe_null, &name, decimals, TRUE);
+      Field_double(max_char_length(), maybe_null, &name, decimals, TRUE);
     break;
   }
   case INT_RESULT:
-  {
-    /*
-      Select an integer type with the minimal fit precision.
-      convert_int_length is sign inclusive, don't consider the sign.
-    */
-    if (max_char_length() > convert_int_length)
-      new_field= new (mem_root)
-        Field_longlong(max_char_length(), maybe_null, &name, unsigned_flag);
-    else
-      new_field= new (mem_root)
-        Field_long(max_char_length(), maybe_null, &name, unsigned_flag);
-    break;
-  }
   case TIME_RESULT:
   case DECIMAL_RESULT:
   case STRING_RESULT:
@@ -15911,6 +15920,22 @@ Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
   return new_field;
 }
 
+
+static void create_tmp_field_from_item_finalize(THD *thd,
+                                                Field *new_field,
+                                                Item *item,
+                                                Item ***copy_func,
+                                                bool modify_item)
+{
+  if (copy_func &&
+      (item->is_result_field() ||
+       (item->real_item()->is_result_field())))
+    *((*copy_func)++) = item;			// Save for copy_funcs
+  if (modify_item)
+    item->set_result_field(new_field);
+  if (item->type() == Item::NULL_ITEM)
+    new_field->is_created_from_null_item= TRUE;
+}
 
 
 /**
@@ -15942,16 +15967,9 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
 {
   Field *UNINIT_VAR(new_field);
   DBUG_ASSERT(thd == table->in_use);
-  new_field= item->Item::create_tmp_field(false, table);
-    
-  if (copy_func &&
-      (item->is_result_field() || 
-       (item->real_item()->is_result_field())))
-    *((*copy_func)++) = item;			// Save for copy_funcs
-  if (modify_item)
-    item->set_result_field(new_field);
-  if (item->type() == Item::NULL_ITEM)
-    new_field->is_created_from_null_item= TRUE;
+  if ((new_field= item->create_tmp_field(false, table)))
+    create_tmp_field_from_item_finalize(thd, new_field, item,
+                                        copy_func, modify_item);
   return new_field;
 }
 
@@ -16026,6 +16044,8 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   Item::Type orig_type= type;
   Item *orig_item= 0;
 
+  DBUG_ASSERT(thd == table->in_use);
+
   if (type != Item::FIELD_ITEM &&
       item->real_item()->type() == Item::FIELD_ITEM)
   {
@@ -16084,9 +16104,14 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
     else if (table_cant_handle_bit_fields && field->field->type() ==
              MYSQL_TYPE_BIT)
     {
+      const Type_handler *handler= item->type_handler_long_or_longlong();
       *from_field= field->field;
-      result= create_tmp_field_from_item(thd, item, table, copy_func,
-                                         modify_item);
+      if ((result=
+             handler->make_and_init_table_field(&item->name,
+                                                Record_addr(item->maybe_null),
+                                                *item, table)))
+        create_tmp_field_from_item_finalize(thd, result, item,
+                                            copy_func, modify_item);
       if (result && modify_item)
         field->result_field= result;
     }

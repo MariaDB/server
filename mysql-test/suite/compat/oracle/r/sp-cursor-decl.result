@@ -263,8 +263,28 @@ rec2.a
 11
 Table	Create Table
 t2	CREATE TABLE "t2" (
-  "a" bigint(21) DEFAULT NULL,
+  "a" bigint(20) DEFAULT NULL,
   "b" varchar(11) DEFAULT NULL,
   "c" double DEFAULT NULL
+)
+DROP PROCEDURE p1;
+#
+# MDEV-12916 Wrong column data type for an INT field of a cursor-anchored ROW variable
+#
+CREATE PROCEDURE p1
+AS
+a INT DEFAULT 10;
+CURSOR cur1 IS SELECT a;
+rec1 cur1%ROWTYPE;
+BEGIN
+CREATE TABLE t1 AS SELECT rec1.a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+CALL p1();
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "rec1.a" int(11) DEFAULT NULL
 )
 DROP PROCEDURE p1;

@@ -1,0 +1,2 @@
+usr/lib/mysql/plugin/aws_key_management.so
+debian/additions/enable_encryption.preset etc/mysql/conf.d/

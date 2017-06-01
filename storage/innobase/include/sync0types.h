@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1265,5 +1265,49 @@ enum rw_lock_flag_t {
 #define my_atomic_loadlint my_atomic_loadlong
 #define my_atomic_caslint my_atomic_caslong
 #endif
+
+/** Simple counter aligned to CACHE_LINE_SIZE
+@tparam	Type	the integer type of the counter
+@tparam	atomic	whether to use atomic memory access */
+template <typename Type = ulint, bool atomic = false>
+struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
+{
+	/** Increment the counter */
+	Type inc() { return add(1); }
+	/** Decrement the counter */
+	Type dec() { return sub(1); }
+
+	/** Add to the counter
+	@param[in]	i	amount to be added
+	@return	the value of the counter after adding */
+	Type add(Type i)
+	{
+		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
+		if (atomic) {
+			return Type(my_atomic_addlint(&m_counter, i));
+		} else {
+			return m_counter += i;
+		}
+	}
+	/** Subtract from the counter
+	@param[in]	i	amount to be subtracted
+	@return	the value of the counter after adding */
+	Type sub(Type i)
+	{
+		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
+		if (atomic) {
+			return Type(my_atomic_addlint(&m_counter, -lint(i)));
+		} else {
+			return m_counter -= i;
+		}
+	}
+
+	/** @return the value of the counter (non-atomic access)! */
+	operator Type() const { return m_counter; }
+
+private:
+	/** The counter */
+	Type	m_counter;
+};
 
 #endif /* sync0types_h */

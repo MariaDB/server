@@ -6469,7 +6469,7 @@ CALL p2(10);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` bigint(11) DEFAULT NULL
+  `v` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 
 DROP TABLE t1;
@@ -6480,7 +6480,7 @@ Warning	1366	Incorrect integer value: 'text' for column 'v' at row 1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` bigint(11) DEFAULT NULL
+  `v` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 
 DROP TABLE t1;
@@ -7823,6 +7823,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show warnings;
 Level	Code	Message
 Error	1062	Duplicate entry '2' for key 'PRIMARY'
+Note	4070	At line 5 in test.p1
 select * from t1;
 id
 1

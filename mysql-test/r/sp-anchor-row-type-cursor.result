@@ -85,7 +85,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `rec.a` bigint(11) DEFAULT NULL,
+  `rec.a` int(11) DEFAULT NULL,
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
@@ -114,7 +114,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `rec.a` bigint(11) DEFAULT NULL,
+  `rec.a` int(11) DEFAULT NULL,
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
@@ -142,7 +142,7 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `rec.a` bigint(11) DEFAULT NULL,
+  `rec.a` int(11) DEFAULT NULL,
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
@@ -171,7 +171,7 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 CALL p1();
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `rec.a` bigint(11) DEFAULT NULL,
+  `rec.a` int(11) DEFAULT NULL,
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
@@ -980,3 +980,24 @@ DROP PROCEDURE p1;
 #
 #  End of MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
 #
+#
+# MDEV-12916 Wrong column data type for an INT field of a cursor-anchored ROW variable
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT 10;
+DECLARE cur1 CURSOR FOR SELECT a;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+CREATE TABLE t1 AS SELECT rec1.a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+END;
+$$
+CALL p1();
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `rec1.a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE p1;

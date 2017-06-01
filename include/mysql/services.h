@@ -26,6 +26,8 @@ extern "C" {
 #include <mysql/service_kill_statement.h>
 #include <mysql/service_logger.h>
 #include <mysql/service_md5.h>
+#include <mysql/service_my_crypt.h>
+#include <mysql/service_my_print_error.h>
 #include <mysql/service_my_snprintf.h>
 #include <mysql/service_progress_report.h>
 #include <mysql/service_sha1.h>

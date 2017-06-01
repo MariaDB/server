@@ -42,6 +42,7 @@ path=`dirname $0`
 if [ -z "$just_clean" ]
 then
 commands="$commands
+git submodule update
 CC=\"$CC\" CFLAGS=\"$cflags\" CXX=\"$CXX\" CXXFLAGS=\"$cxxflags\" CXXLDFLAGS=\"$CXXLDFLAGS\" $configure"
 fi
 

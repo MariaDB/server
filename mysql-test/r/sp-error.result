@@ -1990,6 +1990,8 @@ Warning	1264	Out of range value for column 'a' at row 1
 Note	1292	Truncated incorrect INTEGER value: '222222 '
 Warning	1264	Out of range value for column 'b' at row 1
 Error	1048	Column 'c' cannot be null
+Note	4070	At line 6 in test.t1_bi
+Note	4070	At line 2 in test.p1
 
 DROP TABLE t1;
 DROP TABLE t2;

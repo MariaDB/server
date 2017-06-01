@@ -7524,7 +7524,7 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
   TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
   Security_context *sctx= thd->security_ctx;
   uint i;
-  ulong orig_want_access= want_access;
+  ulong original_want_access= want_access;
   bool locked= 0;
   GRANT_TABLE *grant_table;
   GRANT_TABLE *grant_table_role= NULL;
@@ -7558,6 +7558,16 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     TABLE_LIST *const t_ref=
       tl->correspondent_table ? tl->correspondent_table : tl;
     sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
+    ulong orig_want_access= original_want_access;
+
+    if (t_ref->sequence)
+    {
+      /* We want to have either SELECT or INSERT rights to sequences depending
+         on how they are accessed
+      */
+      orig_want_access= ((t_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
+                         INSERT_ACL : SELECT_ACL);
+    }
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
@@ -12067,7 +12077,13 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
     data_len= SCRAMBLE_LENGTH;
   }
 
-  end= strxnmov(end, SERVER_VERSION_LENGTH, RPL_VERSION_HACK, server_version, NullS) + 1;
+  /* When server version is specified in config file, don't include
+     the replication hack prefix. */
+  if (using_custom_server_version)
+    end= strnmov(end, server_version, SERVER_VERSION_LENGTH) + 1;
+  else
+    end= strxnmov(end, SERVER_VERSION_LENGTH, RPL_VERSION_HACK, server_version, NullS) + 1;
+
   int4store((uchar*) end, mpvio->auth_info.thd->thread_id);
   end+= 4;
 
