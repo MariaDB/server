@@ -29,7 +29,7 @@
 -SHOW CREATE TABLE t1;
 -Table	Create Table
 -t1	CREATE TABLE `t1` (
--  `1` bigint(20) NOT NULL DEFAULT '0'
+-  `1` bigint(20) NOT NULL DEFAULT 0
 -) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1
 -SELECT * FROM t1;
 -1

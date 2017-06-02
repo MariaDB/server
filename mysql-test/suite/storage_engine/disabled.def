@@ -1,0 +1,12 @@
+alter_table_online : MDEV-9705 - Field type conversion warnings have changed to worse
+col_opt_null       : MDEV-10252 - Row count in 'out of range' warnings is off
+col_opt_not_null   : MDEV-10252 - Row count in 'out of range' warnings is off
+col_opt_unsigned   : MDEV-10252 - Row count in 'out of range' warnings is off
+col_opt_zerofill   : MDEV-10252 - Row count in 'out of range' warnings is off
+type_binary        : MDEV-10252 - Row count in 'out of range' warnings is off
+type_char          : MDEV-10252 - Row count in 'out of range' warnings is off
+type_fixed         : MDEV-10252 - Row count in 'out of range' warnings is off
+type_float         : MDEV-10252 - Row count in 'out of range' warnings is off
+type_int           : MDEV-10252 - Row count in 'out of range' warnings is off
+type_varbinary     : MDEV-10252 - Row count in 'out of range' warnings is off
+type_varchar       : MDEV-10252 - Row count in 'out of range' warnings is off

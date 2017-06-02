@@ -91,6 +91,9 @@ if ($have_default_index)
   call mtr.add_suppression(" '\..test.t1'");
   call mtr.add_suppression("Couldn't repair table: test.t1");
 
+  # In 10.2 with log_warnings=2 the error message is printed to the error log
+  call mtr.add_suppression("Table 't1' is marked as crashed.*");
+
   --let $create_definition = a $int_indexed_col, b $char_col, $default_index (a)
   --source create_table.inc
   REPAIR TABLE t1;

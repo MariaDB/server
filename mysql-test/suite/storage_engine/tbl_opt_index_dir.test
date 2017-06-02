@@ -1,0 +1,52 @@
+# 
+# Check whether INDEX DIRECTORY is supported in CREATE and ALTER TABLE
+#
+# Note: the test does not check whether the option
+#       has any real effect on the table, only  that it is accepted
+# 
+
+--source include/have_symlink.inc
+--source have_engine.inc
+
+--let $index_dir1 = $MYSQLTEST_VARDIR/storage_engine_index_dir1/
+--let $index_dir2 = $MYSQLTEST_VARDIR/storage_engine_index_dir2/
+--mkdir $index_dir1
+--mkdir $index_dir2
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--let $table_options = INDEX DIRECTORY = '$index_dir1'
+# We cannot mask the folder name here and further, but we can switch off query logging
+--let $disable_query_log = 1
+--echo # Running CREATE TABLE .. INDEX DIRECTORY = <>
+--source create_table.inc
+
+--source mask_engine.inc
+--replace_result $index_dir1 <INDEX_DIR_1>
+SHOW CREATE TABLE t1;
+
+--echo # For ALTER TABLE the option is ignored
+
+--let $alter_definition = INDEX DIRECTORY = '$index_dir2'
+--disable_query_log
+--echo # Running ALTER TABLE .. INDEX DIRECTORY = <>
+--source alter_table.inc
+if ($mysql_errname)
+{
+  --let $my_last_stmt = $alter_statement
+  --let $functionality = ALTER TABLE
+  --source unexpected_result.inc
+}
+--enable_query_log
+--source mask_engine.inc
+--replace_result $index_dir1 <INDEX_DIR_1>
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
+--source cleanup_engine.inc
+
+--rmdir $index_dir1
+--rmdir $index_dir2
