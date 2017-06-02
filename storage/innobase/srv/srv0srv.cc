@@ -1183,7 +1183,6 @@ srv_boot(void)
 	srv_normalize_init_values();
 
 	sync_check_init();
-	os_thread_init();
 	/* Reset the system variables in the recovery module. */
 	recv_sys_var_init();
 	trx_pool_init();

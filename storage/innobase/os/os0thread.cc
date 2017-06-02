@@ -31,13 +31,8 @@ Created 9/8/1995 Heikki Tuuri
 #include "os0event.h"
 #include <map>
 
-/** Mutex that tracks the thread count. Used by innorwlocktest.cc
-FIXME: the unit tests should use APIs */
-SysMutex	thread_mutex;
-
 /** Number of threads active. */
 ulint	os_thread_count;
-
 
 /***************************************************************//**
 Compares two thread ids for equality.
@@ -127,11 +122,7 @@ os_thread_create_func(
 
 	CloseHandle(handle);
 
-	mutex_enter(&thread_mutex);
-
-	os_thread_count++;
-
-	mutex_exit(&thread_mutex);
+	my_atomic_addlint(&os_thread_count, 1);
 
 	return((os_thread_t)new_thread_id);
 #else /* _WIN32 else */
@@ -140,9 +131,7 @@ os_thread_create_func(
 
 	pthread_attr_init(&attr);
 
-	mutex_enter(&thread_mutex);
-	++os_thread_count;
-	mutex_exit(&thread_mutex);
+	my_atomic_addlint(&os_thread_count, 1);
 
 	int	ret = pthread_create(&new_thread_id, &attr, func, arg);
 
@@ -197,16 +186,11 @@ os_thread_exit(
 	pfs_delete_thread();
 #endif
 
-	mutex_enter(&thread_mutex);
-
-	os_thread_count--;
+	my_atomic_addlint(&os_thread_count, -1);
 
 #ifdef _WIN32
-	mutex_exit(&thread_mutex);
-
 	ExitThread(0);
 #else
-	mutex_exit(&thread_mutex);
 	if (detach) {
 		pthread_detach(pthread_self());
 	}
@@ -260,10 +244,6 @@ bool
 os_thread_active()
 /*==============*/
 {
-	mutex_enter(&thread_mutex);
-
-	bool active = (os_thread_count > 0);
-
 	/* All the threads have exited or are just exiting;
 	NOTE that the threads may not have completed their
 	exit yet. Should we use pthread_join() to make sure
@@ -272,30 +252,16 @@ os_thread_active()
 	os_thread_exit().  Now we just sleep 0.1
 	seconds and hope that is enough! */
 
-	mutex_exit(&thread_mutex);
-
-	return(active);
-}
-
-/**
-Initializes OS thread management data structures. */
-void
-os_thread_init()
-/*============*/
-{
-	mutex_create(LATCH_ID_THREAD_MUTEX, &thread_mutex);
+	return(my_atomic_loadlint(&os_thread_count) > 0);
 }
 
 /**
 Frees OS thread management data structures. */
 void
 os_thread_free()
-/*============*/
 {
-	if (os_thread_count != 0) {
-		ib::warn() << "Some (" << os_thread_count << ") threads are"
+	if (ulint count = my_atomic_loadlint(&os_thread_count)) {
+		ib::warn() << "Some (" << count << ") threads are"
 			" still active";
 	}
-
-	mutex_destroy(&thread_mutex);
 }
