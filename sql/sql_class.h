@@ -3244,6 +3244,7 @@ public:
   inline my_time_t query_start() { query_start_used=1; return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
+  MYSQL_TIME query_start_TIME();
   inline void set_current_time()
   {
     my_hrtime_t hrtime= my_hrtime();

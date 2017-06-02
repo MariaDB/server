@@ -5155,20 +5155,10 @@ static void make_unique_constraint_name(THD *thd, LEX_STRING *name,
 ** Alter a table definition
 ****************************************************************************/
 
-// Works as NOW(6)
-static MYSQL_TIME vers_thd_get_now(THD *thd)
-{
-  MYSQL_TIME now;
-  thd->variables.time_zone->gmt_sec_to_TIME(&now, thd->query_start());
-  now.second_part= thd->query_start_sec_part();
-  thd->time_zone_used= 1;
-  return now;
-}
-
 static void vers_table_name_date(THD *thd, const char *table_name,
                                  char *new_name, size_t new_name_size)
 {
-  const MYSQL_TIME now= vers_thd_get_now(thd);
+  const MYSQL_TIME now= thd->query_start_TIME();
   my_snprintf(new_name, new_name_size, "%s_%04d%02d%02d_%02d%02d%02d_%06d",
               table_name, now.year, now.month, now.day, now.hour, now.minute,
               now.second, now.second_part);
@@ -5185,7 +5175,7 @@ bool operator!=(const MYSQL_TIME &lhs, const MYSQL_TIME &rhs)
 // Sets sys_trx_end=MAX for rows with sys_trx_end=now(6)
 static bool vers_reset_alter_copy(THD *thd, TABLE *table)
 {
-  const MYSQL_TIME now= vers_thd_get_now(thd);
+  const MYSQL_TIME query_start= thd->query_start_TIME();
 
   READ_RECORD info;
   int error= 0;
@@ -5201,7 +5191,7 @@ static bool vers_reset_alter_copy(THD *thd, TABLE *table)
     MYSQL_TIME current;
     if (table->vers_end_field()->get_date(&current, 0))
       goto err_read_record;
-    if (current != now)
+    if (current != query_start)
     {
       continue;
     }
@@ -9793,7 +9783,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
   Field *to_sys_trx_start= NULL, *to_sys_trx_end= NULL, *from_sys_trx_end= NULL;
-  MYSQL_TIME now;
+  MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
 
   /* Two or 3 stages; Sorting, copying data and update indexes */
@@ -9895,7 +9885,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (make_versioned)
   {
-    now= vers_thd_get_now(thd);
+    query_start= thd->query_start_TIME();
     to_sys_trx_start= to->vers_start_field();
     to_sys_trx_end= to->vers_end_field();
   }
@@ -9908,10 +9898,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     to->file->vers_auto_decrement= 0xffffffffffffffff;
     if (thd->variables.vers_ddl_survival)
     {
-      thd->variables.time_zone->gmt_sec_to_TIME(&now, thd->query_start());
-      now.second_part= thd->query_start_sec_part();
-      thd->time_zone_used= 1;
-
+      query_start= thd->query_start_TIME();
       from_sys_trx_end= from->vers_end_field();
       to_sys_trx_start= to->vers_start_field();
     }
@@ -9975,7 +9962,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     {
       to_sys_trx_start->set_notnull(to_sys_trx_start->null_offset());
       // TODO: write directly to record bypassing the same checks on every call
-      to_sys_trx_start->store_time(&now);
+      to_sys_trx_start->store_time(&query_start);
 
       static const timeval max_tv= {0x7fffffff, 0};
       static const uint dec= 6;
@@ -9993,9 +9980,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         continue; // Do not copy history rows.
 
       store_record(from, record[1]);
-      from->vers_end_field()->store_time(&now);
+      from->vers_end_field()->store_time(&query_start);
       from->file->ha_update_row(from->record[1], from->record[0]);
-      to_sys_trx_start->store_time(&now);
+      to_sys_trx_start->store_time(&query_start);
     }
 
     prev_insert_id= to->file->next_insert_id;

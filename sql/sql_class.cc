@@ -6859,6 +6859,15 @@ static bool protect_against_unsafe_warning_flood(int unsafe_type)
   DBUG_RETURN(unsafe_warning_suppression_active[unsafe_type]);
 }
 
+MYSQL_TIME THD::query_start_TIME()
+{
+  MYSQL_TIME res;
+  variables.time_zone->gmt_sec_to_TIME(&res, query_start());
+  res.second_part= query_start_sec_part();
+  time_zone_used= 1;
+  return res;
+}
+
 /**
   Auxiliary method used by @c binlog_query() to raise warnings.
 
