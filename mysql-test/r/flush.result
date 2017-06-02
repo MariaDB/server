@@ -295,16 +295,16 @@ create view v1 as select 1;
 create view v2 as select * from t1;
 create view v3 as select * from v2;
 flush table v1, v2, v3 with read lock;
-ERROR HY000: 'test.v1' is not BASE TABLE
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
 flush table v1 with read lock;
-ERROR HY000: 'test.v1' is not BASE TABLE
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
 flush table v2 with read lock;
-ERROR HY000: 'test.v2' is not BASE TABLE
+ERROR HY000: 'test.v2' is not of type 'BASE TABLE'
 flush table v3 with read lock;
-ERROR HY000: 'test.v3' is not BASE TABLE
+ERROR HY000: 'test.v3' is not of type 'BASE TABLE'
 create temporary table v1 (a int);
 flush table v1 with read lock;
-ERROR HY000: 'test.v1' is not BASE TABLE
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
 drop view v1;
 create table v1 (a int);
 flush table v1 with read lock;

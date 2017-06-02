@@ -73,7 +73,7 @@ support create sequence
 connection master;
 create table t_1(id int);
 show create sequence t_1;
-ERROR HY000: 's_db.t_1' is not SEQUENCE
+ERROR HY000: 's_db.t_1' is not of type 'SEQUENCE'
 drop table t_1;
 CREATE SEQUENCE `s2` (
 `currval` bigint(21) NOT NULL COMMENT 'current value',

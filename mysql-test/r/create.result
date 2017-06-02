@@ -667,7 +667,7 @@ create table t1 (a int);
 create table t1 select * from t1;
 ERROR 42S01: Table 't1' already exists
 create table t2 union = (t1) select * from t1;
-ERROR HY000: 'test.t2' is not BASE TABLE
+ERROR HY000: 'test.t2' is not of type 'BASE TABLE'
 flush tables with read lock;
 unlock tables;
 drop table t1;
@@ -701,7 +701,7 @@ create database mysqltest;
 use mysqltest;
 create view v1 as select 'foo' from dual;
 create table t1 like v1;
-ERROR HY000: 'mysqltest.v1' is not BASE TABLE
+ERROR HY000: 'mysqltest.v1' is not of type 'BASE TABLE'
 drop view v1;
 drop database mysqltest;
 create database mysqltest;

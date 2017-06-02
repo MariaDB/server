@@ -74,7 +74,7 @@ End of 4.1 tests
 create table t1(f1 int);
 create view v1 as select * from t1;
 alter table v1 rename to v2;
-ERROR HY000: 'test.v1' is not BASE TABLE
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
 drop view v1;
 drop table t1;
 End of 5.0 tests

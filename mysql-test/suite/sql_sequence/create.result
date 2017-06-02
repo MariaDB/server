@@ -160,7 +160,7 @@ next_value	min_value	max_value	start	increment	cache	cycle	round
 drop sequence t1;
 create table t1 (a int);
 show create sequence t1;
-ERROR HY000: 'test.t1' is not SEQUENCE
+ERROR HY000: 'test.t1' is not of type 'SEQUENCE'
 drop sequence t1;
 ERROR 42S02: 'test.t1' is not a SEQUENCE
 drop sequence if exists t1;

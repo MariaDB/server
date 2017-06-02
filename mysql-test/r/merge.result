@@ -629,7 +629,7 @@ INSERT INTO t3 VALUES (3), (33);
 LOCK TABLES t3 READ;
 CREATE TEMPORARY TABLE t4 (c1 INT NOT NULL) ENGINE=MERGE UNION=(t1,t2)
 INSERT_METHOD=LAST SELECT * FROM t3;
-ERROR HY000: 'test.t4' is not BASE TABLE
+ERROR HY000: 'test.t4' is not of type 'BASE TABLE'
 SELECT * FROM t4;
 ERROR HY000: Table 't4' was not locked with LOCK TABLES
 UNLOCK TABLES;
@@ -702,11 +702,11 @@ create table t2 (a int);
 insert into t1 values (0);
 insert into t2 values (1);
 create table t3 engine=merge union=(t1, t2) select * from t1;
-ERROR HY000: 'test.t3' is not BASE TABLE
+ERROR HY000: 'test.t3' is not of type 'BASE TABLE'
 create table t3 engine=merge union=(t1, t2) select * from t2;
-ERROR HY000: 'test.t3' is not BASE TABLE
+ERROR HY000: 'test.t3' is not of type 'BASE TABLE'
 create table t3 engine=merge union=(t1, t2) select (select max(a) from t2);
-ERROR HY000: 'test.t3' is not BASE TABLE
+ERROR HY000: 'test.t3' is not of type 'BASE TABLE'
 drop table t1, t2;
 create table t1 (
 a double(14,4),
@@ -1176,7 +1176,7 @@ SHOW CREATE TABLE t3;
 ERROR 42S02: Table 'test.t3' doesn't exist
 CREATE TABLE t3 ENGINE=MRG_MYISAM UNION=(t1) INSERT_METHOD=LAST
 SELECT * FROM t2;
-ERROR HY000: 'test.t3' is not BASE TABLE
+ERROR HY000: 'test.t3' is not of type 'BASE TABLE'
 SHOW CREATE TABLE t3;
 ERROR 42S02: Table 'test.t3' doesn't exist
 DROP TABLE t1, t2;
@@ -3115,11 +3115,11 @@ DROP TABLE m2;
 #
 CREATE TABLE m2 (c1 INT, c2 INT) ENGINE=MRG_MyISAM UNION=(t3,t4)
 INSERT_METHOD=LAST SELECT * FROM m1;
-ERROR HY000: 'test.m2' is not BASE TABLE
+ERROR HY000: 'test.m2' is not of type 'BASE TABLE'
 #
 CREATE TEMPORARY TABLE m2 (c1 INT, c2 INT) ENGINE=MRG_MyISAM UNION=(t3,t4)
 INSERT_METHOD=LAST SELECT * FROM m1;
-ERROR HY000: 'test.m2' is not BASE TABLE
+ERROR HY000: 'test.m2' is not of type 'BASE TABLE'
 #
 CREATE TABLE m2 LIKE m1;
 SHOW CREATE TABLE m2;
@@ -3519,7 +3519,7 @@ Got one of the listed errors
 #
 CREATE TEMPORARY TABLE m2 (c1 INT, c2 INT) ENGINE=MRG_MyISAM UNION=(t3,t4)
 INSERT_METHOD=LAST SELECT * FROM m1;
-ERROR HY000: 'test.m2' is not BASE TABLE
+ERROR HY000: 'test.m2' is not of type 'BASE TABLE'
 #
 CREATE TEMPORARY TABLE m2 LIKE m1;
 SHOW CREATE TABLE m2;
