@@ -5587,6 +5587,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				break;
 #if defined(MONGO_SUPPORT)
 			case TAB_MONGO:
+				if (!topt->tabname)
+					topt->tabname = tab;
+
 				ok = true;
 				break;
 #endif   // MONGO_SUPPORT
