@@ -5,14 +5,14 @@ CREATE SEQUENCE x1 engine=innodb;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `a1` (
-  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
-  `min_value` bigint(21) NOT NULL COMMENT 'min value',
-  `max_value` bigint(21) NOT NULL COMMENT 'max value',
-  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
   `increment` bigint(21) NOT NULL COMMENT 'increment value',
-  `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
 ) ENGINE=Aria SEQUENCE=1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `a1` VALUES (1,1,9223372036854775806,1,1,1000,0,0);
@@ -27,14 +27,14 @@ INSERT INTO `t1` VALUES (1),(2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `x1` (
-  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
-  `min_value` bigint(21) NOT NULL COMMENT 'min value',
-  `max_value` bigint(21) NOT NULL COMMENT 'max value',
-  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
   `increment` bigint(21) NOT NULL COMMENT 'increment value',
-  `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
 ) ENGINE=InnoDB SEQUENCE=1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `x1` VALUES (1,1,9223372036854775806,1,1,1000,0,0);

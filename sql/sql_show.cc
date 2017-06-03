@@ -1181,8 +1181,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
   else if (thd->lex->table_type == TABLE_TYPE_SEQUENCE &&
            table_list->table->s->table_type != TABLE_TYPE_SEQUENCE)
   {
-    my_error(ER_WRONG_OBJECT, MYF(0),
-             table_list->db, table_list->table_name, "SEQUENCE");
+    my_error(ER_NOT_SEQUENCE, MYF(0),
+             table_list->db, table_list->table_name);
     goto exit;
   }
 
@@ -4372,7 +4372,8 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
   */
   if (!is_show_fields_or_keys && result &&
       (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
-       thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT))
+       thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
+       thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE))
   {
     /*
       Hide error for a non-existing table.
@@ -4699,7 +4700,8 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
   if (!share)
   {
     if (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
-        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT)
+        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
+        thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE)
     {
       res= 0;
     }

@@ -88,7 +88,8 @@ protected:
 class SEQUENCE :public sequence_definition
 {
 public:
-  enum seq_init { SEQ_UNINTIALIZED, SEQ_IN_PREPARE, SEQ_READY_TO_USE };
+  enum seq_init { SEQ_UNINTIALIZED, SEQ_IN_PREPARE, SEQ_IN_ALTER,
+                  SEQ_READY_TO_USE };
   SEQUENCE();
   ~SEQUENCE();
   int  read_initial_values(TABLE *table);
@@ -101,6 +102,7 @@ public:
   {
     sequence_definition::operator= (*seq);
     adjust_values(reserved_until);
+    all_values_used= 0;
   }
   longlong next_value(TABLE *table, bool second_round, int *error);
   bool set_value(TABLE *table, longlong next_value, ulonglong round_arg,

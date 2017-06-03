@@ -43,7 +43,7 @@ select * from t1;
 select next value for t1;
 select next value for t1;
 select next value for t1;
-select next_value, round from t1;
+select next_not_cached_value, cycle_count from t1;
 drop sequence t1;
 
 CREATE SEQUENCE t1 maxvalue=100 engine=myisam;

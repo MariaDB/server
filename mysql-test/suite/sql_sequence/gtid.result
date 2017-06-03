@@ -24,28 +24,28 @@ create sequence s1;
 show create table s1;
 Table	Create Table
 s1	CREATE TABLE `s1` (
-  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
-  `min_value` bigint(21) NOT NULL COMMENT 'min value',
-  `max_value` bigint(21) NOT NULL COMMENT 'max value',
-  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
   `increment` bigint(21) NOT NULL COMMENT 'increment value',
-  `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
 ) ENGINE=MyISAM SEQUENCE=1
 connection slave;
 use s_db;
 show create table s1;
 Table	Create Table
 s1	CREATE TABLE `s1` (
-  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
-  `min_value` bigint(21) NOT NULL COMMENT 'min value',
-  `max_value` bigint(21) NOT NULL COMMENT 'max value',
-  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
   `increment` bigint(21) NOT NULL COMMENT 'increment value',
-  `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
 ) ENGINE=MyISAM SEQUENCE=1
 connection master;
 use s_db;
@@ -161,13 +161,13 @@ priv test
 connection m_normal_1;
 create sequence s_db.s1;
 select * from s_db.s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	1000	0	0
 select next value for s_db.s1;
 next value for s_db.s1
 1
 select * from s_db.s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1001	1	9223372036854775806	1	1	1000	0	0
 create sequence s_db.s2;
 drop sequence s_db.s2;
@@ -250,20 +250,20 @@ connection slave;
 connection s_normal_3;
 use s_db;
 select * from s_t;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	20	1	1	5	1	0
 connection m_normal_1;
 select next value for s_t;
 next value for s_t
 1
 select * from s_t;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 6	1	20	1	1	5	1	0
 connection master;
 connection slave;
 connection s_normal_3;
 select * from s_t;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 6	1	20	1	1	5	1	0
 ------------------------------------------
 master update nextval;
@@ -272,12 +272,12 @@ connection m_normal_1;
 select next value for s_t;
 next value for s_t
 2
-update s_t set next_value= 11;
+update s_t set next_not_cached_value= 11;
 ERROR HY000: Storage engine SEQUENCE of the table `s_db`.`s_t` doesn't have this option
 alter sequence s_t restart=11;
 commit;
 select * from s_t;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 11	1	20	1	1	5	1	0
 connection master;
 connection slave;
@@ -286,29 +286,29 @@ show slave nextval;
 ------------------------------------------
 connection s_normal_3;
 select * from s_t;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 11	1	20	1	1	5	1	0
 connection m_normal_1;
 select next value for s_t;
 next value for s_t
 11
 select * from s_t;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 16	1	20	1	1	5	1	0
 connection master;
 connection slave;
 connection s_normal_3;
 select * from s_t;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 16	1	20	1	1	5	1	0
 ------------------------------------------
 update into invalid sequence
 ------------------------------------------
 connection m_normal_1;
 select * from s_t;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 16	1	20	1	1	5	1	0
-update s_t set next_value= 11,start=10, min_value=11;
+update s_t set next_not_cached_value= 11,start_value=10, minimum_value=11;
 ERROR HY000: Storage engine SEQUENCE of the table `s_db`.`s_t` doesn't have this option
 ALTER SEQUENCE s_t restart with 11 start=10 minvalue=11;
 ERROR HY000: Sequence 's_db.s_t' values are conflicting
@@ -549,14 +549,14 @@ next value for s1
 4
 commit;
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 5	1	9223372036854775806	1	1	2	0	0
 connection master;
 connection slave;
 connection slave;
 use s_db;
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 5	1	9223372036854775806	1	1	2	0	0
 ------------------------------------------
 close session binlog.
@@ -577,14 +577,14 @@ next value for s1
 8
 set session sql_log_bin=on;
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 9	1	9223372036854775806	1	1	2	0	0
 connection master;
 connection slave;
 connection slave;
 use s_db;
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 5	1	9223372036854775806	1	1	2	0	0
 connection m_normal_1;
 use s_db;
@@ -609,13 +609,13 @@ select next value for s1;
 next value for s1
 1
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 3	1	9223372036854775806	1	1	2	0	0
 connection master;
 connection slave;
 use s_db;
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 3	1	9223372036854775806	1	1	2	0	0
 connection m_normal_1;
 use s_db;
@@ -788,7 +788,7 @@ select * from t1;
 a
 1
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1001	1	9223372036854775806	1	1	1000	0	0
 select previous value for s1;
 previous value for s1
@@ -810,7 +810,7 @@ a	(next value for s1)
 2	3
 do setval(s1,10000,0);
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 10000	1	9223372036854775806	1	1	1000	0	0
 connection m_normal_2;
 drop table t1;

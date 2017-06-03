@@ -29,13 +29,13 @@ select * from s1;
 drop sequence s1;
 
 --echo #
---echo # ÌNSERT
+--echo # INSERT
 --echo #
 
 create sequence s1;
 create sequence s2;
 --error ER_NO_DEFAULT_FOR_FIELD
-insert into s1 (next_value, min_value) values (100,1000);
+insert into s1 (next_not_cached_value, minimum_value) values (100,1000);
 --error ER_UPDATE_TABLE_USED
 insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
 --error ER_WRONG_INSERT_INTO_SEQUENCE
@@ -61,9 +61,9 @@ drop sequence s1,s2;
 
 create sequence s1;
 --error ER_ILLEGAL_HA
-update s1 set next_value=100;
+update s1 set next_not_cached_value=100;
 --error ER_ILLEGAL_HA
-delete from s1 where next_value > 0;
+delete from s1 where next_not_cached_value > 0;
 drop sequence s1;
 
 --echo #
@@ -116,4 +116,18 @@ disconnect addconroot;
 connection default;
 select * from s1;
 commit;
+drop sequence s1;
+
+--echo #
+--echo # Flush tables with read lock
+--echo #
+
+create sequence s1;
+select next value for s1;
+flush tables with read lock;
+--error 1223
+create sequence s2;
+--error 1223
+select next value for s1;
+unlock tables;
 drop sequence s1;
