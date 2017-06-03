@@ -7297,13 +7297,6 @@ struct my_option my_long_options[]=
    &max_binlog_dump_events, &max_binlog_dump_events, 0,
    GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
-#ifdef SAFE_MUTEX
-  {"debug-mutex-deadlock-detector", 0,
-   "Enable checking of wrong mutex usage.",
-   &safe_mutex_deadlock_detector,
-   &safe_mutex_deadlock_detector,
-   0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
-#endif
   {"debug-no-sync", 0,
    "Disables system sync calls. Only for running tests or debugging!",
    &my_disable_sync, &my_disable_sync, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
