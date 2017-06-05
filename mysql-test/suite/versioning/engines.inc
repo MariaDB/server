@@ -1,1 +1,1 @@
---source suite/versioning/innodb.inc
+--source include/have_innodb.inc
