@@ -41,7 +41,7 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
    master_id(0), prev_master_id(0),
    using_gtid(USE_GTID_NO), events_queued_since_last_gtid(0),
    gtid_reconnect_event_skip_count(0), gtid_event_seen(false),
-   in_start_all_slaves(0), in_stop_all_slaves(0),
+   in_start_all_slaves(0), in_stop_all_slaves(0), in_flush_all_relay_logs(0),
    users(0), killed(0)
 {
   host[0] = 0; user[0] = 0; password[0] = 0;
@@ -1978,6 +1978,55 @@ void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids)
   }
   thd->protocol->store(buff, &my_charset_bin);
   return;
+}
+
+bool Master_info_index::flush_all_relay_logs()
+{
+  DBUG_ENTER("flush_all_relay_logs");
+  bool result= false;
+  int error= 0;
+  mysql_mutex_lock(&LOCK_active_mi);
+  for (uint i= 0; i< master_info_hash.records; i++)
+  {
+    Master_info *mi;
+    mi= (Master_info *) my_hash_element(&master_info_hash, i);
+    mi->in_flush_all_relay_logs= 0;
+  }
+  for (uint i=0; i < master_info_hash.records;)
+  {
+    Master_info *mi;
+    mi= (Master_info *)my_hash_element(&master_info_hash, i);
+    DBUG_ASSERT(mi);
+
+    if (mi->in_flush_all_relay_logs)
+    {
+      i++;
+      continue;
+    }
+    mi->in_flush_all_relay_logs= 1;
+
+    mysql_mutex_lock(&mi->sleep_lock);
+    mi->users++;                                // Mark used
+    mysql_mutex_unlock(&mi->sleep_lock);
+    mysql_mutex_unlock(&LOCK_active_mi);
+
+    mysql_mutex_lock(&mi->data_lock);
+    error= rotate_relay_log(mi);
+    mysql_mutex_unlock(&mi->data_lock);
+    mi->release();
+    mysql_mutex_lock(&LOCK_active_mi);
+
+    if (error)
+    {
+      result= true;
+      break;
+    }
+    /* Restart from first element as master_info_hash may have changed */
+    i= 0;
+    continue;
+  }
+  mysql_mutex_unlock(&LOCK_active_mi);
+  DBUG_RETURN(result);
 }
 
 #endif /* HAVE_REPLICATION */
