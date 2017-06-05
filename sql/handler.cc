@@ -1720,7 +1720,7 @@ int ha_rollback_trans(THD *thd, bool all)
         WSREP_WARN("handlerton rollback failed, thd %lld %lld conf %d SQL %s",
                    thd->thread_id, thd->query_id, thd->wsrep_conflict_state(),
                    thd->query());
-#endif // WITH_WSREP
+#endif /* WITH_WSREP */
       }
       status_var_increment(thd->status_var.ha_rollback_count);
       ha_info_next= ha_info->next();
