@@ -212,7 +212,7 @@ static ulong innobase_commit_concurrency = 0;
 static ulong innobase_read_io_threads;
 static ulong innobase_write_io_threads;
 
-static long long innobase_buffer_pool_size, innobase_log_file_size;
+static long long innobase_buffer_pool_size;
 
 /** Percentage of the buffer pool to reserve for 'old' blocks.
 Connected to buf_LRU_old_ratio. */
@@ -4239,8 +4239,6 @@ innobase_change_buffering_inited_ok:
 	/* --------------------------------------------------*/
 
 	srv_file_flush_method_str = innobase_file_flush_method;
-
-	srv_log_file_size = (ib_uint64_t) innobase_log_file_size;
 
 	if (UNIV_PAGE_SIZE_DEF != srv_page_size) {
 		ib::info() << "innodb_page_size=" << srv_page_size;
@@ -21184,10 +21182,12 @@ static MYSQL_SYSVAR_LONG(log_buffer_size, innobase_log_buffer_size,
   "The size of the buffer which InnoDB uses to write log to the log files on disk.",
   NULL, NULL, 16*1024*1024L, 256*1024L, LONG_MAX, 1024);
 
-static MYSQL_SYSVAR_LONGLONG(log_file_size, innobase_log_file_size,
+static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Size of each log file in a log group.",
-  NULL, NULL, 48 << 20, 1 << 20, 512ULL << 30, 1 << 20);
+  NULL, NULL, 48 << 20, 1 << 20, 512ULL << 30, UNIV_PAGE_SIZE_MAX);
+/* OS_FILE_LOG_BLOCK_SIZE would be more appropriate than UNIV_PAGE_SIZE_MAX,
+but fil_space_t is being used for the redo log, and it uses data pages. */
 
 static MYSQL_SYSVAR_ULONG(log_files_in_group, srv_n_log_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

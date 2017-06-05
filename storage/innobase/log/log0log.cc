@@ -669,18 +669,17 @@ log_group_set_fields(
 
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
 and lsn - buf_get_oldest_modification().
+@param[in]	file_size	requested innodb_log_file_size
 @retval true on success
 @retval false if the smallest log group is too small to
 accommodate the number of OS threads in the database server */
 bool
-log_set_capacity()
+log_set_capacity(ulonglong file_size)
 {
 	lsn_t		margin;
 	ulint		free;
 
-	lsn_t smallest_capacity = ((srv_log_file_size_requested
-				    << srv_page_size_shift)
-				   - LOG_FILE_HDR_SIZE)
+	lsn_t smallest_capacity = (file_size - LOG_FILE_HDR_SIZE)
 		* srv_n_log_files;
 	/* Add extra safety */
 	smallest_capacity -= smallest_capacity / 10;
@@ -798,10 +797,9 @@ log_sys_init()
 }
 
 /** Initialize the redo log.
-@param[in]	n_files		number of files
-@param[in]	file_size	file size in bytes */
+@param[in]	n_files		number of files */
 void
-log_init(ulint n_files, lsn_t file_size)
+log_init(ulint n_files)
 {
 	ulint	i;
 	log_group_t*	group = &log_sys->log;
@@ -810,7 +808,7 @@ log_init(ulint n_files, lsn_t file_size)
 	group->format = srv_encrypt_log
 		? LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED
 		: LOG_HEADER_FORMAT_CURRENT;
-	group->file_size = file_size;
+	group->file_size = srv_log_file_size;
 	group->state = LOG_GROUP_OK;
 	group->lsn = LOG_START_LSN;
 	group->lsn_offset = LOG_FILE_HDR_SIZE;

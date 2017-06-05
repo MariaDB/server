@@ -138,6 +138,8 @@ bool	srv_is_being_started;
 bool	srv_sys_tablespaces_open;
 /** TRUE if the server was successfully started */
 bool	srv_was_started;
+/** The original value of srv_log_file_size (innodb_log_file_size) */
+static ulonglong	srv_log_file_size_requested;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
 static bool		srv_start_has_been_called;
 
@@ -374,17 +376,13 @@ create_log_file(
 	}
 
 	ib::info() << "Setting log file " << name << " size to "
-		<< (srv_log_file_size >> (20 - UNIV_PAGE_SIZE_SHIFT))
-		<< " MB";
+		<< srv_log_file_size << " bytes";
 
-	ret = os_file_set_size(name, *file,
-			       (os_offset_t) srv_log_file_size
-			       << UNIV_PAGE_SIZE_SHIFT,
+	ret = os_file_set_size(name, *file, srv_log_file_size,
 			       srv_read_only_mode);
 	if (!ret) {
-		ib::error() << "Cannot set log file " << name << " to size "
-			<< (srv_log_file_size >> (20 - UNIV_PAGE_SIZE_SHIFT))
-			<< " MB";
+		ib::error() << "Cannot set log file " << name << " size to "
+			<< srv_log_file_size << " bytes";
 		return(DB_ERROR);
 	}
 
@@ -467,17 +465,17 @@ create_log_files(
 	ut_a(fil_validate());
 	ut_a(log_space != NULL);
 
+	const ulint size = ulint(srv_log_file_size >> srv_page_size_shift);
+
 	logfile0 = fil_node_create(
-		logfilename, (ulint) srv_log_file_size,
-		log_space, false, false);
+		logfilename, size, log_space, false, false);
 	ut_a(logfile0);
 
 	for (unsigned i = 1; i < srv_n_log_files; i++) {
 
 		sprintf(logfilename + dirnamelen, "ib_logfile%u", i);
 
-		if (!fil_node_create(logfilename,
-				     (ulint) srv_log_file_size,
+		if (!fil_node_create(logfilename, size,
 				     log_space, false, false)) {
 
 			ib::error()
@@ -488,8 +486,8 @@ create_log_files(
 		}
 	}
 
-	log_init(srv_n_log_files, srv_log_file_size * UNIV_PAGE_SIZE);
-	if (!log_set_capacity()) {
+	log_init(srv_n_log_files);
+	if (!log_set_capacity(srv_log_file_size_requested)) {
 		return(DB_ERROR);
 	}
 
@@ -1410,7 +1408,7 @@ srv_prepare_to_delete_redo_log_files(
 
 			info << srv_n_log_files << "*"
 			     << srv_log_file_size_requested
-			     << " pages; LSN=" << flushed_lsn;
+			     << " bytes; LSN=" << flushed_lsn;
 		}
 
 		/* Flush the old log files. */
@@ -1863,8 +1861,7 @@ innobase_start_or_create_for_mysql()
 		srv_start_state_set(SRV_START_STATE_IO);
 	}
 
-	if (srv_n_log_files * srv_log_file_size * UNIV_PAGE_SIZE
-	    >= 512ULL * 1024ULL * 1024ULL * 1024ULL) {
+	if (srv_n_log_files * srv_log_file_size >= 512ULL << 30) {
 		/* log_block_convert_lsn_to_no() limits the returned block
 		number to 1G and given that OS_FILE_LOG_BLOCK_SIZE is 512
 		bytes, then we have a limit of 512 GB. If that limit is to
@@ -1875,18 +1872,8 @@ innobase_start_or_create_for_mysql()
 		return(srv_init_abort(DB_ERROR));
 	}
 
-	if (srv_n_log_files * srv_log_file_size >= ULINT_MAX) {
-		/* fil_io() takes ulint as an argument and we are passing
-		(next_offset / UNIV_PAGE_SIZE) to it in log_group_write_buf().
-		So (next_offset / UNIV_PAGE_SIZE) must be less than ULINT_MAX.
-		So next_offset must be < ULINT_MAX * UNIV_PAGE_SIZE. This
-		means that we are limited to ULINT_MAX * UNIV_PAGE_SIZE which
-		is 64 TB on 32 bit systems. */
-		ib::error() << "Combined size of log files must be < "
-			<< ULINT_MAX / 1073741824 * UNIV_PAGE_SIZE << " GB";
-
-		return(srv_init_abort(DB_ERROR));
-	}
+	compile_time_assert(ulonglong(ULINT_MAX) * UNIV_PAGE_SIZE_MIN
+			    >= 512ULL << 30);
 
 	os_normalize_path(srv_data_home);
 
@@ -2025,27 +2012,22 @@ innobase_start_or_create_for_mysql()
 
 			ut_a(size != (os_offset_t) -1);
 
-			if (size & ((1 << UNIV_PAGE_SIZE_SHIFT) - 1)) {
+			if (size & (OS_FILE_LOG_BLOCK_SIZE - 1)) {
 
 				ib::error() << "Log file " << logfilename
 					<< " size " << size << " is not a"
-					" multiple of innodb_page_size";
+					" multiple of 512 bytes";
 				return(srv_init_abort(DB_ERROR));
 			}
-
-			size >>= UNIV_PAGE_SIZE_SHIFT;
 
 			if (i == 0) {
 				srv_log_file_size = size;
 			} else if (size != srv_log_file_size) {
 
 				ib::error() << "Log file " << logfilename
-					<< " is of different size "
-					<< (size << UNIV_PAGE_SIZE_SHIFT)
+					<< " is of different size " << size
 					<< " bytes than other log files "
-					<< (srv_log_file_size
-					    << UNIV_PAGE_SIZE_SHIFT)
-					<< " bytes!";
+					<< srv_log_file_size << " bytes!";
 				return(srv_init_abort(DB_ERROR));
 			}
 		}
@@ -2066,23 +2048,23 @@ innobase_start_or_create_for_mysql()
 		ut_a(fil_validate());
 		ut_a(log_space);
 
-		/* srv_log_file_size is measured in pages; if page size is 16KB,
-		then we have a limit of 64TB on 32 bit systems */
-		ut_a(srv_log_file_size <= ULINT_MAX);
+		ut_a(srv_log_file_size <= 512ULL << 30);
 
-		for (unsigned j = 0; j < i; j++) {
+		const ulint size = 1 + ulint((srv_log_file_size - 1)
+					     >> srv_page_size_shift);
+
+		for (unsigned j = 0; j < srv_n_log_files_found; j++) {
 			sprintf(logfilename + dirnamelen, "ib_logfile%u", j);
 
-			if (!fil_node_create(logfilename,
-					     (ulint) srv_log_file_size,
+			if (!fil_node_create(logfilename, size,
 					     log_space, false, false)) {
 				return(srv_init_abort(DB_ERROR));
 			}
 		}
 
-		log_init(i, srv_log_file_size * UNIV_PAGE_SIZE);
+		log_init(srv_n_log_files_found);
 
-		if (!log_set_capacity()) {
+		if (!log_set_capacity(srv_log_file_size_requested)) {
 			return(srv_init_abort(DB_ERROR));
 		}
 	}

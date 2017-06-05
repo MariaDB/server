@@ -156,17 +156,17 @@ void
 log_sys_init();
 
 /** Initialize the redo log.
-@param[in]	n_files		number of files
-@param[in]	file_size	file size in bytes */
+@param[in]	n_files		number of files */
 void
-log_init(ulint n_files, lsn_t file_size);
+log_init(ulint n_files);
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
 and lsn - buf_get_oldest_modification().
+@param[in]	file_size	requested innodb_log_file_size
 @retval true on success
 @retval false if the smallest log group is too small to
 accommodate the number of OS threads in the database server */
 bool
-log_set_capacity()
+log_set_capacity(ulonglong file_size)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************//**
