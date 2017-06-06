@@ -369,8 +369,6 @@ static int wsrep_pre_commit(THD *thd)
     break;
   }
 
-  thd->set_wsrep_query_state(QUERY_EXEC);
-
   DBUG_RETURN(ret);
 }
 
@@ -576,8 +574,6 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
     ret= WSREP_TRX_ERROR;
     break;
   }
-
-  thd->set_wsrep_query_state(QUERY_EXEC);
 
   if (wsrep_thd_trx_seqno(thd) == WSREP_SEQNO_UNDEFINED)
   {
@@ -1020,6 +1016,10 @@ static int wsrep_after_commit(Trans_param *param)
     thd->killed= NOT_KILLED;
     thd->set_wsrep_conflict_state(NO_CONFLICT);
   }
+
+  // moved here from wsrep_pre_commit
+  assert (thd->wsrep_query_state() == QUERY_COMMITTING);
+  thd->set_wsrep_query_state(QUERY_EXEC);
 
   wsrep_cleanup_transaction(thd);
 
