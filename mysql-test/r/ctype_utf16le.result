@@ -1169,6 +1169,196 @@ a
 2007-09-16
 DROP TABLE t1;
 #
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10-05:00');
+SELECT * FROM t1;
+a
+2016-12-10 18:10:10
+DROP TABLE t1;
+#
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10+01:30');
+SELECT * FROM t1;
+a
+2016-12-10 11:40:10
+DROP TABLE t1;
+#
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10Z');
+SELECT * FROM t1;
+a
+2016-12-10 13:10:10
+DROP TABLE t1;
+#
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a timestamp);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10-05:00');
+SELECT * FROM t1;
+a
+2016-12-10 18:10:10
+DROP TABLE t1;
+#
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a timestamp);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10+01:30');
+SELECT * FROM t1;
+a
+2016-12-10 11:40:10
+DROP TABLE t1;
+#
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a timestamp);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10Z');
+SELECT * FROM t1;
+a
+2016-12-10 13:10:10
+DROP TABLE t1;
+#
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('1900-12-10T10:10:10Z');
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+1900-12-10 10:10:10
+DROP TABLE t1;
+#
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('1900-12-10T10:10:10-05:00');
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+1900-12-10 10:10:10
+DROP TABLE t1;
+#
+# Checking str_to_time() for Conveting TimeZone
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('10:10:10-05:00');
+SELECT * FROM t1;
+a
+05:10:10
+DROP TABLE t1;
+#
+# Checking str_to_time() for Conveting TimeZone
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('10:10:10+04:30');
+SELECT * FROM t1;
+a
+14:40:10
+DROP TABLE t1;
+#
+# Checking str_to_time() for Conveting TimeZone
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('10:10:10Z');
+SELECT * FROM t1;
+a
+10:10:10
+DROP TABLE t1;
+#
+# Checking str_to_time() for Conveting TimeZone
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10Z');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+10:10:10
+DROP TABLE t1;
+#
+# Checking str_to_time() for Conveting TimeZone
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10-05:00');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+05:10:10
+DROP TABLE t1;
+#
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+set @@parse_rfc3339_timezones=0;
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10+01:30');
+SELECT * FROM t1;
+a
+2016-12-10 10:10:10
+DROP TABLE t1;
+#
+# Checking str_to_time() for Conveting TimeZone
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+set @@parse_rfc3339_timezones=0;
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('10:10:10-05:00');
+SELECT * FROM t1;
+a
+10:10:10
+DROP TABLE t1;
+#
 # Testing cs->cset->ll10tostr
 #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf16le);

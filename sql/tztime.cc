@@ -1298,30 +1298,6 @@ Time_zone_db::get_name() const
 
 
 /*
-  Instance of this class represents time zone which
-  was specified as offset from UTC.
-*/
-class Time_zone_offset : public Time_zone
-{
-public:
-  Time_zone_offset(long tz_offset_arg);
-  virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
-                                    uint *error_code) const;
-  virtual void   gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
-  virtual const String * get_name() const;
-  /*
-    This have to be public because we want to be able to access it from
-    my_offset_tzs_get_key() function
-  */
-  long offset;
-private:
-  /* Extra reserve because of snprintf */
-  char name_buff[7+16];
-  String name;
-};
-
-
-/*
   Initializes object representing time zone described by its offset from UTC.
 
   SYNOPSIS
@@ -2171,85 +2147,6 @@ end:
   DBUG_RETURN(return_val);
 }
 
-
-/*
-  Parse string that specifies time zone as offset from UTC.
-
-  SYNOPSIS
-    str_to_offset()
-      str    - pointer to string which contains offset
-      length - length of string
-      offset - out parameter for storing found offset in seconds.
-
-  DESCRIPTION
-    This function parses string which contains time zone offset
-    in form similar to '+10:00' and converts found value to
-    seconds from UTC form (east is positive).
-
-  RETURN VALUE
-    0 - Ok
-    1 - String doesn't contain valid time zone offset
-*/
-my_bool
-str_to_offset(const char *str, uint length, long *offset)
-{
-  const char *end= str + length;
-  my_bool negative;
-  ulong number_tmp;
-  long offset_tmp;
-
-  if (length < 4)
-    return 1;
-
-  if (*str == '+')
-    negative= 0;
-  else if (*str == '-')
-    negative= 1;
-  else
-    return 1;
-  str++;
-
-  number_tmp= 0;
-
-  while (str < end && my_isdigit(&my_charset_latin1, *str))
-  {
-    number_tmp= number_tmp*10 + *str - '0';
-    str++;
-  }
-
-  if (str + 1 >= end || *str != ':')
-    return 1;
-  str++;
-
-  offset_tmp = number_tmp * MINS_PER_HOUR; number_tmp= 0;
-
-  while (str < end && my_isdigit(&my_charset_latin1, *str))
-  {
-    number_tmp= number_tmp * 10 + *str - '0';
-    str++;
-  }
-
-  if (str != end)
-    return 1;
-
-  offset_tmp= (offset_tmp + number_tmp) * SECS_PER_MIN;
-
-  if (negative)
-    offset_tmp= -offset_tmp;
-
-  /*
-    Check if offset is in range prescribed by standard
-    (from -12:59 to 13:00).
-  */
-
-  if (number_tmp > 59 || offset_tmp < -13 * SECS_PER_HOUR + 1 ||
-      offset_tmp > 13 * SECS_PER_HOUR)
-    return 1;
-
-  *offset= offset_tmp;
-
-  return 0;
-}
 
 
 /*

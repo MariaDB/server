@@ -4756,6 +4756,13 @@ static Sys_var_tz Sys_time_zone(
        SESSION_VAR(time_zone), NO_CMD_LINE,
        DEFAULT(&default_tz), NO_MUTEX_GUARD, IN_BINLOG);
 
+static Sys_var_mybool Sys_parse_rfc3339_timezones(
+       "parse_rfc3339_timezones",
+       "Parse and apply RFC3339 Timezones when parsing stirngs",
+       SESSION_VAR(parse_rfc3339_timezones), NO_CMD_LINE,
+       DEFAULT(TRUE));
+
+
 #ifdef WITH_WSREP
 #include "wsrep_var.h"
 #include "wsrep_sst.h"
