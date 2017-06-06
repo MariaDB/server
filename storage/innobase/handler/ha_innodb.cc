@@ -19688,6 +19688,15 @@ wsrep_abort_transaction(
 	DBUG_ENTER("wsrep_innobase_abort_thd");
 	trx_t* victim_trx = thd_to_trx(victim_thd);
 	trx_t* bf_trx     = (bf_thd) ? thd_to_trx(bf_thd) : NULL;
+	if (wsrep_debug)
+	{
+		wsrep_thd_LOCK(victim_thd);
+		WSREP_DEBUG("abort transaction: BF: %s victim: %s conf: %d",
+			wsrep_thd_query(bf_thd),
+			wsrep_thd_query(victim_thd),
+			wsrep_thd_conflict_state(victim_thd));
+		wsrep_thd_UNLOCK(victim_thd);
+	}
 
 	if (wsrep_debug)
 	{
