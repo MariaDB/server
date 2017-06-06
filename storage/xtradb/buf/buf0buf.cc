@@ -3450,6 +3450,7 @@ got_block:
 		}
 
 		if (buf_flush_page_try(buf_pool, fix_block)) {
+			guess = fix_block;
 			goto loop;
 		}
 
