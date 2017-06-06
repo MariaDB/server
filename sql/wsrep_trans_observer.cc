@@ -509,6 +509,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
   DBUG_EXECUTE_IF("crash_replicate_fragment_after_pre_commit",
                   DBUG_SUICIDE(););
 
+  thd->set_wsrep_query_state(QUERY_EXEC);
   if (wsrep_thd_trx_seqno(thd) != WSREP_SEQNO_UNDEFINED)
   {
       wsrep_xid_init(&SR_thd->wsrep_xid, thd->wsrep_trx_meta.gtid.uuid,
