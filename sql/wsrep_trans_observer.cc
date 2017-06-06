@@ -1222,6 +1222,7 @@ static int wsrep_after_command(Trans_param *param)
       bool should_retry= false;
       const bool forced_rollback(thd->wsrep_conflict_state() == MUST_ABORT ||
                                  thd->wsrep_conflict_state() == CERT_FAILURE);
+
       DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT ||
                   thd->wsrep_conflict_state() == MUST_ABORT ||
                   thd->wsrep_conflict_state() == CERT_FAILURE);
