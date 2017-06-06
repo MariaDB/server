@@ -1017,9 +1017,15 @@ static int wsrep_after_commit(Trans_param *param)
     thd->set_wsrep_conflict_state(NO_CONFLICT);
   }
 
-  // moved here from wsrep_pre_commit
-  assert (thd->wsrep_query_state() == QUERY_COMMITTING);
-  thd->set_wsrep_query_state(QUERY_EXEC);
+  /*
+    moved here from wsrep_pre_commit
+    for DDL, query state is not QUERY_COMMITTTING here
+  */
+  
+  if (thd->wsrep_query_state() == QUERY_COMMITTING)
+  {
+    thd->set_wsrep_query_state(QUERY_EXEC);
+  }
 
   wsrep_cleanup_transaction(thd);
 
