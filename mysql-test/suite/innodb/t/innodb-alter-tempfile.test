@@ -10,8 +10,7 @@
 # Avoid CrashReporter popup on Mac
 --source include/not_crashrep.inc
 
-# InnoDB is required
---source include/have_innodb.inc
+--source include/innodb_page_size.inc
 
 --echo #
 --echo # Bug #18734396	INNODB IN-PLACE ALTER FAILURES BLOCK FUTURE ALTERS
