@@ -4062,7 +4062,12 @@ int ha_connect::info(uint flag)
 
   DBUG_ENTER("ha_connect::info");
 
-  if (trace)
+	if (!g) {
+		my_message(ER_UNKNOWN_ERROR, "Cannot get g pointer", MYF(0));
+		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+	}	// endif g
+
+	if (trace)
     htrc("%p In info: flag=%u valid_info=%d\n", this, flag, valid_info);
 
   // tdbp must be available to get updated info
