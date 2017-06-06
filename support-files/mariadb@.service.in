@@ -14,12 +14,13 @@
 # Daniel Black
 # Erkan Yanar
 # David Strauss
+# Jason Ross
 # and probably others
 # Inspired from https://gitweb.gentoo.org/repo/gentoo.git/tree/dev-db/mysql-init-scripts/files/mysqld_at.service
 
 [Unit]
 Description=MariaDB database server
-After=network.target
+After=network-online.target
 After=syslog.target
 
 ConditionPathExists=@sysconf2dir@/my%I.cnf
