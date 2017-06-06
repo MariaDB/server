@@ -773,11 +773,11 @@ buf_read_ahead_linear(
 	os_aio_simulated_wake_handler_threads();
 
 	if (count) {
-		DBUG_PRINT("ib_buf", ("linear read-ahead %lu pages, "
-				      "%lu:%lu",
+		DBUG_PRINT("ib_buf", ("linear read-ahead " ULINTPF " pages, "
+				      "%u:%u",
 				      count,
-				      (ulint)page_id.space(),
-				      (ulint)page_id.page_no()));
+				      page_id.space(),
+				      page_id.page_no()));
 	}
 
 	/* Read ahead is considered one I/O operation for the purpose of

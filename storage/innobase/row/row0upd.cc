@@ -3225,7 +3225,7 @@ row_upd(
 	ut_ad(!thr_get_trx(thr)->in_rollback);
 
 	DBUG_PRINT("row_upd", ("table: %s", node->table->name.m_name));
-	DBUG_PRINT("row_upd", ("info bits in update vector: 0x%lx",
+	DBUG_PRINT("row_upd", ("info bits in update vector: 0x" ULINTPFx,
 			       node->update ? node->update->info_bits: 0));
 	DBUG_PRINT("row_upd", ("foreign_id: %s",
 			       node->foreign ? node->foreign->id: "NULL"));

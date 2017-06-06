@@ -1187,14 +1187,14 @@ void end_pagecache(PAGECACHE *pagecache, my_bool cleanup)
     pagecache->blocks_changed= 0;
   }
 
-  DBUG_PRINT("status", ("used: %zu  changed: %zu  w_requests: %lu  "
-                        "writes: %lu  r_requests: %lu  reads: %lu",
-                        (ulong) pagecache->blocks_used,
-                        (ulong) pagecache->global_blocks_changed,
-                        (ulong) pagecache->global_cache_w_requests,
-                        (ulong) pagecache->global_cache_write,
-                        (ulong) pagecache->global_cache_r_requests,
-                        (ulong) pagecache->global_cache_read));
+  DBUG_PRINT("status", ("used: %zu  changed: %zu  w_requests: %llu  "
+                        "writes: %llu  r_requests: %llu  reads: %llu",
+			pagecache->blocks_used,
+			pagecache->global_blocks_changed,
+			pagecache->global_cache_w_requests,
+			pagecache->global_cache_write,
+			pagecache->global_cache_r_requests,
+			pagecache->global_cache_read));
 
   if (cleanup)
   {
