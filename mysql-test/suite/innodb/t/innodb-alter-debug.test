@@ -1,4 +1,4 @@
---source include/have_innodb.inc
+--source include/innodb_page_size.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 

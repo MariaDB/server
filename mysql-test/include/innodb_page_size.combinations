@@ -1,0 +1,16 @@
+[64k]
+innodb-page-size=64K
+innodb-buffer-pool-size=24M
+
+[32k]
+innodb-page-size=32K
+innodb-buffer-pool-size=24M
+
+[16k]
+innodb-page-size=16K
+
+[8k]
+innodb-page-size=8K
+
+[4k]
+innodb-page-size=4K

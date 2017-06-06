@@ -1,4 +1,4 @@
---source include/have_innodb.inc
+--source include/innodb_page_size.inc
 
 #
 # MMDEV-8386: MariaDB creates very big tmp file and hangs on xtradb

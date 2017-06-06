@@ -1882,4 +1882,86 @@ WHERE v3 = 4;
 
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-11958: LEFT JOIN with stored routine produces incorrect result
+--echo #
+
+CREATE TABLE t (x INT);
+INSERT INTO t VALUES(1),(NULL);
+CREATE FUNCTION f (val INT, ret INT) RETURNS INT DETERMINISTIC RETURN IFNULL(val, ret);
+
+SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
+                            FROM t t1 LEFT JOIN t t2
+                            ON t1.x = t2.x
+                            WHERE IFNULL(t2.x,0)=0;
+explain extended
+SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
+                            FROM t t1 LEFT JOIN t t2
+                            ON t1.x = t2.x
+                            WHERE IFNULL(t2.x,0)=0;
+SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
+                            FROM t t1 LEFT JOIN t t2
+                            ON t1.x = t2.x
+                            WHERE f(t2.x,0)=0;
+explain extended
+SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
+                            FROM t t1 LEFT JOIN t t2
+                            ON t1.x = t2.x
+                            WHERE f(t2.x,0)=0;
+
+drop function f;
+drop table t;
+CREATE TABLE t1 (
+ col1 DECIMAL(33,5) NULL DEFAULT NULL,
+ col2 DECIMAL(33,5) NULL DEFAULT NULL
+);
+
+CREATE TABLE t2 (
+ col1 DECIMAL(33,5) NULL DEFAULT NULL,
+ col2 DECIMAL(33,5) NULL DEFAULT NULL,
+ col3 DECIMAL(33,5) NULL DEFAULT NULL
+);
+
+INSERT INTO t1 VALUES (2, 1.1), (2, 2.1);
+INSERT INTO t2 VALUES (3, 3.1, 4), (1, 1, NULL);
+
+DELIMITER |;
+
+CREATE FUNCTION f1 ( p_num DECIMAL(45,15), p_return DECIMAL(45,15))
+RETURNS decimal(33,5)
+LANGUAGE SQL
+DETERMINISTIC
+CONTAINS SQL
+SQL SECURITY INVOKER
+BEGIN
+  IF p_num IS NULL THEN
+    RETURN p_return;
+  ELSE
+    RETURN p_num;
+  END IF;
+END |
+
+DELIMITER ;|
+
+let $q1=
+SELECT t1.col1, t2.col1, t2.col3
+FROM t1 LEFT OUTER JOIN t2 ON t1.col1 = t2.col2
+WHERE IFNULL(t2.col3,0) = 0;
+
+eval $q1;
+eval EXPLAIN EXTENDED $q1;
+
+let $q2=
+SELECT t1.col1, t2.col1, t2.col3
+FROM t1 LEFT OUTER JOIN t2 ON t1.col1 = t2.col2
+WHERE f1(t2.col3,0) = 0;
+eval $q2;
+eval EXPLAIN EXTENDED $q2;
+
+DROP FUNCTION f1;
+
+DROP TABLE t1,t2;
+
+--echo # end of 5.5 tests
+
 SET optimizer_switch=@save_optimizer_switch;

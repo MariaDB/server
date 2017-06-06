@@ -1,741 +1,646 @@
+SET @saved_file_format = @@global.innodb_file_format;
+SET @saved_file_per_table = @@global.innodb_file_per_table;
+SET @saved_checksum_algorithm = @@global.innodb_checksum_algorithm;
+SET @saved_encrypt_tables = @@global.innodb_encrypt_tables;
+SET @saved_encryption_threads = @@global.innodb_encryption_threads;
+SET @saved_encryption_key_id = @@global.innodb_default_encryption_key_id;
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
-call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_crc32\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"innodb\". Accepting the page as valid. Change innodb_checksum_algorithm to \"crc32\" to silently accept such pages or rewrite all pages so that they contain \"crc32\" checksum.");
-call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_none\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"innodb\". Accepting the page as valid. Change innodb_checksum_algorithm to \"none\" to silently accept such pages or rewrite all pages so that they contain \"none\" checksum.");
-call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_crc32\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"none\". Accepting the page as valid. Change innodb_checksum_algorithm to \"crc32\" to silently accept such pages or rewrite all pages so that they contain \"crc32\" checksum.");
-call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_innodb\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"none\". Accepting the page as valid. Change innodb_checksum_algorithm to \"innodb\" to silently accept such pages or rewrite all pages so that they contain \"innodb\" checksum.");
-call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_innodb\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"crc32\". Accepting the page as valid. Change innodb_checksum_algorithm to \"innodb\" to silently accept such pages or rewrite all pages so that they contain \"innodb\" checksum.");
-call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_none\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"crc32\". Accepting the page as valid. Change innodb_checksum_algorithm to \"none\" to silently accept such pages or rewrite all pages so that they contain \"none\" checksum.");
-set GLOBAL innodb_default_encryption_key_id=4;
-create table t1(a int not null auto_increment primary key, b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes;
-create table t2(a int not null auto_increment primary key, b blob, index(b(10))) engine=innodb encrypted=yes;
-create table t3(a int not null auto_increment primary key, b blob, index(b(10))) engine=innodb row_format=compressed encrypted=no;
-create table t4(a int not null auto_increment primary key, b blob, index(b(10))) engine=innodb encrypted=no;
-create table t5(a int not null auto_increment primary key, b blob, index(b(10))) engine=innodb encrypted=yes page_compressed=yes;
+SET GLOBAL innodb_encrypt_tables = ON;
+SET GLOBAL innodb_encryption_threads = 4;
+call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_(crc32|none|innodb)\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"(innodb|none|crc32)\"");
+SET GLOBAL innodb_checksum_algorithm = innodb;
+SET GLOBAL innodb_default_encryption_key_id=4;
+SET GLOBAL innodb_checksum_algorithm=crc32;
+create table tce_crc32(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=yes;
+create table tc_crc32(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=no;
+create table te_crc32(a serial, b blob, index(b(10))) engine=innodb
+encrypted=yes;
+create table t_crc32(a serial, b blob, index(b(10))) engine=innodb
+encrypted=no;
+create table tpe_crc32(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=yes;
+create table tp_crc32(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=no;
 begin;
-insert into t1(b) values (repeat('secret',20));
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t2(b) select b from t1;
-insert into t3(b) select b from t1;
-insert into t4(b) select b from t1;
-insert into t5(b) select b from t1;
+insert into tce_crc32(b) values (repeat('secret',20));
+insert into tc_crc32(b) values (repeat('secret',20));
+insert into te_crc32(b) values (repeat('secret',20));
+insert into t_crc32(b) values (repeat('secret',20));
+insert into tpe_crc32(b) values (repeat('secret',20));
+insert into tp_crc32(b) values (repeat('secret',20));
 commit;
-# 1 Restart mysqld --innodb-checksum-algorithm=crc32
-select count(*) from t1;
-count(*)
-32
-select count(*) from t2;
-count(*)
-32
-select count(*) from t3;
-count(*)
-32
-select count(*) from t4;
-count(*)
-32
-select count(*) from t5;
-count(*)
-32
-insert into t1(b) select b from t1;
-insert into t2(b) select b from t1;
-insert into t3(b) select b from t1;
-insert into t4(b) select b from t1;
-insert into t5(b) select b from t1;
-# 2 Restart mysqld --innodb-checksum-algorithm=innodb
-select count(*) from t1;
-count(*)
-64
-select count(*) from t2;
-count(*)
-96
-select count(*) from t3;
-count(*)
-96
-select count(*) from t4;
-count(*)
-96
-select count(*) from t5;
-count(*)
-96
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 3 Restart mysqld --innodb-checksum-algorithm=none
-select count(*) from t1;
-count(*)
-128
-select count(*) from t2;
-count(*)
-196
-select count(*) from t3;
-count(*)
-196
-select count(*) from t4;
-count(*)
-196
-select count(*) from t5;
-count(*)
-196
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 4 Restart mysqld --innodb-checksum-algorithm=innodb
-select count(*) from t1;
-count(*)
-228
-select count(*) from t2;
-count(*)
-296
-select count(*) from t3;
-count(*)
-296
-select count(*) from t4;
-count(*)
-296
-select count(*) from t5;
-count(*)
-296
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 5 Restart mysqld --innodb-checksum-algorithm=strict_innodb
-select count(*) from t1;
-count(*)
-328
-select count(*) from t2;
-count(*)
-396
-select count(*) from t3;
-count(*)
-396
-select count(*) from t4;
-count(*)
-396
-select count(*) from t5;
-count(*)
-396
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 6 Restart mysqld --innodb-checksum-algorithm=innodb
-select count(*) from t1;
-count(*)
-428
-select count(*) from t2;
-count(*)
-496
-select count(*) from t3;
-count(*)
-496
-select count(*) from t4;
-count(*)
-496
-select count(*) from t5;
-count(*)
-496
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 7 Restart mysqld --innodb-checksum-algorithm=strict_none
-select count(*) from t1;
-count(*)
-528
-select count(*) from t2;
-count(*)
-596
-select count(*) from t3;
-count(*)
-596
-select count(*) from t4;
-count(*)
-596
-select count(*) from t5;
-count(*)
-596
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 8 Restart mysqld --innodb-checksum-algorithm=innodb
-select count(*) from t1;
-count(*)
-628
-select count(*) from t2;
-count(*)
-696
-select count(*) from t3;
-count(*)
-696
-select count(*) from t4;
-count(*)
-696
-select count(*) from t5;
-count(*)
-696
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 9 Restart mysqld --innodb-checksum-algorithm=strict_crc32
-select count(*) from t1;
-count(*)
-728
-select count(*) from t2;
-count(*)
-796
-select count(*) from t3;
-count(*)
-796
-select count(*) from t4;
-count(*)
-796
-select count(*) from t5;
-count(*)
-796
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 10 Restart mysqld --innodb-checksum-algorithm=innodb
-select count(*) from t1;
-count(*)
-828
-select count(*) from t2;
-count(*)
-896
-select count(*) from t3;
-count(*)
-896
-select count(*) from t4;
-count(*)
-896
-select count(*) from t5;
-count(*)
-896
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# Restart mysqld --innodb-checksum-algorithm=crc32
-select count(*) from t1;
-count(*)
-928
-select count(*) from t2;
-count(*)
-996
-select count(*) from t3;
-count(*)
-996
-select count(*) from t4;
-count(*)
-996
-select count(*) from t5;
-count(*)
-996
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 11 Restart mysqld --innodb-checksum-algorithm=strict_crc32
-select count(*) from t1;
-count(*)
-1028
-select count(*) from t2;
-count(*)
-1096
-select count(*) from t3;
-count(*)
-1096
-select count(*) from t4;
-count(*)
-1096
-select count(*) from t5;
-count(*)
-1096
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 12 Restart mysqld --innodb-checksum-algorithm=crc32
-select count(*) from t1;
-count(*)
-1128
-select count(*) from t2;
-count(*)
-1196
-select count(*) from t3;
-count(*)
-1196
-select count(*) from t4;
-count(*)
-1196
-select count(*) from t5;
-count(*)
-1196
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 13 Restart mysqld --innodb-checksum-algorithm=strict_none
-select count(*) from t1;
-count(*)
-1228
-select count(*) from t2;
-count(*)
-1296
-select count(*) from t3;
-count(*)
-1296
-select count(*) from t4;
-count(*)
-1296
-select count(*) from t5;
-count(*)
-1296
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 14 Restart mysqld --innodb-checksum-algorithm=crc32
-select count(*) from t1;
-count(*)
-1328
-select count(*) from t2;
-count(*)
-1396
-select count(*) from t3;
-count(*)
-1396
-select count(*) from t4;
-count(*)
-1396
-select count(*) from t5;
-count(*)
-1396
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 15 Restart mysqld --innodb-checksum-algorithm=strict_innodb
-select count(*) from t1;
-count(*)
-1428
-select count(*) from t2;
-count(*)
-1496
-select count(*) from t3;
-count(*)
-1496
-select count(*) from t4;
-count(*)
-1496
-select count(*) from t5;
-count(*)
-1496
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 16 Restart mysqld --innodb-checksum-algorithm=crc32
-select count(*) from t1;
-count(*)
-1528
-select count(*) from t2;
-count(*)
-1596
-select count(*) from t3;
-count(*)
-1596
-select count(*) from t4;
-count(*)
-1596
-select count(*) from t5;
-count(*)
-1596
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 17 Restart mysqld --innodb-checksum-algorithm=none
-select count(*) from t1;
-count(*)
-1628
-select count(*) from t2;
-count(*)
-1696
-select count(*) from t3;
-count(*)
-1696
-select count(*) from t4;
-count(*)
-1696
-select count(*) from t5;
-count(*)
-1696
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 18 Restart mysqld --innodb-checksum-algorithm=crc32
-select count(*) from t1;
-count(*)
-1728
-select count(*) from t2;
-count(*)
-1796
-select count(*) from t3;
-count(*)
-1796
-select count(*) from t4;
-count(*)
-1796
-select count(*) from t5;
-count(*)
-1796
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# Restart mysqld --innodb-checksum-algorithm=strict_crc32
-select count(*) from t1;
-count(*)
-1828
-select count(*) from t2;
-count(*)
-1896
-select count(*) from t3;
-count(*)
-1896
-select count(*) from t4;
-count(*)
-1896
-select count(*) from t5;
-count(*)
-1896
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 19 Restart mysqld --innodb-checksum-algorithm=strict_none
-select count(*) from t1;
-count(*)
-1928
-select count(*) from t2;
-count(*)
-1996
-select count(*) from t3;
-count(*)
-1996
-select count(*) from t4;
-count(*)
-1996
-select count(*) from t5;
-count(*)
-1996
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 20 Restart mysqld --innodb-checksum-algorithm=strict_crc32
-select count(*) from t1;
-count(*)
-2028
-select count(*) from t2;
-count(*)
-2096
-select count(*) from t3;
-count(*)
-2096
-select count(*) from t4;
-count(*)
-2096
-select count(*) from t5;
-count(*)
-2096
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 21 Restart mysqld --innodb-checksum-algorithm=strict_innodb
-select count(*) from t1;
-count(*)
-2128
-select count(*) from t2;
-count(*)
-2196
-select count(*) from t3;
-count(*)
-2196
-select count(*) from t4;
-count(*)
-2196
-select count(*) from t5;
-count(*)
-2196
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 22 Restart mysqld --innodb-checksum-algorithm=strict_crc32
-select count(*) from t1;
-count(*)
-2228
-select count(*) from t2;
-count(*)
-2296
-select count(*) from t3;
-count(*)
-2296
-select count(*) from t4;
-count(*)
-2296
-select count(*) from t5;
-count(*)
-2296
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 23 Restart mysqld --innodb-checksum-algorithm=none
-select count(*) from t1;
-count(*)
-2328
-select count(*) from t2;
-count(*)
-2396
-select count(*) from t3;
-count(*)
-2396
-select count(*) from t4;
-count(*)
-2396
-select count(*) from t5;
-count(*)
-2396
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 24 Restart mysqld --innodb-checksum-algorithm=strict_crc32
-select count(*) from t1;
-count(*)
-2428
-select count(*) from t2;
-count(*)
-2496
-select count(*) from t3;
-count(*)
-2496
-select count(*) from t4;
-count(*)
-2496
-select count(*) from t5;
-count(*)
-2496
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# Restart mysqld --innodb-checksum-algorithm=strict_none
-select count(*) from t1;
-count(*)
-2528
-select count(*) from t2;
-count(*)
-2596
-select count(*) from t3;
-count(*)
-2596
-select count(*) from t4;
-count(*)
-2596
-select count(*) from t5;
-count(*)
-2596
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 25 Restart mysqld --innodb-checksum-algorithm=none
-select count(*) from t1;
-count(*)
-2628
-select count(*) from t2;
-count(*)
-2696
-select count(*) from t3;
-count(*)
-2696
-select count(*) from t4;
-count(*)
-2696
-select count(*) from t5;
-count(*)
-2696
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 26 Restart mysqld --innodb-checksum-algorithm=strict_none
-select count(*) from t1;
-count(*)
-2728
-select count(*) from t2;
-count(*)
-2796
-select count(*) from t3;
-count(*)
-2796
-select count(*) from t4;
-count(*)
-2796
-select count(*) from t5;
-count(*)
-2796
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 27 Restart mysqld --innodb-checksum-algorithm=strict_innodb
-select count(*) from t1;
-count(*)
-2828
-select count(*) from t2;
-count(*)
-2896
-select count(*) from t3;
-count(*)
-2896
-select count(*) from t4;
-count(*)
-2896
-select count(*) from t5;
-count(*)
-2896
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 28 Restart mysqld --innodb-checksum-algorithm=strict_none
-select count(*) from t1;
-count(*)
-2928
-select count(*) from t2;
-count(*)
-2996
-select count(*) from t3;
-count(*)
-2996
-select count(*) from t4;
-count(*)
-2996
-select count(*) from t5;
-count(*)
-2996
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# Restart mysqld --innodb-checksum-algorithm=none
-select count(*) from t1;
-count(*)
-3028
-select count(*) from t2;
-count(*)
-3096
-select count(*) from t3;
-count(*)
-3096
-select count(*) from t4;
-count(*)
-3096
-select count(*) from t5;
-count(*)
-3096
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 29 Restart mysqld --innodb-checksum-algorithm=strict_innodb
-select count(*) from t1;
-count(*)
-3128
-select count(*) from t2;
-count(*)
-3196
-select count(*) from t3;
-count(*)
-3196
-select count(*) from t4;
-count(*)
-3196
-select count(*) from t5;
-count(*)
-3196
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-# 30 Restart mysqld --innodb-checksum-algorithm=none
-select count(*) from t1;
-count(*)
-3228
-select count(*) from t2;
-count(*)
-3296
-select count(*) from t3;
-count(*)
-3296
-select count(*) from t4;
-count(*)
-3296
-select count(*) from t5;
-count(*)
-3296
-insert into t1(b) select b from t1 limit 100;
-insert into t2(b) select b from t1 limit 100;
-insert into t3(b) select b from t1 limit 100;
-insert into t4(b) select b from t1 limit 100;
-insert into t5(b) select b from t1 limit 100;
-drop table t1,t2,t3,t4,t5;
+FLUSH TABLES tce_crc32, tc_crc32, te_crc32,
+t_crc32, tpe_crc32, tp_crc32 FOR EXPORT;
+backup: tce_crc32
+backup: tc_crc32
+backup: te_crc32
+backup: t_crc32
+backup: tpe_crc32
+backup: tp_crc32
+t_crc32.cfg
+t_crc32.frm
+t_crc32.ibd
+tc_crc32.cfg
+tc_crc32.frm
+tc_crc32.ibd
+tce_crc32.cfg
+tce_crc32.frm
+tce_crc32.ibd
+te_crc32.cfg
+te_crc32.frm
+te_crc32.ibd
+tp_crc32.cfg
+tp_crc32.frm
+tp_crc32.ibd
+tpe_crc32.cfg
+tpe_crc32.frm
+tpe_crc32.ibd
+UNLOCK TABLES;
+SET GLOBAL innodb_checksum_algorithm=strict_crc32;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=crc32;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_innodb;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=innodb;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_none;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=none;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+CHECK TABLE tce_crc32, tc_crc32, te_crc32,
+t_crc32, tpe_crc32, tp_crc32;
+Table	Op	Msg_type	Msg_text
+test.tce_crc32	check	status	OK
+test.tc_crc32	check	status	OK
+test.te_crc32	check	status	OK
+test.t_crc32	check	status	OK
+test.tpe_crc32	check	status	OK
+test.tp_crc32	check	status	OK
+DROP TABLE tce_crc32, tc_crc32, te_crc32,
+t_crc32, tpe_crc32, tp_crc32;
+SET GLOBAL innodb_checksum_algorithm=innodb;
+create table tce_innodb(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=yes;
+create table tc_innodb(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=no;
+create table te_innodb(a serial, b blob, index(b(10))) engine=innodb
+encrypted=yes;
+create table t_innodb(a serial, b blob, index(b(10))) engine=innodb
+encrypted=no;
+create table tpe_innodb(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=yes;
+create table tp_innodb(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=no;
+begin;
+insert into tce_innodb(b) values (repeat('secret',20));
+insert into tc_innodb(b) values (repeat('secret',20));
+insert into te_innodb(b) values (repeat('secret',20));
+insert into t_innodb(b) values (repeat('secret',20));
+insert into tpe_innodb(b) values (repeat('secret',20));
+insert into tp_innodb(b) values (repeat('secret',20));
+commit;
+FLUSH TABLES tce_innodb, tc_innodb, te_innodb,
+t_innodb, tpe_innodb, tp_innodb FOR EXPORT;
+backup: tce_innodb
+backup: tc_innodb
+backup: te_innodb
+backup: t_innodb
+backup: tpe_innodb
+backup: tp_innodb
+t_innodb.cfg
+t_innodb.frm
+t_innodb.ibd
+tc_innodb.cfg
+tc_innodb.frm
+tc_innodb.ibd
+tce_innodb.cfg
+tce_innodb.frm
+tce_innodb.ibd
+te_innodb.cfg
+te_innodb.frm
+te_innodb.ibd
+tp_innodb.cfg
+tp_innodb.frm
+tp_innodb.ibd
+tpe_innodb.cfg
+tpe_innodb.frm
+tpe_innodb.ibd
+UNLOCK TABLES;
+SET GLOBAL innodb_checksum_algorithm=strict_crc32;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=crc32;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_innodb;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=innodb;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_none;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=none;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+CHECK TABLE tce_innodb, tc_innodb, te_innodb,
+t_innodb, tpe_innodb, tp_innodb;
+Table	Op	Msg_type	Msg_text
+test.tce_innodb	check	status	OK
+test.tc_innodb	check	status	OK
+test.te_innodb	check	status	OK
+test.t_innodb	check	status	OK
+test.tpe_innodb	check	status	OK
+test.tp_innodb	check	status	OK
+DROP TABLE tce_innodb, tc_innodb, te_innodb,
+t_innodb, tpe_innodb, tp_innodb;
+SET GLOBAL innodb_checksum_algorithm=none;
+create table tce_none(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=yes;
+create table tc_none(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=no;
+create table te_none(a serial, b blob, index(b(10))) engine=innodb
+encrypted=yes;
+create table t_none(a serial, b blob, index(b(10))) engine=innodb
+encrypted=no;
+create table tpe_none(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=yes;
+create table tp_none(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=no;
+begin;
+insert into tce_none(b) values (repeat('secret',20));
+insert into tc_none(b) values (repeat('secret',20));
+insert into te_none(b) values (repeat('secret',20));
+insert into t_none(b) values (repeat('secret',20));
+insert into tpe_none(b) values (repeat('secret',20));
+insert into tp_none(b) values (repeat('secret',20));
+commit;
+FLUSH TABLES tce_none, tc_none, te_none,
+t_none, tpe_none, tp_none FOR EXPORT;
+backup: tce_none
+backup: tc_none
+backup: te_none
+backup: t_none
+backup: tpe_none
+backup: tp_none
+t_none.cfg
+t_none.frm
+t_none.ibd
+tc_none.cfg
+tc_none.frm
+tc_none.ibd
+tce_none.cfg
+tce_none.frm
+tce_none.ibd
+te_none.cfg
+te_none.frm
+te_none.ibd
+tp_none.cfg
+tp_none.frm
+tp_none.ibd
+tpe_none.cfg
+tpe_none.frm
+tpe_none.ibd
+UNLOCK TABLES;
+SET GLOBAL innodb_checksum_algorithm=strict_crc32;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=crc32;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_innodb;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=innodb;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_none;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=none;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+CHECK TABLE tce_none, tc_none, te_none,
+t_none, tpe_none, tp_none;
+Table	Op	Msg_type	Msg_text
+test.tce_none	check	status	OK
+test.tc_none	check	status	OK
+test.te_none	check	status	OK
+test.t_none	check	status	OK
+test.tpe_none	check	status	OK
+test.tp_none	check	status	OK
+DROP TABLE tce_none, tc_none, te_none,
+t_none, tpe_none, tp_none;
+SET GLOBAL innodb_file_format = @saved_file_format;
+SET GLOBAL innodb_file_per_table = @saved_file_per_table;
+SET GLOBAL innodb_checksum_algorithm = @saved_checksum_algorithm;
+SET GLOBAL innodb_encrypt_tables = @saved_encrypt_tables;
+SET GLOBAL innodb_encryption_threads = @saved_encryption_threads;
+SET GLOBAL innodb_default_encryption_key_id = @saved_encryption_key_id;
