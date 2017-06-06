@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -6115,21 +6115,19 @@ fil_report_invalid_page_access(
 	ulint		len,		/*!< in: I/O length */
 	ulint		type)		/*!< in: I/O type */
 {
-	ib_logf(IB_LOG_LEVEL_ERROR,
+	ib_logf(IB_LOG_LEVEL_FATAL,
 		"Trying to access page number " ULINTPF
 		" in space " ULINTPF
 		" space name %s,"
 		" which is outside the tablespace bounds."
-		" Byte offset " ULINTPF ", len " ULINTPF " i/o type " ULINTPF ".",
+		" Byte offset " ULINTPF ", len " ULINTPF
+		" i/o type " ULINTPF ".%s",
 		block_offset, space_id, space_name,
-		byte_offset, len, type);
-
-	ib_logf(IB_LOG_LEVEL_FATAL,
-		"If you get this error at mysqld startup,"
-		" please check that"
-		" your my.cnf matches the ibdata files"
-		" that you have in the"
-		" MySQL server.");
+		byte_offset, len, type,
+		space_id == 0 && !srv_was_started
+		? "Please check that the configuration matches"
+		" the InnoDB system tablespace location (ibdata files)"
+		: "");
 }
 
 /********************************************************************//**

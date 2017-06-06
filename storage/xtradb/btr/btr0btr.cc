@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1703,9 +1703,7 @@ btr_create(
 	dict_index_t*	index,	/*!< in: index */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle */
 {
-	ulint		page_no;
 	buf_block_t*	block;
-	buf_frame_t*	frame;
 	page_t*		page;
 	page_zip_des_t*	page_zip;
 
@@ -1721,9 +1719,7 @@ btr_create(
 			IBUF_HEADER + IBUF_TREE_SEG_HEADER, mtr);
 
 		if (ibuf_hdr_block == NULL) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Allocation of the first ibuf header page failed.");
-			return (FIL_NULL);
+			return(FIL_NULL);
 		}
 
 		buf_block_dbg_add_level(
@@ -1740,11 +1736,16 @@ btr_create(
 			IBUF_TREE_ROOT_PAGE_NO,
 			FSP_UP, mtr);
 
-		if (!block) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Allocation of the tree root page segment failed.");
+		if (block == NULL) {
+			return(FIL_NULL);
 		}
+
 		ut_ad(buf_block_get_page_no(block) == IBUF_TREE_ROOT_PAGE_NO);
+
+		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
+
+		flst_init(block->frame + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
+			  mtr);
 	} else {
 #ifdef UNIV_BLOB_DEBUG
 		if ((type & DICT_CLUSTERED) && !index->blobs) {
@@ -1757,41 +1758,18 @@ btr_create(
 		block = fseg_create(space, 0,
 				    PAGE_HEADER + PAGE_BTR_SEG_TOP, mtr);
 
-		if (!block) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Allocation of the btree segment failed.");
+		if (block == NULL) {
+			return(FIL_NULL);
 		}
 
-	}
-
-	if (block == NULL) {
-
-		return(FIL_NULL);
-	}
-
-	page_no = buf_block_get_page_no(block);
-	frame = buf_block_get_frame(block);
-
-	if (type & DICT_IBUF) {
-		/* It is an insert buffer tree: initialize the free list */
-		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
-
-		ut_ad(page_no == IBUF_TREE_ROOT_PAGE_NO);
-
-		flst_init(frame + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, mtr);
-	} else {
-		/* It is a non-ibuf tree: create a file segment for leaf
-		pages */
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE_NEW);
 
-		if (!fseg_create(space, page_no,
+		if (!fseg_create(space, buf_block_get_page_no(block),
 				 PAGE_HEADER + PAGE_BTR_SEG_LEAF, mtr)) {
 			/* Not enough space for new segment, free root
 			segment before return. */
-			btr_free_root(space, zip_size, page_no, mtr);
-
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Allocation of the non-ibuf tree segment for leaf pages failed.");
+			btr_free_root(space, zip_size,
+				      buf_block_get_page_no(block), mtr);
 			return(FIL_NULL);
 		}
 
@@ -1835,7 +1813,7 @@ btr_create(
 
 	ut_ad(page_get_max_insert_size(page, 2) > 2 * BTR_PAGE_MAX_REC_SIZE);
 
-	return(page_no);
+	return(buf_block_get_page_no(block));
 }
 
 /************************************************************//**

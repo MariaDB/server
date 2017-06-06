@@ -1561,26 +1561,18 @@ srv_undo_tablespaces_init(
 
 	if (create_new_db) {
 		mtr_t	mtr;
-		bool ret=true;
 
 		mtr_start(&mtr);
 
 		/* The undo log tablespace */
 		for (i = 0; i < n_undo_tablespaces; ++i) {
 
-			ret = fsp_header_init(
+			fsp_header_init(
 				undo_tablespace_ids[i],
 				SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
-			if (!ret) {
-				break;
-			}
 		}
 
 		mtr_commit(&mtr);
-
-		if (!ret) {
-			return (srv_init_abort(create_new_db, __FILE__, __LINE__, DB_ERROR));
-		}
 	}
 
 	return(DB_SUCCESS);
@@ -2419,13 +2411,23 @@ files_checked:
 
 		mtr_start(&mtr);
 
-		bool ret = fsp_header_init(0, sum_of_new_sizes, &mtr);
+		fsp_header_init(0, sum_of_new_sizes, &mtr);
+		compile_time_assert(TRX_SYS_SPACE == 0);
+		compile_time_assert(IBUF_SPACE_ID == 0);
+
+		ulint ibuf_root = btr_create(
+			DICT_CLUSTERED | DICT_UNIVERSAL | DICT_IBUF,
+			0, 0, DICT_IBUF_ID_MIN,
+			dict_ind_redundant, &mtr);
 
 		mtr_commit(&mtr);
 
-		if (!ret) {
-			return (srv_init_abort(create_new_db, __FILE__, __LINE__, DB_ERROR));
+		if (ibuf_root == FIL_NULL) {
+			return(srv_init_abort(true, __FILE__, __LINE__,
+					      DB_ERROR));
 		}
+
+		ut_ad(ibuf_root == IBUF_TREE_ROOT_PAGE_NO);
 
 		/* To maintain backward compatibility we create only
 		the first rollback segment before the double write buffer.
@@ -2812,10 +2814,9 @@ files_checked:
 	/* fprintf(stderr, "Max allowed record size %lu\n",
 	page_get_free_space_of_empty() / 2); */
 
-	if (buf_dblwr == NULL) {
-		/* Create the doublewrite buffer to a new tablespace */
-
-		buf_dblwr_create();
+	if (!buf_dblwr_create()) {
+		return(srv_init_abort(create_new_db, __FILE__, __LINE__,
+				      DB_ERROR));
 	}
 
 	/* Here the double write buffer has already been created and so

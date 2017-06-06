@@ -673,18 +673,13 @@ fsp_header_init_fields(
 }
 
 #ifndef UNIV_HOTBACKUP
-/** Initializes the space header of a new created space and creates also the
-insert buffer tree root if space == 0.
+/** Initialize a tablespace header.
 @param[in]	space_id	space id
 @param[in]	size		current size in blocks
-@param[in,out]	mtr		min-transaction
-@return	true on success, otherwise false. */
+@param[in,out]	mtr		mini-transaction */
 UNIV_INTERN
-bool
-fsp_header_init(
-	ulint	space_id,
-	ulint	size,
-	mtr_t*	mtr)
+void
+fsp_header_init(ulint space_id, ulint size, mtr_t* mtr)
 {
 	fsp_header_t*	header;
 	buf_block_t*	block;
@@ -728,17 +723,7 @@ fsp_header_init(
 
 	mlog_write_ull(header + FSP_SEG_ID, 1, mtr);
 
-	if (space_id == 0) {
-		fsp_fill_free_list(FALSE, space_id, header, mtr);
-
-		if (btr_create(DICT_CLUSTERED | DICT_UNIVERSAL | DICT_IBUF,
-			   0, 0, DICT_IBUF_ID_MIN + space_id,
-				dict_ind_redundant, mtr) == FIL_NULL) {
-			return (false);
-		}
-	} else {
-		fsp_fill_free_list(TRUE, space_id, header, mtr);
-	}
+	fsp_fill_free_list(space_id != TRX_SYS_SPACE, space_id, header, mtr);
 
 	fil_space_t* space = fil_space_acquire(space_id);
 	ut_ad(space);
@@ -748,8 +733,6 @@ fsp_header_init(
 	}
 
 	fil_space_release(space);
-
-	return (true);
 }
 
 #endif /* !UNIV_HOTBACKUP */
@@ -2074,10 +2057,6 @@ fseg_create_general(
 		success = fsp_reserve_free_extents(&n_reserved, space, 2,
 						   FSP_NORMAL, mtr);
 		if (!success) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Reserving %d free extents failed"
-				" could reserve only " ULINTPF " extents.",
-				2, n_reserved);
 			return(NULL);
 		}
 	}
@@ -2087,9 +2066,6 @@ fseg_create_general(
 	inode = fsp_alloc_seg_inode(space_header, mtr);
 
 	if (inode == NULL) {
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Allocation of a new file segment inode page failed.");
-
 		goto funct_exit;
 	}
 
@@ -2118,9 +2094,6 @@ fseg_create_general(
 						 inode, 0, FSP_UP, mtr, mtr);
 
 		if (block == NULL) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Allocation of a free page from space " ULINTPF " failed.",
-				space);
 
 			fsp_free_seg_inode(space, zip_size, inode, mtr);
 

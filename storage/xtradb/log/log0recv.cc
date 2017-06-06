@@ -3004,11 +3004,6 @@ recv_init_crash_recovery(void)
 	possible */
 
 	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-
-		ib_logf(IB_LOG_LEVEL_INFO,
-			"Restoring possible half-written data pages "
-			"from the doublewrite buffer...");
-
 		buf_dblwr_process();
 
 		/* Spawn the background thread to flush dirty pages
@@ -3276,24 +3271,6 @@ recv_recovery_from_checkpoint_start_func(
 		user about recovery: */
 
 		if (checkpoint_lsn != flushed_lsn) {
-
-			if (checkpoint_lsn <flushed_lsn) {
-
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"The log sequence number "
-					"in the ibdata files is higher "
-					"than the log sequence number "
-					"in the ib_logfiles! Are you sure "
-					"you are using the right "
-					"ib_logfiles to start up the database. "
-					"Log sequence number in the "
-					"ib_logfiles is " LSN_PF ", log"
-					"sequence number stamped "
-					"to ibdata file header is " LSN_PF ".",
-					checkpoint_lsn,
-					flushed_lsn);
-			}
-
 			if (!recv_needed_recovery) {
 				ib_logf(IB_LOG_LEVEL_INFO,
 					"The log sequence number "
