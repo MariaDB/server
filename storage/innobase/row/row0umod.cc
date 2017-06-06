@@ -1135,8 +1135,8 @@ row_undo_mod(
 	dberr_t	err;
 	ibool	dict_locked;
 
-	ut_ad(node != NULL);
-	ut_ad(thr != NULL);
+	ut_nonnulld(node);
+	ut_nonnulld(thr);
 	ut_ad(node->state == UNDO_NODE_MODIFY);
 
 	dict_locked = thr_get_trx(thr)->dict_operation_lock_mode == RW_X_LATCH;

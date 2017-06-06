@@ -659,10 +659,10 @@ cmp_dtuple_rec_with_match_low(
 					in current field */
 	int		ret;		/* return value */
 
-	ut_ad(dtuple != NULL);
-	ut_ad(rec != NULL);
-	ut_ad(matched_fields != NULL);
-	ut_ad(matched_bytes != NULL);
+	ut_nonnulld(dtuple);
+	ut_nonnulld(rec);
+	ut_nonnulld(matched_fields);
+	ut_nonnulld(matched_bytes);
 	ut_ad(dtuple_check_typed(dtuple));
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 

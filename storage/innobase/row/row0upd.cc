@@ -2493,8 +2493,8 @@ row_upd(
 {
 	dberr_t		err	= DB_SUCCESS;
 
-	ut_ad(node != NULL);
-	ut_ad(thr != NULL);
+	ut_nonnulld(node);
+	ut_nonnulld(thr);
 
 	if (UNIV_LIKELY(node->in_mysql_interface)) {
 

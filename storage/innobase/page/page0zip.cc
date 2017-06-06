@@ -4522,7 +4522,8 @@ page_zip_parse_write_header(
 	ulint	offset;
 	ulint	len;
 
-	ut_ad(ptr && end_ptr);
+	ut_nonnulld(ptr);
+	ut_nonnulld(end_ptr);
 	ut_ad(!page == !page_zip);
 
 	if (UNIV_UNLIKELY(end_ptr < ptr + (1 + 1))) {

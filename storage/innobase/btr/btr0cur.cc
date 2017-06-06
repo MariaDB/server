@@ -1280,7 +1280,7 @@ btr_cur_optimistic_insert(
 #endif /* UNIV_DEBUG_VALGRIND */
 
 #ifdef UNIV_DEBUG
-	if (btr_cur_print_record_ops && thr) {
+	if (btr_cur_print_record_ops) {
 		btr_cur_trx_report(thr_get_trx(thr)->id, index, "insert ");
 		dtuple_print(stderr, entry);
 	}
@@ -3120,7 +3120,7 @@ btr_cur_del_mark_set_sec_rec(
 	rec = btr_cur_get_rec(cursor);
 
 #ifdef UNIV_DEBUG
-	if (btr_cur_print_record_ops && (thr != NULL)) {
+	if (btr_cur_print_record_ops) {
 		btr_cur_trx_report(thr_get_trx(thr)->id, cursor->index,
 				   "del mark ");
 		rec_print(stderr, rec, cursor->index);

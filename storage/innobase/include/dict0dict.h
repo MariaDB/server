@@ -1530,7 +1530,7 @@ dict_table_get_index_on_name(
 /*=========================*/
 	dict_table_t*	table,	/*!< in: table */
 	const char*	name)	/*!< in: name of the index to find */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 /**********************************************************************//**
 In case there is more than one index with the same name return the index
 with the min(id).
@@ -1770,7 +1770,7 @@ dict_set_corrupted_index_cache_only(
 /*================================*/
 	dict_index_t*	index,		/*!< in/out: index */
 	dict_table_t*	table)		/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
+	MY_ATTRIBUTE((nonnull(1)));
 
 /**********************************************************************//**
 Flags a table with specified space_id corrupted in the table dictionary

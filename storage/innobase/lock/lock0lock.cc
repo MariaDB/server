@@ -4544,8 +4544,8 @@ lock_table(
 	dberr_t		err;
 	const lock_t*	wait_for;
 
-	ut_ad(table != NULL);
-	ut_ad(thr != NULL);
+	ut_nonnulld(table);
+	ut_nonnulld(thr);
 
 	if (flags & BTR_NO_LOCKING_FLAG) {
 

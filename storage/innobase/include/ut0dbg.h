@@ -85,11 +85,20 @@ ut_dbg_assertion_failed(
 #define ut_ad(EXPR)	ut_a(EXPR)
 /** Debug statement. Does nothing unless UNIV_DEBUG is defined. */
 #define ut_d(EXPR)	do {EXPR;} while (0)
+/** Debug assert that V is not null
+ *
+ * note: obfuscate code a bit to avoid warnings when compiler (llvm)
+ * has already detected that pointer can't be null, and emits
+ * warning about unreachable code
+ */
+#define ut_nonnulld(V)  ut_a((((ib_uint64_t)V) + 1) != 1)
 #else
 /** Debug assertion. Does nothing unless UNIV_DEBUG is defined. */
 #define ut_ad(EXPR)
 /** Debug statement. Does nothing unless UNIV_DEBUG is defined. */
 #define ut_d(EXPR)
+/** Debug assert that V is not null. */
+#define ut_nonnulld(V)
 #endif
 
 /** Silence warnings about an unused variable by doing a null assignment.

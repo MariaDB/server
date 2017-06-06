@@ -1540,8 +1540,8 @@ rec_copy(
 	ulint	extra_len;
 	ulint	data_len;
 
-	ut_ad(rec != NULL);
-	ut_ad(buf != NULL);
+	ut_nonnulld(rec);
+	ut_nonnulld(buf);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(rec_validate(rec, offsets));
 

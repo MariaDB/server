@@ -70,8 +70,8 @@ row_purge_node_create(
 {
 	purge_node_t*	node;
 
-	ut_ad(parent != NULL);
-	ut_ad(heap != NULL);
+	ut_nonnulld(parent);
+	ut_nonnulld(heap);
 
 	node = static_cast<purge_node_t*>(
 		mem_heap_zalloc(heap, sizeof(*node)));
