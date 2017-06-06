@@ -2766,17 +2766,8 @@ files_checked:
 				return(err);
 			}
 
-			/* create_log_files() can increase system lsn that is
-			why FIL_PAGE_FILE_FLUSH_LSN have to be updated */
-			flushed_lsn = log_get_lsn();
-
-			err = fil_write_flushed_lsn(flushed_lsn);
-
-			if (err == DB_SUCCESS) {
-				err = create_log_files_rename(
-					logfilename, dirnamelen,
-					flushed_lsn, logfile0);
-			}
+			err = create_log_files_rename(logfilename, dirnamelen,
+						      log_get_lsn(), logfile0);
 
 			if (err != DB_SUCCESS) {
 				return(err);
