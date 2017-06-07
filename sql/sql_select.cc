@@ -7361,6 +7361,63 @@ bool JOIN_TAB::hash_join_is_possible()
 }
 
 
+/**
+  @brief
+  Check whether a KEYUSE can be really used for access this join table 
+
+  @param join    Join structure with the best join order 
+                 for which the check is performed
+  @param keyuse  Evaluated KEYUSE structure    
+
+  @details
+  This function is supposed to be used after the best execution plan have been
+  already chosen and the JOIN_TAB array for the best join order been already set.
+  For a given KEYUSE to access this JOIN_TAB in the best execution plan the
+  function checks whether it really can be used. The function first performs
+  the check with access_from_tables_is_allowed(). If it succeeds it checks
+  whether the keyuse->val does not use some fields of a materialized semijoin
+  nest that cannot be used to build keys to access outer tables.
+  Such KEYUSEs exists for the query like this:
+    select * from ot 
+    where ot.c in (select it1.c from it1, it2 where it1.c=f(it2.c))
+  Here we have two KEYUSEs to access table ot: with val=it1.c and val=f(it2.c).
+  However if the subquery was materialized the second KEYUSE cannot be employed
+  to access ot.
+
+  @retval true  the given keyuse can be used for ref access of this JOIN_TAB 
+  @retval false otherwise
+*/
+
+bool JOIN_TAB::keyuse_is_valid_for_access_in_chosen_plan(JOIN *join,
+                                                         KEYUSE *keyuse)
+{
+  if (!access_from_tables_is_allowed(keyuse->used_tables, 
+                                     join->sjm_lookup_tables))
+    return false;
+  if (join->sjm_scan_tables & table->map)
+    return true;
+  table_map keyuse_sjm_scan_tables= keyuse->used_tables &
+                                    join->sjm_scan_tables;
+  if (!keyuse_sjm_scan_tables)
+    return true;
+  uint sjm_tab_nr= 0;
+  while (!(keyuse_sjm_scan_tables & table_map(1) << sjm_tab_nr))
+    sjm_tab_nr++;
+  JOIN_TAB *sjm_tab= join->map2table[sjm_tab_nr];
+  TABLE_LIST *emb_sj_nest= sjm_tab->emb_sj_nest;    
+  if (!(emb_sj_nest->sj_mat_info && emb_sj_nest->sj_mat_info->is_used &&
+        emb_sj_nest->sj_mat_info->is_sj_scan))
+    return true;
+  st_select_lex *sjm_sel= emb_sj_nest->sj_subq_pred->unit->first_select(); 
+  for (uint i= 0; i < sjm_sel->item_list.elements; i++)
+  {
+    if (sjm_sel->ref_pointer_array[i] == keyuse->val)
+      return true;
+  }
+  return false; 
+}
+
+
 static uint
 cache_record_length(JOIN *join,uint idx)
 {
@@ -7904,6 +7961,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
   do
   {
     if (!(~used_tables & keyuse->used_tables) &&
+        join_tab->keyuse_is_valid_for_access_in_chosen_plan(join, keyuse) &&
         are_tables_local(join_tab, keyuse->used_tables))    
     {
       if (first_keyuse)
@@ -7918,6 +7976,8 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
         {
           if (curr->keypart == keyuse->keypart &&
               !(~used_tables & curr->used_tables) &&
+              join_tab->keyuse_is_valid_for_access_in_chosen_plan(join,
+                                                                  keyuse) &&
               are_tables_local(join_tab, curr->used_tables))
             break;
         }
@@ -7951,6 +8011,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
   do
   {
     if (!(~used_tables & keyuse->used_tables) &&
+        join_tab->keyuse_is_valid_for_access_in_chosen_plan(join, keyuse) &&
         are_tables_local(join_tab, keyuse->used_tables))
     { 
       bool add_key_part= TRUE;
@@ -7960,7 +8021,9 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
         {
           if (curr->keypart == keyuse->keypart &&
               !(~used_tables & curr->used_tables) &&
-               are_tables_local(join_tab, curr->used_tables))
+              join_tab->keyuse_is_valid_for_access_in_chosen_plan(join,
+                                                                  curr) &&
+              are_tables_local(join_tab, curr->used_tables))
 	  {
             keyuse->keypart= NO_KEYPART;
             add_key_part= FALSE;
@@ -8062,8 +8125,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
     do
     {
       if (!(~used_tables & keyuse->used_tables) &&
-          j->access_from_tables_is_allowed(keyuse->used_tables,
-                                           join->sjm_lookup_tables))
+	  j->keyuse_is_valid_for_access_in_chosen_plan(join, keyuse))
       {
         if  (are_tables_local(j, keyuse->val->used_tables()))
         {
@@ -8132,8 +8194,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
     for (i=0 ; i < keyparts ; keyuse++,i++)
     {
       while (((~used_tables) & keyuse->used_tables) ||
-	     !j->access_from_tables_is_allowed(keyuse->used_tables,
-                                               join->sjm_lookup_tables) ||    
+	     !j->keyuse_is_valid_for_access_in_chosen_plan(join, keyuse) ||
              keyuse->keypart == NO_KEYPART ||
 	     (keyuse->keypart != 
               (is_hash_join_key_no(key) ?
