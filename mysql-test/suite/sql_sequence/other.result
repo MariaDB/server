@@ -148,3 +148,17 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 4001	1	9223372036854775806	1	1	1000	0	0
 commit;
 drop sequence s1;
+#
+# Flush tables with read lock
+#
+create sequence s1;
+select next value for s1;
+next value for s1
+1
+flush tables with read lock;
+create sequence s2;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+select next value for s1;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+unlock tables;
+drop sequence s1;
