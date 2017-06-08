@@ -34,7 +34,6 @@
 #include <m_ctype.h>
 #include <stdarg.h>
 #include <my_dir.h>
-#include <my_rdtsc.h>
 #ifndef __GNU_LIBRARY__
 #define __GNU_LIBRARY__		      // Skip warnings in getopt.h
 #endif
@@ -5035,7 +5034,7 @@ void tee_putc(int c, FILE *file)
 
 static ulonglong start_timer(void)
 {
-  return my_timer_microseconds();
+  return microsecond_interval_timer();
 }
 
 
