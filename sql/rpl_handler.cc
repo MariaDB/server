@@ -261,7 +261,8 @@ int Binlog_storage_delegate::after_flush(THD *thd,
     thd->semisync_info= log_info;
   }
 
-  strcpy(log_info->log_file, log_file+dirname_length(log_file));
+  strncpy(log_info->log_file, log_file+dirname_length(log_file), sizeof(log_info->log_file)-1);
+  log_info->log_file[sizeof(log_info->log_file)-1] = '\0';
   log_info->log_pos = log_pos;
   
   FOREACH_OBSERVER(ret, after_flush, false,
