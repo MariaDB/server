@@ -38,12 +38,22 @@ public:
     mysql_mutex_destroy(&LOCK_wsrep_thd_queue);
     mysql_cond_destroy(&COND_wsrep_thd_queue);
   }
-  void push_back(THD* thd)
+  bool push_back(THD* thd)
   {
     DBUG_ASSERT(thd);
     wsp::auto_lock lock(&LOCK_wsrep_thd_queue);
+    std::deque<THD*>::iterator it = queue.begin();
+    while (it != queue.end())
+    {
+      if (*it == thd)
+      {
+        return true;
+      }
+      it++;
+    }
     queue.push_back(thd);
     mysql_cond_signal(&COND_wsrep_thd_queue);
+    return false;
   }
   THD* pop_front()
   {

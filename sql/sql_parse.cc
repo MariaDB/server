@@ -3772,12 +3772,17 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SELECT:
    {
 #ifdef WITH_WSREP
-      if (lex->sql_command == SQLCOM_SELECT)
-        WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ)
-      else
-        WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW)
+    DBUG_ASSERT(thd->wsrep_exec_mode != REPL_RECV);
+    if (lex->sql_command == SQLCOM_SELECT)
+    {
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ);
+    }
+    else
+    {
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
+    }
 #endif /* WITH_WSREP */
-
+    
     thd->status_var.last_query_cost= 0.0;
 
     /*
@@ -4574,9 +4579,7 @@ end_with_restore_list:
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
     ha_rows found= 0, updated= 0;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
-      if (WSREP_CLIENT(thd) &&
-          wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE))
-        goto error;
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
 
     if (update_precheck(thd, all_tables))
       break;
@@ -4685,6 +4688,7 @@ end_with_restore_list:
     break;
   }
   case SQLCOM_REPLACE:
+  {
 #ifndef DBUG_OFF
     if (mysql_bin_log.is_open())
     {
@@ -4725,9 +4729,7 @@ end_with_restore_list:
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 
-    if (WSREP_CLIENT(thd) &&
-        wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE))
-      goto error;
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
 
     /*
       Since INSERT DELAYED doesn't support temporary tables, we could
@@ -4785,9 +4787,7 @@ end_with_restore_list:
     select_result *sel_result;
     bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
-    if (WSREP_CLIENT(thd) &&
-        wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE))
-      goto error;
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
 
     if ((res= insert_precheck(thd, all_tables)))
       break;
@@ -4907,9 +4907,7 @@ end_with_restore_list:
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
     select_result *sel_result=lex->result;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
-    if (WSREP_CLIENT(thd) &&
-        wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE))
-      goto error;
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
 
     if ((res= delete_precheck(thd, all_tables)))
       break;
@@ -4969,9 +4967,7 @@ end_with_restore_list:
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
     multi_delete *result;
-    if (WSREP_CLIENT(thd) &&
-        wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE))
-      goto error;
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
 
     if ((res= multi_delete_precheck(thd, all_tables)))
       break;
@@ -5394,8 +5390,8 @@ end_with_restore_list:
   break;
   case SQLCOM_SHOW_CREATE_EVENT:
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
-    res= Events::show_create_event(thd, &lex->spname->m_db,
-                                   &lex->spname->m_name);
+    res= Events::show_create_event(thd, lex->spname->m_db,
+                                   lex->spname->m_name);
     break;
   case SQLCOM_DROP_EVENT:
     if (!(res= Events::drop_event(thd,
@@ -6637,6 +6633,7 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
   bool res;
   system_status_var old_status_var= thd->status_var;
   thd->initial_status_var= &old_status_var;
+  WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
   if (!(res= check_table_access(thd, SELECT_ACL, all_tables, FALSE,
                                 UINT_MAX, FALSE)))
     res= execute_sqlcom_select(thd, all_tables);
@@ -6655,6 +6652,8 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
          offsetof(STATUS_VAR, last_cleared_system_status_var));
   mysql_mutex_unlock(&LOCK_status);
   return res;
+ error:
+  return true;
 }
 
 

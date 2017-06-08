@@ -88,6 +88,7 @@ void wsrep_cleanup_transaction(THD *thd)
     thd->wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
     thd->wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
     thd->wsrep_affected_rows= 0;
+    thd->wsrep_skip_wsrep_GTID= false;
     thd->wsrep_xid.null();
   }
 
@@ -223,7 +224,11 @@ void wsrep_client_rollback(THD *thd, bool rollbacker)
       resoureces. Do it in separate thread to avoid deadlocks.
     */
     DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_ROLLBACK);
-    wsrep_post_rollback_queue->push_back(thd);
+    if (wsrep_post_rollback_queue->push_back(thd))
+    {
+      WSREP_WARN("duplicate thd %llu for post-rollbacker",
+                 wsrep_thd_thread_id(thd));
+    }
   }
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
@@ -721,7 +726,7 @@ static void wsrep_rollback_process(THD *rollbacker,
       mysql_mutex_lock(&LOCK_wsrep_rollback);
     }
 #else
-        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     if (thd->wsrep_conflict_state() == ABORTED)
     {
       WSREP_DEBUG("rollbacker thd already aborted: %llu state: %d",
@@ -922,38 +927,14 @@ void wsrep_fire_rollbacker(THD *thd)
   mysql_mutex_assert_owner(&thd->LOCK_wsrep_thd);
   DBUG_ASSERT(thd->wsrep_conflict_state() == MUST_ABORT);
 
-  bool skip_abort= false;
-  wsrep_aborting_thd_t abortees;
+  DBUG_PRINT("wsrep",("enqueuing trx abort for %llu", wsrep_thd_thread_id(thd)));
+  WSREP_DEBUG("enqueuing trx abort for (%llu)", wsrep_thd_thread_id(thd));
 
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-  mysql_mutex_lock(&LOCK_wsrep_rollback);
-
-  abortees = wsrep_aborting_thd;
-  while (abortees && !skip_abort) {
-    /* check if we have a kill message for this already */
-    if (abortees->aborting_thd == thd) {
-      skip_abort = true;
-      WSREP_WARN("duplicate thd aborter %lld",
-                 wsrep_thd_thread_id(thd));
-    }
-    abortees = abortees->next;
+  if (wsrep_rollback_queue->push_back(thd))
+  {
+    WSREP_WARN("duplicate thd %llu for rollbacker",
+               wsrep_thd_thread_id(thd));
   }
-  if (!skip_abort) {
-    wsrep_aborting_thd_t aborting = (wsrep_aborting_thd_t)
-    my_malloc(sizeof(struct wsrep_aborting_thd), MYF(0));
-    aborting->aborting_thd  = thd;
-    aborting->next          = wsrep_aborting_thd;
-    wsrep_aborting_thd      = aborting;
-    DBUG_PRINT("wsrep",("enqueuing trx abort for %lld",
-               wsrep_thd_thread_id(thd)));
-    WSREP_DEBUG("enqueuing trx abort for (%lld)", wsrep_thd_thread_id(thd));
-  }
-
-  DBUG_PRINT("wsrep",("signalling wsrep rollbacker"));
-  WSREP_DEBUG("signaling aborter");
-  mysql_cond_signal(&COND_wsrep_rollback);
-  mysql_mutex_unlock(&LOCK_wsrep_rollback);
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 }
 
 

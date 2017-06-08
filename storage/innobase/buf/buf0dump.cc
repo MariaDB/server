@@ -43,6 +43,9 @@ Created April 08, 2011 Vasil Dimov
 #include "ut0byte.h"
 
 #include <algorithm>
+#ifdef WITH_WSREP
+extern my_bool wsrep_recovery;
+#endif /* WITH_WSREP */
 
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
 

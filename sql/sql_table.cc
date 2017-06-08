@@ -2604,14 +2604,6 @@ err:
     query_cache_invalidate3(thd, tables, 0);
     if (!dont_log_query && mysql_bin_log.is_open())
     {
-#ifdef WITH_WSREP
-      /*
-        With wsrep on we operate with ROW based replication so
-        there is no point of binlogging DROP for temp tables.
-      */
-      if (!WSREP(thd))
-      {
-#endif /* WITH_WSREP */
       if (non_trans_tmp_table_deleted)
       {
           /* Chop of the last comma */
@@ -2650,7 +2642,7 @@ err:
           int error_code = non_tmp_error ?  thd->get_stmt_da()->sql_errno()
                                          : 0;
 #ifdef WITH_WSREP
-          thd->wsrep_skip_wsrep_GTID = false;
+          thd->wsrep_skip_wsrep_GTID = true;
 #endif /* WITH_WSREP */
           error |= thd->binlog_query(THD::STMT_QUERY_TYPE,
                                      built_query.ptr(),
@@ -2658,9 +2650,6 @@ err:
                                      TRUE, FALSE, FALSE,
                                      error_code);
       }
-#ifdef WITH_WSREP
-      }
-#endif /* WITH_WSREP */
     }
   }
 
@@ -2704,7 +2693,7 @@ err:
 
 end:
 #ifdef WITH_WSREP
-  thd->wsrep_skip_wsrep_GTID = false;
+        thd->wsrep_skip_wsrep_GTID = false;
 #endif /* WITH_WSREP */
   DBUG_RETURN(error);
 }

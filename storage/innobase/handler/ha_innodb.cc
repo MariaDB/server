@@ -19656,7 +19656,7 @@ wsrep_innobase_kill_one_trx(
 					      wsrep_thd_trx_seqno(thd));
 			DBUG_RETURN(0);
 		}
-                wsrep_fire_rollbacker(thd);
+		wsrep_fire_rollbacker(thd);
 		break;
 	}
 	default:

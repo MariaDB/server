@@ -910,7 +910,7 @@ static int sst_donate_mysqldump (const char*         addr,
                      WSREP_SST_OPT_PORT" '%d' "
                      WSREP_SST_OPT_LPORT" '%u' "
                      WSREP_SST_OPT_SOCKET" '%s' "
-                     " %s "
+                     WSREP_SST_OPT_CONF" '%s' "
                      WSREP_SST_OPT_GTID" '%s:%lld' "
                      WSREP_SST_OPT_GTID_DOMAIN_ID" '%d'"
                      "%s",

@@ -143,9 +143,6 @@ mysql_mutex_t LOCK_wsrep_sst;
 mysql_cond_t  COND_wsrep_sst;
 mysql_mutex_t LOCK_wsrep_sst_init;
 mysql_cond_t  COND_wsrep_sst_init;
-mysql_mutex_t LOCK_wsrep_rollback;
-mysql_cond_t  COND_wsrep_rollback;
-wsrep_aborting_thd_t wsrep_aborting_thd= NULL;
 mysql_mutex_t LOCK_wsrep_replaying;
 mysql_cond_t  COND_wsrep_replaying;
 mysql_mutex_t LOCK_wsrep_slave_threads;
@@ -160,7 +157,7 @@ ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
 ulong  my_bind_addr;
 
 #ifdef HAVE_PSI_INTERFACE
-PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd,
+PSI_mutex_key key_LOCK_wsrep_thd,
   key_LOCK_wsrep_replaying, key_LOCK_wsrep_ready, key_LOCK_wsrep_sst,
   key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
   key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
@@ -169,7 +166,7 @@ PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd,
   key_LOCK_wsrep_SR_store, key_LOCK_wsrep_thd_pool, key_LOCK_wsrep_nbo,
   key_LOCK_wsrep_thd_queue;
 
-PSI_cond_key key_COND_wsrep_thd, key_COND_wsrep_rollback,
+PSI_cond_key key_COND_wsrep_thd,
   key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
   key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread,
   key_COND_wsrep_nbo, key_COND_wsrep_thd_queue;
@@ -184,7 +181,6 @@ static PSI_mutex_info wsrep_mutexes[]=
   { &key_LOCK_wsrep_sst_thread, "wsrep_sst_thread", 0},
   { &key_LOCK_wsrep_sst_init, "LOCK_wsrep_sst_init", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_sst, "LOCK_wsrep_sst", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_rollback, "LOCK_wsrep_rollback", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_thd, "THD::LOCK_wsrep_thd", 0},
   { &key_LOCK_wsrep_replaying, "LOCK_wsrep_replaying", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_slave_threads, "LOCK_wsrep_slave_threads", PSI_FLAG_GLOBAL},
@@ -202,7 +198,6 @@ static PSI_cond_info wsrep_conds[]=
   { &key_COND_wsrep_sst, "COND_wsrep_sst", PSI_FLAG_GLOBAL},
   { &key_COND_wsrep_sst_init, "COND_wsrep_sst_init", PSI_FLAG_GLOBAL},
   { &key_COND_wsrep_sst_thread, "wsrep_sst_thread", 0},
-  { &key_COND_wsrep_rollback, "COND_wsrep_rollback", PSI_FLAG_GLOBAL},
   { &key_COND_wsrep_replaying, "COND_wsrep_replaying", PSI_FLAG_GLOBAL}
 };
 
@@ -1050,8 +1045,6 @@ void wsrep_thr_init()
   mysql_cond_init(key_COND_wsrep_sst, &COND_wsrep_sst, NULL);
   mysql_mutex_init(key_LOCK_wsrep_sst_init, &LOCK_wsrep_sst_init, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wsrep_sst_init, &COND_wsrep_sst_init, NULL);
-  mysql_mutex_init(key_LOCK_wsrep_rollback, &LOCK_wsrep_rollback, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_wsrep_rollback, &COND_wsrep_rollback, NULL);
   mysql_mutex_init(key_LOCK_wsrep_replaying, &LOCK_wsrep_replaying, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wsrep_replaying, &COND_wsrep_replaying, NULL);
   mysql_mutex_init(key_LOCK_wsrep_slave_threads, &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
@@ -1146,8 +1139,6 @@ void wsrep_thr_deinit()
   mysql_cond_destroy(&COND_wsrep_sst);
   mysql_mutex_destroy(&LOCK_wsrep_sst_init);
   mysql_cond_destroy(&COND_wsrep_sst_init);
-  mysql_mutex_destroy(&LOCK_wsrep_rollback);
-  mysql_cond_destroy(&COND_wsrep_rollback);
   mysql_mutex_destroy(&LOCK_wsrep_replaying);
   mysql_cond_destroy(&COND_wsrep_replaying);
   mysql_mutex_destroy(&LOCK_wsrep_slave_threads);
@@ -3712,38 +3703,3 @@ my_bool get_wsrep_certify_nonPK()
 {
   return wsrep_certify_nonPK;
 }
-
-void wsrep_lock_rollback()
-{
-  mysql_mutex_lock(&LOCK_wsrep_rollback);
-}
-
-void wsrep_unlock_rollback()
-{
-  mysql_cond_signal(&COND_wsrep_rollback);
-  mysql_mutex_unlock(&LOCK_wsrep_rollback);
-}
-
-my_bool wsrep_aborting_thd_contains(THD *thd)
-{
-  mysql_mutex_assert_owner(&LOCK_wsrep_rollback);
-  wsrep_aborting_thd_t abortees = wsrep_aborting_thd;
-  while (abortees)
-  {
-    if (abortees->aborting_thd == thd)
-      return true;
-    abortees = abortees->next;
-  }
-  return false;
-}
-
-void wsrep_aborting_thd_enqueue(THD *thd)
-{
-  mysql_mutex_assert_owner(&LOCK_wsrep_rollback);
-  wsrep_aborting_thd_t aborting = (wsrep_aborting_thd_t)
-          my_malloc(sizeof(struct wsrep_aborting_thd), MYF(0));
-  aborting->aborting_thd  = thd;
-  aborting->next          = wsrep_aborting_thd;
-  wsrep_aborting_thd      = aborting;
-}
-

@@ -50,9 +50,8 @@ SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VA
 --connection node_2
 --disable_query_log
 --eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_node2';
+--source include/galera_wait_ready.inc
 --enable_query_log
-
---source include/wait_until_connected_again.inc
 
 --connection node_1
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';

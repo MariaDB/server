@@ -9,7 +9,7 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
---source suite/galera/include/galera_have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
 
 --let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
 

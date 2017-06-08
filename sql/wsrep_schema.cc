@@ -1340,7 +1340,7 @@ int Wsrep_schema::replay_trx(THD* real_thd, const wsrep_trx_meta_t& meta)
       wsrep_apply_cb().
     */
     real_thd->store_globals();
-    error= wsrep_apply_events(real_thd, buf.c_ptr(), buf.length());
+    error= wsrep_apply_events(real_thd, buf.c_ptr_safe(), buf.length());
     if (error != WSREP_CB_SUCCESS) {
       ret= error;
       WSREP_ERROR("Failed to apply events during replay, error: %d", error);

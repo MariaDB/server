@@ -85,12 +85,9 @@ extern struct wsrep_service_st {
   my_bool                     (*get_wsrep_load_data_splitting_func)();
   my_bool                     (*get_wsrep_log_conflicts_func)();
   long                        (*get_wsrep_protocol_version_func)();
-  my_bool                     (*wsrep_aborting_thd_contains_func)(THD *thd);
-  void                        (*wsrep_aborting_thd_enqueue_func)(THD *thd);
   bool                        (*wsrep_consistency_check_func)(THD *thd);
   //  int                         (*wsrep_is_wsrep_xid_func)(const struct xid_t *xid);
   int                         (*wsrep_is_wsrep_xid_func)(const void *xid);
-  void                        (*wsrep_lock_rollback_func)();
   //  int                         (*wsrep_on_func)(MYSQL_THD);
   int                         (*wsrep_on_func)(void*);
   bool                        (*wsrep_prepare_key_func)(const unsigned char*, size_t, const unsigned char*, size_t, struct wsrep_buf*, size_t*);
@@ -117,7 +114,6 @@ extern struct wsrep_service_st {
   int                         (*wsrep_trx_is_aborting_func)(MYSQL_THD thd);
   int                         (*wsrep_trx_order_before_func)(MYSQL_THD, MYSQL_THD);
   void                        (wsrep_thd_xid_func)(const void *thd_ptr, void *xid, size_t xid_size);
-  void                        (*wsrep_unlock_rollback_func)();
 } *wsrep_service;
 
 
@@ -134,11 +130,8 @@ extern struct wsrep_service_st {
 #define get_wsrep_load_data_splitting() wsrep_service->get_wsrep_load_data_splitting_func()
 #define get_wsrep_log_conflicts() wsrep_service->get_wsrep_log_conflicts_func()
 #define get_wsrep_protocol_version() wsrep_service->get_wsrep_protocol_version_func()
-#define wsrep_aborting_thd_contains(T) wsrep_service->wsrep_aborting_thd_contains_func(T)
-#define wsrep_aborting_thd_enqueue(T) wsrep_service->wsrep_aborting_thd_enqueue_func(T)
 #define wsrep_consistency_check(T) wsrep_service->wsrep_consistency_check_func(T)
 #define wsrep_is_wsrep_xid(X) wsrep_service->wsrep_is_wsrep_xid_func(X)
-#define wsrep_lock_rollback() wsrep_service->wsrep_lock_rollback_func()
 #define wsrep_on(X) wsrep_service->wsrep_on_func(X)
 #define wsrep_prepare_key(A,B,C,D,E,F) wsrep_service->wsrep_prepare_key_func(A,B,C,D,E,F)
 #define wsrep_thd_LOCK(T) wsrep_service->wsrep_thd_LOCK_func(T)
@@ -161,7 +154,6 @@ extern struct wsrep_service_st {
 #define wsrep_thd_ws_handle(T) wsrep_service->wsrep_thd_ws_handle_func(T)
 #define wsrep_trx_is_aborting(T) wsrep_service->wsrep_trx_is_aborting_func(T)
 #define wsrep_trx_order_before(T1,T2) wsrep_service->wsrep_trx_order_before_func(T1,T2)
-#define wsrep_unlock_rollback() wsrep_service->wsrep_unlock_rollback_func()
 #define wsrep_thd_thread_id(T) wsrep_service->wsrep_thd_thread_id_func(T)
 #define wsrep_thd_xid(T,X,S) wsrep_service->wsrep_thd_xid_func(T,X,S)
 
@@ -218,14 +210,12 @@ my_bool wsrep_thd_is_wsrep(MYSQL_THD thd);
 struct wsrep *get_wsrep();
 struct wsrep_ws_handle *wsrep_thd_ws_handle(THD *thd);
 void wsrep_aborting_thd_enqueue(THD *thd);
-void wsrep_lock_rollback();
 void wsrep_post_commit(THD* thd, bool all);
 void wsrep_thd_LOCK(THD *thd);
 void wsrep_thd_UNLOCK(THD *thd);
 void wsrep_thd_awake(THD *thd, my_bool signal);
 void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state);
 bool wsrep_thd_ignore_table(THD *thd);
-void wsrep_unlock_rollback();
 void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
 
 #endif

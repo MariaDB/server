@@ -894,7 +894,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
   wsrep_affected_rows     = 0;
   wsrep_has_ignored_error = false;
-  m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
+  m_wsrep_next_trx_id       = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
 #endif
