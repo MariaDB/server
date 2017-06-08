@@ -5077,7 +5077,7 @@ static void nice_time(double sec,char *buff,bool part_second)
 
 static void end_timer(ulonglong start_time, char *buff)
 {
-  double sec = (start_timer() - start_time) / (double)(1000 * 1000);
+  double sec= (start_timer() - start_time) / (double) (1000 * 1000);
   nice_time(sec, buff, 1);
 }
 
