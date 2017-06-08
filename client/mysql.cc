@@ -1074,9 +1074,9 @@ static void print_table_data_xml(MYSQL_RES *result);
 static void print_tab_data(MYSQL_RES *result);
 static void print_table_data_vertically(MYSQL_RES *result);
 static void print_warnings(void);
-static ulong start_timer(void);
-static void end_timer(ulong start_time,char *buff);
-static void mysql_end_timer(ulong start_time,char *buff);
+static ulonglong start_timer(void);
+static void end_timer(ulonglong start_time, char *buff);
+static void mysql_end_timer(ulonglong start_time, char *buff);
 static void nice_time(double sec,char *buff,bool part_second);
 extern "C" sig_handler mysql_end(int sig);
 extern "C" sig_handler handle_sigint(int sig);
@@ -3208,7 +3208,8 @@ com_go(String *buffer,char *line __attribute__((unused)))
   char		buff[200]; /* about 110 chars used so far */
   char		time_buff[52+3+1]; /* time max + space&parens + NUL */
   MYSQL_RES	*result;
-  ulong		timer, warnings= 0;
+  ulonglong	timer;
+  ulong		warnings= 0;
   uint		error= 0;
   int           err= 0;
 
@@ -5031,14 +5032,9 @@ void tee_putc(int c, FILE *file)
 #endif
 #endif
 
-static ulong start_timer(void)
+static ulonglong start_timer(void)
 {
-#if defined(__WIN__)
-  return clock();
-#else
-  struct tms tms_tmp;
-  return times(&tms_tmp);
-#endif
+  return microsecond_interval_timer();
 }
 
 
@@ -5072,20 +5068,20 @@ static void nice_time(double sec,char *buff,bool part_second)
     buff=strmov(buff," min ");
   }
   if (part_second)
-    sprintf(buff,"%.2f sec",sec);
+    sprintf(buff,"%.3f sec",sec);
   else
     sprintf(buff,"%d sec",(int) sec);
 }
 
 
-static void end_timer(ulong start_time,char *buff)
+static void end_timer(ulonglong start_time, char *buff)
 {
-  nice_time((double) (start_timer() - start_time) /
-	    CLOCKS_PER_SEC,buff,1);
+  double sec= (start_timer() - start_time) / (double) (1000 * 1000);
+  nice_time(sec, buff, 1);
 }
 
 
-static void mysql_end_timer(ulong start_time,char *buff)
+static void mysql_end_timer(ulonglong start_time, char *buff)
 {
   buff[0]=' ';
   buff[1]='(';
