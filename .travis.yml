@@ -62,6 +62,13 @@ matrix:
     - os: osx
       compiler: clang
       env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+    # MDEV-13002 plugins.server_audit and plugins.thread_pool_server_audit test fail due to mysqltest error
+    - os: linux
+      compiler: gcc
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+    - os: linux
+      compiler: clang
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
 
 # Matrix include for coverity
 #    - env:
