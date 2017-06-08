@@ -3209,7 +3209,8 @@ com_go(String *buffer,char *line __attribute__((unused)))
   char		buff[200]; /* about 110 chars used so far */
   char		time_buff[52+3+1]; /* time max + space&parens + NUL */
   MYSQL_RES	*result;
-  ulong		timer, warnings= 0;
+  ulonglong	timer;
+  ulong		warnings= 0;
   uint		error= 0;
   int           err= 0;
 
