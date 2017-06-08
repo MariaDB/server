@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -253,15 +254,4 @@ os_thread_active()
 	seconds and hope that is enough! */
 
 	return(my_atomic_loadlint(&os_thread_count) > 0);
-}
-
-/**
-Frees OS thread management data structures. */
-void
-os_thread_free()
-{
-	if (ulint count = my_atomic_loadlint(&os_thread_count)) {
-		ib::warn() << "Some (" << count << ") threads are"
-			" still active";
-	}
 }

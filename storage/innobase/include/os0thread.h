@@ -151,11 +151,6 @@ os_thread_sleep(
 /*============*/
 	ulint	tm);	/*!< in: time in microseconds */
 
-/**
-Frees OS thread management data structures. */
-void
-os_thread_free();
-
 /*****************************************************************//**
 Check if there are threads active.
 @return true if the thread count > 0. */

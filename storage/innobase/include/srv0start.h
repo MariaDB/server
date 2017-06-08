@@ -49,8 +49,7 @@ innobase_start_or_create_for_mysql();
 void
 innodb_shutdown();
 
-/****************************************************************//**
-Shuts down background threads that can generate undo pages. */
+/** Shut down background threads that can generate undo log. */
 void
 srv_shutdown_bg_undo_sources();
 
