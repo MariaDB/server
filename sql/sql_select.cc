@@ -2759,8 +2759,11 @@ JOIN::exec()
       if (sort_table_cond)
       {
 	if (!curr_table->select)
+	{
 	  if (!(curr_table->select= new SQL_SELECT))
 	    DBUG_VOID_RETURN;
+	  curr_table->select->head= curr_table->table;
+        }
 	if (!curr_table->select->cond)
 	  curr_table->select->cond= sort_table_cond;
 	else
@@ -2846,7 +2849,7 @@ JOIN::exec()
 			    curr_join->select_limit,
 			    (select_options & OPTION_FOUND_ROWS ?
 			     HA_POS_ERROR : unit->select_limit_cnt),
-                            curr_join->group_list ? TRUE : FALSE))
+                            curr_join->group_list ? FALSE : TRUE))
 	DBUG_VOID_RETURN;
       sortorder= curr_join->sortorder;
       if (curr_join->const_tables != curr_join->table_count &&
