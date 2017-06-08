@@ -778,5 +778,46 @@ where index_date_updated= 10 and index_id < 800;
 
 drop table t0,t1,t2;
 
-set optimizer_switch=@save_ext_key_optimizer_switch;
-SET SESSION STORAGE_ENGINE=DEFAULT;
+
+--echo #
+--echo # MDEV-11196: Error:Run-Time Check Failure #2 - Stack around the variable 'key_buff'
+--echo # was corrupted, server crashes in opt_sum_query
+
+CREATE TABLE t1 (
+  pk INT,
+  f1 VARCHAR(3),
+  f2 VARCHAR(1024),
+  PRIMARY KEY (pk),
+  KEY(f2)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+
+INSERT INTO t1 VALUES (1,'foo','abc'),(2,'bar','def');
+SELECT MAX(t2.pk) FROM t1 t2 INNER JOIN t1 t3 ON t2.f1 = t3.f1 WHERE t2.pk <= 4;
+drop table t1;
+
+CREATE TABLE t1 (
+  pk1 INT,
+  pk2 INT,
+  f1 VARCHAR(3),
+  f2 VARCHAR(1021),
+  PRIMARY KEY (pk1,pk2),
+  KEY(f2)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+
+INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
+explain format= json
+select * from t1 force index(f2)  where pk1 <= 5 and pk2 <=5 and f2 = 'abc' and f1 <= '3';
+drop table t1;
+
+CREATE TABLE t1 (
+f2 INT,
+pk2 INT,
+f1 VARCHAR(3),
+pk1 VARCHAR(1000),
+PRIMARY KEY (pk1,pk2),
+KEY k1(pk1,f2)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
+explain format= json
+select * from t1 force index(k1)  where f2 <= 5 and pk2 <=5 and pk1 = 'abc' and f1 <= '3';
+drop table t1;

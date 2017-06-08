@@ -1334,7 +1334,7 @@ srv_init_abort_low(
 	dberr_t		err)
 {
 	if (create_new_db) {
-		ib::error() << "InnoDB Database creation was aborted"
+		ib::error() << "Database creation was aborted"
 #ifdef UNIV_DEBUG
 			" at " << innobase_basename(file) << "[" << line << "]"
 #endif /* UNIV_DEBUG */
@@ -2131,13 +2131,23 @@ files_checked:
 
 		mtr_start(&mtr);
 
-		bool ret = fsp_header_init(0, sum_of_new_sizes, &mtr);
+		fsp_header_init(0, sum_of_new_sizes, &mtr);
+
+		compile_time_assert(TRX_SYS_SPACE == 0);
+		compile_time_assert(IBUF_SPACE_ID == 0);
+
+		ulint ibuf_root = btr_create(
+			DICT_CLUSTERED | DICT_UNIVERSAL | DICT_IBUF,
+			0, univ_page_size, DICT_IBUF_ID_MIN,
+			dict_ind_redundant, NULL, &mtr);
 
 		mtr_commit(&mtr);
 
-		if (!ret) {
+		if (ibuf_root == FIL_NULL) {
 			return(srv_init_abort(DB_ERROR));
 		}
+
+		ut_ad(ibuf_root == IBUF_TREE_ROOT_PAGE_NO);
 
 		/* To maintain backward compatibility we create only
 		the first rollback segment before the double write buffer.
@@ -2286,7 +2296,7 @@ files_checked:
 		const ulint	sum_of_data_file_sizes
 			= srv_sys_space.get_sum_of_sizes();
 		/* Compare the system tablespace file size to what is
-		stored in FSP_SIZE. In open_or_create_data_files()
+		stored in FSP_SIZE. In srv_sys_space.open_or_create()
 		we already checked that the file sizes match the
 		innodb_data_file_path specification. */
 		if (srv_read_only_mode
@@ -2392,7 +2402,6 @@ files_checked:
 				return(srv_init_abort(err));
 			}
 		}
-
 
 		/* Validate a few system page types that were left
 		uninitialized by older versions of MySQL. */

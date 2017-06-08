@@ -3836,9 +3836,14 @@ wait_suspend_loop:
 	srv_shutdown_lsn = lsn;
 
 	if (!srv_read_only_mode) {
-		fil_write_flushed_lsn_to_data_files(lsn, 0);
+		dberr_t err = fil_write_flushed_lsn(lsn);
 
-		fil_flush_file_spaces(FIL_TABLESPACE);
+		if (err != DB_SUCCESS) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Failed to write flush lsn to the "
+				"system tablespace at shutdown err=%s",
+				ut_strerr(err));
+		}
 	}
 
 	fil_close_all_files();

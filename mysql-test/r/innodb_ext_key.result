@@ -1133,5 +1133,78 @@ where index_date_updated= 10 and index_id < 800;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	range	index_date_updated	index_date_updated	13	NULL	#	Using index condition
 drop table t0,t1,t2;
-set optimizer_switch=@save_ext_key_optimizer_switch;
-SET SESSION STORAGE_ENGINE=DEFAULT;
+#
+# MDEV-11196: Error:Run-Time Check Failure #2 - Stack around the variable 'key_buff'
+# was corrupted, server crashes in opt_sum_query
+CREATE TABLE t1 (
+pk INT,
+f1 VARCHAR(3),
+f2 VARCHAR(1024),
+PRIMARY KEY (pk),
+KEY(f2)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+INSERT INTO t1 VALUES (1,'foo','abc'),(2,'bar','def');
+SELECT MAX(t2.pk) FROM t1 t2 INNER JOIN t1 t3 ON t2.f1 = t3.f1 WHERE t2.pk <= 4;
+MAX(t2.pk)
+2
+drop table t1;
+CREATE TABLE t1 (
+pk1 INT,
+pk2 INT,
+f1 VARCHAR(3),
+f2 VARCHAR(1021),
+PRIMARY KEY (pk1,pk2),
+KEY(f2)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
+explain format= json
+select * from t1 force index(f2)  where pk1 <= 5 and pk2 <=5 and f2 = 'abc' and f1 <= '3';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["f2"],
+      "key": "f2",
+      "key_length": "3070",
+      "used_key_parts": ["f2", "pk1"],
+      "rows": 1,
+      "filtered": 100,
+      "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
+      "attached_condition": "t1.f1 <= '3'"
+    }
+  }
+}
+drop table t1;
+CREATE TABLE t1 (
+f2 INT,
+pk2 INT,
+f1 VARCHAR(3),
+pk1 VARCHAR(1000),
+PRIMARY KEY (pk1,pk2),
+KEY k1(pk1,f2)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
+explain format= json
+select * from t1 force index(k1)  where f2 <= 5 and pk2 <=5 and pk1 = 'abc' and f1 <= '3';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["k1"],
+      "key": "k1",
+      "key_length": "3011",
+      "used_key_parts": ["pk1", "f2", "pk2"],
+      "rows": 1,
+      "filtered": 100,
+      "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",
+      "attached_condition": "t1.f1 <= '3'"
+    }
+  }
+}
+drop table t1;

@@ -1270,7 +1270,11 @@ public:
   longlong val_int();
   const char *func_name() const { return "coercibility"; }
   void fix_length_and_dec() { max_length=10; maybe_null= 0; }
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *)
+  {
+    not_null_tables_cache= 0;
+    return false;
+  }
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   { return this; }
   bool const_item() const { return true; }
@@ -1588,7 +1592,11 @@ public:
   }
   void cleanup();
   Item_result result_type () const { return udf.result_type(); }
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *opt_arg)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
   bool is_expensive() { return 1; }
   virtual void print(String *str, enum_query_type query_type);
   bool check_vcol_func_processor(void *arg)
@@ -2118,7 +2126,11 @@ public:
   bool is_expensive_processor(void *arg) { return TRUE; }
   enum Functype functype() const { return FT_FUNC; }
   const char *func_name() const { return "match"; }
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *opt_arg)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
   bool fix_fields(THD *thd, Item **ref);
   bool eq(const Item *, bool binary_cmp) const;
   /* The following should be safe, even if we compare doubles */
@@ -2401,6 +2413,11 @@ public:
       clone->sp_result_field= NULL;
     return clone;
   }
+  bool eval_not_null_tables(void *opt_arg)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
 };
 
 
@@ -2453,7 +2470,11 @@ public:
   void fix_length_and_dec();
   enum Item_result result_type () const { return last_value->result_type(); }
   const char *func_name() const { return "last_value"; }
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
   enum_field_types field_type() const { return last_value->field_type(); }
   bool const_item() const { return 0; }
   void evaluate_sideeffects();

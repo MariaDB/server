@@ -16,7 +16,7 @@ wsrep-sync-wait=7
 #ist_port=@OPT.port
 #sst_port=@OPT.port
 wsrep-cluster-address=gcomm://
-wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;gcache.size=10M;evs.suspect_timeout=PT10S'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;gcache.size=10M'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
 

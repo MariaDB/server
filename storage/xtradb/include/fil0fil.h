@@ -212,7 +212,6 @@ struct fsp_open_info {
 	ibool		valid;		/*!< Is the tablespace valid? */
 	pfs_os_file_t	file;		/*!< File handle */
 	char*		filepath;	/*!< File path to open */
-	lsn_t		lsn;		/*!< Flushed LSN from header page */
 	ulint		id;		/*!< Space ID */
 	ulint		flags;		/*!< Tablespace flags */
 	ulint		encryption_error; /*!< if an encryption error occurs */
@@ -643,17 +642,17 @@ void
 fil_set_max_space_id_if_bigger(
 /*===========================*/
 	ulint	max_id);/*!< in: maximum known id */
+
 #ifndef UNIV_HOTBACKUP
-/****************************************************************//**
-Writes the flushed lsn and the latest archived log number to the page
-header of the first page of each data file in the system tablespace.
-@return	DB_SUCCESS or error number */
-UNIV_INTERN
+
+/** Write the flushed LSN to the page header of the first page in the
+system tablespace.
+@param[in]	lsn	flushed LSN
+@return DB_SUCCESS or error number */
 dberr_t
-fil_write_flushed_lsn_to_data_files(
-/*================================*/
-	lsn_t	lsn,		/*!< in: lsn to write */
-	ulint	arch_log_no);	/*!< in: latest archived log file number */
+fil_write_flushed_lsn(
+	lsn_t	lsn)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Acquire a tablespace when it could be dropped concurrently.
 Used by background threads that do not necessarily hold proper locks
@@ -799,28 +798,28 @@ private:
 	fil_space_t*	m_space;
 };
 
-/*******************************************************************//**
-Reads the flushed lsn, arch no, and tablespace flag fields from a data
-file at database startup.
+/** Reads the flushed lsn, arch no, space_id and tablespace flag fields from
+the first page of a first data file at database startup.
+@param[in]	data_file		open data file
+@param[in]	one_read_only		true if first datafile is already
+					read
+@param[out]	flags			FSP_SPACE_FLAGS
+@param[out]	space_id		tablepspace ID
+@param[out]	flushed_lsn		flushed lsn value
+@param[out]	crypt_data		encryption crypt data
 @retval NULL on success, or if innodb_force_recovery is set
 @return pointer to an error message string */
 UNIV_INTERN
 const char*
 fil_read_first_page(
-/*================*/
-	pfs_os_file_t	data_file,		/*!< in: open data file */
-	ibool		one_read_already,	/*!< in: TRUE if min and max
-						parameters below already
-						contain sensible data */
-	ulint*		flags,			/*!< out: FSP_SPACE_FLAGS */
-	ulint*		space_id,		/*!< out: tablespace ID */
-	lsn_t*		min_flushed_lsn,	/*!< out: min of flushed
-						lsn values in data files */
-	lsn_t*		max_flushed_lsn,	/*!< out: max of flushed
-						lsn values in data files */
-	fil_space_crypt_t** crypt_data)		/*!< out: crypt data */
+	pfs_os_file_t	data_file,
+	ibool		one_read_already,
+	ulint*		flags,
+	ulint*		space_id,
+	lsn_t*		flushed_lsn,
+	fil_space_crypt_t**   crypt_data)
+	MY_ATTRIBUTE((warn_unused_result));
 
-	__attribute__((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 /*******************************************************************//**
 Parses the body of a log record written about an .ibd file operation. That is,

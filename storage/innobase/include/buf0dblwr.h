@@ -38,10 +38,11 @@ extern buf_dblwr_t*	buf_dblwr;
 /** Set to TRUE when the doublewrite buffer is being created */
 extern ibool		buf_dblwr_being_created;
 
-/****************************************************************//**
-Creates the doublewrite buffer to a new InnoDB installation. The header of the
-doublewrite buffer is placed on the trx system header page.
-@return true if successful, false if not. */
+/** Create the doublewrite buffer if the doublewrite buffer header
+is not present in the TRX_SYS page.
+@return	whether the operation succeeded
+@retval	true	if the doublewrite buffer exists or was created
+@retval	false	if the creation failed (too small first data file) */
 MY_ATTRIBUTE((warn_unused_result))
 bool
 buf_dblwr_create();

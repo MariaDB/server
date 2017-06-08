@@ -1,4 +1,4 @@
---source include/have_innodb.inc
+--source include/innodb_page_size.inc
 --source include/not_embedded.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;

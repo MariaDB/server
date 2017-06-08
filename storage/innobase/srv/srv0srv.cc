@@ -2537,7 +2537,7 @@ suspend_thread:
 	case SRV_SHUTDOWN_CLEANUP:
 		if (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP
 		    && srv_fast_shutdown < 2) {
-			srv_shutdown(srv_fast_shutdown == 1);
+			srv_shutdown(srv_fast_shutdown == 0);
 		}
 		srv_suspend_thread(slot);
 		my_thread_end();

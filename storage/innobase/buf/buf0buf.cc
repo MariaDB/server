@@ -3872,14 +3872,25 @@ buf_zip_decompress(
 {
 	const byte*	frame = block->page.zip.data;
 	ulint		size = page_zip_get_size(&block->page.zip);
+	/* The tablespace will not be found if this function is called
+	during IMPORT. */
+	fil_space_t* space = fil_space_acquire_for_io(block->page.id.space());
+	const unsigned key_version = mach_read_from_4(
+		frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	fil_space_crypt_t* crypt_data = space ? space->crypt_data : NULL;
+	const bool encrypted = crypt_data
+		&& crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
+		&& (!crypt_data->is_default_encryption()
+		    || srv_encrypt_tables);
 
 	ut_ad(block->page.size.is_compressed());
 	ut_a(block->page.id.space() != 0);
 
 	if (UNIV_UNLIKELY(check && !page_zip_verify_checksum(frame, size))) {
 
-		ib::error() << "Compressed page checksum mismatch "
-			<< block->page.id << "): stored: "
+		ib::error() << "Compressed page checksum mismatch for "
+			<< (space ? space->chain.start->name : "")
+			<< block->page.id << ": stored: "
 			<< mach_read_from_4(frame + FIL_PAGE_SPACE_OR_CHKSUM)
 			<< ", crc32: "
 			<< page_zip_calc_checksum(
@@ -3895,7 +3906,7 @@ buf_zip_decompress(
 			<< page_zip_calc_checksum(
 				frame, size, SRV_CHECKSUM_ALGORITHM_NONE);
 
-		return(FALSE);
+		goto err_exit;
 	}
 
 	switch (fil_page_get_type(frame)) {
@@ -3903,15 +3914,16 @@ buf_zip_decompress(
 	case FIL_PAGE_RTREE:
 		if (page_zip_decompress(&block->page.zip,
 					block->frame, TRUE)) {
+			if (space) {
+				fil_space_release_for_io(space);
+			}
 			return(TRUE);
 		}
 
-		ib::error() << "Unable to decompress space "
-			<< block->page.id.space()
-			<< " page " << block->page.id.page_no();
-
-		return(FALSE);
-
+		ib::error() << "Unable to decompress "
+			<< (space ? space->chain.start->name : "")
+			<< block->page.id;
+		goto err_exit;
 	case FIL_PAGE_TYPE_ALLOCATED:
 	case FIL_PAGE_INODE:
 	case FIL_PAGE_IBUF_BITMAP:
@@ -3921,11 +3933,31 @@ buf_zip_decompress(
 	case FIL_PAGE_TYPE_ZBLOB2:
 		/* Copy to uncompressed storage. */
 		memcpy(block->frame, frame, block->page.size.physical());
+		if (space) {
+			fil_space_release_for_io(space);
+		}
+
 		return(TRUE);
 	}
 
 	ib::error() << "Unknown compressed page type "
-		<< fil_page_get_type(frame);
+		<< fil_page_get_type(frame)
+		<< " in " << (space ? space->chain.start->name : "")
+		<< block->page.id;
+
+err_exit:
+	if (encrypted) {
+		ib::info() << "Row compressed page could be encrypted"
+			" with key_version " << key_version;
+		block->page.encrypted = true;
+		dict_set_encrypted_by_space(block->page.id.space());
+	} else {
+		dict_set_corrupted_by_space(block->page.id.space());
+	}
+
+	if (space) {
+		fil_space_release_for_io(space);
+	}
 
 	return(FALSE);
 }
@@ -4526,12 +4558,21 @@ got_block:
 		/* Decompress the page while not holding
 		buf_pool->mutex or block->mutex. */
 
-		/* Page checksum verification is already done when
-		the page is read from disk. Hence page checksum
-		verification is not necessary when decompressing the page. */
 		{
-			bool	success = buf_zip_decompress(block, FALSE);
-			ut_a(success);
+			bool	success = buf_zip_decompress(block, TRUE);
+
+			if (!success) {
+				buf_pool_mutex_enter(buf_pool);
+				buf_page_mutex_enter(fix_block);
+				buf_block_set_io_fix(fix_block, BUF_IO_NONE);
+				buf_page_mutex_exit(fix_block);
+
+				--buf_pool->n_pend_unzip;
+				buf_block_unfix(fix_block);
+				buf_pool_mutex_exit(buf_pool);
+				rw_lock_x_unlock(&fix_block->lock);
+				return NULL;
+			}
 		}
 
 		if (!recv_no_ibuf_operations) {
@@ -4634,19 +4675,12 @@ got_block:
 				goto loop;
 			}
 
-			ib::info() << "innodb_change_buffering_debug evict "
-				<< page_id;
-
 			return(NULL);
 		}
 
 		buf_page_mutex_enter(fix_block);
 
 		if (buf_flush_page_try(buf_pool, fix_block)) {
-
-			ib::info() << "innodb_change_buffering_debug flush "
-				<< page_id;
-
 			guess = fix_block;
 
 			goto loop;
@@ -5563,15 +5597,11 @@ buf_page_create(
 	memset(frame + FIL_PAGE_NEXT, 0xff, 4);
 	mach_write_to_2(frame + FIL_PAGE_TYPE, FIL_PAGE_TYPE_ALLOCATED);
 
-	/* These 8 bytes are also repurposed for PageIO compression and must
-	be reset when the frame is assigned to a new page id. See fil0fil.h.
-
-
-	FIL_PAGE_FILE_FLUSH_LSN is used on the following pages:
+	/* FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION is only used on the
+	following pages:
 	(1) The first page of the InnoDB system tablespace (page 0:0)
-	(2) FIL_RTREE_SPLIT_SEQ_NUM on R-tree pages .
-
-	Therefore we don't transparently compress such pages. */
+	(2) FIL_RTREE_SPLIT_SEQ_NUM on R-tree pages
+	(3) key_version on encrypted pages (not page 0:0) */
 
 	memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 

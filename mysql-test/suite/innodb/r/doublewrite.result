@@ -231,6 +231,7 @@ set global innodb_buf_flush_list_now = 1;
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
+FOUND 1 /\[ERROR\] InnoDB: .*test.t1\.ibd.*/ in mysqld.1.err
 select f1, f2 from t1;
 f1	f2
 1	############
@@ -238,6 +239,13 @@ f1	f2
 3	////////////
 4	------------
 5	............
-# Test End
-# ---------------------------------------------------------------
 drop table t1;
+#
+# MDEV-12600 crash during install_db with innodb_page_size=32K
+# and ibdata1=3M
+#
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND 1 /\[ERROR\] InnoDB: Cannot create doublewrite buffer/ in mysqld.1.err

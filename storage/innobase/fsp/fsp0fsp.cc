@@ -690,17 +690,12 @@ fsp_header_init_fields(
 			flags);
 }
 
-/** Initializes the space header of a new created space and creates also the
-insert buffer tree root if space == 0.
+/** Initialize a tablespace header.
 @param[in]	space_id	space id
 @param[in]	size		current size in blocks
-@param[in,out]	mtr		min-transaction
-@return	true on success, otherwise false. */
-bool
-fsp_header_init(
-	ulint	space_id,
-	ulint	size,
-	mtr_t*	mtr)
+@param[in,out]	mtr		mini-transaction */
+void
+fsp_header_init(ulint space_id, ulint size, mtr_t* mtr)
 {
 	fsp_header_t*	header;
 	buf_block_t*	block;
@@ -752,19 +747,9 @@ fsp_header_init(
 	fsp_fill_free_list(!is_system_tablespace(space_id),
 			   space, header, mtr);
 
-	if (space_id == srv_sys_space.space_id()) {
-		if (btr_create(DICT_CLUSTERED | DICT_UNIVERSAL | DICT_IBUF,
-			       0, univ_page_size, DICT_IBUF_ID_MIN + space_id,
-			       dict_ind_redundant, NULL, mtr) == FIL_NULL) {
-			return(false);
-		}
-	}
-
 	if (space->crypt_data) {
 		space->crypt_data->write_page0(space, page, mtr);
 	}
-
-	return(true);
 }
 
 /**********************************************************************//**
@@ -2096,7 +2081,6 @@ fseg_create_general(
 	inode = fsp_alloc_seg_inode(space, space_header, mtr);
 
 	if (inode == NULL) {
-
 		goto funct_exit;
 	}
 

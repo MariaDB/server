@@ -5566,7 +5566,7 @@ int Regexp_processor_pcre::pcre_exec_with_warn(const pcre *code,
 bool Regexp_processor_pcre::exec(const char *str, int length, int offset)
 {
   m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, &m_pcre_extra, str, length, offset, 0,
-                                      m_SubStrVec, m_subpatterns_needed * 3);
+                                      m_SubStrVec, array_elements(m_SubStrVec));
   return false;
 }
 
@@ -5579,7 +5579,7 @@ bool Regexp_processor_pcre::exec(String *str, int offset,
   m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, &m_pcre_extra,
                                       str->c_ptr_safe(), str->length(),
                                       offset, 0,
-                                      m_SubStrVec, m_subpatterns_needed * 3);
+                                      m_SubStrVec, array_elements(m_SubStrVec));
   if (m_pcre_exec_rc > 0)
   {
     uint i;
@@ -5637,7 +5637,7 @@ Item_func_regex::fix_length_and_dec()
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return;
 
-  re.init(cmp_collation.collation, 0, 0);
+  re.init(cmp_collation.collation, 0);
   re.fix_owner(this, args[0], args[1]);
 }
 
@@ -5661,7 +5661,7 @@ Item_func_regexp_instr::fix_length_and_dec()
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return;
 
-  re.init(cmp_collation.collation, 0, 1);
+  re.init(cmp_collation.collation, 0);
   re.fix_owner(this, args[0], args[1]);
 }
 

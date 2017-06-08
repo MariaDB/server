@@ -887,7 +887,7 @@ fil_space_decrypt(
 Calculate post encryption checksum
 @param[in]	zip_size	zip_size or 0
 @param[in]	dst_frame	Block where checksum is calculated
-@return page checksum or BUF_NO_CHECKSUM_MAGIC
+@return page checksum
 not needed. */
 UNIV_INTERN
 ulint
@@ -896,30 +896,13 @@ fil_crypt_calculate_checksum(
 	const byte*	dst_frame)
 {
 	ib_uint32_t checksum = 0;
-	srv_checksum_algorithm_t algorithm =
-			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
+	/* For encrypted tables we use only crc32 and strict_crc32 */
 	if (zip_size == 0) {
-		switch (algorithm) {
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-			checksum = buf_calc_page_crc32(dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-			checksum = (ib_uint32_t) buf_calc_page_new_checksum(
-				dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-			checksum = BUF_NO_CHECKSUM_MAGIC;
-			break;
-			/* no default so the compiler will emit a warning
-			* if new enum is added and not handled here */
-		}
+		checksum = buf_calc_page_crc32(dst_frame);
 	} else {
 		checksum = page_zip_calc_checksum(dst_frame, zip_size,
-				                          algorithm);
+				                  SRV_CHECKSUM_ALGORITHM_CRC32);
 	}
 
 	return checksum;
@@ -951,14 +934,6 @@ fil_space_verify_crypt_checksum(
 	/* If page is not encrypted, return false */
 	if (key_version == 0) {
 		return(false);
-	}
-
-	srv_checksum_algorithm_t algorithm =
-			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
-
-	/* If no checksum is used, can't continue checking. */
-	if (algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
-		return(true);
 	}
 
 	/* Read stored post encryption checksum. */
@@ -1044,7 +1019,6 @@ fil_space_verify_crypt_checksum(
 		checksum1 = mach_read_from_4(
 			page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
 		valid = (buf_page_is_checksum_valid_crc32(page,checksum1,checksum2)
-		|| buf_page_is_checksum_valid_none(page,checksum1,checksum2)
 		|| buf_page_is_checksum_valid_innodb(page,checksum1, checksum2));
 	}
 

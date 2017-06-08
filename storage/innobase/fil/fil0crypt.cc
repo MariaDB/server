@@ -831,7 +831,7 @@ fil_space_decrypt(
 Calculate post encryption checksum
 @param[in]	page_size	page size
 @param[in]	dst_frame	Block where checksum is calculated
-@return page checksum or BUF_NO_CHECKSUM_MAGIC
+@return page checksum
 not needed. */
 UNIV_INTERN
 uint32_t
@@ -839,34 +839,11 @@ fil_crypt_calculate_checksum(
 	const page_size_t&	page_size,
 	const byte*		dst_frame)
 {
-	uint32_t checksum = 0;
-	srv_checksum_algorithm_t algorithm =
-			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
-
-	if (!page_size.is_compressed()) {
-		switch (algorithm) {
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-			checksum = buf_calc_page_crc32(dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-			checksum = (ib_uint32_t) buf_calc_page_new_checksum(
-				dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-			checksum = BUF_NO_CHECKSUM_MAGIC;
-			break;
-			/* no default so the compiler will emit a warning
-			* if new enum is added and not handled here */
-		}
-	} else {
-		checksum = page_zip_calc_checksum(dst_frame, page_size.physical(),
-				                          algorithm);
-	}
-
-	return checksum;
+	/* For encrypted tables we use only crc32 and strict_crc32 */
+	return page_size.is_compressed()
+		? page_zip_calc_checksum(dst_frame, page_size.physical(),
+					 SRV_CHECKSUM_ALGORITHM_CRC32)
+		: buf_calc_page_crc32(dst_frame);
 }
 
 /***********************************************************************/
@@ -2492,15 +2469,8 @@ fil_space_verify_crypt_checksum(
 		return false;
 	}
 
-	srv_checksum_algorithm_t algorithm =
-			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
-	/* If no checksum is used, can't continue checking. */
-	if (algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
-		return(true);
-	}
-
 	/* Read stored post encryption checksum. */
-	ib_uint32_t checksum = mach_read_from_4(
+	uint32_t checksum = mach_read_from_4(
 		page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4);
 
 	/* Declare empty pages non-corrupted */

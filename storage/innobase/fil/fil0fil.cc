@@ -4282,12 +4282,14 @@ fil_ibd_open(
 			df_default.close();
 			tablespaces_found--;
 		}
+
 		if (df_dict.is_open() && !df_dict.is_valid()) {
 			df_dict.close();
 			/* Leave dict.filepath so that SYS_DATAFILES
 			can be corrected below. */
 			tablespaces_found--;
 		}
+
 		if (df_remote.is_open() && !df_remote.is_valid()) {
 			df_remote.close();
 			tablespaces_found--;
@@ -5151,23 +5153,16 @@ fil_report_invalid_page_access(
 	ulint		len,		/*!< in: I/O length */
 	bool		is_read)	/*!< in: I/O type */
 {
-	ib::error()
-		<< "Trying to access page number " << block_offset << " in"
+	ib::fatal()
+		<< "Trying to " << (is_read ? "read" : "write")
+		<< " page number " << block_offset << " in"
 		" space " << space_id << ", space name " << space_name << ","
 		" which is outside the tablespace bounds. Byte offset "
-		<< byte_offset << ", len " << len << ", i/o type " <<
-		(is_read ? "read" : "write")
-		<< ". If you get this error at mysqld startup, please check"
-		" that your my.cnf matches the ibdata files that you have in"
-		" the MySQL server.";
-
-	ib::error() << "Server exits"
-#ifdef UNIV_DEBUG
-		<< " at " << __FILE__ << "[" << __LINE__ << "]"
-#endif
-		<< ".";
-
-	_exit(1);
+		<< byte_offset << ", len " << len <<
+		(space_id == 0 && !srv_was_started
+		? "Please check that the configuration matches"
+		" the InnoDB system tablespace location (ibdata files)"
+		: "");
 }
 
 /** Reads or writes data. This operation could be asynchronous (aio).

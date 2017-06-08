@@ -1,5 +1,5 @@
 --source include/not_embedded.inc
---source include/have_innodb.inc
+--source include/innodb_page_size.inc
 
 --echo #
 --echo # Bug#13955083 ALLOW IN-PLACE DDL OPERATIONS ON MISSING
