@@ -351,9 +351,6 @@ struct fil_space_t {
 				compression failure */
 	fil_space_crypt_t* crypt_data;
 				/*!< tablespace crypt data or NULL */
-	bool		page_0_crypt_read;
-				/*!< tablespace crypt data has been
-				read */
 	ulint		file_block_size;
 				/*!< file system block size */
 

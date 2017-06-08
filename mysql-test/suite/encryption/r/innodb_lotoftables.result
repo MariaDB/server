@@ -12,13 +12,13 @@ create database innodb_encrypted_1;
 use innodb_encrypted_1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	3
+Innodb_pages0_read	1
 set autocommit=0;
 set autocommit=1;
 commit work;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	3
+Innodb_pages0_read	1
 # should be 100
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE NAME LIKE 'innodb_encrypted%';
 COUNT(*)
@@ -88,47 +88,47 @@ Innodb_pages0_read	3
 # Restart Success!
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	1
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	1
 use test;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	1
 use innodb_encrypted_1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	1
 use innodb_encrypted_2;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	1
 use innodb_encrypted_3;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	1
 use innodb_encrypted_1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	1
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	101
 use innodb_encrypted_2;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	101
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	201
 use innodb_encrypted_3;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	201
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	303
+Innodb_pages0_read	301
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE 'innodb_encrypted%';
 COUNT(*)
 100

@@ -4636,6 +4636,7 @@ buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 		!bpage->encrypted &&
 		fil_space_verify_crypt_checksum(dst_frame, zip_size,
 			space, bpage->offset));
+
 	if (!still_encrypted) {
 		/* If traditional checksums match, we assume that page is
 		not anymore encrypted. */
