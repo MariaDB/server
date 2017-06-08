@@ -262,8 +262,11 @@ static int wsrep_pre_commit(THD *thd)
    */
   wsrep_SR_rollback_queue->send_SR_rollbacks(thd);
 
-  uint32_t flags= WSREP_FLAG_TRX_END |
-    (thd->wsrep_PA_safe ? 0U : WSREP_FLAG_PA_UNSAFE);
+  uint32_t flags= WSREP_FLAG_TRX_END;
+  if (!thd->wsrep_PA_safe || thd->wsrep_is_streaming())
+  {
+    flags |= WSREP_FLAG_PA_UNSAFE;
+  }
 
   wsrep_status_t rcode=
     wsrep->pre_commit(
@@ -1041,12 +1044,28 @@ static int wsrep_before_rollback(Trans_param *param)
 
   THD* thd= param->thd;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
+  {
+      (void)wsrep_ws_handle_for_trx(&thd->wsrep_ws_handle,
+                                    thd->wsrep_next_trx_id());
+
+      if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
+      {
+          WSREP_DEBUG("wsrep_before_rollback: setting trx_id to undefined, thd %llu %s",
+                      thd->thread_id, thd->query());
+      }
+  }
+
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
     wsrep_log_thd(param, "wsrep_before_rollback enter");
   }
   if (thd->wsrep_exec_mode != LOCAL_ROLLBACK &&
-      wsrep_is_effective_not_to_replay(thd))
+      wsrep_is_effective_not_to_replay(thd) &&
+      ((param->flags & TRANS_IS_REAL_TRANS) ||
+       (thd->wsrep_is_streaming() &&
+        (!wsrep_stmt_rollback_is_safe(thd) ||
+         thd->wsrep_conflict_state() != NO_CONFLICT))))
   {
     if (thd->wsrep_is_streaming() &&
         /*

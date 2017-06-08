@@ -78,8 +78,6 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
                                     size_t buf_len);
 
 int wsrep_binlog_close_connection(THD* thd);
-int wsrep_binlog_savepoint_set(THD *thd,  void *sv);
-int wsrep_binlog_savepoint_rollback(THD *thd, void *sv);
 uint wsrep_get_trans_cache_position(THD *thd);
 
 /* Write dummy event to binlog in place of unused GTID */

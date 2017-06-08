@@ -2295,6 +2295,13 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
   {
     int err;
     handlerton *ht= ha_info->ht();
+#ifdef WITH_WSREP
+    if (ht->db_type == DB_TYPE_INNODB)
+    {
+      WSREP_DEBUG("ha_rollback_to_savepoint: run before_rollback hook");
+      (void) RUN_HOOK(transaction, before_rollback, (thd, !thd->in_sub_stmt));
+    }
+#endif // WITH_WSREP
     if ((err= ht->rollback(ht, thd, !thd->in_sub_stmt)))
     { // cannot happen
       my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
@@ -2305,12 +2312,6 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     ha_info->reset(); /* keep it conveniently zero-filled */
   }
   trans->ha_list= sv->ha_list;
-#ifdef WITH_WSREP
-  if (thd->wsrep_is_streaming())
-  {
-    WSREP_DEBUG("keeping rollback in IO cache");
-  }
-#endif /* WITH_WSREP */
   DBUG_RETURN(error);
 }
 
