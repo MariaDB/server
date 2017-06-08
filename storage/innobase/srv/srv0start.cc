@@ -121,7 +121,10 @@ UNIV_INTERN ibool	srv_is_being_started = FALSE;
 /** TRUE if the server was successfully started */
 UNIV_INTERN ibool	srv_was_started = FALSE;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
-static ibool		srv_start_has_been_called = FALSE;
+static ibool	srv_start_has_been_called;
+
+/** Whether any undo log records can be generated */
+UNIV_INTERN bool srv_undo_sources;
 
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
@@ -1565,8 +1568,7 @@ are not found and the user wants.
 @return	DB_SUCCESS or error code */
 UNIV_INTERN
 dberr_t
-innobase_start_or_create_for_mysql(void)
-/*====================================*/
+innobase_start_or_create_for_mysql()
 {
 	ibool		create_new_db;
 	lsn_t		min_flushed_lsn;
@@ -2705,8 +2707,8 @@ files_checked:
 			}
 		}
 
-		srv_startup_is_before_trx_rollback_phase = FALSE;
 		recv_recovery_rollback_active();
+		srv_startup_is_before_trx_rollback_phase = FALSE;
 
 		/* It is possible that file_format tag has never
 		been set. In this case we initialize it to minimum
@@ -2827,6 +2829,16 @@ files_checked:
 			srv_master_thread,
 			NULL, thread_ids + (1 + SRV_MAX_N_IO_THREADS));
 		thread_started[1 + SRV_MAX_N_IO_THREADS] = true;
+
+		srv_undo_sources = true;
+		/* Create the dict stats gathering thread */
+		srv_dict_stats_thread_active = true;
+		dict_stats_thread_handle = os_thread_create(
+			dict_stats_thread, NULL, NULL);
+		dict_stats_thread_started = true;
+
+		/* Create the thread that will optimize the FTS sub-system. */
+		fts_optimize_init();
 	}
 
 	if (!srv_read_only_mode
@@ -2856,6 +2868,7 @@ files_checked:
 	}
 
 	if (!srv_read_only_mode) {
+		buf_page_cleaner_is_active = true;
 		buf_flush_page_cleaner_thread_handle = os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
 		buf_flush_page_cleaner_thread_started = true;
 	}
@@ -2885,13 +2898,6 @@ files_checked:
 		/* Create the buffer pool dump/load thread */
 		buf_dump_thread_handle = os_thread_create(buf_dump_thread, NULL, NULL);
 		buf_dump_thread_started = true;
-
-		/* Create the dict stats gathering thread */
-		dict_stats_thread_handle = os_thread_create(dict_stats_thread, NULL, NULL);
-		dict_stats_thread_started = true;
-
-		/* Create the thread that will optimize the FTS sub-system. */
-		fts_optimize_init();
 	}
 
 	srv_was_started = TRUE;
@@ -2929,13 +2935,10 @@ srv_fts_close(void)
 }
 #endif
 
-/****************************************************************//**
-Shuts down the InnoDB database.
-@return	DB_SUCCESS or error code */
+/** Shut down InnoDB. */
 UNIV_INTERN
-dberr_t
-innobase_shutdown_for_mysql(void)
-/*=============================*/
+void
+innodb_shutdown()
 {
 	ulint	i;
 
@@ -2945,15 +2948,20 @@ innobase_shutdown_for_mysql(void)
 				"Shutting down an improperly started, "
 				"or created database!");
 		}
-
-		return(DB_SUCCESS);
 	}
 
-	if (!srv_read_only_mode) {
+	if (srv_undo_sources) {
+		ut_ad(!srv_read_only_mode);
 		/* Shutdown the FTS optimize sub system. */
 		fts_optimize_start_shutdown();
 
 		fts_optimize_end();
+		dict_stats_shutdown();
+		while (row_get_background_drop_list_len_low()) {
+			srv_wake_master_thread();
+			os_thread_yield();
+		}
+		srv_undo_sources = false;
 	}
 
 	/* 1. Flush the buffer pool to disk, write the current lsn to
@@ -3156,88 +3164,8 @@ innobase_shutdown_for_mysql(void)
 
 	srv_was_started = FALSE;
 	srv_start_has_been_called = FALSE;
-
-	return(DB_SUCCESS);
 }
 #endif /* !UNIV_HOTBACKUP */
-
-
-/********************************************************************
-Signal all per-table background threads to shutdown, and wait for them to do
-so. */
-UNIV_INTERN
-void
-srv_shutdown_table_bg_threads(void)
-/*===============================*/
-{
-	dict_table_t*	table;
-	dict_table_t*	first;
-	dict_table_t*	last = NULL;
-
-	mutex_enter(&dict_sys->mutex);
-
-	/* Signal all threads that they should stop. */
-	table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
-	first = table;
-	while (table) {
-		dict_table_t*	next;
-		fts_t*		fts = table->fts;
-
-		if (fts != NULL) {
-			fts_start_shutdown(table, fts);
-		}
-
-		next = UT_LIST_GET_NEXT(table_LRU, table);
-
-		if (!next) {
-			last = table;
-		}
-
-		table = next;
-	}
-
-	/* We must release dict_sys->mutex here; if we hold on to it in the
-	loop below, we will deadlock if any of the background threads try to
-	acquire it (for example, the FTS thread by calling que_eval_sql).
-
-	Releasing it here and going through dict_sys->table_LRU without
-	holding it is safe because:
-
-	 a) MySQL only starts the shutdown procedure after all client
-	 threads have been disconnected and no new ones are accepted, so no
-	 new tables are added or old ones dropped.
-
-	 b) Despite its name, the list is not LRU, and the order stays
-	 fixed.
-
-	To safeguard against the above assumptions ever changing, we store
-	the first and last items in the list above, and then check that
-	they've stayed the same below. */
-
-	mutex_exit(&dict_sys->mutex);
-
-	/* Wait for the threads of each table to stop. This is not inside
-	the above loop, because by signaling all the threads first we can
-	overlap their shutting down delays. */
-	table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
-	ut_a(first == table);
-	while (table) {
-		dict_table_t*	next;
-		fts_t*		fts = table->fts;
-
-		if (fts != NULL) {
-			fts_shutdown(table, fts);
-		}
-
-		next = UT_LIST_GET_NEXT(table_LRU, table);
-
-		if (table == last) {
-			ut_a(!next);
-		}
-
-		table = next;
-	}
-}
 
 /*****************************************************************//**
 Get the meta-data filename from the table name. */
