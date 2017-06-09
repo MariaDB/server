@@ -12963,13 +12963,13 @@ void issue_long_find_row_warning(Log_event_type type,
   if ((global_system_variables.log_warnings > 1 && 
        !rgi->is_long_find_row_note_printed()))
   {
-    time_t now= my_time(0);
-    time_t stmt_ts= rgi->get_row_stmt_start_timestamp();
+    ulonglong now= microsecond_interval_timer();
+    ulonglong stmt_ts= rgi->get_row_stmt_start_timestamp();
     
     DBUG_EXECUTE_IF("inject_long_find_row_note", 
-                    stmt_ts-=(LONG_FIND_ROW_THRESHOLD*2););
+                    stmt_ts-=(LONG_FIND_ROW_THRESHOLD*2*HRTIME_RESOLUTION););
 
-    long delta= (long) (now - stmt_ts);
+    longlong delta= (now - stmt_ts)/HRTIME_RESOLUTION;
 
     if (delta > LONG_FIND_ROW_THRESHOLD)
     {
@@ -13375,7 +13375,6 @@ int
 Delete_rows_log_event::do_after_row_operations(const Slave_reporting_capability *const, 
                                                int error)
 {
-  /*error= ToDo:find out what this should really be, this triggers close_scan in nbd, returning error?*/
   m_table->file->ha_index_or_rnd_end();
   my_free(m_key);
   m_key= NULL;
