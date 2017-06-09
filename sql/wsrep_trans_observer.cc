@@ -1017,7 +1017,7 @@ static int wsrep_after_commit(Trans_param *param)
   if (thd->wsrep_conflict_state() == MUST_ABORT)
   {
     WSREP_LOG_THD(thd, "BF aborted at commit phase");
-    thd->killed= THD::NOT_KILLED;
+    thd->killed= NOT_KILLED;
     thd->set_wsrep_conflict_state(NO_CONFLICT);
   }
 

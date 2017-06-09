@@ -73,7 +73,7 @@ void wsrep_cleanup_transaction(THD *thd)
     DBUG_ASSERT(thd->wsrep_conflict_state() == ABORTED ||
                 thd->wsrep_conflict_state() == CERT_FAILURE);
 
-    thd->killed= THD::NOT_KILLED;
+    thd->killed= NOT_KILLED;
     thd->set_wsrep_conflict_state(NO_CONFLICT);
   }
 
@@ -444,7 +444,7 @@ void wsrep_replay_transaction(THD *thd)
       switch (rcode)
       {
       case WSREP_OK:
-        thd->killed= THD::NOT_KILLED;
+        thd->killed= NOT_KILLED;
         thd->set_wsrep_conflict_state(NO_CONFLICT);
         wsrep->release(wsrep, &thd->wsrep_ws_handle);
         WSREP_DEBUG("trx_replay successful for: %lld %lld",
