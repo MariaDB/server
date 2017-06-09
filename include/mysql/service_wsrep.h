@@ -90,7 +90,7 @@ extern struct wsrep_service_st {
   int                         (*wsrep_is_wsrep_xid_func)(const void *xid);
   //  int                         (*wsrep_on_func)(MYSQL_THD);
   int                         (*wsrep_on_func)(void*);
-  bool                        (*wsrep_prepare_key_func)(const unsigned char*, size_t, const unsigned char*, size_t, struct wsrep_buf*, size_t*);
+  bool                        (*wsrep_prepare_key_for_innodb_func)(THD* thd, const unsigned char*, size_t, const unsigned char*, size_t, struct wsrep_buf*, size_t*);
   void                        (*wsrep_thd_LOCK_func)(THD *thd);
   void                        (*wsrep_thd_UNLOCK_func)(THD *thd);
   void                        (*wsrep_thd_awake_func)(THD *thd, my_bool signal);
@@ -133,7 +133,7 @@ extern struct wsrep_service_st {
 #define wsrep_consistency_check(T) wsrep_service->wsrep_consistency_check_func(T)
 #define wsrep_is_wsrep_xid(X) wsrep_service->wsrep_is_wsrep_xid_func(X)
 #define wsrep_on(X) wsrep_service->wsrep_on_func(X)
-#define wsrep_prepare_key(A,B,C,D,E,F) wsrep_service->wsrep_prepare_key_func(A,B,C,D,E,F)
+#define wsrep_prepare_key_for_innodb(A,B,C,D,E,F,G) wsrep_service->wsrep_prepare_key_for_innodb_func(A,B,C,D,E,F.G)
 #define wsrep_thd_LOCK(T) wsrep_service->wsrep_thd_LOCK_func(T)
 #define wsrep_thd_UNLOCK(T) wsrep_service->wsrep_thd_UNLOCK_func(T)
 #define wsrep_thd_awake(T,S) wsrep_service->wsrep_thd_awake_func(T,S)
@@ -178,7 +178,7 @@ extern long wsrep_protocol_version;
 extern my_thread_id wsrep_thd_thread_id(THD *thd);
 
 bool wsrep_consistency_check(THD *thd);
-bool wsrep_prepare_key(const unsigned char* cache_key, size_t cache_key_len, const unsigned char* row_id, size_t row_id_len, struct wsrep_buf* key, size_t* key_len);
+bool wsrep_prepare_key_for_innodb(THD* thd, const unsigned char* cache_key, size_t cache_key_len, const unsigned char* row_id, size_t row_id_len, struct wsrep_buf* key, size_t* key_len);
 char *wsrep_thd_query(THD *thd);
 const char *wsrep_thd_conflict_state_str(THD *thd);
 const char *wsrep_thd_exec_mode_str(THD *thd);

@@ -30,7 +30,7 @@ enum wsrep_conflict_state wsrep_thd_conflict_state(THD *, my_bool)
 int wsrep_is_wsrep_xid(const void* xid)
 { return 0; }
 
-bool wsrep_prepare_key(const uchar*, size_t, const uchar*, size_t, struct wsrep_buf*, size_t*)
+bool wsrep_prepare_key_for_innodb(THD* thd, const uchar*, size_t, const uchar*, size_t, struct wsrep_buf*, size_t*)
 { return 0; }
 
 struct wsrep *get_wsrep()

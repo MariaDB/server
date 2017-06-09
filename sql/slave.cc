@@ -5489,13 +5489,6 @@ pthread_handler_t handle_slave_sql(void *arg)
     THD_STAGE_INFO(thd, stage_reading_event_from_the_relay_log);
     THD_CHECK_SENTRY(thd);
 
-#ifdef WITH_WSREP
-    if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
-    {
-      thd->set_wsrep_next_trx_id(thd->query_id);
-      WSREP_DEBUG("assigned new next trx id: %lu", thd->wsrep_next_trx_id());
-    }
-#endif /* WITH_WSREP */
     if (saved_skip && rli->slave_skip_counter == 0)
     {
       StringBuffer<100> tmp;

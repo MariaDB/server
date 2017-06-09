@@ -670,10 +670,6 @@ static int wsrep_SR_step(THD *thd, uint unit)
       wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
                            wsrep_trx_status_to_wsrep_status(ret));
     }
-    if (thd->wsrep_conflict_state() == NO_CONFLICT)
-    {
-      thd->set_wsrep_conflict_state(MUST_ABORT);
-    }
   }
 
   DBUG_RETURN(ret);
@@ -693,9 +689,11 @@ bool wsrep_replicate_GTID(THD *thd)
     int rcode= wsrep_pre_commit(thd);
     if (rcode)
     {
-      WSREP_WARN("GTID replication failed");
+      WSREP_INFO("GTID replication failed: %d", rcode);
       wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle);
       thd->wsrep_replicate_GTID= false;
+      my_message(ER_ERROR_DURING_COMMIT,
+                 "WSREP GTID replication was interrupted", MYF(0));
 
       return true;
     }
@@ -1019,6 +1017,7 @@ static int wsrep_after_commit(Trans_param *param)
   if (thd->wsrep_conflict_state() == MUST_ABORT)
   {
     WSREP_LOG_THD(thd, "BF aborted at commit phase");
+    thd->killed= THD::NOT_KILLED;
     thd->set_wsrep_conflict_state(NO_CONFLICT);
   }
 
@@ -1221,6 +1220,8 @@ static int wsrep_after_command(Trans_param *param)
   case LOCAL_ROLLBACK:
     {
       bool should_retry= false;
+      const bool forced_rollback(thd->wsrep_conflict_state() == MUST_ABORT ||
+                                 thd->wsrep_conflict_state() == CERT_FAILURE);
       DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT ||
                   thd->wsrep_conflict_state() == MUST_ABORT ||
                   thd->wsrep_conflict_state() == CERT_FAILURE);
@@ -1228,14 +1229,17 @@ static int wsrep_after_command(Trans_param *param)
         If conflict state is NO_CONFLICT the transaction was either
         voluntary or done due to deadlock.
       */
-      if (thd->wsrep_conflict_state() == MUST_ABORT ||
-          thd->wsrep_conflict_state() == CERT_FAILURE)
+      if (forced_rollback)
       {
         /* SR transactions do not retry */
         should_retry= !thd->wsrep_is_streaming();
         wsrep_client_rollback(thd);
       }
       wsrep_post_rollback(thd);
+      if (forced_rollback)
+      {
+        wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+      }
       wsrep_cleanup_transaction(thd);
       DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
       DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT);

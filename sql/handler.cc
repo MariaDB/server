@@ -6609,15 +6609,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   handlerton *hton= installed_htons[DB_TYPE_INNODB];
   if (hton && hton->abort_transaction)
   {
-    /*
-      Assign trx_id at this point if not assigned yet. Otherwise
-      replication hooks for transaction process won't be fully executed.
-     */
-    if (victim_thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
-    {
-      (void)wsrep_ws_handle_for_trx(&victim_thd->wsrep_ws_handle,
-                                    victim_thd->wsrep_next_trx_id());
-    }
     hton->abort_transaction(hton, bf_thd, victim_thd, signal);
   }
   else
@@ -6639,29 +6630,19 @@ void ha_fake_trx_id(THD *thd)
     DBUG_VOID_RETURN;
   }
 
-  /* Try statement transaction if standard one is not set. */
-  THD_TRANS *trans= (thd->transaction.all.ha_list) ?  &thd->transaction.all :
-    &thd->transaction.stmt;
-
-  Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
-
-  for (; ha_info; ha_info= ha_info_next)
+  if (thd->wsrep_ws_handle.trx_id != WSREP_UNDEFINED_TRX_ID)
   {
-    handlerton *hton= ha_info->ht();
-    if (hton->fake_trx_id)
-    {
-      hton->fake_trx_id(hton, thd);
-
-      /* Got a fake trx id. */
-      no_fake_trx_id= false;
-
-      /*
-        We need transaction ID from just one storage engine providing
-        fake_trx_id (which will most likely be the case).
-      */
-      break;
-    }
-    ha_info_next= ha_info->next();
+    WSREP_DEBUG("fake trx id skipped: %lu", thd->wsrep_ws_handle.trx_id);
+    DBUG_VOID_RETURN;
+  }
+  handlerton *hton= installed_htons[DB_TYPE_INNODB];
+  if (hton && hton->fake_trx_id)
+  {
+    hton->fake_trx_id(hton, thd);
+  }
+  else
+  {
+    WSREP_WARN("cannot get get fake InnoDB transaction ID");
   }
 
   if (unlikely(no_fake_trx_id))

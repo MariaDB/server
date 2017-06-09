@@ -1217,6 +1217,13 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     sql_digest_state *parent_digest= thd->m_digest;
     thd->m_digest= NULL;
 
+#ifdef WITH_WSREP
+    if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+    {
+      thd->set_wsrep_next_trx_id(thd->query_id);
+      WSREP_DEBUG("assigned new next trx ID for SP,  trx id: %lu", thd->wsrep_next_trx_id());
+    }
+#endif /* WITH_WSREP */
     err_status= i->execute(thd, &ip);
 
     thd->m_digest= parent_digest;

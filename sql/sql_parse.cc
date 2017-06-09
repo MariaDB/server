@@ -1895,13 +1895,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
       parser_state.reset(beginning_of_next_stmt, length);
 
-#ifdef WITH_WSREP
-      if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
-      {
-        thd->set_wsrep_next_trx_id(thd->query_id);
-        WSREP_DEBUG("assigned new next trx id: %lu", thd->wsrep_next_trx_id());
-      }
-#endif /* WITH_WSREP */
       if (WSREP_ON)
       {
         if (wsrep_mysql_parse(thd, beginning_of_next_stmt,
@@ -7903,7 +7896,8 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
             thd->lex->sql_command != SQLCOM_SELECT  &&
            (thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit))
         {
-          WSREP_DEBUG("wsrep retrying AC query: %s", WSREP_QUERY(thd));
+          WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
+                      thd->wsrep_retry_counter, WSREP_QUERY(thd));
 
           close_thread_tables(thd);
 

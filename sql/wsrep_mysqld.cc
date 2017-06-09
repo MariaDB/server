@@ -1391,17 +1391,7 @@ wsrep_status_t wsrep_sync_wait_upto (THD*          thd,
                           &thd->wsrep_sync_wait_gtid);
 }
 
-/*
- * Helpers to deal with TOI key arrays
- */
-typedef struct wsrep_key_arr
-{
-    wsrep_key_t* keys;
-    size_t       keys_len;
-} wsrep_key_arr_t;
-
-
-static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
+void wsrep_keys_free(wsrep_key_arr_t* key_arr)
 {
     for (size_t i= 0; i < key_arr->keys_len; ++i)
     {
@@ -1423,7 +1413,7 @@ static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
  * @return true if preparation was successful, otherwise false.
  */
 
-static int wsrep_prepare_key_for_isolation(const char* db,
+static bool wsrep_prepare_key_for_isolation(const char* db,
                                            const char* table,
                                            wsrep_buf_t* key,
                                            size_t* key_len)
@@ -1474,11 +1464,11 @@ static int wsrep_prepare_key_for_isolation(const char* db,
  *
  * Return zero in case of success, 1 in case of failure.
  */
-static bool wsrep_prepare_keys_for_isolation(THD*              thd,
-                                             const char*       db,
-                                             const char*       table,
-                                             const TABLE_LIST* table_list,
-                                             wsrep_key_arr_t*  ka)
+bool wsrep_prepare_keys_for_isolation(THD*              thd,
+                                      const char*       db,
+                                      const char*       table,
+                                      const TABLE_LIST* table_list,
+                                      wsrep_key_arr_t*  ka)
 {
   ka->keys= 0;
   ka->keys_len= 0;
@@ -1542,7 +1532,7 @@ err:
     return true;
 }
 
-
+#ifdef OUT
 bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
                        const uchar* row_id, size_t row_id_len,
                        wsrep_buf_t* key, size_t* key_len)
@@ -1584,8 +1574,10 @@ bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
 
     return true;
 }
+#endif
 
-bool wsrep_prepare_key_for_innodb(const uchar* cache_key,
+bool wsrep_prepare_key_for_innodb(THD* thd,
+                                  const uchar* cache_key,
                                   size_t cache_key_len,
                                   const uchar* row_id,
                                   size_t row_id_len,
