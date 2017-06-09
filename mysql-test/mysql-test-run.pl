@@ -4025,12 +4025,13 @@ sub run_testcase ($$) {
     {
       my $res= $test->exit_status();
 
-      if ($res == 0 and $opt_warnings and check_warnings($tinfo) )
+      if (($res == 0 or $res == 62) and $opt_warnings and check_warnings($tinfo) )
       {
-	# Test case suceeded, but it has produced unexpected
-	# warnings, continue in $res == 1
-	$res= 1;
-	resfile_output($tinfo->{'warnings'}) if $opt_resfile;
+        # If test case suceeded, but it has produced unexpected
+        # warnings, continue with $res == 1;
+        # but if the test was skipped, it should remain skipped
+        $res= 1 if $res == 0;
+        resfile_output($tinfo->{'warnings'}) if $opt_resfile;
       }
 
       if ( $res == 0 )
