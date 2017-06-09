@@ -110,7 +110,7 @@ public:
 }; // end of INCOL;
 
 /***********************************************************************/
-/*  This is the MongoDB Access Method class declaration.               */
+/*  This is the MongoDB Table Type class declaration.                  */
 /*  The table is a collection, each record being a document.           */
 /***********************************************************************/
 class DllExport TDBMGO : public TDBEXT {
@@ -213,7 +213,6 @@ protected:
 	char   *Mbuf;									// The Mini buffer
 }; // end of class MGOCOL
 
-#if 0
 /***********************************************************************/
 /*  This is the class declaration for the MONGO catalog table.         */
 /***********************************************************************/
@@ -229,6 +228,4 @@ protected:
 	// Members
 	PTOS  Topt;
 	char *Db;
-	char *Dsn;
 }; // end of class TDBGOL
-#endif // 0
