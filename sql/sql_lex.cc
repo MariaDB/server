@@ -2671,18 +2671,8 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
       MIN/MAX rewrite in Item_in_subselect::single_value_transformer.
       In the usual case we can reuse the array from the prepare phase.
       If we need a bigger array, we must allocate a new one.
-    */
-    if (ref_pointer_array.size() == n_elems)
-      return false;
-
-    /*
-      We need to take 'n_sum_items' into account when allocating the array,
-      and this may actually increase during the optimization phase due to
-      MIN/MAX rewrite in Item_in_subselect::single_value_transformer.
-      In the usual case we can reuse the array from the prepare phase.
-      If we need a bigger array, we must allocate a new one.
      */
-    if (ref_pointer_array.size() == n_elems)
+    if (ref_pointer_array.size() >= n_elems)
       return false;
    }
   Item **array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));

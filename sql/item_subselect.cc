@@ -116,9 +116,8 @@ void Item_subselect::init(st_select_lex *select_lex,
       do not take into account expression inside aggregate functions because
       they can access original table fields
     */
-    parsing_place= (outer_select->in_sum_expr ?
-                    NO_MATTER :
-                    outer_select->parsing_place);
+    parsing_place= (outer_select->in_sum_expr ? NO_MATTER
+                                              : outer_select->parsing_place);
     if (unit->is_union())
       engine= new subselect_union_engine(unit, result, this);
     else
