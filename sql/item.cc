@@ -490,7 +490,8 @@ Item::Item(THD *thd):
     command => we should check thd->lex->current_select on zero (thd->lex
     can be uninitialised)
   */
-  if (thd->lex->current_select)
+  if (thd->lex->current_select &&
+      thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
   {
     enum_parsing_place place= 
       thd->lex->current_select->parsing_place;
