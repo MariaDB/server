@@ -87,7 +87,7 @@ MGOFAM::MGOFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 	Db_name = tdp->Schema;
 	Coll_name = tdp->Collname;
 	Options = tdp->Options;
-	Filter = NULL;
+	Filter = tdp->Filter;
 	Done = false;
 	Pipe = tdp->Pipe;
 	Lrecl = tdp->Lrecl + tdp->Ending;
@@ -234,19 +234,6 @@ bool MGOFAM::Init(PGLOBAL g)
 	if (Done)
 		return false;
 
-	if (Options && !Pipe) {
-		char *p = (char*)strchr(Options, ';');
-
-		if (p) {
-			*p++ = 0;
-
-			if (p)
-				Filter = p;
-
-		} // endif p
-
-	} // endif Options
-
 	Uri = mongoc_uri_new(Uristr);
 
 	if (!Uri) {
@@ -311,7 +298,7 @@ bool MGOFAM::MakeCursor(PGLOBAL g)
 	for (cp = Tdbp->GetColumns(); cp; cp = cp->GetNext())
 		if (!strcmp(cp->GetName(), "_id"))
 			id = true;
-		else if (cp->GetFmt() && !strcmp(cp->GetFmt(), "*"))
+		else if (cp->GetFmt() && !strcmp(cp->GetFmt(), "*") && !Options)
 			all = true;
 
 	if (Pipe) {

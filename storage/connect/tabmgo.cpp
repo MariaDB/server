@@ -170,17 +170,8 @@ int MGODISC::GetColumns(PGLOBAL g, char *db, PTOS topt)
 	tdp->Tabschema = GetStringTableOption(g, topt, "Dbname", db);
 	tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
 	tdp->Colist = GetStringTableOption(g, topt, "Colist", "all");
+	tdp->Filter = GetStringTableOption(g, topt, "Filter", NULL);
 	tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
-
-	if (tdp->Colist) {
-		char *p = (char*)strchr(tdp->Colist, ';');
-
-		if (p) {
-			*p++ = 0;
-			tdp->Filter = *p ? p : NULL;
-		} // endif p
-
-	} // endif Colist
 
 	if (trace)
 		htrc("Uri %s coll=%s db=%s colist=%s filter=%s lvl=%d\n",
@@ -412,8 +403,8 @@ bool MGODEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 /***********************************************************************/
 PTDB MGODEF::GetTable(PGLOBAL g, MODE m)
 {
-	//if (Catfunc == FNC_COL)
-	//	return new(g)TDBGOL(this);
+	if (Catfunc == FNC_COL)
+		return new(g)TDBGOL(this);
 
 	return new(g) TDBMGO(this);
 } // end of GetTable
@@ -650,19 +641,6 @@ bool TDBMGO::Init(PGLOBAL g)
 
 	G = g;
 
-	if (Options && !Pipe) {
-		char *p = (char*)strchr(Options, ';');
-
-		if (p) {
-			*p++ = 0;
-
-			if (p)
-				Filter = p;
-
-		} // endif p
-
-	} // endif Options
-
 	Uri = mongoc_uri_new(Uristr);
 
 	if (!Uri) {
@@ -746,7 +724,7 @@ mongoc_cursor_t *TDBMGO::MakeCursor(PGLOBAL g)
 	for (cp = Columns; cp; cp = cp->GetNext())
 		if (!strcmp(cp->GetName(), "_id"))
 			id = true;
-		else if (cp->GetFmt() && !strcmp(cp->GetFmt(), "*"))
+		else if (cp->GetFmt() && !strcmp(cp->GetFmt(), "*") && !Options)
 			all = true;
 
 	if (Pipe) {
@@ -1455,17 +1433,15 @@ bool MGOCOL::AddValue(PGLOBAL g, bson_t *doc, char *key, bool upd)
 
 } // end of AddValue
 
-#if 0
 /* ---------------------------TDBGOL class --------------------------- */
 
 /***********************************************************************/
 /*  TDBGOL class constructor.                                          */
 /***********************************************************************/
-TDBJCL::TDBJCL(PMGODEF tdp) : TDBCAT(tdp)
+TDBGOL::TDBGOL(PMGODEF tdp) : TDBCAT(tdp)
 {
 	Topt = tdp->GetTopt();
-	Db = (char*)tdp->GetDB();
-	Dsn = (char*)tdp->Uri;
+	Db = (char*)tdp->GetTabschema();
 } // end of TDBJCL constructor
 
 /***********************************************************************/
@@ -1473,8 +1449,7 @@ TDBJCL::TDBJCL(PMGODEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBGOL::GetResult(PGLOBAL g)
 {
-	return JSONColumns(g, Db, Dsn, Topt, false);
+	return MGOColumns(g, Db, Topt, false);
 } // end of GetResult
-#endif // 0
 
 /* -------------------------- End of mongo --------------------------- */
