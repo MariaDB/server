@@ -1,21 +1,29 @@
+connect  server_1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  server_2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connect  server_3,127.0.0.1,root,,,$SERVER_MYPORT_3;
+connect  server_4,127.0.0.1,root,,,$SERVER_MYPORT_4;
+connection server_1;
 create database a;
 use a;
 create table t1(a int);
 insert into t1 values(1);
 create table t2(a int);
 insert into t2 values(1);
+connection server_2;
 create database b;
 use b;
 create table t1(a int);
 insert into t1 values(1);
 create table t2(a int);
 insert into t2 values(1);
+connection server_3;
 create database c;
 use c;
 create table t1(a int);
 insert into t1 values(1);
 create table t2(a int);
 insert into t2 values(1);
+connection server_4;
 change master 'm1' to master_port=MYPORT_1 , master_host='127.0.0.1', master_user='root';
 change master 'm2' to master_port=MYPORT_2 , master_host='127.0.0.1', master_user='root';
 change master  to master_port=MYPORT_3 , master_host='127.0.0.1', master_user='root';
@@ -62,9 +70,13 @@ mysqld-relay-bin-m2.000002
 mysqld-relay-bin-m2.000003
 mysqld-relay-bin-m2.index
 #CleanUp
+connection server_1;
 drop database a;
+connection server_2;
 drop database b;
+connection server_3;
 drop database c;
+connection server_4;
 stop all slaves;
 Warnings:
 Note	1938	SLAVE 'm2' stopped
