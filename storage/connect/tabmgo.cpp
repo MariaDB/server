@@ -1265,7 +1265,7 @@ char *MGOCOL::Mini(PGLOBAL g, const bson_t *bson, bool b)
 
 	if (i >= Long) {
 		sprintf(g->Message, "Value too long for column %s", Name);
-		throw(TYPE_AM_MGO);
+		throw (int)TYPE_AM_MGO;
 	}	// endif i
 
 	Mbuf[k] = 0;
@@ -1351,7 +1351,7 @@ void MGOCOL::ReadColumn(PGLOBAL g)
 					bson_destroy(doc);
 				} else {
 					//strcpy(g->Message, "bson_iter_array failed (data is null)");
-					//throw(TYPE_AM_MGO);
+					//throw (int)TYPE_AM_MGO;
 					Value->Reset();
 				}	// endif data
 

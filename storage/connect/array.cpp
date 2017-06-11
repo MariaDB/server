@@ -519,7 +519,7 @@ bool ARRAY::FilTest(PGLOBAL g, PVAL valp, OPVAL opc, int opm)
 
   } else if (opc != OP_EXIST) {
 		sprintf(g->Message, MSG(MISSING_ARG), opc);
-		throw	TYPE_ARRAY;
+		throw	(int)TYPE_ARRAY;
   } else    // OP_EXIST
     return Nval > 0;
 
@@ -681,14 +681,14 @@ void ARRAY::SetPrecision(PGLOBAL g, int p)
   {
   if (Vblp == NULL) {
     strcpy(g->Message, MSG(PREC_VBLP_NULL));
-		throw TYPE_ARRAY;
+		throw (int)TYPE_ARRAY;
     } // endif Vblp
 
   bool was = Vblp->IsCi();
 
   if (was && !p) {
     strcpy(g->Message, MSG(BAD_SET_CASE));
-		throw TYPE_ARRAY;
+		throw (int)TYPE_ARRAY;
 	} // endif Vblp
 
   if (was || !p)
@@ -699,7 +699,7 @@ void ARRAY::SetPrecision(PGLOBAL g, int p)
   if (!was && Type == TYPE_STRING)
     // Must be resorted to eliminate duplicate strings
     if (Sort(g))
-			throw TYPE_ARRAY;
+			throw (int)TYPE_ARRAY;
 
   } // end of SetPrecision
 

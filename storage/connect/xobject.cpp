@@ -84,7 +84,7 @@ double XOBJECT::GetFloatValue(void)
 CONSTANT::CONSTANT(PGLOBAL g, void *value, short type)
   {
   if (!(Value = AllocateValue(g, value, (int)type)))
-		throw TYPE_CONST;
+		throw (int)TYPE_CONST;
 
   Constant = true;
   } // end of CONSTANT constructor
@@ -95,7 +95,7 @@ CONSTANT::CONSTANT(PGLOBAL g, void *value, short type)
 CONSTANT::CONSTANT(PGLOBAL g, int n)
   {
   if (!(Value = AllocateValue(g, &n, TYPE_INT)))
-		throw TYPE_CONST;
+		throw (int)TYPE_CONST;
 
   Constant = true;
   } // end of CONSTANT constructor
@@ -117,7 +117,7 @@ void CONSTANT::Convert(PGLOBAL g, int newtype)
   {
   if (Value->GetType() != newtype)
     if (!(Value = AllocateValue(g, Value, newtype)))
-			throw TYPE_CONST;
+			throw (int)TYPE_CONST;
 
   } // end of Convert
 

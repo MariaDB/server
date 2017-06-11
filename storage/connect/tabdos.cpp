@@ -2736,7 +2736,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     if (Value->GetBinValue(p, Long, Status)) {
       sprintf(g->Message, MSG(BIN_F_TOO_LONG),
                           Name, Value->GetSize(), Long);
-      longjmp(g->jumper[g->jump_level], 31);
+      throw 31;
       } // endif
 
   } // end of WriteColumn
