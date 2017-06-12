@@ -1,0 +1,15 @@
+Running a concurrent test with the following queries:
+TRUNCATE TABLE t1
+INSERT INTO t1 VALUE (1,'x'),(2,'x'),(3,'x')
+INSERT INTO t1 VALUE (4, 'z');
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 CHAR(255)) ENGINE=InnoDB;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_trx_fragment_size = 1;;;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_trx_fragment_size = 1;;;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_trx_fragment_size = 1;;;
+include/diff_servers.inc [servers=1 2]
+DROP TABLE t1;
+Concurrent test end
