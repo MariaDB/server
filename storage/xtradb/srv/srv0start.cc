@@ -2947,12 +2947,15 @@ files_checked:
 
 	if (!srv_read_only_mode) {
 		buf_page_cleaner_is_active = true;
-		buf_flush_page_cleaner_thread_handle = os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
+		buf_flush_page_cleaner_thread_handle = os_thread_create(
+			buf_flush_page_cleaner_thread, NULL, NULL);
 		buf_flush_page_cleaner_thread_started = true;
-	}
 
-	buf_flush_lru_manager_thread_handle = os_thread_create(buf_flush_lru_manager_thread, NULL, NULL);
-	buf_flush_lru_manager_thread_started = true;
+		buf_lru_manager_is_active = true;
+		buf_flush_lru_manager_thread_handle = os_thread_create(
+			buf_flush_lru_manager_thread, NULL, NULL);
+		buf_flush_lru_manager_thread_started = true;
+	}
 
 	if (!srv_file_per_table && srv_pass_corrupt_table) {
 		fprintf(stderr, "InnoDB: Warning:"

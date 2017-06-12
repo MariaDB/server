@@ -61,7 +61,7 @@ doing the shutdown */
 UNIV_INTERN bool buf_page_cleaner_is_active;
 
 /** Flag indicating if the lru_manager is in active state. */
-UNIV_INTERN bool buf_lru_manager_is_active = false;
+UNIV_INTERN bool buf_lru_manager_is_active;
 
 #ifdef UNIV_PFS_THREAD
 UNIV_INTERN mysql_pfs_key_t buf_page_cleaner_thread_key;
@@ -2867,8 +2867,6 @@ DECLARE_THREAD(buf_flush_lru_manager_thread)(
 	fprintf(stderr, "InnoDB: lru_manager thread running, id %lu\n",
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
-
-	buf_lru_manager_is_active = true;
 
 	/* On server shutdown, the LRU manager thread runs through cleanup
 	phase to provide free pages for the master and purge threads.  */

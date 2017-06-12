@@ -17032,6 +17032,10 @@ innodb_sched_priority_cleaner_update(
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
+	if (srv_read_only_mode) {
+		return;
+	}
+
 	ulint	priority = *static_cast<const ulint *>(save);
 	ulint	actual_priority;
 	ulint	nice = 0;
@@ -17058,10 +17062,6 @@ innodb_sched_priority_cleaner_update(
 	}
 
 	/* Set the priority for the page cleaner thread */
-	if (srv_read_only_mode) {
-
-		return;
-	}
 
 	ut_ad(buf_page_cleaner_is_active);
 	nice = os_thread_get_priority(srv_cleaner_tid);
