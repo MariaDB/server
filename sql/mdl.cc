@@ -1545,7 +1545,6 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
   bool can_grant= FALSE;
   bitmap_t waiting_incompat_map= incompatible_waiting_types_bitmap()[type_arg];
   bitmap_t granted_incompat_map= incompatible_granted_types_bitmap()[type_arg];
-  bool  wsrep_can_grant= TRUE;
 
   /*
     New lock request can be satisfied iff:
@@ -1558,10 +1557,20 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
   {
     if (! (m_granted.bitmap() & granted_incompat_map))
       can_grant= TRUE;
+#ifdef WITH_WSREP
+    else if (wsrep_thd_is_BF((void *)(requestor_ctx->get_thd()),false) &&
+             key.mdl_namespace() == MDL_key::GLOBAL)
+    {
+      WSREP_DEBUG("global lock granted for BF: %lld %s",
+		  wsrep_thd_thread_id(requestor_ctx->get_thd()),
+		  wsrep_thd_query(requestor_ctx->get_thd()));
+      can_grant= TRUE;
+    }
     else
     {
       Ticket_iterator it(m_granted);
       MDL_ticket *ticket;
+      bool  wsrep_can_grant= TRUE;
 
       /* Check that the incompatible lock belongs to some other context. */
       while ((ticket= it++))
@@ -1569,16 +1578,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
         if (ticket->get_ctx() != requestor_ctx &&
             ticket->is_incompatible_when_granted(type_arg))
         {
-#ifdef WITH_WSREP
-          if (wsrep_thd_is_BF((void*)requestor_ctx->get_thd(),false) &&
-              key.mdl_namespace() == MDL_key::GLOBAL)
-          {
-            WSREP_DEBUG("global lock granted for BF: %lu %s",
-                        thd_get_thread_id(requestor_ctx->get_thd()),
-                        wsrep_thd_query(requestor_ctx->get_thd()));
-            can_grant = true;
-          }
-          else if (!wsrep_grant_mdl_exception(requestor_ctx, ticket, &key))
+          if (!wsrep_grant_mdl_exception(requestor_ctx, ticket, &key))
           {
             wsrep_can_grant= FALSE;
             if (wsrep_log_conflicts)
@@ -1590,18 +1590,30 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
                          "abort" );
             }
           }
-          else
-            can_grant= TRUE;
-          /* Continue loop */
-#else
-          break;
-#endif /* WITH_WSREP */
         }
       }
-      if ((ticket == NULL) && wsrep_can_grant)
-        can_grant= TRUE; /* Incompatible locks are our own. */
+      if (wsrep_can_grant)
+        can_grant= TRUE;
     }
+#else
+    else
+    {
+      Ticket_iterator it(m_granted);
+      MDL_ticket *ticket;
+
+      /* Check that the incompatible lock belongs to some other context. */
+      while ((ticket= it++))
+      {
+        if (ticket->get_ctx() != requestor_ctx &&
+            ticket->is_incompatible_when_granted(type_arg))
+          break;
+      }
+      if (ticket == NULL)             /* Incompatible locks are our own. */
+        can_grant= TRUE;
+    }
+#endif /* WITH_WSREP */
   }
+#ifdef WITH_WSREP
   else
   {
     if (wsrep_thd_is_BF((void*)requestor_ctx->get_thd(), false) &&
@@ -1613,6 +1625,8 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
       can_grant = true;
     }
   }
+#endif /* WITH_WSREP */
+
   return can_grant;
 }
 
