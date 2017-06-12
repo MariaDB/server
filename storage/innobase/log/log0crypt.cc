@@ -156,19 +156,6 @@ log_crypt(byte* buf, ulint size, bool decrypt)
 
 		ut_a(rc == MY_AES_OK);
 		ut_a(dst_len == sizeof dst);
-		if (decrypt) {
-			std::ostringstream s;
-			ut_print_buf_hex(s, buf + LOG_CRYPT_HDR_SIZE,
-					 OS_FILE_LOG_BLOCK_SIZE
-					 - LOG_CRYPT_HDR_SIZE);
-			ib::info() << "S: " << s.str();
-			std::ostringstream d;
-			ut_print_buf_hex(d, dst,
-					 OS_FILE_LOG_BLOCK_SIZE
-					 - LOG_CRYPT_HDR_SIZE);
-			ib::info() << "c: " << d.str();
-		}
-
 		memcpy(buf + LOG_CRYPT_HDR_SIZE, dst, sizeof dst);
 	}
 }
