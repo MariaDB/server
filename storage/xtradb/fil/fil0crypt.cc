@@ -1115,6 +1115,36 @@ fil_crypt_needs_rotation(
 	return false;
 }
 
+/** Read page 0 and possible crypt data from there.
+@param[in,out]	space		Tablespace */
+static inline
+void
+fil_crypt_read_crypt_data(fil_space_t* space)
+{
+	if (space->crypt_data || space->size) {
+		/* The encryption metadata has already been read, or
+		the tablespace is not encrypted and the file has been
+		opened already. */
+		return;
+	}
+
+	mtr_t	mtr;
+	mtr_start(&mtr);
+	ulint zip_size = fsp_flags_get_zip_size(space->flags);
+	ulint offset = fsp_header_get_crypt_offset(zip_size);
+	if (buf_block_t* block = buf_page_get(space->id, zip_size, 0,
+					      RW_S_LATCH, &mtr)) {
+		mutex_enter(&fil_system->mutex);
+		if (!space->crypt_data) {
+			space->crypt_data = fil_space_read_crypt_data(
+				space->id, block->frame, offset);
+		}
+		mutex_exit(&fil_system->mutex);
+	}
+
+	mtr_commit(&mtr);
+}
+
 /***********************************************************************
 Start encrypting a space
 @param[in,out]		space		Tablespace
@@ -1125,6 +1155,7 @@ fil_crypt_start_encrypting_space(
 	fil_space_t*	space)
 {
 	bool recheck = false;
+
 	mutex_enter(&fil_crypt_threads_mutex);
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
@@ -1191,8 +1222,6 @@ fil_crypt_start_encrypting_space(
 		byte* frame = buf_block_get_frame(block);
 		crypt_data->type = CRYPT_SCHEME_1;
 		crypt_data->write_page0(frame, &mtr);
-
-
 		mtr_commit(&mtr);
 
 		/* record lsn of update */
@@ -1620,6 +1649,8 @@ fil_crypt_find_space_to_rotate(
 	}
 
 	while (!state->should_shutdown() && state->space) {
+		fil_crypt_read_crypt_data(state->space);
+
 		if (fil_crypt_space_needs_rotation(state, key_state, recheck)) {
 			ut_ad(key_state->key_id);
 			/* init state->min_key_version_found before
@@ -2314,8 +2345,10 @@ DECLARE_THREAD(fil_crypt_thread)(
 			while (!thr.should_shutdown() &&
 			       fil_crypt_find_page_to_rotate(&new_state, &thr)) {
 
-				/* rotate a (set) of pages */
-				fil_crypt_rotate_pages(&new_state, &thr);
+				if (!thr.space->is_stopping()) {
+					/* rotate a (set) of pages */
+					fil_crypt_rotate_pages(&new_state, &thr);
+				}
 
 				/* If space is marked as stopping, release
 				space and stop rotation. */
@@ -2545,10 +2578,10 @@ fil_space_crypt_get_status(
 	memset(status, 0, sizeof(*status));
 
 	ut_ad(space->n_pending_ops > 0);
-	fil_space_crypt_t* crypt_data = space->crypt_data;
+	fil_crypt_read_crypt_data(const_cast<fil_space_t*>(space));
 	status->space = space->id;
 
-	if (crypt_data != NULL) {
+	if (fil_space_crypt_t* crypt_data = space->crypt_data) {
 		mutex_enter(&crypt_data->mutex);
 		status->scheme = crypt_data->type;
 		status->keyserver_requests = crypt_data->keyserver_requests;

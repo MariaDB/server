@@ -349,12 +349,12 @@ thd_destructor_proxy(void *)
 		while (trx_sys_any_active_transactions()) {
 			os_thread_sleep(1000);
 		}
-
-		/* Some background threads might generate undo pages that will
-		need to be purged, so they have to be shut down before purge
-		threads if slow shutdown is requested.  */
-		srv_shutdown_bg_undo_sources();
 	}
+
+	/* Some background threads might generate undo pages that will
+	need to be purged, so they have to be shut down before purge
+	threads if slow shutdown is requested.  */
+	srv_shutdown_bg_undo_sources();
 	srv_purge_wakeup();
 
 	destroy_thd(thd);
@@ -1448,14 +1448,11 @@ innobase_drop_database(
 	handlerton*	hton,
 	char*		path);
 
-/*******************************************************************//**
-Closes an InnoDB database. */
+/** Shut down the InnoDB storage engine.
+@return	0 */
 static
 int
-innobase_end(
-/*=========*/
-	handlerton*		hton,	/* in: InnoDB handlerton */
-	ha_panic_function	type);
+innobase_end(handlerton*, ha_panic_function);
 
 /*****************************************************************//**
 Creates an InnoDB transaction struct for the thd if it does not yet have one.
@@ -3749,10 +3746,7 @@ innobase_space_shutdown()
 	srv_tmp_space.shutdown();
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
-	if (srv_allow_writes_event) {
-		os_event_destroy(srv_allow_writes_event);
-		srv_allow_writes_event = NULL;
-	}
+	os_event_destroy(srv_allow_writes_event);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
 	DBUG_VOID_RETURN;
@@ -4575,21 +4569,13 @@ error:
 	DBUG_RETURN(1);
 }
 
-/*******************************************************************//**
-Closes an InnoDB database.
-@return TRUE if error */
+/** Shut down the InnoDB storage engine.
+@return	0 */
 static
 int
-innobase_end(
-/*=========*/
-	handlerton*		hton,	/*!< in/out: InnoDB handlerton */
-	ha_panic_function	type MY_ATTRIBUTE((unused)))
-					/*!< in: ha_panic() parameter */
+innobase_end(handlerton*, ha_panic_function)
 {
-	int	err= 0;
-
 	DBUG_ENTER("innobase_end");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	if (srv_was_started) {
 		THD *thd= current_thd;
@@ -4622,7 +4608,7 @@ innobase_end(
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
 	}
 
-	DBUG_RETURN(err);
+	DBUG_RETURN(0);
 }
 
 /*****************************************************************//**

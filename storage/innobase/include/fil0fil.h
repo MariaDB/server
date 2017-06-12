@@ -180,9 +180,6 @@ struct fil_space_t {
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
 
-	/** tablespace crypt data has been read */
-	bool		page_0_crypt_read;
-
 	/** True if we have already printed compression failure */
 	bool		printed_compression_failure;
 
@@ -586,7 +583,6 @@ Error messages are issued to the server log.
 @param[in]	flags		tablespace flags
 @param[in]	purpose		tablespace purpose
 @param[in,out]	crypt_data	encryption information
-@param[in]	create_table	whether this is CREATE TABLE
 @param[in]	mode		encryption mode
 @return pointer to created tablespace, to be filled in with fil_node_create()
 @retval NULL on failure (such as when the same tablespace exists) */
@@ -597,7 +593,6 @@ fil_space_create(
 	ulint			flags,
 	fil_type_t		purpose,
 	fil_space_crypt_t*	crypt_data,
-	bool			create_table,
 	fil_encryption_t	mode = FIL_ENCRYPTION_DEFAULT)
 	MY_ATTRIBUTE((warn_unused_result));
 

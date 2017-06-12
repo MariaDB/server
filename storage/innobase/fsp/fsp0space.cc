@@ -132,8 +132,7 @@ Tablespace::open_or_create(bool is_temp)
 				m_name, m_space_id, FSP_FLAGS_PAGE_SSIZE(),
 				is_temp
 				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
-				it->m_crypt_info,
-				false);
+				it->m_crypt_info);
 		}
 
 		ut_a(fil_validate());

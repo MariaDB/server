@@ -655,12 +655,8 @@ retry:
 			FSP_HEADER_OFFSET + FSP_FREE + page);
 
 		/* Try to read crypt_data from page 0 if it is not yet
-		read. FIXME: Remove page_0_crypt_read, and simply ensure in
-		fil_space_t object creation that node->size==0 if and only
-		if the crypt_data is not known and must be read. */
-		if (!space->page_0_crypt_read) {
-			space->page_0_crypt_read = true;
-			ut_ad(space->crypt_data == NULL);
+		read. */
+		if (!space->crypt_data) {
 			space->crypt_data = fil_space_read_crypt_data(
 				page_size_t(space->flags), page);
 		}
@@ -1591,7 +1587,6 @@ Error messages are issued to the server log.
 @param[in]	flags		tablespace flags
 @param[in]	purpose		tablespace purpose
 @param[in,out]	crypt_data	encryption information
-@param[in]	create_table	whether this is CREATE TABLE
 @param[in]	mode		encryption mode
 @return pointer to created tablespace, to be filled in with fil_node_create()
 @retval NULL on failure (such as when the same tablespace exists) */
@@ -1602,7 +1597,6 @@ fil_space_create(
 	ulint			flags,
 	fil_type_t		purpose,
 	fil_space_crypt_t*	crypt_data,
-	bool			create_table,
 	fil_encryption_t	mode)
 {
 	fil_space_t*	space;
@@ -1667,16 +1661,8 @@ fil_space_create(
 	space->magic_n = FIL_SPACE_MAGIC_N;
 	space->crypt_data = crypt_data;
 
-	/* In create table we write page 0 so we have already
-	"read" it and for system tablespaces we have read
-	crypt data at startup. */
-	if (create_table || crypt_data != NULL) {
-		space->page_0_crypt_read = true;
-	}
-
 	DBUG_LOG("tablespace",
-		 "Tablespace for space " << id << " name " << name
-		 << (create_table ? " created" : " opened"));
+		 "Created metadata for " << id << " name " << name);
 	if (crypt_data) {
 		DBUG_LOG("crypt",
 			 "Tablespace " << id << " name " << name
@@ -4004,7 +3990,7 @@ fil_ibd_create(
 	}
 
 	space = fil_space_create(name, space_id, flags, FIL_TYPE_TABLESPACE,
-				 crypt_data, true, mode);
+				 crypt_data, mode);
 
 	fil_node_t* node = NULL;
 
@@ -4372,7 +4358,7 @@ skip_validate:
 			space_name, id, flags, purpose,
 			df_remote.is_open() ? df_remote.get_crypt_info() :
 			df_dict.is_open() ? df_dict.get_crypt_info() :
-			df_default.get_crypt_info(), false);
+			df_default.get_crypt_info());
 
 		/* We do not measure the size of the file, that is why
 		we pass the 0 below */
@@ -4692,7 +4678,7 @@ fil_ibd_load(
 
 	space = fil_space_create(
 		file.name(), space_id, flags, FIL_TYPE_TABLESPACE,
-		file.get_crypt_info(), false);
+		file.get_crypt_info());
 
 	if (space == NULL) {
 		return(FIL_LOAD_INVALID);

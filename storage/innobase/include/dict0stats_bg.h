@@ -140,7 +140,7 @@ DECLARE_THREAD(dict_stats_thread)(
 	void*	arg);	/*!< in: a dummy parameter
 			required by os_thread_create */
 
-/** Shutdown the dict stats thread. */
+/** Shut down the dict_stats_thread. */
 void
 dict_stats_shutdown();
 

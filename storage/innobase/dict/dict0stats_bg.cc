@@ -38,8 +38,6 @@ Created Apr 25, 2012 Vasil Dimov
 /** Minimum time interval between stats recalc for a given table */
 #define MIN_RECALC_INTERVAL	10 /* seconds */
 
-#define SHUTTING_DOWN()		(srv_shutdown_state != SRV_SHUTDOWN_NONE)
-
 /** Event to wake up dict_stats_thread on dict_stats_recalc_pool_add()
 or shutdown. Not protected by any mutex. */
 os_event_t			dict_stats_event;
@@ -270,7 +268,6 @@ Initialize global variables needed for the operation of dict_stats_thread()
 Must be called before dict_stats_thread() is started. */
 void
 dict_stats_thread_init()
-/*====================*/
 {
 	ut_a(!srv_read_only_mode);
 
@@ -315,15 +312,9 @@ dict_stats_thread_deinit()
 
 	mutex_free(&recalc_pool_mutex);
 
-#ifdef UNIV_DEBUG
-	os_event_destroy(dict_stats_disabled_event);
-	dict_stats_disabled_event = NULL;
-#endif /* UNIV_DEBUG */
-
+	ut_d(os_event_destroy(dict_stats_disabled_event));
 	os_event_destroy(dict_stats_event);
 	os_event_destroy(dict_stats_shutdown_event);
-	dict_stats_event = NULL;
-	dict_stats_shutdown_event = NULL;
 	dict_stats_start_shutdown = false;
 }
 
@@ -492,7 +483,7 @@ DECLARE_THREAD(dict_stats_thread)(void*)
 	OS_THREAD_DUMMY_RETURN;
 }
 
-/** Shutdown the dict stats thread. */
+/** Shut down the dict_stats_thread. */
 void
 dict_stats_shutdown()
 {

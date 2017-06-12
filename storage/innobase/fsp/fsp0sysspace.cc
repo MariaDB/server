@@ -930,8 +930,8 @@ SysTablespace::open_or_create(
 
 			space = fil_space_create(
 				name(), space_id(), flags(), is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, m_crypt_info,
-				false);
+				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
+				m_crypt_info);
 		}
 
 		ut_a(fil_validate());

@@ -922,6 +922,34 @@ fil_crypt_needs_rotation(
 	return false;
 }
 
+/** Read page 0 and possible crypt data from there.
+@param[in,out]	space		Tablespace */
+static inline
+void
+fil_crypt_read_crypt_data(fil_space_t* space)
+{
+	if (space->crypt_data || space->size) {
+		/* The encryption metadata has already been read, or
+		the tablespace is not encrypted and the file has been
+		opened already. */
+		return;
+	}
+
+	const page_size_t page_size(space->flags);
+	mtr_t	mtr;
+	mtr.start();
+	if (buf_block_t* block = buf_page_get(page_id_t(space->id, 0),
+					      page_size, RW_S_LATCH, &mtr)) {
+		mutex_enter(&fil_system->mutex);
+		if (!space->crypt_data) {
+			space->crypt_data = fil_space_read_crypt_data(
+				page_size, block->frame);
+		}
+		mutex_exit(&fil_system->mutex);
+	}
+	mtr.commit();
+}
+
 /***********************************************************************
 Start encrypting a space
 @param[in,out]		space		Tablespace
@@ -932,6 +960,7 @@ fil_crypt_start_encrypting_space(
 	fil_space_t*	space)
 {
 	bool recheck = false;
+
 	mutex_enter(&fil_crypt_threads_mutex);
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
@@ -1428,6 +1457,13 @@ fil_crypt_find_space_to_rotate(
 	}
 
 	while (!state->should_shutdown() && state->space) {
+		/* If there is no crypt data and we have not yet read
+		page 0 for this tablespace, we need to read it before
+		we can continue. */
+		if (!state->space->crypt_data) {
+			fil_crypt_read_crypt_data(state->space);
+		}
+
 		if (fil_crypt_space_needs_rotation(state, key_state, recheck)) {
 			ut_ad(key_state->key_id);
 			/* init state->min_key_version_found before
@@ -2129,8 +2165,10 @@ DECLARE_THREAD(fil_crypt_thread)(
 			while (!thr.should_shutdown() &&
 			       fil_crypt_find_page_to_rotate(&new_state, &thr)) {
 
-				/* rotate a (set) of pages */
-				fil_crypt_rotate_pages(&new_state, &thr);
+				if (!thr.space->is_stopping()) {
+					/* rotate a (set) of pages */
+					fil_crypt_rotate_pages(&new_state, &thr);
+				}
 
 				/* If space is marked as stopping, release
 				space and stop rotation. */
@@ -2357,6 +2395,14 @@ fil_space_crypt_get_status(
 	memset(status, 0, sizeof(*status));
 
 	ut_ad(space->n_pending_ops > 0);
+
+	/* If there is no crypt data and we have not yet read
+	page 0 for this tablespace, we need to read it before
+	we can continue. */
+	if (!space->crypt_data) {
+		fil_crypt_read_crypt_data(const_cast<fil_space_t*>(space));
+	}
+
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 	status->space = space->id;
 

@@ -1898,8 +1898,8 @@ error:
 	return(TRUE);
 }
 
-static my_bool
-innodb_end(void)
+static void
+innodb_end()
 {
 	srv_fast_shutdown = (ulint) innobase_fast_shutdown;
 	innodb_inited = 0;
@@ -1907,9 +1907,7 @@ innodb_end(void)
 	msg("xtrabackup: starting shutdown with innodb_fast_shutdown = %lu\n",
 	    srv_fast_shutdown);
 
-	if (innobase_shutdown_for_mysql() != DB_SUCCESS) {
-		goto error;
-	}
+	innodb_shutdown();
 	free(internal_innobase_data_file_path);
 	internal_innobase_data_file_path = NULL;
 
@@ -1920,12 +1918,6 @@ innodb_end(void)
 //	pthread_mutex_destroy(&commit_threads_m);
 //	pthread_mutex_destroy(&commit_cond_m);
 //	pthread_cond_destroy(&commit_cond);
-
-	return(FALSE);
-
-error:
-	msg("xtrabackup: innodb_end(): Error occured.\n");
-	return(TRUE);
 }
 
 /* ================= common ================= */
@@ -4673,8 +4665,7 @@ end:
 	xb_filters_free();
 
 	/* shutdown InnoDB */
-	if(innodb_end())
-		exit(EXIT_FAILURE);
+	innodb_end();
 }
 
 /* ================= prepare ================= */
@@ -6617,8 +6608,7 @@ next_node:
 	xb_write_galera_info(xtrabackup_incremental);
 #endif
 
-	if(innodb_end())
-		goto error_cleanup;
+	innodb_end();
 
         innodb_free_param();
 
@@ -6704,9 +6694,7 @@ next_node:
 		if(innodb_init())
 			goto error;
 
-		if(innodb_end())
-			goto error;
-
+		innodb_end();
                 innodb_free_param();
 
 	}

@@ -247,6 +247,19 @@ trx_purge_add_update_undo_to_history(
 			hist_size + undo->size, MLOG_4BYTES, mtr);
 	}
 
+	/* Before any transaction-generating background threads or the
+	purge have been started, recv_recovery_rollback_active() can
+	start transactions in row_merge_drop_temp_indexes() and
+	fts_drop_orphaned_tables(), and roll back recovered transactions.
+	After the purge thread has been given permission to exit,
+	in fast shutdown, we may roll back transactions (trx->undo_no==0)
+	in THD::cleanup() invoked from unlink_thd(). */
+	ut_ad(srv_undo_sources
+	      || ((srv_startup_is_before_trx_rollback_phase
+		   || trx_rollback_or_clean_is_active)
+		  && purge_sys->state == PURGE_STATE_INIT)
+	      || (trx->undo_no == 0 && srv_fast_shutdown));
+
 	/* Add the log as the first in the history list */
 	flst_add_first(rseg_header + TRX_RSEG_HISTORY,
 		       undo_header + TRX_UNDO_HISTORY_NODE, mtr);

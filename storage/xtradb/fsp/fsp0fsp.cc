@@ -2740,7 +2740,6 @@ fsp_reserve_free_extents(
 	ibool		success;
 	ulint		n_pages_added;
 	size_t		total_reserved = 0;
-	ulint		rounds = 0;
 
 	ut_ad(mtr);
 	*n_reserved = n_ext;
@@ -2819,17 +2818,7 @@ try_to_extend:
 	success = fsp_try_extend_data_file(&n_pages_added, space,
 					   space_header, mtr);
 	if (success && n_pages_added > 0) {
-
-		rounds++;
 		total_reserved += n_pages_added;
-
-		if (rounds > 50) {
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"Space id %lu trying to reserve %lu extents actually reserved %lu "
-				" reserve %lu free %lu size %lu rounds %lu total_reserved %llu",
-				space, n_ext, n_pages_added, reserve, n_free, size, rounds, (ullint) total_reserved);
-		}
-
 		goto try_again;
 	}
 
@@ -4150,20 +4139,8 @@ ulint
 fsp_header_get_crypt_offset(
 	const ulint   zip_size)
 {
-	ulint pageno = 0;
-	/* compute first page_no that will have xdes stored on page != 0*/
-	for (ulint i = 0;
-	     (pageno = xdes_calc_descriptor_page(zip_size, i)) == 0; )
-		i++;
-
-	/* use pageno prior to this...i.e last page on page 0 */
-	ut_ad(pageno > 0);
-	pageno--;
-
-	ulint iv_offset = XDES_ARR_OFFSET +
-		XDES_SIZE * (1 + xdes_calc_descriptor_index(zip_size, pageno));
-
-	return FSP_HEADER_OFFSET + iv_offset;
+	return (FSP_HEADER_OFFSET + (XDES_ARR_OFFSET + XDES_SIZE *
+			(zip_size ? zip_size : UNIV_PAGE_SIZE) / FSP_EXTENT_SIZE));
 }
 
 /**********************************************************************//**

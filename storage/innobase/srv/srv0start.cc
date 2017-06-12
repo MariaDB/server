@@ -139,7 +139,11 @@ bool	srv_sys_tablespaces_open;
 /** TRUE if the server was successfully started */
 bool	srv_was_started;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
-static bool	srv_start_has_been_called;
+static bool		srv_start_has_been_called;
+
+/** Whether any undo log records can be generated */
+UNIV_INTERN bool	srv_undo_sources;
+
 #ifdef UNIV_DEBUG
 /** InnoDB system tablespace to set during recovery */
 UNIV_INTERN uint	srv_sys_space_size_debug;
@@ -451,8 +455,7 @@ create_log_files(
 
 	fil_space_t*	log_space = fil_space_create(
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0, FIL_TYPE_LOG,
-		NULL, /* innodb_encrypt_log works at a different level */
-		true /* this is create */);
+		NULL/* innodb_encrypt_log works at a different level */);
 
 	ut_a(fil_validate());
 	ut_a(log_space != NULL);
@@ -707,7 +710,7 @@ srv_undo_tablespace_open(
 
 		space = fil_space_create(
 			undo_name, space_id, FSP_FLAGS_PAGE_SSIZE(),
-			FIL_TYPE_TABLESPACE, NULL, true);
+			FIL_TYPE_TABLESPACE, NULL);
 
 		ut_a(fil_validate());
 		ut_a(space);
@@ -1451,8 +1454,7 @@ Starts InnoDB and creates a new database if database files
 are not found and the user wants.
 @return DB_SUCCESS or error code */
 dberr_t
-innobase_start_or_create_for_mysql(void)
-/*====================================*/
+innobase_start_or_create_for_mysql()
 {
 	bool		create_new_db = false;
 	lsn_t		flushed_lsn;
@@ -1854,6 +1856,7 @@ innobase_start_or_create_for_mysql(void)
 	if (!srv_read_only_mode) {
 		buf_flush_page_cleaner_init();
 
+		buf_page_cleaner_is_active = true;
 		os_thread_create(buf_flush_page_cleaner_coordinator,
 				 NULL, NULL);
 
@@ -1862,11 +1865,6 @@ innobase_start_or_create_for_mysql(void)
 		for (i = 1; i < srv_n_page_cleaners; ++i) {
 			os_thread_create(buf_flush_page_cleaner_worker,
 					 NULL, NULL);
-		}
-
-		/* Make sure page cleaner is active. */
-		while (!buf_page_cleaner_is_active) {
-			os_thread_sleep(10000);
 		}
 
 		srv_start_state_set(SRV_START_STATE_IO);
@@ -2070,8 +2068,7 @@ innobase_start_or_create_for_mysql(void)
 			"innodb_redo_log",
 			SRV_LOG_SPACE_FIRST_ID, 0,
 			FIL_TYPE_LOG,
-			NULL /* no encryption yet */,
-			true /* create */);
+			NULL /* no encryption yet */);
 
 		ut_a(fil_validate());
 		ut_a(log_space);
@@ -2499,6 +2496,7 @@ files_checked:
 		}
 
 		recv_recovery_rollback_active();
+		srv_startup_is_before_trx_rollback_phase = FALSE;
 
 		/* It is possible that file_format tag has never
 		been set. In this case we initialize it to minimum
@@ -2611,6 +2609,16 @@ files_checked:
 			NULL, thread_ids + (1 + SRV_MAX_N_IO_THREADS));
 		thread_started[1 + SRV_MAX_N_IO_THREADS] = true;
 		srv_start_state_set(SRV_START_STATE_MASTER);
+
+		srv_undo_sources = true;
+		/* Create the dict stats gathering thread */
+		srv_dict_stats_thread_active = true;
+		dict_stats_thread_handle = os_thread_create(
+			dict_stats_thread, NULL, NULL);
+		dict_stats_thread_started = true;
+
+		/* Create the thread that will optimize the FTS sub-system. */
+		fts_optimize_init();
 	}
 
 	if (!srv_read_only_mode
@@ -2691,10 +2699,10 @@ files_checked:
 		if (!wsrep_recovery) {
 #endif /* WITH_WSREP */
 		/* Create the buffer pool dump/load thread */
+		srv_buf_dump_thread_active = true;
 		buf_dump_thread_handle=
 			os_thread_create(buf_dump_thread, NULL, NULL);
 
-		srv_buf_dump_thread_active = true;
 		buf_dump_thread_started = true;
 #ifdef WITH_WSREP
 		} else {
@@ -2718,15 +2726,6 @@ files_checked:
 		  before any log blocks encrypted with that key.
 		*/
 		log_make_checkpoint_at(LSN_MAX, TRUE);
-
-		/* Create the dict stats gathering thread */
-		dict_stats_thread_handle = os_thread_create(
-			dict_stats_thread, NULL, NULL);
-		srv_dict_stats_thread_active = true;
-		dict_stats_thread_started = true;
-
-		/* Create the thread that will optimize the FTS sub-system. */
-		fts_optimize_init();
 
 		/* Init data for datafile scrub threads */
 		btr_scrub_init();
@@ -2779,13 +2778,17 @@ srv_fts_close(void)
 /****************************************************************//**
 Shuts down background threads that can generate undo pages. */
 void
-srv_shutdown_bg_undo_sources(void)
-/*===========================*/
+srv_shutdown_bg_undo_sources()
 {
-	if (srv_start_state_is_set(SRV_START_STATE_STAT)) {
+	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
+		while (row_get_background_drop_list_len_low()) {
+			srv_wake_master_thread();
+			os_thread_yield();
+		}
+		srv_undo_sources = false;
 	}
 }
 
@@ -2795,9 +2798,7 @@ innodb_shutdown()
 {
 	ut_ad(!srv_running);
 
-	if (srv_fast_shutdown) {
-		srv_shutdown_bg_undo_sources();
-	}
+	srv_shutdown_bg_undo_sources();
 
 	/* 1. Flush the buffer pool to disk, write the current lsn to
 	the tablespace header(s), and copy all log data to archive.
@@ -2942,85 +2943,6 @@ innodb_shutdown()
 	srv_was_started = false;
 	srv_start_has_been_called = false;
 }
-
-#if 0 // TODO: Enable this in WL#6608
-/********************************************************************
-Signal all per-table background threads to shutdown, and wait for them to do
-so. */
-static
-void
-srv_shutdown_table_bg_threads(void)
-/*===============================*/
-{
-	dict_table_t*	table;
-	dict_table_t*	first;
-	dict_table_t*	last = NULL;
-
-	mutex_enter(&dict_sys->mutex);
-
-	/* Signal all threads that they should stop. */
-	table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
-	first = table;
-	while (table) {
-		dict_table_t*	next;
-		fts_t*		fts = table->fts;
-
-		if (fts != NULL) {
-			fts_start_shutdown(table, fts);
-		}
-
-		next = UT_LIST_GET_NEXT(table_LRU, table);
-
-		if (!next) {
-			last = table;
-		}
-
-		table = next;
-	}
-
-	/* We must release dict_sys->mutex here; if we hold on to it in the
-	loop below, we will deadlock if any of the background threads try to
-	acquire it (for example, the FTS thread by calling que_eval_sql).
-
-	Releasing it here and going through dict_sys->table_LRU without
-	holding it is safe because:
-
-	 a) MySQL only starts the shutdown procedure after all client
-	 threads have been disconnected and no new ones are accepted, so no
-	 new tables are added or old ones dropped.
-
-	 b) Despite its name, the list is not LRU, and the order stays
-	 fixed.
-
-	To safeguard against the above assumptions ever changing, we store
-	the first and last items in the list above, and then check that
-	they've stayed the same below. */
-
-	mutex_exit(&dict_sys->mutex);
-
-	/* Wait for the threads of each table to stop. This is not inside
-	the above loop, because by signaling all the threads first we can
-	overlap their shutting down delays. */
-	table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
-	ut_a(first == table);
-	while (table) {
-		dict_table_t*	next;
-		fts_t*		fts = table->fts;
-
-		if (fts != NULL) {
-			fts_shutdown(table, fts);
-		}
-
-		next = UT_LIST_GET_NEXT(table_LRU, table);
-
-		if (table == last) {
-			ut_a(!next);
-		}
-
-		table = next;
-	}
-}
-#endif
 
 /** Get the meta-data filename from the table name for a
 single-table tablespace.

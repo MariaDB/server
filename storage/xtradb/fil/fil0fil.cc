@@ -661,12 +661,10 @@ fil_node_open_file(
 
 		/* Try to read crypt_data from page 0 if it is not yet
 		read. */
-		if (!node->space->page_0_crypt_read) {
-			ulint offset = fsp_header_get_crypt_offset(
-				fsp_flags_get_zip_size(flags));
-			ut_ad(node->space->crypt_data == NULL);
+		if (!node->space->crypt_data) {
+			const ulint offset = fsp_header_get_crypt_offset(
+					fsp_flags_get_zip_size(flags));
 			node->space->crypt_data = fil_space_read_crypt_data(space_id, page, offset);
-			node->space->page_0_crypt_read = true;
 		}
 
 		ut_free(buf2);
@@ -1600,22 +1598,6 @@ fil_space_create(
 	space->magic_n = FIL_SPACE_MAGIC_N;
 	space->crypt_data = crypt_data;
 
-	/* In create table we write page 0 so we have already
-	"read" it and for system tablespaces we have read
-	crypt data at startup. */
-	if (create_table || crypt_data != NULL) {
-		space->page_0_crypt_read = true;
-	}
-
-#ifdef UNIV_DEBUG
-	ib_logf(IB_LOG_LEVEL_INFO,
-		"Created tablespace for space %lu name %s key_id %u encryption %d.",
-		space->id,
-		space->name,
-		space->crypt_data ? space->crypt_data->key_id : 0,
-		space->crypt_data ? space->crypt_data->encryption : 0);
-#endif
-
 	rw_lock_create(fil_space_latch_key, &space->latch, SYNC_FSP);
 
 	HASH_INSERT(fil_space_t, hash, fil_system->spaces, id, space);
@@ -2463,8 +2445,8 @@ fil_read_first_page(
 		/* Possible encryption crypt data is also stored only to first page
 		of the first datafile. */
 
-		ulint offset = fsp_header_get_crypt_offset(
-			fsp_flags_get_zip_size(*flags));
+		const ulint offset = fsp_header_get_crypt_offset(
+					fsp_flags_get_zip_size(*flags));
 
 		cdata = fil_space_read_crypt_data(*space_id, page, offset);
 
@@ -4211,6 +4193,7 @@ fsp_flags_try_adjust(ulint space_id, ulint flags)
 					 flags, MLOG_4BYTES, &mtr);
 		}
 	}
+
 	mtr_commit(&mtr);
 }
 
@@ -4631,7 +4614,17 @@ cleanup_and_exit:
 
 	mem_free(def.filepath);
 
-	if (err == DB_SUCCESS && !srv_read_only_mode) {
+	/* We need to check fsp flags when no errors has happened and
+	server was not started on read only mode and tablespace validation
+	was requested or flags contain other table options except
+	low order bits to FSP_FLAGS_POS_PAGE_SSIZE position.
+	Note that flag comparison is pessimistic. Adjust is required
+	only when flags contain buggy MariaDB 10.1.0 -
+	MariaDB 10.1.20 flags.  */
+	if (err == DB_SUCCESS
+	    && !srv_read_only_mode
+	    && (validate
+		|| flags >= (1U << FSP_FLAGS_POS_PAGE_SSIZE))) {
 		fsp_flags_try_adjust(id, flags & ~FSP_FLAGS_MEM_MASK);
 	}
 

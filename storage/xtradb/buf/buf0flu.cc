@@ -62,10 +62,10 @@ is set to TRUE by the page_cleaner thread when it is spawned and is set
 back to FALSE at shutdown by the page_cleaner as well. Therefore no
 need to protect it by a mutex. It is only ever read by the thread
 doing the shutdown */
-UNIV_INTERN ibool buf_page_cleaner_is_active = FALSE;
+UNIV_INTERN bool buf_page_cleaner_is_active;
 
 /** Flag indicating if the lru_manager is in active state. */
-UNIV_INTERN bool buf_lru_manager_is_active = false;
+UNIV_INTERN bool buf_lru_manager_is_active;
 
 #ifdef UNIV_PFS_THREAD
 UNIV_INTERN mysql_pfs_key_t buf_page_cleaner_thread_key;
@@ -2799,8 +2799,6 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
-	buf_page_cleaner_is_active = TRUE;
-
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
 		ulint	page_cleaner_sleep_time;
@@ -2909,7 +2907,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	/* We have lived our life. Time to die. */
 
 thread_exit:
-	buf_page_cleaner_is_active = FALSE;
+	buf_page_cleaner_is_active = false;
 
 	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
@@ -2949,8 +2947,6 @@ DECLARE_THREAD(buf_flush_lru_manager_thread)(
 	fprintf(stderr, "InnoDB: lru_manager thread running, id %lu\n",
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
-
-	buf_lru_manager_is_active = true;
 
 	/* On server shutdown, the LRU manager thread runs through cleanup
 	phase to provide free pages for the master and purge threads.  */
