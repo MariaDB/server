@@ -55,15 +55,15 @@ commit;
 # i.e. < 23 + 3 = 26
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	17
+Innodb_pages0_read	19
 use innodb_test;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	17
+Innodb_pages0_read	19
 use test;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	17
+Innodb_pages0_read	19
 set global innodb_encrypt_tables=OFF;
 # wait until tables are decrypted
 show status like 'innodb_pages0_read%';
@@ -77,11 +77,11 @@ use test;
 # restart and see number read page 0
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	17
+Innodb_pages0_read	19
 use innodb_test;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	17
+Innodb_pages0_read	19
 use test;
 drop database innodb_test;
 show status like 'innodb_pages0_read%';
