@@ -1074,9 +1074,7 @@ static void print_table_data_xml(MYSQL_RES *result);
 static void print_tab_data(MYSQL_RES *result);
 static void print_table_data_vertically(MYSQL_RES *result);
 static void print_warnings(void);
-static ulonglong start_timer(void);
 static void end_timer(ulonglong start_time, char *buff);
-static void mysql_end_timer(ulonglong start_time, char *buff);
 static void nice_time(double sec,char *buff,bool part_second);
 extern "C" sig_handler mysql_end(int sig);
 extern "C" sig_handler handle_sigint(int sig);
@@ -3206,7 +3204,7 @@ static int
 com_go(String *buffer,char *line __attribute__((unused)))
 {
   char		buff[200]; /* about 110 chars used so far */
-  char		time_buff[52+3+1]; /* time max + space&parens + NUL */
+  char          time_buff[53+3+1]; /* time max + space&parens + NUL */
   MYSQL_RES	*result;
   ulonglong	timer;
   ulong		warnings= 0;
@@ -3248,7 +3246,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
     return 0;
   }
 
-  timer=start_timer();
+  timer= microsecond_interval_timer();
   executing_query= 1;
   error= mysql_real_query_for_lazy(buffer->ptr(),buffer->length());
   report_progress_end();
@@ -3287,7 +3285,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
     }
 
     if (verbose >= 3 || !opt_silent)
-      mysql_end_timer(timer,time_buff);
+      end_timer(timer, time_buff);
     else
       time_buff[0]= '\0';
 
@@ -5022,26 +5020,11 @@ void tee_putc(int c, FILE *file)
     putc(c, OUTFILE);
 }
 
-#if defined(__WIN__)
-#include <time.h>
-#else
-#include <sys/times.h>
-#ifdef _SC_CLK_TCK				// For mit-pthreads
-#undef CLOCKS_PER_SEC
-#define CLOCKS_PER_SEC (sysconf(_SC_CLK_TCK))
-#endif
-#endif
-
-static ulonglong start_timer(void)
-{
-  return microsecond_interval_timer();
-}
-
 
 /** 
   Write as many as 52+1 bytes to buff, in the form of a legible duration of time.
 
-  len("4294967296 days, 23 hours, 59 minutes, 60.00 seconds")  ->  52
+  len("4294967296 days, 23 hours, 59 minutes, 60.000 seconds")  ->  53
 */
 static void nice_time(double sec,char *buff,bool part_second)
 {
@@ -5076,16 +5059,12 @@ static void nice_time(double sec,char *buff,bool part_second)
 
 static void end_timer(ulonglong start_time, char *buff)
 {
-  double sec= (start_timer() - start_time) / (double) (1000 * 1000);
-  nice_time(sec, buff, 1);
-}
+  double sec;
 
-
-static void mysql_end_timer(ulonglong start_time, char *buff)
-{
   buff[0]=' ';
   buff[1]='(';
-  end_timer(start_time,buff+2);
+  sec= (microsecond_interval_timer() - start_time) / (double) (1000 * 1000);
+  nice_time(sec, buff + 2, 1);
   strmov(strend(buff),")");
 }
 
