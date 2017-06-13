@@ -1,0 +1,84 @@
+--echo #
+--echo # MDEV-10879 Window functions final ordering result set
+--echo #
+--echo # This testcase covers window function ordering without an explicit
+--echo # order by clause. Our behaviour is to reuse the final ordering used
+--echo # during window function computation. This will produce at least one
+--echo # window function with values in the order that they are computed.
+--echo #
+--echo # This feature was implemented as a request from the community, as this
+--echo # is what other DBMS engines are doing and they expect simillar behaviour.
+--echo #
+create table t1 (a int, b varchar(10));
+
+insert into t1 values (1, 'x'),
+(2, 'xx'),
+(3, 'yy'),
+(4, 'zz'),
+(5, 'xxx'),
+(6, 'yyy'),
+(7, 'zzz'),
+(8, 'aaa'),
+(9, 'bbb'),
+(11, 'aa'),
+(12, 'bb'),
+(13, 'cc'),
+(13, 'dd'),
+(10, 'ccc');
+
+select row_number() over (), a, b
+from t1;
+
+select row_number() over (order by a), a, b
+from t1;
+
+select row_number() over (order by b), a, b
+from t1;
+
+select row_number() over (order by a,b), a, b
+from t1;
+
+select row_number() over (partition by substring(b, -1) order by a), a, substring(b, -1)
+from t1;
+
+select row_number() over (partition by substring(b, -1) order by a),  a, substring(b, -1)
+from t1;
+
+select row_number() over (order by a),
+       row_number() over (partition by substring(b, -1) order by a), a, b
+from t1;
+
+--echo #
+--echo # Test descending ordering too.
+--echo #
+select row_number() over (order by a desc), a, b
+from t1;
+
+select row_number() over (order by a),
+       row_number() over (partition by substring(b, -1) desc order by a), a, b
+from t1;
+
+--echo #
+--echo # Test that we can still use the order by explicitly
+--echo #
+select row_number() over (order by a),
+       row_number() over (partition by substring(b, -1) desc order by a), a, b
+from t1
+order by a;
+
+select row_number() over (order by a),
+       row_number() over (partition by substring(b, -1) desc order by a), a, b
+from t1
+order by a desc;
+
+select row_number() over (order by a desc),
+       row_number() over (partition by substring(b, -1) desc order by a), a, b
+from t1
+order by a;
+
+select row_number() over (order by a) fst_row,
+       row_number() over (partition by substring(b, -1) desc order by a), a, b
+from t1
+order by fst_row;
+
+drop table t1;

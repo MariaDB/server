@@ -2758,7 +2758,7 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
 }
 
 
-bool Window_funcs_sort::exec(JOIN *join)
+bool Window_funcs_sort::exec(JOIN *join, bool keep_filesort_result)
 {
   THD *thd= join->thd;
   JOIN_TAB *join_tab= join->join_tab + join->exec_join_tab_cnt();
@@ -2773,8 +2773,20 @@ bool Window_funcs_sort::exec(JOIN *join)
 
   bool is_error= runner.exec(thd, tbl, filesort_result);
 
-  delete join_tab->filesort_result;
-  join_tab->filesort_result= NULL;
+  /*
+     During create_sort_index, we set the filesort_result field within the
+     join_tab. We will reuse the sorting if we don't have an additional
+     ORDER BY clause for our table in the select statement encompasing these
+     window functions. We only keep the last Window_funcs_sort filesort result.
+
+     Free the filesort_result if we encountered an error during execution so as
+     to prevent memory leaks.
+  */
+  if (!keep_filesort_result || is_error)
+  {
+    delete join_tab->filesort_result;
+    join_tab->filesort_result= NULL;
+  }
   return is_error;
 }
 
@@ -2883,14 +2895,21 @@ bool Window_funcs_computation::setup(THD *thd,
 }
 
 
-bool Window_funcs_computation::exec(JOIN *join)
+bool Window_funcs_computation::exec(JOIN *join, bool keep_final_sort_result)
 {
   List_iterator<Window_funcs_sort> it(win_func_sorts);
+  uint count= 0;
   Window_funcs_sort *srt;
   /* Execute each sort */
-  while ((srt = it++))
+  bool keep_result= false;
+  while ((srt= it++))
   {
-    if (srt->exec(join))
+    count++;
+    /* The final Window_funcs_sort keeps the filesort result. */
+    if (keep_final_sort_result && count == win_func_sorts.elements)
+      keep_result= true;
+
+    if (srt->exec(join, keep_result))
       return true;
   }
   return false;

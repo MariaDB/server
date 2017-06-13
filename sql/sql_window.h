@@ -195,14 +195,20 @@ class Window_funcs_sort : public Sql_alloc
 public:
   bool setup(THD *thd, SQL_SELECT *sel, List_iterator<Item_window_func> &it,
              st_join_table *join_tab);
-  bool exec(JOIN *join);
+  /*
+     Execute the window functions requiring the previously set up sort order.
+
+     @param keep_filesort_result: Do not delete the filesort_result after
+                                  sorting the table if it is set to true.
+                                  Otherwise free it.
+  */
+  bool exec(JOIN *join, bool keep_filesort_result);
   void cleanup() { delete filesort; }
 
+private:
   friend class Window_funcs_computation;
 
-private:
   Window_func_runner runner;
-
   /* Window functions can be computed over this sorting */
   Filesort *filesort;
 };
@@ -225,7 +231,7 @@ class Window_funcs_computation : public Sql_alloc
   List<Window_funcs_sort> win_func_sorts;
 public:
   bool setup(THD *thd, List<Item_window_func> *window_funcs, st_join_table *tab);
-  bool exec(JOIN *join);
+  bool exec(JOIN *join, bool keep_final_sort_result);
 
   Explain_aggr_window_funcs *save_explain_plan(MEM_ROOT *mem_root, bool is_analyze);
   void cleanup();

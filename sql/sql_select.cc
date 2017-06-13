@@ -26349,9 +26349,20 @@ AGGR_OP::end_send()
 
   // Update ref array
   join_tab->join->set_items_ref_array(*join_tab->ref_array);
+
+  /* During window function computation, if no order by is specified explicitly
+     for the select, the final result will end up with a non-deterministic
+     order of rows. This can become confusing especially when you expect
+
+     row_number() to return monotonically increasing values. To address this
+     issue, we save the final ordering from the temporary table and use
+     that when presenting the results.
+  */
+  bool save_final_window_funcs_ordering= join_tab->filesort ? false : true;
   if (join_tab->window_funcs_step)
   {
-    if (join_tab->window_funcs_step->exec(join))
+    if (join_tab->window_funcs_step->exec(join,
+                                          save_final_window_funcs_ordering))
       return NESTED_LOOP_ERROR;
   }
 
@@ -26403,6 +26414,12 @@ AGGR_OP::end_send()
       }
       rc= evaluate_join_record(join, join_tab, 0);
     }
+  }
+
+  if (save_final_window_funcs_ordering)
+  {
+    delete join_tab->filesort_result;
+    join_tab->filesort_result= NULL;
   }
 
   // Finish rnd scn after sending records
