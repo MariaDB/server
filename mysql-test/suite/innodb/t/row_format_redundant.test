@@ -1,16 +1,6 @@
---source include/innodb_page_size.inc
+--source include/have_innodb.inc
 # Embedded mode doesn't allow restarting
 --source include/not_embedded.inc
-
-# MDEV-13059 XtraDB hangs on Windows due to failing to release
-# block->lock X-latch in innodb_read_only mode
-if (`SELECT count(*) FROM information_schema.plugins WHERE
-      plugin_name = 'innodb' AND plugin_status = 'active' AND
-      plugin_description LIKE '%xtradb%'`){
-    if (`SELECT @@version_compile_os IN ('Win32','Win64','Windows')`) {
-       skip MDEV-13059 XtraDB hangs on Windows in innodb_read_only mode;
-    }
-}
 
 create table t1 (a int not null, d varchar(15) not null, b
 varchar(198) not null, c char(156),
@@ -69,7 +59,5 @@ TRUNCATE TABLE t3;
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
 TRUNCATE TABLE t3;
-
-# TODO: Shutdown, corrupt the SYS_TABLES.TYPE of the tables, restart
 
 DROP TABLE t1,t2,t3;

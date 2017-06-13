@@ -1,0 +1,188 @@
+--source include/innodb_page_size.inc
+# Embedded server tests do not support restarting
+--source include/not_embedded.inc
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: New log files created, LSN=");
+call mtr.add_suppression("InnoDB: Creating foreign key constraint system tables");
+call mtr.add_suppression("InnoDB: Error: .*innodb_table_stats. not found");
+call mtr.add_suppression("InnoDB: Table '.test.\\..t[cdzp].' in InnoDB data dictionary has unknown type (81|f21|121|302[13])\\r?$");
+call mtr.add_suppression("InnoDB: Cannot open table test/t[cdzp] from the internal data dictionary of InnoDB");
+call mtr.add_suppression("InnoDB: Error: table 'test/t[cdzp]'");
+FLUSH TABLES;
+--enable_query_log
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+
+let bugdir= $MYSQLTEST_VARDIR/tmp/table_flags;
+--mkdir $bugdir
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+
+--let $d=--innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
+--let $d=$d --innodb-data-file-path=ibdata1:10M:autoextend
+--let $d=$d --innodb-undo-tablespaces=0
+--let $restart_parameters=$d --innodb-stats-persistent=0 --innodb-file-format=1
+--source include/restart_mysqld.inc
+
+SET GLOBAL innodb_file_per_table=1;
+CREATE TABLE tr(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+CREATE TABLE tc(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=COMPACT;
+CREATE TABLE td(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+CREATE TABLE tz(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=COMPRESSED
+KEY_BLOCK_SIZE=1;
+# PAGE_COMPRESSED is supported starting with MariaDB 10.1.0
+CREATE TABLE tp(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=DYNAMIC
+PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=9;
+
+--source include/shutdown_mysqld.inc
+--perl
+use strict;
+my $ps= $ENV{INNODB_PAGE_SIZE};
+my $file= "$ENV{bugdir}/ibdata1";
+open(FILE, "+<", $file) || die "Unable to open $file\n";
+# Read DICT_HDR_TABLES, the root page number of CLUST_IND (SYS_TABLES.NAME).
+sysseek(FILE, 7*$ps+38+32, 0) || die "Unable to seek $file";
+die "Unable to read $file" unless sysread(FILE, $_, 4) == 4;
+my $sys_tables_root = unpack("N", $_);
+my $page;
+print "SYS_TABLES clustered index root page ($sys_tables_root):\n";
+sysseek(FILE, $sys_tables_root*$ps, 0) || die "Unable to seek $file";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+open(BACKUP, ">$ENV{bugdir}/sys_tables.bin") || die "Unable to open backup\n";
+syswrite(BACKUP, $page, $ps)==$ps || die "Unable to write backup\n";
+close(BACKUP) || die "Unable to close backup\n";
+print "N_RECS=", unpack("n", substr($page,38+16,2));
+print "; LEVEL=", unpack("n", substr($page,38+26,2));
+print "; INDEX_ID=0x", unpack("H*", substr($page,38+28,8)), "\n";
+my @fields=("NAME","DB_TRX_ID","DB_ROLL_PTR",
+	    "ID","N_COLS","TYPE","MIX_ID","MIX_LEN","CLUSTER_NAME","SPACE");
+for (my $offset= 0x65; $offset;
+     $offset= unpack("n", substr($page,$offset-2,2)))
+{
+    print "header=0x", unpack("H*",substr($page,$offset-6,6)), " (";
+    my $n_fields= unpack("n", substr($page,$offset-4,2)) >> 1 & 0x3ff;
+    my $start= 0;
+    my $name;
+    for (my $i= 0; $i < $n_fields; $i++) {
+	my $end= unpack("C", substr($page, $offset-7-$i, 1));
+	print ",\n " if $i;
+	print "$fields[$i]=";
+	if ($end & 0x80) {
+	    print "NULL(", ($end & 0x7f) - $start, " bytes)"
+	} elsif ($n_fields > 1 && $i == 0) {
+	    $name= substr($page,$offset+$start,$end-$start);
+	    print "'$name'"
+	} else {
+	    print "0x", unpack("H*", substr($page,$offset+$start,$end-$start))
+	}
+	# Corrupt SYS_TABLES.TYPE
+	if ($i == 5)
+	{
+	    my $flags= 0;
+	    if ($name eq 'test/tr') {
+		$flags= 0x40 # DATA_DIR (largely ignored by 10.1+)
+	    } elsif ($name eq 'test/tc') {
+		$flags= 0x80 # 10.1 PAGE_COMPRESSED
+	    } elsif ($name eq 'test/td') {
+		$flags= 0xf00 # 10.1 PAGE_COMPRESSION_LEVEL=15 (0..9 is valid)
+	    } elsif ($name eq 'test/tz') {
+		$flags= 0x3000 # 10.1 ATOMIC_WRITES=3 (0..2 is valid)
+	    } elsif ($name eq 'test/tp') {
+		$flags= 0x880 # 10.1 PAGE_COMPRESSED, PAGE_COMPRESSION_LEVEL=8
+		    # (in 10.1, this leaves PAGE_COMPRESSION_LEVEL=1
+		    # without PAGE_COMPRESSED, which should be invalid)
+	    }
+
+	    substr($page,$offset+$start,$end-$start)= pack(
+		"N", $flags ^
+		unpack("N", substr($page,$offset+$start,$end-$start)))
+		if $flags;
+	}
+	# Corrupt SYS_TABLES.MIX_LEN (ignored for ROW_FORMAT=REDUNDANT)
+	if ($i == 7 && $name eq 'test/tr')
+	{
+	    substr($page,$offset+$start,$end-$start)= chr(255) x 4;
+	}
+	$start= $end & 0x7f;
+    }
+    print ")\n";
+}
+substr($page,0,4)=pack("N",0xdeadbeef);
+substr($page,$ps-8,4)=pack("N",0xdeadbeef);
+sysseek(FILE, $sys_tables_root*$ps, 0) || die "Unable to seek $file";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close(FILE) || die "Unable to close $file\n";
+EOF
+--source include/start_mysqld.inc
+
+SHOW CREATE TABLE tr;
+INSERT INTO tr VALUES(42);
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+SHOW CREATE TABLE tc;
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+SHOW CREATE TABLE td;
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+SHOW CREATE TABLE tz;
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+SHOW CREATE TABLE tp;
+
+--source include/shutdown_mysqld.inc
+
+let SEARCH_RANGE= -50000;
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--let SEARCH_PATTERN= InnoDB: Table '.test.\..t[cdzp].' in InnoDB data dictionary has unknown type (81|f21|121|302[13])\b
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= InnoDB: Cannot open table test/t[cdzp] from the internal data dictionary of InnoDB
+--source include/search_pattern_in_file.inc
+
+# Restore the backup of the corrupted SYS_TABLES clustered index root page
+--perl
+use strict;
+my $ps= $ENV{INNODB_PAGE_SIZE};
+my $file= "$ENV{bugdir}/ibdata1";
+open(FILE, "+<", $file) || die "Unable to open $file\n";
+open(BACKUP, "<$ENV{bugdir}/sys_tables.bin") || die "Unable to open backup\n";
+# Read DICT_HDR_TABLES, the root page number of CLUST_IND (SYS_TABLES.NAME).
+sysseek(FILE, 7*$ps+38+32, 0) || die "Unable to seek $file";
+die "Unable to read $file\n" unless sysread(FILE, $_, 4) == 4;
+my $sys_tables_root = unpack("N", $_);
+print "Restoring SYS_TABLES clustered index root page ($sys_tables_root)\n";
+sysseek(FILE, $sys_tables_root*$ps, 0) || die "Unable to seek $file";
+die "Unable to read backup\n" unless sysread(BACKUP, $_, $ps) == $ps;
+die "Unable to restore backup\n" unless syswrite(FILE, $_, $ps) == $ps;
+close(BACKUP);
+close(FILE) || die "Unable to close $file\n";
+EOF
+--source include/start_mysqld.inc
+
+SHOW CREATE TABLE tr;
+SHOW CREATE TABLE tc;
+SHOW CREATE TABLE td;
+SHOW CREATE TABLE tz;
+SHOW CREATE TABLE tp;
+
+BEGIN;
+INSERT INTO tr VALUES(1);
+INSERT INTO tc VALUES(1);
+INSERT INTO td VALUES(1);
+INSERT INTO tz VALUES(1);
+INSERT INTO tp VALUES(1);
+ROLLBACK;
+
+SELECT * FROM tr;
+SELECT * FROM tc;
+SELECT * FROM td;
+SELECT * FROM tz;
+SELECT * FROM tp;
+
+DROP TABLE tr,tc,td,tz,tp;
+
+--source include/shutdown_mysqld.inc
+
+--let $restart_parameters=
+--source include/start_mysqld.inc
+
+--list_files $bugdir
+--remove_files_wildcard $bugdir
+--rmdir $bugdir

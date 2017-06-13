@@ -705,8 +705,6 @@ dict_sys_tables_type_validate(
 	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type);
 	ulint	atomic_writes = DICT_TF_GET_ATOMIC_WRITES(type);
 
-	ut_a(atomic_writes <= ATOMIC_WRITES_OFF);
-
 	/* The low order bit of SYS_TABLES.TYPE is always set to 1.
 	If the format is UNIV_FORMAT_B or higher, this field is the same
 	as dict_table_t::flags. Zero is not allowed here. */
@@ -716,16 +714,12 @@ dict_sys_tables_type_validate(
 
 	if (redundant) {
 		if (zip_ssize || atomic_blobs) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=Redundant, zip_ssize " ULINTPF " atomic_blobs " ULINTPF "\n",
-				zip_ssize, atomic_blobs);
 			return(ULINT_UNDEFINED);
 		}
 	}
 
 	/* Make sure there are no bits that we do not know about. */
 	if (unused) {
-		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", unused " ULINTPF "\n",
-			type, unused);
 		return(ULINT_UNDEFINED);
 	}
 
@@ -737,11 +731,8 @@ dict_sys_tables_type_validate(
 
 		The DICT_N_COLS_COMPACT flag should be in N_COLS,
 		but we already know that. */
-
 	} else if (zip_ssize) {
 		/* Antelope does not support COMPRESSED format. */
-		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", zip_ssize " ULINTPF "\n",
-			type, zip_ssize);
 		return(ULINT_UNDEFINED);
 	}
 
@@ -751,15 +742,11 @@ dict_sys_tables_type_validate(
 		should be in N_COLS, but we already know about the
 		low_order_bit and DICT_N_COLS_COMPACT flags. */
 		if (!atomic_blobs) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", zip_ssize " ULINTPF " atomic_blobs " ULINTPF "\n",
-				type, zip_ssize, atomic_blobs);
 			return(ULINT_UNDEFINED);
 		}
 
 		/* Validate that the number is within allowed range. */
 		if (zip_ssize > PAGE_ZIP_SSIZE_MAX) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", zip_ssize " ULINTPF " max %d\n",
-				type, zip_ssize, PAGE_ZIP_SSIZE_MAX);
 			return(ULINT_UNDEFINED);
 		}
 	}
@@ -776,18 +763,13 @@ dict_sys_tables_type_validate(
 		low_order_bit and DICT_N_COLS_COMPACT flags. */
 
                 if (!atomic_blobs || !page_compression) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", page_compression " ULINTPF " page_compression_level " ULINTPF "\n"
-				"InnoDB: Error: atomic_blobs " ULINTPF "\n",
-				type, page_compression, page_compression_level, atomic_blobs);
 			return(ULINT_UNDEFINED);
 		}
 	}
 
 	/* Validate that the atomic writes number is within allowed range. */
 	if (atomic_writes > ATOMIC_WRITES_OFF) {
-		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=" ULINTPF ", atomic_writes " ULINTPF "\n",
-				type, atomic_writes);
-			return(ULINT_UNDEFINED);
+		return(ULINT_UNDEFINED);
 	}
 
 	/* Return the validated SYS_TABLES.TYPE. */
