@@ -644,6 +644,7 @@ Use MONITOR_DEC if appropriate mutex protection exists.
 # define srv_mon_create() ((void) 0)
 # define srv_mon_free() ((void) 0)
 #else /* HAVE_ATOMIC_BUILTINS_64 */
+# include "sync0types.h"
 /** Mutex protecting atomic operations on platforms that lack
 built-in operations for atomic memory access */
 extern ib_mutex_t	monitor_mutex;
