@@ -185,17 +185,6 @@ dict_load_field_low(
 					for temporary storage */
 	const rec_t*	rec);		/*!< in: SYS_FIELDS record */
 
-/** Load a table definition from a SYS_TABLES record to dict_table_t.
-Do not load any columns or indexes.
-@param[in]	name	Table name
-@param[in]	rec	SYS_TABLES record
-@param[out,own]	table	table, or NULL
-@return	error message
-@retval	NULL on success */
-static
-const char*
-dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table);
-
 /* If this flag is TRUE, then we will load the cluster index's (and tables')
 metadata even if it is marked as "corrupted". */
 my_bool     srv_load_corrupted;
@@ -1149,6 +1138,7 @@ dict_sys_tablespaces_rec_read(
 @param[out]	flags		Pointer to table flags
 @param[out]	flags2		Pointer to table flags2
 @return true if the record was read correctly, false if not. */
+MY_ATTRIBUTE((warn_unused_result))
 static
 bool
 dict_sys_tables_rec_read(
@@ -1163,8 +1153,6 @@ dict_sys_tables_rec_read(
 	const byte*	field;
 	ulint		len;
 	ulint		type;
-
-	*flags2 = 0;
 
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__ID, &len);
@@ -1202,22 +1190,40 @@ dict_sys_tables_rec_read(
 			" data dictionary contains invalid flags."
 			" SYS_TABLES.TYPE=" << type <<
 			" SYS_TABLES.N_COLS=" << *n_cols;
-		*flags = ULINT_UNDEFINED;
 		return(false);
 	}
 
 	*flags = dict_sys_tables_type_to_tf(type, *n_cols);
 
-	/* Get flags2 from SYS_TABLES.MIX_LEN */
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_TABLES__MIX_LEN, &len);
-	*flags2 = mach_read_from_4(field);
+	/* For tables created before MySQL 4.1, there may be
+	garbage in SYS_TABLES.MIX_LEN where flags2 are found. Such tables
+	would always be in ROW_FORMAT=REDUNDANT which do not have the
+	high bit set in n_cols, and flags would be zero.
+	MySQL 4.1 was the first version to support innodb_file_per_table,
+	that is, *space_id != 0. */
+	if (*flags != 0 || *space_id != 0 || *n_cols & DICT_N_COLS_COMPACT) {
 
-	/* DICT_TF2_FTS will be set when indexes are being loaded */
-	*flags2 &= ~DICT_TF2_FTS;
+		/* Get flags2 from SYS_TABLES.MIX_LEN */
+		field = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_TABLES__MIX_LEN, &len);
+		*flags2 = mach_read_from_4(field);
 
-	/* Now that we have used this bit, unset it. */
-	*n_cols &= ~DICT_N_COLS_COMPACT;
+		if (!dict_tf2_is_valid(*flags, *flags2)) {
+			ib::error() << "Table " << table_name << " in InnoDB"
+				" data dictionary contains invalid flags."
+				" SYS_TABLES.MIX_LEN=" << *flags2;
+			return(false);
+		}
+
+		/* DICT_TF2_FTS will be set when indexes are being loaded */
+		*flags2 &= ~DICT_TF2_FTS;
+
+		/* Now that we have used this bit, unset it. */
+		*n_cols &= ~DICT_N_COLS_COMPACT;
+	} else {
+		*flags2 = 0;
+	}
+
 	return(true);
 }
 
@@ -1280,11 +1286,10 @@ dict_check_sys_tables(
 			   ("name: %p, '%s'", table_name.m_name,
 			    table_name.m_name));
 
-		dict_sys_tables_rec_read(rec, table_name,
-					 &table_id, &space_id,
-					 &n_cols, &flags, &flags2);
-		if (flags == ULINT_UNDEFINED
-		    || is_system_tablespace(space_id)) {
+		if (!dict_sys_tables_rec_read(rec, table_name,
+					      &table_id, &space_id,
+					      &n_cols, &flags, &flags2)
+		    || space_id == TRX_SYS_SPACE) {
 			ut_free(table_name.m_name);
 			continue;
 		}
@@ -2091,6 +2096,8 @@ func_exit:
 static const char* dict_load_index_del = "delete-marked record in SYS_INDEXES";
 /** Error message for table->id mismatch in dict_load_index_low() */
 static const char* dict_load_index_id_err = "SYS_INDEXES.TABLE_ID mismatch";
+/** Error message for SYS_TABLES flags mismatch in dict_load_table_low() */
+static const char* dict_load_table_flags = "incorrect flags in SYS_TABLES";
 
 /** Load an index definition from a SYS_INDEXES record to dict_index_t.
 If allocate=TRUE, we will create a dict_index_t structure and fill it
@@ -2539,11 +2546,9 @@ dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 		return(error_text);
 	}
 
-	dict_sys_tables_rec_read(rec, name, &table_id, &space_id,
-				 &t_num, &flags, &flags2);
-
-	if (flags == ULINT_UNDEFINED) {
-		return("incorrect flags in SYS_TABLES");
+	if (!dict_sys_tables_rec_read(rec, name, &table_id, &space_id,
+				      &t_num, &flags, &flags2)) {
+		return(dict_load_table_flags);
 	}
 
 	dict_table_decode_n_col(t_num, &n_cols, &n_v_col);
@@ -2857,8 +2862,9 @@ err_exit:
 	err_msg = dict_load_table_low(name, rec, &table);
 
 	if (err_msg) {
-
-		ib::error() << err_msg;
+		if (err_msg != dict_load_table_flags) {
+			ib::error() << err_msg;
+		}
 		goto err_exit;
 	}
 
@@ -2913,21 +2919,6 @@ err_exit:
 			}
 		}
 	}
-
-	/* We don't trust the table->flags2(retrieved from SYS_TABLES.MIX_LEN
-	field) if the datafiles are from 3.23.52 version. To identify this
-	version, we do the below check and reset the flags. */
-	if (!DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID)
-	    && table->space == srv_sys_space.space_id()
-	    && table->flags == 0) {
-		table->flags2 = 0;
-	}
-
-	DBUG_EXECUTE_IF("ib_table_invalid_flags",
-			if(strcmp(table->name.m_name, "test/t1") == 0) {
-				table->flags2 = 255;
-				table->flags = 255;
-			});
 
 	if (!dict_tf2_is_valid(table->flags, table->flags2)) {
 		ib::error() << "Table " << table->name << " in InnoDB"

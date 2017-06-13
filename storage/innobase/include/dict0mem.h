@@ -294,9 +294,8 @@ ROW_FORMAT=REDUNDANT.  InnoDB engines do not check these flags
 for unknown bits in order to protect backward incompatibility. */
 /* @{ */
 /** Total number of bits in table->flags2. */
-#define DICT_TF2_BITS			9
-#define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS | \
-					 1U << DICT_TF_POS_SHARED_SPACE)
+#define DICT_TF2_BITS			7
+#define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS)
 #define DICT_TF2_BIT_MASK		~DICT_TF2_UNUSED_BIT_MASK
 
 /** TEMPORARY; TRUE for tables from CREATE TEMPORARY TABLE. */
@@ -1413,8 +1412,6 @@ struct dict_table_t {
 	5 whether the table is being created its own tablespace,
 	6 whether the table has been DISCARDed,
 	7 whether the aux FTS tables names are in hex.
-	8 whether the table is instinc table.
-	9 whether the table has encryption setting.
 	Use DICT_TF2_FLAG_IS_SET() to parse this flag. */
 	unsigned				flags2:DICT_TF2_BITS;
 

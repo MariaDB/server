@@ -1715,21 +1715,6 @@ fts_drop_tables(
 	return(error);
 }
 
-/** Extract only the required flags from table->flags2 for FTS Aux
-tables.
-@param[in]	in_flags2	Table flags2
-@return extracted flags2 for FTS aux tables */
-static inline
-ulint
-fts_get_table_flags2_for_aux_tables(
-	ulint	flags2)
-{
-	/* Extract the file_per_table flag & temporary file flag
-	from the main FTS table flags2 */
-	return((flags2 & DICT_TF2_USE_FILE_PER_TABLE) |
-	       (flags2 & DICT_TF2_TEMPORARY));
-}
-
 /** Create dict_table_t object for FTS Aux tables.
 @param[in]	aux_table_name	FTS Aux table name
 @param[in]	table		table object of FTS Index
@@ -1744,7 +1729,9 @@ fts_create_in_mem_aux_table(
 {
 	dict_table_t*	new_table = dict_mem_table_create(
 		aux_table_name, table->space, n_cols, 0, table->flags,
-		fts_get_table_flags2_for_aux_tables(table->flags2));
+		table->space == TRX_SYS_SPACE
+		? 0 : table->space == SRV_TMP_SPACE_ID
+		? DICT_TF2_TEMPORARY : DICT_TF2_USE_FILE_PER_TABLE);
 
 	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 		ut_ad(table->data_dir_path != NULL);

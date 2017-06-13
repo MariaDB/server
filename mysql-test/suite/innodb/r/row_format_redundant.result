@@ -1,7 +1,9 @@
+SET GLOBAL innodb_file_per_table=1;
 #
 # Bug#21644827 - FTS, ASSERT !SRV_READ_ONLY_MODE || M_IMPL.M_LOG_MODE ==
 #                MTR_LOG_NO_REDO
 #
+SET GLOBAL innodb_file_per_table=ON;
 create table t1 (a int not null, d varchar(15) not null, b
 varchar(198) not null, c char(156),
 fulltext ftsic(c)) engine=InnoDB
@@ -49,6 +51,9 @@ ERROR HY000: Table 't3' is read only
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
 TRUNCATE TABLE t3;
+corrupted SYS_TABLES.MIX_LEN for test/t1
+corrupted SYS_TABLES.MIX_LEN for test/t2
+corrupted SYS_TABLES.MIX_LEN for test/t3
 TRUNCATE TABLE t1;
 ERROR 42S02: Table 'test.t1' doesn't exist in engine
 TRUNCATE TABLE t2;
@@ -66,9 +71,9 @@ ERROR HY000: Error on rename of './test/t1' to './test/tee_one' (errno: 155 "The
 DROP TABLE t1;
 Warnings:
 Warning	1932	Table 'test.t1' doesn't exist in engine
-NOT FOUND /\[ERROR\] InnoDB: Table `test`\.`t1` in InnoDB data dictionary contains invalid flags. SYS_TABLES.MIX_LEN=255;/ in mysqld.1.err
-FOUND 48 /\[ERROR\] InnoDB: InnoDB: Error: table unused flags are:255/ in mysqld.1.err
-FOUND 1 /\[Warning\] InnoDB: Parent table of FTS auxiliary table test/FTS_.* not found\./ in mysqld.1.err
-NOT FOUND /"\[Warning\] InnoDB: Cannot open table test/t1 from the internal data dictionary of InnoDB though the \.frm file for the table exists.";/ in mysqld.1.err
-FOUND 2 /\[ERROR\] InnoDB: Table `test`.`t1` does not exist in the InnoDB internal data dictionary though MariaDB is trying to (drop|rename)/ in mysqld.1.err
 DROP TABLE t2,t3;
+FOUND 49 /\[ERROR\] InnoDB: Table `test`\.`t1` in InnoDB data dictionary contains invalid flags\. SYS_TABLES.MIX_LEN=255\b/ in mysqld.1.err
+ib_buffer_pool
+ib_logfile0
+ib_logfile1
+ibdata1
