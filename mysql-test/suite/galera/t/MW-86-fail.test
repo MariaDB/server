@@ -6,12 +6,13 @@
 #
 
 --connection node_2
+SELECT @@debug_sync;
+
 SET SESSION wsrep_sync_wait = 1;
 SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
 --disable_result_log
 
 --connection node_1
-CREATE DATABASE db1;
 CREATE TABLE bar (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO bar VALUES (1);
 
@@ -22,9 +23,6 @@ SHOW BINLOG EVENTS;
 
 --error ER_NO_SUCH_TABLE
 SHOW COLUMNS FROM t1;
-
---error 0
-SHOW CREATE DATABASE db1;
 
 --error ER_EVENT_DOES_NOT_EXIST
 SHOW CREATE EVENT e1;
@@ -83,8 +81,9 @@ SHOW WARNINGS;
 SET GLOBAL DEBUG = "";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 
+#DROP TABLE bar;
+
 SET SESSION wsrep_sync_wait = 8;
-DROP DATABASE db1;
 
 
 #
@@ -105,80 +104,80 @@ INSERT INTO q VALUES (1);
 --error ER_LOCK_WAIT_TIMEOUT
 SHOW BINARY LOGS;
 
---error ER_LOCK_WAIT_TIMEOUT
-SHOW BINLOG EVENTS;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW COLUMNS FROM t1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW CREATE DATABASE db1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW CREATE EVENT e1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW CREATE FUNCTION f1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW CREATE PROCEDURE p1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW CREATE TABLE t1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW CREATE TRIGGER tr1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW CREATE VIEW v1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW DATABASES;
-
---error 0
-SHOW ENGINE InnoDB STATUS;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW FUNCTION CODE f1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW FUNCTION STATUS;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW GRANTS FOR 'root'@'localhost';
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW INDEX FROM t1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW OPEN TABLES;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW PROCEDURE CODE p1;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW PROCEDURE STATUS;
-
---error 0
-SHOW PRIVILEGES;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW STATUS LIKE 'wsrep_cluster_size';
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW TABLE STATUS;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW TABLES;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW TRIGGERS;
-
---error ER_LOCK_WAIT_TIMEOUT
-SHOW GLOBAL VARIABLES LIKE 'foo_bar';
-
---error 0
-SHOW WARNINGS;
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW BINLOG EVENTS;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW COLUMNS FROM t1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW CREATE DATABASE db1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW CREATE EVENT e1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW CREATE FUNCTION f1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW CREATE PROCEDURE p1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW CREATE TABLE t1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW CREATE TRIGGER tr1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW CREATE VIEW v1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW DATABASES;
+#
+#--error 0
+#SHOW ENGINE InnoDB STATUS;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW FUNCTION CODE f1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW FUNCTION STATUS;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW GRANTS FOR 'root'@'localhost';
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW INDEX FROM t1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW OPEN TABLES;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW PROCEDURE CODE p1;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW PROCEDURE STATUS;
+#
+#--error 0
+#SHOW PRIVILEGES;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW STATUS LIKE 'wsrep_cluster_size';
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW TABLE STATUS;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW TABLES;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW TRIGGERS;
+#
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW GLOBAL VARIABLES LIKE 'foo_bar';
+#
+#--error 0
+#SHOW WARNINGS;
 
 SET GLOBAL DEBUG = "";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
@@ -187,4 +186,17 @@ SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 --eval SET GLOBAL wsrep_provider_options = "$wsrep_provider_options_orig"
 
 SET SESSION wsrep_sync_wait = 15;
-DROP TABLE q, bar;
+DROP TABLE bar, q;
+
+# Occasionally this fails with:
+#  SELECT @@debug_sync;
+#  @@debug_sync
+# -ON - signals: ''
+# +ON - signals: 'signal.wsrep_apply_cb'
+# which means that we leave this signal for a subsequent test to consume and
+# fail unexpectedly (because the thread that is supposed to wait for the signal
+# to be emitted from that invocation of the test will proceed immediately,
+# consuming this leftover signal).
+--enable_query_log
+--enable_result_log
+SELECT @@debug_sync;
