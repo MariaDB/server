@@ -425,13 +425,10 @@ Datafile::validate_to_dd(ulint space_id, ulint flags)
 	/* else do not use this tablespace. */
 	m_is_valid = false;
 
-	ib::error() << "In file '" << m_filepath << "', tablespace id and"
-		" flags are " << m_space_id << " and " << ib::hex(m_flags)
-		<< ", but in the InnoDB data dictionary they are "
-		<< space_id << " and " << ib::hex(flags)
-		<< ". Have you moved InnoDB .ibd files around without"
-		" using the commands DISCARD TABLESPACE and IMPORT TABLESPACE?"
-		" " << TROUBLESHOOT_DATADICT_MSG;
+	ib::error() << "Refusing to load '" << m_filepath << "' (id="
+		<< m_space_id << ", flags=" << ib::hex(m_flags)
+		<< "); dictionary contains id="
+		<< space_id << ", flags=" << ib::hex(flags);
 
 	return(DB_ERROR);
 }

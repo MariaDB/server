@@ -3002,21 +3002,19 @@ row_import_read_v1(
 	cfg->m_n_cols = mach_read_from_4(ptr);
 
 	if (!dict_tf_is_valid(cfg->m_flags)) {
+		ib_errf(thd, IB_LOG_LEVEL_ERROR,
+			ER_TABLE_SCHEMA_MISMATCH,
+			"Invalid table flags: " ULINTPF, cfg->m_flags);
 
 		return(DB_CORRUPTION);
-
-	} else if ((err = row_import_read_columns(file, thd, cfg))
-		   != DB_SUCCESS) {
-
-		return(err);
-
-	} else  if ((err = row_import_read_indexes(file, thd, cfg))
-		   != DB_SUCCESS) {
-
-		return(err);
 	}
 
-	ut_a(err == DB_SUCCESS);
+	err = row_import_read_columns(file, thd, cfg);
+
+	if (err == DB_SUCCESS) {
+		err = row_import_read_indexes(file, thd, cfg);
+	}
+
 	return(err);
 }
 

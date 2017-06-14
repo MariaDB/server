@@ -6624,10 +6624,6 @@ ha_innobase::open(
 					norm_name);
 		}
 
-		ib::warn() << "Cannot open table " << norm_name << " from the"
-			" internal data dictionary of InnoDB though the .frm"
-			" file for the table exists. " << TROUBLESHOOTING_MSG;
-
 		free_share(m_share);
 		set_my_errno(ENOENT);
 

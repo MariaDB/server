@@ -3819,18 +3819,12 @@ fil_ibd_create(
 		ib::error() << "Cannot create file '" << path << "'";
 
 		if (error == OS_FILE_ALREADY_EXISTS) {
-			ib::error() << "The file '" << path << "'"
+			ib::info() << "The file '" << path << "'"
 				" already exists though the"
 				" corresponding table did not exist"
 				" in the InnoDB data dictionary."
-				" Have you moved InnoDB .ibd files"
-				" around without using the SQL commands"
-				" DISCARD TABLESPACE and IMPORT TABLESPACE,"
-				" or did mysqld crash in the middle of"
-				" CREATE TABLE?"
 				" You can resolve the problem by removing"
-				" the file '" << path
-				<< "' under the 'datadir' of MySQL.";
+				" the file.";
 
 			return(DB_TABLESPACE_EXISTS);
 		}

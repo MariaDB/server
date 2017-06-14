@@ -1170,6 +1170,80 @@ dict_sys_tables_rec_read(
 	ut_a(len == 4);
 	type = mach_read_from_4(field);
 
+	/* Handle MDEV-12873 InnoDB SYS_TABLES.TYPE incompatibility
+	for PAGE_COMPRESSED=YES in MariaDB 10.2.2 to 10.2.6.
+
+	MariaDB 10.2.2 introduced the SHARED_SPACE flag from MySQL 5.7,
+	shifting the flags PAGE_COMPRESSION, PAGE_COMPRESSION_LEVEL,
+	ATOMIC_WRITES by one bit. The SHARED_SPACE flag would always
+	be written as 0 by MariaDB, because MariaDB does not support
+	CREATE TABLESPACE or CREATE TABLE...TABLESPACE for InnoDB.
+
+	So, instead of the bits AALLLLCxxxxxxx we would have
+	AALLLLC0xxxxxxx if the table was created with MariaDB 10.2.2
+	to 10.2.6. (AA=ATOMIC_WRITES, LLLL=PAGE_COMPRESSION_LEVEL,
+	C=PAGE_COMPRESSED, xxxxxxx=7 bits that were not moved.)
+
+	The case LLLLC=00000 is not a problem. The problem is the case
+	AALLLL10DB00001 where D is the (mostly ignored) DATA_DIRECTORY
+	flag and B is the ATOMIC_BLOBS flag (1 for ROW_FORMAT=DYNAMIC
+	and 0 for ROW_FORMAT=COMPACT in this case). Other low-order
+	bits must be so, because PAGE_COMPRESSED=YES is only allowed
+	for ROW_FORMAT=DYNAMIC and ROW_FORMAT=COMPACT, not for
+	ROW_FORMAT=REDUNDANT or ROW_FORMAT=COMPRESSED.
+
+	Starting with MariaDB 10.2.4, the flags would be
+	00LLLL10DB00001, because ATOMIC_WRITES is always written as 0.
+
+	We will concentrate on the PAGE_COMPRESSION_LEVEL and
+	PAGE_COMPRESSED=YES. PAGE_COMPRESSED=NO implies
+	PAGE_COMPRESSION_LEVEL=0, and in that case all the affected
+	bits will be 0. For PAGE_COMPRESSED=YES, the values 1..9 are
+	allowed for PAGE_COMPRESSION_LEVEL. That is, we must interpret
+	the bits AALLLL10DB00001 as AALLLL1DB00001.
+
+	If someone created a table in MariaDB 10.2.2 or 10.2.3 with
+	the attribute ATOMIC_WRITES=OFF (value 2) and without
+	PAGE_COMPRESSED=YES or PAGE_COMPRESSION_LEVEL, that should be
+	rejected. The value ATOMIC_WRITES=ON (1) would look like
+	ATOMIC_WRITES=OFF, but it would be ignored starting with
+	MariaDB 10.2.4. */
+	compile_time_assert(DICT_TF_POS_PAGE_COMPRESSION == 7);
+	compile_time_assert(DICT_TF_POS_UNUSED == 14);
+
+	if ((type & 0x19f) != 0x101) {
+		/* The table cannot have been created with MariaDB
+		10.2.2 to 10.2.6, because they would write the
+		low-order bits of SYS_TABLES.TYPE as 0b10xx00001 for
+		PAGE_COMPRESSED=YES. No adjustment is applicable. */
+	} else if (type >= 3 << 13) {
+		/* 10.2.2 and 10.2.3 write ATOMIC_WRITES less than 3,
+		and no other flags above that can be set for the
+		SYS_TABLES.TYPE to be in the 10.2.2..10.2.6 format.
+		This would in any case be invalid format for 10.2 and
+		earlier releases. */
+		ut_ad(ULINT_UNDEFINED == dict_sys_tables_type_validate(
+			      type, DICT_N_COLS_COMPACT));
+	} else {
+		/* SYS_TABLES.TYPE is of the form AALLLL10DB00001.  We
+		must still validate that the LLLL bits are between 0
+		and 9 before we can discard the extraneous 0 bit. */
+		ut_ad(!DICT_TF_GET_PAGE_COMPRESSION(type));
+
+		if ((((type >> 9) & 0xf) - 1) < 9) {
+			ut_ad(DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type) & 1);
+
+			type = (type & 0x7fU) | (type >> 1 & ~0x7fU);
+
+			ut_ad(DICT_TF_GET_PAGE_COMPRESSION(type));
+			ut_ad(DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type) >= 1);
+			ut_ad(DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type) <= 9);
+		} else {
+			ut_ad(ULINT_UNDEFINED == dict_sys_tables_type_validate(
+				      type, DICT_N_COLS_COMPACT));
+		}
+	}
+
 	/* The low order bit of SYS_TABLES.TYPE is always set to 1. But in
 	dict_table_t::flags the low order bit is used to determine if the
 	row format is Redundant (0) or Compact (1) when the format is Antelope.
@@ -1211,7 +1285,8 @@ dict_sys_tables_rec_read(
 		if (!dict_tf2_is_valid(*flags, *flags2)) {
 			ib::error() << "Table " << table_name << " in InnoDB"
 				" data dictionary contains invalid flags."
-				" SYS_TABLES.MIX_LEN=" << *flags2;
+				" SYS_TABLES.TYPE=" << type
+				<< " SYS_TABLES.MIX_LEN=" << *flags2;
 			return(false);
 		}
 
@@ -2541,8 +2616,7 @@ dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 	ulint		flags2;
 	ulint		n_v_col;
 
-	const char* error_text = dict_sys_tables_rec_check(rec);
-	if (error_text != NULL) {
+	if (const char* error_text = dict_sys_tables_rec_check(rec)) {
 		return(error_text);
 	}
 
@@ -2802,7 +2876,6 @@ dict_load_table_one(
 	const rec_t*	rec;
 	const byte*	field;
 	ulint		len;
-	const char*	err_msg;
 	mtr_t		mtr;
 
 	DBUG_ENTER("dict_load_table_one");
@@ -2859,9 +2932,7 @@ err_exit:
 		goto err_exit;
 	}
 
-	err_msg = dict_load_table_low(name, rec, &table);
-
-	if (err_msg) {
+	if (const char* err_msg = dict_load_table_low(name, rec, &table)) {
 		if (err_msg != dict_load_table_flags) {
 			ib::error() << err_msg;
 		}
@@ -2884,6 +2955,8 @@ err_exit:
 	}
 
 	mem_heap_empty(heap);
+
+	ut_ad(dict_tf2_is_valid(table->flags, table->flags2));
 
 	/* If there is no tablespace for the table then we only need to
 	load the index definitions. So that we can IMPORT the tablespace
@@ -2918,17 +2991,6 @@ err_exit:
 				table->corrupted = true;
 			}
 		}
-	}
-
-	if (!dict_tf2_is_valid(table->flags, table->flags2)) {
-		ib::error() << "Table " << table->name << " in InnoDB"
-			" data dictionary contains invalid flags."
-			" SYS_TABLES.MIX_LEN=" << table->flags2;
-		table->flags2 &= ~DICT_TF2_TEMPORARY;
-		dict_table_remove_from_cache(table);
-		table = NULL;
-		err = DB_FAIL;
-		goto func_exit;
 	}
 
 	/* Initialize table foreign_child value. Its value could be
