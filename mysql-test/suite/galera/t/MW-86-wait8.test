@@ -23,8 +23,6 @@ INSERT INTO t_wait8 VALUES (1);
 --let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
 SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT0.1S";
 
-SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_apply_cb_reached";
-
 --disable_result_log
 
 --error ER_LOCK_WAIT_TIMEOUT
@@ -120,9 +118,6 @@ SET SESSION wsrep_sync_wait = default;
 # This will wait for the background INSERT to complete before we quit
 # from the test.
 DROP TABLE t_wait8;
-
-SET GLOBAL debug = NULL;
-SET debug_sync='RESET';
 
 # Make sure no pending signals are leftover to surprise subsequent tests.
 SELECT @@debug_sync;
