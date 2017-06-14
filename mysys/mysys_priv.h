@@ -107,12 +107,21 @@ const char *my_open_parent_dir_nosymlinks(const char *pathname, int *pdfd);
   res= AT;                                                              \
   if (dfd >= 0) close(dfd);                                             \
   return res;
-#elif defined(HAVE_REALPATH)
+#elif defined(HAVE_REALPATH) && defined(PATH_MAX)
 #define NOSYMLINK_FUNCTION_BODY(AT,NOAT)                                \
   char buf[PATH_MAX+1];                                                 \
   if (realpath(pathname, buf) == NULL) return -1;                       \
   if (strcmp(pathname, buf)) { errno= ENOTDIR; return -1; }             \
   return NOAT;
+#elif defined(HAVE_REALPATH)
+#define NOSYMLINK_FUNCTION_BODY(AT,NOAT)                                \
+  char *buf= realpath(pathname, NULL);                                  \
+  int res;                                                              \
+  if (buf == NULL) return -1;                                           \
+  if (strcmp(pathname, buf)) { errno= ENOTDIR; res= -1; }               \
+  else res= NOAT;                                                       \
+  free(buf);                                                            \
+  return res;
 #else
 #define NOSYMLINK_FUNCTION_BODY(AT,NOAT)                                \
   return NOAT;
