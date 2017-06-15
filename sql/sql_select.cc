@@ -648,17 +648,15 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
 
   thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
   
-  save_place= thd->lex->current_select->parsing_place;
-  thd->lex->current_select->parsing_place= IN_ORDER_BY;
+  save_place= thd->lex->current_select->context_analysis_place;
+  thd->lex->current_select->context_analysis_place= IN_ORDER_BY;
   res= res || setup_order(thd, ref_pointer_array, tables, fields, all_fields,
                           order);
-  thd->lex->current_select->parsing_place= save_place;
-   thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
-  save_place= thd->lex->current_select->parsing_place;
-  thd->lex->current_select->parsing_place= IN_GROUP_BY;
+  thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
+  thd->lex->current_select->context_analysis_place= IN_GROUP_BY;
   res= res || setup_group(thd, ref_pointer_array, tables, fields, all_fields,
                           group, hidden_group_fields);
-  thd->lex->current_select->parsing_place= save_place;
+  thd->lex->current_select->context_analysis_place= save_place;
   thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
   res= res || setup_windows(thd, ref_pointer_array, tables, fields, all_fields,
                             win_specs, win_funcs);
@@ -712,6 +710,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   if (select_lex->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(1);
 
+  thd->lex->current_select->context_analysis_place= NO_MATTER;
   thd->lex->current_select->is_item_list_lookup= 1;
   /*
     If we have already executed SELECT, then it have not sense to prevent
@@ -801,12 +800,13 @@ JOIN::prepare(TABLE_LIST *tables_init,
 
   ref_ptrs= ref_ptr_array_slice(0);
   
-  enum_parsing_place save_place= thd->lex->current_select->parsing_place;
-  thd->lex->current_select->parsing_place= SELECT_LIST;
+  enum_parsing_place save_place=
+                     thd->lex->current_select->context_analysis_place;
+  thd->lex->current_select->context_analysis_place= SELECT_LIST;
   if (setup_fields(thd, ref_ptrs, fields_list, MARK_COLUMNS_READ,
                    &all_fields, 1))
     DBUG_RETURN(-1);
-  thd->lex->current_select->parsing_place= save_place;
+  thd->lex->current_select->context_analysis_place= save_place;
 
   if (setup_without_group(thd, ref_ptrs, tables_list,
                           select_lex->leaf_tables, fields_list,
@@ -22235,14 +22235,16 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order,
                 bool from_window_spec)
 { 
-  enum_parsing_place parsing_place= thd->lex->current_select->parsing_place;
+  enum_parsing_place context_analysis_place=
+                     thd->lex->current_select->context_analysis_place;
   thd->where="order clause";
   for (; order; order=order->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, order, fields,
 			   all_fields, FALSE, from_window_spec))
       return 1;
-    if ((*order->item)->with_window_func && parsing_place != IN_ORDER_BY)
+    if ((*order->item)->with_window_func &&
+        context_analysis_place != IN_ORDER_BY)
     {
       my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
@@ -22284,7 +22286,8 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	    List<Item> &fields, List<Item> &all_fields, ORDER *order,
 	    bool *hidden_group_fields, bool from_window_spec)
 {
-  enum_parsing_place parsing_place= thd->lex->current_select->parsing_place;
+  enum_parsing_place context_analysis_place=
+                     thd->lex->current_select->context_analysis_place;
   *hidden_group_fields=0;
   ORDER *ord;
 
@@ -22300,14 +22303,14 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 			   all_fields, TRUE, from_window_spec))
       return 1;
     (*ord->item)->marker= UNDEF_POS;		/* Mark found */
-    if ((*ord->item)->with_sum_func && parsing_place == IN_GROUP_BY)
+    if ((*ord->item)->with_sum_func && context_analysis_place == IN_GROUP_BY)
     {
       my_error(ER_WRONG_GROUP_FIELD, MYF(0), (*ord->item)->full_name());
       return 1;
     }
     if ((*ord->item)->with_window_func)
     {
-      if (parsing_place == IN_GROUP_BY)
+      if (context_analysis_place == IN_GROUP_BY)
         my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
       else
         my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
