@@ -1387,7 +1387,7 @@ dict_check_sys_tables(
 		look to see if it is already in the tablespace cache. */
 		if (fil_space_for_table_exists_in_mem(
 			    space_id, table_name.m_name,
-			    false, true, NULL, 0, NULL, flags)) {
+			    false, true, NULL, 0, flags)) {
 			/* Recovery can open a datafile that does not
 			match SYS_DATAFILES.  If they don't match, update
 			SYS_DATAFILES. */
@@ -1419,8 +1419,7 @@ dict_check_sys_tables(
 			FIL_TYPE_TABLESPACE,
 			space_id, dict_tf_to_fsp_flags(flags),
 			table_name.m_name,
-			filepath,
-			NULL);
+			filepath);
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << "Ignoring tablespace for "
@@ -2797,7 +2796,7 @@ dict_load_tablespace(
 	/* The tablespace may already be open. */
 	if (fil_space_for_table_exists_in_mem(
 		    table->space, space_name, false,
-		    true, heap, table->id, table, table->flags)) {
+		    true, heap, table->id, table->flags)) {
 		return;
 	}
 
@@ -2829,7 +2828,7 @@ dict_load_tablespace(
 	dberr_t err = fil_ibd_open(
 		true, false, FIL_TYPE_TABLESPACE, table->space,
 		dict_tf_to_fsp_flags(table->flags),
-		space_name, filepath, table);
+		space_name, filepath);
 
 	if (err != DB_SUCCESS) {
 		/* We failed to find a sensible tablespace file */

@@ -1311,11 +1311,6 @@ struct dict_table_t {
 	/** Acquire the table handle. */
 	inline void acquire();
 
-	void*		thd;		/*!< thd */
-	bool		page_0_read; /*!< true if page 0 has
-				     been already read */
-	fil_space_crypt_t *crypt_data; /*!< crypt data if present */
-
 	/** Release the table handle. */
 	inline void release();
 
