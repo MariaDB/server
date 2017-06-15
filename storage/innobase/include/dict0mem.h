@@ -238,9 +238,6 @@ DEFAULT=0, ON = 1, OFF = 2
 		((flags & DICT_TF_MASK_ATOMIC_WRITES)	\
 		>> DICT_TF_POS_ATOMIC_WRITES)
 
-/** Return the contents of the UNUSED bits */
-#define DICT_TF_GET_UNUSED(flags)			\
-		(flags >> DICT_TF_POS_UNUSED)
 /* @} */
 
 /** @brief Table Flags set number 2.

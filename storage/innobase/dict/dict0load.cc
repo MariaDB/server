@@ -1129,6 +1129,71 @@ dict_sys_tablespaces_rec_read(
 	return(true);
 }
 
+/** Check if SYS_TABLES.TYPE is valid
+@param[in]	type		SYS_TABLES.TYPE
+@param[in]	not_redundant	whether ROW_FORMAT=REDUNDANT is not used
+@return	whether the SYS_TABLES.TYPE value is valid */
+static
+bool
+dict_sys_tables_type_valid(ulint type, bool not_redundant)
+{
+	/* The DATA_DIRECTORY flag can be assigned fully independently
+	of all other persistent table flags. */
+	type &= ~DICT_TF_MASK_DATA_DIR;
+
+	if (type == 1) {
+		return(true); /* ROW_FORMAT=REDUNDANT or ROW_FORMAT=COMPACT */
+	}
+
+	if (!(type & 1)) {
+		/* For ROW_FORMAT=REDUNDANT and ROW_FORMAT=COMPACT,
+		SYS_TABLES.TYPE=1. Else, it is the same as
+		dict_table_t::flags, and the least significant bit
+		would be set. So, the bit never can be 0. */
+		return(false);
+	}
+
+	if (!not_redundant) {
+		/* SYS_TABLES.TYPE must be 1 for ROW_FORMAT=REDUNDANT. */
+		return(false);
+	}
+
+	if (type >= 1U << DICT_TF_POS_UNUSED) {
+		/* Some unknown bits are set. */
+		return(false);
+	}
+
+	/* ATOMIC_WRITES cannot be 3; it is the 10.3 NO_ROLLBACK flag. */
+	if (!(~type & DICT_TF_MASK_ATOMIC_WRITES)) {
+		return(false);
+	}
+
+	return(dict_tf_is_valid_not_redundant(type));
+}
+
+/** Convert SYS_TABLES.TYPE to dict_table_t::flags.
+@param[in]	type		SYS_TABLES.TYPE
+@param[in]	not_redundant	whether ROW_FORMAT=REDUNDANT is not used
+@return	table flags */
+static
+ulint
+dict_sys_tables_type_to_tf(ulint type, bool not_redundant)
+{
+	ut_ad(dict_sys_tables_type_valid(type, not_redundant));
+	ulint	flags = not_redundant ? 1 : 0;
+
+	/* ZIP_SSIZE, ATOMIC_BLOBS, DATA_DIR, PAGE_COMPRESSION,
+	PAGE_COMPRESSION_LEVEL are the same. */
+	flags |= type & (DICT_TF_MASK_ZIP_SSIZE
+			 | DICT_TF_MASK_ATOMIC_BLOBS
+			 | DICT_TF_MASK_DATA_DIR
+			 | DICT_TF_MASK_PAGE_COMPRESSION
+			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL);
+
+	ut_ad(dict_tf_is_valid(flags));
+	return(flags);
+}
+
 /** Read and return 5 integer fields from a SYS_TABLES record.
 @param[in]	rec		A record of SYS_TABLES
 @param[in]	name		Table Name, the same as SYS_TABLES.NAME
@@ -1222,8 +1287,7 @@ dict_sys_tables_rec_read(
 		SYS_TABLES.TYPE to be in the 10.2.2..10.2.6 format.
 		This would in any case be invalid format for 10.2 and
 		earlier releases. */
-		ut_ad(ULINT_UNDEFINED == dict_sys_tables_type_validate(
-			      type, DICT_N_COLS_COMPACT));
+		ut_ad(!dict_sys_tables_type_valid(type, true));
 	} else {
 		/* SYS_TABLES.TYPE is of the form AALLLL10DB00001.  We
 		must still validate that the LLLL bits are between 0
@@ -1239,8 +1303,7 @@ dict_sys_tables_rec_read(
 			ut_ad(DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type) >= 1);
 			ut_ad(DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type) <= 9);
 		} else {
-			ut_ad(ULINT_UNDEFINED == dict_sys_tables_type_validate(
-				      type, DICT_N_COLS_COMPACT));
+			ut_ad(!dict_sys_tables_type_valid(type, true));
 		}
 	}
 
@@ -1255,11 +1318,9 @@ dict_sys_tables_rec_read(
 	ut_a(len == 4);
 	*n_cols = mach_read_from_4(field);
 
-	/* This validation function also combines the DICT_N_COLS_COMPACT
-	flag in n_cols into the type field to effectively make it a
-	dict_table_t::flags. */
+	const bool not_redundant = 0 != (*n_cols & DICT_N_COLS_COMPACT);
 
-	if (ULINT_UNDEFINED == dict_sys_tables_type_validate(type, *n_cols)) {
+	if (!dict_sys_tables_type_valid(type, not_redundant)) {
 		ib::error() << "Table " << table_name << " in InnoDB"
 			" data dictionary contains invalid flags."
 			" SYS_TABLES.TYPE=" << type <<
@@ -1267,7 +1328,7 @@ dict_sys_tables_rec_read(
 		return(false);
 	}
 
-	*flags = dict_sys_tables_type_to_tf(type, *n_cols);
+	*flags = dict_sys_tables_type_to_tf(type, not_redundant);
 
 	/* For tables created before MySQL 4.1, there may be
 	garbage in SYS_TABLES.MIX_LEN where flags2 are found. Such tables
@@ -1275,7 +1336,7 @@ dict_sys_tables_rec_read(
 	high bit set in n_cols, and flags would be zero.
 	MySQL 4.1 was the first version to support innodb_file_per_table,
 	that is, *space_id != 0. */
-	if (*flags != 0 || *space_id != 0 || *n_cols & DICT_N_COLS_COMPACT) {
+	if (not_redundant || *space_id != 0 || *n_cols & DICT_N_COLS_COMPACT) {
 
 		/* Get flags2 from SYS_TABLES.MIX_LEN */
 		field = rec_get_nth_field_old(
