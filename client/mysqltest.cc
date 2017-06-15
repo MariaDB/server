@@ -1698,12 +1698,22 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
 {
   int fd;
   size_t len;
-  char buff[16384];
+  char *buff;
 
   if ((fd= my_open(filename, O_RDONLY, MYF(0))) < 0)
     return 1;
-  while((len= my_read(fd, (uchar*)&buff,
-                      sizeof(buff)-1, MYF(0))) > 0)
+
+  len= (size_t) my_seek(fd, 0, SEEK_END, MYF(0));
+  my_seek(fd, 0, SEEK_SET, MYF(0));
+  if (len == (size_t)MY_FILEPOS_ERROR ||
+      !(buff= (char*)my_malloc(len + 1, MYF(0))))
+  {
+    my_close(fd, MYF(0));
+    return 1;
+  }
+  len= my_read(fd, (uchar*)buff, len, MYF(0));
+  my_close(fd, MYF(0));
+
   {
     char *p= buff, *start= buff,*end=buff+len;
     while (p < end)
@@ -1726,7 +1736,7 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
     *p= 0;
     replace_dynstr_append_mem(ds, start, p-start);
   }
-  my_close(fd, MYF(0));
+  my_free(buff);
   return 0;
 }
 
