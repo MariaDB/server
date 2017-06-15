@@ -869,7 +869,6 @@ DECLARE_THREAD(trx_rollback_or_clean_all_recovered)(
 			os_thread_create */
 {
 	my_thread_init();
-
 	ut_ad(!srv_read_only_mode);
 
 #ifdef UNIV_PFS_THREAD

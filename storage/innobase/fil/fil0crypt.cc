@@ -831,7 +831,7 @@ fil_space_decrypt(
 Calculate post encryption checksum
 @param[in]	page_size	page size
 @param[in]	dst_frame	Block where checksum is calculated
-@return page checksum or BUF_NO_CHECKSUM_MAGIC
+@return page checksum
 not needed. */
 UNIV_INTERN
 uint32_t
@@ -839,34 +839,11 @@ fil_crypt_calculate_checksum(
 	const page_size_t&	page_size,
 	const byte*		dst_frame)
 {
-	uint32_t checksum = 0;
-	srv_checksum_algorithm_t algorithm =
-			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
-
-	if (!page_size.is_compressed()) {
-		switch (algorithm) {
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-			checksum = buf_calc_page_crc32(dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-			checksum = (ib_uint32_t) buf_calc_page_new_checksum(
-				dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-			checksum = BUF_NO_CHECKSUM_MAGIC;
-			break;
-			/* no default so the compiler will emit a warning
-			* if new enum is added and not handled here */
-		}
-	} else {
-		checksum = page_zip_calc_checksum(dst_frame, page_size.physical(),
-				                          algorithm);
-	}
-
-	return checksum;
+	/* For encrypted tables we use only crc32 and strict_crc32 */
+	return page_size.is_compressed()
+		? page_zip_calc_checksum(dst_frame, page_size.physical(),
+					 SRV_CHECKSUM_ALGORITHM_CRC32)
+		: buf_calc_page_crc32(dst_frame);
 }
 
 /***********************************************************************/
@@ -945,6 +922,34 @@ fil_crypt_needs_rotation(
 	return false;
 }
 
+/** Read page 0 and possible crypt data from there.
+@param[in,out]	space		Tablespace */
+static inline
+void
+fil_crypt_read_crypt_data(fil_space_t* space)
+{
+	if (space->crypt_data || space->size) {
+		/* The encryption metadata has already been read, or
+		the tablespace is not encrypted and the file has been
+		opened already. */
+		return;
+	}
+
+	const page_size_t page_size(space->flags);
+	mtr_t	mtr;
+	mtr.start();
+	if (buf_block_t* block = buf_page_get(page_id_t(space->id, 0),
+					      page_size, RW_S_LATCH, &mtr)) {
+		mutex_enter(&fil_system->mutex);
+		if (!space->crypt_data) {
+			space->crypt_data = fil_space_read_crypt_data(
+				page_size, block->frame);
+		}
+		mutex_exit(&fil_system->mutex);
+	}
+	mtr.commit();
+}
+
 /***********************************************************************
 Start encrypting a space
 @param[in,out]		space		Tablespace
@@ -955,6 +960,7 @@ fil_crypt_start_encrypting_space(
 	fil_space_t*	space)
 {
 	bool recheck = false;
+
 	mutex_enter(&fil_crypt_threads_mutex);
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
@@ -1097,12 +1103,12 @@ struct rotate_thread_t {
 	bool should_shutdown() const {
 		switch (srv_shutdown_state) {
 		case SRV_SHUTDOWN_NONE:
-		case SRV_SHUTDOWN_CLEANUP:
 			return thread_no >= srv_n_fil_crypt_threads;
 		case SRV_SHUTDOWN_EXIT_THREADS:
 			/* srv_init_abort() must have been invoked */
-		case SRV_SHUTDOWN_FLUSH_PHASE:
+		case SRV_SHUTDOWN_CLEANUP:
 			return true;
+		case SRV_SHUTDOWN_FLUSH_PHASE:
 		case SRV_SHUTDOWN_LAST_PHASE:
 			break;
 		}
@@ -1451,6 +1457,13 @@ fil_crypt_find_space_to_rotate(
 	}
 
 	while (!state->should_shutdown() && state->space) {
+		/* If there is no crypt data and we have not yet read
+		page 0 for this tablespace, we need to read it before
+		we can continue. */
+		if (!state->space->crypt_data) {
+			fil_crypt_read_crypt_data(state->space);
+		}
+
 		if (fil_crypt_space_needs_rotation(state, key_state, recheck)) {
 			ut_ad(key_state->key_id);
 			/* init state->min_key_version_found before
@@ -2152,8 +2165,10 @@ DECLARE_THREAD(fil_crypt_thread)(
 			while (!thr.should_shutdown() &&
 			       fil_crypt_find_page_to_rotate(&new_state, &thr)) {
 
-				/* rotate a (set) of pages */
-				fil_crypt_rotate_pages(&new_state, &thr);
+				if (!thr.space->is_stopping()) {
+					/* rotate a (set) of pages */
+					fil_crypt_rotate_pages(&new_state, &thr);
+				}
 
 				/* If space is marked as stopping, release
 				space and stop rotation. */
@@ -2380,6 +2395,14 @@ fil_space_crypt_get_status(
 	memset(status, 0, sizeof(*status));
 
 	ut_ad(space->n_pending_ops > 0);
+
+	/* If there is no crypt data and we have not yet read
+	page 0 for this tablespace, we need to read it before
+	we can continue. */
+	if (!space->crypt_data) {
+		fil_crypt_read_crypt_data(const_cast<fil_space_t*>(space));
+	}
+
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 	status->space = space->id;
 
@@ -2492,15 +2515,8 @@ fil_space_verify_crypt_checksum(
 		return false;
 	}
 
-	srv_checksum_algorithm_t algorithm =
-			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
-	/* If no checksum is used, can't continue checking. */
-	if (algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
-		return(true);
-	}
-
 	/* Read stored post encryption checksum. */
-	ib_uint32_t checksum = mach_read_from_4(
+	uint32_t checksum = mach_read_from_4(
 		page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4);
 
 	/* Declare empty pages non-corrupted */

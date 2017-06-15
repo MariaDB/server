@@ -1,4 +1,4 @@
--- source include/have_innodb.inc
+--source include/innodb_page_size_small.inc
 
 SET GLOBAL innodb_strict_mode=on;
 set old_alter_table=0;

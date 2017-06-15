@@ -2430,7 +2430,8 @@ fts_query_terms_in_document(
 /*****************************************************************//**
 Retrieve the document and match the phrase tokens.
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+MY_ATTRIBUTE((nonnull(1,2,3,6), warn_unused_result))
+static
 dberr_t
 fts_query_match_document(
 /*=====================*/
@@ -2692,7 +2693,6 @@ fts_query_phrase_split(
 		if (fts_check_token(
 			   &result_str,
 			   cache->stopword_info.cached_stopword,
-			   query->index->is_ngram,
 			   query->fts_index_table.charset)) {
 			/* Add the word to the RB tree so that we can
 			calculate it's frequencey within a document. */
@@ -4277,7 +4277,6 @@ fts_expand_query(
 
 	result_doc.charset = index_cache->charset;
 	result_doc.parser = index_cache->index->parser;
-	result_doc.is_ngram = index_cache->index->is_ngram;
 
 	query->total_size += SIZEOF_RBT_CREATE;
 

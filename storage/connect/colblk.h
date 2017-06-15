@@ -72,8 +72,8 @@ class DllExport COLBLK : public XOBJECT {
   virtual void    SetTo_Val(PVAL) {}
   virtual void    ReadColumn(PGLOBAL g);
   virtual void    WriteColumn(PGLOBAL g);
-  virtual void    Print(PGLOBAL g, FILE *, uint);
-  virtual void    Print(PGLOBAL g, char *, uint);
+  virtual void    Printf(PGLOBAL g, FILE *, uint);
+  virtual void    Prints(PGLOBAL g, char *, uint);
   virtual bool    VarSize(void) {return false;}
           bool    InitValue(PGLOBAL g);
 
@@ -154,7 +154,7 @@ class DllExport FIDBLK : public SPCBLK {
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
-  PSZ   Fn;                         // The current To_File of the table
+  PCSZ  Fn;                         // The current To_File of the table
   OPVAL Op;                         // The file part operator
   }; // end of class FIDBLK
 
@@ -178,7 +178,7 @@ class DllExport TIDBLK : public SPCBLK {
   TIDBLK(void) {}
 
   // Members
-  PSZ  Tname;                       // The current table name
+  PCSZ  Tname;                      // The current table name
   }; // end of class TIDBLK
 
 /***********************************************************************/
@@ -201,7 +201,7 @@ class DllExport PRTBLK : public SPCBLK {
   PRTBLK(void) {}
 
   // Members
-  PSZ  Pname;                       // The current partition name
+  PCSZ  Pname;                      // The current partition name
   }; // end of class PRTBLK
 
 /***********************************************************************/
@@ -224,7 +224,7 @@ class DllExport SIDBLK : public SPCBLK {
   SIDBLK(void) {}
 
   // Members
-  PSZ  Sname;                       // The current server name
+  PCSZ  Sname;                      // The current server name
   }; // end of class SIDBLK
 
 #endif // __COLBLK__H

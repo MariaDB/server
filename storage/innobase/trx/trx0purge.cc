@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -61,7 +61,6 @@ trx_undo_rec_t	trx_purge_dummy_rec;
 
 #ifdef UNIV_DEBUG
 my_bool		srv_purge_view_update_only_debug;
-bool		trx_commit_disallowed = false;
 #endif /* UNIV_DEBUG */
 
 /** Sentinel value */
@@ -148,12 +147,10 @@ TrxUndoRsegsIterator::set_next()
 	ut_a(purge_sys->rseg->last_page_no != FIL_NULL);
 	ut_ad(purge_sys->rseg->last_trx_no == m_trx_undo_rsegs.get_trx_no());
 
-	/* We assume in purge of externally stored fields that
-	space id is in the range of UNDO tablespace space ids
-	unless space is system tablespace */
-	ut_a(purge_sys->rseg->space <= srv_undo_tablespaces_open
-		|| is_system_tablespace(
-			purge_sys->rseg->space));
+	/* We assume in purge of externally stored fields that space id is
+	in the range of UNDO tablespace space ids */
+	ut_a(purge_sys->rseg->space == TRX_SYS_SPACE
+	     || srv_is_undo_tablespace(purge_sys->rseg->space));
 
 	ut_a(purge_sys->iter.trx_no <= purge_sys->rseg->last_trx_no);
 
@@ -284,7 +281,18 @@ trx_purge_add_update_undo_to_history(
 			hist_size + undo->size, MLOG_4BYTES, mtr);
 	}
 
-	ut_ad(!trx_commit_disallowed);
+	/* Before any transaction-generating background threads or the
+	purge have been started, recv_recovery_rollback_active() can
+	start transactions in row_merge_drop_temp_indexes() and
+	fts_drop_orphaned_tables(), and roll back recovered transactions.
+	After the purge thread has been given permission to exit,
+	in fast shutdown, we may roll back transactions (trx->undo_no==0)
+	in THD::cleanup() invoked from unlink_thd(). */
+	ut_ad(srv_undo_sources
+	      || ((srv_startup_is_before_trx_rollback_phase
+		   || trx_rollback_or_clean_is_active)
+		  && purge_sys->state == PURGE_STATE_INIT)
+	      || (trx->undo_no == 0 && srv_fast_shutdown));
 
 	/* Add the log as the first in the history list */
 	flst_add_first(rseg_header + TRX_RSEG_HISTORY,

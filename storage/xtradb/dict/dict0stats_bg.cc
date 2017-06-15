@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,11 +39,17 @@ Created Apr 25, 2012 Vasil Dimov
 /** Minimum time interval between stats recalc for a given table */
 #define MIN_RECALC_INTERVAL	10 /* seconds */
 
-#define SHUTTING_DOWN()		(srv_shutdown_state != SRV_SHUTDOWN_NONE)
-
 /** Event to wake up dict_stats_thread on dict_stats_recalc_pool_add()
 or shutdown. Not protected by any mutex. */
 UNIV_INTERN os_event_t		dict_stats_event;
+
+/** Variable to initiate shutdown the dict stats thread. Note we don't
+use 'srv_shutdown_state' because we want to shutdown dict stats thread
+before purge thread. */
+static bool			dict_stats_start_shutdown;
+
+/** Event to wait for shutdown of the dict stats thread */
+static os_event_t		dict_stats_shutdown_event;
 
 /** This mutex protects the "recalc_pool" variable. */
 static ib_mutex_t		recalc_pool_mutex;
@@ -341,11 +347,11 @@ Must be called before dict_stats_thread() is started. */
 UNIV_INTERN
 void
 dict_stats_thread_init()
-/*====================*/
 {
 	ut_a(!srv_read_only_mode);
 
 	dict_stats_event = os_event_create();
+	dict_stats_shutdown_event = os_event_create();
 
 	/* The recalc_pool_mutex is acquired from:
 	1) the background stats gathering thread before any other latch
@@ -390,6 +396,9 @@ dict_stats_thread_deinit()
 
 	os_event_free(dict_stats_event);
 	dict_stats_event = NULL;
+	os_event_free(dict_stats_shutdown_event);
+	dict_stats_shutdown_event = NULL;
+	dict_stats_start_shutdown = false;
 }
 
 /*****************************************************************//**
@@ -530,9 +539,10 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(dict_stats_thread)(void*)
 {
+	my_thread_init();
 	ut_a(!srv_read_only_mode);
 
-	while (!SHUTTING_DOWN()) {
+	while (!dict_stats_start_shutdown) {
 
 		/* Wake up periodically even if not signaled. This is
 		because we may lose an event - if the below call to
@@ -542,7 +552,7 @@ DECLARE_THREAD(dict_stats_thread)(void*)
 		os_event_wait_time(
 			dict_stats_event, MIN_RECALC_INTERVAL * 1000000);
 
-		if (SHUTTING_DOWN()) {
+		if (dict_stats_start_shutdown) {
 			break;
 		}
 
@@ -556,9 +566,20 @@ DECLARE_THREAD(dict_stats_thread)(void*)
 
 	srv_dict_stats_thread_active = false;
 
+	os_event_set(dict_stats_shutdown_event);
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit instead of return(). */
 	os_thread_exit(NULL);
 
 	OS_THREAD_DUMMY_RETURN;
+}
+
+/** Shut down the dict_stats_thread. */
+void
+dict_stats_shutdown()
+{
+	dict_stats_start_shutdown = true;
+	os_event_set(dict_stats_event);
+	os_event_wait(dict_stats_shutdown_event);
 }

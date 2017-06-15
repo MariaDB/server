@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,43 +38,20 @@ struct dict_table_t;
 only one buffer pool instance is used. */
 #define BUF_POOL_SIZE_THRESHOLD		(1024 * 1024 * 1024)
 
-/*********************************************************************//**
-Parse temporary tablespace configuration.
-@return true if ok, false on parse error */
-bool
-srv_parse_temp_data_file_paths_and_sizes(
-/*=====================================*/
-	char*	str);	/*!< in/out: the data file path string */
-/*********************************************************************//**
-Frees the memory allocated by srv_parse_data_file_paths_and_sizes()
-and srv_parse_log_group_home_dirs(). */
-void
-srv_free_paths_and_sizes(void);
-/*==========================*/
-/*********************************************************************//**
-Adds a slash or a backslash to the end of a string if it is missing
-and the string is not empty.
-@return string which has the separator if the string is not empty */
-char*
-srv_add_path_separator_if_needed(
-/*=============================*/
-	char*	str);	/*!< in: null-terminated character string */
-
 /****************************************************************//**
 Starts Innobase and creates a new database if database files
 are not found and the user wants.
 @return DB_SUCCESS or error code */
 dberr_t
-innobase_start_or_create_for_mysql(void);
-/*====================================*/
+innobase_start_or_create_for_mysql();
+
 /** Shut down InnoDB. */
 void
 innodb_shutdown();
 
-/****************************************************************//**
-Shuts down background threads that can generate undo pages. */
+/** Shut down background threads that can generate undo log. */
 void
-srv_shutdown_bg_undo_sources(void);
+srv_shutdown_bg_undo_sources();
 
 /*************************************************************//**
 Copy the file path component of the physical file to parameter. It will
@@ -128,6 +105,22 @@ extern	bool	srv_startup_is_before_trx_rollback_phase;
 /** TRUE if a raw partition is in use */
 extern	ibool	srv_start_raw_disk_in_use;
 
+/** Undo tablespaces starts with space_id. */
+extern	ulint	srv_undo_space_id_start;
+
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+inline
+bool
+srv_is_undo_tablespace(ulint space_id)
+{
+	return srv_undo_space_id_start > 0
+		&& space_id >= srv_undo_space_id_start
+		&& space_id < (srv_undo_space_id_start
+			       + srv_undo_tablespaces_open);
+}
+
 /** Shutdown state */
 enum srv_shutdown_t {
 	SRV_SHUTDOWN_NONE = 0,	/*!< Database running normally */
@@ -143,6 +136,9 @@ enum srv_shutdown_t {
 				all file spaces and close all files */
 	SRV_SHUTDOWN_EXIT_THREADS/*!< Exit all threads */
 };
+
+/** Whether any undo log records can be generated */
+extern bool srv_undo_sources;
 
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */

@@ -90,6 +90,7 @@ explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  '
 --replace_regex /Duplicate entry '[^']+' for key/Duplicate entry '{ ' for key/
 --error ER_DUP_ENTRY
 alter table t1 add unique(v);
+show warnings;
 alter table t1 add key(v);
 select concat('*',v,'*',c,'*',t,'*') as qq from t1 where v='a';
 --replace_column 6 # 9 # 10 #

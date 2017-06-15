@@ -167,13 +167,13 @@ UNIV_INTERN extern ib_mutex_t fil_crypt_threads_mutex;
 /** Determine if the space id is a user tablespace id or not.
 @param[in]	space_id	Space ID to check
 @return true if it is a user tablespace ID */
-UNIV_INLINE
+inline
 bool
-fil_is_user_tablespace_id(
-	ulint	space_id)
+fil_is_user_tablespace_id(ulint space_id)
 {
-	return(space_id > srv_undo_tablespaces_open
-	       && space_id != SRV_TMP_SPACE_ID);
+	return(space_id != TRX_SYS_SPACE
+	       && space_id != SRV_TMP_SPACE_ID
+	       && !srv_is_undo_tablespace(space_id));
 }
 
 #ifdef UNIV_DEBUG
@@ -655,12 +655,8 @@ retry:
 			FSP_HEADER_OFFSET + FSP_FREE + page);
 
 		/* Try to read crypt_data from page 0 if it is not yet
-		read. FIXME: Remove page_0_crypt_read, and simply ensure in
-		fil_space_t object creation that node->size==0 if and only
-		if the crypt_data is not known and must be read. */
-		if (!space->page_0_crypt_read) {
-			space->page_0_crypt_read = true;
-			ut_ad(space->crypt_data == NULL);
+		read. */
+		if (!space->crypt_data) {
 			space->crypt_data = fil_space_read_crypt_data(
 				page_size_t(space->flags), page);
 		}
@@ -673,7 +669,7 @@ retry:
 			if (cflags == ULINT_UNDEFINED) {
 				ib::error()
 					<< "Expected tablespace flags "
-					<< ib::hex(flags)
+					<< ib::hex(space->flags)
 					<< " but found " << ib::hex(flags)
 					<< " in the file " << node->name;
 				return(false);
@@ -1591,7 +1587,6 @@ Error messages are issued to the server log.
 @param[in]	flags		tablespace flags
 @param[in]	purpose		tablespace purpose
 @param[in,out]	crypt_data	encryption information
-@param[in]	create_table	whether this is CREATE TABLE
 @param[in]	mode		encryption mode
 @return pointer to created tablespace, to be filled in with fil_node_create()
 @retval NULL on failure (such as when the same tablespace exists) */
@@ -1602,7 +1597,6 @@ fil_space_create(
 	ulint			flags,
 	fil_type_t		purpose,
 	fil_space_crypt_t*	crypt_data,
-	bool			create_table,
 	fil_encryption_t	mode)
 {
 	fil_space_t*	space;
@@ -1667,16 +1661,8 @@ fil_space_create(
 	space->magic_n = FIL_SPACE_MAGIC_N;
 	space->crypt_data = crypt_data;
 
-	/* In create table we write page 0 so we have already
-	"read" it and for system tablespaces we have read
-	crypt data at startup. */
-	if (create_table || crypt_data != NULL) {
-		space->page_0_crypt_read = true;
-	}
-
 	DBUG_LOG("tablespace",
-		 "Tablespace for space " << id << " name " << name
-		 << (create_table ? " created" : " opened"));
+		 "Created metadata for " << id << " name " << name);
 	if (crypt_data) {
 		DBUG_LOG("crypt",
 			 "Tablespace " << id << " name " << name
@@ -3796,7 +3782,7 @@ fil_ibd_create(
 	fil_encryption_t mode,
 	uint32_t	key_id)
 {
-	os_file_t	file;
+	pfs_os_file_t	file;
 	dberr_t		err;
 	byte*		buf2;
 	byte*		page;
@@ -4004,7 +3990,7 @@ fil_ibd_create(
 	}
 
 	space = fil_space_create(name, space_id, flags, FIL_TYPE_TABLESPACE,
-				 crypt_data, true, mode);
+				 crypt_data, mode);
 
 	fil_node_t* node = NULL;
 
@@ -4282,12 +4268,14 @@ fil_ibd_open(
 			df_default.close();
 			tablespaces_found--;
 		}
+
 		if (df_dict.is_open() && !df_dict.is_valid()) {
 			df_dict.close();
 			/* Leave dict.filepath so that SYS_DATAFILES
 			can be corrected below. */
 			tablespaces_found--;
 		}
+
 		if (df_remote.is_open() && !df_remote.is_valid()) {
 			df_remote.close();
 			tablespaces_found--;
@@ -4370,7 +4358,7 @@ skip_validate:
 			space_name, id, flags, purpose,
 			df_remote.is_open() ? df_remote.get_crypt_info() :
 			df_dict.is_open() ? df_dict.get_crypt_info() :
-			df_default.get_crypt_info(), false);
+			df_default.get_crypt_info());
 
 		/* We do not measure the size of the file, that is why
 		we pass the 0 below */
@@ -4690,7 +4678,7 @@ fil_ibd_load(
 
 	space = fil_space_create(
 		file.name(), space_id, flags, FIL_TYPE_TABLESPACE,
-		file.get_crypt_info(), false);
+		file.get_crypt_info());
 
 	if (space == NULL) {
 		return(FIL_LOAD_INVALID);
@@ -5151,23 +5139,16 @@ fil_report_invalid_page_access(
 	ulint		len,		/*!< in: I/O length */
 	bool		is_read)	/*!< in: I/O type */
 {
-	ib::error()
-		<< "Trying to access page number " << block_offset << " in"
+	ib::fatal()
+		<< "Trying to " << (is_read ? "read" : "write")
+		<< " page number " << block_offset << " in"
 		" space " << space_id << ", space name " << space_name << ","
 		" which is outside the tablespace bounds. Byte offset "
-		<< byte_offset << ", len " << len << ", i/o type " <<
-		(is_read ? "read" : "write")
-		<< ". If you get this error at mysqld startup, please check"
-		" that your my.cnf matches the ibdata files that you have in"
-		" the MySQL server.";
-
-	ib::error() << "Server exits"
-#ifdef UNIV_DEBUG
-		<< " at " << __FILE__ << "[" << __LINE__ << "]"
-#endif
-		<< ".";
-
-	_exit(1);
+		<< byte_offset << ", len " << len <<
+		(space_id == 0 && !srv_was_started
+		? "Please check that the configuration matches"
+		" the InnoDB system tablespace location (ibdata files)"
+		: "");
 }
 
 /** Reads or writes data. This operation could be asynchronous (aio).
@@ -5833,7 +5814,7 @@ fil_buf_block_init(
 }
 
 struct fil_iterator_t {
-	os_file_t	file;			/*!< File handle */
+	pfs_os_file_t	file;			/*!< File handle */
 	const char*	filepath;		/*!< File path name */
 	os_offset_t	start;			/*!< From where to start */
 	os_offset_t	end;			/*!< Where to stop */
@@ -5875,18 +5856,15 @@ fil_iterate(
 
 	ut_ad(!srv_read_only_mode);
 
-	/* For old style compressed tables we do a lot of useless copying
-	for non-index pages. Unfortunately, it is required by
-	buf_zip_decompress() */
-
-	ulint	read_type = IORequest::READ;
-	ulint	write_type = IORequest::WRITE;
+	/* TODO: For compressed tables we do a lot of useless
+	copying for non-index pages. Unfortunately, it is
+	required by buf_zip_decompress() */
+	const bool	row_compressed
+		= callback.get_page_size().is_compressed();
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 
 		byte*		io_buffer = iter.io_buffer;
-		const bool	row_compressed
-			= callback.get_page_size().is_compressed();
 
 		block->frame = io_buffer;
 
@@ -5906,8 +5884,6 @@ fil_iterate(
 
 			/* Zip IO is done in the compressed page buffer. */
 			io_buffer = block->page.zip.data;
-		} else {
-			io_buffer = iter.io_buffer;
 		}
 
 		/* We have to read the exact number of bytes. Otherwise the
@@ -5920,22 +5896,14 @@ fil_iterate(
 		ut_ad(n_bytes > 0);
 		ut_ad(!(n_bytes % iter.page_size));
 
-		dberr_t		err = DB_SUCCESS;
-		IORequest	read_request(read_type);
-
-		byte* readptr = io_buffer;
-		byte* writeptr = io_buffer;
-		bool encrypted = false;
-
+		const bool	encrypted = iter.crypt_data != NULL
+			&& iter.crypt_data->should_encrypt();
 		/* Use additional crypt io buffer if tablespace is encrypted */
-		if (iter.crypt_data != NULL && iter.crypt_data->should_encrypt()) {
-
-			encrypted = true;
-			readptr = iter.crypt_io_buffer;
-			writeptr = iter.crypt_io_buffer;
-		}
-
-		err = os_file_read(
+		byte* const	readptr = encrypted
+			? iter.crypt_io_buffer : io_buffer;
+		byte* const	writeptr = readptr;
+		IORequest	read_request(IORequest::READ);
+		dberr_t		err = os_file_read(
 			read_request, iter.file, readptr, offset,
 			(ulint) n_bytes);
 
@@ -5960,9 +5928,9 @@ fil_iterate(
 
 			ulint page_type = mach_read_from_2(src+FIL_PAGE_TYPE);
 
-			bool page_compressed =
-				(page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
-				 || page_type == FIL_PAGE_PAGE_COMPRESSED);
+			const bool page_compressed
+				= page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+				|| page_type == FIL_PAGE_PAGE_COMPRESSED;
 
 			/* If tablespace is encrypted, we need to decrypt
 			the page. Note that tablespaces are not in
@@ -6064,8 +6032,7 @@ fil_iterate(
 					dict_table_page_compression_level(iter.table),
 					512,/* FIXME: use proper block size */
 					encrypted,
-					&len,
-					NULL);
+					&len);
 
 				if (len != size) {
 					memset(res+len, 0, size-len);
@@ -6107,7 +6074,7 @@ fil_iterate(
 			block->frame += iter.page_size;
 		}
 
-		IORequest	write_request(write_type);
+		IORequest	write_request(IORequest::WRITE);
 
 		/* A page was updated in the set, write back to disk.
 		Note: We don't have the compression algorithm, we write
@@ -6144,7 +6111,7 @@ fil_tablespace_iterate(
 	PageCallback&	callback)
 {
 	dberr_t		err;
-	os_file_t	file;
+	pfs_os_file_t	file;
 	char*		filepath;
 	bool		success;
 

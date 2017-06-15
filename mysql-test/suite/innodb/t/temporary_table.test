@@ -15,7 +15,6 @@ call mtr.add_suppression("The table 't1' is full");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 call mtr.add_suppression("InnoDB: Tablespace doesn't support raw devices");
-call mtr.add_suppression("InnoDB: The innodb_temporary data file 'ibtmp1' must be at least");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("innodb_temporary and innodb_system file names seem to be the same");
 call mtr.add_suppression("Could not create the shared innodb_temporary");
@@ -140,12 +139,6 @@ eval $check_no_innodb;
 
 --let $restart_parameters= --innodb_temp_data_file_path=barbar:3Graw
 --source include/restart_mysqld.inc
---source include/search_pattern_in_file.inc
-eval $check_no_innodb;
-
---let $restart_parameters= --innodb_temp_data_file_path=ibtmp1:2M:autoextend
---source include/restart_mysqld.inc
---let SEARCH_PATTERN = The innodb_temporary data file 'ibtmp1' must be at least
 --source include/search_pattern_in_file.inc
 eval $check_no_innodb;
 

@@ -1,3 +1,4 @@
+skip Tokudb Lock Waits not in I_S in MariaDB;
 # check for any locking weirdness on UPDATE triggers
 source include/have_tokudb.inc;
 set default_storage_engine='tokudb';

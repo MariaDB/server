@@ -139,31 +139,39 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     htrc("PlugInit: Language='%s'\n",
           ((!Language) ? "Null" : (char*)Language));
 
-  if (!(g = malloc(sizeof(GLOBAL)))) {
-    fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
-    return NULL;
-  } else {
+	try {
+		g = new GLOBAL;
+	} catch (...) {
+		fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
+		return NULL;
+	} // end try/catch
+
+	//if (!(g = (PGLOBAL)malloc(sizeof(GLOBAL)))) {
+ //   fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
+ //   return NULL;
+ // } else {
     g->Sarea = NULL;
     g->Createas = 0;
     g->Alchecked = 0;
     g->Mrr = 0;
-    g->Activityp = g->ActivityStart = NULL;
+    g->Activityp = NULL;
     g->Xchk = NULL;
     g->N = 0;
+		g->More = 0;
     strcpy(g->Message, "");
 
     /*******************************************************************/
     /*  Allocate the main work segment.                                */
     /*******************************************************************/
     if (worksize && !(g->Sarea = PlugAllocMem(g, worksize))) {
-      char errmsg[256];
+      char errmsg[MAX_STR];
       sprintf(errmsg, MSG(WORK_AREA), g->Message);
       strcpy(g->Message, errmsg);
       g->Sarea_Size = 0;
     } else
       g->Sarea_Size = worksize;
 
-  } /* endif g */
+  //} /* endif g */
 
   g->jump_level = -1;   /* New setting to allow recursive call of Plug */
   return(g);
@@ -182,7 +190,7 @@ int PlugExit(PGLOBAL g)
   if (g->Sarea)
     free(g->Sarea);
 
-  free(g);
+  delete g;
   return rc;
   } /* end of PlugExit */
 
@@ -475,7 +483,7 @@ void *PlugAllocMem(PGLOBAL g, uint size)
 /***********************************************************************/
 BOOL PlugSubSet(PGLOBAL g __attribute__((unused)), void *memp, uint size)
   {
-  PPOOLHEADER pph = memp;
+  PPOOLHEADER pph = (PPOOLHEADER)memp;
 
   pph->To_Free = (OFFSET)sizeof(POOLHEADER);
   pph->FreeBlk = size - pph->To_Free;
@@ -501,7 +509,6 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
     /*******************************************************************/
     memp = g->Sarea;
 
-//size = ((size + 3) / 4) * 4;       /* Round up size to multiple of 4 */
   size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
@@ -510,26 +517,24 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
           memp, size, pph->To_Free, pph->FreeBlk);
 
   if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
-    char     *pname = "Work";
+    PCSZ pname = "Work";
 
     sprintf(g->Message,
       "Not enough memory in %s area for request of %u (used=%d free=%d)",
-                          pname, (uint) size, pph->To_Free, pph->FreeBlk);
+                          pname, (uint)size, pph->To_Free, pph->FreeBlk);
 
     if (trace)
       htrc("PlugSubAlloc: %s\n", g->Message);
 
-		/* Nothing we can do if longjmp is not initialized.	*/
-		assert(g->jump_level >= 0);
-	  longjmp(g->jumper[g->jump_level], 1);
+		throw 1234;
     } /* endif size OS32 code */
 
   /*********************************************************************/
   /*  Do the suballocation the simplest way.                           */
   /*********************************************************************/
   memp = MakePtr(memp, pph->To_Free); /* Points to suballocated block  */
-  pph->To_Free += size;               /* New offset of pool free block */
-  pph->FreeBlk -= size;               /* New size   of pool free block */
+  pph->To_Free += (OFFSET)size;       /* New offset of pool free block */
+  pph->FreeBlk -= (uint)size;         /* New size   of pool free block */
 
   if (trace > 3)
     htrc("Done memp=%p used=%d free=%d\n",

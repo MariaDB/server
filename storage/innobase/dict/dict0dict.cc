@@ -4367,7 +4367,7 @@ dict_table_get_highest_foreign_id(
 	}
 
 	DBUG_PRINT("dict_table_get_highest_foreign_id",
-		   ("id: %lu", biggest_id));
+		   ("id: " ULINTPF, biggest_id));
 
 	DBUG_RETURN(biggest_id);
 }
@@ -6612,7 +6612,8 @@ dict_table_schema_check(
 	if ((ulint) table->n_def - n_sys_cols != req_schema->n_cols) {
 		/* the table has a different number of columns than required */
 		ut_snprintf(errstr, errstr_sz,
-			    "%s has %lu columns but should have " ULINTPF ".",
+			    "%s has " ULINTPF " columns but should have "
+			    ULINTPF ".",
 			    ut_format_name(req_schema->table_name,
 					   buf, sizeof(buf)),
 			    table->n_def - n_sys_cols,

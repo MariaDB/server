@@ -301,10 +301,9 @@ int MAPFAM::SkipRecord(PGLOBAL g, bool header)
   PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
 
   // Skip this record
-  while (*Mempos++ != '\n') ;      // What about Unix ???
-
-  if (Mempos >= Top)
-    return RC_EF;
+  while (*Mempos++ != '\n')					 		// What about Unix ???
+		if (Mempos == Top)
+      return RC_EF;
 
   // Update progress information
   dup->ProgCur = GetPos();
@@ -320,7 +319,7 @@ int MAPFAM::SkipRecord(PGLOBAL g, bool header)
 /***********************************************************************/
 int MAPFAM::ReadBuffer(PGLOBAL g)
   {
-  int rc, len;
+  int rc, len, n = 1;
 
   // Are we at the end of the memory
 	if (Mempos >= Top) {
@@ -362,10 +361,14 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
     Placed = false;
 
   // Immediately calculate next position (Used by DeleteDB)
-  while (*Mempos++ != '\n') ;        // What about Unix ???
+  while (*Mempos++ != '\n')          // What about Unix ???
+		if (Mempos == Top) {
+			n = 0;
+			break;
+		}	// endif Mempos
 
   // Set caller line buffer
-  len = (Mempos - Fpos) - 1;
+  len = (Mempos - Fpos) - n;
 
   // Don't rely on ENDING setting
   if (len > 0 && *(Mempos - 2) == '\r')
@@ -619,7 +622,9 @@ int MBKFAM::ReadBuffer(PGLOBAL g)
   } // endif's
 
   // Immediately calculate next position (Used by DeleteDB)
-  while (*Mempos++ != '\n') ;        // What about Unix ???
+	while (*Mempos++ != '\n')          // What about Unix ???
+		if (Mempos == Top)
+			break;
 
   // Set caller line buffer
   len = (Mempos - Fpos) - Ending;

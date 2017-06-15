@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -561,7 +561,8 @@ Item::Item(THD *thd):
     command => we should check thd->lex->current_select on zero (thd->lex
     can be uninitialised)
   */
-  if (thd->lex->current_select)
+  if (thd->lex->current_select &&
+      thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
   {
     enum_parsing_place place= 
       thd->lex->current_select->parsing_place;

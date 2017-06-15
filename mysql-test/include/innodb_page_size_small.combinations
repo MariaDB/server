@@ -1,0 +1,8 @@
+[16k]
+innodb-page-size=16K
+
+[8k]
+innodb-page-size=8K
+
+[4k]
+innodb-page-size=4K

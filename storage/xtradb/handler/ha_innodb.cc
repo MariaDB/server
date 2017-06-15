@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
@@ -876,17 +876,31 @@ innobase_purge_changed_page_bitmaps(
 /*================================*/
 	ulonglong lsn) __attribute__((unused));	/*!< in: LSN to purge files up to */
 
+/** Empty free list algorithm.
+Checks if buffer pool is big enough to enable backoff algorithm.
+InnoDB empty free list algorithm backoff requires free pages
+from LRU for the best performance.
+buf_LRU_buf_pool_running_out cancels query if 1/4 of
+buffer pool belongs to LRU or freelist.
+At the same time buf_flush_LRU_list_batch
+keeps up to BUF_LRU_MIN_LEN in LRU.
+In order to avoid deadlock baclkoff requires buffer pool
+to be at least 4*BUF_LRU_MIN_LEN,
+but flush peformance is bad because of trashing
+and additional BUF_LRU_MIN_LEN pages are requested.
+@param[in]	algorithm	desired algorithm from srv_empty_free_list_t
+@return	true if it's possible to enable backoff. */
+static inline
+bool
+innodb_empty_free_list_algorithm_allowed(
+	srv_empty_free_list_t	algorithm)
+{
+	long long buf_pool_pages = srv_buf_pool_size / srv_page_size
+				/ srv_buf_pool_instances;
 
-/*****************************************************************//**
-Check whether this is a fake change transaction.
-@return TRUE if a fake change transaction */
-static
-my_bool
-innobase_is_fake_change(
-/*====================*/
-	handlerton	*hton,  /*!< in: InnoDB handlerton */
-	THD*		thd) __attribute__((unused));	/*!< in: MySQL thread handle of the user for
-				  whom the transaction is being committed */
+	return(buf_pool_pages >= BUF_LRU_MIN_LEN * (4 + 1)
+			|| algorithm != SRV_EMPTY_FREE_LIST_BACKOFF);
+}
 
 /** Get the list of foreign keys referencing a specified table
 table.
@@ -1601,14 +1615,11 @@ innobase_drop_database(
 					the path is used as the database name:
 					for example, in 'mysql/data/test' the
 					database name is 'test' */
-/*******************************************************************//**
-Closes an InnoDB database. */
+/** Shut down the InnoDB storage engine.
+@return	0 */
 static
 int
-innobase_end(
-/*=========*/
-	handlerton*		hton,	/* in: Innodb handlerton */
-	ha_panic_function	type);
+innobase_end(handlerton*, ha_panic_function);
 
 #if NOT_USED
 /*****************************************************************//**
@@ -1702,28 +1713,6 @@ normalize_table_name_low(
 	const char*     name,           /* in: table name string */
 	ibool           set_lower_case); /* in: TRUE if we want to set
 					 name to lower case */
-
-/*************************************************************//**
-Checks if buffer pool is big enough to enable backoff algorithm.
-InnoDB empty free list algorithm backoff requires free pages
-from LRU for the best performance.
-buf_LRU_buf_pool_running_out cancels query if 1/4 of 
-buffer pool belongs to LRU or freelist.
-At the same time buf_flush_LRU_list_batch
-keeps up to BUF_LRU_MIN_LEN in LRU.
-In order to avoid deadlock baclkoff requires buffer pool
-to be at least 4*BUF_LRU_MIN_LEN,
-but flush peformance is bad because of trashing
-and additional BUF_LRU_MIN_LEN pages are requested.
-@return	true if it's possible to enable backoff. */
-static
-bool
-innodb_empty_free_list_algorithm_backoff_allowed(
-	srv_empty_free_list_t
-			algorithm,		/*!< in: desired algorithm
-						from srv_empty_free_list_t */
-	long long	buf_pool_pages);	/*!< in: total number
-						of pages inside buffer pool */
 
 #ifdef NOT_USED
 /*************************************************************//**
@@ -2596,16 +2585,11 @@ innobase_get_stmt(
 	THD*	thd,		/*!< in: MySQL thread handle */
 	size_t*	length)		/*!< out: length of the SQL statement */
 {
-	const char* query = NULL;
-	LEX_STRING *stmt = NULL;
-	if (thd) {
-		stmt = thd_query_string(thd);
-		if (stmt) {
-			*length = stmt->length;
-			query = stmt->str;
-		}
+	if (const LEX_STRING *stmt = thd_query_string(thd)) {
+		*length = stmt->length;
+		return stmt->str;
 	}
-	return (query);
+	return NULL;
 }
 
 /**********************************************************************//**
@@ -3505,13 +3489,13 @@ innobase_convert_identifier(
 	ibool		file_id)/*!< in: TRUE=id is a table or database name;
 				FALSE=id is an UTF-8 string */
 {
+	char nz2[MAX_TABLE_NAME_LEN + 1];
 	const char*	s	= id;
 	int		q;
 
 	if (file_id) {
 
 		char nz[MAX_TABLE_NAME_LEN + 1];
-		char nz2[MAX_TABLE_NAME_LEN + 1];
 
 		/* Decode the table name.  The MySQL function expects
 		a NUL-terminated string.  The input and output strings
@@ -4374,10 +4358,9 @@ innobase_change_buffering_inited_ok:
 	srv_use_posix_fallocate = (ibool) innobase_use_fallocate;
 #endif
 	/* Do not enable backoff algorithm for small buffer pool. */
-	if (!innodb_empty_free_list_algorithm_backoff_allowed(
+	if (!innodb_empty_free_list_algorithm_allowed(
 			static_cast<srv_empty_free_list_t>(
-				srv_empty_free_list_algorithm),
-			innobase_buffer_pool_size / srv_page_size)) {
+				srv_empty_free_list_algorithm))) {
 		sql_print_information(
 				"InnoDB: innodb_empty_free_list_algorithm "
 				"has been changed to legacy "
@@ -4512,21 +4495,13 @@ error:
 	DBUG_RETURN(TRUE);
 }
 
-/*******************************************************************//**
-Closes an InnoDB database.
-@return	TRUE if error */
+/** Shut down the InnoDB storage engine.
+@return	0 */
 static
 int
-innobase_end(
-/*=========*/
-	handlerton*		hton,	/*!< in/out: InnoDB handlerton */
-	ha_panic_function	type MY_ATTRIBUTE((unused)))
-					/*!< in: ha_panic() parameter */
+innobase_end(handlerton*, ha_panic_function)
 {
-	int	err= 0;
-
 	DBUG_ENTER("innobase_end");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	if (innodb_inited) {
 
@@ -4543,9 +4518,7 @@ innobase_end(
 		innodb_inited = 0;
 		hash_table_free(innobase_open_tables);
 		innobase_open_tables = NULL;
-		if (innobase_shutdown_for_mysql() != DB_SUCCESS) {
-			err = 1;
-		}
+		innodb_shutdown();
 		srv_free_paths_and_sizes();
 		my_free(internal_innobase_data_file_path);
 		mysql_mutex_destroy(&innobase_share_mutex);
@@ -4554,7 +4527,7 @@ innobase_end(
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
 	}
 
-	DBUG_RETURN(err);
+	DBUG_RETURN(0);
 }
 
 /****************************************************************//**
@@ -4606,22 +4579,6 @@ innobase_purge_changed_page_bitmaps(
 	ulonglong lsn)	/*!< in: LSN to purge files up to */
 {
 	return (my_bool)log_online_purge_changed_page_bitmaps(lsn);
-}
-
-/*****************************************************************//**
-Check whether this is a fake change transaction.
-@return TRUE if a fake change transaction */
-static
-my_bool
-innobase_is_fake_change(
-/*====================*/
-	handlerton	*hton MY_ATTRIBUTE((unused)),
-				/*!< in: InnoDB handlerton */
-	THD*		thd)	/*!< in: MySQL thread handle of the user for
-				whom the transaction is being committed */
-{
-	trx_t*	trx = check_trx_exists(thd);
-	return UNIV_UNLIKELY(trx->fake_changes);
 }
 
 /*****************************************************************//**
@@ -8172,17 +8129,31 @@ build_template_field(
 	templ->rec_field_is_prefix = FALSE;
 
 	if (dict_index_is_clust(index)) {
+		templ->rec_field_is_prefix = false;
 		templ->rec_field_no = templ->clust_rec_field_no;
 		templ->rec_prefix_field_no = ULINT_UNDEFINED;
 	} else {
-		/* If we're in a secondary index, keep track
-		* of the original index position even if this
-		* is just a prefix index; we will use this
-		* later to avoid a cluster index lookup in
-		* some cases.*/
+		/* If we're in a secondary index, keep track of the original
+		index position even if this is just a prefix index; we will use
+		this later to avoid a cluster index lookup in some cases.*/
 
 		templ->rec_field_no = dict_index_get_nth_col_pos(index, i,
 						&templ->rec_prefix_field_no);
+		templ->rec_field_is_prefix
+			= (templ->rec_field_no == ULINT_UNDEFINED)
+			  && (templ->rec_prefix_field_no != ULINT_UNDEFINED);
+#ifdef UNIV_DEBUG
+		if (templ->rec_prefix_field_no != ULINT_UNDEFINED)
+		{
+			const dict_field_t* field = dict_index_get_nth_field(
+				index,
+				templ->rec_prefix_field_no);
+			ut_ad(templ->rec_field_is_prefix
+			      == (field->prefix_len != 0));
+		} else {
+			ut_ad(!templ->rec_field_is_prefix);
+		}
+#endif
 	}
 
 	if (field->real_maybe_null()) {
@@ -8572,8 +8543,8 @@ ha_innobase::innobase_lock_autoinc(void)
 				break;
 			}
 		}
-		/* Fall through to old style locking. */
-
+		/* Use old style locking. */
+		/* fall through */
 	case AUTOINC_OLD_STYLE_LOCKING:
 		DBUG_EXECUTE_IF("die_if_autoinc_old_lock_style_used",
 				ut_ad(0););
@@ -9150,8 +9121,8 @@ calc_row_difference(
 			}
 		}
 
-		if (o_len != n_len || (o_len != UNIV_SQL_NULL &&
-					0 != memcmp(o_ptr, n_ptr, o_len))) {
+		if (o_len != n_len || (o_len != 0 && o_len != UNIV_SQL_NULL
+				       && 0 != memcmp(o_ptr, n_ptr, o_len))) {
 			/* The field has changed */
 
 			ufield = uvect->fields + n_changed;
@@ -11875,7 +11846,8 @@ create_options_are_invalid(
 	case ROW_TYPE_DYNAMIC:
 		CHECK_ERROR_ROW_TYPE_NEEDS_FILE_PER_TABLE(use_tablespace);
 		CHECK_ERROR_ROW_TYPE_NEEDS_GT_ANTELOPE;
-		/* fall through since dynamic also shuns KBS */
+		/* ROW_FORMAT=DYNAMIC also shuns KEY_BLOCK_SIZE */
+		/* fall through */
 	case ROW_TYPE_COMPACT:
 	case ROW_TYPE_REDUNDANT:
 		if (kbs_specified) {
@@ -12285,7 +12257,8 @@ index_bad:
 			break; /* Correct row_format */
 		}
 		zip_allowed = FALSE;
-		/* fall through to set row_format = COMPACT */
+		/* Set ROW_FORMAT = COMPACT */
+		/* fall through */
 	case ROW_TYPE_NOT_USED:
 	case ROW_TYPE_FIXED:
 	case ROW_TYPE_PAGE:
@@ -12294,6 +12267,7 @@ index_bad:
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_ILLEGAL_HA_CREATE_OPTION,
 			"InnoDB: assuming ROW_FORMAT=COMPACT.");
+		/* fall through */
 	case ROW_TYPE_DEFAULT:
 		/* If we fell through, set row format to Compact. */
 		row_format = ROW_TYPE_COMPACT;
@@ -13109,7 +13083,8 @@ ha_innobase::delete_table(
 	extension, in contrast to ::create */
 	normalize_table_name(norm_name, name);
 
-	if (srv_read_only_mode) {
+	if (srv_read_only_mode
+	    || srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	} else if (row_is_magic_monitor_table(norm_name)
 		   && check_global_access(thd, PROCESS_ACL)) {
@@ -15078,7 +15053,8 @@ fill_foreign_key_list(THD* thd,
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	for (dict_foreign_set::iterator it = table->referenced_set.begin();
+	for (dict_foreign_set::const_iterator it
+		     = table->referenced_set.begin();
 	     it != table->referenced_set.end(); ++it) {
 
 		dict_foreign_t* foreign = *it;
@@ -18633,15 +18609,17 @@ innodb_buffer_pool_evict_uncompressed(void)
 			ut_ad(block->page.in_LRU_list);
 
 			mutex_enter(&block->mutex);
-			if (!buf_LRU_free_page(&block->page, false)) {
-				mutex_exit(&block->mutex);
-				all_evicted = false;
-			} else {
-				mutex_exit(&block->mutex);
-				mutex_enter(&buf_pool->LRU_list_mutex);
-			}
+			all_evicted = buf_LRU_free_page(&block->page, false);
+			mutex_exit(&block->mutex);
 
-			block = prev_block;
+			if (all_evicted) {
+
+				mutex_enter(&buf_pool->LRU_list_mutex);
+				block = UT_LIST_GET_LAST(buf_pool->unzip_LRU);
+			} else {
+
+				block = prev_block;
+			}
 		}
 
 		mutex_exit(&buf_pool->LRU_list_mutex);
@@ -18832,6 +18810,10 @@ innodb_sched_priority_cleaner_update(
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
+	if (srv_read_only_mode) {
+		return;
+	}
+
 	ulint	priority = *static_cast<const ulint *>(save);
 	ulint	actual_priority;
 	ulint	nice = 0;
@@ -18858,10 +18840,6 @@ innodb_sched_priority_cleaner_update(
 	}
 
 	/* Set the priority for the page cleaner thread */
-	if (srv_read_only_mode) {
-
-		return;
-	}
 
 	ut_ad(buf_page_cleaner_is_active);
 	nice = os_thread_get_priority(srv_cleaner_tid);
@@ -19252,8 +19230,15 @@ checkpoint_now_set(
 			log_make_checkpoint_at(LSN_MAX, TRUE);
 			fil_flush_file_spaces(FIL_LOG);
 		}
-		fil_write_flushed_lsn_to_data_files(log_sys->lsn, 0);
-		fil_flush_file_spaces(FIL_TABLESPACE);
+
+		dberr_t err = fil_write_flushed_lsn(log_sys->lsn);
+
+		if (err != DB_SUCCESS) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Failed to write flush lsn to the "
+				"system tablespace at checkpoint err=%s",
+				ut_strerr(err));
+		}
 	}
 }
 
@@ -19855,32 +19840,6 @@ wsrep_fake_trx_id(
 
 
 /*************************************************************//**
-Empty free list algorithm.
-Checks if buffer pool is big enough to enable backoff algorithm.
-InnoDB empty free list algorithm backoff requires free pages
-from LRU for the best performance.
-buf_LRU_buf_pool_running_out cancels query if 1/4 of 
-buffer pool belongs to LRU or freelist.
-At the same time buf_flush_LRU_list_batch
-keeps up to BUF_LRU_MIN_LEN in LRU.
-In order to avoid deadlock baclkoff requires buffer pool
-to be at least 4*BUF_LRU_MIN_LEN,
-but flush peformance is bad because of trashing
-and additional BUF_LRU_MIN_LEN pages are requested.
-@return	true if it's possible to enable backoff. */
-static
-bool
-innodb_empty_free_list_algorithm_backoff_allowed(
-	srv_empty_free_list_t	algorithm,	/*!< in: desired algorithm
-						from srv_empty_free_list_t */
-	long long		buf_pool_pages)	/*!< in: total number
-						of pages inside buffer pool */
-{
-	return(buf_pool_pages >= BUF_LRU_MIN_LEN * (4 + 1)
-			|| algorithm != SRV_EMPTY_FREE_LIST_BACKOFF);
-}
-
-/*************************************************************//**
 Empty free list algorithm. This function is registered as
 a callback with MySQL. 
 @return	0 for valid algorithm */
@@ -19921,13 +19880,11 @@ innodb_srv_empty_free_list_algorithm_validate(
 		return(1);
 
 	algorithm = static_cast<srv_empty_free_list_t>(algo);
-	if (!innodb_empty_free_list_algorithm_backoff_allowed(
-				algorithm,
-				innobase_buffer_pool_size / srv_page_size)) {
+	if (!innodb_empty_free_list_algorithm_allowed(algorithm)) {
 		sql_print_warning(
 				"InnoDB: innodb_empty_free_list_algorithm "
 				"= 'backoff' requires at least"
-				" 20MB buffer pool.\n");
+				" 20MB buffer pool instances.\n");
 		return(1);
 	}
 

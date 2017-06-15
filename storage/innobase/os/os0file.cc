@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
@@ -226,7 +226,7 @@ struct Slot {
 	os_offset_t		offset;
 
 	/** file where to read or write */
-	os_file_t		file;
+	pfs_os_file_t		file;
 
 	/** file name or path */
 	const char*		name;
@@ -319,7 +319,7 @@ public:
 		IORequest&	type,
 		fil_node_t*	m1,
 		void*		m2,
-		os_file_t	file,
+		pfs_os_file_t	file,
 		const char*	name,
 		void*		buf,
 		os_offset_t	offset,
@@ -2248,7 +2248,7 @@ AIO::is_linux_native_aio_supported()
 
 		strcpy(name + dirnamelen, "ib_logfile0");
 
-		fd = ::open(name, O_RDONLY);
+		fd = open(name, O_RDONLY);
 
 		if (fd == -1) {
 
@@ -2578,7 +2578,7 @@ A simple function to open or create a file.
 @param[out]	success		true if succeed, false if error
 @return handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
-os_file_t
+pfs_os_file_t
 os_file_create_simple_func(
 	const char*	name,
 	ulint		create_mode,
@@ -2586,7 +2586,7 @@ os_file_create_simple_func(
 	bool		read_only,
 	bool*		success)
 {
-	os_file_t	file;
+	pfs_os_file_t	file;
 
 	*success = false;
 
@@ -2656,7 +2656,7 @@ os_file_create_simple_func(
 	bool	retry;
 
 	do {
-		file = ::open(name, create_flag, os_innodb_umask);
+		file = open(name, create_flag, os_innodb_umask);
 
 		if (file == -1) {
 			*success = false;
@@ -2871,7 +2871,7 @@ Opens an existing file or creates a new.
 @param[in]	success		true if succeeded
 @return handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
-os_file_t
+pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	ulint		create_mode,
@@ -2958,7 +2958,7 @@ os_file_create_func(
 	bool		retry;
 
 	do {
-		file = ::open(name, create_flag, os_innodb_umask);
+		file = open(name, create_flag, os_innodb_umask);
 
 		if (file == -1) {
 			const char*	operation;
@@ -3037,7 +3037,7 @@ A simple function to open or create a file.
 @param[out]	success		true if succeeded
 @return own: handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
-os_file_t
+pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 	const char*	name,
 	ulint		create_mode,
@@ -3092,7 +3092,7 @@ os_file_create_simple_no_error_handling_func(
 		return(OS_FILE_CLOSED);
 	}
 
-	file = ::open(name, create_flag, os_innodb_umask);
+	file = open(name, create_flag, os_innodb_umask);
 
 	*success = (file != -1);
 
@@ -3324,8 +3324,8 @@ os_file_get_status_posix(
 	    && (stat_info->type == OS_FILE_TYPE_FILE
 		|| stat_info->type == OS_FILE_TYPE_BLOCK)) {
 
-		int	access = !read_only ? O_RDWR : O_RDONLY;
-		int	fh = ::open(path, access, os_innodb_umask);
+		int	fh = open(path, read_only ? O_RDONLY : O_RDWR,
+				  os_innodb_umask);
 
 		if (fh == -1) {
 			stat_info->rw_perm = false;
@@ -3788,7 +3788,7 @@ A simple function to open or create a file.
 @param[out]	success		true if succeed, false if error
 @return handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
-os_file_t
+pfs_os_file_t
 os_file_create_simple_func(
 	const char*	name,
 	ulint		create_mode,
@@ -4105,7 +4105,7 @@ Opens an existing file or creates a new.
 @param[in]	success		true if succeeded
 @return handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
-os_file_t
+pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	ulint		create_mode,
@@ -4320,7 +4320,7 @@ A simple function to open or create a file.
 @param[out]	success		true if succeeded
 @return own: handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
-os_file_t
+pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 	const char*	name,
 	ulint		create_mode,
@@ -6163,7 +6163,7 @@ AIO::reserve_slot(
 	IORequest&	type,
 	fil_node_t*	m1,
 	void*		m2,
-	os_file_t	file,
+	pfs_os_file_t	file,
 	const char*	name,
 	void*		buf,
 	os_offset_t	offset,
@@ -6555,10 +6555,11 @@ os_aio_windows_handler(
 		/* This read/write does not go through os_file_read
 		and os_file_write APIs, need to register with
 		performance schema explicitly here. */
+		PSI_file_locker_state	state;
 		struct PSI_file_locker* locker = NULL;
 
 		register_pfs_file_io_begin(
-			locker, slot->file, slot->len,
+			&state, locker, slot->file, slot->len,
 			slot->type.is_write()
 			? PSI_FILE_WRITE : PSI_FILE_READ, __FILE__, __LINE__);
 #endif /* UNIV_PFS_IO */
@@ -6616,7 +6617,7 @@ os_aio_func(
 	IORequest&	type,
 	ulint		mode,
 	const char*	name,
-	os_file_t	file,
+	pfs_os_file_t	file,
 	void*		buf,
 	os_offset_t	offset,
 	ulint		n,
@@ -6672,7 +6673,6 @@ try_again:
 			ret = ReadFile(
 				file, slot->ptr, slot->len,
 				&slot->n_bytes, &slot->control);
-
 #elif defined(LINUX_NATIVE_AIO)
 			if (!array->linux_dispatch(slot)) {
 				goto err_exit;
@@ -6691,7 +6691,6 @@ try_again:
 			ret = WriteFile(
 				file, slot->ptr, slot->len,
 				&slot->n_bytes, &slot->control);
-
 #elif defined(LINUX_NATIVE_AIO)
 			if (!array->linux_dispatch(slot)) {
 				goto err_exit;
@@ -7551,7 +7550,7 @@ AIO::to_file(FILE* file) const
 
 			fprintf(file,
 				"%s IO for %s (offset=" UINT64PF
-				", size=%lu)\n",
+				", size=" ULINTPF ")\n",
 				slot.type.is_read() ? "read" : "write",
 				slot.name, slot.offset, slot.len);
 		}

@@ -953,6 +953,7 @@ write_keys(Sort_param *param,  SORT_INFO *fs_info, uint count,
   /* check we won't have more buffpeks than we can possibly keep in memory */
   if (my_b_tell(buffpek_pointers) + sizeof(BUFFPEK) > (ulonglong)UINT_MAX)
     goto err;
+  bzero(&buffpek, sizeof(buffpek));
   buffpek.file_pos= my_b_tell(tempfile);
   if ((ha_rows) count > param->max_rows)
     count=(uint) param->max_rows;               /* purecov: inspected */

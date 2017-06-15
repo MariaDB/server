@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
@@ -70,7 +70,7 @@ is set to TRUE by the page_cleaner thread when it is spawned and is set
 back to FALSE at shutdown by the page_cleaner as well. Therefore no
 need to protect it by a mutex. It is only ever read by the thread
 doing the shutdown */
-bool buf_page_cleaner_is_active = false;
+bool buf_page_cleaner_is_active;
 
 /** Factor for scan length to determine n_pages for intended oldest LSN
 progress */
@@ -269,6 +269,7 @@ buf_flush_insert_in_flush_rbt(
 	buf_page_t*		prev = NULL;
 	buf_pool_t*		buf_pool = buf_pool_from_bpage(bpage);
 
+	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
 	ut_ad(buf_flush_list_mutex_own(buf_pool));
 
 	/* Insert this buffer into the rbt. */
@@ -480,6 +481,7 @@ buf_flush_insert_sorted_into_flush_list(
 	buf_page_t*	prev_b;
 	buf_page_t*	b;
 
+	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
 	ut_ad(!buf_pool_mutex_own(buf_pool));
 	ut_ad(log_flush_order_mutex_own());
 	ut_ad(buf_page_mutex_own(block));
@@ -789,6 +791,7 @@ buf_flush_write_complete(
 
 	flush_type = buf_page_get_flush_type(bpage);
 	buf_pool->n_flush[flush_type]--;
+	ut_ad(buf_pool->n_flush[flush_type] != ULINT_MAX);
 
 	ut_ad(buf_pool_mutex_own(buf_pool));
 
@@ -1214,6 +1217,7 @@ buf_flush_page(
 		}
 
 		++buf_pool->n_flush[flush_type];
+		ut_ad(buf_pool->n_flush[flush_type] != 0);
 
 		mutex_exit(block_mutex);
 
@@ -2697,6 +2701,11 @@ pc_sleep_if_needed(
 	ulint		next_loop_time,
 	int64_t		sig_count)
 {
+	/* No sleep if we are cleaning the buffer pool during the shutdown
+	with everything else finished */
+	if (srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)
+		return OS_SYNC_TIME_EXCEEDED;
+
 	ulint	cur_time = ut_time_ms();
 
 	if (next_loop_time > cur_time) {
@@ -3121,6 +3130,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
 	ulint	next_loop_time = ut_time_ms() + 1000;
 	ulint	n_flushed = 0;
 	ulint	last_activity = srv_get_activity_count();
@@ -3149,8 +3159,6 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 		" See the man page of setpriority().";
 	}
 #endif /* UNIV_LINUX */
-
-	buf_page_cleaner_is_active = true;
 
 	while (!srv_read_only_mode
 	       && srv_shutdown_state == SRV_SHUTDOWN_NONE
@@ -3479,7 +3487,6 @@ thread_exit:
 	buf_page_cleaner_is_active = false;
 
 	my_thread_end();
-
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit();

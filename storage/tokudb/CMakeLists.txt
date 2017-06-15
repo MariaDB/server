@@ -1,4 +1,4 @@
-SET(TOKUDB_VERSION 5.6.35-80.0)
+SET(TOKUDB_VERSION 5.6.36-82.0)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
@@ -21,7 +21,8 @@ SET(TOKUDB_SOURCES
     tokudb_background.cc
     tokudb_information_schema.cc
     tokudb_sysvars.cc
-    tokudb_thread.cc)
+    tokudb_thread.cc
+    tokudb_dir_cmd.cc)
 MYSQL_ADD_PLUGIN(tokudb ${TOKUDB_SOURCES} STORAGE_ENGINE MODULE_ONLY
                  COMPONENT tokudb-engine)
 

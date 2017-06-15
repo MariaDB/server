@@ -27,7 +27,7 @@
 /***********************************************************************/
 /*  Initialize WMI operations.                                         */
 /***********************************************************************/
-PWMIUT InitWMI(PGLOBAL g, char *nsp, char *classname)
+PWMIUT InitWMI(PGLOBAL g, PCSZ nsp, PCSZ classname)
 {
   IWbemLocator *loc;
   char         *p;
@@ -132,7 +132,7 @@ PWMIUT InitWMI(PGLOBAL g, char *nsp, char *classname)
 /* WMIColumns: constructs the result blocks containing the description */
 /* of all the columns of a WMI table of a specified class.             */
 /***********************************************************************/
-PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
+PQRYRES WMIColumns(PGLOBAL g, PCSZ nsp, PCSZ cls, bool info)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,   TYPE_INT, TYPE_SHORT};

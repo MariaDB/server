@@ -1,8 +1,7 @@
 # Not supported in embedded
 --source include/not_embedded.inc
 
--- source include/have_innodb.inc
--- source include/have_innodb_zip.inc
+-- source include/innodb_page_size_small.inc
 
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT.");
 

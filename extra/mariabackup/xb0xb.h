@@ -23,17 +23,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 
 extern void os_io_init_simple(void);
-extern os_file_t	files[1000];
+extern pfs_os_file_t	files[1000];
 extern const char *innodb_checksum_algorithm_names[];
 extern TYPELIB innodb_checksum_algorithm_typelib;
 extern dberr_t open_or_create_data_files(
-  ibool*		create_new_db,
+  bool*			create_new_db,
 #ifdef UNIV_LOG_ARCHIVE
   lsn_t*		min_arch_log_no,
   lsn_t*		max_arch_log_no,
-#endif 
-  lsn_t*		min_flushed_lsn,
-  lsn_t*		max_flushed_lsn,
+#endif
+  lsn_t*		flushed_lsn,
   ulint*		sum_of_new_sizes)
   ;
 int
@@ -66,7 +65,6 @@ void
 innodb_log_checksum_func_update(
 /*============================*/
 ulint	algorithm)	/*!< in: algorithm */;
-dberr_t recv_find_max_checkpoint(log_group_t**	max_group, ulint*		max_field);
 dberr_t
 srv_undo_tablespaces_init(
 /*======================*/

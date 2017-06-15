@@ -687,6 +687,9 @@ void test_update_many(uint *column_numbers, uint *column_values,
 err:
   ok(rc, "%s", "update_many");
   /* cleanup */
+  free(val);
+  free(upd);
+  free(res);
   mariadb_dyncol_free(&str1);
   mariadb_dyncol_free(&str2);
 }

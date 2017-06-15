@@ -59,6 +59,7 @@ call mtr.add_suppression("Got an error from thread_id=.*");
 call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
 call mtr.add_suppression(" '\..test.t1'");
 call mtr.add_suppression("Couldn't repair table: test.t1");
+call mtr.add_suppression("Table 't1' is marked as crashed.*");
 CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>, <CUSTOM_INDEX> (a)) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -85,7 +86,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	error	Size of datafile is: 39         Should be: 65
 test.t1	check	error	Corrupt
 SELECT a,b FROM t1;
-ERROR HY000: Incorrect key file for table 't1'; try to repair it
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
 # Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 # If you got a difference in error message, just add it to rdiff file
 INSERT INTO t1 (a,b) VALUES (14,'n'),(15,'o');

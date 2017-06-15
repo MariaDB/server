@@ -1364,6 +1364,7 @@ static int check_dynamic_record(HA_CHECK *param, MARIA_HA *info, int extend,
         pos=block_info.filepos+block_info.block_len;
         if (block_info.rec_len > (uint) share->base.max_pack_length)
         {
+          my_errno= HA_ERR_WRONG_IN_RECORD;
           _ma_check_print_error(param,"Found too long record (%lu) at %s",
                                 (ulong) block_info.rec_len,
                                 llstr(start_recpos,llbuff));
@@ -4220,6 +4221,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     printf("Data records: %s\n", llstr(start_records, llbuff));
   }
 
+  bzero(&new_data_cache, sizeof(new_data_cache));
   if (initialize_variables_for_repair(param, &sort_info, &tmp_sort_param, info,
                                       rep_quick, &backup_share))
     goto err;
@@ -4995,6 +4997,7 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
 	  param->error_printed=1;
           param->retry_repair=1;
           param->testflag|=T_RETRY_WITHOUT_QUICK;
+          my_errno= HA_ERR_WRONG_IN_RECORD;
 	  DBUG_RETURN(1);	/* Something wrong with data */
 	}
 	b_type= _ma_get_block_info(info, &block_info,-1,pos);
@@ -5268,6 +5271,7 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
 	param->error_printed=1;
         param->retry_repair=1;
         param->testflag|=T_RETRY_WITHOUT_QUICK;
+        my_errno= HA_ERR_WRONG_IN_RECORD;
 	DBUG_RETURN(1);		/* Something wrong with data */
       }
       sort_param->start_recpos=sort_param->pos;

@@ -450,7 +450,7 @@ datadir_iter_free(datadir_iter_t *it)
 /************************************************************************
 Holds the state needed to copy single data file. */
 struct datafile_cur_t {
-	os_file_t	file;
+	pfs_os_file_t	file;
 	char		rel_path[FN_REFLEN];
 	char		abs_path[FN_REFLEN];
 	MY_STAT		statinfo;

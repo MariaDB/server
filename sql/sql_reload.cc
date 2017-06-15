@@ -181,8 +181,12 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       slave is not likely to have the same connection names.
     */
     tmp_write_to_binlog= 0;
-
-    if (!(mi= (get_master_info(&connection_name,
+    if (connection_name.length == 0)
+    {
+      if (master_info_index->flush_all_relay_logs())
+          *write_to_binlog= -1;
+    }
+    else if (!(mi= (get_master_info(&connection_name,
                                Sql_condition::WARN_LEVEL_ERROR))))
     {
       result= 1;

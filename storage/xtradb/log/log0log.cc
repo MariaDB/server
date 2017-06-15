@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
 Copyright (c) 2014, 2017, MariaDB Corporation.
 
@@ -55,12 +55,13 @@ Created 12/9/1995 Heikki Tuuri
 #include "mem0mem.h"
 #include "buf0buf.h"
 #include "buf0flu.h"
-#include "srv0srv.h"
 #include "lock0lock.h"
 #include "log0recv.h"
 #include "fil0fil.h"
 #include "dict0boot.h"
-#include "dict0stats_bg.h" /* dict_stats_event */
+#include "dict0stats_bg.h"
+#include "dict0stats_bg.h"
+#include "btr0defragment.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "trx0sys.h"
@@ -2804,7 +2805,7 @@ log_group_archive(
 /*==============*/
 	log_group_t*	group)	/*!< in: log group */
 {
-	os_file_t	file_handle;
+	pfs_os_file_t	file_handle;
 	lsn_t		start_lsn;
 	lsn_t		end_lsn;
 	char		name[OS_FILE_MAX_PATH];
@@ -3618,6 +3619,8 @@ loop:
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";
+	} else if (btr_defragment_thread_active) {
+		thread_name = "btr_defragment_thread";
 	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {
 		thread_name = "rollback of recovered transactions";
 	} else {
@@ -3639,8 +3642,8 @@ wait_suspend_loop:
 
 	switch (srv_get_active_thread_type()) {
 	case SRV_NONE:
-		srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 		if (!srv_n_fil_crypt_threads_started) {
+			srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 			break;
 		}
 		os_event_set(fil_crypt_threads_event);
@@ -3820,7 +3823,8 @@ wait_suspend_loop:
 	ut_a(freed);
 
 	ut_a(lsn == log_sys->lsn);
-	ut_ad(lsn == log_sys->last_checkpoint_lsn);
+	ut_ad(srv_force_recovery >= SRV_FORCE_NO_LOG_REDO
+	      || lsn == log_sys->last_checkpoint_lsn);
 
 	if (lsn < srv_start_lsn) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -3832,9 +3836,14 @@ wait_suspend_loop:
 	srv_shutdown_lsn = lsn;
 
 	if (!srv_read_only_mode) {
-		fil_write_flushed_lsn_to_data_files(lsn, 0);
+		dberr_t err = fil_write_flushed_lsn(lsn);
 
-		fil_flush_file_spaces(FIL_TABLESPACE);
+		if (err != DB_SUCCESS) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Failed to write flush lsn to the "
+				"system tablespace at shutdown err=%s",
+				ut_strerr(err));
+		}
 	}
 
 	fil_close_all_files();

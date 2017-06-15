@@ -887,7 +887,7 @@ fil_space_decrypt(
 Calculate post encryption checksum
 @param[in]	zip_size	zip_size or 0
 @param[in]	dst_frame	Block where checksum is calculated
-@return page checksum or BUF_NO_CHECKSUM_MAGIC
+@return page checksum
 not needed. */
 UNIV_INTERN
 ulint
@@ -896,30 +896,13 @@ fil_crypt_calculate_checksum(
 	const byte*	dst_frame)
 {
 	ib_uint32_t checksum = 0;
-	srv_checksum_algorithm_t algorithm =
-			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
+	/* For encrypted tables we use only crc32 and strict_crc32 */
 	if (zip_size == 0) {
-		switch (algorithm) {
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-			checksum = buf_calc_page_crc32(dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-			checksum = (ib_uint32_t) buf_calc_page_new_checksum(
-				dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-			checksum = BUF_NO_CHECKSUM_MAGIC;
-			break;
-			/* no default so the compiler will emit a warning
-			* if new enum is added and not handled here */
-		}
+		checksum = buf_calc_page_crc32(dst_frame);
 	} else {
 		checksum = page_zip_calc_checksum(dst_frame, zip_size,
-				                          algorithm);
+				                  SRV_CHECKSUM_ALGORITHM_CRC32);
 	}
 
 	return checksum;
@@ -951,14 +934,6 @@ fil_space_verify_crypt_checksum(
 	/* If page is not encrypted, return false */
 	if (key_version == 0) {
 		return(false);
-	}
-
-	srv_checksum_algorithm_t algorithm =
-			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
-
-	/* If no checksum is used, can't continue checking. */
-	if (algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
-		return(true);
 	}
 
 	/* Read stored post encryption checksum. */
@@ -1044,7 +1019,6 @@ fil_space_verify_crypt_checksum(
 		checksum1 = mach_read_from_4(
 			page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
 		valid = (buf_page_is_checksum_valid_crc32(page,checksum1,checksum2)
-		|| buf_page_is_checksum_valid_none(page,checksum1,checksum2)
 		|| buf_page_is_checksum_valid_innodb(page,checksum1, checksum2));
 	}
 
@@ -1141,6 +1115,36 @@ fil_crypt_needs_rotation(
 	return false;
 }
 
+/** Read page 0 and possible crypt data from there.
+@param[in,out]	space		Tablespace */
+static inline
+void
+fil_crypt_read_crypt_data(fil_space_t* space)
+{
+	if (space->crypt_data || space->size) {
+		/* The encryption metadata has already been read, or
+		the tablespace is not encrypted and the file has been
+		opened already. */
+		return;
+	}
+
+	mtr_t	mtr;
+	mtr_start(&mtr);
+	ulint zip_size = fsp_flags_get_zip_size(space->flags);
+	ulint offset = fsp_header_get_crypt_offset(zip_size);
+	if (buf_block_t* block = buf_page_get(space->id, zip_size, 0,
+					      RW_S_LATCH, &mtr)) {
+		mutex_enter(&fil_system->mutex);
+		if (!space->crypt_data) {
+			space->crypt_data = fil_space_read_crypt_data(
+				space->id, block->frame, offset);
+		}
+		mutex_exit(&fil_system->mutex);
+	}
+
+	mtr_commit(&mtr);
+}
+
 /***********************************************************************
 Start encrypting a space
 @param[in,out]		space		Tablespace
@@ -1151,6 +1155,7 @@ fil_crypt_start_encrypting_space(
 	fil_space_t*	space)
 {
 	bool recheck = false;
+
 	mutex_enter(&fil_crypt_threads_mutex);
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
@@ -1217,8 +1222,6 @@ fil_crypt_start_encrypting_space(
 		byte* frame = buf_block_get_frame(block);
 		crypt_data->type = CRYPT_SCHEME_1;
 		crypt_data->write_page0(frame, &mtr);
-
-
 		mtr_commit(&mtr);
 
 		/* record lsn of update */
@@ -1294,10 +1297,10 @@ struct rotate_thread_t {
 	bool should_shutdown() const {
 		switch (srv_shutdown_state) {
 		case SRV_SHUTDOWN_NONE:
-		case SRV_SHUTDOWN_CLEANUP:
 			return thread_no >= srv_n_fil_crypt_threads;
-		case SRV_SHUTDOWN_FLUSH_PHASE:
+		case SRV_SHUTDOWN_CLEANUP:
 			return true;
+		case SRV_SHUTDOWN_FLUSH_PHASE:
 		case SRV_SHUTDOWN_LAST_PHASE:
 		case SRV_SHUTDOWN_EXIT_THREADS:
 			break;
@@ -1646,6 +1649,8 @@ fil_crypt_find_space_to_rotate(
 	}
 
 	while (!state->should_shutdown() && state->space) {
+		fil_crypt_read_crypt_data(state->space);
+
 		if (fil_crypt_space_needs_rotation(state, key_state, recheck)) {
 			ut_ad(key_state->key_id);
 			/* init state->min_key_version_found before
@@ -2340,8 +2345,10 @@ DECLARE_THREAD(fil_crypt_thread)(
 			while (!thr.should_shutdown() &&
 			       fil_crypt_find_page_to_rotate(&new_state, &thr)) {
 
-				/* rotate a (set) of pages */
-				fil_crypt_rotate_pages(&new_state, &thr);
+				if (!thr.space->is_stopping()) {
+					/* rotate a (set) of pages */
+					fil_crypt_rotate_pages(&new_state, &thr);
+				}
 
 				/* If space is marked as stopping, release
 				space and stop rotation. */
@@ -2571,10 +2578,10 @@ fil_space_crypt_get_status(
 	memset(status, 0, sizeof(*status));
 
 	ut_ad(space->n_pending_ops > 0);
-	fil_space_crypt_t* crypt_data = space->crypt_data;
+	fil_crypt_read_crypt_data(const_cast<fil_space_t*>(space));
 	status->space = space->id;
 
-	if (crypt_data != NULL) {
+	if (fil_space_crypt_t* crypt_data = space->crypt_data) {
 		mutex_enter(&crypt_data->mutex);
 		status->scheme = crypt_data->type;
 		status->keyserver_requests = crypt_data->keyserver_requests;

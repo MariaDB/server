@@ -5,3 +5,4 @@ galera_slave_options_do :MDEV-8798
 galera_slave_options_ignore : MDEV-8798
 galera_pc_bootstrap : TODO: Investigate: Timeout in wait_condition.inc
 galera_pc_weight : Test times out
+galera_safe_to_bootstrap : I Really dont know :(

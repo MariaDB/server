@@ -5601,6 +5601,7 @@ bool xid_cache_insert(THD *thd, XID_STATE *xid_state)
     break;
   case 1:
     my_error(ER_XAER_DUPID, MYF(0));
+    /* fall through */
   default:
     xid_state->xid_cache_element= 0;
   }

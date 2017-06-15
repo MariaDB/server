@@ -2,6 +2,13 @@
 --source include/have_innodb_max_16k.inc
 --source include/not_embedded.inc
 
+--disable_query_log
+# This test kills the server, which could corrupt some mysql.* tables
+# that are not created with ENGINE=InnoDB.
+# Flush any non-InnoDB tables to prevent that from happening.
+FLUSH TABLES;
+--enable_query_log
+
 --echo #
 --echo # MDEV-12720 recovery fails with "Generic error"
 --echo # for ROW_FORMAT=compressed

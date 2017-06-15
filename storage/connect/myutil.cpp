@@ -42,7 +42,8 @@ int MYSQLtoPLG(char *typname, char *var)
     type = TYPE_INT;
   else if (!stricmp(typname, "smallint"))
     type = TYPE_SHORT;
-  else if (!stricmp(typname, "char") || !stricmp(typname, "varchar"))
+  else if (!stricmp(typname, "char") || !stricmp(typname, "varchar") ||
+		       !stricmp(typname, "enum") || !stricmp(typname, "set"))
     type = TYPE_STRING;
   else if (!stricmp(typname, "double")  || !stricmp(typname, "float") ||
            !stricmp(typname, "real"))
@@ -87,10 +88,12 @@ int MYSQLtoPLG(char *typname, char *var)
       else if (!stricmp(typname, "year"))
         *var = 'Y';
 
-    } else if (type == TYPE_STRING && !stricmp(typname, "varchar"))
-      // This is to make the difference between CHAR and VARCHAR 
-      *var = 'V';
-    else if (type == TYPE_ERROR && xconv == TPC_SKIP)
+		} else if (type == TYPE_STRING) {
+			if (!stricmp(typname, "varchar"))
+			  // This is to make the difference between CHAR and VARCHAR
+				*var = 'V';
+
+		} else if (type == TYPE_ERROR && xconv == TPC_SKIP)
       *var = 'K';
     else
       *var = 0;
@@ -266,9 +269,9 @@ int MYSQLtoPLG(int mytype, char *var)
 /************************************************************************/
 /*  Returns the format corresponding to a MySQL date type number.       */
 /************************************************************************/
-char *MyDateFmt(int mytype)
+PCSZ MyDateFmt(int mytype)
   {
-  char *fmt;
+  PCSZ fmt;
 
   switch (mytype) {
     case MYSQL_TYPE_TIMESTAMP:
@@ -294,9 +297,9 @@ char *MyDateFmt(int mytype)
 /************************************************************************/
 /*  Returns the format corresponding to a MySQL date type name.         */
 /************************************************************************/
-char *MyDateFmt(char *typname)
+PCSZ MyDateFmt(char *typname)
   {
-  char *fmt;
+  PCSZ fmt;
 
   if (!stricmp(typname, "datetime") || !stricmp(typname, "timestamp"))
     fmt = "YYYY-MM-DD hh:mm:ss";

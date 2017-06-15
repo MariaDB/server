@@ -394,7 +394,7 @@ buf_dump(
 				buf_dump_status(
 					STATUS_VERBOSE,
 					"Dumping buffer pool"
-					" " ULINTPF "/" ULINTPF ","
+					" " ULINTPF "/%lu,"
 					" page " ULINTPF "/" ULINTPF,
 					i + 1, srv_buf_pool_instances,
 					j + 1, n_pages);
@@ -595,8 +595,8 @@ buf_load()
 	if (dump == NULL) {
 		fclose(f);
 		buf_load_status(STATUS_ERR,
-				"Cannot allocate %lu bytes: %s",
-				(ulint) (dump_n * sizeof(*dump)),
+				"Cannot allocate " ULINTPF " bytes: %s",
+				dump_n * sizeof(*dump),
 				strerror(errno));
 		return;
 	}

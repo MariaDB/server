@@ -39,8 +39,4 @@ else
   fi
 fi
 
-# main.mysqlhotcopy_myisam consitently failed in travis containers
-# https://travis-ci.org/grooverdan/mariadb-server/builds/217661580
-echo 'main.mysqlhotcopy_myisam : unstable in containers' >> ${TRAVIS_BUILD_DIR}/mysql-test/unstable-tests
-echo 'archive.mysqlhotcopy_archive : unstable in containers' >> ${TRAVIS_BUILD_DIR}/mysql-test/unstable-tests
 set +v +x

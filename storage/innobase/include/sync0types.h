@@ -354,7 +354,6 @@ enum latch_id_t {
 	LATCH_ID_EVENT_MANAGER,
 	LATCH_ID_EVENT_MUTEX,
 	LATCH_ID_SYNC_ARRAY_MUTEX,
-	LATCH_ID_THREAD_MUTEX,
 	LATCH_ID_ZIP_PAD_MUTEX,
 	LATCH_ID_OS_AIO_READ_MUTEX,
 	LATCH_ID_OS_AIO_WRITE_MUTEX,
@@ -1284,7 +1283,10 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 	{
 		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
 		if (atomic) {
-			return Type(my_atomic_addlint(&m_counter, i));
+			/* Silence MSVS warnings when instantiating
+			this template with atomic=false. */
+			return Type(my_atomic_addlint(reinterpret_cast<lint*>
+						      (&m_counter), i));
 		} else {
 			return m_counter += i;
 		}

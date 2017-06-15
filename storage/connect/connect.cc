@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2015
+/* Copyright (C) Olivier Bertrand 2004 - 2017
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,10 +15,10 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /***********************************************************************/
-/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2015    */
+/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2017    */
 /*                                                                     */
-/* WHAT THIS PROGRAM DOES:                                             */
-/* -----------------------                                             */
+/*  WHAT THIS PROGRAM DOES:                                            */
+/*  -----------------------                                            */
 /*  This program are the CONNECT general purpose semantic routines.    */
 /***********************************************************************/
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -117,11 +117,10 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
            handler);
 
   // Set the database path for this table
-  handler->SetDataPath(g, pathname);
+	if (handler->SetDataPath(g, pathname))
+		return true;
 
   if (dbuserp->Catalog) {
-//  ((MYCAT *)dbuserp->Catalog)->SetHandler(handler);   done later
-//  ((MYCAT *)dbuserp->Catalog)->SetDataPath(g, pathname);
     return false;                       // Nothing else to do
     } // endif Catalog
 
@@ -137,9 +136,6 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
 
   if (!(dbuserp->Catalog= new MYCAT(handler)))
     return true;
-
-//((MYCAT *)dbuserp->Catalog)->SetDataPath(g, pathname);
-//dbuserp->UseTemp= TMP_AUTO;
 
   /*********************************************************************/
   /*  All is correct.                                                  */
@@ -172,7 +168,7 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
 
 //  info->mean_rec_length= tdbp->GetLrecl();
     info->mean_rec_length= 0;
-    info->data_file_name= (b) ? NULL : tdbp->GetFile(g);
+    info->data_file_name= (b) ? NULL : (char*)tdbp->GetFile(g);
     return true;
   } else {
     info->data_file_length= 0;
@@ -188,49 +184,43 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
 /*  GetTDB: Get the table description block of a CONNECT table.        */
 /***********************************************************************/
 PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
-  {
-  int     rc;
-  PTDB    tdbp;
-  PTABLE  tabp;
-  PDBUSER dup= PlgGetUser(g);
-  volatile PCATLG  cat= (dup) ? dup->Catalog : NULL;     // Safe over longjmp
+{
+	PTDB    tdbp;
+	PTABLE  tabp;
+	PDBUSER dup = PlgGetUser(g);
+	volatile PCATLG  cat = (dup) ? dup->Catalog : NULL;     // Safe over longjmp
 
-  if (trace)
-    printf("CntGetTDB: name=%s mode=%d cat=%p\n", name, mode, cat);
+	if (trace)
+		printf("CntGetTDB: name=%s mode=%d cat=%p\n", name, mode, cat);
 
-  if (!cat)
-    return NULL;
+	if (!cat)
+		return NULL;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return NULL;
-    } // endif jump_level
+	try {
+		// Get table object from the catalog
+		tabp = new(g) XTAB(name);
 
-  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
-    tdbp= NULL;
-    goto err;
-    } // endif rc
+		if (trace)
+			printf("CntGetTDB: tabp=%p\n", tabp);
 
-  // Get table object from the catalog
-  tabp= new(g) XTAB(name);
+		// Perhaps this should be made thread safe
+		((MYCAT*)cat)->SetHandler(h);
 
-  if (trace)
-    printf("CntGetTDB: tabp=%p\n", tabp);
+		if (!(tdbp = cat->GetTable(g, tabp, mode)))
+			printf("CntGetTDB: %s\n", g->Message);
 
-  // Perhaps this should be made thread safe
-  ((MYCAT*)cat)->SetHandler(h);
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+  } catch (const char *msg) {
+		strcpy(g->Message, msg);
+	}	// end catch
 
-  if (!(tdbp= cat->GetTable(g, tabp, mode)))
-    printf("CntGetTDB: %s\n", g->Message);
-
- err:
   if (trace)
     printf("Returning tdbp=%p mode=%d\n", tdbp, mode);
 
-  g->jump_level--;
   return tdbp;
-  } // end of CntGetTDB
+} // end of CntGetTDB
 
 /***********************************************************************/
 /*  OPENTAB: Open a Table.                                             */
@@ -239,7 +229,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
                                         bool del, PHC)
   {
   char   *p;
-  int     i, n, rc;
+  int     i, n;
   bool    rcop= true;
   PCOL    colp;
 //PCOLUMN cp;
@@ -254,120 +244,116 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     return true;
     } // endif tdbp
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return true;
-    } // endif jump_level
+	try {
+		if (!c1) {
+			if (mode == MODE_INSERT)
+				// Allocate all column blocks for that table
+				tdbp->ColDB(g, NULL, 0);
 
-  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
-    goto err;
-    } // endif rc
+		} else for (p = c1; *p; p += n) {
+			// Allocate only used column blocks
+			if (trace)
+				printf("Allocating column %s\n", p);
 
-  if (!c1) {
-    if (mode == MODE_INSERT)
-      // Allocate all column blocks for that table
-      tdbp->ColDB(g, NULL, 0);
+			g->Message[0] = 0;    // To check whether ColDB made an error message
+			colp = tdbp->ColDB(g, p, 0);
 
-  } else for (p= c1; *p; p+= n) {
-    // Allocate only used column blocks
-    if (trace)
-      printf("Allocating column %s\n", p);
+			if (!colp && !(mode == MODE_INSERT && tdbp->IsSpecial(p))) {
+				if (g->Message[0] == 0)
+					sprintf(g->Message, MSG(COL_ISNOT_TABLE), p, tdbp->GetName());
 
-    g->Message[0] = 0;    // To check whether ColDB made an error message
-    colp= tdbp->ColDB(g, p, 0);
+				throw 1;
+			} // endif colp
 
-    if (!colp && !(mode == MODE_INSERT && tdbp->IsSpecial(p))) {
-      if (g->Message[0] == 0)
-        sprintf(g->Message, MSG(COL_ISNOT_TABLE), p, tdbp->GetName());
+			n = strlen(p) + 1;
+		} // endfor p
 
-      goto err;
-      } // endif colp
+		for (i = 0, colp = tdbp->GetColumns(); colp; i++, colp = colp->GetNext()) {
+			if (colp->InitValue(g))
+				throw 2;
 
-    n= strlen(p) + 1;
-    } // endfor p
+			if (mode == MODE_INSERT)
+				// Allow type conversion
+				if (colp->SetBuffer(g, colp->GetValue(), true, false))
+					throw 3;
 
-  for (i= 0, colp= tdbp->GetColumns(); colp; i++, colp= colp->GetNext()) {
-    if (colp->InitValue(g))
-      goto err;
+			colp->AddColUse(U_P);           // For PLG tables
+		} // endfor colp
 
-    if (mode == MODE_INSERT)
-      // Allow type conversion
-      if (colp->SetBuffer(g, colp->GetValue(), true, false))
-        goto err;
+		/*******************************************************************/
+		/* In Update mode, the updated column blocks must be distinct from */
+		/* the read column blocks. So make a copy of the TDB and allocate  */
+		/* its column blocks in mode write (required by XML tables).       */
+		/*******************************************************************/
+		if (mode == MODE_UPDATE) {
+			PTDBASE utp;
 
-    colp->AddColUse(U_P);           // For PLG tables
-    } // endfor colp
+			if (!(utp = (PTDBASE)tdbp->Duplicate(g))) {
+				sprintf(g->Message, MSG(INV_UPDT_TABLE), tdbp->GetName());
+				throw 4;
+			} // endif tp
 
-  /*********************************************************************/
-  /*  In Update mode, the updated column blocks must be distinct from  */
-  /*  the read column blocks. So make a copy of the TDB and allocate   */
-  /*  its column blocks in mode write (required by XML tables).        */
-  /*********************************************************************/
-  if (mode == MODE_UPDATE) {
-    PTDBASE utp;
+			if (!c2)
+				// Allocate all column blocks for that table
+				utp->ColDB(g, NULL, 0);
+			else for (p = c2; *p; p += n) {
+				// Allocate only used column blocks
+				colp = utp->ColDB(g, p, 0);
+				n = strlen(p) + 1;
+			} // endfor p
 
-    if (!(utp= (PTDBASE)tdbp->Duplicate(g))) {
-      sprintf(g->Message, MSG(INV_UPDT_TABLE), tdbp->GetName());
-      goto err;
-      } // endif tp
+			for (i = 0, colp = utp->GetColumns(); colp; i++, colp = colp->GetNext()) {
+				if (colp->InitValue(g))
+					throw 5;
 
-    if (!c2)
-      // Allocate all column blocks for that table
-      utp->ColDB(g, NULL, 0);
-    else for (p= c2; *p; p+= n) {
-      // Allocate only used column blocks
-      colp= utp->ColDB(g, p, 0);
-      n= strlen(p) + 1;
-      } // endfor p
+				if (colp->SetBuffer(g, colp->GetValue(), true, false))
+					throw 6;
 
-    for (i= 0, colp= utp->GetColumns(); colp; i++, colp= colp->GetNext()) {
-      if (colp->InitValue(g))
-        goto err;
+			} // endfor colp
 
-      if (colp->SetBuffer(g, colp->GetValue(), true, false))
-        goto err;
+		// Attach the updated columns list to the main table
+			tdbp->SetSetCols(utp->GetColumns());
+		} else if (tdbp && mode == MODE_INSERT)
+			tdbp->SetSetCols(tdbp->GetColumns());
 
-      } // endfor colp
+		// Now do open the physical table
+		if (trace)
+			printf("Opening table %s in mode %d tdbp=%p\n",
+				tdbp->GetName(), mode, tdbp);
 
-    // Attach the updated columns list to the main table
-    tdbp->SetSetCols(utp->GetColumns());
-  } else if (tdbp && mode == MODE_INSERT)
-    tdbp->SetSetCols(tdbp->GetColumns());
+		//tdbp->SetMode(mode);
 
-  // Now do open the physical table
-  if (trace)
-    printf("Opening table %s in mode %d tdbp=%p\n",
-           tdbp->GetName(), mode, tdbp);
-
-//tdbp->SetMode(mode);
-
-  if (del/* && (tdbp->GetFtype() != RECFM_NAF*/) {
-    // To avoid erasing the table when doing a partial delete
-    // make a fake Next
+		if (del/* && (tdbp->GetFtype() != RECFM_NAF*/) {
+			// To avoid erasing the table when doing a partial delete
+			// make a fake Next
 //    PDOSDEF ddp= new(g) DOSDEF;
 //    PTDB tp= new(g) TDBDOS(ddp, NULL);
-    tdbp->SetNext((PTDB)1);
-    dup->Check &= ~CHK_DELETE;
-    } // endif del
+			tdbp->SetNext((PTDB)1);
+			dup->Check &= ~CHK_DELETE;
+		} // endif del
 
 
-  if (trace)
-    printf("About to open the table: tdbp=%p\n", tdbp);
+		if (trace)
+			printf("About to open the table: tdbp=%p\n", tdbp);
 
-  if (mode != MODE_ANY && mode != MODE_ALTER) {
-    if (tdbp->OpenDB(g)) {
-      printf("%s\n", g->Message);
-      goto err;
-    } else
-      tdbp->SetNext(NULL);
+		if (mode != MODE_ANY && mode != MODE_ALTER) {
+			if (tdbp->OpenDB(g)) {
+				printf("%s\n", g->Message);
+				throw 7;
+			} else
+				tdbp->SetNext(NULL);
 
-  } // endif mode
+		} // endif mode
 
-  rcop= false;
+		rcop = false;
 
- err:
-  g->jump_level--;
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+	} // end catch
+
   return rcop;
   } // end of CntOpenTable
 
@@ -387,50 +373,40 @@ bool CntRewindTable(PGLOBAL g, PTDB tdbp)
 /*  Evaluate all columns after a record is read.                       */
 /***********************************************************************/
 RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
-  {
+{
   RCODE rc= RC_OK;
   PCOL  colp;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    if (trace) {
-      strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-      printf("EvalColumns: %s\n", g->Message);
-      } // endif
+	try {
+		for (colp = tdbp->GetColumns(); rc == RC_OK && colp;
+			colp = colp->GetNext()) {
+			if (reset)
+				colp->Reset();
 
-    return RC_FX;
-    } // endif jump_level
+			// Virtual columns are computed by MariaDB
+			if (!colp->GetColUse(U_VIRTUAL) && (!mrr || colp->GetKcol()))
+				if (colp->Eval(g))
+					rc = RC_FX;
 
-  if (setjmp(g->jumper[++g->jump_level]) != 0) {
-    if (trace)
-      printf("Error reading columns: %s\n", g->Message);
+		} // endfor colp
 
-    rc= RC_FX;
-    goto err;
-    } // endif rc
+	} catch (int n) {
+		if (trace)
+			printf("Error %d reading columns: %s\n", n, g->Message);
 
-  for (colp= tdbp->GetColumns(); rc == RC_OK && colp;
-       colp= colp->GetNext()) {
-    if (reset)
-      colp->Reset();
+		rc = RC_FX;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+	} // end catch
 
-    // Virtual columns are computed by MariaDB
-    if (!colp->GetColUse(U_VIRTUAL) && (!mrr || colp->GetKcol()))
-      if (colp->Eval(g))
-        rc= RC_FX;
-
-    } // endfor colp
-
- err:
-  g->jump_level--;
   return rc;
-  } // end of EvalColumns
+} // end of EvalColumns
 
 /***********************************************************************/
 /*  ReadNext: Read next record sequentially.                           */
 /***********************************************************************/
 RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
-  {
+{
   RCODE rc;
 
   if (!tdbp)
@@ -445,76 +421,66 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
     ((PTDBASE)tdbp)->ResetKindex(g, NULL);
     } // endif index
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return RC_FX;
-    } // endif jump_level
+	try {
+		// Do it now to avoid double eval when filtering
+		for (PCOL colp = tdbp->GetColumns(); colp; colp = colp->GetNext())
+			colp->Reset();
 
-  if ((setjmp(g->jumper[++g->jump_level])) != 0) {
-    rc= RC_FX;
-    goto err;
-    } // endif rc
+		do {
+			if ((rc = (RCODE)tdbp->ReadDB(g)) == RC_OK)
+				if (!ApplyFilter(g, tdbp->GetFilter()))
+					rc = RC_NF;
 
-  // Do it now to avoid double eval when filtering
-  for (PCOL colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
-    colp->Reset();
+		} while (rc == RC_NF);
 
-  do {
-    if ((rc= (RCODE)tdbp->ReadDB(g)) == RC_OK)
-      if (!ApplyFilter(g, tdbp->GetFilter()))
-        rc= RC_NF;
+		if (rc == RC_OK)
+			rc = EvalColumns(g, tdbp, false);
 
-    } while (rc == RC_NF);
+	} catch (int) {
+	  rc = RC_FX;
+  } catch (const char *msg) {
+	  strcpy(g->Message, msg);
+		rc = RC_FX;
+  } // end catch
 
-  if (rc == RC_OK)
-    rc= EvalColumns(g, tdbp, false);
-
- err:
-  g->jump_level--;
   return rc;
-  } // end of CntReadNext
+} // end of CntReadNext
 
 /***********************************************************************/
 /*  WriteRow: Insert a new row into a table.                           */
 /***********************************************************************/
 RCODE  CntWriteRow(PGLOBAL g, PTDB tdbp)
-  {
-  RCODE   rc;
-  PCOL    colp;
-//PTDBASE tp= (PTDBASE)tdbp;
+{
+	RCODE   rc;
+	PCOL    colp;
+	//PTDBASE tp= (PTDBASE)tdbp;
 
-  if (!tdbp)
-    return RC_FX;
+	if (!tdbp)
+		return RC_FX;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return RC_FX;
-    } // endif jump_level
+	try {
+		// Store column values in table write buffer(s)
+		for (colp = tdbp->GetSetCols(); colp; colp = colp->GetNext())
+			if (!colp->GetColUse(U_VIRTUAL))
+				colp->WriteColumn(g);
 
-  if (setjmp(g->jumper[++g->jump_level]) != 0) {
-    printf("%s\n", g->Message);
-    rc= RC_FX;
-    goto err;
-    } // endif rc
+		if (tdbp->IsIndexed())
+			// Index values must be sorted before updating
+			rc = (RCODE)((PTDBDOS)tdbp)->GetTxfp()->StoreValues(g, true);
+		else
+			// Return result code from write operation
+			rc = (RCODE)tdbp->WriteDB(g);
 
-  // Store column values in table write buffer(s)
-  for (colp= tdbp->GetSetCols(); colp; colp= colp->GetNext())
-    if (!colp->GetColUse(U_VIRTUAL))
-      colp->WriteColumn(g);
+	} catch (int n) {
+		printf("Exception %d: %s\n", n, g->Message);
+		rc = RC_FX;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		rc = RC_FX;
+	} // end catch
 
-  if (tdbp->IsIndexed())
-    // Index values must be sorted before updating
-    rc= (RCODE)((PTDBDOS)tdbp)->GetTxfp()->StoreValues(g, true);
-  else
-    // Return result code from write operation
-    rc= (RCODE)tdbp->WriteDB(g);
-
- err:
-  g->jump_level--;
-  return rc;
-  } // end of CntWriteRow
+	return rc;
+} // end of CntWriteRow
 
 /***********************************************************************/
 /*  UpdateRow: Update a row into a table.                              */
@@ -562,88 +528,78 @@ RCODE  CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all)
 /*  CLOSETAB: Close a table.                                           */
 /***********************************************************************/
 int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
-  {
-  int     rc= RC_OK;
-//TDBASE *tbxp= (PTDBASE)tdbp;
+{
+	int     rc = RC_OK;
+	//TDBASE *tbxp= (PTDBASE)tdbp;
 
-  if (!tdbp)
-    return rc;                           // Nothing to do
-  else if (tdbp->GetUse() != USE_OPEN) {
-    if (tdbp->GetAmType() == TYPE_AM_XML)
-      tdbp->CloseDB(g);                  // Opened by GetMaxSize
+	if (!tdbp)
+		return rc;                           // Nothing to do
+	else if (tdbp->GetUse() != USE_OPEN) {
+		if (tdbp->GetAmType() == TYPE_AM_XML)
+			tdbp->CloseDB(g);                  // Opened by GetMaxSize
 
-    return rc;
-  } // endif !USE_OPEN
+		return rc;
+	} // endif !USE_OPEN
 
-  if (trace)
-    printf("CntCloseTable: tdbp=%p mode=%d nox=%d abort=%d\n", 
-                           tdbp, tdbp->GetMode(), nox, abort);
+	if (trace)
+		printf("CntCloseTable: tdbp=%p mode=%d nox=%d abort=%d\n",
+			tdbp, tdbp->GetMode(), nox, abort);
 
-  if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN) {
-    if (tdbp->IsIndexed())
-      rc= ((PTDBDOS)tdbp)->GetTxfp()->DeleteSortedRows(g);
+	if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN) {
+		if (tdbp->IsIndexed())
+			rc = ((PTDBDOS)tdbp)->GetTxfp()->DeleteSortedRows(g);
 
-    if (!rc)
-      rc= tdbp->DeleteDB(g, RC_EF);    // Specific A.M. delete routine
+		if (!rc)
+			rc = tdbp->DeleteDB(g, RC_EF);    // Specific A.M. delete routine
 
-  } else if (tdbp->GetMode() == MODE_UPDATE && tdbp->IsIndexed())
-    rc= ((PTDBDOX)tdbp)->Txfp->UpdateSortedRows(g);
+	} else if (tdbp->GetMode() == MODE_UPDATE && tdbp->IsIndexed())
+		rc = ((PTDBDOX)tdbp)->Txfp->UpdateSortedRows(g);
 
-  switch(rc) {
-    case RC_FX:
-      abort= true;
-      break;
-    case RC_INFO:
-      PushWarning(g, tdbp);
-      break;
-    } // endswitch rc
+	switch (rc) {
+		case RC_FX:
+			abort = true;
+			break;
+		case RC_INFO:
+			PushWarning(g, tdbp);
+			break;
+	} // endswitch rc
 
-  //  Prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    rc= RC_FX;
-    goto err;
-    } // endif
+	try {
+		//  This will close the table file(s) and also finalize write
+		//  operations such as Insert, Update, or Delete.
+		tdbp->SetAbort(abort);
+		tdbp->CloseDB(g);
+		tdbp->SetAbort(false);
 
-  if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
-    rc= RC_FX;
-    g->jump_level--;
-    goto err;
-    } // endif
+		if (trace > 1)
+			printf("Table %s closed\n", tdbp->GetName());
 
-  //  This will close the table file(s) and also finalize write
-  //  operations such as Insert, Update, or Delete.
-  tdbp->SetAbort(abort);
-  tdbp->CloseDB(g);
-  tdbp->SetAbort(false);
-  g->jump_level--;
+		if (!nox && tdbp->GetMode() != MODE_READ && tdbp->GetMode() != MODE_ANY) {
+			if (trace > 1)
+				printf("About to reset opt\n");
 
-  if (trace > 1)
-    printf("Table %s closed\n", tdbp->GetName());
+			if (!tdbp->IsRemote()) {
+				// Make all the eventual indexes
+				PTDBDOX tbxp = (PTDBDOX)tdbp;
+				tbxp->ResetKindex(g, NULL);
+				tbxp->SetKey_Col(NULL);
+				rc = tbxp->ResetTableOpt(g, true, tbxp->GetDef()->Indexable() == 1);
+			} // endif remote
 
-//if (!((PTDBDOX)tdbp)->GetModified())
-//  return 0;
+		} // endif nox
 
-  if (nox || tdbp->GetMode() == MODE_READ || tdbp->GetMode() == MODE_ANY)
-    return 0;
+	} catch (int) {
+		rc = RC_FX;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		rc = RC_FX;
+	} // end catch
 
-  if (trace > 1)
-    printf("About to reset opt\n");
+	if (trace > 1)
+		htrc("Done rc=%d\n", rc);
 
-	if (!tdbp->IsRemote()) {
-		// Make all the eventual indexes
-		PTDBDOX tbxp = (PTDBDOX)tdbp;
-		tbxp->ResetKindex(g, NULL);
-		tbxp->SetKey_Col(NULL);
-		rc = tbxp->ResetTableOpt(g, true, tbxp->GetDef()->Indexable() == 1);
-	  } // endif remote
-
- err:
-  if (trace > 1)
-    printf("Done rc=%d\n", rc);
-
-  return (rc == RC_OK || rc == RC_INFO) ? 0 : rc;
-  } // end of CntCloseTable
+	return (rc == RC_OK || rc == RC_INFO) ? 0 : rc;
+} // end of CntCloseTable
 
 /***********************************************************************/
 /*  Load and initialize the use of an index.                           */
@@ -752,8 +708,9 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
     sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
     return RC_FX;
   } else if (x == 2) {
-    // Remote index
-    if (op != OP_SAME && ptdb->ReadKey(g, op, kr))
+    // Remote index. Only used in read mode
+    if ((ptdb->GetMode() == MODE_READ || ptdb->GetMode() == MODE_READX)
+			               && op != OP_SAME && ptdb->ReadKey(g, op, kr))
       return RC_FX;
 
     goto rnd;

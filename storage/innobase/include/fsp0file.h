@@ -54,7 +54,7 @@ public:
 		m_name(),
 		m_filepath(),
 		m_filename(),
-		m_handle(OS_FILE_CLOSED),
+		m_handle(),
 		m_open_flags(OS_FILE_OPEN),
 		m_size(),
 		m_order(),
@@ -77,7 +77,7 @@ public:
 		m_name(mem_strdup(name)),
 		m_filepath(),
 		m_filename(),
-		m_handle(OS_FILE_CLOSED),
+		m_handle(),
 		m_open_flags(OS_FILE_OPEN),
 		m_size(size),
 		m_order(order),
@@ -274,7 +274,7 @@ public:
 
 	/** Get Datafile::m_handle.
 	@return m_handle */
-	os_file_t	handle()	const
+	pfs_os_file_t	handle()	const
 	{
 		return(m_handle);
 	}
@@ -416,7 +416,7 @@ private:
 	char*			m_filename;
 
 	/** Open file handle */
-	os_file_t		m_handle;
+	pfs_os_file_t		m_handle;
 
 	/** Flags to use for opening the data file */
 	os_file_create_t	m_open_flags;

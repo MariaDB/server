@@ -2174,6 +2174,7 @@ static void print_xml_comment(FILE *xml_file, size_t len,
     case '-':
       if (*(comment_string + 1) == '-')         /* Only one hyphen allowed. */
         break;
+      /* fall through */
     default:
       fputc(*comment_string, xml_file);
       break;
@@ -2850,6 +2851,8 @@ static uint get_table_structure(char *table, char *db, char *table_type,
 
           my_free(scv_buff);
 
+          if (path)
+            my_fclose(sql_file, MYF(MY_WME));
           DBUG_RETURN(0);
         }
         else
@@ -5940,8 +5943,7 @@ static my_bool get_view_structure(char *table, char* db)
     dynstr_free(&ds_view);
   }
 
-  if (switch_character_set_results(mysql, default_charset))
-    DBUG_RETURN(1);
+  switch_character_set_results(mysql, default_charset);
 
   /* If a separate .sql file was opened, close it now */
   if (sql_file != md_result_file)

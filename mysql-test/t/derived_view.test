@@ -1899,6 +1899,56 @@ deallocate prepare stmt1;
 
 drop table t1,t2;
 
+--echo #
+--echo # Bug mdev-12670: mergeable derived / view with subqueries
+--echo #                 subject to semi-join optimizations
+--echo # (actually this is a 5.3 bug.)               
+--echo #
+
+create table t1 (a int) engine=myisam;
+insert into t1  values (5),(3),(2),(7),(2),(5),(1); 
+create table t2 (b int, index idx(b)) engine=myisam;
+insert into t2 values (2),(3),(2),(1),(3),(4);
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
+analyze table t1,t2;
+
+explain select a from t1 where a in (select b from t2); 
+explain select * from (select a from t1 where a in (select b from t2)) t;
+create view v1 as select a from t1 where a in (select b from t2);
+explain select * from v1;
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # Bug mdev-12812: mergeable derived / view with subqueries
+--echo #                 NOT subject to semi-join optimizations
+--echo #
+
+CREATE TABLE t1 (c1 varchar(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('foo');
+
+CREATE TABLE t2 (c2 varchar(3)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('bar'),('qux'),('foo');
+
+let $q=
+SELECT STRAIGHT_JOIN * 
+  FROM ( SELECT * FROM t1 WHERE c1 IN ( SELECT c2 FROM t2 ) ) AS sq;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+DROP TABLE t1, t2;
+
 # The following command must be the last one the file 
 set optimizer_switch=@exit_optimizer_switch;
 set join_cache_level=@exit_join_cache_level;

@@ -216,7 +216,9 @@ enum ESphGroupBy
 	SPH_GROUPBY_WEEK	= 1,	///< group by week
 	SPH_GROUPBY_MONTH	= 2,	///< group by month
 	SPH_GROUPBY_YEAR	= 3,	///< group by year
-	SPH_GROUPBY_ATTR	= 4		///< group by attribute value
+	SPH_GROUPBY_ATTR	= 4,	///< group by attribute value
+	SPH_GROUPBY_ATTRPAIR	= 5,	///< group by sequential attrs pair (rendered redundant by 64bit attrs support; removed)
+	SPH_GROUPBY_MULTIPLE	= 6 	///< group by on multiple attribute values
 };
 
 /// known attribute types
@@ -911,7 +913,7 @@ bool sphinx_show_status ( THD * thd )
 	}
 
 	// show last error or warning (either in addition to stats, or on their own)
-	if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_tStats.m_sLastMessage && pTls->m_pHeadTable->m_tStats.m_sLastMessage[0] )
+	if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_tStats.m_sLastMessage[0] )
 	{
 		const char * sMessageType = pTls->m_pHeadTable->m_tStats.m_bLastError ? "error" : "warning";
 
@@ -1563,6 +1565,7 @@ bool CSphSEQuery::ParseField ( char * sField )
 			{ "month:",	SPH_GROUPBY_MONTH },
 			{ "year:",	SPH_GROUPBY_YEAR },
 			{ "attr:",	SPH_GROUPBY_ATTR },
+			{ "multi:",     SPH_GROUPBY_MULTIPLE }
 		};
 
 		int i;

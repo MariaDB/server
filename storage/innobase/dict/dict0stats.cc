@@ -1159,10 +1159,11 @@ dict_stats_analyze_index_level(
 		leaf-level delete marks because delete marks on
 		non-leaf level do not make sense. */
 
-		if (level == 0 && (srv_stats_include_delete_marked ? 0:
-		    rec_get_deleted_flag(
+		if (level == 0
+		    && !srv_stats_include_delete_marked
+		    && rec_get_deleted_flag(
 			    rec,
-			    page_is_comp(btr_pcur_get_page(&pcur))))) {
+			    page_is_comp(btr_pcur_get_page(&pcur)))) {
 
 			if (rec_is_last_on_page
 			    && !prev_rec_is_copied
@@ -1336,16 +1337,11 @@ dict_stats_analyze_index_level(
 
 /* aux enum for controlling the behavior of dict_stats_scan_page() @{ */
 enum page_scan_method_t {
-	COUNT_ALL_NON_BORING_AND_SKIP_DEL_MARKED,/* scan all records on
-				the given page and count the number of
-				distinct ones, also ignore delete marked
-				records */
-	QUIT_ON_FIRST_NON_BORING,/* quit when the first record that differs
-				from its right neighbor is found */
-	COUNT_ALL_NON_BORING_INCLUDE_DEL_MARKED/* scan all records on
-				the given page and count the number of
-				distinct ones, include delete marked
-				records */
+	/** scan the records on the given page, counting the number
+	of distinct ones; @see srv_stats_include_delete_marked */
+	COUNT_ALL_NON_BORING,
+	/** quit on the first record that differs from its right neighbor */
+	QUIT_ON_FIRST_NON_BORING
 };
 /* @} */
 
@@ -1392,13 +1388,10 @@ dict_stats_scan_page(
 	Because offsets1,offsets2 should be big enough,
 	this memory heap should never be used. */
 	mem_heap_t*	heap			= NULL;
-	const rec_t*	(*get_next)(const rec_t*);
-
-	if (scan_method == COUNT_ALL_NON_BORING_AND_SKIP_DEL_MARKED) {
-		get_next = page_rec_get_next_non_del_marked;
-	} else {
-		get_next = page_rec_get_next_const;
-	}
+	const rec_t*	(*get_next)(const rec_t*)
+		= srv_stats_include_delete_marked
+		? page_rec_get_next_const
+		: page_rec_get_next_non_del_marked;
 
 	const bool	should_count_external_pages = n_external_pages != NULL;
 
@@ -1618,9 +1611,7 @@ dict_stats_analyze_index_below_cur(
 
 	offsets_rec = dict_stats_scan_page(
 		&rec, offsets1, offsets2, index, page, n_prefix,
-		srv_stats_include_delete_marked ?
-		COUNT_ALL_NON_BORING_INCLUDE_DEL_MARKED:
-		COUNT_ALL_NON_BORING_AND_SKIP_DEL_MARKED, n_diff,
+		COUNT_ALL_NON_BORING, n_diff,
 		n_external_pages);
 
 #if 0

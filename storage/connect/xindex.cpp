@@ -1,7 +1,7 @@
 /***************** Xindex C++ Class Xindex Code (.CPP) *****************/
-/*  Name: XINDEX.CPP  Version 2.9                                      */
+/*  Name: XINDEX.CPP  Version 3.0                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2017    */
 /*                                                                     */
 /*  This file contains the class XINDEX implementation code.           */
 /***********************************************************************/
@@ -181,7 +181,7 @@ XXBASE::XXBASE(PTDBDOS tbxp, bool b) : CSORT(b),
 /***********************************************************************/
 /*  Make file output of XINDEX contents.                               */
 /***********************************************************************/
-void XXBASE::Print(PGLOBAL, FILE *f, uint n)
+void XXBASE::Printf(PGLOBAL, FILE *f, uint n)
   {
   char m[64];
 
@@ -193,7 +193,7 @@ void XXBASE::Print(PGLOBAL, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of XINDEX contents.                             */
 /***********************************************************************/
-void XXBASE::Print(PGLOBAL, char *ps, uint z)
+void XXBASE::Prints(PGLOBAL, char *ps, uint z)
   {
   *ps = '\0';
   strncat(ps, "Xindex", z);
@@ -446,8 +446,8 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 #if 0
     if (!dup->Step) {
       strcpy(g->Message, MSG(QUERY_CANCELLED));
-      longjmp(g->jumper[g->jump_level], 99);
-      } // endif Step
+			throw 99;
+	} // endif Step
 #endif // 0
 
     /*******************************************************************/
@@ -464,7 +464,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
         if (ApplyFilter(g, filp))
           break;
 
-        // passthru
+        // fall through
       case RC_NF:
         continue;
       case RC_EF:
@@ -819,7 +819,7 @@ bool XINDEX::Reorder(PGLOBAL g __attribute__((unused)))
 /***********************************************************************/
 bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   {
-  char   *ftype;
+  PCSZ    ftype;
   char    fn[_MAX_PATH];
   int     n[NZ], nof = (Mul) ? (Ndif + 1) : 0;
   int     id = -1, size = 0;
@@ -948,7 +948,7 @@ bool XINDEX::Init(PGLOBAL g)
   /*  Table will be accessed through an index table.                   */
   /*  If sorting is required, this will be done later.                 */
   /*********************************************************************/
-  char   *ftype;
+  PCSZ    ftype;
   char    fn[_MAX_PATH];
   int     k, n, nv[NZ], id = -1;
   bool    estim = false;
@@ -965,7 +965,7 @@ bool XINDEX::Init(PGLOBAL g)
     // For DBF tables, Cardinality includes bad or soft deleted lines
     // that are not included in the index, and can be larger then the
     // index size.
-    estim = (Tdbp->Ftype == RECFM_DBF);
+    estim = (Tdbp->Ftype == RECFM_DBF || Tdbp->Txfp->GetAmType() == TYPE_AM_ZIP);
     n = Tdbp->Cardinality(g);      // n is exact table size
   } else {
     // Variable table not optimized
@@ -1412,7 +1412,7 @@ err:
 /***********************************************************************/
 bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
   {
-  char   *ftype;
+  PCSZ    ftype;
   char    fn[_MAX_PATH];
   int     nv[NZ], id = -1; // n
 //bool    estim = false;
@@ -2320,9 +2320,9 @@ XFILE::XFILE(void) : XLOAD()
 /***********************************************************************/
 bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   {
-  char *pmod;
-  bool  rc;
-  IOFF  noff[MAX_INDX];
+  PCSZ pmod;
+  bool rc;
+  IOFF noff[MAX_INDX];
 
   /*********************************************************************/
   /*  Open the index file according to mode.                           */
@@ -3032,7 +3032,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
     return true;
 
   Klen = Valp->GetClen();
-  Keys.Size = n * Klen;
+  Keys.Size = (size_t)n * (size_t)Klen;
 
   if (!PlgDBalloc(g, NULL, Keys)) {
     sprintf(g->Message, MSG(KEY_ALLOC_ERROR), Klen, n);

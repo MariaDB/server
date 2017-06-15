@@ -761,7 +761,8 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
     htrc("after write req=%d brc=%d nbw=%d\n", req, brc, nbw);
 
   if (!brc || nbw != len) {
-    char buf[256], *fn = (h == Hfile) ? To_File : "Tempfile";
+		char buf[256];
+		PCSZ fn = (h == Hfile) ? To_File : "Tempfile";
 
     if (brc)
       strcpy(buf, MSG(BAD_BYTE_NUM));
@@ -919,7 +920,8 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
         break;
         } // endif
 
-      // Selective delete, pass thru
+      // Selective delete
+      /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
       oflag |= (UseTemp) ? O_RDONLY : O_RDWR;

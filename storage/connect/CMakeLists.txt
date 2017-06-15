@@ -18,10 +18,10 @@ SET(CONNECT_PLUGIN_DYNAMIC "connect")
 
 SET(CONNECT_SOURCES
 ha_connect.cc connect.cc user_connect.cc mycat.cc
-fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
+fmdlex.c osutil.c rcmsg.c rcmsg.h
 array.cpp blkfil.cpp colblk.cpp csort.cpp
-filamap.cpp filamdbf.cpp filamfix.cpp filamgz.cpp filamtxt.cpp
-filter.cpp json.cpp jsonudf.cpp maputil.cpp myconn.cpp myutil.cpp plgdbutl.cpp
+filamap.cpp filamdbf.cpp filamfix.cpp filamgz.cpp filamtxt.cpp filter.cpp
+json.cpp jsonudf.cpp maputil.cpp myconn.cpp myutil.cpp plgdbutl.cpp plugutil.cpp
 reldef.cpp tabcol.cpp tabdos.cpp tabext.cpp tabfix.cpp tabfmt.cpp tabjson.cpp
 table.cpp tabmul.cpp tabmysql.cpp taboccur.cpp tabpivot.cpp tabsys.cpp tabtbl.cpp
 tabutil.cpp tabvir.cpp tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
@@ -38,7 +38,7 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 # Definitions that are shared for all OSes
 #
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
-add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT -DPIVOT_SUPPORT )
+add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT -DPIVOT_SUPPORT -DUSE_TRY )
 
 
 #
@@ -270,8 +270,8 @@ IF(CONNECT_WITH_JDBC)
     # Find required libraries and include directories
     SET (JAVA_SOURCES JdbcInterface.java)
     add_jar(JdbcInterface ${JAVA_SOURCES})
-    install_jar(JdbcInterface DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
     INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar
+      ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
       DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
     add_definitions(-DJDBC_SUPPORT)
   ELSE()

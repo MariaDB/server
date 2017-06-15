@@ -1,4 +1,4 @@
--- source include/have_innodb.inc
+--source include/innodb_page_size_small.inc
 
 CREATE DATABASE mysqltest_innodb_zip;
 USE mysqltest_innodb_zip;
@@ -8,7 +8,6 @@ SELECT table_name, row_format, data_length, index_length
 
 let $per_table=`select @@innodb_file_per_table`;
 let $format=`select @@innodb_file_format`;
-let $innodb_strict_mode_orig=`select @@session.innodb_strict_mode`;
 let $innodb_file_format_orig=`select @@innodb_file_format`;
 let $innodb_file_format_max_orig=`select @@innodb_file_format_max`;
 SET @save_innodb_stats_on_metadata=@@global.innodb_stats_on_metadata;
@@ -354,7 +353,6 @@ drop table normal_table, zip_table;
 -- disable_query_log
 eval set global innodb_file_format=$format;
 eval set global innodb_file_per_table=$per_table;
-eval set session innodb_strict_mode=$innodb_strict_mode_orig;
 eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;
 eval SET GLOBAL innodb_file_format_max=$innodb_file_format_max_orig;
 SET @@global.innodb_stats_on_metadata=@save_innodb_stats_on_metadata;

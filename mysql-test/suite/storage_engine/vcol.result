@@ -3,12 +3,12 @@ CREATE TABLE t1 (a <INT_COLUMN>, b <INT_COLUMN> GENERATED ALWAYS AS (a+1)) ENGIN
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	#		#	
-b	int(11)	#		#	VIRTUAL
+b	int(11)	#		#	VIRTUAL GENERATED
 INSERT INTO t1 (a) VALUES (1),(2);
 INSERT INTO t1 (a,b) VALUES (3,3),(4,4);
 Warnings:
-Warning	1906	The value specified for computed column 'b' in table 't1' ignored
-Warning	1906	The value specified for computed column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' ignored
 SELECT a,b FROM t1;
 a	b
 1	2
@@ -20,12 +20,12 @@ CREATE TABLE t1 (a <INT_COLUMN>, b <INT_COLUMN> GENERATED ALWAYS AS (a+1) PERSIS
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	#		#	
-b	int(11)	#		#	PERSISTENT
+b	int(11)	#		#	STORED GENERATED
 INSERT INTO t1 (a) VALUES (1),(2);
 INSERT INTO t1 (a,b) VALUES (3,3),(4,4);
 Warnings:
-Warning	1906	The value specified for computed column 'b' in table 't1' ignored
-Warning	1906	The value specified for computed column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' ignored
 SELECT a,b FROM t1;
 a	b
 1	2
@@ -37,12 +37,12 @@ CREATE TABLE t1 (a <INT_COLUMN>, b <INT_COLUMN> GENERATED ALWAYS AS (a+1) VIRTUA
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	#		#	
-b	int(11)	#		#	VIRTUAL
+b	int(11)	#		#	VIRTUAL GENERATED
 INSERT INTO t1 (a) VALUES (1),(2);
 INSERT INTO t1 (a,b) VALUES (3,3),(4,4);
 Warnings:
-Warning	1906	The value specified for computed column 'b' in table 't1' ignored
-Warning	1906	The value specified for computed column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' ignored
 SELECT a,b FROM t1;
 a	b
 1	2
@@ -54,12 +54,12 @@ CREATE TABLE t1 (a <INT_COLUMN>, b <INT_COLUMN> AS (a+1) PERSISTENT) ENGINE=<STO
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	#		#	
-b	int(11)	#		#	PERSISTENT
+b	int(11)	#		#	STORED GENERATED
 INSERT INTO t1 (a) VALUES (1),(2);
 INSERT INTO t1 (a,b) VALUES (3,3),(4,4);
 Warnings:
-Warning	1906	The value specified for computed column 'b' in table 't1' ignored
-Warning	1906	The value specified for computed column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' ignored
 SELECT a,b FROM t1;
 a	b
 1	2

@@ -1524,6 +1524,31 @@ SELECT * FROM t1 t1_1 LEFT JOIN t1 t1_2 ON ( t1_2.b = t1_1.a )
 
 DROP TABLE t1;
 
+--echo # Bug mdev-12788: UNION ALL + impossible having for derived
+--echo #                 with IN subquery in WHERE
+--echo #
+
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (pk int PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+
+let $q=
+SELECT 1, 2
+UNION ALL
+SELECT i, COUNT(*) FROM (
+  SELECT * FROM t1 WHERE i IN ( SELECT pk FROM t2 )
+) AS sq
+GROUP BY i
+HAVING i = 10;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+DROP TABLE t1,t2;
+
+
 --echo #
 --echo # Start of 10.3 tests
 --echo #

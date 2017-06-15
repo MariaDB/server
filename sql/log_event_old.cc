@@ -1587,7 +1587,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
         rli->report(ERROR_LEVEL, thd->net.last_errno, NULL,
                     "Error in %s event: row application failed. %s",
                     get_type_str(), thd->net.last_error);
-        thd->is_slave_error = 1;
+        thd->is_slave_error= 1;
 	break;
       }
 

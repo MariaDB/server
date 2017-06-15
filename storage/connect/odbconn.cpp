@@ -1,7 +1,7 @@
-/************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 2.2                                     */
+/***********************************************************************/
+/*  Name: ODBCONN.CPP  Version 2.3                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /*  This file contains the ODBC connection classes functions.          */
 /***********************************************************************/
@@ -239,47 +239,43 @@ char *ODBCCheckConnection(PGLOBAL g, char *dsn, int cop)
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
 /***********************************************************************/
-static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *db, 
-                                        char *tab, PQRYRES qrp)
-  {
-  size_t   i, m, n;
-  CATPARM *cap;
+static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, PCSZ db,
+	                                      PCSZ tab, PQRYRES qrp)
+{
+	size_t   i, m, n;
+	CATPARM *cap;
 
 #if defined(_DEBUG)
-  assert(qrp);
+	assert(qrp);
 #endif
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return NULL;
-    } // endif jump_level
+	try {
+		m = (size_t)qrp->Maxres;
+		n = (size_t)qrp->Nbcol;
+		cap = (CATPARM *)PlugSubAlloc(g, NULL, sizeof(CATPARM));
+		memset(cap, 0, sizeof(CATPARM));
+		cap->Id = fid;
+		cap->Qrp = qrp;
+		cap->DB = db;
+		cap->Tab = tab;
+		cap->Vlen = (SQLLEN* *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN *));
 
-  if (setjmp(g->jumper[++g->jump_level]) != 0) {
-    printf("%s\n", g->Message);
-    cap = NULL;
-    goto fin;
-    } // endif rc
+		for (i = 0; i < n; i++)
+			cap->Vlen[i] = (SQLLEN *)PlugSubAlloc(g, NULL, m * sizeof(SQLLEN));
 
-  m = (size_t)qrp->Maxres;
-  n = (size_t)qrp->Nbcol;
-  cap = (CATPARM *)PlugSubAlloc(g, NULL, sizeof(CATPARM));
-  memset(cap, 0, sizeof(CATPARM));
-  cap->Id = fid;
-  cap->Qrp = qrp;
-  cap->DB = (PUCHAR)db;
-  cap->Tab = (PUCHAR)tab;
-  cap->Vlen = (SQLLEN* *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN *));
+		cap->Status = (UWORD *)PlugSubAlloc(g, NULL, m * sizeof(UWORD));
 
-  for (i = 0; i < n; i++)
-    cap->Vlen[i] = (SQLLEN *)PlugSubAlloc(g, NULL, m * sizeof(SQLLEN));
+	} catch (int n) {
+		htrc("Exeption %d: %s\n", n, g->Message);
+		cap = NULL;
+	} catch (const char *msg) {
+		htrc(g->Message, msg);
+		printf("%s\n", g->Message);
+		cap = NULL;
+	} // end catch
 
-  cap->Status = (UWORD *)PlugSubAlloc(g, NULL, m * sizeof(UWORD));
-
- fin:
-  g->jump_level--;
-  return cap;
-  } // end of AllocCatInfo
+	return cap;
+} // end of AllocCatInfo
 
 #if 0
 /***********************************************************************/
@@ -309,8 +305,8 @@ static void ResetNullValues(CATPARM *cap)
 /*  ODBCColumns: constructs the result blocks containing all columns   */
 /*  of an ODBC table that will be retrieved by GetData commands.       */
 /***********************************************************************/
-PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
-                    char *colpat, int maxres, bool info, POPARM sop)
+PQRYRES ODBCColumns(PGLOBAL g, PCSZ dsn, PCSZ db, PCSZ table,
+	                  PCSZ colpat, int maxres, bool info, POPARM sop)
   {
   int  buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING,
                    TYPE_SHORT,  TYPE_STRING, TYPE_INT,    TYPE_INT,
@@ -383,7 +379,7 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
   if (!(cap = AllocCatInfo(g, CAT_COL, db, table, qrp)))
     return NULL;
 
-  cap->Pat = (PUCHAR)colpat;
+  cap->Pat = colpat;
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
@@ -618,8 +614,8 @@ PQRYRES ODBCDataSources(PGLOBAL g, int maxres, bool info)
 /*  ODBCTables: constructs the result blocks containing all tables in     */
 /*  an ODBC database that will be retrieved by GetData commands.          */
 /**************************************************************************/
-PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
-                   char *tabtyp, int maxres, bool info, POPARM sop)
+PQRYRES ODBCTables(PGLOBAL g, PCSZ dsn, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
+	                 int maxres, bool info, POPARM sop)
   {
   int      buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
                        TYPE_STRING, TYPE_STRING};
@@ -681,7 +677,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
   if (!(cap = AllocCatInfo(g, CAT_TAB, db, tabpat, qrp)))
     return NULL;
 
-	cap->Pat = (PUCHAR)tabtyp;
+	cap->Pat = tabtyp;
 
   if (trace)
     htrc("Getting table results ncol=%d\n", cap->Qrp->Nbcol);
@@ -879,7 +875,7 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
 /***********************************************************************/
 /*  Implementation of DBX class.                                       */
 /***********************************************************************/
-DBX::DBX(RETCODE rc, PSZ msg)
+DBX::DBX(RETCODE rc, PCSZ msg)
   {
   m_RC = rc;
   m_Msg = msg;
@@ -1020,7 +1016,7 @@ bool ODBConn::Check(RETCODE rc)
 /***********************************************************************/
 /*  DB exception throw routines.                                       */
 /***********************************************************************/
-void ODBConn::ThrowDBX(RETCODE rc, PSZ msg, HSTMT hstmt)
+void ODBConn::ThrowDBX(RETCODE rc, PCSZ msg, HSTMT hstmt)
   {
   DBX* xp = new(m_G) DBX(rc, msg);
 
@@ -1030,7 +1026,7 @@ void ODBConn::ThrowDBX(RETCODE rc, PSZ msg, HSTMT hstmt)
 
   } // end of ThrowDBX
 
-void ODBConn::ThrowDBX(PSZ msg)
+void ODBConn::ThrowDBX(PCSZ msg)
   {
   DBX* xp = new(m_G) DBX(0, "Error");
 
@@ -1110,7 +1106,7 @@ void ODBConn::OnSetOptions(HSTMT hstmt)
 /***********************************************************************/
 /*  Open: connect to a data source.                                    */
 /***********************************************************************/
-int ODBConn::Open(PSZ ConnectString, POPARM sop, DWORD options)
+int ODBConn::Open(PCSZ ConnectString, POPARM sop, DWORD options)
   {
   PGLOBAL& g = m_G;
 //ASSERT_VALID(this);
@@ -1192,7 +1188,7 @@ void ODBConn::AllocConnect(DWORD Options)
 
 #if defined(_DEBUG)
   if (Options & traceSQL) {
-    SQLSetConnectOption(m_hdbc, SQL_OPT_TRACEFILE, (DWORD)"xodbc.out");
+    SQLSetConnectOption(m_hdbc, SQL_OPT_TRACEFILE, (SQLULEN)"xodbc.out");
     SQLSetConnectOption(m_hdbc, SQL_OPT_TRACE, 1);
     } // endif
 #endif // _DEBUG
@@ -1215,7 +1211,7 @@ void ODBConn::AllocConnect(DWORD Options)
 
   // Turn on cursor lib support
   if (Options & useCursorLib)
-    rc = SQLSetConnectOption(m_hdbc, SQL_ODBC_CURSORS, SQL_CUR_USE_ODBC);
+    rc = SQLSetConnectOption(m_hdbc, SQL_ODBC_CURSORS, SQL_CUR_USE_DRIVER);
 
   return;
   } // end of AllocConnect
@@ -1921,7 +1917,7 @@ bool ODBConn::ExecSQLcommand(char *sql)
 /*  GetMetaData: constructs the result blocks containing the              */
 /*  description of all the columns of an SQL command.                     */
 /**************************************************************************/
-PQRYRES ODBConn::GetMetaData(PGLOBAL g, char *dsn, char *src)
+PQRYRES ODBConn::GetMetaData(PGLOBAL g, PCSZ dsn, PCSZ src)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_INT,
                           TYPE_SHORT,  TYPE_SHORT};
@@ -2244,7 +2240,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   void    *buffer;
   int      i, irc;
   bool     b;
-  PSZ      fnc = "Unknown";
+  PCSZ     fnc = "Unknown";
   UWORD    n;
   SWORD    ncol, len, tp;
   SQLULEN  crow = 0;
@@ -2283,22 +2279,20 @@ int ODBConn::GetCatInfo(CATPARM *cap)
     // Now do call the proper ODBC API
     switch (cap->Id) {
       case CAT_TAB:
-//      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
-//                                (SQLPOINTER)false, 0);
         fnc = "SQLTables";
         rc = SQLTables(hstmt, name.ptr(2), name.length(2),
                               name.ptr(1), name.length(1),
                               name.ptr(0), name.length(0),
-															cap->Pat, cap->Pat ? SQL_NTS : 0);
+					                    (SQLCHAR *)cap->Pat, 
+					                    cap->Pat ? SQL_NTS : 0);
         break;
       case CAT_COL:
-//      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
-//                                (SQLPOINTER)true, 0);
         fnc = "SQLColumns";
         rc = SQLColumns(hstmt, name.ptr(2), name.length(2),
                                name.ptr(1), name.length(1),
                                name.ptr(0), name.length(0),
-															 cap->Pat, cap->Pat ? SQL_NTS : 0);
+															 (SQLCHAR *)cap->Pat, 
+					                     cap->Pat ? SQL_NTS : 0);
         break;
       case CAT_KEY:
         fnc = "SQLPrimaryKeys";

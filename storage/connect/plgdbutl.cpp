@@ -238,88 +238,84 @@ void ptrc(char const *fmt, ...)
 PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
                        int *buftyp, XFLD *fldtyp, 
                        unsigned int *length, bool blank, bool nonull)
-  {
+{
   char     cname[NAM_LEN+1];
   int      i;
   PCOLRES *pcrp, crp;
   PQRYRES  qrp;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return NULL;
-    } // endif jump_level
+	try {
+		/**********************************************************************/
+		/*  Allocate the structure used to contain the result set.            */
+		/**********************************************************************/
+		qrp = (PQRYRES)PlugSubAlloc(g, NULL, sizeof(QRYRES));
+		pcrp = &qrp->Colresp;
+		qrp->Continued = false;
+		qrp->Truncated = false;
+		qrp->Info = false;
+		qrp->Suball = true;
+		qrp->Maxres = maxres;
+		qrp->Maxsize = 0;
+		qrp->Nblin = 0;
+		qrp->Nbcol = 0;                                     // will be ncol
+		qrp->Cursor = 0;
+		qrp->BadLines = 0;
 
-  if (setjmp(g->jumper[++g->jump_level]) != 0) {
-    printf("%s\n", g->Message);
-    qrp = NULL;
-    goto fin;
-    } // endif rc
+		for (i = 0; i < ncol; i++) {
+			*pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
+			crp = *pcrp;
+			pcrp = &crp->Next;
+			memset(crp, 0, sizeof(COLRES));
+			crp->Colp = NULL;
+			crp->Ncol = ++qrp->Nbcol;
+			crp->Type = buftyp[i];
+			crp->Length = length[i];
+			crp->Clen = GetTypeSize(crp->Type, length[i]);
+			crp->Prec = 0;
 
-  /************************************************************************/
-  /*  Allocate the structure used to contain the result set.              */
-  /************************************************************************/
-  qrp = (PQRYRES)PlugSubAlloc(g, NULL, sizeof(QRYRES));
-  pcrp = &qrp->Colresp;
-  qrp->Continued = false;
-  qrp->Truncated = false;
-  qrp->Info = false;
-  qrp->Suball = true;
-  qrp->Maxres = maxres;
-  qrp->Maxsize = 0;
-  qrp->Nblin = 0;
-  qrp->Nbcol = 0;                                     // will be ncol
-  qrp->Cursor = 0;
-  qrp->BadLines = 0;
-
-  for (i = 0; i < ncol; i++) {
-    *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
-    crp = *pcrp;
-    pcrp = &crp->Next;
-    memset(crp, 0, sizeof(COLRES));
-    crp->Colp = NULL;
-    crp->Ncol = ++qrp->Nbcol;
-    crp->Type = buftyp[i];
-    crp->Length = length[i];
-    crp->Clen = GetTypeSize(crp->Type, length[i]);
-    crp->Prec = 0;
-
-    if (ids > 0) {
+			if (ids > 0) {
 #if defined(XMSG)
-      // Get header from message file
-			strncpy(cname, PlugReadMessage(g, ids + crp->Ncol, NULL), NAM_LEN);
-			cname[NAM_LEN] = 0;					// for truncated long names
+				// Get header from message file
+				strncpy(cname, PlugReadMessage(g, ids + crp->Ncol, NULL), NAM_LEN);
+				cname[NAM_LEN] = 0;					// for truncated long names
 #else   // !XMSG
-      GetRcString(ids + crp->Ncol, cname, sizeof(cname));
+				GetRcString(ids + crp->Ncol, cname, sizeof(cname));
 #endif  // !XMSG
-      crp->Name = (PSZ)PlugDup(g, cname);
-    } else
-      crp->Name = NULL;           // Will be set by caller
+				crp->Name = (PSZ)PlugDup(g, cname);
+			} else
+				crp->Name = NULL;           // Will be set by caller
 
-    if (fldtyp)
-      crp->Fld = fldtyp[i];
-    else
-      crp->Fld = FLD_NO;
+			if (fldtyp)
+				crp->Fld = fldtyp[i];
+			else
+				crp->Fld = FLD_NO;
 
-    // Allocate the Value Block that will contain data
-    if (crp->Length || nonull)
-      crp->Kdata = AllocValBlock(g, NULL, crp->Type, maxres,
-                                    crp->Length, 0, true, blank, false);
-    else
-      crp->Kdata = NULL;
+			// Allocate the Value Block that will contain data
+			if (crp->Length || nonull)
+				crp->Kdata = AllocValBlock(g, NULL, crp->Type, maxres,
+					crp->Length, 0, true, blank, false);
+			else
+				crp->Kdata = NULL;
 
-    if (trace)
-      htrc("Column(%d) %s type=%d len=%d value=%p\n",
-              crp->Ncol, crp->Name, crp->Type, crp->Length, crp->Kdata);
+			if (trace)
+				htrc("Column(%d) %s type=%d len=%d value=%p\n",
+					crp->Ncol, crp->Name, crp->Type, crp->Length, crp->Kdata);
 
-    } // endfor i
+		} // endfor i
 
-  *pcrp = NULL;
+		*pcrp = NULL;
 
- fin:
-  g->jump_level--;
-  return qrp;
-  } // end of PlgAllocResult
+	} catch (int n) {
+  	htrc("Exception %d: %s\n", n, g->Message);
+	  qrp = NULL;
+  } catch (const char *msg) {
+  	strcpy(g->Message, msg);
+	  htrc("%s\n", g->Message);
+	  qrp = NULL;
+  } // end catch
+
+	return qrp;
+} // end of PlgAllocResult
 
 /***********************************************************************/
 /*  Allocate and initialize the new DB User Block.                     */
@@ -365,8 +361,8 @@ PCATLG PlgGetCatalog(PGLOBAL g, bool jump)
   if (!cat && jump) {
     // Raise exception so caller doesn't have to check return value
     strcpy(g->Message, MSG(NO_ACTIVE_DB));
-    longjmp(g->jumper[g->jump_level], 1);
-    } // endif cat
+		throw 1;
+	} // endif cat
 
   return cat;
   } // end of PlgGetCatalog
@@ -391,26 +387,27 @@ char *SetPath(PGLOBAL g, const char *path)
   char *buf= NULL;
 
 	if (path) {
-		size_t len= strlen(path) + (*path != '.' ? 4 : 1);
+		size_t len = strlen(path) + (*path != '.' ? 4 : 1);
 
-		buf= (char*)PlugSubAlloc(g, NULL, len);
-		
+		if (!(buf = (char*)PlgDBSubAlloc(g, NULL, len)))
+			return NULL;
+
 		if (PlugIsAbsolutePath(path)) {
-		  strcpy(buf, path);
-		  return buf;
-		  } // endif path
+			strcpy(buf, path);
+			return buf;
+		} // endif path
 
 		if (*path != '.') {
 #if defined(__WIN__)
-			char *s= "\\";
+			const char *s = "\\";
 #else   // !__WIN__
-			char *s= "/";
+			const char *s = "/";
 #endif  // !__WIN__
 			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
 		} else
 			strcpy(buf, path);
 
-		} // endif path
+	} // endif path
 
   return buf;
 } // end of SetPath
@@ -448,7 +445,7 @@ char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
 static bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
   {
   if (pat && strlen(pat)) {
-    // This leaves 512 bytes (MAX_STR / 2) for each components
+    // This leaves 2048 bytes (MAX_STR / 2) for each components
     LPSTR name = g->Message + MAX_STR / 2;
 
     strlwr(strcpy(name, string));
@@ -476,8 +473,8 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
       tp = g->Message;
     else if (!(tp = new char[strlen(pat) + strlen(strg) + 2])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
-      longjmp(g->jumper[g->jump_level], OP_LIKE);
-      } /* endif tp */
+			throw OP_LIKE;
+		} /* endif tp */
     
     sp = tp + strlen(pat) + 1;
     strlwr(strcpy(tp, pat));      /* Make a lower case copy of pat     */
@@ -487,8 +484,8 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
       tp = g->Message;            /* Use this as temporary work space. */
     else if (!(tp = new char[strlen(pat) + 1])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
-      longjmp(g->jumper[g->jump_level], OP_LIKE);
-      } /* endif tp */
+			throw OP_LIKE;
+		} /* endif tp */
     
     strcpy(tp, pat);                  /* Make a copy to be worked into */
     sp = (char*)strg;
@@ -676,7 +673,7 @@ void PlugConvertConstant(PGLOBAL g, void* & value, short& type)
 /*  format and a Strftime output format. Flag if not 0 indicates that  */
 /*  non quoted blanks are not included in the output format.           */
 /***********************************************************************/
-PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
+PDTP MakeDateFormat(PGLOBAL g, PCSZ dfmt, bool in, bool out, int flag)
 {
 	int  rc;
   PDTP pdp = (PDTP)PlugSubAlloc(g, NULL, sizeof(DATPAR));
@@ -685,7 +682,7 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
     htrc("MakeDateFormat: dfmt=%s\n", dfmt);
 
   memset(pdp, 0, sizeof(DATPAR));
-  pdp->Format = pdp->Curp = dfmt;
+  pdp->Format = pdp->Curp = PlugDup(g, dfmt);
   pdp->Outsize = 2 * strlen(dfmt) + 1;
 
   if (in)
@@ -727,10 +724,11 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
 /***********************************************************************/
 int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
   {
-  char *fmt, c, d, e, W[8][12];
-  int   i, k, m, numval;
-  int   n, y = 30;
-  bool  b = true;           // true for null dates
+	PCSZ fmt;
+	char c, d, e, W[8][12];
+  int  i, k, m, numval;
+  int  n, y = 30;
+  bool b = true;           // true for null dates
 
   if (pdp)
     fmt = pdp->InFmt;
@@ -917,7 +915,7 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
 
       fp->Memory = NULL;
       fp->Mode = MODE_ANY;
-      // Passthru
+      // fall through
     case TYPE_FB_HANDLE:
       if (fp->Handle && fp->Handle != INVALID_HANDLE_VALUE)
         if (CloseFileHandle(fp->Handle))
@@ -1255,7 +1253,7 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
     // in the area, do allocate from virtual storage.
 #if defined(__WIN__)
     if (mp.Size >= BIGMEM)
-      mp.Memp = VirtualAlloc(NULL, mp.Size, MEM_COMMIT, PAGE_READWRITE);
+      mp.Memp = VirtualAlloc(NULL, mp.Size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     else
 #endif
       mp.Memp = malloc(mp.Size);
@@ -1494,7 +1492,7 @@ void PlugPutOut(PGLOBAL g, FILE *f, short t, void *v, uint n)
     case TYPE_TABLE:
     case TYPE_TDB:
     case TYPE_XOBJECT:
-      ((PBLOCK)v)->Print(g, f, n-2);
+      ((PBLOCK)v)->Printf(g, f, n-2);
       break;
 
     default:
@@ -1520,8 +1518,8 @@ DllExport void NewPointer(PTABS t, void *oldv, void *newv)
       PGLOBAL g = t->G;
 
       sprintf(g->Message, "NewPointer: %s", MSG(MEM_ALLOC_ERROR));
-      longjmp(g->jumper[g->jump_level], 3);
-    } else {
+			throw 3;
+		} else {
       tp->Next = t->P1;
       tp->Num = 0;
       t->P1 = tp;
@@ -1557,15 +1555,15 @@ int FileComp(PGLOBAL g, char *file1, char *file2)
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "rb", (int)errno, fn[i]);
         strcat(strcat(g->Message, ": "), strerror(errno));
-        longjmp(g->jumper[g->jump_level], 666);
-//      } else
+				throw 666;
+				//      } else
 //        len[i] = 0;          // File does not exist yet
 
     } else {
       if ((len[i] = _filelength(h[i])) < 0) {
         sprintf(g->Message, MSG(FILELEN_ERROR), "_filelength", fn[i]);
-        longjmp(g->jumper[g->jump_level], 666);
-        } // endif len
+				throw 666;
+			} // endif len
 
     } // endif h
 

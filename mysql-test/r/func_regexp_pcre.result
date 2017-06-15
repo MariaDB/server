@@ -880,3 +880,17 @@ SET @regCheck= '\\xE0\\x01';
 SELECT CAST(0xE001 AS BINARY) REGEXP @regCheck;
 CAST(0xE001 AS BINARY) REGEXP @regCheck
 1
+# MDEV-12420: Testing recursion overflow
+SELECT 1 FROM dual WHERE ('Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,StrataCentral,Golf,Hotel,India,Juliet,Kilo,Lima,Mike,StrataL3,November,Oscar,StrataL2,Sand,P3,P4SwitchTest,Arsys,Poppa,ExtensionMgr,Arp,Quebec,Romeo,StrataApiV2,PtReyes,Sierra,SandAcl,Arrow,Artools,BridgeTest,Tango,SandT,PAlaska,Namespace,Agent,Qos,PatchPanel,ProjectReport,Ark,Gimp,Agent,SliceAgent,Arnet,Bgp,Ale,Tommy,Central,AsicPktTestLib,Hsc,SandL3,Abuild,Pca9555,Standby,ControllerDut,CalSys,SandLib,Sb820,PointV2,BfnLib,Evpn,BfnSdk,Sflow,ManagementActive,AutoTest,GatedTest,Bgp,Sand,xinetd,BfnAgentLib,bf-utils,Hello,BfnState,Eos,Artest,Qos,Scd,ThermoMgr,Uniform,EosUtils,Eb,FanController,Central,BfnL3,BfnL2,tcp_wrappers,Victor,Environment,Route,Failover,Whiskey,Xray,Gimp,BfnFixed,Strata,SoCal,XApi,Msrp,XpProfile,tcpdump,PatchPanel,ArosTest,FhTest,Arbus,XpAcl,MacConc,XpApi,telnet,QosTest,Alpha2,BfnVlan,Stp,VxlanControllerTest,MplsAgent,Bravo2,Lanz,BfnMbb,Intf,XCtrl,Unicast,SandTunnel,L3Unicast,Ipsec,MplsTest,Rsvp,EthIntf,StageMgr,Sol,MplsUtils,Nat,Ira,P4NamespaceDut,Counters,Charlie2,Aqlc,Mlag,Power,OpenFlow,Lag,RestApi,BfdTest,strongs,Sfa,CEosUtils,Adt746,MaintenanceMode,MlagDut,EosImage,IpEth,MultiProtocol,Launcher,Max3179,Snmp,Acl,IpEthTest,PhyEee,bf-syslibs,tacc,XpL2,p4-ar-switch,p4-bf-switch,LdpTest,BfnPhy,Mirroring,Phy6,Ptp'  REGEXP '^((?!\b(Strata|StrataApi|StrataApiV2)\b).)*$');
+1
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT REGEXP_INSTR('a_kollision', 'oll');
+REGEXP_INSTR('a_kollision', 'oll')
+4
+SELECT REGEXP_INSTR('a_kollision', '(oll)');
+REGEXP_INSTR('a_kollision', '(oll)')
+4
+SELECT REGEXP_INSTR('a_kollision', 'o([lm])\\1');
+REGEXP_INSTR('a_kollision', 'o([lm])\\1')
+4

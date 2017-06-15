@@ -1,7 +1,7 @@
 /*************** Tabodbc H Declares Source Code File (.H) **************/
-/*  Name: TABODBC.H   Version 1.8                                      */
+/*  Name: TABODBC.H   Version 1.9                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2017    */
 /*                                                                     */
 /*  This file contains the TDBODBC classes declares.                   */
 /***********************************************************************/
@@ -33,14 +33,7 @@ public:
   // Implementation
   virtual const char *GetType(void) {return "ODBC";}
   PSZ  GetConnect(void) {return Connect;}
-  //PSZ  GetTabname(void) {return Tabname;}
-  //PSZ  GetTabschema(void) {return Tabschema;}
-  //PSZ  GetTabcat(void) {return Tabcat;}
-  //PSZ  GetSrcdef(void) {return Srcdef;}
-  //char GetSep(void) {return (Sep) ? *Sep : 0;}
-  //int  GetQuoted(void) {return Quoted;} 
   int  GetCatver(void) {return Catver;}
-  //int  GetOptions(void) {return Options;}
 
   // Methods
 	virtual int  Indexable(void) {return 2;}
@@ -50,27 +43,7 @@ public:
  protected:
   // Members
   PSZ     Connect;            /* ODBC connection string                */
-  //PSZ     Tabname;            /* External table name                   */
-  //PSZ     Tabschema;          /* External table schema                 */
-  //PSZ     Username;           /* User connect name                     */
-  //PSZ     Password;           /* Password connect info                 */
-  //PSZ     Tabcat;             /* External table catalog                */
-	//PSZ     Tabtyp;             /* Catalog table type                    */
-	//PSZ     Colpat;             /* Catalog column pattern                */
-	//PSZ     Srcdef;             /* The source table SQL definition       */
-  //PSZ     Qchar;              /* Identifier quoting character          */
-  //PSZ     Qrystr;             /* The original query                    */
-  //PSZ     Sep;                /* Decimal separator                     */
   int     Catver;             /* ODBC version for catalog functions    */
-  //int     Options;            /* Open connection options               */
-  //int     Cto;                /* Open connection timeout               */
-  //int     Qto;                /* Query (command) timeout               */
-  //int     Quoted;             /* Identifier quoting level              */
-  //int     Maxerr;             /* Maxerr for an Exec table              */
-  //int     Maxres;             /* Maxres for a catalog table            */
-  //int     Memory;             /* Put result set in memory              */
-  //bool    Scrollable;         /* Use scrollable cursor                 */
-  //bool    Xsrc;               /* Execution type                        */
   bool    UseCnc;             /* Use SQLConnect (!SQLDriverConnect)    */
   }; // end of ODBCDEF
 
@@ -96,20 +69,16 @@ class TDBODBC : public TDBEXT {
 
   // Methods
   virtual PTDB Clone(PTABS t);
-//virtual int  GetRecpos(void);
   virtual bool SetRecpos(PGLOBAL g, int recpos);
-  virtual PSZ  GetFile(PGLOBAL g);
+  virtual PCSZ GetFile(PGLOBAL g);
   virtual void SetFile(PGLOBAL g, PSZ fn);
   virtual void ResetSize(void);
-//virtual int  GetAffectedRows(void) {return AftRows;}
-  virtual PSZ  GetServer(void) {return "ODBC";}
+  virtual PCSZ GetServer(void) {return "ODBC";}
   virtual int  Indexable(void) {return 2;}
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual int  Cardinality(PGLOBAL g);
-//virtual int  GetMaxSize(PGLOBAL g);
-//virtual int  GetProgMax(PGLOBAL g);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
   virtual int  WriteDB(PGLOBAL g);
@@ -119,14 +88,8 @@ class TDBODBC : public TDBEXT {
 
  protected:
   // Internal functions
-//int   Decode(char *utf, char *buf, size_t n);
-//bool  MakeSQL(PGLOBAL g, bool cnt);
   bool  MakeInsert(PGLOBAL g);
-//virtual bool  MakeCommand(PGLOBAL g);
-//bool  MakeFilter(PGLOBAL g, bool c);
   bool  BindParameters(PGLOBAL g);
-//char *MakeUpdate(PGLOBAL g);
-//char *MakeDelete(PGLOBAL g);
 
   // Members
   ODBConn *Ocp;               // Points to an ODBC connection class
@@ -145,15 +108,12 @@ class ODBCCOL : public EXTCOL {
   friend class TDBODBC;
  public:
   // Constructors
-  ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "ODBC");
+  ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "ODBC");
   ODBCCOL(ODBCCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
   virtual int     GetAmType(void) {return TYPE_AM_ODBC;}
           SQLLEN *GetStrLen(void) {return StrLen;}
-//        int     GetRank(void) {return Rank;}
-//        PVBLK   GetBlkp(void) {return Blkp;}
-//        void    SetCrp(PCOLRES crp) {Crp = crp;}
 
   // Methods
 //virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
@@ -162,7 +122,6 @@ class ODBCCOL : public EXTCOL {
           void   AllocateBuffers(PGLOBAL g, int rows);
           void  *GetBuffer(DWORD rows);
           SWORD  GetBuflen(void);
-//        void   Print(PGLOBAL g, FILE *, uint);
 
  protected:
   // Constructor for count(*) column
@@ -170,14 +129,8 @@ class ODBCCOL : public EXTCOL {
 
   // Members
   TIMESTAMP_STRUCT *Sqlbuf;    // To get SQL_TIMESTAMP's
-//PCOLRES Crp;                 // To storage result
-//void   *Bufp;                // To extended buffer
-//PVBLK   Blkp;                // To Value Block
-//char    F_Date[12];          // Internal Date format
-//PVAL    To_Val;              // To value used for Insert
   SQLLEN *StrLen;              // As returned by ODBC
   SQLLEN  Slen;                // Used with Fetch
-//int     Rank;                // Rank (position) number in the query
   }; // end of class ODBCCOL
 
 /***********************************************************************/
@@ -226,16 +179,15 @@ class XSRCCOL : public ODBCCOL {
   friend class TDBXDBC;
  public:
   // Constructors
-  XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "ODBC");
+  XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "ODBC");
   XSRCCOL(XSRCCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-//virtual int  GetAmType(void) {return TYPE_AM_ODBC;}
 
   // Methods
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
-//        void Print(PGLOBAL g, FILE *, uint);
+//        void Printf(PGLOBAL g, FILE *, uint);
 
  protected:
   // Members
@@ -287,10 +239,10 @@ class TDBOTB : public TDBDRV {
 	virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
-  char    *Dsn;               // Points to connection string
-  char    *Schema;            // Points to schema name or NULL
-  char    *Tab;               // Points to ODBC table name or pattern
-	char    *Tabtyp;            // Points to ODBC table type
+	PCSZ     Dsn;               // Points to connection string
+	PCSZ     Schema;            // Points to schema name or NULL
+	PCSZ     Tab;               // Points to ODBC table name or pattern
+	PCSZ     Tabtyp;            // Points to ODBC table type
 	ODBCPARM Ops;               // Additional parameters
   }; // end of class TDBOTB
 

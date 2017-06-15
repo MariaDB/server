@@ -2995,27 +2995,32 @@ row_sel_field_store_in_mysql_format_func(
 # define row_sel_store_mysql_field(m,p,r,i,o,f,t) \
 	row_sel_store_mysql_field_func(m,p,r,o,f,t)
 #endif /* UNIV_DEBUG */
-/**************************************************************//**
-Convert a field in the Innobase format to a field in the MySQL format. */
+/** Convert a field in the Innobase format to a field in the MySQL format.
+@param[out]	mysql_rec		record in the MySQL format
+@param[in,out]	prebuilt		prebuilt struct
+@param[in]	rec			InnoDB record; must be protected
+					by a page latch
+@param[in]	index			index of rec
+@param[in]	offsets			array returned by rec_get_offsets()
+@param[in]	field_no		templ->rec_field_no or
+					templ->clust_rec_field_no
+					or templ->icp_rec_field_no
+					or sec field no if clust_templ_for_sec
+					is TRUE
+@param[in]	templ			row template
+*/
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
 row_sel_store_mysql_field_func(
-/*===========================*/
-	byte*			mysql_rec,	/*!< out: record in the
-						MySQL format */
-	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt struct */
-	const rec_t*		rec,		/*!< in: InnoDB record;
-						must be protected by
-						a page latch */
+	byte*			mysql_rec,
+	row_prebuilt_t*		prebuilt,
+	const rec_t*		rec,
 #ifdef UNIV_DEBUG
-	const dict_index_t*	index,		/*!< in: index of rec */
-#endif /* UNIV_DEBUG */
-	const ulint*		offsets,	/*!< in: array returned by
-						rec_get_offsets() */
-	ulint			field_no,	/*!< in: templ->rec_field_no or
-						templ->clust_rec_field_no or
-						templ->icp_rec_field_no */
-	const mysql_row_templ_t*templ)		/*!< in: row template */
+	const dict_index_t*	index,
+#endif
+	const ulint*		offsets,
+	ulint			field_no,
+	const mysql_row_templ_t*templ)
 {
 	DBUG_ENTER("row_sel_store_mysql_field_func");
 
@@ -3151,31 +3156,36 @@ row_sel_store_mysql_field_func(
 	DBUG_RETURN(TRUE);
 }
 
-/**************************************************************//**
-Convert a row in the Innobase format to a row in the MySQL format.
+/** Convert a row in the Innobase format to a row in the MySQL format.
 Note that the template in prebuilt may advise us to copy only a few
 columns to mysql_rec, other columns are left blank. All columns may not
 be needed in the query.
+@param[out]	mysql_rec		row in the MySQL format
+@param[in]	prebuilt		prebuilt structure
+@param[in]	rec			Innobase record in the index
+					which was described in prebuilt's
+					template, or in the clustered index;
+					must be protected by a page latch
+@param[in]	vrow			virtual columns
+@param[in]	rec_clust		whether the rec in the clustered index
+@param[in]	index			index of rec
+@param[in]	offsets			array returned by rec_get_offsets(rec)
+@param[in]	clust_templ_for_sec	TRUE if rec belongs to secondary index
+					but the prebuilt->template is in
+					clustered index format and it is
+					used only for end range comparison
 @return TRUE on success, FALSE if not all columns could be retrieved */
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
 row_sel_store_mysql_rec(
-/*====================*/
-	byte*		mysql_rec,	/*!< out: row in the MySQL format */
-	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct */
-	const rec_t*	rec,		/*!< in: Innobase record in the index
-					which was described in prebuilt's
-					template, or in the clustered index;
-					must be protected by a page latch */
-	const dtuple_t*	vrow,		/*!< in: virtual columns */
-	ibool		rec_clust,	/*!< in: TRUE if rec is in the
-					clustered index instead of
-					prebuilt->index */
-	const dict_index_t* index,	/*!< in: index of rec */
-	const ulint*	offsets)	/*!< in: array returned by
-					rec_get_offsets(rec) */
+	byte*		mysql_rec,
+	row_prebuilt_t*	prebuilt,
+	const rec_t*	rec,
+	const dtuple_t*	vrow,
+	bool		rec_clust,
+	const dict_index_t* index,
+	const ulint*	offsets)
 {
-	ulint		i;
 	DBUG_ENTER("row_sel_store_mysql_rec");
 
 	ut_ad(rec_clust || index == prebuilt->index);
@@ -3185,7 +3195,7 @@ row_sel_store_mysql_rec(
 		row_mysql_prebuilt_free_blob_heap(prebuilt);
 	}
 
-	for (i = 0; i < prebuilt->n_template; i++) {
+	for (ulint i = 0; i < prebuilt->n_template; i++) {
 		const mysql_row_templ_t*templ = &prebuilt->mysql_template[i];
 
 		if (templ->is_virtual && dict_index_is_clust(index)) {
@@ -4027,7 +4037,7 @@ row_search_idx_cond_check(
 		if (!prebuilt->need_to_access_clustered
 		    || dict_index_is_clust(prebuilt->index)) {
 			if (!row_sel_store_mysql_rec(
-				    mysql_rec, prebuilt, rec, NULL, FALSE,
+				    mysql_rec, prebuilt, rec, NULL, false,
 				    prebuilt->index, offsets)) {
 				ut_ad(dict_index_is_clust(prebuilt->index));
 				return(ICP_NO_MATCH);
@@ -4399,7 +4409,8 @@ row_search_mvcc(
 
 				if (!row_sel_store_mysql_rec(
 					    buf, prebuilt,
-					    rec, NULL, FALSE, index, offsets)) {
+					    rec, NULL, false, index,
+					    offsets)) {
 					/* Only fresh inserts may contain
 					incomplete externally stored
 					columns. Pretend that such
@@ -5371,7 +5382,7 @@ requires_clust_rec:
 			appropriate version of the clustered index record. */
 			if (!row_sel_store_mysql_rec(
 				    buf, prebuilt, result_rec, vrow,
-				    TRUE, clust_index, offsets)) {
+				    true, clust_index, offsets)) {
 				goto next_rec;
 			}
 		}

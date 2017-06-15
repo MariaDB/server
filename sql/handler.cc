@@ -5685,6 +5685,20 @@ bool handler::check_table_binlog_row_based_internal(bool binlog_row)
        table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
        (thd->wsrep_ignore_table == true)))
     return 0;
+
+  /* enforce wsrep_max_ws_rows */
+  if (WSREP(thd) && table->s->tmp_table == NO_TMP_TABLE)
+  {
+    thd->wsrep_affected_rows++;
+    if (wsrep_max_ws_rows &&
+        thd->wsrep_exec_mode != REPL_RECV &&
+        thd->wsrep_affected_rows > wsrep_max_ws_rows)
+    {
+      trans_rollback_stmt(thd) || trans_rollback(thd);
+      my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
+      return ER_ERROR_DURING_COMMIT;
+    }
+  }
 #endif
 
   return (table->s->cached_row_logging_check &&
@@ -5893,7 +5907,7 @@ int handler::ha_external_lock(THD *thd, int lock_type)
 
   DBUG_EXECUTE_IF("external_lock_failure", error= HA_ERR_GENERIC;);
 
-  if (error == 0)
+  if (error == 0 || lock_type == F_UNLCK)
   {
     m_lock_type= lock_type;
     cached_table_flags= table_flags();
