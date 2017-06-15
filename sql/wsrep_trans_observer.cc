@@ -1127,12 +1127,23 @@ static int wsrep_after_rollback(Trans_param *param)
   {
     /*
       Statement rollback
-     */
+    */
     if ((thd->wsrep_is_streaming() && !wsrep_stmt_rollback_is_safe(thd)))
     {
       /*
         Statement rollback is not safe, do full rollback and report to client.
-       */
+      */
+      if (thd->wsrep_conflict_state() == NO_CONFLICT)
+      {
+        /*
+          If the statement rollback is due to an error, such as ER_DUP_ENTRY,
+          the client may not expect a full transaction rollback.
+          Set the conflict state to must abort here so that after_command()
+          hook will override the error to ER_LOCK_DEADLOCK.
+        */
+        thd->set_wsrep_conflict_state(MUST_ABORT);
+      }
+
       /*
         From trans_rollback()
       */
@@ -1141,7 +1152,7 @@ static int wsrep_after_rollback(Trans_param *param)
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       /*
         Calling ha_rollback_trans() here will call rollback hooks recursively.
-       */
+      */
       ha_rollback_trans(thd, TRUE);
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       thd->variables.option_bits&= ~OPTION_BEGIN;
