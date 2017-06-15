@@ -1,0 +1,161 @@
+-- source include/have_innodb.inc
+delimiter ~~;
+create or replace procedure drop_archives (in vtmd_name varchar(64))
+begin
+  declare archive_name varchar(64);
+  declare cur_done bool default false;
+  declare cur cursor for
+    select cur_tmp.archive_name from cur_tmp;
+  declare continue handler for not found set cur_done = true;
+
+  set @tmp= concat('
+    create or replace temporary table
+    cur_tmp as
+      select vtmd.archive_name from ', vtmd_name, ' as vtmd
+      for system_time all
+      where vtmd.archive_name is not null
+      group by vtmd.archive_name');
+  prepare stmt from @tmp; execute stmt; drop prepare stmt;
+
+  open cur;
+  fetch_loop: loop
+    fetch cur into archive_name;
+    if cur_done then
+      leave fetch_loop;
+    end if;
+    set @tmp= concat('drop table ', archive_name);
+    prepare stmt from @tmp; execute stmt; drop prepare stmt;
+  end loop;
+
+  drop table cur_tmp;
+end~~
+delimiter ;~~
+
+delimiter ~~;
+create or replace procedure check_vtmd (in vtmd_name varchar(64))
+begin
+  set @tmp= concat('
+    create or replace temporary table
+    tmp_vtmd as
+      select * from ', vtmd_name, ' as vtmd
+      for system_time all');
+  prepare stmt from @tmp; execute stmt; drop prepare stmt;
+
+  set @inf= 0xFFFFFFFFFFFFFFFF + 0;
+  set @start= null;
+  select start from tmp_vtmd for system_time all order by start limit 1 into @start;
+  select @start > 0 and @start < @inf;
+  select
+    start = @start as A_start,
+    (@start:= end) and end = @inf as B_end,
+    name,
+    substr(archive_name, 1, instr(archive_name, '_')) as C_archive_name
+  from tmp_vtmd for system_time all;
+
+  drop table tmp_vtmd;
+end~~
+delimiter ;~~
+
+# create
+set versioning_ddl_survival= off;
+create or replace table t0 (x int) with system versioning;
+show tables;
+set versioning_ddl_survival= on;
+create or replace table t0 (x int) with system versioning;
+show tables;
+show create table t0_vtmd;
+call check_vtmd('t0_vtmd');
+
+set versioning_ddl_survival= off;
+drop table t0;
+set versioning_ddl_survival= on;
+--error ER_VERS_VTMD_ERROR
+create or replace table t0 (x int) with system versioning;
+
+# alter
+alter table t0 add column (y int);
+call check_vtmd('t0_vtmd');
+
+call drop_archives('t0_vtmd');
+drop table t0_vtmd;
+alter table t0 drop column y;
+call check_vtmd('t0_vtmd');
+
+call drop_archives('t0_vtmd');
+set versioning_ddl_survival= off;
+drop tables t0, t0_vtmd;
+set versioning_ddl_survival= on;
+
+# rename
+set versioning_ddl_survival= off;
+create or replace table x0 (x int) with system versioning;
+set versioning_ddl_survival= on;
+rename table x0 to d0;
+show tables;
+
+set versioning_ddl_survival= off;
+drop table d0;
+set versioning_ddl_survival= on;
+create or replace table x0 (x int) with system versioning;
+rename table x0 to d0;
+show tables;
+call check_vtmd('d0_vtmd');
+
+set versioning_ddl_survival= off;
+drop table d0;
+set versioning_ddl_survival= on;
+create or replace table x0 (x int) with system versioning;
+
+--error ER_VERS_VTMD_ERROR
+rename table x0 to d0;
+show tables;
+
+drop table x0_vtmd;
+rename table x0 to d0;
+show tables;
+
+rename table d0 to duck;
+rename table duck to bay;
+rename table bay to sheer;
+rename table sheer to t0;
+call check_vtmd('t0_vtmd');
+
+alter table t0 add column (y int);
+call check_vtmd('t0_vtmd');
+
+# rename to different schema
+alter table t0 add column (z int);
+alter table t0 drop column y;
+alter table t0 drop column z;
+
+create database db0;
+rename table t0 to db0.t0;
+show tables;
+use db0;
+--replace_regex /\d{8}_\d{6}_\d{6}/TIMESTAMP_SUFFIX/
+show tables;
+call test.check_vtmd('db0.t0_vtmd');
+
+create database db1;
+rename table t0 to db1.other_name;
+show tables;
+use db1;
+--replace_regex /\d{8}_\d{6}_\d{6}/TIMESTAMP_SUFFIX/
+show tables;
+call test.check_vtmd('db1.other_name_vtmd');
+
+# alter rename
+alter table other_name rename to t1;
+call test.check_vtmd('db1.t1_vtmd');
+
+# alter rename and modify to different schema
+alter table t1 rename to test.t2, add column (y int);
+use test;
+--replace_regex /\d{8}_\d{6}_\d{6}/TIMESTAMP_SUFFIX/
+show tables;
+call check_vtmd('t2_vtmd');
+
+drop database db0;
+drop database db1;
+drop database test;
+create database test;

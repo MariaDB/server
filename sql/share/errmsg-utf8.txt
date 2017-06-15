@@ -7547,5 +7547,8 @@ ER_VERS_WRONG_QUERY
 WARN_VERS_ALIAS_TOO_LONG
         eng "Auto generated alias for `%s.%s` is too long; using `%s`."
 
+ER_VERS_VTMD_ERROR
+        eng "VTMD error: %s"
+
 ER_WRONG_TABLESPACE_NAME 42000
   eng "Incorrect tablespace name `%-.192s`"

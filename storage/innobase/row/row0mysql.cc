@@ -1875,6 +1875,7 @@ row_update_for_mysql_using_upd_graph(
 	upd_cascade_t*	new_upd_nodes;
 	upd_cascade_t*	processed_cascades;
 	bool		got_s_lock	= false;
+	bool		vers_delete	= prebuilt->upd_node->vers_delete;
 
 	DBUG_ENTER("row_update_for_mysql_using_upd_graph");
 
@@ -2004,8 +2005,7 @@ run_again:
 		upd_field_t* ufield;
 		dict_col_t* col;
 		unsigned col_idx;
-		if (node->is_delete ||
-			thd_sql_command(trx->mysql_thd) == SQLCOM_ALTER_TABLE) {
+		if (node->is_delete || vers_delete) {
 			ufield = &uvect->fields[0];
 			uvect->n_fields = 0;
 			node->is_delete = false;

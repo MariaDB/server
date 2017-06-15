@@ -56,6 +56,7 @@
 #include "sql_audit.h"
 #include "sql_sequence.h"
 #include "tztime.h"
+#include "vtmd.h"                 // System Versioning
 
 
 #ifdef __WIN__
@@ -2276,6 +2277,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     char *db=table->db;
     size_t db_length= table->db_length;
     handlerton *table_type= 0;
+    VTMD_drop vtmd(*table);
 
     DBUG_PRINT("table", ("table_l: '%s'.'%s'  table: 0x%lx  s: 0x%lx",
                          table->db, table->table_name, (long) table->table,
@@ -2474,8 +2476,24 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       // Remove extension for delete
       *(end= path + path_length - reg_ext_length)= '\0';
 
-      error= ha_delete_table(thd, table_type, path, db, table->table_name,
-                             !dont_log_query);
+      if (thd->lex->sql_command == SQLCOM_DROP_TABLE &&
+        thd->variables.vers_ddl_survival &&
+        table_type && table_type != view_pseudo_hton)
+      {
+        error= vtmd.check_exists(thd);
+        if (error)
+          goto non_tmp_err;
+        if (!vtmd.exists)
+          goto drop_table;
+        error= mysql_rename_table(table_type, table->db, table->table_name,
+                                   table->db, vtmd.archive_name(thd), NO_FK_CHECKS);
+      }
+      else
+      {
+      drop_table:
+        error= ha_delete_table(thd, table_type, path, db, table->table_name,
+                              !dont_log_query);
+      }
 
       if (!error)
       {
@@ -2510,8 +2528,18 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         else if (frm_delete_error && if_exists)
           thd->clear_error();
       }
+    non_tmp_err:
       non_tmp_error|= MY_TEST(error);
     }
+
+    if (!error && vtmd.exists)
+    {
+      error= vtmd.update(thd);
+      if (error)
+        mysql_rename_table(table_type, table->db, vtmd.archive_name(),
+                                   table->db, table->table_name, NO_FK_CHECKS);
+    }
+
     if (error)
     {
       if (wrong_tables.length())
@@ -5040,11 +5068,22 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     {
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
       result= 1;
+      goto err;
     }
     else
     {
       TABLE *table= pos_in_locked_tables->table;
       table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
+    }
+  }
+
+  if (create_info->versioned() && thd->variables.vers_ddl_survival)
+  {
+    VTMD_table vtmd(*create_table);
+    if (vtmd.update(thd))
+    {
+      result= 1;
+      goto err;
     }
   }
 
@@ -5154,15 +5193,6 @@ static void make_unique_constraint_name(THD *thd, LEX_STRING *name,
 /****************************************************************************
 ** Alter a table definition
 ****************************************************************************/
-
-static void vers_table_name_date(THD *thd, const char *table_name,
-                                 char *new_name, size_t new_name_size)
-{
-  const MYSQL_TIME now= thd->query_start_TIME();
-  my_snprintf(new_name, new_name_size, "%s_%04d%02d%02d_%02d%02d%02d_%06d",
-              table_name, now.year, now.month, now.day, now.hour, now.minute,
-              now.second, now.second_part);
-}
 
 bool operator!=(const MYSQL_TIME &lhs, const MYSQL_TIME &rhs)
 {
@@ -5466,6 +5496,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   /* Replace type of source table with one specified in the statement. */
   local_create_info.options&= ~HA_LEX_CREATE_TMP_TABLE;
   local_create_info.options|= create_info->tmp_table();
+  local_create_info.options|= create_info->options;
   /* Reset auto-increment counter for the new table. */
   local_create_info.auto_increment_value= 0;
   /*
@@ -8529,18 +8560,27 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     if (mysql_rename_table(old_db_type, alter_ctx->db, alter_ctx->table_name,
                            alter_ctx->new_db, alter_ctx->new_alias, 0))
       error= -1;
-    else if (Table_triggers_list::change_table_name(thd,
-                                                    alter_ctx->db,
-                                                    alter_ctx->alias,
-                                                    alter_ctx->table_name,
-                                                    alter_ctx->new_db,
-                                                    alter_ctx->new_alias))
+    else
     {
-      (void) mysql_rename_table(old_db_type,
-                                alter_ctx->new_db, alter_ctx->new_alias,
-                                alter_ctx->db, alter_ctx->table_name,
-                                NO_FK_CHECKS);
-      error= -1;
+      VTMD_rename vtmd(*table_list);
+      if (thd->variables.vers_ddl_survival && vtmd.try_rename(thd, new_db_name, new_table_name))
+        goto revert_table_name;
+      else if (Table_triggers_list::change_table_name(thd,
+                                                      alter_ctx->db,
+                                                      alter_ctx->alias,
+                                                      alter_ctx->table_name,
+                                                      alter_ctx->new_db,
+                                                      alter_ctx->new_alias))
+      {
+        if (thd->variables.vers_ddl_survival)
+          vtmd.revert_rename(thd, new_db_name);
+revert_table_name:
+        (void) mysql_rename_table(old_db_type,
+                                  alter_ctx->new_db, alter_ctx->new_alias,
+                                  alter_ctx->db, alter_ctx->table_name,
+                                  NO_FK_CHECKS);
+        error= -1;
+      }
     }
   }
 
@@ -8672,7 +8712,11 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                           &alter_prelocking_strategy);
   thd->open_options&= ~HA_OPEN_FOR_ALTER;
   bool versioned= table_list->table && table_list->table->versioned();
-  if (versioned && thd->variables.vers_ddl_survival)
+  bool vers_data_mod= versioned &&
+    thd->variables.vers_ddl_survival &&
+    alter_info->vers_data_modifying();
+
+  if (vers_data_mod)
   {
     table_list->set_lock_type(thd, TL_WRITE);
     if (thd->mdl_context.upgrade_shared_lock(table_list->table->mdl_ticket,
@@ -9003,7 +9047,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       Upgrade from MDL_SHARED_UPGRADABLE to MDL_SHARED_NO_WRITE.
       Afterwards it's safe to take the table level lock.
     */
-    if ((!(versioned && thd->variables.vers_ddl_survival) &&
+    if ((!vers_data_mod &&
          thd->mdl_context.upgrade_shared_lock(
              mdl_ticket, MDL_SHARED_NO_WRITE,
              thd->variables.lock_wait_timeout)) ||
@@ -9435,8 +9479,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                  alter_info->keys_onoff,
                                  &alter_ctx))
     {
-      if (table->versioned_by_sql() && new_versioned &&
-          thd->variables.vers_ddl_survival)
+      if (vers_data_mod && new_versioned && table->versioned_by_sql())
       {
         // Failure of this function may result in corruption of an original table.
         vers_reset_alter_copy(thd, table);
@@ -9538,8 +9581,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     anything goes wrong while renaming the new table.
   */
   char backup_name[FN_LEN];
-  if (versioned && thd->variables.vers_ddl_survival)
-    vers_table_name_date(thd, alter_ctx.table_name, backup_name,
+  if (vers_data_mod)
+    VTMD_table::archive_name(thd, alter_ctx.table_name, backup_name,
                          sizeof(backup_name));
   else
     my_snprintf(backup_name, sizeof(backup_name), "%s2-%lx-%lx",
@@ -9572,6 +9615,17 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     goto err_with_mdl;
   }
 
+  if (vers_data_mod && new_versioned)
+  {
+    DBUG_ASSERT(alter_info && table_list);
+    VTMD_rename vtmd(*table_list);
+    bool rc= alter_info->flags & Alter_info::ALTER_RENAME ?
+      vtmd.try_rename(thd, alter_ctx.new_db, alter_ctx.new_alias, backup_name) :
+      vtmd.update(thd, backup_name);
+    if (rc)
+      goto err_after_rename;
+  }
+
   // Check if we renamed the table and if so update trigger files.
   if (alter_ctx.is_table_renamed())
   {
@@ -9582,6 +9636,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                                alter_ctx.new_db,
                                                alter_ctx.new_alias))
     {
+err_after_rename:
       // Rename succeeded, delete the new table.
       (void) quick_rm_table(thd, new_db_type,
                             alter_ctx.new_db, alter_ctx.new_alias, 0);
@@ -9596,7 +9651,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
 
   // ALTER TABLE succeeded, delete the backup of the old table.
-  if (!(versioned && new_versioned && thd->variables.vers_ddl_survival) &&
+  if (!(vers_data_mod && new_versioned) &&
       quick_rm_table(thd, old_db_type, alter_ctx.db, backup_name, FN_IS_TMP))
   {
     /*

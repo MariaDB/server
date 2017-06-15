@@ -1914,6 +1914,18 @@ private:
 };
 
 
+class Query_tables_backup
+{
+  THD *thd;
+  Query_tables_list backup;
+
+public:
+  Query_tables_backup(THD *_thd);
+  ~Query_tables_backup();
+  const Query_tables_list& get() const { return backup; }
+};
+
+
 /*
   st_parsing_options contains the flags for constructions that are
   allowed in the current statement.

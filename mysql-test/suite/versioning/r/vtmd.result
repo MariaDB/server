@@ -1,0 +1,271 @@
+create or replace procedure drop_archives (in vtmd_name varchar(64))
+begin
+declare archive_name varchar(64);
+declare cur_done bool default false;
+declare cur cursor for
+select cur_tmp.archive_name from cur_tmp;
+declare continue handler for not found set cur_done = true;
+set @tmp= concat('
+    create or replace temporary table
+    cur_tmp as
+      select vtmd.archive_name from ', vtmd_name, ' as vtmd
+      for system_time all
+      where vtmd.archive_name is not null
+      group by vtmd.archive_name');
+prepare stmt from @tmp; execute stmt; drop prepare stmt;
+open cur;
+fetch_loop: loop
+fetch cur into archive_name;
+if cur_done then
+leave fetch_loop;
+end if;
+set @tmp= concat('drop table ', archive_name);
+prepare stmt from @tmp; execute stmt; drop prepare stmt;
+end loop;
+drop table cur_tmp;
+end~~
+create or replace procedure check_vtmd (in vtmd_name varchar(64))
+begin
+set @tmp= concat('
+    create or replace temporary table
+    tmp_vtmd as
+      select * from ', vtmd_name, ' as vtmd
+      for system_time all');
+prepare stmt from @tmp; execute stmt; drop prepare stmt;
+set @inf= 0xFFFFFFFFFFFFFFFF + 0;
+set @start= null;
+select start from tmp_vtmd for system_time all order by start limit 1 into @start;
+select @start > 0 and @start < @inf;
+select
+start = @start as A_start,
+(@start:= end) and end = @inf as B_end,
+name,
+substr(archive_name, 1, instr(archive_name, '_')) as C_archive_name
+from tmp_vtmd for system_time all;
+drop table tmp_vtmd;
+end~~
+set versioning_ddl_survival= off;
+create or replace table t0 (x int) with system versioning;
+show tables;
+Tables_in_test
+t0
+set versioning_ddl_survival= on;
+create or replace table t0 (x int) with system versioning;
+show tables;
+Tables_in_test
+t0
+t0_vtmd
+show create table t0_vtmd;
+Table	Create Table
+t0_vtmd	CREATE TABLE `t0_vtmd` (
+  `start` bigint(20) unsigned GENERATED ALWAYS AS ROW START COMMENT 'TRX_ID of table lifetime start',
+  `end` bigint(20) unsigned GENERATED ALWAYS AS ROW END NOT NULL COMMENT 'TRX_ID of table lifetime end',
+  `name` varchar(64) COLLATE utf8_bin NOT NULL COMMENT 'Table name during period [start, end)',
+  `archive_name` varchar(64) COLLATE utf8_bin DEFAULT NULL COMMENT 'Name of archive table',
+  `col_renames` blob DEFAULT NULL COMMENT 'Column name mappings from previous lifetime',
+  PRIMARY KEY (`end`),
+  KEY `archive_name` (`archive_name`),
+  PERIOD FOR SYSTEM_TIME (`start`, `end`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0 WITH SYSTEM VERSIONING
+call check_vtmd('t0_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	1	t0	NULL
+set versioning_ddl_survival= off;
+drop table t0;
+set versioning_ddl_survival= on;
+create or replace table t0 (x int) with system versioning;
+ERROR HY000: VTMD error: `test.t0_vtmd` exists and not empty!
+alter table t0 add column (y int);
+call check_vtmd('t0_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	t0	t0_
+1	1	t0	NULL
+call drop_archives('t0_vtmd');
+drop table t0_vtmd;
+alter table t0 drop column y;
+call check_vtmd('t0_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	1	t0	t0_
+call drop_archives('t0_vtmd');
+set versioning_ddl_survival= off;
+drop tables t0, t0_vtmd;
+set versioning_ddl_survival= on;
+set versioning_ddl_survival= off;
+create or replace table x0 (x int) with system versioning;
+set versioning_ddl_survival= on;
+rename table x0 to d0;
+show tables;
+Tables_in_test
+d0
+set versioning_ddl_survival= off;
+drop table d0;
+set versioning_ddl_survival= on;
+create or replace table x0 (x int) with system versioning;
+rename table x0 to d0;
+show tables;
+Tables_in_test
+d0
+d0_vtmd
+call check_vtmd('d0_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	x0	NULL
+1	1	d0	NULL
+set versioning_ddl_survival= off;
+drop table d0;
+set versioning_ddl_survival= on;
+create or replace table x0 (x int) with system versioning;
+rename table x0 to d0;
+ERROR HY000: VTMD error: `test.d0_vtmd` table already exists!
+show tables;
+Tables_in_test
+d0_vtmd
+x0
+x0_vtmd
+drop table x0_vtmd;
+rename table x0 to d0;
+Warnings:
+Warning	4088	`test.d0_vtmd` table already exists!
+show tables;
+Tables_in_test
+d0
+d0_vtmd
+rename table d0 to duck;
+rename table duck to bay;
+rename table bay to sheer;
+rename table sheer to t0;
+call check_vtmd('t0_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	x0	NULL
+1	0	d0	NULL
+1	0	duck	NULL
+1	0	bay	NULL
+1	0	sheer	NULL
+1	1	t0	NULL
+alter table t0 add column (y int);
+call check_vtmd('t0_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	x0	t0_
+1	0	d0	t0_
+1	0	duck	t0_
+1	0	bay	t0_
+1	0	sheer	t0_
+1	0	t0	t0_
+1	1	t0	NULL
+alter table t0 add column (z int);
+alter table t0 drop column y;
+alter table t0 drop column z;
+create database db0;
+rename table t0 to db0.t0;
+show tables;
+Tables_in_test
+use db0;
+show tables;
+Tables_in_db0
+t0
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t0_vtmd
+call test.check_vtmd('db0.t0_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	x0	t0_
+1	0	d0	t0_
+1	0	duck	t0_
+1	0	bay	t0_
+1	0	sheer	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	1	t0	NULL
+create database db1;
+rename table t0 to db1.other_name;
+show tables;
+Tables_in_db0
+use db1;
+show tables;
+Tables_in_db1
+other_name
+other_name_vtmd
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+call test.check_vtmd('db1.other_name_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	x0	t0_
+1	0	d0	t0_
+1	0	duck	t0_
+1	0	bay	t0_
+1	0	sheer	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	NULL
+1	1	other_name	NULL
+alter table other_name rename to t1;
+call test.check_vtmd('db1.t1_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	x0	t0_
+1	0	d0	t0_
+1	0	duck	t0_
+1	0	bay	t0_
+1	0	sheer	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	NULL
+1	0	other_name	NULL
+1	1	t1	NULL
+alter table t1 rename to test.t2, add column (y int);
+use test;
+show tables;
+Tables_in_test
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t2
+t2_vtmd
+call check_vtmd('t2_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	x0	t0_
+1	0	d0	t0_
+1	0	duck	t0_
+1	0	bay	t0_
+1	0	sheer	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	t0_
+1	0	t0	t1_
+1	0	other_name	t1_
+1	0	t1	t1_
+1	1	t2	NULL
+drop database db0;
+drop database db1;
+drop database test;
+create database test;

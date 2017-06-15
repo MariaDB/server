@@ -23,6 +23,8 @@ set sql_mode='';
 set @orig_storage_engine=@@storage_engine;
 set storage_engine=myisam;
 
+set versioning_ddl_survival=off;
+
 set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
 SET @innodb_or_myisam=IF(@have_innodb <> 0, 'InnoDB', 'MyISAM');
 
@@ -129,14 +131,15 @@ SET @create_innodb_index_stats="CREATE TABLE IF NOT EXISTS innodb_index_stats (
 	PRIMARY KEY (database_name, table_name, index_name, stat_name)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0";
 
-SET @create_vtmd_template="CREATE TABLE IF NOT EXISTS vtmd_template (
+SET @create_vtmd_template="CREATE OR REPLACE TABLE vtmd_template (
 	start		BIGINT UNSIGNED GENERATED ALWAYS AS ROW START	COMMENT 'TRX_ID of table lifetime start',
 	end		BIGINT UNSIGNED GENERATED ALWAYS AS ROW END	COMMENT 'TRX_ID of table lifetime end',
 	name		VARCHAR(64) NOT NULL				COMMENT 'Table name during period [start, end)',
 	archive_name	VARCHAR(64) NULL				COMMENT 'Name of archive table',
 	col_renames	BLOB						COMMENT 'Column name mappings from previous lifetime',
 	PERIOD FOR SYSTEM_TIME(start, end),
-	PRIMARY KEY (end)
+	PRIMARY KEY (end),
+	INDEX (archive_name)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0 WITH SYSTEM VERSIONING";
 
 SET @str=IF(@have_innodb <> 0, @create_innodb_table_stats, "SET @dummy = 0");

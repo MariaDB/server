@@ -8717,11 +8717,11 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	vers_set_fields = table->versioned() && (
-		!is_innopart() &&
-		sql_command != SQLCOM_CREATE_TABLE) ?
-			ROW_INS_VERSIONED :
-			ROW_INS_NORMAL;
+	vers_set_fields = (table->versioned() && !is_innopart() &&
+		(sql_command != SQLCOM_CREATE_TABLE || table->s->vtmd))
+		?
+		ROW_INS_VERSIONED :
+		ROW_INS_NORMAL;
 
 	/* Step-5: Execute insert graph that will result in actual insert. */
 	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
@@ -9500,7 +9500,8 @@ ha_innobase::update_row(
 
 	upd_t*		uvect = row_get_prebuilt_update_vector(m_prebuilt);
 	ib_uint64_t	autoinc;
-	bool		vers_set_fields;
+	bool		vers_set_fields = false;
+	bool		vers_ins_row = false;
 
 	/* Build an update vector from the modified fields in the rows
 	(uses m_upd_buf of the handle) */
@@ -9526,12 +9527,23 @@ ha_innobase::update_row(
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	vers_set_fields = m_prebuilt->upd_node->versioned && !is_innopart();
+	if (!table->versioned())
+		m_prebuilt->upd_node->versioned = false;
+
+	if (m_prebuilt->upd_node->versioned && !is_innopart()) {
+		vers_set_fields = true;
+		if (thd_sql_command(m_user_thd) == SQLCOM_ALTER_TABLE && !table->s->vtmd)
+		{
+			m_prebuilt->upd_node->vers_delete = true;
+		} else {
+			m_prebuilt->upd_node->vers_delete = false;
+			vers_ins_row = true;
+		}
+	}
 
 	error = row_update_for_mysql((byte*) old_row, m_prebuilt, vers_set_fields);
 
-	if (error == DB_SUCCESS && vers_set_fields &&
-		thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE) {
+	if (error == DB_SUCCESS && vers_ins_row) {
 		if (trx->id != static_cast<trx_id_t>(table->vers_start_field()->val_int()))
 			error = row_insert_for_mysql((byte*) old_row, m_prebuilt, ROW_INS_HISTORICAL);
 	}

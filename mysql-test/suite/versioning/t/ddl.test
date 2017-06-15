@@ -30,7 +30,7 @@ end~~
 
 delimiter ;~~
 
-set versioning_ddl_survival = 1;
+set versioning_ddl_survival= on;
 
 create or replace table t (a int) with system versioning;
 insert into t values (1);
@@ -48,6 +48,11 @@ call concat_exec3('select @tm=sys_trx_end from ', get_historical_table_name('t')
 
 call drop_last_historical('t');
 
+
+set versioning_ddl_survival= off;
+drop table t_vtmd;
+drop table t;
+set versioning_ddl_survival= on;
 
 # same for INNODB ALGORITHM=COPY
 create or replace table t (a int) with system versioning;
@@ -67,6 +72,11 @@ call concat_exec3('select @tm=sys_trx_end from ', get_historical_table_name('t')
 call drop_last_historical('t');
 
 
+set versioning_ddl_survival= off;
+drop table t_vtmd;
+drop table t;
+set versioning_ddl_survival= on;
+
 # same for INNODB default ALGORITHM
 create or replace table t (a int) with system versioning engine innodb;
 insert into t values (1);
@@ -84,6 +94,11 @@ call concat_exec3('select @tm=sys_trx_end from ', get_historical_table_name('t')
 
 call drop_last_historical('t');
 
+
+set versioning_ddl_survival= off;
+drop table t_vtmd;
+drop table t;
+set versioning_ddl_survival= on;
 
 # no DDL for INNODB explicit ALGORITHM=INPLACE
 create or replace table t (a int) with system versioning engine innodb;

@@ -751,6 +751,7 @@ struct TABLE_SHARE
    */
 
   bool versioned;
+  bool vtmd;
   uint16 row_start_field;
   uint16 row_end_field;
   uint32 hist_part_id;
@@ -2354,6 +2355,7 @@ struct TABLE_LIST
 
   /* System Versioning */
   vers_select_conds_t vers_conditions;
+  bool vers_vtmd_name(String &out) const;
 
   /**
      @brief

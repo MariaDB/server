@@ -7029,6 +7029,19 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 }
 
 
+Query_tables_backup::Query_tables_backup(THD* _thd) :
+  thd(_thd)
+{
+  thd->lex->reset_n_backup_query_tables_list(&backup);
+}
+
+
+Query_tables_backup::~Query_tables_backup()
+{
+  thd->lex->restore_backup_query_tables_list(&backup);
+}
+
+
 bool LEX::sp_add_cfetch(THD *thd, const LEX_STRING &name)
 {
   uint offset;

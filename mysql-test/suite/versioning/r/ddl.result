@@ -82,7 +82,7 @@ create procedure drop_last_historical(table_name_arg varchar(255))
 begin
 call concat_exec2('drop table ', get_historical_table_name(table_name_arg));
 end~~
-set versioning_ddl_survival = 1;
+set versioning_ddl_survival= on;
 create or replace table t (a int) with system versioning;
 insert into t values (1);
 update t set a=2 where a=1;
@@ -106,6 +106,10 @@ call concat_exec3('select @tm=sys_trx_end from ', get_historical_table_name('t')
 @tm=sys_trx_end
 1
 call drop_last_historical('t');
+set versioning_ddl_survival= off;
+drop table t_vtmd;
+drop table t;
+set versioning_ddl_survival= on;
 create or replace table t (a int) with system versioning;
 insert into t values (1);
 update t set a=2 where a=1;
@@ -129,6 +133,10 @@ call concat_exec3('select @tm=sys_trx_end from ', get_historical_table_name('t')
 @tm=sys_trx_end
 1
 call drop_last_historical('t');
+set versioning_ddl_survival= off;
+drop table t_vtmd;
+drop table t;
+set versioning_ddl_survival= on;
 create or replace table t (a int) with system versioning engine innodb;
 insert into t values (1);
 update t set a=2 where a=1;
@@ -152,6 +160,10 @@ call concat_exec3('select @tm=sys_trx_end from ', get_historical_table_name('t')
 @tm=sys_trx_end
 1
 call drop_last_historical('t');
+set versioning_ddl_survival= off;
+drop table t_vtmd;
+drop table t;
+set versioning_ddl_survival= on;
 create or replace table t (a int) with system versioning engine innodb;
 insert into t values (1);
 update t set a=2 where a=1;
@@ -172,6 +184,7 @@ vtmd_template	CREATE TABLE `vtmd_template` (
   `archive_name` varchar(64) COLLATE utf8_bin DEFAULT NULL COMMENT 'Name of archive table',
   `col_renames` blob DEFAULT NULL COMMENT 'Column name mappings from previous lifetime',
   PRIMARY KEY (`end`),
+  KEY `archive_name` (`archive_name`),
   PERIOD FOR SYSTEM_TIME (`start`, `end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0 WITH SYSTEM VERSIONING
 call verify_vtq;
@@ -181,6 +194,13 @@ No	A	B	C	D
 3	1	1	1	1
 4	1	1	1	1
 5	1	1	1	1
+6	1	1	1	1
+7	1	1	1	1
+8	1	1	1	1
+9	1	1	1	1
+10	1	1	1	1
+11	1	1	1	1
+12	1	1	1	1
 drop table t;
 drop procedure verify_vtq;
 drop procedure innodb_verify_vtq;
