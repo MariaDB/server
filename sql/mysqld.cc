@@ -3939,8 +3939,9 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
                         (longlong) thd->status_var.local_memory_used,
                         size));
     thd->status_var.local_memory_used+= size;
-    if (thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
-        !thd->killed)
+    if (size > 0 &&
+        thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
+        !thd->killed && !thd->get_stmt_da()->is_set())
     {
       char buf[1024];
       thd->killed= KILL_QUERY;
@@ -6646,11 +6647,12 @@ void handle_connections_sockets()
     */
 
     DBUG_PRINT("info", ("Creating THD for new connection"));
-    if (!(thd= new THD))
+    if (!(thd= new THD) || thd->is_error())
     {
       (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
       (void) mysql_socket_close(new_sock);
       statistic_increment(connection_errors_internal, &LOCK_status);
+      delete thd;
       continue;
     }
     /* Set to get io buffers to be part of THD */
