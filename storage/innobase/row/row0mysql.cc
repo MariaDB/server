@@ -3558,8 +3558,7 @@ row_drop_single_table_tablespace(
 
 	/* If the tablespace is not in the cache, just delete the file. */
 	if (!fil_space_for_table_exists_in_mem(
-		    space_id, tablename, true, false, NULL, 0, NULL,
-		    table_flags)) {
+		    space_id, tablename, true, false, NULL, 0, table_flags)) {
 
 		/* Force a delete of any discarded or temporary files. */
 		fil_delete_file(filepath);
@@ -3896,19 +3895,6 @@ row_drop_table_for_mysql(
 	/* As we don't insert entries to SYSTEM TABLES for temp-tables
 	we need to avoid running removal of these entries. */
 	if (!dict_table_is_temporary(table)) {
-
-		/* If table has not yet have crypt_data, try to read it to
-		make freeing the table easier. */
-		if (!table->crypt_data) {
-			if (fil_space_t* space = fil_space_acquire_silent(
-				    table->space)) {
-				/* We use crypt data in dict_table_t
-				in ha_innodb.cc to push warnings to
-				user thread. */
-				table->crypt_data = space->crypt_data;
-				fil_space_release(space);
-			}
-		}
 
 		/* We use the private SQL parser of Innobase to generate the
 		query graphs needed in deleting the dictionary data from system

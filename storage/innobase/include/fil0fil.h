@@ -1106,8 +1106,7 @@ fil_ibd_open(
 	ulint		id,
 	ulint		flags,
 	const char*	tablename,
-	const char*	path_in,
-	dict_table_t*	table)	/*!< in: table */
+	const char*	path_in)
 	MY_ATTRIBUTE((warn_unused_result));
 
 enum fil_load_status {
@@ -1169,7 +1168,6 @@ fil_space_for_table_exists_in_mem(
 					when find table space mismatch */
 	mem_heap_t*	heap,		/*!< in: heap memory */
 	table_id_t	table_id,	/*!< in: table id */
-	dict_table_t*	table,		/*!< in: table or NULL */
 	ulint		table_flags);	/*!< in: table flags */
 
 /** Try to extend a tablespace if it is smaller than the specified size.

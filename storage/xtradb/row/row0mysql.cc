@@ -4272,18 +4272,6 @@ row_drop_table_for_mysql(
 		rw_lock_x_unlock(dict_index_get_lock(index));
 	}
 
-	/* If table has not yet have crypt_data, try to read it to
-	make freeing the table easier. */
-	if (!table->crypt_data) {
-
-		if (fil_space_t* space = fil_space_acquire_silent(table->space)) {
-			/* We use crypt data in dict_table_t in ha_innodb.cc
-			to push warnings to user thread. */
-			table->crypt_data = space->crypt_data;
-			fil_space_release(space);
-		}
-	}
-
 	/* We use the private SQL parser of Innobase to generate the
 	query graphs needed in deleting the dictionary data from system
 	tables in Innobase. Deleting a row from SYS_INDEXES table also

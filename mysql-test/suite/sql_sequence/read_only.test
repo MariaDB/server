@@ -7,12 +7,8 @@
 
 create sequence s1 cache 2 engine=innodb;
 
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---shutdown_server 10
---source include/wait_until_disconnected.inc
---enable_reconnect
---exec echo "restart":--innodb_read_only=1 > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---source include/wait_until_connected_again.inc
+--let $restart_parameters= --innodb-read-only
+--source include/restart_mysqld.inc
 
 connection default;
 show global variables like 'innodb_read_only';
@@ -38,3 +34,11 @@ select next value for s1;
 select next value for s1;
 --error ER_OPEN_AS_READONLY
 select next value for s1;
+
+select * from s1;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+select * from s1;
+select next value for s1;
+select * from s1;
+drop sequence s1;

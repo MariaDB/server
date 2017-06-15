@@ -3819,18 +3819,12 @@ fil_ibd_create(
 		ib::error() << "Cannot create file '" << path << "'";
 
 		if (error == OS_FILE_ALREADY_EXISTS) {
-			ib::error() << "The file '" << path << "'"
+			ib::info() << "The file '" << path << "'"
 				" already exists though the"
 				" corresponding table did not exist"
 				" in the InnoDB data dictionary."
-				" Have you moved InnoDB .ibd files"
-				" around without using the SQL commands"
-				" DISCARD TABLESPACE and IMPORT TABLESPACE,"
-				" or did mysqld crash in the middle of"
-				" CREATE TABLE?"
 				" You can resolve the problem by removing"
-				" the file '" << path
-				<< "' under the 'datadir' of MySQL.";
+				" the file.";
 
 			return(DB_TABLESPACE_EXISTS);
 		}
@@ -4071,8 +4065,7 @@ fil_ibd_open(
 	ulint		id,
 	ulint		flags,
 	const char*	space_name,
-	const char*	path_in,
-	dict_table_t*	table)
+	const char*	path_in)
 {
 	dberr_t		err = DB_SUCCESS;
 	bool		dict_filepath_same_as_default = false;
@@ -4117,10 +4110,6 @@ fil_ibd_open(
 		validate = true;
 		++tablespaces_found;
 		link_file_found = true;
-		if (table) {
-			table->crypt_data = df_remote.get_crypt_info();
-			table->page_0_read = true;
-		}
 	} else if (df_remote.filepath() != NULL) {
 		/* An ISL file was found but contained a bad filepath in it.
 		Better validate anything we do find. */
@@ -4139,11 +4128,6 @@ fil_ibd_open(
 			if (df_dict.open_read_only(true) == DB_SUCCESS) {
 				ut_ad(df_dict.is_open());
 				++tablespaces_found;
-
-				if (table) {
-					table->crypt_data = df_dict.get_crypt_info();
-					table->page_0_read = true;
-				}
 			}
 		}
 	}
@@ -4155,10 +4139,6 @@ fil_ibd_open(
 	if (df_default.open_read_only(strict) == DB_SUCCESS) {
 		ut_ad(df_default.is_open());
 		++tablespaces_found;
-		if (table) {
-			table->crypt_data = df_default.get_crypt_info();
-			table->page_0_read = true;
-		}
 	}
 
 	/* Check if multiple locations point to the same file. */
@@ -4795,7 +4775,6 @@ error log if a matching tablespace is not found from memory.
 @param[in]	adjust_space	Whether to adjust space id on mismatch
 @param[in]	heap		Heap memory
 @param[in]	table_id	table id
-@param[in]	table		table
 @param[in]	table_flags	table flags
 @return true if a matching tablespace exists in the memory cache */
 bool
@@ -4806,7 +4785,6 @@ fil_space_for_table_exists_in_mem(
 	bool		adjust_space,
 	mem_heap_t*	heap,
 	table_id_t	table_id,
-	dict_table_t*	table,
 	ulint		table_flags)
 {
 	fil_space_t*	fnamespace;
@@ -4826,10 +4804,6 @@ fil_space_for_table_exists_in_mem(
 	fnamespace = fil_space_get_by_name(name);
 	bool valid = space && !((space->flags ^ expected_flags)
 				& ~FSP_FLAGS_MEM_MASK);
-
-	if (valid && table && !table->crypt_data) {
-		table->crypt_data = space->crypt_data;
-	}
 
 	if (!space) {
 	} else if (!valid || space == fnamespace) {

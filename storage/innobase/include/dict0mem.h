@@ -137,10 +137,6 @@ This flag prevents older engines from attempting to open the table and
 allows InnoDB to update_create_info() accordingly. */
 #define DICT_TF_WIDTH_DATA_DIR		1
 
-/** Width of the SHARED tablespace flag (Oracle MYSQL 5.7).
-Not supported by MariaDB. */
-#define DICT_TF_WIDTH_SHARED_SPACE	1
-
 /**
 Width of the page compression flag
 */
@@ -148,35 +144,19 @@ Width of the page compression flag
 #define DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL 4
 
 /**
-Width of atomic writes flag
-DEFAULT=0, ON = 1, OFF = 2
+The NO_ROLLBACK flag (3=yes; the values 1,2 used stand for
+ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 */
-#define DICT_TF_WIDTH_ATOMIC_WRITES 2
-
-/**
-Width of the page encryption flag
-*/
-#define DICT_TF_WIDTH_PAGE_ENCRYPTION  1
-#define DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY 8
-
-/** Width of the NO_ROLLBACK flag */
-#define DICT_TF_WIDTH_NO_ROLLBACK 1
+#define DICT_TF_WIDTH_NO_ROLLBACK 2
 
 /** Width of all the currently known table flags */
 #define DICT_TF_BITS	(DICT_TF_WIDTH_COMPACT			\
 			+ DICT_TF_WIDTH_ZIP_SSIZE		\
 			+ DICT_TF_WIDTH_ATOMIC_BLOBS		\
 			+ DICT_TF_WIDTH_DATA_DIR		\
-			+ DICT_TF_WIDTH_SHARED_SPACE		\
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION	\
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL	\
-			+ DICT_TF_WIDTH_ATOMIC_WRITES		\
-			+ DICT_TF_WIDTH_PAGE_ENCRYPTION		\
-			+ DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY	\
 			+ DICT_TF_WIDTH_NO_ROLLBACK)
-
-/** A mask of all the known/used bits in table flags */
-#define DICT_TF_BIT_MASK	(~(~0U << DICT_TF_BITS))
 
 /** Zero relative shift position of the COMPACT field */
 #define DICT_TF_POS_COMPACT		0
@@ -189,29 +169,18 @@ Width of the page encryption flag
 /** Zero relative shift position of the DATA_DIR field */
 #define DICT_TF_POS_DATA_DIR		(DICT_TF_POS_ATOMIC_BLOBS	\
 					+ DICT_TF_WIDTH_ATOMIC_BLOBS)
-/** Zero relative shift position of the SHARED TABLESPACE field */
-#define DICT_TF_POS_SHARED_SPACE	(DICT_TF_POS_DATA_DIR		\
-					+ DICT_TF_WIDTH_DATA_DIR)
 /** Zero relative shift position of the PAGE_COMPRESSION field */
-#define DICT_TF_POS_PAGE_COMPRESSION	(DICT_TF_POS_SHARED_SPACE	\
-					+ DICT_TF_WIDTH_SHARED_SPACE)
+#define DICT_TF_POS_PAGE_COMPRESSION	(DICT_TF_POS_DATA_DIR		\
+					+ DICT_TF_WIDTH_DATA_DIR)
 /** Zero relative shift position of the PAGE_COMPRESSION_LEVEL field */
 #define DICT_TF_POS_PAGE_COMPRESSION_LEVEL	(DICT_TF_POS_PAGE_COMPRESSION	\
 					+ DICT_TF_WIDTH_PAGE_COMPRESSION)
-/** Zero relative shift position of the ATOMIC_WRITES field */
-#define DICT_TF_POS_ATOMIC_WRITES	(DICT_TF_POS_PAGE_COMPRESSION_LEVEL \
-					+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)
-/** Zero relative shift position of the PAGE_ENCRYPTION field */
-#define DICT_TF_POS_PAGE_ENCRYPTION	(DICT_TF_POS_ATOMIC_WRITES	\
-					+ DICT_TF_WIDTH_ATOMIC_WRITES)
-/** Zero relative shift position of the PAGE_ENCRYPTION_KEY field */
-#define DICT_TF_POS_PAGE_ENCRYPTION_KEY	(DICT_TF_POS_PAGE_ENCRYPTION	\
-					+ DICT_TF_WIDTH_PAGE_ENCRYPTION)
 /** Zero relative shift position of the NO_ROLLBACK field */
-#define DICT_TF_POS_NO_ROLLBACK		(DICT_TF_POS_PAGE_ENCRYPTION_KEY     \
-					+ DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
-#define DICT_TF_POS_UNUSED		(DICT_TF_POS_NO_ROLLBACK	\
+#define DICT_TF_POS_NO_ROLLBACK		(DICT_TF_POS_PAGE_COMPRESSION_LEVEL \
+					+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)
+#define DICT_TF_POS_UNUSED		(DICT_TF_POS_NO_ROLLBACK     \
 					+ DICT_TF_WIDTH_NO_ROLLBACK)
+
 /** Bit mask of the COMPACT field */
 #define DICT_TF_MASK_COMPACT				\
 		((~(~0U << DICT_TF_WIDTH_COMPACT))	\
@@ -236,18 +205,10 @@ Width of the page encryption flag
 #define DICT_TF_MASK_PAGE_COMPRESSION_LEVEL		\
 		((~(~0U << DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)) \
 		<< DICT_TF_POS_PAGE_COMPRESSION_LEVEL)
-/** Bit mask of the ATOMIC_WRITES field */
-#define DICT_TF_MASK_ATOMIC_WRITES		\
-		((~(~0U << DICT_TF_WIDTH_ATOMIC_WRITES)) \
-		<< DICT_TF_POS_ATOMIC_WRITES)
-/** Bit mask of the PAGE_ENCRYPTION field */
-#define DICT_TF_MASK_PAGE_ENCRYPTION			\
-		((~(~0U << DICT_TF_WIDTH_PAGE_ENCRYPTION))	\
-		<< DICT_TF_POS_PAGE_ENCRYPTION)
-/** Bit mask of the PAGE_ENCRYPTION_KEY field */
-#define DICT_TF_MASK_PAGE_ENCRYPTION_KEY		\
-		((~(~0U << DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)) \
-		<< DICT_TF_POS_PAGE_ENCRYPTION_KEY)
+/** Bit mask of the NO_ROLLBACK field */
+#define DICT_TF_MASK_NO_ROLLBACK		\
+		((~(~0U << DICT_TF_WIDTH_NO_ROLLBACK)) \
+		<< DICT_TF_POS_NO_ROLLBACK)
 
 /** Return the value of the COMPACT field */
 #define DICT_TF_GET_COMPACT(flags)			\
@@ -273,22 +234,7 @@ Width of the page encryption flag
 #define DICT_TF_GET_PAGE_COMPRESSION_LEVEL(flags)       \
 		((flags & DICT_TF_MASK_PAGE_COMPRESSION_LEVEL)	\
 		>> DICT_TF_POS_PAGE_COMPRESSION_LEVEL)
-/** Return the value of the ATOMIC_WRITES field */
-#define DICT_TF_GET_ATOMIC_WRITES(flags)       \
-		((flags & DICT_TF_MASK_ATOMIC_WRITES)	\
-		>> DICT_TF_POS_ATOMIC_WRITES)
-/** Return the contents of the PAGE_ENCRYPTION field */
-#define DICT_TF_GET_PAGE_ENCRYPTION(flags)			\
-		((flags & DICT_TF_MASK_PAGE_ENCRYPTION) \
-		>> DICT_TF_POS_PAGE_ENCRYPTION)
-/** Return the contents of the PAGE_ENCRYPTION KEY field */
-#define DICT_TF_GET_PAGE_ENCRYPTION_KEY(flags)			\
-		((flags & DICT_TF_MASK_PAGE_ENCRYPTION_KEY) \
-		>> DICT_TF_POS_PAGE_ENCRYPTION_KEY)
 
-/** Return the contents of the UNUSED bits */
-#define DICT_TF_GET_UNUSED(flags)			\
-		(flags >> DICT_TF_POS_UNUSED)
 /* @} */
 
 /** @brief Table Flags set number 2.
@@ -1359,18 +1305,13 @@ struct dict_table_t {
 	/** Acquire the table handle. */
 	inline void acquire();
 
-	void*		thd;		/*!< thd */
-	bool		page_0_read; /*!< true if page 0 has
-				     been already read */
-	fil_space_crypt_t *crypt_data; /*!< crypt data if present */
-
 	/** Release the table handle. */
 	inline void release();
 
 	/** @return whether the table supports transactions */
 	bool no_rollback() const
 	{
-		return flags & (1U << DICT_TF_POS_NO_ROLLBACK);
+		return !(~flags & DICT_TF_MASK_NO_ROLLBACK);
         }
 	/** @return whether this table is readable
 	@retval	true	normally

@@ -278,10 +278,8 @@ The flags below only exist in fil_space_t::flags, not in FSP_SPACE_FLAGS:
 
 /** Zero relative shift position of the DATA_DIR flag */
 #define FSP_FLAGS_MEM_DATA_DIR		25
-/** Zero relative shift position of the ATOMIC_WRITES field */
-#define FSP_FLAGS_MEM_ATOMIC_WRITES	26
 /** Zero relative shift position of the COMPRESSION_LEVEL field */
-#define FSP_FLAGS_MEM_COMPRESSION_LEVEL	28
+#define FSP_FLAGS_MEM_COMPRESSION_LEVEL	26
 
 /** Zero relative shift position of the POST_ANTELOPE field */
 #define FSP_FLAGS_POS_POST_ANTELOPE	0
@@ -327,10 +325,6 @@ these are only used in MySQL 5.7 and used for compatibility. */
 		((~(~0U << FSP_FLAGS_WIDTH_PAGE_COMPRESSION))	\
 		<< FSP_FLAGS_POS_PAGE_COMPRESSION)
 
-/** Bit mask of the in-memory ATOMIC_WRITES field */
-#define FSP_FLAGS_MASK_MEM_ATOMIC_WRITES			\
-		(3U << FSP_FLAGS_MEM_ATOMIC_WRITES)
-
 /** Bit mask of the in-memory COMPRESSION_LEVEL field */
 #define FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL			\
 		(15U << FSP_FLAGS_MEM_COMPRESSION_LEVEL)
@@ -371,10 +365,6 @@ these are only used in MySQL 5.7 and used for compatibility. */
 #define FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags)		\
 	((flags & FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL)		\
 	 >> FSP_FLAGS_MEM_COMPRESSION_LEVEL)
-/** @return the ATOMIC_WRITES field */
-#define FSP_FLAGS_GET_ATOMIC_WRITES(flags)		\
-	((flags & FSP_FLAGS_MASK_MEM_ATOMIC_WRITES)	\
-	 >> FSP_FLAGS_MEM_ATOMIC_WRITES)
 
 /* @} */
 

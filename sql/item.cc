@@ -3636,7 +3636,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
   state(NO_VALUE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
-  indicators(0), indicator(STMT_INDICATOR_NONE),
+  indicator(STMT_INDICATOR_NONE),
   set_param_func(default_set_param_func),
   m_out_param_info(NULL),
   /*

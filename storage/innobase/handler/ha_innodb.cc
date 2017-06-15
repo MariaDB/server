@@ -6626,10 +6626,6 @@ ha_innobase::open(
 					norm_name);
 		}
 
-		ib::warn() << "Cannot open table " << norm_name << " from the"
-			" internal data dictionary of InnoDB though the .frm"
-			" file for the table exists. " << TROUBLESHOOTING_MSG;
-
 		free_share(m_share);
 		set_my_errno(ENOENT);
 
@@ -6637,8 +6633,6 @@ ha_innobase::open(
 	}
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
-
-	ib_table->thd = (void*)thd;
 
 	/* No point to init any statistics if tablespace is still encrypted. */
 	if (ib_table->is_readable()) {
@@ -12926,7 +12920,7 @@ index_bad:
 		    	0);
 
 	if (m_form->s->table_type == TABLE_TYPE_SEQUENCE) {
-		m_flags |= 1U << DICT_TF_POS_NO_ROLLBACK;
+		m_flags |= DICT_TF_MASK_NO_ROLLBACK;
 	}
 
 	/* Set the flags2 when create table or alter tables */
