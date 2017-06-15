@@ -568,6 +568,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
     ret= WSREP_TRX_SIZE_EXCEEDED;
     break;
   case WSREP_CONN_FAIL:
+    thd->set_wsrep_conflict_state(MUST_ABORT);
     my_error(ER_LOCK_DEADLOCK, MYF(0));
     ret= WSREP_TRX_ERROR;
     break;
