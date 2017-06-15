@@ -740,7 +740,8 @@ btr_root_block_get(
 		if (index && index->table) {
 			index->table->file_unreadable = true;
 
-			ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
+			ib_push_warning(
+				static_cast<THD*>(NULL), DB_DECRYPTION_FAILED,
 				"Table %s in tablespace %lu is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue reading table.",

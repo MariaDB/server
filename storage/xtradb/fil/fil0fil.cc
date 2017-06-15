@@ -4229,8 +4229,7 @@ fil_open_single_table_tablespace(
 	ulint		flags,		/*!< in: expected FSP_SPACE_FLAGS */
 	const char*	tablename,	/*!< in: table name in the
 					databasename/tablename format */
-	const char*	path_in,	/*!< in: tablespace filepath */
-	dict_table_t*	table)		/*!< in: table */
+	const char*	path_in)	/*!< in: table */
 {
 	dberr_t		err = DB_SUCCESS;
 	bool		dict_filepath_same_as_default = false;
@@ -4339,11 +4338,6 @@ fil_open_single_table_tablespace(
 			def.file, false, &def.flags, &def.id,
 			NULL, &def.crypt_data);
 
-		if (table) {
-			table->crypt_data = def.crypt_data;
-			table->page_0_read = true;
-		}
-
 		def.valid = !def.check_msg && def.id == id
 			&& fsp_flags_match(flags, def.flags);
 
@@ -4362,11 +4356,6 @@ fil_open_single_table_tablespace(
 		remote.check_msg = fil_read_first_page(
 			remote.file, false, &remote.flags, &remote.id,
 			NULL, &remote.crypt_data);
-
-		if (table) {
-			table->crypt_data = remote.crypt_data;
-			table->page_0_read = true;
-		}
 
 		/* Validate this single-table-tablespace with SYS_TABLES. */
 		remote.valid = !remote.check_msg && remote.id == id
@@ -4388,11 +4377,6 @@ fil_open_single_table_tablespace(
 		dict.check_msg = fil_read_first_page(
 			dict.file, false, &dict.flags, &dict.id,
 			NULL, &dict.crypt_data);
-
-		if (table) {
-			table->crypt_data = dict.crypt_data;
-			table->page_0_read = true;
-		}
 
 		/* Validate this single-table-tablespace with SYS_TABLES. */
 		dict.valid = !dict.check_msg && dict.id == id
