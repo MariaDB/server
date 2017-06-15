@@ -2266,7 +2266,8 @@ bool ha_myisam::check_if_incompatible_data(HA_CREATE_INFO *create_info,
 {
   uint options= table->s->db_options_in_use;
 
-  if (create_info->auto_increment_value != stats.auto_increment_value ||
+  if ((create_info->used_fields & HA_CREATE_USED_AUTO &&
+       create_info->auto_increment_value != stats.auto_increment_value) ||
       create_info->data_file_name != data_file_name ||
       create_info->index_file_name != index_file_name ||
       table_changes == IS_EQUAL_NO ||

@@ -92,3 +92,23 @@ t1	CREATE TABLE `t1` (
  PARTITION p2 VALUES LESS THAN ('2020-10-19') ENGINE = MyISAM) */
 insert t1 values (2, '2020-01-03', 20);
 drop table t1;
+create table t1 (id_1 int auto_increment, id_2 int, id_3 int, d1 date, dt1 datetime default current_timestamp, dt2 datetime default current_timestamp on update current_timestamp, primary key (id_2, id_3), key(id_1)) partition by hash(id_2) partitions 3 (partition p01, partition p02, partition p03);
+insert into t1 values(0, 1, 1, NULL, now(), now());
+alter online table t1 delay_key_write=1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id_1` int(11) NOT NULL AUTO_INCREMENT,
+  `id_2` int(11) NOT NULL,
+  `id_3` int(11) NOT NULL,
+  `d1` date DEFAULT NULL,
+  `dt1` datetime DEFAULT CURRENT_TIMESTAMP,
+  `dt2` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_2`,`id_3`),
+  KEY `id_1` (`id_1`)
+) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
+/*!50100 PARTITION BY HASH (id_2)
+(PARTITION p01 ENGINE = MyISAM,
+ PARTITION p02 ENGINE = MyISAM,
+ PARTITION p03 ENGINE = MyISAM) */
+drop table t1;
