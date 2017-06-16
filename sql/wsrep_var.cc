@@ -648,7 +648,7 @@ bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
 static SHOW_VAR wsrep_status_vars[]=
 {
   {"connected",         (char*) &wsrep_connected,         SHOW_BOOL},
-  {"ready",             (char*) &wsrep_ready,             SHOW_BOOL},
+  {"ready",             (char*) &wsrep_show_ready,        SHOW_BOOL},
   {"cluster_state_uuid",(char*) &wsrep_cluster_state_uuid,SHOW_CHAR_PTR},
   {"cluster_conf_id",   (char*) &wsrep_cluster_conf_id,   SHOW_LONGLONG},
   {"cluster_status",    (char*) &wsrep_cluster_status,    SHOW_CHAR_PTR},

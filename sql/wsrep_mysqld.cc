@@ -14,6 +14,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #include "mariadb.h"
+#include <sql_plugin.h> // SHOW_MY_BOOL
 #include <mysqld.h>
 #include <transaction.h>
 #include <sql_class.h>
@@ -698,16 +699,34 @@ wsrep_sst_request_cb (void**                   sst_req,
   return WSREP_CB_SUCCESS;
 }
 
-void wsrep_ready_set (my_bool x)
+my_bool wsrep_ready_set (my_bool x)
 {
   WSREP_DEBUG("Setting wsrep_ready to %d", x);
   if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  if (wsrep_ready != x)
+  my_bool ret= (wsrep_ready != x);
+  if (ret)
   {
     wsrep_ready= x;
     mysql_cond_signal (&COND_wsrep_ready);
   }
   mysql_mutex_unlock (&LOCK_wsrep_ready);
+  return ret;
+}
+
+my_bool wsrep_ready_get (void)
+{
+  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
+  my_bool ret= wsrep_ready;
+  mysql_mutex_unlock (&LOCK_wsrep_ready);
+  return ret;
+}
+
+int wsrep_show_ready(THD *thd, SHOW_VAR *var, char *buff)
+{
+  var->type= SHOW_MY_BOOL;
+  var->value= buff;
+  *((my_bool *)buff)= wsrep_ready_get();
+  return 0;
 }
 
 // Wait until wsrep has reached ready state
@@ -726,18 +745,9 @@ void wsrep_ready_wait ()
 static wsrep_cb_status_t wsrep_synced_cb(void* app_ctx)
 {
   WSREP_INFO("Synchronized with group, ready for connections");
-  bool signal_main= false;
-  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  if (!wsrep_ready)
-  {
-    wsrep_ready= TRUE;
-    mysql_cond_signal (&COND_wsrep_ready);
-    signal_main= true;
-
-  }
   wsrep_config_state->set(WSREP_MEMBER_SYNCED);
+  my_bool signal_main= wsrep_ready_set(TRUE);
   local_status.set(WSREP_MEMBER_SYNCED);
-  mysql_mutex_unlock (&LOCK_wsrep_ready);
 
   if (signal_main)
   {
