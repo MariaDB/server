@@ -6113,14 +6113,7 @@ dict_set_corrupted(
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_tables));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_indexes));
-
-#ifdef UNIV_DEBUG
-	{
-		dict_sync_check	check(true);
-
-		ut_ad(!sync_check_iterate(check));
-	}
-#endif /* UNIV_DEBUG */
+	ut_ad(!sync_check_iterate(dict_sync_check()));
 
 	/* Mark the table as corrupted only if the clustered index
 	is corrupted */

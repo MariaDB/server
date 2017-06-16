@@ -591,7 +591,6 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	update_thd();
-	trx_assert_no_search_latch(m_prebuilt->trx);
 
 	/* Change on engine specific table options require rebuild of the
 	table */

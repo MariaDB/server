@@ -1870,15 +1870,8 @@ buf_flush_batch(
 					counts  */
 {
 	ut_ad(flush_type == BUF_FLUSH_LRU || flush_type == BUF_FLUSH_LIST);
-
-#ifdef UNIV_DEBUG
-	{
-		dict_sync_check	check(true);
-
-		ut_ad(flush_type != BUF_FLUSH_LIST
-		      || !sync_check_iterate(check));
-	}
-#endif /* UNIV_DEBUG */
+	ut_ad(flush_type == BUF_FLUSH_LRU
+	      || !sync_check_iterate(dict_sync_check()));
 
 	buf_pool_mutex_enter(buf_pool);
 

@@ -3020,11 +3020,6 @@ ha_innopart::records_in_range(
 
 	m_prebuilt->trx->op_info = (char*)"estimating records in index range";
 
-	/* In case MySQL calls this in the middle of a SELECT query, release
-	possible adaptive hash latch to avoid deadlocks of threads. */
-
-	trx_assert_no_search_latch(m_prebuilt->trx);
-
 	active_index = keynr;
 
 	key = table->key_info + active_index;
@@ -3159,11 +3154,6 @@ ha_innopart::estimate_rows_upper_bound()
 
 	m_prebuilt->trx->op_info = "calculating upper bound for table rows";
 
-	/* In case MySQL calls this in the middle of a SELECT query, release
-	possible adaptive hash latch to avoid deadlocks of threads. */
-
-	trx_assert_no_search_latch(m_prebuilt->trx);
-
 	for (uint i = m_part_info->get_first_used_partition();
 	     i < m_tot_parts;
 	     i = m_part_info->get_next_used_partition(i)) {
@@ -3275,12 +3265,7 @@ ha_innopart::info_low(
 
 	update_thd(ha_thd());
 
-	/* In case MySQL calls this in the middle of a SELECT query, release
-	possible adaptive hash latch to avoid deadlocks of threads. */
-
-	m_prebuilt->trx->op_info = (char*)"returning various info to MySQL";
-
-	trx_assert_no_search_latch(m_prebuilt->trx);
+	m_prebuilt->trx->op_info = "returning various info to MySQL";
 
 	ut_ad(m_part_share->get_table_part(0)->n_ref_count > 0);
 

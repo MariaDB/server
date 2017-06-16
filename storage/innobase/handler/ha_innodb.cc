@@ -1869,6 +1869,8 @@ void
 innobase_srv_conc_exit_innodb(
 	row_prebuilt_t*	prebuilt)
 {
+	ut_ad(!sync_check_iterate(sync_check()));
+
 #ifdef WITH_WSREP
 	if (wsrep_on(prebuilt->trx->mysql_thd) &&
 	    wsrep_thd_is_BF(prebuilt->trx->mysql_thd, FALSE)) {
@@ -1877,13 +1879,6 @@ innobase_srv_conc_exit_innodb(
 #endif /* WITH_WSREP */
 
 	trx_t*			trx = prebuilt->trx;
-#ifdef BTR_CUR_HASH_ADAPT
-# ifdef UNIV_DEBUG
-	btrsea_sync_check	check(trx->has_search_latch);
-
-	ut_ad(!sync_check_iterate(check));
-# endif /* UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* This is to avoid making an unnecessary function call. */
 	if (trx->declared_to_be_inside_innodb
@@ -1901,13 +1896,7 @@ innobase_srv_conc_force_exit_innodb(
 /*================================*/
 	trx_t*	trx)	/*!< in: transaction handle */
 {
-#ifdef BTR_CUR_HASH_ADAPT
-# ifdef UNIV_DEBUG
-	btrsea_sync_check	check(trx->has_search_latch);
-
-	ut_ad(!sync_check_iterate(check));
-# endif /* UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
+	ut_ad(!sync_check_iterate(sync_check()));
 
 	/* This is to avoid making an unnecessary function call. */
 	if (trx->declared_to_be_inside_innodb) {
@@ -1994,13 +1983,7 @@ const char*
 thd_innodb_tmpdir(
 	THD*	thd)
 {
-#ifdef BTR_CUR_HASH_ADAPT
-# ifdef UNIV_DEBUG
-	trx_t*	trx = thd_to_trx(thd);
-	btrsea_sync_check	check(trx->has_search_latch);
-	ut_ad(!sync_check_iterate(check));
-# endif /* UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
+	ut_ad(!sync_check_iterate(sync_check()));
 
 	const char*	tmp_dir = THDVAR(thd, tmpdir);
 
@@ -3360,7 +3343,6 @@ innobase_query_caching_of_table_permitted(
 		return(false);
 	}
 
-	trx_assert_no_search_latch(trx);
 	innobase_srv_conc_force_exit_innodb(trx);
 
 	if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)
@@ -3667,8 +3649,6 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 
 	/* Initialize the m_prebuilt struct much like it would be inited in
 	external_lock */
-
-	trx_assert_no_search_latch(m_prebuilt->trx);
 
 	innobase_srv_conc_force_exit_innodb(m_prebuilt->trx);
 
@@ -4781,12 +4761,6 @@ innobase_commit_ordered(
 	trx = check_trx_exists(thd);
 	TrxInInnoDB	trx_in_innodb(trx);
 
-	/* Since we will reserve the kernel mutex, we must not be holding the
-	search system latch, or we will disobey the latching order. But we
-	already released it in innobase_xa_prepare() (if not before), so just
-	have an assert here.*/
-	trx_assert_no_search_latch(trx);
-
 	if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
 		/* We cannot throw error here; instead we will catch this error
 		again in innobase_commit() and report it from there. */
@@ -4997,12 +4971,6 @@ innobase_rollback_trx(
 {
 	DBUG_ENTER("innobase_rollback_trx");
 	DBUG_PRINT("trans", ("aborting transaction"));
-
-	/* Release a possible FIFO ticket and search latch. Since we will
-	reserve the trx_sys->mutex, we have to release the search system
-	latch first to obey the latching order. */
-
-	trx_assert_no_search_latch(trx);
 
 	innobase_srv_conc_force_exit_innodb(trx);
 
@@ -13101,10 +13069,6 @@ create_table_info_t::initialize()
 
 	parent_trx = check_trx_exists(m_thd);
 
-	/* In case MySQL calls this in the middle of a SELECT query, release
-	possible adaptive hash latch to avoid deadlocks of threads */
-
-	trx_assert_no_search_latch(parent_trx);
 	DBUG_RETURN(0);
 }
 
@@ -13953,12 +13917,6 @@ innobase_drop_database(
 
 	THD*	thd = current_thd;
 
-	/* In case MySQL calls this in the middle of a SELECT
-	query, release possible adaptive hash latch to avoid
-	deadlocks of threads */
-
-	trx_assert_no_search_latch(check_trx_exists(thd));
-
 	ulint	len = 0;
 	char*	ptr = strend(path) - 2;
 
@@ -14692,12 +14650,7 @@ ha_innobase::info_low(
 
 	update_thd(ha_thd());
 
-	/* In case MySQL calls this in the middle of a SELECT query, release
-	possible adaptive hash latch to avoid deadlocks of threads */
-
-	m_prebuilt->trx->op_info = (char*)"returning various info to MariaDB";
-
-	trx_assert_no_search_latch(m_prebuilt->trx);
+	m_prebuilt->trx->op_info = "returning various info to MariaDB";
 
 	ib_table = m_prebuilt->table;
 	DBUG_ASSERT(ib_table->n_ref_count > 0);
@@ -15544,12 +15497,7 @@ ha_innobase::update_table_comment(
 
 	update_thd(ha_thd());
 
-	m_prebuilt->trx->op_info = (char*)"returning table comment";
-
-	/* In case MySQL calls this in the middle of a SELECT query, release
-	possible adaptive hash latch to avoid deadlocks of threads */
-
-	trx_assert_no_search_latch(m_prebuilt->trx);
+	m_prebuilt->trx->op_info = "returning table comment";
 
 #define SSTR( x ) reinterpret_cast< std::ostringstream & >(		\
         ( std::ostringstream() << std::dec << x ) ).str()
@@ -15605,22 +15553,14 @@ ha_innobase::get_foreign_key_create_info(void)
 
 	update_thd(ha_thd());
 
-	m_prebuilt->trx->op_info = (char*)"getting info on foreign keys";
-
-	/* In case MySQL calls this in the middle of a SELECT query,
-	release possible adaptive hash latch to avoid
-	deadlocks of threads */
-
-	trx_assert_no_search_latch(m_prebuilt->trx);
-
-
+	m_prebuilt->trx->op_info = "getting info on foreign keys";
 
 	/* Output the data to a temporary string */
 	std::string str = dict_print_info_on_foreign_keys(
 		TRUE, m_prebuilt->trx,
 		m_prebuilt->table);
 
-	m_prebuilt->trx->op_info = (char*)"";
+	m_prebuilt->trx->op_info = "";
 
 	/* Allocate buffer for the string */
 	char* fk_str = (char*) my_malloc(str.length() + 1, MYF(0));
@@ -16623,8 +16563,6 @@ innodb_show_status(
 	srv_wake_purge_thread_if_not_active();
 
 	trx_t*	trx = check_trx_exists(thd);
-
-	trx_assert_no_search_latch(trx);
 
 	innobase_srv_conc_force_exit_innodb(trx);
 
@@ -17935,12 +17873,6 @@ innobase_xa_prepare(
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	thd_get_xid(thd, (MYSQL_XID*) trx->xid);
-
-	/* Release a possible FIFO ticket and search latch. Since we will
-	reserve the trx_sys->mutex, we have to release the search system
-	latch first to obey the latching order. */
-
-	trx_assert_no_search_latch(trx);
 
 	innobase_srv_conc_force_exit_innodb(trx);
 

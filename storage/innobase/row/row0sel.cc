@@ -2231,16 +2231,7 @@ stop_for_a_while:
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
 	mtr_commit(&mtr);
-
-#ifdef BTR_CUR_HASH_ADAPT
-# ifdef UNIV_DEBUG
-	{
-		btrsea_sync_check	check(true);
-
-		ut_ad(!sync_check_iterate(check));
-	}
-# endif /* UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
+	ut_ad(!sync_check_iterate(sync_check()));
 
 	err = DB_SUCCESS;
 	goto func_exit;
@@ -2258,14 +2249,7 @@ commit_mtr_for_a_while:
 	mtr_commit(&mtr);
 
 	mtr_has_extra_clust_latch = FALSE;
-
-#ifdef UNIV_DEBUG
-	{
-		dict_sync_check	check(true);
-
-		ut_ad(!sync_check_iterate(check));
-	}
-#endif /* UNIV_DEBUG */
+	ut_ad(!sync_check_iterate(dict_sync_check()));
 
 	goto table_loop;
 
@@ -2280,20 +2264,13 @@ lock_wait_or_error:
 
 	mtr_commit(&mtr);
 
-#ifdef UNIV_DEBUG
-	{
-		dict_sync_check	check(true);
-
-		ut_ad(!sync_check_iterate(check));
-	}
-#endif /* UNIV_DEBUG */
-
 func_exit:
 #ifdef BTR_CUR_HASH_ADAPT
 	if (search_latch_locked) {
 		btr_search_s_unlock(index);
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
+	ut_ad(!sync_check_iterate(dict_sync_check()));
 
 	if (heap != NULL) {
 		mem_heap_free(heap);
@@ -3041,7 +3018,6 @@ row_sel_store_mysql_field_func(
 		mem_heap_t*	heap;
 		/* Copy an externally stored field to a temporary heap */
 
-		trx_assert_no_search_latch(prebuilt->trx);
 		ut_ad(field_no == templ->clust_rec_field_no);
 		ut_ad(templ->type != DATA_POINT);
 
@@ -3928,11 +3904,7 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(!prebuilt->templ_contains_blob);
 
 	btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
-				   BTR_SEARCH_LEAF, pcur,
-				   (trx->has_search_latch)
-				    ? RW_S_LATCH
-				    : 0,
-				   mtr);
+				   BTR_SEARCH_LEAF, pcur, RW_S_LATCH, mtr);
 	rec = btr_pcur_get_rec(pcur);
 
 	if (!page_rec_is_user_rec(rec)) {
@@ -4189,14 +4161,7 @@ row_search_mvcc(
 		DBUG_RETURN(DB_END_OF_INDEX);
 	}
 
-#ifdef BTR_CUR_HASH_ADAPT
-# ifdef UNIV_DEBUG
-	{
-		btrsea_sync_check	check(trx->has_search_latch);
-		ut_ad(!sync_check_iterate(check));
-	}
-# endif /* UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
+	ut_ad(!sync_check_iterate(sync_check()));
 
 	if (dict_table_is_discarded(prebuilt->table)) {
 
@@ -4220,8 +4185,6 @@ row_search_mvcc(
 	bool    need_vrow = dict_index_has_virtual(prebuilt->index)
 		&& (prebuilt->read_just_key
 		    || prebuilt->m_read_virtual_key);
-
-	trx_assert_no_search_latch(trx);
 
 	/* Reset the new record lock info if srv_locks_unsafe_for_binlog
 	is set or session is using a READ COMMITED isolation level. Then
@@ -4377,9 +4340,7 @@ row_search_mvcc(
 			and if we try that, we can deadlock on the adaptive
 			hash index semaphore! */
 
-			trx_assert_no_search_latch(trx);
 			rw_lock_s_lock(btr_get_search_latch(index));
-			trx->has_search_latch = true;
 
 			switch (row_sel_try_search_shortcut_for_mysql(
 					&rec, prebuilt, &offsets, &heap,
@@ -4434,7 +4395,6 @@ row_search_mvcc(
 				err = DB_SUCCESS;
 
 				rw_lock_s_unlock(btr_get_search_latch(index));
-				trx->has_search_latch = false;
 
 				goto func_exit;
 
@@ -4445,7 +4405,6 @@ row_search_mvcc(
 				err = DB_RECORD_NOT_FOUND;
 
 				rw_lock_s_unlock(btr_get_search_latch(index));
-				trx->has_search_latch = false;
 
 				/* NOTE that we do NOT store the cursor
 				position */
@@ -4463,15 +4422,12 @@ row_search_mvcc(
 			mtr_start(&mtr);
 
                         rw_lock_s_unlock(btr_get_search_latch(index));
-                        trx->has_search_latch = false;
 		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 3: Open or restore index cursor position */
-
-	trx_assert_no_search_latch(trx);
 
 	spatial_search = dict_index_is_spatial(index)
 			 && mode >= PAGE_CUR_CONTAIN;
@@ -5777,15 +5733,7 @@ func_exit:
 		}
 	}
 
-#ifdef BTR_CUR_HASH_ADAPT
-# ifdef UNIV_DEBUG
-	{
-		btrsea_sync_check	check(trx->has_search_latch);
-
-		ut_ad(!sync_check_iterate(check));
-	}
-# endif /* UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
+	ut_ad(!sync_check_iterate(sync_check()));
 
 	DEBUG_SYNC_C("innodb_row_search_for_mysql_exit");
 

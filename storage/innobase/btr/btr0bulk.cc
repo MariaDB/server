@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -991,11 +992,7 @@ BtrBulk::finish(dberr_t	err)
 		ut_ad(err == DB_SUCCESS);
 	}
 
-#ifdef UNIV_DEBUG
-	dict_sync_check check(true);
-
-	ut_ad(!sync_check_iterate(check));
-#endif /* UNIV_DEBUG */
+	ut_ad(!sync_check_iterate(dict_sync_check()));
 
 	ut_ad(err != DB_SUCCESS || btr_validate_index(m_index, NULL, false));
 	return(err);
