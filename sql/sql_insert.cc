@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3750,9 +3750,6 @@ int select_insert::send_data(List<Item> &values)
       DBUG_RETURN(1);
     }
   }
-
-  // Release latches in case bulk insert takes a long time
-  ha_release_temporary_latches(thd);
 
   error= write_record(thd, table, &info);
   table->auto_increment_field_not_null= FALSE;

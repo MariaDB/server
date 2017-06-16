@@ -932,7 +932,6 @@ ha_innopart::open(
 {
 	dict_table_t*	ib_table;
 	char		norm_name[FN_REFLEN];
-	THD*		thd;
 
 	DBUG_ENTER("ha_innopart::open");
 
@@ -942,15 +941,10 @@ ha_innopart::open(
 		ut_ad(table->part_info != NULL);
 		m_part_info = table->part_info;
 	}
-	thd = ha_thd();
 
 	/* Under some cases MySQL seems to call this function while
 	holding search latch(es). This breaks the latching order as
 	we acquire dict_sys->mutex below and leads to a deadlock. */
-
-	if (thd != NULL) {
-		innobase_release_temporary_latches(ht, thd);
-	}
 
 	normalize_table_name(norm_name, name);
 
@@ -1017,6 +1011,7 @@ share_error:
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
 	bool	no_tablespace;
+	THD*	thd = ha_thd();
 
 	/* TODO: Should we do this check for every partition during ::open()? */
 	/* TODO: refactor this in ha_innobase so it can increase code reuse. */
@@ -1372,14 +1367,7 @@ void ha_innopart::clear_ins_upd_nodes()
 int
 ha_innopart::close()
 {
-	THD*	thd;
-
 	DBUG_ENTER("ha_innopart::close");
-
-	thd = ha_thd();
-	if (thd != NULL) {
-		innobase_release_temporary_latches(ht, thd);
-	}
 
 	ut_ad(m_pcur_parts == NULL);
 	ut_ad(m_clust_pcur_parts == NULL);

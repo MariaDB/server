@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab
+   Copyright (c) 2010, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1464,12 +1464,6 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
                           flags.default_week_format,
                           (int)flags.in_trans,
                           (int)flags.autocommit));
-
-    /*
-     Make InnoDB to release the adaptive hash index latch before
-     acquiring the query cache mutex.
-    */
-    ha_release_temporary_latches(thd);
 
     /*
       A table- or a full flush operation can potentially take a long time to

@@ -2036,28 +2036,6 @@ thd_to_trx_id(
 #endif /* WITH_WSREP */
 
 /********************************************************************//**
-Call this function when mysqld passes control to the client. That is to
-avoid deadlocks on the adaptive hash S-latch possibly held by thd. For more
-documentation, see handler.cc.
-@return 0 */
-inline
-int
-innobase_release_temporary_latches(
-/*===============================*/
-	handlerton*	hton,	/*!< in: handlerton */
-	THD*		thd)	/*!< in: MySQL thread */
-{
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	if (!srv_was_started) {
-	} else if (trx_t* trx = thd_to_trx(thd)) {
-		trx_assert_no_search_latch(trx);
-	}
-
-	return(0);
-}
-
-/********************************************************************//**
 Increments innobase_active_counter and every INNOBASE_WAKE_INTERVALth
 time calls srv_active_wake_master_thread. This function should be used
 when a single database operation may introduce a small need for
@@ -3910,9 +3888,6 @@ innobase_init(
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags =
 		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS;
-
-	innobase_hton->release_temporary_latches =
-		innobase_release_temporary_latches;
 
 #ifdef MYSQL_REPLACE_TRX_IN_THD
         innobase_hton->replace_native_transaction_in_thd =
@@ -6538,36 +6513,18 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 	dict_table_autoinc_unlock(table);
 }
 
-/*****************************************************************//**
-Creates and opens a handle to a table which already exists in an InnoDB
-database.
-@return 1 if error, 0 if success */
-
+/** Open an InnoDB table
+@param[in]	name	table name
+@return	error code
+@retval	0	on success */
 int
-ha_innobase::open(
-/*==============*/
-	const char*		name,		/*!< in: table name */
-	int			mode,		/*!< in: not used */
-	uint			test_if_locked)	/*!< in: not used */
+ha_innobase::open(const char* name, int, uint)
 {
 	dict_table_t*		ib_table;
 	char			norm_name[FN_REFLEN];
-	THD*			thd;
 	dict_err_ignore_t	ignore_err = DICT_ERR_IGNORE_NONE;
 
 	DBUG_ENTER("ha_innobase::open");
-
-	UT_NOT_USED(mode);
-	UT_NOT_USED(test_if_locked);
-
-	thd = ha_thd();
-
-	/* Under some cases MySQL seems to call this function while
-	holding search latch(es). This breaks the latching order as
-	we acquire dict_sys->mutex below and leads to a deadlock. */
-	if (thd != NULL) {
-		innobase_release_temporary_latches(ht, thd);
-	}
 
 	normalize_table_name(norm_name, name);
 
@@ -6583,6 +6540,7 @@ ha_innobase::open(
 	m_upd_buf_size = 0;
 
 	char*	is_part = is_partition(norm_name);
+	THD*	thd = ha_thd();
 
 	/* Check whether FOREIGN_KEY_CHECKS is set to 0. If so, the table
 	can be opened even if some FK indexes are missing. If not, the table
@@ -7052,12 +7010,6 @@ ha_innobase::close()
 /*================*/
 {
 	DBUG_ENTER("ha_innobase::close");
-
-	THD*	thd = ha_thd();
-
-	if (thd != NULL) {
-		innobase_release_temporary_latches(ht, thd);
-	}
 
 	row_prebuilt_free(m_prebuilt, FALSE);
 

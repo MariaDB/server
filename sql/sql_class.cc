@@ -2751,13 +2751,6 @@ int select_send::send_data(List<Item> &items)
   if (thd->killed == ABORT_QUERY)
     DBUG_RETURN(FALSE);
 
-  /*
-    We may be passing the control from mysqld to the client: release the
-    InnoDB adaptive hash S-latch to avoid thread deadlocks if it was reserved
-    by thd
-  */
-  ha_release_temporary_latches(thd);
-
   protocol->prepare_for_resend();
   if (protocol->send_result_set_row(&items))
   {
@@ -2776,13 +2769,6 @@ int select_send::send_data(List<Item> &items)
 
 bool select_send::send_eof()
 {
-  /* 
-    We may be passing the control from mysqld to the client: release the
-    InnoDB adaptive hash S-latch to avoid thread deadlocks if it was reserved
-    by thd 
-  */
-  ha_release_temporary_latches(thd);
-
   /* 
     Don't send EOF if we're in error condition (which implies we've already
     sent or are sending an error)

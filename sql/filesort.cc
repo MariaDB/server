@@ -182,12 +182,6 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
 
   outfile= &sort->io_cache;
 
-  /*
-   Release InnoDB's adaptive hash index latch (if holding) before
-   running a sort.
-  */
-  ha_release_temporary_latches(thd);
-
   my_b_clear(&tempfile);
   my_b_clear(&buffpek_pointers);
   buffpek=0;
