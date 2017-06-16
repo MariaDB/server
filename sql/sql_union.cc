@@ -618,7 +618,9 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       if (saved_error)
         goto err;
 
-      if (fake_select_lex != NULL && thd->stmt_arena->is_stmt_prepare())
+      if (fake_select_lex != NULL &&
+          (thd->stmt_arena->is_stmt_prepare() ||
+           (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
       {
         /* Validate the global parameters of this union */
 

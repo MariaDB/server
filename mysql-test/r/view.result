@@ -6065,5 +6065,23 @@ three	COUNT(*)
 drop view v1;
 drop table t1;
 #
+# MDEV-12819: order by ordering expression changed to empty string
+# when creatin view with union
+#
+create table t1 (t1col1 int, t1col2 int,t1col3 int );
+create table t2 (t2col1 int, t2col2 int, t2col3 int);
+create view v1 as
+select t1col1,t1col2,t1col3 from t1
+union all
+select t2col1,t2col2,t2col3 from t2
+order by 2,3;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`t1col1` AS `t1col1`,`t1`.`t1col2` AS `t1col2`,`t1`.`t1col3` AS `t1col3` from `t1` union all select `t2`.`t2col1` AS `t2col1`,`t2`.`t2col2` AS `t2col2`,`t2`.`t2col3` AS `t2col3` from `t2` order by 2,3	latin1	latin1_swedish_ci
+select * from v1;
+t1col1	t1col2	t1col3
+drop view v1;
+drop table t1,t2;
+#
 # End of 10.1 tests
 #
