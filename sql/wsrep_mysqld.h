@@ -19,7 +19,6 @@
 #define WSREP_MYSQLD_H
 
 #include <mysql/plugin.h>
-//#include <mysql/service_wsrep.h>
 
 #include <my_global.h>
 #include <my_pthread.h>
@@ -27,6 +26,8 @@
 #ifdef WITH_WSREP
 
 typedef struct st_mysql_show_var SHOW_VAR;
+#include "mysqld.h"
+#include "log.h"
 #include <sql_priv.h>
 //#include "rpl_gtid.h"
 #include "../wsrep/wsrep_api.h"
