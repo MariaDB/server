@@ -62,6 +62,8 @@
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 #endif
+#include "vtmd.h"
+#include "transaction.h"
 
 enum enum_i_s_events_fields
 {
@@ -1267,6 +1269,24 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
+  TABLE_LIST tl;
+  bool versioned_query=
+      table_list->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED;
+  String archive_name;
+  if (versioned_query)
+  {
+    DBUG_ASSERT(table_list->vers_conditions.type == FOR_SYSTEM_TIME_AS_OF);
+    VTMD_table vtmd(*table_list);
+    if (vtmd.find_archive_name(thd, archive_name))
+      goto exit;
+
+    tl.init_one_table(table_list->db, table_list->db_length, archive_name.ptr(),
+                      archive_name.length(), archive_name.ptr(), TL_READ);
+
+    tl.alias= table_list->table_name;
+    tl.vers_force_alias= true;
+    table_list= &tl;
+  }
 
   if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
     goto exit;
@@ -1281,7 +1301,9 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
     protocol->store(table_list->view_name.str, system_charset_info);
   else
   {
-    if (table_list->schema_table)
+    if (versioned_query)
+      protocol->store(tl.alias, system_charset_info);
+    else if (table_list->schema_table)
       protocol->store(table_list->schema_table->table_name,
                       system_charset_info);
     else
@@ -1309,6 +1331,13 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   my_eof(thd);
 
 exit:
+  if (versioned_query)
+  {
+    /* If commit fails, we should be able to reset the OK status. */
+    thd->get_stmt_da()->set_overwrite_status(true);
+    trans_commit_stmt(thd);
+    thd->get_stmt_da()->set_overwrite_status(false);
+  }
   close_thread_tables(thd);
   /* Release any metadata locks taken during SHOW CREATE. */
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
@@ -2026,7 +2055,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     alias= table_list->schema_table->table_name;
   else
   {
-    if (lower_case_table_names == 2)
+    if (lower_case_table_names == 2 || table_list->vers_force_alias)
       alias= table->alias.c_ptr();
     else
     {

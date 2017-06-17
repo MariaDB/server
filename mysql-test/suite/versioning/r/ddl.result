@@ -202,6 +202,7 @@ No	A	B	C	D
 11	1	1	1	1
 12	1	1	1	1
 drop table t;
+drop table t_vtmd;
 drop procedure verify_vtq;
 drop procedure innodb_verify_vtq;
 drop function default_engine;

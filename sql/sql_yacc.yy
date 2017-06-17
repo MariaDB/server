@@ -1905,7 +1905,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
         opt_serial_attribute opt_serial_attribute_list serial_attribute
-        explainable_command opt_lock_wait_timeout
+        explainable_command opt_lock_wait_timeout asrow_attribute
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -13330,13 +13330,21 @@ show_param:
             Lex->set_command(SQLCOM_SHOW_CREATE_DB, $3);
             Lex->name= $4;
           }
-        | CREATE TABLE_SYM table_ident
+        | CREATE TABLE_SYM table_ident opt_for_system_time_clause
           {
             LEX *lex= Lex;
             lex->sql_command = SQLCOM_SHOW_CREATE;
             if (!lex->select_lex.add_table_to_list(thd, $3, NULL,0))
               MYSQL_YYABORT;
             lex->create_info.storage_media= HA_SM_DEFAULT;
+
+            if (lex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED &&
+                lex->vers_conditions.type != FOR_SYSTEM_TIME_AS_OF) {
+              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), "FOR SYSTEM_TIME",
+                                "only AS OF allowed here"));
+            }
+            if ($4)
+              Lex->last_table()->vers_conditions= Lex->vers_conditions;
           }
         | CREATE VIEW_SYM table_ident
           {

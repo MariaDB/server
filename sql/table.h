@@ -1890,7 +1890,7 @@ struct vers_select_conds_t
   {
     return type != b;
   }
-  operator bool()
+  operator bool() const
   {
     return type != FOR_SYSTEM_TIME_UNSPECIFIED;
   }
@@ -2356,6 +2356,7 @@ struct TABLE_LIST
   /* System Versioning */
   vers_select_conds_t vers_conditions;
   bool vers_vtmd_name(String &out) const;
+  bool vers_force_alias;
 
   /**
      @brief

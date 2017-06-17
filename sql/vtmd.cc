@@ -3,6 +3,7 @@
 #include "sql_class.h"
 #include "sql_handler.h" // mysql_ha_rm_tables()
 #include "sql_table.h"
+#include "sql_select.h"
 #include "table_cache.h" // tdc_remove_table()
 #include "key.h"
 
@@ -492,4 +493,82 @@ void VTMD_table::archive_name(
   my_snprintf(new_name, new_name_size, "%s_%04d%02d%02d_%02d%02d%02d_%06d",
               table_name, now.year, now.month, now.day, now.hour, now.minute,
               now.second, now.second_part);
+}
+
+bool VTMD_table::find_archive_name(THD *thd, String &out)
+{
+  String vtmd_name;
+  if (about.vers_vtmd_name(vtmd_name))
+    return true;
+
+  READ_RECORD info;
+  int error= 0;
+  SQL_SELECT *select= NULL;
+  COND *conds= NULL;
+  List<TABLE_LIST> dummy;
+  SELECT_LEX &select_lex= thd->lex->select_lex;
+
+  TABLE_LIST tl;
+  tl.init_one_table(about.db, about.db_length, vtmd_name.ptr(),
+                    vtmd_name.length(), vtmd_name.ptr(), TL_READ);
+
+  Open_tables_backup open_tables_backup;
+  if (!(vtmd= open_log_table(thd, &tl, &open_tables_backup)))
+  {
+    my_error(ER_VERS_VTMD_ERROR, MYF(0), "failed to open VTMD table");
+    return true;
+  }
+
+  Name_resolution_context &ctx= thd->lex->select_lex.context;
+  TABLE_LIST *table_list= ctx.table_list;
+  TABLE_LIST *first_name_resolution_table= ctx.first_name_resolution_table;
+  table_map map = tl.table->map;
+  ctx.table_list= &tl;
+  ctx.first_name_resolution_table= &tl;
+  tl.table->map= 1;
+
+  tl.vers_conditions= about.vers_conditions;
+  if ((error= vers_setup_select(thd, &tl, &conds, &select_lex)) ||
+      (error= setup_conds(thd, &tl, dummy, &conds)))
+  {
+    my_error(ER_VERS_VTMD_ERROR, MYF(0),
+             "failed to setup conditions for querying VTMD table");
+    goto err;
+  }
+
+  select= make_select(tl.table, 0, 0, conds, NULL, 0, &error);
+  if (error)
+    goto loc_err;
+  if ((error=
+           init_read_record(&info, thd, tl.table, select, NULL, 1, 1, false)))
+    goto loc_err;
+
+  while (!(error= info.read_record(&info)) && !thd->killed && !thd->is_error())
+  {
+    if (select->skip_record(thd) > 0)
+    {
+      tl.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
+
+      if (out.length() == 0)
+      {
+          // Handle AS OF NOW or just RENAMEd case
+          out.set(about.table_name, about.table_name_length,
+                  system_charset_info);
+      }
+      break;
+    }
+  }
+
+loc_err:
+  if (error)
+    my_error(ER_VERS_VTMD_ERROR, MYF(0), "failed to query VTMD table");
+
+  end_read_record(&info);
+err:
+  delete select;
+  ctx.table_list= table_list;
+  ctx.first_name_resolution_table= first_name_resolution_table;
+  tl.table->map= map;
+  close_log_table(thd, &open_tables_backup);
+  return error ? true : false;
 }

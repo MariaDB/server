@@ -118,5 +118,6 @@ show create table mysql.vtmd_template;
 
 call verify_vtq;
 drop table t;
+drop table t_vtmd;
 
 -- source suite/versioning/common_finish.inc
