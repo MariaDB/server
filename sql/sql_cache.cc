@@ -4050,41 +4050,35 @@ Query_cache::process_and_count_tables(THD *thd, TABLE_LIST *tables_used,
                             tables_used->view_name.str,
                             tables_used->view_db.str));
       *tables_type|= HA_CACHE_TBL_NONTRANSACT;
+      continue;
     }
-    else
+    if (tables_used->derived)
     {
-      if (tables_used->derived)
-      {
-        DBUG_PRINT("qcache", ("table: %s", tables_used->alias));
-        table_count--;
-        DBUG_PRINT("qcache", ("derived table skipped"));
-        continue;
-      }
-      DBUG_PRINT("qcache", ("table: %s  db:  %s  type: %u",
-                            tables_used->table->s->table_name.str,
-                            tables_used->table->s->db.str,
-                            tables_used->table->s->db_type()->db_type));
-      *tables_type|= tables_used->table->file->table_cache_type();
+      DBUG_PRINT("qcache", ("table: %s", tables_used->alias));
+      table_count--;
+      DBUG_PRINT("qcache", ("derived table skipped"));
+      continue;
+    }
 
-      /*
-        table_alias_charset used here because it depends of
-        lower_case_table_names variable
-      */
-      table_count+= tables_used->table->file->
-        count_query_cache_dependant_tables(tables_type);
+    DBUG_PRINT("qcache", ("table: %s  db:  %s  type: %u",
+                          tables_used->table->s->table_name.str,
+                          tables_used->table->s->db.str,
+                          tables_used->table->s->db_type()->db_type));
+    *tables_type|= tables_used->table->file->table_cache_type();
 
-      if (tables_used->table->s->tmp_table != NO_TMP_TABLE ||
-          (*tables_type & HA_CACHE_TBL_NOCACHE) ||
-          (tables_used->db_length == 5 &&
-           my_strnncoll(table_alias_charset,
-                        (uchar*)tables_used->table->s->table_cache_key.str, 6,
-                        (uchar*)"mysql",6) == 0))
-      {
-        DBUG_PRINT("qcache",
-                   ("select not cacheable: temporary, system or "
-                    "other non-cacheable table(s)"));
-        DBUG_RETURN(0);
-      }
+    /*
+      table_alias_charset used here because it depends of
+      lower_case_table_names variable
+    */
+    table_count+= tables_used->table->file->
+      count_query_cache_dependant_tables(tables_type);
+
+    if (tables_used->table->s->not_usable_by_query_cache)
+    {
+      DBUG_PRINT("qcache",
+                 ("select not cacheable: temporary, system or "
+                  "other non-cacheable table(s)"));
+      DBUG_RETURN(0);
     }
   }
   DBUG_RETURN(table_count);

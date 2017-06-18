@@ -5895,7 +5895,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       DBUG_PRINT("info", ("table: %s; ha_table_flags: 0x%llx",
                           table->table_name, flags));
 
-      if (table->table->no_replicate)
+      if (table->table->s->no_replicate)
       {
         /*
           The statement uses a table that is not replicated.

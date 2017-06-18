@@ -5683,7 +5683,7 @@ bool handler::check_table_binlog_row_based_internal(bool binlog_row)
   }
 #endif
 
-  return (table->s->cached_row_logging_check &&
+  return (table->s->can_do_row_logging &&
           thd->is_current_stmt_binlog_format_row() &&
           /*
             Wsrep partially enables binary logging if it have not been

@@ -328,8 +328,13 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     share->normalized_path.length= path_length;
     share->table_category= get_table_category(& share->db, & share->table_name);
     share->open_errno= ENOENT;
-    /* The following will be fixed in open_table_from_share */
-    share->cached_row_logging_check= 1;
+    /* The following will be updated in open_table_from_share */
+    share->can_do_row_logging= 1;
+    if (share->table_category == TABLE_CATEGORY_LOG)
+      share->no_replicate= 1;
+    if (my_strnncoll(table_alias_charset, (uchar*) db, 6,
+                     (const uchar*) "mysql", 6) == 0)
+      share->not_usable_by_query_cache= 1;
 
     init_sql_alloc(&share->stats_cb.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
@@ -402,8 +407,8 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   share->normalized_path.str=    (char*) path;
   share->path.length= share->normalized_path.length= strlen(path);
   share->frm_version= 		 FRM_VER_CURRENT;
-
-  share->cached_row_logging_check= 0;           // No row logging
+  share->not_usable_by_query_cache= 1;
+  share->can_do_row_logging= 0;           // No row logging
 
   /*
     table_map_id is also used for MERGE tables to suppress repeated
@@ -3379,24 +3384,20 @@ partititon_err:
 
   outparam->mark_columns_used_by_check_constraints();
 
-  if (share->table_category == TABLE_CATEGORY_LOG)
+  if (db_stat)
   {
-    outparam->no_replicate= TRUE;
-  }
-  else if (outparam->file)
-  {
+    /* Set some flags in share on first open of the table */
     handler::Table_flags flags= outparam->file->ha_table_flags();
-    outparam->no_replicate= ! MY_TEST(flags & (HA_BINLOG_STMT_CAPABLE
-                                               | HA_BINLOG_ROW_CAPABLE))
-                            || MY_TEST(flags & HA_HAS_OWN_BINLOGGING);
-  }
-  else
-  {
-    outparam->no_replicate= FALSE;
+    if (! MY_TEST(flags & (HA_BINLOG_STMT_CAPABLE |
+                           HA_BINLOG_ROW_CAPABLE)) ||
+        MY_TEST(flags & HA_HAS_OWN_BINLOGGING))
+      share->no_replicate= TRUE;
+    if (outparam->file->table_cache_type() & HA_CACHE_TBL_NOCACHE)
+      share->not_usable_by_query_cache= TRUE;
   }
 
-  if (outparam->no_replicate || !binlog_filter->db_ok(outparam->s->db.str))
-    outparam->s->cached_row_logging_check= 0;   // No row based replication
+  if (share->no_replicate || !binlog_filter->db_ok(share->db.str))
+    share->can_do_row_logging= 0;   // No row based replication
 
   /* Increment the opened_tables counter, only when open flags set. */
   if (db_stat)

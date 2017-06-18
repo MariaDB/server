@@ -8642,7 +8642,7 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
     DBUG_ASSERT(table->s->table_category == TABLE_CATEGORY_LOG);
     /* Make sure all columns get assigned to a default value */
     table->use_all_columns();
-    DBUG_ASSERT(table->no_replicate);
+    DBUG_ASSERT(table->s->no_replicate);
   }
   else
     thd->restore_backup_open_tables_state(backup);

@@ -276,7 +276,7 @@ TABLE *spider_sys_open_table(
     MYSQL_OPEN_IGNORE_FLUSH | MYSQL_LOCK_IGNORE_TIMEOUT | MYSQL_LOCK_LOG_TABLE
   ))) {
     table->use_all_columns();
-    table->no_replicate = 1;
+    table->s->no_replicate = 1;
   } else
     thd->restore_backup_open_tables_state(open_tables_backup);
   thd->utime_after_lock = utime_after_lock_backup;

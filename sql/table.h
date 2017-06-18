@@ -693,6 +693,8 @@ struct TABLE_SHARE
   bool use_ext_keys;                    /* Extended keys can be used */
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
+  bool not_usable_by_query_cache;
+  bool no_replicate;
   bool crypted;                         /* If .frm file is crypted */
   bool crashed;
   bool is_view;
@@ -702,6 +704,8 @@ struct TABLE_SHARE
   bool vcols_need_refixing;
   bool check_set_initialized;
   bool has_update_default_function;
+  bool can_do_row_logging;              /* 1 if table supports RBR */
+
   ulong table_map_id;                   /* for row-based replication */
 
   /*
@@ -719,14 +723,6 @@ struct TABLE_SHARE
 
   /* For sequence tables, the current sequence state */
   SEQUENCE *sequence;
-
-  /*
-    Cache for row-based replication table share checks that does not
-    need to be repeated. Possible values are: -1 when cache value is
-    not calculated yet, 0 when table *shall not* be replicated, 1 when
-    table *may* be replicated.
-  */
-  int cached_row_logging_check;
 
   /* Name of the tablespace used for this table */
   char *tablespace;
@@ -1254,7 +1250,6 @@ public:
     If set, indicate that the table is not replicated by the server.
   */
   bool locked_by_logger;
-  bool no_replicate;
   bool locked_by_name;
   bool fulltext_searched;
   bool no_cache;
