@@ -3368,17 +3368,31 @@ public:
   LEX_STRING *make_lex_string(const char* str, uint length)
   {
     LEX_STRING *lex_str;
-    if (!(lex_str= (LEX_STRING *)alloc_root(mem_root, sizeof(LEX_STRING))))
+    char *tmp;
+    if (!(lex_str= (LEX_STRING *) alloc_root(mem_root, sizeof(LEX_STRING) +
+                                             length+1)))
       return 0;
-    return make_lex_string(lex_str, str, length);
+    tmp= (char*) (lex_str+1);
+    lex_str->str= tmp;
+    memcpy(tmp, str, length);
+    tmp[length]= 0;
+    lex_str->length= length;
+    return lex_str;
   }
 
   LEX_CSTRING *make_clex_string(const char* str, uint length)
   {
     LEX_CSTRING *lex_str;
-    if (!(lex_str= (LEX_CSTRING *)alloc_root(mem_root, sizeof(LEX_CSTRING))))
+    char *tmp;
+    if (!(lex_str= (LEX_CSTRING *)alloc_root(mem_root, sizeof(LEX_CSTRING) +
+                                             length+1)))
       return 0;
-    return make_lex_string(lex_str, str, length);
+    tmp= (char*) (lex_str+1);
+    lex_str->str= tmp;
+    memcpy(tmp, str, length);
+    tmp[length]= 0;
+    lex_str->length= length;
+    return lex_str;
   }
 
   // Allocate LEX_STRING for character set conversion
