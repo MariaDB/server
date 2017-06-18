@@ -23,7 +23,6 @@
 
 #include "violite.h"                            /* SSL_type */
 #include "sql_trigger.h"
-#include "item.h"               /* From item_subselect.h: subselect_union_engine */
 #include "thr_lock.h"                  /* thr_lock_type, TL_UNLOCK */
 #include "mem_root_array.h"
 #include "sql_cmd.h"

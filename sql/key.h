@@ -16,8 +16,6 @@
 #ifndef KEY_INCLUDED
 #define KEY_INCLUDED
 
-#include "my_global.h"                          /* uchar */
-
 class Field;
 class String;
 struct TABLE;

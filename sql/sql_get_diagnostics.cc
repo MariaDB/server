@@ -13,6 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02111-1307  USA */
 
+#include "mariadb.h"
 #include "sql_list.h"                 // Sql_alloc, List, List_iterator
 #include "sql_cmd.h"                  // Sql_cmd
 #include "sql_class.h"                // Diagnostics_area

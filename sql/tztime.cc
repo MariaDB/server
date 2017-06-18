@@ -29,22 +29,21 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include <my_global.h>
+#include "mariadb.h"
 #if !defined(TZINFO2SQL) && !defined(TESTTIME)
 #include "sql_priv.h"
 #include "unireg.h"
-#include "tztime.h"
 #include "sql_time.h"                           // localtime_to_TIME
 #include "sql_base.h"                           // open_system_tables_for_read,
                                                 // close_system_tables
 #else
 #include <my_time.h>
-#include "tztime.h"
 #include <my_sys.h>
 #include <mysql_version.h>
 #include <my_getopt.h>
 #endif
 
+#include "tztime.h"
 #include "tzfile.h"
 #include <m_string.h>
 #include <my_dir.h>

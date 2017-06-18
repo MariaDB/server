@@ -16,11 +16,10 @@
 
 /* Definitions for MariaDB global transaction ID (GTID). */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
-#include "my_sys.h"
 #include "unireg.h"
-#include "my_global.h"
+#include "mariadb.h"
 #include "sql_base.h"
 #include "sql_parse.h"
 #include "key.h"

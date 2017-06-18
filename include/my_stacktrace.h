@@ -17,8 +17,6 @@
 #ifndef _my_stacktrace_h_
 #define _my_stacktrace_h_
 
-#include <my_global.h>
-
 #ifdef TARGET_OS_LINUX
 #if defined (__x86_64__) || defined (__i386__) || \
     (defined(__alpha__) && defined(__GNUC__))

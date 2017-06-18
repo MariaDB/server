@@ -35,7 +35,7 @@
   embedded library
  */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include <mysql.h>
 #include <mysql_com.h>
 #include <mysqld_error.h>

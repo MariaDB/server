@@ -25,7 +25,7 @@
     gives much more speed.
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"                          // THD
 #include <m_ctype.h>

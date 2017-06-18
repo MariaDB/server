@@ -21,8 +21,6 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
-#include "my_global.h"                          /* ulong */
-
 /*
   Stored procedures/functions cache. This is used as follows:
    * Each thread has its own cache.

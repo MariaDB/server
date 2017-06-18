@@ -26,8 +26,6 @@
 #pragma interface                      /* gcc class implementation */
 #endif
 
-#include <my_global.h>
-
 class THD;
 
 #if defined(ENABLED_DEBUG_SYNC)

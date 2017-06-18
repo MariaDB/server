@@ -20,7 +20,7 @@
   Multi-table updates were introduced by Sinisa & Monty
 */
 
-#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "sql_update.h"
 #include "sql_cache.h"                          // query_cache_*

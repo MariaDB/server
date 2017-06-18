@@ -21,7 +21,7 @@
 /* For use of 'PRIu64': */
 #define __STDC_FORMAT_MACROS
 
-#include <my_config.h>
+#include <my_global.h>
 
 #include <inttypes.h>
 

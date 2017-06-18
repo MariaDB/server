@@ -24,7 +24,7 @@ New index creation routines using a merge sort
 Created 12/4/2005 Jan Lindstrom
 Completed by Sunny Bains and Marko Makela
 *******************************************************/
-#include <my_config.h>
+#include <my_global.h>
 #include <log.h>
 #include <sql_class.h>
 

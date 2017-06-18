@@ -26,8 +26,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #ifndef _HATOKU_DEFINES_H
 #define _HATOKU_DEFINES_H
 
-#include <my_config.h>
 #define MYSQL_SERVER 1
+#include <my_global.h>
 #include "mysql_version.h"
 #include "sql_table.h"
 #include "handler.h"

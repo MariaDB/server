@@ -16,7 +16,6 @@
 #ifndef SQL_PARSE_INCLUDED
 #define SQL_PARSE_INCLUDED
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_acl.h"                            /* GLOBAL_ACLS */
 
 class Comp_creator;

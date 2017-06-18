@@ -27,11 +27,10 @@ POSSIBILITY OF SUCH DAMAGE.
 */
 
 #define SECURITY_WIN32
+#include <my_global.h>
 #include <windows.h>
 #include <sspi.h>
 #include <SecExt.h>
-#include <stdarg.h>
-#include <stdio.h>
 
 #include <mysql/plugin_auth.h>
 #include <mysql.h>

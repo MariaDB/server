@@ -18,7 +18,7 @@
 #pragma implementation // gcc: Class implementation
 #endif
 
-#include <my_config.h>
+#include <my_global.h>
 
 /* This C++ files header file */
 #include "./rdb_cf_options.h"

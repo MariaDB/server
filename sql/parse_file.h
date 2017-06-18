@@ -17,7 +17,6 @@
 #ifndef _PARSE_FILE_H_
 #define _PARSE_FILE_H_
 
-#include "my_global.h"                          // uchar
 #include "sql_string.h"                         // LEX_STRING
 #include "sql_list.h"                           // Sql_alloc
 

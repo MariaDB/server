@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <my_global.h> // For HAVE_REPLICATION
+#include "mariadb.h" // For HAVE_REPLICATION
 #include "sql_priv.h"
 #include <my_dir.h>
 #include "rpl_mi.h"

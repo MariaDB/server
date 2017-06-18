@@ -25,7 +25,7 @@
   replication slave.
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "slave.h"
 #include "sql_parse.h"                         // execute_init_command

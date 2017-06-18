@@ -18,7 +18,7 @@
   NOTE: These functions assumes that the string is end \0 terminated!
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "gstream.h"
 #include "m_string.h"                           // LEX_STRING

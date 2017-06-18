@@ -20,7 +20,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "procedure.h"
 #include "sql_analyse.h"			// Includes procedure

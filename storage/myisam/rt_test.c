@@ -17,6 +17,7 @@
 /* Written by Alex Barkov who has a shared copyright to this code */
 
 
+#include <my_global.h>
 #include "myisam.h"
 
 #ifdef HAVE_RTREE_KEYS

@@ -21,7 +21,7 @@
  *   o Berkeley DB: removing unneeded log files.
  */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_manager.h"
 #include "sql_base.h"                           // flush_tables

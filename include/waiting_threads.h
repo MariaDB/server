@@ -16,7 +16,6 @@
 #ifndef _waiting_threads_h
 #define _waiting_threads_h
 
-#include <my_global.h>
 #include <my_sys.h>
 
 #include <lf.h>

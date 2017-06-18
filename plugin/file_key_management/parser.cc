@@ -69,6 +69,7 @@ Example:
 openssl enc -aes-256-cbc -md sha1 -k "secret" -in keys.txt -out keys.enc
 ***********************************************************************/
 
+#include <my_global.h>
 #include "parser.h"
 #include <m_string.h>
 #include <mysys_err.h>

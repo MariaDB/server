@@ -19,7 +19,7 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
-#include "my_sys.h"                    /* alloc_root, TRASH, MY_WME,
+#include <my_sys.h>                    /* alloc_root, TRASH, MY_WME,
                                           MY_FAE, MY_ALLOW_ZERO_PTR */
 #include "m_string.h"                           /* bfill */
 

@@ -31,7 +31,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include <my_global.h>                          // HAVE_*
+#include "mariadb.h"                          // HAVE_*
 
 #include "sql_priv.h"
 /*

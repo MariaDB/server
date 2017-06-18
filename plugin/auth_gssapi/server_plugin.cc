@@ -31,6 +31,7 @@
 
   GSSAPI authentication plugin, server side
 */
+#include <my_global.h>
 #include <my_sys.h>
 #include <mysqld_error.h>
 #include <mysql/plugin_auth.h>

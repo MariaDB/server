@@ -14,6 +14,7 @@
    51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 
+#include "mariadb.h"
 #include "sql_class.h"
 #include "debug_sync.h"
 #include "sql_array.h"

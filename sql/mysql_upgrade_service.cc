@@ -20,8 +20,8 @@
 */
 
 #define DONT_DEFINE_VOID
+#include "mariadb.h"
 #include <process.h>
-#include <my_global.h>
 #include <my_getopt.h>
 #include <my_sys.h>
 #include <m_string.h>

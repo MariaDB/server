@@ -1,4 +1,4 @@
-#include <my_config.h>
+#include <my_global.h>
 
 
 /* MySQL includes */
@@ -6,7 +6,6 @@
 #include "./my_bit.h"
 #include "./my_stacktrace.h"
 #include "./sql_table.h"
-#include "./my_global.h"
 #include "./log.h"
 #include <mysys_err.h>
 #include <mysql/psi/mysql_table.h>

@@ -16,7 +16,7 @@
 
 /* Functions to map mysqld errno to sql_state */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include <mysqld_error.h>
 #include <my_base.h>
 

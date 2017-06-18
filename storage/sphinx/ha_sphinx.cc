@@ -22,6 +22,7 @@
 #define _CRT_NONSTDC_NO_DEPRECATE 1
 #endif
 
+#include <my_global.h>
 #include <mysql_version.h>
 
 #if MYSQL_VERSION_ID>=50515

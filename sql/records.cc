@@ -25,7 +25,7 @@
   Functions for easy reading of records, possible through a cache
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "records.h"
 #include "sql_priv.h"
 #include "records.h"

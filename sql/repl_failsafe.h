@@ -19,7 +19,7 @@
 #ifdef HAVE_REPLICATION
 
 #include "mysql.h"
-#include "my_sys.h"
+#include <my_sys.h>
 #include "slave.h"
 
 typedef enum {RPL_AUTH_MASTER=0,RPL_IDLE_SLAVE,RPL_ACTIVE_SLAVE,

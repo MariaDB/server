@@ -25,7 +25,7 @@
 #endif
 
 #include "m_ctype.h"                            /* my_charset_bin */
-#include "my_sys.h"              /* alloc_root, my_free, my_realloc */
+#include <my_sys.h>              /* alloc_root, my_free, my_realloc */
 #include "m_string.h"                           /* TRASH */
 
 class String;

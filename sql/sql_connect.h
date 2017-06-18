@@ -16,7 +16,7 @@
 #ifndef SQL_CONNECT_INCLUDED
 #define SQL_CONNECT_INCLUDED
 
-#include "my_sys.h"                          /* pthread_handler_t */
+#include <my_sys.h>                          /* pthread_handler_t */
 #include "mysql_com.h"                         /* enum_server_command */
 #include "structs.h"
 #include <mysql/psi/mysql_socket.h>

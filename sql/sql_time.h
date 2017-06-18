@@ -17,7 +17,6 @@
 #ifndef SQL_TIME_INCLUDED
 #define SQL_TIME_INCLUDED
 
-#include "my_global.h"                          /* ulong */
 #include "my_time.h"
 #include "mysql_time.h"                         /* timestamp_type */
 #include "sql_error.h"                          /* Sql_condition */

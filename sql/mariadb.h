@@ -1,4 +1,4 @@
-/* Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,10 +13,18 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
-#ifndef INIT_INCLUDED
-#define INIT_INCLUDED
+/*
+  Include file that should always be included first in all file in the sql
+  directory. Used to ensure that some files, like my_global.h and my_config.h
+  are always included first.
+  It can also be used to speed up compilation by using precompiled headers.
 
-void unireg_init(ulong options);
-void unireg_end(void) __attribute__((noreturn));
+  This file should include a minum set of header files used by all files
+  and header files that are very seldom changed.
+  It can also include some defines that all files should be aware of.
+*/
 
-#endif /* INIT_INCLUDED */
+#ifndef MARIADB_INCLUDED
+#define MARIADB_INCLUDED
+#include <my_global.h>
+#endif /* MARIADB_INCLUDED */

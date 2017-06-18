@@ -52,7 +52,7 @@
   cursor points at the first record).
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_handler.h"
 #include "sql_base.h"                           // close_thread_tables

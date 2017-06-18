@@ -26,9 +26,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <my_global.h>
 #include <gssapi/gssapi.h>
-#include <string.h>
-#include <stdio.h>
 #include <mysql/plugin_auth.h>
 #include <mysqld_error.h>
 #include <mysql.h>

@@ -18,8 +18,6 @@
 #ifndef STORAGE_MARIA_MA_CRYPT_INCLUDED
 #define STORAGE_MARIA_MA_CRYPT_INCLUDED
 
-#include <my_global.h>
-
 struct st_maria_share;
 struct st_pagecache_file;
 

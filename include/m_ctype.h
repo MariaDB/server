@@ -21,7 +21,6 @@
 #define _m_ctype_h
 
 #include <my_attribute.h>
-#include "my_global.h"                          /* uint16, uchar */
 
 enum loglevel {
    ERROR_LEVEL=       0,

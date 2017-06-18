@@ -15,6 +15,7 @@
 
 /* This file is included by all internal maria files */
 
+#include <my_global.h>
 #include "maria.h"				/* Structs & some defines */
 #include "ma_pagecache.h"
 #include <myisampack.h>				/* packing of keys */

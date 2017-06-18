@@ -14,7 +14,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include "sql_class.h"                       // THD and my_global.h
+#include "mariadb.h"
+#include "sql_class.h"                       // THD
 #include "keycaches.h"                       // get_key_cache
 #include "sql_base.h"                        // Open_table_context
 #include "lock.h"                            // MYSQL_OPEN_*

@@ -70,7 +70,7 @@
   in case external_lock() fails.
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "debug_sync.h"
 #include "lock.h"

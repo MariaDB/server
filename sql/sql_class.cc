@@ -28,7 +28,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"
 #include "sql_cache.h"                          // query_cache_abort

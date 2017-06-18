@@ -20,13 +20,12 @@
   Text .frm files management routines
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "parse_file.h"
 #include "unireg.h"                            // CREATE_MODE
 #include "sql_table.h"                        // build_table_filename
 #include <m_ctype.h>
-#include <my_sys.h>
 #include <my_dir.h>
 
 /* from sql_db.cc */

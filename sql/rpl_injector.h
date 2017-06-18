@@ -17,7 +17,6 @@
 #define INJECTOR_H
 
 /* Pull in 'byte', 'my_off_t', and 'uint32' */
-#include <my_global.h>
 #include <my_bitmap.h>
 
 #include "rpl_constants.h"

@@ -17,7 +17,6 @@
 #ifndef ITEM_WINDOWFUNC_INCLUDED
 #define ITEM_WINDOWFUNC_INCLUDED
 
-#include "my_global.h"
 #include "item.h"
 
 class Window_spec;

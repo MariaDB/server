@@ -22,7 +22,7 @@
   Sorts a database
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "filesort.h"
 #ifdef HAVE_STDDEF_H

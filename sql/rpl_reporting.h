@@ -16,7 +16,7 @@
 #ifndef RPL_REPORTING_H
 #define RPL_REPORTING_H
 
-#include "my_sys.h"                             /* loglevel */
+#include <my_sys.h>                             /* loglevel */
 
 /**
    Maximum size of an error message from a slave thread.

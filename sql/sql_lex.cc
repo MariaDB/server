@@ -18,7 +18,7 @@
 /* A lexical scanner on a temporary buffer with a yacc interface */
 
 #define MYSQL_LEX 1
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"                          // sql_lex.h: SQLCOM_END
 #include "sql_lex.h"

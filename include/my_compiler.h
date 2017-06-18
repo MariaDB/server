@@ -24,8 +24,6 @@
   specific to a target compiler.
 */
 
-#include <my_global.h>                          /* stddef.h offsetof */
-
 /**
   Compiler-dependent internal convenience macros.
 */

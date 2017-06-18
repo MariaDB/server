@@ -25,7 +25,7 @@
     Abort logging when we get an error in reading or writing log files
 */
 
-#include <my_global.h>		/* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"		/* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "log.h"
 #include "sql_base.h"                           // open_log_table
@@ -5869,6 +5869,8 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
 #endif /* WITH_WSREP */
   local_server_id= thd->variables.server_id;
   seq_no= thd->variables.gtid_seq_no;
+
+  DBUG_ASSERT(local_server_id != 0);
 
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
   {

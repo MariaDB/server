@@ -107,6 +107,7 @@
 
 #define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
+#include <my_global.h>
 #include "sql_class.h"
 #include "create_options.h"
 #include "mysql_com.h"

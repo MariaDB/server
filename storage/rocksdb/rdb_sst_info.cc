@@ -17,7 +17,7 @@
 /* For PRIu64 use below: */
 #define __STDC_FORMAT_MACROS
 
-#include <my_config.h>
+#include <my_global.h>
 
 /* This C++ file's header file */
 #include "./rdb_sst_info.h"

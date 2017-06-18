@@ -1,5 +1,6 @@
 #define PLUGIN_CONTEXT
 
+/* Can't use <my_global.h> as this includes plugin.h */
 #include <stdio.h>
 
 typedef void *MYSQL_THD;

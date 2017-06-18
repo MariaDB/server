@@ -17,8 +17,6 @@
 #ifndef MY_BIT_INCLUDED
 #define MY_BIT_INCLUDED
 
-#include <my_global.h>
-
 /*
   Some useful bit functions
 */

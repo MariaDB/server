@@ -17,7 +17,7 @@
 
 /* Basic functions needed by many modules */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_base.h"                           // setup_table_map
 #include "sql_priv.h"
 #include "unireg.h"

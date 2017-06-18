@@ -22,13 +22,24 @@
    ======================================================================
 */
 
-#include <my_config.h>
+#define MYSQL_SERVER
+#include <my_global.h>
 #include "oqgraph_thunk.h"
 
 #include <boost/tuple/tuple.hpp>
 
-#define MYSQL_SERVER
-#include <my_global.h>
+/* This is needed as boost undef's isfinite */
+#ifndef isfinite
+#ifdef HAVE_FINITE
+#define isfinite(x) finite(x)
+#else
+#define isfinite(x) (1.0 / fabs(x) > 0.0)
+#endif /* HAVE_FINITE */
+#elif (__cplusplus >= 201103L)
+#include <cmath>
+static inline bool isfinite(double x) { return std::isfinite(x); }
+#endif /* isfinite */
+
 #include "unireg.h"
 #include "sql_base.h"
 #include "table.h"
@@ -39,7 +50,6 @@
 // Allow compatibility with build for 5.5.32
 #define user_defined_key_parts key_parts
 #endif
-
 
 static int debugid = 0;
 

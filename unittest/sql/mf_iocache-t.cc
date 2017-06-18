@@ -13,6 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
+#include <my_global.h>
 #include <my_sys.h>
 #include <my_crypt.h>
 #include <tap.h>

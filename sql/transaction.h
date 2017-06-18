@@ -20,7 +20,6 @@
 #pragma interface                      /* gcc class implementation */
 #endif
 
-#include <my_global.h>
 #include <m_string.h>
 
 class THD;

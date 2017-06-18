@@ -21,13 +21,14 @@
 #endif
 
 #define MYSQL_SERVER 1
+#include <my_global.h>
 #include "sql_plugin.h"
+#include "myisamdef.h"
 #include "sql_priv.h"
 #include "key.h"                                // key_copy
 #include <m_ctype.h>
 #include <my_bit.h>
 #include "ha_myisam.h"
-#include "myisamdef.h"
 #include "rt_index.h"
 #include "sql_table.h"                          // tablename_to_filename
 #include "sql_class.h"                          // THD

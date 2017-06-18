@@ -20,7 +20,6 @@
 #ifndef _my_base_h
 #define _my_base_h
 
-#include <my_global.h>
 #include <my_dir.h>			/* This includes types */
 #include <my_sys.h>
 #include <m_string.h>

@@ -33,7 +33,7 @@
 #define Lex (thd->lex)
 
 #define Select Lex->current_select
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_parse.h"                        /* comp_*_creator */
 #include "sql_table.h"                        /* primary_key_name */

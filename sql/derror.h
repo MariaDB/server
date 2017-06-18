@@ -16,8 +16,6 @@
 #ifndef DERROR_INCLUDED
 #define DERROR_INCLUDED
 
-#include "my_global.h"                          /* uint */
-
 bool init_errmessage(void);
 void free_error_messages();
 bool read_texts(const char *file_name, const char *language,

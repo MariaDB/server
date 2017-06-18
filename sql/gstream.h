@@ -17,8 +17,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
-#include "my_global.h"                          /* NULL, NullS */
-#include "my_sys.h"                             /* MY_ALLOW_ZERO_PTR */
+#include <my_sys.h>                             /* MY_ALLOW_ZERO_PTR */
 #include "m_ctype.h"           /* my_charset_latin1, my_charset_bin */
 
 class Gis_read_stream

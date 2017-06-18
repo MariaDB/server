@@ -18,7 +18,6 @@
 #ifndef WQUEUE_INCLUDED
 #define WQUEUE_INCLUDED
 
-#include <my_global.h>
 #include <my_pthread.h>
 
 /* info about requests in a waiting queue */

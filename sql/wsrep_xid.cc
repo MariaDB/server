@@ -16,6 +16,7 @@
 
 //! @file some utility functions and classes not directly related to replication
 
+#include "mariadb.h"
 #include "wsrep_xid.h"
 #include "sql_class.h"
 #include "wsrep_mysqld.h" // for logging macros

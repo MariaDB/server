@@ -14,6 +14,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #define MYSQL_SERVER 1
+#include <my_global.h>
 #include <sql_class.h>
 
 namespace feedback {

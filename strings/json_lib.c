@@ -1,8 +1,6 @@
 #include <my_global.h>
 #include <string.h>
 #include <m_ctype.h>
-
-
 #include "json_lib.h"
 
 /*

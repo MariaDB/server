@@ -33,7 +33,6 @@
   as these reads will be cached by OS cache (and mysql_file_pread is always atomic)
 */
 
-
 #include "myisamdef.h"
 
 int _mi_read_cache(IO_CACHE *info, uchar *buff, my_off_t pos, uint length,

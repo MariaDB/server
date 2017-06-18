@@ -20,12 +20,11 @@
   !! This file is built from my_locale.pl !!
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_locale.h"
 #include "sql_class.h"                          // THD
-#include "my_sys.h"                             // MY_*, NullS, NULL
 
 
 enum err_msgs_index

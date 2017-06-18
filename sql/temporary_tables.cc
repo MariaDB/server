@@ -19,6 +19,7 @@
   All methods pertaining to temporary tables.
 */
 
+#include "mariadb.h"
 #include "sql_acl.h"                            /* TMP_TABLE_ACLS */
 #include "sql_base.h"                           /* tdc_create_key */
 #include "lock.h"                               /* mysql_lock_remove */

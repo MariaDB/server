@@ -56,7 +56,7 @@
 
 */
 
-#include <my_global.h>                 /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"                 /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "sql_insert.h"
 #include "sql_update.h"                         // compare_record

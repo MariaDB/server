@@ -13,8 +13,8 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
+#include "mariadb.h"
 #include "wsrep_thd.h"
-
 #include "transaction.h"
 #include "rpl_rli.h"
 #include "log_event.h"

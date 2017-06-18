@@ -19,7 +19,6 @@
 #ifndef _hash_h
 #define _hash_h
 
-#include "my_global.h"                          /* uchar */
 #include "my_sys.h"                             /* DYNAMIC_ARRAY */
 
 /*

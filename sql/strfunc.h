@@ -16,8 +16,6 @@
 #ifndef STRFUNC_INCLUDED
 #define STRFUNC_INCLUDED
 
-#include "my_global.h"                          /* ulonglong, uint */
-
 typedef struct st_typelib TYPELIB;
 
 ulonglong find_set(TYPELIB *lib, const char *x, uint length, CHARSET_INFO *cs,

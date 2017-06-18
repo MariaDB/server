@@ -13,11 +13,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
+#include "mariadb.h"
 #include "wsrep_sst.h"
-
 #include <mysqld.h>
 #include <m_ctype.h>
-#include <my_sys.h>
 #include <strfunc.h>
 #include <sql_class.h>
 #include <set_var.h>

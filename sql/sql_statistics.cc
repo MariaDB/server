@@ -23,7 +23,7 @@
   @{
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_base.h"
 #include "key.h"
 #include "sql_statistics.h"

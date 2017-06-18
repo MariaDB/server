@@ -46,7 +46,7 @@
     TABLE_SHARE::tdc.flushed is true
 */
 
-#include "my_global.h"
+#include "mariadb.h"
 #include "lf.h"
 #include "table.h"
 #include "sql_base.h"

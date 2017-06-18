@@ -25,7 +25,7 @@
     str is a (long) to record position where 0 is the first position.
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_partition.h"                      // struct partition_info

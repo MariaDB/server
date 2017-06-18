@@ -31,13 +31,12 @@ POSSIBILITY OF SUCH DAMAGE.
 
   GSSAPI authentication plugin, client side
 */
-#include <string.h>
-#include <stdarg.h>
+#include <my_global.h>
 #include <mysqld_error.h>
 #include <mysql/client_plugin.h>
 #include <mysql.h>
-#include <stdio.h>
 #include "common.h"
+#include <string.h>
 
 extern int auth_client(char *principal_name,
                        char *mech,

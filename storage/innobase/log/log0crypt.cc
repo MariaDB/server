@@ -24,6 +24,7 @@ Created 11/25/2013 Minli Zhu Google
 Modified           Jan Lindström jan.lindstrom@mariadb.com
 MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 *******************************************************/
+#include <my_global.h>
 #include "m_string.h"
 #include "log0crypt.h"
 #include <mysql/service_my_crypt.h>

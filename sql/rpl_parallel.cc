@@ -1,4 +1,4 @@
-#include "my_global.h"
+#include "mariadb.h"
 #include "rpl_parallel.h"
 #include "slave.h"
 #include "rpl_mi.h"
