@@ -6118,6 +6118,25 @@ public:
   }
 };
 
+/* Functions to compare if two lex strings are equal */
+inline bool lex_string_cmp(CHARSET_INFO *charset,
+                           const LEX_CSTRING *a,
+                           const LEX_CSTRING *b)
+{
+  return my_strcasecmp(charset, a->str, b->str);
+}
+
+/*
+  Compare if two LEX_CSTRING are equal. Assumption is that
+  character set is ASCII (like for plugin names)
+*/
+inline bool lex_string_eq(const LEX_CSTRING *a,
+                          const LEX_CSTRING *b)
+{
+  if (a->length != b->length)
+    return 1;                                   /* Different */
+  return strcasecmp(a->str, b->str) != 0;
+}
 
 #endif /* MYSQL_SERVER */
 

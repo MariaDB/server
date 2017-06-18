@@ -132,8 +132,8 @@ sp_pcontext *sp_pcontext::push_context(THD *thd, sp_pcontext::enum_scope scope)
 
 bool cmp_labels(sp_label *a, sp_label *b)
 {
-  return (my_strcasecmp(system_charset_info, a->name.str, b->name.str) == 0
-          && a->type == b->type);
+  return (lex_string_cmp(system_charset_info, &a->name, &b->name) == 0 &&
+          a->type == b->type);
 }
 
 sp_pcontext *sp_pcontext::pop_context()
@@ -304,7 +304,7 @@ sp_label *sp_pcontext::find_goto_label(const LEX_CSTRING *name, bool recusive)
 
   while ((lab= li++))
   {
-    if (my_strcasecmp(system_charset_info, name->str, lab->name.str) == 0)
+    if (lex_string_cmp(system_charset_info, name, &lab->name) == 0)
       return lab;
   }
 
@@ -341,7 +341,7 @@ sp_label *sp_pcontext::find_label(const LEX_CSTRING *name)
 
   while ((lab= li++))
   {
-    if (my_strcasecmp(system_charset_info, name->str, lab->name.str) == 0)
+    if (lex_string_cmp(system_charset_info, name, &lab->name) == 0)
       return lab;
   }
 

@@ -129,8 +129,8 @@ bool With_clause::check_dependencies()
          elem != with_elem;
          elem= elem->next)
     {
-      if (my_strcasecmp(system_charset_info, with_elem->query_name->str,
-                        elem->query_name->str) == 0)
+      if (lex_string_cmp(system_charset_info, with_elem->query_name,
+                         elem->query_name) == 0)
       {
 	my_error(ER_DUP_QUERY_NAME, MYF(0), with_elem->query_name->str);
 	return true;

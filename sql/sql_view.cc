@@ -140,7 +140,7 @@ bool check_duplicate_names(THD *thd, List<Item> &item_list, bool gen_unique_view
     itc.rewind();
     while ((check= itc++) && check != item)
     {
-      if (my_strcasecmp(system_charset_info, item->name.str, check->name.str) == 0)
+      if (lex_string_cmp(system_charset_info, &item->name, &check->name) == 0)
       {
         if (!gen_unique_view_name)
           goto err;

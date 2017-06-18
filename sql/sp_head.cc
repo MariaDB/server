@@ -2303,9 +2303,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       */
       continue;
     }
-    if (my_strcasecmp(system_charset_info,
-                      bp->lab->name.str,
-                      lab->name.str) == 0)
+    if (lex_string_cmp(system_charset_info, &bp->lab->name, &lab->name) == 0)
     {
       if (bp->instr_type == GOTO)
       {

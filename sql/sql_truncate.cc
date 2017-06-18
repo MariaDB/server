@@ -151,18 +151,18 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
   /* Loop over the set of foreign keys for which this table is a parent. */
   while ((fk_info= it++))
   {
-    DBUG_ASSERT(!my_strcasecmp(system_charset_info,
-                               fk_info->referenced_db->str,
-                               table->s->db.str));
+    DBUG_ASSERT(!lex_string_cmp(system_charset_info,
+                                fk_info->referenced_db,
+                                &table->s->db));
 
-    DBUG_ASSERT(!my_strcasecmp(system_charset_info,
-                               fk_info->referenced_table->str,
-                               table->s->table_name.str));
+    DBUG_ASSERT(!lex_string_cmp(system_charset_info,
+                                fk_info->referenced_table,
+                                &table->s->table_name));
 
-    if (my_strcasecmp(system_charset_info, fk_info->foreign_db->str,
-                      table->s->db.str) ||
-        my_strcasecmp(system_charset_info, fk_info->foreign_table->str,
-                      table->s->table_name.str))
+    if (lex_string_cmp(system_charset_info, fk_info->foreign_db,
+                       &table->s->db) ||
+        lex_string_cmp(system_charset_info, fk_info->foreign_table,
+                       &table->s->table_name))
       break;
   }
 

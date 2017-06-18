@@ -251,30 +251,18 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
   if (is_infoschema_db(db->str, db->length))
     return TABLE_CATEGORY_INFORMATION;
 
-  if ((db->length == PERFORMANCE_SCHEMA_DB_NAME.length) &&
-      (my_strcasecmp(system_charset_info,
-                     PERFORMANCE_SCHEMA_DB_NAME.str,
-                     db->str) == 0))
+  if (lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, db) == 0)
     return TABLE_CATEGORY_PERFORMANCE;
 
-  if ((db->length == MYSQL_SCHEMA_NAME.length) &&
-      (my_strcasecmp(system_charset_info,
-                     MYSQL_SCHEMA_NAME.str,
-                     db->str) == 0))
+  if (lex_string_eq(&MYSQL_SCHEMA_NAME, db) == 0)
   {
     if (is_system_table_name(name->str, name->length))
       return TABLE_CATEGORY_SYSTEM;
 
-    if ((name->length == GENERAL_LOG_NAME.length) &&
-        (my_strcasecmp(system_charset_info,
-                       GENERAL_LOG_NAME.str,
-                       name->str) == 0))
+    if (lex_string_eq(&GENERAL_LOG_NAME, name) == 0)
       return TABLE_CATEGORY_LOG;
 
-    if ((name->length == SLOW_LOG_NAME.length) &&
-        (my_strcasecmp(system_charset_info,
-                       SLOW_LOG_NAME.str,
-                       name->str) == 0))
+    if (lex_string_eq(&SLOW_LOG_NAME, name) == 0)
       return TABLE_CATEGORY_LOG;
   }
 
@@ -8299,7 +8287,7 @@ Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
   for (Field **tmp= field; *tmp; tmp++)
   {
     if ((*tmp)->field_name.length == length &&
-        !my_strcasecmp(system_charset_info, (*tmp)->field_name.str, str->str))
+        !lex_string_cmp(system_charset_info, &(*tmp)->field_name, str))
       return *tmp;
   }
   return NULL;

@@ -1136,10 +1136,10 @@ void update_non_unique_table_error(TABLE_LIST *update,
       update->view == duplicate->view ||
       update->view_name.length != duplicate->view_name.length ||
       update->view_db.length != duplicate->view_db.length ||
-      my_strcasecmp(table_alias_charset,
-                    update->view_name.str, duplicate->view_name.str) != 0 ||
-      my_strcasecmp(table_alias_charset,
-                    update->view_db.str, duplicate->view_db.str) != 0)
+      lex_string_cmp(table_alias_charset,
+                     &update->view_name, &duplicate->view_name) != 0 ||
+      lex_string_cmp(table_alias_charset,
+                     &update->view_db, &duplicate->view_db) != 0)
   {
     /*
       it is not the same view repeated (but it can be parts of the same copy
@@ -6107,8 +6107,8 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
 	  item is not fix_field()'ed yet.
         */
         if (item_field->field_name.str && item_field->table_name &&
-	    !my_strcasecmp(system_charset_info, item_field->field_name.str,
-                           field_name->str) &&
+	    !lex_string_cmp(system_charset_info, &item_field->field_name,
+                            field_name) &&
             !my_strcasecmp(table_alias_charset, item_field->table_name, 
                            table_name) &&
             (!db_name || (item_field->db_name &&
@@ -6137,11 +6137,11 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
       }
       else
       {
-        int fname_cmp= my_strcasecmp(system_charset_info,
-                                     item_field->field_name.str,
-                                     field_name->str);
-        if (!my_strcasecmp(system_charset_info,
-                           item_field->name.str,field_name->str))
+        bool fname_cmp= lex_string_cmp(system_charset_info,
+                                       &item_field->field_name,
+                                       field_name);
+        if (!lex_string_cmp(system_charset_info,
+                            &item_field->name, field_name))
         {
           /*
             If table name was not given we should scan through aliases
@@ -6187,7 +6187,7 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
     { 
       if (is_ref_by_name && find->name.str && item->name.str &&
           find->name.length == item->name.length &&
-	  !my_strcasecmp(system_charset_info,item->name.str, find->name.str))
+	  !lex_string_cmp(system_charset_info, &item->name, &find->name))
       {
         found= li.ref();
         *counter= i;
@@ -6404,8 +6404,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
         here. These columns must be checked only on unqualified reference 
         by name (e.g. in SELECT list).
       */
-      if (!my_strcasecmp(system_charset_info, field_name_1->str,
-                         cur_field_name_2->str))
+      if (!lex_string_cmp(system_charset_info, field_name_1,
+                          cur_field_name_2))
       {
         DBUG_PRINT ("info", ("match c1.is_common=%d", nj_col_1->is_common));
         if (cur_nj_col_2->is_common ||

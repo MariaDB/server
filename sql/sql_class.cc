@@ -121,8 +121,8 @@ extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
 bool Key_part_spec::operator==(const Key_part_spec& other) const
 {
   return length == other.length &&
-         !my_strcasecmp(system_charset_info, field_name.str,
-                        other.field_name.str);
+         !lex_string_cmp(system_charset_info, &field_name,
+                         &other.field_name);
 }
 
 /**
@@ -249,9 +249,9 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
   {
     it.rewind();
     while ((sql_field= it++) &&
-           my_strcasecmp(system_charset_info,
-                         column->field_name.str,
-                         sql_field->field_name.str)) {}
+           lex_string_cmp(system_charset_info,
+                          &column->field_name,
+                          &sql_field->field_name)) {}
     if (!sql_field)
     {
       my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);

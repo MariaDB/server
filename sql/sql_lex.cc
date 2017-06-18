@@ -5793,8 +5793,8 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
   if (sp_block_finalize(thd, spblock, &splabel))
     return true;
   if (end_label->str &&
-      my_strcasecmp(system_charset_info,
-                    end_label->str, splabel->name.str) != 0)
+      lex_string_cmp(system_charset_info,
+                     end_label, &splabel->name) != 0)
   {
     my_error(ER_SP_LABEL_MISMATCH, MYF(0), end_label->str);
     return true;
@@ -6201,8 +6201,8 @@ bool LEX::sp_pop_loop_label(THD *thd, const LEX_CSTRING *label_name)
   sp_label *lab= spcont->pop_label();
   sphead->backpatch(lab);
   if (label_name->str &&
-      my_strcasecmp(system_charset_info, label_name->str,
-                                         lab->name.str) != 0)
+      lex_string_cmp(system_charset_info, label_name,
+                     &lab->name) != 0)
   {
     my_error(ER_SP_LABEL_MISMATCH, MYF(0), label_name->str);
     return true;

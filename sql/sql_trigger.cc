@@ -750,8 +750,8 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     DBUG_RETURN(true);
 
   /* Trigger must be in the same schema as target table. */
-  if (my_strcasecmp(table_alias_charset, table->s->db.str,
-                    lex->spname->m_db.str))
+  if (lex_string_cmp(table_alias_charset, &table->s->db,
+                     &lex->spname->m_db))
   {
     my_error(ER_TRG_IN_WRONG_SCHEMA, MYF(0));
     DBUG_RETURN(true);
@@ -1084,8 +1084,8 @@ Trigger *Table_triggers_list::find_trigger(const LEX_CSTRING *name,
            (trigger= *parent);
            parent= &trigger->next)
       {
-        if (my_strcasecmp(table_alias_charset,
-                          trigger->name.str, name->str) == 0)
+        if (lex_string_cmp(table_alias_charset,
+                           &trigger->name, name) == 0)
         {
           if (remove_from_list)
           {
@@ -1633,8 +1633,8 @@ void Table_triggers_list::add_trigger(trg_event_type event,
   for ( ; *parent ; parent= &(*parent)->next, position++)
   {
     if (ordering_clause != TRG_ORDER_NONE &&
-        !my_strcasecmp(table_alias_charset, anchor_trigger_name->str,
-                       (*parent)->name.str))
+        !lex_string_cmp(table_alias_charset, anchor_trigger_name,
+                        &(*parent)->name))
     {
       if (ordering_clause == TRG_ORDER_FOLLOWS)
       {

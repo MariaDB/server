@@ -3055,30 +3055,25 @@ static void check_duplicate_key(THD *thd, Key *key, KEY *key_info,
     */
 
     List_iterator_fast<Key_part_spec> k_column_iterator(k->columns);
-
-    bool all_columns_are_identical= true;
-
+    uint i;
     key_column_iterator.rewind();
 
-    for (uint i= 0; i < key->columns.elements; ++i)
+    for (i= 0; i < key->columns.elements; ++i)
     {
       Key_part_spec *c1= key_column_iterator++;
       Key_part_spec *c2= k_column_iterator++;
 
       DBUG_ASSERT(c1 && c2);
 
-      if (my_strcasecmp(system_charset_info,
-                        c1->field_name.str, c2->field_name.str) ||
+      if (lex_string_cmp(system_charset_info,
+                         &c1->field_name, &c2->field_name) ||
           (c1->length != c2->length))
-      {
-        all_columns_are_identical= false;
         break;
-      }
     }
 
     // Report a warning if we have two identical keys.
 
-    if (all_columns_are_identical)
+    if (i == key->columns.elements)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_DUP_INDEX, ER_THD(thd, ER_DUP_INDEX),
@@ -3343,9 +3338,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     /* Check if we have used the same field name before */
     for (dup_no=0; (dup_field=it2++) != sql_field; dup_no++)
     {
-      if (my_strcasecmp(system_charset_info,
-			sql_field->field_name.str,
-			dup_field->field_name.str) == 0)
+      if (lex_string_cmp(system_charset_info,
+                         &sql_field->field_name,
+                         &dup_field->field_name) == 0)
       {
 	/*
 	  If this was a CREATE ... SELECT statement, accept a field
@@ -3677,9 +3672,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       it.rewind();
       field=0;
       while ((sql_field=it++) &&
-	     my_strcasecmp(system_charset_info,
-			   column->field_name.str,
-			   sql_field->field_name.str))
+	     lex_string_cmp(system_charset_info,
+                            &column->field_name,
+                            &sql_field->field_name))
 	field++;
       if (!sql_field)
       {
@@ -3688,8 +3683,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       }
       while ((dup_column= cols2++) != column)
       {
-        if (!my_strcasecmp(system_charset_info,
-	     	           column->field_name.str, dup_column->field_name.str))
+        if (!lex_string_cmp(system_charset_info,
+                            &column->field_name, &dup_column->field_name))
 	{
 	  my_error(ER_DUP_FIELDNAME, MYF(0), column->field_name.str);
 	  DBUG_RETURN(TRUE);
@@ -4056,9 +4051,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         Virtual_column_info *dup_check;
         while ((dup_check= dup_it++) && dup_check != check)
         {
-          if (check->name.length == dup_check->name.length &&
-              my_strcasecmp(system_charset_info,
-                            check->name.str, dup_check->name.str) == 0)
+          if (!lex_string_cmp(system_charset_info,
+                              &check->name, &dup_check->name))
           {
             my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
             DBUG_RETURN(TRUE);
@@ -5655,8 +5649,9 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
       */
       for (f_ptr=table->field; *f_ptr; f_ptr++)
       {
-        if (my_strcasecmp(system_charset_info,
-              sql_field->field_name.str, (*f_ptr)->field_name.str) == 0)
+        if (lex_string_cmp(system_charset_info,
+                           &sql_field->field_name,
+                           &(*f_ptr)->field_name) == 0)
           goto drop_create_field;
       }
       {
@@ -5668,8 +5663,9 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
         Create_field *chk_field;
         while ((chk_field= chk_it++) && chk_field != sql_field)
         {
-          if (my_strcasecmp(system_charset_info,
-                sql_field->field_name.str, chk_field->field_name.str) == 0)
+          if (lex_string_cmp(system_charset_info,
+                             &sql_field->field_name,
+                             &chk_field->field_name) == 0)
             goto drop_create_field;
         }
       }
@@ -5704,8 +5700,9 @@ drop_create_field:
       */
       for (f_ptr=table->field; *f_ptr; f_ptr++)
       {
-        if (my_strcasecmp(system_charset_info,
-              sql_field->change.str, (*f_ptr)->field_name.str) == 0)
+        if (lex_string_cmp(system_charset_info,
+                           &sql_field->change,
+                           &(*f_ptr)->field_name) == 0)
         {
           break;
         }
@@ -6024,8 +6021,8 @@ remove_key:
       {
         Virtual_column_info *dup= table->check_constraints[c];
         if (dup->name.length == check->name.length &&
-            my_strcasecmp(system_charset_info,
-                          check->name.str, dup->name.str) == 0)
+            lex_string_cmp(system_charset_info,
+                           &check->name, &dup->name) == 0)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
             ER_DUP_CONSTRAINT_NAME, ER_THD(thd, ER_DUP_CONSTRAINT_NAME),
@@ -6332,8 +6329,8 @@ static bool fill_alter_inplace_info(THD *thd,
       }
 
       /* Check if field was renamed */
-      if (my_strcasecmp(system_charset_info, field->field_name.str,
-                        new_field->field_name.str))
+      if (lex_string_cmp(system_charset_info, &field->field_name,
+                         &new_field->field_name))
       {
         field->flags|= FIELD_IS_RENAMED;
         ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_NAME;
@@ -6464,7 +6461,8 @@ static bool fill_alter_inplace_info(THD *thd,
          new_key < new_key_end;
          new_key++)
     {
-      if (! strcmp(table_key->name.str, new_key->name.str))
+      if (!lex_string_cmp(system_charset_info, &table_key->name,
+                          &new_key->name))
         break;
     }
     if (new_key >= new_key_end)
@@ -6555,7 +6553,8 @@ static bool fill_alter_inplace_info(THD *thd,
     /* Search an old key with the same name. */
     for (table_key= table->key_info; table_key < table_key_end; table_key++)
     {
-      if (! strcmp(table_key->name.str, new_key->name.str))
+      if (!lex_string_cmp(system_charset_info, &table_key->name,
+                          &new_key->name))
         break;
     }
     if (table_key >= table_key_end)
@@ -6789,9 +6788,9 @@ bool mysql_compare_tables(TABLE *table,
       create_info->table_options|= HA_OPTION_PACK_RECORD;
 
     /* Check if field was renamed */
-    if (my_strcasecmp(system_charset_info,
-		      field->field_name.str,
-		      tmp_new_field->field_name.str))
+    if (lex_string_cmp(system_charset_info,
+                       &field->field_name,
+                       &tmp_new_field->field_name))
       DBUG_RETURN(false);
 
     /* Evaluate changes bitmap and send to check_if_incompatible_data() */
@@ -6818,7 +6817,8 @@ bool mysql_compare_tables(TABLE *table,
     /* Search a key with the same name. */
     for (new_key= key_info_buffer; new_key < new_key_end; new_key++)
     {
-      if (! strcmp(table_key->name.str, new_key->name.str))
+      if (!lex_string_cmp(system_charset_info, &table_key->name,
+                          &new_key->name))
         break;
     }
     if (new_key >= new_key_end)
@@ -6857,7 +6857,8 @@ bool mysql_compare_tables(TABLE *table,
     /* Search a key with the same name. */
     for (table_key= table->key_info; table_key < table_key_end; table_key++)
     {
-      if (! strcmp(table_key->name.str, new_key->name.str))
+      if (!lex_string_cmp(system_charset_info, &table_key->name,
+                          &new_key->name))
         break;
     }
     if (table_key >= table_key_end)
@@ -7505,8 +7506,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     while ((def=def_it++))
     {
       if (def->change.str &&
-	  !my_strcasecmp(system_charset_info,field->field_name.str,
-                         def->change.str))
+	  !lex_string_cmp(system_charset_info, &field->field_name,
+                          &def->change))
 	break;
     }
     if (def)
@@ -7623,8 +7624,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         find_it.rewind();
         while ((find=find_it++))
         {
-          if (!my_strcasecmp(system_charset_info, def->after.str,
-                             find->field_name.str))
+          if (!lex_string_cmp(system_charset_info, &def->after,
+                              &find->field_name))
             break;
         }
         if (!find)
@@ -7990,8 +7991,8 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
     {
       Field *old_field= new_field->field;
 
-      if (my_strcasecmp(system_charset_info, old_field->field_name.str,
-                        new_field->field_name.str))
+      if (lex_string_cmp(system_charset_info, &old_field->field_name,
+                         &new_field->field_name))
       {
         /*
           Copy algorithm doesn't support proper renaming of columns in
@@ -8104,10 +8105,10 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       if ((drop->type == Alter_drop::FOREIGN_KEY) &&
           (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
                          drop->name) == 0) &&
-          (my_strcasecmp(table_alias_charset, f_key->foreign_db->str,
-                         table->s->db.str) == 0) &&
-          (my_strcasecmp(table_alias_charset, f_key->foreign_table->str,
-                         table->s->table_name.str) == 0))
+          (lex_string_cmp(table_alias_charset, f_key->foreign_db,
+                          &table->s->db) == 0) &&
+          (lex_string_cmp(table_alias_charset, f_key->foreign_table,
+                          &table->s->table_name) == 0))
         fk_parent_key_it.remove();
     }
   }
