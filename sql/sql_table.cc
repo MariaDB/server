@@ -2764,9 +2764,9 @@ static int sort_keys(KEY *a, KEY *b)
       /* Sort NOT NULL keys before other keys */
       return (a_flags & HA_NULL_PART_KEY) ? 1 : -1;
     }
-    if (a->name == primary_key_name)
+    if (a->name.str == primary_key_name)
       return -1;
-    if (b->name == primary_key_name)
+    if (b->name.str == primary_key_name)
       return 1;
     /* Sort keys don't containing partial segments before others */
     if ((a_flags ^ b_flags) & HA_KEY_HAS_PART_KEY_SEG)
@@ -3082,7 +3082,7 @@ static void check_duplicate_key(THD *thd, Key *key, KEY *key_info,
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_DUP_INDEX, ER_THD(thd, ER_DUP_INDEX),
-                          key_info->name);
+                          key_info->name.str);
       break;
     }
   }
@@ -3938,12 +3938,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  my_error(ER_DUP_KEYNAME, MYF(0), key_name);
 	  DBUG_RETURN(TRUE);
 	}
-	key_info->name=(char*) key_name;
+	key_info->name.str= (char*) key_name;
+        key_info->name.length= strlen(key_name);
       }
     }
-    if (!key_info->name || check_column_name(key_info->name))
+    if (!key_info->name.str || check_column_name(key_info->name.str))
     {
-      my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key_info->name);
+      my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key_info->name.str);
       DBUG_RETURN(TRUE);
     }
     if (key->type == Key::UNIQUE && !(key_info->flags & HA_NULL_PART_KEY))
@@ -3958,7 +3959,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (validate_comment_length(thd, &key->key_create_info.comment,
                                 INDEX_COMMENT_MAXLEN,
                                 ER_TOO_LONG_INDEX_COMMENT,
-                                key_info->name))
+                                key_info->name.str))
        DBUG_RETURN(TRUE);
 
     key_info->comment.length= key->key_create_info.comment.length;
@@ -4991,7 +4992,7 @@ static bool
 check_if_keyname_exists(const char *name, KEY *start, KEY *end)
 {
   for (KEY *key=start ; key != end ; key++)
-    if (!my_strcasecmp(system_charset_info,name,key->name))
+    if (!my_strcasecmp(system_charset_info, name, key->name.str))
       return 1;
   return 0;
 }
@@ -5773,7 +5774,8 @@ drop_create_field:
           for (n_key=0; n_key < table->s->keys; n_key++)
           {
             if (my_strcasecmp(system_charset_info,
-                  drop->name, table->key_info[n_key].name) == 0)
+                              drop->name,
+                              table->key_info[n_key].name.str) == 0)
             {
               remove_drop= FALSE;
               break;
@@ -5871,7 +5873,7 @@ drop_create_field:
         for (n_key=0; n_key < table->s->keys; n_key++)
         {
           if (my_strcasecmp(system_charset_info,
-                keyname, table->key_info[n_key].name) == 0)
+                keyname, table->key_info[n_key].name.str) == 0)
           {
             goto remove_key;
           }
@@ -6462,7 +6464,7 @@ static bool fill_alter_inplace_info(THD *thd,
          new_key < new_key_end;
          new_key++)
     {
-      if (! strcmp(table_key->name, new_key->name))
+      if (! strcmp(table_key->name.str, new_key->name.str))
         break;
     }
     if (new_key >= new_key_end)
@@ -6471,7 +6473,7 @@ static bool fill_alter_inplace_info(THD *thd,
       ha_alter_info->index_drop_buffer
         [ha_alter_info->index_drop_count++]=
         table_key;
-      DBUG_PRINT("info", ("index dropped: '%s'", table_key->name));
+      DBUG_PRINT("info", ("index dropped: '%s'", table_key->name.str));
       continue;
     }
 
@@ -6539,7 +6541,7 @@ static bool fill_alter_inplace_info(THD *thd,
       [ha_alter_info->index_add_count++]=
       new_key - ha_alter_info->key_info_buffer;
     /* Mark all old fields which are used in newly created index. */
-    DBUG_PRINT("info", ("index changed: '%s'", table_key->name));
+    DBUG_PRINT("info", ("index changed: '%s'", table_key->name.str));
   }
   /*end of for (; table_key < table_key_end;) */
 
@@ -6553,7 +6555,7 @@ static bool fill_alter_inplace_info(THD *thd,
     /* Search an old key with the same name. */
     for (table_key= table->key_info; table_key < table_key_end; table_key++)
     {
-      if (! strcmp(table_key->name, new_key->name))
+      if (! strcmp(table_key->name.str, new_key->name.str))
         break;
     }
     if (table_key >= table_key_end)
@@ -6562,7 +6564,7 @@ static bool fill_alter_inplace_info(THD *thd,
       ha_alter_info->index_add_buffer
         [ha_alter_info->index_add_count++]=
         new_key - ha_alter_info->key_info_buffer;
-      DBUG_PRINT("info", ("index added: '%s'", new_key->name));
+      DBUG_PRINT("info", ("index added: '%s'", new_key->name.str));
     }
     else
       ha_alter_info->create_info->indexes_option_struct[table_key - table->key_info]=
@@ -6634,7 +6636,8 @@ static bool fill_alter_inplace_info(THD *thd,
 
     if (new_key->flags & HA_NOSAME)
     {
-      bool is_pk= !my_strcasecmp(system_charset_info, new_key->name, primary_key_name);
+      bool is_pk= !my_strcasecmp(system_charset_info,
+                                 new_key->name.str, primary_key_name);
 
       if ((!(new_key->flags & HA_KEY_HAS_PART_KEY_SEG) &&
            !(new_key->flags & HA_NULL_PART_KEY)) ||
@@ -6815,7 +6818,7 @@ bool mysql_compare_tables(TABLE *table,
     /* Search a key with the same name. */
     for (new_key= key_info_buffer; new_key < new_key_end; new_key++)
     {
-      if (! strcmp(table_key->name, new_key->name))
+      if (! strcmp(table_key->name.str, new_key->name.str))
         break;
     }
     if (new_key >= new_key_end)
@@ -6854,7 +6857,7 @@ bool mysql_compare_tables(TABLE *table,
     /* Search a key with the same name. */
     for (table_key= table->key_info; table_key < table_key_end; table_key++)
     {
-      if (! strcmp(table_key->name, new_key->name))
+      if (! strcmp(table_key->name.str, new_key->name.str))
         break;
     }
     if (table_key >= table_key_end)
@@ -7655,7 +7658,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
  
   for (uint i=0 ; i < table->s->keys ; i++,key_info++)
   {
-    const char *key_name= key_info->name;
+    const char *key_name= key_info->name.str;
     Alter_drop *drop;
     drop_it.rewind();
     while ((drop=drop_it++))

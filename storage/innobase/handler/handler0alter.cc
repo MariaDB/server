@@ -919,7 +919,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		for (uint i = 0; i < ha_alter_info->index_drop_count; i++) {
 			if (!my_strcasecmp(
 				    system_charset_info,
-				    ha_alter_info->index_drop_buffer[i]->name,
+				    ha_alter_info->index_drop_buffer[i]->name.str,
 				    FTS_DOC_ID_INDEX_NAME)) {
 				ha_alter_info->unsupported_reason = innobase_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_CHANGE_FTS);
@@ -2000,7 +2000,7 @@ innobase_check_index_keys(
 			const KEY&	key2 = info->key_info_buffer[
 				info->index_add_buffer[i]];
 
-			if (0 == strcmp(key.name, key2.name)) {
+			if (0 == strcmp(key.name.str, key2.name.str)) {
 				my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
 					 key.name);
 
@@ -2016,7 +2016,7 @@ innobase_check_index_keys(
 		     index; index = dict_table_get_next_index(index)) {
 
 			if (index->is_committed()
-			    && !strcmp(key.name, index->name)) {
+			    && !strcmp(key.name.str, index->name)) {
 				break;
 			}
 		}
@@ -2041,7 +2041,8 @@ innobase_check_index_keys(
 				const KEY*	drop_key
 					= info->index_drop_buffer[i];
 
-				if (0 == strcmp(key.name, drop_key->name)) {
+				if (0 == strcmp(key.name.str,
+                                                drop_key->name.str)) {
 					goto name_ok;
 				}
 			}
@@ -2225,7 +2226,7 @@ innobase_create_index_def(
 	index->parser = NULL;
 	index->key_number = key_number;
 	index->n_fields = n_fields;
-	index->name = mem_heap_strdup(heap, key->name);
+	index->name = mem_heap_strdup(heap, key->name.str);
 	index->rebuild = new_clustered;
 
 	if (key_clustered) {
@@ -2245,8 +2246,8 @@ innobase_create_index_def(
 
 		if (key->flags & HA_USES_PARSER) {
 			for (ulint j = 0; j < altered_table->s->keys; j++) {
-				if (ut_strcmp(altered_table->key_info[j].name,
-					      key->name) == 0) {
+				if (ut_strcmp(altered_table->key_info[j].name.str,
+					      key->name.str) == 0) {
 					ut_ad(altered_table->key_info[j].flags
 					      & HA_USES_PARSER);
 
@@ -2422,13 +2423,13 @@ innobase_fts_check_doc_id_index(
 			const KEY& key = altered_table->key_info[i];
 
 			if (innobase_strcasecmp(
-				    key.name, FTS_DOC_ID_INDEX_NAME)) {
+				    key.name.str, FTS_DOC_ID_INDEX_NAME)) {
 				continue;
 			}
 
 			if ((key.flags & HA_NOSAME)
 			    && key.user_defined_key_parts == 1
-			    && !strcmp(key.name, FTS_DOC_ID_INDEX_NAME)
+			    && !strcmp(key.name.str, FTS_DOC_ID_INDEX_NAME)
 			    && !strcmp(key.key_part[0].field->field_name.str,
 				       FTS_DOC_ID_COL_NAME)) {
 				if (fts_doc_col_no) {
@@ -2499,7 +2500,7 @@ innobase_fts_check_doc_id_index_in_def(
 	for (ulint j = 0; j < n_key; j++) {
 		const KEY*	key = &key_info[j];
 
-		if (innobase_strcasecmp(key->name, FTS_DOC_ID_INDEX_NAME)) {
+		if (innobase_strcasecmp(key->name.str, FTS_DOC_ID_INDEX_NAME)) {
 			continue;
 		}
 
@@ -2507,7 +2508,7 @@ innobase_fts_check_doc_id_index_in_def(
 		named as "FTS_DOC_ID_INDEX" and on column "FTS_DOC_ID" */
 		if (!(key->flags & HA_NOSAME)
 		    || key->user_defined_key_parts != 1
-		    || strcmp(key->name, FTS_DOC_ID_INDEX_NAME)
+		    || strcmp(key->name.str, FTS_DOC_ID_INDEX_NAME)
 		    || strcmp(key->key_part[0].field->field_name.str,
 			      FTS_DOC_ID_COL_NAME)) {
 			return(FTS_INCORRECT_DOC_ID_INDEX);
@@ -2579,7 +2580,7 @@ innobase_create_key_defs(
 
 	new_primary = n_add > 0
 		&& !my_strcasecmp(system_charset_info,
-				  key_info[*add].name, "PRIMARY");
+				  key_info[*add].name.str, "PRIMARY");
 	n_fts_add = 0;
 
 	/* If there is a UNIQUE INDEX consisting entirely of NOT NULL
@@ -5886,7 +5887,7 @@ found_fk:
 				= ha_alter_info->index_drop_buffer[i];
 			dict_index_t*	index
 				= dict_table_get_index_on_name(
-					indexed_table, key->name);
+					indexed_table, key->name.str);
 
 			if (!index) {
 				push_warning_printf(
@@ -5928,7 +5929,7 @@ found_fk:
 				if (!my_strcasecmp(
 					    system_charset_info,
 					    FTS_DOC_ID_INDEX_NAME,
-					    table->key_info[i].name)) {
+					    table->key_info[i].name.str)) {
 					/* The index exists in the MySQL
 					data dictionary. Do not drop it,
 					even though it is no longer needed
@@ -6340,7 +6341,7 @@ get_error_key_name(
 	} else if (ha_alter_info->key_count == 0) {
 		return(dict_table_get_first_index(table)->name);
 	} else {
-		return(ha_alter_info->key_info_buffer[error_key_num].name);
+		return(ha_alter_info->key_info_buffer[error_key_num].name.str);
 	}
 }
 
@@ -8267,7 +8268,7 @@ alter_stats_norebuild(
 		char	errstr[1024];
 
 		if (dict_stats_drop_index(
-			    ctx->new_table->name.m_name, key->name,
+			    ctx->new_table->name.m_name, key->name.str,
 			    errstr, sizeof errstr) != DB_SUCCESS) {
 			push_warning(thd,
 				     Sql_condition::WARN_LEVEL_WARN,

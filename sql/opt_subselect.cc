@@ -432,9 +432,9 @@ referred to, we can only generate equalities that refer to the outer (or inner)
 tables. Note that this will disallow handling of cases like (CASE-FOR-SUBST).
 
 Currently, solution #2 is implemented.
-
 */
 
+LEX_CSTRING weedout_key= {STRING_WITH_LEN("weedout_key")};
 
 static
 bool subquery_types_allow_materialization(Item_in_subselect *in_subs);
@@ -4242,7 +4242,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     keyinfo->key_length=0;
     keyinfo->rec_per_key=0;
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
-    keyinfo->name= (char*) "weedout_key";
+    keyinfo->name= weedout_key;
     {
       key_part_info->null_bit=0;
       key_part_info->field=  field;

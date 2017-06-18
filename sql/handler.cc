@@ -3302,6 +3302,10 @@ void handler::ha_release_auto_increment()
   @param msg      Error message template to which key value should be
                   added.
   @param errflag  Flags for my_error() call.
+
+  @notes
+    The error message is from ER_DUP_ENTRY_WITH_KEY_NAME but to keep things compatibly
+    with old code, the error number is ER_DUP_ENTRY
 */
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
@@ -3326,7 +3330,8 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
       str.length(max_length-4);
       str.append(STRING_WITH_LEN("..."));
     }
-    my_printf_error(ER_DUP_ENTRY, msg, errflag, str.c_ptr_safe(), key->name);
+    my_printf_error(ER_DUP_ENTRY, msg, errflag, str.c_ptr_safe(),
+                    key->name.str);
   }
 }
 
@@ -3561,7 +3566,7 @@ void handler::print_error(int error, myf errflag)
     const char *ptr= "???";
     uint key_nr= get_dup_key(error);
     if ((int) key_nr >= 0)
-      ptr= table->key_info[key_nr].name;
+      ptr= table->key_info[key_nr].name.str;
     my_error(ER_DROP_INDEX_FK, errflag, ptr);
     DBUG_VOID_RETURN;
   }
@@ -4637,7 +4642,7 @@ void handler::update_global_index_stats()
       DBUG_ASSERT(key_info->cache_name);
       if (!key_info->cache_name)
         continue;
-      key_length= table->s->table_cache_key.length + key_info->name_length + 1;
+      key_length= table->s->table_cache_key.length + key_info->name.length + 1;
       mysql_mutex_lock(&LOCK_global_index_stats);
       // Gets the global index stats, creating one if necessary.
       if (!(index_stats= (INDEX_STATS*) my_hash_search(&global_index_stats,
@@ -6545,7 +6550,7 @@ end:
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
 {
   INDEX_STATS *index_stats;
-  uint key_length= table->s->table_cache_key.length + key_info->name_length + 1;
+  uint key_length= table->s->table_cache_key.length + key_info->name.length + 1;
   int res = 0;
   DBUG_ENTER("del_global_index_stat");
   mysql_mutex_lock(&LOCK_global_index_stats);

@@ -2350,7 +2350,7 @@ ha_myisam::check_if_supported_inplace_alter(TABLE *new_table,
           old_key->flags != new_key->flags ||
           old_key->user_defined_key_parts != new_key->user_defined_key_parts ||
           old_key->algorithm != new_key->algorithm ||
-          strcmp(old_key->name, new_key->name))
+          strcmp(old_key->name.str, new_key->name.str))
         DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
       for (uint j= 0; j < old_key->user_defined_key_parts; j++)

@@ -2129,18 +2129,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     for (uint key=0 ; key < keys ; key++,keyinfo++)
     {
       uint usable_parts= 0;
-      keyinfo->name=(char*) share->keynames.type_names[key];
-      keyinfo->name_length= strlen(keyinfo->name);
+      keyinfo->name.str=    share->keynames.type_names[key];
+      keyinfo->name.length= strlen(keyinfo->name.str);
       keyinfo->cache_name=
         (uchar*) alloc_root(&share->mem_root,
                             share->table_cache_key.length+
-                            keyinfo->name_length + 1);
+                            keyinfo->name.length + 1);
       if (keyinfo->cache_name)           // If not out of memory
       {
         uchar *pos= keyinfo->cache_name;
         memcpy(pos, share->table_cache_key.str, share->table_cache_key.length);
-        memcpy(pos + share->table_cache_key.length, keyinfo->name,
-               keyinfo->name_length+1);
+        memcpy(pos + share->table_cache_key.length, keyinfo->name.str,
+               keyinfo->name.length+1);
       }
 
       if (!key)
@@ -6896,7 +6896,8 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   if (unique)
     keyinfo->flags|= HA_NOSAME;
   sprintf(buf, "key%i", key);
-  if (!(keyinfo->name= strdup_root(&mem_root, buf)))
+  keyinfo->name.length= strlen(buf);
+  if (!(keyinfo->name.str= strmake_root(&mem_root, buf, keyinfo->name.length)))
     return TRUE;
   keyinfo->rec_per_key= (ulong*) alloc_root(&mem_root,
                                             sizeof(ulong)*key_parts);

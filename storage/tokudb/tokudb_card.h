@@ -111,7 +111,7 @@ namespace tokudb {
         uint* index_offset_ptr) {
 
         for (uint i = 0; i < table_share->keys; i++) {
-            if (strcmp(key_name, table_share->key_info[i].name) == 0) {
+            if (strcmp(key_name, table_share->key_info[i].name.str) == 0) {
                 *index_offset_ptr = i;
                 return true;
             }
@@ -166,7 +166,7 @@ namespace tokudb {
                     altered_table_share->key_info[i].user_defined_key_parts;
                 uint orig_key_index;
                 if (find_index_of_key(
-                        altered_table_share->key_info[i].name,
+                        altered_table_share->key_info[i].name.str,
                         table_share,
                         &orig_key_index)) {
                     copy_card(

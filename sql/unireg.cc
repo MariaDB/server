@@ -478,7 +478,7 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
   *pos++=(uchar) NAMES_SEP_CHAR;
   for (key=keyinfo ; key != end ; key++)
   {
-    uchar *tmp=(uchar*) strmov((char*) pos,key->name);
+    uchar *tmp=(uchar*) strmov((char*) pos,key->name.str);
     *tmp++= (uchar) NAMES_SEP_CHAR;
     *tmp=0;
     pos=tmp;

@@ -1666,8 +1666,8 @@ int spider_db_append_key_where_internal(
 
   if (sql_kind == SPIDER_SQL_KIND_HANDLER)
   {
-    const char *key_name = key_info->name;
-    key_name_length = strlen(key_name);
+    const char *key_name = key_info->name.str;
+    key_name_length =      key_info->name.length;
     if (str->reserve(SPIDER_SQL_READ_LEN +
       /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + key_name_length))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);

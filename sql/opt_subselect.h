@@ -298,7 +298,7 @@ public:
       pos->table=           tab;
       // todo need ref_depend_map ?
       DBUG_PRINT("info", ("Produced a LooseScan plan, key %s, %s",
-                          tab->table->key_info[best_loose_scan_key].name,
+                          tab->table->key_info[best_loose_scan_key].name.str,
                           best_loose_scan_start_key? "(ref access)":
                                                      "(range/index access)"));
     }

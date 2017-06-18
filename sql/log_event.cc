@@ -4993,6 +4993,7 @@ bool test_if_equal_repl_errors(int expected_error, int actual_error)
     return 1;
   switch (expected_error) {
   case ER_DUP_ENTRY:
+  case ER_DUP_ENTRY_WITH_KEY_NAME:
   case ER_AUTOINC_READ_FAILED:
     return (actual_error == ER_AUTOINC_READ_FAILED ||
             actual_error == HA_ERR_AUTOINC_ERANGE);
@@ -12912,7 +12913,7 @@ int Rows_log_event::find_key()
     */
     last_part= key->user_defined_key_parts - 1;
     DBUG_PRINT("info", ("Index %s rec_per_key[%u]= %lu",
-                        key->name, last_part, key->rec_per_key[last_part]));
+                        key->name.str, last_part, key->rec_per_key[last_part]));
     if (!(m_table->file->index_flags(i, last_part, 1) & HA_READ_NEXT))
       continue;
 
@@ -13099,10 +13100,10 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   if (m_key_info)
   {
     DBUG_PRINT("info",("locating record using key #%u [%s] (index_read)",
-                       m_key_nr, m_key_info->name));
+                       m_key_nr, m_key_info->name.str));
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_wrong_index",
-                    if(0 != strcmp(m_key_info->name,"expected_key")) abort(););
+                    if(0 != strcmp(m_key_info->name.str,"expected_key")) abort(););
 
     /* The key is active: search the table using the index */
     if (!table->file->inited &&

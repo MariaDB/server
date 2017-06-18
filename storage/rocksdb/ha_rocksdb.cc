@@ -5819,7 +5819,7 @@ std::unordered_map<std::string, uint> ha_rocksdb::get_old_key_positions(
       ALTER TABLE t1 DROP INDEX ka, ADD INDEX ka(b), ALGORITHM=INPLACE;
     */
     const KEY *const old_key = &old_table_arg->key_info[i];
-    const auto &it = new_key_pos.find(old_key->name);
+    const auto &it = new_key_pos.find(old_key->name.str);
     if (it == new_key_pos.end()) {
       continue;
     }
@@ -5847,7 +5847,7 @@ std::unordered_map<std::string, uint> ha_rocksdb::get_old_key_positions(
       continue;
     }
 
-    old_key_pos[old_key->name] = i;
+    old_key_pos[old_key->name.str] = i;
   }
 
   DBUG_RETURN(old_key_pos);
@@ -5862,7 +5862,7 @@ int ha_rocksdb::compare_keys(const KEY *const old_key,
   DBUG_ASSERT(new_key != nullptr);
 
   /* Check index name. */
-  if (strcmp(old_key->name, new_key->name) != 0) {
+  if (strcmp(old_key->name.str, new_key->name.str) != 0) {
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
@@ -7840,9 +7840,9 @@ const char *ha_rocksdb::get_key_name(const uint index,
   }
 
   DBUG_ASSERT(table_arg->key_info != nullptr);
-  DBUG_ASSERT(table_arg->key_info[index].name != nullptr);
+  DBUG_ASSERT(table_arg->key_info[index].name.str != nullptr);
 
-  return table_arg->key_info[index].name;
+  return table_arg->key_info[index].name.str;
 }
 
 const char *ha_rocksdb::get_key_comment(const uint index,

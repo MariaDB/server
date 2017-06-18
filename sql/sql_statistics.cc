@@ -1319,8 +1319,8 @@ public:
   void set_index_prefix_key_fields(KEY *index_info)
   {
     set_full_table_name();
-    const char *index_name= index_info->name;
-    index_name_field->store(index_name, strlen(index_name),
+    const char *index_name= index_info->name.str;
+    index_name_field->store(index_name, index_info->name.length,
                             system_charset_info);
     table_key_info= index_info;
   }

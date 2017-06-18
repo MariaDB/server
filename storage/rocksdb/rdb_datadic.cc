@@ -158,7 +158,7 @@ void Rdb_key_def::setup(const TABLE *const tbl,
       key_info = &tbl->key_info[m_keyno];
       if (!hidden_pk_exists)
         pk_info = &tbl->key_info[tbl->s->primary_key];
-      m_name = std::string(key_info->name);
+      m_name = std::string(key_info->name.str);
     } else {
       m_name = HIDDEN_PK_NAME;
     }
