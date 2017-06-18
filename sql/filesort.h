@@ -17,7 +17,7 @@
 #define FILESORT_INCLUDED
 
 #include "my_base.h"                            /* ha_rows */
-#include "sql_list.h"                           /* Sql_alloc */
+#include "sql_alloc.h"
 #include "filesort_utils.h"
 
 class SQL_SELECT;

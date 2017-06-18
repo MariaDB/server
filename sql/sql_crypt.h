@@ -21,7 +21,7 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
-#include "sql_list.h"                           /* Sql_alloc */
+#include "sql_alloc.h"                       /* Sql_alloc */
 #include "my_rnd.h"                          /* rand_struct */
 
 class SQL_CRYPT :public Sql_alloc
