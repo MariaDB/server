@@ -544,14 +544,10 @@ wsrep_view_handler_cb (void*                    app_ctx,
         }
       }
 
-//remove      wsrep_get_SE_checkpoint(local_uuid, local_seqno);
-//remove      local_uuid=  cluster_uuid; // workaround when starting from scratch
       /* Init storage engine XIDs from first view */
-//remove      if (wsrep_uuid_compare(&local_uuid, &WSREP_UUID_UNDEFINED) == 0)
       if (view->memb_num == 1)
       {
-//remove        assert(WSREP_SEQNO_UNDEFINED == local_seqno);
-        wsrep_set_SE_checkpoint(cluster_uuid, view->state_id.seqno);
+        wsrep_set_SE_checkpoint(WSREP_UUID_UNDEFINED, WSREP_SEQNO_UNDEFINED);
       }
       else
       {
@@ -631,31 +627,6 @@ out:
   }
 
   return ret;
-}
-
-void wsrep_recover_view() //remove
-{
-
-#ifndef NDEBUG
-  wsrep_uuid_t uuid_nil= WSREP_UUID_UNDEFINED;
-#endif /* ! NDEBUG */
-  assert(memcmp(&node_uuid, &uuid_nil, sizeof(node_uuid)));
-
-  wsrep_view_info_t* view_info= 0;
-  if (wsrep_schema->restore_view(node_uuid, &view_info)) {
-    WSREP_ERROR("Could not restore view from wsrep_schema");
-    if (wsrep) {
-      int const rcode= -EPERM;
-      wsrep_gtid_t const state_id= {WSREP_UUID_UNDEFINED,
-                                    WSREP_SEQNO_UNDEFINED};
-      /* Must call sst_received() to propagate error to provider */
-      wsrep->sst_received(wsrep, &state_id, NULL, rcode);
-    }
-    unireg_abort(1);
-  }
-
-//remove  wsrep_view_handler_cb(0, 0, view_info, 0, 0);
-  free(view_info);
 }
 
 /* Verifies that SE position is consistent with the group position
