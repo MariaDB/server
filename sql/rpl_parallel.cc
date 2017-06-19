@@ -256,7 +256,9 @@ signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi, int err)
   rgi->rli->stop_for_until= false;
   mysql_mutex_lock(rgi->rli->relay_log.get_log_lock());
   mysql_mutex_unlock(rgi->rli->relay_log.get_log_lock());
+  rgi->rli->relay_log.lock_binlog_end_pos();
   rgi->rli->relay_log.signal_update();
+  rgi->rli->relay_log.unlock_binlog_end_pos();
 }
 
 
