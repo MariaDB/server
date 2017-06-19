@@ -837,7 +837,7 @@ static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
       if (n++)
         query_str.append(STRING_WITH_LEN(", "));
       append_identifier(thd, &query_str, item->name.str, item->name.length);
-      query_str.append(val->name.str, val->name.length);
+      query_str.append(&val->name);
     }
   }
 

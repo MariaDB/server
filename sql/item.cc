@@ -1691,7 +1691,7 @@ Item_splocal::this_item_addr(THD *thd, Item **)
 void Item_splocal::print(String *str, enum_query_type)
 {
   str->reserve(m_name.length+8);
-  str->append(m_name.str, m_name.length);
+  str->append(&m_name);
   str->append('@');
   str->qs_append(m_var_idx);
 }
@@ -1816,9 +1816,9 @@ Item_splocal_row_field::this_item_addr(THD *thd, Item **)
 void Item_splocal_row_field::print(String *str, enum_query_type)
 {
   str->reserve(m_name.length + m_field_name.length + 8);
-  str->append(m_name.str, m_name.length);
+  str->append(&m_name);
   str->append('.');
-  str->append(m_field_name.str, m_field_name.length);
+  str->append(&m_field_name);
   str->append('@');
   str->qs_append(m_var_idx);
   str->append('[');
@@ -1854,13 +1854,13 @@ void Item_splocal_row_field_by_name::print(String *str, enum_query_type)
   // +16 should be enough for .NNN@[""]
   if (str->reserve(m_name.length + 2 * m_field_name.length + 16))
     return;
-  str->qs_append(m_name.str, m_name.length);
+  str->qs_append(&m_name);
   str->qs_append('.');
-  str->qs_append(m_field_name.str, m_field_name.length);
+  str->qs_append(&m_field_name);
   str->qs_append('@');
   str->qs_append(m_var_idx);
   str->qs_append("[\"", 2);
-  str->qs_append(m_field_name.str, m_field_name.length);
+  str->qs_append(&m_field_name);
   str->qs_append("\"]", 2);
 }
 

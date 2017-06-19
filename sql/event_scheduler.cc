@@ -85,7 +85,7 @@ Event_worker_thread::print_warnings(THD *thd, Event_job_data *et)
   char prefix_buf[5 * STRING_BUFFER_USUAL_SIZE];
   String prefix(prefix_buf, sizeof(prefix_buf), system_charset_info);
   prefix.length(0);
-  prefix.append("Event Scheduler: [");
+  prefix.append(STRING_WITH_LEN("Event Scheduler: ["));
 
   prefix.append(et->definer.str, et->definer.length, system_charset_info);
   prefix.append("][", 2);

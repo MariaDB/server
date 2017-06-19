@@ -539,7 +539,7 @@ static bool pack_expression(String *buf, Virtual_column_info *vcol,
   size_t len_off= buf->length();
   buf->q_append2b(0); // to be added later
   buf->q_append((char)vcol->name.length);
-  buf->q_append(vcol->name.str, vcol->name.length);
+  buf->q_append(&vcol->name);
   size_t expr_start= buf->length();
   vcol->print(buf);
   size_t expr_len= buf->length() - expr_start;

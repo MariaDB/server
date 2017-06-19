@@ -3357,7 +3357,7 @@ sp_instr_set::print(String *str)
   str->qs_append(STRING_WITH_LEN("set "));
   if (var)
   {
-    str->qs_append(var->name.str, var->name.length);
+    str->qs_append(&var->name);
     str->qs_append('@');
   }
   str->qs_append(m_offset);
@@ -3403,9 +3403,9 @@ sp_instr_set_row_field::print(String *str)
   if (str->reserve(rsrv))
     return;
   str->qs_append(STRING_WITH_LEN("set "));
-    str->qs_append(var->name.str, var->name.length);
+  str->qs_append(&var->name);
   str->qs_append('.');
-  str->qs_append(def->field_name.str, def->field_name.length);
+  str->qs_append(&def->field_name);
   str->qs_append('@');
   str->qs_append(m_offset);
   str->qs_append('[');
@@ -3461,13 +3461,13 @@ sp_instr_set_row_field_by_name::print(String *str)
   if (str->reserve(rsrv))
     return;
   str->qs_append(STRING_WITH_LEN("set "));
-    str->qs_append(var->name.str, var->name.length);
+  str->qs_append(&var->name);
   str->qs_append('.');
-  str->qs_append(m_field_name.str, m_field_name.length);
+  str->qs_append(&m_field_name);
   str->qs_append('@');
   str->qs_append(m_offset);
   str->qs_append("[\"",2);
-  str->qs_append(m_field_name.str, m_field_name.length);
+  str->qs_append(&m_field_name);
   str->qs_append("\"]",2);
   str->qs_append(' ');
   m_value->print(str, enum_query_type(QT_ORDINARY |
@@ -4120,7 +4120,7 @@ sp_instr_cfetch::print(String *str)
     if (str->reserve(pv->name.length+SP_INSTR_UINT_MAXLEN+2))
       return;
     str->qs_append(' ');
-    str->qs_append(pv->name.str, pv->name.length);
+    str->qs_append(&pv->name);
     str->qs_append('@');
     str->qs_append(pv->offset);
   }

@@ -53,8 +53,6 @@
 /*  External functions.                                                */
 /***********************************************************************/
 USETEMP UseTemp(void);
-bool    IsNum(PSZ s);
-char   *NextChr(PSZ s, char sep);
 
 typedef struct _jncol {
   struct _jncol *Next;

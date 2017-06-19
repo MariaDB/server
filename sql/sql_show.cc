@@ -1773,7 +1773,7 @@ static void append_create_options(THD *thd, String *packet,
     if (opt->quoted_value)
       append_unescaped(packet, opt->value.str, opt->value.length);
     else
-      packet->append(opt->value.str, opt->value.length);
+      packet->append(&opt->value);
   }
   if (in_comment)
     packet->append(STRING_WITH_LEN(" */"));
@@ -7089,7 +7089,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
         tmp_res.length(0);
         if (part_elem->has_null_value)
         {
-          tmp_str.append("NULL");
+          tmp_str.append(STRING_WITH_LEN("NULL"));
           if (num_items > 0)
             tmp_str.append(",");
         }
@@ -7098,7 +7098,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
           if (part_info->column_list)
           {
             if (part_info->part_field_list.elements > 1U)
-              tmp_str.append("(");
+              tmp_str.append(STRING_WITH_LEN("("));
             if (get_partition_column_description(thd,
                                                  part_info,
                                                  list_value,

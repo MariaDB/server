@@ -2832,7 +2832,8 @@ public:
   }
   /* ha_ methods: pubilc wrappers for private virtual API */
   
-  int ha_open(TABLE *table, const char *name, int mode, uint test_if_locked);
+  int ha_open(TABLE *table, const char *name, int mode, uint test_if_locked,
+              MEM_ROOT *mem_root= 0);
   int ha_index_init(uint idx, bool sorted)
   {
     DBUG_EXECUTE_IF("ha_index_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);

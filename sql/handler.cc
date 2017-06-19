@@ -2360,6 +2360,18 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
 /****************************************************************************
 ** General handler functions
 ****************************************************************************/
+
+
+/**
+   Clone a handler
+
+   @param name     name of new table instance
+   @param mem_root Where 'this->ref' should be allocated. It can't be
+                   in this->table->mem_root as otherwise we will not be
+                   able to reclaim that memory when the clone handler
+                   object is destroyed.
+*/
+
 handler *handler::clone(const char *name, MEM_ROOT *mem_root)
 {
   handler *new_handler= get_new_handler(table->s, mem_root, ht);
@@ -2370,16 +2382,6 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
     goto err;
 
   /*
-    Allocate handler->ref here because otherwise ha_open will allocate it
-    on this->table->mem_root and we will not be able to reclaim that memory 
-    when the clone handler object is destroyed.
-  */
-
-  if (!(new_handler->ref= (uchar*) alloc_root(mem_root,
-                                              ALIGN_SIZE(ref_length)*2)))
-    goto err;
-
-  /*
     TODO: Implement a more efficient way to have more than one index open for
     the same table instance. The ha_open call is not cachable for clone.
 
@@ -2387,7 +2389,7 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
     and should be able to use the original instance of the table.
   */
   if (new_handler->ha_open(table, name, table->db_stat,
-                           HA_OPEN_IGNORE_IF_LOCKED))
+                           HA_OPEN_IGNORE_IF_LOCKED, mem_root))
     goto err;
 
   return new_handler;
@@ -2465,7 +2467,7 @@ PSI_table_share *handler::ha_table_share_psi() const
     Don't wait for locks if not HA_OPEN_WAIT_IF_LOCKED is set
 */
 int handler::ha_open(TABLE *table_arg, const char *name, int mode,
-                     uint test_if_locked)
+                     uint test_if_locked, MEM_ROOT *mem_root)
 {
   int error;
   DBUG_ENTER("handler::ha_open");
@@ -2512,9 +2514,9 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
       table->db_stat|=HA_READ_ONLY;
     (void) extra(HA_EXTRA_NO_READCHECK);	// Not needed in SQL
 
-    /* ref is already allocated for us if we're called from handler::clone() */
-    if (!ref && !(ref= (uchar*) alloc_root(&table->mem_root, 
-                                          ALIGN_SIZE(ref_length)*2)))
+    /* Allocate ref in thd or on the table's mem_root */
+    if (!(ref= (uchar*) alloc_root(mem_root ? mem_root : &table->mem_root, 
+                                   ALIGN_SIZE(ref_length)*2)))
     {
       ha_close();
       error=HA_ERR_OUT_OF_MEM;

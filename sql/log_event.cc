@@ -319,7 +319,7 @@ public:
       LEX_STRING tmp_str;
       if (copy_event_cache_to_string_and_reinit(m_cache, &tmp_str))
         exit(1);
-      m_ev->output_buf.append(tmp_str.str, tmp_str.length);
+      m_ev->output_buf.append(&tmp_str);
       my_free(tmp_str.str);
     }
 #else /* MySQL_SERVER */

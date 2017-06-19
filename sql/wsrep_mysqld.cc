@@ -1325,22 +1325,17 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     SELECT_LEX *select_lex= &lex->select_lex;
     TABLE_LIST *first_table= select_lex->table_list.first;
     TABLE_LIST *views = first_table;
-
+    LEX_USER *definer;
     String buff;
     const LEX_STRING command[3]=
       {{ C_STRING_WITH_LEN("CREATE ") },
        { C_STRING_WITH_LEN("ALTER ") },
        { C_STRING_WITH_LEN("CREATE OR REPLACE ") }};
 
-    buff.append(command[thd->lex->create_view->mode].str,
-                command[thd->lex->create_view->mode].length);
-
-    LEX_USER *definer;
+    buff.append(&command[thd->lex->create_view->mode]);
 
     if (lex->definer)
-    {
       definer= get_current_user(thd, lex->definer);
-    }
     else
     {
       /*

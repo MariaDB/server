@@ -647,8 +647,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
        { C_STRING_WITH_LEN("ALTER ") },
        { C_STRING_WITH_LEN("CREATE OR REPLACE ") }};
 
-    buff.append(command[thd->lex->create_view->mode].str,
-                command[thd->lex->create_view->mode].length);
+    buff.append(&command[thd->lex->create_view->mode]);
     view_store_options(thd, views, &buff);
     buff.append(STRING_WITH_LEN("VIEW "));
 
@@ -680,7 +679,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       buff.append(')');
     }
     buff.append(STRING_WITH_LEN(" AS "));
-    buff.append(views->source.str, views->source.length);
+    buff.append(&views->source);
 
     int errcode= query_error_code(thd, TRUE);
     /*

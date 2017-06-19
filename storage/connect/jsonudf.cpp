@@ -1815,7 +1815,7 @@ char *json_make_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
   return str;
 } // end of json_make_array
 
-void json_array_deinit(UDF_INIT* initid)
+static void json_array_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of json_make_array_deinit

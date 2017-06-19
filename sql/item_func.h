@@ -2975,8 +2975,8 @@ public:
 };
 
 
-Item *get_system_var(THD *thd, enum_var_type var_type, LEX_CSTRING name,
-                     LEX_CSTRING component);
+Item *get_system_var(THD *thd, enum_var_type var_type,
+                     const LEX_CSTRING *name, const LEX_CSTRING *component);
 extern bool check_reserved_words(const LEX_CSTRING *name);
 Item *find_date_time_item(Item **args, uint nargs, uint col);
 double my_double_round(double value, longlong dec, bool dec_unsigned,

@@ -10726,7 +10726,7 @@ variable_aux:
               thd->parse_error();
               MYSQL_YYABORT;
             }
-            if (!($$= get_system_var(thd, $2, $3, $4)))
+            if (!($$= get_system_var(thd, $2, &$3, &$4)))
               MYSQL_YYABORT;
             if (!((Item_func_get_system_var*) $$)->is_written_to_binlog())
               Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_VARIABLE);
@@ -13035,9 +13035,15 @@ show_param:
             lex->sql_command= SQLCOM_SHOW_PRIVILEGES;
           }
         | COUNT_SYM '(' '*' ')' WARNINGS
-          { (void) create_select_for_variable("warning_count"); }
+          {
+            LEX_CSTRING var= {STRING_WITH_LEN("warning_count")};
+            (void) create_select_for_variable(thd, &var);
+          }
         | COUNT_SYM '(' '*' ')' ERRORS
-          { (void) create_select_for_variable("error_count"); }
+          {
+            LEX_CSTRING var= {STRING_WITH_LEN("error_count")};
+            (void) create_select_for_variable(thd, &var);
+          }
         | WARNINGS opt_limit_clause
           { Lex->sql_command = SQLCOM_SHOW_WARNS;}
         | ERRORS opt_limit_clause

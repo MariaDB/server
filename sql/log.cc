@@ -2887,27 +2887,27 @@ bool MYSQL_QUERY_LOG::write(time_t event_time, const char *user_host,
     DBUG_EXECUTE_IF("reset_log_last_time", last_time= 0;);
 
     /* Note that my_b_write() assumes it knows the length for this */
-      if (event_time != last_time)
-      {
-        last_time= event_time;
+    if (event_time != last_time)
+    {
+      last_time= event_time;
 
-        localtime_r(&event_time, &start);
+      localtime_r(&event_time, &start);
 
-        time_buff_len= my_snprintf(local_time_buff, MAX_TIME_SIZE,
-                                   "%02d%02d%02d %2d:%02d:%02d\t",
-                                   start.tm_year % 100, start.tm_mon + 1,
-                                   start.tm_mday, start.tm_hour,
-                                   start.tm_min, start.tm_sec);
+      time_buff_len= my_snprintf(local_time_buff, MAX_TIME_SIZE,
+                                 "%02d%02d%02d %2d:%02d:%02d\t",
+                                 start.tm_year % 100, start.tm_mon + 1,
+                                 start.tm_mday, start.tm_hour,
+                                 start.tm_min, start.tm_sec);
 
-        if (my_b_write(&log_file, (uchar*) local_time_buff, time_buff_len))
-          goto err;
-      }
-      else
-        if (my_b_write(&log_file, (uchar*) "\t\t" ,2) < 0)
-          goto err;
+      if (my_b_write(&log_file, (uchar*) local_time_buff, time_buff_len))
+        goto err;
+    }
+    else
+      if (my_b_write(&log_file, (uchar*) "\t\t" ,2) < 0)
+        goto err;
 
-      /* command_type, thread_id */
-      size_t length= my_snprintf(buff, 32, "%6llu ", thread_id_arg);
+    /* command_type, thread_id */
+    size_t length= my_snprintf(buff, 32, "%6llu ", thread_id_arg);
 
     if (my_b_write(&log_file, (uchar*) buff, length))
       goto err;
@@ -5433,13 +5433,14 @@ stmt_has_updated_trans_table(const THD *thd)
 */
 bool use_trans_cache(const THD* thd, bool is_transactional)
 {
+  if (is_transactional)
+    return 1;
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 
-  return
-    ((thd->is_current_stmt_binlog_format_row() ||
-     thd->variables.binlog_direct_non_trans_update) ? is_transactional :
-     (is_transactional || !cache_mngr->trx_cache.empty()));
+  return ((thd->is_current_stmt_binlog_format_row() ||
+           thd->variables.binlog_direct_non_trans_update) ? 0 :
+          !cache_mngr->trx_cache.empty());
 }
 
 /**
@@ -6360,7 +6361,6 @@ err:
              */
             update_binlog_end_pos(offset);
 
-            signal_update();
             if ((error= rotate(false, &check_purge)))
               check_purge= false;
           }
@@ -7675,7 +7675,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     else
     {
       bool any_error= false;
-      bool all_error= true;
 
       mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
       mysql_mutex_assert_owner(&LOCK_log);
@@ -7697,8 +7696,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
           current->error_cache= NULL;
           any_error= true;
         }
-        else
-          all_error= false;
         first= false;
       }
 
@@ -7712,8 +7709,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
       if (any_error)
         sql_print_error("Failed to run 'after_flush' hooks");
-      if (!all_error)
-        signal_update();
     }
 
     /*
@@ -8116,23 +8111,6 @@ void MYSQL_BIN_LOG::wait_for_update_relay_log(THD* thd)
     LOCK_log is being released while the thread is waiting.
     LOCK_log is released by the caller.
 */
-
-int MYSQL_BIN_LOG::wait_for_update_bin_log(THD* thd,
-                                           const struct timespec *timeout)
-{
-  int ret= 0;
-  DBUG_ENTER("wait_for_update_bin_log");
-
-  thd_wait_begin(thd, THD_WAIT_BINLOG);
-  mysql_mutex_assert_owner(&LOCK_log);
-  if (!timeout)
-    mysql_cond_wait(&update_cond, &LOCK_log);
-  else
-    ret= mysql_cond_timedwait(&update_cond, &LOCK_log,
-                              const_cast<struct timespec *>(timeout));
-  thd_wait_end(thd);
-  DBUG_RETURN(ret);
-}
 
 int MYSQL_BIN_LOG::wait_for_update_binlog_end_pos(THD* thd,
                                                   struct timespec *timeout)

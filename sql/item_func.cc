@@ -4995,7 +4995,7 @@ bool Item_func_set_user_var::is_null_result()
 void Item_func_set_user_var::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("@"));
-  str->append(name.str, name.length);
+  str->append(&name);
   str->append(STRING_WITH_LEN(":="));
   args[0]->print_parenthesised(str, query_type, precedence());
 }
@@ -5005,7 +5005,7 @@ void Item_func_set_user_var::print_as_stmt(String *str,
                                            enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("set @"));
-  str->append(name.str, name.length);
+  str->append(&name);
   str->append(STRING_WITH_LEN(":="));
   args[0]->print_parenthesised(str, query_type, precedence());
 }
@@ -5588,7 +5588,7 @@ void Item_func_get_system_var::fix_length_and_dec()
 void Item_func_get_system_var::print(String *str, enum_query_type query_type)
 {
   if (name.length)
-    str->append(name.str, name.length);
+    str->append(&name);
   else
   {
     str->append(STRING_WITH_LEN("@@"));
@@ -6122,39 +6122,41 @@ longlong Item_func_bit_xor::val_int()
 */
 
 
-Item *get_system_var(THD *thd, enum_var_type var_type, LEX_CSTRING name,
-		     LEX_CSTRING component)
+Item *get_system_var(THD *thd, enum_var_type var_type,
+                     const LEX_CSTRING *name,
+		     const LEX_CSTRING *component)
 {
   sys_var *var;
-  LEX_CSTRING *base_name, *component_name;
+  LEX_CSTRING base_name, component_name;
 
-  if (component.str)
+  if (component->str)
   {
-    base_name= &component;
-    component_name= &name;
+    base_name= *component;
+    component_name= *name;
   }
   else
   {
-    base_name= &name;
-    component_name= &component;			// Empty string
+    base_name= *name;
+    component_name= *component;			// Empty string
   }
 
-  if (!(var= find_sys_var(thd, base_name->str, base_name->length)))
+  if (!(var= find_sys_var(thd, base_name.str, base_name.length)))
     return 0;
-  if (component.str)
+  if (component->str)
   {
     if (!var->is_struct())
     {
-      my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), base_name->str);
+      my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), base_name.str);
       return 0;
     }
   }
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
 
-  set_if_smaller(component_name->length, MAX_SYS_VAR_LENGTH);
+  set_if_smaller(component_name.length, MAX_SYS_VAR_LENGTH);
 
-  return new (thd->mem_root) Item_func_get_system_var(thd, var, var_type, component_name,
-                                      NULL, 0);
+  return new (thd->mem_root) Item_func_get_system_var(thd, var, var_type,
+                                                      &component_name,
+                                                      NULL, 0);
 }
 
 

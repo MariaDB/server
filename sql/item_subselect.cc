@@ -949,7 +949,7 @@ void Item_subselect::print(String *str, enum_query_type query_type)
 {
   if (query_type & QT_ITEM_SUBSELECT_ID_ONLY)
   {
-    str->append("(subquery#");
+    str->append(STRING_WITH_LEN("(subquery#"));
     if (unit && unit->first_select())
     {
       char buf[64];
@@ -4358,7 +4358,6 @@ void subselect_union_engine::print(String *str, enum_query_type query_type)
 void subselect_uniquesubquery_engine::print(String *str,
                                             enum_query_type query_type)
 {
-  const char *table_name= tab->table->s->table_name.str;
   str->append(STRING_WITH_LEN("<primary_index_lookup>("));
   tab->ref.items[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" in "));
@@ -4371,7 +4370,7 @@ void subselect_uniquesubquery_engine::print(String *str,
     str->append(STRING_WITH_LEN("<temporary table>"));
   }
   else
-    str->append(table_name, tab->table->s->table_name.length);
+    str->append(&tab->table->s->table_name);
   KEY *key_info= tab->table->key_info+ tab->ref.key;
   str->append(STRING_WITH_LEN(" on "));
   str->append(key_info->name);
@@ -4395,7 +4394,7 @@ void subselect_uniquesubquery_engine::print(String *str)
   for (uint i= 0; i < key_info->user_defined_key_parts; i++)
     tab->ref.items[i]->print(str);
   str->append(STRING_WITH_LEN(" in "));
-  str->append(tab->table->s->table_name.str, tab->table->s->table_name.length);
+  str->append(&tab->table->s->table_name);
   str->append(STRING_WITH_LEN(" on "));
   str->append(key_info->name);
   if (cond)

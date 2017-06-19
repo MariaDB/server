@@ -8381,18 +8381,18 @@ static void add_user_parameters(String *result, ACL_USER* acl_user,
     {
       DBUG_ASSERT(acl_user->salt_len);
       result->append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD '"));
-      result->append(acl_user->auth_string.str, acl_user->auth_string.length);
+      result->append(&acl_user->auth_string);
       result->append('\'');
     }
   }
   else
   {
     result->append(STRING_WITH_LEN(" IDENTIFIED VIA "));
-    result->append(acl_user->plugin.str, acl_user->plugin.length);
+    result->append(&acl_user->plugin);
     if (acl_user->auth_string.length)
     {
       result->append(STRING_WITH_LEN(" USING '"));
-      result->append(acl_user->auth_string.str, acl_user->auth_string.length);
+      result->append(&acl_user->auth_string);
       result->append('\'');
     }
   }

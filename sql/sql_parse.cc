@@ -7644,28 +7644,23 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
   @param var_name		Variable name
 */
 
-void create_select_for_variable(const char *var_name)
+void create_select_for_variable(THD *thd, LEX_CSTRING *var_name)
 {
-  THD *thd;
   LEX *lex;
-  LEX_CSTRING tmp;
   Item *var;
   char buff[MAX_SYS_VAR_LENGTH*2+4+8], *end;
   DBUG_ENTER("create_select_for_variable");
 
-  thd= current_thd;
   lex= thd->lex;
   mysql_init_select(lex);
   lex->sql_command= SQLCOM_SELECT;
-  tmp.str= var_name;
-  tmp.length=strlen(var_name);
   /*
     We set the name of Item to @@session.var_name because that then is used
     as the column name in the output.
   */
-  if ((var= get_system_var(thd, OPT_SESSION, tmp, null_clex_str)))
+  if ((var= get_system_var(thd, OPT_SESSION, var_name, &null_clex_str)))
   {
-    end= strxmov(buff, "@@session.", var_name, NullS);
+    end= strxmov(buff, "@@session.", var_name->str, NullS);
     var->set_name(thd, buff, end-buff, system_charset_info);
     add_item_to_list(thd, var);
   }

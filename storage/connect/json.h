@@ -52,6 +52,8 @@ PSZ   Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty);
 bool  SerializeArray(JOUT *js, PJAR jarp, bool b);
 bool  SerializeObject(JOUT *js, PJOB jobp);
 bool  SerializeValue(JOUT *js, PJVAL jvp);
+bool IsNum(PSZ s);
+char *NextChr(PSZ s, char sep);
 
 /***********************************************************************/
 /* Class JOUT. Used by Serialize.                                      */

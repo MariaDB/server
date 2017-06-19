@@ -43,6 +43,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 
 //#define XTRABACKUP_TARGET_IS_PLUGIN
 
+#include <my_global.h>
 #include <my_config.h>
 #include <unireg.h>
 #include <mysql_version.h>
