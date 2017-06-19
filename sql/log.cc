@@ -2672,7 +2672,7 @@ bool MYSQL_LOG::open(
                         mysqld_port, mysqld_unix_port
 #endif
                        );
-    end= strnmov(buff + len, "Time                 Id Command    Argument\n",
+    end= strnmov(buff + len, "Time\t\t    Id Command\tArgument\n",
                  sizeof(buff) - len);
     if (my_b_write(&log_file, (uchar*) buff, (uint) (end-buff)) ||
 	flush_io_cache(&log_file))
@@ -2907,7 +2907,7 @@ bool MYSQL_QUERY_LOG::write(time_t event_time, const char *user_host,
           goto err;
 
       /* command_type, thread_id */
-      size_t length= my_snprintf(buff, 32, "%5llu ", thread_id_arg);
+      size_t length= my_snprintf(buff, 32, "%6llu ", thread_id_arg);
 
     if (my_b_write(&log_file, (uchar*) buff, length))
       goto err;
@@ -8460,7 +8460,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   time_t skr;
   struct tm tm_tmp;
   struct tm *start;
-  THD *thd;
+  THD *thd= 0;
   int tag_length= 0;
   char tag[NAME_LEN];
   DBUG_ENTER("print_buffer_to_file");
@@ -8494,7 +8494,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
           start->tm_hour,
           start->tm_min,
           start->tm_sec,
-          (unsigned long) pthread_self(),
+          (unsigned long) (thd ? thd->thread_id : 0),
           (level == ERROR_LEVEL ? "ERROR" : level == WARNING_LEVEL ?
            "Warning" : "Note"),
           tag_length, tag,
