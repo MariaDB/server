@@ -7929,7 +7929,7 @@ SHOW_VAR status_vars[]= {
 #endif
 #ifdef WITH_WSREP
   {"wsrep_connected",          (char*) &wsrep_connected,         SHOW_BOOL},
-  {"wsrep_ready",              (char*) &wsrep_ready,             SHOW_BOOL},
+  {"wsrep_ready",              (char*) &wsrep_show_ready,        SHOW_FUNC},
   {"wsrep_cluster_state_uuid", (char*) &wsrep_cluster_state_uuid,SHOW_CHAR_PTR},
   {"wsrep_cluster_conf_id",    (char*) &wsrep_cluster_conf_id,   SHOW_LONGLONG},
   {"wsrep_cluster_status",     (char*) &wsrep_cluster_status,    SHOW_CHAR_PTR},

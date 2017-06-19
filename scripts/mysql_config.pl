@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # -*- cperl -*-
 #
-# Copyright (c) 2007, 2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2007, 2017, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -53,7 +53,7 @@ my $cwd = cwd();
 my $basedir;
 
 my $socket  = '/tmp/mysql.sock';
-my $version = '5.5.38';
+my $version = '5.5.58';
 
 sub which
 {
@@ -204,7 +204,7 @@ $flags->{embedded_libs} =
   [@ldflags,@lib_e_opts,'','','','',''];
 
 $flags->{include} = ["-I$pkgincludedir"];
-$flags->{cflags}  = [@{$flags->{include}},split(" ",'-Wall  -DWITH_WSREP -DWSREP_PROC_INFO -DMYSQL_MAX_VARIABLE_VALUE_LEN=2048 -DWITH_INNODB_DISALLOW_WRITES -O2 -g -DNDEBUG -DDBUG_OFF')];
+$flags->{cflags}  = [@{$flags->{include}},split(" ",'')];
 
 # ----------------------------------------------------------------------
 # Remove some options that a client doesn't have to care about

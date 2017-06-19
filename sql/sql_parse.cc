@@ -851,7 +851,7 @@ bool do_command(THD *thd)
      * bail out if DB snapshot has not been installed. We however,
      * allow queries "SET" and "SHOW", they are trapped later in execute_command
      */
-    if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready &&
+    if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready_get() &&
         command != COM_QUERY        &&
         command != COM_PING         &&
         command != COM_QUIT         &&
@@ -2382,7 +2382,7 @@ mysql_execute_command(THD *thd)
       We additionally allow all other commands that do not change data in
       case wsrep_dirty_reads is enabled.
     */
-    if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready &&
+    if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready_get() &&
         lex->sql_command != SQLCOM_SET_OPTION &&
         !(thd->variables.wsrep_dirty_reads &&
          !is_update_query(lex->sql_command))  &&
