@@ -1183,9 +1183,6 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
   share->state.dupp_key= MI_MAX_KEY;
   strmov(fixed_name,file->filename);
 
-  // Release latches since this can take a long time
-  ha_release_temporary_latches(thd);
-
   /*
     Don't lock tables if we have used LOCK TABLE or if we come from
     enable_index()

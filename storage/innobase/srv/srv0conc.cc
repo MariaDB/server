@@ -197,11 +197,6 @@ srv_conc_enter_innodb_with_atomics(
 			(void) my_atomic_addlint(
 				&srv_conc.n_waiting, 1);
 
-			/* Release possible search system latch this
-			thread has */
-
-			trx_assert_no_search_latch(trx);
-
 			thd_wait_begin(trx->mysql_thd, THD_WAIT_USER_LOCK);
 
 			notified_mysql = TRUE;
@@ -257,15 +252,7 @@ srv_conc_enter_innodb(
 {
 	trx_t*	trx	= prebuilt->trx;
 
-#ifdef BTR_CUR_HASH_ADAPT
-# ifdef UNIV_DEBUG
-	{
-		btrsea_sync_check	check(trx->has_search_latch);
-
-		ut_ad(!sync_check_iterate(check));
-	}
-# endif /* UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
+	ut_ad(!sync_check_iterate(sync_check()));
 
 	srv_conc_enter_innodb_with_atomics(trx);
 }
@@ -279,15 +266,7 @@ srv_conc_force_enter_innodb(
 	trx_t*	trx)	/*!< in: transaction object associated with the
 			thread */
 {
-#ifdef BTR_CUR_HASH_ADAPT
-# ifdef UNIV_DEBUG
-	{
-		btrsea_sync_check	check(trx->has_search_latch);
-
-		ut_ad(!sync_check_iterate(check));
-	}
-# endif /* UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
+	ut_ad(!sync_check_iterate(sync_check()));
 
 	if (!srv_thread_concurrency) {
 
@@ -320,15 +299,7 @@ srv_conc_force_exit_innodb(
 
 	srv_conc_exit_innodb_with_atomics(trx);
 
-#ifdef BTR_CUR_HASH_ADAPT
-# ifdef UNIV_DEBUG
-	{
-		btrsea_sync_check	check(trx->has_search_latch);
-
-		ut_ad(!sync_check_iterate(check));
-	}
-# endif /* UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
+	ut_ad(!sync_check_iterate(sync_check()));
 }
 
 /*********************************************************************//**

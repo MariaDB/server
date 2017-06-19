@@ -561,8 +561,7 @@ Item::Item(THD *thd):
     command => we should check thd->lex->current_select on zero (thd->lex
     can be uninitialised)
   */
-  if (thd->lex->current_select &&
-      thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
+  if (thd->lex->current_select)
   {
     enum_parsing_place place= 
       thd->lex->current_select->parsing_place;
@@ -5764,7 +5763,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
            
             SELECT_LEX *select= thd->lex->current_select;
             thd->change_item_tree(reference,
-                                  select->parsing_place == IN_GROUP_BY && 
+                                  select->context_analysis_place == IN_GROUP_BY && 
 				  alias_name_used  ?  *rf->ref : rf);
 
             /*

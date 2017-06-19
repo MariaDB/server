@@ -699,8 +699,7 @@ fill_innodb_trx_from_cache(
 
 #ifdef BTR_CUR_HASH_ADAPT
 		/* trx_adaptive_hash_latched */
-		OK(fields[IDX_TRX_ADAPTIVE_HASH_LATCHED]->store(
-			   row->trx_has_search_latch, true));
+		OK(fields[IDX_TRX_ADAPTIVE_HASH_LATCHED]->store(0, true));
 #endif /* BTR_CUR_HASH_ADAPT */
 
 		/* trx_is_read_only*/

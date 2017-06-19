@@ -253,7 +253,8 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
           NOTE: my_error() has been already called by reopen_tables() within
           close_cached_tables().
         */
-        result= 1;
+        thd->global_read_lock.unlock_global_read_lock(thd);
+        return 1;
       }
 
       if (thd->global_read_lock.make_global_read_lock_block_commit(thd)) // Killed

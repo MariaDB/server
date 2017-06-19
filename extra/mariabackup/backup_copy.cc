@@ -1774,7 +1774,7 @@ copy_back()
 		const char *ext_list[] = {"backup-my.cnf", "xtrabackup_logfile",
 			"xtrabackup_binary", "xtrabackup_binlog_info",
 			"xtrabackup_checkpoints", ".qp", ".pmap", ".tmp",
-			".xbcrypt", NULL};
+			NULL};
 		const char *filename;
 		char c_tmp;
 		int i_tmp;
@@ -1807,7 +1807,7 @@ copy_back()
 
 		filename = base_name(node.filepath);
 
-		/* skip .qp and .xbcrypt files */
+		/* skip .qp files */
 		if (filename_matches(filename, ext_list)) {
 			continue;
 		}
@@ -1899,24 +1899,8 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
 
 	cmd << IF_WIN("type ","cat ") << filepath;
 
- 	if (ends_with(filepath, ".xbcrypt") && opt_decrypt) {
- 		cmd << " | xbcrypt --decrypt --encrypt-algo="
- 		    << xtrabackup_encrypt_algo_names[opt_decrypt_algo];
- 		if (xtrabackup_encrypt_key) {
- 			cmd << " --encrypt-key=" << xtrabackup_encrypt_key;
- 		} else {
- 			cmd << " --encrypt-key-file="
- 			    << xtrabackup_encrypt_key_file;
- 		}
- 		dest_filepath[strlen(dest_filepath) - 8] = 0;
- 		message << "decrypting";
- 		needs_action = true;
- 	}
-
  	if (opt_decompress
- 	    && (ends_with(filepath, ".qp")
-		|| (ends_with(filepath, ".qp.xbcrypt")
-		    && opt_decrypt))) {
+ 	    && ends_with(filepath, ".qp")) {
  		cmd << " | qpress -dio ";
  		dest_filepath[strlen(dest_filepath) - 3] = 0;
  		if (needs_action) {
@@ -1967,8 +1951,7 @@ decrypt_decompress_thread_func(void *arg)
 			continue;
 		}
 
-		if (!ends_with(node.filepath, ".qp")
-		    && !ends_with(node.filepath, ".xbcrypt")) {
+		if (!ends_with(node.filepath, ".qp")) {
 			continue;
 		}
 

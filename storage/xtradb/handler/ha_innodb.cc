@@ -2123,39 +2123,6 @@ ha_innobase::is_fake_change_enabled(THD* thd)
 }
 
 /********************************************************************//**
-In XtraDB it is impossible for a transaction to own a search latch outside of
-InnoDB code, so there is nothing to release on demand.  We keep this function to
-simplify maintenance.
-@return 0 */
-static
-int
-innobase_release_temporary_latches(
-/*===============================*/
-	handlerton*	hton MY_ATTRIBUTE((unused)),	/*!< in: handlerton */
-	THD*		thd MY_ATTRIBUTE((unused)))	/*!< in: MySQL thread */
-{
-#ifdef UNIV_DEBUG
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	if (!innodb_inited || thd == NULL) {
-
-		return(0);
-	}
-
-	trx_t*	trx = thd_to_trx(thd);
-
-	if (trx != NULL) {
-#ifdef UNIV_SYNC_DEBUG
-		ut_ad(!btr_search_own_any());
-#endif
-		trx_search_latch_release_if_reserved(trx);
-	}
-#endif
-
-	return(0);
-}
-
-/********************************************************************//**
 Increments innobase_active_counter and every INNOBASE_WAKE_INTERVALth
 time calls srv_active_wake_master_thread. This function should be used
 when a single database operation may introduce a small need for
@@ -3812,9 +3779,6 @@ innobase_init(
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags = HTON_SUPPORTS_EXTENDED_KEYS |
 		HTON_SUPPORTS_FOREIGN_KEYS;
-
-	innobase_hton->release_temporary_latches =
-		innobase_release_temporary_latches;
 
 	innobase_hton->kill_query = innobase_kill_connection;
 
@@ -6262,9 +6226,6 @@ ha_innobase::open(
 
 	thd = ha_thd();
 
-	/* No-op in XtraDB */
-	innobase_release_temporary_latches(ht, thd);
-
 	normalize_table_name(norm_name, name);
 
 	user_thd = NULL;
@@ -6723,9 +6684,6 @@ ha_innobase::close()
 	DBUG_ENTER("ha_innobase::close");
 
 	thd = ha_thd();
-
-	/* No-op in XtraDB */
-	innobase_release_temporary_latches(ht, thd);
 
 	row_prebuilt_free(prebuilt, FALSE);
 

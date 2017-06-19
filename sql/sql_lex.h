@@ -911,6 +911,7 @@ public:
   /* reserved for exists 2 in */
   uint select_n_reserved;
   enum_parsing_place parsing_place; /* where we are parsing expression */
+  enum_parsing_place context_analysis_place; /* where we are in prepare */
   bool with_sum_func;   /* sum function indicator */
 
   ulong table_join_options;
