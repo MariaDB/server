@@ -87,7 +87,6 @@ public:
 
 class Item_func_md5 :public Item_str_ascii_func
 {
-  String tmp_value;
 public:
   Item_func_md5(Item *a) :Item_str_ascii_func(a) {}
   String *val_str_ascii(String *);
@@ -167,7 +166,6 @@ public:
 
 class Item_func_decode_histogram :public Item_str_func
 {
-  String tmp_value;
 public:
   Item_func_decode_histogram(Item *a, Item *b)
     :Item_str_func(a, b) {}
@@ -675,7 +673,6 @@ public:
 
 class Item_func_format :public Item_str_ascii_func
 {
-  String tmp_str;
   MY_LOCALE *locale;
 public:
   Item_func_format(Item *org, Item *dec): Item_str_ascii_func(org, dec) {}
@@ -729,7 +726,6 @@ public:
 
 class Item_func_binlog_gtid_pos :public Item_str_func
 {
-  String tmp_value;
 public:
   Item_func_binlog_gtid_pos(Item *arg1,Item *arg2) :Item_str_func(arg1,arg2) {}
   String *val_str(String *);
@@ -1106,7 +1102,7 @@ public:
 
 class Item_func_compress: public Item_str_func
 {
-  String buffer;
+  String tmp_value;
 public:
   Item_func_compress(Item *a):Item_str_func(a){}
   void fix_length_and_dec(){max_length= (args[0]->max_length*120)/100+12;}
@@ -1116,7 +1112,7 @@ public:
 
 class Item_func_uncompress: public Item_str_func
 {
-  String buffer;
+  String tmp_value;
 public:
   Item_func_uncompress(Item *a): Item_str_func(a){}
   void fix_length_and_dec(){ maybe_null= 1; max_length= MAX_BLOB_WIDTH; }
