@@ -2,80 +2,80 @@ CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 2 cy
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
-  `min_value` bigint(21) NOT NULL COMMENT 'min value',
-  `max_value` bigint(21) NOT NULL COMMENT 'max value',
-  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
   `increment` bigint(21) NOT NULL COMMENT 'increment value',
-  `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
 ) ENGINE=MyISAM SEQUENCE=1
 select next value for t1;
 next value for t1
 1
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 3	0
 select next value for t1;
 next value for t1
 2
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 3	0
 select next value for t1;
 next value for t1
 3
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 5	0
 select next value for t1;
 next value for t1
 4
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 5	0
 select next value for t1;
 next value for t1
 5
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 7	0
 select next value for t1;
 next value for t1
 6
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 7	0
 select next value for t1;
 next value for t1
 7
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 9	0
 select next value for t1;
 next value for t1
 8
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 9	0
 select next value for t1;
 next value for t1
 9
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 11	0
 select next value for t1;
 next value for t1
 10
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 11	0
 select next value for t1;
 next value for t1
 1
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 3	1
 select NEXT VALUE for t1,seq from seq_1_to_20;
 NEXT VALUE for t1	seq
@@ -104,68 +104,68 @@ CREATE SEQUENCE t1 minvalue 1 maxvalue 10 increment by -1 cache 2 cycle engine=a
 select next value for t1;
 next value for t1
 10
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 8	0
 select next value for t1;
 next value for t1
 9
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 8	0
 select next value for t1;
 next value for t1
 8
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 6	0
 select next value for t1;
 next value for t1
 7
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 6	0
 select next value for t1;
 next value for t1
 6
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 4	0
 select next value for t1;
 next value for t1
 5
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 4	0
 select next value for t1;
 next value for t1
 4
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 2	0
 select next value for t1;
 next value for t1
 3
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 2	0
 select next value for t1;
 next value for t1
 2
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 0	0
 select next value for t1;
 next value for t1
 1
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 0	0
 select next value for t1;
 next value for t1
 10
-select next_value,round from t1;
-next_value	round
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
 8	1
 select NEXT VALUE for t1,seq from seq_1_to_20;
 NEXT VALUE for t1	seq
@@ -235,7 +235,7 @@ select next value for t1;
 next value for t1
 1
 select * from t1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 11	1	100	1	1	10	0	0
 flush tables;
 select next value for t1;
@@ -284,58 +284,58 @@ seq	previous value for t9	NEXT VALUE for t9	previous value for t9
 19	10	1	1
 20	1	2	2
 select * from t9;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 6	1	10	1	1	5	1	2
 drop sequence t9;
 CREATE SEQUENCE s1 cache=0;
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	0	0	0
 select next value for s1;
 next value for s1
 1
-select next_value from s1;
-next_value
+select next_not_cached_value from s1;
+next_not_cached_value
 2
 select next value for s1;
 next value for s1
 2
-select next_value from s1;
-next_value
+select next_not_cached_value from s1;
+next_not_cached_value
 3
 DROP SEQUENCE s1;
 CREATE SEQUENCE s1 cache=1;
-select next_value from s1;
-next_value
+select next_not_cached_value from s1;
+next_not_cached_value
 1
 select next value for s1;
 next value for s1
 1
-select next_value from s1;
-next_value
+select next_not_cached_value from s1;
+next_not_cached_value
 2
 select next value for s1;
 next value for s1
 2
-select next_value from s1;
-next_value
+select next_not_cached_value from s1;
+next_not_cached_value
 3
 DROP SEQUENCE s1;
 CREATE SEQUENCE s1 cache=2;
-select next_value from s1;
-next_value
+select next_not_cached_value from s1;
+next_not_cached_value
 1
 select next value for s1;
 next value for s1
 1
-select next_value from s1;
-next_value
+select next_not_cached_value from s1;
+next_not_cached_value
 3
 select next value for s1;
 next value for s1
 2
-select next_value from s1;
-next_value
+select next_not_cached_value from s1;
+next_not_cached_value
 3
 DROP SEQUENCE s1;
 CREATE SEQUENCE s1;
@@ -353,7 +353,7 @@ next value for s1
 4
 alter sequence s1 increment -2;
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1001	1	9223372036854775806	1	-2	1000	0	0
 select next value for s1;
 next value for s1
@@ -404,17 +404,17 @@ INCREMENT BY 1 START WITH 3984356 CACHE 20 CYCLE engine=innodb;
 show create table s1;
 Table	Create Table
 s1	CREATE TABLE `s1` (
-  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
-  `min_value` bigint(21) NOT NULL COMMENT 'min value',
-  `max_value` bigint(21) NOT NULL COMMENT 'max value',
-  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
   `increment` bigint(21) NOT NULL COMMENT 'increment value',
-  `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
 ) ENGINE=InnoDB SEQUENCE=1
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 3984356	1	9999999999	3984356	1	20	1	0
 select NEXT VALUE FOR s1;
 NEXT VALUE FOR s1
@@ -426,24 +426,24 @@ select NEXT VALUE FOR s1;
 NEXT VALUE FOR s1
 3984358
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 3984376	1	9999999999	3984356	1	20	1	0
 FLUSH TABLES;
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 3984376	1	9999999999	3984356	1	20	1	0
 select NEXT VALUE FOR s1;
 NEXT VALUE FOR s1
 3984376
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 3984396	1	9999999999	3984356	1	20	1	0
 drop sequence s1;
 CREATE SEQUENCE t1 start with 5 minvalue 1 maxvalue 10 increment by 1 cache 5 cycle;
 explain select next value for t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-explain select next value for t1, min_value from t1;
+explain select next value for t1, minimum_value from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 drop table t1;
@@ -472,7 +472,7 @@ a	b
 drop table t1,s1;
 CREATE OR REPLACE SEQUENCE s1 MINVALUE 1 MAXVALUE 9999999999 INCREMENT BY 1 START WITH 3984356 nocache CYCLE engine='innodb';
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 3984356	1	9999999999	3984356	1	0	1	0
 select next value for s1;
 next value for s1
@@ -496,8 +496,8 @@ create sequence t1;
 select next value for t1;
 next value for t1
 1
-select next value for t1, min_value;
-ERROR 42S22: Unknown column 'min_value' in 'field list'
+select next value for t1, minimum_value;
+ERROR 42S22: Unknown column 'minimum_value' in 'field list'
 drop sequence t1;
 #
 # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions

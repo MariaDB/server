@@ -47,18 +47,19 @@ struct Field_definition
 
 static Field_definition sequence_structure[]=
 {
-  {"next_value", 21, &type_handler_longlong, {STRING_WITH_LEN("next not cached value")},
-   FL},
-  {"min_value", 21, &type_handler_longlong, {STRING_WITH_LEN("min value")}, FL},
-  {"max_value", 21, &type_handler_longlong, {STRING_WITH_LEN("max value")}, FL},
-  {"start", 21, &type_handler_longlong, {STRING_WITH_LEN("start value")},  FL},
+  {"next_not_cached_value", 21, &type_handler_longlong,
+   {STRING_WITH_LEN("")}, FL},
+  {"minimum_value", 21, &type_handler_longlong, STRING_WITH_LEN(""), FL},
+  {"maximum_value", 21, &type_handler_longlong, STRING_WITH_LEN(""), FL},
+  {"start_value", 21, &type_handler_longlong, {STRING_WITH_LEN("start value when sequences is created or value if RESTART is used")},  FL},
   {"increment", 21, &type_handler_longlong,
    {C_STRING_WITH_LEN("increment value")}, FL},
-  {"cache", 21, &type_handler_longlong, {STRING_WITH_LEN("cache size")}, FL},
-  {"cycle", 1, &type_handler_tiny, {STRING_WITH_LEN("cycle state")},
+  {"cache_size", 21, &type_handler_longlong, STRING_WITH_LEN(""),
+   FL | UNSIGNED_FLAG},
+  {"cycle_option", 1, &type_handler_tiny, {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed")},
    FL | UNSIGNED_FLAG },
-  {"round", 21, &type_handler_longlong,
-   {STRING_WITH_LEN("How many cycles has been done")}, FL},
+  {"cycle_count", 21, &type_handler_longlong,
+   {STRING_WITH_LEN("How many cycles have been done")}, FL},
   {NULL, 0, &type_handler_longlong, {STRING_WITH_LEN("")}, 0}
 };
 
@@ -458,9 +459,12 @@ int SEQUENCE::read_initial_values(TABLE *table_arg)
   DBUG_RETURN(error);
 }
 
+
 /*
-  Read data from sequence table and update values
-  Done when table is opened
+  Do the actiual reading of data from sequence table and
+  update values in the sequence object.
+
+  Called once from when table is opened
 */
 
 int SEQUENCE::read_stored_values()

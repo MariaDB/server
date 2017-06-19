@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,6 +28,7 @@ Created 2/27/1997 Heikki Tuuri
 
 #include "row0umod.h"
 #include "dict0dict.h"
+#include "dict0stats.h"
 #include "dict0boot.h"
 #include "trx0undo.h"
 #include "trx0roll.h"
@@ -1250,8 +1252,38 @@ row_undo_mod(
 	}
 
 	if (err == DB_SUCCESS) {
-
 		err = row_undo_mod_clust(node, thr);
+
+		bool update_statistics
+			= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
+
+		if (err == DB_SUCCESS && node->table->stat_initialized) {
+			switch (node->rec_type) {
+			case TRX_UNDO_UPD_EXIST_REC:
+				break;
+			case TRX_UNDO_DEL_MARK_REC:
+				dict_table_n_rows_inc(node->table);
+				update_statistics = update_statistics
+					|| !srv_stats_include_delete_marked;
+				break;
+			case TRX_UNDO_UPD_DEL_REC:
+				dict_table_n_rows_dec(node->table);
+				update_statistics = update_statistics
+					|| !srv_stats_include_delete_marked;
+				break;
+			}
+
+			/* Do not attempt to update statistics when
+			executing ROLLBACK in the InnoDB SQL
+			interpreter, because in that case we would
+			already be holding dict_sys->mutex, which
+			would be acquired when updating statistics. */
+			if (update_statistics && !dict_locked) {
+				dict_stats_update_if_needed(node->table);
+			} else {
+				node->table->stat_modified_counter++;
+			}
+		}
 	}
 
 	dict_table_close(node->table, dict_locked, FALSE);

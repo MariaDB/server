@@ -614,7 +614,7 @@ struct mysql_row_templ_t {
 					Innobase record in the current index;
 					not defined if template_type is
 					ROW_MYSQL_WHOLE_ROW */
-	ibool	rec_field_is_prefix;	/* is this field in a prefix index? */
+	bool	rec_field_is_prefix;	/* is this field in a prefix index? */
 	ulint	rec_prefix_field_no;	/* record field, even if just a
 					prefix; same as rec_field_no when not a
 					prefix, otherwise rec_field_no is

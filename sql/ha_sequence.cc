@@ -198,6 +198,18 @@ int ha_sequence::write_row(uchar *buf)
     /* This calls is from ha_open() as part of create table */
     DBUG_RETURN(file->write_row(buf));
   }
+  if (unlikely(sequence->initialized == SEQUENCE::SEQ_IN_ALTER))
+  {
+    int error= 0;
+    /* This is called from alter table */
+    tmp_seq.read_fields(table);
+    if (tmp_seq.check_and_adjust(0))
+      DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
+    sequence->copy(&tmp_seq);
+    if (!(error= file->write_row(buf)))
+      sequence->initialized= SEQUENCE::SEQ_READY_TO_USE;
+    DBUG_RETURN(error);
+  }
   if (unlikely(sequence->initialized != SEQUENCE::SEQ_READY_TO_USE))
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
@@ -280,7 +292,7 @@ int ha_sequence::extra(enum ha_extra_function operation)
   if (operation == HA_EXTRA_PREPARE_FOR_ALTER_TABLE)
   {
     /* In case of ALTER TABLE allow ::write_row() to copy rows */
-    sequence->initialized= SEQUENCE::SEQ_IN_PREPARE;
+    sequence->initialized= SEQUENCE::SEQ_IN_ALTER;
   }
   return file->extra(operation);
 }

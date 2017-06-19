@@ -1,0 +1,9 @@
+CREATE TABLE t(c0 SERIAL, c1 INT, c2 INT, c3 INT, c4 INT,
+KEY(c1), KEY(c2), KEY(c2,c1),
+KEY(c3), KEY(c3,c1), KEY(c3,c2), KEY(c3,c2,c1),
+KEY(c4), KEY(c4,c1), KEY(c4,c2), KEY(c4,c2,c1),
+KEY(c4,c3), KEY(c4,c3,c1), KEY(c4,c3,c2), KEY(c4,c3,c2,c1)) ENGINE=InnoDB;
+SET DEBUG_DBUG='+d,row_drop_table_add_to_background';
+DROP TABLE t;
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+DROP TABLE t;

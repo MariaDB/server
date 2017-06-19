@@ -272,8 +272,6 @@ struct TrxFactory {
 
 		ut_a(trx->lock.wait_lock == NULL);
 		ut_a(trx->lock.wait_thr == NULL);
-
-		trx_assert_no_search_latch(trx);
 		ut_a(trx->dict_operation_lock_mode == 0);
 
 		if (trx->lock.lock_heap != NULL) {
@@ -341,9 +339,6 @@ struct TrxFactory {
 
 		ut_a(trx->lock.wait_thr == NULL);
 		ut_a(trx->lock.wait_lock == NULL);
-
-		trx_assert_no_search_latch(trx);
-
 		ut_a(trx->dict_operation_lock_mode == 0);
 
 		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
@@ -2413,13 +2408,6 @@ state_ok:
 			(ulong) n_rec_locks);
 	}
 
-#ifdef BTR_CUR_HASH_ADAPT
-	if (trx->has_search_latch) {
-		newline = TRUE;
-		fputs(", holds adaptive hash latch", f);
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
-
 	if (trx->undo_no != 0) {
 		newline = TRUE;
 		fprintf(f, ", undo log entries " TRX_ID_FMT, trx->undo_no);
@@ -2549,11 +2537,6 @@ state_ok:
 		fputs("COMMITTING ", f); break;
 	default:
 		fprintf(f, "que state %lu ", (ulong) trx->lock.que_state);
-	}
-
-	if (trx->has_search_latch) {
-		newline = TRUE;
-		fputs(", holds adaptive hash latch", f);
 	}
 
 	if (trx->undo_no != 0) {

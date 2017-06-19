@@ -9,8 +9,8 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-#jdbc            : Variable settings depend on machine configuration
-#jdbc_new        : Variable settings depend on machine configuration
+jdbc            : Variable settings depend on machine configuration
+jdbc_new        : Variable settings depend on machine configuration
 jdbc_oracle     : Variable settings depend on machine configuration
 jdbc_postgresql : Variable settings depend on machine configuration
 json            : TABLE_TYPE = JSON conflicts with the SQL syntax

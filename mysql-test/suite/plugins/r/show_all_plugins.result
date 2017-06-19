@@ -26,7 +26,7 @@ three_attempts	NOT INSTALLED	AUTHENTICATION	dialog_examples.so	GPL
 two_questions	NOT INSTALLED	AUTHENTICATION	dialog_examples.so	GPL
 show status like '%libraries%';
 Variable_name	Value
-Opened_plugin_libraries	8
+Opened_plugin_libraries	7
 show plugins soname where library = 'ha_example.so';
 Name	Status	Type	Library	License
 EXAMPLE	NOT INSTALLED	STORAGE ENGINE	ha_example.so	GPL

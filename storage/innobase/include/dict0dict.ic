@@ -638,6 +638,48 @@ dict_table_has_fts_index(
 	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS));
 }
 
+/** Validate the flags for tables that are not ROW_FORMAT=REDUNDANT.
+@param[in]	flags		table flags
+@return whether the flags are valid */
+inline
+bool
+dict_tf_is_valid_not_redundant(ulint flags)
+{
+	const bool	atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(flags);
+
+	ulint	zip_ssize = DICT_TF_GET_ZIP_SSIZE(flags);
+
+	if (!zip_ssize) {
+		/* Not ROW_FORMAT=COMPRESSED */
+	} else if (!atomic_blobs) {
+		/* ROW_FORMAT=COMPRESSED implies ROW_FORMAT=DYNAMIC
+		for the uncompressed page format */
+		return(false);
+	} else if (zip_ssize > PAGE_ZIP_SSIZE_MAX
+		   || zip_ssize > UNIV_PAGE_SIZE_SHIFT
+		   || UNIV_PAGE_SIZE_SHIFT > UNIV_ZIP_SIZE_SHIFT_MAX) {
+		/* KEY_BLOCK_SIZE is out of bounds, or
+		ROW_FORMAT=COMPRESSED is not supported with this
+		innodb_page_size (only up to 16KiB) */
+		return(false);
+	}
+
+	switch (DICT_TF_GET_PAGE_COMPRESSION_LEVEL(flags)) {
+	case 0:
+		/* PAGE_COMPRESSION_LEVEL=0 should imply PAGE_COMPRESSED=NO */
+		return(!DICT_TF_GET_PAGE_COMPRESSION(flags));
+	case 1: case 2: case 3: case 4: case 5: case 6: case 7: case 8: case 9:
+		/* PAGE_COMPRESSION_LEVEL requires
+		ROW_FORMAT=COMPACT or ROW_FORMAT=DYNAMIC
+		(not ROW_FORMAT=COMPRESSED or ROW_FORMAT=REDUNDANT)
+		and PAGE_COMPRESSED=YES */
+		return(!zip_ssize && DICT_TF_GET_PAGE_COMPRESSION(flags));
+	default:
+		/* Invalid PAGE_COMPRESSION_LEVEL value */
+		return(false);
+	}
+}
+
 /** Validate the table flags.
 @param[in]	flags	Table flags
 @return true if valid. */
@@ -646,75 +688,19 @@ bool
 dict_tf_is_valid(
 	ulint	flags)
 {
-	bool	compact = DICT_TF_GET_COMPACT(flags);
-	ulint	zip_ssize = DICT_TF_GET_ZIP_SSIZE(flags);
-	bool	atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(flags);
-	bool	data_dir = DICT_TF_HAS_DATA_DIR(flags);
-	ulint	unused = DICT_TF_GET_UNUSED(flags);
-	bool	page_compression = DICT_TF_GET_PAGE_COMPRESSION(flags);
-	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(flags);
-	bool	flags_corrupt = false;
-
-	/* Make sure there are no bits that we do not know about. */
-	if (unused != 0) {
-		flags_corrupt = true;
+	ut_ad(flags < 1U << DICT_TF_BITS);
+	/* The DATA_DIRECTORY flag can be assigned fully independently
+	of all other persistent table flags. */
+	flags &= ~DICT_TF_MASK_DATA_DIR;
+	if (!(flags & 1)) {
+		/* Only ROW_FORMAT=REDUNDANT has 0 in the least significant
+		bit. For ROW_FORMAT=REDUNDANT, only the DATA_DIR flag
+		(which we cleared above) can be set. If any other flags
+		are set, the flags are invalid. */
+		return(flags == 0);
 	}
 
-	if (atomic_blobs) {
-		/* ROW_FORMAT=COMPRESSED and ROW_FORMAT=DYNAMIC both use
-		atomic_blobs, which build on the page structure introduced
-		for the COMPACT row format by allowing keys in secondary
-		indexes to be made from data stored off-page in the
-		clustered index. */
-
-		if (!compact) {
-			flags_corrupt = true;
-		}
-
-	} else if (zip_ssize) {
-		/* ROW_FORMAT=COMPRESSED implies atomic blobs. */
-		flags_corrupt = true;
-	}
-
-	if (zip_ssize) {
-
-		/* COMPRESSED row format must have compact and atomic_blobs
-		bits set and validate the number is within allowed range. */
-
-		if (!compact
-		    || !atomic_blobs
-		    || zip_ssize > PAGE_ZIP_SSIZE_MAX) {
-			flags_corrupt = true;
-		}
-	}
-
-	if (page_compression || page_compression_level) {
-		/* Page compression format must have compact and
-		atomic_blobs and page_compression_level requires
-		page_compression */
-		if (!compact
-			|| !page_compression
-			|| !atomic_blobs) {
-			flags_corrupt = true;
-		}
-	}
-
-
-	if (flags_corrupt) {
-		ib::error()
-			<< "InnoDB: Error: table unused flags are:" << flags
-			<< " in the data dictionary and are corrupted:"
-			<< " compact:" << compact
-			<< " atomic_blobs:" << atomic_blobs
-			<< " unused:" << unused
-			<< " data_dir:" << data_dir
-			<< " zip_ssize:" << zip_ssize
-			<< " page_compression:" << page_compression
-			<< " page_compression_level:" << page_compression_level;
-		return (false);
-	} else {
-		return(true);
-	}
+	return(dict_tf_is_valid_not_redundant(flags));
 }
 
 /** Validate both table flags and table flags2 and make sure they
@@ -740,115 +726,9 @@ dict_tf2_is_valid(
 }
 
 /********************************************************************//**
-Validate a SYS_TABLES TYPE field and return it.
-@return Same as input after validating it as a SYS_TABLES TYPE field.
-If there is an error, return ULINT_UNDEFINED. */
-UNIV_INLINE
-ulint
-dict_sys_tables_type_validate(
-/*==========================*/
-	ulint	type,		/*!< in: SYS_TABLES.TYPE */
-	ulint	n_cols)		/*!< in: SYS_TABLES.N_COLS */
-{
-	ulint	low_order_bit = DICT_TF_GET_COMPACT(type);
-	ulint	redundant = !(n_cols & DICT_N_COLS_COMPACT);
-	ulint	zip_ssize = DICT_TF_GET_ZIP_SSIZE(type);
-	ulint	atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(type);
-	ulint	unused = DICT_TF_GET_UNUSED(type);
-	bool	page_compression = DICT_TF_GET_PAGE_COMPRESSION(type);
-	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type);
-
-	/* The low order bit of SYS_TABLES.TYPE is always set to 1.
-	If !atomic_blobs, this field is the same
-	as dict_table_t::flags. Zero is not allowed here. */
-	if (!low_order_bit) {
-		return(ULINT_UNDEFINED);
-	}
-
-	if (redundant) {
-		if (zip_ssize || atomic_blobs) {
-			ib::error()
-				<< "SYS_TABLES::TYPE=Redundant, zip_ssize:" << zip_ssize
-				<< " atomic_blobs:" << atomic_blobs;
-			return(ULINT_UNDEFINED);
-		}
-	}
-
-	/* Make sure there are no bits that we do not know about. */
-	if (unused) {
-		ib::error()
-			<< "SYS_TABLES::TYPE=" << type << " unused:" << unused;
-		return(ULINT_UNDEFINED);
-	}
-
-	if (atomic_blobs) {
-		/* ROW_FORMAT=COMPRESSED and ROW_FORMAT=DYNAMIC build on
-		the page structure introduced for the COMPACT row format
-		by allowing keys in secondary indexes to be made from
-		data stored off-page in the clustered index.
-
-		The DICT_N_COLS_COMPACT flag should be in N_COLS,
-		but we already know that. */
-
-	} else if (zip_ssize) {
-		/* ROW_FORMAT=COMPRESSED implies atomic blobs. */
-		ib::error()
-			<< "SYS_TABLES::TYPE=" << type
-			<< ", zip_ssize:" << zip_ssize;
-
-		return(ULINT_UNDEFINED);
-	}
-
-	if (zip_ssize) {
-		/* COMPRESSED row format must have low_order_bit and
-		atomic_blobs bits set and the DICT_N_COLS_COMPACT flag
-		should be in N_COLS, but we already know about the
-		low_order_bit and DICT_N_COLS_COMPACT flags. */
-		if (!atomic_blobs) {
-			ib::error() << "SYS_TABLES::TYPE=" << type
-				<< ", zip_ssize:" << zip_ssize
-				<< ", atomic_blobs:" << atomic_blobs;
-			return(ULINT_UNDEFINED);
-		}
-
-		/* Validate that the number is within allowed range. */
-		if (zip_ssize > PAGE_ZIP_SSIZE_MAX) {
-			ib::error() << "SYS_TABLES::TYPE=" << type
-				<< ", zip_ssize:" << zip_ssize
-				<< " > " << PAGE_ZIP_SSIZE_MAX;
-			return(ULINT_UNDEFINED);
-		}
-	}
-
-	/* There is nothing to validate for the data_dir field.
-	CREATE TABLE ... DATA DIRECTORY is supported for any row
-	format, so the DATA_DIR flag is compatible with any other
-	table flags. However, it is not used with TEMPORARY tables. */
-
-	if (page_compression || page_compression_level) {
-		/* page compressed row format must have low_order_bit and
-		atomic_blobs bits set and the DICT_N_COLS_COMPACT flag
-		should be in N_COLS, but we already know about the
-		low_order_bit and DICT_N_COLS_COMPACT flags. */
-
-		if (!atomic_blobs || !page_compression) {
-			ib::error() << "SYS_TABLES::TYPE=" << type
-				<< " page_compression:" << page_compression
-				<< " page_compression_level:" << page_compression_level
-				<< " atomic_blobs:" << atomic_blobs;
-
-			return(ULINT_UNDEFINED);
-		}
-	}
-
-	/* Return the validated SYS_TABLES.TYPE. */
-	return(type);
-}
-
-/********************************************************************//**
-Determine the page format from dict_table_t::flags
+Determine the file format from dict_table_t::flags
 The low order bit will be zero for REDUNDANT and 1 for COMPACT. For any
-other row_format, flags is nonzero and DICT_TF_COMPACT will also be set.
+other row_format, file_format is > 0 and DICT_TF_COMPACT will also be set.
 @return file format version */
 UNIV_INLINE
 rec_format_t
@@ -948,7 +828,6 @@ dict_tf_to_fsp_flags(ulint table_flags)
 	ulint fsp_flags;
 	ulint page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(
 		table_flags);
-	ulint atomic_writes = DICT_TF_GET_ATOMIC_WRITES(table_flags);
 
 	ut_ad((DICT_TF_GET_PAGE_COMPRESSION(table_flags) == 0)
 	      == (page_compression_level == 0));
@@ -975,45 +854,9 @@ dict_tf_to_fsp_flags(ulint table_flags)
 		fsp_flags |= 1U << FSP_FLAGS_MEM_DATA_DIR;
 	}
 
-	fsp_flags |= atomic_writes << FSP_FLAGS_MEM_ATOMIC_WRITES;
 	fsp_flags |= page_compression_level << FSP_FLAGS_MEM_COMPRESSION_LEVEL;
 
 	return(fsp_flags);
-}
-
-/********************************************************************//**
-Convert a 32 bit integer from SYS_TABLES.TYPE to dict_table_t::flags
-The following chart shows the translation of the low order bit.
-Other bits are the same.
-========================= Low order bit ==========================
-                    | REDUNDANT | COMPACT | COMPRESSED and DYNAMIC
-SYS_TABLES.TYPE     |     1     |    1    |     1
-dict_table_t::flags |     0     |    1    |     1
-==================================================================
-@return ulint containing SYS_TABLES.TYPE */
-UNIV_INLINE
-ulint
-dict_sys_tables_type_to_tf(
-/*=======================*/
-	ulint	type,	/*!< in: SYS_TABLES.TYPE field */
-	ulint	n_cols)	/*!< in: SYS_TABLES.N_COLS field */
-{
-	ulint	flags;
-	ulint	redundant = !(n_cols & DICT_N_COLS_COMPACT);
-
-	/* Adjust bit zero. */
-	flags = redundant ? 0 : 1;
-
-	/* ZIP_SSIZE, ATOMIC_BLOBS, DATA_DIR, PAGE_COMPRESSION,
-	PAGE_COMPRESSION_LEVEL are the same. */
-	flags |= type & (DICT_TF_MASK_ZIP_SSIZE
-			 | DICT_TF_MASK_ATOMIC_BLOBS
-			 | DICT_TF_MASK_DATA_DIR
-			 | DICT_TF_MASK_PAGE_COMPRESSION
-			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL);
-
-	ut_ad(!DICT_TF_GET_ZIP_SSIZE(flags) || DICT_TF_HAS_ATOMIC_BLOBS(flags));
-	return(flags);
 }
 
 /********************************************************************//**
@@ -1045,7 +888,8 @@ dict_tf_to_sys_tables_type(
 			 | DICT_TF_MASK_ATOMIC_BLOBS
 			 | DICT_TF_MASK_DATA_DIR
 			 | DICT_TF_MASK_PAGE_COMPRESSION
-			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL);
+			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL
+			 | DICT_TF_MASK_NO_ROLLBACK);
 
 	return(type);
 }

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -84,10 +84,10 @@ sync_check_find(latch_level_t level);
 
 /** Checks that the level array for the current thread is empty.
 Terminate iteration if the functor returns true.
-@param[in,out]	 functor	called for each element.
-@return true if the functor returns true */
+@param[in]	 functor	called for each element.
+@return true if the functor returns true for any element */
 bool
-sync_check_iterate(sync_check_functor_t& functor);
+sync_check_iterate(const sync_check_functor_t& functor);
 
 /** Acquires the debug mutex. We cannot use the mutex defined in sync0sync,
 because the debug mutex is also acquired in sync0arr while holding the OS

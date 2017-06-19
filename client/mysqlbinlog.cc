@@ -2480,7 +2480,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
   int2store(buf + BIN_LOG_HEADER_SIZE, binlog_flags);
 
   size_t tlen = strlen(logname);
-  if (tlen > UINT_MAX) 
+  if (tlen > sizeof(buf) - 10)
   {
     error("Log name too long.");
     DBUG_RETURN(ERROR_STOP);

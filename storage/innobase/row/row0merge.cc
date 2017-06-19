@@ -1155,10 +1155,9 @@ row_merge_heap_create(
 	return(heap);
 }
 
-/********************************************************************//**
-Read a merge block from the file system.
-@return TRUE if request was successful, FALSE if fail */
-ibool
+/** Read a merge block from the file system.
+@return whether the request was successful */
+bool
 row_merge_read(
 /*===========*/
 	int			fd,	/*!< in: file descriptor */
@@ -1176,11 +1175,9 @@ row_merge_read(
 	DBUG_LOG("ib_merge_sort", "fd=" << fd << " ofs=" << ofs);
 	DBUG_EXECUTE_IF("row_merge_read_failure", DBUG_RETURN(FALSE););
 
-	IORequest	request;
-
-	dberr_t	err = os_file_read_no_error_handling(
-		request,
-		OS_FILE_FROM_FD(fd), buf, ofs, srv_sort_buf_size, NULL);
+	IORequest	request(IORequest::READ);
+	const bool	success = os_file_read_no_error_handling_int_fd(
+		request, fd, buf, ofs, srv_sort_buf_size);
 
 	/* For encrypted tables, decrypt data after reading and copy data */
 	if (crypt_data && crypt_buf) {
@@ -1194,11 +1191,11 @@ row_merge_read(
 	posix_fadvise(fd, ofs, srv_sort_buf_size, POSIX_FADV_DONTNEED);
 #endif /* POSIX_FADV_DONTNEED */
 
-	if (err != DB_SUCCESS) {
+	if (!success) {
 		ib::error() << "Failed to read merge block at " << ofs;
 	}
 
-	DBUG_RETURN(err == DB_SUCCESS);
+	DBUG_RETURN(success);
 }
 
 /********************************************************************//**
@@ -1223,7 +1220,6 @@ row_merge_write(
 	DBUG_LOG("ib_merge_sort", "fd=" << fd << " ofs=" << ofs);
 	DBUG_EXECUTE_IF("row_merge_write_failure", DBUG_RETURN(FALSE););
 
-	IORequest	request(IORequest::WRITE);
 	if (crypt_data && crypt_buf) {
 		row_merge_encrypt_buf(crypt_data, offset, space, (const byte *)buf, (byte *)crypt_buf);
 		out_buf = crypt_buf;
@@ -1232,9 +1228,9 @@ row_merge_write(
 		mach_write_to_4((byte *)out_buf, 0);
 	}
 
-	dberr_t	err = os_file_write(
-		request,
-		"(merge)", OS_FILE_FROM_FD(fd), out_buf, ofs, buf_len);
+	IORequest	request(IORequest::WRITE);
+	const bool	success = os_file_write_int_fd(
+		request, "(merge)", fd, out_buf, ofs, buf_len);
 
 #ifdef POSIX_FADV_DONTNEED
 	/* The block will be needed on the next merge pass,
@@ -1242,7 +1238,7 @@ row_merge_write(
 	posix_fadvise(fd, ofs, buf_len, POSIX_FADV_DONTNEED);
 #endif /* POSIX_FADV_DONTNEED */
 
-	DBUG_RETURN(err == DB_SUCCESS);
+	DBUG_RETURN(success);
 }
 
 /********************************************************************//**
@@ -4030,7 +4026,7 @@ row_merge_drop_temp_indexes(void)
 
 /** Create temporary merge files in the given paramater path, and if
 UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
-@param[in]	path	location for creating temporary merge files.
+@param[in]	path	location for creating temporary merge files, or NULL
 @return File descriptor */
 int
 row_merge_file_create_low(
@@ -4041,16 +4037,23 @@ row_merge_file_create_low(
 	/* This temp file open does not go through normal
 	file APIs, add instrumentation to register with
 	performance schema */
-	struct PSI_file_locker*	locker = NULL;
+	struct PSI_file_locker*	locker;
 	PSI_file_locker_state	state;
-	register_pfs_file_open_begin(&state, locker, innodb_temp_file_key,
-				     PSI_FILE_OPEN,
-				     "Innodb Merge Temp File",
-				     __FILE__, __LINE__);
+	locker = PSI_FILE_CALL(get_thread_file_name_locker)(
+			       &state, innodb_temp_file_key, PSI_FILE_OPEN,
+			       "Innodb Merge Temp File", &locker);
+	if (locker != NULL) {
+		PSI_FILE_CALL(start_file_open_wait)(locker,
+						    __FILE__,
+						    __LINE__);
+	}
 #endif
 	fd = innobase_mysql_tmpfile(path);
 #ifdef UNIV_PFS_IO
-	register_pfs_file_open_end(locker, fd);
+	if (locker != NULL) {
+		PSI_FILE_CALL(end_file_open_wait_and_bind_to_descriptor)(
+			      locker, fd);
+	}
 #endif
 
 	if (fd < 0) {
@@ -4063,7 +4066,7 @@ row_merge_file_create_low(
 
 /** Create a merge file in the given location.
 @param[out]	merge_file	merge file structure
-@param[in]	path		location for creating temporary file
+@param[in]	path		location for creating temporary file, or NULL
 @return file descriptor, or -1 on failure */
 int
 row_merge_file_create(
@@ -4094,15 +4097,20 @@ row_merge_file_destroy_low(
 #ifdef UNIV_PFS_IO
 	struct PSI_file_locker*	locker = NULL;
 	PSI_file_locker_state	state;
-	register_pfs_file_io_begin(&state, locker,
-				   fd, 0, PSI_FILE_CLOSE,
-				   __FILE__, __LINE__);
+	locker = PSI_FILE_CALL(get_thread_file_descriptor_locker)(
+			       &state, fd, PSI_FILE_CLOSE);
+	if (locker != NULL) {
+		PSI_FILE_CALL(start_file_wait)(
+			      locker, 0, __FILE__, __LINE__);
+	}
 #endif
 	if (fd >= 0) {
 		close(fd);
 	}
 #ifdef UNIV_PFS_IO
-	register_pfs_file_io_end(locker, 0);
+	if (locker != NULL) {
+		PSI_FILE_CALL(end_file_wait)(locker, 0);
+	}
 #endif
 }
 /*********************************************************************//**
@@ -4373,7 +4381,8 @@ row_merge_rename_tables_dict(
 @param[in,out]	index	index
 @param[in]	add_v	new virtual columns added along with add index call
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+MY_ATTRIBUTE((nonnull(1,2,3), warn_unused_result))
+static
 dberr_t
 row_merge_create_index_graph(
 	trx_t*			trx,
@@ -4495,7 +4504,6 @@ row_merge_create_index(
 		ut_a(index);
 
 		index->parser = index_def->parser;
-		index->is_ngram = index_def->is_ngram;
 		index->has_new_v_col = has_new_v_col;
 
 		/* Note the id of the transaction that created this
@@ -4729,6 +4737,7 @@ row_merge_build_indexes(
 
 	for (i = 0; i < n_indexes; i++) {
 		merge_files[i].fd = -1;
+		merge_files[i].offset = 0;
 	}
 
 	total_static_cost = COST_BUILD_INDEX_STATIC * n_indexes + COST_READ_CLUSTERED_INDEX;

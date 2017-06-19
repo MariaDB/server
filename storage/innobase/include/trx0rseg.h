@@ -110,9 +110,12 @@ void
 trx_rseg_mem_free(trx_rseg_t* rseg);
 
 /** Create a persistent rollback segment.
-@param[in]	space_id	system or undo tablespace id */
+@param[in]	space_id	system or undo tablespace id
+@return pointer to new rollback segment
+@retval	NULL	on failure */
 trx_rseg_t*
-trx_rseg_create(ulint space_id);
+trx_rseg_create(ulint space_id)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Create the temporary rollback segments. */
 void

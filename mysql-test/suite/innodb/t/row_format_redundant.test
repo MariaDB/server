@@ -1,0 +1,157 @@
+--source include/have_innodb.inc
+# Embedded mode doesn't allow restarting
+--source include/not_embedded.inc
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Table `mysql`\\.`innodb_table_stats` not found");
+call mtr.add_suppression("InnoDB: Table `test`.`t1` in InnoDB data dictionary contains invalid flags. SYS_TABLES\\.TYPE=1 SYS_TABLES\\.MIX_LEN=255\\r?$");
+call mtr.add_suppression("InnoDB: Parent table of FTS auxiliary table test/FTS_.* not found");
+call mtr.add_suppression("InnoDB: Cannot open table test/t1 from the internal data dictionary");
+call mtr.add_suppression("InnoDB: Table `test`.`t1` does not exist in the InnoDB internal data dictionary though MariaDB is trying to (rename|drop)");
+FLUSH TABLES;
+--enable_query_log
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+
+let bugdir= $MYSQLTEST_VARDIR/tmp/row_format_redundant;
+--mkdir $bugdir
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+
+--let $d=--innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
+--let $d=$d --innodb-data-file-path=ibdata1:1M:autoextend
+--let $d=$d --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
+--let $restart_parameters= $d
+--source include/restart_mysqld.inc
+
+SET GLOBAL innodb_file_per_table=1;
+
+--echo #
+--echo # Bug#21644827 - FTS, ASSERT !SRV_READ_ONLY_MODE || M_IMPL.M_LOG_MODE ==
+--echo #                MTR_LOG_NO_REDO
+--echo #
+
+SET GLOBAL innodb_file_per_table=ON;
+create table t1 (a int not null, d varchar(15) not null, b
+varchar(198) not null, c char(156),
+fulltext ftsic(c)) engine=InnoDB
+row_format=redundant;
+
+insert into t1 values(123, 'abcdef', 'jghikl', 'mnop');
+insert into t1 values(456, 'abcdef', 'jghikl', 'mnop');
+insert into t1 values(789, 'abcdef', 'jghikl', 'mnop');
+insert into t1 values(134, 'kasdfsdsadf', 'adfjlasdkfjasd', 'adfsadflkasdasdfljasdf');
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+
+SET GLOBAL innodb_file_per_table=OFF;
+create table t2 (a int not null, d varchar(15) not null, b
+varchar(198) not null, c char(156), fulltext ftsic(c)) engine=InnoDB
+row_format=redundant;
+
+insert into t2 select * from t1;
+
+create table t3 (a int not null, d varchar(15) not null, b varchar(198),
+c varchar(150), index k1(c(99), b(56)), index k2(b(5), c(10))) engine=InnoDB
+row_format=redundant;
+
+insert into t3 values(444, 'dddd', 'bbbbb', 'aaaaa');
+insert into t3 values(555, 'eeee', 'ccccc', 'aaaaa');
+
+# read-only restart requires the change buffer to be empty; therefore we
+# do a slow shutdown.
+SET GLOBAL innodb_fast_shutdown=0;
+--let $restart_parameters= $d --innodb-read-only
+--source include/restart_mysqld.inc
+
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t2;
+SELECT COUNT(*) FROM t3;
+
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t1;
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t2;
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t3;
+
+--let $restart_parameters= $d
+--source include/restart_mysqld.inc
+
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+TRUNCATE TABLE t3;
+
+--source include/shutdown_mysqld.inc
+--perl
+use strict;
+my $ps= $ENV{INNODB_PAGE_SIZE};
+my $file= "$ENV{bugdir}/ibdata1";
+open(FILE, "+<", $file) || die "Unable to open $file\n";
+# Read DICT_HDR_TABLES, the root page number of CLUST_IND (SYS_TABLES.NAME).
+sysseek(FILE, 7*$ps+38+32, 0) || die "Unable to seek $file";
+die "Unable to read $file" unless sysread(FILE, $_, 4) == 4;
+my $sys_tables_root = unpack("N", $_);
+my $page;
+sysseek(FILE, $sys_tables_root*$ps, 0) || die "Unable to seek $file";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+for (my $offset= 0x65; $offset;
+     $offset= unpack("n", substr($page,$offset-2,2)))
+{
+    my $n_fields= unpack("n", substr($page,$offset-4,2)) >> 1 & 0x3ff;
+    my $start= 0;
+    my $end= unpack("C", substr($page, $offset-7, 1));
+    my $name= substr($page,$offset+$start,$end-$start);
+    for (my $i= 0; $i < $n_fields; $i++) {
+    	my $end= unpack("C", substr($page, $offset-7-$i, 1));
+	# Corrupt SYS_TABLES.MIX_LEN (ignored for ROW_FORMAT=REDUNDANT)
+	if ($i == 7 && $name =~ '^test/t[123]')
+	{
+	    print "corrupted SYS_TABLES.MIX_LEN for $name\n";
+	    substr($page,$offset+$start,$end-$start)= pack("N", 255);
+	}
+	$start= $end & 0x7f;
+    }
+}
+substr($page,0,4)=pack("N",0xdeadbeef);
+substr($page,$ps-8,4)=pack("N",0xdeadbeef);
+sysseek(FILE, $sys_tables_root*$ps, 0) || die "Unable to seek $file";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close(FILE) || die "Unable to close $file\n";
+EOF
+
+--source include/start_mysqld.inc
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+TRUNCATE TABLE t3;
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t2;
+SELECT COUNT(*) FROM t3;
+--error ER_ERROR_ON_RENAME
+RENAME TABLE t1 TO tee_one;
+DROP TABLE t1;
+DROP TABLE t2,t3;
+
+--let SEARCH_PATTERN= \[ERROR\] InnoDB: Table `test`\.`t1` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=255\b
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--list_files $bugdir
+--remove_files_wildcard $bugdir
+--rmdir $bugdir
+
+# Remove the data file, because DROP TABLE skipped it for the "corrupted" table
+--let MYSQLD_DATADIR=`select @@datadir`
+--remove_file $MYSQLD_DATADIR/test/t1.ibd
+--list_files $MYSQLD_DATADIR/test

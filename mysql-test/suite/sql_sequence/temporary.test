@@ -1,0 +1,16 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+#
+# Test temporary sequences
+#
+
+--echo #
+--echo # Create
+--echo #
+
+create temporary sequence s1 engine=innodb;
+alter table s1 engine myisam;
+select nextval(s1);
+select * from s1;
+drop temporary sequence s1;

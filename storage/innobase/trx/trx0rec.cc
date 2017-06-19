@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1838,22 +1838,22 @@ transaction.
 dberr_t
 trx_undo_report_row_operation(
 /*==========================*/
-	ulint		flags,		/*!< in: if BTR_NO_UNDO_LOG_FLAG bit is
-					set, does nothing */
-	ulint		op_type,	/*!< in: TRX_UNDO_INSERT_OP or
-					TRX_UNDO_MODIFY_OP */
 	que_thr_t*	thr,		/*!< in: query thread */
 	dict_index_t*	index,		/*!< in: clustered index */
 	const dtuple_t*	clust_entry,	/*!< in: in the case of an insert,
 					index entry to insert into the
-					clustered index, otherwise NULL */
+					clustered index; in updates,
+					may contain a clustered index
+					record tuple that also contains
+					virtual columns of the table;
+					otherwise, NULL */
 	const upd_t*	update,		/*!< in: in the case of an update,
 					the update vector, otherwise NULL */
 	ulint		cmpl_info,	/*!< in: compiler info on secondary
 					index updates */
-	const rec_t*	rec,		/*!< in: in case of an update or delete
+	const rec_t*	rec,		/*!< in: case of an update or delete
 					marking, the record in the clustered
-					index, otherwise NULL */
+					index; NULL if insert */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
 	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
 					inserted undo log record,
@@ -1869,18 +1869,9 @@ trx_undo_report_row_operation(
 #endif /* UNIV_DEBUG */
 
 	ut_a(dict_index_is_clust(index));
+	ut_ad(!update || rec);
 	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
 	ut_ad(!srv_read_only_mode);
-	ut_ad(op_type == TRX_UNDO_INSERT_OP || op_type == TRX_UNDO_MODIFY_OP);
-	ut_ad((op_type != TRX_UNDO_INSERT_OP)
-	      || (clust_entry && !update && !rec));
-
-	if (flags & BTR_NO_UNDO_LOG_FLAG) {
-
-		*roll_ptr = 0;
-
-		return(DB_SUCCESS);
-	}
 
 	trx = thr_get_trx(thr);
 
@@ -1901,7 +1892,7 @@ trx_undo_report_row_operation(
 		not listed there. */
 		trx->mod_tables.insert(index->table);
 
-		pundo = op_type == TRX_UNDO_INSERT_OP
+		pundo = !rec
 			? &trx->rsegs.m_redo.insert_undo
 			: &trx->rsegs.m_redo.update_undo;
 		rseg = trx->rsegs.m_redo.rseg;
@@ -1912,7 +1903,7 @@ trx_undo_report_row_operation(
 
 	if (*pundo) {
 		err = DB_SUCCESS;
-	} else if (op_type == TRX_UNDO_INSERT_OP || is_temp) {
+	} else if (!rec || is_temp) {
 		err = trx_undo_assign_undo(trx, rseg, pundo, TRX_UNDO_INSERT);
 	} else {
 		err = trx_undo_assign_undo(trx, rseg, pundo, TRX_UNDO_UPDATE);
@@ -1936,23 +1927,14 @@ trx_undo_report_row_operation(
 	buf_block_dbg_add_level(undo_block, SYNC_TRX_UNDO_PAGE);
 
 	do {
-		page_t*		undo_page;
-		ulint		offset;
-
-		undo_page = buf_block_get_frame(undo_block);
 		ut_ad(page_no == undo_block->page.id.page_no());
-
-		switch (op_type) {
-		case TRX_UNDO_INSERT_OP:
-			offset = trx_undo_page_report_insert(
-				undo_page, trx, index, clust_entry, &mtr);
-			break;
-		default:
-			ut_ad(op_type == TRX_UNDO_MODIFY_OP);
-			offset = trx_undo_page_report_modify(
+		page_t*	undo_page = buf_block_get_frame(undo_block);
+		ulint	offset = !rec
+			? trx_undo_page_report_insert(
+				undo_page, trx, index, clust_entry, &mtr)
+			: trx_undo_page_report_modify(
 				undo_page, trx, index, rec, offsets, update,
 				cmpl_info, clust_entry, &mtr);
-		}
 
 		if (UNIV_UNLIKELY(offset == 0)) {
 			/* The record did not fit on the page. We erase the
@@ -2006,8 +1988,7 @@ trx_undo_report_row_operation(
 			mutex_exit(&trx->undo_mutex);
 
 			*roll_ptr = trx_undo_build_roll_ptr(
-				op_type == TRX_UNDO_INSERT_OP,
-				rseg->id, page_no, offset);
+				!rec, rseg->id, page_no, offset);
 			return(DB_SUCCESS);
 		}
 

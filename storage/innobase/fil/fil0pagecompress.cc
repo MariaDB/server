@@ -93,17 +93,16 @@ fil_compress_page(
 	ulint	level,		/* in: compression level */
 	ulint	block_size,	/*!< in: block size */
 	bool	encrypted,	/*!< in: is page also encrypted */
-	ulint*	out_len,	/*!< out: actual length of compressed
+	ulint*	out_len)	/*!< out: actual length of compressed
 				page */
-	byte*	lzo_mem)	/*!< in: temporal memory used by LZO */
 {
 	int err = Z_OK;
 	int comp_level = int(level);
 	ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
-	ulint write_size=0;
+	ulint write_size = 0;
 	/* Cache to avoid change during function execution */
 	ulint comp_method = innodb_compression_algorithm;
-	bool allocated=false;
+	bool allocated = false;
 
 	/* page_compression does not apply to tables or tablespaces
 	that use ROW_FORMAT=COMPRESSED */
@@ -115,13 +114,23 @@ fil_compress_page(
 
 	if (!out_buf) {
 		allocated = true;
-		out_buf = static_cast<byte *>(ut_malloc_nokey(UNIV_PAGE_SIZE));
-#ifdef HAVE_LZO
-		if (comp_method == PAGE_LZO_ALGORITHM) {
-			lzo_mem = static_cast<byte *>(ut_malloc_nokey(LZO1X_1_15_MEM_COMPRESS));
-			memset(lzo_mem, 0, LZO1X_1_15_MEM_COMPRESS);
+		ulint size = UNIV_PAGE_SIZE;
+
+		/* Both snappy and lzo compression methods require that
+		output buffer used for compression is bigger than input
+		buffer. Increase the allocated buffer size accordingly. */
+#if HAVE_SNAPPY
+		if (comp_method == PAGE_SNAPPY_ALGORITHM) {
+			size = snappy_max_compressed_length(size);
 		}
 #endif
+#if HAVE_LZO
+		if (comp_method == PAGE_LZO_ALGORITHM) {
+			size += LZO1X_1_15_MEM_COMPRESS;
+		}
+#endif
+
+		out_buf = static_cast<byte *>(ut_malloc_nokey(size));
 	}
 
 	ut_ad(buf);
@@ -173,7 +182,7 @@ fil_compress_page(
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM:
 		err = lzo1x_1_15_compress(
-			buf, len, out_buf+header_len, &write_size, lzo_mem);
+			buf, len, out_buf+header_len, &write_size, out_buf+UNIV_PAGE_SIZE);
 
 		if (err != LZO_E_OK || write_size > UNIV_PAGE_SIZE-header_len) {
 			goto err_exit;
@@ -229,6 +238,7 @@ fil_compress_page(
 	case PAGE_SNAPPY_ALGORITHM:
 	{
 		snappy_status cstatus;
+		write_size = snappy_max_compressed_length(UNIV_PAGE_SIZE);
 
 		cstatus = snappy_compress(
 			(const char *)buf,
@@ -373,11 +383,6 @@ err_exit:
 exit_free:
 	if (allocated) {
 		ut_free(out_buf);
-#ifdef HAVE_LZO
-		if (comp_method == PAGE_LZO_ALGORITHM) {
-			ut_free(lzo_mem);
-		}
-#endif
 	}
 
 	return (buf);
@@ -436,13 +441,14 @@ fil_decompress_page(
 
 	/* Before actual decompress, make sure that page type is correct */
 
-	if (mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM) != BUF_NO_CHECKSUM_MAGIC) {
-		ib::error() << "Corruption: We try to uncompress corrupted page:"
-			    << " CRC "
-			    << mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM)
-			    << " page_type "
-			    << mach_read_from_2(buf+FIL_PAGE_TYPE)
-			    << " page len " << len << ".";
+	if (mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM)
+	    != BUF_NO_CHECKSUM_MAGIC
+	    || (ptype != FIL_PAGE_PAGE_COMPRESSED
+		&& ptype != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED)) {
+		ib::error() << "Corruption: We try to uncompress corrupted "
+			"page CRC "
+			<< mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM)
+			<< " type " << ptype  << " len " << len << ".";
 
 		if (return_error) {
 			goto error_return;
@@ -508,7 +514,7 @@ fil_decompress_page(
 #endif /* HAVE_LZ4 */
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM: {
-               	ulint olen=0;
+		ulint olen = 0;
 		err = lzo1x_decompress((const unsigned char *)buf+header_len,
 			actual_size,(unsigned char *)in_buf, &olen, NULL);
 
@@ -579,7 +585,7 @@ fil_decompress_page(
 	case PAGE_SNAPPY_ALGORITHM:
 	{
 		snappy_status cstatus;
-		ulint olen = 0;
+		ulint olen = UNIV_PAGE_SIZE;
 
 		cstatus = snappy_uncompress(
 			(const char *)(buf+header_len),
@@ -595,6 +601,7 @@ fil_decompress_page(
 				goto error_return;
 			}
 		}
+
 		break;
 	}
 #endif /* HAVE_SNAPPY */
@@ -613,8 +620,7 @@ fil_decompress_page(
 	memcpy(buf, in_buf, len);
 
 error_return:
-	// Need to free temporal buffer if no buffer was given
-	if (page_buf == NULL) {
+	if (page_buf != in_buf) {
 		ut_free(in_buf);
 	}
 

@@ -285,6 +285,24 @@ CREATE TABLE t1 (a LONGTEXT COLLATE latin1_general_ci);
 ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
 DROP TABLE t1;
 
---echo #
---echo # End of MDEV-8948 ALTER ... INPLACE does work for BINARY, BLOB
---echo #
+#
+# MDEV-11335 Changing delay_key_write option for MyISAM table should not copy rows
+#
+select @@global.delay_key_write;
+create table t1 (a int, b int, key(b));
+flush tables;
+flush status;
+show status like 'Feature_delay_key_write';
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+alter online table t1 delay_key_write=1;
+show status like 'Feature_delay_key_write';
+flush tables;
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+alter online table t1 delay_key_write=0;
+show status like 'Feature_delay_key_write';
+flush tables;
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+drop table t1;

@@ -4,22 +4,27 @@
 --echo # PAGE OF SYSTEM TABLESPACE
 --echo #
 
---source include/have_innodb.inc
+--source include/innodb_page_size.inc
 --source include/have_debug.inc
 --source include/not_embedded.inc
 
 # Slow shutdown and restart to make sure ibuf merge is finished
 SET GLOBAL innodb_fast_shutdown = 0;
 --disable_query_log
-call mtr.add_suppression("Header page consists of zero bytes");
-call mtr.add_suppression("Checksum mismatch in datafile");
-call mtr.add_suppression("but the innodb_page_size start-up parameter is");
-call mtr.add_suppression("adjusting FSP_SPACE_FLAGS");
+call mtr.add_suppression("InnoDB: Header page consists of zero bytes");
+call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: .*, Space ID:0, Flags: 0");
+call mtr.add_suppression("InnoDB: Data file .* uses page size .* but the innodb_page_size start-up parameter is");
+call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS");
+call mtr.add_suppression("InnoDB: New log files created");
+call mtr.add_suppression("InnoDB: Cannot create doublewrite buffer: the first file in innodb_data_file_path must be at least (3|6|12)M\\.");
+call mtr.add_suppression("InnoDB: Database creation was aborted");
+call mtr.add_suppression("Plugin 'InnoDB' (init function returned error|registration as a STORAGE ENGINE failed)");
 --enable_query_log
 --source include/restart_mysqld.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 let MYSQLD_DATADIR=`select @@datadir`;
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
 show variables like 'innodb_doublewrite';
 show variables like 'innodb_fil_make_page_dirty_debug';
@@ -392,9 +397,38 @@ EOF
 --source include/start_mysqld.inc
 
 check table t1;
+--let SEARCH_PATTERN= \[ERROR\] InnoDB: .*test.t1\\.ibd.*
+--source include/search_pattern_in_file.inc
+
 select f1, f2 from t1;
 
---echo # Test End
---echo # ---------------------------------------------------------------
-
 drop table t1;
+
+--echo #
+--echo # MDEV-12600 crash during install_db with innodb_page_size=32K
+--echo # and ibdata1=3M
+--echo #
+let bugdir= $MYSQLTEST_VARDIR/tmp/doublewrite;
+--mkdir $bugdir
+
+let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+--let $ibp=--innodb-log-group-home-dir=$bugdir --innodb-data-home-dir=$bugdir
+--let $ibd=$ibp --innodb-undo-tablespaces=0 --innodb-log-files-in-group=2
+--let $ibp=$ibp --innodb-data-file-path=ibdata1:1M;ibdata2:1M:autoextend
+
+--let $restart_parameters= $ibp
+--source include/restart_mysqld.inc
+eval $check_no_innodb;
+--let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot create doublewrite buffer
+--source include/search_pattern_in_file.inc
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--remove_file $bugdir/ibdata1
+--remove_file $bugdir/ibdata2
+--remove_file $bugdir/ib_logfile0
+--remove_file $bugdir/ib_logfile1
+--rmdir $bugdir

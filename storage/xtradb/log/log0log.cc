@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
 Copyright (c) 2014, 2017, MariaDB Corporation.
 
@@ -55,12 +55,13 @@ Created 12/9/1995 Heikki Tuuri
 #include "mem0mem.h"
 #include "buf0buf.h"
 #include "buf0flu.h"
-#include "srv0srv.h"
 #include "lock0lock.h"
 #include "log0recv.h"
 #include "fil0fil.h"
 #include "dict0boot.h"
-#include "dict0stats_bg.h" /* dict_stats_event */
+#include "dict0stats_bg.h"
+#include "dict0stats_bg.h"
+#include "btr0defragment.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "trx0sys.h"
@@ -859,43 +860,16 @@ ibool
 log_calc_max_ages(void)
 /*===================*/
 {
-	log_group_t*	group;
 	lsn_t		margin;
 	ulint		free;
-	ibool		success		= TRUE;
-	lsn_t		smallest_capacity;
-	lsn_t		archive_margin;
-	lsn_t		smallest_archive_margin;
 
-	mutex_enter(&(log_sys->mutex));
-
-	group = UT_LIST_GET_FIRST(log_sys->log_groups);
-
-	ut_ad(group);
-
-	smallest_capacity = LSN_MAX;
-	smallest_archive_margin = LSN_MAX;
-
-	while (group) {
-		if (log_group_get_capacity(group) < smallest_capacity) {
-
-			smallest_capacity = log_group_get_capacity(group);
-		}
-
-		archive_margin = log_group_get_capacity(group)
-			- (group->file_size - LOG_FILE_HDR_SIZE)
-			- LOG_ARCHIVE_EXTRA_MARGIN;
-
-		if (archive_margin < smallest_archive_margin) {
-
-			smallest_archive_margin = archive_margin;
-		}
-
-		group = UT_LIST_GET_NEXT(log_groups, group);
-	}
+	lsn_t smallest_capacity = ((srv_log_file_size_requested
+				    << srv_page_size_shift)
+				   - LOG_FILE_HDR_SIZE)
+		* srv_n_log_files;
 
 	/* Add extra safety */
-	smallest_capacity = smallest_capacity - smallest_capacity / 10;
+	smallest_capacity -= smallest_capacity / 10;
 
 	/* For each OS thread we must reserve so much free space in the
 	smallest log group that it can accommodate the log entries produced
@@ -905,14 +879,15 @@ log_calc_max_ages(void)
 	free = LOG_CHECKPOINT_FREE_PER_THREAD * (10 + srv_thread_concurrency)
 		+ LOG_CHECKPOINT_EXTRA_FREE;
 	if (free >= smallest_capacity / 2) {
-		success = FALSE;
-
-		goto failure;
-	} else {
-		margin = smallest_capacity - free;
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"The combined size of ib_logfiles"
+			" should be bigger than\n"
+			"InnoDB: 200 kB * innodb_thread_concurrency.");
 	}
-
+	margin = smallest_capacity - free;
 	margin = margin - margin / 10;	/* Add still some extra safety */
+
+	mutex_enter(&log_sys->mutex);
 
 	log_sys->log_group_capacity = smallest_capacity;
 
@@ -926,22 +901,17 @@ log_calc_max_ages(void)
 	log_sys->max_checkpoint_age = margin;
 
 #ifdef UNIV_LOG_ARCHIVE
-	log_sys->max_archived_lsn_age = smallest_archive_margin;
+	lsn_t archive_margin = smallest_capacity
+		- (srv_log_file_size_requested - LOG_FILE_HDR_SIZE)
+		- LOG_ARCHIVE_EXTRA_MARGIN;
+	log_sys->max_archived_lsn_age = archive_margin;
 
-	log_sys->max_archived_lsn_age_async = smallest_archive_margin
-		- smallest_archive_margin / LOG_ARCHIVE_RATIO_ASYNC;
+	log_sys->max_archived_lsn_age_async = archive_margin
+		- archive_margin / LOG_ARCHIVE_RATIO_ASYNC;
 #endif /* UNIV_LOG_ARCHIVE */
-failure:
-	mutex_exit(&(log_sys->mutex));
+	mutex_exit(&log_sys->mutex);
 
-	if (!success) {
-		ib_logf(IB_LOG_LEVEL_FATAL,
-			"The combined size of ib_logfiles"
-			" should be bigger than\n"
-			"InnoDB: 200 kB * innodb_thread_concurrency.");
-	}
-
-	return(success);
+	return(true);
 }
 
 /******************************************************//**
@@ -2804,7 +2774,7 @@ log_group_archive(
 /*==============*/
 	log_group_t*	group)	/*!< in: log group */
 {
-	os_file_t	file_handle;
+	pfs_os_file_t	file_handle;
 	lsn_t		start_lsn;
 	lsn_t		end_lsn;
 	char		name[OS_FILE_MAX_PATH];
@@ -3618,6 +3588,8 @@ loop:
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";
+	} else if (btr_defragment_thread_active) {
+		thread_name = "btr_defragment_thread";
 	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {
 		thread_name = "rollback of recovered transactions";
 	} else {
@@ -3639,8 +3611,8 @@ wait_suspend_loop:
 
 	switch (srv_get_active_thread_type()) {
 	case SRV_NONE:
-		srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 		if (!srv_n_fil_crypt_threads_started) {
+			srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 			break;
 		}
 		os_event_set(fil_crypt_threads_event);
@@ -3820,7 +3792,8 @@ wait_suspend_loop:
 	ut_a(freed);
 
 	ut_a(lsn == log_sys->lsn);
-	ut_ad(lsn == log_sys->last_checkpoint_lsn);
+	ut_ad(srv_force_recovery >= SRV_FORCE_NO_LOG_REDO
+	      || lsn == log_sys->last_checkpoint_lsn);
 
 	if (lsn < srv_start_lsn) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -3832,9 +3805,14 @@ wait_suspend_loop:
 	srv_shutdown_lsn = lsn;
 
 	if (!srv_read_only_mode) {
-		fil_write_flushed_lsn_to_data_files(lsn, 0);
+		dberr_t err = fil_write_flushed_lsn(lsn);
 
-		fil_flush_file_spaces(FIL_TABLESPACE);
+		if (err != DB_SUCCESS) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Failed to write flush lsn to the "
+				"system tablespace at shutdown err=%s",
+				ut_strerr(err));
+		}
 	}
 
 	fil_close_all_files();

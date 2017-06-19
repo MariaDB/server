@@ -1622,7 +1622,11 @@ public:
   longlong val_int();
   const char *func_name() const { return "coercibility"; }
   void fix_length_and_dec() { max_length=10; maybe_null= 0; }
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *)
+  {
+    not_null_tables_cache= 0;
+    return false;
+  }
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   { return this; }
   bool const_item() const { return true; }
@@ -1953,7 +1957,11 @@ public:
     }
   }
   void cleanup();
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *opt_arg)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
   bool is_expensive() { return 1; }
   virtual void print(String *str, enum_query_type query_type);
   bool check_vcol_func_processor(void *arg)
@@ -2201,7 +2209,7 @@ public:
    :Item_long_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "master_gtid_wait"; }
-  void fix_length_and_dec() { max_length= 2; maybe_null=0;}
+  void fix_length_and_dec() { max_length=2; }
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
@@ -2482,7 +2490,11 @@ public:
   bool is_expensive_processor(void *arg) { return TRUE; }
   enum Functype functype() const { return FT_FUNC; }
   const char *func_name() const { return "match"; }
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *opt_arg)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
   bool fix_fields(THD *thd, Item **ref);
   bool eq(const Item *, bool binary_cmp) const;
   /* The following should be safe, even if we compare doubles */
@@ -2769,6 +2781,11 @@ public:
       clone->sp_result_field= NULL;
     return clone;
   }
+  bool eval_not_null_tables(void *opt_arg)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
 };
 
 
@@ -2863,8 +2880,12 @@ public:
   my_decimal *val_decimal(my_decimal *);
   void fix_length_and_dec();
   const char *func_name() const { return "last_value"; }
-  table_map not_null_tables() const { return 0; }
   const Type_handler *type_handler() const { return last_value->type_handler(); }
+  bool eval_not_null_tables(void *)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
   bool const_item() const { return 0; }
   void evaluate_sideeffects();
   void update_used_tables()

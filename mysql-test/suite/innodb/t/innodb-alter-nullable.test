@@ -1,4 +1,4 @@
---source include/have_innodb.inc
+--source include/innodb_page_size.inc
 
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc

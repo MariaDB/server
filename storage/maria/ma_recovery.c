@@ -1988,7 +1988,7 @@ prototype_redo_exec_hook(UNDO_KEY_INSERT)
       const HA_KEYSEG *keyseg= info->s->keyinfo[keynr].seg;
       ulonglong value;
       char llbuf[22];
-      uchar *to;
+      uchar reversed[MARIA_MAX_KEY_BUFF], *to;
       tprint(tracef, "   state older than record\n");
       /* we read the record to find the auto_increment value */
       enlarge_buffer(rec);
@@ -2005,7 +2005,6 @@ prototype_redo_exec_hook(UNDO_KEY_INSERT)
       if (keyseg->flag & HA_SWAP_KEY)
       {
         /* We put key from log record to "data record" packing format... */
-        uchar reversed[MARIA_MAX_KEY_BUFF];
         uchar *key_ptr= to;
         uchar *key_end= key_ptr + keyseg->length;
         to= reversed + keyseg->length;
@@ -3061,7 +3060,7 @@ static MARIA_HA *get_MARIA_HA_from_REDO_record(const
   case LOGREC_REDO_INDEX:
   case LOGREC_REDO_INDEX_FREE_PAGE:
     index_page_redo_entry= 1;
-    /* Fall trough*/
+    /* Fall through */
   case LOGREC_REDO_INSERT_ROW_HEAD:
   case LOGREC_REDO_INSERT_ROW_TAIL:
   case LOGREC_REDO_PURGE_ROW_HEAD:

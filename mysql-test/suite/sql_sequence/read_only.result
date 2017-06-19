@@ -23,3 +23,16 @@ select next value for s1;
 ERROR HY000: Table 's1' is read only
 select next value for s1;
 ERROR HY000: Table 's1' is read only
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	2	0	0
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	2	0	0
+select next value for s1;
+next value for s1
+1
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+3	1	9223372036854775806	1	1	2	0	0
+drop sequence s1;

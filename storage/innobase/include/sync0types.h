@@ -352,7 +352,6 @@ enum latch_id_t {
 	LATCH_ID_EVENT_MANAGER,
 	LATCH_ID_EVENT_MUTEX,
 	LATCH_ID_SYNC_ARRAY_MUTEX,
-	LATCH_ID_THREAD_MUTEX,
 	LATCH_ID_ZIP_PAD_MUTEX,
 	LATCH_ID_OS_AIO_READ_MUTEX,
 	LATCH_ID_OS_AIO_WRITE_MUTEX,
@@ -1077,107 +1076,42 @@ struct latch_t {
 
 /** Subclass this to iterate over a thread's acquired latch levels. */
 struct sync_check_functor_t {
-	virtual ~sync_check_functor_t() { }
-	virtual bool operator()(const latch_level_t) = 0;
-	virtual bool result() const = 0;
+	virtual bool operator()(const latch_level_t) const = 0;
 };
 
-#ifdef BTR_CUR_HASH_ADAPT
-/** Functor to check whether the calling thread owns the btr search mutex. */
-struct btrsea_sync_check : public sync_check_functor_t {
-
-	/** Constructor
-	@param[in]	has_search_latch	true if owns the latch */
-	explicit btrsea_sync_check(bool has_search_latch)
-		:
-		m_result(),
-		m_has_search_latch(has_search_latch) { }
-
-	/** Destructor */
-	virtual ~btrsea_sync_check() { }
-
-	/** Called for every latch owned by the calling thread.
-	@param[in]	level		Level of the existing latch
-	@return true if the predicate check is successful */
-	virtual bool operator()(const latch_level_t level)
-	{
-		/* If calling thread doesn't hold search latch then
-		check if there are latch level exception provided. */
-
-		if (!m_has_search_latch
-		    && (level != SYNC_SEARCH_SYS
-			&& level != SYNC_FTS_CACHE)) {
-
-			m_result = true;
-
-			return(m_result);
-		}
-
-		return(false);
-	}
-
-	/** @return result from the check */
-	virtual bool result() const
-	{
-		return(m_result);
-	}
-
-private:
-	/** True if all OK */
-	bool		m_result;
-
-	/** If the caller owns the search latch */
-	const bool	m_has_search_latch;
-};
-#endif /* BTR_CUR_HASH_ADAPT */
-
-/** Functor to check for dictionay latching constraints. */
-struct dict_sync_check : public sync_check_functor_t {
-
-	/** Constructor
-	@param[in]	dict_mutex_allow	true if the dict mutex
-						is allowed */
-	explicit dict_sync_check(bool dict_mutex_allowed)
-		:
-		m_result(),
-		m_dict_mutex_allowed(dict_mutex_allowed) { }
-
-	/** Destructor */
-	virtual ~dict_sync_check() { }
-
+/** Check that no latch is being held.
+@tparam	some_allowed	whether some latches are allowed to be held */
+template<bool some_allowed = false>
+struct sync_checker : public sync_check_functor_t
+{
 	/** Check the latching constraints
-	@param[in]	level		The level held by the thread */
-	virtual bool operator()(const latch_level_t level)
+	@param[in]	level		The level held by the thread
+	@return whether a latch violation was detected */
+	bool operator()(const latch_level_t level) const
 	{
-		if (!m_dict_mutex_allowed
-		    || (level != SYNC_DICT
-			&& level != SYNC_DICT_OPERATION
-			&& level != SYNC_FTS_CACHE
-			/* This only happens in recv_apply_hashed_log_recs. */
-			&& level != SYNC_RECV_WRITER
-			&& level != SYNC_NO_ORDER_CHECK)) {
-
-			m_result = true;
-
-			return(true);
+		if (some_allowed) {
+			switch (level) {
+			case SYNC_RECV_WRITER:
+				/* This only happens in
+				recv_apply_hashed_log_recs. */
+			case SYNC_DICT:
+			case SYNC_DICT_OPERATION:
+			case SYNC_FTS_CACHE:
+			case SYNC_NO_ORDER_CHECK:
+				return(false);
+			default:
+				return(true);
+			}
 		}
 
-		return(false);
+		return(true);
 	}
-
-	/** @return the result of the check */
-	virtual bool result() const
-	{
-		return(m_result);
-	}
-
-private:
-	/** True if all OK */
-	bool		m_result;
-
-	/** True if it is OK to hold the dict mutex */
-	const bool	m_dict_mutex_allowed;
 };
+
+/** The strict latch checker (no InnoDB latches may be held) */
+typedef struct sync_checker<false> sync_check;
+/** The sloppy latch checker (can hold InnoDB dictionary or SQL latches) */
+typedef struct sync_checker<true> dict_sync_check;
 
 /** Functor to check for given latching constraints. */
 struct sync_allowed_latches : public sync_check_functor_t {
@@ -1188,9 +1122,7 @@ struct sync_allowed_latches : public sync_check_functor_t {
 	sync_allowed_latches(
 		const latch_level_t*	from,
 		const latch_level_t*	to)
-		:
-		m_result(),
-		m_latches(from, to) { }
+		: begin(from), end(to) { }
 
 	/** Checks whether the given latch_t violates the latch constraint.
 	This object maintains a list of allowed latch levels, and if the given
@@ -1198,41 +1130,17 @@ struct sync_allowed_latches : public sync_check_functor_t {
 	then it is a violation.
 
 	@param[in]	latch	The latch level to check
-	@return true if there is a latch ordering violation */
-	virtual bool operator()(const latch_level_t level)
+	@return true if there is a latch violation */
+	bool operator()(const latch_level_t level) const
 	{
-		for (latches_t::const_iterator it = m_latches.begin();
-		     it != m_latches.end();
-		     ++it) {
-
-			if (level == *it) {
-
-				m_result = false;
-
-				/* No violation */
-				return(false);
-			}
-		}
-
-		return(true);
-	}
-
-	/** @return the result of the check */
-	virtual bool result() const
-	{
-		return(m_result);
+		return(std::find(begin, end, level) == end);
 	}
 
 private:
-	/** Save the result of validation check here
-	True if all OK */
-	bool		m_result;
-
-	typedef std::vector<latch_level_t, ut_allocator<latch_level_t> >
-		latches_t;
-
-	/** List of latch levels that are allowed to be held */
-	latches_t	m_latches;
+	/** First element in an array of allowed latch levels */
+	const latch_level_t* const begin;
+	/** First element after the end of the array of allowed latch levels */
+	const latch_level_t* const end;
 };
 
 /** Get the latch id from a latch name.
@@ -1282,7 +1190,10 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 	{
 		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
 		if (atomic) {
-			return Type(my_atomic_addlint(&m_counter, i));
+			/* Silence MSVS warnings when instantiating
+			this template with atomic=false. */
+			return Type(my_atomic_addlint(reinterpret_cast<lint*>
+						      (&m_counter), i));
 		} else {
 			return m_counter += i;
 		}

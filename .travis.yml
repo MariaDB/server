@@ -42,13 +42,33 @@ matrix:
       compiler: gcc
       script:
         - ${CC} --version ; ${CXX} --version
-      # Just for disabling hotcopy tests for now
         - source .travis.compiler.sh
       # https://github.com/travis-ci/travis-ci/issues/7062 - /run/shm isn't writable or executable
       # in trusty containers
         - export MTR_MEM=/tmp
         - env DEB_BUILD_OPTIONS="parallel=6" debian/autobake-deb.sh;
         - ccache --show-stats
+  # Until OSX becomes a bit more stable: MDEV-12435
+  allow_failures:
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+    # MDEV-13002 plugins.server_audit and plugins.thread_pool_server_audit test fail due to mysqltest error
+    - os: linux
+      compiler: gcc
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+    - os: linux
+      compiler: clang
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
 
 # Matrix include for coverity
 #    - env:
@@ -108,6 +128,7 @@ addons:
       - libaio-dev
       - libboost-dev
       - libcurl3-dev
+      - libdbd-mysql
       - libjudy-dev
       - libncurses5-dev
       - libpam0g-dev
@@ -128,6 +149,7 @@ addons:
       - liblzma-dev
       - libzmq-dev
       - libdistro-info-perl
+      - uuid-dev
       - devscripts # implicit for any build on Ubuntu
 
 # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882

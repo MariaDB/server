@@ -1,0 +1,643 @@
+SET @saved_file_per_table = @@global.innodb_file_per_table;
+SET @saved_checksum_algorithm = @@global.innodb_checksum_algorithm;
+SET @saved_encrypt_tables = @@global.innodb_encrypt_tables;
+SET @saved_encryption_threads = @@global.innodb_encryption_threads;
+SET @saved_encryption_key_id = @@global.innodb_default_encryption_key_id;
+SET GLOBAL innodb_file_per_table = ON;
+SET GLOBAL innodb_encrypt_tables = ON;
+SET GLOBAL innodb_encryption_threads = 4;
+call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_(crc32|none|innodb)\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"(innodb|none|crc32)\"");
+SET GLOBAL innodb_checksum_algorithm = innodb;
+SET GLOBAL innodb_default_encryption_key_id=4;
+SET GLOBAL innodb_checksum_algorithm=crc32;
+create table tce_crc32(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=yes;
+create table tc_crc32(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=no;
+create table te_crc32(a serial, b blob, index(b(10))) engine=innodb
+encrypted=yes;
+create table t_crc32(a serial, b blob, index(b(10))) engine=innodb
+encrypted=no;
+create table tpe_crc32(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=yes;
+create table tp_crc32(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=no;
+begin;
+insert into tce_crc32(b) values (repeat('secret',20));
+insert into tc_crc32(b) values (repeat('secret',20));
+insert into te_crc32(b) values (repeat('secret',20));
+insert into t_crc32(b) values (repeat('secret',20));
+insert into tpe_crc32(b) values (repeat('secret',20));
+insert into tp_crc32(b) values (repeat('secret',20));
+commit;
+FLUSH TABLES tce_crc32, tc_crc32, te_crc32,
+t_crc32, tpe_crc32, tp_crc32 FOR EXPORT;
+backup: tce_crc32
+backup: tc_crc32
+backup: te_crc32
+backup: t_crc32
+backup: tpe_crc32
+backup: tp_crc32
+t_crc32.cfg
+t_crc32.frm
+t_crc32.ibd
+tc_crc32.cfg
+tc_crc32.frm
+tc_crc32.ibd
+tce_crc32.cfg
+tce_crc32.frm
+tce_crc32.ibd
+te_crc32.cfg
+te_crc32.frm
+te_crc32.ibd
+tp_crc32.cfg
+tp_crc32.frm
+tp_crc32.ibd
+tpe_crc32.cfg
+tpe_crc32.frm
+tpe_crc32.ibd
+UNLOCK TABLES;
+SET GLOBAL innodb_checksum_algorithm=strict_crc32;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=crc32;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_innodb;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=innodb;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_none;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=none;
+ALTER TABLE tce_crc32 DISCARD TABLESPACE;
+ALTER TABLE tc_crc32 DISCARD TABLESPACE;
+ALTER TABLE te_crc32 DISCARD TABLESPACE;
+ALTER TABLE t_crc32 DISCARD TABLESPACE;
+ALTER TABLE tpe_crc32 DISCARD TABLESPACE;
+ALTER TABLE tp_crc32 DISCARD TABLESPACE;
+restore: tce_crc32 .ibd and .cfg files
+restore: tc_crc32 .ibd and .cfg files
+restore: te_crc32 .ibd and .cfg files
+restore: t_crc32 .ibd and .cfg files
+restore: tpe_crc32 .ibd and .cfg files
+restore: tp_crc32 .ibd and .cfg files
+ALTER TABLE tce_crc32 IMPORT TABLESPACE;
+update tce_crc32 set b=substr(b,1);
+ALTER TABLE tc_crc32 IMPORT TABLESPACE;
+update tc_crc32 set b=substr(b,1);
+ALTER TABLE te_crc32 IMPORT TABLESPACE;
+update te_crc32 set b=substr(b,1);
+ALTER TABLE t_crc32 IMPORT TABLESPACE;
+update t_crc32 set b=substr(b,1);
+ALTER TABLE tpe_crc32 IMPORT TABLESPACE;
+update tpe_crc32 set b=substr(b,1);
+ALTER TABLE tp_crc32 IMPORT TABLESPACE;
+update tp_crc32 set b=substr(b,1);
+CHECK TABLE tce_crc32, tc_crc32, te_crc32,
+t_crc32, tpe_crc32, tp_crc32;
+Table	Op	Msg_type	Msg_text
+test.tce_crc32	check	status	OK
+test.tc_crc32	check	status	OK
+test.te_crc32	check	status	OK
+test.t_crc32	check	status	OK
+test.tpe_crc32	check	status	OK
+test.tp_crc32	check	status	OK
+DROP TABLE tce_crc32, tc_crc32, te_crc32,
+t_crc32, tpe_crc32, tp_crc32;
+SET GLOBAL innodb_checksum_algorithm=innodb;
+create table tce_innodb(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=yes;
+create table tc_innodb(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=no;
+create table te_innodb(a serial, b blob, index(b(10))) engine=innodb
+encrypted=yes;
+create table t_innodb(a serial, b blob, index(b(10))) engine=innodb
+encrypted=no;
+create table tpe_innodb(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=yes;
+create table tp_innodb(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=no;
+begin;
+insert into tce_innodb(b) values (repeat('secret',20));
+insert into tc_innodb(b) values (repeat('secret',20));
+insert into te_innodb(b) values (repeat('secret',20));
+insert into t_innodb(b) values (repeat('secret',20));
+insert into tpe_innodb(b) values (repeat('secret',20));
+insert into tp_innodb(b) values (repeat('secret',20));
+commit;
+FLUSH TABLES tce_innodb, tc_innodb, te_innodb,
+t_innodb, tpe_innodb, tp_innodb FOR EXPORT;
+backup: tce_innodb
+backup: tc_innodb
+backup: te_innodb
+backup: t_innodb
+backup: tpe_innodb
+backup: tp_innodb
+t_innodb.cfg
+t_innodb.frm
+t_innodb.ibd
+tc_innodb.cfg
+tc_innodb.frm
+tc_innodb.ibd
+tce_innodb.cfg
+tce_innodb.frm
+tce_innodb.ibd
+te_innodb.cfg
+te_innodb.frm
+te_innodb.ibd
+tp_innodb.cfg
+tp_innodb.frm
+tp_innodb.ibd
+tpe_innodb.cfg
+tpe_innodb.frm
+tpe_innodb.ibd
+UNLOCK TABLES;
+SET GLOBAL innodb_checksum_algorithm=strict_crc32;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=crc32;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_innodb;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=innodb;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_none;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=none;
+ALTER TABLE tce_innodb DISCARD TABLESPACE;
+ALTER TABLE tc_innodb DISCARD TABLESPACE;
+ALTER TABLE te_innodb DISCARD TABLESPACE;
+ALTER TABLE t_innodb DISCARD TABLESPACE;
+ALTER TABLE tpe_innodb DISCARD TABLESPACE;
+ALTER TABLE tp_innodb DISCARD TABLESPACE;
+restore: tce_innodb .ibd and .cfg files
+restore: tc_innodb .ibd and .cfg files
+restore: te_innodb .ibd and .cfg files
+restore: t_innodb .ibd and .cfg files
+restore: tpe_innodb .ibd and .cfg files
+restore: tp_innodb .ibd and .cfg files
+ALTER TABLE tce_innodb IMPORT TABLESPACE;
+update tce_innodb set b=substr(b,1);
+ALTER TABLE tc_innodb IMPORT TABLESPACE;
+update tc_innodb set b=substr(b,1);
+ALTER TABLE te_innodb IMPORT TABLESPACE;
+update te_innodb set b=substr(b,1);
+ALTER TABLE t_innodb IMPORT TABLESPACE;
+update t_innodb set b=substr(b,1);
+ALTER TABLE tpe_innodb IMPORT TABLESPACE;
+update tpe_innodb set b=substr(b,1);
+ALTER TABLE tp_innodb IMPORT TABLESPACE;
+update tp_innodb set b=substr(b,1);
+CHECK TABLE tce_innodb, tc_innodb, te_innodb,
+t_innodb, tpe_innodb, tp_innodb;
+Table	Op	Msg_type	Msg_text
+test.tce_innodb	check	status	OK
+test.tc_innodb	check	status	OK
+test.te_innodb	check	status	OK
+test.t_innodb	check	status	OK
+test.tpe_innodb	check	status	OK
+test.tp_innodb	check	status	OK
+DROP TABLE tce_innodb, tc_innodb, te_innodb,
+t_innodb, tpe_innodb, tp_innodb;
+SET GLOBAL innodb_checksum_algorithm=none;
+create table tce_none(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=yes;
+create table tc_none(a serial, b blob, index(b(10))) engine=innodb
+ROW_FORMAT=COMPRESSED encrypted=no;
+create table te_none(a serial, b blob, index(b(10))) engine=innodb
+encrypted=yes;
+create table t_none(a serial, b blob, index(b(10))) engine=innodb
+encrypted=no;
+create table tpe_none(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=yes;
+create table tp_none(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=no;
+begin;
+insert into tce_none(b) values (repeat('secret',20));
+insert into tc_none(b) values (repeat('secret',20));
+insert into te_none(b) values (repeat('secret',20));
+insert into t_none(b) values (repeat('secret',20));
+insert into tpe_none(b) values (repeat('secret',20));
+insert into tp_none(b) values (repeat('secret',20));
+commit;
+FLUSH TABLES tce_none, tc_none, te_none,
+t_none, tpe_none, tp_none FOR EXPORT;
+backup: tce_none
+backup: tc_none
+backup: te_none
+backup: t_none
+backup: tpe_none
+backup: tp_none
+t_none.cfg
+t_none.frm
+t_none.ibd
+tc_none.cfg
+tc_none.frm
+tc_none.ibd
+tce_none.cfg
+tce_none.frm
+tce_none.ibd
+te_none.cfg
+te_none.frm
+te_none.ibd
+tp_none.cfg
+tp_none.frm
+tp_none.ibd
+tpe_none.cfg
+tpe_none.frm
+tpe_none.ibd
+UNLOCK TABLES;
+SET GLOBAL innodb_checksum_algorithm=strict_crc32;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=crc32;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_innodb;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=innodb;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=strict_none;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+SET GLOBAL innodb_checksum_algorithm=none;
+ALTER TABLE tce_none DISCARD TABLESPACE;
+ALTER TABLE tc_none DISCARD TABLESPACE;
+ALTER TABLE te_none DISCARD TABLESPACE;
+ALTER TABLE t_none DISCARD TABLESPACE;
+ALTER TABLE tpe_none DISCARD TABLESPACE;
+ALTER TABLE tp_none DISCARD TABLESPACE;
+restore: tce_none .ibd and .cfg files
+restore: tc_none .ibd and .cfg files
+restore: te_none .ibd and .cfg files
+restore: t_none .ibd and .cfg files
+restore: tpe_none .ibd and .cfg files
+restore: tp_none .ibd and .cfg files
+ALTER TABLE tce_none IMPORT TABLESPACE;
+update tce_none set b=substr(b,1);
+ALTER TABLE tc_none IMPORT TABLESPACE;
+update tc_none set b=substr(b,1);
+ALTER TABLE te_none IMPORT TABLESPACE;
+update te_none set b=substr(b,1);
+ALTER TABLE t_none IMPORT TABLESPACE;
+update t_none set b=substr(b,1);
+ALTER TABLE tpe_none IMPORT TABLESPACE;
+update tpe_none set b=substr(b,1);
+ALTER TABLE tp_none IMPORT TABLESPACE;
+update tp_none set b=substr(b,1);
+CHECK TABLE tce_none, tc_none, te_none,
+t_none, tpe_none, tp_none;
+Table	Op	Msg_type	Msg_text
+test.tce_none	check	status	OK
+test.tc_none	check	status	OK
+test.te_none	check	status	OK
+test.t_none	check	status	OK
+test.tpe_none	check	status	OK
+test.tp_none	check	status	OK
+DROP TABLE tce_none, tc_none, te_none,
+t_none, tpe_none, tp_none;
+SET GLOBAL innodb_file_per_table = @saved_file_per_table;
+SET GLOBAL innodb_checksum_algorithm = @saved_checksum_algorithm;
+SET GLOBAL innodb_encrypt_tables = @saved_encrypt_tables;
+SET GLOBAL innodb_encryption_threads = @saved_encryption_threads;
+SET GLOBAL innodb_default_encryption_key_id = @saved_encryption_key_id;

@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
@@ -88,6 +88,30 @@ typedef int	os_file_t;
 #endif /* _WIN32 */
 
 static const os_file_t OS_FILE_CLOSED = os_file_t(~0);
+
+/** File descriptor with optional PERFORMANCE_SCHEMA instrumentation */
+struct pfs_os_file_t
+{
+	/** Default constructor */
+	pfs_os_file_t(os_file_t file = OS_FILE_CLOSED) : m_file(file)
+#ifdef UNIV_PFS_IO
+	, m_psi(NULL)
+#endif
+	{}
+
+	/** The wrapped file handle */
+	os_file_t   m_file;
+#ifdef UNIV_PFS_IO
+	/** PERFORMANCE_SCHEMA descriptor */
+	struct PSI_file *m_psi;
+#endif
+	/** Implicit type conversion.
+	@return the wrapped file handle */
+	operator os_file_t() const { return m_file; }
+	/** Assignment operator.
+	@param[in]	file	file handle to be assigned */
+	void operator=(os_file_t file) { m_file = file; }
+};
 
 /** The next value should be smaller or equal to the smallest sector size used
 on any disk. A log block is required to be a portion of disk which is written
@@ -583,7 +607,7 @@ A simple function to open or create a file.
 @param[out]	success		true if succeed, false if error
 @return own: handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
-os_file_t
+pfs_os_file_t
 os_file_create_simple_func(
 	const char*	name,
 	ulint		create_mode,
@@ -603,7 +627,7 @@ A simple function to open or create a file.
 @param[out]	success		true if succeeded
 @return own: handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
-os_file_t
+pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 	const char*	name,
 	ulint		create_mode,
@@ -641,7 +665,7 @@ Opens an existing file or creates a new.
 @param[in]	success		true if succeeded
 @return own: handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
-os_file_t
+pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	ulint		create_mode,
@@ -694,6 +718,8 @@ extern mysql_pfs_key_t	innodb_temp_file_key;
 various file I/O operations with performance schema.
 1) register_pfs_file_open_begin() and register_pfs_file_open_end() are
 used to register file creation, opening, closing and renaming.
+2) register_pfs_file_rename_begin() and  register_pfs_file_rename_end()
+are used to register file renaming
 2) register_pfs_file_io_begin() and register_pfs_file_io_end() are
 used to register actual file read, write and flush
 3) register_pfs_file_close_begin() and register_pfs_file_close_end()
@@ -709,11 +735,23 @@ do {									\
 	}								\
 } while (0)
 
-# define register_pfs_file_open_end(locker, file)			\
+# define register_pfs_file_open_end(locker, file, result)		\
 do {									\
 	if (locker != NULL) {						\
-		PSI_FILE_CALL(end_file_open_wait_and_bind_to_descriptor)(\
-			locker, file);					\
+		file.m_psi = PSI_FILE_CALL(end_file_open_wait)(	\
+			locker, result);				\
+	}								\
+} while (0)
+
+# define register_pfs_file_rename_begin(state, locker, key, op, name,	\
+				src_file, src_line)			\
+	register_pfs_file_open_begin(state, locker, key, op, name,	\
+					src_file, src_line)		\
+
+# define register_pfs_file_rename_end(locker, result)			\
+do {									\
+	if (locker != NULL) {				\
+		PSI_FILE_CALL(end_file_open_wait)(locker, result);	\
 	}								\
 } while (0)
 
@@ -739,8 +777,8 @@ do {									\
 # define register_pfs_file_io_begin(state, locker, file, count, op,	\
 				    src_file, src_line)			\
 do {									\
-	locker = PSI_FILE_CALL(get_thread_file_descriptor_locker)(	\
-		state, file, op);					\
+	locker = PSI_FILE_CALL(get_thread_file_stream_locker)(		\
+		state, file.m_psi, op);					\
 	if (locker != NULL) {						\
 		PSI_FILE_CALL(start_file_wait)(				\
 			locker, count, src_file, src_line);		\
@@ -766,7 +804,9 @@ os_file_rename
 os_aio
 os_file_read
 os_file_read_no_error_handling
+os_file_read_no_error_handling_int_fd
 os_file_write
+os_file_write_int_fd
 
 The wrapper functions have the prefix of "innodb_". */
 
@@ -802,11 +842,19 @@ The wrapper functions have the prefix of "innodb_". */
 	pfs_os_file_read_no_error_handling_func(			\
 		type, file, buf, offset, n, o, __FILE__, __LINE__)
 
+# define os_file_read_no_error_handling_int_fd(type, file, buf, offset, n) \
+	pfs_os_file_read_no_error_handling_int_fd_func(			\
+		type, file, buf, offset, n, __FILE__, __LINE__)
+
 # define os_file_write(type, name, file, buf, offset, n)	\
 	pfs_os_file_write_func(type, name, file, buf, offset,	\
-		n,__FILE__, __LINE__)
+			       n, __FILE__, __LINE__)
 
-# define os_file_flush(file)						\
+# define os_file_write_int_fd(type, name, file, buf, offset, n)		\
+	pfs_os_file_write_int_fd_func(type, name, file, buf, offset,	\
+		n, __FILE__, __LINE__)
+
+# define os_file_flush(file)					\
 	pfs_os_file_flush_func(file, __FILE__, __LINE__)
 
 # define os_file_rename(key, oldpath, newpath)				\
@@ -834,7 +882,7 @@ os_file_create_simple() which opens or creates a file.
 @return own: handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
 UNIV_INLINE
-os_file_t
+pfs_os_file_t
 pfs_os_file_create_simple_func(
 	mysql_pfs_key_t key,
 	const char*	name,
@@ -865,7 +913,7 @@ monitor file creation/open.
 @return own: handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
 UNIV_INLINE
-os_file_t
+pfs_os_file_t
 pfs_os_file_create_simple_no_error_handling_func(
 	mysql_pfs_key_t key,
 	const char*	name,
@@ -898,7 +946,7 @@ Add instrumentation to monitor file creation/open.
 @return own: handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
 UNIV_INLINE
-os_file_t
+pfs_os_file_t
 pfs_os_file_create_func(
 	mysql_pfs_key_t key,
 	const char*	name,
@@ -921,7 +969,7 @@ A performance schema instrumented wrapper function for os_file_close().
 UNIV_INLINE
 bool
 pfs_os_file_close_func(
-	os_file_t	file,
+	pfs_os_file_t	file,
 	const char*	src_file,
 	uint		src_line);
 
@@ -941,7 +989,7 @@ UNIV_INLINE
 dberr_t
 pfs_os_file_read_func(
 	IORequest&	type,
-	os_file_t	file,
+	pfs_os_file_t	file,
 	void*		buf,
 	os_offset_t	offset,
 	ulint		n,
@@ -966,7 +1014,7 @@ UNIV_INLINE
 dberr_t
 pfs_os_file_read_no_error_handling_func(
 	IORequest&	type,
-	os_file_t	file,
+	pfs_os_file_t	file,
 	void*		buf,
 	os_offset_t	offset,
 	ulint		n,
@@ -1002,7 +1050,7 @@ pfs_os_aio_func(
 	IORequest&	type,
 	ulint		mode,
 	const char*	name,
-	os_file_t	file,
+	pfs_os_file_t	file,
 	void*		buf,
 	os_offset_t	offset,
 	ulint		n,
@@ -1031,7 +1079,7 @@ dberr_t
 pfs_os_file_write_func(
 	IORequest&	type,
 	const char*	name,
-	os_file_t	file,
+	pfs_os_file_t	file,
 	const void*	buf,
 	os_offset_t	offset,
 	ulint		n,
@@ -1050,7 +1098,7 @@ Flushes the write buffers of a given file to the disk.
 UNIV_INLINE
 bool
 pfs_os_file_flush_func(
-	os_file_t	file,
+	pfs_os_file_t	file,
 	const char*	src_file,
 	uint		src_line);
 
@@ -1142,9 +1190,12 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_read_no_error_handling(type, file, buf, offset, n, o)	\
 	os_file_read_no_error_handling_func(type, file, buf, offset, n, o)
+# define os_file_read_no_error_handling_int_fd(type, file, buf, offset, n) \
+	os_file_read_no_error_handling_func(type, file, buf, offset, n, NULL)
 
 # define os_file_write(type, name, file, buf, offset, n)	\
 	os_file_write_func(type, name, file, buf, offset, n)
+# define os_file_write_int_fd os_file_write_func
 
 # define os_file_flush(file)	os_file_flush_func(file)
 
@@ -1400,7 +1451,7 @@ os_aio_func(
 	IORequest&	type,
 	ulint		mode,
 	const char*	name,
-	os_file_t	file,
+	pfs_os_file_t	file,
 	void*		buf,
 	os_offset_t	offset,
 	ulint		n,
@@ -1527,19 +1578,6 @@ bool
 os_is_sparse_file_supported(
 	const char*	path,
 	os_file_t	fh)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Free storage space associated with a section of the file.
-@param[in]	fh		Open file handle
-@param[in]	off		Starting offset (SEEK_SET)
-@param[in]	len		Size of the hole
-@return DB_SUCCESS or error code */
-dberr_t
-os_file_punch_hole(
-	IORequest&	type,
-	os_file_t	fh,
-	os_offset_t	off,
-	os_offset_t	len)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Free storage space associated with a section of the file.

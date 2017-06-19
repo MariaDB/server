@@ -1926,6 +1926,7 @@ PageConverter::update_page(
 	case FIL_PAGE_TYPE_XDES:
 		err = set_current_xdes(
 			block->page.id.page_no(), get_frame(block));
+		/* fall through */
 	case FIL_PAGE_INODE:
 	case FIL_PAGE_TYPE_TRX_SYS:
 	case FIL_PAGE_IBUF_FREE_LIST:
@@ -3001,21 +3002,19 @@ row_import_read_v1(
 	cfg->m_n_cols = mach_read_from_4(ptr);
 
 	if (!dict_tf_is_valid(cfg->m_flags)) {
+		ib_errf(thd, IB_LOG_LEVEL_ERROR,
+			ER_TABLE_SCHEMA_MISMATCH,
+			"Invalid table flags: " ULINTPF, cfg->m_flags);
 
 		return(DB_CORRUPTION);
-
-	} else if ((err = row_import_read_columns(file, thd, cfg))
-		   != DB_SUCCESS) {
-
-		return(err);
-
-	} else  if ((err = row_import_read_indexes(file, thd, cfg))
-		   != DB_SUCCESS) {
-
-		return(err);
 	}
 
-	ut_a(err == DB_SUCCESS);
+	err = row_import_read_columns(file, thd, cfg);
+
+	if (err == DB_SUCCESS) {
+		err = row_import_read_indexes(file, thd, cfg);
+	}
+
 	return(err);
 }
 
@@ -3555,7 +3554,7 @@ row_import_for_mysql(
 
 	err = fil_ibd_open(
 		true, true, FIL_TYPE_IMPORT, table->space,
-		fsp_flags, table->name.m_name, filepath, table);
+		fsp_flags, table->name.m_name, filepath);
 
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
 			err = DB_TABLESPACE_NOT_FOUND;);

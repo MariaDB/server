@@ -1,3 +1,4 @@
+--source include/have_innodb.inc
 --source include/have_partition.inc
 
 CREATE TABLE `test_data` (
@@ -64,3 +65,41 @@ deallocate prepare stmt;
 
 drop table test_data;
 
+#
+# MDEV-12389 ADD CHECK leaves an orphaned .par file
+#
+
+--let $datadir=`SELECT @@datadir`
+
+# InnoDB
+create table t1(id int, d date not null, b bool not null default 0, primary key(id,d))
+engine=innodb
+partition by range columns (d) (
+partition p1 values less than ('2016-10-18'),
+partition p2 values less than ('2020-10-19'));
+insert t1 values (0, '2000-01-02', 0);
+insert t1 values (1, '2020-01-02', 10);
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_CONSTRAINT_FAILED
+alter table t1 add check (b in (0, 1));
+alter table t1 add check (b in (0, 10));
+show create table t1;
+--error ER_CONSTRAINT_FAILED
+insert t1 values (2, '2020-01-03', 20);
+drop table t1;
+--list_files $datadir/test
+
+# MyISAM, different execution path
+create table t1(id int, d date not null, b bool not null default 0, primary key(id,d))
+partition by range columns (d) (
+partition p1 values less than ('2016-10-18'),
+partition p2 values less than ('2020-10-19'));
+insert t1 values (0, '2000-01-02', 0);
+insert t1 values (1, '2020-01-02', 10);
+# FIXME: MDEV-12923 MyISAM allows CHECK constraint violation in ALTER TABLE
+alter table t1 add check (b in (0, 1));
+show create table t1;
+--error ER_CONSTRAINT_FAILED
+insert t1 values (2, '2020-01-03', 20);
+drop table t1;
+--list_files $datadir/test

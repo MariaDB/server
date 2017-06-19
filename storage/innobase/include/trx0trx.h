@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,15 +57,6 @@ class FlushObserver;
 
 /** Dummy session used currently in MySQL interface */
 extern sess_t*	trx_dummy_sess;
-
-#ifdef BTR_CUR_HASH_ADAPT
-/** Assert that the transaction is not holding the adaptive hash index latch.
-@param[in] trx		transaction */
-# define trx_assert_no_search_latch(trx) \
-	ut_ad(!trx->has_search_latch)
-#else /* BTR_CUR_HASH_ADAPT */
-# define trx_assert_no_search_latch(trx)
-#endif
 
 /** Set flush observer for the transaction
 @param[in/out]	trx		transaction struct
@@ -1072,11 +1063,6 @@ struct trx_t {
 					flush the log in
 					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
-#ifdef BTR_CUR_HASH_ADAPT
-	bool		has_search_latch;
-					/*!< TRUE if this trx has latched the
-					search system latch in S-mode */
-#endif /* BTR_CUR_HASH_ADAPT */
 	trx_dict_op_t	dict_operation;	/**< @see enum trx_dict_op_t */
 
 	/* Fields protected by the srv_conc_mutex. */
@@ -1508,16 +1494,10 @@ private:
 		}
 
 		/* Avoid excessive mutex acquire/release */
-		if (++trx->in_depth > 1) {
+		if (trx->in_depth++) {
 			/* The transaction is already inside InnoDB. */
-			ut_ad(trx->in_depth > 1);
 			return;
 		}
-
-		/* Only the owning thread should release the latch. */
-
-		ut_ad(trx->in_depth == 1);
-		trx_assert_no_search_latch(trx);
 
 		trx_mutex_enter(trx);
 
@@ -1543,15 +1523,9 @@ private:
 
 		ut_ad(trx->in_depth > 0);
 
-		if (--trx->in_depth > 0) {
-			ut_ad(trx->in_depth);
+		if (--trx->in_depth) {
 			return;
 		}
-
-		/* Only the owning thread should release the latch. */
-
-		ut_ad(trx->in_depth == 0);
-		trx_assert_no_search_latch(trx);
 
 		trx_mutex_enter(trx);
 

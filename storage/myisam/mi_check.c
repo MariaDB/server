@@ -3126,6 +3126,7 @@ static int sort_key_read(MI_SORT_PARAM *sort_param, void *key)
   }
   if (info->state->records == sort_info->max_records)
   {
+    my_errno= HA_ERR_WRONG_IN_RECORD;
     mi_check_print_error(sort_info->param,
 			 "Key %d - Found too many records; Can't continue",
                          sort_param->key+1);
@@ -3332,6 +3333,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	  param->error_printed=1;
           param->retry_repair=1;
           param->testflag|=T_RETRY_WITHOUT_QUICK;
+          my_errno= HA_ERR_WRONG_IN_RECORD;
 	  DBUG_RETURN(1);	/* Something wrong with data */
 	}
 	b_type=_mi_get_block_info(&block_info,-1,pos);
@@ -3590,6 +3592,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	param->error_printed=1;
         param->retry_repair=1;
         param->testflag|=T_RETRY_WITHOUT_QUICK;
+        my_errno= HA_ERR_WRONG_IN_RECORD;
 	DBUG_RETURN(1);		/* Something wrong with data */
       }
       sort_param->start_recpos=sort_param->pos;

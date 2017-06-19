@@ -5264,6 +5264,15 @@ int Regexp_processor_pcre::default_regex_flags()
   return default_regex_flags_pcre(current_thd);
 }
 
+void Regexp_processor_pcre::set_recursion_limit(THD *thd)
+{
+  long stack_used;
+  DBUG_ASSERT(thd == current_thd);
+  stack_used= available_stack_size(thd->thread_stack, &stack_used);
+  m_pcre_extra.match_limit_recursion=
+    (my_thread_stack_size - stack_used)/my_pcre_frame_size;
+}
+
 
 /**
   Convert string to lib_charset, if needed.
@@ -5355,14 +5364,76 @@ void Regexp_processor_pcre::pcre_exec_warn(int rc) const
   */
   switch (rc)
   {
+  case PCRE_ERROR_NULL:
+    errmsg= "pcre_exec: null arguement passed";
+    break;
+  case PCRE_ERROR_BADOPTION:
+    errmsg= "pcre_exec: bad option";
+    break;
+  case PCRE_ERROR_BADMAGIC:
+    errmsg= "pcre_exec: bad magic - not a compiled regex";
+    break;
+  case PCRE_ERROR_UNKNOWN_OPCODE:
+    errmsg= "pcre_exec: error in compiled regex";
+    break;
   case PCRE_ERROR_NOMEMORY:
     errmsg= "pcre_exec: Out of memory";
+    break;
+  case PCRE_ERROR_NOSUBSTRING:
+    errmsg= "pcre_exec: no substring";
+    break;
+  case PCRE_ERROR_MATCHLIMIT:
+    errmsg= "pcre_exec: match limit exceeded";
+    break;
+  case PCRE_ERROR_CALLOUT:
+    errmsg= "pcre_exec: callout error";
     break;
   case PCRE_ERROR_BADUTF8:
     errmsg= "pcre_exec: Invalid utf8 byte sequence in the subject string";
     break;
+  case PCRE_ERROR_BADUTF8_OFFSET:
+    errmsg= "pcre_exec: Started at invalid location within utf8 byte sequence";
+    break;
+  case PCRE_ERROR_PARTIAL:
+    errmsg= "pcre_exec: partial match";
+    break;
+  case PCRE_ERROR_INTERNAL:
+    errmsg= "pcre_exec: internal error";
+    break;
+  case PCRE_ERROR_BADCOUNT:
+    errmsg= "pcre_exec: ovesize is negative";
+    break;
+  case PCRE_ERROR_RECURSIONLIMIT:
+    my_snprintf(buf, sizeof(buf), "pcre_exec: recursion limit of %ld exceeded",
+                m_pcre_extra.match_limit_recursion);
+    errmsg= buf;
+    break;
+  case PCRE_ERROR_BADNEWLINE:
+    errmsg= "pcre_exec: bad newline options";
+    break;
+  case PCRE_ERROR_BADOFFSET:
+    errmsg= "pcre_exec: start offset negative or greater than string length";
+    break;
+  case PCRE_ERROR_SHORTUTF8:
+    errmsg= "pcre_exec: ended in middle of utf8 sequence";
+    break;
+  case PCRE_ERROR_JIT_STACKLIMIT:
+    errmsg= "pcre_exec: insufficient stack memory for JIT compile";
+    break;
   case PCRE_ERROR_RECURSELOOP:
     errmsg= "pcre_exec: Recursion loop detected";
+    break;
+  case PCRE_ERROR_BADMODE:
+    errmsg= "pcre_exec: compiled pattern passed to wrong bit library function";
+    break;
+  case PCRE_ERROR_BADENDIANNESS:
+    errmsg= "pcre_exec: compiled pattern passed to wrong endianness processor";
+    break;
+  case PCRE_ERROR_JIT_BADOPTION:
+    errmsg= "pcre_exec: bad jit option";
+    break;
+  case PCRE_ERROR_BADLENGTH:
+    errmsg= "pcre_exec: negative length";
     break;
   default:
     /*
@@ -5399,8 +5470,8 @@ int Regexp_processor_pcre::pcre_exec_with_warn(const pcre *code,
 
 bool Regexp_processor_pcre::exec(const char *str, int length, int offset)
 {
-  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, NULL, str, length, offset, 0,
-                                      m_SubStrVec, m_subpatterns_needed * 3);
+  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, &m_pcre_extra, str, length, offset, 0,
+                                      m_SubStrVec, array_elements(m_SubStrVec));
   return false;
 }
 
@@ -5410,10 +5481,10 @@ bool Regexp_processor_pcre::exec(String *str, int offset,
 {
   if (!(str= convert_if_needed(str, &subject_converter)))
     return true;
-  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, NULL,
+  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, &m_pcre_extra,
                                       str->c_ptr_safe(), str->length(),
                                       offset, 0,
-                                      m_SubStrVec, m_subpatterns_needed * 3);
+                                      m_SubStrVec, array_elements(m_SubStrVec));
   if (m_pcre_exec_rc > 0)
   {
     uint i;
@@ -5471,7 +5542,7 @@ Item_func_regex::fix_length_and_dec()
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return;
 
-  re.init(cmp_collation.collation, 0, 0);
+  re.init(cmp_collation.collation, 0);
   re.fix_owner(this, args[0], args[1]);
 }
 
@@ -5495,7 +5566,7 @@ Item_func_regexp_instr::fix_length_and_dec()
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return;
 
-  re.init(cmp_collation.collation, 0, 1);
+  re.init(cmp_collation.collation, 0);
   re.fix_owner(this, args[0], args[1]);
   max_length= MY_INT32_NUM_DECIMAL_DIGITS; // See also Item_func_locate
 }

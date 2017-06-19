@@ -80,5 +80,4 @@ SET GLOBAL innodb_encrypt_tables=ON;
 
 -- source include/start_mysqld.inc
 
-use test;
 drop database enctests;

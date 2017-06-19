@@ -4,7 +4,15 @@
 
 # A dynamic, global variable
 
-SET @start_value = @@GLOBAL.innodb_sched_priority_cleaner;
+# Test in read-only mode
+--let $restart_parameters= --innodb-read-only
+--source include/restart_mysqld.inc
+--let $restart_parameters=
+
+# This has no actual effect in innodb_read_only mode
+SET GLOBAL innodb_sched_priority_cleaner=39;
+
+--source include/restart_mysqld.inc
 
 # Default value
 SELECT @@GLOBAL.innodb_sched_priority_cleaner;

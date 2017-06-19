@@ -13,7 +13,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 d	date	#	#	#	
 dt	datetime	#	#	#	
-ts	timestamp	#	#	#	on update CURRENT_TIMESTAMP
+ts	timestamp	#	#	#	on update current_timestamp()
 t	time	#	#	#	
 y	year(4)	#	#	#	
 y4	year(4)	#	#	#	

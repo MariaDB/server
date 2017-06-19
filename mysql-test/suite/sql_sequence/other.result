@@ -37,16 +37,16 @@ select next value for s1;
 next value for s1
 1001
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 2001	1	9223372036854775806	1	1	1000	0	0
 drop sequence s1;
 #
-# ÌNSERT
+# INSERT
 #
 create sequence s1;
 create sequence s2;
-insert into s1 (next_value, min_value) values (100,1000);
-ERROR HY000: Field 'max_value' doesn't have a default value
+insert into s1 (next_not_cached_value, minimum_value) values (100,1000);
+ERROR HY000: Field 'maximum_value' doesn't have a default value
 insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
 ERROR HY000: Table 's1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into s1 values (next value for s2, 1,9223372036854775806,1,1,1000,0,0);
@@ -58,17 +58,17 @@ ERROR HY000: Sequence 'test.s1' values are conflicting
 insert into s1 values(0,9223372036854775806,1,1,1,1000,0,0);
 ERROR HY000: Sequence 'test.s1' values are conflicting
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	1000	0	0
 insert into s1 values(1000,1,9223372036854775806,1,1,1000,0,0);
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1000	1	9223372036854775806	1	1	1000	0	0
 select next value for s1;
 next value for s1
 1000
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 2000	1	9223372036854775806	1	1	1000	0	0
 insert into s2 values(0, 1, 10, 1, 2, 1, 1, 0);
 ERROR HY000: Sequence 'test.s2' values are conflicting
@@ -77,9 +77,9 @@ drop sequence s1,s2;
 # UPDATE and DELETE
 #
 create sequence s1;
-update s1 set next_value=100;
+update s1 set next_not_cached_value=100;
 ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this option
-delete from s1 where next_value > 0;
+delete from s1 where next_not_cached_value > 0;
 ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this option
 drop sequence s1;
 #
@@ -106,7 +106,7 @@ drop view v1;
 create sequence s1 engine=innodb;
 LOCK TABLES s1 READ;
 SELECT * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	1000	0	0
 UNLOCK TABLES;
 LOCK TABLES s1 WRITE;
@@ -123,7 +123,7 @@ count(nextval(s1))
 2000
 commit;
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 2001	1	9223372036854775806	1	1	1000	0	0
 drop sequence s1;
 create sequence s1  cache=1000 engine=innodb;
@@ -138,13 +138,27 @@ select count(nextval(s1)) from seq_1_to_2000;
 count(nextval(s1))
 2000
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 4001	1	9223372036854775806	1	1	1000	0	0
 commit;
 disconnect addconroot;
 connection default;
 select * from s1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 4001	1	9223372036854775806	1	1	1000	0	0
 commit;
+drop sequence s1;
+#
+# Flush tables with read lock
+#
+create sequence s1;
+select next value for s1;
+next value for s1
+1
+flush tables with read lock;
+create sequence s2;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+select next value for s1;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+unlock tables;
 drop sequence s1;

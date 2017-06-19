@@ -120,7 +120,8 @@ log_crypt(byte* buf, ulint size, bool decrypt)
 
 	for (const byte* const end = buf + size; buf != end;
 	     buf += OS_FILE_LOG_BLOCK_SIZE) {
-		byte dst[OS_FILE_LOG_BLOCK_SIZE - LOG_CRYPT_HDR_SIZE];
+		uint32_t dst[(OS_FILE_LOG_BLOCK_SIZE - LOG_CRYPT_HDR_SIZE)
+			     / sizeof(uint32_t)];
 		const ulint log_block_no = log_block_get_hdr_no(buf);
 
 		/* The log block number is not encrypted. */
@@ -130,8 +131,7 @@ log_crypt(byte* buf, ulint size, bool decrypt)
 #else
 			~(LOG_BLOCK_FLUSH_BIT_MASK >> 24)
 #endif
-			& (*reinterpret_cast<uint32_t*>(dst)
-			   = *reinterpret_cast<const uint32_t*>(
+			& (*dst = *reinterpret_cast<const uint32_t*>(
 				   buf + LOG_BLOCK_HDR_NO));
 #if LOG_BLOCK_HDR_NO + 4 != LOG_CRYPT_HDR_SIZE
 # error "LOG_BLOCK_HDR_NO has been moved; redo log format affected!"
@@ -143,7 +143,8 @@ log_crypt(byte* buf, ulint size, bool decrypt)
 					log_block_no));
 
 		int rc = encryption_crypt(
-			buf + LOG_CRYPT_HDR_SIZE, sizeof dst, dst, &dst_len,
+			buf + LOG_CRYPT_HDR_SIZE, sizeof dst,
+			reinterpret_cast<byte*>(dst), &dst_len,
 			const_cast<byte*>(info.crypt_key.bytes),
 			sizeof info.crypt_key,
 			reinterpret_cast<byte*>(aes_ctr_iv), sizeof aes_ctr_iv,
@@ -155,19 +156,6 @@ log_crypt(byte* buf, ulint size, bool decrypt)
 
 		ut_a(rc == MY_AES_OK);
 		ut_a(dst_len == sizeof dst);
-		if (decrypt) {
-			std::ostringstream s;
-			ut_print_buf_hex(s, buf + LOG_CRYPT_HDR_SIZE,
-					 OS_FILE_LOG_BLOCK_SIZE
-					 - LOG_CRYPT_HDR_SIZE);
-			ib::info() << "S: " << s.str();
-			std::ostringstream d;
-			ut_print_buf_hex(d, dst,
-					 OS_FILE_LOG_BLOCK_SIZE
-					 - LOG_CRYPT_HDR_SIZE);
-			ib::info() << "c: " << d.str();
-		}
-
 		memcpy(buf + LOG_CRYPT_HDR_SIZE, dst, sizeof dst);
 	}
 }

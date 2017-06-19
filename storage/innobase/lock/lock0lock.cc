@@ -795,12 +795,19 @@ lock_reset_lock_and_trx_wait(
 		const char*	stmt2=NULL;
 		size_t		stmt_len;
 		trx_id_t trx_id = 0;
-		stmt = innobase_get_stmt_unsafe(lock->trx->mysql_thd, &stmt_len);
+		stmt = lock->trx->mysql_thd
+			? innobase_get_stmt_unsafe(
+				lock->trx->mysql_thd, &stmt_len)
+			: NULL;
 
 		if (lock->trx->lock.wait_lock &&
 			lock->trx->lock.wait_lock->trx) {
 			trx_id = lock->trx->lock.wait_lock->trx->id;
-			stmt2 = innobase_get_stmt_unsafe(lock->trx->lock.wait_lock->trx->mysql_thd, &stmt_len);
+			stmt2 = lock->trx->lock.wait_lock->trx->mysql_thd
+				? innobase_get_stmt_unsafe(
+					lock->trx->lock.wait_lock
+					->trx->mysql_thd, &stmt_len)
+				: NULL;
 		}
 
 		ib::error() <<
@@ -5059,8 +5066,6 @@ lock_rec_unlock(
 	lock_t*		first_lock;
 	lock_t*		lock;
 	ulint		heap_no;
-	const char*	stmt;
-	size_t		stmt_len;
 
 	ut_ad(trx);
 	ut_ad(rec);
@@ -5088,13 +5093,15 @@ lock_rec_unlock(
 	lock_mutex_exit();
 	trx_mutex_exit(trx);
 
-	stmt = innobase_get_stmt_unsafe(trx->mysql_thd, &stmt_len);
-
 	{
 		ib::error	err;
 		err << "Unlock row could not find a " << lock_mode
 			<< " mode lock on the record. Current statement: ";
-		err.write(stmt, stmt_len);
+		size_t		stmt_len;
+		if (const char* stmt = innobase_get_stmt_unsafe(
+			    trx->mysql_thd, &stmt_len)) {
+			err.write(stmt, stmt_len);
+		}
 	}
 
 	return;

@@ -71,7 +71,7 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
 
-  enum_parsing_place place= thd->lex->current_select->parsing_place;
+  enum_parsing_place place= thd->lex->current_select->context_analysis_place;
 
   if (!(place == SELECT_LIST || place == IN_ORDER_BY))
   {

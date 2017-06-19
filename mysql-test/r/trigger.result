@@ -313,7 +313,7 @@ drop trigger trg;
 ERROR HY000: Trigger does not exist
 create view v1 as select * from t1;
 create trigger trg before insert on v1 for each row set @a:=1;
-ERROR HY000: 'test.v1' is not BASE TABLE
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
 drop view v1;
 drop table t1;
 drop table t3;
@@ -2368,6 +2368,16 @@ tr1	1	2016-01-01 10:10:10.33
 tr2	2	2016-01-01 10:10:10.99
 drop table t1;
 set time_zone= @@global.time_zone;
+# MDEV-12992: Increasing memory consumption
+with each invocation of trigger
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (b INT);
+CREATE TRIGGER tr 
+AFTER UPDATE ON t1 FOR EACH ROW SELECT (SELECT b FROM t2) INTO @x;
+# Running 20000 queries
+DROP TABLE t1,t2;
 #
 # Start of 10.3 tests
 #

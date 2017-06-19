@@ -61,8 +61,8 @@ class TDBINI : public TDBASE {
   virtual int   GetRecpos(void) {return N;}
   virtual int   GetProgCur(void) {return N;}
 //virtual int   GetAffectedRows(void) {return 0;}
-  virtual PSZ   GetFile(PGLOBAL g) {return Ifile;}
-  virtual void  SetFile(PGLOBAL g, PSZ fn) {Ifile = fn;}
+  virtual PCSZ  GetFile(PGLOBAL g) {return Ifile;}
+  virtual void  SetFile(PGLOBAL g, PCSZ fn) {Ifile = fn;}
   virtual void  ResetDB(void) {Seclist = Section = NULL; N = 0;}
   virtual void  ResetSize(void) {MaxSize = -1; Seclist = NULL;}
   virtual int   RowNumber(PGLOBAL g, bool b = false) {return N;}
@@ -80,7 +80,7 @@ class TDBINI : public TDBASE {
 
  protected:
   // Members
-  char *Ifile;                               // The INI file
+  PCSZ  Ifile;                               // The INI file
   char *Seclist;                             // The section list
   char *Section;                             // The current section
   int   Seclen;                              // Length of seclist buffer
@@ -93,7 +93,7 @@ class TDBINI : public TDBASE {
 class INICOL : public COLBLK {
  public:
   // Constructors
-  INICOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "INI");
+  INICOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "INI");
   INICOL(INICOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
@@ -165,7 +165,7 @@ class TDBXIN : public TDBINI {
 class XINCOL : public INICOL {
  public:
   // Constructors
-  XINCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "INI");
+  XINCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "INI");
   XINCOL(XINCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation

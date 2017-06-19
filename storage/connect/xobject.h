@@ -112,8 +112,8 @@ class DllExport CONSTANT : public XOBJECT {
                  {return Value->SetConstFormat(g, fmt);}
           void   Convert(PGLOBAL g, int newtype);
           void   SetValue(PVAL vp) {Value = vp;}
-  virtual void   Print(PGLOBAL g, FILE *, uint);
-  virtual void   Print(PGLOBAL g, char *, uint);
+  virtual void   Printf(PGLOBAL g, FILE *, uint);
+  virtual void   Prints(PGLOBAL g, char *, uint);
   }; // end of class CONSTANT
 
 /***********************************************************************/
@@ -123,24 +123,25 @@ class DllExport CONSTANT : public XOBJECT {
 class DllExport STRING : public BLOCK {
  public:
   // Constructor
-  STRING(PGLOBAL g, uint n, PSZ str = NULL);
+  STRING(PGLOBAL g, uint n, PCSZ str = NULL);
 
   // Implementation
   inline int    GetLength(void) {return (int)Length;}
 	inline void   SetLength(uint n) {Length = n;}
 	inline PSZ    GetStr(void) {return Strp;}
   inline uint32 GetSize(void) {return Size;}
+	inline bool   IsTruncated(void) {return Trc;}
 
   // Methods
   inline void   Reset(void) {*Strp = 0;}
-         bool   Set(PSZ s);
+         bool   Set(PCSZ s);
          bool   Set(char *s, uint n);
          bool   Append(const char *s, uint ln, bool nq = false);
-         bool   Append(PSZ s);
+         bool   Append(PCSZ s);
          bool   Append(STRING &str);
          bool   Append(char c);
          bool   Resize(uint n);
-         bool   Append_quoted(PSZ s);
+         bool   Append_quoted(PCSZ s);
   inline void   Trim(void) {(void)Resize(Length + 1);}
   inline void   Chop(void) {if (Length) Strp[--Length] = 0;}
   inline void   RepLast(char c) {if (Length) Strp[Length-1] = c;}
@@ -156,6 +157,7 @@ class DllExport STRING : public BLOCK {
   PSZ     Strp;                // The char string
   uint    Length;              // String length
   uint    Size;                // Allocated size
+	bool    Trc;								 // When truncated
   char   *Next;                // Next alloc position
   }; // end of class STRING
 

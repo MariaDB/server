@@ -29,3 +29,15 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1,t2;
 disconnect insertConn;
+call mtr.add_suppression("Index for table '.*test.t1\\.MYI' is corrupt; try to repair it");
+create table t1 (a int, index(a));
+lock tables t1 write;
+insert t1 values (1),(2),(1);
+set @old_dbug=@@debug_dbug;
+set debug_dbug='+d,mi_lock_database_failure';
+unlock tables;
+Warnings:
+Error	126	Index for table './test/t1.MYI' is corrupt; try to repair it
+Error	1030	Got error 22 "Invalid argument" from storage engine MyISAM
+set debug_dbug=@old_dbug;
+drop table t1;

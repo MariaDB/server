@@ -329,7 +329,7 @@ void MACCOL::ReadColumn(PGLOBAL g)
         n = 0;
         break;
       default:
-        p = "";
+        p = PlugDup(g, "");
       } // endswitch Flag
 
   } else switch (Flag) {

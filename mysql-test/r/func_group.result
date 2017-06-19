@@ -2448,6 +2448,15 @@ DROP TABLE t1;
 # End of 10.1 tests
 #
 #
+# MDEV-13064: assertion `n < m_size' fails in Item::split_sum_func2()
+#
+create table t1 (i int) engine=MyISAM;
+insert into t1 value (1),(2);
+select count(*)+sleep(0) from t1;
+count(*)+sleep(0)
+2
+drop table t1;
+#
 # Start of 10.3 tests
 #
 #

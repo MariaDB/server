@@ -690,17 +690,12 @@ fsp_header_init_fields(
 			flags);
 }
 
-/** Initializes the space header of a new created space and creates also the
-insert buffer tree root if space == 0.
+/** Initialize a tablespace header.
 @param[in]	space_id	space id
 @param[in]	size		current size in blocks
-@param[in,out]	mtr		min-transaction
-@return	true on success, otherwise false. */
-bool
-fsp_header_init(
-	ulint	space_id,
-	ulint	size,
-	mtr_t*	mtr)
+@param[in,out]	mtr		mini-transaction */
+void
+fsp_header_init(ulint space_id, ulint size, mtr_t* mtr)
 {
 	fsp_header_t*	header;
 	buf_block_t*	block;
@@ -752,19 +747,9 @@ fsp_header_init(
 	fsp_fill_free_list(!is_system_tablespace(space_id),
 			   space, header, mtr);
 
-	if (space_id == srv_sys_space.space_id()) {
-		if (btr_create(DICT_CLUSTERED | DICT_UNIVERSAL | DICT_IBUF,
-			       0, univ_page_size, DICT_IBUF_ID_MIN + space_id,
-			       dict_ind_redundant, NULL, mtr) == FIL_NULL) {
-			return(false);
-		}
-	}
-
 	if (space->crypt_data) {
 		space->crypt_data->write_page0(space, page, mtr);
 	}
-
-	return(true);
 }
 
 /**********************************************************************//**
@@ -889,14 +874,12 @@ fsp_try_extend_data_file_with_pages(
 @param[in,out]	space	tablespace
 @param[in,out]	header	tablespace header
 @param[in,out]	mtr	mini-transaction
-@return whether the tablespace was extended */
-static UNIV_COLD MY_ATTRIBUTE((nonnull))
+@return	number of pages added
+@retval	0 if the tablespace was not extended */
+UNIV_COLD MY_ATTRIBUTE((nonnull))
+static
 ulint
-fsp_try_extend_data_file(
-	fil_space_t*	space,
-	fsp_header_t*	header,
-	mtr_t*		mtr,
-	ulint*		n_pages_added)
+fsp_try_extend_data_file(fil_space_t* space, fsp_header_t* header, mtr_t* mtr)
 {
 	ulint	size;		/* current number of pages in the datafile */
 	ulint	size_increase;	/* number of pages to extend this file */
@@ -919,7 +902,7 @@ fsp_try_extend_data_file(
 				<< " innodb_data_file_path.";
 			srv_sys_space.set_tablespace_full_status(true);
 		}
-		return(false);
+		return(0);
 	} else if (fsp_is_system_temporary(space->id)
 		   && !srv_tmp_space.can_auto_extend_last_file()) {
 
@@ -933,7 +916,7 @@ fsp_try_extend_data_file(
 				<< " innodb_temp_data_file_path.";
 			srv_tmp_space.set_tablespace_full_status(true);
 		}
-		return(false);
+		return(0);
 	}
 
 	size = mach_read_from_4(header + FSP_SIZE);
@@ -956,7 +939,7 @@ fsp_try_extend_data_file(
 			/* Let us first extend the file to extent_size */
 			if (!fsp_try_extend_data_file_with_pages(
 				    space, extent_pages - 1, header, mtr)) {
-				return(false);
+				return(0);
 			}
 
 			size = extent_pages;
@@ -966,15 +949,12 @@ fsp_try_extend_data_file(
 	}
 
 	if (size_increase == 0) {
-
-		return(false);
+		return(0);
 	}
 
 	if (!fil_space_extend(space, size + size_increase)) {
-		return(false);
+		return(0);
 	}
-
-	*n_pages_added = size_increase;
 
 	/* We ignore any fragments of a full megabyte when storing the size
 	to the space header */
@@ -985,7 +965,7 @@ fsp_try_extend_data_file(
 	mlog_write_ulint(
 		header + FSP_SIZE, space->size_in_header, MLOG_4BYTES, mtr);
 
-	return(true);
+	return(size_increase);
 }
 
 /** Calculate the number of pages to extend a datafile.
@@ -1077,8 +1057,7 @@ fsp_fill_free_list(
 		}
 
 		if (!skip_resize) {
-			ulint n_pages = 0;
-			fsp_try_extend_data_file(space, header, mtr, &n_pages);
+			fsp_try_extend_data_file(space, header, mtr);
 			size = space->size_in_header;
 		}
 	}
@@ -2096,7 +2075,6 @@ fseg_create_general(
 	inode = fsp_alloc_seg_inode(space, space_header, mtr);
 
 	if (inode == NULL) {
-
 		goto funct_exit;
 	}
 
@@ -2800,8 +2778,6 @@ fsp_reserve_free_extents(
 	ulint		n_free_up;
 	ulint		reserve;
 	size_t		total_reserved = 0;
-	ulint		rounds = 0;
-	ulint		n_pages_added = 0;
 
 	ut_ad(mtr);
 	*n_reserved = n_ext;
@@ -2882,23 +2858,8 @@ try_again:
 		return(true);
 	}
 try_to_extend:
-	n_pages_added = 0;
-
-	if (fsp_try_extend_data_file(space, space_header, mtr, &n_pages_added)) {
-
-		rounds++;
-		total_reserved += n_pages_added;
-
-		if (rounds > 10) {
-			ib::info() << "Space id: "
-				   << space << " trying to reserve: "
-				   << n_ext << " extents actually reserved: "
-				   << n_pages_added << " reserve: "
-				   << reserve << " free: " << n_free
-				   << " size: " << size
-				   << " rounds: " << rounds
-				   << " total_reserved: " << total_reserved << ".";
-		}
+	if (ulint n = fsp_try_extend_data_file(space, space_header, mtr)) {
+		total_reserved += n;
 		goto try_again;
 	}
 

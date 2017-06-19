@@ -38,8 +38,6 @@ Created Apr 25, 2012 Vasil Dimov
 /** Minimum time interval between stats recalc for a given table */
 #define MIN_RECALC_INTERVAL	10 /* seconds */
 
-#define SHUTTING_DOWN()		(srv_shutdown_state != SRV_SHUTDOWN_NONE)
-
 /** Event to wake up dict_stats_thread on dict_stats_recalc_pool_add()
 or shutdown. Not protected by any mutex. */
 os_event_t			dict_stats_event;
@@ -120,6 +118,7 @@ background stats gathering thread. Only the table id is added to the
 list, so the table can be closed after being enqueued and it will be
 opened when needed. If the table does not exist later (has been DROPped),
 then it will be removed from the pool and skipped. */
+static
 void
 dict_stats_recalc_pool_add(
 /*=======================*/
@@ -145,6 +144,44 @@ dict_stats_recalc_pool_add(
 	mutex_exit(&recalc_pool_mutex);
 
 	os_event_set(dict_stats_event);
+}
+
+/** Update the table modification counter and if necessary,
+schedule new estimates for table and index statistics to be calculated.
+@param[in,out]	table	persistent or temporary table */
+void
+dict_stats_update_if_needed(dict_table_t* table)
+{
+	ut_ad(table->stat_initialized);
+	ut_ad(!mutex_own(&dict_sys->mutex));
+
+	ulonglong	counter = table->stat_modified_counter++;
+	ulonglong	n_rows = dict_table_get_n_rows(table);
+
+	if (dict_stats_is_persistent_enabled(table)) {
+		if (counter > n_rows / 10 /* 10% */
+		    && dict_stats_auto_recalc_is_enabled(table)) {
+
+			dict_stats_recalc_pool_add(table);
+			table->stat_modified_counter = 0;
+		}
+		return;
+	}
+
+	/* Calculate new statistics if 1 / 16 of table has been modified
+	since the last time a statistics batch was run.
+	We calculate statistics at most every 16th round, since we may have
+	a counter table which is very small and updated very often. */
+	ulonglong threshold = 16 + n_rows / 16; /* 6.25% */
+
+	if (srv_stats_modified_counter) {
+		threshold = std::min(srv_stats_modified_counter, threshold);
+	}
+
+	if (counter > threshold) {
+		/* this will reset table->stat_modified_counter to 0 */
+		dict_stats_update(table, DICT_STATS_RECALC_TRANSIENT);
+	}
 }
 
 /*****************************************************************//**
@@ -231,7 +268,6 @@ Initialize global variables needed for the operation of dict_stats_thread()
 Must be called before dict_stats_thread() is started. */
 void
 dict_stats_thread_init()
-/*====================*/
 {
 	ut_a(!srv_read_only_mode);
 
@@ -276,15 +312,9 @@ dict_stats_thread_deinit()
 
 	mutex_free(&recalc_pool_mutex);
 
-#ifdef UNIV_DEBUG
-	os_event_destroy(dict_stats_disabled_event);
-	dict_stats_disabled_event = NULL;
-#endif /* UNIV_DEBUG */
-
+	ut_d(os_event_destroy(dict_stats_disabled_event));
 	os_event_destroy(dict_stats_event);
 	os_event_destroy(dict_stats_shutdown_event);
-	dict_stats_event = NULL;
-	dict_stats_shutdown_event = NULL;
 	dict_stats_start_shutdown = false;
 }
 
@@ -401,6 +431,7 @@ extern "C"
 os_thread_ret_t
 DECLARE_THREAD(dict_stats_thread)(void*)
 {
+	my_thread_init();
 	ut_a(!srv_read_only_mode);
 
 #ifdef UNIV_PFS_THREAD
@@ -452,7 +483,7 @@ DECLARE_THREAD(dict_stats_thread)(void*)
 	OS_THREAD_DUMMY_RETURN;
 }
 
-/** Shutdown the dict stats thread. */
+/** Shut down the dict_stats_thread. */
 void
 dict_stats_shutdown()
 {

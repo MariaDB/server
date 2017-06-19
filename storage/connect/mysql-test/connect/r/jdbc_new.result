@@ -14,9 +14,7 @@ NULL	NULL
 SET GLOBAL time_zone='+1:00';
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=unknown';
-SELECT * FROM t1;
-ERROR HY000: Got error 174 'Connecting: java.sql.SQLException: Access denied for user 'unknown'@'localhost' (using password: NO) rc=-2' from CONNECT
-DROP TABLE t1;
+ERROR HY000: Connecting: java.sql.SQLException: Access denied for user 'unknown'@'localhost' (using password: NO) rc=-2
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/unknown?user=root';
 ERROR HY000: Connecting: java.sql.SQLSyntaxErrorException: Unknown database 'unknown' rc=-2

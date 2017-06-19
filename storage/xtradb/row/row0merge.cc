@@ -967,8 +967,8 @@ row_merge_read(
 	}
 #endif /* UNIV_DEBUG */
 
-	success = os_file_read_no_error_handling(OS_FILE_FROM_FD(fd), buf,
-		                                 ofs, srv_sort_buf_size);
+	success = os_file_read_no_error_handling_int_fd(fd, buf,
+						 ofs, srv_sort_buf_size);
 
 	/* For encrypted tables, decrypt data after reading and copy data */
 	if (crypt_data && crypt_buf) {
@@ -1023,7 +1023,7 @@ row_merge_write(
 		mach_write_to_4((byte *)out_buf, 0);
 	}
 
-	ret = os_file_write("(merge)", OS_FILE_FROM_FD(fd), out_buf, ofs, buf_len);
+	ret = os_file_write_int_fd("(merge)", fd, out_buf, ofs, buf_len);
 
 #ifdef UNIV_DEBUG
 	if (row_merge_print_block_write) {
@@ -3427,14 +3427,21 @@ row_merge_file_create_low(
 	performance schema */
 	struct PSI_file_locker*	locker = NULL;
 	PSI_file_locker_state	state;
-	register_pfs_file_open_begin(&state, locker, innodb_file_temp_key,
-				     PSI_FILE_OPEN,
-				     "Innodb Merge Temp File",
-				     __FILE__, __LINE__);
+	locker = PSI_FILE_CALL(get_thread_file_name_locker)(
+			       &state, innodb_file_temp_key, PSI_FILE_OPEN,
+			       "Innodb Merge Temp File", &locker);
+	if (locker != NULL) {
+		PSI_FILE_CALL(start_file_open_wait)(locker,
+						    __FILE__,
+						    __LINE__);
+	}
 #endif
 	fd = innobase_mysql_tmpfile(path);
 #ifdef UNIV_PFS_IO
-	register_pfs_file_open_end(locker, fd);
+	if (locker != NULL) {
+		PSI_FILE_CALL(end_file_open_wait_and_bind_to_descriptor)(
+			      locker, fd);
+	}
 #endif
 
 	if (fd < 0) {
@@ -3481,15 +3488,20 @@ row_merge_file_destroy_low(
 #ifdef UNIV_PFS_IO
 	struct PSI_file_locker*	locker = NULL;
 	PSI_file_locker_state	state;
-	register_pfs_file_io_begin(&state, locker,
-				   fd, 0, PSI_FILE_CLOSE,
-				   __FILE__, __LINE__);
+	locker = PSI_FILE_CALL(get_thread_file_descriptor_locker)(
+			       &state, fd, PSI_FILE_CLOSE);
+	if (locker != NULL) {
+		PSI_FILE_CALL(start_file_wait)(
+			      locker, 0, __FILE__, __LINE__);
+	}
 #endif
 	if (fd >= 0) {
 		close(fd);
 	}
 #ifdef UNIV_PFS_IO
-	register_pfs_file_io_end(locker, 0);
+	if (locker != NULL) {
+		PSI_FILE_CALL(end_file_wait)(locker, 0);
+	}
 #endif
 }
 /*********************************************************************//**
@@ -4025,6 +4037,7 @@ row_merge_build_indexes(
 
 	for (i = 0; i < n_indexes; i++) {
 		merge_files[i].fd = -1;
+		merge_files[i].offset = 0;
 	}
 
 	total_static_cost = COST_BUILD_INDEX_STATIC * n_indexes + COST_READ_CLUSTERED_INDEX;

@@ -27,11 +27,6 @@ echo # Prepare full backup, apply incremental one;
 exec $XTRABACKUP --prepare --apply-log-only --target-dir=$basedir;
 exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir;
 
-# stats also can support encryption, but needs plugin-load and plugin variables, they are stored in backup-my.cnf
-# We need to prepare again to create log files though.
-exec $XTRABACKUP --prepare --target-dir=$basedir;
-exec $XTRABACKUP --defaults-file=$basedir/backup-my.cnf --stats --datadir=$basedir;
-
 echo # Restore and check results;
 let $targetdir=$basedir;
 -- source include/restart_and_restore.inc

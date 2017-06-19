@@ -1235,7 +1235,6 @@ struct handlerton
                             enum_binlog_command binlog_command,
                             const char *query, uint query_length,
                             const char *db, const char *table_name);
-   int (*release_temporary_latches)(handlerton *hton, THD *thd);
 
    /*
      Get log status.
@@ -4361,9 +4360,6 @@ int ha_resize_key_cache(KEY_CACHE *key_cache);
 int ha_change_key_cache_param(KEY_CACHE *key_cache);
 int ha_repartition_key_cache(KEY_CACHE *key_cache);
 int ha_change_key_cache(KEY_CACHE *old_key_cache, KEY_CACHE *new_key_cache);
-
-/* report to InnoDB that control passes to the client */
-int ha_release_temporary_latches(THD *thd);
 
 /* transactions: interface to handlerton functions */
 int ha_start_consistent_snapshot(THD *thd);

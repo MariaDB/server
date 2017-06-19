@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3635,7 +3635,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
   state(NO_VALUE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
-  indicators(0), indicator(STMT_INDICATOR_NONE),
+  indicator(STMT_INDICATOR_NONE),
   set_param_func(default_set_param_func),
   m_out_param_info(NULL),
   /*
@@ -5763,7 +5763,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
            
             SELECT_LEX *select= thd->lex->current_select;
             thd->change_item_tree(reference,
-                                  select->parsing_place == IN_GROUP_BY && 
+                                  select->context_analysis_place == IN_GROUP_BY && 
 				  alias_name_used  ?  *rf->ref : rf);
 
             /*

@@ -354,11 +354,10 @@ row_log_online_op(
 	b += size;
 
 	if (mrec_size >= avail_size) {
-		dberr_t			err;
-		IORequest		request(IORequest::WRITE);
 		const os_offset_t	byte_offset
 			= (os_offset_t) log->tail.blocks
 			* srv_sort_buf_size;
+		IORequest		request(IORequest::WRITE);
 
 		if (byte_offset + srv_sort_buf_size >= srv_online_max_size) {
 			goto write_failed;
@@ -379,13 +378,12 @@ row_log_online_op(
 			goto err_exit;
 		}
 
-		err = os_file_write(
-			request,
-			"(modification log)",
-			OS_FILE_FROM_FD(log->fd),
-			log->tail.block, byte_offset, srv_sort_buf_size);
 		log->tail.blocks++;
-		if (err != DB_SUCCESS) {
+		if (!os_file_write_int_fd(
+			    request,
+			    "(modification log)",
+			    log->fd,
+			    log->tail.block, byte_offset, srv_sort_buf_size)) {
 write_failed:
 			/* We set the flag directly instead of invoking
 			dict_set_corrupted_index_cache_only(index) here,
@@ -472,11 +470,10 @@ row_log_table_close_func(
 	ut_ad(mutex_own(&log->mutex));
 
 	if (size >= avail) {
-		dberr_t			err;
-		IORequest		request(IORequest::WRITE);
 		const os_offset_t	byte_offset
 			= (os_offset_t) log->tail.blocks
 			* srv_sort_buf_size;
+		IORequest		request(IORequest::WRITE);
 
 		if (byte_offset + srv_sort_buf_size >= srv_online_max_size) {
 			goto write_failed;
@@ -497,13 +494,12 @@ row_log_table_close_func(
 			goto err_exit;
 		}
 
-		err = os_file_write(
-			request,
-			"(modification log)",
-			OS_FILE_FROM_FD(log->fd),
-			log->tail.block, byte_offset, srv_sort_buf_size);
 		log->tail.blocks++;
-		if (err != DB_SUCCESS) {
+		if (!os_file_write_int_fd(
+			    request,
+			    "(modification log)",
+			    log->fd,
+			    log->tail.block, byte_offset, srv_sort_buf_size)) {
 write_failed:
 			log->error = DB_ONLINE_LOG_TOO_BIG;
 		}
@@ -2038,6 +2034,7 @@ row_log_table_apply_update(
 
 		When applying the subsequent ROW_T_DELETE, no matching
 		record will be found. */
+		/* fall through */
 	case DB_SUCCESS:
 		ut_ad(row != NULL);
 		break;
@@ -2888,16 +2885,14 @@ all_done:
 			goto func_exit;
 		}
 
-		IORequest	request;
+		IORequest		request(IORequest::READ);
 
-		dberr_t	err = os_file_read_no_error_handling(
-			request,
-			OS_FILE_FROM_FD(index->online_log->fd),
-			index->online_log->head.block, ofs,
-			srv_sort_buf_size,
-			NULL);
 
-		if (err != DB_SUCCESS) {
+		if (!os_file_read_no_error_handling_int_fd(
+			    request,
+			    index->online_log->fd,
+			    index->online_log->head.block, ofs,
+			    srv_sort_buf_size)) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for table " << index->table_name;
@@ -3707,10 +3702,10 @@ all_done:
 			goto func_exit;
 		}
 	} else {
-		os_offset_t	ofs;
-
-		ofs = (os_offset_t) index->online_log->head.blocks
+		os_offset_t	ofs = static_cast<os_offset_t>(
+			index->online_log->head.blocks)
 			* srv_sort_buf_size;
+		IORequest	request(IORequest::READ);
 
 		ut_ad(has_index_lock);
 		has_index_lock = false;
@@ -3723,16 +3718,11 @@ all_done:
 			goto func_exit;
 		}
 
-		IORequest	request;
-
-		dberr_t	err = os_file_read_no_error_handling(
-			request,
-			OS_FILE_FROM_FD(index->online_log->fd),
-			index->online_log->head.block, ofs,
-			srv_sort_buf_size,
-			NULL);
-
-		if (err != DB_SUCCESS) {
+		if (!os_file_read_no_error_handling_int_fd(
+			    request,
+			    index->online_log->fd,
+			    index->online_log->head.block, ofs,
+			    srv_sort_buf_size)) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for index " << index->name;

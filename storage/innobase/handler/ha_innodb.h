@@ -619,8 +619,6 @@ extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
 
 extern const struct _ft_vft ft_vft_result;
 
-#define FTS_NGRAM_PARSER_NAME "ngram"
-
 /** Structure Returned by ha_innobase::ft_init_ext() */
 typedef struct new_ft_info
 {
@@ -656,14 +654,11 @@ and returns true.
 @return true if the index name matches the reserved name */
 bool
 innobase_index_name_is_reserved(
-	THD*			thd,		/*!< in/out: MySQL connection */
-	const KEY*		key_info,	/*!< in: Indexes to be
-						created */
-	ulint			num_of_keys)	/*!< in: Number of indexes to
-						be created. */
-	MY_ATTRIBUTE((warn_unused_result));
-
-extern const char reserved_file_per_table_space_name[];
+	THD*		thd,		/*!< in/out: MySQL connection */
+	const KEY*	key_info,	/*!< in: Indexes to be created */
+	ulint		num_of_keys)	/*!< in: Number of indexes to
+					be created. */
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 #ifdef WITH_WSREP
 //extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
@@ -910,18 +905,6 @@ innodb_base_col_setup_for_stored(
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
 /** whether this is a computed virtual column */
 #define innobase_is_v_fld(field) ((field)->vcol_info && !(field)->stored_in_db())
-
-/** Release temporary latches.
-Call this function when mysqld passes control to the client. That is to
-avoid deadlocks on the adaptive hash S-latch possibly held by thd. For more
-documentation, see handler.cc.
-@param[in]	hton	Handlerton.
-@param[in]	thd	MySQL thread.
-@return 0 */
-int
-innobase_release_temporary_latches(
-	handlerton*	hton,
-	THD*		thd);
 
 /** Always normalize table name to lower case on Windows */
 #ifdef _WIN32

@@ -171,7 +171,8 @@ btr_root_block_get(
 		if (index && index->table) {
 			index->table->file_unreadable = true;
 
-			ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
+			ib_push_warning(
+				static_cast<THD*>(NULL), DB_DECRYPTION_FAILED,
 				"Table %s in tablespace %lu is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue reading table.",
@@ -1133,9 +1134,7 @@ btr_create(
 	const btr_create_t*	btr_redo_create_info,
 	mtr_t*			mtr)
 {
-	ulint			page_no;
 	buf_block_t*		block;
-	buf_frame_t*		frame;
 	page_t*			page;
 	page_zip_des_t*		page_zip;
 
@@ -1170,33 +1169,28 @@ btr_create(
 			+ IBUF_HEADER + IBUF_TREE_SEG_HEADER,
 			IBUF_TREE_ROOT_PAGE_NO,
 			FSP_UP, mtr);
+
+		if (block == NULL) {
+			return(FIL_NULL);
+		}
+
 		ut_ad(block->page.id.page_no() == IBUF_TREE_ROOT_PAGE_NO);
+
+		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
+
+		flst_init(block->frame + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
+			  mtr);
 	} else {
 		block = fseg_create(space, 0,
 				    PAGE_HEADER + PAGE_BTR_SEG_TOP, mtr);
-	}
 
-	if (block == NULL) {
+		if (block == NULL) {
+			return(FIL_NULL);
+		}
 
-		return(FIL_NULL);
-	}
-
-	page_no = block->page.id.page_no();
-	frame = buf_block_get_frame(block);
-
-	if (type & DICT_IBUF) {
-		/* It is an insert buffer tree: initialize the free list */
-		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
-
-		ut_ad(page_no == IBUF_TREE_ROOT_PAGE_NO);
-
-		flst_init(frame + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, mtr);
-	} else {
-		/* It is a non-ibuf tree: create a file segment for leaf
-		pages */
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE_NEW);
 
-		if (!fseg_create(space, page_no,
+		if (!fseg_create(space, block->page.id.page_no(),
 				 PAGE_HEADER + PAGE_BTR_SEG_LEAF, mtr)) {
 			/* Not enough space for new segment, free root
 			segment before return. */
@@ -1287,7 +1281,7 @@ btr_create(
 
 	ut_ad(page_get_max_insert_size(page, 2) > 2 * BTR_PAGE_MAX_REC_SIZE);
 
-	return(page_no);
+	return(block->page.id.page_no());
 }
 
 /** Free a B-tree except the root page. The root page MUST be freed after

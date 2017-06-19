@@ -920,8 +920,8 @@ int ZLBFAM::GetFileLength(PGLOBAL g)
 /***********************************************************************/
 bool ZLBFAM::AllocateBuffer(PGLOBAL g)
   {
-  char *msg;
-  int   n, zrc;
+  PCSZ msg;
+  int  n, zrc;
 
 #if 0
   if (!Optimized && Tdbp->NeedIndexing(g)) {

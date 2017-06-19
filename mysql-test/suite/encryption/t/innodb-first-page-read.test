@@ -1,0 +1,92 @@
+-- source include/have_innodb.inc
+-- source include/have_file_key_management_plugin.inc
+-- source include/not_embedded.inc
+
+create database innodb_test;
+use innodb_test;
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic;
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed;
+create table innodb_compressed1(c1 bigint not null, b char(200)) engine=innodb row_format=compressed key_block_size=1;
+create table innodb_compressed2(c1 bigint not null, b char(200)) engine=innodb row_format=compressed key_block_size=2;
+create table innodb_compressed4(c1 bigint not null, b char(200)) engine=innodb row_format=compressed key_block_size=4;
+create table innodb_compressed8(c1 bigint not null, b char(200)) engine=innodb row_format=compressed key_block_size=8;
+create table innodb_compressed16(c1 bigint not null, b char(200)) engine=innodb row_format=compressed key_block_size=16;
+create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant;
+create table innodb_pagecomp(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes;
+create table innodb_pagecomp1(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=1;
+create table innodb_pagecomp2(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=2;
+create table innodb_pagecomp3(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=3;
+create table innodb_pagecomp4(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=4;
+create table innodb_pagecomp5(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=5;
+create table innodb_pagecomp6(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=6;
+create table innodb_pagecomp7(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=7;
+create table innodb_pagecomp8(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=8;
+create table innodb_pagecomp9(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=9;
+
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+eval create table innodb_datadir1(c1 bigint not null, b char(200)) engine=innodb DATA DIRECTORY='$MYSQL_TMP_DIR';
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+eval create table innodb_datadir2(c1 bigint not null, b char(200)) engine=innodb row_format=compressed DATA DIRECTORY='$MYSQL_TMP_DIR';
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+eval create table innodb_datadir3(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes DATA DIRECTORY='$MYSQL_TMP_DIR';
+
+begin;
+insert into innodb_normal values (1,'secret');
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+insert into innodb_compressed select * from innodb_normal;
+insert into innodb_compressed1 select * from innodb_normal;
+insert into innodb_compressed2 select * from innodb_normal;
+insert into innodb_compressed4 select * from innodb_normal;
+insert into innodb_compressed8 select * from innodb_normal;
+insert into innodb_compressed16 select * from innodb_normal;
+insert into innodb_redundant select * from innodb_normal;
+insert into innodb_pagecomp select * from innodb_normal;
+insert into innodb_pagecomp1 select * from innodb_normal;
+insert into innodb_pagecomp2 select * from innodb_normal;
+insert into innodb_pagecomp3 select * from innodb_normal;
+insert into innodb_pagecomp4 select * from innodb_normal;
+insert into innodb_pagecomp5 select * from innodb_normal;
+insert into innodb_pagecomp6 select * from innodb_normal;
+insert into innodb_pagecomp7 select * from innodb_normal;
+insert into innodb_pagecomp8 select * from innodb_normal;
+insert into innodb_pagecomp9 select * from innodb_normal;
+insert into innodb_datadir1 select * from innodb_normal;
+insert into innodb_datadir2 select * from innodb_normal;
+insert into innodb_datadir3 select * from innodb_normal;
+commit;
+
+--echo # Restart server and see how many page 0's are read
+--source include/restart_mysqld.inc
+
+--echo # result should be less than actual number of tables
+--echo # i.e. < 23 + 3 = 26
+show status like 'innodb_pages0_read%';
+use innodb_test;
+show status like 'innodb_pages0_read%';
+use test;
+show status like 'innodb_pages0_read%';
+
+set global innodb_encrypt_tables=OFF;
+
+--echo # wait until tables are decrypted
+--let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+--source include/wait_condition.inc
+
+show status like 'innodb_pages0_read%';
+use innodb_test;
+show status like 'innodb_pages0_read%';
+use test;
+
+--echo # restart and see number read page 0
+-- source include/restart_mysqld.inc
+
+show status like 'innodb_pages0_read%';
+use innodb_test;
+show status like 'innodb_pages0_read%';
+use test;
+
+drop database innodb_test;
+show status like 'innodb_pages0_read%';

@@ -550,7 +550,10 @@ static int initialize_bucket(LF_HASH *hash, LF_SLIST * volatile *node,
     return -1;
   if (*el == NULL && bucket &&
       unlikely(initialize_bucket(hash, el, parent, pins)))
+  {
+    my_free(dummy);
     return -1;
+  }
   dummy->hashnr= my_reverse_bits(bucket) | 0; /* dummy node */
   dummy->key= dummy_key;
   dummy->keylen= 0;

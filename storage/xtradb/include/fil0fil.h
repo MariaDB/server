@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -210,9 +210,8 @@ struct fsp_open_info {
 	ibool		success;	/*!< Has the tablespace been opened? */
 	const char*	check_msg;	/*!< fil_check_first_page() message */
 	ibool		valid;		/*!< Is the tablespace valid? */
-	os_file_t	file;		/*!< File handle */
+	pfs_os_file_t	file;		/*!< File handle */
 	char*		filepath;	/*!< File path to open */
-	lsn_t		lsn;		/*!< Flushed LSN from header page */
 	ulint		id;		/*!< Space ID */
 	ulint		flags;		/*!< Tablespace flags */
 	ulint		encryption_error; /*!< if an encryption error occurs */
@@ -228,7 +227,7 @@ struct fil_node_t {
 				belongs */
 	char*		name;	/*!< path to the file */
 	ibool		open;	/*!< TRUE if file open */
-	os_file_t	handle;	/*!< OS handle to the file, if file open */
+	pfs_os_file_t	handle;	/*!< OS handle to the file, if file open */
 	os_event_t	sync_event;/*!< Condition event to group and
 				serialize calls to fsync;
 				os_event_set() and os_event_reset()
@@ -351,9 +350,6 @@ struct fil_space_t {
 				compression failure */
 	fil_space_crypt_t* crypt_data;
 				/*!< tablespace crypt data or NULL */
-	bool		page_0_crypt_read;
-				/*!< tablespace crypt data has been
-				read */
 	ulint		file_block_size;
 				/*!< file system block size */
 
@@ -643,17 +639,17 @@ void
 fil_set_max_space_id_if_bigger(
 /*===========================*/
 	ulint	max_id);/*!< in: maximum known id */
+
 #ifndef UNIV_HOTBACKUP
-/****************************************************************//**
-Writes the flushed lsn and the latest archived log number to the page
-header of the first page of each data file in the system tablespace.
-@return	DB_SUCCESS or error number */
-UNIV_INTERN
+
+/** Write the flushed LSN to the page header of the first page in the
+system tablespace.
+@param[in]	lsn	flushed LSN
+@return DB_SUCCESS or error number */
 dberr_t
-fil_write_flushed_lsn_to_data_files(
-/*================================*/
-	lsn_t	lsn,		/*!< in: lsn to write */
-	ulint	arch_log_no);	/*!< in: latest archived log file number */
+fil_write_flushed_lsn(
+	lsn_t	lsn)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Acquire a tablespace when it could be dropped concurrently.
 Used by background threads that do not necessarily hold proper locks
@@ -799,28 +795,28 @@ private:
 	fil_space_t*	m_space;
 };
 
-/*******************************************************************//**
-Reads the flushed lsn, arch no, and tablespace flag fields from a data
-file at database startup.
+/** Reads the flushed lsn, arch no, space_id and tablespace flag fields from
+the first page of a first data file at database startup.
+@param[in]	data_file		open data file
+@param[in]	one_read_only		true if first datafile is already
+					read
+@param[out]	flags			FSP_SPACE_FLAGS
+@param[out]	space_id		tablepspace ID
+@param[out]	flushed_lsn		flushed lsn value
+@param[out]	crypt_data		encryption crypt data
 @retval NULL on success, or if innodb_force_recovery is set
 @return pointer to an error message string */
 UNIV_INTERN
 const char*
 fil_read_first_page(
-/*================*/
-	os_file_t	data_file,		/*!< in: open data file */
-	ibool		one_read_already,	/*!< in: TRUE if min and max
-						parameters below already
-						contain sensible data */
-	ulint*		flags,			/*!< out: FSP_SPACE_FLAGS */
-	ulint*		space_id,		/*!< out: tablespace ID */
-	lsn_t*		min_flushed_lsn,	/*!< out: min of flushed
-						lsn values in data files */
-	lsn_t*		max_flushed_lsn,	/*!< out: max of flushed
-						lsn values in data files */
-	fil_space_crypt_t** crypt_data)		/*!< out: crypt data */
+	pfs_os_file_t	data_file,
+	ibool		one_read_already,
+	ulint*		flags,
+	ulint*		space_id,
+	lsn_t*		flushed_lsn,
+	fil_space_crypt_t**   crypt_data)
+	MY_ATTRIBUTE((warn_unused_result));
 
-	__attribute__((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 /*******************************************************************//**
 Parses the body of a log record written about an .ibd file operation. That is,
@@ -1006,7 +1002,7 @@ fil_create_new_single_table_tablespace(
 					must be >= FIL_IBD_FILE_INITIAL_SIZE */
 	fil_encryption_t mode,	/*!< in: encryption mode */
 	ulint		key_id)	/*!< in: encryption key_id */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull(2), warn_unused_result));
 #ifndef UNIV_HOTBACKUP
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
 (Typically when upgrading from MariaDB 10.1.0..10.1.20.)
@@ -1047,8 +1043,7 @@ fil_open_single_table_tablespace(
 	ulint		flags,		/*!< in: expected FSP_SPACE_FLAGS */
 	const char*	tablename,	/*!< in: table name in the
 					databasename/tablename format */
-	const char*	filepath,	/*!< in: tablespace filepath */
-	dict_table_t*	table)		/*!< in: table */
+	const char*	filepath)	/*!< in: tablespace filepath */
 	__attribute__((nonnull(5), warn_unused_result));
 
 #endif /* !UNIV_HOTBACKUP */
@@ -1340,12 +1335,12 @@ struct PageCallback {
 	Called for every page in the tablespace. If the page was not
 	updated then its state must be set to BUF_PAGE_NOT_USED. For
 	compressed tables the page descriptor memory will be at offset:
-       		block->frame + UNIV_PAGE_SIZE;
+		block->frame + UNIV_PAGE_SIZE;
 	@param offset - physical offset within the file
 	@param block - block read from file, note it is not from the buffer pool
 	@retval DB_SUCCESS or error code. */
 	virtual dberr_t operator()(
-		os_offset_t 	offset,
+		os_offset_t	offset,
 		buf_block_t*	block) UNIV_NOTHROW = 0;
 
 	/**
@@ -1353,7 +1348,7 @@ struct PageCallback {
 	to open it for the file that is being iterated over.
 	@param filename - then physical name of the tablespace file.
 	@param file - OS file handle */
-	void set_file(const char* filename, os_file_t file) UNIV_NOTHROW
+	void set_file(const char* filename, pfs_os_file_t file) UNIV_NOTHROW
 	{
 		m_file = file;
 		m_filepath = filename;
@@ -1389,7 +1384,7 @@ struct PageCallback {
 	ulint			m_page_size;
 
 	/** File handle to the tablespace */
-	os_file_t		m_file;
+	pfs_os_file_t		m_file;
 
 	/** Physical file path. */
 	const char*		m_filepath;

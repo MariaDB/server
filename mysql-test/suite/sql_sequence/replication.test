@@ -79,33 +79,32 @@ drop sequence s2;
 connection master;
 
 create table t_1(id int);
---error ER_WRONG_OBJECT
+--error ER_NOT_SEQUENCE
 show create sequence t_1;
 
 drop table t_1;
 
 --error ER_PARSE_ERROR
 CREATE SEQUENCE `s2` (
-  `currval` bigint(21) NOT NULL COMMENT 'current value',
-  `nextval` bigint(21) NOT NULL COMMENT 'next value',
-  `minvalue` bigint(21) NOT NULL COMMENT 'min value',
-  `maxvalue` bigint(21) NOT NULL COMMENT 'max value',
-  `start` bigint(21) NOT NULL COMMENT 'start value',
-  `increment` bigint(21) NOT NULL COMMENT 'increment value',
-  `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` bigint(21) NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'already how many round'
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
 ) ENGINE=InnoDB sequence=1;
 
 CREATE TABLE `s2` (
-  `next_value` bigint(21) NOT NULL COMMENT 'next value',
-  `min_value` bigint(21) NOT NULL COMMENT 'min value',
-  `max_value` bigint(21) NOT NULL COMMENT 'max value',
-  `start` bigint(21) NOT NULL COMMENT 'start value',
-  `increment` bigint(21) NOT NULL COMMENT 'increment value',
-  `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'already how many round'
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
 ) ENGINE=InnoDB sequence=1;
 
 insert into s2 values(1, 1, 10, 1, 2, 1, 1, 0);
@@ -131,14 +130,14 @@ connection master;
 drop sequence s2;
 
 CREATE TABLE `s2` (
-  `next_value` bigint(21) NOT NULL COMMENT 'next value',
-  `min_value` bigint(21) NOT NULL COMMENT 'min value',
-  `max_value` bigint(21) NOT NULL COMMENT 'max value',
-  `start` bigint(21) NOT NULL COMMENT 'start value',
-  `increment` bigint(21) NOT NULL COMMENT 'increment value',
-  `cache` bigint(21) NOT NULL COMMENT 'cache size',
-  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
-  `round` bigint(21) NOT NULL COMMENT 'already how many round'
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
 ) ENGINE=myisam DEFAULT CHARSET=latin1 sequence=1;
 
 show create sequence s2;
@@ -355,7 +354,7 @@ connection master;
 --sync_slave_with_master
 
 connection s_normal_3;
-select next_value from s_t;
+select next_not_cached_value from s_t;
 
 --echo ------------------------------------------
 --echo master ALTER SEQUENCE
@@ -785,7 +784,7 @@ drop sequence s1;
 connection m_normal_1;
 
 --echo ------------------------------------------
---echo round increment by round
+--echo cycle_count increment by cycle_count
 --echo ------------------------------------------
 create sequence s1 start with 5 minvalue 2 maxvalue 7 cache 1 cycle;
 select next value for s1;
@@ -806,15 +805,15 @@ drop sequence s1;
 
 create sequence s1 start with 2 minvalue 1 maxvalue 3 increment by 3 nocache cycle;
 select next value for s1;
-select next_value,round from s1;
+select next_not_cached_value,cycle_count from s1;
 select next value for s1;
-select next_value,round from s1;
+select next_not_cached_value,cycle_count from s1;
 select next value for s1;
-select next_value,round from s1;
+select next_not_cached_value,cycle_count from s1;
 select next value for s1;
-select next_value,round from s1;
+select next_not_cached_value,cycle_count from s1;
 select next value for s1;
-select next_value,round from s1;
+select next_not_cached_value,cycle_count from s1;
 drop sequence s1;
 
 create sequence s1 start with 2 minvalue 1 maxvalue 3 increment by 3 cache 2 nocycle;
@@ -827,29 +826,29 @@ drop sequence s1;
 --echo beyond ulonglong maxvalue
 --echo ------------------------------------------
 create sequence s1 start with 9223372036854775805 minvalue 9223372036854775804 maxvalue 9223372036854775806  cache 1 cycle;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
 drop sequence s1;
 
 create sequence s1 start with 9223372036854775805 minvalue 9223372036854775804 maxvalue 9223372036854775806  cache 10 cycle;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
-select next value for s1, round from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
 drop sequence s1;
 
 connection master;

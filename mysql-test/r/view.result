@@ -41,7 +41,7 @@ show create view v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`b` + 1 AS `c` from `t1`	latin1	latin1_swedish_ci
 show create view t1;
-ERROR HY000: 'test.t1' is not VIEW
+ERROR HY000: 'test.t1' is not of type 'VIEW'
 drop table t1;
 select a from v1;
 ERROR 42S22: Unknown column 'a' in 'field list'
@@ -199,7 +199,7 @@ c	d
 drop view v100;
 ERROR 42S02: Unknown VIEW: 'test.v100'
 drop view t1;
-ERROR HY000: 'test.t1' is not VIEW
+ERROR HY000: 'test.t1' is not of type 'VIEW'
 drop table v1;
 ERROR 42S02: 'test.v1' is a view
 drop view v1,v2;
@@ -675,7 +675,7 @@ drop view v1;
 create table t1 (col1 int,col2 char(22));
 create view v1 as select * from t1;
 create index i1 on v1 (col1);
-ERROR HY000: 'test.v1' is not BASE TABLE
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
 drop view v1;
 drop table t1;
 CREATE VIEW v1 (f1,f2,f3,f4) AS SELECT connection_id(), pi(), current_user(), version();
@@ -1061,7 +1061,7 @@ drop table t1,t2,t3;
 create table t1 (s1 int);
 create view v1 as select * from t1;
 handler v1 open as xx;
-ERROR HY000: 'test.v1' is not BASE TABLE
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
 drop view v1;
 drop table t1;
 create table t1(a int);
@@ -2445,28 +2445,28 @@ CREATE TABLE t1(id INT);
 CREATE VIEW v1 AS SELECT id FROM t1;
 OPTIMIZE TABLE v1;
 Table	Op	Msg_type	Msg_text
-test.v1	optimize	Error	'test.v1' is not BASE TABLE
+test.v1	optimize	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	optimize	status	Operation failed
 ANALYZE TABLE v1;
 Table	Op	Msg_type	Msg_text
-test.v1	analyze	Error	'test.v1' is not BASE TABLE
+test.v1	analyze	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	analyze	status	Operation failed
 REPAIR TABLE v1;
 Table	Op	Msg_type	Msg_text
-test.v1	repair	Error	'test.v1' is not BASE TABLE
+test.v1	repair	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	repair	status	Operation failed
 DROP TABLE t1;
 OPTIMIZE TABLE v1;
 Table	Op	Msg_type	Msg_text
-test.v1	optimize	Error	'test.v1' is not BASE TABLE
+test.v1	optimize	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	optimize	status	Operation failed
 ANALYZE TABLE v1;
 Table	Op	Msg_type	Msg_text
-test.v1	analyze	Error	'test.v1' is not BASE TABLE
+test.v1	analyze	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	analyze	status	Operation failed
 REPAIR TABLE v1;
 Table	Op	Msg_type	Msg_text
-test.v1	repair	Error	'test.v1' is not BASE TABLE
+test.v1	repair	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	repair	status	Operation failed
 DROP VIEW v1;
 create definer = current_user() sql security invoker view v1 as select 1;
@@ -2920,7 +2920,7 @@ Tables_in_test
 t1
 CREATE VIEW v1 AS SELECT id FROM t1;
 DROP VIEW t1,v1;
-ERROR HY000: 'test.t1' is not VIEW
+ERROR HY000: 'test.t1' is not of type 'VIEW'
 SHOW TABLES;
 Tables_in_test
 t1
@@ -3706,7 +3706,7 @@ CREATE TABLE t1(c1 INT);
 SELECT * FROM t1;
 c1
 ALTER ALGORITHM=TEMPTABLE SQL SECURITY INVOKER VIEW t1 (c2) AS SELECT (1);
-ERROR HY000: 'test.t1' is not VIEW
+ERROR HY000: 'test.t1' is not of type 'VIEW'
 
 DROP TABLE t1;
 
@@ -4011,7 +4011,7 @@ drop procedure p;
 CREATE TABLE t1 (a INT);
 CREATE VIEW v1 AS SELECT a FROM t1;
 ALTER TABLE v1;
-ERROR HY000: 'test.v1' is not BASE TABLE
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
 DROP VIEW v1;
 DROP TABLE t1;
 #
@@ -5584,7 +5584,7 @@ create table t1 (a int, b int);
 create view v1 as select a+b from t1;
 alter table v1 check partition p1;
 Table	Op	Msg_type	Msg_text
-test.v1	check	Error	'test.v1' is not BASE TABLE
+test.v1	check	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	check	status	Operation failed
 drop view v1;
 drop table t1;

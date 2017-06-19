@@ -129,7 +129,6 @@ struct index_def_t {
 	index_field_t*	fields;		/*!< field definitions */
 	st_mysql_ftparser*
 			parser;		/*!< fulltext parser plugin */
-	bool		is_ngram;	/*!< true if it's ngram parser */
 };
 
 /** Structure for reporting duplicate records. */
@@ -195,7 +194,7 @@ row_merge_drop_temp_indexes(void);
 
 /** Create temporary merge files in the given paramater path, and if
 UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
-@param[in]	path	location for creating temporary merge files.
+@param[in]	path	location for creating temporary merge files, or NULL
 @return File descriptor */
 int
 row_merge_file_create_low(
@@ -398,13 +397,13 @@ row_merge_buf_empty(
 
 /** Create a merge file in the given location.
 @param[out]	merge_file	merge file structure
-@param[in]	path		location for creating temporary file
+@param[in]	path		location for creating temporary file, or NULL
 @return file descriptor, or -1 on failure */
 int
 row_merge_file_create(
 	merge_file_t*	merge_file,
 	const char*	path)
-	MY_ATTRIBUTE((warn_unused_result, nonnull));
+	MY_ATTRIBUTE((warn_unused_result, nonnull(1)));
 
 /** Merge disk files.
 @param[in]	trx	transaction
@@ -464,10 +463,9 @@ row_merge_file_destroy(
 	merge_file_t*	merge_file)	/*!< in/out: merge file structure */
 	MY_ATTRIBUTE((nonnull));
 
-/********************************************************************//**
-Read a merge block from the file system.
-@return TRUE if request was successful, FALSE if fail */
-ibool
+/** Read a merge block from the file system.
+@return whether the request was successful */
+bool
 row_merge_read(
 /*===========*/
 	int			fd,	/*!< in: file descriptor */

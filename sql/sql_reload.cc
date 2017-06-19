@@ -181,8 +181,12 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       slave is not likely to have the same connection names.
     */
     tmp_write_to_binlog= 0;
-
-    if (!(mi= (get_master_info(&connection_name,
+    if (connection_name.length == 0)
+    {
+      if (master_info_index->flush_all_relay_logs())
+          *write_to_binlog= -1;
+    }
+    else if (!(mi= (get_master_info(&connection_name,
                                Sql_condition::WARN_LEVEL_ERROR))))
     {
       result= 1;
@@ -249,7 +253,8 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
           NOTE: my_error() has been already called by reopen_tables() within
           close_cached_tables().
         */
-        result= 1;
+        thd->global_read_lock.unlock_global_read_lock(thd);
+        return 1;
       }
 
       if (thd->global_read_lock.make_global_read_lock_block_commit(thd)) // Killed

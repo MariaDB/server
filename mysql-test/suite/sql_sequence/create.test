@@ -92,7 +92,7 @@ drop sequence t1;
 #
 
 create table t1 (a int);
---error ER_WRONG_OBJECT
+--error ER_NOT_SEQUENCE
 show create sequence t1;
 --error ER_NOT_SEQUENCE2
 drop sequence t1;
@@ -149,6 +149,7 @@ show create sequence t1;
 show create table t1;
 create or replace sequence t1 start=1 increment= 2;
 create or replace sequence t1 start 1 increment 2;
+create or replace sequence t1 cache +1;
 drop sequence t1;
 
 #
@@ -156,14 +157,14 @@ drop sequence t1;
 #
 
 CREATE TABLE t1 (
-  `next_value` bigint(21) NOT NULL,
-  `min_value` bigint(21) NOT NULL,
-  `max_value` bigint(21) NOT NULL,
-  `start` bigint(21) NOT NULL,
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
   `increment` bigint(21) NOT NULL,
-  `cache` bigint(21) NOT NULL,
-  `cycle` tinyint(1) unsigned NOT NULL,
-  `round` bigint(21) NOT NULL
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
 ) sequence=1;
 
 show create sequence t1;
@@ -174,40 +175,40 @@ drop sequence t1;
 
 --error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
 CREATE OR REPLACE TABLE t1 (
-  `next_val` bigint(21) NOT NULL,
-  `min_value` bigint(21) NOT NULL,
-  `max_value` bigint(21) NOT NULL,
-  `start` bigint(21) NOT NULL,
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
   `increment` bigint(21) NOT NULL,
-  `cache` bigint(21) NOT NULL,
-  `cycle` tinyint(1) unsigned NOT NULL,
-  `round` bigint(21) NOT NULL
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count_not_exists` bigint(21) NOT NULL
 ) sequence=1;
 
 # Wrong type
 
 --error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
 CREATE OR REPLACE TABLE t1 (
-  `next_value` int(21) NOT NULL,
-  `min_value` bigint(21) NOT NULL,
-  `max_value` bigint(21) NOT NULL,
-  `start` bigint(21) NOT NULL,
+  `next_not_cached_value` int(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
   `increment` bigint(21) NOT NULL,
-  `cache` bigint(21) NOT NULL,
-  `cycle` tinyint(1) unsigned NOT NULL,
-  `round` bigint(21) NOT NULL
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
 ) sequence=1;
 
 --error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
 CREATE OR REPLACE TABLE t1 (
-  `next_val` bigint(21) NOT NULL,
-  `min_value` bigint(21) NOT NULL,
-  `max_value` bigint(21) NOT NULL,
-  `start` bigint(21) NOT NULL,
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
   `increment` bigint(21) NOT NULL,
-  `cache` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
   `cycle` bigint(21) unsigned NOT NULL, /* error */
-  `round` bigint(21) NOT NULL
+  `cycle_count` bigint(21) NOT NULL
 ) sequence=1;
 
 
@@ -215,28 +216,28 @@ CREATE OR REPLACE TABLE t1 (
 
 --error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
 CREATE OR REPLACE TABLE t1 (
-  `next_value` bigint(21),
-  `min_value` bigint(21) NOT NULL,
-  `max_value` bigint(21) NOT NULL,
-  `start` bigint(21) NOT NULL,
+  `next_not_cached_value` bigint(21), /* error */
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
   `increment` bigint(21) NOT NULL,
-  `cache` bigint(21) NOT NULL,
-  `cycle` tinyint(1) unsigned NOT NULL,
-  `round` bigint(21) NOT NULL
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
 ) sequence=1;
 
 # Extra field
 
 --error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
 CREATE OR REPLACE TABLE t1 (
-  `next_value` bigint(21) NOT NULL,
-  `min_value` bigint(21) NOT NULL,
-  `max_value` bigint(21) NOT NULL,
-  `start` bigint(21) NOT NULL,
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
   `increment` bigint(21) NOT NULL,
-  `cache` bigint(21) NOT NULL,
-  `cycle` tinyint(1) unsigned NOT NULL,
-  `round` bigint(21) NOT NULL, 
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL,
   extra_field bigint(21)
 ) sequence=1;
 
@@ -244,29 +245,29 @@ CREATE OR REPLACE TABLE t1 (
 
 --error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
 CREATE OR REPLACE TABLE t1 (
-  `min_value` bigint(21) NOT NULL,
-  `max_value` bigint(21) NOT NULL,
-  `next_value` bigint(21) NOT NULL,
-  `start` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
   `increment` bigint(21) NOT NULL,
-  `cache` bigint(21) NOT NULL,
-  `cycle` tinyint(1) unsigned NOT NULL,
-  `round` bigint(21) NOT NULL
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
 ) sequence=1;
 
 # key
 
 --error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
 CREATE OR REPLACE TABLE t1 (
-  `next_value` bigint(21) NOT NULL,
-  `min_value` bigint(21) NOT NULL,
-  `max_value` bigint(21) NOT NULL,
-  `start` bigint(21) NOT NULL,
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
   `increment` bigint(21) NOT NULL,
-  `cache` bigint(21) NOT NULL,
-  `cycle` tinyint(1) unsigned NOT NULL,
-  `round` bigint(21) NOT NULL,
-  key key1 (next_value)
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL,
+  key key1 (next_not_cached_value)
 ) sequence=1;
 
 drop sequence if exists t1;

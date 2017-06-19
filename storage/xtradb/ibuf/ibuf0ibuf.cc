@@ -2963,8 +2963,7 @@ ibuf_get_volume_buffered_hash(
 	fold = ut_fold_binary(data, len);
 
 	hash += (fold / (CHAR_BIT * sizeof *hash)) % size;
-	bitmask = static_cast<ulint>(
-		1 << (fold % (CHAR_BIT * sizeof(*hash))));
+	bitmask = static_cast<ulint>(1) << (fold % (CHAR_BIT * sizeof(*hash)));
 
 	if (*hash & bitmask) {
 
@@ -3733,7 +3732,7 @@ fail_exit:
 
 	if (mode == BTR_MODIFY_PREV) {
 		err = btr_cur_optimistic_insert(
-			BTR_NO_LOCKING_FLAG,
+			BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG,
 			cursor, &offsets, &offsets_heap,
 			ibuf_entry, &ins_rec,
 			&dummy_big_rec, 0, thr, &mtr);

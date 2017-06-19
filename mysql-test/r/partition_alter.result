@@ -51,3 +51,50 @@ execute stmt;
 execute stmt;
 deallocate prepare stmt;
 drop table test_data;
+create table t1(id int, d date not null, b bool not null default 0, primary key(id,d))
+engine=innodb
+partition by range columns (d) (
+partition p1 values less than ('2016-10-18'),
+partition p2 values less than ('2020-10-19'));
+insert t1 values (0, '2000-01-02', 0);
+insert t1 values (1, '2020-01-02', 10);
+alter table t1 add check (b in (0, 1));
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`#sql-temporary`
+alter table t1 add check (b in (0, 10));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `d` date NOT NULL,
+  `b` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`,`d`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`b` in (0,10))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE  COLUMNS(d)
+(PARTITION p1 VALUES LESS THAN ('2016-10-18') ENGINE = InnoDB,
+ PARTITION p2 VALUES LESS THAN ('2020-10-19') ENGINE = InnoDB)
+insert t1 values (2, '2020-01-03', 20);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;
+create table t1(id int, d date not null, b bool not null default 0, primary key(id,d))
+partition by range columns (d) (
+partition p1 values less than ('2016-10-18'),
+partition p2 values less than ('2020-10-19'));
+insert t1 values (0, '2000-01-02', 0);
+insert t1 values (1, '2020-01-02', 10);
+alter table t1 add check (b in (0, 1));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `d` date NOT NULL,
+  `b` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`,`d`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`b` in (0,1))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE  COLUMNS(d)
+(PARTITION p1 VALUES LESS THAN ('2016-10-18') ENGINE = MyISAM,
+ PARTITION p2 VALUES LESS THAN ('2020-10-19') ENGINE = MyISAM)
+insert t1 values (2, '2020-01-03', 20);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;

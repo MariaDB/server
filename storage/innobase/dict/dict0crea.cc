@@ -459,14 +459,9 @@ dict_build_tablespace_for_table(
 		mtr_start(&mtr);
 		mtr.set_named_space(table->space);
 
-		bool ret = fsp_header_init(table->space,
-					   FIL_IBD_FILE_INITIAL_SIZE,
-					   &mtr);
+		fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 
 		mtr_commit(&mtr);
-		if (!ret) {
-			return(DB_ERROR);
-		}
 	} else {
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);

@@ -180,9 +180,6 @@ struct fil_space_t {
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
 
-	/** tablespace crypt data has been read */
-	bool		page_0_crypt_read;
-
 	/** True if we have already printed compression failure */
 	bool		printed_compression_failure;
 
@@ -217,7 +214,7 @@ struct fil_node_t {
 	/** file name; protected by fil_system->mutex and log_sys->mutex. */
 	char*		name;
 	/** file handle (valid if is_open) */
-	os_file_t	handle;
+	pfs_os_file_t	handle;
 	/** event that groups and serializes calls to fsync;
 	os_event_set() and os_event_reset() are protected by
 	fil_system_t::mutex */
@@ -586,7 +583,6 @@ Error messages are issued to the server log.
 @param[in]	flags		tablespace flags
 @param[in]	purpose		tablespace purpose
 @param[in,out]	crypt_data	encryption information
-@param[in]	create_table	whether this is CREATE TABLE
 @param[in]	mode		encryption mode
 @return pointer to created tablespace, to be filled in with fil_node_create()
 @retval NULL on failure (such as when the same tablespace exists) */
@@ -597,7 +593,6 @@ fil_space_create(
 	ulint			flags,
 	fil_type_t		purpose,
 	fil_space_crypt_t*	crypt_data,
-	bool			create_table,
 	fil_encryption_t	mode = FIL_ENCRYPTION_DEFAULT)
 	MY_ATTRIBUTE((warn_unused_result));
 
@@ -1064,7 +1059,7 @@ fil_ibd_create(
 	ulint		size,
 	fil_encryption_t mode,
 	uint32_t	key_id)
-	MY_ATTRIBUTE((warn_unused_result));
+	MY_ATTRIBUTE((nonnull(2), warn_unused_result));
 
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
 (Typically when upgrading from MariaDB 10.1.0..10.1.20.)
@@ -1111,8 +1106,7 @@ fil_ibd_open(
 	ulint		id,
 	ulint		flags,
 	const char*	tablename,
-	const char*	path_in,
-	dict_table_t*	table)	/*!< in: table */
+	const char*	path_in)
 	MY_ATTRIBUTE((warn_unused_result));
 
 enum fil_load_status {
@@ -1174,7 +1168,6 @@ fil_space_for_table_exists_in_mem(
 					when find table space mismatch */
 	mem_heap_t*	heap,		/*!< in: heap memory */
 	table_id_t	table_id,	/*!< in: table id */
-	dict_table_t*	table,		/*!< in: table or NULL */
 	ulint		table_flags);	/*!< in: table flags */
 
 /** Try to extend a tablespace if it is smaller than the specified size.
@@ -1404,19 +1397,19 @@ struct PageCallback {
 	/** Called for every page in the tablespace. If the page was not
 	updated then its state must be set to BUF_PAGE_NOT_USED. For
 	compressed tables the page descriptor memory will be at offset:
-	block->frame + UNIV_PAGE_SIZE;
+		block->frame + UNIV_PAGE_SIZE;
 	@param offset physical offset within the file
 	@param block block read from file, note it is not from the buffer pool
 	@retval DB_SUCCESS or error code. */
 	virtual dberr_t operator()(
-		os_offset_t 	offset,
+		os_offset_t	offset,
 		buf_block_t*	block) UNIV_NOTHROW = 0;
 
 	/** Set the name of the physical file and the file handle that is used
 	to open it for the file that is being iterated over.
-	@param filename then physical name of the tablespace file.
+	@param filename the name of the tablespace file
 	@param file OS file handle */
-	void set_file(const char* filename, os_file_t file) UNIV_NOTHROW
+	void set_file(const char* filename, pfs_os_file_t file) UNIV_NOTHROW
 	{
 		m_file = file;
 		m_filepath = filename;
@@ -1441,7 +1434,7 @@ struct PageCallback {
 	page_size_t		m_page_size;
 
 	/** File handle to the tablespace */
-	os_file_t		m_file;
+	pfs_os_file_t		m_file;
 
 	/** Physical file path. */
 	const char*		m_filepath;

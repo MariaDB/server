@@ -27,7 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include "changed_page_bitmap.h"
 
 #ifdef __WIN__
-#define XB_FILE_UNDEFINED NULL
+#define XB_FILE_UNDEFINED INVALID_HANDLE_VALUE
 #else
 #define XB_FILE_UNDEFINED (-1)
 #endif
@@ -81,7 +81,6 @@ extern char		*xtrabackup_tables_exclude;
 extern char		*xtrabackup_databases_exclude;
 
 extern ibool		xtrabackup_compress;
-extern ibool		xtrabackup_encrypt;
 
 extern my_bool		xtrabackup_backup;
 extern my_bool		xtrabackup_prepare;
@@ -92,14 +91,9 @@ extern my_bool		xtrabackup_decrypt_decompress;
 
 extern char		*innobase_data_file_path;
 extern char		*innobase_doublewrite_file;
-extern char		*xtrabackup_encrypt_key;
-extern char		*xtrabackup_encrypt_key_file;
 extern longlong		innobase_log_file_size;
 extern long		innobase_log_files_in_group;
 extern longlong		innobase_page_size;
-
-extern const char	*xtrabackup_encrypt_algo_names[];
-extern TYPELIB		xtrabackup_encrypt_algo_typelib;
 
 extern int		xtrabackup_parallel;
 
@@ -113,9 +107,6 @@ extern "C"{
 #ifdef __cplusplus
 }
 #endif
-extern ulong		xtrabackup_encrypt_algo;
-extern uint		xtrabackup_encrypt_threads;
-extern ulonglong	xtrabackup_encrypt_chunk_size;
 extern my_bool		xtrabackup_export;
 extern char		*xtrabackup_incremental_basedir;
 extern char		*xtrabackup_extra_lsndir;
@@ -158,8 +149,6 @@ extern TYPELIB		query_type_typelib;
 extern ulong		opt_lock_wait_query_type;
 extern ulong		opt_kill_long_query_type;
 
-extern ulong		opt_decrypt_algo;
-
 extern uint		opt_kill_long_queries_timeout;
 extern uint		opt_lock_wait_timeout;
 extern uint		opt_lock_wait_threshold;
@@ -167,7 +156,6 @@ extern uint		opt_debug_sleep_before_unlock;
 extern uint		opt_safe_slave_backup_timeout;
 
 extern const char	*opt_history;
-extern my_bool		opt_decrypt;
 
 enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_LOCKLESS, BINLOG_INFO_ON,
 			BINLOG_INFO_AUTO};
@@ -182,19 +170,10 @@ datafiles_iter_t *datafiles_iter_new(fil_system_t *f_system);
 fil_node_t *datafiles_iter_next(datafiles_iter_t *it);
 void datafiles_iter_free(datafiles_iter_t *it);
 
-/************************************************************************
-Initialize the tablespace memory cache and populate it by scanning for and
-opening data files */
-ulint xb_data_files_init(void);
-
-/************************************************************************
-Destroy the tablespace memory cache. */
-void xb_data_files_close(void);
-
 /***********************************************************************
 Reads the space flags from a given data file and returns the compressed
 page size, or 0 if the space is not compressed. */
-ulint xb_get_zip_size(os_file_t file);
+ulint xb_get_zip_size(pfs_os_file_t file);
 
 /************************************************************************
 Checks if a table specified as a name in the form "database/name" (InnoDB 5.6)

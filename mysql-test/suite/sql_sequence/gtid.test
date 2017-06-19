@@ -263,7 +263,7 @@ select * from s_t;
 connection m_normal_1;
 select next value for s_t;
 --error ER_ILLEGAL_HA
-update s_t set next_value= 11;
+update s_t set next_not_cached_value= 11;
 alter sequence s_t restart=11;
 commit;
 
@@ -295,7 +295,7 @@ select * from s_t;
 connection m_normal_1;
 select * from s_t;
 --error ER_ILLEGAL_HA
-update s_t set next_value= 11,start=10, min_value=11;
+update s_t set next_not_cached_value= 11,start_value=10, minimum_value=11;
 --error ER_SEQUENCE_INVALID_DATA
 ALTER SEQUENCE s_t restart with 11 start=10 minvalue=11;
 commit;

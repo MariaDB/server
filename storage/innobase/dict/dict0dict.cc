@@ -4367,7 +4367,7 @@ dict_table_get_highest_foreign_id(
 	}
 
 	DBUG_PRINT("dict_table_get_highest_foreign_id",
-		   ("id: %lu", biggest_id));
+		   ("id: " ULINTPF, biggest_id));
 
 	DBUG_RETURN(biggest_id);
 }
@@ -6114,14 +6114,7 @@ dict_set_corrupted(
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_tables));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_indexes));
-
-#ifdef UNIV_DEBUG
-	{
-		dict_sync_check	check(true);
-
-		ut_ad(!sync_check_iterate(check));
-	}
-#endif /* UNIV_DEBUG */
+	ut_ad(!sync_check_iterate(dict_sync_check()));
 
 	/* Mark the table as corrupted only if the clustered index
 	is corrupted */
@@ -6612,7 +6605,8 @@ dict_table_schema_check(
 	if ((ulint) table->n_def - n_sys_cols != req_schema->n_cols) {
 		/* the table has a different number of columns than required */
 		ut_snprintf(errstr, errstr_sz,
-			    "%s has %lu columns but should have " ULINTPF ".",
+			    "%s has " ULINTPF " columns but should have "
+			    ULINTPF ".",
 			    ut_format_name(req_schema->table_name,
 					   buf, sizeof(buf)),
 			    table->n_def - n_sys_cols,

@@ -33,25 +33,8 @@ COMMIT;
 disconnect con2;
 
 connection default;
+--source include/wait_all_purged.inc
 
-# Wait for everything to be purged.
-
-let $wait_counter= 300;
-while ($wait_counter)
-{
-    --replace_regex /.*History list length ([0-9]+).*/\1/
-    let $remaining= `SHOW ENGINE INNODB STATUS`;
-    if ($remaining == 'InnoDB		0')
-    {
-        let $wait_counter= 0;
-    }
-    if ($wait_counter)
-    {
-        real_sleep 0.1;
-        dec $wait_counter;
-    }
-}
-echo $remaining transactions not purged;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 
 SET DEBUG_SYNC = 'now SIGNAL finish_scan';

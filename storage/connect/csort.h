@@ -49,8 +49,8 @@ class DllExport CSORT {
  public:
   // Methods
   int Qsort(PGLOBAL g, int n);            /* Sort calling routine    */
-//virtual void Print(PGLOBAL g, FILE *f, uint n);
-//virtual void Print(PGLOBAL g, char *ps, uint z);
+//virtual void Printf(PGLOBAL g, FILE *f, uint n);
+//virtual void Prints(PGLOBAL g, char *ps, uint z);
 #ifdef DEBTRACE
   int GetNcmp(void) {return num_comp;}
 #endif

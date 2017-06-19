@@ -302,6 +302,7 @@ class Master_info : public Slave_reporting_capability
   /* gtid_event_seen is false until we receive first GTID event from master. */
   bool gtid_event_seen;
   bool in_start_all_slaves, in_stop_all_slaves;
+  bool in_flush_all_relay_logs;
   uint users;                                   /* Active user for object */
   uint killed;
 
@@ -354,6 +355,7 @@ public:
   bool start_all_slaves(THD *thd);
   bool stop_all_slaves(THD *thd);
   void free_connections();
+  bool flush_all_relay_logs();
 };
 
 

@@ -752,14 +752,9 @@ buf_read_ahead_linear(
 			switch (err) {
 			case DB_SUCCESS:
 			case DB_TABLESPACE_TRUNCATED:
+			case DB_TABLESPACE_DELETED:
 			case DB_ERROR:
 				break;
-			case DB_TABLESPACE_DELETED:
-				ib::info() << "linear readahead trying to"
-					" access page "
-					<< page_id_t(page_id.space(), i)
-					<< " in nonexisting or being-dropped"
-					" tablespace";
 			case DB_DECRYPTION_FAILED:
 				ib::error() << "linear readahead failed to"
 					" decrypt page "
@@ -778,11 +773,11 @@ buf_read_ahead_linear(
 	os_aio_simulated_wake_handler_threads();
 
 	if (count) {
-		DBUG_PRINT("ib_buf", ("linear read-ahead %lu pages, "
-				      "%lu:%lu",
+		DBUG_PRINT("ib_buf", ("linear read-ahead " ULINTPF " pages, "
+				      "%u:%u",
 				      count,
-				      (ulint)page_id.space(),
-				      (ulint)page_id.page_no()));
+				      page_id.space(),
+				      page_id.page_no()));
 	}
 
 	/* Read ahead is considered one I/O operation for the purpose of

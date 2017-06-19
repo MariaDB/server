@@ -245,7 +245,7 @@ Testcase 3.5.5.3:
 Create view vw3 as select f118 from tb3;
 Create trigger trg3 before INSERT
 on vw3 for each row set new.f118='s';
-ERROR HY000: 'test.vw3' is not BASE TABLE
+ERROR HY000: 'test.vw3' is not of type 'BASE TABLE'
 drop view vw3;
 
 Testcase 3.5.5.4:

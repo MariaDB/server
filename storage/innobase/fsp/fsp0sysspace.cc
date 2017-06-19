@@ -834,17 +834,6 @@ SysTablespace::check_file_spec(
 		}
 	}
 
-	/* We assume doublewirte blocks in the first data file. */
-	if (err == DB_SUCCESS && *create_new_db
-	    && begin->m_size < TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * 3) {
-		ib::error() << "The " << name() << " data file "
-			<< "'" << begin->name() << "' must be at least "
-			<< TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * 3 * UNIV_PAGE_SIZE
-			/ (1024 * 1024) << " MB";
-
-		err = DB_ERROR;
-	}
-
 	return(err);
 }
 
@@ -941,8 +930,8 @@ SysTablespace::open_or_create(
 
 			space = fil_space_create(
 				name(), space_id(), flags(), is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, m_crypt_info,
-				false);
+				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
+				m_crypt_info);
 		}
 
 		ut_a(fil_validate());

@@ -1090,7 +1090,7 @@ t_nn	CREATE TABLE `t_nn` (
   `c1` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE VIEW  mysqltest2.t_nn;
-ERROR HY000: 'mysqltest2.t_nn' is not VIEW
+ERROR HY000: 'mysqltest2.t_nn' is not of type 'VIEW'
 SHOW CREATE VIEW mysqltest2.v_yy;
 View	Create View	character_set_client	collation_connection
 v_yy	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest2`.`v_yy` AS select `mysqltest2`.`t_nn`.`c1` AS `c1` from `mysqltest2`.`t_nn` where `mysqltest2`.`t_nn`.`c1` = 55	latin1	latin1_swedish_ci
@@ -1110,7 +1110,7 @@ t_nn	CREATE TABLE `t_nn` (
   `c1` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE VIEW mysqltest2.t_nn;
-ERROR HY000: 'mysqltest2.t_nn' is not VIEW
+ERROR HY000: 'mysqltest2.t_nn' is not of type 'VIEW'
 DROP VIEW  mysqltest2.v_nn;
 DROP VIEW  mysqltest2.v_yn;
 DROP VIEW  mysqltest2.v_ny;

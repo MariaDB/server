@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -65,6 +65,18 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "ha_prototypes.h"
 
+#ifdef UNIV_LINUX
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_LZO
+#include "lzo/lzo1x.h"
+#endif
+
+#ifdef HAVE_SNAPPY
+#include "snappy-c.h"
+#endif
+
 /** Decrypt a page.
 @param[in,out]	bpage	Page control block
 @param[in,out]	space	tablespace
@@ -74,8 +86,37 @@ bool
 buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 	MY_ATTRIBUTE((nonnull));
 
+/********************************************************************//**
+Mark a table with the specified space pointed by bpage->space corrupted.
+Also remove the bpage from LRU list.
+@param[in,out]		bpage			Block */
+static
+void
+buf_mark_space_corrupt(
+	buf_page_t*	bpage);
+
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();
+
+inline void* aligned_malloc(size_t size, size_t align) {
+    void *result;
+#ifdef _MSC_VER
+    result = _aligned_malloc(size, align);
+#else
+    if(posix_memalign(&result, align, size)) {
+	    result = 0;
+    }
+#endif
+    return result;
+}
+
+inline void aligned_free(void *ptr) {
+#ifdef _MSC_VER
+        _aligned_free(ptr);
+#else
+      free(ptr);
+#endif
+}
 
 static inline
 void
@@ -107,10 +148,6 @@ _increment_page_get_statistics(buf_block_t* block, trx_t* trx)
 	trx->distinct_page_access_hash[block_hash_byte] |= (byte) 0x01 << block_hash_offset;
 	return;
 }
-
-#ifdef HAVE_LZO
-#include "lzo/lzo1x.h"
-#endif
 
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
@@ -1510,8 +1547,6 @@ buf_pool_init_instance(
 		buf_pool->chunks = chunk =
 			(buf_chunk_t*) mem_zalloc(sizeof *chunk);
 
-		UT_LIST_INIT(buf_pool->free);
-
 		if (!buf_chunk_init(buf_pool, chunk, buf_pool_size)) {
 			mem_free(chunk);
 			mem_free(buf_pool);
@@ -1533,7 +1568,7 @@ buf_pool_init_instance(
 		ut_a(srv_n_page_hash_locks != 0);
 		ut_a(srv_n_page_hash_locks <= MAX_PAGE_HASH_LOCKS);
 
-		buf_pool->page_hash = ha_create(2 * buf_pool->curr_size,
+		buf_pool->page_hash = ib_create(2 * buf_pool->curr_size,
 						srv_n_page_hash_locks,
 						MEM_HEAP_FOR_PAGE_HASH,
 						SYNC_BUF_PAGE_HASH);
@@ -1642,20 +1677,14 @@ buf_pool_free_instance(
 	if (buf_pool->tmp_arr) {
 		for(ulint i = 0; i < buf_pool->tmp_arr->n_slots; i++) {
 			buf_tmp_buffer_t* slot = &(buf_pool->tmp_arr->slots[i]);
-#ifdef HAVE_LZO
-			if (slot && slot->lzo_mem) {
-				ut_free(slot->lzo_mem);
-				slot->lzo_mem = NULL;
-			}
-#endif
-			if (slot && slot->crypt_buf_free) {
-				ut_free(slot->crypt_buf_free);
-				slot->crypt_buf_free = NULL;
+			if (slot && slot->crypt_buf) {
+				aligned_free(slot->crypt_buf);
+				slot->crypt_buf = NULL;
 			}
 
-			if (slot && slot->comp_buf_free) {
-				ut_free(slot->comp_buf_free);
-				slot->comp_buf_free = NULL;
+			if (slot && slot->comp_buf) {
+				aligned_free(slot->comp_buf);
+				slot->comp_buf = NULL;
 			}
 		}
 	}
@@ -2521,17 +2550,26 @@ buf_zip_decompress(
 {
 	const byte*	frame = block->page.zip.data;
 	ulint		size = page_zip_get_size(&block->page.zip);
+	/* Space is not found if this function is called during IMPORT */
+	fil_space_t* space = fil_space_acquire_for_io(block->page.space);
+	const unsigned key_version = mach_read_from_4(frame +
+			FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	fil_space_crypt_t* crypt_data = space ? space->crypt_data : NULL;
+	const bool encrypted = crypt_data
+				&& crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
+				&& (!crypt_data->is_default_encryption()
+					|| srv_encrypt_tables);
 
 	ut_ad(buf_block_get_zip_size(block));
 	ut_a(buf_block_get_space(block) != 0);
 
 	if (UNIV_UNLIKELY(check && !page_zip_verify_checksum(frame, size))) {
 
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: compressed page checksum mismatch"
-			" (space %u page %u): stored: %lu, crc32: %lu "
-			"innodb: %lu, none: %lu\n",
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Compressed page checksum mismatch"
+			" for %s [%u:%u]: stored: " ULINTPF ", crc32: " ULINTPF
+			" innodb: " ULINTPF ", none: " ULINTPF ".",
+			space ? space->chain.start->name : "N/A",
 			block->page.space, block->page.offset,
 			mach_read_from_4(frame + FIL_PAGE_SPACE_OR_CHKSUM),
 			page_zip_calc_checksum(frame, size,
@@ -2540,22 +2578,28 @@ buf_zip_decompress(
 					       SRV_CHECKSUM_ALGORITHM_INNODB),
 			page_zip_calc_checksum(frame, size,
 					       SRV_CHECKSUM_ALGORITHM_NONE));
-		return(FALSE);
+		goto err_exit;
 	}
 
 	switch (fil_page_get_type(frame)) {
-	case FIL_PAGE_INDEX:
+	case FIL_PAGE_INDEX: {
+
 		if (page_zip_decompress(&block->page.zip,
 					block->frame, TRUE)) {
+			if (space) {
+				fil_space_release_for_io(space);
+			}
 			return(TRUE);
 		}
 
-		fprintf(stderr,
-			"InnoDB: unable to decompress space %u page %u\n",
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Unable to decompress space %s [%u:%u]",
+			space ? space->chain.start->name : "N/A",
 			block->page.space,
 			block->page.offset);
-		return(FALSE);
 
+		goto err_exit;
+	}
 	case FIL_PAGE_TYPE_ALLOCATED:
 	case FIL_PAGE_INODE:
 	case FIL_PAGE_IBUF_BITMAP:
@@ -2566,14 +2610,36 @@ buf_zip_decompress(
 		/* Copy to uncompressed storage. */
 		memcpy(block->frame, frame,
 		       buf_block_get_zip_size(block));
+
+		if (space) {
+			fil_space_release_for_io(space);
+		}
+
 		return(TRUE);
 	}
 
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		"  InnoDB: unknown compressed page"
-		" type %lu\n",
-		fil_page_get_type(frame));
+	ib_logf(IB_LOG_LEVEL_ERROR,
+		"Unknown compressed page in %s [%u:%u]"
+		" type %s [" ULINTPF "].",
+		space ? space->chain.start->name : "N/A",
+		block->page.space, block->page.offset,
+		fil_get_page_type_name(fil_page_get_type(frame)), fil_page_get_type(frame));
+
+err_exit:
+	if (encrypted) {
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Row compressed page could be encrypted with key_version %u.",
+			key_version);
+		block->page.encrypted = true;
+		dict_set_encrypted_by_space(block->page.space);
+	} else {
+		dict_set_corrupted_by_space(block->page.space);
+	}
+
+	if (space) {
+		fil_space_release_for_io(space);
+	}
+
 	return(FALSE);
 }
 
@@ -3056,9 +3122,9 @@ loop:
 			}
 
 			ib_logf(IB_LOG_LEVEL_FATAL, "Unable"
-				" to read tablespace %lu page no"
-				" %lu into the buffer pool after"
-				" %lu attempts"
+				" to read tablespace " ULINTPF " page no "
+				ULINTPF " into the buffer pool after "
+				ULINTPF " attempts."
 				" The most probable cause"
 				" of this error may be that the"
 				" table has been corrupted."
@@ -3271,12 +3337,21 @@ got_block:
 		/* Decompress the page while not holding
 		any buf_pool or block->mutex. */
 
-		/* Page checksum verification is already done when
-		the page is read from disk. Hence page checksum
-		verification is not necessary when decompressing the page. */
 		{
-			bool	success = buf_zip_decompress(block, FALSE);
-			ut_a(success);
+			bool	success = buf_zip_decompress(block, TRUE);
+
+			if (!success) {
+				buf_block_mutex_enter(fix_block);
+				buf_block_set_io_fix(fix_block, BUF_IO_NONE);
+				buf_block_mutex_exit(fix_block);
+
+				os_atomic_decrement_ulint(&buf_pool->n_pend_unzip, 1);
+				rw_lock_x_unlock(&fix_block->lock);
+				mutex_enter(&buf_pool->LRU_list_mutex);
+				buf_block_unfix(fix_block);
+				mutex_exit(&buf_pool->LRU_list_mutex);
+				return NULL;
+			}
 		}
 
 		if (!recv_no_ibuf_operations) {
@@ -3374,16 +3449,10 @@ got_block:
 				goto loop;
 			}
 
-			fprintf(stderr,
-				"innodb_change_buffering_debug evict %u %u\n",
-				(unsigned) space, (unsigned) offset);
 			return(NULL);
 		}
 
 		if (buf_flush_page_try(buf_pool, fix_block)) {
-			fprintf(stderr,
-				"innodb_change_buffering_debug flush %u %u\n",
-				(unsigned) space, (unsigned) offset);
 			guess = fix_block;
 			goto loop;
 		}
@@ -4354,11 +4423,11 @@ buf_page_create(
 	memset(frame + FIL_PAGE_NEXT, 0xff, 4);
 	mach_write_to_2(frame + FIL_PAGE_TYPE, FIL_PAGE_TYPE_ALLOCATED);
 
-	/* Reset to zero the file flush lsn field in the page; if the first
-	page of an ibdata file is 'created' in this function into the buffer
-	pool then we lose the original contents of the file flush lsn stamp.
-	Then InnoDB could in a crash recovery print a big, false, corruption
-	warning if the stamp contains an lsn bigger than the ib_logfile lsn. */
+	/* FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION is only used on the
+	following pages:
+	(1) The first page of the InnoDB system tablespace (page 0:0)
+	(2) FIL_RTREE_SPLIT_SEQ_NUM on R-tree pages
+	(3) key_version on encrypted pages (not page 0:0) */
 
 	memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 
@@ -4570,6 +4639,7 @@ buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 		!bpage->encrypted &&
 		fil_space_verify_crypt_checksum(dst_frame, zip_size,
 			space, bpage->offset));
+
 	if (!still_encrypted) {
 		/* If traditional checksums match, we assume that page is
 		not anymore encrypted. */
@@ -6176,22 +6246,27 @@ buf_pool_reserve_tmp_slot(
 	buf_pool_mutex_exit(buf_pool);
 
 	/* Allocate temporary memory for encryption/decryption */
-	if (free_slot->crypt_buf_free == NULL) {
-		free_slot->crypt_buf_free = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
-		free_slot->crypt_buf = static_cast<byte *>(ut_align(free_slot->crypt_buf_free, UNIV_PAGE_SIZE));
-		memset(free_slot->crypt_buf_free, 0, UNIV_PAGE_SIZE *2);
+	if (free_slot->crypt_buf == NULL) {
+		free_slot->crypt_buf = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE, UNIV_PAGE_SIZE));
+		memset(free_slot->crypt_buf, 0, UNIV_PAGE_SIZE);
 	}
 
 	/* For page compressed tables allocate temporary memory for
 	compression/decompression */
-	if (compressed && free_slot->comp_buf_free == NULL) {
-		free_slot->comp_buf_free = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
-		free_slot->comp_buf = static_cast<byte *>(ut_align(free_slot->comp_buf_free, UNIV_PAGE_SIZE));
-		memset(free_slot->comp_buf_free, 0, UNIV_PAGE_SIZE *2);
-#ifdef HAVE_LZO
-		free_slot->lzo_mem = static_cast<byte *>(ut_malloc(LZO1X_1_15_MEM_COMPRESS));
-		memset(free_slot->lzo_mem, 0, LZO1X_1_15_MEM_COMPRESS);
+	if (compressed && free_slot->comp_buf == NULL) {
+		ulint size = UNIV_PAGE_SIZE;
+
+		/* Both snappy and lzo compression methods require that
+		output buffer used for compression is bigger than input
+		buffer. Increase the allocated buffer size accordingly. */
+#if HAVE_SNAPPY
+		size = snappy_max_compressed_length(size);
 #endif
+#if HAVE_LZO
+		size += LZO1X_1_15_MEM_COMPRESS;
+#endif
+		free_slot->comp_buf = static_cast<byte*>(aligned_malloc(size, UNIV_PAGE_SIZE));
+		memset(free_slot->comp_buf, 0, size);
 	}
 
 	return (free_slot);
@@ -6279,8 +6354,7 @@ buf_page_encrypt_before_write(
 			fsp_flags_get_page_compression_level(space->flags),
 			fil_space_get_block_size(space, bpage->offset),
 			encrypted,
-			&out_len,
-			IF_LZO(slot->lzo_mem, NULL));
+			&out_len);
 
 		bpage->real_size = out_len;
 

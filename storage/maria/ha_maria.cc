@@ -834,7 +834,10 @@ extern "C" {
 
 int _ma_killed_ptr(HA_CHECK *param)
 {
-  return thd_killed((THD*)param->thd);
+  if (likely(thd_killed((THD*)param->thd)) == 0)
+    return 0;
+  my_errno= HA_ERR_ABORTED_BY_USER;
+  return 1;
 }
 
 
@@ -1669,8 +1672,11 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)
+      {
+        my_errno= HA_ERR_FOUND_DUPP_KEY;
         print_keydup_error(table, &table->key_info[share->state.dupp_key], 
                            MYF(0));
+      }
     }
     else
     {

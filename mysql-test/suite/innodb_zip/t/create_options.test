@@ -56,8 +56,7 @@
 # since they are rejected for InnoDB page sizes of 8k and 16k.
 # See innodb_16k and innodb_8k for those tests.
 
--- source include/have_innodb.inc
--- source include/have_innodb_zip.inc
+--source include/innodb_page_size_small.inc
 SET default_storage_engine=InnoDB;
 
 # These values can change during the test

@@ -26,7 +26,7 @@ NEXT VALUE for t1	seq
 19	19
 20	20
 select * from t1;
-next_value	min_value	max_value	start	increment	cache	cycle	round
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 21	1	9223372036854775806	1	1	10	0	0
 drop sequence t1;
 create sequence s1;

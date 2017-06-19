@@ -115,7 +115,8 @@ enum enum_server_command
   COM_RESET_CONNECTION,
   /* don't forget to update const char *command_name[] in sql_parse.cc */
   COM_MDB_GAP_BEG,
-  COM_MDB_GAP_END=250,
+  COM_MDB_GAP_END=249,
+  COM_STMT_BULK_EXECUTE=250,
   COM_SLAVE_WORKER=251,
   COM_SLAVE_IO=252,
   COM_SLAVE_SQL=253,
@@ -135,6 +136,13 @@ enum enum_indicator_type
   STMT_INDICATOR_DEFAULT,
   STMT_INDICATOR_IGNORE
 };
+
+/*
+  bulk PS flags
+*/
+#define STMT_BULK_FLAG_CLIENT_SEND_TYPES 128
+#define STMT_BULK_FLAG_INSERT_ID_REQUEST 64
+
 
 /* sql type stored in .frm files for virtual fields */
 #define MYSQL_TYPE_VIRTUAL 245
@@ -311,7 +319,8 @@ enum enum_indicator_type
                            CLIENT_SESSION_TRACK |\
                            CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
-                           MARIADB_CLIENT_COM_MULTI)
+                           MARIADB_CLIENT_COM_MULTI |\
+                           MARIADB_CLIENT_STMT_BULK_OPERATIONS)
 
 /*
   To be added later:

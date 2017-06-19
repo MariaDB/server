@@ -2677,6 +2677,30 @@ select trigger_name, action_order, created from information_schema.triggers
 drop table t1;
 set time_zone= @@global.time_zone;
 
+--echo # MDEV-12992: Increasing memory consumption
+--echo               with each invocation of trigger
+--echo #
+
+--let $n= 20000
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (b INT);
+CREATE TRIGGER tr 
+  AFTER UPDATE ON t1 FOR EACH ROW SELECT (SELECT b FROM t2) INTO @x;
+ 
+--disable_query_log
+--echo # Running $n queries
+while ($n)
+{
+    UPDATE t1 SET a = 2;
+    --dec $n
+}
+--enable_query_log
+ 
+DROP TABLE t1,t2;
+
+
 --echo #
 --echo # Start of 10.3 tests
 --echo #

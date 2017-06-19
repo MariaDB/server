@@ -13,7 +13,6 @@ INSERT INTO t VALUES(2);
 echo # xtrabackup prepare;
 --disable_result_log
 exec $XTRABACKUP  --prepare --target-dir=$targetdir;
-exec $XTRABACKUP  --defaults-file=$targetdir/backup-my.cnf --stats --datadir=$targetdir;
 -- source include/restart_and_restore.inc
 --enable_result_log
 

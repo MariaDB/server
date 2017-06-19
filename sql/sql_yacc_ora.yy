@@ -12051,17 +12051,22 @@ delete_limit_clause:
        | LIMIT limit_option ROWS_SYM EXAMINED_SYM { thd->parse_error(); MYSQL_YYABORT; }
         ;
 
+opt_plus:
+          /* empty */
+        | '+'
+        ;
+
 int_num:
-          NUM           { int error; $$= (int) my_strtoll10($1.str, (char**) 0, &error); }
+          opt_plus NUM           { int error; $$= (int) my_strtoll10($2.str, (char**) 0, &error); }
         | '-' NUM       { int error; $$= -(int) my_strtoll10($2.str, (char**) 0, &error); }
 
 ulong_num:
-          NUM           { int error; $$= (ulong) my_strtoll10($1.str, (char**) 0, &error); }
+          opt_plus NUM           { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
         | HEX_NUM       { $$= (ulong) strtol($1.str, (char**) 0, 16); }
-        | LONG_NUM      { int error; $$= (ulong) my_strtoll10($1.str, (char**) 0, &error); }
-        | ULONGLONG_NUM { int error; $$= (ulong) my_strtoll10($1.str, (char**) 0, &error); }
-        | DECIMAL_NUM   { int error; $$= (ulong) my_strtoll10($1.str, (char**) 0, &error); }
-        | FLOAT_NUM     { int error; $$= (ulong) my_strtoll10($1.str, (char**) 0, &error); }
+        | opt_plus LONG_NUM      { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
+        | opt_plus ULONGLONG_NUM { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
+        | opt_plus DECIMAL_NUM   { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
+        | opt_plus FLOAT_NUM     { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
         ;
 
 real_ulong_num:
@@ -12073,18 +12078,18 @@ real_ulong_num:
         ;
 
 longlong_num:
-          NUM           { int error; $$= (longlong) my_strtoll10($1.str, (char**) 0, &error); }
+          opt_plus NUM           { int error; $$= (longlong) my_strtoll10($2.str, (char**) 0, &error); }
         | LONG_NUM      { int error; $$= (longlong) my_strtoll10($1.str, (char**) 0, &error); }
         | '-' NUM         { int error; $$= -(longlong) my_strtoll10($2.str, (char**) 0, &error); }
         | '-' LONG_NUM  { int error; $$= -(longlong) my_strtoll10($2.str, (char**) 0, &error); }
 
 
 ulonglong_num:
-          NUM           { int error; $$= (ulonglong) my_strtoll10($1.str, (char**) 0, &error); }
-        | ULONGLONG_NUM { int error; $$= (ulonglong) my_strtoll10($1.str, (char**) 0, &error); }
-        | LONG_NUM      { int error; $$= (ulonglong) my_strtoll10($1.str, (char**) 0, &error); }
-        | DECIMAL_NUM   { int error; $$= (ulonglong) my_strtoll10($1.str, (char**) 0, &error); }
-        | FLOAT_NUM     { int error; $$= (ulonglong) my_strtoll10($1.str, (char**) 0, &error); }
+          opt_plus NUM           { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
+        | opt_plus ULONGLONG_NUM { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
+        | opt_plus LONG_NUM      { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
+        | opt_plus DECIMAL_NUM   { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
+        | opt_plus FLOAT_NUM     { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
         ;
 
 real_ulonglong_num:

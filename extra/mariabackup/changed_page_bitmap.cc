@@ -35,7 +35,7 @@ Remove these on the first opportunity, i.e. single-binary XtraBackup.  */
 /** Single bitmap file information */
 struct log_online_bitmap_file_t {
 	char		name[FN_REFLEN];	/*!< Name with full path */
-	os_file_t	file;			/*!< Handle to opened file */
+	pfs_os_file_t	file;			/*!< Handle to opened file */
 	ib_uint64_t	size;			/*!< Size of the file */
 	ib_uint64_t	offset;			/*!< Offset of the next read,
 						or count of already-read bytes

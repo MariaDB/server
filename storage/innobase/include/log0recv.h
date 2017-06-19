@@ -41,6 +41,13 @@ Created 9/20/1997 Heikki Tuuri
 /** @return whether recovery is currently running. */
 #define recv_recovery_is_on() recv_recovery_on
 
+/** Find the latest checkpoint in the log header.
+@param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
+@return error code or DB_SUCCESS */
+dberr_t
+recv_find_max_checkpoint(ulint* max_field)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /** Apply the hashed log records to the page, if the page lsn is less than the
 lsn of a log record.
 @param just_read_in	whether the page recently arrived to the I/O handler

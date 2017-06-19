@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, SkySQL Ab.
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -94,7 +94,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
         case HA_KEYTYPE_VARBINARY1:
           /* Case-insensitiveness is handled in coll->hash_sort */
           keyinfo->seg[j].type= HA_KEYTYPE_VARTEXT1;
-          /* fall_through */
+          /* fall through */
         case HA_KEYTYPE_VARTEXT1:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
           length+= 2;

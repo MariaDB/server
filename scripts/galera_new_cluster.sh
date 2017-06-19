@@ -5,7 +5,7 @@
 # the Free Software Foundation; either version 2.1 of the License, or
 # (at your option) any later version.
 
-if [ "${1}" == "-h" -o "${1}" == "--help" ]; then
+if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
     cat <<EOF
 
 Usage: ${0}

@@ -2020,44 +2020,6 @@ commit_checkpoint_notify_ha(handlerton *hton, void *cookie)
 
 
 /**
-  @details
-  This function should be called when MySQL sends rows of a SELECT result set
-  or the EOF mark to the client. It releases a possible adaptive hash index
-  S-latch held by thd in InnoDB and also releases a possible InnoDB query
-  FIFO ticket to enter InnoDB. To save CPU time, InnoDB allows a thd to
-  keep them over several calls of the InnoDB handler interface when a join
-  is executed. But when we let the control to pass to the client they have
-  to be released because if the application program uses mysql_use_result(),
-  it may deadlock on the S-latch if the application on another connection
-  performs another SQL query. In MySQL-4.1 this is even more important because
-  there a connection can have several SELECT queries open at the same time.
-
-  @param thd           the thread handle of the current connection
-
-  @return
-    always 0
-*/
-
-int ha_release_temporary_latches(THD *thd)
-{
-  Ha_trx_info *info;
-
-  /*
-    Note that below we assume that only transactional storage engines
-    may need release_temporary_latches(). If this will ever become false,
-    we could iterate on thd->open_tables instead (and remove duplicates
-    as if (!seen[hton->slot]) { seen[hton->slot]=1; ... }).
-  */
-  for (info= thd->transaction.stmt.ha_list; info; info= info->next())
-  {
-    handlerton *hton= info->ht();
-    if (hton && hton->release_temporary_latches)
-        hton->release_temporary_latches(hton, thd);
-  }
-  return 0;
-}
-
-/**
   Check if all storage engines used in transaction agree that after
   rollback to savepoint it is safe to release MDL locks acquired after
   savepoint creation.
@@ -5685,6 +5647,20 @@ bool handler::check_table_binlog_row_based_internal(bool binlog_row)
        table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
        (thd->wsrep_ignore_table == true)))
     return 0;
+
+  /* enforce wsrep_max_ws_rows */
+  if (WSREP(thd) && table->s->tmp_table == NO_TMP_TABLE)
+  {
+    thd->wsrep_affected_rows++;
+    if (wsrep_max_ws_rows &&
+        thd->wsrep_exec_mode != REPL_RECV &&
+        thd->wsrep_affected_rows > wsrep_max_ws_rows)
+    {
+      trans_rollback_stmt(thd) || trans_rollback(thd);
+      my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
+      return ER_ERROR_DURING_COMMIT;
+    }
+  }
 #endif
 
   return (table->s->cached_row_logging_check &&
@@ -5893,7 +5869,7 @@ int handler::ha_external_lock(THD *thd, int lock_type)
 
   DBUG_EXECUTE_IF("external_lock_failure", error= HA_ERR_GENERIC;);
 
-  if (error == 0)
+  if (error == 0 || lock_type == F_UNLCK)
   {
     m_lock_type= lock_type;
     cached_table_flags= table_flags();

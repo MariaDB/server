@@ -6955,7 +6955,10 @@ QUICK_SELECT_I *TRP_ROR_UNION::make_quick(PARAM *param,
     {
       if (!(quick= (*scan)->make_quick(param, FALSE, &quick_roru->alloc)) ||
           quick_roru->push_quick_back(quick))
+      {
+        delete quick_roru;
         DBUG_RETURN(NULL);
+      }
     }
     quick_roru->records= records;
     quick_roru->read_time= read_cost;
@@ -7501,7 +7504,7 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
 		          param->current_table);
 #ifdef HAVE_SPATIAL
   Field::geometry_type sav_geom_type;
-  LINT_INIT(sav_geom_type);
+  LINT_INIT_STRUCT(sav_geom_type);
 
   if (field_item->field->type() == MYSQL_TYPE_GEOMETRY)
   {
@@ -10795,9 +10798,7 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
   */
   thd->mem_root= old_root;
 
-  if (!quick || create_err)
-    return 0;			/* no ranges found */
-  if (quick->init())
+  if (!quick || create_err || quick->init())
     goto err;
   quick->records= records;
 

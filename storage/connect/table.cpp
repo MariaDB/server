@@ -47,6 +47,7 @@ TDB::TDB(PTABDEF tdp) : Tdb_No(++Tnum)
   To_Orig = NULL;
   To_Filter = NULL;
   To_CondFil = NULL;
+	Cond = NULL;
   Next = NULL;
   Name = (tdp) ? tdp->GetName() : NULL;
   To_Table = NULL;
@@ -68,6 +69,7 @@ TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
   To_Orig = tdbp;
   To_Filter = NULL;
   To_CondFil = NULL;
+	Cond = NULL;
   Next = NULL;
   Name = tdbp->Name;
   To_Table = tdbp->To_Table;
@@ -97,7 +99,7 @@ CHARSET_INFO *TDB::data_charset(void)
 /***********************************************************************/
 /*  Return the datapath of the DB this table belongs to.               */
 /***********************************************************************/
-PSZ TDB::GetPath(void)
+PCSZ TDB::GetPath(void)
 {
 	return To_Def->GetPath();
 }  // end of GetPath
@@ -297,7 +299,7 @@ bool TDB::SetRecpos(PGLOBAL g, int)
 	return true;
 } // end of SetRecpos
 
-void TDB::Print(PGLOBAL g, FILE *f, uint n)
+void TDB::Printf(PGLOBAL g, FILE *f, uint n)
   {
   PCOL cp;
   char m[64];
@@ -313,13 +315,13 @@ void TDB::Print(PGLOBAL g, FILE *f, uint n)
     fprintf(f, "%s Columns (deg=%d):\n", m, tp->Degree);
 
     for (cp = tp->Columns; cp; cp = cp->GetNext())
-      cp->Print(g, f, n);
+      cp->Printf(g, f, n);
 
     } /* endfor tp */
 
   } // end of Print
 
-void TDB::Print(PGLOBAL, char *ps, uint)
+void TDB::Prints(PGLOBAL, char *ps, uint)
   {
   sprintf(ps, "R%d.%s", Tdb_No, Name);
   } // end of Print

@@ -1995,6 +1995,7 @@ PageConverter::update_page(
 	case FIL_PAGE_TYPE_XDES:
 		err = set_current_xdes(
 			buf_block_get_page_no(block), get_frame(block));
+		/* fall through */
 	case FIL_PAGE_INODE:
 	case FIL_PAGE_TYPE_TRX_SYS:
 	case FIL_PAGE_IBUF_FREE_LIST:
@@ -3617,7 +3618,7 @@ row_import_for_mysql(
 	err = fil_open_single_table_tablespace(
 		true, true, table->space,
 		dict_tf_to_fsp_flags(table->flags),
-		table->name, filepath, table);
+		table->name, filepath);
 
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
 			err = DB_TABLESPACE_NOT_FOUND;);

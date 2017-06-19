@@ -614,22 +614,24 @@ ANALYZE
     },
     "block-nl-join": {
       "table": {
-        "table_name": "<subquery2>",
+        "table_name": "t2",
         "access_type": "ALL",
-        "possible_keys": ["distinct_key"],
         "r_loops": 1,
         "rows": 2,
         "r_rows": 2,
         "r_total_time_ms": "REPLACED",
         "filtered": 100,
-        "r_filtered": 100
+        "r_filtered": 0,
+        "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))"
       },
       "buffer_type": "flat",
       "buffer_size": "256Kb",
       "join_type": "BNL",
-      "r_filtered": 100,
-      "materialized": {
-        "unique": 1,
+      "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))",
+      "r_filtered": null
+    },
+    "subqueries": [
+      {
         "query_block": {
           "select_id": 2,
           "r_loops": 1,
@@ -646,24 +648,7 @@ ANALYZE
           }
         }
       }
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "r_loops": 1,
-        "rows": 2,
-        "r_rows": 2,
-        "r_total_time_ms": "REPLACED",
-        "filtered": 100,
-        "r_filtered": 100
-      },
-      "buffer_type": "incremental",
-      "buffer_size": "256Kb",
-      "join_type": "BNL",
-      "attached_condition": "t2.b = `<subquery2>`.a",
-      "r_filtered": 0
-    }
+    ]
   }
 }
 drop table t1,t2;
