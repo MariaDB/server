@@ -5664,31 +5664,21 @@ err_during_init:
     trigger automatic restart of slave when node joins back to cluster.
   */
   if (WSREP_ON && wsrep_node_dropped && wsrep_restart_slave)
-  {
-    if (wsrep_ready_get())
-    {
-      WSREP_INFO("Slave error due to node temporarily non-primary"
-                 "SQL slave will continue");
-      wsrep_node_dropped= FALSE;
-      mysql_mutex_unlock(&rli->run_lock);
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-      WSREP_DEBUG("wsrep_conflict_state now: %d",
-                  thd->wsrep_conflict_state());
-      WSREP_INFO("slave restart: %d", thd->wsrep_conflict_state());
-      thd->set_wsrep_conflict_state(NO_CONFLICT);
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-      goto wsrep_restart_point;
-    } else {
-      WSREP_INFO("Slave error due to node going non-primary");
-      WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
-                 "automatically restarted when node joins back to cluster.");
-      wsrep_restart_slave_activated= TRUE;
-    }
-  }
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-  thd->set_wsrep_query_state(QUERY_EXITING);
-  if (WSREP(thd)) wsrep->free_connection(wsrep, thd->thread_id);
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+   {
+     if (wsrep_ready_get())
+     {
+       WSREP_INFO("Slave error due to node temporarily non-primary"
+		  "SQL slave will continue");
+       wsrep_node_dropped= FALSE;
+       mysql_mutex_unlock(&rli->run_lock);
+       goto wsrep_restart_point;
+     } else {
+       WSREP_INFO("Slave error due to node going non-primary");
+       WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
+		  "automatically restarted when node joins back to cluster");
+       wsrep_restart_slave_activated= TRUE;
+     }
+   }
 #endif /* WITH_WSREP */
 
  /*
