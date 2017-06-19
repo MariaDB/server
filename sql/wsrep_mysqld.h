@@ -164,7 +164,6 @@ enum enum_wsrep_ignore_apply_error {
 
 // MySQL status variables
 extern my_bool     wsrep_connected;
-extern my_bool     wsrep_ready;
 extern const char* wsrep_cluster_state_uuid;
 extern long long   wsrep_cluster_conf_id;
 extern const char* wsrep_cluster_status;

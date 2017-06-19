@@ -1170,7 +1170,7 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
 static bool wsrep_node_is_ready(THD *thd)
 {
   if (thd->variables.wsrep_on && !(thd->wsrep_applier || thd->wsrep_SR_thd)
-      && !wsrep_ready)
+      && !wsrep_ready_get())
   {
     my_message(ER_UNKNOWN_COM_ERROR,
                "WSREP has not yet prepared node for application use",
@@ -1303,22 +1303,34 @@ bool do_command(THD *thd)
   command= fetch_command(thd, packet);
 
 #ifdef WITH_WSREP
-  /*
-    Bail out if DB snapshot has not been installed.
-  */
-  if (!(server_command_flags[command] & CF_SKIP_WSREP_CHECK) &&
-      !wsrep_node_is_ready(thd) &&
-      !thd->wsrep_SR_thd)
-  {
-    thd->protocol->end_statement();
-
-    /* Performance Schema Interface instrumentation end. */
-    MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
-    thd->m_statement_psi= NULL;
-    thd->m_digest= NULL;
-
-    return_value= FALSE;
-    goto out;
+  if (WSREP(thd)) {
+    /*
+     * bail out if DB snapshot has not been installed. We however,
+     * allow queries "SET" and "SHOW", they are trapped later in execute_command
+     */
+    if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready_get() &&
+        command != COM_QUERY        &&
+        command != COM_PING         &&
+        command != COM_QUIT         &&
+        command != COM_PROCESS_INFO &&
+        command != COM_PROCESS_KILL &&
+        command != COM_SET_OPTION   &&
+        command != COM_SHUTDOWN     &&
+        command != COM_SLEEP        &&
+        command != COM_STATISTICS   &&
+        command != COM_TIME         &&
+        command != COM_END
+    ) {
+      my_error(ER_UNKNOWN_COM_ERROR, MYF(0),
+               "WSREP has not yet prepared node for application use");
+      /* Performance Schema Interface instrumentation end. */
+      MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+      thd->m_statement_psi= NULL;
+      thd->m_digest= NULL;
+      thd->protocol->end_statement();
+      return_value= FALSE;
+      goto out;
+    }
   }
 #endif
 
@@ -1331,6 +1343,24 @@ bool do_command(THD *thd)
                                  (uint) (packet_length-1), FALSE, FALSE);
   DBUG_ASSERT(!thd->apc_target.is_enabled());
 
+#ifdef WITH_WSREP
+  if (WSREP(thd)) {
+    while (thd->wsrep_conflict_state()== RETRY_AUTOCOMMIT)
+    {
+      return_value= dispatch_command(command, thd,
+                                     packet+1, (uint)(packet_length-1),
+                                     thd->wsrep_retry_query,
+                                     thd->wsrep_retry_query_len);
+    }
+  }
+  if (thd->wsrep_retry_query && thd->wsrep_conflict_state() != REPLAYING)
+  {
+    my_free(thd->wsrep_retry_query);
+    thd->wsrep_retry_query      = NULL;
+    thd->wsrep_retry_query_len  = 0;
+    thd->wsrep_retry_command    = COM_CONNECT;
+  }
+#endif /* WITH_WSREP */
 out:
   thd->lex->restore_set_statement_var();
   /* The statement instrumentation must be closed in all cases. */
@@ -3458,14 +3488,27 @@ mysql_execute_command(THD *thd)
       We additionally allow all other commands that do not change data in
       case wsrep_dirty_reads is enabled.
     */
-    if (lex->sql_command != SQLCOM_SET_OPTION  &&
-        !wsrep_is_show_query(lex->sql_command) &&
-        !(thd->variables.wsrep_dirty_reads     &&
-          !is_update_query(lex->sql_command))  &&
-        !(lex->sql_command == SQLCOM_SELECT    &&
-          !all_tables)                         &&
-        !wsrep_node_is_ready(thd))
+    if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready_get() &&
+        lex->sql_command != SQLCOM_SET_OPTION &&
+        !wsrep_is_show_query(lex->sql_command))
+    {
+#if DIRTY_HACK
+      /* Dirty hack for lp:1002714 - trying to recognize mysqldump connection
+       * and allow it to continue. Actuall mysqldump_magic_str may be longer
+       * and is obviously version dependent and may be issued by any client
+       * connection after which connection becomes non-replicating. */
+      static char const mysqldump_magic_str[]=
+"SELECT LOGFILE_GROUP_NAME, FILE_NAME, TOTAL_EXTENTS, INITIAL_SIZE, ENGINE, EXTRA FROM INFORMATION_SCHEMA.FILES WHERE FILE_TYPE = 'UNDO LOG' AND FILE_NAME IS NOT NULL";
+      static const size_t mysqldump_magic_str_len= sizeof(mysqldump_magic_str) -1;
+      if (SQLCOM_SELECT != lex->sql_command ||
+          thd->query_length() < mysqldump_magic_str_len ||
+          strncmp(thd->query(), mysqldump_magic_str, mysqldump_magic_str_len))
+      {
+#endif /* DIRTY_HACK */
+      my_error(ER_UNKNOWN_COM_ERROR, MYF(0),
+               "WSREP has not yet prepared node for application use");
       goto error;
+      }
   }
 #endif /* WITH_WSREP */
   status_var_increment(thd->status_var.com_stat[lex->sql_command]);
@@ -3489,8 +3532,6 @@ mysql_execute_command(THD *thd)
     List_iterator_fast<set_var_base> it(lex->stmt_var_list);
     set_var_base *var;
 
-    if (lex->set_arena_for_set_stmt(&backup))
-      goto error;
 
     MEM_ROOT *mem_root= thd->mem_root;
     while ((var= it++))
