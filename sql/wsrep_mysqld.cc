@@ -544,14 +544,10 @@ wsrep_view_handler_cb (void*                    app_ctx,
         }
       }
 
-//remove      wsrep_get_SE_checkpoint(local_uuid, local_seqno);
-//remove      local_uuid=  cluster_uuid; // workaround when starting from scratch
       /* Init storage engine XIDs from first view */
-//remove      if (wsrep_uuid_compare(&local_uuid, &WSREP_UUID_UNDEFINED) == 0)
       if (view->memb_num == 1)
       {
         wsrep_set_SE_checkpoint(WSREP_UUID_UNDEFINED, WSREP_SEQNO_UNDEFINED);
-//remove        assert(WSREP_SEQNO_UNDEFINED == local_seqno);
         wsrep_set_SE_checkpoint(cluster_uuid, view->state_id.seqno);
       }
       else
@@ -632,25 +628,6 @@ out:
   }
 
   return ret;
-}
-
-
-void wsrep_recover_view() //remove
-{
-  wsrep_get_SE_checkpoint(local_uuid, local_seqno);
-
-  if (memcmp(&local_uuid, &uuid, sizeof (wsrep_uuid_t)) ||
-             local_seqno > seqno)
-  {
-    WSREP_ERROR("Failed to update SE checkpoint. Can't continue.");
-    wsrep_log_states(WSREP_LOG_FATAL, &uuid, seqno,
-                     &local_uuid, local_seqno);
-    assert(0);
-    unireg_abort(1);
-  }
-
-//remove  wsrep_view_handler_cb(0, 0, view_info, 0, 0);
-  free(view_info);
 }
 
 /* Verifies that SE position is consistent with the group position
