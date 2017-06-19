@@ -677,14 +677,13 @@ log_set_capacity()
 {
 	lsn_t		margin;
 	ulint		free;
-	bool		success	= true;
-	lsn_t		smallest_capacity;
 
-	log_mutex_enter();
-
-	smallest_capacity = log_group_get_capacity(&log_sys->log);
+	lsn_t smallest_capacity = ((srv_log_file_size_requested
+				    << srv_page_size_shift)
+				   - LOG_FILE_HDR_SIZE)
+		* srv_n_log_files;
 	/* Add extra safety */
-	smallest_capacity = smallest_capacity - smallest_capacity / 10;
+	smallest_capacity -= smallest_capacity / 10;
 
 	/* For each OS thread we must reserve so much free space in the
 	smallest log group that it can accommodate the log entries produced
@@ -694,14 +693,19 @@ log_set_capacity()
 	free = LOG_CHECKPOINT_FREE_PER_THREAD * (10 + srv_thread_concurrency)
 		+ LOG_CHECKPOINT_EXTRA_FREE;
 	if (free >= smallest_capacity / 2) {
-		success = false;
-
-		goto failure;
-	} else {
-		margin = smallest_capacity - free;
+		ib::error() << "Cannot continue operation. ib_logfiles are too"
+			" small for innodb_thread_concurrency="
+			<< srv_thread_concurrency << ". The combined size of"
+			" ib_logfiles should be bigger than"
+			" 200 kB * innodb_thread_concurrency. "
+			<< INNODB_PARAMETERS_MSG;
+		return(false);
 	}
 
+	margin = smallest_capacity - free;
 	margin = margin - margin / 10;	/* Add still some extra safety */
+
+	log_mutex_enter();
 
 	log_sys->log_group_capacity = smallest_capacity;
 
@@ -714,19 +718,9 @@ log_set_capacity()
 		/ LOG_POOL_CHECKPOINT_RATIO_ASYNC;
 	log_sys->max_checkpoint_age = margin;
 
-failure:
 	log_mutex_exit();
 
-	if (!success) {
-		ib::error() << "Cannot continue operation. ib_logfiles are too"
-			" small for innodb_thread_concurrency="
-			<< srv_thread_concurrency << ". The combined size of"
-			" ib_logfiles should be bigger than"
-			" 200 kB * innodb_thread_concurrency. "
-			<< INNODB_PARAMETERS_MSG;
-	}
-
-	return(success);
+	return(true);
 }
 
 /** Initializes the redo logging subsystem. */

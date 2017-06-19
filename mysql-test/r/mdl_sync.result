@@ -3049,3 +3049,21 @@ SET DEBUG_SYNC= 'RESET';
 disconnect con1;
 disconnect con2;
 disconnect con3;
+#
+# MDEV-12620 - set lock_wait_timeout = 1;flush tables with read lock;
+#              lock not released after timeout
+#
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+SET debug_sync='open_tables_after_open_and_process_table SIGNAL ready WAIT_FOR go';
+SELECT * FROM t1;
+connect  con1,localhost,root,,;
+SET debug_sync='now WAIT_FOR ready';
+SET lock_wait_timeout=1;
+FLUSH TABLES WITH READ LOCK;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET debug_sync='now SIGNAL go';
+connection default;
+a
+SET debug_sync='RESET';
+DROP TABLE t1;
+disconnect con1;

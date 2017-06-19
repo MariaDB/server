@@ -1,5 +1,5 @@
 # Test resizing the InnoDB redo log.
---source include/have_innodb.inc
+--source include/innodb_page_size_small.inc
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
 # DBUG_EXECUTE_IF is needed
@@ -23,6 +23,12 @@ call mtr.add_suppression("InnoDB: Log file .*ib_logfile[01].* size");
 call mtr.add_suppression("InnoDB: Unable to open .*ib_logfile0. to check native AIO read support");
 FLUSH TABLES;
 --enable_query_log
+
+--let $restart_parameters= --innodb-thread-concurrency=1 --innodb-log-file-size=1m --innodb-log-files-in-group=2
+--source include/restart_mysqld.inc
+
+--let $restart_parameters= --innodb-thread-concurrency=100 --innodb-log-file-size=10M --innodb-log-files-in-group=2
+--source include/restart_mysqld.inc
 
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 BEGIN;
