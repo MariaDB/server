@@ -917,6 +917,15 @@ buf_flush_init_for_writing(
 			case 1:
 				reset_type = FIL_PAGE_IBUF_BITMAP;
 				break;
+			case FSP_TRX_SYS_PAGE_NO:
+				if (block->page.id.page_no()
+				    == TRX_SYS_PAGE_NO
+				    && block->page.id.space()
+				    == TRX_SYS_SPACE) {
+					reset_type = FIL_PAGE_TYPE_TRX_SYS;
+					break;
+				}
+				/* fall through */
 			default:
 				switch (page_type) {
 				case FIL_PAGE_INDEX:
