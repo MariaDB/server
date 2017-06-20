@@ -444,7 +444,11 @@ extract_worker_thread_func(void *arg)
 		}
 
 		if (chunk.type == XB_CHUNK_TYPE_EOF) {
+			pthread_mutex_lock(ctxt->mutex);
 			pthread_mutex_unlock(&entry->mutex);
+			my_hash_delete(ctxt->filehash, (uchar *) entry);
+			pthread_mutex_unlock(ctxt->mutex);
+
 			continue;
 		}
 
