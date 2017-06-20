@@ -1,0 +1,10 @@
+#
+# MDEV-13017 LOCK TABLE fails with irrelevant error while working with tables affected by ANSI_QUOTES
+#
+--source include/have_partition.inc
+set sql_mode=ansi_quotes;
+create table t1 (i int) partition by range (i) (partition flush values less than maxvalue);
+set sql_mode=default;
+lock tables t1 read local;
+unlock tables;
+drop table t1;
