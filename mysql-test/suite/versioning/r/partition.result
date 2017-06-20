@@ -230,6 +230,20 @@ partition by system_time limit 1 (
 partition p0 versioning,
 partition p1 versioning,
 partition pn as of now);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `sys_trx_start` ${SYS_TRX_TYPE} GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` ${SYS_TRX_TYPE} GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=${INNODB_OR_MYISAM} DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1
+(PARTITION p0 VERSIONING ENGINE = ${INNODB_OR_MYISAM},
+ PARTITION p1 VERSIONING ENGINE = ${INNODB_OR_MYISAM},
+ PARTITION pn AS OF NOW ENGINE = ${INNODB_OR_MYISAM})
+alter table t1 drop partition non_existent;
+ERROR HY000: Error in list of partitions to DROP
 insert into t1 values (1), (2);
 select * from t1 partition (pn);
 x

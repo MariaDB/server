@@ -145,6 +145,12 @@ partition by system_time limit 1 (
     partition p1 versioning,
     partition pn as of now);
 
+--replace_result InnoDB ${INNODB_OR_MYISAM} MyISAM ${INNODB_OR_MYISAM} "bigint(20) unsigned" ${SYS_TRX_TYPE} timestamp(6) ${SYS_TRX_TYPE}
+show create table t1;
+
+--error ER_DROP_PARTITION_NON_EXISTENT
+alter table t1 drop partition non_existent;
+
 insert into t1 values (1), (2);
 select * from t1 partition (pn);
 delete from t1;
