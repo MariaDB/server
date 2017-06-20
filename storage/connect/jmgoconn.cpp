@@ -730,7 +730,7 @@ int JMgoConn::DocUpdate(PGLOBAL g, PTDB tdbp)
 			return RC_FX;
 
 		if (env->CallBooleanMethod(job, docaddid, updlist, jkey, val))
-			return NULL;
+			return 0;
 
 		env->DeleteLocalRef(jkey);
 	}	// endfor colp
@@ -740,7 +740,7 @@ int JMgoConn::DocUpdate(PGLOBAL g, PTDB tdbp)
 	jkey = env->NewStringUTF("$set");
 
 	if (env->CallBooleanMethod(job, docaddid, upd, jkey, updlist))
-		return NULL;
+		return 0;
 
 	env->DeleteLocalRef(jkey);
 

@@ -139,7 +139,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
 	unsigned int length[] = {0, 4, 0, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
 	PCSZ    fmt;
 	char   *fld, *colname, *chset, v, buf[128], uns[16], zero[16];
-  int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
+  int     i, n, nf=0, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
 	bool    b;
   PQRYRES qrp;

@@ -146,6 +146,8 @@
 .*/storage/connect/xindex\.cpp: ignoring return value of
 .*/storage/connect/value\.cpp: always false : 1000-1020
 .*/storage/connect/json\.cpp: might be clobbered by
+.*/storage/connect/filemdbf\.cpp: ignoring return value.*fwrite
+.*/storage/connect/value\.cpp: .*comparison is always false due to limited range
 
 #
 # mroonga
