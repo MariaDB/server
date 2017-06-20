@@ -4879,16 +4879,16 @@ rm_if_not_found(
 	/* Truncate ".ibd" */
 	name[strlen(name) - 4] = '\0';
 
+        if (!table) {
+                snprintf(name, FN_REFLEN, "%s/%s/%s", data_home_dir,
+                                                      db_name, file_name);
+                return os_file_delete(0, name);
+        }
+
 	HASH_SEARCH(name_hash, inc_dir_tables_hash, ut_fold_string(name),
 		    xb_filter_entry_t*,
 		    table, (void) 0,
 		    !strcmp(table->name, name));
-
-	if (!table) {
-		snprintf(name, FN_REFLEN, "%s/%s/%s", data_home_dir,
-						      db_name, file_name);
-		return os_file_delete(0, name);
-	}
 
 	return(TRUE);
 }
