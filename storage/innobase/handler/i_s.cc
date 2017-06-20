@@ -530,18 +530,7 @@ static ST_FIELD_INFO	innodb_trx_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#ifdef BTR_CUR_HASH_ADAPT
-#define IDX_TRX_ADAPTIVE_HASH_LATCHED	20
-	{STRUCT_FLD(field_name,		"trx_adaptive_hash_latched"),
-	 STRUCT_FLD(field_length,	1),
-	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
-	 STRUCT_FLD(value,		0),
-	 STRUCT_FLD(field_flags,	0),
-	 STRUCT_FLD(old_name,		""),
-	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
-#endif /* BTR_CUR_HASH_ADAPT */
-
-#define IDX_TRX_READ_ONLY		20 + I_S_AHI
+#define IDX_TRX_READ_ONLY		20
 	{STRUCT_FLD(field_name,		"trx_is_read_only"),
 	 STRUCT_FLD(field_length,	1),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
@@ -550,7 +539,7 @@ static ST_FIELD_INFO	innodb_trx_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_TRX_AUTOCOMMIT_NON_LOCKING	21 + I_S_AHI
+#define IDX_TRX_AUTOCOMMIT_NON_LOCKING	21
 	{STRUCT_FLD(field_name,		"trx_autocommit_non_locking"),
 	 STRUCT_FLD(field_length,	1),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
@@ -696,11 +685,6 @@ fill_innodb_trx_from_cache(
 		/* trx_last_foreign_key_error */
 		OK(field_store_string(fields[IDX_TRX_LAST_FOREIGN_KEY_ERROR],
 				      row->trx_foreign_key_error));
-
-#ifdef BTR_CUR_HASH_ADAPT
-		/* trx_adaptive_hash_latched */
-		OK(fields[IDX_TRX_ADAPTIVE_HASH_LATCHED]->store(0, true));
-#endif /* BTR_CUR_HASH_ADAPT */
 
 		/* trx_is_read_only*/
 		OK(fields[IDX_TRX_READ_ONLY]->store(
