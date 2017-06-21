@@ -1,6 +1,7 @@
 #
 # simple test of group_concat function
 #
+source include/have_sequence.inc;
 
 create table t1 (grp int, a bigint unsigned, c char(10) not null, d char(10) not null);
 insert into t1 values (1,1,"a","a");
@@ -870,3 +871,11 @@ SELECT LENGTH(GROUP_CONCAT(f1 ORDER BY f2)) FROM t1 GROUP BY f2;
 
 DROP TABLE t1;
 SET group_concat_max_len= DEFAULT;
+
+#
+# MDEV-9531 GROUP_CONCAT with ORDER BY inside takes a lot of memory while it's executed
+#
+set max_session_mem_used=16*1024*1024; # 8M..32M
+SELECT GROUP_CONCAT(concat(seq/1.1), concat(seq/1.1), concat(seq/1.1), concat(seq/1.1), concat(seq/1.1), concat(seq/1.1), concat(seq/1.1), concat(seq/1.1) ORDER BY 2,1,3,4,6,5,8,7) AS c
+FROM seq_1_to_200000;
+set max_session_mem_used=default;

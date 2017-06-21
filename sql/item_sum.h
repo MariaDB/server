@@ -1431,6 +1431,7 @@ class Item_func_group_concat : public Item_sum
   String *separator;
   TREE tree_base;
   TREE *tree;
+  size_t tree_len;
   Item **ref_pointer_array;
 
   /**
@@ -1467,6 +1468,8 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
+
+  bool repack_tree(THD *thd);
 
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
