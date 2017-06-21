@@ -141,7 +141,6 @@ public:
 
 class Item_func_md5 :public Item_str_ascii_checksum_func
 {
-  String tmp_value;
 public:
   Item_func_md5(THD *thd, Item *a): Item_str_ascii_checksum_func(thd, a) {}
   String *val_str_ascii(String *);
@@ -241,7 +240,6 @@ public:
 
 class Item_func_decode_histogram :public Item_str_func
 {
-  String tmp_value;
 public:
   Item_func_decode_histogram(THD *thd, Item *a, Item *b):
     Item_str_func(thd, a, b) {}
@@ -622,10 +620,7 @@ class Item_func_sysconst :public Item_str_func
 public:
   Item_func_sysconst(THD *thd): Item_str_func(thd)
   { collation.set(system_charset_info,DERIVATION_SYSCONST); }
-  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
-  {
-    return const_charset_converter(thd, tocs, true, fully_qualified_func_name());
-  }
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   /*
     Used to create correct Item name in new converted item in
     safe_charset_converter, return string representation of this function
@@ -637,6 +632,7 @@ public:
     return trace_unsupported_by_check_vcol_func_processor(
                                            fully_qualified_func_name());
   }
+  bool const_item() const;
 };
 
 
@@ -715,7 +711,7 @@ public:
   String *val_str(String *)
   {
     DBUG_ASSERT(fixed == 1);
-    return (null_value ? 0 : &str_value);
+    return null_value ? NULL : &str_value;
   }
 };
 
@@ -757,7 +753,6 @@ public:
 
 class Item_func_format :public Item_str_ascii_func
 {
-  String tmp_str;
   MY_LOCALE *locale;
 public:
   Item_func_format(THD *thd, Item *org, Item *dec):
@@ -814,7 +809,6 @@ public:
 
 class Item_func_binlog_gtid_pos :public Item_str_func
 {
-  String tmp_value;
 public:
   Item_func_binlog_gtid_pos(THD *thd, Item *arg1, Item *arg2):
     Item_str_func(thd, arg1, arg2) {}
@@ -1212,7 +1206,7 @@ public:
 
 class Item_func_compress: public Item_str_binary_checksum_func
 {
-  String buffer;
+  String tmp_value;
 public:
   Item_func_compress(THD *thd, Item *a)
    :Item_str_binary_checksum_func(thd, a) {}
@@ -1223,7 +1217,7 @@ public:
 
 class Item_func_uncompress: public Item_str_binary_checksum_func
 {
-  String buffer;
+  String tmp_value;
 public:
   Item_func_uncompress(THD *thd, Item *a)
    :Item_str_binary_checksum_func(thd, a) {}

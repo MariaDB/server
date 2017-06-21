@@ -239,7 +239,6 @@ public:
 
 class Item_func_spatial_collection: public Item_geometry_func
 {
-  String tmp_value;
   enum Geometry::wkbType coll_type; 
   enum Geometry::wkbType item_type;
 public:
@@ -412,7 +411,6 @@ protected:
 
   Gcalc_result_receiver res_receiver;
   Gcalc_operation_reducer operation;
-  String tmp_value;
 
 public:
   Item_func_buffer(THD *thd, Item *obj, Item *distance):
