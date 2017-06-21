@@ -4252,7 +4252,7 @@ static int init_common_variables()
     (except in the embedded server, where the default continues to
     be MyISAM)
   */
-#if defined(WITH_INNOBASE_STORAGE_ENGINE) || defined(WITH_XTRADB_STORAGE_ENGINE)
+#if defined(WITH_INNOBASE_STORAGE_ENGINE)
   default_storage_engine= const_cast<char *>("InnoDB");
 #else
   default_storage_engine= const_cast<char *>("MyISAM");

@@ -5204,10 +5204,6 @@ inline int Log_event_writer::write(Log_event *ev)
 bool slave_execute_deferred_events(THD *thd);
 #endif
 
-bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
-                           const char **group_relay_log_name,
-                           ulonglong *relay_log_pos);
-
 bool event_that_should_be_ignored(const char *buf);
 bool event_checksum_test(uchar *buf, ulong event_len, enum_binlog_checksum_alg alg);
 enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len);

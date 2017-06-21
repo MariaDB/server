@@ -189,7 +189,6 @@ my @DEFAULT_SUITES= qw(
     multi_source-
     optimizer_unfixed_bugs-
     parts-
-    percona-
     perfschema-
     plugins-
     roles-
@@ -1735,18 +1734,6 @@ sub command_line_setup {
   if (@strace_args)
   {
     $opt_strace=1;
-  }
-
-  # InnoDB does not bother to do individual de-allocations at exit. Instead it
-  # relies on a custom allocator to track every allocation, and frees all at
-  # once during exit.
-  # In XtraDB, an option use-sys-malloc is introduced (and on by default) to
-  # disable this (for performance). But this exposes Valgrind to all the
-  # missing de-allocations, so we need to disable it to at least get
-  # meaningful leak checking for the rest of the server.
-  if ($opt_valgrind_mysqld)
-  {
-    push(@opt_extra_mysqld_opt, "--loose-skip-innodb-use-sys-malloc");
   }
 
   if ($opt_debug_common)
@@ -5966,7 +5953,7 @@ Examples:
 
 alias
 main.alias              'main' is the name of the suite for the 't' directory.
-rpl.rpl_invoked_features,mix,xtradb_plugin
+rpl.rpl_invoked_features,mix,innodb
 suite/rpl/t/rpl.rpl_invoked_features
 
 Options to control what engine/variation to run:

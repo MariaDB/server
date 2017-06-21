@@ -809,7 +809,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         Here we close and reopen table in read mode because operation of
         collecting statistics is long and it will be better do not block
         the table completely.
-        InnoDB/XtraDB will allow read/write and MyISAM read/insert.
+        InnoDB will allow read/write and MyISAM read/insert.
       */
       trans_commit_stmt(thd);
       trans_commit(thd);

@@ -1,5 +1,3 @@
-DROP TABLE IF EXISTS t0,t1,t2,t3,t4,t5;
-DROP VIEW IF EXISTS v1;
 #
 # Bug#18925: subqueries with MIN/MAX functions on INFORMATION_SCHEMA 
 #

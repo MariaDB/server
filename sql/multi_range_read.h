@@ -57,7 +57,7 @@
       Storage engine internals
 
 
-  Currently DS-MRR is used by MyISAM, InnoDB/XtraDB and Maria storage engines.
+  Currently DS-MRR is used by MyISAM, InnoDB and Maria storage engines.
   Potentially it can be used with any table handler that has disk-based data
   storage and has better performance when reading data in rowid order.
 */

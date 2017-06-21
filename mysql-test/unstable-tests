@@ -242,7 +242,6 @@ innodb.innodb_stats_del_mark         : Added in 10.2.6
 innodb.innodb_sys_semaphore_waits    : MDEV-10331 - Semaphore wait
 innodb.innodb-virtual-columns2       : Added in 10.2.6
 innodb.innodb-wl5522-debug           : Modified in 10.2.6
-innodb.innodb_xtradb_compat          : Added in 10.2.6
 innodb.insert_debug                  : Modified in 10.2.6
 innodb.log_file_name                 : Modified in 10.2.6
 innodb.readahead                     : Added in 10.2.6
@@ -290,10 +289,6 @@ multi_source.info_logs             : MDEV-12629 - Valgrind
 #----------------------------------------------------------------
 
 parts.partition_debug_innodb       : MDEV-10891 - Can't create UNIX socket
-
-#----------------------------------------------------------------
-
-percona.*                                  : MDEV-10997 - Not maintained
 
 #----------------------------------------------------------------
 

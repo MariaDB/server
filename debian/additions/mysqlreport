@@ -143,7 +143,6 @@ my $have_subquerycache_vals = 0;
 my $have_binlog_vals = 0;
 my $have_tokudb_engine = 0;
 my $use_thread_pool = 0;
-my $use_xtradb = 0;
 
 if(defined $op{'r'})
 {
@@ -699,15 +698,6 @@ sub get_MySQL_version
       } else {
          $have_tokudb_engine = 0;
       }
-
-      $use_xtradb = $dbh->selectall_arrayref("SELECT 1 FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE = 'InnoDB' AND COMMENT LIKE 'Percona-XtraDB%';", undef)->[0][0];
-      if(defined($use_xtradb) && $use_xtradb eq "1")
-      {
-         print "XtraDB detected\n" if $op{debug};
-         $use_xtradb = 1;
-      } else {
-         $use_xtradb = 0;
-      }
    }
 }
 
@@ -1204,21 +1194,11 @@ sub write_InnoDB
 
    $~ = 'IB';
    write;
-   if($use_xtradb)
-   {
-      $~ = 'IB_XTRADB';
-      write;
-   }
 
    # Innodb_row_lock_ values were added in MySQL 5.0.3
    if($MySQL_version >= 50003)
    {
       $~ = 'IB_LOCK';
-      write;
-   }
-   if($use_xtradb)
-   {
-      $~ = 'IB_LOCK_XTRADB';
       write;
    }
 
@@ -1511,11 +1491,6 @@ Flushes     @>>>>>>>>    @>>>>>/s
 make_short($stats{'Innodb_buffer_pool_pages_flushed'}), t($stats{'Innodb_buffer_pool_pages_flushed'})
 .
 
-format IB_XTRADB =
-  LRU       @>>>>>>>>    @>>>>>/s   %LRU:  @>>>>>
-make_short($stats{'Innodb_buffer_pool_pages_lru_flushed'}), t($stats{'Innodb_buffer_pool_pages_lru_flushed'}), perc($stats{'Innodb_buffer_pool_pages_lru_flushed'}, $stats{'Innodb_buffer_pool_pages_flushed'})
-.
-
 format IB_LOCK =
 
 __ InnoDB Lock _________________________________________________________
@@ -1530,11 +1505,6 @@ $stats{'Innodb_row_lock_time'}
 $stats{'Innodb_row_lock_time_avg'}
   Max       @>>>>>>>> ms
 $stats{'Innodb_row_lock_time_max'}
-.
-
-format IB_LOCK_XTRADB =
-Trx history  @>>>>>>>>
-make_short($stats{'Innodb_history_list_length'})
 .
 
 format IB_DPR =

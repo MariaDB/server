@@ -14001,43 +14001,6 @@ Heartbeat_log_event::Heartbeat_log_event(const char* buf, uint event_len,
 #endif
 
 #if defined(MYSQL_SERVER)
-/*
-  Access to the current replication position.
-
-  There is a dummy replacement for this in the embedded library that returns
-  FALSE; this is used by XtraDB to allow it to access replication stuff while
-  still being able to use the same plugin in both stand-alone and embedded.
-
-  In this function it's ok to use active_mi, as this is only called for
-  the main replication server.
-*/
-bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
-                           const char **group_relay_log_name,
-                           ulonglong *relay_log_pos)
-{
-#if defined(EMBEDDED_LIBRARY) || !defined(HAVE_REPLICATION)
-  return FALSE;
-#else
-  const Relay_log_info *rli= &(active_mi->rli);
-  if (!rli->mi->using_parallel())
-  {
-    *log_file_name= rli->group_master_log_name;
-    *log_pos= rli->group_master_log_pos +
-      (rli->future_event_relay_log_pos - rli->group_relay_log_pos);
-    *group_relay_log_name= rli->group_relay_log_name;
-    *relay_log_pos= rli->future_event_relay_log_pos;
-  }
-  else
-  {
-    *log_file_name= "";
-    *log_pos= 0;
-    *group_relay_log_name= "";
-    *relay_log_pos= 0;
-  }
-  return TRUE;
-#endif
-}
-
 /**
    Check if we should write event to the relay log
 

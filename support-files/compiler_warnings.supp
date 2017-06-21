@@ -20,46 +20,6 @@
 .*/sql_yacc.cc : .*switch statement contains 'default' but no 'case' labels.*
 
 #
-# Things that can be ignored in InnoDB
-#
-.*/pars0grm.tab.c: .*'yyerrorlab' : unreferenced label.*
-.*/pars0grm.c: 'yyerrorlab' : unreferenced label
-.*/_flex_tmp.c: .*not enough actual parameters for macro 'yywrap'.*
-.*/lexyy.c : not enough actual parameters for macro 'yywrap'
-.*/pars0lex.l: .*conversion from 'ulint' to 'int', possible loss of data.*
-.*/include/buf0buf\.ic: unused parameter .*mtr.*
-.*/fil/fil0fil\.c: pointer targets in passing argument.*differ in signedness
-.*/fil/fil0fil\.c: comparison between signed and unsigned : 3100-3199
-.*/fil/fil0fil\.c: unused parameter
-.*/log/log0recv\.c: unused variable
-.*/os/os0file\.c: unused parameter
-.*/os/os0file\.c: pointer targets in assignment differ in signedness
-.*/handler/i_s\.cc: unused variable
-.*/sync/sync0rw\.c: unused parameter
-.*/sync/sync0sync\.c: unused parameter
-.*/sync/sync0sync\.c: unused variable
-.*/ut/ut0ut\.c: ignoring return value of
-.*/srv/srv0srv\.c: value computed is not used
-.*/buf/buf0buf\.c: .*block_mutex.* might be used uninitialized
-.*/btr/btr0cur\.c: null argument where non-null required: 1800-3000
-.*/btr/btr0btr\.c: null argument where non-null required
-.*/btr/btr0cur\.c: .*value computed is not used.*: 3175-3375
-.*/btr/btr0sea\.c: passing argument 2 .* discards qualifiers from pointer target type
-.*/ibuf/ibuf0ibuf.c: null argument where non-null required: 700-1000
-.*/fsp0fsp\.c: result of 32-bit shift implicitly converted to 64 bits
-.*/log/log0log\.c : passing arg 1 of `atomic_add_64_nv' from incompatible pointer type
-.*/log/log0online\.c : passing arg 1 of `atomic_add_64_nv' from incompatible pointer type
-.*/buf/buf0buf\.c : label.*loop2.* defined but not used
-
-#
-# Xtradb engine
-#
-.*/storage/xtradb/handler/ha_innodb\.cc: ignoring return value of
-.*/storage/xtradb/row/row0log\.cc: ignoring return value of
-.*/storage/xtradb/btr/btr0cur\.cc : null argument where non-null required
-.*/storage/xtradb/btr/btr0scrub\.cc : null argument where non-null required
-
-#
 # bdb is not critical to keep up to date
 #
 .*/bdb/.* : .*discards qualifiers from pointer target type.*

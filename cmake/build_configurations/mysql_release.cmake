@@ -139,9 +139,6 @@ IF(UNIX)
         ")
       ENDIF()
 
-      # Remove libaio dependency from mysqld
-      #SET(XTRADB_PREFER_STATIC_LIBAIO 1)
-
       # Unfortunately, linking shared libmysqld with static aio
       # does not work,  unless we add also dynamic one. This also means
       # libmysqld.so will depend on libaio.so

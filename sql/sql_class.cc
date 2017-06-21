@@ -4678,7 +4678,7 @@ thd_need_wait_reports(const MYSQL_THD thd)
 }
 
 /*
-  Used by storage engines (currently TokuDB and InnoDB/XtraDB) to report that
+  Used by storage engines (currently TokuDB and InnoDB) to report that
   one transaction THD is about to go to wait for a transactional lock held by
   another transactions OTHER_THD.
 
@@ -4700,7 +4700,7 @@ thd_need_wait_reports(const MYSQL_THD thd)
   transaction, and later re-try it, to resolve the deadlock.
 
   This call need only receive reports about waits for locks that will remain
-  until the holding transaction commits. InnoDB/XtraDB auto-increment locks,
+  until the holding transaction commits. InnoDB auto-increment locks,
   for example, are released earlier, and so need not be reported. (Such false
   positives are not harmful, but could lead to unnecessary kill and retry, so
   best avoided).
@@ -4753,7 +4753,7 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
 }
 
 /*
-  This function is called from InnoDB/XtraDB to check if the commit order of
+  This function is called from InnoDB to check if the commit order of
   two transactions has already been decided by the upper layer. This happens
   in parallel replication, where the commit order is forced to be the same on
   the slave as it was originally on the master.
@@ -4783,7 +4783,7 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
 
   If this function returns true, normal locking should be done as required by
   the binlogging and transaction isolation level in effect. But if it returns
-  false, the correct order will be enforced anyway, and InnoDB/XtraDB can
+  false, the correct order will be enforced anyway, and InnoDB can
   avoid taking the gap lock, preventing the lock conflict.
 
   Calling this function is just an optimisation to avoid unnecessary
