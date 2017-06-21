@@ -2602,13 +2602,15 @@ files_checked:
 	operations */
 
 	if (!srv_read_only_mode) {
-
 		thread_handles[1 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_master_thread,
 			NULL, thread_ids + (1 + SRV_MAX_N_IO_THREADS));
 		thread_started[1 + SRV_MAX_N_IO_THREADS] = true;
 		srv_start_state_set(SRV_START_STATE_MASTER);
+	}
 
+	if (!srv_read_only_mode
+	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 		srv_undo_sources = true;
 		/* Create the dict stats gathering thread */
 		srv_dict_stats_thread_active = true;
@@ -2617,10 +2619,6 @@ files_checked:
 
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
-	}
-
-	if (!srv_read_only_mode
-	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 
 		thread_handles[5 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_purge_coordinator_thread,
