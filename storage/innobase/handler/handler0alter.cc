@@ -4471,11 +4471,13 @@ prepare_inplace_alter_table_dict(
 		       || !innobase_fulltext_exist(altered_table))) {
 		/* InnoDB can perform an online operation (LOCK=NONE). */
 	} else {
+		size_t query_length;
 		/* This should have been blocked in
 		check_if_supported_inplace_alter(). */
 		ut_ad(0);
 		my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-			 thd_query(ctx->prebuilt->trx->mysql_thd));
+			 innobase_get_stmt_unsafe(ctx->prebuilt->trx->mysql_thd,
+						  &query_length));
 		goto error_handled;
 	}
 

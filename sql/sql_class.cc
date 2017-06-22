@@ -4509,25 +4509,46 @@ extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)
   return(thd->charset());
 }
 
-/**
-  OBSOLETE : there's no way to ensure the string is null terminated.
-  Use thd_query_string instead()
-*/
-extern "C" char **thd_query(MYSQL_THD thd)
-{
-  return (&thd->query_string.string.str);
-}
 
 /**
   Get the current query string for the thread.
+
+  This function is not thread safe and can be used only by thd owner thread.
 
   @param The MySQL internal thread pointer
   @return query string and length. May be non-null-terminated.
 */
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd)
 {
+  DBUG_ASSERT(thd == current_thd);
   return(&thd->query_string.string);
 }
+
+
+/**
+  Get the current query string for the thread.
+
+  @param thd     The MySQL internal thread pointer
+  @param buf     Buffer where the query string will be copied
+  @param buflen  Length of the buffer
+
+  @return Length of the query
+
+  @note This function is thread safe as the query string is
+        accessed under mutex protection and the string is copied
+        into the provided buffer. @see thd_query_string().
+*/
+
+extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen)
+{
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  size_t len= MY_MIN(buflen - 1, thd->query_length());
+  memcpy(buf, thd->query(), len);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  buf[len]= '\0';
+  return len;
+}
+
 
 extern "C" int thd_slave_thread(const MYSQL_THD thd)
 {
