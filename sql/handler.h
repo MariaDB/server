@@ -36,6 +36,7 @@
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
 #include "vtq.h"
+#include "vers_string.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
 
@@ -1684,17 +1685,19 @@ struct Vers_parse_info
 
   struct start_end_t
   {
-    start_end_t() :
-      start(NULL),
-      end(NULL) {}
-    String *start;
-    String *end;
+    start_end_t()
+    {}
+    start_end_t(const char* _start, const char* _end) :
+      start(_start),
+      end(_end) {}
+    LString_i start;
+    LString_i end;
   };
 
   start_end_t period_for_system_time;
   start_end_t generated_as_row;
 
-  void set_period_for_system_time(String *start, String *end)
+  void set_period_for_system_time(LString start, LString end)
   {
     period_for_system_time.start = start;
     period_for_system_time.end = end;
@@ -1713,10 +1716,10 @@ private:
       has_unversioned_fields ||
       declared_with_system_versioning ||
       declared_without_system_versioning ||
-      period_for_system_time.start ||
-      period_for_system_time.end ||
-      generated_as_row.start ||
-      generated_as_row.end;
+      period_for_system_time.start.str ||
+      period_for_system_time.end.str ||
+      generated_as_row.start.str ||
+      generated_as_row.end.str;
   }
   bool check_with_conditions(const char *table_name) const;
   bool check_generated_type(const char *table_name, Alter_info *alter_info,

@@ -1622,6 +1622,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_constraint constraint opt_ident
         sp_decl_ident
         sp_block_label
+        period_for_system_time_column_id
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1651,7 +1652,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <string>
         text_string hex_or_bin_String opt_gconcat_separator
-        period_for_system_time_column_id
 
 %type <field_type> int_type real_type
 
@@ -6167,7 +6167,7 @@ period_for_system_time:
           PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
           {
             Vers_parse_info &info= Lex->vers_get_info();
-            if (!my_strcasecmp(system_charset_info, $4->c_ptr(), $6->c_ptr()))
+            if (!my_strcasecmp(system_charset_info, $4.str, $6.str))
             {
               my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0),
                 Lex->create_last_non_select_table->table_name,
@@ -6284,14 +6284,10 @@ field_def:
           {
             LEX *lex= Lex;
             Vers_parse_info &info= lex->vers_get_info();
-            String *field_name= new (thd->mem_root)
-              String((const char*)lex->last_field->field_name, system_charset_info);
-            if (!field_name)
-              MYSQL_YYABORT;
-
+            const char *field_name= lex->last_field->field_name;
             const char *table_name= lex->create_last_non_select_table->table_name;
 
-            String **p= NULL;
+            LString_i *p;
             const char* err;
             switch ($4)
             {
@@ -6310,6 +6306,7 @@ field_def:
               MYSQL_YYABORT;
               break;
             }
+            DBUG_ASSERT(p);
             if (*p)
             {
               my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), table_name, err));
@@ -16237,10 +16234,7 @@ column_list:
 period_for_system_time_column_id:
           ident
           {
-            String *new_str= new (thd->mem_root) String((const char*) $1.str,$1.length,system_charset_info);
-            if (new_str == NULL)
-              MYSQL_YYABORT;
-            $$= new_str;
+            $$= $1;
           }
         ;
 

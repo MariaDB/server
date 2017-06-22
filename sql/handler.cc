@@ -6584,13 +6584,12 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
 bool Vers_parse_info::is_trx_start(const char *name) const
 {
   DBUG_ASSERT(name);
-  return generated_as_row.start &&
-         !strcmp(generated_as_row.start->c_ptr(), name);
+  return generated_as_row.start && generated_as_row.start == LString_i(name);
 }
 bool Vers_parse_info::is_trx_end(const char *name) const
 {
   DBUG_ASSERT(name);
-  return generated_as_row.end && !strcmp(generated_as_row.end->c_ptr(), name);
+  return generated_as_row.end && generated_as_row.end == LString_i(name);
 }
 bool Vers_parse_info::is_trx_start(const Create_field &f) const
 {
@@ -6601,14 +6600,9 @@ bool Vers_parse_info::is_trx_end(const Create_field &f) const
   return f.flags & VERS_SYS_END_FLAG;
 }
 
-static bool create_string(MEM_ROOT *mem_root, String **s, const char *value)
-{
-  *s= new (mem_root) String(value, system_charset_info);
-  return *s == NULL;
-}
 
 static bool vers_create_sys_field(THD *thd, const char *field_name,
-                                 Alter_info *alter_info, String **s,
+                                 Alter_info *alter_info,
                                  int flags,
                                  bool integer_fields)
 {
@@ -6635,9 +6629,6 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
   if (f->check(thd))
     return true;
 
-  if (create_string(thd->mem_root, s, field_name))
-    return true;
-
   alter_info->create_list.push_back(f);
   return false;
 }
@@ -6652,19 +6643,18 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
 
   alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
 
-  static const char * sys_trx_start= "sys_trx_start";
-  static const char * sys_trx_end= "sys_trx_end";
+  static const LString sys_trx_start= "sys_trx_start";
+  static const LString sys_trx_end= "sys_trx_end";
+
+  period_for_system_time= start_end_t(sys_trx_start, sys_trx_end);
+  generated_as_row= period_for_system_time;
 
   return vers_create_sys_field(thd, sys_trx_start, alter_info,
-                              &generated_as_row.start, VERS_SYS_START_FLAG,
+                              VERS_SYS_START_FLAG,
                               integer_fields) ||
          vers_create_sys_field(thd, sys_trx_end, alter_info,
-                              &generated_as_row.end, VERS_SYS_END_FLAG,
-                              integer_fields) ||
-         create_string(thd->mem_root, &period_for_system_time.start,
-                       sys_trx_start) ||
-         create_string(thd->mem_root, &period_for_system_time.end,
-                       sys_trx_end);
+                              VERS_SYS_END_FLAG,
+                              integer_fields);
 }
 
 bool Vers_parse_info::check_and_fix_implicit(
@@ -6731,7 +6721,7 @@ bool Vers_parse_info::check_and_fix_implicit(
           return true;
         }
         orig_table= f->field->orig_table;
-        generated_as_row.start= new (thd->mem_root) String(f->field_name, system_charset_info);
+        generated_as_row.start= f->field_name;
         period_for_system_time.start= generated_as_row.start;
       }
       continue;
@@ -6746,7 +6736,7 @@ bool Vers_parse_info::check_and_fix_implicit(
           goto err_different_tables;
         }
         orig_table= f->field->orig_table;
-        generated_as_row.end= new (thd->mem_root) String(f->field_name, system_charset_info);
+        generated_as_row.end= f->field_name;
         period_for_system_time.end= generated_as_row.end;
       }
       continue;
@@ -6866,11 +6856,8 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
     const char *end= share->vers_end_field()->field_name;
     DBUG_ASSERT(start && end);
 
-    if (create_string(thd->mem_root, &generated_as_row.start, start) ||
-        create_string(thd->mem_root, &generated_as_row.end, end) ||
-        create_string(thd->mem_root, &period_for_system_time.start, start) ||
-        create_string(thd->mem_root, &period_for_system_time.end, end))
-      return true;
+    generated_as_row= start_end_t(start, end);
+    period_for_system_time= generated_as_row;
 
     if (alter_info->create_list.elements)
     {
@@ -6935,14 +6922,8 @@ bool Vers_parse_info::fix_create_like(THD *thd, Alter_info *alter_info,
     return true;
   }
 
-  if (create_string(thd->mem_root, &generated_as_row.start, f_start->field_name) ||
-      create_string(thd->mem_root, &period_for_system_time.start, f_start->field_name) ||
-      create_string(thd->mem_root, &generated_as_row.end, f_end->field_name) ||
-      create_string(thd->mem_root, &period_for_system_time.end, f_end->field_name))
-  {
-    sql_print_error("Failed to allocate memory for Vers_parse_info::fix_create_like()");
-    return true;
-  }
+  generated_as_row= start_end_t(f_start->field_name, f_end->field_name);
+  period_for_system_time= generated_as_row;
 
   create_info->options|= HA_VERSIONED_TABLE;
   return false;
@@ -6972,16 +6953,14 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
     return true;
   }
 
-  if (my_strcasecmp(system_charset_info, generated_as_row.start->c_ptr(),
-                    period_for_system_time.start->c_ptr()))
+  if (generated_as_row.start != period_for_system_time.start)
   {
     my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
              "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW START' mismatch");
     return true;
   }
 
-  if (my_strcasecmp(system_charset_info, generated_as_row.end->c_ptr(),
-                    period_for_system_time.end->c_ptr()))
+  if (generated_as_row.end != period_for_system_time.end)
   {
     my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
              "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW END' mismatch");

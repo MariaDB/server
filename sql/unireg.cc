@@ -101,8 +101,8 @@ vers_get_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields, b
 
   const char *row_field =
     row_start ?
-      create_info->vers_info.generated_as_row.start->c_ptr() :
-      create_info->vers_info.generated_as_row.end->c_ptr();
+      create_info->vers_info.generated_as_row.start :
+      create_info->vers_info.generated_as_row.end;
   DBUG_ASSERT(row_field);
 
   for (unsigned field_no = 0; (sql_field = it++); ++field_no)

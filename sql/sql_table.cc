@@ -4326,9 +4326,9 @@ vers_prepare_keys(THD *thd,
 {
   DBUG_ASSERT(create_info->versioned());
 
-  const char *row_start_field= create_info->vers_info.generated_as_row.start->c_ptr();
+  const char *row_start_field= create_info->vers_info.generated_as_row.start;
   DBUG_ASSERT(row_start_field);
-  const char *row_end_field= create_info->vers_info.generated_as_row.end->c_ptr();
+  const char *row_end_field= create_info->vers_info.generated_as_row.end;
   DBUG_ASSERT(row_end_field);
 
   List_iterator<Key> key_it(alter_info->key_list);
@@ -4354,10 +4354,8 @@ vers_prepare_keys(THD *thd,
     if (key_part)
       continue; // Key already contains Sys_start or Sys_end
 
-    const LEX_STRING &lex_sys_end=
-      create_info->vers_info.generated_as_row.end->lex_string();
     Key_part_spec *key_part_sys_end_col=
-      new(thd->mem_root) Key_part_spec(lex_sys_end, 0);
+      new(thd->mem_root) Key_part_spec(create_info->vers_info.generated_as_row.end, 0);
     key->columns.push_back(key_part_sys_end_col);
   }
 

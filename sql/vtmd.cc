@@ -416,7 +416,7 @@ VTMD_rename::try_rename(THD *thd, LString new_db, LString new_alias, const char 
     return false;
 
   bool same_db= true;
-  if (LString_fs(DB_WITH_LEN(about)) != new_db)
+  if (LString_fs(DB_WITH_LEN(about)) != LString_fs(new_db))
   {
     // Move archives before VTMD so if the operation is interrupted, it could be continued.
     if (move_archives(thd, new_db))
