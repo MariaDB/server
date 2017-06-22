@@ -825,8 +825,10 @@ static void setup_one_conversion_function(THD *thd, Item_param *param,
 */
 inline bool is_param_long_data_type(Item_param *param)
 {
-  return ((param->field_type() >= MYSQL_TYPE_TINY_BLOB) &&
-          (param->field_type() <= MYSQL_TYPE_STRING));
+  enum_field_types field_type= param->field_type();
+  return (((field_type >= MYSQL_TYPE_TINY_BLOB) &&
+           (field_type <= MYSQL_TYPE_STRING)) ||
+          field_type == MYSQL_TYPE_VARCHAR);
 }
 
 
