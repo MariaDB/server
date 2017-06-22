@@ -2490,6 +2490,20 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       cursor_manager->add_cursor(fc);
       break;
     }
+    case Item_sum::PERCENTILE_DISC_FUNC:
+    {
+      fc= new Frame_unbounded_preceding(thd,
+                                        spec->partition_list,
+                                        spec->order_list);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      fc= new Frame_unbounded_following(thd,
+                                          spec->partition_list,
+                                          spec->order_list);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    }
     default:
       fc= new Frame_unbounded_preceding(
               thd, spec->partition_list, spec->order_list);
@@ -2514,6 +2528,8 @@ static bool is_computed_with_remove(Item_sum::Sumfunctype sum_func)
     case Item_sum::NTILE_FUNC:
     case Item_sum::FIRST_VALUE_FUNC:
     case Item_sum::LAST_VALUE_FUNC:
+    case Item_sum::PERCENTILE_CONT_FUNC:
+    case Item_sum::PERCENTILE_DISC_FUNC:
       return false;
     default:
       return true;

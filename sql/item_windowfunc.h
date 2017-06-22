@@ -572,6 +572,9 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
   Item_sum_cume_dist(THD *thd) : Item_sum_window_with_row_count(thd),
                                  current_row_count_(0) {}
 
+  Item_sum_cume_dist(THD *thd, Item *arg) : Item_sum_window_with_row_count(thd,arg),
+                                 current_row_count_(0) {}
+
   double val_real()
   {
     if (get_row_count() == 0)
@@ -617,6 +620,11 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
   
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_cume_dist>(thd, mem_root, this); }
+
+  ulonglong get_row_number()
+  {
+    return current_row_count_;
+  }
 
  private:
   ulonglong current_row_count_;
@@ -693,6 +701,61 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
   ulong current_row_count_;
 };
 
+class Item_sum_percentile_disc : public Item_sum_cume_dist
+{
+public:
+  Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg)
+                                 {}
+
+  double val_real()
+  {
+    if (get_row_count() == 0 || get_arg(0)->is_null())
+    {
+      null_value= true;
+      return 0;
+    }
+    null_value= false;
+    return 0;
+  }
+
+  bool add()
+  {
+    Item *arg = get_arg(0);
+    if (arg->is_null())
+      return true;
+    /*implementation to be done*/
+    return false;
+  }
+
+  enum Sumfunctype sum_func() const
+  {
+    return PERCENTILE_DISC_FUNC;
+  }
+
+  void clear()
+  {
+    //need to implement
+  }
+
+  const char*func_name() const
+  {
+    return "percentile_disc";
+  }
+
+  void update_field() {}
+  const Type_handler *type_handler() const { return &type_handler_double; }
+
+  void fix_length_and_dec()
+  {
+    decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
+                    // requires.
+  }
+
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_percentile_disc>(thd, mem_root, this); }
+
+};
+
 
 class Item_window_func : public Item_func_or_sum
 {
@@ -747,6 +810,8 @@ public:
     case Item_sum::PERCENT_RANK_FUNC:
     case Item_sum::CUME_DIST_FUNC:
     case Item_sum::NTILE_FUNC:
+    case Item_sum::PERCENTILE_CONT_FUNC:
+    case Item_sum::PERCENTILE_DISC_FUNC:
       return true;
     default: 
       return false;
@@ -773,6 +838,8 @@ public:
     case Item_sum::PERCENT_RANK_FUNC:
     case Item_sum::CUME_DIST_FUNC:
     case Item_sum::NTILE_FUNC:
+    case Item_sum::PERCENTILE_CONT_FUNC:
+    case Item_sum::PERCENTILE_DISC_FUNC:
       return true;
     default:
       return false;
@@ -796,6 +863,8 @@ public:
     case Item_sum::DENSE_RANK_FUNC:
     case Item_sum::PERCENT_RANK_FUNC:
     case Item_sum::CUME_DIST_FUNC:
+    case Item_sum::PERCENTILE_CONT_FUNC:
+    case Item_sum::PERCENTILE_DISC_FUNC:
       return true;
     default: 
       return false;

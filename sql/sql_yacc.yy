@@ -1737,6 +1737,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         window_func
         simple_window_func
         inverse_distribution_function
+        inverse_distribution_function_def
         function_call_keyword
         function_call_nonkeyword
         function_call_generic
@@ -10697,23 +10698,43 @@ simple_window_func:
           }
         ;
 
-
 inverse_distribution_function:
-        inverse_distribution_function_type '(' expr ')' WITHIN GROUP_SYM
-        '(' order_by_single_element_list ')' OVER_SYM '(' opt_window_ref opt_window_partition_clause ')'
-        {
-           my_yyabort_error((ER_VIEW_SELECT_VARIABLE, MYF(0)));
-        };
+        inverse_distribution_function_def WITHIN GROUP_SYM
+        '('
+         { Select->prepare_add_window_spec(thd); }
+         order_by_single_element_list ')' OVER_SYM
+        '(' opt_window_ref opt_window_partition_clause ')'
+         {
+           LEX *lex= Lex;
+           if (Select->add_window_spec(thd, lex->win_ref,
+                                      Select->group_list,
+                                      Select->order_list,
+                                      NULL))
+             MYSQL_YYABORT;
+           $$= new (thd->mem_root) Item_window_func(thd, (Item_sum *) $1,
+                                                    thd->lex->win_spec);
+           if ($$ == NULL)
+             MYSQL_YYABORT;
+           if (Select->add_window_func((Item_window_func *) $$))
+             MYSQL_YYABORT;
+         }
+        ;
 
-inverse_distribution_function_type:
-     PERCENTILE_CONT_SYM
-      {}
-    |PERCENTILE_DISC_SYM
-    {}
-    ;
+inverse_distribution_function_def:
+         PERCENTILE_CONT_SYM '(' expr ')'
+       {
+         //Not yet started implementing
+       }
+       | PERCENTILE_DISC_SYM '(' expr ')'
+       {
+          $$= new (thd->mem_root) Item_sum_percentile_disc(thd, $3);
+          if ($$ == NULL)
+            MYSQL_YYABORT;
+       }
+      ;
 
 order_by_single_element_list:
-    ORDER_SYM BY order_ident order_dir
+    ORDER_SYM BY order_list
     ;
 
 window_name:
