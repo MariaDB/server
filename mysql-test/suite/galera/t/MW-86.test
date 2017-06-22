@@ -1,35 +1,21 @@
 --source include/galera_cluster.inc
---source include/galera_have_debug_sync.inc
 --source include/have_binlog_format_row.inc
-
---connection node_1
-CREATE DATABASE db1;
-CREATE TABLE bar (f1 INTEGER) ENGINE=InnoDB;
-
-# Control connection for manipulating sync points on node 2
---connect node_2a, 127.0.0.2, root, , test, $NODE_MYPORT_2
---let galera_sync_point = apply_monitor_slave_enter_sync
-SET SESSION wsrep_sync_wait = 0;
-
---source include/galera_set_sync_point.inc
 
 #
 # Test 1: SHOW commands no longer obey wsrep_sync_wait = 1
 #
 
+--connection node_2
+SET SESSION wsrep_sync_wait = 1;
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
 --disable_result_log
 
 --connection node_1
+CREATE DATABASE db1;
+CREATE TABLE bar (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO bar VALUES (1);
 
---connection node_2a
---source include/galera_wait_sync_point.inc
-
 --connection node_2
-SET SESSION wsrep_sync_wait = 1;
-
-SET GLOBAL debug = "+d,mw86_ok_to_continue";
-
 SHOW BINARY LOGS;
 
 SHOW BINLOG EVENTS;
@@ -94,13 +80,12 @@ SHOW GLOBAL VARIABLES LIKE 'foo_bar';
 --error 0
 SHOW WARNINGS;
 
---connection node_2a
---source include/galera_clear_sync_point.inc
---source include/galera_signal_sync_point.inc
+SET GLOBAL DEBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 
---connection node_2
 SET SESSION wsrep_sync_wait = 8;
 DROP DATABASE db1;
+
 
 #
 # Test 2: SHOW commands now obey wsrep_sync_wait = 8
@@ -110,17 +95,13 @@ DROP DATABASE db1;
 --let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
 SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT0.1S";
 SET SESSION wsrep_sync_wait = 8;
-
---connection node_2a
---source include/galera_set_sync_point.inc
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
 
 --connection node_1
 CREATE TABLE q (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO q VALUES (1);
 
 --connection node_2
-SET GLOBAL debug = "-d,mw86_ok_to_continue";
-
 --error ER_LOCK_WAIT_TIMEOUT
 SHOW BINARY LOGS;
 
@@ -199,16 +180,11 @@ SHOW GLOBAL VARIABLES LIKE 'foo_bar';
 --error 0
 SHOW WARNINGS;
 
-SET GLOBAL debug = "+d,mw86_ok_to_continue";
-
---connection node_2a
---source include/galera_clear_sync_point.inc
---source include/galera_signal_sync_point.inc
+SET GLOBAL DEBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 
 --disable_query_log
 --eval SET GLOBAL wsrep_provider_options = "$wsrep_provider_options_orig"
 
 SET SESSION wsrep_sync_wait = 15;
 DROP TABLE q, bar;
-
-SET GLOBAL debug = "-d,mw86_ok_to_continue";
