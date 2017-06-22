@@ -454,20 +454,14 @@ static int wsrep_apply_trx(THD*                    orig_thd,
      has ben done
   */
   // Allow tests to block the applier thread using the DBUG facilities
-  bool wsrep_apply_cb_is_set = false;
-  DBUG_EXECUTE_IF("sync.wsrep_apply_cb", {
-    wsrep_apply_cb_is_set = true;
-    const char act[] = "now wait_for signal.wsrep_apply_cb";
-    DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
-  };);
-
-  bool mw86_ok_to_continue = false;
-  DBUG_EXECUTE_IF("mw86_ok_to_continue", mw86_ok_to_continue = true;);
-  if (!mw86_ok_to_continue) {
-    DBUG_ASSERT(wsrep_apply_cb_is_set);
-    DBUG_ASSERT(!wsrep_apply_cb_is_set);
-    abort();
-  }
+  DBUG_EXECUTE_IF("sync.wsrep_apply_cb",
+                 {
+                   const char act[]=
+                     "now "
+                     "wait_for signal.wsrep_apply_cb";
+                   DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                      STRING_WITH_LEN(act)));
+                 };);
 
   /* tune FK and UK checking policy */
   if (wsrep_slave_UK_checks == FALSE)
