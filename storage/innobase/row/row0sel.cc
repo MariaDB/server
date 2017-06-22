@@ -244,10 +244,10 @@ row_sel_sec_rec_is_for_clust_rec(
 			clust_pos = dict_col_get_clust_pos(col, clust_index);
 
 			clust_field = rec_get_nth_field(
-				clust_rec, clust_offs, clust_pos, &clust_len);
+				clust_rec, clust_offs, clust_pos, clust_index, heap, &clust_len);
 		}
 
-		sec_field = rec_get_nth_field(sec_rec, sec_offs, i, &sec_len);
+		sec_field = rec_get_nth_field_inside(sec_rec, sec_offs, i, &sec_len);
 
 		len = clust_len;
 
@@ -534,10 +534,14 @@ row_sel_fetch_columns(
 
 				needs_copy = TRUE;
 			} else {
-				data = rec_get_nth_field(rec, offsets,
-							 field_no, &len);
 
-				needs_copy = column->copy_val;
+				data = rec_get_nth_field(rec, offsets,
+							 field_no, index, heap, &len);
+				if (rec_offs_nth_default(offsets, field_no)) {
+					needs_copy = TRUE;
+				} else {
+					needs_copy = column->copy_val;
+				}
 			}
 
 			if (needs_copy) {
@@ -2753,7 +2757,7 @@ row_sel_store_row_id_to_prebuilt(
 
 	ut_ad(rec_offs_validate(index_rec, index, offsets));
 
-	data = rec_get_nth_field(
+	data = rec_get_nth_field_inside(
 		index_rec, offsets,
 		dict_index_get_sys_col_pos(index, DATA_ROW_ID), &len);
 
@@ -3067,7 +3071,24 @@ row_sel_store_mysql_field_func(
 	} else {
 		/* Field is stored in the row. */
 
-		data = rec_get_nth_field(rec, offsets, field_no, &len);
+		if (rec_offs_nth_default(offsets, field_no)) {
+			/* There is default value of added column only in 
+				cluster index */
+			const dict_index_t* clust_index = 
+				dict_table_get_first_index(prebuilt->index->table); 
+
+			/* Reuse the blob_heap for instant added columns */
+			if (prebuilt->blob_heap == NULL) {
+				prebuilt->blob_heap = mem_heap_create(
+					UNIV_PAGE_SIZE);
+			}
+
+			data = rec_get_nth_field(rec, offsets, field_no, clust_index, 
+						prebuilt->blob_heap, &len);
+
+		} else {
+			data = rec_get_nth_field_inside(rec, offsets, field_no, &len);
+		}
 
 		if (len == UNIV_SQL_NULL) {
 			/* MySQL assumes that the field for an SQL
@@ -4049,6 +4070,7 @@ row_sel_fill_vrow(
 	rec_offs_init(offsets_);
 
 	ut_ad(!(*vrow));
+	ut_ad(heap);
 
 	offsets = rec_get_offsets(rec, index, offsets,
 				  ULINT_UNDEFINED, &heap);
@@ -4061,18 +4083,18 @@ row_sel_fill_vrow(
 
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
 		const dict_field_t*     field;
-                const dict_col_t*       col;
+		const dict_col_t*       col;
 
 		field = dict_index_get_nth_field(index, i);
 		col = dict_field_get_col(field);
 
 		if (dict_col_is_virtual(col)) {
 			const byte*     data;
-		        ulint           len;
+			ulint           len;
 
-			data = rec_get_nth_field(rec, offsets, i, &len);
+			data = rec_get_nth_field(rec, offsets, i, index, heap, &len);
 
-                        const dict_v_col_t*     vcol = reinterpret_cast<
+			const dict_v_col_t*     vcol = reinterpret_cast<
 				const dict_v_col_t*>(col);
 
 			dfield_t* dfield = dtuple_get_nth_v_field(
@@ -5953,7 +5975,7 @@ row_search_autoinc_read_column(
 		goto func_exit;
 	}
 
-	data = rec_get_nth_field(rec, offsets, col_no, &len);
+	data = rec_get_nth_field_inside(rec, offsets, col_no, &len);
 
 	value = row_parse_int(data, len, mtype, unsigned_type);
 

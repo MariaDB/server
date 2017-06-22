@@ -1728,7 +1728,7 @@ fts_create_in_mem_aux_table(
 	ulint			n_cols)
 {
 	dict_table_t*	new_table = dict_mem_table_create(
-		aux_table_name, table->space, n_cols, 0, table->flags,
+		aux_table_name, table->space, n_cols, 0, 0, table->flags,
 		table->space == TRX_SYS_SPACE
 		? 0 : table->space == SRV_TMP_SPACE_ID
 		? DICT_TF2_TEMPORARY : DICT_TF2_USE_FILE_PER_TABLE);
@@ -3325,8 +3325,11 @@ fts_fetch_doc_from_rec(
 					static_cast<mem_heap_t*>(
 						doc->self_heap->arg));
 		} else {
+			ut_ad(rec_offs_validate(clust_rec, clust_index, offsets));
+
 			doc->text.f_str = (byte*) rec_get_nth_field(
-				clust_rec, offsets, clust_pos,
+				clust_rec, offsets, clust_pos, clust_index,
+				static_cast<mem_heap_t*>(doc->self_heap->arg),
 				&doc->text.f_len);
 		}
 
@@ -3635,7 +3638,7 @@ fts_get_max_doc_id(
 		offsets = rec_get_offsets(
 			rec, index, offsets, ULINT_UNDEFINED, &heap);
 
-		data = rec_get_nth_field(rec, offsets, 0, &len);
+		data = rec_get_nth_field_inside(rec, offsets, 0, &len);
 
 		doc_id = static_cast<doc_id_t>(fts_read_doc_id(
 			static_cast<const byte*>(data)));
@@ -5127,7 +5130,7 @@ fts_get_doc_id_from_rec(
 
 	ut_ad(col_no != ULINT_UNDEFINED);
 
-	data = rec_get_nth_field(rec, offsets, col_no, &len);
+	data = rec_get_nth_field_inside(rec, offsets, col_no, &len);
 
 	ut_a(len == 8);
 	ut_ad(8 == sizeof(doc_id));

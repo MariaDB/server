@@ -643,7 +643,7 @@ btr_search_update_hash_ref(
 				rec_get_offsets(rec, index, offsets_,
 						ULINT_UNDEFINED, &heap),
 				block->curr_n_fields,
-				block->curr_n_bytes, index->id);
+				block->curr_n_bytes, index);
 		if (UNIV_LIKELY_NULL(heap)) {
 			mem_heap_free(heap);
 		}
@@ -1232,7 +1232,7 @@ retry:
 			rec, index, offsets,
 			btr_search_get_n_fields(n_fields, n_bytes),
 			&heap);
-		fold = rec_fold(rec, offsets, n_fields, n_bytes, index_id);
+		fold = rec_fold(rec, offsets, n_fields, n_bytes, index);
 
 		if (fold == prev_fold && prev_fold != 0) {
 
@@ -1451,7 +1451,7 @@ btr_search_build_page_hash_index(
 	ut_ad(page_rec_is_supremum(rec)
 	      || n_fields + (n_bytes > 0) == rec_offs_n_fields(offsets));
 
-	fold = rec_fold(rec, offsets, n_fields, n_bytes, index->id);
+	fold = rec_fold(rec, offsets, n_fields, n_bytes, index);
 
 	if (left_side) {
 
@@ -1479,7 +1479,7 @@ btr_search_build_page_hash_index(
 			next_rec, index, offsets,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
 		next_fold = rec_fold(next_rec, offsets, n_fields,
-				     n_bytes, index->id);
+				     n_bytes, index);
 
 		if (fold != next_fold) {
 			/* Insert an entry into the hash index */
@@ -1660,7 +1660,7 @@ btr_search_update_hash_on_delete(btr_cur_t* cursor)
 
 	fold = rec_fold(rec, rec_get_offsets(rec, index, offsets_,
 					     ULINT_UNDEFINED, &heap),
-			block->curr_n_fields, block->curr_n_bytes, index->id);
+			block->curr_n_fields, block->curr_n_bytes, index);
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
@@ -1818,21 +1818,21 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor)
 
 	offsets = rec_get_offsets(ins_rec, index, offsets,
 				  ULINT_UNDEFINED, &heap);
-	ins_fold = rec_fold(ins_rec, offsets, n_fields, n_bytes, index->id);
+	ins_fold = rec_fold(ins_rec, offsets, n_fields, n_bytes, index);
 
 	if (!page_rec_is_supremum(next_rec)) {
 		offsets = rec_get_offsets(
 			next_rec, index, offsets,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
 		next_fold = rec_fold(next_rec, offsets, n_fields,
-				     n_bytes, index->id);
+				     n_bytes, index);
 	}
 
 	if (!page_rec_is_infimum(rec)) {
 		offsets = rec_get_offsets(
 			rec, index, offsets,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
-		fold = rec_fold(rec, offsets, n_fields, n_bytes, index->id);
+		fold = rec_fold(rec, offsets, n_fields, n_bytes, index);
 	} else {
 		if (left_side) {
 
@@ -2038,7 +2038,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 				node->data, offsets,
 				block->curr_n_fields,
 				block->curr_n_bytes,
-				page_index_id);
+				block->index);
 
 			if (node->fold != fold) {
 				const page_t*	page = block->frame;

@@ -133,15 +133,37 @@ row_undo_mod_clust_low(
 	} else {
 		big_rec_t*	dummy_big_rec;
 
-		err = btr_cur_pessimistic_update(
-			BTR_NO_LOCKING_FLAG
+		ulint           upd_flag;
+		dict_index_t*   index = btr_cur->index;
+
+		upd_flag = BTR_NO_LOCKING_FLAG
 			| BTR_NO_UNDO_LOG_FLAG
-			| BTR_KEEP_SYS_FLAG,
+			| BTR_KEEP_SYS_FLAG;
+
+		/* For instant table, undo update maybe create new big_rec.
+			 Because the default value maybe didn't store in the row before.
+			 After rollback, the default value should store in row(always newest form), 
+			 it maybe create new external columns.
+		*/
+		if (dict_index_is_clust_instant(index)) {
+			upd_flag |= BTR_KEEP_POS_FLAG;
+		}
+
+		err = btr_cur_pessimistic_update(
+			upd_flag,
 			btr_cur, offsets, offsets_heap, heap,
 			&dummy_big_rec, node->update,
 			node->cmpl_info, thr, thr_get_trx(thr)->id, mtr);
 
-		ut_a(!dummy_big_rec);
+		if (dummy_big_rec) {
+			ut_a(err == DB_SUCCESS);
+			ut_ad(dict_index_is_clust_instant(index));
+
+			err = btr_store_big_rec_extern_fields(pcur, node->update, *offsets, 
+											dummy_big_rec, mtr, BTR_STORE_UPDATE);
+			
+			dtuple_big_rec_free(dummy_big_rec);
+		}
 	}
 
 	return(err);

@@ -2610,6 +2610,17 @@ dict_index_add_to_cache_w_vcol(
 	rw_lock_create(index_tree_rw_lock_key, &new_index->lock,
 		       SYNC_INDEX_TREE);
 
+	if (dict_index_is_clust_instant(new_index)) {
+		ut_a(new_index->table->n_cols - new_index->table->n_core_cols >= 0);
+
+		new_index->n_core_fields = new_index->n_fields - 
+						(new_index->table->n_cols - new_index->table->n_core_cols);
+		new_index->n_core_nullable = dict_index_get_first_n_field_n_nullable(new_index, new_index->n_core_fields);
+	} else {
+		new_index->n_core_nullable = new_index->n_nullable;
+		new_index->n_core_fields = new_index->n_fields;
+	} 
+
 	dict_sys->size += mem_heap_get_size(new_index->heap);
 
 	dict_mem_index_free(index);
@@ -6321,7 +6332,7 @@ dict_ind_init()
 	dict_table_t*		table;
 
 	/* create dummy table and index for REDUNDANT infimum and supremum */
-	table = dict_mem_table_create("SYS_DUMMY1", DICT_HDR_SPACE, 1, 0, 0, 0);
+	table = dict_mem_table_create("SYS_DUMMY1", DICT_HDR_SPACE, 1, 0, 0, 0, 0);
 	dict_mem_table_add_col(table, NULL, NULL, DATA_CHAR,
 			       DATA_ENGLISH | DATA_NOT_NULL, 8);
 

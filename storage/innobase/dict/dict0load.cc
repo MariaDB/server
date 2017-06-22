@@ -60,7 +60,8 @@ static const char* SYSTEM_TABLE_NAME[] = {
 	"SYS_FOREIGN_COLS",
 	"SYS_TABLESPACES",
 	"SYS_DATAFILES",
-	"SYS_VIRTUAL"
+	"SYS_VIRTUAL",
+	"SYS_COLUMNS_ADDED"
 };
 
 /** Loads a table definition and also all its index definitions.
@@ -163,6 +164,21 @@ dict_load_virtual_low(
 	ulint*		pos,
 	ulint*		base_pos,
 	const rec_t*	rec);
+
+/** Load a table added column definition from a SYS_COLUMNS_ADDED record to dict_table_t.
+@return	error message
+@retval	NULL on success */
+static
+const char*
+dict_load_column_added_low(
+	dict_table_t*	table,		/*!< in/out: table, could be NULL */
+	mem_heap_t*		heap,		/*!< in/out: memory heap for temporary storage */
+	const rec_t*	rec,		/*!< in: SYS_COLUMNS_ADDED record */
+	dict_index_t*	sys_index,
+	table_id_t*		table_id_out,
+	ulint*			pos_out,
+	char**			def_val_out,
+	ulint*			def_val_len_out);
 
 /** Load an index field definition from a SYS_FIELDS record to dict_index_t.
 @return	error message
@@ -507,6 +523,35 @@ dict_process_sys_virtual_rec(
 
 	return(err_msg);
 }
+
+/** This function parses a SYS_COLUMNS_ADDED record and extracts added column
+information
+@param[in,out]	heap		heap memory
+@param[in]	rec		current SYS_COLUMNS_ADDED rec
+@param[in]	index	cluster index of SYS_COLUMNS_ADDED 
+@param[in,out]	table_id	table id
+@param[in,out]	pos				column position
+@param[in,out]	def_val		default value of column	
+@return error message, or NULL on success */
+const char*
+dict_process_sys_columns_added_rec(
+	mem_heap_t*	heap,
+	const rec_t*	rec,
+	dict_index_t*	index,
+	table_id_t*	table_id,
+	ulint*			pos,
+	char**			def_val,
+	ulint*			def_val_len)
+{
+	const char*	err_msg;
+
+	/* Parse the record, and get "dict_col_def_t" struct filled */
+	err_msg = dict_load_column_added_low(NULL, heap, rec, index, 
+					table_id, pos, def_val, def_val_len);
+
+	return(err_msg);
+}
+
 
 /********************************************************************//**
 This function parses a SYS_FIELDS record and populates a dict_field_t
@@ -1208,6 +1253,7 @@ dict_sys_tables_rec_read(
 	table_id_t*		table_id,
 	ulint*			space_id,
 	ulint*			n_cols,
+	ulint*			n_cols_core,
 	ulint*			flags,
 	ulint*			flags2)
 {
@@ -1327,6 +1373,7 @@ dict_sys_tables_rec_read(
 
 	*flags = dict_sys_tables_type_to_tf(type, not_redundant);
 
+
 	/* For tables created before MySQL 4.1, there may be
 	garbage in SYS_TABLES.MIX_LEN where flags2 are found. Such tables
 	would always be in ROW_FORMAT=REDUNDANT which do not have the
@@ -1338,13 +1385,14 @@ dict_sys_tables_rec_read(
 		/* Get flags2 from SYS_TABLES.MIX_LEN */
 		field = rec_get_nth_field_old(
 			rec, DICT_FLD__SYS_TABLES__MIX_LEN, &len);
-		*flags2 = mach_read_from_4(field);
+		ulint mix_len = mach_read_from_4(field);
+		dict_table_decode_mix_len(mix_len, flags2, n_cols_core);
 
 		if (!dict_tf2_is_valid(*flags, *flags2)) {
 			ib::error() << "Table " << table_name << " in InnoDB"
 				" data dictionary contains invalid flags."
 				" SYS_TABLES.TYPE=" << type
-				<< " SYS_TABLES.MIX_LEN=" << *flags2;
+				<< " SYS_TABLES.MIX_LEN=" << mix_len;
 			return(false);
 		}
 
@@ -1355,8 +1403,10 @@ dict_sys_tables_rec_read(
 		*n_cols &= ~DICT_N_COLS_COMPACT;
 	} else {
 		*flags2 = 0;
+		*n_cols_core = 0;
 	}
 
+	ut_ad(*n_cols_core <= *n_cols);
 	return(true);
 }
 
@@ -1402,6 +1452,7 @@ dict_check_sys_tables(
 		table_id_t	table_id;
 		ulint		space_id;
 		ulint		n_cols;
+		ulint		n_cols_core;
 		ulint		flags;
 		ulint		flags2;
 
@@ -1419,9 +1470,10 @@ dict_check_sys_tables(
 			   ("name: %p, '%s'", table_name.m_name,
 			    table_name.m_name));
 
+
 		if (!dict_sys_tables_rec_read(rec, table_name,
 					      &table_id, &space_id,
-					      &n_cols, &flags, &flags2)
+					      &n_cols, &n_cols_core, &flags, &flags2)
 		    || space_id == TRX_SYS_SPACE) {
 			ut_free(table_name.m_name);
 			continue;
@@ -1798,6 +1850,208 @@ err_len:
 	}
 
 	return(NULL);
+}
+
+/** Error message for a delete-marked record in dict_load_column_added_low() */
+static const char* dict_load_column_added_del = "delete-marked record in SYS_COLUMNS_ADDED";
+
+/** Load a table added column definition from a SYS_COLUMNS_ADDED record to dict_table_t.
+@return	error message
+@retval	NULL on success */
+static
+const char*
+dict_load_column_added_low(
+	dict_table_t*	table,		/*!< in/out: table, could be NULL */
+	mem_heap_t*		heap,		/*!< in/out: memory heap for temporary storage */
+	const rec_t*	rec,		/*!< in: SYS_COLUMNS_ADDED record */
+	dict_index_t*   sys_index,
+	table_id_t*		table_id_out,
+	ulint*			pos_out,
+	char**			def_val_out,
+	ulint*			def_val_len_out)
+{
+	const byte*		field;
+	const byte*		def_val = NULL;
+	ulint			def_val_len = 0;
+	table_id_t		table_id;
+	ulint			len;
+	ulint			pos;
+
+	if (rec_get_deleted_flag(rec, 0)) {
+		return(dict_load_column_added_del);
+	}
+
+	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_COLUMNS_ADDED) {
+		return("wrong number of columns in SYS_COLUMNS_ADDED record");
+	}
+
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_COLUMNS_ADDED__TABLE_ID, &len);
+	if (len != 8) {
+err_len:
+		return("incorrect column length in SYS_COLUMNS_ADDED");
+	}
+
+	table_id = mach_read_from_8(field);
+	if (table && table->id != mach_read_from_8(field)) {
+		return("SYS_COLUMNS_ADDED.TABLE_ID mismatch");
+	}
+
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_COLUMNS_ADDED__POS, &len);
+	if (len != 4) {
+		goto err_len;
+	}
+
+	pos = mach_read_from_4(field);
+
+	rec_get_nth_field_offs_old(
+		rec, DICT_FLD__SYS_COLUMNS_ADDED__DB_TRX_ID, &len);
+	if (len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL) {
+		goto err_len;
+	}
+	rec_get_nth_field_offs_old(
+		rec, DICT_FLD__SYS_COLUMNS_ADDED__DB_ROLL_PTR, &len);
+	if (len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL) {
+		goto err_len;
+	}
+
+	if (UNIV_UNLIKELY(rec_offs_nth_extern_old(rec, 
+		DICT_FLD__SYS_COLUMNS_ADDED__DEFAULT_VALUE))) {
+		ulint       offsets_[REC_OFFS_NORMAL_SIZE];
+		ulint *     offsets = offsets_;
+
+		ut_a(rec);
+		rec_offs_init(offsets_);
+
+		offsets = rec_get_offsets(rec,sys_index,offsets,ULINT_UNDEFINED,&heap);
+
+		def_val = btr_rec_copy_externally_stored_field(
+				rec, offsets, 
+				dict_table_page_size(table),
+				DICT_FLD__SYS_COLUMNS_ADDED__DEFAULT_VALUE, &def_val_len, heap);
+		ut_ad(def_val_len);
+		ut_a(def_val);
+
+	} else {
+		field = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_COLUMNS_ADDED__DEFAULT_VALUE, &len);
+
+		if (len == UNIV_SQL_NULL) {
+			def_val = NULL;
+			def_val_len = UNIV_SQL_NULL;
+		} else {
+			def_val = field;
+			def_val_len = len;
+		}
+	}
+
+	if (table) {
+		dict_col_t* col = dict_table_get_nth_col(table, pos);
+
+		dict_col_set_added_column_default(col, def_val, def_val_len, table->heap);
+	}
+	
+	*table_id_out = table_id;
+	*pos_out = pos;
+	if(def_val_out && def_val_len_out) {
+		*def_val_out = def_val ? 
+							(char*)mem_heap_strdupl(heap, (char*)def_val, def_val_len) : 
+							(char*)def_val;
+		*def_val_len_out = def_val_len;
+	}
+	return(NULL);
+}
+
+static
+void
+dict_load_columns_added (
+	dict_table_t*	table,
+	mem_heap_t*		heap )
+{
+	dict_table_t*	sys_columns_added;
+	dict_index_t*	sys_index;
+	btr_pcur_t	pcur;
+	dtuple_t*	tuple;
+	dfield_t*	dfield;
+	const rec_t*	rec;
+	byte*		buf;
+	ulint		i;
+	mtr_t		mtr;
+
+	if (!dict_table_is_instant(table))
+		return;
+
+	ut_ad(mutex_own(&dict_sys->mutex));
+	mtr_start(&mtr);
+
+	sys_columns_added = dict_table_get_low("SYS_COLUMNS_ADDED");
+	sys_index = UT_LIST_GET_FIRST(sys_columns_added->indexes);
+	ut_ad(!dict_table_is_comp(sys_columns_added));
+
+	ut_ad(name_of_col_is(sys_columns_added, sys_index,
+			     DICT_FLD__SYS_COLUMNS_ADDED__TABLE_ID, "TABLE_ID"));
+	ut_ad(name_of_col_is(sys_columns_added, sys_index,
+			     DICT_FLD__SYS_COLUMNS_ADDED__POS, "POS"));
+
+	tuple = dtuple_create(heap, 2);
+
+	/* TABLE_ID */
+	dfield = dtuple_get_nth_field(tuple, 0);
+	buf = static_cast<byte*>(mem_heap_alloc(heap, 8));
+	mach_write_to_8(buf, table->id);
+	dfield_set_data(dfield, buf, 8);
+
+	ulint first_added_pos = table->n_core_cols - dict_table_get_n_sys_cols(table);
+	ulint last_added_pos = table->n_cols - dict_table_get_n_sys_cols(table);
+
+	/* POS */
+	dfield = dtuple_get_nth_field(tuple, 1);
+	buf = static_cast<byte*>(mem_heap_alloc(heap, 4));
+	// first instant add columns
+	mach_write_to_4(buf, first_added_pos);  
+	dfield_set_data(dfield, buf, 4);
+
+	dict_index_copy_types(tuple, sys_index, 2);
+
+	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
+				  BTR_SEARCH_LEAF, &pcur, &mtr);
+
+	for (i = first_added_pos; 
+				i < last_added_pos; )
+	{
+		const char*	err_msg;
+		table_id_t	table_id;
+		ulint				pos;
+
+		ut_a(btr_pcur_is_on_user_rec(&pcur));
+		rec = btr_pcur_get_rec(&pcur);
+
+		err_msg = dict_load_column_added_low(table, heap, rec, sys_index, &table_id, &pos, NULL, NULL);
+
+		if (!err_msg) {
+			if (table_id != table->id) {
+				err_msg = "SYS_COLUMNS_ADDED.TABLE_ID mismatch";
+			} else if (pos != i){
+				err_msg = "SYS_COLUMNS_ADDED.POS mismatch";
+			}
+		}
+
+		if (err_msg == dict_load_column_added_del) {
+			goto next_rec;
+		} else if (err_msg) {
+			ib::fatal() << err_msg;
+		} 
+
+		i++;
+
+next_rec:
+		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
+	}
+
+	btr_pcur_close(&pcur);
+	mtr_commit(&mtr);
+
 }
 
 /********************************************************************//**
@@ -2668,6 +2922,7 @@ dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 	table_id_t	table_id;
 	ulint		space_id;
 	ulint		n_cols;
+	ulint		n_cols_core;
 	ulint		t_num;
 	ulint		flags;
 	ulint		flags2;
@@ -2677,15 +2932,16 @@ dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 		return(error_text);
 	}
 
+
 	if (!dict_sys_tables_rec_read(rec, name, &table_id, &space_id,
-				      &t_num, &flags, &flags2)) {
+				      &t_num, &n_cols_core, &flags, &flags2)) {
 		return(dict_load_table_flags);
 	}
 
 	dict_table_decode_n_col(t_num, &n_cols, &n_v_col);
 
 	*table = dict_mem_table_create(
-		name.m_name, space_id, n_cols + n_v_col, n_v_col, flags, flags2);
+		name.m_name, space_id, n_cols + n_v_col, n_cols_core, n_v_col, flags, flags2);
 	(*table)->id = table_id;
 	(*table)->file_unreadable = false;
 
@@ -3004,6 +3260,8 @@ err_exit:
 	dict_load_columns(table, heap);
 
 	dict_load_virtual(table, heap);
+
+	dict_load_columns_added(table, heap);
 
 	if (cached) {
 		dict_table_add_to_cache(table, TRUE, heap);

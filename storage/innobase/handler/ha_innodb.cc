@@ -11406,7 +11406,7 @@ create_table_info_t::create_table_def()
 	}
 
 	table = dict_mem_table_create(m_table_name, space_id,
-				      actual_n_cols, num_v, m_flags, m_flags2);
+				      actual_n_cols, 0, num_v, m_flags, m_flags2);
 
 	/* Set the hidden doc_id column. */
 	if (m_flags2 & DICT_TF2_FTS) {
@@ -17787,6 +17787,18 @@ ha_innobase::check_if_incompatible_data(
 	return(COMPATIBLE_DATA_YES);
 }
 
+bool ha_innobase::check_instant_alter(const Alter_inplace_info* inplace_info)
+{
+	if (inplace_info->handler_flags == Alter_inplace_info::ADD_STORED_BASE_COLUMN 
+		|| inplace_info->handler_flags == Alter_inplace_info::ADD_INSTANT_COLUMN) {
+			dict_table_t* table = this->m_prebuilt->table;
+			if (table && dict_table_is_comp(table) && !DICT_TF_GET_ZIP_SSIZE(table->flags)) {
+				return true;
+			}
+	}
+	return false;
+}
+
 /****************************************************************//**
 Update the system variable innodb_io_capacity_max using the "saved"
 value. This function is registered as a callback with MySQL. */
@@ -21348,6 +21360,7 @@ i_s_innodb_sys_foreign_cols,
 i_s_innodb_sys_tablespaces,
 i_s_innodb_sys_datafiles,
 i_s_innodb_sys_virtual,
+i_s_innodb_sys_columns_added,
 i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption,

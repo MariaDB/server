@@ -99,6 +99,9 @@ dict_mem_table_create(
 				the table is placed */
 	ulint		n_cols,	/*!< in: total number of columns including
 				virtual and non-virtual columns */
+	ulint		n_cols_core, /*!< in: total number of columns before 
+				first time instant add column. 
+				If zero, means non-instant */
 	ulint		n_v_cols,/*!< in: number of virtual columns */
 	ulint		flags,	/*!< in: table flags */
 	ulint		flags2)	/*!< in: table flags2 */
@@ -132,11 +135,15 @@ dict_mem_table_create(
 			dict_table_get_n_sys_cols(table));
 	table->n_v_cols = (unsigned int) (n_v_cols);
 	table->n_cols = table->n_t_cols - table->n_v_cols;
+	ut_ad(n_cols_core <= n_cols);
+	table->n_core_cols = n_cols_core ? 
+			(n_cols_core + dict_table_get_n_sys_cols(table)) : 
+			table->n_cols;
 
 	table->cols = static_cast<dict_col_t*>(
-		mem_heap_alloc(heap, table->n_cols * sizeof(dict_col_t)));
+		mem_heap_zalloc(heap, table->n_cols * sizeof(dict_col_t)));
 	table->v_cols = static_cast<dict_v_col_t*>(
-		mem_heap_alloc(heap, n_v_cols * sizeof(*table->v_cols)));
+		mem_heap_zalloc(heap, n_v_cols * sizeof(*table->v_cols)));
 
 	/* true means that the stats latch will be enabled -
 	dict_table_stats_lock() will not be noop. */
@@ -258,6 +265,35 @@ dict_add_col_name(
 	memcpy(res + old_len, name, new_len);
 
 	return(res);
+}
+
+/* fake col default for recovery */
+UNIV_INTERN
+void
+dict_mem_table_fake_col_default(
+	dict_table_t*           table, /*!< in: table */
+	dict_col_t*             col,	/*!< in: col*/
+	mem_heap_t*             heap	/*!< in: mem_heap for default value */
+)
+{
+	ulint       fixed_size = 0;
+	ulint       def_val_len = 0;
+
+	ut_ad(dict_table_is_instant(table));
+
+	fixed_size = dict_col_get_fixed_size(col, dict_table_is_comp(table));
+
+	/* For non-fixed size columns, we fake one byte default value */
+	def_val_len = fixed_size ? fixed_size : 1;
+
+	col->def_val = (dict_col_def_t*)mem_heap_alloc(heap, sizeof(*col->def_val));
+	col->def_val->col = col;
+	col->def_val->def_val_len = def_val_len;
+	col->def_val->def_val = (unsigned char*)mem_heap_zalloc(heap, def_val_len + 1);
+
+	/* For string, we use space */
+	if(dtype_is_string_type(col->mtype)) 
+		memset(col->def_val->def_val, ' ', def_val_len);
 }
 
 /**********************************************************************//**

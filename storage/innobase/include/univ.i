@@ -521,6 +521,9 @@ computers! */
 
 #define UNIV_SQL_NULL ULINT32_UNDEFINED
 
+/** Flag for default value of instant added column */
+#define UNIV_SQL_DEFAULT (UNIV_SQL_NULL - 1)
+
 /** Lengths which are not UNIV_SQL_NULL, but bigger than the following
 number indicate that a field contains a reference to an externally
 stored part of the field in the tablespace. The length field then

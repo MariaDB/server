@@ -885,6 +885,8 @@ inline bool is_supported_parser_charset(CHARSET_INFO *cs)
   return MY_TEST(cs->mbminlen == 1);
 }
 
+sql_mode_t sql_mode_for_dates(THD *thd);
+
 #ifdef MYSQL_SERVER
 
 void free_tmp_table(THD *thd, TABLE *entry);
@@ -4498,12 +4500,6 @@ my_eof(THD *thd)
   (A)->variables.option_bits= tmp_disable_binlog__save_options;             \
   (A)->variables.sql_log_bin_off= 0;}
 
-
-inline sql_mode_t sql_mode_for_dates(THD *thd)
-{
-  return thd->variables.sql_mode &
-          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES);
-}
 
 /*
   Used to hold information about file and file structure in exchange

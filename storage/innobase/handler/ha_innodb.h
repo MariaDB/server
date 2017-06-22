@@ -312,6 +312,8 @@ public:
 		TABLE*			altered_table,
 		Alter_inplace_info*	ha_alter_info);
 
+	virtual bool check_instant_alter(const Alter_inplace_info* inplace_info);
+
 	/** Allows InnoDB to update internal structures with concurrent
 	writes blocked (provided that check_if_supported_inplace_alter()
 	did not return HA_ALTER_INPLACE_NO_LOCK).

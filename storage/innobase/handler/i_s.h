@@ -61,6 +61,7 @@ extern struct st_maria_plugin	i_s_innodb_sys_tablespaces;
 extern struct st_maria_plugin	i_s_innodb_sys_datafiles;
 extern struct st_maria_plugin	i_s_innodb_mutexes;
 extern struct st_maria_plugin	i_s_innodb_sys_virtual;
+extern struct st_maria_plugin	i_s_innodb_sys_columns_added;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_scrubbing;
 extern struct st_maria_plugin	i_s_innodb_sys_semaphore_waits;
@@ -152,5 +153,15 @@ field_store_string(
 	Field*		field,	/*!< in/out: target field for storage */
 	const char*	str);	/*!< in: NUL-terminated utf-8 string,
 				or NULL */
+
+/*******************************************************************//**
+Auxiliary function to store char* value in MYSQL_TYPE_BLOB field.
+@return 0 on success */
+int
+field_store_blob(
+/*===============*/
+	Field*		field,	/*!< in/out: target field for storage */
+	const char*	str,	/*!< in: blob string, or NULL */
+	ulint			str_len);/*!< in: length of blob string */
 
 #endif /* i_s_h */

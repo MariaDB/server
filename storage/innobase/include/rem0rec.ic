@@ -35,8 +35,10 @@ Created 5/30/1994 Heikki Tuuri
 #define REC_OFFS_SQL_NULL	((ulint) 1 << 31)
 /* External flag in offsets returned by rec_get_offsets() */
 #define REC_OFFS_EXTERNAL	((ulint) 1 << 30)
+/* Default value flag in offsets returned by rec_get_offsets() */
+#define REC_OFFS_DEFAULT	((ulint) 1 << 29)
 /* Mask for offsets returned by rec_get_offsets() */
-#define REC_OFFS_MASK		(REC_OFFS_EXTERNAL - 1)
+#define REC_OFFS_MASK		(REC_OFFS_DEFAULT - 1)
 
 /* Offsets of the bit-fields in an old-style record. NOTE! In the table the
 most significant bytes and bits are written below less significant.
@@ -596,7 +598,7 @@ bool
 rec_info_bits_valid(
 	ulint	bits)
 {
-	return(0 == (bits & ~(REC_INFO_DELETED_FLAG | REC_INFO_MIN_REC_FLAG)));
+	return(0 == (bits & ~(REC_INFO_DELETED_FLAG | REC_INFO_MIN_REC_FLAG | REC_INFO_ADDED_FLAG)));
 }
 #endif /* UNIV_DEBUG */
 
@@ -1071,7 +1073,7 @@ rec_get_nth_field_offs(
 	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		n,	/*!< in: index of the field */
 	ulint*		len)	/*!< out: length of the field; UNIV_SQL_NULL
-				if SQL null */
+				if SQL null; UNIV_SQL_DEFAULT is default value */
 {
 	ulint	offs;
 	ulint	length;
@@ -1088,7 +1090,9 @@ rec_get_nth_field_offs(
 
 	if (length & REC_OFFS_SQL_NULL) {
 		length = UNIV_SQL_NULL;
-	} else {
+	} else if ( length & REC_OFFS_DEFAULT) { 
+		length = UNIV_SQL_DEFAULT;
+	}else {
 		length &= REC_OFFS_MASK;
 		length -= offs;
 	}
@@ -1126,6 +1130,20 @@ rec_offs_any_extern(
 }
 
 /******************************************************//**
+Determine if the offsets are for a record containing
+default value for instant added columns.
+@return nonzero if externally stored */
+UNIV_INLINE
+ulint
+rec_offs_any_default(
+/*================*/
+	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+{
+	ut_ad(rec_offs_validate(NULL, NULL, offsets));
+	return(*rec_offs_base(offsets) & REC_OFFS_DEFAULT);
+}
+
+/******************************************************//**
 Determine if the offsets are for a record containing null BLOB pointers.
 @return first field containing a null BLOB pointer, or NULL if none found */
 UNIV_INLINE
@@ -1146,7 +1164,7 @@ rec_offs_any_null_extern(
 		if (rec_offs_nth_extern(offsets, i)) {
 			ulint		len;
 			const byte*	field
-				= rec_get_nth_field(rec, offsets, i, &len);
+				= rec_get_nth_field_inside(rec, offsets, i, &len);
 
 			ut_a(len >= BTR_EXTERN_FIELD_REF_SIZE);
 			if (!memcmp(field + len
@@ -1177,6 +1195,36 @@ rec_offs_nth_extern(
 }
 
 /******************************************************//**
+Returns nonzero if the extern bit is set in nth field of rec.
+@return nonzero if externally stored */
+UNIV_INLINE
+ulint
+rec_offs_nth_extern_old(
+/*================*/
+	const rec_t*	rec,	/*!< in: record */
+	ulint		    n	/*!< in: index of the field */)
+{
+	if(rec_get_1byte_offs_flag(rec))
+		return 0;
+	return (rec_2_get_field_end_info(rec,n) & REC_2BYTE_EXTERN_MASK);
+}
+
+/******************************************************//**
+Returns nonzero if the default bit is set in nth field of rec.
+@return	nonzero if default bit is set */
+UNIV_INLINE
+ulint
+rec_offs_nth_default(
+/*================*/
+	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	ulint		n)	/*!< in: nth field */
+{
+	ut_ad(rec_offs_validate(NULL, NULL, offsets));
+	ut_ad(n < rec_offs_n_fields(offsets));
+	return(rec_offs_base(offsets)[1 + n] & REC_OFFS_DEFAULT);
+}
+
+/******************************************************//**
 Returns nonzero if the SQL NULL bit is set in nth field of rec.
 @return nonzero if SQL NULL */
 UNIV_INLINE
@@ -1188,7 +1236,9 @@ rec_offs_nth_sql_null(
 {
 	ut_ad(rec_offs_validate(NULL, NULL, offsets));
 	ut_ad(n < rec_offs_n_fields(offsets));
-	return(rec_offs_base(offsets)[1 + n] & REC_OFFS_SQL_NULL);
+	ulint ret = (rec_offs_base(offsets)[1 + n] & REC_OFFS_SQL_NULL);
+	ut_ad(!ret || !rec_offs_nth_default(offsets, n));
+	return ret;
 }
 
 /******************************************************//**
@@ -1436,7 +1486,8 @@ rec_set_nth_field(
 		return;
 	}
 
-	data2 = rec_get_nth_field(rec, offsets, n, &len2);
+	ut_ad(!rec_offs_nth_default(offsets, n));
+	data2 = (byte*)rec_get_nth_field_inside(rec, offsets, n, &len2);
 	if (len2 == UNIV_SQL_NULL) {
 		ut_ad(!rec_offs_comp(offsets));
 		rec_set_nth_field_null_bit(rec, n, FALSE);
@@ -1517,7 +1568,7 @@ rec_offs_extra_size(
 {
 	ulint	size;
 	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	size = *rec_offs_base(offsets) & ~(REC_OFFS_COMPACT | REC_OFFS_EXTERNAL);
+	size = *rec_offs_base(offsets) & REC_OFFS_MASK;
 	ut_ad(size < UNIV_PAGE_SIZE);
 	return(size);
 }
@@ -1532,6 +1583,131 @@ rec_offs_size(
 	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	return(rec_offs_data_size(offsets) + rec_offs_extra_size(offsets));
+}
+
+
+/******************************************************//**
+set instant flag */
+UNIV_INLINE
+void
+rec_set_instant_flag(
+/*=====================*/
+	rec_t*		rec,	/*!< in/out: new-style physical record */
+	ulint		flag)	/*!< in: nonzero if instant marked */
+{
+	ulint	val;
+
+	val = rec_get_info_bits(rec, TRUE);
+
+	if (flag) {
+		val |= REC_INFO_ADDED_FLAG;
+	} else {
+		val &= ~REC_INFO_ADDED_FLAG;
+	}
+
+	rec_set_info_bits_new(rec, val);
+}
+
+/******************************************************//**
+@return	TRUE if instant record type */
+UNIV_INLINE
+ibool
+rec_is_instant(
+/*=====================*/
+	const rec_t*	rec)	/*!< in: new-style physical record */
+{
+	ulint	val;
+
+	val = rec_get_info_bits(rec, TRUE);
+
+	return (val & REC_INFO_ADDED_FLAG) != 0;
+}
+
+#define REC_FIELD_COUNT_TWO_BYTES_FLAG 0x80
+#define REC_FIELD_COUNT_ONE_BYTE_MAX 0x7F
+#define REC_FIELD_COUNT_HIGHER_BYTE_MASK 0x7F
+
+/**********************************************************//**
+Returns field count of instant record
+@return	size */
+UNIV_INLINE
+ulint
+rec_get_field_count(
+/*==========*/
+    const rec_t*    rec,                /*!< in: the record ptr */
+    ulint*	        field_count_len)    /*!< out: occupy size of field count */
+{
+    byte*           ptr;
+    ulint           ret;    
+    ut_ad(rec_is_instant(rec));
+
+    ptr = (byte*)rec - (REC_N_NEW_EXTRA_BYTES + 1);
+
+    if ((*ptr & REC_FIELD_COUNT_TWO_BYTES_FLAG) == 0) {
+        if (field_count_len != NULL) {
+            *field_count_len = 1;
+        }
+        
+        ret = *ptr;
+
+        return ret;
+    }
+
+    if (field_count_len != NULL) {
+        *field_count_len = 2;
+    }
+
+    ret = ((*ptr-- & REC_FIELD_COUNT_HIGHER_BYTE_MASK) << 8);	// higher byte
+    ret |= *ptr;												// lower byte
+    ut_ad(ret < REC_MAX_N_FIELDS && ret > REC_FIELD_COUNT_ONE_BYTE_MAX);   //TODO
+
+    return ret;
+}
+
+/**********************************************************//**
+Returns length of field count input 
+@return	size */
+UNIV_INLINE
+ulint rec_get_field_count_len (
+/*==========*/
+	ulint	field_count )		/*!< in: field count*/
+{
+	if (field_count > REC_FIELD_COUNT_ONE_BYTE_MAX)
+		return 2;
+		
+	return 1;
+}
+
+#define rec_get_feild_count_len(n_feilds) ((n_feilds > 127) ? 2 : 1)
+
+/**********************************************************//**
+Set field count of instant record
+@return	the occupy size of field count */
+UNIV_INLINE
+ulint
+rec_set_field_count(
+/*==========*/
+    rec_t*          rec,                /*!< in: the record ptr */
+    const ulint     n_fields)           /*!< in: field count of instant record */
+{
+    byte*            ptr;
+
+    //ut_ad(rec_is_instant(rec));
+    ut_ad(n_fields < REC_MAX_N_FIELDS);
+    
+    if (n_fields <= REC_FIELD_COUNT_ONE_BYTE_MAX) {
+        ptr = rec - (REC_N_NEW_EXTRA_BYTES + 1);
+        *ptr = (byte)n_fields;
+        return 1;
+    }
+
+    ptr = rec - (REC_N_NEW_EXTRA_BYTES + 2);
+    *ptr++ = (byte)(n_fields & 0xFF);	/** lower byte */
+    *ptr = (byte)(n_fields >> 8);		/** higher byte */
+    ut_ad((*ptr & 0x80) == 0);
+    *ptr |= REC_FIELD_COUNT_TWO_BYTES_FLAG;						/** flag */
+
+    return 2;
 }
 
 #ifdef UNIV_DEBUG
@@ -1701,7 +1877,7 @@ rec_get_converted_size(
 @param[in]	offsets		return value of rec_get_offsets()
 @param[in]	n_fields	number of complete fields to fold
 @param[in]	n_bytes		number of bytes to fold in the last field
-@param[in]	index_id	index tree ID
+@param[in]	index		index 
 @return the folded value */
 UNIV_INLINE
 ulint
@@ -1710,13 +1886,14 @@ rec_fold(
 	const ulint*	offsets,
 	ulint		n_fields,
 	ulint		n_bytes,
-	index_id_t	tree_id)
+	const dict_index_t*	index)
 {
 	ulint		i;
 	const byte*	data;
 	ulint		len;
 	ulint		fold;
 	ulint		n_fields_rec;
+	index_id_t	tree_id = index->id;
 
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(rec_validate(rec, offsets));
@@ -1737,7 +1914,7 @@ rec_fold(
 	fold = ut_fold_ull(tree_id);
 
 	for (i = 0; i < n_fields; i++) {
-		data = rec_get_nth_field(rec, offsets, i, &len);
+		data = rec_get_nth_field(rec, offsets, i, index, NULL, &len);
 
 		if (len != UNIV_SQL_NULL) {
 			fold = ut_fold_ulint_pair(fold,
@@ -1746,7 +1923,7 @@ rec_fold(
 	}
 
 	if (n_bytes > 0) {
-		data = rec_get_nth_field(rec, offsets, i, &len);
+		data = rec_get_nth_field(rec, offsets, i, index, NULL, &len);
 
 		if (len != UNIV_SQL_NULL) {
 			if (len > n_bytes) {

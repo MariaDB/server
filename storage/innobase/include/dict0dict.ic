@@ -72,6 +72,30 @@ dict_col_set_mbminmaxlen(
 
 	col->mbminmaxlen = DATA_MBMINMAXLEN(mbminlen, mbmaxlen);
 }
+
+/*********************************************************************//**
+Sets default value of added columns  */
+UNIV_INLINE
+void
+dict_col_set_added_column_default(
+	dict_col_t*		col,
+	const byte*		def_val,
+	ulint			def_val_len,
+	mem_heap_t*		heap )
+{
+	ut_a(col);
+	
+	col->def_val = (dict_col_def_t*)mem_heap_alloc(heap, sizeof(*col->def_val));
+	col->def_val->col = col;
+	col->def_val->def_val_len = def_val_len;
+	if (def_val) {
+		col->def_val->def_val = (byte*)mem_heap_strdupl(heap, (char*)def_val, def_val_len);
+	} else {
+		col->def_val->def_val = NULL;
+	}
+
+}
+
 /*********************************************************************//**
 Gets the column data type. */
 UNIV_INLINE
@@ -98,6 +122,18 @@ dict_col_is_virtual(
 	const dict_col_t*	col)
 {
 	return(col->prtype & DATA_VIRTUAL);
+}
+
+/*********************************************************************//**
+Gets the column is nullable.
+@return	TRUE if nullable */
+UNIV_INLINE
+ibool
+dict_col_is_nullable(
+/*============*/
+	const dict_col_t*	col)	/*!< in: column */
+{
+	return (col->prtype & DATA_NOT_NULL) == 0;
 }
 
 #ifdef UNIV_DEBUG
@@ -298,6 +334,18 @@ dict_index_is_clust(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(index->type & DICT_CLUSTERED);
+}
+
+/********************************************************************//**
+Check whether the index is the clustered index of instant table.
+@return nonzero for clustered index of instant table, zero for other indexes */
+UNIV_INLINE
+ulint
+dict_index_is_clust_instant(
+/*================*/
+	const dict_index_t*	index)	/*!< in: index */
+{
+	return dict_index_is_clust(index) && dict_table_is_instant(index->table);
 }
 
 /** Check if index is auto-generated clustered index.
@@ -622,6 +670,36 @@ dict_table_is_comp(
 #endif
 
 	return(table->flags & DICT_TF_COMPACT);
+}
+
+/********************************************************************//**
+Check whether the table has been instant added columns.
+@return TRUE if table has been instant added columns */
+UNIV_INLINE
+ibool
+dict_table_is_instant(
+/*===============*/
+	const dict_table_t*	table)	/*!< in: table */
+{
+	ut_ad(table);
+	
+	return (table->n_core_cols < table->n_cols);
+
+}
+
+/********************************************************************//**
+Check whether the table use compressed row format.
+@return TRUE if table use compressed row format */
+UNIV_INLINE
+ibool
+dict_table_is_zip(
+/*===============*/
+	const dict_table_t*	table)	/*!< in: table */
+{
+	ut_ad(table);
+
+	return (dict_table_is_comp(table) && DICT_TF_GET_ZIP_SSIZE(table->flags)) ||
+		!strcmp(table->name.m_name, "ZIP_DUMMY");
 }
 
 /************************************************************************
@@ -1257,6 +1335,74 @@ dict_index_get_lock(
 }
 
 /********************************************************************//**
+@return	 nullable count of n_core_fields */
+UNIV_INLINE
+ulint 
+dict_index_get_first_n_field_n_nullable(
+/*================*/
+    const dict_index_t*     index,  
+    ulint                   first_n_fields)
+{
+	ulint           n_nullable = index->n_nullable;
+	const dict_field_t*   ifield;
+	ulint           i = 0;
+	ulint           n_fields;
+    
+	n_fields = dict_index_get_n_fields(index);
+	ut_a(first_n_fields <= n_fields);
+	for (i = first_n_fields ; i < n_fields; ++i) {
+		ifield = dict_index_get_nth_field(index, i);
+
+		if (dict_col_is_nullable(dict_field_get_col(ifield)))
+			n_nullable--;
+	}
+
+	return n_nullable;
+}
+
+/********************************************************************//**
+@return	default value and get length*/
+UNIV_INLINE
+const byte*
+dict_index_get_nth_col_def(
+/*===================*/
+	const dict_index_t*	index,	/*!< in: index */
+	ulint			pos,		/*!< in: position of the field */
+	ulint*    len )				/*!< out: length of default value */
+{
+	return dict_index_get_nth_col_def_with_heap(index,
+							pos, NULL, len);
+}
+
+UNIV_INLINE
+const byte*
+dict_index_get_nth_col_def_with_heap(
+/*===================*/
+	const dict_index_t*	index,	/*!< in: index */
+	ulint				pos,	/*!< in: position of the field */
+	mem_heap_t*			heap,	/*!< in: alloc memory from heap, can be NULL */
+	ulint*				len)	/*!< out: length of default value */
+{
+	const dict_col_t*       col;
+	byte* def_val;
+
+	col = dict_index_get_nth_col(index, pos);
+
+	ut_ad(col->def_val);
+
+	*len = col->def_val->def_val_len;
+	
+	def_val = col->def_val->def_val;	
+	
+	if (heap && def_val) {
+		ut_a(*len != UNIV_SQL_NULL);
+		def_val = (byte*)mem_heap_dup(heap, col->def_val->def_val, (*len));
+	} 
+
+	return def_val;
+}
+
+/********************************************************************//**
 Returns free space reserved for future updates of records. This is
 relevant only in the case of many consecutive inserts, as updates
 which make the records bigger might fragment the index.
@@ -1626,6 +1772,41 @@ dict_table_decode_n_col(
 	ulint	num = encoded & ~DICT_N_COLS_COMPACT;
 	*n_v_col = num >> 16;
 	*n_col = num & 0xFFFF;
+}
+
+/** encode flags2 and number of core columns in one
+4 bytes value. We could do this because the number of columns in
+InnoDB is limited to 1017
+@param[in]  flags2	
+@param[in]	n_cols_core column number before first time instant add column	
+@return encoded value */
+UNIV_INLINE
+ulint
+dict_table_encode_mix_len(
+	ulint	flags2,
+	ulint	n_cols_core)
+{
+	/* Be sure all non-used bits are zero. */
+	ut_a(!(flags2 & DICT_TF2_UNUSED_BIT_MASK));
+	ut_a(!(flags2 & 0xFFFF0000));
+	
+	return (flags2 + (n_cols_core<<16));
+}
+
+/** Decode number of flags2 and number of core columns in one 4 bytes value.
+@param[in]	encoded	encoded value
+@param[in,out]	flags2 
+@param[in,out]	n_cols_core column number before first time instant add column*/
+UNIV_INLINE
+void
+dict_table_decode_mix_len(
+	ulint	encoded,
+	ulint*	flags2,
+	ulint*	n_cols_core)
+{
+	*flags2 = encoded & 0xFFFF;
+	
+	*n_cols_core = encoded  >> 16;	
 }
 
 /** Free the virtual column template

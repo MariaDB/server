@@ -1917,23 +1917,26 @@ public:
   static const HA_ALTER_FLAGS ADD_STORED_BASE_COLUMN     = 1ULL << 7;
   // Stored generated column
   static const HA_ALTER_FLAGS ADD_STORED_GENERATED_COLUMN= 1ULL << 8;
+  // Instant generated column
+  static const HA_ALTER_FLAGS ADD_INSTANT_COLUMN         = 1ULL << 9;
   // Add generic column (convience constant).
   static const HA_ALTER_FLAGS ADD_COLUMN= ADD_VIRTUAL_COLUMN |
                                           ADD_STORED_BASE_COLUMN |
-                                          ADD_STORED_GENERATED_COLUMN;
+                                          ADD_STORED_GENERATED_COLUMN |
+                                          ADD_INSTANT_COLUMN;
 
   // Drop column
-  static const HA_ALTER_FLAGS DROP_VIRTUAL_COLUMN        = 1ULL << 9;
-  static const HA_ALTER_FLAGS DROP_STORED_COLUMN         = 1ULL << 10;
+  static const HA_ALTER_FLAGS DROP_VIRTUAL_COLUMN        = 1ULL << 10;
+  static const HA_ALTER_FLAGS DROP_STORED_COLUMN         = 1ULL << 11;
   static const HA_ALTER_FLAGS DROP_COLUMN= DROP_VIRTUAL_COLUMN |
                                            DROP_STORED_COLUMN;
 
   // Rename column
-  static const HA_ALTER_FLAGS ALTER_COLUMN_NAME          = 1ULL << 11;
+  static const HA_ALTER_FLAGS ALTER_COLUMN_NAME          = 1ULL << 12;
 
   // Change column datatype
-  static const HA_ALTER_FLAGS ALTER_VIRTUAL_COLUMN_TYPE  = 1ULL << 12;
-  static const HA_ALTER_FLAGS ALTER_STORED_COLUMN_TYPE   = 1ULL << 13;
+  static const HA_ALTER_FLAGS ALTER_VIRTUAL_COLUMN_TYPE  = 1ULL << 13;
+  static const HA_ALTER_FLAGS ALTER_STORED_COLUMN_TYPE   = 1ULL << 14;
 
   /**
     Change column datatype in such way that new type has compatible
@@ -1941,94 +1944,94 @@ public:
     possible to perform change by only updating data dictionary
     without changing table rows.
   */
-  static const HA_ALTER_FLAGS ALTER_COLUMN_EQUAL_PACK_LENGTH = 1ULL << 14;
+  static const HA_ALTER_FLAGS ALTER_COLUMN_EQUAL_PACK_LENGTH = 1ULL << 15;
 
   // Reorder column
-  static const HA_ALTER_FLAGS ALTER_STORED_COLUMN_ORDER =  1ULL << 15;
+  static const HA_ALTER_FLAGS ALTER_STORED_COLUMN_ORDER =  1ULL << 16;
 
   // Reorder column
-  static const HA_ALTER_FLAGS ALTER_VIRTUAL_COLUMN_ORDER = 1ULL << 16;
+  static const HA_ALTER_FLAGS ALTER_VIRTUAL_COLUMN_ORDER = 1ULL << 17;
 
   // Change column from NOT NULL to NULL
-  static const HA_ALTER_FLAGS ALTER_COLUMN_NULLABLE      = 1ULL << 17;
+  static const HA_ALTER_FLAGS ALTER_COLUMN_NULLABLE      = 1ULL << 18;
 
   // Change column from NULL to NOT NULL
-  static const HA_ALTER_FLAGS ALTER_COLUMN_NOT_NULLABLE  = 1ULL << 18;
+  static const HA_ALTER_FLAGS ALTER_COLUMN_NOT_NULLABLE  = 1ULL << 19;
 
   // Set or remove default column value
-  static const HA_ALTER_FLAGS ALTER_COLUMN_DEFAULT       = 1ULL << 19;
+  static const HA_ALTER_FLAGS ALTER_COLUMN_DEFAULT       = 1ULL << 20;
 
   // Change column generation expression
-  static const HA_ALTER_FLAGS ALTER_VIRTUAL_GCOL_EXPR    = 1ULL << 20;
-  static const HA_ALTER_FLAGS ALTER_STORED_GCOL_EXPR     = 1ULL << 21;
+  static const HA_ALTER_FLAGS ALTER_VIRTUAL_GCOL_EXPR    = 1ULL << 21;
+  static const HA_ALTER_FLAGS ALTER_STORED_GCOL_EXPR     = 1ULL << 22;
   //
   // Add foreign key
-  static const HA_ALTER_FLAGS ADD_FOREIGN_KEY            = 1ULL << 22;
+  static const HA_ALTER_FLAGS ADD_FOREIGN_KEY            = 1ULL << 23;
 
   // Drop foreign key
-  static const HA_ALTER_FLAGS DROP_FOREIGN_KEY           = 1ULL << 23;
+  static const HA_ALTER_FLAGS DROP_FOREIGN_KEY           = 1ULL << 24;
 
   // table_options changed, see HA_CREATE_INFO::used_fields for details.
-  static const HA_ALTER_FLAGS CHANGE_CREATE_OPTION       = 1ULL << 24;
+  static const HA_ALTER_FLAGS CHANGE_CREATE_OPTION       = 1ULL << 25;
 
   // Table is renamed
-  static const HA_ALTER_FLAGS ALTER_RENAME               = 1ULL << 25;
+  static const HA_ALTER_FLAGS ALTER_RENAME               = 1ULL << 26;
 
   // column's engine options changed, something in field->option_struct
-  static const HA_ALTER_FLAGS ALTER_COLUMN_OPTION        = 1ULL << 26;
+  static const HA_ALTER_FLAGS ALTER_COLUMN_OPTION        = 1ULL << 27;
 
   // MySQL alias for the same thing:
-  static const HA_ALTER_FLAGS ALTER_COLUMN_STORAGE_TYPE  = 1ULL << 26;
+  static const HA_ALTER_FLAGS ALTER_COLUMN_STORAGE_TYPE  = 1ULL << 27;
 
   // Change the column format of column
-  static const HA_ALTER_FLAGS ALTER_COLUMN_COLUMN_FORMAT = 1ULL << 27;
+  static const HA_ALTER_FLAGS ALTER_COLUMN_COLUMN_FORMAT = 1ULL << 28;
 
   // Add partition
-  static const HA_ALTER_FLAGS ADD_PARTITION              = 1ULL << 28;
+  static const HA_ALTER_FLAGS ADD_PARTITION              = 1ULL << 29;
 
   // Drop partition
-  static const HA_ALTER_FLAGS DROP_PARTITION             = 1ULL << 29;
+  static const HA_ALTER_FLAGS DROP_PARTITION             = 1ULL << 30;
 
   // Changing partition options
-  static const HA_ALTER_FLAGS ALTER_PARTITION            = 1ULL << 30;
+  static const HA_ALTER_FLAGS ALTER_PARTITION            = 1ULL << 31;
 
   // Coalesce partition
-  static const HA_ALTER_FLAGS COALESCE_PARTITION         = 1ULL << 31;
+  static const HA_ALTER_FLAGS COALESCE_PARTITION         = 1ULL << 32;
 
   // Reorganize partition ... into
-  static const HA_ALTER_FLAGS REORGANIZE_PARTITION       = 1ULL << 32;
+  static const HA_ALTER_FLAGS REORGANIZE_PARTITION       = 1ULL << 33;
 
   // Reorganize partition
-  static const HA_ALTER_FLAGS ALTER_TABLE_REORG          = 1ULL << 33;
+  static const HA_ALTER_FLAGS ALTER_TABLE_REORG          = 1ULL << 34;
 
   // Remove partitioning
-  static const HA_ALTER_FLAGS ALTER_REMOVE_PARTITIONING  = 1ULL << 34;
+  static const HA_ALTER_FLAGS ALTER_REMOVE_PARTITIONING  = 1ULL << 35;
 
   // Partition operation with ALL keyword
-  static const HA_ALTER_FLAGS ALTER_ALL_PARTITION        = 1ULL << 35;
+  static const HA_ALTER_FLAGS ALTER_ALL_PARTITION        = 1ULL << 36;
 
   /**
     Recreate the table for ALTER TABLE FORCE, ALTER TABLE ENGINE
     and OPTIMIZE TABLE operations.
   */
-  static const HA_ALTER_FLAGS RECREATE_TABLE             = 1ULL << 36;
+  static const HA_ALTER_FLAGS RECREATE_TABLE             = 1ULL << 37;
 
   /**
     Changes in generated columns that affect storage,
     for example, when a vcol type or expression changes
     and this vcol is indexed or used in a partitioning expression
   */
-  static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1ULL << 37;
+  static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1ULL << 38;
 
   /**
     ALTER TABLE for a partitioned table. The engine needs to commit
     online alter of all partitions atomically (using group_commit_ctx)
   */
-  static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1ULL << 38;
+  static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1ULL << 39;
 
-  static const HA_ALTER_FLAGS ALTER_ADD_CHECK_CONSTRAINT = 1ULL << 39;
+  static const HA_ALTER_FLAGS ALTER_ADD_CHECK_CONSTRAINT = 1ULL << 40;
 
-  static const HA_ALTER_FLAGS ALTER_DROP_CHECK_CONSTRAINT= 1ULL << 40;
+  static const HA_ALTER_FLAGS ALTER_DROP_CHECK_CONSTRAINT= 1ULL << 41;
 
   /**
     Create options (like MAX_ROWS) for the new version of table.
@@ -3849,6 +3852,12 @@ public:
  {
    notify_table_changed();
  }
+
+/* return false, mean it can't instant alter default */
+virtual bool check_instant_alter(const Alter_inplace_info* inplace_info)
+{
+	return false;
+}
 
 
 protected:

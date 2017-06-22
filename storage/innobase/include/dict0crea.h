@@ -235,6 +235,14 @@ not of the right form.
 dberr_t
 dict_create_or_check_sys_virtual();
 
+/****************************************************************//**
+Creates the sys_columns_added system tables inside InnoDB at server 
+bootstrap or server start if they are not found or are not of the 
+right form.
+@return DB_SUCCESS or error code */
+dberr_t
+dict_create_or_check_sys_columns_added(void);
+
 /** Put a tablespace definition into the data dictionary,
 replacing what was there previously.
 @param[in]	space	Tablespace id
