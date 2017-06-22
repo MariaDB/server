@@ -1,0 +1,47 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/type_set_indexes.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/type_set_indexes.reject	2017-06-22 15:19:48.679661485 +0300
+@@ -108,30 +108,17 @@
+ c SET('01','22','23','33','34','39','40','44','50','63','64') <CUSTOM_COL_OPTIONS>,
+ UNIQUE INDEX b_a (b,a)
+ ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
+-SHOW INDEX IN t1;
+-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+-t1	0	b_a	1	b	#	#	NULL	NULL	#	#		
+-t1	0	b_a	2	a	#	#	NULL	NULL	#	#		
+-INSERT INTO t1 (a,b,c) VALUES
+-('','test2,test3','01,34,44,23'),
+-('',5,2),
+-('N.America,Asia','test4,test2',''),
+-('Africa,Europe,Asia','test2,test3','01'),
+-('Antarctica','test3','34,44'),
+-('Asia','test5','50'),
+-('Europe,S.America','test1,','39');
+-Warnings:
+-Warning	1265	Data truncated for column 'b' at row 7
+-EXPLAIN SELECT DISTINCT a, b FROM t1 ORDER BY b DESC, a;
+-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-#	#	#	#	#	b_a	#	#	#	#
+-SELECT DISTINCT a, b FROM t1 ORDER BY b DESC, a;
+-a	b
+-	test1,test3
+-	test2,test3
+-Africa,Europe,Asia	test2,test3
+-Antarctica	test3
+-Asia	test5
+-N.America,Asia	test2,test4
+-S.America,Europe	test1
+-DROP TABLE t1;
++ERROR HY000: Unique index support is disabled when the table has no primary key. 
++# ERROR: Statement ended with errno 1105, errname ER_UNKNOWN_ERROR (expected to succeed)
++# ------------ UNEXPECTED RESULT ------------
++# [ CREATE TABLE t1 (a SET('N.America','S.America','Africa','Antarctica','Australia','Europe','Asia') /*!*/ /*Custom indexed column options*/,
++b SET('test1','test2','test3','test4','test5') /*!*/ /*Custom indexed column options*/,
++c SET('01','22','23','33','34','39','40','44','50','63','64') /*!*/ /*Custom column options*/,
++UNIQUE INDEX b_a (b,a)
++) ENGINE=RocksDB /*!*/ /*Custom table options*/ ]
++# The statement|command finished with ER_UNKNOWN_ERROR.
++# SET types or unique keys or multi-part keys or the mix could be unsupported|malfunctioning, or the problem was caused by previous errors. 
++# You can change the engine code, or create an rdiff, or disable the test by adding it to disabled.def.
++# Further in this test, the message might sometimes be suppressed; a part of the test might be skipped.
++# Also, this problem may cause a chain effect (more errors of different kinds in the test).
++# -------------------------------------------

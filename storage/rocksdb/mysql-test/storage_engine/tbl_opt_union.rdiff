@@ -1,0 +1,16 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/tbl_opt_union.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/tbl_opt_union.reject	2017-06-22 02:41:02.719947641 +0300
+@@ -4,11 +4,11 @@
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `a` int(11) DEFAULT NULL
+-) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 UNION=(`child1`)
++) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1
+ ALTER TABLE t1 UNION = (child1,child2);
+ SHOW CREATE TABLE t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `a` int(11) DEFAULT NULL
+-) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 UNION=(`child1`,`child2`)
++) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1
+ DROP TABLE t1, child1, child2;

@@ -1,0 +1,26 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/index_key_block_size.result	2017-06-22 00:33:46.419995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/index_key_block_size.reject	2017-06-22 13:56:59.503692719 +0300
+@@ -19,10 +19,19 @@
+ b <CHAR_COLUMN>,
+ UNIQUE INDEX ind2(b(1) DESC) KEY_BLOCK_SIZE=32768 COMMENT 'big key_block_size value'
+ ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
+-SHOW INDEX IN t1;
+-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+-t1	0	ind2	1	b	#	#	1	NULL	#	#		big key_block_size value
+-DROP TABLE t1;
++ERROR HY000: Unique index support is disabled when the table has no primary key. 
++# ERROR: Statement ended with errno 1105, errname ER_UNKNOWN_ERROR (expected to succeed)
++# ------------ UNEXPECTED RESULT ------------
++# [ CREATE TABLE t1 (a INT(11) /*!*/ /*Custom column options*/,
++b CHAR(8) /*!*/ /*Custom indexed column options*/,
++UNIQUE INDEX ind2(b(1) DESC) KEY_BLOCK_SIZE=32768 COMMENT 'big key_block_size value'
++) ENGINE=RocksDB /*!*/ /*Custom table options*/ ]
++# The statement|command finished with ER_UNKNOWN_ERROR.
++# Unique keys on char columns or the mix could be unsupported|malfunctioning, or the problem was caused by previous errors. 
++# You can change the engine code, or create an rdiff, or disable the test by adding it to disabled.def.
++# Further in this test, the message might sometimes be suppressed; a part of the test might be skipped.
++# Also, this problem may cause a chain effect (more errors of different kinds in the test).
++# -------------------------------------------
+ CREATE TABLE t1 (a <INT_COLUMN>,
+ b <CHAR_COLUMN>,
+ <CUSTOM_INDEX> a_b(a,b) KEY_BLOCK_SIZE=8192

@@ -1,0 +1,13 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/parts/checksum_table.result	2017-06-22 00:33:46.419995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/parts/checksum_table.reject	2017-06-22 19:25:02.935568998 +0300
+@@ -31,8 +31,8 @@
+ test.t1	4272806499
+ CHECKSUM TABLE t1, t2 QUICK;
+ Table	Checksum
+-test.t1	4272806499
+-test.t2	0
++test.t1	NULL
++test.t2	NULL
+ CHECKSUM TABLE t1, t2 EXTENDED;
+ Table	Checksum
+ test.t1	4272806499

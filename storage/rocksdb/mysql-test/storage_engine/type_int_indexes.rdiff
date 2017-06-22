@@ -1,0 +1,57 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/type_int_indexes.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/type_int_indexes.reject	2017-06-22 15:12:14.199664342 +0300
+@@ -96,38 +96,19 @@
+ b BIGINT <CUSTOM_COL_OPTIONS>,
+ UNIQUE KEY b_t (b,t)
+ ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
+-INSERT INTO t1 (i,t,s,m,b) VALUES (1,2,3,4,5),(1000,100,10000,1000000,1000000000000000000),(5,100,10000,1000000,100000000000000000),(2,3,4,5,6),(3,4,5,6,7),(101,102,103,104,105),(10001,103,10002,10003,10004),(10,11,12,13,14),(11,12,13,14,15),(12,13,14,15,16);
+-SELECT b+t FROM t1 WHERE (b,t) IN ( SELECT b, t FROM t1 WHERE i>1 ) ORDER BY b+t;
+-b+t
+-9
+-11
+-25
+-27
+-29
+-207
+-10107
+-100000000000000100
+-1000000000000000100
+-SELECT b+t FROM t1 FORCE INDEX (b_t) WHERE (b,t) IN ( SELECT b, t FROM t1 WHERE i>1 ) ORDER BY b+t;
+-b+t
+-9
+-11
+-25
+-27
+-29
+-207
+-10107
+-100000000000000100
+-1000000000000000100
+-SELECT b+t FROM t1 IGNORE INDEX (b_t) WHERE (b,t) IN ( SELECT b, t FROM t1 WHERE i>1 ) ORDER BY b+t;
+-b+t
+-9
+-11
+-25
+-27
+-29
+-207
+-10107
+-100000000000000100
+-1000000000000000100
+-DROP TABLE t1;
++ERROR HY000: Unique index support is disabled when the table has no primary key. 
++# ERROR: Statement ended with errno 1105, errname ER_UNKNOWN_ERROR (expected to succeed)
++# ------------ UNEXPECTED RESULT ------------
++# [ CREATE TABLE t1 (i INT /*!*/ /*Custom column options*/,
++t TINYINT /*!*/ /*Custom indexed column options*/,
++s SMALLINT /*!*/ /*Custom column options*/,
++m MEDIUMINT /*!*/ /*Custom column options*/,
++b BIGINT /*!*/ /*Custom indexed column options*/,
++UNIQUE KEY b_t (b,t)
++) ENGINE=RocksDB /*!*/ /*Custom table options*/ ]
++# The statement|command finished with ER_UNKNOWN_ERROR.
++# INT types or unique keys or multi-part keys or the mix could be unsupported|malfunctioning, or the problem was caused by previous errors. 
++# You can change the engine code, or create an rdiff, or disable the test by adding it to disabled.def.
++# Further in this test, the message might sometimes be suppressed; a part of the test might be skipped.
++# Also, this problem may cause a chain effect (more errors of different kinds in the test).
++# -------------------------------------------

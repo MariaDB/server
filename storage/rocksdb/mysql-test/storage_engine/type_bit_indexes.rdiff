@@ -1,0 +1,87 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/type_bit_indexes.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/type_bit_indexes.reject	2017-06-22 14:07:37.807688707 +0300
+@@ -59,30 +59,21 @@
+ d BIT(64) <CUSTOM_COL_OPTIONS>,
+ UNIQUE INDEX b_c (b,c)
+ ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
+-SHOW INDEX IN t1;
+-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+-t1	0	b_c	1	b	#	#	NULL	NULL	#	#		
+-t1	0	b_c	2	c	#	#	NULL	NULL	#	#		
+-INSERT INTO t1 (a,b,c,d) VALUES
+-(0,0xFFFFF,0,1),(0,256,0xAAA,0x12345),(1,16,0,0xFFFFFFF),(0,11,12,13),
+-(1,100,101,102),(0,12,13,14),(1,13,14,15),(0,101,201,202),(1,1000,1001,1002),
+-(1,0xFFFF,0xFFFFFFFF,0xFFFFFFFFFFFFFFFF);
+-EXPLAIN SELECT HEX(b+c) FROM t1 WHERE c > 1 OR HEX(b) < 0xFFFFFF;
+-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-#	#	#	#	#	b_c	#	#	#	#
+-SELECT HEX(b+c) FROM t1 WHERE c > 1 OR HEX(b) < 0xFFFFFF;
+-HEX(b+c)
+-10
+-10000FFFE
+-12E
+-17
+-19
+-1B
+-7D1
+-BAA
+-C9
+-FFFFF
+-DROP TABLE t1;
++ERROR HY000: Unique index support is disabled when the table has no primary key. 
++# ERROR: Statement ended with errno 1105, errname ER_UNKNOWN_ERROR (expected to succeed)
++# ------------ UNEXPECTED RESULT ------------
++# [ CREATE TABLE t1 (a BIT /*!*/ /*Custom column options*/,
++b BIT(20) /*!*/ /*Custom indexed column options*/,
++c BIT(32) /*!*/ /*Custom indexed column options*/,
++d BIT(64) /*!*/ /*Custom column options*/,
++UNIQUE INDEX b_c (b,c)
++) ENGINE=RocksDB /*!*/ /*Custom table options*/ ]
++# The statement|command finished with ER_UNKNOWN_ERROR.
++# BIT types or unique keys or multi-part keys or the mix could be unsupported|malfunctioning, or the problem was caused by previous errors. 
++# You can change the engine code, or create an rdiff, or disable the test by adding it to disabled.def.
++# Further in this test, the message might sometimes be suppressed; a part of the test might be skipped.
++# Also, this problem may cause a chain effect (more errors of different kinds in the test).
++# -------------------------------------------
+ CREATE TABLE t1 (a BIT <CUSTOM_COL_OPTIONS>,
+ b BIT(20) <CUSTOM_COL_OPTIONS>,
+ c BIT(32) <CUSTOM_COL_OPTIONS>,
+@@ -110,23 +101,18 @@
+ d BIT(64) <CUSTOM_COL_OPTIONS>,
+ UNIQUE INDEX (d)
+ ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
+-SHOW INDEX IN t1;
+-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+-t1	0	d	1	d	#	#	NULL	NULL	#	#		
+-INSERT INTO t1 (a,b,c,d) VALUES
+-(0,0xFFFFF,0,1),(0,256,0xAAA,0x12345),(1,16,0,0xFFFFFFF),(0,11,12,13),
+-(1,100,101,102),(0,12,13,14),(1,13,14,15),(0,101,201,202),(1,1000,1001,1002),
+-(1,0xFFFF,0xFFFFFFFF,0xFFFFFFFFFFFFFFFF);
+-EXPLAIN SELECT d FROM t1 WHERE d BETWEEN 1 AND 10000;
+-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-#	#	#	#	#	d	#	#	#	#
+-SELECT d+0 FROM t1 WHERE d BETWEEN 1 AND 10000;
+-d+0
+-1
+-1002
+-102
+-13
+-14
+-15
+-202
+-DROP TABLE t1;
++ERROR HY000: Unique index support is disabled when the table has no primary key. 
++# ERROR: Statement ended with errno 1105, errname ER_UNKNOWN_ERROR (expected to succeed)
++# ------------ UNEXPECTED RESULT ------------
++# [ CREATE TABLE t1 (a BIT /*!*/ /*Custom column options*/,
++b BIT(20) /*!*/ /*Custom column options*/,
++c BIT(32) /*!*/ /*Custom column options*/,
++d BIT(64) /*!*/ /*Custom indexed column options*/,
++UNIQUE INDEX (d)
++) ENGINE=RocksDB /*!*/ /*Custom table options*/ ]
++# The statement|command finished with ER_UNKNOWN_ERROR.
++# BIT types or unique keys or the mix could be unsupported|malfunctioning, or the problem was caused by previous errors. 
++# You can change the engine code, or create an rdiff, or disable the test by adding it to disabled.def.
++# Further in this test, the message might sometimes be suppressed; a part of the test might be skipped.
++# Also, this problem may cause a chain effect (more errors of different kinds in the test).
++# -------------------------------------------
