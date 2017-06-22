@@ -213,11 +213,7 @@ bool
 check_if_param_set(const char *param);
 
 #if defined(HAVE_OPENSSL)
-extern my_bool opt_use_ssl;
 extern my_bool opt_ssl_verify_server_cert;
-#if !defined(HAVE_YASSL)
-extern char *opt_server_public_key;
-#endif
 #endif
 
 

@@ -239,7 +239,6 @@ long innobase_open_files = 300L;
 
 longlong innobase_page_size = (1LL << 14); /* 16KB */
 static ulong innobase_log_block_size = 512;
-my_bool innobase_fast_checksum = FALSE;
 char*	innobase_doublewrite_file = NULL;
 char*	innobase_buffer_pool_filename = NULL;
 
@@ -361,9 +360,6 @@ const char *opt_history = NULL;
 
 #if defined(HAVE_OPENSSL)
 my_bool opt_ssl_verify_server_cert = FALSE;
-#if !defined(HAVE_YASSL)
-char *opt_server_public_key = NULL;
-#endif
 #endif
 
 /* Whether xtrabackup_binlog_info should be created on recovery */
@@ -511,8 +507,6 @@ enum options_xtrabackup
   OPT_INNODB_USE_NATIVE_AIO,
   OPT_INNODB_PAGE_SIZE,
   OPT_INNODB_LOG_BLOCK_SIZE,
-  OPT_INNODB_FAST_CHECKSUM,
-  OPT_INNODB_EXTRA_UNDOSLOTS,
   OPT_INNODB_DOUBLEWRITE_FILE,
   OPT_INNODB_BUFFER_POOL_FILENAME,
   OPT_INNODB_FORCE_RECOVERY,
@@ -563,10 +557,6 @@ enum options_xtrabackup
   OPT_SAFE_SLAVE_BACKUP_TIMEOUT,
   OPT_BINLOG_INFO,
   OPT_XB_SECURE_AUTH,
-
-  OPT_SSL_SSL,
-  OPT_SSL_VERIFY_SERVER_CERT,
-  OPT_SERVER_PUBLIC_KEY,
 
   OPT_XTRA_TABLES_EXCLUDE,
   OPT_XTRA_DATABASES_EXCLUDE,
@@ -629,7 +619,7 @@ struct my_option xb_client_options[] =
   {"databases", OPT_XTRA_DATABASES, "filtering by list of databases.",
    (G_PTR*) &xtrabackup_databases, (G_PTR*) &xtrabackup_databases,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"databases_file", OPT_XTRA_TABLES_FILE,
+  {"databases_file", OPT_XTRA_DATABASES_FILE,
    "filtering by list of databases in the file.",
    (G_PTR*) &xtrabackup_databases_file, (G_PTR*) &xtrabackup_databases_file,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1060,10 +1050,6 @@ Disable with --skip-innodb-doublewrite.", (G_PTR*) &innobase_use_doublewrite,
    "Changing for created log file is not supported. Use on your own risk!",
    (G_PTR*) &innobase_log_block_size, (G_PTR*) &innobase_log_block_size, 0,
    GET_ULONG, REQUIRED_ARG, 512, 512, 1 << UNIV_PAGE_SIZE_SHIFT_MAX, 0, 1L, 0},
-  {"innodb_fast_checksum", OPT_INNODB_FAST_CHECKSUM,
-   "Change the algorithm of checksum for the whole of datapage to 4-bytes word based.",
-   (G_PTR*) &innobase_fast_checksum,
-   (G_PTR*) &innobase_fast_checksum, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"innodb_doublewrite_file", OPT_INNODB_DOUBLEWRITE_FILE,
    "Path to special datafile for doublewrite buffer. (default is "": not used)",
    (G_PTR*) &innobase_doublewrite_file, (G_PTR*) &innobase_doublewrite_file,
@@ -1288,11 +1274,6 @@ xb_get_one_option(int optid,
   case OPT_INNODB_PAGE_SIZE:
 
     ADD_PRINT_PARAM_OPT(innobase_page_size);
-    break;
-
-  case OPT_INNODB_FAST_CHECKSUM:
-
-    ADD_PRINT_PARAM_OPT(!!innobase_fast_checksum);
     break;
 
   case OPT_INNODB_LOG_BLOCK_SIZE:
