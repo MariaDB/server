@@ -371,7 +371,6 @@ trx_sys_read_wsrep_checkpoint(
 		long long seqno= -1;
 		memcpy(xid->data + 24, &seqno, sizeof(long long));
 		xid->formatID = -1;
-		trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
 		mtr_commit(&mtr);
 		return;
 	}
