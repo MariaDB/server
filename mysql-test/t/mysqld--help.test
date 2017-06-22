@@ -42,6 +42,7 @@ perl;
   $re2=join('|', @plugins);
   $skip=0;
   open(F, '<', "$ENV{MYSQL_TMP_DIR}/mysqld--help.txt") or die;
+  print "Windows bug: happens when a new line is exactly at the right offset\n";
   while (<F>) {
     next if 1../The following groups are read/;
     # formatting, skip line consisting entirely of dashes and blanks
