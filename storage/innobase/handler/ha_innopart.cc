@@ -3045,7 +3045,7 @@ ha_innopart::records()
 }
 
 ha_rows
-ha_innopart::part_recs_slow(void *_part_elem)
+ha_innopart::part_records(void *_part_elem)
 {
 	partition_element *part_elem= reinterpret_cast<partition_element *>(_part_elem);
 	DBUG_ASSERT(m_part_info);

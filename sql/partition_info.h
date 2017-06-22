@@ -476,7 +476,7 @@ public:
       part= vers_hist_part();
     }
     // TODO: cache thread-shared part_recs and increment on INSERT
-    return table->file->part_recs_slow(part) >= vers_info->limit;
+    return table->file->part_records(part) >= vers_info->limit;
   }
   Vers_field_stats& vers_stat_trx(stat_trx_field fld, uint32 part_element_id)
   {

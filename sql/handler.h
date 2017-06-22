@@ -1442,7 +1442,7 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_NO_BINLOG_ROW_OPT       (1 << 9)
 #define HTON_SUPPORTS_EXTENDED_KEYS  (1 <<10) //supports extended keys
-#define HTON_SUPPORTS_SYS_VERSIONING (1 << 11) //Engine supports System Versioning
+#define HTON_NATIVE_SYS_VERSIONING (1 << 11) //Engine supports System Versioning
 
 // MySQL compatibility. Unused.
 #define HTON_SUPPORTS_FOREIGN_KEYS   (1 << 0) //Foreign key constraint supported.
@@ -4368,8 +4368,8 @@ public:
   { return -1; /*unsupported */}
 
   virtual bool versioned() const
-  { DBUG_ASSERT(ht); return partition_ht()->flags & HTON_SUPPORTS_SYS_VERSIONING; }
-  virtual ha_rows part_recs_slow(void *_part_elem)
+  { DBUG_ASSERT(ht); return partition_ht()->flags & HTON_NATIVE_SYS_VERSIONING; }
+  virtual ha_rows part_records(void *_part_elem)
   { DBUG_ASSERT(0); return false; }
   virtual handler* part_handler(uint32 part_id)
   { DBUG_ASSERT(0); return NULL; }

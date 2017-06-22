@@ -6674,7 +6674,7 @@ bool Vers_parse_info::check_and_fix_implicit(
   const char* table_name)
 {
   bool integer_fields=
-      create_info->db_type->flags & HTON_SUPPORTS_SYS_VERSIONING;
+      create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING;
 
   SELECT_LEX &slex= thd->lex->select_lex;
   int vers_tables= 0;
@@ -6826,7 +6826,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
                                           TABLE_SHARE *share)
 {
   bool integer_fields=
-      create_info->db_type->flags & HTON_SUPPORTS_SYS_VERSIONING;
+      create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING;
   const char *table_name= share->table_name.str;
 
   if (!need_check() && !share->versioned)

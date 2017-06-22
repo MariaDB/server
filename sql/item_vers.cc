@@ -71,7 +71,7 @@ VTQ_common<Item_func_X>::init_hton()
       hton= plugin_hton(plugin_int_to_ref(innodb_plugin));
       DBUG_ASSERT(hton);
     }
-    if (hton && !(hton->flags & HTON_SUPPORTS_SYS_VERSIONING))
+    if (hton && !(hton->flags & HTON_NATIVE_SYS_VERSIONING))
     {
       my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), Item::name ? Item::name : this->func_name());
       hton= NULL;

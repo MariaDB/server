@@ -1356,7 +1356,7 @@ public:
 	}
 
 	virtual ha_rows
-	part_recs_slow(void *_part_elem);
+	part_records(void *_part_elem);
 
 
 private:
