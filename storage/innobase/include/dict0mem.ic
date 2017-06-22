@@ -66,6 +66,7 @@ dict_mem_fill_index_struct(
 	index->merge_threshold = DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
 	index->table_name = table_name;
 	index->n_fields = (unsigned int) n_fields;
+	index->n_core_fields = (unsigned int) n_fields;
 	/* The '1 +' above prevents allocation
 	of an empty mem block */
 	index->nulls_equal = false;

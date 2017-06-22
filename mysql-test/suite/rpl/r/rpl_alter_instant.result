@@ -1,0 +1,66 @@
+include/master-slave.inc
+[connection master]
+use test;
+create table t1 (id int primary key, c1 int default 10, c2 varchar(20) default 'holiday') engine = innodb;
+insert into t1 values(1, 12345, 'abcde'), (2, default, default), (3, 23456, 'xyzab');
+set time_zone='+03:00';
+set timestamp = 1;
+alter table t1 add column d1 timestamp not null default current_timestamp;
+select * from t1;
+id	c1	c2	d1
+1	12345	abcde	1970-01-01 03:00:01
+2	10	holiday	1970-01-01 03:00:01
+3	23456	xyzab	1970-01-01 03:00:01
+connection slave;
+connection slave;
+set time_zone='+03:00';
+select * from t1;
+id	c1	c2	d1
+1	12345	abcde	1970-01-01 03:00:01
+2	10	holiday	1970-01-01 03:00:01
+3	23456	xyzab	1970-01-01 03:00:01
+connection master;
+alter table t1 add column d2 timestamp not null default current_timestamp, ALGORITHM=copy;
+connection slave;
+connection slave;
+select * from t1;
+id	c1	c2	d1	d2
+1	12345	abcde	1970-01-01 03:00:01	1970-01-01 03:00:01
+2	10	holiday	1970-01-01 03:00:01	1970-01-01 03:00:01
+3	23456	xyzab	1970-01-01 03:00:01	1970-01-01 03:00:01
+connection master;
+drop table t1;
+create table t4 (id int primary key, c2 int);
+insert into t4 values(1,1),(2,2),(3,3);
+set timestamp = 1000;
+alter table t4 add column (c3 datetime default current_timestamp(), c4 timestamp not null default current_timestamp());
+select * from t4;
+id	c2	c3	c4
+1	1	1970-01-01 03:16:40	1970-01-01 03:16:40
+2	2	1970-01-01 03:16:40	1970-01-01 03:16:40
+3	3	1970-01-01 03:16:40	1970-01-01 03:16:40
+alter table t4 add column c5 time not null default current_timestamp();
+Warnings:
+Note	1265	Data truncated for column 'c5' at row 1
+Note	1265	Data truncated for column 'c5' at row 2
+Note	1265	Data truncated for column 'c5' at row 3
+alter table t4 add column c6 date not null default current_timestamp();
+Warnings:
+Note	1265	Data truncated for column 'c6' at row 1
+Note	1265	Data truncated for column 'c6' at row 2
+Note	1265	Data truncated for column 'c6' at row 3
+select * from t4;
+id	c2	c3	c4	c5	c6
+1	1	1970-01-01 03:16:40	1970-01-01 03:16:40	03:16:40	1970-01-01
+2	2	1970-01-01 03:16:40	1970-01-01 03:16:40	03:16:40	1970-01-01
+3	3	1970-01-01 03:16:40	1970-01-01 03:16:40	03:16:40	1970-01-01
+connection slave;
+connection slave;
+select * from t4;
+id	c2	c3	c4	c5	c6
+1	1	1970-01-01 03:16:40	1970-01-01 03:16:40	03:16:40	1970-01-01
+2	2	1970-01-01 03:16:40	1970-01-01 03:16:40	03:16:40	1970-01-01
+3	3	1970-01-01 03:16:40	1970-01-01 03:16:40	03:16:40	1970-01-01
+connection master;
+drop table t4;
+include/rpl_end.inc

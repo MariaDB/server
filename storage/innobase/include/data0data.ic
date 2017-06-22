@@ -94,6 +94,7 @@ dfield_get_len(
 	ut_ad(field);
 	ut_ad((field->len == UNIV_SQL_NULL)
 	      || (field->data != &data_error));
+	ut_ad(field->len != UNIV_SQL_DEFAULT);
 
 	return(field->len);
 }
@@ -108,6 +109,7 @@ dfield_set_len(
 	ulint		len)	/*!< in: length or UNIV_SQL_NULL */
 {
 	ut_ad(field);
+	ut_ad(len != UNIV_SQL_DEFAULT);
 #ifdef UNIV_VALGRIND_DEBUG
 	if (len != UNIV_SQL_NULL) UNIV_MEM_ASSERT_RW(field->data, len);
 #endif /* UNIV_VALGRIND_DEBUG */
