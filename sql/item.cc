@@ -2763,9 +2763,8 @@ void Item_field::set_field(Field *field_par)
   field->force_null= false;
   if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context &&
       ((field->table->pos_in_table_list &&
-      field->table->pos_in_table_list->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED) ||
-      (context->select_lex &&
-      context->select_lex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)))
+        field->table->pos_in_table_list->vers_conditions) ||
+       (context->select_lex && context->select_lex->vers_conditions)))
   {
     field->force_null= true;
     push_warning_printf(
