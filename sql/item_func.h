@@ -316,6 +316,19 @@ public:
     return this;
   }
 
+  bool excl_dep_on_table(table_map tab_map)
+  {
+    if (used_tables() & OUTER_REF_TABLE_BIT)
+      return false; 
+    return !(used_tables() & ~tab_map) || 
+           Item_args::excl_dep_on_table(tab_map);
+  }
+
+  bool excl_dep_on_grouping_fields(st_select_lex *sel)
+  {
+    return Item_args::excl_dep_on_grouping_fields(sel);
+  }
+
   /*
     We assume the result of any function that has a TIMESTAMP argument to be
     timezone-dependent, since a TIMESTAMP value in both numeric and string

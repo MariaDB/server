@@ -1580,8 +1580,20 @@ public:
   virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
   virtual bool exists2in_processor(void *arg) { return 0; }
   virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
-  virtual bool exclusive_dependence_on_table_processor(void *arg) { return 0; }
-  virtual bool exclusive_dependence_on_grouping_fields_processor(void *arg) { return 0; }
+
+  /* 
+    TRUE if the expression depends only on the table indicated by tab_map
+    or can be converted to such an exression using equalities.
+    Not to be used for AND/OR formulas.
+  */
+  virtual bool excl_dep_on_table(table_map tab_map) { return false; }
+  /* 
+    TRUE if the expression depends only on grouping fields of sel
+    or can be converted to such an exression using equalities.
+    Not to be used for AND/OR formulas.
+  */
+  virtual bool excl_dep_on_grouping_fields(st_select_lex *sel) { return false; }
+
   virtual bool switch_to_nullable_fields_processor(void *arg) { return 0; }
   virtual bool find_function_processor (void *arg) { return 0; }
   /*
@@ -2633,8 +2645,8 @@ public:
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
   Item *derived_grouping_field_transformer_for_where(THD *thd, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
-  bool exclusive_dependence_on_table_processor(void *map);
-  bool exclusive_dependence_on_grouping_fields_processor(void *arg);
+  bool excl_dep_on_table(table_map tab_map);
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool cleanup_excluding_fields_processor(void *arg)
   { return field ? 0 : cleanup_processor(arg); }
   bool cleanup_excluding_const_fields_processor(void *arg)
@@ -3853,6 +3865,28 @@ protected:
   }
   bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
   void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
+  bool excl_dep_on_table(table_map tab_map)
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->const_item())
+        continue;
+      if (!args[i]->excl_dep_on_table(tab_map))
+        return false;
+    }
+    return true;
+  }
+  bool excl_dep_on_grouping_fields(st_select_lex *sel)
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->const_item())
+        continue;      
+      if (!args[i]->excl_dep_on_grouping_fields(sel))
+        return false;
+    }
+    return true;
+  }
 public:
   Item_args(void)
     :args(NULL), arg_count(0)
@@ -4321,10 +4355,15 @@ public:
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_ref>(thd, mem_root, this); }
-  bool exclusive_dependence_on_table_processor(void *map)
-  { return depended_from != NULL; }
-  bool exclusive_dependence_on_grouping_fields_processor(void *arg)
-  { return depended_from != NULL; }
+  bool excl_dep_on_table(table_map tab_map)
+  { 
+    table_map used= used_tables();
+    if (used & OUTER_REF_TABLE_BIT)
+      return false;
+    return (used == tab_map) || (*ref)->excl_dep_on_table(tab_map);
+  }
+  bool excl_dep_on_grouping_fields(st_select_lex *sel)
+  { return (*ref)->excl_dep_on_grouping_fields(sel); }
   bool cleanup_excluding_fields_processor(void *arg)
   {
     Item *item= real_item();
@@ -4621,13 +4660,20 @@ public:
     return (*ref)->walk(processor, walk_subquery, arg) ||
            (this->*processor)(arg);
   }
-   bool view_used_tables_processor(void *arg) 
+  bool view_used_tables_processor(void *arg) 
   {
     TABLE_LIST *view_arg= (TABLE_LIST *) arg;
     if (view_arg == view)
       view_arg->view_used_tables|= (*ref)->used_tables();
     return 0;
   }
+  bool excl_dep_on_table(table_map tab_map);
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
+  Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
+  Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
+  Item *derived_grouping_field_transformer_for_where(THD *thd,
+                                                     uchar *arg);
+
   void save_val(Field *to)
   {
     if (check_null_ref())
@@ -4709,6 +4755,8 @@ public:
     item_equal= NULL;
     Item_direct_ref::cleanup();
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_direct_view_ref>(thd, mem_root, this); }
 };
 
 

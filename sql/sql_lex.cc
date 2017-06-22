@@ -5006,8 +5006,9 @@ void st_select_lex::collect_grouping_fields(THD *thd)
     from cond.
 */ 
 
-void st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
-                                              Item_processor check_processor)
+void 
+st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
+                                                         TABLE_LIST *derived)
 {
   cond->clear_extraction_flag();
   if (cond->type() == Item::COND_ITEM)
@@ -5020,7 +5021,7 @@ void st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
     Item *item;
     while ((item=li++))
     {
-      check_cond_extraction_for_grouping_fields(item, check_processor);
+      check_cond_extraction_for_grouping_fields(item, derived);
       if (item->get_extraction_flag() !=  NO_EXTRACTION_FL)
       {
         count++;
@@ -5041,10 +5042,12 @@ void st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
         item->clear_extraction_flag();
     }
   }
-  else 
-    cond->set_extraction_flag(cond->walk(check_processor, 
-				   0, (uchar *) this) ?
-     NO_EXTRACTION_FL : FULL_EXTRACTION_FL);
+  else
+  {
+    int fl= cond->excl_dep_on_grouping_fields(this) ?
+      FULL_EXTRACTION_FL : NO_EXTRACTION_FL;
+    cond->set_extraction_flag(fl);
+  }
 }
 
 
