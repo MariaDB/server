@@ -1861,6 +1861,10 @@ innobase_start_or_create_for_mysql()
 					 NULL, NULL);
 		}
 
+#ifdef UNIV_LINUX
+		/* Wait for the setpriority() call to finish. */
+		os_event_wait(recv_sys->flush_end);
+#endif /* UNIV_LINUX */
 		srv_start_state_set(SRV_START_STATE_IO);
 	}
 
