@@ -970,12 +970,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
           be overwritten by fill_record() anyway (and fill_record() does not
           use default values in this case).
         */
-#ifdef HAVE_valgrind
-        if (table->file->ha_table_flags() && HA_RECORD_MUST_BE_CLEAN_ON_WRITE)
-          restore_record(table,s->default_values);	// Get empty record
-        else
-#endif
-          table->record[0][0]= share->default_values[0];
+        table->record[0][0]= share->default_values[0];
 
         /* Fix undefined null_bits. */
         if (share->null_bytes > 1 && share->last_null_bit_pos)

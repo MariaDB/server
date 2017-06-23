@@ -4150,16 +4150,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
 
   DBUG_ASSERT(key_read == 0);
 
-  /* mark the record[0] uninitialized */
-  TRASH(record[0], s->reclength);
-
-  /*
-    Initialize the null marker bits, to ensure that if we are doing a read
-    of only selected columns (like in keyread), all null markers are
-    initialized.
-  */
-  memset(record[0], 255, s->null_bytes); 
-  memset(record[1], 255, s->null_bytes); 
+  restore_record(this, s->default_values);
 
   /* Tables may be reused in a sub statement. */
   DBUG_ASSERT(!file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN));
