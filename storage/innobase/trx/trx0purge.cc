@@ -285,8 +285,12 @@ trx_purge_add_update_undo_to_history(
 	purge have been started, recv_recovery_rollback_active() can
 	start transactions in row_merge_drop_temp_indexes() and
 	fts_drop_orphaned_tables(), and roll back recovered transactions.
-	Also, DROP TABLE may be executed while innodb_force_recovery=2
-	prevents the purge from running.
+
+	Arbitrary user transactions may be executed when all the undo log
+	related background processes (including purge) are disabled due to
+	innodb_force_recovery=2 or innodb_force_recovery=3.
+	DROP TABLE may be executed at any innodb_force_recovery	level.
+
 	After the purge thread has been given permission to exit,
 	in fast shutdown, we may roll back transactions (trx->undo_no==0)
 	in THD::cleanup() invoked from unlink_thd(). */
