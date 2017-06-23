@@ -1,5 +1,6 @@
 #ifndef VTQ_INCLUDED
 #define VTQ_INCLUDED
+
 /* Copyright (c) 2016, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -14,6 +15,15 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+
+
+/**
+   VTQ stands for 'versioning transaction query': InnoDB system table that holds
+   transaction IDs, their corresponding times and other transaction-related
+   data which is used for transaction order resolution. When versioned table
+   marks its records lifetime with transaction IDs, VTQ is used to get their
+   actual timestamps. */
+
 
 enum vtq_field_t
 {
