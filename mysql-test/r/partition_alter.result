@@ -83,6 +83,8 @@ partition p2 values less than ('2020-10-19'));
 insert t1 values (0, '2000-01-02', 0);
 insert t1 values (1, '2020-01-02', 10);
 alter table t1 add check (b in (0, 1));
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`#sql-temporary`
+alter table t1 add check (b in (0, 10));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -90,7 +92,7 @@ t1	CREATE TABLE `t1` (
   `d` date NOT NULL,
   `b` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`,`d`),
-  CONSTRAINT `CONSTRAINT_1` CHECK (`b` in (0,1))
+  CONSTRAINT `CONSTRAINT_1` CHECK (`b` in (0,10))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY RANGE  COLUMNS(d)
 (PARTITION p1 VALUES LESS THAN ('2016-10-18') ENGINE = MyISAM,
