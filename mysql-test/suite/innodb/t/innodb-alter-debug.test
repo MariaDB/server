@@ -35,8 +35,10 @@ DROP TABLE t1ć, ①;
 --echo # Bug #21364096  THE BOGUS DUPLICATE KEY ERROR IN ONLINE DDL
 --echo #                WITH INCORRECT KEY NAME
 
+# because of instant add, here we use redundant row format first, 
+# And change it when "ALGORITHM=instant" is introduced 
 create table t1 (id int auto_increment primary key, a int, unique key uk(a))
-engine = innodb;
+engine = innodb row_format=redundant;
 insert into t1 select 1, 1;
 insert into t1 select 2, 2;
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL s1 WAIT_FOR s2';

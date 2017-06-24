@@ -12,10 +12,11 @@
 --echo		 table being truncated. Also check if
 --echo		 DDL operations on other tables succeed.
 
-create table t1 (f1 int,f2 int,key(f2),f3 int) engine=innodb;
+create table t1 (f1 int,f2 int,key(f2),f3 int) engine=innodb row_format=redundant;
 create index idx1 on t1(f3);
-create table t2 (f1 int,f2 int,key(f2),f3 int) engine=innodb;
-create table t3 (f1 int,f2 int,key(f2)) engine=innodb;
+create table t2 (f1 int,f2 int,key(f2),f3 int) engine=innodb row_format=redundant;
+
+create table t3 (f1 int,f2 int,key(f2)) engine=innodb row_format=redundant;
 
 insert into t1 values (10,20,30),(30,40,50),(50,60,70);
 insert into t1 select * from t1;
