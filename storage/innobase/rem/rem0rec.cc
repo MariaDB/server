@@ -296,6 +296,7 @@ rec_init_offsets_comp_ordinary(
 		lens	= nulls - UT_BITS_IN_BYTES(n_null);
 
 	} else if (dict_index_is_clust_instant(index)) {
+		ut_ad(index->n_core_fields > 0);
 		n_null = index->n_core_nullable;
 		field_count = index->n_core_fields;
 
@@ -480,7 +481,10 @@ rec_init_offsets(
 			PRIMARY KEY columns, which are always NOT NULL, 
 			so we should have used n_nullable=0.)
 		*/
-		ut_ad(!rec_is_instant(rec));
+		/* For compressed row format, the info bit has not been initialized */
+		ut_ad(dict_table_is_zip(index->table) || !rec_is_instant(rec));
+
+		ut_ad(index->n_core_fields > 0);
 
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 		lens = nulls - UT_BITS_IN_BYTES(index->n_core_nullable);
@@ -1844,7 +1848,7 @@ rec_copy_prefix_to_buf(
 		return(NULL);
 	}
 
-	if (rec_is_instant(rec)) {
+	if (!dict_table_is_zip(index->table) && rec_is_instant(rec)) {
 		ulint field_count_len = 0;
 		ulint field_count = 0;
 		ulint n_nullable = 0;

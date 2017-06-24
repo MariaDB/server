@@ -4287,7 +4287,7 @@ innobase_add_one_instant(
 	pars_info_add_ull_literal(info, "id", table->id);
 	pars_info_add_int4_literal(info, "pos", pos_in_innodb);
 	//pars_info_add_str_literal(info, "default_value", def_val_len);
-	pars_info_add_literal(info, "default_value", def_val, def_val_len, DATA_FIXBINARY, DATA_BINARY_TYPE);
+	pars_info_add_literal(info, "default_value", def_val, def_val_len, DATA_BLOB, DATA_BINARY_TYPE);
 
 	error = que_eval_sql(
 		info,

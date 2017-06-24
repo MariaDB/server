@@ -552,6 +552,7 @@ mlog_parse_index(
 	dict_table_t*	table;
 	dict_index_t*	ind;
 	ulint		n_core_fields = 0;
+	ibool		is_instant = FALSE;
 
 	ut_ad(comp == FALSE || comp == TRUE);
 
@@ -562,6 +563,7 @@ mlog_parse_index(
 		n = mach_read_from_2(ptr);
 		ptr += 2;
 		if (n & 0x8000) {  // instant record
+			is_instant = TRUE;
 			n &= 0x7FFF;
 
 			n_core_fields = mach_read_from_2(ptr);
