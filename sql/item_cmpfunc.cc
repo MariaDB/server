@@ -5408,9 +5408,8 @@ bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
   {
     if (!stringcmp(pattern, &m_prev_pattern))
       return false;
+    cleanup();
     m_prev_pattern.copy(*pattern);
-    pcre_free(m_pcre);
-    m_pcre= NULL;
   }
 
   if (!(pattern= convert_if_needed(pattern, &pattern_converter)))

@@ -2074,14 +2074,15 @@ public:
   {
     return subpattern_end(n) - subpattern_start(n);
   }
+  void reset()
+  {
+    m_pcre= NULL;
+    m_prev_pattern.length(0);
+  }
   void cleanup()
   {
-    if (m_pcre)
-    {
-      pcre_free(m_pcre);
-      m_pcre= NULL;
-    }
-    m_prev_pattern.length(0);
+    pcre_free(m_pcre);
+    reset();
   }
   bool is_compiled() const { return m_pcre != NULL; }
   bool is_const() const { return m_is_const; }
@@ -2110,6 +2111,13 @@ public:
   enum precedence precedence() const { return CMP_PRECEDENCE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_regex>(thd, mem_root, this); }
+  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
+  {
+    Item_func_regex *clone= (Item_func_regex*) Item_bool_func::build_clone(thd, mem_root);
+    if (clone)
+      clone->re.reset();
+    return clone;
+  }
 
   void print(String *str, enum_query_type query_type)
   {
