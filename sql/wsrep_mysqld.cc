@@ -544,17 +544,22 @@ wsrep_view_handler_cb (void*                    app_ctx,
         }
       }
 
+      wsrep_seqno_t seqno;
+
       /* Init storage engine XIDs from first view */
       if (view->memb_num == 1)
       {
-        wsrep_set_SE_checkpoint(WSREP_UUID_UNDEFINED, WSREP_SEQNO_UNDEFINED);
+        seqno= view->state_id.seqno;
+        wsrep_set_SE_checkpoint(cluster_uuid, seqno);
       }
       else
       {
         // must get from state transfer
+        wsrep_uuid_t unused;
+        wsrep_get_SE_checkpoint(unused, seqno);
       }
 
-      wsrep_verify_SE_checkpoint(cluster_uuid, view->state_id.seqno);
+      wsrep_verify_SE_checkpoint(cluster_uuid, seqno);
       new_status= WSREP_MEMBER_JOINED;
 #ifdef GTID_SUPPORT
       wsrep_init_sidno(local_uuid);
@@ -631,16 +636,16 @@ out:
 
 /* Verifies that SE position is consistent with the group position
  * and initializes other variables */
-void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& group_uuid,
-                                wsrep_seqno_t const group_seqno)
+void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& uuid,
+                                wsrep_seqno_t const seqno)
 {
   wsrep_get_SE_checkpoint(local_uuid, local_seqno);
 
-  if (memcmp(&local_uuid, &group_uuid, sizeof (wsrep_uuid_t)) ||
-             local_seqno > group_seqno)
+  if (memcmp(&local_uuid, &uuid, sizeof (wsrep_uuid_t)) ||
+             local_seqno > seqno)
   {
     WSREP_ERROR("Failed to update SE checkpoint. Can't continue.");
-    wsrep_log_states(WSREP_LOG_FATAL, &group_uuid, group_seqno,
+    wsrep_log_states(WSREP_LOG_FATAL, &uuid, seqno,
                      &local_uuid, local_seqno);
     assert(0);
     unireg_abort(1);
@@ -2061,10 +2066,10 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
   if (thd->variables.wsrep_OSU_method == WSREP_OSU_NBO &&
       (wsrep->capabilities(wsrep) & WSREP_CAP_NBO) == 0)
   {
-    WSREP_DEBUG("wsrep_OSU_method NBO not supported by provider protocol");
-    my_message(ER_NOT_SUPPORTED_YET,
-               "wsrep_OSU_method NBO not supported by provider protocol",
-               MYF(0));
+    const char* const msg=
+      "wsrep_OSU_method NBO is not supported by wsrep provider";
+    WSREP_DEBUG("%s", msg);
+    my_message(ER_NOT_SUPPORTED_YET, msg, MYF(0));
     return -1;
   }
 
