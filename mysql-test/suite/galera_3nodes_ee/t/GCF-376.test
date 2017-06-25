@@ -31,8 +31,7 @@ SET SESSION wsrep_sync_wait=0;
 UNLOCK TABLES;
 
 # Wait until node #2 leaves the cluster
---let $wait_condition = SELECT VARIABLE_VALUE = 'OFF' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
---source include/wait_condition.inc
+--source include/wsrep_wait_disconnect.inc
 
 --connection node_1
 SHOW STATUS LIKE 'wsrep_cluster_status';

@@ -31,3 +31,8 @@ CALL mtr.add_suppression("Inconsistent by consensus");
 CALL mtr.add_suppression("Failed to execute TOI action");
 CALL mtr.add_suppression("Non-blocking operation end failed");
 
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+--connection node_3
+--source include/galera_wait_ready.inc

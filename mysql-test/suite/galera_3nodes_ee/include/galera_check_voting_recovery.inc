@@ -37,6 +37,7 @@ SET SESSION wsrep_sync_wait = 7;
 
 --sleep 5
 --source include/start_mysqld.inc
+--source include/galera_wait_ready.inc
 
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
