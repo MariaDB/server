@@ -108,6 +108,17 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func()->func_name());
     return true;
   }
+
+  if (only_single_element_order_list())
+  {
+    // need to change the error, the error should say that we have more than one element in the order list
+    if (window_spec->order_list->elements != 1)
+    {
+      my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func()->func_name());
+      return true;
+    }
+  }
+
   /*
     TODO: why the last parameter is 'ref' in this call? What if window_func
     decides to substitute itself for something else and does *ref=.... ? 
@@ -192,6 +203,11 @@ void Item_sum_dense_rank::setup_window_func(THD *thd, Window_spec *window_spec)
   peer_tracker = new Group_bound_tracker(thd, window_spec->order_list);
   peer_tracker->init();
   clear();
+}
+
+void Item_sum_percentile_disc::setup_window_func(THD *thd, Window_spec *window_spec)
+{
+  setup_percentile_func(thd, window_spec->order_list);
 }
 
 bool Item_sum_dense_rank::add()

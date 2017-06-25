@@ -705,7 +705,7 @@ class Item_sum_percentile_disc : public Item_sum_cume_dist
 {
 public:
   Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg)
-                                 {}
+                              value(NULL) {}
 
   double val_real()
   {
@@ -753,7 +753,23 @@ public:
 
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_percentile_disc>(thd, mem_root, this); }
+  void setup_window_func(THD *thd, Window_spec *window_spec);
+  void setup_percentile_func(THD *thd, SQL_I_List<ORDER> *list)
+  {
+    value= new_Cached_item(thd, list->first->item[0], FALSE);
+  }
+  void cleanup()
+  {
+    if (value)
+    {
+      delete value;
+      value= NULL;
+    }
+    Item_sum_num::cleanup();
+  }
 
+private:
+  Cached_item *value;
 };
 
 
@@ -870,6 +886,17 @@ public:
       return false;
     }
   }  
+
+  bool only_single_element_order_list() const
+  {
+    switch(window_func()->sum_func()){
+    case Item_sum::PERCENTILE_CONT_FUNC:
+    case Item_sum::PERCENTILE_DISC_FUNC:
+      return true;
+    default:
+      return false;
+    }
+  }
 
   /*
     Computation functions.
