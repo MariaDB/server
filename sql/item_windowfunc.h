@@ -704,8 +704,8 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 class Item_sum_percentile_disc : public Item_sum_cume_dist
 {
 public:
-  Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg)
-                              value(NULL) {}
+  Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
+                              value(NULL), val_calculated(FALSE) {}
 
   double val_real()
   {
@@ -715,7 +715,18 @@ public:
       return 0;
     }
     null_value= false;
-    return 0;
+    return ((Cached_item_int*) value)->get_value();
+  }
+
+  longlong val_int()
+  {
+    if (get_row_count() == 0 || get_arg(0)->is_null())
+    {
+      null_value= true;
+      return 0;
+    }
+    null_value= false;
+    return ((Cached_item_int*) value)->get_value();
   }
 
   bool add()
@@ -724,6 +735,19 @@ public:
     if (arg->is_null())
       return true;
     /*implementation to be done*/
+    Item_sum_cume_dist::add();
+    double val1= Item_sum_cume_dist::val_real();
+    /* need to check type and return value accordingly*/
+    double val2 =arg->val_real_from_decimal();
+
+    /* use Cached_item to do the comparision using cmp_read_only() */
+
+    if( val1 >= val2 && !val_calculated)
+    {
+      val_calculated= true;
+      value->cmp();
+      return false;
+    }
     return false;
   }
 
@@ -734,7 +758,9 @@ public:
 
   void clear()
   {
-    //need to implement
+    val_calculated= false;
+    value->clear();
+    Item_sum_cume_dist::clear();
   }
 
   const char*func_name() const
@@ -770,6 +796,7 @@ public:
 
 private:
   Cached_item *value;
+  bool val_calculated;
 };
 
 
