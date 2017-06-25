@@ -701,11 +701,13 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
   ulong current_row_count_;
 };
 
-class Item_sum_percentile_disc : public Item_sum_cume_dist
+class Item_sum_percentile_disc : public Item_sum_cume_dist,
+                                 public Type_handler_hybrid_field_type
 {
 public:
   Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
-                              value(NULL), val_calculated(FALSE) {}
+                           Type_handler_hybrid_field_type(&type_handler_longlong),
+                           value(NULL), val_calculated(FALSE) {}
 
   double val_real()
   {
@@ -715,7 +717,7 @@ public:
       return 0;
     }
     null_value= false;
-    return ((Cached_item_int*) value)->get_value();
+    return ((Cached_item_real*) value)->get_value();
   }
 
   longlong val_int()
@@ -769,7 +771,9 @@ public:
   }
 
   void update_field() {}
-  const Type_handler *type_handler() const { return &type_handler_double; }
+  void set_type_handler(Window_spec *window_spec);
+  const Type_handler *type_handler() const
+  {return Type_handler_hybrid_field_type::type_handler();}
 
   void fix_length_and_dec()
   {

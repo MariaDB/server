@@ -319,6 +319,10 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   while ((win_func_item= li++))
   {
     win_func_item->update_used_tables();
+    if (win_func_item->only_single_element_order_list())
+    {
+      ((Item_sum_percentile_disc*)win_func_item)->set_type_handler(win_func_item->window_spec);
+    }
   }
 
   DBUG_RETURN(0);

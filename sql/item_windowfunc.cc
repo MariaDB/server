@@ -210,6 +210,11 @@ void Item_sum_percentile_disc::setup_window_func(THD *thd, Window_spec *window_s
   setup_percentile_func(thd, window_spec->order_list);
 }
 
+void Item_sum_percentile_disc::set_type_handler(Window_spec *window_spec)
+{
+  type_handler()->get_handler_by_cmp_type(window_spec->order_list->first->item[0]->result_type());
+}
+
 bool Item_sum_dense_rank::add()
 {
   if (peer_tracker->check_if_next_group() || first_add)

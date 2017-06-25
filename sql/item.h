@@ -5386,7 +5386,7 @@ public:
   Cached_item_decimal(Item *item_par);
   bool cmp(void);
   int  cmp_read_only();
-  my_decimal get_value(){ return value;};
+  my_decimal *get_value(){ return &value;};
   void clear()
   {
     null_value= false;
