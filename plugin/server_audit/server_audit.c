@@ -1145,7 +1145,7 @@ static void setup_connection_initdb(struct connection_info *cn,
   }
   else
   {
-    get_str_n(cn->user, &cn->user_length, sizeof(cn->db),
+    get_str_n(cn->user, &cn->user_length, sizeof(cn->user),
               uh_buffer, user_len);
     get_str_n(cn->host, &cn->host_length, sizeof(cn->host),
               uh_buffer+user_len+1, host_len);
@@ -1196,7 +1196,7 @@ static void setup_connection_query(struct connection_info *cn,
   }
   else
   {
-    get_str_n(cn->user, &cn->user_length, sizeof(cn->db),
+    get_str_n(cn->user, &cn->user_length, sizeof(cn->user),
               uh_buffer, user_len);
     get_str_n(cn->host, &cn->host_length, sizeof(cn->host),
               uh_buffer+user_len+1, host_len);
@@ -1956,7 +1956,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
   /* That one is important as this function can be called with      */
   /* &lock_operations locked when the server logs an error reported */
   /* by this plugin.                                                */
-  if (internal_stop_logging)
+  if (!thd || internal_stop_logging)
     return;
 
   flogger_mutex_lock(&lock_operations);
