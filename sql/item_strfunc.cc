@@ -2339,7 +2339,7 @@ Item *Item_func_sysconst::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 
    Return the identical item during view creation and prepare.
   */
-  if (!thd->lex->is_ps_or_view_context_analysis())
+  if (thd->lex->is_ps_or_view_context_analysis())
     return this;
   return const_charset_converter(thd, tocs, true, fully_qualified_func_name());
 }
