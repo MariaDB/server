@@ -19,6 +19,7 @@
 
 #include <my_global.h> /* MYSQL_PLUGIN_IMPORT, FN_REFLEN, FN_EXTLEN */
 #include "sql_basic_types.h"			/* query_id_t */
+#include "sql_plugin.h"
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
@@ -130,6 +131,9 @@ extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
 extern my_bool opt_slave_compressed_protocol, use_temp_pool;
 extern ulong slave_exec_mode_options, slave_ddl_exec_mode_options;
 extern ulong slave_retried_transactions;
+extern ulong transactions_multi_engine;
+extern ulong rpl_transactions_multi_engine;
+extern ulong transactions_gtid_foreign_engine;
 extern ulong slave_run_triggers_for_rbr;
 extern ulonglong slave_type_conversions_options;
 extern my_bool read_only, opt_readonly;
@@ -153,6 +157,8 @@ extern char *default_tz_name;
 extern Time_zone *default_tz;
 extern char *default_storage_engine, *default_tmp_storage_engine;
 extern char *enforced_storage_engine;
+extern char *gtid_pos_auto_engines;
+extern plugin_ref *opt_gtid_pos_auto_plugins;
 extern bool opt_endinfo, using_udf_functions;
 extern my_bool locked_in_memory;
 extern bool opt_using_transactions;

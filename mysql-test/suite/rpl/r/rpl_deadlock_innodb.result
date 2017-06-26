@@ -39,7 +39,9 @@ connection slave;
 BEGIN;
 SELECT * FROM t1 FOR UPDATE;
 a
+connection slave1;
 START SLAVE;
+connection slave;
 SELECT COUNT(*) FROM t2;
 COUNT(*)
 0
@@ -61,8 +63,10 @@ BEGIN;
 SELECT * FROM t1 FOR UPDATE;
 a
 1
+connection slave1;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1205]
+connection slave;
 SELECT COUNT(*) FROM t2;
 COUNT(*)
 0
@@ -92,8 +96,10 @@ SELECT * FROM t1 FOR UPDATE;
 a
 1
 1
+connection slave1;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1205]
+connection slave;
 SELECT COUNT(*) FROM t2;
 COUNT(*)
 0

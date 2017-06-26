@@ -46,6 +46,9 @@ BEGIN;
 SELECT * FROM t1 FOR UPDATE;
 # Save variable 'Slave_retried_transactions' before deadlock
 let $slave_retried_transactions= query_get_value(SHOW GLOBAL STATUS LIKE 'Slave_retried_transactions', Value, 1);
+# Run the START SLAVE in a separate connection. Otherwise it terminates
+# the SELECT FOR UPDATE transaction (START SLAVE does implicit COMMIT!).
+connection slave1;
 START SLAVE;
 # Wait until SQL thread blocked: variable 'Slave_retried_transactions' will incremented
 let $status_var= Slave_retried_transactions;
@@ -53,6 +56,7 @@ let $status_var_value= $slave_retried_transactions;
 let $status_type= GLOBAL;
 let $status_var_comparsion= >;
 --source include/wait_for_status_var.inc
+connection slave;
 SELECT COUNT(*) FROM t2;
 COMMIT;
 sync_with_master;
@@ -78,9 +82,11 @@ BEGIN;
 # Hold lock
 SELECT * FROM t1 FOR UPDATE;
 # Wait until slave stopped with error 'Lock wait timeout exceeded'
+connection slave1;
 START SLAVE;
 let $slave_sql_errno= 1205;
 --source include/wait_for_slave_sql_error.inc
+connection slave;
 SELECT COUNT(*) FROM t2;
 COMMIT;
 --source include/start_slave.inc
@@ -109,9 +115,11 @@ BEGIN;
 # Hold lock
 SELECT * FROM t1 FOR UPDATE;
 # Wait until slave stopped with error 'Lock wait timeout exceeded'
+connection slave1;
 START SLAVE;
 let $slave_sql_errno= 1205;
 --source include/wait_for_slave_sql_error.inc
+connection slave;
 SELECT COUNT(*) FROM t2;
 COMMIT;
 --source include/start_slave.inc

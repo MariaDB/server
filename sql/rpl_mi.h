@@ -379,7 +379,7 @@ void create_logfile_name_with_suffix(char *res_file_name, size_t length,
 uchar *get_key_master_info(Master_info *mi, size_t *length,
                            my_bool not_used __attribute__((unused)));
 void free_key_master_info(Master_info *mi);
-uint any_slave_sql_running();
+uint any_slave_sql_running(bool already_locked);
 bool give_error_if_slave_running(bool already_lock);
 
 #endif /* HAVE_REPLICATION */

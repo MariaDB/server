@@ -1,5 +1,12 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+include/stop_slave.inc
+SET sql_log_bin=0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+SET sql_log_bin=1;
+include/start_slave.inc
+connection master;
 CREATE TABLE t1 (i int) ENGINE=InnoDB;
 connection slave;
 *** MDEV-4484, incorrect error handling when entries in gtid_slave_pos not found. ***
@@ -13,7 +20,6 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,gtid_slave_pos_simulate_failed_delete";
 SET sql_log_bin= 0;
 CALL mtr.add_suppression("Can't find file");
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 SET sql_log_bin= 1;
 include/start_slave.inc
 connection master;
