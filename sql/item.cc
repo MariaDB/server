@@ -7173,9 +7173,8 @@ Item *Item_direct_view_ref::derived_field_transformer_for_having(THD *thd,
 {
   st_select_lex *sel= (st_select_lex *)arg;
   table_map tab_map= sel->master_unit()->derived->table->map;
-  if (item_equal && !(item_equal->used_tables() & tab_map))
-    return this;
-  if (!item_equal && used_tables() != tab_map)
+  if ((item_equal && !(item_equal->used_tables() & tab_map)) ||
+      !item_equal)
     return this;
   return get_field_item_for_having(thd, this, sel);
 }

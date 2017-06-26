@@ -8672,3 +8672,40 @@ EXPLAIN
 }
 drop view v1,v2,v3;
 drop table t1,t2;
+#
+# MDEV-13166: pushdown from merged derived
+#
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT MAX(i) AS f FROM t1;
+SELECT * FROM ( SELECT * FROM v1 ) AS sq WHERE f > 0;
+f
+2
+explain format=json SELECT * FROM ( SELECT * FROM v1 ) AS sq WHERE f > 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.f > 0",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "having_condition": "f > 0",
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+DROP VIEW v1;
+DROP TABLE t1;

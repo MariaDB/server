@@ -1509,3 +1509,20 @@ eval explain format=json $q4;
 
 drop view v1,v2,v3;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-13166: pushdown from merged derived
+--echo #
+
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT MAX(i) AS f FROM t1;
+
+let $q=
+SELECT * FROM ( SELECT * FROM v1 ) AS sq WHERE f > 0;
+
+eval $q;
+eval explain format=json $q;
+
+DROP VIEW v1;
+DROP TABLE t1;
