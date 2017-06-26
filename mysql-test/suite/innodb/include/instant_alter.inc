@@ -115,12 +115,22 @@ CHANGE COLUMN e e INT NOT NULL DEFAULT 105,
 CHANGE COLUMN f f INT UNSIGNED DEFAULT 106;
 SELECT * FROM t3;
 
+# datetime
+create table t4 (id int primary key, c2 int);
+insert into t4 values(1,1),(2,2),(3,3);
+alter table t4 add column (c3 datetime default current_timestamp(), c4 timestamp not null default current_timestamp());
+select * from t4;
+alter table t4 add column c5 time not null default current_timestamp();
+alter table t4 add column c6 date not null default current_timestamp();
+select * from t4;
+
 # add bolb column 
 eval create table bug53592(a int) engine=innodb row_format=compact ROW_FORMAT=$row_format;
 insert into bug53592 values(1);
 alter table bug53592 add column b text charset utf8;
 alter table bug53592 add column c blob not null;
 select * from bug53592;
+
 
 # big table
 create table big_table (id int primary key, c1 varchar(4000), c2 varchar(4000), c3 varchar(1000));

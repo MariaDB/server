@@ -4081,6 +4081,7 @@ innobase_get_field_def_value(
 		Item* item_def = field->default_value->expr;
 
 		THD* thd = current_thd;
+		uchar* tmp = NULL;
 
 		// see Item::save_date_in_field
 		MYSQL_TIME ltime;
@@ -4088,18 +4089,42 @@ innobase_get_field_def_value(
 			ut_ad(0);
 		}
 
-		// see Field_timestamp::store_time_dec
+		// backup the ptr
+		tmp = field->ptr;
+		field->ptr = &current_buff[0];
 
-		uint conversion_error;
-		my_time_t timestamp= TIME_to_timestamp(thd, &ltime, &conversion_error);
-		ut_a(!conversion_error);
+		ut_ad(field->pack_length() <= DATA_INT_MAX_LEN);
 
-		struct timeval tm;
-		tm.tv_sec= timestamp;
-		tm.tv_usec= ltime.second_part;
-		my_timeval_trunc(&tm, item_def->decimals);
+		switch (field->real_type()) {
+			case MYSQL_TYPE_TIMESTAMP: 
+			case MYSQL_TYPE_TIMESTAMP2: 
+				{
+					uint conversion_error;
+					Field_timestamp* f = (Field_timestamp*)field;
+					my_time_t timestamp= TIME_to_timestamp(thd, &ltime, &conversion_error);
+					ut_ad(!conversion_error);
+					f->store_TIME(timestamp, ltime.second_part);
+				}
+				break;
 
-		my_timestamp_to_binary(&tm, &current_buff[0], item_def->decimals);
+			case MYSQL_TYPE_DATETIME:
+			case MYSQL_TYPE_DATETIME2:
+				{
+					Field_datetime* f = (Field_datetime*)field;
+					f->store_TIME(&ltime);
+				}
+				break;
+
+			//case MYSQL_TYPE_TIME2:
+			//case MYSQL_TYPE_DATE:
+			//case MYSQL_TYPE_YEAR:
+			//case MYSQL_TYPE_TIME:
+			//case MYSQL_TYPE_NEWDATE:
+			default:
+				ut_ad(0);
+		}
+		// retore the ptr
+		field->ptr = tmp;
 		def_pos = &current_buff[0];
 
 	} else {
