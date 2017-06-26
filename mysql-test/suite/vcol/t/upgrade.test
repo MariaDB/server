@@ -1,0 +1,13 @@
+#
+# MDEV-12936 upgrade to 10.2.6 failed upon tables with virtual columns
+#
+let $datadir=`select @@datadir`;
+copy_file std_data/vcol_autoinc.frm $datadir/test/vcol_autoinc.frm;
+copy_file std_data/vcol_autoinc.MYD $datadir/test/vcol_autoinc.MYD;
+copy_file std_data/vcol_autoinc.MYI $datadir/test/vcol_autoinc.MYI;
+check table vcol_autoinc for upgrade;
+show create table vcol_autoinc;
+select * from vcol_autoinc;
+insert vcol_autoinc (pk) values (1);
+select * from vcol_autoinc;
+drop table vcol_autoinc;

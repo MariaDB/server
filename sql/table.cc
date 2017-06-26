@@ -1860,7 +1860,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           interval_nr= (uint)vcol_screen_pos[3];
         else if ((uint)vcol_screen_pos[0] != 1)
           goto err;
-        vcol_info->stored_in_db= vcol_screen_pos[2] & 1;
+        bool stored= vcol_screen_pos[2] & 1;
+        vcol_info->stored_in_db= stored;
+        vcol_info->set_vcol_type(stored ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL);
         vcol_expr_length= vcol_info_length -
                           (uint)(FRM_VCOL_OLD_HEADER_SIZE(opt_interval_id));
         vcol_info->utf8= 0; // before 10.2.1 the charset was unknown
@@ -2862,9 +2864,11 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
       of the statement because the field item does not have a field
       pointer at that time
     */
-    my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0),
+    myf warn= table->s->frm_version < FRM_VER_EXPRESSSIONS ? ME_JUST_WARNING : 0;
+    my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(warn),
              "AUTO_INCREMENT", vcol->get_vcol_type_name(), res.name);
-    DBUG_RETURN(1);
+    if (!warn)
+      DBUG_RETURN(1);
   }
   vcol->flags= res.errors;
 
