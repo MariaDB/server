@@ -24,6 +24,7 @@ class Window_spec;
 
 int test_if_group_changed(List<Cached_item> &list);
 
+
 /* A wrapper around test_if_group_changed */
 class Group_bound_tracker
 {
@@ -31,10 +32,13 @@ public:
 
   Group_bound_tracker(THD *thd, SQL_I_List<ORDER> *list)
   {
-    for (ORDER *curr = list->first; curr; curr=curr->next) 
+    if (list)
     {
-      Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
-      group_fields.push_back(tmp);
+      for (ORDER *curr = list->first; curr; curr=curr->next)
+      {
+        Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
+        group_fields.push_back(tmp);
+      }
     }
   }
 
@@ -86,6 +90,19 @@ public:
     return 0;
   }
 
+  bool compare_with_cache_for_null_values()
+  {
+    List_iterator<Cached_item> li(group_fields);
+    Cached_item *ptr;
+    while ((ptr= li++))
+    {
+      ptr->cmp();
+      if (ptr->null_value)
+        return true;
+    }
+    return false;
+  }
+
 private:
   List<Cached_item> group_fields;
   /*
@@ -99,6 +116,7 @@ private:
   */
    bool first_check;
 };
+
 
 /*
   ROW_NUMBER() OVER (...)
@@ -707,7 +725,7 @@ class Item_sum_percentile_disc : public Item_sum_cume_dist,
 public:
   Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
                            Type_handler_hybrid_field_type(&type_handler_longlong),
-                           value(NULL), val_calculated(FALSE) {}
+                           value(NULL), result_value(NULL), val_calculated(FALSE) {}
 
   double val_real()
   {
@@ -717,7 +735,7 @@ public:
       return 0;
     }
     null_value= false;
-    return ((Cached_item_real*) value)->get_value();
+    return ((Cached_item_real*) result_value)->get_value();
   }
 
   longlong val_int()
@@ -728,7 +746,18 @@ public:
       return 0;
     }
     null_value= false;
-    return ((Cached_item_int*) value)->get_value();
+    return ((Cached_item_int*) result_value)->get_value();
+  }
+
+  my_decimal* val_decimal(my_decimal* dec)
+  {
+    if (get_row_count() == 0 || get_arg(0)->is_null())
+    {
+      null_value= true;
+      return 0;
+    }
+    null_value= false;
+    return ((Cached_item_decimal*) result_value)->get_value();
   }
 
   bool add()
@@ -736,7 +765,18 @@ public:
     Item *arg = get_arg(0);
     if (arg->is_null())
       return true;
-    /*implementation to be done*/
+    /*
+      need to ensure that the Item arg is constant across the entire partition
+      and its value ranges between [0,1]
+    */
+    value->cmp();
+
+    /* for the null values of the row, we dont count take those rows in account for calculating
+    the CUME_DIST */
+
+    if(value->null_value)
+      return false;
+
     Item_sum_cume_dist::add();
     double val1= Item_sum_cume_dist::val_real();
     /* need to check type and return value accordingly*/
@@ -747,7 +787,7 @@ public:
     if( val1 >= val2 && !val_calculated)
     {
       val_calculated= true;
-      value->cmp();
+      result_value->cmp();
       return false;
     }
     return false;
@@ -762,6 +802,7 @@ public:
   {
     val_calculated= false;
     value->clear();
+    result_value->clear();
     Item_sum_cume_dist::clear();
   }
 
@@ -787,6 +828,7 @@ public:
   void setup_percentile_func(THD *thd, SQL_I_List<ORDER> *list)
   {
     value= new_Cached_item(thd, list->first->item[0], FALSE);
+    result_value= new_Cached_item(thd, list->first->item[0], FALSE);
   }
   void cleanup()
   {
@@ -795,11 +837,17 @@ public:
       delete value;
       value= NULL;
     }
+    if(result_value)
+    {
+      delete result_value;
+      result_value= NULL;
+    }
     Item_sum_num::cleanup();
   }
 
 private:
   Cached_item *value;
+  Cached_item *result_value;
   bool val_calculated;
 };
 
