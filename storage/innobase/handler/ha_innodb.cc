@@ -2462,22 +2462,7 @@ innobase_get_stmt_safe(
 	char*	buf,
 	size_t	buflen)
 {
-	LEX_STRING* stmt;
-	size_t length=0;
-
-	ut_ad(buflen > 1);
-
-	stmt =  thd ? thd_query_string(thd) : NULL;
-
-	if (stmt && stmt->str) {
-		length = stmt->length >= buflen ? buflen - 1 : stmt->length;
-		memcpy(buf, stmt->str, length);
-		buf[length]='\0';
-	} else {
-		buf[0]='\0';
-	}
-
-	return (length);
+	return thd_query_safe(thd, buf, buflen);
 }
 
 /**********************************************************************//**

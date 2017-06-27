@@ -1452,3 +1452,77 @@ SELECT * FROM
 WHERE row <> order_number;
  
 DROP TABLE sales_documents;
+
+--echo #
+--echo # MDEV-12845: pushdown from merged derived using equalities  
+--echo #
+
+create table t1 (a int);
+insert into t1 values
+  (4), (8), (5), (3), (10), (2), (7);
+
+create table t2 (b int, c int);
+insert into t2 values
+  (2,1), (5,2), (2,2), (4,1), (4,3),
+  (5,3), (2,4), (4,6), (2,1);
+
+create view v1 as
+select b, sum(c) as s from t2 group by b;
+
+create view v2 as
+select distinct b, c from t2;
+
+create view v3 as
+select b, max(c) as m from t2 group by b;
+
+let $q1=
+select b
+from ( select t1.a, v1.b, v1.s from t1, v1 where t1.a = v1.b ) as t
+where b > 2;
+
+eval $q1;
+eval explain format=json $q1;
+
+let $q2=
+select a
+from ( select t1.a, v1.b, v1.s from t1, v1 where t1.a = v1.b ) as t
+where a > 2;
+
+eval $q2;
+eval explain format=json $q2;
+
+let $q3=
+select a
+from  ( select t1.a, v2.b, v2.c from t1, v2 where t1.a = v2.b ) as t
+where a > 2;
+
+eval $q3;
+eval explain format=json $q3;
+
+let $q4=
+select a
+from  ( select t1.a, v3.b, v3.m from t1, v3 where t1.a = v3.m ) as t
+where a > 2;
+
+eval $q4;
+eval explain format=json $q4;
+
+drop view v1,v2,v3;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-13166: pushdown from merged derived
+--echo #
+
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT MAX(i) AS f FROM t1;
+
+let $q=
+SELECT * FROM ( SELECT * FROM v1 ) AS sq WHERE f > 0;
+
+eval $q;
+eval explain format=json $q;
+
+DROP VIEW v1;
+DROP TABLE t1;

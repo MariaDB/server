@@ -7250,6 +7250,7 @@ EXPLAIN
             "materialized": {
               "query_block": {
                 "select_id": 5,
+                "having_condition": "s > 2",
                 "filesort": {
                   "sort_key": "t4.d",
                   "temporary_table": {
@@ -7621,6 +7622,7 @@ EXPLAIN
             "materialized": {
               "query_block": {
                 "select_id": 3,
+                "having_condition": "s < 50",
                 "filesort": {
                   "sort_key": "t3.a",
                   "temporary_table": {
@@ -7771,9 +7773,14 @@ EXPLAIN
           "select_id": 4,
           "table": {
             "table_name": "t",
-            "access_type": "ALL",
+            "access_type": "range",
+            "possible_keys": ["PRIMARY"],
+            "key": "PRIMARY",
+            "key_length": "4",
+            "used_key_parts": ["pk"],
             "rows": 2,
-            "filtered": 100
+            "filtered": 100,
+            "index_condition": "t.pk > 2"
           }
         }
       }
@@ -8463,3 +8470,258 @@ WHERE row <> order_number;
 row	order_number
 14	51
 DROP TABLE sales_documents;
+#
+# MDEV-12845: pushdown from merged derived using equalities  
+#
+create table t1 (a int);
+insert into t1 values
+(4), (8), (5), (3), (10), (2), (7);
+create table t2 (b int, c int);
+insert into t2 values
+(2,1), (5,2), (2,2), (4,1), (4,3),
+(5,3), (2,4), (4,6), (2,1);
+create view v1 as
+select b, sum(c) as s from t2 group by b;
+create view v2 as
+select distinct b, c from t2;
+create view v3 as
+select b, max(c) as m from t2 group by b;
+select b
+from ( select t1.a, v1.b, v1.s from t1, v1 where t1.a = v1.b ) as t
+where b > 2;
+b
+4
+5
+explain format=json select b
+from ( select t1.a, v1.b, v1.s from t1, v1 where t1.a = v1.b ) as t
+where b > 2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "t1.a > 2 and t1.a is not null"
+    },
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["b"],
+      "ref": ["test.t1.a"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "filesort": {
+            "sort_key": "t2.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 9,
+                "filtered": 100,
+                "attached_condition": "t2.b > 2"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+select a
+from ( select t1.a, v1.b, v1.s from t1, v1 where t1.a = v1.b ) as t
+where a > 2;
+a
+4
+5
+explain format=json select a
+from ( select t1.a, v1.b, v1.s from t1, v1 where t1.a = v1.b ) as t
+where a > 2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "t1.a > 2 and t1.a is not null"
+    },
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["b"],
+      "ref": ["test.t1.a"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "filesort": {
+            "sort_key": "t2.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 9,
+                "filtered": 100,
+                "attached_condition": "t2.b > 2"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+select a
+from  ( select t1.a, v2.b, v2.c from t1, v2 where t1.a = v2.b ) as t
+where a > 2;
+a
+4
+4
+4
+5
+5
+explain format=json select a
+from  ( select t1.a, v2.b, v2.c from t1, v2 where t1.a = v2.b ) as t
+where a > 2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "t1.a > 2 and t1.a is not null"
+    },
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["b"],
+      "ref": ["test.t1.a"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 9,
+              "filtered": 100,
+              "attached_condition": "t2.b > 2"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+select a
+from  ( select t1.a, v3.b, v3.m from t1, v3 where t1.a = v3.m ) as t
+where a > 2;
+a
+4
+3
+explain format=json select a
+from  ( select t1.a, v3.b, v3.m from t1, v3 where t1.a = v3.m ) as t
+where a > 2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "t1.a > 2 and t1.a is not null"
+    },
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["m"],
+      "ref": ["test.t1.a"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "having_condition": "m > 2",
+          "filesort": {
+            "sort_key": "t2.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 9,
+                "filtered": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1,v2,v3;
+drop table t1,t2;
+#
+# MDEV-13166: pushdown from merged derived
+#
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT MAX(i) AS f FROM t1;
+SELECT * FROM ( SELECT * FROM v1 ) AS sq WHERE f > 0;
+f
+2
+explain format=json SELECT * FROM ( SELECT * FROM v1 ) AS sq WHERE f > 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.f > 0",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "having_condition": "f > 0",
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+DROP VIEW v1;
+DROP TABLE t1;

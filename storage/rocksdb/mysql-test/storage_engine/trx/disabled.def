@@ -1,0 +1,4 @@
+cons_snapshot_serializable : Not supported
+level_read_uncommitted     : Not supported
+level_serializable         : Not supported
+xa_recovery                : MDEV-13155 - XA recovery not supported for RocksDB

@@ -917,6 +917,15 @@ buf_flush_init_for_writing(
 			case 1:
 				reset_type = FIL_PAGE_IBUF_BITMAP;
 				break;
+			case FSP_TRX_SYS_PAGE_NO:
+				if (block->page.id.page_no()
+				    == TRX_SYS_PAGE_NO
+				    && block->page.id.space()
+				    == TRX_SYS_SPACE) {
+					reset_type = FIL_PAGE_TYPE_TRX_SYS;
+					break;
+				}
+				/* fall through */
 			default:
 				switch (page_type) {
 				case FIL_PAGE_INDEX:
@@ -3124,12 +3133,6 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 			os_thread_create */
 {
 	my_thread_init();
-	ulint	next_loop_time = ut_time_ms() + 1000;
-	ulint	n_flushed = 0;
-	ulint	last_activity = srv_get_activity_count();
-	ulint	last_pages = 0;
-
-	my_thread_init();
 #ifdef UNIV_PFS_THREAD
 	pfs_register_thread(page_cleaner_thread_key);
 #endif /* UNIV_PFS_THREAD */
@@ -3151,6 +3154,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 		" page cleaner thread priority can be changed."
 		" See the man page of setpriority().";
 	}
+	/* Signal that setpriority() has been attempted. */
+	os_event_set(recv_sys->flush_end);
 #endif /* UNIV_LINUX */
 
 	while (!srv_read_only_mode
@@ -3194,12 +3199,16 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 
 	os_event_wait(buf_flush_event);
 
-	ulint		ret_sleep = 0;
-	ulint		n_evicted = 0;
-	ulint		n_flushed_last = 0;
-	ulint		warn_interval = 1;
-	ulint		warn_count = 0;
-	int64_t		sig_count = os_event_reset(buf_flush_event);
+	ulint	ret_sleep = 0;
+	ulint	n_evicted = 0;
+	ulint	n_flushed_last = 0;
+	ulint	warn_interval = 1;
+	ulint	warn_count = 0;
+	int64_t	sig_count = os_event_reset(buf_flush_event);
+	ulint	next_loop_time = ut_time_ms() + 1000;
+	ulint	n_flushed = 0;
+	ulint	last_activity = srv_get_activity_count();
+	ulint	last_pages = 0;
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 

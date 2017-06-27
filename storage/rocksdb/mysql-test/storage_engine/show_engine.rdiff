@@ -1,0 +1,14 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/show_engine.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/show_engine.reject	2017-06-22 15:24:52.547659575 +0300
+@@ -4,7 +4,10 @@
+ # volatile data (timestamps, memory info, etc.)
+ SHOW ENGINE <STORAGE_ENGINE> STATUS;
+ Type	Name	Status
+-<STORAGE_ENGINE>		### Engine status, can be long and changeable ###
++DBSTATS	<STORAGE_ENGINE>	### Engine status, can be long and changeable ###
++CF_COMPACTION	__system__	### Engine status, can be long and changeable ###
++CF_COMPACTION	default	### Engine status, can be long and changeable ###
++Memory_Stats	<STORAGE_ENGINE>	### Engine status, can be long and changeable ###
+ # For SHOW MUTEX even the number of lines is volatile, so the result logging is disabled,
+ # the test only checks that the command does not produce any errors
+ SHOW ENGINE <STORAGE_ENGINE> MUTEX;

@@ -1,0 +1,25 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/misc.result	2017-06-22 00:33:46.419995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/misc.reject	2017-06-22 02:34:23.647950149 +0300
+@@ -28,6 +28,9 @@
+ SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+ FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE ORDER BY TABLE_NAME;
+ TABLE_NAME	COLUMN_NAME	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
++Warning	1286	Unknown storage engine 'InnoDB'
++Warning	1286	Unknown storage engine 'InnoDB'
++Warnings:
+ column_stats	column_name	NULL	NULL
+ column_stats	db_name	NULL	NULL
+ column_stats	table_name	NULL	NULL
+@@ -58,12 +61,6 @@
+ index_stats	index_name	NULL	NULL
+ index_stats	prefix_arity	NULL	NULL
+ index_stats	table_name	NULL	NULL
+-innodb_index_stats	database_name	NULL	NULL
+-innodb_index_stats	index_name	NULL	NULL
+-innodb_index_stats	stat_name	NULL	NULL
+-innodb_index_stats	table_name	NULL	NULL
+-innodb_table_stats	database_name	NULL	NULL
+-innodb_table_stats	table_name	NULL	NULL
+ plugin	name	NULL	NULL
+ proc	db	NULL	NULL
+ proc	name	NULL	NULL
