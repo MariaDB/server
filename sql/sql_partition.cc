@@ -4110,39 +4110,6 @@ bool mysql_unpack_partition(THD *thd,
   DBUG_ASSERT(part_info->default_engine_type == default_db_type);
   DBUG_ASSERT(part_info->default_engine_type->db_type != DB_TYPE_UNKNOWN);
   DBUG_ASSERT(part_info->default_engine_type != partition_hton);
-
-  {
-  /*
-    This code part allocates memory for the serialised item information for
-    the partition functions. In most cases this is not needed but if the
-    table is used for SHOW CREATE TABLES or ALTER TABLE that modifies
-    partition information it is needed and the info is lost if we don't
-    save it here so unfortunately we have to do it here even if in most
-    cases it is not needed. This is a consequence of that item trees are
-    not serialisable.
-  */
-    uint part_func_len= part_info->part_func_len;
-    uint subpart_func_len= part_info->subpart_func_len; 
-    char *part_func_string= NULL;
-    char *subpart_func_string= NULL;
-    if ((part_func_len &&
-         !((part_func_string= (char*) thd->alloc(part_func_len)))) ||
-        (subpart_func_len &&
-         !((subpart_func_string= (char*) thd->alloc(subpart_func_len)))))
-    {
-      mem_alloc_error(part_func_len);
-      thd->free_items();
-      goto end;
-    }
-    if (part_func_len)
-      memcpy(part_func_string, part_info->part_func_string, part_func_len);
-    if (subpart_func_len)
-      memcpy(subpart_func_string, part_info->subpart_func_string,
-             subpart_func_len);
-    part_info->part_func_string= part_func_string;
-    part_info->subpart_func_string= subpart_func_string;
-  }
-
   result= FALSE;
 end:
   end_lex_with_single_table(thd, table, old_lex);

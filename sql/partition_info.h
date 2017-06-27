@@ -165,9 +165,6 @@ public:
   longlong err_value;
   char* part_info_string;
 
-  char *part_func_string;
-  char *subpart_func_string;
-
   partition_element *curr_part_elem;     // part or sub part
   partition_element *current_partition;  // partition
   part_elem_value *curr_list_val;
@@ -188,8 +185,6 @@ public:
   partition_type subpart_type;
 
   uint part_info_len;
-  uint part_func_len;
-  uint subpart_func_len;
 
   uint num_parts;
   uint num_subparts;
@@ -257,13 +252,11 @@ public:
     bitmaps_are_initialized(FALSE),
     list_array(NULL), err_value(0),
     part_info_string(NULL),
-    part_func_string(NULL), subpart_func_string(NULL),
     curr_part_elem(NULL), current_partition(NULL),
     curr_list_object(0), num_columns(0), table(NULL),
     default_engine_type(NULL),
     part_type(NOT_A_PARTITION), subpart_type(NOT_A_PARTITION),
     part_info_len(0),
-    part_func_len(0), subpart_func_len(0),
     num_parts(0), num_subparts(0),
     count_curr_subparts(0),
     num_list_values(0), num_part_fields(0), num_subpart_fields(0),

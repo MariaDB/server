@@ -1683,15 +1683,11 @@ bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
   {
     list_of_subpart_fields= FALSE;
     subpart_expr= item_ptr;
-    subpart_func_string= func_string;
-    subpart_func_len= expr_len;
   }
   else
   {
     list_of_part_fields= FALSE;
     part_expr= item_ptr;
-    part_func_string= func_string;
-    part_func_len= expr_len;
   }
   return FALSE;
 }
