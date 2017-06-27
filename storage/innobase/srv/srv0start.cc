@@ -959,8 +959,6 @@ srv_undo_tablespaces_init(bool create_new_db)
 		if (0 == srv_undo_tablespaces_open++) {
 			srv_undo_space_id_start = undo_tablespace_ids[i];
 		}
-
-		++srv_undo_tablespaces_open;
 	}
 
 	/* Open any extra unused undo tablespaces. These must be contiguous.

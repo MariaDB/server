@@ -105,22 +105,6 @@ extern	bool	srv_startup_is_before_trx_rollback_phase;
 /** TRUE if a raw partition is in use */
 extern	ibool	srv_start_raw_disk_in_use;
 
-/** Undo tablespaces starts with space_id. */
-extern	ulint	srv_undo_space_id_start;
-
-/** Check whether given space id is undo tablespace id
-@param[in]	space_id	space id to check
-@return true if it is undo tablespace else false. */
-inline
-bool
-srv_is_undo_tablespace(ulint space_id)
-{
-	return srv_undo_space_id_start > 0
-		&& space_id >= srv_undo_space_id_start
-		&& space_id < (srv_undo_space_id_start
-			       + srv_undo_tablespaces_open);
-}
-
 /** Shutdown state */
 enum srv_shutdown_t {
 	SRV_SHUTDOWN_NONE = 0,	/*!< Database running normally */

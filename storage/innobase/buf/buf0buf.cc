@@ -5959,9 +5959,8 @@ database_corrupted:
 			error injection */
 			DBUG_EXECUTE_IF(
 				"buf_page_import_corrupt_failure",
-				if (bpage->id.space()
-				    > srv_undo_tablespaces_open
-				    && bpage->id.space() != SRV_TMP_SPACE_ID) {
+				if (!is_predefined_tablespace(
+					    bpage->id.space())) {
 					buf_mark_space_corrupt(bpage);
 					ib::info() << "Simulated IMPORT "
 						"corruption";
@@ -6027,8 +6026,7 @@ database_corrupted:
 		if (uncompressed
 		    && !recv_no_ibuf_operations
 		    && (bpage->id.space() == 0
-			|| (bpage->id.space() > srv_undo_tablespaces_open
-			    && bpage->id.space() != SRV_TMP_SPACE_ID))
+			|| !is_predefined_tablespace(bpage->id.space()))
 		    && !srv_is_tablespace_truncated(bpage->id.space())
 		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
 		    && page_is_leaf(frame)) {

@@ -317,6 +317,22 @@ segment). It is quite possible that some of the tablespaces doesn't host
 any of the rollback-segment based on configuration used. */
 extern ulint	srv_undo_tablespaces_active;
 
+/** Undo tablespaces starts with space_id. */
+extern	ulint	srv_undo_space_id_start;
+
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+inline
+bool
+srv_is_undo_tablespace(ulint space_id)
+{
+	return srv_undo_space_id_start > 0
+		&& space_id >= srv_undo_space_id_start
+		&& space_id < (srv_undo_space_id_start
+			       + srv_undo_tablespaces_open);
+}
+
 /** The number of undo segments to use */
 extern ulong	srv_undo_logs;
 
