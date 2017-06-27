@@ -1292,6 +1292,23 @@ public:
   virtual enum precedence precedence() const { return DEFAULT_PRECEDENCE; }
   void print_parenthesised(String *str, enum_query_type query_type,
                            enum precedence parent_prec);
+  /**
+    This helper is used to print expressions as a part of a table definition,
+    in particular for
+      - generated columns
+      - check constraints
+      - default value expressions
+  */
+  void print_for_table_def(String *str)
+  {
+    print_parenthesised(str,
+                     (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                       QT_ITEM_IDENT_SKIP_DB_NAMES |
+                                       QT_ITEM_IDENT_SKIP_TABLE_NAMES |
+                                       QT_NO_DATA_EXPANSION |
+                                       QT_TO_SYSTEM_CHARSET),
+                     LOWEST_PRECEDENCE);
+  }
   virtual void print(String *str, enum_query_type query_type);
   void print_item_w_name(String *str, enum_query_type query_type);
   void print_value(String *str);
@@ -5975,6 +5992,11 @@ inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol) const
   return field_type == vcol->get_real_type()
       && stored_in_db == vcol->is_stored()
       && expr->eq(vcol->expr, true);
+}
+
+inline void Virtual_column_info::print(String* str)
+{
+  expr->print_for_table_def(str);
 }
 
 #endif /* SQL_ITEM_INCLUDED */

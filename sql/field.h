@@ -681,7 +681,7 @@ public:
     in_partitioning_expr= TRUE;
   }
   inline bool is_equal(const Virtual_column_info* vcol) const;
-  void print(String*);
+  inline void print(String*);
 };
 
 class Field: public Value_source
