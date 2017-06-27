@@ -6663,9 +6663,6 @@ bool Vers_parse_info::check_and_fix_implicit(
   HA_CREATE_INFO *create_info,
   const char* table_name)
 {
-  bool integer_fields=
-      create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING;
-
   SELECT_LEX &slex= thd->lex->select_lex;
   int vers_tables= 0;
   bool from_select= slex.item_list.elements ? true : false;
@@ -6676,6 +6673,21 @@ bool Vers_parse_info::check_and_fix_implicit(
     {
       if (table->table && table->table->versioned())
         vers_tables++;
+    }
+
+    // Possibly override default storage engine to match
+    // one used in source table.
+    if (!(create_info->used_fields & HA_CREATE_USED_ENGINE))
+    {
+      List_iterator_fast<Create_field> it(alter_info->create_list);
+      while (Create_field *f= it++)
+      {
+        if (is_trx_start(*f) || is_trx_end(*f))
+        {
+          create_info->db_type= f->field->orig_table->file->ht;
+          break;
+        }
+      }
     }
   }
 
@@ -6749,6 +6761,8 @@ bool Vers_parse_info::check_and_fix_implicit(
       f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
     }
   }
+
+  bool integer_fields= create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING;
 
   if (vers_tables > 0)
   {

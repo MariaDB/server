@@ -4,7 +4,21 @@
 drop table if exists t1;
 --enable_warnings
 
+delimiter ~~;
+create function if not exists non_default_engine()
+returns varchar(255)
+deterministic
+begin
+  if default_engine() = 'innodb' then
+    return 'myisam';
+  end if;
+  return 'innodb';
+end~~
+delimiter ;~~
+
 --let $sys_datatype= `select sys_datatype()`
+--let $default_engine= `select default_engine()`
+--let $non_default_engine= `select non_default_engine()`
 
 --replace_result "bigint unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
 eval create table t1 (
@@ -257,8 +271,23 @@ select y from t2 for system_time all where st = @st and en = @en;
 select st, en from t2 for system_time all where y = 2 into @st, @en;
 select y from t2 for system_time all where st = @st and en = @en;
 
+--replace_result innodb INNODB_OR_MYISAM myisam INNODB_OR_MYISAM
+eval create or replace table t1 (a int) with system versioning engine $non_default_engine;
+create or replace table t2 as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
+--replace_result innodb INNODB_OR_MYISAM myisam INNODB_OR_MYISAM "BIGINT(20) UNSIGNED" SYS_TRX_TYPE "TIMESTAMP(6)" SYS_TRX_TYPE
+--error ER_VERS_FIELD_WRONG_TYPE
+eval create or replace table t2 engine $default_engine as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
+
+--replace_result innodb INNODB_OR_MYISAM myisam INNODB_OR_MYISAM
+eval create or replace table t1 (a int, id int) with system versioning engine $non_default_engine;
+create or replace table t2 (b int, id int);
+create or replace table t3 as
+  select t2.b, t1.a, t1.sys_trx_start, t1.sys_trx_end from t2 inner join t1 on t2.id=t1.id;
+
 drop table t1;
 drop table t2;
 drop table t3;
+
+drop function non_default_engine;
 
 -- source suite/versioning/common_finish.inc

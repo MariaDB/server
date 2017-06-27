@@ -61,6 +61,15 @@ drop table tmp;
 end if;
 end~~
 drop table if exists t1;
+create function if not exists non_default_engine()
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return 'myisam';
+end if;
+return 'innodb';
+end~~
 create table t1 (
 x1 int unsigned,
 Sys_start SYS_TRX_TYPE generated always as row start comment 'start',
@@ -328,9 +337,18 @@ select st, en from t2 for system_time all where y = 2 into @st, @en;
 select y from t2 for system_time all where st = @st and en = @en;
 y
 2
+create or replace table t1 (a int) with system versioning engine INNODB_OR_MYISAM;
+create or replace table t2 as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
+create or replace table t2 engine INNODB_OR_MYISAM as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
+ERROR HY000: `sys_trx_start` must be of type `SYS_TRX_TYPE` for versioned table `t2`
+create or replace table t1 (a int, id int) with system versioning engine INNODB_OR_MYISAM;
+create or replace table t2 (b int, id int);
+create or replace table t3 as
+select t2.b, t1.a, t1.sys_trx_start, t1.sys_trx_end from t2 inner join t1 on t2.id=t1.id;
 drop table t1;
 drop table t2;
 drop table t3;
+drop function non_default_engine;
 drop procedure verify_vtq;
 drop procedure innodb_verify_vtq;
 drop function default_engine;
