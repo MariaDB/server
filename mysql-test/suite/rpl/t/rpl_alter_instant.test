@@ -6,6 +6,7 @@ create table t1 (id int primary key, c1 int default 10, c2 varchar(20) default '
 
 insert into t1 values(1, 12345, 'abcde'), (2, default, default), (3, 23456, 'xyzab');
 
+set time_zone='+03:00';
 set timestamp = 1;
 alter table t1 add column d1 timestamp not null default current_timestamp;
 
@@ -13,6 +14,7 @@ select * from t1;
 sync_slave_with_master;
 
 connection slave;
+set time_zone='+03:00';
 select * from t1;
 
 connection master;

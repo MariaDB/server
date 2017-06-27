@@ -8,6 +8,7 @@ create database instant_alter;
 use instant_alter;
 
 set timestamp = 1;
+set time_zone='+03:00';
 
 eval CREATE TABLE `t1` ( `id` int(11) NOT NULL, `c2` int(11) DEFAULT NULL, PRIMARY KEY (`id`)) ENGINE=InnoDB ROW_FORMAT=$row_format;
  
