@@ -1196,7 +1196,7 @@ public:
   bool check_subqueries_with_recursive_references();
   void collect_grouping_fields(THD *thd); 
   void check_cond_extraction_for_grouping_fields(Item *cond,
-                                                 Item_processor processor);
+                                                 TABLE_LIST *derived);
   Item *build_cond_for_grouping_fields(THD *thd, Item *cond,
 				       bool no_to_clones);
   

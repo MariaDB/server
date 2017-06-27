@@ -1,0 +1,20 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/type_enum.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/type_enum.reject	2017-06-22 02:55:49.599942066 +0300
+@@ -24,8 +24,6 @@
+ 	test2	4
+ 	test5	2
+ ALTER TABLE t1 ADD COLUMN e ENUM('a','A') <CUSTOM_COL_OPTIONS>;
+-Warnings:
+-Note	1291	Column 'e' has duplicated value 'a' in ENUM
+ SHOW COLUMNS IN t1;
+ Field	Type	Null	Key	Default	Extra
+ a	enum('')	#	#	#	
+@@ -37,7 +35,7 @@
+ a	b	c	e
+ 			NULL
+ 	test2	4	NULL
+-	test3	75	a
++	test3	75	A
+ 	test5	2	NULL
+ SELECT a,b,c,e FROM t1 WHERE b='test2' OR a != '';
+ a	b	c	e

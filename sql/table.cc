@@ -8140,8 +8140,7 @@ void TABLE_LIST::check_pushable_cond_for_table(Item *cond)
         item->clear_extraction_flag();
     }
   }
-  else if (cond->walk(&Item::exclusive_dependence_on_table_processor,
-                      0, (void *) &tab_map))
+  else if (!cond->excl_dep_on_table(tab_map))
     cond->set_extraction_flag(NO_EXTRACTION_FL);
 }
 

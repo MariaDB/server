@@ -70,11 +70,6 @@ Created 9/17/2000 Heikki Tuuri
 #include <deque>
 #include <vector>
 
-static const char* MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY =
-	"innodb_force_recovery is on. We do not allow database modifications"
-	" by the user. Shut down mysqld and edit my.cnf to set"
-	" innodb_force_recovery=0";
-
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
 ibool	row_rollback_on_timeout	= FALSE;
 
@@ -1432,9 +1427,7 @@ row_insert_for_mysql(
 
 	} else if (!prebuilt->table->is_readable()) {
 		return(row_mysql_get_table_status(prebuilt->table, trx, true));
-	} else if (srv_force_recovery) {
-
-		ib::error() << MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY;
+	} else if (high_level_read_only) {
 		return(DB_READ_ONLY);
 	}
 	DBUG_EXECUTE_IF("mark_table_corrupted", {
@@ -1850,9 +1843,8 @@ row_update_for_mysql_using_upd_graph(
 		return(row_mysql_get_table_status(table, trx, true));
 	}
 
-	if(srv_force_recovery) {
-		ib::error() << MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY;
-		DBUG_RETURN(DB_READ_ONLY);
+	if (high_level_read_only) {
+		return(DB_READ_ONLY);
 	}
 
 	DEBUG_SYNC_C("innodb_row_update_for_mysql_begin");
@@ -4474,10 +4466,8 @@ row_rename_table_for_mysql(
 	ut_a(new_name != NULL);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 
-	if (srv_force_recovery) {
-		ib::info() << MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY;
-		err = DB_READ_ONLY;
-		goto funct_exit;
+	if (high_level_read_only) {
+		return(DB_READ_ONLY);
 
 	} else if (row_mysql_is_system_table(new_name)) {
 

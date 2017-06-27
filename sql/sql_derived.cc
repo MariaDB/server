@@ -1247,7 +1247,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     Item *cond_over_grouping_fields;
     sl->collect_grouping_fields(thd);
     sl->check_cond_extraction_for_grouping_fields(extracted_cond_copy,
-              &Item::exclusive_dependence_on_grouping_fields_processor);
+                                                  derived);
     cond_over_grouping_fields=
       sl->build_cond_for_grouping_fields(thd, extracted_cond_copy, true);
   
@@ -1286,7 +1286,8 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     if (!extracted_cond_copy)
       continue;
 
-    extracted_cond_copy->walk(&Item::cleanup_processor, 0, 0);
+    extracted_cond_copy->walk(&Item::cleanup_excluding_const_fields_processor,
+                              0, 0);
     sl->cond_pushed_into_having= extracted_cond_copy;
   }
   thd->lex->current_select= save_curr_select;

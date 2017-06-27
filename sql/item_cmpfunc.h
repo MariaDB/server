@@ -2945,6 +2945,14 @@ public:
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  /*
+    This does not comply with the specification of the virtual method,
+    but Item_equal items are processed distinguishly anyway
+  */
+  bool excl_dep_on_table(table_map tab_map)
+  {
+    return used_tables() & tab_map;
+  }
   friend class Item_equal_fields_iterator;
   bool count_sargable_conds(void *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;

@@ -2505,6 +2505,7 @@ dict_create_or_check_sys_tablespace(void)
 			<< ". Dropping incompletely created tables.";
 
 		ut_a(err == DB_OUT_OF_FILE_SPACE
+		     || err == DB_DUPLICATE_KEY
 		     || err == DB_TOO_MANY_CONCURRENT_TRXS);
 
 		row_drop_table_for_mysql("SYS_TABLESPACES", trx, TRUE, TRUE);
@@ -2532,11 +2533,11 @@ dict_create_or_check_sys_tablespace(void)
 
 	sys_tablespaces_err = dict_check_if_system_table_exists(
 		"SYS_TABLESPACES", DICT_NUM_FIELDS__SYS_TABLESPACES + 1, 1);
-	ut_a(sys_tablespaces_err == DB_SUCCESS);
+	ut_a(sys_tablespaces_err == DB_SUCCESS || err != DB_SUCCESS);
 
 	sys_datafiles_err = dict_check_if_system_table_exists(
 		"SYS_DATAFILES", DICT_NUM_FIELDS__SYS_DATAFILES + 1, 1);
-	ut_a(sys_datafiles_err == DB_SUCCESS);
+	ut_a(sys_datafiles_err == DB_SUCCESS || err != DB_SUCCESS);
 
 	return(err);
 }

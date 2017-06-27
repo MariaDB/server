@@ -19601,6 +19601,40 @@ static void test_prepare_analyze()
   check_execute(stmt, rc);
 }
 
+static void test_mdev12579()
+{
+  MYSQL_STMT *stmt= mysql_stmt_init(mysql);
+  MYSQL_BIND bind[2];
+  int rc;
+  long l=3;
+  const char *data = "123456";
+
+  rc= mysql_query(mysql, "CREATE TABLE mdev12579 (k integer,t LONGTEXT,b LONGBLOB,x integer)");
+  myquery(rc);
+
+  rc= mysql_stmt_prepare(stmt, "INSERT INTO mdev12579 VALUES (1,?,NULL,?)", -1);
+  myquery(rc);
+
+  rc= mysql_stmt_send_long_data(stmt, 0, data, 6);
+  rc= mysql_stmt_send_long_data(stmt, 0, data, 6);
+  rc= mysql_stmt_send_long_data(stmt, 0, data, 6);
+
+  memset(bind, 0, sizeof(MYSQL_BIND) * 2);
+  bind[0].buffer_type= MYSQL_TYPE_VAR_STRING;
+  bind[1].buffer_type= MYSQL_TYPE_LONG;
+  bind[1].buffer= &l;
+  mysql_stmt_bind_param(stmt, bind);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE mdev12579");
+  myquery(rc);
+}
+
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -19879,6 +19913,7 @@ static struct my_tests_st my_tests[]= {
   { "test_compressed_protocol", test_compressed_protocol },
   { "test_big_packet", test_big_packet },
   { "test_prepare_analyze", test_prepare_analyze },
+  { "test_mdev12579", test_mdev12579 },
   { 0, 0 }
 };
 

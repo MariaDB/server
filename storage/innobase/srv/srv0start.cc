@@ -1471,10 +1471,6 @@ innobase_start_or_create_for_mysql()
 		srv_read_only_mode = true;
 	}
 
-	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
-		srv_read_only_mode = 1;
-	}
-
 	high_level_read_only = srv_read_only_mode
 		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
 
@@ -1865,6 +1861,10 @@ innobase_start_or_create_for_mysql()
 					 NULL, NULL);
 		}
 
+#ifdef UNIV_LINUX
+		/* Wait for the setpriority() call to finish. */
+		os_event_wait(recv_sys->flush_end);
+#endif /* UNIV_LINUX */
 		srv_start_state_set(SRV_START_STATE_IO);
 	}
 
@@ -2573,13 +2573,15 @@ files_checked:
 	operations */
 
 	if (!srv_read_only_mode) {
-
 		thread_handles[1 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_master_thread,
 			NULL, thread_ids + (1 + SRV_MAX_N_IO_THREADS));
 		thread_started[1 + SRV_MAX_N_IO_THREADS] = true;
 		srv_start_state_set(SRV_START_STATE_MASTER);
+	}
 
+	if (!srv_read_only_mode
+	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 		srv_undo_sources = true;
 		/* Create the dict stats gathering thread */
 		srv_dict_stats_thread_active = true;
@@ -2588,10 +2590,6 @@ files_checked:
 
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
-	}
-
-	if (!srv_read_only_mode
-	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 
 		thread_handles[5 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_purge_coordinator_thread,

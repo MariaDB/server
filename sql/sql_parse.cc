@@ -2799,6 +2799,7 @@ retry:
                ! table->prelocking_placeholder &&
                table->table->file->lock_count() == 0)
       {
+        enum enum_mdl_type lock_type;
         /*
           In case when LOCK TABLE ... READ LOCAL was issued for table with
           storage engine which doesn't support READ LOCAL option and doesn't
@@ -2811,9 +2812,12 @@ retry:
         deadlock_handler.init();
         thd->push_internal_handler(&deadlock_handler);
 
+        lock_type= table->table->mdl_ticket->get_type() == MDL_SHARED_WRITE ?
+                   MDL_SHARED_NO_READ_WRITE : MDL_SHARED_READ_ONLY;
+
         bool result= thd->mdl_context.upgrade_shared_lock(
                                         table->table->mdl_ticket,
-                                        MDL_SHARED_READ_ONLY,
+                                        lock_type,
                                         thd->variables.lock_wait_timeout);
 
         thd->pop_internal_handler();

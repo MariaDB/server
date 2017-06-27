@@ -1,0 +1,11 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/type_set.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/type_set.reject	2017-06-22 03:02:58.695939369 +0300
+@@ -30,8 +30,6 @@
+ 	test2,test3	01,23,34,44
+ 	test2,test4	
+ ALTER TABLE t1 ADD COLUMN e SET('a','A') <CUSTOM_COL_OPTIONS>;
+-Warnings:
+-Note	1291	Column 'e' has duplicated value 'a' in SET
+ SHOW COLUMNS IN t1;
+ Field	Type	Null	Key	Default	Extra
+ a	set('')	#	#	#	
