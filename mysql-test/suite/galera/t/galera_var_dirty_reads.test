@@ -62,6 +62,7 @@ SELECT COUNT(*) >= 10 FROM performance_schema.events_statements_history;
 --eval SET @@global.wsrep_cluster_address = '$wsrep_cluster_address_saved'
 --enable_query_log
 --source include/wait_until_connected_again.inc
+--source include/galera_wait_ready.inc
 
 --connection node_1
 USE test;
