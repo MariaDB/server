@@ -2287,8 +2287,8 @@ static bool add_line(String &buffer, char *line, ulong line_length,
       continue;
     }
 #endif
-    if (!*ml_comment && inchar == '\\' &&
-        !(*in_string && 
+    if (!*ml_comment && inchar == '\\' && *in_string != '`' &&
+        !(*in_string &&
           (mysql.server_status & SERVER_STATUS_NO_BACKSLASH_ESCAPES)))
     {
       // Found possbile one character command like \c
