@@ -3446,6 +3446,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
   table_map remaining_tables= 0;
   table_map handled_tabs= 0;
   join->sjm_lookup_tables= 0;
+  join->sjm_scan_tables= 0;
   for (tablenr= table_count - 1 ; tablenr != join->const_tables - 1; tablenr--)
   {
     POSITION *pos= join->best_positions + tablenr;
@@ -3502,6 +3503,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       table_map rem_tables= remaining_tables;
       for (i= tablenr; i != (first + sjm->tables - 1); i--)
         rem_tables |= join->best_positions[i].table->table->map;
+
+      for (i= first; i < first+ sjm->tables; i++)
+        join->sjm_scan_tables |= join->best_positions[i].table->table->map;
 
       POSITION dummy;
       join->cur_sj_inner_tables= 0;

@@ -1871,6 +1871,22 @@ static int add_subpartition_by(File fptr)
   return err + add_partition_by(fptr);
 }
 
+static int add_name_string(File fptr, const char *name)
+{
+  int err;
+  String name_string("", 0, system_charset_info);
+  THD *thd= current_thd;
+  ulonglong save_sql_mode= thd->variables.sql_mode;
+  thd->variables.sql_mode&= ~MODE_ANSI_QUOTES;
+  ulonglong save_options= thd->variables.option_bits;
+  thd->variables.option_bits&= ~OPTION_QUOTE_SHOW_CREATE;
+  append_identifier(thd, &name_string, name, strlen(name));
+  thd->variables.sql_mode= save_sql_mode;
+  thd->variables.option_bits= save_options;
+  err= add_string_object(fptr, &name_string);
+  return err;
+}
+
 static int add_part_field_list(File fptr, List<char> field_list)
 {
   uint i, num_fields;
@@ -1882,34 +1898,12 @@ static int add_part_field_list(File fptr, List<char> field_list)
   err+= add_begin_parenthesis(fptr);
   while (i < num_fields)
   {
-    const char *field_str= part_it++;
-    String field_string("", 0, system_charset_info);
-    THD *thd= current_thd;
-    ulonglong save_options= thd->variables.option_bits;
-    thd->variables.option_bits&= ~OPTION_QUOTE_SHOW_CREATE;
-    append_identifier(thd, &field_string, field_str,
-                      strlen(field_str));
-    thd->variables.option_bits= save_options;
-    err+= add_string_object(fptr, &field_string);
+    err+= add_name_string(fptr, part_it++);
     if (i != (num_fields-1))
       err+= add_comma(fptr);
     i++;
   }
   err+= add_end_parenthesis(fptr);
-  return err;
-}
-
-static int add_name_string(File fptr, const char *name)
-{
-  int err;
-  String name_string("", 0, system_charset_info);
-  THD *thd= current_thd;
-  ulonglong save_options= thd->variables.option_bits;
-  thd->variables.option_bits&= ~OPTION_QUOTE_SHOW_CREATE;
-  append_identifier(thd, &name_string, name,
-                    strlen(name));
-  thd->variables.option_bits= save_options;
-  err= add_string_object(fptr, &name_string);
   return err;
 }
 

@@ -1715,6 +1715,24 @@ AsText(g)
 NULL
 POINT(1 1)
 #
+# MDEV-10306 Wrong results with combination of CONCAT, SUBSTR and CONVERT in subquery
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='derived_merge=on';
+CREATE TABLE t1 (x INT, y INT);
+INSERT INTO t1 VALUES(0,0);
+SELECT LENGTH(t2) c2 FROM (SELECT ST_BUFFER(POINT(x,y), 0) t2 FROM t1) sub;
+c2
+25
+SELECT LENGTH(CONCAT(t2,'-',t2)) c2 FROM (SELECT ST_BUFFER(POINT(x,y), 0) t2 FROM t1) sub;
+c2
+51
+SELECT LENGTH(CONCAT(t2,'--',t2)) c2 FROM (SELECT ST_BUFFER(POINT(x,y), 0) t2 FROM t1) sub;
+c2
+52
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
+#
 # End 10.0 tests
 #
 SHOW CREATE TABLE information_schema.geometry_columns;
