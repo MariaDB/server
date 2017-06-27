@@ -64,6 +64,7 @@ SHOW CREATE TABLE t1;
 SET SESSION wsrep_on=OFF;
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc
+--source include/galera_wait_ready.inc
 SET SESSION wsrep_on=ON;
 
 SHOW CREATE TABLE t1;
