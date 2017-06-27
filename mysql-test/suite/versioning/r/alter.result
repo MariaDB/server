@@ -130,10 +130,33 @@ t	CREATE TABLE `t` (
   `c` int(11) DEFAULT NULL,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t (
+a int,
+sys_trx_start timestamp(6) generated always as row start,
+sys_trx_end timestamp(6) generated always as row end,
+period for system_time(sys_trx_start, sys_trx_end))
+with system versioning;
+select * from t for system_time all;
+a	sys_trx_start	sys_trx_end
 alter table t drop column sys_trx_start;
-ERROR HY000: Wrong parameters for `t`: Can not drop system versioning field
 alter table t drop column sys_trx_end;
-ERROR HY000: Wrong parameters for `t`: Can not drop system versioning field
+select * from t for system_time all;
+a
+alter table t drop column sys_trx_start;
+ERROR 42000: Can't DROP COLUMN `sys_trx_start`; check that it exists
+alter table t drop column sys_trx_end;
+ERROR 42000: Can't DROP COLUMN `sys_trx_end`; check that it exists
+create or replace table t (
+a int,
+sys_trx_start timestamp(6) generated always as row start,
+sys_trx_end timestamp(6) generated always as row end,
+period for system_time(sys_trx_start, sys_trx_end))
+with system versioning;
+select * from t for system_time all;
+a	sys_trx_start	sys_trx_end
+alter table t drop column sys_trx_start, drop column sys_trx_end;
+select * from t for system_time all;
+a
 create or replace table t(
 a int
 );

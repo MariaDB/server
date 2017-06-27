@@ -62,10 +62,33 @@ show create table t;
 alter table t drop column a;
 show create table t;
 
---error ER_VERS_WRONG_PARAMS
+create or replace table t (
+  a int,
+  sys_trx_start timestamp(6) generated always as row start,
+  sys_trx_end timestamp(6) generated always as row end,
+  period for system_time(sys_trx_start, sys_trx_end))
+with system versioning;
+
+select * from t for system_time all;
 alter table t drop column sys_trx_start;
---error ER_VERS_WRONG_PARAMS
 alter table t drop column sys_trx_end;
+select * from t for system_time all;
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t drop column sys_trx_start;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t drop column sys_trx_end;
+
+create or replace table t (
+  a int,
+  sys_trx_start timestamp(6) generated always as row start,
+  sys_trx_end timestamp(6) generated always as row end,
+  period for system_time(sys_trx_start, sys_trx_end))
+with system versioning;
+
+select * from t for system_time all;
+alter table t drop column sys_trx_start, drop column sys_trx_end;
+select * from t for system_time all;
 
 create or replace table t(
   a int

@@ -6630,6 +6630,7 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
     return true;
 
   alter_info->create_list.push_back(f);
+  alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
   return false;
 }
 
@@ -6885,15 +6886,41 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
 
     if (alter_info->drop_list.elements)
     {
+      bool done_start= false;
+      bool done_end= false;
       List_iterator<Alter_drop> it(alter_info->drop_list);
-      while (Alter_drop* d= it++)
+      while (Alter_drop *d= it++)
       {
-        if (is_trx_start(d->name) || is_trx_end(d->name))
+        const char *name= d->name;
+        Field *f= NULL;
+        if (!done_start && is_trx_start(name))
         {
-          my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-                   "Can not drop system versioning field");
+          f= share->vers_start_field();
+          done_start= true;
+        }
+        else if (!done_end && is_trx_end(name))
+        {
+          f= share->vers_end_field();
+          done_end= true;
+        }
+        else
+          continue;
+        if (f->flags & HIDDEN_FLAG)
+        {
+          my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), d->type_name(), name);
           return true;
         }
+
+        if (vers_create_sys_field(thd, name, alter_info,
+                                  f->flags &
+                                      (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG),
+                                  integer_fields))
+        {
+          return true;
+        }
+
+        if (done_start && done_end)
+          break;
       }
     }
 
