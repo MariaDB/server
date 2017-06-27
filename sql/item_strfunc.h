@@ -1697,6 +1697,7 @@ class Item_func_wsrep_sync_wait_upto: public Item_int_func
 public:
  Item_func_wsrep_sync_wait_upto(THD *thd, Item *a): Item_int_func(thd, a) {}
  Item_func_wsrep_sync_wait_upto(THD *thd, Item *a, Item* b): Item_int_func(thd, a, b) {}
+  const Type_handler *type_handler() const { return &type_handler_string; }
   const char *func_name() const { return "wsrep_sync_wait_upto_gtid"; }
   longlong val_int();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)

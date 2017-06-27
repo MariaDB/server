@@ -1005,6 +1005,7 @@ done:
   }
   else
   {
+    wsrep_inited= 1;
     WSREP_DEBUG("SR storage init for: %s", 
                 (wsrep_SR_store_type == WSREP_SR_STORE_TABLE) ? "table" :
                 (wsrep_SR_store_type == WSREP_SR_STORE_FILE) ? "file" : "void");
@@ -1108,7 +1109,7 @@ void wsrep_deinit(bool free_options)
   DBUG_ASSERT(wsrep_inited == 1);
   delete wsrep_schema;
   wsrep_schema= 0;
-
+  WSREP_DEBUG("wsrep_deinit, free %d", free_options);
   delete wsrep_thd_pool;
   wsrep_thd_pool= 0;
 

@@ -25,8 +25,6 @@ WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH=${WSREP_SST_OPT_AUTH:-}
 WSREP_SST_OPT_USER=${WSREP_SST_OPT_USER:-}
 WSREP_SST_OPT_PSWD=${WSREP_SST_OPT_PSWD:-}
-WSREP_SST_OPT_DEFAULT=""
-WSREP_SST_OPT_EXTRA_DEFAULT=""
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -58,11 +56,7 @@ case "$1" in
         shift
         ;;
     '--defaults-file')
-        readonly WSREP_SST_OPT_DEFAULT="$1=$2"
-        shift
-        ;;
-    '--defaults-extra-file')
-        readonly WSREP_SST_OPT_EXTRA_DEFAULT="$1=$2"
+        readonly WSREP_SST_OPT_CONF="$2"
         shift
         ;;
     '--defaults-group-suffix')
@@ -107,10 +101,6 @@ case "$1" in
         ;;
     '--binlog')
         WSREP_SST_OPT_BINLOG="$2"
-        shift
-        ;;
-    '--gtid-domain-id')
-        readonly WSREP_SST_OPT_GTID_DOMAIN_ID="$2"
         shift
         ;;
     *) # must be command
@@ -161,19 +151,17 @@ else
     MY_PRINT_DEFAULTS=$(which my_print_defaults)
 fi
 
-readonly WSREP_SST_OPT_CONF="$WSREP_SST_OPT_DEFAULT $WSREP_SST_OPT_EXTRA_DEFAULT"
-MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"
 wsrep_auth_not_set()
 {
     [ -z "$WSREP_SST_OPT_AUTH" -o "$WSREP_SST_OPT_AUTH" = "(null)" ]
 }
 
 # For Bug:1200727
-if $MY_PRINT_DEFAULTS sst | grep -q "wsrep_sst_auth"
+if $MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth"
 then
     if wsrep_auth_not_set
     then
-        WSREP_SST_OPT_AUTH=$($MY_PRINT_DEFAULTS sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
+        WSREP_SST_OPT_AUTH=$($MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
     fi
 fi
 readonly WSREP_SST_OPT_AUTH
@@ -181,8 +169,9 @@ readonly WSREP_SST_OPT_AUTH
 # Splitting AUTH into potential user:password pair
 if ! wsrep_auth_not_set
 then
-    WSREP_SST_OPT_USER="${WSREP_SST_OPT_AUTH%%:*}"
-    WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_AUTH##*:}"
+    readonly AUTH_VEC=(${WSREP_SST_OPT_AUTH//:/ })
+    WSREP_SST_OPT_USER="${AUTH_VEC[0]:-}"
+    WSREP_SST_OPT_PSWD="${AUTH_VEC[1]:-}"
 fi
 readonly WSREP_SST_OPT_USER
 readonly WSREP_SST_OPT_PSWD

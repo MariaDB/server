@@ -1829,6 +1829,10 @@ static void close_connections(void)
     mysql_mutex_unlock(&LOCK_thread_count);
   }
   end_slave();
+#ifdef WITH_WSREP
+  if (wsrep_inited == 1)
+    wsrep_deinit(true);
+#endif
   /* All threads has now been aborted */
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
   mysql_mutex_lock(&LOCK_thread_count);
