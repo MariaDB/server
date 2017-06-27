@@ -1,0 +1,19 @@
+#
+# MDEV-13089 identifier quoting in partitioning
+#
+source include/have_partition.inc;
+set sql_mode=ansi_quotes;
+create table t1 ("select" int) partition by range ("select") (partition "select" values less than maxvalue);
+create table t2 (f1 int) partition by range (f1) (partition p1 values less than maxvalue);
+show create table t1;
+show create table t2;
+set sql_quote_show_create=0;
+show create table t1;
+show create table t2;
+set sql_mode=default;
+show create table t1;
+show create table t2;
+set sql_quote_show_create=1;
+show create table t1;
+show create table t2;
+drop table t1, t2;

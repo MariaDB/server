@@ -6921,8 +6921,9 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
     /* Partition expression */
     if (part_info->part_expr)
     {
-      table->field[9]->store(part_info->part_func_string,
-                             part_info->part_func_len, cs);
+      StringBuffer<STRING_BUFFER_USUAL_SIZE> str(cs);
+      part_info->part_expr->print_for_table_def(&str);
+      table->field[9]->store(str.ptr(), str.length(), str.charset());
     }
     else if (part_info->list_of_part_fields)
     {
@@ -6947,8 +6948,9 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
       /* Subpartition expression */
       if (part_info->subpart_expr)
       {
-        table->field[10]->store(part_info->subpart_func_string,
-                                part_info->subpart_func_len, cs);
+        StringBuffer<STRING_BUFFER_USUAL_SIZE> str(cs);
+        part_info->subpart_expr->print_for_table_def(&str);
+        table->field[10]->store(str.ptr(), str.length(), str.charset());
       }
       else if (part_info->list_of_subpart_fields)
       {

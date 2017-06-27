@@ -1298,6 +1298,7 @@ public:
       - generated columns
       - check constraints
       - default value expressions
+      - partitioning expressions
   */
   void print_for_table_def(String *str)
   {

@@ -662,7 +662,7 @@ t16	CREATE TABLE `t16` (
   `c5` char(5) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
- PARTITION BY KEY (c1)
+ PARTITION BY KEY (`c1`)
 PARTITIONS 4
 *** Show table on Slave ****
 connection slave;
@@ -678,7 +678,7 @@ t16	CREATE TABLE `t16` (
   `c7` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
- PARTITION BY KEY (c1)
+ PARTITION BY KEY (`c1`)
 PARTITIONS 4
 *** DROP TABLE t16 ***
 connection master;

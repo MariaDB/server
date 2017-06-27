@@ -990,9 +990,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
   result= set_up_field_array(thd, table, is_sub_part);
 end:
   end_lex_with_single_table(thd, table, old_lex);
-#if !defined(DBUG_OFF)
   func_expr->walk(&Item::change_context_processor, 0, 0);
-#endif
   DBUG_RETURN(result);
 }
 
@@ -2254,11 +2252,8 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
   partition_element *part_elem;
   int err= 0;
   List_iterator<partition_element> part_it(part_info->partitions);
-  ulonglong save_options= thd->variables.option_bits;
   StringBuffer<1024> str;
   DBUG_ENTER("generate_partition_syntax");
-
-  thd->variables.option_bits&= ~OPTION_QUOTE_SHOW_CREATE;
 
   err+= str.append(STRING_WITH_LEN(" PARTITION BY "));
   switch (part_info->part_type)
@@ -2289,7 +2284,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
   if (part_info->part_expr)
   {
     err+= str.append('(');
-    err+= str.append(part_info->part_func_string, part_info->part_func_len);
+    part_info->part_expr->print_for_table_def(&str);
     err+= str.append(')');
   }
   else if (part_info->column_list)
@@ -2319,7 +2314,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
     if (part_info->subpart_expr)
     {
       err+= str.append('(');
-      err+= str.append(part_info->subpart_func_string, part_info->subpart_func_len);
+      part_info->subpart_expr->print_for_table_def(&str);
       err+= str.append(')');
     }
     if ((!part_info->use_default_num_subpartitions) && 
@@ -2381,7 +2376,6 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
         err+= str.append(')');
     } while (++i < tot_num_parts);
   }
-  thd->variables.option_bits= save_options;
   if (err)
     DBUG_RETURN(NULL);
   *buf_length= str.length();
