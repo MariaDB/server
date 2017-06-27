@@ -3085,3 +3085,15 @@ select max(id), rank() over (order by max(id)) from t1 where id < 3;
 max(id)	rank() over (order by max(id))
 2	1
 drop table t1;
+#
+# main.win failure post MDEV-12336
+#
+create table t(a decimal(35,10), b int);
+insert into t values (1, 10), (2, 20), (3, 30);
+prepare stmt from "SELECT (CASE WHEN sum(t.a) over (partition by t.b)=1 THEN 1000 ELSE 300 END) AS a FROM t";
+execute stmt;
+a
+1000
+300
+300
+drop table t;
