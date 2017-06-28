@@ -2292,6 +2292,9 @@ page_zip_decompress_heap_no(
 	/* Set heap_no and the status bits. */
 	mach_write_to_2(rec - REC_NEW_HEAP_NO, heap_status);
 	heap_status += 1 << REC_HEAP_NO_SHIFT;
+
+	/* Set the info bit to zero for instant add columns */
+	rec[-REC_N_NEW_EXTRA_BYTES] = 0;
 	return(TRUE);
 }
 

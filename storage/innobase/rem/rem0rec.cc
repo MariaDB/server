@@ -282,10 +282,10 @@ rec_init_offsets_comp_ordinary(
 	ulint		null_mask	= 1;
 	ulint		extra_bytes = temp ? 0 : REC_N_NEW_EXTRA_BYTES;	
 
-	// for zip table/fts, the info bit of rec maybe Non-initialized
-	if (!temp && !dict_table_is_zip(index->table) && rec_is_instant(rec)) {
+	if (!temp && rec_is_instant(rec)) {
 		ulint field_count_len;
 		ut_ad(dict_index_is_clust_instant(index));
+		ut_ad(!dict_table_is_zip(index->table) && !dict_index_is_ibuf(index));
 
 		field_count = rec_get_field_count(rec, &field_count_len);
 
@@ -297,6 +297,8 @@ rec_init_offsets_comp_ordinary(
 
 	} else if (dict_index_is_clust_instant(index)) {
 		ut_ad(index->n_core_fields > 0);
+		ut_ad(!dict_table_is_zip(index->table) && !dict_index_is_ibuf(index));
+
 		n_null = index->n_core_nullable;
 		field_count = index->n_core_fields;
 
@@ -481,8 +483,7 @@ rec_init_offsets(
 			PRIMARY KEY columns, which are always NOT NULL, 
 			so we should have used n_nullable=0.)
 		*/
-		/* For compressed row format, the info bit has not been initialized */
-		ut_ad(dict_table_is_zip(index->table) || !rec_is_instant(rec));
+		ut_ad(!rec_is_instant(rec));
 
 		ut_ad(index->n_core_fields > 0);
 
@@ -1848,7 +1849,8 @@ rec_copy_prefix_to_buf(
 		return(NULL);
 	}
 
-	if (!dict_table_is_zip(index->table) && rec_is_instant(rec)) {
+	if (rec_is_instant(rec)) {
+		ut_ad(!dict_table_is_zip(index->table) && !dict_index_is_ibuf(index));
 		ulint field_count_len = 0;
 		ulint field_count = 0;
 		ulint n_nullable = 0;
@@ -1866,6 +1868,7 @@ rec_copy_prefix_to_buf(
 		lens  = nulls - UT_BITS_IN_BYTES(n_nullable);
 
 	} else if (dict_index_is_clust_instant(index)) {
+		ut_ad(!dict_table_is_zip(index->table) && !dict_index_is_ibuf(index));
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 		lens = nulls - UT_BITS_IN_BYTES(index->n_core_nullable);
 	} else {
