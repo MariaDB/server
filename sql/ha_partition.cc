@@ -9053,8 +9053,6 @@ int ha_partition::check_for_upgrade(HA_CHECK_OPT *check_opt)
               !(part_buf= generate_partition_syntax(thd, m_part_info,
                                                     &part_buf_len,
                                                     true,
-                                                    true,
-                                                    NULL,
                                                     NULL,
                                                     NULL)) ||
 	      print_admin_msg(thd, SQL_ADMIN_MSG_TEXT_SIZE + 1, "error",

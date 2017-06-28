@@ -83,27 +83,6 @@ using std::min;
 /*
   Partition related functions declarations and some static constants;
 */
-const LEX_STRING partition_keywords[]=
-{
-  { C_STRING_WITH_LEN("HASH") },
-  { C_STRING_WITH_LEN("RANGE") },
-  { C_STRING_WITH_LEN("LIST") }, 
-  { C_STRING_WITH_LEN("KEY") },
-  { C_STRING_WITH_LEN("MAXVALUE") },
-  { C_STRING_WITH_LEN("LINEAR ") },
-  { C_STRING_WITH_LEN(" COLUMNS") },
-  { C_STRING_WITH_LEN("ALGORITHM") }
-
-};
-static const char *part_str= "PARTITION";
-static const char *sub_str= "SUB";
-static const char *by_str= "BY";
-static const char *space_str= " ";
-static const char *equal_str= "=";
-static const char *end_paren_str= ")";
-static const char *begin_paren_str= "(";
-static const char *comma_str= ",";
-
 static int get_partition_id_list_col(partition_info *, uint32 *, longlong *);
 static int get_partition_id_list(partition_info *, uint32 *, longlong *);
 static int get_partition_id_range_col(partition_info *, uint32 *, longlong *);
@@ -1675,13 +1654,13 @@ bool fix_partition_func(THD *thd, TABLE *table,
     part_info->fixed= TRUE;
     if (part_info->part_type == RANGE_PARTITION)
     {
-      error_str= partition_keywords[PKW_RANGE].str; 
+      error_str= "HASH";
       if (unlikely(part_info->check_range_constants(thd)))
         goto end;
     }
     else if (part_info->part_type == LIST_PARTITION)
     {
-      error_str= partition_keywords[PKW_LIST].str; 
+      error_str= "LIST";
       if (unlikely(part_info->check_list_constants(thd)))
         goto end;
     }
@@ -1759,159 +1738,47 @@ end:
   ALTER TABLE commands. Finally it is used for SHOW CREATE TABLES.
 */
 
-static int add_write(File fptr, const char *buf, uint len)
+static int add_part_field_list(THD *thd, String *str, List<char> field_list)
 {
-  uint ret_code= mysql_file_write(fptr, (const uchar*)buf, len, MYF(MY_FNABP));
-
-  if (likely(ret_code == 0))
-    return 0;
-  else
-    return 1;
-}
-
-static int add_string_object(File fptr, String *string)
-{
-  return add_write(fptr, string->ptr(), string->length());
-}
-
-static int add_string(File fptr, const char *string)
-{
-  return add_write(fptr, string, strlen(string));
-}
-
-static int add_string_len(File fptr, const char *string, uint len)
-{
-  return add_write(fptr, string, len);
-}
-
-static int add_space(File fptr)
-{
-  return add_string(fptr, space_str);
-}
-
-static int add_comma(File fptr)
-{
-  return add_string(fptr, comma_str);
-}
-
-static int add_equal(File fptr)
-{
-  return add_string(fptr, equal_str);
-}
-
-static int add_end_parenthesis(File fptr)
-{
-  return add_string(fptr, end_paren_str);
-}
-
-static int add_begin_parenthesis(File fptr)
-{
-  return add_string(fptr, begin_paren_str);
-}
-
-static int add_part_key_word(File fptr, const char *key_string)
-{
-  int err= add_string(fptr, key_string);
-  err+= add_space(fptr);
-  return err;
-}
-
-static int add_partition(File fptr)
-{
-  char buff[22];
-  strxmov(buff, part_str, space_str, NullS);
-  return add_string(fptr, buff);
-}
-
-static int add_subpartition(File fptr)
-{
-  int err= add_string(fptr, sub_str);
-
-  return err + add_partition(fptr);
-}
-
-static int add_partition_by(File fptr)
-{
-  char buff[22];
-  strxmov(buff, part_str, space_str, by_str, space_str, NullS);
-  return add_string(fptr, buff);
-}
-
-static int add_subpartition_by(File fptr)
-{
-  int err= add_string(fptr, sub_str);
-
-  return err + add_partition_by(fptr);
-}
-
-static int add_part_field_list(File fptr, List<char> field_list)
-{
-  uint i, num_fields;
   int err= 0;
-
+  const char *field_name;
   List_iterator<char> part_it(field_list);
-  num_fields= field_list.elements;
-  i= 0;
-  err+= add_begin_parenthesis(fptr);
-  while (i < num_fields)
+
+  err+= str->append('(');
+  while ((field_name= part_it++))
   {
-    const char *field_str= part_it++;
-    String field_string("", 0, system_charset_info);
-    THD *thd= current_thd;
-    ulonglong save_options= thd->variables.option_bits;
-    thd->variables.option_bits&= ~OPTION_QUOTE_SHOW_CREATE;
-    append_identifier(thd, &field_string, field_str,
-                      strlen(field_str));
-    thd->variables.option_bits= save_options;
-    err+= add_string_object(fptr, &field_string);
-    if (i != (num_fields-1))
-      err+= add_comma(fptr);
-    i++;
+    err+= append_identifier(thd, str, field_name, strlen(field_name));
+    err+= str->append(',');
   }
-  err+= add_end_parenthesis(fptr);
+  if (field_list.elements)
+    str->length(str->length()-1);
+  err+= str->append(')');
   return err;
-}
-
-static int add_name_string(File fptr, const char *name)
-{
-  int err;
-  String name_string("", 0, system_charset_info);
-  THD *thd= current_thd;
-  ulonglong save_options= thd->variables.option_bits;
-  thd->variables.option_bits&= ~OPTION_QUOTE_SHOW_CREATE;
-  append_identifier(thd, &name_string, name,
-                    strlen(name));
-  thd->variables.option_bits= save_options;
-  err= add_string_object(fptr, &name_string);
-  return err;
-}
-
-static int add_int(File fptr, longlong number)
-{
-  char buff[32];
-  llstr(number, buff);
-  return add_string(fptr, buff);
-}
-
-static int add_uint(File fptr, ulonglong number)
-{
-  char buff[32];
-  longlong2str(number, buff, 10);
-  return add_string(fptr, buff);
 }
 
 /*
    Must escape strings in partitioned tables frm-files,
    parsing it later with mysql_unpack_partition will fail otherwise.
 */
-static int add_quoted_string(File fptr, const char *quotestr)
+
+static int add_keyword_string(String *str, const char *keyword,
+                              bool quoted, const char *keystr)
 {
-  String escapedstr;
-  int err= add_string(fptr, "'");
-  err+= escapedstr.append_for_single_quote(quotestr);
-  err+= add_string(fptr, escapedstr.c_ptr_safe());
-  return err + add_string(fptr, "'");
+  int err= str->append(' ');
+  err+= str->append(keyword);
+
+  str->append(STRING_WITH_LEN(" = "));
+  if (quoted)
+  {
+    err+= str->append('\'');
+    err+= str->append_for_single_quote(keystr);
+    err+= str->append('\'');
+  }
+  else
+    err+= str->append(keystr);
+  return err;
 }
+
 
 /**
   @brief  Truncate the partition file name from a path it it exists.
@@ -1945,7 +1812,6 @@ void truncate_partition_filename(char *path)
   }
 }
 
-
 /**
   @brief  Output a filepath.  Similar to add_keyword_string except it
 also converts \ to / on Windows and skips the partition file name at
@@ -1957,15 +1823,9 @@ table.  So when the storage engine is asked for the DATA DIRECTORY string
 after a restart through Handler::update_create_options(), the storage
 engine may include the filename.
 */
-static int add_keyword_path(File fptr, const char *keyword,
+static int add_keyword_path(String *str, const char *keyword,
                             const char *path)
 {
-  int err= add_string(fptr, keyword);
-
-  err+= add_space(fptr);
-  err+= add_equal(fptr);
-  err+= add_space(fptr);
-
   char temp_path[FN_REFLEN];
   strcpy(temp_path, path);
 #ifdef __WIN__
@@ -1985,73 +1845,44 @@ static int add_keyword_path(File fptr, const char *keyword,
   */
   truncate_partition_filename(temp_path);
 
-  err+= add_quoted_string(fptr, temp_path);
-
-  return err + add_space(fptr);
+  return add_keyword_string(str, keyword, true, temp_path);
 }
 
-static int add_keyword_string(File fptr, const char *keyword,
-                              bool should_use_quotes,
-                              const char *keystr)
+static int add_keyword_int(String *str, const char *keyword, longlong num)
 {
-  int err= add_string(fptr, keyword);
-
-  err+= add_space(fptr);
-  err+= add_equal(fptr);
-  err+= add_space(fptr);
-  if (should_use_quotes)
-    err+= add_quoted_string(fptr, keystr);
-  else
-    err+= add_string(fptr, keystr);
-  return err + add_space(fptr);
+  int err= str->append(' ');
+  err+= str->append(keyword);
+  str->append(STRING_WITH_LEN(" = "));
+  return err + str->append_longlong(num);
 }
 
-static int add_keyword_int(File fptr, const char *keyword, longlong num)
-{
-  int err= add_string(fptr, keyword);
-
-  err+= add_space(fptr);
-  err+= add_equal(fptr);
-  err+= add_space(fptr);
-  err+= add_int(fptr, num);
-  return err + add_space(fptr);
-}
-
-static int add_engine(File fptr, handlerton *engine_type)
-{
-  const char *engine_str= ha_resolve_storage_engine_name(engine_type);
-  DBUG_PRINT("info", ("ENGINE: %s", engine_str));
-  int err= add_string(fptr, "ENGINE = ");
-  return err + add_string(fptr, engine_str);
-}
-
-static int add_partition_options(File fptr, partition_element *p_elem)
+static int add_partition_options(String *str, partition_element *p_elem)
 {
   int err= 0;
 
-  err+= add_space(fptr);
   if (p_elem->tablespace_name)
-    err+= add_keyword_string(fptr,"TABLESPACE", FALSE,
-                             p_elem->tablespace_name);
+    err+= add_keyword_string(str,"TABLESPACE", false, p_elem->tablespace_name);
   if (p_elem->nodegroup_id != UNDEF_NODEGROUP)
-    err+= add_keyword_int(fptr,"NODEGROUP",(longlong)p_elem->nodegroup_id);
+    err+= add_keyword_int(str,"NODEGROUP",(longlong)p_elem->nodegroup_id);
   if (p_elem->part_max_rows)
-    err+= add_keyword_int(fptr,"MAX_ROWS",(longlong)p_elem->part_max_rows);
+    err+= add_keyword_int(str,"MAX_ROWS",(longlong)p_elem->part_max_rows);
   if (p_elem->part_min_rows)
-    err+= add_keyword_int(fptr,"MIN_ROWS",(longlong)p_elem->part_min_rows);
+    err+= add_keyword_int(str,"MIN_ROWS",(longlong)p_elem->part_min_rows);
   if (!(current_thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE))
   {
     if (p_elem->data_file_name)
-      err+= add_keyword_path(fptr, "DATA DIRECTORY", p_elem->data_file_name);
+      err+= add_keyword_path(str, "DATA DIRECTORY", p_elem->data_file_name);
     if (p_elem->index_file_name)
-      err+= add_keyword_path(fptr, "INDEX DIRECTORY", p_elem->index_file_name);
+      err+= add_keyword_path(str, "INDEX DIRECTORY", p_elem->index_file_name);
   }
   if (p_elem->part_comment)
-    err+= add_keyword_string(fptr, "COMMENT", TRUE, p_elem->part_comment);
+    err+= add_keyword_string(str, "COMMENT", true, p_elem->part_comment);
   if (p_elem->connect_string.length)
-    err+= add_keyword_string(fptr, "CONNECTION", TRUE,
+    err+= add_keyword_string(str, "CONNECTION", true,
                              p_elem->connect_string.str);
-  return err + add_engine(fptr,p_elem->engine_type);
+  err += add_keyword_string(str, "ENGINE", false,
+                         ha_resolve_storage_engine_name(p_elem->engine_type));
+  return err;
 }
 
 
@@ -2162,7 +1993,7 @@ static Create_field* get_sql_field(char *field_name,
 }
 
 
-static int add_column_list_values(File fptr, partition_info *part_info,
+static int add_column_list_values(String *str, partition_info *part_info,
                                   part_elem_value *list_value,
                                   HA_CREATE_INFO *create_info,
                                   Alter_info *alter_info)
@@ -2175,25 +2006,22 @@ static int add_column_list_values(File fptr, partition_info *part_info,
                          part_info->num_columns > 1U);
 
   if (use_parenthesis)
-    err+= add_begin_parenthesis(fptr);
+    err+= str->append('(');
   for (i= 0; i < num_elements; i++)
   {
     part_column_list_val *col_val= &list_value->col_val_array[i];
     char *field_name= it++;
     if (col_val->max_value)
-      err+= add_string(fptr, partition_keywords[PKW_MAXVALUE].str);
+      err+= str->append(STRING_WITH_LEN("MAXVALUE"));
     else if (col_val->null_value)
-      err+= add_string(fptr, "NULL");
+      err+= str->append(STRING_WITH_LEN("NULL"));
     else
     {
-      char buffer[MAX_KEY_LENGTH];
-      String str(buffer, sizeof(buffer), &my_charset_bin);
       Item *item_expr= col_val->item_expression;
       if (item_expr->null_value)
-        err+= add_string(fptr, "NULL");
+        err+= str->append(STRING_WITH_LEN("NULL"));
       else
       {
-        String *res;
         CHARSET_INFO *field_cs;
         bool need_cs_check= FALSE;
         Item_result result_type= STRING_RESULT;
@@ -2254,27 +2082,28 @@ static int add_column_list_values(File fptr, partition_info *part_info,
           }
         }
         {
-          String val_conv;
+          StringBuffer<MAX_KEY_LENGTH> buf;
+          String val_conv, *res;
           val_conv.set_charset(system_charset_info);
-          res= item_expr->val_str(&str);
+          res= item_expr->val_str(&buf);
           if (get_cs_converted_part_value_from_string(current_thd,
                                                       item_expr, res,
                                                       &val_conv, field_cs,
                                                    (bool)(alter_info != NULL)))
             return 1;
-          err+= add_string_object(fptr, &val_conv);
+          err+= str->append(val_conv);
         }
       }
     }
     if (i != (num_elements - 1))
-      err+= add_string(fptr, comma_str);
+      err+= str->append(',');
   }
   if (use_parenthesis)
-    err+= add_end_parenthesis(fptr);
+    err+= str->append(')');
   return err;
 }
 
-static int add_partition_values(File fptr, partition_info *part_info,
+static int add_partition_values(String *str, partition_info *part_info,
                                 partition_element *p_elem,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info)
@@ -2283,29 +2112,29 @@ static int add_partition_values(File fptr, partition_info *part_info,
 
   if (part_info->part_type == RANGE_PARTITION)
   {
-    err+= add_string(fptr, " VALUES LESS THAN ");
+    err+= str->append(STRING_WITH_LEN(" VALUES LESS THAN "));
     if (part_info->column_list)
     {
       List_iterator<part_elem_value> list_val_it(p_elem->list_val_list);
       part_elem_value *list_value= list_val_it++;
-      err+= add_begin_parenthesis(fptr);
-      err+= add_column_list_values(fptr, part_info, list_value,
+      err+= str->append('(');
+      err+= add_column_list_values(str, part_info, list_value,
                                    create_info, alter_info);
-      err+= add_end_parenthesis(fptr);
+      err+= str->append(')');
     }
     else
     {
       if (!p_elem->max_value)
       {
-        err+= add_begin_parenthesis(fptr);
+        err+= str->append('(');
         if (p_elem->signed_flag)
-          err+= add_int(fptr, p_elem->range_value);
+          err+= str->append_longlong(p_elem->range_value);
         else
-          err+= add_uint(fptr, p_elem->range_value);
-        err+= add_end_parenthesis(fptr);
+          err+= str->append_ulonglong(p_elem->range_value);
+        err+= str->append(')');
       }
       else
-        err+= add_string(fptr, partition_keywords[PKW_MAXVALUE].str);
+        err+= str->append(STRING_WITH_LEN("MAXVALUE"));
     }
   }
   else if (part_info->part_type == LIST_PARTITION)
@@ -2317,23 +2146,23 @@ static int add_partition_values(File fptr, partition_info *part_info,
     {
       DBUG_ASSERT(part_info->defined_max_value ||
                   current_thd->lex->sql_command == SQLCOM_ALTER_TABLE);
-      err+= add_string(fptr, " DEFAULT");
+      err+= str->append(STRING_WITH_LEN(" DEFAULT"));
       return err;
     }
 
-    err+= add_string(fptr, " VALUES IN ");
+    err+= str->append(STRING_WITH_LEN(" VALUES IN "));
     uint num_items= p_elem->list_val_list.elements;
 
-    err+= add_begin_parenthesis(fptr);
+    err+= str->append('(');
     if (p_elem->has_null_value)
     {
-      err+= add_string(fptr, "NULL");
+      err+= str->append(STRING_WITH_LEN("NULL"));
       if (num_items == 0)
       {
-        err+= add_end_parenthesis(fptr);
+        err+= str->append(')');
         goto end;
       }
-      err+= add_comma(fptr);
+      err+= str->append(',');
     }
     i= 0;
     do
@@ -2341,19 +2170,19 @@ static int add_partition_values(File fptr, partition_info *part_info,
       part_elem_value *list_value= list_val_it++;
 
       if (part_info->column_list)
-        err+= add_column_list_values(fptr, part_info, list_value,
+        err+= add_column_list_values(str, part_info, list_value,
                                      create_info, alter_info);
       else
       {
         if (!list_value->unsigned_flag)
-          err+= add_int(fptr, list_value->value);
+          err+= str->append_longlong(list_value->value);
         else
-          err+= add_uint(fptr, list_value->value);
+          err+= str->append_ulonglong(list_value->value);
       }
       if (i != (num_items-1))
-        err+= add_comma(fptr);
+        err+= str->append(',');
     } while (++i < num_items);
-    err+= add_end_parenthesis(fptr);
+    err+= str->append(')');
   }
 end:
   return err;
@@ -2363,49 +2192,24 @@ end:
 /**
   Add 'KEY' word, with optional 'ALGORTIHM = N'.
 
-  @param fptr                   File to write to.
+  @param str                    String to write to.
   @param part_info              partition_info holding the used key_algorithm
-  @param current_comment_start  NULL, or comment string encapsulating the
-                                PARTITION BY clause.
 
   @return Operation status.
     @retval 0    Success
     @retval != 0 Failure
 */
 
-static int add_key_with_algorithm(File fptr, partition_info *part_info,
-                                  const char *current_comment_start)
+static int add_key_with_algorithm(String *str, partition_info *part_info)
 {
   int err= 0;
-  err+= add_part_key_word(fptr, partition_keywords[PKW_KEY].str);
+  err+= str->append(STRING_WITH_LEN("KEY "));
 
-  /*
-    current_comment_start is given when called from SHOW CREATE TABLE,
-    Then only add ALGORITHM = 1, not the default 2 or non-set 0!
-    For .frm current_comment_start is NULL, then add ALGORITHM if != 0.
-  */
-  if (part_info->key_algorithm == partition_info::KEY_ALGORITHM_51 || // SHOW
-      (!current_comment_start &&                                      // .frm
-       (part_info->key_algorithm != partition_info::KEY_ALGORITHM_NONE)))
+  if (part_info->key_algorithm == partition_info::KEY_ALGORITHM_51)
   {
-    /* If we already are within a comment, end that comment first. */
-    if (current_comment_start)
-      err+= add_string(fptr, "*/ ");
-    err+= add_string(fptr, "/*!50611 ");
-    err+= add_part_key_word(fptr, partition_keywords[PKW_ALGORITHM].str);
-    err+= add_equal(fptr);
-    err+= add_space(fptr);
-    err+= add_int(fptr, part_info->key_algorithm);
-    err+= add_space(fptr);
-    err+= add_string(fptr, "*/ ");
-    if (current_comment_start)
-    {
-      /* Skip new line. */
-      if (current_comment_start[0] == '\n')
-        current_comment_start++;
-      err+= add_string(fptr, current_comment_start);
-      err+= add_space(fptr);
-    }
+    err+= str->append(STRING_WITH_LEN("ALGORITHM = "));
+    err+= str->append_longlong(part_info->key_algorithm);
+    err+= str->append(' ');
   }
   return err;
 }
@@ -2420,8 +2224,6 @@ static int add_key_with_algorithm(File fptr, partition_info *part_info,
     generate_partition_syntax()
     part_info                  The partitioning data structure
     buf_length                 A pointer to the returned buffer length
-    use_sql_alloc              Allocate buffer from sql_alloc if true
-                               otherwise use my_malloc
     show_partition_options     Should we display partition options
     create_info                Info generated by parser
     alter_info                 Info generated by parser
@@ -2438,64 +2240,45 @@ static int add_key_with_algorithm(File fptr, partition_info *part_info,
   type ALTER TABLE commands focusing on changing the PARTITION structure
   in any fashion.
 
-  The implementation writes the syntax to a temporary file (essentially
-  an abstraction of a dynamic array) and if all writes goes well it
-  allocates a buffer and writes the syntax into this one and returns it.
-
-  As a security precaution the file is deleted before writing into it. This
-  means that no other processes on the machine can open and read the file
-  while this processing is ongoing.
-
   The code is optimised for minimal code size since it is not used in any
   common queries.
 */
 
 char *generate_partition_syntax(THD *thd, partition_info *part_info,
                                 uint *buf_length,
-                                bool use_sql_alloc,
                                 bool show_partition_options,
                                 HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info,
-                                const char *current_comment_start)
+                                Alter_info *alter_info)
 {
   uint i,j, tot_num_parts, num_subparts;
   partition_element *part_elem;
-  ulonglong buffer_length;
-  char path[FN_REFLEN];
   int err= 0;
   List_iterator<partition_element> part_it(part_info->partitions);
-  File fptr;
-  char *buf= NULL; //Return buffer
+  ulonglong save_options= thd->variables.option_bits;
+  StringBuffer<1024> str;
   DBUG_ENTER("generate_partition_syntax");
 
-  if (unlikely(((fptr= create_temp_file(path,mysql_tmpdir,"psy", 
-                                        O_RDWR | O_BINARY | O_TRUNC |  
-                                        O_TEMPORARY, MYF(MY_WME)))) < 0))
-    DBUG_RETURN(NULL);
-#ifndef __WIN__
-  unlink(path);
-#endif
-  err+= add_space(fptr);
-  err+= add_partition_by(fptr);
+  thd->variables.option_bits&= ~OPTION_QUOTE_SHOW_CREATE;
+
+  err+= str.append(STRING_WITH_LEN(" PARTITION BY "));
   switch (part_info->part_type)
   {
     case RANGE_PARTITION:
-      err+= add_part_key_word(fptr, partition_keywords[PKW_RANGE].str);
+      err+= str.append(STRING_WITH_LEN("RANGE "));
       break;
     case LIST_PARTITION:
-      err+= add_part_key_word(fptr, partition_keywords[PKW_LIST].str);
+      err+= str.append(STRING_WITH_LEN("LIST "));
       break;
     case HASH_PARTITION:
       if (part_info->linear_hash_ind)
-        err+= add_string(fptr, partition_keywords[PKW_LINEAR].str);
+        err+= str.append(STRING_WITH_LEN("LINEAR "));
       if (part_info->list_of_part_fields)
       {
-        err+= add_key_with_algorithm(fptr, part_info,
-                                     current_comment_start);
-        err+= add_part_field_list(fptr, part_info->part_field_list);
+        err+= add_key_with_algorithm(&str, part_info);
+        err+= add_part_field_list(thd, &str, part_info->part_field_list);
       }
       else
-        err+= add_part_key_word(fptr, partition_keywords[PKW_HASH].str);
+        err+= str.append(STRING_WITH_LEN("HASH "));
       break;
     default:
       DBUG_ASSERT(0);
@@ -2505,51 +2288,45 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
   }
   if (part_info->part_expr)
   {
-    err+= add_begin_parenthesis(fptr);
-    err+= add_string_len(fptr, part_info->part_func_string,
-                         part_info->part_func_len);
-    err+= add_end_parenthesis(fptr);
+    err+= str.append('(');
+    err+= str.append(part_info->part_func_string, part_info->part_func_len);
+    err+= str.append(')');
   }
   else if (part_info->column_list)
   {
-    err+= add_string(fptr, partition_keywords[PKW_COLUMNS].str);
-    err+= add_part_field_list(fptr, part_info->part_field_list);
+    err+= str.append(STRING_WITH_LEN(" COLUMNS"));
+    err+= add_part_field_list(thd, &str, part_info->part_field_list);
   }
   if ((!part_info->use_default_num_partitions) &&
        part_info->use_default_partitions)
   {
-    err+= add_string(fptr, "\n");
-    err+= add_string(fptr, "PARTITIONS ");
-    err+= add_int(fptr, part_info->num_parts);
+    err+= str.append(STRING_WITH_LEN("\nPARTITIONS "));
+    err+= str.append_ulonglong(part_info->num_parts);
   }
   if (part_info->is_sub_partitioned())
   {
-    err+= add_string(fptr, "\n");
-    err+= add_subpartition_by(fptr);
+    err+= str.append(STRING_WITH_LEN("\nSUBPARTITION BY "));
     /* Must be hash partitioning for subpartitioning */
     if (part_info->linear_hash_ind)
-      err+= add_string(fptr, partition_keywords[PKW_LINEAR].str);
+      err+= str.append(STRING_WITH_LEN("LINEAR "));
     if (part_info->list_of_subpart_fields)
     {
-      err+= add_key_with_algorithm(fptr, part_info,
-                                   current_comment_start);
-      err+= add_part_field_list(fptr, part_info->subpart_field_list);
+      err+= add_key_with_algorithm(&str, part_info);
+      err+= add_part_field_list(thd, &str, part_info->subpart_field_list);
     }
     else
-      err+= add_part_key_word(fptr, partition_keywords[PKW_HASH].str);
+      err+= str.append(STRING_WITH_LEN("HASH "));
     if (part_info->subpart_expr)
     {
-      err+= add_begin_parenthesis(fptr);
-      err+= add_string_len(fptr, part_info->subpart_func_string,
-                           part_info->subpart_func_len);
-      err+= add_end_parenthesis(fptr);
+      err+= str.append('(');
+      err+= str.append(part_info->subpart_func_string, part_info->subpart_func_len);
+      err+= str.append(')');
     }
     if ((!part_info->use_default_num_subpartitions) && 
           part_info->use_default_subpartitions)
     {
-      err+= add_string(fptr, "\n");
-      err+= add_string(fptr, "SUBPARTITIONS ");
-      err+= add_int(fptr, part_info->num_subparts);
+      err+= str.append(STRING_WITH_LEN("\nSUBPARTITIONS "));
+      err+= str.append_ulonglong(part_info->num_subparts);
     }
   }
   tot_num_parts= part_info->partitions.elements;
@@ -2558,8 +2335,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
   if (!part_info->use_default_partitions)
   {
     bool first= TRUE;
-    err+= add_string(fptr, "\n");
-    err+= add_begin_parenthesis(fptr);
+    err+= str.append(STRING_WITH_LEN("\n("));
     i= 0;
     do
     {
@@ -2568,80 +2344,48 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
           part_elem->part_state != PART_REORGED_DROPPED)
       {
         if (!first)
-        {
-          err+= add_comma(fptr);
-          err+= add_string(fptr, "\n");
-          err+= add_space(fptr);
-        }
+          err+= str.append(STRING_WITH_LEN(",\n "));
         first= FALSE;
-        err+= add_partition(fptr);
-        err+= add_name_string(fptr, part_elem->partition_name);
-        err+= add_partition_values(fptr, part_info, part_elem,
+        err+= str.append(STRING_WITH_LEN("PARTITION "));
+        err+= append_identifier(thd, &str, part_elem->partition_name,
+                                           strlen(part_elem->partition_name));
+        err+= add_partition_values(&str, part_info, part_elem,
                                    create_info, alter_info);
         if (!part_info->is_sub_partitioned() ||
             part_info->use_default_subpartitions)
         {
           if (show_partition_options)
-            err+= add_partition_options(fptr, part_elem);
+            err+= add_partition_options(&str, part_elem);
         }
         else
         {
-          err+= add_string(fptr, "\n");
-          err+= add_space(fptr);
-          err+= add_begin_parenthesis(fptr);
+          err+= str.append(STRING_WITH_LEN("\n ("));
           List_iterator<partition_element> sub_it(part_elem->subpartitions);
           j= 0;
           do
           {
             part_elem= sub_it++;
-            err+= add_subpartition(fptr);
-            err+= add_name_string(fptr, part_elem->partition_name);
+            err+= str.append(STRING_WITH_LEN("SUBPARTITION "));
+            err+= append_identifier(thd, &str, part_elem->partition_name,
+                                               strlen(part_elem->partition_name));
             if (show_partition_options)
-              err+= add_partition_options(fptr, part_elem);
+              err+= add_partition_options(&str, part_elem);
             if (j != (num_subparts-1))
-            {
-              err+= add_comma(fptr);
-              err+= add_string(fptr, "\n");
-              err+= add_space(fptr);
-              err+= add_space(fptr);
-            }
+              err+= str.append(STRING_WITH_LEN(",\n  "));
             else
-              err+= add_end_parenthesis(fptr);
+              err+= str.append(')');
           } while (++j < num_subparts);
         }
       }
       if (i == (tot_num_parts-1))
-        err+= add_end_parenthesis(fptr);
+        err+= str.append(')');
     } while (++i < tot_num_parts);
   }
+  thd->variables.option_bits= save_options;
   if (err)
-    goto close_file;
-  buffer_length= mysql_file_seek(fptr, 0L, MY_SEEK_END, MYF(0));
-  if (unlikely(buffer_length == MY_FILEPOS_ERROR))
-    goto close_file;
-  if (unlikely(mysql_file_seek(fptr, 0L, MY_SEEK_SET, MYF(0))
-               == MY_FILEPOS_ERROR))
-    goto close_file;
-  *buf_length= (uint)buffer_length;
-  if (use_sql_alloc)
-    buf= (char*) thd->alloc(*buf_length + 1);
-  else
-    buf= (char*) my_malloc(*buf_length+1, MYF(MY_WME));
-  if (!buf)
-    goto close_file;
-
-  if (unlikely(mysql_file_read(fptr, (uchar*)buf, *buf_length, MYF(MY_FNABP))))
-  {
-    if (!use_sql_alloc)
-      my_free(buf);
-    buf= NULL;
-  }
-  else
-    buf[*buf_length]= 0;
-
-close_file:
-  mysql_file_close(fptr, MYF(0));
-  DBUG_RETURN(buf);
+    DBUG_RETURN(NULL);
+  *buf_length= str.length();
+  DBUG_RETURN(thd->strmake(str.ptr(), str.length()));
 }
 
 

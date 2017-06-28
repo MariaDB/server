@@ -267,11 +267,10 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
                            bool *partition_changed,
                            bool *fast_alter_table);
 char *generate_partition_syntax(THD *thd, partition_info *part_info,
-                                uint *buf_length, bool use_sql_alloc,
+                                uint *buf_length,
                                 bool show_partition_options,
                                 HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info,
-                                const char *current_comment_start);
+                                Alter_info *alter_info);
 bool verify_data_with_partition(TABLE *table, TABLE *part_table,
                                 uint32 part_id);
 bool compare_partition_options(HA_CREATE_INFO *table_create_info,
@@ -290,7 +289,5 @@ void create_subpartition_name(char *out, const char *in1,
 
 void set_key_field_ptr(KEY *key_info, const uchar *new_buf,
                        const uchar *old_buf);
-
-extern const LEX_STRING partition_keywords[];
 
 #endif /* SQL_PARTITION_INCLUDED */

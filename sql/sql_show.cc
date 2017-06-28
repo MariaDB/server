@@ -2225,19 +2225,14 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       */
       uint part_syntax_len;
       char *part_syntax;
-      String comment_start;
-      comment_start.append(STRING_WITH_LEN("\n"));
       if ((part_syntax= generate_partition_syntax(thd, table->part_info,
                                                   &part_syntax_len,
-                                                  FALSE,
                                                   show_table_options,
-                                                  NULL, NULL,
-                                                  comment_start.c_ptr())))
+                                                  NULL, NULL)))
       {
-         packet->append(comment_start);
+         packet->append('\n');
          if (packet->append(part_syntax, part_syntax_len))
           error= 1;
-         my_free(part_syntax);
       }
     }
   }
@@ -6822,7 +6817,7 @@ get_partition_column_description(THD *thd,
   {
     part_column_list_val *col_val= &list_value->col_val_array[i];
     if (col_val->max_value)
-      tmp_str.append(partition_keywords[PKW_MAXVALUE].str);
+      tmp_str.append(STRING_WITH_LEN("MAXVALUE"));
     else if (col_val->null_value)
       tmp_str.append("NULL");
     else
@@ -6899,27 +6894,21 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
     case LIST_PARTITION:
       tmp_res.length(0);
       if (part_info->part_type == RANGE_PARTITION)
-        tmp_res.append(partition_keywords[PKW_RANGE].str,
-                       partition_keywords[PKW_RANGE].length);
+        tmp_res.append(STRING_WITH_LEN("RANGE"));
       else
-        tmp_res.append(partition_keywords[PKW_LIST].str,
-                       partition_keywords[PKW_LIST].length);
+        tmp_res.append(STRING_WITH_LEN("LIST"));
       if (part_info->column_list)
-        tmp_res.append(partition_keywords[PKW_COLUMNS].str,
-                       partition_keywords[PKW_COLUMNS].length);
+        tmp_res.append(STRING_WITH_LEN(" COLUMNS"));
       table->field[7]->store(tmp_res.ptr(), tmp_res.length(), cs);
       break;
     case HASH_PARTITION:
       tmp_res.length(0);
       if (part_info->linear_hash_ind)
-        tmp_res.append(partition_keywords[PKW_LINEAR].str,
-                       partition_keywords[PKW_LINEAR].length);
+        tmp_res.append(STRING_WITH_LEN("LINEAR "));
       if (part_info->list_of_part_fields)
-        tmp_res.append(partition_keywords[PKW_KEY].str,
-                       partition_keywords[PKW_KEY].length);
+        tmp_res.append(STRING_WITH_LEN("KEY"));
       else
-        tmp_res.append(partition_keywords[PKW_HASH].str,
-                       partition_keywords[PKW_HASH].length);
+        tmp_res.append(STRING_WITH_LEN("HASH"));
       table->field[7]->store(tmp_res.ptr(), tmp_res.length(), cs);
       break;
     default:
@@ -6947,14 +6936,11 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
       /* Subpartition method */
       tmp_res.length(0);
       if (part_info->linear_hash_ind)
-        tmp_res.append(partition_keywords[PKW_LINEAR].str,
-                       partition_keywords[PKW_LINEAR].length);
+        tmp_res.append(STRING_WITH_LEN("LINEAR "));
       if (part_info->list_of_subpart_fields)
-        tmp_res.append(partition_keywords[PKW_KEY].str,
-                       partition_keywords[PKW_KEY].length);
+        tmp_res.append(STRING_WITH_LEN("KEY"));
       else
-        tmp_res.append(partition_keywords[PKW_HASH].str,
-                       partition_keywords[PKW_HASH].length);
+        tmp_res.append(STRING_WITH_LEN("HASH"));
       table->field[8]->store(tmp_res.ptr(), tmp_res.length(), cs);
       table->field[8]->set_notnull();
 
@@ -7003,8 +6989,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
           if (part_elem->range_value != LONGLONG_MAX)
             table->field[11]->store((longlong) part_elem->range_value, FALSE);
           else
-            table->field[11]->store(partition_keywords[PKW_MAXVALUE].str,
-                                 partition_keywords[PKW_MAXVALUE].length, cs);
+            table->field[11]->store(STRING_WITH_LEN("MAXVALUE"), cs);
         }
         table->field[11]->set_notnull();
       }

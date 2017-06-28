@@ -1820,11 +1820,9 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       if (part_info)
       {
         if (!(part_syntax_buf= generate_partition_syntax(lpt->thd, part_info,
-                                                         &syntax_len,
-                                                         TRUE, TRUE,
+                                                         &syntax_len, TRUE,
                                                          lpt->create_info,
-                                                         lpt->alter_info,
-                                                         NULL)))
+                                                         lpt->alter_info)))
         {
           DBUG_RETURN(TRUE);
         }
@@ -1903,11 +1901,9 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       TABLE_SHARE *share= lpt->table->s;
       char *tmp_part_syntax_str;
       if (!(part_syntax_buf= generate_partition_syntax(lpt->thd, part_info,
-                                                       &syntax_len,
-                                                       TRUE, TRUE,
+                                                       &syntax_len, TRUE,
                                                        lpt->create_info,
-                                                       lpt->alter_info,
-                                                       NULL)))
+                                                       lpt->alter_info)))
       {
         error= 1;
         goto err;
@@ -4548,11 +4544,9 @@ handler *mysql_create_frm_image(THD *thd,
       for syntax stored in frm file.
     */
     if (!(part_syntax_buf= generate_partition_syntax(thd, part_info,
-                                                     &syntax_len,
-                                                     TRUE, TRUE,
+                                                     &syntax_len, TRUE,
                                                      create_info,
-                                                     alter_info,
-                                                     NULL)))
+                                                     alter_info)))
       goto err;
     part_info->part_info_string= part_syntax_buf;
     part_info->part_info_len= syntax_len;
