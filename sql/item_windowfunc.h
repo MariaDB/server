@@ -848,6 +848,17 @@ public:
     read_value_from_result_field= true;
   }
 
+  bool is_null()
+  {
+    if (force_return_blank)
+      return false;
+
+    if (read_value_from_result_field)
+      return result_field->is_null();
+
+    return window_func()->is_null();
+  }
+
   double val_real() 
   {
     double res;
