@@ -4543,10 +4543,12 @@ handler *mysql_create_frm_image(THD *thd,
       We reverse the partitioning parser and generate a standard format
       for syntax stored in frm file.
     */
-    if (!(part_syntax_buf= generate_partition_syntax(thd, part_info,
-                                                     &syntax_len, TRUE,
-                                                     create_info,
-                                                     alter_info)))
+    sql_mode_t old_mode= thd->variables.sql_mode;
+    thd->variables.sql_mode &= ~MODE_ANSI_QUOTES;
+    part_syntax_buf= generate_partition_syntax(thd, part_info, &syntax_len,
+                                               true, create_info, alter_info);
+    thd->variables.sql_mode= old_mode;
+    if (!part_syntax_buf)
       goto err;
     part_info->part_info_string= part_syntax_buf;
     part_info->part_info_len= syntax_len;
