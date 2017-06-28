@@ -3127,3 +3127,17 @@ NULL	1	0
 1	0	1
 2	0	1
 drop table t1;
+#
+# MDEV-13189: Window functions crash when using INTERVAL function
+#
+create table t1(i int);
+insert into t1 values (1),(2),(10),(20),(30);
+select sum(i) over (order by i), interval(sum(i) over (order by i), 10, 20)
+from t1;
+sum(i) over (order by i)	interval(sum(i) over (order by i), 10, 20)
+1	0
+3	0
+13	1
+33	2
+63	2
+drop table t1;

@@ -1914,3 +1914,12 @@ select max(i) over (order by i),
        max(i) over (order by i) is not null
 from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-13189: Window functions crash when using INTERVAL function
+--echo #
+create table t1(i int);
+insert into t1 values (1),(2),(10),(20),(30);
+select sum(i) over (order by i), interval(sum(i) over (order by i), 10, 20)
+from t1;
+drop table t1;
