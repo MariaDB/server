@@ -5447,6 +5447,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
   TABLE *show_table;
   Field **ptr, *field;
   int count;
+  bool quoted_defaults= lex->sql_command != SQLCOM_SHOW_FIELDS;
   DBUG_ENTER("get_schema_column_record");
 
   if (res)
@@ -5516,7 +5517,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
                            cs);
     table->field[4]->store((longlong) count, TRUE);
 
-    if (get_field_default_value(thd, field, &type, 0))
+    if (get_field_default_value(thd, field, &type, quoted_defaults))
     {
       table->field[5]->store(type.ptr(), type.length(), cs);
       table->field[5]->set_notnull();
