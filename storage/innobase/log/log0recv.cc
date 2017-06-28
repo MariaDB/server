@@ -2806,7 +2806,24 @@ recv_scan_log_recs(
 
 		scanned_lsn += data_len;
 
+		if (data_len == LOG_BLOCK_HDR_SIZE + SIZE_OF_MLOG_CHECKPOINT
+		    && scanned_lsn == checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT
+		    && log_block[LOG_BLOCK_HDR_SIZE] == MLOG_CHECKPOINT
+		    && checkpoint_lsn == mach_read_from_8(LOG_BLOCK_HDR_SIZE
+							  + 1 + log_block)) {
+			/* The redo log is logically empty. */
+			ut_ad(recv_sys->mlog_checkpoint_lsn == 0
+			      || recv_sys->mlog_checkpoint_lsn
+			      == checkpoint_lsn);
+			recv_sys->mlog_checkpoint_lsn = checkpoint_lsn;
+			DBUG_PRINT("ib_log", ("found empty log; LSN=" LSN_PF,
+					      scanned_lsn));
+			finished = true;
+			break;
+		}
+
 		if (scanned_lsn > recv_sys->scanned_lsn) {
+			ut_ad(!srv_log_files_created);
 			if (!recv_needed_recovery) {
 				recv_needed_recovery = true;
 
@@ -3244,7 +3261,11 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	there is something wrong we will print a message to the
 	user about recovery: */
 
-	if (checkpoint_lsn != flush_lsn) {
+	if (flush_lsn == checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT
+	    && recv_sys->mlog_checkpoint_lsn == checkpoint_lsn) {
+		/* The redo log is logically empty. */
+	} else if (checkpoint_lsn != flush_lsn) {
+		ut_ad(!srv_log_files_created);
 
 		if (checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT < flush_lsn) {
 			ib::warn() << " Are you sure you are using the"

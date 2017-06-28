@@ -147,6 +147,8 @@ UNIV_INTERN bool	srv_undo_sources;
 #ifdef UNIV_DEBUG
 /** InnoDB system tablespace to set during recovery */
 UNIV_INTERN uint	srv_sys_space_size_debug;
+/** whether redo log files have been created at startup */
+UNIV_INTERN bool	srv_log_files_created;
 #endif /* UNIV_DEBUG */
 
 /** Bit flags for tracking background thread creation. They are used to
@@ -525,6 +527,9 @@ create_log_files_rename(
 	/* If innodb_flush_method=O_DSYNC,
 	we need to explicitly flush the log buffers. */
 	fil_flush(SRV_LOG_SPACE_FIRST_ID);
+
+	ut_ad(!srv_log_files_created);
+	ut_d(srv_log_files_created = true);
 
 	DBUG_EXECUTE_IF("innodb_log_abort_9", return(DB_ERROR););
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_9"));
