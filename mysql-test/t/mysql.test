@@ -618,3 +618,33 @@ EOF
 
 --echo
 --echo End of tests
+
+#
+# MDEV-13187 incorrect backslash parsing in clients
+#
+create table `a1\``b1` (a int);
+show tables;
+insert `a1\``b1` values (1),(2);
+show create table `a1\``b1`;
+--exec $MYSQL_DUMP --compact test
+--exec $MYSQL_DUMP test > $MYSQLTEST_VARDIR/tmp/bug.sql
+insert `a1\``b1` values (4),(5);
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug.sql
+show create table `a1\``b1`;
+select * from `a1\``b1`;
+drop table `a1\``b1`;
+
+# same with ansi_quotes
+set sql_mode=ansi_quotes;
+create table "a1\""b1" (a int);
+show tables;
+insert "a1\""b1" values (1),(2);
+show create table "a1\""b1";
+--exec $MYSQL_DUMP --compact --compatible=postgres test
+--exec $MYSQL_DUMP --compatible=postgres test > $MYSQLTEST_VARDIR/tmp/bug.sql
+insert "a1\""b1" values (4),(5);
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug.sql
+show create table "a1\""b1";
+select * from "a1\""b1";
+drop table "a1\""b1";
+set sql_mode=default;
