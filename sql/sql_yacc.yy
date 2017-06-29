@@ -1822,11 +1822,13 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <select_lex> subselect
         get_select_lex get_select_lex_derived
+        simple_table
         query_specification
         query_term_union_not_ready
         query_term_union_ready
         query_expression_body
         select_paren_derived
+        table_value_constructor
 
 %type <boolfunc2creator> comp_op
 
@@ -8467,6 +8469,9 @@ select:
 
 select_init:
           SELECT_SYM select_options_and_item_list select_init3
+        | table_value_constructor
+        | table_value_constructor union_list
+        | table_value_constructor union_order_or_limit
         | '(' select_paren ')'
         | '(' select_paren ')' union_list
         | '(' select_paren ')' union_order_or_limit
@@ -8474,12 +8479,23 @@ select_init:
 
 union_list_part2:
           SELECT_SYM select_options_and_item_list select_init3_union_query_term
+        | table_value_constructor
+        | table_value_constructor union_list
+        | table_value_constructor union_order_or_limit
         | '(' select_paren_union_query_term ')'
         | '(' select_paren_union_query_term ')' union_list
         | '(' select_paren_union_query_term ')' union_order_or_limit
         ;
 
 select_paren:
+          {
+            Lex->current_select->set_braces(true);
+          }
+          table_value_constructor
+          {
+            DBUG_ASSERT(Lex->current_select->braces);
+          }
+        |
           {
             /*
               In order to correctly parse UNION's global ORDER BY we need to
@@ -9443,7 +9459,7 @@ column_default_non_parenthesized_expr:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | VALUES '(' simple_ident_nospvar ')'
+        | VALUE_SYM '(' simple_ident_nospvar ')'
           {
             $$= new (thd->mem_root) Item_insert_value(thd, Lex->current_context(),
                                                         $3);
@@ -16250,6 +16266,21 @@ union_option:
         | ALL       { $$=0; }
         ;
 
+simple_table:
+          query_specification      { $$= $1; }
+        | table_value_constructor  { $$= $1; }
+        ;
+        
+table_value_constructor:
+	  VALUES values_list 
+	  { 
+	    LEX *lex=Lex;
+	    $$= Lex->current_select;
+	    mysql_init_select(Lex);
+	    $$->tvc->lists_of_values= lex->many_values;
+	  }
+	;
+	
 /*
   Corresponds to the SQL Standard
   <query specification> ::=
@@ -16267,12 +16298,12 @@ query_specification:
         ;
 
 query_term_union_not_ready:
-          query_specification order_or_limit opt_select_lock_type { $$= $1; }
+          simple_table order_or_limit opt_select_lock_type { $$= $1; }
         | '(' select_paren_derived ')' union_order_or_limit       { $$= $2; }
         ;
 
 query_term_union_ready:
-          query_specification opt_select_lock_type                { $$= $1; }
+          simple_table opt_select_lock_type                { $$= $1; }
         | '(' select_paren_derived ')'                            { $$= $2; }
         ;
 
@@ -16534,6 +16565,9 @@ view_select:
 */
 query_expression_body_view:
           SELECT_SYM select_options_and_item_list select_init3_view
+        | table_value_constructor
+        | table_value_constructor union_order_or_limit
+        | table_value_constructor union_list_view
         | '(' select_paren_view ')'
         | '(' select_paren_view ')' union_order_or_limit
         | '(' select_paren_view ')' union_list_view

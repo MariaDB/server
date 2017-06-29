@@ -31,7 +31,7 @@
 #include "sql_window.h"
 #include "sql_trigger.h"
 #include "sp.h"                       // enum stored_procedure_type
-
+#include "sql_tvc.h"
 
 /* YACC and LEX Definitions */
 
@@ -999,6 +999,8 @@ public:
 
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;
+  
+  table_value_constr *tvc;
 
   void init_query();
   void init_select();

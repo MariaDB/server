@@ -6034,6 +6034,64 @@ public:
 };
 
 
+class Type_holder: public Sql_alloc,
+                   public Item_args,
+                   public Type_handler_hybrid_field_type,
+                   public Type_all_attributes,
+                   public Type_geometry_attributes
+{
+  TYPELIB *m_typelib;
+  bool m_maybe_null;
+public:
+  Type_holder()
+   :m_typelib(NULL),
+    m_maybe_null(false)
+  { }
+
+  void set_maybe_null(bool maybe_null_arg) { m_maybe_null= maybe_null_arg; }
+  bool get_maybe_null() const { return m_maybe_null; }
+
+  uint decimal_precision() const
+  {
+    /*
+      Type_holder is not used directly to create fields, so
+      its virtual decimal_precision() is never called.
+      We should eventually extend create_result_table() to accept
+      an array of Type_holders directly, without having to allocate
+      Item_type_holder's and put them into List<Item>.
+    */
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  void set_geometry_type(uint type)
+  {
+    Type_geometry_attributes::set_geometry_type(type);
+  }
+  uint uint_geometry_type() const
+  {
+    return Type_geometry_attributes::get_geometry_type();
+  }
+  void set_typelib(TYPELIB *typelib)
+  {
+    m_typelib= typelib;
+  }
+  TYPELIB *get_typelib() const
+  {
+    return m_typelib;
+  }
+
+  bool aggregate_attributes(THD *thd)
+  {
+    for (uint i= 0; i < arg_count; i++)
+      m_maybe_null|= args[i]->maybe_null;
+    return
+       type_handler()->Item_hybrid_func_fix_attributes(thd,
+                                                       "UNION", this, this,
+                                                       args, arg_count);
+  }
+};
+
+
 #endif /* MYSQL_SERVER */
 
 #endif /* SQL_CLASS_INCLUDED */
