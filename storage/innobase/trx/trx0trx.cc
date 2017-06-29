@@ -548,6 +548,10 @@ static
 void
 trx_validate_state_before_free(trx_t* trx)
 {
+	ut_ad(!trx->declared_to_be_inside_innodb);
+	ut_ad(!trx->n_mysql_tables_in_use);
+	ut_ad(!trx->mysql_n_tables_locked);
+
 	if (trx->declared_to_be_inside_innodb) {
 
 		ib::error() << "Freeing a trx (" << trx << ", "
@@ -558,7 +562,7 @@ trx_validate_state_before_free(trx_t* trx)
 		putc('\n', stderr);
 
 		/* This is an error but not a fatal error. We must keep
-		the counters like srv_conc_n_threads accurate. */
+		the counters like srv_conc.n_active accurate. */
 		srv_conc_force_exit_innodb(trx);
 	}
 
