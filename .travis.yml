@@ -48,7 +48,7 @@ matrix:
       # https://github.com/travis-ci/travis-ci/issues/7062 - /run/shm isn't writable or executable
       # in trusty containers
         - export MTR_MEM=/tmp
-        - env DEB_BUILD_OPTIONS="parallel=6" debian/autobake-deb.sh;
+        - env DEB_BUILD_OPTIONS="parallel=6" MYSQL_BUILD_PATH=/usr/local/bin:/usr/bin:/bin debian/autobake-deb.sh;
         - ccache --show-stats
   # Until OSX becomes a bit more stable: MDEV-12435
   allow_failures:
