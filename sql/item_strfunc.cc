@@ -1171,7 +1171,7 @@ String *Item_func_reverse::val_str(String *str)
       if ((l= my_ismbchar(res->charset(),ptr,end)))
       {
         tmp-= l;
-        DBUG_ASSERT(tmp >= tmp_value.ptr());
+        DBUG_ASSERT(tmp >= str->ptr());
         memcpy(tmp,ptr,l);
         ptr+= l;
       }
