@@ -237,21 +237,3 @@ os_thread_sleep(
 	select(0, NULL, NULL, NULL, &t);
 #endif /* _WIN32 */
 }
-
-/*****************************************************************//**
-Check if there are threads active.
-@return true if the thread count > 0. */
-bool
-os_thread_active()
-/*==============*/
-{
-	/* All the threads have exited or are just exiting;
-	NOTE that the threads may not have completed their
-	exit yet. Should we use pthread_join() to make sure
-	they have exited? If we did, we would have to
-	remove the pthread_detach() from
-	os_thread_exit().  Now we just sleep 0.1
-	seconds and hope that is enough! */
-
-	return(my_atomic_loadlint(&os_thread_count) > 0);
-}

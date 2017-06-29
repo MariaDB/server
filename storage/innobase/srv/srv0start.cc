@@ -1234,6 +1234,7 @@ static
 void
 srv_shutdown_all_bg_threads()
 {
+	ut_ad(!srv_undo_sources);
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
 
 	/* All threads end up waiting for certain events. Put those events
@@ -1285,13 +1286,7 @@ srv_shutdown_all_bg_threads()
 
 			os_event_set(buf_flush_event);
 
-			/* f. dict_stats_thread is signaled from
-			logs_empty_and_mark_files_at_shutdown() and
-			should have already quit or is quitting right
-			now. */
-
 			if (srv_use_mtflush) {
-				/* g. Exit the multi threaded flush threads */
 				buf_mtflu_io_thread_exit();
 			}
 		}
@@ -1300,13 +1295,11 @@ srv_shutdown_all_bg_threads()
 			os_aio_wake_all_threads_at_shutdown();
 		}
 
-		const bool active = os_thread_active();
-
-		os_thread_sleep(100000);
-
-		if (!active) {
+		if (!os_thread_count) {
 			return;
 		}
+
+		os_thread_sleep(100000);
 	}
 
 	ib::warn() << os_thread_count << " threads created by InnoDB"
