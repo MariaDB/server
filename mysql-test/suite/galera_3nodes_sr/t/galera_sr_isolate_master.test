@@ -88,6 +88,10 @@ COMMIT;
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM t1;
+
+--let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--source include/wait_condition.inc
+
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
 #
