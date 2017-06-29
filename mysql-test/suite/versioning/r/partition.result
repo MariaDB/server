@@ -104,25 +104,25 @@ create or replace table t1 (x int)
 with system versioning
 partition by system_time (
 partition p0 as of now);
-ERROR HY000: Wrong parameters for `BY SYSTEM_TIME`: unexpected number of partitions (expected > 1)
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
 partition p0 as of now,
 partition p1 as of now);
-ERROR HY000: Wrong parameters for `BY SYSTEM_TIME`: multiple `AS OF NOW` partitions
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
 partition p0 versioning,
 partition p1 versioning);
-ERROR HY000: Wrong parameters for `BY SYSTEM_TIME`: no `AS OF NOW` partition defined
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
 partition pn as of now,
 partition p0 versioning);
-ERROR HY000: Wrong parameters for `BY SYSTEM_TIME`: AS OF NOW partition is not last
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
@@ -130,7 +130,7 @@ partition p0 versioning,
 partition pn as of now);
 alter table t1 add partition (
 partition p1 as of now);
-ERROR HY000: Wrong parameters for `BY SYSTEM_TIME`: AS OF NOW partition can not be added
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 alter table t1 add partition (
 partition p1 versioning);
 Warnings:
@@ -148,10 +148,10 @@ t1	CREATE TABLE `t1` (
  PARTITION p1 VERSIONING ENGINE = ${INNODB_OR_MYISAM},
  PARTITION pn AS OF NOW ENGINE = ${INNODB_OR_MYISAM})
 alter table t1 drop partition pn;
-ERROR HY000: Wrong parameters for `BY SYSTEM_TIME`: `AS OF NOW` partition can not be dropped
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 alter table t1 drop partition p1;
 alter table t1 drop partition p0;
-ERROR HY000: Wrong parameters for `BY SYSTEM_TIME`: one `AS OF NOW` and at least one `VERSIONING` partition required
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 set @now= now(6);
 insert into t1 values (1);
 set @ts_start= sys_commit_ts('sys_trx_start');
@@ -226,6 +226,13 @@ select @ts2 = @ts3;
 1
 create or replace table t1 (x int)
 with system versioning
+partition by system_time limit 0 (
+partition p0 versioning,
+partition p1 versioning,
+partition pn as of now);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'LIMIT'
+create or replace table t1 (x int)
+with system versioning
 partition by system_time limit 1 (
 partition p0 versioning,
 partition p1 versioning,
@@ -266,6 +273,13 @@ select * from t1 partition (p1) for system_time all;
 x
 2
 3
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 0 second (
+partition p0 versioning,
+partition p1 versioning,
+partition pn as of now);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'INTERVAL'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 1 second (

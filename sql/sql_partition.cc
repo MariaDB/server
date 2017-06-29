@@ -5368,7 +5368,8 @@ that are reorganised.
       {
         if (num_parts_dropped >= tab_part_info->num_parts - 1)
         {
-          my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "one `AS OF NOW` and at least one `VERSIONING` partition required");
+          DBUG_ASSERT(table && table->s && table->s->table_name.str);
+          my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);
           goto err;
         }
       }
@@ -5394,7 +5395,8 @@ that are reorganised.
         {
           if (part_elem->type == partition_element::AS_OF_NOW)
           {
-            my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "`AS OF NOW` partition can not be dropped");
+            DBUG_ASSERT(table && table->s && table->s->table_name.str);
+            my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);
             goto err;
           }
           /*

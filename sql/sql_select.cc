@@ -824,7 +824,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         case TL_WRITE_LOW_PRIORITY:
         case TL_WRITE:
         case TL_WRITE_ONLY:
-          my_error(ER_VERS_WRONG_PARAMS, MYF(0), "FOR SYSTEM_TIME query", "write-locking of historic rows");
+          my_error(ER_VERS_HISTORY_LOCK, MYF(0));
           DBUG_RETURN(-1);
         default:
           break;
@@ -1004,7 +1004,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
 
   if (!slex->vers_conditions.used && slex->vers_conditions)
   {
-    my_error(ER_VERS_WRONG_QUERY, MYF(0), "unused `QUERY FOR SYSTEM_TIME` clause!");
+    my_error(ER_VERS_UNUSED_CLAUSE, MYF(0), "QUERY FOR SYSTEM_TIME");
     DBUG_RETURN(-1);
   }
 

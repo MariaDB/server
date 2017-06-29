@@ -7500,7 +7500,7 @@ ER_VERS_FIELD_WRONG_TYPE
         eng "%`s must be of type %`s for versioned table %`s"
 
 ER_VERS_WRONG_PARAMS
-        eng "Wrong parameters for %`s: %s"
+        eng "Wrong parameters %s"
 
 ER_VERS_ENGINE_UNSUPPORTED
         eng "Engine does not support System Versioning for %`s"
@@ -7532,8 +7532,8 @@ WARN_VERS_PART_NON_HISTORICAL
 ER_VERS_NOT_ALLOWED
         eng "%`s is not allowed for versioned table"
 
-ER_VERS_WRONG_QUERY_TYPE
-        eng "%`s works only with %`s query type"
+ER_VERS_RANGE_PROHIBITED
+        eng "SYSTEM_TIME range selector is prohibited"
 
 ER_VERS_VIEW_PROHIBITED
         eng "Creating VIEW %`s is prohibited!"
@@ -7541,14 +7541,53 @@ ER_VERS_VIEW_PROHIBITED
 ER_VERS_DERIVED_PROHIBITED
         eng "Derived table is prohibited!"
 
-ER_VERS_WRONG_QUERY
-        eng "Wrong versioned query: %s"
+ER_VERS_UNUSED_CLAUSE
+        eng "Unused clause: '%s'"
 
 WARN_VERS_ALIAS_TOO_LONG
-        eng "Auto generated alias for `%s.%s` is too long; using `%s`."
+        eng "Auto generated alias for `%s.%s` is too long; using `%s`"
 
 ER_VERS_VTMD_ERROR
         eng "VTMD error: %s"
+
+ER_MULTIPLE_CLAUSE
+        eng "for %`s: multiple '%s'"
+
+ER_MULTIPLE_CLAUSE_FOR
+        eng "for %`s: multiple '%s' for %`s"
+
+ER_MULTIPLE_CLAUSE_2
+        eng "for %`s: multiple '%s' (%`s, %`s)"
+
+ER_MULTIPLE_IDENTIFIER
+        eng "for %`s: multiple %`s for '%s'"
+
+ER_NOT_ALLOWED
+        eng "for %`s: not allowed '%s'"
+
+ER_VERS_DIFFERENT_TABLES
+        eng "for %`s: system fields selected from different tables"
+
+ER_VERS_NO_COLS_DEFINED
+        eng "for %`s: no columns defined '%s'"
+
+ER_VERS_NOT_VERSIONED
+        eng "for %`s: table is not versioned"
+
+ER_MISSING
+        eng "for %`s: missing '%s'"
+
+ER_MISMATCH
+        eng "for %`s: mismatch '%s' and '%s'"
+
+ER_PART_WRONG_VALUE
+        eng "for partitioned %`s: wrong value for '%s'"
+
+ER_VERS_WRONG_PARTS
+        eng "Wrong partitions consistency for %`s: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'"
+
+ER_VERS_HISTORY_LOCK
+        eng "Versioned SELECT write-locking of history rows"
 
 ER_WRONG_TABLESPACE_NAME 42000
   eng "Incorrect tablespace name `%-.192s`"

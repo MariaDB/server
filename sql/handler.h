@@ -1677,10 +1677,10 @@ class Create_field;
 struct Vers_parse_info
 {
   Vers_parse_info() :
-    declared_with_system_versioning(false),
-    declared_without_system_versioning(false),
-    has_versioned_fields(false),
-    has_unversioned_fields(false)
+    with_system_versioning(false),
+    without_system_versioning(false),
+    versioned_fields(false),
+    unversioned_fields(false)
   {}
 
   struct start_end_t
@@ -1712,10 +1712,10 @@ private:
   bool need_check() const
   {
     return
-      has_versioned_fields ||
-      has_unversioned_fields ||
-      declared_with_system_versioning ||
-      declared_without_system_versioning ||
+      versioned_fields ||
+      unversioned_fields ||
+      with_system_versioning ||
+      without_system_versioning ||
       period_for_system_time.start.str ||
       period_for_system_time.end.str ||
       generated_as_row.start.str ||
@@ -1735,22 +1735,22 @@ public:
                        HA_CREATE_INFO *create_info, TABLE_LIST *table);
 
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
-  bool declared_with_system_versioning : 1;
+  bool with_system_versioning : 1;
 
   /** Use has added 'WITHOUT SYSTEM VERSIONING' to ALTER TABLE */
-  bool declared_without_system_versioning : 1;
+  bool without_system_versioning : 1;
 
   /**
      At least one field was specified 'WITH SYSTEM VERSIONING'. Useful for
      error handling.
   */
-  bool has_versioned_fields : 1;
+  bool versioned_fields : 1;
 
   /**
      At least one field was specified 'WITHOUT SYSTEM VERSIONING'. Useful for
      error handling.
   */
-  bool has_unversioned_fields : 1;
+  bool unversioned_fields : 1;
 };
 
 /**

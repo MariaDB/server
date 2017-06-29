@@ -337,7 +337,7 @@ ERROR HY000: System Versioning required: `FOR SYSTEM_TIME` query
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
 select * from t1 for system_time all for update;
-ERROR HY000: Wrong parameters for `FOR SYSTEM_TIME query`: write-locking of historic rows
+ERROR HY000: Versioned SELECT write-locking of history rows
 create or replace table t1 (a int not null auto_increment primary key) with system versioning;
 select * from (t1 as t2 left join t1 as t3 using (a)) natural left join t1;
 a
@@ -437,7 +437,7 @@ x	y
 2	1
 3	1
 select * from t1 for system_time all, t2 for system_time all query for system_time all;
-ERROR HY000: Wrong versioned query: unused `QUERY FOR SYSTEM_TIME` clause!
+ERROR HY000: Unused clause: 'QUERY FOR SYSTEM_TIME'
 drop view v1;
 drop table t1, t2;
 call innodb_verify_vtq(27);

@@ -327,3 +327,39 @@ void my_error_unregister_all(void)
 
   my_errmsgs_list= &my_errmsgs_globerrs;
 }
+
+
+/**
+  Format one error and print out as another error code.
+
+  @note
+    Stacks two error messages and prints as single error message.
+    Like my_error(), but error argument is another formatted error
+
+  @param nr1       error number of printed message. nr1 must have exactly one %s
+                   parameter which will be formatted message of error nr2.
+  @param nr2       error number of formatted message
+  @param MyFlags   Flags
+  @param ...       parameters for error nr2
+*/
+
+void my_error_as(uint nr1, uint nr2, myf MyFlags, ...)
+{
+  const char *format;
+  va_list args;
+  char ebuff[ERRMSGSIZE];
+  DBUG_ENTER("my_suberror");
+  DBUG_PRINT("my", ("nr1: %d  nr2: %d  MyFlags: %lu  errno: %d", nr1, nr2, MyFlags, errno));
+
+  if (!(format = my_get_err_msg(nr2)))
+    (void) my_snprintf(ebuff, sizeof(ebuff), "Unknown error %d", nr2);
+  else
+  {
+    va_start(args,MyFlags);
+    (void) my_vsnprintf_ex(&my_charset_utf8_general_ci, ebuff,
+                           sizeof(ebuff), format, args);
+    va_end(args);
+  }
+  my_error(nr1, MyFlags, ebuff);
+  DBUG_VOID_RETURN;
+}

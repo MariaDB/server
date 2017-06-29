@@ -851,16 +851,8 @@ bool partition_info::vers_init_info(THD * thd)
 
 bool partition_info::vers_set_interval(const INTERVAL & i)
 {
-  if (i.neg)
-  {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "negative INTERVAL");
+  if (i.neg || i.second_part)
     return true;
-  }
-  if (i.second_part)
-  {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "second fractions in INTERVAL");
-    return true;
-  }
 
   DBUG_ASSERT(vers_info);
 
@@ -874,20 +866,16 @@ bool partition_info::vers_set_interval(const INTERVAL & i)
     i.year * 365 * 30 * 24 * 60 * 60;
 
   if (vers_info->interval == 0)
-  {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "zero INTERVAL");
     return true;
-  }
+
   return false;
 }
 
 bool partition_info::vers_set_limit(ulonglong limit)
 {
   if (limit < 1)
-  {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "non-positive LIMIT");
     return true;
-  }
+
   DBUG_ASSERT(vers_info);
 
   vers_info->limit= limit;
@@ -1978,15 +1966,11 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
 
   if (part_type == VERSIONING_PARTITION)
   {
-    if (num_parts < 2)
-    {
-      my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "unexpected number of partitions (expected > 1)");
-      goto end;
-    }
     DBUG_ASSERT(vers_info);
-    if (!vers_info->now_part)
+    if (num_parts < 2 || !vers_info->now_part)
     {
-      my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "no `AS OF NOW` partition defined");
+      DBUG_ASSERT(info && info->alias);
+      my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias);
       goto end;
     }
     DBUG_ASSERT(vers_info->initialized(false));
@@ -2135,7 +2119,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   }
   if (now_parts > 1)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "multiple `AS OF NOW` partitions");
+    my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias);
     goto end;
   }
   result= FALSE;

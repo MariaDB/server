@@ -55,11 +55,11 @@ ERROR 42S02: Table 'test.t_vtmd' doesn't exist
 set versioning_ddl_survival=on;
 create or replace table t (a int) with system versioning;
 show create table t for system_time between timestamp @tm1 and timestamp @tm1;
-ERROR HY000: Wrong parameters for `FOR SYSTEM_TIME`: only AS OF allowed here
+ERROR HY000: SYSTEM_TIME range selector is prohibited
 show create table t for system_time from timestamp @tm1 to timestamp @tm1;
-ERROR HY000: Wrong parameters for `FOR SYSTEM_TIME`: only AS OF allowed here
+ERROR HY000: SYSTEM_TIME range selector is prohibited
 show create table t for system_time before timestamp @tm1;
-ERROR HY000: Wrong parameters for `FOR SYSTEM_TIME`: only AS OF allowed here
+ERROR HY000: SYSTEM_TIME range selector is prohibited
 show create table t for system_time as of timestamp '01-01-1990';
 ERROR HY000: VTMD error: failed to query VTMD table
 show create table t for system_time as of timestamp '01-01-2020';

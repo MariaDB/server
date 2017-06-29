@@ -67,6 +67,7 @@
 #include "lex_token.h"
 #include "sql_lex.h"
 #include "sql_sequence.h"
+#include "vers_utils.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -851,6 +852,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   enum trigger_order_type trigger_action_order_type;
   DDL_options_st object_ddl_options;
   enum vers_range_unit_t vers_range_unit;
+  enum Column_definition::enum_column_versioning vers_column_versioning;
 }
 
 %{
@@ -1973,7 +1975,7 @@ END_OF_INPUT
 
 %type <vers_range_unit> trans_or_timestamp
 %type <BOOL> opt_for_system_time_clause
-
+%type <vers_column_versioning> with_or_without_system
 %%
 
 
@@ -5206,8 +5208,11 @@ opt_part_values:
             }
             else
             {
+              DBUG_ASSERT(Lex->create_last_non_select_table);
+              DBUG_ASSERT(Lex->create_last_non_select_table->table_name);
               // FIXME: other ALTER commands?
-              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "AS OF NOW partition can not be added"));
+              my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0),
+                Lex->create_last_non_select_table->table_name));
             }
             elem->type= partition_element::AS_OF_NOW;
             DBUG_ASSERT(part_info->vers_info);
@@ -5235,7 +5240,11 @@ opt_part_values:
             }
             DBUG_ASSERT(part_info->vers_info);
             if (part_info->vers_info->now_part)
-              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "AS OF NOW partition is not last"));
+            {
+              DBUG_ASSERT(Lex->create_last_non_select_table);
+              DBUG_ASSERT(Lex->create_last_non_select_table->table_name);
+              my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0), Lex->create_last_non_select_table->table_name));
+            }
             elem->type= partition_element::VERSIONING;
             if (part_info->init_column_part(thd))
             {
@@ -5551,10 +5560,13 @@ opt_versioning_interval:
            partition_info *part_info= Lex->part_info;
            DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
            INTERVAL interval;
-           if (get_interval_value($2, $3, &interval))
-             my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "wrong INTERVAL value"));
-           if (part_info->vers_set_interval(interval))
+           if (get_interval_value($2, $3, &interval) ||
+              part_info->vers_set_interval(interval))
+           {
+             my_error_as(ER_VERS_WRONG_PARAMS, ER_PART_WRONG_VALUE, MYF(0),
+                Lex->create_last_non_select_table->table_name, "INTERVAL");
              MYSQL_YYABORT;
+           }
          }
        ;
 
@@ -5565,7 +5577,11 @@ opt_versioning_limit:
            partition_info *part_info= Lex->part_info;
            DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
            if (part_info->vers_set_limit($2))
+           {
+             my_error_as(ER_VERS_WRONG_PARAMS, ER_PART_WRONG_VALUE, MYF(0),
+                Lex->create_last_non_select_table->table_name, "LIMIT");
              MYSQL_YYABORT;
+           }
          }
        ;
 
@@ -5936,32 +5952,28 @@ create_table_option:
 	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
             Lex->create_info.sequence= $3;
 	  }
-        | WITH_SYSTEM_SYM VERSIONING_SYM
+        | WITH_SYSTEM_SYM table_versioning
           {
-            const char *table_name=
-                Lex->create_last_non_select_table->table_name;
-            Vers_parse_info &info= Lex->vers_get_info();
-            if (info.declared_with_system_versioning ||
-                info.declared_without_system_versioning)
-              my_yyabort_error(
-                  (ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-                   "Versioning specified more than once for the same table"));
-
-            info.declared_with_system_versioning= true;
+            Lex->vers_get_info().with_system_versioning= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
-	| WITHOUT SYSTEM VERSIONING_SYM
+	| WITHOUT SYSTEM table_versioning
           {
-            const char *table_name=
-                Lex->create_last_non_select_table->table_name;
-            Vers_parse_info &info= Lex->vers_get_info();
-            if (info.declared_with_system_versioning ||
-                info.declared_without_system_versioning)
-              my_yyabort_error(
-                  (ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-                   "Versioning specified more than once for the same table"));
+            Lex->vers_get_info().without_system_versioning= true;
+          }
+        ;
 
-            info.declared_without_system_versioning= true;
+table_versioning:
+          VERSIONING_SYM
+          {
+            Vers_parse_info &info= Lex->vers_get_info();
+            if (info.with_system_versioning || info.without_system_versioning)
+            {
+              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE, MYF(0),
+                Lex->create_last_non_select_table->table_name,
+                "WITH/WITHOUT SYSTEM VERSIONING");
+              MYSQL_YYABORT;
+            }
           }
         ;
 
@@ -6169,9 +6181,10 @@ period_for_system_time:
             Vers_parse_info &info= Lex->vers_get_info();
             if (!my_strcasecmp(system_charset_info, $4.str, $6.str))
             {
-              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0),
-                Lex->create_last_non_select_table->table_name,
-                "'PERIOD FOR SYSTEM_TIME' columns must be different"));
+              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_IDENTIFIER, MYF(0),
+                Lex->create_last_non_select_table->table_name, $4.str,
+                "PERIOD FOR SYSTEM_TIME");
+              MYSQL_YYABORT;
             }
             info.set_period_for_system_time($4, $6);
           }
@@ -6288,17 +6301,17 @@ field_def:
             const char *table_name= lex->create_last_non_select_table->table_name;
 
             LString_i *p;
-            const char* err;
+            const char* clause;
             switch ($4)
             {
             case 1:
               p= &info.generated_as_row.start;
-              err= "multiple 'GENERATED ALWAYS AS ROW START'";
+              clause= "AS ROW START";
               lex->last_field->flags|= VERS_SYS_START_FLAG;
               break;
             case 0:
               p= &info.generated_as_row.end;
-              err= "multiple 'GENERATED ALWAYS AS ROW END'";
+              clause= "AS ROW END";
               lex->last_field->flags|= VERS_SYS_END_FLAG;
               break;
             default:
@@ -6309,7 +6322,9 @@ field_def:
             DBUG_ASSERT(p);
             if (*p)
             {
-              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), table_name, err));
+              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE_2, MYF(0),
+                table_name, clause, field_name, p->ptr());
+              MYSQL_YYABORT;
             }
             *p= field_name;
             if (lex->last_field->implicit_not_null)
@@ -6805,31 +6820,30 @@ serial_attribute:
             new (thd->mem_root)
               engine_option_value($1, &Lex->last_field->option_list, &Lex->option_list_last);
           }
-        | WITH_SYSTEM_SYM VERSIONING_SYM
+        | with_or_without_system VERSIONING_SYM
           {
-            if (Lex->last_field->versioning !=
-                Column_definition::VERSIONING_NOT_SET)
-              my_yyabort_error(
-                  (ER_VERS_WRONG_PARAMS, MYF(0),
+            if (Lex->last_field->versioning != Column_definition::VERSIONING_NOT_SET)
+            {
+              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE_FOR, MYF(0),
                    Lex->create_last_non_select_table->table_name,
-                   "Versioning specified more than once for the same field"));
-
-            Lex->last_field->versioning = Column_definition::WITH_VERSIONING;
-            Lex->create_info.vers_info.has_versioned_fields= true;
+                   "WITH/WITHOUT SYSTEM VERSIONING", Lex->last_field->field_name);
+              MYSQL_YYABORT;
+            }
+            Lex->last_field->versioning= $1;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
-        | WITHOUT SYSTEM VERSIONING_SYM
-          {
-            if (Lex->last_field->versioning !=
-                Column_definition::VERSIONING_NOT_SET)
-              my_yyabort_error(
-                  (ER_VERS_WRONG_PARAMS, MYF(0),
-                   Lex->create_last_non_select_table->table_name,
-                   "Versioning specified more than once for the same field"));
+        ;
 
-            Lex->last_field->versioning = Column_definition::WITHOUT_VERSIONING;
-            Lex->create_info.vers_info.has_unversioned_fields= true;
-            Lex->create_info.options|= HA_VERSIONED_TABLE;
+with_or_without_system:
+        WITH_SYSTEM_SYM
+          {
+            Lex->create_info.vers_info.versioned_fields= true;
+            $$= Column_definition::WITH_VERSIONING;
+          }
+        | WITHOUT SYSTEM
+          {
+            Lex->create_info.vers_info.unversioned_fields= true;
+            $$= Column_definition::WITHOUT_VERSIONING;
           }
         ;
 
@@ -13336,9 +13350,9 @@ show_param:
             lex->create_info.storage_media= HA_SM_DEFAULT;
 
             if (lex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED &&
-                lex->vers_conditions.type != FOR_SYSTEM_TIME_AS_OF) {
-              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), "FOR SYSTEM_TIME",
-                                "only AS OF allowed here"));
+                lex->vers_conditions.type != FOR_SYSTEM_TIME_AS_OF)
+            {
+              my_yyabort_error((ER_VERS_RANGE_PROHIBITED, MYF(0)));
             }
             if ($4)
               Lex->last_table()->vers_conditions= Lex->vers_conditions;

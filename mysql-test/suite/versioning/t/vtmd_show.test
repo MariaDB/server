@@ -71,11 +71,11 @@ show create table t for system_time as of now;
 set versioning_ddl_survival=on;
 
 create or replace table t (a int) with system versioning;
---error ER_VERS_WRONG_PARAMS
+--error ER_VERS_RANGE_PROHIBITED
 show create table t for system_time between timestamp @tm1 and timestamp @tm1;
---error ER_VERS_WRONG_PARAMS
+--error ER_VERS_RANGE_PROHIBITED
 show create table t for system_time from timestamp @tm1 to timestamp @tm1;
---error ER_VERS_WRONG_PARAMS
+--error ER_VERS_RANGE_PROHIBITED
 show create table t for system_time before timestamp @tm1;
 --error ER_VERS_VTMD_ERROR
 show create table t for system_time as of timestamp '01-01-1990';
