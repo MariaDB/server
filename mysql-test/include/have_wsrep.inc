@@ -5,5 +5,4 @@ if (`SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsre
 {
   --skip Test requires wsrep plugin.
 }
---source include/wait_until_ready.inc
 
