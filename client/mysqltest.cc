@@ -6598,7 +6598,7 @@ static inline bool is_escape_char(char c, char in_string)
 
 int read_line(char *buf, int size)
 {
-  char c, UNINIT_VAR(last_quote), last_char= 0;
+  char c, last_quote=0, last_char= 0;
   char *p= buf, *buf_end= buf + size - 1;
   int skip_char= 0;
   my_bool have_slash= FALSE;
