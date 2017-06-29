@@ -255,11 +255,11 @@ trx_sys_update_wsrep_checkpoint(
 	trx_sysf_t*	sys_header,	/*!< in: sys_header */
 	mtr_t*		mtr);		/*!< in: mtr */
 
-void
-/** Read WSREP checkpoint XID from sys header. */
-trx_sys_read_wsrep_checkpoint(
-/*==========================*/
-	XID* xid); /*!< out: WSREP XID */
+/** Read WSREP checkpoint XID from sys header.
+@param[out]	xid	WSREP XID
+@return	whether the checkpoint was present */
+bool
+trx_sys_read_wsrep_checkpoint(XID* xid);
 #endif /* WITH_WSREP */
 
 /** Initializes the tablespace tag system. */
