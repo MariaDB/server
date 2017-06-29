@@ -40,6 +40,8 @@ matrix:
   include:
     - os: linux
       compiler: gcc
+      # disable cache - was out of disk space
+      cache: false
       script:
         - ${CC} --version ; ${CXX} --version
         - source .travis.compiler.sh
