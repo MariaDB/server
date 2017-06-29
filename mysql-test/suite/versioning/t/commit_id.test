@@ -6,26 +6,9 @@ with system versioning
 engine innodb;
 
 
-# VTQ_ISO_LEVEL #
-
-set transaction isolation level read uncommitted;
-insert into t1 values ();
-select iso_level = 'RU' from information_schema.innodb_vtq limit 1;
-
-set transaction isolation level read committed;
-insert into t1 values ();
-select iso_level = 'RC' from information_schema.innodb_vtq limit 1;
-
-set transaction isolation level serializable;
-insert into t1 values ();
-select iso_level = 'S' from information_schema.innodb_vtq limit 1;
-
-set transaction isolation level repeatable read;
-insert into t1 values ();
-select iso_level = 'RR' from information_schema.innodb_vtq limit 1;
-
-
 # VTQ_TRX_ID, VTQ_COMMIT_ID, VTQ_TRX_SEES #
+
+insert into t1 values ();
 
 set @ts0= now(6);
 insert into t1 values ();
@@ -72,6 +55,30 @@ select
   vtq_trx_sees(@tx2, 0) as E,
   vtq_trx_sees(0, @tx2) is null as F,
   vtq_trx_sees(-1, @tx2) as H;
+
+
+# VTQ_ISO_LEVEL #
+
+set transaction isolation level read uncommitted;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx3;
+select iso_level = 'RU' from information_schema.innodb_vtq where trx_id = @tx3;
+
+set transaction isolation level read committed;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx4;
+select iso_level = 'RC' from information_schema.innodb_vtq where trx_id = @tx4;
+
+set transaction isolation level serializable;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx5;
+select iso_level = 'S' from information_schema.innodb_vtq where trx_id = @tx5;
+
+set transaction isolation level repeatable read;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx6;
+select iso_level = 'RR' from information_schema.innodb_vtq where trx_id = @tx6;
+
 
 drop table t1;
 call verify_vtq;

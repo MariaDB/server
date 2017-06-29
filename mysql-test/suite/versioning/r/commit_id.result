@@ -64,26 +64,7 @@ create table t1(
 id int auto_increment primary key)
 with system versioning
 engine innodb;
-set transaction isolation level read uncommitted;
 insert into t1 values ();
-select iso_level = 'RU' from information_schema.innodb_vtq limit 1;
-iso_level = 'RU'
-1
-set transaction isolation level read committed;
-insert into t1 values ();
-select iso_level = 'RC' from information_schema.innodb_vtq limit 1;
-iso_level = 'RC'
-1
-set transaction isolation level serializable;
-insert into t1 values ();
-select iso_level = 'S' from information_schema.innodb_vtq limit 1;
-iso_level = 'S'
-1
-set transaction isolation level repeatable read;
-insert into t1 values ();
-select iso_level = 'RR' from information_schema.innodb_vtq limit 1;
-iso_level = 'RR'
-1
 set @ts0= now(6);
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx0;
@@ -135,6 +116,30 @@ vtq_trx_sees(0, @tx2) is null as F,
 vtq_trx_sees(-1, @tx2) as H;
 A	B	C	D	E	F	H
 1	1	1	1	1	1	1
+set transaction isolation level read uncommitted;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx3;
+select iso_level = 'RU' from information_schema.innodb_vtq where trx_id = @tx3;
+iso_level = 'RU'
+1
+set transaction isolation level read committed;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx4;
+select iso_level = 'RC' from information_schema.innodb_vtq where trx_id = @tx4;
+iso_level = 'RC'
+1
+set transaction isolation level serializable;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx5;
+select iso_level = 'S' from information_schema.innodb_vtq where trx_id = @tx5;
+iso_level = 'S'
+1
+set transaction isolation level repeatable read;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx6;
+select iso_level = 'RR' from information_schema.innodb_vtq where trx_id = @tx6;
+iso_level = 'RR'
+1
 drop table t1;
 call verify_vtq;
 No	A	B	C	D
@@ -145,6 +150,7 @@ No	A	B	C	D
 5	1	1	1	1
 6	1	1	1	1
 7	1	1	1	1
+8	1	1	1	1
 drop procedure verify_vtq;
 drop procedure innodb_verify_vtq;
 drop function default_engine;
