@@ -151,6 +151,7 @@ addons:
       - libdistro-info-perl
       - uuid-dev
       - devscripts # implicit for any build on Ubuntu
+      - fakeroot
 
 # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
 
