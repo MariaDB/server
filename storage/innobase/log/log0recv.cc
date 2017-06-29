@@ -415,31 +415,9 @@ fil_name_parse(
 	return(end_ptr);
 }
 
-/********************************************************//**
-Creates the recovery system. */
+/** Clean up after recv_sys_init() */
 void
-recv_sys_create(void)
-/*=================*/
-{
-	if (recv_sys != NULL) {
-
-		return;
-	}
-
-	recv_sys = static_cast<recv_sys_t*>(ut_zalloc_nokey(sizeof(*recv_sys)));
-
-	mutex_create(LATCH_ID_RECV_SYS, &recv_sys->mutex);
-	mutex_create(LATCH_ID_RECV_WRITER, &recv_sys->writer_mutex);
-
-	recv_sys->heap = NULL;
-	recv_sys->addr_hash = NULL;
-}
-
-/********************************************************//**
-Release recovery system mutexes. */
-void
-recv_sys_close(void)
-/*================*/
+recv_sys_close()
 {
 	if (recv_sys != NULL) {
 		recv_sys->dblwr.pages.clear();
@@ -578,56 +556,41 @@ DECLARE_THREAD(recv_writer_thread)(
 	OS_THREAD_DUMMY_RETURN;
 }
 
-/************************************************************
-Inits the recovery system for a recovery operation. */
+/** Initialize the redo log recovery subsystem. */
 void
-recv_sys_init(
-/*==========*/
-	ulint	available_memory)	/*!< in: available memory in bytes */
+recv_sys_init()
 {
-	if (recv_sys->heap != NULL) {
+	ut_ad(recv_sys == NULL);
 
-		return;
-	}
+	recv_sys = static_cast<recv_sys_t*>(ut_zalloc_nokey(sizeof(*recv_sys)));
 
-	mutex_enter(&(recv_sys->mutex));
+	mutex_create(LATCH_ID_RECV_SYS, &recv_sys->mutex);
+	mutex_create(LATCH_ID_RECV_WRITER, &recv_sys->writer_mutex);
 
-	recv_sys->heap = mem_heap_create_typed(256,
-					MEM_HEAP_FOR_RECV_SYS);
+	recv_sys->heap = mem_heap_create_typed(256, MEM_HEAP_FOR_RECV_SYS);
 
 	if (!srv_read_only_mode) {
 		recv_sys->flush_start = os_event_create(0);
 		recv_sys->flush_end = os_event_create(0);
 	}
 
+	ulint size = buf_pool_get_curr_size();
 	/* Set appropriate value of recv_n_pool_free_frames. */
-	if (buf_pool_get_curr_size() >= (10 * 1024 * 1024)) {
+	if (size >= 10 << 20) {
 		/* Buffer pool of size greater than 10 MB. */
 		recv_n_pool_free_frames = 512;
 	}
 
 	recv_sys->buf = static_cast<byte*>(
 		ut_malloc_nokey(RECV_PARSING_BUF_SIZE));
-	recv_sys->len = 0;
-	recv_sys->recovered_offset = 0;
 
-	recv_sys->addr_hash = hash_create(available_memory / 512);
-	recv_sys->n_addrs = 0;
-
-	recv_sys->apply_log_recs = FALSE;
-	recv_sys->apply_batch_on = FALSE;
-
-	recv_sys->found_corrupt_log = false;
-	recv_sys->found_corrupt_fs = false;
-	recv_sys->mlog_checkpoint_lsn = 0;
+	recv_sys->addr_hash = hash_create(size / 512);
 	recv_sys->progress_time = ut_time();
 
 	recv_max_page_lsn = 0;
 
 	/* Call the constructor for recv_sys_t::dblwr member */
 	new (&recv_sys->dblwr) recv_dblwr_t();
-
-	mutex_exit(&(recv_sys->mutex));
 }
 
 /** Empty a fully processed hash table. */

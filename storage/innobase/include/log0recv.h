@@ -81,27 +81,12 @@ recv_reset_logs(
 					OS_FILE_LOG_BLOCK_SIZE, after
 					which we add
 					LOG_BLOCK_HDR_SIZE */
-/********************************************************//**
-Creates the recovery system. */
+/** Clean up after recv_sys_init() */
 void
-recv_sys_create(void);
-/*=================*/
-/**********************************************************//**
-Release recovery system mutexes. */
+recv_sys_close();
+/** Initialize the redo log recovery subsystem. */
 void
-recv_sys_close(void);
-/*================*/
-/********************************************************//**
-Frees the recovery system memory. */
-void
-recv_sys_mem_free(void);
-/*===================*/
-/********************************************************//**
-Inits the recovery system for a recovery operation. */
-void
-recv_sys_init(
-/*==========*/
-	ulint	available_memory);	/*!< in: available memory in bytes */
+recv_sys_init();
 /********************************************************//**
 Frees the recovery system. */
 void

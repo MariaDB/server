@@ -407,16 +407,9 @@ Closes all log groups. */
 void
 log_group_close_all(void);
 /*=====================*/
-/********************************************************//**
-Shutdown the log system but do not release all the memory. */
+/** Shut down the redo log subsystem. */
 void
-log_shutdown(void);
-/*==============*/
-/********************************************************//**
-Free the log system data structures. */
-void
-log_mem_free(void);
-/*==============*/
+log_shutdown();
 
 /** Whether to generate and require checksums on the redo log pages */
 extern my_bool	innodb_log_checksums;

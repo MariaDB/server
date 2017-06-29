@@ -1831,8 +1831,7 @@ innobase_start_or_create_for_mysql()
 	fsp_init();
 	log_sys_init();
 
-	recv_sys_create();
-	recv_sys_init(buf_pool_get_curr_size());
+	recv_sys_init();
 	lock_sys_create(srv_lock_table_size);
 
 	/* Create i/o-handler threads: */
@@ -2907,7 +2906,8 @@ innodb_shutdown()
 	/* 4. Free all allocated memory */
 
 	pars_lexer_close();
-	log_mem_free();
+	recv_sys_close();
+
 	ut_ad(buf_pool_ptr || !srv_was_started);
 	if (buf_pool_ptr) {
 		buf_pool_free(srv_buf_pool_instances);
