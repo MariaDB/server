@@ -236,16 +236,12 @@ trx_sys_update_mysql_binlog_offset(
 /*===============================*/
 	const char*	file_name,/*!< in: MySQL log file name */
 	int64_t		offset,	/*!< in: position in that log file */
-	ulint		field,	/*!< in: offset of the MySQL log info field in
-				the trx sys header */
         trx_sysf_t*     sys_header, /*!< in: trx sys header */
 	mtr_t*		mtr);	/*!< in: mtr */
-/*****************************************************************//**
-Prints to stderr the MySQL binlog offset info in the trx system header if
-the magic number shows it valid. */
+/** Display the MySQL binlog offset info if it is present in the trx
+system header. */
 void
-trx_sys_print_mysql_binlog_offset(void);
-/*===================================*/
+trx_sys_print_mysql_binlog_offset();
 #ifdef WITH_WSREP
 /** Update WSREP checkpoint XID in sys header. */
 void
@@ -420,9 +416,7 @@ impose the 7 bit restriction. e.g., mach_write_to_3() */
 						TRX_SYS_MYSQL_LOG_MAGIC_N
 						if we have valid data in the
 						MySQL binlog info */
-#define TRX_SYS_MYSQL_LOG_OFFSET_HIGH	4	/*!< high 4 bytes of the offset
-						within that file */
-#define TRX_SYS_MYSQL_LOG_OFFSET_LOW	8	/*!< low 4 bytes of the offset
+#define TRX_SYS_MYSQL_LOG_OFFSET	4	/*!< the 64-bit offset
 						within that file */
 #define TRX_SYS_MYSQL_LOG_NAME		12	/*!< MySQL log file name */
 

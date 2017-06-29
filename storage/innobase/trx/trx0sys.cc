@@ -176,95 +176,67 @@ trx_sys_update_mysql_binlog_offset(
 /*===============================*/
 	const char*	file_name,/*!< in: MySQL log file name */
 	int64_t		offset,	/*!< in: position in that log file */
-	ulint		field,	/*!< in: offset of the MySQL log info field in
-				the trx sys header */
         trx_sysf_t*     sys_header, /*!< in: trx sys header */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	DBUG_PRINT("InnoDB",("trx_mysql_binlog_offset: %lld", (longlong) offset));
 
-	if (ut_strlen(file_name) >= TRX_SYS_MYSQL_LOG_NAME_LEN) {
+	const size_t len = strlen(file_name) + 1;
+
+	if (len > TRX_SYS_MYSQL_LOG_NAME_LEN) {
 
 		/* We cannot fit the name to the 512 bytes we have reserved */
 
 		return;
 	}
 
-	if (mach_read_from_4(sys_header + field
-			     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD)
+	if (mach_read_from_4(TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
+			     + TRX_SYS_MYSQL_LOG_INFO + sys_header)
 	    != TRX_SYS_MYSQL_LOG_MAGIC_N) {
 
-		mlog_write_ulint(sys_header + field
-				 + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD,
+		mlog_write_ulint(TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
+				 + TRX_SYS_MYSQL_LOG_INFO + sys_header,
 				 TRX_SYS_MYSQL_LOG_MAGIC_N,
 				 MLOG_4BYTES, mtr);
 	}
 
-	if (0 != strcmp((char*) (sys_header + field + TRX_SYS_MYSQL_LOG_NAME),
-			file_name)) {
-
-		mlog_write_string(sys_header + field
-				  + TRX_SYS_MYSQL_LOG_NAME,
-				  (byte*) file_name, 1 + ut_strlen(file_name),
-				  mtr);
+	if (memcmp(file_name, TRX_SYS_MYSQL_LOG_NAME + TRX_SYS_MYSQL_LOG_INFO
+		   + sys_header, len)) {
+		mlog_write_string(TRX_SYS_MYSQL_LOG_NAME
+				  + TRX_SYS_MYSQL_LOG_INFO
+				  + sys_header,
+				  reinterpret_cast<const byte*>(file_name),
+				  len, mtr);
 	}
 
-	if (mach_read_from_4(sys_header + field
-			     + TRX_SYS_MYSQL_LOG_OFFSET_HIGH) > 0
-	    || (offset >> 32) > 0) {
-
-		mlog_write_ulint(sys_header + field
-				 + TRX_SYS_MYSQL_LOG_OFFSET_HIGH,
-				 (ulint)(offset >> 32),
-				 MLOG_4BYTES, mtr);
-	}
-
-	mlog_write_ulint(sys_header + field
-			 + TRX_SYS_MYSQL_LOG_OFFSET_LOW,
-			 (ulint)(offset & 0xFFFFFFFFUL),
-			 MLOG_4BYTES, mtr);
+	mlog_write_ull(TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_OFFSET
+		       + sys_header, offset, mtr);
 }
 
-/*****************************************************************//**
-Stores the MySQL binlog offset info in the trx system header if
-the magic number shows it valid, and print the info to stderr */
+/** Display the MySQL binlog offset info if it is present in the trx
+system header. */
 void
-trx_sys_print_mysql_binlog_offset(void)
-/*===================================*/
+trx_sys_print_mysql_binlog_offset()
 {
-	trx_sysf_t*	sys_header;
 	mtr_t		mtr;
-	ulint		trx_sys_mysql_bin_log_pos_high;
-	ulint		trx_sys_mysql_bin_log_pos_low;
 
-	mtr_start(&mtr);
+	mtr.start();
 
-	sys_header = trx_sysf_get(&mtr);
+	const trx_sysf_t*	sys_header = trx_sysf_get(&mtr);
 
-	if (mach_read_from_4(sys_header + TRX_SYS_MYSQL_LOG_INFO
-			     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD)
-	    != TRX_SYS_MYSQL_LOG_MAGIC_N) {
-
-		mtr_commit(&mtr);
-
-		return;
+	if (mach_read_from_4(TRX_SYS_MYSQL_LOG_INFO
+			     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD + sys_header)
+	    == TRX_SYS_MYSQL_LOG_MAGIC_N) {
+		ib::info() << "Last binlog file '"
+			<< TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_NAME
+			+ sys_header
+			<< "', position "
+			<< mach_read_from_8(TRX_SYS_MYSQL_LOG_INFO
+					    + TRX_SYS_MYSQL_LOG_OFFSET
+					    + sys_header);
 	}
 
-	trx_sys_mysql_bin_log_pos_high = mach_read_from_4(
-		sys_header + TRX_SYS_MYSQL_LOG_INFO
-		+ TRX_SYS_MYSQL_LOG_OFFSET_HIGH);
-	trx_sys_mysql_bin_log_pos_low = mach_read_from_4(
-		sys_header + TRX_SYS_MYSQL_LOG_INFO
-		+ TRX_SYS_MYSQL_LOG_OFFSET_LOW);
-
-	fprintf(stderr,
-		"InnoDB: Last MySQL binlog file position " ULINTPF " " ULINTPF
-		", file name %s\n",
-		trx_sys_mysql_bin_log_pos_high, trx_sys_mysql_bin_log_pos_low,
-		sys_header + TRX_SYS_MYSQL_LOG_INFO
-		+ TRX_SYS_MYSQL_LOG_NAME);
-
-	mtr_commit(&mtr);
+	mtr.commit();
 }
 
 #ifdef WITH_WSREP
