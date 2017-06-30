@@ -35,6 +35,7 @@ DELETE FROM t1 WHERE f1 = 2;
 
 # Rejoin node #4
 --connection node_4
+--source include/wsrep_wait_disconnect.inc
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
 --source include/galera_wait_ready.inc
 
