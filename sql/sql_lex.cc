@@ -2262,6 +2262,7 @@ void st_select_lex::init_select()
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
+  tvc= 0;
 }
 
 /*

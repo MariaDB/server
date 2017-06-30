@@ -67,6 +67,7 @@
 #include "lex_token.h"
 #include "sql_lex.h"
 #include "sql_sequence.h"
+#include "sql_tvc.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -16277,7 +16278,8 @@ table_value_constructor:
 	    LEX *lex=Lex;
 	    $$= Lex->current_select;
 	    mysql_init_select(Lex);
-	    $$->tvc->lists_of_values= lex->many_values;
+	    table_value_constr tvc(lex->many_values);
+	    $$->tvc= &tvc;
 	  }
 	;
 	

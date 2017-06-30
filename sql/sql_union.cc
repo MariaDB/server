@@ -1357,17 +1357,21 @@ bool st_select_lex_unit::exec()
           we don't calculate found_rows() per union part.
           Otherwise, SQL_CALC_FOUND_ROWS should be done on all sub parts.
         */
-        sl->join->select_options= 
-          (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
-          sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
-	saved_error= sl->join->optimize();
+	if (!sl->tvc)
+	{
+          sl->join->select_options= 
+            (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
+            sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
+	  saved_error= sl->join->optimize();
+	}
       }
       if (!saved_error)
       {
 	records_at_start= table->file->stats.records;
 	if (sl->tvc)
 	  sl->tvc->exec();
-	sl->join->exec();
+	else
+	  sl->join->exec();
         if (sl == union_distinct && !(with_element && with_element->is_recursive))
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
@@ -1376,7 +1380,8 @@ bool st_select_lex_unit::exec()
 	    DBUG_RETURN(TRUE);
 	  table->no_keyread=1;
 	}
-	saved_error= sl->join->error;
+	if (!sl->tvc)
+	  saved_error= sl->join->error;
 	offset_limit_cnt= (ha_rows)(sl->offset_limit ?
                                     sl->offset_limit->val_uint() :
                                     0);

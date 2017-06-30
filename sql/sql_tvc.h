@@ -19,6 +19,10 @@ public:
   List<List_item> lists_of_values;
   select_result *result;
   
+  table_value_constr(List<List_item> tvc_values) : 
+    lists_of_values(tvc_values), result(0)
+  { }
+  
   bool prepare(THD *thd_arg, SELECT_LEX *sl, 
 	       select_result *tmp_result);
   bool exec();
