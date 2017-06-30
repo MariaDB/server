@@ -22,6 +22,7 @@ SET GLOBAL debug="d,crash_commit_cb_last_fragment_commit_success";
 
 --source include/start_mysqld.inc
 --sleep 5
+--source include/galera_wait_ready.inc
 --source suite/galera_3nodes/include/galera_sr_crash_post_check3.inc
 
 #
@@ -35,6 +36,7 @@ SET GLOBAL debug="d,crash_commit_cb_before_last_fragment_commit";
 
 --source include/start_mysqld.inc
 --sleep 5
+--source include/galera_wait_ready.inc
 --source suite/galera_3nodes/include/galera_sr_crash_post_check3.inc
 
 #
@@ -48,6 +50,7 @@ SET GLOBAL debug="d,crash_apply_cb_after_fragment_removal";
 
 --source include/start_mysqld.inc
 --sleep 5
+--source include/galera_wait_ready.inc
 --source suite/galera_3nodes/include/galera_sr_crash_post_check3.inc
 
 #
@@ -61,6 +64,7 @@ SET GLOBAL debug="d,crash_apply_cb_before_fragment_removal";
 
 --source include/start_mysqld.inc
 --sleep 5
+--source include/galera_wait_ready.inc
 --source suite/galera_3nodes/include/galera_sr_crash_post_check3.inc
 
 DROP TABLE t1;

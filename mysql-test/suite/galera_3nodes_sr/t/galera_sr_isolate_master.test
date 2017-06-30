@@ -107,10 +107,14 @@ INSERT INTO t1 VALUES (5);
 COMMIT;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--source include/wait_condition.inc
 SELECT COUNT(*) = 5 FROM t1;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
 --connection node_3
+--let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--source include/wait_condition.inc
 SELECT COUNT(*) = 5 FROM t1;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
