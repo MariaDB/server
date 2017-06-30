@@ -44,6 +44,10 @@ public:
 
 	/** Data file information - each Datafile can be accessed globally */
 	files_t		m_files;
+	/** Data file iterator */
+	typedef files_t::iterator iterator;
+	/** Data file iterator */
+	typedef files_t::const_iterator const_iterator;
 
 	Tablespace()
 		:
@@ -67,6 +71,15 @@ public:
 	// Disable copying
 	Tablespace(const Tablespace&);
 	Tablespace& operator=(const Tablespace&);
+
+	/** Data file iterator */
+	const_iterator begin() const { return m_files.begin(); }
+	/** Data file iterator */
+	const_iterator end() const { return m_files.end(); }
+	/** Data file iterator */
+	iterator begin() { return m_files.begin(); }
+	/** Data file iterator */
+	iterator end() { return m_files.end(); }
 
 	void set_name(const char* name) { m_name = name; }
 	const char* name() const { return m_name; }
@@ -156,8 +169,7 @@ public:
 	{
 		ulint	sum = 0;
 
-		for (files_t::const_iterator it = m_files.begin();
-		     it != m_files.end(); ++it) {
+		for (const_iterator it = begin(); it != end(); ++it) {
 			sum += it->m_size;
 		}
 
@@ -200,7 +212,7 @@ private:
 	/**
 	@param[in]	filename	Name to lookup in the data files.
 	@return true if the filename exists in the data files */
-	bool find(const char* filename);
+	bool find(const char* filename) const;
 
 	/** Note that the data file was found.
 	@param[in]	file	data file object */
