@@ -2130,10 +2130,10 @@ end_of_index:
 
 		rec = page_cur_get_rec(cur);
 
-		offsets = rec_get_offsets(rec, clust_index, NULL,
-					  ULINT_UNDEFINED, &row_heap);
-
 		if (online) {
+			offsets = rec_get_offsets(rec, clust_index, NULL,
+						  ULINT_UNDEFINED, &row_heap);
+
 			/* Perform a REPEATABLE READ.
 
 			When rebuilding the table online,
@@ -2176,6 +2176,10 @@ end_of_index:
 			if (rec_get_deleted_flag(
 				    rec,
 				    dict_table_is_comp(old_table))) {
+				/* In delete-marked records, DB_TRX_ID must
+				always refer to an existing undo log record. */
+				ut_ad(row_get_rec_trx_id(rec, clust_index,
+							 offsets));
 				/* This record was deleted in the latest
 				committed version, or it was deleted and
 				then reinserted-by-update before purge
@@ -2186,6 +2190,9 @@ end_of_index:
 			ut_ad(!rec_offs_any_null_extern(rec, offsets));
 		} else if (rec_get_deleted_flag(
 				   rec, dict_table_is_comp(old_table))) {
+			/* In delete-marked records, DB_TRX_ID must
+			always refer to an existing undo log record. */
+			ut_ad(rec_get_trx_id(rec, clust_index));
 			/* Skip delete-marked records.
 
 			Skipping delete-marked records will make the
@@ -2195,6 +2202,9 @@ end_of_index:
 			would make it tricky to detect duplicate
 			keys. */
 			continue;
+		} else {
+			offsets = rec_get_offsets(rec, clust_index, NULL,
+						  ULINT_UNDEFINED, &row_heap);
 		}
 
 		/* When !online, we are holding a lock on old_table, preventing

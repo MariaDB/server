@@ -2663,7 +2663,8 @@ row_upd_clust_rec_by_insert(
 			marked, then we are here after a DB_LOCK_WAIT.
 			Skip delete marking clustered index and disowning
 			its blobs. */
-			ut_ad(rec_get_trx_id(rec, index) == trx->id);
+			ut_ad(row_get_rec_trx_id(rec, index, offsets)
+			      == trx->id);
 			ut_ad(!trx_undo_roll_ptr_is_insert(
 			              row_get_rec_roll_ptr(rec, index,
 							   offsets)));

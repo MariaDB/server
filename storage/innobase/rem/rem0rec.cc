@@ -2106,8 +2106,6 @@ rec_print_mbr_rec(
 
 /***************************************************************//**
 Prints a physical record. */
-/***************************************************************//**
-Prints a physical record. */
 void
 rec_print_new(
 /*==========*/
@@ -2254,14 +2252,14 @@ operator<<(std::ostream& o, const rec_offsets_print& r)
 }
 
 #ifdef UNIV_DEBUG
-/************************************************************//**
-Reads the DB_TRX_ID of a clustered index record.
+/** Read the DB_TRX_ID of a clustered index record.
+@param[in]	rec	clustered index record
+@param[in]	index	clustered index
 @return the value of DB_TRX_ID */
 trx_id_t
 rec_get_trx_id(
-/*===========*/
-	const rec_t*		rec,	/*!< in: record */
-	const dict_index_t*	index)	/*!< in: clustered index */
+	const rec_t*		rec,
+	const dict_index_t*	index)
 {
 	const page_t*	page
 		= page_align(rec);
@@ -2270,10 +2268,11 @@ rec_get_trx_id(
 	const byte*	trx_id;
 	ulint		len;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	ulint offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 	rec_offs_init(offsets_);
+	ulint* offsets = offsets_;
 
+	ut_ad(trx_id_col <= MAX_REF_PARTS);
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID)
 	      == index->id);
@@ -2287,7 +2286,7 @@ rec_get_trx_id(
 
 	ut_ad(len == DATA_TRX_ID_LEN);
 
-	if (heap) {
+	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
 

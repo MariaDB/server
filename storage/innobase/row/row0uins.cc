@@ -230,6 +230,14 @@ row_undo_ins_remove_sec_low(
 	case ROW_NOT_FOUND:
 		goto func_exit;
 	case ROW_FOUND:
+		if (dict_index_is_spatial(index)
+		    && rec_get_deleted_flag(
+			    btr_pcur_get_rec(&pcur),
+			    dict_table_is_comp(index->table))) {
+			ib::error() << "Record found in index " << index->name
+				<< " is deleted marked on insert rollback.";
+			ut_ad(0);
+		}
 		break;
 
 	case ROW_BUFFERED:
@@ -238,15 +246,6 @@ row_undo_ins_remove_sec_low(
 		to row_search_index_entry() did not include any of the
 		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
 		ut_error;
-	}
-
-	if (search_result == ROW_FOUND && dict_index_is_spatial(index)) {
-		rec_t*	rec = btr_pcur_get_rec(&pcur);
-		if (rec_get_deleted_flag(rec,
-					 dict_table_is_comp(index->table))) {
-			ib::error() << "Record found in index " << index->name
-				<< " is deleted marked on insert rollback.";
-		}
 	}
 
 	btr_cur = btr_pcur_get_btr_cur(&pcur);

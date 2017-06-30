@@ -183,6 +183,9 @@ row_sel_sec_rec_is_for_clust_rec(
 
 	if (rec_get_deleted_flag(clust_rec,
 				 dict_table_is_comp(clust_index->table))) {
+		/* In delete-marked records, DB_TRX_ID must
+		always refer to an existing undo log record. */
+		ut_ad(rec_get_trx_id(clust_rec, clust_index));
 
 		/* The clustered index record is delete-marked;
 		it is not visible in the read view.  Besides,
@@ -2042,6 +2045,11 @@ skip_lock:
 
 		if (rec_get_deleted_flag(clust_rec,
 					 dict_table_is_comp(plan->table))) {
+			/* In delete-marked records, DB_TRX_ID must
+			always refer to an existing update_undo log record. */
+			ut_ad(rec_get_trx_id(clust_rec,
+					     dict_table_get_first_index(
+						     plan->table)));
 
 			/* The record is delete marked: we can skip it */
 
@@ -3934,6 +3942,9 @@ row_sel_try_search_shortcut_for_mysql(
 	}
 
 	if (rec_get_deleted_flag(rec, dict_table_is_comp(index->table))) {
+		/* In delete-marked records, DB_TRX_ID must
+		always refer to an existing undo log record. */
+		ut_ad(row_get_rec_trx_id(rec, index, *offsets));
 
 		return(SEL_EXHAUSTED);
 	}
@@ -5119,6 +5130,10 @@ locks_ok:
 	page_rec_is_comp() cannot be used! */
 
 	if (rec_get_deleted_flag(rec, comp)) {
+		/* In delete-marked records, DB_TRX_ID must
+		always refer to an existing undo log record. */
+		ut_ad(index != clust_index
+		      || row_get_rec_trx_id(rec, index, offsets));
 
 		/* The record is delete-marked: we can skip it */
 
