@@ -170,5 +170,5 @@ ERROR 22007: Illegal value used as argument of dynamic column function
 drop table t1;
 set max_session_mem_used = 8192;
 select * from seq_1_to_1000;
-ERROR HY000: Engine SEQUENCE failed to discover table `test`.`seq_1_to_1000` with 'create table seq (seq bigint unsigned primary key)'
+Got one of the listed errors
 set global max_session_mem_used = default;

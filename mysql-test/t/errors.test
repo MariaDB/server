@@ -204,6 +204,6 @@ drop table t1;
 # errors caused by max_session_mem_used
 #
 set max_session_mem_used = 8192;
---error ER_SQL_DISCOVER_ERROR
+--error ER_SQL_DISCOVER_ERROR,ER_OPTION_PREVENTS_STATEMENT
 select * from seq_1_to_1000;
 set global max_session_mem_used = default;
