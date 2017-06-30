@@ -673,7 +673,7 @@ public:
   }
 
   void set_info(longlong created, longlong modified,
-		st_sp_chistics *chistics, sql_mode_t sql_mode);
+		const st_sp_chistics *chistics, sql_mode_t sql_mode);
 
   void set_definer(const char *definer, uint definerlen);
   void set_definer(const LEX_CSTRING *user_name, const LEX_CSTRING *host_name);
