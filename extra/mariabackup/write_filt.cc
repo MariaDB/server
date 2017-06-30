@@ -67,7 +67,6 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 		    xb_fil_cur_t *cursor)
 {
 	char				meta_name[FN_REFLEN];
-	xb_delta_info_t			info;
 	ulint				buf_size;
 	xb_wf_incremental_ctxt_t	*cp =
 		&(ctxt->u.wf_incremental_ctxt);
@@ -75,8 +74,9 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 	ctxt->cursor = cursor;
 
 	/* allocate buffer for incremental backup (4096 pages) */
-	buf_size = (cursor->page_size / 4 + 1) * cursor->page_size;
-	cp->delta_buf_base = static_cast<byte *>(ut_malloc(buf_size));
+	buf_size = (cursor->page_size.physical() / 4 + 1)
+		* cursor->page_size.physical();
+	cp->delta_buf_base = static_cast<byte *>(malloc(buf_size));
 	memset(cp->delta_buf_base, 0, buf_size);
 	cp->delta_buf = static_cast<byte *>
 		(ut_align(cp->delta_buf_base, UNIV_PAGE_SIZE_MAX));
@@ -84,9 +84,7 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 	/* write delta meta info */
 	snprintf(meta_name, sizeof(meta_name), "%s%s", dst_name,
 		 XB_DELTA_INFO_SUFFIX);
-	info.page_size = cursor->page_size;
-	info.zip_size = cursor->zip_size;
-	info.space_id = cursor->space_id;
+	const xb_delta_info_t	info(cursor->page_size, cursor->space_id);
 	if (!xb_write_delta_metadata(meta_name, &info)) {
 		msg("[%02u] xtrabackup: Error: "
 		    "failed to write meta info for %s\n",
@@ -113,8 +111,9 @@ wf_incremental_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 {
 	ulint				i;
 	xb_fil_cur_t			*cursor = ctxt->cursor;
-	ulint				page_size = cursor->page_size;
 	byte				*page;
+	const ulint			page_size
+		= cursor->page_size.physical();
 	xb_wf_incremental_ctxt_t	*cp = &(ctxt->u.wf_incremental_ctxt);
 
 	for (i = 0, page = cursor->buf; i < cursor->buf_npages;
@@ -159,7 +158,8 @@ static my_bool
 wf_incremental_finalize(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 {
 	xb_fil_cur_t			*cursor = ctxt->cursor;
-	ulint				page_size = cursor->page_size;
+	const ulint			page_size
+		= cursor->page_size.physical();
 	xb_wf_incremental_ctxt_t	*cp = &(ctxt->u.wf_incremental_ctxt);
 
 	if (cp->npages != page_size / 4) {
@@ -184,9 +184,7 @@ wf_incremental_deinit(xb_write_filt_ctxt_t *ctxt)
 {
 	xb_wf_incremental_ctxt_t	*cp = &(ctxt->u.wf_incremental_ctxt);
 
-	if (cp->delta_buf_base != NULL) {
-		ut_free(cp->delta_buf_base);
-	}
+	free(cp->delta_buf_base);
 }
 
 /************************************************************************

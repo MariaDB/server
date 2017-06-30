@@ -54,6 +54,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include "mysqld.h"
 #include "encryption_plugin.h"
 #include <sstream>
+#include <sql_error.h>
 
 
 char *tool_name;
@@ -494,7 +495,7 @@ get_mysql_vars(MYSQL *connection)
 	    && innodb_log_files_in_group_var) {
 		char *endptr;
 
-		innobase_log_files_in_group = strtol(
+		srv_n_log_files = strtol(
 			innodb_log_files_in_group_var, &endptr, 10);
 		ut_ad(*endptr == 0);
 	}
@@ -503,7 +504,7 @@ get_mysql_vars(MYSQL *connection)
 	    && innodb_log_file_size_var) {
 		char *endptr;
 
-		innobase_log_file_size = strtoll(
+		srv_log_file_size = strtoll(
 			innodb_log_file_size_var, &endptr, 10);
 		ut_ad(*endptr == 0);
 	}
@@ -850,9 +851,9 @@ static
 void
 start_query_killer()
 {
-	kill_query_thread_stop		= os_event_create();
-	kill_query_thread_started	= os_event_create();
-	kill_query_thread_stopped	= os_event_create();
+	kill_query_thread_stop		= os_event_create(0);
+	kill_query_thread_started	= os_event_create(0);
+	kill_query_thread_stopped	= os_event_create(0);
 
 	os_thread_create(kill_query_thread, NULL, &kill_query_thread_id);
 
@@ -1368,17 +1369,27 @@ cleanup:
 	return(result);
 }
 
-static string escape_and_quote(MYSQL *mysql,const char *str)
+struct escape_and_quote
 {
-	if (!str)
-		return "NULL";
-	size_t len = strlen(str);
-	char* escaped = (char *)alloca(2 * len + 3);
-	escaped[0] = '\'';
-	size_t new_len = mysql_real_escape_string(mysql, escaped+1, str, len);
-	escaped[new_len + 1] = '\'';
-	escaped[new_len + 2] = 0;
-	return string(escaped);
+	escape_and_quote(MYSQL *mysql, const char *str)
+		: mysql(mysql), str(str) {}
+	MYSQL * const mysql;
+	const char * const str;
+};
+
+static
+std::ostream&
+operator<<(std::ostream& s, const escape_and_quote& eq)
+{
+	if (!eq.str)
+		return s << "NULL";
+	s << '\'';
+	size_t len = strlen(eq.str);
+	char* escaped = (char *)alloca(2 * len + 1);
+	len = mysql_real_escape_string(eq.mysql, escaped, eq.str, len);
+	s << std::string(escaped, len);
+	s << '\'';
+	return s;
 }
 
 /*********************************************************************//**
@@ -1395,11 +1406,8 @@ write_xtrabackup_info(MYSQL *connection)
 	char buf_start_time[100];
 	char buf_end_time[100];
 	tm tm;
-	ostringstream oss;
+	std::ostringstream oss;
 	const char *xb_stream_name[] = {"file", "tar", "xbstream"};
-
-
-	ut_ad(xtrabackup_stream_fmt < 3);
 
 	uuid = read_mysql_one_value(connection, "SELECT UUID()");
 	server_version = read_mysql_one_value(connection, "SELECT VERSION()");
@@ -1528,28 +1536,21 @@ bool write_backup_config_file()
 		"# The MySQL server\n"
 		"[mysqld]\n"
 		"innodb_checksum_algorithm=%s\n"
-		"innodb_log_checksum_algorithm=%s\n"
 		"innodb_data_file_path=%s\n"
 		"innodb_log_files_in_group=%lu\n"
-		"innodb_log_file_size=%lld\n"
+		"innodb_log_file_size=%llu\n"
 		"innodb_page_size=%lu\n"
-		"innodb_log_block_size=%lu\n"
 		"innodb_undo_directory=%s\n"
 		"innodb_undo_tablespaces=%lu\n"
 		"%s%s\n"
-		"%s%s\n"
 		"%s\n",
 		innodb_checksum_algorithm_names[srv_checksum_algorithm],
-		innodb_checksum_algorithm_names[srv_log_checksum_algorithm],
 		innobase_data_file_path,
 		srv_n_log_files,
-		innobase_log_file_size,
+		srv_log_file_size,
 		srv_page_size,
-		srv_log_block_size,
 		srv_undo_dir,
 		srv_undo_tablespaces,
-		innobase_doublewrite_file ? "innodb_doublewrite_file=" : "",
-		innobase_doublewrite_file ? innobase_doublewrite_file : "",
 		innobase_buffer_pool_filename ?
 			"innodb_buffer_pool_filename=" : "",
 		innobase_buffer_pool_filename ?

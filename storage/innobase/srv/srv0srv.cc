@@ -446,6 +446,9 @@ UNIV_INTERN uint	srv_defragment_frequency;
 @see innodb_defragment_frequency_update() */
 UNIV_INTERN ulonglong	srv_defragment_interval;
 
+/** Current mode of operation */
+UNIV_INTERN enum srv_operation_mode srv_operation;
+
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. Not enabled on the embedded server. */
 ibool	srv_print_verbose_log;

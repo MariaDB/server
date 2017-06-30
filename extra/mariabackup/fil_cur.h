@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 #include <my_dir.h>
 #include "read_filt.h"
+#include "srv0start.h"
 
 struct xb_fil_cur_t {
 	pfs_os_file_t	file;		/*!< source file handle */
@@ -36,14 +37,7 @@ struct xb_fil_cur_t {
 	char		abs_path[FN_REFLEN];
 					/*!< absolute file path */
 	MY_STAT		statinfo;	/*!< information about the file */
-	ulint		zip_size;	/*!< compressed page size in bytes or 0
-					for uncompressed pages */
-	ulint		page_size;	/*!< = zip_size for compressed pages or
-					UNIV_PAGE_SIZE for uncompressed ones */
-	ulint		page_size_shift;/*!< bit shift corresponding to
-					page_size */
-	my_bool		is_system;	/*!< TRUE for system tablespace, FALSE
-					otherwise */
+	page_size_t	page_size;	/*!< page size */
 	xb_read_filt_t*	read_filter;	/*!< read filter */
 	xb_read_filt_ctxt_t	read_filter_ctxt;
 					/*!< read filter context */
@@ -61,6 +55,17 @@ struct xb_fil_cur_t {
 	uint		thread_n;	/*!< thread number for diagnostics */
 	ulint		space_id;	/*!< ID of tablespace */
 	ulint		space_size;	/*!< space size in pages */
+
+	/** TODO: remove this default constructor */
+	xb_fil_cur_t() : page_size(0), read_filter_ctxt() {}
+
+	/** @return whether this is not a file-per-table tablespace */
+	bool is_system() const
+	{
+		ut_ad(space_id != SRV_TMP_SPACE_ID);
+		return(space_id == TRX_SYS_SPACE
+		      || srv_is_undo_tablespace(space_id));
+	}
 };
 
 typedef enum {

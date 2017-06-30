@@ -334,6 +334,8 @@ Datafile::read_first_page(bool read_only_mode)
 
 			break;
 
+		} else if (srv_operation == SRV_OPERATION_BACKUP) {
+			break;
 		} else {
 
 			ib::error()

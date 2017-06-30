@@ -618,7 +618,7 @@ Windows, so define a typedef for it and a macro to use at the end of such
 functions. */
 
 #ifdef _WIN32
-typedef ulint os_thread_ret_t;
+typedef DWORD os_thread_ret_t;
 # define OS_THREAD_DUMMY_RETURN		return(0)
 # define OS_PATH_SEPARATOR		'\\'
 # define OS_PATH_SEPARATOR_ALT		'/'

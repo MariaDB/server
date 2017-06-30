@@ -326,13 +326,12 @@ fil_space_get_by_id(
 	return(space);
 }
 
-/*******************************************************************//**
-Returns the table space by a given name, NULL if not found. */
-UNIV_INLINE
+/** Look up a tablespace.
+@param[in]	name	tablespace name
+@return	tablespace
+@retval	NULL	if not found */
 fil_space_t*
-fil_space_get_by_name(
-/*==================*/
-	const char*	name)	/*!< in: space name */
+fil_space_get_by_name(const char* name)
 {
 	fil_space_t*	space;
 	ulint		fold;

@@ -3796,6 +3796,7 @@ os_file_create_simple_func(
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
+	ut_ad(srv_operation == SRV_OPERATION_NORMAL);
 
 	if (create_mode == OS_FILE_OPEN) {
 
@@ -4119,7 +4120,9 @@ os_file_create_func(
 	);
 
 	DWORD		create_flag;
-	DWORD		share_mode = FILE_SHARE_READ;
+	DWORD		share_mode = srv_operation != SRV_OPERATION_NORMAL
+		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+		: FILE_SHARE_READ;
 
 	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
 		WAIT_ALLOW_WRITES();
@@ -4131,8 +4134,7 @@ os_file_create_func(
 	on_error_silent = create_mode & OS_FILE_ON_ERROR_SILENT
 		? true : false;
 
-	create_mode &= ~OS_FILE_ON_ERROR_NO_EXIT;
-	create_mode &= ~OS_FILE_ON_ERROR_SILENT;
+	create_mode &= ~(OS_FILE_ON_ERROR_NO_EXIT | OS_FILE_ON_ERROR_SILENT);
 
 	if (create_mode == OS_FILE_OPEN_RAW) {
 
@@ -4325,7 +4327,9 @@ os_file_create_simple_no_error_handling_func(
 	DWORD		access;
 	DWORD		create_flag;
 	DWORD		attributes	= 0;
-	DWORD		share_mode	= FILE_SHARE_READ;
+	DWORD		share_mode = srv_operation != SRV_OPERATION_NORMAL
+		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+		: FILE_SHARE_READ;
 
 	ut_a(name);
 
@@ -4374,7 +4378,8 @@ os_file_create_simple_no_error_handling_func(
 		/*!< A backup program has to give mysqld the maximum
 		freedom to do what it likes with the file */
 
-		share_mode |= FILE_SHARE_DELETE | FILE_SHARE_WRITE;
+		share_mode |= FILE_SHARE_DELETE | FILE_SHARE_WRITE
+			| FILE_SHARE_READ;
 	} else {
 
 		ib::error()
@@ -4676,7 +4681,8 @@ os_file_get_status_win32(
 			fh = CreateFile(
 				(LPCTSTR) path,		// File to open
 				access,
-				0,			// No sharing
+				FILE_SHARE_READ | FILE_SHARE_WRITE
+				| FILE_SHARE_DELETE,	// Full sharing
 				NULL,			// Default security
 				OPEN_EXISTING,		// Existing file only
 				FILE_ATTRIBUTE_NORMAL,	// Normal file

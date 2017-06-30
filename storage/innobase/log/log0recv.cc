@@ -640,7 +640,6 @@ recv_sys_debug_free(void)
 @param[in]	start_lsn	read area start
 @param[in]	end_lsn		read area end
 @return	valid end_lsn */
-static
 lsn_t
 log_group_read_log_seg(
 	byte*			buf,
@@ -1931,27 +1930,29 @@ recv_read_in_area(
 void
 recv_apply_hashed_log_recs(bool last_batch)
 {
-	for (;;) {
-		mutex_enter(&recv_sys->mutex);
+	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	      || srv_operation == SRV_OPERATION_RESTORE);
 
-		if (!recv_sys->apply_batch_on) {
-			break;
-		}
+	mutex_enter(&recv_sys->mutex);
 
-		if (recv_sys->found_corrupt_log) {
-			mutex_exit(&recv_sys->mutex);
+	while (recv_sys->apply_batch_on) {
+		bool abort = recv_sys->found_corrupt_log;
+		mutex_exit(&recv_sys->mutex);
+
+		if (abort) {
 			return;
 		}
 
-		mutex_exit(&recv_sys->mutex);
 		os_thread_sleep(500000);
+		mutex_enter(&recv_sys->mutex);
 	}
 
 	ut_ad(!last_batch == log_mutex_own());
 
-	if (!last_batch) {
-		recv_no_ibuf_operations = true;
-	}
+	recv_no_ibuf_operations = !last_batch
+		|| srv_operation == SRV_OPERATION_RESTORE;
+
+	ut_d(recv_no_log_write = recv_no_ibuf_operations);
 
 	if (ulint n = recv_sys->n_addrs) {
 		const char* msg = last_batch
@@ -2023,10 +2024,11 @@ recv_apply_hashed_log_recs(bool last_batch)
 	/* Wait until all the pages have been processed */
 
 	while (recv_sys->n_addrs != 0) {
+		bool abort = recv_sys->found_corrupt_log;
 
 		mutex_exit(&(recv_sys->mutex));
 
-		if (recv_sys->found_corrupt_log) {
+		if (abort) {
 			return;
 		}
 
@@ -2039,7 +2041,6 @@ recv_apply_hashed_log_recs(bool last_batch)
 		/* Flush all the file pages to disk and invalidate them in
 		the buffer pool */
 
-		ut_d(recv_no_log_write = true);
 		mutex_exit(&(recv_sys->mutex));
 		log_mutex_exit();
 
@@ -2062,9 +2063,6 @@ recv_apply_hashed_log_recs(bool last_batch)
 
 		log_mutex_enter();
 		mutex_enter(&(recv_sys->mutex));
-		ut_d(recv_no_log_write = false);
-
-		recv_no_ibuf_operations = false;
 	}
 
 	recv_sys->apply_log_recs = FALSE;
@@ -2414,6 +2412,13 @@ loop:
 					recv_sys->recovered_lsn);
 			}
 			/* fall through */
+		case MLOG_INDEX_LOAD:
+			/* Mariabackup FIXME: Report an error
+			when encountering MLOG_INDEX_LOAD on
+			--prepare or already on --backup. */
+			ut_a(type != MLOG_INDEX_LOAD
+			     || srv_operation == SRV_OPERATION_NORMAL);
+			/* fall through */
 		case MLOG_FILE_NAME:
 		case MLOG_FILE_DELETE:
 		case MLOG_FILE_CREATE2:
@@ -2422,7 +2427,6 @@ loop:
 			/* These were already handled by
 			recv_parse_log_rec() and
 			recv_parse_or_apply_log_rec_body(). */
-		case MLOG_INDEX_LOAD:
 			DBUG_PRINT("ib_log",
 				("scan " LSN_PF ": log rec %s"
 				" len " ULINTPF
@@ -2560,11 +2564,16 @@ loop:
 				for something else. */
 				break;
 #endif /* UNIV_LOG_LSN_DEBUG */
+			case MLOG_INDEX_LOAD:
+				/* Mariabackup FIXME: Report an error
+				when encountering MLOG_INDEX_LOAD on
+				--prepare or already on --backup. */
+				ut_a(srv_operation == SRV_OPERATION_NORMAL);
+				break;
 			case MLOG_FILE_NAME:
 			case MLOG_FILE_DELETE:
 			case MLOG_FILE_CREATE2:
 			case MLOG_FILE_RENAME2:
-			case MLOG_INDEX_LOAD:
 			case MLOG_TRUNCATE:
 				/* These were already handled by
 				recv_parse_log_rec() and
@@ -2960,6 +2969,14 @@ static
 dberr_t
 recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 {
+	if (srv_operation == SRV_OPERATION_RESTORE) {
+		ib::warn() << "Tablespace " << i->first << " was not"
+			" found at " << i->second.name << " when"
+			" restoring a (partial?) backup. All redo log"
+			" for this file will be ignored!";
+		return(err);
+	}
+
 	if (srv_force_recovery == 0) {
 		ib::error() << "Tablespace " << i->first << " was not"
 			" found at " << i->second.name << ".";

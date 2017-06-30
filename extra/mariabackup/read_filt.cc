@@ -127,10 +127,11 @@ rf_bitmap_get_next_batch(
 							of pages */
 {
 	ulint	start_page_id;
+	const ulint	page_size	= ctxt->page_size.physical();
 
-	start_page_id = (ulint)(ctxt->offset / ctxt->page_size);
+	start_page_id = (ulint)(ctxt->offset / page_size);
 
-	xb_a (ctxt->offset % ctxt->page_size == 0);
+	xb_a (ctxt->offset % page_size == 0);
 
 	if (start_page_id == ctxt->filter_batch_end) {
 
@@ -146,7 +147,7 @@ rf_bitmap_get_next_batch(
 			return;
 		}
 
-		ctxt->offset = next_page_id * ctxt->page_size;
+		ctxt->offset = next_page_id * page_size;
 
 		/* Find the end of the current changed page block by searching
 		for the next cleared bitmap bit */
@@ -162,7 +163,7 @@ rf_bitmap_get_next_batch(
 		remaining pages.  */
 		*read_batch_len = ctxt->data_file_size - ctxt->offset;
 	} else {
-		*read_batch_len = ctxt->filter_batch_end * ctxt->page_size
+		*read_batch_len = ctxt->filter_batch_end * page_size
 			- ctxt->offset;
 	}
 
@@ -175,9 +176,9 @@ rf_bitmap_get_next_batch(
 	}
 
 	ctxt->offset += *read_batch_len;
-	xb_a (ctxt->offset % ctxt->page_size == 0);
-	xb_a (*read_batch_start % ctxt->page_size == 0);
-	xb_a (*read_batch_len % ctxt->page_size == 0);
+	xb_a (ctxt->offset % page_size == 0);
+	xb_a (*read_batch_start % page_size == 0);
+	xb_a (*read_batch_len % page_size == 0);
 }
 
 /****************************************************************//**
