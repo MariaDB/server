@@ -13027,8 +13027,6 @@ create_table_info_t::set_tablespace_type(
 int
 create_table_info_t::initialize()
 {
-	trx_t*		parent_trx;
-
 	DBUG_ENTER("create_table_info_t::initialize");
 
 	ut_ad(m_thd != NULL);
@@ -13050,7 +13048,7 @@ create_table_info_t::initialize()
 	/* Get the transaction associated with the current thd, or create one
 	if not yet created */
 
-	parent_trx = check_trx_exists(m_thd);
+	check_trx_exists(m_thd);
 
 	DBUG_RETURN(0);
 }
