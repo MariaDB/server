@@ -1,7 +1,7 @@
 source include/have_file_key_management.inc;
 
 CREATE TABLE t1(c1 INT, b VARCHAR(2400), index(b(100),c1)) ENGINE=INNODB ROW_FORMAT=compressed ENCRYPTED=YES;
- 
+
 DELIMITER //;
 CREATE PROCEDURE innodb_insert_proc (REPEAT_COUNT INT)
 BEGIN
@@ -14,12 +14,12 @@ BEGIN
 END//
 DELIMITER ;//
 COMMIT;
- 
+
 SET AUTOCOMMIT=0;
 CALL innodb_insert_proc(50000);
 COMMIT;
 
-                                                                                                                                           
+
 echo # xtrabackup backup;
 --disable_result_log
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
