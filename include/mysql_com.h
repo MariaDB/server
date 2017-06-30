@@ -323,6 +323,8 @@ enum enum_server_command
 */
 #define SERVER_STATUS_IN_TRANS_READONLY 8192
 
+#define SERVER_STATUS_ANSI_QUOTES       32768
+
 
 /**
   Server status flags that must be cleared when starting

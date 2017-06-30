@@ -1400,6 +1400,8 @@ void THD::init(void)
   server_status= SERVER_STATUS_AUTOCOMMIT;
   if (variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)
     server_status|= SERVER_STATUS_NO_BACKSLASH_ESCAPES;
+  if (variables.sql_mode & MODE_ANSI_QUOTES)
+    server_status|= SERVER_STATUS_ANSI_QUOTES;
 
   transaction.all.modified_non_trans_table=
     transaction.stmt.modified_non_trans_table= FALSE;
