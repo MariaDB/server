@@ -1,1 +1,0 @@
-call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size .* for a record on index leaf page.");
