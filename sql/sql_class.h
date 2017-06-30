@@ -536,7 +536,8 @@ typedef struct system_variables
   uint dynamic_variables_size;    /* how many bytes are in use */
   
   ulonglong max_heap_table_size;
-  ulonglong tmp_table_size;
+  ulonglong tmp_memory_table_size;
+  ulonglong tmp_disk_table_size;
   ulonglong long_query_time;
   ulonglong max_statement_time;
   ulonglong optimizer_switch;

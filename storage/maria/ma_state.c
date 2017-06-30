@@ -750,9 +750,18 @@ void maria_versioning(MARIA_HA *info, my_bool versioning)
 
 void _ma_set_share_data_file_length(MARIA_SHARE *share, ulonglong new_length)
 {
-  mysql_mutex_lock(&share->intern_lock);
+  if (!share->internal_table)
+    mysql_mutex_lock(&share->intern_lock);
   if (share->state.state.data_file_length < new_length)
+  {
     share->state.state.data_file_length= new_length;
+    if (new_length >= share->base.max_data_file_length)
+    {
+      /* Give an error on next insert */
+      share->state.changed|= STATE_DATA_FILE_FULL;
+    }
+  }
+  if (!share->internal_table)
   mysql_mutex_unlock(&share->intern_lock);
 }
 
