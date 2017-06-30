@@ -1636,10 +1636,10 @@ innobase_start_or_create_for_mysql()
 			/* Do not allocate too large of a buffer pool on
 			Windows 32-bit systems, which can have trouble
 			allocating larger single contiguous memory blocks. */
+			srv_buf_pool_size = static_cast<ulint>(ut_uint64_align_up(srv_buf_pool_size, srv_buf_pool_chunk_unit));
 			srv_buf_pool_instances = ut_min(
 				static_cast<ulong>(MAX_BUFFER_POOLS),
-				static_cast<ulong>(srv_buf_pool_size
-						   / (128 * 1024 * 1024)));
+				static_cast<ulong>(srv_buf_pool_size / srv_buf_pool_chunk_unit));
 #else /* defined(_WIN32) && !defined(_WIN64) */
 			/* Default to 8 instances when size > 1GB. */
 			srv_buf_pool_instances = 8;
