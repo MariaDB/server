@@ -20,7 +20,7 @@ path=`dirname $0`
 . "$path/SETUP.sh"
 
 extra_flags="$pentium_cflags $fast_cflags"
-extra_configs="$pentium_configs"
+extra_configs="$pentium_configs $disable_64_bit_plugins"
 strip=yes
 
 . "$path/FINISH.sh"

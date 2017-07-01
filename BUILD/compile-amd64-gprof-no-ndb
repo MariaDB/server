@@ -1,7 +1,0 @@
-#! /bin/sh
-path=`dirname $0`
-. "$path/SETUP.sh"
-extra_flags="$amd64_cflags -pg -g"
-extra_configs="$amd64_configs $max_configs --disable-shared $static_link"
-
-. "$path/FINISH.sh"
