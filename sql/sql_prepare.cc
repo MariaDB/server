@@ -2072,7 +2072,7 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
   TABLE_LIST *view= lex->unlink_first_table(&link_to_local);
   TABLE_LIST *tables= lex->query_tables;
 
-  if (create_view_precheck(thd, tables, view, lex->create_view_mode))
+  if (create_view_precheck(thd, tables, view, lex->create_view->mode))
     goto err;
 
   /*
@@ -2448,7 +2448,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     }
     break;
   case SQLCOM_CREATE_VIEW:
-    if (lex->create_view_mode == VIEW_ALTER)
+    if (lex->create_view->mode == VIEW_ALTER)
     {
       my_message(ER_UNSUPPORTED_PS, ER_THD(thd, ER_UNSUPPORTED_PS), MYF(0));
       goto error;

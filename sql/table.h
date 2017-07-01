@@ -1626,10 +1626,6 @@ class IS_table_read_plan;
 #define JOIN_TYPE_RIGHT	2U
 #define JOIN_TYPE_OUTER 4U	/* Marker that this is an outer join */
 
-#define VIEW_SUID_INVOKER               0
-#define VIEW_SUID_DEFINER               1
-#define VIEW_SUID_DEFAULT               2
-
 /* view WITH CHECK OPTION parameter options */
 #define VIEW_CHECK_NONE       0
 #define VIEW_CHECK_LOCAL      1

@@ -75,6 +75,14 @@ enum sub_select_type
   GLOBAL_OPTIONS_TYPE, DERIVED_TABLE_TYPE, OLAP_TYPE
 };
 enum unit_common_op {OP_MIX, OP_UNION, OP_INTERSECT, OP_EXCEPT};
+
+enum enum_view_suid
+{
+  VIEW_SUID_INVOKER= 0,
+  VIEW_SUID_DEFINER= 1,
+  VIEW_SUID_DEFAULT= 2
+};
+
 /* These may not be declared yet */
 class Table_ident;
 class sql_exchange;
@@ -97,7 +105,6 @@ class Item_window_func;
 struct sql_digest_state;
 class With_clause;
 class my_var;
-
 
 #define ALLOC_ROOT_SET 1024
 
@@ -238,6 +245,27 @@ enum enum_view_create_mode
   VIEW_ALTER,			// check that VIEW .frm with such name exists
   VIEW_CREATE_OR_REPLACE	// check only that there are not such table
 };
+
+
+class Create_view_info: public Sql_alloc
+{
+public:
+  LEX_CSTRING select;              // The SELECT statement of CREATE VIEW
+  enum enum_view_create_mode mode;
+  uint16 algorithm;
+  uint8 check;
+  enum enum_view_suid suid;
+  Create_view_info(enum_view_create_mode mode_arg,
+                   uint16 algorithm_arg,
+                   enum_view_suid suid_arg)
+   :select(null_clex_str),
+    mode(mode_arg),
+    algorithm(algorithm_arg),
+    check(VIEW_CHECK_NONE),
+    suid(suid_arg)
+  { }
+};
+
 
 enum enum_drop_mode
 {
@@ -2607,6 +2635,8 @@ struct LEX: public Query_tables_list
   */
   With_clause **with_clauses_list_last_next;
 
+  Create_view_info *create_view;
+
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
@@ -2629,9 +2659,6 @@ struct LEX: public Query_tables_list
   /* maintain a list of used plugins for this LEX */
   DYNAMIC_ARRAY plugins;
   plugin_ref plugins_static_buffer[INITIAL_LEX_PLUGIN_LIST_SIZE];
-
-  /** SELECT of CREATE VIEW statement */
-  LEX_CSTRING create_view_select;
 
   uint number_of_selects; // valid only for view
 
@@ -2759,7 +2786,6 @@ public:
     bool with_persistent_for_clause; // uses PERSISTENT FOR clause (in ANALYZE)
   };
   enum enum_var_type option_type;
-  enum enum_view_create_mode create_view_mode;
   enum enum_drop_mode drop_mode;
 
   uint profile_query_id;
@@ -2785,8 +2811,6 @@ public:
     DERIVED_SUBQUERY and DERIVED_VIEW).
   */
   uint8 derived_tables;
-  uint16 create_view_algorithm;
-  uint8 create_view_check;
   uint8 context_analysis_only;
   bool local_file;
   bool check_exists;
@@ -2827,10 +2851,6 @@ public:
     rexecuton
   */
   bool empty_field_list_on_rset;
-  /*
-    view created to be run from definer (standard behaviour)
-  */
-  uint8 create_view_suid;
   /* Characterstics of trigger being created */
   st_trg_chistics trg_chistics;
   /*
@@ -3582,6 +3602,11 @@ public:
     }
     return false;
   }
+  bool set_create_options_with_check(DDL_options_st options)
+  {
+    create_info.set(options);
+    return check_create_options(create_info);
+  }
   bool add_create_options_with_check(DDL_options_st options)
   {
     create_info.add(options);
@@ -3613,6 +3638,12 @@ public:
   SELECT_LEX *exclude_last_select();
   bool add_unit_in_brackets(SELECT_LEX *nselect);
   void check_automatic_up(enum sub_select_type type);
+  bool create_or_alter_view_finalize(THD *thd, Table_ident *table_ident);
+  bool add_alter_view(THD *thd, uint16 algorithm, enum_view_suid suid,
+                      Table_ident *table_ident);
+  bool add_create_view(THD *thd, DDL_options_st ddl,
+                       uint16 algorithm, enum_view_suid suid,
+                       Table_ident *table_ident);
 };
 
 

@@ -6033,10 +6033,10 @@ end_with_restore_list:
     {
       /*
         Note: SQLCOM_CREATE_VIEW also handles 'ALTER VIEW' commands
-        as specified through the thd->lex->create_view_mode flag.
+        as specified through the thd->lex->create_view->mode flag.
       */
       WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-      res= mysql_create_view(thd, first_table, thd->lex->create_view_mode);
+      res= mysql_create_view(thd, first_table, thd->lex->create_view->mode);
       break;
     }
   case SQLCOM_DROP_VIEW:

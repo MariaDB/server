@@ -6213,3 +6213,19 @@ DROP VIEW v;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-13197 Parser refactoring for CREATE VIEW,TRIGGER,SP,UDF,EVENT
+--echo #
+
+--error ER_PARSE_ERROR
+ALTER VIEW IF NOT EXISTS v1 AS SELECT 1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
