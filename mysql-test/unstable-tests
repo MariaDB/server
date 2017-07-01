@@ -28,14 +28,19 @@ main.alter_table_trans             : MDEV-12084 - timeout
 main.analyze_format_json           : MDEV-11866 - Wrong result
 main.analyze_stmt_orderby          : MDEV-11866 - Wrong result
 main.analyze_stmt_slow_query_log   : MDEV-12237 - Wrong result
+main.bootstrap                     : Modified in 10.1.25
 main.create_delayed                : MDEV-10605 - failed with timeout
+main.ctype_ucs                     : Modified in 10.1.25
 main.ctype_utf16le                 : MDEV-10675: timeout or extra warnings
 main.derived_view                  : Modified in 10.1.24
 main.drop-no_root                  : MDEV-12633 - Valgrind warnings
 main.errors                        : MDEV-13179 - Wrong error 1290; modified in 10.1.25
 main.events_bugs                   : MDEV-12892 - Crash in fill_schema_processlist
 main.events_restart                : MDEV-12236 - Server shutdown problem
+main.func_concat                   : Modified in 10.1.25
+main.func_crypt                    : Modified in 10.1.25
 main.func_regexp_pcre              : Modified in 10.1.25
+main.gis                           : Modified in 10.1.25
 main.host_cache_size_functionality : MDEV-10606 - sporadic failure on shutdown
 main.index_intersect_innodb        : MDEV-10643 - failed with timeout
 main.index_merge_innodb            : MDEV-7142 - Wrong execution plan, timeout with valgrind
@@ -48,9 +53,10 @@ main.mdev375                       : MDEV-10607 - sporadic "can't connect"
 main.mdl_sync                      : Modified in 10.1.25
 main.merge                         : MDEV-10607 - sporadic "can't connect"
 main.myisam_debug                  : Modified in 10.1.24
+main.mysql                         : Modified in 10.1.25
 main.mysqlcheck                    : MDEV-12633 - Valgrind warnings
 main.mysqlslap                     : MDEV-11801 - timeout
-main.mysqltest                     : MDEV-9269 - fails on Alpha; modified in 10.1.24
+main.mysqltest                     : MDEV-9269 - fails on Alpha; modified in 10.1.25
 main.mysql_client_test             : MDEV-12633 - Valgrind warnings
 main.mysql_client_test_comp        : MDEV-12633 - Valgrind warnings
 main.mysql_client_test_nonblock    : MDEV-12633 - Valgrind warnings
@@ -69,9 +75,10 @@ main.show_explain                  : MDEV-10674 - sporadic failure
 main.sp-security                   : MDEV-10607 - sporadic "can't connect"
 main.status                        : MDEV-8510 - sporadic wrong result
 main.subselect_innodb              : MDEV-10614 - sporadic wrong results
-main.subselect_mat_cost_bugs       : Modified in 10.1.24
+main.subselect_mat_cost_bugs       : Modified in 10.1.25
 main.subselect_sj                  : Modified in 10.1.24
-main.subselect_sj2_mat             : Modified in 10.1.24
+main.subselect_sj_mat              : Modified in 10.1.25
+main.subselect_sj2_mat             : Modified in 10.1.25
 main.symlink-aria-11902            : MDEV-12215 - Unexpected errors
 main.symlink-myisam-11902          : MDEV-12215 - Unexpected errors
 main.type_datetime_hires           : MDEV-10687 - timeout
@@ -143,6 +150,7 @@ federated.federatedx             : MDEV-10617 - Wrong checksum, timeouts
 #----------------------------------------------------------------
 
 funcs_1.processlist_val_no_prot  : MDEV-11223 - Wrong result
+funcs_1.processlist_val_ps       : MDEV-12175 - Wrong plan
 
 funcs_2.memory_charset           : MDEV-10290 - Timeout
 funcs_2.myisam_charset           : MDEV-11535 - Timeout
@@ -150,7 +158,7 @@ funcs_2.myisam_charset           : MDEV-11535 - Timeout
 #----------------------------------------------------------------
 
 galera.galera_autoinc_sst_xtrabackup : Config modified in 10.1.24
-galera.galera_defaults        : Include file modified in 10.1.24
+galera.galera_defaults        : Modified in 10.1.25
 galera.galera_gcs_fc_limit    : Modified in 10.1.24
 galera.MW-369                 : Added in 10.1.25
 
@@ -201,8 +209,14 @@ innodb_zip.innodb-zip                 : Modified in 10.1.25
 mariabackup.*                         : suite.pm modified in 10.1.24
 
 mariabackup.full_backup               : Modified in 10.1.25
+mariabackup.incremental_backup        : Uses include file modified in 10.1.25
 mariabackup.incremental_encrypted     : Modified in 10.1.25
+mariabackup.xb_aws_key_management     : Uses include file modified in 10.1.25
+mariabackup.xb_compressed_encrypted   : Modified in 10.1.25
 mariabackup.xb_file_key_management    : Modified in 10.1.25
+mariabackup.xb_fulltext_encrypted     : Uses include file modified in 10.1.25
+mariabackup.xb_partition              : Uses include file modified in 10.1.25
+mariabackup.xbstream                  : Uses include file modified in 10.1.25
 
 #----------------------------------------------------------------
 
@@ -227,7 +241,8 @@ multi_source.status_vars : MDEV-4632 - failed while waiting for Slave_received_h
 
 #----------------------------------------------------------------
 
-parts.partition_innodb_status_file           : MDEV-12901 - Valgrind
+parts.partition_innodb_status_file   : MDEV-12901 - Valgrind
+parts.quoting                        : Modified in 10.1.25
 
 #----------------------------------------------------------------
 
@@ -247,6 +262,11 @@ perfschema.threads_mysql                     : MDEV-10677 - sporadic wrong resul
 plugins.feedback_plugin_send     : MDEV-7932 - ssl failed for url
 plugins.server_audit             : MDEV-9562 - crashes on sol10-sparc
 plugins.thread_pool_server_audit : MDEV-9562 - crashes on sol10-sparc
+
+#----------------------------------------------------------------
+
+roles.current_role_view-12666         : Added in 10.1.25
+roles.show_create_database-10463      : Added in 10.1.25
 
 #----------------------------------------------------------------
 
@@ -382,6 +402,6 @@ vcol.vcol_keys_innodb : MDEV-10639 - Testcase timeout
 
 wsrep.binlog_format   : MDEV-11532 - WSREP has not yet prepared node
 wsrep.pool_of_threads : MDEV-12234 - Library problem on Power
-wsrep.variables       : Include file modified in 10.1.24
+wsrep.variables       : Include file modified in 10.1.25
 
 wsrep_info.plugin     : MDEV-12909 - Wrong result
