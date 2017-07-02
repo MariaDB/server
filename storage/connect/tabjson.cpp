@@ -31,6 +31,9 @@
 #if defined(ZIP_SUPPORT)
 #include "filamzip.h"
 #endif   // ZIP_SUPPORT
+#if defined(JDBC_SUPPORT)
+#include "jmgfam.h"
+#endif   // JDBC_SUPPORT
 #if defined(MONGO_SUPPORT)
 #include "mongofam.h"
 #endif   // MONGO_SUPPORT
@@ -68,7 +71,7 @@ typedef struct _jncol {
 /* JSONColumns: construct the result blocks containing the description */
 /* of all the columns of a table contained inside a JSON file.         */
 /***********************************************************************/
-PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
+PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING, TYPE_INT, 
                           TYPE_INT, TYPE_SHORT, TYPE_SHORT, TYPE_STRING};
@@ -78,7 +81,8 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
   char   *p, colname[65], fmt[129];
   int     i, j, lvl, n = 0;
   int     ncol = sizeof(buftyp) / sizeof(int);
-	PCSZ    sep;
+	bool    mgo = (GetTypeID(topt->type) == TAB_MONGO);
+	PCSZ    sep, level;
   PVAL    valp;
   JCOL    jcol;
   PJCL    jcp, fjcp = NULL, pjcp = NULL;
@@ -108,8 +112,14 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 	/*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
-  lvl = GetIntegerTableOption(g, topt, "Level", 0);
-  lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
+	level = GetStringTableOption(g, topt, "Level", NULL);
+
+	if (level) {
+		lvl = atoi(level);
+		lvl = (lvl > 16) ? 16 : lvl;
+	} else
+		lvl = 0;
+
 	sep = GetStringTableOption(g, topt, "Separator", ".");
 
   tdp = new(g) JSONDEF;
@@ -118,11 +128,6 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 	tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false);
 #endif   // ZIP_SUPPORT
 	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
-
-	if (!tdp->Fn && !dsn) {
-		strcpy(g->Message, MSG(MISSING_FNAME));
-		return NULL;
-	} // endif Fn
 
 	if (!(tdp->Database = SetPath(g, db)))
 		return NULL;
@@ -133,22 +138,30 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 	tdp->Xcol = GetStringTableOption(g, topt, "Expand", NULL);
 	tdp->Uri = (dsn && *dsn ? dsn : NULL);
 
-  if (trace)
+	if (!tdp->Fn && !tdp->Uri) {
+		strcpy(g->Message, MSG(MISSING_FNAME));
+		return NULL;
+	} // endif Fn
+
+	if (trace)
     htrc("File %s objname=%s pretty=%d lvl=%d\n", 
           tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
 
 	if (tdp->Uri) {
-#if defined(MONGO_SUPPORT)
+#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
 		tdp->Collname = GetStringTableOption(g, topt, "Name", NULL);
 		tdp->Collname = GetStringTableOption(g, topt, "Tabname", tdp->Collname);
 		tdp->Schema = GetStringTableOption(g, topt, "Dbname", "test");
-		tdp->Options = PlugDup(g, "all");
-//	tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
+		tdp->Options = (PSZ)GetStringTableOption(g, topt, "Colist", "all");
+		tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
+		tdp->Version = GetIntegerTableOption(g, topt, "Version", 3);
+		tdp->Wrapname = (PSZ)GetStringTableOption(g, topt, "Wrapper",
+			(tdp->Version == 2) ? "Mongo2Interface" : "Mongo3Interface");
 		tdp->Pretty = 0;
-#else   // !MONGO_SUPPORT
+#else   // !MONGO_SUPPORT	 || JDBC_SUPPORT
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
 		return NULL;
-#endif  // !MONGO_SUPPORT
+#endif  // !MONGO_SUPPORT	 || JDBC_SUPPORT
 	}	// endif Uri
 
   if (tdp->Pretty == 2) {
@@ -167,10 +180,12 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 
     jsp = (tjsp->GetDoc()) ? tjsp->GetDoc()->GetValue(0) : NULL;
   } else {
-    if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0))) {
-      sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
-      return NULL;
-      } // endif lrecl
+    if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))
+			if (!mgo) {
+				sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
+				return NULL;
+			} else
+				tdp->Lrecl = 8192;			 // Should be enough
 
     tdp->Ending = GetIntegerTableOption(g, topt, "Ending", CRLF);
 
@@ -182,12 +197,21 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 			return NULL;
 #endif  // !ZIP_SUPPORT
 		} else if (tdp->Uri) {
-#if defined(MONGO_SUPPORT)
+#if defined(MONGO_SUPPORT) ||	defined(JDBC_SUPPORT)
+#if !defined(JDBC_SUPPORT)
 			tjnp = new(g) TDBJSN(tdp, new(g) MGOFAM(tdp));
-#else   // !MONGO_SUPPORT
-			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+#elif !defined(MONGO_SUPPORT)
+			tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
+#else
+			if (tdp->Driver && toupper(*tdp->Driver) == 'C')
+				tjnp = new(g) TDBJSN(tdp, new(g) MGOFAM(tdp));
+			else
+				tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
+#endif
+#else	  // !MONGO_SUPPORT && !JDBC_SUPPORT
+			sprintf(g->Message, "No MongoDB support");
 			return NULL;
-#endif  // !MONGO_SUPPORT
+#endif   // MONGO_SUPPORT || JDBC_SUPPORT
 		} else
 			tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
 
@@ -229,15 +253,15 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
   jcol.Found = true;
   colname[64] = 0;
   fmt[128] = 0;
-	*fmt = '$';
 
 	if (!tdp->Uri) {
+		*fmt = '$';
 		fmt[1] = '.';
 		p = fmt + 2;
 	} else
-		p = fmt + 1;
+		p = fmt;
 
-  jrp = (PJPR*)PlugSubAlloc(g, NULL, sizeof(PJPR) * lvl);
+  jrp = (PJPR*)PlugSubAlloc(g, NULL, sizeof(PJPR) * MY_MAX(lvl, 0));
 
   /*********************************************************************/
   /*  Analyse the JSON tree and define columns.                        */
@@ -300,12 +324,13 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
           } // endswitch jsp
 
         goto retry;
-      } else {
+      } else if (lvl >= 0) {
         jcol.Type = TYPE_STRING;
         jcol.Len = 256;
         jcol.Scale = 0;
         jcol.Cbn = true;
-      } // endif's
+			} else
+				continue;
 
       // Check whether this column was already found
       for (jcp = fjcp; jcp; jcp = jcp->Next)
@@ -461,11 +486,16 @@ JSONDEF::JSONDEF(void)
   Base = 0;
   Strict = false;
 	Sep = '.';
-#if defined(MONGO_SUPPORT)
+#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
 	Uri = NULL;
 	Collname = Schema = Options = Filter = NULL;
 	Pipe = false;
-#endif   // MONGO_SUPPORT
+	Driver = NULL;
+	Version = 0;
+#if defined(JDBC_SUPPORT)
+	Wrapname = NULL;
+#endif   // JDBC_SUPPORT
+#endif  // !MONGO_SUPPORT  && !JDBC_SUPPORT
 } // end of JSONDEF constructor
 
 /***********************************************************************/
@@ -482,7 +512,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 	Sep = *GetStringCatInfo(g, "Separator", ".");
 
 	if (Uri = GetStringCatInfo(g, "Connect", NULL)) {
-#if defined(MONGO_SUPPORT)
+#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
 		Collname = GetStringCatInfo(g, "Name",
 			(Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
 		Collname = GetStringCatInfo(g, "Tabname", Collname);
@@ -490,11 +520,19 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 		Options = GetStringCatInfo(g, "Colist", NULL);
 		Filter = GetStringCatInfo(g, "Filter", NULL);
 		Pipe = GetBoolCatInfo("Pipeline", false);
+		Driver = GetStringCatInfo(g, "Driver", NULL);
+		Version = GetIntCatInfo("Version", 3);
 		Pretty = 0;
-#else   // !MONGO_SUPPORT
+#if defined(JDBC_SUPPORT)
+		if (Version == 2)
+			Wrapname = GetStringCatInfo(g, "Wrapper", "Mongo2Interface");
+		else
+			Wrapname = GetStringCatInfo(g, "Wrapper", "Mongo3Interface");
+#endif   // JDBC_SUPPORT
+#else   // !MONGO_SUPPORT  && !JDBC_SUPPORT
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
 		return true;
-#endif  // !MONGO_SUPPORT
+#endif  // !MONGO_SUPPORT  && !JDBC_SUPPORT
 	}	// endif Uri
 
 	return DOSDEF::DefineAM(g, (Uri ? "XMGO" : "DOS"), poff);
@@ -520,12 +558,18 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
                 (m == MODE_UPDATE || m == MODE_DELETE));
 
 		if (Uri) {
-#if defined(MONGO_SUPPORT)
+#if defined(MONGO_SUPPORT) ||	defined(JDBC_SUPPORT)
+#if !defined(JDBC_SUPPORT)
 			txfp = new(g) MGOFAM(this);
-#else   // !MONGO_SUPPORT
-			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
-			return NULL;
-#endif  // !MONGO_SUPPORT
+#elif !defined(MONGO_SUPPORT)
+			txfp = new(g) JMGFAM(this);
+#else
+			if (Driver && toupper(*Driver) == 'C')
+				txfp = new(g) MGOFAM(this);
+			else
+				txfp = new(g) JMGFAM(this);
+#endif
+#endif   // MONGO_SUPPORT || JDBC_SUPPORT
 		} else if (Zipped) {
 #if defined(ZIP_SUPPORT)
 			if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
@@ -559,14 +603,19 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
     tdbp = new(g) TDBJSN(this, txfp);
 
 #if USE_G
-		// Allocate the parse work memory
-		PGLOBAL G = (PGLOBAL)PlugSubAlloc(g, NULL, sizeof(GLOBAL));
-		memset(G, 0, sizeof(GLOBAL));
-		G->Sarea_Size = Lrecl * 10;
-		G->Sarea = PlugSubAlloc(g, NULL, G->Sarea_Size);
-		PlugSubSet(G, G->Sarea, G->Sarea_Size);
-		G->jump_level = 0;
-		((TDBJSN*)tdbp)->G = G;
+		if (Lrecl) {
+			// Allocate the parse work memory
+			PGLOBAL G = (PGLOBAL)PlugSubAlloc(g, NULL, sizeof(GLOBAL));
+			memset(G, 0, sizeof(GLOBAL));
+			G->Sarea_Size = Lrecl * 10;
+			G->Sarea = PlugSubAlloc(g, NULL, G->Sarea_Size);
+			PlugSubSet(G, G->Sarea, G->Sarea_Size);
+			G->jump_level = 0;
+			((TDBJSN*)tdbp)->G = G;
+		} else {
+			strcpy(g->Message, "LRECL is not defined");
+			return NULL;
+		}	// endif Lrecl
 #else
 		((TDBJSN*)tdbp)->G = g;
 #endif
@@ -791,13 +840,16 @@ bool TDBJSN::OpenDB(PGLOBAL g)
           return true;
         } // endswitch Jmode
 
-		if (Xcol && Txfp->GetAmType() != TYPE_AM_MGO)
-			To_Filter = NULL;							 // Imcompatible
-
 	} // endif Use
 
-  return TDBDOS::OpenDB(g);
-  } // end of OpenDB
+	if (TDBDOS::OpenDB(g))
+		return true;
+
+	if (Xcol)
+		To_Filter = NULL;							 // Imcompatible
+
+	return false;
+} // end of OpenDB
 
 /***********************************************************************/
 /*  SkipHeader: Physically skip first header line if applicable.       */
@@ -1282,7 +1334,7 @@ fin:
 /***********************************************************************/
 /*  Get Jpath converted to Mongo path.                                 */
 /***********************************************************************/
-char *JSONCOL::GetJpath(PGLOBAL g, bool proj)
+PSZ JSONCOL::GetJpath(PGLOBAL g, bool proj)
 {
 	if (Jpath) {
 		char *p1, *p2, *mgopath;
@@ -2204,8 +2256,8 @@ void TDBJSON::CloseDB(PGLOBAL g)
 TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
   {
   Topt = tdp->GetTopt();
-  Db = (char*)tdp->GetDB();
-	Dsn = (char*)tdp->Uri;
+  Db = tdp->GetDB();
+	Dsn = tdp->Uri;
   } // end of TDBJCL constructor
 
 /***********************************************************************/

@@ -1,6 +1,7 @@
 /***********************************************************************/
 /*  GLOBAL.H: Declaration file used by all CONNECT implementations.    */
-/*  (C) Copyright Olivier Bertrand                       1993-2017     */
+/*  (C) Copyright MariaDB Corporation Ab                 							 */
+/*  Author Olivier Bertrand                              1993-2017     */
 /***********************************************************************/
 
 /***********************************************************************/

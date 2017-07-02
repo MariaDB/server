@@ -1,3 +1,4 @@
+/* Copyright (C) MariaDB Corporation Ab */
 #ifndef _OS_H_INCLUDED
 #define _OS_H_INCLUDED
 

@@ -36,10 +36,13 @@ class DllExport JSONDEF : public DOSDEF {         /* Table description */
   friend class TDBJSON;
   friend class TDBJSN;
   friend class TDBJCL;
-  friend PQRYRES JSONColumns(PGLOBAL, char*, char*, PTOS, bool);
+#if defined(JDBC_SUPPORT)
+	friend class JMGFAM;
+#endif   // JDBC_SUPPORT
 #if defined(MONGO_SUPPORT)
 	friend class MGOFAM;
 #endif   // MONGO_SUPPORT
+	friend PQRYRES JSONColumns(PGLOBAL, PCSZ, PCSZ, PTOS, bool);
 public:
   // Constructor
   JSONDEF(void);
@@ -63,13 +66,18 @@ public:
   bool  Strict;                 /* Strict syntax checking              */
 	char  Sep;                    /* The Jpath separator                 */
 	const char *Uri;							/* MongoDB connection URI              */
-#if defined(MONGO_SUPPORT)
+#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
 	PCSZ  Collname;               /* External collection name            */
 	PCSZ  Schema;                 /* External schema (DB) name           */
 	PSZ   Options;                /* Colist ; Pipe                       */
 	PSZ   Filter;                 /* Filter                              */
+	PSZ   Driver;									/* MongoDB Driver (C or JAVA)          */
 	bool  Pipe;							      /* True if Colist is a pipeline        */
-#endif   // MONGO_SUPPORT
+	int   Version;							  /* Driver version                      */
+#if defined(JDBC_SUPPORT)
+	PSZ   Wrapname;								/* MongoDB java wrapper name           */
+#endif   // JDBC_SUPPORT
+#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
   }; // end of JSONDEF
 
 /* -------------------------- TDBJSN class --------------------------- */
@@ -81,6 +89,9 @@ public:
 class DllExport TDBJSN : public TDBDOS {
   friend class JSONCOL;
 	friend class JSONDEF;
+#if defined(JDBC_SUPPORT)
+	friend class JMGFAM;
+#endif   // JDBC_SUPPORT
 #if defined(MONGO_SUPPORT)
 	friend class MGOFAM;
 #endif   // MONGO_SUPPORT
@@ -148,8 +159,13 @@ public:
 class DllExport JSONCOL : public DOSCOL {
   friend class TDBJSN;
   friend class TDBJSON;
+#if defined(JDBC_SUPPORT)
+	friend class JMGFAM;
+#endif   // JDBC_SUPPORT
+#if defined(MONGO_SUPPORT)
 	friend class MGOFAM;
- public:
+#endif   // MONGO_SUPPORT
+public:
   // Constructors
   JSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);
   JSONCOL(JSONCOL *colp, PTDB tdbp); // Constructor used in copy process
@@ -160,7 +176,7 @@ class DllExport JSONCOL : public DOSCOL {
   // Methods
   virtual bool  SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
           bool  ParseJpath(PGLOBAL g);
-					char *GetJpath(PGLOBAL g, bool proj);
+	virtual PSZ   GetJpath(PGLOBAL g, bool proj);
 	virtual void  ReadColumn(PGLOBAL g);
   virtual void  WriteColumn(PGLOBAL g);
 
@@ -252,7 +268,7 @@ class DllExport TDBJCL : public TDBCAT {
   virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
-  PTOS  Topt;
-  char *Db;
-	char *Dsn;
+  PTOS Topt;
+  PCSZ Db;
+	PCSZ Dsn;
   }; // end of class TDBJCL

@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2017
+/* Copyright (C) MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -185,7 +185,7 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
 /***********************************************************************/
 PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 {
-	PTDB    tdbp;
+	PTDB    tdbp = NULL;
 	PTABLE  tabp;
 	PDBUSER dup = PlgGetUser(g);
 	volatile PCATLG  cat = (dup) ? dup->Catalog : NULL;  // Safe over throw

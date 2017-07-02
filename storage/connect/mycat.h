@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2015
+/* Copyright (C) MariaDB Corporation Ab
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 
 /**************** MYCAT H Declares Source Code File (.H) ***************/
 /*  Name: MYCAT.H  Version 2.3                                         */
-/*                                                                     */
+/*  Author: Olivier Bertrand                                           */
 /*  This file contains the CONNECT plugin MYCAT class definitions.     */
 /***********************************************************************/
 #ifndef __MYCAT__H

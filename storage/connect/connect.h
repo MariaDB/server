@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2011
+/* Copyright (C) MariaDB Corporation Ab
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -15,6 +15,7 @@
 
 /**************** Cnt H Declares Source Code File (.H) *****************/
 /*  Name: CONNECT.H    Version 2.4                                     */
+/*  Author Olivier BERTRAND  bertrandop@gmail.com                      */
 /*  This file contains the some based classes declares.                */
 /***********************************************************************/
 #include "filamtxt.h"

@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2017
+/* Copyright (C) MariaDB Corporation Ab
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -98,8 +98,7 @@
   rnd_next signals that it has reached the end of its data. Calls to
   ha_connect::extra() are hints as to what will be occuring to the request.
 
-  Happy use!<br>
-    -Olivier
+  Author  Olivier Bertrand
 */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -209,10 +208,10 @@ pthread_mutex_t parmut = PTHREAD_MUTEX_INITIALIZER;
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
-PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info);
+PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
 #if defined(MONGO_SUPPORT)
-PQRYRES MGOColumns(PGLOBAL g, char *db, PTOS topt, bool info);
+PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ url, PTOS topt, bool info);
 #endif   // MONGO_SUPPORT
 int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
@@ -701,7 +700,7 @@ static int connect_init_func(void *p)
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
   BINCOL::SetEndian();        // Initialize host endian setting
 #if defined(JDBC_SUPPORT)
-	JDBConn::SetJVM();
+	JAVAConn::SetJVM();
 #endif   // JDBC_SUPPORT
   DBUG_RETURN(0);
 } // end of connect_init_func
@@ -726,7 +725,7 @@ static int connect_done_func(void *)
 #endif   // MONGO_SUPPORT
 
 #ifdef JDBC_SUPPORT
-	JDBConn::ResetJVM();
+	JAVAConn::ResetJVM();
 #endif // JDBC_SUPPORT
 
 #if	defined(__WIN__)
@@ -4081,7 +4080,7 @@ int ha_connect::info(uint flag)
     if (xmod == MODE_ANY || xmod == MODE_ALTER) {
       // Pure info, not a query
       pure= true;
-      xp->CheckCleanup();
+      xp->CheckCleanup(xmod == MODE_ANY && valid_query_id == 0);
       } // endif xmod
 
     // This is necessary for getting file length
@@ -4094,8 +4093,10 @@ int ha_connect::info(uint flag)
 		} else
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
 
-    if (!(tdbp= GetTDB(g)))
-      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
+		if (!(tdbp = GetTDB(g))) {
+			my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+		} // endif tdbp
 
     valid_info = false;
     } // endif tdbp
@@ -5299,16 +5300,18 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(ODBC_SUPPORT)
   POPARM   sop= NULL;
 	PCSZ     ucnc= NULL;
-  bool     cnc= false;
+	PCSZ     tabtyp = NULL;
+	bool     cnc= false;
   int      cto= -1, qto= -1;
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
 	PJPARM   sjp= NULL;
+#endif   // JDBC_SUPPORT
+#if defined(JDBC_SUPPORT) || defined(MONGO_SUPPORT)
 	PCSZ     driver= NULL;
 	char    *url= NULL;
 //char    *prop= NULL;
-	PCSZ     tabtyp= NULL;
-#endif   // JDBC_SUPPORT
+#endif   // JDBC_SUPPORT  || MONGO_SUPPORT
   uint     tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool     bif, ok= false, dbf= false;
   TABTYPE  ttp= TAB_UNDEF;
@@ -5361,19 +5364,17 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // __WIN__
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
 #if defined(ODBC_SUPPORT)
-    mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
+		tabtyp = GetListOption(g, "Tabtype", topt->oplist, NULL);
+		mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
     cto= atoi(GetListOption(g,"ConnectTimeout", topt->oplist, "-1"));
     qto= atoi(GetListOption(g,"QueryTimeout", topt->oplist, "-1"));
     
     if ((ucnc= GetListOption(g, "UseDSN", topt->oplist)))
       cnc= (!*ucnc || *ucnc == 'y' || *ucnc == 'Y' || atoi(ucnc) != 0);
 #endif
-#if defined(JDBC_SUPPORT)
+#if defined(JDBC_SUPPORT) || defined(MONGO_SUPPORT)
 		driver= GetListOption(g, "Driver", topt->oplist, NULL);
-//	url= GetListOption(g, "URL", topt->oplist, NULL);
-//	prop = GetListOption(g, "Properties", topt->oplist, NULL);
-		tabtyp = GetListOption(g, "Tabtype", topt->oplist, NULL);
-#endif   // JDBC_SUPPORT
+#endif   // JDBC_SUPPORT  || MONGO_SUPPORT
 #if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
 #endif   // PROMPT_OK
@@ -5585,14 +5586,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					ok = true;
 
 				break;
-#if defined(MONGO_SUPPORT)
+#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
 			case TAB_MONGO:
 				if (!topt->tabname)
 					topt->tabname = tab;
 
 				ok = true;
 				break;
-#endif   // MONGO_SUPPORT
+#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
 			case TAB_VIR:
 				ok = true;
 				break;
@@ -5733,13 +5734,36 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					qrp = VirColumns(g, fnc == FNC_COL);
 					break;
 				case TAB_JSON:
-					qrp = JSONColumns(g, (char*)db, dsn, topt, fnc == FNC_COL);
+					qrp = JSONColumns(g, db, dsn, topt, fnc == FNC_COL);
 					break;
-#if defined(MONGO_SUPPORT)
+#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
 				case TAB_MONGO:
-					qrp = MGOColumns(g, (char*)db, topt, fnc == FNC_COL);
+					if (!(url = strz(g, create_info->connect_string)) || !*url)
+						url = "mongodb://localhost:27017";
+
+#if !defined(MONGO_SUPPORT)
+					driver = "JAVA";
+					// strcpy(g->Message, "No column discovery for Java MONGO tables yet");
+					// Temporarily use the JSONColumns function
+					qrp = JSONColumns(g, db, url, topt, fnc == FNC_COL);
+#elif !defined(JDBC_SUPPORT)
+					driver = "C";
+					qrp = MGOColumns(g, db, url, topt, fnc == FNC_COL);
+#else		 // MONGO_SUPPORT  && JDBC_SUPPORT
+					if (!driver)
+						driver = "C";
+
+					if (toupper(*driver) == 'C') {
+						qrp = MGOColumns(g, db, url, topt, fnc == FNC_COL);
+					} else {
+						// strcpy(g->Message, "No column discovery for Java MONGO tables yet");
+						// Temporarily use the JSONColumns function
+						qrp = JSONColumns(g, db, url, topt, fnc == FNC_COL);
+					} // endif driver
+
+#endif   // MONGO_SUPPORT  && JDBC_SUPPORT
 					break;
-#endif   // MONGO_SUPPORT
+#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
 				case TAB_XML:
 					qrp = XMLColumns(g, (char*)db, tab, topt, fnc == FNC_COL);

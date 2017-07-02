@@ -1,7 +1,7 @@
-/************ MONGO FAM C++ Program Source Code File (.CPP) ************/
-/* PROGRAM NAME: mongofam.cpp                                          */
+/************ JMONGO FAM C++ Program Source Code File (.CPP) ***********/
+/* PROGRAM NAME: jmgfam.cpp                                            */
 /* -------------                                                       */
-/*  Version 1.3                                                        */
+/*  Version 1.0                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -9,7 +9,7 @@
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
-/*  This program are the MongoDB access method classes.                */
+/*  This program are the Java MongoDB access method classes.                */
 /*                                                                     */
 /***********************************************************************/
 
@@ -17,6 +17,26 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
+#if defined(__WIN__)
+//#include <io.h>
+//#include <fcntl.h>
+//#include <errno.h>
+#if defined(__BORLANDC__)
+#define __MFC_COMPAT__                   // To define min/max as macro
+#endif   // __BORLANDC__
+//#include <windows.h>
+#else   // !__WIN__
+#if defined(UNIX) || defined(UNIV_LINUX)
+//#include <errno.h>
+#include <unistd.h>
+//#if !defined(sun)                      // Sun has the ftruncate fnc.
+//#define USETEMP                        // Force copy mode for DELETE
+//#endif   // !sun
+#else   // !UNIX
+//#include <io.h>
+#endif  // !UNIX
+//#include <fcntl.h>
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -30,56 +50,76 @@
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "tabjson.h"
-#include "mongofam.h"
+#include "jmgfam.h"
 
 #if defined(UNIX) || defined(UNIV_LINUX)
 #include "osutil.h"
+//#define _fileno fileno
+//#define _O_RDONLY O_RDONLY
 #endif
 
-/* --------------------------- Class MGOFAM -------------------------- */
+/* --------------------------- Class JMGFAM -------------------------- */
 
 /***********************************************************************/
 /*  Constructors.                                                      */
 /***********************************************************************/
-MGOFAM::MGOFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
+JMGFAM::JMGFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 {
-	Cmgp = NULL;
-	Pcg.Tdbp = NULL;
-
-	if (tdp) {
-		Pcg.Uristr = tdp->Uri;
-		Pcg.Db_name = tdp->Schema;
-		Pcg.Coll_name = tdp->Collname;
-		Pcg.Options = tdp->Options;
-		Pcg.Filter = tdp->Filter;
-		Pcg.Pipe = tdp->Pipe && tdp->Options != NULL;
-	} else {
-		Pcg.Uristr = NULL;
-		Pcg.Db_name = NULL;
-		Pcg.Coll_name = NULL;
-		Pcg.Options = NULL;
-		Pcg.Filter = NULL;
-		Pcg.Pipe = false;
-	} // endif tdp
-
+	Jcp = NULL;
+	//Client = NULL;
+	//Database = NULL;
+	//Collection = NULL;
+	//Cursor = NULL;
+	//Query = NULL;
+	//Opts = NULL;
+	Ops.Driver = tdp->Schema;
+	Ops.Url = tdp->Uri;
+	Ops.User = NULL;
+	Ops.Pwd = NULL;
+	Ops.Scrollable = false;
+	Ops.Fsize = 0;
+	Ops.Version = tdp->Version;
 	To_Fbt = NULL;
 	Mode = MODE_ANY;
+	Uristr = tdp->Uri;
+	Db_name = tdp->Schema;
+	Coll_name = tdp->Collname;
+	Options = tdp->Options;
+	Filter = tdp->Filter;
+	Wrapname = tdp->Wrapname;
 	Done = false;
+	Pipe = tdp->Pipe;
+	Version = tdp->Version;
 	Lrecl = tdp->Lrecl + tdp->Ending;
-} // end of MGOFAM standard constructor
- 
- MGOFAM::MGOFAM(PMGOFAM tdfp) : DOSFAM(tdfp)
+	Curpos = 0;
+} // end of JMGFAM standard constructor
+
+JMGFAM::JMGFAM(PJMGFAM tdfp) : DOSFAM(tdfp)
 {
-	Pcg = tdfp->Pcg;
+	//Client = tdfp->Client;
+	//Database = NULL;
+	//Collection = tdfp->Collection;
+	//Cursor = tdfp->Cursor;
+	//Query = tdfp->Query;
+	//Opts = tdfp->Opts;
+	Ops = tdfp->Ops;
 	To_Fbt = tdfp->To_Fbt;
 	Mode = tdfp->Mode;
+	Uristr = tdfp->Uristr;
+	Db_name = tdfp->Db_name;
+	Coll_name = tdfp->Coll_name;
+	Options = tdfp->Options;
+	Filter = NULL;
+	Wrapname = tdfp->Wrapname;
 	Done = tdfp->Done;
- } // end of MGOFAM copy constructor
+	Pipe = tdfp->Pipe;
+	Version = tdfp->Version;
+} // end of JMGFAM copy constructor
 
 /***********************************************************************/
 /*  Reset: reset position values at the beginning of file.             */
 /***********************************************************************/
-void MGOFAM::Reset(void)
+void JMGFAM::Reset(void)
 {
 	TXTFAM::Reset();
 	Fpos = Tpos = Spos = 0;
@@ -88,28 +128,28 @@ void MGOFAM::Reset(void)
 /***********************************************************************/
 /*  MGO GetFileLength: returns file size in number of bytes.           */
 /***********************************************************************/
-int MGOFAM::GetFileLength(PGLOBAL g)
+int JMGFAM::GetFileLength(PGLOBAL g)
 {
 	return 0;
 } // end of GetFileLength
 
 /***********************************************************************/
-/*  Cardinality: returns the number of documents in the collection.    */
+/*  Cardinality: returns table cardinality in number of rows.          */
 /*  This function can be called with a null argument to test the       */
 /*  availability of Cardinality implementation (1 yes, 0 no).          */
 /***********************************************************************/
-int MGOFAM::Cardinality(PGLOBAL g)
+int JMGFAM::Cardinality(PGLOBAL g)
 {
 	if (!g)
 		return 1;
 
-	return (!Init(g)) ? Cmgp->CollSize(g) : 0;
+	return (!Init(g)) ? Jcp->CollSize(g) : 0;
 } // end of Cardinality
 
 /***********************************************************************/
 /*  Note: This function is not really implemented yet.                 */
 /***********************************************************************/
-int MGOFAM::MaxBlkSize(PGLOBAL, int s)
+int JMGFAM::MaxBlkSize(PGLOBAL, int s)
 {
 	return s;
 } // end of MaxBlkSize
@@ -117,21 +157,24 @@ int MGOFAM::MaxBlkSize(PGLOBAL, int s)
 /***********************************************************************/
 /*  Init: initialize MongoDB processing.                               */
 /***********************************************************************/
-bool MGOFAM::Init(PGLOBAL g)
+bool JMGFAM::Init(PGLOBAL g)
 {
 	if (Done)
 		return false;
 
 	/*********************************************************************/
-	/*  Open an C connection for this table.                             */
+	/*  Open an JDBC connection for this table.                          */
+	/*  Note: this may not be the proper way to do. Perhaps it is better */
+	/*  to test whether a connection is already open for this datasource */
+	/*  and if so to allocate just a new result set. But this only for   */
+	/*  drivers allowing concurency in getting results ???               */
 	/*********************************************************************/
-	if (!Cmgp) {
-		Pcg.Tdbp = Tdbp;
-		Cmgp = new(g) CMgoConn(g, &Pcg);
-	} else if (Cmgp->IsConnected())
-		Cmgp->Close();
+	if (!Jcp)
+		Jcp = new(g) JMgoConn(g, Coll_name, Wrapname);
+	else if (Jcp->IsOpen())
+		Jcp->Close();
 
-	if (Cmgp->Connect(g))
+	if (Jcp->Connect(&Ops))
 		return true;
 
 	Done = true;
@@ -141,11 +184,11 @@ bool MGOFAM::Init(PGLOBAL g)
 /***********************************************************************/
 /*  OpenTableFile: Open a MongoDB table.                               */
 /***********************************************************************/
-bool MGOFAM::OpenTableFile(PGLOBAL g)
+bool JMGFAM::OpenTableFile(PGLOBAL g)
 {
 	Mode = Tdbp->GetMode();
 
-	if (Pcg.Pipe && Mode != MODE_READ) {
+	if (Pipe && Mode != MODE_READ) {
 		strcpy(g->Message, "Pipeline tables are read only");
 		return true;
 	}	// endif Pipe
@@ -153,19 +196,31 @@ bool MGOFAM::OpenTableFile(PGLOBAL g)
 	if (Init(g))
 		return true;
 
-	if (Mode == MODE_DELETE && !Tdbp->GetNext())
+	if (Jcp->GetMethodId(g, Mode))
+		return true;
+
+	if (Mode == MODE_DELETE && !Tdbp->GetNext()) {
 		// Delete all documents
-		return Cmgp->DocDelete(g);
-	else if (Mode == MODE_INSERT)
-		Cmgp->MakeColumnGroups(g);
+		if (!Jcp->MakeCursor(g, Tdbp, "all", Filter, false))
+			if (Jcp->DocDelete(g, true) == RC_OK)
+				return false;
+
+		return true;
+	}	// endif Mode
+
+	if (Mode == MODE_INSERT)
+		Jcp->MakeColumnGroups(g, Tdbp);
+
+	if (Mode != MODE_UPDATE)
+		return Jcp->MakeCursor(g, Tdbp, Options, Filter, Pipe);
 
 	return false;
-} // end of OpenTableFile
+	} // end of OpenTableFile
 
 /***********************************************************************/
 /*  GetRowID: return the RowID of last read record.                    */
 /***********************************************************************/
-int MGOFAM::GetRowID(void)
+int JMGFAM::GetRowID(void)
 {
 	return Rows;
 } // end of GetRowID
@@ -173,7 +228,7 @@ int MGOFAM::GetRowID(void)
 /***********************************************************************/
 /*  GetPos: return the position of last read record.                   */
 /***********************************************************************/
-int MGOFAM::GetPos(void)
+int JMGFAM::GetPos(void)
 {
 	return Fpos;
 } // end of GetPos
@@ -181,7 +236,7 @@ int MGOFAM::GetPos(void)
 /***********************************************************************/
 /*  GetNextPos: return the position of next record.                    */
 /***********************************************************************/
-int MGOFAM::GetNextPos(void)
+int JMGFAM::GetNextPos(void)
 {
 	return Fpos;						// TODO
 } // end of GetNextPos
@@ -189,7 +244,7 @@ int MGOFAM::GetNextPos(void)
 /***********************************************************************/
 /*  SetPos: Replace the table at the specified position.               */
 /***********************************************************************/
-bool MGOFAM::SetPos(PGLOBAL g, int pos)
+bool JMGFAM::SetPos(PGLOBAL g, int pos)
 {
 	Fpos = pos;
 	Placed = true;
@@ -199,25 +254,25 @@ bool MGOFAM::SetPos(PGLOBAL g, int pos)
 /***********************************************************************/
 /*  Record file position in case of UPDATE or DELETE.                  */
 /***********************************************************************/
-bool MGOFAM::RecordPos(PGLOBAL g)
+bool JMGFAM::RecordPos(PGLOBAL g)
 {
-	strcpy(g->Message, "MGOFAM::RecordPos NIY");
+	strcpy(g->Message, "JMGFAM::RecordPos NIY");
 	return true;
 } // end of RecordPos
 
 /***********************************************************************/
 /*  Initialize Fpos and the current position for indexed DELETE.       */
 /***********************************************************************/
-int MGOFAM::InitDelete(PGLOBAL g, int fpos, int spos)
+int JMGFAM::InitDelete(PGLOBAL g, int fpos, int spos)
 {
-	strcpy(g->Message, "MGOFAM::InitDelete NIY");
+	strcpy(g->Message, "JMGFAM::InitDelete NIY");
 	return RC_FX;
 } // end of InitDelete
 
 /***********************************************************************/
 /*  Skip one record in file.                                           */
 /***********************************************************************/
-int MGOFAM::SkipRecord(PGLOBAL g, bool header)
+int JMGFAM::SkipRecord(PGLOBAL g, bool header)
 {
 	return RC_OK;                  // Dummy
 } // end of SkipRecord
@@ -225,29 +280,60 @@ int MGOFAM::SkipRecord(PGLOBAL g, bool header)
 /***********************************************************************/
 /*  ReadBuffer: Get next document from a collection.                   */
 /***********************************************************************/
-int MGOFAM::ReadBuffer(PGLOBAL g)
+int JMGFAM::ReadBuffer(PGLOBAL g)
 {
-	int rc = Cmgp->ReadNext(g);
+	int rc = RC_FX;
 
-	if (rc != RC_OK)
-		return rc;
+	if (!Curpos && Mode == MODE_UPDATE)
+		if (Jcp->MakeCursor(g, Tdbp, Options, Filter, Pipe))
+			return RC_FX;
 
-	strncpy(Tdbp->GetLine(), Cmgp->GetDocument(g), Lrecl);
-	return RC_OK;
+	if (++CurNum >= Rbuf) {
+		Rbuf = Jcp->Fetch();
+		Curpos++;
+		CurNum = 0;
+	} // endif CurNum
+
+	if (Rbuf > 0) {
+		PSZ str = Jcp->GetDocument();
+
+		if (str) {
+			if (trace == 1)
+				htrc("%s\n", str);
+
+			strncpy(Tdbp->GetLine(), str, Lrecl);
+			rc = RC_OK;
+		} else
+			strcpy(g->Message, "Null document");
+
+	} else if (!Rbuf)
+		rc = RC_EF;
+
+	return rc;
 } // end of ReadBuffer
 
 /***********************************************************************/
 /*  WriteBuffer: File write routine for MGO access method.             */
 /***********************************************************************/
-int MGOFAM::WriteBuffer(PGLOBAL g)
+int JMGFAM::WriteBuffer(PGLOBAL g)
 {
-	return Cmgp->Write(g);
+	int rc = RC_OK;
+
+	if (Mode == MODE_INSERT) {
+		rc = Jcp->DocWrite(g);
+	} else if (Mode == MODE_DELETE) {
+		rc = Jcp->DocDelete(g, false);
+	} else if (Mode == MODE_UPDATE) {
+		rc = Jcp->DocUpdate(g, Tdbp);
+	}	// endif Mode
+
+	return rc;
 } // end of WriteBuffer
 
 /***********************************************************************/
 /*  Data Base delete line routine for MGO and BLK access methods.      */
 /***********************************************************************/
-int MGOFAM::DeleteRecords(PGLOBAL g, int irc)
+int JMGFAM::DeleteRecords(PGLOBAL g, int irc)
 {
 	return (irc == RC_OK) ? WriteBuffer(g) : RC_OK;
 } // end of DeleteRecords
@@ -255,17 +341,17 @@ int MGOFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Table file close routine for MGO access method.                    */
 /***********************************************************************/
-void MGOFAM::CloseTableFile(PGLOBAL g, bool)
+void JMGFAM::CloseTableFile(PGLOBAL g, bool)
 {
-	Cmgp->Close();
+	Jcp->Close();
 	Done = false;
 } // end of CloseTableFile
 
 /***********************************************************************/
 /*  Rewind routine for MGO access method.                              */
 /***********************************************************************/
-void MGOFAM::Rewind(void)
+void JMGFAM::Rewind(void)
 {
-	Cmgp->Rewind();
+	Jcp->Rewind();
 } // end of Rewind
 

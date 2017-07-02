@@ -1,3 +1,4 @@
+/* Copyright (C) MariaDB Corporation Ab */
 #define MSG_ACCESS_VIOLATN  "Access violation"
 #define MSG_ADD_BAD_TYPE    "Array add value type mismatch (%s -> %s)"
 #define MSG_ALLOC_ERROR     "Error allocating %s"

@@ -1,34 +1,38 @@
 /************** MongoFam H Declares Source Code File (.H) **************/
-/*  Name: mongofam.h    Version 1.4                                    */
+/*  Name: jmgfam.h    Version 1.0                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2017         */
 /*                                                                     */
-/*  This file contains the MongoDB access method classes declares.     */
+/*  This file contains the JAVA MongoDB access method classes declares */
 /***********************************************************************/
-#include "cmgoconn.h"
+#pragma once
 
-typedef class TXTFAM *PTXF;
-typedef class MGOFAM *PMGOFAM;
+/***********************************************************************/
+/*  Include MongoDB library header files.                       	  	 */
+/***********************************************************************/
+#include "block.h"
+//#include "mongo.h"
+#include "jmgoconn.h"
+
+typedef class JMGFAM *PJMGFAM;
 typedef class MGODEF *PMGODEF;
-typedef class TDBMGO *PTDBMGO;
 
 /***********************************************************************/
-/*  This is the MongoDB Access Method class declaration.               */
+/*  This is the Java MongoDB Access Method class declaration.          */
 /***********************************************************************/
-class DllExport MGOFAM : public DOSFAM {
+class DllExport JMGFAM : public DOSFAM {
 	friend void mongo_init(bool);
 public:
 	// Constructor
-	MGOFAM(PJDEF tdp);
-	MGOFAM(PMGOFAM txfp);
+	JMGFAM(PJDEF tdp);
+	JMGFAM(PJMGFAM txfp);
 
 	// Implementation
 	virtual AMT   GetAmType(void) { return TYPE_AM_MGO; }
 	virtual bool  GetUseTemp(void) { return false; }
 	virtual int   GetPos(void);
 	virtual int   GetNextPos(void);
-	void  SetTdbp(PTDBDOS tdbp) { Tdbp = tdbp; }
-	virtual PTXF  Duplicate(PGLOBAL g) { return (PTXF)new(g) MGOFAM(this); }
+	virtual PTXF  Duplicate(PGLOBAL g) { return (PTXF)new(g) JMGFAM(this); }
 	void  SetLrecl(int lrecl) { Lrecl = lrecl; }
 
 	// Methods
@@ -54,12 +58,22 @@ protected:
 	virtual int   RenameTempFile(PGLOBAL g) { return RC_OK; }
 	virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
 	bool  Init(PGLOBAL g);
+//bool  MakeCursor(PGLOBAL g);
 
 	// Members
-	CMgoConn *Cmgp;       // Points to a C Mongo connection class
-	CMGOPARM	Pcg;				// Parms passed to Cmgp
-	PFBLOCK   To_Fbt;     // Pointer to temp file block
-	MODE      Mode;
-	bool      Done;			  // Init done
-}; // end of class MGOFAM
+	JMgoConn  *Jcp;              // Points to a Mongo connection class
+	JDBCPARM   Ops;              // Additional parameters
+	PFBLOCK    To_Fbt;           // Pointer to temp file block
+	MODE       Mode;
+	PCSZ       Uristr;
+	PCSZ       Db_name;
+	PCSZ       Coll_name;
+	PCSZ       Options;
+	PCSZ       Filter;
+	PSZ        Wrapname;
+	bool       Done;			       // Init done
+	bool       Pipe;
+	int        Version;
+	int        Curpos;           // Cursor position of last fetch
+}; // end of class JMGFAM
 

@@ -245,7 +245,7 @@ int main() {
 ENDIF(CONNECT_WITH_ODBC)
 
 #
-# JDBC
+# JDBC and MongoDB Java Driver
 #
 IF(APPLE)
   OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine without JDBC support" OFF)
@@ -262,9 +262,13 @@ IF(CONNECT_WITH_JDBC)
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH2})
     # SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY}) will be dynamically linked
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-    jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h
+    javaconn.cpp jdbconn.cpp tabjdbc.cpp
+    jmgoconn.cpp jmgfam.cpp mongo.cpp tabjmg.cpp
+    jdbccat.h javaconn.h jdbconn.h tabjdbc.h
+    jmgoconn.h jmgfam.h mongo.h tabjmg.h
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java
+    Mongo2Interface.java Mongo3Interface.java
     JavaWrappers.jar)
     # TODO: Find how to compile and install the java wrapper classes
     # Find required libraries and include directories
@@ -292,7 +296,7 @@ IF(CONNECT_WITH_ZIP)
 ENDIF(CONNECT_WITH_ZIP)
 
 #
-# MONGO (CMAKE NOT YET WORKING)
+# MONGO C Driver (CMAKE NOT YET WORKING)
 #
 
 #OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
@@ -302,16 +306,21 @@ ENDIF(CONNECT_WITH_ZIP)
 #    # Adding some typical places to search in
 #    SET(PC_MONGO_INCLUDE_DIRS
 #        C:/mongo-c-driver/include
-#				D:/mongo-c-driver/include)
+#        D:/mongo-c-driver/include)
 #    SET(PC_MONGO_LIBRARY_DIRS
 #        C:/mongo-c-driver/lib
-#				D:/mongo-c-driver/lib)
+#        D:/mongo-c-driver/lib)
 #  ENDIF(WIN32)
 #  FIND_PACKAGE(libmongoc)
 #  IF (MONGO_FOUND)
 #    INCLUDE_DIRECTORIES(${MONGO_INCLUDE_DIR})
 #    SET(MONGO_LIBRARY   ${MONGO_LIBRARIES})
-#    SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongofam.cpp mongofam.h)
+#    SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+#    cmgoconn.cpp mongofam.cpp tabmgo.cpp
+#    cmgoconn.h mongofam.h tabmgo.h)
+#    IF (NOT JAVA_FOUND AND JNI_FOUND)
+#      SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
+#    ENDIF (NOT JAVA_FOUND AND JNI_FOUND)
 #    add_definitions(-DMONGO_SUPPORT)
 #  ENDIF(MONGO_FOUND)
 #ENDIF(CONNECT_WITH_MONGO)
@@ -338,4 +347,5 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
 #  LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY} $(MONGO_LIBRARY)
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
                  ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${IPHLPAPI_LIBRARY})
+
 

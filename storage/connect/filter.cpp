@@ -33,18 +33,11 @@
 #include "tabcol.h"
 #include "xtable.h"
 #include "array.h"
-//#include "subquery.h"
 #include "filter.h"
-//#include "token.h"
-//#include "select.h"
 #include "xindex.h"
-#if defined(MONGO_SUPPORT)
-#include "filamtxt.h"
-#include "tabdos.h"
-#include "tabjson.h"
+#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
 #include "tabext.h"
-#include "tabmgo.h"
-#endif   // MONGO_SUPPORT
+#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
 
 /***********************************************************************/
 /*  Utility routines.                                                  */
@@ -1412,11 +1405,11 @@ PFIL FILTER::Copy(PTABS t)
   } // end of Copy
 #endif // 0
 
+#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
 /***********************************************************************/
 /*  Make selector json representation for Mongo tables.                */
 /***********************************************************************/
-#if defined(MONGO_SUPPORT)
-bool FILTER::MakeSelector(PGLOBAL g, PSTRG s, bool m)
+bool FILTER::MakeSelector(PGLOBAL g, PSTRG s)
 {
 	s->Append('{');
 
@@ -1428,29 +1421,21 @@ bool FILTER::MakeSelector(PGLOBAL g, PSTRG s, bool m)
 		s->Append(Opc == OP_AND ? "and" : "or");
 		s->Append("\":[");
 
-		if (((PFIL)Arg(0))->MakeSelector(g, s, m))
+		if (((PFIL)Arg(0))->MakeSelector(g, s))
 			return true;
 
 		s->Append(',');
 
-		if (((PFIL)Arg(1))->MakeSelector(g, s, m))
+		if (((PFIL)Arg(1))->MakeSelector(g, s))
 			return true;
 
 		s->Append(']');
 	} else {
-		char *pth, buf[501];
-
 		if (GetArgType(0) != TYPE_COLBLK)
 			return true;
 
 		s->Append('"');
-
-		if (m)
-		  pth = ((PMGOCOL)Arg(0))->Jpath;
-		else if (!(pth = ((PJCOL)Arg(0))->GetJpath(g, false)))
-			return true;
-
-		s->Append(pth);
+		s->Append(((PCOL)Arg(0))->GetJpath(g, false));
 		s->Append("\":{\"$");
 
 		switch (Opc) {
@@ -1472,33 +1457,33 @@ bool FILTER::MakeSelector(PGLOBAL g, PSTRG s, bool m)
 			case OP_LE:
 				s->Append("lte");
 				break;
-				//case OP_NULL:
-				//	s->Append("ne");
-				//	break;
-				//case OP_LIKE:
-				//	s->Append("ne");
-				//	break;
-				//case OP_EXIST:
-				//	s->Append("ne");
-				//	break;
+			case OP_NULL:
+			case OP_LIKE:
+			case OP_EXIST:
 			default:
 				return true;
 		} // endswitch Opc
 
 		s->Append("\":");
 
-		if (GetArgType(1) == TYPE_COLBLK)
-			return true;
+		if (GetArgType(1) == TYPE_COLBLK) {
+			s->Append("\"$");
+			s->Append(((PEXTCOL)Arg(1))->GetJpath(g, false));
+			s->Append('"');
+		} else {
+			char buf[501];
 
-		Arg(1)->Prints(g, buf, 500);
-		s->Append(buf);
+			Arg(1)->Prints(g, buf, 500);
+			s->Append(buf);
+		} // endif Type
+
 		s->Append('}');
 	} // endif Opc
 
 	s->Append('}');
 	return false;
 } // end of MakeSelector
-#endif   // MONGO_SUPPORT
+#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
 
 /*********************************************************************/
 /*  Make file output of FILTER contents.                             */
