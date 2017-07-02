@@ -1640,7 +1640,6 @@ int ha_archive::info(uint flag)
       stats.update_time= (ulong) file_stat.st_mtime;
     if (flag & HA_STATUS_CONST)
     {
-      stats.max_data_file_length= share->rows_recorded * stats.mean_rec_length;
       stats.max_data_file_length= MAX_FILE_SIZE;
       stats.create_time= (ulong) file_stat.st_ctime;
     }
