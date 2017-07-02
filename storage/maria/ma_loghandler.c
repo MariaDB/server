@@ -1269,6 +1269,7 @@ static my_bool translog_set_lsn_for_files(uint32 from_file, uint32 to_file,
           mysql_file_close(fd, MYF(MY_WME))))
     {
       translog_stop_writing();
+      mysql_mutex_unlock(&log_descriptor.file_header_lock);
       DBUG_RETURN(1);
     }
   }
