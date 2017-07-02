@@ -4250,6 +4250,8 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     }
   */
   DBUG_PRINT("info", ("is quick repair: %d", (int) rep_quick));
+  if (!rep_quick)
+    my_b_clear(&new_data_cache);
 
   /* Initialize pthread structures before goto err. */
   mysql_mutex_init(key_SORT_INFO_mutex, &sort_info.mutex, MY_MUTEX_INIT_FAST);
@@ -4608,7 +4610,7 @@ err:
     already or they were not yet started (if the error happend before
     creating the threads).
   */
-  if (!rep_quick)
+  if (!rep_quick && my_b_inited(&new_data_cache))
     end_io_cache(&new_data_cache);
   if (!got_error)
   {
