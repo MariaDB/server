@@ -5496,6 +5496,8 @@ static void create_new_thread(THD *thd)
 
   MYSQL_CALLBACK(thd->scheduler, add_connection, (thd));
 
+  mysql_mutex_unlock(&LOCK_thread_count);
+
   DBUG_VOID_RETURN;
 }
 #endif /* EMBEDDED_LIBRARY */
