@@ -2291,10 +2291,11 @@ static void translog_set_only_in_buffers(TRANSLOG_ADDRESS in_buffers)
   if (cmp_translog_addr(in_buffers, log_descriptor.in_buffers_only) > 0)
   {
     if (translog_status != TRANSLOG_OK)
-      DBUG_VOID_RETURN;
+      goto end;
     log_descriptor.in_buffers_only= in_buffers;
     DBUG_PRINT("info", ("set new in_buffers_only"));
   }
+end:
   mysql_mutex_unlock(&log_descriptor.sent_to_disk_lock);
   DBUG_VOID_RETURN;
 }
