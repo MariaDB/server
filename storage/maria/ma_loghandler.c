@@ -7775,7 +7775,7 @@ void translog_flush_buffers(TRANSLOG_ADDRESS *lsn,
 {
   dirty_buffer_mask_t dirty_buffer_mask;
   uint i;
-  uint8 UNINIT_VAR(last_buffer_no), start_buffer_no;
+  uint8 last_buffer_no, start_buffer_no;
   DBUG_ENTER("translog_flush_buffers");
 
   /*
@@ -7839,6 +7839,10 @@ void translog_flush_buffers(TRANSLOG_ADDRESS *lsn,
     last_buffer_no= ((log_descriptor.bc.buffer_no + TRANSLOG_BUFFERS_NO -1) %
                      TRANSLOG_BUFFERS_NO);
     translog_unlock();
+  }
+  else
+  {
+    last_buffer_no= 0;
   }
   /* flush buffers */
   *sent_to_disk= translog_get_sent_to_disk();
