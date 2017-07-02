@@ -811,7 +811,6 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
   }
 
   DBUG_ASSERT(i == nb);
-  mysql_mutex_unlock(&THR_LOCK_maria);
   DBUG_PRINT("info",("found %u table shares", nb));
 
   str->length=
@@ -1207,8 +1206,6 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
 err:
   if (unlikely(unmark_tables))
   {
-    /* maria_close() uses THR_LOCK_maria from start to end */
-    mysql_mutex_lock(&THR_LOCK_maria);
     for (i= 0; i < nb; i++)
     {
       MARIA_SHARE *share= distinct_shares[i];
@@ -1224,8 +1221,8 @@ err:
         share->in_checkpoint= 0;
       }
     }
-    mysql_mutex_unlock(&THR_LOCK_maria);
   }
+  mysql_mutex_unlock(&THR_LOCK_maria);
   my_free(distinct_shares);
   my_free(state_copies);
   DBUG_RETURN(error);
