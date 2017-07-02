@@ -56,7 +56,7 @@
 //#if defined(__WIN__)
 //extern "C" HINSTANCE s_hModule;           // Saved module handle
 //#endif   // __WIN__
-//#define nullptr 0
+#define nullptr 0
 
 TYPCONV GetTypeConv();
 int GetConvSize();

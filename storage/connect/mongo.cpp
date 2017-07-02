@@ -81,8 +81,12 @@ PTDB MGODEF::GetTable(PGLOBAL g, MODE m)
 		if (Driver && toupper(*Driver) == 'C')
 			return new(g)TDBGOL(this);
 #endif   // MONGO_SUPPORT
-		strcpy(g->Message, "No column find for Java Mongo yet");
+#if defined(JDBC_SUPPORT)
+		return new(g)TDBJGL(this);
+#else   // !JDBC_SUPPORT
+		strcpy(g->Message, "No column find, no MONGO nor Java support");
 		return NULL;
+#endif  // !JDBC_SUPPORT
 	} // endif Catfunc
 
 #if defined(MONGO_SUPPORT)

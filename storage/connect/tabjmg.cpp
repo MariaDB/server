@@ -33,6 +33,8 @@
 #define MAXCOL          200        /* Default max column nb in result  */
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
 
+PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
+
 /* --------------------------- Class TDBJMG -------------------------- */
 
 /***********************************************************************/
@@ -481,25 +483,26 @@ bool JMGCOL::AddValue(PGLOBAL g, bson_t *doc, char *key, bool upd)
 		return false;
 
 } // end of AddValue
+#endif // 0
 
-/* ---------------------------TDBGOL class --------------------------- */
+/* -------------------------- TDBJGL class --------------------------- */
 
 /***********************************************************************/
-/*  TDBGOL class constructor.                                          */
+/*  TDBJGL class constructor.                                          */
 /***********************************************************************/
-TDBGOL::TDBGOL(PMGODEF tdp) : TDBCAT(tdp)
+TDBJGL::TDBJGL(PMGODEF tdp) : TDBCAT(tdp)
 {
 	Topt = tdp->GetTopt();
-	Db = (char*)tdp->GetTabschema();
+	Uri = tdp->Uri;
+	Db = tdp->GetTabschema();
 } // end of TDBJCL constructor
 
 	/***********************************************************************/
 	/*  GetResult: Get the list the JSON file columns.                     */
 	/***********************************************************************/
-PQRYRES TDBGOL::GetResult(PGLOBAL g)
+PQRYRES TDBJGL::GetResult(PGLOBAL g)
 {
-	return MGOColumns(g, Db, Topt, false);
+	return JSONColumns(g, Db, Uri, Topt, false);
 } // end of GetResult
-#endif // 0
 
 	/* -------------------------- End of mongo --------------------------- */

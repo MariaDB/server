@@ -6079,6 +6079,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
   THD    *thd= ha_thd();
+	LEX_STRING cnc = table_arg->s->connect_string;
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
   partition_info *part_info= table_arg->part_info;
 #endif   // WITH_PARTITION_STORAGE_ENGINE
@@ -6126,7 +6127,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   if (check_privileges(thd, options, GetDBfromName(name)))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  inward= IsFileType(type) && !options->filename;
+  inward= IsFileType(type) && !options->filename &&
+		     (type != TAB_JSON || !cnc.length);
 
   if (options->data_charset) {
     const CHARSET_INFO *data_charset;
@@ -6223,7 +6225,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
           } // endif CheckSelf
 
-       }break;
+       } break;
       default: /* do nothing */;
         break;
      } // endswitch ttp

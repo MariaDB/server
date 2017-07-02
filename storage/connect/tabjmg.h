@@ -102,21 +102,20 @@ protected:
 //char   *Mbuf;									// The Mini buffer
 }; // end of class JMGCOL
 
-#if 0
 /***********************************************************************/
 /*  This is the class declaration for the MONGO catalog table.         */
 /***********************************************************************/
-class DllExport TDBGOL : public TDBCAT {
+class DllExport TDBJGL : public TDBCAT {
 public:
 	// Constructor
-	TDBGOL(PMGODEF tdp);
+	TDBJGL(PMGODEF tdp);
 
 protected:
 	// Specific routines
 	virtual PQRYRES GetResult(PGLOBAL g);
 
 	// Members
-	PTOS  Topt;
-	char *Db;
+	PTOS Topt;
+	PCSZ Uri;
+	PCSZ Db;
 }; // end of class TDBGOL
-#endif 0

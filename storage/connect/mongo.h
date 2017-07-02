@@ -32,6 +32,7 @@ class DllExport MGODEF : public EXTDEF {          /* Table description */
 	friend class TDBMGO;
 	friend class TDBJMG;
 	friend class TDBGOL;
+	friend class TDBJGL;
 	friend class MGOFAM;
 	friend class MGODISC;
 	friend PQRYRES MGOColumns(PGLOBAL, PCSZ, PCSZ, PTOS, bool);
