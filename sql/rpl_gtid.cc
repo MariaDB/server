@@ -476,7 +476,7 @@ gtid_check_rpl_slave_state_table(TABLE *table)
   that is already in use by the current transaction, if any.
 */
 void
-rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename)
+rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename)
 {
   struct gtid_pos_table *list, *table_entry, *default_entry;
 
@@ -589,7 +589,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   Query_tables_list lex_backup;
   wait_for_commit* suspended_wfc;
   void *hton= NULL;
-  LEX_STRING gtid_pos_table_name;
+  LEX_CSTRING gtid_pos_table_name;
   DBUG_ENTER("record_gtid");
 
   *out_hton= NULL;
@@ -1287,7 +1287,7 @@ rpl_slave_state::add_gtid_pos_table(rpl_slave_state::gtid_pos_table *entry)
 
 
 struct rpl_slave_state::gtid_pos_table *
-rpl_slave_state::alloc_gtid_pos_table(LEX_STRING *table_name, void *hton,
+rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
                                       rpl_slave_state::gtid_pos_table_state state)
 {
   struct gtid_pos_table *p;

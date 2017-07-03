@@ -177,7 +177,7 @@ struct rpl_slave_state
       for each GTID row.
     */
     void *table_hton;
-    LEX_STRING table_name;
+    LEX_CSTRING table_name;
     uint8 state;
   };
 
@@ -223,7 +223,7 @@ struct rpl_slave_state
   int update(uint32 domain_id, uint32 server_id, uint64 sub_id,
              uint64 seq_no, void *hton, rpl_group_info *rgi);
   int truncate_state_table(THD *thd);
-  void select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename);
+  void select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                   bool in_transaction, bool in_statement, void **out_hton);
   uint64 next_sub_id(uint32 domain_id);
@@ -247,7 +247,7 @@ struct rpl_slave_state
   void set_gtid_pos_tables_list(gtid_pos_table *new_list,
                                 gtid_pos_table *default_entry);
   void add_gtid_pos_table(gtid_pos_table *entry);
-  struct gtid_pos_table *alloc_gtid_pos_table(LEX_STRING *table_name,
+  struct gtid_pos_table *alloc_gtid_pos_table(LEX_CSTRING *table_name,
       void *hton, rpl_slave_state::gtid_pos_table_state state);
   void free_gtid_pos_tables(struct gtid_pos_table *list);
 };

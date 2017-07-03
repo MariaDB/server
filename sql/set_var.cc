@@ -1320,12 +1320,12 @@ resolve_engine_list_item(THD *thd, plugin_ref *list, uint32 *idx,
                          const char *pos, const char *pos_end,
                          bool error_on_unknown_engine, bool temp_copy)
 {
-  LEX_STRING item_str;
+  LEX_CSTRING item_str;
   plugin_ref ref;
   uint32_t i;
   THD *thd_or_null = (temp_copy ? thd : NULL);
 
-  item_str.str= const_cast<char*>(pos);
+  item_str.str= pos;
   item_str.length= pos_end-pos;
   ref= ha_resolve_by_name(thd_or_null, &item_str, false);
   if (!ref)
@@ -1494,7 +1494,7 @@ pretty_print_engine_list(THD *thd, plugin_ref *list)
   pos= buf;
   for (p= list; *p; ++p)
   {
-    LEX_STRING *name;
+    LEX_CSTRING *name;
     size_t remain;
 
     remain= buf + size - pos;

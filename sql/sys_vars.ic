@@ -1637,9 +1637,9 @@ public:
   {
     return (uchar*)pretty_print_engine_list(thd, plugins);
   }
-  uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
+  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
   { return valptr(thd, session_var(thd, plugin_ref*)); }
-  uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
+  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
   { return valptr(thd, global_var(plugin_ref*)); }
   uchar *default_value_ptr(THD *thd)
   { return valptr(thd, get_default(thd)); }

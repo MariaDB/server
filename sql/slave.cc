@@ -301,8 +301,8 @@ static const char gtid_pos_table_definition2[]=
 */
 static bool
 build_gtid_pos_create_query(THD *thd, String *query,
-                            LEX_STRING *table_name,
-                            LEX_STRING *engine_name)
+                            LEX_CSTRING *table_name,
+                            LEX_CSTRING *engine_name)
 {
   bool err= false;
   err|= query->append(gtid_pos_table_definition1);
@@ -314,7 +314,7 @@ build_gtid_pos_create_query(THD *thd, String *query,
 
 
 static int
-gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_STRING *table_name)
+gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
 {
   int err;
   StringBuffer<sizeof(gtid_pos_table_definition1) +
@@ -356,7 +356,7 @@ handle_gtid_pos_auto_create_request(THD *thd, void *hton)
   plugin_ref engine= NULL, *auto_engines;
   rpl_slave_state::gtid_pos_table *entry;
   StringBuffer<FN_REFLEN> loc_table_name;
-  LEX_STRING table_name;
+  LEX_CSTRING table_name;
 
   /*
     Check that the plugin is still in @@gtid_pos_auto_engines, and lock

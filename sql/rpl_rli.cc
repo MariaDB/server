@@ -1472,7 +1472,7 @@ struct gtid_pos_element { uint64 sub_id; rpl_gtid gtid; void *hton; };
 
 static int
 scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
-                              LEX_STRING *tablename, void **out_hton)
+                              LEX_CSTRING *tablename, void **out_hton)
 {
   TABLE_LIST tlist;
   TABLE *table;
@@ -1594,10 +1594,10 @@ end:
   into HASH.
 */
 static int
-scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_STRING *, void *),
+scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
                               void *cb_data)
 {
-  static LEX_STRING mysql_db_name= {C_STRING_WITH_LEN("mysql")};
+  static LEX_CSTRING mysql_db_name= {C_STRING_WITH_LEN("mysql")};
   char path[FN_REFLEN];
   MY_DIR *dirp;
 
@@ -1616,7 +1616,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_STRING *, void *),
   else
   {
     size_t i;
-    Dynamic_array<LEX_STRING*> files(dirp->number_of_files);
+    Dynamic_array<LEX_CSTRING*> files(dirp->number_of_files);
     Discovered_table_list tl(thd, &files);
     int err;
 
@@ -1651,7 +1651,7 @@ struct load_gtid_state_cb_data {
 };
 
 static int
-process_gtid_pos_table(THD *thd, LEX_STRING *table_name, void *hton,
+process_gtid_pos_table(THD *thd, LEX_CSTRING *table_name, void *hton,
                        struct load_gtid_state_cb_data *data)
 {
   struct rpl_slave_state::gtid_pos_table *p, *entry, **next_ptr;
@@ -1718,7 +1718,7 @@ gtid_pos_auto_create_tables(rpl_slave_state::gtid_pos_table **list_ptr)
   {
     void *hton= plugin_hton(*auto_engines);
     char buf[FN_REFLEN+1];
-    LEX_STRING table_name;
+    LEX_CSTRING table_name;
     char *p;
     rpl_slave_state::gtid_pos_table *entry, **next_ptr;
 
@@ -1756,7 +1756,7 @@ gtid_pos_auto_create_tables(rpl_slave_state::gtid_pos_table **list_ptr)
 
 
 static int
-load_gtid_state_cb(THD *thd, LEX_STRING *table_name, void *arg)
+load_gtid_state_cb(THD *thd, LEX_CSTRING *table_name, void *arg)
 {
   int err;
   load_gtid_state_cb_data *data= static_cast<load_gtid_state_cb_data *>(arg);
@@ -1875,7 +1875,7 @@ end:
 
 
 static int
-find_gtid_pos_tables_cb(THD *thd, LEX_STRING *table_name, void *arg)
+find_gtid_pos_tables_cb(THD *thd, LEX_CSTRING *table_name, void *arg)
 {
   load_gtid_state_cb_data *data= static_cast<load_gtid_state_cb_data *>(arg);
   TABLE_LIST tlist;
