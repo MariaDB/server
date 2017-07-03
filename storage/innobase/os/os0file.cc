@@ -3321,15 +3321,8 @@ os_file_get_status_posix(
 	    && (stat_info->type == OS_FILE_TYPE_FILE
 		|| stat_info->type == OS_FILE_TYPE_BLOCK)) {
 
-		int	fh = open(path, read_only ? O_RDONLY : O_RDWR,
-				  os_innodb_umask);
-
-		if (fh == -1) {
-			stat_info->rw_perm = false;
-		} else {
-			stat_info->rw_perm = true;
-			close(fh);
-		}
+		stat_info->rw_perm = !access(path, read_only
+					     ? R_OK : R_OK | W_OK);
 	}
 
 	return(DB_SUCCESS);
