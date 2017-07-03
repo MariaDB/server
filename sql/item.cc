@@ -5045,6 +5045,13 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
                              (Item_ident*) (*reference) :
                              0));
+          if (thd->lex->in_sum_func &&
+              thd->lex->in_sum_func->nest_level >= select->nest_level)
+          {
+            Item::Type ref_type= (*reference)->type();
+            set_if_bigger(thd->lex->in_sum_func->max_arg_level,
+                          select->nest_level);
+          }
           /*
             A reference to a view field had been found and we
             substituted it instead of this Item (find_field_in_tables
