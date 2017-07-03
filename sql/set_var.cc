@@ -1293,3 +1293,222 @@ enum sys_var::where get_sys_var_value_origin(void *ptr)
   return sys_var::CONFIG;
 }
 
+
+/*
+  Find the next item in string of comma-separated items.
+  END_POS points at the end of the string.
+  ITEM_START and ITEM_END return the limits of the next item.
+  Returns true while items are available, false at the end.
+*/
+static bool
+engine_list_next_item(const char **pos, const char *end_pos,
+                      const char **item_start, const char **item_end)
+{
+  if (*pos >= end_pos)
+    return false;
+  *item_start= *pos;
+  while (*pos < end_pos && **pos != ',')
+    ++*pos;
+  *item_end= *pos;
+  ++*pos;
+  return true;
+}
+
+
+static bool
+resolve_engine_list_item(THD *thd, plugin_ref *list, uint32 *idx,
+                         const char *pos, const char *pos_end,
+                         bool error_on_unknown_engine, bool temp_copy)
+{
+  LEX_STRING item_str;
+  plugin_ref ref;
+  uint32_t i;
+  THD *thd_or_null = (temp_copy ? thd : NULL);
+
+  item_str.str= const_cast<char*>(pos);
+  item_str.length= pos_end-pos;
+  ref= ha_resolve_by_name(thd_or_null, &item_str, false);
+  if (!ref)
+  {
+    if (error_on_unknown_engine)
+    {
+      ErrConvString err(pos, pos_end-pos, system_charset_info);
+      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), err.ptr());
+      return true;
+    }
+    return false;
+  }
+  /* Ignore duplicates, like --plugin-load does. */
+  for (i= 0; i < *idx; ++i)
+  {
+    if (plugin_hton(list[i]) == plugin_hton(ref))
+    {
+      if (!temp_copy)
+        plugin_unlock(NULL, ref);
+      return false;
+    }
+  }
+  list[*idx]= ref;
+  ++*idx;
+  return false;
+}
+
+
+/*
+  Helper for class Sys_var_pluginlist.
+  Resolve a comma-separated list of storage engine names to a null-terminated
+  array of plugin_ref.
+
+  If TEMP_COPY is true, a THD must be given as well. In this case, the
+  allocated memory and locked plugins are registered in the THD and will
+  be freed / unlocked automatically. If TEMP_COPY is true, THD can be
+  passed as NULL, and resources must be freed explicitly later with
+  free_engine_list().
+*/
+plugin_ref *
+resolve_engine_list(THD *thd, const char *str_arg, size_t str_arg_len,
+                    bool error_on_unknown_engine, bool temp_copy)
+{
+  uint32 count, idx;
+  const char *pos, *item_start, *item_end;
+  const char *str_arg_end= str_arg + str_arg_len;
+  plugin_ref *res;
+
+  count= 0;
+  pos= str_arg;
+  for (;;)
+  {
+    if (!engine_list_next_item(&pos, str_arg_end, &item_start, &item_end))
+      break;
+    ++count;
+  }
+
+  if (temp_copy)
+    res= (plugin_ref *)thd->calloc((count+1)*sizeof(*res));
+  else
+    res= (plugin_ref *)my_malloc((count+1)*sizeof(*res), MYF(MY_ZEROFILL|MY_WME));
+  if (!res)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*res)));
+    goto err;
+  }
+
+  idx= 0;
+  pos= str_arg;
+  for (;;)
+  {
+    if (!engine_list_next_item(&pos, str_arg_end, &item_start, &item_end))
+      break;
+    DBUG_ASSERT(idx < count);
+    if (idx >= count)
+      break;
+    if (resolve_engine_list_item(thd, res, &idx, item_start, item_end,
+                                 error_on_unknown_engine, temp_copy))
+      goto err;
+  }
+
+  return res;
+
+err:
+  if (!temp_copy)
+    free_engine_list(res);
+  return NULL;
+}
+
+
+void
+free_engine_list(plugin_ref *list)
+{
+  plugin_ref *p;
+
+  if (!list)
+    return;
+  for (p= list; *p; ++p)
+    plugin_unlock(NULL, *p);
+  my_free(list);
+}
+
+
+plugin_ref *
+copy_engine_list(plugin_ref *list)
+{
+  plugin_ref *p;
+  uint32 count, i;
+
+  for (p= list, count= 0; *p; ++p, ++count)
+    ;
+  p= (plugin_ref *)my_malloc((count+1)*sizeof(*p), MYF(0));
+  if (!p)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*p)));
+    return NULL;
+  }
+  for (i= 0; i < count; ++i)
+    p[i]= my_plugin_lock(NULL, list[i]);
+  p[i] = NULL;
+  return p;
+}
+
+
+/*
+  Create a temporary copy of an engine list. The memory will be freed
+  (and the plugins unlocked) automatically, on the passed THD.
+*/
+plugin_ref *
+temp_copy_engine_list(THD *thd, plugin_ref *list)
+{
+  plugin_ref *p;
+  uint32 count, i;
+
+  for (p= list, count= 0; *p; ++p, ++count)
+    ;
+  p= (plugin_ref *)thd->alloc((count+1)*sizeof(*p));
+  if (!p)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*p)));
+    return NULL;
+  }
+  for (i= 0; i < count; ++i)
+    p[i]= my_plugin_lock(thd, list[i]);
+  p[i] = NULL;
+  return p;
+}
+
+
+char *
+pretty_print_engine_list(THD *thd, plugin_ref *list)
+{
+  plugin_ref *p;
+  size_t size;
+  char *buf, *pos;
+
+  if (!list)
+    return thd->strmake("", 0);
+
+  size= 0;
+  for (p= list; *p; ++p)
+    size+= plugin_name(*p)->length + 1;
+  buf= static_cast<char *>(thd->alloc(size));
+  if (!buf)
+    return NULL;
+  pos= buf;
+  for (p= list; *p; ++p)
+  {
+    LEX_STRING *name;
+    size_t remain;
+
+    remain= buf + size - pos;
+    DBUG_ASSERT(remain > 0);
+    if (remain <= 1)
+      break;
+    if (pos != buf)
+    {
+      pos= strmake(pos, ",", remain-1);
+      --remain;
+    }
+    name= plugin_name(*p);
+    pos= strmake(pos, name->str, MY_MIN(name->length, remain-1));
+  }
+  *pos= '\0';
+  return buf;
+}

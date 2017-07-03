@@ -232,6 +232,20 @@ EOF
 SET sql_log_bin= 0;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 SET sql_log_bin= 1;
+# Do a second restart to get the mysql.gtid_slave_pos table loaded with
+# the right engine.
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart:  
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
 --source include/start_slave.inc
 
 --connection server_1
@@ -285,7 +299,7 @@ SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 --connection server_2
 SET sql_log_bin=0;
 --let $old_pos= `SELECT @@GLOBAL.gtid_slave_pos`
-RENAME TABLE mysql.gtid_slave_pos TO mysql.gtid_slave_pos_old;
+RENAME TABLE mysql.gtid_slave_pos TO mysql.old_gtid_slave_pos;
 SET sql_log_bin=1;
 
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
@@ -313,7 +327,7 @@ SHOW WARNINGS;
 # Restore things.
 
 SET sql_log_bin=0;
-RENAME TABLE mysql.gtid_slave_pos_old TO mysql.gtid_slave_pos;
+RENAME TABLE mysql.old_gtid_slave_pos TO mysql.gtid_slave_pos;
 CALL mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
 SET sql_log_bin=1;
 

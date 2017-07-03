@@ -112,6 +112,12 @@ struct rpl_slave_state
     uint64 sub_id;
     uint64 seq_no;
     uint32 server_id;
+    /*
+      hton of mysql.gtid_slave_pos* table used to record this GTID.
+      Can be NULL if the gtid table failed to load (eg. missing
+      mysql.gtid_slave_pos table following an upgrade).
+    */
+    void *hton;
   };
 
   /* Elements in the HASH that hold the state for one domain_id. */
@@ -155,6 +161,26 @@ struct rpl_slave_state
     }
   };
 
+  /* Descriptor for mysql.gtid_slave_posXXX table in specific engine. */
+  enum gtid_pos_table_state {
+    GTID_POS_AUTO_CREATE,
+    GTID_POS_CREATE_REQUESTED,
+    GTID_POS_CREATE_IN_PROGRESS,
+    GTID_POS_AVAILABLE
+  };
+  struct gtid_pos_table {
+    struct gtid_pos_table *next;
+    /*
+      Use a void * here, rather than handlerton *, to make explicit that we
+      are not using the value to access any functionality in the engine. It
+      is just used as an opaque value to identify which engine we are using
+      for each GTID row.
+    */
+    void *table_hton;
+    LEX_STRING table_name;
+    uint8 state;
+  };
+
   /* Mapping from domain_id to its element. */
   HASH hash;
   /* Mutex protecting access to the state. */
@@ -163,6 +189,30 @@ struct rpl_slave_state
   DYNAMIC_ARRAY gtid_sort_array;
 
   uint64 last_sub_id;
+  /*
+    List of tables available for durably storing the slave GTID position.
+
+    Accesses to this table is protected by LOCK_slave_state. However for
+    efficiency, there is also a provision for read access to it from a running
+    slave without lock.
+
+    An element can be added at the head of a list by storing the new
+    gtid_pos_tables pointer atomically with release semantics, to ensure that
+    the next pointer of the new element is visible to readers of the new list.
+    Other changes (like deleting or replacing elements) must happen only while
+    all SQL driver threads are stopped. LOCK_slave_state must be held in any
+    case.
+
+    The list can be read without lock by an SQL driver thread or worker thread
+    by reading the gtid_pos_tables pointer atomically with acquire semantics,
+    to ensure that it will see the correct next pointer of a new head element.
+
+    The type is struct gtid_pos_table *, but needs to be void * to allow using
+    my_atomic operations without violating C strict aliasing semantics.
+  */
+  void * volatile gtid_pos_tables;
+  /* The default entry in gtid_pos_tables, mysql.gtid_slave_pos. */
+  void * volatile default_gtid_pos_table;
   bool loaded;
 
   rpl_slave_state();
@@ -171,10 +221,11 @@ struct rpl_slave_state
   void truncate_hash();
   ulong count() const { return hash.records; }
   int update(uint32 domain_id, uint32 server_id, uint64 sub_id,
-             uint64 seq_no, rpl_group_info *rgi);
+             uint64 seq_no, void *hton, rpl_group_info *rgi);
   int truncate_state_table(THD *thd);
+  void select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
-                  bool in_transaction, bool in_statement);
+                  bool in_transaction, bool in_statement, void **out_hton);
   uint64 next_sub_id(uint32 domain_id);
   int iterate(int (*cb)(rpl_gtid *, void *), void *data,
               rpl_gtid *extra_gtids, uint32 num_extra,
@@ -188,10 +239,17 @@ struct rpl_slave_state
   element *get_element(uint32 domain_id);
   int put_back_list(uint32 domain_id, list_element *list);
 
-  void update_state_hash(uint64 sub_id, rpl_gtid *gtid, rpl_group_info *rgi);
+  void update_state_hash(uint64 sub_id, rpl_gtid *gtid, void *hton,
+                         rpl_group_info *rgi);
   int record_and_update_gtid(THD *thd, struct rpl_group_info *rgi);
   int check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi);
   void release_domain_owner(rpl_group_info *rgi);
+  void set_gtid_pos_tables_list(gtid_pos_table *new_list,
+                                gtid_pos_table *default_entry);
+  void add_gtid_pos_table(gtid_pos_table *entry);
+  struct gtid_pos_table *alloc_gtid_pos_table(LEX_STRING *table_name,
+      void *hton, rpl_slave_state::gtid_pos_table_state state);
+  void free_gtid_pos_tables(struct gtid_pos_table *list);
 };
 
 

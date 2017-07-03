@@ -65,6 +65,7 @@ include/wait_for_slave_to_start.inc
 set default_master_connection = '';
 connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CALL mtr.add_suppression("This change will not take full effect until all SQL threads have been restarted");
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 BEGIN;
@@ -491,17 +492,21 @@ SET GLOBAL slave_parallel_threads= @old_parallel;
 SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
 connection server_1;
 DROP TABLE t1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 include/reset_master_slave.inc
 disconnect server_1;
 connection server_2;
 DROP TABLE t1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 include/reset_master_slave.inc
 disconnect server_2;
 connection server_3;
 DROP TABLE t1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 include/reset_master_slave.inc
 disconnect server_3;
 connection server_4;
 DROP TABLE t1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 include/reset_master_slave.inc
 disconnect server_4;

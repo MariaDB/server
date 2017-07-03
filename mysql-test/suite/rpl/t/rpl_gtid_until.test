@@ -19,6 +19,9 @@ delimiter ;|
 
 --connection server_2
 --sync_with_master
+# Restart SQL thread to pick up ALTER TABLE of mysql.gtid_slave_pos.
+--source include/stop_slave.inc
+--source include/start_slave.inc
 
 # Both replication threads must be stopped for UNTIL master_gtid_pos.
 --error ER_SLAVE_WAS_RUNNING

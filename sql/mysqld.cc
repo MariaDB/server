@@ -372,6 +372,8 @@ char *my_bind_addr_str;
 static char *default_collation_name;
 char *default_storage_engine, *default_tmp_storage_engine;
 char *enforced_storage_engine=NULL;
+char *gtid_pos_auto_engines;
+plugin_ref *opt_gtid_pos_auto_plugins;
 static char compiled_default_collation_name[]= MYSQL_DEFAULT_COLLATION_NAME;
 static I_List<CONNECT> thread_cache;
 static bool binlog_format_used= false;
@@ -523,6 +525,9 @@ ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
 uint max_digest_length= 0;
 ulong slave_retried_transactions;
+ulong transactions_multi_engine;
+ulong rpl_transactions_multi_engine;
+ulong transactions_gtid_foreign_engine;
 ulonglong slave_skipped_errors;
 ulong feature_files_opened_with_delayed_keys= 0, feature_check_constraint= 0;
 ulonglong denied_connections;
@@ -4258,6 +4263,7 @@ static int init_common_variables()
   default_storage_engine= const_cast<char *>("MyISAM");
 #endif
   default_tmp_storage_engine= NULL;
+  gtid_pos_auto_engines= const_cast<char *>("");
 
   /*
     Add server status variables to the dynamic list of
@@ -4937,6 +4943,34 @@ static int init_default_storage_engine_impl(const char *opt_name,
   return 0;
 }
 
+
+static int
+init_gtid_pos_auto_engines(void)
+{
+  plugin_ref *plugins;
+
+  /*
+    For the command-line option --gtid_pos_auto_engines, we allow (and ignore)
+    engines that are unknown. This is convenient, since it allows to set
+    default auto-create engines that might not be used by particular users.
+    The option sets a list of storage engines that will have gtid position
+    table auto-created for them if needed. And if the engine is not available,
+    then it will certainly not be needed.
+  */
+  if (gtid_pos_auto_engines)
+    plugins= resolve_engine_list(NULL, gtid_pos_auto_engines,
+                                 strlen(gtid_pos_auto_engines), false, false);
+  else
+    plugins= resolve_engine_list(NULL, "", 0, false, false);
+  if (!plugins)
+    return 1;
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  opt_gtid_pos_auto_plugins= plugins;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  return 0;
+}
+
+
 static int init_server_components()
 {
   DBUG_ENTER("init_server_components");
@@ -5372,6 +5406,9 @@ static int init_server_components()
     unireg_abort(1);
 
   if (init_default_storage_engine(enforced_storage_engine, enforced_table_plugin))
+    unireg_abort(1);
+
+  if (init_gtid_pos_auto_engines())
     unireg_abort(1);
 
 #ifdef USE_ARIA_FOR_TMP_TABLES
@@ -7367,6 +7404,14 @@ struct my_option my_long_options[]=
    "Set up signals usable for debugging. Deprecated, use --debug-gdb instead.",
    &opt_debugging, &opt_debugging,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"gtid-pos-auto-engines", 0,
+   "List of engines for which to automatically create a "
+   "mysql.gtid_slave_pos_ENGINE table, if a transaction using that engine "
+   "is replicated. This can be used to avoid introducing cross-engine "
+   "transactions, if engines are used different from that used by table "
+   "mysql.gtid_slave_pos",
+   &gtid_pos_auto_engines, 0, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0 },
 #ifdef HAVE_LARGE_PAGE_OPTION
   {"super-large-pages", 0, "Enable support for super large pages.",
    &opt_super_large_pages, &opt_super_large_pages, 0,
@@ -7764,7 +7809,7 @@ static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
   var->type= SHOW_LONGLONG;
   var->value= buff;
 
-  *((longlong *)buff)= any_slave_sql_running();
+  *((longlong *)buff)= any_slave_sql_running(false);
 
   return 0;
 }
@@ -8539,6 +8584,9 @@ SHOW_VAR status_vars[]= {
   {"Threads_connected",        (char*) &connection_count,       SHOW_INT},
   {"Threads_created",	       (char*) &thread_created,		SHOW_LONG_NOFLUSH},
   {"Threads_running",          (char*) &thread_running,         SHOW_INT},
+  {"Transactions_multi_engine", (char*) &transactions_multi_engine, SHOW_LONG},
+  {"Rpl_transactions_multi_engine", (char*) &rpl_transactions_multi_engine, SHOW_LONG},
+  {"Transactions_gtid_foreign_engine", (char*) &transactions_gtid_foreign_engine, SHOW_LONG},
   {"Update_scan",	       (char*) offsetof(STATUS_VAR, update_scan_count), SHOW_LONG_STATUS},
   {"Uptime",                   (char*) &show_starttime,         SHOW_SIMPLE_FUNC},
 #ifdef ENABLED_PROFILING
@@ -8782,6 +8830,9 @@ static int mysql_init_variables(void)
   report_user= report_password = report_host= 0;	/* TO BE DELETED */
   opt_relay_logname= opt_relaylog_index_name= 0;
   slave_retried_transactions= 0;
+  transactions_multi_engine= 0;
+  rpl_transactions_multi_engine= 0;
+  transactions_gtid_foreign_engine= 0;
   log_bin_basename= NULL;
   log_bin_index= NULL;
 

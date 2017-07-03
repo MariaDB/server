@@ -1466,7 +1466,7 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
   */
   if (!new_count && !force)
   {
-    if (any_slave_sql_running())
+    if (any_slave_sql_running(false))
     {
       DBUG_PRINT("warning",
                  ("SQL threads running while trying to reset parallel pool"));
@@ -1621,7 +1621,7 @@ err:
 int rpl_parallel_resize_pool_if_no_slaves(void)
 {
   /* master_info_index is set to NULL on shutdown */
-  if (opt_slave_parallel_threads > 0 && !any_slave_sql_running())
+  if (opt_slave_parallel_threads > 0 && !any_slave_sql_running(false))
     return rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   return 0;
 }
