@@ -1002,6 +1002,7 @@ retry:
     if (thd->killed)
     {
       stop_waiting_locked(thd);
+      rc_unlock(rc);
       DBUG_RETURN(WT_DEADLOCK);
     }
   }
@@ -1017,12 +1018,14 @@ retry:
     if (push_dynamic(&blocker->my_resources, (void*)&rc))
     {
       stop_waiting_locked(thd);
+      rc_unlock(rc);
       DBUG_RETURN(WT_DEADLOCK); /* deadlock and OOM use the same error code */
     }
     if (push_dynamic(&rc->owners, (void*)&blocker))
     {
       pop_dynamic(&blocker->my_resources);
       stop_waiting_locked(thd);
+      rc_unlock(rc);
       DBUG_RETURN(WT_DEADLOCK);
     }
   }
