@@ -5971,14 +5971,6 @@ innobase_match_index_columns(
 			spatial index on it and we intend to use DATA_GEOMETRY
 			for legacy GIS data types which are of var-length. */
 			switch (col_type) {
-			case DATA_POINT:
-			case DATA_VAR_POINT:
-				if (DATA_POINT_MTYPE(mtype)
-				    || mtype == DATA_GEOMETRY
-				    || mtype == DATA_BLOB) {
-					break;
-				}
-				/* Fall through */
 			case DATA_GEOMETRY:
 				if (mtype == DATA_BLOB) {
 					break;
@@ -7969,12 +7961,6 @@ build_template_field(
 		prebuilt->templ_contains_blob = TRUE;
 	}
 
-	if (templ->type == DATA_POINT) {
-		/* We set this only when it's DATA_POINT, but not
-		DATA_VAR_POINT */
-		prebuilt->templ_contains_fixed_point = TRUE;
-	}
-
 	return(templ);
 }
 
@@ -8059,7 +8045,6 @@ ha_innobase::build_template(
 
 	/* Prepare to build m_prebuilt->mysql_template[]. */
 	m_prebuilt->templ_contains_blob = FALSE;
-	m_prebuilt->templ_contains_fixed_point = FALSE;
 	m_prebuilt->mysql_prefix_len = 0;
 	m_prebuilt->n_template = 0;
 	m_prebuilt->idx_cond_n_cols = 0;
@@ -8950,8 +8935,6 @@ calc_row_difference(
 		switch (col_type) {
 
 		case DATA_BLOB:
-		case DATA_POINT:
-		case DATA_VAR_POINT:
 		case DATA_GEOMETRY:
 			o_ptr = row_mysql_read_blob_ref(&o_len, o_ptr, o_len);
 			n_ptr = row_mysql_read_blob_ref(&n_len, n_ptr, n_len);
@@ -11712,10 +11695,6 @@ create_table_info_t::create_table_def()
 			if (((Field_varstring*) field)->length_bytes == 2) {
 				long_true_varchar = DATA_LONG_TRUE_VARCHAR;
 			}
-		}
-
-		if (col_type == DATA_POINT) {
-			col_len = DATA_POINT_LEN;
 		}
 
 		is_virtual = (innobase_is_v_fld(field)) ? DATA_VIRTUAL : 0;
