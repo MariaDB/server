@@ -4601,7 +4601,7 @@ btr_cur_parse_del_mark_set_clust_rec(
 		btr_rec_set_deleted_flag(rec, page_zip, val);
 		ut_ad(pos <= MAX_REF_PARTS);
 
-		ulint offsets[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		ulint offsets[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 3];
 		rec_offs_init(offsets);
 		mem_heap_t*	heap	= NULL;
 
@@ -4609,7 +4609,7 @@ btr_cur_parse_del_mark_set_clust_rec(
 			row_upd_rec_sys_fields_in_recovery(
 				rec, page_zip,
 				rec_get_offsets(rec, index, offsets,
-						pos + 1, &heap),
+						pos + 2, &heap),
 				pos, trx_id, roll_ptr);
 		} else {
 			/* In delete-marked records, DB_TRX_ID must
