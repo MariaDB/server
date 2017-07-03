@@ -1669,7 +1669,7 @@ int plugin_init(int *argc, char **argv, int flags)
     */
     global_system_variables.table_plugin =
       intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
-      DBUG_ASSERT(plugin_ptr->ref_count == 1);
+    DBUG_SLOW_ASSERT(plugin_ptr->ref_count == 1);
 
   }
   mysql_mutex_unlock(&LOCK_plugin);

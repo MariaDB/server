@@ -230,7 +230,7 @@ Voluntary context switches %ld, Involuntary context switches %ld\n",
   my_init_done= my_thr_key_mysys_exists= 0;
 } /* my_end */
 
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 /* Dummy tag function for debugging */
 
 void my_debug_put_break_here(void)

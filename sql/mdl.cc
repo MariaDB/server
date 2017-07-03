@@ -2119,11 +2119,11 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     the parallel replication scheduler should never schedule a DDL while
     DML's are still running.
   */
-  DBUG_ASSERT((mdl_request->type != MDL_INTENTION_EXCLUSIVE &&
-               mdl_request->type != MDL_EXCLUSIVE) ||
-              !(get_thd()->rgi_slave &&
-                get_thd()->rgi_slave->is_parallel_exec &&
-                lock->check_if_conflicting_replication_locks(this)));
+  DBUG_SLOW_ASSERT((mdl_request->type != MDL_INTENTION_EXCLUSIVE &&
+                    mdl_request->type != MDL_EXCLUSIVE) ||
+                   !(get_thd()->rgi_slave &&
+                     get_thd()->rgi_slave->is_parallel_exec &&
+                     lock->check_if_conflicting_replication_locks(this)));
 
   mysql_prlock_unlock(&lock->m_rwlock);
 
@@ -2644,7 +2644,7 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
 
 void MDL_context::release_lock(MDL_ticket *ticket)
 {
-  DBUG_ASSERT(ticket->m_duration == MDL_EXPLICIT);
+  DBUG_SLOW_ASSERT(ticket->m_duration == MDL_EXPLICIT);
 
   release_lock(MDL_EXPLICIT, ticket);
 }
@@ -2904,8 +2904,8 @@ bool MDL_context::has_lock(const MDL_savepoint &mdl_savepoint,
 void MDL_context::set_lock_duration(MDL_ticket *mdl_ticket,
                                     enum_mdl_duration duration)
 {
-  DBUG_ASSERT(mdl_ticket->m_duration == MDL_TRANSACTION &&
-              duration != MDL_TRANSACTION);
+  DBUG_SLOW_ASSERT(mdl_ticket->m_duration == MDL_TRANSACTION &&
+                   duration != MDL_TRANSACTION);
 
   m_tickets[MDL_TRANSACTION].remove(mdl_ticket);
   m_tickets[duration].push_front(mdl_ticket);

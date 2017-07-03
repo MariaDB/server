@@ -917,7 +917,7 @@ extern int unpackfrm(uchar **, size_t *, const uchar *);
 
 extern ha_checksum my_checksum(ha_checksum crc, const uchar *mem,
                                size_t count);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 extern void my_debug_put_break_here(void);
 #else
 #define my_debug_put_break_here() do {} while(0)

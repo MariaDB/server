@@ -1677,7 +1677,7 @@ struct dict_table_t {
 	It is protected by lock_sys->mutex. */
 	ulint					n_rec_locks;
 
-#ifndef UNIV_DEBUG
+#ifndef DBUG_ASSERT_EXISTS
 private:
 #endif
 	/** Count of how many handles are opened to this table. Dropping of the

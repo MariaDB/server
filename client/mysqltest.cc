@@ -8907,7 +8907,7 @@ static void dump_backtrace(void)
 #endif
   }
   fputs("Attempting backtrace...\n", stderr);
-  my_print_stacktrace(NULL, (ulong)my_thread_stack_size);
+  my_print_stacktrace(NULL, (ulong)my_thread_stack_size, 0);
 }
 
 #else

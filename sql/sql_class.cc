@@ -833,7 +833,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   enable_slow_log= 0;
   durability_property= HA_REGULAR_DURABILITY;
 
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   dbug_sentry=THD_SENTRY_MAGIC;
 #endif
   mysql_audit_init_thd(this);
@@ -1635,7 +1635,7 @@ THD::~THD()
   mysql_cond_destroy(&COND_wakeup_ready);
   mysql_mutex_destroy(&LOCK_wakeup_ready);
   mysql_mutex_destroy(&LOCK_thd_data);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   dbug_sentry= THD_SENTRY_GONE;
 #endif  
 #ifndef EMBEDDED_LIBRARY
@@ -3692,7 +3692,7 @@ void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
 
   backup->set_query_arena(this);
   set_query_arena(set);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   backup->is_backup_arena= TRUE;
 #endif
   DBUG_VOID_RETURN;
@@ -3711,7 +3711,7 @@ void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
   DBUG_ASSERT(backup->is_backup_arena);
   set->set_query_arena(this);
   set_query_arena(backup);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   backup->is_backup_arena= FALSE;
 #endif
   DBUG_VOID_RETURN;
@@ -6409,7 +6409,7 @@ CPP_UNNAMED_NS_START
     {
       DBUG_ASSERT(s < sizeof(m_ptr)/sizeof(*m_ptr));
       DBUG_ASSERT(m_ptr[s] != 0);
-      DBUG_ASSERT(m_alloc_checked == TRUE);
+      DBUG_SLOW_ASSERT(m_alloc_checked == TRUE);
       return m_ptr[s];
     }
 

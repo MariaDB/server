@@ -217,7 +217,7 @@ int LEX::case_stmt_action_when(Item *when, bool simple)
     var= new (thd->mem_root)
          Item_case_expr(thd, spcont->get_current_case_expr_id());
 
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     if (var)
     {
       var->m_sp= sphead;
@@ -399,7 +399,7 @@ LEX::create_item_for_sp_var(LEX_CSTRING *name, sp_variable *spvar,
     Item_splocal(thd, name, spvar->offset, spvar->sql_type(),
                  pos_in_q, len_in_q);
 
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   if (item)
     item->m_sp= sphead;
 #endif

@@ -317,7 +317,7 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
   {
     if (rgi->gtid_ignore_duplicate_state==rpl_group_info::GTID_DUPLICATE_OWNER)
     {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
       Relay_log_info *rli= rgi->rli;
 #endif
       uint32 count= elem->owner_count;
@@ -2096,15 +2096,14 @@ void
 slave_connection_state::remove(const rpl_gtid *in_gtid)
 {
   uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   bool err;
   rpl_gtid *slave_gtid= &((entry *)rec)->gtid;
   DBUG_ASSERT(rec /* We should never try to remove not present domain_id. */);
   DBUG_ASSERT(slave_gtid->server_id == in_gtid->server_id);
   DBUG_ASSERT(slave_gtid->seq_no == in_gtid->seq_no);
+  err= 
 #endif
-
-  IF_DBUG(err=, )
     my_hash_delete(&hash, rec);
   DBUG_ASSERT(!err);
 }

@@ -890,7 +890,7 @@ void free_tmp_table(THD *thd, TABLE *entry);
 
 
 /* The following macro is to make init of Query_arena simpler */
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 #define INIT_ARENA_DBUG_INFO is_backup_arena= 0; is_reprepared= FALSE;
 #else
 #define INIT_ARENA_DBUG_INFO
@@ -905,7 +905,7 @@ public:
   */
   Item *free_list;
   MEM_ROOT *mem_root;                   // Pointer to current memroot
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   bool is_backup_arena; /* True if this arena is used for backup. */
   bool is_reprepared;
 #endif
@@ -2206,7 +2206,7 @@ public:
   HASH ull_hash;
   /* Hash of used seqeunces (for PREVIOUS value) */
   HASH sequences;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   uint dbug_sentry; // watch out for memory corruption
 #endif
   struct st_my_thread_var *mysys_var;
@@ -6036,7 +6036,7 @@ public:
             (int) m_db.length, (m_db.length ? m_db.str : ""),
             dot, ".",
             (int) m_name.length, m_name.str);
-    DBUG_ASSERT(ok_for_lower_case_names(m_db.str));
+    DBUG_SLOW_ASSERT(ok_for_lower_case_names(m_db.str));
     return false;
   }
 };

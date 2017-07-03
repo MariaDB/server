@@ -6893,7 +6893,7 @@ uint _ma_apply_redo_insert_row_blobs(MARIA_HA *info,
           }
           else
           {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
             uchar found_page_type= (buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK);
 #endif
             if (lsn_korr(buff) >= lsn)

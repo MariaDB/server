@@ -90,7 +90,7 @@ Alter_table_ctx::Alter_table_ctx()
     new_db(NULL), new_name(NULL), new_alias(NULL),
     fk_error_if_delete_row(false), fk_error_id(NULL),
     fk_error_table(NULL)
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     , tmp_table(false)
 #endif
 {
@@ -110,7 +110,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
     new_db(new_db_arg), new_name(new_name_arg),
     fk_error_if_delete_row(false), fk_error_id(NULL),
     fk_error_table(NULL)
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     , tmp_table(false)
 #endif
 {
@@ -187,7 +187,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
       this case. This fact is enforced with assert.
     */
     build_tmptable_filename(thd, tmp_path, sizeof(tmp_path));
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     tmp_table= true;
 #endif
   }

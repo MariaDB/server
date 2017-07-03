@@ -2926,7 +2926,7 @@ int _ma_bitmap_create_first(MARIA_SHARE *share)
 static my_bool
 flush_log_for_bitmap(PAGECACHE_IO_HOOK_ARGS *args __attribute__ ((unused)))
 {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   const MARIA_SHARE *share= (MARIA_SHARE*)args->data;
 #endif
   DBUG_ENTER("flush_log_for_bitmap");

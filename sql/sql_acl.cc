@@ -3175,7 +3175,7 @@ static void remove_ptr_from_dynarray(DYNAMIC_ARRAY *array, void *ptr)
     {
       DBUG_ASSERT(!found);
       delete_dynamic_element(array, i);
-      IF_DBUG(found= true, break);
+      IF_DBUG_ASSERT(found= true, break);
     }
   }
   DBUG_ASSERT(found);

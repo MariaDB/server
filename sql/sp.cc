@@ -1557,7 +1557,7 @@ bool lock_db_routines(THD *thd, const char *db)
   uchar keybuf[MAX_KEY_LENGTH];
   DBUG_ENTER("lock_db_routines");
 
-  DBUG_ASSERT(ok_for_lower_case_names(db));
+  DBUG_SLOW_ASSERT(ok_for_lower_case_names(db));
 
   /*
     mysql.proc will be re-opened during deletion, so we can ignore

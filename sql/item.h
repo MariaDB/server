@@ -2220,7 +2220,7 @@ public:
   LEX_CSTRING m_name;
 
 public:
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   /*
     Routine to which this Item_splocal belongs. Used for checking if correct
     runtime context is used for variable handling.

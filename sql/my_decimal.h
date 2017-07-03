@@ -132,8 +132,8 @@ public:
 
   void sanity_check()
   {
-    DBUG_ASSERT(foo1 == test_value);
-    DBUG_ASSERT(foo2 == test_value);
+    DBUG_SLOW_ASSERT(foo1 == test_value);
+    DBUG_SLOW_ASSERT(foo2 == test_value);
   }
 
   void fix_buffer_pointer() { buf= buffer; }

@@ -533,7 +533,7 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
     }
     else
     {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
       /*
         We need to keep share->in_trans correct in the debug library
         because of the assert in maria_close()

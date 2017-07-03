@@ -42,7 +42,8 @@ C_MODE_START
 
 #if defined(HAVE_STACKTRACE) || defined(HAVE_BACKTRACE)
 void my_init_stacktrace();
-void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack);
+void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
+                         my_bool silent);
 int my_safe_print_str(const char* val, int max_len);
 void my_write_core(int sig);
 #if BACKTRACE_DEMANGLE

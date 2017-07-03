@@ -331,7 +331,7 @@ private:
   char new_path[FN_REFLEN + 1];
   char tmp_path[FN_REFLEN + 1];
 
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   /** Indicates that we are altering temporary table. Used only in asserts. */
   bool tmp_table;
 #endif

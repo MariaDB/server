@@ -1443,7 +1443,7 @@ row_merge_write_rec_low(
 	}
 
 	memcpy(b, mrec - rec_offs_extra_size(offsets), rec_offs_size(offsets));
-	DBUG_ASSERT(b + rec_offs_size(offsets) == end);
+	DBUG_SLOW_ASSERT(b + rec_offs_size(offsets) == end);
 	DBUG_VOID_RETURN;
 }
 

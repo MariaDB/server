@@ -287,7 +287,7 @@ my_bool maria_page_crc_check_none(int res,
 my_bool maria_page_filler_set_normal(PAGECACHE_IO_HOOK_ARGS *args)
 {
   uchar *page= args->page;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   pgcache_page_no_t page_no= args->pageno;
 #endif
   MARIA_SHARE *share= (MARIA_SHARE *)args->data;

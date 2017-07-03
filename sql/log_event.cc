@@ -6012,7 +6012,7 @@ bool Format_description_log_event::write()
     FD_queue checksum_alg value.
   */
   compile_time_assert(BINLOG_CHECKSUM_ALG_DESC_LEN == 1);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   data_written= 0; // to prepare for need_checksum assert
 #endif
   uint8 checksum_byte= (uint8)
@@ -8687,7 +8687,7 @@ User_var_log_event(const char* buf, uint event_len,
       we keep the flags set to UNDEF_F.
     */
     uint bytes_read= ((val + val_len) - buf_start);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     bool old_pre_checksum_fd= description_event->is_version_before_checksum(
         &description_event->server_version_split);
 #endif

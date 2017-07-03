@@ -1127,7 +1127,7 @@ bool event_checksum_test(uchar *event_buf, ulong event_len, enum enum_binlog_che
 
     if (event_buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT)
     {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
       int8 fd_alg= event_buf[event_len - BINLOG_CHECKSUM_LEN - 
                              BINLOG_CHECKSUM_ALG_DESC_LEN];
 #endif

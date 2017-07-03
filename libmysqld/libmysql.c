@@ -4375,7 +4375,7 @@ static void stmt_update_metadata(MYSQL_STMT *stmt, MYSQL_ROWS *data)
   MYSQL_FIELD *field;
   uchar *null_ptr, bit;
   uchar *row= (uchar*) data->data;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   uchar *row_end= row + data->length;
 #endif
 

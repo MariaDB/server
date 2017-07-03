@@ -603,6 +603,10 @@ public:
     const int storage_length = static_cast<int>(max_storage_fmt_length());
     return (storage_length - offset) >= needed;
   }
+#else
+  inline bool is_storage_available(const int &offset, const int &needed) const {
+    return 1;
+  }
 #endif // DBUG_OFF
 
   /* Global number of this index (used as prefix in StorageFormat) */

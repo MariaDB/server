@@ -2160,7 +2160,7 @@ static void mysqld_exit(int exit_code)
   set_malloc_size_cb(NULL);
   if (!opt_debugging && !my_disable_leak_check)
   {
-    DBUG_ASSERT(global_status_var.global_memory_used == 0);
+    DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
   }
   cleanup_tls();
   DBUG_LEAVE;
@@ -3322,6 +3322,20 @@ static size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize)
 }
 #endif
 
+#ifdef DBUG_ASSERT_AS_PRINTF
+extern "C" void
+mariadb_dbug_assert_failed(const char *assert_expr, const char *file,
+                           unsigned long line)
+{
+  fprintf(stderr, "Warning: assertion failed: %s at %s line %lu\n",
+          assert_expr, file, line);
+  if (opt_stack_trace)
+  {
+    fprintf(stderr, "Attempting backtrace to find out the reason for the assert:\n");
+    my_print_stacktrace(NULL, (ulong) my_thread_stack_size, 1);
+  }
+}
+#endif /* DBUG_ASSERT_AS_PRINT */
 
 #if !defined(__WIN__)
 #ifndef SA_RESETHAND
@@ -4140,7 +4154,10 @@ static int init_common_variables()
 
 #ifdef SAFEMALLOC
   sf_malloc_dbug_id= mariadb_dbug_id;
-#endif
+#endif /* SAFEMALLOC */
+#ifdef DBUG_ASSERT_AS_PRINTF
+  my_dbug_assert_failed= mariadb_dbug_assert_failed;
+#endif /* DBUG_ASSERT_AS_PRINTF */
 
   if (!(type_handler_data= new Type_handler_data) ||
       type_handler_data->init())
