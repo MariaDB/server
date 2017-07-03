@@ -1,0 +1,37 @@
+create or replace table t1(a json);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1(a json character set utf8 default '{a:1}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8 DEFAULT '{a:1}'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1(a json binary not null check (json_valid(a)));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET latin1 COLLATE latin1_bin NOT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t1 values ('[]');
+insert t1 values ('a');
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t1`
+set timestamp=unix_timestamp('2010:11:12 13:14:15');
+create or replace table t1(a json default(json_object('now', now())));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT json_object('now',current_timestamp())
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t1 values ();
+select * from t1;
+a
+{"now": "2010-11-12 13:14:15"}
+drop table t1;
+select cast('{a:1}' as text);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'text)' at line 1
+select cast('{a:1}' as json);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'json)' at line 1

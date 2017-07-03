@@ -6478,6 +6478,8 @@ field_type:
           { $$.set(MYSQL_TYPE_SET); }
         | LONG_SYM opt_binary
           { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
+        | JSON_SYM opt_binary
+          { $$.set(MYSQL_TYPE_BLOB); }
         ;
 
 spatial_type:
