@@ -4599,9 +4599,13 @@ btr_cur_parse_del_mark_set_clust_rec(
 		and the adaptive hash index does not depend on them. */
 
 		btr_rec_set_deleted_flag(rec, page_zip, val);
+		/* pos is the offset of DB_TRX_ID in the clustered index.
+		Debug assertions may also access DB_ROLL_PTR at pos+1.
+		Therefore, we must compute offsets for the first pos+2
+		clustered index fields. */
 		ut_ad(pos <= MAX_REF_PARTS);
 
-		ulint offsets[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 3];
+		ulint offsets[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 		rec_offs_init(offsets);
 		mem_heap_t*	heap	= NULL;
 
