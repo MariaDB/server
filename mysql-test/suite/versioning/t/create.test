@@ -243,24 +243,55 @@ drop table tt1;
 
 # CREATE TABLE ... SELECT
 create or replace table t1 (x int) with system versioning;
-create or replace table t2 (y int);
-create or replace table t3 select * from t1 for system_time all, t2;
---replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM "bigint(20) unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
-show create table t3;
-
 --replace_result "bigint unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
-eval create or replace table t2 (
+eval create or replace table t0(
   y int,
   st $sys_datatype generated always as row start,
   en $sys_datatype generated always as row end,
   period for system_time (st, en)
 ) with system versioning;
-create or replace table t3 select * from t2;
+
+## For non-versioned table:
+### 1. system fields are not inherited (hidden and not hidden)
+create or replace table t2 as select * from t1;
+--replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+show create table t2;
+
+create or replace table t3 as select * from t0;
+--replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+show create table t3;
+
+### 2. hidden fields are inherited as hidden
+### TODO: non-system hidden fields
+
+## For versioned table system fields are inherited as is.
+insert into t1 values (1);
+insert into t0 values (2);
+
+create or replace table t2 with system versioning as select * from t1;
+--replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM "bigint(20) unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
+show create table t2;
+# implicit system fields are hidden
+select * from t2;
+
+create or replace table t3 with system versioning as select * from t0;
+--replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM "bigint(20) unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
+show create table t3;
+# explicit system fields are not hidden
+select * from t3 where y > 2;
+
+delete from t0;
+
+## Combinations of versioned + non-versioned
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int);
+create or replace table t3 with system versioning select * from t1 for system_time all, t2;
 --replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM "bigint(20) unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
 show create table t3;
 
+create or replace table t2 with system versioning as select * from t0;
 --error ER_VERS_WRONG_PARAMS
-create or replace table t3 select x, y, t1.sys_trx_start, t2.en from t1, t2;
+create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;
 
 insert into t2 values (1), (2);
 delete from t2 where y = 2;
@@ -276,7 +307,7 @@ eval create or replace table t1 (a int) with system versioning engine $non_defau
 create or replace table t2 as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
 --replace_result innodb INNODB_OR_MYISAM myisam INNODB_OR_MYISAM "BIGINT(20) UNSIGNED" SYS_TRX_TYPE "TIMESTAMP(6)" SYS_TRX_TYPE
 --error ER_VERS_FIELD_WRONG_TYPE
-eval create or replace table t2 engine $default_engine as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
+eval create or replace table t2 with system versioning engine $default_engine as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
 
 --replace_result innodb INNODB_OR_MYISAM myisam INNODB_OR_MYISAM
 eval create or replace table t1 (a int, id int) with system versioning engine $non_default_engine;
@@ -284,10 +315,5 @@ create or replace table t2 (b int, id int);
 create or replace table t3 as
   select t2.b, t1.a, t1.sys_trx_start, t1.sys_trx_end from t2 inner join t1 on t2.id=t1.id;
 
-drop table t1;
-drop table t2;
-drop table t3;
-
-drop function non_default_engine;
-
--- source suite/versioning/common_finish.inc
+drop database test;
+create database test;

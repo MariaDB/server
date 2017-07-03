@@ -6675,29 +6675,29 @@ bool Vers_parse_info::check_and_fix_implicit(
       if (table->table && table->table->versioned())
         vers_tables++;
     }
-
-    // Possibly override default storage engine to match
-    // one used in source table.
-    if (!(create_info->used_fields & HA_CREATE_USED_ENGINE))
-    {
-      List_iterator_fast<Create_field> it(alter_info->create_list);
-      while (Create_field *f= it++)
-      {
-        if (is_trx_start(*f) || is_trx_end(*f))
-        {
-          create_info->db_type= f->field->orig_table->file->ht;
-          break;
-        }
-      }
-    }
   }
 
   // CREATE ... SELECT: if at least one table in SELECT is versioned,
   // then created table will be versioned.
-  if (thd->variables.vers_force || vers_tables > 0)
+  if (thd->variables.vers_force)
   {
     with_system_versioning= true;
     create_info->options|= HA_VERSIONED_TABLE;
+  }
+
+  // Possibly override default storage engine to match one used in source table.
+  if (from_select && with_system_versioning &&
+    !(create_info->used_fields & HA_CREATE_USED_ENGINE))
+  {
+    List_iterator_fast<Create_field> it(alter_info->create_list);
+    while (Create_field *f= it++)
+    {
+      if (is_trx_start(*f) || is_trx_end(*f))
+      {
+        create_info->db_type= f->field->orig_table->file->ht;
+        break;
+      }
+    }
   }
 
   if (!need_check())
@@ -6764,22 +6764,7 @@ bool Vers_parse_info::check_and_fix_implicit(
 
   bool integer_fields= create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING;
 
-  if (vers_tables > 0)
-  {
-    if (!generated_as_row.start && !generated_as_row.end)
-    {
-      with_system_versioning= false;
-      create_info->options&= ~HA_VERSIONED_TABLE;
-      return false;
-    }
-    if (!generated_as_row.start || !generated_as_row.end)
-    {
-      my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
-        generated_as_row.start ? "AS ROW END" : "AS ROW START");
-      return true;
-    }
-  }
-  else if (fix_implicit(thd, alter_info, integer_fields))
+  if (fix_implicit(thd, alter_info, integer_fields))
     return true;
 
   int plain_cols= 0; // column doesn't have WITH or WITHOUT SYSTEM VERSIONING

@@ -139,12 +139,12 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t values (1);
+insert into t values (2);
 delete from t;
 select * from t;
 x
 select * from t for system_time all;
 x
-1
+2
 drop table t;
 set versioning_hide= IMPLICIT;

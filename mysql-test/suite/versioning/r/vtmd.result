@@ -28,7 +28,7 @@ create or replace procedure check_vtmd (in vtmd_name varchar(64))
 begin
 set @tmp= concat('
     create or replace temporary table
-    tmp_vtmd as
+    tmp_vtmd with system versioning as
       select * from ', vtmd_name, ' as vtmd
       for system_time all');
 prepare stmt from @tmp; execute stmt; drop prepare stmt;

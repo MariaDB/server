@@ -7596,16 +7596,25 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
           tl->vers_conditions.type == FOR_SYSTEM_TIME_UNSPECIFIED ?
             slex->vers_conditions.type : tl->vers_conditions.type;
 
-        if ((sys_field && (thd->lex->sql_command == SQLCOM_CREATE_VIEW ||
-            slex->nest_level > 0 ||
-            (vers_hide == VERS_HIDE_FULL && thd->lex->sql_command != SQLCOM_CREATE_TABLE))) ||
-          ((fl & HIDDEN_FLAG) && (
-            !sys_field ||
-            vers_hide == VERS_HIDE_IMPLICIT ||
-            (vers_hide == VERS_HIDE_AUTO && (
-            vers_type == FOR_SYSTEM_TIME_UNSPECIFIED ||
-            vers_type == FOR_SYSTEM_TIME_AS_OF)))))
+        enum_sql_command sql_command= thd->lex->sql_command;
+        unsigned int create_options= thd->lex->create_info.options;
+
+        if (
+          sql_command == SQLCOM_CREATE_TABLE ?
+            sys_field && !(create_options & HA_VERSIONED_TABLE) : (
+            sys_field ?
+              (sql_command == SQLCOM_CREATE_VIEW ||
+              slex->nest_level > 0 ||
+              vers_hide == VERS_HIDE_FULL ||
+              ((fl & HIDDEN_FLAG) && (
+                vers_hide == VERS_HIDE_IMPLICIT ||
+                  (vers_hide == VERS_HIDE_AUTO && (
+                    vers_type == FOR_SYSTEM_TIME_UNSPECIFIED ||
+                    vers_type == FOR_SYSTEM_TIME_AS_OF))))) :
+            (fl & HIDDEN_FLAG)))
+        {
           continue;
+        }
       }
       else if (item->type() == Item::REF_ITEM)
       {

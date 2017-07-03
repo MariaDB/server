@@ -101,7 +101,7 @@ create or replace table t (
 with system versioning;
 
 show create table t;
-insert into t values (1);
+insert into t values (2);
 delete from t;
 
 select * from t;

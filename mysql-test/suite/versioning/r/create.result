@@ -301,21 +301,39 @@ tt1	CREATE TABLE `tt1` (
 ) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop table tt1;
 create or replace table t1 (x int) with system versioning;
-create or replace table t2 (y int);
-create or replace table t3 select * from t1 for system_time all, t2;
-show create table t3;
-Table	Create Table
-t3	CREATE TABLE `t3` (
-  `x` int(11) DEFAULT NULL,
-  `y` int(11) DEFAULT NULL
-) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1
-create or replace table t2 (
+create or replace table t0(
 y int,
 st SYS_TRX_TYPE generated always as row start,
 en SYS_TRX_TYPE generated always as row end,
 period for system_time (st, en)
 ) with system versioning;
-create or replace table t3 select * from t2;
+create or replace table t2 as select * from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1
+create or replace table t3 as select * from t0;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `y` int(11) DEFAULT NULL
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1
+insert into t1 values (1);
+insert into t0 values (2);
+create or replace table t2 with system versioning as select * from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t2;
+x
+1
+create or replace table t3 with system versioning as select * from t0;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -324,7 +342,23 @@ t3	CREATE TABLE `t3` (
   `en` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)
 ) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-create or replace table t3 select x, y, t1.sys_trx_start, t2.en from t1, t2;
+select * from t3 where y > 2;
+y	st	en
+delete from t0;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int);
+create or replace table t3 with system versioning select * from t1 for system_time all, t2;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x` int(11) DEFAULT NULL,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  `y` int(11) DEFAULT NULL,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t2 with system versioning as select * from t0;
+create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;
 ERROR HY000: Wrong parameters for `t3`: system fields selected from different tables
 insert into t2 values (1), (2);
 delete from t2 where y = 2;
@@ -339,18 +373,11 @@ y
 2
 create or replace table t1 (a int) with system versioning engine INNODB_OR_MYISAM;
 create or replace table t2 as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
-create or replace table t2 engine INNODB_OR_MYISAM as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
+create or replace table t2 with system versioning engine INNODB_OR_MYISAM as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
 ERROR HY000: `sys_trx_start` must be of type `SYS_TRX_TYPE` for versioned table `t2`
 create or replace table t1 (a int, id int) with system versioning engine INNODB_OR_MYISAM;
 create or replace table t2 (b int, id int);
 create or replace table t3 as
 select t2.b, t1.a, t1.sys_trx_start, t1.sys_trx_end from t2 inner join t1 on t2.id=t1.id;
-drop table t1;
-drop table t2;
-drop table t3;
-drop function non_default_engine;
-drop procedure verify_vtq;
-drop procedure innodb_verify_vtq;
-drop function default_engine;
-drop function sys_commit_ts;
-drop function sys_datatype;
+drop database test;
+create database test;
