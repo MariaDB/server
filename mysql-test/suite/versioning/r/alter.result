@@ -366,7 +366,6 @@ t	CREATE TABLE `t` (
 select * from t;
 a	b
 2	NULL
-1	NULL
 alter table t drop column b, algorithm=copy;
 show create table t;
 Table	Create Table
@@ -393,7 +392,6 @@ t	CREATE TABLE `t` (
 select * from t;
 a	b
 2	NULL
-1	NULL
 alter table t drop column b, algorithm=inplace;
 show create table t;
 Table	Create Table

@@ -10052,7 +10052,17 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       error= 1;
       break;
     }
-    error=to->file->ha_write_row(to->record[0]);
+    if (keep_versioned && to->versioned_by_engine() &&
+        !thd->variables.vers_ddl_survival)
+    {
+      to->s->versioned= false;
+    }
+    error= to->file->ha_write_row(to->record[0]);
+    if (keep_versioned && to->versioned_by_engine() &&
+        !thd->variables.vers_ddl_survival)
+    {
+      to->s->versioned= true;
+    }
     to->auto_increment_field_not_null= FALSE;
     if (error)
     {
