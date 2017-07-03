@@ -79,6 +79,10 @@
 #include "sql_callback.h"
 #include "threadpool.h"
 
+#ifdef HAVE_OPENSSL
+#include <ssl_compat.h>
+#endif
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 #include "../storage/perfschema/pfs_server.h"
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
@@ -338,12 +342,8 @@ static PSI_thread_key key_thread_handle_con_sockets;
 static PSI_thread_key key_thread_handle_shutdown;
 #endif /* __WIN__ */
 
-#ifdef HAVE_OPENSSL
-#include <ssl_compat.h>
-
 #ifdef HAVE_OPENSSL10
 static PSI_rwlock_key key_rwlock_openssl;
-#endif
 #endif
 #endif /* HAVE_PSI_INTERFACE */
 
