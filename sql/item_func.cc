@@ -3650,7 +3650,6 @@ longlong Item_master_gtid_wait::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   longlong result= 0;
-  String *gtid_pos = args[0]->val_str(&value);
 
   if (args[0]->null_value)
   {
@@ -3660,6 +3659,7 @@ longlong Item_master_gtid_wait::val_int()
 
   null_value=0;
 #ifdef HAVE_REPLICATION
+  String *gtid_pos = args[0]->val_str(&value);
   THD* thd= current_thd;
   longlong timeout_us;
 
