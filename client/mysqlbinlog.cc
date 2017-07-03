@@ -68,6 +68,7 @@ CHARSET_INFO* system_charset_info= &my_charset_utf8_general_ci;
 
 /* Needed for Flashback */
 DYNAMIC_ARRAY binlog_events; // Storing the events output string
+DYNAMIC_ARRAY events_in_stmt; // Storing the events that in one statement
 String stop_event_string; // Storing the STOP_EVENT output string
 
 char server_version[SERVER_VERSION_LENGTH];
@@ -894,6 +895,25 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     print_event_info->m_table_map_ignored.get_table(table_id);
   bool skip_event= (ignored_map != NULL);
 
+  if (opt_flashback)
+  {
+    Rows_log_event *e= (Rows_log_event*) ev;
+    // The last Row_log_event will be the first event in Flashback
+    if (is_stmt_end)
+      e->clear_flags(Rows_log_event::STMT_END_F);
+    // The first Row_log_event will be the last event in Flashback
+    if (events_in_stmt.elements == 0)
+      e->set_flags(Rows_log_event::STMT_END_F);
+    // Update the temp_buf
+    e->update_flags();
+
+    if (insert_dynamic(&events_in_stmt, (uchar *) &ev))
+    {
+      error("Out of memory: can't allocate memory to store the flashback events.");
+      exit(1);
+    }
+  }
+
   /* 
      end of statement check:
        i) destroy/free ignored maps
@@ -945,7 +965,36 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   if (skip_event)
     return 0;
 
-  return print_base64(print_event_info, ev);
+  if (!opt_flashback)
+    return print_base64(print_event_info, ev);
+  else
+  {
+    if (is_stmt_end)
+    {
+      bool res= false;
+      Log_event *e= NULL;
+
+      // Print the row_event from the last one to the first one
+      for (uint i= events_in_stmt.elements; i > 0; --i)
+      {
+        e= *(dynamic_element(&events_in_stmt, i - 1, Log_event**));
+        res= res || print_base64(print_event_info, e);
+      }
+      // Copy all output into the Log_event
+      ev->output_buf.copy(e->output_buf);
+      // Delete Log_event
+      for (uint i= 0; i < events_in_stmt.elements-1; ++i)
+      {
+        e= *(dynamic_element(&events_in_stmt, i, Log_event**));
+        delete e;
+      }
+      reset_dynamic(&events_in_stmt);
+
+      return res;
+    }
+  }
+
+  return 0;
 }
 
 
@@ -1386,6 +1435,8 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       }
       if (print_base64(print_event_info, ev))
         goto err;
+      if (opt_flashback)
+        reset_dynamic(&events_in_stmt);
       break;
     }
     case WRITE_ROWS_EVENT:
@@ -1402,9 +1453,12 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     case DELETE_ROWS_COMPRESSED_EVENT_V1:
     {
       Rows_log_event *e= (Rows_log_event*) ev;
+      bool is_stmt_end= e->get_flags(Rows_log_event::STMT_END_F);
       if (print_row_event(print_event_info, ev, e->get_table_id(),
                           e->get_flags(Rows_log_event::STMT_END_F)))
         goto err;
+      if (!is_stmt_end)
+        destroy_evt= FALSE;
       break;
     }
     case PRE_GA_WRITE_ROWS_EVENT:
@@ -1412,9 +1466,12 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     case PRE_GA_UPDATE_ROWS_EVENT:
     {
       Old_rows_log_event *e= (Old_rows_log_event*) ev;
+      bool is_stmt_end= e->get_flags(Rows_log_event::STMT_END_F);
       if (print_row_event(print_event_info, ev, e->get_table_id(),
                           e->get_flags(Old_rows_log_event::STMT_END_F)))
         goto err;
+      if (!is_stmt_end)
+        destroy_evt= FALSE;
       break;
     }
     case START_ENCRYPTION_EVENT:
@@ -1459,7 +1516,7 @@ end:
                                   &my_charset_bin);
         else
         {
-          if (push_dynamic(&binlog_events, (uchar *) &tmp_str))
+          if (insert_dynamic(&binlog_events, (uchar *) &tmp_str))
           {
             error("Out of memory: can't allocate memory to store the flashback events.");
             exit(1);
@@ -2915,9 +2972,12 @@ int main(int argc, char** argv)
   my_set_max_open_files(open_files_limit);
 
   if (opt_flashback)
+  {
     my_init_dynamic_array(&binlog_events, sizeof(LEX_STRING), 1024, 1024,
                           MYF(0));
-
+    my_init_dynamic_array(&events_in_stmt, sizeof(Rows_log_event*), 1024, 1024,
+                          MYF(0));
+  }
   if (opt_stop_never)
     to_last_remote_log= TRUE;
 
@@ -3031,6 +3091,7 @@ int main(int argc, char** argv)
     }
     fprintf(result_file, "COMMIT\n/*!*/;\n");
     delete_dynamic(&binlog_events);
+    delete_dynamic(&events_in_stmt);
   }
 
   /* Set delimiter back to semicolon */
