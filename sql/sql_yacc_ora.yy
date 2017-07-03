@@ -16878,37 +16878,42 @@ udf_tail:
           }
         ;
 
-sf_tail:
-          opt_if_not_exists /* $1 */
-          sp_name /* $2 */
-          { /* $3 */
-            if (!Lex->make_sp_head_no_recursive(thd, $1, $2,
-                                                TYPE_ENUM_FUNCTION))
-              MYSQL_YYABORT;
-            Lex->spname= $2;
-          }
-          opt_sp_parenthesized_fdparam_list /* $4 */
-          RETURN_SYM /* $5 */
-          { /* $6 */
+
+sf_return_type:
+          RETURN_SYM
+          {
             LEX *lex= Lex;
             lex->init_last_field(&lex->sphead->m_return_field_def,
                                  &empty_clex_str,
                                  thd->variables.collation_database);
           }
-          sp_param_type_with_opt_collate /* $7 */
-          { /* $8 */
+          sp_param_type_with_opt_collate
+          {
             if (Lex->sphead->fill_field_definition(thd, Lex->last_field))
               MYSQL_YYABORT;
           }
-          sp_c_chistics /* $9 */
-          { /* $10 */
+        ;
+
+sf_tail:
+          opt_if_not_exists
+          sp_name
+          {
+            if (!Lex->make_sp_head_no_recursive(thd, $1, $2,
+                                                TYPE_ENUM_FUNCTION))
+              MYSQL_YYABORT;
+            Lex->spname= $2;
+          }
+          opt_sp_parenthesized_fdparam_list
+          sf_return_type
+          sp_c_chistics
+          {
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_tail_is /* $11 */
-          sp_body /* $12 */
+          sp_tail_is
+          sp_body
           {
             LEX *lex= thd->lex;
             sp_head *sp= lex->sphead;
