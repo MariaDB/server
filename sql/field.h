@@ -4011,7 +4011,7 @@ public:
                         field_name_arg);
   }
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
-                    const LEX_CSTRING *field_name_arg)
+                    const LEX_CSTRING *field_name_arg) const
   {
     return make_field(share, mem_root, (uchar *) 0, (uchar *) "", 0,
                       field_name_arg);
