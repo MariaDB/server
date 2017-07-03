@@ -8496,15 +8496,15 @@ ha_innobase::write_row(
 	     || sql_command == SQLCOM_OPTIMIZE
 	     || sql_command == SQLCOM_CREATE_INDEX
 #ifdef WITH_WSREP
-	     || (wsrep_on(m_user_thd) && wsrep_load_data_splitting &&
-		 sql_command == SQLCOM_LOAD                      &&
-		 !thd_test_options(
-			m_user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+	     || (sql_command == SQLCOM_LOAD
+		 && wsrep_load_data_splitting && wsrep_on(m_user_thd)
+		 && !thd_test_options(
+			 m_user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 #endif /* WITH_WSREP */
 	     || sql_command == SQLCOM_DROP_INDEX)
 	    && m_num_write_row >= 10000) {
 #ifdef WITH_WSREP
-		if (wsrep_on(m_user_thd) && sql_command == SQLCOM_LOAD) {
+		if (sql_command == SQLCOM_LOAD && wsrep_on(m_user_thd)) {
 			WSREP_DEBUG("forced trx split for LOAD: %s",
 				    wsrep_thd_query(m_user_thd));
 		}
