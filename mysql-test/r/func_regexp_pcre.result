@@ -879,3 +879,7 @@ SELECT 1 FROM dual WHERE ('Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,StrataCentral,
 1
 Warnings:
 Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+# MDEV-13173: Ensure recursion limit set by stack
+SELECT CONCAT(REPEAT('100,',98),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$' TEST;
+TEST
+1

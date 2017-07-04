@@ -220,9 +220,12 @@ class Item_func_regexp_replace :public Item_str_func
                           const LEX_CSTRING *source,
                           const LEX_CSTRING *replace);
 public:
-  Item_func_regexp_replace(Item *a, Item *b, Item *c) 
-    :Item_str_func(a, b, c)
-    {}
+  Item_func_regexp_replace(THD *thd, Item *a, Item *b, Item *c):
+    Item_str_func(a, b, c)
+  {
+    re.set_recursion_limit(thd);
+  }
+
   void cleanup()
   {
     DBUG_ENTER("Item_func_regex::cleanup");
@@ -240,9 +243,12 @@ class Item_func_regexp_substr :public Item_str_func
 {
   Regexp_processor_pcre re;
 public:
-  Item_func_regexp_substr(Item *a, Item *b) 
-    :Item_str_func(a, b)
-    {}
+  Item_func_regexp_substr(THD *thd, Item *a, Item *b):
+    Item_str_func(a, b)
+  {
+    re.set_recursion_limit(thd);
+  }
+
   void cleanup()
   {
     DBUG_ENTER("Item_func_regex::cleanup");
