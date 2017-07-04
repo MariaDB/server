@@ -178,6 +178,7 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 my_bool	srv_use_native_aio;
 my_bool	srv_numa_interleave;
+my_bool	srv_numa_enable;
 /** innodb_use_trim; whether to use fallocate(PUNCH_HOLE) with
 page_compression */
 my_bool	srv_use_trim;
