@@ -1668,6 +1668,12 @@ innobase_start_or_create_for_mysql()
 		srv_buf_pool_instances = 1;
 	}
 
+#ifdef HAVE_LIBNUMA
+	if (srv_numa_interleave && srv_numa_enable) {
+		srv_numa_enable = (!srv_numa_enable);
+	}
+#endif // HAVE_LIBNUMA
+
 	if (srv_buf_pool_chunk_unit * srv_buf_pool_instances
 	    > srv_buf_pool_size) {
 		/* Size unit of buffer pool is larger than srv_buf_pool_size.
