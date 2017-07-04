@@ -90,15 +90,13 @@ Created 11/5/1995 Heikki Tuuri
 #ifdef HAVE_LIBNUMA
 #include <numa.h>
 #include <numaif.h>
-struct set_numa_interleave_t
+struct set_numa_t
 {
-	set_numa_interleave_t()
+	set_numa_t(struct bitmask* numa_mems_allowed)
 	{
 		if (srv_numa_interleave) {
 
-			struct bitmask *numa_mems_allowed = numa_get_mems_allowed();
-			ib::info() << "Setting NUMA memory policy to"
-				" MPOL_INTERLEAVE";
+			numa_mems_allowed = numa_get_mems_allowed();
 			if (set_mempolicy(MPOL_INTERLEAVE,
 					  numa_mems_allowed->maskp,
 					  numa_mems_allowed->size) != 0) {
@@ -108,26 +106,31 @@ struct set_numa_interleave_t
 					<< strerror(errno);
 			}
 		}
-	}
 
-	~set_numa_interleave_t()
-	{
-		if (srv_numa_interleave) {
+		if (srv_numa_enable) {
 
-			ib::info() << "Setting NUMA memory policy to"
-				" MPOL_DEFAULT";
-			if (set_mempolicy(MPOL_DEFAULT, NULL, 0) != 0) {
+			if (set_mempolicy(MPOL_BIND,
+					  numa_mems_allowed->maskp,
+					  numa_mems_allowed->size) != 0) {
+
 				ib::warn() << "Failed to set NUMA memory"
-					" policy to MPOL_DEFAULT: "
+					" policy to MPOL_BIND: "
 					<< strerror(errno);
 			}
 		}
 	}
+
+	~set_numa_t()
+	{
+		if (set_mempolicy(MPOL_DEFAULT, NULL, 0) != 0) {
+			ib::warn() << "Failed to set NUMA memory"
+				" policy to MPOL_DEFAULT: "
+				<< strerror(errno);
+		}
+	}
 };
 
-#define NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE set_numa_interleave_t scoped_numa
-#else
-#define NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE
+#define SET_NUMA_T(NODE_MASK) struct set_numa_t scoped_numa(NODE_MASK)
 #endif /* HAVE_LIBNUMA */
 
 #ifdef HAVE_SNAPPY
@@ -1498,7 +1501,8 @@ buf_chunk_init(
 /*===========*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
 	buf_chunk_t*	chunk,		/*!< out: chunk of buffers */
-	ulint		mem_size)	/*!< in: requested size in bytes */
+	ulint		mem_size,	/*!< in: requested size in bytes */
+	ulint		instance_no = 0)
 {
 	buf_block_t*	block;
 	byte*		frame;
@@ -1532,6 +1536,20 @@ buf_chunk_init(
 		if (st != 0) {
 			ib::warn() << "Failed to set NUMA memory policy of"
 				" buffer pool page frames to MPOL_INTERLEAVE"
+				" (error: " << strerror(errno) << ").";
+		}
+	}
+	if (srv_numa_enable) {
+		struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
+		numa_bitmask_setbit(node_mask, srv_allowed_nodes[instance_no]);
+		int	st = mbind(chunk->mem, chunk->mem_size(),
+				   MPOL_BIND,
+				   node_mask->maskp,
+				   node_mask->size,
+				   MPOL_MF_MOVE);
+		if (st != 0) {
+			ib::warn() << "Failed to set NUMA memory policy of"
+				" buffer pool page frames to MPOL_BIND"
 				" (error: " << strerror(errno) << ").";
 		}
 	}
@@ -1746,7 +1764,7 @@ buf_pool_init_instance(
 /*===================*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
 	ulint		buf_pool_size,	/*!< in: size in bytes */
-	ulint		instance_no)	/*!< in: id of the instance */
+	ulint		instance_no = 0)	/*!< in: id of the instance */
 {
 	ulint		i;
 	ulint		chunk_size;
@@ -1795,7 +1813,7 @@ buf_pool_init_instance(
 		chunk = buf_pool->chunks;
 
 		do {
-			if (!buf_chunk_init(buf_pool, chunk, chunk_size)) {
+			if (!buf_chunk_init(buf_pool, chunk, chunk_size, instance_no)) {
 				while (--chunk >= buf_pool->chunks) {
 					buf_block_t*	block = chunk->blocks;
 
@@ -1889,6 +1907,13 @@ buf_pool_init_instance(
 	memset(buf_pool->tmp_arr->slots, 0, (sizeof(buf_tmp_buffer_t) * n_slots));
 
 	buf_pool_mutex_exit(buf_pool);
+
+#ifdef HAVE_LIBNUMA
+	if (srv_numa_enable) {
+		ib::info() << "Initialized Buffer Pool Instance " << instance_no << " of size "
+				<< (buf_pool_size / (1024 * 1024)) << "M on node " << srv_allowed_nodes[instance_no];
+	}
+#endif // HAVE_LIBNUMA
 
 	DBUG_EXECUTE_IF("buf_pool_init_instance_force_oom",
 		return(DB_ERROR); );
@@ -2000,13 +2025,11 @@ buf_pool_init(
 	ulint	n_instances)	/*!< in: number of instances */
 {
 	ulint		i;
-	const ulint	size	= total_size / n_instances;
+	ulint	size;
 
 	ut_ad(n_instances > 0);
 	ut_ad(n_instances <= MAX_BUFFER_POOLS);
 	ut_ad(n_instances == srv_buf_pool_instances);
-
-	NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
 
 	buf_pool_resizing = false;
 	buf_pool_withdrawing = false;
@@ -2017,8 +2040,26 @@ buf_pool_init(
 
 	buf_chunk_map_reg = UT_NEW_NOKEY(buf_pool_chunk_map_t());
 
+#ifdef HAVE_LIBNUMA
+	struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
+	if (srv_numa_interleave) {
+		size = total_size / n_instances;
+	}
+#else
+	size = total_size / n_instances;
+#endif // HAVE_LIBNUMA
+
 	for (i = 0; i < n_instances; i++) {
 		buf_pool_t*	ptr	= &buf_pool_ptr[i];
+
+#ifdef HAVE_LIBNUMA
+		if (srv_numa_enable) {
+			numa_bitmask_clearall(node_mask);
+			numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
+			size = srv_size_of_buf_pool_in_node[i];
+		}
+		SET_NUMA_T(node_mask);
+#endif //HAVE_LIBNUMA
 
 		if (buf_pool_init_instance(ptr, size, i) != DB_SUCCESS) {
 
@@ -2605,8 +2646,6 @@ buf_pool_resize()
 	buf_pool_t*	buf_pool;
 	ulint		new_instance_size;
 	bool		warning = false;
-
-	NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
 
 	ut_ad(!buf_pool_resizing);
 	ut_ad(!buf_pool_withdrawing);
