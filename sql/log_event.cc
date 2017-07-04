@@ -3477,7 +3477,8 @@ void Log_event::print_base64(IO_CACHE* file,
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   if (print_event_info->verbose || need_flashback_review)
 #else
-  if (print_event_info->verbose)
+  // Flashback need the table_map to parse the event
+  if (print_event_info->verbose || is_flashback)
 #endif
   {
     Rows_log_event *ev= NULL;
@@ -3564,7 +3565,8 @@ void Log_event::print_base64(IO_CACHE* file,
         close_cached_file(&tmp_cache);
       }
 #else
-      ev->print_verbose(file, print_event_info);
+      if (print_event_info->verbose)
+        ev->print_verbose(file, print_event_info);
 #endif
       delete ev;
     }
@@ -10251,6 +10253,7 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
     post_start+= RW_FLAGS_OFFSET;
   }
 
+  m_flags_pos= post_start - buf;
   m_flags= uint2korr(post_start);
   post_start+= 2;
 
@@ -11299,18 +11302,18 @@ void Rows_log_event::print_helper(FILE *file,
 
   if (get_flags(STMT_END_F))
   {
-    reinit_io_cache(head, READ_CACHE, 0L, FALSE, FALSE);
-    output_buf.append(head, head->end_of_file);
-    reinit_io_cache(head, WRITE_CACHE, 0, FALSE, TRUE);
+    LEX_STRING tmp_str;
 
-    reinit_io_cache(body, READ_CACHE, 0L, FALSE, FALSE);
-    output_buf.append(body, body->end_of_file);
-    reinit_io_cache(body, WRITE_CACHE, 0, FALSE, TRUE);
-
+    copy_event_cache_to_string_and_reinit(head, &tmp_str);
+    output_buf.append(&tmp_str);
+    my_free(tmp_str.str);
+    copy_event_cache_to_string_and_reinit(body, &tmp_str);
+    output_buf.append(&tmp_str);
+    my_free(tmp_str.str);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
-    reinit_io_cache(sql, READ_CACHE, 0L, FALSE, FALSE);
-    output_buf.append(sql, sql->end_of_file);
-    reinit_io_cache(sql, WRITE_CACHE, 0, FALSE, TRUE);
+    copy_event_cache_to_string_and_reinit(sql, &tmp_str);
+    output_buf.append(&tmp_str);
+    my_free(tmp_str.str);
 #endif
   }
 }
