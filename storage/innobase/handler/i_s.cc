@@ -9661,7 +9661,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_semaphore_waits =
 static ST_FIELD_INFO	innodb_vtq_fields_info[] =
 {
 #define SYS_VTQ_TRX_ID 0
-	{ STRUCT_FLD(field_name,	"trx_id"),
+	{ STRUCT_FLD(field_name,	"transaction_id"),
 	STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
 	STRUCT_FLD(value,		0),
@@ -9679,7 +9679,7 @@ static ST_FIELD_INFO	innodb_vtq_fields_info[] =
 	STRUCT_FLD(open_method,		SKIP_OPEN_TABLE) },
 
 #define SYS_VTQ_BEGIN_TS 2
-	{ STRUCT_FLD(field_name,	"begin_ts"),
+	{ STRUCT_FLD(field_name,	"begin_timestamp"),
 	STRUCT_FLD(field_length,	6),
 	STRUCT_FLD(field_type,		MYSQL_TYPE_TIMESTAMP),
 	STRUCT_FLD(value,		0),
@@ -9688,7 +9688,7 @@ static ST_FIELD_INFO	innodb_vtq_fields_info[] =
 	STRUCT_FLD(open_method,		SKIP_OPEN_TABLE) },
 
 #define SYS_VTQ_COMMIT_TS 3
-	{ STRUCT_FLD(field_name,	"commit_ts"),
+	{ STRUCT_FLD(field_name,	"commit_timestamp"),
 	STRUCT_FLD(field_length,	6),
 	STRUCT_FLD(field_type,		MYSQL_TYPE_TIMESTAMP),
 	STRUCT_FLD(value,		0),
@@ -9697,8 +9697,8 @@ static ST_FIELD_INFO	innodb_vtq_fields_info[] =
 	STRUCT_FLD(open_method,		SKIP_OPEN_TABLE) },
 
 #define SYS_VTQ_ISO_LEVEL 4
-	{ STRUCT_FLD(field_name,	"iso_level"),
-	STRUCT_FLD(field_length,	2),
+	{ STRUCT_FLD(field_name,	"isolation_level"),
+	STRUCT_FLD(field_length,	16),
 	STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
 	STRUCT_FLD(value,		0),
 	STRUCT_FLD(field_flags,		0),
@@ -9707,6 +9707,39 @@ static ST_FIELD_INFO	innodb_vtq_fields_info[] =
 
 	END_OF_ST_FIELD_INFO
 };
+
+/******************************************************************//**
+Maps a InnoDB trx isolation level code to the MySQL isolation level name
+@return MySQL isolation level name */
+static inline
+const char*
+i_s_isolation_name(
+/*=========================*/
+	ulint	iso)	/*!< in: InnoDB isolation level code */
+{
+	enum_tx_isolation mysql_iso;
+
+	switch (iso) {
+	case TRX_ISO_REPEATABLE_READ:
+		mysql_iso = ISO_REPEATABLE_READ;
+		break;
+	case TRX_ISO_READ_COMMITTED:
+		mysql_iso = ISO_READ_COMMITTED;
+		break;
+	case TRX_ISO_SERIALIZABLE:
+		mysql_iso = ISO_SERIALIZABLE;
+		break;
+	case TRX_ISO_READ_UNCOMMITTED:
+		mysql_iso = ISO_READ_UNCOMMITTED;
+		break;
+	default:
+		ut_error;
+		return NULL;
+	}
+
+	return tx_isolation_names[mysql_iso];
+}
+
 
 /**********************************************************************//**
 Function to fill INFORMATION_SCHEMA.INNODB_SYS_VTQ with information
@@ -9726,20 +9759,7 @@ i_s_dict_fill_vtq(
 	DBUG_ENTER("i_s_dict_fill_vtq");
 	fields = table_to_fill->field;
 
-	switch (vtq.iso_level) {
-	case TRX_ISO_REPEATABLE_READ:
-		iso_level = "RR";
-		break;
-	case TRX_ISO_READ_COMMITTED:
-		iso_level = "RC";
-		break;
-	case TRX_ISO_SERIALIZABLE:
-		iso_level = "S";
-		break;
-	case TRX_ISO_READ_UNCOMMITTED:
-		iso_level = "RU";
-		break;
-	}
+	iso_level = i_s_isolation_name(vtq.iso_level);
 
 	OK(field_store_ullong(fields[SYS_VTQ_TRX_ID], vtq.trx_id));
 	OK(field_store_ullong(fields[SYS_VTQ_COMMIT_ID], vtq.commit_id));

@@ -1,17 +1,17 @@
 set @@session.time_zone='+00:00';
-select ifnull(max(trx_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+select ifnull(max(transaction_id), 0) into @start_trx_id from information_schema.innodb_vtq;
 create procedure if not exists verify_vtq()
 begin
 set @i= 0;
 select
 @i:= @i + 1 as No,
-trx_id > 0 as A,
-commit_id > trx_id as B,
-begin_ts > '1-1-1 0:0:0' as C,
-commit_ts >= begin_ts as D
+transaction_id > 0 as A,
+commit_id > transaction_id as B,
+begin_timestamp > '1-1-1 0:0:0' as C,
+commit_timestamp >= begin_timestamp as D
 from information_schema.innodb_vtq
-where trx_id > @start_trx_id;
-select ifnull(max(trx_id), 0)
+where transaction_id > @start_trx_id;
+select ifnull(max(transaction_id), 0)
 into @start_trx_id
 from information_schema.innodb_vtq;
 end~~
@@ -68,20 +68,20 @@ insert into t1 values ();
 set @ts0= now(6);
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx0;
-select trx_id = @tx0 from information_schema.innodb_vtq limit 1;
-trx_id = @tx0
+select transaction_id = @tx0 from information_schema.innodb_vtq limit 1;
+transaction_id = @tx0
 1
 set @ts1= now(6);
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx1;
-select trx_id = @tx1 from information_schema.innodb_vtq limit 1;
-trx_id = @tx1
+select transaction_id = @tx1 from information_schema.innodb_vtq limit 1;
+transaction_id = @tx1
 1
 set @ts2= now(6);
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx2;
-select trx_id = @tx2 from information_schema.innodb_vtq limit 1;
-trx_id = @tx2
+select transaction_id = @tx2 from information_schema.innodb_vtq limit 1;
+transaction_id = @tx2
 1
 set @ts3= now(6);
 select
@@ -119,26 +119,26 @@ A	B	C	D	E	F	H
 set transaction isolation level read uncommitted;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx3;
-select iso_level = 'RU' from information_schema.innodb_vtq where trx_id = @tx3;
-iso_level = 'RU'
+select isolation_level = 'READ-UNCOMMITTED' from information_schema.innodb_vtq where transaction_id = @tx3;
+isolation_level = 'READ-UNCOMMITTED'
 1
 set transaction isolation level read committed;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx4;
-select iso_level = 'RC' from information_schema.innodb_vtq where trx_id = @tx4;
-iso_level = 'RC'
+select isolation_level = 'READ-COMMITTED' from information_schema.innodb_vtq where transaction_id = @tx4;
+isolation_level = 'READ-COMMITTED'
 1
 set transaction isolation level serializable;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx5;
-select iso_level = 'S' from information_schema.innodb_vtq where trx_id = @tx5;
-iso_level = 'S'
+select isolation_level = 'SERIALIZABLE' from information_schema.innodb_vtq where transaction_id = @tx5;
+isolation_level = 'SERIALIZABLE'
 1
 set transaction isolation level repeatable read;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx6;
-select iso_level = 'RR' from information_schema.innodb_vtq where trx_id = @tx6;
-iso_level = 'RR'
+select isolation_level = 'REPEATABLE-READ' from information_schema.innodb_vtq where transaction_id = @tx6;
+isolation_level = 'REPEATABLE-READ'
 1
 drop table t1;
 call verify_vtq;
