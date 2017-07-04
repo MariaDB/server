@@ -115,6 +115,11 @@ Created 2/16/1996 Heikki Tuuri
 extern bool srv_lzo_disabled;
 #endif /* HAVE_LZO1X */
 
+#ifdef HAVE_LIBNUMA
+#include <numa.h>
+#include <numaif.h>
+#endif // HAVE_LIBNUMA
+
 /** Log sequence number immediately after startup */
 lsn_t	srv_start_lsn;
 /** Log sequence number at shutdown */
@@ -1671,6 +1676,17 @@ innobase_start_or_create_for_mysql()
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_interleave && srv_numa_enable) {
 		srv_numa_enable = (!srv_numa_enable);
+	}
+
+	if (srv_numa_enable) {
+		struct bitmask* numa_mems_allowed = numa_get_mems_allowed();
+		srv_buf_pool_instances = 0;
+
+		for (ulint i = 0; i <= SRV_MAX_NUM_NUMA_NODES; i++) {
+			if (numa_bitmask_isbitset(numa_mems_allowed, i)) {
+				srv_allowed_nodes[srv_buf_pool_instances++] = i;
+			}
+		}
 	}
 #endif // HAVE_LIBNUMA
 
