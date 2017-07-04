@@ -6584,12 +6584,12 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
 bool Vers_parse_info::is_trx_start(const char *name) const
 {
   DBUG_ASSERT(name);
-  return generated_as_row.start && generated_as_row.start == LString_i(name);
+  return as_row.start && as_row.start == LString_i(name);
 }
 bool Vers_parse_info::is_trx_end(const char *name) const
 {
   DBUG_ASSERT(name);
-  return generated_as_row.end && generated_as_row.end == LString_i(name);
+  return as_row.end && as_row.end == LString_i(name);
 }
 bool Vers_parse_info::is_trx_start(const Create_field &f) const
 {
@@ -6638,8 +6638,7 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
                                    bool integer_fields)
 {
   // If user specified some of these he must specify the others too. Do nothing.
-  if (generated_as_row.start || generated_as_row.end ||
-      period_for_system_time.start || period_for_system_time.end)
+  if (as_row.start || as_row.end || system_time.start || system_time.end)
     return false;
 
   alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
@@ -6647,8 +6646,8 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
   static const LString sys_trx_start= "sys_trx_start";
   static const LString sys_trx_end= "sys_trx_end";
 
-  period_for_system_time= start_end_t(sys_trx_start, sys_trx_end);
-  generated_as_row= period_for_system_time;
+  system_time= start_end_t(sys_trx_start, sys_trx_end);
+  as_row= system_time;
 
   return vers_create_sys_field(thd, sys_trx_start, alter_info,
                               VERS_SYS_START_FLAG,
@@ -6703,6 +6702,13 @@ bool Vers_parse_info::check_and_fix_implicit(
   if (!need_check())
     return false;
 
+  if (!versioned_fields && unversioned_fields && !with_system_versioning)
+  {
+    // All is correct but this table is not versioned.
+    create_info->options&= ~HA_VERSIONED_TABLE;
+    return false;
+  }
+
   if (without_system_versioning)
   {
     my_error_as(ER_VERS_WRONG_PARAMS, ER_NOT_ALLOWED, MYF(0), table_name,
@@ -6710,7 +6716,8 @@ bool Vers_parse_info::check_and_fix_implicit(
     return true;
   }
 
-  if (!with_system_versioning && !versioned_fields)
+  if ((system_time.start || system_time.end || as_row.start || as_row.end) &&
+      !with_system_versioning)
   {
     my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
              "WITH SYSTEM VERSIONING");
@@ -6723,7 +6730,7 @@ bool Vers_parse_info::check_and_fix_implicit(
   {
     if (is_trx_start(*f))
     {
-      if (!generated_as_row.start) // not inited in CREATE ... SELECT
+      if (!as_row.start) // not inited in CREATE ... SELECT
       {
         DBUG_ASSERT(vers_tables > 0);
         if (orig_table && orig_table != f->field->orig_table)
@@ -6733,14 +6740,14 @@ bool Vers_parse_info::check_and_fix_implicit(
           return true;
         }
         orig_table= f->field->orig_table;
-        generated_as_row.start= f->field_name;
-        period_for_system_time.start= generated_as_row.start;
+        as_row.start= f->field_name;
+        system_time.start= as_row.start;
       }
       continue;
     }
     if (is_trx_end(*f))
     {
-      if (!generated_as_row.end)
+      if (!as_row.end)
       {
         DBUG_ASSERT(vers_tables > 0);
         if (orig_table && orig_table != f->field->orig_table)
@@ -6748,8 +6755,8 @@ bool Vers_parse_info::check_and_fix_implicit(
           goto err_different_tables;
         }
         orig_table= f->field->orig_table;
-        generated_as_row.end= f->field_name;
-        period_for_system_time.end= generated_as_row.end;
+        as_row.end= f->field_name;
+        system_time.end= as_row.end;
       }
       continue;
     }
@@ -6782,8 +6789,7 @@ bool Vers_parse_info::check_and_fix_implicit(
   }
 
   bool table_with_system_versioning=
-      generated_as_row.start || generated_as_row.end ||
-      period_for_system_time.start || period_for_system_time.end;
+      as_row.start || as_row.end || system_time.start || system_time.end;
 
   if (!thd->lex->tmp_table() &&
     // CREATE from SELECT (Create_fields are not yet added)
@@ -6853,8 +6859,8 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
     const char *end= share->vers_end_field()->field_name;
     DBUG_ASSERT(start && end);
 
-    generated_as_row= start_end_t(start, end);
-    period_for_system_time= generated_as_row;
+    as_row= start_end_t(start, end);
+    system_time= as_row;
 
     if (alter_info->create_list.elements)
     {
@@ -6945,8 +6951,8 @@ bool Vers_parse_info::fix_create_like(THD *thd, Alter_info *alter_info,
     return true;
   }
 
-  generated_as_row= start_end_t(f_start->field_name, f_end->field_name);
-  period_for_system_time= generated_as_row;
+  as_row= start_end_t(f_start->field_name, f_end->field_name);
+  system_time= as_row;
 
   create_info->options|= HA_VERSIONED_TABLE;
   return false;
@@ -6955,28 +6961,28 @@ bool Vers_parse_info::fix_create_like(THD *thd, Alter_info *alter_info,
 
 bool Vers_parse_info::check_with_conditions(const char *table_name) const
 {
-  if (!generated_as_row.start || !generated_as_row.end)
+  if (!as_row.start || !as_row.end)
   {
     my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
-      generated_as_row.start ? "AS ROW END" : "AS ROW START");
+                as_row.start ? "AS ROW END" : "AS ROW START");
     return true;
   }
 
-  if (!period_for_system_time.start || !period_for_system_time.end)
+  if (!system_time.start || !system_time.end)
   {
     my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
              "PERIOD FOR SYSTEM_TIME");
     return true;
   }
 
-  if (generated_as_row.start != period_for_system_time.start)
+  if (as_row.start != system_time.start)
   {
     my_error_as(ER_VERS_WRONG_PARAMS, ER_MISMATCH, MYF(0), table_name,
              "PERIOD FOR SYSTEM_TIME", "AS ROW START");
     return true;
   }
 
-  if (generated_as_row.end != period_for_system_time.end)
+  if (as_row.end != system_time.end)
   {
     my_error_as(ER_VERS_WRONG_PARAMS, ER_MISMATCH, MYF(0), table_name,
              "PERIOD FOR SYSTEM_TIME", "AS ROW END");

@@ -6305,12 +6305,12 @@ field_def:
             switch ($4)
             {
             case 1:
-              p= &info.generated_as_row.start;
+              p= &info.as_row.start;
               clause= "AS ROW START";
               lex->last_field->flags|= VERS_SYS_START_FLAG;
               break;
             case 0:
-              p= &info.generated_as_row.end;
+              p= &info.as_row.end;
               clause= "AS ROW END";
               lex->last_field->flags|= VERS_SYS_END_FLAG;
               break;

@@ -1694,13 +1694,13 @@ struct Vers_parse_info
     LString_i end;
   };
 
-  start_end_t period_for_system_time;
-  start_end_t generated_as_row;
+  start_end_t system_time;
+  start_end_t as_row;
 
   void set_period_for_system_time(LString start, LString end)
   {
-    period_for_system_time.start = start;
-    period_for_system_time.end = end;
+    system_time.start = start;
+    system_time.end = end;
   }
 
 private:
@@ -1716,10 +1716,10 @@ private:
       unversioned_fields ||
       with_system_versioning ||
       without_system_versioning ||
-      period_for_system_time.start.str ||
-      period_for_system_time.end.str ||
-      generated_as_row.start.str ||
-      generated_as_row.end.str;
+      system_time.start ||
+      system_time.end ||
+      as_row.start ||
+      as_row.end;
   }
   bool check_with_conditions(const char *table_name) const;
   bool check_generated_type(const char *table_name, Alter_info *alter_info,

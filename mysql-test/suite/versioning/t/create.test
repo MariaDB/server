@@ -157,7 +157,6 @@ create or replace table t1 (
 --replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM "bigint(20) unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
 show create table t1;
 
---error ER_VERS_WRONG_PARAMS
 create or replace table t1 (
   A3 int,
   B int without system versioning
@@ -184,7 +183,6 @@ create or replace table t1 (
 --replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM "bigint(20) unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
 show create table t1;
 
---error ER_VERS_WRONG_PARAMS
 create or replace table t1 (
   A7 int without system versioning
 );

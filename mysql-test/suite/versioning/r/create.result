@@ -211,7 +211,6 @@ create or replace table t1 (
 A3 int,
 B int without system versioning
 );
-ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
 create or replace table t1 (
 A4 int,
 B int without system versioning
@@ -254,7 +253,6 @@ t1	CREATE TABLE `t1` (
 create or replace table t1 (
 A7 int without system versioning
 );
-ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
 create or replace table t1 (
 A8 int without system versioning
 ) with system versioning;
