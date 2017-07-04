@@ -1,7 +1,7 @@
 CREATE TABLE t1 (c1 INT, c2 VARCHAR(30));
 PREPARE populate_table FROM "INSERT into t1 values (1, 'manual_insert_1'),
                                                    (4, 'manual_insert_2')";
-INSERT INTO t1 SELECT row_number() over(), "should_have_0" FROM t1;
+INSERT INTO t1 SELECT row_number() over(), "should_have_NULL" FROM t1;
 INSERT INTO t1 SELECT 1 + row_number() over(), "should_have_2" FROM t1;
 EXECUTE populate_table;
 INSERT INTO t1 SELECT 10 + row_number() over(), "should repeat 4 times [11-14]" FROM t1;
@@ -13,8 +13,8 @@ c1	c2
 12	should repeat 4 times [11-14]
 13	should repeat 4 times [11-14]
 14	should repeat 4 times [11-14]
-0	should_have_0
 2	should_have_2
+NULL	should_have_NULL
 DELETE FROM t1;
 EXECUTE populate_table;
 INSERT INTO t1

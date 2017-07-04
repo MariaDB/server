@@ -1877,3 +1877,16 @@ select count(max(id)) over (order by max(id)) from t1 where id < 3;
 select max(id), rank() over (order by max(id)) from t1 where id < 3;
 
 drop table t1;
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-13240 Wrong warning with MAX(datetime_field) OVER (...)
+--echo #
+
+CREATE TABLE t1 (dt DATETIME);
+INSERT INTO t1 VALUES ('2017-05-17');
+SELECT MAX(dt) OVER (ORDER BY dt ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING) FROM t1;
+DROP TABLE t1;
