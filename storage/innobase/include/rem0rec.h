@@ -1080,14 +1080,14 @@ private:
 # endif /* !DBUG_OFF */
 
 # ifdef UNIV_DEBUG
-/************************************************************//**
-Reads the DB_TRX_ID of a clustered index record.
+/** Read the DB_TRX_ID of a clustered index record.
+@param[in]	rec	clustered index record
+@param[in]	index	clustered index
 @return the value of DB_TRX_ID */
 trx_id_t
 rec_get_trx_id(
-/*===========*/
-	const rec_t*		rec,	/*!< in: record */
-	const dict_index_t*	index)	/*!< in: clustered index */
+	const rec_t*		rec,
+	const dict_index_t*	index)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 # endif /* UNIV_DEBUG */
 

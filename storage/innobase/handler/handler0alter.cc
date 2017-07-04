@@ -1760,7 +1760,6 @@ innobase_col_to_mysql(
 		memcpy(dest, data, len);
 		break;
 
-	case DATA_VAR_POINT:
 	case DATA_GEOMETRY:
 	case DATA_BLOB:
 		/* Skip MySQL BLOBs when reporting an erroneous row
@@ -1785,7 +1784,6 @@ innobase_col_to_mysql(
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 	case DATA_DECIMAL:
-	case DATA_POINT:
 		/* Above are the valid column types for MySQL data. */
 		ut_ad(flen == len);
 		/* fall through */
@@ -3011,29 +3009,6 @@ innobase_check_foreigns(
 	return(false);
 }
 
-/** Get the default POINT value in MySQL format
-@param[in]	heap	memory heap where allocated
-@param[in]	length	length of MySQL format
-@return mysql format data */
-static
-const byte*
-innobase_build_default_mysql_point(
-	mem_heap_t*	heap,
-	ulint		length)
-{
-	byte*	buf	= static_cast<byte*>(mem_heap_alloc(
-				heap, DATA_POINT_LEN + length));
-
-	byte*	wkb	= buf + length;
-
-	ulint   len = get_wkb_of_default_point(SPDIMS, wkb, DATA_POINT_LEN);
-	ut_ad(len == DATA_POINT_LEN);
-
-	row_mysql_store_blob_ref(buf, length, wkb, len);
-
-	return(buf);
-}
-
 /** Convert a default value for ADD COLUMN.
 
 @param heap Memory heap where allocated
@@ -3059,16 +3034,6 @@ innobase_build_col_map_add(
 	byte*	buf	= static_cast<byte*>(mem_heap_alloc(heap, size));
 
 	const byte*	mysql_data = field->ptr;
-
-	if (dfield_get_type(dfield)->mtype == DATA_POINT) {
-		/** If the DATA_POINT field is NOT NULL, we need to
-		give it a default value, since DATA_POINT is a fixed length
-		type, we couldn't store a value of length 0, like other
-		geom types. Server doesn't provide the default value, and
-		we would use POINT(0 0) here instead. */
-
-		mysql_data = innobase_build_default_mysql_point(heap, size);
-	}
 
 	row_mysql_store_col_in_innobase_format(
 		dfield, buf, true, mysql_data, size, comp);
@@ -4701,12 +4666,6 @@ prepare_inplace_alter_table_dict(
 					field_type |= DATA_LONG_TRUE_VARCHAR;
 				}
 
-			}
-
-			if (col_type == DATA_POINT) {
-				/* DATA_POINT should be of fixed length,
-				instead of the pack_length(blob length). */
-				col_len = DATA_POINT_LEN;
 			}
 
 			if (dict_col_name_is_reserved(field->field_name.str)) {

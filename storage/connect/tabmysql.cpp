@@ -124,7 +124,7 @@ bool MYSQLDEF::GetServerInfo(PGLOBAL g, const char *server_name)
     DBUG_RETURN(true);
     } // endif server
 
-  DBUG_PRINT("info", ("get_server_by_name returned server at %lx",
+  DBUG_PRINT("info", ("get_server_by_name returned server at %zx",
                       (size_t) server));
 
   // TODO: We need to examine which of these can really be NULL

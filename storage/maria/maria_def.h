@@ -734,6 +734,7 @@ struct st_maria_handler
 #define STATE_MOVED              512U /* set if base->uuid != maria_uuid */
 #define STATE_IN_REPAIR  	 1024U /* We are running repair on table */
 #define STATE_CRASHED_PRINTED	 2048U
+#define STATE_DATA_FILE_FULL     4096U
 
 #define STATE_CRASHED_FLAGS (STATE_CRASHED | STATE_CRASHED_ON_REPAIR | STATE_CRASHED_PRINTED)
 

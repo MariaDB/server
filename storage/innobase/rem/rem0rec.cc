@@ -308,7 +308,6 @@ rec_init_offsets_comp_ordinary(
 
 		if (!field->fixed_len
 		    || (temp && !dict_col_get_fixed_size(col, temp))) {
-			ut_ad(col->mtype != DATA_POINT);
 			/* Variable-length field: read the length */
 			len = *lens--;
 			/* If the maximum length of the field is up
@@ -445,9 +444,6 @@ rec_init_offsets(
 			if (UNIV_UNLIKELY(!field->fixed_len)) {
 				const dict_col_t*	col
 					= dict_field_get_col(field);
-				/* DATA_POINT should always be a fixed
-				length column. */
-				ut_ad(col->mtype != DATA_POINT);
 				/* Variable-length field: read the length */
 				len = *lens--;
 				/* If the maximum length of the field
@@ -858,8 +854,6 @@ rec_get_converted_size_comp_prefix_low(
 		}
 
 		ut_ad(len <= col->len || DATA_LARGE_MTYPE(col->mtype)
-                      || (DATA_POINT_MTYPE(col->mtype)
-			  && len == DATA_MBR_LEN)
 		      || (col->len == 0 && col->mtype == DATA_VARCHAR));
 
 		fixed_len = field->fixed_len;
@@ -1337,8 +1331,6 @@ rec_convert_dtuple_to_rec_comp(
 			*lens-- = (byte) (len >> 8) | 0xc0;
 			*lens-- = (byte) len;
 		} else {
-			/* DATA_POINT would have a fixed_len */
-			ut_ad(dtype_get_mtype(type) != DATA_POINT);
 			ut_ad(len <= dtype_get_len(type)
 			      || DATA_LARGE_MTYPE(dtype_get_mtype(type))
 			      || !strcmp(index->name,
@@ -2106,8 +2098,6 @@ rec_print_mbr_rec(
 
 /***************************************************************//**
 Prints a physical record. */
-/***************************************************************//**
-Prints a physical record. */
 void
 rec_print_new(
 /*==========*/
@@ -2254,14 +2244,14 @@ operator<<(std::ostream& o, const rec_offsets_print& r)
 }
 
 #ifdef UNIV_DEBUG
-/************************************************************//**
-Reads the DB_TRX_ID of a clustered index record.
+/** Read the DB_TRX_ID of a clustered index record.
+@param[in]	rec	clustered index record
+@param[in]	index	clustered index
 @return the value of DB_TRX_ID */
 trx_id_t
 rec_get_trx_id(
-/*===========*/
-	const rec_t*		rec,	/*!< in: record */
-	const dict_index_t*	index)	/*!< in: clustered index */
+	const rec_t*		rec,
+	const dict_index_t*	index)
 {
 	const page_t*	page
 		= page_align(rec);
@@ -2270,10 +2260,11 @@ rec_get_trx_id(
 	const byte*	trx_id;
 	ulint		len;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	ulint offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 	rec_offs_init(offsets_);
+	ulint* offsets = offsets_;
 
+	ut_ad(trx_id_col <= MAX_REF_PARTS);
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID)
 	      == index->id);
@@ -2287,7 +2278,7 @@ rec_get_trx_id(
 
 	ut_ad(len == DATA_TRX_ID_LEN);
 
-	if (heap) {
+	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
 

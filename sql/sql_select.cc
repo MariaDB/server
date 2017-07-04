@@ -16681,7 +16681,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   if (blob_count || using_unique_constraint
       || (thd->variables.big_tables && !(select_options & SELECT_SMALL_RESULT))
       || (select_options & TMP_TABLE_FORCE_MYISAM)
-      || thd->variables.tmp_table_size == 0)
+      || thd->variables.tmp_memory_table_size == 0)
   {
     share->db_plugin= ha_lock_engine(0, TMP_ENGINE_HTON);
     table->file= get_new_handler(share, &table->mem_root,
@@ -16845,14 +16845,14 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   param->recinfo= recinfo;              	// Pointer to after last field
   store_record(table,s->default_values);        // Make empty default record
 
-  if (thd->variables.tmp_table_size == ~ (ulonglong) 0)		// No limit
+  if (thd->variables.tmp_memory_table_size == ~ (ulonglong) 0)	// No limit
     share->max_rows= ~(ha_rows) 0;
   else
     share->max_rows= (ha_rows) (((share->db_type() == heap_hton) ?
-                                 MY_MIN(thd->variables.tmp_table_size,
+                                 MY_MIN(thd->variables.tmp_memory_table_size,
                                      thd->variables.max_heap_table_size) :
-                                 thd->variables.tmp_table_size) /
-			         share->reclength);
+                                 thd->variables.tmp_memory_table_size) /
+                                share->reclength);
   set_if_bigger(share->max_rows,1);		// For dummy start options
   /*
     Push the LIMIT clause to the temporary table creation, so that we
@@ -17390,10 +17390,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     }
   }
   bzero((char*) &create_info,sizeof(create_info));
-
-  /* Use long data format, to ensure we never get a 'table is full' error */
-  if (!(options & SELECT_SMALL_RESULT))
-    create_info.data_file_length= ~(ulonglong) 0;
+  create_info.data_file_length= table->in_use->variables.tmp_disk_table_size;
 
   /*
     The logic for choosing the record format:
@@ -17589,9 +17586,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   }
   MI_CREATE_INFO create_info;
   bzero((char*) &create_info,sizeof(create_info));
-
-  if (!(options & SELECT_SMALL_RESULT))
-    create_info.data_file_length= ~(ulonglong) 0;
+  create_info.data_file_length= table->in_use->variables.tmp_disk_table_size;
 
   if ((error=mi_create(share->table_name.str, share->keys, &keydef,
 		       (uint) (*recinfo-start_recinfo),
@@ -26303,7 +26298,8 @@ AGGR_OP::put_record(bool end_of_records)
 {
   // Lasy tmp table creation/initialization
   if (!join_tab->table->file->inited)
-    prepare_tmp_table();
+    if (prepare_tmp_table())
+      return NESTED_LOOP_ERROR;
   enum_nested_loop_state rc= (*write_func)(join_tab->join, join_tab,
                                            end_of_records);
   return rc;

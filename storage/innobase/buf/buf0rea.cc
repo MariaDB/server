@@ -813,22 +813,25 @@ buf_read_ibuf_merge_pages(
 #endif
 
 	for (ulint i = 0; i < n_stored; i++) {
-		const page_id_t	page_id(space_ids[i], page_nos[i]);
-
-		buf_pool_t*	buf_pool = buf_pool_get(page_id);
-
 		bool			found;
 		const page_size_t	page_size(fil_space_get_page_size(
 			space_ids[i], &found));
 
 		if (!found) {
 tablespace_deleted:
-			/* The tablespace was not found, remove the
-			entries for that page */
-			ibuf_merge_or_delete_for_page(NULL, page_id,
-						      NULL, FALSE);
+			/* The tablespace was not found: remove all
+			entries for it */
+			ibuf_delete_for_discarded_space(space_ids[i]);
+			while (i + 1 < n_stored
+			       && space_ids[i + 1] == space_ids[i]) {
+				i++;
+			}
 			continue;
 		}
+
+		const page_id_t	page_id(space_ids[i], page_nos[i]);
+
+		buf_pool_t*	buf_pool = buf_pool_get(page_id);
 
 		while (buf_pool->n_pend_reads
 		       > buf_pool->curr_size / BUF_READ_AHEAD_PEND_LIMIT) {

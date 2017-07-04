@@ -8,4 +8,5 @@ if (`SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_N
 {
   --skip Test requires wsrep_on=ON
 }
+--source include/wait_until_ready.inc
 

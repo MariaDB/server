@@ -2313,11 +2313,6 @@ public:
   Item_func_isnull(THD *thd, Item *a): Item_func_null_predicate(thd, a) {}
   longlong val_int();
   enum Functype functype() const { return ISNULL_FUNC; }
-  void fix_length_and_dec()
-  {
-    Item_func_null_predicate::fix_length_and_dec();
-    update_used_tables();
-  }
   const char *func_name() const { return "isnull"; }
   void print(String *str, enum_query_type query_type);
   enum precedence precedence() const { return CMP_PRECEDENCE; }

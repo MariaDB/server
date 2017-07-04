@@ -1576,7 +1576,7 @@ static int mysql_test_select(Prepared_statement *stmt,
   }
 
   if (open_normal_and_derived_tables(thd, tables,  MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE | DT_CREATE))
     goto error;
 
   thd->lex->used_tables= 0;                        // Updated by setup_fields

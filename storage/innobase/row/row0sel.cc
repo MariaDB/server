@@ -183,6 +183,9 @@ row_sel_sec_rec_is_for_clust_rec(
 
 	if (rec_get_deleted_flag(clust_rec,
 				 dict_table_is_comp(clust_index->table))) {
+		/* In delete-marked records, DB_TRX_ID must
+		always refer to an existing undo log record. */
+		ut_ad(rec_get_trx_id(clust_rec, clust_index));
 
 		/* The clustered index record is delete-marked;
 		it is not visible in the read view.  Besides,
@@ -2042,6 +2045,11 @@ skip_lock:
 
 		if (rec_get_deleted_flag(clust_rec,
 					 dict_table_is_comp(plan->table))) {
+			/* In delete-marked records, DB_TRX_ID must
+			always refer to an existing update_undo log record. */
+			ut_ad(rec_get_trx_id(clust_rec,
+					     dict_table_get_first_index(
+						     plan->table)));
 
 			/* The record is delete marked: we can skip it */
 
@@ -2611,10 +2619,9 @@ row_sel_convert_mysql_key_to_innobase(
 				data_field_len = data_offset + data_len;
 			} else {
 				/* The key field is a column prefix of a BLOB
-				or TEXT, except DATA_POINT of GEOMETRY. */
+				or TEXT. */
 
-				ut_a(field->prefix_len > 0
-				     || DATA_POINT_MTYPE(type));
+				ut_a(field->prefix_len > 0);
 
 				/* MySQL stores the actual data length to the
 				first 2 bytes after the optional SQL NULL
@@ -2624,18 +2631,12 @@ row_sel_convert_mysql_key_to_innobase(
 				seems to reserve field->prefix_len bytes for
 				storing this field in the key value buffer,
 				even though the actual value only takes data
-				len bytes from the start.
-				For POINT of GEOMETRY, which has no prefix
-				because it's now a fixed length type in
-				InnoDB, we have to get DATA_POINT_LEN bytes,
-				which is original prefix length of POINT. */
+				len bytes from the start. */
 
 				data_len = key_ptr[data_offset]
 					   + 256 * key_ptr[data_offset + 1];
 				data_field_len = data_offset + 2
-						 + (type == DATA_POINT
-						    ? DATA_POINT_LEN
-						    : field->prefix_len);
+					+ field->prefix_len;
 
 				data_offset += 2;
 
@@ -2897,8 +2898,6 @@ row_sel_field_store_in_mysql_format_func(
 					 len);
 		break;
 
-	case DATA_POINT:
-	case DATA_VAR_POINT:
 	case DATA_GEOMETRY:
 		/* We store all geometry data as BLOB data at server layer. */
 		row_mysql_store_geometry(dest, templ->mysql_col_len, data, len);
@@ -3019,7 +3018,6 @@ row_sel_store_mysql_field_func(
 		/* Copy an externally stored field to a temporary heap */
 
 		ut_ad(field_no == templ->clust_rec_field_no);
-		ut_ad(templ->type != DATA_POINT);
 
 		if (DATA_LARGE_MTYPE(templ->type)) {
 			if (prebuilt->blob_heap == NULL) {
@@ -3099,10 +3097,7 @@ row_sel_store_mysql_field_func(
 			will be invalid as soon as the
 			mini-transaction is committed and the page
 			latch on the clustered index page is
-			released.
-			For DATA_POINT, it's stored like CHAR in InnoDB,
-			but it should be a BLOB field in MySQL layer. So we
-			still treated it as BLOB here. */
+			released. */
 
 			if (prebuilt->blob_heap == NULL) {
 				prebuilt->blob_heap = mem_heap_create(
@@ -3934,6 +3929,9 @@ row_sel_try_search_shortcut_for_mysql(
 	}
 
 	if (rec_get_deleted_flag(rec, dict_table_is_comp(index->table))) {
+		/* In delete-marked records, DB_TRX_ID must
+		always refer to an existing undo log record. */
+		ut_ad(row_get_rec_trx_id(rec, index, *offsets));
 
 		return(SEL_EXHAUSTED);
 	}
@@ -5129,6 +5127,10 @@ locks_ok:
 	page_rec_is_comp() cannot be used! */
 
 	if (rec_get_deleted_flag(rec, comp)) {
+		/* In delete-marked records, DB_TRX_ID must
+		always refer to an existing undo log record. */
+		ut_ad(index != clust_index
+		      || row_get_rec_trx_id(rec, index, offsets));
 
 		/* The record is delete-marked: we can skip it */
 
@@ -5364,7 +5366,6 @@ requires_clust_rec:
 	    && prebuilt->select_lock_type == LOCK_NONE
 	    && !prebuilt->m_no_prefetch
 	    && !prebuilt->templ_contains_blob
-	    && !prebuilt->templ_contains_fixed_point
 	    && !prebuilt->clust_index_was_generated
 	    && !prebuilt->used_in_HANDLER
 	    && prebuilt->template_type != ROW_MYSQL_DUMMY_TEMPLATE

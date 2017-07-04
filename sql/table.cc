@@ -8249,8 +8249,12 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
       Item *left_item_clone= left_item->build_clone(thd, thd->mem_root);
       Item *right_item_clone= item->build_clone(thd, thd->mem_root);
       if (left_item_clone && right_item_clone)
+      {
+        left_item_clone->set_item_equal(NULL);
+        right_item_clone->set_item_equal(NULL);
 	eq= new (thd->mem_root) Item_func_eq(thd, right_item_clone,
                                          left_item_clone);
+      }
       if (eq)
       {
 	i++;

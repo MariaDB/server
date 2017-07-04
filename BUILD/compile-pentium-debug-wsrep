@@ -7,6 +7,6 @@ set -- "$@" --with-debug=full
 extra_flags="$pentium_cflags $debug_cflags -g -O0 $wsrep_cflags"
 c_warnings="$c_warnings $debug_extra_warnings"
 cxx_warnings="$cxx_warnings $debug_extra_warnings"
-extra_configs="$pentium_configs $debug_configs $wsrep_configs --with-wsrep"
+extra_configs="$pentium_configs $debug_configs $wsrep_configs --with-wsrep $disable_64_bit_plugins"
 
 . "$path/FINISH.sh"

@@ -3679,6 +3679,11 @@ btr_cur_update_in_place(
 
 	was_delete_marked = rec_get_deleted_flag(
 		rec, page_is_comp(buf_block_get_frame(block)));
+	/* In delete-marked records, DB_TRX_ID must always refer to an
+	existing undo log record. */
+	ut_ad(!was_delete_marked
+	      || !dict_index_is_clust(index)
+	      || row_get_rec_trx_id(rec, index, offsets));
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (block->index) {
@@ -4321,6 +4326,10 @@ btr_cur_pessimistic_update(
 			stored fields */
 			btr_cur_unmark_extern_fields(
 				page_zip, rec, index, *offsets, mtr);
+		} else {
+			/* In delete-marked records, DB_TRX_ID must
+			always refer to an existing undo log record. */
+			ut_ad(row_get_rec_trx_id(rec, index, *offsets));
 		}
 
 		bool adjust = big_rec_vec && (flags & BTR_KEEP_POS_FLAG);
@@ -4448,6 +4457,10 @@ btr_cur_pessimistic_update(
 
 		btr_cur_unmark_extern_fields(page_zip,
 					     rec, index, *offsets, mtr);
+	} else {
+		/* In delete-marked records, DB_TRX_ID must
+		always refer to an existing undo log record. */
+		ut_ad(row_get_rec_trx_id(rec, index, *offsets));
 	}
 
 	if (!dict_table_is_locking_disabled(index->table)) {
@@ -4573,6 +4586,10 @@ btr_cur_parse_del_mark_set_clust_rec(
 
 	ut_a(offset <= UNIV_PAGE_SIZE);
 
+	/* In delete-marked records, DB_TRX_ID must
+	always refer to an existing undo log record. */
+	ut_ad(trx_id || (flags & BTR_KEEP_SYS_FLAG));
+
 	if (page) {
 		rec = page + offset;
 
@@ -4582,20 +4599,37 @@ btr_cur_parse_del_mark_set_clust_rec(
 		and the adaptive hash index does not depend on them. */
 
 		btr_rec_set_deleted_flag(rec, page_zip, val);
+		/* pos is the offset of DB_TRX_ID in the clustered index.
+		Debug assertions may also access DB_ROLL_PTR at pos+1.
+		Therefore, we must compute offsets for the first pos+2
+		clustered index fields. */
+		ut_ad(pos <= MAX_REF_PARTS);
+
+		ulint offsets[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		rec_offs_init(offsets);
+		mem_heap_t*	heap	= NULL;
 
 		if (!(flags & BTR_KEEP_SYS_FLAG)) {
-			mem_heap_t*	heap		= NULL;
-			ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-			rec_offs_init(offsets_);
-
 			row_upd_rec_sys_fields_in_recovery(
 				rec, page_zip,
-				rec_get_offsets(rec, index, offsets_,
-						ULINT_UNDEFINED, &heap),
+				rec_get_offsets(rec, index, offsets,
+						pos + 2, &heap),
 				pos, trx_id, roll_ptr);
-			if (UNIV_LIKELY_NULL(heap)) {
-				mem_heap_free(heap);
-			}
+		} else {
+			/* In delete-marked records, DB_TRX_ID must
+			always refer to an existing undo log record. */
+			ut_ad(memcmp(rec_get_nth_field(
+					     rec,
+					     rec_get_offsets(rec, index,
+							     offsets, pos,
+							     &heap),
+					     pos, &offset),
+				     field_ref_zero, DATA_TRX_ID_LEN));
+			ut_ad(offset == DATA_TRX_ID_LEN);
+		}
+
+		if (UNIV_LIKELY_NULL(heap)) {
+			mem_heap_free(heap);
 		}
 	}
 
@@ -4633,8 +4667,10 @@ btr_cur_del_mark_set_clust_rec(
 	ut_ad(mtr->is_named_space(index->space));
 
 	if (rec_get_deleted_flag(rec, rec_offs_comp(offsets))) {
-		/* While cascading delete operations, this becomes possible. */
-		ut_ad(rec_get_trx_id(rec, index) == thr_get_trx(thr)->id);
+		/* We may already have delete-marked this record
+		when executing an ON DELETE CASCADE operation. */
+		ut_ad(row_get_rec_trx_id(rec, index, offsets)
+		      == thr_get_trx(thr)->id);
 		return(DB_SUCCESS);
 	}
 
@@ -4663,10 +4699,6 @@ btr_cur_del_mark_set_clust_rec(
 	btr_rec_set_deleted_flag(rec, page_zip, TRUE);
 
 	trx = thr_get_trx(thr);
-	/* This function must not be invoked during rollback
-	(of a TRX_STATE_PREPARE transaction or otherwise). */
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-	ut_ad(!trx->in_rollback);
 
 	DBUG_LOG("ib_cur",
 		 "delete-mark clust " << index->table->name

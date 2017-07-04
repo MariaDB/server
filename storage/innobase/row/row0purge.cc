@@ -160,6 +160,9 @@ row_purge_remove_clust_if_poss_low(
 	}
 
 	ut_ad(rec_get_deleted_flag(rec, rec_offs_comp(offsets)));
+	/* In delete-marked records, DB_TRX_ID must
+	always refer to an existing undo log record. */
+	ut_ad(row_get_rec_trx_id(rec, index, offsets));
 
 	if (mode == BTR_MODIFY_LEAF) {
 		success = btr_cur_optimistic_delete(

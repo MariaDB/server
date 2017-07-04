@@ -107,9 +107,6 @@ static ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 #else
 /** Umask for creating files */
 static ulint	os_innodb_umask	= 0;
-#ifndef ECANCELED
-#define ECANCELED  125
-#endif
 static HANDLE	completion_port;
 static HANDLE	read_completion_port;
 static DWORD	fls_sync_io  = FLS_OUT_OF_INDEXES;
@@ -303,7 +300,7 @@ public:
 	/** Requests for a slot in the aio array. If no slot is available, waits
 	until not_full-event becomes signaled.
 
-	@param[in,out]	type	IO context
+	@param[in]	type	IO context
 	@param[in,out]	m1	message to be passed along with the AIO
 				operation
 	@param[in,out]	m2	message to be passed along with the AIO
@@ -316,14 +313,14 @@ public:
 	@param[in]	len	length of the block to read or write
 	@return pointer to slot */
 	Slot* reserve_slot(
-		IORequest&	type,
-		fil_node_t*	m1,
-		void*		m2,
-		pfs_os_file_t	file,
-		const char*	name,
-		void*		buf,
-		os_offset_t	offset,
-		ulint		len)
+		const IORequest&	type,
+		fil_node_t*		m1,
+		void*			m2,
+		pfs_os_file_t		file,
+		const char*		name,
+		void*			buf,
+		os_offset_t		offset,
+		ulint			len)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** @return number of reserved slots */
@@ -510,14 +507,14 @@ public:
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Select the IO slot array
-	@param[in]	type		Type of IO, READ or WRITE
+	@param[in,out]	type		Type of IO, READ or WRITE
 	@param[in]	read_only	true if running in read-only mode
 	@param[in]	mode		IO mode
 	@return slot array or NULL if invalid mode specified */
 	static AIO* select_slot_array(
-		IORequest&	type,
-		bool		read_only,
-		ulint		mode)
+		IORequest&		type,
+		bool			read_only,
+		ulint			mode)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Calculates segment number for a slot.
@@ -4931,14 +4928,15 @@ os_file_io(
 static MY_ATTRIBUTE((warn_unused_result))
 ssize_t
 os_file_pwrite(
-	IORequest&	type,
-	os_file_t	file,
-	const byte*	buf,
-	ulint		n,
-	os_offset_t	offset,
-	dberr_t*	err)
+	const IORequest&	type,
+	os_file_t		file,
+	const byte*		buf,
+	ulint			n,
+	os_offset_t		offset,
+	dberr_t*		err)
 {
 	ut_ad(type.validate());
+	ut_ad(type.is_write());
 
 	++os_n_file_writes;
 
@@ -4951,26 +4949,25 @@ os_file_pwrite(
 	return(n_bytes);
 }
 
-/** Requests a synchronous write operation.
+/** NOTE! Use the corresponding macro os_file_write(), not directly
+Requests a synchronous write operation.
 @param[in]	type		IO flags
 @param[in]	file		handle to an open file
 @param[out]	buf		buffer from which to write
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
 @return DB_SUCCESS if request was successful, false if fail */
-static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
-os_file_write_page(
-	IORequest&	type,
-	const char*	name,
-	os_file_t	file,
-	const void*	buf,
-	os_offset_t	offset,
-	ulint		n)
+os_file_write_func(
+	const IORequest&	type,
+	const char*		name,
+	os_file_t		file,
+	const void*		buf,
+	os_offset_t		offset,
+	ulint			n)
 {
 	dberr_t		err;
 
-	ut_ad(type.is_write());
 	ut_ad(type.validate());
 	ut_ad(n > 0);
 
@@ -5017,13 +5014,15 @@ os_file_write_page(
 static MY_ATTRIBUTE((warn_unused_result))
 ssize_t
 os_file_pread(
-	IORequest&	type,
-	os_file_t	file,
-	void*		buf,
-	ulint		n,
-	os_offset_t	offset,
-	dberr_t*	err)
+	const IORequest&	type,
+	os_file_t		file,
+	void*			buf,
+	ulint			n,
+	os_offset_t		offset,
+	dberr_t*		err)
 {
+	ut_ad(type.is_read());
+
 	++os_n_file_reads;
 
 	const bool monitor = MONITOR_IS_ON(MONITOR_OS_PENDING_READS);
@@ -5047,13 +5046,13 @@ os_file_pread(
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 os_file_read_page(
-	IORequest&	type,
-	os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	ulint*		o,
-	bool		exit_on_err)
+	const IORequest&	type,
+	os_file_t		file,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			n,
+	ulint*			o,
+	bool			exit_on_err)
 {
 	dberr_t		err;
 
@@ -5421,14 +5420,12 @@ Requests a synchronous positioned read operation.
 @return DB_SUCCESS or error code */
 dberr_t
 os_file_read_func(
-	IORequest&	type,
-	os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n)
+	const IORequest&	type,
+	os_file_t		file,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			n)
 {
-	ut_ad(type.is_read());
-
 	return(os_file_read_page(type, file, buf, offset, n, NULL, true));
 }
 
@@ -5445,41 +5442,14 @@ Requests a synchronous positioned read operation.
 @return DB_SUCCESS or error code */
 dberr_t
 os_file_read_no_error_handling_func(
-	IORequest&	type,
-	os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	ulint*		o)
+	const IORequest&	type,
+	os_file_t		file,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			n,
+	ulint*			o)
 {
-	ut_ad(type.is_read());
-
 	return(os_file_read_page(type, file, buf, offset, n, o, false));
-}
-
-/** NOTE! Use the corresponding macro os_file_write(), not directly
-Requests a synchronous write operation.
-@param[in]	type		IO flags
-@param[in]	file		handle to an open file
-@param[out]	buf		buffer from which to write
-@param[in]	offset		file offset from the start where to read
-@param[in]	n		number of bytes to read, starting from offset
-@return DB_SUCCESS if request was successful, false if fail */
-dberr_t
-os_file_write_func(
-	IORequest&	type,
-	const char*	name,
-	os_file_t	file,
-	const void*	buf,
-	os_offset_t	offset,
-	ulint		n)
-{
-	ut_ad(type.validate());
-	ut_ad(type.is_write());
-
-	const byte*	ptr = reinterpret_cast<const byte*>(buf);
-
-	return(os_file_write_page(type, name, file, ptr, offset, n));
 }
 
 /** Check the existence and type of the given file.
@@ -6146,7 +6116,7 @@ AIO::get_segment_no_from_slot(
 /** Requests for a slot in the aio array. If no slot is available, waits until
 not_full-event becomes signaled.
 
-@param[in,out]	type		IO context
+@param[in]	type		IO context
 @param[in,out]	m1		message to be passed along with the AIO
 				operation
 @param[in,out]	m2		message to be passed along with the AIO
@@ -6160,14 +6130,14 @@ not_full-event becomes signaled.
 @return pointer to slot */
 Slot*
 AIO::reserve_slot(
-	IORequest&	type,
-	fil_node_t*	m1,
-	void*		m2,
-	pfs_os_file_t	file,
-	const char*	name,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		len)
+	const IORequest&	type,
+	fil_node_t*		m1,
+	void*			m2,
+	pfs_os_file_t		file,
+	const char*		name,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			len)
 {
 #ifdef WIN_ASYNC_IO
 	ut_a((len & 0xFFFFFFFFUL) == len);
@@ -6378,7 +6348,7 @@ os_aio_simulated_wake_handler_threads()
 }
 
 /** Select the IO slot array
-@param[in]	type		Type of IO, READ or WRITE
+@param[in,out]	type		Type of IO, READ or WRITE
 @param[in]	read_only	true if running in read-only mode
 @param[in]	mode		IO mode
 @return slot array or NULL if invalid mode specified */
@@ -6595,7 +6565,7 @@ os_aio_windows_handler(
 /**
 NOTE! Use the corresponding macro os_aio(), not directly this function!
 Requests an asynchronous i/o operation.
-@param[in]	type		IO request context
+@param[in,out]	type		IO request context
 @param[in]	mode		IO mode
 @param[in]	name		Name of the file or path as NUL terminated
 				string

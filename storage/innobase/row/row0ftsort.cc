@@ -527,7 +527,6 @@ row_merge_fts_doc_tokenize(
 	doc id and position to sort buffer */
 	while (t_ctx->processed_len < doc->text.f_len) {
 		ulint		idx = 0;
-		ib_uint32_t	position;
 		ulint		cur_len;
 		doc_id_t	write_doc_id;
 		row_fts_token_t* fts_token = NULL;
@@ -679,20 +678,18 @@ row_merge_fts_doc_tokenize(
 
 		++field;
 
-		/* The third field is the position */
-		if (parser != NULL) {
-			mach_write_to_4(
-				reinterpret_cast<byte*>(&position),
-				(fts_token->position + t_ctx->init_pos));
-		} else {
-			mach_write_to_4(
-				reinterpret_cast<byte*>(&position),
-				(t_ctx->processed_len + inc - str.f_len + t_ctx->init_pos));
+		/* The third field is the position.
+		MySQL 5.7 changed the fulltext parser plugin interface
+		by adding MYSQL_FTPARSER_BOOLEAN_INFO::position.
+		Below we assume that the field is always 0. */
+		unsigned	pos = t_ctx->init_pos;
+		byte		position[4];
+		if (parser == NULL) {
+			pos += t_ctx->processed_len + inc - str.f_len;
 		}
-
-		dfield_set_data(field, &position, sizeof(position));
-		len = dfield_get_len(field);
-		ut_ad(len == sizeof(ib_uint32_t));
+		len = 4;
+		mach_write_to_4(position, pos);
+		dfield_set_data(field, &position, len);
 
 		field->type.mtype = DATA_INT;
 		field->type.prtype = DATA_NOT_NULL;

@@ -681,3 +681,46 @@ SELECT * FROM cte;
 
 DROP TABLE cte;
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-13107: SHOW TABLE STATUS, SHOW CREATE VIEW 
+--echo #             for CTEs that use derived tables
+--echo #
+
+create table t1(a int) engine=myisam;
+insert into t1 values (3), (1), (2);
+create table t2 (b int) engine=myisam;
+insert into t2 values (2), (10);
+
+create view v1 as
+with t as (select s.a from (select t1.a from t1) s),
+     r as(select t.a from t2, t where t2.b=t.a)
+ select a from r;
+
+create view v2 as
+with t as (select s.a from (select t1.a from t1) s),
+     r as(select t.a from t2, t where t2.b=t.a)
+ select a from t1;
+
+--disable_result_log
+show table status;
+--enable_result_log
+
+show create view v1;
+show create view v2;
+
+select * from v1;
+select * from v2;
+
+prepare stmt1 from "select * from v1";
+execute stmt1;
+execute stmt1;
+prepare stmt2 from "select * from v2";
+execute stmt2;
+execute stmt2;
+
+deallocate prepare stmt1;
+deallocate prepare stmt2;
+
+drop view v1,v2;
+drop table t1,t2;

@@ -33,16 +33,16 @@ ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 2 /redo log from 3\*[0-9]+ to 2\*[0-9]+ pages/ in mysqld.1.err
+FOUND 2 /redo log from 3\*[0-9]+ to 2\*[0-9]+ bytes/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 3 /redo log from 3\*[0-9]+ to 2\*[0-9]+ pages/ in mysqld.1.err
+FOUND 3 /redo log from 3\*[0-9]+ to 2\*[0-9]+ bytes/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 2 /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 4 /redo log from 3\*[0-9]+ to 2\*[0-9]+ pages/ in mysqld.1.err
+FOUND 4 /redo log from 3\*[0-9]+ to 2\*[0-9]+ bytes/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 SELECT * FROM t1;
@@ -56,7 +56,7 @@ ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /InnoDB: Setting log file .*ib_logfile[0-9]+ size to/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 1 /InnoDB: Log file .*ib_logfile0 size 7 is not a multiple of innodb_page_size/ in mysqld.1.err
+FOUND 1 /InnoDB: Log file .*ib_logfile0 size 7 is not a multiple of 512 bytes/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /InnoDB: Log file .*ib_logfile1 is of different size 1048576 bytes than other log files/ in mysqld.1.err

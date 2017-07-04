@@ -829,7 +829,7 @@ mtr_t::Command::prepare_write()
 
 	fil_space_t*	space = m_impl->m_user_space;
 
-	if (space != NULL && space->id <= srv_undo_tablespaces_open) {
+	if (space != NULL && is_predefined_tablespace(space->id)) {
 		/* Omit MLOG_FILE_NAME for predefined tablespaces. */
 		space = NULL;
 	}

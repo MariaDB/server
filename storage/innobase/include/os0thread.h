@@ -151,10 +151,4 @@ os_thread_sleep(
 /*============*/
 	ulint	tm);	/*!< in: time in microseconds */
 
-/*****************************************************************//**
-Check if there are threads active.
-@return true if the thread count > 0. */
-bool
-os_thread_active();
-
 #endif

@@ -4806,7 +4806,7 @@ bool open_tables_only_view_structure(THD *thd, TABLE_LIST *table_list,
                                            MYSQL_OPEN_GET_NEW_TABLE |
                                            (can_deadlock ?
                                             MYSQL_OPEN_FAIL_ON_MDL_CONFLICT : 0)),
-                                          DT_PREPARE | DT_CREATE));
+                                          DT_INIT | DT_PREPARE | DT_CREATE));
   /*
     Restore old value of sql_command back as it is being looked at in
     process_table() function.

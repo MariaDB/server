@@ -761,7 +761,7 @@ int toku_serialize_ftnode_to_memory(FTNODE node,
     // Zero the rest of the buffer
     memset(data + total_node_size, 0, total_buffer_size - total_node_size);
             
-    assert(curr_ptr - data == total_node_size);
+    assert((uint32_t) (curr_ptr - data) == total_node_size);
     *bytes_to_write = data;
     *n_bytes_to_write = total_buffer_size;
     *n_uncompressed_bytes = total_uncompressed_size;
@@ -2699,7 +2699,7 @@ decompress_from_raw_block_into_rbuf(uint8_t *raw_block, size_t raw_block_size, s
     // decompress all the compressed sub blocks into the uncompressed buffer
     r = decompress_all_sub_blocks(n_sub_blocks, sub_block, compressed_data, uncompressed_data, num_cores, ft_pool);
     if (r != 0) {
-        fprintf(stderr, "%s:%d block %" PRId64 " failed %d at %p size %lu\n", __FUNCTION__, __LINE__, blocknum.b, r, raw_block, raw_block_size);
+        fprintf(stderr, "%s:%d block %" PRId64 " failed %d at %p size %zu\n", __FUNCTION__, __LINE__, blocknum.b, r, raw_block, raw_block_size);
         dump_bad_block(raw_block, raw_block_size);
         goto exit;
     }

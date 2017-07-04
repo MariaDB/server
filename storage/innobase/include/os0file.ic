@@ -207,7 +207,7 @@ pfs_os_file_close_func(
 function!
 Performance schema wrapper function of os_aio() which requests
 an asynchronous i/o operation.
-@param[in]	type		IO request context
+@param[in,type]	type		IO request context
 @param[in]	mode		IO mode
 @param[in]	name		Name of the file or path as NUL terminated
 				string
@@ -264,7 +264,7 @@ pfs_os_aio_func(
 this function!
 This is the performance schema instrumented wrapper function for
 os_file_read() which requests a synchronous read operation.
-@param[in, out]	type		IO request context
+@param[in]	type		IO request context
 @param[in]	file		Open file handle
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset where to read
@@ -275,13 +275,13 @@ os_file_read() which requests a synchronous read operation.
 UNIV_INLINE
 dberr_t
 pfs_os_file_read_func(
-	IORequest&	type,
-	pfs_os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	const char*	src_file,
-	uint		src_line)
+	const IORequest&	type,
+	pfs_os_file_t		file,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			n,
+	const char*		src_file,
+	uint			src_line)
 {
 	PSI_file_locker_state	state;
 	struct PSI_file_locker*	locker = NULL;
@@ -305,7 +305,7 @@ not directly this function!
 This is the performance schema instrumented wrapper function for
 os_file_read_no_error_handling_func() which requests a synchronous
 read operation.
-@param[in, out]	type		IO request context
+@param[in]	type		IO request context
 @param[in]	file		Open file handle
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset where to read
@@ -317,14 +317,14 @@ read operation.
 UNIV_INLINE
 dberr_t
 pfs_os_file_read_no_error_handling_func(
-	IORequest&	type,
-	pfs_os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	ulint*		o,
-	const char*	src_file,
-	uint		src_line)
+	const IORequest&	type,
+	pfs_os_file_t		file,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			n,
+	ulint*			o,
+	const char*		src_file,
+	uint			src_line)
 {
 	PSI_file_locker_state	state;
 	struct PSI_file_locker*	locker = NULL;
@@ -343,7 +343,7 @@ pfs_os_file_read_no_error_handling_func(
 /** NOTE! Please use the corresponding macro
 os_file_read_no_error_handling_int_fd() to request
 a synchronous read operation.
-@param[in,out]	type		read request
+@param[in]	type		read request
 @param[in]      file            file handle
 @param[out]     buf             buffer where to read
 @param[in]      offset          file offset where to read
@@ -354,13 +354,13 @@ a synchronous read operation.
 UNIV_INLINE
 bool
 pfs_os_file_read_no_error_handling_int_fd_func(
-	IORequest&	type,
-	int		file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	const char*	src_file,
-	uint		src_line)
+	const IORequest&	type,
+	int			file,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			n,
+	const char*		src_file,
+	uint			src_line)
 {
 	PSI_file_locker_state	state;
 
@@ -387,7 +387,7 @@ pfs_os_file_read_no_error_handling_int_fd_func(
 this function!
 This is the performance schema instrumented wrapper function for
 os_file_write() which requests a synchronous write operation.
-@param[in, out]	type		IO request context
+@param[in]	type		IO request context
 @param[in]	name		Name of the file or path as NUL terminated
 				string
 @param[in]	file		Open file handle
@@ -401,14 +401,14 @@ os_file_write() which requests a synchronous write operation.
 UNIV_INLINE
 dberr_t
 pfs_os_file_write_func(
-	IORequest&	type,
-	const char*	name,
-	pfs_os_file_t	file,
-	const void*	buf,
-	os_offset_t	offset,
-	ulint		n,
-	const char*	src_file,
-	uint		src_line)
+	const IORequest&	type,
+	const char*		name,
+	pfs_os_file_t		file,
+	const void*		buf,
+	os_offset_t		offset,
+	ulint			n,
+	const char*		src_file,
+	uint			src_line)
 {
 	PSI_file_locker_state	state;
 	struct PSI_file_locker*	locker = NULL;
@@ -429,7 +429,7 @@ pfs_os_file_write_func(
 not directly this function!
 This is the performance schema instrumented wrapper function for
 os_file_write_int_fd() which requests a synchronous write operation.
-@param[in,out]	type		write request
+@param[in]	type		write request
 @param[in]	name		file name
 @param[in]	file		file handle
 @param[in]	buf		buffer to write
@@ -441,14 +441,14 @@ os_file_write_int_fd() which requests a synchronous write operation.
 UNIV_INLINE
 bool
 pfs_os_file_write_int_fd_func(
-	IORequest&	type,
-	const char*	name,
-	int		file,
-	const void*	buf,
-	os_offset_t	offset,
-	ulint		n,
-	const char*	src_file,
-	uint		src_line)
+	const IORequest&	type,
+	const char*		name,
+	int			file,
+	const void*		buf,
+	os_offset_t		offset,
+	ulint			n,
+	const char*		src_file,
+	uint			src_line)
 {
 	PSI_file_locker_state   state;
 	struct PSI_file_locker* locker;
