@@ -1674,6 +1674,9 @@ innobase_start_or_create_for_mysql()
 	}
 
 #ifdef HAVE_LIBNUMA
+	ulint	size_of_numa_node[SRV_MAX_NUM_NUMA_NODES];
+	ulint	total_nodes_size = 0;
+
 	if (srv_numa_interleave && srv_numa_enable) {
 		srv_numa_enable = (!srv_numa_enable);
 	}
@@ -1685,6 +1688,8 @@ innobase_start_or_create_for_mysql()
 		for (ulint i = 0; i <= SRV_MAX_NUM_NUMA_NODES; i++) {
 			if (numa_bitmask_isbitset(numa_mems_allowed, i)) {
 				srv_allowed_nodes[srv_buf_pool_instances++] = i;
+				size_of_numa_node[i] = numa_node_size(i, NULL);
+				total_nodes_size += size_of_numa_node[i];
 			}
 		}
 	}
@@ -1703,6 +1708,15 @@ innobase_start_or_create_for_mysql()
 	}
 
 	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
+
+#ifdef HAVE_LIBNUMA
+	if (srv_numa_enable) {
+		for (ulint i = 0; i < srv_buf_pool_instances; i++) {
+			srv_size_of_buf_pool_in_node[i] = ((double) size_of_numa_node[i] / total_nodes_size) * srv_buf_pool_size;
+			srv_size_of_buf_pool_in_node[i] = buf_pool_size_align(srv_size_of_buf_pool_in_node[i]);
+		}
+	}
+#endif // HAVE_LIBNUMA
 
 	if (srv_n_page_cleaners > srv_buf_pool_instances) {
 		/* limit of page_cleaner parallelizability

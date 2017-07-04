@@ -181,6 +181,7 @@ my_bool	srv_use_native_aio;
 my_bool	srv_numa_interleave;
 my_bool	srv_numa_enable;
 ulint	srv_allowed_nodes[SRV_MAX_NUM_NUMA_NODES];
+ulint	srv_size_of_buf_pool_in_node[SRV_MAX_NUM_NUMA_NODES];
 #endif // HAVE_LIBNUMA
 /** innodb_use_trim; whether to use fallocate(PUNCH_HOLE) with
 page_compression */
