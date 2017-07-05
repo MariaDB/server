@@ -529,6 +529,7 @@ int mysql_update(THD *thd,
   if (!(select && select->quick))
     status_var_increment(thd->status_var.update_scan_count);
 
+  IO_CACHE tempfile;
   if (query_plan.using_filesort || query_plan.using_io_buffer)
   {
     /*
@@ -576,7 +577,6 @@ int mysql_update(THD *thd,
 	update these in a separate loop based on the pointer.
       */
       explain->buf_tracker.on_scan_init();
-      IO_CACHE tempfile;
       if (open_cached_file(&tempfile, mysql_tmpdir,TEMP_PREFIX,
 			   DISK_BUFFER_SIZE, MYF(MY_WME)))
 	goto err;
