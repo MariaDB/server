@@ -2867,11 +2867,9 @@ public:
         return;
       }
 
-      std::string query_str;
-      LEX_STRING *const lex_str = thd_query_string(thd);
-      if (lex_str != nullptr && lex_str->str != nullptr) {
-        query_str = std::string(lex_str->str);
-      }
+      char query_buf[NAME_LEN+1];
+      thd_query_safe(thd, query_buf, sizeof(query_buf));
+      std::string query_str(query_buf);
 
       const auto state_it = state_map.find(rdb_trx->GetState());
       DBUG_ASSERT(state_it != state_map.end());
