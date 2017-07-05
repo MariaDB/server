@@ -1693,7 +1693,7 @@ innobase_start_or_create_for_mysql()
 	ulint	total_nodes_size = 0;
 
 	if (srv_numa_interleave && srv_numa_enable) {
-		srv_numa_enable = (!srv_numa_enable);
+		srv_numa_enable = {false};
 	}
 
 	if (srv_numa_enable) {
