@@ -3231,7 +3231,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		ut_ad(!srv_log_files_created);
 
 		if (checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT < flush_lsn) {
-			ib::warn() << " Are you sure you are using the"
+			ib::warn() << "Are you sure you are using the"
 				" right ib_logfiles to start up the database?"
 				" Log sequence number in the ib_logfiles is "
 				<< checkpoint_lsn << ", less than the"
