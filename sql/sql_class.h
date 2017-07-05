@@ -4080,12 +4080,12 @@ public:
   void get_definer(LEX_USER *definer, bool role);
   void set_invoker(const LEX_CSTRING *user, const LEX_CSTRING *host)
   {
-    invoker_user= *user;
-    invoker_host= *host;
+    invoker.user= *user;
+    invoker.host= *host;
   }
-  LEX_CSTRING get_invoker_user() { return invoker_user; }
-  LEX_CSTRING get_invoker_host() { return invoker_host; }
-  bool has_invoker() { return invoker_user.length > 0; }
+  LEX_CSTRING get_invoker_user() { return invoker.user; }
+  LEX_CSTRING get_invoker_host() { return invoker.host; }
+  bool has_invoker() { return invoker.user.length > 0; }
 
   void print_aborted_warning(uint threshold, const char *reason)
   {
@@ -4184,8 +4184,7 @@ private:
     TRIGGER or VIEW statements or current user in account management
     statements if it is not NULL.
    */
-  LEX_CSTRING invoker_user;
-  LEX_CSTRING invoker_host;
+  AUTHID invoker;
 
 public:
 #ifndef EMBEDDED_LIBRARY

@@ -1793,7 +1793,7 @@ sp_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
     if (db_load_routine(thd, type, name, &new_sp,
                         sp->m_sql_mode, sp->m_params.str, returns,
                         sp->m_body.str, *sp->m_chistics,
-                        &sp->m_definer_user, &sp->m_definer_host,
+                        &sp->m_definer.user, &sp->m_definer.host,
                         sp->m_created, sp->m_modified,
                         sp->get_creation_ctx()) == SP_OK)
     {

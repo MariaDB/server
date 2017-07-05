@@ -10909,7 +10909,7 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   Dummy_error_handler error_handler;
   DBUG_ENTER("sp_grant_privileges");
 
-  if (!(combo=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
+  if (!(combo=(LEX_USER*) thd->alloc(sizeof(LEX_USER))))
     DBUG_RETURN(TRUE);
 
   combo->user.str= sctx->user;

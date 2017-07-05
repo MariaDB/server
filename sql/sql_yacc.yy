@@ -14495,7 +14495,7 @@ ident_or_text:
 user_maybe_role:
           ident_or_text
           {
-            if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
+            if (!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
             $$->user = $1;
             $$->host= null_clex_str; // User or Role, see get_current_user()
@@ -14508,7 +14508,7 @@ user_maybe_role:
           }
         | ident_or_text '@' ident_or_text
           {
-            if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
+            if (!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
             $$->user = $1; $$->host=$3;
             $$->reset_auth();
@@ -15735,7 +15735,7 @@ grant_role:
             ((char*) $1.str)[$1.length] = '\0';
             if ($1.length == 0)
               my_yyabort_error((ER_INVALID_ROLE, MYF(0), ""));
-            if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
+            if (!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
             $$->user= $1;
             $$->host= empty_clex_str;

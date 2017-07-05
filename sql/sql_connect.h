@@ -57,7 +57,6 @@ public:
 
 
 class THD;
-typedef struct st_lex_user LEX_USER;
 typedef struct user_conn USER_CONN;
 
 void init_max_user_conn(void);

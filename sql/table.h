@@ -1993,7 +1993,7 @@ struct TABLE_LIST
   LEX_CSTRING	view_db;		/* saved view database */
   LEX_CSTRING	view_name;		/* saved view name */
   LEX_STRING	timestamp;		/* GMT time stamp of last operation */
-  st_lex_user   definer;                /* definer of view */
+  LEX_USER      definer;                /* definer of view */
   ulonglong	file_version;		/* version of file's field set */
   ulonglong	mariadb_version;	/* version of server on creation */
   ulonglong     updatable_view;         /* VIEW can be updated */

@@ -1697,8 +1697,8 @@ void Trigger::get_trigger_info(LEX_CSTRING *trigger_stmt,
   }
   else
   {
-    definer->length= strxmov(definer->str, body->m_definer_user.str, "@",
-                             body->m_definer_host.str, NullS) - definer->str;
+    definer->length= strxmov(definer->str, body->m_definer.user.str, "@",
+                             body->m_definer.host.str, NullS) - definer->str;
   }
   DBUG_VOID_RETURN;
 }
