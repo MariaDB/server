@@ -124,10 +124,13 @@ int Relay_log_info::init(const char* info_fname)
   char fname[FN_REFLEN+128];
   const char* msg = 0;
   int error = 0;
+  mysql_mutex_t *log_lock;
   DBUG_ENTER("Relay_log_info::init");
 
   if (inited)                       // Set if this function called
     DBUG_RETURN(0);
+
+  log_lock= relay_log.get_log_lock();
   fn_format(fname, info_fname, mysql_data_home, "", 4+32);
   mysql_mutex_lock(&data_lock);
   cur_log_fd = -1;
@@ -207,7 +210,6 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     /* For multimaster, add connection name to relay log filenames */
     char buf_relay_logname[FN_REFLEN], buf_relaylog_index_name_buff[FN_REFLEN];
     char *buf_relaylog_index_name= opt_relaylog_index_name;
-    mysql_mutex_t *log_lock;
 
     create_logfile_name_with_suffix(buf_relay_logname,
                                     sizeof(buf_relay_logname),
@@ -227,7 +229,6 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       note, that if open() fails, we'll still have index file open
       but a destructor will take care of that
     */
-    log_lock= relay_log.get_log_lock();
     mysql_mutex_lock(log_lock);
     if (relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
         relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
@@ -304,7 +305,9 @@ Failed to open the existing relay log info file '%s' (errno %d)",
         if (info_fd >= 0)
           mysql_file_close(info_fd, MYF(0));
         info_fd= -1;
+        mysql_mutex_lock(log_lock);
         relay_log.close(LOG_CLOSE_INDEX | LOG_CLOSE_STOP_EVENT);
+        mysql_mutex_unlock(log_lock);
         mysql_mutex_unlock(&data_lock);
         DBUG_RETURN(1);
       }
@@ -426,7 +429,9 @@ err:
   if (info_fd >= 0)
     mysql_file_close(info_fd, MYF(0));
   info_fd= -1;
+  mysql_mutex_lock(log_lock);
   relay_log.close(LOG_CLOSE_INDEX | LOG_CLOSE_STOP_EVENT);
+  mysql_mutex_unlock(log_lock);
   mysql_mutex_unlock(&data_lock);
   DBUG_RETURN(1);
 }

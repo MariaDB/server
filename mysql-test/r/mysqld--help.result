@@ -1,3 +1,4 @@
+Windows bug: happens when a new line is exactly at the right offset
 The following options may be given as the first argument:
 --print-defaults Print the program argument list and exit.
 --no-defaults Don't read default options from any option file.
@@ -1258,7 +1259,7 @@ ft-query-expansion-limit 20
 ft-stopword-file (No default value)
 gdb FALSE
 general-log FALSE
-getopt-prefix-matching TRUE
+getopt-prefix-matching FALSE
 group-concat-max-len 1048576
 gtid-domain-id 0
 gtid-ignore-duplicates FALSE

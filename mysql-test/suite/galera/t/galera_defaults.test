@@ -13,13 +13,13 @@
 
 # Make sure that the test is operating on the right version of galera library.
 --disable_query_log
---let $galera_version=25.3.17
+--let $galera_version=3.20
 source ../wsrep/include/check_galera_version.inc;
 --enable_query_log
 
 # Global Variables
 
-SELECT COUNT(*) = 42 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_%';
+SELECT COUNT(*) = 43 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_%';
 
 SELECT VARIABLE_NAME, VARIABLE_VALUE
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES

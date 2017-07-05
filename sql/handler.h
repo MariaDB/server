@@ -1465,15 +1465,29 @@ struct THD_TRANS
   static unsigned int const CREATED_TEMP_TABLE= 0x02;
   static unsigned int const DROPPED_TEMP_TABLE= 0x04;
   static unsigned int const DID_WAIT= 0x08;
+  static unsigned int const DID_DDL= 0x10;
 
   void mark_created_temp_table()
   {
     DBUG_PRINT("debug", ("mark_created_temp_table"));
     m_unsafe_rollback_flags|= CREATED_TEMP_TABLE;
   }
+  void mark_dropped_temp_table()
+  {
+    DBUG_PRINT("debug", ("mark_dropped_temp_table"));
+    m_unsafe_rollback_flags|= DROPPED_TEMP_TABLE;
+  }
+  bool has_created_dropped_temp_table() const {
+    return
+      (m_unsafe_rollback_flags & (CREATED_TEMP_TABLE|DROPPED_TEMP_TABLE)) != 0;
+  }
   void mark_trans_did_wait() { m_unsafe_rollback_flags|= DID_WAIT; }
   bool trans_did_wait() const {
     return (m_unsafe_rollback_flags & DID_WAIT) != 0;
+  }
+  void mark_trans_did_ddl() { m_unsafe_rollback_flags|= DID_DDL; }
+  bool trans_did_ddl() const {
+    return (m_unsafe_rollback_flags & DID_DDL) != 0;
   }
 
 };

@@ -5818,6 +5818,55 @@ SELECT * FROM v1 where use_case_id = 10;
 drop view v1;
 drop table t1;
 
+--echo #
+--echo # MDEV-12666: CURRENT_ROLE() and DATABASE() does not work in a view
+--echo #
+--echo # DATABASE() fails only when the initial view creation features a NULL
+--echo # default database.
+--echo #
+--echo # CREATE, USE and DROP database so that we have no "default" database.
+--echo #
+CREATE DATABASE temporary;
+USE temporary;
+DROP DATABASE temporary;
+SELECT DATABASE();
+
+CREATE VIEW test.v_no_db AS SELECT DATABASE() = 'temporary_two';
+SHOW CREATE VIEW test.v_no_db;
+PREPARE prepared_no_database FROM "SELECT DATABASE() = 'temporary_two'";
+
+--echo #
+--echo # All statements should return NULL
+--echo #
+EXECUTE prepared_no_database;
+SELECT DATABASE() = 'temporary_two';
+SELECT * FROM test.v_no_db;
+
+CREATE DATABASE temporary_two;
+USE temporary_two;
+CREATE VIEW test.v_with_db AS SELECT DATABASE() = 'temporary_two';
+PREPARE prepared_with_database FROM "SELECT DATABASE() = 'temporary_two'";
+
+--echo #
+--echo # All statements should return 1;
+--echo #
+SELECT DATABASE() = 'temporary_two';
+SELECT * FROM test.v_no_db;
+SELECT * FROM test.v_with_db;
+EXECUTE prepared_with_database;
+
+--echo #
+--echo # Prepared statements maintain default database to be the same
+--echo # during on creation so this should return NULL still.
+--echo # See MySQL bug #25843
+--echo #
+EXECUTE prepared_no_database;
+
+DROP DATABASE temporary_two;
+DROP VIEW test.v_no_db;
+DROP VIEW test.v_with_db;
+USE test;
+
 --echo # -----------------------------------------------------------------
 --echo # -- End of 10.0 tests.
 --echo # -----------------------------------------------------------------
@@ -5891,6 +5940,27 @@ SELECT * FROM v1;
 
 drop view v1;
 drop table t1;
+
+--echo #
+--echo # MDEV-12819: order by ordering expression changed to empty string
+--echo # when creatin view with union
+--echo #
+
+create table t1 (t1col1 int, t1col2 int,t1col3 int );
+create table t2 (t2col1 int, t2col2 int, t2col3 int);
+
+create view v1 as
+select t1col1,t1col2,t1col3 from t1
+union all
+select t2col1,t2col2,t2col3 from t2
+order by 2,3;
+
+show create view v1;
+
+select * from v1;
+
+drop view v1;
+drop table t1,t2;
 
 --echo #
 --echo # End of 10.1 tests

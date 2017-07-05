@@ -4419,6 +4419,15 @@ void select_create::store_values(List<Item> &values)
 bool select_create::send_eof()
 {
   DBUG_ENTER("select_create::send_eof");
+
+  /*
+    The routine that writes the statement in the binary log
+    is in select_insert::prepare_eof(). For that reason, we
+    mark the flag at this point.
+  */
+  if (table->s->tmp_table)
+    thd->transaction.stmt.mark_created_temp_table();
+
   if (prepare_eof())
   {
     abort_result_set();

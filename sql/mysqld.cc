@@ -4036,8 +4036,9 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
                         (longlong) thd->status_var.local_memory_used,
                         size));
     thd->status_var.local_memory_used+= size;
-    if (thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
-        !thd->killed)
+    if (size > 0 &&
+        thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
+        !thd->killed && !thd->get_stmt_da()->is_set())
     {
       char buf[1024];
       thd->killed= KILL_QUERY;

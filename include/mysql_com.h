@@ -387,7 +387,9 @@ enum enum_indicator_type
   This status flag, when on, implies that one of the state information has
   changed on the server because of the execution of the last statement.
 */
-#define SERVER_SESSION_STATE_CHANGED (1UL << 14)
+#define SERVER_SESSION_STATE_CHANGED    16384U
+
+#define SERVER_STATUS_ANSI_QUOTES       32768U
 
 /**
   Server status flags that must be cleared when starting

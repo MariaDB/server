@@ -983,5 +983,10 @@ disconnect con1;
 con2
 disconnect con2;
 -closed_connection-
-End of tests
 connection default;
+set sql_mode=no_backslash_escapes;
+select "foo\""bar";
+foo\"bar
+foo\"bar
+set sql_mode=default;
+End of tests
