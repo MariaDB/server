@@ -5344,6 +5344,27 @@ int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
 }
 
 
+/*
+int handler::pre_read_multi_range_first(KEY_MULTI_RANGE **found_range_p,
+                                        KEY_MULTI_RANGE *ranges,
+                                        uint range_count,
+                                        bool sorted, HANDLER_BUFFER *buffer,
+                                        bool use_parallel)
+{
+  int result;
+  DBUG_ENTER("handler::pre_read_multi_range_first");
+  result = pre_read_range_first(ranges->start_key.keypart_map ?
+                                &ranges->start_key : 0,
+                                ranges->end_key.keypart_map ?
+                                &ranges->end_key : 0,
+                                test(ranges->range_flag & EQ_RANGE),
+                                sorted,
+                                use_parallel);
+  DBUG_RETURN(result);
+}
+*/
+
+
 /**
   Read first row between two ranges.
   Store ranges for future calls to read_range_next.
