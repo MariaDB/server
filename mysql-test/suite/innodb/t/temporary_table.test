@@ -10,7 +10,7 @@
 --source include/no_valgrind_without_big.inc
 
 --disable_query_log
-call mtr.add_suppression("Can't create/write to file '.dev.null.nonexistent.ib");
+call mtr.add_suppression("Can't create/write to file '/dev/null/nonexistent/ib");
 call mtr.add_suppression("InnoDB: Unable to create temporary file");
 call mtr.add_suppression("last file in setting innodb_temp_data_file_path");
 call mtr.add_suppression("The table 't1' is full");
@@ -151,8 +151,6 @@ while ($mysql_errno)
 --enable_query_log
 --enable_result_log
 --disable_reconnect
---let SEARCH_PATTERN= Can't create/write to file '.dev.null.nonexistent.ib
---source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN= InnoDB: Unable to create temporary file
 --source include/search_pattern_in_file.inc
 
