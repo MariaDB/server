@@ -181,12 +181,10 @@ OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 my_bool	srv_use_native_aio;
-#ifdef HAVE_LIBNUMA
 my_bool	srv_numa_interleave;
 my_bool	srv_numa_enable;
-ulint	srv_allowed_nodes[SRV_MAX_NUM_NUMA_NODES];
-ulint	srv_size_of_buf_pool_in_node[SRV_MAX_NUM_NUMA_NODES];
-#endif // HAVE_LIBNUMA
+ulint		srv_allowed_nodes[SRV_MAX_NUM_NUMA_NODES];
+ulint		srv_size_of_buf_pool_in_node[SRV_MAX_NUM_NUMA_NODES];
 /** innodb_use_trim; whether to use fallocate(PUNCH_HOLE) with
 page_compression */
 my_bool	srv_use_trim;
