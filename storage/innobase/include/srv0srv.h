@@ -743,6 +743,12 @@ enum srv_thread_type {
 					number must be biggest) */
 };
 
+#ifdef HAVE_LIBNUMA
+void
+srv_bind_thread_to_node(
+	ulint	node);
+#endif // HAVE_LIBNUMA
+
 /*********************************************************************//**
 Boots Innobase server. */
 void
