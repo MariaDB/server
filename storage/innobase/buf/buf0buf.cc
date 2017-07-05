@@ -598,10 +598,34 @@ buf_block_alloc(
 	static ulint	buf_pool_index;
 
 	if (buf_pool == NULL) {
+
+#ifdef HAVE_LIBNUMA
+		struct bitmask* node_mask = numa_get_membind();
+		ulint	num_nodes = 0;
+		ulint	node = 0;
+
+		if (srv_numa_enable) {
+			for (ulint i = 0; i < SRV_MAX_NUM_NUMA_NODES; i++) {
+				if (numa_bitmask_isbitset(node_mask, i)) {
+					node = i;
+					num_nodes++;
+				}
+			}
+		}
+		if (srv_numa_enable && (num_nodes == 1)) {
+			buf_pool = srv_buf_pool_on_node(node);
+		} else {
+			/* We are allocating memory from any buffer pool, ensure
+			we spread the grace on all buffer pool instances. */
+			index = buf_pool_index++ % srv_buf_pool_instances;
+			buf_pool = buf_pool_from_array(index);
+		}
+#else
 		/* We are allocating memory from any buffer pool, ensure
 		we spread the grace on all buffer pool instances. */
 		index = buf_pool_index++ % srv_buf_pool_instances;
 		buf_pool = buf_pool_from_array(index);
+#endif // HAVE_LIBNUMA
 	}
 
 	block = buf_LRU_get_free_block(buf_pool);
