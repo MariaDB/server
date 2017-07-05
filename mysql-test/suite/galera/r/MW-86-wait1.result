@@ -5,6 +5,7 @@ SET SESSION wsrep_sync_wait = 1;
 SET GLOBAL debug = "+d,sync.wsrep_apply_cb";
 CREATE TABLE t_wait1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t_wait1 VALUES (1);
+SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 SHOW BINARY LOGS;
 SHOW BINLOG EVENTS;
 SHOW COLUMNS FROM t1;
