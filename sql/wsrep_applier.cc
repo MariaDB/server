@@ -458,7 +458,8 @@ static int wsrep_apply_trx(THD*                    orig_thd,
                  {
                    const char act[]=
                      "now "
-                     "wait_for signal.wsrep_apply_cb";
+                     "SIGNAL sync.wsrep_apply_cb_reached "
+                     "WAIT_FOR signal.wsrep_apply_cb";
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
