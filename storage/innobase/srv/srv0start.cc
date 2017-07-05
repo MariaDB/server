@@ -2248,7 +2248,7 @@ files_checked:
 			recv_apply_hashed_log_recs(true);
 
 			if (recv_sys->found_corrupt_log) {
-				return (DB_CORRUPTION);
+				return(srv_init_abort(DB_CORRUPTION));
 			}
 
 			DBUG_PRINT("ib_log", ("apply completed"));
@@ -2256,17 +2256,6 @@ files_checked:
 			if (recv_needed_recovery) {
 				trx_sys_print_mysql_binlog_offset();
 			}
-		}
-
-		if (recv_sys->found_corrupt_log) {
-			ib::warn()
-				<< "The log file may have been corrupt and it"
-				" is possible that the log scan or parsing"
-				" did not proceed far enough in recovery."
-				" Please run CHECK TABLE on your InnoDB tables"
-				" to check that they are ok!"
-				" It may be safest to recover your"
-				" InnoDB database from a backup!";
 		}
 
 		if (!srv_read_only_mode) {

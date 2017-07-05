@@ -1901,6 +1901,12 @@ loop:
 		} else {
 			ut_ad(!srv_dict_stats_thread_active);
 		}
+		if (recv_sys && recv_sys->flush_start) {
+			/* This is in case recv_writer_thread was never
+			started, or buf_flush_page_cleaner_coordinator
+			failed to notice its termination. */
+			os_event_set(recv_sys->flush_start);
+		}
 	}
 	os_thread_sleep(100000);
 

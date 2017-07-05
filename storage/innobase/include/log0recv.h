@@ -38,6 +38,9 @@ Created 9/20/1997 Heikki Tuuri
 #include <list>
 #include <vector>
 
+/** Is recv_writer_thread active? */
+extern bool	recv_writer_thread_active;
+
 /** @return whether recovery is currently running. */
 #define recv_recovery_is_on() recv_recovery_on
 

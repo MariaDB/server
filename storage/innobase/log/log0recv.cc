@@ -124,8 +124,8 @@ mysql_pfs_key_t	trx_rollback_clean_thread_key;
 mysql_pfs_key_t	recv_writer_thread_key;
 #endif /* UNIV_PFS_THREAD */
 
-/** Flag indicating if recv_writer thread is active. */
-static volatile bool	recv_writer_thread_active;
+/** Is recv_writer_thread active? */
+bool	recv_writer_thread_active;
 
 #ifndef	DBUG_OFF
 /** Return string name of the redo log record type.

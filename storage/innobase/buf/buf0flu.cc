@@ -3126,16 +3126,13 @@ pools. As of now we'll have only one coordinator.
 @return a dummy parameter */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
-/*===============================================*/
-	void*	arg MY_ATTRIBUTE((unused)))
-			/*!< in: a dummy parameter required by
-			os_thread_create */
+DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 {
 	my_thread_init();
 #ifdef UNIV_PFS_THREAD
 	pfs_register_thread(page_cleaner_thread_key);
 #endif /* UNIV_PFS_THREAD */
+	ut_ad(!srv_read_only_mode);
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
 	ib::info() << "page_cleaner thread running, id "
@@ -3158,17 +3155,14 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 	os_event_set(recv_sys->flush_end);
 #endif /* UNIV_LINUX */
 
-	while (!srv_read_only_mode
-	       && srv_shutdown_state == SRV_SHUTDOWN_NONE
-	       && recv_sys->heap != NULL) {
+	do {
 		/* treat flushing requests during recovery. */
 		ulint	n_flushed_lru = 0;
 		ulint	n_flushed_list = 0;
 
 		os_event_wait(recv_sys->flush_start);
 
-		if (srv_shutdown_state != SRV_SHUTDOWN_NONE
-		    || recv_sys->heap == NULL) {
+		if (!recv_writer_thread_active) {
 			break;
 		}
 
@@ -3195,7 +3189,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 
 		os_event_reset(recv_sys->flush_start);
 		os_event_set(recv_sys->flush_end);
-	}
+	} while (recv_writer_thread_active);
 
 	os_event_wait(buf_flush_event);
 
