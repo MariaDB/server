@@ -3085,3 +3085,57 @@ select max(id), rank() over (order by max(id)) from t1 where id < 3;
 max(id)	rank() over (order by max(id))
 2	1
 drop table t1;
+#
+# main.win failure post MDEV-12336
+#
+create table t(a decimal(35,10), b int);
+insert into t values (1, 10), (2, 20), (3, 30);
+prepare stmt from "SELECT (CASE WHEN sum(t.a) over (partition by t.b)=1 THEN 1000 ELSE 300 END) AS a FROM t";
+execute stmt;
+a
+1000
+300
+300
+drop table t;
+#
+# MDEV-12851 case with window functions query crashes server
+#
+create table t1(dt datetime);
+insert into t1 values ('2017-05-17'), ('2017-05-18');
+select dt,
+case when (max(dt) over (order by dt rows between 1 following and 1 following) is null)
+then '9999-12-31 12:00:00'
+       else max(dt) over (order by dt rows between 1 following and 1 following)
+end x,
+case when (max(dt) over (order by dt rows between 1 following and 1 following) is not null)
+then '9999-12-31 12:00:00'
+       else max(dt) over (order by dt rows between 1 following and 1 following)
+end x
+from t1;
+dt	x	x
+2017-05-17 00:00:00	2017-05-18 00:00:00	9999-12-31 12:00:00
+2017-05-18 00:00:00	9999-12-31 12:00:00	NULL
+drop table t1;
+create table t1(i int);
+insert into t1 values (null),(1),(2);
+select max(i) over (order by i),
+max(i) over (order by i) is null,
+max(i) over (order by i) is not null
+from t1;
+max(i) over (order by i)	max(i) over (order by i) is null	max(i) over (order by i) is not null
+NULL	1	0
+1	0	1
+2	0	1
+drop table t1;
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-13240 Wrong warning with MAX(datetime_field) OVER (...)
+#
+CREATE TABLE t1 (dt DATETIME);
+INSERT INTO t1 VALUES ('2017-05-17');
+SELECT MAX(dt) OVER (ORDER BY dt ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING) FROM t1;
+MAX(dt) OVER (ORDER BY dt ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING)
+NULL
+DROP TABLE t1;

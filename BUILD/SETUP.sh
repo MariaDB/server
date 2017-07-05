@@ -289,6 +289,11 @@ gcov_compile_flags="-fprofile-arcs -ftest-coverage"
 gcov_compile_flags="$gcov_compile_flags -DDISABLE_TAO_ASM"
 gcov_compile_flags="$gcov_compile_flags -DMYSQL_SERVER_SUFFIX=-gcov -DHAVE_gcov"
 
+#
+# The following plugins doesn't work on 32 bit systems
+disable_64_bit_plugins="--without-plugin-tokudb --without-plugin-rocksdb"
+
+
 # GCC4 needs -fprofile-arcs -ftest-coverage on the linker command line (as well
 # as on the compiler command line), and this requires setting LDFLAGS for BDB.
 

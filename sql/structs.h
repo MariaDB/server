@@ -204,9 +204,12 @@ extern const char *show_comp_option_name[];
 
 typedef int *(*update_var)(THD *, struct st_mysql_show_var *);
 
-typedef struct	st_lex_user {
-  LEX_CSTRING user, host, plugin, auth;
-  LEX_CSTRING pwtext, pwhash;
+
+struct AUTHID
+{
+  LEX_CSTRING user, host;
+  void init() { memset(this, 0, sizeof(*this)); }
+  void copy(MEM_ROOT *root, const LEX_CSTRING *usr, const LEX_CSTRING *host);
   bool is_role() const { return user.str[0] && !host.str[0]; }
   void set_lex_string(LEX_CSTRING *l, char *buf)
   {
@@ -218,13 +221,20 @@ typedef struct	st_lex_user {
       l->length= strxmov(buf, user.str, "@", host.str, NullS) - buf;
     }
   }
+};
+
+
+struct LEX_USER: public AUTHID
+{
+  LEX_CSTRING plugin, auth;
+  LEX_CSTRING pwtext, pwhash;
   void reset_auth()
   {
     pwtext.length= pwhash.length= plugin.length= auth.length= 0;
     pwtext.str= pwhash.str= 0;
     plugin.str= auth.str= "";
   }
-} LEX_USER;
+};
 
 /*
   This structure specifies the maximum amount of resources which

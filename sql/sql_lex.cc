@@ -689,6 +689,7 @@ void LEX::start(THD *thd_arg)
   curr_with_clause= 0;
   with_clauses_list= 0;
   with_clauses_list_last_next= &with_clauses_list;
+  create_view= NULL;
   value_list.empty();
   update_list.empty();
   set_var_list.empty();
@@ -7086,4 +7087,50 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
   if (i == NULL || sphead->add_instr(i))
     return true;
   return false;
+}
+
+
+bool LEX::create_or_alter_view_finalize(THD *thd, Table_ident *table_ident)
+{
+  sql_command= SQLCOM_CREATE_VIEW;
+  /* first table in list is target VIEW name */
+  if (!select_lex.add_table_to_list(thd, table_ident, NULL,
+                                    TL_OPTION_UPDATING,
+                                    TL_IGNORE,
+                                    MDL_EXCLUSIVE))
+    return true;
+  query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
+  return false;
+}
+
+
+bool LEX::add_alter_view(THD *thd, uint16 algorithm,
+                         enum_view_suid suid,
+                         Table_ident *table_ident)
+{
+  if (sphead)
+  {
+    my_error(ER_SP_BADSTATEMENT, MYF(0), "ALTER VIEW");
+    return true;
+  }
+  if (!(create_view= new (thd->mem_root)
+                     Create_view_info(VIEW_ALTER, algorithm, suid)))
+    return true;
+  return create_or_alter_view_finalize(thd, table_ident);
+}
+
+
+bool LEX::add_create_view(THD *thd, DDL_options_st ddl,
+                          uint16 algorithm, enum_view_suid suid,
+                          Table_ident *table_ident)
+{
+  if (set_create_options_with_check(ddl))
+    return true;
+  if (!(create_view= new (thd->mem_root)
+                     Create_view_info(ddl.or_replace() ?
+                                      VIEW_CREATE_OR_REPLACE :
+                                      VIEW_CREATE_NEW,
+                                      algorithm, suid)))
+    return true;
+  return create_or_alter_view_finalize(thd, table_ident);
 }

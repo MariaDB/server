@@ -225,10 +225,10 @@ fill_defined_view_parts (THD *thd, TABLE_LIST *view)
     view->definer.user= decoy.definer.user;
     lex->definer= &view->definer;
   }
-  if (lex->create_view_algorithm == VIEW_ALGORITHM_INHERIT)
-    lex->create_view_algorithm= (uint8) decoy.algorithm;
-  if (lex->create_view_suid == VIEW_SUID_DEFAULT)
-    lex->create_view_suid= decoy.view_suid ? 
+  if (lex->create_view->algorithm == VIEW_ALGORITHM_INHERIT)
+    lex->create_view->algorithm= (uint8) decoy.algorithm;
+  if (lex->create_view->suid == VIEW_SUID_DEFAULT)
+    lex->create_view->suid= decoy.view_suid ?
       VIEW_SUID_DEFINER : VIEW_SUID_INVOKER;
 
   return FALSE;
@@ -647,8 +647,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
        { C_STRING_WITH_LEN("ALTER ") },
        { C_STRING_WITH_LEN("CREATE OR REPLACE ") }};
 
-    buff.append(command[thd->lex->create_view_mode].str,
-                command[thd->lex->create_view_mode].length);
+    buff.append(command[thd->lex->create_view->mode].str,
+                command[thd->lex->create_view->mode].length);
     view_store_options(thd, views, &buff);
     buff.append(STRING_WITH_LEN("VIEW "));
 
@@ -934,7 +934,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   DBUG_PRINT("info", ("View: %.*s", view_query.length(), view_query.ptr()));
 
   /* fill structure */
-  view->source= thd->lex->create_view_select;
+  view->source= thd->lex->create_view->select;
 
   if (!thd->make_lex_string(&view->select_stmt, view_query.ptr(),
                             view_query.length()))
@@ -959,18 +959,18 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   }
   view->md5.length= 32;
   can_be_merged= lex->can_be_merged();
-  if (lex->create_view_algorithm == VIEW_ALGORITHM_MERGE &&
+  if (lex->create_view->algorithm == VIEW_ALGORITHM_MERGE &&
       !lex->can_be_merged())
   {
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WARN_VIEW_MERGE,
                  ER_THD(thd, ER_WARN_VIEW_MERGE));
-    lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
+    lex->create_view->algorithm= DTYPE_ALGORITHM_UNDEFINED;
   }
-  view->algorithm= lex->create_view_algorithm;
+  view->algorithm= lex->create_view->algorithm;
   view->definer.user= lex->definer->user;
   view->definer.host= lex->definer->host;
-  view->view_suid= lex->create_view_suid;
-  view->with_check= lex->create_view_check;
+  view->view_suid= lex->create_view->suid;
+  view->with_check= lex->create_view->check;
 
   DBUG_EXECUTE_IF("simulate_register_view_failure",
                   {

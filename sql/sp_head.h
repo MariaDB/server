@@ -187,8 +187,7 @@ public:
   LEX_CSTRING m_body;
   LEX_CSTRING m_body_utf8;
   LEX_CSTRING m_defstr;
-  LEX_CSTRING m_definer_user;
-  LEX_CSTRING m_definer_host;
+  AUTHID      m_definer;
 
   /**
     Is this routine being executed?
@@ -673,10 +672,13 @@ public:
   }
 
   void set_info(longlong created, longlong modified,
-		st_sp_chistics *chistics, sql_mode_t sql_mode);
+		const st_sp_chistics *chistics, sql_mode_t sql_mode);
 
   void set_definer(const char *definer, uint definerlen);
-  void set_definer(const LEX_CSTRING *user_name, const LEX_CSTRING *host_name);
+  void set_definer(const LEX_CSTRING *user_name, const LEX_CSTRING *host_name)
+  {
+    m_definer.copy(mem_root, user_name, host_name);
+  }
 
   void reset_thd_mem_root(THD *thd);
 

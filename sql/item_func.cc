@@ -245,8 +245,9 @@ bool Item_func::check_argument_types_scalar(uint start, uint end) const
     is to allow all Item_field() objects to setup pointers to the table fields.
 
     Sets as a side effect the following class variables:
-      maybe_null	Set if any argument may return NULL
-      with_sum_func	Set if any of the arguments contains a sum function
+      maybe_null        Set if any argument may return NULL
+      with_sum_func     Set if any of the arguments contains a sum function
+      with_window_func  Set if any of the arguments contain a window function
       with_field        Set if any of the arguments contains or is a field
       used_tables_cache Set to union of the tables used by arguments
 

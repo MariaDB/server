@@ -4214,13 +4214,13 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     field->set_table_name(&table->alias);
   }
 
-  if (thd->variables.tmp_table_size == ~ (ulonglong) 0)		// No limit
+  if (thd->variables.tmp_memory_table_size == ~ (ulonglong) 0)	// No limit
     share->max_rows= ~(ha_rows) 0;
   else
     share->max_rows= (ha_rows) (((share->db_type() == heap_hton) ?
-                                 MY_MIN(thd->variables.tmp_table_size,
-                                     thd->variables.max_heap_table_size) :
-                                 thd->variables.tmp_table_size) /
+                                 MY_MIN(thd->variables.tmp_memory_table_size,
+                                        thd->variables.max_heap_table_size) :
+                                 thd->variables.tmp_memory_table_size) /
 			         share->reclength);
   set_if_bigger(share->max_rows,1);		// For dummy start options
 

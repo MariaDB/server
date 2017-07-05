@@ -308,6 +308,22 @@ segment). It is quite possible that some of the tablespaces doesn't host
 any of the rollback-segment based on configuration used. */
 extern ulint	srv_undo_tablespaces_active;
 
+/** Undo tablespaces starts with space_id. */
+extern	ulint	srv_undo_space_id_start;
+
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+inline
+bool
+srv_is_undo_tablespace(ulint space_id)
+{
+	return srv_undo_space_id_start > 0
+		&& space_id >= srv_undo_space_id_start
+		&& space_id < (srv_undo_space_id_start
+			       + srv_undo_tablespaces_open);
+}
+
 /** The number of undo segments to use */
 extern ulong	srv_undo_logs;
 
@@ -335,17 +351,9 @@ extern char*	srv_log_group_home_dir;
 /** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
 #define SRV_N_LOG_FILES_MAX 100
 extern ulong	srv_n_log_files;
-/** At startup, this is the current redo log file size.
-During startup, if this is different from srv_log_file_size_requested
-(innodb_log_file_size), the redo log will be rebuilt and this size
-will be initialized to srv_log_file_size_requested.
-When upgrading from a previous redo log format, this will be set to 0,
-and writing to the redo log is not allowed.
-
-During startup, this is in bytes, and later converted to pages. */
-extern ib_uint64_t	srv_log_file_size;
-/** The value of the startup parameter innodb_log_file_size */
-extern ib_uint64_t	srv_log_file_size_requested;
+/** The InnoDB redo log file size, or 0 when changing the redo log format
+at startup (while disallowing writes to the redo log). */
+extern ulonglong	srv_log_file_size;
 extern ulint	srv_log_buffer_size;
 extern ulong	srv_flush_log_at_trx_commit;
 extern uint	srv_flush_log_at_timeout;
@@ -521,7 +529,10 @@ extern my_bool	srv_purge_view_update_only_debug;
 
 /** Value of MySQL global used to disable master thread. */
 extern my_bool	srv_master_thread_disabled_debug;
+/** InnoDB system tablespace to set during recovery */
 extern uint	srv_sys_space_size_debug;
+/** whether redo log files have been created at startup */
+extern bool	srv_log_files_created;
 #endif /* UNIV_DEBUG */
 
 #define SRV_SEMAPHORE_WAIT_EXTENSION	7200

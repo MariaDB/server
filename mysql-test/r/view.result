@@ -6501,3 +6501,14 @@ DROP VIEW v;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-13197 Parser refactoring for CREATE VIEW,TRIGGER,SP,UDF,EVENT
+#
+ALTER VIEW IF NOT EXISTS v1 AS SELECT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IF NOT EXISTS v1 AS SELECT 1' at line 1
+#
+# End of 10.3 tests
+#

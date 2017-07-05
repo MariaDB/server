@@ -1158,9 +1158,17 @@ The following options may be given as the first argument:
  --time-format=name  The TIME format (ignored)
  --timed-mutexes     Specify whether to time mutexes. Deprecated, has no
  effect.
- --tmp-table-size=#  If an internal in-memory temporary table exceeds this
+ --tmp-disk-table-size=# 
+ Max size for data for an internal temporary on-disk
+ MyISAM or Aria table.
+ --tmp-memory-table-size=# 
+ If an internal in-memory temporary table exceeds this
  size, MySQL will automatically convert it to an on-disk
- MyISAM or Aria table
+ MyISAM or Aria table. Same as tmp_table_size.
+ --tmp-table-size=#  Alias for tmp_memory_table_size. If an internal in-memory
+ temporary table exceeds this size, MySQL will
+ automatically convert it to an on-disk MyISAM or Aria
+ table.
  -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
  separated by a colon (:), in this case they are used in a
  round-robin fashion
@@ -1515,6 +1523,8 @@ thread-pool-stall-limit 500
 thread-stack 299008
 time-format %H:%i:%s
 timed-mutexes FALSE
+tmp-disk-table-size 18446744073709551615
+tmp-memory-table-size 16777216
 tmp-table-size 16777216
 transaction-alloc-block-size 8192
 transaction-isolation REPEATABLE-READ

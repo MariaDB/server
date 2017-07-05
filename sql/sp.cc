@@ -41,7 +41,7 @@ static int
 db_load_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                 sp_head **sphp,
                 sql_mode_t sql_mode, const char *params, const char *returns,
-                const char *body, st_sp_chistics &chistics,
+                const char *body, const st_sp_chistics &chistics,
                 LEX_CSTRING *definer_user_name,
                 LEX_CSTRING *definer_host_name,
                 longlong created, longlong modified,
@@ -813,7 +813,7 @@ static int
 db_load_routine(THD *thd, stored_procedure_type type,
                 const sp_name *name, sp_head **sphp,
                 sql_mode_t sql_mode, const char *params, const char *returns,
-                const char *body, st_sp_chistics &chistics,
+                const char *body, const st_sp_chistics &chistics,
                 LEX_CSTRING *definer_user_name,
                 LEX_CSTRING *definer_host_name,
                 longlong created, longlong modified,
@@ -1392,7 +1392,7 @@ sp_drop_routine(THD *thd, stored_procedure_type type, const sp_name *name)
 
 int
 sp_update_routine(THD *thd, stored_procedure_type type, const sp_name *name,
-                  st_sp_chistics *chistics)
+                  const st_sp_chistics *chistics)
 {
   TABLE *table;
   int ret;
@@ -1793,7 +1793,7 @@ sp_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
     if (db_load_routine(thd, type, name, &new_sp,
                         sp->m_sql_mode, sp->m_params.str, returns,
                         sp->m_body.str, *sp->m_chistics,
-                        &sp->m_definer_user, &sp->m_definer_host,
+                        &sp->m_definer.user, &sp->m_definer.host,
                         sp->m_created, sp->m_modified,
                         sp->get_creation_ctx()) == SP_OK)
     {
@@ -2201,7 +2201,7 @@ show_create_sp(THD *thd, String *buf,
               const char *params, ulong paramslen,
               const char *returns, ulong returnslen,
               const char *body, ulong bodylen,
-              st_sp_chistics *chistics,
+              const st_sp_chistics *chistics,
               const LEX_CSTRING *definer_user,
               const LEX_CSTRING *definer_host,
               sql_mode_t sql_mode)

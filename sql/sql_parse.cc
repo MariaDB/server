@@ -3035,6 +3035,54 @@ error: /* Used by WSREP_TO_ISOLATION_BEGIN */
 
 
 /**
+  Prepare for CREATE DATABASE, ALTER DATABASE, DROP DATABASE.
+
+  @param thd         - current THD
+  @param want_access - access needed
+  @param dbname      - the database name
+
+  @retval false      - Ok to proceed with CREATE/ALTER/DROP
+  @retval true       - not OK to proceed (error, or filtered)
+
+  Note, on slave this function returns true if the database
+  is in the ignore filter. The caller must distinguish this case
+  from other cases: bad database error, no access error.
+  This can be done by testing thd->is_error().
+*/
+static bool prepare_db_action(THD *thd, ulong want_access, LEX_CSTRING *dbname)
+{
+  if (check_db_name((LEX_STRING*)dbname))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), dbname->str);
+    return true;
+  }
+  /*
+    If in a slave thread :
+    - CREATE DATABASE DB was certainly not preceded by USE DB.
+    - ALTER DATABASE DB may not be preceded by USE DB.
+    - DROP DATABASE DB may not be preceded by USE DB.
+    For that reason, db_ok() in sql/slave.cc did not check the
+    do_db/ignore_db. And as this query involves no tables, tables_ok()
+    was not called. So we have to check rules again here.
+  */
+#ifdef HAVE_REPLICATION
+  if (thd->slave_thread)
+  {
+    Rpl_filter *rpl_filter;
+    rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
+    if (!rpl_filter->db_ok(dbname->str) ||
+        !rpl_filter->db_ok_with_wild_table(dbname->str))
+    {
+      my_message(ER_SLAVE_IGNORED_TABLE,
+                 ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
+      return true;
+    }
+  }
+#endif
+  return check_access(thd, want_access, dbname->str, NULL, NULL, 1, 0);
+}
+
+/**
   Execute command saved in thd and lex->sql_command.
 
   @param thd                       Thread handle
@@ -5038,33 +5086,9 @@ end_with_restore_list:
     break;
   case SQLCOM_CREATE_DB:
   {
-    if (check_db_name((LEX_STRING*) &lex->name))
-    {
-      my_error(ER_WRONG_DB_NAME, MYF(0), lex->name.str);
-      break;
-    }
-    /*
-      If in a slave thread :
-      CREATE DATABASE DB was certainly not preceded by USE DB.
-      For that reason, db_ok() in sql/slave.cc did not check the
-      do_db/ignore_db. And as this query involves no tables, tables_ok()
-      above was not called. So we have to check rules again here.
-    */
-#ifdef HAVE_REPLICATION
-    if (thd->slave_thread)
-    {
-      rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
-      if (!rpl_filter->db_ok(lex->name.str) ||
-          !rpl_filter->db_ok_with_wild_table(lex->name.str))
-      {
-        my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
-        break;
-      }
-    }
-#endif
-    if (check_access(thd, lex->create_info.or_replace() ?
+    if (prepare_db_action(thd, lex->create_info.or_replace() ?
                           (CREATE_ACL | DROP_ACL) : CREATE_ACL,
-                     lex->name.str, NULL, NULL, 1, 0))
+                          &lex->name))
       break;
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL)
     res= mysql_create_db(thd, lex->name.str,
@@ -5073,31 +5097,7 @@ end_with_restore_list:
   }
   case SQLCOM_DROP_DB:
   {
-    if (check_db_name((LEX_STRING*) &lex->name))
-    {
-      my_error(ER_WRONG_DB_NAME, MYF(0), lex->name.str);
-      break;
-    }
-    /*
-      If in a slave thread :
-      DROP DATABASE DB may not be preceded by USE DB.
-      For that reason, maybe db_ok() in sql/slave.cc did not check the 
-      do_db/ignore_db. And as this query involves no tables, tables_ok()
-      above was not called. So we have to check rules again here.
-    */
-#ifdef HAVE_REPLICATION
-    if (thd->slave_thread)
-    {
-      rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
-      if (!rpl_filter->db_ok(lex->name.str) ||
-          !rpl_filter->db_ok_with_wild_table(lex->name.str))
-      {
-        my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
-        break;
-      }
-    }
-#endif
-    if (check_access(thd, DROP_ACL, lex->name.str, NULL, NULL, 1, 0))
+    if (prepare_db_action(thd, DROP_ACL, &lex->name))
       break;
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL)
     res= mysql_rm_db(thd, lex->name.str, lex->if_exists());
@@ -5140,31 +5140,7 @@ end_with_restore_list:
   case SQLCOM_ALTER_DB:
   {
     LEX_CSTRING *db= &lex->name;
-    if (check_db_name((LEX_STRING*) db))
-    {
-      my_error(ER_WRONG_DB_NAME, MYF(0), db->str);
-      break;
-    }
-    /*
-      If in a slave thread :
-      ALTER DATABASE DB may not be preceded by USE DB.
-      For that reason, maybe db_ok() in sql/slave.cc did not check the
-      do_db/ignore_db. And as this query involves no tables, tables_ok()
-      above was not called. So we have to check rules again here.
-    */
-#ifdef HAVE_REPLICATION
-    if (thd->slave_thread)
-    {
-      rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
-      if (!rpl_filter->db_ok(db->str) ||
-          !rpl_filter->db_ok_with_wild_table(db->str))
-      {
-        my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
-        break;
-      }
-    }
-#endif
-    if (check_access(thd, ALTER_ACL, db->str, NULL, NULL, 1, 0))
+    if (prepare_db_action(thd, ALTER_ACL, db))
       break;
     WSREP_TO_ISOLATION_BEGIN(db->str, NULL, NULL)
     res= mysql_alter_db(thd, db->str, &lex->create_info);
@@ -6057,10 +6033,10 @@ end_with_restore_list:
     {
       /*
         Note: SQLCOM_CREATE_VIEW also handles 'ALTER VIEW' commands
-        as specified through the thd->lex->create_view_mode flag.
+        as specified through the thd->lex->create_view->mode flag.
       */
       WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-      res= mysql_create_view(thd, first_table, thd->lex->create_view_mode);
+      res= mysql_create_view(thd, first_table, thd->lex->create_view->mode);
       break;
     }
   case SQLCOM_DROP_VIEW:

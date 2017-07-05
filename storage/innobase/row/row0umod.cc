@@ -215,6 +215,9 @@ row_undo_mod_remove_clust_low(
 	than the rolling-back one. */
 	ut_ad(rec_get_deleted_flag(btr_cur_get_rec(btr_cur),
 				   dict_table_is_comp(node->table)));
+	/* In delete-marked records, DB_TRX_ID must
+	always refer to an existing update_undo log record. */
+	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur), btr_cur->index));
 
 	if (mode == BTR_MODIFY_LEAF) {
 		err = btr_cur_optimistic_delete(btr_cur, 0, mtr)
@@ -350,8 +353,9 @@ row_undo_mod_clust(
 	*   it can be reallocated at any time after this mtr-commits
 	*   which is just below
 	*/
-	ut_ad(srv_immediate_scrub_data_uncompressed ||
-	      rec_get_trx_id(btr_pcur_get_rec(pcur), index) == node->new_trx_id);
+	ut_ad(srv_immediate_scrub_data_uncompressed
+	      || row_get_rec_trx_id(btr_pcur_get_rec(pcur), index, offsets)
+	      == node->new_trx_id);
 
 	btr_pcur_commit_specify_mtr(pcur, &mtr);
 
@@ -515,6 +519,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 				ib::error() << "Record found in index "
 					<< index->name << " is deleted marked"
 					" on rollback update.";
+				ut_ad(0);
 			}
 		}
 

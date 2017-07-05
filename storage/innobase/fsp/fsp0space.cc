@@ -39,11 +39,8 @@ bool
 Tablespace::intersection(
 	const Tablespace*	other_space)
 {
-	files_t::const_iterator	end = other_space->m_files.end();
-
-	for (files_t::const_iterator it = other_space->m_files.begin();
-	     it != end;
-	     ++it) {
+	for (files_t::const_iterator it(other_space->begin()),
+		     end(other_space->end()); it != end; ++it) {
 
 		if (find(it->m_filename)) {
 
@@ -58,14 +55,13 @@ Tablespace::intersection(
 void
 Tablespace::shutdown()
 {
-	files_t::iterator	end = m_files.end();
-
-	for (files_t::iterator it = m_files.begin(); it != end; ++it) {
+	for (iterator it = begin(); it != end(); ++it) {
 		it->shutdown();
 	}
 
 	m_files.clear();
-
+	ut_free(m_path);
+	m_path = NULL;
 	m_space_id = ULINT_UNDEFINED;
 }
 
@@ -94,10 +90,7 @@ Tablespace::open_or_create(bool is_temp)
 
 	ut_ad(!m_files.empty());
 
-	files_t::iterator	begin = m_files.begin();
-	files_t::iterator	end = m_files.end();
-
-	for (files_t::iterator it = begin; it != end; ++it) {
+	for (iterator it = begin(); it != end(); ++it) {
 
 		if (it->m_exists) {
 			err = it->open_or_create(
@@ -123,7 +116,7 @@ Tablespace::open_or_create(bool is_temp)
 		the proper way. */
 		it->close();
 
-		if (it == begin) {
+		if (it == begin()) {
 			/* First data file. */
 
 			/* Create the tablespace entry for the multi-file
@@ -153,11 +146,9 @@ Tablespace::open_or_create(bool is_temp)
 /** Find a filename in the list of Datafiles for a tablespace
 @return true if the filename exists in the data files */
 bool
-Tablespace::find(const char* filename)
+Tablespace::find(const char* filename) const
 {
-	files_t::const_iterator	end = m_files.end();
-
-	for (files_t::const_iterator it = m_files.begin(); it != end; ++it) {
+	for (const_iterator it = begin(); it != end(); ++it) {
 
 		if (innobase_strcasecmp(filename, it->m_filename) == 0) {
 			return(true);
@@ -171,9 +162,7 @@ Tablespace::find(const char* filename)
 void
 Tablespace::delete_files()
 {
-	files_t::iterator	end = m_files.end();
-
-	for (files_t::iterator it = m_files.begin(); it != end; ++it) {
+	for (iterator it = begin(); it != end(); ++it) {
 
 		it->close();
 

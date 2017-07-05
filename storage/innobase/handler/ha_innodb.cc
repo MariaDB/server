@@ -206,7 +206,7 @@ static ulong innobase_commit_concurrency = 0;
 static ulong innobase_read_io_threads;
 static ulong innobase_write_io_threads;
 
-static long long innobase_buffer_pool_size, innobase_log_file_size;
+static long long innobase_buffer_pool_size;
 
 /** Percentage of the buffer pool to reserve for 'old' blocks.
 Connected to buf_LRU_old_ratio. */
@@ -4050,8 +4050,6 @@ innobase_change_buffering_inited_ok:
 
 	srv_file_flush_method_str = innobase_file_flush_method;
 
-	srv_log_file_size = (ib_uint64_t) innobase_log_file_size;
-
 	if (UNIV_PAGE_SIZE_DEF != srv_page_size) {
 		ib::info() << "innodb_page_size=" << srv_page_size;
 
@@ -5774,14 +5772,6 @@ innobase_match_index_columns(
 			spatial index on it and we intend to use DATA_GEOMETRY
 			for legacy GIS data types which are of var-length. */
 			switch (col_type) {
-			case DATA_POINT:
-			case DATA_VAR_POINT:
-				if (DATA_POINT_MTYPE(mtype)
-				    || mtype == DATA_GEOMETRY
-				    || mtype == DATA_BLOB) {
-					break;
-				}
-				/* Fall through */
 			case DATA_GEOMETRY:
 				if (mtype == DATA_BLOB) {
 					break;
@@ -7761,12 +7751,6 @@ build_template_field(
 		prebuilt->templ_contains_blob = TRUE;
 	}
 
-	if (templ->type == DATA_POINT) {
-		/* We set this only when it's DATA_POINT, but not
-		DATA_VAR_POINT */
-		prebuilt->templ_contains_fixed_point = TRUE;
-	}
-
 	return(templ);
 }
 
@@ -7852,7 +7836,6 @@ ha_innobase::build_template(
 
 	/* Prepare to build m_prebuilt->mysql_template[]. */
 	m_prebuilt->templ_contains_blob = FALSE;
-	m_prebuilt->templ_contains_fixed_point = FALSE;
 	m_prebuilt->mysql_prefix_len = 0;
 	m_prebuilt->n_template = 0;
 	m_prebuilt->idx_cond_n_cols = 0;
@@ -8289,15 +8272,15 @@ ha_innobase::write_row(
 	     || sql_command == SQLCOM_OPTIMIZE
 	     || sql_command == SQLCOM_CREATE_INDEX
 #ifdef WITH_WSREP
-	     || (wsrep_on(m_user_thd) && wsrep_load_data_splitting &&
-		 sql_command == SQLCOM_LOAD                      &&
-		 !thd_test_options(
-			m_user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+	     || (sql_command == SQLCOM_LOAD
+		 && wsrep_load_data_splitting && wsrep_on(m_user_thd)
+		 && !thd_test_options(
+			 m_user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 #endif /* WITH_WSREP */
 	     || sql_command == SQLCOM_DROP_INDEX)
 	    && m_num_write_row >= 10000) {
 #ifdef WITH_WSREP
-		if (wsrep_on(m_user_thd) && sql_command == SQLCOM_LOAD) {
+		if (sql_command == SQLCOM_LOAD && wsrep_on(m_user_thd)) {
 			WSREP_DEBUG("forced trx split for LOAD: %s",
 				    wsrep_thd_query(m_user_thd));
 		}
@@ -8743,8 +8726,6 @@ calc_row_difference(
 		switch (col_type) {
 
 		case DATA_BLOB:
-		case DATA_POINT:
-		case DATA_VAR_POINT:
 		case DATA_GEOMETRY:
 			o_ptr = row_mysql_read_blob_ref(&o_len, o_ptr, o_len);
 			n_ptr = row_mysql_read_blob_ref(&n_len, n_ptr, n_len);
@@ -11507,10 +11488,6 @@ create_table_info_t::create_table_def()
 			}
 		}
 
-		if (col_type == DATA_POINT) {
-			col_len = DATA_POINT_LEN;
-		}
-
 		is_virtual = (innobase_is_v_fld(field)) ? DATA_VIRTUAL : 0;
 		is_stored = innobase_is_s_fld(field);
 
@@ -12767,8 +12744,6 @@ create_table_info_t::set_tablespace_type(
 int
 create_table_info_t::initialize()
 {
-	trx_t*		parent_trx __attribute__((unused));
-
 	DBUG_ENTER("create_table_info_t::initialize");
 
 	ut_ad(m_thd != NULL);
@@ -12790,7 +12765,7 @@ create_table_info_t::initialize()
 	/* Get the transaction associated with the current thd, or create one
 	if not yet created */
 
-	parent_trx = check_trx_exists(m_thd);
+	check_trx_exists(m_thd);
 
 	DBUG_RETURN(0);
 }
@@ -20569,10 +20544,12 @@ static MYSQL_SYSVAR_LONG(log_buffer_size, innobase_log_buffer_size,
   "The size of the buffer which InnoDB uses to write log to the log files on disk.",
   NULL, NULL, 16*1024*1024L, 256*1024L, LONG_MAX, 1024);
 
-static MYSQL_SYSVAR_LONGLONG(log_file_size, innobase_log_file_size,
+static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Size of each log file in a log group.",
-  NULL, NULL, 48 << 20, 1 << 20, 512ULL << 30, 1 << 20);
+  NULL, NULL, 48 << 20, 1 << 20, 512ULL << 30, UNIV_PAGE_SIZE_MAX);
+/* OS_FILE_LOG_BLOCK_SIZE would be more appropriate than UNIV_PAGE_SIZE_MAX,
+but fil_space_t is being used for the redo log, and it uses data pages. */
 
 static MYSQL_SYSVAR_ULONG(log_files_in_group, srv_n_log_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

@@ -906,6 +906,10 @@ trx_undo_page_report_modify(
 		ut_ad(!rec_get_deleted_flag(rec, dict_table_is_comp(table)));
 		type_cmpl = TRX_UNDO_DEL_MARK_REC;
 	} else if (rec_get_deleted_flag(rec, dict_table_is_comp(table))) {
+		/* In delete-marked records, DB_TRX_ID must
+		always refer to an existing update_undo log record. */
+		ut_ad(row_get_rec_trx_id(rec, index, offsets));
+
 		type_cmpl = TRX_UNDO_UPD_DEL_REC;
 		/* We are about to update a delete marked record.
 		We don't typically need the prefix in this case unless
@@ -1874,6 +1878,10 @@ trx_undo_report_row_operation(
 	ut_ad(!srv_read_only_mode);
 
 	trx = thr_get_trx(thr);
+	/* This function must not be invoked during rollback
+	(of a TRX_STATE_PREPARE transaction or otherwise). */
+	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
+	ut_ad(!trx->in_rollback);
 
 	mtr.start();
 	trx_undo_t**	pundo;
@@ -1887,6 +1895,7 @@ trx_undo_report_row_operation(
 		pundo = &trx->rsegs.m_noredo.undo;
 	} else {
 		ut_ad(!trx->read_only);
+		ut_ad(trx->id);
 		/* Keep INFORMATION_SCHEMA.TABLES.UPDATE_TIME
 		up-to-date for persistent tables. Temporary tables are
 		not listed there. */

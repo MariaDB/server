@@ -423,14 +423,6 @@ typedef struct st_io_cache		/* Used when cacheing files */
   uchar *write_end;
 
   /*
-    Current_pos and current_end are convenience variables used by
-    my_b_tell() and other routines that need to know the current offset
-    current_pos points to &write_pos, and current_end to &write_end in a
-    WRITE_CACHE, and &read_pos and &read_end respectively otherwise
-  */
-  uchar  **current_pos, **current_end;
-
-  /*
     The lock is for append buffer used in SEQ_READ_APPEND cache
     need mutex copying from append buffer to read buffer.
   */
@@ -584,7 +576,11 @@ static inline size_t my_b_fill(IO_CACHE *info)
 
 static inline my_off_t my_b_tell(const IO_CACHE *info)
 {
-  return info->pos_in_file + (*info->current_pos - info->request_pos);
+  if (info->type == WRITE_CACHE) {
+    return info->pos_in_file + (info->write_pos - info->request_pos);
+
+  }
+  return info->pos_in_file + (info->read_pos - info->request_pos);
 }
 
 static inline my_off_t my_b_write_tell(const IO_CACHE *info)
@@ -609,7 +605,10 @@ static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
 
 static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
 {
-  return *info->current_end - *info->current_pos;
+  if (info->type == WRITE_CACHE) {
+    return info->write_end - info->write_pos;
+  }
+  return info->read_end - info->read_pos;
 }
 
 int      my_b_copy_to_file(IO_CACHE *cache, FILE *file);
@@ -803,7 +802,6 @@ extern int init_io_cache(IO_CACHE *info,File file,size_t cachesize,
 extern my_bool reinit_io_cache(IO_CACHE *info,enum cache_type type,
 			       my_off_t seek_offset, my_bool use_async_io,
 			       my_bool clear_cache);
-extern void setup_io_cache(IO_CACHE* info);
 extern void init_io_cache_share(IO_CACHE *read_cache, IO_CACHE_SHARE *cshare,
                                 IO_CACHE *write_cache, uint num_threads);
 

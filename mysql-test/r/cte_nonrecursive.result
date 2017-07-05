@@ -1002,3 +1002,56 @@ f
 2
 DROP TABLE cte;
 DROP TABLE t;
+#
+# MDEV-13107: SHOW TABLE STATUS, SHOW CREATE VIEW 
+#             for CTEs that use derived tables
+#
+create table t1(a int) engine=myisam;
+insert into t1 values (3), (1), (2);
+create table t2 (b int) engine=myisam;
+insert into t2 values (2), (10);
+create view v1 as
+with t as (select s.a from (select t1.a from t1) s),
+r as(select t.a from t2, t where t2.b=t.a)
+select a from r;
+create view v2 as
+with t as (select s.a from (select t1.a from t1) s),
+r as(select t.a from t2, t where t2.b=t.a)
+select a from t1;
+show table status;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t as (select `s`.`a` AS `a` from (select `test`.`t1`.`a` AS `a` from `test`.`t1`) `s`), r as (select `t`.`a` AS `a` from (`test`.`t2` join `t`) where `test`.`t2`.`b` = `t`.`a`)select `r`.`a` AS `a` from `r`	latin1	latin1_swedish_ci
+show create view v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS with t as (select `s`.`a` AS `a` from (select `test`.`t1`.`a` AS `a` from `test`.`t1`) `s`), r as (select `t`.`a` AS `a` from (`test`.`t2` join `t`) where `test`.`t2`.`b` = `t`.`a`)select `test`.`t1`.`a` AS `a` from `test`.`t1`	latin1	latin1_swedish_ci
+select * from v1;
+a
+2
+select * from v2;
+a
+3
+1
+2
+prepare stmt1 from "select * from v1";
+execute stmt1;
+a
+2
+execute stmt1;
+a
+2
+prepare stmt2 from "select * from v2";
+execute stmt2;
+a
+3
+1
+2
+execute stmt2;
+a
+3
+1
+2
+deallocate prepare stmt1;
+deallocate prepare stmt2;
+drop view v1,v2;
+drop table t1,t2;

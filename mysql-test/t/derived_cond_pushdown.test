@@ -1526,3 +1526,25 @@ eval explain format=json $q;
 
 DROP VIEW v1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-13193: pushdown of equality extracted from multiple equality
+--echo #
+
+CREATE TABLE t1 (i1 int, KEY(i1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (i2 int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2),(4);
+
+CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+
+let $q=
+SELECT * FROM t1, ( SELECT * FROM v2 ) AS sq
+  WHERE i1 = 1 AND ( i1 = i2 OR i1 = 2 );
+
+eval $q;
+eval explain format=json $q;
+
+DROP VIEW v2;
+DROP TABLE t1,t2;

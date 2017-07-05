@@ -504,7 +504,6 @@ dtype_get_fixed_size_low(
 	case DATA_INT:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
-	case DATA_POINT:
 		return(len);
 	case DATA_MYSQL:
 		if (prtype & DATA_BINARY_TYPE) {
@@ -533,7 +532,6 @@ dtype_get_fixed_size_low(
 	case DATA_BINARY:
 	case DATA_DECIMAL:
 	case DATA_VARMYSQL:
-	case DATA_VAR_POINT:
 	case DATA_GEOMETRY:
 	case DATA_BLOB:
 		return(0);
@@ -580,7 +578,6 @@ dtype_get_min_size_low(
 	case DATA_INT:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
-	case DATA_POINT:
 		return(len);
 	case DATA_MYSQL:
 		if (prtype & DATA_BINARY_TYPE) {
@@ -603,7 +600,6 @@ dtype_get_min_size_low(
 	case DATA_BINARY:
 	case DATA_DECIMAL:
 	case DATA_VARMYSQL:
-	case DATA_VAR_POINT:
 	case DATA_GEOMETRY:
 	case DATA_BLOB:
 		return(0);
@@ -637,9 +633,7 @@ dtype_get_max_size_low(
 	case DATA_BINARY:
 	case DATA_DECIMAL:
 	case DATA_VARMYSQL:
-	case DATA_POINT:
 		return(len);
-	case DATA_VAR_POINT:
 	case DATA_GEOMETRY:
 	case DATA_BLOB:
 		break;

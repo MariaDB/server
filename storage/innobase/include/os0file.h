@@ -977,7 +977,7 @@ pfs_os_file_close_func(
 this function!
 This is the performance schema instrumented wrapper function for
 os_file_read() which requests a synchronous read operation.
-@param[in, out]	type		IO request context
+@param[in]	type		IO request context
 @param[in]	file		Open file handle
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset where to read
@@ -988,20 +988,20 @@ os_file_read() which requests a synchronous read operation.
 UNIV_INLINE
 dberr_t
 pfs_os_file_read_func(
-	IORequest&	type,
-	pfs_os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	const char*	src_file,
-	uint		src_line);
+	const IORequest&	type,
+	pfs_os_file_t		file,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			n,
+	const char*		src_file,
+	uint			src_line);
 
 /** NOTE! Please use the corresponding macro os_file_read_no_error_handling(),
 not directly this function!
 This is the performance schema instrumented wrapper function for
 os_file_read_no_error_handling_func() which requests a synchronous
 read operation.
-@param[in, out]	type		IO request context
+@param[in]	type		IO request context
 @param[in]	file		Open file handle
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset where to read
@@ -1013,20 +1013,20 @@ read operation.
 UNIV_INLINE
 dberr_t
 pfs_os_file_read_no_error_handling_func(
-	IORequest&	type,
-	pfs_os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	ulint*		o,
-	const char*	src_file,
-	uint		src_line);
+	const IORequest&	type,
+	pfs_os_file_t		file,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			n,
+	ulint*			o,
+	const char*		src_file,
+	uint			src_line);
 
 /** NOTE! Please use the corresponding macro os_aio(), not directly this
 function!
 Performance schema wrapper function of os_aio() which requests
 an asynchronous I/O operation.
-@param[in]	type		IO request context
+@param[in,out]	type		IO request context
 @param[in]	mode		IO mode
 @param[in]	name		Name of the file or path as NUL terminated
 				string
@@ -1064,7 +1064,7 @@ pfs_os_aio_func(
 this function!
 This is the performance schema instrumented wrapper function for
 os_file_write() which requests a synchronous write operation.
-@param[in, out]	type		IO request context
+@param[in]	type		IO request context
 @param[in]	name		Name of the file or path as NUL terminated
 				string
 @param[in]	file		Open file handle
@@ -1077,14 +1077,14 @@ os_file_write() which requests a synchronous write operation.
 UNIV_INLINE
 dberr_t
 pfs_os_file_write_func(
-	IORequest&	type,
-	const char*	name,
-	pfs_os_file_t	file,
-	const void*	buf,
-	os_offset_t	offset,
-	ulint		n,
-	const char*	src_file,
-	uint		src_line);
+	const IORequest&	type,
+	const char*		name,
+	pfs_os_file_t		file,
+	const void*		buf,
+	os_offset_t		offset,
+	ulint			n,
+	const char*		src_file,
+	uint			src_line);
 
 /** NOTE! Please use the corresponding macro os_file_flush(), not directly
 this function!
@@ -1291,11 +1291,11 @@ Requests a synchronous read operation.
 @return DB_SUCCESS if request was successful */
 dberr_t
 os_file_read_func(
-	IORequest&	type,
-	os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n)
+	const IORequest&	type,
+	os_file_t		file,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			n)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Rewind file to its start, read at most size - 1 bytes from it to str, and
@@ -1323,18 +1323,18 @@ any error handling. In case of error it returns FALSE.
 @return DB_SUCCESS or error code */
 dberr_t
 os_file_read_no_error_handling_func(
-	IORequest&	type,
-	os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	ulint*		o)
+	const IORequest&	type,
+	os_file_t		file,
+	void*			buf,
+	os_offset_t		offset,
+	ulint			n,
+	ulint*			o)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** NOTE! Use the corresponding macro os_file_write(), not directly this
 function!
 Requests a synchronous write operation.
-@param[in,out]	type		IO request context
+@param[in]	type		IO request context
 @param[in]	file		Open file handle
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset where to read
@@ -1342,12 +1342,12 @@ Requests a synchronous write operation.
 @return DB_SUCCESS if request was successful */
 dberr_t
 os_file_write_func(
-	IORequest&	type,
-	const char*	name,
-	os_file_t	file,
-	const void*	buf,
-	os_offset_t	offset,
-	ulint		n)
+	const IORequest&	type,
+	const char*		name,
+	os_file_t		file,
+	const void*		buf,
+	os_offset_t		offset,
+	ulint			n)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Check the existence and type of the given file.
@@ -1430,7 +1430,7 @@ os_aio_free();
 /**
 NOTE! Use the corresponding macro os_aio(), not directly this function!
 Requests an asynchronous i/o operation.
-@param[in]	type		IO request context
+@param[in,out]	type		IO request context
 @param[in]	mode		IO mode
 @param[in]	name		Name of the file or path as NUL terminated
 				string

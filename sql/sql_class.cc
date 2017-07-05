@@ -939,8 +939,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
-  memset(&invoker_user, 0, sizeof(invoker_user));
-  memset(&invoker_host, 0, sizeof(invoker_host));
+  invoker.init();
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
   save_prep_leaf_list= FALSE;
@@ -5375,8 +5374,8 @@ void THD::get_definer(LEX_USER *definer, bool role)
   if (slave_thread && has_invoker())
 #endif
   {
-    definer->user= invoker_user;
-    definer->host= invoker_host;
+    definer->user= invoker.user;
+    definer->host= invoker.host;
     definer->reset_auth();
   }
   else
@@ -7445,5 +7444,17 @@ bool Discrete_intervals_list::append(Discrete_interval *new_interval)
   elements++;
   DBUG_RETURN(0);
 }
+
+
+void AUTHID::copy(MEM_ROOT *mem_root, const LEX_CSTRING *user_name,
+                                      const LEX_CSTRING *host_name)
+{
+  user.str= strmake_root(mem_root, user_name->str, user_name->length);
+  user.length= user_name->length;
+
+  host.str= strmake_root(mem_root, host_name->str, host_name->length);
+  host.length= host_name->length;
+}
+
 
 #endif /* !defined(MYSQL_CLIENT) */

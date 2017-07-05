@@ -1486,8 +1486,6 @@ int merge_many_buff(Sort_param *param, uchar *sort_buffer,
     if (flush_io_cache(to_file))
       break;					/* purecov: inspected */
     temp=from_file; from_file=to_file; to_file=temp;
-    setup_io_cache(from_file);
-    setup_io_cache(to_file);
     *maxbuffer= (uint) (lastbuff-buffpek)-1;
   }
 cleanup:
@@ -1495,7 +1493,6 @@ cleanup:
   if (to_file == t_file)
   {
     *t_file=t_file2;				// Copy result file
-    setup_io_cache(t_file);
   }
 
   DBUG_RETURN(*maxbuffer >= MERGEBUFF2);	/* Return 1 if interrupted */

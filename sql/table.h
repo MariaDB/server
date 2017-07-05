@@ -1626,10 +1626,6 @@ class IS_table_read_plan;
 #define JOIN_TYPE_RIGHT	2U
 #define JOIN_TYPE_OUTER 4U	/* Marker that this is an outer join */
 
-#define VIEW_SUID_INVOKER               0
-#define VIEW_SUID_DEFINER               1
-#define VIEW_SUID_DEFAULT               2
-
 /* view WITH CHECK OPTION parameter options */
 #define VIEW_CHECK_NONE       0
 #define VIEW_CHECK_LOCAL      1
@@ -1997,7 +1993,7 @@ struct TABLE_LIST
   LEX_CSTRING	view_db;		/* saved view database */
   LEX_CSTRING	view_name;		/* saved view name */
   LEX_STRING	timestamp;		/* GMT time stamp of last operation */
-  st_lex_user   definer;                /* definer of view */
+  LEX_USER      definer;                /* definer of view */
   ulonglong	file_version;		/* version of file's field set */
   ulonglong	mariadb_version;	/* version of server on creation */
   ulonglong     updatable_view;         /* VIEW can be updated */

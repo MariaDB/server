@@ -1430,8 +1430,8 @@ set_routine_security_ctx(THD *thd, sp_head *sp, bool is_proc,
 {
   *save_ctx= 0;
   if (sp->m_chistics->suid != SP_IS_NOT_SUID &&
-      sp->m_security_ctx.change_security_context(thd, &sp->m_definer_user,
-                                                 &sp->m_definer_host,
+      sp->m_security_ctx.change_security_context(thd, &sp->m_definer.user,
+                                                 &sp->m_definer.host,
                                                  &sp->m_db,
                                                  save_ctx))
     return TRUE;
@@ -1543,8 +1543,8 @@ sp_head::execute_trigger(THD *thd,
 
   if (m_chistics->suid != SP_IS_NOT_SUID &&
       m_security_ctx.change_security_context(thd,
-                                             &m_definer_user,
-                                             &m_definer_host,
+                                             &m_definer.user,
+                                             &m_definer.host,
                                              &m_db,
                                              &save_ctx))
     DBUG_RETURN(TRUE);
@@ -2455,7 +2455,7 @@ sp_head::sp_add_instr_cpush_for_cursors(THD *thd, sp_pcontext *pcontext)
 
 void
 sp_head::set_info(longlong created, longlong modified,
-                  st_sp_chistics *chistics, sql_mode_t sql_mode)
+                  const st_sp_chistics *chistics, sql_mode_t sql_mode)
 {
   m_created= created;
   m_modified= modified;
@@ -2489,17 +2489,6 @@ sp_head::set_definer(const char *definer, uint definerlen)
   }
 
   set_definer(&user_name, &host_name);
-}
-
-
-void
-sp_head::set_definer(const LEX_CSTRING *user_name, const LEX_CSTRING *host_name)
-{
-  m_definer_user.str= strmake_root(mem_root, user_name->str, user_name->length);
-  m_definer_user.length= user_name->length;
-
-  m_definer_host.str= strmake_root(mem_root, host_name->str, host_name->length);
-  m_definer_host.length= host_name->length;
 }
 
 
@@ -2571,9 +2560,9 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
   *full_access= ((!check_table_access(thd, SELECT_ACL, &tables, FALSE,
                                      1, TRUE) &&
                   (tables.grant.privilege & SELECT_ACL) != 0) ||
-                 (!strcmp(sp->m_definer_user.str,
+                 (!strcmp(sp->m_definer.user.str,
                           thd->security_ctx->priv_user) &&
-                  !strcmp(sp->m_definer_host.str,
+                  !strcmp(sp->m_definer.host.str,
                           thd->security_ctx->priv_host)));
   if (!*full_access)
     return check_some_routine_access(thd, sp->m_db.str, sp->m_name.str,

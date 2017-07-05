@@ -145,7 +145,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp);
 
 int
 sp_update_routine(THD *thd, stored_procedure_type type, const sp_name *name,
-                  st_sp_chistics *chistics);
+                  const st_sp_chistics *chistics);
 
 int
 sp_drop_routine(THD *thd, stored_procedure_type type, const sp_name *name);
@@ -240,7 +240,7 @@ bool show_create_sp(THD *thd, String *buf,
               const char *params, ulong paramslen,
               const char *returns, ulong returnslen,
               const char *body, ulong bodylen,
-              st_sp_chistics *chistics,
+              const st_sp_chistics *chistics,
               const LEX_CSTRING *definer_user,
               const LEX_CSTRING *definer_host,
 	      sql_mode_t sql_mode);

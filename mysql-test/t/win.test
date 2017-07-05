@@ -1877,3 +1877,53 @@ select count(max(id)) over (order by max(id)) from t1 where id < 3;
 select max(id), rank() over (order by max(id)) from t1 where id < 3;
 
 drop table t1;
+
+--echo #
+--echo # main.win failure post MDEV-12336
+--echo #
+create table t(a decimal(35,10), b int);
+insert into t values (1, 10), (2, 20), (3, 30);
+
+prepare stmt from "SELECT (CASE WHEN sum(t.a) over (partition by t.b)=1 THEN 1000 ELSE 300 END) AS a FROM t";
+execute stmt;
+drop table t;
+
+--echo #
+--echo # MDEV-12851 case with window functions query crashes server
+--echo #
+
+create table t1(dt datetime);
+insert into t1 values ('2017-05-17'), ('2017-05-18');
+select dt,
+       case when (max(dt) over (order by dt rows between 1 following and 1 following) is null)
+       then '9999-12-31 12:00:00'
+       else max(dt) over (order by dt rows between 1 following and 1 following)
+       end x,
+       case when (max(dt) over (order by dt rows between 1 following and 1 following) is not null)
+       then '9999-12-31 12:00:00'
+       else max(dt) over (order by dt rows between 1 following and 1 following)
+       end x
+from t1;
+
+drop table t1;
+
+create table t1(i int);
+insert into t1 values (null),(1),(2);
+select max(i) over (order by i),
+       max(i) over (order by i) is null,
+       max(i) over (order by i) is not null
+from t1;
+drop table t1;
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-13240 Wrong warning with MAX(datetime_field) OVER (...)
+--echo #
+
+CREATE TABLE t1 (dt DATETIME);
+INSERT INTO t1 VALUES ('2017-05-17');
+SELECT MAX(dt) OVER (ORDER BY dt ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING) FROM t1;
+DROP TABLE t1;
