@@ -2049,7 +2049,8 @@ buf_pool_init(
 	ulint	n_instances)	/*!< in: number of instances */
 {
 	ulint		i;
-	ulint	size;
+	ulint	size = total_size / n_instances;
+	struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
 
 	ut_ad(n_instances > 0);
 	ut_ad(n_instances <= MAX_BUFFER_POOLS);
@@ -2063,15 +2064,6 @@ buf_pool_init(
 		n_instances * sizeof *buf_pool_ptr);
 
 	buf_chunk_map_reg = UT_NEW_NOKEY(buf_pool_chunk_map_t());
-
-#ifdef HAVE_LIBNUMA
-	struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
-	if (srv_numa_interleave) {
-		size = total_size / n_instances;
-	}
-#else
-	size = total_size / n_instances;
-#endif // HAVE_LIBNUMA
 
 	for (i = 0; i < n_instances; i++) {
 		buf_pool_t*	ptr	= &buf_pool_ptr[i];
