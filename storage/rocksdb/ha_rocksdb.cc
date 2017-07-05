@@ -97,6 +97,8 @@ int thd_binlog_format(const MYSQL_THD thd);
 bool thd_binlog_filter_ok(const MYSQL_THD thd);
 }
 
+MYSQL_PLUGIN_IMPORT bool my_disable_leak_check;
+
 namespace myrocks {
 
 static st_global_stats global_stats;
@@ -3593,6 +3595,14 @@ static int rocksdb_init_func(void *const p) {
 #endif
 
   sql_print_information("RocksDB instance opened");
+
+  /**
+    Rocksdb does not always shutdown its threads, when
+    plugin is shut down. Disable server's leak check
+    at exit to avoid crash.
+  */
+  my_disable_leak_check = true;
+
   DBUG_RETURN(HA_EXIT_SUCCESS);
 }
 

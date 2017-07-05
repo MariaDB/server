@@ -60,7 +60,6 @@ rocksdb_deadlock_stress_rr: stress test
 
 # MDEV-12474 Regularly failing tests on Buildbot
 autoinc_vars_thread : MDEV-12474 Regularly fails on buildbot
-validate_datadic : MDEV-12474 Regularly fails on buildbot
 unique_check : MDEV-12474 Regularly fails on buildbot
 bloomfilter : MDEV-12474 Regularly fails on buildbot
 
