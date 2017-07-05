@@ -1302,6 +1302,10 @@ srv_shutdown_all_bg_threads()
 			}
 		}
 
+		if (!os_thread_count) {
+			return;
+		}
+
 		switch (srv_operation) {
 		case SRV_OPERATION_BACKUP:
 			break;
@@ -1311,10 +1315,6 @@ srv_shutdown_all_bg_threads()
 			    && os_aio_all_slots_free()) {
 				os_aio_wake_all_threads_at_shutdown();
 			}
-		}
-
-		if (!os_thread_count) {
-			return;
 		}
 
 		os_thread_sleep(100000);
