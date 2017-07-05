@@ -42,6 +42,12 @@ public:
     }
   }
 
+  Group_bound_tracker(THD *thd, Item *item)
+  {
+        Cached_item *tmp= new_Cached_item(thd, item, FALSE);
+        group_fields.push_back(tmp);
+  }
+
   void init()
   {
     first_check= true;
@@ -116,7 +122,6 @@ private:
   */
    bool first_check;
 };
-
 
 /*
   ROW_NUMBER() OVER (...)
@@ -725,7 +730,7 @@ class Item_sum_percentile_disc : public Item_sum_cume_dist,
 public:
   Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
                            Type_handler_hybrid_field_type(&type_handler_longlong),
-                           value(NULL), result_value(NULL), val_calculated(FALSE) {}
+                           value(NULL), val_calculated(FALSE), first_call(TRUE),prev_value(0), order_item(NULL){}
 
   double val_real()
   {
@@ -735,7 +740,7 @@ public:
       return 0;
     }
     null_value= false;
-    return ((Cached_item_real*) result_value)->get_value();
+    return value->val_real();
   }
 
   longlong val_int()
@@ -746,7 +751,7 @@ public:
       return 0;
     }
     null_value= false;
-    return ((Cached_item_int*) result_value)->get_value();
+    return value->val_int();
   }
 
   my_decimal* val_decimal(my_decimal* dec)
@@ -757,7 +762,7 @@ public:
       return 0;
     }
     null_value= false;
-    return ((Cached_item_decimal*) result_value)->get_value();
+    return value->val_decimal(dec);
   }
 
   bool add()
@@ -765,31 +770,32 @@ public:
     Item *arg = get_arg(0);
     if (arg->is_null())
       return true;
-    /*
-      need to ensure that the Item arg is constant across the entire partition
-      and its value ranges between [0,1]
-    */
-    value->cmp();
 
-    /* for the null values of the row, we dont count take those rows in account for calculating
-    the CUME_DIST */
+    if (first_call)
+    {
+      prev_value= arg->val_real();
+      first_call= false;
+    }
 
-    if(value->null_value)
+    if(prev_value !=  arg->val_real() || prev_value >1 || prev_value < 0)
+    {
+      // TODO(varun) need to add an error here , check the MDEV-12985 for the information
+      return true;
+    }
+
+    if (val_calculated)
       return false;
+
+    value->store(order_item);
+    value->cache_value();
+    if (value->null_value)
+       return false;
 
     Item_sum_cume_dist::add();
-    double val1= Item_sum_cume_dist::val_real();
-    /* need to check type and return value accordingly*/
-    double val2 =arg->val_real_from_decimal();
+    double val= Item_sum_cume_dist::val_real();
 
-    /* use Cached_item to do the comparision using cmp_read_only() */
-
-    if( val1 >= val2 && !val_calculated)
-    {
+    if(val >= prev_value && !val_calculated)
       val_calculated= true;
-      result_value->cmp();
-      return false;
-    }
     return false;
   }
 
@@ -801,8 +807,8 @@ public:
   void clear()
   {
     val_calculated= false;
+    first_call= true;
     value->clear();
-    result_value->clear();
     Item_sum_cume_dist::clear();
   }
 
@@ -825,31 +831,17 @@ public:
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_percentile_disc>(thd, mem_root, this); }
   void setup_window_func(THD *thd, Window_spec *window_spec);
-  void setup_percentile_func(THD *thd, SQL_I_List<ORDER> *list)
-  {
-    value= new_Cached_item(thd, list->first->item[0], FALSE);
-    result_value= new_Cached_item(thd, list->first->item[0], FALSE);
-  }
-  void cleanup()
-  {
-    if (value)
-    {
-      delete value;
-      value= NULL;
-    }
-    if(result_value)
-    {
-      delete result_value;
-      result_value= NULL;
-    }
-    Item_sum_num::cleanup();
-  }
+  void setup_hybrid(THD *thd, Item *item);
 
 private:
-  Cached_item *value;
-  Cached_item *result_value;
+  Item_cache *value;
   bool val_calculated;
+  bool first_call;
+  double prev_value;
+  Item *order_item;
 };
+
+
 
 
 class Item_window_func : public Item_func_or_sum

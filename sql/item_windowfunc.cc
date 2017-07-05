@@ -111,7 +111,7 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 
   if (only_single_element_order_list())
   {
-    // need to change the error, the error should say that we have more than one element in the order list
+    //TODO (varun): need to change the error, the error should say that we have more than one element in the order list
     if (window_spec->order_list->elements != 1)
     {
       my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func()->func_name());
@@ -207,12 +207,12 @@ void Item_sum_dense_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 
 void Item_sum_percentile_disc::setup_window_func(THD *thd, Window_spec *window_spec)
 {
-  setup_percentile_func(thd, window_spec->order_list);
-}
-
-void Item_sum_percentile_disc::set_type_handler(Window_spec *window_spec)
-{
-  type_handler()->get_handler_by_cmp_type(window_spec->order_list->first->item[0]->result_type());
+  order_item= window_spec->order_list->first->item[0];
+  set_handler_by_cmp_type(order_item->result_type());
+  if (!(value= order_item->get_cache(thd)))
+    return;
+  value->setup(thd, order_item);
+  value->store(order_item);
 }
 
 bool Item_sum_dense_rank::add()
