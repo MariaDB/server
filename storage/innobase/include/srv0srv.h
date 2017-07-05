@@ -282,7 +282,6 @@ extern my_bool	srv_use_native_aio;
 
 #define SRV_MAX_NUM_NUMA_NODES 16
 extern my_bool	srv_numa_interleave;
-extern my_bool	srv_numa_enable;
 extern ulint	srv_allowed_nodes[SRV_MAX_NUM_NUMA_NODES];
 extern ulint	srv_size_of_buf_pool_in_node[SRV_MAX_NUM_NUMA_NODES];
 
