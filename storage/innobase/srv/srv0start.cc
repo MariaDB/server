@@ -1903,7 +1903,7 @@ innobase_start_or_create_for_mysql()
 		os_thread_create(buf_flush_page_cleaner_coordinator,
 				 NULL, NULL);
 
-		for (i = 1; i < srv_n_page_cleaners; ++i) {
+		for (i = 0; i < srv_n_page_cleaners; ++i) {
 			os_thread_create(buf_flush_page_cleaner_worker,
 					 NULL, NULL);
 		}
