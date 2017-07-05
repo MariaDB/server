@@ -310,6 +310,9 @@ DECLARE_THREAD(io_handler_thread)(
 			the aio array */
 {
 	ulint	segment;
+	ulint	node;
+	static ulint	read_node = 0;
+	static ulint	write_node = 0;
 
 	segment = *((ulint*) arg);
 
@@ -332,11 +335,23 @@ DECLARE_THREAD(io_handler_thread)(
 	} else if (segment >= start
 		   && segment < (start + srv_n_read_io_threads)) {
 			pfs_register_thread(io_read_thread_key);
+#ifdef HAVE_LIBNUMA
+			if (srv_numa_enable) {
+				node = srv_allowed_nodes[read_node++/2];
+				srv_bind_thread_to_node(node);
+			}
+#endif // HAVE_LIBNUMA
 
 	} else if (segment >= (start + srv_n_read_io_threads)
 		   && segment < (start + srv_n_read_io_threads
 				 + srv_n_write_io_threads)) {
 		pfs_register_thread(io_write_thread_key);
+#ifdef HAVE_LIBNUMA
+			if (srv_numa_enable) {
+				node = srv_allowed_nodes[write_node++/2];
+				srv_bind_thread_to_node(node);
+			}
+#endif // HAVE_LIBNUMA
 
 	} else {
 		pfs_register_thread(io_handler_thread_key);
@@ -1692,6 +1707,9 @@ innobase_start_or_create_for_mysql()
 				total_nodes_size += size_of_numa_node[i];
 			}
 		}
+		srv_n_read_io_threads = 2 * srv_buf_pool_instances;
+		srv_n_write_io_threads = 2 * srv_buf_pool_instances;
+		srv_n_page_cleaners = srv_buf_pool_instances;
 	}
 #endif // HAVE_LIBNUMA
 
