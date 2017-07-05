@@ -2811,6 +2811,7 @@ INSERT INTO t1 VALUES (123,123,'2001-04-14','address123','city123',40,51),
 (257,257,'2010-03-06','address257','city257',40,47);
 --enable_query_log
 
+--sorted_result
 select * from t1 where hours_worked_per_week = 40 and weeks_worked_last_year = 52 and dob < '1949-11-21';
 select * from t1 IGNORE INDEX(dob, weeks_worked_last_year, hours_worked_per_week) where hours_worked_per_week = 40 and weeks_worked_last_year = 52 and dob < '1949-11-21';
 

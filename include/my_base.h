@@ -200,7 +200,12 @@ enum ha_extra_function {
   HA_EXTRA_DETACH_CHILDREN,
   HA_EXTRA_DETACH_CHILD,
   /* Inform handler we will force a close as part of flush */
-  HA_EXTRA_PREPARE_FOR_FORCED_CLOSE
+  HA_EXTRA_PREPARE_FOR_FORCED_CLOSE,
+  /*
+    Used in ha_partition::handle_ordered_index_scan() to inform engine
+    that we are starting an ordered index scan. Needed by Spider
+  */
+  HA_EXTRA_STARTING_ORDERED_INDEX_SCAN
 };
 
 /* Compatible option, to be deleted in 6.0 */

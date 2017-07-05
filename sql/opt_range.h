@@ -1036,6 +1036,10 @@ bool quick_range_seq_next(range_seq_t rseq, KEY_MULTI_RANGE *range);
 class QUICK_RANGE_SELECT : public QUICK_SELECT_I
 {
 protected:
+  THD *thd;
+  bool no_alloc;
+  MEM_ROOT *parent_alloc;
+
   /* true if we enabled key only reads */
   handler *file;
 
@@ -1074,6 +1078,9 @@ public:
   QUICK_RANGE_SELECT(THD *thd, TABLE *table,uint index_arg,bool no_alloc,
                      MEM_ROOT *parent_alloc, bool *create_err);
   ~QUICK_RANGE_SELECT();
+  virtual QUICK_RANGE_SELECT *clone(bool *create_error)
+    { return new QUICK_RANGE_SELECT(thd, head, index, no_alloc, parent_alloc,
+                                    create_error); }
   
   void need_sorted_output();
   int init();
@@ -1144,6 +1151,12 @@ public:
     :QUICK_RANGE_SELECT(thd, table, index_arg, no_alloc, parent_alloc,
     create_err)
     {};
+  virtual QUICK_RANGE_SELECT *clone(bool *create_error)
+    {
+      DBUG_ASSERT(0);
+      return new QUICK_RANGE_SELECT_GEOM(thd, head, index, no_alloc,
+                                         parent_alloc, create_error);
+    }
   virtual int get_next();
 };
 
@@ -1573,6 +1586,8 @@ class QUICK_SELECT_DESC: public QUICK_RANGE_SELECT
 {
 public:
   QUICK_SELECT_DESC(QUICK_RANGE_SELECT *q, uint used_key_parts);
+  virtual QUICK_RANGE_SELECT *clone(bool *create_error)
+    { DBUG_ASSERT(0); return new QUICK_SELECT_DESC(this, used_key_parts); }
   int get_next();
   bool reverse_sorted() { return 1; }
   int get_type() { return QS_TYPE_RANGE_DESC; }
@@ -1647,6 +1662,8 @@ public:
       QUICK_RANGE_SELECT (thd, table, key, 1, NULL, create_err) 
   { (void) init(); }
   ~FT_SELECT() { file->ft_end(); }
+  virtual QUICK_RANGE_SELECT *clone(bool *create_error)
+    { DBUG_ASSERT(0); return new FT_SELECT(thd, head, index, create_error); }
   int init() { return file->ft_init(); }
   int reset() { return 0; }
   int get_next() { return file->ha_ft_read(record); }

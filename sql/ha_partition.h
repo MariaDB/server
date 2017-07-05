@@ -109,6 +109,32 @@ public:
   }
 };
 
+typedef struct st_partition_key_multi_range
+{
+  uint id;
+  uchar *key[2];
+  uint length[2];
+  KEY_MULTI_RANGE key_multi_range;
+  range_id_t ptr;
+  st_partition_key_multi_range *next;
+} PARTITION_KEY_MULTI_RANGE;
+
+
+typedef struct st_partition_part_key_multi_range
+{
+  PARTITION_KEY_MULTI_RANGE *partition_key_multi_range;
+  st_partition_part_key_multi_range *next;
+} PARTITION_PART_KEY_MULTI_RANGE;
+
+
+class ha_partition;
+typedef struct st_partition_part_key_multi_range_hld
+{
+  ha_partition *partition;
+  uint32 part_id;
+  PARTITION_PART_KEY_MULTI_RANGE *partition_part_key_multi_range;
+} PARTITION_PART_KEY_MULTI_RANGE_HLD;
+
 
 extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
 
@@ -119,16 +145,17 @@ private:
   {
     partition_index_read= 0,
     partition_index_first= 1,
-    partition_index_first_unordered= 2,
     partition_index_last= 3,
     partition_index_read_last= 4,
     partition_read_range = 5,
-    partition_no_index_scan= 6
+    partition_no_index_scan= 6,
+    partition_read_multi_range = 7,
+    partition_ft_read= 8
   };
   /* Data for the partition handler */
   int  m_mode;                          // Open mode
   uint m_open_test_lock;                // Open test_if_locked
-  uchar *m_file_buffer;                 // Content of the .par file 
+  uchar *m_file_buffer;                 // Content of the .par file
   char *m_name_buffer_ptr;		// Pointer to first partition name
   MEM_ROOT m_mem_root;
   plugin_ref *m_engine_array;           // Array of types of the handlers
@@ -157,7 +184,7 @@ private:
     Length of an element in m_ordered_rec_buffer. The elements are composed of
 
       [part_no] [table->record copy] [underlying_table_rowid]
-    
+
     underlying_table_rowid is only stored when the table has no extended keys.
   */
   uint m_priority_queue_rec_len;
@@ -205,14 +232,15 @@ private:
   bool m_create_handler;                 // Handler used to create table
   bool m_is_sub_partitioned;             // Is subpartitioned
   bool m_ordered_scan_ongoing;
+  bool m_rnd_init_and_first;
 
-  /* 
+  /*
     If set, this object was created with ha_partition::clone and doesn't
     "own" the m_part_info structure.
   */
   ha_partition *m_is_clone_of;
   MEM_ROOT *m_clone_mem_root;
-  
+
   /*
     We keep track if all underlying handlers are MyISAM since MyISAM has a
     great number of extra flags not needed by other handlers.
@@ -257,6 +285,8 @@ private:
   ha_rows   m_bulk_inserted_rows;
   /** used for prediction of start_bulk_insert rows */
   enum_monotonicity_info m_part_func_monotonicity_info;
+  bool                m_pre_calling;
+  bool                m_pre_call_use_parallel;
   /** keep track of locked partitions */
   MY_BITMAP m_locked_partitions;
   /** Stores shared auto_increment etc. */
@@ -286,6 +316,9 @@ public:
      m_part_info= part_info;
      m_is_sub_partitioned= part_info->is_sub_partitioned();
   }
+
+  virtual void return_record_by_parent();
+
   /*
     -------------------------------------------------------------------------
     MODULE create/delete handler object
@@ -605,16 +638,8 @@ public:
     read_first_row is virtual method but is only implemented by
     handler.cc, no storage engine has implemented it so neither
     will the partition handler.
-    
-    virtual int read_first_row(uchar *buf, uint primary_key);
-  */
 
-  /*
-    We don't implement multi read range yet, will do later.
-    virtual int read_multi_range_first(KEY_MULTI_RANGE **found_range_p,
-    KEY_MULTI_RANGE *ranges, uint range_count,
-    bool sorted, HANDLER_BUFFER *buffer);
-    virtual int read_multi_range_next(KEY_MULTI_RANGE **found_range_p);
+    virtual int read_first_row(uchar *buf, uint primary_key);
   */
 
 
@@ -623,12 +648,59 @@ public:
 			       bool eq_range, bool sorted);
   virtual int read_range_next();
 
+
+  HANDLER_BUFFER *m_mrr_buffer;
+  uint *m_mrr_buffer_size;
+  uchar *m_mrr_full_buffer;
+  uint m_mrr_full_buffer_size;
+  uint m_mrr_new_full_buffer_size;
+  MY_BITMAP m_mrr_used_partitions;
+  uint *m_stock_range_seq;
+  uint m_current_range_seq;
+  uint m_mrr_mode;
+  uint m_mrr_n_ranges;
+  range_id_t *m_range_info;
+  bool m_multi_range_read_first;
+  uint m_mrr_range_init_flags;
+  uint m_mrr_range_length;
+  PARTITION_KEY_MULTI_RANGE *m_mrr_range_first;
+  PARTITION_KEY_MULTI_RANGE *m_mrr_range_current;
+  uint *m_part_mrr_range_length;
+  PARTITION_PART_KEY_MULTI_RANGE **m_part_mrr_range_first;
+  PARTITION_PART_KEY_MULTI_RANGE **m_part_mrr_range_current;
+  PARTITION_PART_KEY_MULTI_RANGE_HLD *m_partition_part_key_multi_range_hld;
+  range_seq_t m_seq;
+  RANGE_SEQ_IF *m_seq_if;
+  RANGE_SEQ_IF m_part_seq_if;
+
+  virtual int multi_range_key_create_key(
+    RANGE_SEQ_IF *seq,
+    range_seq_t seq_it
+  );
+  virtual ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                              void *seq_init_param,
+                                              uint n_ranges, uint *bufsz,
+                                              uint *mrr_mode,
+                                              Cost_estimate *cost);
+  virtual ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+                                        uint key_parts, uint *bufsz,
+                                        uint *mrr_mode, Cost_estimate *cost);
+  virtual int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                                    uint n_ranges, uint mrr_mode,
+                                    HANDLER_BUFFER *buf);
+  virtual int multi_range_read_next(range_id_t *range_info);
+  virtual int multi_range_read_explain_info(uint mrr_mode, char *str,
+                                            size_t size);
+
+
 private:
   bool init_record_priority_queue();
   void destroy_record_priority_queue();
   int common_index_read(uchar * buf, bool have_start_key);
   int common_first_last(uchar * buf);
   int partition_scan_set_up(uchar * buf, bool idx_read_flag);
+  bool check_parallel_search();
+  int handle_pre_scan(bool reverse_order, bool use_parallel);
   int handle_unordered_next(uchar * buf, bool next_same);
   int handle_unordered_scan_next_partition(uchar * buf);
   int handle_ordered_index_scan(uchar * buf, bool reverse_order);
@@ -918,7 +990,7 @@ public:
     special file for handling names of partitions, engine types.
     HA_REC_NOT_IN_SEQ is always set for partition handler since we cannot
     guarantee that the records will be returned in sequence.
-    HA_CAN_GEOMETRY, HA_CAN_FULLTEXT, HA_DUPLICATE_POS,
+    HA_CAN_FULLTEXT, HA_DUPLICATE_POS,
     HA_CAN_INSERT_DELAYED, HA_PRIMARY_KEY_REQUIRED_FOR_POSITION is disabled
     until further investigated.
   */
@@ -1000,7 +1072,7 @@ public:
 
     The maximum supported values is the minimum of all handlers in the table
   */
-  uint min_of_the_max_uint(uint (handler::*operator_func)(void) const) const; 
+  uint min_of_the_max_uint(uint (handler::*operator_func)(void) const) const;
   virtual uint max_supported_record_length() const;
   virtual uint max_supported_keys() const;
   virtual uint max_supported_key_parts() const;
@@ -1285,5 +1357,4 @@ public:
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
 };
-
 #endif /* HA_PARTITION_INCLUDED */

@@ -1325,6 +1325,10 @@ public:
   JOIN_CACHE_BKA(JOIN *j, JOIN_TAB *tab, uint flags, JOIN_CACHE *prev)
     :JOIN_CACHE(j, tab, prev), mrr_mode(flags) {}
   
+  JOIN_CACHE_BKA(JOIN_CACHE_BKA *bka)
+    :JOIN_CACHE(bka->join, bka->join_tab, bka->prev_cache),
+      mrr_mode(bka->mrr_mode)  {}
+
   uchar **get_curr_association_ptr() { return &curr_association; }
 
   /* Initialize the BKA cache */       
@@ -1420,6 +1424,10 @@ public:
   */   
   JOIN_CACHE_BKAH(JOIN *j, JOIN_TAB *tab, uint flags, JOIN_CACHE *prev)
     :JOIN_CACHE_BNLH(j, tab, prev), mrr_mode(flags)  {}
+
+  JOIN_CACHE_BKAH(JOIN_CACHE_BKAH *bkah)
+    :JOIN_CACHE_BNLH(bkah->join, bkah->join_tab, bkah->prev_cache),
+      mrr_mode(bkah->mrr_mode)  {}
 
   uchar **get_curr_association_ptr() { return &curr_matching_chain; }
 
