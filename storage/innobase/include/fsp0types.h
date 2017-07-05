@@ -371,11 +371,12 @@ these are only used in MySQL 5.7 and used for compatibility. */
 /** Validate the tablespace flags, which are stored in the
 tablespace header at offset FSP_SPACE_FLAGS.
 @param[in]	flags	the contents of FSP_SPACE_FLAGS
+@param[in]	is_ibd	whether this is an .ibd file (not system tablespace)
 @return	whether the flags are correct (not in the buggy 10.1) format */
 MY_ATTRIBUTE((warn_unused_result, const))
 UNIV_INLINE
 bool
-fsp_flags_is_valid(ulint flags)
+fsp_flags_is_valid(ulint flags, bool is_ibd)
 {
 	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure",
 			return(false););
@@ -422,7 +423,12 @@ fsp_flags_is_valid(ulint flags)
 		return(false);
 	}
 
-	return(true);
+	/* The flags do look valid. But, avoid misinterpreting
+	buggy MariaDB 10.1 format flags for
+	PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL={0,2,3}
+	as valid-looking PAGE_SSIZE if this is known to be
+	an .ibd file and we are using the default innodb_page_size=16k. */
+	return(ssize == 0 || !is_ibd || srv_page_size != UNIV_PAGE_SIZE_ORIG);
 }
 
 #endif /* fsp0types_h */

@@ -779,7 +779,7 @@ fsp_flags_convert_from_101(ulint flags)
 	flags = ((flags & 0x3f) | ssize << FSP_FLAGS_POS_PAGE_SSIZE
 		 | FSP_FLAGS_GET_PAGE_COMPRESSION_MARIADB101(flags)
 		 << FSP_FLAGS_POS_PAGE_COMPRESSION);
-	ut_ad(fsp_flags_is_valid(flags));
+	ut_ad(fsp_flags_is_valid(flags, false));
 	return(flags);
 }
 
@@ -793,7 +793,7 @@ bool
 fsp_flags_match(ulint expected, ulint actual)
 {
 	expected &= ~FSP_FLAGS_MEM_MASK;
-	ut_ad(fsp_flags_is_valid(expected));
+	ut_ad(fsp_flags_is_valid(expected, false));
 
 	if (actual == expected) {
 		return(true);

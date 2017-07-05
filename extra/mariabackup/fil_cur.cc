@@ -219,7 +219,7 @@ xb_fil_cur_open(
 		return(XB_FIL_CUR_SKIP);
 	}
 
-	if (!fsp_flags_is_valid(flags)) {
+	if (!fsp_flags_is_valid(flags, cursor->space_id)) {
 		ulint cflags = fsp_flags_convert_from_101(flags);
 		if (cflags == ULINT_UNDEFINED) {
 			msg("[%02u] xtrabackup: Error: Invalid "
