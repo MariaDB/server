@@ -45,6 +45,8 @@ extern "C" {
 /* compatibility functions */
 #define bitmap_init(A,B,C,D) my_bitmap_init(A,B,C,D)
 #define bitmap_free(A) my_bitmap_free(A)
+/* Reset memory. Faster then doing a full bzero */
+#define my_bitmap_clear(A) ((A)->bitmap= 0)
 
 extern void create_last_word_mask(MY_BITMAP *map);
 extern my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,

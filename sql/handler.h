@@ -3013,6 +3013,7 @@ public:
     Number of rows in table. It will only be called if
     (table_flags() & (HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT)) != 0
   */
+  virtual int pre_records() { return 0; }
   virtual ha_rows records() { return stats.records; }
   /**
     Return upper bound of current number of records in the table
@@ -3090,6 +3091,37 @@ public:
     DBUG_ASSERT(FALSE);
     return HA_ERR_WRONG_COMMAND;
   }
+  virtual int pre_index_read_map(const uchar *key,
+                                 key_part_map keypart_map,
+                                 enum ha_rkey_function find_flag,
+                                 bool use_parallel)
+   { return 0; }
+  virtual int pre_index_first(bool use_parallel)
+   { return 0; }
+  virtual int pre_index_last(bool use_parallel)
+   { return 0; }
+  virtual int pre_index_read_last_map(const uchar *key,
+                                      key_part_map keypart_map,
+                                      bool use_parallel)
+   { return 0; }
+/*
+  virtual int pre_read_multi_range_first(KEY_MULTI_RANGE **found_range_p,
+                                         KEY_MULTI_RANGE *ranges,
+                                         uint range_count,
+                                         bool sorted, HANDLER_BUFFER *buffer,
+                                         bool use_parallel);
+*/
+  virtual int pre_multi_range_read_next(bool use_parallel)
+  { return 0; }
+  virtual int pre_read_range_first(const key_range *start_key,
+                                   const key_range *end_key,
+                                   bool eq_range, bool sorted,
+                                   bool use_parallel)
+   { return 0; }
+  virtual int pre_ft_read(bool use_parallel)
+   { return 0; }
+  virtual int pre_rnd_next(bool use_parallel)
+   { return 0; }
   /**
      @brief
      Positions an index cursor to the index specified in the
