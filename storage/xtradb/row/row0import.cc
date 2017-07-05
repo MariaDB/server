@@ -549,7 +549,7 @@ AbstractCallback::init(
 	const page_t*		page = block->frame;
 
 	m_space_flags = fsp_header_get_flags(page);
-	if (!fsp_flags_is_valid(m_space_flags)) {
+	if (!fsp_flags_is_valid(m_space_flags, true)) {
 		ulint cflags = fsp_flags_convert_from_101(m_space_flags);
 		if (cflags == ULINT_UNDEFINED) {
 			ib_logf(IB_LOG_LEVEL_ERROR,

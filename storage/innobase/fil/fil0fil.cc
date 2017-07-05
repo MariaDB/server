@@ -662,7 +662,7 @@ fil_node_open_file(
 		ut_free(buf2);
 		os_file_close(node->handle);
 
-		if (!fsp_flags_is_valid(flags)) {
+		if (!fsp_flags_is_valid(flags, space->id)) {
 			ulint cflags = fsp_flags_convert_from_101(flags);
 			if (cflags == ULINT_UNDEFINED) {
 				ib_logf(IB_LOG_LEVEL_ERROR,
@@ -2366,7 +2366,7 @@ fil_read_first_page(
 				       FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 		}
 
-		if (!fsp_flags_is_valid(*flags)) {
+		if (!fsp_flags_is_valid(*flags, *space_id)) {
 			ulint cflags = fsp_flags_convert_from_101(*flags);
 			if (cflags == ULINT_UNDEFINED) {
 				ib_logf(IB_LOG_LEVEL_ERROR,
@@ -2497,7 +2497,7 @@ fil_op_write_log(
 	ulint	len;
 
 	log_ptr = mlog_open(mtr, 11 + 2 + 1);
-	ut_ad(fsp_flags_is_valid(flags));
+	ut_ad(fsp_flags_is_valid(flags, space_id));
 
 	if (!log_ptr) {
 		/* Logging in mtr is switched off during crash recovery:
@@ -3718,7 +3718,7 @@ fil_create_new_single_table_tablespace(
 	ut_ad(!srv_read_only_mode);
 	ut_a(space_id < SRV_LOG_SPACE_FIRST_ID);
 	ut_a(size >= FIL_IBD_FILE_INITIAL_SIZE);
-	ut_a(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK));
+	ut_a(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, space_id));
 
 	if (is_temp) {
 		/* Temporary table filepath */
@@ -3979,7 +3979,7 @@ void
 fsp_flags_try_adjust(ulint space_id, ulint flags)
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(fsp_flags_is_valid(flags));
+	ut_ad(fsp_flags_is_valid(flags, space_id));
 
 	mtr_t	mtr;
 	mtr_start(&mtr);
@@ -4061,7 +4061,7 @@ fil_open_single_table_tablespace(
 		return(DB_CORRUPTION);
 	}
 
-	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK));
+	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, id));
 	atomic_writes = fsp_flags_get_atomic_writes(flags);
 
 	memset(&def, 0, sizeof(def));
@@ -4601,7 +4601,7 @@ fil_user_tablespace_restore_page(
 
 	flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
-	if (!fsp_flags_is_valid(flags)) {
+	if (!fsp_flags_is_valid(flags, fsp->id)) {
 		ulint cflags = fsp_flags_convert_from_101(flags);
 		if (cflags == ULINT_UNDEFINED) {
 			ib_logf(IB_LOG_LEVEL_WARN,
