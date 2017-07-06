@@ -196,7 +196,7 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
                             const TABLE *table, partition_element **part_elem,
                             partition_element **sub_elem)
 {
-  char tmp_name[FN_LEN];
+  char tmp_name[FN_REFLEN + 1];
   partition_info *part_info = table->part_info;
   partition_element *tmp_part_elem = NULL, *tmp_sub_elem = NULL;
   bool tmp_flg = FALSE, tmp_find_flg = FALSE;
@@ -218,9 +218,10 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
       List_iterator<partition_element> sub_it((*part_elem)->subpartitions);
       while ((*sub_elem = sub_it++))
       {
-        create_subpartition_name(tmp_name, table->s->path.str,
-          (*part_elem)->partition_name, (*sub_elem)->partition_name,
-          NORMAL_PART_NAME);
+        if (create_subpartition_name(tmp_name, sizeof(tmp_name), table->s->path.str,
+            (*part_elem)->partition_name, (*sub_elem)->partition_name,
+          NORMAL_PART_NAME))
+          DBUG_VOID_RETURN;
         DBUG_PRINT("info", ("mroonga tmp_name=%s", tmp_name));
         if (table_name && !memcmp(table_name, tmp_name, table_name_length + 1))
           DBUG_VOID_RETURN;
@@ -237,8 +238,9 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
         }
       }
     } else {
-      create_partition_name(tmp_name, table->s->path.str,
-        (*part_elem)->partition_name, NORMAL_PART_NAME, TRUE);
+      if (create_partition_name(tmp_name, sizeof(tmp_name), table->s->path.str,
+          (*part_elem)->partition_name, NORMAL_PART_NAME, TRUE))
+        DBUG_VOID_RETURN;
       DBUG_PRINT("info", ("mroonga tmp_name=%s", tmp_name));
       if (table_name && !memcmp(table_name, tmp_name, table_name_length + 1))
         DBUG_VOID_RETURN;

@@ -6021,3 +6021,28 @@ INSERT INTO t1 VALUES ('foo','bar');
 SELECT * FROM t1 WHERE f2 >= SOME ( SELECT f1 FROM t1 );
 SELECT * FROM t1 WHERE f2 <= SOME ( SELECT f1 FROM t1 );
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10146: Wrong result (or questionable result and behavior)
+--echo # with aggregate function in uncorrelated SELECT subquery
+--echo #
+CREATE TABLE t1 (f1 INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (f2 int);
+
+INSERT INTO t2 VALUES (3);
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
+
+INSERT INTO t2 VALUES (4);
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
+--error ER_SUBQUERY_NO_1_ROW
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+
+drop view v1;
+drop table t1,t2;
