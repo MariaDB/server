@@ -4991,7 +4991,6 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
           if (thd->lex->in_sum_func &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
-            Item::Type ref_type= (*reference)->type();
             set_if_bigger(thd->lex->in_sum_func->max_arg_level,
                           select->nest_level);
           }

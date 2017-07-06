@@ -7114,9 +7114,10 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2 (f2 INT, KEY(f2));
 INSERT INTO t2 VALUES (3);
 CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM t2;
+SELECT ( SELECT MIN(t2.f2) FROM t1 ) AS sq FROM t2 GROUP BY sq;
+ERROR 42000: Can't group on 'sq'
 SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
-sq
-3
+ERROR 42000: Can't group on 'sq'
 SELECT * FROM v2 where ( SELECT MIN(v2.f2) FROM t1 ) > 0;
 f2
 3
@@ -7124,9 +7125,10 @@ SELECT count(*) FROM v2 group by ( SELECT MIN(v2.f2) FROM t1 );
 count(*)
 1
 delete from t1;
+SELECT ( SELECT MIN(t2.f2) FROM t1 ) AS sq FROM t2 GROUP BY sq;
+ERROR 42000: Can't group on 'sq'
 SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
-sq
-NULL
+ERROR 42000: Can't group on 'sq'
 drop view v2;
 drop table t1,t2;
 #
