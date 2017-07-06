@@ -93,8 +93,6 @@ char *opt_ibx_host = NULL;
 char *opt_ibx_defaults_group = NULL;
 char *opt_ibx_socket = NULL;
 uint opt_ibx_port = 0;
-char *opt_ibx_login_path = NULL;
-
 
 ulong opt_ibx_lock_wait_query_type;
 ulong opt_ibx_kill_long_query_type;
@@ -897,7 +895,6 @@ ibx_init()
 	opt_defaults_group = opt_ibx_defaults_group;
 	opt_socket = opt_ibx_socket;
 	opt_port = opt_ibx_port;
-	opt_login_path = opt_ibx_login_path;
 
 	opt_lock_wait_query_type = opt_ibx_lock_wait_query_type;
 	opt_kill_long_query_type = opt_ibx_kill_long_query_type;

@@ -107,7 +107,6 @@ extern my_bool		opt_force_non_empty_dirs;
 extern my_bool		opt_noversioncheck;
 extern my_bool		opt_no_backup_locks;
 extern my_bool		opt_decompress;
-extern my_bool		opt_remove_original;
 
 extern char		*opt_incremental_history_name;
 extern char		*opt_incremental_history_uuid;
@@ -118,7 +117,6 @@ extern char		*opt_host;
 extern char		*opt_defaults_group;
 extern char		*opt_socket;
 extern uint		opt_port;
-extern char		*opt_login_path;
 extern char		*opt_log_bin;
 
 extern const char 	*query_type_names[];

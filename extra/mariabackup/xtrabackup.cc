@@ -230,12 +230,12 @@ longlong innobase_buffer_pool_size = 8*1024*1024L;
 /* The default values for the following char* start-up parameters
 are determined in innobase_init below: */
 
-char*	innobase_ignored_opt			= NULL;
-char*	innobase_data_home_dir			= NULL;
-char*	innobase_data_file_path 		= NULL;
+static char*	innobase_ignored_opt;
+char*	innobase_data_home_dir;
+char*	innobase_data_file_path;
 /* The following has a misleading name: starting from 4.0.5, this also
 affects Windows: */
-char*	innobase_unix_file_flush_method		= NULL;
+char*	innobase_unix_file_flush_method;
 
 my_bool innobase_use_doublewrite;
 my_bool innobase_use_large_pages;
@@ -293,7 +293,6 @@ my_bool opt_force_non_empty_dirs = FALSE;
 my_bool opt_noversioncheck = FALSE;
 my_bool opt_no_backup_locks = FALSE;
 my_bool opt_decompress = FALSE;
-my_bool opt_remove_original = FALSE;
 
 static const char *binlog_info_values[] = {"off", "lockless", "on", "auto",
 					   NullS};
@@ -301,17 +300,16 @@ static TYPELIB binlog_info_typelib = {array_elements(binlog_info_values)-1, "",
 				      binlog_info_values, NULL};
 ulong opt_binlog_info;
 
-char *opt_incremental_history_name = NULL;
-char *opt_incremental_history_uuid = NULL;
+char *opt_incremental_history_name;
+char *opt_incremental_history_uuid;
 
-char *opt_user = NULL;
-char *opt_password = NULL;
-char *opt_host = NULL;
-char *opt_defaults_group = NULL;
-char *opt_socket = NULL;
-uint opt_port = 0;
-char *opt_login_path = NULL;
-char *opt_log_bin = NULL;
+char *opt_user;
+char *opt_password;
+char *opt_host;
+char *opt_defaults_group;
+char *opt_socket;
+uint opt_port;
+char *opt_log_bin;
 
 const char *query_type_names[] = { "ALL", "UPDATE", "SELECT", NullS};
 
@@ -516,7 +514,6 @@ enum options_xtrabackup
   OPT_DECOMPRESS,
   OPT_INCREMENTAL_HISTORY_NAME,
   OPT_INCREMENTAL_HISTORY_UUID,
-  OPT_REMOVE_ORIGINAL,
   OPT_LOCK_WAIT_QUERY_TYPE,
   OPT_KILL_LONG_QUERY_TYPE,
   OPT_HISTORY,
@@ -906,7 +903,7 @@ struct my_option xb_server_options[] =
    GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
    {"log_bin", OPT_LOG, "Base name for the log sequence",
-   &opt_log_bin, &opt_log_bin, 0, GET_STR_ALLOC, OPT_ARG, 0, 0, 0, 0, 0, 0},
+   &opt_log_bin, &opt_log_bin, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
    {"innodb", OPT_INNODB, "Ignored option for MySQL option compatibility",
    (G_PTR*) &innobase_ignored_opt, (G_PTR*) &innobase_ignored_opt, 0,
@@ -931,10 +928,10 @@ struct my_option xb_server_options[] =
    1024*1024L, 0},
   {"innodb_data_file_path", OPT_INNODB_DATA_FILE_PATH,
    "Path to individual files and their sizes.", &innobase_data_file_path,
-   &innobase_data_file_path, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   &innobase_data_file_path, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"innodb_data_home_dir", OPT_INNODB_DATA_HOME_DIR,
    "The common part for InnoDB table spaces.", &innobase_data_home_dir,
-   &innobase_data_home_dir, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   &innobase_data_home_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"innodb_doublewrite", OPT_INNODB_DOUBLEWRITE,
    "Enable InnoDB doublewrite buffer during --prepare.",
    (G_PTR*) &innobase_use_doublewrite,
@@ -981,7 +978,7 @@ struct my_option xb_server_options[] =
    0, GET_LONG, REQUIRED_ARG, 1, 1, 100, 0, 1, 0},
   {"innodb_log_group_home_dir", OPT_INNODB_LOG_GROUP_HOME_DIR,
    "Path to InnoDB log files.", &srv_log_group_home_dir,
-   &srv_log_group_home_dir, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   &srv_log_group_home_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"innodb_max_dirty_pages_pct", OPT_INNODB_MAX_DIRTY_PAGES_PCT,
    "Percentage of dirty pages allowed in bufferpool.", (G_PTR*) &srv_max_buf_pool_modified_pct,
    (G_PTR*) &srv_max_buf_pool_modified_pct, 0, GET_ULONG, REQUIRED_ARG, 90, 0, 100, 0, 0, 0},
@@ -1027,7 +1024,7 @@ struct my_option xb_server_options[] =
 
   {"innodb_undo_directory", OPT_INNODB_UNDO_DIRECTORY,
    "Directory where undo tablespace files live, this path can be absolute.",
-   &srv_undo_dir, &srv_undo_dir, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0,
+   &srv_undo_dir, &srv_undo_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0,
    0},
 
   {"innodb_undo_tablespaces", OPT_INNODB_UNDO_TABLESPACES,
@@ -1506,8 +1503,7 @@ innodb_init_param(void)
 	directory. */
 
 	if (!srv_undo_dir || !xtrabackup_backup) {
-		my_free(srv_undo_dir);
-		srv_undo_dir = my_strdup(".", MYF(MY_FAE));
+		srv_undo_dir = (char*) ".";
 	}
 
 	log_checksum_algorithm_ptr = innodb_log_checksums || srv_encrypt_log
