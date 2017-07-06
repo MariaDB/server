@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -82,12 +82,12 @@ UNIV_INTERN mysql_pfs_key_t		page_zip_stat_per_index_mutex_key;
 #endif /* HAVE_PSI_INTERFACE */
 #endif /* !UNIV_HOTBACKUP */
 
-/* Compression level to be used by zlib. Settable by user. */
-UNIV_INTERN uint	page_zip_level = DEFAULT_COMPRESSION_LEVEL;
+/** Compression level to be used by zlib. Settable by user. */
+UNIV_INTERN uint	page_zip_level;
 
-/* Whether or not to log compressed page images to avoid possible
+/** Whether or not to log compressed page images to avoid possible
 compression algorithm changes in zlib. */
-UNIV_INTERN my_bool	page_zip_log_pages = false;
+UNIV_INTERN my_bool	page_zip_log_pages;
 
 /* Please refer to ../include/page0zip.ic for a description of the
 compressed page format. */
