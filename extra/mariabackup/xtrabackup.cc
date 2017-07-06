@@ -2188,59 +2188,33 @@ skip:
 	return(FALSE);
 }
 
+/** How to copy a redo log segment in backup */
+enum copy_logfile {
+	/** Initial copying: copy at least one block */
+	COPY_FIRST,
+	/** Tracking while copying data files */
+	COPY_ONLINE,
+	/** Final copying: copy until the end of the log */
+	COPY_LAST
+};
+
 /** Copy redo log blocks to the data sink.
-@param[in]	is_last		whether this is the last log segment to copy
+@param[in]	copy		how to copy the log
 @param[in]	start_lsn	buffer start LSN
 @param[in]	end_lsn		buffer end LSN
-@return	last copied LSN
+@return	last scanned LSN (equals to last copied LSN if copy=COPY_LAST)
 @retval	0	on failure */
 static
 lsn_t
-xtrabackup_copy_log(bool is_last, lsn_t start_lsn, lsn_t end_lsn)
+xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 {
 	lsn_t	scanned_lsn	= start_lsn;
 
-	const ulint blocks_in_group = log_block_convert_lsn_to_no(
-		log_sys->log.capacity()) - 1;
 	const byte* log_block = log_sys->buf;
 
 	for (ulint scanned_checkpoint = 0;
 	     scanned_lsn < end_lsn;
 	     log_block += OS_FILE_LOG_BLOCK_SIZE) {
-		ulint	no = log_block_get_hdr_no(log_block);
-		ulint	scanned_no = log_block_convert_lsn_to_no(scanned_lsn);
-
-		if (no != scanned_no) {
-			if ((no < scanned_no &&
-			    ((scanned_no - no) % blocks_in_group) == 0) ||
-			    no == 0 ||
-			    /* Log block numbers wrap around at 0x3FFFFFFF */
-			    ((scanned_no | 0x40000000UL) - no) %
-			    blocks_in_group == 0) {
-
-				/* old log block, do nothing */
-				break;
-			}
-
-			msg("xtrabackup: error:"
-			    " log block numbers mismatch:\n"
-			    "xtrabackup: error: expected log block no. "
-			    ULINTPF ", but got no. " ULINTPF
-			    " from the log file.\n",
-			    scanned_no, no);
-
-			if ((no - scanned_no) % blocks_in_group == 0) {
-				msg("xtrabackup: error:"
-				    " it looks like InnoDB log has wrapped"
-				    " around before xtrabackup could"
-				    " process all records due to either"
-				    " log copying being too slow, or "
-				    " log files being too small.\n");
-			}
-
-			return(0);
-		}
-
 		ulint checkpoint = log_block_get_checkpoint_no(log_block);
 
 		if (scanned_checkpoint > checkpoint
@@ -2255,20 +2229,18 @@ xtrabackup_copy_log(bool is_last, lsn_t start_lsn, lsn_t end_lsn)
 		scanned_lsn += data_len;
 
 		if (data_len != OS_FILE_LOG_BLOCK_SIZE) {
+			/* The current end of the log was reached. */
 			break;
 		}
 	}
 
-	if (!is_last && scanned_lsn & (OS_FILE_LOG_BLOCK_SIZE - 1)) {
-		/* Omit the partial last block. */
-		scanned_lsn &= ~(OS_FILE_LOG_BLOCK_SIZE - 1);
-	}
-
 	log_sys->log.scanned_lsn = scanned_lsn;
 
-	if (ulint write_size = ulint(ut_uint64_align_up(scanned_lsn,
-							OS_FILE_LOG_BLOCK_SIZE)
-				     - start_lsn)) {
+	end_lsn = copy == COPY_LAST
+		? ut_uint64_align_up(scanned_lsn, OS_FILE_LOG_BLOCK_SIZE)
+		: scanned_lsn & ~(OS_FILE_LOG_BLOCK_SIZE - 1);
+
+	if (ulint write_size = ulint(end_lsn - start_lsn)) {
 		if (srv_encrypt_log) {
 			log_crypt(log_sys->buf, write_size);
 		}
@@ -2284,10 +2256,10 @@ xtrabackup_copy_log(bool is_last, lsn_t start_lsn, lsn_t end_lsn)
 }
 
 /** Copy redo log until the current end of the log is reached
-@param is_last	whether this is the last run at the end of backup
+@param copy	how to copy the log
 @return	whether the operation failed */
 static bool
-xtrabackup_copy_logfile(bool is_last)
+xtrabackup_copy_logfile(copy_logfile copy)
 {
 	ut_a(dst_log_file != NULL);
 	ut_ad(recv_sys != NULL);
@@ -2298,9 +2270,10 @@ xtrabackup_copy_logfile(bool is_last)
 	start_lsn = ut_uint64_align_down(log_copy_scanned_lsn,
 					 OS_FILE_LOG_BLOCK_SIZE);
 
-	/* When copying the last part of the log, retry a few times to
-	ensure that all log up to the last checkpoint will be read. */
-	for (unsigned retries = is_last ? 3 : 0;;) {
+	/* When copying the first or last part of the log, retry a few
+	times to ensure that all log up to the last checkpoint will be
+	read. */
+	do {
 		end_lsn = start_lsn + RECV_SCAN_SIZE;
 
 		xtrabackup_io_throttling();
@@ -2310,7 +2283,7 @@ xtrabackup_copy_logfile(bool is_last)
 		lsn_t lsn = log_group_read_log_seg(log_sys->buf, &log_sys->log,
 						   start_lsn, end_lsn);
 
-		start_lsn = xtrabackup_copy_log(is_last, start_lsn, lsn);
+		start_lsn = xtrabackup_copy_log(copy, start_lsn, lsn);
 
 		log_mutex_exit();
 
@@ -2321,22 +2294,7 @@ xtrabackup_copy_logfile(bool is_last)
 			    " failed.\n");
 			return(true);
 		}
-
-		if (start_lsn == end_lsn) {
-			/* All RECV_SCAN_SIZE bytes that were read
-			were valid redo log. Proceed to read more. */
-		} else if (start_lsn & (OS_FILE_LOG_BLOCK_SIZE - 1)) {
-			/* The end of the log was encountered. */
-			ut_ad(is_last);
-			break;
-		} else if (retries--) {
-			/* Retry copying the last log segment. */
-			ut_ad(is_last);
-			os_thread_sleep(xtrabackup_log_copy_interval * 1000);
-		} else {
-			break;
-		}
-	}
+	} while (start_lsn == end_lsn);
 
 	ut_ad(start_lsn == log_sys->log.scanned_lsn);
 
@@ -2349,13 +2307,7 @@ xtrabackup_copy_logfile(bool is_last)
 	return(false);
 }
 
-static
-#ifndef __WIN__
-void*
-#else
-ulint
-#endif
-log_copying_thread(void*)
+static os_thread_ret_t log_copying_thread(void*)
 {
 	/*
 	  Initialize mysys thread-specific memory so we can
@@ -2363,15 +2315,12 @@ log_copying_thread(void*)
 	*/
 	my_thread_init();
 
-	while (log_copying) {
+	do {
 		os_event_reset(log_copying_stop);
 		os_event_wait_time_low(log_copying_stop,
 				       xtrabackup_log_copy_interval * 1000ULL,
 				       0);
-		if (log_copying && xtrabackup_copy_logfile(false)) {
-			break;
-		}
-	}
+	} while (log_copying && xtrabackup_copy_logfile(COPY_ONLINE));
 
 	log_copying_running = false;
 	my_thread_end();
@@ -2381,13 +2330,7 @@ log_copying_thread(void*)
 }
 
 /* io throttle watching (rough) */
-static
-#ifndef __WIN__
-void*
-#else
-ulint
-#endif
-io_watching_thread(void*)
+static os_thread_ret_t io_watching_thread(void*)
 {
 	/* currently, for --backup only */
 	ut_a(xtrabackup_backup);
@@ -3356,6 +3299,30 @@ end:
 #endif
 }
 
+static void stop_backup_threads()
+{
+	log_copying = false;
+
+	if (log_copying_stop) {
+		os_event_set(log_copying_stop);
+		msg("xtrabackup: Stopping log copying thread.\n");
+		while (log_copying_running) {
+			msg(".");
+			os_thread_sleep(200000); /*0.2 sec*/
+		}
+		msg("\n");
+		os_event_destroy(log_copying_stop);
+	}
+
+	if (wait_throttle) {
+		/* wait for io_watching_thread completion */
+		while (io_watching_thread_running) {
+			os_thread_sleep(1000000);
+		}
+		os_event_destroy(wait_throttle);
+	}
+}
+
 /** Implement --backup
 @return	whether the operation succeeded */
 static
@@ -3404,6 +3371,7 @@ xtrabackup_backup_func()
 	/* initialize components */
         if(innodb_init_param()) {
 fail:
+		stop_backup_threads();
 		innodb_shutdown();
 		return(false);
 	}
@@ -3679,7 +3647,7 @@ reread_log_header:
 
 	/* copy log file by current position */
 	log_copy_scanned_lsn = checkpoint_lsn_start;
-	if (xtrabackup_copy_logfile(false))
+	if (xtrabackup_copy_logfile(COPY_FIRST))
 		goto fail;
 
 	log_copying_stop = os_event_create(0);
@@ -3785,19 +3753,9 @@ reread_log_header:
 		log_mutex_exit();
 	}
 
-	/* stop log_copying_thread */
-	log_copying = FALSE;
-	os_event_set(log_copying_stop);
-	msg("xtrabackup: Stopping log copying thread.\n");
-	while (log_copying_running) {
-		msg(".");
-		os_thread_sleep(200000); /*0.2 sec*/
-	}
-	msg("\n");
+	stop_backup_threads();
 
-	os_event_destroy(log_copying_stop);
-
-	if (!dst_log_file || xtrabackup_copy_logfile(true)) {
+	if (!dst_log_file || xtrabackup_copy_logfile(COPY_LAST)) {
 		goto fail;
 	}
 
@@ -3841,14 +3799,6 @@ reread_log_header:
 
 	xtrabackup_destroy_datasinks();
 
-	if (wait_throttle) {
-		/* wait for io_watching_thread completion */
-		while (io_watching_thread_running) {
-			os_thread_sleep(1000000);
-		}
-		os_event_destroy(wait_throttle);
-	}
-
 	msg("xtrabackup: Redo log (from LSN " LSN_PF " to " LSN_PF
 	    ") was copied.\n", checkpoint_lsn_start, log_copy_scanned_lsn);
 	xb_filters_free();
@@ -3857,9 +3807,9 @@ reread_log_header:
 
 	/* Make sure that the latest checkpoint was included */
 	if (latest_cp > log_copy_scanned_lsn) {
-		msg("xtrabackup: error: last checkpoint LSN (" LSN_PF
-		    ") is larger than last copied LSN (" LSN_PF ").\n",
-		    latest_cp, log_copy_scanned_lsn);
+		msg("xtrabackup: error: failed to copy enough redo log ("
+		    "LSN=" LSN_PF "; checkpoint LSN=" LSN_PF ").\n",
+		    log_copy_scanned_lsn, latest_cp);
 		goto fail;
 	}
 
