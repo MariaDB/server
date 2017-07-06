@@ -58,6 +58,12 @@ select a from t where b=NULL query for system_time as of timestamp now(6);
 a
 Warnings:
 Warning	4075	Attempt to read unversioned field `b` in historical query
+select a from t where b is NULL query for system_time as of timestamp now(6);
+a
+1
+3
+Warnings:
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select count(*), b from t group by b having b=NULL query for system_time as of timestamp now(6);
 count(*)	b
 Warnings:
