@@ -634,7 +634,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
 int ha_partition::drop_partitions(const char *path)
 {
   List_iterator<partition_element> part_it(m_part_info->partitions);
-  char part_name_buff[FN_REFLEN];
+  char part_name_buff[FN_REFLEN + 1];
   uint num_parts= m_part_info->partitions.elements;
   uint num_subparts= m_part_info->num_subparts;
   uint i= 0;
@@ -667,9 +667,11 @@ int ha_partition::drop_partitions(const char *path)
         {
           partition_element *sub_elem= sub_it++;
           part= i * num_subparts + j;
-          create_subpartition_name(part_name_buff, path,
-                                   part_elem->partition_name,
-                                   sub_elem->partition_name, name_variant);
+          if ((ret_error= create_subpartition_name(part_name_buff,
+                            sizeof(part_name_buff), path,
+                            part_elem->partition_name,
+                            sub_elem->partition_name, name_variant)))
+              error= ret_error;
           file= m_file[part];
           DBUG_PRINT("info", ("Drop subpartition %s", part_name_buff));
           if ((ret_error= file->ha_delete_table(part_name_buff)))
@@ -680,15 +682,19 @@ int ha_partition::drop_partitions(const char *path)
       }
       else
       {
-        create_partition_name(part_name_buff, path,
-                              part_elem->partition_name, name_variant,
-                              TRUE);
-        file= m_file[i];
-        DBUG_PRINT("info", ("Drop partition %s", part_name_buff));
-        if ((ret_error= file->ha_delete_table(part_name_buff)))
+        if ((ret_error= create_partition_name(part_name_buff,
+                          sizeof(part_name_buff), path,
+                          part_elem->partition_name, name_variant, TRUE)))
           error= ret_error;
-        if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
-          error= 1;
+        else
+        {
+          file= m_file[i];
+          DBUG_PRINT("info", ("Drop partition %s", part_name_buff));
+          if ((ret_error= file->ha_delete_table(part_name_buff)))
+            error= ret_error;
+          if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
+            error= 1;
+        }
       }
       if (part_elem->part_state == PART_IS_CHANGED)
         part_elem->part_state= PART_NORMAL;
@@ -724,8 +730,8 @@ int ha_partition::rename_partitions(const char *path)
 {
   List_iterator<partition_element> part_it(m_part_info->partitions);
   List_iterator<partition_element> temp_it(m_part_info->temp_partitions);
-  char part_name_buff[FN_REFLEN];
-  char norm_name_buff[FN_REFLEN];
+  char part_name_buff[FN_REFLEN + 1];
+  char norm_name_buff[FN_REFLEN + 1];
   uint num_parts= m_part_info->partitions.elements;
   uint part_count= 0;
   uint num_subparts= m_part_info->num_subparts;
@@ -767,10 +773,11 @@ int ha_partition::rename_partitions(const char *path)
         {
           sub_elem= sub_it++;
           file= m_reorged_file[part_count++];
-          create_subpartition_name(norm_name_buff, path,
-                                   part_elem->partition_name,
-                                   sub_elem->partition_name,
-                                   NORMAL_PART_NAME);
+          if ((ret_error= create_subpartition_name(norm_name_buff,
+                            sizeof(norm_name_buff), path,
+                            part_elem->partition_name,
+                            sub_elem->partition_name, NORMAL_PART_NAME)))
+            error= ret_error;
           DBUG_PRINT("info", ("Delete subpartition %s", norm_name_buff));
           if ((ret_error= file->ha_delete_table(norm_name_buff)))
             error= ret_error;
@@ -783,16 +790,20 @@ int ha_partition::rename_partitions(const char *path)
       else
       {
         file= m_reorged_file[part_count++];
-        create_partition_name(norm_name_buff, path,
-                              part_elem->partition_name, NORMAL_PART_NAME,
-                              TRUE);
-        DBUG_PRINT("info", ("Delete partition %s", norm_name_buff));
-        if ((ret_error= file->ha_delete_table(norm_name_buff)))
+        if ((ret_error= create_partition_name(norm_name_buff,
+                          sizeof(norm_name_buff), path,
+                          part_elem->partition_name, NORMAL_PART_NAME, TRUE)))
           error= ret_error;
-        else if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
-          error= 1;
         else
-          part_elem->log_entry= NULL; /* Indicate success */
+        {
+          DBUG_PRINT("info", ("Delete partition %s", norm_name_buff));
+          if ((ret_error= file->ha_delete_table(norm_name_buff)))
+            error= ret_error;
+          else if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
+            error= 1;
+          else
+            part_elem->log_entry= NULL; /* Indicate success */
+        }
       }
     } while (++i < temp_partitions);
     (void) sync_ddl_log();
@@ -835,10 +846,11 @@ int ha_partition::rename_partitions(const char *path)
         {
           sub_elem= sub_it++;
           part= i * num_subparts + j;
-          create_subpartition_name(norm_name_buff, path,
-                                   part_elem->partition_name,
-                                   sub_elem->partition_name,
-                                   NORMAL_PART_NAME);
+          if ((ret_error= create_subpartition_name(norm_name_buff,
+                            sizeof(norm_name_buff), path,
+                            part_elem->partition_name,
+                            sub_elem->partition_name, NORMAL_PART_NAME)))
+            error= ret_error;
           if (part_elem->part_state == PART_IS_CHANGED)
           {
             file= m_reorged_file[part_count++];
@@ -850,10 +862,11 @@ int ha_partition::rename_partitions(const char *path)
             (void) sync_ddl_log();
           }
           file= m_new_file[part];
-          create_subpartition_name(part_name_buff, path,
-                                   part_elem->partition_name,
-                                   sub_elem->partition_name,
-                                   TEMP_PART_NAME);
+          if ((ret_error= create_subpartition_name(part_name_buff,
+                            sizeof(part_name_buff), path,
+                            part_elem->partition_name,
+                            sub_elem->partition_name, TEMP_PART_NAME)))
+            error= ret_error;
           DBUG_PRINT("info", ("Rename subpartition from %s to %s",
                      part_name_buff, norm_name_buff));
           if ((ret_error= file->ha_rename_table(part_name_buff,
@@ -867,32 +880,36 @@ int ha_partition::rename_partitions(const char *path)
       }
       else
       {
-        create_partition_name(norm_name_buff, path,
-                              part_elem->partition_name, NORMAL_PART_NAME,
-                              TRUE);
-        if (part_elem->part_state == PART_IS_CHANGED)
+        if ((ret_error= create_partition_name(norm_name_buff,
+                          sizeof(norm_name_buff), path,
+                          part_elem->partition_name, NORMAL_PART_NAME, TRUE)) ||
+            (ret_error= create_partition_name(part_name_buff,
+                          sizeof(part_name_buff), path,
+                          part_elem->partition_name, TEMP_PART_NAME, TRUE)))
+          error= ret_error;
+        else
         {
-          file= m_reorged_file[part_count++];
-          DBUG_PRINT("info", ("Delete partition %s", norm_name_buff));
-          if ((ret_error= file->ha_delete_table(norm_name_buff)))
+          if (part_elem->part_state == PART_IS_CHANGED)
+          {
+            file= m_reorged_file[part_count++];
+            DBUG_PRINT("info", ("Delete partition %s", norm_name_buff));
+            if ((ret_error= file->ha_delete_table(norm_name_buff)))
+              error= ret_error;
+            else if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
+              error= 1;
+            (void) sync_ddl_log();
+          }
+          file= m_new_file[i];
+          DBUG_PRINT("info", ("Rename partition from %s to %s",
+                     part_name_buff, norm_name_buff));
+          if ((ret_error= file->ha_rename_table(part_name_buff,
+                                                norm_name_buff)))
             error= ret_error;
           else if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
             error= 1;
-          (void) sync_ddl_log();
+          else
+            part_elem->log_entry= NULL;
         }
-        file= m_new_file[i];
-        create_partition_name(part_name_buff, path,
-                              part_elem->partition_name, TEMP_PART_NAME,
-                              TRUE);
-        DBUG_PRINT("info", ("Rename partition from %s to %s",
-                   part_name_buff, norm_name_buff));
-        if ((ret_error= file->ha_rename_table(part_name_buff,
-                                              norm_name_buff)))
-          error= ret_error;
-        else if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
-          error= 1;
-        else
-          part_elem->log_entry= NULL;
       }
     }
   } while (++i < num_parts);
@@ -1488,7 +1505,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
 {
   List_iterator<partition_element> part_it(m_part_info->partitions);
   List_iterator <partition_element> t_it(m_part_info->temp_partitions);
-  char part_name_buff[FN_REFLEN];
+  char part_name_buff[FN_REFLEN + 1];
   uint num_parts= m_part_info->partitions.elements;
   uint num_subparts= m_part_info->num_subparts;
   uint i= 0;
@@ -1698,10 +1715,14 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
         do
         {
           partition_element *sub_elem= sub_it++;
-          create_subpartition_name(part_name_buff, path,
-                                   part_elem->partition_name,
-                                   sub_elem->partition_name,
-                                   name_variant);
+          if ((error= create_subpartition_name(part_name_buff,
+                        sizeof(part_name_buff), path,
+                        part_elem->partition_name, sub_elem->partition_name,
+                        name_variant)))
+          {
+            cleanup_new_partition(part_count);
+            DBUG_RETURN(error);
+          }
           part= i * num_subparts + j;
           DBUG_PRINT("info", ("Add subpartition %s", part_name_buff));
           if ((error= prepare_new_partition(table, create_info,
@@ -1719,9 +1740,14 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
       }
       else
       {
-        create_partition_name(part_name_buff, path,
-                              part_elem->partition_name, name_variant,
-                              TRUE);
+        if ((error= create_partition_name(part_name_buff,
+                      sizeof(part_name_buff), path, part_elem->partition_name,
+                      name_variant, TRUE)))
+        {
+          cleanup_new_partition(part_count);
+          DBUG_RETURN(error);
+        }
+        
         DBUG_PRINT("info", ("Add partition %s", part_name_buff));
         if ((error= prepare_new_partition(table, create_info,
                                           new_file_array[i],
@@ -1980,8 +2006,8 @@ int ha_partition::del_ren_cre_table(const char *from,
 {
   int save_error= 0;
   int error= HA_ERR_INTERNAL_ERROR;
-  char from_buff[FN_REFLEN], to_buff[FN_REFLEN], from_lc_buff[FN_REFLEN],
-       to_lc_buff[FN_REFLEN], buff[FN_REFLEN];
+  char from_buff[FN_REFLEN + 1], to_buff[FN_REFLEN + 1],
+       from_lc_buff[FN_REFLEN], to_lc_buff[FN_REFLEN], buff[FN_REFLEN];
   char *name_buffer_ptr;
   const char *from_path;
   const char *to_path= NULL;
@@ -2028,13 +2054,15 @@ int ha_partition::del_ren_cre_table(const char *from,
   i= 0;
   do
   {
-    create_partition_name(from_buff, from_path, name_buffer_ptr,
-                          NORMAL_PART_NAME, FALSE);
+    if ((error= create_partition_name(from_buff, sizeof(from_buff), from_path,
+                  name_buffer_ptr, NORMAL_PART_NAME, FALSE)))
+      goto rename_error;
 
     if (to != NULL)
     {						// Rename branch
-      create_partition_name(to_buff, to_path, name_buffer_ptr,
-                            NORMAL_PART_NAME, FALSE);
+      if ((error= create_partition_name(to_buff, sizeof(to_buff), to_path,
+                    name_buffer_ptr, NORMAL_PART_NAME, FALSE)))
+        goto rename_error;
       error= (*file)->ha_rename_table(from_buff, to_buff);
       if (error)
         goto rename_error;
@@ -2081,9 +2109,9 @@ create_error:
   name_buffer_ptr= m_name_buffer_ptr;
   for (abort_file= file, file= m_file; file < abort_file; file++)
   {
-    create_partition_name(from_buff, from_path, name_buffer_ptr, NORMAL_PART_NAME,
-                          FALSE);
-    (void) (*file)->ha_delete_table((const char*) from_buff);
+    if (!create_partition_name(from_buff, sizeof(from_buff), from_path,
+           name_buffer_ptr, NORMAL_PART_NAME, FALSE))
+      (void) (*file)->ha_delete_table(from_buff);
     name_buffer_ptr= strend(name_buffer_ptr) + 1;
   }
   DBUG_RETURN(error);
@@ -2092,12 +2120,11 @@ rename_error:
   for (abort_file= file, file= m_file; file < abort_file; file++)
   {
     /* Revert the rename, back from 'to' to the original 'from' */
-    create_partition_name(from_buff, from_path, name_buffer_ptr,
-                          NORMAL_PART_NAME, FALSE);
-    create_partition_name(to_buff, to_path, name_buffer_ptr,
-                          NORMAL_PART_NAME, FALSE);
-    /* Ignore error here */
-    (void) (*file)->ha_rename_table(to_buff, from_buff);
+    if (!create_partition_name(from_buff, sizeof(from_buff), from_path,
+           name_buffer_ptr, NORMAL_PART_NAME, FALSE) &&
+        !create_partition_name(to_buff, sizeof(to_buff), to_path, name_buffer_ptr,
+           NORMAL_PART_NAME, FALSE))
+      (void) (*file)->ha_rename_table(to_buff, from_buff);
     name_buffer_ptr= strend(name_buffer_ptr) + 1;
   }
   DBUG_RETURN(error);
@@ -2895,7 +2922,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   char *name_buffer_ptr;
   int error= HA_ERR_INITIALIZATION;
   handler **file;
-  char name_buff[FN_REFLEN];
+  char name_buff[FN_REFLEN + 1];
   bool is_not_tmp_table= (table_share->tmp_table == NO_TMP_TABLE);
   ulonglong check_table_flags;
   DBUG_ENTER("ha_partition::open");
@@ -2965,8 +2992,9 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
     file= m_is_clone_of->m_file;
     for (i= 0; i < m_tot_parts; i++)
     {
-      create_partition_name(name_buff, name, name_buffer_ptr, NORMAL_PART_NAME,
-                            FALSE);
+      if ((error= create_partition_name(name_buff, sizeof(name_buff), name,
+                    name_buffer_ptr, NORMAL_PART_NAME, FALSE)))
+        goto err_handler;
       if (!(m_file[i]= file[i]->clone(name_buff, m_clone_mem_root)))
       {
         error= HA_ERR_INITIALIZATION;
@@ -2981,8 +3009,9 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
    file= m_file;
    do
    {
-      create_partition_name(name_buff, name, name_buffer_ptr, NORMAL_PART_NAME,
-                            FALSE);
+      if ((error= create_partition_name(name_buff, sizeof(name_buff), name,
+                    name_buffer_ptr, NORMAL_PART_NAME, FALSE)))
+        goto err_handler;
       table->s->connect_string = m_connect_string[(uint)(file-m_file)];
       if ((error= (*file)->ha_open(table, name_buff, mode, test_if_locked)))
         goto err_handler;
