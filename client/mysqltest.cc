@@ -82,7 +82,7 @@ static my_bool non_blocking_api_enabled= 0;
 #define MAX_DELIMITER_LENGTH 16
 #define DEFAULT_MAX_CONN        64
 
-#define DIE_BUFF_SIZE           8192
+#define DIE_BUFF_SIZE           256*1024
 
 /* Flags controlling send and reap */
 #define QUERY_SEND_FLAG  1
