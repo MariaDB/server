@@ -165,7 +165,7 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Unsupported redo log format. The redo log was created with malicious intentions, or perhaps\. Please follow the instructions at http://dev.mysql.com/doc/refman/5.7/en/upgrading-downgrading.html;
+let SEARCH_PATTERN=InnoDB: Unsupported redo log format. The redo log was created with malicious intentions, or perhaps\.;
 --source include/search_pattern_in_file.inc
 
 --echo # valid header, but old-format checkpoint blocks
@@ -204,6 +204,21 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported\. The redo log was created with malicious intentions, or perhaps, and it appears corrupted\.;
+--source include/search_pattern_in_file.inc
+
+--echo # same, but with current-version header
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+print OUT pack("Nx[5]nx[5]", 103, 0x1286), "MariaDB 10.3.1";
+print OUT pack("x[478]N", 0x85021a0f);
+close OUT or die;
+EOF
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
 let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN=InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
@@ -221,9 +236,8 @@ perl;
 die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
 binmode OUT;
 # header block
-print OUT pack("Nx[5]nx[5]", 1, 0x1286);
-print OUT "malicious intentions, or perhaps not";
-print OUT pack("x[456]N", 0xd42d53a2);
+print OUT pack("Nx[5]nx[5]", 103, 0x1286), "MariaDB 10.3.1";
+print OUT pack("x[478]N", 0x85021a0f);
 # checkpoint page 1 and all-zero checkpoint 2
 print OUT pack("x[13]nCNNx[264]", 0x1286, 12, 0, 0x80c);
 print OUT pack("H*x[212]Nx[1024]", "590DBAACFE922582", 0xc72d49c4);
@@ -281,9 +295,8 @@ perl;
 die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
 binmode OUT;
 # header block
-print OUT pack("Nx[5]nx[5]", 1, 0x1286);
-print OUT "ibbackup was here!!!1!";
-print OUT pack("x[470]N", 0x52b54540);
+print OUT pack("Nx[5]nx[5]", 103, 0x1286), "MariaDB 10.3.1";
+print OUT pack("x[478]N", 0x85021a0f);
 # invalid (all-zero) checkpoint page 1 and an empty log page
 print OUT chr(0) x 1024;
 # valid checkpoint block 2
@@ -326,9 +339,8 @@ perl;
 die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
 binmode OUT;
 # header block
-print OUT pack("Nx[5]nx[5]", 1, 0x1286);
-print OUT "ibbackup was here!!!1!";
-print OUT pack("x[470]N", 0x52b54540);
+print OUT pack("Nx[5]nx[5]", 103, 0x1286), "MariaDB 10.3.1";
+print OUT pack("x[478]N", 0x85021a0f);
 # invalid (all-zero) checkpoint page 1 and an empty log page
 print OUT chr(0) x 1024;
 # valid checkpoint block 2

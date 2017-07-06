@@ -880,9 +880,6 @@ recv_log_format_0_recover(lsn_t lsn)
 	static const char* NO_UPGRADE_RECOVERY_MSG =
 		"Upgrade after a crash is not supported."
 		" This redo log was created before MariaDB 10.2.2";
-	static const char* NO_UPGRADE_RTFM_MSG =
-		". Please follow the instructions at "
-		REFMAN "upgrading.html";
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
@@ -895,15 +892,65 @@ recv_log_format_0_recover(lsn_t lsn)
 	    != log_block_get_checksum(buf)
 	    && !log_crypt_101_read_block(buf)) {
 		ib::error() << NO_UPGRADE_RECOVERY_MSG
-			<< ", and it appears corrupted"
-			<< NO_UPGRADE_RTFM_MSG;
+			<< ", and it appears corrupted.";
 		return(DB_CORRUPTION);
 	}
 
 	if (log_block_get_data_len(buf)
 	    != (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
-		ib::error() << NO_UPGRADE_RECOVERY_MSG
-			<< NO_UPGRADE_RTFM_MSG;
+		ib::error() << NO_UPGRADE_RECOVERY_MSG << ".";
+		return(DB_ERROR);
+	}
+
+	/* Mark the redo log for upgrading. */
+	srv_log_file_size = 0;
+	recv_sys->parse_start_lsn = recv_sys->recovered_lsn
+		= recv_sys->scanned_lsn
+		= recv_sys->mlog_checkpoint_lsn = lsn;
+	log_sys->last_checkpoint_lsn = log_sys->next_checkpoint_lsn
+		= log_sys->lsn = log_sys->write_lsn
+		= log_sys->current_flush_lsn = log_sys->flushed_to_disk_lsn
+		= lsn;
+	log_sys->next_checkpoint_no = 0;
+	return(DB_SUCCESS);
+}
+
+/** Determine if a redo log from MySQL 5.7.9/MariaDB 10.2.2 is clean.
+@return error code
+@retval	DB_SUCCESS	if the redo log is clean
+@retval	DB_CORRUPTION	if the redo log is corrupted
+@retval DB_ERROR	if the redo log is not empty */
+static
+dberr_t
+recv_log_recover_10_2()
+{
+	log_group_t*	group = &log_sys->log;
+	const lsn_t	lsn = group->lsn;
+	const lsn_t	source_offset = log_group_calc_lsn_offset(lsn, group);
+	const ulint	page_no
+		= (ulint) (source_offset / univ_page_size.physical());
+	byte*		buf = log_sys->buf;
+
+	fil_io(IORequestLogRead, true,
+	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
+	       univ_page_size,
+	       (ulint) ((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
+			% univ_page_size.physical()),
+	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
+
+	if (log_block_calc_checksum(buf) != log_block_get_checksum(buf)) {
+		return(DB_CORRUPTION);
+	}
+
+	if (group->is_encrypted()) {
+		log_crypt(buf, OS_FILE_LOG_BLOCK_SIZE, true);
+	}
+
+	/* On a clean shutdown, the redo log will be logically empty
+	after the checkpoint lsn. */
+
+	if (log_block_get_data_len(buf)
+	    != (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
 		return(DB_ERROR);
 	}
 
@@ -945,31 +992,29 @@ recv_find_max_checkpoint(ulint* max_field)
 	/* Check the header page checksum. There was no
 	checksum in the first redo log format (version 0). */
 	group->format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
-	if (group->format != 0
+	if (group->format != LOG_HEADER_FORMAT_3_23
 	    && !recv_check_log_header_checksum(buf)) {
 		ib::error() << "Invalid redo log header checksum.";
 		return(DB_CORRUPTION);
 	}
 
+	char creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR + 1];
+
+	memcpy(creator, buf + LOG_HEADER_CREATOR, sizeof creator);
+	/* Ensure that the string is NUL-terminated. */
+	creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR] = 0;
+
 	switch (group->format) {
-	case 0:
+	case LOG_HEADER_FORMAT_3_23:
 		return(recv_find_max_checkpoint_0(&group, max_field));
+	case LOG_HEADER_FORMAT_10_2:
+	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
 	case LOG_HEADER_FORMAT_CURRENT:
 	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
 		break;
 	default:
-		/* Ensure that the string is NUL-terminated. */
-		buf[LOG_HEADER_CREATOR_END] = 0;
 		ib::error() << "Unsupported redo log format."
-			" The redo log was created"
-			" with " << buf + LOG_HEADER_CREATOR <<
-			". Please follow the instructions at "
-			REFMAN "upgrading-downgrading.html";
-		/* Do not issue a message about a possibility
-		to cleanly shut down the newer server version
-		and to remove the redo logs, because the
-		format of the system data structures may
-		radically change after MySQL 5.7. */
+			" The redo log was created with " << creator << ".";
 		return(DB_ERROR);
 	}
 
@@ -1028,6 +1073,21 @@ recv_find_max_checkpoint(ulint* max_field)
 			" You can try --innodb-force-recovery=6"
 			" as a last resort.";
 		return(DB_ERROR);
+	}
+
+	switch (group->format) {
+	case LOG_HEADER_FORMAT_10_2:
+	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
+		dberr_t err = recv_log_recover_10_2();
+		if (err != DB_SUCCESS) {
+			ib::error()
+				<< "Upgrade after a crash is not supported."
+				" The redo log was created with " << creator
+				<< (err == DB_ERROR
+				    ? "." : ", and it appears corrupted.");
+			break;
+		}
+		return(err);
 	}
 
 	return(DB_SUCCESS);

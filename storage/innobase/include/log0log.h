@@ -510,9 +510,13 @@ or the MySQL version that created the redo log file. */
 	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
 	IB_TO_STR(MYSQL_VERSION_PATCH)
 
+/** The original (not version-tagged) InnoDB redo log format */
+#define LOG_HEADER_FORMAT_3_23		0
+/** The MySQL 5.7.9/MariaDB 10.2.2 log format */
+#define LOG_HEADER_FORMAT_10_2		1
 /** The redo log format identifier corresponding to the current format version.
 Stored in LOG_HEADER_FORMAT. */
-#define LOG_HEADER_FORMAT_CURRENT	1
+#define LOG_HEADER_FORMAT_CURRENT	103
 /** Encrypted MariaDB redo log */
 #define LOG_HEADER_FORMAT_ENCRYPTED	(1U<<31)
 
