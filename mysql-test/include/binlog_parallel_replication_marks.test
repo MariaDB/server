@@ -7,10 +7,6 @@
 RESET MASTER;
 --source include/wait_for_binlog_checkpoint.inc
 
-set time_zone="+02:00";
---let $stable_stamp= `SELECT UNIX_TIMESTAMP("2020-01-21 15:32:22")`
-eval set timestamp=$stable_stamp;
-
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 --let $binlog_pos1=query_get_value(SHOW MASTER STATUS, Position, 1)
 /* GTID */ INSERT INTO t1 VALUES (1,0);
@@ -42,7 +38,6 @@ CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 /* GTID */ INSERT INTO t1 VALUES (9, 5, 1);
 /* GTID */ COMMIT;
 connect (tmp_con,localhost,root,,);
-eval set timestamp=$stable_stamp;
 /* GTID */ INSERT INTO t1 VALUES (10, 6, 0);
 /* GTID */ BEGIN;
 /* GTID */ CREATE TEMPORARY TABLE t5 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -72,7 +67,7 @@ my $file= $ENV{'OUTPUT_FILE'};
 open F, "<", $file
   or die "Unable to open file '$file': $!\n";
 while (<F>) {
-  s/^#\d+ \d+:\d+:\d+ /# /;
+  s/^#\d+ +\d+:\d+:\d+ /# /;
   s/GTID \d+-\d+-\d+/GTID #-#-#/;
   s/end_log_pos \d+/end_log_pos #/;
   s/table id \d+/table id #/;
