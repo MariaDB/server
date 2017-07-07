@@ -60,6 +60,10 @@ struct LEX_STRING_u : public Storage
   {
     return *this;
   }
+  const LEX_STRING& lex_string() const
+  {
+    return *(LEX_STRING *)this;
+  }
 };
 
 template <class Compare= Compare_strncmp, class Storage= LEX_STRING_u<> >

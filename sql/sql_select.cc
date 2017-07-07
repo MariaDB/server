@@ -875,15 +875,14 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         DBUG_ASSERT(hton);
         row_start= newx Item_func_vtq_ts(
           thd,
+          hton,
           row_start,
-          VTQ_COMMIT_TS,
-          // FIXME: is it needed to pass hton or it can be deduced from arg 'a'?
-          hton);
+          VTQ_COMMIT_TS);
         row_end= newx Item_func_vtq_ts(
           thd,
+          hton,
           row_end,
-          VTQ_COMMIT_TS,
-          hton);
+          VTQ_COMMIT_TS);
       }
 
       Item *cond1= 0, *cond2= 0, *curr= 0;
@@ -952,17 +951,17 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           break;
         case FOR_SYSTEM_TIME_AS_OF:
           trx_id0= vers_conditions.unit == UNIT_TIMESTAMP ?
-            newx Item_func_vtq_id(thd, vers_conditions.start, VTQ_TRX_ID) :
+            newx Item_func_vtq_id(thd, hton, vers_conditions.start, VTQ_TRX_ID) :
             vers_conditions.start;
-          cond1= newx Item_func_vtq_trx_sees_eq(thd, trx_id0, row_start);
-          cond2= newx Item_func_vtq_trx_sees(thd, row_end, trx_id0);
+          cond1= newx Item_func_vtq_trx_sees_eq(thd, hton, trx_id0, row_start);
+          cond2= newx Item_func_vtq_trx_sees(thd, hton, row_end, trx_id0);
           break;
         case FOR_SYSTEM_TIME_FROM_TO:
         case FOR_SYSTEM_TIME_BETWEEN:
           if (vers_conditions.unit == UNIT_TIMESTAMP)
           {
-            trx_id0= newx Item_func_vtq_id(thd, vers_conditions.start, VTQ_TRX_ID, true);
-            trx_id1= newx Item_func_vtq_id(thd, vers_conditions.end, VTQ_TRX_ID, false);
+            trx_id0= newx Item_func_vtq_id(thd, hton, vers_conditions.start, VTQ_TRX_ID, true);
+            trx_id1= newx Item_func_vtq_id(thd, hton, vers_conditions.end, VTQ_TRX_ID, false);
           }
           else
           {
@@ -971,13 +970,13 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           }
 
           cond1= vers_conditions.type == FOR_SYSTEM_TIME_FROM_TO ?
-            newx Item_func_vtq_trx_sees(thd, trx_id1, row_start) :
-            newx Item_func_vtq_trx_sees_eq(thd, trx_id1, row_start);
-          cond2= newx Item_func_vtq_trx_sees_eq(thd, row_end, trx_id0);
+            newx Item_func_vtq_trx_sees(thd, hton, trx_id1, row_start) :
+            newx Item_func_vtq_trx_sees_eq(thd, hton, trx_id1, row_start);
+          cond2= newx Item_func_vtq_trx_sees_eq(thd, hton, row_end, trx_id0);
           break;
         case FOR_SYSTEM_TIME_BEFORE:
           trx_id0= vers_conditions.unit == UNIT_TIMESTAMP ?
-            newx Item_func_vtq_id(thd, vers_conditions.start, VTQ_TRX_ID) :
+            newx Item_func_vtq_id(thd, hton, vers_conditions.start, VTQ_TRX_ID) :
             vers_conditions.start;
           cond1= newx Item_func_lt(thd, row_end, trx_id0);
           break;

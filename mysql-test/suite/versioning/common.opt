@@ -16,3 +16,4 @@
 --innodb-sys-virtual
 --innodb-vtq
 --versioning-hide=implicit
+--plugin-load=versioning

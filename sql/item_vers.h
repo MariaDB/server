@@ -29,15 +29,12 @@ class VTQ_common : public Item_func_X
 {
 protected:
   handlerton *hton;
-  void init_hton();
+  void check_hton();
 public:
-  VTQ_common(THD *thd, Item* a) :
-    Item_func_X(thd, a),
-    hton(NULL) {}
-  VTQ_common(THD *thd, Item* a, Item* b) :
+  VTQ_common(THD *thd, handlerton* _hton, Item* a, Item* b) :
     Item_func_X(thd, a, b),
-    hton(NULL) {}
-  VTQ_common(THD *thd, Item* a, handlerton* _hton) :
+    hton(_hton) {}
+  VTQ_common(THD *thd, handlerton* _hton, Item* a) :
     Item_func_X(thd, a),
     hton(_hton) {}
 };
@@ -47,8 +44,7 @@ class Item_func_vtq_ts :
 {
   vtq_field_t vtq_field;
 public:
-  Item_func_vtq_ts(THD *thd, Item* a, vtq_field_t _vtq_field, handlerton *hton);
-  Item_func_vtq_ts(THD *thd, Item* a, vtq_field_t _vtq_field);
+  Item_func_vtq_ts(THD *thd, handlerton *hton, Item* a, vtq_field_t _vtq_field);
   const char *func_name() const
   {
     if (vtq_field == VTQ_BEGIN_TS)
@@ -73,8 +69,8 @@ class Item_func_vtq_id :
   longlong get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards);
 
 public:
-  Item_func_vtq_id(THD *thd, Item* a, vtq_field_t _vtq_field, bool _backwards= false);
-  Item_func_vtq_id(THD *thd, Item* a, Item* b, vtq_field_t _vtq_field);
+  Item_func_vtq_id(THD *thd, handlerton *hton, Item* a, vtq_field_t _vtq_field, bool _backwards= false);
+  Item_func_vtq_id(THD *thd, handlerton *hton, Item* a, Item* b, vtq_field_t _vtq_field);
 
   vtq_record_t *vtq_cached_result() { return &cached_result; }
 
@@ -112,7 +108,7 @@ protected:
   bool accept_eq;
 
 public:
-  Item_func_vtq_trx_sees(THD *thd, Item* a, Item* b);
+  Item_func_vtq_trx_sees(THD *thd, handlerton *hton, Item* a, Item* b);
   const char *func_name() const
   {
     return "vtq_trx_sees";
@@ -126,8 +122,8 @@ class Item_func_vtq_trx_sees_eq :
   public Item_func_vtq_trx_sees
 {
 public:
-  Item_func_vtq_trx_sees_eq(THD *thd, Item* a, Item* b) :
-    Item_func_vtq_trx_sees(thd, a, b)
+  Item_func_vtq_trx_sees_eq(THD *thd, handlerton *hton, Item* a, Item* b) :
+    Item_func_vtq_trx_sees(thd, hton, a, b)
   {
     accept_eq= true;
   }
