@@ -2540,6 +2540,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       cursor_manager->add_cursor(fc);
       break;
     }
+    case Item_sum::PERCENTILE_CONT_FUNC:
     case Item_sum::PERCENTILE_DISC_FUNC:
     {
       fc= new Frame_unbounded_preceding(thd,

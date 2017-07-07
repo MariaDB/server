@@ -10723,7 +10723,9 @@ inverse_distribution_function:
 inverse_distribution_function_def:
          PERCENTILE_CONT_SYM '(' expr ')'
        {
-         //Not yet started implementing
+          $$= new (thd->mem_root) Item_sum_percentile_cont(thd, $3);
+          if ($$ == NULL)
+            MYSQL_YYABORT;
        }
        | PERCENTILE_DISC_SYM '(' expr ')'
        {

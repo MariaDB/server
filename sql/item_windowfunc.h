@@ -646,7 +646,7 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
 
   ulonglong get_row_number()
   {
-    return current_row_count_;
+    return current_row_count_ ;
   }
 
  private:
@@ -774,10 +774,14 @@ public:
     if (first_call)
     {
       prev_value= arg->val_real();
+      if (prev_value >1 || prev_value < 0)
+      {
+        return true;
+      }
       first_call= false;
     }
 
-    if(prev_value !=  arg->val_real() || prev_value >1 || prev_value < 0)
+    if(prev_value !=  arg->val_real())
     {
       // TODO(varun) need to add an error here , check the MDEV-12985 for the information
       return true;
@@ -838,6 +842,159 @@ private:
   bool val_calculated;
   bool first_call;
   double prev_value;
+  Item *order_item;
+};
+
+class Item_sum_percentile_cont : public Item_sum_cume_dist,
+                                 public Type_handler_hybrid_field_type
+{
+public:
+  Item_sum_percentile_cont(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
+                           Type_handler_hybrid_field_type(&type_handler_double),
+                           floor_value(NULL), ceil_value(NULL), first_call(TRUE),prev_value(0),
+                           ceil_val_calculated(FALSE), floor_val_calculated(FALSE), order_item(NULL){}
+
+  double val_real()
+  {
+    if (get_row_count() == 0 || get_arg(0)->is_null())
+    {
+      null_value= true;
+      return 0;
+    }
+    null_value= false;
+    double val= 1 + prev_value * (get_row_count()-1);
+
+    /*
+      Applying the formula to get the value
+      If (CRN = FRN = RN) then the result is (value of expression from row at RN)
+      Otherwise the result is
+      (CRN - RN) * (value of expression for row at FRN) +
+      (RN - FRN) * (value of expression for row at CRN)
+    */
+
+    if(ceil(val) == floor(val))
+      return floor_value->val_real();
+
+    double ret_val=  ((val - floor(val)) * ceil_value->val_real()) +
+                  ((ceil(val) - val) * floor_value->val_real());
+
+    return ret_val;
+
+  }
+  longlong val_int()
+  {
+    if (get_row_count() == 0 || get_arg(0)->is_null())
+    {
+      null_value= true;
+      return 0;
+    }
+    null_value= false;
+    return 0;
+  }
+
+  my_decimal* val_decimal(my_decimal* dec)
+  {
+    if (get_row_count() == 0 || get_arg(0)->is_null())
+    {
+      null_value= true;
+      return 0;
+      return 0;
+    }
+    null_value= false;
+    return ceil_value->val_decimal(dec);
+  }
+
+  bool add()
+  {
+    Item *arg = get_arg(0);
+    if (arg->is_null())
+      return true;
+
+    if (first_call)
+    {
+      first_call= false;
+      prev_value= arg->val_real();
+      if (prev_value >1 || prev_value < 0)
+      {
+        // TODO(varun) need to add an error here , check the MDEV-12985 for the information
+        return true;
+      }
+    }
+
+    if (prev_value !=  arg->val_real())
+    {
+      // TODO(varun) need to add an error here , check the MDEV-12985 for the information
+      return true;
+    }
+
+    if (!floor_val_calculated)
+    {
+      floor_value->store(order_item);
+      floor_value->cache_value();
+      if (floor_value->null_value)
+       return false;
+    }
+    if (floor_val_calculated && !ceil_val_calculated)
+    {
+      ceil_value->store(order_item);
+      ceil_value->cache_value();
+      if (ceil_value->null_value)
+       return false;
+    }
+
+    Item_sum_cume_dist::add();
+    double val= 1 + prev_value * (get_row_count()-1);
+
+    if (!floor_val_calculated && get_row_number() == floor(val))
+       floor_val_calculated= true;
+
+    if (!ceil_val_calculated && get_row_number() == ceil(val))
+       ceil_val_calculated= true;
+    return false;
+  }
+
+  enum Sumfunctype sum_func() const
+  {
+    return PERCENTILE_DISC_FUNC;
+  }
+
+  void clear()
+  {
+    first_call= true;
+    floor_value->clear();
+    ceil_value->clear();
+    floor_val_calculated= false;
+    ceil_val_calculated= false;
+    Item_sum_cume_dist::clear();
+  }
+
+  const char*func_name() const
+  {
+    return "percentile_cont";
+  }
+  void update_field() {}
+  void set_type_handler(Window_spec *window_spec);
+  const Type_handler *type_handler() const
+  {return Type_handler_hybrid_field_type::type_handler();}
+
+  void fix_length_and_dec()
+  {
+    decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
+                    // requires.
+  }
+
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_percentile_cont>(thd, mem_root, this); }
+  void setup_window_func(THD *thd, Window_spec *window_spec);
+  void setup_hybrid(THD *thd, Item *item);
+
+private:
+  Item_cache *floor_value;
+  Item_cache *ceil_value;
+  bool first_call;
+  double prev_value;
+  bool ceil_val_calculated;
+  bool floor_val_calculated;
   Item *order_item;
 };
 

@@ -117,6 +117,12 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
       my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func()->func_name());
       return true;
     }
+    /*switch(window_spec->order_list->firt->item[0]->type())
+    {
+      case INT_TYPE:
+      default:
+       break;
+    }*/
   }
 
   /*
@@ -213,6 +219,21 @@ void Item_sum_percentile_disc::setup_window_func(THD *thd, Window_spec *window_s
     return;
   value->setup(thd, order_item);
   value->store(order_item);
+}
+
+void Item_sum_percentile_cont::setup_window_func(THD *thd, Window_spec *window_spec)
+{
+  order_item= window_spec->order_list->first->item[0];
+  //set_handler_by_cmp_type(order_item->result_type());
+  if (!(ceil_value= order_item->get_cache(thd)))
+    return;
+  ceil_value->setup(thd, order_item);
+  ceil_value->store(order_item);
+
+  if (!(floor_value= order_item->get_cache(thd)))
+    return;
+  floor_value->setup(thd, order_item);
+  floor_value->store(order_item);
 }
 
 bool Item_sum_dense_rank::add()
