@@ -2304,16 +2304,19 @@ ha_myisam::check_if_supported_inplace_alter(TABLE *new_table,
 {
   DBUG_ENTER("ha_myisam::check_if_supported_inplace_alter");
 
-  const uint readd_index= Alter_inplace_info::ADD_INDEX |
+  const Alter_inplace_info::HA_ALTER_FLAGS readd_index=
+                          Alter_inplace_info::ADD_INDEX |
                           Alter_inplace_info::DROP_INDEX;
-  const uint readd_unique= Alter_inplace_info::ADD_UNIQUE_INDEX |
-                           Alter_inplace_info::DROP_UNIQUE_INDEX;
-  const uint readd_pk= Alter_inplace_info::ADD_PK_INDEX |
-                       Alter_inplace_info::DROP_PK_INDEX;
+  const Alter_inplace_info::HA_ALTER_FLAGS readd_unique=
+                          Alter_inplace_info::ADD_UNIQUE_INDEX |
+                          Alter_inplace_info::DROP_UNIQUE_INDEX;
+  const Alter_inplace_info::HA_ALTER_FLAGS readd_pk=
+                          Alter_inplace_info::ADD_PK_INDEX |
+                          Alter_inplace_info::DROP_PK_INDEX;
 
-  const uint op= alter_info->handler_flags;
+  const  Alter_inplace_info::HA_ALTER_FLAGS op= alter_info->handler_flags;
 
-  if (alter_info->handler_flags & Alter_inplace_info::ALTER_COLUMN_VCOL)
+  if (op & Alter_inplace_info::ALTER_COLUMN_VCOL)
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   /*
@@ -2374,7 +2377,8 @@ bool ha_myisam::check_if_incompatible_data(HA_CREATE_INFO *create_info,
 {
   uint options= table->s->db_options_in_use;
 
-  if (create_info->auto_increment_value != stats.auto_increment_value ||
+  if ((create_info->used_fields & HA_CREATE_USED_AUTO &&
+       create_info->auto_increment_value != stats.auto_increment_value) ||
       create_info->data_file_name != data_file_name ||
       create_info->index_file_name != index_file_name ||
       table_changes == IS_EQUAL_NO ||

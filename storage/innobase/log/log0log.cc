@@ -549,23 +549,6 @@ function_exit:
 }
 
 /******************************************************//**
-Calculates the data capacity of a log group, when the log file headers are not
-included.
-@return capacity in bytes */
-static
-lsn_t
-log_group_get_capacity(
-/*===================*/
-	const log_group_t*	group)	/*!< in: log group */
-{
-	/* The lsn parameters are updated while holding both the mutexes
-	and it is ok to have either of them while reading */
-	ut_ad(log_mutex_own() || log_write_mutex_own());
-
-	return((group->file_size - LOG_FILE_HDR_SIZE) * group->n_files);
-}
-
-/******************************************************//**
 Calculates the offset within a log group, when the log file headers are not
 included.
 @return size offset (<= offset) */
@@ -628,7 +611,7 @@ log_group_calc_lsn_offset(
 	gr_lsn_size_offset = log_group_calc_size_offset(
 		group->lsn_offset, group);
 
-	group_size = log_group_get_capacity(group);
+	group_size = group->capacity();
 
 	if (lsn >= gr_lsn) {
 
@@ -1917,6 +1900,12 @@ loop:
 			os_event_set(dict_stats_event);
 		} else {
 			ut_ad(!srv_dict_stats_thread_active);
+		}
+		if (recv_sys && recv_sys->flush_start) {
+			/* This is in case recv_writer_thread was never
+			started, or buf_flush_page_cleaner_coordinator
+			failed to notice its termination. */
+			os_event_set(recv_sys->flush_start);
 		}
 	}
 	os_thread_sleep(100000);

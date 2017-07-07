@@ -24,8 +24,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 #include <my_base.h>
 
-#include <univ.i>
 #include <fil0fil.h>
+#include <fsp0fsp.h>
 #include <srv0start.h>
 #include <trx0sys.h>
 
@@ -63,7 +63,7 @@ xb_get_relative_path(
 	prev = NULL;
 	cur = path;
 
-	while ((next = strchr(cur, SRV_PATH_SEPARATOR)) != NULL) {
+	while ((next = strchr(cur, OS_PATH_SEPARATOR)) != NULL) {
 
 		prev = cur;
 		cur = next + 1;
@@ -96,7 +96,7 @@ xb_fil_node_close_file(
 	ut_a(node->n_pending_flushes == 0);
 	ut_a(!node->being_extended);
 
-	if (!node->open) {
+	if (!node->is_open()) {
 
 		mutex_exit(&fil_system->mutex);
 
@@ -106,19 +106,19 @@ xb_fil_node_close_file(
 	ret = os_file_close(node->handle);
 	ut_a(ret);
 
-	node->open = FALSE;
+	node->handle = OS_FILE_CLOSED;
 
 	ut_a(fil_system->n_open > 0);
 	fil_system->n_open--;
 	fil_n_file_opened--;
 
-	if (node->space->purpose == FIL_TABLESPACE &&
+	if (node->space->purpose == FIL_TYPE_TABLESPACE &&
 	    fil_is_user_tablespace_id(node->space->id)) {
 
 		ut_a(UT_LIST_GET_LEN(fil_system->LRU) > 0);
 
 		/* The node is in the LRU list, remove it */
-		UT_LIST_REMOVE(LRU, fil_system->LRU, node);
+		UT_LIST_REMOVE(fil_system->LRU, node);
 	}
 
 	mutex_exit(&fil_system->mutex);
@@ -137,10 +137,7 @@ xb_fil_cur_open(
 	fil_node_t*	node,		/*!< in: source tablespace node */
 	uint		thread_n)	/*!< thread number for diagnostics */
 {
-	ulint	page_size;
-	ulint	page_size_shift;
-	ulint	zip_size;
-	ibool	success;
+	bool	success;
 
 	/* Initialize these first so xb_fil_cur_close() handles them correctly
 	in case of error */
@@ -148,27 +145,26 @@ xb_fil_cur_open(
 	cursor->node = NULL;
 
 	cursor->space_id = node->space->id;
-	cursor->is_system = !fil_is_user_tablespace_id(node->space->id);
 
 	strncpy(cursor->abs_path, node->name, sizeof(cursor->abs_path));
 
 	/* Get the relative path for the destination tablespace name, i.e. the
 	one that can be appended to the backup root directory. Non-system
-	tablespaces may have absolute paths for remote tablespaces in MySQL
-	5.6+. We want to make "local" copies for the backup. */
+	tablespaces may have absolute paths for DATA DIRECTORY.
+	We want to make "local" copies for the backup. */
 	strncpy(cursor->rel_path,
-		xb_get_relative_path(cursor->abs_path, cursor->is_system),
+		xb_get_relative_path(cursor->abs_path, cursor->is_system()),
 		sizeof(cursor->rel_path));
 
 	/* In the backup mode we should already have a tablespace handle created
-	by fil_load_single_table_tablespace() unless it is a system
+	by fil_ibd_load() unless it is a system
 	tablespace. Otherwise we open the file here. */
-	if (cursor->is_system || !srv_backup_mode || srv_close_files) {
-		node->handle =
-			os_file_create_simple_no_error_handling(0, node->name,
-								OS_FILE_OPEN,
-								OS_FILE_READ_ONLY,
-								&success,0);
+	if (cursor->is_system() || srv_operation == SRV_OPERATION_RESTORE
+	    || xb_close_files) {
+		node->handle = os_file_create_simple_no_error_handling(
+			0, node->name,
+			OS_FILE_OPEN,
+			OS_FILE_READ_ALLOW_DELETE, true, &success);
 		if (!success) {
 			/* The following call prints an error message */
 			os_file_get_last_error(TRUE);
@@ -181,22 +177,20 @@ xb_fil_cur_open(
 		}
 		mutex_enter(&fil_system->mutex);
 
-		node->open = TRUE;
-
 		fil_system->n_open++;
 		fil_n_file_opened++;
 
-		if (node->space->purpose == FIL_TABLESPACE &&
+		if (node->space->purpose == FIL_TYPE_TABLESPACE &&
 		    fil_is_user_tablespace_id(node->space->id)) {
 
 			/* Put the node to the LRU list */
-			UT_LIST_ADD_FIRST(LRU, fil_system->LRU, node);
+			UT_LIST_ADD_FIRST(fil_system->LRU, node);
 		}
 
 		mutex_exit(&fil_system->mutex);
 	}
 
-	ut_ad(node->open);
+	ut_ad(node->is_open());
 
 	cursor->node = node;
 	cursor->file = node->handle;
@@ -210,8 +204,8 @@ xb_fil_cur_open(
 		return(XB_FIL_CUR_ERROR);
 	}
 
-	if (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
-	    || srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC) {
+	if (srv_file_flush_method == SRV_O_DIRECT
+	    || srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC) {
 
 		os_file_set_nocache(cursor->file, node->name, "OPEN");
 	}
@@ -219,32 +213,29 @@ xb_fil_cur_open(
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
 	/* Determine the page size */
-	zip_size = xb_get_zip_size(cursor->file);
-	if (zip_size == ULINT_UNDEFINED) {
+	ulint	flags = xb_get_space_flags(cursor->file);
+	if (flags == ULINT_UNDEFINED) {
 		xb_fil_cur_close(cursor);
 		return(XB_FIL_CUR_SKIP);
-	} else if (zip_size) {
-		page_size = zip_size;
-		page_size_shift = get_bit_shift(page_size);
-		msg("[%02u] %s is compressed with page size = "
-		    "%lu bytes\n", thread_n, node->name, page_size);
-		if (page_size_shift < 10 || page_size_shift > 14) {
-			msg("[%02u] xtrabackup: Error: Invalid "
-			    "page size: %lu.\n", thread_n, page_size);
-			ut_error;
-		}
-	} else {
-		page_size = UNIV_PAGE_SIZE;
-		page_size_shift = UNIV_PAGE_SIZE_SHIFT;
 	}
+
+	if (!fsp_flags_is_valid(flags, cursor->space_id)) {
+		ulint cflags = fsp_flags_convert_from_101(flags);
+		if (cflags == ULINT_UNDEFINED) {
+			msg("[%02u] xtrabackup: Error: Invalid "
+			    "tablespace flags: %x.\n", thread_n, uint(flags));
+			return(XB_FIL_CUR_SKIP);
+		}
+		flags = cflags;
+	}
+
+	const page_size_t page_size(flags);
 	cursor->page_size = page_size;
-	cursor->page_size_shift = page_size_shift;
-	cursor->zip_size = zip_size;
 
 	/* Allocate read buffer */
-	cursor->buf_size = XB_FIL_CUR_PAGES * page_size;
+	cursor->buf_size = XB_FIL_CUR_PAGES * page_size.physical();
 	cursor->orig_buf = static_cast<byte *>
-		(ut_malloc(cursor->buf_size + UNIV_PAGE_SIZE));
+		(malloc(cursor->buf_size + UNIV_PAGE_SIZE));
 	cursor->buf = static_cast<byte *>
 		(ut_align(cursor->orig_buf, UNIV_PAGE_SIZE));
 
@@ -254,7 +245,8 @@ xb_fil_cur_open(
 	cursor->buf_page_no = 0;
 	cursor->thread_n = thread_n;
 
-	cursor->space_size = (ulint)(cursor->statinfo.st_size / page_size);
+	cursor->space_size = (ulint)(cursor->statinfo.st_size
+				     / page_size.physical());
 
 	cursor->read_filter = read_filter;
 	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor,
@@ -282,6 +274,8 @@ xb_fil_cur_read(
 	xb_fil_cur_result_t	ret;
 	ib_int64_t		offset;
 	ib_int64_t		to_read;
+	const ulint		page_size = cursor->page_size.physical();
+	xb_ad(!cursor->is_system() || page_size == UNIV_PAGE_SIZE);
 
 	cursor->read_filter->get_next_batch(&cursor->read_filter_ctxt,
 					    &offset, &to_read);
@@ -296,10 +290,10 @@ xb_fil_cur_read(
 
 	xb_a(to_read > 0 && to_read <= 0xFFFFFFFFLL);
 
-	if (to_read % cursor->page_size != 0 &&
-	    offset + to_read == cursor->statinfo.st_size) {
+	if ((to_read & ~(page_size - 1))
+	    && offset + to_read == cursor->statinfo.st_size) {
 
-		if (to_read < (ib_int64_t) cursor->page_size) {
+		if (to_read < (ib_int64_t) page_size) {
 			msg("[%02u] xtrabackup: Warning: junk at the end of "
 			    "%s:\n", cursor->thread_n, cursor->abs_path);
 			msg("[%02u] xtrabackup: Warning: offset = %llu, "
@@ -312,12 +306,12 @@ xb_fil_cur_read(
 		}
 
 		to_read = (ib_int64_t) (((ulint) to_read) &
-					~(cursor->page_size - 1));
+					~(page_size - 1));
 	}
 
-	xb_a(to_read % cursor->page_size == 0);
+	xb_a((to_read & (page_size - 1)) == 0);
 
-	npages = (ulint) (to_read >> cursor->page_size_shift);
+	npages = (ulint) (to_read / cursor->page_size.physical());
 
 	retry_count = 10;
 	ret = XB_FIL_CUR_SUCCESS;
@@ -328,59 +322,59 @@ read_retry:
 	cursor->buf_read = 0;
 	cursor->buf_npages = 0;
 	cursor->buf_offset = offset;
-	cursor->buf_page_no = (ulint)(offset >> cursor->page_size_shift);
+	cursor->buf_page_no = (ulint)(offset / cursor->page_size.physical());
 
-	success = os_file_read(cursor->file, cursor->buf, offset,
-			       (ulint)to_read);
+	FilSpace space(cursor->space_id);
+
+	if (!space()) {
+		return(XB_FIL_CUR_ERROR);
+	}
+
+	success = os_file_read(IORequestRead,
+			       cursor->file, cursor->buf, offset,
+			       (ulint) to_read);
 	if (!success) {
 		return(XB_FIL_CUR_ERROR);
 	}
 
-	fil_system_enter();
-	fil_space_t *space = fil_space_get_by_id(cursor->space_id);
-	fil_system_exit();
-
 	/* check pages for corruption and re-read if necessary. i.e. in case of
 	partially written pages */
 	for (page = cursor->buf, i = 0; i < npages;
-	     page += cursor->page_size, i++) {
-	ib_int64_t page_no = cursor->buf_page_no + i;
+	     page += page_size, i++) {
+		ulint page_no = cursor->buf_page_no + i;
 
-		bool checksum_ok = fil_space_verify_crypt_checksum(page, cursor->zip_size,space, (ulint)page_no);
-
-		if (!checksum_ok &&
-		    buf_page_is_corrupted(true, page, cursor->zip_size,space)) {
-
-			if (cursor->is_system &&
-			    page_no >= (ib_int64_t)FSP_EXTENT_SIZE &&
-			    page_no < (ib_int64_t) FSP_EXTENT_SIZE * 3) {
-				/* skip doublewrite buffer pages */
-				xb_a(cursor->page_size == UNIV_PAGE_SIZE);
+		if (cursor->space_id == TRX_SYS_SPACE &&
+		    page_no >= FSP_EXTENT_SIZE &&
+		    page_no < FSP_EXTENT_SIZE * 3) {
+			/* We ignore the doublewrite buffer pages */
+		} else if (!fil_space_verify_crypt_checksum(
+				   page, cursor->page_size, space->id, page_no)
+			   && buf_page_is_corrupted(true, page,
+						    cursor->page_size,
+						    space)) {
+			retry_count--;
+			if (retry_count == 0) {
 				msg("[%02u] xtrabackup: "
-				    "Page %lu is a doublewrite buffer page, "
-				    "skipping.\n", cursor->thread_n, page_no);
-			} else {
-				retry_count--;
-				if (retry_count == 0) {
-					msg("[%02u] xtrabackup: "
-					    "Error: failed to read page after "
-					    "10 retries. File %s seems to be "
-					    "corrupted.\n", cursor->thread_n,
-					    cursor->abs_path);
-					ret = XB_FIL_CUR_ERROR;
-					break;
-				}
+				    "Error: failed to read page after "
+				    "10 retries. File %s seems to be "
+				    "corrupted.\n", cursor->thread_n,
+				    cursor->abs_path);
+				ret = XB_FIL_CUR_ERROR;
+				break;
+			}
+
+			if (retry_count == 9) {
 				msg("[%02u] xtrabackup: "
 				    "Database page corruption detected at page "
-				    "%lu, retrying...\n", cursor->thread_n,
-				    page_no);
-
-				os_thread_sleep(100000);
-
-				goto read_retry;
+				    ULINTPF ", retrying...\n",
+				    cursor->thread_n, page_no);
 			}
+
+			os_thread_sleep(100000);
+
+			goto read_retry;
 		}
-		cursor->buf_read += cursor->page_size;
+		cursor->buf_read += page_size;
 		cursor->buf_npages++;
 	}
 
@@ -399,11 +393,10 @@ xb_fil_cur_close(
 {
 	cursor->read_filter->deinit(&cursor->read_filter_ctxt);
 
-	if (cursor->orig_buf != NULL) {
-		ut_free(cursor->orig_buf);
-	}
+	free(cursor->orig_buf);
+
 	if (cursor->node != NULL) {
 		xb_fil_node_close_file(cursor->node);
-		cursor->file = XB_FILE_UNDEFINED;
+		cursor->file = OS_FILE_CLOSED;
 	}
 }

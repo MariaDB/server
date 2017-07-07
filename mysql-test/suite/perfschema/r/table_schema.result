@@ -246,8 +246,8 @@ def	performance_schema	events_statements_summary_by_digest	SUM_SORT_ROWS	24	NULL
 def	performance_schema	events_statements_summary_by_digest	SUM_SORT_SCAN	25	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references		NEVER	NULL
 def	performance_schema	events_statements_summary_by_digest	SUM_NO_INDEX_USED	26	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references		NEVER	NULL
 def	performance_schema	events_statements_summary_by_digest	SUM_NO_GOOD_INDEX_USED	27	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references		NEVER	NULL
-def	performance_schema	events_statements_summary_by_digest	FIRST_SEEN	28	0000-00-00 00:00:00	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
-def	performance_schema	events_statements_summary_by_digest	LAST_SEEN	29	0000-00-00 00:00:00	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
+def	performance_schema	events_statements_summary_by_digest	FIRST_SEEN	28	'0000-00-00 00:00:00'	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
+def	performance_schema	events_statements_summary_by_digest	LAST_SEEN	29	'0000-00-00 00:00:00'	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
 def	performance_schema	events_statements_summary_by_host_by_event_name	HOST	1	NULL	YES	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(60)			select,insert,update,references		NEVER	NULL
 def	performance_schema	events_statements_summary_by_host_by_event_name	EVENT_NAME	2	NULL	NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)			select,insert,update,references		NEVER	NULL
 def	performance_schema	events_statements_summary_by_host_by_event_name	COUNT_STAR	3	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references		NEVER	NULL
@@ -529,10 +529,10 @@ def	performance_schema	host_cache	COUNT_DEFAULT_DATABASE_ERRORS	22	NULL	NO	bigin
 def	performance_schema	host_cache	COUNT_INIT_CONNECT_ERRORS	23	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(20)			select,insert,update,references		NEVER	NULL
 def	performance_schema	host_cache	COUNT_LOCAL_ERRORS	24	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(20)			select,insert,update,references		NEVER	NULL
 def	performance_schema	host_cache	COUNT_UNKNOWN_ERRORS	25	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(20)			select,insert,update,references		NEVER	NULL
-def	performance_schema	host_cache	FIRST_SEEN	26	0000-00-00 00:00:00	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
-def	performance_schema	host_cache	LAST_SEEN	27	0000-00-00 00:00:00	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
-def	performance_schema	host_cache	FIRST_ERROR_SEEN	28	0000-00-00 00:00:00	YES	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
-def	performance_schema	host_cache	LAST_ERROR_SEEN	29	0000-00-00 00:00:00	YES	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
+def	performance_schema	host_cache	FIRST_SEEN	26	'0000-00-00 00:00:00'	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
+def	performance_schema	host_cache	LAST_SEEN	27	'0000-00-00 00:00:00'	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
+def	performance_schema	host_cache	FIRST_ERROR_SEEN	28	'0000-00-00 00:00:00'	YES	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
+def	performance_schema	host_cache	LAST_ERROR_SEEN	29	'0000-00-00 00:00:00'	YES	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
 def	performance_schema	mutex_instances	NAME	1	NULL	NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)			select,insert,update,references		NEVER	NULL
 def	performance_schema	mutex_instances	OBJECT_INSTANCE_BEGIN	2	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references		NEVER	NULL
 def	performance_schema	mutex_instances	LOCKED_BY_THREAD_ID	3	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references		NEVER	NULL
@@ -560,19 +560,19 @@ def	performance_schema	session_connect_attrs	PROCESSLIST_ID	1	NULL	NO	int	NULL	N
 def	performance_schema	session_connect_attrs	ATTR_NAME	2	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_bin	varchar(32)			select,insert,update,references		NEVER	NULL
 def	performance_schema	session_connect_attrs	ATTR_VALUE	3	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_bin	varchar(1024)			select,insert,update,references		NEVER	NULL
 def	performance_schema	session_connect_attrs	ORDINAL_POSITION	4	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL
-def	performance_schema	setup_actors	HOST	1	%	NO	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(60)			select,insert,update,references		NEVER	NULL
-def	performance_schema	setup_actors	USER	2	%	NO	char	16	48	NULL	NULL	NULL	utf8	utf8_bin	char(16)			select,insert,update,references		NEVER	NULL
-def	performance_schema	setup_actors	ROLE	3	%	NO	char	16	48	NULL	NULL	NULL	utf8	utf8_bin	char(16)			select,insert,update,references		NEVER	NULL
+def	performance_schema	setup_actors	HOST	1	'%'	NO	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(60)			select,insert,update,references		NEVER	NULL
+def	performance_schema	setup_actors	USER	2	'%'	NO	char	16	48	NULL	NULL	NULL	utf8	utf8_bin	char(16)			select,insert,update,references		NEVER	NULL
+def	performance_schema	setup_actors	ROLE	3	'%'	NO	char	16	48	NULL	NULL	NULL	utf8	utf8_bin	char(16)			select,insert,update,references		NEVER	NULL
 def	performance_schema	setup_consumers	NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select,insert,update,references		NEVER	NULL
 def	performance_schema	setup_consumers	ENABLED	2	NULL	NO	enum	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	enum('YES','NO')			select,insert,update,references		NEVER	NULL
 def	performance_schema	setup_instruments	NAME	1	NULL	NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)			select,insert,update,references		NEVER	NULL
 def	performance_schema	setup_instruments	ENABLED	2	NULL	NO	enum	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	enum('YES','NO')			select,insert,update,references		NEVER	NULL
 def	performance_schema	setup_instruments	TIMED	3	NULL	NO	enum	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	enum('YES','NO')			select,insert,update,references		NEVER	NULL
-def	performance_schema	setup_objects	OBJECT_TYPE	1	TABLE	NO	enum	5	15	NULL	NULL	NULL	utf8	utf8_general_ci	enum('TABLE')			select,insert,update,references		NEVER	NULL
-def	performance_schema	setup_objects	OBJECT_SCHEMA	2	%	YES	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select,insert,update,references		NEVER	NULL
-def	performance_schema	setup_objects	OBJECT_NAME	3	%	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select,insert,update,references		NEVER	NULL
-def	performance_schema	setup_objects	ENABLED	4	YES	NO	enum	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	enum('YES','NO')			select,insert,update,references		NEVER	NULL
-def	performance_schema	setup_objects	TIMED	5	YES	NO	enum	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	enum('YES','NO')			select,insert,update,references		NEVER	NULL
+def	performance_schema	setup_objects	OBJECT_TYPE	1	'TABLE'	NO	enum	5	15	NULL	NULL	NULL	utf8	utf8_general_ci	enum('TABLE')			select,insert,update,references		NEVER	NULL
+def	performance_schema	setup_objects	OBJECT_SCHEMA	2	'%'	YES	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select,insert,update,references		NEVER	NULL
+def	performance_schema	setup_objects	OBJECT_NAME	3	'%'	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select,insert,update,references		NEVER	NULL
+def	performance_schema	setup_objects	ENABLED	4	'YES'	NO	enum	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	enum('YES','NO')			select,insert,update,references		NEVER	NULL
+def	performance_schema	setup_objects	TIMED	5	'YES'	NO	enum	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	enum('YES','NO')			select,insert,update,references		NEVER	NULL
 def	performance_schema	setup_timers	NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select,insert,update,references		NEVER	NULL
 def	performance_schema	setup_timers	TIMER_NAME	2	NULL	NO	enum	11	33	NULL	NULL	NULL	utf8	utf8_general_ci	enum('CYCLE','NANOSECOND','MICROSECOND','MILLISECOND','TICK')			select,insert,update,references		NEVER	NULL
 def	performance_schema	socket_instances	EVENT_NAME	1	NULL	NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)			select,insert,update,references		NEVER	NULL

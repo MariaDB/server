@@ -45,7 +45,6 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <mysql.h>
 #include <my_dir.h>
 #include <ut0mem.h>
-#include <os0sync.h>
 #include <os0file.h>
 #include <srv0start.h>
 #include <algorithm>
@@ -70,7 +69,6 @@ using std::max;
 my_bool opt_ibx_version = FALSE;
 my_bool opt_ibx_help = FALSE;
 my_bool opt_ibx_apply_log = FALSE;
-my_bool opt_ibx_redo_only = FALSE;
 my_bool opt_ibx_incremental = FALSE;
 my_bool opt_ibx_notimestamp = FALSE;
 
@@ -95,8 +93,6 @@ char *opt_ibx_host = NULL;
 char *opt_ibx_defaults_group = NULL;
 char *opt_ibx_socket = NULL;
 uint opt_ibx_port = 0;
-char *opt_ibx_login_path = NULL;
-
 
 ulong opt_ibx_lock_wait_query_type;
 ulong opt_ibx_kill_long_query_type;
@@ -226,20 +222,10 @@ static struct my_option ibx_long_options[] =
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"apply-log", OPT_APPLY_LOG, "Prepare a backup in BACKUP-DIR by "
-	"applying the transaction log file named \"xtrabackup_logfile\" "
-	"located in the same directory. Also, create new transaction logs. "
+	"applying the redo log 'ib_logfile0' and creating new redo log. "
 	"The InnoDB configuration is read from the file \"backup-my.cnf\".",
 	(uchar*) &opt_ibx_apply_log, (uchar*) &opt_ibx_apply_log,
 	0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-
-	{"redo-only", OPT_REDO_ONLY, "This option should be used when "
-	 "preparing the base full backup and when merging all incrementals "
-	 "except the last one. This forces xtrabackup to skip the \"rollback\" "
-	 "phase and do a \"redo\" only. This is necessary if the backup will "
-	 "have incremental changes applied to it later. See the xtrabackup "
-	 "documentation for details.",
-	 (uchar *) &opt_ibx_redo_only, (uchar *) &opt_ibx_redo_only, 0,
-	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"copy-back", OPT_COPY_BACK, "Copy all the files in a previously made "
 	 "backup from the backup directory to their original locations.",
@@ -682,7 +668,7 @@ innobackupex [--compress] [--compress-threads=NUMBER-OF-THREADS] [--compress-chu
 \n\
 innobackupex --apply-log [--use-memory=B]\n\
              [--defaults-file=MY.CNF]\n\
-             [--export] [--redo-only] [--ibbackup=IBBACKUP-BINARY]\n\
+             [--export] [--ibbackup=IBBACKUP-BINARY]\n\
              BACKUP-DIR\n\
 \n\
 innobackupex --copy-back [--defaults-file=MY.CNF] [--defaults-group=GROUP-NAME] BACKUP-DIR\n\
@@ -710,7 +696,7 @@ process.\n\
 \n\
 The --apply-log command prepares a backup for starting a MySQL\n\
 server on the backup. This command recovers InnoDB data files as specified\n\
-in BACKUP-DIR/backup-my.cnf using BACKUP-DIR/xtrabackup_logfile,\n\
+in BACKUP-DIR/backup-my.cnf using BACKUP-DIR/ib_logfile0,\n\
 and creates new InnoDB log files as specified in BACKUP-DIR/backup-my.cnf.\n\
 The BACKUP-DIR should be the path to a backup directory created by\n\
 xtrabackup. This command runs xtrabackup as a child process, but it does not \n\
@@ -909,7 +895,6 @@ ibx_init()
 	opt_defaults_group = opt_ibx_defaults_group;
 	opt_socket = opt_ibx_socket;
 	opt_port = opt_ibx_port;
-	opt_login_path = opt_ibx_login_path;
 
 	opt_lock_wait_query_type = opt_ibx_lock_wait_query_type;
 	opt_kill_long_query_type = opt_ibx_kill_long_query_type;
@@ -980,9 +965,6 @@ ibx_init()
 	switch (ibx_mode) {
 	case IBX_MODE_APPLY_LOG:
 		xtrabackup_prepare = TRUE;
-		if (opt_ibx_redo_only) {
-			xtrabackup_apply_log_only = TRUE;
-		}
 		xtrabackup_target_dir = ibx_position_arg;
 		run = "apply-log";
 		break;

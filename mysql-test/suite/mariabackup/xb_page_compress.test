@@ -1,3 +1,5 @@
+#--source include/innodb_page_size.inc
+
 CREATE TABLE t1(c1 INT, b CHAR(20)) ENGINE=INNODB PAGE_COMPRESSED=1;
 
 DELIMITER //;
@@ -41,4 +43,3 @@ SELECT COUNT(*) FROM t1;
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1;
 rmdir $targetdir;
-

@@ -1,4 +1,5 @@
-source include/have_file_key_management.inc;
+#--source include/innodb_page_size.inc
+--source include/have_file_key_management.inc
 
 CREATE TABLE film_text (
 film_id SMALLINT NOT NULL,

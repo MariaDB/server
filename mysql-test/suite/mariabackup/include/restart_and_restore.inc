@@ -1,15 +1,9 @@
-let $_server_id= `SELECT @@server_id`;
 let $_datadir= `SELECT @@datadir`;
-let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect;
-exec echo "wait" > $_expect_file_name;
 echo # shutdown server;
-shutdown_server;
+--source include/shutdown_mysqld.inc
 echo # remove datadir;
 rmdir $_datadir;
 echo # xtrabackup move back;
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --copy-back --datadir=$_datadir --target-dir=$targetdir --parallel=2 --throttle=1;
 echo # restart server;
-exec echo "restart" > $_expect_file_name;
-enable_reconnect;
-source include/wait_until_connected_again.inc;
-disable_reconnect;
+--source include/start_mysqld.inc

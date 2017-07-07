@@ -15,7 +15,7 @@ INSERT INTO t1 VALUES (1), (2);
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="test">
 	<table_structure name="t1">
-		<field Field="a" Type="int(11)" Null="YES" Key="MUL" Extra="" Comment="" />
+		<field Field="a" Type="int(11)" Null="YES" Key="MUL" Default="NULL" Extra="" Comment="" />
 		<key Table="t1" Non_unique="1" Key_name="a" Seq_in_index="1" Column_name="a" Collation="A" Null="YES" Index_type="BTREE" Comment="" Index_comment="" />
 	</table_structure>
 	<table_data name="t1">
@@ -151,9 +151,9 @@ INSERT INTO t1 VALUES (1, "test", "tes"), (2, "TEST", "TES");
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="test">
 	<table_structure name="t1">
-		<field Field="a" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
-		<field Field="b" Type="text" Null="YES" Key="" Extra="" Comment="" />
-		<field Field="c" Type="varchar(3)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="a" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="b" Type="text" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="c" Type="varchar(3)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 	</table_structure>
 	<table_data name="t1">
 	<row>
@@ -179,7 +179,7 @@ INSERT INTO t1 VALUES ("1\""), ("\"2");
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="test">
 	<table_structure name="t1">
-		<field Field="a&quot;b&quot;" Type="char(2)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="a&quot;b&quot;" Type="char(2)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 	</table_structure>
 	<table_data name="t1">
 	<row>
@@ -1613,10 +1613,10 @@ CREATE TABLE `t2` (
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="mysqldump_test_db">
 	<table_structure name="t1">
-		<field Field="a" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="a" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 	</table_structure>
 	<table_structure name="t2">
-		<field Field="a" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="a" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 	</table_structure>
 </database>
 </mysqldump>
@@ -1624,10 +1624,10 @@ CREATE TABLE `t2` (
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="mysqldump_test_db">
 	<table_structure name="t1">
-		<field Field="a" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="a" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 	</table_structure>
 	<table_structure name="t2">
-		<field Field="a" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="a" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 	</table_structure>
 </database>
 </mysqldump>
@@ -3739,8 +3739,8 @@ INSERT INTO t1 VALUES(1,0xff00fef0);
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="test">
 	<table_structure name="t1">
-		<field Field="f1" Type="int(10)" Null="YES" Key="" Extra="" Comment="" />
-		<field Field="data" Type="mediumblob" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="f1" Type="int(10)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="data" Type="mediumblob" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 	</table_structure>
 	<table_data name="t1">
 	<row>
@@ -4681,7 +4681,7 @@ CREATE TABLE `comment_table` (i INT COMMENT 'FIELD COMMENT') COMMENT = 'TABLE CO
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="test">
 	<table_structure name="comment_table">
-		<field Field="i" Type="int(11)" Null="YES" Key="" Extra="" Comment="FIELD COMMENT" />
+		<field Field="i" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="FIELD COMMENT" />
 	</table_structure>
 	<table_data name="comment_table">
 	</table_data>
@@ -4778,8 +4778,8 @@ CREATE VIEW v2 AS SELECT * FROM t2;
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="BUG52792">
 	<table_structure name="t1">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
-		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="t1" Engine="MyISAM" Version="10" Row_format="Dynamic" Rows="3" Avg_row_length="20" Data_length="60" Max_data_length="281474976710655" Index_length="1024" Data_free="0" Create_time="--TIME--" Update_time="--TIME--" Collation="latin1_swedish_ci" Create_options="" Comment="" />
 	</table_structure>
 	<table_data name="t1">
@@ -4797,7 +4797,7 @@ CREATE VIEW v2 AS SELECT * FROM t2;
 	</row>
 	</table_data>
 	<table_structure name="t2">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="t2" Engine="MyISAM" Version="10" Row_format="Fixed" Rows="3" Avg_row_length="7" Data_length="21" Max_data_length="1970324836974591" Index_length="1024" Data_free="0" Create_time="--TIME--" Update_time="--TIME--" Collation="latin1_swedish_ci" Create_options="" Comment="" />
 	</table_structure>
 	<table_data name="t2">
@@ -4833,12 +4833,12 @@ END
 		</trigger>
 	</triggers>
 	<table_structure name="v1">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
-		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="v1" Comment="VIEW" />
 	</table_structure>
 	<table_structure name="v2">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="v2" Comment="VIEW" />
 	</table_structure>
 	<events>
@@ -4901,8 +4901,8 @@ END
 
  -->
 	<table_structure name="t1">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
-		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="t1" Engine="MyISAM" Version="10" Row_format="Dynamic" Rows="3" Avg_row_length="20" Data_length="60" Max_data_length="281474976710655" Index_length="1024" Data_free="0" Create_time="--TIME--" Update_time="--TIME--" Collation="latin1_swedish_ci" Create_options="" Comment="" />
 	</table_structure>
 <!-- 
@@ -4931,7 +4931,7 @@ END
 
  -->
 	<table_structure name="t2">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="t2" Engine="MyISAM" Version="10" Row_format="Fixed" Rows="3" Avg_row_length="7" Data_length="21" Max_data_length="1970324836974591" Index_length="1024" Data_free="0" Create_time="--TIME--" Update_time="--TIME--" Collation="latin1_swedish_ci" Create_options="" Comment="" />
 	</table_structure>
 <!-- 
@@ -4978,8 +4978,8 @@ END
 
  -->
 	<table_structure name="v1">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
-		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="v1" Comment="VIEW" />
 	</table_structure>
 <!-- 
@@ -4989,7 +4989,7 @@ END
 
  -->
 	<table_structure name="v2">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="v2" Comment="VIEW" />
 	</table_structure>
 <!-- 
@@ -5059,8 +5059,8 @@ connection conn_1;
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="BUG52792">
 	<table_structure name="t1">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
-		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="t1" Engine="MyISAM" Version="10" Row_format="Dynamic" Rows="3" Avg_row_length="20" Data_length="60" Max_data_length="281474976710655" Index_length="1024" Data_free="0" Create_time="--TIME--" Update_time="--TIME--" Collation="latin1_swedish_ci" Create_options="" Comment="" />
 	</table_structure>
 	<table_data name="t1">
@@ -5078,7 +5078,7 @@ connection conn_1;
 	</row>
 	</table_data>
 	<table_structure name="t2">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="t2" Engine="MyISAM" Version="10" Row_format="Fixed" Rows="3" Avg_row_length="7" Data_length="21" Max_data_length="1970324836974591" Index_length="1024" Data_free="0" Create_time="--TIME--" Update_time="--TIME--" Collation="latin1_swedish_ci" Create_options="" Comment="" />
 	</table_structure>
 	<table_data name="t2">
@@ -5114,12 +5114,12 @@ END
 		</trigger>
 	</triggers>
 	<table_structure name="v1">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
-		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="c2" Type="varchar(20)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="v1" Comment="VIEW" />
 	</table_structure>
 	<table_structure name="v2">
-		<field Field="c1" Type="int(11)" Null="YES" Key="" Extra="" Comment="" />
+		<field Field="c1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<options Name="v2" Comment="VIEW" />
 	</table_structure>
 	<events>

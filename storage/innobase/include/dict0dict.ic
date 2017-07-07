@@ -848,7 +848,7 @@ dict_tf_to_fsp_flags(ulint table_flags)
 		fsp_flags |= FSP_FLAGS_MASK_PAGE_COMPRESSION;
 	}
 
-	ut_a(fsp_flags_is_valid(fsp_flags));
+	ut_a(fsp_flags_is_valid(fsp_flags, false));
 
 	if (DICT_TF_HAS_DATA_DIR(table_flags)) {
 		fsp_flags |= 1U << FSP_FLAGS_MEM_DATA_DIR;

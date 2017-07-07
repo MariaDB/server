@@ -326,13 +326,12 @@ fil_space_get_by_id(
 	return(space);
 }
 
-/*******************************************************************//**
-Returns the table space by a given name, NULL if not found. */
-UNIV_INLINE
+/** Look up a tablespace.
+@param[in]	name	tablespace name
+@return	tablespace
+@retval	NULL	if not found */
 fil_space_t*
-fil_space_get_by_name(
-/*==================*/
-	const char*	name)	/*!< in: space name */
+fil_space_get_by_name(const char* name)
 {
 	fil_space_t*	space;
 	ulint		fold;
@@ -664,7 +663,7 @@ retry:
 		ut_free(buf2);
 		os_file_close(node->handle);
 
-		if (!fsp_flags_is_valid(flags)) {
+		if (!fsp_flags_is_valid(flags, space->id)) {
 			ulint cflags = fsp_flags_convert_from_101(flags);
 			if (cflags == ULINT_UNDEFINED) {
 				ib::error()
@@ -1602,7 +1601,7 @@ fil_space_create(
 	fil_space_t*	space;
 
 	ut_ad(fil_system);
-	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK));
+	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, id));
 	ut_ad(purpose == FIL_TYPE_LOG
 	      || srv_page_size == UNIV_PAGE_SIZE_ORIG || flags != 0);
 
@@ -2389,7 +2388,7 @@ fil_op_write_log(
 	ulint		len;
 
 	ut_ad(first_page_no == 0);
-	ut_ad(fsp_flags_is_valid(flags));
+	ut_ad(fsp_flags_is_valid(flags, space_id));
 
 	/* fil_name_parse() requires that there be at least one path
 	separator and that the file path end with ".ibd". */
@@ -3795,7 +3794,7 @@ fil_ibd_create(
 	ut_ad(!srv_read_only_mode);
 	ut_a(space_id < SRV_LOG_SPACE_FIRST_ID);
 	ut_a(size >= FIL_IBD_FILE_INITIAL_SIZE);
-	ut_a(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK));
+	ut_a(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, space_id));
 
 	/* Create the subdirectories in the path, if they are
 	not there already. */
@@ -4090,7 +4089,7 @@ fil_ibd_open(
 		return(DB_CORRUPTION);
 	}
 
-	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK));
+	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, id));
 	df_default.init(space_name, flags);
 	df_dict.init(space_name, flags);
 	df_remote.init(space_name, flags);
@@ -4738,7 +4737,7 @@ void
 fsp_flags_try_adjust(ulint space_id, ulint flags)
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(fsp_flags_is_valid(flags));
+	ut_ad(fsp_flags_is_valid(flags, space_id));
 
 	mtr_t	mtr;
 	mtr.start();

@@ -193,9 +193,9 @@ log_online_read_bitmap_page(
 	ut_a(bitmap_file->offset
 	     <= bitmap_file->size - MODIFIED_PAGE_BLOCK_SIZE);
 	ut_a(bitmap_file->offset % MODIFIED_PAGE_BLOCK_SIZE == 0);
-
-	success = os_file_read(bitmap_file->file, page, bitmap_file->offset,
-				  MODIFIED_PAGE_BLOCK_SIZE);
+	success = os_file_read(IORequestRead,
+			       bitmap_file->file, page, bitmap_file->offset,
+			       MODIFIED_PAGE_BLOCK_SIZE);
 
 	if (UNIV_UNLIKELY(!success)) {
 
@@ -355,8 +355,7 @@ log_online_setup_bitmap_file_range(
 
 	bitmap_files->files =
 		static_cast<log_online_bitmap_file_range_t::files_t *>
-		(ut_malloc(bitmap_files->count
-			   * sizeof(bitmap_files->files[0])));
+		(malloc(bitmap_files->count * sizeof(bitmap_files->files[0])));
 	memset(bitmap_files->files, 0,
 	       bitmap_files->count * sizeof(bitmap_files->files[0]));
 
@@ -426,9 +425,9 @@ log_online_setup_bitmap_file_range(
 /****************************************************************//**
 Open a bitmap file for reading.
 
-@return TRUE if opened successfully */
+@return whether opened successfully */
 static
-ibool
+bool
 log_online_open_bitmap_file_read_only(
 /*==================================*/
 	const char*			name,		/*!<in: bitmap file
@@ -438,23 +437,21 @@ log_online_open_bitmap_file_read_only(
 	log_online_bitmap_file_t*	bitmap_file)	/*!<out: opened bitmap
 							file */
 {
-	ibool	success	= FALSE;
+	bool	success	= false;
 
 	xb_ad(name[0] != '\0');
 
 	ut_snprintf(bitmap_file->name, FN_REFLEN, "%s%s", srv_data_home, name);
-	bitmap_file->file
-		= os_file_create_simple_no_error_handling(0, bitmap_file->name,
-							  OS_FILE_OPEN,
-							  OS_FILE_READ_ONLY,
-							  &success,0);
+	bitmap_file->file = os_file_create_simple_no_error_handling(
+		0, bitmap_file->name,
+		OS_FILE_OPEN, OS_FILE_READ_ONLY, true, &success);
 	if (UNIV_UNLIKELY(!success)) {
 
 		/* Here and below assume that bitmap file names do not
 		contain apostrophes, thus no need for ut_print_filename(). */
 		msg("InnoDB: Warning: error opening the changed page "
 		    "bitmap \'%s\'\n", bitmap_file->name);
-		return FALSE;
+		return success;
 	}
 
 	bitmap_file->size = os_file_get_size(bitmap_file->file);
@@ -465,7 +462,7 @@ log_online_open_bitmap_file_read_only(
 	posix_fadvise(bitmap_file->file, 0, 0, POSIX_FADV_NOREUSE);
 #endif
 
-	return TRUE;
+	return success;
 }
 
 /****************************************************************//**
@@ -909,6 +906,37 @@ xb_page_bitmap_setup_next_page(
 	return TRUE;
 }
 
+/** Find the node with the smallest key that greater than equal to search key.
+@param[in]	tree	red-black tree
+@param[in]	key	search key
+@return	node with the smallest greater-than-or-equal key
+@retval	NULL	if none was found */
+static
+const ib_rbt_node_t*
+rbt_lower_bound(const ib_rbt_t* tree, const void* key)
+{
+	ut_ad(!tree->cmp_arg);
+	const ib_rbt_node_t* ge = NULL;
+
+	for (const ib_rbt_node_t *node = tree->root->left;
+	     node != tree->nil; ) {
+		int	result = tree->compare(node->value, key);
+
+		if (result < 0) {
+			node = node->right;
+		} else {
+			ge = node;
+			if (result == 0) {
+				break;
+			}
+
+			node = node->left;
+		}
+	}
+
+	return(ge);
+}
+
 /****************************************************************//**
 Set up a new bitmap range iterator over a given space id changed
 pages in a given bitmap.
@@ -922,8 +950,7 @@ xb_page_bitmap_range_init(
 {
 	byte			search_page[MODIFIED_PAGE_BLOCK_SIZE];
 	xb_page_bitmap_range	*result
-		= static_cast<xb_page_bitmap_range *>
-		(ut_malloc(sizeof(*result)));
+		= static_cast<xb_page_bitmap_range *>(malloc(sizeof(*result)));
 
 	memset(result, 0, sizeof(*result));
 	result->bitmap = bitmap;
@@ -1014,5 +1041,5 @@ xb_page_bitmap_range_deinit(
 /*========================*/
 	xb_page_bitmap_range*	bitmap_range)	/*! in/out: bitmap range */
 {
-	ut_free(bitmap_range);
+	free(bitmap_range);
 }

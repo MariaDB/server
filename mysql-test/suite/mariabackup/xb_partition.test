@@ -1,3 +1,4 @@
+#--source include/innodb_page_size.inc
 --source include/have_partition.inc
 
 CREATE TABLE t1(a INT) ENGINE=InnoDB;
@@ -68,9 +69,8 @@ INSERT INTO isam_p VALUES (401), (501);
 
 --disable_result_log
 exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --incremental --no-timestamp --incremental-basedir=$targetdir/full $targetdir/inc;
-exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --apply-log --redo-only $targetdir/full;
-exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --apply-log --redo-only --incremental-dir=$targetdir/inc $targetdir/full;
 exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --apply-log $targetdir/full;
+exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --apply-log --incremental-dir=$targetdir/inc $targetdir/full;
 
 let $targetdir=$targetdir/full;
 -- source include/restart_and_restore.inc

@@ -841,7 +841,7 @@ then
     rm -f "${DATA}/${IST_FILE}"
 
     # May need xtrabackup_checkpoints later on
-    rm -f ${DATA}/xtrabackup_binary ${DATA}/xtrabackup_galera_info  ${DATA}/xtrabackup_logfile
+    rm -f ${DATA}/xtrabackup_binary ${DATA}/xtrabackup_galera_info  ${DATA}/ib_logfile0
 
     ADDR=${WSREP_SST_OPT_ADDR}
     if [ -z "${SST_PORT}" ]

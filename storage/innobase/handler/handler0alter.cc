@@ -764,8 +764,8 @@ ha_innobase::check_if_supported_inplace_alter(
 			   | Alter_inplace_info::DROP_INDEX);
 
 		if (flags != 0
-		    || (altered_table->s->partition_info_str
-			&& altered_table->s->partition_info_str_len)
+		    || IF_PARTITIONING((altered_table->s->partition_info_str
+			&& altered_table->s->partition_info_str_len), 0)
 		    || (!check_v_col_in_order(
 			this->table, altered_table, ha_alter_info))) {
 			ha_alter_info->unsupported_reason =

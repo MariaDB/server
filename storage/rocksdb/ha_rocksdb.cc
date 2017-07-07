@@ -97,6 +97,8 @@ int thd_binlog_format(const MYSQL_THD thd);
 bool thd_binlog_filter_ok(const MYSQL_THD thd);
 }
 
+MYSQL_PLUGIN_IMPORT bool my_disable_leak_check;
+
 namespace myrocks {
 
 static st_global_stats global_stats;
@@ -2867,11 +2869,9 @@ public:
         return;
       }
 
-      std::string query_str;
-      LEX_STRING *const lex_str = thd_query_string(thd);
-      if (lex_str != nullptr && lex_str->str != nullptr) {
-        query_str = std::string(lex_str->str);
-      }
+      char query_buf[NAME_LEN+1];
+      thd_query_safe(thd, query_buf, sizeof(query_buf));
+      std::string query_str(query_buf);
 
       const auto state_it = state_map.find(rdb_trx->GetState());
       DBUG_ASSERT(state_it != state_map.end());
@@ -3595,6 +3595,14 @@ static int rocksdb_init_func(void *const p) {
 #endif
 
   sql_print_information("RocksDB instance opened");
+
+  /**
+    Rocksdb does not always shutdown its threads, when
+    plugin is shut down. Disable server's leak check
+    at exit to avoid crash.
+  */
+  my_disable_leak_check = true;
+
   DBUG_RETURN(HA_EXIT_SUCCESS);
 }
 

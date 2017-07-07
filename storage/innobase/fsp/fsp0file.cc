@@ -334,6 +334,8 @@ Datafile::read_first_page(bool read_only_mode)
 
 			break;
 
+		} else if (srv_operation == SRV_OPERATION_BACKUP) {
+			break;
 		} else {
 
 			ib::error()
@@ -351,7 +353,7 @@ Datafile::read_first_page(bool read_only_mode)
 	if (m_order == 0) {
 		m_space_id = fsp_header_get_space_id(m_first_page);
 		m_flags = fsp_header_get_flags(m_first_page);
-		if (!fsp_flags_is_valid(m_flags)) {
+		if (!fsp_flags_is_valid(m_flags, m_space_id)) {
 			ulint cflags = fsp_flags_convert_from_101(m_flags);
 			if (cflags == ULINT_UNDEFINED) {
 				ib::error()
@@ -522,9 +524,7 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 	}
 
 	/* Check if the whole page is blank. */
-	if (error_txt == NULL
-	    && m_space_id == srv_sys_space.space_id()
-	    && !m_flags) {
+	if (error_txt == NULL && !m_space_id && !m_flags) {
 		const byte*	b		= m_first_page;
 		ulint		nonzero_bytes	= UNIV_PAGE_SIZE;
 
@@ -556,7 +556,7 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 		free_first_page();
 
 		return(DB_ERROR);
-	} else if (!fsp_flags_is_valid(m_flags)) {
+	} else if (!fsp_flags_is_valid(m_flags, m_space_id)) {
 		/* Tablespace flags must be valid. */
 		error_txt = "Tablespace flags are invalid";
 	} else if (page_get_page_no(m_first_page) != 0) {
@@ -797,7 +797,7 @@ Datafile::restore_from_doublewrite()
 	ulint	flags = mach_read_from_4(
 		FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
-	if (!fsp_flags_is_valid(flags)) {
+	if (!fsp_flags_is_valid(flags, m_space_id)) {
 		ulint cflags = fsp_flags_convert_from_101(flags);
 		if (cflags == ULINT_UNDEFINED) {
 			ib::warn()

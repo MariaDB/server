@@ -10,6 +10,8 @@
 --source include/no_valgrind_without_big.inc
 
 --disable_query_log
+call mtr.add_suppression("Can't create/write to file '/dev/null/nonexistent/ib");
+call mtr.add_suppression("InnoDB: Unable to create temporary file");
 call mtr.add_suppression("last file in setting innodb_temp_data_file_path");
 call mtr.add_suppression("The table 't1' is full");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
@@ -124,6 +126,33 @@ let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_ABORT = NOT FOUND;
 let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+# We cannot use include/restart_mysqld.inc in this particular test,
+# because SHOW STATUS would fail due to unwritable (nonexistent) tmpdir.
+--source include/shutdown_mysqld.inc
+--exec echo "restart: --tmpdir=/dev/null/nonexistent" > $_expect_file_name
+--enable_reconnect
+--disable_result_log
+--disable_query_log
+let $counter= 5000;
+let $mysql_errno= 9999;
+while ($mysql_errno)
+{
+  --error 0,ER_SERVER_SHUTDOWN,ER_CONNECTION_KILLED,2002,2006,2013
+  select 1;
+
+  dec $counter;
+  if (!$counter)
+  {
+    --die Server failed to restart
+  }
+  --sleep 0.1
+}
+--enable_query_log
+--enable_result_log
+--disable_reconnect
+--let SEARCH_PATTERN= InnoDB: Unable to create temporary file
+--source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --innodb_data_file_path=ibdata1:12M:autoextend --innodb_temp_data_file_path=ibdata1:12M:autoextend
 --source include/restart_mysqld.inc

@@ -8573,7 +8573,7 @@ int spider_discover_table_structure(
     }
 #ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE_COMMENT
     if (!(part_syntax = generate_partition_syntax(thd, part_info, &part_syntax_len,
-      FALSE, TRUE, info, NULL, NULL)))
+      TRUE, info, NULL)))
 #else
     if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
       FALSE, TRUE, info, NULL)))
@@ -8586,7 +8586,6 @@ int spider_discover_table_structure(
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
     str.q_append(part_syntax, part_syntax_len);
-    my_free(part_syntax, MYF(0));
   }
 #endif
   DBUG_PRINT("info",("spider str=%s", str.c_ptr_safe()));

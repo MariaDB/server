@@ -439,3 +439,8 @@ SELECT 1 FROM dual WHERE ('Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,StrataCentral,
 SELECT REGEXP_INSTR('a_kollision', 'oll');
 SELECT REGEXP_INSTR('a_kollision', '(oll)');
 SELECT REGEXP_INSTR('a_kollision', 'o([lm])\\1');
+
+#
+# MDEV-12939 A query crashes MariaDB in Item_func_regex::cleanup
+#
+SELECT a FROM (SELECT "aa" a) t WHERE a REGEXP '[0-9]';

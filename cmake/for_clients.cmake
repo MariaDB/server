@@ -45,7 +45,7 @@ MACRO(EXTRACT_LINK_LIBRARIES target var)
   ENDIF()
 ENDMACRO()
 
-EXTRACT_LINK_LIBRARIES(mariadb LIBS)
+EXTRACT_LINK_LIBRARIES(libmariadb LIBS)
 EXTRACT_LINK_LIBRARIES(mysqlserver EMB_LIBS)
 
 SET(LIBS     "-lmariadb ${ZLIB_DEPS} ${LIBS} ${openssl_libs}")
@@ -72,6 +72,6 @@ REPLACE_FOR_CLIENTS(CFLAGS "[DU]DBUG_OFF" "[DU]SAFE_MUTEX" "[DU]NDEBUG"
   "xstrconst" "xc99=none" "AC99" "restrict" "W[-A-Za-z]*=[-A-Za-z0-9]*")
 
 # Same for --libs
-REPLACE_FOR_CLIENTS(LIBS lmtmalloc static-libcxa i-static static-intel)
+REPLACE_FOR_CLIENTS(LIBS "Wl,[^ ]*" lmtmalloc static-libcxa i-static static-intel)
 REPLACE_FOR_CLIENTS(EMB_LIBS lmtmalloc static-libcxa i-static static-intel)
 

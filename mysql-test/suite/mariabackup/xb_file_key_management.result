@@ -1,7 +1,7 @@
 CREATE TABLE t(c VARCHAR(10)) ENGINE INNODB encrypted=yes;
 INSERT INTO t VALUES('foobar1');
 # xtrabackup backup
-NOT FOUND /foobar1/ in xtrabackup_logfile
+NOT FOUND /foobar1/ in ib_logfile0
 # expect NOT FOUND
 INSERT INTO t VALUES('foobar2');
 # xtrabackup prepare
@@ -9,8 +9,6 @@ INSERT INTO t VALUES('foobar2');
 # remove datadir
 # xtrabackup move back
 # restart server
-NOT FOUND /foobar1/ in xtrabackup_logfile
-# expect NOT FOUND
 SELECT * FROM t;
 c
 foobar1

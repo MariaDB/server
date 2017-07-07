@@ -1,3 +1,5 @@
+#--source include/innodb_page_size.inc
+
 # Export single table from backup
 # (xtrabackup with --prepare --export)
 
@@ -28,4 +30,3 @@ SELECT * FROM t1;
 DROP TABLE t1;
 DROP TABLE t2;
 rmdir $targetdir;
-

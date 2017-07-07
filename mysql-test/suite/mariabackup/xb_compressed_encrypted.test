@@ -1,25 +1,22 @@
-source include/have_file_key_management.inc;
+--source include/innodb_page_size_small.inc
+--source include/have_file_key_management.inc
 
-CREATE TABLE t1(c1 INT, b VARCHAR(2400), index(b(100),c1)) ENGINE=INNODB ROW_FORMAT=compressed ENCRYPTED=YES;
- 
-DELIMITER //;
-CREATE PROCEDURE innodb_insert_proc (REPEAT_COUNT INT)
-BEGIN
-  DECLARE CURRENT_NUM INT;
-  SET CURRENT_NUM = 0;
-  WHILE CURRENT_NUM < REPEAT_COUNT DO
-    INSERT INTO t1 VALUES(CURRENT_NUM, concat(uuid(), CURRENT_NUM, repeat('ab', floor(rand()*100) ), uuid()));
-    SET CURRENT_NUM = CURRENT_NUM + 1;
-  END WHILE;
-END//
-DELIMITER ;//
-COMMIT;
- 
-SET AUTOCOMMIT=0;
-CALL innodb_insert_proc(50000);
+CREATE TABLE t1(c1 INT, b VARCHAR(2400), index(b(100),c1))
+ENGINE=INNODB ROW_FORMAT=compressed ENCRYPTED=YES;
+
+BEGIN;
+let $n= 5000;
+let $i= $n;
+let $u= `SELECT uuid()`;
+--disable_query_log
+while ($i) {
+  eval INSERT INTO t1
+  VALUES($n-$i, concat('$u', $n-$i, repeat('ab', floor(rand()*100)), '$u'));
+  dec $i;
+}
+--enable_query_log
 COMMIT;
 
-                                                                                                                                           
 echo # xtrabackup backup;
 --disable_result_log
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
@@ -31,5 +28,4 @@ exec $INNOBACKUPEX --apply-log $targetdir;
 --enable_result_log
 select sum(c1) from t1;
 DROP TABLE t1;
-drop procedure innodb_insert_proc;
 rmdir $targetdir;

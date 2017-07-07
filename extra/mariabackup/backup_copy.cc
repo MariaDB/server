@@ -89,7 +89,7 @@ struct datadir_iter_t {
 	ulint		filepath_len;
 	char		*filepath_rel;
 	ulint		filepath_rel_len;
-	os_ib_mutex_t	mutex;
+	pthread_mutex_t	mutex;
 	os_file_dir_t	dir;
 	os_file_dir_t	dbdir;
 	os_file_stat_t	dbinfo;
@@ -107,7 +107,7 @@ struct datadir_thread_ctxt_t {
 	datadir_iter_t		*it;
 	uint			n_thread;
 	uint			*count;
-	os_ib_mutex_t		count_mutex;
+	pthread_mutex_t		count_mutex;
 	os_thread_id_t		id;
 	bool			ret;
 };
@@ -134,12 +134,12 @@ datadir_node_fill(datadir_node_t *node, datadir_iter_t *it)
 {
 	if (node->filepath_len < it->filepath_len) {
 		free(node->filepath);
-		node->filepath = (char*)(ut_malloc(it->filepath_len));
+		node->filepath = (char*)(malloc(it->filepath_len));
 		node->filepath_len = it->filepath_len;
 	}
 	if (node->filepath_rel_len < it->filepath_rel_len) {
 		free(node->filepath_rel);
-		node->filepath_rel = (char*)(ut_malloc(it->filepath_rel_len));
+		node->filepath_rel = (char*)(malloc(it->filepath_rel_len));
 		node->filepath_rel_len = it->filepath_rel_len;
 	}
 
@@ -153,8 +153,8 @@ static
 void
 datadir_node_free(datadir_node_t *node)
 {
-	ut_free(node->filepath);
-	ut_free(node->filepath_rel);
+	free(node->filepath);
+	free(node->filepath_rel);
 	memset(node, 0, sizeof(datadir_node_t));
 }
 
@@ -178,10 +178,10 @@ datadir_iter_new(const char *path, bool skip_first_level = true)
 {
 	datadir_iter_t *it;
 
-	it = static_cast<datadir_iter_t *>(ut_malloc(sizeof(datadir_iter_t)));
+	it = static_cast<datadir_iter_t *>(malloc(sizeof(datadir_iter_t)));
 	memset(it, 0, sizeof(datadir_iter_t));
 
-	it->mutex = os_mutex_create();
+	pthread_mutex_init(&it->mutex, NULL);
 	it->datadir_path = strdup(path);
 
 	it->dir = os_file_opendir(it->datadir_path, TRUE);
@@ -194,20 +194,20 @@ datadir_iter_new(const char *path, bool skip_first_level = true)
 	it->err = DB_SUCCESS;
 
 	it->dbpath_len = FN_REFLEN;
-	it->dbpath = static_cast<char*>(ut_malloc(it->dbpath_len));
+	it->dbpath = static_cast<char*>(malloc(it->dbpath_len));
 
 	it->filepath_len = FN_REFLEN;
-	it->filepath = static_cast<char*>(ut_malloc(it->filepath_len));
+	it->filepath = static_cast<char*>(malloc(it->filepath_len));
 
 	it->filepath_rel_len = FN_REFLEN;
-	it->filepath_rel = static_cast<char*>(ut_malloc(it->filepath_rel_len));
+	it->filepath_rel = static_cast<char*>(malloc(it->filepath_rel_len));
 
 	it->skip_first_level = skip_first_level;
 
 	return(it);
 
 error:
-	ut_free(it);
+	free(it);
 
 	return(NULL);
 }
@@ -246,19 +246,15 @@ datadir_iter_next_database(datadir_iter_t *it)
 			+ strlen (it->dbinfo.name) + 2;
 		if (len > it->dbpath_len) {
 			it->dbpath_len = len;
+			free(it->dbpath);
 
-			if (it->dbpath) {
-
-				ut_free(it->dbpath);
-			}
-
-			it->dbpath = static_cast<char*>
-					(ut_malloc(it->dbpath_len));
+			it->dbpath = static_cast<char*>(
+				malloc(it->dbpath_len));
 		}
 		ut_snprintf(it->dbpath, it->dbpath_len,
 			    "%s/%s", it->datadir_path,
 			    it->dbinfo.name);
-		srv_normalize_path_for_win(it->dbpath);
+		os_normalize_path(it->dbpath);
 
 		if (it->dbinfo.type == OS_FILE_TYPE_FILE) {
 			it->is_file = true;
@@ -306,8 +302,8 @@ make_path_n(int n, char **path, ulint *path_len, ...)
 	va_end(vl);
 
 	if (len_needed < *path_len) {
-		ut_free(*path);
-		*path = static_cast<char*>(ut_malloc(len_needed));
+		free(*path);
+		*path = static_cast<char*>(malloc(len_needed));
 	}
 
 	va_start(vl, path_len);
@@ -378,7 +374,7 @@ datadir_iter_next(datadir_iter_t *it, datadir_node_t *node)
 {
 	bool	ret = true;
 
-	os_mutex_enter(it->mutex);
+	pthread_mutex_lock(&it->mutex);
 
 	if (datadir_iter_next_file(it)) {
 
@@ -413,7 +409,7 @@ datadir_iter_next(datadir_iter_t *it, datadir_node_t *node)
 	ret = false;
 
 done:
-	os_mutex_exit(it->mutex);
+	pthread_mutex_unlock(&it->mutex);
 
 	return(ret);
 }
@@ -427,7 +423,7 @@ static
 void
 datadir_iter_free(datadir_iter_t *it)
 {
-	os_mutex_free(it->mutex);
+	pthread_mutex_destroy(&it->mutex);
 
 	if (it->dbdir) {
 
@@ -439,11 +435,11 @@ datadir_iter_free(datadir_iter_t *it)
 		os_file_closedir(it->dir);
 	}
 
-	ut_free(it->dbpath);
-	ut_free(it->filepath);
-	ut_free(it->filepath_rel);
+	free(it->dbpath);
+	free(it->filepath);
+	free(it->filepath_rel);
 	free(it->datadir_path);
-	ut_free(it);
+	free(it);
 }
 
 
@@ -466,17 +462,17 @@ static
 void
 datafile_close(datafile_cur_t *cursor)
 {
-	if (cursor->file != 0) {
+	if (cursor->file != OS_FILE_CLOSED) {
 		os_file_close(cursor->file);
 	}
-	ut_free(cursor->buf);
+	free(cursor->buf);
 }
 
 static
 bool
 datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 {
-	ulint		success;
+	bool		success;
 
 	memset(cursor, 0, sizeof(datafile_cur_t));
 
@@ -490,11 +486,9 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 		xb_get_relative_path(cursor->abs_path, FALSE),
 		sizeof(cursor->rel_path));
 
-	cursor->file = os_file_create_simple_no_error_handling(0,
-							cursor->abs_path,
-							OS_FILE_OPEN,
-							OS_FILE_READ_ONLY,
-							&success, 0);
+	cursor->file = os_file_create_simple_no_error_handling(
+		0, cursor->abs_path,
+		OS_FILE_OPEN, OS_FILE_READ_ALLOW_DELETE, true, &success);
 	if (!success) {
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
@@ -518,7 +512,7 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
 	cursor->buf_size = 10 * 1024 * 1024;
-	cursor->buf = static_cast<byte *>(ut_malloc((ulint)cursor->buf_size));
+	cursor->buf = static_cast<byte *>(malloc((ulint)cursor->buf_size));
 
 	return(true);
 }
@@ -528,7 +522,6 @@ static
 xb_fil_cur_result_t
 datafile_read(datafile_cur_t *cursor)
 {
-	ulint		success;
 	ulint		to_read;
 
 	xtrabackup_io_throttling();
@@ -540,14 +533,14 @@ datafile_read(datafile_cur_t *cursor)
 		return(XB_FIL_CUR_EOF);
 	}
 
-	success = os_file_read(cursor->file, cursor->buf, cursor->buf_offset,
-			       to_read);
-	if (!success) {
+	if (!os_file_read(IORequestRead,
+			  cursor->file, cursor->buf, cursor->buf_offset,
+			  to_read)) {
 		return(XB_FIL_CUR_ERROR);
 	}
 
 	posix_fadvise(cursor->file, cursor->buf_offset, to_read,
-			POSIX_FADV_DONTNEED);
+		      POSIX_FADV_DONTNEED);
 
 	cursor->buf_read = to_read;
 	cursor->buf_offset += to_read;
@@ -917,13 +910,13 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 {
 	datadir_thread_ctxt_t	*data_threads;
 	uint			i, count;
-	os_ib_mutex_t		count_mutex;
+	pthread_mutex_t		count_mutex;
 	bool			ret;
 
 	data_threads = (datadir_thread_ctxt_t*)
-				(ut_malloc(sizeof(datadir_thread_ctxt_t) * n));
+		malloc(sizeof(datadir_thread_ctxt_t) * n);
 
-	count_mutex = os_mutex_create();
+	pthread_mutex_init(&count_mutex, NULL);
 	count = n;
 
 	for (i = 0; i < n; i++) {
@@ -937,15 +930,15 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 	/* Wait for threads to exit */
 	while (1) {
 		os_thread_sleep(100000);
-		os_mutex_enter(count_mutex);
+		pthread_mutex_lock(&count_mutex);
 		if (count == 0) {
-			os_mutex_exit(count_mutex);
+			pthread_mutex_unlock(&count_mutex);
 			break;
 		}
-		os_mutex_exit(count_mutex);
+		pthread_mutex_unlock(&count_mutex);
 	}
 
-	os_mutex_free(count_mutex);
+	pthread_mutex_destroy(&count_mutex);
 
 	ret = true;
 	for (i = 0; i < n; i++) {
@@ -955,7 +948,7 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 		}
 	}
 
-	ut_free(data_threads);
+	free(data_threads);
 
 	return(ret);
 }
@@ -974,7 +967,6 @@ copy_file(ds_ctxt_t *datasink,
 	ds_file_t		*dstfile = NULL;
 	datafile_cur_t		 cursor;
 	xb_fil_cur_result_t	 res;
-	const char		*action;
 
 	if (!datafile_open(src_file_path, &cursor, thread_n)) {
 		goto error_close;
@@ -991,9 +983,8 @@ copy_file(ds_ctxt_t *datasink,
 		goto error;
 	}
 
-	action = xb_get_copy_action();
 	msg_ts("[%02u] %s %s to %s\n",
-	       thread_n, action, src_file_path, dstfile->path);
+	       thread_n, xb_get_copy_action(), src_file_path, dstfile->path);
 
 	/* The main copy loop */
 	while ((res = datafile_read(&cursor)) == XB_FIL_CUR_SUCCESS) {
@@ -1111,7 +1102,7 @@ read_link_file(const char *ibd_filepath, const char *link_filepath)
 			while (lastch > 4 && filepath[lastch] <= 0x20) {
 				filepath[lastch--] = 0x00;
 			}
-			srv_normalize_path_for_win(filepath);
+			os_normalize_path(filepath);
 		}
 
 		tablespace_locations[ibd_filepath] = filepath;
@@ -1629,14 +1620,9 @@ apply_log_finish()
 	return(true);
 }
 
-extern void
-os_io_init_simple(void);
-
 bool
 copy_back()
 {
-	char *innobase_data_file_path_copy;
-	ulint i;
 	bool ret;
 	datadir_iter_t *it = NULL;
 	datadir_node_t node;
@@ -1679,24 +1665,16 @@ copy_back()
 	if (!innobase_data_file_path) {
   		innobase_data_file_path = (char*) "ibdata1:10M:autoextend";
 	}
-	innobase_data_file_path_copy = strdup(innobase_data_file_path);
 
-	if (!(ret = srv_parse_data_file_paths_and_sizes(
-					innobase_data_file_path_copy))) {
+	srv_sys_space.set_path(".");
+
+	if (!srv_sys_space.parse_params(innobase_data_file_path, true)) {
 		msg("syntax error in innodb_data_file_path\n");
 		return(false);
 	}
 
 	srv_max_n_threads = 1000;
-	//os_sync_mutex = NULL;
-	ut_mem_init();
-	/* temporally dummy value to avoid crash */
-	srv_page_size_shift = 14;
-	srv_page_size = (1 << srv_page_size_shift);
-	os_sync_init();
-	sync_init();
-	os_io_init_simple();
-	mem_init(srv_mem_pool_size);
+	sync_check_init();
 	ut_crc32_init();
 
 	/* copy undo tablespaces */
@@ -1707,9 +1685,9 @@ copy_back()
 
 		ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
 
-		for (i = 1; i <= srv_undo_tablespaces; i++) {
+		for (ulong i = 1; i <= srv_undo_tablespaces; i++) {
 			char filename[20];
-			sprintf(filename, "undo%03u", (uint)i);
+			sprintf(filename, "undo%03lu", i);
 			if (!(ret = copy_or_move_file(filename, filename,
 				                      dst_dir, 1))) {
 				goto cleanup;
@@ -1720,29 +1698,30 @@ copy_back()
 		ds_data = NULL;
 	}
 
-	/* copy redo logs */
-
 	dst_dir = (srv_log_group_home_dir && *srv_log_group_home_dir)
-				? srv_log_group_home_dir : mysql_data_home;
+		? srv_log_group_home_dir : mysql_data_home;
+
+	/* --backup generates a single ib_logfile0, which we must copy
+	if it exists. */
 
 	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
+	if (!file_exists("ib_logfile0")) {
+		/* After completed --prepare, redo log files are redundant.
+		We must delete any redo logs at the destination, so that
+		the database will not jump to a different log sequence number
+		(LSN). */
 
-	for (i = 0; i < (ulong)innobase_log_files_in_group; i++) {
-		char filename[20];
-		sprintf(filename, "ib_logfile%lu", i);
-
-		if (!file_exists(filename)) {
-			continue;
+		for (uint i = 0; i <= SRV_N_LOG_FILES_MAX + 1; i++) {
+			char filename[FN_REFLEN];
+			snprintf(filename, sizeof filename, "%s/ib_logfile%u",
+				 dst_dir, i);
+			unlink(filename);
 		}
-
-		if (!(ret = copy_or_move_file(filename, filename,
-					      dst_dir, 1))) {
-			goto cleanup;
-		}
+	} else if (!(ret = copy_or_move_file("ib_logfile0", "ib_logfile0",
+					     dst_dir, 1))) {
+		goto cleanup;
 	}
-
 	ds_destroy(ds_data);
-	ds_data = NULL;
 
 	/* copy innodb system tablespace(s) */
 
@@ -1751,17 +1730,19 @@ copy_back()
 
 	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
 
-	for (i = 0; i < srv_n_data_files; i++) {
-		const char *filename = base_name(srv_data_file_names[i]);
+	for (Tablespace::const_iterator iter(srv_sys_space.begin()),
+	     end(srv_sys_space.end());
+	     iter != end;
+	     ++iter) {
+		const char *filename = base_name(iter->name());
 
-		if (!(ret = copy_or_move_file(filename, srv_data_file_names[i],
+		if (!(ret = copy_or_move_file(filename, iter->name(),
 					      dst_dir, 1))) {
 			goto cleanup;
 		}
 	}
 
 	ds_destroy(ds_data);
-	ds_data = NULL;
 
 	/* copy the rest of tablespaces */
 	ds_data = ds_create(mysql_data_home, DS_TYPE_LOCAL);
@@ -1771,7 +1752,7 @@ copy_back()
 	datadir_node_init(&node);
 
 	while (datadir_iter_next(it, &node)) {
-		const char *ext_list[] = {"backup-my.cnf", "xtrabackup_logfile",
+		const char *ext_list[] = {"backup-my.cnf",
 			"xtrabackup_binary", "xtrabackup_binlog_info",
 			"xtrabackup_checkpoints", ".qp", ".pmap", ".tmp",
 			NULL};
@@ -1817,21 +1798,18 @@ copy_back()
 			continue;
 		}
 
-		/* skip redo logs */
-		if (sscanf(filename, "ib_logfile%d%c", &i_tmp, &c_tmp) == 1) {
+		/* skip the redo log (it was already copied) */
+		if (!strcmp(filename, "ib_logfile0")) {
 			continue;
 		}
 
 		/* skip innodb data files */
 		is_ibdata_file = false;
-		for (i = 0; i < srv_n_data_files; i++) {
-			const char *ibfile;
-
-			ibfile = base_name(srv_data_file_names[i]);
-
-			if (strcmp(ibfile, filename) == 0) {
+		for (Tablespace::const_iterator iter(srv_sys_space.begin()),
+		       end(srv_sys_space.end()); iter != end; ++iter) {
+			if (strcmp(iter->name(), filename) == 0) {
 				is_ibdata_file = true;
-				continue;
+				break;
 			}
 		}
 		if (is_ibdata_file) {
@@ -1873,20 +1851,13 @@ cleanup:
 
 	datadir_node_free(&node);
 
-	free(innobase_data_file_path_copy);
-
 	if (ds_data != NULL) {
 		ds_destroy(ds_data);
 	}
 
 	ds_data = NULL;
 
-	//os_sync_free();
-	mem_close();
-	//os_sync_mutex = NULL;
-	ut_free_all_mem();
-	sync_close();
-	sync_initialized = FALSE;
+	sync_check_close();
 	return(ret);
 }
 
@@ -1921,13 +1892,6 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
 
 	 	if (system(cmd.str().c_str()) != 0) {
 	 		return(false);
-	 	}
-
-	 	if (opt_remove_original) {
-	 		msg_ts("[%02u] removing %s\n", thread_n, filepath);
-	 		if (my_delete(filepath, MYF(MY_WME)) != 0) {
-	 			return(false);
-	 		}
 	 	}
 	 }
 
@@ -1965,9 +1929,9 @@ cleanup:
 
 	datadir_node_free(&node);
 
-	os_mutex_enter(ctxt->count_mutex);
+	pthread_mutex_lock(&ctxt->count_mutex);
 	--(*ctxt->count);
-	os_mutex_exit(ctxt->count_mutex);
+	pthread_mutex_unlock(&ctxt->count_mutex);
 
 	ctxt->ret = ret;
 
@@ -1982,10 +1946,7 @@ decrypt_decompress()
 	datadir_iter_t *it = NULL;
 
 	srv_max_n_threads = 1000;
-	//os_sync_mutex = NULL;
-	ut_mem_init();
-	os_sync_init();
-	sync_init();
+	sync_check_init();
 
 	/* cd to backup directory */
 	if (my_setwd(xtrabackup_target_dir, MYF(MY_WME)))
@@ -2014,11 +1975,7 @@ decrypt_decompress()
 
 	ds_data = NULL;
 
-	sync_close();
-	sync_initialized = FALSE;
-	//os_sync_free();
-	//os_sync_mutex = NULL;
-	ut_free_all_mem();
+	sync_check_close();
 
 	return(ret);
 }

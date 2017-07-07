@@ -923,25 +923,20 @@ public:
             store return value of this method.
 
     NOTE
-      Buffer passed via argument  should only be used if the item itself
-      doesn't have an own String buffer. In case when the item maintains
-      it's own string buffer, it's preferable to return it instead to
-      minimize number of mallocs/memcpys.
-      The caller of this method can modify returned string, but only in case
-      when it was allocated on heap, (is_alloced() is true).  This allows
-      the caller to efficiently use a buffer allocated by a child without
-      having to allocate a buffer of it's own. The buffer, given to
-      val_str() as argument, belongs to the caller and is later used by the
-      caller at it's own choosing.
-      A few implications from the above:
-      - unless you return a string object which only points to your buffer
-        but doesn't manages it you should be ready that it will be
-        modified.
-      - even for not allocated strings (is_alloced() == false) the caller
-        can change charset (see Item_func_{typecast/binary}. XXX: is this
-        a bug?
-      - still you should try to minimize data copying and return internal
-        object whenever possible.
+      The caller can modify the returned String, if it's not marked
+      "const" (with the String::mark_as_const() method). That means that
+      if the item returns its own internal buffer (e.g. tmp_value), it
+      *must* be marked "const" [1]. So normally it's preferrable to
+      return the result value in the String, that was passed as an
+      argument. But, for example, SUBSTR() returns a String that simply
+      points into the buffer of SUBSTR()'s args[0]->val_str(). Such a
+      String is always "const", so it's ok to use tmp_value for that and
+      avoid reallocating/copying of the argument String.
+
+      [1] consider SELECT CONCAT(f, ":", f) FROM (SELECT func() AS f);
+      here the return value of f() is used twice in the top-level
+      select, and if they share the same tmp_value buffer, modifying the
+      first one will implicitly modify the second too.
 
     RETURN
       In case of NULL value return 0 (NULL pointer) and set null_value flag
@@ -1236,6 +1231,24 @@ public:
   virtual enum precedence precedence() const { return DEFAULT_PRECEDENCE; }
   void print_parenthesised(String *str, enum_query_type query_type,
                            enum precedence parent_prec);
+  /**
+    This helper is used to print expressions as a part of a table definition,
+    in particular for
+      - generated columns
+      - check constraints
+      - default value expressions
+      - partitioning expressions
+  */
+  void print_for_table_def(String *str)
+  {
+    print_parenthesised(str,
+                     (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                       QT_ITEM_IDENT_SKIP_DB_NAMES |
+                                       QT_ITEM_IDENT_SKIP_TABLE_NAMES |
+                                       QT_NO_DATA_EXPANSION |
+                                       QT_TO_SYSTEM_CHARSET),
+                     LOWEST_PRECEDENCE);
+  }
   virtual void print(String *str, enum_query_type query_type);
   void print_item_w_name(String *str, enum_query_type query_type);
   void print_value(String *str);
@@ -1681,7 +1694,7 @@ public:
   { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
-  bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs)
+  bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs) const
   {
     /*
       This will return "true" if conversion happens:
@@ -6078,6 +6091,11 @@ inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol) const
   return field_type == vcol->get_real_type()
       && stored_in_db == vcol->is_stored()
       && expr->eq(vcol->expr, true);
+}
+
+inline void Virtual_column_info::print(String* str)
+{
+  expr->print_for_table_def(str);
 }
 
 #endif /* SQL_ITEM_INCLUDED */

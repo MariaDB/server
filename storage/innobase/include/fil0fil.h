@@ -849,6 +849,13 @@ public:
 		return(m_space);
 	}
 
+	/** Member accessor
+	@return the wrapped object */
+	const fil_space_t* operator->() const
+	{
+		return(m_space);
+	}
+
 	/** Explicit type conversion
 	@return the wrapped object */
 	const fil_space_t* operator()() const
@@ -1525,6 +1532,13 @@ fil_space_t*
 fil_space_get_by_id(
 /*================*/
 	ulint	id);	/*!< in: space id */
+
+/** Look up a tablespace.
+@param[in]	name	tablespace name
+@return	tablespace
+@retval	NULL	if not found */
+fil_space_t*
+fil_space_get_by_name(const char* name);
 
 /*******************************************************************//**
 by redo log.

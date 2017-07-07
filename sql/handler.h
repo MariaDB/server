@@ -1489,7 +1489,8 @@ struct THD_TRANS
   {
     CREATED_TEMP_TABLE= 2,
     DROPPED_TEMP_TABLE= 4,
-    DID_WAIT= 8
+    DID_WAIT= 8,
+    DID_DDL= 0x10
   };
 
   void mark_created_temp_table()
@@ -1497,11 +1498,25 @@ struct THD_TRANS
     DBUG_PRINT("debug", ("mark_created_temp_table"));
     m_unsafe_rollback_flags|= CREATED_TEMP_TABLE;
   }
+  void mark_dropped_temp_table()
+  {
+    DBUG_PRINT("debug", ("mark_dropped_temp_table"));
+    m_unsafe_rollback_flags|= DROPPED_TEMP_TABLE;
+  }
+  bool has_created_dropped_temp_table() const {
+    return
+      (m_unsafe_rollback_flags & (CREATED_TEMP_TABLE|DROPPED_TEMP_TABLE)) != 0;
+  }
   void mark_trans_did_wait() { m_unsafe_rollback_flags|= DID_WAIT; }
   bool trans_did_wait() const {
     return (m_unsafe_rollback_flags & DID_WAIT) != 0;
   }
   bool is_trx_read_write() const;
+  void mark_trans_did_ddl() { m_unsafe_rollback_flags|= DID_DDL; }
+  bool trans_did_ddl() const {
+    return (m_unsafe_rollback_flags & DID_DDL) != 0;
+  }
+
 };
 
 

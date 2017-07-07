@@ -132,6 +132,7 @@ void destroy_thd(MYSQL_THD thd);
 void reset_thd(MYSQL_THD thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 			const char *tb, size_t tblen);
+TABLE *get_purge_table(THD *thd);
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 #define tc_size  400
@@ -270,6 +271,11 @@ void set_my_errno(int err)
 	errno = err;
 }
 
+static uint mysql_fields(const TABLE *table)
+{
+	return table->s->frm_version < FRM_VER_EXPRESSSIONS
+		? table->s->stored_fields : table->s->fields;
+}
 
 /** Checks whether the file name belongs to a partition of a table.
 @param[in]	file_name	file name
@@ -387,7 +393,7 @@ static TYPELIB innodb_stats_method_typelib = {
 };
 
 /** Possible values of the parameter innodb_checksum_algorithm */
-static const char* innodb_checksum_algorithm_names[] = {
+const char* innodb_checksum_algorithm_names[] = {
 	"crc32",
 	"strict_crc32",
 	"innodb",
@@ -399,7 +405,7 @@ static const char* innodb_checksum_algorithm_names[] = {
 
 /** Used to define an enumerate type of the system variable
 innodb_checksum_algorithm. */
-static TYPELIB innodb_checksum_algorithm_typelib = {
+TYPELIB innodb_checksum_algorithm_typelib = {
 	array_elements(innodb_checksum_algorithm_names) - 1,
 	"innodb_checksum_algorithm_typelib",
 	innodb_checksum_algorithm_names,
@@ -6295,16 +6301,17 @@ ha_innobase::open(const char* name, int, uint)
 
 	ib_table = open_dict_table(name, norm_name, is_part, ignore_err);
 
+	uint n_fields = mysql_fields(table);
+
 	if (ib_table != NULL
 	    && ((!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		 && table->s->fields != dict_table_get_n_tot_u_cols(ib_table))
+		 && n_fields != dict_table_get_n_tot_u_cols(ib_table))
 		|| (DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		    && (table->s->fields
-			!= dict_table_get_n_tot_u_cols(ib_table) - 1)))) {
+		    && (n_fields != dict_table_get_n_tot_u_cols(ib_table) - 1)))) {
 
 		ib::warn() << "Table " << norm_name << " contains "
-			<< dict_table_get_n_user_cols(ib_table) << " user"
-			" defined columns in InnoDB, but " << table->s->fields
+			<< dict_table_get_n_tot_u_cols(ib_table) << " user"
+			" defined columns in InnoDB, but " << n_fields
 			<< " columns in MariaDB. Please check"
 			" INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and " REFMAN
 			"innodb-troubleshooting.html for how to resolve the"
@@ -7823,7 +7830,7 @@ ha_innobase::build_template(
 	/* Below we check column by column if we need to access
 	the clustered index. */
 
-	n_fields = (ulint) table->s->fields; /* number of columns */
+	n_fields = (ulint) mysql_fields(table);
 
 	if (!m_prebuilt->mysql_template) {
 		m_prebuilt->mysql_template = (mysql_row_templ_t*)
@@ -8684,6 +8691,7 @@ calc_row_difference(
 	trx_t* const	trx = prebuilt->trx;
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 	ulint		num_v = 0;
+	uint		n_fields = mysql_fields(table);
 
 	ut_ad(!srv_read_only_mode);
 
@@ -8693,7 +8701,7 @@ calc_row_difference(
 	/* We use upd_buff to convert changed fields */
 	buf = (byte*) upd_buff;
 
-	for (i = 0; i < table->s->fields; i++) {
+	for (i = 0; i < n_fields; i++) {
 		field = table->field[i];
 		bool		is_virtual = innobase_is_v_fld(field);
 		dict_col_t*	col;
@@ -9075,7 +9083,7 @@ wsrep_calc_row_hash(
 	void *ctx = alloca(my_md5_context_size());
 	my_md5_init(ctx);
 
-	n_fields = table->s->fields;
+	n_fields = mysql_fields(table);
 
 	for (i = 0; i < n_fields; i++) {
 		byte null_byte=0;
@@ -11142,7 +11150,9 @@ create_table_check_doc_id_col(
 					ULINT_UNDEFINED if column is of the
 					wrong type/name/size */
 {
-	for (ulint i = 0; i < form->s->fields; i++) {
+	uint		n_fields = mysql_fields(form);
+
+	for (ulint i = 0; i < n_fields; i++) {
 		const Field*	field;
 		ulint		col_type;
 		ulint		col_len;
@@ -21480,8 +21490,17 @@ innobase_find_mysql_table_for_vc(
 	THD*		thd,
 	dict_table_t*	table)
 {
-	if (table->vc_templ->mysql_table_query_id == thd_get_query_id(thd)) {
-		return table->vc_templ->mysql_table;
+	TABLE *mysql_table;
+	bool	bg_thread = THDVAR(thd, background_thread);
+
+	if (bg_thread) {
+		if ((mysql_table = get_purge_table(thd))) {
+			return mysql_table;
+		}
+	} else {
+		if (table->vc_templ->mysql_table_query_id == thd_get_query_id(thd)) {
+			return table->vc_templ->mysql_table;
+		}
 	}
 
 	char	dbname[MAX_DATABASE_NAME_LEN + 1];
@@ -21511,14 +21530,13 @@ innobase_find_mysql_table_for_vc(
 	tbnamelen = filename_to_tablename(tbname, t_tbname,
 					  MAX_TABLE_NAME_LEN + 1);
 
-	TABLE *mysql_table = find_fk_open_table(thd, t_dbname, dbnamelen,
-						t_tbname, tbnamelen);
-
-	if (!mysql_table && THDVAR(thd, background_thread)) {
-		/* only open the table in background purge threads */
-		mysql_table = open_purge_table(thd, t_dbname, dbnamelen,
-					       t_tbname, tbnamelen);
+	if (bg_thread) {
+		return open_purge_table(thd, t_dbname, dbnamelen,
+					t_tbname, tbnamelen);
 	}
+
+	mysql_table = find_fk_open_table(thd, t_dbname, dbnamelen,
+					t_tbname, tbnamelen);
 
 	table->vc_templ->mysql_table = mysql_table;
 	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);

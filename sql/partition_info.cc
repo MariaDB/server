@@ -394,9 +394,9 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
   {
     const char *error_string;
     if (part_type == RANGE_PARTITION)
-      error_string= partition_keywords[PKW_RANGE].str;
+      error_string= "RANGE";
     else
-      error_string= partition_keywords[PKW_LIST].str;
+      error_string= "LIST";
     my_error(ER_PARTITIONS_MUST_BE_DEFINED_ERROR, MYF(0), error_string);
     goto end;
   }
@@ -1684,15 +1684,11 @@ bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
   {
     list_of_subpart_fields= FALSE;
     subpart_expr= item_ptr;
-    subpart_func_string= func_string;
-    subpart_func_len= expr_len;
   }
   else
   {
     list_of_part_fields= FALSE;
     part_expr= item_ptr;
-    part_func_string= func_string;
-    part_func_len= expr_len;
   }
   return FALSE;
 }

@@ -1783,7 +1783,11 @@ retry_share:
       my_error(ER_WRONG_MRG_TABLE, MYF(0));
       goto err_lock;
     }
-
+    if (table_list->sequence)
+    {
+      my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db, table_list->alias);
+      goto err_lock;
+    }
     /*
       This table is a view. Validate its metadata version: in particular,
       that it was a view when the statement was prepared.
@@ -1936,8 +1940,8 @@ retry_share:
 #endif
   if (table_list->sequence && table->s->table_type != TABLE_TYPE_SEQUENCE)
   {
-      my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db, table_list->alias);
-      DBUG_RETURN(true);
+    my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db, table_list->alias);
+    DBUG_RETURN(true);
   }
 
   table->init(thd, table_list);

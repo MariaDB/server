@@ -595,6 +595,16 @@ Replaces: mariadb-gssapi-client-10.1,
           mariadb-gssapi-client-10.3
 Description: GSSAPI authentication plugin for MariaDB client
 
+Package: mariadb-backup-10.2
+Section: database
+Architecture: any
+Breaks: mariadb-backup-10.1
+Replaces: mariadb-backup-10.1
+Depends: mariadb-server-10.2,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Backup tool for MariaDB server
+
 Package: mariadb-plugin-cracklib-password-check
 Architecture: any
 Depends: libcrack2 (>= 2.9.0),

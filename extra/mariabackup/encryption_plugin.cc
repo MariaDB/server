@@ -8,6 +8,7 @@
 #include <vector>
 #include <common.h>
 #include <backup_mysql.h>
+#include <log0crypt.h>
 
 
 extern struct st_maria_plugin *mysql_optional_plugins[];
@@ -18,14 +19,14 @@ extern char *xb_plugin_load;
 extern char *xb_plugin_dir;
 
 const int PLUGIN_MAX_ARGS = 1024;
-vector<string> backup_plugins_args;
+std::vector<std::string> backup_plugins_args;
 
 const char *QUERY_PLUGIN =
 "SELECT plugin_name, plugin_library, @@plugin_dir"
 " FROM information_schema.plugins WHERE plugin_type='ENCRYPTION'"
 " AND plugin_status='ACTIVE'";
 
-string encryption_plugin_config;
+std::string encryption_plugin_config;
 
 static void add_to_plugin_load_list(const char *plugin_def)
 {
@@ -38,7 +39,7 @@ void encryption_plugin_backup_init(MYSQL *mysql)
 {
   MYSQL_RES *result;
   MYSQL_ROW row;
-  ostringstream oss;
+  std::ostringstream oss;
   char *argv[PLUGIN_MAX_ARGS];
   int argc;
 
@@ -59,17 +60,17 @@ void encryption_plugin_backup_init(MYSQL *mysql)
     if (*p == '\\') *p = '/';
 #endif
 
-  string plugin_load(name);
+  std::string plugin_load(name);
   if (library)
-    plugin_load += string("=") + library;
+    plugin_load += std::string("=") + library;
 
-  oss << "plugin_load=" << plugin_load << endl;
+  oss << "plugin_load=" << plugin_load << std::endl;
 
   /* Required  to load the plugin later.*/
   add_to_plugin_load_list(plugin_load.c_str());
   strncpy(opt_plugin_dir, dir, FN_REFLEN);
 
-  oss << "plugin_dir=" << '"' << dir << '"' << endl;
+  oss << "plugin_dir=" << '"' << dir << '"' << std::endl;
 
 
   /* Read plugin variables. */
@@ -80,12 +81,12 @@ void encryption_plugin_backup_init(MYSQL *mysql)
   result = xb_mysql_query(mysql, query, true, true);
   while ((row = mysql_fetch_row(result)))
   {
-    string arg("--");
+    std::string arg("--");
     arg += row[0];
     arg += "=";
     arg += row[1];
     backup_plugins_args.push_back(arg);
-    oss << row[0] << "=" << row[1] << endl;
+    oss << row[0] << "=" << row[1] << std::endl;
   }
 
   mysql_free_result(result);
@@ -94,7 +95,7 @@ void encryption_plugin_backup_init(MYSQL *mysql)
   result = xb_mysql_query(mysql, "select @@innodb_encrypt_log", true, true);
   row = mysql_fetch_row(result);
   srv_encrypt_log = (row != 0 && row[0][0] == '1');
-  oss << "innodb_encrypt_log=" << row[0] << endl;
+  oss << "innodb_encrypt_log=" << row[0] << std::endl;
 
   mysql_free_result(result);
 
