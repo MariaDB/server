@@ -175,20 +175,21 @@ DROP PROCEDURE p1;
 
 
 --echo #
---echo # Bad usage of a scalar variable as a row
+--echo # Scalar variable vs table alias cause no ambiguity
 --echo #
 
 DELIMITER $$;
---error ER_UNKNOWN_ERROR
 CREATE PROCEDURE p1()
 AS
   a INT;
 BEGIN
-  SELECT a.x FROM t1;
+  -- a.x is a table column here (not a row variable field)
+  SELECT a.x FROM a;
+  SELECT a.x FROM t1 a;
 END;
 $$
 DELIMITER ;$$
-
+DROP PROCEDURE p1;
 
 --echo #
 --echo # Using the entire ROW variable in select list
@@ -2288,3 +2289,89 @@ DELIMITER ;$$
 CALL p1();
 DROP TABLE t1;
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-13273 Confusion between table alias and ROW type variable
+--echo #
+
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a INT;
+  b INT;
+BEGIN
+  -- a.c1 is a table column
+  SELECT a.c1 INTO b
+    FROM t1 a
+    WHERE a.c2 = 0;
+  SELECT b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a ROW (c1 INT, c2 INT) := ROW(101,102);
+  b INT;
+BEGIN
+  -- a.c1 is a ROW variable field
+  SELECT a.c1 INTO b
+    FROM t1 a
+    WHERE a.c2 = 102;
+  SELECT b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1%ROWTYPE := ROW (10,20);
+  b INT;
+BEGIN
+  -- a.c1 is a ROW variable field
+  SELECT a.c1 INTO b
+    FROM t1 a
+    WHERE a.c2 = 20;
+  SELECT b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  a cur1%ROWTYPE := ROW (10,20);
+  b INT;
+BEGIN
+  -- a.c1 is a ROW variable field
+  SELECT a.c1 INTO b
+    FROM t1 a
+    WHERE a.c2 = 20;
+  SELECT b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;

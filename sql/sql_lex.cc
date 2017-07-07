@@ -6452,7 +6452,10 @@ Item *LEX::create_item_ident(THD *thd,
                              uint pos_in_q, uint length_in_q)
 {
   sp_variable *spv;
-  if (spcont && (spv= spcont->find_variable(a, false)))
+  if (spcont && (spv= spcont->find_variable(a, false)) &&
+      (spv->field_def.is_row() ||
+       spv->field_def.is_table_rowtype_ref() ||
+       spv->field_def.is_cursor_rowtype_ref()))
     return create_item_spvar_row_field(thd, a, b, spv, pos_in_q, length_in_q);
 
   if ((thd->variables.sql_mode & MODE_ORACLE) && b->length == 7)

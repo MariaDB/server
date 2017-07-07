@@ -3190,6 +3190,9 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	byte*		buf;
 	dberr_t		err = DB_SUCCESS;
 
+	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	      || srv_operation == SRV_OPERATION_RESTORE);
+
 	/* Initialize red-black tree for fast insertions into the
 	flush_list during recovery process. */
 	buf_flush_init_flush_rbt();
@@ -3406,9 +3409,11 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	log_sys->last_checkpoint_lsn = checkpoint_lsn;
 
-	if (!srv_read_only_mode) {
+	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL) {
 		/* Write a MLOG_CHECKPOINT marker as the first thing,
-		before generating any other redo log. */
+		before generating any other redo log. This ensures
+		that subsequent crash recovery will be possible even
+		if the server were killed soon after this. */
 		fil_names_clear(log_sys->last_checkpoint_lsn, true);
 	}
 
