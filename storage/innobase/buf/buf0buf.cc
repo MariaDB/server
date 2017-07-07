@@ -1284,17 +1284,6 @@ buf_page_print(
 				read_buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	}
 
-	if (mach_read_from_2(read_buf + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE)
-	    == TRX_UNDO_INSERT) {
-		fprintf(stderr,
-			"InnoDB: Page may be an insert undo log page\n");
-	} else if (mach_read_from_2(read_buf + TRX_UNDO_PAGE_HDR
-				    + TRX_UNDO_PAGE_TYPE)
-		   == TRX_UNDO_UPDATE) {
-		fprintf(stderr,
-			"InnoDB: Page may be an update undo log page\n");
-	}
-
 	switch (fil_page_get_type(read_buf)) {
 		index_id_t	index_id;
 	case FIL_PAGE_INDEX:
@@ -1310,6 +1299,9 @@ buf_page_print(
 				<< " is " << index->name
 				<< " in table " << index->table->name;
 		}
+		break;
+	case FIL_PAGE_UNDO_LOG:
+		fputs("InnoDB: Page may be an undo log page\n", stderr);
 		break;
 	case FIL_PAGE_INODE:
 		fputs("InnoDB: Page may be an 'inode' page\n", stderr);

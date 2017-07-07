@@ -2582,8 +2582,7 @@ row_upd_clust_rec_by_insert_inherit_func(
 		data[BTR_EXTERN_LEN] &= ~BTR_EXTERN_OWNER_FLAG;
 		data[BTR_EXTERN_LEN] |= BTR_EXTERN_INHERITED_FLAG;
 		/* The BTR_EXTERN_INHERITED_FLAG only matters in
-		rollback of a fresh insert (insert_undo log).
-		Purge (operating on update_undo log) will always free
+		rollback of a fresh insert. Purge will always free
 		the extern fields of a delete-marked row. */
 
 		inherit = true;

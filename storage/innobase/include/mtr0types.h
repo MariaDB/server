@@ -112,9 +112,6 @@ enum mlog_id_t {
 	/** discard an update undo log header */
 	MLOG_UNDO_HDR_DISCARD = 23,
 
-	/** reuse an insert undo log header */
-	MLOG_UNDO_HDR_REUSE = 24,
-
 	/** create an undo log header */
 	MLOG_UNDO_HDR_CREATE = 25,
 
@@ -235,8 +232,12 @@ enum mlog_id_t {
 	redo log about individual pages */
 	MLOG_INDEX_LOAD = 61,
 
+	/** write DB_TRX_ID,DB_ROLL_PTR to a clustered index leaf page
+	of a ROW_FORMAT=COMPRESSED table */
+	MLOG_ZIP_WRITE_TRX_ID = 62,
+
 	/** biggest value (used in assertions) */
-	MLOG_BIGGEST_TYPE = MLOG_INDEX_LOAD,
+	MLOG_BIGGEST_TYPE = MLOG_ZIP_WRITE_TRX_ID,
 
 	/** log record for writing/updating crypt data of
 	a tablespace */

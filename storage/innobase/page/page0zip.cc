@@ -4140,17 +4140,23 @@ page_zip_write_node_ptr(
 	}
 }
 
-/**********************************************************************//**
-Write the trx_id and roll_ptr of a record on a B-tree leaf node page. */
+/** Write the DB_TRX_ID,DB_ROLL_PTR into a clustered index leaf page record.
+@param[in,out]	page_zip	compressed page
+@param[in,out]	rec		record
+@param[in]	offsets		rec_get_offsets(rec, index)
+@param[in]	trx_id_field	field number of DB_TRX_ID (number of PK fields)
+@param[in]	trx_id		DB_TRX_ID value (transaction identifier)
+@param[in]	roll_ptr	DB_ROLL_PTR value (undo log pointer)
+@param[in,out]	mtr		mini-transaction, or NULL to skip logging */
 void
 page_zip_write_trx_id_and_roll_ptr(
-/*===============================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
-	byte*		rec,	/*!< in/out: record */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
-	ulint		trx_id_col,/*!< in: column number of TRX_ID in rec */
-	trx_id_t	trx_id,	/*!< in: transaction identifier */
-	roll_ptr_t	roll_ptr)/*!< in: roll_ptr */
+	page_zip_des_t*	page_zip,
+	byte*		rec,
+	const ulint*	offsets,
+	ulint		trx_id_col,
+	trx_id_t	trx_id,
+	roll_ptr_t	roll_ptr,
+	mtr_t*		mtr)
 {
 	byte*	field;
 	byte*	storage;
@@ -4202,6 +4208,83 @@ page_zip_write_trx_id_and_roll_ptr(
 	UNIV_MEM_ASSERT_RW(rec - rec_offs_extra_size(offsets),
 			   rec_offs_extra_size(offsets));
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
+
+	if (mtr) {
+		byte*	log_ptr	= mlog_open(
+			mtr, 11 + 2 + 2 + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+		if (UNIV_UNLIKELY(!log_ptr)) {
+			return;
+		}
+
+		log_ptr = mlog_write_initial_log_record_fast(
+			(byte*) field, MLOG_ZIP_WRITE_TRX_ID, log_ptr, mtr);
+		mach_write_to_2(log_ptr, page_offset(field));
+		log_ptr += 2;
+		mach_write_to_2(log_ptr, storage - page_zip->data);
+		log_ptr += 2;
+		memcpy(log_ptr, field, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+		log_ptr += DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
+		mlog_close(mtr, log_ptr);
+	}
+}
+
+/** Parse a MLOG_ZIP_WRITE_TRX_ID record.
+@param[in]	ptr		redo log buffer
+@param[in]	end_ptr		end of redo log buffer
+@param[in,out]	page		uncompressed page
+@param[in,out]	page_zip	compressed page
+@return end of log record
+@retval	NULL	if the log record is incomplete */
+byte*
+page_zip_parse_write_trx_id(
+	byte*		ptr,
+	byte*		end_ptr,
+	page_t*		page,
+	page_zip_des_t*	page_zip)
+{
+	byte* const end = 2 + 2 + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN + ptr;
+
+	if (UNIV_UNLIKELY(end_ptr < end)) {
+		return(NULL);
+	}
+
+	uint offset = mach_read_from_2(ptr);
+	uint z_offset = mach_read_from_2(ptr + 2);
+
+	if (offset < PAGE_ZIP_START
+	    || offset >= UNIV_PAGE_SIZE
+	    || z_offset >= UNIV_PAGE_SIZE) {
+corrupt:
+		recv_sys->found_corrupt_log = TRUE;
+
+		return(NULL);
+	}
+
+	if (page) {
+		if (!page_zip || !page_is_leaf(page)) {
+			goto corrupt;
+		}
+
+#ifdef UNIV_ZIP_DEBUG
+		ut_a(page_zip_validate(page_zip, page, NULL));
+#endif /* UNIV_ZIP_DEBUG */
+
+		byte* field = page + offset;
+		byte* storage = page_zip->data + z_offset;
+
+		if (storage >= page_zip_dir_start(page_zip)) {
+			goto corrupt;
+		}
+
+		memcpy(field, ptr + 4, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+		memcpy(storage, ptr + 4, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+
+#ifdef UNIV_ZIP_DEBUG
+		ut_a(page_zip_validate(page_zip, page, NULL));
+#endif /* UNIV_ZIP_DEBUG */
+	}
+
+	return end;
 }
 
 /**********************************************************************//**

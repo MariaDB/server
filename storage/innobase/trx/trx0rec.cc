@@ -469,8 +469,8 @@ trx_undo_page_report_insert(
 	ulint		i;
 
 	ut_ad(dict_index_is_clust(index));
-	ut_ad(mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
-			       + TRX_UNDO_PAGE_TYPE) == TRX_UNDO_INSERT);
+	ut_ad(*reinterpret_cast<uint16*>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
+					 + undo_page) == 0);
 
 	first_free = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
 				      + TRX_UNDO_PAGE_FREE);
@@ -875,13 +875,10 @@ trx_undo_page_report_modify(
 
 	ut_a(dict_index_is_clust(index));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
-			       + undo_page) == TRX_UNDO_UPDATE
-	      || (dict_table_is_temporary(table)
-		  && mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
-				      + undo_page) == TRX_UNDO_INSERT));
-	trx_undo_t*	update_undo = dict_table_is_temporary(table)
-		? NULL : trx->rsegs.m_redo.update_undo;
+	ut_ad(*reinterpret_cast<uint16*>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
+					 + undo_page) == 0);
+	trx_undo_t*	undo = dict_table_is_temporary(table)
+		? NULL : trx->rsegs.m_redo.undo;
 
 	first_free = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
 				      + TRX_UNDO_PAGE_FREE);
@@ -1109,8 +1106,8 @@ trx_undo_page_report_modify(
 				/* Notify purge that it eventually has to
 				free the old externally stored field */
 
-				if (update_undo) {
-					update_undo->del_marks = TRUE;
+				if (undo) {
+					undo->del_marks = TRUE;
 				}
 
 				*type_cmpl_ptr |= TRX_UNDO_UPD_EXTERN;
@@ -1180,8 +1177,8 @@ trx_undo_page_report_modify(
 		double		mbr[SPDIMS * 2];
 		mem_heap_t*	row_heap = NULL;
 
-		if (update_undo) {
-			update_undo->del_marks = TRUE;
+		if (undo) {
+			undo->del_marks = TRUE;
 		}
 
 		if (trx_undo_left(undo_page, ptr) < 5) {
@@ -1485,7 +1482,7 @@ trx_undo_update_rec_get_update(
 
 	buf = static_cast<byte*>(mem_heap_alloc(heap, DATA_TRX_ID_LEN));
 
-	trx_write_trx_id(buf, trx_id);
+	mach_write_to_6(buf, trx_id);
 
 	upd_field_set_field_no(upd_field,
 			       dict_index_get_sys_col_pos(index, DATA_TRX_ID),
@@ -1901,23 +1898,13 @@ trx_undo_report_row_operation(
 		not listed there. */
 		trx->mod_tables.insert(index->table);
 
-		pundo = !rec
-			? &trx->rsegs.m_redo.insert_undo
-			: &trx->rsegs.m_redo.update_undo;
+		pundo = &trx->rsegs.m_redo.undo;
 		rseg = trx->rsegs.m_redo.rseg;
 	}
 
 	mutex_enter(&trx->undo_mutex);
-	dberr_t	err;
-
-	if (*pundo) {
-		err = DB_SUCCESS;
-	} else if (!rec || is_temp) {
-		err = trx_undo_assign_undo(trx, rseg, pundo, TRX_UNDO_INSERT);
-	} else {
-		err = trx_undo_assign_undo(trx, rseg, pundo, TRX_UNDO_UPDATE);
-	}
-
+	dberr_t	err = *pundo ? DB_SUCCESS : trx_undo_assign_undo(
+		trx, rseg, pundo);
 	trx_undo_t*	undo = *pundo;
 
 	ut_ad((err == DB_SUCCESS) == (undo != NULL));

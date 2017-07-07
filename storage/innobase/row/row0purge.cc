@@ -663,6 +663,75 @@ row_purge_del_mark(
 	return(row_purge_remove_clust_if_poss(node));
 }
 
+/** Reset DB_TRX_ID, DB_ROLL_PTR of a clustered index record
+whose old history can no longer be observed.
+@param[in,out]	node	purge node
+@param[in,out]	mtr	mini-transaction (will be started and committed) */
+static
+void
+row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
+{
+	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	/* Reset DB_TRX_ID, DB_ROLL_PTR for old records. */
+	mtr->start();
+
+	if (row_purge_reposition_pcur(BTR_MODIFY_LEAF, node, mtr)) {
+		dict_index_t*	index = dict_table_get_first_index(
+			node->table);
+		ulint	trx_id_pos = index->n_uniq ? index->n_uniq : 1;
+		rec_t*	rec = btr_pcur_get_rec(&node->pcur);
+		mem_heap_t*	heap = NULL;
+		/* Reserve enough offsets for the PRIMARY KEY and 2 columns
+		so that we can access DB_TRX_ID, DB_ROLL_PTR. */
+		ulint	offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		rec_offs_init(offsets_);
+		ulint*	offsets = rec_get_offsets(
+			rec, index, offsets_, trx_id_pos + 2, &heap);
+		ut_ad(heap == NULL);
+
+		ut_ad(dict_index_get_nth_field(index, trx_id_pos)
+		      ->col->mtype == DATA_SYS);
+		ut_ad(dict_index_get_nth_field(index, trx_id_pos)
+		      ->col->prtype == (DATA_TRX_ID | DATA_NOT_NULL));
+		ut_ad(dict_index_get_nth_field(index, trx_id_pos + 1)
+		      ->col->mtype == DATA_SYS);
+		ut_ad(dict_index_get_nth_field(index, trx_id_pos + 1)
+		      ->col->prtype == (DATA_ROLL_PTR | DATA_NOT_NULL));
+
+		/* Only update the record if DB_ROLL_PTR matches (the
+		record has not been modified after this transaction
+		became purgeable) */
+		if (node->roll_ptr
+		    == row_get_rec_roll_ptr(rec, index, offsets)) {
+			ut_ad(!rec_get_deleted_flag(rec,
+						    rec_offs_comp(offsets)));
+			mtr->set_named_space(index->space);
+			if (page_zip_des_t* page_zip
+			    = buf_block_get_page_zip(
+				    btr_pcur_get_block(&node->pcur))) {
+				page_zip_write_trx_id_and_roll_ptr(
+					page_zip, rec, offsets, trx_id_pos,
+					0, 1ULL << ROLL_PTR_INSERT_FLAG_POS,
+					mtr);
+			} else {
+				ulint	len;
+				byte*	ptr = rec_get_nth_field(
+					rec, offsets, trx_id_pos, &len);
+				ut_ad(len == DATA_TRX_ID_LEN);
+				memset(ptr, 0, DATA_TRX_ID_LEN
+				       + DATA_ROLL_PTR_LEN);
+				ptr[DATA_TRX_ID_LEN] = 1U
+					<< (ROLL_PTR_INSERT_FLAG_POS - CHAR_BIT
+					    * (DATA_ROLL_PTR_LEN - 1));
+				mlog_log_string(ptr, DATA_TRX_ID_LEN
+						+ DATA_ROLL_PTR_LEN, mtr);
+			}
+		}
+	}
+
+	mtr->commit();
+}
+
 /***********************************************************//**
 Purges an update of an existing record. Also purges an update of a delete
 marked record if that record contained an externally stored field. */
@@ -713,6 +782,8 @@ row_purge_upd_exist_or_extern_func(
 	mem_heap_free(heap);
 
 skip_secondaries:
+	mtr_t		mtr;
+	dict_index_t*	index = dict_table_get_first_index(node->table);
 	/* Free possible externally stored fields */
 	for (ulint i = 0; i < upd_get_n_fields(node->update); i++) {
 
@@ -724,12 +795,10 @@ skip_secondaries:
 			buf_block_t*	block;
 			ulint		internal_offset;
 			byte*		data_field;
-			dict_index_t*	index;
 			ibool		is_insert;
 			ulint		rseg_id;
 			ulint		page_no;
 			ulint		offset;
-			mtr_t		mtr;
 
 			/* We use the fact that new_val points to
 			undo_rec and get thus the offset of
@@ -759,7 +828,6 @@ skip_secondaries:
 			/* We have to acquire an SX-latch to the clustered
 			index tree (exclude other tree changes) */
 
-			index = dict_table_get_first_index(node->table);
 			mtr_sx_lock(dict_index_get_lock(index), &mtr);
 
 			mtr.set_named_space(index->space);
@@ -794,6 +862,8 @@ skip_secondaries:
 			mtr_commit(&mtr);
 		}
 	}
+
+	row_purge_reset_trx_id(node, &mtr);
 }
 
 #ifdef UNIV_DEBUG
@@ -819,10 +889,8 @@ row_purge_parse_undo_rec(
 {
 	dict_index_t*	clust_index;
 	byte*		ptr;
-	trx_t*		trx;
 	undo_no_t	undo_no;
 	table_id_t	table_id;
-	trx_id_t	trx_id;
 	roll_ptr_t	roll_ptr;
 	ulint		info_bits;
 	ulint		type;
@@ -836,15 +904,21 @@ row_purge_parse_undo_rec(
 
 	node->rec_type = type;
 
-	if (type == TRX_UNDO_UPD_DEL_REC && !*updated_extern) {
-
-		return(false);
+	switch (type) {
+	case TRX_UNDO_INSERT_REC:
+		break;
+	default:
+#ifdef UNIV_DEBUG
+		ut_ad(0);
+		return false;
+	case TRX_UNDO_UPD_DEL_REC:
+	case TRX_UNDO_UPD_EXIST_REC:
+	case TRX_UNDO_DEL_MARK_REC:
+#endif /* UNIV_DEBUG */
+		ptr = trx_undo_update_rec_get_sys_cols(ptr, &node->trx_id,
+						       &roll_ptr, &info_bits);
+		break;
 	}
-
-	ptr = trx_undo_update_rec_get_sys_cols(ptr, &trx_id, &roll_ptr,
-					       &info_bits);
-	node->table = NULL;
-	node->trx_id = trx_id;
 
 	/* Prevent DROP TABLE etc. from running when we are doing the purge
 	for this row */
@@ -868,7 +942,8 @@ try_again:
 		goto err_exit;
 	}
 
-	if (node->table->n_v_cols && !node->table->vc_templ
+	if (type != TRX_UNDO_INSERT_REC
+	    && node->table->n_v_cols && !node->table->vc_templ
 	    && dict_table_has_indexed_v_cols(node->table)) {
 		/* Need server fully up for virtual column computation */
 		if (!mysqld_server_started) {
@@ -893,28 +968,23 @@ try_again:
 		/* The table was corrupt in the data dictionary.
 		dict_set_corrupted() works on an index, and
 		we do not have an index to call it with. */
-close_exit:
 		dict_table_close(node->table, FALSE, FALSE);
 err_exit:
 		rw_lock_s_unlock(dict_operation_lock);
 		return(false);
 	}
 
-	if (type == TRX_UNDO_UPD_EXIST_REC
-	    && (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)
-	    && !*updated_extern) {
-
-		/* Purge requires no changes to indexes: we may return */
-		goto close_exit;
-	}
-
 	ptr = trx_undo_rec_get_row_ref(ptr, clust_index, &(node->ref),
 				       node->heap);
 
-	trx = thr_get_trx(thr);
+	if (type == TRX_UNDO_INSERT_REC) {
+		return(true);
+	}
 
-	ptr = trx_undo_update_rec_get_update(ptr, clust_index, type, trx_id,
-					     roll_ptr, info_bits, trx,
+	ptr = trx_undo_update_rec_get_update(ptr, clust_index, type,
+					     node->trx_id,
+					     roll_ptr, info_bits,
+					     thr_get_trx(thr),
 					     node->heap, &(node->update));
 
 	/* Read to the partial row the fields that occur in indexes */
@@ -967,6 +1037,8 @@ row_purge_record_func(
 		break;
 	default:
 		if (!updated_extern) {
+			mtr_t		mtr;
+			row_purge_reset_trx_id(node, &mtr);
 			break;
 		}
 		/* fall through */

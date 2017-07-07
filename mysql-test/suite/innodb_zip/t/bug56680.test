@@ -1,19 +1,17 @@
 #Want to skip this test from daily Valgrind execution
 --source include/no_valgrind_without_big.inc
+# Embedded server tests do not support restarting.
+--source include/not_embedded.inc
 #
 # Bug #56680 InnoDB may return wrong results from a case-insensitive index
 #
 -- source include/innodb_page_size_small.inc
 
 -- disable_query_log
-SET @tx_isolation_orig = @@tx_isolation;
-SET @innodb_file_per_table_orig = @@innodb_file_per_table;
 # The flag innodb_change_buffering_debug is only available in debug builds.
 # It instructs InnoDB to try to evict pages from the buffer pool when
 # change buffering is possible, so that the change buffer will be used
 # whenever possible.
--- error 0,ER_UNKNOWN_SYSTEM_VARIABLE
-SET @innodb_change_buffering_debug_orig = @@innodb_change_buffering_debug;
 -- error 0,ER_UNKNOWN_SYSTEM_VARIABLE
 SET GLOBAL innodb_change_buffering_debug = 1;
 -- enable_query_log
@@ -129,11 +127,9 @@ INSERT INTO bug56680_2 VALUES(1,_latin1 0xdf,1);
 SELECT HEX(b) FROM bug56680_2 LIMIT 3;
 CHECK TABLE bug56680_2;
 
+--let $shutdown_timeout=1
+--source include/restart_mysqld.inc
+
+CHECK TABLE bug56680_2;
 DROP TABLE bug56680_2;
 DROP TABLE bug56680;
-
--- disable_query_log
-SET GLOBAL tx_isolation = @tx_isolation_orig;
-SET GLOBAL innodb_file_per_table = @innodb_file_per_table_orig;
--- error 0, ER_UNKNOWN_SYSTEM_VARIABLE
-SET GLOBAL innodb_change_buffering_debug = @innodb_change_buffering_debug_orig;

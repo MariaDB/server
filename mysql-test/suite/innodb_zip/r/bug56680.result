@@ -116,5 +116,8 @@ DF
 CHECK TABLE bug56680_2;
 Table	Op	Msg_type	Msg_text
 test.bug56680_2	check	status	OK
+CHECK TABLE bug56680_2;
+Table	Op	Msg_type	Msg_text
+test.bug56680_2	check	status	OK
 DROP TABLE bug56680_2;
 DROP TABLE bug56680;

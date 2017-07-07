@@ -2543,6 +2543,20 @@ files_checked:
 		thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
 		srv_start_state |= SRV_START_STATE_LOCK_SYS
 			| SRV_START_STATE_MONITOR;
+
+		ut_a(trx_purge_state() == PURGE_STATE_INIT);
+
+		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
+			srv_undo_sources = true;
+			/* Create the dict stats gathering thread */
+			srv_dict_stats_thread_active = true;
+			dict_stats_thread_handle = os_thread_create(
+				dict_stats_thread, NULL, NULL);
+
+			/* Create the thread that will optimize the
+			FULLTEXT search index subsystem. */
+			fts_optimize_init();
+		}
 	}
 
 	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
@@ -2576,16 +2590,7 @@ files_checked:
 		}
 
 		trx_temp_rseg_create();
-	}
 
-	srv_is_being_started = false;
-
-	ut_a(trx_purge_state() == PURGE_STATE_INIT);
-
-	/* Create the master thread which does purge and other utility
-	operations */
-
-	if (!srv_read_only_mode) {
 		thread_handles[1 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_master_thread,
 			NULL, thread_ids + (1 + SRV_MAX_N_IO_THREADS));
@@ -2593,16 +2598,10 @@ files_checked:
 		srv_start_state_set(SRV_START_STATE_MASTER);
 	}
 
+	srv_is_being_started = false;
+
 	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
 	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
-		srv_undo_sources = true;
-		/* Create the dict stats gathering thread */
-		srv_dict_stats_thread_active = true;
-		dict_stats_thread_handle = os_thread_create(
-			dict_stats_thread, NULL, NULL);
-
-		/* Create the thread that will optimize the FTS sub-system. */
-		fts_optimize_init();
 
 		thread_handles[5 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_purge_coordinator_thread,

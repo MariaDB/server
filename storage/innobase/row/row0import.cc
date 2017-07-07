@@ -3380,9 +3380,8 @@ row_import_for_mysql(
 	mutex_enter(&trx->undo_mutex);
 
 	/* TODO: Do not write any undo log for the IMPORT cleanup. */
-	trx_undo_t**	pundo = &trx->rsegs.m_redo.update_undo;
-	err = trx_undo_assign_undo(trx, trx->rsegs.m_redo.rseg, pundo,
-				   TRX_UNDO_UPDATE);
+	err = trx_undo_assign_undo(trx, trx->rsegs.m_redo.rseg,
+				   &trx->rsegs.m_redo.undo);
 
 	mutex_exit(&trx->undo_mutex);
 
@@ -3393,7 +3392,7 @@ row_import_for_mysql(
 
 		return(row_import_cleanup(prebuilt, trx, err));
 
-	} else if (trx->rsegs.m_redo.update_undo == 0) {
+	} else if (trx->rsegs.m_redo.undo == 0) {
 
 		err = DB_TOO_MANY_CONCURRENT_TRXS;
 		return(row_import_cleanup(prebuilt, trx, err));

@@ -163,8 +163,6 @@ public:
 		const table_name_t&	name) const
 		MY_ATTRIBUTE((warn_unused_result))
 	{
-		ut_ad(id > 0);
-
 		if (id < m_up_limit_id || id == m_creator_trx_id) {
 
 			return(true);

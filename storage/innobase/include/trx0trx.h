@@ -842,10 +842,12 @@ struct trx_undo_ptr_t {
 	trx_rseg_t*	rseg;		/*!< rollback segment assigned to the
 					transaction, or NULL if not assigned
 					yet */
-	trx_undo_t*	insert_undo;	/*!< pointer to the insert undo log, or
-					NULL if no inserts performed yet */
-	trx_undo_t*	update_undo;	/*!< pointer to the update undo log, or
-					NULL if no update performed yet */
+	trx_undo_t*	undo;		/*!< pointer to the undo log, or
+					NULL if nothing logged yet */
+	trx_undo_t*     old_insert;	/*!< pointer to recovered
+					insert undo log, or NULL if no
+					INSERT transactions were
+					recovered from old-format undo logs */
 };
 
 /** An instance of temporary rollback segment. */
@@ -1274,13 +1276,20 @@ struct trx_t {
 	/** @return whether any persistent undo log has been generated */
 	bool has_logged_persistent() const
 	{
-		return(rsegs.m_redo.insert_undo || rsegs.m_redo.update_undo);
+		return(rsegs.m_redo.undo);
 	}
 
 	/** @return whether any undo log has been generated */
 	bool has_logged() const
 	{
 		return(has_logged_persistent() || rsegs.m_noredo.undo);
+	}
+
+	/** @return whether any undo log has been generated or
+	recovered */
+	bool has_logged_or_recovered() const
+	{
+		return(has_logged() || rsegs.m_redo.old_insert);
 	}
 
 	/** @return rollback segment for modifying temporary tables */

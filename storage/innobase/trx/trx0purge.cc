@@ -248,7 +248,7 @@ trx_purge_add_update_undo_to_history(
 					x-latched */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	trx_undo_t*	undo		= trx->rsegs.m_redo.update_undo;
+	trx_undo_t*	undo		= trx->rsegs.m_redo.undo;
 	trx_rseg_t*	rseg		= undo->rseg;
 	trx_rsegf_t*	rseg_header	= trx_rsegf_get(
 		rseg->space, rseg->page_no, mtr);
@@ -954,19 +954,7 @@ trx_purge_initiate_truncate(
 			ulint		cached_undo_size = 0;
 
 			for (trx_undo_t* undo =
-				UT_LIST_GET_FIRST(rseg->update_undo_cached);
-			     undo != NULL && all_free;
-			     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
-
-				if (limit->trx_no < undo->trx_id) {
-					all_free = false;
-				} else {
-					cached_undo_size += undo->size;
-				}
-			}
-
-			for (trx_undo_t* undo =
-				UT_LIST_GET_FIRST(rseg->insert_undo_cached);
+				     UT_LIST_GET_FIRST(rseg->undo_cached);
 			     undo != NULL && all_free;
 			     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
 

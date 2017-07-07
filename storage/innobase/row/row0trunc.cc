@@ -1841,11 +1841,8 @@ row_truncate_table_for_mysql(
 	till some point. Associate rollback segment to record undo log. */
 	if (!dict_table_is_temporary(table)) {
 		mutex_enter(&trx->undo_mutex);
-
-		trx_undo_t**	pundo = &trx->rsegs.m_redo.update_undo;
-		err = trx_undo_assign_undo(
-			trx, trx->rsegs.m_redo.rseg, pundo, TRX_UNDO_UPDATE);
-
+		err = trx_undo_assign_undo(trx, trx->rsegs.m_redo.rseg,
+					   &trx->rsegs.m_redo.undo);
 		mutex_exit(&trx->undo_mutex);
 
 		DBUG_EXECUTE_IF("ib_err_trunc_assigning_undo_log",

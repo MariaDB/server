@@ -68,7 +68,7 @@ c-function and its parameters are written to the log to
 reduce the size of the log.
 
   3a) You should not add parameters to these kind of functions
-  (e.g. trx_undo_header_create(), trx_undo_insert_header_reuse())
+  (e.g. trx_undo_header_create())
 
   3b) You should not add such functionality which either change
   working when compared with the old or are dependent on data
