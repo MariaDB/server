@@ -38,6 +38,12 @@ struct dict_table_t;
 only one buffer pool instance is used. */
 #define BUF_POOL_SIZE_THRESHOLD		(1024 * 1024 * 1024)
 
+/** Open the configured number of dedicated undo tablespaces.
+@param[in]	create_new_db	whether the database is being initialized
+@return DB_SUCCESS or error code */
+dberr_t
+srv_undo_tablespaces_init(bool create_new_db);
+
 /****************************************************************//**
 Starts Innobase and creates a new database if database files
 are not found and the user wants.
@@ -127,4 +133,7 @@ extern bool srv_undo_sources;
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
 extern	enum srv_shutdown_t	srv_shutdown_state;
+
+/** Files comprising the system tablespace */
+extern pfs_os_file_t	files[1000];
 #endif

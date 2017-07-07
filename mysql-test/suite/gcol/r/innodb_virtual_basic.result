@@ -1002,7 +1002,7 @@ t	CREATE TABLE `t` (
   KEY `col_date_key` (`col_date_key`,`col_time_key`,`col_datetime_key`),
   KEY `col_varchar_key` (`col_varchar_key`,`col_varchar_nokey`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
- PARTITION BY KEY (col_int_key)
+ PARTITION BY KEY (`col_int_key`)
 PARTITIONS 3
 DROP TABLE t;
 CREATE TABLE t (a INT, b INT, c INT GENERATED ALWAYS AS(a+b), h VARCHAR(10));

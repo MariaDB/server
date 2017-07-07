@@ -1,3 +1,5 @@
+#--source include/innodb_page_size.inc
+
 # Test --databases-exclude and --tables-exclude feature of xtrabackup 2.3.8
 
 CREATE TABLE t1(i INT) ENGINE INNODB;
@@ -27,4 +29,3 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP DATABASE db2;
 rmdir $targetdir;
-

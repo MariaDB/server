@@ -1,0 +1,2 @@
+partial : xtrabackup --export does not work
+xb_page_compress : xtrabackup --export does not work

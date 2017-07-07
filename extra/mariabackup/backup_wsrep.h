@@ -19,8 +19,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 *******************************************************/
 
-#ifndef WSREP_H
-#define WSREP_H
+#ifndef BACKUP_WSREP_H
+#define BACKUP_WSREP_H
 
 /***********************************************************************
 Store Galera checkpoint info in the 'xtrabackup_galera_info' file, if that

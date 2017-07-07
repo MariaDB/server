@@ -38,6 +38,9 @@ Created 9/20/1997 Heikki Tuuri
 #include <list>
 #include <vector>
 
+/** Is recv_writer_thread active? */
+extern bool	recv_writer_thread_active;
+
 /** @return whether recovery is currently running. */
 #define recv_recovery_is_on() recv_recovery_on
 
@@ -92,6 +95,20 @@ Frees the recovery system. */
 void
 recv_sys_debug_free(void);
 /*=====================*/
+
+/** Read a log segment to a buffer.
+@param[out]	buf		buffer
+@param[in]	group		redo log files
+@param[in]	start_lsn	read area start
+@param[in]	end_lsn		read area end
+@return	valid end_lsn */
+lsn_t
+log_group_read_log_seg(
+	byte*			buf,
+	const log_group_t*	group,
+	lsn_t			start_lsn,
+	lsn_t			end_lsn);
+
 /********************************************************//**
 Reset the state of the recovery system variables. */
 void

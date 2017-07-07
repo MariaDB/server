@@ -1,0 +1,103 @@
+CREATE USER has_role@'localhost';
+GRANT ALL PRIVILEGES ON *.* TO has_role@'localhost';
+CREATE ROLE test_role;
+GRANT test_role TO has_role@'localhost';
+CREATE USER no_role@'localhost';
+GRANT ALL PRIVILEGES ON *.* TO no_role@'localhost';
+CREATE TABLE view_role_test (
+id int primary key,
+role_name varchar(50)
+);
+INSERT INTO view_role_test VALUES (1, 'test_role');
+#
+# Use the same logic for stored procedures.
+#
+PREPARE prepared_no_current_role FROM "SELECT * from view_role_test WHERE role_name = CURRENT_ROLE()";
+#
+# Creating a view with no CURRENT_ROLE() set and one with CURRENT_ROLE()
+# set. Both should produce the same SHOW CREATE VIEW output.
+#
+CREATE
+DEFINER = no_role@localhost
+SQL SECURITY INVOKER
+VIEW v_view_role_test_no_current_role
+AS
+SELECT * FROM view_role_test WHERE role_name = CURRENT_ROLE();
+SHOW CREATE VIEW v_view_role_test_no_current_role;
+View	Create View	character_set_client	collation_connection
+v_view_role_test_no_current_role	CREATE ALGORITHM=UNDEFINED DEFINER=`no_role`@`localhost` SQL SECURITY INVOKER VIEW `v_view_role_test_no_current_role` AS select `view_role_test`.`id` AS `id`,`view_role_test`.`role_name` AS `role_name` from `view_role_test` where `view_role_test`.`role_name` = current_role()	latin1	latin1_swedish_ci
+#
+# No values should be returned
+#
+EXECUTE prepared_no_current_role;
+id	role_name
+SELECT * FROM view_role_test WHERE role_name = CURRENT_ROLE();
+id	role_name
+SELECT * FROM v_view_role_test_no_current_role;
+id	role_name
+#
+# Now let's set the role. Create identical views as before. See if
+# their behaviour is different. It should not be.
+#
+SET ROLE test_role;
+SELECT CURRENT_USER();
+CURRENT_USER()
+root@localhost
+SELECT CURRENT_ROLE();
+CURRENT_ROLE()
+test_role
+#
+# Create the VIEW and prepared Statement with a CURRENT_ROLE() set.
+#
+CREATE
+DEFINER = no_role@localhost
+SQL SECURITY INVOKER
+VIEW v_view_role_test_with_current_role
+AS
+SELECT * FROM view_role_test WHERE role_name = CURRENT_ROLE();
+PREPARE prepared_with_current_role FROM "SELECT * from view_role_test WHERE role_name = CURRENT_ROLE()";
+SHOW CREATE VIEW v_view_role_test_with_current_role;
+View	Create View	character_set_client	collation_connection
+v_view_role_test_with_current_role	CREATE ALGORITHM=UNDEFINED DEFINER=`no_role`@`localhost` SQL SECURITY INVOKER VIEW `v_view_role_test_with_current_role` AS select `view_role_test`.`id` AS `id`,`view_role_test`.`role_name` AS `role_name` from `view_role_test` where `view_role_test`.`role_name` = current_role()	latin1	latin1_swedish_ci
+#
+# Values should be returned for all select statements as we do have
+# a CURRENT_ROLE() active;
+#
+EXECUTE prepared_no_current_role;
+id	role_name
+1	test_role
+EXECUTE prepared_with_current_role;
+id	role_name
+1	test_role
+SELECT * FROM view_role_test WHERE role_name = CURRENT_ROLE();
+id	role_name
+1	test_role
+SELECT * FROM v_view_role_test_no_current_role;
+id	role_name
+1	test_role
+SELECT * FROM v_view_role_test_with_current_role;
+id	role_name
+1	test_role
+SET ROLE NONE;
+#
+# No values should be returned for all select statements as we do not have
+# a CURRENT_ROLE() active;
+#
+EXECUTE prepared_no_current_role;
+id	role_name
+EXECUTE prepared_with_current_role;
+id	role_name
+SELECT * FROM view_role_test WHERE role_name = CURRENT_ROLE();
+id	role_name
+SELECT * FROM v_view_role_test_no_current_role;
+id	role_name
+SELECT * FROM v_view_role_test_with_current_role;
+id	role_name
+DROP USER has_role@'localhost';
+DROP USER no_role@'localhost';
+DROP ROLE test_role;
+DROP table view_role_test;
+DROP VIEW v_view_role_test_no_current_role;
+DROP VIEW v_view_role_test_with_current_role;
+DROP PREPARE prepared_no_current_role;
+DROP PREPARE prepared_with_current_role;

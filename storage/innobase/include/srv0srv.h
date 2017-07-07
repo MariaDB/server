@@ -500,6 +500,19 @@ extern ulong	srv_max_purge_lag_delay;
 extern ulong	srv_replication_delay;
 /*-------------------------------------------*/
 
+/** Modes of operation */
+enum srv_operation_mode {
+	/** Normal mode (MariaDB Server) */
+	SRV_OPERATION_NORMAL,
+	/** Mariabackup taking a backup */
+	SRV_OPERATION_BACKUP,
+	/** Mariabackup restoring a backup */
+	SRV_OPERATION_RESTORE
+};
+
+/** Current mode of operation */
+extern enum srv_operation_mode srv_operation;
+
 extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
 extern ibool	srv_print_verbose_log;

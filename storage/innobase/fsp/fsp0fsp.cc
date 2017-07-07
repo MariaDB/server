@@ -682,7 +682,7 @@ fsp_header_init_fields(
 	ulint	flags)		/*!< in: tablespace flags (FSP_SPACE_FLAGS) */
 {
 	flags &= ~FSP_FLAGS_MEM_MASK;
-	ut_a(fsp_flags_is_valid(flags));
+	ut_a(fsp_flags_is_valid(flags, space_id));
 
 	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_ID + page,
 			space_id);

@@ -6011,6 +6011,68 @@ use_case_id	InitialDeadline
 10	2015-12-18
 drop view v1;
 drop table t1;
+#
+# MDEV-12666: CURRENT_ROLE() and DATABASE() does not work in a view
+#
+# DATABASE() fails only when the initial view creation features a NULL
+# default database.
+#
+# CREATE, USE and DROP database so that we have no "default" database.
+#
+CREATE DATABASE temporary;
+USE temporary;
+DROP DATABASE temporary;
+SELECT DATABASE();
+DATABASE()
+NULL
+CREATE VIEW test.v_no_db AS SELECT DATABASE() = 'temporary_two';
+SHOW CREATE VIEW test.v_no_db;
+View	Create View	character_set_client	collation_connection
+v_no_db	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `test`.`v_no_db` AS select database() = 'temporary_two' AS `DATABASE() = 'temporary_two'`	latin1	latin1_swedish_ci
+PREPARE prepared_no_database FROM "SELECT DATABASE() = 'temporary_two'";
+#
+# All statements should return NULL
+#
+EXECUTE prepared_no_database;
+DATABASE() = 'temporary_two'
+NULL
+SELECT DATABASE() = 'temporary_two';
+DATABASE() = 'temporary_two'
+NULL
+SELECT * FROM test.v_no_db;
+DATABASE() = 'temporary_two'
+NULL
+CREATE DATABASE temporary_two;
+USE temporary_two;
+CREATE VIEW test.v_with_db AS SELECT DATABASE() = 'temporary_two';
+PREPARE prepared_with_database FROM "SELECT DATABASE() = 'temporary_two'";
+#
+# All statements should return 1;
+#
+SELECT DATABASE() = 'temporary_two';
+DATABASE() = 'temporary_two'
+1
+SELECT * FROM test.v_no_db;
+DATABASE() = 'temporary_two'
+1
+SELECT * FROM test.v_with_db;
+DATABASE() = 'temporary_two'
+1
+EXECUTE prepared_with_database;
+DATABASE() = 'temporary_two'
+1
+#
+# Prepared statements maintain default database to be the same
+# during on creation so this should return NULL still.
+# See MySQL bug #25843
+#
+EXECUTE prepared_no_database;
+DATABASE() = 'temporary_two'
+NULL
+DROP DATABASE temporary_two;
+DROP VIEW test.v_no_db;
+DROP VIEW test.v_with_db;
+USE test;
 # -----------------------------------------------------------------
 # -- End of 10.0 tests.
 # -----------------------------------------------------------------
@@ -6099,6 +6161,24 @@ three	COUNT(*)
 3	2
 drop view v1;
 drop table t1;
+#
+# MDEV-12819: order by ordering expression changed to empty string
+# when creatin view with union
+#
+create table t1 (t1col1 int, t1col2 int,t1col3 int );
+create table t2 (t2col1 int, t2col2 int, t2col3 int);
+create view v1 as
+select t1col1,t1col2,t1col3 from t1
+union all
+select t2col1,t2col2,t2col3 from t2
+order by 2,3;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`t1col1` AS `t1col1`,`t1`.`t1col2` AS `t1col2`,`t1`.`t1col3` AS `t1col3` from `t1` union all select `t2`.`t2col1` AS `t2col1`,`t2`.`t2col2` AS `t2col2`,`t2`.`t2col3` AS `t2col3` from `t2` order by 2,3	latin1	latin1_swedish_ci
+select * from v1;
+t1col1	t1col2	t1col3
+drop view v1;
+drop table t1,t2;
 #
 # End of 10.1 tests
 #

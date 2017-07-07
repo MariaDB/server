@@ -1,3 +1,5 @@
+--source include/innodb_page_size.inc
+
 # Check if ibd smaller than page size are skipped
 # It is possible, due to race conditions that new file
 # is created by server while xtrabackup is running
@@ -15,4 +17,3 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=
 --enable_result_log
 remove_file  $_datadir/test/small.ibd;
 rmdir $targetdir;
-

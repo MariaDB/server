@@ -1348,8 +1348,13 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   if (test_all_bits(sctx->master_access, DB_ACLS))
     db_access=DB_ACLS;
   else
-    db_access= (acl_get(sctx->host, sctx->ip, sctx->priv_user, dbname->str, 0) |
-		sctx->master_access);
+  {
+    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user, dbname->str, 0) |
+               sctx->master_access;
+    if (sctx->priv_role[0])
+      db_access|= acl_get("", "", sctx->priv_role, dbname->str, 0);
+  }
+
   if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
   {
     status_var_increment(thd->status_var.access_denied_errors);
@@ -2266,19 +2271,14 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       */
       uint part_syntax_len;
       char *part_syntax;
-      String comment_start;
-      comment_start.append(STRING_WITH_LEN("\n"));
       if ((part_syntax= generate_partition_syntax(thd, table->part_info,
                                                   &part_syntax_len,
-                                                  FALSE,
                                                   show_table_options,
-                                                  NULL, NULL,
-                                                  comment_start.c_ptr())))
+                                                  NULL, NULL)))
       {
-         packet->append(comment_start);
+         packet->append('\n');
          if (packet->append(part_syntax, part_syntax_len))
           error= 1;
-         my_free(part_syntax);
       }
     }
   }
@@ -5084,8 +5084,10 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-	acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, 0) ||
-	!check_grant_db(thd, db_name->str))
+        acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, false) ||
+        (sctx->priv_role[0] ?
+             acl_get("", "", sctx->priv_role, db_name->str, false) : 0) ||
+        !check_grant_db(thd, db_name->str))
 #endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);
@@ -5538,6 +5540,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
   TABLE *show_table;
   Field **ptr, *field;
   int count;
+  bool quoted_defaults= lex->sql_command != SQLCOM_SHOW_FIELDS;
   DBUG_ENTER("get_schema_column_record");
 
   if (res)
@@ -5607,7 +5610,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
                            cs);
     table->field[4]->store((longlong) count, TRUE);
 
-    if (get_field_default_value(thd, field, &type, 0))
+    if (get_field_default_value(thd, field, &type, quoted_defaults))
     {
       table->field[5]->store(type.ptr(), type.length(), cs);
       table->field[5]->set_notnull();
@@ -6914,7 +6917,7 @@ get_partition_column_description(THD *thd,
   {
     part_column_list_val *col_val= &list_value->col_val_array[i];
     if (col_val->max_value)
-      tmp_str.append(partition_keywords[PKW_MAXVALUE].str);
+      tmp_str.append(STRING_WITH_LEN("MAXVALUE"));
     else if (col_val->null_value)
       tmp_str.append("NULL");
     else
@@ -6991,27 +6994,21 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
     case LIST_PARTITION:
       tmp_res.length(0);
       if (part_info->part_type == RANGE_PARTITION)
-        tmp_res.append(partition_keywords[PKW_RANGE].str,
-                       partition_keywords[PKW_RANGE].length);
+        tmp_res.append(STRING_WITH_LEN("RANGE"));
       else
-        tmp_res.append(partition_keywords[PKW_LIST].str,
-                       partition_keywords[PKW_LIST].length);
+        tmp_res.append(STRING_WITH_LEN("LIST"));
       if (part_info->column_list)
-        tmp_res.append(partition_keywords[PKW_COLUMNS].str,
-                       partition_keywords[PKW_COLUMNS].length);
+        tmp_res.append(STRING_WITH_LEN(" COLUMNS"));
       table->field[7]->store(tmp_res.ptr(), tmp_res.length(), cs);
       break;
     case HASH_PARTITION:
       tmp_res.length(0);
       if (part_info->linear_hash_ind)
-        tmp_res.append(partition_keywords[PKW_LINEAR].str,
-                       partition_keywords[PKW_LINEAR].length);
+        tmp_res.append(STRING_WITH_LEN("LINEAR "));
       if (part_info->list_of_part_fields)
-        tmp_res.append(partition_keywords[PKW_KEY].str,
-                       partition_keywords[PKW_KEY].length);
+        tmp_res.append(STRING_WITH_LEN("KEY"));
       else
-        tmp_res.append(partition_keywords[PKW_HASH].str,
-                       partition_keywords[PKW_HASH].length);
+        tmp_res.append(STRING_WITH_LEN("HASH"));
       table->field[7]->store(tmp_res.ptr(), tmp_res.length(), cs);
       break;
     default:
@@ -7024,8 +7021,9 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
     /* Partition expression */
     if (part_info->part_expr)
     {
-      table->field[9]->store(part_info->part_func_string,
-                             part_info->part_func_len, cs);
+      StringBuffer<STRING_BUFFER_USUAL_SIZE> str(cs);
+      part_info->part_expr->print_for_table_def(&str);
+      table->field[9]->store(str.ptr(), str.length(), str.charset());
     }
     else if (part_info->list_of_part_fields)
     {
@@ -7039,22 +7037,20 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
       /* Subpartition method */
       tmp_res.length(0);
       if (part_info->linear_hash_ind)
-        tmp_res.append(partition_keywords[PKW_LINEAR].str,
-                       partition_keywords[PKW_LINEAR].length);
+        tmp_res.append(STRING_WITH_LEN("LINEAR "));
       if (part_info->list_of_subpart_fields)
-        tmp_res.append(partition_keywords[PKW_KEY].str,
-                       partition_keywords[PKW_KEY].length);
+        tmp_res.append(STRING_WITH_LEN("KEY"));
       else
-        tmp_res.append(partition_keywords[PKW_HASH].str,
-                       partition_keywords[PKW_HASH].length);
+        tmp_res.append(STRING_WITH_LEN("HASH"));
       table->field[8]->store(tmp_res.ptr(), tmp_res.length(), cs);
       table->field[8]->set_notnull();
 
       /* Subpartition expression */
       if (part_info->subpart_expr)
       {
-        table->field[10]->store(part_info->subpart_func_string,
-                                part_info->subpart_func_len, cs);
+        StringBuffer<STRING_BUFFER_USUAL_SIZE> str(cs);
+        part_info->subpart_expr->print_for_table_def(&str);
+        table->field[10]->store(str.ptr(), str.length(), str.charset());
       }
       else if (part_info->list_of_subpart_fields)
       {
@@ -7095,8 +7091,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
           if (part_elem->range_value != LONGLONG_MAX)
             table->field[11]->store((longlong) part_elem->range_value, FALSE);
           else
-            table->field[11]->store(partition_keywords[PKW_MAXVALUE].str,
-                                 partition_keywords[PKW_MAXVALUE].length, cs);
+            table->field[11]->store(STRING_WITH_LEN("MAXVALUE"), cs);
         }
         table->field[11]->set_notnull();
       }

@@ -198,11 +198,10 @@ bool trans_begin(THD *thd, uint flags)
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
 
   /*
-    The following set should not be needed as the flag should always be 0
-    when we come here.  We should at some point change this to an assert.
+    The following set should not be needed as transaction state should
+    already be reset. We should at some point change this to an assert.
   */
-  thd->transaction.all.modified_non_trans_table= FALSE;
-  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+  thd->transaction.all.reset();
   thd->has_waiter= false;
   thd->waiting_on_group_commit= false;
 
@@ -323,8 +322,7 @@ bool trans_commit(THD *thd)
   else
     (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
-  thd->transaction.all.modified_non_trans_table= FALSE;
-  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+  thd->transaction.all.reset();
   thd->lex->start_transaction_opt= 0;
 
   trans_track_end_trx(thd);
@@ -373,8 +371,7 @@ bool trans_commit_implicit(THD *thd)
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
-  thd->transaction.all.modified_non_trans_table= FALSE;
-  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+  thd->transaction.all.reset();
 
   /*
     Upon implicit commit, reset the current transaction
@@ -420,8 +417,7 @@ bool trans_rollback(THD *thd)
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   /* Reset the binlog transaction marker */
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
-  thd->transaction.all.modified_non_trans_table= FALSE;
-  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+  thd->transaction.all.reset();
   thd->lex->start_transaction_opt= 0;
 
   trans_track_end_trx(thd);
@@ -467,8 +463,7 @@ bool trans_rollback_implicit(THD *thd)
     preserve backward compatibility.
   */
   thd->variables.option_bits&= ~(OPTION_KEEP_LOG);
-  thd->transaction.all.modified_non_trans_table= false;
-  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+  thd->transaction.all.reset();
 
   /* Rollback should clear transaction_rollback_request flag. */
   DBUG_ASSERT(! thd->transaction_rollback_request);
@@ -505,6 +500,8 @@ bool trans_commit_stmt(THD *thd)
     savepoint when statement has succeeded.
   */
   DBUG_ASSERT(! thd->in_sub_stmt);
+
+  thd->merge_unsafe_rollback_flags();
 
   if (thd->transaction.stmt.ha_list)
   {
@@ -558,6 +555,8 @@ bool trans_rollback_stmt(THD *thd)
     savepoint when statement has succeeded.
   */
   DBUG_ASSERT(! thd->in_sub_stmt);
+
+  thd->merge_unsafe_rollback_flags();
 
   if (thd->transaction.stmt.ha_list)
   {
@@ -979,8 +978,7 @@ bool trans_xa_commit(THD *thd)
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
-  thd->transaction.all.modified_non_trans_table= FALSE;
-  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+  thd->transaction.all.reset();
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
@@ -1037,8 +1035,7 @@ bool trans_xa_rollback(THD *thd)
   res= xa_trans_force_rollback(thd);
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
-  thd->transaction.all.modified_non_trans_table= FALSE;
-  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+  thd->transaction.all.reset();
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));

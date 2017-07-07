@@ -1,0 +1,18 @@
+check table vcol_autoinc for upgrade;
+Table	Op	Msg_type	Msg_text
+test.vcol_autoinc	check	Warning	Function or expression 'AUTO_INCREMENT' cannot be used in the GENERATED ALWAYS AS clause of `pk`
+test.vcol_autoinc	check	status	OK
+show create table vcol_autoinc;
+Table	Create Table
+vcol_autoinc	CREATE TABLE `vcol_autoinc` (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `v3` int(11) GENERATED ALWAYS AS (`pk`) VIRTUAL,
+  PRIMARY KEY (`pk`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from vcol_autoinc;
+pk	v3
+insert vcol_autoinc (pk) values (1);
+select * from vcol_autoinc;
+pk	v3
+1	1
+drop table vcol_autoinc;

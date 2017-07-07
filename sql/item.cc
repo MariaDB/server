@@ -565,8 +565,7 @@ Item::Item(THD *thd):
   {
     enum_parsing_place place= 
       thd->lex->current_select->parsing_place;
-    if (place == SELECT_LIST ||
-	place == IN_HAVING)
+    if (place == SELECT_LIST || place == IN_HAVING)
       thd->lex->current_select->select_n_having_items++;
   }
 }
@@ -2942,22 +2941,21 @@ void Item_ident::print(String *str, enum_query_type query_type)
     use_db_name= !(cached_table && cached_table->belong_to_view &&
                    cached_table->belong_to_view->compact_view_format);
 
-  if (!use_db_name && use_table_name &&
-      (query_type & QT_ITEM_IDENT_SKIP_TABLE_NAMES))
+  if (use_table_name && (query_type & QT_ITEM_IDENT_SKIP_TABLE_NAMES))
   {
     /*
       Don't print the table name if it's the only table in the context
       XXX technically, that's a sufficient, but too strong condition
     */
     if (!context)
-      use_table_name= false;
+      use_db_name= use_table_name= false;
     else if (context->outer_context)
       use_table_name= true;
     else if (context->last_name_resolution_table == context->first_name_resolution_table)
-      use_table_name= false;
+      use_db_name= use_table_name= false;
     else if (!context->last_name_resolution_table &&
              !context->first_name_resolution_table->next_name_resolution_table)
-      use_table_name= false;
+      use_db_name= use_table_name= false;
   }
 
   if (!field_name.str || !field_name.str[0])
@@ -10229,15 +10227,4 @@ void Item::register_in(THD *thd)
 {
   next= thd->free_list;
   thd->free_list= this;
-}
-
-void Virtual_column_info::print(String *str)
-{
-  expr->print_parenthesised(str,
-                   (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
-                                     QT_ITEM_IDENT_SKIP_DB_NAMES |
-                                     QT_ITEM_IDENT_SKIP_TABLE_NAMES |
-                                     QT_NO_DATA_EXPANSION |
-                                     QT_TO_SYSTEM_CHARSET),
-                   LOWEST_PRECEDENCE);
 }

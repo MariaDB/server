@@ -4425,6 +4425,7 @@ public:
   void set_flags(flag_set flags_arg) { m_flags |= flags_arg; }
   void clear_flags(flag_set flags_arg) { m_flags &= ~flags_arg; }
   flag_set get_flags(flag_set flags_arg) const { return m_flags & flags_arg; }
+  void update_flags() { int2store(temp_buf + m_flags_pos, m_flags); }
 
   Log_event_type get_type_code() { return m_type; } /* Specific type (_V1 etc) */
   enum_logged_status logged_status() { return LOGGED_ROW_EVENT; }
@@ -4584,6 +4585,7 @@ protected:
   uchar    *m_rows_end;		/* One-after the end of the allocated space */
 
   size_t   m_rows_before_size;  /* The length before m_rows_buf */
+  size_t   m_flags_pos; /* The position of the m_flags */
 
   flag_set m_flags;		/* Flags for row-level events */
 

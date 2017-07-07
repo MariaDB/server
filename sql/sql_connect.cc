@@ -1462,7 +1462,7 @@ THD *CONNECT::create_thd(THD *thd)
   res= my_net_init(&thd->net, vio, thd, MYF(MY_THREAD_SPECIFIC));
   vio= 0;                              // Vio now handled by thd
 
-  if (res)
+  if (res || thd->is_error())
   {
     if (!thd_reused)
       delete thd;

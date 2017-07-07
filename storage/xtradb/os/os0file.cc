@@ -2072,7 +2072,6 @@ os_file_create_func(
 			file = INVALID_HANDLE_VALUE;
 		}
 	}
-
 #else /* __WIN__ */
 	int		create_flag;
 	const char*	mode_str	= NULL;

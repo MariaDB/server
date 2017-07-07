@@ -557,7 +557,7 @@ mtr_t::commit()
 	m_impl.m_state = MTR_STATE_COMMITTING;
 
 	/* This is a dirty read, for debugging. */
-	ut_ad(!recv_no_log_write);
+	ut_ad(!m_impl.m_modifications || !recv_no_log_write);
 
 	Command	cmd(this);
 

@@ -1388,6 +1388,7 @@ bool THD::log_events_and_free_tmp_shares()
       variables.character_set_client= cs_save;
 
       get_stmt_da()->set_overwrite_status(true);
+      transaction.stmt.mark_dropped_temp_table();
       if ((error= (mysql_bin_log.write(&qinfo) || error)))
       {
         /*

@@ -355,10 +355,13 @@ int print_explain_row(select_result_sink *result,
   item_list.push_back(new (mem_root) Item_string_sys(thd, jtype_str),
                       mem_root);
   
-  /* 'possible_keys' */
+  /* 'possible_keys'
+     The buffer must not be deallocated before we call send_data, otherwise
+     we may end up reading freed memory.
+  */
+  StringBuffer<64> possible_keys_buf;
   if (possible_keys && !possible_keys->is_empty())
   {
-    StringBuffer<64> possible_keys_buf;
     push_string_list(thd, &item_list, *possible_keys, &possible_keys_buf);
   }
   else
