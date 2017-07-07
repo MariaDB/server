@@ -143,16 +143,18 @@ CALL p1();
 ERROR 21000: Operand should contain 2 column(s)
 DROP PROCEDURE p1;
 #
-# Bad usage of a scalar variable as a row
+# Scalar variable vs table alias cause no ambiguity
 #
 CREATE PROCEDURE p1()
 AS
 a INT;
 BEGIN
-SELECT a.x FROM t1;
+-- a.x is a table column here (not a row variable field)
+SELECT a.x FROM a;
+SELECT a.x FROM t1 a;
 END;
 $$
-ERROR HY000: 'a' is not a row variable
+DROP PROCEDURE p1;
 #
 # Using the entire ROW variable in select list
 #
@@ -2988,3 +2990,83 @@ rec.b
 b0
 DROP TABLE t1;
 DROP PROCEDURE p1;
+#
+# MDEV-13273 Confusion between table alias and ROW type variable
+#
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+CREATE PROCEDURE p1
+AS
+a INT;
+b INT;
+BEGIN
+-- a.c1 is a table column
+SELECT a.c1 INTO b
+FROM t1 a
+WHERE a.c2 = 0;
+SELECT b;
+END;
+$$
+CALL p1;
+b
+0
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+CREATE PROCEDURE p1
+AS
+a ROW (c1 INT, c2 INT) := ROW(101,102);
+b INT;
+BEGIN
+-- a.c1 is a ROW variable field
+SELECT a.c1 INTO b
+FROM t1 a
+WHERE a.c2 = 102;
+SELECT b;
+END;
+$$
+CALL p1;
+b
+101
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+CREATE PROCEDURE p1
+AS
+a t1%ROWTYPE := ROW (10,20);
+b INT;
+BEGIN
+-- a.c1 is a ROW variable field
+SELECT a.c1 INTO b
+FROM t1 a
+WHERE a.c2 = 20;
+SELECT b;
+END;
+$$
+CALL p1;
+b
+10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+CREATE PROCEDURE p1
+AS
+CURSOR cur1 IS SELECT * FROM t1;
+a cur1%ROWTYPE := ROW (10,20);
+b INT;
+BEGIN
+-- a.c1 is a ROW variable field
+SELECT a.c1 INTO b
+FROM t1 a
+WHERE a.c2 = 20;
+SELECT b;
+END;
+$$
+CALL p1;
+b
+10
+DROP PROCEDURE p1;
+DROP TABLE t1;

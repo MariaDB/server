@@ -161,18 +161,20 @@ DROP PROCEDURE p1;
 
 
 --echo #
---echo # Bad usage of a scalar variable as a row
+--echo # Scalar variable vs table alias cause no ambiguity
 --echo #
 
 DELIMITER $$;
---error ER_UNKNOWN_ERROR
 CREATE PROCEDURE p1()
 BEGIN
   DECLARE a INT;
-  SELECT a.x FROM t1;
+  -- a.x is a table column here (not a row variable field)
+  SELECT a.x FROM a;
+  SELECT a.x FROM t1 a;
 END;
 $$
 DELIMITER ;$$
+DROP PROCEDURE p1;
 
 
 --echo #
@@ -1385,3 +1387,87 @@ DELIMITER ;$$
 CALL p1();
 DROP TABLE t1;
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-13273 Confusion between table alias and ROW type variable
+--echo #
+
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT;
+  DECLARE b INT;
+  -- a.c1 is a table column
+  SELECT a.c1 INTO b
+    FROM t1 a
+    WHERE a.c2 = 0;
+  SELECT b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a ROW (c1 INT, c2 INT) DEFAULT ROW(101,102);
+  DECLARE b INT;
+  -- a.c1 is a ROW variable field
+  SELECT a.c1 INTO b
+    FROM t1 a
+    WHERE a.c2 = 102;
+  SELECT b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a ROW TYPE OF t1 DEFAULT ROW (10,20);
+  DECLARE b INT;
+  -- a.c1 is a ROW variable field
+  SELECT a.c1 INTO b
+    FROM t1 a
+    WHERE a.c2 = 20;
+  SELECT b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+  BEGIN
+    DECLARE a ROW TYPE OF cur1 DEFAULT ROW (10,20);
+    DECLARE b INT;
+    -- a.c1 is a ROW variable field
+    SELECT a.c1 INTO b
+      FROM t1 a
+      WHERE a.c2 = 20;
+    SELECT b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
