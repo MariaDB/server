@@ -993,9 +993,6 @@ update v3 set v3.col1 = (select max(col1) from v2);
 ERROR HY000: The definition of table 'v2' prevents operation UPDATE on table 'v3'
 update v3 set v3.col1 = (select max(col1) from v3);
 ERROR HY000: Table 'v3' is specified twice, both as a target for 'UPDATE' and as a separate source for data
-delete from v2 where col1 = (select max(col1) from v1);
-delete from v2 where col1 = (select max(col1) from t1);
-delete from v2 where col1 = (select max(col1) from v2);
 delete v2 from v2,t2 where (select max(col1) from v1) > 0 and v2.col1 = t2.col1;
 ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'v2'
 delete t1 from t1,t2 where (select max(col1) from v1) > 0 and t1.col1 = t2.col1;

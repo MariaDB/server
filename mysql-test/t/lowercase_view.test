@@ -73,10 +73,6 @@ update v3aA set v3Aa.col1 = (select max(col1) from t1aA);
 update v3aA set v3Aa.col1 = (select max(col1) from v2aA);
 -- error 1093
 update v3aA set v3Aa.col1 = (select max(col1) from v3aA);
-# Works since MDEV-12137 (no more error 1093)
-delete from v2Aa where col1 = (select max(col1) from v1Aa);
-delete from v2aA where col1 = (select max(col1) from t1Aa);
-delete from v2Aa where col1 = (select max(col1) from v2aA);
 -- error 1443
 delete v2Aa from v2aA,t2Aa where (select max(col1) from v1aA) > 0 and v2Aa.col1 = t2aA.col1;
 -- error 1443
