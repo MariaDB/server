@@ -1011,13 +1011,6 @@ bool Item_field::check_field_expression_processor(void *arg)
   Field *org_field= (Field*) arg;
   if (field->flags & NO_DEFAULT_VALUE_FLAG)
     return 0;
-  if (field->flags & AUTO_INCREMENT_FLAG)
-  {
-      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
-               MYF(0),
-               org_field->field_name.str, field->field_name.str);
-      return 1;
-  }
   if ((field->default_value && field->default_value->flags) || field->vcol_info)
   {
     if (field == org_field ||
