@@ -2549,7 +2549,8 @@ static Sys_var_mybool Sys_readonly(
 static Sys_var_mybool Sys_numaenable(
        "numa_enable",
        "Enables explicit support for numa architecture.",
-       GLOBAL_VAR(srv_numa_enable), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(srv_numa_enable),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 // Small lower limit to be able to test MRR
