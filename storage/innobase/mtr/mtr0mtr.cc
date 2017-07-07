@@ -599,9 +599,6 @@ mtr_t::commit_checkpoint(
 	ut_d(m_impl.m_state = MTR_STATE_COMMITTING);
 	ut_ad(write_mlog_checkpoint || m_impl.m_n_log_recs > 1);
 
-	/* This is a dirty read, for debugging. */
-	ut_ad(!recv_no_log_write);
-
 	switch (m_impl.m_n_log_recs) {
 	case 0:
 		break;
