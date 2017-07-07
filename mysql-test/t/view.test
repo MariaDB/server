@@ -914,11 +914,12 @@ update v3 set v3.col1 = (select max(col1) from t1);
 update v3 set v3.col1 = (select max(col1) from v2);
 -- error ER_UPDATE_TABLE_USED
 update v3 set v3.col1 = (select max(col1) from v3);
--- error ER_VIEW_PREVENT_UPDATE
+# Works since MDEV-12137
+# Previously error ER_VIEW_PREVENT_UPDATE
 delete from v2 where col1 = (select max(col1) from v1);
--- error ER_VIEW_PREVENT_UPDATE
+# Previously error ER_VIEW_PREVENT_UPDATE
 delete from v2 where col1 = (select max(col1) from t1);
--- error ER_UPDATE_TABLE_USED
+# Previously error ER_UPDATE_TABLE_USED
 delete from v2 where col1 = (select max(col1) from v2);
 -- error ER_VIEW_PREVENT_UPDATE
 delete v2 from v2,t2 where (select max(col1) from v1) > 0 and v2.col1 = t2.col1;

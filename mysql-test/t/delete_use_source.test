@@ -1,0 +1,172 @@
+-- source include/have_innodb.inc
+set sql_mode=oracle;
+use test;
+create or replace table tab_delete(c1 integer not null,c2 integer not null) engine=InnoDb;
+create index tab_delete_c1 on tab_delete(c1);
+create or replace view view_delete as select * from tab_delete where c1 in (0,1);
+delimiter /;
+CREATE or replace PROCEDURE gendata(a int, count int ) AS
+  i INT:=0;
+BEGIN
+  FOR i IN 1 .. count
+  LOOP
+    insert into tab_delete values (a,i);
+  END LOOP;
+END;
+/
+create or replace trigger trg after delete on tab_delete for each row
+begin
+  declare c int;
+  begin
+  if old.c1 = 1 then
+    select count(*) into c from tab_delete where c1!=old.c1;
+    SIGNAL SQLSTATE '45000' set table_name=c;
+  end if;
+  end;
+end;
+/
+delimiter ;/
+set @count=500;
+call gendata(0,@count);
+call gendata(1,50);
+call gendata(2,20);
+call gendata(3,20);
+commit;
+
+--echo #
+--echo # Delete with limit (quick select - range acces)
+--echo #
+
+start transaction;
+--enable_info
+delete from tab_delete where (select count(*) from tab_delete b where b.c1=tab_delete.c1) = 500 limit 1;
+delete from tab_delete where (select count(*) from tab_delete b where b.c1=tab_delete.c1) = 500 limit 1;
+--disable_info
+select count(*) from view_delete where c1=0;
+rollback;
+
+--echo #
+--echo # Delete
+--echo #
+
+start transaction;
+--enable_info
+delete from tab_delete where (select count(*) from tab_delete b where b.c1=tab_delete.c1) = 500 ;
+--disable_info
+rollback;
+
+--echo #
+--echo # Delete with exists
+--echo #
+
+start transaction;
+select count(*) from view_delete where c1=2;
+--enable_info
+delete from tab_delete where c1=2 and exists(select 'x' from tab_delete b where b.c2<10);
+delete from tab_delete where c1=2 and exists(select 'x' from tab_delete b where b.c2<10);
+--disable_info
+select count(*) from view_delete where c1=2;
+rollback;
+
+--echo #
+--echo # Delete throw a view with limit (range access)
+--echo #
+
+start transaction;
+--echo # Acces by range (quick_select), initied = INDEX
+--echo # +------+--------------------+------------+-------+---------------+---------------+---------+--------------------+------+-------------+
+--echo # | id   | select_type        | table      | type  | possible_keys | key           | key_len | ref                | rows | Extra       |
+--echo # +------+--------------------+------------+-------+---------------+---------------+---------+--------------------+------+-------------+
+--echo # |    1 | PRIMARY            | tab_delete | range | tab_delete_c1 | tab_delete_c1 | 4       | NULL               |  550 | Using where |
+--echo # |    2 | DEPENDENT SUBQUERY | b          | ref   | tab_delete_c1 | tab_delete_c1 | 4       | test.tab_delete.c1 |   73 | Using index |
+--echo # +------+--------------------+------------+-------+---------------+---------------+---------+--------------------+------+-------------+
+# explain delete from view_delete where (select count(*) from tab_delete b where b.c1=view_delete.c1) = 500 limit 1;
+--enable_info
+delete from view_delete where (select count(*) from tab_delete b where b.c1=view_delete.c1) = 500 limit 1;
+delete from view_delete where (select count(*) from tab_delete b where b.c1=view_delete.c1) = 500 limit 1;
+--disable_info
+select count(*) from view_delete where c1=0;
+rollback;
+
+--echo #
+--echo # Delete throw a view (ALL access)
+--echo #
+
+start transaction;
+--echo # Acces by pointer, initied = RND
+--echo # +------+--------------------+------------+------+---------------+---------------+---------+--------------------+------+-------------+
+--echo # | id   | select_type        | table      | type | possible_keys | key           | key_len | ref                | rows | Extra       |
+--echo # +------+--------------------+------------+------+---------------+---------------+---------+--------------------+------+-------------+
+--echo # |    1 | PRIMARY            | tab_delete | ALL  | tab_delete_c1 | NULL          | NULL    | NULL               |  589 | Using where |
+--echo # |    2 | DEPENDENT SUBQUERY | b          | ref  | tab_delete_c1 | tab_delete_c1 | 4       | test.tab_delete.c1 |  295 | Using index |
+--echo # +------+--------------------+------------+------+---------------+---------------+---------+--------------------+------+-------------+
+# explain delete from view_delete where (select count(*) from tab_delete b where b.c1=view_delete.c1) = 500;
+--enable_info
+delete from view_delete where (select count(*) from tab_delete b where b.c1=view_delete.c1) = 500 ;
+--disable_info
+select count(*) from view_delete where c1=0;
+rollback;
+
+
+--echo #
+--echo # Delete failed due to trigger
+--echo #
+
+start transaction;
+--enable_info
+--error ER_SIGNAL_EXCEPTION
+delete from tab_delete where c1=1 and (select count(*) from tab_delete b where b.c1=tab_delete.c1) > 0 order by c2 asc limit 10;
+--disable_info
+rollback;
+start transaction;
+--enable_info
+--error ER_SIGNAL_EXCEPTION
+delete from tab_delete where (select count(*) from tab_delete b where b.c1=tab_delete.c1) > 0 order by c1 desc limit 100;
+--disable_info
+select c1,count(*) from tab_delete group by c1;
+rollback;
+
+--echo #
+--echo # Delete throw a view with returning
+--echo #
+
+start transaction;
+delete from tab_delete where (select count(*) from tab_delete b where b.c1=tab_delete.c1) = 500 order by c2 asc limit 10 returning c1,c2;
+rollback;
+start transaction;
+delete from tab_delete where (select count(*) from tab_delete b where b.c1=tab_delete.c1) = 500 order by c2 desc limit 10 returning c1,c2;
+rollback;
+
+
+--echo #
+--echo # Delete from table with more than 150000 rows
+--echo #
+insert into tab_delete select * from tab_delete;
+insert into tab_delete select * from tab_delete;
+insert into tab_delete select * from tab_delete;
+insert into tab_delete select * from tab_delete;
+insert into tab_delete select * from tab_delete;
+insert into tab_delete select * from tab_delete;
+insert into tab_delete select * from tab_delete;
+insert into tab_delete select * from tab_delete;
+select count(*) from tab_delete;
+
+--echo with high memory for sort_buffer_size
+SET SESSION sort_buffer_size = 1024000;
+start transaction;
+--enable_info
+delete from tab_delete where c1=0 and exists(select 'x' from tab_delete b where b.c1<10);
+--disable_info
+rollback;
+
+--echo with few memory for sort_buffer_size
+SET SESSION sort_buffer_size = 1024;
+start transaction;
+--enable_info
+delete from tab_delete where c1=0 and exists(select 'x' from tab_delete b where b.c1<10);
+--disable_info
+rollback;
+
+drop procedure if exists gendata;
+drop view if exists view_delete;
+drop table if exists tab_delete;

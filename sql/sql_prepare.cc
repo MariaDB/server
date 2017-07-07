@@ -1496,6 +1496,7 @@ static bool mysql_test_delete(Prepared_statement *stmt,
   uint table_count= 0;
   THD *thd= stmt->thd;
   LEX *lex= stmt->lex;
+  uint delete_while_scanning=1;
   DBUG_ENTER("mysql_test_delete");
 
   if (delete_precheck(thd, table_list) ||
@@ -1524,7 +1525,8 @@ static bool mysql_test_delete(Prepared_statement *stmt,
   DBUG_RETURN(mysql_prepare_delete(thd, table_list, 
                                    lex->select_lex.with_wild, 
                                    lex->select_lex.item_list,
-                                   &lex->select_lex.where));
+                                   &lex->select_lex.where,
+                                   delete_while_scanning));
 error:
   DBUG_RETURN(TRUE);
 }

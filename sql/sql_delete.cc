@@ -45,6 +45,8 @@
                                                 // end_read_record
 #include "sql_partition.h"       // make_used_partitions_str
 
+#define MEM_STRIP_BUF_SIZE current_thd->variables.sortbuff_size
+
 /*
   @brief
     Print query plan of a single-table DELETE command
@@ -246,6 +248,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   Delete_plan query_plan(thd->mem_root);
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
+  Unique * deltempfile= NULL;
+  uint delete_while_scanning= 1;
+  uint delete_record= 0;
   DBUG_ENTER("mysql_delete");
 
   create_explain_query(thd->lex, thd->mem_root);
@@ -275,7 +280,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.updating_a_view= MY_TEST(table_list->view);
 
   if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
-                                            select_lex->item_list, &conds))
+                           select_lex->item_list, &conds,
+                           delete_while_scanning))
     DBUG_RETURN(TRUE);
   
   if (with_select)
@@ -556,16 +562,68 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   explain= (Explain_delete*)thd->lex->explain->get_upd_del_plan();
   explain->tracker.on_scan_init();
 
-  while (!(error=info.read_record(&info)) && !thd->killed &&
-	 ! thd->is_error())
+  if (delete_while_scanning == 0)
   {
-    explain->tracker.on_record_read();
-    thd->inc_examined_row_count(1);
-    if (table->vfield)
-      (void) table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_DELETE);
-    if (!select || select->skip_record(thd) > 0)
+    /*
+      The table we are going to delete appears in join.
+      Instead of deleting the rows, first mark them deleted.
+    */
+    ha_rows tmplimit=limit;
+    deltempfile= new Unique (refpos_order_cmp,
+                              (void *) table->file,
+                              table->file->ref_length,
+                              MEM_STRIP_BUF_SIZE);
+    while (!(error=info.read_record(&info)) && !thd->killed &&
+          ! thd->is_error())
     {
-      explain->tracker.on_record_after_where();
+      explain->tracker.on_record_read();
+      thd->inc_examined_row_count(1);
+      if (table->vfield)
+        (void) table->update_virtual_fields(table->file,
+                                            VCOL_UPDATE_FOR_DELETE);
+      if (!select || select->skip_record(thd) > 0)
+      {
+        explain->tracker.on_record_after_where();
+        table->file->position(table->record[0]);
+        if ((error= deltempfile->unique_add((char*) table->file->ref)))
+        {
+          error= 1;
+          goto terminate_delete;
+        }
+	      if (!--tmplimit && using_limit)
+	      {
+	        break;
+	      }
+      }
+    }
+    end_read_record(&info);
+    if (deltempfile->get(table) ||
+        table->file->ha_index_or_rnd_end() ||
+        init_read_record(&info, thd, table, NULL , &deltempfile->sort, 0, 1,
+                         FALSE))
+    {
+      error= 1;
+      goto terminate_delete;
+    }
+    delete_record= 1;
+  }
+
+  while (!(error=info.read_record(&info)) && !thd->killed &&
+        ! thd->is_error())
+  {
+    if (delete_while_scanning == 1)
+    {
+      explain->tracker.on_record_read();
+      thd->inc_examined_row_count(1);
+      if (table->vfield)
+        (void) table->update_virtual_fields(table->file,
+                                            VCOL_UPDATE_FOR_DELETE);
+      delete_record=(!select || select->skip_record(thd) > 0) ? 1 : 0;
+      if (delete_record)
+        explain->tracker.on_record_after_where();
+    }
+    if (delete_record == 1)
+    {
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                             TRG_ACTION_BEFORE, FALSE))
@@ -616,6 +674,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     else
       break;
   }
+terminate_delete:
   killed_status= thd->killed;
   if (killed_status != NOT_KILLED || thd->is_error())
     error= 1;					// Aborted
@@ -647,6 +706,8 @@ cleanup:
     thd->lex->current_select->first_cond_optimization= 0;
   }
 
+  delete deltempfile;
+  deltempfile=NULL;
   delete select;
   select= NULL;
   transactional_table= table->file->has_transactions();
@@ -746,7 +807,8 @@ l
     TRUE  error
 */
   int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
-                           uint wild_num, List<Item> &field_list, Item **conds)
+                           uint wild_num, List<Item> &field_list, Item **conds,
+                           uint &delete_while_scanning)
 {
   Item *fake_conds= 0;
   SELECT_LEX *select_lex= &thd->lex->select_lex;
@@ -775,10 +837,7 @@ l
   {
     TABLE_LIST *duplicate;
     if ((duplicate= unique_table(thd, table_list, table_list->next_global, 0)))
-    {
-      update_non_unique_table_error(table_list, "DELETE", duplicate);
-      DBUG_RETURN(TRUE);
-    }
+      delete_while_scanning= 0;
   }
 
   if (select_lex->inner_refs_list.elements &&
@@ -794,7 +853,6 @@ l
   Delete multiple tables from join 
 ***************************************************************************/
 
-#define MEM_STRIP_BUF_SIZE current_thd->variables.sortbuff_size
 
 extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b)
 {
