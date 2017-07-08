@@ -595,12 +595,14 @@ Replaces: mariadb-gssapi-client-10.1,
           mariadb-gssapi-client-10.3
 Description: GSSAPI authentication plugin for MariaDB client
 
-Package: mariadb-backup-10.2
+Package: mariadb-backup-10.3
 Section: database
 Architecture: any
-Breaks: mariadb-backup-10.1
+Breaks: mariadb-backup-10.1,
+        mariadb-backup-10.2
 Replaces: mariadb-backup-10.1
-Depends: mariadb-server-10.2,
+        mariadb-backup-10.2
+Depends: mariadb-server-10.3,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server
