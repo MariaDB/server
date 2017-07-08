@@ -4805,10 +4805,11 @@ com_status(String *buffer __attribute__((unused)),
     tee_fprintf(stdout, "Protocol:\t\tCompressed\n");
 #endif
 
-  if ((status_str= mysql_stat(&mysql)) && !mysql_error(&mysql)[0])
+  const char *pos;
+  if ((status_str= mysql_stat(&mysql)) && !mysql_error(&mysql)[0] &&
+      (pos= strchr(status_str,' ')))
   {
     ulong sec;
-    const char *pos= strchr(status_str,' ');
     /* print label */
     tee_fprintf(stdout, "%.*s\t\t\t", (int) (pos-status_str), status_str);
     if ((status_str= str2int(pos,10,0,LONG_MAX,(long*) &sec)))

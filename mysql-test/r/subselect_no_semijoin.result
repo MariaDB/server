@@ -4702,7 +4702,7 @@ pk
 SET SESSION sql_mode=@old_sql_mode;
 drop table t2, t1;
 drop view v1;
-End of 5.0 tests.
+# End of 5.0 tests.
 create table t_out (subcase char(3),
 a1 char(2), b1 char(2), c1 char(2));
 create table t_in  (a2 char(2), b2 char(2), c2 char(2));
@@ -5577,7 +5577,7 @@ insert into t2 values ('x'), ('y');
 select * from t2 where a=(select a from t1) and a='x';
 ERROR 21000: Subquery returns more than 1 row
 drop table t1,t2;
-End of 5.1 tests
+# End of 5.1 tests
 #
 # Bug #11765713 58705:
 # OPTIMIZER LET ENGINE DEPEND ON UNINITIALIZED VALUES
@@ -6184,7 +6184,7 @@ WHERE (c_sq1_alias1.col_int_nokey != @var2
 OR c_sq1_alias1.pk != @var3)) ) AS alias3;
 pk	col_int_nokey	col_int_key	col_time_key	col_varchar_key	col_varchar_nokey
 DROP TABLE t1,t2;
-End of 5.2 tests
+# End of 5.2 tests
 #
 # BUG#779885: Crash in eliminate_item_equal with materialization=on in
 #
@@ -7141,9 +7141,10 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2 (f2 INT, KEY(f2));
 INSERT INTO t2 VALUES (3);
 CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM t2;
+SELECT ( SELECT MIN(t2.f2) FROM t1 ) AS sq FROM t2 GROUP BY sq;
+ERROR 42000: Can't group on 'sq'
 SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
-sq
-3
+ERROR 42000: Can't group on 'sq'
 SELECT * FROM v2 where ( SELECT MIN(v2.f2) FROM t1 ) > 0;
 f2
 3
@@ -7151,9 +7152,10 @@ SELECT count(*) FROM v2 group by ( SELECT MIN(v2.f2) FROM t1 );
 count(*)
 1
 delete from t1;
+SELECT ( SELECT MIN(t2.f2) FROM t1 ) AS sq FROM t2 GROUP BY sq;
+ERROR 42000: Can't group on 'sq'
 SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
-sq
-NULL
+ERROR 42000: Can't group on 'sq'
 drop view v2;
 drop table t1,t2;
 #
@@ -7167,6 +7169,29 @@ SELECT * FROM t1 WHERE f2 <= SOME ( SELECT f1 FROM t1 );
 f1	f2
 foo	bar
 DROP TABLE t1;
+#
+# MDEV-10146: Wrong result (or questionable result and behavior)
+# with aggregate function in uncorrelated SELECT subquery
+#
+CREATE TABLE t1 (f1 INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (f2 int);
+INSERT INTO t2 VALUES (3);
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+( SELECT MAX(f1) FROM t2 )
+2
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
+( SELECT MAX(f1) FROM t2 )
+2
+INSERT INTO t2 VALUES (4);
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
+ERROR 21000: Subquery returns more than 1 row
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+ERROR 21000: Subquery returns more than 1 row
+drop view v1;
+drop table t1,t2;
+# End of 10.0 tests
 #
 # MDEV-9487: Server crashes in Time_and_counter_tracker::incr_loops
 # with UNION in ALL subquery
@@ -7194,7 +7219,7 @@ SELECT * FROM t1, t2 WHERE f3 = f2 AND f1 > ANY ( SELECT 'foo');
 f1	f2	f3
 DROP TABLE t1, t2;
 SET NAMES default;
-End of 10.1 tests
+# End of 10.1 tests
 #
 # MDEV-12564: IN TO EXISTS transformation for rows after 
 #             conversion an outer join to inner join
@@ -7208,6 +7233,6 @@ WHERE (t2.i, t2.pk) NOT IN ( SELECT t3.i, t3.i FROM t t3, t t4 ) AND t1.c = 'foo
 pk	i	c	pk	i	c
 1	10	foo	1	10	foo
 DROP TABLE t;
-End of 10.2 tests
+# End of 10.2 tests
 set @optimizer_switch_for_subselect_test=null;
 set @join_cache_level_for_subselect_test=NULL;
