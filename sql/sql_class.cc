@@ -691,9 +691,8 @@ extern "C"
 char *thd_security_context(THD *thd, char *buffer, unsigned int length,
                            unsigned int max_query_len)
 {
-  String str(buffer, length, &my_charset_latin1);
   const Security_context *sctx= &thd->main_security_ctx;
-  char header[256];
+  char *buffer_start= buffer;
   int len;
   /*
     The pointers thd->query and thd->proc_info might change since they are
@@ -706,38 +705,20 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
   */
   const char *proc_info= thd->proc_info;
 
-  len= my_snprintf(header, sizeof(header),
-                   "MySQL thread id %lu, OS thread handle 0x%lx, query id %lu",
-                   thd->thread_id, (ulong) thd->real_id, (ulong) thd->query_id);
-  str.length(0);
-  str.append(header, len);
+  len= my_snprintf(buffer, length,
+                   "MySQL thread id %lu, OS thread handle 0x%lx, query id %lu"
+                   "%s%s%s%s%s%s%s%s",
+                   thd->thread_id, (ulong) thd->real_id, (ulong) thd->query_id,
+                   sctx->host ? " " : "", sctx->host ? sctx->host : "",
+                   sctx->ip ? " " : "", sctx->ip ? sctx->ip : "",
+                   sctx->user ? " " : "", sctx->user ? sctx->user : "",
+                   proc_info ? " " : "", proc_info ? proc_info : "");
 
-  if (sctx->host)
-  {
-    str.append(' ');
-    str.append(sctx->host);
-  }
-
-  if (sctx->ip)
-  {
-    str.append(' ');
-    str.append(sctx->ip);
-  }
-
-  if (sctx->user)
-  {
-    str.append(' ');
-    str.append(sctx->user);
-  }
-
-  if (proc_info)
-  {
-    str.append(' ');
-    str.append(proc_info);
-  }
+  length-= len;
+  buffer+= len;
 
   /* Don't wait if LOCK_thd_data is used as this could cause a deadlock */
-  if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
+  if (length > 0 && !mysql_mutex_trylock(&thd->LOCK_thd_data))
   {
     if (thd->query())
     {
@@ -745,25 +726,12 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
         len= thd->query_length();
       else
         len= min(thd->query_length(), max_query_len);
-      str.append('\n');
-      str.append(thd->query(), len);
+      len= my_snprintf(buffer, length, "\n%*s", len, thd->query());
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 
-  if (str.c_ptr_safe() == buffer)
-    return buffer;
-
-  /*
-    We have to copy the new string to the destination buffer because the string
-    was reallocated to a larger buffer to be able to fit.
-  */
-  DBUG_ASSERT(buffer != NULL);
-  length= min(str.length(), length-1);
-  memcpy(buffer, str.c_ptr_quick(), length);
-  /* Make sure that the new string is null terminated */
-  buffer[length]= '\0';
-  return buffer;
+  return buffer_start;
 }
 
 
