@@ -185,6 +185,21 @@ void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
   window_func()->setup_caches(thd);
 }
 
+bool Item_window_func::check_order_list()
+{
+  if (only_single_element_order_list())
+  {
+    Item_result rtype= window_spec->order_list->first->item[0]->result_type();
+    if (rtype != REAL_RESULT && rtype != INT_RESULT &&
+        rtype != DECIMAL_RESULT)
+    {
+      // TODO(varun) please change the error name
+      my_error(ER_WRONG_TYPE_FOR_RANGE_FRAME, MYF(0),"percentile functions");
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
 
 /*
   This must be called before attempting to compute the window function values.
@@ -224,6 +239,9 @@ void Item_sum_percentile_disc::setup_window_func(THD *thd, Window_spec *window_s
 void Item_sum_percentile_cont::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   order_item= window_spec->order_list->first->item[0];
+  /* TODO(varun): need to discuss and finalise what type should we
+     return for percentile cont functions
+  */
   //set_handler_by_cmp_type(order_item->result_type());
   if (!(ceil_value= order_item->get_cache(thd)))
     return;

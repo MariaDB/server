@@ -321,6 +321,12 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     win_func_item->update_used_tables();
   }
 
+  li.rewind();
+  while((win_func_item= li++))
+  {
+    if (win_func_item->check_order_list())
+      DBUG_RETURN(1);
+  }
   DBUG_RETURN(0);
 }
 
