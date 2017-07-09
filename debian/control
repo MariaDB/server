@@ -600,7 +600,7 @@ Section: database
 Architecture: any
 Breaks: mariadb-backup-10.1,
         mariadb-backup-10.2
-Replaces: mariadb-backup-10.1
+Replaces: mariadb-backup-10.1,
         mariadb-backup-10.2
 Depends: mariadb-server-10.3,
          ${misc:Depends},
