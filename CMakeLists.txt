@@ -363,7 +363,7 @@ ENDIF()
 
 SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
 
-# mariadb_connector_c fetches submodules which is useful for plugins
+INCLUDE(submodules)
 INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 
 # Add storage engines and plugins.
