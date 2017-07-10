@@ -14800,20 +14800,9 @@ keyword_directly_not_assignable:
         | LANGUAGE_SYM          { /* SP characteristic               */ }
         | NO_SYM                { /* SP characteristic               */ }
         | CHARSET               { /* SET CHARSET utf8;               */ }
-        | DO_SYM                { /* Verb clause                     */ }
-        | REPAIR                { /* Verb clause                     */ }
-        | HANDLER_SYM           { /* Verb clause                     */ }
-        | CLOSE_SYM             { /* Verb clause. Reserved in Oracle */ }
-        | OPEN_SYM              { /* Verb clause. Reserved in Oracle */ }
-        | SAVEPOINT_SYM         { /* Verb clause. Reserved in Oracle */ }
-        | TRUNCATE_SYM          { /* Verb clause. Reserved in Oracle */ }
-        | BEGIN_SYM             { /* Compound.    Reserved in Oracle */ }
-        | END                   { /* Compound.    Reserved in Oracle */ }
         | FOLLOWS_SYM           { /* Conflicts with assignment in FOR EACH */}
         | PRECEDES_SYM          { /* Conflicts with assignment in FOR EACH */}
-        | COMMIT_SYM            { /* Verb clause. Reserved in Oracle */ }
-        | ROLLBACK_SYM          { /* Verb clause. Reserver in Oracle */ }
-        | SHUTDOWN              { /* Verb clause                     */ }
+        | keyword_sp_verb_clause
         ;
 
 /*
@@ -14826,6 +14815,29 @@ keyword_sp:
           keyword_sp_data_type
         | keyword_sp_not_data_type
         ;
+
+
+/*
+  Keywords that start a statement.
+  Generally allowed as identifiers (e.g. table, column names)
+  - not allowed as SP label names
+  - not allowed as variable names in Oracle-style assignments:
+    xxx:=10
+*/
+keyword_sp_verb_clause:
+          BEGIN_SYM             { /* Compound.    Reserved in Oracle */ }
+        | CLOSE_SYM             { /* Verb clause. Reserved in Oracle */ }
+        | COMMIT_SYM            { /* Verb clause. Reserved in Oracle */ }
+        | DO_SYM                { /* Verb clause                     */ }
+        | END                   { /* Compound.    Reserved in Oracle */ }
+        | HANDLER_SYM           { /* Verb clause                     */ }
+        | OPEN_SYM              { /* Verb clause. Reserved in Oracle */ }
+        | REPAIR                { /* Verb clause                     */ }
+        | ROLLBACK_SYM          { /* Verb clause. Reserved in Oracle */ }
+        | SAVEPOINT_SYM         { /* Verb clause. Reserved in Oracle */ }
+        | SHUTDOWN              { /* Verb clause                     */ }
+        | TRUNCATE_SYM          { /* Verb clause. Reserved in Oracle */ }
+      ;
 
 
 /*
