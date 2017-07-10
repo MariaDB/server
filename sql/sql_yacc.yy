@@ -3256,7 +3256,7 @@ row_field_definition_list:
         ;
 
 row_type_body:
-         '(' row_field_definition_list ')' { $$= $2; }
+          '(' row_field_definition_list ')' { $$= $2; }
         ;
 
 sp_decl_idents_init_vars:
