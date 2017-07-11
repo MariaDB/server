@@ -69,6 +69,7 @@ matrix:
             - psmisc
             - zlib1g-dev
             - libcrack2-dev
+            - cracklib-runtime
             - libjemalloc-dev
             - libsnappy-dev
             - liblzma-dev
@@ -170,6 +171,7 @@ addons:
       - psmisc
       - zlib1g-dev
       - libcrack2-dev
+      - cracklib-runtime
       - libjemalloc-dev
       - libsnappy-dev
       - liblzma-dev
