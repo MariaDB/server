@@ -5825,11 +5825,10 @@ sp_head *LEX::make_sp_head(THD *thd, sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if ((sp= new sp_head()))
+  if ((sp= new sp_head(type)))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
-    sp->m_type= type;
     if (name)
       sp->init_sp_name(thd, name);
     sp->m_chistics= &sp_chistics;

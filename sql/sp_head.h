@@ -303,7 +303,7 @@ public:
   static void
   operator delete(void *ptr, size_t size) throw ();
 
-  sp_head();
+  sp_head(stored_procedure_type type);
 
   /// Initialize after we have reset mem_root
   void
