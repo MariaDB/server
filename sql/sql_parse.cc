@@ -6429,8 +6429,24 @@ finish:
         sp_rcontext::handle_sql_condition().
       */
       trans_rollback_stmt(thd);
+#ifdef WITH_WSREP
+    else if (thd->sp_runtime_ctx &&
+             !thd->is_error() &&
+             !thd->in_multi_stmt_transaction_mode() &&
+             (thd->wsrep_conflict_state == MUST_ABORT ||
+              thd->wsrep_conflict_state == CERT_FAILURE))
+    {
+      /*
+        The error was cleared, but THD was aborted by wsrep and
+        wsrep_conflict_state is still set accordingly. This
+        situation is expected if we are running a stored procedure
+        that declares a handler that catches ER_LOCK_DEADLOCK error.
+        In which case the error may have been cleared in method
+        sp_rcontext::handle_sql_condition().
+      */
+      trans_rollback_stmt(thd);
       thd->wsrep_conflict_state= NO_CONFLICT;
-      thd->killed= NOT_KILLED;
+      thd->killed= THD::NOT_KILLED;
     }
 #endif /* WITH_WSREP */
     else
