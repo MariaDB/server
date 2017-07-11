@@ -14796,13 +14796,13 @@ keyword_directly_assignable:
           CREATE TRIGGER .. FOR EACH ROW FOLLOWS tr1 a:= 10;
 */
 keyword_directly_not_assignable:
-          CONTAINS_SYM          { /* SP characteristic               */ }
-        | LANGUAGE_SYM          { /* SP characteristic               */ }
-        | NO_SYM                { /* SP characteristic               */ }
-        | CHARSET               { /* SET CHARSET utf8;               */ }
-        | FOLLOWS_SYM           { /* Conflicts with assignment in FOR EACH */}
-        | PRECEDES_SYM          { /* Conflicts with assignment in FOR EACH */}
-        | keyword_sp_verb_clause
+          CONTAINS_SYM           { /* SP characteristic               */ }
+        | LANGUAGE_SYM           { /* SP characteristic               */ }
+        | NO_SYM                 { /* SP characteristic               */ }
+        | CHARSET                { /* SET CHARSET utf8;               */ }
+        | FOLLOWS_SYM            { /* Conflicts with assignment in FOR EACH */}
+        | PRECEDES_SYM           { /* Conflicts with assignment in FOR EACH */}
+        | keyword_sp_verb_clause { }
         ;
 
 /*
