@@ -2950,7 +2950,6 @@ ev_sql_stmt:
                                         TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
 
-            lex->sp_chistics.suid= SP_IS_SUID;  //always the definer!
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
           sp_proc_stmt
@@ -7230,7 +7229,7 @@ alter:
 
             if (lex->sphead)
               my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE"));
-            bzero((char *)&lex->sp_chistics, sizeof(st_sp_chistics));
+            lex->sp_chistics.init();
           }
           sp_a_chistics
           {
@@ -7245,7 +7244,7 @@ alter:
 
             if (lex->sphead)
               my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "FUNCTION"));
-            bzero((char *)&lex->sp_chistics, sizeof(st_sp_chistics));
+            lex->sp_chistics.init();
           }
           sp_a_chistics
           {
@@ -16674,6 +16673,7 @@ sf_tail:
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
+            lex->sphead->set_chistics(lex->sp_chistics);
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
           sp_proc_stmt_in_returns_clause
@@ -16705,6 +16705,7 @@ sp_tail:
           sp_parenthesized_pdparam_list
           sp_c_chistics
           {
+            Lex->sphead->set_chistics(Lex->sp_chistics);
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_proc_stmt

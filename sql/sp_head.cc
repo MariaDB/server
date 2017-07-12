@@ -559,6 +559,8 @@ sp_head::sp_head(stored_procedure_type type)
    m_sp_cache_version(0),
    m_creation_ctx(0),
    unsafe_flags(0),
+   m_created(0),
+   m_modified(0),
    m_recursion_level(0),
    m_next_cached_sp(0),
    m_param_begin(NULL),
@@ -1408,7 +1410,7 @@ set_routine_security_ctx(THD *thd, sp_head *sp, bool is_proc,
                          Security_context **save_ctx)
 {
   *save_ctx= 0;
-  if (sp->m_chistics->suid != SP_IS_NOT_SUID &&
+  if (sp->suid() != SP_IS_NOT_SUID &&
       sp->m_security_ctx.change_security_context(thd, &sp->m_definer.user,
                                                  &sp->m_definer.host,
                                                  &sp->m_db,
@@ -1520,7 +1522,7 @@ sp_head::execute_trigger(THD *thd,
   Security_context *save_ctx= NULL;
 
 
-  if (m_chistics->suid != SP_IS_NOT_SUID &&
+  if (suid() != SP_IS_NOT_SUID &&
       m_security_ctx.change_security_context(thd,
                                              &m_definer.user,
                                              &m_definer.host,
@@ -2433,19 +2435,25 @@ sp_head::sp_add_instr_cpush_for_cursors(THD *thd, sp_pcontext *pcontext)
 
 
 void
+sp_head::set_chistics(const st_sp_chistics &chistics)
+{
+  m_chistics.set(chistics);
+  if (m_chistics.comment.length == 0)
+    m_chistics.comment.str= 0;
+  else
+    m_chistics.comment.str= strmake_root(mem_root,
+                                         m_chistics.comment.str,
+                                         m_chistics.comment.length);
+}
+
+
+void
 sp_head::set_info(longlong created, longlong modified,
-                  const st_sp_chistics *chistics, sql_mode_t sql_mode)
+                  const st_sp_chistics &chistics, sql_mode_t sql_mode)
 {
   m_created= created;
   m_modified= modified;
-  m_chistics= (st_sp_chistics *) memdup_root(mem_root, (char*) chistics,
-                                             sizeof(*chistics));
-  if (m_chistics->comment.length == 0)
-    m_chistics->comment.str= 0;
-  else
-    m_chistics->comment.str= strmake_root(mem_root,
-                                          m_chistics->comment.str,
-                                          m_chistics->comment.length);
+  set_chistics(chistics);
   m_sql_mode= sql_mode;
 }
 

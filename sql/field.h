@@ -818,6 +818,8 @@ public:
   { return store(ls->str, ls->length, cs); }
   int store(const LEX_CSTRING *ls, CHARSET_INFO *cs)
   { return store(ls->str, ls->length, cs); }
+  int store(const LEX_CSTRING &ls, CHARSET_INFO *cs)
+  { return store(ls.str, ls.length, cs); }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
   virtual bool val_bool(void)= 0;

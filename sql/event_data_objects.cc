@@ -1426,7 +1426,13 @@ Event_job_data::execute(THD *thd, bool drop)
     sphead->m_flags|= sp_head::LOG_SLOW_STATEMENTS;
     sphead->m_flags|= sp_head::LOG_GENERAL_LOG;
 
-    sphead->set_info(0, 0, &thd->lex->sp_chistics, sql_mode);
+    /*
+      construct_sp_sql() + parse_sql() set suid to SP_IS_NOT_SUID,
+      because we have the security context already set to the event
+      definer here. See more comments in construct_sp_sql().
+    */
+    DBUG_ASSERT(sphead->suid() == SP_IS_NOT_SUID);
+    sphead->m_sql_mode= sql_mode;
     sphead->set_creation_ctx(creation_ctx);
     sphead->optimize();
 

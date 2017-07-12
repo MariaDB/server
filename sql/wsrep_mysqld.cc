@@ -2253,7 +2253,7 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
                      sp->m_params.str, sp->m_params.length,
                      retstr.c_ptr(), retstr.length(),
                      sp->m_body.str, sp->m_body.length,
-                     sp->m_chistics, &(thd->lex->definer->user),
+                     sp->chistics(), &(thd->lex->definer->user),
                      &(thd->lex->definer->host),
                      saved_mode))
   {
