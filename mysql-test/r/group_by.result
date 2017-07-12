@@ -2531,3 +2531,17 @@ select a from t1 group by a having a > 1;
 a
 drop table t1;
 set sql_mode= @save_sql_mode;
+create table t1 (f1 int);
+insert into t1 values (5),(9);
+create table t2 (f2 int);
+insert into t2 values (0),(6);
+create table t3 (f3 int);
+insert into t3 values (6),(3);
+create table t4 (f4 int);
+insert into t4 values (1),(0);
+select
+(select min(f1) from t1 where f1 in (select min(f4) from t2)) as field7,
+(select count(*) from t3 where f3 in (select max(f4) from t2 group by field7))
+from t4;
+ERROR 42S22: Reference 'field7' not supported (reference to group function)
+drop table t1, t2, t3, t4;

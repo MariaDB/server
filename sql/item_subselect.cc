@@ -316,7 +316,8 @@ bool Item_subselect::enumerate_field_refs_processor(uchar *arg)
   
   while ((upper= it++))
   {
-    if (upper->item->walk(&Item::enumerate_field_refs_processor, FALSE, arg))
+    if (upper->item &&
+        upper->item->walk(&Item::enumerate_field_refs_processor, FALSE, arg))
       return TRUE;
   }
   return FALSE;

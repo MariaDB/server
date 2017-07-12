@@ -1703,6 +1703,25 @@ select a as x from t1 group by x having x > 1;
 select a from t1 group by a having a > 1;
 drop table t1;
 set sql_mode= @save_sql_mode;
+
+#
+# MDEV-7826 Server crashes in Item_subselect::enumerate_field_refs_processor
+#
+create table t1 (f1 int);
+insert into t1 values (5),(9);
+create table t2 (f2 int);
+insert into t2 values (0),(6);
+create table t3 (f3 int);
+insert into t3 values (6),(3);
+create table t4 (f4 int);
+insert into t4 values (1),(0);
+--error ER_ILLEGAL_REFERENCE
+select
+(select min(f1) from t1 where f1 in (select min(f4) from t2)) as field7,
+(select count(*) from t3 where f3 in (select max(f4) from t2 group by field7))
+from t4;
+drop table t1, t2, t3, t4;
+
 #
 # End of MariaDB 5.5 tests
 #
