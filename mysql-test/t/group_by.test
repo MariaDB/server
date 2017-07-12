@@ -1723,6 +1723,17 @@ from t4;
 drop table t1, t2, t3, t4;
 
 #
+# MDEV-13180 Unused left join causes server crash
+#
+create table t1 (i1 int);
+insert into t1 values (1);
+create table t2 (i int);
+insert into t2 values (2);
+select 1 from t1 left join t2 b on b.i = (select max(b.i) from t2);
+drop table t1, t2;
+
+
+#
 # MDEV-12489 The select stmt may fail due to "having clause is ambiguous" unexpected
 #
 create table t1 (c1 int, c2 int);
