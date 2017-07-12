@@ -76,8 +76,8 @@ insert emp values (4, 'john', 1);
 insert addr values (4, 'Paris');
 with ancestors as (select * from emp natural join addr) select * from ancestors;
 with ancestors as (select * from emp natural join addr) select * from ancestors for system_time all;
-with ancestors as (select * from emp natural join addr query for system_time all) select * from ancestors;
-select * from emp natural join addr query for system_time all;
+with ancestors as (select * from emp natural join addr system_time all) select * from ancestors;
+select * from emp natural join addr system_time all;
 
 drop table emp;
 drop table dept;

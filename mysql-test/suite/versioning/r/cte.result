@@ -82,13 +82,13 @@ emp_id	name	mgr	address
 2	bill	1	New York
 3	kate	1	London
 4	john	1	Paris
-with ancestors as (select * from emp natural join addr query for system_time all) select * from ancestors;
+with ancestors as (select * from emp natural join addr system_time all) select * from ancestors;
 emp_id	name	mgr	address
 1	bill	0	Moscow
 2	bill	1	New York
 3	kate	1	London
 4	john	1	Paris
-select * from emp natural join addr query for system_time all;
+select * from emp natural join addr system_time all;
 emp_id	name	mgr	address
 1	bill	0	Moscow
 2	bill	1	New York

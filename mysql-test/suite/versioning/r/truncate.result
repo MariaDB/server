@@ -1,119 +1,169 @@
--- source include/have_innodb.inc
-
 create table t (a int);
---error ER_VERSIONING_REQUIRED
 truncate t for system_time all;
-
-delimiter ~~;
+ERROR HY000: Unused clause: 'SYSTEM_TIME'
 create procedure truncate_history_of_t()
 begin
-  prepare stmt from 'truncate t for system_time timestamp between \'1-1-1\' and now(6)';
-  execute stmt;
-  drop prepare stmt;
+prepare stmt from 'truncate t for system_time timestamp between \'1-1-1\' and now(6)';
+execute stmt;
+drop prepare stmt;
 end~~
-delimiter ;~~
-
 create or replace table t (a int) with system versioning;
 insert into t values (1);
 update t set a=2;
 select * from t for system_time all;
-
+a
+2
+1
 set @test = 'correct';
 create trigger trg_before before delete on t for each row set @test = 'incorrect';
 create trigger trg_after after delete on t for each row set @test = 'incorrect';
-
 truncate t for system_time all;
 select * from t for system_time all;
-
+a
+2
 select @test from t;
+@test
+correct
 drop trigger trg_before;
 drop trigger trg_after;
-
 update t set a=3;
 update t set a=4;
 truncate t for system_time as of timestamp now(6);
 select * from t for system_time all;
-
+a
+4
+2
+3
 truncate t for system_time timestamp between '1-1-1' and now(6);
 select * from t for system_time all;
-
+a
+4
 update t set a=5;
 truncate t for system_time timestamp from '1-1-1' to now(6);
 select * from t for system_time all;
-
+a
+5
 update t set a=6;
 call truncate_history_of_t();
 select * from t for system_time all;
-
+a
+6
 set @ts1 = now(6);
 update t set a=7;
 set @ts2 = now(6);
 update t set a=8;
 truncate t for system_time timestamp from '1-1-1' to @ts1;
 select * from t for system_time all;
+a
+8
+7
 update t set a=9;
 truncate t for system_time timestamp between '1-1-1' and @ts2;
 select * from t for system_time all;
-
-
+a
+9
+8
 create or replace table t (a int) with system versioning engine=innodb;
 insert into t values (1);
 update t set a=2;
 select * from t for system_time all;
-
+a
+2
+1
 truncate t for system_time all;
 select * from t for system_time all;
-
+a
+2
 update t set a=3;
 update t set a=4;
 truncate t for system_time as of timestamp now(6);
 select * from t for system_time all;
-
+a
+4
+2
+3
 truncate t for system_time timestamp between '1-1-1' and now(6);
 select * from t for system_time all;
-
+a
+4
 update t set a=5;
 truncate t for system_time timestamp from '1-1-1' to now(6);
 select * from t for system_time all;
-
+a
+5
 update t set a=6;
 call truncate_history_of_t();
 select * from t for system_time all;
-
+a
+6
 set @ts1 = now(6);
 update t set a=7;
 set @ts2 = now(6);
 update t set a=8;
 truncate t for system_time timestamp from '1-1-1' to @ts1;
 select * from t for system_time all;
+a
+8
+7
 update t set a=9;
 truncate t for system_time timestamp between '1-1-1' and @ts2;
 select * from t for system_time all;
-
+a
+9
+8
 create or replace table t (a int) with system versioning;
 insert into t values (1), (2);
 update t set a=11 where a=1;
 set @ts1=now(6);
 update t set a=22 where a=2;
 select * from t for system_time all;
+a
+11
+22
+1
+2
 select * from t for system_time before timestamp @ts1;
+a
+1
 truncate t for system_time before timestamp @ts1;
 select * from t for system_time all;
+a
+11
+22
+2
 truncate t for system_time before timestamp now(6);
 select * from t for system_time all;
-
+a
+11
+22
 create or replace table t (a int) with system versioning engine=innodb;
 insert into t values (1), (2);
 update t set a=11 where a=1;
 set @ts1=now(6);
 update t set a=22 where a=2;
 select * from t for system_time all;
+a
+11
+22
+1
+2
 select * from t for system_time before timestamp @ts1;
+a
+1
 select * from t for system_time before transaction 2000;
+a
+1
+2
 truncate t for system_time before timestamp @ts1;
 select * from t for system_time all;
+a
+11
+22
+2
 truncate t for system_time before timestamp now(6);
 select * from t for system_time all;
-
+a
+11
+22
 drop table t;
 drop procedure truncate_history_of_t;

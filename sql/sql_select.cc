@@ -708,7 +708,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       versioned_tables++;
     else if (table->vers_conditions)
     {
-      my_error(ER_VERSIONING_REQUIRED, MYF(0), "`FOR SYSTEM_TIME` query");
+      my_error(ER_VERSIONING_REQUIRED, MYF(0), table->alias);
       DBUG_RETURN(-1);
     }
   }
@@ -717,7 +717,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   {
     if (slex->vers_conditions)
     {
-      my_error(ER_VERSIONING_REQUIRED, MYF(0), "`FOR SYSTEM_TIME` query");
+      my_error(ER_VERS_UNUSED_CLAUSE, MYF(0), "SYSTEM_TIME");
       DBUG_RETURN(-1);
     }
     DBUG_RETURN(0);
@@ -1014,7 +1014,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
 
   if (!slex->vers_conditions.used && slex->vers_conditions)
   {
-    my_error(ER_VERS_UNUSED_CLAUSE, MYF(0), "QUERY FOR SYSTEM_TIME");
+    my_error(ER_VERS_UNUSED_CLAUSE, MYF(0), "SYSTEM_TIME");
     DBUG_RETURN(-1);
   }
 
