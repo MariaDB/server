@@ -100,5 +100,9 @@ set @@tmp_table_size = 1024;
 select count(distinct user_id) from t1;
 count(distinct user_id)
 17
+alter table t1 modify user_id char(128) character set utf8;
+select count(distinct user_id) from t1;
+count(distinct user_id)
+17
 drop table t1;
 set @@tmp_table_size = default;
