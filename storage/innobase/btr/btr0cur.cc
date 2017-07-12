@@ -4618,7 +4618,7 @@ btr_cur_parse_del_mark_set_clust_rec(
 		} else {
 			/* In delete-marked records, DB_TRX_ID must
 			always refer to an existing undo log record. */
-			ut_ad(memcmp(rec_get_nth_field(
+			ut_ad(memcmp(rec_get_nth_field_inside(
 					     rec,
 					     rec_get_offsets(rec, index,
 							     offsets, pos,
