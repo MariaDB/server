@@ -2935,8 +2935,8 @@ static int mysql_create_routine(THD *thd, LEX *lex)
   /* Checking the drop permissions if CREATE OR REPLACE is used */
   if (lex->create_info.or_replace())
   {
-    if (check_routine_access(thd, ALTER_PROC_ACL, lex->spname->m_db.str,
-                             lex->spname->m_name.str,
+    if (check_routine_access(thd, ALTER_PROC_ACL, lex->sphead->m_db.str,
+                             lex->sphead->m_name.str,
                              lex->sql_command == SQLCOM_DROP_PROCEDURE, 0))
       return true;
   }
