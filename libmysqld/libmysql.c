@@ -122,7 +122,9 @@ typedef struct st_mysql_stmt_extension
     1  could not initialize environment (out of memory or thread keys)
 */
 
-int STDCALL mysql_server_init(int argc, char **argv, char **groups)
+int STDCALL mysql_server_init(int argc __attribute__((unused)),
+                              char **argv __attribute__((unused)),
+                              char **groups __attribute__((unused)))
 {
   int result= 0;
   if (!mysql_client_init)

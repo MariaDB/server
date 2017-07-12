@@ -260,7 +260,7 @@ DROP TABLE t1;
 
 # Init Structure
 CREATE DATABASE world;
-CREATE TABLE world.City (
+CREATE TABLE world.city (
      ID INT AUTO_INCREMENT PRIMARY KEY,
      Name VARCHAR(64),
      CountryCode VARCHAR(64),
@@ -273,43 +273,43 @@ CREATE TABLE test.test (
      ts TIMESTAMP
 ) ENGINE=InnoDB;
 
-INSERT INTO world.City VALUES (NULL, 'Davenport', 'USA', 'Iowa', 100);
-INSERT INTO world.City VALUES (NULL, 'Boulder', 'USA', 'Colorado', 1000);
-INSERT INTO world.City VALUES (NULL, 'Gweru', 'ZWE', 'Midlands', 10000);
+INSERT INTO world.city VALUES (NULL, 'Davenport', 'USA', 'Iowa', 100);
+INSERT INTO world.city VALUES (NULL, 'Boulder', 'USA', 'Colorado', 1000);
+INSERT INTO world.city VALUES (NULL, 'Gweru', 'ZWE', 'Midlands', 10000);
 
 RESET MASTER;
 
-CHECKSUM TABLE world.City;
+CHECKSUM TABLE world.city;
 
 # Insert test data
 INSERT INTO test.test VALUES (NULL, 'Good record 1', CURRENT_TIMESTAMP());
 
-INSERT INTO world.City VALUES (NULL, 'Wrong value 1', '000', 'Wrong', 0);
-INSERT INTO world.City VALUES (NULL, 'Wrong value 2', '000', 'Wrong', 0) , (NULL, 'Wrong value 3', '000', 'Wrong', 0);
+INSERT INTO world.city VALUES (NULL, 'Wrong value 1', '000', 'Wrong', 0);
+INSERT INTO world.city VALUES (NULL, 'Wrong value 2', '000', 'Wrong', 0) , (NULL, 'Wrong value 3', '000', 'Wrong', 0);
 
 INSERT INTO test.test VALUES (NULL, 'Good record 2', CURRENT_TIMESTAMP());
 
-UPDATE world.City SET Population = 99999999 WHERE ID IN (1, 2, 3);
+UPDATE world.city SET Population = 99999999 WHERE ID IN (1, 2, 3);
 
 INSERT INTO test.test VALUES (NULL, 'Good record 3', CURRENT_TIMESTAMP());
 
-DELETE FROM world.City WHERE ID BETWEEN 1 AND 2;
+DELETE FROM world.city WHERE ID BETWEEN 1 AND 2;
 
 INSERT INTO test.test VALUES (NULL, 'Good record 5', CURRENT_TIMESTAMP());
 
-REPLACE INTO world.City VALUES (4074, 'Wrong value 4', '000', 'Wrong', 0);
-REPLACE INTO world.City VALUES (4078, 'Wrong value 5', '000', 'Wrong', 0), (NULL, 'Wrong value 6', '000', 'Wrong', 0);
+REPLACE INTO world.city VALUES (4074, 'Wrong value 4', '000', 'Wrong', 0);
+REPLACE INTO world.city VALUES (4078, 'Wrong value 5', '000', 'Wrong', 0), (NULL, 'Wrong value 6', '000', 'Wrong', 0);
 
 INSERT INTO test.test VALUES (NULL, 'Good record 6', CURRENT_TIMESTAMP());
 
-INSERT INTO world.City
-SELECT NULL, Name, CountryCode, District, Population FROM world.City WHERE ID BETWEEN 2 AND 10;
+INSERT INTO world.city
+SELECT NULL, Name, CountryCode, District, Population FROM world.city WHERE ID BETWEEN 2 AND 10;
 
 INSERT INTO test.test VALUES (NULL, 'Good record 7', CURRENT_TIMESTAMP());
 
 INSERT INTO test.test VALUES (NULL, 'Good record 8', CURRENT_TIMESTAMP());
 
-DELETE FROM world.City;
+DELETE FROM world.city;
 
 INSERT INTO test.test VALUES (NULL, 'Good record 9', CURRENT_TIMESTAMP());
 
@@ -321,18 +321,18 @@ FLUSH LOGS;
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---exec $MYSQL_BINLOG --database=world --table=City -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_6.sql
---exec $MYSQL_BINLOG --database=world --table=City -B $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_6.sql
+--exec $MYSQL_BINLOG --database=world --table=city -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_original_6.sql
+--exec $MYSQL_BINLOG --database=world --table=city -B $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_6.sql
 --exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_6.sql;"
 
-SELECT * FROM world.City;
+SELECT * FROM world.city;
 
 SELECT * FROM test.test;
 
-CHECKSUM TABLE world.City;
+CHECKSUM TABLE world.city;
 
 DROP TABLE test.test;
-DROP TABLE world.City;
+DROP TABLE world.city;
 DROP DATABASE world;
 
 ## Clear
