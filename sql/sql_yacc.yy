@@ -2951,7 +2951,6 @@ ev_sql_stmt:
                                         TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
 
-            lex->sp_chistics.suid= SP_IS_SUID;  //always the definer!
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
           sp_proc_stmt
@@ -3257,7 +3256,7 @@ row_field_definition_list:
         ;
 
 row_type_body:
-         '(' row_field_definition_list ')' { $$= $2; }
+          '(' row_field_definition_list ')' { $$= $2; }
         ;
 
 sp_decl_idents_init_vars:
@@ -7231,7 +7230,7 @@ alter:
 
             if (lex->sphead)
               my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE"));
-            bzero((char *)&lex->sp_chistics, sizeof(st_sp_chistics));
+            lex->sp_chistics.init();
           }
           sp_a_chistics
           {
@@ -7246,7 +7245,7 @@ alter:
 
             if (lex->sphead)
               my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "FUNCTION"));
-            bzero((char *)&lex->sp_chistics, sizeof(st_sp_chistics));
+            lex->sp_chistics.init();
           }
           sp_a_chistics
           {
@@ -14549,27 +14548,23 @@ user: user_maybe_role
 /* Keyword that we allow for identifiers (except SP labels) */
 keyword:
           keyword_sp            {}
+        | keyword_sp_verb_clause{}
         | ASCII_SYM             {}
         | BACKUP_SYM            {}
-        | BEGIN_SYM             {}
         | BINLOG_SYM            {}
         | BYTE_SYM              {}
         | CACHE_SYM             {}
         | CHARSET               {}
         | CHECKSUM_SYM          {}
         | CHECKPOINT_SYM        {}
-        | CLOSE_SYM             {}
         | COLUMN_ADD_SYM        {}
         | COLUMN_CHECK_SYM      {}
         | COLUMN_CREATE_SYM     {}
         | COLUMN_DELETE_SYM     {}
         | COLUMN_GET_SYM        {}
         | COMMENT_SYM           {}
-        | COMMIT_SYM            {}
         | CONTAINS_SYM          {}
         | DEALLOCATE_SYM        {}
-        | DO_SYM                {}
-        | END                   {}
         | EXAMINED_SYM          {}
         | EXCLUDE_SYM           {}
         | EXECUTE_SYM           {}
@@ -14578,13 +14573,11 @@ keyword:
         | FOLLOWING_SYM         {}
         | FORMAT_SYM            {}
         | GET_SYM               {}
-        | HANDLER_SYM           {}
         | HELP_SYM              {}
         | HOST_SYM              {}
         | INSTALL_SYM           {}
         | LANGUAGE_SYM          {}
         | NO_SYM                {}
-        | OPEN_SYM              {}
         | OPTION                {}
         | OPTIONS_SYM           {}
         | OTHERS_SYM            {}
@@ -14595,14 +14588,10 @@ keyword:
         | PRECEDING_SYM         {}
         | PREPARE_SYM           {}
         | REMOVE_SYM            {}
-        | REPAIR                {}
         | RESET_SYM             {}
         | RESTORE_SYM           {}
-        | ROLLBACK_SYM          {}
-        | SAVEPOINT_SYM         {}
         | SECURITY_SYM          {}
         | SERVER_SYM            {}
-        | SHUTDOWN              {}
         | SIGNED_SYM            {}
         | SOCKET_SYM            {}
         | SLAVE                 {}
@@ -14612,7 +14601,6 @@ keyword:
         | STOP_SYM              {}
         | STORED_SYM            {}
         | TIES_SYM              {}
-        | TRUNCATE_SYM          {}
         | UNICODE_SYM           {}
         | UNINSTALL_SYM         {}
         | UNBOUNDED_SYM         {}
@@ -14634,6 +14622,29 @@ keyword_sp:
 
 
 /*
+  Keywords that start a statement.
+  Generally allowed as identifiers (e.g. table, column names)
+  - not allowed as SP label names
+  - not allowed as variable names in Oracle-style assignments:
+    xxx:=10
+*/
+keyword_sp_verb_clause:
+          BEGIN_SYM             { /* Compound.    Reserved in Oracle */ }
+        | CLOSE_SYM             { /* Verb clause. Reserved in Oracle */ }
+        | COMMIT_SYM            { /* Verb clause. Reserved in Oracle */ }
+        | DO_SYM                { /* Verb clause                     */ }
+        | END                   { /* Compound.    Reserved in Oracle */ }
+        | HANDLER_SYM           { /* Verb clause                     */ }
+        | OPEN_SYM              { /* Verb clause. Reserved in Oracle */ }
+        | REPAIR                { /* Verb clause                     */ }
+        | ROLLBACK_SYM          { /* Verb clause. Reserved in Oracle */ }
+        | SAVEPOINT_SYM         { /* Verb clause. Reserved in Oracle */ }
+        | SHUTDOWN              { /* Verb clause                     */ }
+        | TRUNCATE_SYM          { /* Verb clause. Reserved in Oracle */ }
+      ;
+
+
+/*
   These keywords are generally allowed as identifiers,
   but not allowed as non-delimited SP variable names in sql_mode=ORACLE.
 */
@@ -14648,6 +14659,7 @@ keyword_sp_data_type:
         | FIXED_SYM                {}
         | GEOMETRYCOLLECTION       {}
         | GEOMETRY_SYM             {}
+        | JSON_SYM                 {}
         | LINESTRING               {}
         | MEDIUM_SYM               {}
         | MULTILINESTRING          {}
@@ -14786,7 +14798,6 @@ keyword_sp_not_data_type:
         | ISOLATION                {}
         | ISOPEN_SYM               {}
         | ISSUER_SYM               {}
-        | JSON_SYM                 {}
         | INSERT_METHOD            {}
         | KEY_BLOCK_SIZE           {}
         | LAST_VALUE               {}
@@ -16681,6 +16692,7 @@ sf_tail:
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
+            lex->sphead->set_chistics(lex->sp_chistics);
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
           sp_proc_stmt_in_returns_clause
@@ -16712,6 +16724,7 @@ sp_tail:
           sp_parenthesized_pdparam_list
           sp_c_chistics
           {
+            Lex->sphead->set_chistics(Lex->sp_chistics);
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_proc_stmt

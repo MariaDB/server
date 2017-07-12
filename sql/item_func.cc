@@ -6317,7 +6317,7 @@ Item_func_sp::init_result_field(THD *thd)
 
 bool Item_func_sp::is_expensive()
 {
-  return !m_sp->m_chistics->detistic ||
+  return !m_sp->detistic() ||
           current_thd->locked_tables_mode < LTM_LOCK_TABLES;
 }
 
@@ -6391,8 +6391,8 @@ Item_func_sp::execute_impl(THD *thd)
   Sub_statement_state statement_state;
   Security_context *save_security_ctx= thd->security_ctx;
   enum enum_sp_data_access access=
-    (m_sp->m_chistics->daccess == SP_DEFAULT_ACCESS) ?
-     SP_DEFAULT_ACCESS_MAPPING : m_sp->m_chistics->daccess;
+    (m_sp->daccess() == SP_DEFAULT_ACCESS) ?
+     SP_DEFAULT_ACCESS_MAPPING : m_sp->daccess();
 
   DBUG_ENTER("Item_func_sp::execute_impl");
 
@@ -6409,7 +6409,7 @@ Item_func_sp::execute_impl(THD *thd)
     statement-based replication (SBR) is active.
   */
 
-  if (!m_sp->m_chistics->detistic && !trust_function_creators &&
+  if (!m_sp->detistic() && !trust_function_creators &&
       (access == SP_CONTAINS_SQL || access == SP_MODIFIES_SQL_DATA) &&
       (mysql_bin_log.is_open() &&
        thd->variables.binlog_format == BINLOG_FORMAT_STMT))
@@ -6591,7 +6591,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
 #endif /* ! NO_EMBEDDED_ACCESS_CHECKS */
   }
 
-  if (!m_sp->m_chistics->detistic)
+  if (!m_sp->detistic())
   {
     used_tables_cache |= RAND_TABLE_BIT;
     const_item_cache= FALSE;
@@ -6605,7 +6605,7 @@ void Item_func_sp::update_used_tables()
 {
   Item_func::update_used_tables();
 
-  if (!m_sp->m_chistics->detistic)
+  if (!m_sp->detistic())
   {
     used_tables_cache |= RAND_TABLE_BIT;
     const_item_cache= FALSE;

@@ -613,11 +613,12 @@ select * from t1 where b = (select b from t2 where t1.a = t2.a);
 a	b
 2	12
 delete from t1 where b in (select b from t1);
-ERROR HY000: Table 't1' is specified twice, both as a target for 'DELETE' and as a separate source for data
+affected rows: 3
+insert into t1 values (0, 10),(1, 11),(2, 12);
 delete from t1 where b = (select b from t2);
 ERROR 21000: Subquery returns more than 1 row
 delete from t1 where b = (select b from t2 where t1.a = t2.a);
-select * from t1;
+select * from t1 order by b;
 a	b
 0	10
 1	11

@@ -5825,17 +5825,15 @@ sp_head *LEX::make_sp_head(THD *thd, sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if ((sp= new sp_head()))
+  if ((sp= new sp_head(type)))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
-    sp->m_type= type;
     if (name)
       sp->init_sp_name(thd, name);
-    sp->m_chistics= &sp_chistics;
     sphead= sp;
   }
-  bzero(&sp_chistics, sizeof(sp_chistics));
+  sp_chistics.init();
   return sp;
 }
 
@@ -6125,7 +6123,7 @@ bool LEX::maybe_start_compound_statement(THD *thd)
   {
     if (!make_sp_head(thd, NULL, TYPE_ENUM_PROCEDURE))
       return true;
-    sp_chistics.suid= SP_IS_NOT_SUID;
+    sphead->set_suid(SP_IS_NOT_SUID);
     sphead->set_body_start(thd, thd->m_parser_state->m_lip.get_cpp_ptr());
   }
   return false;

@@ -1285,8 +1285,16 @@ struct st_sp_chistics
   enum enum_sp_suid_behaviour suid;
   bool detistic;
   enum enum_sp_data_access daccess;
+  void init() { bzero(this, sizeof(*this)); }
+  void set(const st_sp_chistics &other) { *this= other; }
 };
 
+
+class Sp_chistics: public st_sp_chistics
+{
+public:
+  Sp_chistics() { init(); }
+};
 
 
 struct st_trg_chistics: public st_trg_execution_order

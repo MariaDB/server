@@ -240,7 +240,7 @@ bool show_create_sp(THD *thd, String *buf,
               const char *params, ulong paramslen,
               const char *returns, ulong returnslen,
               const char *body, ulong bodylen,
-              const st_sp_chistics *chistics,
+              const st_sp_chistics &chistics,
               const LEX_CSTRING *definer_user,
               const LEX_CSTRING *definer_host,
 	      sql_mode_t sql_mode);

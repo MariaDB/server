@@ -2710,7 +2710,7 @@ bool sp_process_definer(THD *thd)
       DBUG_RETURN(TRUE);
 
     if (thd->slave_thread && lex->sphead)
-      lex->sphead->m_chistics->suid= SP_IS_NOT_SUID;
+      lex->sphead->set_suid(SP_IS_NOT_SUID);
   }
   else
   {

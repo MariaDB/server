@@ -340,12 +340,16 @@ insert into t1 values (0, 10),(1, 11),(2, 12);
 insert into t2 values (1, 21),(2, 12),(3, 23);
 select * from t1;
 select * from t1 where b = (select b from t2 where t1.a = t2.a);
--- error ER_UPDATE_TABLE_USED
+# Works since MDEV-12137
+# previously : ER_UPDATE_TABLE_USED
+--enable_info
 delete from t1 where b in (select b from t1);
+--disable_info
+insert into t1 values (0, 10),(1, 11),(2, 12);
 -- error ER_SUBQUERY_NO_1_ROW
 delete from t1 where b = (select b from t2);
 delete from t1 where b = (select b from t2 where t1.a = t2.a);
-select * from t1;
+select * from t1 order by b;
 drop table t1, t2;
 
 #multi-delete with subselects

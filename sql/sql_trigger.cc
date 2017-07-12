@@ -663,7 +663,7 @@ static void build_trig_stmt_query(THD *thd, TABLE_LIST *tables,
   if (lex->create_info.or_replace())
     stmt_query->append(STRING_WITH_LEN("OR REPLACE "));
 
-  if (lex->sphead->m_chistics->suid != SP_IS_NOT_SUID)
+  if (lex->sphead->suid() != SP_IS_NOT_SUID)
   {
     /* SUID trigger */
     lex->definer->set_lex_string(trg_definer, trg_definer_holder);
@@ -1431,7 +1431,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
         lex.set_trg_event_type_for_tables();
 
         if (lex.sphead)
-          lex.sphead->set_info(0, 0, &lex.sp_chistics, sql_mode);
+          lex.sphead->m_sql_mode= sql_mode;
 
         if (unlikely(!(trigger= (new (&table->mem_root)
                                  Trigger(trigger_list, lex.sphead)))))
@@ -1489,7 +1489,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
           continue;
         }
 
-        sp->set_info(0, 0, &lex.sp_chistics, sql_mode);
+        sp->m_sql_mode= sql_mode;
         sp->set_creation_ctx(creation_ctx);
 
         if (!trg_definer || !trg_definer->length)
@@ -1519,7 +1519,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
             authorization of the invoker.
           */
 
-          sp->m_chistics->suid= SP_IS_NOT_SUID;
+          sp->set_suid(SP_IS_NOT_SUID);
         }
         else
         {
@@ -1691,7 +1691,7 @@ void Trigger::get_trigger_info(LEX_CSTRING *trigger_stmt,
   }
   *trigger_body= body->m_body_utf8;
 
-  if (body->m_chistics->suid == SP_IS_NOT_SUID)
+  if (body->suid() == SP_IS_NOT_SUID)
   {
     *definer= empty_lex_str;
   }

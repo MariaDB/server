@@ -1096,7 +1096,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         case_stmt_body opt_bin_mod
         opt_if_exists_table_element opt_if_not_exists_table_element
 	opt_recursive
-        type_or_rowtype
 
 %type <object_ddl_options>
         create_or_replace
@@ -1354,7 +1353,8 @@ END_OF_INPUT
 %type <num> view_algorithm view_check_option
 %type <view_suid> view_suid opt_view_suid
 
-%type <num>  sp_decl_idents sp_handler_type sp_hcond_list
+%type <num> sp_decl_idents sp_decl_idents_init_vars
+%type <num> sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spblock> sp_decl_body_list opt_sp_decl_body_list
 %type <spblock> sp_decl_non_handler sp_decl_non_handler_list
@@ -1389,7 +1389,7 @@ END_OF_INPUT
 %type <cond_info_list> condition_information;
 
 %type <spvar_definition> row_field_name row_field_definition
-%type <spvar_definition_list> row_field_definition_list field_type_row
+%type <spvar_definition_list> row_field_definition_list row_type_body
 
 %type <NONE> opt_window_clause window_def_list window_def window_spec
 %type <lex_str_ptr> window_name
@@ -2392,7 +2392,6 @@ ev_sql_stmt:
                                         TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
 
-            lex->sp_chistics.suid= SP_IS_SUID;  //always the definer!
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
           sp_proc_stmt
@@ -2549,13 +2548,13 @@ sp_param_name_and_type:
           {
             Lex->sphead->fill_spvar_using_type_reference($$= $1, $2);
           }
-        | sp_param_name field_type_row
+        | sp_param_name ROW_SYM row_type_body
           {
             $$= $1;
             $$->field_def.field_name= $$->name;
             Lex->sphead->fill_spvar_definition(thd, &$$->field_def);
-            Lex->sphead->row_fill_field_definitions(thd, $2);
-            $$->field_def.set_row_field_definitions($2);
+            Lex->sphead->row_fill_field_definitions(thd, $3);
+            $$->field_def.set_row_field_definitions($3);
           }
         ;
 
@@ -2581,13 +2580,13 @@ sp_pdparam:
           {
             Lex->sphead->fill_spvar_using_type_reference($1, $3);
           }
-        | sp_param_name sp_opt_inout field_type_row
+        | sp_param_name sp_opt_inout ROW_SYM row_type_body
           {
             $1->mode= $2;
             $1->field_def.field_name= $1->name;
             Lex->sphead->fill_spvar_definition(thd, &$1->field_def);
-            Lex->sphead->row_fill_field_definitions(thd, $3);
-            $1->field_def.set_row_field_definitions($3);
+            Lex->sphead->row_fill_field_definitions(thd, $4);
+            $1->field_def.set_row_field_definitions($4);
           }
         ;
 
@@ -2770,46 +2769,45 @@ row_field_definition_list:
           }
         ;
 
-field_type_row:
-          ROW_SYM '(' row_field_definition_list ')' { $$= $3; }
+row_type_body:
+          '(' row_field_definition_list ')' { $$= $2; }
         ;
 
-type_or_rowtype:
-          TYPE_SYM     { $$= 0; }
-        | ROWTYPE_SYM  { $$= 1; }
-        ;
-
-sp_decl_non_handler:
+sp_decl_idents_init_vars:
           sp_decl_idents
           {
             Lex->sp_variable_declarations_init(thd, $1);
           }
+        ;
+
+sp_decl_non_handler:
+          sp_decl_idents_init_vars
           type_with_opt_collate
           sp_opt_default
           {
             if (Lex->sp_variable_declarations_finalize(thd, $1,
-                                                       &Lex->last_field[0], $4))
+                                                       &Lex->last_field[0], $3))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
-        | sp_decl_idents
-          {
-            Lex->sp_variable_declarations_init(thd, $1);
-          }
-          optionally_qualified_column_ident '%' type_or_rowtype
+        | sp_decl_idents_init_vars
+          optionally_qualified_column_ident '%' TYPE_SYM
           sp_opt_default
           {
-            if ($5 ?
-                Lex->sp_variable_declarations_rowtype_finalize(thd, $1, $3, $6) :
-                Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $3, $6))
+            if (Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $2, $5))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
-        | sp_decl_idents
+        | sp_decl_idents_init_vars
+          optionally_qualified_column_ident '%' ROWTYPE_SYM
+          sp_opt_default
           {
-            Lex->sp_variable_declarations_init(thd, $1);
+            if (Lex->sp_variable_declarations_rowtype_finalize(thd, $1, $2, $5))
+              MYSQL_YYABORT;
+            $$.init_using_vars($1);
           }
-          field_type_row
+        | sp_decl_idents_init_vars
+          ROW_SYM row_type_body
           sp_opt_default
           {
             if (Lex->sp_variable_declarations_row_finalize(thd, $1, $3, $4))
@@ -4652,9 +4650,11 @@ size_number:
                 case 'g':
                 case 'G':
                   text_shift_number+=10;
+                  /* fall through */
                 case 'm':
                 case 'M':
                   text_shift_number+=10;
+                  /* fall through */
                 case 'k':
                 case 'K':
                   text_shift_number+=10;
@@ -7211,7 +7211,7 @@ alter:
 
             if (lex->sphead)
               my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE"));
-            bzero((char *)&lex->sp_chistics, sizeof(st_sp_chistics));
+            lex->sp_chistics.init();
           }
           sp_a_chistics
           {
@@ -7226,7 +7226,7 @@ alter:
 
             if (lex->sphead)
               my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "FUNCTION"));
-            bzero((char *)&lex->sp_chistics, sizeof(st_sp_chistics));
+            lex->sp_chistics.init();
           }
           sp_a_chistics
           {
@@ -14796,24 +14796,13 @@ keyword_directly_assignable:
           CREATE TRIGGER .. FOR EACH ROW FOLLOWS tr1 a:= 10;
 */
 keyword_directly_not_assignable:
-          CONTAINS_SYM          { /* SP characteristic               */ }
-        | LANGUAGE_SYM          { /* SP characteristic               */ }
-        | NO_SYM                { /* SP characteristic               */ }
-        | CHARSET               { /* SET CHARSET utf8;               */ }
-        | DO_SYM                { /* Verb clause                     */ }
-        | REPAIR                { /* Verb clause                     */ }
-        | HANDLER_SYM           { /* Verb clause                     */ }
-        | CLOSE_SYM             { /* Verb clause. Reserved in Oracle */ }
-        | OPEN_SYM              { /* Verb clause. Reserved in Oracle */ }
-        | SAVEPOINT_SYM         { /* Verb clause. Reserved in Oracle */ }
-        | TRUNCATE_SYM          { /* Verb clause. Reserved in Oracle */ }
-        | BEGIN_SYM             { /* Compound.    Reserved in Oracle */ }
-        | END                   { /* Compound.    Reserved in Oracle */ }
-        | FOLLOWS_SYM           { /* Conflicts with assignment in FOR EACH */}
-        | PRECEDES_SYM          { /* Conflicts with assignment in FOR EACH */}
-        | COMMIT_SYM            { /* Verb clause. Reserved in Oracle */ }
-        | ROLLBACK_SYM          { /* Verb clause. Reserver in Oracle */ }
-        | SHUTDOWN              { /* Verb clause                     */ }
+          CONTAINS_SYM           { /* SP characteristic               */ }
+        | LANGUAGE_SYM           { /* SP characteristic               */ }
+        | NO_SYM                 { /* SP characteristic               */ }
+        | CHARSET                { /* SET CHARSET utf8;               */ }
+        | FOLLOWS_SYM            { /* Conflicts with assignment in FOR EACH */}
+        | PRECEDES_SYM           { /* Conflicts with assignment in FOR EACH */}
+        | keyword_sp_verb_clause { }
         ;
 
 /*
@@ -14826,6 +14815,29 @@ keyword_sp:
           keyword_sp_data_type
         | keyword_sp_not_data_type
         ;
+
+
+/*
+  Keywords that start a statement.
+  Generally allowed as identifiers (e.g. table, column names)
+  - not allowed as SP label names
+  - not allowed as variable names in Oracle-style assignments:
+    xxx:=10
+*/
+keyword_sp_verb_clause:
+          BEGIN_SYM             { /* Compound.    Reserved in Oracle */ }
+        | CLOSE_SYM             { /* Verb clause. Reserved in Oracle */ }
+        | COMMIT_SYM            { /* Verb clause. Reserved in Oracle */ }
+        | DO_SYM                { /* Verb clause                     */ }
+        | END                   { /* Compound.    Reserved in Oracle */ }
+        | HANDLER_SYM           { /* Verb clause                     */ }
+        | OPEN_SYM              { /* Verb clause. Reserved in Oracle */ }
+        | REPAIR                { /* Verb clause                     */ }
+        | ROLLBACK_SYM          { /* Verb clause. Reserved in Oracle */ }
+        | SAVEPOINT_SYM         { /* Verb clause. Reserved in Oracle */ }
+        | SHUTDOWN              { /* Verb clause                     */ }
+        | TRUNCATE_SYM          { /* Verb clause. Reserved in Oracle */ }
+      ;
 
 
 /*
@@ -16919,6 +16931,7 @@ sf_tail:
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
+            lex->sphead->set_chistics(lex->sp_chistics);
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
           sp_tail_is
@@ -16953,6 +16966,7 @@ sp_tail:
           opt_sp_parenthesized_pdparam_list
           sp_c_chistics
           {
+            Lex->sphead->set_chistics(Lex->sp_chistics);
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_tail_is

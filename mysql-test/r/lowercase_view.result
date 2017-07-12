@@ -65,12 +65,6 @@ update v3aA set v3Aa.col1 = (select max(col1) from v2aA);
 ERROR HY000: The definition of table 'v2aA' prevents operation UPDATE on table 'v3aA'
 update v3aA set v3Aa.col1 = (select max(col1) from v3aA);
 ERROR HY000: Table 'v3aA' is specified twice, both as a target for 'UPDATE' and as a separate source for data
-delete from v2Aa where col1 = (select max(col1) from v1Aa);
-ERROR HY000: The definition of table 'v1Aa' prevents operation DELETE on table 'v2Aa'
-delete from v2aA where col1 = (select max(col1) from t1Aa);
-ERROR HY000: The definition of table 'v2aA' prevents operation DELETE on table 'v2aA'
-delete from v2Aa where col1 = (select max(col1) from v2aA);
-ERROR HY000: Table 'v2Aa' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete v2Aa from v2aA,t2Aa where (select max(col1) from v1aA) > 0 and v2Aa.col1 = t2aA.col1;
 ERROR HY000: The definition of table 'v1aA' prevents operation DELETE on table 'v2aA'
 delete t1aA from t1Aa,t2Aa where (select max(col1) from v1Aa) > 0 and t1aA.col1 = t2aA.col1;
