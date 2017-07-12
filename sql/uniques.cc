@@ -461,7 +461,7 @@ C_MODE_END
     <> 0  error
 */
 
-static bool merge_walk(uchar *merge_buffer, ulong merge_buffer_size,
+static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
                        uint key_length, BUFFPEK *begin, BUFFPEK *end,
                        tree_walk_action walk_action, void *walk_action_arg,
                        qsort_cmp2 compare, void *compare_arg,
@@ -470,7 +470,7 @@ static bool merge_walk(uchar *merge_buffer, ulong merge_buffer_size,
   BUFFPEK_COMPARE_CONTEXT compare_context = { compare, compare_arg };
   QUEUE queue;
   if (end <= begin ||
-      merge_buffer_size < (ulong) (key_length * (end - begin + 1)) ||
+      merge_buffer_size < (size_t) (key_length * (end - begin + 1)) ||
       init_queue(&queue, (uint) (end - begin), offsetof(BUFFPEK, key), 0,
                  buffpek_compare, &compare_context, 0, 0))
     return 1;
@@ -615,7 +615,7 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
   
   if (!res)
   {  
-    res= merge_walk(merge_buffer, (ulong) max_in_memory_size, full_size,
+    res= merge_walk(merge_buffer, buff_sz, full_size,
                     (BUFFPEK *) file_ptrs.buffer,
                     (BUFFPEK *) file_ptrs.buffer + file_ptrs.elements,
                     action, walk_action_arg,
