@@ -1723,5 +1723,13 @@ from t4;
 drop table t1, t2, t3, t4;
 
 #
+# MDEV-12489 The select stmt may fail due to "having clause is ambiguous" unexpected
+#
+create table t1 (c1 int, c2 int);
+create table t2 (c1 int, c2 int);
+select t1.c1 as c1, t2.c2 as c1 from t1, t2 where t1.c1 < 20 and t2.c2 > 5 group by t1.c1, t2.c2 having t1.c1 < 3;
+drop table t1, t2;
+
+#
 # End of MariaDB 5.5 tests
 #
