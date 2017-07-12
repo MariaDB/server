@@ -541,6 +541,7 @@ The following options may be given as the first argument:
  --net-write-timeout=# 
  Number of seconds to wait for a block to be written to a
  connection before aborting the write
+ --numa-enable       Enables explicit support for numa architecture.
  --old               Use compatible behavior from previous MariaDB version.
  See also --old-mode
  --old-alter-table   Use old, non-optimized alter table
@@ -1358,6 +1359,7 @@ net-buffer-length 16384
 net-read-timeout 30
 net-retry-count 10
 net-write-timeout 60
+numa-enable FALSE
 old FALSE
 old-alter-table FALSE
 old-mode 
