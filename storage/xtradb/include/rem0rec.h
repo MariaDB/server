@@ -976,9 +976,15 @@ are given in one byte (resp. two byte) format. */
 #define REC_1BYTE_OFFS_LIMIT	0x7FUL
 #define REC_2BYTE_OFFS_LIMIT	0x7FFFUL
 
-/* The data size of record must be smaller than this because we reserve
-two upmost bits in a two byte offset for special purposes */
-#define REC_MAX_DATA_SIZE	(16384)
+/* The data size of record must not be larger than this on
+REDUNDANT row format because we reserve two upmost bits in a
+two byte offset for special purposes */
+#define REDUNDANT_REC_MAX_DATA_SIZE	(16383)
+
+/* The data size of record must be smaller than this on
+COMPRESSED row format because we reserve two upmost bits in a
+two byte offset for special purposes */
+#define COMPRESSED_REC_MAX_DATA_SIZE	(16384)
 
 #ifdef WITH_WSREP
 int wsrep_rec_get_foreign_key(

@@ -153,11 +153,22 @@ my_error_innodb(
 	case DB_CORRUPTION:
 		my_error(ER_NOT_KEYFILE, MYF(0), table);
 		break;
-	case DB_TOO_BIG_RECORD:
-		my_error(ER_TOO_BIG_ROWSIZE, MYF(0),
-			 page_get_free_space_of_empty(
-				 flags & DICT_TF_COMPACT) / 2);
+	case DB_TOO_BIG_RECORD: {
+		/* Note that in page0zip.ic page_zip_rec_needs_ext() rec_size
+		is limited to COMPRESSED_REC_MAX_DATA_SIZE (16K) or
+		REDUNDANT_REC_MAX_DATA_SIZE (16K-1). */
+		bool comp = !!(flags & DICT_TF_COMPACT);
+		ulint free_space = page_get_free_space_of_empty(comp) / 2;
+
+		if (free_space >= (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+				          REDUNDANT_REC_MAX_DATA_SIZE)) {
+			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
+		}
+
+		my_error(ER_TOO_BIG_ROWSIZE, MYF(0), free_space);
 		break;
+	}
 	case DB_INVALID_NULL:
 		/* TODO: report the row, as we do for DB_DUPLICATE_KEY */
 		my_error(ER_INVALID_USE_OF_NULL, MYF(0));
