@@ -1,3 +1,8 @@
+SELECT COUNT(VARIABLE_VALUE) = 1 FROM
+INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='innodb_numa_interleave';
+COUNT(VARIABLE_VALUE) = 1
+1
 call mtr.add_suppression("InnoDB: Failed to set NUMA memory policy");
 SELECT @@GLOBAL.innodb_numa_interleave;
 @@GLOBAL.innodb_numa_interleave
