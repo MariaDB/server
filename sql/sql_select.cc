@@ -771,7 +771,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   }
 
   SELECT_LEX *outer_slex= slex->next_select_in_list();
-  bool use_slex_conds= false;
+  bool force_slex_conds= false;
   if (outer_slex)
   {
     if (slex->vers_derived_conds)
@@ -786,15 +786,26 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
     }
     if (slex->vers_conditions.import_outer)
     {
-      // Propagate query conditions from nearest outer SELECT_LEX:
-      while (outer_slex && (!outer_slex->vers_conditions || outer_slex->vers_conditions.from_inner))
-        outer_slex= outer_slex->next_select_in_list();
-      if (outer_slex)
+      DBUG_ASSERT(slex->master_unit());
+      TABLE_LIST* derived= slex->master_unit()->derived;
+      DBUG_ASSERT(derived);
+      if (derived->vers_conditions)
       {
-        slex->vers_conditions= outer_slex->vers_conditions;
-        outer_slex->vers_conditions.used= true;
-        DBUG_ASSERT(slex->master_unit()->derived);
-        use_slex_conds= slex->master_unit()->derived->is_view();
+        slex->vers_conditions= derived->vers_conditions;
+        derived->vers_conditions.used= true;
+        force_slex_conds= derived->is_view();
+      }
+      else
+      {
+        // Propagate query conditions from nearest outer SELECT_LEX:
+        while (outer_slex && (!outer_slex->vers_conditions || outer_slex->vers_conditions.from_inner))
+          outer_slex= outer_slex->next_select_in_list();
+        if (outer_slex)
+        {
+          slex->vers_conditions= outer_slex->vers_conditions;
+          outer_slex->vers_conditions.used= true;
+          force_slex_conds= derived->is_view();
+        }
       }
     }
   }
@@ -803,7 +814,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   {
     if (table->table && table->table->versioned())
     {
-      vers_select_conds_t &vers_conditions= use_slex_conds || !table->vers_conditions?
+      vers_select_conds_t &vers_conditions= force_slex_conds || !table->vers_conditions?
           (slex->vers_conditions.used= true, slex->vers_conditions) :
           table->vers_conditions;
 

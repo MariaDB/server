@@ -103,10 +103,14 @@ select * from (select *, t1.sys_trx_end, t2.sys_trx_start from t1, t2) as s0;
 
 # system_time propagation from inner to outer
 select * from (select * from t1 for system_time as of timestamp @t0, t2) as s0;
+with s1 as (select * from t1 for system_time as of timestamp @t0, t2) select * from s1;
 # leading table selection
-select * from (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) as s0;
+select * from (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) as s2;
+with s3 as (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
 # system_time propagation from outer to inner
-select * from (select *, t1.sys_trx_start from t2 for system_time as of now, t1) as s0 query for system_time as of timestamp @t0;
+select * from (select *, t1.sys_trx_start from t2 for system_time as of now, t1) as s4 query for system_time as of timestamp @t0;
+with s5 as (select *, t1.sys_trx_start from t2 for system_time as of now, t1) select * from s5 for system_time as of timestamp @t0;
+with s6 as (select *, t1.sys_trx_start from t2 for system_time as of now, t1) select * from s6 query for system_time as of timestamp @t0;
 
 # VIEW instead of t1
 set @q= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t0, "'");
