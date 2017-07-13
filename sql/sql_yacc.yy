@@ -16683,7 +16683,6 @@ sf_tail:
             if (!Lex->make_sp_head_no_recursive(thd, $1, $2,
                                                 TYPE_ENUM_FUNCTION))
               MYSQL_YYABORT;
-            Lex->spname= $2;
           }
           sp_parenthesized_fdparam_list
           sf_return_type
@@ -16719,7 +16718,6 @@ sp_tail:
             if (!Lex->make_sp_head_no_recursive(thd, $1, $2,
                                                 TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
-            Lex->spname= $2;
           }
           sp_parenthesized_pdparam_list
           sp_c_chistics

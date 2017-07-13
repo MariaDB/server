@@ -2682,6 +2682,7 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
     }
     if (rli->ign_gtids.count())
     {
+      DBUG_ASSERT(!rli->is_in_group());         // Ensure no active transaction
       glev= new Gtid_list_log_event(&rli->ign_gtids,
                                     Gtid_list_log_event::FLAG_IGN_GTIDS);
       rli->ign_gtids.reset();
@@ -5971,6 +5972,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   bool gtid_skip_enqueue= false;
   bool got_gtid_event= false;
   rpl_gtid event_gtid;
+  static uint dbug_rows_event_count __attribute__((unused))= 0;
   bool is_compress_event = false;
   char* new_buf = NULL;
   char new_buf_arr[4096];
@@ -6042,6 +6044,26 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       (uchar)buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT /* a way to escape */)
     DBUG_RETURN(queue_old_event(mi,buf,event_len));
 
+#ifdef ENABLED_DEBUG_SYNC
+  /*
+    A (+d,dbug.rows_events_to_delay_relay_logging)-test is supposed to
+    create a few Write_log_events and after receiving the 1st of them
+    the IO thread signals to launch the SQL thread, and sets itself to
+    wait for a release signal.
+  */
+  DBUG_EXECUTE_IF("dbug.rows_events_to_delay_relay_logging",
+                  if ((buf[EVENT_TYPE_OFFSET] == WRITE_ROWS_EVENT_V1 ||
+                       buf[EVENT_TYPE_OFFSET] == WRITE_ROWS_EVENT) &&
+                      ++dbug_rows_event_count == 2)
+                  {
+                    const char act[]=
+                      "now SIGNAL start_sql_thread "
+                      "WAIT_FOR go_on_relay_logging";
+                    DBUG_ASSERT(debug_sync_service);
+                    DBUG_ASSERT(!debug_sync_set_action(current_thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
+#endif
   mysql_mutex_lock(&mi->data_lock);
 
   switch ((uchar)buf[EVENT_TYPE_OFFSET]) {
@@ -7270,9 +7292,12 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
           DBUG_RETURN(ev);
         }
 
-        if (rli->ign_gtids.count())
+        if (rli->ign_gtids.count() && !rli->is_in_group())
         {
-          /* We generate and return a Gtid_list, to update gtid_slave_pos. */
+          /*
+            We generate and return a Gtid_list, to update gtid_slave_pos,
+            unless being in the middle of a group.
+          */
           DBUG_PRINT("info",("seeing ignored end gtids"));
           ev= new Gtid_list_log_event(&rli->ign_gtids,
                                       Gtid_list_log_event::FLAG_IGN_GTIDS);

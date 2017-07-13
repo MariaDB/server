@@ -3606,7 +3606,7 @@ SET SESSION sql_mode=@old_sql_mode;
 drop table t2, t1;
 drop view v1;
 
---echo End of 5.0 tests.
+--echo # End of 5.0 tests.
 
 #
 # Test [NOT] IN truth table (both as top-level and general predicate).
@@ -4691,7 +4691,7 @@ select * from t2 where a=(select a from t1) and a='x';
 
 drop table t1,t2;
 
---echo End of 5.1 tests
+--echo # End of 5.1 tests
 
 --echo #
 --echo # Bug #11765713 58705:
@@ -5163,7 +5163,7 @@ eval SELECT * FROM ( $subq ) AS alias3;
 
 DROP TABLE t1,t2;
 
---echo End of 5.2 tests
+--echo # End of 5.2 tests
 
 --echo #
 --echo # BUG#779885: Crash in eliminate_item_equal with materialization=on in
@@ -6012,11 +6012,17 @@ INSERT INTO t2 VALUES (3);
 
 CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM t2;
 
+--error ER_WRONG_GROUP_FIELD
+SELECT ( SELECT MIN(t2.f2) FROM t1 ) AS sq FROM t2 GROUP BY sq;
+--error ER_WRONG_GROUP_FIELD
 SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
 SELECT * FROM v2 where ( SELECT MIN(v2.f2) FROM t1 ) > 0;
 SELECT count(*) FROM v2 group by ( SELECT MIN(v2.f2) FROM t1 );
 
 delete from t1;
+--error ER_WRONG_GROUP_FIELD
+SELECT ( SELECT MIN(t2.f2) FROM t1 ) AS sq FROM t2 GROUP BY sq;
+--error ER_WRONG_GROUP_FIELD
 SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
 
 drop view v2;
@@ -6032,6 +6038,32 @@ SELECT * FROM t1 WHERE f2 >= SOME ( SELECT f1 FROM t1 );
 SELECT * FROM t1 WHERE f2 <= SOME ( SELECT f1 FROM t1 );
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-10146: Wrong result (or questionable result and behavior)
+--echo # with aggregate function in uncorrelated SELECT subquery
+--echo #
+CREATE TABLE t1 (f1 INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (f2 int);
+
+INSERT INTO t2 VALUES (3);
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
+
+INSERT INTO t2 VALUES (4);
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
+--error ER_SUBQUERY_NO_1_ROW
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+
+drop view v1;
+drop table t1,t2;
+
+--echo # End of 10.0 tests
 
 --echo #
 --echo # MDEV-9487: Server crashes in Time_and_counter_tracker::incr_loops
@@ -6059,7 +6091,7 @@ SELECT * FROM t1, t2 WHERE f3 = f2 AND f1 > ANY ( SELECT 'foo');
 DROP TABLE t1, t2;
 SET NAMES default;
 
---echo End of 10.1 tests
+--echo # End of 10.1 tests
 
 --echo #
 --echo # MDEV-12564: IN TO EXISTS transformation for rows after 
@@ -6076,4 +6108,4 @@ SELECT * FROM t t1 RIGHT JOIN t t2 ON (t2.pk = t1.pk)
 
 DROP TABLE t;
 
---echo End of 10.2 tests
+--echo # End of 10.2 tests

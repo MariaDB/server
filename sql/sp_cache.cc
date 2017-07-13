@@ -189,7 +189,7 @@ void sp_cache_insert(sp_cache **cp, sp_head *sp)
     NULL if the routine not found.
 */
 
-sp_head *sp_cache_lookup(sp_cache **cp, const sp_name *name)
+sp_head *sp_cache_lookup(sp_cache **cp, const Database_qualified_name *name)
 {
   char buf[NAME_LEN * 2 + 2];
   sp_cache *c= *cp;

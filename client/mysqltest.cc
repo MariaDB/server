@@ -602,7 +602,7 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
 void str_to_file(const char *fname, char *str, int size);
 void str_to_file2(const char *fname, char *str, int size, my_bool append);
 
-void fix_win_paths(char *val, int len);
+void fix_win_paths(char *val, size_t len);
 const char *get_errname_from_code (uint error_code);
 int multi_reg_replace(struct st_replace_regex* r,char* val);
 
@@ -2652,6 +2652,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
   if (!mysql)
   {
     struct st_command command;
+    DBUG_ASSERT(query_end);
     memset(&command, 0, sizeof(command));
     command.query= (char*)query;
     command.first_word_len= (*query_end - query);
@@ -7468,7 +7469,7 @@ void free_win_path_patterns()
   => all \ from c:\mysql\m... until next space is converted into /
 */
 
-void fix_win_paths(char *val, int len)
+void fix_win_paths(char *val, size_t len)
 {
 #ifdef _WIN32
   uint i;

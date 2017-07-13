@@ -2269,10 +2269,15 @@ sub environment_setup {
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
 
   my $client_config_exe=
-    native_path("$bindir/libmariadb/mariadb_config$opt_vs_config/mariadb_config");
-  my $tls_info= `$client_config_exe --tlsinfo`;
-  ($ENV{CLIENT_TLS_LIBRARY},$ENV{CLIENT_TLS_LIBRARY_VERSION})=
-    split(/ /, $tls_info, 2);
+    mtr_exe_maybe_exists(
+        "$bindir/libmariadb/mariadb_config$opt_vs_config/mariadb_config",
+               "$bindir/bin/mariadb_config");
+  if ($client_config_exe)
+  {
+    my $tls_info= `$client_config_exe --tlsinfo`;
+    ($ENV{CLIENT_TLS_LIBRARY},$ENV{CLIENT_TLS_LIBRARY_VERSION})=
+      split(/ /, $tls_info, 2);
+  }
   my $exe_mysqld= find_mysqld($basedir);
   $ENV{'MYSQLD'}= $exe_mysqld;
   my $extra_opts= join (" ", @opt_extra_mysqld_opt);

@@ -26,7 +26,11 @@
 void Filesort_tracker::print_json_members(Json_writer *writer)
 {
   const char *varied_str= "(varied across executions)";
-  writer->add_member("r_loops").add_ll(get_r_loops());
+
+  if (!get_r_loops())
+    writer->add_member("r_loops").add_null();
+  else
+    writer->add_member("r_loops").add_ll(get_r_loops());
   
   if (get_r_loops() && time_tracker.timed)
   {
@@ -36,22 +40,29 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
   if (r_limit != HA_POS_ERROR)
   {
     writer->add_member("r_limit");
-    if (r_limit == 0)
+    if (!get_r_loops())
+      writer->add_null();
+    else if (r_limit == 0)
       writer->add_str(varied_str);
     else
       writer->add_ll((longlong) rint(r_limit/get_r_loops()));
   }
 
   writer->add_member("r_used_priority_queue"); 
-  if (r_used_pq == get_r_loops())
+  if (!get_r_loops())
+    writer->add_null();
+  else if (r_used_pq == get_r_loops())
     writer->add_bool(true);
   else if (r_used_pq == 0)
     writer->add_bool(false);
   else
     writer->add_str(varied_str);
 
-  writer->add_member("r_output_rows").add_ll((longlong) rint(r_output_rows / 
-                                                             get_r_loops()));
+  if (!get_r_loops())
+    writer->add_member("r_output_rows").add_null();
+  else
+    writer->add_member("r_output_rows").add_ll((longlong) rint(r_output_rows /
+                                                              get_r_loops()));
 
   if (sort_passes)
   {

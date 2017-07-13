@@ -613,7 +613,7 @@ DROP TABLE t1;
 # Test Case from MDEV-21067
 #
 CREATE DATABASE world;
-CREATE TABLE world.City (
+CREATE TABLE world.city (
 ID INT AUTO_INCREMENT PRIMARY KEY,
 Name VARCHAR(64),
 CountryCode VARCHAR(64),
@@ -625,35 +625,35 @@ ID INT AUTO_INCREMENT PRIMARY KEY,
 REC VARCHAR(64),
 ts TIMESTAMP
 ) ENGINE=InnoDB;
-INSERT INTO world.City VALUES (NULL, 'Davenport', 'USA', 'Iowa', 100);
-INSERT INTO world.City VALUES (NULL, 'Boulder', 'USA', 'Colorado', 1000);
-INSERT INTO world.City VALUES (NULL, 'Gweru', 'ZWE', 'Midlands', 10000);
+INSERT INTO world.city VALUES (NULL, 'Davenport', 'USA', 'Iowa', 100);
+INSERT INTO world.city VALUES (NULL, 'Boulder', 'USA', 'Colorado', 1000);
+INSERT INTO world.city VALUES (NULL, 'Gweru', 'ZWE', 'Midlands', 10000);
 RESET MASTER;
-CHECKSUM TABLE world.City;
+CHECKSUM TABLE world.city;
 Table	Checksum
-world.City	563256876
+world.city	563256876
 INSERT INTO test.test VALUES (NULL, 'Good record 1', CURRENT_TIMESTAMP());
-INSERT INTO world.City VALUES (NULL, 'Wrong value 1', '000', 'Wrong', 0);
-INSERT INTO world.City VALUES (NULL, 'Wrong value 2', '000', 'Wrong', 0) , (NULL, 'Wrong value 3', '000', 'Wrong', 0);
+INSERT INTO world.city VALUES (NULL, 'Wrong value 1', '000', 'Wrong', 0);
+INSERT INTO world.city VALUES (NULL, 'Wrong value 2', '000', 'Wrong', 0) , (NULL, 'Wrong value 3', '000', 'Wrong', 0);
 INSERT INTO test.test VALUES (NULL, 'Good record 2', CURRENT_TIMESTAMP());
-UPDATE world.City SET Population = 99999999 WHERE ID IN (1, 2, 3);
+UPDATE world.city SET Population = 99999999 WHERE ID IN (1, 2, 3);
 INSERT INTO test.test VALUES (NULL, 'Good record 3', CURRENT_TIMESTAMP());
-DELETE FROM world.City WHERE ID BETWEEN 1 AND 2;
+DELETE FROM world.city WHERE ID BETWEEN 1 AND 2;
 INSERT INTO test.test VALUES (NULL, 'Good record 5', CURRENT_TIMESTAMP());
-REPLACE INTO world.City VALUES (4074, 'Wrong value 4', '000', 'Wrong', 0);
-REPLACE INTO world.City VALUES (4078, 'Wrong value 5', '000', 'Wrong', 0), (NULL, 'Wrong value 6', '000', 'Wrong', 0);
+REPLACE INTO world.city VALUES (4074, 'Wrong value 4', '000', 'Wrong', 0);
+REPLACE INTO world.city VALUES (4078, 'Wrong value 5', '000', 'Wrong', 0), (NULL, 'Wrong value 6', '000', 'Wrong', 0);
 INSERT INTO test.test VALUES (NULL, 'Good record 6', CURRENT_TIMESTAMP());
-INSERT INTO world.City
-SELECT NULL, Name, CountryCode, District, Population FROM world.City WHERE ID BETWEEN 2 AND 10;
+INSERT INTO world.city
+SELECT NULL, Name, CountryCode, District, Population FROM world.city WHERE ID BETWEEN 2 AND 10;
 INSERT INTO test.test VALUES (NULL, 'Good record 7', CURRENT_TIMESTAMP());
 INSERT INTO test.test VALUES (NULL, 'Good record 8', CURRENT_TIMESTAMP());
-DELETE FROM world.City;
+DELETE FROM world.city;
 INSERT INTO test.test VALUES (NULL, 'Good record 9', CURRENT_TIMESTAMP());
 FLUSH LOGS;
 # < CASE 6 >
 # Flashback & Check the result
 #
-SELECT * FROM world.City;
+SELECT * FROM world.city;
 ID	Name	CountryCode	District	Population
 1	Davenport	USA	Iowa	100
 2	Boulder	USA	Colorado	1000
@@ -668,11 +668,11 @@ ID	REC	ts
 6	Good record 7	2001-09-09 09:46:40
 7	Good record 8	2001-09-09 09:46:40
 8	Good record 9	2001-09-09 09:46:40
-CHECKSUM TABLE world.City;
+CHECKSUM TABLE world.city;
 Table	Checksum
-world.City	563256876
+world.city	563256876
 DROP TABLE test.test;
-DROP TABLE world.City;
+DROP TABLE world.city;
 DROP DATABASE world;
 SET binlog_format=statement;
 Warnings:

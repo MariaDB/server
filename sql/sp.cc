@@ -470,7 +470,8 @@ static TABLE *open_proc_table_for_update(THD *thd)
 */
 
 static int
-db_find_routine_aux(THD *thd, stored_procedure_type type, const sp_name *name,
+db_find_routine_aux(THD *thd, stored_procedure_type type,
+                    const Database_qualified_name *name,
                     TABLE *table)
 {
   uchar key[MAX_KEY_LENGTH];	// db, name, optional key length type
@@ -969,7 +970,7 @@ sp_returns_type(THD *thd, String &result, sp_head *sp)
 */
 static int
 sp_drop_routine_internal(THD *thd, stored_procedure_type type,
-                         const sp_name *name, TABLE *table)
+                         const Database_qualified_name *name, TABLE *table)
 {
   DBUG_ENTER("sp_drop_routine_internal");
 
@@ -1079,11 +1080,11 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
   else
   {
     /* Checking if the routine already exists */
-    if (db_find_routine_aux(thd, type, lex->spname, table) == SP_OK)
+    if (db_find_routine_aux(thd, type, sp, table) == SP_OK)
     {
       if (lex->create_info.or_replace())
       {
-        if ((ret= sp_drop_routine_internal(thd, type, lex->spname, table)))
+        if ((ret= sp_drop_routine_internal(thd, type, sp, table)))
           goto done;
       }
       else if (lex->create_info.if_not_exists())
@@ -1092,7 +1093,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
                             ER_SP_ALREADY_EXISTS,
                             ER_THD(thd, ER_SP_ALREADY_EXISTS),
                             SP_TYPE_STRING(type),
-                            lex->spname->m_name.str);
+                            sp->m_name.str);
 
         ret= FALSE;
 
