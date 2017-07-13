@@ -6399,8 +6399,7 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	for (n = 0; (*argv_client)[n]; n++) {};
  	argc_client = n;
 
-	if (strcmp(base_name(my_progname), INNOBACKUPEX_BIN_NAME) == 0 &&
-	    argc_client > 0) {
+	if (innobackupex_mode && argc_client > 0) {
 		/* emulate innobackupex script */
 		innobackupex_mode = true;
 		if (!ibx_handle_options(&argc_client, argv_client)) {
@@ -6446,12 +6445,11 @@ int main(int argc, char **argv)
 {
 	char **client_defaults, **server_defaults;
 	char cwd[FN_REFLEN];
-  static char INNOBACKUPEX_EXE[]= "innobackupex";
+	static char INNOBACKUPEX_EXE[]= "innobackupex";
 	if (argc > 1 && (strcmp(argv[1], "--innobackupex") == 0))
 	{
 		argv++;
 		argc--;
-    argv[0] = INNOBACKUPEX_EXE;
 		innobackupex_mode = true;
 	}
 
