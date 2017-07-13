@@ -36,8 +36,6 @@ enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
              TYPE_COLCRT     = 71,    /* Column creation block         */
              TYPE_CONST      = 72,    /* Constant                      */
 
-/*-------------------- type tokenized string --------------------------*/
-             TYPE_DATE       =  8,    /* Timestamp                     */
 /*-------------------- additional values used by LNA ------------------*/
              TYPE_COLIST     = 14,    /* Column list                   */
              TYPE_COL        = 41,    /* Column                        */
@@ -80,7 +78,7 @@ enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
               TAB_DMY   = 25,   /* DMY Dummy tables NIY                */
 							TAB_JDBC  = 26,   /* Table accessed via JDBC             */
 							TAB_ZIP   = 27,   /* ZIP file info table                 */
-//						TAB_MONGO = 28,   /* Table retrieved from MongoDB        */
+							TAB_MONGO = 28,   /* Table retrieved from MongoDB        */
               TAB_NIY   = 30};  /* Table not implemented yet           */
 
 enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
@@ -140,12 +138,12 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_VIR   = 171,        /* Virtual tables am type no     */
           TYPE_AM_DMY   = 172,        /* DMY Dummy tables am type no   */
           TYPE_AM_SET   = 180,        /* SET Set tables am type no     */
-          TYPE_AM_MYSQL = 192,        /* MYSQL access method type no   */
-          TYPE_AM_MYX   = 193,        /* MYSQL EXEC access method type */
-          TYPE_AM_CAT   = 195,        /* Catalog access method type no */
-					TYPE_AM_ZIP   = 198,				/* ZIP access method type no     */
-	        TYPE_AM_MGO   = 199,				/* MGO access method type no     */
-	        TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
+          TYPE_AM_MYSQL = 190,        /* MYSQL access method type no   */
+          TYPE_AM_MYX   = 191,        /* MYSQL EXEC access method type */
+          TYPE_AM_CAT   = 192,        /* Catalog access method type no */
+					TYPE_AM_ZIP   = 193,				/* ZIP access method type no     */
+	        TYPE_AM_MGO   = 194,				/* MGO access method type no     */
+					TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
 
 enum RECFM {RECFM_NAF   =    -2,      /* Not a file                    */
             RECFM_OEM   =    -1,      /* OEM file access method        */

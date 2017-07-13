@@ -1,5 +1,3 @@
-Warnings:
-Warning	1105	No file name. Table will use t1.xml
 #
 # Testing changing table type (not in-place)
 #
@@ -16,7 +14,7 @@ c	d
 # This is because the XML top node name defaults to the table name.
 # Sure enough the temporary table name begins with '#' and is rejected by XML.
 # Therefore the top node name must be specified (along with the row nodes name).
-ALTER TABLE t1 TABLE_TYPE=XML TABNAME=t1 OPTION_LIST='rownode=row';
+ALTER TABLE t1 TABLE_TYPE=XML TABNAME=t1 OPTION_LIST='xmlsup=domdoc,rownode=row';
 SELECT * FROM t1;
 c	d
 1	One
@@ -27,7 +25,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) NOT NULL,
   `d` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `HEADER`=1 `QUOTED`=1 `TABLE_TYPE`=XML `TABNAME`=t1 `OPTION_LIST`='rownode=row'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `HEADER`=1 `QUOTED`=1 `TABLE_TYPE`=XML `TABNAME`=t1 `OPTION_LIST`='xmlsup=domdoc,rownode=row'
 # Let us see the XML file
 CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.xml';
 Warnings:
@@ -67,7 +65,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) NOT NULL,
   `d` char(10) NOT NULL `FIELD_FORMAT`='@'
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `QUOTED`=1 `TABLE_TYPE`=XML `TABNAME`=t1 `OPTION_LIST`='rownode=row' `HEADER`=0
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `QUOTED`=1 `TABLE_TYPE`=XML `TABNAME`=t1 `OPTION_LIST`='xmlsup=domdoc,rownode=row' `HEADER`=0
 SELECT * FROM t2;
 line
 <?xml version="1.0" encoding="UTF-8"?>

@@ -53,6 +53,36 @@ void trans_func(unsigned int u, _EXCEPTION_POINTERS* pExp)
 char *GetExceptionDesc(PGLOBAL g, unsigned int e);
 #endif   // SE_CATCH
 
+/***********************************************************************/
+/* IsNum: check whether this string is all digits.                     */
+/***********************************************************************/
+bool IsNum(PSZ s)
+{
+	for (char *p = s; *p; p++)
+		if (*p == ']')
+			break;
+		else if (!isdigit(*p) || *p == '-')
+			return false;
+
+	return true;
+}	// end of IsNum
+
+/***********************************************************************/
+/* NextChr: return the first found '[' or Sep pointer.                 */
+/***********************************************************************/
+char *NextChr(PSZ s, char sep)
+{
+	char *p1 = strchr(s, '[');
+	char *p2 = strchr(s, sep);
+
+	if (!p2)
+		return p1;
+	else if (p1)
+		return MY_MIN(p1, p2);
+
+	return p2;
+}	// end of NextChr
+
 
 /***********************************************************************/
 /* Parse a json string.                                                */
@@ -992,7 +1022,24 @@ PSZ JOBJECT::GetText(PGLOBAL g, PSZ text)
 
   if (!First && n)
     return NULL;
-  else for (PJPR jp = First; jp; jp = jp->Next)
+	else if (n == 1 && Size == 1 && !strcmp(First->GetKey(), "$date")) {
+		int i;
+
+		First->Val->GetText(g, text);
+		i = (text[1] == '-' ? 2 : 1);
+
+		if (IsNum(text + i)) {
+			// Date is in milliseconds
+			int j = (int)strlen(text);
+
+			if (j >= 4 + i)
+				text[j - 3] = 0;			// Change it to seconds
+			else
+				strcpy(text, " 0");
+
+		}	// endif text
+
+	} else for (PJPR jp = First; jp; jp = jp->Next)
     jp->Val->GetText(g, text);
 
   if (n)
@@ -1312,7 +1359,7 @@ PSZ JVALUE::GetText(PGLOBAL g, PSZ text)
   if (s)
     strcat(strcat(text, " "), s);
   else
-    strcat(text, " ???");
+    strcat(text, " <null>");
 
   return text;
 } // end of GetText

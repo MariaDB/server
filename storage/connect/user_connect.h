@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2011
+/* Copyright (C) MariaDB Corporation Ab
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
   Declaration of the user_connect class.
 
     @note
+	Author Olivier Bertrand
 
     @see
   /sql/handler.h and /storage/connect/user_connect.cc
@@ -53,7 +54,7 @@ public:
   // Implementation
   bool user_init();
   void SetHandler(ha_connect *hc);
-  bool CheckCleanup(void);
+  bool CheckCleanup(bool force = false);
   bool CheckQueryID(void) {return thdp->query_id > last_query_id;}
   bool CheckQuery(query_id_t vid) {return last_query_id > vid;}
 

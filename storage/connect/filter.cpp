@@ -33,11 +33,11 @@
 #include "tabcol.h"
 #include "xtable.h"
 #include "array.h"
-//#include "subquery.h"
 #include "filter.h"
-//#include "token.h"
-//#include "select.h"
 #include "xindex.h"
+#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#include "tabext.h"
+#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
 
 /***********************************************************************/
 /*  Utility routines.                                                  */
@@ -87,7 +87,7 @@ BYTE OpBmp(PGLOBAL g, OPVAL opc)
     case OP_EXIST: bt = 0x00; break;
     default:
       sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
-			throw TYPE_ARRAY;
+			throw (int)TYPE_ARRAY;
 	} // endswitch opc
 
   return bt;
@@ -1406,6 +1406,86 @@ PFIL FILTER::Copy(PTABS t)
   } // end of Copy
 #endif // 0
 
+#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+/***********************************************************************/
+/*  Make selector json representation for Mongo tables.                */
+/***********************************************************************/
+bool FILTER::MakeSelector(PGLOBAL g, PSTRG s)
+{
+	s->Append('{');
+
+	if (Opc == OP_AND || Opc == OP_OR) {
+		if (GetArgType(0) != TYPE_FILTER || GetArgType(1) != TYPE_FILTER)
+			return true;
+
+		s->Append("\"$");
+		s->Append(Opc == OP_AND ? "and" : "or");
+		s->Append("\":[");
+
+		if (((PFIL)Arg(0))->MakeSelector(g, s))
+			return true;
+
+		s->Append(',');
+
+		if (((PFIL)Arg(1))->MakeSelector(g, s))
+			return true;
+
+		s->Append(']');
+	} else {
+		if (GetArgType(0) != TYPE_COLBLK)
+			return true;
+
+		s->Append('"');
+		s->Append(((PCOL)Arg(0))->GetJpath(g, false));
+		s->Append("\":{\"$");
+
+		switch (Opc) {
+			case OP_EQ:
+				s->Append("eq");
+				break;
+			case OP_NE:
+				s->Append("ne");
+				break;
+			case OP_GT:
+				s->Append("gt");
+				break;
+			case OP_GE:
+				s->Append("gte");
+				break;
+			case OP_LT:
+				s->Append("lt");
+				break;
+			case OP_LE:
+				s->Append("lte");
+				break;
+			case OP_NULL:
+			case OP_LIKE:
+			case OP_EXIST:
+			default:
+				return true;
+		} // endswitch Opc
+
+		s->Append("\":");
+
+		if (GetArgType(1) == TYPE_COLBLK) {
+			s->Append("\"$");
+			s->Append(((PEXTCOL)Arg(1))->GetJpath(g, false));
+			s->Append('"');
+		} else {
+			char buf[501];
+
+			Arg(1)->Prints(g, buf, 500);
+			s->Append(buf);
+		} // endif Type
+
+		s->Append('}');
+	} // endif Opc
+
+	s->Append('}');
+	return false;
+} // end of MakeSelector
+#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
+
 /*********************************************************************/
 /*  Make file output of FILTER contents.                             */
 /*********************************************************************/
@@ -1437,7 +1517,7 @@ void FILTER::Printf(PGLOBAL g, FILE *f, uint n)
 
     } // endfor fp
 
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of TABLE contents (z should be checked).        */
@@ -1579,7 +1659,7 @@ void FILTER::Prints(PGLOBAL g, char *ps, uint z)
     bcp = bxp;
     } while (bcp); // enddo
 
-  } // end of Print
+  } // end of Prints
 
 
 /* -------------------- Derived Classes Functions -------------------- */
@@ -1697,8 +1777,6 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
 
   if (trace)
     htrc("PrepareFilter: fp=%p having=%d\n", fp, having);
-//if (fp)
-//  fp->Print(g, debug, 0);
 
   while (fp) {
     if (fp->Opc == OP_SEP)
@@ -1712,7 +1790,7 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
         break;  // Remove eventual ending separator(s)
 
 //  if (fp->Convert(g, having))
-//			throw TYPE_ARRAY;
+//		(int)throw TYPE_ARRAY;
 
     filp = fp;
     fp = fp->Next;
@@ -1745,7 +1823,7 @@ DllExport bool ApplyFilter(PGLOBAL g, PFIL filp)
 //  return TRUE;
 
   if (filp->Eval(g))
-		throw TYPE_FILTER;
+		throw (int)TYPE_FILTER;
 
   if (trace > 1)
     htrc("PlugFilter filp=%p result=%d\n",
