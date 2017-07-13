@@ -571,7 +571,7 @@ void VALUE::Printf(PGLOBAL g, FILE *f, uint n)
 	if (Null)
 		fprintf(f, "%s<null>\n", m);
 	else
-		fprintf(f, strcat(strcat(GetCharString(buf), "\n"), m));
+		fprintf(f, "%s%s\n", m, GetCharString(buf));
 
 } /* end of Printf */
 
