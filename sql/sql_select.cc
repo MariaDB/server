@@ -1380,6 +1380,46 @@ JOIN::prepare(TABLE_LIST *tables_init,
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
 
+  if (!thd->stmt_arena->is_stmt_prepare())
+  {
+    bool have_versioned_tables= false;
+    for (TABLE_LIST *table= tables_list; table; table= table->next_local)
+    {
+      if (table->table && table->table->versioned())
+      {
+        have_versioned_tables= true;
+        break;
+      }
+    }
+
+    if (have_versioned_tables)
+    {
+      Item_transformer transformer= &Item::vers_optimized_fields_transformer;
+
+      if (conds)
+      {
+        conds= conds->transform(thd, transformer, NULL);
+      }
+
+      for (ORDER *ord= order; ord; ord= ord->next)
+      {
+        ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
+        ord->item= &ord->item_ptr;
+      }
+
+      for (ORDER *ord= group_list; ord; ord= ord->next)
+      {
+        ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
+        ord->item= &ord->item_ptr;
+      }
+
+      if (having)
+      {
+        having= having->transform(thd, transformer, NULL);
+      }
+    }
+  }
+
   unit= unit_arg;
   if (prepare_stage2())
     goto err;
@@ -3827,6 +3867,16 @@ void JOIN::exec_inner()
   result->send_result_set_metadata(
                  procedure ? procedure_fields_list : *fields,
                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
+
+  {
+    List_iterator<Item> it(*columns_list);
+    while (Item *item= it++)
+    {
+      Item_transformer transformer= &Item::vers_optimized_fields_transformer;
+      it.replace(item->transform(thd, transformer, NULL));
+    }
+  }
+
   error= do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */
   thd->inc_examined_row_count(join_examined_rows);

@@ -1,4 +1,4 @@
-create table t(
+create table t (
   a int,
   b int without system versioning
 ) with system versioning;
@@ -19,5 +19,22 @@ select a from t where b=NULL system_time as of timestamp now(6);
 select a from t where b is NULL system_time as of timestamp now(6);
 select count(*), b from t group by b having b=NULL system_time as of timestamp now(6);
 select a, b from t;
+
+select count(*) from t for system_time as of timestamp now(6) group by b;
+select * from t for system_time as of timestamp now(6) group by b having b=2;
+select a from t for system_time as of timestamp now(6) where b=2;
+select a from t for system_time as of timestamp now(6) where b=NULL;
+select a from t for system_time as of timestamp now(6) where b is NULL;
+select count(*), b from t for system_time as of timestamp now(6) group by b having b=NULL;
+
+create or replace table t (
+  a int,
+  b int not null without system versioning
+) with system versioning;
+
+insert into t values (1, 2), (3, 4);
+
+select * from t for system_time as of timestamp now(6);
+select * from t for system_time as of timestamp now(6) where b is NULL;
 
 drop table t;
