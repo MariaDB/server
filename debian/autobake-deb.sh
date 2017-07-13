@@ -44,6 +44,15 @@ else
   sed -i -e "s/\\\${MAYBE_LIBCRACK}/${MAYBE_LIBCRACK}/g" debian/control
 fi
 
+# same for OpenSSL. Use the correct dependency
+if apt-cache madison libssl-dev|grep 'libssl-dev  *| *1\.1\.' >/dev/null 2>&1
+then
+  LIBSSL='libssl1.0-dev'
+else
+  LIBSSL='libssl-dev'
+fi
+sed -i -e "s/\\\${LIBSSL}/${LIBSSL}/g" debian/control
+
 # Adjust changelog, add new version.
 #
 echo "Incrementing changelog and starting build scripts"
