@@ -1244,9 +1244,11 @@ static int wsrep_after_command(Trans_param *param)
       */
       if (forced_rollback)
       {
-        /* SR transactions do not retry */
-        should_retry= !thd->wsrep_is_streaming();
-        wsrep_client_rollback(thd);
+        should_retry= !(
+          thd->wsrep_is_streaming() || // SR transactions do not retry
+          thd->sp_runtime_ctx          // SP code not patched to handle retry
+          );
+        wsrep_client_rollback(thd, false);
       }
       wsrep_post_rollback(thd);
       if (forced_rollback)
