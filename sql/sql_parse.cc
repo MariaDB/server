@@ -6429,26 +6429,6 @@ finish:
         sp_rcontext::handle_sql_condition().
       */
       trans_rollback_stmt(thd);
-#ifdef WITH_WSREP
-    else if (thd->spcont &&
-             !thd->is_error() &&
-             !thd->in_multi_stmt_transaction_mode() &&
-             (thd->wsrep_conflict_state() == MUST_ABORT ||
-              thd->wsrep_conflict_state() == CERT_FAILURE))
-    {
-      /*
-        The error was cleared, but THD was aborted by wsrep and
-        wsrep_conflict_state is still set accordingly. This
-        situation is expected if we are running a stored procedure
-        that declares a handler that catches ER_LOCK_DEADLOCK error.
-        In which case the error may have been cleared in method
-        sp_rcontext::handle_sql_condition().
-      */
-      trans_rollback_stmt(thd);
-      thd->set_wsrep_conflict_state(NO_CONFLICT);
-      thd->killed= NOT_KILLED;
-    }
-#endif /* WITH_WSREP */
     else
     {
       /* If commit fails, we should be able to reset the OK status. */
@@ -6549,6 +6529,9 @@ finish:
 
   /* assume PA safety for next transaction */
   thd->wsrep_PA_safe= true;
+
+  (void) RUN_HOOK(transaction, after_command,
+                  (thd, !thd->in_active_multi_stmt_transaction()));
 #endif /* WITH_WSREP */
 
   DBUG_RETURN(res || thd->is_error());
@@ -7924,9 +7907,6 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     mysql_parse(thd, rawbuf, length, parser_state, is_com_multi,
                 is_next_command);
-    (void) RUN_HOOK(transaction, after_command,
-                    (thd, !thd->in_active_multi_stmt_transaction()));
-
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 
     /*
