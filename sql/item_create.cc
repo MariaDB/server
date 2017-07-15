@@ -5017,7 +5017,7 @@ Create_func_regexp_replace Create_func_regexp_replace::s_singleton;
 Item*
 Create_func_regexp_replace::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_regexp_replace(arg1, arg2, arg3);
+  return new (thd->mem_root) Item_func_regexp_replace(thd, arg1, arg2, arg3);
 }
 
 
@@ -5026,7 +5026,7 @@ Create_func_regexp_substr Create_func_regexp_substr::s_singleton;
 Item*
 Create_func_regexp_substr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_regexp_substr(arg1, arg2);
+  return new (thd->mem_root) Item_func_regexp_substr(thd, arg1, arg2);
 }
 
 
