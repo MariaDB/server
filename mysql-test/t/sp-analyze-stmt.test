@@ -1,0 +1,48 @@
+# 
+#  MDEV-13330: Tests for the "ANALYZE command should collect SP execution time" feature
+#
+
+--disable_warnings
+drop table if exists t0,t1;
+drop function if exists f1;
+drop function if exists f2;
+--enable_warnings
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+delimiter |;
+
+create function f1 (a int) returns int deterministic
+begin
+  return a+1;
+end|
+
+create function f2 (a int) returns int deterministic
+begin
+  return a+10;
+end|
+
+create function f3 (a int) returns int deterministic
+begin
+  return f1(a) + f2(a);
+end|
+
+delimiter ;|
+
+--source include/analyze-format.inc
+analyze format=json select a, f1(a),f2(a) from t0;
+
+--source include/analyze-format.inc
+analyze format=json select a, f3(a) from t0;
+
+--source include/analyze-format.inc
+analyze format=json select a, f1(a),f3(a) from t0;
+
+# TODO: tests for triggers.
+
+drop table t0;
+drop function f1;
+drop function f2;
+drop function f3;
+

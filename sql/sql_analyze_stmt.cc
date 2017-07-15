@@ -80,3 +80,92 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
   }
 }
 
+
+static 
+uchar *get_sp_call_counter_name(void *arg, 
+                                size_t *length,
+                                my_bool not_used __attribute__((unused)))
+{
+  Stored_routine_tracker::SP_call_counter *counter=
+    (Stored_routine_tracker::SP_call_counter*)arg;
+
+  *length= counter->name.length;
+  return (uchar*)counter->name.str;
+}
+
+
+extern "C" void free_stored_routine_tracker(void *arg)
+{
+  Stored_routine_tracker::SP_call_counter *counter=
+    (Stored_routine_tracker::SP_call_counter*)arg;
+  delete counter;
+}
+
+
+Stored_routine_tracker::Stored_routine_tracker()
+//: time_tracker(false) //todo remove this
+{
+  //TODO: tracker should only be used when doing timing.
+  (void)my_hash_init(&name_to_counter,
+                     system_charset_info, 10, 0, 0,
+                     (my_hash_get_key) get_sp_call_counter_name,
+                     free_stored_routine_tracker, HASH_UNIQUE);
+}
+
+
+Stored_routine_tracker::~Stored_routine_tracker()
+{
+  my_hash_free(&name_to_counter);
+}
+
+
+void Stored_routine_tracker::report_routine_start(const LEX_STRING *qname)
+{
+  SP_call_counter *cntr;
+
+  if (!(cntr= (SP_call_counter*) my_hash_search(&name_to_counter,
+                                                (const uchar*)qname->str,
+                                                qname->length)))
+  {
+    if ((cntr= new SP_call_counter))
+    {
+      cntr->name= *qname;
+      my_hash_insert(&name_to_counter, (uchar*)cntr);
+    }
+  }
+
+  if (cntr)
+    ANALYZE_START_TRACKING(&cntr->count);
+}
+
+void Stored_routine_tracker::report_routine_end(const LEX_STRING *qname)
+{
+  SP_call_counter *cntr;
+  if ((cntr= (SP_call_counter*) my_hash_search(&name_to_counter,
+                                               (const uchar*)qname->str,
+                                               qname->length)))
+  {
+    ANALYZE_STOP_TRACKING(&cntr->count);
+  }
+}
+
+void Stored_routine_tracker::print_json_members(Json_writer *writer)
+{
+  if (name_to_counter.records)
+  {
+    writer->add_member("r_stored_routines").start_object();
+    uint i;
+    for (i= 0; i < name_to_counter.records; ++i)
+    {
+      SP_call_counter *cntr= 
+        (SP_call_counter*)my_hash_element(&name_to_counter, i);
+      writer->start_object();
+      writer->add_member("qname").add_str(cntr->name.str);
+      writer->add_member("r_count").add_ll(cntr->count.get_loops());
+      writer->add_member("r_total_time_ms").add_double(cntr->count.get_time_ms());
+      writer->end_object();
+    }
+    writer->end_object();
+  }
+}
+

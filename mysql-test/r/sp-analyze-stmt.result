@@ -1,0 +1,109 @@
+drop table if exists t0,t1;
+drop function if exists f1;
+drop function if exists f2;
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create function f1 (a int) returns int deterministic
+begin
+return a+1;
+end|
+create function f2 (a int) returns int deterministic
+begin
+return a+10;
+end|
+create function f3 (a int) returns int deterministic
+begin
+return f1(a) + f2(a);
+end|
+analyze format=json select a, f1(a),f2(a) from t0;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 10,
+      "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    }
+  },
+  "r_stored_routines": {
+    {
+      "qname": "test.f2",
+      "r_count": 10,
+      "r_total_time_ms": "REPLACED"
+    },
+    {
+      "qname": "test.f1",
+      "r_count": 10,
+      "r_total_time_ms": "REPLACED"
+    }
+  }
+}
+analyze format=json select a, f3(a) from t0;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 10,
+      "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    }
+  },
+  "r_stored_routines": {
+    {
+      "qname": "test.f3",
+      "r_count": 10,
+      "r_total_time_ms": "REPLACED"
+    }
+  }
+}
+analyze format=json select a, f1(a),f3(a) from t0;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 10,
+      "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    }
+  },
+  "r_stored_routines": {
+    {
+      "qname": "test.f3",
+      "r_count": 10,
+      "r_total_time_ms": "REPLACED"
+    },
+    {
+      "qname": "test.f1",
+      "r_count": 10,
+      "r_total_time_ms": "REPLACED"
+    }
+  }
+}
+drop table t0;
+drop function f1;
+drop function f2;
+drop function f3;

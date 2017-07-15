@@ -45,6 +45,9 @@
 #include "sql_audit.h"
 #include "debug_sync.h"
 
+#include "sql_select.h"
+#include "sql_explain.h"
+
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
 */
@@ -1145,6 +1148,13 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   if (check_stack_overrun(thd, 7 * STACK_MIN_SIZE, (uchar*)&old_packet))
     DBUG_RETURN(TRUE);
 
+  if (thd->lex->explain && thd->lex->explain->sp_tracker)
+  {
+    // TODO: how about creating sp_tracker on demand? Most queries wont need
+    // it.
+    thd->lex->explain->sp_tracker->report_routine_start(&m_qname);
+  }
+
   /* init per-instruction memroot */
   init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 
@@ -1452,6 +1462,13 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
     err_status|= mysql_change_db(thd, &saved_cur_db_name, TRUE);
   }
+
+  //psergey-todo: put the second call here.
+  if (thd->lex->explain && thd->lex->explain->sp_tracker)
+  {
+    thd->lex->explain->sp_tracker->report_routine_end(&m_qname);
+  }
+
   m_flags&= ~IS_INVOKED;
   DBUG_PRINT("info",
              ("first free for 0x%lx --: 0x%lx->0x%lx, level: %lu, flags %x",

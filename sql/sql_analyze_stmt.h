@@ -284,3 +284,37 @@ private:
   ulonglong sort_buffer_size;
 };
 
+
+/*
+  Tracks number of executions and total time spent in each routine invoked by
+  the statement.
+
+  Tracking happens only for routine invocations made directly by this
+  statement. 
+  For example, if the statement invokes function F1() which invokes F2(), we will not 
+  report any calls to F2. Time spent in F2() will be billed to F1().
+*/
+class Stored_routine_tracker : public Sql_alloc
+{
+  HASH name_to_counter;
+
+public:
+  class SP_call_counter
+  {
+  public:
+    SP_call_counter() : count(true) {}
+    LEX_STRING name;
+    Time_and_counter_tracker count;
+  };
+
+  Stored_routine_tracker(); //: time_tracker(do_timing) {}
+  ~Stored_routine_tracker();
+
+  /* Functions to report SP invocations */
+
+  void report_routine_start(const LEX_STRING *qname);
+  void report_routine_end(const LEX_STRING *qname);
+
+  /* Functions to get the statistics */
+  void print_json_members(Json_writer *writer);
+};

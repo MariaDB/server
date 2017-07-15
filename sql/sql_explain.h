@@ -468,6 +468,11 @@ public:
   MEM_ROOT *mem_root;
 
   Explain_update *get_upd_del_plan() { return upd_del_plan; }
+  
+  /* 
+    Tracks invocations of stored routines. NULL for non-ANALYZE statements
+  */
+  Stored_routine_tracker* sp_tracker;
 private:
   /* Explain_delete inherits from Explain_update */
   Explain_update *upd_del_plan;

@@ -33,7 +33,8 @@ static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
 
 Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) : 
-  mem_root(root), upd_del_plan(NULL),  insert_plan(NULL),
+  mem_root(root), sp_tracker(NULL),
+  upd_del_plan(NULL),  insert_plan(NULL),
   unions(root), selects(root),  thd(thd_arg), apc_enabled(false),
   operations(0)
 {
@@ -59,6 +60,8 @@ Explain_query::~Explain_query()
 
   delete upd_del_plan;
   delete insert_plan;
+
+  delete sp_tracker;
   uint i;
   for (i= 0 ; i < unions.elements(); i++)
     delete unions.at(i);
@@ -144,6 +147,13 @@ void Explain_query::add_upd_del_plan(Explain_update *upd_del_plan_arg)
 
 void Explain_query::query_plan_ready()
 {
+  // Q: the below doesn't look stellar module-wise.
+  if (current_thd->lex->analyze_stmt)
+  {
+    // Tracking is only done when running ANALYZE.
+    sp_tracker= new Stored_routine_tracker();
+  }
+
   if (!apc_enabled)
     thd->apc_target.enable();
   apc_enabled= true;
@@ -223,6 +233,9 @@ void Explain_query::print_explain_json(select_result_sink *output,
       return; /* No query plan */
     node->print_explain_json(this, &writer, is_analyze);
   }
+
+  if (sp_tracker)
+   sp_tracker->print_json_members(&writer);
 
   writer.end_object();
 
