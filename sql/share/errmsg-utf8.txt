@@ -7591,3 +7591,6 @@ ER_VERS_HISTORY_LOCK
 
 ER_WRONG_TABLESPACE_NAME 42000
   eng "Incorrect tablespace name `%-.192s`"
+
+ER_VERS_ALTER_SYSTEM_FIELD
+        eng "Can not change system versioning field '%s'"

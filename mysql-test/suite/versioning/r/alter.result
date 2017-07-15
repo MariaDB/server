@@ -495,6 +495,22 @@ alter table t without system versioning, algorithm=inplace;
 select * from t;
 a	b
 2	NULL
+create or replace table t (
+a int,
+sys_trx_start bigint(20) unsigned generated always as row start,
+sys_trx_end bigint(20) unsigned generated always as row end,
+period for system_time(sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
+alter table t change column sys_trx_start asdf bigint unsigned;
+ERROR HY000: Can not change system versioning field 'sys_trx_start'
+create or replace table t (
+a int,
+sys_trx_start timestamp(6) generated always as row start,
+sys_trx_end timestamp(6) generated always as row end,
+period for system_time(sys_trx_start, sys_trx_end)
+) with system versioning engine myisam;
+alter table t change column sys_trx_start asdf timestamp(6);
+ERROR HY000: Can not change system versioning field 'sys_trx_start'
 call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1

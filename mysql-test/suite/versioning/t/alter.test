@@ -220,6 +220,24 @@ select * from t for system_time all;
 alter table t without system versioning, algorithm=inplace;
 select * from t;
 
+create or replace table t (
+  a int,
+  sys_trx_start bigint(20) unsigned generated always as row start,
+  sys_trx_end bigint(20) unsigned generated always as row end,
+  period for system_time(sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
+--error ER_VERS_ALTER_SYSTEM_FIELD
+alter table t change column sys_trx_start asdf bigint unsigned;
+
+create or replace table t (
+  a int,
+  sys_trx_start timestamp(6) generated always as row start,
+  sys_trx_end timestamp(6) generated always as row end,
+  period for system_time(sys_trx_start, sys_trx_end)
+) with system versioning engine myisam;
+--error ER_VERS_ALTER_SYSTEM_FIELD
+alter table t change column sys_trx_start asdf timestamp(6);
+
 call verify_vtq;
 drop table t;
 
