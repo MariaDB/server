@@ -1,4 +1,5 @@
 drop table if exists t0,t1;
+drop view if exists v1;
 drop function if exists f1;
 drop function if exists f2;
 create table t0(a int);
@@ -46,6 +47,8 @@ ANALYZE
     }
   }
 }
+# This will show only invocations of F3
+#   F3 invokes F1 and F2 but we do counting "at top level" only
 analyze format=json select a, f3(a) from t0;
 ANALYZE
 {
@@ -103,6 +106,88 @@ ANALYZE
     }
   }
 }
+# 
+#  Test that trigger invocations are counted
+# 
+create table t1 (i int, j int);
+create trigger trg1 before insert on t1 for each row 
+begin
+if new.j > 10 then
+set new.j := 10;
+end if;
+end|
+analyze format=json insert into t1 select a,a from t0;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 10,
+      "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    }
+  },
+  "r_stored_routines": {
+    {
+      "qname": "test.trg1",
+      "r_count": 10,
+      "r_total_time_ms": "REPLACED"
+    }
+  }
+}
+drop table t1;
+create view v1 as select f1(max(a)) as COL from t0;
+analyze format=json select * from v1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 10,
+      "r_rows": 1,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "r_loops": 1,
+          "r_total_time_ms": "REPLACED",
+          "table": {
+            "table_name": "t0",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "rows": 10,
+            "r_rows": 10,
+            "r_total_time_ms": "REPLACED",
+            "filtered": 100,
+            "r_filtered": 100
+          }
+        }
+      }
+    }
+  },
+  "r_stored_routines": {
+    {
+      "qname": "test.f1",
+      "r_count": 1,
+      "r_total_time_ms": "REPLACED"
+    }
+  }
+}
+drop view v1;
 drop table t0;
 drop function f1;
 drop function f2;
