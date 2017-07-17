@@ -737,6 +737,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PARTITIONING_SYM
 %token  PASSWORD_SYM
 %token  PERCENT_RANK_SYM
+%token  PERCENTILE_CONT_SYM
+%token  PERCENTILE_DISC_SYM
 %token  PERSISTENT_SYM
 %token  PHASE_SYM
 %token  PLUGINS_SYM
@@ -983,6 +985,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  WINDOW_SYM
 %token  WHILE_SYM
 %token  WITH                          /* SQL-2003-R */
+%token  WITHIN
 %token  WITH_CUBE_SYM                 /* INTERNAL */
 %token  WITH_ROLLUP_SYM               /* INTERNAL */
 %token  WORK_SYM                      /* SQL-2003-N */
@@ -1147,6 +1150,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         window_func_expr
         window_func
         simple_window_func
+        inverse_distribution_function
+        inverse_distribution_function_def
         explicit_cursor_attr
         function_call_keyword
         function_call_nonkeyword
@@ -9389,6 +9394,7 @@ column_default_non_parenthesized_expr:
         | variable
         | sum_expr
         | window_func_expr
+        | inverse_distribution_function
         | ROW_SYM '(' expr ',' expr_list ')'
           {
             $5->push_front($3, thd->mem_root);
@@ -10716,6 +10722,47 @@ simple_window_func:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
+        ;
+
+inverse_distribution_function:
+          inverse_distribution_function_def WITHIN GROUP_SYM
+          '('
+           { Select->prepare_add_window_spec(thd); }
+           order_by_single_element_list ')' OVER_SYM
+          '(' opt_window_ref opt_window_partition_clause ')'
+          {
+            LEX *lex= Lex;
+            if (Select->add_window_spec(thd, lex->win_ref,
+                                       Select->group_list,
+                                       Select->order_list,
+                                       NULL))
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_window_func(thd, (Item_sum *) $1,
+                                                     thd->lex->win_spec);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+            if (Select->add_window_func((Item_window_func *) $$))
+              MYSQL_YYABORT;
+          }
+        ;
+
+inverse_distribution_function_def:
+          PERCENTILE_CONT_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_percentile_cont(thd, $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |  PERCENTILE_DISC_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_percentile_disc(thd, $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        ;
+
+order_by_single_element_list:
+          ORDER_SYM BY order_list
         ;
 
 window_name:
@@ -14703,6 +14750,7 @@ keyword_directly_assignable:
         | UNICODE_SYM           {}
         | UNINSTALL_SYM         {}
         | UNBOUNDED_SYM         {}
+        | WITHIN                {}
         | WRAPPER_SYM           {}
         | XA_SYM                {}
         | UPGRADE_SYM           {}

@@ -10191,11 +10191,6 @@ geometry_function:
                          Item_func_spatial_precise_rel(thd, $3, $5,
                                                  Item_func::SP_CONTAINS_FUNC));
           }
-        | WITHIN '(' expr ',' expr ')'
-          {
-            $$= GEOM_NEW(thd, Item_func_spatial_precise_rel(thd, $3, $5,
-                                                    Item_func::SP_WITHIN_FUNC));
-          }
         | GEOMETRYCOLLECTION '(' expr_list ')'
           {
             $$= GEOM_NEW(thd,
@@ -10242,7 +10237,11 @@ geometry_function:
                            Geometry::wkb_polygon,
                            Geometry::wkb_linestring));
           }
-
+        | WITHIN '(' expr ',' expr ')'
+          {
+            $$= GEOM_NEW(thd, Item_func_spatial_precise_rel(thd, $3, $5,
+                                                    Item_func::SP_WITHIN_FUNC));
+          }
         ;
 
 /*
@@ -14634,7 +14633,7 @@ keyword:
         | UNICODE_SYM           {}
         | UNINSTALL_SYM         {}
         | UNBOUNDED_SYM         {}
-        | WITHIN
+        | WITHIN                {}
         | WRAPPER_SYM           {}
         | XA_SYM                {}
         | UPGRADE_SYM           {}
