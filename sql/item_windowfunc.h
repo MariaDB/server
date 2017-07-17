@@ -765,6 +765,17 @@ public:
     return value->val_decimal(dec);
   }
 
+  String* val_str(String *str)
+  {
+    if (get_row_count() == 0 || get_arg(0)->is_null())
+    {
+      null_value= true;
+      return 0;
+    }
+    null_value= false;
+    return value->val_str(str);
+  }
+
   bool add()
   {
     Item *arg = get_arg(0);
