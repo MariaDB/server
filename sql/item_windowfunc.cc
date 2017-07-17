@@ -111,18 +111,11 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 
   if (only_single_element_order_list())
   {
-    //TODO (varun): need to change the error, the error should say that we have more than one element in the order list
     if (window_spec->order_list->elements != 1)
     {
-      my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func()->func_name());
+      my_error(ER_NOT_SINGLE_ELEMENT_ORDER_LIST, MYF(0), window_func()->func_name());
       return true;
     }
-    /*switch(window_spec->order_list->firt->item[0]->type())
-    {
-      case INT_TYPE:
-      default:
-       break;
-    }*/
   }
 
   /*
