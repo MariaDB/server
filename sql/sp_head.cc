@@ -1227,10 +1227,6 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     }
 #endif /* WITH_WSREP */
     err_status= i->execute(thd, &ip);
-#ifdef WITH_WSREP
-    (void) RUN_HOOK(transaction, after_command,
-                    (thd, !thd->in_active_multi_stmt_transaction()));
-#endif /* WITH_WSREP */
 
     thd->m_digest= parent_digest;
 
