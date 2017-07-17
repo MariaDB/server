@@ -79,6 +79,42 @@ typedef struct my_dbopt_st
   CHARSET_INFO *charset;	/* Database default character set */
 } my_dbopt_t;
 
+#ifdef HAVE_LIBNUMA
+
+/* Linked List to store database names and associated numa nodes */
+typedef struct db_node_t {
+  char* name;
+  uint node;
+  struct db_node_t* next = NULL;
+} db_node_t;
+
+db_node_t* db_list_start = NULL;
+
+void insert_into_db_list(char* db_name, uint node)
+{
+  if (db_node_t* temp = (db_node_t*) malloc(sizeof(db_node_t))) {
+    temp->name = db_name;
+    temp->node = node;
+    temp->next = db_list_start;
+    db_list_start = temp;
+  }
+}
+
+db_node_t* db_list_search(char* db_name)
+{
+  db_node_t* temp = db_list_start;
+  while (temp != NULL)
+  {
+    if (!strcmp(temp->name, db_name)) {
+      return temp;
+    }
+    temp = temp->next;
+  }
+  return NULL;
+}
+
+#endif // HAVE_LIBNUMA
+
 
 /**
   Return TRUE if db1_name is equal to db2_name, FALSE otherwise.
