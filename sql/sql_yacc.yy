@@ -10191,6 +10191,11 @@ geometry_function:
                          Item_func_spatial_precise_rel(thd, $3, $5,
                                                  Item_func::SP_CONTAINS_FUNC));
           }
+        | WITHIN '(' expr ',' expr ')'
+          {
+            $$= GEOM_NEW(thd, Item_func_spatial_precise_rel(thd, $3, $5,
+                                                    Item_func::SP_WITHIN_FUNC));
+          }
         | GEOMETRYCOLLECTION '(' expr_list ')'
           {
             $$= GEOM_NEW(thd,
@@ -10237,6 +10242,7 @@ geometry_function:
                            Geometry::wkb_polygon,
                            Geometry::wkb_linestring));
           }
+
         ;
 
 /*
@@ -10699,45 +10705,45 @@ simple_window_func:
         ;
 
 inverse_distribution_function:
-        inverse_distribution_function_def WITHIN GROUP_SYM
-        '('
-         { Select->prepare_add_window_spec(thd); }
-         order_by_single_element_list ')' OVER_SYM
-        '(' opt_window_ref opt_window_partition_clause ')'
-         {
-           LEX *lex= Lex;
-           if (Select->add_window_spec(thd, lex->win_ref,
-                                      Select->group_list,
-                                      Select->order_list,
-                                      NULL))
-             MYSQL_YYABORT;
-           $$= new (thd->mem_root) Item_window_func(thd, (Item_sum *) $1,
-                                                    thd->lex->win_spec);
-           if ($$ == NULL)
-             MYSQL_YYABORT;
-           if (Select->add_window_func((Item_window_func *) $$))
-             MYSQL_YYABORT;
-         }
+          inverse_distribution_function_def WITHIN GROUP_SYM
+          '('
+           { Select->prepare_add_window_spec(thd); }
+           order_by_single_element_list ')' OVER_SYM
+          '(' opt_window_ref opt_window_partition_clause ')'
+          {
+            LEX *lex= Lex;
+            if (Select->add_window_spec(thd, lex->win_ref,
+                                       Select->group_list,
+                                       Select->order_list,
+                                       NULL))
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_window_func(thd, (Item_sum *) $1,
+                                                     thd->lex->win_spec);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+            if (Select->add_window_func((Item_window_func *) $$))
+              MYSQL_YYABORT;
+          }
         ;
 
 inverse_distribution_function_def:
-         PERCENTILE_CONT_SYM '(' expr ')'
-       {
-          $$= new (thd->mem_root) Item_sum_percentile_cont(thd, $3);
-          if ($$ == NULL)
-            MYSQL_YYABORT;
-       }
-       | PERCENTILE_DISC_SYM '(' expr ')'
-       {
-          $$= new (thd->mem_root) Item_sum_percentile_disc(thd, $3);
-          if ($$ == NULL)
-            MYSQL_YYABORT;
-       }
-      ;
+          PERCENTILE_CONT_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_percentile_cont(thd, $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |  PERCENTILE_DISC_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_percentile_disc(thd, $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        ;
 
 order_by_single_element_list:
-    ORDER_SYM BY order_list
-    ;
+          ORDER_SYM BY order_list
+        ;
 
 window_name:
           ident
@@ -14628,6 +14634,7 @@ keyword:
         | UNICODE_SYM           {}
         | UNINSTALL_SYM         {}
         | UNBOUNDED_SYM         {}
+        | WITHIN
         | WRAPPER_SYM           {}
         | XA_SYM                {}
         | UPGRADE_SYM           {}

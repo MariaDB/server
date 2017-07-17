@@ -322,7 +322,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   }
 
   li.rewind();
-  while((win_func_item= li++))
+  while ((win_func_item= li++))
   {
     if (win_func_item->check_result_type_of_order_item())
       DBUG_RETURN(1);
@@ -911,7 +911,7 @@ class Partition_read_cursor : public Table_read_cursor
 {
 public:
   Partition_read_cursor(THD *thd, SQL_I_List<ORDER> *partition_list) :
-    bound_tracker(thd, partition_list){}
+    bound_tracker(thd, partition_list) {}
 
   void init(READ_RECORD *info)
   {
@@ -967,10 +967,6 @@ public:
       return -1;
     }
     return 0;
-  }
-  bool check_for_end_of_partition()
-  {
-    return end_of_partition;
   }
 
 private:
@@ -1078,6 +1074,7 @@ protected:
   {
     if (perform_no_action)
       return;
+
     List_iterator_fast<Item_sum> it(sum_functions);
     Item_sum *item_sum;
     while ((item_sum= it++))
@@ -1156,7 +1153,7 @@ public:
     Frame_cursor *cursor;
     while ((cursor= iter++))
       cursor->pre_next_row();
- 
+
     iter.rewind();
     while ((cursor= iter++))
       cursor->next_row();
@@ -1693,7 +1690,7 @@ public:
   Frame_unbounded_following(THD *thd,
       SQL_I_List<ORDER> *partition_list,
       SQL_I_List<ORDER> *order_list) :
-    cursor(thd, partition_list){}
+    cursor(thd, partition_list) {}
 
   void init(READ_RECORD *info)
   {
@@ -1736,7 +1733,7 @@ public:
   Frame_unbounded_following_set_count(
       THD *thd,
       SQL_I_List<ORDER> *partition_list, SQL_I_List<ORDER> *order_list) :
-    Frame_unbounded_following(thd, partition_list, order_list){}
+    Frame_unbounded_following(thd, partition_list, order_list) {}
 
   void next_partition(ha_rows rownum)
   {
@@ -1747,9 +1744,7 @@ public:
 
     /* Walk to the end of the partition, find how many rows there are. */
     while (!cursor.next())
-    {
       num_rows_in_partition++;
-    }
 
     List_iterator_fast<Item_sum> it(sum_functions);
     Item_sum* item;
@@ -1773,7 +1768,7 @@ class Frame_unbounded_following_set_count_special: public Frame_unbounded_follow
 public:
   Frame_unbounded_following_set_count_special(THD *thd,
       SQL_I_List<ORDER> *partition_list,
-      SQL_I_List<ORDER> *order_list, Item* arg) : 
+      SQL_I_List<ORDER> *order_list, Item* arg) :
   Frame_unbounded_following_set_count(thd,partition_list, order_list)
   {
     order_item= order_list->first->item[0];
@@ -1805,6 +1800,7 @@ public:
   {
     return cursor.get_rownum();
   }
+
 private:
   Item* order_item;
 };

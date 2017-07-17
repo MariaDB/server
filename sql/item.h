@@ -5303,8 +5303,6 @@ public:
   /* Compare the cached value with the source value, without copying */
   virtual int  cmp_read_only()=0;
 
-  virtual void clear()=0;
-
   virtual ~Cached_item(); /*line -e1509 */
 };
 
@@ -5322,11 +5320,6 @@ public:
     cmp();
     item= save;
   }
-  
-  void clear()
-  {
-    null_value= false;
-  }
 };
 
 class Cached_item_str :public Cached_item_item
@@ -5337,10 +5330,6 @@ public:
   Cached_item_str(THD *thd, Item *arg);
   bool cmp(void);
   int  cmp_read_only();
-  void clear()
-  {
-    null_value= false;
-  }
   ~Cached_item_str();                           // Deallocate String:s
 };
 
@@ -5353,11 +5342,6 @@ public:
   bool cmp(void);
   int  cmp_read_only();
   double get_value(){ return value;}
-  void clear()
-  {
-    value=0.0;
-    null_value= false;
-  }
 };
 
 class Cached_item_int :public Cached_item_item
@@ -5368,11 +5352,6 @@ public:
   bool cmp(void);
   int  cmp_read_only();
   longlong get_value(){ return value;}
-  void clear()
-  {
-    value=0.0;
-    null_value= false;
-  }
 };
 
 
@@ -5384,11 +5363,6 @@ public:
   bool cmp(void);
   int  cmp_read_only();
   my_decimal *get_value(){ return &value;};
-  void clear()
-  {
-    null_value= false;
-    my_decimal_set_zero(&value);
-  }
 };
 
 class Cached_item_field :public Cached_item
@@ -5406,10 +5380,6 @@ public:
   }
   bool cmp(void);
   int  cmp_read_only();
-  void clear()
-  {
-    null_value= false;
-  }
 };
 
 class Item_default_value : public Item_field

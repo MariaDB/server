@@ -32,20 +32,11 @@ public:
 
   Group_bound_tracker(THD *thd, SQL_I_List<ORDER> *list)
   {
-    if (list)
+    for (ORDER *curr = list->first; curr; curr=curr->next)
     {
-      for (ORDER *curr = list->first; curr; curr=curr->next)
-      {
         Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
         group_fields.push_back(tmp);
-      }
     }
-  }
-
-  Group_bound_tracker(THD *thd, Item *item)
-  {
-        Cached_item *tmp= new_Cached_item(thd, item, FALSE);
-        group_fields.push_back(tmp);
   }
 
   void init()
@@ -94,19 +85,6 @@ public:
         return res;
     }
     return 0;
-  }
-
-  bool compare_with_cache_for_null_values()
-  {
-    List_iterator<Cached_item> li(group_fields);
-    Cached_item *ptr;
-    while ((ptr= li++))
-    {
-      ptr->cmp();
-      if (ptr->null_value)
-        return true;
-    }
-    return false;
   }
 
 private:
@@ -797,7 +775,7 @@ public:
 
     double arg_val= arg->val_real();
 
-    if(prev_value !=  arg_val)
+    if (prev_value !=  arg_val)
     {
       my_error(ER_ARGUMENT_NOT_CONSTANT, MYF(0));
       has_error= TRUE;
@@ -815,7 +793,7 @@ public:
     Item_sum_cume_dist::add();
     double val= Item_sum_cume_dist::val_real();
 
-    if(val >= prev_value && !val_calculated)
+    if (val >= prev_value && !val_calculated)
       val_calculated= true;
     return false;
   }
@@ -918,7 +896,7 @@ public:
     }
 
     double arg_val= arg->val_real();
-    if(prev_value !=  arg_val)
+    if (prev_value !=  arg_val)
     {
       my_error(ER_ARGUMENT_NOT_CONSTANT, MYF(0));
       has_error= TRUE;
@@ -1116,7 +1094,7 @@ public:
 
   bool only_single_element_order_list() const
   {
-    switch(window_func()->sum_func()){
+    switch (window_func()->sum_func()){
     case Item_sum::PERCENTILE_CONT_FUNC:
     case Item_sum::PERCENTILE_DISC_FUNC:
       return true;
@@ -1127,7 +1105,7 @@ public:
 
   void setting_handler_for_percentile_functions(Item_result rtype) const
   {
-    switch(window_func()->sum_func()){
+    switch (window_func()->sum_func()){
     case Item_sum::PERCENTILE_DISC_FUNC:
          ((Item_sum_percentile_disc* ) window_func())->set_handler_by_cmp_type(rtype);
          break;
