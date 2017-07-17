@@ -324,7 +324,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   li.rewind();
   while((win_func_item= li++))
   {
-    if (win_func_item->check_order_list())
+    if (win_func_item->check_result_type_of_order_item())
       DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
@@ -1078,12 +1078,13 @@ protected:
   {
     if (perform_no_action)
       return;
-
     List_iterator_fast<Item_sum> it(sum_functions);
     Item_sum *item_sum;
     while ((item_sum= it++))
     {
       item_sum->add();
+      if (item_sum->has_error)
+        return;
     }
   }
 
@@ -2809,6 +2810,12 @@ bool compute_window_func(THD *thd,
       {
         cursor_manager->notify_cursors_next_row();
       }
+
+      /* check if we found any error in the window function while calling the add function */
+
+      if (win_func->window_func()->has_error)
+        goto label;
+
       /* Return to current row after notifying cursors for each window
          function. */
       tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
@@ -2821,6 +2828,7 @@ bool compute_window_func(THD *thd,
     rownum++;
   }
 
+label:
   my_free(rowid_buf);
   partition_trackers.delete_elements();
   end_read_record(&info);

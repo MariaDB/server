@@ -730,7 +730,8 @@ class Item_sum_percentile_disc : public Item_sum_cume_dist,
 public:
   Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
                            Type_handler_hybrid_field_type(&type_handler_longlong),
-                           value(NULL), val_calculated(FALSE), first_call(TRUE),prev_value(0), order_item(NULL){}
+                           value(NULL), val_calculated(FALSE), first_call(TRUE),
+                           prev_value(0), order_item(NULL){}
 
   double val_real()
   {
@@ -780,21 +781,26 @@ public:
   {
     Item *arg = get_arg(0);
     if (arg->is_null())
-      return true;
+      return false;
 
     if (first_call)
     {
       prev_value= arg->val_real();
       if (prev_value >1 || prev_value < 0)
       {
+        my_error(ER_ARGUMENT_OUT_OF_RANGE, MYF(0));
+        has_error= TRUE;
         return true;
       }
       first_call= false;
     }
 
-    if(prev_value !=  arg->val_real())
+    double arg_val= arg->val_real();
+
+    if(prev_value !=  arg_val)
     {
-      // TODO(varun) need to add an error here , check the MDEV-12985 for the information
+      my_error(ER_ARGUMENT_NOT_CONSTANT, MYF(0));
+      has_error= TRUE;
       return true;
     }
 
@@ -821,6 +827,7 @@ public:
 
   void clear()
   {
+    has_error= false;
     val_calculated= false;
     first_call= true;
     value->clear();
@@ -890,36 +897,13 @@ public:
                   ((ceil(val) - val) * floor_value->val_real());
 
     return ret_val;
-
-  }
-  longlong val_int()
-  {
-    if (get_row_count() == 0 || get_arg(0)->is_null())
-    {
-      null_value= true;
-      return 0;
-    }
-    null_value= false;
-    return 0;
-  }
-
-  my_decimal* val_decimal(my_decimal* dec)
-  {
-    if (get_row_count() == 0 || get_arg(0)->is_null())
-    {
-      null_value= true;
-      return 0;
-      return 0;
-    }
-    null_value= false;
-    return ceil_value->val_decimal(dec);
   }
 
   bool add()
   {
     Item *arg = get_arg(0);
     if (arg->is_null())
-      return true;
+      return false;
 
     if (first_call)
     {
@@ -927,14 +911,17 @@ public:
       prev_value= arg->val_real();
       if (prev_value >1 || prev_value < 0)
       {
-        // TODO(varun) need to add an error here , check the MDEV-12985 for the information
+        my_error(ER_ARGUMENT_OUT_OF_RANGE, MYF(0));
+        has_error= TRUE;
         return true;
       }
     }
 
-    if (prev_value !=  arg->val_real())
+    double arg_val= arg->val_real();
+    if(prev_value !=  arg_val)
     {
-      // TODO(varun) need to add an error here , check the MDEV-12985 for the information
+      my_error(ER_ARGUMENT_NOT_CONSTANT, MYF(0));
+      has_error= TRUE;
       return true;
     }
 
@@ -966,12 +953,13 @@ public:
 
   enum Sumfunctype sum_func() const
   {
-    return PERCENTILE_DISC_FUNC;
+    return PERCENTILE_CONT_FUNC;
   }
 
   void clear()
   {
     first_call= true;
+    has_error= false;
     floor_value->clear();
     ceil_value->clear();
     floor_val_calculated= false;
