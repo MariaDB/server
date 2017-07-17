@@ -1705,6 +1705,7 @@ innobase_start_or_create_for_mysql()
 				srv_allowed_nodes[srv_buf_pool_instances++] = i;
 				size_of_numa_node[i] = numa_node_size(i, NULL);
 				total_nodes_size += size_of_numa_node[i];
+				srv_no_of_allowed_nodes++;
 			}
 		}
 		srv_n_read_io_threads = 2 * srv_buf_pool_instances;
