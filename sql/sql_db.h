@@ -47,4 +47,8 @@ void my_dbopt_cleanup(void);
 
 #define MY_DB_OPT_FILE "db.opt"
 
+#ifdef HAVE_LIBNUMA
+extern void srv_bind_thread_to_node(uint node);
+#endif // HAVE_LIBNUMA
+
 #endif /* SQL_DB_INCLUDED */
