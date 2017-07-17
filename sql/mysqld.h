@@ -66,6 +66,9 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #define OPT_SESSION SHOW_OPT_SESSION
 #define OPT_GLOBAL SHOW_OPT_GLOBAL
 
+/* For NUMA support */
+#define SRV_MAX_NUM_NUMA_NODES 16
+
 extern MY_TIMER_INFO sys_timer_info;
 
 /*
@@ -135,6 +138,7 @@ extern ulonglong slave_type_conversions_options;
 extern my_bool read_only, opt_readonly;
 extern my_bool srv_numa_enable;
 extern uint srv_no_of_allowed_nodes;
+extern uint srv_allowed_nodes[SRV_MAX_NUM_NUMA_NODES];
 extern MYSQL_PLUGIN_IMPORT my_bool lower_case_file_system;
 extern my_bool opt_enable_named_pipe, opt_sync_frm, opt_allow_suspicious_udfs;
 extern my_bool opt_secure_auth;
