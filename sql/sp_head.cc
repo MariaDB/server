@@ -49,10 +49,12 @@
 #define SP_INSTR_UINT_MAXLEN  8
 #define SP_STMT_PRINT_MAXLEN 40
 
-
 #include <my_user.h>
 
 extern "C" uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first);
+#ifdef WITH_WSREP
+#include "rpl_handler.h"       // RUN_HOOK
+#endif /* WITH_WSREP */
 
 /**
   Helper function which operates on a THD object to set the query start_time to
@@ -1225,6 +1227,10 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     }
 #endif /* WITH_WSREP */
     err_status= i->execute(thd, &ip);
+#ifdef WITH_WSREP
+    (void) RUN_HOOK(transaction, after_command,
+                    (thd, !thd->in_active_multi_stmt_transaction()));
+#endif /* WITH_WSREP */
 
     thd->m_digest= parent_digest;
 

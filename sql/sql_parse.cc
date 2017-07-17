@@ -6529,9 +6529,6 @@ finish:
 
   /* assume PA safety for next transaction */
   thd->wsrep_PA_safe= true;
-
-  (void) RUN_HOOK(transaction, after_command,
-                  (thd, !thd->in_active_multi_stmt_transaction()));
 #endif /* WITH_WSREP */
 
   DBUG_RETURN(res || thd->is_error());
@@ -7907,6 +7904,9 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     mysql_parse(thd, rawbuf, length, parser_state, is_com_multi,
                 is_next_command);
+    (void) RUN_HOOK(transaction, after_command,
+                    (thd, !thd->in_active_multi_stmt_transaction()));
+
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 
     /*
