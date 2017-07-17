@@ -1137,6 +1137,21 @@ public:
     }
   }
 
+  void setting_handler_for_percentile_functions(Item_result rtype) const
+  {
+    switch(window_func()->sum_func()){
+    case Item_sum::PERCENTILE_DISC_FUNC:
+         ((Item_sum_percentile_disc* ) window_func())->set_handler_by_cmp_type(rtype);
+         break;
+    default:
+      return;
+    }
+  }
+
+  bool check_result_type_of_order_item();
+
+
+
   /*
     Computation functions.
     TODO: consoder merging these with class Group_bound_tracker.
