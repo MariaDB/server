@@ -724,7 +724,7 @@ have_queries_to_wait_for(MYSQL *connection, uint threshold)
 	all_queries = (opt_lock_wait_query_type == QUERY_TYPE_ALL);
 	while ((row = mysql_fetch_row(result)) != NULL) {
 		const char	*info		= row[7];
-		int		duration	= atoi(row[5]);
+		int		duration	= row[5] ? atoi(row[5]) : 0;
 		char		*id		= row[0];
 
 		if (info != NULL
@@ -754,7 +754,7 @@ kill_long_queries(MYSQL *connection, time_t timeout)
 	all_queries = (opt_kill_long_query_type == QUERY_TYPE_ALL);
 	while ((row = mysql_fetch_row(result)) != NULL) {
 		const char	*info		= row[7];
-		long long		duration	= atoll(row[5]);
+		long long		duration	= row[5]? atoll(row[5]) : 0;
 		char		*id		= row[0];
 
 		if (info != NULL &&
