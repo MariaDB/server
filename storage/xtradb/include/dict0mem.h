@@ -87,7 +87,7 @@ combination of types */
 /* @{ */
 #define DICT_TF_FORMAT_SHIFT		5	/* file format */
 #define DICT_TF_FORMAT_MASK		\
-((~(~0 << (DICT_TF_BITS - DICT_TF_FORMAT_SHIFT))) << DICT_TF_FORMAT_SHIFT)
+((~(~0U << (DICT_TF_BITS - DICT_TF_FORMAT_SHIFT))) << DICT_TF_FORMAT_SHIFT)
 #define DICT_TF_FORMAT_51		0	/*!< InnoDB/MySQL up to 5.1 */
 #define DICT_TF_FORMAT_ZIP		1	/*!< InnoDB plugin for 5.1:
 						compressed tables,

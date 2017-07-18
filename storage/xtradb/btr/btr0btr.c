@@ -2958,7 +2958,7 @@ Removes a page from the level list of pages.
 
 /*************************************************************//**
 Removes a page from the level list of pages. */
-static __attribute__((nonnull))
+static
 void
 btr_level_list_remove_func(
 /*=======================*/

@@ -36,7 +36,7 @@ dyn_block_t*
 dyn_array_add_block(
 /*================*/
 	dyn_array_t*	arr)	/*!< in/out: dyn array */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((warn_unused_result));
 
 /********************************************************************//**
 Gets the number of used bytes in a dyn array block.

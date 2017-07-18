@@ -515,9 +515,10 @@ os_file_create_simple_no_error_handling_func(
 				it would be enabled otherwise). */
 	ibool*		success);/*!< out: TRUE if succeed, FALSE if error */
 /****************************************************************//**
-Tries to disable OS caching on an opened file descriptor. */
+Tries to disable OS caching on an opened file descriptor.
+@return TRUE if operation is success and FALSE otherwise */
 UNIV_INTERN
-void
+ibool
 os_file_set_nocache(
 /*================*/
 	int		fd,		/*!< in: file descriptor to alter */

@@ -274,8 +274,7 @@ buf_relocate(
 	buf_page_t*	bpage,	/*!< in/out: control block being relocated;
 				buf_page_get_state(bpage) must be
 				BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_ZIP_PAGE */
-	buf_page_t*	dpage)	/*!< in/out: destination control block */
-	__attribute__((nonnull));
+	buf_page_t*	dpage);	/*!< in/out: destination control block */
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in bytes.
 @return	size in bytes */

@@ -1619,6 +1619,7 @@ innobase_start_or_create_for_mysql(void)
 
 	fsp_init();
 	log_init();
+	log_online_init();
 
 	lock_sys_create(srv_lock_table_size);
 
@@ -2465,6 +2466,7 @@ innobase_shutdown_for_mysql(void)
 	btr_search_disable();
 
 	ibuf_close();
+	log_online_shutdown();
 	log_shutdown();
 	trx_sys_file_format_close();
 	trx_sys_close();
