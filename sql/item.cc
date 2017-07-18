@@ -817,6 +817,7 @@ Item_ident::Item_ident(Name_resolution_context *context_arg,
    cached_table(0), depended_from(0), can_be_depended(TRUE)
 {
   name = (char*) field_name_arg;
+  name_length= name ? strlen(name) : 0;
 }
 
 
@@ -829,6 +830,7 @@ Item_ident::Item_ident(TABLE_LIST *view_arg, const char *field_name_arg)
    cached_table(NULL), depended_from(NULL), can_be_depended(TRUE)
 {
   name = (char*) field_name_arg;
+  name_length= name ? strlen(name) : 0;
 }
 
 
