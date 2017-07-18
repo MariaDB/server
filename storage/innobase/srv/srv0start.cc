@@ -1697,6 +1697,11 @@ innobase_start_or_create_for_mysql()
 	}
 
 	if (srv_numa_enable) {
+		ulint srv_buf_pool_instances_old_val = srv_buf_pool_instances;
+		ulint srv_n_read_io_threads_old_val = srv_n_read_io_threads;
+		ulint srv_n_write_io_threads_old_val = srv_n_write_io_threads;
+		ulint srv_n_page_cleaners_old_val = srv_n_page_cleaners;
+
 		struct bitmask* numa_mems_allowed = numa_get_mems_allowed();
 		srv_buf_pool_instances = 0;
 
@@ -1711,6 +1716,31 @@ innobase_start_or_create_for_mysql()
 		srv_n_read_io_threads = 2 * srv_buf_pool_instances;
 		srv_n_write_io_threads = 2 * srv_buf_pool_instances;
 		srv_n_page_cleaners = srv_buf_pool_instances;
+
+		if (srv_buf_pool_instances != srv_buf_pool_instances_old_val) {
+			ib::info()
+				<< "Adjusting innodb_buffer_pool_instances"
+				" from " << srv_buf_pool_instances_old_val << " to "
+				<< srv_buf_pool_instances << " since numa is enabled.";
+		}
+		if (srv_n_read_io_threads != srv_n_read_io_threads_old_val) {
+			ib::info()
+				<< "Adjusting innodb_read_io_threads"
+				" from " << srv_n_read_io_threads_old_val << " to "
+				<< srv_n_read_io_threads << " since numa is enabled.";
+		}
+		if (srv_n_write_io_threads != srv_n_write_io_threads_old_val) {
+			ib::info()
+				<< "Adjusting innodb_write_io_threads"
+				" from " << srv_n_write_io_threads_old_val << " to "
+				<< srv_n_write_io_threads << " since numa is enabled.";
+		}
+		if (srv_n_page_cleaners != srv_n_page_cleaners_old_val) {
+			ib::info()
+				<< "Adjusting innodb_page_cleaners"
+				" from " << srv_n_page_cleaners_old_val << " to "
+				<< srv_n_page_cleaners << " since numa is enabled.";
+		}
 	}
 #endif // HAVE_LIBNUMA
 
