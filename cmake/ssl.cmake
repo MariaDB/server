@@ -1,4 +1,5 @@
-# Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2012, Oracle and/or its affiliates.
+# Copyright (c) 2011, 2017, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 MACRO (CHANGE_SSL_SETTINGS string)
   SET(WITH_SSL ${string} CACHE STRING "Options are: no bundled yes(prefer os library if present otherwise use bundled) system(use os library)" FORCE)
@@ -87,7 +88,7 @@ MACRO (MYSQL_CHECK_SSL)
       CHANGE_SSL_SETTINGS("system")
     ELSE()
       IF(WITH_SSL STREQUAL "system")
-        MESSAGE(SEND_ERROR "Cannot find appropriate system libraries for SSL. Use  WITH_SSL=bundled to enable SSL support")
+        MESSAGE(SEND_ERROR "Cannot find appropriate system libraries for SSL. Use WITH_SSL=bundled to enable SSL support")
       ENDIF()
       MYSQL_USE_BUNDLED_SSL()
     ENDIF()

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1487,6 +1487,7 @@ int reset_slave(THD *thd, Master_info* mi)
 
   // close master_info_file, relay_log_info_file, set mi->inited=rli->inited=0
   end_master_info(mi);
+  end_relay_log_info(&mi->rli);
   // and delete these two files
   fn_format(fname, master_info_file, mysql_data_home, "", 4+32);
   if (mysql_file_stat(key_file_master_info, fname, &stat_area, MYF(0)) &&
