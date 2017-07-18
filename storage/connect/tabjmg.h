@@ -1,5 +1,5 @@
 /**************** tabjmg H Declares Source Code File (.H) **************/
-/*  Name: tabjmg.h   Version 1.0                                       */
+/*  Name: tabjmg.h   Version 1.1                                       */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2017         */
 /*                                                                     */
@@ -15,8 +15,7 @@
 class JMGDISC : public MGODISC {
 public:
 	// Constructor
-	JMGDISC(PGLOBAL g, int *lg) : MGODISC(g, lg) 
-				{	drv = "Java"; Jcp = NULL; columnid = nullptr;	}
+	JMGDISC(PGLOBAL g, int *lg);
 
 	// Methods
 	virtual bool Init(PGLOBAL g);

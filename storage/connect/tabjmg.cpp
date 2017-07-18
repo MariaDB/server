@@ -27,9 +27,19 @@
 #include "mycat.h"                             // for FNC_COL
 #include "filter.h"
 
+#define nullptr 0
+
 PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info);
 
 /* -------------------------- Class JMGDISC -------------------------- */
+
+/***********************************************************************/
+/*  Constructor																												 */
+/***********************************************************************/
+JMGDISC::JMGDISC(PGLOBAL g, int *lg) : MGODISC(g, lg)
+{
+	drv = "Java"; Jcp = NULL; columnid = nullptr;
+}	// end of JMGDISC constructor
 
 /***********************************************************************/
 /*  Initialyze.                                                        */
