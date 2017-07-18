@@ -1552,12 +1552,12 @@ buf_chunk_init(
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_interleave) {
 		struct bitmask *numa_mems_allowed = numa_get_mems_allowed();
-		ulint	st = mbind(chunk->mem, chunk->mem_size(),
+		ulint	mbind_val = mbind(chunk->mem, chunk->mem_size(),
 				   MPOL_INTERLEAVE,
 				   numa_mems_allowed->maskp,
 				   numa_mems_allowed->size,
 				   MPOL_MF_MOVE);
-		if (st != 0) {
+		if (mbind_val != 0) {
 			ib::warn() << "Failed to set NUMA memory policy of"
 				" buffer pool page frames to MPOL_INTERLEAVE"
 				" (error: " << strerror(errno) << ").";
@@ -1566,12 +1566,12 @@ buf_chunk_init(
 	if (srv_numa_enable) {
 		struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
 		numa_bitmask_setbit(node_mask, srv_allowed_nodes[instance_no]);
-		ulint	st = mbind(chunk->mem, chunk->mem_size(),
+		ulint	mbind_val = mbind(chunk->mem, chunk->mem_size(),
 				   MPOL_BIND,
 				   node_mask->maskp,
 				   node_mask->size,
 				   MPOL_MF_MOVE);
-		if (st != 0) {
+		if (mbind_val != 0) {
 			ib::warn() << "Failed to set NUMA memory policy of"
 				" buffer pool page frames to MPOL_BIND"
 				" (error: " << strerror(errno) << ").";
