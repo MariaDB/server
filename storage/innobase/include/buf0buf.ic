@@ -1087,6 +1087,8 @@ srv_buf_pool_on_node(
 	while (srv_allowed_nodes[index] != node) {
 		index++;
 	}
+	ut_ad(index < MAX_BUFFER_POOLS);
+	ut_ad(index < srv_buf_pool_instances);
 	return(&buf_pool_ptr[index]);
 }
 #endif // HAVE_LIBNUMA
