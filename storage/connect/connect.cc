@@ -66,8 +66,10 @@ PGLOBAL CntExit(PGLOBAL g)
   if (g) {
     CntEndDB(g);
 
-    if (g->Activityp)
-      delete g->Activityp;
+		if (g->Activityp) {
+			delete g->Activityp;
+			g->Activityp = NULL;
+		}	// endif Activityp
 
     PlugExit(g);
     g= NULL;
