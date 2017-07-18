@@ -243,11 +243,11 @@ row_sel_sec_rec_is_for_clust_rec(
 		} else {
 			clust_pos = dict_col_get_clust_pos(col, clust_index);
 
-			clust_field = rec_get_nth_field(
+			clust_field = rec_get_nth_cfield(
 				clust_rec, clust_offs, clust_pos, clust_index, heap, &clust_len);
 		}
 
-		sec_field = rec_get_nth_field_inside(sec_rec, sec_offs, i, &sec_len);
+		sec_field = rec_get_nth_field(sec_rec, sec_offs, i, &sec_len);
 
 		len = clust_len;
 
@@ -535,7 +535,7 @@ row_sel_fetch_columns(
 				needs_copy = TRUE;
 			} else {
 
-				data = rec_get_nth_field(rec, offsets,
+				data = rec_get_nth_cfield(rec, offsets,
 							 field_no, index, heap, &len);
 				if (rec_offs_nth_default(offsets, field_no)) {
 					needs_copy = TRUE;
@@ -2757,7 +2757,7 @@ row_sel_store_row_id_to_prebuilt(
 
 	ut_ad(rec_offs_validate(index_rec, index, offsets));
 
-	data = rec_get_nth_field_inside(
+	data = rec_get_nth_field(
 		index_rec, offsets,
 		dict_index_get_sys_col_pos(index, DATA_ROW_ID), &len);
 
@@ -3083,11 +3083,10 @@ row_sel_store_mysql_field_func(
 					UNIV_PAGE_SIZE);
 			}
 
-			data = rec_get_nth_field(rec, offsets, field_no, clust_index, 
+			data = rec_get_nth_cfield(rec, offsets, field_no, clust_index, 
 						prebuilt->blob_heap, &len);
-
 		} else {
-			data = rec_get_nth_field_inside(rec, offsets, field_no, &len);
+			data = rec_get_nth_field(rec, offsets, field_no, &len);
 		}
 
 		if (len == UNIV_SQL_NULL) {
@@ -4092,7 +4091,7 @@ row_sel_fill_vrow(
 			const byte*     data;
 			ulint           len;
 
-			data = rec_get_nth_field(rec, offsets, i, index, heap, &len);
+			data = rec_get_nth_cfield(rec, offsets, i, index, heap, &len);
 
 			const dict_v_col_t*     vcol = reinterpret_cast<
 				const dict_v_col_t*>(col);
@@ -5975,7 +5974,7 @@ row_search_autoinc_read_column(
 		goto func_exit;
 	}
 
-	data = rec_get_nth_field_inside(rec, offsets, col_no, &len);
+	data = rec_get_nth_field(rec, offsets, col_no, &len);
 
 	value = row_parse_int(data, len, mtype, unsigned_type);
 

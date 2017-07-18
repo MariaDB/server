@@ -246,7 +246,7 @@ rec_get_n_nullable(
 	ulint           field_count = 0;
 	ulint           field_count_len = 0;
     
-	ut_ad(rec_is_instant(rec) && dict_index_is_clust_instant(index));
+	ut_ad(rec_is_instant(rec) && index->is_instant());
 
 	field_count = rec_get_field_count(rec, &field_count_len);
 	ut_ad(field_count_len == rec_get_field_count_len(field_count));
@@ -284,8 +284,8 @@ rec_init_offsets_comp_ordinary(
 
 	if (!temp && rec_is_instant(rec)) {
 		ulint field_count_len;
-		ut_ad(dict_index_is_clust_instant(index));
-		ut_ad(!dict_table_is_zip(index->table) && !dict_index_is_ibuf(index));
+		ut_ad(index->is_instant());
+		ut_ad(!dict_index_is_ibuf(index));
 
 		field_count = rec_get_field_count(rec, &field_count_len);
 
@@ -295,9 +295,9 @@ rec_init_offsets_comp_ordinary(
 		n_null = rec_get_n_nullable(rec, index);
 		lens	= nulls - UT_BITS_IN_BYTES(n_null);
 
-	} else if (dict_index_is_clust_instant(index)) {
+	} else if (index->is_instant()) {
 		ut_ad(index->n_core_fields > 0);
-		ut_ad(!dict_table_is_zip(index->table) && !dict_index_is_ibuf(index));
+		ut_ad(!dict_index_is_ibuf(index));
 
 		n_null = index->n_core_nullable;
 		field_count = index->n_core_fields;
@@ -341,7 +341,7 @@ rec_init_offsets_comp_ordinary(
 		if (i >= field_count) {
 			ulint def_len;
 
-			ut_ad(rec_is_instant(rec) || dict_index_is_clust_instant(index));
+			ut_ad(rec_is_instant(rec) || index->is_instant());
 			if (!dict_index_get_nth_col_def(index, i, &def_len)) {
 				len = offs | REC_OFFS_SQL_NULL;	
 				ut_ad(def_len == UNIV_SQL_NULL);
@@ -484,7 +484,6 @@ rec_init_offsets(
 			so we should have used n_nullable=0.)
 		*/
 		ut_ad(!rec_is_instant(rec));
-
 		ut_ad(index->n_core_fields > 0);
 
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
@@ -801,9 +800,12 @@ resolved:
 		| REC_OFFS_COMPACT | any_ext;
 }
 
+/************************************************************//**
+Get the nth field from cluster index
+@return pointer of field(Maybe get the pointer of default value of dictionary) */
 const byte*
-rec_get_nth_field(
-	const rec_t*	rec,
+rec_get_nth_cfield(
+	const rec_t*	rec,		/*!< in: rec */
 	const ulint*	offsets,	/*!< in: array returned by rec_get_offsets() */
 	ulint			n,			/*!< in: index of the field */
 	const dict_index_t*	index,	/*!< in: dict_index of rec. 
@@ -830,7 +832,6 @@ rec_get_nth_field(
 
 	return field;
 }
-
 
 /************************************************************//**
 The following function is used to get the offset to the nth
@@ -901,7 +902,7 @@ rec_get_converted_size_comp_prefix_low(
 	const dtuple_t*		v_entry,/*!< in: dtuple contains virtual column
 					data */
 	ulint*			extra,	/*!< out: extra size */
-	ulint			rec_flag, /*!< in: REC_FLAG_* */
+	ulint			rec_flag,	/*!< in: REC_FLAG_* */
 	bool			temp)	/*!< in: whether this is a
 					temporary file record */
 {
@@ -920,7 +921,7 @@ rec_get_converted_size_comp_prefix_low(
 
 	extra_size += temp ? 0 : REC_N_NEW_EXTRA_BYTES;
 
-	if (dict_index_is_clust_instant(index)) {
+	if (index->is_instant()) {
 		if (rec_flag & REC_FLAG_NODE_PTR) {
 			ut_ad(!temp && n_fields > 0 && !n_v_fields);
 			
@@ -1364,21 +1365,14 @@ rec_convert_dtuple_to_rec_comp(
 		switch (UNIV_EXPECT(status, REC_STATUS_ORDINARY)) {
 		case REC_STATUS_ORDINARY:
 			ut_ad(n_fields <= dict_index_get_n_fields(index));
-			if (dict_index_is_clust_instant(index)) {
+			if (index->is_instant()) {
 				ulint field_count_len;
 
 				n_null = index->n_nullable;
 				ut_ad(n_fields == dict_index_get_n_fields(index));
 
-				/* Set instant record */
-				/* The instant flag should be set in rec_convert_dtuple_to_rec_new
-				Because here the memory is non-initialized */
-				//rec_set_instant_flag(rec, TRUE);
-
 				field_count_len = rec_set_field_count(rec, n_fields);
-
 				nulls = rec - (REC_N_NEW_EXTRA_BYTES + field_count_len + 1);
-
 				is_instant = TRUE;
 			} else {
 				n_null = index->n_nullable;
@@ -1585,11 +1579,10 @@ rec_convert_dtuple_to_rec_new(
 	if (rec_convert_dtuple_to_rec_comp(
 		rec, index, dtuple->fields, dtuple->n_fields, NULL,
 		status, false)) {
-		// INSTANT RECORD
-
 		/* Set the info bits of the record */
 		rec_set_info_and_status_bits(rec, dtuple_get_info_bits(dtuple));
-
+		
+		// INSTANT RECORD
 		rec_set_instant_flag(rec, TRUE);
 	} else {
 		/* Set the info bits of the record */
@@ -1735,7 +1728,7 @@ rec_copy_prefix_to_dtuple(
 		ulint		len;
 
 		field = dtuple_get_nth_field(tuple, i);
-		data = rec_get_nth_field(rec, offsets, i, index, NULL, &len);
+		data = rec_get_nth_cfield(rec, offsets, i, index, NULL, &len);
 
 		if (len != UNIV_SQL_NULL) {
 			dfield_set_data(field,
@@ -1850,12 +1843,12 @@ rec_copy_prefix_to_buf(
 	}
 
 	if (rec_is_instant(rec)) {
-		ut_ad(!dict_table_is_zip(index->table) && !dict_index_is_ibuf(index));
+		ut_ad(!dict_index_is_ibuf(index));
 		ulint field_count_len = 0;
 		ulint field_count = 0;
 		ulint n_nullable = 0;
 
-		ut_a(dict_index_is_clust_instant(index));
+		ut_a(index->is_instant());
 
 		field_count = rec_get_field_count(rec, &field_count_len);
 		ut_ad(field_count_len == rec_get_field_count_len(field_count));
@@ -1867,8 +1860,8 @@ rec_copy_prefix_to_buf(
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + field_count_len + 1);
 		lens  = nulls - UT_BITS_IN_BYTES(n_nullable);
 
-	} else if (dict_index_is_clust_instant(index)) {
-		ut_ad(!dict_table_is_zip(index->table) && !dict_index_is_ibuf(index));
+	} else if (index->is_instant()) {
+		ut_ad(!dict_index_is_ibuf(index));
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 		lens = nulls - UT_BITS_IN_BYTES(index->n_core_nullable);
 	} else {
@@ -2024,7 +2017,7 @@ rec_validate(
 			return(FALSE);
 		}
 
-		if (len != UNIV_SQL_NULL && len != UNIV_SQL_DEFAULT) {
+		if (univ_is_stored(len)) {
 			len_sum += len;
 		} else if (!rec_offs_comp(offsets)) {
 			len_sum += rec_get_nth_field_size(rec, i);
@@ -2115,7 +2108,7 @@ rec_print_comp(
 		if (rec_offs_nth_default(offsets, i)) {
 			len = UNIV_SQL_DEFAULT;
 		} else {
-			data = rec_get_nth_field_inside(rec, offsets, i, &len);
+			data = rec_get_nth_field(rec, offsets, i, &len);
 		}
 
 		fprintf(file, " " ULINTPF ":", i);
@@ -2248,7 +2241,7 @@ rec_print_mbr_rec(
 		if (rec_offs_nth_default(offsets, i)) {
 			len = UNIV_SQL_DEFAULT;
 		} else {
-			data = rec_get_nth_field_inside(rec, offsets, i, &len);
+			data = rec_get_nth_field(rec, offsets, i, &len);
 		}
 
 		if (i == 0) {
@@ -2394,7 +2387,7 @@ rec_print(
 			continue;
 		}
 
-		data = rec_get_nth_field_inside(rec, offsets, i, &len);
+		data = rec_get_nth_field(rec, offsets, i, &len);
 
 		if (len == UNIV_SQL_NULL) {
 			o << "NULL";
@@ -2481,7 +2474,7 @@ rec_get_trx_id(
 
 	offsets = rec_get_offsets(rec, index, offsets, trx_id_col + 1, &heap);
 
-	trx_id = rec_get_nth_field_inside(rec, offsets, trx_id_col, &len);
+	trx_id = rec_get_nth_field(rec, offsets, trx_id_col, &len);
 
 	ut_ad(len == DATA_TRX_ID_LEN);
 
@@ -2547,7 +2540,7 @@ wsrep_rec_get_foreign_key(
 		const dict_col_t* col_r = dict_field_get_col(field_r);
 
 		ut_ad(!rec_offs_nth_default(offsets, i));
-		data = rec_get_nth_field_inside(rec, offsets, i, &len);
+		data = rec_get_nth_field(rec, offsets, i, &len);
 		if (key_len + ((len != UNIV_SQL_NULL) ? len + 1 : 1) > 
 		    *buf_len) {
 			fprintf(stderr,

@@ -435,7 +435,7 @@ mlog_open_and_write_index(
 		log_end = log_ptr + 11 + size;
 	} else {
 		ulint	i;
-		ibool is_instant = dict_index_is_clust_instant(index);
+		ibool is_instant = index->is_instant();
 		ulint	n	= dict_index_get_n_fields(index);
 		ulint	total	= 11 + (is_instant ? 2 : 0) + size + (n + 2) * 2;
 		ulint	alloc	= total;
@@ -610,13 +610,10 @@ mlog_parse_index(
 
 			if (is_instant && 
 				n_core_fields >0 && n_core_fields <= i) {
-				dict_col_t*     col = NULL;
-
-				col = dict_table_get_nth_col(table, i);
 
 				/* For recovery, it does not need the true default values.
 					We fake it!*/
-				dict_mem_table_fake_col_default(table, col, table->heap);
+				dict_mem_table_fake_nth_col_default(table, i, table->heap);
 			}
 
 			dict_index_add_col(ind, table,
@@ -638,7 +635,7 @@ mlog_parse_index(
 				= &table->cols[n + DATA_ROLL_PTR];
 		}
 
-		if (dict_index_is_clust_instant(ind)) {
+		if (ind->is_instant()) {
 			ut_ad(table->n_cols == table->n_def);
 			ut_ad(table->n_core_cols> 0 &&
 				table->n_core_cols <= table->n_cols);

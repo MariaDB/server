@@ -241,7 +241,7 @@ bootstrap or server start if they are not found or are not of the
 right form.
 @return DB_SUCCESS or error code */
 dberr_t
-dict_create_or_check_sys_columns_added(void);
+dict_create_or_check_sys_columns_added();
 
 /** Put a tablespace definition into the data dictionary,
 replacing what was there previously.

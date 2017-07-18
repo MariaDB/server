@@ -312,7 +312,15 @@ public:
 		TABLE*			altered_table,
 		Alter_inplace_info*	ha_alter_info);
 
-	virtual bool check_instant_alter(const Alter_inplace_info* inplace_info);
+	/** Check whether the table can do the instant alter.
+	
+	@param ha_alter_info Structure describing changes to be done
+	by ALTER TABLE and holding data used during in-place alter.
+	
+	@retval true Failure
+	@retval false Success
+	*/
+	virtual bool check_instant_alter(const Alter_inplace_info* inplace_info) const;
 
 	/** Allows InnoDB to update internal structures with concurrent
 	writes blocked (provided that check_if_supported_inplace_alter()

@@ -931,7 +931,7 @@ trx_undo_page_report_modify(
 	*ptr++ = (byte) rec_get_info_bits(rec, dict_table_is_comp(table));
 
 	/* Store the values of the system columns */
-	field = rec_get_nth_field_inside(rec, offsets,
+	field = rec_get_nth_field(rec, offsets,
 				  dict_index_get_sys_col_pos(
 					  index, DATA_TRX_ID), &flen);
 	ut_ad(flen == DATA_TRX_ID_LEN);
@@ -947,7 +947,7 @@ trx_undo_page_report_modify(
 	}
 	ptr += mach_u64_write_compressed(ptr, trx_id);
 
-	field = rec_get_nth_field_inside(rec, offsets,
+	field = rec_get_nth_field(rec, offsets,
 				  dict_index_get_sys_col_pos(
 					  index, DATA_ROLL_PTR), &flen);
 	ut_ad(flen == DATA_ROLL_PTR_LEN);
@@ -962,7 +962,7 @@ trx_undo_page_report_modify(
 
 		/* The ordering columns must not be instant added columns. */
 		ut_ad(!rec_offs_nth_default(offsets, i));
-		field = rec_get_nth_field_inside(rec, offsets, i, &flen);
+		field = rec_get_nth_field(rec, offsets, i, &flen);
 
 		/* The ordering columns must not be stored externally. */
 		ut_ad(!rec_offs_nth_extern(offsets, i));
@@ -1077,7 +1077,7 @@ trx_undo_page_report_modify(
 						flen, max_v_log_len);
 				}
 			} else {
-				field = rec_get_nth_field(rec, offsets,
+				field = rec_get_nth_cfield(rec, offsets,
 							  pos, index, NULL, &flen);
 			}
 
@@ -1229,7 +1229,7 @@ trx_undo_page_report_modify(
 				ptr += mach_write_compressed(ptr, pos);
 
 				/* Save the old value of field */
-				field = rec_get_nth_field(rec, offsets, pos,
+				field = rec_get_nth_cfield(rec, offsets, pos,
 							  index, NULL, &flen);
 
 				if (rec_offs_nth_extern(offsets, pos)) {

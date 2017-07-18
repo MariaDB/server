@@ -715,7 +715,7 @@ row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 					mtr);
 			} else {
 				ulint	len;
-				byte*	ptr = rec_get_nth_field_inside(
+				byte*	ptr = rec_get_nth_field(
 					rec, offsets, trx_id_pos, &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
 				memset(ptr, 0, DATA_TRX_ID_LEN

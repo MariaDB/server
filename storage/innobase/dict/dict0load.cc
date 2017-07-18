@@ -165,15 +165,24 @@ dict_load_virtual_low(
 	ulint*		base_pos,
 	const rec_t*	rec);
 
-/** Load a table added column definition from a SYS_COLUMNS_ADDED record to dict_table_t.
+/** Load a table added column definition from a SYS_COLUMNS_ADDED 
+record.
+@param[in,out]	table			table
+@param[in,out]	heap			memory heap
+@param[in]		rec				current SYS_COLUMNS_ADDED rec
+@param[in]		sys_index		cluster index of SYS_COLUMNS_ADDED
+@param[in,out]	table_id_out	table id
+@param[in,out]	pos_out			added column position
+@param[in,out]	def_val_out		the pointer of default value
+@param[in,out]	def_val_len_out	the length of default value
 @return	error message
 @retval	NULL on success */
 static
 const char*
 dict_load_column_added_low(
-	dict_table_t*	table,		/*!< in/out: table, could be NULL */
-	mem_heap_t*		heap,		/*!< in/out: memory heap for temporary storage */
-	const rec_t*	rec,		/*!< in: SYS_COLUMNS_ADDED record */
+	dict_table_t*	table,
+	mem_heap_t*		heap,
+	const rec_t*	rec,
 	dict_index_t*	sys_index,
 	table_id_t*		table_id_out,
 	ulint*			pos_out,
@@ -526,12 +535,13 @@ dict_process_sys_virtual_rec(
 
 /** This function parses a SYS_COLUMNS_ADDED record and extracts added column
 information
-@param[in,out]	heap		heap memory
-@param[in]	rec		current SYS_COLUMNS_ADDED rec
-@param[in]	index	cluster index of SYS_COLUMNS_ADDED 
+@param[in,out]	heap			heap memory
+@param[in]		rec				current SYS_COLUMNS_ADDED rec
+@param[in]		index			cluster index of SYS_COLUMNS_ADDED 
 @param[in,out]	table_id	table id
 @param[in,out]	pos				column position
 @param[in,out]	def_val		default value of column	
+@param[in,out]	def_val_len	the length of default value
 @return error message, or NULL on success */
 const char*
 dict_process_sys_columns_added_rec(
@@ -551,7 +561,6 @@ dict_process_sys_columns_added_rec(
 
 	return(err_msg);
 }
-
 
 /********************************************************************//**
 This function parses a SYS_FIELDS record and populates a dict_field_t
@@ -1373,7 +1382,6 @@ dict_sys_tables_rec_read(
 
 	*flags = dict_sys_tables_type_to_tf(type, not_redundant);
 
-
 	/* For tables created before MySQL 4.1, there may be
 	garbage in SYS_TABLES.MIX_LEN where flags2 are found. Such tables
 	would always be in ROW_FORMAT=REDUNDANT which do not have the
@@ -1469,7 +1477,6 @@ dict_check_sys_tables(
 		DBUG_PRINT("dict_check_sys_tables",
 			   ("name: %p, '%s'", table_name.m_name,
 			    table_name.m_name));
-
 
 		if (!dict_sys_tables_rec_read(rec, table_name,
 					      &table_id, &space_id,
@@ -1855,15 +1862,24 @@ err_len:
 /** Error message for a delete-marked record in dict_load_column_added_low() */
 static const char* dict_load_column_added_del = "delete-marked record in SYS_COLUMNS_ADDED";
 
-/** Load a table added column definition from a SYS_COLUMNS_ADDED record to dict_table_t.
+/** Load a table added column definition from a SYS_COLUMNS_ADDED 
+record.
+@param[in,out]	table			table
+@param[in,out]	heap			memory heap
+@param[in]		rec				current SYS_COLUMNS_ADDED rec
+@param[in]		sys_index		cluster index of SYS_COLUMNS_ADDED
+@param[in,out]	table_id_out	table id
+@param[in,out]	pos_out			added column position
+@param[in,out]	def_val_out		the pointer of default value
+@param[in,out]	def_val_len_out	the length of default value
 @return	error message
 @retval	NULL on success */
 static
 const char*
 dict_load_column_added_low(
-	dict_table_t*	table,		/*!< in/out: table, could be NULL */
-	mem_heap_t*		heap,		/*!< in/out: memory heap for temporary storage */
-	const rec_t*	rec,		/*!< in: SYS_COLUMNS_ADDED record */
+	dict_table_t*	table,
+	mem_heap_t*		heap,
+	const rec_t*	rec,
 	dict_index_t*   sys_index,
 	table_id_t*		table_id_out,
 	ulint*			pos_out,
@@ -1956,8 +1972,8 @@ err_len:
 	*pos_out = pos;
 	if(def_val_out && def_val_len_out) {
 		*def_val_out = def_val ? 
-							(char*)mem_heap_strdupl(heap, (char*)def_val, def_val_len) : 
-							(char*)def_val;
+						(char*)mem_heap_strdupl(heap, (char*)def_val, def_val_len) : 
+						(char*)def_val;
 		*def_val_len_out = def_val_len;
 	}
 	return(NULL);
@@ -1979,7 +1995,7 @@ dict_load_columns_added (
 	ulint		i;
 	mtr_t		mtr;
 
-	if (!dict_table_is_instant(table))
+	if (!table->is_instant())
 		return;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
@@ -2051,7 +2067,6 @@ next_rec:
 
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
-
 }
 
 /********************************************************************//**
@@ -2931,7 +2946,6 @@ dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 	if (const char* error_text = dict_sys_tables_rec_check(rec)) {
 		return(error_text);
 	}
-
 
 	if (!dict_sys_tables_rec_read(rec, name, &table_id, &space_id,
 				      &t_num, &n_cols_core, &flags, &flags2)) {

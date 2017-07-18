@@ -267,20 +267,25 @@ dict_add_col_name(
 	return(res);
 }
 
-/* fake col default for recovery */
+/****************************************************************//**
+Fake column default values for recovery*/
 UNIV_INTERN
 void
-dict_mem_table_fake_col_default(
-	dict_table_t*           table, /*!< in: table */
-	dict_col_t*             col,	/*!< in: col*/
-	mem_heap_t*             heap	/*!< in: mem_heap for default value */
+dict_mem_table_fake_nth_col_default(
+/*==============*/
+	dict_table_t*	table,	/*!< in/out: table, set the default values 
+							for the nth columns */
+	ulint					pos,	/*!< in: the position of column in table */
+	mem_heap_t*		heap	/*!< in: mem_heap for default value */
 )
 {
 	ulint       fixed_size = 0;
 	ulint       def_val_len = 0;
+	dict_col_t*	col = NULL;
 
-	ut_ad(dict_table_is_instant(table));
+	ut_ad(table->is_instant());
 
+	col = dict_table_get_nth_col(table, pos);
 	fixed_size = dict_col_get_fixed_size(col, dict_table_is_comp(table));
 
 	/* For non-fixed size columns, we fake one byte default value */

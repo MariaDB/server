@@ -145,7 +145,7 @@ row_undo_mod_clust_low(
 			 After rollback, the default value should store in row(always newest form), 
 			 it maybe create new external columns.
 		*/
-		if (dict_index_is_clust_instant(index)) {
+		if (index->is_instant()) {
 			upd_flag |= BTR_KEEP_POS_FLAG;
 		}
 
@@ -157,7 +157,7 @@ row_undo_mod_clust_low(
 
 		if (dummy_big_rec) {
 			ut_a(err == DB_SUCCESS);
-			ut_ad(dict_index_is_clust_instant(index));
+			ut_ad(index->is_instant());
 
 			err = btr_store_big_rec_extern_fields(pcur, node->update, *offsets, 
 											dummy_big_rec, mtr, BTR_STORE_UPDATE);

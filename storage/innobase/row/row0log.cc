@@ -603,7 +603,7 @@ row_log_table_delete(
 
 		for (ulint i = 0; i < dtuple_get_n_fields(tuple); i++) {
 			ulint		len;
-			const void*	field	= rec_get_nth_field_inside(
+			const void*	field	= rec_get_nth_field(
 				rec, offsets, i, &len);
 			dfield_t*	dfield	= dtuple_get_nth_field(
 				tuple, i);
@@ -1121,7 +1121,7 @@ row_log_table_get_pk_col(
 	const byte*	field;
 	ulint		len;
 
-	field = rec_get_nth_field_inside(rec, offsets, i, &len);
+	field = rec_get_nth_field(rec, offsets, i, &len);
 
 	if (len == UNIV_SQL_NULL) {
 		return(DB_INVALID_NULL);
@@ -1514,7 +1514,7 @@ row_log_table_apply_convert_mrec(
 			rw_lock_x_lock(dict_index_get_lock(index));
 
 			if (const page_no_map* blobs = log->blobs) {
-				data = rec_get_nth_field_inside(
+				data = rec_get_nth_field(
 					mrec, offsets, i, &len);
 				ut_ad(len >= BTR_EXTERN_FIELD_REF_SIZE);
 
@@ -1543,7 +1543,7 @@ row_log_table_apply_convert_mrec(
 blob_done:
 			rw_lock_x_unlock(dict_index_get_lock(index));
 		} else {
-			data = rec_get_nth_field(mrec, offsets, i, index, heap, &len);
+			data = rec_get_nth_cfield(mrec, offsets, i, index, heap, &len);
 			dfield_set_data(dfield, data, len);
 		}
 
@@ -1885,7 +1885,7 @@ row_log_table_apply_delete(
 	for (ulint i = 0; i < index->n_uniq; i++) {
 		ulint		len;
 		const void*	field;
-		field = rec_get_nth_field_inside(mrec, moffsets, i, &len);
+		field = rec_get_nth_field(mrec, moffsets, i, &len);
 		ut_ad(len != UNIV_SQL_NULL);
 		dfield_set_data(dtuple_get_nth_field(old_pk, i),
 				field, len);
@@ -1936,17 +1936,17 @@ all_done:
 	{
 		ulint		len;
 		const byte*	mrec_trx_id
-			= rec_get_nth_field_inside(mrec, moffsets, trx_id_col, &len);
+			= rec_get_nth_field(mrec, moffsets, trx_id_col, &len);
 		ut_ad(len == DATA_TRX_ID_LEN);
 		const byte*	rec_trx_id
-			= rec_get_nth_field_inside(btr_pcur_get_rec(&pcur), offsets,
+			= rec_get_nth_field(btr_pcur_get_rec(&pcur), offsets,
 					    trx_id_col, &len);
 		ut_ad(len == DATA_TRX_ID_LEN);
 
-		ut_ad(rec_get_nth_field_inside(mrec, moffsets, trx_id_col + 1, &len)
+		ut_ad(rec_get_nth_field(mrec, moffsets, trx_id_col + 1, &len)
 		      == mrec_trx_id + DATA_TRX_ID_LEN);
 		ut_ad(len == DATA_ROLL_PTR_LEN);
-		ut_ad(rec_get_nth_field_inside(btr_pcur_get_rec(&pcur), offsets,
+		ut_ad(rec_get_nth_field(btr_pcur_get_rec(&pcur), offsets,
 					trx_id_col + 1, &len)
 		      == rec_trx_id + DATA_TRX_ID_LEN);
 		ut_ad(len == DATA_ROLL_PTR_LEN);
@@ -2138,7 +2138,7 @@ func_exit_committed:
 		was buffered. */
 		ulint		len;
 		const void*	rec_trx_id
-			= rec_get_nth_field_inside(btr_pcur_get_rec(&pcur),
+			= rec_get_nth_field(btr_pcur_get_rec(&pcur),
 					    cur_offsets, index->n_uniq, &len);
 		ut_ad(len == DATA_TRX_ID_LEN);
 		ut_ad(dtuple_get_nth_field(old_pk, index->n_uniq)->len
@@ -2429,7 +2429,7 @@ row_log_table_apply_op(
 
 			ulint		len;
 			const byte*	db_trx_id
-				= rec_get_nth_field_inside(
+				= rec_get_nth_field(
 					mrec, offsets, trx_id_col, &len);
 			ut_ad(len == DATA_TRX_ID_LEN);
 			*error = row_log_table_apply_insert(
@@ -2553,7 +2553,7 @@ row_log_table_apply_op(
 
 				ut_ad(!rec_offs_nth_extern(offsets, i));
 
-				field = rec_get_nth_field_inside(
+				field = rec_get_nth_field(
 					mrec, offsets, i, &len);
 				ut_ad(len != UNIV_SQL_NULL);
 
@@ -2600,7 +2600,7 @@ row_log_table_apply_op(
 
 				ut_ad(!rec_offs_nth_extern(offsets, i));
 
-				field = rec_get_nth_field_inside(
+				field = rec_get_nth_field(
 					mrec, offsets, i, &len);
 				ut_ad(len != UNIV_SQL_NULL);
 
@@ -2669,7 +2669,7 @@ row_log_table_apply_op(
 		{
 			ulint		len;
 			const byte*	db_trx_id
-				= rec_get_nth_field_inside(
+				= rec_get_nth_field(
 					mrec, offsets, trx_id_col, &len);
 			ut_ad(len == DATA_TRX_ID_LEN);
 			*error = row_log_table_apply_update(

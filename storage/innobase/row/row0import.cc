@@ -1565,7 +1565,7 @@ PageConverter::adjust_cluster_index_blob_column(
 	ulint		len;
 	byte*		field;
 
-	field = rec_get_nth_field_inside(rec, offsets, i, &len);
+	field = rec_get_nth_field(rec, offsets, i, &len);
 
 	DBUG_EXECUTE_IF("ib_import_trigger_corruption_2",
 			len = BTR_EXTERN_FIELD_REF_SIZE - 1;);
@@ -2325,7 +2325,7 @@ row_import_set_sys_max_row_id(
 		offsets = rec_get_offsets(
 			rec, index, offsets_, ULINT_UNDEFINED, &heap);
 
-		field = rec_get_nth_field_inside(
+		field = rec_get_nth_field(
 			rec, offsets,
 			dict_index_get_sys_col_pos(index, DATA_ROW_ID),
 			&len);

@@ -469,7 +469,7 @@ row_upd_rec_sys_fields_in_recovery(
 		byte*	field;
 		ulint	len;
 
-		field = rec_get_nth_field_inside(rec, offsets, pos, &len);
+		field = rec_get_nth_field(rec, offsets, pos, &len);
 		ut_ad(len == DATA_TRX_ID_LEN);
 #if DATA_TRX_ID + 1 != DATA_ROLL_PTR
 # error "DATA_TRX_ID + 1 != DATA_ROLL_PTR"
@@ -562,7 +562,7 @@ row_upd_changes_field_size_or_external(
 		old_len = rec_offs_nth_size(offsets, upd_field->field_no);
 
 		if (rec_offs_comp(offsets)){
-		  if(rec_offs_nth_sql_null(offsets,
+		 	if(rec_offs_nth_sql_null(offsets,
 					     upd_field->field_no)) {
 			/* Note that in the compact table format, for a
 			variable length field, an SQL NULL will use zero
@@ -654,7 +654,7 @@ row_upd_rec_in_place(
 		ulint is_instant = rec_is_instant(rec);
 
 		ut_ad(!is_instant || 
-				(dict_index_is_clust_instant(index) && 
+				(index->is_instant() && 
 				rec_get_field_count(rec, NULL) <= dict_index_get_n_fields(index)));
 
 		rec_set_info_bits_new(rec, update->info_bits);
@@ -958,7 +958,7 @@ row_upd_build_sec_rec_difference_binary(
 		/* There is no default value added column 
 		   in secondary index */
 		ut_ad(!rec_offs_nth_default(offsets, i));
-		data = rec_get_nth_field_inside(rec, offsets, i, &len);
+		data = rec_get_nth_field(rec, offsets, i, &len);
 
 		dfield = dtuple_get_nth_field(entry, i);
 
@@ -1051,7 +1051,7 @@ row_upd_build_difference_binary(
 	for (i = 0; i < n_fld; i++) {
 
 		/* data is read only, heap can be NULL */
-		data = rec_get_nth_field(rec, offsets, i, index, NULL, &len);
+		data = rec_get_nth_cfield(rec, offsets, i, index, NULL, &len);
 
 		dfield = dtuple_get_nth_field(entry, i);
 
@@ -2027,7 +2027,7 @@ row_upd_copy_columns(
 	ulint	len;
 
 	while (column) {
-		data = rec_get_nth_field(rec, offsets,
+		data = rec_get_nth_cfield(rec, offsets,
 					 column->field_nos[SYM_CLUST_FIELD_NO],
 					 index, NULL,
 					 &len);
@@ -2575,7 +2575,7 @@ row_upd_clust_rec_by_insert_inherit_func(
 		if (UNIV_LIKELY(rec != NULL)) {
 			ut_ad(!rec_offs_nth_default(offsets, i));
 			const byte* rec_data
-				= rec_get_nth_field_inside(rec, offsets, i, &len);
+				= rec_get_nth_field(rec, offsets, i, &len);
 			ut_ad(len == dfield_get_len(dfield));
 			ut_ad(len != UNIV_SQL_NULL);
 			ut_ad(len >= BTR_EXTERN_FIELD_REF_SIZE);

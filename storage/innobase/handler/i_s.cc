@@ -290,12 +290,10 @@ field_store_blob(
 	int	ret;
 
 	if (str != NULL) {
-
 		ret = field->store(str, str_len, 
-				   field->charset());
+				field->charset());
 		field->set_notnull();
 	} else {
-
 		ret = 0; /* success */
 		field->set_null();
 	}
@@ -9603,7 +9601,6 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_semaphore_waits =
         STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
-
 /**  SYS_COLUMNS_ADDED **************************************************/
 /** Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_COLUMNS_ADDED */
 static ST_FIELD_INFO	innodb_sys_columns_added_fields_info[] =
@@ -9649,12 +9646,12 @@ param[in,out]	table_to_fill	fill this table
 static
 int
 i_s_dict_fill_sys_columns_added(
-	THD*				thd,
+	THD*		thd,
 	table_id_t	table_id,
-	ulint				pos,
+	ulint		pos,
 	const char*	def_val,	
-	ulint				def_val_len,
-	TABLE*			table_to_fill)
+	ulint		def_val_len,
+	TABLE*		table_to_fill)
 {
 	Field**		fields;
 
@@ -9666,7 +9663,6 @@ i_s_dict_fill_sys_columns_added(
 
 	OK(fields[SYS_COLUMNS_ADDED_POS]->store(pos));
 
-	//OK(field_store_string(fields[SYS_COLUMNS_ADDED_DEFAULT_VALUE], def_val));
 	OK(field_store_blob(fields[SYS_COLUMNS_ADDED_DEFAULT_VALUE], def_val, def_val_len));
 
 	OK(schema_table_store_record(thd, table_to_fill));
@@ -9710,15 +9706,15 @@ i_s_sys_columns_added_fill_table(
 	while (rec) {
 		const char*	err_msg;
 		table_id_t	table_id;
-		char*				def_val;
-		ulint				def_val_len = 0;
+		char*		def_val;
+		ulint		def_val_len = 0;
 		
 
 		/* populate a dict_col_t structure with information from
 		a SYS_COLUMNS_ADDED row */
 		err_msg = dict_process_sys_columns_added_rec(heap, rec, pcur.index(),
-						       &table_id, &pos,
-						       &def_val, &def_val_len);
+					&table_id, &pos,
+					&def_val, &def_val_len);
 
 		mtr_commit(&mtr);
 		mutex_exit(&dict_sys->mutex);
@@ -9728,8 +9724,8 @@ i_s_sys_columns_added_fill_table(
 						  tables->table);
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    ER_CANT_FIND_SYSTEM_REC, "%s",
-					    err_msg);
+					ER_CANT_FIND_SYSTEM_REC, "%s",
+					err_msg);
 		}
 
 		mem_heap_empty(heap);

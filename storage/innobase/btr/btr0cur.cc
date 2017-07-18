@@ -4618,7 +4618,7 @@ btr_cur_parse_del_mark_set_clust_rec(
 		} else {
 			/* In delete-marked records, DB_TRX_ID must
 			always refer to an existing undo log record. */
-			ut_ad(memcmp(rec_get_nth_field_inside(
+			ut_ad(memcmp(rec_get_nth_field(
 					     rec,
 					     rec_get_offsets(rec, index,
 							     offsets, pos,
@@ -5169,7 +5169,7 @@ btr_cur_pessimistic_delete(
 
 			father_rec = btr_cur_get_rec(&father_cursor);
 			rtr_read_mbr(rec_get_nth_field(
-				father_rec, offsets, 0, index, NULL, &len), &father_mbr);
+				father_rec, offsets, 0, &len), &father_mbr);
 
 			upd_ret = rtr_update_mbr_field(&father_cursor, offsets,
 						       NULL, page, &father_mbr,
@@ -6208,7 +6208,7 @@ btr_rec_get_field_ref_offs(
 
 	ut_a(rec_offs_nth_extern(offsets, n));
 	field_ref_offs = rec_get_nth_field_offs(offsets, n, &local_len);
-	ut_a(local_len != UNIV_SQL_NULL && local_len != UNIV_SQL_DEFAULT);
+	ut_a(univ_is_stored(local_len));
 	ut_a(local_len >= BTR_EXTERN_FIELD_REF_SIZE);
 
 	return(field_ref_offs + local_len - BTR_EXTERN_FIELD_REF_SIZE);
@@ -6277,7 +6277,7 @@ btr_cur_set_ownership_of_extern_field(
 	ulint	local_len;
 	ulint	byte_val;
 
-	data = rec_get_nth_field_inside(rec, offsets, i, &local_len);
+	data = rec_get_nth_field(rec, offsets, i, &local_len);
 	ut_ad(rec_offs_nth_extern(offsets, i));
 	ut_a(local_len >= BTR_EXTERN_FIELD_REF_SIZE);
 
@@ -7398,7 +7398,7 @@ btr_rec_free_updated_extern_fields(
 
 		if (rec_offs_nth_extern(offsets, ufield->field_no)) {
 			ulint	len;
-			byte*	data = rec_get_nth_field_inside(
+			byte*	data = rec_get_nth_field(
 				rec, offsets, ufield->field_no, &len);
 			ut_a(len >= BTR_EXTERN_FIELD_REF_SIZE);
 
@@ -7795,7 +7795,7 @@ btr_rec_copy_externally_stored_field(
 	limit so that field offsets are stored in two bytes, and
 	the extern bit is available in those two bytes. */
 
-	data = rec_get_nth_field_inside(rec, offsets, no, &local_len);
+	data = rec_get_nth_field(rec, offsets, no, &local_len);
 
 	ut_a(local_len >= BTR_EXTERN_FIELD_REF_SIZE);
 

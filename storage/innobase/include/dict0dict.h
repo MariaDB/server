@@ -200,11 +200,11 @@ Sets default value of added columns  */
 UNIV_INLINE
 void
 dict_col_set_added_column_default(
-	dict_col_t*		col,
-	const	byte*		def_val,
-	ulint					def_val_len,
-	mem_heap_t*		heap )
-	MY_ATTRIBUTE((nonnull));
+/*===============*/
+	dict_col_t*		col,			/*!< in/out: column */
+	const	byte*	def_val,		/*!< in: pointer of default value */
+	ulint			def_val_len,	/*!< in: length of default value */
+	mem_heap_t*		heap );			/*!< in: mem_heap_t for default value in col */
 
 /*********************************************************************//**
 Gets the column data type. */
@@ -755,16 +755,6 @@ dict_index_is_clust(
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/********************************************************************//**
-Check whether the index is the clustered index of instant table.
-@return nonzero for clustered index of instant table, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_clust_instant(
-/*================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Check if index is auto-generated clustered index.
 @param[in]	index	index
 
@@ -977,26 +967,6 @@ Check whether the table uses the compact page format.
 UNIV_INLINE
 ibool
 dict_table_is_comp(
-/*===============*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/********************************************************************//**
-Check whether the table has been instant added columns.
-@return TRUE if table has been instant added columns */
-UNIV_INLINE
-ibool
-dict_table_is_instant(
-/*===============*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/********************************************************************//**
-Check whether the table use compressed row format.
-@return TRUE if table use compressed row format */
-UNIV_INLINE
-ibool
-dict_table_is_zip(
 /*===============*/
 	const dict_table_t*	table)	/*!< in: table */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
@@ -1220,8 +1190,8 @@ UNIV_INLINE
 ulint 
 dict_index_get_first_n_field_n_nullable(
 /*================*/
-    const dict_index_t*     index,  
-    ulint                   first_n_fields )
+	const dict_index_t*     index,  		/*!< in: index */
+	ulint                   first_n_fields)	/*!< in: Precede n fields */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /********************************************************************//**
@@ -1326,23 +1296,26 @@ dict_index_get_nth_col_pos(
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /********************************************************************//**
-@return	default value and get length*/
+Get the default value of column from dict
+@return	default value*/
 UNIV_INLINE
 const byte*
 dict_index_get_nth_col_def(
 /*===================*/
 	const dict_index_t*	index,	/*!< in: index */
-	ulint			pos,	/*!< in: position of the field */
-	ulint*    len );  /*!< out: length of default value */
-
+	ulint		pos,	/*!< in: position of the field */
+	ulint*		len );  /*!< out: length of default value */
+/********************************************************************//**
+Get the default value of column from dict
+@return	default value */
 UNIV_INLINE
 const byte*
 dict_index_get_nth_col_def_with_heap(
 /*===================*/
 	const dict_index_t*	index,	/*!< in: index */
-	ulint						pos,	/*!< in: position of the field */
-	mem_heap_t*     heap, /*!< in: alloc memory from heap, can be NULL */
-	ulint*					len); /*!< out: length of default value */
+	ulint			pos,	/*!< in: position of the field */
+	mem_heap_t* 	heap, 	/*!< in: alloc memory from heap, can be NULL */
+	ulint*			len); 	/*!< out: length of default value */
 
 /** Looks for column n in an index.
 @param[in]	index		index

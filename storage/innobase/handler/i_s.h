@@ -162,6 +162,6 @@ field_store_blob(
 /*===============*/
 	Field*		field,	/*!< in/out: target field for storage */
 	const char*	str,	/*!< in: blob string, or NULL */
-	ulint			str_len);/*!< in: length of blob string */
+	ulint		str_len);/*!< in: length of blob string */
 
 #endif /* i_s_h */

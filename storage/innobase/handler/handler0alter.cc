@@ -1842,7 +1842,7 @@ null_field:
 		}
 
 		/* ifield is read only, the heap can be NULL */
-		ifield = rec_get_nth_field(rec, offsets, ipos, index, NULL, &ilen);
+		ifield = rec_get_nth_cfield(rec, offsets, ipos, index, NULL, &ilen);
 
 		/* Assign the NULL flag */
 		if (ilen == UNIV_SQL_NULL) {
@@ -4047,6 +4047,15 @@ innobase_add_virtual_try(
 	return(false);
 }
 
+/** Get the default value
+@param[in] table			MySQL table
+@param[in] col				dict_col_t
+@param[in] pos_in_mysql		The field position in MySQL table
+@param[in] comp				true: compact table
+@param[in] heap				memory heap for def
+@param[in/out] def			the default value, maybe NULL
+@param[out] def_length		the length of default value
+@retval DB_SUCCESS Success */
 static
 dberr_t 
 innobase_get_field_def_value(
@@ -4055,8 +4064,8 @@ innobase_get_field_def_value(
 	ulint               pos_in_mysql,
 	ulint               comp,
 	mem_heap_t*         heap,
-	byte**              def,                /* in/out */
-	ulint*              def_length         /* out */
+	byte**              def,    
+	ulint*              def_length  
 )
 {
 	Field*              field;
@@ -4065,27 +4074,25 @@ innobase_get_field_def_value(
 	unsigned char*      def_pos;
 	ulint               n_null = 0;
 	ulint               i = 0;
-	dfield_t						dfield;
+	dfield_t			dfield;
 #define DATA_INT_MAX_LEN 8
 	unsigned char       int_buff[DATA_INT_MAX_LEN + 1];
 	unsigned char       current_buff[DATA_INT_MAX_LEN + 1];
 
 	DBUG_ENTER("innobase_get_field_def_value");
-
 	ut_ad(pos_in_mysql < table->s->fields);
 
 	field = table->field[pos_in_mysql];
 	if (field->default_value && field->has_default_now_unireg_check()) {
 		//for current_timestamp
-
 		Item* item_def = field->default_value->expr;
 
-		THD* thd = current_thd;
+		THD* thd = table->in_use;
 		uchar* tmp = NULL;
 
 		// see Item::save_date_in_field
 		MYSQL_TIME ltime;
-		if (item_def->get_date(&ltime, sql_mode_for_dates(current_thd))) {
+		if (item_def->get_date(&ltime, sql_mode_for_dates(thd))) {
 			ut_ad(0);
 		}
 
@@ -4115,18 +4122,12 @@ innobase_get_field_def_value(
 				}
 				break;
 
-			//case MYSQL_TYPE_TIME2:
-			//case MYSQL_TYPE_DATE:
-			//case MYSQL_TYPE_YEAR:
-			//case MYSQL_TYPE_TIME:
-			//case MYSQL_TYPE_NEWDATE:
 			default:
 				ut_ad(0);
 		}
 		// retore the ptr
 		field->ptr = tmp;
 		def_pos = &current_buff[0];
-
 	} else {
 		// read default value from table->default_values
 		for (i = 0; i < table->s->fields; ++i) {
@@ -4154,7 +4155,6 @@ innobase_get_field_def_value(
 			if (table->s->default_values[field->null_offset()] 
 			& field->null_bit) {
 				// if default value is NULL
-
 				*def = NULL;
 				*def_length = UNIV_SQL_NULL;
 
@@ -4166,7 +4166,6 @@ innobase_get_field_def_value(
 
 		/* postion of default value */
 		def_pos = table->s->default_values + data_offset;
-
 	}
 	dict_col_copy_type(col, dfield_get_type(&dfield));
 	copy_length = field->pack_length();
@@ -4311,7 +4310,6 @@ innobase_add_one_instant(
 
 	pars_info_add_ull_literal(info, "id", table->id);
 	pars_info_add_int4_literal(info, "pos", pos_in_innodb);
-	//pars_info_add_str_literal(info, "default_value", def_val_len);
 	pars_info_add_literal(info, "default_value", def_val, def_val_len, DATA_BLOB, DATA_BINARY_TYPE);
 
 	error = que_eval_sql(
@@ -4357,7 +4355,7 @@ innobase_update_n_instant(
 	pars_info_add_int4_literal(info, "mix_len", mix_len);
 	pars_info_add_ull_literal(info, "id", table->id);
 
-  err = que_eval_sql(
+	err = que_eval_sql(
                 info,
                 "PROCEDURE RENUMBER_TABLE_ID_PROC () IS\n"
                 "BEGIN\n"
@@ -4387,11 +4385,7 @@ innobase_add_instant_try(
 	const dict_table_t*     user_table,
 	trx_t*			trx)
 {
-	ha_innobase_inplace_ctx*	ctx;
 	dberr_t				err = DB_SUCCESS;
-
-	ctx = static_cast<ha_innobase_inplace_ctx*>(
-		ha_alter_info->handler_ctx);
 
 	ut_ad(altered_table->s->fields > table->s->fields);
 
@@ -4854,10 +4848,10 @@ prepare_inplace_alter_table_dict(
 
 	if (ha_alter_info->handler_flags 
 		& Alter_inplace_info::ADD_INSTANT_COLUMN) {
-			if (prepare_inplace_add_instant(
-				ha_alter_info, altered_table, old_table)) {
-					DBUG_RETURN(true);
-			}
+		if (prepare_inplace_add_instant(
+			ha_alter_info, altered_table, old_table)) {
+			DBUG_RETURN(true);
+		}
 	}
 
 	/* There should be no order change for virtual columns coming in
@@ -6583,10 +6577,10 @@ err_exit:
 
 		if (ha_alter_info->handler_flags 
 			& Alter_inplace_info::ADD_INSTANT_COLUMN) {
-				if (prepare_inplace_add_instant(
-					ha_alter_info, altered_table, table)) {
-						DBUG_RETURN(true);
-				}
+			if (prepare_inplace_add_instant(
+				ha_alter_info, altered_table, table)) {
+				DBUG_RETURN(true);
+			}
 		}
 
 		DBUG_RETURN(false);

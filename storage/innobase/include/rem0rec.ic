@@ -1164,7 +1164,7 @@ rec_offs_any_null_extern(
 		if (rec_offs_nth_extern(offsets, i)) {
 			ulint		len;
 			const byte*	field
-				= rec_get_nth_field_inside(rec, offsets, i, &len);
+				= rec_get_nth_field(rec, offsets, i, &len);
 
 			ut_a(len >= BTR_EXTERN_FIELD_REF_SIZE);
 			if (!memcmp(field + len
@@ -1487,7 +1487,7 @@ rec_set_nth_field(
 	}
 
 	ut_ad(!rec_offs_nth_default(offsets, n));
-	data2 = (byte*)rec_get_nth_field_inside(rec, offsets, n, &len2);
+	data2 = (byte*)rec_get_nth_field(rec, offsets, n, &len2);
 	if (len2 == UNIV_SQL_NULL) {
 		ut_ad(!rec_offs_comp(offsets));
 		rec_set_nth_field_null_bit(rec, n, FALSE);
@@ -1914,7 +1914,7 @@ rec_fold(
 	fold = ut_fold_ull(tree_id);
 
 	for (i = 0; i < n_fields; i++) {
-		data = rec_get_nth_field(rec, offsets, i, index, NULL, &len);
+		data = rec_get_nth_cfield(rec, offsets, i, index, NULL, &len);
 
 		if (len != UNIV_SQL_NULL) {
 			fold = ut_fold_ulint_pair(fold,
@@ -1923,7 +1923,7 @@ rec_fold(
 	}
 
 	if (n_bytes > 0) {
-		data = rec_get_nth_field(rec, offsets, i, index, NULL, &len);
+		data = rec_get_nth_cfield(rec, offsets, i, index, NULL, &len);
 
 		if (len != UNIV_SQL_NULL) {
 			if (len > n_bytes) {

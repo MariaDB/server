@@ -133,7 +133,7 @@ dict_create_sys_tables_tuple(
 	ptr = static_cast<byte*>(mem_heap_alloc(heap, 4));
 	/* Be sure all non-used bits are zero. */
 	ut_a(!(table->flags2 & DICT_TF2_UNUSED_BIT_MASK));
-	/* create a new table, table->n_cols_core should be always 0 in tuple */
+	/* When creating a new table, there is no history of instant ADD COLUMN. */
 	mach_write_to_4(ptr, dict_table_encode_mix_len(table->flags2, 0));
 
 	dfield_set_data(dfield, ptr, 4);
@@ -2560,7 +2560,6 @@ dict_create_or_check_sys_columns_added(void)
 	ut_a(srv_get_active_thread_type() == SRV_NONE);
 
 	/* Note: The master thread has not been started at this point. */
-
 	sys_columns_added_err = dict_check_if_system_table_exists(
 		"SYS_COLUMNS_ADDED", DICT_NUM_FIELDS__SYS_COLUMNS_ADDED + 1, 1);
 
@@ -2568,7 +2567,7 @@ dict_create_or_check_sys_columns_added(void)
 		return(DB_SUCCESS);
 	}
 
-	if (srv_read_only_mode
+	if (high_level_read_only
 	    || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
 		return(DB_READ_ONLY);
 	}
@@ -2582,13 +2581,11 @@ dict_create_or_check_sys_columns_added(void)
 	row_mysql_lock_data_dictionary(trx);
 
 	/* Check which incomplete table definition to drop. */
-
 	if (sys_columns_added_err == DB_CORRUPTION) {
 		ib::warn() << "Dropping incompletely created"
 			" SYS_COLUMNS_ADDED table.";
 
-		//row_drop_table_for_mysql("SYS_COLUMNS_ADDED", trx, TRUE, TRUE);
-    return sys_columns_added_err;
+		row_drop_table_for_mysql("SYS_COLUMNS_ADDED", trx, TRUE, TRUE);
 	}
 
 	ib::info() << "Creating sys_columns_added system tables.";
@@ -2637,7 +2634,6 @@ dict_create_or_check_sys_columns_added(void)
 	if (err == DB_SUCCESS) {
 		/* Note: The master thread has not been started at this point. */
 		/* Confirm and move to the non-LRU part of the table LRU list. */
-
 		sys_columns_added_err = dict_check_if_system_table_exists(
 			"SYS_COLUMNS_ADDED", DICT_NUM_FIELDS__SYS_COLUMNS_ADDED + 1, 1);
 		ut_a(sys_columns_added_err == DB_SUCCESS);

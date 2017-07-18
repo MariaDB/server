@@ -2610,7 +2610,7 @@ dict_index_add_to_cache_w_vcol(
 	rw_lock_create(index_tree_rw_lock_key, &new_index->lock,
 		       SYNC_INDEX_TREE);
 
-	if (dict_index_is_clust_instant(new_index)) {
+	if (new_index->is_instant()) {
 		ut_a(new_index->table->n_cols - new_index->table->n_core_cols >= 0);
 
 		new_index->n_core_fields = new_index->n_fields - 

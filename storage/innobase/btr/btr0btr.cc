@@ -836,7 +836,7 @@ btr_node_ptr_set_child_page_no(
 	ut_ad(!rec_offs_comp(offsets) || rec_get_node_ptr_flag(rec));
 
 	/* The child address is in the last field */
-	field = rec_get_nth_field_inside(rec, offsets,
+	field = rec_get_nth_field(rec, offsets,
 				  rec_offs_n_fields(offsets) - 1, &len);
 
 	ut_ad(len == REC_NODE_PTR_SIZE);
@@ -4680,10 +4680,10 @@ btr_index_rec_validate(
 		length of the prefix index column. */
 
 		if ((field->prefix_len == 0
-		     && len != UNIV_SQL_NULL && len != UNIV_SQL_DEFAULT && fixed_size
+		     && univ_is_stored(len) && fixed_size
 		     && len != fixed_size)
 		    || (field->prefix_len > 0
-			&& len != UNIV_SQL_NULL && len != UNIV_SQL_DEFAULT
+			&& univ_is_stored(len)
 			&& len
 			> field->prefix_len)) {
 

@@ -6227,17 +6227,22 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   DBUG_RETURN(0);
 }
 
-sql_mode_t sql_mode_for_dates(THD *thd)
-{
-	return thd->variables.sql_mode &
-		(MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES);
-}
-
 /*
   Implementation of interface to write rows to the binary log through the
   thread.  The thread is responsible for writing the rows it has
   inserted/updated/deleted.
 */
+
+/**
+  Get the sql_mode for dates from THD
+  @param thd      THD
+  @retval         MODE_*_DATE from THD
+*/
+sql_mode_t sql_mode_for_dates(THD *thd)
+{
+  return thd->variables.sql_mode &
+          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES);
+}
 
 #ifndef MYSQL_CLIENT
 

@@ -6661,13 +6661,13 @@ static bool fill_alter_inplace_info(THD *thd,
       ha_alter_info->handler_flags|= Alter_inplace_info::ADD_INDEX;
   }
 
-	// If ADD_STORED_BASE_COLUMN only, we can change to ADD_INSTANT_COLUMN in some cases
-	if (ha_alter_info->handler_flags == Alter_inplace_info::ADD_STORED_BASE_COLUMN &&
-			!has_expr_default && 
-			table->file->check_instant_alter(ha_alter_info)) {
-		// check if 
-		ha_alter_info->handler_flags = Alter_inplace_info::ADD_INSTANT_COLUMN;
-	}
+  // If ADD_STORED_BASE_COLUMN only, we can change to ADD_INSTANT_COLUMN in some cases
+  if (ha_alter_info->handler_flags == Alter_inplace_info::ADD_STORED_BASE_COLUMN &&
+    !has_expr_default && 
+    table->file->check_instant_alter(ha_alter_info)) {
+		
+    ha_alter_info->handler_flags = Alter_inplace_info::ADD_INSTANT_COLUMN;
+  }
 
   DBUG_RETURN(false);
 }

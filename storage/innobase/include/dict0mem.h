@@ -254,6 +254,10 @@ instant add columns */
 #define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS)
 #define DICT_TF2_BIT_MASK		~DICT_TF2_UNUSED_BIT_MASK
 
+#if DICT_TF2_BITS > DICT_TF2_MAX_BITS 
+#error "DICT_TF2_BITS > DICT_TF2_MAX_BITS"
+#endif
+
 /** TEMPORARY; TRUE for tables from CREATE TEMPORARY TABLE. */
 #define DICT_TF2_TEMPORARY		1U
 
@@ -338,16 +342,17 @@ dict_mem_table_free(
 /*================*/
 	dict_table_t*	table);		/*!< in: table */
 /**********************************************************************//**
-Adds a column definition to a table. */
-
-/* fake col default for recovery */
+Fake column default values for recovery */
 void
-dict_mem_table_fake_col_default(
-	dict_table_t*           table, /*!< in: table */
-	dict_col_t*             col,	/*!< in: col*/
-	mem_heap_t*             heap	/*!< in: mem_heap for default value */
+dict_mem_table_fake_nth_col_default(
+/*================*/
+	dict_table_t*			table,	/*!< in/out: table, set the default values 
+									for the nth columns */
+	ulint					pos,	/*!< in: the position of column in table */
+	mem_heap_t*				heap	/*!< in: mem_heap for default value */
 );
-
+/****************************************************************//**
+Adds a column definition to a table. */
 void
 dict_mem_table_add_col(
 /*===================*/
@@ -637,7 +642,7 @@ struct dict_col_t{
 					3072 (REC_VERSION_56_MAX_INDEX_COL_LEN)
 					bytes. */
 
-	dict_col_def_t*		def_val;/*!< default value of added columns */
+	dict_col_def_t*	def_val;/*!< default value of added columns */
 };
 
 /** Index information put in a list of virtual column structure. Index
@@ -998,6 +1003,11 @@ struct dict_index_t{
 			and the .ibd file is missing, or a
 			page cannot be read or decrypted */
 	inline bool is_readable() const;
+
+	/** @return whether the index is the clustered index of instant table.
+	@retval true if clustered index of instant table
+	@retval false otherwise */
+	inline bool is_instant() const;
 };
 
 /** The status of online index creation */
@@ -1351,6 +1361,14 @@ struct dict_table_t {
 	bool is_readable() const
 	{
 		return(UNIV_LIKELY(!file_unreadable));
+	}
+
+	/** @return whether the table has been instant added columns.
+	@retval true if table has been instant added columns
+	@retval false if table hasn't been instant added columns */
+	bool is_instant() const
+	{
+		return (n_core_cols < n_cols);
 	}
 
 	/** Id of the table. */

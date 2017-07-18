@@ -568,9 +568,12 @@ rec_get_nth_field_offs(
 				if SQL null */
 	MY_ATTRIBUTE((nonnull));
 
+/************************************************************//**
+Get the nth field from cluster index
+@return pointer of field(Maybe get the pointer of default value of dictionary) */
 const byte*
-rec_get_nth_field(
-	const rec_t*		rec,
+rec_get_nth_cfield(
+	const rec_t*		rec,	/*!< in: rec */
 	const ulint*		offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint				n,		/*!< in: index of the field */
 	const dict_index_t*	index,	/*!< in: dict_index of rec */
@@ -582,8 +585,8 @@ rec_get_nth_field(
 /* 	Never return DEFAULT value(UNIV_SQL_DEFAULT) 
 	It always return pointer inside the record
 */
-#define rec_get_nth_field_inside(rec, offsets, n, len) \
-(byte*)rec_get_nth_field(rec, offsets, n, NULL, NULL, len)
+#define rec_get_nth_field(rec, offsets, n, len) \
+(byte*)rec_get_nth_cfield(rec, offsets, n, NULL, NULL, len)
 
 /******************************************************//**
 Determine if the offsets are for a record in the new

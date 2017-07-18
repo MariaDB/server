@@ -645,7 +645,7 @@ put_nth_field(
 
 	/* now buf_size >= 1 */
 
-	data = rec_get_nth_field(rec, offsets, n, index, NULL, &data_len);
+	data = rec_get_nth_cfield(rec, offsets, n, index, NULL, &data_len);
 
 	dict_field = dict_index_get_nth_field(index, n);
 
