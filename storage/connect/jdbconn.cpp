@@ -1226,7 +1226,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 			case 5: crp->Name = "Nullable";  break;
 		} // endswitch i
 
-		// Build the java string array
+		// Build the java int array
 		jintArray val = env->NewIntArray(4);
 
 		if (val == nullptr) {

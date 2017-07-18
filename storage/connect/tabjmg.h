@@ -9,6 +9,31 @@
 #include "jmgoconn.h"
 #include "jdbccat.h"
 
+/***********************************************************************/
+/*  Class used to get the columns of a mongo collection.               */
+/***********************************************************************/
+class JMGDISC : public MGODISC {
+public:
+	// Constructor
+	JMGDISC(PGLOBAL g, int *lg) : MGODISC(g, lg) 
+				{	drv = "Java"; Jcp = NULL; columnid = nullptr;	}
+
+	// Methods
+	virtual bool Init(PGLOBAL g);
+	virtual void GetDoc(void) {}
+	virtual bool Find(PGLOBAL g);
+
+protected:
+	// Function
+	bool ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt, 
+							 int ncol, int k);
+
+	// Members
+	JMgoConn *Jcp;                // Points to a Mongo connection class
+	jmethodID columnid;						// The ColumnDesc method ID
+	jmethodID bvnameid;						// The ColDescName method ID
+}; // end of JMGDISC
+
 /* -------------------------- TDBJMG class --------------------------- */
 
 /***********************************************************************/
@@ -18,7 +43,7 @@
 class DllExport TDBJMG : public TDBEXT {
 	friend class JMGCOL;
 	friend class MGODEF;
-	friend class MGODISC;
+	friend class JMGDISC;
 	friend class JAVAConn;
 	friend PQRYRES MGOColumns(PGLOBAL, PCSZ, PCSZ, PTOS, bool);
 public:

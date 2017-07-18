@@ -27,13 +27,108 @@
 #include "mycat.h"                             // for FNC_COL
 #include "filter.h"
 
-/***********************************************************************/
-/*  This should be an option.                                          */
-/***********************************************************************/
-#define MAXCOL          200        /* Default max column nb in result  */
-#define TYPE_UNKNOWN     12        /* Must be greater than other types */
+PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info);
 
-PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
+/* -------------------------- Class JMGDISC -------------------------- */
+
+/***********************************************************************/
+/*  Initialyze.                                                        */
+/***********************************************************************/
+bool JMGDISC::Init(PGLOBAL g)
+{
+	if (!(Jcp = ((TDBJMG*)tmgp)->Jcp)) {
+		strcpy(g->Message, "Init: Jcp is NULL");
+		return true;
+	}	else if (Jcp->gmID(g, columnid, "ColumnDesc",
+		                  "(Ljava/lang/Object;I[II)Ljava/lang/Object;"))
+		return true;
+	else if (Jcp->gmID(g, bvnameid, "ColDescName", "()Ljava/lang/String;"))
+	  return true;
+
+	return false;
+}	// end of Init
+
+/***********************************************************************/
+/*  Analyse passed document.                                           */
+/***********************************************************************/
+bool JMGDISC::Find(PGLOBAL g)
+{
+	return ColDesc(g, nullptr, NULL, NULL, Jcp->m_Ncol, 0);
+}	// end of Find
+
+/***********************************************************************/
+/*  Analyse passed document.                                           */
+/***********************************************************************/
+bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
+											int ncol, int k)
+{
+	const char *key;
+	char colname[65];
+	char fmt[129];
+	bool rc = true;
+	jint   *n = nullptr;
+	jstring jkey;
+	jobject jres;
+
+	// Build the java int array
+	jintArray val = Jcp->env->NewIntArray(5);
+
+	if (val == nullptr) {
+		strcpy(g->Message, "Cannot allocate jint array");
+		return true;
+	} else if (!ncol)
+		n = Jcp->env->GetIntArrayElements(val, 0);
+
+	for (int i = 0; i < ncol; i++) {
+		jres = Jcp->env->CallObjectMethod(Jcp->job, columnid, obj, i, val, lvl - k);
+		n = Jcp->env->GetIntArrayElements(val, 0);
+
+		if (Jcp->Check(n[0])) {
+			sprintf(g->Message, "ColDesc: %s", Jcp->Msg);
+			goto err;
+		} else if (!n[0])
+			continue;
+
+		jkey = (jstring)Jcp->env->CallObjectMethod(Jcp->job, bvnameid);
+		key = Jcp->env->GetStringUTFChars(jkey, (jboolean)false);
+
+		if (pcn) {
+			strncpy(colname, pcn, 64);
+			colname[64] = 0;
+			strncat(strncat(colname, "_", 65), key, 65);
+		} else
+			strcpy(colname, key);
+
+		if (pfmt) {
+			strncpy(fmt, pfmt, 128);
+			fmt[128] = 0;
+			strncat(strncat(fmt, ".", 129), key, 129);
+		} else
+			strcpy(fmt, key);
+
+		if (!jres) {
+			bcol.Type = n[0];
+			bcol.Len = n[1];
+			bcol.Scale = n[2];
+			bcol.Cbn = n[3];
+			AddColumn(g, colname, fmt, k);
+		} else {
+			if (n[0] == 2 && !all)
+				n[4] = MY_MIN(n[4], 1);
+
+			if (ColDesc(g, jres, colname, fmt, n[4], k + 1))
+				goto err;
+
+		}	// endif jres
+
+	} // endfor i
+
+	rc = false;
+
+ err:
+	Jcp->env->ReleaseIntArrayElements(val, n, 0);
+	return rc;
+}	// end of ColDesc
 
 /* --------------------------- Class TDBJMG -------------------------- */
 
@@ -82,16 +177,6 @@ TDBJMG::TDBJMG(PMGODEF tdp) : TDBEXT(tdp)
 TDBJMG::TDBJMG(TDBJMG *tdbp) : TDBEXT(tdbp)
 {
 	Uri = tdbp->Uri;
-//Pool = tdbp->Pool;
-//Client = tdbp->Client;
-//Database = NULL;
-//Collection = tdbp->Collection;
-//Cursor = tdbp->Cursor;
-//Query = tdbp->Query;
-//Opts = tdbp->Opts;
-//Fpc = tdbp->Fpc;
-//Cnd = tdbp->Cnd;
-//Uristr = tdbp->Uristr;
 	Db_name = tdbp->Db_name;;
 	Coll_name = tdbp->Coll_name;
 	Options = tdbp->Options;
@@ -126,11 +211,7 @@ PTDB TDBJMG::Clone(PTABS t)
 /***********************************************************************/
 PCOL TDBJMG::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 {
-	PJMGCOL colp = new(g) JMGCOL(g, cdp, this, cprec, n);
-
-//colp->Mbuf = (char*)PlugSubAlloc(g, NULL, colp->Long + 1);
-	return colp;
-	//return (colp->ParseJpath(g)) ? NULL : colp;
+	return new(g) JMGCOL(g, cdp, this, cprec, n);
 } // end of MakeCol
 
 /***********************************************************************/
@@ -497,12 +578,12 @@ TDBJGL::TDBJGL(PMGODEF tdp) : TDBCAT(tdp)
 	Db = tdp->GetTabschema();
 } // end of TDBJCL constructor
 
-	/***********************************************************************/
-	/*  GetResult: Get the list the JSON file columns.                     */
-	/***********************************************************************/
+/***********************************************************************/
+/*  GetResult: Get the list the MongoDB collection columns.            */
+/***********************************************************************/
 PQRYRES TDBJGL::GetResult(PGLOBAL g)
 {
-	return JSONColumns(g, Db, Uri, Topt, false);
+	return MGOColumns(g, Db, Uri, Topt, false);
 } // end of GetResult
 
-	/* -------------------------- End of mongo --------------------------- */
+/* -------------------------- End of mongo --------------------------- */

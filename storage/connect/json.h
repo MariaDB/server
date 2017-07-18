@@ -13,7 +13,8 @@
 #define X
 #endif
 
-enum JTYP {TYPE_STRG = TYPE_STRING, 
+enum JTYP {TYPE_NULL = TYPE_VOID,
+					 TYPE_STRG = TYPE_STRING, 
            TYPE_DBL  = TYPE_DOUBLE,
            TYPE_BOOL = TYPE_TINY,
            TYPE_BINT = TYPE_BIGINT,
@@ -146,6 +147,7 @@ class JSON : public BLOCK {
   JSON(void) {Size = 0;}
 
           int    size(void) {return Size;}
+	virtual int    GetSize(bool b) {return Size;}
   virtual void   Clear(void) {Size = 0;}
   virtual JTYP   GetType(void) {return TYPE_JSON;}
   virtual JTYP   GetValType(void) {X return TYPE_JSON;}
@@ -193,10 +195,11 @@ class JOBJECT : public JSON {
 
   using JSON::GetValue;
   using JSON::SetValue;
-  virtual void  Clear(void) {First = Last = NULL; Size = 0;}
+	virtual void  Clear(void) {First = Last = NULL; Size = 0;}
   virtual JTYP  GetType(void) {return TYPE_JOB;}
   virtual PJPR  GetFirst(void) {return First;}
-  virtual PJPR  AddPair(PGLOBAL g, PCSZ key);
+	virtual int   GetSize(bool b);
+	virtual PJPR  AddPair(PGLOBAL g, PCSZ key);
   virtual PJOB  GetObject(void) {return this;}
   virtual PJVAL GetValue(const char* key);
 	virtual PJAR  GetKeyList(PGLOBAL g);
@@ -222,11 +225,13 @@ class JARRAY : public JSON {
   using JSON::GetValue;
   using JSON::SetValue;
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
-  virtual JTYP  GetType(void) {return TYPE_JAR;}
+	virtual JTYP  GetType(void) {return TYPE_JAR;}
   virtual PJAR  GetArray(void) {return this;}
-          PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL);
+	virtual int   GetSize(bool b);
+					PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL);
   virtual void  InitArray(PGLOBAL g);
   virtual PJVAL GetValue(int i);
+	virtual PSZ   GetText(PGLOBAL g, PSZ text);
 	virtual bool  Merge(PGLOBAL g, PJSON jsp);
 	virtual bool  SetValue(PGLOBAL g, PJVAL jvp, int i);
   virtual bool  DeleteValue(int n);
@@ -246,20 +251,20 @@ class JARRAY : public JSON {
 class JVALUE : public JSON {
   friend class JARRAY;
 	friend class JSNX;
+	friend class JSONCOL;
 	friend PJVAL ParseValue(PGLOBAL, int&, STRG&, bool*);
   friend bool  SerializeValue(JOUT *, PJVAL);
  public:
-  JVALUE(void) : JSON() 
-                {Jsp = NULL; Value = NULL; Next = NULL; Del = false;}
+  JVALUE(void) : JSON() {Clear();}
   JVALUE(PJSON jsp) : JSON()
-                {Jsp = jsp; Value = NULL; Next = NULL; Del = false;}
-  JVALUE(PGLOBAL g, PVAL valp);
+		{Jsp = jsp; Value = NULL; Next = NULL; Del = false; Size = 1;}
+	JVALUE(PGLOBAL g, PVAL valp);
 	JVALUE(PGLOBAL g, PCSZ strp);
 
   using JSON::GetValue;
   using JSON::SetValue;
   virtual void   Clear(void)
-          {Jsp = NULL; Value = NULL; Next = NULL; Del = false; Size = 0;}
+          {Jsp = NULL; Value = NULL; Next = NULL; Del = false; Size = 1;}
   virtual JTYP   GetType(void) {return TYPE_JVAL;}
   virtual JTYP   GetValType(void);
   virtual PJOB   GetObject(void);

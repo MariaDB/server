@@ -10,7 +10,7 @@
 #include <mongoc.h>
 
 // C connection to a MongoDB data source
-class TDBMGO;
+class TDBCMG;
 class MGOCOL;
 
 /***********************************************************************/
@@ -18,7 +18,7 @@ class MGOCOL;
 /***********************************************************************/
 typedef class INCOL  *PINCOL;
 typedef class MGODEF *PMGODEF;
-typedef class TDBMGO *PTDBMGO;
+typedef class TDBCMG *PTDBCMG;
 typedef class MGOCOL *PMGOCOL;
 
 typedef struct mongo_parms {
@@ -63,8 +63,8 @@ public:
 /*  CMgoConn class.                                                   */
 /***********************************************************************/
 class CMgoConn : public BLOCK {
-	friend class TDBMGO;
-	friend class MGODISC;
+	friend class TDBCMG;
+	friend class CMGDISC;
 public:
 	// Constructor
 	CMgoConn(PGLOBAL g, PCPARM pcg);

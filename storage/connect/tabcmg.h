@@ -1,5 +1,5 @@
-/**************** tabmgo H Declares Source Code File (.H) **************/
-/*  Name: tabmgo.h   Version 1.1                                       */
+/**************** tabcmg H Declares Source Code File (.H) **************/
+/*  Name: tabcmg.h   Version 1.2                                       */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2017         */
 /*                                                                     */
@@ -11,45 +11,46 @@
 /***********************************************************************/
 /*  Class used to get the columns of a mongo collection.               */
 /***********************************************************************/
-class MGODISC : public BLOCK {
+class CMGDISC : public MGODISC {
 public:
 	// Constructor
-	MGODISC(PGLOBAL g, int *lg);
+	CMGDISC(PGLOBAL g, int *lg) : MGODISC(g, lg) { drv = "C"; }
 
-	// Functions
-	int  GetColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt);
+	// Methods
+	virtual void GetDoc(void);
+//virtual bool Find(PGLOBAL g, int i, int k, bool b);
+	virtual bool Find(PGLOBAL g);
+
+	// BSON Function
+//bool FindInDoc(PGLOBAL g, bson_iter_t *iter, const bson_t *doc,
+//	             char *pcn, char *pfmt, int i, int k, bool b);
 	bool FindInDoc(PGLOBAL g, bson_iter_t *iter, const bson_t *doc,
-		             char *pcn, char *pfmt, int i, int k, bool b);
+		             char *pcn, char *pfmt, int k, bool b);
 
 	// Members
-	BCOL    bcol;
-	PBCOL   bcp, fbcp, pbcp;
-	PMGODEF tdp;
-	TDBMGO *tmgp;
-	int    *length;
-	int     n, k, lvl;
-	bool    all;
-}; // end of MGODISC
+	bson_iter_t   iter;
+	const bson_t *doc;
+}; // end of CMGDISC
 
-/* -------------------------- TDBMGO class --------------------------- */
+/* -------------------------- TDBCMG class --------------------------- */
 
 /***********************************************************************/
 /*  This is the MongoDB Table Type class declaration.                  */
 /*  The table is a collection, each record being a document.           */
 /***********************************************************************/
-class DllExport TDBMGO : public TDBEXT {
+class DllExport TDBCMG : public TDBEXT {
 	friend class MGOCOL;
 	friend class MGODEF;
-	friend class MGODISC;
+	friend class CMGDISC;
 	friend PQRYRES MGOColumns(PGLOBAL, PCSZ, PCSZ, PTOS, bool);
 public:
 	// Constructor
-	TDBMGO(MGODEF *tdp);
-	TDBMGO(TDBMGO *tdbp);
+	TDBCMG(MGODEF *tdp);
+	TDBCMG(TDBCMG *tdbp);
 
 	// Implementation
 	virtual AMT  GetAmType(void) {return TYPE_AM_MGO;}
-	virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMGO(this);}
+	virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBCMG(this);}
 
 	// Methods
 	virtual PTDB Clone(PTABS t);
@@ -78,7 +79,7 @@ protected:
 	int                   N;          // The current Rownum
 	int                   B;          // Array index base
 	bool                  Done;			  // Init done
-}; // end of class TDBMGO
+}; // end of class TDBCMG
 
 /* --------------------------- MGOCOL class -------------------------- */
 
@@ -86,7 +87,7 @@ protected:
 /*  Class MGOCOL: MongoDB access method column descriptor.             */
 /***********************************************************************/
 class DllExport MGOCOL : public EXTCOL {
-	friend class TDBMGO;
+	friend class TDBCMG;
 	friend class FILTER;
 public:
 	// Constructors
@@ -106,7 +107,7 @@ protected:
 	MGOCOL(void) {}
 
 	// Members
-	TDBMGO *Tmgp;                 // To the MGO table block
+	TDBCMG *Tmgp;                 // To the MGO table block
 	char   *Jpath;                // The json path
 }; // end of class MGOCOL
 

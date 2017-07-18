@@ -210,9 +210,9 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
-#if defined(MONGO_SUPPORT)
+#if defined(JDBC_SUPPORT) || defined(MONGO_SUPPORT)
 PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ url, PTOS topt, bool info);
-#endif   // MONGO_SUPPORT
+#endif   // JDBC_SUPPORT  || MONGO_SUPPORT
 int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
@@ -223,6 +223,7 @@ void    mongo_init(bool);
 USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
+char   *GetJsonNull(void);
 uint    GetJsonGrpSize(void);
 char   *GetJavaWrapper(void);
 uint    GetWorkSize(void);
@@ -332,6 +333,13 @@ static MYSQL_THDVAR_ENUM(
   0,                               // def (no)
   &xconv_typelib);                 // typelib
 
+// Null representation for JSON values
+static MYSQL_THDVAR_STR(json_null,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Representation of Json null values",
+	//     check_json_null, update_json_null,
+	NULL, NULL, "<null>");
+
 // Estimate max number of rows for JSON aggregate functions
 static MYSQL_THDVAR_UINT(json_grp_size,
        PLUGIN_VAR_RQCMDARG,             // opt
@@ -343,7 +351,7 @@ static MYSQL_THDVAR_UINT(json_grp_size,
 static MYSQL_THDVAR_STR(java_wrapper,
 	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
 	"Java wrapper class name",
-	//     check_class_path, update_class_path,
+	//     check_java_wrapper, update_java_wrapper,
 	NULL, NULL, "wrappers/JdbcInterface");
 #endif   // JDBC_SUPPORT
 
@@ -383,6 +391,8 @@ bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
+char *GetJsonNull(void)
+	{return connect_hton ? THDVAR(current_thd, json_null) : NULL;}
 uint GetJsonGrpSize(void)
   {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
 uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
@@ -5761,25 +5771,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 #if !defined(MONGO_SUPPORT)
 					driver = "JAVA";
-					// strcpy(g->Message, "No column discovery for Java MONGO tables yet");
-					// Temporarily use the JSONColumns function
-					qrp = JSONColumns(g, db, url, topt, fnc == FNC_COL);
 #elif !defined(JDBC_SUPPORT)
 					driver = "C";
-					qrp = MGOColumns(g, db, url, topt, fnc == FNC_COL);
 #else		 // MONGO_SUPPORT  && JDBC_SUPPORT
 					if (!driver)
 						driver = "C";
-
-					if (toupper(*driver) == 'C') {
-						qrp = MGOColumns(g, db, url, topt, fnc == FNC_COL);
-					} else {
-						// strcpy(g->Message, "No column discovery for Java MONGO tables yet");
-						// Temporarily use the JSONColumns function
-						qrp = JSONColumns(g, db, url, topt, fnc == FNC_COL);
-					} // endif driver
-
 #endif   // MONGO_SUPPORT  && JDBC_SUPPORT
+					qrp = MGOColumns(g, db, url, topt, fnc == FNC_COL);
 					break;
 #endif   // MONGO_SUPPORT  || JDBC_SUPPORT
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
@@ -7137,6 +7135,7 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 #if defined(XMSG)
   MYSQL_SYSVAR(errmsg_dir_path),
 #endif   // XMSG
+	MYSQL_SYSVAR(json_null),
   MYSQL_SYSVAR(json_grp_size),
 #if defined(JDBC_SUPPORT)
 	MYSQL_SYSVAR(jvm_path),

@@ -316,8 +316,8 @@ ENDIF(CONNECT_WITH_ZIP)
 #    INCLUDE_DIRECTORIES(${MONGO_INCLUDE_DIR})
 #    SET(MONGO_LIBRARY   ${MONGO_LIBRARIES})
 #    SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
-#    cmgoconn.cpp mongofam.cpp tabmgo.cpp
-#    cmgoconn.h mongofam.h tabmgo.h)
+#    cmgoconn.cpp cmgfam.cpp tabcmg.cpp
+#    cmgoconn.h cmgfam.h tabcmg.h)
 #    IF (NOT JAVA_FOUND AND JNI_FOUND)
 #      SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
 #    ENDIF (NOT JAVA_FOUND AND JNI_FOUND)

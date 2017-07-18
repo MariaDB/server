@@ -119,6 +119,7 @@ ulonglong CharToNumber(const char *p, int n, ulonglong maxval,
         if (minus) *minus = true;
       } // endif Unsigned
 
+			// Fall through
     case '+':
       p++;
       break;
@@ -571,7 +572,7 @@ void VALUE::Printf(PGLOBAL g, FILE *f, uint n)
 	if (Null)
 		fprintf(f, "%s<null>\n", m);
 	else
-		fprintf(f, strcat(strcat(GetCharString(buf), "\n"), m));
+		fprintf(f, "%s%s\n", m, GetCharString(buf));
 
 } /* end of Printf */
 
@@ -2566,7 +2567,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 			} else if (valp->GetType() == TYPE_BIGINT &&
 				       !(valp->GetBigintValue() % 1000)) {
 				// Assuming that this timestamp is in milliseconds
-				Tval = valp->GetBigintValue() / 1000;
+				Tval = (int)(valp->GetBigintValue() / 1000);
 			}	else
         Tval = valp->GetIntValue();
 

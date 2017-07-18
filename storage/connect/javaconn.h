@@ -63,6 +63,7 @@ class JAVAConn;
 /***********************************************************************/
 class JAVAConn : public BLOCK {
 	friend class TDBJMG;
+	friend class JMGDISC;
 private:
 	JAVAConn();                      // Standard (unused) constructor
 

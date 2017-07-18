@@ -40,7 +40,7 @@ class DllExport JSONDEF : public DOSDEF {         /* Table description */
 	friend class JMGFAM;
 #endif   // JDBC_SUPPORT
 #if defined(MONGO_SUPPORT)
-	friend class MGOFAM;
+	friend class CMGFAM;
 #endif   // MONGO_SUPPORT
 	friend PQRYRES JSONColumns(PGLOBAL, PCSZ, PCSZ, PTOS, bool);
 public:
@@ -93,7 +93,7 @@ class DllExport TDBJSN : public TDBDOS {
 	friend class JMGFAM;
 #endif   // JDBC_SUPPORT
 #if defined(MONGO_SUPPORT)
-	friend class MGOFAM;
+	friend class CMGFAM;
 #endif   // MONGO_SUPPORT
 public:
   // Constructor
@@ -163,7 +163,7 @@ class DllExport JSONCOL : public DOSCOL {
 	friend class JMGFAM;
 #endif   // JDBC_SUPPORT
 #if defined(MONGO_SUPPORT)
-	friend class MGOFAM;
+	friend class CMGFAM;
 #endif   // MONGO_SUPPORT
 public:
   // Constructors

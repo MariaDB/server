@@ -1,5 +1,5 @@
 /************* tabjson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjson     Version 1.4                               */
+/* PROGRAM NAME: tabjson     Version 1.5                               */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
 /*  This program are the JSON class DB execution routines.             */
 /***********************************************************************/
@@ -35,7 +35,7 @@
 #include "jmgfam.h"
 #endif   // JDBC_SUPPORT
 #if defined(MONGO_SUPPORT)
-#include "mongofam.h"
+#include "cmgfam.h"
 #endif   // MONGO_SUPPORT
 #include "tabmul.h"
 #include "checklvl.h"
@@ -47,7 +47,6 @@
 /***********************************************************************/
 #define MAXCOL          200        /* Default max column nb in result  */
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
-#define USE_G             1        /* Use recoverable memory if 1      */
 
 /***********************************************************************/
 /*  External functions.                                                */
@@ -55,6 +54,7 @@
 USETEMP UseTemp(void);
 bool    IsNum(PSZ s);
 char   *NextChr(PSZ s, char sep);
+char   *GetJsonNull(void);
 
 typedef struct _jncol {
   struct _jncol *Next;
@@ -199,12 +199,12 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 		} else if (tdp->Uri) {
 #if defined(MONGO_SUPPORT) ||	defined(JDBC_SUPPORT)
 #if !defined(JDBC_SUPPORT)
-			tjnp = new(g) TDBJSN(tdp, new(g) MGOFAM(tdp));
+			tjnp = new(g) TDBJSN(tdp, new(g) CMGFAM(tdp));
 #elif !defined(MONGO_SUPPORT)
 			tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
 #else
 			if (tdp->Driver && toupper(*tdp->Driver) == 'C')
-				tjnp = new(g) TDBJSN(tdp, new(g) MGOFAM(tdp));
+				tjnp = new(g) TDBJSN(tdp, new(g) CMGFAM(tdp));
 			else
 				tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
 #endif
@@ -217,7 +217,6 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 
     tjnp->SetMode(MODE_READ);
 
-#if USE_G
 		// Allocate the parse work memory
 		PGLOBAL G = (PGLOBAL)PlugSubAlloc(g, NULL, sizeof(GLOBAL));
 		memset(G, 0, sizeof(GLOBAL));
@@ -226,9 +225,6 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 		PlugSubSet(G, G->Sarea, G->Sarea_Size);
 		G->jump_level = 0;
 		tjnp->SetG(G);
-#else
-		tjnp->SetG(g);
-#endif
 
 		if (tjnp->OpenDB(g))
       return NULL;
@@ -560,12 +556,12 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 		if (Uri) {
 #if defined(MONGO_SUPPORT) ||	defined(JDBC_SUPPORT)
 #if !defined(JDBC_SUPPORT)
-			txfp = new(g) MGOFAM(this);
+			txfp = new(g) CMGFAM(this);
 #elif !defined(MONGO_SUPPORT)
 			txfp = new(g) JMGFAM(this);
 #else
 			if (Driver && toupper(*Driver) == 'C')
-				txfp = new(g) MGOFAM(this);
+				txfp = new(g) CMGFAM(this);
 			else
 				txfp = new(g) JMGFAM(this);
 #endif
@@ -602,7 +598,6 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
     // Txfp must be set for TDBDOS
     tdbp = new(g) TDBJSN(this, txfp);
 
-#if USE_G
 		if (Lrecl) {
 			// Allocate the parse work memory
 			PGLOBAL G = (PGLOBAL)PlugSubAlloc(g, NULL, sizeof(GLOBAL));
@@ -616,9 +611,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 			strcpy(g->Message, "LRECL is not defined");
 			return NULL;
 		}	// endif Lrecl
-#else
-		((TDBJSN*)tdbp)->G = g;
-#endif
+
 	} else {
 		if (Zipped)	{
 #if defined(ZIP_SUPPORT)
@@ -903,10 +896,8 @@ int TDBJSN::ReadDB(PGLOBAL g)
 			// Deferred reading failed
 			return rc;
 
-#if USE_G
 		// Recover the memory used for parsing
 		PlugSubSet(G, G->Sarea, G->Sarea_Size);
-#endif
 
 		if ((Row = ParseJson(G, To_Line, strlen(To_Line), &Pretty, &Comma))) {
 			Row = FindRow(g);
@@ -915,9 +906,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
 			M = 1;
 			rc = RC_OK;
 		} else if (Pretty != 1 || strcmp(To_Line, "]")) {
-#if USE_G
 			strcpy(g->Message, G->Message);
-#endif
 			rc = RC_FX;
 		} else
 			rc = RC_EF;
@@ -1030,9 +1019,7 @@ int TDBJSN::WriteDB(PGLOBAL g)
 {
 	int rc = TDBDOS::WriteDB(g);
 
-#if USE_G
 	PlugSubSet(G, G->Sarea, G->Sarea_Size);
-#endif
 	Row->Clear();
 	return rc;
 } // end of WriteDB
@@ -1586,8 +1573,11 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
   for (i = 0; i < ars; i++) {
     jvrp = arp->GetValue(i);
 
-    do {
-      if (n < Nod - 1 && jvrp->GetJson()) {
+		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) do {
+			if (jvrp->IsNull()) {
+				jvrp->Value = AllocateValue(g, GetJsonNull(), TYPE_STRING);
+				jvp = jvrp;
+			} else if (n < Nod - 1 && jvrp->GetJson()) {
         Tjp->NextSame = nextsame;
         jval.SetValue(GetColumnValue(g, jvrp->GetJson(), n + 1));
         jvp = &jval;

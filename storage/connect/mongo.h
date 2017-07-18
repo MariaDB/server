@@ -26,14 +26,42 @@ typedef struct _bncol {
 } BCOL, *PBCOL;
 
 /***********************************************************************/
+/*  Class used to get the columns of a mongo collection.               */
+/***********************************************************************/
+class MGODISC : public BLOCK {
+public:
+	// Constructor
+	MGODISC(PGLOBAL g, int *lg);
+
+	// Methods
+	virtual bool Init(PGLOBAL g) { return false; }
+	virtual void GetDoc(void) {}
+	virtual bool Find(PGLOBAL g) = 0;
+
+	// Functions
+	int  GetColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt);
+	void AddColumn(PGLOBAL g, PCSZ colname, PCSZ fmt, int k);
+
+	// Members
+	BCOL    bcol;
+	PBCOL   bcp, fbcp, pbcp;
+	PMGODEF tdp;
+	PTDB    tmgp;
+	PCSZ    drv;
+	int    *length;
+	int     i, ncol, lvl;
+	bool    all;
+}; // end of MGODISC
+
+/***********************************************************************/
 /*  MongoDB table.                                                     */
 /***********************************************************************/
 class DllExport MGODEF : public EXTDEF {          /* Table description */
-	friend class TDBMGO;
+	friend class TDBCMG;
 	friend class TDBJMG;
 	friend class TDBGOL;
 	friend class TDBJGL;
-	friend class MGOFAM;
+	friend class CMGFAM;
 	friend class MGODISC;
 	friend PQRYRES MGOColumns(PGLOBAL, PCSZ, PCSZ, PTOS, bool);
 public:
