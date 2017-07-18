@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
@@ -3230,10 +3230,8 @@ srv_redo_log_follow_thread(
 
 	} while (srv_shutdown_state < SRV_SHUTDOWN_LAST_PHASE);
 
-	srv_track_changed_pages = FALSE;
 	log_online_read_shutdown();
 	os_event_set(srv_redo_log_thread_finished_event);
-	srv_redo_log_thread_started = FALSE; /* Defensive, not required */
 
 	my_thread_end();
 	os_thread_exit(NULL);
@@ -3412,6 +3410,7 @@ srv_master_thread(
 	ib_uint64_t	oldest_lsn;
 	ib_time_t	last_print_time;
 
+	my_thread_init();
 #ifdef UNIV_DEBUG_THREAD_CREATION
 	fprintf(stderr, "Master thread starts, id %lu\n",
 		os_thread_pf(os_thread_get_curr_id()));
@@ -4120,6 +4119,7 @@ suspend_thread:
 	os_event_wait(slot->event);
 
 	if (srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS) {
+		my_thread_end();
 		os_thread_exit(NULL);
 	}
 
@@ -4145,6 +4145,7 @@ srv_purge_thread(
 	ulint		next_itr_time;
 	ib_int64_t	sig_count;
 
+	my_thread_init();
 	ut_a(srv_n_purge_threads == 1);
 
 #ifdef UNIV_PFS_THREAD
@@ -4252,6 +4253,8 @@ srv_purge_thread(
 	fprintf(stderr, "InnoDB: Purge thread exiting, id %lu\n",
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
+
+	my_thread_end();
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */

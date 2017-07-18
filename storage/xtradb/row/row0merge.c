@@ -802,7 +802,7 @@ row_merge_write(
 /********************************************************************//**
 Read a merge record.
 @return	pointer to next record, or NULL on I/O error or end of list */
-static __attribute__((nonnull))
+static __attribute__((warn_unused_result))
 const byte*
 row_merge_read_rec(
 /*===============*/
@@ -1162,7 +1162,7 @@ row_merge_cmp(
 Reads clustered index of the table and create temporary files
 containing the index entries for the indexes to be built.
 @return	DB_SUCCESS or error */
-static __attribute__((nonnull))
+static __attribute__((warn_unused_result))
 ulint
 row_merge_read_clustered_index(
 /*===========================*/

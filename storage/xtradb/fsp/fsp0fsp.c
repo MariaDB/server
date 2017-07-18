@@ -249,8 +249,7 @@ fsp_fill_free_list(
 					then we do not allocate more extents */
 	ulint		space,		/*!< in: space */
 	fsp_header_t*	header,		/*!< in/out: space header */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-	__attribute__((nonnull));
+	mtr_t*		mtr);		/*!< in/out: mini-transaction */
 /**********************************************************************//**
 Allocates a single free page from a segment. This function implements
 the intelligent allocation strategy which tries to minimize file space
@@ -279,7 +278,7 @@ fseg_alloc_free_page_low(
 				in which the page should be initialized.
 				If init_mtr!=mtr, but the page is already
 				latched in mtr, do not initialize the page. */
-	__attribute__((warn_unused_result, nonnull));
+	__attribute__((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
@@ -1568,7 +1567,7 @@ Allocates a single free page from a space. The page is marked as used.
 @retval block, rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
 (init_mtr == mtr, or the page was not previously freed in mtr)
 @retval block (not allocated or initialized) otherwise */
-static __attribute__((nonnull, warn_unused_result))
+static __attribute__((warn_unused_result))
 buf_block_t*
 fsp_alloc_free_page(
 /*================*/

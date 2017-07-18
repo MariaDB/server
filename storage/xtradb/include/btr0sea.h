@@ -205,14 +205,14 @@ hash_table_t*
 btr_search_get_hash_table(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index */
-	__attribute__((nonnull,pure,warn_unused_result));
+	__attribute__((warn_unused_result));
 
 UNIV_INLINE
 rw_lock_t*
 btr_search_get_latch(
 /*=================*/
 	const dict_index_t*	index)	/*!< in: index */
-	__attribute__((nonnull,pure,warn_unused_result));
+	__attribute__((warn_unused_result));
 
 /*********************************************************************//**
 Returns the AHI partition number corresponding to a given index ID. */
@@ -229,8 +229,7 @@ UNIV_INLINE
 void
 btr_search_index_init(
 /*===============*/
-	dict_index_t*	index)	/*!< in: index */
-	__attribute__((nonnull));
+	dict_index_t*	index);	/*!< in: index */
 
 UNIV_INLINE
 void

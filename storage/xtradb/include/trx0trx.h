@@ -90,7 +90,7 @@ trx_t*
 trx_create(
 /*=======*/
 	sess_t*	sess)	/*!< in: session */
-	__attribute__((nonnull));
+	__attribute__((warn_unused_result));
 /********************************************************************//**
 Creates a transaction object for MySQL.
 @return	own: transaction object */
@@ -119,7 +119,7 @@ void
 trx_free_prepared(
 /*==============*/
 	trx_t*	trx)	/*!< in, own: trx object */
-	UNIV_COLD __attribute__((nonnull));
+	UNIV_COLD;
 /********************************************************************//**
 Frees a transaction object for MySQL. */
 UNIV_INTERN
