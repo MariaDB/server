@@ -1271,9 +1271,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 	kill_zombie_dump_threads(slave_server_id);
       thd->server_id = slave_server_id;
 
-      general_log_print(thd, command, "Log: '%s'  Pos: %ld", packet+10,
-                      (long) pos);
-      mysql_binlog_send(thd, thd->strdup(packet + 10), (my_off_t) pos, flags);
+      const char *name= packet + 10;
+      size_t nlen= strlen(name);
+
+      general_log_print(thd, command, "Log: '%s'  Pos: %lu", name, pos);
+      if (nlen < FN_REFLEN)
+        mysql_binlog_send(thd, thd->strmake(name, nlen), (my_off_t)pos, flags);
       unregister_slave(thd,1,1);
       /*  fake COM_QUIT -- if we get here, the thread needs to terminate */
       error = TRUE;
