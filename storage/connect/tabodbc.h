@@ -71,7 +71,7 @@ class TDBODBC : public TDBEXT {
   virtual PTDB Clone(PTABS t);
   virtual bool SetRecpos(PGLOBAL g, int recpos);
   virtual PCSZ GetFile(PGLOBAL g);
-  virtual void SetFile(PGLOBAL g, PSZ fn);
+  virtual void SetFile(PGLOBAL g, PCSZ fn);
   virtual void ResetSize(void);
   virtual PCSZ GetServer(void) {return "ODBC";}
   virtual int  Indexable(void) {return 2;}
@@ -187,7 +187,6 @@ class XSRCCOL : public ODBCCOL {
   // Methods
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
-//        void Printf(PGLOBAL g, FILE *, uint);
 
  protected:
   // Members

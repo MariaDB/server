@@ -455,7 +455,7 @@ loopStart:
 			if (!*++pat) return TRUE;
 			goto loopStart;
 		default:
-			if (mapCaseTable[(uchar)*s] != mapCaseTable[(uchar)*p])
+			if (mapCaseTable[(uint)*s] != mapCaseTable[(uint)*p])
 				goto starCheck;
 			break;
 		} /* endswitch */

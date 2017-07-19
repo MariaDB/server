@@ -1,3 +1,4 @@
+/* Copyright (C) MariaDB Corporation Ab */
 #include "my_global.h"
 #include <stdlib.h>
 #include <string.h>

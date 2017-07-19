@@ -27,9 +27,11 @@
 #endif
 #define M 7
 
-uint GetJsonGrpSize(void);
-static int IsJson(UDF_ARGS *args, uint i);
-static PSZ MakePSZ(PGLOBAL g, UDF_ARGS *args, int i);
+bool  IsNum(PSZ s);
+char *NextChr(PSZ s, char sep);
+uint  GetJsonGrpSize(void);
+static int   IsJson(UDF_ARGS *args, uint i);
+static PSZ   MakePSZ(PGLOBAL g, UDF_ARGS *args, int i);
 static char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error);
 static char *bin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -111,10 +113,9 @@ my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
 	PJNODE  jnp = &Nodes[i];
 
 	if (*p) {
-		if (p[--n] == ']') {
-			p[n--] = 0;
-			p++;
-		} else {
+		if (p[n - 1] == ']') {
+			p[--n] = 0;
+		} else if (!IsNum(p)) {
 			// Wrong array specification
 			sprintf(g->Message, "Invalid array specification %s", p);
 			return true;
@@ -124,8 +125,7 @@ my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
 		b = true;
 
 	// To check whether a numeric Rank was specified
-	for (int k = 0; dg && p[k]; k++)
-		dg = isdigit(p[k]) > 0;
+	dg = IsNum(p);
 
 	if (!n) {
 		// Default specifications
@@ -160,13 +160,12 @@ my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
 		// Set the Op value;
 		switch (*p) {
 		case '+': jnp->Op = OP_ADD;  break;
-		case '*': jnp->Op = OP_MULT; break;
+		case 'x': jnp->Op = OP_MULT; break;
 		case '>': jnp->Op = OP_MAX;  break;
 		case '<': jnp->Op = OP_MIN;  break;
 		case '!': jnp->Op = OP_SEP;  break; // Average
 		case '#': jnp->Op = OP_NUM;  break;
-		case 'x':
-		case 'X': // Expand this array
+		case '*': // Expand this array
 			strcpy(g->Message, "Expand not supported by this function");
 			return true;
 		default:
@@ -232,9 +231,9 @@ my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
 /*********************************************************************************/
 my_bool JSNX::ParseJpath(PGLOBAL g)
 {
-	char   *p, *p2 = NULL, *pbuf = NULL;
+	char   *p, *p1 = NULL, *p2 = NULL, *pbuf = NULL;
 	int     i;
-	my_bool mul = false;
+	my_bool a, mul = false;
 
 	if (Parsed)
 		return false;                       // Already done
@@ -245,8 +244,12 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 	if (!(pbuf = PlgDBDup(g, Jpath)))
 		return true;
 
-	// The Jpath must be analyzed
-	for (i = 0, p = pbuf; (p = strchr(p, ':')); i++, p++)
+	if (*pbuf == '$') pbuf++;
+	if (*pbuf == '.') pbuf++;
+	if (*pbuf == '[') p1 = pbuf++;
+
+	// Estimate the required number of nodes
+	for (i = 0, p = pbuf; (p = NextChr(p, '.')); i++, p++)
 		Nod++;                         // One path node found
 
 	if (!(Nodes = (PJNODE)PlgDBSubAlloc(g, NULL, (++Nod) * sizeof(JNODE))))
@@ -255,12 +258,28 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 	memset(Nodes, 0, (Nod)* sizeof(JNODE));
 
 	// Analyze the Jpath for this column
-	for (i = 0, p = pbuf; i < Nod; i++, p = (p2 ? p2 + 1 : p + strlen(p))) {
-		if ((p2 = strchr(p, ':')))
-			*p2 = 0;
+	for (i = 0, p = pbuf; p && i < Nod; i++, p = (p2 ? p2 : NULL)) {
+		a = (p1 != NULL);
+		p1 = strchr(p, '[');
+		p2 = strchr(p, '.');
+
+		if (!p2)
+			p2 = p1;
+		else if (p1) {
+			if (p1 < p2)
+				p2 = p1;
+			else if (p1 == p2 + 1)
+				*p2++ = 0;		 // Old syntax .[
+			else
+				p1 = NULL;
+
+		}	// endif p1
+
+		if (p2)
+			*p2++ = 0;
 
 		// Jpath must be explicit
-		if (*p == 0 || *p == '[') {
+		if (a || *p == 0 || *p == '[' || IsNum(p)) {
 			// Analyse intermediate array processing
 			if (SetArrayOptions(g, p, i, Nodes[i-1].Key))
 				return true;
@@ -279,6 +298,7 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 
 	} // endfor i, p
 
+	Nod = i;
 	MulVal = AllocateValue(g, Value);
 	Parsed = true;
 	return false;
@@ -711,6 +731,7 @@ PSZ JSNX::Locate(PGLOBAL g, PJSON jsp, PJVAL jvp, int k)
 
 	// Write to the path string
 	Jp = new(g) JOUTSTR(g);
+	Jp->WriteChr('$');
 	Jvalp = jvp;
 	K = k;
 
@@ -769,7 +790,12 @@ my_bool JSNX::LocateArray(PJAR jarp)
 /*********************************************************************************/
 my_bool JSNX::LocateObject(PJOB jobp)
 {
-	size_t m = Jp->N;
+	size_t m;
+
+	if (Jp->WriteChr('.'))
+		return true;
+
+	m = Jp->N;
 
 	for (PJPR pair = jobp->First; pair && !Found; pair = pair->Next) {
 		Jp->N = m;
@@ -790,19 +816,12 @@ my_bool JSNX::LocateObject(PJOB jobp)
 /*********************************************************************************/
 my_bool JSNX::LocateValue(PJVAL jvp)
 {
-	if (CompareTree(Jvalp, jvp)) {
+	if (CompareTree(Jvalp, jvp))
 		Found = (--K == 0);
-	} else if (jvp->GetArray()) {
-		if (Jp->WriteChr(':'))
-			return true;
-
+	else if (jvp->GetArray())
 		return LocateArray(jvp->GetArray());
-	} else if (jvp->GetObject()) {
-		if (Jp->WriteChr(':'))
-			return true;
-
+	else if (jvp->GetObject())
 		return LocateObject(jvp->GetObject());
-	} // endif's
 
 	return false;
 } // end of LocateValue
@@ -848,6 +867,7 @@ PSZ JSNX::LocateAll(PGLOBAL g, PJSON jsp, PJVAL jvp, int mx)
 		if (!g->Message[0])
 			strcpy(g->Message, "Invalid json tree");
 
+		return NULL;
 	} else {
 		if (Jp->N > 1)
 			Jp->N--;
@@ -858,7 +878,6 @@ PSZ JSNX::LocateAll(PGLOBAL g, PJSON jsp, PJVAL jvp, int mx)
 		return Jp->Strp;
 	} // endif's
 
-	return NULL;
 } // end of LocateAll
 
 /*********************************************************************************/
@@ -964,26 +983,26 @@ my_bool JSNX::CompareTree(PJSON jp1, PJSON jp2)
 /*********************************************************************************/
 my_bool JSNX::AddPath(void)
 {
-	char    s[16];
-	my_bool b = false;
+	char s[16];
 
-	if (Jp->WriteChr('"'))
+	if (Jp->WriteStr("\"$"))
 		return true;
 
 	for (int i = 0; i <= I; i++) {
-		if (b) {
-			if (Jp->WriteChr(':')) return true;
-		} else
-			b = true;
-
 		if (Jpnp[i].Type == TYPE_JAR) {
 			sprintf(s, "[%d]", Jpnp[i].N + B);
 
 			if (Jp->WriteStr(s))
 				return true;
 
-		} else if (Jp->WriteStr(Jpnp[i].Key))
-			return true;
+		} else {
+			if (Jp->WriteChr('.'))
+				return true;
+
+			if (Jp->WriteStr(Jpnp[i].Key))
+				return true;
+
+		}	// endif's
 
 	}	// endfor i
 
@@ -1379,6 +1398,7 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
       memlen += (k + sizeof(JOBJECT) + sizeof(JPAIR));
     } else
       memlen += sizeof(JARRAY);
+
 		switch (args->arg_type[i]) {
 			case STRING_RESULT:
 				if (n == 2 && args->args[i]) {
@@ -1757,16 +1777,16 @@ void jsonvalue_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 /*  Make a Json array containing all the parameters.                             */
 /*********************************************************************************/
-my_bool json_array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_make_array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   unsigned long reslen, memlen;
 
   CalcLen(args, false, reslen, memlen);
   return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of json_array_init
+} // end of json_make_array_init
 
-char *json_array(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                 unsigned long *res_length, char *, char *)
+char *json_make_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
+                      unsigned long *res_length, char *, char *)
 {
   char   *str;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -1793,12 +1813,12 @@ char *json_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = strlen(str);
   return str;
-} // end of json_array
+} // end of json_make_array
 
 void json_array_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of json_array_deinit
+} // end of json_make_array_deinit
 
 /*********************************************************************************/
 /*  Add one or several values to a Json array.                                   */
@@ -2081,16 +2101,16 @@ void json_array_delete_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 /*  Make a Json Object containing all the parameters.                            */
 /*********************************************************************************/
-my_bool json_object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_make_object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   unsigned long reslen, memlen;
 
   CalcLen(args, true, reslen, memlen);
   return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of json_object_init
+} // end of json_make_object_init
 
-char *json_object(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                  unsigned long *res_length, char *, char *)
+char *json_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
+                       unsigned long *res_length, char *, char *)
 {
   char   *str = NULL;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2115,12 +2135,12 @@ char *json_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = strlen(str);
   return str;
-} // end of json_object
+} // end of json_make_object
 
-void json_object_deinit(UDF_INIT* initid)
+void json_make_object_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of json_object_deinit
+} // end of json_make_object_deinit
 
 /*********************************************************************************/
 /*  Make a Json Object containing all not null parameters.                       */
@@ -3623,7 +3643,7 @@ void jsoncontains_path_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 /*  This function is used by the json_set/insert/update_item functions.          */
 /*********************************************************************************/
-static char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *p, *path, *str = NULL;
@@ -4891,7 +4911,7 @@ void jbin_item_merge_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 /*  This function is used by the jbin_set/insert/update functions.               */
 /*********************************************************************************/
-static char *bin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *bin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *p, *path;
@@ -5306,4 +5326,3 @@ long long countin(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	free(str2);
 	return n;
 } // end of countin
-

@@ -1,3 +1,4 @@
+/* Copyright (C) MariaDB Corporation Ab */
 #ifndef __OSUTIL_H__
 #define __OSUTIL_H__
 

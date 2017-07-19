@@ -131,6 +131,8 @@ scripts/wsrep_sst_xtrabackup
 scripts/wsrep_sst_xtrabackup-v2
 scripts/maria_add_gis_sp.sql
 scripts/maria_add_gis_sp_bootstrap.sql
+scripts/galera_new_cluster
+scripts/galera_recovery
 sql-bench/bench-count-distinct
 sql-bench/bench-init.pl
 sql-bench/compare-results
@@ -224,6 +226,7 @@ support-files/config.medium.ini
 support-files/config.small.ini
 support-files/mariadb.pc
 support-files/mariadb@.service
+support-files/mariadb.service
 support-files/my-huge.cnf
 support-files/my-innodb-heavy-4G.cnf
 support-files/my-large.cnf
@@ -237,6 +240,7 @@ support-files/mysqld_multi.server
 support-files/wsrep.cnf
 support-files/wsrep_notify
 support-files/policy/selinux/mysqld-safe.pp
+support-files/mariadb.pp
 tags
 tests/async_queries
 tests/bug25714
