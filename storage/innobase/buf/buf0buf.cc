@@ -2050,7 +2050,10 @@ buf_pool_init(
 {
 	ulint		i;
 	ulint	size = total_size / n_instances;
+
+#ifdef HAVE_LIBNUMA
 	struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
+#endif // HAVE_LIBNUMA
 
 	ut_ad(n_instances > 0);
 	ut_ad(n_instances <= MAX_BUFFER_POOLS);
