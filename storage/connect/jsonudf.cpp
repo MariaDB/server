@@ -328,6 +328,8 @@ PVAL JSNX::MakeJson(PGLOBAL g, PJSON jsp)
 void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 {
 	if (val) {
+		vp->SetNull(false);
+
 		if (Jb) {
 			vp->SetValue_psz(Serialize(g, val->GetJsp(), NULL, 0));
 		} else switch (val->GetValType()) {

@@ -1468,7 +1468,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     case MYSQL_TYPE_VARCHAR:
     case MYSQL_TYPE_VAR_STRING:
       pcf->Flags |= U_VAR;
-      /* no break */
+			// fall through
     default:
       pcf->Type= MYSQLtoPLG(fp->type(), &v);
       break;
@@ -2587,7 +2587,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
       case Item_func::LE_FUNC: vop= OP_LE;  break;
       case Item_func::GE_FUNC: vop= OP_GE;  break;
       case Item_func::GT_FUNC: vop= OP_GT;  break;
-      case Item_func::IN_FUNC: vop= OP_IN;
+      case Item_func::IN_FUNC: vop= OP_IN;	/* fall through */
       case Item_func::BETWEEN:
         ismul= true;
         neg= ((Item_func_opt_neg *)condf)->negated;
@@ -2842,9 +2842,10 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 			case Item_func::GT_FUNC:     vop= OP_GT;   break;
 			case Item_func::LIKE_FUNC:   vop= OP_LIKE; break;
 			case Item_func::ISNOTNULL_FUNC:
-				neg = true;
+				neg = true;	
+				// fall through
 			case Item_func::ISNULL_FUNC: vop= OP_NULL; break;
-			case Item_func::IN_FUNC:     vop= OP_IN;
+			case Item_func::IN_FUNC:     vop= OP_IN; /* fall through */
       case Item_func::BETWEEN:
         ismul= true;
         neg= ((Item_func_opt_neg *)condf)->negated;
@@ -2971,6 +2972,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                 break;
                 } // endif ODBC
 
+							// fall through
             case MYSQL_TYPE_DATE:
               if (tty == TYPE_AM_ODBC) {
                 strcat(s, "{d '");
@@ -4383,7 +4385,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
   if (newmode == MODE_WRITE) {
     switch (thd_sql_command(thd)) {
       case SQLCOM_LOCK_TABLES:
-        locked= 2;
+        locked= 2; // fall through
       case SQLCOM_CREATE_TABLE:
       case SQLCOM_INSERT:
       case SQLCOM_LOAD:
@@ -6197,6 +6199,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         } // endif tabname
 
+				// fall through
       case TAB_MYSQL:
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
         if (!part_info)

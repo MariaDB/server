@@ -1406,6 +1406,8 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
 void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
   {
   if (val) {
+		vp->SetNull(false);
+
     switch (val->GetValType()) {
       case TYPE_STRG:
       case TYPE_INTG:
