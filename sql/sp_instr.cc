@@ -958,8 +958,16 @@ bool sp_instr_stmt::exec_core(THD *thd, uint *nextp)
 
   bool rc= mysql_execute_command(thd);
 #ifdef WITH_WSREP
-  (void) RUN_HOOK(transaction, after_command,
-                  (thd, !thd->in_active_multi_stmt_transaction()));
+  if ((thd->is_fatal_error || thd->killed_errno()) &&
+      (thd->wsrep_conflict_state_unsafe() == NO_CONFLICT))
+  {
+    WSREP_DEBUG("Skipping after_command hook for killed SP");
+  }
+  else
+  {
+    (void) RUN_HOOK(transaction, after_command,
+                    (thd, !thd->in_active_multi_stmt_transaction()));
+  }
 #endif /* WITH_WSREP */
 
   thd->lex->set_sp_current_parsing_ctx(NULL);
