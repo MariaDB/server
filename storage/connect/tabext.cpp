@@ -298,8 +298,7 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 			PCSZ  ph = ((EXTDEF*)To_Def)->Phpos;
 
 			if (!ph)
-				ph = (strstr(catp + 2, "%s")) ? const_cast<char*>("WH") :
-                                                const_cast<char*>("W");
+				ph = (strstr(catp + 2, "%s")) ? "WH" : "W";
 
 			if (stricmp(ph, "H")) {
 				fil1 = (To_CondFil && *To_CondFil->Body)

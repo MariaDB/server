@@ -83,16 +83,16 @@ DROP TABLE t1,t2,t3,t4;
 --echo #
 CREATE TABLE t1 (
 _id INT(2) NOT NULL,
-name_first CHAR(9) NOT NULL FIELD_FORMAT='name:first',
-name_aka CHAR(4) DEFAULT NULL FIELD_FORMAT='name:aka',
-name_last CHAR(10) NOT NULL FIELD_FORMAT='name:last',
+name_first CHAR(9) NOT NULL FIELD_FORMAT='$.name.first',
+name_aka CHAR(4) DEFAULT NULL FIELD_FORMAT='$.name.aka',
+name_last CHAR(10) NOT NULL FIELD_FORMAT='$.name.last',
 title CHAR(12) DEFAULT NULL,
 birth CHAR(20) DEFAULT NULL,
 death CHAR(20) DEFAULT NULL,
-contribs CHAR(7) NOT NULL FIELD_FORMAT='contribs:',
-awards_award CHAR(42) DEFAULT NULL FIELD_FORMAT='awards::award',
-awards_year CHAR(4) DEFAULT NULL FIELD_FORMAT='awards::year',
-awards_by CHAR(38) DEFAULT NULL FIELD_FORMAT='awards::by'
+contribs CHAR(7) NOT NULL FIELD_FORMAT='$.contribs',
+awards_award CHAR(42) DEFAULT NULL FIELD_FORMAT='$.awards.award',
+awards_year CHAR(4) DEFAULT NULL FIELD_FORMAT='$.awards.year',
+awards_by CHAR(38) DEFAULT NULL FIELD_FORMAT='$.awards.by'
 ) ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='bios.zip' OPTION_LIST='ENTRY=bios.json,LOAD=bios.json' ZIPPED=YES;
 SELECT * FROM t1;
 
@@ -104,16 +104,16 @@ SELECT * FROM t2;
 
 CREATE TABLE t3 (
 _id INT(2) NOT NULL,
-firstname CHAR(9) NOT NULL FIELD_FORMAT='name:first',
-aka CHAR(4) DEFAULT NULL FIELD_FORMAT='name:aka',
-lastname CHAR(10) NOT NULL FIELD_FORMAT='name:last',
+firstname CHAR(9) NOT NULL FIELD_FORMAT='$.name.first',
+aka CHAR(4) DEFAULT NULL FIELD_FORMAT='$.name.aka',
+lastname CHAR(10) NOT NULL FIELD_FORMAT='$.name.last',
 title CHAR(12) DEFAULT NULL,
 birth date DEFAULT NULL date_format="YYYY-DD-MM'T'hh:mm:ss'Z'",
 death date DEFAULT NULL date_format="YYYY-DD-MM'T'hh:mm:ss'Z'",
-contribs CHAR(64) NOT NULL FIELD_FORMAT='contribs:[", "]',
-award CHAR(42) DEFAULT NULL FIELD_FORMAT='awards:[x]:award',
-year CHAR(4) DEFAULT NULL FIELD_FORMAT='awards:[x]:year',
-`by` CHAR(38) DEFAULT NULL FIELD_FORMAT='awards:[x]:by'
+contribs CHAR(64) NOT NULL FIELD_FORMAT='$.contribs.[", "]',
+award CHAR(42) DEFAULT NULL FIELD_FORMAT='$.awards[*].award',
+year CHAR(4) DEFAULT NULL FIELD_FORMAT='$.awards[*].year',
+`by` CHAR(38) DEFAULT NULL FIELD_FORMAT='$.awards[*].by'
 ) ENGINE=CONNECT TABLE_TYPE='json' FILE_NAME='bios.zip' ZIPPED=YES;
 SELECT * FROM t3 WHERE _id = 1;
 

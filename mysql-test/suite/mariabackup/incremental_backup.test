@@ -14,7 +14,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir
 --enable_result_log
 INSERT INTO t VALUES(2);
 SELECT * FROM t;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$incremental_dir --incremental-basedir=$basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --ftwrl-wait-timeout=5 --ftwrl-wait-threshold=300 --ftwrl-wait-query-type=all --target-dir=$incremental_dir --incremental-basedir=$basedir;
 
 --disable_result_log
 echo # Prepare full backup, apply incremental one;

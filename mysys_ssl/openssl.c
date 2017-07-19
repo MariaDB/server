@@ -34,7 +34,8 @@ int check_openssl_compatibility()
 
 static uint testing, alloc_size, alloc_count;
 
-static void *coc_malloc(size_t size, const char *, int)
+static void *coc_malloc(size_t size, const char *f __attribute__((unused)),
+                                             int l __attribute__((unused)))
 {
   if (unlikely(testing))
   {

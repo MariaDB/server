@@ -188,7 +188,7 @@ void XXBASE::Printf(PGLOBAL, FILE *f, uint n)
   memset(m, ' ', n);                    // Make margin string
   m[n] = '\0';
   fprintf(f, "%sXINDEX: Tbxp=%p Num=%d\n", m, Tbxp, Num_K);
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of XINDEX contents.                             */
@@ -197,7 +197,7 @@ void XXBASE::Prints(PGLOBAL, char *ps, uint z)
   {
   *ps = '\0';
   strncat(ps, "Xindex", z);
-  } // end of Print
+  } // end of Prints
 
 /* -------------------------- XINDEX Class --------------------------- */
 
@@ -3008,7 +3008,8 @@ KXYCOL::KXYCOL(PKXBASE kp) : To_Keys(Keys.Memp),
 /***********************************************************************/
 bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   {
-  int len = colp->GetLength(), prec = colp->GetScale();
+  int  len = colp->GetLength(), prec = colp->GetScale();
+	bool un = colp->IsUnsigned();
 
   // Currently no indexing on NULL columns
   if (colp->IsNullable() && kln) {
@@ -3028,7 +3029,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   // Allocate the Value object used when moving items
   Type = colp->GetResultType();
 
-  if (!(Valp = AllocateValue(g, Type, len, prec, colp->IsUnsigned())))
+  if (!(Valp = AllocateValue(g, Type, len, prec, un)))
     return true;
 
   Klen = Valp->GetClen();
@@ -3044,7 +3045,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   // Currently we set it to true to be compatible with QRY blocks,
   // and the one before last is to enable length/type checking, set to
   // true if not a prefix key.
-  Kblp = AllocValBlock(g, To_Keys, Type, n, len, prec, !Prefix, true);
+  Kblp = AllocValBlock(g, To_Keys, Type, n, len, prec, !Prefix, true, un);
   Asc = sm;                    // Sort mode: Asc=true  Desc=false
   Ndf = n;
 
@@ -3064,7 +3065,8 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
 /***********************************************************************/
 BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
   {
-  int len = colp->GetLength(), prec = colp->GetScale();
+  int  len = colp->GetLength(), prec = colp->GetScale();
+	bool un = colp->IsUnsigned();
 
   if (n[3] && colp->GetLength() > n[3]
            && colp->GetResultType() == TYPE_STRING) {
@@ -3079,7 +3081,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
          this, colp, Type, n[0], len, m);
 
   // Allocate the Value object used when moving items
-  Valp = AllocateValue(g, Type, len, prec, colp->IsUnsigned());
+  Valp = AllocateValue(g, Type, len, prec, un);
   Klen = Valp->GetClen();
 
   if (n[2]) {
@@ -3088,7 +3090,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
     Bkeys.Sub = true;
 
     // Allocate the Valblk containing initial block key values
-    Blkp = AllocValBlock(g, To_Bkeys, Type, n[2], len, prec, true, true);
+    Blkp = AllocValBlock(g, To_Bkeys, Type, n[2], len, prec, true, true, un);
     } // endif nb
 
   Keys.Size = n[0] * Klen;
@@ -3099,7 +3101,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
   // by blanks (if true) or keep the zero ending char (if false).
   // Currently we set it to true to be compatible with QRY blocks,
   // and last one to enable type checking (no conversion).
-  Kblp = AllocValBlock(g, To_Keys, Type, n[0], len, prec, !Prefix, true);
+  Kblp = AllocValBlock(g, To_Keys, Type, n[0], len, prec, !Prefix, true, un);
 
   if (n[1]) {
     Koff.Size = n[1] * sizeof(int);

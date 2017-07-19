@@ -473,7 +473,7 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
       tp = g->Message;
     else if (!(tp = new char[strlen(pat) + strlen(strg) + 2])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
-			throw OP_LIKE;
+			throw (int)OP_LIKE;
 		} /* endif tp */
     
     sp = tp + strlen(pat) + 1;
@@ -484,7 +484,7 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
       tp = g->Message;            /* Use this as temporary work space. */
     else if (!(tp = new char[strlen(pat) + 1])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
-			throw OP_LIKE;
+			throw (int)OP_LIKE;
 		} /* endif tp */
     
     strcpy(tp, pat);                  /* Make a copy to be worked into */
