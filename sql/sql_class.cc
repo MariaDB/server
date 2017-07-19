@@ -556,6 +556,8 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   char header[256];
   int len;
 
+  mysql_mutex_lock(&LOCK_thread_count);
+
   /*
     The pointers thd->query and thd->proc_info might change since they are
     being modified concurrently. This is acceptable for proc_info since its
@@ -611,6 +613,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
+  mysql_mutex_unlock(&LOCK_thread_count);
 
   if (str.c_ptr_safe() == buffer)
     return buffer;
