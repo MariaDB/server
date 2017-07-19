@@ -1246,7 +1246,7 @@ static int wsrep_after_command(Trans_param *param)
       {
         should_retry= !(
           thd->wsrep_is_streaming() || // SR transactions do not retry
-          thd->sp_runtime_ctx          // SP code not patched to handle retry
+          thd->spcont                  // SP code not patched to handle retry
           );
         wsrep_client_rollback(thd, false);
       }
