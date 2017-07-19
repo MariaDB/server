@@ -9405,8 +9405,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                                           sizeof(xev->xid));
           if (!x || my_hash_insert(&xids, x))
             goto err2;
-          break;
         }
+        break;
       }
       case BINLOG_CHECKPOINT_EVENT:
         if (first_round && do_xa)
