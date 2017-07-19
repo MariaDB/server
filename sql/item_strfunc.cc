@@ -1343,6 +1343,13 @@ void Item_func_replace::fix_length_and_dec()
 
 
 /*********************************************************************/
+bool Item_func_regexp_replace::fix_fields(THD *thd, Item **ref)
+{
+  re.set_recursion_limit(thd);
+  return Item_str_func::fix_fields(thd, ref);
+}
+
+
 void Item_func_regexp_replace::fix_length_and_dec()
 {
   if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 3))
@@ -1475,6 +1482,13 @@ String *Item_func_regexp_replace::val_str(String *str)
 err:
   null_value= true;
   return (String *) 0;
+}
+
+
+bool Item_func_regexp_substr::fix_fields(THD *thd, Item **ref)
+{
+  re.set_recursion_limit(thd);
+  return Item_str_func::fix_fields(thd, ref);
 }
 
 

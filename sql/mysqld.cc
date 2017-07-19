@@ -3451,7 +3451,6 @@ sizeof(load_default_groups)/sizeof(load_default_groups[0]);
 #endif
 
 
-#ifndef EMBEDDED_LIBRARY
 /**
   This function is used to check for stack overrun for pathological
   cases of  regular expressions and 'like' expressions.
@@ -3480,8 +3479,6 @@ check_enough_stack_size(int recurse_level)
     return 0;
   return check_enough_stack_size_slow();
 }
-#endif
-
 
 
 /*
@@ -3503,11 +3500,12 @@ static void init_pcre()
 {
   pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
   pcre_free= pcre_stack_free= my_str_free_mysqld;
-#ifndef EMBEDDED_LIBRARY
   pcre_stack_guard= check_enough_stack_size_slow;
   /* See http://pcre.org/original/doc/html/pcrestack.html */
-  my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0) + 16;
-#endif
+  my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0);
+  // pcre can underestimate its stack usage. Use a safe value, as in the manual
+  set_if_bigger(my_pcre_frame_size, 500);
+  my_pcre_frame_size += 16; // Again, safety margin, see the manual
 }
 
 
