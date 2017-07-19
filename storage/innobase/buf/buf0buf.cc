@@ -2666,6 +2666,10 @@ buf_pool_resize()
 	ulint		new_instance_size;
 	bool		warning = false;
 
+#ifdef HAVE_LIBNUMA
+	struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
+#endif // HAVE_LIBNUMA
+
 	ut_ad(!buf_pool_resizing);
 	ut_ad(!buf_pool_withdrawing);
 	ut_ad(srv_buf_pool_chunk_unit > 0);
@@ -2688,10 +2692,25 @@ buf_pool_resize()
 		ut_ad(UT_LIST_GET_LEN(buf_pool->withdraw) == 0);
 		ut_ad(buf_pool->flush_rbt == NULL);
 
+#ifdef HAVE_LIBNUMA
+		if (srv_numa_enable) {
+			ulint new_curr_size = ((double) srv_size_of_numa_node[i] / srv_total_nodes_size) * srv_buf_pool_size;
+			new_curr_size /= UNIV_PAGE_SIZE;
+
+			buf_pool->curr_size = new_curr_size;
+			buf_pool->n_chunks_new = new_curr_size * UNIV_PAGE_SIZE
+				/ srv_buf_pool_chunk_unit;
+		} else {
+			buf_pool->curr_size = new_instance_size;
+			buf_pool->n_chunks_new = new_instance_size * UNIV_PAGE_SIZE
+				/ srv_buf_pool_chunk_unit;
+		}
+#else
 		buf_pool->curr_size = new_instance_size;
 
 		buf_pool->n_chunks_new = new_instance_size * UNIV_PAGE_SIZE
 			/ srv_buf_pool_chunk_unit;
+#endif // HAVE_LIBNUMA
 
 		buf_pool_mutex_exit(buf_pool);
 	}
@@ -2863,6 +2882,14 @@ withdraw_retry:
 		buf_pool_t*	buf_pool = buf_pool_from_array(i);
 		buf_chunk_t*	chunk;
 		buf_chunk_t*	echunk;
+
+#ifdef HAVE_LIBNUMA
+		if (srv_numa_enable) {
+			numa_bitmask_clearall(node_mask);
+			numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
+		}
+		SET_NUMA_T(node_mask);
+#endif //HAVE_LIBNUMA
 
 		buf_resize_status("buffer pool %lu :"
 			" resizing with chunks %lu to %lu.",
@@ -3043,6 +3070,14 @@ calc_buf_pool_size:
 
 		for (ulint i = 0; i < srv_buf_pool_instances; ++i) {
 			buf_pool_t*	buf_pool = buf_pool_from_array(i);
+
+#ifdef HAVE_LIBNUMA
+			if (srv_numa_enable) {
+				numa_bitmask_clearall(node_mask);
+				numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
+			}
+			SET_NUMA_T(node_mask);
+#endif //HAVE_LIBNUMA
 
 			buf_pool_resize_hash(buf_pool);
 
