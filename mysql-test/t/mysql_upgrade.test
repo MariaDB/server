@@ -1,6 +1,7 @@
 -- source include/mysql_upgrade_preparation.inc
 -- source include/have_working_dns.inc
 -- source include/have_innodb.inc
+-- source include/have_partition.inc
 
 #
 # Basic test that we can run mysql_upgrde and that it finds the
@@ -166,4 +167,26 @@ SELECT grantor FROM mysql.tables_priv WHERE db = 'mysql' AND table_name = 'user'
 DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
 DROP PROCEDURE test.pr;
 
---echo End of tests
+#
+# MDEV-13274 mysql_upgrade fails if dbname+tablename+partioname > 64 chars
+#
+use test;
+alter table mysql.innodb_table_stats modify last_update int not null;
+
+create table extralongname_extralongname_extralongname_extralongname_ext (
+  id int(10) unsigned not null,
+  created_date date not null,
+  created timestamp not null,
+  primary key (created,id,created_date)
+) engine=innodb stats_persistent=1 default charset=latin1
+  partition by range (year(created_date))
+  subpartition by hash (month(created_date))
+  subpartitions 2 (
+    partition p2007 values less than (2008),
+    partition p2008 values less than (2009)
+  );
+--exec $MYSQL_UPGRADE --skip-verbose --force 2>&1
+select length(table_name) from mysql.innodb_table_stats;
+drop table extralongname_extralongname_extralongname_extralongname_ext;
+
+--echo End of 10.0 tests

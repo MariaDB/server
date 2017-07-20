@@ -667,6 +667,15 @@ DROP PROCEDURE mysql.count_duplicate_host_names;
 # Convering the host name to lower case for existing users
 UPDATE user SET host=LOWER( host ) WHERE LOWER( host ) <> host;
 
+# fix bad data when upgrading from unfixed InnoDB (MDEV-13360)
+set @str="delete from innodb_index_stats where length(table_name) > 64";
+set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
+prepare stmt from @str;
+execute stmt;
+set @str=replace(@str, "innodb_index_stats", "innodb_table_stats");
+prepare stmt from @str;
+execute stmt;
+
 # update timestamp fields in the innodb stat tables
 set @str="alter table mysql.innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp";
 set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
