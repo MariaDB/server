@@ -6003,14 +6003,12 @@ report_error:
 	if (!error_result
 	    && wsrep_on(user_thd)
 	    && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE
-	    && !wsrep_consistency_check(user_thd))
+	    && !wsrep_consistency_check(user_thd)
 	    && (sql_command != SQLCOM_CREATE_TABLE)
 	    && (sql_command != SQLCOM_LOAD ||
 		thd_binlog_format(user_thd) == BINLOG_FORMAT_ROW)) {
 
-	{
-		if (wsrep_append_keys(user_thd, false, record, NULL))
-		{
+		if (wsrep_append_keys(user_thd, false, record, NULL)) {
 			DBUG_PRINT("wsrep", ("row key failed"));
 			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
@@ -13028,16 +13026,15 @@ static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid)
 	return 0;
 }
 
-static void
-wsrep_fake_trx_id(
-/*==================*/
+static void wsrep_fake_trx_id(
 	handlerton	*hton,
 	THD		*thd)	/*!< in: user thread handle */
 {
 	mutex_enter(&kernel_mutex);
 	trx_id_t trx_id = trx_sys_get_new_trx_id();
 	mutex_exit(&kernel_mutex);
-	WSREP_DEBUG("innodb fake trx id: %lu thd: %s", trx_id, wsrep_thd_query(thd));
+	WSREP_DEBUG("innodb fake trx id: %llu thd: %s",
+		trx_id, wsrep_thd_query(thd));
 
 	(void *)wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd), trx_id);
 }
