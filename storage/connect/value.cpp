@@ -665,7 +665,7 @@ bool TYPVAL<TYPE>::SetValue_pval(PVAL valp, bool chktype)
     if (chktype && Type != valp->GetType())
       return true;
 
-    if (!(Null = valp->IsNull() && Nullable))
+    if (!(Null = (valp->IsNull() && Nullable)))
       Tval = GetTypedValue(valp);
     else
       Reset();
