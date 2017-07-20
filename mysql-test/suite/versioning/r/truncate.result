@@ -150,7 +150,9 @@ a
 select * from t for system_time before timestamp @ts1;
 a
 1
-select * from t for system_time before transaction 2000;
+insert into t values (33);
+select max(sys_trx_start) from t into @tx;
+select * from t for system_time before transaction @tx;
 a
 1
 2
@@ -160,10 +162,12 @@ a
 11
 22
 2
+33
 truncate t for system_time before timestamp now(6);
 select * from t for system_time all;
 a
 11
 22
+33
 drop table t;
 drop procedure truncate_history_of_t;
