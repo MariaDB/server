@@ -121,7 +121,7 @@
 #define OPTION_AUTOCOMMIT       (1ULL << 8)    // THD, user
 #define OPTION_BIG_SELECTS      (1ULL << 9)     // THD, user
 #define OPTION_LOG_OFF          (1ULL << 10)    // THD, user
-#define OPTION_QUOTE_SHOW_CREATE (1ULL << 11)   // THD, user, unused
+#define OPTION_QUOTE_SHOW_CREATE (1ULL << 11)   // THD, user
 #define TMP_TABLE_ALL_COLUMNS   (1ULL << 12)    // SELECT, intern
 #define OPTION_WARNINGS         (1ULL << 13)    // THD, user
 #define OPTION_AUTO_IS_NULL     (1ULL << 14)    // THD, user, binlog

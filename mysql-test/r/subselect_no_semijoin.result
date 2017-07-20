@@ -7111,5 +7111,35 @@ SELECT * FROM t1 WHERE f2 <= SOME ( SELECT f1 FROM t1 );
 f1	f2
 foo	bar
 DROP TABLE t1;
+#
+# MDEV-10146: Wrong result (or questionable result and behavior)
+# with aggregate function in uncorrelated SELECT subquery
+#
+CREATE TABLE t1 (f1 INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (f2 int);
+INSERT INTO t2 VALUES (3);
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+( SELECT MAX(f1) FROM t2 )
+2
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
+( SELECT MAX(f1) FROM t2 )
+2
+INSERT INTO t2 VALUES (4);
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
+ERROR 21000: Subquery returns more than 1 row
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+ERROR 21000: Subquery returns more than 1 row
+drop view v1;
+drop table t1,t2;
+CREATE TABLE t1 (f1 INT, KEY(f1)) ENGINE=MyISAM;
+INSERT t1 VALUES (4),(8);
+CREATE TABLE t2 (f2 INT, KEY(f2)) ENGINE=MyISAM;
+INSERT t2 VALUES (6),(9);
+SELECT (SELECT MAX(sq.f2) FROM t1) FROM (SELECT * FROM t2) AS sq WHERE f2 = 2;
+(SELECT MAX(sq.f2) FROM t1)
+NULL
+drop table t1, t2;
 set @optimizer_switch_for_subselect_test=null;
 set @join_cache_level_for_subselect_test=NULL;

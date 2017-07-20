@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -421,9 +422,8 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 #define SIGNAL_HANDLER_RESET_ON_DELIVERY
 #endif
 
-#ifndef STDERR_FILENO
-#define STDERR_FILENO fileno(stderr)
-#endif
+/* don't assume that STDERR_FILENO is 2, mysqld can freopen */
+#undef STDERR_FILENO
 
 /*
   Deprecated workaround for false-positive uninitialized variables

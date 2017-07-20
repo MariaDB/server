@@ -744,7 +744,7 @@ void my_safe_print_str(const char *val, int len)
 
 size_t my_write_stderr(const void *buf, size_t count)
 {
-  return (size_t) write(STDERR_FILENO, buf, count);
+  return (size_t) write(fileno(stderr), buf, count);
 }
 
 

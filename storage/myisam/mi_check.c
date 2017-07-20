@@ -2676,6 +2676,8 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   */
   DBUG_PRINT("info", ("is quick repair: %d", rep_quick));
   bzero((char*)&sort_info,sizeof(sort_info));
+  if (!rep_quick)
+    my_b_clear(&new_data_cache);
   /* Initialize pthread structures before goto err. */
   mysql_mutex_init(mi_key_mutex_MI_SORT_INFO_mutex,
                    &sort_info.mutex, MY_MUTEX_INIT_FAST);
@@ -3050,7 +3052,7 @@ err:
     already or they were not yet started (if the error happend before
     creating the threads).
   */
-  if (!rep_quick)
+  if (!rep_quick && my_b_inited(&new_data_cache))
     (void) end_io_cache(&new_data_cache);
   if (!got_error)
   {

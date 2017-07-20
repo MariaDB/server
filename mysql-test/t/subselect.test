@@ -5998,3 +5998,38 @@ INSERT INTO t1 VALUES ('foo','bar');
 SELECT * FROM t1 WHERE f2 >= SOME ( SELECT f1 FROM t1 );
 SELECT * FROM t1 WHERE f2 <= SOME ( SELECT f1 FROM t1 );
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10146: Wrong result (or questionable result and behavior)
+--echo # with aggregate function in uncorrelated SELECT subquery
+--echo #
+CREATE TABLE t1 (f1 INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (f2 int);
+
+INSERT INTO t2 VALUES (3);
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
+
+INSERT INTO t2 VALUES (4);
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM v1;
+--error ER_SUBQUERY_NO_1_ROW
+SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
+
+drop view v1;
+drop table t1,t2;
+
+#
+# MDEV-7828 Assertion `key_read == 0' failed in TABLE::enable_keyread with SELECT SQ and WHERE SQ
+#
+CREATE TABLE t1 (f1 INT, KEY(f1)) ENGINE=MyISAM;
+INSERT t1 VALUES (4),(8);
+CREATE TABLE t2 (f2 INT, KEY(f2)) ENGINE=MyISAM;
+INSERT t2 VALUES (6),(9);
+SELECT (SELECT MAX(sq.f2) FROM t1) FROM (SELECT * FROM t2) AS sq WHERE f2 = 2;
+drop table t1, t2;

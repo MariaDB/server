@@ -97,3 +97,9 @@ set optimizer_switch= @tmp_subselect_nulls;
 
 drop table x1;
 drop table x2;
+
+#
+# MDEV-7339 Server crashes in Item_func_trig_cond::val_int
+#
+select (select 1, 2) in (select 3, 4);
+select (select NULL, NULL) in (select 3, 4);

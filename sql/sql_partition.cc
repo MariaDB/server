@@ -1913,6 +1913,22 @@ static int add_subpartition_by(File fptr)
   return err + add_partition_by(fptr);
 }
 
+static int add_name_string(File fptr, const char *name)
+{
+  int err;
+  String name_string("", 0, system_charset_info);
+  THD *thd= current_thd;
+  ulonglong save_sql_mode= thd->variables.sql_mode;
+  thd->variables.sql_mode&= ~MODE_ANSI_QUOTES;
+  ulonglong save_options= thd->variables.option_bits;
+  thd->variables.option_bits&= ~OPTION_QUOTE_SHOW_CREATE;
+  append_identifier(thd, &name_string, name, strlen(name));
+  thd->variables.sql_mode= save_sql_mode;
+  thd->variables.option_bits= save_options;
+  err= add_string_object(fptr, &name_string);
+  return err;
+}
+
 static int add_part_field_list(File fptr, List<char> field_list)
 {
   uint i, num_fields;
@@ -1924,34 +1940,12 @@ static int add_part_field_list(File fptr, List<char> field_list)
   err+= add_begin_parenthesis(fptr);
   while (i < num_fields)
   {
-    const char *field_str= part_it++;
-    String field_string("", 0, system_charset_info);
-    THD *thd= current_thd;
-    ulonglong save_options= thd->variables.option_bits;
-    thd->variables.option_bits&= ~OPTION_QUOTE_SHOW_CREATE;
-    append_identifier(thd, &field_string, field_str,
-                      strlen(field_str));
-    thd->variables.option_bits= save_options;
-    err+= add_string_object(fptr, &field_string);
+    err+= add_name_string(fptr, part_it++);
     if (i != (num_fields-1))
       err+= add_comma(fptr);
     i++;
   }
   err+= add_end_parenthesis(fptr);
-  return err;
-}
-
-static int add_name_string(File fptr, const char *name)
-{
-  int err;
-  String name_string("", 0, system_charset_info);
-  THD *thd= current_thd;
-  ulonglong save_options= thd->variables.option_bits;
-  thd->variables.option_bits&= ~OPTION_QUOTE_SHOW_CREATE;
-  append_identifier(thd, &name_string, name,
-                    strlen(name));
-  thd->variables.option_bits= save_options;
-  err= add_string_object(fptr, &name_string);
   return err;
 }
 
@@ -5888,8 +5882,8 @@ static bool write_log_changed_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
   DDL_LOG_ENTRY ddl_log_entry;
   partition_info *part_info= lpt->part_info;
   DDL_LOG_MEMORY_ENTRY *log_entry;
-  char tmp_path[FN_REFLEN];
-  char normal_path[FN_REFLEN];
+  char tmp_path[FN_REFLEN + 1];
+  char normal_path[FN_REFLEN + 1];
   List_iterator<partition_element> part_it(part_info->partitions);
   uint temp_partitions= part_info->temp_partitions.elements;
   uint num_elements= part_info->partitions.elements;
@@ -5913,14 +5907,15 @@ static bool write_log_changed_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
           ddl_log_entry.next_entry= *next_entry;
           ddl_log_entry.handler_name=
                ha_resolve_storage_engine_name(sub_elem->engine_type);
-          create_subpartition_name(tmp_path, path,
-                                   part_elem->partition_name,
-                                   sub_elem->partition_name,
-                                   TEMP_PART_NAME);
-          create_subpartition_name(normal_path, path,
-                                   part_elem->partition_name,
-                                   sub_elem->partition_name,
-                                   NORMAL_PART_NAME);
+          if (create_subpartition_name(tmp_path, sizeof(tmp_path), path,
+                                       part_elem->partition_name,
+                                       sub_elem->partition_name,
+                                       TEMP_PART_NAME) ||
+              create_subpartition_name(normal_path, sizeof(normal_path), path,
+                                       part_elem->partition_name,
+                                       sub_elem->partition_name,
+                                       NORMAL_PART_NAME))
+            DBUG_RETURN(TRUE);
           ddl_log_entry.name= normal_path;
           ddl_log_entry.from_name= tmp_path;
           if (part_elem->part_state == PART_IS_CHANGED)
@@ -5941,12 +5936,13 @@ static bool write_log_changed_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
         ddl_log_entry.next_entry= *next_entry;
         ddl_log_entry.handler_name=
                ha_resolve_storage_engine_name(part_elem->engine_type);
-        create_partition_name(tmp_path, path,
-                              part_elem->partition_name,
-                              TEMP_PART_NAME, TRUE);
-        create_partition_name(normal_path, path,
-                              part_elem->partition_name,
-                              NORMAL_PART_NAME, TRUE);
+        if (create_partition_name(tmp_path, sizeof(tmp_path), path,
+                                  part_elem->partition_name, TEMP_PART_NAME,
+                                  TRUE) ||
+            create_partition_name(normal_path, sizeof(normal_path), path,
+                                  part_elem->partition_name, NORMAL_PART_NAME,
+                                  TRUE))
+          DBUG_RETURN(TRUE);
         ddl_log_entry.name= normal_path;
         ddl_log_entry.from_name= tmp_path;
         if (part_elem->part_state == PART_IS_CHANGED)
@@ -5985,7 +5981,7 @@ static bool write_log_dropped_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
   DDL_LOG_ENTRY ddl_log_entry;
   partition_info *part_info= lpt->part_info;
   DDL_LOG_MEMORY_ENTRY *log_entry;
-  char tmp_path[FN_LEN];
+  char tmp_path[FN_REFLEN + 1];
   List_iterator<partition_element> part_it(part_info->partitions);
   List_iterator<partition_element> temp_it(part_info->temp_partitions);
   uint num_temp_partitions= part_info->temp_partitions.elements;
@@ -6024,10 +6020,10 @@ static bool write_log_dropped_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
           ddl_log_entry.next_entry= *next_entry;
           ddl_log_entry.handler_name=
                ha_resolve_storage_engine_name(sub_elem->engine_type);
-          create_subpartition_name(tmp_path, path,
-                                   part_elem->partition_name,
-                                   sub_elem->partition_name,
-                                   name_variant);
+          if (create_subpartition_name(tmp_path, sizeof(tmp_path), path,
+                                       part_elem->partition_name,
+                                       sub_elem->partition_name, name_variant))
+            DBUG_RETURN(TRUE);
           ddl_log_entry.name= tmp_path;
           if (write_ddl_log_entry(&ddl_log_entry, &log_entry))
           {
@@ -6043,9 +6039,10 @@ static bool write_log_dropped_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
         ddl_log_entry.next_entry= *next_entry;
         ddl_log_entry.handler_name=
                ha_resolve_storage_engine_name(part_elem->engine_type);
-        create_partition_name(tmp_path, path,
-                              part_elem->partition_name,
-                              name_variant, TRUE);
+        if (create_partition_name(tmp_path, sizeof(tmp_path), path,
+                                  part_elem->partition_name, name_variant,
+                                  TRUE))
+          DBUG_RETURN(TRUE);
         ddl_log_entry.name= tmp_path;
         if (write_ddl_log_entry(&ddl_log_entry, &log_entry))
         {
@@ -8123,31 +8120,41 @@ static uint32 get_next_subpartition_via_walking(PARTITION_ITERATOR *part_iter)
 
 }
 
+/* used in error messages below */
+static const char *longest_str(const char *s1, const char *s2,
+                               const char *s3=0)
+{
+  if (strlen(s2) > strlen(s1)) s1= s2;
+  if (s3 && strlen(s3) > strlen(s1)) s1= s3;
+  return s1;
+}
+
 
 /*
   Create partition names
 
   SYNOPSIS
     create_partition_name()
-    out:out                   Created partition name string
+    out:out                   The buffer for the created partition name string
+                              must be *at least* of FN_REFLEN+1 bytes
     in1                       First part
     in2                       Second part
     name_variant              Normal, temporary or renamed partition name
 
   RETURN VALUE
-    NONE
+    0 if ok, error if name too long
 
   DESCRIPTION
     This method is used to calculate the partition name, service routine to
     the del_ren_cre_table method.
 */
 
-void create_partition_name(char *out, const char *in1,
-                           const char *in2, uint name_variant,
-                           bool translate)
+int create_partition_name(char *out, size_t outlen, const char *in1,
+                          const char *in2, uint name_variant, bool translate)
 {
   char transl_part_name[FN_REFLEN];
-  const char *transl_part;
+  const char *transl_part, *end;
+  DBUG_ASSERT(outlen >= FN_REFLEN + 1); // consistency! same limit everywhere
 
   if (translate)
   {
@@ -8157,11 +8164,17 @@ void create_partition_name(char *out, const char *in1,
   else
     transl_part= in2;
   if (name_variant == NORMAL_PART_NAME)
-    strxmov(out, in1, "#P#", transl_part, NullS);
+    end= strxnmov(out, outlen-1, in1, "#P#", transl_part, NullS);
   else if (name_variant == TEMP_PART_NAME)
-    strxmov(out, in1, "#P#", transl_part, "#TMP#", NullS);
+    end= strxnmov(out, outlen-1, in1, "#P#", transl_part, "#TMP#", NullS);
   else if (name_variant == RENAMED_PART_NAME)
-    strxmov(out, in1, "#P#", transl_part, "#REN#", NullS);
+    end= strxnmov(out, outlen-1, in1, "#P#", transl_part, "#REN#", NullS);
+  if (end - out == static_cast<ptrdiff_t>(outlen-1))
+  {
+    my_error(ER_PATH_LENGTH, MYF(0), longest_str(in1, transl_part));
+    return HA_WRONG_CREATE_OPTION;
+  }
+  return 0;
 }
 
 
@@ -8170,37 +8183,46 @@ void create_partition_name(char *out, const char *in1,
 
   SYNOPSIS
     create_subpartition_name()
-    out:out                   Created partition name string
+    out:out                   The buffer for the created partition name string
+                              must be *at least* of FN_REFLEN+1 bytes
     in1                       First part
     in2                       Second part
     in3                       Third part
     name_variant              Normal, temporary or renamed partition name
 
   RETURN VALUE
-    NONE
+    0 if ok, error if name too long
 
   DESCRIPTION
   This method is used to calculate the subpartition name, service routine to
   the del_ren_cre_table method.
 */
 
-void create_subpartition_name(char *out, const char *in1,
-                              const char *in2, const char *in3,
-                              uint name_variant)
+int create_subpartition_name(char *out, size_t outlen,
+                             const char *in1, const char *in2,
+                             const char *in3, uint name_variant)
 {
-  char transl_part_name[FN_REFLEN], transl_subpart_name[FN_REFLEN];
+  char transl_part_name[FN_REFLEN], transl_subpart_name[FN_REFLEN], *end;
+  DBUG_ASSERT(outlen >= FN_REFLEN + 1); // consistency! same limit everywhere
 
   tablename_to_filename(in2, transl_part_name, FN_REFLEN);
   tablename_to_filename(in3, transl_subpart_name, FN_REFLEN);
   if (name_variant == NORMAL_PART_NAME)
-    strxmov(out, in1, "#P#", transl_part_name,
-            "#SP#", transl_subpart_name, NullS);
+    end= strxnmov(out, outlen-1, in1, "#P#", transl_part_name,
+                  "#SP#", transl_subpart_name, NullS);
   else if (name_variant == TEMP_PART_NAME)
-    strxmov(out, in1, "#P#", transl_part_name,
-            "#SP#", transl_subpart_name, "#TMP#", NullS);
+    end= strxnmov(out, outlen-1, in1, "#P#", transl_part_name,
+                  "#SP#", transl_subpart_name, "#TMP#", NullS);
   else if (name_variant == RENAMED_PART_NAME)
-    strxmov(out, in1, "#P#", transl_part_name,
-            "#SP#", transl_subpart_name, "#REN#", NullS);
+    end= strxnmov(out, outlen-1, in1, "#P#", transl_part_name,
+                  "#SP#", transl_subpart_name, "#REN#", NullS);
+  if (end - out == static_cast<ptrdiff_t>(outlen-1))
+  {
+    my_error(ER_PATH_LENGTH, MYF(0),
+             longest_str(in1, transl_part_name, transl_subpart_name));
+    return HA_WRONG_CREATE_OPTION;
+  }
+  return 0;
 }
 
 uint get_partition_field_store_length(Field *field)

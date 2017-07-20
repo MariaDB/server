@@ -2,7 +2,7 @@
 # -*- cperl -*-
 
 # Copyright (c) 2004, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2014, Monty Program Ab
+# Copyright (c) 2009, 2017, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -6194,7 +6194,8 @@ sub valgrind_arguments {
     mtr_add_arg($args, "--num-callers=16");
     mtr_add_arg($args, "--suppressions=%s/valgrind.supp", $glob_mysql_test_dir)
       if -f "$glob_mysql_test_dir/valgrind.supp";
-    my $temp= `ldd $ENV{MTR_BINDIR}/sql/mysqld | grep 'libjemalloc'`;
+    my $exe_mysqld= find_mysqld($bindir) || "";
+    my $temp= `ldd $exe_mysqld | grep 'libjemalloc'`;
     if ($temp)
     {
       mtr_add_arg($args, "--soname-synonyms=somalloc=libjemalloc*");

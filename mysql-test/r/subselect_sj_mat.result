@@ -2312,4 +2312,92 @@ pk	f1	sq
 5	3	5
 set optimizer_switch= @save_optimizer_switch;
 DROP TABLE t1,t2;
+#
+# mdev-12838: scan of materialized of semi-join subquery in join
+#
+set @save_optimizer_switch=@@optimizer_switch;
+CREATE TABLE t1 (
+dispatch_group varchar(32),
+assignment_group varchar(32),
+sys_id char(32),
+PRIMARY KEY (sys_id),
+KEY idx1 (dispatch_group),
+KEY idx2 (assignment_group)
+) ENGINE=MyISAM;
+CREATE TABLE t2 (
+ugroup varchar(32),
+user varchar(32),
+sys_id char(32),
+PRIMARY KEY (sys_id),
+KEY idx3 (ugroup),
+KEY idx4 (user)
+) ENGINE=MyISAM;
+CREATE TABLE t3 (
+type mediumtext,
+sys_id char(32),
+PRIMARY KEY (sys_id)
+) ENGINE=MyISAM;
+set optimizer_switch='materialization=off';
+explain SELECT t1.assignment_group
+FROM t1, t3
+WHERE t1.assignment_group = t3.sys_id AND
+t1.dispatch_group IN
+(SELECT t2.ugroup
+FROM t2, t3 t3_i
+WHERE t2.ugroup = t3_i.sys_id AND 
+t3_i.type LIKE '59e22fb137032000158bbfc8bcbe5d52' AND
+t2.user = '86826bf03710200044e0bfc8bcbe5d79');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ref	idx3,idx4	idx4	35	const	2	Using index condition; Using where; Start temporary
+1	PRIMARY	t3_i	eq_ref	PRIMARY	PRIMARY	32	test.t2.ugroup	1	Using index condition; Using where
+1	PRIMARY	t1	ref	idx1,idx2	idx1	35	test.t3_i.sys_id	2	Using index condition; Using where; End temporary
+1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	32	test.t1.assignment_group	1	Using where; Using index
+SELECT t1.assignment_group
+FROM t1, t3
+WHERE t1.assignment_group = t3.sys_id AND
+t1.dispatch_group IN
+(SELECT t2.ugroup
+FROM t2, t3 t3_i
+WHERE t2.ugroup = t3_i.sys_id AND 
+t3_i.type LIKE '59e22fb137032000158bbfc8bcbe5d52' AND
+t2.user = '86826bf03710200044e0bfc8bcbe5d79');
+assignment_group
+df50316637232000158bbfc8bcbe5d23
+e08fad2637232000158bbfc8bcbe5d39
+ec70316637232000158bbfc8bcbe5d60
+7b10fd2637232000158bbfc8bcbe5d30
+ebb4620037332000158bbfc8bcbe5d89
+set optimizer_switch='materialization=on';
+explain SELECT t1.assignment_group
+FROM t1, t3
+WHERE t1.assignment_group = t3.sys_id AND
+t1.dispatch_group IN
+(SELECT t2.ugroup
+FROM t2, t3 t3_i
+WHERE t2.ugroup = t3_i.sys_id AND 
+t3_i.type LIKE '59e22fb137032000158bbfc8bcbe5d52' AND
+t2.user = '86826bf03710200044e0bfc8bcbe5d79');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ref	idx1,idx2	idx1	35	test.t2.ugroup	2	Using where
+1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	32	test.t1.assignment_group	1	Using where; Using index
+2	MATERIALIZED	t2	ref	idx3,idx4	idx4	35	const	2	Using index condition; Using where
+2	MATERIALIZED	t3_i	eq_ref	PRIMARY	PRIMARY	32	test.t2.ugroup	1	Using index condition; Using where
+SELECT t1.assignment_group
+FROM t1, t3
+WHERE t1.assignment_group = t3.sys_id AND
+t1.dispatch_group IN
+(SELECT t2.ugroup
+FROM t2, t3 t3_i
+WHERE t2.ugroup = t3_i.sys_id AND 
+t3_i.type LIKE '59e22fb137032000158bbfc8bcbe5d52' AND
+t2.user = '86826bf03710200044e0bfc8bcbe5d79');
+assignment_group
+df50316637232000158bbfc8bcbe5d23
+e08fad2637232000158bbfc8bcbe5d39
+ec70316637232000158bbfc8bcbe5d60
+7b10fd2637232000158bbfc8bcbe5d30
+ebb4620037332000158bbfc8bcbe5d89
+DROP TABLE t1,t2,t3;
+set optimizer_switch=@save_optimizer_switch;
 # End of 5.5 tests

@@ -232,9 +232,8 @@ row_upd_index_replace_new_col_vals_index_pos(
 				/*!< in: if TRUE, limit the replacement to
 				ordering fields of index; note that this
 				does not work for non-clustered indexes. */
-	mem_heap_t*	heap)	/*!< in: memory heap for allocating and
+	mem_heap_t*	heap);	/*!< in: memory heap for allocating and
 				copying the new values */
-	__attribute__((nonnull));
 /***********************************************************//**
 Replaces the new column values stored in the update vector to the index entry
 given. */
@@ -295,7 +294,7 @@ row_upd_changes_ord_field_binary_func(
 				compile time */
 	const row_ext_t*ext)	/*!< NULL, or prefixes of the externally
 				stored columns in the old row */
-	__attribute__((nonnull(1,2), warn_unused_result));
+	__attribute__((warn_unused_result));
 #ifdef UNIV_DEBUG
 # define row_upd_changes_ord_field_binary(index,update,thr,row,ext)	\
 	row_upd_changes_ord_field_binary_func(index,update,thr,row,ext)

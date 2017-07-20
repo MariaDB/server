@@ -461,7 +461,7 @@ C_MODE_END
     <> 0  error
 */
 
-static bool merge_walk(uchar *merge_buffer, ulong merge_buffer_size,
+static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
                        uint key_length, BUFFPEK *begin, BUFFPEK *end,
                        tree_walk_action walk_action, void *walk_action_arg,
                        qsort_cmp2 compare, void *compare_arg,
@@ -470,7 +470,7 @@ static bool merge_walk(uchar *merge_buffer, ulong merge_buffer_size,
   BUFFPEK_COMPARE_CONTEXT compare_context = { compare, compare_arg };
   QUEUE queue;
   if (end <= begin ||
-      merge_buffer_size < (ulong) (key_length * (end - begin + 1)) ||
+      merge_buffer_size < (size_t) (key_length * (end - begin + 1)) ||
       init_queue(&queue, (uint) (end - begin), offsetof(BUFFPEK, key), 0,
                  buffpek_compare, &compare_context, 0, 0))
     return 1;
@@ -607,15 +607,19 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
     return 1;
   if (flush_io_cache(&file) || reinit_io_cache(&file, READ_CACHE, 0L, 0, 0))
     return 1;
-  size_t buff_sz= (max_in_memory_size / full_size + 1) * full_size;
+  /*
+    merge_buffer must fit at least MERGEBUFF2 keys, because
+    merge_index() can merge that many BUFFPEKs at once.
+  */
+  size_t buff_sz= max(MERGEBUFF2, max_in_memory_size/full_size+1) * full_size;
   if (!(merge_buffer = (uchar *)my_malloc(buff_sz, MYF(MY_WME))))
     return 1;
   if (buff_sz < (ulong) (full_size * (file_ptrs.elements + 1)))
-    res= merge(table, merge_buffer, buff_sz >= full_size * MERGEBUFF2) ;
+    res= merge(table, merge_buffer, true) ;
   
   if (!res)
   {  
-    res= merge_walk(merge_buffer, (ulong) max_in_memory_size, full_size,
+    res= merge_walk(merge_buffer, buff_sz, full_size,
                     (BUFFPEK *) file_ptrs.buffer,
                     (BUFFPEK *) file_ptrs.buffer + file_ptrs.elements,
                     action, walk_action_arg,

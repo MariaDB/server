@@ -3474,6 +3474,7 @@ restart:
                             lock_to_read[lock].unlock_lock,
                             unlock_pin, FALSE))
       {
+        pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
         DBUG_ASSERT(0);
         return (uchar*) 0;
       }

@@ -37,19 +37,25 @@ log_online_bitmap_file_range_t;
 /** An iterator over changed page info */
 typedef struct log_bitmap_iterator_struct log_bitmap_iterator_t;
 
-/*********************************************************************//**
-Initializes the online log following subsytem. */
+/** Initialize the constant part of the log tracking subsystem */
+UNIV_INTERN
+void
+log_online_init(void);
+
+/** Initialize the dynamic part of the log tracking subsystem */
 UNIV_INTERN
 void
 log_online_read_init(void);
-/*=======================*/
 
-/*********************************************************************//**
-Shuts down the online log following subsystem. */
+/** Shut down the dynamic part of the log tracking subsystem */
 UNIV_INTERN
 void
 log_online_read_shutdown(void);
-/*===========================*/
+
+/** Shut down the constant part of the log tracking subsystem */
+UNIV_INTERN
+void
+log_online_shutdown(void);
 
 /*********************************************************************//**
 Reads and parses the redo log up to last checkpoint LSN to build the changed
@@ -159,6 +165,8 @@ struct log_online_bitmap_file_range_struct {
 /** Struct for an iterator through all bits of changed pages bitmap blocks */
 struct log_bitmap_iterator_struct
 {
+	ib_uint64_t			max_lsn;	/*!< End LSN of the
+							range */
 	ibool				failed;		/*!< Has the iteration
 							stopped prematurely */
 	log_online_bitmap_file_range_t	in_files;	/*!< The bitmap files

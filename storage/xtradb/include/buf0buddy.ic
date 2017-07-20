@@ -51,7 +51,7 @@ buf_buddy_alloc_low(
 					buf_pool->mutex was temporarily
 					released */
 	ibool		have_page_hash_mutex)
-	__attribute__((malloc, nonnull));
+	__attribute__((malloc));
 
 /**********************************************************************//**
 Deallocate a block. */

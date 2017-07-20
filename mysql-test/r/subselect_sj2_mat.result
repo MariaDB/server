@@ -1556,3 +1556,48 @@ i1
 DROP TABLE t1,t2,t3;
 set join_cache_level= @save_join_cache_level;
 set optimizer_switch=@save_optimizer_switch;
+#
+# mdev-7791: materialization of a semi-join subquery +
+#            RAND() in WHERE
+#            (materialized table is accessed last)
+#
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='materialization=on';
+create table t1(i int);
+insert into t1 values (1), (2), (3), (7), (9), (10);
+create table t2(i int);
+insert into t2 values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+select * from t1 where (rand() < 0) and i in (select i from t2);
+i
+explain extended
+select * from t1 where (rand() < 0) and i in (select i from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`i` AS `i` from `test`.`t1` semi join (`test`.`t2`) where ((rand() < 0))
+drop table t1,t2;
+set optimizer_switch=@save_optimizer_switch;
+#
+# mdev-12855: materialization of a semi-join subquery + ORDER BY 
+#
+CREATE TABLE t1 (f1 varchar(8), KEY(f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('qux'),('foo');
+CREATE TABLE t2 (f2 varchar(8)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('bar'),('foo'),('qux');
+SELECT f1 FROM t1 
+WHERE f1 IN ( SELECT f2 FROM t2 WHERE f2 > 'bar' )
+HAVING f1 != 'foo'
+ORDER BY f1;
+f1
+qux
+explain SELECT f1 FROM t1 
+WHERE f1 IN ( SELECT f2 FROM t2 WHERE f2 > 'bar' )
+HAVING f1 != 'foo'
+ORDER BY f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	f1	f1	11	NULL	2	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	11	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+DROP TABLE t1,t2;

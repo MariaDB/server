@@ -1,0 +1,33 @@
+set names utf8;
+create database mysqltest1;
+CREATE TABLE mysqltest1.test_jfg_table_name_with_64_chars_123456789012345678901234567890 (
+id int(10) unsigned NOT NULL,
+id2 int(10) unsigned NOT NULL,
+PRIMARY KEY ( id, id2 )
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+PARTITION BY RANGE ( id )
+SUBPARTITION BY HASH ( id2 )
+SUBPARTITIONS 2 (
+PARTITION test_jfg_partition_name_with_60_chars_1234567890123456789012 VALUES LESS THAN (1000) ENGINE = InnoDB,
+PARTITION pmax VALUES LESS THAN MAXVALUE ENGINE = InnoDB);
+Warnings:
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
+CREATE TABLE mysqltest1.éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé (
+id int(10) unsigned NOT NULL,
+id2 int(10) unsigned NOT NULL,
+PRIMARY KEY ( id, id2 )
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+PARTITION BY RANGE ( id )
+SUBPARTITION BY HASH ( id2 )
+SUBPARTITIONS 2 (
+PARTITION çççççççççççççççççççççççççççççççççççççççççççççççççççççççççççç VALUES LESS THAN (1000) ENGINE = InnoDB,
+PARTITION pmax VALUES LESS THAN MAXVALUE ENGINE = InnoDB);
+ERROR HY000: The path specified for @0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@ is too long.
+drop database mysqltest1;

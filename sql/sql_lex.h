@@ -766,6 +766,11 @@ public:
   */
   List<Item_func_match> *ftfunc_list;
   List<Item_func_match> ftfunc_list_alloc;
+  /*
+    The list of items to which MIN/MAX optimizations of opt_sum_query()
+    have been applied. Used to rollback those optimizations if it's needed.
+  */
+  List<Item_sum> min_max_opt_list;
   JOIN *join; /* after JOIN::prepare it is pointer to corresponding JOIN */
   List<TABLE_LIST> top_join_list; /* join list of the top level          */
   List<TABLE_LIST> *join_list;    /* list for the currently parsed join  */

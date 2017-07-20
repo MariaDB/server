@@ -525,7 +525,9 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
       derived->schema_table= derived->merge_underlying_list->schema_table;
       derived->merged_for_insert= TRUE;
     }
-  }  
+  }
+  else
+    derived->table= derived->merge_underlying_list->table;
   DBUG_RETURN(FALSE);
 }
 

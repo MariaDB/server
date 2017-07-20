@@ -7423,29 +7423,7 @@ i_s_innodb_changed_pages_fill(
 
 	while(log_online_bitmap_iterator_next(&i) &&
 	      (!srv_max_changed_pages ||
-	       output_rows_num < srv_max_changed_pages) &&
-	      /*
-		There is no need to compare both start LSN and end LSN fields
-		with maximum value. It's enough to compare only start LSN.
-		Example:
-
-				      max_lsn = 100
-		\\\\\\\\\\\\\\\\\\\\\\\\\|\\\\\\\\	  - Query 1
-		I------I I-------I I-------------I I----I
-		//////////////////	 |		  - Query 2
-		   1	    2		  3	     4
-
-		Query 1:
-		SELECT * FROM INNODB_CHANGED_PAGES WHERE start_lsn < 100
-		will select 1,2,3 bitmaps
-		Query 2:
-		SELECT * FROM INNODB_CHANGED_PAGES WHERE end_lsn < 100
-		will select 1,2 bitmaps
-
-		The condition start_lsn <= 100 will be false after reading
-		1,2,3 bitmaps which suits for both cases.
-	      */
-	      LOG_BITMAP_ITERATOR_START_LSN(i) <= max_lsn)
+	       output_rows_num < srv_max_changed_pages))
 	{
 		if (!LOG_BITMAP_ITERATOR_PAGE_CHANGED(i))
 			continue;

@@ -60,4 +60,10 @@ SHOW VARIABLES LIKE 'have_innodb';
 SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
  and SUPPORT='YES';
 
+#
+# MDEV-13063 Server crashes in intern_plugin_lock or assertion `plugin_ptr->ref_count == 1' fails in plugin_init
+#
+--error 1
+--exec $MYSQLD_BOOTSTRAP_CMD --myisam_recover_options=NONE
+
 --echo End of 5.5 tests

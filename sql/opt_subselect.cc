@@ -678,6 +678,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN))                                    // 10
+ 
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
@@ -1000,6 +1001,25 @@ bool check_for_outer_joins(List<TABLE_LIST> *join_list)
 }
 
 
+void find_and_block_conversion_to_sj(Item *to_find,
+				     List_iterator_fast<Item_in_subselect> &li)
+{
+  if (to_find->type() != Item::SUBSELECT_ITEM ||
+      ((Item_subselect *) to_find)->substype() != Item_subselect::IN_SUBS)
+    return;
+  Item_in_subselect *in_subq;
+  li.rewind();
+  while ((in_subq= li++))
+  {
+    if (in_subq == to_find)
+    {
+      in_subq->block_conversion_to_sj();
+      return;
+    }
+  }
+}
+
+
 /*
   Convert semi-join subquery predicates into semi-join join nests
 
@@ -1052,7 +1072,6 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
   Query_arena *arena, backup;
   Item_in_subselect *in_subq;
   THD *thd= join->thd;
-  List_iterator<TABLE_LIST> ti(join->select_lex->leaf_tables);
   DBUG_ENTER("convert_join_subqueries_to_semijoins");
 
   if (join->select_lex->sj_subselects.is_empty())
@@ -1070,6 +1089,89 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
     subq_sel->update_used_tables();
   }
 
+  /* 
+    Check all candidates to semi-join conversion that occur
+    in ON expressions of outer join. Set the flag blocking
+    this conversion for them.
+  */
+  TABLE_LIST *tbl;
+  List_iterator<TABLE_LIST> ti(join->select_lex->leaf_tables);
+  while ((tbl= ti++))
+  {
+    TABLE_LIST *embedded;
+    TABLE_LIST *embedding= tbl;
+    do
+    {
+      embedded= embedding;
+      bool block_conversion_to_sj= false;
+      if (embedded->on_expr)
+      {
+        /*
+          Conversion of an IN subquery predicate into semi-join
+          is blocked now if the predicate occurs:
+          - in the ON expression of an outer join
+          - in the ON expression of an inner join embedded directly
+            or indirectly in the inner nest of an outer join
+	*/
+        for (TABLE_LIST *tl= embedded; tl; tl= tl->embedding)
+	{
+          if (tl->outer_join)
+	  {
+            block_conversion_to_sj= true;
+            break;
+          }
+        }
+      }
+      if (block_conversion_to_sj)
+      {
+	Item *cond= embedded->on_expr;
+        if (!cond)
+          ;
+        else if (cond->type() != Item::COND_ITEM)
+          find_and_block_conversion_to_sj(cond, li);
+        else if (((Item_cond*) cond)->functype() ==
+	         Item_func::COND_AND_FUNC)
+	{
+          Item *item;
+          List_iterator<Item> it(*(((Item_cond*) cond)->argument_list()));
+          while ((item= it++))
+	  {
+	    find_and_block_conversion_to_sj(item, li);
+          }
+	}
+      }
+      embedding= embedded->embedding;
+    }
+    while (embedding &&
+           embedding->nested_join->join_list.head() == embedded);
+  }
+
+  /* 
+    Block conversion to semi-joins for those candidates that
+    are encountered in the WHERE condition of the multi-table view
+    with CHECK OPTION if this view is used in UPDATE/DELETE.
+    (This limitation can be, probably, easily lifted.) 
+  */  
+  li.rewind();
+  while ((in_subq= li++))
+  {
+    if (in_subq->emb_on_expr_nest != NO_JOIN_NEST &&
+        in_subq->emb_on_expr_nest->effective_with_check)
+    {
+      in_subq->block_conversion_to_sj();
+    }
+  }
+
+  if (join->select_options & SELECT_STRAIGHT_JOIN)
+  {
+    /* Block conversion to semijoins for all candidates */ 
+    li.rewind();
+    while ((in_subq= li++))
+    {
+      in_subq->block_conversion_to_sj();
+    }
+  }
+      
   li.rewind();
   /* First, convert child join's subqueries. We proceed bottom-up here */
   while ((in_subq= li++)) 
@@ -1088,8 +1190,10 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
 
     if (convert_join_subqueries_to_semijoins(child_join))
       DBUG_RETURN(TRUE);
+
+
     in_subq->sj_convert_priority= 
-      test(in_subq->emb_on_expr_nest != NO_JOIN_NEST) * MAX_TABLES * 2 +
+      test(in_subq->do_not_convert_to_sj) * MAX_TABLES * 2 +
       in_subq->is_correlated * MAX_TABLES + child_join->outer_tables;
   }
   
@@ -1122,7 +1226,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
     bool remove_item= TRUE;
 
     /* Stop processing if we've reached a subquery that's attached to the ON clause */
-    if (in_subq->emb_on_expr_nest != NO_JOIN_NEST)
+    if (in_subq->do_not_convert_to_sj)
       break;
 
     if (in_subq->is_flattenable_semijoin) 
@@ -3325,6 +3429,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
   table_map remaining_tables= 0;
   table_map handled_tabs= 0;
   join->sjm_lookup_tables= 0;
+  join->sjm_scan_tables= 0;
   for (tablenr= table_count - 1 ; tablenr != join->const_tables - 1; tablenr--)
   {
     POSITION *pos= join->best_positions + tablenr;
@@ -3382,6 +3487,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       table_map rem_tables= remaining_tables;
       for (i= tablenr; i != (first + sjm->tables - 1); i--)
         rem_tables |= join->best_positions[i].table->table->map;
+
+      for (i= first; i < first+ sjm->tables; i++)
+        join->sjm_scan_tables |= join->best_positions[i].table->table->map;
 
       POSITION dummy;
       join->cur_sj_inner_tables= 0;

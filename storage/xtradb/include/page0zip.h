@@ -402,8 +402,7 @@ page_zip_reorganize(
 				out: data, n_blobs,
 				m_start, m_end, m_nonempty */
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
-	mtr_t*		mtr)	/*!< in: mini-transaction */
-	__attribute__((nonnull));
+	mtr_t*		mtr);	/*!< in: mini-transaction */
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Copy the records of a page byte for byte.  Do not copy the page header
@@ -436,7 +435,7 @@ page_zip_parse_compress(
 	byte*		end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< out: uncompressed page */
 	page_zip_des_t*	page_zip)/*!< out: compressed page */
-	__attribute__((nonnull(1,2)));
+	__attribute__((warn_unused_result));
 
 /**********************************************************************//**
 Calculate the compressed page checksum.

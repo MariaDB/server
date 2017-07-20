@@ -552,7 +552,7 @@ int ReplSemiSyncMaster::reportReplyBinlog(uint32 server_id,
 
   if (need_copy_send_pos)
   {
-    strcpy(reply_file_name_, log_file_name);
+    strmake_buf(reply_file_name_, log_file_name);
     reply_file_pos_ = log_file_pos;
     reply_file_name_inited_ = true;
 
@@ -659,7 +659,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
         if (cmp <= 0)
 	{
           /* This thd has a lower position, let's update the minimum info. */
-          strcpy(wait_file_name_, trx_wait_binlog_name);
+          strmake_buf(wait_file_name_, trx_wait_binlog_name);
           wait_file_pos_ = trx_wait_binlog_pos;
 
           rpl_semi_sync_master_wait_pos_backtraverse++;
@@ -670,7 +670,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
       }
       else
       {
-        strcpy(wait_file_name_, trx_wait_binlog_name);
+        strmake_buf(wait_file_name_, trx_wait_binlog_name);
         wait_file_pos_ = trx_wait_binlog_pos;
         wait_file_name_inited_ = true;
 

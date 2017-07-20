@@ -529,3 +529,61 @@ a
 +-------------------+
 
 End of tests
+create table `a1\``b1` (a int);
+show tables;
+Tables_in_test
+a1\`b1
+insert `a1\``b1` values (1),(2);
+show create table `a1\``b1`;
+Table	Create Table
+a1\`b1	CREATE TABLE `a1\``b1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `a1\``b1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `a1\``b1` VALUES (1),(2);
+insert `a1\``b1` values (4),(5);
+show create table `a1\``b1`;
+Table	Create Table
+a1\`b1	CREATE TABLE `a1\``b1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from `a1\``b1`;
+a
+1
+2
+drop table `a1\``b1`;
+set sql_mode=ansi_quotes;
+create table "a1\""b1" (a int);
+show tables;
+Tables_in_test
+a1\"b1
+insert "a1\""b1" values (1),(2);
+show create table "a1\""b1";
+Table	Create Table
+a1\"b1	CREATE TABLE "a1\""b1" (
+  "a" int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE "a1\""b1" (
+  "a" int(11) DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO "a1\""b1" VALUES (1),(2);
+insert "a1\""b1" values (4),(5);
+show create table "a1\""b1";
+Table	Create Table
+a1\"b1	CREATE TABLE "a1\""b1" (
+  "a" int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from "a1\""b1";
+a
+1
+2
+drop table "a1\""b1";
+set sql_mode=default;

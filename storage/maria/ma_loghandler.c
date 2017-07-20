@@ -1269,6 +1269,7 @@ static my_bool translog_set_lsn_for_files(uint32 from_file, uint32 to_file,
           mysql_file_close(fd, MYF(MY_WME))))
     {
       translog_stop_writing();
+      mysql_mutex_unlock(&log_descriptor.file_header_lock);
       DBUG_RETURN(1);
     }
   }
@@ -2291,10 +2292,11 @@ static void translog_set_only_in_buffers(TRANSLOG_ADDRESS in_buffers)
   if (cmp_translog_addr(in_buffers, log_descriptor.in_buffers_only) > 0)
   {
     if (translog_status != TRANSLOG_OK)
-      DBUG_VOID_RETURN;
+      goto end;
     log_descriptor.in_buffers_only= in_buffers;
     DBUG_PRINT("info", ("set new in_buffers_only"));
   }
+end:
   mysql_mutex_unlock(&log_descriptor.sent_to_disk_lock);
   DBUG_VOID_RETURN;
 }
@@ -7814,8 +7816,24 @@ void translog_flush_buffers(TRANSLOG_ADDRESS *lsn,
     translog_force_current_buffer_to_finish();
     translog_buffer_unlock(buffer);
   }
-  else if (log_descriptor.bc.buffer->prev_last_lsn != LSN_IMPOSSIBLE)
+  else
   {
+    if (log_descriptor.bc.buffer->last_lsn == LSN_IMPOSSIBLE)
+    {
+      /*
+        In this case both last_lsn & prev_last_lsn are LSN_IMPOSSIBLE
+        otherwise it will go in the first IF because LSN_IMPOSSIBLE less
+        then any real LSN and cmp_translog_addr(*lsn,
+        log_descriptor.bc.buffer->prev_last_lsn) will be TRUE
+      */
+      DBUG_ASSERT(log_descriptor.bc.buffer->prev_last_lsn ==
+                  LSN_IMPOSSIBLE);
+      DBUG_PRINT("info", ("There is no LSNs yet generated => do nothing"));
+      translog_unlock();
+      DBUG_VOID_RETURN;
+    }
+
+    DBUG_ASSERT(log_descriptor.bc.buffer->prev_last_lsn != LSN_IMPOSSIBLE);
     /* fix lsn if it was horizon */
     *lsn= log_descriptor.bc.buffer->prev_last_lsn;
     DBUG_PRINT("info", ("LSN to flush fixed to prev last lsn: (%lu,0x%lx)",
@@ -7824,13 +7842,6 @@ void translog_flush_buffers(TRANSLOG_ADDRESS *lsn,
                      TRANSLOG_BUFFERS_NO);
     translog_unlock();
   }
-  else if (log_descriptor.bc.buffer->last_lsn == LSN_IMPOSSIBLE)
-  {
-    DBUG_PRINT("info", ("There is no LSNs yet generated => do nothing"));
-    translog_unlock();
-    DBUG_VOID_RETURN;
-  }
-
   /* flush buffers */
   *sent_to_disk= translog_get_sent_to_disk();
   if (cmp_translog_addr(*lsn, *sent_to_disk) > 0)

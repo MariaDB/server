@@ -197,7 +197,7 @@ int my_realpath(char *to, const char *filename, myf MyFlags)
 
 const char *my_open_parent_dir_nosymlinks(const char *pathname, int *pdfd)
 {
-  char buf[PATH_MAX+1];
+  char buf[FN_REFLEN + 1];
   char *s= buf, *e= buf+1, *end= strnmov(buf, pathname, sizeof(buf));
   int fd, dfd= -1;
 

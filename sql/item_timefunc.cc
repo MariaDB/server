@@ -3041,7 +3041,7 @@ get_date_time_result_type(const char *format, uint length)
   const char *val= format;
   const char *end= format + length;
 
-  for (; val != end && val != end; val++)
+  for (; val != end; val++)
   {
     if (*val == '%' && val+1 != end)
     {

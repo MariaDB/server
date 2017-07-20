@@ -115,3 +115,9 @@ k	d1	d2
 set optimizer_switch= @tmp_subselect_nulls;
 drop table x1;
 drop table x2;
+select (select 1, 2) in (select 3, 4);
+(select 1, 2) in (select 3, 4)
+0
+select (select NULL, NULL) in (select 3, 4);
+(select NULL, NULL) in (select 3, 4)
+NULL

@@ -626,8 +626,7 @@ rec_copy(
 /*=====*/
 	void*		buf,	/*!< in: buffer */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-	__attribute__((nonnull));
+	const ulint*	offsets);/*!< in: array returned by rec_get_offsets() */
 #ifndef UNIV_HOTBACKUP
 /**********************************************************//**
 Determines the size of a data tuple prefix in a temporary file.

@@ -296,6 +296,8 @@ enum enum_server_command
 */
 #define SERVER_PS_OUT_PARAMS            4096
 
+#define SERVER_STATUS_ANSI_QUOTES       32768
+
 /**
   Server status flags that must be cleared when starting
   execution of a new SQL statement.
