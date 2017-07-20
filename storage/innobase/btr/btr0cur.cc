@@ -2316,10 +2316,10 @@ any_extern:
 		rec = page_cur_get_rec(page_cursor);
 	}
 
-	/* We limit max record size to 16k for 64k page size. */
-	if (!dict_table_is_comp(index->table)
-	    && new_rec_size > REDUNDANT_REC_MAX_DATA_SIZE) {
-		ut_ad(srv_page_size == UNIV_PAGE_SIZE_MAX);
+	/* We limit max record size to 16k even for 64k page size. */
+	if (new_rec_size >= COMPRESSED_REC_MAX_DATA_SIZE ||
+	    (!dict_table_is_comp(index->table)
+	     && new_rec_size >= REDUNDANT_REC_MAX_DATA_SIZE)) {
 		err = DB_OVERFLOW;
 
 		goto func_exit;
