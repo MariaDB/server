@@ -37,7 +37,6 @@
 #include "bounded_queue.h"
 #include "filesort_utils.h"
 #include "sql_select.h"
-#include "log_slow.h"
 #include "debug_sync.h"
 
 /// How to write record_ref.

@@ -37,6 +37,7 @@
 #include "thr_lock.h"       /* thr_lock_type, THR_LOCK_DATA, THR_LOCK_INFO */
 #include "thr_timer.h"
 #include "thr_malloc.h"
+#include "log_slow.h"      /* LOG_SLOW_DISABLE_... */
 
 #include "sql_digest_stream.h"            // sql_digest_state
 
@@ -531,6 +532,8 @@ typedef struct system_variables
   ulonglong join_buff_space_limit;
   ulonglong log_slow_filter; 
   ulonglong log_slow_verbosity; 
+  ulonglong log_slow_disabled_statements;
+  ulonglong log_disabled_statements;
   ulonglong bulk_insert_buff_size;
   ulonglong join_buff_size;
   ulonglong sortbuff_size;
@@ -1508,19 +1511,25 @@ public:
 class Sub_statement_state
 {
 public:
+  Discrete_interval auto_inc_interval_for_cur_row;
+  Discrete_intervals_list auto_inc_intervals_forced;
+  SAVEPOINT *savepoints;
   ulonglong option_bits;
   ulonglong first_successful_insert_id_in_prev_stmt;
   ulonglong first_successful_insert_id_in_cur_stmt, insert_id_for_cur_row;
-  Discrete_interval auto_inc_interval_for_cur_row;
-  Discrete_intervals_list auto_inc_intervals_forced;
   ulonglong limit_found_rows;
-  ha_rows    cuted_fields, sent_row_count, examined_row_count;
+  ulonglong tmp_tables_size;
   ulonglong client_capabilities;
+  ulonglong cuted_fields, sent_row_count, examined_row_count;
+  ulonglong affected_rows;
+  ulonglong bytes_sent_old;
+  ulong     tmp_tables_used;
+  ulong     tmp_tables_disk_used;
+  ulong     query_plan_fsort_passes;
   ulong query_plan_flags; 
   uint in_sub_stmt;    /* 0,  SUB_STMT_TRIGGER or SUB_STMT_FUNCTION */
   bool enable_slow_log;
   bool last_insert_id_used;
-  SAVEPOINT *savepoints;
   enum enum_check_fields count_cuted_fields;
 };
 
@@ -1988,6 +1997,16 @@ struct wait_for_commit
   void reinit();
 };
 
+/*
+  Structure to store the start time for a query
+*/
+
+typedef struct
+{
+  my_time_t start_time;
+  ulong      start_time_sec_part;
+  ulonglong start_utime, utime_after_lock;
+} QUERY_START_TIME_INFO;
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
@@ -2687,6 +2706,14 @@ public:
   {
     m_row_count_func= row_count_func;
   }
+  inline void set_affected_rows(longlong row_count_func)
+  {
+    /*
+      We have to add to affected_rows (used by slow log), as otherwise
+      information for 'call' will be wrong
+    */
+    affected_rows+= (row_count_func >= 0 ? row_count_func : 0);
+  }
 
   ha_rows    cuted_fields;
 
@@ -2715,6 +2742,9 @@ public:
 
   ha_rows get_examined_row_count() const
   { return m_examined_row_count; }
+
+  ulonglong get_affected_rows() const
+  { return affected_rows; }
 
   void set_sent_row_count(ha_rows count);
   void set_examined_row_count(ha_rows count);
@@ -2793,8 +2823,16 @@ public:
   /* Statement id is thread-wide. This counter is used to generate ids */
   ulong      statement_id_counter;
   ulong	     rand_saved_seed1, rand_saved_seed2;
+
+  /* The following variables are used when printing to slow log */
   ulong      query_plan_flags; 
   ulong      query_plan_fsort_passes; 
+  ulong      tmp_tables_used;
+  ulong      tmp_tables_disk_used;
+  ulonglong  tmp_tables_size;
+  ulonglong  bytes_sent_old;
+  ulonglong  affected_rows;                     /* Number of changed rows */
+
   pthread_t  real_id;                           /* For debugging */
   my_thread_id  thread_id, thread_dbug_id;
   uint32      os_thread_id;
@@ -2874,7 +2912,6 @@ public:
   uint8      failed_com_change_user;
   bool       slave_thread;
   bool       extra_port;                        /* If extra connection */
-
   bool	     no_errors;
 
   /**
@@ -2918,7 +2955,7 @@ public:
   */
   bool	     charset_is_system_charset, charset_is_collation_connection;
   bool       charset_is_character_set_filesystem;
-  bool       enable_slow_log;   /* enable slow log for current statement */
+  bool       enable_slow_log;    /* Enable slow log for current statement */
   bool	     abort_on_warning;
   bool 	     got_warning;       /* Set on call to push_warning() */
   /* set during loop of derived table processing */
@@ -2950,6 +2987,7 @@ public:
     the query. 0 if no error on the master.
   */
   int	     slave_expected_error;
+  enum_sql_command last_sql_command;  // Last sql_command exceuted in mysql_execute_command()
 
   sp_rcontext *spcont;		// SP runtime context
   sp_cache   *sp_proc_cache;
@@ -3242,6 +3280,20 @@ public:
     MYSQL_SET_STATEMENT_LOCK_TIME(m_statement_psi,
                                   (utime_after_lock - start_utime));
   }
+  void get_time(QUERY_START_TIME_INFO *time_info)
+  {
+    time_info->start_time=          start_time;
+    time_info->start_time_sec_part= start_time_sec_part;
+    time_info->start_utime=         start_utime;
+    time_info->utime_after_lock=    utime_after_lock;
+  }
+  void set_time(QUERY_START_TIME_INFO *time_info)
+  {
+    start_time=          time_info->start_time;
+    start_time_sec_part= time_info->start_time_sec_part;
+    start_utime=         time_info->start_utime;
+    utime_after_lock=    time_info->utime_after_lock;
+  }
   ulonglong current_utime()  { return microsecond_interval_timer(); }
 
   /* Tell SHOW PROCESSLIST to show time from this point */
@@ -3260,7 +3312,7 @@ public:
   void update_server_status()
   {
     set_time_for_next_stage();
-    if (utime_after_query > utime_after_lock + variables.long_query_time)
+    if (utime_after_query >= utime_after_lock + variables.long_query_time)
       server_status|= SERVER_QUERY_WAS_SLOW;
   }
   inline ulonglong found_rows(void)
@@ -3658,6 +3710,9 @@ public:
   void restore_backup_open_tables_state(Open_tables_backup *backup);
   void reset_sub_statement_state(Sub_statement_state *backup, uint new_state);
   void restore_sub_statement_state(Sub_statement_state *backup);
+  void store_slow_query_state(Sub_statement_state *backup);
+  void reset_slow_query_state();
+  void add_slow_query_state(Sub_statement_state *backup);
   void set_n_backup_active_arena(Query_arena *set, Query_arena *backup);
   void restore_active_arena(Query_arena *set, Query_arena *backup);
 
@@ -4457,6 +4512,12 @@ public:
   */
   bool restore_from_local_lex_to_old_lex(LEX *oldlex);
 
+  inline void prepare_logs_for_admin_command()
+  {
+    enable_slow_log&= !MY_TEST(variables.log_slow_disabled_statements &
+                               LOG_SLOW_DISABLE_ADMIN);
+    query_plan_flags|= QPLAN_ADMIN;
+  }
 };
 
 inline void add_to_active_threads(THD *thd)
@@ -4483,11 +4544,12 @@ inline void unlink_not_visible_thd(THD *thd)
 /** A short cut for thd->get_stmt_da()->set_ok_status(). */
 
 inline void
-my_ok(THD *thd, ulonglong affected_rows= 0, ulonglong id= 0,
+my_ok(THD *thd, ulonglong affected_rows_arg= 0, ulonglong id= 0,
         const char *message= NULL)
 {
-  thd->set_row_count_func(affected_rows);
-  thd->get_stmt_da()->set_ok_status(affected_rows, id, message);
+  thd->set_row_count_func(affected_rows_arg);
+  thd->set_affected_rows(affected_rows_arg);
+  thd->get_stmt_da()->set_ok_status(affected_rows_arg, id, message);
 }
 
 

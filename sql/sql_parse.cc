@@ -99,7 +99,6 @@
 #include "debug_sync.h"
 #include "probes_mysql.h"
 #include "set_var.h"
-#include "log_slow.h"
 #include "sql_bootstrap.h"
 #include "sql_sequence.h"
 
@@ -1599,11 +1598,18 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->m_statement_psi= MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
                                                com_statement_info[command].
                                                m_key);
+  /*
+    We should always call reset_for_next_command() before a query.
+    mysql_parse() will do this for queries. Ensure it's also done
+    for other commands.
+  */
+  if (command != COM_QUERY)
+    thd->reset_for_next_command();
   thd->set_command(command);
 
   /*
-    Commands which always take a long time are logged into
-    the slow log only if opt_log_slow_admin_statements is set.
+    thd->variables.log_slow_disabled_statements defines which statements
+    are logged to slow log
   */
   thd->enable_slow_log= thd->variables.sql_log_slow;
   thd->query_plan_flags= QPLAN_INIT;
@@ -1886,6 +1892,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
       thd->set_query_and_id(beginning_of_next_stmt, length,
                             thd->charset(), next_query_id());
+
       /*
         Count each statement from the client.
       */
@@ -1895,7 +1902,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 	thd->set_time(); /* Reset the query start time. */
 
       parser_state.reset(beginning_of_next_stmt, length);
-      /* TODO: set thd->lex->sql_command to SQLCOM_END here */
 
       if (WSREP_ON)
         wsrep_mysql_parse(thd, beginning_of_next_stmt, length, &parser_state,
@@ -1953,7 +1959,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
     }
     packet= arg_end + 1;
-    thd->reset_for_next_command();
     // thd->reset_for_next_command reset state => restore it
     if (is_next_command)
     {
@@ -2045,8 +2050,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
       status_var_increment(thd->status_var.com_other);
 
-      thd->enable_slow_log&= opt_log_slow_admin_statements;
-      thd->query_plan_flags|= QPLAN_ADMIN;
+      thd->prepare_logs_for_admin_command();
       if (check_global_access(thd, REPL_SLAVE_ACL))
 	break;
 
@@ -2422,9 +2426,12 @@ com_multi_end:
 
 
 /*
+  Log query to slow queries, if it passes filtering
+
   @note
     This function must call delete_explain_query().
 */
+
 void log_slow_statement(THD *thd)
 {
   DBUG_ENTER("log_slow_statement");
@@ -2436,19 +2443,26 @@ void log_slow_statement(THD *thd)
   */
   if (unlikely(thd->in_sub_stmt))
     goto end;                           // Don't set time for sub stmt
+  if (!thd->enable_slow_log || !global_system_variables.sql_log_slow)
+    goto end;
 
+  if ((thd->server_status &
+       (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
+      !(sql_command_flags[thd->last_sql_command] & CF_STATUS_COMMAND) &&
+      (!thd->variables.log_slow_filter ||
+       (thd->variables.log_slow_filter & QPLAN_NOT_USING_INDEX)))
+  {
+    thd->query_plan_flags|= QPLAN_NOT_USING_INDEX;
+    /* We are always logging no index queries if enabled in filter */
+    thd->server_status|= SERVER_QUERY_WAS_SLOW;
+  }
 
   /* Follow the slow log filter configuration. */ 
-  if (!thd->enable_slow_log || !global_system_variables.sql_log_slow ||
-      (thd->variables.log_slow_filter
-        && !(thd->variables.log_slow_filter & thd->query_plan_flags)))
+  if (thd->variables.log_slow_filter &&
+      !(thd->variables.log_slow_filter & thd->query_plan_flags))
     goto end; 
- 
-  if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
-       ((thd->server_status &
-         (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
-        opt_log_queries_not_using_indexes &&
-        !(sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND))) &&
+
+  if ((thd->server_status & SERVER_QUERY_WAS_SLOW) &&
       thd->get_examined_row_count() >= thd->variables.min_examined_row_limit)
   {
     thd->status_var.long_query_count++;
@@ -2863,6 +2877,7 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
 {
   /* bits that should be cleared in thd->server_status */
   uint bits_to_be_cleared= 0;
+  ulonglong affected_rows;
   if (sp->m_flags & sp_head::MULTI_RESULTS)
   {
     if (!(thd->client_capabilities & CLIENT_MULTI_RESULTS))
@@ -2902,7 +2917,10 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
     return 1;  		// Substatement should already have sent error
   }
 
+  affected_rows= thd->affected_rows; // Affected rows for all sub statements
+  thd->affected_rows= 0;             // Reset total, as my_ok() adds to it
   my_ok(thd, (thd->get_row_count_func() < 0) ? 0 : thd->get_row_count_func());
+  thd->affected_rows= affected_rows; // Restore original value
   return 0;
 }
 
@@ -3133,6 +3151,13 @@ bool Sql_cmd_call::execute(THD *thd)
 
     if (do_execute_sp(thd, sp))
       return true;
+
+    /*
+      Disable slow log for the above call(), if calls are disabled.
+      Instead we will log the executed statements to the slow log.
+    */
+    if (thd->variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_CALL)
+      thd->enable_slow_log= 0;
   }
   return false;
 }
@@ -3212,6 +3237,12 @@ mysql_execute_command(THD *thd)
   select_lex->
     context.resolve_in_table_list_only(select_lex->
                                        table_list.first);
+
+  /*
+    Remember last commmand executed, so that we can use it in functions called by
+    dispatch_command()
+  */
+  thd->last_sql_command= lex->sql_command;
 
   /*
     Reset warning count for each query that uses tables
@@ -4245,8 +4276,7 @@ end_with_restore_list:
       and thus classify as slow administrative statements just like
       ALTER TABLE.
     */
-    thd->enable_slow_log&= opt_log_slow_admin_statements;
-    thd->query_plan_flags|= QPLAN_ADMIN;
+    thd->prepare_logs_for_admin_command();
 
     bzero((char*) &create_info, sizeof(create_info));
     create_info.db_type= 0;
@@ -7481,6 +7511,7 @@ void THD::reset_for_next_command()
     reset_dynamic(&thd->user_var_events);
     thd->user_var_events_alloc= thd->mem_root;
   }
+  thd->enable_slow_log= thd->variables.sql_log_slow;
   thd->clear_error();
   thd->get_stmt_da()->reset_diagnostics_area();
   thd->get_stmt_da()->reset_for_next_command();
@@ -7488,8 +7519,7 @@ void THD::reset_for_next_command()
   thd->m_sent_row_count= thd->m_examined_row_count= 0;
   thd->accessed_rows_and_keys= 0;
 
-  thd->query_plan_flags= QPLAN_INIT;
-  thd->query_plan_fsort_passes= 0;
+  reset_slow_query_state();
 
   thd->reset_current_stmt_binlog_format_row();
   thd->binlog_unsafe_warning_flags= 0;

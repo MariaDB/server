@@ -21,6 +21,16 @@
 ###############################################################################
 
 SET @start_value= @@global.log_queries_not_using_indexes;
+SET @filter_start_value= @@global.log_slow_filter;
+
+####################################################################
+#   Check that variable is both session and global                 #
+####################################################################
+
+SET @@global.log_queries_not_using_indexes= TRUE;
+SET @@session.log_queries_not_using_indexes= TRUE;
+SET @@global.log_queries_not_using_indexes= FALSE;
+SET @@session.log_queries_not_using_indexes= FALSE;
 
 ####################################################################
 #   Valid values for boolean                                       #
@@ -63,7 +73,7 @@ SET GLOBAL log_queries_not_using_indexes= +0;
 SELECT @@global.log_queries_not_using_indexes;
 
 #################################################################
-# Check if the value in GLOBAL Table matches value in variable  #
+# Not valid values for the variable                             #
 #################################################################
 
 --error ER_WRONG_VALUE_FOR_VAR
@@ -88,23 +98,38 @@ SET @@global.log_queries_not_using_indexes= @badvar;
 --error ER_WRONG_VALUE_FOR_VAR
 SET GLOBAL log_queries_not_using_indexes= 'DEFAULT';
 
---error ER_GLOBAL_VARIABLE
-SET log_queries_not_using_indexes= TRUE;
-
---error ER_GLOBAL_VARIABLE
-SET SESSION log_queries_not_using_indexes= TRUE;
-
---error ER_GLOBAL_VARIABLE
-SET @@session.log_queries_not_using_indexes= TRUE;
-
---error ER_GLOBAL_VARIABLE
-SET LOCAL log_queries_not_using_indexes= TRUE;
-
 --error ER_PARSE_ERROR
 SET @@global log_queries_not_using_indexes= TRUE;
 
 --error ER_PARSE_ERROR
 SET @@SESSION log_queries_not_using_indexes= TRUE;
 
-SET @@global.log_queries_not_using_indexes= @start_value;
+####################################################################
+#  Ensure that the value matches log_slow_filter                   #
+####################################################################
 
+SET @@SESSION.log_queries_not_using_indexes= TRUE;
+select @@SESSION.log_slow_filter;
+SET @@SESSION.log_queries_not_using_indexes= FALSE;
+select @@SESSION.log_slow_filter;
+SET @@GLOBAL.log_queries_not_using_indexes= TRUE;
+select @@GLOBAL.log_slow_filter;
+SET @@GLOBAL.log_queries_not_using_indexes= FALSE;
+select @@GLOBAL.log_slow_filter;
+
+SET @@SESSION.log_slow_filter="";
+select @@SESSION.log_queries_not_using_indexes;
+SET @@SESSION.log_slow_filter="not_using_index";
+select @@SESSION.log_queries_not_using_indexes;
+
+SET @@GLOBAL.log_slow_filter="";
+select @@GLOBAL.log_queries_not_using_indexes;
+SET @@GLOBAL.log_slow_filter="not_using_index";
+select @@GLOBAL.log_queries_not_using_indexes;
+
+####################################################################
+#  Restore original value                                          #
+####################################################################
+
+SET @@global.log_queries_not_using_indexes= @start_value;
+SET @@global.log_slow_filter= @filter_start_value;

@@ -835,7 +835,27 @@ static int setval(const struct my_option *opts, void *value, char *argument,
           goto ret;
         };
       }
+    case GET_BIT:
+    {
+      uint tmp;
+      ulonglong bit= (opts->block_size >= 0 ?
+                      opts->block_size :
+                      -opts->block_size);
+      /*
+        This sets a bit stored in a longlong.
+        The bit to set is stored in block_size. If block_size is positive
+        then setting the bit means value is true. If block_size is negatitive,
+        then setting the bit means value is false.
+      */
+      tmp= get_bool_argument(opts, argument);
+      if (opts->block_size < 0)
+        tmp= !tmp;
+      if (tmp)
+        (*(ulonglong*)value)|= bit;
+      else
+        (*(ulonglong*)value)&= ~bit;
       break;
+    }
     case GET_NO_ARG: /* get_one_option has taken care of the value already */
     default:         /* dummy default to avoid compiler warnings */
       break;
@@ -1289,6 +1309,19 @@ static void init_one_value(const struct my_option *option, void *variable,
   case GET_FLAGSET:
     *((ulonglong*) variable)= (ulonglong) value;
     break;
+  case GET_BIT:
+  {
+    ulonglong bit= (option->block_size >= 0 ?
+                    option->block_size :
+                    -option->block_size);
+    if (option->block_size < 0)
+      value= !value;
+    if (value)
+      (*(ulonglong*)variable)|= bit;
+    else
+      (*(ulonglong*)variable)&= ~bit;
+    break;
+  }
   case GET_DOUBLE:
     *((double*) variable)= getopt_ulonglong2double(value);
     break;
@@ -1477,7 +1510,8 @@ void my_print_help(const struct my_option *options)
       printf("--");
       col+= 2 + print_name(optp);
       if (optp->arg_type == NO_ARG ||
-	  (optp->var_type & GET_TYPE_MASK) == GET_BOOL)
+	  (optp->var_type & GET_TYPE_MASK) == GET_BOOL ||
+          (optp->var_type & GET_TYPE_MASK) == GET_BIT)
       {
 	putchar(' ');
 	col++;
@@ -1627,6 +1661,16 @@ void my_print_variables(const struct my_option *options)
       case GET_BOOL:
 	printf("%s\n", *((my_bool*) value) ? "TRUE" : "FALSE");
 	break;
+      case GET_BIT:
+      {
+        ulonglong bit= (optp->block_size >= 0 ?
+                        optp->block_size :
+                        -optp->block_size);
+        my_bool reverse= optp->block_size < 0;
+	printf("%s\n", ((*((ulonglong*) value) & bit) != 0) ^ reverse ?
+               "TRUE" : "FALSE");
+	break;
+      }
       case GET_INT:
 	printf("%d\n", *((int*) value));
 	break;

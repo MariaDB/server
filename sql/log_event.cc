@@ -5253,13 +5253,13 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
          if (thd->slave_thread)
          {
            /*
-             The opt_log_slow_slave_statements variable can be changed
-             dynamically, so we have to set the sql_log_slow respectively.
+             To be compatible with previous releases, the slave thread uses the global
+             log_slow_disabled_statements value, wich can be changed dynamically, so we
+             have to set the sql_log_slow respectively.
            */
-           thd->variables.sql_log_slow= opt_log_slow_slave_statements;
+           thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
          }
 
-        thd->enable_slow_log= thd->variables.sql_log_slow;
         mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
                     FALSE, FALSE);
         /* Finalize server status flags after executing a statement. */

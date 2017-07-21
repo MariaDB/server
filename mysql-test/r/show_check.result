@@ -1236,7 +1236,7 @@ select 1 from information_schema.tables limit 1;
 show status like 'slow_queries';
 Variable_name	Value
 Slow_queries	1
-set global log_queries_not_using_indexes=OFF;
+set session log_queries_not_using_indexes=OFF;
 show variables like "log_queries_not_using_indexes";
 Variable_name	Value
 log_queries_not_using_indexes	OFF
@@ -1246,7 +1246,7 @@ select 1 from information_schema.tables limit 1;
 show status like 'slow_queries';
 Variable_name	Value
 Slow_queries	1
-set global log_queries_not_using_indexes=ON;
+set session log_queries_not_using_indexes=ON;
 show variables like "log_queries_not_using_indexes";
 Variable_name	Value
 log_queries_not_using_indexes	ON

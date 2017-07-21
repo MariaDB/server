@@ -9868,8 +9868,8 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
   HA_CREATE_INFO create_info;
   Alter_info alter_info;
   TABLE_LIST *next_table= table_list->next_global;
-
   DBUG_ENTER("mysql_recreate_table");
+
   /* Set lock type which is appropriate for ALTER TABLE. */
   table_list->lock_type= TL_READ_NO_INSERT;
   /* Same applies to MDL request. */
@@ -9886,6 +9886,8 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
 
   if (table_copy)
     alter_info.requested_algorithm= Alter_info::ALTER_TABLE_ALGORITHM_COPY;
+
+  thd->prepare_logs_for_admin_command();
 
   bool res= mysql_alter_table(thd, NullS, NullS, &create_info,
                                 table_list, &alter_info, 0,

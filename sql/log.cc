@@ -39,11 +39,9 @@
 #include "rpl_filter.h"
 #include "rpl_rli.h"
 #include "sql_audit.h"
-#include "log_slow.h"
 #include "mysqld.h"
 
 #include <my_dir.h>
-#include <stdarg.h>
 #include <m_ctype.h>				// For test_if_number
 
 #ifdef _WIN32
@@ -56,6 +54,8 @@
 #include "sql_show.h"
 #include "my_pthread.h"
 #include "wsrep_mysqld.h"
+#include "sp_rcontext.h"
+#include "sp_head.h"
 
 /* max size of the log message */
 #define MAX_LOG_BUFFER_SIZE 1024
@@ -2976,6 +2976,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                             const char *sql_text, uint sql_text_len)
 {
   bool error= 0;
+  char llbuff[22];
   DBUG_ENTER("MYSQL_QUERY_LOG::write");
 
   mysql_mutex_lock(&LOCK_log);
@@ -3018,22 +3019,39 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
     sprintf(query_time_buff, "%.6f", ulonglong2double(query_utime)/1000000.0);
     sprintf(lock_time_buff,  "%.6f", ulonglong2double(lock_utime)/1000000.0);
     if (my_b_printf(&log_file,
-                    "# Thread_id: %lu  Schema: %s  QC_hit: %s\n" \
-                    "# Query_time: %s  Lock_time: %s  Rows_sent: %lu  Rows_examined: %lu\n" \
-                    "# Rows_affected: %lu\n",
+                    "# Thread_id: %lu  Schema: %s  QC_hit: %s\n"
+                    "# Query_time: %s  Lock_time: %s  Rows_sent: %lu  Rows_examined: %lu\n"
+                    "# Rows_affected: %lu  Bytes_sent: %lu\n",
                     (ulong) thd->thread_id, (thd->db ? thd->db : ""),
                     ((thd->query_plan_flags & QPLAN_QC) ? "Yes" : "No"),
                     query_time_buff, lock_time_buff,
                     (ulong) thd->get_sent_row_count(),
                     (ulong) thd->get_examined_row_count(),
-                    thd->get_stmt_da()->is_ok() ?
-                    (ulong) thd->get_stmt_da()->affected_rows() :
-                    0) == (size_t) -1)
+                    (ulong) thd->get_affected_rows(),
+                    (ulong) (thd->status_var.bytes_sent - thd->bytes_sent_old))
+        == (size_t) -1)
       tmp_errno= errno;
+
+    if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN)
+        && thd->tmp_tables_used &&
+        my_b_printf(&log_file,
+                    "# Tmp_tables: %lu  Tmp_disk_tables: %lu  "
+                    "Tmp_table_sizes: %s\n",
+                    (ulong) thd->tmp_tables_used,
+                    (ulong) thd->tmp_tables_disk_used,
+                    llstr(thd->tmp_tables_size, llbuff)) == (uint) -1)
+      tmp_errno= errno;
+
+    if (thd->spcont)
+      if (my_b_printf(&log_file, "# Stored_routine: %s\n",
+                      ErrConvDQName(thd->spcont->sp).ptr()) == (uint) -1)
+        tmp_errno= errno;
+
      if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
          (thd->query_plan_flags &
           (QPLAN_FULL_SCAN | QPLAN_FULL_JOIN | QPLAN_TMP_TABLE |
-           QPLAN_TMP_DISK | QPLAN_FILESORT | QPLAN_FILESORT_DISK)) &&
+           QPLAN_TMP_DISK | QPLAN_FILESORT | QPLAN_FILESORT_DISK |
+           QPLAN_FILESORT_PRIORITY_QUEUE)) &&
          my_b_printf(&log_file,
                      "# Full_scan: %s  Full_join: %s  "
                      "Tmp_table: %s  Tmp_table_on_disk: %s\n"
@@ -3041,8 +3059,8 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                      "Priority_queue: %s\n",
                      ((thd->query_plan_flags & QPLAN_FULL_SCAN) ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_FULL_JOIN) ? "Yes" : "No"),
-                     ((thd->query_plan_flags & QPLAN_TMP_TABLE) ? "Yes" : "No"),
-                     ((thd->query_plan_flags & QPLAN_TMP_DISK) ? "Yes" : "No"),
+                     (thd->tmp_tables_used ? "Yes" : "No"),
+                     (thd->tmp_tables_disk_used ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_FILESORT) ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_FILESORT_DISK) ?
                       "Yes" : "No"),
@@ -6427,31 +6445,29 @@ bool slow_log_print(THD *thd, const char *query, uint query_length,
 }
 
 
+/**
+  Decide if we should log the command to general log
+
+  @retval
+     FALSE  No logging
+     TRUE   Ok to log
+*/
+
 bool LOGGER::log_command(THD *thd, enum enum_server_command command)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  Security_context *sctx= thd->security_ctx;
-#endif
   /*
     Log command if we have at least one log event handler enabled and want
     to log this king of commands
   */
-  if (*general_log_handler_list && (what_to_log & (1L << (uint) command)))
-  {
-    if ((thd->variables.option_bits & OPTION_LOG_OFF)
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-         && (sctx->master_access & SUPER_ACL)
-#endif
-       )
-    {
-      /* No logging */
-      return FALSE;
-    }
+  if (!(*general_log_handler_list && (what_to_log & (1L << (uint) command))))
+    return FALSE;
 
-    return TRUE;
-  }
-
-  return FALSE;
+  /*
+    If LOG_SLOW_DISABLE_SLAVE is set when slave thread starts, then
+    OPTION_LOG_OFF is set.
+    Only the super user can set this bit.
+  */
+  return !(thd->variables.option_bits & OPTION_LOG_OFF);
 }
 
 
@@ -6461,7 +6477,7 @@ bool general_log_print(THD *thd, enum enum_server_command command,
   va_list args;
   uint error= 0;
 
-  /* Print the message to the buffer if we want to log this king of commands */
+  /* Print the message to the buffer if we want to log this kind of commands */
   if (! logger.log_command(thd, command))
     return FALSE;
 

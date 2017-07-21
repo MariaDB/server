@@ -1,0 +1,92 @@
+SET @old_log_output=                @@global.log_output;
+SET @old_slow_query_log=            @@global.slow_query_log;
+SET @old_long_query_time=           @@session.long_query_time;
+SET @old_log_slow_disable_statements= @@global.log_slow_disabled_statements;
+
+# Log everything to slow log
+SET @@session.log_slow_verbosity="explain,innodb,query_plan";
+
+CREATE TABLE t1 (i INT PRIMARY KEY AUTO_INCREMENT, j blob) ENGINE=MyISAM;
+insert into t1 (j) values ('a'),('b'),('c'),('d');
+create table t2 (a int auto_increment primary key) engine=myisam;
+
+# enable slow logging to table
+SET GLOBAL log_output = 'file,table';
+SET GLOBAL slow_query_log = on;
+
+DELIMITER $;
+CREATE PROCEDURE slow()
+BEGIN
+  SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b';
+  SELECT count(*) from t1 where j>'a';
+  insert into t2 () values();
+END
+$
+
+CREATE PROCEDURE slow2()
+BEGIN
+  SELECT j,count(*) from t1 group by j;
+  create temporary table t3 (a int);
+  alter table t3 add column (b int);
+  call slow();
+  drop temporary table t3;
+  SELECT j,count(*)+1 from t1 group by j,i;
+END
+$
+
+DELIMITER ;$
+
+SET SESSION long_query_time = 0;
+
+SELECT @@log_slow_disabled_statements;
+TRUNCATE TABLE mysql.slow_log;
+ALTER TABLE t1 add column extra int;
+CALL slow2();
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part2';
+
+--echo -->
+SELECT sql_text FROM mysql.slow_log where sql_text <> "Close stmt" and sql_text <> "Prepare";
+--echo <--
+
+SET SESSION log_slow_disabled_statements="call,admin";
+TRUNCATE TABLE mysql.slow_log;
+ALTER TABLE t1 add column extra2 int;
+CALL slow2();
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part3';
+
+--echo -->
+SELECT sql_text FROM mysql.slow_log where sql_text <> "Close stmt" and sql_text <> "Prepare";
+--echo <--
+
+SET SESSION log_slow_disabled_statements="";
+TRUNCATE TABLE mysql.slow_log;
+ALTER TABLE t1 add column extra3 int;
+CALL slow2();
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part4';
+
+--echo -->
+SELECT sql_text FROM mysql.slow_log where sql_text <> "Close stmt" and sql_text <> "Prepare";
+--echo <--
+
+SET SESSION log_slow_disabled_statements="call,admin,slave,sp";
+TRUNCATE TABLE mysql.slow_log;
+ALTER TABLE t1 add column extra4 int;
+CALL slow2();
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part5';
+
+--echo -->
+SELECT sql_text FROM mysql.slow_log where sql_text <> "Close stmt" and sql_text <> "Prepare";
+--echo <--
+
+DROP TABLE t1,t2;
+DROP PROCEDURE slow;
+DROP PROCEDURE slow2;
+
+#
+# Restore setup
+#
+SET @@session.long_query_time=             @old_long_query_time;
+TRUNCATE TABLE mysql.slow_log;
+SET @@global.log_output=                   @old_log_output;
+SET @@global.slow_query_log=               @old_slow_query_log;
+SET @@global.log_slow_disabled_statements= @old_log_slow_disable_statements;

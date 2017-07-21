@@ -50,7 +50,6 @@
 #include "sql_base.h"                           // close_cached_tables
 #include "hostname.h"                           // host_cache_size
 #include <myisam.h>
-#include "log_slow.h"
 #include "debug_sync.h"                         // DEBUG_SYNC
 #include "sql_show.h"
 
@@ -1203,25 +1202,28 @@ static Sys_var_charptr Sys_log_error(
        CMD_LINE(OPT_ARG, OPT_LOG_ERROR),
        IN_FS_CHARSET, DEFAULT(disabled_my_option));
 
-static Sys_var_mybool Sys_log_queries_not_using_indexes(
+static Sys_var_bit Sys_log_queries_not_using_indexes(
        "log_queries_not_using_indexes",
        "Log queries that are executed without benefit of any index to the "
-       "slow log if it is open",
-       GLOBAL_VAR(opt_log_queries_not_using_indexes),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       "slow log if it is open. Same as log_slow_filter='not_using_index'",
+       SESSION_VAR(log_slow_filter), CMD_LINE(OPT_ARG), QPLAN_NOT_USING_INDEX,
+       DEFAULT(FALSE));
 
-static Sys_var_mybool Sys_log_slow_admin_statements(
+static Sys_var_bit Sys_log_slow_admin_statements(
        "log_slow_admin_statements",
-       "Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements to "
-       "the slow log if it is open.",
-       GLOBAL_VAR(opt_log_slow_admin_statements),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       "Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements "
+       "to the slow log if it is open.  Resets or sets the option 'admin' in "
+       "log_slow_disabled_statements",
+       SESSION_VAR(log_slow_disabled_statements),
+       CMD_LINE(OPT_ARG), REVERSE(LOG_SLOW_DISABLE_ADMIN), DEFAULT(TRUE));
 
-static Sys_var_mybool Sys_log_slow_slave_statements(
+static Sys_var_bit Sys_log_slow_slave_statements(
        "log_slow_slave_statements",
-       "Log slow statements executed by slave thread to the slow log if it is open.",
-       GLOBAL_VAR(opt_log_slow_slave_statements),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       "Log slow statements executed by slave thread to the slow log if it is "
+       "open. Resets or sets the option 'slave' in "
+       "log_slow_disabled_statements",
+       SESSION_VAR(log_slow_disabled_statements),
+       CMD_LINE(OPT_ARG), REVERSE(LOG_SLOW_DISABLE_SLAVE), DEFAULT(TRUE));
 
 static Sys_var_ulong Sys_log_warnings(
        "log_warnings",
@@ -4355,6 +4357,7 @@ static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type)
   return res;
 }
 
+
 static bool check_not_empty_set(sys_var *self, THD *thd, set_var *var)
 {
   return var->save_result.ulonglong_value == 0;
@@ -5246,15 +5249,42 @@ static Sys_var_keycache Sys_key_cache_segments(
        ON_UPDATE(repartition_keycache));
 
 static const char *log_slow_filter_names[]= 
-{ "admin", "filesort", "filesort_on_disk", "full_join", "full_scan",
-  "query_cache", "query_cache_miss", "tmp_table", "tmp_table_on_disk", 0
+{
+  "admin", "filesort", "filesort_on_disk", "filsort_priority_queue",
+  "full_join", "full_scan", "not_using_index", "query_cache",
+  "query_cache_miss", "tmp_table", "tmp_table_on_disk", 0
 };
+
+
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
-       "Log only certain types of queries",
+       "Log only certain types of queries to the slow log. If variable empty alll kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
        SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
-       DEFAULT(my_set_bits(array_elements(log_slow_filter_names)-1)));
+       /* by default we log all queries except 'not_using_index' */
+       DEFAULT(my_set_bits(array_elements(log_slow_filter_names)-1) &
+               ~QPLAN_NOT_USING_INDEX));
+
+static const char *log_slow_disabled_statements_names[]=
+{ "admin", "call", "slave", "sp", 0 };
+
+static const char *log_disabled_statements_names[]=
+{ "slave", "sp", 0 };
+
+static Sys_var_set Sys_log_slow_disabled_statements(
+       "log_slow_disabled_statements",
+       "Don't log certain types of statements to slow log",
+       SESSION_VAR(log_slow_disabled_statements), CMD_LINE(REQUIRED_ARG),
+       log_slow_disabled_statements_names,
+       DEFAULT(LOG_SLOW_DISABLE_SP));
+
+static Sys_var_set Sys_log_disabled_statements(
+       "log_disabled_statements",
+       "Don't log certain types of statements to general log",
+       SESSION_VAR(log_disabled_statements), CMD_LINE(REQUIRED_ARG),
+       log_disabled_statements_names,
+       DEFAULT(LOG_DISABLE_SP),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_has_super));
 
 static const char *default_regex_flags_names[]= 
 {

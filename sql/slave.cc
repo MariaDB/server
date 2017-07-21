@@ -3378,6 +3378,13 @@ void set_slave_thread_options(THD* thd)
     options&= ~OPTION_BIN_LOG;
   thd->variables.option_bits= options;
   thd->variables.completion_type= 0;
+
+  /* For easier test in LOGGER::log_command */
+  if (thd->variables.log_disabled_statements & LOG_DISABLE_SLAVE)
+    thd->variables.option_bits|= OPTION_LOG_OFF;
+
+  thd->variables.sql_log_slow= !MY_TEST(thd->variables.log_slow_disabled_statements &
+                                        LOG_SLOW_DISABLE_SLAVE);
   DBUG_VOID_RETURN;
 }
 
@@ -3424,8 +3431,7 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   thd->security_ctx->skip_grants();
   thd->slave_thread= 1;
   thd->connection_name= mi->connection_name;
-  thd->variables.sql_log_slow= opt_log_slow_slave_statements;
-  thd->variables.log_slow_filter= global_system_variables.log_slow_filter;
+  thd->variables.sql_log_slow= !MY_TEST(thd->variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
   set_slave_thread_options(thd);
   thd->client_capabilities = CLIENT_LOCAL_FILES;
 

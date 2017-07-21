@@ -380,6 +380,9 @@ The following options may be given as the first argument:
  ALWAYS use row-based binary logging, the security issues
  do not exist and the binary logging cannot break, so you
  can safely set this to TRUE
+ --log-disabled-statements=name 
+ Don't log certain types of statements to general log. Any
+ combination of: slave, sp
  --log-error[=name]  Log errors to file (instead of stdout).  If file name is
  not specified then 'datadir'/'log-basename'.err or the
  'pid-file' path with extension .err is used
@@ -388,7 +391,8 @@ The following options may be given as the first argument:
  FILE, TABLE
  --log-queries-not-using-indexes 
  Log queries that are executed without benefit of any
- index to the slow log if it is open
+ index to the slow log if it is open. Same as
+ log_slow_filter='not_using_index'
  --log-short-format  Don't log extra information to update and slow-query
  logs.
  --log-slave-updates Tells the slave to log the updates from the slave thread
@@ -396,12 +400,20 @@ The following options may be given as the first argument:
  plan to daisy-chain the slaves
  --log-slow-admin-statements 
  Log slow OPTIMIZE, ANALYZE, ALTER and other
- administrative statements to the slow log if it is open.
- (Defaults to on; use --skip-log-slow-admin-statements to disable.)
+ administrative statements to the slow log if it is open. 
+ Resets or sets the option 'admin' in
+ log_slow_disabled_statements
+ --log-slow-disabled-statements=name 
+ Don't log certain types of statements to slow log. Any
+ combination of: admin, call, slave, sp
  --log-slow-filter=name 
- Log only certain types of queries. Any combination of: 
- admin, filesort, filesort_on_disk, full_join, full_scan, 
- query_cache, query_cache_miss, tmp_table, 
+ Log only certain types of queries to the slow log. If
+ variable empty alll kind of queries are logged.  All
+ types are bound by slow_query_time, except
+ 'not_using_index' which is always logged if enabled. Any
+ combination of: admin, filesort, filesort_on_disk, 
+ filsort_priority_queue, full_join, full_scan, 
+ not_using_index, query_cache, query_cache_miss, tmp_table,
  tmp_table_on_disk
  --log-slow-rate-limit=# 
  Write to slow log every #th slow query. Set to 1 to log
@@ -409,8 +421,8 @@ The following options may be given as the first argument:
  the performance impact of slow logging
  --log-slow-slave-statements 
  Log slow statements executed by slave thread to the slow
- log if it is open.
- (Defaults to on; use --skip-log-slow-slave-statements to disable.)
+ log if it is open. Resets or sets the option 'slave' in
+ log_slow_disabled_statements
  --log-slow-verbosity=name 
  Verbosity level for the slow log. Any combination of: 
  innodb, query_plan, explain
@@ -1320,6 +1332,7 @@ log-bin-compress FALSE
 log-bin-compress-min-len 256
 log-bin-index (No default value)
 log-bin-trust-function-creators FALSE
+log-disabled-statements sp
 log-error 
 log-isam myisam.log
 log-output FILE
@@ -1327,7 +1340,8 @@ log-queries-not-using-indexes FALSE
 log-short-format FALSE
 log-slave-updates FALSE
 log-slow-admin-statements TRUE
-log-slow-filter admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+log-slow-disabled-statements sp
+log-slow-filter admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log-slow-rate-limit 1
 log-slow-slave-statements TRUE
 log-slow-verbosity 

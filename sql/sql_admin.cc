@@ -449,9 +449,10 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   int compl_result_code;
   bool need_repair_or_alter= 0;
   wait_for_commit* suspended_wfc;
-
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
+
+  thd->prepare_logs_for_admin_command();
 
   field_list.push_back(item= new (thd->mem_root)
                        Item_empty_string(thd, "Table",
@@ -1304,7 +1305,6 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error;
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
-  thd->enable_slow_log= opt_log_slow_admin_statements;
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt,
                          "analyze", lock_type, 1, 0, 0, 0,
                          &handler::ha_analyze, 0);
@@ -1335,7 +1335,6 @@ bool Sql_cmd_check_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL, first_table,
                          TRUE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  thd->enable_slow_log= opt_log_slow_admin_statements;
 
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "check",
                          lock_type, 0, 0, HA_OPEN_FOR_REPAIR, 0,
@@ -1360,7 +1359,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
-  thd->enable_slow_log= opt_log_slow_admin_statements;
+
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
     mysql_recreate_table(thd, first_table, true) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
@@ -1392,7 +1391,8 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  thd->enable_slow_log= opt_log_slow_admin_statements;
+  thd->enable_slow_log&= !MY_TEST(thd->variables.log_slow_disabled_statements &
+                                  LOG_SLOW_DISABLE_ADMIN);
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,

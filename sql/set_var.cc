@@ -1162,6 +1162,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       { STRING_WITH_LEN("SET") },                    // GET_SET       13
       { STRING_WITH_LEN("DOUBLE") },                 // GET_DOUBLE    14
       { STRING_WITH_LEN("FLAGSET") },                // GET_FLAGSET   15
+      { STRING_WITH_LEN("BOOLEAN") },                // GET_BIT       16
     };
     const ulong vartype= (var->option.var_type & GET_TYPE_MASK);
     const LEX_CSTRING *type= types + vartype;

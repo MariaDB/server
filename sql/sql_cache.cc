@@ -345,7 +345,6 @@ TODO list:
 #include "../storage/myisammrg/ha_myisammrg.h"
 #include "../storage/myisammrg/myrg_def.h"
 #include "probes_mysql.h"
-#include "log_slow.h"
 #include "transaction.h"
 #include "strfunc.h"
 

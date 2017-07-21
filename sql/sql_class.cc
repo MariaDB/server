@@ -5097,10 +5097,7 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   backup->count_cuted_fields= count_cuted_fields;
   backup->in_sub_stmt=     in_sub_stmt;
   backup->enable_slow_log= enable_slow_log;
-  backup->query_plan_flags= query_plan_flags;
   backup->limit_found_rows= limit_found_rows;
-  backup->examined_row_count= m_examined_row_count;
-  backup->sent_row_count=   m_sent_row_count;
   backup->cuted_fields=     cuted_fields;
   backup->client_capabilities= client_capabilities;
   backup->savepoints= transaction.savepoints;
@@ -5108,6 +5105,7 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
     first_successful_insert_id_in_prev_stmt;
   backup->first_successful_insert_id_in_cur_stmt= 
     first_successful_insert_id_in_cur_stmt;
+  store_slow_query_state(backup);
 
   if ((!lex->requires_prelocking() || is_update_query(lex->sql_command)) &&
       !is_current_stmt_binlog_format_row())
@@ -5123,13 +5121,11 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   /* Disable result sets */
   client_capabilities &= ~CLIENT_MULTI_RESULTS;
   in_sub_stmt|= new_state;
-  m_examined_row_count= 0;
-  m_sent_row_count= 0;
   cuted_fields= 0;
   transaction.savepoints= 0;
   first_successful_insert_id_in_cur_stmt= 0;
+  reset_slow_query_state();
 }
-
 
 void THD::restore_sub_statement_state(Sub_statement_state *backup)
 {
@@ -5165,7 +5161,6 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
   variables.option_bits= backup->option_bits;
   in_sub_stmt=      backup->in_sub_stmt;
   enable_slow_log=  backup->enable_slow_log;
-  query_plan_flags= backup->query_plan_flags;
   first_successful_insert_id_in_prev_stmt= 
     backup->first_successful_insert_id_in_prev_stmt;
   first_successful_insert_id_in_cur_stmt= 
@@ -5173,6 +5168,10 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
   limit_found_rows= backup->limit_found_rows;
   set_sent_row_count(backup->sent_row_count);
   client_capabilities= backup->client_capabilities;
+
+  /* Restore statistic needed for slow log */
+  add_slow_query_state(backup);
+
   /*
     If we've left sub-statement mode, reset the fatal error flag.
     Otherwise keep the current value, to propagate it up the sub-statement
@@ -5195,6 +5194,56 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
   inc_examined_row_count(backup->examined_row_count);
   cuted_fields+=       backup->cuted_fields;
   DBUG_VOID_RETURN;
+}
+
+/*
+  Store slow query state at start of a stored procedure statment
+*/
+
+void THD::store_slow_query_state(Sub_statement_state *backup)
+{
+  backup->affected_rows=           affected_rows;
+  backup->bytes_sent_old=          bytes_sent_old;
+  backup->examined_row_count=      m_examined_row_count;
+  backup->query_plan_flags=        query_plan_flags;
+  backup->query_plan_fsort_passes= query_plan_fsort_passes;
+  backup->sent_row_count=          m_sent_row_count;
+  backup->tmp_tables_disk_used=    tmp_tables_disk_used;
+  backup->tmp_tables_size=         tmp_tables_size;
+  backup->tmp_tables_used=         tmp_tables_used;
+}
+
+/* Reset variables related to slow query log */
+
+void THD::reset_slow_query_state()
+{
+  affected_rows=                0;
+  bytes_sent_old=               status_var.bytes_sent;
+  m_examined_row_count=         0;
+  m_sent_row_count=             0;
+  query_plan_flags=             QPLAN_INIT;
+  query_plan_fsort_passes=      0;
+  tmp_tables_disk_used=         0;
+  tmp_tables_size=              0;
+  tmp_tables_used=              0;
+}
+
+/*
+  Add back the stored values to the current counters to be able to get
+  right status for 'call procedure_name'
+*/
+
+void THD::add_slow_query_state(Sub_statement_state *backup)
+{
+  affected_rows+=                backup->affected_rows;
+  bytes_sent_old=                backup->bytes_sent_old;
+  m_examined_row_count+=         backup->examined_row_count;
+  m_sent_row_count+=             backup->sent_row_count;
+  query_plan_flags|=             backup->query_plan_flags;
+  query_plan_fsort_passes+=      backup->query_plan_fsort_passes;
+  tmp_tables_disk_used+=         backup->tmp_tables_disk_used;
+  tmp_tables_size+=              backup->tmp_tables_size;
+  tmp_tables_used+=              backup->tmp_tables_used;
 }
 
 
@@ -5231,6 +5280,8 @@ void THD::inc_examined_row_count(ha_rows count)
 
 void THD::inc_status_created_tmp_disk_tables()
 {
+  tmp_tables_disk_used++;
+  query_plan_flags|= QPLAN_TMP_DISK;
   status_var_increment(status_var.created_tmp_disk_tables_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_STATEMENT_CALL(inc_statement_created_tmp_disk_tables)(m_statement_psi, 1);
@@ -5239,6 +5290,8 @@ void THD::inc_status_created_tmp_disk_tables()
 
 void THD::inc_status_created_tmp_tables()
 {
+  tmp_tables_used++;
+  query_plan_flags|= QPLAN_TMP_TABLE;
   status_var_increment(status_var.created_tmp_tables_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_STATEMENT_CALL(inc_statement_created_tmp_tables)(m_statement_psi, 1);

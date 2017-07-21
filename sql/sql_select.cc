@@ -50,7 +50,6 @@
 #include "filesort.h"            // filesort_free_buffers
 #include "sql_union.h"           // mysql_union
 #include "opt_subselect.h"
-#include "log_slow.h"
 #include "sql_derived.h"
 #include "sql_statistics.h"
 #include "sql_cte.h"
@@ -16718,8 +16717,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
               (int) distinct, (int) save_sum_fields,
               (ulong) rows_limit, MY_TEST(group)));
 
-  thd->query_plan_flags|= QPLAN_TMP_TABLE;
-
   if (use_temp_pool && !(test_flags & TEST_KEEP_TMP_TABLES))
     temp_pool_slot = bitmap_lock_set_next(&temp_pool);
 
@@ -17842,7 +17839,6 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 
   table->in_use->inc_status_created_tmp_disk_tables();
   table->in_use->inc_status_created_tmp_tables();
-  table->in_use->query_plan_flags|= QPLAN_TMP_DISK;
   share->db_record_offset= 1;
   table->set_created();
   DBUG_RETURN(0);
@@ -17997,7 +17993,6 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   }
   table->in_use->inc_status_created_tmp_disk_tables();
   table->in_use->inc_status_created_tmp_tables();
-  table->in_use->query_plan_flags|= QPLAN_TMP_DISK;
   share->db_record_offset= 1;
   table->created= TRUE;
   DBUG_RETURN(0);
@@ -18164,7 +18159,12 @@ free_tmp_table(THD *thd, TABLE *entry)
   {
     entry->file->ha_index_or_rnd_end();
     if (entry->db_stat)
+    {
+      entry->file->info(HA_STATUS_VARIABLE);
+      thd->tmp_tables_size+= (entry->file->stats.data_file_length +
+                              entry->file->stats.index_file_length);
       entry->file->ha_drop_table(entry->s->table_name.str);
+    }
     else
       entry->file->ha_delete_table(entry->s->table_name.str);
     delete entry->file;
