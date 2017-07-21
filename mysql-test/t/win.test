@@ -1923,3 +1923,14 @@ insert into t1 values (1),(2),(10),(20),(30);
 select sum(i) over (order by i), interval(sum(i) over (order by i), 10, 20)
 from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-13352: Server crashes in st_join_table::remove_duplicates
+--echo #
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+DROP TABLE t1;
+
+
