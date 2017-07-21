@@ -1933,4 +1933,13 @@ SELECT DISTINCT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
 SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-13344: Server crashes in in AGGR_OP::put_record on subquery 
+--echo #             with window function and constant table
+--echo # (Testcase only)
+--echo #
+CREATE TABLE t1 (c CHAR(8)) ENGINE=MyISAM;
+INSERT IGNORE INTO t1 VALUES ('foo');
+SELECT ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1);
+DROP TABLE t1;
 

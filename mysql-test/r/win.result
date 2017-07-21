@@ -3149,3 +3149,14 @@ ROW_NUMBER() OVER()	i
 SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
 ROW_NUMBER() OVER()	i
 DROP TABLE t1;
+#
+# MDEV-13344: Server crashes in in AGGR_OP::put_record on subquery 
+#             with window function and constant table
+# (Testcase only)
+#
+CREATE TABLE t1 (c CHAR(8)) ENGINE=MyISAM;
+INSERT IGNORE INTO t1 VALUES ('foo');
+SELECT ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1);
+('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1)
+0
+DROP TABLE t1;
