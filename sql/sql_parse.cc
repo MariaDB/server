@@ -5622,8 +5622,6 @@ finish:
       trans_rollback_stmt(thd);
 #ifdef WITH_WSREP
     else if (thd->spcont &&
-             !thd->is_error() &&
-             !thd->in_multi_stmt_transaction_mode() &&
              (thd->wsrep_conflict_state == MUST_ABORT ||
               thd->wsrep_conflict_state == CERT_FAILURE))
     {
