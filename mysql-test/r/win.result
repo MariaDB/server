@@ -2762,10 +2762,8 @@ CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (3), (1), (2);
 SELECT i, ROW_NUMBER() OVER () FROM t1 WHERE 1 = 2;
 i	ROW_NUMBER() OVER ()
-NULL	1
 SELECT i, COUNT(*) OVER () FROM t1 WHERE 1 = 2;
 i	COUNT(*) OVER ()
-NULL	1
 DROP TABLE t1;
 #
 # MDEV-12051: window function in query with implicit grouping 
@@ -3141,6 +3139,27 @@ sum(i) over (order by i)	interval(sum(i) over (order by i), 10, 20)
 33	2
 63	2
 drop table t1;
+#
+# MDEV-13352: Server crashes in st_join_table::remove_duplicates
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+ROW_NUMBER() OVER()	i
+SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+ROW_NUMBER() OVER()	i
+DROP TABLE t1;
+#
+# MDEV-13344: Server crashes in in AGGR_OP::put_record on subquery 
+#             with window function and constant table
+# (Testcase only)
+#
+CREATE TABLE t1 (c CHAR(8)) ENGINE=MyISAM;
+INSERT IGNORE INTO t1 VALUES ('foo');
+SELECT ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1);
+('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1)
+0
+DROP TABLE t1;
 #
 # Start of 10.3 tests
 #

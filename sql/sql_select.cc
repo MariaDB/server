@@ -3405,8 +3405,14 @@ void JOIN::exec_inner()
 
   if (zero_result_cause)
   {
-    if (select_lex->have_window_funcs())
+    if (select_lex->have_window_funcs() && send_row_on_empty_set())
     {
+      /*
+        The query produces just one row but it has window functions.
+
+        The only way to compute the value of window function(s) is to
+        run the entire window function computation step (there is no shortcut).
+      */
       const_tables= table_count;
       first_select= sub_select_postjoin_aggr;
     }
