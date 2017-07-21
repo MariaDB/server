@@ -3160,3 +3160,16 @@ SELECT ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1);
 ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1)
 0
 DROP TABLE t1;
+#
+# MDEV-13351: Server crashes in st_select_lex::set_explain_type upon UNION with window function 
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT Nth_value(i,1) OVER() FROM t1 
+UNION ALL 
+( SELECT Nth_value(i,2) OVER() FROM t1 LIMIT 0 )
+;
+Nth_value(i,1) OVER()
+1
+1
+DROP TABLE t1;

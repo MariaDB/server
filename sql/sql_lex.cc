@@ -4395,10 +4395,16 @@ void st_select_lex::set_explain_type(bool on_the_fly)
         if (join)
         {
           bool uses_cte= false;
-          for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
-               tab= next_explain_order_tab(join, tab))
+          for (JOIN_TAB *tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS,
+                                                     WITH_CONST_TABLES);
+               tab;
+               tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
           {
-            if (tab->table && tab->table->pos_in_table_list->with)
+            /*
+              pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
+            */
+            if (tab->table && tab->table->pos_in_table_list &&
+                tab->table->pos_in_table_list->with)
             {
               uses_cte= true;
               break;
