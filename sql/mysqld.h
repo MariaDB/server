@@ -176,6 +176,7 @@ extern char *opt_backup_history_logname, *opt_backup_progress_logname,
 extern const char *log_output_str;
 extern const char *log_backup_output_str;
 
+/* System Versioning begin */
 enum vers_range_type_t
 {
   FOR_SYSTEM_TIME_UNSPECIFIED = 0,
@@ -186,8 +187,11 @@ enum vers_range_type_t
   FOR_SYSTEM_TIME_BEFORE
 };
 
+/* Used only for @@versioning_current_time sysvar. This struct must be POD
+ * because of str_value, which is used as interface to user.
+ * So no virtual-anything! */
 struct st_vers_current_time
-{ // This struct must be POD, so no virtual-anything!
+{
   char *str_value; // must be first
   vers_range_type_t type;
   MYSQL_TIME ltime;
@@ -197,12 +201,15 @@ struct st_vers_current_time
   {}
 };
 
-enum vers_hide_enum {
+enum vers_hide_enum
+{
   VERS_HIDE_AUTO= 0,
   VERS_HIDE_IMPLICIT,
   VERS_HIDE_FULL,
   VERS_HIDE_NEVER
 };
+/* System Versioning end */
+
 extern char *mysql_home_ptr, *pidfile_name_ptr;
 extern MYSQL_PLUGIN_IMPORT char glob_hostname[FN_REFLEN];
 extern char mysql_home[FN_REFLEN];
