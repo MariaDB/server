@@ -1365,9 +1365,6 @@ dict_table_add_to_cache(
 	dict_table_autoinc_restore(table);
 
 	ut_ad(dict_lru_validate());
-
-	dict_sys->size += mem_heap_get_size(table->heap)
-		+ strlen(table->name) + 1;
 }
 
 /**********************************************************************//**
@@ -1782,9 +1779,6 @@ dict_table_rename_in_cache(
 	HASH_INSERT(dict_table_t, name_hash, dict_sys->table_hash, fold,
 		    table);
 
-	dict_sys->size += strlen(new_name) - strlen(old_name);
-	ut_a(dict_sys->size > 0);
-
 	/* Update the table_name field in indexes */
 	for (index = dict_table_get_first_index(table);
 	     index != NULL;
@@ -2071,7 +2065,6 @@ dict_table_remove_from_cache_low(
 {
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
-	ulint		size;
 
 	ut_ad(table);
 	ut_ad(dict_lru_validate());
@@ -2150,12 +2143,6 @@ dict_table_remove_from_cache_low(
 		trx->dict_operation_lock_mode = 0;
 		trx_free_for_background(trx);
 	}
-
-	size = mem_heap_get_size(table->heap) + strlen(table->name) + 1;
-
-	ut_ad(dict_sys->size >= size);
-
-	dict_sys->size -= size;
 
 	dict_mem_table_free(table);
 }
@@ -2692,8 +2679,6 @@ undo_size_ok:
 		       dict_index_is_ibuf(index)
 		       ? SYNC_IBUF_INDEX_TREE : SYNC_INDEX_TREE);
 
-	dict_sys->size += mem_heap_get_size(new_index->heap);
-
 	dict_mem_index_free(index);
 
 	return(DB_SUCCESS);
@@ -2710,7 +2695,6 @@ dict_index_remove_from_cache_low(
 	ibool		lru_evict)	/*!< in: TRUE if index being evicted
 					to make room in the table LRU list */
 {
-	ulint		size;
 	ulint		retries = 0;
 	btr_search_t*	info;
 
@@ -2777,12 +2761,6 @@ dict_index_remove_from_cache_low(
 
 	/* Remove the index from the list of indexes of the table */
 	UT_LIST_REMOVE(indexes, table->indexes, index);
-
-	size = mem_heap_get_size(index->heap);
-
-	ut_ad(dict_sys->size >= size);
-
-	dict_sys->size -= size;
 
 	dict_mem_index_free(index);
 }
@@ -7258,3 +7236,38 @@ dict_tf_to_row_format_string(
 	return(0);
 }
 #endif /* !UNIV_HOTBACKUP */
+
+/** Calculate the used memory occupied by the data dictionary
+table and index objects.
+@return number of bytes occupied. */
+UNIV_INTERN
+ulint
+dict_sys_get_size()
+{
+	ulint size = 0;
+
+	ut_ad(dict_sys);
+
+	mutex_enter(&dict_sys->mutex);
+
+	for(ulint i = 0; i < hash_get_n_cells(dict_sys->table_hash); i++) {
+		dict_table_t* table;
+
+		for (table = static_cast<dict_table_t*>(HASH_GET_FIRST(dict_sys->table_hash,i));
+		     table != NULL;
+		     table = static_cast<dict_table_t*>(HASH_GET_NEXT(name_hash, table))) {
+			dict_index_t* index;
+			size += mem_heap_get_size(table->heap) + strlen(table->name) +1;
+
+			for(index = dict_table_get_first_index(table);
+			    index != NULL;
+			    index = dict_table_get_next_index(index)) {
+				size += mem_heap_get_size(index->heap);
+			}
+		}
+	}
+
+	mutex_exit(&dict_sys->mutex);
+
+	return (size);
+}

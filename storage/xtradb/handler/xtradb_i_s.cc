@@ -401,19 +401,20 @@ static int xtradb_internal_hash_tables_fill_table(THD* thd, TABLE_LIST* tables, 
 
 	if (dict_sys)
 	{
+	  ulint dict_size = dict_sys_get_size();
 	  OK(field_store_string(fields[INT_HASH_TABLES_NAME],
 				"Dictionary Cache"));
 	  OK(field_store_ulint(fields[INT_HASH_TABLES_TOTAL],
 			       ((dict_sys->table_hash->n_cells
 				 + dict_sys->table_id_hash->n_cells
 				 ) * sizeof(hash_cell_t)
-				+ dict_sys->size)));
+				+ dict_size)));
 	  OK(field_store_ulint(fields[INT_HASH_TABLES_CONSTANT],
 			       ((dict_sys->table_hash->n_cells
 				 + dict_sys->table_id_hash->n_cells
 				 ) * sizeof(hash_cell_t))));
 	  OK(field_store_ulint(fields[INT_HASH_TABLES_VARIABLE],
-			       dict_sys->size));
+			       dict_size));
 	  OK(schema_table_store_record(thd, table));
 	}
 
