@@ -1953,4 +1953,19 @@ UNION ALL
 ( SELECT Nth_value(i,2) OVER() FROM t1 LIMIT 0 )
 ;
 DROP TABLE t1;
-
+--echo #
+--echo # MDEV-13355: Assertion `using_unique_constraint || group_buff <= param->group_buff + 
+--echo #             param->group_length' failed in create_tmp_table
+--echo #
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+ 
+SELECT * FROM ( 
+  SELECT 
+    ROW_NUMBER() OVER(), i
+    FROM t1
+    WHERE 1=0
+    GROUP BY i
+) AS sq
+;  
+DROP TABLE t1;

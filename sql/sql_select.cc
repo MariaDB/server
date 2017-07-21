@@ -2176,6 +2176,7 @@ setup_subq_exit:
     choose_tableless_subquery_plan();
     if (select_lex->have_window_funcs())
     {
+      calc_group_buffer(this, group_list);
       if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
         DBUG_RETURN(1);
       need_tmp= 1;
