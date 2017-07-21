@@ -222,7 +222,9 @@ bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
 	                                           PCSZ tab, PCSZ src, int port);
 bool    ZipLoadFile(PGLOBAL, PCSZ, PCSZ, PCSZ, bool, bool);
 bool    ExactInfo(void);
+#if defined(MONGO_SUPPORT)
 void    mongo_init(bool);
+#endif   // MONGO_SUPPORT
 USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);

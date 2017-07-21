@@ -163,7 +163,7 @@ bool user_connect::CheckCleanup(bool force)
     if (g->Sarea_Size != worksize) {
 			if (g->Sarea) {
 #if !defined(DEVELOPMENT)
-				if (trace) {
+				if (trace)
 #endif
 					htrc("CheckCleanup: Free Sarea at %p size=%d\n",
 																g->Sarea, g->Sarea_Size);
