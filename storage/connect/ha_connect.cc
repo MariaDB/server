@@ -197,11 +197,14 @@ extern "C" {
 			 char *ClassPath;
 #endif   // JDBC_SUPPORT
 
-#if defined(__WIN__)
-CRITICAL_SECTION parsec;      // Used calling the Flex parser
-#else   // !__WIN__
-pthread_mutex_t parmut = PTHREAD_MUTEX_INITIALIZER;
-#endif  // !__WIN__
+//#if defined(__WIN__)
+//CRITICAL_SECTION parsec;      // Used calling the Flex parser
+//#else   // !__WIN__
+//pthread_mutex_t parmut = PTHREAD_MUTEX_INITIALIZER;
+//#endif  // !__WIN__
+pthread_mutex_t parmut;
+pthread_mutex_t usrmut;
+pthread_mutex_t tblmut;
 
 /***********************************************************************/
 /*  Utility functions.                                                 */
@@ -679,10 +682,13 @@ static int connect_init_func(void *p)
 
 #if defined(__WIN__)
   sql_print_information("CONNECT: %s", compver);
-	InitializeCriticalSection((LPCRITICAL_SECTION)&parsec);
+	//InitializeCriticalSection((LPCRITICAL_SECTION)&parsec);
 #else   // !__WIN__
   sql_print_information("CONNECT: %s", version);
 #endif  // !__WIN__
+	pthread_mutex_init(&parmut, NULL);
+	pthread_mutex_init(&usrmut, NULL);
+	pthread_mutex_init(&tblmut, NULL);
 
 #if defined(LIBXML2_SUPPORT)
   XmlInitParserLib();
@@ -738,13 +744,16 @@ static int connect_done_func(void *)
 	JAVAConn::ResetJVM();
 #endif // JDBC_SUPPORT
 
+	pthread_mutex_destroy(&parmut);
+	pthread_mutex_destroy(&tblmut);
 #if	defined(__WIN__)
-	DeleteCriticalSection((LPCRITICAL_SECTION)&parsec);
+	//DeleteCriticalSection((LPCRITICAL_SECTION)&parsec);
 #else   // !__WIN__
 	PROFILE_End();
 #endif  // !__WIN__
 
-  for (pc= user_connect::to_users; pc; pc= pn) {
+	pthread_mutex_lock(&usrmut);
+	for (pc= user_connect::to_users; pc; pc= pn) {
     if (pc->g)
       PlugCleanup(pc->g, true);
 
@@ -752,6 +761,9 @@ static int connect_done_func(void *)
     delete pc;
     } // endfor pc
 
+	pthread_mutex_unlock(&usrmut);
+
+	pthread_mutex_destroy(&usrmut);
 	connect_hton= NULL;
   DBUG_RETURN(error);
 } // end of connect_done_func
@@ -864,6 +876,7 @@ ha_connect::~ha_connect(void)
 static void PopUser(PCONNECT xp)
 {
 	if (xp) {
+		pthread_mutex_lock(&usrmut);
 		xp->count--;
 
 		if (!xp->count) {
@@ -888,6 +901,7 @@ static void PopUser(PCONNECT xp)
 			delete xp;
 		} // endif count
 
+		pthread_mutex_unlock(&usrmut);
 	} // endif xp
 
 } // end of PopUser
@@ -904,20 +918,29 @@ static PCONNECT GetUser(THD *thd, PCONNECT xp)
   if (xp && thd == xp->thdp)
     return xp;
 
-  for (xp= user_connect::to_users; xp; xp= xp->next)
+	pthread_mutex_lock(&usrmut);
+
+	for (xp= user_connect::to_users; xp; xp= xp->next)
     if (thd == xp->thdp)
       break;
 
-  if (!xp) {
-    xp= new user_connect(thd);
+	if (xp)
+		xp->count++;
 
-    if (xp->user_init()) {
-      delete xp;
-      xp= NULL;
-      } // endif user_init
+	pthread_mutex_unlock(&usrmut);
 
-  } else
-    xp->count++;
+	if (!xp) {
+		xp = new user_connect(thd);
+
+		if (xp->user_init()) {
+			delete xp;
+			xp = NULL;
+		} // endif user_init
+
+	}	// endif xp
+
+  //} else
+  //  xp->count++;
 
   return xp;
 } // end of GetUser
@@ -4373,7 +4396,11 @@ bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
 MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
                            MODE newmode, bool *chk, bool *cras)
 {
+#if defined(DEVELOPMENT)
+	if (true) {
+#else
   if (trace) {
+#endif
     LEX_STRING *query_string= thd_query_string(thd);
     htrc("%p check_mode: cmdtype=%d\n", this, thd_sql_command(thd));
     htrc("Cmd=%.*s\n", (int) query_string->length, query_string->str);
@@ -5349,17 +5376,17 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   PCOLRES  crp;
   PCONNECT xp= NULL;
   PGLOBAL  g= GetPlug(thd, xp);
-  PDBUSER  dup= PlgGetUser(g);
+
+	if (!g)
+		return HA_ERR_INTERNAL_ERROR;
+
+	PDBUSER  dup= PlgGetUser(g);
   PCATLG   cat= (dup) ? dup->Catalog : NULL;
   PTOS     topt= table_s->option_struct;
   char     buf[1024];
   String   sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
-
-  if (!g)
-    return HA_ERR_INTERNAL_ERROR;
-
   user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= zfn= dsn= NULL;
 
   // Get the useful create options

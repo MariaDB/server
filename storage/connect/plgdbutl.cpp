@@ -82,11 +82,11 @@ extern "C" {
 extern char version[];
 } // extern "C"
 
-#if defined(__WIN__)
-extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
-#else   // !__WIN__
+//#if defined(__WIN__)
+//extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
+//#else   // !__WIN__
 extern pthread_mutex_t parmut;
-#endif  // !__WIN__
+//#endif  // !__WIN__
 
 // The debug trace used by the main thread
        FILE *pfile = NULL;
@@ -697,21 +697,17 @@ PDTP MakeDateFormat(PGLOBAL g, PCSZ dfmt, bool in, bool out, int flag)
   /* Call the FLEX generated parser. In multi-threading mode the next  */
   /* instruction is included in an Enter/LeaveCriticalSection bracket. */
   /*********************************************************************/
-	//#if defined(THREAD)
-#if defined(__WIN__)
-  EnterCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else   // !__WIN__
+//#if defined(__WIN__)
+//  EnterCriticalSection((LPCRITICAL_SECTION)&parsec);
+//#else   // !__WIN__
   pthread_mutex_lock(&parmut);
-#endif  // !__WIN__
-//#endif  //  THREAD
+//#endif  // !__WIN__
   rc = fmdflex(pdp);
-//#if defined(THREAD)
-#if defined(__WIN__)
-  LeaveCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else   // !__WIN__
+//#if defined(__WIN__)
+//  LeaveCriticalSection((LPCRITICAL_SECTION)&parsec);
+//#else   // !__WIN__
   pthread_mutex_unlock(&parmut);
-#endif  // !__WIN__
-//#endif  //  THREAD
+//#endif  // !__WIN__
 
   if (trace)
     htrc("Done: in=%s out=%s rc=%d\n", SVP(pdp->InFmt), SVP(pdp->OutFmt), rc);

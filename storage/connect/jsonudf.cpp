@@ -1478,8 +1478,10 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 			ml += g->More;
 
 			if (ml > g->Sarea_Size) {
+#if !defined(DEVELOPMENT)
 				if (trace)
-					htrc("Freeing Sarea size=%d\n", g->Sarea_Size);
+#endif
+					htrc("Freeing Sarea at %p size=%d\n", g->Sarea, g->Sarea_Size);
 
 				free(g->Sarea);
 
