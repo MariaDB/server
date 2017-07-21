@@ -185,7 +185,7 @@ int PlugExit(PGLOBAL g)
 
 		if (g->Sarea) {
 #if !defined(DEVELOPMENT)
-			if (trace) {
+			if (trace)
 #endif
 				htrc("Freeing Sarea at %p size=%d\n", g->Sarea, g->Sarea_Size);
 
