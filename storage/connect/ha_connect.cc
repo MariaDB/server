@@ -222,9 +222,7 @@ bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
 	                                           PCSZ tab, PCSZ src, int port);
 bool    ZipLoadFile(PGLOBAL, PCSZ, PCSZ, PCSZ, bool, bool);
 bool    ExactInfo(void);
-#if defined(MONGO_SUPPORT)
 void    mongo_init(bool);
-#endif   // MONGO_SUPPORT
 USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
@@ -237,7 +235,7 @@ extern "C" const char *msglang(void);
 
 static void PopUser(PCONNECT xp);
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
-//static PGLOBAL  GetPlug(THD *thd, PCONNECT lxp);
+static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
 
 static handler *connect_create_handler(handlerton *hton,
                                        TABLE_SHARE *table,
@@ -917,8 +915,12 @@ static PCONNECT GetUser(THD *thd, PCONNECT xp)
 	if (!thd)
     return NULL;
 
-  if (xp && thd == xp->thdp)
-    return xp;
+	if (xp) {
+		if (thd == xp->thdp)
+			return xp;
+
+		PopUser(xp);		// Avoid memory leak
+	} // endif xp
 
 	pthread_mutex_lock(&usrmut);
 
@@ -950,11 +952,11 @@ static PCONNECT GetUser(THD *thd, PCONNECT xp)
 /****************************************************************************/
 /*  Get the global pointer of the user of this handler.                     */
 /****************************************************************************/
-//static PGLOBAL GetPlug(THD *thd, PCONNECT lxp)
-//{
-//  PCONNECT nxp= GetUser(thd, lxp);
-//  return (nxp) ? nxp->g : NULL;
-//} // end of GetPlug
+static PGLOBAL GetPlug(THD *thd, PCONNECT& lxp)
+{
+  lxp= GetUser(thd, lxp);
+  return (lxp) ? lxp->g : NULL;
+} // end of GetPlug
 
 /****************************************************************************/
 /*  Get the implied table type.                                             */
@@ -1529,9 +1531,8 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
         if (pcf->Datefmt) {
           // Find the (max) length produced by the date format
           char    buf[256];
-//        PGLOBAL g= GetPlug(table->in_use, xp);
-					DBUG_ASSERT(xp && xp->thdp == ha_thd());
-					PDTP    pdtp= MakeDateFormat(xp->g, pcf->Datefmt, false, true, 0);
+          PGLOBAL g= GetPlug(table->in_use, xp);
+          PDTP    pdtp= MakeDateFormat(g, pcf->Datefmt, false, true, 0);
           struct tm datm;
           bzero(&datm, sizeof(datm));
           datm.tm_mday= 12;
@@ -3869,10 +3870,8 @@ int ha_connect::index_next_same(uchar *buf, const uchar *, uint)
 */
 int ha_connect::rnd_init(bool scan)
 {
-  //PGLOBAL g= ((table && table->in_use) ? GetPlug(table->in_use, xp) :
-  //            (xp) ? xp->g : NULL);
-	DBUG_ASSERT(xp && xp->thdp == ha_thd());
-	PGLOBAL g= xp->g;
+  PGLOBAL g= ((table && table->in_use) ? GetPlug(table->in_use, xp) :
+              (xp) ? xp->g : NULL);
   DBUG_ENTER("ha_connect::rnd_init");
 
   // This is not tested yet
@@ -4067,10 +4066,9 @@ int ha_connect::rnd_pos(uchar *buf, uchar *pos)
     tdbp->SetFilter(NULL);
     rc= rnd_next(buf);
 	} else {
-//	PGLOBAL g = GetPlug((table) ? table->in_use : NULL, xp);
-		DBUG_ASSERT(xp && xp->thdp == ha_thd());
-		strcpy(xp->g->Message, "Not supported by this table type");
-		my_message(ER_ILLEGAL_HA, xp->g->Message, MYF(0));
+		PGLOBAL g = GetPlug((table) ? table->in_use : NULL, xp);
+		strcpy(g->Message, "Not supported by this table type");
+		my_message(ER_ILLEGAL_HA, g->Message, MYF(0));
 		rc= HA_ERR_INTERNAL_ERROR;
 	}	// endif SetRecpos
 
@@ -4119,10 +4117,7 @@ int ha_connect::rnd_pos(uchar *buf, uchar *pos)
 int ha_connect::info(uint flag)
 {
   bool    pure= false;
-  //PGLOBAL g= GetPlug((table) ? table->in_use : NULL, xp);
-	//xp= GetUser((table) ? table->in_use : NULL, xp);		// Usefull ???
-	DBUG_ASSERT(xp && xp->thdp == ha_thd());
-	PGLOBAL g= xp->g;
+  PGLOBAL g= GetPlug((table) ? table->in_use : NULL, xp);
 
   DBUG_ENTER("ha_connect::info");
 
@@ -4540,9 +4535,7 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
   int     rc= 0;
   bool    chk=false, cras= false;
   MODE    newmode;
-//PGLOBAL g= GetPlug(thd, xp);
-	xp = GetUser(thd, xp);
-	PGLOBAL g= xp->g;
+  PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::start_stmt");
 
   if (check_privileges(thd, GetTableOptionStruct(), table->s->db.str, true))
@@ -4604,10 +4597,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   bool    xcheck=false, cras= false;
   MODE    newmode;
   PTOS    options= GetTableOptionStruct();
-	//PGLOBAL g= GetPlug(thd, xp);
-	xp= GetUser(thd, xp);
-	PGLOBAL g= xp->g;
-	DBUG_ENTER("ha_connect::external_lock");
+  PGLOBAL g= GetPlug(thd, xp);
+  DBUG_ENTER("ha_connect::external_lock");
 
   DBUG_ASSERT(thd == current_thd);
 
@@ -5387,13 +5378,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   TABTYPE  ttp= TAB_UNDEF;
   PQRYRES  qrp= NULL;
   PCOLRES  crp;
-  PCONNECT xp= GetUser(thd, NULL);
-  PGLOBAL  g= xp->g;
+  PCONNECT xp= NULL;
+  PGLOBAL  g= GetPlug(thd, xp);
 
-	if (!g)
-		return HA_ERR_INTERNAL_ERROR;
+  if (!g)
+    return HA_ERR_INTERNAL_ERROR;
 
-	PDBUSER  dup= PlgGetUser(g);
+  PDBUSER  dup= PlgGetUser(g);
   PCATLG   cat= (dup) ? dup->Catalog : NULL;
   PTOS     topt= table_s->option_struct;
   char     buf[1024];
@@ -6141,8 +6132,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
   partition_info *part_info= table_arg->part_info;
 #endif   // WITH_PARTITION_STORAGE_ENGINE
-	xp= GetUser(thd, xp);
-	PGLOBAL g= xp->g;
+  xp= GetUser(thd, xp);
+  PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
   /*
