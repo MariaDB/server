@@ -197,11 +197,6 @@ extern "C" {
 			 char *ClassPath;
 #endif   // JDBC_SUPPORT
 
-//#if defined(__WIN__)
-//CRITICAL_SECTION parsec;      // Used calling the Flex parser
-//#else   // !__WIN__
-//pthread_mutex_t parmut = PTHREAD_MUTEX_INITIALIZER;
-//#endif  // !__WIN__
 pthread_mutex_t parmut;
 pthread_mutex_t usrmut;
 pthread_mutex_t tblmut;
@@ -682,7 +677,6 @@ static int connect_init_func(void *p)
 
 #if defined(__WIN__)
   sql_print_information("CONNECT: %s", compver);
-	//InitializeCriticalSection((LPCRITICAL_SECTION)&parsec);
 #else   // !__WIN__
   sql_print_information("CONNECT: %s", version);
 #endif  // !__WIN__
@@ -744,11 +738,7 @@ static int connect_done_func(void *)
 	JAVAConn::ResetJVM();
 #endif // JDBC_SUPPORT
 
-	pthread_mutex_destroy(&parmut);
-	pthread_mutex_destroy(&tblmut);
-#if	defined(__WIN__)
-	//DeleteCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else   // !__WIN__
+#if	!defined(__WIN__)
 	PROFILE_End();
 #endif  // !__WIN__
 
@@ -764,6 +754,8 @@ static int connect_done_func(void *)
 	pthread_mutex_unlock(&usrmut);
 
 	pthread_mutex_destroy(&usrmut);
+	pthread_mutex_destroy(&parmut);
+	pthread_mutex_destroy(&tblmut);
 	connect_hton= NULL;
   DBUG_RETURN(error);
 } // end of connect_done_func

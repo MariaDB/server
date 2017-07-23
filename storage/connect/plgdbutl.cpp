@@ -695,19 +695,11 @@ PDTP MakeDateFormat(PGLOBAL g, PCSZ dfmt, bool in, bool out, int flag)
 
   /*********************************************************************/
   /* Call the FLEX generated parser. In multi-threading mode the next  */
-  /* instruction is included in an Enter/LeaveCriticalSection bracket. */
+  /* instruction is protected by mutex fmdflex using static variables. */
   /*********************************************************************/
-//#if defined(__WIN__)
-//  EnterCriticalSection((LPCRITICAL_SECTION)&parsec);
-//#else   // !__WIN__
   pthread_mutex_lock(&parmut);
-//#endif  // !__WIN__
   rc = fmdflex(pdp);
-//#if defined(__WIN__)
-//  LeaveCriticalSection((LPCRITICAL_SECTION)&parsec);
-//#else   // !__WIN__
   pthread_mutex_unlock(&parmut);
-//#endif  // !__WIN__
 
   if (trace)
     htrc("Done: in=%s out=%s rc=%d\n", SVP(pdp->InFmt), SVP(pdp->OutFmt), rc);
