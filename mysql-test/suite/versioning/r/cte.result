@@ -33,11 +33,11 @@ ancestors
 as
 (
 select e.emp_id, e.name, e.mgr, e.salary
-from emp as e for system_time as of timestamp @ts_1
+from emp for system_time as of timestamp @ts_1 as e
 where name = 'bill'
   union 
 select e.emp_id, e.name, e.mgr, e.salary
-from emp as e for system_time as of timestamp @ts_1, 
+from emp for system_time as of timestamp @ts_1 as e,
 ancestors as a
 where e.mgr = a.emp_id
 )
@@ -51,11 +51,11 @@ ancestors
 as
 (
 select e.emp_id, e.name, e.mgr, e.salary
-from emp as e for system_time as of timestamp @ts_2
+from emp for system_time as of timestamp @ts_2 as e
 where name = 'bill'
   union 
 select e.emp_id, e.name, e.mgr, e.salary
-from emp as e for system_time as of timestamp @ts_2,
+from emp for system_time as of timestamp @ts_2 as e,
 ancestors as a
 where e.mgr = a.emp_id
 )

@@ -11,8 +11,8 @@ begin
   set @tmp= concat('
     create or replace temporary table
     cur_tmp as
-      select vtmd.archive_name from ', vtmd_name, ' as vtmd
-      for system_time all
+      select vtmd.archive_name from ', vtmd_name, '
+      for system_time all as vtmd
       where vtmd.archive_name is not null
       group by vtmd.archive_name');
   prepare stmt from @tmp; execute stmt; drop prepare stmt;
@@ -37,8 +37,8 @@ begin
   set @tmp= concat('
     create or replace temporary table
     tmp_vtmd with system versioning as
-      select * from ', vtmd_name, ' as vtmd
-      for system_time all');
+      select * from ', vtmd_name, '
+      for system_time all as vtmd');
   prepare stmt from @tmp; execute stmt; drop prepare stmt;
 
   set @inf= 0xFFFFFFFFFFFFFFFF + 0;

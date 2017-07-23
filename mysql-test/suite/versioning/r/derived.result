@@ -91,12 +91,14 @@ ancestors
 as
 (
 select e.emp_id, e.name, e.mgr
-from emp as e for system_time as of timestamp @ts
+from emp as e
 where name = 'bill'
-  union
+  system_time as of timestamp @ts
+union
 select ee.emp_id, ee.name, ee.mgr
-from emp as ee for system_time as of timestamp @ts, ancestors as a for system_time as of timestamp @ts
+from emp as ee, ancestors as a
 where ee.mgr = a.emp_id
+system_time as of timestamp @ts
 )
 select * from ancestors;
 emp_id	name	mgr
@@ -109,12 +111,14 @@ ancestors
 as
 (
   select e.emp_id, e.name, e.mgr
-  from emp as e for system_time as of timestamp @ts
+  from emp as e
   where name = 'bill'
+  system_time as of timestamp @ts
   union
   select ee.emp_id, ee.name, ee.mgr
-  from emp as ee for system_time as of timestamp @ts, ancestors as a for system_time as of timestamp @ts
+  from emp as ee, ancestors as a
   where ee.mgr = a.emp_id
+  system_time as of timestamp @ts
 )
 select * from ancestors";
 prepare stmt from @tmp;
