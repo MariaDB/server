@@ -38,7 +38,7 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info);
 /***********************************************************************/
 JMGDISC::JMGDISC(PGLOBAL g, int *lg) : MGODISC(g, lg)
 {
-	drv = "Java"; Jcp = NULL; columnid = nullptr;
+	drv = "Java"; Jcp = NULL; columnid = nullptr; bvnameid = nullptr;
 }	// end of JMGDISC constructor
 
 /***********************************************************************/
