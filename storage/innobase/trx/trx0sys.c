@@ -825,26 +825,6 @@ trx_sys_update_wsrep_checkpoint(
         trx_sysf_t*     sys_header, /*!< in: sys_header */
         mtr_t*          mtr)        /*!< in: mtr */
 {
-
-#ifdef UNIV_DEBUG
-        {
-            /* Check that seqno is monotonically increasing */
-            unsigned char xid_uuid[16];
-            long long xid_seqno = read_wsrep_xid_seqno(xid);
-            read_wsrep_xid_uuid(xid, xid_uuid);
-            if (!memcmp(xid_uuid, trx_sys_cur_xid_uuid, 8))
-            {
-                ut_ad(xid_seqno > trx_sys_cur_xid_seqno);
-                trx_sys_cur_xid_seqno = xid_seqno;
-            }
-            else
-            {
-                memcpy(trx_sys_cur_xid_uuid, xid_uuid, 16);
-            }
-            trx_sys_cur_xid_seqno = xid_seqno;
-        }
-#endif /* UNIV_DEBUG */
-
         ut_ad(xid && mtr && sys_header);
         ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid(xid));
 
