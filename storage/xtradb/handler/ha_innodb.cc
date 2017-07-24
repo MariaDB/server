@@ -7025,13 +7025,21 @@ report_error:
 						   prebuilt->table->flags,
 						   user_thd);
 #ifdef WITH_WSREP
-	if (!error_result                                &&
-	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-	    wsrep_on(user_thd)                           &&
-	    !wsrep_consistency_check(user_thd))
-	{
-		if (wsrep_append_keys(user_thd, false, record, NULL))
-		{
+	if (!error_result
+	    && wsrep_on(user_thd)
+ 	    && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE
+	    && !wsrep_consistency_check(user_thd)
+	    && (sql_command != SQLCOM_CREATE_TABLE)) {
+		/* This change part of commit
+		a4bc8db216b4dd61ca0b1cb5a8b7806437416dc7
+		MW-322 - CTAS fix will cause regression on galera.partition
+		test case. Commented until galeracluster developers have
+		looked the issue.
+			    && (sql_command != SQLCOM_LOAD ||
+				thd_binlog_format(user_thd) ==
+		BINLOG_FORMAT_ROW)) {
+		*/
+		if (wsrep_append_keys(user_thd, false, record, NULL)) {
 			DBUG_PRINT("wsrep", ("row key failed"));
 			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;

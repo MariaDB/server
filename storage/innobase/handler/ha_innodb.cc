@@ -6000,8 +6000,6 @@ report_error:
 						   prebuilt->table->flags,
 						   user_thd);
 #ifdef WITH_WSREP
-	fprintf(stderr, "JAN: split %d load %d\n", wsrep_load_data_splitting,
-		sql_command == SQLCOM_LOAD);
 	if (!error_result
 	    && wsrep_on(user_thd)
 	    && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE
