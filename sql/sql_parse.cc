@@ -1045,20 +1045,16 @@ static my_bool deny_updates_if_read_only_option(THD *thd,
   if (lex->sql_command == SQLCOM_UPDATE_MULTI)
     DBUG_RETURN(FALSE);
 
-  const my_bool create_temp_tables= 
-    (lex->sql_command == SQLCOM_CREATE_TABLE) &&
-    lex->create_info.tmp_table();
+  /*
+    a table-to-be-created is not in the temp table list yet,
+    so CREATE TABLE needs a special treatment
+  */
+  const bool update_real_tables=
+    lex->sql_command == SQLCOM_CREATE_TABLE
+    ? !(lex->create_info.options & HA_LEX_CREATE_TMP_TABLE)
+    : some_non_temp_table_to_be_updated(thd, all_tables);
 
-  const my_bool drop_temp_tables= 
-    (lex->sql_command == SQLCOM_DROP_TABLE) &&
-    lex->drop_temporary;
-
-  const my_bool update_real_tables=
-    some_non_temp_table_to_be_updated(thd, all_tables) &&
-    !(create_temp_tables || drop_temp_tables);
-
-
-  const my_bool create_or_drop_databases=
+  const bool create_or_drop_databases=
     (lex->sql_command == SQLCOM_CREATE_DB) ||
     (lex->sql_command == SQLCOM_DROP_DB);
 
@@ -1532,9 +1528,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 	kill_zombie_dump_threads(slave_server_id);
       thd->variables.server_id = slave_server_id;
 
-      general_log_print(thd, command, "Log: '%s'  Pos: %ld", packet+10,
-                      (long) pos);
-      mysql_binlog_send(thd, thd->strdup(packet + 10), (my_off_t) pos, flags);
+      const char *name= packet + 10;
+      size_t nlen= strlen(name);
+
+      general_log_print(thd, command, "Log: '%s'  Pos: %lu", name, pos);
+      if (nlen < FN_REFLEN)
+        mysql_binlog_send(thd, thd->strmake(name, nlen), (my_off_t)pos, flags);
       unregister_slave(thd,1,1);
       /*  fake COM_QUIT -- if we get here, the thread needs to terminate */
       error = TRUE;

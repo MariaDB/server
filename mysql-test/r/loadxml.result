@@ -5,10 +5,10 @@ load xml infile '../../std_data/loadxml.dat' into table t1
 rows identified by '<row>';
 select * from t1 order by a;
 a	b
-1	b1
-2	b2
-3	b3
-11	b11
+1	 b1
+2	  b2
+3	   b3
+11	           b11
 111	b111
 112	b112 & < > " ' &unknown; -- check entities
 212	b212
@@ -81,17 +81,17 @@ LOAD XML INFILE '../../std_data/loadxml.dat' INTO TABLE t1
 ROWS IDENTIFIED BY '<row>' (a,@b) SET b=concat('!',@b);
 SELECT * FROM t1 ORDER BY a;
 a	b
-1	!b1
-11	!b11
+1	! b1
+11	!           b11
 111	!b111
 112	!b112 & < > " ' &unknown; -- check entities
-2	!b2
+2	!  b2
 212	!b212
 213	!b213
 214	!b214
 215	!b215
 216	!&bb b;
-3	!b3
+3	!   b3
 DROP TABLE t1;
 #
 # Bug#16171518 LOAD XML DOES NOT HANDLE EMPTY ELEMENTS

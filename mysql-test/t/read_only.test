@@ -80,6 +80,9 @@ insert into t3 values(1);
 
 insert into t4 select * from t3;
 
+--error ER_OPTION_PREVENTS_STATEMENT
+create table t3 (a int);
+
 # a non-temp table updated:
 --error ER_OPTION_PREVENTS_STATEMENT
 update t1,t3 set t1.a=t3.a+1 where t1.a=t3.a;

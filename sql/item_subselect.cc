@@ -329,7 +329,8 @@ bool Item_subselect::enumerate_field_refs_processor(uchar *arg)
   
   while ((upper= it++))
   {
-    if (upper->item->walk(&Item::enumerate_field_refs_processor, FALSE, arg))
+    if (upper->item &&
+        upper->item->walk(&Item::enumerate_field_refs_processor, FALSE, arg))
       return TRUE;
   }
   return FALSE;
@@ -3327,7 +3328,8 @@ bool Item_in_subselect::init_cond_guards()
 {
   DBUG_ASSERT(thd);
   uint cols_num= left_expr->cols();
-  if (!abort_on_null && left_expr->maybe_null && !pushed_cond_guards)
+  if (!abort_on_null && !pushed_cond_guards &&
+      (left_expr->maybe_null || cols_num > 1))
   {
     if (!(pushed_cond_guards= (bool*)thd->alloc(sizeof(bool) * cols_num)))
         return TRUE;
