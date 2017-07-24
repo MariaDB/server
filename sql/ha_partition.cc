@@ -413,8 +413,12 @@ ha_partition::~ha_partition()
   destroy_record_priority_queue();
   my_free(m_part_ids_sorted_by_num_of_records);
 
+  if (m_added_file)
+  {
+    for (handler **ph= m_added_file; *ph; ph++)
+      delete (*ph);
+  }
   clear_handler_file();
-
   free_root(&m_mem_root, MYF(0));
 
   DBUG_VOID_RETURN;
