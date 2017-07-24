@@ -3029,7 +3029,8 @@ int handler::update_auto_increment()
   enum enum_check_fields save_count_cuted_fields;
   DBUG_ENTER("handler::update_auto_increment");
 
-  if (table->versioned_by_sql())
+  // System Versioning: handle ALTER ADD COLUMN AUTO_INCREMENT
+  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE && table->versioned_by_sql())
   {
     Field *end= table->vers_end_field();
     DBUG_ASSERT(end);
