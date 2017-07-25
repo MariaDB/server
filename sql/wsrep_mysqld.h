@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2017 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,13 +36,15 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "log.h"
 #include "sql_table.h"
 
+#include <vector>
+
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
 class set_var;
 class THD;
 
-#define SEPPO_ADDED
-#ifdef SEPPO_ADDED
+typedef std::vector<wsrep_trx_meta_t> wsrep_fragment_set;
+
 enum wsrep_exec_mode {
     LOCAL_STATE,
     REPL_RECV,
@@ -68,8 +70,6 @@ enum wsrep_conflict_state {
     RETRY_AUTOCOMMIT,
     CERT_FAILURE
 };
-
-#endif
 
 enum wsrep_consistency_check_mode {
     NO_CONSISTENCY_CHECK,

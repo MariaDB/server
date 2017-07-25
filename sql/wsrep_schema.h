@@ -1,4 +1,4 @@
-/* Copyright (C) 2015 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2017 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,18 +19,28 @@
 
 #include "mysqld.h"
 #include "thr_lock.h" /* enum thr_lock_type */
-#include "wsrep_api.h"
-#include "wsrep_sr.h" /* class wsrep_SR_trx_info */
+#include "../wsrep/wsrep_api.h"
+#include "wsrep_mysqld.h"
+
+#include <string>
 
 /*
   Forward decls
 */
 class THD;
-class TABLE;
+struct TABLE;
+struct TABLE_LIST;
 struct st_mysql_lex_string;
 typedef struct st_mysql_lex_string LEX_STRING;
 
 class Wsrep_thd_pool;
+
+/** Name of the system database (schema) used for WSREP related data. */
+extern const std::string wsrep_schema_str;
+
+/** Name of the table in `wsrep_schema_str` used for storing streaming
+replication data. In an InnoDB full format, e.g. "database/tablename". */
+extern const std::string sr_table_name_full_str;
 
 class Wsrep_schema
 {

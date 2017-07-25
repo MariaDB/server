@@ -889,6 +889,12 @@ my_bool wsrep_thd_is_SR(void *thd_ptr)
   return false;
 }
 
+my_bool wsrep_thd_skip_locking(void *thd)
+{
+  return thd != NULL && ((THD*)thd)->wsrep_skip_locking;
+}
+
+extern "C"
 my_bool wsrep_thd_is_BF_or_commit(void *thd_ptr, my_bool sync)
 {
   bool status = FALSE;

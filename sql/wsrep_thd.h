@@ -111,6 +111,9 @@ int  wsrep_thd_in_locking_session(void *thd_ptr);
 THD* wsrep_start_SR_THD(char *thread_stack);
 void wsrep_end_SR_THD(THD* thd);
 extern my_bool  wsrep_thd_is_SR(void *thd_ptr);
+extern my_bool wsrep_thd_skip_locking(void *thd);
+
+
 /**
    Helper functions to override error status
 

@@ -626,7 +626,6 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   return buffer;
 }
 
-
 #if MARIA_PLUGIN_INTERFACE_VERSION < 0x0200
 /**
   TODO: This function is for API compatibility, remove it eventually.
@@ -1332,7 +1331,7 @@ void THD::init(bool skip_lock)
   m_wsrep_query_state= QUERY_IDLE;
   wsrep_last_query_id= 0;
   wsrep_xid.null();
-  wsrep_no_gaps= FALSE;
+  wsrep_skip_locking= FALSE;
   wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
   wsrep_node_uuid(wsrep_trx_meta.stid.node);
   wsrep_trx_meta.stid.trx= WSREP_UNDEFINED_TRX_ID;

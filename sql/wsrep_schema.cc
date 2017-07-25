@@ -1,4 +1,4 @@
-/* Copyright (C) 2015 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2017 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
 #include <string>
 #include <sstream>
 
-static const std::string wsrep_schema_str= "wsrep_schema";
+const std::string wsrep_schema_str= "wsrep_schema";
 static const std::string create_wsrep_schema_str=
   "CREATE DATABASE IF NOT EXISTS wsrep_schema";
 
@@ -64,8 +64,10 @@ static const std::string create_members_history_table_str=
   ") ENGINE=InnoDB";
 #endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
 
+static const std::string sr_table_str= "SR";
+const std::string sr_table_name_full_str= wsrep_schema_str + "/" + sr_table_str;
 static const std::string create_frag_table_str=
-  "CREATE TABLE IF NOT EXISTS wsrep_schema.SR"
+  "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + sr_table_str +
   "("
   "node_uuid CHAR(36), "
   "trx_id BIGINT, "
@@ -851,12 +853,12 @@ int Wsrep_schema::append_frag_apply(THD* thd,
   int wsrep_on= thd->variables.wsrep_on;
   int sql_log_bin= thd->variables.sql_log_bin;
   int log_bin_option= (thd->variables.option_bits & OPTION_BIN_LOG);
-  my_bool no_gaps= thd->wsrep_no_gaps;
+  my_bool skip_locking= thd->wsrep_skip_locking;
 
   thd->variables.wsrep_on= 0;
   thd->variables.sql_log_bin= 0;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
-  thd->wsrep_no_gaps= TRUE;
+  thd->wsrep_skip_locking= TRUE;
 
   assert(meta.stid.trx != WSREP_UNDEFINED_TRX_ID);
   assert(wsrep_uuid_compare(&meta.stid.node, &WSREP_UUID_UNDEFINED) != 0);
@@ -889,7 +891,7 @@ out:
   thd->variables.wsrep_on= wsrep_on;
   thd->variables.sql_log_bin= sql_log_bin;
   thd->variables.option_bits|= log_bin_option;
-  thd->wsrep_no_gaps= no_gaps;
+  thd->wsrep_skip_locking= skip_locking;
   DBUG_RETURN(ret);
 }
 
@@ -953,8 +955,8 @@ int Wsrep_schema::update_frag_seqno(THD* thd, const wsrep_trx_meta_t& meta)
   uchar key[MAX_KEY_LENGTH];
   key_part_map key_map= 0;
   TABLE* frag_table= 0;
-  my_bool no_gaps= thd->wsrep_no_gaps;
-  thd->wsrep_no_gaps= TRUE;
+  my_bool skip_locking= thd->wsrep_skip_locking;
+  thd->wsrep_skip_locking= TRUE;
 
   assert(meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
 
@@ -1008,7 +1010,7 @@ int Wsrep_schema::update_frag_seqno(THD* thd, const wsrep_trx_meta_t& meta)
   }
 
 out:
-  thd->wsrep_no_gaps= no_gaps;
+  thd->wsrep_skip_locking= skip_locking;
   if (ret) {
     trans_rollback_stmt(thd);
     if (!trans_rollback(thd)) {
@@ -1083,12 +1085,12 @@ int Wsrep_schema::remove_trx(THD* thd, wsrep_fragment_set* fragments)
   int wsrep_on= thd->variables.wsrep_on;
   int sql_log_bin= thd->variables.sql_log_bin;
   int log_bin_option= (thd->variables.option_bits & OPTION_BIN_LOG);
-  my_bool no_gaps= thd->wsrep_no_gaps;
+  my_bool skip_locking= thd->wsrep_skip_locking;
 
   thd->variables.wsrep_on= 0;
   thd->variables.sql_log_bin= 0;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
-  thd->wsrep_no_gaps= TRUE;
+  thd->wsrep_skip_locking= TRUE;
 
   TABLE* frag_table= 0;
   bool was_opened= false;
@@ -1135,7 +1137,7 @@ int Wsrep_schema::remove_trx(THD* thd, wsrep_fragment_set* fragments)
   thd->variables.wsrep_on= wsrep_on;
   thd->variables.sql_log_bin= sql_log_bin;
   thd->variables.option_bits|= log_bin_option;
-  thd->wsrep_no_gaps= no_gaps;
+  thd->wsrep_skip_locking= skip_locking;
 
   DBUG_RETURN(ret);
 }

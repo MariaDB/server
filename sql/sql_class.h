@@ -77,9 +77,11 @@ struct wsrep_thd_shadow {
   my_hrtime_t          user_time;
   longlong             row_count_func;
 };
-typedef std::vector<wsrep_trx_meta_t> wsrep_fragment_set;
+#include <map>
+#include <set>
+#include <string>
+typedef std::map<std::string, std::set<std::string> > wsrep_key_set;
 #endif /* WITH_WSREP */
-
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
@@ -4519,6 +4521,12 @@ public:
   query_id_t                wsrep_last_query_id;
   XID                       wsrep_xid;
   my_bool                   wsrep_no_gaps;
+  
+  /** This flag denotes that record locking should be skipped during INSERT
+  and gap locking during SELECT. Only used by the streaming replication thread
+  that only modifies the wsrep_schema.SR table. */
+  my_bool                   wsrep_skip_locking;
+
   /*
     Delegated rollback:
 
