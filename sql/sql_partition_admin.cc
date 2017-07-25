@@ -89,9 +89,15 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
 
   /* Not allowed with EXCHANGE PARTITION */
   DBUG_ASSERT(!create_info.data_file_name && !create_info.index_file_name);
+  WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
 
   thd->enable_slow_log= opt_log_slow_admin_statements;
   DBUG_RETURN(exchange_partition(thd, first_table, &alter_info));
+#ifdef WITH_WSREP
+ error:
+  /* handle errors in TO_ISOLATION here */
+  DBUG_RETURN(true);
+#endif /* WITH_WSREP */
 }
 
 
