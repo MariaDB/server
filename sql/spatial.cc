@@ -1150,8 +1150,8 @@ int Gis_polygon::centroid_xy(double *x, double *y) const
     uint32 n_points, org_n_points;
     double prev_x, prev_y;
     double cur_area= 0;
-    double cur_cx= 0;
-    double cur_cy= 0;
+    double cur_cx= 0, cur_cy= 0;
+    double sum_cx= 0, sum_cy= 0;
 
     if (no_data(data, 4))
       return 1;
@@ -1165,17 +1165,32 @@ int Gis_polygon::centroid_xy(double *x, double *y) const
     while (--n_points)				// One point is already read
     {
       double tmp_x, tmp_y;
+      double loc_area;
       get_point(&tmp_x, &tmp_y, data);
       data+= POINT_DATA_SIZE;
-      cur_area+= (prev_x + tmp_x) * (prev_y - tmp_y);
+      loc_area= prev_x * tmp_y - tmp_x * prev_y;
+      cur_area+= loc_area;
       cur_cx+= tmp_x;
       cur_cy+= tmp_y;
+      sum_cx+= (prev_x + tmp_x) * loc_area;
+      sum_cy+= (prev_y + tmp_y) * loc_area;
+
       prev_x= tmp_x;
       prev_y= tmp_y;
     }
-    cur_area= fabs(cur_area) / 2;
-    cur_cx= cur_cx / (org_n_points - 1);
-    cur_cy= cur_cy / (org_n_points - 1);
+
+    if (fabs(cur_area) > 1e-10)
+    {
+      cur_cx= sum_cx / cur_area / 3.0;
+      cur_cy= sum_cy / cur_area / 3.0;
+    }
+    else
+    {
+      cur_cx= cur_cx / (org_n_points - 1);
+      cur_cy= cur_cy / (org_n_points - 1);
+    }
+
+    cur_area= fabs(cur_area);
 
     if (!first_loop)
     {
