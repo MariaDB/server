@@ -10623,6 +10623,7 @@ double ha_rocksdb::read_time(uint index, uint ranges, ha_rows rows) {
 
 } // namespace myrocks
 
+
 /*
   Register the storage engine plugin outside of myrocks namespace
   so that mysql_declare_plugin does not get confused when it does
