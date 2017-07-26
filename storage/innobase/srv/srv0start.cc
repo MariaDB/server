@@ -2567,6 +2567,12 @@ files_checked:
 			err = dict_create_or_check_sys_virtual();
 		}
 	}
+
+	if (err == DB_SUCCESS) {
+		/* Create the SYS_COLUMNS_ADDED system tables */
+		err = dict_create_or_check_sys_columns_added();
+	}
+
 	switch (err) {
 	case DB_SUCCESS:
 		break;

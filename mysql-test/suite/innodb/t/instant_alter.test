@@ -1,0 +1,9 @@
+--source include/innodb_page_size.inc
+--let $row_format=redundant
+--source ../include/instant_alter.inc
+--let $row_format=compact
+--source ../include/instant_alter.inc
+--let $row_format=dynamic
+--source ../include/instant_alter.inc
+#--let $row_format=compressed
+#--source ../include/instant_alter.inc

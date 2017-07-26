@@ -507,8 +507,8 @@ row_build_low(
 
 		dfield_t*	dfield = dtuple_get_nth_field(row, col_no);
 
-		const byte*	field = rec_get_nth_field(
-			copy, offsets, i, &len);
+		const byte*	field = rec_get_nth_cfield(
+			copy, offsets, i, index, heap, &len);
 
 		dfield_set_data(dfield, field, len);
 
@@ -693,7 +693,7 @@ row_rec_to_index_entry_low(
 	for (i = 0; i < rec_len; i++) {
 
 		dfield = dtuple_get_nth_field(entry, i);
-		field = rec_get_nth_field(rec, offsets, i, &len);
+		field = rec_get_nth_cfield(rec, offsets, i, index, heap, &len);
 
 		dfield_set_data(dfield, field, len);
 
@@ -825,6 +825,7 @@ row_build_row_ref(
 
 		ut_a(pos != ULINT_UNDEFINED);
 
+		ut_ad(!rec_offs_nth_default(offsets, pos));
 		field = rec_get_nth_field(rec, offsets, pos, &len);
 
 		dfield_set_data(dfield, field, len);
@@ -925,6 +926,7 @@ row_build_row_ref_in_tuple(
 
 		ut_a(pos != ULINT_UNDEFINED);
 
+		ut_ad(!rec_offs_nth_default(offsets, pos));
 		field = rec_get_nth_field(rec, offsets, pos, &len);
 
 		dfield_set_data(dfield, field, len);

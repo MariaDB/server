@@ -1707,7 +1707,7 @@ page_zip_fields_decode(
 		return(NULL);
 	}
 
-	table = dict_mem_table_create("ZIP_DUMMY", DICT_HDR_SPACE, n, 0,
+	table = dict_mem_table_create("ZIP_DUMMY", DICT_HDR_SPACE, n, 0, 0,
 				      DICT_TF_COMPACT, 0);
 	index = dict_mem_index_create("ZIP_DUMMY", "ZIP_DUMMY",
 				      DICT_HDR_SPACE, 0, n);
@@ -1774,6 +1774,10 @@ page_zip_fields_decode(
 			index->n_nullable = unsigned(val);
 		}
 	}
+
+	/* set core fields for internal index  */
+	index->n_core_fields = index->n_fields;
+	index->n_core_nullable = index->n_nullable;
 
 	ut_ad(b == end);
 
@@ -2288,6 +2292,9 @@ page_zip_decompress_heap_no(
 	/* Set heap_no and the status bits. */
 	mach_write_to_2(rec - REC_NEW_HEAP_NO, heap_status);
 	heap_status += 1 << REC_HEAP_NO_SHIFT;
+
+	/* Set the info bit to zero for instant add columns */
+	rec[-REC_N_NEW_EXTRA_BYTES] = 0;
 	return(TRUE);
 }
 
