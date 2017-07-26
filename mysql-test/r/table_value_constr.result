@@ -1,0 +1,399 @@
+create table t1 (a int, b int);
+insert into t1 values (1,2),(4,6),(9,7),(1,1),(2,5),(7,8);
+# just VALUES
+values (1,2);
+1	2
+1	2
+values (1,2), (3,4), (5.6,0);
+1	2
+1.0	2
+3.0	4
+5.6	0
+values ("abc", "def");
+abc	def
+abc	def
+# UNION using VALUES structure(s)
+select 1,2 union values (1,2);
+1	2
+1	2
+values (1,2) union select 1,2;
+1	2
+1	2
+select 1,2 union values (1,2),(3,4),(5,6),(7,8);
+1	2
+1	2
+3	4
+5	6
+7	8
+select 3,7 union values (1,2),(3,4),(5,6);
+3	7
+3	7
+1	2
+3	4
+5	6
+select 3,7,4 union values (1,2,5),(4,5,6);
+3	7	4
+3	7	4
+1	2	5
+4	5	6
+select 1,2 union values (1,7),(3,6.5);
+1	2
+1	2.0
+1	7.0
+3	6.5
+select 1,2 union values (1,2.0),(3,6);
+1	2
+1	2.0
+3	6.0
+select 1.8,2 union values (1,2),(3,6);
+1.8	2
+1.8	2
+1.0	2
+3.0	6
+values (1,2.4),(3,6) union select 2.8,9;
+1	2.4
+1.0	2.4
+3.0	6.0
+2.8	9.0
+values (1,2),(3,4),(5,6),(7,8) union select 5,6;
+1	2
+1	2
+3	4
+5	6
+7	8
+select "ab","cdf" union values ("al","zl"),("we","q");
+ab	cdf
+ab	cdf
+al	zl
+we	q
+values ("ab", "cdf") union select "ab","cdf";
+ab	cdf
+ab	cdf
+values (1,2) union values (1,2),(5,6);
+1	2
+1	2
+5	6
+values (1,2) union values (3,4),(5,6);
+1	2
+1	2
+3	4
+5	6
+values (1,2) union values (1,2) union values (4,5);
+1	2
+1	2
+4	5
+# UNION ALL using VALUES structure
+values (1,2),(3,4) union all select 5,6;
+1	2
+1	2
+3	4
+5	6
+values (1,2),(3,4) union all select 1,2;
+1	2
+1	2
+3	4
+1	2
+select 5,6 union all values (1,2),(3,4);
+5	6
+5	6
+1	2
+3	4
+select 1,2 union all values (1,2),(3,4);
+1	2
+1	2
+1	2
+3	4
+values (1,2) union all values (1,2),(5,6);
+1	2
+1	2
+1	2
+5	6
+values (1,2) union all values (3,4),(5,6);
+1	2
+1	2
+3	4
+5	6
+values (1,2) union all values (1,2) union all values (4,5);
+1	2
+1	2
+1	2
+4	5
+values (1,2) union all values (1,2) union values (1,2);
+1	2
+1	2
+values (1,2) union values (1,2) union all values (1,2);
+1	2
+1	2
+1	2
+# EXCEPT using VALUES structure(s)
+select 1,2 except values (3,4),(5,6);
+1	2
+1	2
+select 1,2 except values (1,2),(3,4);
+1	2
+values (1,2),(3,4) except select 5,6;
+1	2
+1	2
+3	4
+values (1,2),(3,4) except select 1,2;
+1	2
+3	4
+values (1,2),(3,4) except values (5,6);
+1	2
+1	2
+3	4
+values (1,2),(3,4) except values (1,2);
+1	2
+3	4
+# INTERSECT using VALUES structure(s)
+select 1,2 intersect values (3,4),(5,6);
+1	2
+select 1,2 intersect values (1,2),(3,4);
+1	2
+1	2
+values (1,2),(3,4) intersect select 5,6;
+1	2
+values (1,2),(3,4) intersect select 1,2;
+1	2
+1	2
+values (1,2),(3,4) intersect values (5,6);
+1	2
+values (1,2),(3,4) intersect values (1,2);
+1	2
+1	2
+# combination of different structures using VALUES structures : UNION + EXCEPT
+values (1,2),(3,4) except select 1,2 union values (1,2);
+1	2
+1	2
+3	4
+values (1,2),(3,4) except values (1,2) union values (1,2);
+1	2
+1	2
+3	4
+values (1,2),(3,4) except values (1,2) union values (3,4);
+1	2
+3	4
+values (1,2),(3,4) union values (1,2) except values (1,2);
+1	2
+3	4
+# combination of different structures using VALUES structures : UNION ALL + EXCEPT
+values (1,2),(3,4) except select 1,2 union all values (1,2);
+1	2
+1	2
+3	4
+values (1,2),(3,4) except values (1,2) union all values (1,2);
+1	2
+1	2
+3	4
+values (1,2),(3,4) except values (1,2) union all values (3,4);
+1	2
+3	4
+3	4
+values (1,2),(3,4) union all values (1,2) except values (1,2);
+1	2
+3	4
+# combination of different structures using VALUES structures : UNION + INTERSECT
+values (1,2),(3,4) intersect select 1,2 union values (1,2);
+1	2
+1	2
+values (1,2),(3,4) intersect values (1,2) union values (1,2);
+1	2
+1	2
+values (1,2),(3,4) intersect values (1,2) union values (3,4);
+1	2
+1	2
+3	4
+values (1,2),(3,4) union values (1,2) intersect values (1,2);
+1	2
+1	2
+3	4
+# combination of different structures using VALUES structures : UNION ALL + INTERSECT
+values (1,2),(3,4) intersect select 1,2 union all values (1,2);
+1	2
+1	2
+1	2
+values (1,2),(3,4) intersect values (1,2) union all values (1,2);
+1	2
+1	2
+1	2
+values (1,2),(3,4) intersect values (1,2) union all values (3,4);
+1	2
+1	2
+3	4
+values (1,2),(3,4) union all values (1,2) intersect values (1,2);
+1	2
+1	2
+3	4
+1	2
+# combination of different structures using VALUES structures : UNION + UNION ALL
+values (1,2),(3,4) union all select 1,2 union values (1,2);
+1	2
+1	2
+3	4
+values (1,2),(3,4) union all values (1,2) union values (1,2);
+1	2
+1	2
+3	4
+values (1,2),(3,4) union all values (1,2) union values (3,4);
+1	2
+1	2
+3	4
+values (1,2),(3,4) union values (1,2) union all values (1,2);
+1	2
+1	2
+3	4
+1	2
+values (1,2) union values (1,2) union all values (1,2);
+1	2
+1	2
+1	2
+# CTE using VALUES structure(s)
+with t2 as (values (1,2),(3,4)) select * from t2;
+1	2
+1	2
+3	4
+with t2 as (select 1,2 union values (1,2)) select * from t2;
+1	2
+1	2
+with t2 as (select 1,2 union values (1,2),(3,4)) select * from t2;
+1	2
+1	2
+3	4
+with t2 as (values (1,2) union select 1,2) select * from t2;
+1	2
+1	2
+with t2 as (values (1,2),(3,4) union select 1,2) select * from t2;
+1	2
+1	2
+3	4
+with t2 as (values (5,6) union values (1,2),(3,4)) select * from t2;
+5	6
+5	6
+1	2
+3	4
+with t2 as (values (1,2) union values (1,2),(3,4)) select * from t2;
+1	2
+1	2
+3	4
+with t2 as (select 1,2 union all values (1,2),(3,4)) select * from t2;
+1	2
+1	2
+1	2
+3	4
+with t2 as (values (1,2),(3,4) union all select 1,2) select * from t2;
+1	2
+1	2
+3	4
+1	2
+with t2 as (values (1,2) union all values (1,2),(3,4)) select * from t2;
+1	2
+1	2
+1	2
+3	4
+# Derived table using VALUES structure(s)
+select * from (values (1,2),(3,4)) as t2;
+1	2
+1	2
+3	4
+select * from (select 1,2 union values (1,2)) as t2;
+1	2
+1	2
+select * from (select 1,2 union values (1,2),(3,4)) as t2;
+1	2
+1	2
+3	4
+select * from (values (1,2) union select 1,2) as t2;
+1	2
+1	2
+select * from (values (1,2),(3,4) union select 1,2) as t2;
+1	2
+1	2
+3	4
+select * from (values (5,6) union values (1,2),(3,4)) as t2;
+5	6
+5	6
+1	2
+3	4
+select * from (values (1,2) union values (1,2),(3,4)) as t2;
+1	2
+1	2
+3	4
+select * from (select 1,2 union all values (1,2),(3,4)) as t2;
+1	2
+1	2
+1	2
+3	4
+select * from (values (1,2),(3,4) union all select 1,2) as t2;
+1	2
+1	2
+3	4
+1	2
+select * from (values (1,2) union all values (1,2),(3,4)) as t2;
+1	2
+1	2
+1	2
+3	4
+# CREATE VIEW using VALUES structure(s)
+create view v1 as values (1,2),(3,4);
+select * from v1;
+1	2
+1	2
+3	4
+drop view v1;
+create view v1 as select 1,2 union values (1,2);
+select * from v1;
+1	2
+1	2
+drop view v1;
+create view v1 as select 1,2 union values (1,2),(3,4);
+select * from v1;
+1	2
+1	2
+3	4
+drop view v1;
+create view v1 as values (1,2) union select 1,2;
+select * from v1;
+1	2
+1	2
+drop view v1;
+create view v1 as values (1,2),(3,4) union select 1,2;
+select * from v1;
+1	2
+1	2
+3	4
+drop view v1;
+create view v1 as values (5,6) union values (1,2),(3,4);
+select * from v1;
+5	6
+5	6
+1	2
+3	4
+drop view v1;
+create view v1 as values (1,2) union values (1,2),(3,4);
+select * from v1;
+1	2
+1	2
+3	4
+drop view v1;
+create view v1 as select 1,2 union all values (1,2),(3,4);
+select * from v1;
+1	2
+1	2
+1	2
+3	4
+drop view v1;
+create view v1 as values (1,2),(3,4) union all select 1,2;
+select * from v1;
+1	2
+1	2
+3	4
+1	2
+drop view v1;
+create view v1 as values (1,2) union all values (1,2),(3,4);
+select * from v1;
+1	2
+1	2
+1	2
+3	4
+drop view v1;
+drop table t1;
