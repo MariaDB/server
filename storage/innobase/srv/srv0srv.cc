@@ -182,10 +182,7 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 my_bool	srv_use_native_aio;
 my_bool	srv_numa_interleave;
-ulint	srv_allowed_nodes[SRV_MAX_NUM_NUMA_NODES];
 ulint	srv_size_of_buf_pool_in_node[SRV_MAX_NUM_NUMA_NODES];
-ulint	srv_size_of_numa_node[SRV_MAX_NUM_NUMA_NODES];
-ulint	srv_total_nodes_size = 0;
 /** innodb_use_trim; whether to use fallocate(PUNCH_HOLE) with
 page_compression */
 my_bool	srv_use_trim;
