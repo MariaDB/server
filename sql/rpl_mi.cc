@@ -747,6 +747,7 @@ void free_key_master_info(Master_info *mi)
   /* We use 2 here instead of 1 just to make it easier when debugging */
   mi->killed= 2;
   end_master_info(mi);
+  end_relay_log_info(&mi->rli);
   mi->unlock_slave_threads();
   delete mi;
 
