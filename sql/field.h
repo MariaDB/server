@@ -897,8 +897,21 @@ public:
     DBUG_RETURN(field_metadata);
   }
   virtual uint row_pack_length() const { return 0; }
+
+
+  /**
+     Retrieve the field metadata for fields.
+
+     This default implementation returns 0 and saves 0 in the first_byte value.
+
+     @param   first_byte   First byte of field metadata
+
+     @returns 0 no bytes written.
+  */
+
   virtual int save_field_metadata(uchar *first_byte)
-  { return do_save_field_metadata(first_byte); }
+  { return 0; }
+
 
   /*
     data_length() return the "real size" of the data in memory.
@@ -1523,19 +1536,6 @@ private:
    */
   virtual size_t do_last_null_byte() const;
 
-/**
-   Retrieve the field metadata for fields.
-
-   This default implementation returns 0 and saves 0 in the metadata_ptr
-   value.
-
-   @param   metadata_ptr   First byte of field metadata
-
-   @returns 0 no bytes written.
-*/
-  virtual int do_save_field_metadata(uchar *metadata_ptr)
-  { return 0; }
-
 protected:
   uchar *pack_int(uchar *to, const uchar *from, size_t size)
   {
@@ -1834,7 +1834,7 @@ public:
 /* New decimal/numeric field which use fixed point arithmetic */
 class Field_new_decimal :public Field_num {
 private:
-  int do_save_field_metadata(uchar *first_byte);
+  int save_field_metadata(uchar *first_byte);
 public:
   /* The maximum number of decimal digits can be stored */
   uint precision;
@@ -2156,7 +2156,7 @@ public:
   uint row_pack_length() const { return pack_length(); }
   void sql_type(String &str) const;
 private:
-  int do_save_field_metadata(uchar *first_byte);
+  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -2213,7 +2213,7 @@ public:
   uint row_pack_length() const { return pack_length(); }
   void sql_type(String &str) const;
 private:
-  int do_save_field_metadata(uchar *first_byte);
+  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -2498,7 +2498,7 @@ public:
   TIMESTAMP(0..6) - MySQL56 version
 */
 class Field_timestampf :public Field_timestamp_with_dec {
-  int do_save_field_metadata(uchar *metadata_ptr)
+  int save_field_metadata(uchar *metadata_ptr)
   {
     *metadata_ptr= decimals();
     return 1;
@@ -2766,7 +2766,7 @@ public:
 */
 class Field_timef :public Field_time_with_dec {
   void store_TIME(MYSQL_TIME *ltime);
-  int do_save_field_metadata(uchar *metadata_ptr)
+  int save_field_metadata(uchar *metadata_ptr)
   {
     *metadata_ptr= decimals();
     return 1;
@@ -2928,7 +2928,7 @@ public:
 class Field_datetimef :public Field_datetime_with_dec {
   void store_TIME(MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
-  int do_save_field_metadata(uchar *metadata_ptr)
+  int save_field_metadata(uchar *metadata_ptr)
   {
     *metadata_ptr= decimals();
     return 1;
@@ -3093,7 +3093,7 @@ public:
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   virtual uint get_key_image(uchar *buff,uint length, imagetype type);
 private:
-  int do_save_field_metadata(uchar *first_byte);
+  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -3189,7 +3189,7 @@ public:
   void hash(ulong *nr, ulong *nr2);
   uint length_size() { return length_bytes; }
 private:
-  int do_save_field_metadata(uchar *first_byte);
+  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -3429,7 +3429,7 @@ public:
   uint32 char_length() const;
   uint is_equal(Create_field *new_field);
 private:
-  int do_save_field_metadata(uchar *first_byte);
+  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -3593,7 +3593,7 @@ public:
                           const Item *item,
                           bool is_eq_func) const;
 private:
-  int do_save_field_metadata(uchar *first_byte);
+  int save_field_metadata(uchar *first_byte);
   uint is_equal(Create_field *new_field);
 };
 
@@ -3771,7 +3771,7 @@ public:
 
 private:
   virtual size_t do_last_null_byte() const;
-  int do_save_field_metadata(uchar *first_byte);
+  int save_field_metadata(uchar *first_byte);
 };
 
 

@@ -3209,7 +3209,7 @@ void Field_new_decimal::sql_type(String &str) const
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_new_decimal::do_save_field_metadata(uchar *metadata_ptr)
+int Field_new_decimal::save_field_metadata(uchar *metadata_ptr)
 {
   *metadata_ptr= precision;
   *(metadata_ptr + 1)= decimals();
@@ -4418,7 +4418,7 @@ bool Field_float::send_binary(Protocol *protocol)
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_float::do_save_field_metadata(uchar *metadata_ptr)
+int Field_float::save_field_metadata(uchar *metadata_ptr)
 {
   *metadata_ptr= pack_length();
   return 1;
@@ -4726,7 +4726,7 @@ void Field_double::sort_string(uchar *to,uint length __attribute__((unused)))
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_double::do_save_field_metadata(uchar *metadata_ptr)
+int Field_double::save_field_metadata(uchar *metadata_ptr)
 {
   *metadata_ptr= pack_length();
   return 1;
@@ -7131,7 +7131,7 @@ uchar *Field_string::pack(uchar *to, const uchar *from, uint max_length)
    the master.
 
    @note For information about how the length is packed, see @c
-   Field_string::do_save_field_metadata
+   Field_string::save_field_metadata
 
    @param   to         Destination of the data
    @param   from       Source of the data
@@ -7214,7 +7214,7 @@ Field_string::unpack(uchar *to, const uchar *from, const uchar *from_end,
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_string::do_save_field_metadata(uchar *metadata_ptr)
+int Field_string::save_field_metadata(uchar *metadata_ptr)
 {
   DBUG_ASSERT(field_length < 1024);
   DBUG_ASSERT((real_type() & 0xF0) == 0xF0);
@@ -7311,7 +7311,7 @@ const uint Field_varstring::MAX_SIZE= UINT_MAX16;
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_varstring::do_save_field_metadata(uchar *metadata_ptr)
+int Field_varstring::save_field_metadata(uchar *metadata_ptr)
 {
   DBUG_ASSERT(field_length <= 65535);
   int2store((char*)metadata_ptr, field_length);
@@ -8105,9 +8105,9 @@ Field *Field_blob::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_blob::do_save_field_metadata(uchar *metadata_ptr)
+int Field_blob::save_field_metadata(uchar *metadata_ptr)
 {
-  DBUG_ENTER("Field_blob::do_save_field_metadata");
+  DBUG_ENTER("Field_blob::save_field_metadata");
   *metadata_ptr= pack_length_no_ptr();
   DBUG_PRINT("debug", ("metadata: %u (pack_length_no_ptr)", *metadata_ptr));
   DBUG_RETURN(1);
@@ -8635,7 +8635,7 @@ longlong Field_enum::val_int(void)
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_enum::do_save_field_metadata(uchar *metadata_ptr)
+int Field_enum::save_field_metadata(uchar *metadata_ptr)
 {
   *metadata_ptr= real_type();
   *(metadata_ptr + 1)= pack_length();
@@ -9354,9 +9354,9 @@ uint Field_bit::get_key_image(uchar *buff, uint length, imagetype type_arg)
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_bit::do_save_field_metadata(uchar *metadata_ptr)
+int Field_bit::save_field_metadata(uchar *metadata_ptr)
 {
-  DBUG_ENTER("Field_bit::do_save_field_metadata");
+  DBUG_ENTER("Field_bit::save_field_metadata");
   DBUG_PRINT("debug", ("bit_len: %d, bytes_in_rec: %d",
                        bit_len, bytes_in_rec));
   /*
