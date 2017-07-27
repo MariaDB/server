@@ -538,21 +538,6 @@ bool Sql_cmd_alter_table_exchange_partition::
                   &alter_prelocking_strategy))
     DBUG_RETURN(true);
 
-#ifdef WITH_WSREP
-  if (WSREP_ON)
-  {
-    if ((!thd->is_current_stmt_binlog_format_row() ||
-         /* TODO: Do we really need to check for temp tables in this case? */
-         !thd->find_temporary_table(table_list)) &&
-        wsrep_to_isolation_begin(thd, table_list->db, table_list->table_name,
-                                 NULL))
-    {
-      WSREP_WARN("ALTER TABLE EXCHANGE PARTITION isolation failure");
-      DBUG_RETURN(TRUE);
-    }
-  }
-#endif /* WITH_WSREP */
-
   part_table= table_list->table;
   swap_table= swap_table_list->table;
 
