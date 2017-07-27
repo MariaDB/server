@@ -1167,7 +1167,6 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     DBUG_ASSERT(rli->slave_running == 0);
     DBUG_ASSERT(rli->mi->slave_running == 0);
   }
-  rli->slave_skip_counter=0;
   mysql_mutex_lock(&rli->data_lock);
 
   /*
