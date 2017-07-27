@@ -256,8 +256,8 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     if ((info_fd= mysql_file_open(key_file_relay_log_info,
                                   fname, O_CREAT|O_RDWR|O_BINARY, MYF(MY_WME))) < 0)
     {
-      sql_print_error("Failed to create a new relay log info file (\
-file '%s', errno %d)", fname, my_errno);
+      sql_print_error("Failed to create a new relay log info file ("
+                      "file '%s', errno %d)", fname, my_errno);
       msg= current_thd->get_stmt_da()->message();
       goto err;
     }
@@ -450,7 +450,9 @@ err:
   if (info_fd >= 0)
     mysql_file_close(info_fd, MYF(0));
   rli->info_fd= -1;
+  mysql_mutex_lock(rli->relay_log.get_log_lock());
   rli->relay_log.close(LOG_CLOSE_INDEX | LOG_CLOSE_STOP_EVENT);
+  mysql_mutex_unlock(rli->relay_log.get_log_lock());
   mysql_mutex_unlock(&rli->data_lock);
   DBUG_RETURN(1);
 }
@@ -1145,14 +1147,17 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
                         "log index file:%s.", rli->relay_log.get_index_fname());
         DBUG_RETURN(1);
       }
+      mysql_mutex_lock(rli->relay_log.get_log_lock());
       if (rli->relay_log.open(ln, LOG_BIN, 0, SEQ_READ_APPEND,
                              (rli->max_relay_log_size ? rli->max_relay_log_size :
                               max_binlog_size), 1, TRUE))
       {
         sql_print_error("Unable to purge relay log files. Failed to open relay "
                         "log file:%s.", rli->relay_log.get_log_fname());
+        mysql_mutex_unlock(rli->relay_log.get_log_lock());
         DBUG_RETURN(1);
       }
+      mysql_mutex_unlock(rli->relay_log.get_log_lock());
     }
     else
       DBUG_RETURN(0);
@@ -1210,7 +1215,11 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
   }
 
   if (!rli->inited && rli->error_on_rli_init_info)
+  {
+    mysql_mutex_lock(rli->relay_log.get_log_lock());
     rli->relay_log.close(LOG_CLOSE_INDEX | LOG_CLOSE_STOP_EVENT);
+    mysql_mutex_unlock(rli->relay_log.get_log_lock());
+  }
 err:
 #ifndef DBUG_OFF
   char buf[22];
