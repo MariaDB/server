@@ -155,8 +155,10 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 		tdp->Options = (PSZ)GetStringTableOption(g, topt, "Colist", "all");
 		tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
 		tdp->Version = GetIntegerTableOption(g, topt, "Version", 3);
+#if defined(JDBC_SUPPORT)
 		tdp->Wrapname = (PSZ)GetStringTableOption(g, topt, "Wrapper",
 			(tdp->Version == 2) ? "Mongo2Interface" : "Mongo3Interface");
+#endif   // JDBC_SUPPORT
 		tdp->Pretty = 0;
 #else   // !MONGO_SUPPORT	 || JDBC_SUPPORT
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
