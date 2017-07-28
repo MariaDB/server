@@ -2937,7 +2937,7 @@ static int mysql_create_routine(THD *thd, LEX *lex)
   {
     if (check_routine_access(thd, ALTER_PROC_ACL, lex->sphead->m_db.str,
                              lex->sphead->m_name.str,
-                             lex->sql_command == SQLCOM_DROP_PROCEDURE, 0))
+                             lex->sql_command == SQLCOM_CREATE_PROCEDURE, 0))
       return true;
   }
 
