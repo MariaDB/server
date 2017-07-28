@@ -1,0 +1,39 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE t1(pk INT, PRIMARY KEY(pk));
+
+# Make sure we get an error with out of order keys during bulk load
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(10);
+INSERT INTO t1 VALUES(11);
+--error ER_KEYS_OUT_OF_ORDER
+INSERT INTO t1 VALUES(9);
+SET rocksdb_bulk_load=0;
+
+# Make sure only 10 and 11 got into the table
+SELECT * FROM t1;
+
+# Make sure we get an error with overlapping data
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(20);
+INSERT INTO t1 VALUES(21);
+
+# This last crashes the server (intentionally) because we can't return any
+# error information from a SET <variable>=<value>
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+SET rocksdb_bulk_load=0;
+
+--exec grep "RocksDB: Error 197 finalizing last SST file while setting bulk loading variable" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
+
+# restart the crashed server
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+
+# Make sure the error exists in the .err log and then restart the server
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+DROP TABLE t1;

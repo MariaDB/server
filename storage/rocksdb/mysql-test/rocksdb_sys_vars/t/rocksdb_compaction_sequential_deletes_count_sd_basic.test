@@ -12,7 +12,7 @@ INSERT INTO invalid_values VALUES('\'bbb\'');
 --let $sys_var=ROCKSDB_COMPACTION_SEQUENTIAL_DELETES_COUNT_SD
 --let $read_only=0
 --let $session=0
---source suite/sys_vars/inc/rocksdb_sys_var.inc
+--source ../include/rocksdb_sys_var.inc
 
 DROP TABLE valid_values;
 DROP TABLE invalid_values;

@@ -72,14 +72,26 @@ void Rdb_cf_options::get(const std::string &cf_name,
                          rocksdb::ColumnFamilyOptions *const opts) {
   DBUG_ASSERT(opts != nullptr);
 
-  // set defaults
+  // Get defaults.
   rocksdb::GetColumnFamilyOptionsFromString(*opts, m_default_config, opts);
 
-  // set per-cf config if we have one
+  // Get a custom confguration if we have one.
   Name_to_config_t::iterator it = m_name_map.find(cf_name);
+
   if (it != m_name_map.end()) {
     rocksdb::GetColumnFamilyOptionsFromString(*opts, it->second, opts);
   }
+}
+
+void Rdb_cf_options::update(const std::string &cf_name,
+                            const std::string &cf_options) {
+  DBUG_ASSERT(!cf_name.empty());
+  DBUG_ASSERT(!cf_options.empty());
+
+  // Always update. If we didn't have an entry before then add it.
+  m_name_map[cf_name] = cf_options;
+
+  DBUG_ASSERT(!m_name_map.empty());
 }
 
 bool Rdb_cf_options::set_default(const std::string &default_config) {
@@ -245,27 +257,30 @@ bool Rdb_cf_options::find_cf_options_pair(const std::string &input,
   return true;
 }
 
-bool Rdb_cf_options::set_override(const std::string &override_config) {
-  // TODO(???): support updates?
-
+bool Rdb_cf_options::parse_cf_options(const std::string &cf_options,
+  Name_to_config_t *option_map) {
   std::string cf;
   std::string opt_str;
   rocksdb::ColumnFamilyOptions options;
-  Name_to_config_t configs;
+
+  DBUG_ASSERT(option_map != nullptr);
+  DBUG_ASSERT(option_map->empty());
 
   // Loop through the characters of the string until we reach the end.
   size_t pos = 0;
-  while (pos < override_config.size()) {
+
+  while (pos < cf_options.size()) {
     // Attempt to find <cf>={<opt_str>}.
-    if (!find_cf_options_pair(override_config, &pos, &cf, &opt_str))
+    if (!find_cf_options_pair(cf_options, &pos, &cf, &opt_str)) {
       return false;
+    }
 
     // Generate an error if we have already seen this column family.
-    if (configs.find(cf) != configs.end()) {
+    if (option_map->find(cf) != option_map->end()) {
       // NO_LINT_DEBUG
       sql_print_warning(
           "Duplicate entry for %s in override options (options: %s)",
-          cf.c_str(), override_config.c_str());
+          cf.c_str(), cf_options.c_str());
       return false;
     }
 
@@ -275,12 +290,22 @@ bool Rdb_cf_options::set_override(const std::string &override_config) {
       // NO_LINT_DEBUG
       sql_print_warning(
           "Invalid cf config for %s in override options (options: %s)",
-          cf.c_str(), override_config.c_str());
+          cf.c_str(), cf_options.c_str());
       return false;
     }
 
     // If everything is good, add this cf/opt_str pair to the map.
-    configs[cf] = opt_str;
+    (*option_map)[cf] = opt_str;
+  }
+
+  return true;
+}
+
+bool Rdb_cf_options::set_override(const std::string &override_config) {
+  Name_to_config_t configs;
+
+  if (!parse_cf_options(override_config, &configs)) {
+    return false;
   }
 
   // Everything checked out - make the map live

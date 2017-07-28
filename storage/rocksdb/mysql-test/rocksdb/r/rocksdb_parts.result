@@ -94,7 +94,7 @@ drop table t1, t2;
 CREATE TABLE t1 (c1 INT NOT NULL, c2 CHAR(5)) PARTITION BY HASH(c1) PARTITIONS 4;
 INSERT INTO t1 VALUES(1,'a');
 RENAME TABLE t1 TO db3.t3;
-ERROR HY000: Error on rename of './test/t1' to './db3/t3' (errno: 122 - Internal (unspecified) error in handler)
+ERROR HY000: Error on rename of './test/t1' to './db3/t3' (errno: -1 - Unknown error -1)
 SELECT * FROM t1;
 c1	c2
 1	a

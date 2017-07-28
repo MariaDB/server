@@ -27,6 +27,7 @@
 
 /* RocksDB header files */
 #include "rocksdb/slice.h"
+#include "rocksdb/status.h"
 
 #ifdef HAVE_JEMALLOC
 #include <jemalloc/jemalloc.h>
@@ -237,6 +238,8 @@ inline void rdb_check_mutex_call_result(const char *function_name,
     abort_with_stack_traces();
   }
 }
+
+void rdb_log_status_error(const rocksdb::Status &s, const char *msg = nullptr);
 
 /*
   Helper functions to parse strings.

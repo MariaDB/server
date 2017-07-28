@@ -40,12 +40,16 @@ namespace myrocks {
 */
 class Rdb_cf_options {
 public:
+  using Name_to_config_t = std::unordered_map<std::string, std::string>;
+
   Rdb_cf_options(const Rdb_cf_options &) = delete;
   Rdb_cf_options &operator=(const Rdb_cf_options &) = delete;
   Rdb_cf_options() = default;
 
   void get(const std::string &cf_name,
            rocksdb::ColumnFamilyOptions *const opts);
+
+  void update(const std::string &cf_name, const std::string &cf_options);
 
   bool init(const rocksdb::BlockBasedTableOptions &table_options,
             std::shared_ptr<rocksdb::TablePropertiesCollectorFactory>
@@ -64,6 +68,9 @@ public:
                       rocksdb::ColumnFamilyOptions *const opts)
       MY_ATTRIBUTE((__nonnull__));
 
+  static bool parse_cf_options(const std::string &cf_options,
+    Name_to_config_t *option_map);
+
 private:
   bool set_default(const std::string &default_config);
   bool set_override(const std::string &overide_config);
@@ -81,8 +88,6 @@ private:
 private:
   static Rdb_pk_comparator s_pk_comparator;
   static Rdb_rev_comparator s_rev_pk_comparator;
-
-  typedef std::unordered_map<std::string, std::string> Name_to_config_t;
 
   /* CF name -> value map */
   Name_to_config_t m_name_map;

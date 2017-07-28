@@ -24,7 +24,7 @@ select * from t1;
 set @tmp1=@@rocksdb_verify_row_debug_checksums;
 set rocksdb_verify_row_debug_checksums=1;
 set session debug= "+d,myrocks_simulate_bad_row_read1";
---error ER_GET_ERRNO
+--error ER_GET_ERRMSG
 select * from t1 where pk=1;
 set session debug= "-d,myrocks_simulate_bad_row_read1";
 set rocksdb_verify_row_debug_checksums=@tmp1;
@@ -32,12 +32,12 @@ set rocksdb_verify_row_debug_checksums=@tmp1;
 select * from t1 where pk=1;
 
 set session debug= "+d,myrocks_simulate_bad_row_read2";
---error ER_GET_ERRNO
+--error ER_GET_ERRMSG
 select * from t1 where pk=1;
 set session debug= "-d,myrocks_simulate_bad_row_read2";
 
 set session debug= "+d,myrocks_simulate_bad_row_read3";
---error ER_GET_ERRNO
+--error ER_GET_ERRMSG
 select * from t1 where pk=1;
 set session debug= "-d,myrocks_simulate_bad_row_read3";
 
@@ -58,7 +58,7 @@ create table t2 (
 insert into t2 values ('ABCD',1);
 select * from t2;
 set session debug= "+d,myrocks_simulate_bad_pk_read1";
---error ER_GET_ERRNO
+--error ER_GET_ERRMSG
 select * from t2;
 set session debug= "-d,myrocks_simulate_bad_pk_read1";
 
@@ -73,7 +73,7 @@ insert into t2 values ('ABCD',1);
 
 select * from t2;
 set session debug= "+d,myrocks_simulate_bad_pk_read1";
---error ER_GET_ERRNO
+--error ER_GET_ERRMSG
 select * from t2;
 set session debug= "-d,myrocks_simulate_bad_pk_read1";
 

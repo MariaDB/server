@@ -38,39 +38,17 @@ When we need to seek to a tuple that is a prefix of a full key:
   ( kv )-ccc-pk
   ( kv )-bbb-pk3
   ( kv )-bbb-pk2
-  ( kv )-bbb-pk1 < -- We need to be here
-# ( kv )-bbb         <---we call Seek(kv-bbb)
-  ( kv )-aaa-pk      ... and end up here.  Should call it->Prev().
+  ( kv )-bbb-pk1  <--- SeekForPrev("kv-bbb") will put us here on the previous
+                       record.
+# ( kv )-bbb      <--- "kv-bbb" doesn't exist in the database, but it would be
+  ( kv )-aaa-pk         here.
 
-There is a special case when (kv)-bbb-pk1 is the last record in the CF, and
-we get invalid iterator. Then, we need to call SeekToLast().
-
-Another kind of special case is when we need to seek to the full value.
-Suppose, the lookup tuple is kv-bbb-pk1:
-
-  (kv+1)-xxx-pk
-  ( kv )-ccc-pk
-  ( kv )-bbb-pk3
-  ( kv )-bbb-pk2
-  ( kv )-bbb-pk1 < -- Seek(kv-bbb-pk1)
-  ( kv )-bbb-pk0
-
-Then, Seek(kv-bbb-pk1) will position us exactly the tuple we need, and we
-won't need to call it->Prev().  If we get an invalid iterator, there is no
-need to call SeekToLast().
+Even when (kv)-bbb-pk1 is the last record in the CF, SeekForPrev() will find the
+last record before "kv-bbb", so it already takes care of this case for us.
 
 RocksDB calls:
 
-  it->Seek(tuple);
-
-  if (!using_full_key)
-  {
-    if (!it->Valid())
-      it->SeekToLast();
-    else
-      it->Prev();
-  }
-
+  it->SeekForPrev(kv);
   if (it->Valid() && kd->covers_key(..) && kd->cmp_full_keys(...))
     return record.
 
@@ -90,7 +68,7 @@ If lookup tuple is kv-bbb:
 RocksDB calls:
 
   Seek(kv);
-  if (it->Valid() && kd->covers_key(..) && kd->cmp_full_keys(...))
+  if (it->Valid() && kd->covers_key(..))
     return record.
 
 == HA_READ_KEY_OR_NEXT, backward CF ==
@@ -101,12 +79,13 @@ When specified key tuple is a key prefix:
   ( kv )-ccc-pk
   ( kv )-bbb-pk3
   ( kv )-bbb-pk2
-  ( kv )-bbb-pk1 < -- We need to be here (or above)
-# ( kv )-bbb         <---we call Seek(kv-bbb)
-  ( kv )-aaa-pk      ... and end up here.  Should call it->Prev().
+  ( kv )-bbb-pk1  <--- Seek("kv-bbb") will put us here on the previous record.
+# ( kv )-bbb      <--- "kv-bbb" doesn't exist in the database, but it would be
+                       here.
+  ( kv )-aaa-pk
 
-There is a special case when (kv)-bbb-pk1 is the last record in the CF, and
-we get invalid iterator. Then, we need to call SeekToLast().
+Even when (kv)-bbb-pk1 is the last record in the CF, SeekForPrev() will find the
+last record before "kv-bbb", so it already takes care of this case for us.
 
 Another kind of special case is when we need to seek to the full value.
 Suppose, the lookup tuple is kv-bbb-pk1:
@@ -115,28 +94,16 @@ Suppose, the lookup tuple is kv-bbb-pk1:
   ( kv )-ccc-pk
   ( kv )-bbb-pk3
   ( kv )-bbb-pk2
-  ( kv )-bbb-pk1 < -- Seek(kv-bbb-pk1)
+  ( kv )-bbb-pk1 < -- SeekForPrev(kv-bbb-pk1)
   ( kv )-bbb-pk0
 
-Then, Seek(kv-bbb-pk1) may position us exactly at the tuple we need, and we
-won't need to call it->Prev().
-If kv-bbb-pk1 is not present in the database, we will be positioned on
-kv-bbb-pk0, and we will need to call it->Prev().
-If we get an invalid iterator, we DO need to call SeekToLast().
+Then, SeekForPrev(kv-bbb-pk1) may position us exactly at the tuple we need.
+Even If kv-bbb-pk1 is not present in the database, we will be positioned on
+kv-bbb-pk2 no matter whether kv-bbb-pk2 is the last key or not.
 
 RocksDB calls:
 
-  Seek(...);
-
-  if (!it->Valid())
-    it->SeekToLast();
-  else
-  {
-    if (!using_full_key ||
-        !(kd->covers_key(...) || kd->cmp_full_keys(...))
-      it->Prev();
-  }
-
+  SeekForPrev(...);
   if (it->Valid() && kd->covers_key(..))
     return record.
 
@@ -153,7 +120,7 @@ Suppose lookup_key = kv-bbb
   ( kv )-bbb-pk3
   ( kv )-bbb-pk4
   ( kv )-bbb-pk5
-  ( kv )-ccc-pkN  <-- That is, we need to be here.
+  ( kv )-ccc-pkN  <--- That is, we need to be here.
 
 However, we don't know that the next value is kv-ccc. Instead, we seek to the
 first value that strictly greater than 'kv-bbb'. It is Successor(kv-bbb).
@@ -163,7 +130,7 @@ It doesn't matter if we're using a full extended key or not.
 RocksDB calls:
 
   Seek(Successor(kv-bbb));
-  if (it->Valid() && kd->covers_key(it.key()))
+  if (it->Valid() && kd->covers_key(...))
     return record;
 
 Note that the code is the same as with HA_READ_KEY_OR_NEXT, except that
@@ -175,46 +142,24 @@ Suppose, the lookup key is 'kv-bbb':
 
   (kv+1)-xxx-pk
   ( kv )-ccc-pk7
-  ( kv )-ccc-pk6      <-- We need to be here.
-# Successor(kv-bbb)   <-- We get here when we call Seek(Successor(kv-bbb))
-  ( kv )-bbb-pk5          and we will need to call Prev() (*)
+  ( kv )-ccc-pk6     <-- We get here when we call Seek(Successor(kv-bbb))
+# Successor(kv-bbb)
+  ( kv )-bbb-pk5
   ( kv )-bbb-pk4
   ( kv )-bbb-pk3
   ( kv )-bbb-pk2
   ( kv )-bbb-pk1
-# ( kv )-bbb          <-- We would get here if we called Seek(kv-bbb).
+# ( kv )-bbb         <-- We would get here if we called SeekForPrev(kv-bbb).
   ( kv )-aaa-pk
-
-(*) - unless Successor(kv-bbb)=(kv-ccc), and Seek(kv-ccc) hits the row. In
-that case, we won't need to call Prev().
 
 RocksDB calls:
 
-  Seek(Successor(kv-bbb));
-  if (!it->Valid())
-  {
-    /*
-      We may get EOF if rows with 'kv-bbb' (below the Successor... line in the
-      diagram) do not exist. This doesn't mean that rows with values kv-ccc
-      do not exist.
-    */
-    it->SeekToLast();
-  }
-  else
-  {
-    if (!using_full_key ||
-        !kd->value_matches_prefix(...))
-    {
-      it->Prev();
-    }
-  }
-
+  SeekForPrev(Successor(kv-bbb));
   if (it->Valid() && kd->covers_key(...))
     return record.
 
 Note that the code is the same as with HA_READ_KEY_OR_NEXT, except that
 we seek to Successor($lookup_key) instead of $lookup_key itself.
-
 
 == HA_READ_BEFORE_KEY, forward CF ==
 
@@ -224,30 +169,28 @@ Suppose, lookup_tuple=kv-bbb.
 
   ( kv )-aaa-pk1
   ( kv )-aaa-pk2
-  ( kv )-aaa-pk3  <-- Need to be here.
+  ( kv )-aaa-pk3  <-- SeekForPrev("kv-bbb") will put us here.
 # ( kv )-bbb
-  ( kv )-bbb-pk4  <-- Seek("kv-bbb") will put us here.
+  ( kv )-bbb-pk4
   ( kv )-bbb-pk5
   ( kv )-bbb-pk6
 
-1. Seek(kv-bbb) will put us at kv-bbb-pk4 (or return an invalid iterator
-   if kv-bbb-pk4 and subsequent rows do not exist in the db).
-2. We will need to call Prev() to get to the record before.
-   (if there is no record before kv-bbb, then we can't find a record).
-
-It doesn't matter if we're using a full extended key or not.
+If the lookup tuple is a full key (e.g. kv-bbb-pk3), and the key is present in
+the database, the iterator will be positioned on the key. We will need to call
+Prev() to get the next key.
 
 RocksDB calls:
 
-  it->Seek(kv-bbb);
-  if (it->Valid())
+  it->SeekForPrev(kv-bbb);
+  if (it->Valid() && using_full_key &&
+      kd->value_matches_prefix(...))
+  {
+    /* We are using full key and we've hit an exact match */
     it->Prev();
-  else
-    it->SeekToLast();
+  }
 
   if (it->Valid() && kd->covers_key(...))
     return record;
-
 
 == HA_READ_BEFORE_KEY, backward CF ==
 
@@ -269,7 +212,6 @@ Next() to get the next key.
 RocksDB calls:
 
   it->Seek(kv-bbb);
-
   if (it->Valid() && using_full_key &&
       kd->value_matches_prefix(...))
   {
@@ -292,19 +234,16 @@ Suppose, lookup_tuple='kv-bbb'
   ( kv )-bbb-pk4
   ( kv )-bbb-pk5
   ( kv )-bbb-pk6
-  ( kv )-bbb-pk7 <--- Need to be here.
+  ( kv )-bbb-pk7 <--- SeekForPrev(Successor(kv-bbb)) will get us here
 # ( kv )-ccc
-  ( kv )-ccc-pk8 <-- Seek(Successor(kv-bbb)) will get us here. will need
-  ( kv )-ccc-pk9                               to call Prev().
+  ( kv )-ccc-pk8
+  ( kv )-ccc-pk9
 
 RocksDB calls:
 
-  Seek(Successor(kv-bbb));
-  if (!it->Valid())
-    it->SeekToLast();
-  else
+  SeekForPrev(Successor(kv-bbb));
+  if (using_full_key && it->Valid() && !cmp_full_keys(Sucessor(lookup_key)))
     it->Prev();
-
   if (it->Valid() && kd->covers_key(...))
   {
     if (!cmp_full_keys(lookup_tuple))  // not needed in _OR_PREV

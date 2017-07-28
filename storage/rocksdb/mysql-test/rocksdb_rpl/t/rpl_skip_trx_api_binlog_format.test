@@ -1,5 +1,6 @@
 # Checks if the slave stops executing transactions when master's binlog format
 # is STATEMENT but rpl_skip_tx_api is enabled
+-- source include/have_rocksdb.inc
 -- source include/master-slave.inc
 
 call mtr.add_suppression("Master's binlog format is not ROW but rpl_skip_tx_api is enabled on the slave");

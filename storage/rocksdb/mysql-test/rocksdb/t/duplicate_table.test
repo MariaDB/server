@@ -8,7 +8,7 @@ INSERT INTO t values (1), (2), (3);
 CREATE TABLE t(id int primary key) engine=rocksdb;
 FLUSH TABLES;
 --exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm.tmp
---error ER_UNKNOWN_ERROR 
+--error ER_METADATA_INCONSISTENCY 
 CREATE TABLE t(id int primary key) engine=rocksdb;
 --exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm
 FLUSH TABLES;

@@ -6,7 +6,7 @@ ENDIF()
 
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
-  ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1)
+  ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1 -DROCKSDB_SCHED_GETCPU_PRESENT)
 ENDIF()
 
 # get a list of rocksdb library source files
@@ -25,13 +25,33 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/rocksdb/third-party/gtest-1.7.0/fused-src
 )
 
-ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX -DOS_LINUX
-  -DZLIB)
+# This is a strong requirement coming from RocksDB. No conditional checks here.
+ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX)
 
-CHECK_FUNCTION_EXISTS(fallocate HAVE_FALLOCATE)
-IF(HAVE_FALLOCATE)
-  ADD_DEFINITIONS(-DROCKSDB_FALLOCATE_PRESENT)
+IF(UNIX)
+  IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    ADD_DEFINITIONS(-DOS_LINUX)
+
+    CHECK_INCLUDE_FILES(linux/falloc.h HAVE_LINUX_FALLOC_H)
+    CHECK_FUNCTION_EXISTS(fallocate HAVE_FALLOCATE)
+
+    IF(HAVE_FALLOCATE AND HAVE_LINUX_FALLOC_H)
+      ADD_DEFINITIONS(-DROCKSDB_FALLOCATE_PRESENT)
+    ENDIF()
+  ENDIF()
 ENDIF()
+
+CHECK_CXX_SOURCE_COMPILES("
+#if defined(_MSC_VER) && !defined(__thread)
+#define __thread __declspec(thread)
+#endif
+int main() {
+  static __thread int tls;
+}
+" HAVE_THREAD_LOCAL)
+if(HAVE_THREAD_LOCAL)
+  ADD_DEFINITIONS(-DROCKSDB_SUPPORT_THREAD_LOCAL)
+endif()
 
 SET(ROCKSDB_SOURCES
   ha_rocksdb.cc ha_rocksdb.h ha_rocksdb_proto.h
@@ -44,6 +64,7 @@ SET(ROCKSDB_SOURCES
   event_listener.cc event_listener.h
   rdb_i_s.cc rdb_i_s.h
   rdb_index_merge.cc rdb_index_merge.h
+  rdb_io_watchdog.cc rdb_io_watchdog.h
   rdb_perf_context.cc rdb_perf_context.h
   rdb_mutex_wrapper.cc rdb_mutex_wrapper.h
   rdb_psi.h rdb_psi.cc
@@ -85,7 +106,14 @@ IF (NOT "$ENV{WITH_ZSTD}" STREQUAL "")
   ADD_DEFINITIONS(-DZSTD)
 ENDIF()
 
-SET(rocksdb_static_libs ${rocksdb_static_libs} ${ZLIB_LIBRARY} "-lrt")
+CHECK_INCLUDE_FILES(zlib.h HAVE_ZLIB_H)
+
+IF (HAVE_ZLIB_H)
+  ADD_DEFINITIONS(-DZLIB)
+  SET(rocksdb_static_libs ${rocksdb_static_libs} ${ZLIB_LIBRARY})
+ENDIF()
+
+SET(rocksdb_static_libs ${rocksdb_static_libs} "-lrt")
 
 MYSQL_ADD_PLUGIN(rocksdb_se ${ROCKSDB_SOURCES} STORAGE_ENGINE DEFAULT STATIC_ONLY
   LINK_LIBRARIES ${rocksdb_static_libs}

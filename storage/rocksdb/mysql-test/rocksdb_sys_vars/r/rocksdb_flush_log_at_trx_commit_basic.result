@@ -8,10 +8,6 @@ SET @start_global_value = @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
 SELECT @start_global_value;
 @start_global_value
 1
-SET @start_session_value = @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
-SELECT @start_session_value;
-@start_session_value
-1
 '# Setting to valid values in global scope#'
 "Trying to set variable @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT to 2"
 SET @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT   = 2;
@@ -43,37 +39,9 @@ SET @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT = DEFAULT;
 SELECT @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
 @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT
 1
-'# Setting to valid values in session scope#'
-"Trying to set variable @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT to 2"
-SET @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT   = 2;
-SELECT @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
-@@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT
-2
-"Setting the session scope variable back to default"
-SET @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT = DEFAULT;
-SELECT @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
-@@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT
-1
-"Trying to set variable @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT to 1"
-SET @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT   = 1;
-SELECT @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
-@@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT
-1
-"Setting the session scope variable back to default"
-SET @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT = DEFAULT;
-SELECT @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
-@@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT
-1
-"Trying to set variable @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT to 0"
-SET @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT   = 0;
-SELECT @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
-@@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT
-0
-"Setting the session scope variable back to default"
-SET @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT = DEFAULT;
-SELECT @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
-@@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT
-1
+"Trying to set variable @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT   = 444;
+ERROR HY000: Variable 'rocksdb_flush_log_at_trx_commit' is a GLOBAL variable and should be set with SET GLOBAL
 '# Testing with invalid values in global scope #'
 "Trying to set variable @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT to 'aaa'"
 SET @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT   = 'aaa';
@@ -84,10 +52,6 @@ SELECT @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
 SET @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT = @start_global_value;
 SELECT @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
 @@global.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT
-1
-SET @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT = @start_session_value;
-SELECT @@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT;
-@@session.ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT
 1
 DROP TABLE valid_values;
 DROP TABLE invalid_values;

@@ -36,7 +36,7 @@ shutdown_server 10;
 
 --exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
 
---exec echo "restart:--rocksdb_use_direct_writes=1 --rocksdb_allow_mmap_writes=1" >$_expect_file_name
+--exec echo "restart:--rocksdb_use_direct_io_for_flush_and_compaction=1 --rocksdb_allow_mmap_writes=1" >$_expect_file_name
 --sleep 0.1
 --exec echo "restart:" >$_expect_file_name
 
@@ -44,4 +44,4 @@ shutdown_server 10;
 --source include/wait_until_connected_again.inc
 --disable_reconnect
 
---exec grep "enable both use_direct_writes" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--exec grep "enable both use_direct_io_for_flush_and_compaction" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2

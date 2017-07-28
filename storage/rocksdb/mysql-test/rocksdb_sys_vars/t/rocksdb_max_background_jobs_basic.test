@@ -7,10 +7,10 @@ INSERT INTO valid_values VALUES(64);
 CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
 INSERT INTO invalid_values VALUES('\'abc\'');
 
---let $sys_var=ROCKSDB_MAX_BACKGROUND_COMPACTIONS
+--let $sys_var=ROCKSDB_MAX_BACKGROUND_JOBS
 --let $read_only=0
 --let $session=0
---source suite/sys_vars/inc/rocksdb_sys_var.inc
+--source ../include/rocksdb_sys_var.inc
 
 DROP TABLE valid_values;
 DROP TABLE invalid_values;

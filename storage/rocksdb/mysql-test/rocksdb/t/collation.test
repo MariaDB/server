@@ -12,9 +12,9 @@ CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), va
 DROP TABLE t1;
 
 # ci indexed column is not allowed
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value)) engine=rocksdb charset utf8;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value3(50))) engine=rocksdb charset utf8;
 # ci indexed column with rocksdb_strict_collation_check=OFF is allowed.
 SET GLOBAL rocksdb_strict_collation_check=0;
@@ -42,20 +42,20 @@ DROP TABLE t1;
 SET GLOBAL rocksdb_strict_collation_exceptions=t1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE t2 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test regex for exception list
 SET GLOBAL rocksdb_strict_collation_exceptions="t.*";
 CREATE TABLE t123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t123;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE s123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 SET GLOBAL rocksdb_strict_collation_exceptions=".t.*";
 CREATE TABLE xt123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE xt123;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE t123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test multiple entries in the list with commas
@@ -64,7 +64,7 @@ CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=roc
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test multiple entries in the list with vertical bar
@@ -73,7 +73,7 @@ CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=roc
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test multiple entries in the list and extra comma at the front
@@ -82,7 +82,7 @@ CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=roc
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test multiple entries in the list and extra vertical bar at the front
@@ -91,7 +91,7 @@ CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=roc
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test multiple entries in the list and extra comma in the middle
@@ -100,7 +100,7 @@ CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=roc
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test multiple entries in the list and extra vertical bar in the middle
@@ -109,7 +109,7 @@ CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=roc
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test multiple entries in the list and extra comma at the end
@@ -118,7 +118,7 @@ CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=roc
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test multiple entries in the list and extra vertical bar at the end
@@ -127,7 +127,7 @@ CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=roc
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test multiple entries in the list and tons of commas and vertical bars just for the fun of it
@@ -136,7 +136,7 @@ CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=roc
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 
 # test allowing alters to create temporary tables
@@ -144,10 +144,10 @@ SET GLOBAL rocksdb_strict_collation_exceptions='t1';
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb;
 ALTER TABLE t1 AUTO_INCREMENT=1;
 DROP TABLE t1;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE t2 (id INT primary key, value varchar(50), index(value)) engine=rocksdb;
 CREATE TABLE t2 (id INT primary key, value varchar(50)) engine=rocksdb;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 ALTER TABLE t2 ADD INDEX(value);
 DROP TABLE t2;
 
@@ -156,12 +156,12 @@ DROP TABLE t2;
 --exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
 SET GLOBAL rocksdb_strict_collation_exceptions="[a-b";
 --exec grep "Invalid pattern" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE a (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 SET GLOBAL rocksdb_strict_collation_exceptions="[a-b]";
 CREATE TABLE a (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 CREATE TABLE b (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE c (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE a, b;
 
@@ -169,11 +169,11 @@ DROP TABLE a, b;
 --exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
 SET GLOBAL rocksdb_strict_collation_exceptions="abc\\";
 --exec grep "Invalid pattern" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 SET GLOBAL rocksdb_strict_collation_exceptions="abc";
 CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
---error ER_UNKNOWN_ERROR
+--error ER_UNSUPPORTED_COLLATION
 CREATE TABLE abcd (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE abc;
 

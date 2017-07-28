@@ -10,7 +10,7 @@ connection master;
 
 select @@binlog_format;
 create table t1 (pk int primary key) engine=rocksdb;
---error ER_UNKNOWN_ERROR
+--error ER_REQUIRE_ROW_BINLOG_FORMAT
 insert into t1 values (1),(2),(3);
 
 set session rocksdb_unsafe_for_binlog=on;
@@ -19,7 +19,7 @@ select * from t1;
 delete from t1;
 set session rocksdb_unsafe_for_binlog=off;
 
---error ER_UNKNOWN_ERROR
+--error ER_REQUIRE_ROW_BINLOG_FORMAT
 insert into t1 values (1),(2),(3);
 
 set binlog_format=row;

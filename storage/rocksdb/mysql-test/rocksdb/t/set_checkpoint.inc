@@ -20,7 +20,7 @@ if (!$succeeds)
 {
   --disable_result_log
   --disable_query_log
-  --error ER_UNKNOWN_ERROR
+  --error ER_RDB_STATUS_GENERAL
   eval SET GLOBAL ROCKSDB_CREATE_CHECKPOINT = '$checkpoint';
   --enable_query_log
   --enable_result_log

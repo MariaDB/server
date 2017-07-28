@@ -21,6 +21,7 @@
 #include <array>
 #include <string>
 #include <vector>
+#include <sstream>
 
 /* C standard header files */
 #include <ctype.h>
@@ -287,6 +288,19 @@ bool rdb_database_exists(const std::string &db_name) {
 
   my_dirend(dir_info);
   return true;
+}
+
+void rdb_log_status_error(const rocksdb::Status &s, const char *msg) {
+  if (msg == nullptr) {
+    // NO_LINT_DEBUG
+    sql_print_error("RocksDB: status error, code: %d, error message: %s",
+                    s.code(), s.ToString().c_str());
+    return;
+  }
+
+  // NO_LINT_DEBUG
+  sql_print_error("RocksDB: %s, Status Code: %d, Status: %s", msg, s.code(),
+                  s.ToString().c_str());
 }
 
 } // namespace myrocks

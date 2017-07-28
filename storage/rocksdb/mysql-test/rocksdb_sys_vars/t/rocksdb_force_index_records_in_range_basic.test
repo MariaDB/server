@@ -17,7 +17,7 @@ SELECT @@session.rocksdb_force_index_records_in_range;
 --let $sys_var=ROCKSDB_FORCE_INDEX_RECORDS_IN_RANGE
 --let $read_only=0
 --let $session=1
---source suite/sys_vars/inc/rocksdb_sys_var.inc
+--source ../include/rocksdb_sys_var.inc
 
 DROP TABLE valid_values;
 DROP TABLE invalid_values;

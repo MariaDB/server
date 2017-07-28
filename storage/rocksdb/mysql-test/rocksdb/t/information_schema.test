@@ -44,12 +44,10 @@ CREATE TABLE t2 (
     b int,
     c int,
     d int,
-    e int,
     PRIMARY KEY (a) COMMENT "cf_a",
     KEY (b) COMMENT "cf_b",
     KEY (c) COMMENT "cf_c",
-    KEY (d) COMMENT "$per_index_cf",
-    KEY (e) COMMENT "rev:cf_d") ENGINE=ROCKSDB;
+    KEY (d) COMMENT "rev:cf_d") ENGINE=ROCKSDB;
 
 select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where TYPE = 'CF_FLAGS';
 

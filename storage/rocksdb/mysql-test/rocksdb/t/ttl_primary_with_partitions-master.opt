@@ -1,0 +1,2 @@
+--rocksdb_enable_ttl_read_filtering=0
+--rocksdb_default_cf_options=disable_auto_compactions=true

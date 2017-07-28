@@ -26,11 +26,19 @@ DELIMITER ;//
 --source $ddl
 --source suite/rocksdb/t/bloomfilter_load_select.inc
 
+--exec sed s/##CF##/" COMMENT 'rev:cf_short_prefix'"/g $tmpl_ddl > $ddl
+--source $ddl
+--source suite/rocksdb/t/bloomfilter_load_select.inc
 
 #BF is most of the time invoked and useful
 --exec sed s/##CF##/" COMMENT 'cf_long_prefix'"/g $tmpl_ddl > $ddl
 --source $ddl
 --source suite/rocksdb/t/bloomfilter_load_select.inc
+
+--exec sed s/##CF##/" COMMENT 'rev:cf_long_prefix'"/g $tmpl_ddl > $ddl
+--source $ddl
+--source suite/rocksdb/t/bloomfilter_load_select.inc
+
 
 # BUG: Prev() with prefix lookup should not use prefix bloom filter
 create table r1 (id1 bigint, id2 bigint, id3 bigint, v1 int, v2 text, primary key (id1, id2, id3)) engine=rocksdb DEFAULT CHARSET=latin1 collate latin1_bin;

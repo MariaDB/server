@@ -1,3 +1,5 @@
+#!/bin/bash
+
 if [ "$STREAM_TYPE" == 'wdt' ]; then
   which wdt >/dev/null 2>&1
   if [ $? -ne 0 ]; then
@@ -7,6 +9,7 @@ if [ "$STREAM_TYPE" == 'wdt' ]; then
 fi
 
 set -e
+set -o pipefail
 
 # Takes a full backup from server_1 to server_2
 # using myrocks_hotbackup streaming
@@ -29,25 +32,37 @@ rm -rf $dest_data_dir/
 mkdir $dest_data_dir
 
 COPY_LOG="${MYSQL_TMP_DIR}/myrocks_hotbackup_copy_log"
+SIGNAL_CONDITION=""
+SIGNAL_FILE=${MYSQL_TMP_DIR}/myrocks_hotbackup_signal
+rm -f $COPY_LOG
+rm -f $SIGNAL_FILE
+
+if [ "$FRM" == '1' ]; then
+  suite/rocksdb_hotbackup/include/create_table.sh $COPY_LOG $SIGNAL_FILE 2>&1 &
+fi
+
+if [ "$DEBUG_SIGNAL" == '1' ]; then
+  SIGNAL_CONDITION="--debug_signal_file=$SIGNAL_FILE"
+fi
 
 if [ "$STREAM_TYPE" == 'tar' ]; then
   BACKUP_CMD="$MYSQL_MYROCKS_HOTBACKUP --user='root' --port=${MASTER_MYPORT} \
-    --stream=tar --checkpoint_dir=$checkpoint_dir 2> \
+    --stream=tar --checkpoint_dir=$checkpoint_dir $SIGNAL_CONDITION 2> \
     $COPY_LOG | tar -xi -C $backup_dir"
 elif [ "$STREAM_TYPE" == 'xbstream' ]; then
   BACKUP_CMD="$MYSQL_MYROCKS_HOTBACKUP --user='root' --port=${MASTER_MYPORT} \
-    --stream=xbstream --checkpoint_dir=$checkpoint_dir 2> \
+    --stream=xbstream --checkpoint_dir=$checkpoint_dir $SIGNAL_CONDITION 2> \
     $COPY_LOG | xbstream -x \
     --directory=$backup_dir"
 elif [ "$STREAM_TYPE" == "xbstream_socket" ]; then
   BACKUP_CMD="$MYSQL_MYROCKS_HOTBACKUP --user='root' --socket=${MASTER_MYSOCK} \
-    --stream=xbstream --checkpoint_dir=$checkpoint_dir 2> \
+    --stream=xbstream --checkpoint_dir=$checkpoint_dir $SIGNAL_CONDITION 2> \
     $COPY_LOG | xbstream -x \
     --directory=$backup_dir"
 else
   BACKUP_CMD="$MYSQL_MYROCKS_HOTBACKUP --user='root' --stream=wdt \
     --port=${MASTER_MYPORT} --destination=localhost --backup_dir=$backup_dir \
-    --avg_mbytes_per_sec=10 --interval=5 \
+    --avg_mbytes_per_sec=10 --interval=5 $SIGNAL_CONDITION \
     --extra_wdt_sender_options='--block_size_mbytes=1' \
     --checkpoint_dir=$checkpoint_dir 2> \
     $COPY_LOG"
@@ -55,10 +70,6 @@ fi
 
 echo "myrocks_hotbackup copy phase"
 eval "$BACKUP_CMD"
-if [ $? -ne 0 ]; then
-  tail $COPY_LOG
-  exit 1
-fi
 
 mkdir ${backup_dir}/test      # TODO: Fix skipping empty directories
 
@@ -70,7 +81,3 @@ $MYSQL_MYROCKS_HOTBACKUP --move_back --datadir=$dest_data_dir \
   --rocksdb_waldir=$dest_data_dir/.rocksdb \
   --backup_dir=$backup_dir > $MOVEBACK_LOG 2>&1
 
-if [ $? -ne 0 ]; then
-  tail $MOVEBACK_LOG
-  exit 1
-fi

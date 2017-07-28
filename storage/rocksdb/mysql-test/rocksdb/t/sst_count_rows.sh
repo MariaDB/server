@@ -15,10 +15,10 @@ while : ; do
     # excluding system cf
     DELETED=`$sst_dump --command=scan --output_hex --file=$f | \
       perl -ne 'print  if(/''(\d\d\d\d\d\d\d\d)/ && $1 >= 8)' | \
-      grep -e ": 0" -e ": 7" | wc -l`
+      grep -e ", type:0" -e ", type:7" | wc -l`
     EXISTS=`$sst_dump --command=scan --output_hex --file=$f | \
       perl -ne 'print  if(/''(\d\d\d\d\d\d\d\d)/ && $1 >= 8)' | \
-      grep ": 1" | wc -l`
+      grep ", type:1" | wc -l`
     TOTAL_D=$(($TOTAL_D+$DELETED))
     TOTAL_E=$(($TOTAL_E+$EXISTS))
     # echo "${f##*/} $DELETED $EXISTS"

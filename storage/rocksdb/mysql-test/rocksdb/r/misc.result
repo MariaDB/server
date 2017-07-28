@@ -47,6 +47,7 @@ help_relation	help_keyword_id	NULL	NULL
 help_relation	help_topic_id	NULL	NULL
 help_topic	help_topic_id	NULL	NULL
 help_topic	name	NULL	NULL
+native_proc	name	NULL	NULL
 ndb_binlog_index	epoch	NULL	NULL
 ndb_binlog_index	orig_epoch	NULL	NULL
 ndb_binlog_index	orig_server_id	NULL	NULL

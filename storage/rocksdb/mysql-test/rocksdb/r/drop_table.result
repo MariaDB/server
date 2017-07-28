@@ -52,20 +52,4 @@ drop table t5;
 set global rocksdb_compact_cf = 'cf1';
 set global rocksdb_compact_cf = 'rev:cf2';
 set global rocksdb_signal_drop_index_thread = 1;
-Begin filtering dropped index+ 0
-Begin filtering dropped index+ 1
-Begin filtering dropped index+ 1
-Begin filtering dropped index+ 1
-Begin filtering dropped index+ 1
-Begin filtering dropped index+ 1
-Begin filtering dropped index+ 1
-Begin filtering dropped index+ 1
-Finished filtering dropped index+ 0
-Finished filtering dropped index+ 1
-Finished filtering dropped index+ 1
-Finished filtering dropped index+ 1
-Finished filtering dropped index+ 1
-Finished filtering dropped index+ 1
-Finished filtering dropped index+ 1
-Finished filtering dropped index+ 1
 drop table t1;

@@ -81,6 +81,7 @@ public:
       pthread_setname_np resolves the issue.
     */
     DBUG_ASSERT(!m_name.empty());
+#ifdef __linux__
     int err = pthread_setname_np(m_handle, m_name.c_str());
     if (err)
     {
@@ -89,6 +90,7 @@ public:
           "MyRocks: Failed to set name (%s) for current thread, errno=%d",
           m_name.c_str(), errno);
     }
+#endif
   }
 
   void uninit();

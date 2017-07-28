@@ -10,7 +10,7 @@ INSERT INTO invalid_values VALUES('\'aaa\'');
 --let $sys_var=ROCKSDB_WAL_RECOVERY_MODE
 --let $read_only=0
 --let $session=0
---source suite/sys_vars/inc/rocksdb_sys_var.inc
+--source ../include/rocksdb_sys_var.inc
 
 DROP TABLE valid_values;
 DROP TABLE invalid_values;

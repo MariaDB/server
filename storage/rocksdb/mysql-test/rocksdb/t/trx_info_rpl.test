@@ -1,3 +1,4 @@
+--source include/have_rocksdb.inc
 --source include/master-slave.inc
 
 --disable_warnings

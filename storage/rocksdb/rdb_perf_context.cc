@@ -83,14 +83,14 @@ std::string rdb_pc_stat_types[] = {
 
 #define IO_PERF_RECORD(_field_)                                                \
   do {                                                                         \
-    if (rocksdb::perf_context._field_ > 0)                                     \
-      counters->m_value[idx] += rocksdb::perf_context._field_;                 \
+    if (rocksdb::get_perf_context()->_field_ > 0)                              \
+      counters->m_value[idx] += rocksdb::get_perf_context()->_field_;          \
     idx++;                                                                     \
   } while (0)
 #define IO_STAT_RECORD(_field_)                                                \
   do {                                                                         \
-    if (rocksdb::iostats_context._field_ > 0)                                  \
-      counters->m_value[idx] += rocksdb::iostats_context._field_;              \
+    if (rocksdb::get_iostats_context()->_field_ > 0)                           \
+      counters->m_value[idx] += rocksdb::get_iostats_context()->_field_;       \
     idx++;                                                                     \
   } while (0)
 
@@ -171,8 +171,8 @@ bool Rdb_io_perf::start(const uint32_t perf_context_level) {
     return false;
   }
 
-  rocksdb::perf_context.Reset();
-  rocksdb::iostats_context.Reset();
+  rocksdb::get_perf_context()->Reset();
+  rocksdb::get_iostats_context()->Reset();
   return true;
 }
 
@@ -189,34 +189,36 @@ void Rdb_io_perf::end_and_record(const uint32_t perf_context_level) {
   }
   harvest_diffs(&rdb_global_perf_counters);
 
-  if (m_shared_io_perf_read && (rocksdb::perf_context.block_read_byte != 0 ||
-                                rocksdb::perf_context.block_read_count != 0 ||
-                                rocksdb::perf_context.block_read_time != 0)) {
+  if (m_shared_io_perf_read &&
+      (rocksdb::get_perf_context()->block_read_byte != 0 ||
+       rocksdb::get_perf_context()->block_read_count != 0 ||
+       rocksdb::get_perf_context()->block_read_time != 0)) {
     my_io_perf_t io_perf_read;
 
     io_perf_read.init();
-    io_perf_read.bytes = rocksdb::perf_context.block_read_byte;
-    io_perf_read.requests = rocksdb::perf_context.block_read_count;
+    io_perf_read.bytes = rocksdb::get_perf_context()->block_read_byte;
+    io_perf_read.requests = rocksdb::get_perf_context()->block_read_count;
 
     /*
       Rocksdb does not distinguish between I/O service and wait time, so just
       use svc time.
      */
     io_perf_read.svc_time_max = io_perf_read.svc_time =
-        rocksdb::perf_context.block_read_time;
+        rocksdb::get_perf_context()->block_read_time;
 
     m_shared_io_perf_read->sum(io_perf_read);
     m_stats->table_io_perf_read.sum(io_perf_read);
   }
 
   if (m_stats) {
-    if (rocksdb::perf_context.internal_key_skipped_count != 0) {
-      m_stats->key_skipped += rocksdb::perf_context.internal_key_skipped_count;
+    if (rocksdb::get_perf_context()->internal_key_skipped_count != 0) {
+      m_stats->key_skipped +=
+          rocksdb::get_perf_context()->internal_key_skipped_count;
     }
 
-    if (rocksdb::perf_context.internal_delete_skipped_count != 0) {
+    if (rocksdb::get_perf_context()->internal_delete_skipped_count != 0) {
       m_stats->delete_skipped +=
-          rocksdb::perf_context.internal_delete_skipped_count;
+          rocksdb::get_perf_context()->internal_delete_skipped_count;
     }
   }
 }

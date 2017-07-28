@@ -106,10 +106,5 @@ let $wait_condition = select count(*) = 0
                       where TYPE = 'DDL_DROP_INDEX_ONGOING';
 --source include/wait_condition.inc
 
-# Get list of all indices needing to be dropped
-# Check total compacted-away rows for all indices
-# Check that all indices have been successfully dropped
---exec perl suite/rocksdb/t/drop_table_compactions.pl $MYSQLTEST_VARDIR/log/mysqld.1.err
-
 # Cleanup
 drop table t1;

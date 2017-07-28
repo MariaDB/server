@@ -1,5 +1,6 @@
 call mtr.add_suppression("Did not write failed ");
 call mtr.add_suppression("Can't open and lock privilege tables");
+call mtr.add_suppression("Attempt to delete the trigger file");
 SET @ORIG_EVENT_SCHEDULER = @@EVENT_SCHEDULER;
 CREATE TABLE mysql.user_temp LIKE mysql.user;
 INSERT mysql.user_temp SELECT * FROM mysql.user;

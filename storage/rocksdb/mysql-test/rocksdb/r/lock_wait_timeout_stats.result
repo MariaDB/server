@@ -1,0 +1,27 @@
+create table t (a int primary key) engine=rocksdb;
+begin;
+insert into t values (0);
+set @@rocksdb_lock_wait_timeout=1;
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+ROW_LOCK_WAIT_TIMEOUTS
+0
+begin;
+set @@rocksdb_lock_wait_timeout=1;
+begin;
+insert into t values(0);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t.PRIMARY
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+ROW_LOCK_WAIT_TIMEOUTS
+1
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+ROW_LOCK_WAIT_TIMEOUTS
+1
+insert into t values(0);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t.PRIMARY
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+ROW_LOCK_WAIT_TIMEOUTS
+2
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+ROW_LOCK_WAIT_TIMEOUTS
+2
+drop table t;

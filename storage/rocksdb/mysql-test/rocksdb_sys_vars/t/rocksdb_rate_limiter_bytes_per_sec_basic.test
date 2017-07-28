@@ -36,7 +36,7 @@ INSERT INTO invalid_values VALUES('\'aaa\''), (3.14);
 # Test all the valid and invalid values
 --let $sys_var=ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
 --let $session=0
---source suite/sys_vars/inc/rocksdb_sys_var.inc
+--source ../include/rocksdb_sys_var.inc
 
 DROP TABLE valid_values;
 DROP TABLE invalid_values;

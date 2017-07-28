@@ -12,7 +12,7 @@ INSERT INTO invalid_values VALUES('\'aaa\'');
 --let $sys_var=ROCKSDB_WRITE_DISABLE_WAL
 --let $read_only=0
 --let $session=1
---source suite/sys_vars/inc/rocksdb_sys_var.inc
+--source ../include/rocksdb_sys_var.inc
 
 DROP TABLE valid_values;
 DROP TABLE invalid_values;

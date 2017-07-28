@@ -87,6 +87,10 @@ let $max = 1000;
 let $table = t5;
 --source drop_table_repopulate_table.inc
 
+set @@global.rocksdb_compact_cf = 'cf1';
+set @@global.rocksdb_compact_cf = 'rev:cf2';
+set @@global.rocksdb_compact_cf = 'default';
+
 let $output= $MYSQLTEST_VARDIR/tmp/size_output;
 
 --exec du -c $MYSQLTEST_VARDIR/mysqld.1/data/.rocksdb/*.sst |grep total |sed 's/[\t]total/ before/' > $output
@@ -95,6 +99,10 @@ drop table t2;
 drop table t3;
 drop table t4;
 drop table t5;
+
+set @@global.rocksdb_compact_cf = 'cf1';
+set @@global.rocksdb_compact_cf = 'rev:cf2';
+set @@global.rocksdb_compact_cf = 'default';
 
 let $show_rpl_debug_info= 1; # to force post-failure printout
 let $wait_timeout= 300; # Override default 30 seconds with 300.
