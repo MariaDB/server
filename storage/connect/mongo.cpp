@@ -47,7 +47,6 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info)
 	unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
 	int      ncol = sizeof(buftyp) / sizeof(int);
 	int      i, n = 0;
-//PCSZ     drv;
 	PBCOL    bcp;
 	MGODISC *cmgd;
 	PQRYRES  qrp;
@@ -67,7 +66,7 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info)
 #elif !defined(MONGO_SUPPORT)
 	cmgd = new(g) JMGDISC(g, (int*)length);
 #else
-	drv = GetStringTableOption(g, topt, "Driver", "C");
+	PCSZ drv = GetStringTableOption(g, topt, "Driver", "C");
 
 	if (toupper(*drv) == 'C')
 		cmgd = new(g) CMGDISC(g, (int*)length);

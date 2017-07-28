@@ -15,3 +15,4 @@ jdbc_oracle     : Variable settings depend on machine configuration
 jdbc_postgresql : Variable settings depend on machine configuration
 json_mgo        : Need MongoDB running and its C Driver installed
 mongo           : Need MongoDB running and its C Driver installed
+jmongo3         : Need MongoDB running and its Java Driver installed

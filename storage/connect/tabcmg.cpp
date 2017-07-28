@@ -171,7 +171,7 @@ TDBCMG::TDBCMG(MGODEF *tdp) : TDBEXT(tdp)
 		Pcg.Coll_name = tdp->Tabname;
 		Pcg.Options = tdp->Colist;
 		Pcg.Filter = tdp->Filter;
-		Pcg.Pipe = tdp->Pipe && Options != NULL;
+		Pcg.Pipe = tdp->Pipe && tdp->Colist != NULL;
 		B = tdp->Base ? 1 : 0;
 	} else {
 		Pcg.Uristr = NULL;
