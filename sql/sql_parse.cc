@@ -5660,7 +5660,7 @@ end_with_restore_list:
     {
       if (check_routine_access(thd, ALTER_PROC_ACL, lex->spname->m_db.str,
                                lex->spname->m_name.str,
-                               lex->sql_command == SQLCOM_DROP_PROCEDURE, 0))
+                               lex->sql_command == SQLCOM_CREATE_PROCEDURE, 0))
         goto error;
     }
 
