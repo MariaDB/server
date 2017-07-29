@@ -178,6 +178,7 @@ set(ROCKSDB_SOURCES
         db/internal_stats.cc
         db/log_reader.cc
         db/log_writer.cc
+        db/malloc_stats.cc
         db/managed_iterator.cc
         db/memtable.cc
         db/memtable_list.cc
@@ -200,13 +201,14 @@ set(ROCKSDB_SOURCES
         env/env.cc
         env/env_chroot.cc
         env/env_hdfs.cc
-        env/memenv.cc
+        env/mock_env.cc
+        memtable/alloc_tracker.cc
         memtable/hash_cuckoo_rep.cc
         memtable/hash_linklist_rep.cc
         memtable/hash_skiplist_rep.cc
-        memtable/memtable_allocator.cc
         memtable/skiplistrep.cc
         memtable/vectorrep.cc
+        memtable/write_buffer_manager.cc
         monitoring/histogram.cc
         monitoring/histogram_windowing.cc
         monitoring/instrumented_mutex.cc
@@ -216,6 +218,7 @@ set(ROCKSDB_SOURCES
         monitoring/statistics.cc
         monitoring/thread_status_impl.cc
         monitoring/thread_status_updater.cc
+        monitoring/thread_status_updater_debug.cc
         monitoring/thread_status_util.cc
         monitoring/thread_status_util_debug.cc
         options/cf_options.cc
@@ -245,6 +248,7 @@ set(ROCKSDB_SOURCES
         table/iterator.cc
         table/merging_iterator.cc
         table/meta_blocks.cc
+        table/mock_table.cc
         table/partitioned_filter_block.cc
         table/persistent_cache_helper.cc
         table/plain_table_builder.cc
@@ -293,12 +297,20 @@ set(ROCKSDB_SOURCES
         util/xxhash.cc
         utilities/backupable/backupable_db.cc
         utilities/blob_db/blob_db.cc
+        utilities/blob_db/blob_db_impl.cc
+        utilities/blob_db/blob_db_options_impl.cc
+        utilities/blob_db/blob_dump_tool.cc
+        utilities/blob_db/blob_file.cc
+        utilities/blob_db/blob_log_format.cc
+        utilities/blob_db/blob_log_reader.cc
+        utilities/blob_db/blob_log_writer.cc
         utilities/checkpoint/checkpoint_impl.cc
         utilities/col_buf_decoder.cc
         utilities/col_buf_encoder.cc
         utilities/column_aware_encoding_util.cc
         utilities/compaction_filters/remove_emptyvalue_compactionfilter.cc
         utilities/date_tiered/date_tiered_db_impl.cc
+        utilities/debug.cc
         utilities/document/document_db.cc
         utilities/document/json_document.cc
         utilities/document/json_document_builder.cc

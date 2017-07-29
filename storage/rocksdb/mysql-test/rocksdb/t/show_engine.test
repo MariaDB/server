@@ -26,7 +26,9 @@ CREATE TABLE t3 (k INT, PRIMARY KEY (k) COMMENT 'cf_t1') ENGINE = ROCKSDB;
 CREATE TABLE t4 (l INT, PRIMARY KEY (l) COMMENT 'cf_t4') ENGINE = ROCKSDB
     PARTITION BY KEY(l) PARTITIONS 4;
 
---replace_column 3 #
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+
+--replace_column 2 # 3 #
 SHOW ENGINE rocksdb STATUS;
 
 INSERT INTO t1 VALUES (1), (2), (3);
@@ -52,7 +54,7 @@ GROUP BY TABLE_NAME, PARTITION_NAME;
 
 --replace_column 3 #
 SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_CF_OPTIONS;
-
+ 
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;

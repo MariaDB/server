@@ -1,0 +1,51 @@
+set @prior_lock_wait_timeout = @@rocksdb_lock_wait_timeout; set @prior_deadlock_detect = @@rocksdb_deadlock_detect; set global rocksdb_deadlock_detect = on; set global rocksdb_lock_wait_timeout = 100000;;
+create table t (i int primary key) engine=rocksdb;
+insert into t values (1), (2), (3);
+begin;
+select * from t where i=1 for update;
+i
+1
+begin;
+select * from t where i=2 for update;
+i
+2
+select * from t where i=2 for update;
+select * from t where i=1 for update;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+i
+2
+rollback;
+select row_lock_deadlocks from information_schema.table_statistics where
+table_name = "t";
+row_lock_deadlocks
+1
+select row_lock_deadlocks from information_schema.table_statistics where
+table_name = "t";
+row_lock_deadlocks
+1
+begin;
+select * from t where i=1 for update;
+i
+1
+begin;
+select * from t where i=2 for update;
+i
+2
+select * from t where i=2 for update;
+select * from t where i=1 for update;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+i
+2
+rollback;
+select row_lock_deadlocks from information_schema.table_statistics where
+table_name = "t";
+row_lock_deadlocks
+2
+select row_lock_deadlocks from information_schema.table_statistics where
+table_name = "t";
+row_lock_deadlocks
+2
+set global rocksdb_lock_wait_timeout = @prior_lock_wait_timeout; set global rocksdb_deadlock_detect = @prior_deadlock_detect;;
+drop table t;

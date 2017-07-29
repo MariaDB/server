@@ -39,12 +39,10 @@ a int,
 b int,
 c int,
 d int,
-e int,
 PRIMARY KEY (a) COMMENT "cf_a",
 KEY (b) COMMENT "cf_b",
 KEY (c) COMMENT "cf_c",
-KEY (d) COMMENT "$per_index_cf",
-KEY (e) COMMENT "rev:cf_d") ENGINE=ROCKSDB;
+KEY (d) COMMENT "rev:cf_d") ENGINE=ROCKSDB;
 select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where TYPE = 'CF_FLAGS';
 TYPE	NAME	VALUE
 CF_FLAGS	0	default [0]
@@ -52,8 +50,7 @@ CF_FLAGS	1	__system__ [0]
 CF_FLAGS	2	cf_a [0]
 CF_FLAGS	3	cf_b [0]
 CF_FLAGS	4	cf_c [0]
-CF_FLAGS	5	test.t2.d [2]
-CF_FLAGS	6	rev:cf_d [1]
+CF_FLAGS	5	rev:cf_d [1]
 CREATE TABLE t3 (a INT, PRIMARY KEY (a)) ENGINE=ROCKSDB;
 insert into t3 (a) values (1), (2), (3);
 SET @ORIG_ROCKSDB_PAUSE_BACKGROUND_WORK = @@GLOBAL.ROCKSDB_PAUSE_BACKGROUND_WORK;
@@ -69,7 +66,7 @@ SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
 Variable_name	Value
 rocksdb_pause_background_work	ON
 DROP TABLE t3;
-cf_id:0,index_id:268
+cf_id:0,index_id:267
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
 SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
 Variable_name	Value

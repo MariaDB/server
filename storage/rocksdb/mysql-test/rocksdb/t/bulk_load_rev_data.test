@@ -1,0 +1,6 @@
+--source include/have_rocksdb.inc
+
+--let pk_cf=cf1
+--let data_order_desc=1
+
+--source bulk_load.inc

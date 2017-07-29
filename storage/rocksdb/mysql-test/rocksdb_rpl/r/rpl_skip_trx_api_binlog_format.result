@@ -10,7 +10,7 @@ create table t1(a int);
 set session binlog_format=STATEMENT;
 insert into t1 values(1);
 include/wait_for_slave_sql_error.inc [errno=1756]
-Last_SQL_Error = 'Master's binlog format is not ROW but rpl_skip_tx_api is enabled on the slave. rpl_skip_tx_api recovery should only be used when master's binlog format is ROW.'
+Last_SQL_Error = 'Master's binlog format is not ROW but rpl_skip_tx_api is enabled on the slave, this should only be used when master's binlog format is ROW.'
 "Table after error"
 select * from t1;
 a

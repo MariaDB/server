@@ -37,7 +37,7 @@ connection con1;
 select case when variable_value-@p < 1000 then 'true' else variable_value-@p end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_put';
 select case when variable_value-@s < 100 then 'true' else variable_value-@s end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
 SELECT * FROM t1;
---error ER_UNKNOWN_ERROR
+--error ER_UPDATES_WITH_CONSISTENT_SNAPSHOT
 INSERT INTO t1 values (2, 2);
 ROLLBACK;
 SELECT * FROM t1;

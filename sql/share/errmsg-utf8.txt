@@ -7455,3 +7455,70 @@ ER_SLAVE_SAME_ID
         eng "A slave with the same server_uuid/server_id as this slave has connected to the master"
 ER_FLASHBACK_NOT_SUPPORTED
         eng "Flashback does not support %s %s"
+
+# MARIAROCKS-TODO: Should we add RocksDB error messages here or use some other
+# solution?
+ER_KEYS_OUT_OF_ORDER
+  eng "Keys are out order during bulk load"
+
+ER_OVERLAPPING_KEYS
+  eng "Bulk load rows overlap existing rows"
+
+ER_REQUIRE_ROW_BINLOG_FORMAT
+  eng "Can't execute updates on master with binlog_format != ROW."
+
+ER_ISOLATION_MODE_NOT_SUPPORTED
+  eng "MyRocks supports only READ COMMITTED and REPEATABLE READ isolation levels. Please change from current isolation level %s"
+
+ER_ON_DUPLICATE_DISABLED
+  eng "When unique checking is disabled in MyRocks, INSERT,UPDATE,LOAD statements with clauses that update or replace the key (i.e. INSERT ON DUPLICATE KEY UPDATE, REPLACE) are not allowed. Query: %s"
+
+ER_UPDATES_WITH_CONSISTENT_SNAPSHOT
+  eng "Can't execute updates when you started a transaction with START TRANSACTION WITH CONSISTENT [ROCKSDB] SNAPSHOT."
+
+ER_ROLLBACK_ONLY
+  eng "This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction."
+
+ER_ROLLBACK_TO_SAVEPOINT
+  eng "MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows."
+
+ER_ISOLATION_LEVEL_WITH_CONSISTENT_SNAPSHOT
+  eng "Only REPEATABLE READ isolation level is supported for START TRANSACTION WITH CONSISTENT SNAPSHOT in RocksDB Storage Engine."
+
+ER_UNSUPPORTED_COLLATION
+  eng "Unsupported collation on string indexed column %s.%s Use binary collation (%s)."
+
+ER_METADATA_INCONSISTENCY
+  eng "Table '%s' does not exist, but metadata information exists inside MyRocks. This is a sign of data inconsistency. Please check if '%s.frm' exists, and try to restore it if it does not exist."
+
+ER_KEY_CREATE_DURING_ALTER
+  eng "MyRocks failed creating new key definitions during alter."
+
+ER_SK_POPULATE_DURING_ALTER
+  eng "MyRocks failed populating secondary key during alter."
+
+ER_CF_DIFFERENT
+  eng "Column family ('%s') flag (%d) is different from an existing flag (%d). Assign a new CF flag, or do not change existing CF flag."
+
+ER_RDB_STATUS_GENERAL
+  eng "Status error %d received from RocksDB: %s"
+
+ER_RDB_STATUS_MSG
+  eng "%s, Status error %d received from RocksDB: %s"
+
+ER_NET_OK_PACKET_TOO_LARGE
+  eng "OK packet too large"
+
+ER_RDB_TTL_UNSUPPORTED
+  eng "TTL support is currently disabled when table has secondary indexes or hidden PK."
+
+ER_RDB_TTL_COL_FORMAT
+  eng "TTL column (%s) in MyRocks must be an unsigned non-null 64-bit integer, exist inside the table, and have an accompanying ttl duration."
+
+ER_RDB_TTL_DURATION_FORMAT
+  eng "TTL duration (%s) in MyRocks must be an unsigned non-null 64-bit integer."
+
+ER_PER_INDEX_CF_DEPRECATED
+  eng "The per-index column family option has been deprecated"
+
+

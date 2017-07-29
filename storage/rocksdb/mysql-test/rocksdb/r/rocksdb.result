@@ -875,8 +875,6 @@ rocksdb_advise_random_on_open	ON
 rocksdb_allow_concurrent_memtable_write	OFF
 rocksdb_allow_mmap_reads	OFF
 rocksdb_allow_mmap_writes	OFF
-rocksdb_background_sync	OFF
-rocksdb_base_background_compactions	1
 rocksdb_blind_delete_primary_key	OFF
 rocksdb_block_cache_size	536870912
 rocksdb_block_restart_interval	16
@@ -902,22 +900,29 @@ rocksdb_datadir	./.rocksdb
 rocksdb_db_write_buffer_size	0
 rocksdb_deadlock_detect	OFF
 rocksdb_debug_optimizer_no_zero_cardinality	ON
+rocksdb_debug_ttl_read_filter_ts	0
+rocksdb_debug_ttl_rec_ts	0
+rocksdb_debug_ttl_snapshot_ts	0
 rocksdb_default_cf_options	
-rocksdb_delayed_write_rate	16777216
+rocksdb_delayed_write_rate	0
 rocksdb_delete_obsolete_files_period_micros	21600000000
 rocksdb_enable_2pc	ON
 rocksdb_enable_bulk_load_api	ON
-rocksdb_enable_thread_tracking	OFF
+rocksdb_enable_thread_tracking	ON
+rocksdb_enable_ttl	ON
+rocksdb_enable_ttl_read_filtering	ON
 rocksdb_enable_write_thread_adaptive_yield	OFF
 rocksdb_error_if_exists	OFF
 rocksdb_flush_log_at_trx_commit	0
 rocksdb_flush_memtable_on_analyze	ON
 rocksdb_force_compute_memtable_stats	ON
+rocksdb_force_flush_memtable_and_lzero_now	OFF
 rocksdb_force_flush_memtable_now	OFF
 rocksdb_force_index_records_in_range	0
 rocksdb_hash_index_allow_collision	ON
 rocksdb_index_type	kBinarySearch
 rocksdb_info_log_level	error_level
+rocksdb_io_write_timeout	0
 rocksdb_is_fd_close_on_exec	ON
 rocksdb_keep_log_file_num	1000
 rocksdb_lock_scanned_rows	OFF
@@ -925,8 +930,7 @@ rocksdb_lock_wait_timeout	1
 rocksdb_log_file_time_to_roll	0
 rocksdb_manifest_preallocation_size	4194304
 rocksdb_master_skip_tx_api	OFF
-rocksdb_max_background_compactions	1
-rocksdb_max_background_flushes	1
+rocksdb_max_background_jobs	2
 rocksdb_max_log_file_size	0
 rocksdb_max_manifest_file_size	18446744073709551615
 rocksdb_max_open_files	-1
@@ -948,11 +952,13 @@ rocksdb_print_snapshot_conflict_queries	OFF
 rocksdb_rate_limiter_bytes_per_sec	0
 rocksdb_read_free_rpl_tables	
 rocksdb_records_in_range	50
+rocksdb_reset_stats	OFF
 rocksdb_seconds_between_stat_computes	3600
 rocksdb_signal_drop_index_thread	OFF
 rocksdb_skip_bloom_filter_on_read	OFF
 rocksdb_skip_fill_cache	OFF
 rocksdb_skip_unique_check_tables	.*
+rocksdb_sst_mgr_rate_bytes_per_sec	0
 rocksdb_stats_dump_period_sec	600
 rocksdb_store_row_debug_checksums	OFF
 rocksdb_strict_collation_check	OFF
@@ -962,9 +968,10 @@ rocksdb_table_stats_sampling_pct	10
 rocksdb_tmpdir	
 rocksdb_trace_sst_api	OFF
 rocksdb_unsafe_for_binlog	OFF
+rocksdb_update_cf_options	
 rocksdb_use_adaptive_mutex	OFF
+rocksdb_use_direct_io_for_flush_and_compaction	OFF
 rocksdb_use_direct_reads	OFF
-rocksdb_use_direct_writes	OFF
 rocksdb_use_fsync	OFF
 rocksdb_validate_tables	1
 rocksdb_verify_row_debug_checksums	OFF
@@ -974,6 +981,7 @@ rocksdb_wal_recovery_mode	1
 rocksdb_wal_size_limit_mb	0
 rocksdb_wal_ttl_seconds	0
 rocksdb_whole_key_filtering	ON
+rocksdb_write_batch_max_bytes	0
 rocksdb_write_disable_wal	OFF
 rocksdb_write_ignore_missing_column_families	OFF
 create table t47 (pk int primary key, col1 varchar(12)) engine=rocksdb;
@@ -1332,7 +1340,7 @@ insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables
 set @tmp1= @@rocksdb_max_row_locks;
 set rocksdb_max_row_locks= 20;
 update t1 set a=a+10;
-ERROR HY000: Got error 197 'Number of locks held reached @@rocksdb_max_row_locks.' from ROCKSDB
+ERROR HY000: Status error 10 received from RocksDB: Operation aborted: Failed to acquire lock due to max_num_locks limit
 DROP TABLE t1;
 # 
 # Test AUTO_INCREMENT behavior problem,
@@ -1443,15 +1451,16 @@ Rocksdb_rows_inserted	#
 Rocksdb_rows_read	#
 Rocksdb_rows_updated	#
 Rocksdb_rows_deleted_blind	#
+rocksdb_rows_expired	#
 Rocksdb_system_rows_deleted	#
 Rocksdb_system_rows_inserted	#
 Rocksdb_system_rows_read	#
 Rocksdb_system_rows_updated	#
 Rocksdb_block_cache_add	#
-Rocksdb_block_cache_data_hit	#
-Rocksdb_block_cache_data_miss	#
-Rocksdb_block_cache_filter_hit	#
-Rocksdb_block_cache_filter_miss	#
+rocksdb_memtable_total	#
+rocksdb_memtable_unflushed	#
+rocksdb_queries_point	#
+rocksdb_queries_range	#
 Rocksdb_block_cache_hit	#
 Rocksdb_block_cache_index_hit	#
 Rocksdb_block_cache_index_miss	#
@@ -1477,9 +1486,6 @@ Rocksdb_memtable_hit	#
 Rocksdb_memtable_miss	#
 Rocksdb_no_file_closes	#
 Rocksdb_no_file_errors	#
-Rocksdb_no_file_opens	#
-Rocksdb_num_iterators	#
-Rocksdb_number_block_not_compressed	#
 Rocksdb_number_deletes_filtered	#
 Rocksdb_number_keys_read	#
 Rocksdb_number_keys_updated	#
@@ -1507,6 +1513,7 @@ Rocksdb_write_other	#
 Rocksdb_write_self	#
 Rocksdb_write_timedout	#
 Rocksdb_write_wal	#
+rocksdb_stall_micros	#
 select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%';
 VARIABLE_NAME
 ROCKSDB_ROWS_DELETED
@@ -1514,10 +1521,15 @@ ROCKSDB_ROWS_INSERTED
 ROCKSDB_ROWS_READ
 ROCKSDB_ROWS_UPDATED
 ROCKSDB_ROWS_DELETED_BLIND
+ROCKSDB_ROWS_EXPIRED
 ROCKSDB_SYSTEM_ROWS_DELETED
 ROCKSDB_SYSTEM_ROWS_INSERTED
 ROCKSDB_SYSTEM_ROWS_READ
 ROCKSDB_SYSTEM_ROWS_UPDATED
+ROCKSDB_MEMTABLE_TOTAL
+ROCKSDB_MEMTABLE_UNFLUSHED
+ROCKSDB_QUERIES_POINT
+ROCKSDB_QUERIES_RANGE
 ROCKSDB_BLOCK_CACHE_ADD
 ROCKSDB_BLOCK_CACHE_DATA_HIT
 ROCKSDB_BLOCK_CACHE_DATA_MISS
@@ -1541,9 +1553,6 @@ ROCKSDB_COMPACTION_KEY_DROP_OBSOLETE
 ROCKSDB_COMPACTION_KEY_DROP_USER
 ROCKSDB_FLUSH_WRITE_BYTES
 ROCKSDB_GETUPDATESSINCE_CALLS
-ROCKSDB_L0_NUM_FILES_STALL_MICROS
-ROCKSDB_L0_SLOWDOWN_MICROS
-ROCKSDB_MEMTABLE_COMPACTION_MICROS
 ROCKSDB_MEMTABLE_HIT
 ROCKSDB_MEMTABLE_MISS
 ROCKSDB_NO_FILE_CLOSES
@@ -1571,6 +1580,7 @@ ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
 ROCKSDB_NUMBER_SUPERVERSION_RELEASES
 ROCKSDB_RATE_LIMIT_DELAY_MILLIS
 ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
+ROCKSDB_STALL_MICROS
 ROCKSDB_WAL_BYTES
 ROCKSDB_WAL_GROUP_SYNCS
 ROCKSDB_WAL_SYNCED
@@ -1587,10 +1597,15 @@ ROCKSDB_ROWS_INSERTED
 ROCKSDB_ROWS_READ
 ROCKSDB_ROWS_UPDATED
 ROCKSDB_ROWS_DELETED_BLIND
+ROCKSDB_ROWS_EXPIRED
 ROCKSDB_SYSTEM_ROWS_DELETED
 ROCKSDB_SYSTEM_ROWS_INSERTED
 ROCKSDB_SYSTEM_ROWS_READ
 ROCKSDB_SYSTEM_ROWS_UPDATED
+ROCKSDB_MEMTABLE_TOTAL
+ROCKSDB_MEMTABLE_UNFLUSHED
+ROCKSDB_QUERIES_POINT
+ROCKSDB_QUERIES_RANGE
 ROCKSDB_BLOCK_CACHE_ADD
 ROCKSDB_BLOCK_CACHE_DATA_HIT
 ROCKSDB_BLOCK_CACHE_DATA_MISS
@@ -1614,9 +1629,6 @@ ROCKSDB_COMPACTION_KEY_DROP_OBSOLETE
 ROCKSDB_COMPACTION_KEY_DROP_USER
 ROCKSDB_FLUSH_WRITE_BYTES
 ROCKSDB_GETUPDATESSINCE_CALLS
-ROCKSDB_L0_NUM_FILES_STALL_MICROS
-ROCKSDB_L0_SLOWDOWN_MICROS
-ROCKSDB_MEMTABLE_COMPACTION_MICROS
 ROCKSDB_MEMTABLE_HIT
 ROCKSDB_MEMTABLE_MISS
 ROCKSDB_NO_FILE_CLOSES
@@ -1644,6 +1656,7 @@ ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
 ROCKSDB_NUMBER_SUPERVERSION_RELEASES
 ROCKSDB_RATE_LIMIT_DELAY_MILLIS
 ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
+ROCKSDB_STALL_MICROS
 ROCKSDB_WAL_BYTES
 ROCKSDB_WAL_GROUP_SYNCS
 ROCKSDB_WAL_SYNCED
@@ -1752,6 +1765,7 @@ INSERT INTO t1 SET id=123, blob_col=''                ON DUPLICATE KEY UPDATE bl
 DROP TABLE t1;
 #
 # Issue #17: Automatic per-index column families
+# (Now deprecated)
 #
 create table t1 (
 id int not null,
@@ -1759,40 +1773,7 @@ key1 int,
 PRIMARY KEY (id),
 index (key1) comment '$per_index_cf'
 ) engine=rocksdb;
-#Same CF ids with different CF flags
-create table t1_err (
-id int not null,
-key1 int,
-PRIMARY KEY (id),
-index (key1) comment 'test.t1.key1'
-) engine=rocksdb;
-ERROR HY000: Column family ('test.t1.key1') flag (0) is different from an existing flag (2). Assign a new CF flag, or do not change existing CF flag.
-create table t1_err (
-id int not null,
-key1 int,
-PRIMARY KEY (id),
-index (key1) comment 'test.t1.key2'
-) engine=rocksdb;
-drop table t1_err;
-# Unfortunately there is no way to check which column family everything goes to
-insert into t1 values (1,1);
-select * from t1;
-id	key1
-1	1
-# Check that ALTER and RENAME are disallowed
-alter table t1 add col2 int;
-ERROR 42000: This version of MariaDB doesn't yet support 'ALTER TABLE on table with per-index CF'
-rename table t1 to t2;
-ERROR 42000: This version of MariaDB doesn't yet support 'ALTER TABLE on table with per-index CF'
-drop table t1;
-# Check detection of typos in $per_index_cf
-create table t1 (
-id int not null,
-key1 int,
-PRIMARY KEY (id),
-index (key1) comment '$per_idnex_cf'
-)engine=rocksdb;
-ERROR 42000: This version of MariaDB doesn't yet support 'column family name looks like a typo of $per_index_cf.'
+ERROR HY000: The per-index column family option has been deprecated
 #
 # Issue #22: SELECT ... FOR UPDATE takes a long time
 #
@@ -2268,6 +2249,7 @@ INSERT INTO t1 VALUES(1, 2);
 INSERT INTO t1 VALUES(1, 3);
 SELECT * FROM t1;
 id	value
+1	3
 REPLACE INTO t1 VALUES(4, 4);
 ERROR HY000: When unique checking is disabled in MyRocks, INSERT,UPDATE,LOAD statements with clauses that update or replace the key (i.e. INSERT ON DUPLICATE KEY UPDATE, REPLACE) are not allowed. Query: REPLACE INTO t1 VALUES(4, 4)
 INSERT INTO t1 VALUES(5, 5) ON DUPLICATE KEY UPDATE value=value+1;

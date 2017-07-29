@@ -420,6 +420,7 @@ ALTER TABLE t2 ADD KEY (`col3`, `col4`) COMMENT 'custom_p5_cfname=another_cf_for
 SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='another_cf_for_p5';
 
 # Verify that correct partition and key are used when searching.
+ANALYZE TABLE t2;
 EXPLAIN PARTITIONS SELECT  * FROM t2 WHERE col3 = 0x4 AND col2 = 0x34567;
 
 DROP TABLE t2;
@@ -494,3 +495,18 @@ SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='
 
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
+
+
+# Test that truncating table actually removes rows.
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  PRIMARY KEY (a) COMMENT 'p1_cfname=foo;'
+) ENGINE=ROCKSDB
+PARTITION BY LIST COLUMNS(a)
+(PARTITION p1 VALUES IN (1) ENGINE = ROCKSDB);
+
+INSERT INTO t1 values (1);
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+

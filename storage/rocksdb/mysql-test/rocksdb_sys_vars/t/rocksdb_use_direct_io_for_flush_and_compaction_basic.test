@@ -3,4 +3,4 @@
 --let $sys_var=ROCKSDB_USE_DIRECT_IO_FOR_FLUSH_AND_COMPACTION
 --let $read_only=1
 --let $session=0
---source include/rocksdb_sys_var.inc
+--source ../include/rocksdb_sys_var.inc

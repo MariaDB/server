@@ -107,9 +107,6 @@ let $wait_condition = select count(*) = 0
                       where TYPE = 'DDL_DROP_INDEX_ONGOING';
 --source include/wait_condition.inc
 
-# Get list of all indices needing to be dropped
-# Check total compacted-away rows for all indices
-# Check that all indices have been successfully dropped
 perl;
 
 sub print_array {
@@ -149,6 +146,5 @@ foreach (sort {$a <=> $b} keys %a){
 print_array("Begin filtering dropped index+", sort {$a <=> $b} @b);
 print_array("Finished filtering dropped index+", sort {$a <=> $b} @c);
 EOF
-
 # Cleanup
 drop table t1;
