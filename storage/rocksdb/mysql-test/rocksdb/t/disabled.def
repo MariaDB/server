@@ -70,3 +70,6 @@ col_opt_null :   : MDEV-12474 - Fails in fulltest
 col_opt_unsigned : MDEV-12474 - Fails in fulltest
 col_opt_zerofill : MDEV-12474 - Fails in fulltest
 type_float       : MDEV-12474 - Fails in fulltest
+
+native_procedure : Not supported in MariaDB
+
