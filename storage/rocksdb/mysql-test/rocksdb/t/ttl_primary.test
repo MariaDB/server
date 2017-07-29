@@ -279,7 +279,7 @@ SELECT a FROM t1;
 DROP TABLE t1;
 
 # TTL field with nullable ttl column (should fail)
---error 1948
+--error ER_RDB_TTL_COL_FORMAT
 CREATE TABLE t1 (
   a bigint(20) UNSIGNED NOT NULL,
   b int NOT NULL,
@@ -290,7 +290,7 @@ CREATE TABLE t1 (
 COMMENT='ttl_duration=1;ttl_col=ts;';
 
 # TTL field with non 8-bit integer column (should fail)
---error 1948
+--error ER_RDB_TTL_COL_FORMAT
 CREATE TABLE t1 (
   a bigint(20) UNSIGNED NOT NULL,
   b int NOT NULL,
@@ -301,7 +301,7 @@ CREATE TABLE t1 (
 COMMENT='ttl_duration=1;ttl_col=ts;';
 
 # TTL duration as some random garbage value
---error 1949
+--error ER_RDB_TTL_DURATION_FORMAT
 CREATE TABLE t1 (
   a bigint(20) UNSIGNED NOT NULL,
   b int NOT NULL,
@@ -311,7 +311,7 @@ CREATE TABLE t1 (
 COMMENT='ttl_duration=abc;';
 
 # TTL col is some column outside of the table
---error 1948
+--error ER_RDB_TTL_COL_FORMAT
 CREATE TABLE t1 (
   a bigint(20) UNSIGNED NOT NULL,
   b int NOT NULL,
@@ -321,7 +321,7 @@ CREATE TABLE t1 (
 COMMENT='ttl_duration=1;ttl_col=abc;';
 
 # TTL col must have accompanying duration
---error 1948
+--error ER_RDB_TTL_COL_FORMAT
 CREATE TABLE t1 (
   a bigint(20) UNSIGNED NOT NULL,
   b int NOT NULL,
@@ -372,9 +372,9 @@ CREATE TABLE t1 (
 ) ENGINE=rocksdb
 COMMENT='ttl_duration=100;';
 
---error 1947
+--error ER_RDB_TTL_UNSUPPORTED
 ALTER TABLE t1 DROP PRIMARY KEY;
---error 1947
+--error ER_RDB_TTL_UNSUPPORTED
 ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
 
 DROP TABLE t1;
