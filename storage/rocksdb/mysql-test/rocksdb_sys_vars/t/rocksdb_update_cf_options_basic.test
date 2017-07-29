@@ -1,4 +1,5 @@
 --source include/have_rocksdb.inc
+--source include/have_partition.inc
 
 call mtr.add_suppression("MyRocks: NULL is not a valid option for updates to column family settings.");
 call mtr.add_suppression("Invalid cf options, '=' expected *");

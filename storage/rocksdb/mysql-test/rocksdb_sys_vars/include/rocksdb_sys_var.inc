@@ -17,13 +17,6 @@ if (!$suppress_default_value)
     SELECT @start_session_value;
   }
 }
-SELECT @start_global_value;
-if ($session)
-{
-  --eval SET @start_session_value = @@session.$sys_var
-  SELECT @start_session_value;
-}
-}
 
 if (!$read_only)
 {
