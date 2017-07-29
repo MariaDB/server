@@ -5742,7 +5742,7 @@ SELECT @@max_sp_recursion_depth|
 CALL bug23760_test_row_count2(2)|
 SELECT ROW_COUNT()|
 ROW_COUNT()
-1
+16
 SELECT * FROM bug23760_log ORDER BY id|
 id	reason	ammount
 1	Test is working	7
@@ -8234,3 +8234,28 @@ rec=(10)
 c
 rec=(20)
 DROP PROCEDURE p1;
+# Test affected rows from an sp
+create table t1 (a int);
+create procedure p1()
+begin
+insert into t1 values(1);
+insert into t1 values(2);
+end;
+$$
+create procedure p2()
+begin
+insert into t1 values(1);
+call p1();
+select row_count();
+insert into t1 values(2);
+insert into t1 values(2);
+end;
+$$
+CALL p2();
+row_count()
+2
+affected rows: 1
+affected rows: 5
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+drop table t1;

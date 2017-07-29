@@ -2919,8 +2919,7 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
 
   affected_rows= thd->affected_rows; // Affected rows for all sub statements
   thd->affected_rows= 0;             // Reset total, as my_ok() adds to it
-  my_ok(thd, (thd->get_row_count_func() < 0) ? 0 : thd->get_row_count_func());
-  thd->affected_rows= affected_rows; // Restore original value
+  my_ok(thd, affected_rows);
   return 0;
 }
 
