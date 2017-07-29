@@ -7,7 +7,10 @@
 
 #include "my_global.h"                   /* ulonglong */
 #include "atomic_stat.h"
+
+// These are for split_into_vector:
 #include <vector>
+#include <string>
 
 /* The following is copied from storage/innobase/univ.i: */
 #ifndef MY_ATTRIBUTE
