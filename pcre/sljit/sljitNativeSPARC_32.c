@@ -1,7 +1,7 @@
 /*
  *    Stack-less Just-In-Time compiler
  *
- *    Copyright 2009-2012 Zoltan Herczeg (hzmester@freemail.hu). All rights reserved.
+ *    Copyright Zoltan Herczeg (hzmester@freemail.hu). All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are
  * permitted provided that the following conditions are met:
@@ -60,7 +60,7 @@ static SLJIT_INLINE sljit_s32 emit_single_op(struct sljit_compiler *compiler, sl
 			return push_inst(compiler, SRA | D(dst) | S1(dst) | IMM(24), DR(dst));
 		}
 		else if (dst != src2)
-			SLJIT_ASSERT_STOP();
+			SLJIT_UNREACHABLE();
 		return SLJIT_SUCCESS;
 
 	case SLJIT_MOV_U16:
@@ -71,7 +71,7 @@ static SLJIT_INLINE sljit_s32 emit_single_op(struct sljit_compiler *compiler, sl
 			return push_inst(compiler, (op == SLJIT_MOV_S16 ? SRA : SRL) | D(dst) | S1(dst) | IMM(16), DR(dst));
 		}
 		else if (dst != src2)
-			SLJIT_ASSERT_STOP();
+			SLJIT_UNREACHABLE();
 		return SLJIT_SUCCESS;
 
 	case SLJIT_NOT:
@@ -80,18 +80,17 @@ static SLJIT_INLINE sljit_s32 emit_single_op(struct sljit_compiler *compiler, sl
 
 	case SLJIT_CLZ:
 		SLJIT_ASSERT(src1 == TMP_REG1 && !(flags & SRC2_IMM));
-		/* sparc 32 does not support SLJIT_KEEP_FLAGS. Not sure I can fix this. */
 		FAIL_IF(push_inst(compiler, SUB | SET_FLAGS | D(0) | S1(src2) | S2(0), SET_FLAGS));
 		FAIL_IF(push_inst(compiler, OR | D(TMP_REG1) | S1(0) | S2(src2), DR(TMP_REG1)));
 		FAIL_IF(push_inst(compiler, BICC | DA(0x1) | (7 & DISP_MASK), UNMOVABLE_INS));
-		FAIL_IF(push_inst(compiler, OR | (flags & SET_FLAGS) | D(dst) | S1(0) | IMM(32), UNMOVABLE_INS | (flags & SET_FLAGS)));
+		FAIL_IF(push_inst(compiler, OR | D(dst) | S1(0) | IMM(32), UNMOVABLE_INS));
 		FAIL_IF(push_inst(compiler, OR | D(dst) | S1(0) | IMM(-1), DR(dst)));
 
 		/* Loop. */
 		FAIL_IF(push_inst(compiler, SUB | SET_FLAGS | D(0) | S1(TMP_REG1) | S2(0), SET_FLAGS));
 		FAIL_IF(push_inst(compiler, SLL | D(TMP_REG1) | S1(TMP_REG1) | IMM(1), DR(TMP_REG1)));
 		FAIL_IF(push_inst(compiler, BICC | DA(0xe) | (-2 & DISP_MASK), UNMOVABLE_INS));
-		return push_inst(compiler, ADD | (flags & SET_FLAGS) | D(dst) | S1(dst) | IMM(1), UNMOVABLE_INS | (flags & SET_FLAGS));
+		return push_inst(compiler, ADD | D(dst) | S1(dst) | IMM(1), UNMOVABLE_INS);
 
 	case SLJIT_ADD:
 		return push_inst(compiler, ADD | (flags & SET_FLAGS) | D(dst) | S1(src1) | ARG2(flags, src2), DR(dst) | (flags & SET_FLAGS));
@@ -135,7 +134,7 @@ static SLJIT_INLINE sljit_s32 emit_single_op(struct sljit_compiler *compiler, sl
 		return !(flags & SET_FLAGS) ? SLJIT_SUCCESS : push_inst(compiler, SUB | SET_FLAGS | D(0) | S1(dst) | S2(0), SET_FLAGS);
 	}
 
-	SLJIT_ASSERT_STOP();
+	SLJIT_UNREACHABLE();
 	return SLJIT_SUCCESS;
 }
 
@@ -145,20 +144,22 @@ static SLJIT_INLINE sljit_s32 emit_const(struct sljit_compiler *compiler, sljit_
 	return push_inst(compiler, OR | D(dst) | S1(dst) | IMM_ARG | (init_value & 0x3ff), DR(dst));
 }
 
-SLJIT_API_FUNC_ATTRIBUTE void sljit_set_jump_addr(sljit_uw addr, sljit_uw new_addr)
+SLJIT_API_FUNC_ATTRIBUTE void sljit_set_jump_addr(sljit_uw addr, sljit_uw new_target, sljit_sw executable_offset)
 {
-	sljit_ins *inst = (sljit_ins*)addr;
+	sljit_ins *inst = (sljit_ins *)addr;
 
-	inst[0] = (inst[0] & 0xffc00000) | ((new_addr >> 10) & 0x3fffff);
-	inst[1] = (inst[1] & 0xfffffc00) | (new_addr & 0x3ff);
+	inst[0] = (inst[0] & 0xffc00000) | ((new_target >> 10) & 0x3fffff);
+	inst[1] = (inst[1] & 0xfffffc00) | (new_target & 0x3ff);
+	inst = (sljit_ins *)SLJIT_ADD_EXEC_OFFSET(inst, executable_offset);
 	SLJIT_CACHE_FLUSH(inst, inst + 2);
 }
 
-SLJIT_API_FUNC_ATTRIBUTE void sljit_set_const(sljit_uw addr, sljit_sw new_constant)
+SLJIT_API_FUNC_ATTRIBUTE void sljit_set_const(sljit_uw addr, sljit_sw new_constant, sljit_sw executable_offset)
 {
-	sljit_ins *inst = (sljit_ins*)addr;
+	sljit_ins *inst = (sljit_ins *)addr;
 
 	inst[0] = (inst[0] & 0xffc00000) | ((new_constant >> 10) & 0x3fffff);
 	inst[1] = (inst[1] & 0xfffffc00) | (new_constant & 0x3ff);
+	inst = (sljit_ins *)SLJIT_ADD_EXEC_OFFSET(inst, executable_offset);
 	SLJIT_CACHE_FLUSH(inst, inst + 2);
 }

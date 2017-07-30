@@ -1,7 +1,7 @@
 /*
  *    Stack-less Just-In-Time compiler
  *
- *    Copyright 2009-2012 Zoltan Herczeg (hzmester@freemail.hu). All rights reserved.
+ *    Copyright Zoltan Herczeg (hzmester@freemail.hu). All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are
  * permitted provided that the following conditions are met:
@@ -90,7 +90,7 @@
 
 /* Executable code allocation:
    If SLJIT_EXECUTABLE_ALLOCATOR is not defined, the application should
-   define SLJIT_MALLOC_EXEC, SLJIT_FREE_EXEC, and SLJIT_ENABLE_EXEC. */
+   define SLJIT_MALLOC_EXEC, SLJIT_FREE_EXEC, and SLJIT_EXEC_OFFSET. */
 #ifndef SLJIT_EXECUTABLE_ALLOCATOR
 /* Enabled by default. */
 #define SLJIT_EXECUTABLE_ALLOCATOR 1
