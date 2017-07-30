@@ -214,6 +214,8 @@ TYPELIB compatible_mode_typelib= {array_elements(compatible_mode_names) - 1,
 
 HASH ignore_table;
 
+HASH ignore_database;
+
 static struct my_option my_long_options[] =
 {
   {"all-databases", 'A',
@@ -376,6 +378,11 @@ static struct my_option my_long_options[] =
    &opt_hex_blob, &opt_hex_blob, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", &current_host,
    &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"ignore-database", OPT_IGNORE_DATABASE,
+   "Do not dump the specified database. To specify more than one database to ignore, "
+   "use the directive multiple times, once for each database. Only takes effect "
+   "when used together with --all-databases|-A",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-table", OPT_IGNORE_TABLE,
    "Do not dump the specified table. To specify more than one table to ignore, "
    "use the directive multiple times, once for each table.  Each table must "
@@ -900,6 +907,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case (int) OPT_TABLES:
     opt_databases=0;
     break;
+  case (int) OPT_IGNORE_DATABASE:
+    if (my_hash_insert(&ignore_database, (uchar*)my_strdup(argument, MYF(0))))
+      exit(EX_EOM);
+    break;
   case (int) OPT_IGNORE_TABLE:
   {
     if (!strchr(argument, '.'))
@@ -984,6 +995,9 @@ static int get_options(int *argc, char ***argv)
   load_defaults_or_exit("my", load_default_groups, argc, argv);
   defaults_argv= *argv;
 
+  if (my_hash_init(&ignore_database, charset_info, 16, 0, 0,
+                   (my_hash_get_key) get_table_key, my_free, 0))
+    return(EX_EOM);
   if (my_hash_init(&ignore_table, charset_info, 16, 0, 0,
                    (my_hash_get_key) get_table_key, my_free, 0))
     return(EX_EOM);
@@ -1054,6 +1068,12 @@ static int get_options(int *argc, char ***argv)
     fprintf(stderr,
             "%s: --databases or --all-databases can't be used with --tab.\n",
             my_progname_short);
+    return(EX_USAGE);
+  }
+  if (ignore_database.records && !opt_alldbs) {
+    fprintf(stderr, 
+            "%s: --ignore-database can only be used toghether with --all-databases.\n",
+	    my_progname_short);
     return(EX_USAGE);
   }
   if (strcmp(default_charset, charset_info->csname) &&
@@ -1642,6 +1662,8 @@ static void free_resources()
   my_free(opt_password);
   my_free(current_host);
   free_root(&glob_root, MYF(0));
+  if (my_hash_inited(&ignore_database))
+    my_hash_free(&ignore_database);
   if (my_hash_inited(&ignore_table))
     my_hash_free(&ignore_table);
   dynstr_free(&extended_row);
@@ -4429,6 +4451,14 @@ static int dump_tablespaces(char* ts_where)
   DBUG_RETURN(0);
 }
 
+/* Return 1 if we should copy the database */
+
+my_bool include_database(const uchar *hash_key, size_t len)
+{
+  return ! my_hash_search(&ignore_database, hash_key, len);
+}
+
+
 static int dump_all_databases()
 {
   MYSQL_ROW row;
@@ -4447,8 +4477,9 @@ static int dump_all_databases()
         !my_strcasecmp(&my_charset_latin1, row[0], PERFORMANCE_SCHEMA_DB_NAME))
       continue;
 
-    if (dump_all_tables_in_db(row[0]))
-      result=1;
+    if (include_database(row[0], strlen(row[0])))
+      if (dump_all_tables_in_db(row[0]))
+        result=1;
   }
   mysql_free_result(tableres);
   if (seen_views)
@@ -4470,8 +4501,9 @@ static int dump_all_databases()
           !my_strcasecmp(&my_charset_latin1, row[0], PERFORMANCE_SCHEMA_DB_NAME))
         continue;
 
-      if (dump_all_views_in_db(row[0]))
-        result=1;
+      if (include_database(row[0], strlen(row[0])))
+        if (dump_all_views_in_db(row[0]))
+          result=1;
     }
     mysql_free_result(tableres);
   }
@@ -6055,6 +6087,7 @@ int main(int argc, char **argv)
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
   compatible_mode_normal_str[0]= 0;
   default_charset= (char *)mysql_universal_client_charset;
+  bzero((char*) &ignore_database, sizeof(ignore_database));
   bzero((char*) &ignore_table, sizeof(ignore_table));
 
   exit_code= get_options(&argc, &argv);
