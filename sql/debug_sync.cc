@@ -1457,7 +1457,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
                        ER_DEBUG_SYNC_TIMEOUT,
                        ER_THD(thd, ER_DEBUG_SYNC_TIMEOUT));
           thd->abort_on_warning= save_abort_on_warning;
-          DBUG_EXECUTE_IF("debug_sync_abort_on_timeout", DBUG_ABORT(););
+          DBUG_EXECUTE_IF("debug_sync_abort_on_timeout", DBUG_ASSERT(0););
           break;
         }
         error= 0;

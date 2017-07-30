@@ -88,7 +88,7 @@
     while(!(X))                                                         \
     {                                                                   \
       fprintf(stderr, "Sysvar '%s' failed '%s'\n", name_arg, #X);       \
-      DBUG_ABORT();                                                     \
+      DBUG_ASSERT(0);                                                   \
       exit(255);                                                        \
     }
 

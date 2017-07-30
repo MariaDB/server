@@ -3175,7 +3175,7 @@ int maria_sort_index(HA_CHECK *param, register MARIA_HA *info, char *name)
   DBUG_EXECUTE_IF("maria_crash_sort_index",
                   {
                     DBUG_PRINT("maria_crash_sort_index", ("now"));
-                    DBUG_ABORT();
+                    DBUG_SUICIDE();
                   });
   DBUG_RETURN(0);
 
@@ -3913,7 +3913,7 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
     DBUG_EXECUTE_IF("maria_crash_create_index_by_sort",
                     {
                       DBUG_PRINT("maria_crash_create_index_by_sort", ("now"));
-                      DBUG_ABORT();
+                      DBUG_SUICIDE();
                     });
     if (scan_inited)
     {
@@ -4124,7 +4124,7 @@ err:
     DBUG_EXECUTE_IF("maria_crash_repair",
                     {
                       DBUG_PRINT("maria_crash_repair", ("now"));
-                      DBUG_ABORT();
+                      DBUG_SUICIDE();
                     });
   }
   share->state.changed|= STATE_NOT_SORTED_PAGES;

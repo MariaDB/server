@@ -1592,7 +1592,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   
   DBUG_EXECUTE_IF("crash_dispatch_command_before",
                   { DBUG_PRINT("crash_dispatch_command_before", ("now"));
-                    DBUG_ABORT(); });
+                    DBUG_SUICIDE(); });
 
   /* Performance Schema Interface instrumentation, begin */
   thd->m_statement_psi= MYSQL_REFINE_STATEMENT(thd->m_statement_psi,

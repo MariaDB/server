@@ -10928,7 +10928,7 @@ int read_keys_and_merge_scans(THD *thd,
 
   if (unique == NULL)
   {
-    DBUG_EXECUTE_IF("index_merge_may_not_create_a_Unique", DBUG_ABORT(); );
+    DBUG_EXECUTE_IF("index_merge_may_not_create_a_Unique", DBUG_SUICIDE(); );
     DBUG_EXECUTE_IF("only_one_Unique_may_be_created", 
                     DBUG_SET("+d,index_merge_may_not_create_a_Unique"); );
 

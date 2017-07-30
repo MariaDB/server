@@ -3165,7 +3165,7 @@ static my_bool write_block_record(MARIA_HA *info,
                       translog_flush(translog_get_horizon());
                     });
     DBUG_EXECUTE_IF("maria_crash",
-                    { DBUG_PRINT("maria_crash", ("now")); DBUG_ABORT(); });
+                    { DBUG_PRINT("maria_crash", ("now")); DBUG_SUICIDE(); });
   }
 #endif
 
