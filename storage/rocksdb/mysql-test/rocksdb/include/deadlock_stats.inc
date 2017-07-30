@@ -19,6 +19,11 @@ connection default;
 eval create table t (i int primary key) engine=$engine;
 insert into t values (1), (2), (3);
 
+--echo #
+--echo # The following is disabled due:
+--echo #   MDEV-13404: MyRocks upstream uses I_S.table_statistics.row_lock_deadlocks, should we import?
+--echo #
+--disable_parsing
 --source include/simple_deadlock.inc
 connection default;
 select row_lock_deadlocks from information_schema.table_statistics where
@@ -33,6 +38,7 @@ table_name = "t";
 
 select row_lock_deadlocks from information_schema.table_statistics where
 table_name = "t";
+--enable_parsing
 
 disconnect con1;
 disconnect con2;
