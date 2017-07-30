@@ -7,6 +7,7 @@ level_serializable: Not supported
 slow_query_log: MDEV-11480
 select_for_update_skip_locked_nowait: MDEV-11481
 rpl_read_free: MDEV-10976
+lock_wait_timeout_stats: MDEV-13404
 
 optimizer_loose_index_scans: MariaDB doesnt support Skip Scan
 

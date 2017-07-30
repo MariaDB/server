@@ -823,7 +823,7 @@ index id2_id4 (id2, id4) COMMENT 'rev:cf_short_prefix',
 index id2_id3_id1_id4 (id2, id3, id1, id4) COMMENT 'rev:cf_short_prefix',
 index id3_id2 (id3, id2) COMMENT 'rev:cf_short_prefix'
 ) engine=ROCKSDB;
-create table t2 (
+create or replace table t2 (
 id1 bigint not null,
 id2 bigint not null,
 id3 varchar(100) not null,
@@ -839,6 +839,10 @@ index id2_id4_id5 (id2, id4, id5) COMMENT 'rev:cf_short_prefix',
 index id3_id4 (id3, id4) COMMENT 'rev:cf_short_prefix',
 index id3_id5 (id3, id5) COMMENT 'rev:cf_short_prefix'
 ) engine=ROCKSDB;
+insert t1
+select (seq+9) div 10, (seq+4) div 5, (seq+4) div 5, seq, seq, 1000, "aaabbbccc"
+  from seq_1_to_10000;
+insert t2 select * from t1;
 call bloom_start();
 select count(*) from t1;
 count(*)
@@ -1203,9 +1207,7 @@ count(*)
 call bloom_end();
 checked
 true
-drop table if exists t1;
-drop table if exists t2;
-create table t1 (
+create or replace table t1 (
 id1 bigint not null,
 id2 bigint not null,
 id3 varchar(100) not null,
@@ -1237,6 +1239,10 @@ index id2_id4_id5 (id2, id4, id5) COMMENT 'cf_long_prefix',
 index id3_id4 (id3, id4) COMMENT 'cf_long_prefix',
 index id3_id5 (id3, id5) COMMENT 'cf_long_prefix'
 ) engine=ROCKSDB;
+insert t1
+select (seq+9) div 10, (seq+4) div 5, (seq+4) div 5, seq, seq, 1000, "aaabbbccc"
+  from seq_1_to_10000;
+insert t2 select * from t1;
 call bloom_start();
 select count(*) from t1;
 count(*)
@@ -1601,9 +1607,7 @@ count(*)
 call bloom_end();
 checked
 false
-drop table if exists t1;
-drop table if exists t2;
-create table t1 (
+create or replace table t1 (
 id1 bigint not null,
 id2 bigint not null,
 id3 varchar(100) not null,
@@ -1619,7 +1623,7 @@ index id2_id4 (id2, id4) COMMENT 'rev:cf_long_prefix',
 index id2_id3_id1_id4 (id2, id3, id1, id4) COMMENT 'rev:cf_long_prefix',
 index id3_id2 (id3, id2) COMMENT 'rev:cf_long_prefix'
 ) engine=ROCKSDB;
-create table t2 (
+create or replace table t2 (
 id1 bigint not null,
 id2 bigint not null,
 id3 varchar(100) not null,
