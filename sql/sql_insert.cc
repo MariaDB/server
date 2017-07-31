@@ -1137,8 +1137,10 @@ values_loop_end:
 	}
         else
           errcode= query_error_code(thd, thd->killed == NOT_KILLED);
-        
-	/* bug#22725:
+
+        ScopedStatementReplication scoped_stmt_rpl(
+            table->versioned_by_engine() ? thd : NULL);
+       /* bug#22725:
 
 	A query which per-row-loop can not be interrupted with
 	KILLED, like INSERT, and that does not invoke stored

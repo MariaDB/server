@@ -44,6 +44,7 @@
 #include <strfunc.h>
 #include "compat56.h"
 #include "wsrep_mysqld.h"
+#include "sql_insert.h"
 #endif /* MYSQL_CLIENT */
 
 #include <my_bitmap.h>
@@ -12509,6 +12510,22 @@ Rows_log_event::write_row(rpl_group_info *rgi,
       DBUG_RETURN(HA_ERR_GENERIC); // in case if error is not set yet
   }
 
+  // Handle INSERT.
+  // Set vers fields when replicating from not system-versioned table.
+  if (m_type == WRITE_ROWS_EVENT_V1 && table->versioned_by_sql())
+  {
+    bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
+    // Check whether a row came from unversioned table and fix vers fields.
+    if (table->vers_start_field()->get_timestamp() == 0)
+    {
+      bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
+      bitmap_set_bit(table->write_set, table->vers_end_field()->field_index);
+      thd->set_current_time();
+      table->vers_start_field()->set_time();
+      table->vers_end_field()->set_max();
+    }
+  }
+
   /* 
     Try to write record. If a corresponding record already exists in the table,
     we try to change it using ha_update_row() if possible. Otherwise we delete
@@ -12799,7 +12816,7 @@ static bool record_compare(TABLE *table)
   /* Compare fields */
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-    if (table->versioned_by_engine() && *ptr == table->vers_start_field())
+    if (table->versioned() && (*ptr)->vers_sys_field())
     {
       continue;
     }
@@ -12997,19 +13014,19 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   prepare_record(table, m_width, FALSE);
   error= unpack_current_row(rgi);
 
-
+  m_vers_from_plain= false;
   if (table->versioned())
   {
     Field *sys_trx_end= table->vers_end_field();
     DBUG_ASSERT(table->read_set);
     bitmap_set_bit(table->read_set, sys_trx_end->field_index);
-    // master table is unversioned
+    // check whether master table is unversioned
     if (sys_trx_end->val_int() == 0)
     {
-      DBUG_ASSERT(table->write_set);
-      bitmap_set_bit(table->write_set, sys_trx_end->field_index);
-      sys_trx_end->set_max();
       table->vers_start_field()->set_notnull();
+      bitmap_set_bit(table->write_set, sys_trx_end->field_index);
+      table->vers_end_field()->set_max();
+      m_vers_from_plain= true;
     }
   }
 
@@ -13395,7 +13412,19 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
     if (!error)
     {
       m_table->mark_columns_per_binlog_row_image();
-      error= m_table->file->ha_delete_row(m_table->record[0]);
+      if (m_vers_from_plain && m_table->versioned_by_sql())
+      {
+        Field *end= m_table->vers_end_field();
+        bitmap_set_bit(m_table->write_set, end->field_index);
+        store_record(m_table, record[1]);
+        end->set_time();
+        error= m_table->file->ha_update_row(m_table->record[1],
+                                            m_table->record[0]);
+      }
+      else
+      {
+        error= m_table->file->ha_delete_row(m_table->record[0]);
+      }
       m_table->default_column_bitmaps();
     }
     if (invoke_triggers && !error &&
@@ -13652,9 +13681,22 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   memcpy(m_table->write_set->bitmap, m_cols_ai.bitmap, (m_table->write_set->n_bits + 7) / 8);
 
   m_table->mark_columns_per_binlog_row_image();
+  if (m_vers_from_plain && m_table->versioned_by_sql())
+  {
+    bitmap_set_bit(m_table->write_set,
+                   m_table->vers_start_field()->field_index);
+    thd->set_current_time();
+    m_table->vers_start_field()->set_time();
+  }
   error= m_table->file->ha_update_row(m_table->record[1], m_table->record[0]);
   if (error == HA_ERR_RECORD_IS_THE_SAME)
     error= 0;
+  if (m_vers_from_plain && m_table->versioned_by_sql())
+  {
+    store_record(m_table, record[2]);
+    error= vers_insert_history_row(m_table);
+    restore_record(m_table, record[2]);
+  }
   m_table->default_column_bitmaps();
 
   if (invoke_triggers && !error &&

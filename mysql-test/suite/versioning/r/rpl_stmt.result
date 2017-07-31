@@ -2,7 +2,7 @@ include/master-slave.inc
 [connection master]
 connection slave;
 connection master;
-CREATE TABLE t1 (x int) with system versioning ENGINE = innodb;
+CREATE TABLE t1 (x int) with system versioning;
 insert into t1 values (1);
 SELECT * FROM t1;
 x
@@ -37,7 +37,39 @@ x
 3
 2
 connection master;
-create or replace table t1 (x int primary key) engine = innodb;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1;
+x
+1
+select * from t1 for system_time all;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1;
+x
+2
+select * from t1 for system_time all;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1;
+x
+select * from t1 for system_time all;
+x
+1
+2
+connection master;
+create or replace table t1 (x int);
 connection slave;
 alter table t1 with system versioning;
 connection master;
@@ -49,30 +81,6 @@ x
 2
 select * from t1 for system_time all;
 x
-1
-2
-connection master;
-delete from t1;
-connection slave;
-select * from t1;
-x
-select * from t1 for system_time all;
-x
-1
-2
-connection master;
-create or replace table t1 (x int) engine = innodb;
-connection slave;
-alter table t1 with system versioning;
-connection master;
-insert into t1 values (1);
-update t1 set x= 2 where x = 1;
-connection slave;
-select * from t1;
-x
-2
-select * from t1 for system_time all;
-x
 2
 1
 connection master;
@@ -85,42 +93,26 @@ x
 2
 1
 connection master;
-create or replace table t1 (x int primary key) with system versioning engine = innodb;
-connection slave;
-alter table t1 without system versioning;
-connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
 insert into t1 values (1);
-update t1 set x= 2 where x = 1;
-select * from t1 for system_time all;
-x
-1
-2
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
 connection slave;
 select * from t1;
 x
-2
-connection master;
-delete from t1;
+11
+select * from t2;
+x
+22
 select * from t1 for system_time all;
 x
+11
 1
-2
-connection slave;
-select * from t1;
+select * from t2 for system_time all;
 x
-connection master;
-create or replace table t1 (a int) with system versioning engine = innodb;
-insert into t1 values (1);
-update t1 set a=2;
-select * from t1 for system_time all;
-a
+22
 2
-1
-connection slave;
-select * from t1 for system_time all;
-a
-2
-1
 connection master;
-drop table t1;
+drop table t1, t2;
 include/rpl_end.inc

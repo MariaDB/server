@@ -270,14 +270,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     TABLE *table= table_list->table;
     DBUG_ASSERT(table);
 
-    if (table->versioned_by_engine() &&
-        table->file->check_table_binlog_row_based(1))
-    {
-      my_error(ER_VERS_NOT_ALLOWED, MYF(0),
-               "TRUNCATE FOR SYSTEM_TIME with row-based replication");
-      DBUG_RETURN(TRUE);
-    }
-
     DBUG_ASSERT(!conds);
     if (vers_setup_select(thd, table_list, &conds, select_lex))
       DBUG_RETURN(TRUE);
@@ -724,6 +716,8 @@ cleanup:
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
 
+      ScopedStatementReplication scoped_stmt_rpl(
+          table->versioned_by_engine() ? thd : NULL);
       /*
         [binlog]: If 'handler::delete_all_rows()' was called and the
         storage engine does not inject the rows itself, we replicate

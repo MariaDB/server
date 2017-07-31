@@ -6052,6 +6052,24 @@ public:
   }
 };
 
+class ScopedStatementReplication
+{
+public:
+  ScopedStatementReplication(THD *thd) : thd(thd)
+  {
+    if (thd)
+      saved_binlog_format= thd->set_current_stmt_binlog_format_stmt();
+  }
+  ~ScopedStatementReplication()
+  {
+    if (thd)
+      thd->restore_stmt_binlog_format(saved_binlog_format);
+  }
+
+private:
+  enum_binlog_format saved_binlog_format;
+  THD *thd;
+};
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

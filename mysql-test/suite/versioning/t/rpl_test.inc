@@ -8,7 +8,7 @@ let $slave_com_delete_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_delet
 let $slave_com_update_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_update', Value, 1);
 
 connection master;
-CREATE TABLE t1 (x int) with system versioning ENGINE = innodb;
+CREATE TABLE t1 (x int) with system versioning;
 insert into t1 values (1);
 SELECT * FROM t1;
 delete from t1;
@@ -31,12 +31,17 @@ select * from t1 for system_time all;
 
 # check unversioned -> versioned replication
 connection master;
-create or replace table t1 (x int primary key) engine = innodb;
+create or replace table t1 (x int primary key);
 sync_slave_with_master;
 alter table t1 with system versioning;
 
 connection master;
 insert into t1 values (1);
+sync_slave_with_master;
+select * from t1;
+select * from t1 for system_time all;
+
+connection master;
 update t1 set x= 2 where x = 1;
 sync_slave_with_master;
 select * from t1;
@@ -50,7 +55,7 @@ select * from t1 for system_time all;
 
 # same thing (UPDATE, DELETE), but without PK
 connection master;
-create or replace table t1 (x int) engine = innodb;
+create or replace table t1 (x int);
 sync_slave_with_master;
 alter table t1 with system versioning;
 
@@ -67,35 +72,19 @@ sync_slave_with_master;
 select * from t1;
 select * from t1 for system_time all;
 
-# same thing, but reverse: versioned -> unversioned
+# multi-update
 connection master;
-create or replace table t1 (x int primary key) with system versioning engine = innodb;
-sync_slave_with_master;
-alter table t1 without system versioning;
-
-connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
 insert into t1 values (1);
-update t1 set x= 2 where x = 1;
-select * from t1 for system_time all;
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
 sync_slave_with_master;
 select * from t1;
+select * from t2;
+select * from t1 for system_time all;
+select * from t2 for system_time all;
+
 
 connection master;
-delete from t1;
-select * from t1 for system_time all;
-sync_slave_with_master;
-select * from t1;
-
-# at this point in this particular test master and slave have different curr_trx_id
-# and the same rows have different sys_trx_start
-# slave should ignore sys_trx_start while searching for a record to update in a InnoDB table
-connection master;
-create or replace table t1 (a int) with system versioning engine = innodb;
-insert into t1 values (1);
-update t1 set a=2;
-select * from t1 for system_time all;
-sync_slave_with_master;
-select * from t1 for system_time all;
-
-connection master;
-drop table t1;
+drop table t1, t2;

@@ -5697,6 +5697,8 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
 
 bool handler::check_table_binlog_row_based(bool binlog_row)
 {
+  if (table->versioned_by_engine())
+    return false;
   if (unlikely((table->in_use->variables.sql_log_bin_off)))
     return 0;                            /* Called by partitioning engine */
   if (unlikely((!check_table_binlog_row_based_done)))
