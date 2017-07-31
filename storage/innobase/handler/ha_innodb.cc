@@ -11005,6 +11005,8 @@ ha_innobase::ft_end()
 	ib::info() << "ft_end()";
 
 	rnd_end();
+
+  ha_ft_end();
 }
 #ifdef WITH_WSREP
 extern dict_index_t*

@@ -31,6 +31,18 @@ enum partition_keywords
 #define PARTITION_BYTES_IN_POS 2
 
 
+class ha_partition;
+
+/* Partition Full Text Search info */
+struct st_partition_ft_info
+{
+  struct _ft_vft        *please;
+  st_partition_ft_info  *next;
+  ha_partition          *file;
+  FT_INFO               **part_ft_info;
+};
+
+
 typedef struct st_partition_bulk_access_info
 {
   uint                          sequence_num;
@@ -1032,7 +1044,7 @@ public:
     special file for handling names of partitions, engine types.
     HA_REC_NOT_IN_SEQ is always set for partition handler since we cannot
     guarantee that the records will be returned in sequence.
-    HA_CAN_FULLTEXT, HA_DUPLICATE_POS,
+    HA_DUPLICATE_POS,
     HA_CAN_INSERT_DELAYED, HA_PRIMARY_KEY_REQUIRED_FOR_POSITION is disabled
     until further investigated.
   */
@@ -1245,14 +1257,20 @@ public:
     -------------------------------------------------------------------------
     MODULE fulltext index
     -------------------------------------------------------------------------
-    Fulltext stuff not yet.
-    -------------------------------------------------------------------------
-    virtual int ft_init() { return HA_ERR_WRONG_COMMAND; }
-    virtual FT_INFO *ft_init_ext(uint flags,uint inx,const uchar *key,
-    uint keylen)
-    { return NULL; }
-    virtual int ft_read(uchar *buf) { return HA_ERR_WRONG_COMMAND; }
   */
+    st_partition_ft_info *ft_first;
+    st_partition_ft_info *ft_current;
+    bool m_ft_init_and_first;
+    virtual float ft_find_relevance(FT_INFO *handler,
+                                    uchar *record, uint length);
+    virtual float ft_get_relevance(FT_INFO *handler);
+    void ft_close_search(FT_INFO *handler);
+    virtual int ft_init();
+    virtual int pre_ft_init();
+    virtual void ft_end();
+    virtual int pre_ft_end();
+    virtual FT_INFO *ft_init_ext(uint flags, uint inx, String *key);
+    virtual int ft_read(uchar *buf);
 
   /*
      -------------------------------------------------------------------------
