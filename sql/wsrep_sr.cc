@@ -204,7 +204,7 @@ bool SR_pool::remove(THD* caller, THD *victim, bool persistent)
   WSREP_DEBUG("sr_pool remove for THD %lld, persistent: %d",
               (victim) ? victim->thread_id : -1, persistent);
 
-  for( si = pool_.begin(); si != pool_.end(); ++si )
+  for (si = pool_.begin(); si != pool_.end();)
   {
     trx_pool_t& trx_pool(si->second);
 
@@ -233,8 +233,7 @@ bool SR_pool::remove(THD* caller, THD *victim, bool persistent)
         ti++;
       }
 
-    }
-    assert(victim || trx_pool.empty());
+    pool_.erase(si++);
   }
   if (mysql_mutex_unlock (&LOCK_wsrep_SR_pool)) abort();
   return (ret);
