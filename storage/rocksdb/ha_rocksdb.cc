@@ -164,8 +164,10 @@ Rdb_cf_manager cf_manager;
 Rdb_ddl_manager ddl_manager;
 const char *m_mysql_gtid;
 Rdb_binlog_manager binlog_manager;
-Rdb_io_watchdog *io_watchdog = nullptr;
 
+#ifndef _WIN32 
+Rdb_io_watchdog *io_watchdog = nullptr;
+#endif
 /**
   MyRocks background thread control
   N.B. This is besides RocksDB's own background threads
@@ -544,15 +546,18 @@ static void rocksdb_set_io_write_timeout(
     void *const var_ptr MY_ATTRIBUTE((__unused__)), const void *const save) {
   DBUG_ASSERT(save != nullptr);
   DBUG_ASSERT(rdb != nullptr);
+#ifndef _WIN32
   DBUG_ASSERT(io_watchdog != nullptr);
+#endif
 
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
 
   const uint32_t new_val = *static_cast<const uint32_t *>(save);
 
   rocksdb_io_write_timeout_secs = new_val;
+#ifndef _WIN32
   io_watchdog->reset_timeout(rocksdb_io_write_timeout_secs);
-
+#endif
   RDB_MUTEX_UNLOCK_CHECK(rdb_sysvars_mutex);
 }
 
@@ -3971,8 +3976,10 @@ static int rocksdb_init_func(void *const p) {
     directories.push_back(myrocks::rocksdb_wal_dir);
   }
 
+#ifndef _WIN32
   io_watchdog = new Rdb_io_watchdog(directories);
   io_watchdog->reset_timeout(rocksdb_io_write_timeout_secs);
+#endif
 
   // NO_LINT_DEBUG
   sql_print_information("MyRocks storage engine plugin has been successfully "
@@ -4061,8 +4068,10 @@ static int rocksdb_done_func(void *const p) {
   delete commit_latency_stats;
   commit_latency_stats = nullptr;
 
+#ifndef _WIN32
   delete io_watchdog;
   io_watchdog = nullptr;
+#endif
 
 // Disown the cache data since we're shutting down.
 // This results in memory leaks but it improved the shutdown time.
