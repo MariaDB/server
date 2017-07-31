@@ -17,7 +17,10 @@
 #ifndef _SP_H_
 #define _SP_H_
 
+#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_string.h"                         // LEX_STRING
+#include "sql_cmd.h"
+#include "mdl.h"
 
 class Field;
 class Open_tables_backup;
@@ -28,8 +31,10 @@ class Sroutine_hash_entry;
 class THD;
 class sp_cache;
 class sp_head;
-class sp_name;
+class sp_pcontext;
+class Database_qualified_name;
 struct st_sp_chistics;
+class Stored_program_creation_ctx;
 struct LEX;
 struct TABLE;
 struct TABLE_LIST;
@@ -49,18 +54,267 @@ enum stored_procedure_type
 };
 
 
-static inline const char *
-stored_procedure_type_to_str(enum stored_procedure_type type)
+class Sp_handler
+{
+  int db_find_routine_aux(THD *thd, const Database_qualified_name *name,
+                          TABLE *table) const;
+  int db_find_routine(THD *thd, const Database_qualified_name *name,
+                      sp_head **sphp) const;
+  int db_load_routine(THD *thd, const Database_qualified_name *name,
+                      sp_head **sphp,
+                      sql_mode_t sql_mode,
+                      const LEX_CSTRING &params,
+                      const LEX_CSTRING &returns,
+                      const LEX_CSTRING &body,
+                      const st_sp_chistics &chistics,
+                      const AUTHID &definer,
+                      longlong created, longlong modified,
+                      Stored_program_creation_ctx *creation_ctx) const;
+  int sp_drop_routine_internal(THD *thd,
+                               const Database_qualified_name *name,
+                               TABLE *table) const;
+public:
+  static const Sp_handler *handler(enum enum_sql_command cmd);
+  static const Sp_handler *handler(stored_procedure_type type);
+  static const Sp_handler *handler(MDL_key::enum_mdl_namespace ns);
+  const char *type_str() const { return type_lex_cstring().str; }
+  virtual const char *show_create_routine_col1_caption() const
+  {
+    DBUG_ASSERT(0);
+    return "";
+  }
+  virtual const char *show_create_routine_col3_caption() const
+  {
+    DBUG_ASSERT(0);
+    return "";
+  }
+  virtual stored_procedure_type type() const= 0;
+  virtual LEX_CSTRING type_lex_cstring() const= 0;
+  virtual LEX_CSTRING empty_body_lex_cstring() const
+  {
+    static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("???")};
+    DBUG_ASSERT(0);
+    return m_empty_body;
+  }
+  virtual MDL_key::enum_mdl_namespace get_mdl_type() const= 0;
+  virtual sp_cache **get_cache(THD *) const { return NULL; }
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  virtual HASH *get_priv_hash() const { return NULL; }
+#endif
+  virtual ulong recursion_depth(THD *thd) const { return 0; }
+  /**
+    Return appropriate error about recursion limit reaching
+
+    @param thd  Thread handle
+    @param sp   SP routine
+
+    @remark For functions and triggers we return error about
+            prohibited recursion. For stored procedures we
+            return about reaching recursion limit.
+  */
+  virtual void recursion_level_error(THD *thd, const sp_head *sp) const
+  {
+    my_error(ER_SP_NO_RECURSION, MYF(0));
+  }
+  virtual bool add_instr_freturn(THD *thd, sp_head *sp,
+                                 sp_pcontext *spcont,
+                                 Item *item, LEX *lex) const;
+  virtual bool add_instr_preturn(THD *thd, sp_head *sp,
+                                 sp_pcontext *spcont) const;
+
+  void add_used_routine(Query_tables_list *prelocking_ctx,
+                        Query_arena *arena,
+                        const Database_qualified_name *rt) const;
+
+  sp_head *sp_find_routine(THD *thd, const Database_qualified_name *name,
+                           bool cache_only) const;
+  int sp_cache_routine(THD *thd, const Database_qualified_name *name,
+                       bool lookup_only, sp_head **sp) const;
+
+  bool sp_exist_routines(THD *thd, TABLE_LIST *procs) const;
+  bool sp_show_create_routine(THD *thd,
+                              const Database_qualified_name *name) const;
+
+  bool sp_create_routine(THD *thd, const sp_head *sp) const;
+
+  int sp_update_routine(THD *thd, const Database_qualified_name *name,
+                        const st_sp_chistics *chistics) const;
+
+  int sp_drop_routine(THD *thd, const Database_qualified_name *name) const;
+
+  sp_head *sp_load_for_information_schema(THD *thd, TABLE *proc_table,
+                                          const LEX_CSTRING &db,
+                                          const LEX_CSTRING &name,
+                                          const LEX_CSTRING &params,
+                                          const LEX_CSTRING &returns,
+                                          sql_mode_t sql_mode,
+                                          bool *free_sp_head) const;
+
+  bool show_create_sp(THD *thd, String *buf,
+                      const LEX_CSTRING &db,
+                      const LEX_CSTRING &name,
+                      const LEX_CSTRING &params,
+                      const LEX_CSTRING &returns,
+                      const LEX_CSTRING &body,
+                      const st_sp_chistics &chistics,
+                      const AUTHID &definer,
+                      sql_mode_t sql_mode) const;
+};
+
+
+class Sp_handler_procedure: public Sp_handler
+{
+public:
+  stored_procedure_type type() const { return TYPE_ENUM_PROCEDURE; }
+  LEX_CSTRING type_lex_cstring() const
+  {
+    static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("PROCEDURE")};
+    return m_type_str;
+  }
+  LEX_CSTRING empty_body_lex_cstring() const
+  {
+    static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("BEGIN END")};
+    return m_empty_body;
+  }
+  const char *show_create_routine_col1_caption() const
+  {
+    return "Procedure";
+  }
+  const char *show_create_routine_col3_caption() const
+  {
+    return "Create Procedure";
+  }
+  MDL_key::enum_mdl_namespace get_mdl_type() const
+  {
+    return MDL_key::PROCEDURE;
+  }
+  sp_cache **get_cache(THD *) const;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  HASH *get_priv_hash() const;
+#endif
+  ulong recursion_depth(THD *thd) const;
+  void recursion_level_error(THD *thd, const sp_head *sp) const;
+  bool add_instr_preturn(THD *thd, sp_head *sp, sp_pcontext *spcont) const;
+};
+
+
+class Sp_handler_function: public Sp_handler
+{
+public:
+  stored_procedure_type type() const { return TYPE_ENUM_FUNCTION; }
+  LEX_CSTRING type_lex_cstring() const
+  {
+    static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("FUNCTION")};
+    return m_type_str;
+  }
+  LEX_CSTRING empty_body_lex_cstring() const
+  {
+    static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("RETURN NULL")};
+    return m_empty_body;
+  }
+  const char *show_create_routine_col1_caption() const
+  {
+    return "Function";
+  }
+  const char *show_create_routine_col3_caption() const
+  {
+    return "Create Function";
+  }
+  MDL_key::enum_mdl_namespace get_mdl_type() const
+  {
+    return MDL_key::FUNCTION;
+  }
+  sp_cache **get_cache(THD *) const;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  HASH *get_priv_hash() const;
+#endif
+  bool add_instr_freturn(THD *thd, sp_head *sp, sp_pcontext *spcont,
+                         Item *item, LEX *lex) const;
+};
+
+
+class Sp_handler_trigger: public Sp_handler
+{
+public:
+  stored_procedure_type type() const { return TYPE_ENUM_TRIGGER; }
+  LEX_CSTRING type_lex_cstring() const
+  {
+    static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("TRIGGER")};
+    return m_type_str;
+  }
+  MDL_key::enum_mdl_namespace get_mdl_type() const
+  {
+    DBUG_ASSERT(0);
+    return MDL_key::TRIGGER;
+  }
+};
+
+
+extern MYSQL_PLUGIN_IMPORT Sp_handler_function sp_handler_function;
+extern MYSQL_PLUGIN_IMPORT Sp_handler_procedure sp_handler_procedure;
+extern MYSQL_PLUGIN_IMPORT Sp_handler_trigger sp_handler_trigger;
+
+
+inline const Sp_handler *Sp_handler::handler(enum_sql_command cmd)
+{
+  switch (cmd) {
+  case SQLCOM_CREATE_PROCEDURE:
+  case SQLCOM_ALTER_PROCEDURE:
+  case SQLCOM_DROP_PROCEDURE:
+  case SQLCOM_SHOW_PROC_CODE:
+  case SQLCOM_SHOW_CREATE_PROC:
+  case SQLCOM_SHOW_STATUS_PROC:
+    return &sp_handler_procedure;
+  case SQLCOM_CREATE_SPFUNCTION:
+  case SQLCOM_ALTER_FUNCTION:
+  case SQLCOM_DROP_FUNCTION:
+  case SQLCOM_SHOW_FUNC_CODE:
+  case SQLCOM_SHOW_CREATE_FUNC:
+  case SQLCOM_SHOW_STATUS_FUNC:
+    return &sp_handler_function;
+  default:
+    break;
+  }
+  return NULL;
+}
+
+
+inline const Sp_handler *Sp_handler::handler(stored_procedure_type type)
 {
   switch (type) {
-  case TYPE_ENUM_PROCEDURE: return "PROCEDURE";
-  case TYPE_ENUM_FUNCTION:  return "FUNCTION";
-  case TYPE_ENUM_TRIGGER:   return "TRIGGER";
-  case TYPE_ENUM_PROXY:     return "PROXY";
+  case TYPE_ENUM_PROCEDURE:
+    return &sp_handler_procedure;
+  case TYPE_ENUM_FUNCTION:
+    return &sp_handler_function;
+  case TYPE_ENUM_TRIGGER:
+    return &sp_handler_trigger;
+  case TYPE_ENUM_PROXY:
+    break;
   }
-  DBUG_ASSERT(0);
-  return "UNKNOWN_STORED_"; 
+  return NULL;
 }
+
+
+inline const Sp_handler *Sp_handler::handler(MDL_key::enum_mdl_namespace type)
+{
+  switch (type) {
+  case MDL_key::FUNCTION:
+    return &sp_handler_function;
+  case MDL_key::PROCEDURE:
+    return &sp_handler_procedure;
+  case MDL_key::GLOBAL:
+  case MDL_key::SCHEMA:
+  case MDL_key::TABLE:
+  case MDL_key::TRIGGER:
+  case MDL_key::EVENT:
+  case MDL_key::COMMIT:
+  case MDL_key::USER_LOCK:
+  case MDL_key::NAMESPACE_END:
+    break;
+  }
+  return NULL;
+}
+
 
 /* Tells what SP_DEFAULT_ACCESS should be mapped to */
 #define SP_DEFAULT_ACCESS_MAPPING SP_CONTAINS_SQL
@@ -121,36 +375,6 @@ sp_drop_db_routines(THD *thd, const char *db);
  */
 bool lock_db_routines(THD *thd, const char *db);
 
-sp_head *
-sp_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
-                sp_cache **cp, bool cache_only);
-
-int
-sp_cache_routine(THD *thd, Sroutine_hash_entry *rt,
-                 bool lookup_only, sp_head **sp);
-
-
-int
-sp_cache_routine(THD *thd, stored_procedure_type type, const sp_name *name,
-                 bool lookup_only, sp_head **sp);
-
-bool
-sp_exist_routines(THD *thd, TABLE_LIST *procs, bool is_proc);
-
-bool
-sp_show_create_routine(THD *thd, stored_procedure_type type, const sp_name *name);
-
-bool
-sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp);
-
-int
-sp_update_routine(THD *thd, stored_procedure_type type, const sp_name *name,
-                  const st_sp_chistics *chistics);
-
-int
-sp_drop_routine(THD *thd, stored_procedure_type type, const sp_name *name);
-
-
 /**
   Structure that represents element in the set of stored routines
   used by statement or routine.
@@ -185,14 +409,11 @@ public:
     changes.
   */
   ulong m_sp_cache_version;
+
+  int sp_cache_routine(THD *thd, bool lookup_only, sp_head **sp) const;
 };
 
 
-/*
-  Procedures for handling sets of stored routines used by statement or routine.
-*/
-void sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
-                         const sp_name *rt, stored_procedure_type rt_type);
 bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
                          const MDL_key *key, TABLE_LIST *belong_to_view);
 void sp_remove_not_own_routines(Query_tables_list *prelocking_ctx);
@@ -212,13 +433,6 @@ extern "C" uchar* sp_sroutine_key(const uchar *ptr, size_t *plen,
 */
 TABLE *open_proc_table_for_read(THD *thd, Open_tables_backup *backup);
 
-sp_head *
-sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
-                               String *name, sql_mode_t sql_mode,
-                               stored_procedure_type type,
-                               const char *returns, const char *params,
-                               bool *free_sp_head);
-
 bool load_charset(MEM_ROOT *mem_root,
                   Field *field,
                   CHARSET_INFO *dflt_cs,
@@ -231,17 +445,6 @@ bool load_collation(MEM_ROOT *mem_root,
 
 void sp_returns_type(THD *thd,
                      String &result,
-                     sp_head *sp);
+                     const sp_head *sp);
 
-bool show_create_sp(THD *thd, String *buf,
-              stored_procedure_type type,
-              const char *db, ulong dblen,
-              const char *name, ulong namelen,
-              const char *params, ulong paramslen,
-              const char *returns, ulong returnslen,
-              const char *body, ulong bodylen,
-              const st_sp_chistics &chistics,
-              const LEX_CSTRING *definer_user,
-              const LEX_CSTRING *definer_host,
-	      sql_mode_t sql_mode);
 #endif /* _SP_H_ */

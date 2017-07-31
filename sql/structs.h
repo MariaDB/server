@@ -221,6 +221,8 @@ struct AUTHID
       l->length= strxmov(buf, user.str, "@", host.str, NullS) - buf;
     }
   }
+  void parse(const char *str, size_t length);
+  bool read_from_mysql_proc_row(THD *thd, TABLE *table);
 };
 
 

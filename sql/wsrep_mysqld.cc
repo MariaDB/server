@@ -2236,26 +2236,23 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
   sp_head *sp = thd->lex->sphead;
   sql_mode_t saved_mode= thd->variables.sql_mode;
   String retstr(64);
+  LEX_CSTRING returns= empty_clex_str;
   retstr.set_charset(system_charset_info);
 
   log_query.set_charset(system_charset_info);
 
-  if (sp->m_type == TYPE_ENUM_FUNCTION)
+  if (sp->m_handler->type() == TYPE_ENUM_FUNCTION)
   {
     sp_returns_type(thd, retstr, sp);
+    returns= retstr.lex_cstring();
   }
 
-  if (!show_create_sp(thd, &log_query,
-                     sp->m_type,
-                     (sp->m_explicit_name ? sp->m_db.str : NULL),
-                     (sp->m_explicit_name ? sp->m_db.length : 0),
-                     sp->m_name.str, sp->m_name.length,
-                     sp->m_params.str, sp->m_params.length,
-                     retstr.c_ptr(), retstr.length(),
-                     sp->m_body.str, sp->m_body.length,
-                     sp->chistics(), &(thd->lex->definer->user),
-                     &(thd->lex->definer->host),
-                     saved_mode))
+  if (!sp->m_handler->
+       show_create_sp(thd, &log_query,
+                      sp->m_explicit_name ? sp->m_db : null_clex_str,
+                      sp->m_name, sp->m_params, returns,
+                      sp->m_body, sp->chistics(), thd->lex->definer[0],
+                      saved_mode))
   {
     WSREP_WARN("SP create string failed: schema: %s, query: %s",
                (thd->db ? thd->db : "(null)"), thd->query());

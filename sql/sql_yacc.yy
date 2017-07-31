@@ -2948,7 +2948,7 @@ ev_sql_stmt:
               my_yyabort_error((ER_EVENT_RECURSION_FORBIDDEN, MYF(0)));
               
             if (!lex->make_sp_head(thd, lex->event_parse_data->identifier,
-                                        TYPE_ENUM_PROCEDURE))
+                                        &sp_handler_procedure))
               MYSQL_YYABORT;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
@@ -3046,7 +3046,7 @@ call:
             lex->sql_command= SQLCOM_CALL;
             lex->spname= $2;
             lex->value_list.empty();
-            sp_add_used_routine(lex, thd, $2, TYPE_ENUM_PROCEDURE);
+            sp_handler_procedure.add_used_routine(lex, thd, $2);
           }
           opt_sp_cparam_list {}
         ;
@@ -3880,20 +3880,9 @@ sp_proc_stmt_return:
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
-
-            if (sp->m_type != TYPE_ENUM_FUNCTION)
-              my_yyabort_error((ER_SP_BADRETURN, MYF(0)));
-
-            sp_instr_freturn *i;
-
-            i= new (thd->mem_root)
-                 sp_instr_freturn(sp->instructions(), lex->spcont, $3,
-                                  sp->m_return_field_def.type_handler(), lex);
-            if (i == NULL || sp->add_instr(i))
-              MYSQL_YYABORT;
-            sp->m_flags|= sp_head::HAS_RETURN;
-
-            if (sp->restore_lex(thd))
+            if (sp->m_handler->add_instr_freturn(thd, sp, lex->spcont,
+                                                 $3, lex) ||
+                sp->restore_lex(thd))
               MYSQL_YYABORT;
           }
         ;
@@ -16607,7 +16596,7 @@ trigger_tail:
             (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($17);
             lex->trg_chistics.ordering_clause_end= lip->get_cpp_ptr();
 
-            if (!lex->make_sp_head(thd, $4, TYPE_ENUM_TRIGGER))
+            if (!lex->make_sp_head(thd, $4, &sp_handler_trigger))
               MYSQL_YYABORT;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
@@ -16681,7 +16670,7 @@ sf_tail:
           sp_name
           {
             if (!Lex->make_sp_head_no_recursive(thd, $1, $2,
-                                                TYPE_ENUM_FUNCTION))
+                                                &sp_handler_function))
               MYSQL_YYABORT;
           }
           sp_parenthesized_fdparam_list
@@ -16716,7 +16705,7 @@ sp_tail:
           opt_if_not_exists sp_name
           {
             if (!Lex->make_sp_head_no_recursive(thd, $1, $2,
-                                                TYPE_ENUM_PROCEDURE))
+                                                &sp_handler_procedure))
               MYSQL_YYABORT;
           }
           sp_parenthesized_pdparam_list
