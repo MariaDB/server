@@ -2040,13 +2040,14 @@ static int mysql_test_show_binlogs(Prepared_statement *stmt)
     TRUE              error, error message is set in THD
 */
 
-static int mysql_test_show_create_routine(Prepared_statement *stmt, int type)
+static int mysql_test_show_create_routine(Prepared_statement *stmt,
+                                          const Sp_handler *sph)
 {
   DBUG_ENTER("mysql_test_show_binlogs");
   THD *thd= stmt->thd;
   List<Item> fields;
 
-  sp_head::show_create_routine_get_fields(thd, type, &fields);
+  sp_head::show_create_routine_get_fields(thd, sph, &fields);
     
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
@@ -2436,14 +2437,14 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
 #endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE_PROC:
-    if ((res= mysql_test_show_create_routine(stmt, TYPE_ENUM_PROCEDURE)) == 2)
+    if ((res= mysql_test_show_create_routine(stmt, &sp_handler_procedure)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
     }
     break;
   case SQLCOM_SHOW_CREATE_FUNC:
-    if ((res= mysql_test_show_create_routine(stmt, TYPE_ENUM_FUNCTION)) == 2)
+    if ((res= mysql_test_show_create_routine(stmt, &sp_handler_function)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);

@@ -6264,8 +6264,7 @@ Item_func_sp::init_result_field(THD *thd)
   DBUG_ASSERT(m_sp == NULL);
   DBUG_ASSERT(sp_result_field == NULL);
 
-  if (!(m_sp= sp_find_routine(thd, TYPE_ENUM_FUNCTION, m_name,
-                               &thd->sp_func_cache, TRUE)))
+  if (!(m_sp= sp_handler_function.sp_find_routine(thd, m_name, true)))
   {
     my_missing_function_error (m_name->m_name, ErrConvDQName(m_name).ptr());
     context->process_error(thd);
@@ -6514,7 +6513,8 @@ Item_func_sp::sp_check_access(THD *thd)
   DBUG_ENTER("Item_func_sp::sp_check_access");
   DBUG_ASSERT(m_sp);
   if (check_routine_access(thd, EXECUTE_ACL,
-			   m_sp->m_db.str, m_sp->m_name.str, 0, FALSE))
+                           m_sp->m_db.str, m_sp->m_name.str,
+                           &sp_handler_function, false))
     DBUG_RETURN(TRUE);
 
   DBUG_RETURN(FALSE);
@@ -6540,7 +6540,8 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
       thd->security_ctx= context->security_ctx;
 
     res= check_routine_access(thd, EXECUTE_ACL, m_name->m_db.str,
-                              m_name->m_name.str, 0, FALSE);
+                              m_name->m_name.str,
+                              &sp_handler_function, false);
     thd->security_ctx= save_security_ctx;
 
     if (res)
@@ -6583,7 +6584,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
       Try to set and restore the security context to see whether it's valid
     */
     Security_context *save_secutiry_ctx;
-    res= set_routine_security_ctx(thd, m_sp, false, &save_secutiry_ctx);
+    res= set_routine_security_ctx(thd, m_sp, &save_secutiry_ctx);
     if (!res)
       m_sp->m_security_ctx.restore_security_context(thd, save_secutiry_ctx);
     

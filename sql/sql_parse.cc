@@ -2937,13 +2937,13 @@ static int mysql_create_routine(THD *thd, LEX *lex)
   {
     if (check_routine_access(thd, ALTER_PROC_ACL, lex->sphead->m_db.str,
                              lex->sphead->m_name.str,
-                             lex->sql_command == SQLCOM_CREATE_PROCEDURE, 0))
+                             Sp_handler::handler(lex->sql_command), 0))
       return true;
   }
 
   const LEX_CSTRING *name= lex->sphead->name();
 #ifdef HAVE_DLOPEN
-  if (lex->sphead->m_type == TYPE_ENUM_FUNCTION)
+  if (lex->sphead->m_handler->type() == TYPE_ENUM_FUNCTION)
   {
     udf_func *udf = find_udf(name->str, name->length);
 
@@ -2959,7 +2959,7 @@ static int mysql_create_routine(THD *thd, LEX *lex)
     return true;
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-  if (!sp_create_routine(thd, lex->sphead->m_type, lex->sphead))
+  if (!lex->sphead->m_handler->sp_create_routine(thd, lex->sphead))
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* only add privileges if really neccessary */
@@ -3006,10 +3006,10 @@ static int mysql_create_routine(THD *thd, LEX *lex)
     if (sp_automatic_privileges && !opt_noacl &&
         check_routine_access(thd, DEFAULT_CREATE_PROC_ACLS,
                              lex->sphead->m_db.str, name->str,
-                             lex->sql_command == SQLCOM_CREATE_PROCEDURE, 1))
+                             Sp_handler::handler(lex->sql_command), 1))
     {
       if (sp_grant_privileges(thd, lex->sphead->m_db.str, name->str,
-                              lex->sql_command == SQLCOM_CREATE_PROCEDURE))
+                              Sp_handler::handler(lex->sql_command)))
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                      ER_PROC_AUTO_GRANT_FAIL, ER_THD(thd, ER_PROC_AUTO_GRANT_FAIL));
       thd->clear_error();
@@ -5353,16 +5353,16 @@ end_with_restore_list:
       if (lex->type == TYPE_ENUM_PROCEDURE ||
           lex->type == TYPE_ENUM_FUNCTION)
       {
+        const Sp_handler *sph= Sp_handler::handler((stored_procedure_type)
+                                                   lex->type);
         uint grants= lex->all_privileges 
 		   ? (PROC_ACLS & ~GRANT_ACL) | (lex->grant & GRANT_ACL)
 		   : lex->grant;
-        if (check_grant_routine(thd, grants | GRANT_ACL, all_tables,
-                                lex->type == TYPE_ENUM_PROCEDURE, 0))
+        if (check_grant_routine(thd, grants | GRANT_ACL, all_tables, sph, 0))
 	  goto error;
         /* Conditionally writes to binlog */
         WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-        res= mysql_routine_grant(thd, all_tables,
-                                 lex->type == TYPE_ENUM_PROCEDURE, 
+        res= mysql_routine_grant(thd, all_tables, sph,
                                  lex->users_list, grants,
                                  lex->sql_command == SQLCOM_REVOKE, TRUE);
         if (!res)
@@ -5768,15 +5768,15 @@ end_with_restore_list:
        goto error;
 
       if (check_routine_access(thd, EXECUTE_ACL, lex->spname->m_db.str,
-                               lex->spname->m_name.str, TRUE, FALSE))
+                               lex->spname->m_name.str, &sp_handler_procedure,
+                               false))
         goto error;
 
       /*
         By this moment all needed SPs should be in cache so no need to look 
         into DB. 
       */
-      if (!(sp= sp_find_routine(thd, TYPE_ENUM_PROCEDURE, lex->spname,
-                                &thd->sp_proc_cache, TRUE)))
+      if (!(sp= sp_handler_procedure.sp_find_routine(thd, lex->spname, true)))
       {
         /*
           sp_find_routine can have issued an ER_SP_RECURSION_LIMIT error.
@@ -5821,13 +5821,9 @@ end_with_restore_list:
   case SQLCOM_ALTER_FUNCTION:
     {
       int sp_result;
-      enum stored_procedure_type type;
-      type= (lex->sql_command == SQLCOM_ALTER_PROCEDURE ?
-                 TYPE_ENUM_PROCEDURE : TYPE_ENUM_FUNCTION);
-
+      const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
       if (check_routine_access(thd, ALTER_PROC_ACL, lex->spname->m_db.str,
-                               lex->spname->m_name.str,
-                               lex->sql_command == SQLCOM_ALTER_PROCEDURE, 0))
+                               lex->spname->m_name.str, sph, 0))
         goto error;
 
       /*
@@ -5837,7 +5833,7 @@ end_with_restore_list:
         already puts on CREATE FUNCTION.
       */
       /* Conditionally writes to binlog */
-      sp_result= sp_update_routine(thd, type, lex->spname, &lex->sp_chistics);
+      sp_result= sph->sp_update_routine(thd, lex->spname, &lex->sp_chistics);
       switch (sp_result)
       {
       case SP_OK:
@@ -5899,19 +5895,17 @@ end_with_restore_list:
 #endif
 
       int sp_result;
-      enum stored_procedure_type type;
-      type= (lex->sql_command == SQLCOM_DROP_PROCEDURE ?
-                 TYPE_ENUM_PROCEDURE : TYPE_ENUM_FUNCTION);
+      const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
       const char *db= lex->spname->m_db.str;
       const char *name= lex->spname->m_name.str;
 
       if (check_routine_access(thd, ALTER_PROC_ACL, db, name,
-                               lex->sql_command == SQLCOM_DROP_PROCEDURE, 0))
+                               Sp_handler::handler(lex->sql_command), 0))
         goto error;
       WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
       /* Conditionally writes to binlog */
-      sp_result= sp_drop_routine(thd, type, lex->spname);
+      sp_result= sph->sp_drop_routine(thd, lex->spname);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       /*
@@ -5935,7 +5929,7 @@ end_with_restore_list:
       if (sp_result != SP_KEY_NOT_FOUND &&
           sp_automatic_privileges && !opt_noacl &&
           sp_revoke_privileges(thd, db, name,
-                               lex->sql_command == SQLCOM_DROP_PROCEDURE))
+                               Sp_handler::handler(lex->sql_command)))
       {
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                      ER_PROC_AUTO_REVOKE_FAIL,
@@ -5973,21 +5967,14 @@ end_with_restore_list:
       break;
     }
   case SQLCOM_SHOW_CREATE_PROC:
-    {
-#ifdef WITH_WSREP
-      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
-#endif /* WITH_WSREP */
-      if (sp_show_create_routine(thd, TYPE_ENUM_PROCEDURE, lex->spname))
-        goto error;
-      break;
-    }
   case SQLCOM_SHOW_CREATE_FUNC:
     {
+      const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
 #ifdef WITH_WSREP
       if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
 #endif /* WITH_WSREP */
-      if (sp_show_create_routine(thd, TYPE_ENUM_FUNCTION, lex->spname))
-	goto error;
+      if (sph->sp_show_create_routine(thd, lex->spname))
+        goto error;
       break;
     }
   case SQLCOM_SHOW_PROC_CODE:
@@ -5995,13 +5982,11 @@ end_with_restore_list:
     {
 #ifndef DBUG_OFF
       sp_head *sp;
-      stored_procedure_type type= (lex->sql_command == SQLCOM_SHOW_PROC_CODE ?
-                 TYPE_ENUM_PROCEDURE : TYPE_ENUM_FUNCTION);
-
+      const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
 #ifdef WITH_WSREP
       if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
 #endif /* WITH_WSREP */
-      if (sp_cache_routine(thd, type, lex->spname, FALSE, &sp))
+      if (sph->sp_cache_routine(thd, lex->spname, false, &sp))
         goto error;
       if (!sp || sp->show_routine_code(thd))
       {
@@ -7061,7 +7046,7 @@ deny:
 bool
 check_routine_access(THD *thd, ulong want_access, const char *db,
                      const char *name,
-		     bool is_proc, bool no_errors)
+                     const Sp_handler *sph, bool no_errors)
 {
   TABLE_LIST tables[1];
   
@@ -7090,7 +7075,7 @@ check_routine_access(THD *thd, ulong want_access, const char *db,
                         0, no_errors))
     return TRUE;
   
-  return check_grant_routine(thd, want_access, tables, is_proc, no_errors);
+  return check_grant_routine(thd, want_access, tables, sph, no_errors);
 }
 
 
@@ -7108,7 +7093,7 @@ check_routine_access(THD *thd, ulong want_access, const char *db,
 */
 
 bool check_some_routine_access(THD *thd, const char *db, const char *name,
-                               bool is_proc)
+                               const Sp_handler *sph)
 {
   ulong save_priv;
   /*
@@ -7125,7 +7110,7 @@ bool check_some_routine_access(THD *thd, const char *db, const char *name,
   if (!check_access(thd, SHOW_PROC_ACLS, db, &save_priv, NULL, 0, 1) ||
       (save_priv & SHOW_PROC_ACLS))
     return FALSE;
-  return check_routine_level_acl(thd, db, name, is_proc);
+  return check_routine_level_acl(thd, db, name, sph);
 }
 
 

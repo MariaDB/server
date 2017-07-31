@@ -40,11 +40,6 @@
   @{
 */
 
-// Values for the type enum. This reflects the order of the enum declaration
-// in the CREATE TABLE command.
-//#define TYPE_ENUM_FUNCTION  1 #define TYPE_ENUM_PROCEDURE 2 #define
-//TYPE_ENUM_TRIGGER   3 #define TYPE_ENUM_PROXY     4
-
 Item::Type
 sp_map_item_type(enum enum_field_types type);
 
@@ -173,7 +168,7 @@ public:
     HAS_COLUMN_TYPE_REFS= 8192
   };
 
-  stored_procedure_type m_type;
+  const Sp_handler *m_handler;
   uint m_flags;                 // Boolean attributes of a stored routine
 
   Column_definition m_return_field_def; /**< This is used for FUNCTIONs only. */
@@ -220,7 +215,7 @@ public:
     m_sp_cache_version= version_arg;
   }
 
-  sp_rcontext *rcontext_create(THD *thd, bool is_proc, Field *ret_value);
+  sp_rcontext *rcontext_create(THD *thd, Field *retval);
 
 private:
   /**
@@ -317,7 +312,7 @@ public:
   static void
   operator delete(void *ptr, size_t size) throw ();
 
-  sp_head(stored_procedure_type type);
+  sp_head(const Sp_handler *handler);
 
   /// Initialize after we have reset mem_root
   void
@@ -325,7 +320,7 @@ public:
 
   /** Copy sp name from parser. */
   void
-  init_sp_name(THD *thd, sp_name *spname);
+  init_sp_name(THD *thd, const sp_name *spname);
 
   /** Set the body-definition start position. */
   void
@@ -350,10 +345,11 @@ public:
   execute_procedure(THD *thd, List<Item> *args);
 
   static void
-  show_create_routine_get_fields(THD *thd, int type, List<Item> *fields);
+  show_create_routine_get_fields(THD *thd, const Sp_handler *sph,
+                                 List<Item> *fields);
 
   bool
-  show_create_routine(THD *thd, int type);
+  show_create_routine(THD *thd, const Sp_handler *sph);
 
   MEM_ROOT *get_main_mem_root() { return &main_mem_root; }
 
@@ -375,6 +371,12 @@ public:
     return add_instr_jump_forward_with_backpatch(thd, spcont,
                                                  spcont->last_label());
   }
+
+  bool
+  add_instr_freturn(THD *thd, sp_pcontext *spcont, Item *item, LEX *lex);
+
+  bool
+  add_instr_preturn(THD *thd, sp_pcontext *spcont);
 
   Item *adjust_assignment_source(THD *thd, Item *val, Item *val2);
   /**
@@ -622,7 +624,7 @@ public:
   char *create_string(THD *thd, ulong *lenp);
 
   Field *create_result_field(uint field_max_length, const LEX_CSTRING *field_name,
-                             TABLE *table);
+                             TABLE *table) const;
 
 
   /**
@@ -717,8 +719,6 @@ public:
     represents the code, during flow analysis.
   */
   void add_mark_lead(uint ip, List<sp_instr> *leads);
-
-  void recursion_level_error(THD *thd);
 
   inline sp_instr *
   get_instr(uint i)
@@ -1864,8 +1864,7 @@ void
 sp_restore_security_context(THD *thd, Security_context *backup);
 
 bool
-set_routine_security_ctx(THD *thd, sp_head *sp, bool is_proc,
-                         Security_context **save_ctx);
+set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx);
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
 
 TABLE_LIST *

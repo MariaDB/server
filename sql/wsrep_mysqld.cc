@@ -2241,14 +2241,14 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 
   log_query.set_charset(system_charset_info);
 
-  if (sp->m_type == TYPE_ENUM_FUNCTION)
+  if (sp->m_handler->type() == TYPE_ENUM_FUNCTION)
   {
     sp_returns_type(thd, retstr, sp);
     returns= retstr.lex_cstring();
   }
 
-  if (!show_create_sp(thd, &log_query,
-                      sp->m_type,
+  if (!sp->m_handler->
+       show_create_sp(thd, &log_query,
                       sp->m_explicit_name ? sp->m_db : null_clex_str,
                       sp->m_name, sp->m_params, returns,
                       sp->m_body, sp->chistics(), thd->lex->definer[0],
