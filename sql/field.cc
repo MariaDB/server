@@ -10773,3 +10773,22 @@ void Field::register_field_in_read_map()
   }
   bitmap_set_bit(table->read_set, field_index);
 }
+
+
+bool Field::val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to)
+{
+  StringBuffer<MAX_FIELD_WIDTH> str;
+  bool rc= false;
+  THD *thd= get_thd();
+  sql_mode_t sql_mode_backup= thd->variables.sql_mode;
+  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+
+  val_str(&str);
+  if (!(to->length= str.length()))
+    *to= empty_clex_str;
+  else if ((rc= !(to->str= strmake_root(mem_root, str.ptr(), str.length()))))
+    to->length= 0;
+
+  thd->variables.sql_mode= sql_mode_backup;
+  return rc;
+}

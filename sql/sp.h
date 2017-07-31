@@ -213,10 +213,13 @@ extern "C" uchar* sp_sroutine_key(const uchar *ptr, size_t *plen,
 TABLE *open_proc_table_for_read(THD *thd, Open_tables_backup *backup);
 
 sp_head *
-sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
-                               String *name, sql_mode_t sql_mode,
+sp_load_for_information_schema(THD *thd, TABLE *proc_table,
                                stored_procedure_type type,
-                               const char *returns, const char *params,
+                               const LEX_CSTRING &db,
+                               const LEX_CSTRING &name,
+                               const LEX_CSTRING &params,
+                               const LEX_CSTRING &returns,
+                               sql_mode_t sql_mode,
                                bool *free_sp_head);
 
 bool load_charset(MEM_ROOT *mem_root,
@@ -234,14 +237,13 @@ void sp_returns_type(THD *thd,
                      sp_head *sp);
 
 bool show_create_sp(THD *thd, String *buf,
-              stored_procedure_type type,
-              const char *db, ulong dblen,
-              const char *name, ulong namelen,
-              const char *params, ulong paramslen,
-              const char *returns, ulong returnslen,
-              const char *body, ulong bodylen,
-              const st_sp_chistics &chistics,
-              const LEX_CSTRING *definer_user,
-              const LEX_CSTRING *definer_host,
-	      sql_mode_t sql_mode);
+                    stored_procedure_type type,
+                    const LEX_CSTRING &db,
+                    const LEX_CSTRING &name,
+                    const LEX_CSTRING &params,
+                    const LEX_CSTRING &returns,
+                    const LEX_CSTRING &body,
+                    const st_sp_chistics &chistics,
+                    const AUTHID &definer,
+	            sql_mode_t sql_mode);
 #endif /* _SP_H_ */

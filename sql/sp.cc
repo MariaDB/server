@@ -40,10 +40,12 @@
 static int
 db_load_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                 sp_head **sphp,
-                sql_mode_t sql_mode, const char *params, const char *returns,
-                const char *body, const st_sp_chistics &chistics,
-                LEX_CSTRING *definer_user_name,
-                LEX_CSTRING *definer_host_name,
+                sql_mode_t sql_mode,
+                const LEX_CSTRING &params,
+                const LEX_CSTRING &returns,
+                const LEX_CSTRING &body,
+                const st_sp_chistics &chistics,
+                const AUTHID &definer,
                 longlong created, longlong modified,
                 Stored_program_creation_ctx *creation_ctx);
 
@@ -214,15 +216,16 @@ bool load_charset(MEM_ROOT *mem_root,
                   CHARSET_INFO *dflt_cs,
                   CHARSET_INFO **cs)
 {
-  String cs_name;
+  LEX_CSTRING cs_name;
 
-  if (get_field(mem_root, field, &cs_name))
+  if (field->val_str_nopad(mem_root, &cs_name))
   {
     *cs= dflt_cs;
     return TRUE;
   }
 
-  *cs= get_charset_by_csname(cs_name.c_ptr(), MY_CS_PRIMARY, MYF(0));
+  DBUG_ASSERT(cs_name.str[cs_name.length] == 0);
+  *cs= get_charset_by_csname(cs_name.str, MY_CS_PRIMARY, MYF(0));
 
   if (*cs == NULL)
   {
@@ -240,15 +243,16 @@ bool load_collation(MEM_ROOT *mem_root,
                     CHARSET_INFO *dflt_cl,
                     CHARSET_INFO **cl)
 {
-  String cl_name;
+  LEX_CSTRING cl_name;
 
-  if (get_field(mem_root, field, &cl_name))
+  if (field->val_str_nopad(mem_root, &cl_name))
   {
     *cl= dflt_cl;
     return TRUE;
   }
 
-  *cl= get_charset_by_name(cl_name.c_ptr(), MYF(0));
+  DBUG_ASSERT(cl_name.str[cl_name.length] == 0);
+  *cl= get_charset_by_name(cl_name.str, MYF(0));
 
   if (*cl == NULL)
   {
@@ -503,6 +507,62 @@ db_find_routine_aux(THD *thd, stored_procedure_type type,
 }
 
 
+bool st_sp_chistics::read_from_mysql_proc_row(THD *thd, TABLE *table)
+{
+  LEX_CSTRING str;
+
+  if (table->field[MYSQL_PROC_FIELD_ACCESS]->val_str_nopad(thd->mem_root,
+                                                           &str))
+    return true;
+
+  switch (str.str[0]) {
+  case 'N':
+    daccess= SP_NO_SQL;
+    break;
+  case 'C':
+    daccess= SP_CONTAINS_SQL;
+    break;
+  case 'R':
+    daccess= SP_READS_SQL_DATA;
+    break;
+  case 'M':
+    daccess= SP_MODIFIES_SQL_DATA;
+    break;
+  default:
+    daccess= SP_DEFAULT_ACCESS_MAPPING;
+  }
+
+  if (table->field[MYSQL_PROC_FIELD_DETERMINISTIC]->val_str_nopad(thd->mem_root,
+                                                                  &str))
+    return true;
+  detistic= str.str[0] == 'N' ? false : true;
+
+  if (table->field[MYSQL_PROC_FIELD_SECURITY_TYPE]->val_str_nopad(thd->mem_root,
+                                                                  &str))
+    return true;
+  suid= str.str[0] == 'I' ? SP_IS_NOT_SUID : SP_IS_SUID;
+
+  if (table->field[MYSQL_PROC_FIELD_COMMENT]->val_str_nopad(thd->mem_root,
+                                                            &comment))
+    return true;
+
+  return false;
+}
+
+
+bool AUTHID::read_from_mysql_proc_row(THD *thd, TABLE *table)
+{
+  LEX_CSTRING str;
+  if (table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root,
+                                                            &str))
+    return true;
+  parse(str.str, str.length);
+  if (user.str[user.length])
+    ((char *) user.str)[user.length]= '\0'; // 0-terminate if was truncated
+  return false;
+}
+
+
 /**
   Find routine definition in mysql.proc table and create corresponding
   sp_head object for it.
@@ -528,24 +588,16 @@ db_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                 sp_head **sphp)
 {
   TABLE *table;
-  const char *params, *returns, *body;
+  LEX_CSTRING params, returns, body;
   int ret;
-  const char *definer;
   longlong created;
   longlong modified;
   Sp_chistics chistics;
-  char *ptr;
-  uint length;
-  char buff[65];
-  String str(buff, sizeof(buff), &my_charset_bin);
   bool saved_time_zone_used= thd->time_zone_used;
   sql_mode_t sql_mode, saved_mode= thd->variables.sql_mode;
   Open_tables_backup open_tables_state_backup;
   Stored_program_creation_ctx *creation_ctx;
-  char definer_user_name_holder[USERNAME_LENGTH + 1];
-  LEX_CSTRING definer_user_name= { definer_user_name_holder, USERNAME_LENGTH };
-  char definer_host_name_holder[HOSTNAME_LENGTH + 1];
-  LEX_CSTRING definer_host_name= { definer_host_name_holder, HOSTNAME_LENGTH };
+  AUTHID definer;
 
   DBUG_ENTER("db_find_routine");
   DBUG_PRINT("enter", ("type: %d name: %.*s",
@@ -567,106 +619,43 @@ db_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
     goto done;
   }
 
-  if ((ptr= get_field(thd->mem_root,
-		      table->field[MYSQL_PROC_FIELD_ACCESS])) == NULL)
+  if (chistics.read_from_mysql_proc_row(thd, table) ||
+      definer.read_from_mysql_proc_row(thd, table))
   {
     ret= SP_GET_FIELD_FAILED;
     goto done;
   }
-  switch (ptr[0]) {
-  case 'N':
-    chistics.daccess= SP_NO_SQL;
-    break;
-  case 'C':
-    chistics.daccess= SP_CONTAINS_SQL;
-    break;
-  case 'R':
-    chistics.daccess= SP_READS_SQL_DATA;
-    break;
-  case 'M':
-    chistics.daccess= SP_MODIFIES_SQL_DATA;
-    break;
-  default:
-    chistics.daccess= SP_DEFAULT_ACCESS_MAPPING;
-  }
 
-  if ((ptr= get_field(thd->mem_root,
-		      table->field[MYSQL_PROC_FIELD_DETERMINISTIC])) == NULL)
-  {
-    ret= SP_GET_FIELD_FAILED;
-    goto done;
-  }
-  chistics.detistic= (ptr[0] == 'N' ? FALSE : TRUE);    
-
-  if ((ptr= get_field(thd->mem_root,
-		      table->field[MYSQL_PROC_FIELD_SECURITY_TYPE])) == NULL)
-  {
-    ret= SP_GET_FIELD_FAILED;
-    goto done;
-  }
-  chistics.suid= (ptr[0] == 'I' ? SP_IS_NOT_SUID : SP_IS_SUID);
-
-  if ((params= get_field(thd->mem_root,
-			 table->field[MYSQL_PROC_FIELD_PARAM_LIST])) == NULL)
-  {
-    params= "";
-  }
-
+  table->field[MYSQL_PROC_FIELD_PARAM_LIST]->val_str_nopad(thd->mem_root,
+                                                           &params);
   if (type == TYPE_ENUM_PROCEDURE)
-    returns= "";
-  else if ((returns= get_field(thd->mem_root,
-			       table->field[MYSQL_PROC_FIELD_RETURNS])) == NULL)
+    returns= empty_clex_str;
+  else if (table->field[MYSQL_PROC_FIELD_RETURNS]->val_str_nopad(thd->mem_root,
+                                                                 &returns))
   {
     ret= SP_GET_FIELD_FAILED;
     goto done;
   }
 
-  if ((body= get_field(thd->mem_root,
-		       table->field[MYSQL_PROC_FIELD_BODY])) == NULL)
+  if (table->field[MYSQL_PROC_FIELD_BODY]->val_str_nopad(thd->mem_root,
+                                                         &body))
   {
     ret= SP_GET_FIELD_FAILED;
     goto done;
   }
 
   // Get additional information
-  if ((definer= get_field(thd->mem_root,
-			  table->field[MYSQL_PROC_FIELD_DEFINER])) == NULL)
-  {
-    ret= SP_GET_FIELD_FAILED;
-    goto done;
-  }
-
   modified= table->field[MYSQL_PROC_FIELD_MODIFIED]->val_int();
   created= table->field[MYSQL_PROC_FIELD_CREATED]->val_int();
-
   sql_mode= (ulong) table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
-
-  table->field[MYSQL_PROC_FIELD_COMMENT]->val_str(&str, &str);
-
-  ptr= 0;
-  if ((length= str.length()))
-    ptr= thd->strmake(str.ptr(), length);
-  chistics.comment.str= ptr;
-  chistics.comment.length= length;
 
   creation_ctx= Stored_routine_creation_ctx::load_from_db(thd, name, table);
 
   close_system_tables(thd, &open_tables_state_backup);
   table= 0;
 
-  /* It's ok to cast to char* here as the pointers are to local buffers */
-  if (parse_user(definer, strlen(definer),
-                 (char*) definer_user_name.str, &definer_user_name.length,
-                 (char*) definer_host_name.str, &definer_host_name.length) &&
-      definer_user_name.length && !definer_host_name.length)
-  {
-    // 'user@' -> 'user@%'
-    definer_host_name= host_not_specified;
-  }
-
   ret= db_load_routine(thd, type, name, sphp,
-                       sql_mode, params, returns, body, chistics,
-                       &definer_user_name, &definer_host_name,
+                       sql_mode, params, returns, body, chistics, definer,
                        created, modified, creation_ctx);
  done:
   /* 
@@ -811,10 +800,12 @@ Bad_db_error_handler::handle_condition(THD *thd,
 static int
 db_load_routine(THD *thd, stored_procedure_type type,
                 const sp_name *name, sp_head **sphp,
-                sql_mode_t sql_mode, const char *params, const char *returns,
-                const char *body, const st_sp_chistics &chistics,
-                LEX_CSTRING *definer_user_name,
-                LEX_CSTRING *definer_host_name,
+                sql_mode_t sql_mode,
+                const LEX_CSTRING &params,
+                const LEX_CSTRING &returns,
+                const LEX_CSTRING &body,
+                const st_sp_chistics &chistics,
+                const AUTHID &definer,
                 longlong created, longlong modified,
                 Stored_program_creation_ctx *creation_ctx)
 {
@@ -843,13 +834,9 @@ db_load_routine(THD *thd, stored_procedure_type type,
 
   if (!show_create_sp(thd, &defstr,
                      type,
-                     NULL, 0,
-                     name->m_name.str, name->m_name.length,
-                     params, strlen(params),
-                     returns, strlen(returns),
-                     body, strlen(body),
-                     chistics, definer_user_name, definer_host_name,
-                     sql_mode))
+                     null_clex_str, name->m_name,
+                     params, returns, body,
+                     chistics, definer, sql_mode))
   {
     ret= SP_INTERNAL_ERROR;
     goto end;
@@ -900,7 +887,7 @@ db_load_routine(THD *thd, stored_procedure_type type,
       goto end;
     }
 
-    (*sphp)->set_definer(definer_user_name, definer_host_name);
+    (*sphp)->set_definer(&definer.user, &definer.host);
     (*sphp)->set_info(created, modified, chistics, sql_mode);
     (*sphp)->set_creation_ctx(creation_ctx);
     (*sphp)->optimize();
@@ -1041,6 +1028,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
   DBUG_PRINT("enter", ("type: %d  name: %.*s", (int) type,
                        (int) sp->m_name.length,
                        sp->m_name.str));
+  LEX_CSTRING returns= empty_clex_str;
   String retstr(64);
   retstr.set_charset(system_charset_info);
 
@@ -1099,7 +1087,10 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 
         // Setting retstr as it is used for logging.
         if (sp->m_type == TYPE_ENUM_FUNCTION)
+        {
           sp_returns_type(thd, retstr, sp);
+          returns= retstr.lex_cstring();
+        }
         goto log;
       }
       else
@@ -1177,6 +1168,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
     if (sp->m_type == TYPE_ENUM_FUNCTION)
     {
       sp_returns_type(thd, retstr, sp);
+      returns= retstr.lex_cstring();
 
       store_failed= store_failed ||
         table->field[MYSQL_PROC_FIELD_RETURNS]->
@@ -1282,16 +1274,12 @@ log:
     log_query.set_charset(system_charset_info);
 
     if (!show_create_sp(thd, &log_query,
-                       sp->m_type,
-                       (sp->m_explicit_name ? sp->m_db.str : NULL), 
-                       (sp->m_explicit_name ? sp->m_db.length : 0), 
-                       sp->m_name.str, sp->m_name.length,
-                       sp->m_params.str, sp->m_params.length,
-                       retstr.ptr(), retstr.length(),
-                       sp->m_body.str, sp->m_body.length,
-                       sp->chistics(), &(thd->lex->definer->user),
-                       &(thd->lex->definer->host),
-                       saved_mode))
+                        sp->m_type,
+                        sp->m_explicit_name ? sp->m_db : null_clex_str,
+                        sp->m_name,
+                        sp->m_params, returns, sp->m_body,
+                        sp->chistics(), thd->lex->definer[0],
+                        saved_mode))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto done;
@@ -1745,7 +1733,7 @@ sp_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
   {
     ulong level;
     sp_head *new_sp;
-    const char *returns= "";
+    LEX_CSTRING returns= empty_clex_str;
 
     /*
       String buffer for RETURNS data type must have system charset;
@@ -1785,12 +1773,12 @@ sp_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
     if (type == TYPE_ENUM_FUNCTION)
     {
       sp_returns_type(thd, retstr, sp);
-      returns= retstr.ptr();
+      returns= retstr.lex_cstring();
     }
     if (db_load_routine(thd, type, name, &new_sp,
-                        sp->m_sql_mode, sp->m_params.str, returns,
-                        sp->m_body.str, sp->chistics(),
-                        &sp->m_definer.user, &sp->m_definer.host,
+                        sp->m_sql_mode, sp->m_params, returns,
+                        sp->m_body, sp->chistics(),
+                        sp->m_definer,
                         sp->m_created, sp->m_modified,
                         sp->get_creation_ctx()) == SP_OK)
     {
@@ -2193,19 +2181,19 @@ int sp_cache_routine(THD *thd, enum stored_procedure_type type,
 bool
 show_create_sp(THD *thd, String *buf,
               stored_procedure_type type,
-              const char *db, ulong dblen,
-              const char *name, ulong namelen,
-              const char *params, ulong paramslen,
-              const char *returns, ulong returnslen,
-              const char *body, ulong bodylen,
+              const LEX_CSTRING &db,
+              const LEX_CSTRING &name,
+              const LEX_CSTRING &params,
+              const LEX_CSTRING &returns,
+              const LEX_CSTRING &body,
               const st_sp_chistics &chistics,
-              const LEX_CSTRING *definer_user,
-              const LEX_CSTRING *definer_host,
+              const AUTHID &definer,
               sql_mode_t sql_mode)
 {
   sql_mode_t old_sql_mode= thd->variables.sql_mode;
   /* Make some room to begin with */
-  if (buf->alloc(100 + dblen + 1 + namelen + paramslen + returnslen + bodylen +
+  if (buf->alloc(100 + db.length + 1 + name.length +
+                 params.length + returns.length +
 		 chistics.comment.length + 10 /* length of " DEFINER= "*/ +
                  USER_HOST_BUFF_SIZE))
     return FALSE;
@@ -2214,7 +2202,7 @@ show_create_sp(THD *thd, String *buf,
   buf->append(STRING_WITH_LEN("CREATE "));
   if (thd->lex->create_info.or_replace())
     buf->append(STRING_WITH_LEN("OR REPLACE "));
-  append_definer(thd, buf, definer_user, definer_host);
+  append_definer(thd, buf, &definer.user, &definer.host);
   if (type == TYPE_ENUM_FUNCTION)
     buf->append(STRING_WITH_LEN("FUNCTION "));
   else
@@ -2222,14 +2210,14 @@ show_create_sp(THD *thd, String *buf,
   if (thd->lex->create_info.if_not_exists())
     buf->append(STRING_WITH_LEN("IF NOT EXISTS "));
 
-  if (dblen > 0)
+  if (db.length > 0)
   {
-    append_identifier(thd, buf, db, dblen);
+    append_identifier(thd, buf, db.str, db.length);
     buf->append('.');
   }
-  append_identifier(thd, buf, name, namelen);
+  append_identifier(thd, buf, name.str, name.length);
   buf->append('(');
-  buf->append(params, paramslen);
+  buf->append(params);
   buf->append(')');
   if (type == TYPE_ENUM_FUNCTION)
   {
@@ -2237,7 +2225,7 @@ show_create_sp(THD *thd, String *buf,
       buf->append(STRING_WITH_LEN(" RETURN "));
     else
       buf->append(STRING_WITH_LEN(" RETURNS "));
-    buf->append(returns, returnslen);
+    buf->append(returns);
   }
   buf->append('\n');
   switch (chistics.daccess) {
@@ -2265,9 +2253,18 @@ show_create_sp(THD *thd, String *buf,
     append_unescaped(buf, chistics.comment.str, chistics.comment.length);
     buf->append('\n');
   }
-  buf->append(body, bodylen);
+  buf->append(body);
   thd->variables.sql_mode= old_sql_mode;
   return TRUE;
+}
+
+
+static LEX_CSTRING empty_body_lex_cstring(stored_procedure_type type)
+{
+  static LEX_CSTRING empty_body_func= {C_STRING_WITH_LEN("RETURN NULL")};
+  static LEX_CSTRING empty_body_proc= {C_STRING_WITH_LEN("BEGIN END")};
+  return type == TYPE_ENUM_FUNCTION ? empty_body_func :
+                                      empty_body_proc;
 }
 
 
@@ -2292,26 +2289,21 @@ show_create_sp(THD *thd, String *buf,
 */
 
 sp_head *
-sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
-                               String *name, sql_mode_t sql_mode,
+sp_load_for_information_schema(THD *thd, TABLE *proc_table,
                                stored_procedure_type type,
-                               const char *returns, const char *params,
+                               const LEX_CSTRING &db,
+                               const LEX_CSTRING &name,
+                               const LEX_CSTRING &params,
+                               const LEX_CSTRING &returns,
+                               sql_mode_t sql_mode,
                                bool *free_sp_head)
 {
-  const char *sp_body;
   String defstr;
-  const LEX_CSTRING definer_user= {STRING_WITH_LEN("")};
-  const LEX_CSTRING definer_host= {STRING_WITH_LEN("")}; 
-  LEX_CSTRING sp_db_str;
-  LEX_CSTRING sp_name_str;
+  const AUTHID definer= {{STRING_WITH_LEN("")}, {STRING_WITH_LEN("")}};
   sp_head *sp;
   sp_cache **spc= ((type == TYPE_ENUM_PROCEDURE) ?
                   &thd->sp_proc_cache : &thd->sp_func_cache);
-  sp_db_str.str= db->c_ptr();
-  sp_db_str.length= db->length();
-  sp_name_str.str= name->c_ptr();
-  sp_name_str.length= name->length();
-  sp_name sp_name_obj(&sp_db_str, &sp_name_str, true);
+  sp_name sp_name_obj(&db, &name, true);
   *free_sp_head= 0;
   if ((sp= sp_cache_lookup(spc, &sp_name_obj)))
   {
@@ -2321,15 +2313,11 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
   LEX *old_lex= thd->lex, newlex;
   Stored_program_creation_ctx *creation_ctx= 
     Stored_routine_creation_ctx::load_from_db(thd, &sp_name_obj, proc_table);
-  sp_body= (type == TYPE_ENUM_FUNCTION ? "RETURN NULL" : "BEGIN END");
   defstr.set_charset(creation_ctx->get_client_cs());
   if (!show_create_sp(thd, &defstr, type,
-                     sp_db_str.str, sp_db_str.length, 
-                     sp_name_obj.m_name.str, sp_name_obj.m_name.length, 
-                     params, strlen(params),
-                     returns, strlen(returns), 
-                     sp_body, strlen(sp_body),
-                     Sp_chistics(), &definer_user, &definer_host, sql_mode))
+                      sp_name_obj.m_db, sp_name_obj.m_name,
+                      params, returns, empty_body_lex_cstring(type),
+                      Sp_chistics(), definer, sql_mode))
     return 0;
 
   thd->lex= &newlex;

@@ -7475,4 +7475,34 @@ void AUTHID::copy(MEM_ROOT *mem_root, const LEX_CSTRING *user_name,
 }
 
 
+/*
+  Set from a string in 'user@host' format.
+  This method resebmles parse_user(),
+  but does not need temporary buffers.
+*/
+void AUTHID::parse(const char *str, size_t length)
+{
+  const char *p= strrchr(str, '@');
+  if (!p)
+  {
+    user.str= str;
+    user.length= length;
+    host= null_clex_str;
+  }
+  else
+  {
+    user.str= str;
+    user.length= (size_t) (p - str);
+    host.str= p + 1;
+    host.length= (size_t) (length - user.length - 1);
+    if (user.length && !host.length)
+      host= host_not_specified; // 'user@' -> 'user@%'
+  }
+  if (user.length > USERNAME_LENGTH)
+    user.length= USERNAME_LENGTH;
+  if (host.length > HOSTNAME_LENGTH)
+    host.length= HOSTNAME_LENGTH;
+}
+
+
 #endif /* !defined(MYSQL_CLIENT) */

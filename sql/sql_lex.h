@@ -1287,6 +1287,7 @@ struct st_sp_chistics
   enum enum_sp_data_access daccess;
   void init() { bzero(this, sizeof(*this)); }
   void set(const st_sp_chistics &other) { *this= other; }
+  bool read_from_mysql_proc_row(THD *thd, TABLE *table);
 };
 
 
