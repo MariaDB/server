@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 
+#ifndef _WIN32
+
 namespace myrocks {
 
 void Rdb_io_watchdog::expire_io_callback(union sigval timer_data) {
@@ -231,3 +233,6 @@ int Rdb_io_watchdog::reset_timeout(const uint32_t &write_timeout) {
 }
 
 }  // namespace myrocks
+
+#endif
+

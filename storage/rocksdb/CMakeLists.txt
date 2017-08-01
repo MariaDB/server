@@ -126,7 +126,7 @@ endif()
 
 INCLUDE(build_rocksdb.cmake)
 
-set(rocksdb_aux_lib_sources
+ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
   ha_rocksdb_proto.h
   logger.h
   rdb_comparator.h
@@ -142,16 +142,6 @@ set(rocksdb_aux_lib_sources
   rdb_buff.h
   rdb_mariadb_port.h
 )
-
-if(WIN32)
-else()
-  list(APPEND rocksdb_aux_lib_sources
-    rdb_io_watchdog.cc
-    rdb_io_watchdog.h
-  )
-endif()
-
-ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib ${rocksdb_aux_lib_sources})
 
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
 
