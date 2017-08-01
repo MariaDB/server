@@ -2246,13 +2246,14 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
     sp_returns_type(thd, retstr, sp);
     returns= retstr.lex_cstring();
   }
-
-  if (!sp->m_handler->
-       show_create_sp(thd, &log_query,
-                      sp->m_explicit_name ? sp->m_db : null_clex_str,
-                      sp->m_name, sp->m_params, returns,
-                      sp->m_body, sp->chistics(), thd->lex->definer[0],
-                      saved_mode))
+  if (sp->m_handler->
+      show_create_sp(thd, &log_query,
+                     sp->m_explicit_name ? sp->m_db : null_clex_str,
+                     sp->m_name, sp->m_params, returns,
+                     sp->m_body, sp->chistics(),
+                     thd->lex->definer[0],
+                     thd->lex->create_info,
+                     saved_mode))
   {
     WSREP_WARN("SP create string failed: schema: %s, query: %s",
                (thd->db ? thd->db : "(null)"), thd->query());

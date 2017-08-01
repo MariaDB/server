@@ -150,6 +150,11 @@ public:
                                           sql_mode_t sql_mode,
                                           bool *free_sp_head) const;
 
+  /*
+    Make a SHOW CREATE statement.
+      @retval   true on error
+      @retval   false on success
+  */
   bool show_create_sp(THD *thd, String *buf,
                       const LEX_CSTRING &db,
                       const LEX_CSTRING &name,
@@ -158,6 +163,7 @@ public:
                       const LEX_CSTRING &body,
                       const st_sp_chistics &chistics,
                       const AUTHID &definer,
+                      const DDL_options_st ddl_options,
                       sql_mode_t sql_mode) const;
 };
 
