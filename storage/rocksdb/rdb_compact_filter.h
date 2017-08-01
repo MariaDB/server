@@ -23,6 +23,7 @@
 /* C++ system header files */
 #include <string>
 #include <time.h>
+#include <ctime>
 
 /* RocksDB includes */
 #include "rocksdb/compaction_filter.h"
