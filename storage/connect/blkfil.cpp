@@ -65,7 +65,7 @@ void BLOCKFILTER::Printf(PGLOBAL, FILE *f, uint n)
 
   fprintf(f, "%sBLOCKFILTER: at %p opc=%d opm=%d result=%d\n",
           m, this, Opc, Opm, Result);
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of BLOCKFILTER contents.                        */
@@ -73,7 +73,7 @@ void BLOCKFILTER::Printf(PGLOBAL, FILE *f, uint n)
 void BLOCKFILTER::Prints(PGLOBAL, char *ps, uint z)
   {
   strncat(ps, "BlockFilter(s)", z);
-  } // end of Print
+  } // end of Prints
 
 
 /* ---------------------- Class BLKFILLOG ---------------------------- */
@@ -1006,9 +1006,9 @@ void BLOCKINDEX::Printf(PGLOBAL g, FILE *f, UINT n)
     m, this, Next, (Colp) ? Colp->GetName() : "Rowid", Kxp, Result);
 
   if (Next)
-    Next->Print(g, f, n);
+    Next->Printf(g, f, n);
 
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of BLOCKINDEX contents.                         */
@@ -1016,7 +1016,7 @@ void BLOCKINDEX::Printf(PGLOBAL g, FILE *f, UINT n)
 void BLOCKINDEX::Prints(PGLOBAL g, char *ps, UINT z)
   {
   strncat(ps, "BlockIndex(es)", z);
-  } // end of Print
+  } // end of Prints
 
 /* ------------------------------------------------------------------- */
 

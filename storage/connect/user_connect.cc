@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2015
+/* Copyright (C) MariaDB Corporation Ab
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
   that is a connection with its personnal memory allocation.
 
   @note
-
+	Author Olivier Bertrand
 */
 
 /****************************************************************************/
@@ -46,6 +46,8 @@
 #include "connect.h"
 #include "user_connect.h"
 #include "mycat.h"
+
+extern pthread_mutex_t usrmut;
 
 /****************************************************************************/
 /*  Initialize the user_connect static member.                              */
@@ -111,7 +113,10 @@ bool user_connect::user_init()
 
     int rc= PlugExit(g);
     g= NULL;
-    free(dup);
+
+		if (dup)
+	    free(dup);
+
     return true;
     } // endif g->
 
@@ -122,15 +127,19 @@ bool user_connect::user_init()
   strcpy(ap->Ap_Name, "CONNECT");
   g->Activityp= ap;
   g->Activityp->Aptr= dup;
-  next= to_users;
+
+	pthread_mutex_lock(&usrmut);
+	next= to_users;
   to_users= this;
 
   if (next)
     next->previous= this;
 
-  last_query_id= thdp->query_id;
   count= 1;
-  return false;
+	pthread_mutex_unlock(&usrmut);
+
+	last_query_id = thdp->query_id;
+	return false;
 } // end of user_init
 
 
@@ -144,18 +153,22 @@ void user_connect::SetHandler(ha_connect *hc)
 /****************************************************************************/
 /*  Check whether we begin a new query and if so cleanup the previous one.  */
 /****************************************************************************/
-bool user_connect::CheckCleanup(void)
+bool user_connect::CheckCleanup(bool force)
 {
-  if (thdp->query_id > last_query_id) {
+  if (thdp->query_id > last_query_id || force) {
     uint worksize= GetWorkSize();
 
     PlugCleanup(g, true);
 
     if (g->Sarea_Size != worksize) {
-      if (g->Sarea)
-        free(g->Sarea);
+			if (g->Sarea) {
+				if (trace)
+					htrc("CheckCleanup: Free Sarea %d\n", g->Sarea_Size);
 
-      // Check whether the work area size was changed
+				free(g->Sarea);
+			}	// endif Size
+
+      // Check whether the work area could be allocated
       if (!(g->Sarea = PlugAllocMem(g, worksize))) {
         g->Sarea = PlugAllocMem(g, g->Sarea_Size);
         SetWorkSize(g->Sarea_Size);       // Was too big
@@ -171,7 +184,7 @@ bool user_connect::CheckCleanup(void)
     g->Mrr = 0;
     last_query_id= thdp->query_id;
 
-    if (trace)
+    if (trace && !force)
       printf("=====> Begin new query %llu\n", last_query_id);
 
     return true;

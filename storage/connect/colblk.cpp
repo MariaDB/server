@@ -197,7 +197,7 @@ int COLBLK::GetLengthEx(void)
 void COLBLK::ReadColumn(PGLOBAL g)
 {
   sprintf(g->Message, MSG(UNDEFINED_AM), "ReadColumn");
-	throw TYPE_COLBLK;
+	throw (int)TYPE_COLBLK;
 } // end of ReadColumn
 
 /***********************************************************************/
@@ -208,7 +208,7 @@ void COLBLK::ReadColumn(PGLOBAL g)
 void COLBLK::WriteColumn(PGLOBAL g)
 {
   sprintf(g->Message, MSG(UNDEFINED_AM), "WriteColumn");
-	throw TYPE_COLBLK;
+	throw (int)TYPE_COLBLK;
 } // end of WriteColumn
 
 /***********************************************************************/
@@ -232,7 +232,7 @@ void COLBLK::Printf(PGLOBAL, FILE *f, uint n)
   fprintf(f,
     " coluse=%04X status=%04X buftyp=%d value=%p name=%s\n",
           ColUse, Status, Buf_Type, Value, Name);
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of a column descriptor block.                   */
@@ -240,7 +240,7 @@ void COLBLK::Printf(PGLOBAL, FILE *f, uint n)
 void COLBLK::Prints(PGLOBAL, char *ps, uint)
   {
   sprintf(ps, "R%d.%s", To_Tdb->GetTdb_No(), Name);
-  } // end of Print
+  } // end of Prints
 
 
 /***********************************************************************/
@@ -262,7 +262,7 @@ SPCBLK::SPCBLK(PCOLUMN cp)
 void SPCBLK::WriteColumn(PGLOBAL g)
 {
   sprintf(g->Message, MSG(SPCOL_READONLY), Name);
-	throw TYPE_COLBLK;
+	throw (int)TYPE_COLBLK;
 } // end of WriteColumn
 
 /***********************************************************************/

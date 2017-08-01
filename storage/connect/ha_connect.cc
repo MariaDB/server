@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2017
+/* Copyright (C) MariaDB Corporation Ab
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -98,9 +98,8 @@
   rnd_next signals that it has reached the end of its data. Calls to
   ha_connect::extra() are hints as to what will be occuring to the request.
 
-  Happy use!<br>
-    -Olivier
-*/
+	Author  Olivier Bertrand
+	*/
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation        // gcc: Class implementation
@@ -198,11 +197,13 @@ extern "C" {
 			 char *ClassPath;
 #endif   // JDBC_SUPPORT
 
-#if defined(__WIN__)
-CRITICAL_SECTION parsec;      // Used calling the Flex parser
-#else   // !__WIN__
-pthread_mutex_t parmut = PTHREAD_MUTEX_INITIALIZER;
-#endif  // !__WIN__
+//#if defined(__WIN__)
+//CRITICAL_SECTION parsec;      // Used calling the Flex parser
+//#else   // !__WIN__
+//pthread_mutex_t parmut = PTHREAD_MUTEX_INITIALIZER;
+//#endif  // !__WIN__
+pthread_mutex_t parmut;
+pthread_mutex_t usrmut;
 
 /***********************************************************************/
 /*  Utility functions.                                                 */
@@ -221,6 +222,7 @@ void    mongo_init(bool);
 USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
+char   *GetJsonNull(void);
 uint    GetJsonGrpSize(void);
 char   *GetJavaWrapper(void);
 uint    GetWorkSize(void);
@@ -330,6 +332,13 @@ static MYSQL_THDVAR_ENUM(
   0,                               // def (no)
   &xconv_typelib);                 // typelib
 
+// Null representation for JSON values
+static MYSQL_THDVAR_STR(json_null,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Representation of Json null values",
+	//     check_json_null, update_json_null,
+	NULL, NULL, "<null>");
+
 // Estimate max number of rows for JSON aggregate functions
 static MYSQL_THDVAR_UINT(json_grp_size,
        PLUGIN_VAR_RQCMDARG,             // opt
@@ -381,6 +390,8 @@ bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
+char *GetJsonNull(void)
+	{return connect_hton ? THDVAR(current_thd, json_null) : NULL;}
 uint GetJsonGrpSize(void)
   {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
 uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
@@ -666,10 +677,12 @@ static int connect_init_func(void *p)
 
 #if defined(__WIN__)
   sql_print_information("CONNECT: %s", compver);
-	InitializeCriticalSection((LPCRITICAL_SECTION)&parsec);
+//InitializeCriticalSection((LPCRITICAL_SECTION)&parsec);
 #else   // !__WIN__
   sql_print_information("CONNECT: %s", version);
 #endif  // !__WIN__
+	pthread_mutex_init(&parmut, NULL);
+	pthread_mutex_init(&usrmut, NULL);
 
 #if defined(LIBXML2_SUPPORT)
   XmlInitParserLib();
@@ -718,12 +731,13 @@ static int connect_done_func(void *)
 #endif // JDBC_SUPPORT
 
 #if	defined(__WIN__)
-	DeleteCriticalSection((LPCRITICAL_SECTION)&parsec);
+//DeleteCriticalSection((LPCRITICAL_SECTION)&parsec);
 #else   // !__WIN__
 	PROFILE_End();
 #endif  // !__WIN__
 
-  for (pc= user_connect::to_users; pc; pc= pn) {
+	pthread_mutex_lock(&usrmut);
+	for (pc= user_connect::to_users; pc; pc= pn) {
     if (pc->g)
       PlugCleanup(pc->g, true);
 
@@ -731,6 +745,10 @@ static int connect_done_func(void *)
     delete pc;
     } // endfor pc
 
+	pthread_mutex_unlock(&usrmut);
+
+	pthread_mutex_destroy(&usrmut);
+	pthread_mutex_destroy(&parmut);
 	connect_hton= NULL;
   DBUG_RETURN(error);
 } // end of connect_done_func
@@ -843,6 +861,7 @@ ha_connect::~ha_connect(void)
 static void PopUser(PCONNECT xp)
 {
 	if (xp) {
+		pthread_mutex_lock(&usrmut);
 		xp->count--;
 
 		if (!xp->count) {
@@ -867,6 +886,7 @@ static void PopUser(PCONNECT xp)
 			delete xp;
 		} // endif count
 
+		pthread_mutex_unlock(&usrmut);
 	} // endif xp
 
 } // end of PopUser
@@ -880,23 +900,33 @@ static PCONNECT GetUser(THD *thd, PCONNECT xp)
 	if (!thd)
     return NULL;
 
-  if (xp && thd == xp->thdp)
-    return xp;
+	if (xp) {
+		if (thd == xp->thdp)
+			return xp;
 
-  for (xp= user_connect::to_users; xp; xp= xp->next)
+		PopUser(xp);		// Avoid memory leak
+	} // endif xp
+
+	pthread_mutex_lock(&usrmut);
+
+	for (xp= user_connect::to_users; xp; xp= xp->next)
     if (thd == xp->thdp)
       break;
 
-  if (!xp) {
+	if (xp)
+		xp->count++;
+
+	pthread_mutex_unlock(&usrmut);
+
+	if (!xp) {
     xp= new user_connect(thd);
 
     if (xp->user_init()) {
       delete xp;
       xp= NULL;
-      } // endif user_init
+		} // endif user_init
 
-  } else
-    xp->count++;
+	}	// endif xp
 
   return xp;
 } // end of GetUser
@@ -1024,37 +1054,55 @@ PCSZ GetListOption(PGLOBAL g, PCSZ opname, PCSZ oplist, PCSZ def)
   if (!oplist)
     return (char*)def;
 
-  char  key[16], val[256];
-  char *pk, *pv, *pn;
-	PCSZ  opval= def;
-  int   n;
+	char  key[16], val[256];
+	char *pv, *pn, *pk = (char*)oplist;
+	PCSZ  opval = def;
+	int   n;
 
-  for (pk= (char*)oplist; pk; pk= ++pn) {
-    pn= strchr(pk, ',');
-    pv= strchr(pk, '=');
+	while (*pk == ' ')
+		pk++;
 
-    if (pv && (!pn || pv < pn)) {
-			n= MY_MIN(pv - pk, (int)sizeof(key) - 1);
-      memcpy(key, pk, n);
-      key[n]= 0;
-      pv++;
-			n= MY_MIN((pn ? pn - pv : strlen(pv)), sizeof(val) - 1);
-      memcpy(val, pv, n);
-      val[n]= 0;
-    } else {
-			n= MY_MIN((pn ? pn - pk : strlen(pk)), sizeof(key) - 1);
-      memcpy(key, pk, n);
-      key[n]= 0;
-      val[0]= 0;
-    } // endif pv
+	for (; pk; pk = pn) {
+		pn = strchr(pk, ',');
+		pv = strchr(pk, '=');
 
-    if (!stricmp(opname, key)) {
-      opval= PlugDup(g, val);
-      break;
-    } else if (!pn)
-      break;
+		if (pv && (!pn || pv < pn)) {
+			n = MY_MIN(static_cast<size_t>(pv - pk), sizeof(key) - 1);
+			memcpy(key, pk, n);
 
-    } // endfor pk
+			while (n && key[n - 1] == ' ')
+				n--;
+
+			key[n] = 0;
+
+			while (*(++pv) == ' ');
+
+			n = MY_MIN((pn ? pn - pv : strlen(pv)), sizeof(val) - 1);
+			memcpy(val, pv, n);
+
+			while (n && val[n - 1] == ' ')
+				n--;
+
+			val[n] = 0;
+		} else {
+			n = MY_MIN((pn ? pn - pk : strlen(pk)), sizeof(key) - 1);
+			memcpy(key, pk, n);
+
+			while (n && key[n - 1] == ' ')
+				n--;
+
+			key[n] = 0;
+			val[0] = 0;
+		} // endif pv
+
+		if (!stricmp(opname, key)) {
+			opval = PlugDup(g, val);
+			break;
+		} else if (!pn)
+			break;
+
+		while (*(++pn) == ' ');
+	} // endfor pk
 
   return opval;
 } // end of GetListOption
@@ -1427,7 +1475,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     case MYSQL_TYPE_VARCHAR:
     case MYSQL_TYPE_VAR_STRING:
       pcf->Flags |= U_VAR;
-      /* fall through */
+      // fall through
     default:
       pcf->Type= MYSQLtoPLG(fp->type(), &v);
       break;
@@ -2802,7 +2850,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 			case Item_func::LIKE_FUNC:   vop= OP_LIKE; break;
 			case Item_func::ISNOTNULL_FUNC:
 				neg = true;
-				/* fall through */
+				// fall through
 			case Item_func::ISNULL_FUNC: vop= OP_NULL; break;
 			case Item_func::IN_FUNC:     vop= OP_IN;
       case Item_func::BETWEEN:
@@ -4052,7 +4100,12 @@ int ha_connect::info(uint flag)
 
   DBUG_ENTER("ha_connect::info");
 
-  if (trace)
+	if (!g) {
+		my_message(ER_UNKNOWN_ERROR, "Cannot get g pointer", MYF(0));
+		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+	}	// endif g
+
+	if (trace)
     htrc("%p In info: flag=%u valid_info=%d\n", this, flag, valid_info);
 
   // tdbp must be available to get updated info
@@ -4063,7 +4116,7 @@ int ha_connect::info(uint flag)
     if (xmod == MODE_ANY || xmod == MODE_ALTER) {
       // Pure info, not a query
       pure= true;
-      xp->CheckCleanup();
+      xp->CheckCleanup(xmod == MODE_ANY && valid_query_id == 0);
       } // endif xmod
 
     // This is necessary for getting file length
@@ -4247,8 +4300,8 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 			} else
         return false;
 
-      /* check FILE_ACL */
-      /* fall through */
+      // check FILE_ACL
+      // fall through
     case TAB_ODBC:
 		case TAB_JDBC:
 		case TAB_MYSQL:
@@ -7060,7 +7113,8 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 #if defined(XMSG)
   MYSQL_SYSVAR(errmsg_dir_path),
 #endif   // XMSG
-  MYSQL_SYSVAR(json_grp_size),
+	MYSQL_SYSVAR(json_null),
+	MYSQL_SYSVAR(json_grp_size),
 #if defined(JDBC_SUPPORT)
 	MYSQL_SYSVAR(jvm_path),
 	MYSQL_SYSVAR(class_path),
@@ -7083,6 +7137,6 @@ maria_declare_plugin(connect)
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
   "1.06.0001",                                  /* string version */
-  MariaDB_PLUGIN_MATURITY_GAMMA                 /* maturity */
+  MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

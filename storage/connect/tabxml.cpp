@@ -1319,7 +1319,7 @@ void TDBXML::CloseDB(PGLOBAL g)
         Docp->CloseDoc(g, To_Xb);
 
         // This causes a crash in Diagnostics_area::set_error_status
-//				throw TYPE_AM_XML;
+//				throw (int)TYPE_AM_XML;
 			} // endif DumpDoc
       
       } // endif Changed
@@ -1642,7 +1642,7 @@ void XMLCOL::ReadColumn(PGLOBAL g)
     if (ValNode->GetType() != XML_ELEMENT_NODE &&
         ValNode->GetType() != XML_ATTRIBUTE_NODE) {
       sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
-			throw TYPE_AM_XML;
+			throw (int)TYPE_AM_XML;
 		} // endif type
 
     // Get the Xname value from the XML file
@@ -1653,7 +1653,7 @@ void XMLCOL::ReadColumn(PGLOBAL g)
         PushWarning(g, Tdbp);
         break;
       default:
-				throw TYPE_AM_XML;
+				throw (int)TYPE_AM_XML;
 		} // endswitch
 
     Value->SetValue_psz(Valbuf);
@@ -1704,7 +1704,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   /*  For columns having an Xpath, the Clist must be updated.          */
   /*********************************************************************/
   if (Tdbp->CheckRow(g, Nod || Tdbp->Colname))
-		throw TYPE_AM_XML;
+		throw (int)TYPE_AM_XML;
 
   /*********************************************************************/
   /*  Null values are represented by no node.                          */
@@ -1776,7 +1776,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
 
     if (ColNode == NULL) {
       strcpy(g->Message, MSG(COL_ALLOC_ERR));
-			throw TYPE_AM_XML;
+			throw (int)TYPE_AM_XML;
 		} // endif ColNode
 
     } // endif ColNode
@@ -1795,7 +1795,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
 
   if (ValNode == NULL && AttNode == NULL) {
     strcpy(g->Message, MSG(VAL_ALLOC_ERR));
-    longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+    throw (int)TYPE_AM_XML;
     } // endif ValNode
 
   /*********************************************************************/
@@ -1805,7 +1805,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
 
   if (strlen(p) > (unsigned)Long) {
     sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
-		throw TYPE_AM_XML;
+		throw (int)TYPE_AM_XML;
 	} else
     strcpy(Valbuf, p);
 
@@ -1855,7 +1855,7 @@ void XMULCOL::ReadColumn(PGLOBAL g)
         if (ValNode->GetType() != XML_ELEMENT_NODE &&
             ValNode->GetType() != XML_ATTRIBUTE_NODE) {
           sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
-					throw TYPE_AM_XML;
+					throw (int)TYPE_AM_XML;
 				} // endif type
 
         // Get the Xname value from the XML file
@@ -1866,7 +1866,7 @@ void XMULCOL::ReadColumn(PGLOBAL g)
             PushWarning(g, Tdbp);
             break;
           default:
-            longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+            throw (int)TYPE_AM_XML;
           } // endswitch
 
         if (!b) {
@@ -1941,7 +1941,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
   /*  For columns having an Xpath, the Clist must be updated.          */
   /*********************************************************************/
   if (Tdbp->CheckRow(g, Nod))
-		throw TYPE_AM_XML;
+		throw (int)TYPE_AM_XML;
 
   /*********************************************************************/
   /*  Find the column and value nodes to update or insert.             */
@@ -1990,7 +1990,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
 
         if (len > 1 && !Tdbp->Xpand) {
           sprintf(g->Message, MSG(BAD_VAL_UPDATE), Name);
-					throw TYPE_AM_XML;
+					throw (int)TYPE_AM_XML;
 				} else
           ValNode = Nlx->GetItem(g, Tdbp->Nsub, Vxnp);
 
@@ -2032,7 +2032,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
 
     if (ColNode == NULL) {
       strcpy(g->Message, MSG(COL_ALLOC_ERR));
-			throw TYPE_AM_XML;
+			throw (int)TYPE_AM_XML;
 		} // endif ColNode
 
     } // endif ColNode
@@ -2051,8 +2051,8 @@ void XMULCOL::WriteColumn(PGLOBAL g)
 
   if (ValNode == NULL && AttNode == NULL) {
     strcpy(g->Message, MSG(VAL_ALLOC_ERR));
-    longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-    } // endif ValNode
+		throw (int)TYPE_AM_XML;
+	} // endif ValNode
 
   /*********************************************************************/
   /*  Get the string representation of Value according to column type. */
@@ -2061,7 +2061,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
 
   if (strlen(p) > (unsigned)Long) {
     sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
-		throw TYPE_AM_XML;
+		throw (int)TYPE_AM_XML;
 	} else
     strcpy(Valbuf, p);
 
@@ -2093,7 +2093,7 @@ void XPOSCOL::ReadColumn(PGLOBAL g)
 
   if (Tdbp->Clist == NULL) {
     strcpy(g->Message, MSG(MIS_TAG_LIST));
-		throw TYPE_AM_XML;
+		throw (int)TYPE_AM_XML;
 	} // endif Clist
 
   if ((ValNode = Tdbp->Clist->GetItem(g, Rank, Vxnp))) {
@@ -2105,7 +2105,7 @@ void XPOSCOL::ReadColumn(PGLOBAL g)
         PushWarning(g, Tdbp);
         break;
       default:
-				throw TYPE_AM_XML;
+				throw (int)TYPE_AM_XML;
 		} // endswitch
 
     Value->SetValue_psz(Valbuf);
@@ -2156,14 +2156,14 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
   /*  For all columns the Clist must be updated.                       */
   /*********************************************************************/
   if (Tdbp->CheckRow(g, true))
-		throw TYPE_AM_XML;
+		throw (int)TYPE_AM_XML;
 
   /*********************************************************************/
   /*  Find the column and value nodes to update or insert.             */
   /*********************************************************************/
   if (Tdbp->Clist == NULL) {
     strcpy(g->Message, MSG(MIS_TAG_LIST));
-		throw TYPE_AM_XML;
+		throw (int)TYPE_AM_XML;
 	} // endif Clist
 
   n =  Tdbp->Clist->GetLength();
@@ -2188,7 +2188,7 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
 
   if (strlen(p) > (unsigned)Long) {
     sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
-		throw TYPE_AM_XML;
+		throw (int)TYPE_AM_XML;
 	} else
     strcpy(Valbuf, p);
 

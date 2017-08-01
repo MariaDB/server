@@ -1309,7 +1309,7 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
         } // endif !opm
 
       // if opm, pass thru
-      /* fall through */
+      // fall through
     case OP_IN:
       if (filp->GetArgType(0) == TYPE_COLBLK &&
           filp->GetArgType(1) == TYPE_ARRAY) {
@@ -1645,8 +1645,8 @@ int TDBDOS::TestBlock(PGLOBAL g)
 /***********************************************************************/
 int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   {
-  int     k, n;
-  bool    fixed, doit, sep, b = (pxdf != NULL);
+	int     k, n, rc = RC_OK;
+	bool    fixed, doit, sep, b = (pxdf != NULL);
   PCOL   *keycols, colp;
   PIXDEF  xdp, sxp = NULL;
   PKPDEF  kdp;
@@ -1690,95 +1690,105 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   } else if (!(pxdf = dfp->GetIndx()))
     return RC_INFO;              // No index to make
 
-  // Allocate all columns that will be used by indexes.
-  // This must be done before opening the table so specific
-  // column initialization can be done (in particular by TDBVCT)
-  for (n = 0, xdp = pxdf; xdp; xdp = xdp->GetNext())
-    for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
-      if (!(colp = ColDB(g, kdp->GetName(), 0))) {
-        sprintf(g->Message, MSG(INDX_COL_NOTIN), kdp->GetName(), Name);
-        goto err;
-      } else if (colp->GetResultType() == TYPE_DECIM) {
-        sprintf(g->Message, "Decimal columns are not indexable yet");
-        goto err;
-      } // endif Type
+	try {
+		// Allocate all columns that will be used by indexes.
+	// This must be done before opening the table so specific
+	// column initialization can be done (in particular by TDBVCT)
+		for (n = 0, xdp = pxdf; xdp; xdp = xdp->GetNext())
+			for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
+				if (!(colp = ColDB(g, kdp->GetName(), 0))) {
+					sprintf(g->Message, MSG(INDX_COL_NOTIN), kdp->GetName(), Name);
+					goto err;
+				} else if (colp->GetResultType() == TYPE_DECIM) {
+					sprintf(g->Message, "Decimal columns are not indexable yet");
+					goto err;
+				} // endif Type
 
-      colp->InitValue(g);
-      n = MY_MAX(n, xdp->GetNparts());
-      } // endfor kdp
+				colp->InitValue(g);
+				n = MY_MAX(n, xdp->GetNparts());
+			} // endfor kdp
 
-  keycols = (PCOL*)PlugSubAlloc(g, NULL, n * sizeof(PCOL));
-  sep = dfp->GetBoolCatInfo("SepIndex", false);
+		keycols = (PCOL*)PlugSubAlloc(g, NULL, n * sizeof(PCOL));
+		sep = dfp->GetBoolCatInfo("SepIndex", false);
 
-  /*********************************************************************/
-  /*  Construct and save the defined indexes.                          */
-  /*********************************************************************/
-  for (xdp = pxdf; xdp; xdp = xdp->GetNext())
-    if (!OpenDB(g)) {
-      if (xdp->IsAuto() && fixed)
-        // Auto increment key and fixed file: use an XXROW index
-        continue;      // XXROW index doesn't need to be made
+		/*********************************************************************/
+		/*  Construct and save the defined indexes.                          */
+		/*********************************************************************/
+		for (xdp = pxdf; xdp; xdp = xdp->GetNext())
+			if (!OpenDB(g)) {
+				if (xdp->IsAuto() && fixed)
+					// Auto increment key and fixed file: use an XXROW index
+					continue;      // XXROW index doesn't need to be made
 
-      // On Update, redo only indexes that are modified
-      doit = !To_SetCols;
-      n = 0;
+				// On Update, redo only indexes that are modified
+				doit = !To_SetCols;
+				n = 0;
 
-      if (sxp)
-        xdp->SetID(sxp->GetID() + 1);
+				if (sxp)
+					xdp->SetID(sxp->GetID() + 1);
 
-      for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
-        // Check whether this column was updated
-        for (colp = To_SetCols; !doit && colp; colp = colp->GetNext())
-          if (!stricmp(kdp->GetName(), colp->GetName()))
-            doit = true;
+				for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
+					// Check whether this column was updated
+					for (colp = To_SetCols; !doit && colp; colp = colp->GetNext())
+						if (!stricmp(kdp->GetName(), colp->GetName()))
+							doit = true;
 
-        keycols[n++] = ColDB(g, kdp->GetName(), 0);
-        } // endfor kdp
+					keycols[n++] = ColDB(g, kdp->GetName(), 0);
+				} // endfor kdp
 
-      // If no indexed columns were updated, don't remake the index
-      // if indexes are in separate files.
-      if (!doit && sep)
-        continue;
+			// If no indexed columns were updated, don't remake the index
+			// if indexes are in separate files.
+				if (!doit && sep)
+					continue;
 
-      k = xdp->GetNparts();
+				k = xdp->GetNparts();
 
-      // Make the index and save it
-      if (dfp->Huge)
-        pxp = new(g) XHUGE;
-      else
-        pxp = new(g) XFILE;
+				// Make the index and save it
+				if (dfp->Huge)
+					pxp = new(g) XHUGE;
+				else
+					pxp = new(g) XFILE;
 
-      if (k == 1)            // Simple index
-        x = new(g) XINDXS(this, xdp, pxp, keycols);
-      else                   // Multi-Column index
-        x = new(g) XINDEX(this, xdp, pxp, keycols);
+				if (k == 1)            // Simple index
+					x = new(g) XINDXS(this, xdp, pxp, keycols);
+				else                   // Multi-Column index
+					x = new(g) XINDEX(this, xdp, pxp, keycols);
 
-      if (!x->Make(g, sxp)) {
-        // Retreive define values from the index
-        xdp->SetMaxSame(x->GetMaxSame());
-//      xdp->SetSize(x->GetSize());
+				if (!x->Make(g, sxp)) {
+					// Retreive define values from the index
+					xdp->SetMaxSame(x->GetMaxSame());
+					//      xdp->SetSize(x->GetSize());
 
-        // store KXYCOL Mxs in KPARTDEF Mxsame
-        xdp->SetMxsame(x);
+									// store KXYCOL Mxs in KPARTDEF Mxsame
+					xdp->SetMxsame(x);
 
 #if defined(TRACE)
-        printf("Make done...\n");
+					printf("Make done...\n");
 #endif   // TRACE
 
-//      if (x->GetSize() > 0)
-          sxp = xdp;
+					//      if (x->GetSize() > 0)
+					sxp = xdp;
 
-        xdp->SetInvalid(false);
-      } else
-        goto err;
+					xdp->SetInvalid(false);
+				} else
+					goto err;
 
-    } else
-      return RC_INFO;     // Error or Physical table does not exist
+			} else
+				return RC_INFO;     // Error or Physical table does not exist
+
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		rc = RC_FX;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		rc = RC_FX;
+	} // end catch
 
   if (Use == USE_OPEN)
     CloseDB(g);
 
-  return RC_OK;
+  return rc;
 
 err:
   if (sxp)
@@ -2725,7 +2735,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     if (Value->GetBinValue(p, Long, Status)) {
       sprintf(g->Message, MSG(BIN_F_TOO_LONG),
                           Name, Value->GetSize(), Long);
-      longjmp(g->jumper[g->jump_level], 31);
+      throw 31;
       } // endif
 
   } // end of WriteColumn
@@ -2874,7 +2884,7 @@ bool DOSCOL::AddDistinctValue(PGLOBAL g)
 void DOSCOL::Printf(PGLOBAL g, FILE *f, uint n)
   {
   COLBLK::Printf(g, f, n);
-  } // end of Print
+  } // end of Printf
 
 /* ------------------------------------------------------------------- */
 

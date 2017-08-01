@@ -2,11 +2,11 @@
 /*                                                                     */
 /* PROGRAM NAME: PLUGUTIL                                              */
 /* -------------                                                       */
-/*  Version 2.9                                                        */
+/*  Version 3.0                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1993-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          1993-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -76,6 +76,7 @@
 
 #include "osutil.h"
 #include "global.h"
+#include "plgdbsem.h"
 #if defined(NEWMSG)
 #include "rcmsg.h"
 #endif   // NEWMSG
@@ -132,12 +133,12 @@ void htrc(char const *fmt, ...)
 /*  Return value is the pointer to the Global structure.               */
 /***********************************************************************/
 PGLOBAL PlugInit(LPCSTR Language, uint worksize)
-  {
-  PGLOBAL g;
+{
+	PGLOBAL g;
 
-  if (trace > 1)
-    htrc("PlugInit: Language='%s'\n",
-          ((!Language) ? "Null" : (char*)Language));
+	if (trace > 1)
+		htrc("PlugInit: Language='%s'\n",
+		((!Language) ? "Null" : (char*)Language));
 
 	try {
 		g = new GLOBAL;
@@ -146,53 +147,54 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 		return NULL;
 	} // end try/catch
 
-	//if (!(g = (PGLOBAL)malloc(sizeof(GLOBAL)))) {
- //   fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
- //   return NULL;
- // } else {
-    g->Sarea = NULL;
-    g->Createas = 0;
-    g->Alchecked = 0;
-    g->Mrr = 0;
-    g->Activityp = NULL;
-    g->Xchk = NULL;
-    g->N = 0;
-		g->More = 0;
-    strcpy(g->Message, "");
+	g->Sarea = NULL;
+	g->Createas = 0;
+	g->Alchecked = 0;
+	g->Mrr = 0;
+	g->Activityp = NULL;
+	g->Xchk = NULL;
+	g->N = 0;
+	g->More = 0;
+	strcpy(g->Message, "");
 
-    /*******************************************************************/
-    /*  Allocate the main work segment.                                */
-    /*******************************************************************/
-    if (worksize && !(g->Sarea = PlugAllocMem(g, worksize))) {
-      char errmsg[MAX_STR];
-      sprintf(errmsg, MSG(WORK_AREA), g->Message);
-      strcpy(g->Message, errmsg);
-      g->Sarea_Size = 0;
-    } else
-      g->Sarea_Size = worksize;
+	/*******************************************************************/
+	/*  Allocate the main work segment.                                */
+	/*******************************************************************/
+	if (worksize && !(g->Sarea = PlugAllocMem(g, worksize))) {
+		char errmsg[MAX_STR];
+		sprintf(errmsg, MSG(WORK_AREA), g->Message);
+		strcpy(g->Message, errmsg);
+		g->Sarea_Size = 0;
+	} else
+		g->Sarea_Size = worksize;
 
-  //} /* endif g */
-
-  g->jump_level = -1;   /* New setting to allow recursive call of Plug */
-  return(g);
-  } /* end of PlugInit */
+	g->jump_level = -1;   /* New setting to allow recursive call of Plug */
+	return(g);
+} /* end of PlugInit */
 
 /***********************************************************************/
 /*  PlugExit: Terminate Plug operations.                               */
 /***********************************************************************/
 int PlugExit(PGLOBAL g)
-  {
-  int rc = 0;
+{
+	if (g) {
+		PDBUSER dup = PlgGetUser(g);
 
-  if (!g)
-    return rc;
+		if (dup)
+			free(dup);
 
-  if (g->Sarea)
-    free(g->Sarea);
+		if (g->Sarea) {
+			if (trace)
+				htrc("Freeing Sarea size=%d\n", g->Sarea_Size);
 
-  delete g;
-  return rc;
-  } /* end of PlugExit */
+			free(g->Sarea);
+		}	// endif Sarea
+
+		delete g;
+	}	// endif g
+
+  return 0;
+} // end of PlugExit
 
 /***********************************************************************/
 /*  Remove the file type from a file name.                             */
@@ -456,7 +458,7 @@ short GetLineLength(PGLOBAL g)
 /*  Program for memory allocation of work and language areas.          */
 /***********************************************************************/
 void *PlugAllocMem(PGLOBAL g, uint size)
-  {
+{
   void *areap;                     /* Pointer to allocated area        */
 
   /*********************************************************************/
@@ -465,16 +467,16 @@ void *PlugAllocMem(PGLOBAL g, uint size)
   if (!(areap = malloc(size)))
     sprintf(g->Message, MSG(MALLOC_ERROR), "malloc");
 
-  if (trace > 1) {
+	if (trace) {
     if (areap)
       htrc("Memory of %u allocated at %p\n", size, areap);
     else
       htrc("PlugAllocMem: %s\n", g->Message);
 
-    } // endif trace
+  } // endif trace
 
   return (areap);
-  } /* end of PlugAllocMem */
+} // end of PlugAllocMem
 
 /***********************************************************************/
 /*  Program for SubSet initialization of memory pools.                 */

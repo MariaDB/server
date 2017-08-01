@@ -9,6 +9,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo # MDEV-7574 Security definer views don't work with CONNECT ODBC tables
 --echo #
 
+CREATE USER user@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 

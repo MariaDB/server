@@ -41,12 +41,12 @@
 /***********************************************************************/
 #define MAXCOL          200        /* Default max column nb in result  */
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
-#define USE_G             1        /* Use recoverable memory if 1      */
 
 /***********************************************************************/
 /*  External function.                                                 */
 /***********************************************************************/
 USETEMP UseTemp(void);
+char   *GetJsonNull(void);
 
 typedef struct _jncol {
   struct _jncol *Next;
@@ -163,7 +163,6 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 
     tjnp->SetMode(MODE_READ);
 
-#if USE_G
 		// Allocate the parse work memory
 		PGLOBAL G = (PGLOBAL)PlugSubAlloc(g, NULL, sizeof(GLOBAL));
 		memset(G, 0, sizeof(GLOBAL));
@@ -172,9 +171,6 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 		PlugSubSet(G, G->Sarea, G->Sarea_Size);
 		G->jump_level = 0;
 		tjnp->SetG(G);
-#else
-		tjnp->SetG(g);
-#endif
 
 		if (tjnp->OpenDB(g))
       return NULL;
@@ -478,7 +474,6 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
     // Txfp must be set for TDBDOS
     tdbp = new(g) TDBJSN(this, txfp);
 
-#if USE_G
 		// Allocate the parse work memory
 		PGLOBAL G = (PGLOBAL)PlugSubAlloc(g, NULL, sizeof(GLOBAL));
 		memset(G, 0, sizeof(GLOBAL));
@@ -487,9 +482,6 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 		PlugSubSet(G, G->Sarea, G->Sarea_Size);
 		G->jump_level = 0;
 		((TDBJSN*)tdbp)->G = G;
-#else
-		((TDBJSN*)tdbp)->G = g;
-#endif
 	} else {
 		if (Zipped)	{
 #if defined(ZIP_SUPPORT)
@@ -762,10 +754,8 @@ int TDBJSN::ReadDB(PGLOBAL g)
 			// Deferred reading failed
 			return rc;
 
-#if USE_G
 		// Recover the memory used for parsing
 		PlugSubSet(G, G->Sarea, G->Sarea_Size);
-#endif
 
 		if ((Row = ParseJson(G, To_Line, strlen(To_Line), &Pretty, &Comma))) {
 			Row = FindRow(g);
@@ -774,9 +764,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
 			M = 1;
 			rc = RC_OK;
 		} else if (Pretty != 1 || strcmp(To_Line, "]")) {
-#if USE_G
 			strcpy(g->Message, G->Message);
-#endif
 			rc = RC_FX;
 		} else
 			rc = RC_EF;
@@ -882,9 +870,7 @@ int TDBJSN::WriteDB(PGLOBAL g)
 {
 	int rc = TDBDOS::WriteDB(g);
 
-#if USE_G
 	PlugSubSet(G, G->Sarea, G->Sarea_Size);
-#endif
 	Row->Clear();
 	return rc;
 } // end of WriteDB
@@ -1228,7 +1214,7 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
       case TYPE_INTG:
 			case TYPE_BINT:
 			case TYPE_DBL:
-			case TYPE_DATE:
+			case TYPE_DTM:
 				vp->SetValue_pval(val->GetValue());
         break;
       case TYPE_BOOL:
@@ -1390,9 +1376,12 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
   for (i = 0; i < ars; i++) {
     jvrp = arp->GetValue(i);
 
-    do {
-      if (n < Nod - 1 && jvrp->GetJson()) {
-        Tjp->NextSame = nextsame;
+		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) do {
+			if (jvrp->IsNull()) {
+				jvrp->Value = AllocateValue(g, GetJsonNull(), TYPE_STRING);
+				jvp = jvrp;
+			} else if (n < Nod - 1 && jvrp->GetJson()) {
+				Tjp->NextSame = nextsame;
         jval.SetValue(GetColumnValue(g, jvrp->GetJson(), n + 1));
         jvp = &jval;
       } else
@@ -1404,8 +1393,9 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
       } else
         SetJsonValue(g, MulVal, jvp, n);
   
-      if (!MulVal->IsZero()) {
-        switch (op) {
+//    if (!MulVal->IsZero()) {
+			if (!MulVal->IsNull()) {
+				switch (op) {
           case OP_CNC:
             if (Nodes[n].CncVal) {
               val[0] = Nodes[n].CncVal;
