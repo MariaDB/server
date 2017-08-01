@@ -862,8 +862,6 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
 
   thd->lex= &newlex;
   newlex.current_select= NULL;
-  // Resetting REPLACE and EXIST flags in create_info, for show_create_sp()
-  newlex.create_info.DDL_options_st::init();
 
   defstr.set_charset(creation_ctx->get_client_cs());
 
@@ -873,10 +871,10 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
     definition for SHOW CREATE PROCEDURE later.
    */
 
-  if (!show_create_sp(thd, &defstr,
-                      null_clex_str, name->m_name,
-                      params, returns, body,
-                      chistics, definer, sql_mode))
+  if (show_create_sp(thd, &defstr,
+                     null_clex_str, name->m_name,
+                     params, returns, body,
+                     chistics, definer, DDL_options(), sql_mode))
   {
     ret= SP_INTERNAL_ERROR;
     goto end;
@@ -1303,12 +1301,14 @@ log:
     String log_query;
     log_query.set_charset(system_charset_info);
 
-    if (!show_create_sp(thd, &log_query,
-                        sp->m_explicit_name ? sp->m_db : null_clex_str,
-                        sp->m_name,
-                        sp->m_params, returns, sp->m_body,
-                        sp->chistics(), thd->lex->definer[0],
-                        saved_mode))
+    if (show_create_sp(thd, &log_query,
+                       sp->m_explicit_name ? sp->m_db : null_clex_str,
+                       sp->m_name,
+                       sp->m_params, returns, sp->m_body,
+                       sp->chistics(),
+                       thd->lex->definer[0],
+                       thd->lex->create_info,
+                       saved_mode))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto done;
@@ -2176,7 +2176,7 @@ int Sp_handler::sp_cache_routine(THD *thd,
   Generates the CREATE... string from the table information.
 
   @return
-    Returns TRUE on success, FALSE on (alloc) failure.
+    Returns false on success, true on (alloc) failure.
 */
 bool
 Sp_handler::show_create_sp(THD *thd, String *buf,
@@ -2187,6 +2187,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
                            const LEX_CSTRING &body,
                            const st_sp_chistics &chistics,
                            const AUTHID &definer,
+                           const DDL_options_st ddl_options,
                            sql_mode_t sql_mode) const
 {
   sql_mode_t old_sql_mode= thd->variables.sql_mode;
@@ -2195,16 +2196,16 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
                  params.length + returns.length +
 		 chistics.comment.length + 10 /* length of " DEFINER= "*/ +
                  USER_HOST_BUFF_SIZE))
-    return FALSE;
+    return true;
 
   thd->variables.sql_mode= sql_mode;
   buf->append(STRING_WITH_LEN("CREATE "));
-  if (thd->lex->create_info.or_replace())
+  if (ddl_options.or_replace())
     buf->append(STRING_WITH_LEN("OR REPLACE "));
   append_definer(thd, buf, &definer.user, &definer.host);
   buf->append(type_lex_cstring());
   buf->append(STRING_WITH_LEN(" "));
-  if (thd->lex->create_info.if_not_exists())
+  if (ddl_options.if_not_exists())
     buf->append(STRING_WITH_LEN("IF NOT EXISTS "));
 
   if (db.length > 0)
@@ -2252,7 +2253,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
   }
   buf->append(body);
   thd->variables.sql_mode= old_sql_mode;
-  return TRUE;
+  return false;
 }
 
 
@@ -2300,10 +2301,10 @@ Sp_handler::sp_load_for_information_schema(THD *thd, TABLE *proc_table,
   Stored_program_creation_ctx *creation_ctx= 
     Stored_routine_creation_ctx::load_from_db(thd, &sp_name_obj, proc_table);
   defstr.set_charset(creation_ctx->get_client_cs());
-  if (!show_create_sp(thd, &defstr,
-                      sp_name_obj.m_db, sp_name_obj.m_name,
-                      params, returns, empty_body_lex_cstring(),
-                      Sp_chistics(), definer, sql_mode))
+  if (show_create_sp(thd, &defstr,
+                     sp_name_obj.m_db, sp_name_obj.m_name,
+                     params, returns, empty_body_lex_cstring(),
+                     Sp_chistics(), definer, DDL_options(), sql_mode))
     return 0;
 
   thd->lex= &newlex;
