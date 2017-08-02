@@ -2789,7 +2789,10 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	when SRV_SHUTDOWN_CLEANUP is set other threads like the master
 	and the purge threads may be working as well. We start flushing
 	the buffer pool but can't be sure that no new pages are being
-	dirtied until we enter SRV_SHUTDOWN_FLUSH_PHASE phase. */
+	dirtied until we enter SRV_SHUTDOWN_FLUSH_PHASE phase. Because
+	the LRU manager thread is also flushing at SRV_SHUTDOWN_CLEANUP
+	but not SRV_SHUTDOWN_FLUSH_PHASE, we only leave the
+	SRV_SHUTDOWN_CLEANUP loop when the LRU manager quits. */
 
 	do {
 		n_flushed = page_cleaner_do_flush_batch(PCT_IO(100), LSN_MAX);
@@ -2798,7 +2801,10 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 		if (n_flushed == 0) {
 			os_thread_sleep(100000);
 		}
-	} while (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
+
+		os_rmb;
+	} while (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP
+		 || buf_lru_manager_is_active);
 
 	/* At this point all threads including the master and the purge
 	thread must have been suspended. */
@@ -2814,6 +2820,11 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	in the flush_list */
 	buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
 	buf_flush_wait_LRU_batch_end();
+
+#ifdef UNIV_DEBUG
+	os_rmb;
+	ut_ad(!buf_lru_manager_is_active);
+#endif
 
 	bool	success;
 
@@ -2877,6 +2888,7 @@ DECLARE_THREAD(buf_flush_lru_manager_thread)(
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 	buf_lru_manager_is_active = true;
+	os_wmb;
 
 	/* On server shutdown, the LRU manager thread runs through cleanup
 	phase to provide free pages for the master and purge threads.  */
@@ -2895,6 +2907,7 @@ DECLARE_THREAD(buf_flush_lru_manager_thread)(
 	}
 
 	buf_lru_manager_is_active = false;
+	os_wmb;
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
