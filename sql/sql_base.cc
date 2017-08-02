@@ -3127,7 +3127,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
         DEBUG_SYNC(thd, "after_shared_lock_pname");
 
         /* Ensures the routine is up-to-date and cached, if exists. */
-        if (sp_cache_routine(thd, rt, has_prelocking_list, &sp))
+        if (rt->sp_cache_routine(thd, has_prelocking_list, &sp))
           DBUG_RETURN(TRUE);
 
         /* Remember the version of the routine in the parse tree. */
@@ -3152,7 +3152,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           Validating routine version is unnecessary, since CALL
           does not affect the prepared statement prelocked list.
         */
-        if (sp_cache_routine(thd, rt, FALSE, &sp))
+        if (rt->sp_cache_routine(thd, false, &sp))
           DBUG_RETURN(TRUE);
       }
     }

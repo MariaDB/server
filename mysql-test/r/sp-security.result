@@ -755,3 +755,21 @@ GRANT EXECUTE ON PROCEDURE `test`.`sp1` TO 'root'@'localhost'
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 drop procedure sp1;
 set password='';
+#
+# MDEV-13396 Unexpected "alter routine comand defined" during CREATE OR REPLACE PROCEDURE
+#
+CREATE DATABASE u1;
+CREATE PROCEDURE u1.p1() BEGIN SELECT 1; END; $$
+CREATE FUNCTION u1.f1() RETURNS INT BEGIN RETURN 1; END; $$
+CREATE USER u1@localhost;
+GRANT CREATE ROUTINE ON u1.* TO u1@localhost;
+GRANT ALTER ROUTINE ON FUNCTION u1.f1 TO u1@localhost;
+GRANT ALTER ROUTINE ON PROCEDURE u1.p1 TO u1@localhost;
+connect  u1, localhost, u1,,;
+USE u1;
+CREATE OR REPLACE FUNCTION f1() RETURNS INT BEGIN RETURN 2; END; $$
+CREATE OR REPLACE PROCEDURE p1() BEGIN SELECT 1; END; $$
+disconnect u1;
+connection default;
+DROP DATABASE u1;
+DROP USER u1@localhost;

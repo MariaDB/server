@@ -1287,6 +1287,7 @@ struct st_sp_chistics
   enum enum_sp_data_access daccess;
   void init() { bzero(this, sizeof(*this)); }
   void set(const st_sp_chistics &other) { *this= other; }
+  bool read_from_mysql_proc_row(THD *thd, TABLE *table);
 };
 
 
@@ -3155,24 +3156,22 @@ public:
   void set_stmt_init();
   sp_name *make_sp_name(THD *thd, LEX_CSTRING *name);
   sp_name *make_sp_name(THD *thd, LEX_CSTRING *name1, LEX_CSTRING *name2);
-  sp_head *make_sp_head(THD *thd, sp_name *name,
-                        enum stored_procedure_type type);
-  sp_head *make_sp_head_no_recursive(THD *thd, sp_name *name,
-                                     enum stored_procedure_type type)
+  sp_head *make_sp_head(THD *thd, const sp_name *name, const Sp_handler *sph);
+  sp_head *make_sp_head_no_recursive(THD *thd, const sp_name *name,
+                                     const Sp_handler *sph)
   {
     if (!sphead)
-      return make_sp_head(thd, name, type);
-    my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0),
-             stored_procedure_type_to_str(type));
+      return make_sp_head(thd, name, sph);
+    my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), sph->type_str());
     return NULL;
   }
   sp_head *make_sp_head_no_recursive(THD *thd,
                                      DDL_options_st options, sp_name *name,
-                                     enum stored_procedure_type type)
+                                     const Sp_handler *sph)
   {
     if (add_create_options_with_check(options))
       return NULL;
-    return make_sp_head_no_recursive(thd, name, type);
+    return make_sp_head_no_recursive(thd, name, sph);
   }
   bool init_internal_variable(struct sys_var_with_base *variable,
                              const LEX_CSTRING *name);

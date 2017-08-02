@@ -540,10 +540,10 @@ sp_head::operator delete(void *ptr, size_t size) throw()
 }
 
 
-sp_head::sp_head(stored_procedure_type type)
+sp_head::sp_head(const Sp_handler *sph)
   :Query_arena(&main_mem_root, STMT_INITIALIZED_FOR_SP),
    Database_qualified_name(&null_clex_str, &null_clex_str),
-   m_type(type),
+   m_handler(sph),
    m_flags(0),
    m_explicit_name(false),
    /*
@@ -610,7 +610,7 @@ sp_head::init(LEX *lex)
 
 
 void
-sp_head::init_sp_name(THD *thd, sp_name *spname)
+sp_head::init_sp_name(THD *thd, const sp_name *spname)
 {
   DBUG_ENTER("sp_head::init_sp_name");
 
@@ -733,7 +733,7 @@ sp_head::~sp_head()
 
 Field *
 sp_head::create_result_field(uint field_max_length, const LEX_CSTRING *field_name,
-                             TABLE *table)
+                             TABLE *table) const
 {
   Field *field;
   LEX_CSTRING name;
@@ -960,28 +960,13 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
 }
 
 
-/**
-  Return appropriate error about recursion limit reaching
-
-  @param thd  Thread handle
-
-  @remark For functions and triggers we return error about
-          prohibited recursion. For stored procedures we
-          return about reaching recursion limit.
-*/
-
-void sp_head::recursion_level_error(THD *thd)
+void Sp_handler_procedure::recursion_level_error(THD *thd,
+                                                 const sp_head *sp) const
 {
-  if (m_type == TYPE_ENUM_PROCEDURE)
-  {
-    my_error(ER_SP_RECURSION_LIMIT, MYF(0),
-             static_cast<int>(thd->variables.max_sp_recursion_depth),
-             m_name.str);
-  }
-  else
-    my_error(ER_SP_NO_RECURSION, MYF(0));
+  my_error(ER_SP_RECURSION_LIMIT, MYF(0),
+           static_cast<int>(thd->variables.max_sp_recursion_depth),
+           sp->m_name.str);
 }
-
 
 
 /**
@@ -1391,7 +1376,6 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
   @param thd         thread handle
   @param sp          stored routine to change the context for
-  @param is_proc     TRUE is procedure, FALSE if function
   @param save_ctx    pointer to an old security context
 
   @todo
@@ -1406,8 +1390,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 */
 
 bool
-set_routine_security_ctx(THD *thd, sp_head *sp, bool is_proc,
-                         Security_context **save_ctx)
+set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx)
 {
   *save_ctx= 0;
   if (sp->suid() != SP_IS_NOT_SUID &&
@@ -1429,7 +1412,7 @@ set_routine_security_ctx(THD *thd, sp_head *sp, bool is_proc,
   */
   if (*save_ctx &&
       check_routine_access(thd, EXECUTE_ACL,
-                           sp->m_db.str, sp->m_name.str, is_proc, FALSE))
+                           sp->m_db.str, sp->m_name.str, sp->m_handler, false))
   {
     sp->m_security_ctx.restore_security_context(thd, *save_ctx);
     *save_ctx= 0;
@@ -1450,20 +1433,17 @@ set_routine_security_ctx(THD *thd, sp_head *sp, bool is_proc,
   so we can omit the security context switch for performance purposes.
 
   @param thd
-  @param sphead
-  @param is_proc
-  @param root_pctx
   @param ret_value
   @retval           NULL - error (access denided or EOM)
   @retval          !NULL - success (the invoker has rights to all %TYPE tables)
 */
-sp_rcontext *sp_head::rcontext_create(THD *thd, bool is_proc, Field *ret_value)
+sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value)
 {
   bool has_column_type_refs= m_flags & HAS_COLUMN_TYPE_REFS;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx;
   if (has_column_type_refs &&
-      set_routine_security_ctx(thd, this, is_proc, &save_security_ctx))
+      set_routine_security_ctx(thd, this, &save_security_ctx))
     return NULL;
 #endif
   sp_rcontext *res= sp_rcontext::create(thd, m_pcont, ret_value,
@@ -1689,7 +1669,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
-  if (!(nctx= rcontext_create(thd, false, return_value_fld)))
+  if (!(nctx= rcontext_create(thd, return_value_fld)))
   {
     thd->restore_active_arena(&call_arena, &backup_arena);
     err_status= TRUE;
@@ -1760,7 +1740,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx;
-  if (set_routine_security_ctx(thd, this, FALSE, &save_security_ctx))
+  if (set_routine_security_ctx(thd, this, &save_security_ctx))
   {
     err_status= TRUE;
     goto err_with_cleanup;
@@ -1904,7 +1884,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (! octx)
   {
     /* Create a temporary old context. */
-    if (!(octx= rcontext_create(thd, true, NULL)))
+    if (!(octx= rcontext_create(thd, NULL)))
     {
       DBUG_PRINT("error", ("Could not create octx"));
       DBUG_RETURN(TRUE);
@@ -1919,7 +1899,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     thd->spcont->callers_arena= thd;
   }
 
-  if (!(nctx= rcontext_create(thd, true, NULL)))
+  if (!(nctx= rcontext_create(thd, NULL)))
   {
     delete nctx; /* Delete nctx if it was init() that failed. */
     thd->spcont= save_spcont;
@@ -2042,7 +2022,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx= 0;
   if (!err_status)
-    err_status= set_routine_security_ctx(thd, this, TRUE, &save_security_ctx);
+    err_status= set_routine_security_ctx(thd, this, &save_security_ctx);
 #endif
 
   if (!err_status)
@@ -2459,27 +2439,6 @@ sp_head::set_info(longlong created, longlong modified,
 
 
 void
-sp_head::set_definer(const char *definer, uint definerlen)
-{
-  char user_name_holder[USERNAME_LENGTH + 1];
-  LEX_CSTRING user_name= { user_name_holder, USERNAME_LENGTH };
-
-  char host_name_holder[HOSTNAME_LENGTH + 1];
-  LEX_CSTRING host_name= { host_name_holder, HOSTNAME_LENGTH };
-
-  if (parse_user(definer, definerlen, user_name_holder, &user_name.length,
-                 host_name_holder, &host_name.length) &&
-      user_name.length && !host_name.length)
-  {
-    // 'user@' -> 'user@%'
-    host_name= host_not_specified;
-  }
-
-  set_definer(&user_name, &host_name);
-}
-
-
-void
 sp_head::reset_thd_mem_root(THD *thd)
 {
   DBUG_ENTER("sp_head::reset_thd_mem_root");
@@ -2553,7 +2512,7 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
                           thd->security_ctx->priv_host)));
   if (!*full_access)
     return check_some_routine_access(thd, sp->m_db.str, sp->m_name.str,
-                                     sp->m_type == TYPE_ENUM_PROCEDURE);
+                                     sp->m_handler);
   return 0;
 }
 
@@ -2562,9 +2521,8 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
   Collect metadata for SHOW CREATE statement for stored routines.
 
   @param thd  Thread context.
-  @param type         Stored routine type
-  @param type         Stored routine type
-                      (TYPE_ENUM_PROCEDURE or TYPE_ENUM_FUNCTION)
+  @param sph          Stored routine handler
+  @param fields       Item list to populate
 
   @return Error status.
     @retval FALSE on success
@@ -2572,13 +2530,11 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
 */
 
 void
-sp_head::show_create_routine_get_fields(THD *thd, int type, List<Item> *fields)
+sp_head::show_create_routine_get_fields(THD *thd, const Sp_handler *sph,
+                                                  List<Item> *fields)
 {
-  const char *col1_caption= type == TYPE_ENUM_PROCEDURE ?
-                            "Procedure" : "Function";
-
-  const char *col3_caption= type == TYPE_ENUM_PROCEDURE ?
-                            "Create Procedure" : "Create Function";
+  const char *col1_caption= sph->show_create_routine_col1_caption();
+  const char *col3_caption= sph->show_create_routine_col3_caption();
 
   MEM_ROOT *mem_root= thd->mem_root;
 
@@ -2625,8 +2581,7 @@ sp_head::show_create_routine_get_fields(THD *thd, int type, List<Item> *fields)
   Implement SHOW CREATE statement for stored routines.
 
   @param thd  Thread context.
-  @param type         Stored routine type
-                      (TYPE_ENUM_PROCEDURE or TYPE_ENUM_FUNCTION)
+  @param sph  Stored routine handler
 
   @return Error status.
     @retval FALSE on success
@@ -2634,13 +2589,10 @@ sp_head::show_create_routine_get_fields(THD *thd, int type, List<Item> *fields)
 */
 
 bool
-sp_head::show_create_routine(THD *thd, int type)
+sp_head::show_create_routine(THD *thd, const Sp_handler *sph)
 {
-  const char *col1_caption= type == TYPE_ENUM_PROCEDURE ?
-                            "Procedure" : "Function";
-
-  const char *col3_caption= type == TYPE_ENUM_PROCEDURE ?
-                            "Create Procedure" : "Create Function";
+  const char *col1_caption= sph->show_create_routine_col1_caption();
+  const char *col3_caption= sph->show_create_routine_col3_caption();
 
   bool err_status;
 
@@ -2654,9 +2606,6 @@ sp_head::show_create_routine(THD *thd, int type)
 
   DBUG_ENTER("sp_head::show_create_routine");
   DBUG_PRINT("info", ("routine %s", m_name.str));
-
-  DBUG_ASSERT(type == TYPE_ENUM_PROCEDURE ||
-              type == TYPE_ENUM_FUNCTION);
 
   if (check_show_routine_access(thd, this, &full_access))
     DBUG_RETURN(TRUE);
@@ -2780,6 +2729,29 @@ bool sp_head::add_instr_jump_forward_with_backpatch(THD *thd,
   if (i == NULL || add_instr(i))
     return true;
   push_backpatch(thd, i, lab);
+  return false;
+}
+
+
+bool sp_head::add_instr_freturn(THD *thd, sp_pcontext *spcont,
+                                Item *item, LEX *lex)
+{
+  sp_instr_freturn *i= new (thd->mem_root)
+                       sp_instr_freturn(instructions(), spcont, item,
+                       m_return_field_def.type_handler(), thd->lex);
+  if (i == NULL || add_instr(i))
+    return true;
+  m_flags|= sp_head::HAS_RETURN;
+  return false;
+}
+
+
+bool sp_head::add_instr_preturn(THD *thd, sp_pcontext *spcont)
+{
+  sp_instr_preturn *i= new (thd->mem_root)
+                       sp_instr_preturn(instructions(), spcont);
+  if (i == NULL || add_instr(i))
+    return true;
   return false;
 }
 

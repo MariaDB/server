@@ -215,7 +215,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &user_list,
 int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,
                        List <LEX_COLUMN> &column_list, ulong rights,
                        bool revoke);
-bool mysql_routine_grant(THD *thd, TABLE_LIST *table, bool is_proc,
+bool mysql_routine_grant(THD *thd, TABLE_LIST *table, const Sp_handler *sph,
                          List <LEX_USER> &user_list, ulong rights,
                          bool revoke, bool write_to_binlog);
 bool grant_init();
@@ -231,7 +231,8 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
 bool check_grant_all_columns(THD *thd, ulong want_access,
                              Field_iterator_table_ref *fields);
 bool check_grant_routine(THD *thd, ulong want_access,
-                         TABLE_LIST *procs, bool is_proc, bool no_error);
+                         TABLE_LIST *procs, const Sp_handler *sph,
+                         bool no_error);
 bool check_grant_db(THD *thd,const char *db);
 bool check_global_access(THD *thd, ulong want_access, bool no_errors= false);
 bool check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
@@ -257,11 +258,11 @@ bool mysql_revoke_all(THD *thd, List <LEX_USER> &list);
 void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
                                      const char *db, const char *table);
 bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
-                          bool is_proc);
+                          const Sp_handler *sph);
 bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
-                         bool is_proc);
+                         const Sp_handler *sph);
 bool check_routine_level_acl(THD *thd, const char *db, const char *name,
-                             bool is_proc);
+                             const Sp_handler *sph);
 bool is_acl_user(const char *host, const char *user);
 int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond);

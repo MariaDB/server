@@ -4507,10 +4507,16 @@ void st_select_lex::set_explain_type(bool on_the_fly)
           if (join)
           {
             bool uses_cte= false;
-            for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
-                 tab= next_explain_order_tab(join, tab))
+            for (JOIN_TAB *tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS,
+                                                       WITH_CONST_TABLES);
+                 tab;
+                 tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
             {
-              if (tab->table && tab->table->pos_in_table_list->with)
+              /*
+                pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
+              */
+              if (tab->table && tab->table->pos_in_table_list &&
+                  tab->table->pos_in_table_list->with)
               {
                 uses_cte= true;
                 break;
@@ -5143,7 +5149,7 @@ bool LEX::init_internal_variable(struct sys_var_with_base *variable,
 
 bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name)
 {
-  return sphead && sphead->m_type == TYPE_ENUM_TRIGGER &&
+  return sphead && sphead->m_handler->type() == TYPE_ENUM_TRIGGER &&
          name->length == 3 &&
          (!my_strcasecmp(system_charset_info, name->str, "NEW") ||
           !my_strcasecmp(system_charset_info, name->str, "OLD"));
@@ -5819,13 +5825,13 @@ sp_name *LEX::make_sp_name(THD *thd, LEX_CSTRING *name1, LEX_CSTRING *name2)
 }
 
 
-sp_head *LEX::make_sp_head(THD *thd, sp_name *name,
-                           enum stored_procedure_type type)
+sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
+                           const Sp_handler *sph)
 {
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if ((sp= new sp_head(type)))
+  if ((sp= new sp_head(sph)))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
@@ -6121,7 +6127,7 @@ bool LEX::maybe_start_compound_statement(THD *thd)
 {
   if (!sphead)
   {
-    if (!make_sp_head(thd, NULL, TYPE_ENUM_PROCEDURE))
+    if (!make_sp_head(thd, NULL, &sp_handler_procedure))
       return true;
     sphead->set_suid(SP_IS_NOT_SUID);
     sphead->set_body_start(thd, thd->m_parser_state->m_lip.get_cpp_ptr());

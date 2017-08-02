@@ -152,9 +152,10 @@ bool check_single_table_access(THD *thd, ulong privilege,
 			   TABLE_LIST *tables, bool no_errors);
 bool check_routine_access(THD *thd,ulong want_access,const char *db,
                           const char *name,
-			  bool is_proc, bool no_errors);
+                          const Sp_handler *sph, bool no_errors);
 bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table);
-bool check_some_routine_access(THD *thd, const char *db, const char *name, bool is_proc);
+bool check_some_routine_access(THD *thd, const char *db, const char *name,
+                               const Sp_handler *sph);
 bool check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
                         bool any_combination_of_privileges_will_do,
                         uint number,
@@ -166,7 +167,8 @@ inline bool check_single_table_access(THD *thd, ulong privilege,
 			   TABLE_LIST *tables, bool no_errors)
 { return false; }
 inline bool check_routine_access(THD *thd,ulong want_access, const char *db,
-                                 const char *name, bool is_proc, bool no_errors)
+                                 const char *name,
+                                 const Sp_handler *sph, bool no_errors)
 { return false; }
 inline bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table)
 {
@@ -174,7 +176,8 @@ inline bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table)
   return false;
 }
 inline bool check_some_routine_access(THD *thd, const char *db,
-                                      const char *name, bool is_proc)
+                                      const char *name,
+                                      const Sp_handler *sph)
 { return false; }
 inline bool
 check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,

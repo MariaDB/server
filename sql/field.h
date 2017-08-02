@@ -839,6 +839,21 @@ public:
   */
   virtual String *val_str(String*,String *)=0;
   String *val_int_as_str(String *val_buffer, bool unsigned_flag);
+  /*
+    Return the field value as a LEX_CSTRING, without padding to full length
+    (MODE_PAD_CHAR_TO_FULL_LENGTH is temporarily suppressed during the call).
+
+    In case of an empty value, to[0] is assigned to empty_clex_string,
+    memory is not allocated.
+    In case of a non-empty value, the memory is allocated on mem_root.
+    In case of a memory allocation failure, to[0] is assigned to {NULL,0}.
+
+    @param  [IN] mem_root  store non-empty values here
+    @param  [OUT to        return the string here
+    @retval                false (success)
+    @retval                true  (EOM)
+  */
+  bool val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to);
   fast_field_copier get_fast_field_copier(const Field *from);
   /*
    str_needs_quotes() returns TRUE if the value returned by val_str() needs
