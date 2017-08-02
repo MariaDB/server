@@ -416,6 +416,7 @@ wsrep_connected_handler_cb(void* app_ctx,
 
   node_uuid= initial_view->members[initial_view->my_idx].id;
   cluster_uuid= initial_view->state_id.uuid;
+  wsrep_cluster_status= cluster_status_str[initial_view->status];
 
   char node_uuid_str[WSREP_UUID_STR_LEN + 1];
   (void)wsrep_uuid_print(&node_uuid, node_uuid_str, sizeof(node_uuid_str));

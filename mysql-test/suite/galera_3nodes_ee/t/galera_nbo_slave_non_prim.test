@@ -61,3 +61,9 @@ SELECT COUNT(*) = 1 FROM t1;
 SET SESSION wsrep_OSU_method=TOI;
 DROP TABLE t1;
 CALL mtr.add_suppression("gcs_caused\\(\\) returned -1");
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+--connection node_3
+--source include/galera_wait_ready.inc

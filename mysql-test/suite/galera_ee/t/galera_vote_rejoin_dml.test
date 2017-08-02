@@ -84,6 +84,7 @@ SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
 CALL mtr.add_suppression("inconsistent with group");
 
 --connection node_4
+--source include/galera_wait_ready.inc
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
 SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
 

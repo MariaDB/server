@@ -52,11 +52,15 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
 
 --connection node_2
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--source include/wait_condition.inc
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 SELECT COUNT(*) = 0 FROM t1;
 
 --connection node_3
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--source include/wait_condition.inc
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 SELECT COUNT(*) = 0 FROM t1;
 

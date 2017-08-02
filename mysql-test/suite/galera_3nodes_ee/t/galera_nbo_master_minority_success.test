@@ -37,4 +37,5 @@ CALL mtr.add_suppression("Slave SQL: Error");
 CALL mtr.add_suppression("inconsistent with group");
 
 --connection node_3
+--source include/galera_wait_ready.inc
 CALL mtr.add_suppression("Slave SQL: Error");
