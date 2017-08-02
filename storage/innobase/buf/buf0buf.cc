@@ -95,7 +95,7 @@ struct set_numa_t
 	{
 		if (srv_numa_interleave) {
 
-			numa_mems_allowed = numa_get_mems_allowed();
+			numa_mems_allowed = mysql_numa_get_mems_allowed();
 			if (set_mempolicy(MPOL_INTERLEAVE,
 					  numa_mems_allowed->maskp,
 					  numa_mems_allowed->size) != 0) {
@@ -599,13 +599,13 @@ buf_block_alloc(
 	if (buf_pool == NULL) {
 
 #ifdef HAVE_LIBNUMA
-		struct bitmask* node_mask = numa_get_membind();
+		struct bitmask* node_mask = mysql_numa_get_membind();
 		ulint	num_nodes = 0;
 		ulint	node = 0;
 
 		if (srv_numa_enable) {
 			for (ulint i = 0; i < SRV_MAX_NUM_NUMA_NODES; i++) {
-				if (numa_bitmask_isbitset(node_mask, i)) {
+				if (mysql_numa_bitmask_isbitset(node_mask, i)) {
 					node = i;
 					num_nodes++;
 				}
@@ -1550,7 +1550,7 @@ buf_chunk_init(
 
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_interleave) {
-		struct bitmask *numa_mems_allowed = numa_get_mems_allowed();
+		struct bitmask *numa_mems_allowed = mysql_numa_get_mems_allowed();
 		ulint	mbind_val = mbind(chunk->mem, chunk->mem_size(),
 				   MPOL_INTERLEAVE,
 				   numa_mems_allowed->maskp,
@@ -1563,8 +1563,8 @@ buf_chunk_init(
 		}
 	}
 	if (srv_numa_enable) {
-		struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
-		numa_bitmask_setbit(node_mask, srv_allowed_nodes[instance_no]);
+		struct bitmask* node_mask = mysql_numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
+		mysql_numa_bitmask_setbit(node_mask, srv_allowed_nodes[instance_no]);
 		ulint	mbind_val = mbind(chunk->mem, chunk->mem_size(),
 				   MPOL_BIND,
 				   node_mask->maskp,
@@ -2051,7 +2051,7 @@ buf_pool_init(
 	ulint	size = total_size / n_instances;
 
 #ifdef HAVE_LIBNUMA
-	struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
+	struct bitmask* node_mask = mysql_numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
 #endif // HAVE_LIBNUMA
 
 	ut_ad(n_instances > 0);
@@ -2072,8 +2072,8 @@ buf_pool_init(
 
 #ifdef HAVE_LIBNUMA
 		if (srv_numa_enable) {
-			numa_bitmask_clearall(node_mask);
-			numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
+			mysql_numa_bitmask_clearall(node_mask);
+			mysql_numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
 			size = srv_size_of_buf_pool_in_node[i];
 		}
 		SET_NUMA_T(node_mask);
@@ -2666,7 +2666,7 @@ buf_pool_resize()
 	bool		warning = false;
 
 #ifdef HAVE_LIBNUMA
-	struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
+	struct bitmask* node_mask = mysql_numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
 #endif // HAVE_LIBNUMA
 
 	ut_ad(!buf_pool_resizing);
@@ -2884,8 +2884,8 @@ withdraw_retry:
 
 #ifdef HAVE_LIBNUMA
 		if (srv_numa_enable) {
-			numa_bitmask_clearall(node_mask);
-			numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
+			mysql_numa_bitmask_clearall(node_mask);
+			mysql_numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
 		}
 		SET_NUMA_T(node_mask);
 #endif //HAVE_LIBNUMA
@@ -3072,8 +3072,8 @@ calc_buf_pool_size:
 
 #ifdef HAVE_LIBNUMA
 			if (srv_numa_enable) {
-				numa_bitmask_clearall(node_mask);
-				numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
+				mysql_numa_bitmask_clearall(node_mask);
+				mysql_numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
 			}
 			SET_NUMA_T(node_mask);
 #endif //HAVE_LIBNUMA
