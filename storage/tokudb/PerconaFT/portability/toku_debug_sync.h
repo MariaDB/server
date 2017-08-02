@@ -67,7 +67,7 @@ inline void toku_debug_sync(struct tokutxn *txn, const char *sync_point_name) {
 
     toku_txn_get_client_id(txn, &client_id, &client_extra);
     thd = reinterpret_cast<THD *>(client_extra);
-    debug_sync(thd, sync_point_name, strlen(sync_point_name));
+    DEBUG_SYNC(thd, sync_point_name);
 }
 
 #else // defined(ENABLED_DEBUG_SYNC)

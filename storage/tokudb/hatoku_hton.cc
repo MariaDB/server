@@ -55,7 +55,7 @@ static bool tokudb_show_status(
 static void tokudb_handle_fatal_signal(handlerton* hton, THD* thd, int sig);
 #endif
 static int tokudb_close_connection(handlerton* hton, THD* thd);
-static void tokudb_kill_connection(handlerton *hton, THD *thd);
+static void tokudb_kill_connection(handlerton *hton, THD *thd, enum thd_kill_levels level);
 static int tokudb_commit(handlerton* hton, THD* thd, bool all);
 static int tokudb_rollback(handlerton* hton, THD* thd, bool all);
 #if TOKU_INCLUDE_XA
@@ -332,7 +332,7 @@ static int tokudb_init_func(void *p) {
 
     tokudb_hton->create = tokudb_create_handler;
     tokudb_hton->close_connection = tokudb_close_connection;
-    tokudb_hton->kill_connection = tokudb_kill_connection;
+    tokudb_hton->kill_query = tokudb_kill_connection;
 
     tokudb_hton->savepoint_offset = sizeof(SP_INFO_T);
     tokudb_hton->savepoint_set = tokudb_savepoint;
@@ -756,7 +756,8 @@ static int tokudb_close_connection(handlerton* hton, THD* thd) {
     return error;
 }
 
-void tokudb_kill_connection(handlerton *hton, THD *thd) {
+void tokudb_kill_connection(handlerton *hton, THD *thd,
+                            enum thd_kill_levels level) {
     TOKUDB_DBUG_ENTER("");
     db_env->kill_waiter(db_env, thd);
     DBUG_VOID_RETURN;

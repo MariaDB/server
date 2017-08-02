@@ -10,7 +10,7 @@ foreach(tool ${tools})
   if (DEFINED MYSQL_PROJECT_NAME_DOCSTRING)
     if ((CMAKE_BUILD_TYPE MATCHES "Debug") AND
         (CMAKE_CXX_FLAGS_DEBUG MATCHES " -DENABLED_DEBUG_SYNC"))
-      target_link_libraries(${tool} sql binlog rpl master slave)
+      target_link_libraries(${tool} sql)
     endif()
   endif ()
 
