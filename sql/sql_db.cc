@@ -1381,6 +1381,7 @@ static void mysql_change_db_impl(THD *thd,
         db_node_map.insert(std::pair<char*, unsigned long int> (new_name, node));
       }
       mysql_bind_thread_to_node(node);
+      thd->numa_node_id = node;
     }
 #endif // HAVE_LIBNUMA
   }
