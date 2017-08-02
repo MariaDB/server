@@ -57,10 +57,6 @@ Created 11/11/1995 Heikki Tuuri
 #include <sys/resource.h>
 static const int buf_flush_page_cleaner_priority = -20;
 #endif /* UNIV_LINUX */
-#ifdef HAVE_LIBNUMA
-#include <numa.h>
-#include <numaif.h>
-#endif // HAVE_LIBNUMA
 
 /** Sleep time in microseconds for loop waiting for the oldest
 modification lsn */

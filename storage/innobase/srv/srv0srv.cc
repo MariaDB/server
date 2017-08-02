@@ -78,10 +78,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
 #include "btr0scrub.h"
-#ifdef HAVE_LIBNUMA
-#include <numa.h>
-#include <numaif.h>
-#endif // HAVE_LIBNUMA
 #ifdef WITH_WSREP
 extern int wsrep_debug;
 extern int wsrep_trx_is_aborting(void *thd_ptr);
@@ -722,17 +718,6 @@ PSI_stage_info	srv_stage_alter_table_read_pk_internal_sort
 PSI_stage_info	srv_stage_buffer_pool_load
 	= {0, "buffer pool load", PSI_FLAG_STAGE_PROGRESS};
 #endif /* HAVE_PSI_STAGE_INTERFACE */
-
-#ifdef HAVE_LIBNUMA
-void
-srv_bind_thread_to_node(
-	ulint	node)
-{
-	struct bitmask* node_mask = numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
-	numa_bitmask_setbit(node_mask, node);
-	numa_bind(node_mask);
-}
-#endif // HAVE_LIBNUMA
 
 /*********************************************************************//**
 Prints counters for work done by srv_master_thread. */

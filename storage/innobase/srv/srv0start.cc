@@ -115,11 +115,6 @@ Created 2/16/1996 Heikki Tuuri
 extern bool srv_lzo_disabled;
 #endif /* HAVE_LZO1X */
 
-#ifdef HAVE_LIBNUMA
-#include <numa.h>
-#include <numaif.h>
-#endif // HAVE_LIBNUMA
-
 /** Log sequence number immediately after startup */
 lsn_t	srv_start_lsn;
 /** Log sequence number at shutdown */

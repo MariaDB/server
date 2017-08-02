@@ -29,6 +29,7 @@
 #include <my_rnd.h>
 #include "my_pthread.h"
 #include "my_rdtsc.h"
+#include "mysql/service_numa.h"
 
 class THD;
 class CONNECT;
@@ -65,9 +66,6 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #define OPT_DEFAULT SHOW_OPT_DEFAULT
 #define OPT_SESSION SHOW_OPT_SESSION
 #define OPT_GLOBAL SHOW_OPT_GLOBAL
-
-/* For NUMA support */
-#define SRV_MAX_NUM_NUMA_NODES 16
 
 extern MY_TIMER_INFO sys_timer_info;
 
@@ -137,10 +135,6 @@ extern ulong slave_run_triggers_for_rbr;
 extern ulonglong slave_type_conversions_options;
 extern my_bool read_only, opt_readonly;
 extern my_bool srv_numa_enable;
-extern unsigned long int srv_no_of_allowed_nodes;
-extern unsigned long int srv_allowed_nodes[SRV_MAX_NUM_NUMA_NODES];
-extern unsigned long int srv_size_of_numa_node[SRV_MAX_NUM_NUMA_NODES];
-extern unsigned long int srv_total_nodes_size;
 extern MYSQL_PLUGIN_IMPORT my_bool lower_case_file_system;
 extern my_bool opt_enable_named_pipe, opt_sync_frm, opt_allow_suspicious_udfs;
 extern my_bool opt_secure_auth;

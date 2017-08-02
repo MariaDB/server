@@ -56,6 +56,7 @@ Created 10/10/1995 Heikki Tuuri
 #include "buf0checksum.h"
 #include "ut0counter.h"
 #include "fil0fil.h"
+#include "mysql/service_numa.h"
 
 /** Global counters used inside InnoDB. */
 struct srv_stats_t
@@ -280,12 +281,7 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 extern my_bool	srv_use_native_aio;
 
-#define SRV_MAX_NUM_NUMA_NODES 16
 extern my_bool	srv_numa_interleave;
-extern ulint	srv_no_of_allowed_nodes;
-extern ulint	srv_allowed_nodes[SRV_MAX_NUM_NUMA_NODES];
-extern ulint	srv_size_of_numa_node[SRV_MAX_NUM_NUMA_NODES];
-extern ulint	srv_total_nodes_size;
 extern ulint	srv_size_of_buf_pool_in_node[SRV_MAX_NUM_NUMA_NODES];
 
 /* Use trim operation */
@@ -743,12 +739,6 @@ enum srv_thread_type {
 	SRV_MASTER			/*!< the master thread, (whose type
 					number must be biggest) */
 };
-
-#ifdef HAVE_LIBNUMA
-void
-srv_bind_thread_to_node(
-	ulint	node);
-#endif // HAVE_LIBNUMA
 
 /*********************************************************************//**
 Boots Innobase server. */

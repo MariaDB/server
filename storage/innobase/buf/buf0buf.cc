@@ -88,8 +88,7 @@ Created 11/5/1995 Heikki Tuuri
 #endif
 
 #ifdef HAVE_LIBNUMA
-#include <numa.h>
-#include <numaif.h>
+
 struct set_numa_t
 {
 	set_numa_t(struct bitmask* numa_mems_allowed)
