@@ -45,7 +45,7 @@ extern unsigned long int srv_total_nodes_size;
 #define mysql_numa_bitmask_isbitset(X, Y) numa_bitmask_isbitset(X, Y)
 #define mysql_numa_node_size(X, Y) numa_node_size(X, Y)
 
-static inline void srv_bind_thread_to_node(unsigned long int node)
+static inline void mysql_bind_thread_to_node(unsigned long int node)
 {
   struct bitmask* node_mask = mysql_numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
   mysql_numa_bitmask_setbit(node_mask, node);

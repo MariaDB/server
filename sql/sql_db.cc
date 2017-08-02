@@ -1380,7 +1380,7 @@ static void mysql_change_db_impl(THD *thd,
         char* new_name = strdup(new_db_name->str);
         db_node_map.insert(std::pair<char*, unsigned long int> (new_name, node));
       }
-      srv_bind_thread_to_node(node);
+      mysql_bind_thread_to_node(node);
     }
 #endif // HAVE_LIBNUMA
   }

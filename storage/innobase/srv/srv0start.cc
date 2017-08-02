@@ -333,7 +333,7 @@ DECLARE_THREAD(io_handler_thread)(
 #ifdef HAVE_LIBNUMA
 			if (srv_numa_enable) {
 				node = srv_allowed_nodes[read_node++/2];
-				srv_bind_thread_to_node(node);
+				mysql_bind_thread_to_node(node);
 			}
 #endif // HAVE_LIBNUMA
 
@@ -344,7 +344,7 @@ DECLARE_THREAD(io_handler_thread)(
 #ifdef HAVE_LIBNUMA
 			if (srv_numa_enable) {
 				node = srv_allowed_nodes[write_node++/2];
-				srv_bind_thread_to_node(node);
+				mysql_bind_thread_to_node(node);
 			}
 #endif // HAVE_LIBNUMA
 

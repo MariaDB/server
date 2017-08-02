@@ -3518,7 +3518,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 	ulint	node;
 	if (srv_numa_enable) {
 		node = srv_allowed_nodes[node_no++];
-		srv_bind_thread_to_node(node);
+		mysql_bind_thread_to_node(node);
 	}
 #endif // HAVE_LIBNUMA
 
