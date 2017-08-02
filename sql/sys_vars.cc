@@ -5446,7 +5446,7 @@ static Sys_var_enum Sys_wsrep_trx_fragment_unit(
 
 extern const char *wsrep_SR_store_types[];
 static Sys_var_enum Sys_wsrep_SR_store(
-       "wsrep_SR_store", "Storage for streamin replication fragments",
+       "wsrep_SR_store", "Storage for streaming replication fragments",
        READ_ONLY GLOBAL_VAR(wsrep_SR_store_type), CMD_LINE(REQUIRED_ARG),
        wsrep_SR_store_types, DEFAULT(WSREP_SR_STORE_TABLE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG);
