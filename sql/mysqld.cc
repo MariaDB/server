@@ -4405,12 +4405,7 @@ static int init_common_variables()
 
   /* Fix back_log (back_log == 0 added for MySQL compatibility) */
   if (back_log == 0 || IS_SYSVAR_AUTOSIZE(&back_log))
-  {
-    if ((900 - 50) * 5 >= max_connections)
-     SYSVAR_AUTOSIZE(back_log, (50 + max_connections / 5));
-    else
-     SYSVAR_AUTOSIZE(back_log, 900);
-  }
+    SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
 
   /* connections and databases needs lots of files */
   {
