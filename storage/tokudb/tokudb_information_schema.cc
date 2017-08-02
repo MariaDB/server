@@ -73,7 +73,8 @@ int trx_callback(
     void *extra) {
 
     uint64_t txn_id = txn->id64(txn);
-    uint64_t client_id = txn->get_client_id(txn);
+    uint64_t client_id;
+    txn->get_client_id(txn, &client_id, NULL);
     uint64_t start_time = txn->get_start_time(txn);
     trx_extra_t* e = reinterpret_cast<struct trx_extra_t*>(extra);
     THD* thd = e->thd;
@@ -312,7 +313,8 @@ int locks_callback(
     void* extra) {
 
     uint64_t txn_id = txn->id64(txn);
-    uint64_t client_id = txn->get_client_id(txn);
+    uint64_t client_id;
+    txn->get_client_id(txn, &client_id, NULL);
     locks_extra_t* e = reinterpret_cast<struct locks_extra_t*>(extra);
     THD* thd = e->thd;
     TABLE* table = e->table;

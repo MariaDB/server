@@ -87,6 +87,7 @@ setup (void) {
     else error_file = stderr;
 
     r=db_env_create(&env, 0); CKERR(r);
+    env->set_dir_per_db(env, true);
     env->set_errfile(env, error_file ? error_file : stderr);
     r=env->open(env, TOKU_TEST_FILENAME, DB_INIT_LOCK|DB_INIT_LOG|DB_INIT_MPOOL|DB_INIT_TXN|DB_CREATE|DB_PRIVATE, S_IRWXU+S_IRWXG+S_IRWXO); CKERR(r);
 }
@@ -431,6 +432,14 @@ test_fileops_3(void) {
     r = env->dbrename(env, txn_a, "a.db", NULL, "d.db", 0);  
     CKERR2(r, EEXIST);
     
+    // verify correct error return code when trying to
+    // rename a dictionary to a name that is beyond the limit
+    // of the operating system.
+    char longname[FILENAME_MAX+11];
+    memset(longname, 'b', FILENAME_MAX+7);
+    memcpy(longname+FILENAME_MAX+7, ".db", 4);
+    r = env->dbrename(env, txn_a, "a.db", NULL, longname, 0);
+    CKERR2(r, ENAMETOOLONG);
     r=txn_a->abort(txn_a); CKERR(r);
 }
 

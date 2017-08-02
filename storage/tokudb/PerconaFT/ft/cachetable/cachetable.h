@@ -297,6 +297,9 @@ void *toku_cachefile_get_userdata(CACHEFILE);
 CACHETABLE toku_cachefile_get_cachetable(CACHEFILE cf);
 // Effect: Get the cachetable.
 
+CACHEFILE toku_pair_get_cachefile(PAIR);
+// Effect: Get the cachefile of the pair
+
 void toku_cachetable_swap_pair_values(PAIR old_pair, PAIR new_pair);
 // Effect: Swaps the value_data of old_pair and new_pair. 
 // Requires: both old_pair and new_pair to be pinned with write locks.

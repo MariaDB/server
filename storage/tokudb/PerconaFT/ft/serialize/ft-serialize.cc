@@ -644,7 +644,29 @@ exit:
 // Read ft from file into struct.  Read both headers and use one.
 // We want the latest acceptable header whose checkpoint_lsn is no later
 // than max_acceptable_lsn.
-int toku_deserialize_ft_from(int fd, LSN max_acceptable_lsn, FT *ft) {
+#define dump_state_of_toku_deserialize_ft_from() \
+    fprintf(stderr, \
+            "%s:%d toku_deserialize_ft_from: " \
+            "filename[%s] " \
+            "r[%d] max_acceptable_lsn[%lu]" \
+            "r0[%d] checkpoint_lsn_0[%lu] checkpoint_count_0[%lu] " \
+            "r1[%d] checkpoint_lsn_1[%lu] checkpoint_count_1[%lu]\n", \
+            __FILE__, \
+            __LINE__, \
+            fn, \
+            r, \
+            max_acceptable_lsn.lsn, \
+            r0, \
+            checkpoint_lsn_0.lsn, \
+            checkpoint_count_0, \
+            r1, \
+            checkpoint_lsn_1.lsn, \
+            checkpoint_count_1);
+
+int toku_deserialize_ft_from(int fd,
+                             const char *fn,
+                             LSN max_acceptable_lsn,
+                             FT *ft) {
     struct rbuf rb_0;
     struct rbuf rb_1;
     uint64_t checkpoint_count_0 = 0;
@@ -655,7 +677,7 @@ int toku_deserialize_ft_from(int fd, LSN max_acceptable_lsn, FT *ft) {
     bool h0_acceptable = false;
     bool h1_acceptable = false;
     struct rbuf *rb = NULL;
-    int r0, r1, r;
+    int r0, r1, r = 0;
 
     toku_off_t header_0_off = 0;
     r0 = deserialize_ft_from_fd_into_rbuf(fd,
@@ -702,6 +724,10 @@ int toku_deserialize_ft_from(int fd, LSN max_acceptable_lsn, FT *ft) {
             // first header, unless it's readable
         }
 
+        if (r != TOKUDB_DICTIONARY_NO_HEADER) {
+            dump_state_of_toku_deserialize_ft_from();
+        }
+
         // it should not be possible for both headers to be later than the
         // max_acceptable_lsn
         invariant(
@@ -713,11 +739,19 @@ int toku_deserialize_ft_from(int fd, LSN max_acceptable_lsn, FT *ft) {
 
     if (h0_acceptable && h1_acceptable) {
         if (checkpoint_count_0 > checkpoint_count_1) {
+            if (!(checkpoint_count_0 == checkpoint_count_1 + 1) ||
+                !(version_0 >= version_1)) {
+                dump_state_of_toku_deserialize_ft_from();
+            }
             invariant(checkpoint_count_0 == checkpoint_count_1 + 1);
             invariant(version_0 >= version_1);
             rb = &rb_0;
             version = version_0;
         } else {
+            if (!(checkpoint_count_1 == checkpoint_count_0 + 1) ||
+                !(version_1 >= version_0)) {
+                dump_state_of_toku_deserialize_ft_from();
+            }
             invariant(checkpoint_count_1 == checkpoint_count_0 + 1);
             invariant(version_1 >= version_0);
             rb = &rb_1;
@@ -729,6 +763,7 @@ int toku_deserialize_ft_from(int fd, LSN max_acceptable_lsn, FT *ft) {
             fprintf(
                 stderr,
                 "Header 2 checksum failed, but header 1 ok.  Proceeding.\n");
+            dump_state_of_toku_deserialize_ft_from();
         }
         rb = &rb_0;
         version = version_0;
@@ -738,11 +773,15 @@ int toku_deserialize_ft_from(int fd, LSN max_acceptable_lsn, FT *ft) {
             fprintf(
                 stderr,
                 "Header 1 checksum failed, but header 2 ok.  Proceeding.\n");
+            dump_state_of_toku_deserialize_ft_from();
         }
         rb = &rb_1;
         version = version_1;
     }
 
+    if (!rb) {
+        dump_state_of_toku_deserialize_ft_from();
+    }
     paranoid_invariant(rb);
     r = deserialize_ft_versioned(fd, rb, ft, version);
 
