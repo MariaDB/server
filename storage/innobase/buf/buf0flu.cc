@@ -2851,6 +2851,27 @@ pc_flush_slot(void)
 		page_cleaner_slot_t*	slot = NULL;
 		ulint			i;
 
+#ifdef HAVE_LIBNUMA
+		int node = mysql_node_of_cur_thread();
+
+		if (srv_numa_enable && node != -1) {
+			i = node;
+			slot = &page_cleaner->slots[i];
+
+			if (slot->state != PAGE_CLEANER_STATE_REQUESTED) {
+				mutex_exit(&page_cleaner->mutex);
+				return 0;
+			}
+		} else {
+			for (i = 0; i < page_cleaner->n_slots; i++) {
+				slot = &page_cleaner->slots[i];
+
+				if (slot->state == PAGE_CLEANER_STATE_REQUESTED) {
+					break;
+				}
+			}
+		}
+#else
 		for (i = 0; i < page_cleaner->n_slots; i++) {
 			slot = &page_cleaner->slots[i];
 
@@ -2858,6 +2879,7 @@ pc_flush_slot(void)
 				break;
 			}
 		}
+#endif // HAVE_LIBNUMA
 
 		/* slot should be found because
 		page_cleaner->n_slots_requested > 0 */
