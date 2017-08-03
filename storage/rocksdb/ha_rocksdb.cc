@@ -11493,7 +11493,14 @@ void rocksdb_set_bulk_load(THD *const thd, struct st_mysql_sys_var *const var
       sql_print_error("RocksDB: Error %d finalizing last SST file while "
                       "setting bulk loading variable",
                       rc);
-      abort_with_stack_traces();
+      /*
+        MariaDB doesn't do the following:
+        abort_with_stack_traces();
+        because it doesn't seem a good idea to crash a server when a user makes
+        a mistake.
+        Instead, we return an error to the user. The error has already been
+        produced inside ha_rocksdb::finalize_bulk_load().
+      */
     }
   }
 
