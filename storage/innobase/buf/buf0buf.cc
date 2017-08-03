@@ -599,19 +599,9 @@ buf_block_alloc(
 	if (buf_pool == NULL) {
 
 #ifdef HAVE_LIBNUMA
-		struct bitmask* node_mask = mysql_numa_get_membind();
-		ulint	num_nodes = 0;
-		ulint	node = 0;
+		int node = mysql_node_of_cur_thread();
 
-		if (srv_numa_enable) {
-			for (ulint i = 0; i < SRV_MAX_NUM_NUMA_NODES; i++) {
-				if (mysql_numa_bitmask_isbitset(node_mask, i)) {
-					node = i;
-					num_nodes++;
-				}
-			}
-		}
-		if (srv_numa_enable && (num_nodes == 1)) {
+		if (srv_numa_enable && node != -1) {
 			buf_pool = srv_buf_pool_on_node(node);
 		} else {
 			/* We are allocating memory from any buffer pool, ensure
