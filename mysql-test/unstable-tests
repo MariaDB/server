@@ -207,6 +207,9 @@ rpl.rpl_mdev6020                      : MDEV-10630, MDEV-10417 - Timeouts, fails
 rpl.rpl_parallel                      : MDEV-10653 - Timeouts
 rpl.rpl_parallel_mdev6589             : MDEV-12979 - Assertion failure
 rpl.rpl_parallel_temptable            : MDEV-10356 - Crash in close_thread_tables
+rpl.rpl_parallel_tokudb_delete_pk     : Opt file modified in 10.0.32
+rpl.rpl_parallel_tokudb_update_pk_uc0_lookup0 : Modified in 10.0.32
+rpl.rpl_parallel_tokudb_write_pk      : Modified in 10.0.32
 rpl.rpl_partition_innodb              : MDEV-10417 - Fails on Mips
 rpl.rpl_reset_slave_fail              : Added in 10.0.32
 rpl.rpl_row_basic_11bugs              : MDEV-12171 - Server failed to start
@@ -215,10 +218,10 @@ rpl.rpl_row_sp001                     : MDEV-9329 - Fails on Ubuntu/s390x
 rpl.rpl_semi_sync                     : MDEV-11220 - Wrong result
 rpl.rpl_semi_sync_uninstall_plugin    : MDEV-7140 - Wrong plugin status
 rpl.rpl_show_slave_hosts              : MDEV-12171 - Server failed to start
+rpl.rpl_skip_replication              : MDEV-9268 - Fails with timeout in sync_slave_with_master on Alpha
 rpl.rpl_slave_grp_exec                : MDEV-10514 - Unexpected deadlock
 rpl.rpl_sync                          : MDEV-10633 - Database page corruption
 rpl.rpl_temporary_error2              : MDEV-10634 - Wrong number of retries
-rpl.rpl_skip_replication              : MDEV-9268 - Fails with timeout in sync_slave_with_master on Alpha
 
 rpl/extra/rpl_tests.*                 : MDEV-10994 - tests not maintained
 
@@ -259,7 +262,9 @@ tokudb.cluster_filter_unpack_varchar : MDEV-10636 - Wrong execution plan
 tokudb.dir_per_db                    : MDEV-11537 - wrong result
 tokudb.dir_per_db_rename_to_nonexisting_schema : MDEV-12823 - Valgrind
 tokudb.hotindex-update-1             : MDEV-12640 - Lost connection during query
+tokudb.kill_query_blocked_in_lt      : Added in 10.0.32
 tokudb.locks-select-update-1         : MDEV-13406 - Lock wait timeout
+tokudb.locks-select-update-3         : Modified in 10.0.32
 tokudb.rows-32m-rand-insert          : MDEV-12640 - Lost connection during query
 tokudb.rows-32m-seq-insert           : MDEV-12640 - Lost connection during query
 
@@ -272,8 +277,39 @@ tokudb_bugs.frm_store2               : MDEV-12823 - Valgrind
 tokudb_bugs.frm_store3               : MDEV-12823 - Valgrind
 tokudb_bugs.xa                       : MDEV-11804 - Lock wait timeout
 
+tokudb_mariadb.mdev12972             : Added in 10.0.32
+
 tokudb_rpl.*                         : MDEV-11001 - tests don't work
 tokudb_sys_vars.*                    : MDEV-11001 - tests don't work
+
+rpl-tokudb.rpl_deadlock_tokudb                   : Modified in 10.0.32
+rpl-tokudb.rpl_not_null_tokudb                   : Modified in 10.0.32
+rpl-tokudb.rpl_rfr_disable_on_expl_pk_absence    : Modified in 10.0.32
+rpl-tokudb.rpl_row_basic_3tokudb                 : Modified in 10.0.32
+rpl-tokudb.rpl_stm_tokudb                        : Modified in 10.0.32
+rpl-tokudb.rpl_tokudb_commit_after_flush         : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_insert_id                  : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_insert_id_pk               : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_multi_update               : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_multi_update2              : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_multi_update3              : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_rfr_partition_table        : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_crash_safe             : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_img_blobs              : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_img_eng_full           : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_img_eng_min            : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_img_eng_noblob         : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_img_idx_full           : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_img_idx_min            : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_img_idx_noblob         : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_log                    : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_lower_case_table_names : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_sp003                  : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_sp006                  : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_row_trig004                : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_stm_log                    : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_stm_mixed_crash_safe       : Added in 10.0.32
+rpl-tokudb.rpl_tokudb_stm_mixed_lower_case_table_names : Added in 10.0.32
 
 #----------------------------------------------------------------
 
