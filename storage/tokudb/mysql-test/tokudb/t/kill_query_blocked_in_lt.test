@@ -3,6 +3,7 @@
 
 --echo ### connection default
 
+skip MDEV-13442;
 CREATE TABLE t (a INT PRIMARY KEY, b INT) ENGINE=TokuDB;
 
 INSERT INTO t (a, b) VALUES (1, 1), (2, 2), (3, 3), (4, 4), (5, 5),
