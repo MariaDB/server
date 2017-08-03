@@ -57,6 +57,7 @@ t	CREATE TABLE `t` (
   `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop column trx_start, drop column trx_end;
 alter table t without system versioning;
 show create table t;
 Table	Create Table
@@ -338,6 +339,7 @@ t	CREATE TABLE `t` (
   `trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop column trx_start, drop column trx_end;
 alter table t without system versioning;
 alter table t with system versioning, algorithm=copy;
 show create table t;
@@ -511,6 +513,30 @@ period for system_time(sys_trx_start, sys_trx_end)
 ) with system versioning engine myisam;
 alter table t change column sys_trx_start asdf timestamp(6);
 ERROR HY000: Can not change system versioning field 'sys_trx_start'
+create or replace table t (
+a int,
+sys_trx_start timestamp(6) generated always as row start,
+sys_trx_end timestamp(6) generated always as row end,
+period for system_time(sys_trx_start, sys_trx_end)
+) with system versioning;
+select * from t;
+a	sys_trx_start	sys_trx_end
+alter table t without system versioning;
+ERROR HY000: System versioning field 'sys_trx_start' is not hidden
+alter table t drop column sys_trx_start;
+select * from t;
+a	sys_trx_end
+alter table t without system versioning;
+ERROR HY000: System versioning field 'sys_trx_end' is not hidden
+alter table t drop column sys_trx_end;
+select * from t;
+a
+alter table t without system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1

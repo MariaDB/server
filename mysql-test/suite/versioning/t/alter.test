@@ -41,6 +41,7 @@ alter table t
   with system versioning;
 show create table t;
 
+alter table t drop column trx_start, drop column trx_end;
 alter table t without system versioning;
 show create table t;
 
@@ -150,6 +151,7 @@ alter table t
   add period for system_time(trx_start, trx_end),
   with system versioning;
 show create table t;
+alter table t drop column trx_start, drop column trx_end;
 alter table t without system versioning;
 
 alter table t with system versioning, algorithm=copy;
@@ -237,6 +239,27 @@ create or replace table t (
 ) with system versioning engine myisam;
 --error ER_VERS_ALTER_SYSTEM_FIELD
 alter table t change column sys_trx_start asdf timestamp(6);
+
+create or replace table t (
+  a int,
+  sys_trx_start timestamp(6) generated always as row start,
+  sys_trx_end timestamp(6) generated always as row end,
+  period for system_time(sys_trx_start, sys_trx_end)
+) with system versioning;
+select * from t;
+
+--error ER_VERS_SYS_FIELD_NOT_HIDDEN
+alter table t without system versioning;
+alter table t drop column sys_trx_start;
+select * from t;
+
+--error ER_VERS_SYS_FIELD_NOT_HIDDEN
+alter table t without system versioning;
+alter table t drop column sys_trx_end;
+select * from t;
+
+alter table t without system versioning;
+show create table t;
 
 call verify_vtq;
 drop table t;

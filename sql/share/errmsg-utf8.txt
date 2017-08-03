@@ -7597,3 +7597,6 @@ ER_WRONG_TABLESPACE_NAME 42000
 
 ER_VERS_ALTER_SYSTEM_FIELD
         eng "Can not change system versioning field '%s'"
+
+ER_VERS_SYS_FIELD_NOT_HIDDEN
+	eng "System versioning field '%s' is not hidden"

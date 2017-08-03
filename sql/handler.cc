@@ -6603,15 +6603,12 @@ bool Vers_parse_info::is_trx_end(const Create_field &f) const
   return f.flags & VERS_SYS_END_FLAG;
 }
 
-
-static bool vers_create_sys_field(THD *thd, const char *field_name,
-                                 Alter_info *alter_info,
-                                 int flags,
-                                 bool integer_fields)
+static Create_field *vers_init_sys_field(THD *thd, const char *field_name,
+                                         int flags, bool integer_fields)
 {
   Create_field *f= new (thd->mem_root) Create_field();
   if (!f)
-    return true;
+    return NULL;
 
   memset(f, 0, sizeof(*f));
   f->field_name= field_name;
@@ -6630,10 +6627,38 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
   }
 
   if (f->check(thd))
+    return NULL;
+
+  return f;
+}
+
+static bool vers_create_sys_field(THD *thd, const char *field_name,
+                                  Alter_info *alter_info, int flags,
+                                  bool integer_fields)
+{
+  Create_field *f= vers_init_sys_field(thd, field_name, flags, integer_fields);
+  if (!f)
     return true;
 
-  alter_info->create_list.push_back(f);
   alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
+  alter_info->create_list.push_back(f);
+
+  return false;
+}
+
+static bool vers_change_sys_field(THD *thd, const char *field_name,
+                                  Alter_info *alter_info, int flags,
+                                  bool integer_fields, const char *change)
+{
+  Create_field *f= vers_init_sys_field(thd, field_name, flags, integer_fields);
+  if (!f)
+    return true;
+
+  f->change= change;
+
+  alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
+  alter_info->create_list.push_back(f);
+
   return false;
 }
 
@@ -6814,6 +6839,7 @@ static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
 {
   DBUG_ASSERT(field);
   DBUG_ASSERT(field->field_name);
+  alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
   Alter_drop *ad= new (thd->mem_root)
       Alter_drop(Alter_drop::COLUMN, field->field_name, false);
   return !ad || alter_info->drop_list.push_back(ad, thd->mem_root);
@@ -6838,11 +6864,23 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
       return true;
     }
 
+    if (!(share->vers_start_field()->flags & HIDDEN_FLAG))
+    {
+      my_error(ER_VERS_SYS_FIELD_NOT_HIDDEN, MYF(0),
+               share->vers_start_field()->field_name);
+      return true;
+    }
+    if (!(share->vers_end_field()->flags & HIDDEN_FLAG))
+    {
+      my_error(ER_VERS_SYS_FIELD_NOT_HIDDEN, MYF(0),
+               share->vers_end_field()->field_name);
+      return true;
+    }
+
     if (add_field_to_drop_list(thd, alter_info, share->vers_start_field()) ||
         add_field_to_drop_list(thd, alter_info, share->vers_end_field()))
       return true;
 
-    alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
     return false;
   }
 
@@ -6908,13 +6946,15 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
           return true;
         }
 
-        if (vers_create_sys_field(thd, name, alter_info,
+        if (vers_change_sys_field(thd, name, alter_info,
                                   f->flags &
                                       (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG),
-                                  integer_fields))
+                                  integer_fields, name))
         {
           return true;
         }
+
+        it.remove();
 
         if (done_start && done_end)
           break;
