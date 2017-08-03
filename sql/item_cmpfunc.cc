@@ -5218,6 +5218,58 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
   return FALSE;
 }
 
+bool Item_bool_func2::fix_fields(THD* thd, Item** ref)
+{
+  if (Item_bool_func::fix_fields(thd, ref))
+    return true;
+
+  // System Versioning: convert TRX_ID to DATETIME
+  Item *trx_id= NULL;
+  int arg_idx= -1;
+  Field_vers_system *sys_field= NULL;
+  DBUG_ASSERT(arg_count == 2);
+  // find trx_id and sys_field
+  for (int i= 0; i < 2; ++i)
+  {
+    Item *arg= args[i];
+    if (arg->result_type() != INT_RESULT)
+      continue;
+    DBUG_ASSERT(arg);
+    if (arg->type() == Item::FIELD_ITEM)
+    {
+      Field *f= static_cast<Item_field *>(arg)->field;
+      DBUG_ASSERT(f);
+      if (f->vers_sys_field() && f->real_type() == MYSQL_TYPE_LONGLONG)
+      {
+        if (sys_field)
+          return false;
+        sys_field= static_cast<Field_vers_system *>(f);
+        continue;
+      }
+    }
+    if (trx_id)
+      return false;
+    trx_id= arg;
+    arg_idx= i;
+  }
+  if (!trx_id || !sys_field)
+    return false;
+  MYSQL_TIME ltime;
+  ulonglong trx_id_val= (ulonglong) trx_id->val_int();
+  if (sys_field->get_date(&ltime, false, trx_id_val))
+  {
+    my_error(ER_VERS_NO_TRX_ID, MYF(0), trx_id_val);
+    return true;
+  }
+  Query_arena_stmt on_stmt_arena(thd);
+  Item *datetime= new (thd->mem_root) Item_datetime_literal(thd, &ltime, 6);
+  if (!datetime)
+    return true;
+  DBUG_ASSERT(arg_idx > -1);
+  args[arg_idx]= datetime;
+  return false;
+}
+
 
 bool Item_func_like::fix_fields(THD *thd, Item **ref)
 {

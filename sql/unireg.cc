@@ -1050,7 +1050,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
                                 field->unireg_check,
                                 field->save_interval ? field->save_interval
                                                      : field->interval,
-                                field->field_name);
+                                field->field_name,
+                                field->flags);
     if (!regfield)
     {
       error= 1;

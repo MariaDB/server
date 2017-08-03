@@ -747,6 +747,10 @@ public:
   virtual bool send(Protocol *protocol, String *str);
   virtual bool eq(const Item *, bool binary_cmp) const;
   virtual enum_field_types field_type() const= 0;
+  virtual uint field_flags() const
+  {
+    return 0;
+  }
   virtual const Type_handler *type_handler() const
   {
     return Type_handler::get_handler_by_field_type(field_type());
@@ -2668,6 +2672,10 @@ public:
   enum_field_types field_type() const
   {
     return field->type();
+  }
+  uint32 field_flags() const
+  {
+    return field->flags;
   }
   const Type_handler *real_type_handler() const;
   enum_monotonicity_info get_monotonicity_info() const
@@ -5898,6 +5906,10 @@ public:
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
   uint flags;
+  uint32 field_flags() const
+  {
+    return flags;
+  }
 };
 
 

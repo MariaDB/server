@@ -1402,7 +1402,7 @@ public:
       FIELD_FLAGS_COLUMN_FORMAT;
   }
 
-  bool vers_sys_field()
+  bool vers_sys_field() const
   {
     return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
   }
@@ -2127,6 +2127,29 @@ public:
 
   void set_max();
   bool is_max();
+};
+
+
+class Field_vers_system :public Field_longlong {
+  MYSQL_TIME cache;
+  ulonglong cached;
+public:
+  Field_vers_system(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
+	      uchar null_bit_arg,
+	      enum utype unireg_check_arg, const char *field_name_arg,
+	      bool zero_arg, bool unsigned_arg)
+    :Field_longlong(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+	       unireg_check_arg, field_name_arg, zero_arg,unsigned_arg),
+    cached(0)
+    {}
+  enum_field_types real_type() const { return MYSQL_TYPE_LONGLONG; }
+  enum_field_types type() const { return MYSQL_TYPE_DATETIME;}
+  uint size_of() const { return sizeof(*this); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return get_date(ltime, fuzzydate, (ulonglong) val_int());
+  }
 };
 
 
@@ -3778,7 +3801,8 @@ Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                   CHARSET_INFO *cs,
                   Field::geometry_type geom_type, uint srid,
                   Field::utype unireg_check,
-                  TYPELIB *interval, const char *field_name);
+                  TYPELIB *interval, const char *field_name,
+                  uint32 flags);
 
 /*
   Create field class for CREATE TABLE
@@ -3965,7 +3989,7 @@ public:
                         (uint32)length, null_pos, null_bit,
                         pack_flag, sql_type, charset,
                         geom_type, srid, unireg_check, interval,
-                        field_name_arg);
+                        field_name_arg, flags);
   }
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                     const char *field_name_arg)

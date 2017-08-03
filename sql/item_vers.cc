@@ -54,6 +54,14 @@ Item_func_vtq_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
 {
   THD *thd= current_thd; // can it differ from constructor's?
   DBUG_ASSERT(thd);
+  DBUG_ASSERT(args[0]);
+  if (args[0]->result_type() != INT_RESULT)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+      args[0]->type_handler()->name().ptr(),
+      func_name());
+    return true;
+  }
   ulonglong trx_id= args[0]->val_uint();
   if (trx_id == ULONGLONG_MAX)
   {
@@ -62,13 +70,14 @@ Item_func_vtq_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
     return false;
   }
 
-  if (!hton)
-    return true;
-
-  DBUG_ASSERT(hton->vers_query_trx_id);
+  DBUG_ASSERT(hton && hton->vers_query_trx_id);
   null_value= !hton->vers_query_trx_id(thd, res, trx_id, vtq_field);
+  if (null_value)
+  {
+    my_error(ER_VERS_NO_TRX_ID, MYF(0), trx_id);
+  }
 
-  return false;
+  return null_value;
 }
 
 

@@ -6325,9 +6325,18 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table,
     break;
 #ifdef HAVE_LONG_LONG
   case MYSQL_TYPE_LONGLONG:
-    field= new (mem_root)
-      Field_longlong((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                     name, 0, unsigned_flag);
+    if (field_flags() & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+    {
+      field= new (mem_root)
+        Field_vers_system((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                      name, 0, unsigned_flag);
+    }
+    else
+    {
+      field= new (mem_root)
+        Field_longlong((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                      name, 0, unsigned_flag);
+    }
     break;
 #endif
   case MYSQL_TYPE_FLOAT:

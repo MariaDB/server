@@ -151,7 +151,7 @@ select * from t for system_time before timestamp @ts1;
 a
 1
 insert into t values (33);
-select max(sys_trx_start) from t into @tx;
+select max(sys_trx_start + 0) from t into @tx;
 select * from t for system_time before transaction @tx;
 a
 1

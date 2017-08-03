@@ -1,3 +1,65 @@
+set @@session.time_zone='+00:00';
+select ifnull(max(transaction_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+create procedure if not exists verify_vtq()
+begin
+set @i= 0;
+select
+@i:= @i + 1 as No,
+transaction_id > 0 as A,
+commit_id > transaction_id as B,
+begin_timestamp > '1-1-1 0:0:0' as C,
+commit_timestamp >= begin_timestamp as D
+from information_schema.innodb_vtq
+where transaction_id > @start_trx_id;
+select ifnull(max(transaction_id), 0)
+into @start_trx_id
+from information_schema.innodb_vtq;
+end~~
+create function if not exists default_engine()
+returns varchar(255)
+deterministic
+begin
+declare e varchar(255);
+select lower(engine) from information_schema.engines where support='DEFAULT' into e;
+return e;
+end~~
+create function if not exists sys_datatype()
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return 'bigint unsigned';
+elseif default_engine() = 'myisam' then
+return 'timestamp(6)';
+end if;
+return NULL;
+end~~
+create function if not exists sys_commit_ts(sys_field varchar(255))
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return concat('vtq_commit_ts(', sys_field, ')');
+elseif default_engine() = 'myisam' then
+return sys_field;
+end if;
+return NULL;
+end~~
+create procedure if not exists innodb_verify_vtq(recs int)
+begin
+declare i int default 1;
+if default_engine() = 'innodb' then
+call verify_vtq;
+elseif default_engine() = 'myisam' then
+create temporary table tmp (No int, A bool, B bool, C bool, D bool);
+while i <= recs do
+insert into tmp values (i, 1, 1, 1, 1);
+set i= i + 1;
+end while;
+select * from tmp;
+drop table tmp;
+end if;
+end~~
 create table t1 (x int) with system versioning engine innodb;
 insert into t1 values (1);
 select now(6) into @t1;
@@ -23,7 +85,7 @@ x
 create or replace view vt1 as select * from t1;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from `t1` FOR SYSTEM_TIME ALL where `t1`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from `t1` FOR SYSTEM_TIME ALL where `t1`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07'	latin1	latin1_swedish_ci
 drop view vt1;
 drop view vt2;
 create view vt1 as select * from t1 for system_time all;
@@ -116,16 +178,21 @@ create or replace table t3 (x int);
 create or replace view vt1 as select * from t1, t2, t3;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`b` AS `b`,`t3`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from ((`t1` FOR SYSTEM_TIME ALL join `t2` FOR SYSTEM_TIME ALL) join `t3`) where `t1`.`sys_trx_end` = 18446744073709551615 and `t2`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`b` AS `b`,`t3`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from ((`t1` FOR SYSTEM_TIME ALL join `t2` FOR SYSTEM_TIME ALL) join `t3`) where `t1`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07' and `t2`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07'	latin1	latin1_swedish_ci
 create or replace view vt1 as select * from t3, t2, t1;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t3`.`x` AS `x`,`t2`.`b` AS `b`,`t1`.`a` AS `a`,`t2`.`sys_trx_start` AS `sys_trx_start`,`t2`.`sys_trx_end` AS `sys_trx_end` from ((`t3` join `t2` FOR SYSTEM_TIME ALL) join `t1` FOR SYSTEM_TIME ALL) where `t2`.`sys_trx_end` = 18446744073709551615 and `t1`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t3`.`x` AS `x`,`t2`.`b` AS `b`,`t1`.`a` AS `a`,`t2`.`sys_trx_start` AS `sys_trx_start`,`t2`.`sys_trx_end` AS `sys_trx_end` from ((`t3` join `t2` FOR SYSTEM_TIME ALL) join `t1` FOR SYSTEM_TIME ALL) where `t2`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07' and `t1`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07'	latin1	latin1_swedish_ci
 create or replace view vt1 as select a, t2.sys_trx_end as endo from t3, t1, t2;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`sys_trx_end` AS `endo`,`t2`.`sys_trx_start` AS `sys_trx_start` from ((`t3` join `t1` FOR SYSTEM_TIME ALL) join `t2` FOR SYSTEM_TIME ALL) where `t1`.`sys_trx_end` = 18446744073709551615 and `t2`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`sys_trx_end` AS `endo`,`t2`.`sys_trx_start` AS `sys_trx_start` from ((`t3` join `t1` FOR SYSTEM_TIME ALL) join `t2` FOR SYSTEM_TIME ALL) where `t1`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07' and `t2`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07'	latin1	latin1_swedish_ci
 create or replace view vvt1 as select * from t1, t2, vt1;
 ERROR HY000: Creating VIEW `vvt1` is prohibited: versioned VIEW `vt1` in query!
 drop view vt1, vt12;
 drop table t1, t2, t3;
+drop procedure verify_vtq;
+drop procedure innodb_verify_vtq;
+drop function default_engine;
+drop function sys_commit_ts;
+drop function sys_datatype;

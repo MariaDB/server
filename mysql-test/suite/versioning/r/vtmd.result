@@ -37,7 +37,7 @@ set @start= null;
 select start from tmp_vtmd for system_time all order by start limit 1 into @start;
 select @start > 0 and @start < @inf;
 select
-start = @start as A_start,
+start + 0 = @start as A_start,
 (@start:= end) and end = @inf as B_end,
 name,
 substr(archive_name, 1, instr(archive_name, '_')) as C_archive_name

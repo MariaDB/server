@@ -1999,6 +1999,40 @@ bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
+bool Field_vers_system::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  DBUG_ASSERT(ltime);
+  if (!table || !table->s)
+    return true;
+  DBUG_ASSERT(table->versioned_by_engine() ||
+    (table->versioned() && table->s->table_category == TABLE_CATEGORY_TEMPORARY));
+  if (!trx_id)
+    return true;
+  if (trx_id == ULONGLONG_MAX)
+  {
+    get_thd()->variables.time_zone->gmt_sec_to_TIME(ltime, TIMESTAMP_MAX_VALUE);
+    return false;
+  }
+  if (cached == trx_id)
+  {
+    *ltime= cache;
+    return false;
+  }
+  handlerton *hton= table->file->partition_ht();
+  DBUG_ASSERT(hton);
+  DBUG_ASSERT(hton->vers_query_trx_id);
+  bool found= hton->vers_query_trx_id(get_thd(), &cache, trx_id, VTQ_COMMIT_TS);
+  if (found)
+  {
+    *ltime= cache;
+    cached= trx_id;
+    return false;
+  }
+  return true;
+}
+
+
 Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const char *field_name_arg, CHARSET_INFO *charset_arg)
@@ -10373,7 +10407,8 @@ Field *make_field(TABLE_SHARE *share,
 		  Field::geometry_type geom_type, uint srid,
 		  Field::utype unireg_check,
 		  TYPELIB *interval,
-		  const char *field_name)
+		  const char *field_name,
+		  uint32 flags)
 {
   uchar *UNINIT_VAR(bit_ptr);
   uchar UNINIT_VAR(bit_offset);
@@ -10527,11 +10562,22 @@ Field *make_field(TABLE_SHARE *share,
                  f_is_zerofill(pack_flag) != 0,
                  f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_LONGLONG:
-    return new (mem_root)
-      Field_longlong(ptr,field_length,null_pos,null_bit,
-                     unireg_check, field_name,
-                     f_is_zerofill(pack_flag) != 0,
-                     f_is_dec(pack_flag) == 0);
+    if (flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+    {
+      return new (mem_root)
+        Field_vers_system(ptr, field_length, null_pos, null_bit,
+                      unireg_check, field_name,
+                      f_is_zerofill(pack_flag) != 0,
+                      f_is_dec(pack_flag) == 0);
+    }
+    else
+    {
+      return new (mem_root)
+        Field_longlong(ptr,field_length,null_pos,null_bit,
+                      unireg_check, field_name,
+                      f_is_zerofill(pack_flag) != 0,
+                      f_is_dec(pack_flag) == 0);
+    }
   case MYSQL_TYPE_TIMESTAMP:
   {
     uint dec= field_length > MAX_DATETIME_WIDTH ?

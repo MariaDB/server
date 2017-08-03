@@ -5704,6 +5704,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
         if (field_to_set)
         {
           TABLE *table= field_to_set->table;
+          DBUG_ASSERT(table);
           if (thd->mark_used_columns == MARK_COLUMNS_READ)
             bitmap_set_bit(table->read_set, field_to_set->field_index);
           else

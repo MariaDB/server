@@ -110,7 +110,7 @@ update t set a=22 where a=2;
 select * from t for system_time all;
 select * from t for system_time before timestamp @ts1;
 insert into t values (33);
-select max(sys_trx_start) from t into @tx;
+select max(sys_trx_start + 0) from t into @tx;
 select * from t for system_time before transaction @tx;
 truncate t for system_time before timestamp @ts1;
 select * from t for system_time all;

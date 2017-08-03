@@ -1769,6 +1769,27 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                     strpos, vcol_screen_pos);
   }
 
+  /* Set system versioning information. */
+  if (system_period == NULL)
+  {
+    versioned= false;
+    row_start_field = 0;
+    row_end_field = 0;
+  }
+  else
+  {
+    DBUG_PRINT("info", ("Setting system versioning informations"));
+    uint16 row_start= uint2korr(system_period);
+    uint16 row_end= uint2korr(system_period + sizeof(uint16));
+    if (row_start >= share->fields || row_end >= share->fields)
+      goto err;
+    DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
+    versioned= true;
+    vers_init();
+    row_start_field= row_start;
+    row_end_field= row_end;
+  } // if (system_period == NULL)
+
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {
     uint pack_flag, interval_nr, unireg_type, recpos, field_length;
@@ -1781,6 +1802,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     Virtual_column_info *vcol_info= 0;
     uint gis_length, gis_decimals, srid= 0;
     Field::utype unireg_check;
+    uint32 flags= 0;
 
     if (new_frm_ver >= 3)
     {
@@ -1988,6 +2010,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
     }
 
+    if (versioned)
+    {
+      if (i == row_start_field)
+        flags|= VERS_SYS_START_FLAG;
+      else if (i == row_end_field)
+        flags|= VERS_SYS_END_FLAG;
+    }
+
     /* Convert pre-10.2.2 timestamps to use Field::default_value */
     unireg_check= (Field::utype) MTYP_TYPENR(unireg_type);
     *field_ptr= reg_field=
@@ -1995,7 +2025,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 		 null_pos, null_bit_pos, pack_flag, field_type, charset,
 		 geom_type, srid, unireg_check,
 		 (interval_nr ? share->intervals+interval_nr-1 : NULL),
-		 share->fieldnames.type_names[i]);
+		 share->fieldnames.type_names[i], flags);
     if (!reg_field)				// Not supported field type
       goto err;
 
@@ -2010,6 +2040,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     reg_field->field_index= i;
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;
+    reg_field->flags|= flags;
     if (extra2_field_flags)
     {
       uchar flags= *extra2_field_flags++;
@@ -2555,30 +2586,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #endif
 
   share->db_plugin= se_plugin;
-
-  /* Set system versioning information. */
-  if (system_period == NULL)
-  {
-    versioned= false;
-    row_start_field = 0;
-    row_end_field = 0;
-  }
-  else
-  {
-    DBUG_PRINT("info", ("Setting system versioning informations"));
-    uint16 row_start= uint2korr(system_period);
-    uint16 row_end= uint2korr(system_period + sizeof(uint16));
-    if (row_start >= share->fields || row_end >= share->fields)
-      goto err;
-    DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
-    versioned= true;
-    vers_init();
-    row_start_field= row_start;
-    row_end_field= row_end;
-    vers_start_field()->flags|= VERS_SYS_START_FLAG;
-    vers_end_field()->flags|= VERS_SYS_END_FLAG;
-  } // if (system_period == NULL)
-
   delete handler_file;
 
   share->error= OPEN_FRM_OK;

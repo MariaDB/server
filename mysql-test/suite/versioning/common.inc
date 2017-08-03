@@ -67,3 +67,6 @@ begin
   end if;
 end~~
 delimiter ;~~
+
+let $default_engine= `select default_engine()`;
+let sys_datatype= `select sys_datatype()`;

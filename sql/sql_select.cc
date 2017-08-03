@@ -877,24 +877,6 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           DBUG_RETURN(-1);
         }
       }
-      else if (thd->variables.vers_innodb_algorithm_simple &&
-               vers_conditions.unit == UNIT_TIMESTAMP &&
-               vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
-      {
-        DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
-        handlerton *hton= plugin_hton(table->table->s->db_plugin);
-        DBUG_ASSERT(hton);
-        row_start= newx Item_func_vtq_ts(
-          thd,
-          hton,
-          row_start,
-          VTQ_COMMIT_TS);
-        row_end= newx Item_func_vtq_ts(
-          thd,
-          hton,
-          row_end,
-          VTQ_COMMIT_TS);
-      }
 
       Item *cond1= 0, *cond2= 0, *curr= 0;
       // Temporary tables of can be created from INNODB tables and thus will
@@ -907,7 +889,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         switch (vers_conditions.type)
         {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
-          if (table->table->versioned_by_sql() && !tmp_from_ib)
+          if (!tmp_from_ib)
           {
             MYSQL_TIME max_time;
             thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
