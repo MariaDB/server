@@ -1231,28 +1231,18 @@ bool DsMrr_impl::setup_buffer_sharing(uint key_size_in_keybuf,
   
   ptrdiff_t bytes_for_keys= (full_buf_end - full_buf) - bytes_for_rowids;
 
-  if (bytes_for_keys < key_buff_elem_size + 1)
-  {
-    ptrdiff_t add= key_buff_elem_size + 1 - bytes_for_keys;
-    bytes_for_keys= key_buff_elem_size + 1;
-    bytes_for_rowids -= add;
-  }
-
-  if (bytes_for_rowids < (ptrdiff_t)rowid_buf_elem_size + 1)
-  {
-    ptrdiff_t add= (ptrdiff_t)(rowid_buf_elem_size + 1 - bytes_for_rowids);
-    bytes_for_rowids= (ptrdiff_t)rowid_buf_elem_size + 1;
-    bytes_for_keys -= add;
-  }
+  if (bytes_for_keys < key_buff_elem_size + 1 ||
+      bytes_for_rowids < (ptrdiff_t)rowid_buf_elem_size + 1)
+    return TRUE; /* Failed to provide minimum space for one of the buffers */
 
   rowid_buffer_end= full_buf + bytes_for_rowids;
   rowid_buffer.set_buffer_space(full_buf, rowid_buffer_end);
   key_buffer= &backward_key_buf;
   key_buffer->set_buffer_space(rowid_buffer_end, full_buf_end); 
 
-  if (!key_buffer->have_space_for(key_buff_elem_size) ||
-      !rowid_buffer.have_space_for((size_t)rowid_buf_elem_size))
-    return TRUE; /* Failed to provide minimum space for one of the buffers */
+  /* The above code guarantees that the buffers are big enough */
+  DBUG_ASSERT(key_buffer->have_space_for(key_buff_elem_size) &&
+              rowid_buffer.have_space_for((size_t)rowid_buf_elem_size));
 
   return FALSE;
 }
