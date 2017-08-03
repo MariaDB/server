@@ -52,6 +52,26 @@ static inline void mysql_bind_thread_to_node(unsigned long int node)
   mysql_numa_bind(node_mask);
 }
 
+static inline int mysql_node_of_cur_thread(void)
+{
+  struct bitmask* node_mask = mysql_numa_get_membind();
+  int num_nodes = 0;
+  int node = 0;
+
+  for (int i = 0; i < SRV_MAX_NUM_NUMA_NODES; i++) {
+    if (mysql_numa_bitmask_isbitset(node_mask, i)) {
+      node = i;
+      num_nodes++;
+    }
+  }
+
+  if (num_nodes == 1) {
+    return node;
+  } else {
+    return -1;
+  }
+}
+
 #endif // HAVE_LIBNUMA
 
 #ifdef __cplusplus
