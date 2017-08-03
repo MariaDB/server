@@ -51,8 +51,9 @@ static uint64_t t_do_kill;
 
 static int my_killed_callback(void) {
     uint64_t t_now = toku_current_time_microsec();
+    if (t_now == t_last_kill)
+        return 0;
     assert(t_now >= t_last_kill);
-    assert(t_now - t_last_kill >= my_killed_time * 1000 / 2); // div by 2 for valgrind which is not very accurate
     t_last_kill = t_now;
     killed_calls++;
     if (t_now >= t_do_kill)

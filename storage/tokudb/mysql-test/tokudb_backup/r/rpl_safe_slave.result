@@ -53,8 +53,6 @@ Variable_name	Value
 Slave_open_temp_tables	0
 ### Continue backup
 SET DEBUG_SYNC = "now SIGNAL ttlss_continue";
-## Reset debug_sync points
-SET DEBUG_SYNC = "RESET";
 ### Wait for backup finish
 include/filter_file.inc
 ### Slave tokubackup_slave_info content:

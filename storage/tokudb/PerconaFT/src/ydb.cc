@@ -2775,6 +2775,10 @@ static void env_set_killed_callback(DB_ENV *env, uint64_t default_killed_time_ms
     env->i->killed_callback = killed_callback;
 }
 
+static void env_kill_waiter(DB_ENV *env, void *extra) {
+    env->i->ltm.kill_waiter(extra);
+}
+
 static void env_do_backtrace(DB_ENV *env) {
     if (env->i->errcall) {
         db_env_do_backtrace_errfunc((toku_env_err_func) toku_env_err, (const void *) env);
@@ -2877,6 +2881,7 @@ toku_env_create(DB_ENV ** envp, uint32_t flags) {
     USENV(set_dir_per_db);
     USENV(get_dir_per_db);
     USENV(get_data_dir);
+    USENV(kill_waiter);
 #undef USENV
     
     // unlocked methods
@@ -3061,28 +3066,31 @@ env_dbremove_subdb(DB_ENV * env, DB_TXN * txn, const char *fname, const char *db
 // see if we can acquire a table lock for the given dname.
 // requires: write lock on dname in the directory. dictionary
 //          open, close, and begin checkpoint cannot occur.
-// returns: true if we could open, lock, and close a dictionary
-//          with the given dname, false otherwise.
-static bool
+// returns: zero if we could open, lock, and close a dictionary
+//          with the given dname, errno otherwise.
+static int
 can_acquire_table_lock(DB_ENV *env, DB_TXN *txn, const char *iname_in_env) {
     int r;
-    bool got_lock = false;
     DB *db;
 
     r = toku_db_create(&db, env, 0);
     assert_zero(r);
     r = toku_db_open_iname(db, txn, iname_in_env, 0, 0);
-    assert_zero(r);
-    r = toku_db_pre_acquire_table_lock(db, txn);
-    if (r == 0) {
-        got_lock = true;
-    } else {
-        got_lock = false;
+    if(r) {
+	if (r == ENAMETOOLONG)
+	    toku_ydb_do_error(env, r, "File name too long!\n");
+	goto exit;
     }
-    r = toku_db_close(db);
-    assert_zero(r);
-
-    return got_lock;
+    r = toku_db_pre_acquire_table_lock(db, txn);
+    if (r) {
+        r = DB_LOCK_NOTGRANTED;
+    }
+exit:
+    if(db) {
+        int r2 = toku_db_close(db);
+        assert_zero(r2);
+    }
+    return r;
 }
 
 static int
@@ -3295,8 +3303,8 @@ env_dbrename(DB_ENV *env, DB_TXN *txn, const char *fname, const char *dbname, co
             // otherwise, we're okay in marking this ft as remove on
             // commit. no new handles can open for this dictionary
             // because the txn has directory write locks on the dname
-            if (txn && !can_acquire_table_lock(env, txn, new_iname.get())) {
-                r = DB_LOCK_NOTGRANTED;
+            if (txn) {
+                r = can_acquire_table_lock(env, txn, new_iname.get());
             }
             // We don't do anything at the ft or cachetable layer for rename.
             // We just update entries in the environment's directory.

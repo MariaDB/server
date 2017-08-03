@@ -323,12 +323,12 @@ int locked_txn_abort(DB_TXN *txn) {
     return r;
 }
 
-static void locked_txn_set_client_id(DB_TXN *txn, uint64_t client_id) {
-    toku_txn_set_client_id(db_txn_struct_i(txn)->tokutxn, client_id);
+static void locked_txn_set_client_id(DB_TXN *txn, uint64_t client_id, void *client_extra) {
+    toku_txn_set_client_id(db_txn_struct_i(txn)->tokutxn, client_id, client_extra);
 }
 
-static uint64_t locked_txn_get_client_id(DB_TXN *txn) {
-    return toku_txn_get_client_id(db_txn_struct_i(txn)->tokutxn);
+static void locked_txn_get_client_id(DB_TXN *txn, uint64_t *client_id, void **client_extra) {
+    toku_txn_get_client_id(db_txn_struct_i(txn)->tokutxn, client_id, client_extra);
 }
 
 static int toku_txn_discard(DB_TXN *txn, uint32_t flags) {
