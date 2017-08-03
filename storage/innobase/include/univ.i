@@ -482,6 +482,12 @@ typedef long int		lint;
 typedef unsigned long long int	ullint;
 #endif /* UNIV_HOTBACKUP */
 
+#ifdef UNIV_INNOCHECKSUM
+extern bool 		strict_verify;
+extern FILE* 		log_file;
+extern ulint		cur_page_num;
+#endif /* UNIV_INNOCHECKSUM */
+
 #ifndef __WIN__
 #if SIZEOF_LONG != SIZEOF_VOIDP
 #error "Error: InnoDB's ulint must be of the same size as void*"

@@ -183,8 +183,6 @@ extern fil_addr_t	fil_addr_null;
 #define FIL_LOG			502	/*!< redo log */
 /* @} */
 
-#ifndef UNIV_INNOCHECKSUM
-
 /** Structure containing encryption specification */
 struct fil_space_crypt_t;
 
@@ -209,6 +207,10 @@ extern ulint	fil_n_pending_tablespace_flushes;
 /** Number of files currently open */
 extern ulint	fil_n_file_opened;
 
+#ifndef UNIV_INNOCHECKSUM
+
+struct fil_space_t;
+
 struct fsp_open_info {
 	ibool		success;	/*!< Has the tablespace been opened? */
 	const char*	check_msg;	/*!< fil_check_first_page() message */
@@ -224,8 +226,6 @@ struct fsp_open_info {
 	fil_space_crypt_t* crypt_data;	/*!< crypt data */
 	dict_table_t*	table;		/*!< table */
 };
-
-struct fil_space_t;
 
 /** File node of a tablespace or the log data space */
 struct fil_node_t {

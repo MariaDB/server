@@ -71,9 +71,11 @@ struct key_struct
 /** is encryption enabled */
 extern ulong	srv_encrypt_tables;
 
+#ifndef UNIV_INNOCHECKSUM
 #ifdef UNIV_PFS_MUTEX
 extern mysql_pfs_key_t fil_crypt_data_mutex_key;
 #endif
+#endif /* !UNIV_INNOCHECKSUM */
 
 /** Mutex helper for crypt_data->scheme
 @param[in, out]	schme	encryption scheme
@@ -101,6 +103,8 @@ struct fil_space_rotate_state_t
 					     completed */
 	} scrubbing;
 };
+
+#ifndef UNIV_INNOCHECKSUM
 
 struct fil_space_crypt_t : st_encryption_scheme
 {
@@ -399,6 +403,8 @@ fil_crypt_calculate_checksum(
 	const byte*	dst_frame)
 	MY_ATTRIBUTE((warn_unused_result));
 
+#endif /* UNIV_INNOCHECKSUM */
+
 /*********************************************************************
 Verify that post encryption checksum match calculated checksum.
 This function should be called only if tablespace contains crypt_data
@@ -417,9 +423,15 @@ bool
 fil_space_verify_crypt_checksum(
 	byte* 			page,
 	ulint			zip_size,
+#ifndef UNIV_INNOCHECKSUM
 	const fil_space_t*	space,
+#else
+	const void*		space,
+#endif
 	ulint			pageno)
 	MY_ATTRIBUTE((warn_unused_result));
+
+#ifndef UNIV_INNOCHECKSUM
 
 /*********************************************************************
 Adjust thread count for key rotation
@@ -508,4 +520,5 @@ fil_space_get_scrub_status(
 #include "fil0crypt.ic"
 #endif
 
+#endif /* !UNIV_INNOCHECKSUM */
 #endif /* fil0crypt_h */

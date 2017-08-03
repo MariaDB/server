@@ -4937,26 +4937,26 @@ page_zip_verify_checksum(
 #error "FIL_PAGE_LSN must be 64 bit aligned"
 #endif
 
-#ifndef UNIV_INNOCHECKSUM
-	/* innochecksum doesn't compile with ut_d. Since we don't
-	need to check for empty pages when running innochecksum,
-	just don't include this code. */
 	/* Check if page is empty */
 	if (stored == 0
 	    && *reinterpret_cast<const ib_uint64_t*>(static_cast<const char*>(
 		data)
 		+ FIL_PAGE_LSN) == 0) {
 		/* make sure that the page is really empty */
-		ulint i;
-		for (i = 0; i < size; i++) {
+		for (ulint i = 0; i < size; i++) {
 			if (*((const char*) data + i) != 0) {
 				return(FALSE);
 			}
 		}
+#ifdef UNIV_INNOCHECKSUM
+		if (log_file) {
+			fprintf(log_file, "Page::%lu is empty and"
+				" uncorrupted\n", cur_page_num);
+		}
+#endif /* UNIV_INNOCHECKSUM */
 		/* Empty page */
 		return(TRUE);
 	}
-#endif
 
 	const srv_checksum_algorithm_t	curr_algo =
 		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
@@ -4967,6 +4967,33 @@ page_zip_verify_checksum(
 
 	calc = static_cast<ib_uint32_t>(page_zip_calc_checksum(
 		data, size, curr_algo));
+
+#ifdef UNIV_INNOCHECKSUM
+	if (log_file) {
+		fprintf(log_file, "page::%lu;"
+			" %s checksum: calculated = %u;"
+			" recorded = %u\n", cur_page_num,
+			buf_checksum_algorithm_name(
+				static_cast<srv_checksum_algorithm_t>(
+				srv_checksum_algorithm)),
+			calc, stored);
+	}
+
+	if (!strict_verify) {
+
+		const uint32_t	crc32 = page_zip_calc_checksum(
+			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
+
+		if (log_file) {
+			fprintf(log_file, "page::%lu: crc32 checksum:"
+				" calculated = %u; recorded = %u\n",
+				cur_page_num, crc32, stored);
+			fprintf(log_file, "page::%lu: none checksum:"
+				" calculated = %lu; recorded = %u\n",
+				cur_page_num, BUF_NO_CHECKSUM_MAGIC, stored);
+		}
+	}
+#endif /* UNIV_INNOCHECKSUM */
 
 	if (stored == calc) {
 		return(TRUE);

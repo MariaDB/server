@@ -31,6 +31,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "mtr0types.h"
 #include "buf0types.h"
+#ifndef UNIV_INNOCHECKSUM
 #include "hash0hash.h"
 #include "ut0byte.h"
 #include "page0types.h"
@@ -643,6 +644,8 @@ buf_block_unfix(
 # define buf_block_modify_clock_inc(block) ((void) 0)
 #endif /* !UNIV_HOTBACKUP */
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /** Checks if the page is in crc32 checksum format.
 @param[in]	read_buf	database page
 @param[in]	checksum_field1	new checksum field
@@ -691,8 +694,13 @@ buf_page_is_corrupted(
 	bool			check_lsn,
 	const byte*		read_buf,
 	ulint			zip_size,
+#ifndef UNIV_INNOCHECKSUM
 	const fil_space_t* 	space)
+#else
+	const void* 	 	space = NULL)
+#endif
 	MY_ATTRIBUTE((warn_unused_result));
+
 /** Check if a page is all zeroes.
 @param[in]	read_buf	database page
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
@@ -700,6 +708,9 @@ buf_page_is_corrupted(
 UNIV_INTERN
 bool
 buf_page_is_zeroes(const byte* read_buf, ulint zip_size);
+
+#ifndef UNIV_INNOCHECKSUM
+
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a
@@ -2470,4 +2481,5 @@ struct	CheckUnzipLRUAndLRUList {
 #include "buf0buf.ic"
 #endif
 
+#endif /*! UNIV_INNOCHECKSUM */
 #endif

@@ -154,6 +154,8 @@ mach_read_from_3(
 		);
 }
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /*******************************************************//**
 The following function is used to store data in four consecutive
 bytes. We store the most significant byte to the lowest address. */
@@ -171,8 +173,6 @@ mach_write_to_4(
 	b[2] = (byte)(n >> 8);
 	b[3] = (byte) n;
 }
-
-#endif /* !UNIV_INNOCHECKSUM */
 
 /********************************************************//**
 The following function is used to fetch data from 4 consecutive
