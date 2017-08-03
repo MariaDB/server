@@ -4232,6 +4232,7 @@ int ha_partition::pre_write_row(uchar * buf)
   int error;
   THD *thd= ha_thd();
   DBUG_ENTER("ha_partition::pre_write_row");
+  DBUG_PRINT("info", ("partition this=%p", this));
   DBUG_ASSERT(buf == m_rec0);
 
   m_pre_calling= TRUE;
@@ -4289,6 +4290,7 @@ int ha_partition::write_row(uchar * buf)
   sql_mode_t saved_sql_mode= thd->variables.sql_mode;
   bool saved_auto_inc_field_not_null= table->auto_increment_field_not_null;
   DBUG_ENTER("ha_partition::write_row");
+  DBUG_PRINT("info", ("partition this=%p", this));
   DBUG_ASSERT(buf == m_rec0);
 
   /*
@@ -4355,6 +4357,7 @@ int ha_partition::write_row(uchar * buf)
   }
   m_last_part= part_id;
   DBUG_PRINT("info", ("Insert in partition %d", part_id));
+  DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
   start_part_bulk_insert(thd, part_id);
 
   tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
@@ -4408,6 +4411,7 @@ int ha_partition::update_row(const uchar *old_data, uchar *new_data)
   int error= 0;
   longlong func_value;
   DBUG_ENTER("ha_partition::update_row");
+  DBUG_PRINT("info", ("partition this=%p", this));
   m_err_rec= NULL;
 
   // Need to read partition-related columns, to locate the row's partition:
@@ -4446,11 +4450,14 @@ int ha_partition::update_row(const uchar *old_data, uchar *new_data)
   */
   if (old_part_id != m_last_part)
   {
+    DBUG_PRINT("info", ("partition old_part_id=%d", old_part_id));
+    DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
     m_err_rec= old_data;
     DBUG_RETURN(HA_ERR_ROW_IN_WRONG_PARTITION);
   }
 
   m_last_part= new_part_id;
+  DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
   start_part_bulk_insert(thd, new_part_id);
   if (new_part_id == old_part_id)
   {
@@ -4553,6 +4560,7 @@ int ha_partition::delete_row(const uchar *buf)
   int error;
   THD *thd= ha_thd();
   DBUG_ENTER("ha_partition::delete_row");
+  DBUG_PRINT("info", ("partition this=%p", this));
   m_err_rec= NULL;
 
   DBUG_ASSERT(bitmap_is_subset(&m_part_info->full_part_field_set,
@@ -4594,6 +4602,7 @@ int ha_partition::delete_row(const uchar *buf)
   }
 
   m_last_part= part_id;
+  DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
   tmp_disable_binlog(thd);
   error= m_file[part_id]->ha_delete_row(buf);
   reenable_binlog(thd);
@@ -4924,6 +4933,7 @@ int ha_partition::pre_rnd_init(bool scan)
 {
   int error;
   DBUG_ENTER("ha_partition::pre_rnd_init");
+  DBUG_PRINT("info", ("partition this=%p", this));
 
   m_pre_calling= TRUE;
   error= pre_rnd_init(scan);
@@ -4980,7 +4990,10 @@ int ha_partition::rnd_init(bool scan)
     */
     if (bitmap_is_overlapping(&m_part_info->full_part_field_set,
                               table->write_set))
+    {
+      DBUG_PRINT("info", ("partition set full bitmap"));
       bitmap_set_all(table->read_set);
+    }
     else
     {
       /*
@@ -4989,6 +5002,7 @@ int ha_partition::rnd_init(bool scan)
         fields of the partition functions are read such that we can
         calculate the partition id to place updated and deleted records.
       */
+      DBUG_PRINT("info", ("partition set part_field bitmap"));
       bitmap_union(table->read_set, &m_part_info->full_part_field_set);
     }
   }
@@ -5179,6 +5193,7 @@ int ha_partition::rnd_next(uchar *buf)
   int result= HA_ERR_END_OF_FILE, error;
   uint part_id= m_part_spec.start_part;
   DBUG_ENTER("ha_partition::rnd_next");
+  DBUG_PRINT("info", ("partition this=%p", this));
 
   /* upper level will increment this once again at end of call */
   decrement_statistics(&SSV::ha_read_rnd_next_count);
@@ -5213,6 +5228,7 @@ int ha_partition::rnd_next(uchar *buf)
     if (!result)
     {
       m_last_part= part_id;
+      DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
       m_part_spec.start_part= part_id;
       table->status= 0;
       DBUG_RETURN(0);
@@ -5237,6 +5253,7 @@ int ha_partition::rnd_next(uchar *buf)
       break;
     }
     m_last_part= part_id;
+    DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
     m_part_spec.start_part= part_id;
     file= m_file[part_id];
     late_extra_cache(part_id);
@@ -5318,6 +5335,7 @@ int ha_partition::rnd_pos(uchar * buf, uchar *pos)
   uint part_id;
   handler *file;
   DBUG_ENTER("ha_partition::rnd_pos");
+  DBUG_PRINT("info", ("partition this=%p", this));
   decrement_statistics(&SSV::ha_read_rnd_count);
 
   part_id= uint2korr((const uchar *) pos);
@@ -5325,6 +5343,7 @@ int ha_partition::rnd_pos(uchar * buf, uchar *pos)
   file= m_file[part_id];
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
   m_last_part= part_id;
+  DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
   DBUG_RETURN(file->ha_rnd_pos(buf, (pos + PARTITION_BYTES_IN_POS)));
 }
 
@@ -5518,6 +5537,7 @@ int ha_partition::index_init(uint inx, bool sorted)
   int error= 0;
   uint i;
   DBUG_ENTER("ha_partition::index_init");
+  DBUG_PRINT("info", ("partition this=%p", this));
 
   DBUG_PRINT("info", ("inx %u sorted %u", inx, sorted));
   active_index= inx;
@@ -5913,6 +5933,7 @@ int ha_partition::index_read_map(uchar *buf, const uchar *key,
                                  enum ha_rkey_function find_flag)
 {
   DBUG_ENTER("ha_partition::index_read_map");
+  DBUG_PRINT("info", ("partition this=%p", this));
   decrement_statistics(&SSV::ha_read_key_count);
   end_range= 0;
   m_index_scan_type= partition_index_read;
@@ -6180,6 +6201,7 @@ int ha_partition::index_read_idx_map(uchar *buf, uint index,
 {
   int error= HA_ERR_KEY_NOT_FOUND;
   DBUG_ENTER("ha_partition::index_read_idx_map");
+  DBUG_PRINT("info", ("partition this=%p", this));
 
   if (find_flag == HA_READ_KEY_EXACT)
   {
@@ -6214,7 +6236,10 @@ int ha_partition::index_read_idx_map(uchar *buf, uint index,
         break;
     }
     if (part <= m_part_spec.end_part)
+    {
       m_last_part= part;
+      DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
+    }
   }
   else
   {
@@ -7074,7 +7099,10 @@ int ha_partition::ft_init()
     */
     if (bitmap_is_overlapping(&m_part_info->full_part_field_set,
                               table->write_set))
+    {
+      DBUG_PRINT("info", ("partition set full bitmap"));
       bitmap_set_all(table->read_set);
+    }
     else
     {
       /*
@@ -7083,6 +7111,7 @@ int ha_partition::ft_init()
         fields of the partition functions are read such that we can
         calculate the partition id to place updated and deleted records.
       */
+      DBUG_PRINT("info", ("partition set part_field bitmap"));
       bitmap_union(table->read_set, &m_part_info->full_part_field_set);
     }
   }
@@ -7163,7 +7192,10 @@ int ha_partition::pre_ft_init()
     */
     if (bitmap_is_overlapping(&m_part_info->full_part_field_set,
                               table->write_set))
+    {
+      DBUG_PRINT("info", ("partition set full bitmap"));
       bitmap_set_all(table->read_set);
+    }
     else
     {
       /*
@@ -7172,6 +7204,7 @@ int ha_partition::pre_ft_init()
         fields of the partition functions are read such that we can
         calculate the partition id to place updated and deleted records.
       */
+      DBUG_PRINT("info", ("partition set part_field bitmap"));
       bitmap_union(table->read_set, &m_part_info->full_part_field_set);
     }
   }
@@ -7450,6 +7483,7 @@ int ha_partition::ft_read(uchar *buf)
     if (!result)
     {
       m_last_part= part_id;
+      DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
       m_part_spec.start_part= part_id;
       table->status= 0;
       DBUG_RETURN(0);
@@ -7478,6 +7512,7 @@ int ha_partition::ft_read(uchar *buf)
       break;
     }
     m_last_part= part_id;
+    DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
     m_part_spec.start_part= part_id;
     file= m_file[part_id];
     DBUG_PRINT("info", ("ft_init on partition %d", part_id));
@@ -7801,6 +7836,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
   handler *file;
   int error;
   DBUG_ENTER("ha_partition::handle_unordered_next");
+  DBUG_PRINT("info", ("partition this=%p", this));
 
   if (m_part_spec.start_part >= m_tot_parts)
   {
@@ -7821,6 +7857,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
           multi_range_read_next(&m_range_info[m_part_spec.start_part])))
     {
       m_last_part= m_part_spec.start_part;
+      DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
       DBUG_RETURN(0);
     }
   }
@@ -7829,6 +7866,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
     if (!(error= file->read_range_next()))
     {
       m_last_part= m_part_spec.start_part;
+      DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
       DBUG_RETURN(0);
     }
   }
@@ -7838,6 +7876,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
                                           m_start_key.length)))
     {
       m_last_part= m_part_spec.start_part;
+      DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
       DBUG_RETURN(0);
     }
   }
@@ -7846,6 +7885,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
     if (!(error= file->ha_index_next(buf)))
     {
       m_last_part= m_part_spec.start_part;
+      DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
       DBUG_RETURN(0);                           // Row was in range
     }
   }
@@ -7881,6 +7921,7 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf)
   uint i= m_part_spec.start_part;
   int saved_error= HA_ERR_END_OF_FILE;
   DBUG_ENTER("ha_partition::handle_unordered_scan_next_partition");
+  DBUG_PRINT("info", ("partition this=%p", this));
 
   /* Read next partition that includes start_part */
   if (i)
@@ -7925,6 +7966,7 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf)
     if (!error)
     {
       m_last_part= i;
+      DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
       DBUG_RETURN(0);
     }
     if ((error != HA_ERR_END_OF_FILE) && (error != HA_ERR_KEY_NOT_FOUND))
@@ -7981,6 +8023,7 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
   uchar *part_rec_buf_ptr= m_ordered_rec_buffer;
   int saved_error= HA_ERR_END_OF_FILE;
   DBUG_ENTER("ha_partition::handle_ordered_index_scan");
+  DBUG_PRINT("info", ("partition this=%p", this));
 
   if (!m_using_extended_keys &&
       (error= loop_extra(HA_EXTRA_STARTING_ORDERED_INDEX_SCAN)))
@@ -8197,12 +8240,66 @@ void ha_partition::return_top_record(uchar *buf)
   uint part_id;
   uchar *key_buffer= queue_top(&m_queue);
   uchar *rec_buffer= key_buffer + PARTITION_BYTES_IN_POS;
+  DBUG_ENTER("ha_partition::return_top_record");
+  DBUG_PRINT("info", ("partition this=%p", this));
 
   part_id= uint2korr(key_buffer);
   memcpy(buf, rec_buffer, m_rec_length);
   m_last_part= part_id;
+  DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
   m_top_entry= part_id;
   table->status= 0;                             // Found an existing row
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  Return the array of all fields used in partition
+  and subpartition expressions.
+
+  SYNOPSIS
+    get_full_part_fields()
+
+  RETURN VALUE
+    Array of all fields used in partition and subpartition expressions
+*/
+
+Field **ha_partition::get_full_part_fields()
+{
+  DBUG_ENTER("ha_partition::get_full_part_fields");
+  DBUG_RETURN(m_part_info->full_part_field_array);
+}
+
+
+
+/*
+  Calculate the partition id for a column value and set its bit in the
+  read partition bitmap.
+
+  SYNOPSIS
+    choose_partition_from_column_value()
+    in:buf                        Column value
+
+  RETURN VALUE
+    >0                            Error code
+    0                             Success
+*/
+
+int ha_partition::choose_partition_from_column_value(uchar *buf)
+{
+  int error;
+  uint32 part_id;
+  DBUG_ENTER("ha_partition::choose_partition_from_column_value");
+  DBUG_PRINT("info", ("partition buf=%p", buf));
+  DBUG_PRINT("info", ("partition m_rec0=%p", m_rec0));
+
+  if ((error = get_part_for_delete(buf, m_rec0, m_part_info, &part_id)))
+    DBUG_RETURN(error);
+
+  DBUG_PRINT("info", ("partition choose patition=%u", part_id));
+  bitmap_clear_all(&(m_part_info->read_partitions));
+  bitmap_set_bit(&(m_part_info->read_partitions), part_id);
+  DBUG_RETURN(0);
 }
 
 
@@ -8643,11 +8740,17 @@ int ha_partition::info(uint flag)
     bool auto_inc_is_first_in_idx= (table_share->next_number_keypart == 0);
     DBUG_PRINT("info", ("HA_STATUS_AUTO"));
     if (!table->found_next_number_field)
+    {
       stats.auto_increment_value= 0;
+      DBUG_PRINT("info", ("HA_STATUS_AUTO 1 stats.auto_increment_value=%llu",
+                 stats.auto_increment_value));
+    }
     else if (part_share->auto_inc_initialized)
     {
       lock_auto_increment();
       stats.auto_increment_value= part_share->next_auto_inc_val;
+      DBUG_PRINT("info", ("HA_STATUS_AUTO 2 stats.auto_increment_value=%llu",
+                 stats.auto_increment_value));
       unlock_auto_increment();
     }
     else
@@ -8655,7 +8758,11 @@ int ha_partition::info(uint flag)
       lock_auto_increment();
       /* to avoid two concurrent initializations, check again when locked */
       if (part_share->auto_inc_initialized)
+      {
         stats.auto_increment_value= part_share->next_auto_inc_val;
+        DBUG_PRINT("info", ("HA_STATUS_AUTO 3 stats.auto_increment_value=%llu",
+                   stats.auto_increment_value));
+      }
       else
       {
         /*
@@ -8679,6 +8786,8 @@ int ha_partition::info(uint flag)
 
         DBUG_ASSERT(auto_increment_value);
         stats.auto_increment_value= auto_increment_value;
+        DBUG_PRINT("info", ("HA_STATUS_AUTO 4 stats.auto_increment_value=%llu",
+                   stats.auto_increment_value));
         if (auto_inc_is_first_in_idx)
         {
           set_if_bigger(part_share->next_auto_inc_val,
@@ -9345,11 +9454,15 @@ int ha_partition::extra(enum ha_extra_function operation)
     cached_table_flags |= additional_table_flags;
     break;
   }
+  case HA_EXTRA_INIT_AFTER_ATTACH_CHILDREN:
+    m_rec0 = table->record[0];
+    DBUG_RETURN(loop_extra(operation));
   case HA_EXTRA_IS_ATTACHED_CHILDREN:
     DBUG_RETURN(loop_extra(operation));
   case HA_EXTRA_DETACH_CHILDREN:
     cached_table_flags &= ~((ulonglong)
                             (HA_HAS_RECORDS | HA_CAN_BULK_ACCESS));
+    m_rec0 = table->record[0];
     DBUG_RETURN(loop_extra(operation));
   case HA_EXTRA_MARK_AS_LOG_TABLE:
   /*
@@ -10185,6 +10298,8 @@ void ha_partition::print_error(int error, myf errflag)
     {
       DBUG_ASSERT(0);
       m_last_part= 0;
+      DBUG_PRINT("info", ("partition m_last_part=%d", m_last_part));
+      DBUG_PRINT("info", ("partition m_last_part=%p", &m_last_part));
     }
     m_file[m_last_part]->print_error(error, errflag);
   }
@@ -11293,6 +11408,42 @@ void ha_partition::cond_pop()
 
 
 /**
+  Check and set the partition bitmap for partitions involved
+  in an update operation.
+
+  SYNOPSIS
+    check_and_set_bitmap_for_update()
+    rnd                Is random access
+
+  RETURN VALUE
+    NONE
+*/
+
+void ha_partition::check_and_set_bitmap_for_update(bool rnd)
+{
+  handler **file;
+  DBUG_ENTER("ha_partition::check_and_set_bitmap_for_update");
+  DBUG_PRINT("info", ("partition this=%p", this));
+
+  for (file= m_file; *file; file++)
+    (*file)->check_and_set_bitmap_for_update(rnd);
+
+  if (bitmap_is_overlapping(&m_part_info->full_part_field_set,
+                            table->write_set))
+  {
+    DBUG_PRINT("info", ("partition set full bitmap"));
+    bitmap_set_all(table->read_set);
+  }
+  else
+  {
+    DBUG_PRINT("info", ("partition set part_field bitmap"));
+    bitmap_union(table->read_set, &m_part_info->full_part_field_set);
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+/**
   Execute a bulk access request
 
   SYNOPSIS
@@ -11320,12 +11471,70 @@ void ha_partition::bulk_req_exec()
 }
 
 
+/**
+  Push down to each partition the table and fields of a
+  vertical partition that are mapped to local table fields.
+
+  SYNOPSIS
+    set_top_table_and_fields()
+    top_table                 Vertically partitioned table
+    top_table_field           Mapping of table fields
+    top_table_fields          Number of fields in the array
+
+  RETURN VALUE
+    >0                        Error
+    0                         Success
+*/
+
+int ha_partition::set_top_table_and_fields(TABLE *top_table,
+                                           Field **top_table_field,
+                                           uint top_table_fields)
+{
+  int error;
+  handler **file, **file_err;
+  DBUG_ENTER("ha_partition::set_top_table_and_fields");
+
+  if (!set_top_table_fields)
+  {
+    for (file= m_file; *file; file++)
+    {
+      if ((error = (*file)->set_top_table_and_fields(top_table, top_table_field, top_table_fields)))
+        goto err;
+    }
+    this->top_table = top_table;
+    this->top_table_field = top_table_field;
+    this->top_table_fields = top_table_fields;
+    set_top_table_fields = TRUE;
+  }
+  DBUG_RETURN(0);
+
+err:
+  for (file_err= m_file; file_err < file; file_err++)
+    (*file_err)->clear_top_table_fields();
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Push down to each partition the clearing of the table and fields of a
+  vertical partition that are mapped to local table fields.
+
+  SYNOPSIS
+    clear_top_table_fields()
+
+  RETURN VALUE
+    NONE
+*/
+
 void ha_partition::clear_top_table_fields()
 {
   handler **file;
   if (set_top_table_fields)
   {
     set_top_table_fields = FALSE;
+    top_table = NULL;
+    top_table_field = NULL;
+    top_table_fields = 0;
     for (file= m_file; *file; file++)
       (*file)->clear_top_table_fields();
   }

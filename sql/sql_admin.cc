@@ -182,7 +182,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     goto end;					// No data file
 
   /* A MERGE table must not come here. */
-  DBUG_ASSERT(table->file->ht->db_type != DB_TYPE_MRG_MYISAM);
+  DBUG_ASSERT(!(table->file->ht->flags & HTON_CAN_MERGE));
 
   // Name of data file
   strxmov(from, table->s->normalized_path.str, ext[1], NullS);

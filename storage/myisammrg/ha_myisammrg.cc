@@ -1755,7 +1755,7 @@ static int myisammrg_init(void *p)
   myisammrg_hton->db_type= DB_TYPE_MRG_MYISAM;
   myisammrg_hton->create= myisammrg_create_handler;
   myisammrg_hton->panic= myisammrg_panic;
-  myisammrg_hton->flags= HTON_NO_PARTITION;
+  myisammrg_hton->flags= HTON_NO_PARTITION | HTON_CAN_MERGE;
   myisammrg_hton->tablefile_extensions= ha_myisammrg_exts;
 
   return 0;

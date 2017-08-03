@@ -353,6 +353,8 @@ public:
      m_part_info= part_info;
      m_is_sub_partitioned= part_info->is_sub_partitioned();
   }
+  virtual Field **get_full_part_fields();
+  virtual int choose_partition_from_column_value(uchar *buf);
   /*
     -------------------------------------------------------------------------
     MODULE create/delete handler object
@@ -1339,6 +1341,9 @@ public:
   */
     virtual const COND *cond_push(const COND *cond);
     virtual void cond_pop();
+    virtual int set_top_table_and_fields(TABLE *top_table,
+                                         Field **top_table_field,
+                                         uint top_table_fields);
     virtual void clear_top_table_fields();
 
     private:
@@ -1369,6 +1374,7 @@ public:
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);
     virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);
     virtual TABLE_LIST *get_next_global_for_child();
+    virtual void check_and_set_bitmap_for_update(bool rnd);
 
   /*
     -------------------------------------------------------------------------
