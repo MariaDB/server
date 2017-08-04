@@ -147,11 +147,21 @@ t1	CREATE TABLE `t1` (
 (PARTITION p0 VERSIONING ENGINE = ${INNODB_OR_MYISAM},
  PARTITION p1 VERSIONING ENGINE = ${INNODB_OR_MYISAM},
  PARTITION pn AS OF NOW ENGINE = ${INNODB_OR_MYISAM})
+insert into t1 values (1), (2);
 alter table t1 drop partition pn;
 ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 alter table t1 drop partition p1;
 alter table t1 drop partition p0;
 ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+select x from t1;
+x
+1
+2
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 versioning,
+partition pn as of now);
 set @now= now(6);
 insert into t1 values (1);
 set @ts_start= sys_commit_ts('sys_trx_start');

@@ -1061,6 +1061,13 @@ protected:
   /** Total number of partitions. */
   uint m_tot_parts;
   uint m_last_part;                      // Last accessed partition.
+  uint m_cur_part;                       // Current partition
+  /* In fact m_cur_part duplicates m_part_spec, but is required due to different
+     rnd_init() semantics between ha_innopart and ha_partition.
+     ha_innopart::rnd_init() is table-wise (it has separate *_in_part() methods).
+     ha_partition::rnd_init() is partition-wise. m_cur_part is used to imitate
+     partition-wise rnd_init() and should not be merged with m_part_spec because of
+     different usage scenarios. */
   const uchar *m_err_rec;                // record which gave error.
   bool m_auto_increment_safe_stmt_log_lock;
   bool m_auto_increment_lock;

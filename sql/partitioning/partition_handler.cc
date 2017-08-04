@@ -286,6 +286,7 @@ Partition_helper::Partition_helper(handler *main_handler)
   m_part_info(),
   m_tot_parts(),
   m_last_part(),
+  m_cur_part(NO_CURRENT_PART_ID),
   m_err_rec(),
   m_ordered(),
   m_ordered_scan_ongoing(),

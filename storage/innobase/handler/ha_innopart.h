@@ -755,6 +755,7 @@ private:
 	virtual handler* part_handler(uint32 part_id)
 	{
 		set_partition(part_id);
+		m_cur_part = part_id;
 		return this;
 	}
 
@@ -1095,12 +1096,21 @@ private:
 	rnd_init(
 		bool	scan)
 	{
-		return(Partition_helper::ph_rnd_init(scan));
+		if (m_cur_part != NO_CURRENT_PART_ID)
+		{
+			m_scan_value= scan;
+			m_part_spec.start_part = m_cur_part;
+			m_part_spec.end_part = m_cur_part;
+			return rnd_init_in_part(m_cur_part, scan);
+		}
+		else
+			return(Partition_helper::ph_rnd_init(scan));
 	}
 
 	int
 	rnd_end()
 	{
+		m_cur_part = NO_CURRENT_PART_ID;
 		return(Partition_helper::ph_rnd_end());
 	}
 
@@ -1411,7 +1421,10 @@ protected:
 	rnd_next(
 		uchar*	record)
 	{
-		return(Partition_helper::ph_rnd_next(record));
+		if (m_cur_part != NO_CURRENT_PART_ID)
+			return rnd_next_in_part(m_cur_part, record);
+		else
+			return(Partition_helper::ph_rnd_next(record));
 	}
 
 	int

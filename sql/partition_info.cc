@@ -1024,6 +1024,7 @@ bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
   for (; part_id < part_id_end; ++part_id)
   {
     handler *file= table->file->part_handler(part_id); // requires update_partition() for ha_innopart
+    DBUG_ASSERT(file);
     int rc= file->ha_external_lock(thd, F_RDLCK); // requires ha_commit_trans() for ha_innobase
     if (rc)
     {
