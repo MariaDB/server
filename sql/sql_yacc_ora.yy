@@ -2486,12 +2486,8 @@ sp_suid:
 call:
           CALL_SYM sp_name
           {
-            LEX *lex = Lex;
-
-            lex->sql_command= SQLCOM_CALL;
-            lex->spname= $2;
-            lex->value_list.empty();
-            sp_handler_procedure.add_used_routine(lex, thd, $2);
+            if (Lex->call_statement_start(thd, $2))
+              MYSQL_YYABORT;
           }
           opt_sp_cparam_list {}
         ;
@@ -3374,22 +3370,14 @@ sp_statement:
         | ident_directly_assignable
           {
             // Direct procedure call (without the CALL keyword)
-            LEX *lex = Lex;
-            if (!(lex->spname= lex->make_sp_name(thd, &$1)))
+            if (Lex->call_statement_start(thd, &$1))
               MYSQL_YYABORT;
-            lex->sql_command= SQLCOM_CALL;
-            lex->value_list.empty();
-            sp_handler_procedure.add_used_routine(lex, thd, lex->spname);
           }
           opt_sp_cparam_list
         | ident_directly_assignable '.' ident
           {
-            LEX *lex = Lex;
-            if (!(lex->spname= lex->make_sp_name(thd, &$1, &$3)))
+            if (Lex->call_statement_start(thd, &$1, &$3))
               MYSQL_YYABORT;
-            lex->sql_command= SQLCOM_CALL;
-            lex->value_list.empty();
-            sp_handler_procedure.add_used_routine(lex, thd, lex->spname);
           }
           opt_sp_cparam_list
         ;
@@ -15385,14 +15373,8 @@ option_value_no_option_type:
           }
         | '@' ident_or_text equal expr
           {
-            Item_func_set_user_var *item;
-            item= new (thd->mem_root) Item_func_set_user_var(thd, &$2, $4);
-            if (item == NULL)
+            if (Lex->set_user_variable(thd, &$2, $4))
               MYSQL_YYABORT;
-            set_var_user *var= new (thd->mem_root) set_var_user(item);
-            if (var == NULL)
-              MYSQL_YYABORT;
-            Lex->var_list.push_back(var, thd->mem_root);
           }
         | '@' '@' opt_var_ident_type internal_variable_name equal set_expr_or_default
           {
@@ -15821,25 +15803,13 @@ revoke_command:
           }
         | grant_privileges ON FUNCTION_SYM grant_ident FROM user_and_role_list
           {
-            LEX *lex= Lex;
-            if (lex->columns.elements)
-            {
-              thd->parse_error();
+            if (Lex->add_grant_command(thd, SQLCOM_REVOKE, TYPE_ENUM_FUNCTION))
               MYSQL_YYABORT;
-            }
-            lex->sql_command= SQLCOM_REVOKE;
-            lex->type= TYPE_ENUM_FUNCTION;
           }
         | grant_privileges ON PROCEDURE_SYM grant_ident FROM user_and_role_list
           {
-            LEX *lex= Lex;
-            if (lex->columns.elements)
-            {
-              thd->parse_error();
+            if (Lex->add_grant_command(thd, SQLCOM_REVOKE, TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
-            }
-            lex->sql_command= SQLCOM_REVOKE;
-            lex->type= TYPE_ENUM_PROCEDURE;
           }
         | ALL opt_privileges ',' GRANT OPTION FROM user_and_role_list
           {
@@ -15883,26 +15853,14 @@ grant_command:
         | grant_privileges ON FUNCTION_SYM grant_ident TO_SYM grant_list
           opt_require_clause opt_grant_options
           {
-            LEX *lex= Lex;
-            if (lex->columns.elements)
-            {
-              thd->parse_error();
+            if (Lex->add_grant_command(thd, SQLCOM_GRANT, TYPE_ENUM_FUNCTION))
               MYSQL_YYABORT;
-            }
-            lex->sql_command= SQLCOM_GRANT;
-            lex->type= TYPE_ENUM_FUNCTION;
           }
         | grant_privileges ON PROCEDURE_SYM grant_ident TO_SYM grant_list
           opt_require_clause opt_grant_options
           {
-            LEX *lex= Lex;
-            if (lex->columns.elements)
-            {
-              thd->parse_error();
+            if (Lex->add_grant_command(thd, SQLCOM_GRANT, TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
-            }
-            lex->sql_command= SQLCOM_GRANT;
-            lex->type= TYPE_ENUM_PROCEDURE;
           }
         | PROXY_SYM ON user TO_SYM grant_list opt_grant_option
           {

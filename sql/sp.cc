@@ -711,6 +711,23 @@ Sp_handler::db_find_routine(THD *thd,
 }
 
 
+int
+Sp_handler::db_find_and_cache_routine(THD *thd,
+                                      const Database_qualified_name *name,
+                                      sp_head **sp) const
+{
+  int rc= db_find_routine(thd, name, sp);
+  if (rc == SP_OK)
+  {
+    sp_cache_insert(get_cache(thd), *sp);
+    DBUG_PRINT("info", ("added new: 0x%lx, level: %lu, flags %x",
+                        (ulong) sp[0], sp[0]->m_recursion_level,
+                        sp[0]->m_flags));
+  }
+  return rc;
+}
+
+
 /**
   Silence DEPRECATED SYNTAX warnings when loading a stored procedure
   into the cache.
@@ -1335,6 +1352,26 @@ done:
 }
 
 
+static bool
+append_suid(String *buf, enum_sp_suid_behaviour suid)
+{
+  return suid == SP_IS_NOT_SUID &&
+         buf->append(STRING_WITH_LEN("    SQL SECURITY INVOKER\n"));
+}
+
+
+static bool
+append_comment(String *buf, const LEX_CSTRING &comment)
+{
+  if (!comment.length)
+    return false;
+  if (buf->append(STRING_WITH_LEN("    COMMENT ")))
+    return true;
+  append_unescaped(buf, comment.str, comment.length);
+  return buf->append('\n');
+}
+
+
 /**
   Delete the record for the stored routine object from mysql.proc
   and do binary logging.
@@ -1711,6 +1748,85 @@ Sp_handler::sp_show_create_routine(THD *thd,
 }
 
 
+/*
+  In case of recursions, we create multiple copies of the same SP.
+  This methods checks the current recursion depth.
+  In case if the recursion limit exceeded, it throws an error
+  and returns NULL.
+  Otherwise, depending on the current recursion level, it:
+  - either returns the original SP,
+  - or makes and returns a new clone of SP
+*/
+sp_head *
+Sp_handler::sp_clone_and_link_routine(THD *thd,
+                                      const Database_qualified_name *name,
+                                      sp_head *sp) const
+{
+  DBUG_ENTER("sp_link_routine");
+  ulong level;
+  sp_head *new_sp;
+  LEX_CSTRING returns= empty_clex_str;
+
+  /*
+    String buffer for RETURNS data type must have system charset;
+    64 -- size of "returns" column of mysql.proc.
+  */
+  String retstr(64);
+  retstr.set_charset(sp->get_creation_ctx()->get_client_cs());
+
+  DBUG_PRINT("info", ("found: 0x%lx", (ulong)sp));
+  if (sp->m_first_free_instance)
+  {
+    DBUG_PRINT("info", ("first free: 0x%lx  level: %lu  flags %x",
+                        (ulong)sp->m_first_free_instance,
+                        sp->m_first_free_instance->m_recursion_level,
+                        sp->m_first_free_instance->m_flags));
+    DBUG_ASSERT(!(sp->m_first_free_instance->m_flags & sp_head::IS_INVOKED));
+    if (sp->m_first_free_instance->m_recursion_level > recursion_depth(thd))
+    {
+      recursion_level_error(thd, sp);
+      DBUG_RETURN(0);
+    }
+    DBUG_RETURN(sp->m_first_free_instance);
+  }
+  /*
+    Actually depth could be +1 than the actual value in case a SP calls
+    SHOW CREATE PROCEDURE. Hence, the linked list could hold up to one more
+    instance.
+  */
+
+  level= sp->m_last_cached_sp->m_recursion_level + 1;
+  if (level > recursion_depth(thd))
+  {
+    recursion_level_error(thd, sp);
+    DBUG_RETURN(0);
+  }
+
+  if (type() == TYPE_ENUM_FUNCTION)
+  {
+    sp_returns_type(thd, retstr, sp);
+    returns= retstr.lex_cstring();
+  }
+  if (db_load_routine(thd, name, &new_sp,
+                      sp->m_sql_mode, sp->m_params, returns,
+                      sp->m_body, sp->chistics(),
+                      sp->m_definer,
+                      sp->m_created, sp->m_modified,
+                      sp->get_creation_ctx()) == SP_OK)
+  {
+    sp->m_last_cached_sp->m_next_cached_sp= new_sp;
+    new_sp->m_recursion_level= level;
+    new_sp->m_first_instance= sp;
+    sp->m_last_cached_sp= sp->m_first_free_instance= new_sp;
+    DBUG_PRINT("info", ("added level: 0x%lx, level: %lu, flags %x",
+                        (ulong)new_sp, new_sp->m_recursion_level,
+                        new_sp->m_flags));
+    DBUG_RETURN(new_sp);
+  }
+  DBUG_RETURN(0);
+}
+
+
 /**
   Obtain object representing stored procedure/function by its name from
   stored procedures cache and looking into mysql.proc if needed.
@@ -1731,88 +1847,18 @@ sp_head *
 Sp_handler::sp_find_routine(THD *thd, const Database_qualified_name *name,
                             bool cache_only) const
 {
-  sp_cache **cp= get_cache(thd);
-  sp_head *sp;
   DBUG_ENTER("sp_find_routine");
   DBUG_PRINT("enter", ("name:  %.*s.%.*s  type: %s  cache only %d",
                        (int) name->m_db.length, name->m_db.str,
                        (int) name->m_name.length, name->m_name.str,
                        type_str(), cache_only));
+  sp_cache **cp= get_cache(thd);
+  sp_head *sp;
 
   if ((sp= sp_cache_lookup(cp, name)))
-  {
-    ulong level;
-    sp_head *new_sp;
-    LEX_CSTRING returns= empty_clex_str;
-
-    /*
-      String buffer for RETURNS data type must have system charset;
-      64 -- size of "returns" column of mysql.proc.
-    */
-    String retstr(64);
-    retstr.set_charset(sp->get_creation_ctx()->get_client_cs());
-
-    DBUG_PRINT("info", ("found: 0x%lx", (ulong)sp));
-    if (sp->m_first_free_instance)
-    {
-      DBUG_PRINT("info", ("first free: 0x%lx  level: %lu  flags %x",
-                          (ulong)sp->m_first_free_instance,
-                          sp->m_first_free_instance->m_recursion_level,
-                          sp->m_first_free_instance->m_flags));
-      DBUG_ASSERT(!(sp->m_first_free_instance->m_flags & sp_head::IS_INVOKED));
-      if (sp->m_first_free_instance->m_recursion_level > recursion_depth(thd))
-      {
-        recursion_level_error(thd, sp);
-        DBUG_RETURN(0);
-      }
-      DBUG_RETURN(sp->m_first_free_instance);
-    }
-    /*
-      Actually depth could be +1 than the actual value in case a SP calls
-      SHOW CREATE PROCEDURE. Hence, the linked list could hold up to one more
-      instance.
-    */
-
-    level= sp->m_last_cached_sp->m_recursion_level + 1;
-    if (level > recursion_depth(thd))
-    {
-      recursion_level_error(thd, sp);
-      DBUG_RETURN(0);
-    }
-
-    if (type() == TYPE_ENUM_FUNCTION)
-    {
-      sp_returns_type(thd, retstr, sp);
-      returns= retstr.lex_cstring();
-    }
-    if (db_load_routine(thd, name, &new_sp,
-                        sp->m_sql_mode, sp->m_params, returns,
-                        sp->m_body, sp->chistics(),
-                        sp->m_definer,
-                        sp->m_created, sp->m_modified,
-                        sp->get_creation_ctx()) == SP_OK)
-    {
-      sp->m_last_cached_sp->m_next_cached_sp= new_sp;
-      new_sp->m_recursion_level= level;
-      new_sp->m_first_instance= sp;
-      sp->m_last_cached_sp= sp->m_first_free_instance= new_sp;
-      DBUG_PRINT("info", ("added level: 0x%lx, level: %lu, flags %x",
-                          (ulong)new_sp, new_sp->m_recursion_level,
-                          new_sp->m_flags));
-      DBUG_RETURN(new_sp);
-    }
-    DBUG_RETURN(0);
-  }
+    DBUG_RETURN(sp_clone_and_link_routine(thd, name, sp));
   if (!cache_only)
-  {
-    if (db_find_routine(thd, name, &sp) == SP_OK)
-    {
-      sp_cache_insert(cp, sp);
-      DBUG_PRINT("info", ("added new: 0x%lx, level: %lu, flags %x",
-                          (ulong)sp, sp->m_recursion_level,
-                          sp->m_flags));
-    }
-  }
+    db_find_and_cache_routine(thd, name, &sp);
   DBUG_RETURN(sp);
 }
 
@@ -2137,10 +2183,9 @@ int Sp_handler::sp_cache_routine(THD *thd,
       DBUG_RETURN(SP_OK);
   }
 
-  switch ((ret= db_find_routine(thd, name, sp)))
+  switch ((ret= db_find_and_cache_routine(thd, name, sp)))
   {
     case SP_OK:
-      sp_cache_insert(spc, *sp);
       break;
     case SP_KEY_NOT_FOUND:
       ret= SP_OK;
@@ -2243,14 +2288,8 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
   }
   if (chistics.detistic)
     buf->append(STRING_WITH_LEN("    DETERMINISTIC\n"));
-  if (chistics.suid == SP_IS_NOT_SUID)
-    buf->append(STRING_WITH_LEN("    SQL SECURITY INVOKER\n"));
-  if (chistics.comment.length)
-  {
-    buf->append(STRING_WITH_LEN("    COMMENT "));
-    append_unescaped(buf, chistics.comment.str, chistics.comment.length);
-    buf->append('\n');
-  }
+  append_suid(buf, chistics.suid);
+  append_comment(buf, chistics.comment);
   buf->append(body);
   thd->variables.sql_mode= old_sql_mode;
   return false;
