@@ -2838,7 +2838,7 @@ Do flush for one slot.
 @return	the number of the slots which has not been treated yet. */
 static
 ulint
-pc_flush_slot(void)
+pc_flush_slot(int node = -1)
 {
 	ulint	lru_tm = 0;
 	ulint	list_tm = 0;
@@ -2852,8 +2852,6 @@ pc_flush_slot(void)
 		ulint			i;
 
 #ifdef HAVE_LIBNUMA
-		int node = mysql_node_of_cur_thread();
-
 		if (srv_numa_enable && node != -1) {
 			i = node;
 			slot = &page_cleaner->slots[i];
@@ -3528,6 +3526,9 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	static ulint	node_no = 0;
+	int				node = -1;
+
 	my_thread_init();
 
 	mutex_enter(&page_cleaner->mutex);
@@ -3535,8 +3536,6 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 	mutex_exit(&page_cleaner->mutex);
 
 #ifdef HAVE_LIBNUMA
-	static ulint	node_no = 0;
-	ulint	node;
 	if (srv_numa_enable) {
 		node = srv_allowed_nodes[node_no++];
 		mysql_bind_thread_to_node(node);
@@ -3563,7 +3562,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 			break;
 		}
 
-		pc_flush_slot();
+		pc_flush_slot(node);
 	}
 
 	mutex_enter(&page_cleaner->mutex);
