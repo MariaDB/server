@@ -1283,7 +1283,8 @@ static int wsrep_after_command(Trans_param *param)
     wsrep_cleanup_transaction(thd);
   }
 
-  if (thd->wsrep_conflict_state() == MUST_REPLAY)
+  if (thd->wsrep_conflict_state() == MUST_REPLAY &&
+      !thd->sp_runtime_ctx)
   {
     /*
       BF aborted during commit, must replay
