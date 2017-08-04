@@ -158,8 +158,6 @@ descriptor page, but used only in the first. */
 					FSP_FREE_LIMIT at a time */
 /* @} */
 
-#ifndef UNIV_INNOCHECKSUM
-
 /* @defgroup File Segment Inode Constants (moved from fsp0fsp.c) @{ */
 
 /*			FILE SEGMENT INODE
@@ -293,6 +291,7 @@ the extent are free and which contain old tuple version to clean. */
 /** Offset of the descriptor array on a descriptor page */
 #define	XDES_ARR_OFFSET		(FSP_HEADER_OFFSET + FSP_HEADER_SIZE)
 
+#ifndef UNIV_INNOCHECKSUM
 /* @} */
 
 /**********************************************************************//**

@@ -85,8 +85,6 @@ Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 				This field should not be written to after
 				page creation. */
 
-#ifndef UNIV_INNOCHECKSUM
-
 #define PAGE_BTR_SEG_LEAF 36	/* file segment header for the leaf pages in
 				a B-tree: defined only on the root page of a
 				B-tree, but not in the root of an ibuf tree */
@@ -140,6 +138,8 @@ Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 #define	PAGE_SAME_REC		3
 #define	PAGE_SAME_PAGE		4
 #define	PAGE_NO_DIRECTION	5
+
+#ifndef UNIV_INNOCHECKSUM
 
 /*			PAGE DIRECTORY
 			==============

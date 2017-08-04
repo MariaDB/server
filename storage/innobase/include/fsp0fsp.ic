@@ -53,6 +53,7 @@ xdes_calc_descriptor_index(
 	return(ut_2pow_remainder(offset, page_size.physical())
 	       / FSP_EXTENT_SIZE);
 }
+#endif /*!UNIV_INNOCHECKSUM */
 
 /**********************************************************************//**
 Gets a descriptor bit of a page.
@@ -80,6 +81,7 @@ xdes_get_bit(
 			bit_index));
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /** Calculates the page where the descriptor of a page resides.
 @param[in]	page_size	page size
 @param[in]	offset		page offset
