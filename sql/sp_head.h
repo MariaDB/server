@@ -125,7 +125,7 @@ public:
 
 
 bool
-check_routine_name(LEX_CSTRING *ident);
+check_routine_name(const LEX_CSTRING *ident);
 
 class sp_head :private Query_arena,
                public Database_qualified_name

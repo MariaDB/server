@@ -9677,7 +9677,7 @@ LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name,
     The function is not used in existing code but can be useful later?
 */
 
-bool check_string_byte_length(LEX_CSTRING *str, uint err_msg,
+bool check_string_byte_length(const LEX_CSTRING *str, uint err_msg,
                               uint max_byte_length)
 {
   if (str->length <= max_byte_length)
@@ -9707,7 +9707,7 @@ bool check_string_byte_length(LEX_CSTRING *str, uint err_msg,
 */
 
 
-bool check_string_char_length(LEX_CSTRING *str, uint err_msg,
+bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
                               bool no_error)
 {
@@ -9726,7 +9726,7 @@ bool check_string_char_length(LEX_CSTRING *str, uint err_msg,
 }
 
 
-bool check_ident_length(LEX_CSTRING *ident)
+bool check_ident_length(const LEX_CSTRING *ident)
 {
   if (check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
   {
