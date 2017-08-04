@@ -7,6 +7,7 @@
 # Require InnoDB
 -- source include/have_innodb.inc
 -- source include/have_file_key_management_plugin.inc
+-- source include/innodb_page_size_small.inc
 
 if (!$INNOCHECKSUM) {
   --echo Need innochecksum binary

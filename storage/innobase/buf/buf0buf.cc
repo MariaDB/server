@@ -571,10 +571,10 @@ buf_page_is_checksum_valid_crc32(
 #ifdef UNIV_INNOCHECKSUM
 	if (log_file
 	    && srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
-		fprintf(log_file, "page::%lu;"
+		fprintf(log_file, "page::%llu;"
 			" crc32 calculated = %u;"
-			" recorded checksum field1 = %lu recorded"
-			" checksum field2 =%lu\n", cur_page_num,
+			" recorded checksum field1 = " ULINTPF " recorded"
+			" checksum field2 =" ULINTPF "\n", cur_page_num,
 			crc32, checksum_field1, checksum_field2);
 	}
 #endif /* UNIV_INNOCHECKSUM */
@@ -619,28 +619,28 @@ buf_page_is_checksum_valid_innodb(
 #ifdef UNIV_INNOCHECKSUM
 	if (log_file
 	    && srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_INNODB) {
-		fprintf(log_file, "page::%lu;"
+		fprintf(log_file, "page::%llu;"
 			" old style: calculated ="
-			" %lu; recorded = %lu\n",
+			" " ULINTPF "; recorded = " ULINTPF "\n",
 			cur_page_num, old_checksum,
 			checksum_field2);
-		fprintf(log_file, "page::%lu;"
+		fprintf(log_file, "page::%llu;"
 			" new style: calculated ="
-			" %lu; crc32 = %u; recorded = %lu\n",
+			" " ULINTPF "; crc32 = %u; recorded = " ULINTPF "\n",
 			cur_page_num, new_checksum,
 			buf_calc_page_crc32(read_buf), checksum_field1);
 	}
 
 	if (log_file
 	    && srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
-		fprintf(log_file, "page::%lu;"
+		fprintf(log_file, "page::%llu;"
 			" old style: calculated ="
-			" %lu; recorded checksum = %lu\n",
+			" " ULINTPF "; recorded checksum = " ULINTPF "\n",
 			cur_page_num, old_checksum,
 			checksum_field2);
-		fprintf(log_file, "page::%lu;"
+		fprintf(log_file, "page::%llu;"
 			" new style: calculated ="
-			" %lu; recorded checksum  = %lu\n",
+			" " ULINTPF "; recorded checksum  = " ULINTPF "\n",
 			cur_page_num, new_checksum,
 			checksum_field1);
 	}
@@ -701,9 +701,9 @@ buf_page_is_checksum_valid_none(
 	if (log_file
 	    && srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_NONE) {
 		fprintf(log_file,
-			"page::%lu; none checksum: calculated"
-			" = %lu; recorded checksum_field1 = %lu"
-			" recorded checksum_field2 = %lu\n",
+			"page::%llu; none checksum: calculated"
+			" = " ULINTPF "; recorded checksum_field1 = " ULINTPF
+			" recorded checksum_field2 = " ULINTPF "\n",
 			cur_page_num, BUF_NO_CHECKSUM_MAGIC,
 			checksum_field1, checksum_field2);
 	}
@@ -765,7 +765,7 @@ buf_page_is_corrupted(
 		of page do not match */
 #ifndef UNIV_INNOCHECKSUM
 		ib_logf(IB_LOG_LEVEL_INFO,
-			"Log sequence number at the start %lu and the end %lu do not match.",
+			"Log sequence number at the start " ULINTPF " and the end " ULINTPF " do not match.",
 			mach_read_from_4(read_buf + FIL_PAGE_LSN + 4),
 			mach_read_from_4(read_buf + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM + 4));
 #endif /* UNIV_INNOCHECKSUM */
@@ -786,7 +786,7 @@ buf_page_is_corrupted(
 			ut_print_timestamp(stderr);
 
 			fprintf(stderr,
-				" InnoDB: Error: page %lu log sequence number"
+				" InnoDB: Error: page " ULINTPF " log sequence number"
 				" " LSN_PF "\n"
 				"InnoDB: is in the future! Current system "
 				"log sequence number " LSN_PF ".\n"
@@ -876,13 +876,13 @@ buf_page_is_corrupted(
 
 #ifdef UNIV_INNOCHECKSUM
 			if (log_file) {
-				fprintf(log_file, "page::" ULINTPF ";"
+				fprintf(log_file, "page::%llu;"
 					" old style: calculated = " ULINTPF ";"
 					" recorded = " ULINTPF "\n",
 					cur_page_num,
 					buf_calc_page_old_checksum(read_buf),
 					checksum_field2);
-				fprintf(log_file, "page::" ULINTPF ";"
+				fprintf(log_file, "page::%llu;"
 					" new style: calculated = " ULINTPF ";"
 					" crc32 = %u; recorded = " ULINTPF "\n",
 					cur_page_num,
@@ -912,7 +912,7 @@ buf_page_is_corrupted(
 
 #ifdef UNIV_INNOCHECKSUM
 		if (log_file) {
-			fprintf(log_file, "Fail; page " ULINTPF
+			fprintf(log_file, "Fail; page::%llu;"
 				" invalid (fails crc32 checksum)\n",
 				cur_page_num);
 		}
@@ -940,12 +940,12 @@ buf_page_is_corrupted(
 			}
 #ifdef UNIV_INNOCHECKSUM
 			if (log_file) {
-				fprintf(log_file, "page::" ULINTPF ";"
+				fprintf(log_file, "page::%llu;"
 					" old style: calculated = " ULINTPF ";"
 					" recorded = " ULINTPF "\n", cur_page_num,
 					buf_calc_page_old_checksum(read_buf),
 					checksum_field2);
-				fprintf(log_file, "page::" ULINTPF ";"
+				fprintf(log_file, "page::%llu;"
 					" new style: calculated = " ULINTPF ";"
 					" crc32 = %u; recorded = " ULINTPF "\n",
 					cur_page_num,
@@ -975,7 +975,7 @@ buf_page_is_corrupted(
 
 #ifdef UNIV_INNOCHECKSUM
 		if (log_file) {
-			fprintf(log_file, "Fail; page " ULINTPF
+			fprintf(log_file, "Fail; page::%llu;"
 				" invalid (fails innodb checksum)\n",
 				cur_page_num);
 		}
@@ -1014,7 +1014,7 @@ buf_page_is_corrupted(
 
 #ifdef UNIV_INNOCHECKSUM
 		if (log_file) {
-			fprintf(log_file, "Fail; page " ULINTPF
+			fprintf(log_file, "Fail; page::%llu;"
 				" invalid (fails none checksum)\n",
 				cur_page_num);
 		}
@@ -1060,7 +1060,7 @@ buf_page_print(
 	if (!(flags & BUF_PAGE_PRINT_NO_FULL)) {
 		ut_print_timestamp(stderr);
 		fprintf(stderr,
-			" InnoDB: Page dump in ascii and hex (%lu bytes):\n",
+			" InnoDB: Page dump in ascii and hex (" ULINTPF " bytes):\n",
 			size);
 		ut_print_buf(stderr, read_buf, size);
 		fputs("\nInnoDB: End of page dump\n", stderr);
@@ -1116,7 +1116,7 @@ buf_page_print(
 			"low 4 bytes of LSN at page end " ULINTPF ", "
 			"page number (if stored to page already) " ULINTPF ", "
 			"space id (if created with >= MySQL-4.1.1 "
-			"and stored already) %lu\n",
+			"and stored already) " ULINTPF "\n",
 			mach_read_from_4(read_buf + FIL_PAGE_SPACE_OR_CHKSUM),
 			buf_checksum_algorithm_name(SRV_CHECKSUM_ALGORITHM_CRC32),
 			buf_calc_page_crc32(read_buf),
@@ -2853,8 +2853,8 @@ buf_block_align_instance(
 				if (block->page.space != space ||
 					block->page.offset != offset) {
 					ib_logf(IB_LOG_LEVEL_ERROR,
-						"Corruption: Block space_id %lu != page space_id %lu or "
-						"Block offset %lu != page offset %lu",
+						"Corruption: Block space_id " ULINTPF " != page space_id " ULINTPF " or "
+						"Block offset " ULINTPF " != page offset " ULINTPF " ",
 						(ulint)block->page.space, space,
 						(ulint)block->page.offset, offset);
 				}
