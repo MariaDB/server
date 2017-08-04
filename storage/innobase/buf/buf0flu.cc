@@ -2859,8 +2859,7 @@ pc_flush_slot(void)
 			slot = &page_cleaner->slots[i];
 
 			if (slot->state != PAGE_CLEANER_STATE_REQUESTED) {
-				mutex_exit(&page_cleaner->mutex);
-				return 0;
+				goto finish_quick;
 			}
 		} else {
 			for (i = 0; i < page_cleaner->n_slots; i++) {
@@ -2953,7 +2952,7 @@ finish_mutex:
 			os_event_set(page_cleaner->is_finished);
 		}
 	}
-
+finish_quick:
 	ulint	ret = page_cleaner->n_slots_requested;
 
 	mutex_exit(&page_cleaner->mutex);
