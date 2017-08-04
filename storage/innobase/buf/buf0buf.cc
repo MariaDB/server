@@ -603,18 +603,15 @@ buf_block_alloc(
 
 		if (srv_numa_enable && node != -1) {
 			buf_pool = srv_buf_pool_on_node(node);
-		} else {
+		}
+		else
+#endif // HAVE_LIBNUMA
+		{
 			/* We are allocating memory from any buffer pool, ensure
 			we spread the grace on all buffer pool instances. */
 			index = buf_pool_index++ % srv_buf_pool_instances;
 			buf_pool = buf_pool_from_array(index);
 		}
-#else
-		/* We are allocating memory from any buffer pool, ensure
-		we spread the grace on all buffer pool instances. */
-		index = buf_pool_index++ % srv_buf_pool_instances;
-		buf_pool = buf_pool_from_array(index);
-#endif // HAVE_LIBNUMA
 	}
 
 	block = buf_LRU_get_free_block(buf_pool);
@@ -2689,17 +2686,15 @@ buf_pool_resize()
 			buf_pool->curr_size = new_curr_size;
 			buf_pool->n_chunks_new = new_curr_size * UNIV_PAGE_SIZE
 				/ srv_buf_pool_chunk_unit;
-		} else {
+		}
+		else
+#endif // HAVE_LIBNUMA
+		{
 			buf_pool->curr_size = new_instance_size;
+
 			buf_pool->n_chunks_new = new_instance_size * UNIV_PAGE_SIZE
 				/ srv_buf_pool_chunk_unit;
 		}
-#else
-		buf_pool->curr_size = new_instance_size;
-
-		buf_pool->n_chunks_new = new_instance_size * UNIV_PAGE_SIZE
-			/ srv_buf_pool_chunk_unit;
-#endif // HAVE_LIBNUMA
 
 		buf_pool_mutex_exit(buf_pool);
 	}

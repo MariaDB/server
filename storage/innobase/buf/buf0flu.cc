@@ -2859,7 +2859,10 @@ pc_flush_slot(int node = -1)
 			if (slot->state != PAGE_CLEANER_STATE_REQUESTED) {
 				goto finish_quick;
 			}
-		} else {
+		}
+		else
+#endif // HAVE_LIBNUMA
+		{
 			for (i = 0; i < page_cleaner->n_slots; i++) {
 				slot = &page_cleaner->slots[i];
 
@@ -2868,15 +2871,6 @@ pc_flush_slot(int node = -1)
 				}
 			}
 		}
-#else
-		for (i = 0; i < page_cleaner->n_slots; i++) {
-			slot = &page_cleaner->slots[i];
-
-			if (slot->state == PAGE_CLEANER_STATE_REQUESTED) {
-				break;
-			}
-		}
-#endif // HAVE_LIBNUMA
 
 		/* slot should be found because
 		page_cleaner->n_slots_requested > 0 */
