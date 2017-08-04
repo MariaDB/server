@@ -93,7 +93,8 @@ static int iterate_txns(DB_TXN *txn,
                         iterate_row_locks_callback iterate_locks,
                         void *locks_extra, void *extra) {
     uint64_t txnid = txn->id64(txn);
-    uint64_t client_id = txn->get_client_id(txn);
+    uint64_t client_id; void *client_extra;
+    txn->get_client_id(txn, &client_id, &client_extra);
     invariant_null(extra);
     invariant(txnid > 0);
     invariant(client_id == 0);

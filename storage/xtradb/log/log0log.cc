@@ -3577,6 +3577,7 @@ loop:
 	before proceeding further. */
 	srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 	count = 0;
+	os_rmb;
 	while (buf_page_cleaner_is_active || buf_lru_manager_is_active) {
 		if (srv_print_verbose_log && count == 0) {
 			ib_logf(IB_LOG_LEVEL_INFO,
@@ -3588,6 +3589,7 @@ loop:
 		if (count > 600) {
 			count = 0;
 		}
+		os_rmb;
 	}
 
 	mutex_enter(&log_sys->mutex);

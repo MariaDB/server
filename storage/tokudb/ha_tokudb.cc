@@ -532,51 +532,6 @@ typedef struct index_read_info {
     DBT* orig_key;
 } *INDEX_READ_INFO;
 
-static int ai_poll_fun(void *extra, float progress) {
-    LOADER_CONTEXT context = (LOADER_CONTEXT)extra;
-    if (thd_killed(context->thd)) {
-        sprintf(context->write_status_msg, "The process has been killed, aborting add index.");
-        return ER_ABORTING_CONNECTION;
-    }
-    float percentage = progress * 100;
-    sprintf(context->write_status_msg, "Adding of indexes about %.1f%% done", percentage);
-    thd_proc_info(context->thd, context->write_status_msg);
-#ifdef HA_TOKUDB_HAS_THD_PROGRESS
-    thd_progress_report(context->thd, (unsigned long long) percentage, 100);
-#endif
-    return 0;
-}
-
-static int loader_poll_fun(void *extra, float progress) {
-    LOADER_CONTEXT context = (LOADER_CONTEXT)extra;
-    if (thd_killed(context->thd)) {
-        sprintf(context->write_status_msg, "The process has been killed, aborting bulk load.");
-        return ER_ABORTING_CONNECTION;
-    }
-    float percentage = progress * 100;
-    sprintf(context->write_status_msg, "Loading of data about %.1f%% done", percentage);
-    thd_proc_info(context->thd, context->write_status_msg);
-#ifdef HA_TOKUDB_HAS_THD_PROGRESS
-    thd_progress_report(context->thd, (unsigned long long) percentage, 100);
-#endif
-    return 0;
-}
-
-static void loader_ai_err_fun(DB *db, int i, int err, DBT *key, DBT *val, void *error_extra) {
-    LOADER_CONTEXT context = (LOADER_CONTEXT)error_extra;
-    assert_always(context->ha);
-    context->ha->set_loader_error(err);
-}
-
-static void loader_dup_fun(DB *db, int i, int err, DBT *key, DBT *val, void *error_extra) {
-    LOADER_CONTEXT context = (LOADER_CONTEXT)error_extra;
-    assert_always(context->ha);
-    context->ha->set_loader_error(err);
-    if (err == DB_KEYEXIST) {
-        context->ha->set_dup_value_for_pk(key);
-    }
-}
-
 //
 // smart DBT callback function for optimize
 // in optimize, we want to flatten DB by doing
@@ -3397,11 +3352,13 @@ void ha_tokudb::start_bulk_insert(ha_rows rows) {
 
                 lc.thd = thd;
                 lc.ha = this;
-                
-                error = loader->set_poll_function(loader, loader_poll_fun, &lc);
+
+                error = loader->set_poll_function(
+                    loader, ha_tokudb::bulk_insert_poll, &lc);
                 assert_always(!error);
 
-                error = loader->set_error_callback(loader, loader_dup_fun, &lc);
+                error = loader->set_error_callback(
+                    loader, ha_tokudb::loader_dup, &lc);
                 assert_always(!error);
 
                 trx->stmt_progress.using_loader = true;
@@ -3413,6 +3370,47 @@ void ha_tokudb::start_bulk_insert(ha_rows rows) {
         share->unlock();
     }
     TOKUDB_HANDLER_DBUG_VOID_RETURN;
+}
+int ha_tokudb::bulk_insert_poll(void* extra, float progress) {
+    LOADER_CONTEXT context = (LOADER_CONTEXT)extra;
+    if (thd_killed(context->thd)) {
+        sprintf(context->write_status_msg,
+                "The process has been killed, aborting bulk load.");
+        return ER_ABORTING_CONNECTION;
+    }
+    float percentage = progress * 100;
+    sprintf(context->write_status_msg,
+            "Loading of data t %s about %.1f%% done",
+            context->ha->share->full_table_name(),
+            percentage);
+    thd_proc_info(context->thd, context->write_status_msg);
+#ifdef HA_TOKUDB_HAS_THD_PROGRESS
+    thd_progress_report(context->thd, (unsigned long long)percentage, 100);
+#endif
+    return 0;
+}
+void ha_tokudb::loader_add_index_err(DB* db,
+                                     int i,
+                                     int err,
+                                     DBT* key,
+                                     DBT* val,
+                                     void* error_extra) {
+    LOADER_CONTEXT context = (LOADER_CONTEXT)error_extra;
+    assert_always(context->ha);
+    context->ha->set_loader_error(err);
+}
+void ha_tokudb::loader_dup(DB* db,
+                           int i,
+                           int err,
+                           DBT* key,
+                           DBT* val,
+                           void* error_extra) {
+    LOADER_CONTEXT context = (LOADER_CONTEXT)error_extra;
+    assert_always(context->ha);
+    context->ha->set_loader_error(err);
+    if (err == DB_KEYEXIST) {
+        context->ha->set_dup_value_for_pk(key);
+    }
 }
 
 //
@@ -8193,12 +8191,14 @@ int ha_tokudb::tokudb_add_index(
             goto cleanup;
         }
 
-        error = indexer->set_poll_function(indexer, ai_poll_fun, &lc);
+        error = indexer->set_poll_function(
+            indexer, ha_tokudb::tokudb_add_index_poll, &lc);
         if (error) {
             goto cleanup;
         }
 
-        error = indexer->set_error_callback(indexer, loader_ai_err_fun, &lc);
+        error = indexer->set_error_callback(
+            indexer, ha_tokudb::loader_add_index_err, &lc);
         if (error) {
             goto cleanup;
         }
@@ -8253,12 +8253,14 @@ int ha_tokudb::tokudb_add_index(
             goto cleanup;
         }
 
-        error = loader->set_poll_function(loader, loader_poll_fun, &lc);
+        error =
+            loader->set_poll_function(loader, ha_tokudb::bulk_insert_poll, &lc);
         if (error) {
             goto cleanup;
         }
 
-        error = loader->set_error_callback(loader, loader_ai_err_fun, &lc);
+        error = loader->set_error_callback(
+            loader, ha_tokudb::loader_add_index_err, &lc);
         if (error) {
             goto cleanup;
         }
@@ -8464,6 +8466,24 @@ cleanup:
     }
     thd_proc_info(thd, orig_proc_info);
     TOKUDB_HANDLER_DBUG_RETURN(error ? error : loader_error);
+}
+int ha_tokudb::tokudb_add_index_poll(void* extra, float progress) {
+    LOADER_CONTEXT context = (LOADER_CONTEXT)extra;
+    if (thd_killed(context->thd)) {
+        sprintf(context->write_status_msg,
+                "The process has been killed, aborting add index.");
+        return ER_ABORTING_CONNECTION;
+    }
+    float percentage = progress * 100;
+    sprintf(context->write_status_msg,
+            "Adding of indexes to %s about %.1f%% done",
+            context->ha->share->full_table_name(),
+            percentage);
+    thd_proc_info(context->thd, context->write_status_msg);
+#ifdef HA_TOKUDB_HAS_THD_PROGRESS
+    thd_progress_report(context->thd, (unsigned long long)percentage, 100);
+#endif
+    return 0;
 }
 
 //

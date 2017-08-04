@@ -651,8 +651,12 @@ void toku_ftnode_clone_callback(void *value_data,
     // set new pair attr if necessary
     if (node->height == 0) {
         *new_attr = make_ftnode_pair_attr(node);
-        node->logical_rows_delta = 0;
-        cloned_node->logical_rows_delta = 0;
+        for (int i = 0; i < node->n_children; i++) {
+            if (BP_STATE(node, i) == PT_AVAIL) {
+                BLB_LRD(node, i) = 0;
+                BLB_LRD(cloned_node, i) = 0;
+            }
+        }
     } else {
         new_attr->is_valid = false;
     }
@@ -700,9 +704,26 @@ void toku_ftnode_flush_callback(CACHEFILE UU(cachefile),
             if (ftnode->height == 0) {
                 FT_STATUS_INC(FT_FULL_EVICTIONS_LEAF, 1);
                 FT_STATUS_INC(FT_FULL_EVICTIONS_LEAF_BYTES, node_size);
-                if (!ftnode->dirty) {
-                    toku_ft_adjust_logical_row_count(
-                        ft, -ftnode->logical_rows_delta);
+
+                // A leaf node (height == 0) is being evicted (!keep_me) and is
+                // not a checkpoint clone (!is_clone). This leaf node may have
+                // had messages applied to satisfy a query, but was never
+                // actually dirtied (!ftnode->dirty && !write_me). **Note that
+                // if (write_me) would persist the node and clear the dirty
+                // flag **. This message application may have updated the trees
+                // logical row count. Since these message applications are not
+                // persisted, we need undo the logical row count adjustments as
+                // they may occur again in the future if/when the node is
+                // re-read from disk for another query or change.
+                if (!ftnode->dirty && !write_me) {
+                    int64_t lrc_delta = 0;
+                    for (int i = 0; i < ftnode->n_children; i++) {
+                        if (BP_STATE(ftnode, i) == PT_AVAIL) {
+                            lrc_delta -= BLB_LRD(ftnode, i);
+                            BLB_LRD(ftnode, i) = 0;
+                        }
+                    }
+                    toku_ft_adjust_logical_row_count(ft, lrc_delta);
                 }
             } else {
                 FT_STATUS_INC(FT_FULL_EVICTIONS_NONLEAF, 1);
@@ -711,16 +732,17 @@ void toku_ftnode_flush_callback(CACHEFILE UU(cachefile),
             toku_free(*disk_data);
         } else {
             if (ftnode->height == 0) {
+                // No need to adjust logical row counts when flushing a clone
+                // as they should have been zeroed out anyway when cloned.
+                // Clones are 'copies' of work already done so doing it again
+                // (adjusting row counts) would be redundant and leads to
+                // inaccurate counts.
                 for (int i = 0; i < ftnode->n_children; i++) {
                     if (BP_STATE(ftnode, i) == PT_AVAIL) {
                         BASEMENTNODE bn = BLB(ftnode, i);
                         toku_ft_decrease_stats(&ft->in_memory_stats,
                                                bn->stat64_delta);
                     }
-                }
-                if (!ftnode->dirty) {
-                    toku_ft_adjust_logical_row_count(
-                        ft, -ftnode->logical_rows_delta);
                 }
             }
         }
@@ -748,24 +770,48 @@ toku_ft_status_update_pivot_fetch_reason(ftnode_fetch_extra *bfe)
     }
 }
 
-int toku_ftnode_fetch_callback (CACHEFILE UU(cachefile), PAIR p, int fd, BLOCKNUM blocknum, uint32_t fullhash,
-                                 void **ftnode_pv,  void** disk_data, PAIR_ATTR *sizep, int *dirtyp, void *extraargs) {
+int toku_ftnode_fetch_callback(CACHEFILE UU(cachefile),
+                               PAIR p,
+                               int fd,
+                               BLOCKNUM blocknum,
+                               uint32_t fullhash,
+                               void **ftnode_pv,
+                               void **disk_data,
+                               PAIR_ATTR *sizep,
+                               int *dirtyp,
+                               void *extraargs) {
     assert(extraargs);
-    assert(*ftnode_pv == NULL);
-    FTNODE_DISK_DATA* ndd = (FTNODE_DISK_DATA*)disk_data;
+    assert(*ftnode_pv == nullptr);
+    FTNODE_DISK_DATA *ndd = (FTNODE_DISK_DATA *)disk_data;
     ftnode_fetch_extra *bfe = (ftnode_fetch_extra *)extraargs;
-    FTNODE *node=(FTNODE*)ftnode_pv;
+    FTNODE *node = (FTNODE *)ftnode_pv;
     // deserialize the node, must pass the bfe in because we cannot
     // evaluate what piece of the the node is necessary until we get it at
     // least partially into memory
-    int r = toku_deserialize_ftnode_from(fd, blocknum, fullhash, node, ndd, bfe);
+    int r =
+        toku_deserialize_ftnode_from(fd, blocknum, fullhash, node, ndd, bfe);
     if (r != 0) {
         if (r == TOKUDB_BAD_CHECKSUM) {
-            fprintf(stderr,
-                    "Checksum failure while reading node in file %s.\n",
-                    toku_cachefile_fname_in_env(cachefile));
+            fprintf(
+                stderr,
+                "%s:%d:toku_ftnode_fetch_callback - "
+                "file[%s], blocknum[%ld], toku_deserialize_ftnode_from "
+                "failed with a checksum error.\n",
+                __FILE__,
+                __LINE__,
+                toku_cachefile_fname_in_env(cachefile),
+                blocknum.b);
         } else {
-            fprintf(stderr, "Error deserializing node, errno = %d", r);
+            fprintf(
+                stderr,
+                "%s:%d:toku_ftnode_fetch_callback - "
+                "file[%s], blocknum[%ld], toku_deserialize_ftnode_from "
+                "failed with %d.\n",
+                __FILE__,
+                __LINE__,
+                toku_cachefile_fname_in_env(cachefile),
+                blocknum.b,
+                r);
         }
         // make absolutely sure we crash before doing anything else.
         abort();
@@ -774,7 +820,8 @@ int toku_ftnode_fetch_callback (CACHEFILE UU(cachefile), PAIR p, int fd, BLOCKNU
     if (r == 0) {
         *sizep = make_ftnode_pair_attr(*node);
         (*node)->ct_pair = p;
-        *dirtyp = (*node)->dirty;  // deserialize could mark the node as dirty (presumably for upgrade)
+        *dirtyp = (*node)->dirty;  // deserialize could mark the node as dirty
+                                   // (presumably for upgrade)
     }
     return r;
 }
@@ -947,6 +994,16 @@ int toku_ftnode_pe_callback(void *ftnode_pv,
                     basements_to_destroy[num_basements_to_destroy++] = bn;
                     toku_ft_decrease_stats(&ft->in_memory_stats,
                                            bn->stat64_delta);
+                    // A basement node is being partially evicted.
+                    // This masement node may have had messages applied to it to
+                    // satisfy a query, but was never actually dirtied.
+                    // This message application may have updated the trees
+                    // logical row count. Since these message applications are
+                    // not being persisted, we need undo the logical row count
+                    // adjustments as they may occur again in the future if/when
+                    // the node is re-read from disk for another query or change.
+                    toku_ft_adjust_logical_row_count(ft,
+                                                     -bn->logical_rows_delta);
                     set_BNULL(node, i);
                     BP_STATE(node, i) = PT_ON_DISK;
                     num_partial_evictions++;

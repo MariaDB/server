@@ -80,21 +80,24 @@ void locktree::create(locktree_manager *mgr, DICTIONARY_ID dict_id, const compar
     m_sto_end_early_count = 0;
     m_sto_end_early_time = 0;
 
-    m_lock_request_info.pending_lock_requests.create();
-    ZERO_STRUCT(m_lock_request_info.mutex);
-    toku_mutex_init(&m_lock_request_info.mutex, nullptr);
-    m_lock_request_info.should_retry_lock_requests = false;
-    ZERO_STRUCT(m_lock_request_info.counters);
+    m_lock_request_info.init();
+}
 
-    // Threads read the should retry bit without a lock
-    // for performance. It's ok to read the wrong value.
-    // - If you think you should but you shouldn't, you waste a little time.
-    // - If you think you shouldn't but you should, then some other thread
-    // will come around to do the work of retrying requests instead of you.
-    TOKU_VALGRIND_HG_DISABLE_CHECKING(
-            &m_lock_request_info.should_retry_lock_requests,
-            sizeof(m_lock_request_info.should_retry_lock_requests));
-    TOKU_DRD_IGNORE_VAR(m_lock_request_info.should_retry_lock_requests);
+void lt_lock_request_info::init(void) {
+    pending_lock_requests.create();
+    pending_is_empty = true;
+    ZERO_STRUCT(mutex);
+    toku_mutex_init(&mutex, nullptr);
+    retry_want = retry_done = 0;
+    ZERO_STRUCT(counters);
+    ZERO_STRUCT(retry_mutex);
+    toku_mutex_init(&retry_mutex, nullptr);
+    toku_cond_init(&retry_cv, nullptr);
+    running_retry = false;
+
+    TOKU_VALGRIND_HG_DISABLE_CHECKING(&pending_is_empty,
+                                      sizeof(pending_is_empty));
+    TOKU_DRD_IGNORE_VAR(pending_is_empty);
 }
 
 void locktree::destroy(void) {
@@ -104,11 +107,18 @@ void locktree::destroy(void) {
     m_rangetree->destroy();
     toku_free(m_rangetree);
     m_sto_buffer.destroy();
-    m_lock_request_info.pending_lock_requests.destroy();
+    m_lock_request_info.destroy();
+}
+
+void lt_lock_request_info::destroy(void) {
+    pending_lock_requests.destroy();
+    toku_mutex_destroy(&mutex);
+    toku_mutex_destroy(&retry_mutex);
+    toku_cond_destroy(&retry_cv);
 }
 
 void locktree::add_reference(void) {
-    (void) toku_sync_add_and_fetch(&m_reference_count, 1);
+    (void)toku_sync_add_and_fetch(&m_reference_count, 1);
 }
 
 uint32_t locktree::release_reference(void) {

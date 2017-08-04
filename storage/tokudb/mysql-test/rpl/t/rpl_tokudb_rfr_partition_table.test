@@ -1,5 +1,7 @@
 # test tokudb read free replication feature with partition table
 
+skip MDEV-13441;
+--source include/have_partition.inc
 --source include/have_debug.inc
 --source include/have_tokudb.inc
 --source include/have_binlog_format_row.inc
