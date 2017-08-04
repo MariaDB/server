@@ -1173,6 +1173,9 @@ public:
     auto_increment_column_changed
      -------------------------------------------------------------------------
   */
+  bool m_need_info_for_auto_inc;
+  virtual bool need_info_for_auto_inc();
+  virtual bool can_use_for_auto_inc_init();
   virtual void get_auto_increment(ulonglong offset, ulonglong increment,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
