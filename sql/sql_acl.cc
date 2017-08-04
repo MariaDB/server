@@ -362,8 +362,8 @@ static bool show_database_privileges(THD *, const char *, const char *,
                                      char *, size_t);
 static bool show_table_and_column_privileges(THD *, const char *, const char *,
                                              char *, size_t);
-static int show_routine_grants(THD *, const char *, const char *, HASH *,
-                               const char *, int, char *, int);
+static int show_routine_grants(THD *, const char *, const char *,
+                               const Sp_handler *sph, char *, int);
 
 class Grant_tables;
 class User_table;
@@ -8484,12 +8484,12 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
   if (show_table_and_column_privileges(thd, role->user.str, "", buff, sizeof(buff)))
     return TRUE;
 
-  if (show_routine_grants(thd, role->user.str, "", &proc_priv_hash,
-                          STRING_WITH_LEN("PROCEDURE"), buff, sizeof(buff)))
+  if (show_routine_grants(thd, role->user.str, "", &sp_handler_procedure,
+                          buff, sizeof(buff)))
     return TRUE;
 
-  if (show_routine_grants(thd, role->user.str, "", &func_priv_hash,
-                          STRING_WITH_LEN("FUNCTION"), buff, sizeof(buff)))
+  if (show_routine_grants(thd, role->user.str, "", &sp_handler_function,
+                          buff, sizeof(buff)))
     return TRUE;
 
   return FALSE;
@@ -8709,12 +8709,12 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     if (show_table_and_column_privileges(thd, username, hostname, buff, sizeof(buff)))
       goto end;
 
-    if (show_routine_grants(thd, username, hostname, &proc_priv_hash,
-                            STRING_WITH_LEN("PROCEDURE"), buff, sizeof(buff)))
+    if (show_routine_grants(thd, username, hostname, &sp_handler_procedure,
+                            buff, sizeof(buff)))
       goto end;
 
-    if (show_routine_grants(thd, username, hostname, &func_priv_hash,
-                            STRING_WITH_LEN("FUNCTION"), buff, sizeof(buff)))
+    if (show_routine_grants(thd, username, hostname, &sp_handler_function,
+                            buff, sizeof(buff)))
       goto end;
 
     if (show_proxy_grants(thd, username, hostname, buff, sizeof(buff)))
@@ -9094,12 +9094,13 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
 
 static int show_routine_grants(THD* thd,
                                const char *username, const char *hostname,
-                               HASH *hash, const char *type, int typelen,
+                               const Sp_handler *sph,
                                char *buff, int buffsize)
 {
   uint counter, index;
   int error= 0;
   Protocol *protocol= thd->protocol;
+  HASH *hash= sph->get_priv_hash();
   /* Add routine access */
   for (index=0 ; index < hash->records ; index++)
   {
@@ -9153,7 +9154,7 @@ static int show_routine_grants(THD* thd,
 	  }
 	}
 	global.append(STRING_WITH_LEN(" ON "));
-        global.append(type,typelen);
+        global.append(sph->type_lex_cstring());
         global.append(' ');
 	append_identifier(thd, &global, grant_proc->db,
 			  strlen(grant_proc->db));
