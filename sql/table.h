@@ -1305,6 +1305,7 @@ public:
   bool stats_is_read;     /* Persistent statistics is read for the table */
   bool histograms_are_read;
   MDL_ticket *mdl_ticket;
+  List<Field> splitting_fields;
 
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;

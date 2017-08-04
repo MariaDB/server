@@ -690,6 +690,7 @@ public:
   select_result *result;
   bool  prepared, // prepare phase already performed for UNION (unit)
     optimized, // optimize phase already performed for UNION (unit)
+    optimized_2,
     executed, // already executed
     cleaned;
 

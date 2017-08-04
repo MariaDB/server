@@ -1605,6 +1605,7 @@ public:
   */
   virtual bool check_valid_arguments_processor(void *arg) { return 0; }
   virtual bool update_vcol_processor(void *arg) { return 0; }
+  virtual bool set_fields_as_dependent_processor(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
   virtual Item *get_copy(THD *thd, MEM_ROOT *mem_root)=0;
@@ -2827,6 +2828,15 @@ public:
       return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
     }
     return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF);
+  }
+  bool set_fields_as_dependent_processor(void *arg)
+  {
+    if (!(used_tables() & OUTER_REF_TABLE_BIT))
+    {
+      depended_from= (st_select_lex *) arg;
+      item_equal= NULL;
+    }
+    return 0;
   }
   void cleanup();
   Item_equal *get_item_equal() { return item_equal; }

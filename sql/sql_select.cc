@@ -223,6 +223,9 @@ static bool test_if_cheaper_ordering(const JOIN_TAB *tab,
                                      ha_rows *new_select_limit,
                                      uint *new_used_key_parts= NULL,
                                      uint *saved_best_key_parts= NULL);
+static int test_if_order_by_key(JOIN *join,
+                                ORDER *order, TABLE *table, uint idx,
+				uint *used_key_parts= NULL);
 static bool test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,
 				    ha_rows select_limit, bool no_changes,
                                     const key_map *map);
@@ -1075,42 +1078,55 @@ err:
   DBUG_RETURN(res);				/* purecov: inspected */
 }
 
+void JOIN::build_explain()
+{
+  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+  have_query_plan= QEP_AVAILABLE;
+  save_explain_data(thd->lex->explain, false /* can overwrite */,
+                    need_tmp,
+                    !skip_sort_order && !no_order && (order || group_list),
+                    select_distinct);
+  uint select_nr= select_lex->select_number;
+  JOIN_TAB *curr_tab= join_tab + exec_join_tab_cnt();
+  for (uint i= 0; i < aggr_tables; i++, curr_tab++)
+  {
+    if (select_nr == INT_MAX) 
+    {
+      /* this is a fake_select_lex of a union */
+      select_nr= select_lex->master_unit()->first_select()->select_number;
+      curr_tab->tracker= thd->lex->explain->get_union(select_nr)->
+                         get_tmptable_read_tracker();
+    }
+    else
+    {
+      curr_tab->tracker= thd->lex->explain->get_select(select_nr)->
+                         get_using_temporary_read_tracker();
+    }
+  }
+}
+
 int JOIN::optimize()
 {
-  // to prevent double initialization on EXPLAIN
-  if (optimization_state != JOIN::NOT_OPTIMIZED)
-    return FALSE;
-  optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
-
-  int res= optimize_inner();
-  if (!res && have_query_plan != QEP_DELETED)
+  int res= 0;
+  join_optimization_state init_state= optimization_state;
+  if (optimization_state == JOIN::OPTIMIZATION_IN_STAGE_2)
+    res= optimize_stage2();
+  else
   {
-    create_explain_query_if_not_exists(thd->lex, thd->mem_root);
-    have_query_plan= QEP_AVAILABLE;
-    save_explain_data(thd->lex->explain, false /* can overwrite */,
-                      need_tmp,
-                      !skip_sort_order && !no_order && (order || group_list),
-                      select_distinct);
-    uint select_nr= select_lex->select_number;
-    JOIN_TAB *curr_tab= join_tab + exec_join_tab_cnt();
-    for (uint i= 0; i < aggr_tables; i++, curr_tab++)
-    {
-      if (select_nr == INT_MAX) 
-      {
-        /* this is a fake_select_lex of a union */
-        select_nr= select_lex->master_unit()->first_select()->select_number;
-        curr_tab->tracker= thd->lex->explain->get_union(select_nr)->
-                           get_tmptable_read_tracker();
-      }
-      else
-      {
-        curr_tab->tracker= thd->lex->explain->get_select(select_nr)->
-                           get_using_temporary_read_tracker();
-      }
-    }
-    
+    // to prevent double initialization on EXPLAIN
+    if (optimization_state != JOIN::NOT_OPTIMIZED)
+      return FALSE;
+    optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+    is_for_splittable_grouping_derived= false;
+    res= optimize_inner();
   }
-  optimization_state= JOIN::OPTIMIZATION_DONE;
+  if (!with_two_phase_optimization ||
+      init_state == JOIN::OPTIMIZATION_IN_STAGE_2)
+  {
+    if (!res && have_query_plan != QEP_DELETED)
+      build_explain();
+    optimization_state= JOIN::OPTIMIZATION_DONE;
+  }
   return res;
 }
 
@@ -1160,10 +1176,8 @@ int JOIN::init_join_caches()
 int
 JOIN::optimize_inner()
 {
-  ulonglong select_opts_for_readinfo;
-  uint no_jbuf_after;
-  JOIN_TAB *tab;
   DBUG_ENTER("JOIN::optimize");
+  subq_exit_fl= false;
   do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
 
   DEBUG_SYNC(thd, "before_join_optimize");
@@ -1384,6 +1398,7 @@ JOIN::optimize_inner()
                            "Impossible HAVING" : "Impossible WHERE";
       table_count= top_join_tab_count= 0;
       error= 0;
+      subq_exit_fl= true;
       goto setup_subq_exit;
     }
   }
@@ -1438,6 +1453,7 @@ JOIN::optimize_inner()
 	zero_result_cause= "No matching min/max row";
         table_count= top_join_tab_count= 0;
 	error=0;
+        subq_exit_fl= true;
         goto setup_subq_exit;
       }
       if (res > 1)
@@ -1480,6 +1496,7 @@ JOIN::optimize_inner()
   {
     DBUG_PRINT("info",("No tables"));
     error= 0;
+    subq_exit_fl= true;
     goto setup_subq_exit;
   }
   error= -1;					// Error is sent to client
@@ -1513,6 +1530,39 @@ JOIN::optimize_inner()
     DBUG_RETURN(1);
   }
 
+setup_subq_exit:
+  with_two_phase_optimization= check_two_phase_optimization(thd);
+  if (with_two_phase_optimization)
+    optimization_state= JOIN::OPTIMIZATION_IN_STAGE_2;
+  else
+  { 
+    if (optimize_stage2())
+      DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
+}
+
+
+int JOIN::optimize_stage2()
+{
+  ulonglong select_opts_for_readinfo;
+  uint no_jbuf_after;
+  JOIN_TAB *tab;
+  DBUG_ENTER("JOIN::optimize_stage2");
+
+  if (subq_exit_fl)
+    goto setup_subq_exit;
+
+  if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
+     DBUG_RETURN(1);
+
+  if (thd->check_killed())
+    DBUG_RETURN(1);
+  
+  /* Generate an execution plan from the found optimal join order. */
+  if (get_best_combination())
+    DBUG_RETURN(1);
+  
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_WITH_KEYS))
     drop_unused_derived_keys();
 
@@ -4461,10 +4511,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   if (join->choose_subquery_plan(all_table_map & ~join->const_table_map))
     goto error;
 
+  if (join->improve_chosen_plan(join->thd))
+    goto error;
+  
   DEBUG_SYNC(join->thd, "inside_make_join_statistics");
 
-  /* Generate an execution plan from the found optimal join order. */
-  DBUG_RETURN(join->thd->check_killed() || join->get_best_combination());
+  DBUG_RETURN(0);
 
 error:
   /*
@@ -8792,6 +8844,257 @@ JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab)
   return tab;
 }
 
+static
+bool key_can_be_used_to_split_by_fields(KEY *key_info, uint used_key_parts,
+                                        List<Field> &fields)
+{ 
+  if (used_key_parts < fields.elements)
+    return false;
+  List_iterator_fast<Field> li(fields);
+  Field *fld;
+  KEY_PART_INFO *start= key_info->key_part;
+  KEY_PART_INFO *end= start + fields.elements;
+  while ((fld= li++))
+  {
+    KEY_PART_INFO *key_part;
+    for (key_part= start; key_part < end; key_part++)
+    {
+      if (key_part->fieldnr == fld->field_index + 1)
+        break;
+    }
+    if (key_part == end)
+      return false;
+  }
+  return true;
+}
+
+bool JOIN::check_for_splittable_grouping_derived(THD *thd)
+{
+  st_select_lex_unit *unit= select_lex->master_unit();
+  TABLE_LIST *derived= unit->derived;
+  if (!optimizer_flag(thd, OPTIMIZER_SWITCH_SPLIT_GROUPING_DERIVED))
+    return false;
+  if (!(derived && derived->is_materialized_derived()))
+    return false;
+  if (unit->first_select()->next_select())
+    return false;
+  if (derived->prohibit_cond_pushdown)
+    return false;
+  if (derived->is_recursive_with_table())
+    return false;
+  if (!group_list)
+    return false;
+
+  ORDER *ord;
+  TABLE *table= 0;
+  key_map ref_keys;
+  uint group_fields= 0;
+  ref_keys.set_all();
+  for (ord= group_list; ord; ord= ord->next, group_fields++)
+  {
+    Item *ord_item= *ord->item;
+    if (ord_item->real_item()->type() != Item::FIELD_ITEM)
+      return false;
+    Field *ord_field= ((Item_field *) (ord_item->real_item()))->field;
+    if (!table)
+      table= ord_field->table;
+    else if (table != ord_field->table)
+      return false;
+    ref_keys.intersect(ord_field->part_of_key);
+  }
+  if (ref_keys.is_clear_all())
+    return false;
+ 
+  uint i;
+  List<Field> grouping_fields;
+  List<Field> splitting_fields;
+  List_iterator<Item> li(fields_list);
+  for (ord= group_list; ord; ord= ord->next)
+  {
+    Item *item;
+    i= 0;
+    while ((item= li++))
+    {
+      if ((*ord->item)->eq(item, 0))
+	break;
+      i++;
+    }
+    if (!item) 
+      return false;  
+    if (splitting_fields.push_back(derived->table->field[i], thd->mem_root))
+      return false;
+    Item_field *ord_field= (Item_field *)(item->real_item());
+    if (grouping_fields.push_back(ord_field->field, thd->mem_root)) 
+      return false;
+    li.rewind();
+  }
+
+  for (i= 0; i < table->s->keys; i++)
+  {
+    if (!(ref_keys.is_set(i)))
+	continue;
+    KEY *key_info= table->key_info + i;
+    if (key_can_be_used_to_split_by_fields(key_info,
+                                           table->actual_n_key_parts(key_info),
+                                           grouping_fields))
+      break;
+  }
+  if (i == table->s->keys)
+    return false;
+ 
+  derived->table->splitting_fields= splitting_fields;
+  is_for_splittable_grouping_derived= true;
+  return true;
+}
+
+
+bool JOIN::check_two_phase_optimization(THD *thd)
+{
+  if (!check_for_splittable_grouping_derived(thd))
+    return false;
+  return true;
+}
+  
+
+Item *JOIN_TAB::get_splitting_cond_for_grouping_derived(THD *thd)
+{
+  /* this is a stub */
+  TABLE_LIST *derived= table->pos_in_table_list;
+  st_select_lex *sel= derived->get_unit()->first_select();
+  Item *cond= 0;
+  table_map used_tables= OUTER_REF_TABLE_BIT;
+  POSITION *pos= join->best_positions;
+  for (; pos->table != this; pos++)
+  {
+    used_tables|= pos->table->table->map;
+  }
+
+  if (!pos->key)
+    return 0;
+
+  KEY *key_info= table->key_info + pos->key->key;
+  if (!key_can_be_used_to_split_by_fields(key_info,
+                                          key_info->user_defined_key_parts,
+                                          table->splitting_fields))
+    return 0;
+
+  create_ref_for_key(join, this, pos->key,
+                     false, used_tables);
+  List<Item> cond_list;
+  KEY_PART_INFO *start= key_info->key_part;
+  KEY_PART_INFO *end= start + table->splitting_fields.elements;
+  List_iterator_fast<Field> li(table->splitting_fields);
+  Field *fld= li++;
+  for (ORDER *ord= sel->join->group_list; ord; ord= ord->next, fld= li++)  
+  {
+    Item *left_item= (*ord->item)->build_clone(thd, thd->mem_root);
+    uint i= 0;
+    for (KEY_PART_INFO *key_part= start; key_part < end; key_part++, i++)
+    {
+      if (key_part->fieldnr == fld->field_index + 1)
+        break;
+    }
+    Item *right_item= ref.items[i]->build_clone(thd, thd->mem_root); 
+    Item_func_eq *eq_item= 0;
+    right_item= right_item->build_clone(thd, thd->mem_root);
+    if (left_item && right_item)
+    {
+      right_item->walk(&Item::set_fields_as_dependent_processor,
+                       false, join->select_lex);
+      right_item->update_used_tables();
+      eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
+    }
+    if (!eq_item || cond_list.push_back(eq_item, thd->mem_root))
+      return 0;
+  }
+  switch (cond_list.elements) {
+  case 0: break;
+  case 1: cond= cond_list.head(); break;
+  default: cond= new (thd->mem_root) Item_cond_and(thd, cond_list);
+  }
+  if (cond)
+    cond->fix_fields(thd,0);
+  return cond; 
+}
+
+bool JOIN::inject_cond_into_where(Item *injected_cond)
+{
+  Item *where_item= injected_cond;
+  List<Item> *and_args= NULL;
+  if (conds && conds->type() == Item::COND_ITEM &&
+      ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
+  {
+    and_args= ((Item_cond*) conds)->argument_list();
+    if (cond_equal)
+      and_args->disjoin((List<Item> *) &cond_equal->current_level);
+  }
+
+  where_item= and_items(thd, conds, where_item);
+  if (!where_item->fixed && where_item->fix_fields(thd, 0))
+    return true;
+  thd->change_item_tree(&select_lex->where, where_item);
+  select_lex->where->top_level_item();
+  conds= select_lex->where;
+
+  if (and_args && cond_equal)
+  {
+    and_args= ((Item_cond*) conds)->argument_list();
+    List_iterator<Item_equal> li(cond_equal->current_level);
+    Item_equal *elem;
+    while ((elem= li++))
+    {
+      and_args->push_back(elem, thd->mem_root);
+    }
+  }
+  
+  return false;
+
+}
+
+bool JOIN::push_splitting_cond_into_derived(THD *thd, Item *cond) 
+{
+  enum_reopt_result reopt_result= REOPT_NONE;
+  table_map all_table_map= 0;
+  for (JOIN_TAB *tab= join_tab + const_tables;
+       tab < join_tab + top_join_tab_count; tab++)
+  {
+    all_table_map|= tab->table->map;
+  }
+  reopt_result= reoptimize(cond, all_table_map, NULL);
+  if (reopt_result == REOPT_ERROR)
+    return true;
+  if (inject_cond_into_where(cond))
+    return true;
+  if (cond->used_tables() & OUTER_REF_TABLE_BIT)
+  {
+    select_lex->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
+    st_select_lex_unit *unit= select_lex->master_unit();
+    unit->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
+  }
+  return false;
+}
+
+bool JOIN::improve_chosen_plan(THD *thd)
+{
+  for (JOIN_TAB *tab= join_tab + const_tables;
+       tab < join_tab + table_count; tab++)
+  {
+    TABLE_LIST *tbl= tab->table->pos_in_table_list;
+    if (tbl->is_materialized_derived())
+    {
+      st_select_lex *sel= tbl->get_unit()->first_select();
+      JOIN *derived_join= sel->join;
+      if (derived_join && derived_join->is_for_splittable_grouping_derived)
+      {
+        Item *cond= tab->get_splitting_cond_for_grouping_derived(thd);
+        if (cond && derived_join->push_splitting_cond_into_derived(thd, cond))
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
 
 static Item * const null_ptr= NULL;
 
@@ -11860,12 +12163,14 @@ bool JOIN_TAB::preread_init()
 
   /* Materialize derived table/view. */
   if ((!derived->get_unit()->executed  ||
-       derived->is_recursive_with_table()) &&
+       derived->is_recursive_with_table() ||
+       derived->get_unit()->uncacheable) &&
       mysql_handle_single_derived(join->thd->lex,
                                     derived, DT_CREATE | DT_FILL))
       return TRUE;
 
-  preread_init_done= TRUE;
+  if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT))
+    preread_init_done= TRUE;
   if (select && select->quick)
     select->quick->replace_handler(table->file);
 
@@ -20671,7 +20976,7 @@ part_of_refkey(TABLE *table,Field *field)
 
 static int test_if_order_by_key(JOIN *join,
                                 ORDER *order, TABLE *table, uint idx,
-				uint *used_key_parts= NULL)
+				uint *used_key_parts)
 {
   KEY_PART_INFO *key_part,*key_part_end;
   key_part=table->key_info[idx].key_part;

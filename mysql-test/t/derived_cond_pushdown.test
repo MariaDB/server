@@ -1548,3 +1548,100 @@ eval explain format=json $q;
 
 DROP VIEW v2;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-13369: Optimization for equi-joins of grouping derived tables 
+--echo #             (Splitting derived tables / views with GROUP BY)
+--echo #
+
+let
+$no_splitting= set statement optimizer_switch='split_grouping_derived=off' for; 
+
+create table t1 (a int);
+insert into t1 values
+(8), (5), (1), (2), (9), (7), (2), (7);
+
+create table t2 (a int, b int, index idx(a));
+insert into t2 values
+  (7,10), (1,20), (2,23), (7,18), (1,30),
+  (4,71), (3,15), (7,82), (8,12), (4,15),
+  (11,33), (10,42), (4,53), (10,17), (2,90);
+
+let $q1=
+select t1.a,t.max,t.min
+from t1 join
+     (select a, max(t2.b) max, min(t2.b) min from t2 group by t2.a) t
+     on t1.a=t.a;
+
+eval $no_splitting $q1;
+eval $q1;
+eval explain extended $q1;
+eval explain format=json $q1;  
+
+let $q2=
+select t1.a,t.max,t.min
+from t1 left join
+     (select a, max(t2.b) max, min(t2.b) min from t2 group by t2.a) t
+     on t1.a=t.a;
+
+eval $no_splitting $q2;
+eval $q2;
+eval explain extended $q2;
+eval explain format=json $q2;
+
+create table t3 (a int, c varchar(16));
+insert into t3 values
+(8,'aa'), (5,'cc'), (1,'bb'), (2,'aa'), (9,'cc'),
+(7,'aa'), (2,'aa'), (7,'bb');
+  
+
+create table t4 (a int, b int, c varchar(16), index idx(a,c));
+insert into t4 values
+  (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
+  (4,71,'xx'), (3,15,'aa'), (7,82,'bb'), (8,12,'dd'), (4,15,'aa'),
+  (11,33,'yy'), (10,42,'zz'), (4,53,'xx'), (10,17,'yy'), (7,12,'bb'),
+  (8,20,'dd'), (7,32,'bb'), (1,50,'aa'), (3,40,'bb'), (3,77,'aa');
+
+
+let $q3=
+select t3.a,t3.c,t.max,t.min
+from t3 join
+     (select a, c, max(b) max, min(b) min from t4 group by a,c) t
+     on t3.a=t.a and t3.c=t.c;
+
+eval $no_splitting $q3;
+eval $q3;
+eval explain extended $q3;
+eval explain format=json $q3;  
+
+let $q4=
+select t3.a,t3.c,t.max,t.min
+from t3 join
+     (select a, c, max(b) max, min(b) min from t4 group by c,a) t
+     on t3.a=t.a and t3.c=t.c;
+
+eval $no_splitting $q4;
+eval $q4;
+eval explain extended $q4;
+eval explain format=json $q4;  
+
+drop index idx on t2;
+create index idx on t2(b);
+create index idx on t3(a);
+create index idx2 on t4(c);
+insert into t3 select * from t3;
+insert into t3 select * from t3;
+insert into t4 select * from t4;
+
+let $q5=
+select t2.a,t2.b,t3.c,t.max,t.min
+from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
+where t2.b > 50 and t2.a=t3.a and t3.c=t.c;
+
+eval $no_splitting $q5;
+eval $q5;
+eval explain extended $q5;
+eval explain format=json $q5;
+
+drop table t1,t2,t3,t4;
+

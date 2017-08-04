@@ -872,12 +872,12 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
   bool res= FALSE;
   DBUG_ENTER("mysql_derived_optimize");
 
-  if (unit->optimized)
-    DBUG_RETURN(FALSE);
   lex->current_select= first_select;
 
   if (unit->is_unit_op())
   {
+    if (unit->optimized)
+      DBUG_RETURN(FALSE);
     // optimize union without execution
     res= unit->optimize();
   }
@@ -887,7 +887,20 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     {
       JOIN *join= first_select->join;
       unit->set_limit(unit->global_parameters());
-      unit->optimized= TRUE;
+      if (join &&
+          join->optimization_state == JOIN::OPTIMIZATION_IN_STAGE_2 &&
+          join->with_two_phase_optimization)
+      {
+        if (unit->optimized_2)
+          DBUG_RETURN(FALSE);
+        unit->optimized_2= TRUE;
+      }
+      else
+      {
+        if (unit->optimized)
+          DBUG_RETURN(FALSE);        
+	unit->optimized= TRUE;
+      }
       if ((res= join->optimize()))
         goto err;
       if (join->table_count == join->const_tables)
@@ -1041,6 +1054,13 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_ASSERT(derived->table && derived->table->is_created());
   select_unit *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
+
+  if (!derived_is_recursive && (unit->uncacheable & UNCACHEABLE_DEPENDENT))
+  {
+    if ((res= derived->table->file->ha_delete_all_rows()))
+      goto err;
+    unit->first_select()->join->first_record= false;
+  }
   
   if (derived_is_recursive)
   {
@@ -1088,7 +1108,8 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
       res= TRUE;
     unit->executed= TRUE;
   }
-  if (res || (!lex->describe && !derived_is_recursive)) 
+err:
+  if (res || (!lex->describe && !derived_is_recursive && !unit->uncacheable)) 
     unit->cleanup();
   lex->current_select= save_current_select;
 

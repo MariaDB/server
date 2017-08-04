@@ -2157,7 +2157,7 @@ void st_select_lex_unit::init_query()
   select_limit_cnt= HA_POS_ERROR;
   offset_limit_cnt= 0;
   union_distinct= 0;
-  prepared= optimized= executed= 0;
+  prepared= optimized= optimized_2= executed= 0;
   optimize_started= 0;
   item= 0;
   union_result= 0;
@@ -4464,7 +4464,12 @@ void st_select_lex::set_explain_type(bool on_the_fly)
     {
       /* If we're a direct child of a UNION, we're the first sibling there */
       if (linkage == DERIVED_TABLE_TYPE)
-        type= "DERIVED";
+      {
+        if (is_uncacheable & UNCACHEABLE_DEPENDENT)
+          type= "LATERAL DERIVED";
+        else
+          type= "DERIVED";
+      }
       else if (using_materialization)
         type= "MATERIALIZED";
       else

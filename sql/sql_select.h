@@ -614,6 +614,7 @@ typedef struct st_join_table {
   bool use_order() const; ///< Use ordering provided by chosen index?
   bool sort_table();
   bool remove_duplicates();
+  Item *get_splitting_cond_for_grouping_derived(THD *thd);
 
 } JOIN_TAB;
 
@@ -1274,6 +1275,8 @@ public:
     and should be taken from the appropriate JOIN_TAB
   */
   bool filesort_found_rows;
+
+  bool subq_exit_fl;
   
   ROLLUP rollup;				///< Used with rollup
   
@@ -1380,7 +1383,8 @@ public:
 
   enum join_optimization_state { NOT_OPTIMIZED=0,
                                  OPTIMIZATION_IN_PROGRESS=1,
-                                 OPTIMIZATION_DONE=2};
+                                 OPTIMIZATION_IN_STAGE_2=2,
+                                 OPTIMIZATION_DONE=3};
   // state of JOIN optimization
   enum join_optimization_state optimization_state;
   bool initialized; ///< flag to avoid double init_execution calls
@@ -1405,6 +1409,9 @@ public:
   bool set_group_rpa;
   /** Exec time only: TRUE <=> current group has been sent */
   bool group_sent;
+
+  bool is_for_splittable_grouping_derived;
+  bool with_two_phase_optimization; 
 
   JOIN_TAB *sort_and_group_aggr_tab;
 
@@ -1510,6 +1517,8 @@ public:
   bool prepare_stage2();
   int optimize();
   int optimize_inner();
+  int optimize_stage2();
+  void build_explain();
   int reinit();
   int init_execution();
   void exec();
@@ -1656,6 +1665,11 @@ public:
                                bool need_order, bool distinct,
                                const char *message);
   JOIN_TAB *first_breadth_first_tab() { return join_tab; }
+  bool check_two_phase_optimization(THD *thd);
+  bool check_for_splittable_grouping_derived(THD *thd);
+  bool inject_cond_into_where(Item *injected_cond);
+  bool push_splitting_cond_into_derived(THD *thd, Item *cond);
+  bool improve_chosen_plan(THD *thd);
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER
@@ -1693,6 +1707,7 @@ private:
   bool implicit_grouping; 
   void cleanup_item_list(List<Item> &items) const;
   bool make_aggr_tables_info();
+
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
