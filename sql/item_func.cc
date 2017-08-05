@@ -3959,7 +3959,7 @@ longlong Item_master_gtid_wait::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   longlong result= 0;
-  String *gtid_pos = args[0]->val_str(&value);
+  String *gtid_pos __attribute__((unused)) = args[0]->val_str(&value);
 
   if (args[0]->null_value)
   {

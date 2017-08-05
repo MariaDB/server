@@ -3611,7 +3611,9 @@ int
 apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
                                         rpl_group_info *rgi)
 {
+#ifndef DBUG_OFF
   Relay_log_info* rli= rgi->rli;
+#endif
   mysql_mutex_assert_not_owner(&rli->data_lock);
   int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
   /*

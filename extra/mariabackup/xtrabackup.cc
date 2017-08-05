@@ -6445,7 +6445,6 @@ int main(int argc, char **argv)
 {
 	char **client_defaults, **server_defaults;
 	char cwd[FN_REFLEN];
-	static char INNOBACKUPEX_EXE[]= "innobackupex";
 	if (argc > 1 && (strcmp(argv[1], "--innobackupex") == 0))
 	{
 		argv++;
