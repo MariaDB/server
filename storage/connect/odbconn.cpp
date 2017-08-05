@@ -968,6 +968,7 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_Catver = (tdbp) ? tdbp->Catver : 0;
   m_Rows = 0;
   m_Fetch = 0;
+	m_Fp = NULL;
   m_Connect = NULL;
   m_User = NULL;
   m_Pwd = NULL;
@@ -1137,7 +1138,25 @@ int ODBConn::Open(PCSZ ConnectString, POPARM sop, DWORD options)
     } else           // Connect using SQLConnect
       Connect();
 
-    /*ver = GetStringInfo(SQL_DRIVER_ODBC_VER);*/
+		/*********************************************************************/
+		/*  Link a Fblock. This make possible to automatically close it      */
+		/*  in case of error (throw).                                        */
+		/*********************************************************************/
+		PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
+
+		m_Fp = (PFBLOCK)PlugSubAlloc(g, NULL, sizeof(FBLOCK));
+		m_Fp->Type = TYPE_FB_ODBC;
+		m_Fp->Fname = NULL;
+		m_Fp->Next = dbuserp->Openlist;
+		dbuserp->Openlist = m_Fp;
+		m_Fp->Count = 1;
+		m_Fp->Length = 0;
+		m_Fp->Memory = NULL;
+		m_Fp->Mode = MODE_ANY;
+		m_Fp->File = this;
+		m_Fp->Handle = 0;
+
+		/*ver = GetStringInfo(SQL_DRIVER_ODBC_VER);*/
     // Verify support for required functionality and cache info
 //  VerifyConnect();         Deprecated
     GetConnectInfo();
@@ -2597,5 +2616,8 @@ void ODBConn::Close()
           
     m_henv = SQL_NULL_HENV;
     } // endif m_henv
+
+	if (m_Fp)
+		m_Fp->Count = 0;
 
   } // end of Close

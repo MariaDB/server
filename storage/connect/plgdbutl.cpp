@@ -68,9 +68,20 @@
 #include "tabcol.h"    // header of XTAB and COLUMN classes
 #include "valblk.h"
 #include "rcmsg.h"
+#if defined(ODBC_SUPPORT)
+#include "tabext.h"
+#include "odbccat.h"
+#include "tabodbc.h"
+#endif   // ODBC_SUPPORT
 #ifdef ZIP_SUPPORT
 #include "filamzip.h"
-#endif   // ZIP_SUPPORT
+#endif // ZIP_SUPPORT
+#ifdef JDBC_SUPPORT
+#include "javaconn.h"
+#endif // JDBC_SUPPORT
+#ifdef CMGO_SUPPORT
+#include "cmgoconn.h"
+#endif // MONGO_SUPPORT
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -923,6 +934,13 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
       CloseXML2File(g, fp, all);
       break;
 #endif   // LIBXML2_SUPPORT
+#ifdef ODBC_SUPPORT
+		case TYPE_FB_ODBC:
+			((ODBConn*)fp->File)->Close();
+			fp->Count = 0;
+			fp->File = NULL;
+			break;
+#endif   // ODBC_SUPPORT
 #ifdef ZIP_SUPPORT
 		case TYPE_FB_ZIP:
 			if (fp->Mode == MODE_INSERT)
@@ -936,6 +954,20 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
 			fp->File = NULL;
 			break;
 #endif   // ZIP_SUPPORT
+#ifdef JDBC_SUPPORT
+		case TYPE_FB_JAVA:
+			((JAVAConn*)fp->File)->Close();
+			fp->Count = 0;
+			fp->File = NULL;
+			break;
+#endif   // JDBC_SUPPORT
+#ifdef CMGO_SUPPORT
+		case TYPE_FB_MONGO:
+			((CMgoConn*)fp->File)->Close();
+			fp->Count = 0;
+			fp->File = NULL;
+			break;
+#endif   // MONGO_SUPPORT
 		default:
       rc = RC_FX;
     } // endswitch Type

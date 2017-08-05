@@ -48,19 +48,21 @@ typedef struct KEYCOL {
 class INCOL : public BLOCK {
 public:
 	// Constructor
-	INCOL(bool ar) { Klist = NULL; Array = ar; }
+	INCOL(bool ar) { Child = bson_new(); Klist = NULL; Array = ar; }
 
 	// Methods
 	void AddCol(PGLOBAL g, PCOL colp, char *jp);
+	void Init(void);
+	void Destroy(void);
 
 	//Members
-	bson_t Child;
-	PKC    Klist;
-	bool   Array;
+	bson_t *Child;
+	PKC     Klist;
+	bool    Array;
 }; // end of INCOL;
 
 /***********************************************************************/
-/*  CMgoConn class.                                                   */
+/*  CMgoConn class.                                                    */
 /***********************************************************************/
 class CMgoConn : public BLOCK {
 	friend class TDBCMG;
@@ -108,5 +110,6 @@ protected:
 	bson_iter_t           Iter;				// Used to retrieve column value
 	bson_iter_t           Desc;				// Descendant iter
 	PINCOL                Fpc;				// To insert INCOL classes
+	PFBLOCK               fp;
 	bool                  m_Connected;
 }; // end of class CMgoConn

@@ -309,6 +309,8 @@ bool TDBCMG::OpenDB(PGLOBAL g)
 		return true;
 	}	// endif Pipe
 
+	Use = USE_OPEN;       // Do it now in case we are recursively called
+
 	if (Init(g))
 		return true;
 

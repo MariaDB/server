@@ -18,7 +18,7 @@
 #include "plgdbsem.h"
 #include "xtable.h"
 #include "tabext.h"
-#if defined(MONGO_SUPPORT)
+#if defined(CMGO_SUPPORT)
 #include "tabcmg.h"
 #endif   // MONGO_SUPPORT
 #if defined(JDBC_SUPPORT)
@@ -61,18 +61,29 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info)
 	/*********************************************************************/
 	/*  Open MongoDB.                                                    */
 	/*********************************************************************/
-# if !defined(JDBC_SUPPORT)
-	cmgd = new(g) CMGDISC(g, (int*)length);
-#elif !defined(MONGO_SUPPORT)
-	cmgd = new(g) JMGDISC(g, (int*)length);
-#else
-	PCSZ drv = GetStringTableOption(g, topt, "Driver", "C");
+	PCSZ drv = GetStringTableOption(g, topt, "Driver", NULL);
 
-	if (toupper(*drv) == 'C')
+	if (drv && toupper(*drv) == 'C') {
+#if defined(CMGO_SUPPORT)
 		cmgd = new(g) CMGDISC(g, (int*)length);
-	else
+#else
+		sprintf(g->Message, "Mongo %s Driver not available", "C");
+		goto err;
+#endif
+	} else if (drv && toupper(*drv) == 'J') {
+#if defined(JDBC_SUPPORT)
+		cmgd = new(g) JMGDISC(g, (int*)length);
+#else
+		sprintf(g->Message, "Mongo %s Driver not available", "Java");
+		goto err;
+#endif
+	} else {						 // Driver not specified
+#if defined(CMGO_SUPPORT)
+		cmgd = new(g) CMGDISC(g, (int*)length);
+#else
 		cmgd = new(g) JMGDISC(g, (int*)length);
 #endif
+	}	// endif drv
 
 	if ((n = cmgd->GetColumns(g, db, uri, topt)) < 0)
 		goto err;
@@ -302,13 +313,7 @@ bool MGODEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 	else if (!Tabschema)
 		Tabschema = GetStringCatInfo(g, "Dbname", "*");
 
-# if !defined(JDBC_SUPPORT)
-	Driver = "C";
-#elif !defined(MONGO_SUPPORT)
-	Driver = "JAVA";
-#else
-	Driver = GetStringCatInfo(g, "Driver", "C");
-#endif
+	Driver = GetStringCatInfo(g, "Driver", NULL);
 	Uri = GetStringCatInfo(g, "Connect", "mongodb://localhost:27017");
 	Colist = GetStringCatInfo(g, "Colist", NULL);
 	Filter = GetStringCatInfo(g, "Filter", NULL);
@@ -329,27 +334,38 @@ bool MGODEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 /***********************************************************************/
 PTDB MGODEF::GetTable(PGLOBAL g, MODE m)
 {
-	if (Catfunc == FNC_COL) {
-#if defined(MONGO_SUPPORT)
-		if (Driver && toupper(*Driver) == 'C')
-			return new(g)TDBGOL(this);
-#endif   // MONGO_SUPPORT
-#if defined(JDBC_SUPPORT)
-		return new(g)TDBJGL(this);
-#else   // !JDBC_SUPPORT
-		strcpy(g->Message, "No column find, no MONGO nor Java support");
+	if (Driver && toupper(*Driver) == 'C') {
+#if defined(CMGO_SUPPORT)
+		if (Catfunc == FNC_COL)
+			return new(g) TDBGOL(this);
+		else
+			return new(g) TDBCMG(this);
+#else
+		sprintf(g->Message, "Mongo %s Driver not available", "C");
 		return NULL;
-#endif  // !JDBC_SUPPORT
-	} // endif Catfunc
-
-#if defined(MONGO_SUPPORT)
-	if (Driver && toupper(*Driver) == 'C')
-		return new(g) TDBCMG(this);
-#endif   // MONGO_SUPPORT
+#endif
+	} else if (Driver && toupper(*Driver) == 'J') {
 #if defined(JDBC_SUPPORT)
-	return new(g) TDBJMG(this);
-#else   // !JDBC_SUPPORT
-	strcpy(g->Message, "No MONGO nor Java support");
-	return NULL;
-#endif  // !JDBC_SUPPORT
+		if (Catfunc == FNC_COL)
+			return new(g) TDBJGL(this);
+		else
+			return new(g) TDBJMG(this);
+#else
+		sprintf(g->Message, "Mongo %s Driver not available", "Java");
+		return NULL;
+#endif
+	} else {						 // Driver not specified
+#if defined(CMGO_SUPPORT)
+		if (Catfunc == FNC_COL)
+			return new(g) TDBGOL(this);
+		else
+			return new(g) TDBCMG(this);
+#else
+		if (Catfunc == FNC_COL)
+			return new(g) TDBJGL(this);
+		else
+			return new(g) TDBJMG(this);
+#endif
+	} // endif Driver
+
 } // end of GetTable

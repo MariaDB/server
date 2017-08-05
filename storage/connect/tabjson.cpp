@@ -34,7 +34,7 @@
 #if defined(JDBC_SUPPORT)
 #include "jmgfam.h"
 #endif   // JDBC_SUPPORT
-#if defined(MONGO_SUPPORT)
+#if defined(CMGO_SUPPORT)
 #include "cmgfam.h"
 #endif   // MONGO_SUPPORT
 #include "tabmul.h"
@@ -129,8 +129,8 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 #endif   // ZIP_SUPPORT
 	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
-	if (!(tdp->Database = SetPath(g, db)))
-		return NULL;
+//if (!(tdp->Database = SetPath(g, db)))
+//	return NULL;
 
   tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
   tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
@@ -148,22 +148,23 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
           tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
 
 	if (tdp->Uri) {
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
 		tdp->Collname = GetStringTableOption(g, topt, "Name", NULL);
 		tdp->Collname = GetStringTableOption(g, topt, "Tabname", tdp->Collname);
 		tdp->Schema = GetStringTableOption(g, topt, "Dbname", "test");
 		tdp->Options = (PSZ)GetStringTableOption(g, topt, "Colist", "all");
 		tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
+		tdp->Driver = (PSZ)GetStringTableOption(g, topt, "Driver", NULL);
 		tdp->Version = GetIntegerTableOption(g, topt, "Version", 3);
 #if defined(JDBC_SUPPORT)
 		tdp->Wrapname = (PSZ)GetStringTableOption(g, topt, "Wrapper",
 			(tdp->Version == 2) ? "Mongo2Interface" : "Mongo3Interface");
 #endif   // JDBC_SUPPORT
 		tdp->Pretty = 0;
-#else   // !MONGO_SUPPORT	 || JDBC_SUPPORT
+#else   // !MONGO_SUPPORT
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
 		return NULL;
-#endif  // !MONGO_SUPPORT	 || JDBC_SUPPORT
+#endif  // !MONGO_SUPPORT
 	}	// endif Uri
 
   if (tdp->Pretty == 2) {
@@ -199,21 +200,32 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 			return NULL;
 #endif  // !ZIP_SUPPORT
 		} else if (tdp->Uri) {
-#if defined(MONGO_SUPPORT) ||	defined(JDBC_SUPPORT)
-#if !defined(JDBC_SUPPORT)
-			tjnp = new(g) TDBJSN(tdp, new(g) CMGFAM(tdp));
-#elif !defined(MONGO_SUPPORT)
-			tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
-#else
-			if (tdp->Driver && toupper(*tdp->Driver) == 'C')
+#if defined(MONGO_SUPPORT)
+			if (tdp->Driver && toupper(*tdp->Driver) == 'C') {
+#if defined(CMGO_SUPPORT)
 				tjnp = new(g) TDBJSN(tdp, new(g) CMGFAM(tdp));
-			else
+#else
+				sprintf(g->Message, "Mongo %s Driver not available", "C");
+				return NULL;
+#endif
+			} else if (tdp->Driver && toupper(*tdp->Driver) == 'J') {
+#if defined(JDBC_SUPPORT)
+				tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
+#else
+				sprintf(g->Message, "Mongo %s Driver not available", "Java");
+				return NULL;
+#endif
+			} else {						 // Driver not specified
+#if defined(CMGO_SUPPORT)
+				tjnp = new(g) TDBJSN(tdp, new(g) CMGFAM(tdp));
+#else
 				tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
 #endif
-#else	  // !MONGO_SUPPORT && !JDBC_SUPPORT
-			sprintf(g->Message, "No MongoDB support");
+			}	// endif Driver
+#else
+			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
 			return NULL;
-#endif   // MONGO_SUPPORT || JDBC_SUPPORT
+#endif   // MONGO_SUPPORT
 		} else
 			tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
 
@@ -484,16 +496,16 @@ JSONDEF::JSONDEF(void)
   Base = 0;
   Strict = false;
 	Sep = '.';
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
 	Uri = NULL;
 	Collname = Schema = Options = Filter = NULL;
 	Pipe = false;
 	Driver = NULL;
 	Version = 0;
+#endif   // MONGO_SUPPORT
 #if defined(JDBC_SUPPORT)
 	Wrapname = NULL;
 #endif   // JDBC_SUPPORT
-#endif  // !MONGO_SUPPORT  && !JDBC_SUPPORT
 } // end of JSONDEF constructor
 
 /***********************************************************************/
@@ -510,7 +522,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 	Sep = *GetStringCatInfo(g, "Separator", ".");
 
 	if (Uri = GetStringCatInfo(g, "Connect", NULL)) {
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
 		Collname = GetStringCatInfo(g, "Name",
 			(Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
 		Collname = GetStringCatInfo(g, "Tabname", Collname);
@@ -527,10 +539,10 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 		else
 			Wrapname = GetStringCatInfo(g, "Wrapper", "Mongo3Interface");
 #endif   // JDBC_SUPPORT
-#else   // !MONGO_SUPPORT  && !JDBC_SUPPORT
+#else   // !MONGO_SUPPORT
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
 		return true;
-#endif  // !MONGO_SUPPORT  && !JDBC_SUPPORT
+#endif  // !MONGO_SUPPORT
 	}	// endif Uri
 
 	return DOSDEF::DefineAM(g, (Uri ? "XMGO" : "DOS"), poff);
@@ -556,18 +568,32 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
                 (m == MODE_UPDATE || m == MODE_DELETE));
 
 		if (Uri) {
-#if defined(MONGO_SUPPORT) ||	defined(JDBC_SUPPORT)
-#if !defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
+			if (Driver && toupper(*Driver) == 'C') {
+#if defined(CMGO_SUPPORT)
 			txfp = new(g) CMGFAM(this);
-#elif !defined(MONGO_SUPPORT)
-			txfp = new(g) JMGFAM(this);
 #else
-			if (Driver && toupper(*Driver) == 'C')
+			sprintf(g->Message, "Mongo %s Driver not available", "C");
+			return NULL;
+#endif
+			} else if (Driver && toupper(*Driver) == 'J') {
+#if defined(JDBC_SUPPORT)
+				txfp = new(g) JMGFAM(this);
+#else
+				sprintf(g->Message, "Mongo %s Driver not available", "Java");
+				return NULL;
+#endif
+			} else {						 // Driver not specified
+#if defined(CMGO_SUPPORT)
 				txfp = new(g) CMGFAM(this);
-			else
+#else
 				txfp = new(g) JMGFAM(this);
 #endif
-#endif   // MONGO_SUPPORT || JDBC_SUPPORT
+			}	// endif Driver
+#else
+			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+			return NULL;
+#endif   // MONGO_SUPPORT
 		} else if (Zipped) {
 #if defined(ZIP_SUPPORT)
 			if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
@@ -2250,7 +2276,11 @@ void TDBJSON::CloseDB(PGLOBAL g)
 TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
   {
   Topt = tdp->GetTopt();
-  Db = tdp->GetDB();
+#if defined(MONGO_SUPPORT)
+  Db = tdp->Schema;
+#else
+	Db = NULL;
+#endif
 	Dsn = tdp->Uri;
   } // end of TDBJCL constructor
 

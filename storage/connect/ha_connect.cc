@@ -208,16 +208,18 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
-#if defined(JDBC_SUPPORT) || defined(MONGO_SUPPORT)
+#if defined(MONGO_SUPPORT)
 PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ url, PTOS topt, bool info);
-#endif   // JDBC_SUPPORT  || MONGO_SUPPORT
+#endif   // MONGO_SUPPORT
 int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
 	                                           PCSZ tab, PCSZ src, int port);
 bool    ZipLoadFile(PGLOBAL, PCSZ, PCSZ, PCSZ, bool, bool);
 bool    ExactInfo(void);
+#if defined(CMGO_SUPPORT)
 void    mongo_init(bool);
+#endif   // CMGO_SUPPORT
 USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
@@ -688,9 +690,9 @@ static int connect_init_func(void *p)
   XmlInitParserLib();
 #endif   // LIBXML2_SUPPORT
 
-#if defined(MONGO_SUPPORT)
+#if defined(CMGO_SUPPORT)
 	mongo_init(true);
-#endif   // MONGO_SUPPORT
+#endif   // CMGO_SUPPORT
 
   init_connect_psi_keys();
 
@@ -730,9 +732,9 @@ static int connect_done_func(void *)
   XmlCleanupParserLib();
 #endif // LIBXML2_SUPPORT
 
-#if defined(MONGO_SUPPORT)
+#if defined(CMGO_SUPPORT)
 	mongo_init(false);
-#endif   // MONGO_SUPPORT
+#endif   // CMGO_SUPPORT
 
 #ifdef JDBC_SUPPORT
 	JAVAConn::ResetJVM();
@@ -5360,11 +5362,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(JDBC_SUPPORT)
 	PJPARM   sjp= NULL;
 #endif   // JDBC_SUPPORT
-#if defined(JDBC_SUPPORT) || defined(MONGO_SUPPORT)
+#if defined(MONGO_SUPPORT)
 	PCSZ     driver= NULL;
 	char    *url= NULL;
 //char    *prop= NULL;
-#endif   // JDBC_SUPPORT  || MONGO_SUPPORT
+#endif   // MONGO_SUPPORT
   uint     tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool     bif, ok= false, dbf= false;
   TABTYPE  ttp= TAB_UNDEF;
@@ -5639,14 +5641,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					ok = true;
 
 				break;
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
 			case TAB_MONGO:
 				if (!topt->tabname)
 					topt->tabname = tab;
 
 				ok = true;
 				break;
-#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
+#endif   // MONGO_SUPPORT
 			case TAB_VIR:
 				ok = true;
 				break;
@@ -5789,22 +5791,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_JSON:
 					qrp = JSONColumns(g, db, dsn, topt, fnc == FNC_COL);
 					break;
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
 				case TAB_MONGO:
 					if (!(url = strz(g, create_info->connect_string)) || !*url)
 						url = "mongodb://localhost:27017";
 
-#if !defined(MONGO_SUPPORT)
-					driver = "JAVA";
-#elif !defined(JDBC_SUPPORT)
-					driver = "C";
-#else		 // MONGO_SUPPORT  && JDBC_SUPPORT
-					if (!driver)
-						driver = "C";
-#endif   // MONGO_SUPPORT  && JDBC_SUPPORT
 					qrp = MGOColumns(g, db, url, topt, fnc == FNC_COL);
 					break;
-#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
+#endif   // MONGO_SUPPORT
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
 				case TAB_XML:
 					qrp = XMLColumns(g, (char*)db, tab, topt, fnc == FNC_COL);
