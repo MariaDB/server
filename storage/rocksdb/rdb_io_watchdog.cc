@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+/* Rdb_io_watchdog doesn't work on Windows [yet] */
 #ifndef _WIN32
 
 namespace myrocks {
