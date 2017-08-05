@@ -103,6 +103,20 @@ static const char *ha_partition_ext[]=
 };
 
 
+/*
+  Skip primary key sorting if engine doesn't have clustered index
+    FALSE: do not skip primary key sorting
+    TRUE:  skip primary key sorting
+*/
+static MYSQL_THDVAR_BOOL(skip_pk_sort_for_non_clustered_pk_table,
+         /* opt flags */ PLUGIN_VAR_OPCMDARG,
+         /* comment */
+          "Skip primary key sorting if engine doesn't have clustered index",
+         /* check */     NULL,
+         /* update */    NULL,
+         /* default */   FALSE);
+
+
 #ifdef HAVE_PSI_INTERFACE
 PSI_mutex_key key_partition_auto_inc_mutex;
 
@@ -6001,7 +6015,8 @@ extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2)
   {
     return res;
   }
-  if ((res= file->m_file[0]->cmp_ref(ref1 + PARTITION_BYTES_IN_POS + file->m_rec_length,
+  if (!THDVAR(current_thd, skip_pk_sort_for_non_clustered_pk_table) &&
+      (res= file->m_file[0]->cmp_ref(ref1 + PARTITION_BYTES_IN_POS + file->m_rec_length,
                                      ref2 + PARTITION_BYTES_IN_POS + file->m_rec_length)))
   {
     return res;
@@ -8031,6 +8046,7 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
   DBUG_PRINT("info", ("partition this=%p", this));
 
   if (!m_using_extended_keys &&
+      !THDVAR(current_thd, skip_pk_sort_for_non_clustered_pk_table) &&
       (error= loop_extra(HA_EXTRA_STARTING_ORDERED_INDEX_SCAN)))
     DBUG_RETURN(error);
 
@@ -11659,6 +11675,13 @@ void ha_partition::delete_bulk_access_info(
 struct st_mysql_storage_engine partition_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+
+static struct st_mysql_sys_var* partition_system_variables[] =
+{
+  MYSQL_SYSVAR(skip_pk_sort_for_non_clustered_pk_table),
+  NULL
+};
+
 maria_declare_plugin(partition)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -11667,11 +11690,11 @@ maria_declare_plugin(partition)
   "Mikael Ronstrom, MySQL AB",
   "Partition Storage Engine Helper",
   PLUGIN_LICENSE_GPL,
-  partition_initialize, /* Plugin Init */
-  NULL, /* Plugin Deinit */
-  0x0100, /* 1.0 */
+  partition_initialize,       /* Plugin Init */
+  NULL,                       /* Plugin Deinit */
+  0x0100,                     /* 1.0 */
   NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
+  partition_system_variables, /* system variables                */
   "1.0",                      /* string version                  */
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity                     */
 }
