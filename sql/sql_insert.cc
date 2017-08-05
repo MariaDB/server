@@ -2681,7 +2681,7 @@ void kill_delayed_threads(void)
   {
     mysql_mutex_lock(&di->thd.LOCK_thd_data);
     if (di->thd.killed < KILL_CONNECTION)
-      di->thd.killed= KILL_CONNECTION;
+      di->thd.set_killed(KILL_CONNECTION);
     if (di->thd.mysys_var)
     {
       mysql_mutex_lock(&di->thd.mysys_var->mutex);
@@ -2827,7 +2827,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
   thd->set_current_time();
   threads.append(thd);
   if (abort_loop)
-    thd->killed= KILL_CONNECTION;
+    thd->set_killed(KILL_CONNECTION);
   else
     thd->reset_killed();
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -2972,7 +2972,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
           }
 #endif
           if (error == ETIMEDOUT || error == ETIME)
-            thd->killed= KILL_CONNECTION;
+            thd->set_killed(KILL_CONNECTION);
         }
         /* We can't lock di->mutex and mysys_var->mutex at the same time */
         mysql_mutex_unlock(&di->mutex);
@@ -3001,7 +3001,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
         if (! (thd->lock= mysql_lock_tables(thd, &di->table, 1, 0)))
         {
           /* Fatal error */
-          thd->killed= KILL_CONNECTION;
+          thd->set_killed(KILL_CONNECTION);
         }
         mysql_cond_broadcast(&di->cond_client);
       }
@@ -3010,7 +3010,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
         if (di->handle_inserts())
         {
           /* Some fatal error */
-          thd->killed= KILL_CONNECTION;
+          thd->set_killed(KILL_CONNECTION);
         }
       }
       di->status=0;
@@ -3054,7 +3054,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
       this.
     */
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    thd->killed= KILL_CONNECTION_HARD;	        // If error
+    thd->set_killed(KILL_CONNECTION_HARD);	        // If error
     thd->mdl_context.set_needs_thr_lock_abort(0);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
 
@@ -3143,7 +3143,7 @@ bool Delayed_insert::handle_inserts(void)
   max_rows= delayed_insert_limit;
   if (thd.killed || table->s->tdc->flushed)
   {
-    thd.killed= KILL_SYSTEM_THREAD;
+    thd.set_killed(KILL_SYSTEM_THREAD);
     max_rows= ULONG_MAX;                     // Do as much as possible
   }
 

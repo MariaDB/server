@@ -4783,7 +4783,7 @@ int create_table_impl(THD *thd,
         thd->variables.option_bits|= OPTION_KEEP_LOG;
         thd->log_current_statement= 1;
         create_info->table_was_deleted= 1;
-        DBUG_EXECUTE_IF("send_kill_after_delete", thd->killed= KILL_QUERY; );
+        DBUG_EXECUTE_IF("send_kill_after_delete", thd->set_killed(KILL_QUERY); );
 
         /*
           Restart statement transactions for the case of CREATE ... SELECT.

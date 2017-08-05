@@ -482,7 +482,6 @@ enum killed_state
   KILL_SERVER_HARD= 15
 };
 
-extern int killed_errno(killed_state killed);
 #define killed_mask_hard(killed) ((killed_state) ((killed) & ~KILL_HARD_BIT))
 
 enum killed_type
@@ -1924,7 +1923,7 @@ public:
     rpl_sql_thread_info *rpl_sql_info;
   } system_thread_info;
 
-  void reset_for_next_command();
+  void reset_for_next_command(bool do_clear_errors= 1);
   /*
     Constant for THD::where initialization in the beginning of every query.
 
@@ -1980,6 +1979,8 @@ public:
     Is locked when THD is deleted.
   */
   mysql_mutex_t LOCK_thd_data;
+  /* Protect kill information */
+  mysql_mutex_t LOCK_thd_kill;
 
   /* all prepared statements and cursors of this connection */
   Statement_map stmt_map;
@@ -2615,7 +2616,7 @@ public:
   void check_limit_rows_examined()
   {
     if (++accessed_rows_and_keys > lex->limit_rows_examined_cnt)
-      killed= ABORT_QUERY;
+      set_killed(ABORT_QUERY);
   }
 
   USER_CONN *user_connect;
@@ -2715,6 +2716,16 @@ public:
     especially the "broadcast" part.
   */
   killed_state volatile killed;
+
+  /*
+    The following is used if one wants to have a specific error number and
+    text for the kill
+  */
+  struct err_info
+  {
+    int no;
+    const char msg[256];
+  } *killed_err;
 
   /* See also thd_killed() */
   inline bool check_killed()
@@ -3280,18 +3291,18 @@ public:
     @todo: To silence an error, one should use Internal_error_handler
     mechanism. Issuing an error that can be possibly later "cleared" is not
     compatible with other installed error handlers and audit plugins.
-    In future this function will be removed.
   */
-  inline void clear_error()
+  inline void clear_error(bool clear_diagnostics= 0)
   {
     DBUG_ENTER("clear_error");
-    if (get_stmt_da()->is_error())
+    if (get_stmt_da()->is_error() || clear_diagnostics)
       get_stmt_da()->reset_diagnostics_area();
     is_slave_error= 0;
     if (killed == KILL_BAD_DATA)
-      killed= NOT_KILLED; // KILL_BAD_DATA can be reset w/o a mutex
+      reset_killed();
     DBUG_VOID_RETURN;
   }
+
 #ifndef EMBEDDED_LIBRARY
   inline bool vio_ok() const { return net.vio != 0; }
   /** Return FALSE if connection to client is broken. */
@@ -3401,10 +3412,54 @@ public:
     state after execution of a non-prepared SQL statement.
   */
   void end_statement();
-  inline int killed_errno() const
+
+  /*
+    Mark thread to be killed, with optional error number and string.
+    string is not released, so it has to be allocted on thd mem_root
+    or be a global string
+
+    Ensure that we don't replace a kill with a lesser one. For example
+    if user has done 'kill_connection' we shouldn't replace it with
+    KILL_QUERY.
+  */
+  inline void set_killed(killed_state killed_arg,
+                         int killed_errno_arg= 0,
+                         const char *killed_err_msg_arg= 0)
   {
-    return ::killed_errno(killed);
+    mysql_mutex_lock(&LOCK_thd_kill);
+    set_killed_no_mutex(killed_arg, killed_errno_arg, killed_err_msg_arg);
+    mysql_mutex_unlock(&LOCK_thd_kill);
   }
+  /*
+    This is only used by THD::awake where we need to keep the lock mutex
+    locked over some time.
+    It's ok to have this inline, as in most cases killed_errno_arg will
+    be a constant 0 and most of the function will disappear.
+  */
+  inline void set_killed_no_mutex(killed_state killed_arg,
+                                  int killed_errno_arg= 0,
+                                  const char *killed_err_msg_arg= 0)
+  {
+    if (killed <= killed_arg)
+    {
+      killed= killed_arg;
+      if (killed_errno_arg)
+      {
+        /*
+          If alloc fails, we only remember the killed flag.
+          The worst things that can happen is that we get
+          a suboptimal error message.
+        */
+        if ((killed_err= (err_info*) alloc(sizeof(*killed_err))))
+        {
+          killed_err->no= killed_errno_arg;
+          ::strmake((char*) killed_err->msg, killed_err_msg_arg,
+                    sizeof(killed_err->msg)-1);
+        }
+      }
+    }
+  }
+  int killed_errno();
   inline void reset_killed()
   {
     /*
@@ -3413,9 +3468,10 @@ public:
     */
     if (killed != NOT_KILLED)
     {
-      mysql_mutex_lock(&LOCK_thd_data);
+      mysql_mutex_lock(&LOCK_thd_kill);
       killed= NOT_KILLED;
-      mysql_mutex_unlock(&LOCK_thd_data);
+      killed_err= 0;
+      mysql_mutex_unlock(&LOCK_thd_kill);
     }
   }
   inline void reset_kill_query()
@@ -3426,11 +3482,14 @@ public:
       mysys_var->abort= 0;
     }
   }
-  inline void send_kill_message() const
+  inline void send_kill_message()
   {
+    mysql_mutex_lock(&LOCK_thd_kill);
     int err= killed_errno();
     if (err)
-      my_message(err, ER_THD(this, err), MYF(0));
+      my_message(err, killed_err ? killed_err->msg : ER_THD(this, err),
+                 MYF(0));
+    mysql_mutex_unlock(&LOCK_thd_kill);
   }
   /* return TRUE if we will abort query if we make a warning now */
   inline bool really_abort_on_warning()

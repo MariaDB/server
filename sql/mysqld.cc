@@ -878,7 +878,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started,
   key_LOCK_status, key_LOCK_show_status,
-  key_LOCK_system_variables_hash, key_LOCK_thd_data,
+  key_LOCK_system_variables_hash, key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
@@ -949,6 +949,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_wait_commit, "wait_for_commit::LOCK_wait_commit", 0},
   { &key_LOCK_gtid_waiting, "gtid_waiting::LOCK_gtid_waiting", 0},
   { &key_LOCK_thd_data, "THD::LOCK_thd_data", 0},
+  { &key_LOCK_thd_kill, "THD::LOCK_thd_kill", 0},
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
   { &key_LOG_LOCK_log, "LOG::LOCK_log", 0},
@@ -1650,7 +1651,7 @@ static void close_connections(void)
     if (WSREP(tmp) && (tmp->wsrep_exec_mode==REPL_RECV || tmp->wsrep_applier))
       continue;
 #endif
-    tmp->killed= KILL_SERVER_HARD;
+    tmp->set_killed(KILL_SERVER_HARD);
     MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
     mysql_mutex_lock(&tmp->LOCK_thd_data);
     if (tmp->mysys_var)
@@ -1738,7 +1739,7 @@ static void close_connections(void)
     if (WSREP(tmp) && tmp->wsrep_exec_mode==REPL_RECV)
     {
       sql_print_information("closing wsrep system thread");
-      tmp->killed= KILL_CONNECTION;
+      tmp->set_killed(KILL_CONNECTION);
       MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
       if (tmp->mysys_var)
       {
@@ -3943,11 +3944,16 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
         !thd->killed && !thd->get_stmt_da()->is_set())
     {
-      char buf[1024];
-      thd->killed= KILL_QUERY;
+      /* Ensure we don't get called here again */
+      char buf[50], *buf2;
+      thd->set_killed(KILL_QUERY);
       my_snprintf(buf, sizeof(buf), "--max-thread-mem-used=%llu",
                   thd->variables.max_mem_used);
-      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
+      if ((buf2= (char*) thd->alloc(256)))
+      {
+        my_snprintf(buf2, 256, ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);
+        thd->set_killed(KILL_QUERY, ER_OPTION_PREVENTS_STATEMENT, buf2);
+      }
     }
     DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0);
   }
@@ -6318,7 +6324,7 @@ void create_thread_to_handle_connection(THD *thd)
     DBUG_PRINT("error",
                ("Can't create thread to handle request (error %d)",
                 error));
-    thd->killed= KILL_CONNECTION;             // Safety
+    thd->set_killed(KILL_CONNECTION);             // Safety
     mysql_mutex_unlock(&LOCK_thread_count);
 
     mysql_mutex_lock(&LOCK_connection_count);

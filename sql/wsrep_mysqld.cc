@@ -1965,7 +1965,7 @@ static bool have_client_connections()
 
 static void wsrep_close_thread(THD *thd)
 {
-  thd->killed= KILL_CONNECTION;
+  thd->set_killed(KILL_CONNECTION);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
   if (thd->mysys_var)
   {
@@ -2045,7 +2045,7 @@ void wsrep_close_client_connections(my_bool wait_to_end)
 
     if (is_replaying_connection(tmp))
     {
-      tmp->killed= KILL_CONNECTION;
+      tmp->set_killed(KILL_CONNECTION);
       continue;
     }
 

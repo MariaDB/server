@@ -613,7 +613,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   DBUG_EXECUTE_IF("simulate_kill_bug27571",
                   {
                     error=1;
-                    thd->killed= KILL_QUERY;
+                    thd->set_killed(KILL_QUERY);
                   };);
 
 #ifndef EMBEDDED_LIBRARY

@@ -463,7 +463,7 @@ static void timeout_check(pool_timer_t *timer)
     {
       /* Wait timeout exceeded, kill connection. */
       mysql_mutex_lock(&thd->LOCK_thd_data);
-      thd->killed = KILL_CONNECTION;
+      thd->set_killed(KILL_CONNECTION);
       post_kill_notification(thd);
       mysql_mutex_unlock(&thd->LOCK_thd_data);
     }

@@ -940,7 +940,7 @@ int mysql_update(THD *thd,
   // simulated killing after the loop must be ineffective for binlogging
   DBUG_EXECUTE_IF("simulate_kill_bug27571",
                   {
-                    thd->killed= KILL_QUERY;
+                    thd->set_killed(KILL_QUERY);
                   };);
   error= (killed_status == NOT_KILLED)?  error : 1;
   
