@@ -3531,7 +3531,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_enable) {
-		node = srv_allowed_nodes[node_no++];
+		node = allowed_numa_nodes[node_no++];
 		mysql_bind_thread_to_node(node);
 	}
 #endif // HAVE_LIBNUMA

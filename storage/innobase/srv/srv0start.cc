@@ -332,7 +332,7 @@ DECLARE_THREAD(io_handler_thread)(
 			pfs_register_thread(io_read_thread_key);
 #ifdef HAVE_LIBNUMA
 			if (srv_numa_enable) {
-				node = srv_allowed_nodes[read_node++/2];
+				node = allowed_numa_nodes[read_node++/2];
 				mysql_bind_thread_to_node(node);
 			}
 #endif // HAVE_LIBNUMA
@@ -343,7 +343,7 @@ DECLARE_THREAD(io_handler_thread)(
 		pfs_register_thread(io_write_thread_key);
 #ifdef HAVE_LIBNUMA
 			if (srv_numa_enable) {
-				node = srv_allowed_nodes[write_node++/2];
+				node = allowed_numa_nodes[write_node++/2];
 				mysql_bind_thread_to_node(node);
 			}
 #endif // HAVE_LIBNUMA
@@ -1698,12 +1698,12 @@ innobase_start_or_create_for_mysql()
 		struct bitmask* numa_mems_allowed = mysql_numa_get_mems_allowed();
 		srv_buf_pool_instances = 0;
 
-		for (ulint i = 0; i <= SRV_MAX_NUM_NUMA_NODES; i++) {
+		for (ulint i = 0; i <= MYSQL_MAX_NUM_NUMA_NODES; i++) {
 			if (mysql_numa_bitmask_isbitset(numa_mems_allowed, i)) {
-				srv_allowed_nodes[srv_buf_pool_instances++] = i;
-				srv_size_of_numa_node[i] = mysql_numa_node_size(i, NULL);
-				srv_total_nodes_size += srv_size_of_numa_node[i];
-				srv_no_of_allowed_nodes++;
+				allowed_numa_nodes[srv_buf_pool_instances++] = i;
+				size_of_numa_node[i] = mysql_numa_node_size(i, NULL);
+				total_numa_nodes_size += size_of_numa_node[i];
+				no_of_allowed_nodes++;
 			}
 		}
 		srv_n_read_io_threads = 2 * srv_buf_pool_instances;
@@ -1754,7 +1754,7 @@ innobase_start_or_create_for_mysql()
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_enable) {
 		for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-			srv_size_of_buf_pool_in_node[i] = ((double) srv_size_of_numa_node[i] / srv_total_nodes_size) * srv_buf_pool_size;
+			srv_size_of_buf_pool_in_node[i] = ((double) size_of_numa_node[i] / total_numa_nodes_size) * srv_buf_pool_size;
 			srv_size_of_buf_pool_in_node[i] = buf_pool_size_align(srv_size_of_buf_pool_in_node[i]);
 		}
 	}

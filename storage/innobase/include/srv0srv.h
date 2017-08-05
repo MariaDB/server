@@ -282,7 +282,7 @@ Currently we support native aio on windows and linux */
 extern my_bool	srv_use_native_aio;
 
 extern my_bool	srv_numa_interleave;
-extern ulint	srv_size_of_buf_pool_in_node[SRV_MAX_NUM_NUMA_NODES];
+extern ulint	srv_size_of_buf_pool_in_node[MYSQL_MAX_NUM_NUMA_NODES];
 
 /* Use trim operation */
 extern my_bool srv_use_trim;

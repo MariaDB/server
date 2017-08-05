@@ -1550,8 +1550,8 @@ buf_chunk_init(
 		}
 	}
 	if (srv_numa_enable) {
-		struct bitmask* node_mask = mysql_numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
-		mysql_numa_bitmask_setbit(node_mask, srv_allowed_nodes[instance_no]);
+		struct bitmask* node_mask = mysql_numa_bitmask_alloc(MYSQL_MAX_NUM_NUMA_NODES);
+		mysql_numa_bitmask_setbit(node_mask, allowed_numa_nodes[instance_no]);
 		ulint	mbind_val = mbind(chunk->mem, chunk->mem_size(),
 				   MPOL_BIND,
 				   node_mask->maskp,
@@ -1921,7 +1921,7 @@ buf_pool_init_instance(
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_enable) {
 		ib::info() << "Initialized Buffer Pool Instance " << instance_no << " of size "
-				<< (buf_pool_size / (1024 * 1024)) << "M on node " << srv_allowed_nodes[instance_no];
+				<< (buf_pool_size / (1024 * 1024)) << "M on node " << allowed_numa_nodes[instance_no];
 	}
 #endif // HAVE_LIBNUMA
 
@@ -2038,7 +2038,7 @@ buf_pool_init(
 	ulint	size = total_size / n_instances;
 
 #ifdef HAVE_LIBNUMA
-	struct bitmask* node_mask = mysql_numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
+	struct bitmask* node_mask = mysql_numa_bitmask_alloc(MYSQL_MAX_NUM_NUMA_NODES);
 #endif // HAVE_LIBNUMA
 
 	ut_ad(n_instances > 0);
@@ -2060,7 +2060,7 @@ buf_pool_init(
 #ifdef HAVE_LIBNUMA
 		if (srv_numa_enable) {
 			mysql_numa_bitmask_clearall(node_mask);
-			mysql_numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
+			mysql_numa_bitmask_setbit(node_mask, allowed_numa_nodes[i]);
 			size = srv_size_of_buf_pool_in_node[i];
 		}
 		SET_NUMA_T(node_mask);
@@ -2653,7 +2653,7 @@ buf_pool_resize()
 	bool		warning = false;
 
 #ifdef HAVE_LIBNUMA
-	struct bitmask* node_mask = mysql_numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
+	struct bitmask* node_mask = mysql_numa_bitmask_alloc(MYSQL_MAX_NUM_NUMA_NODES);
 #endif // HAVE_LIBNUMA
 
 	ut_ad(!buf_pool_resizing);
@@ -2680,7 +2680,7 @@ buf_pool_resize()
 
 #ifdef HAVE_LIBNUMA
 		if (srv_numa_enable) {
-			ulint new_curr_size = ((double) srv_size_of_numa_node[i] / srv_total_nodes_size) * srv_buf_pool_size;
+			ulint new_curr_size = ((double) size_of_numa_node[i] / total_numa_nodes_size) * srv_buf_pool_size;
 			new_curr_size /= UNIV_PAGE_SIZE;
 
 			buf_pool->curr_size = new_curr_size;
@@ -2870,7 +2870,7 @@ withdraw_retry:
 #ifdef HAVE_LIBNUMA
 		if (srv_numa_enable) {
 			mysql_numa_bitmask_clearall(node_mask);
-			mysql_numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
+			mysql_numa_bitmask_setbit(node_mask, allowed_numa_nodes[i]);
 		}
 		SET_NUMA_T(node_mask);
 #endif //HAVE_LIBNUMA
@@ -3058,7 +3058,7 @@ calc_buf_pool_size:
 #ifdef HAVE_LIBNUMA
 			if (srv_numa_enable) {
 				mysql_numa_bitmask_clearall(node_mask);
-				mysql_numa_bitmask_setbit(node_mask, srv_allowed_nodes[i]);
+				mysql_numa_bitmask_setbit(node_mask, allowed_numa_nodes[i]);
 			}
 			SET_NUMA_T(node_mask);
 #endif //HAVE_LIBNUMA

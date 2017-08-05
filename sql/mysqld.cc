@@ -457,10 +457,10 @@ handlerton *partition_hton;
 
 my_bool read_only= 0, opt_readonly= 0;
 my_bool srv_numa_enable= 0;
-unsigned long int srv_no_of_allowed_nodes= 0;
-unsigned long int srv_allowed_nodes[SRV_MAX_NUM_NUMA_NODES];
-unsigned long int srv_size_of_numa_node[SRV_MAX_NUM_NUMA_NODES];
-unsigned long int srv_total_nodes_size;
+unsigned long int no_of_allowed_nodes= 0;
+unsigned long int allowed_numa_nodes[MYSQL_MAX_NUM_NUMA_NODES];
+unsigned long int size_of_numa_node[MYSQL_MAX_NUM_NUMA_NODES];
+unsigned long int total_numa_nodes_size;
 my_bool use_temp_pool, relay_log_purge;
 my_bool relay_log_recovery;
 my_bool opt_sync_frm, opt_allow_suspicious_udfs;

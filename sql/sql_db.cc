@@ -1376,7 +1376,7 @@ static void mysql_change_db_impl(THD *thd,
       node = search_db_node_map(new_db_name->str);
       if (node == -1)
       {
-        node = srv_allowed_nodes[static_node++ % srv_no_of_allowed_nodes];
+        node = allowed_numa_nodes[static_node++ % no_of_allowed_nodes];
         char* new_name = strdup(new_db_name->str);
         db_node_map.insert(std::pair<char*, unsigned long int> (new_name, node));
       }

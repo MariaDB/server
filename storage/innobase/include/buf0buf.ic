@@ -1084,7 +1084,7 @@ srv_buf_pool_on_node(
 				buffer pool instance from */
 {
 	ulint	index = 0;
-	while (srv_allowed_nodes[index] != node) {
+	while (allowed_numa_nodes[index] != node) {
 		index++;
 	}
 	ut_ad(index < MAX_BUFFER_POOLS);

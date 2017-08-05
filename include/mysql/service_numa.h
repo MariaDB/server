@@ -29,12 +29,12 @@ extern "C" {
 #include <numa.h>
 #include <numaif.h>
 
-#define SRV_MAX_NUM_NUMA_NODES 16
+#define MYSQL_MAX_NUM_NUMA_NODES 16
 
-extern unsigned long int srv_no_of_allowed_nodes;
-extern unsigned long int srv_allowed_nodes[SRV_MAX_NUM_NUMA_NODES];
-extern unsigned long int srv_size_of_numa_node[SRV_MAX_NUM_NUMA_NODES];
-extern unsigned long int srv_total_nodes_size;
+extern unsigned long int no_of_allowed_nodes;
+extern unsigned long int allowed_numa_nodes[MYSQL_MAX_NUM_NUMA_NODES];
+extern unsigned long int size_of_numa_node[MYSQL_MAX_NUM_NUMA_NODES];
+extern unsigned long int total_numa_nodes_size;
 
 #define mysql_numa_bind(X) numa_bind(X)
 #define mysql_numa_get_membind(X) numa_get_membind(X)
@@ -47,7 +47,7 @@ extern unsigned long int srv_total_nodes_size;
 
 static inline void mysql_bind_thread_to_node(unsigned long int node)
 {
-  struct bitmask* node_mask = mysql_numa_bitmask_alloc(SRV_MAX_NUM_NUMA_NODES);
+  struct bitmask* node_mask = mysql_numa_bitmask_alloc(MYSQL_MAX_NUM_NUMA_NODES);
   mysql_numa_bitmask_setbit(node_mask, node);
   mysql_numa_bind(node_mask);
 }
@@ -58,7 +58,7 @@ static inline int mysql_node_of_cur_thread(void)
   int num_nodes = 0;
   int node = 0;
 
-  for (int i = 0; i < SRV_MAX_NUM_NUMA_NODES; i++) {
+  for (int i = 0; i < MYSQL_MAX_NUM_NUMA_NODES; i++) {
     if (mysql_numa_bitmask_isbitset(node_mask, i)) {
       node = i;
       num_nodes++;
