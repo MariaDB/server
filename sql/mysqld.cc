@@ -5814,6 +5814,21 @@ int mysqld_main(int argc, char **argv)
   srand((uint) time(NULL)); 
 #endif
 
+#ifdef HAVE_LIBNUMA
+  if (srv_numa_enable)
+  {
+    struct bitmask* numa_mems_allowed = mysql_numa_get_mems_allowed();
+
+    for (int i = 0; i <= MYSQL_MAX_NUM_NUMA_NODES; i++) {
+      if (mysql_numa_bitmask_isbitset(numa_mems_allowed, i)) {
+        allowed_numa_nodes[no_of_allowed_nodes++] = i;
+        size_of_numa_node[i] = mysql_numa_node_size(i, NULL);
+        total_numa_nodes_size += size_of_numa_node[i];
+      }
+    }
+  }
+#endif // HAVE_LIBNUMA
+
   /*
     We have enough space for fiddling with the argv, continue
   */

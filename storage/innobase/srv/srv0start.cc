@@ -1695,17 +1695,7 @@ innobase_start_or_create_for_mysql()
 		ulint srv_n_write_io_threads_old_val = srv_n_write_io_threads;
 		ulint srv_n_page_cleaners_old_val = srv_n_page_cleaners;
 
-		struct bitmask* numa_mems_allowed = mysql_numa_get_mems_allowed();
-		srv_buf_pool_instances = 0;
-
-		for (ulint i = 0; i <= MYSQL_MAX_NUM_NUMA_NODES; i++) {
-			if (mysql_numa_bitmask_isbitset(numa_mems_allowed, i)) {
-				allowed_numa_nodes[srv_buf_pool_instances++] = i;
-				size_of_numa_node[i] = mysql_numa_node_size(i, NULL);
-				total_numa_nodes_size += size_of_numa_node[i];
-				no_of_allowed_nodes++;
-			}
-		}
+		srv_buf_pool_instances = no_of_allowed_nodes;
 		srv_n_read_io_threads = 2 * srv_buf_pool_instances;
 		srv_n_write_io_threads = 2 * srv_buf_pool_instances;
 		srv_n_page_cleaners = srv_buf_pool_instances;
