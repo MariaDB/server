@@ -18,6 +18,7 @@ optimize table mysql.host;
 optimize table mysql.user;
 optimize table mysql.db;
 optimize table mysql.proxies_priv;
+optimize table mysql.roles_mapping;
 optimize table mysql.tables_priv;
 optimize table mysql.procs_priv;
 optimize table mysql.servers;
