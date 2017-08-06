@@ -206,10 +206,10 @@ a	61
 ab	6162
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	#	col1	col1	67	NULL	#	Using where; Using index
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 col1	hex(col1)
 a  		61202009
 a 	6120
@@ -321,10 +321,10 @@ a	61
 ab	6162
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	#	col1	col1	195	NULL	#	Using where; Using index
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 col1	hex(col1)
 a  		61202009
 a 	6120
@@ -436,10 +436,10 @@ a	0061
 a  		0061002000200009
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	#	col1	col1	131	NULL	#	Using where
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 col1	hex(col1)
 a  		0061002000200009
 a 	00610020
@@ -551,10 +551,10 @@ a	61
 a  		61202009
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	#	col1	col1	259	NULL	#	Using where
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 col1	hex(col1)
 a  		61202009
 a 	6120
@@ -666,10 +666,10 @@ a	0061
 a  		0061002000200009
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	#	col1	col1	259	NULL	#	Using where
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 col1	hex(col1)
 a  		0061002000200009
 a 	00610020
