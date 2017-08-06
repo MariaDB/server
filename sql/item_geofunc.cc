@@ -131,13 +131,27 @@ String *Item_func_geometry_from_json::val_str(String *str)
   Geometry_buffer buffer;
   String *js= args[0]->val_str_ascii(&tmp_js);
   uint32 srid= 0;
+  longlong options= 0;
   json_engine_t je;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
-  if ((arg_count == 2) && !args[1]->null_value)
-    srid= (uint32)args[1]->val_int();
+  if (arg_count > 1 && !args[1]->null_value)
+  {
+    options= args[1]->val_int();
+    if (options > 4 || options < 1)
+    {
+      String *sv= args[1]->val_str(&tmp_js);
+      my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0),
+               "option", sv->c_ptr(), "ST_GeometryFromJSON");
+      null_value= 1;
+      return 0;
+    }
+  }
+
+  if ((arg_count == 3) && !args[2]->null_value)
+    srid= (uint32)args[2]->val_int();
 
   str->set_charset(&my_charset_bin);
   if (str->reserve(SRID_SIZE, 512))
@@ -148,7 +162,7 @@ String *Item_func_geometry_from_json::val_str(String *str)
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->end());
 
-  if ((null_value= !Geometry::create_from_json(&buffer, &je, str)))
+  if ((null_value= !Geometry::create_from_json(&buffer, &je, options==1,  str)))
   {
     int code= 0;
 
@@ -162,6 +176,9 @@ String *Item_func_geometry_from_json::val_str(String *str)
       break;
     case Geometry::GEOJ_POLYGON_NOT_CLOSED:
       code= ER_GEOJSON_NOT_CLOSED;
+      break;
+    case Geometry::GEOJ_DIMENSION_NOT_SUPPORTED:
+      my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeometryFromJSON");
       break;
     default:
       report_json_error_ex(js, &je, func_name(), 0, Sql_condition::WARN_LEVEL_WARN);

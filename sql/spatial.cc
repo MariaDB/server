@@ -339,7 +339,7 @@ Geometry *Geometry::create_from_wkb(Geometry_buffer *buffer,
 
 
 Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
-                      json_engine_t *je, String *res)
+                      json_engine_t *je, bool er_on_3D, String *res)
 {
   Class_info *ci= NULL;
   const uchar *coord_start= NULL, *geom_start= NULL,
@@ -514,14 +514,14 @@ create_geom:
   result= (*ci->m_create_func)(buffer->data);
   res->q_append((char) wkb_ndr);
   res->q_append((uint32) result->get_class_info()->m_type_id);
-  if (result->init_from_json(je, res))
+  if (result->init_from_json(je, er_on_3D, res))
     goto err_return;
 
   return result;
 
 handle_geometry_key:
   json_scan_start(je, je->s.cs, geometry_start, je->s.str_end);
-  return create_from_json(buffer, je, res);
+  return create_from_json(buffer, je, er_on_3D, res);
 
 err_return:
   return NULL;
@@ -780,7 +780,8 @@ uint Gis_point::init_from_wkb(const char *wkb, uint len,
 }
 
 
-static int read_point_from_json(json_engine_t *je, double *x, double *y)
+static int read_point_from_json(json_engine_t *je, bool er_on_3D,
+                                double *x, double *y)
 {
   int n_coord= 0, err;
   double tmp, *d;
@@ -803,14 +804,17 @@ static int read_point_from_json(json_engine_t *je, double *x, double *y)
     n_coord++;
   }
 
-  return 0;
+  if (n_coord <= 2 || !er_on_3D)
+    return 0;
+  je->s.error= Geometry::GEOJ_DIMENSION_NOT_SUPPORTED;
+  return 1;
 bad_coordinates:
   je->s.error= Geometry::GEOJ_INCORRECT_GEOJSON;
   return 1;
 }
 
 
-bool Gis_point::init_from_json(json_engine_t *je, String *wkb)
+bool Gis_point::init_from_json(json_engine_t *je, bool er_on_3D, String *wkb)
 {
   double x, y;
   if (json_read_value(je))
@@ -822,7 +826,7 @@ bool Gis_point::init_from_json(json_engine_t *je, String *wkb)
     return TRUE;
   }
 
-  if (read_point_from_json(je, &x, &y) ||
+  if (read_point_from_json(je, er_on_3D, &x, &y) ||
       wkb->reserve(POINT_DATA_SIZE))
     return TRUE;
 
@@ -971,7 +975,8 @@ uint Gis_line_string::init_from_wkb(const char *wkb, uint len,
 }
 
 
-bool Gis_line_string::init_from_json(json_engine_t *je, String *wkb)
+bool Gis_line_string::init_from_json(json_engine_t *je, bool er_on_3D,
+                                     String *wkb)
 {
   uint32 n_points= 0;
   uint32 np_pos= wkb->length();
@@ -994,7 +999,7 @@ bool Gis_line_string::init_from_json(json_engine_t *je, String *wkb)
   {
     DBUG_ASSERT(je->state == JST_VALUE);
 
-    if (p.init_from_json(je, wkb))
+    if (p.init_from_json(je, er_on_3D, wkb))
       return TRUE;
     n_points++;
   }
@@ -1364,7 +1369,7 @@ uint Gis_polygon::init_from_wkb(const char *wkb, uint len, wkbByteOrder bo,
 }
 
 
-bool Gis_polygon::init_from_json(json_engine_t *je, String *wkb)
+bool Gis_polygon::init_from_json(json_engine_t *je, bool er_on_3D, String *wkb)
 {
   uint32 n_linear_rings= 0;
   uint32 lr_pos= wkb->length();
@@ -1389,7 +1394,7 @@ bool Gis_polygon::init_from_json(json_engine_t *je, String *wkb)
     DBUG_ASSERT(je->state == JST_VALUE);
 
     uint32 ls_pos=wkb->length();
-    if (ls.init_from_json(je, wkb))
+    if (ls.init_from_json(je, er_on_3D, wkb))
       return TRUE;
     ls.set_data_ptr(wkb->ptr() + ls_pos, wkb->length() - ls_pos);
     if (ls.is_closed(&closed) || !closed)
@@ -1855,7 +1860,8 @@ uint Gis_multi_point::init_from_wkb(const char *wkb, uint len, wkbByteOrder bo,
 }
 
 
-bool Gis_multi_point::init_from_json(json_engine_t *je, String *wkb)
+bool Gis_multi_point::init_from_json(json_engine_t *je, bool er_on_3D,
+                                     String *wkb)
 {
   uint32 n_points= 0;
   uint32 np_pos= wkb->length();
@@ -1883,7 +1889,7 @@ bool Gis_multi_point::init_from_json(json_engine_t *je, String *wkb)
     wkb->q_append((char) wkb_ndr);
     wkb->q_append((uint32) wkb_point);
 
-    if (p.init_from_json(je, wkb))
+    if (p.init_from_json(je, er_on_3D, wkb))
       return TRUE;
     n_points++;
   }
@@ -2123,7 +2129,8 @@ uint Gis_multi_line_string::init_from_wkb(const char *wkb, uint len,
 }
 
 
-bool Gis_multi_line_string::init_from_json(json_engine_t *je, String *wkb)
+bool Gis_multi_line_string::init_from_json(json_engine_t *je, bool er_on_3D,
+                                           String *wkb)
 {
   uint32 n_line_strings= 0;
   uint32 ls_pos= wkb->length();
@@ -2151,7 +2158,7 @@ bool Gis_multi_line_string::init_from_json(json_engine_t *je, String *wkb)
     wkb->q_append((char) wkb_ndr);
     wkb->q_append((uint32) wkb_linestring);
 
-    if (ls.init_from_json(je, wkb))
+    if (ls.init_from_json(je, er_on_3D, wkb))
       return TRUE;
 
     n_line_strings++;
@@ -2511,7 +2518,8 @@ uint Gis_multi_polygon::init_from_opresult(String *bin,
 }
 
 
-bool Gis_multi_polygon::init_from_json(json_engine_t *je, String *wkb)
+bool Gis_multi_polygon::init_from_json(json_engine_t *je, bool er_on_3D,
+                                       String *wkb)
 {
   uint32 n_polygons= 0;
   int np_pos= wkb->length();
@@ -2539,7 +2547,7 @@ bool Gis_multi_polygon::init_from_json(json_engine_t *je, String *wkb)
     wkb->q_append((char) wkb_ndr);
     wkb->q_append((uint32) wkb_polygon);
 
-    if (p.init_from_json(je, wkb))
+    if (p.init_from_json(je, er_on_3D, wkb))
       return TRUE;
 
     n_polygons++;
@@ -2986,7 +2994,8 @@ uint Gis_geometry_collection::init_from_wkb(const char *wkb, uint len,
 }
 
 
-bool Gis_geometry_collection::init_from_json(json_engine_t *je, String *wkb)
+bool Gis_geometry_collection::init_from_json(json_engine_t *je, bool er_on_3D,
+                                             String *wkb)
 {
   uint32 n_objects= 0;
   uint32 no_pos= wkb->length();
@@ -3012,7 +3021,7 @@ bool Gis_geometry_collection::init_from_json(json_engine_t *je, String *wkb)
 
     DBUG_ASSERT(je->state == JST_VALUE);
 
-    if (!(g= create_from_json(&buffer, je, wkb)))
+    if (!(g= create_from_json(&buffer, je, er_on_3D, wkb)))
       return TRUE;
 
     *je= sav_je;
