@@ -105,7 +105,7 @@ class DBX : public BLOCK {
 class ODBConn : public BLOCK {
   friend class TDBODBC;
   friend class DBX;
-  friend PQRYRES GetColumnInfo(PGLOBAL, char*&, char *, int, PVBLK&);
+//friend PQRYRES GetColumnInfo(PGLOBAL, char*&, char *, int, PVBLK&);
  private:
   ODBConn();                      // Standard (unused) constructor
 

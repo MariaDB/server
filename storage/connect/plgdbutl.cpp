@@ -69,6 +69,7 @@
 #include "valblk.h"
 #include "rcmsg.h"
 #if defined(ODBC_SUPPORT)
+#define NODW					 // See comment in os.h
 #include "tabext.h"
 #include "odbccat.h"
 #include "tabodbc.h"
