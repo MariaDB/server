@@ -1,6 +1,8 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 --copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
 
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
+
 CREATE TABLE employee
 (
 serialno CHAR(5) NOT NULL,
@@ -149,5 +151,7 @@ CALL test.tst_up();
 
 DROP PROCEDURE test.tst_up;
 DROP TABLE employee;
+
+SET sql_mode = DEFAULT;
 
 --remove_file $MYSQLD_DATADIR/test/employee.dat

@@ -57,7 +57,7 @@ t1	CREATE TABLE `t1` (
   `name` char(10) NOT NULL,
   `birth` date NOT NULL,
   `id` char(5) NOT NULL `FIELD_FORMAT`='S',
-  `salary` double(9,2) NOT NULL DEFAULT '0.00' `FIELD_FORMAT`='F',
+  `salary` double(9,2) NOT NULL DEFAULT 0.00 `FIELD_FORMAT`='F',
   `dept` int(4) NOT NULL `FIELD_FORMAT`='S'
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=BIN `FILE_NAME`='Testbal.dat' `OPTION_LIST`='Endian=Little' `READONLY`=NO
 INSERT INTO t1 VALUES (7777,'BILL','1973-06-30',4444,5555.555,777);
@@ -76,7 +76,7 @@ t1	CREATE TABLE `t1` (
   `name` char(10) NOT NULL,
   `birth` date NOT NULL,
   `id` char(5) NOT NULL `FIELD_FORMAT`='S',
-  `salary` double(9,2) NOT NULL DEFAULT '0.00' `FIELD_FORMAT`='F',
+  `salary` double(9,2) NOT NULL DEFAULT 0.00 `FIELD_FORMAT`='F',
   `dept` int(4) NOT NULL `FIELD_FORMAT`='S'
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=BIN `FILE_NAME`='Testbal.dat' `OPTION_LIST`='Endian=Little' `READONLY`=YES
 INSERT INTO t1 VALUES (7777,'BILL','1973-06-30',4444,5555.555,777);

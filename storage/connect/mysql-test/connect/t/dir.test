@@ -23,9 +23,7 @@ ALTER TABLE t1 OPTION_LIST='subdir=0';
 SHOW CREATE TABLE t1;
 --replace_result $MYSQLD_DATADIR DATADIR/
 SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
-
-# TODO: add a better error message
---error ER_GET_ERRMSG
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO t1 VALUES ('','','','');
 
 DROP TABLE t1;

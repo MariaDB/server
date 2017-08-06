@@ -119,6 +119,7 @@ ulonglong CharToNumber(const char *p, int n, ulonglong maxval,
         if (minus) *minus = true;
       } // endif Unsigned
 
+			// Fall through
     case '+':
       p++;
       break;
@@ -571,7 +572,7 @@ void VALUE::Printf(PGLOBAL g, FILE *f, uint n)
 	if (Null)
 		fprintf(f, "%s<null>\n", m);
 	else
-		fprintf(f, strcat(strcat(GetCharString(buf), "\n"), m));
+		fprintf(f, "%s%s\n", m, GetCharString(buf));
 
 } /* end of Printf */
 
@@ -664,7 +665,7 @@ bool TYPVAL<TYPE>::SetValue_pval(PVAL valp, bool chktype)
     if (chktype && Type != valp->GetType())
       return true;
 
-    if (!(Null = valp->IsNull() && Nullable))
+    if (!(Null = (valp->IsNull() && Nullable)))
       Tval = GetTypedValue(valp);
     else
       Reset();
@@ -1349,7 +1350,7 @@ bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
 
     char buf[64];
 
-    if (!(Null = valp->IsNull() && Nullable))
+    if (!(Null = (valp->IsNull() && Nullable)))
       strncpy(Strp, valp->GetCharString(buf), Len);
     else
       Reset();
@@ -1451,7 +1452,7 @@ void TYPVAL<PSZ>::SetValue(uint n)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-    longjmp(g->jumper[g->jump_level], 138);
+    throw 138;
   } else
     SetValue_psz(buf);
 
@@ -1505,7 +1506,7 @@ void TYPVAL<PSZ>::SetValue(ulonglong n)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-    longjmp(g->jumper[g->jump_level], 138);
+    throw 138;
   } else
     SetValue_psz(buf);
 
@@ -2566,7 +2567,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 			} else if (valp->GetType() == TYPE_BIGINT &&
 				       !(valp->GetBigintValue() % 1000)) {
 				// Assuming that this timestamp is in milliseconds
-				Tval = valp->GetBigintValue() / 1000;
+				Tval = (int)(valp->GetBigintValue() / 1000);
 			}	else
         Tval = valp->GetIntValue();
 

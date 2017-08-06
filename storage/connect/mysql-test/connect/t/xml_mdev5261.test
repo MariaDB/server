@@ -1,4 +1,4 @@
---source have_libxml2.inc
+--source windows.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -8,8 +8,8 @@ SET NAMES utf8;
 #--echo Testing indexing on not indexable table type
 #
 --error ER_UNKNOWN_ERROR
-CREATE TABLE t1 (i INT UNIQUE NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='Rownode=N';
-CREATE TABLE t1 (i INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='Rownode=N';
+CREATE TABLE t1 (i INT UNIQUE NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='xmlsup=domdoc,Rownode=N';
+CREATE TABLE t1 (i INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='xmlsup=domdoc,Rownode=N';
 DESCRIBE t1;
 # one could *add* an index to an existing table
 --error ER_UNKNOWN_ERROR

@@ -1,3 +1,4 @@
+/* Copyright (C) MariaDB Corporation Ab */
 #define MSG_ACCESS_VIOLATN     200
 #define MSG_ADD_BAD_TYPE       201
 #define MSG_ALLOC_ERROR        202

@@ -1,9 +1,7 @@
-Warnings:
-Warning	1105	No file name. Table will use t1.xml
 SET NAMES utf8;
-CREATE TABLE t1 (i INT UNIQUE NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='Rownode=N';
+CREATE TABLE t1 (i INT UNIQUE NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='xmlsup=domdoc,Rownode=N';
 ERROR HY000: Table type XML is not indexable
-CREATE TABLE t1 (i INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='Rownode=N';
+CREATE TABLE t1 (i INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='xmlsup=domdoc,Rownode=N';
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 i	int(11)	NO		NULL	
@@ -19,7 +17,7 @@ SELECT * FROM t1 WHERE i = 5;
 i
 5
 ALTER TABLE t1 DROP INDEX i;
-ERROR 42000: Can't DROP 'i'; check that column/key exists
+ERROR 42000: Can't DROP INDEX `i`; check that it exists
 DROP INDEX i ON t1;
-ERROR 42000: Can't DROP 'i'; check that column/key exists
+ERROR 42000: Can't DROP INDEX `i`; check that it exists
 DROP TABLE t1;

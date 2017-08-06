@@ -68,9 +68,20 @@
 #include "tabcol.h"    // header of XTAB and COLUMN classes
 #include "valblk.h"
 #include "rcmsg.h"
+#if defined(ODBC_SUPPORT)
+#include "tabext.h"
+#include "odbccat.h"
+#include "tabodbc.h"
+#endif   // ODBC_SUPPORT
 #ifdef ZIP_SUPPORT
 #include "filamzip.h"
-#endif   // ZIP_SUPPORT
+#endif // ZIP_SUPPORT
+#ifdef JDBC_SUPPORT
+#include "javaconn.h"
+#endif // JDBC_SUPPORT
+#ifdef CMGO_SUPPORT
+#include "cmgoconn.h"
+#endif // MONGO_SUPPORT
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -82,11 +93,11 @@ extern "C" {
 extern char version[];
 } // extern "C"
 
-#if defined(__WIN__)
-extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
-#else   // !__WIN__
+//#if defined(__WIN__)
+//extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
+//#else   // !__WIN__
 extern pthread_mutex_t parmut;
-#endif  // !__WIN__
+//#endif  // !__WIN__
 
 // The debug trace used by the main thread
        FILE *pfile = NULL;
@@ -473,7 +484,7 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
       tp = g->Message;
     else if (!(tp = new char[strlen(pat) + strlen(strg) + 2])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
-			throw OP_LIKE;
+			throw (int)OP_LIKE;
 		} /* endif tp */
     
     sp = tp + strlen(pat) + 1;
@@ -484,7 +495,7 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
       tp = g->Message;            /* Use this as temporary work space. */
     else if (!(tp = new char[strlen(pat) + 1])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
-			throw OP_LIKE;
+			throw (int)OP_LIKE;
 		} /* endif tp */
     
     strcpy(tp, pat);                  /* Make a copy to be worked into */
@@ -695,23 +706,11 @@ PDTP MakeDateFormat(PGLOBAL g, PCSZ dfmt, bool in, bool out, int flag)
 
   /*********************************************************************/
   /* Call the FLEX generated parser. In multi-threading mode the next  */
-  /* instruction is included in an Enter/LeaveCriticalSection bracket. */
+  /* instruction is protected by mutex fmdflex using static variables. */
   /*********************************************************************/
-	//#if defined(THREAD)
-#if defined(__WIN__)
-  EnterCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else   // !__WIN__
   pthread_mutex_lock(&parmut);
-#endif  // !__WIN__
-//#endif  //  THREAD
   rc = fmdflex(pdp);
-//#if defined(THREAD)
-#if defined(__WIN__)
-  LeaveCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else   // !__WIN__
   pthread_mutex_unlock(&parmut);
-#endif  // !__WIN__
-//#endif  //  THREAD
 
   if (trace)
     htrc("Done: in=%s out=%s rc=%d\n", SVP(pdp->InFmt), SVP(pdp->OutFmt), rc);
@@ -935,6 +934,13 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
       CloseXML2File(g, fp, all);
       break;
 #endif   // LIBXML2_SUPPORT
+#ifdef ODBC_SUPPORT
+		case TYPE_FB_ODBC:
+			((ODBConn*)fp->File)->Close();
+			fp->Count = 0;
+			fp->File = NULL;
+			break;
+#endif   // ODBC_SUPPORT
 #ifdef ZIP_SUPPORT
 		case TYPE_FB_ZIP:
 			if (fp->Mode == MODE_INSERT)
@@ -948,6 +954,20 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
 			fp->File = NULL;
 			break;
 #endif   // ZIP_SUPPORT
+#ifdef JDBC_SUPPORT
+		case TYPE_FB_JAVA:
+			((JAVAConn*)fp->File)->Close();
+			fp->Count = 0;
+			fp->File = NULL;
+			break;
+#endif   // JDBC_SUPPORT
+#ifdef CMGO_SUPPORT
+		case TYPE_FB_MONGO:
+			((CMgoConn*)fp->File)->Close();
+			fp->Count = 0;
+			fp->File = NULL;
+			break;
+#endif   // MONGO_SUPPORT
 		default:
       rc = RC_FX;
     } // endswitch Type

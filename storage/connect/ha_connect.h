@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2015
+/* Copyright (C) MariaDB Corporation Ab
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -14,6 +14,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /** @file ha_connect.h
+	Author Olivier Bertrand
 
     @brief
   The ha_connect engine is a prototype storage engine to access external data.
@@ -165,8 +166,8 @@ public:
   ~ha_connect();
 
   // CONNECT Implementation
-  static   bool connect_init(void);
-  static   bool connect_end(void);
+//static   bool connect_init(void);
+//static   bool connect_end(void);
   TABTYPE  GetRealType(PTOS pos= NULL);
   char    *GetRealString(PCSZ s);
 	PCSZ     GetStringOption(PCSZ opname, PCSZ sdef= NULL);
