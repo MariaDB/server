@@ -38,6 +38,7 @@ russian
 czech
 french
 serbian
+hindi
 )
 
 SET(files 
