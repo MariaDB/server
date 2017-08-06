@@ -52,8 +52,8 @@ select col1, hex(col1) from t1;
 --echo # Must show 'using index' for latin1_bin and utf8_bin:
 --replace_column 4 # 9 #
 explain
-select col1, hex(col1) from t1 where col1 < 'b';
-select col1, hex(col1) from t1 where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
+select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 
 delete from t1;
 insert into t1 values(10, '', 'empty');
