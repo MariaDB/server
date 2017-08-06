@@ -75,13 +75,30 @@ DROP TABLE rt3;
 connection default;
 DROP TABLE t1,t2,t3,total;
 #
-# Old thread TBL tables test
+# Old thread TBL tables test modified
 #
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v' OPTION_LIST='port=MASTER_PORT';
 SELECT * FROM t1;
 v
 11
 CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v' OPTION_LIST='port=SLAVE_PORT';
+SELECT * FROM t2;
+v
+22
+CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=PORT';;
+SELECT * FROM total order by v desc;
+v
+22
+11
+DROP TABLE t1,t2,total;
+#
+# Old thread TBL tables test not modified
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v';
+SELECT * FROM t1;
+v
+11
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v';
 SELECT * FROM t2;
 v
 22

@@ -652,6 +652,7 @@ bool TDBTBM::OpenTables(PGLOBAL g)
       tp = (PTBMT)PlugSubAlloc(g, NULL, sizeof(TBMT));
       memset(tp, 0, sizeof(TBMT));
       tp->G = g;
+			tp->Ready = false;
       tp->Tap = tabp;
       tp->Thd = thd;
 

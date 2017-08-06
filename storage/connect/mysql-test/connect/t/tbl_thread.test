@@ -54,7 +54,7 @@ connection default;
 DROP TABLE t1,t2,t3,total;
 
 --echo #
---echo # Old thread TBL tables test
+--echo # Old thread TBL tables test modified
 --echo #
 --replace_result $MASTER_MYPORT MASTER_PORT
 --eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v' OPTION_LIST='port=$MASTER_MYPORT'
@@ -62,6 +62,20 @@ SELECT * FROM t1;
 
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 --eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v' OPTION_LIST='port=$SLAVE_MYPORT'
+SELECT * FROM t2;
+
+--replace_result $PORT PORT
+--eval CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=$PORT';
+SELECT * FROM total order by v desc;
+DROP TABLE t1,t2,total;
+
+--echo #
+--echo # Old thread TBL tables test not modified
+--echo #
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v';
+SELECT * FROM t1;
+
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v';
 SELECT * FROM t2;
 
 --replace_result $PORT PORT

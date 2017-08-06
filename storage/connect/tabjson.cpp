@@ -31,11 +31,13 @@
 #if defined(ZIP_SUPPORT)
 #include "filamzip.h"
 #endif   // ZIP_SUPPORT
+#if defined(MONGO_SUPPORT)
 #if defined(JDBC_SUPPORT)
 #include "jmgfam.h"
 #endif   // JDBC_SUPPORT
 #if defined(CMGO_SUPPORT)
 #include "cmgfam.h"
+#endif   // CMGO_SUPPORT
 #endif   // MONGO_SUPPORT
 #include "tabmul.h"
 #include "checklvl.h"
@@ -129,8 +131,8 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 #endif   // ZIP_SUPPORT
 	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
-//if (!(tdp->Database = SetPath(g, db)))
-//	return NULL;
+	if (!(tdp->Database = SetPath(g, db)))
+		return NULL;
 
   tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
   tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
@@ -502,10 +504,10 @@ JSONDEF::JSONDEF(void)
 	Pipe = false;
 	Driver = NULL;
 	Version = 0;
-#endif   // MONGO_SUPPORT
 #if defined(JDBC_SUPPORT)
 	Wrapname = NULL;
 #endif   // JDBC_SUPPORT
+#endif   // MONGO_SUPPORT
 } // end of JSONDEF constructor
 
 /***********************************************************************/

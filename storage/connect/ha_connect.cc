@@ -180,6 +180,10 @@ extern "C" {
 #endif  // !__WIN__
 } // extern "C"
 
+#if defined(NEW_MAR)
+#define stored_in_db stored_in_db()
+#endif   // NEW_MAR)
+
 #if defined(XMAP)
        my_bool xmap= false;
 #endif   // XMAP
@@ -1559,7 +1563,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Flags |= U_NULLS;
 
   // Mark virtual columns as such
-  if (fp->vcol_info && !fp->stored_in_db())
+  if (fp->vcol_info && !fp->stored_in_db)
     pcf->Flags |= U_VIRTUAL;
 
   pcf->Key= 0;   // Not used when called from MySQL
@@ -2055,7 +2059,7 @@ int ha_connect::MakeRecord(char *buf)
   for (field= table->field; *field && !rc; field++) {
     fp= *field;
 
-    if (fp->vcol_info && !fp->stored_in_db())
+    if (fp->vcol_info && !fp->stored_in_db)
       continue;            // This is a virtual column
 
     if (bitmap_is_set(map, fp->field_index) || alter) {
@@ -2176,7 +2180,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
   for (Field **field=table->field ; *field ; field++) {
     fp= *field;
 
-    if ((fp->vcol_info && !fp->stored_in_db()) ||
+    if ((fp->vcol_info && !fp->stored_in_db) ||
          fp->option_struct->special)
       continue;            // Is a virtual column possible here ???
 
@@ -5359,14 +5363,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	bool     cnc= false;
   int      cto= -1, qto= -1;
 #endif   // ODBC_SUPPORT
+#if defined(JDBC_SUPPORT) || defined(MONGO_SUPPORT)
 #if defined(JDBC_SUPPORT)
 	PJPARM   sjp= NULL;
 #endif   // JDBC_SUPPORT
-#if defined(MONGO_SUPPORT)
 	PCSZ     driver= NULL;
 	char    *url= NULL;
-//char    *prop= NULL;
-#endif   // MONGO_SUPPORT
+#endif   // JDBC_SUPPORT || MONGO_SUPPORT
   uint     tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool     bif, ok= false, dbf= false;
   TABTYPE  ttp= TAB_UNDEF;
@@ -6339,7 +6342,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   for (field= table_arg->field; *field; field++) {
     fp= *field;
 
-    if (fp->vcol_info && !fp->stored_in_db())
+    if (fp->vcol_info && !fp->stored_in_db)
       continue;            // This is a virtual column
 
     if (fp->flags & AUTO_INCREMENT_FLAG) {

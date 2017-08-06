@@ -37,7 +37,9 @@ class DllExport JSONDEF : public DOSDEF {         /* Table description */
   friend class TDBJSN;
   friend class TDBJCL;
 #if defined(MONGO_SUPPORT)
+#if defined(CMGO_SUPPORT)
 	friend class CMGFAM;
+#endif   // CMGO_SUPPORT
 #if defined(JDBC_SUPPORT)
 	friend class JMGFAM;
 #endif   // JDBC_SUPPORT
@@ -90,7 +92,9 @@ class DllExport TDBJSN : public TDBDOS {
   friend class JSONCOL;
 	friend class JSONDEF;
 #if defined(MONGO_SUPPORT)
+#if defined(CMGO_SUPPORT)
 	friend class CMGFAM;
+#endif   // CMGO_SUPPORT
 #if defined(JDBC_SUPPORT)
 	friend class JMGFAM;
 #endif   // JDBC_SUPPORT
@@ -159,11 +163,13 @@ public:
 class DllExport JSONCOL : public DOSCOL {
   friend class TDBJSN;
   friend class TDBJSON;
+#if defined(MONGO_SUPPORT)
+#if defined(CMGO_SUPPORT)
+	friend class CMGFAM;
+#endif   // CMGO_SUPPORT
 #if defined(JDBC_SUPPORT)
 	friend class JMGFAM;
 #endif   // JDBC_SUPPORT
-#if defined(MONGO_SUPPORT)
-	friend class CMGFAM;
 #endif   // MONGO_SUPPORT
 public:
   // Constructors
