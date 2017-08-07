@@ -534,7 +534,6 @@ ibuf_init_at_db_start(void)
 
 	fseg_n_reserved_pages(header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
 			      &n_used, &mtr);
-	ibuf_enter(&mtr);
 
 	ut_ad(n_used >= 2);
 
@@ -556,7 +555,7 @@ ibuf_init_at_db_start(void)
 	mutex_exit(&ibuf_mutex);
 
 	ibuf->empty = page_is_empty(root);
-	ibuf_mtr_commit(&mtr);
+	mtr.commit();
 
 	ibuf->index = dict_mem_index_create(
 		"innodb_change_buffer", "CLUST_IND",

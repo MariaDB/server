@@ -642,3 +642,9 @@ SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
 JSON_KEYS(f)
 NULL
 DROP TABLE t1;
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*].*' );
+JSON_EXTRACT( '{"foo":"bar"}', '$[*].*' )
+NULL
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*]' );
+JSON_EXTRACT( '{"foo":"bar"}', '$[*]' )
+NULL

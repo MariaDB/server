@@ -1756,7 +1756,7 @@ int json_path_parts_compare(
           goto step_fits;
         goto step_failed;
       }
-      if (a->n_item == 0)
+      if ((a->type & JSON_PATH_WILD) == 0 && a->n_item == 0)
         goto step_fits_autowrap;
       goto step_failed;
     }

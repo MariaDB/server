@@ -296,3 +296,9 @@ INSERT INTO t1 VALUES (0);
 SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
 DROP TABLE t1;
 
+#
+# MDEV-12324 Wrong result (phantom array value) on JSON_EXTRACT.
+#
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*].*' );
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*]' );
+
