@@ -7594,8 +7594,11 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       /*
         It is subquery in the FROM clause. VIEW set t_ref->derived after
         table opening, but this function always called before table opening.
+
+        NOTE: is_derived() can't be used here because subquery in this case
+        the FROM clase (derived tables) can be not be marked yet.
       */
-      if (!t_ref->referencing_view)
+      if (t_ref->is_anonymous_derived_table() || t_ref->schema_table)
       {
         /*
           If it's a temporary table created for a subquery in the FROM
