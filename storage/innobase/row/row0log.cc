@@ -1453,7 +1453,6 @@ row_log_table_apply_convert_mrec(
 	const ulint*		offsets,	/*!< in: offsets of mrec */
 	const row_log_t*	log,		/*!< in: rebuild context */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
-	trx_id_t		trx_id,		/*!< in: DB_TRX_ID of mrec */
 	dberr_t*		error)		/*!< out: DB_SUCCESS or
 						DB_MISSING_HISTORY or
 						reason of failure */
@@ -1617,7 +1616,6 @@ row_log_table_apply_insert_low(
 	que_thr_t*		thr,		/*!< in: query graph */
 	const dtuple_t*		row,		/*!< in: table row
 						in the old table definition */
-	trx_id_t		trx_id,		/*!< in: trx_id of the row */
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
@@ -1631,7 +1629,6 @@ row_log_table_apply_insert_low(
 	ulint		n_index = 0;
 
 	ut_ad(dtuple_validate(row));
-	ut_ad(trx_id);
 
 	DBUG_LOG("ib_alter_table",
 		 "insert table " << index->table->id << " (index "
@@ -1673,8 +1670,8 @@ row_log_table_apply_insert_low(
 		entry = row_build_index_entry(row, NULL, index, heap);
 		error = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE,
-			index, offsets_heap, heap, entry, trx_id, thr,
-			false);
+			index, offsets_heap, heap, entry,
+			thr_get_trx(thr)->id, thr, false);
 
 		/* Report correct index name for duplicate key error. */
 		if (error == DB_DUPLICATE_KEY) {
@@ -1699,14 +1696,13 @@ row_log_table_apply_insert(
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
-	row_merge_dup_t*	dup,		/*!< in/out: for reporting
+	row_merge_dup_t*	dup)		/*!< in/out: for reporting
 						duplicate key errors */
-	trx_id_t		trx_id)		/*!< in: DB_TRX_ID of mrec */
 {
 	const row_log_t*log	= dup->index->online_log;
 	dberr_t		error;
 	const dtuple_t*	row	= row_log_table_apply_convert_mrec(
-		mrec, dup->index, offsets, log, heap, trx_id, &error);
+		mrec, dup->index, offsets, log, heap, &error);
 
 	switch (error) {
 	case DB_MISSING_HISTORY:
@@ -1729,7 +1725,7 @@ row_log_table_apply_insert(
 	}
 
 	error = row_log_table_apply_insert_low(
-		thr, row, trx_id, offsets_heap, heap, dup);
+		thr, row, offsets_heap, heap, dup);
 	if (error != DB_SUCCESS) {
 		/* Report the erroneous row using the new
 		version of the table. */
@@ -1997,7 +1993,6 @@ row_log_table_apply_update(
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	row_merge_dup_t*	dup,		/*!< in/out: for reporting
 						duplicate key errors */
-	trx_id_t		trx_id,		/*!< in: DB_TRX_ID of mrec */
 	const dtuple_t*		old_pk)		/*!< in: PRIMARY KEY and
 						DB_TRX_ID,DB_ROLL_PTR
 						of the old value,
@@ -2018,7 +2013,7 @@ row_log_table_apply_update(
 	      + (log->same_pk ? 0 : 2));
 
 	row = row_log_table_apply_convert_mrec(
-		mrec, dup->index, offsets, log, heap, trx_id, &error);
+		mrec, dup->index, offsets, log, heap, &error);
 
 	switch (error) {
 	case DB_MISSING_HISTORY:
@@ -2106,7 +2101,7 @@ row_log_table_apply_update(
 			ROW_T_UPDATE or ROW_T_DELETE will delete it. */
 			mtr_commit(&mtr);
 			error = row_log_table_apply_insert_low(
-				thr, row, trx_id, offsets_heap, heap, dup);
+				thr, row, offsets_heap, heap, dup);
 		} else {
 			/* Some BLOBs are missing, so we are interpreting
 			this ROW_T_UPDATE as ROW_T_DELETE (see *1).
@@ -2232,7 +2227,7 @@ func_exit_committed:
 
 		if (error == DB_SUCCESS) {
 			error = row_log_table_apply_insert_low(
-				thr, row, trx_id, offsets_heap, heap, dup);
+				thr, row, offsets_heap, heap, dup);
 		}
 
 		goto func_exit_committed;
@@ -2332,7 +2327,7 @@ func_exit_committed:
 			BTR_CREATE_FLAG | BTR_NO_LOCKING_FLAG
 			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG,
 			BTR_MODIFY_TREE, index, offsets_heap, heap,
-			entry, trx_id, thr, false);
+			entry, thr_get_trx(thr)->id, thr, false);
 
 		/* Report correct index name for duplicate key error. */
 		if (error == DB_DUPLICATE_KEY) {
@@ -2355,8 +2350,6 @@ const mrec_t*
 row_log_table_apply_op(
 /*===================*/
 	que_thr_t*		thr,		/*!< in: query graph */
-	ulint			trx_id_col,	/*!< in: position of
-						DB_TRX_ID in old index */
 	ulint			new_trx_id_col,	/*!< in: position of
 						DB_TRX_ID in new index */
 	row_merge_dup_t*	dup,		/*!< in/out: for reporting
@@ -2426,15 +2419,9 @@ row_log_table_apply_op(
 			return(NULL);
 		} else {
 			log->head.total += next_mrec - mrec_start;
-
-			ulint		len;
-			const byte*	db_trx_id
-				= rec_get_nth_field(
-					mrec, offsets, trx_id_col, &len);
-			ut_ad(len == DATA_TRX_ID_LEN);
 			*error = row_log_table_apply_insert(
 				thr, mrec, offsets, offsets_heap,
-				heap, dup, trx_read_trx_id(db_trx_id));
+				heap, dup);
 		}
 		break;
 
@@ -2666,18 +2653,9 @@ row_log_table_apply_op(
 		log->head.total += next_mrec - mrec_start;
 		dtuple_set_n_fields_cmp(old_pk, new_index->n_uniq);
 
-		{
-			ulint		len;
-			const byte*	db_trx_id
-				= rec_get_nth_field(
-					mrec, offsets, trx_id_col, &len);
-			ut_ad(len == DATA_TRX_ID_LEN);
-			*error = row_log_table_apply_update(
-				thr, new_trx_id_col,
-				mrec, offsets, offsets_heap,
-				heap, dup, trx_read_trx_id(db_trx_id), old_pk);
-		}
-
+		*error = row_log_table_apply_update(
+			thr, new_trx_id_col,
+			mrec, offsets, offsets_heap, heap, dup, old_pk);
 		break;
 	}
 
@@ -2773,8 +2751,6 @@ row_log_table_apply_ops(
 	const ulint	i		= 1 + REC_OFFS_HEADER_SIZE
 		+ ut_max(dict_index_get_n_fields(index),
 			 dict_index_get_n_unique(new_index) + 2);
-	const ulint	trx_id_col	= dict_col_get_clust_pos(
-		dict_table_get_sys_col(index->table, DATA_TRX_ID), index);
 	const ulint	new_trx_id_col	= dict_col_get_clust_pos(
 		dict_table_get_sys_col(new_table, DATA_TRX_ID), new_index);
 	trx_t*		trx		= thr_get_trx(thr);
@@ -2784,8 +2760,9 @@ row_log_table_apply_ops(
 	ut_ad(trx->mysql_thd);
 	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
 	ut_ad(!dict_index_is_online_ddl(new_index));
-	ut_ad(trx_id_col > 0);
-	ut_ad(trx_id_col != ULINT_UNDEFINED);
+	ut_ad(dict_col_get_clust_pos(
+		      dict_table_get_sys_col(index->table, DATA_TRX_ID), index)
+	      != ULINT_UNDEFINED);
 	ut_ad(new_trx_id_col > 0);
 	ut_ad(new_trx_id_col != ULINT_UNDEFINED);
 
@@ -2932,7 +2909,7 @@ all_done:
 		memcpy((mrec_t*) mrec_end, next_mrec,
 		       (&index->online_log->head.buf)[1] - mrec_end);
 		mrec = row_log_table_apply_op(
-			thr, trx_id_col, new_trx_id_col,
+			thr, new_trx_id_col,
 			dup, &error, offsets_heap, heap,
 			index->online_log->head.buf,
 			(&index->online_log->head.buf)[1], offsets);
@@ -3030,7 +3007,7 @@ all_done:
 		}
 
 		next_mrec = row_log_table_apply_op(
-			thr, trx_id_col, new_trx_id_col,
+			thr, new_trx_id_col,
 			dup, &error, offsets_heap, heap,
 			mrec, mrec_end, offsets);
 
