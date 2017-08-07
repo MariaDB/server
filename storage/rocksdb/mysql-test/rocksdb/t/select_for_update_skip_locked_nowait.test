@@ -1,3 +1,5 @@
+--source include/have_rocksdb.inc
+
 ##############################################################################
 ## SKIP LOCKED | NOWAIT are *not* supported for SELECT...FOR UPDATE in RocksDB
 

@@ -98,7 +98,7 @@ EOF
 --replace_result $datadir <DATADIR>
 if ($skip_unique_check == 1)
 {
-  --error ER_UNKNOWN_ERROR
+  --error ER_ON_DUPLICATE_DISABLED
   eval
   LOAD DATA INFILE '$datadir/se_replacedata.dat' REPLACE INTO TABLE t1;
 }

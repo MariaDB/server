@@ -32,6 +32,6 @@ update t1 set col2=123456 where pk=0;
 commit;
 connection default;
 update t1 set col2=col2+1 where col1 < 10 limit 5;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction (snapshot conflict)
 disconnect con2;
 drop table t1, ten, one_k;

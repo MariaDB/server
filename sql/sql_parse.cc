@@ -4999,7 +4999,8 @@ end_with_restore_list:
       goto error;
     if (!(res= sql_set_variables(thd, lex_var_list, true)))
     {
-      my_ok(thd);
+      if (!thd->is_error())
+        my_ok(thd);
     }
     else
     {

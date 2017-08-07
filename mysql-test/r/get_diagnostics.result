@@ -590,7 +590,7 @@ DROP PROCEDURE p1;
 SHOW WARNINGS;
 Level	Code	Message
 Error	54321	MESSAGE_TEXT text
-Note	4070	At line 16 in test.p1
+Note	4091	At line 16 in test.p1
 CREATE PROCEDURE p1()
 BEGIN
 DECLARE var INT;

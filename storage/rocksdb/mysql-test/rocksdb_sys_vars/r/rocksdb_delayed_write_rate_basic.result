@@ -11,7 +11,7 @@ INSERT INTO invalid_values VALUES('\'484436\'');
 SET @start_global_value = @@global.ROCKSDB_DELAYED_WRITE_RATE;
 SELECT @start_global_value;
 @start_global_value
-16777216
+0
 '# Setting to valid values in global scope#'
 "Trying to set variable @@global.ROCKSDB_DELAYED_WRITE_RATE to 100"
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE   = 100;
@@ -22,7 +22,7 @@ SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE = DEFAULT;
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 @@global.ROCKSDB_DELAYED_WRITE_RATE
-16777216
+0
 "Trying to set variable @@global.ROCKSDB_DELAYED_WRITE_RATE to 1"
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE   = 1;
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
@@ -32,7 +32,7 @@ SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE = DEFAULT;
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 @@global.ROCKSDB_DELAYED_WRITE_RATE
-16777216
+0
 "Trying to set variable @@global.ROCKSDB_DELAYED_WRITE_RATE to 0"
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE   = 0;
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
@@ -42,7 +42,7 @@ SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE = DEFAULT;
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 @@global.ROCKSDB_DELAYED_WRITE_RATE
-16777216
+0
 "Trying to set variable @@session.ROCKSDB_DELAYED_WRITE_RATE to 444. It should fail because it is not session."
 SET @@session.ROCKSDB_DELAYED_WRITE_RATE   = 444;
 ERROR HY000: Variable 'rocksdb_delayed_write_rate' is a GLOBAL variable and should be set with SET GLOBAL
@@ -52,34 +52,34 @@ SET @@global.ROCKSDB_DELAYED_WRITE_RATE   = 'aaa';
 Got one of the listed errors
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 @@global.ROCKSDB_DELAYED_WRITE_RATE
-16777216
+0
 "Trying to set variable @@global.ROCKSDB_DELAYED_WRITE_RATE to 'bbb'"
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE   = 'bbb';
 Got one of the listed errors
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 @@global.ROCKSDB_DELAYED_WRITE_RATE
-16777216
+0
 "Trying to set variable @@global.ROCKSDB_DELAYED_WRITE_RATE to '-1'"
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE   = '-1';
 Got one of the listed errors
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 @@global.ROCKSDB_DELAYED_WRITE_RATE
-16777216
+0
 "Trying to set variable @@global.ROCKSDB_DELAYED_WRITE_RATE to '101'"
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE   = '101';
 Got one of the listed errors
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 @@global.ROCKSDB_DELAYED_WRITE_RATE
-16777216
+0
 "Trying to set variable @@global.ROCKSDB_DELAYED_WRITE_RATE to '484436'"
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE   = '484436';
 Got one of the listed errors
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 @@global.ROCKSDB_DELAYED_WRITE_RATE
-16777216
+0
 SET @@global.ROCKSDB_DELAYED_WRITE_RATE = @start_global_value;
 SELECT @@global.ROCKSDB_DELAYED_WRITE_RATE;
 @@global.ROCKSDB_DELAYED_WRITE_RATE
-16777216
+0
 DROP TABLE valid_values;
 DROP TABLE invalid_values;

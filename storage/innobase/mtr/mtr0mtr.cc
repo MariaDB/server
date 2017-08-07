@@ -478,6 +478,7 @@ mtr_write_log(
 	const ulint	len = log->size();
 	mtr_write_log_t	write_log;
 
+	ut_ad(!recv_no_log_write);
 	DBUG_PRINT("ib_log",
 		   (ULINTPF " extra bytes written at " LSN_PF,
 		    len, log_sys->lsn));
@@ -799,6 +800,8 @@ mtr_t::release_page(const void* ptr, mtr_memo_type_t type)
 ulint
 mtr_t::Command::prepare_write()
 {
+	ut_ad(!recv_no_log_write);
+
 	switch (m_impl->m_log_mode) {
 	case MTR_LOG_SHORT_INSERTS:
 		ut_ad(0);

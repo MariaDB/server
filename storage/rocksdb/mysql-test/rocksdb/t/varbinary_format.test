@@ -1,0 +1,131 @@
+--source include/have_debug.inc
+--source include/have_rocksdb.inc
+
+# Create a table with a varbinary key with the current format and validate
+# that it sorts correctly
+CREATE TABLE t1(
+  vb VARBINARY(64) primary key
+) ENGINE=rocksdb;
+
+INSERT INTO t1 values(0x00);
+INSERT INTO t1 values(0x0000);
+INSERT INTO t1 values(0x0000000000000000);
+INSERT INTO t1 values(0x000000);
+INSERT INTO t1 values(0x000000000000000000000000000000000000000000000000000000000000000000);
+INSERT INTO t1 values(0x00000000000000000000000000000000000000000000000000000000000000);
+INSERT INTO t1 values(0x0000000000000000000000000000000000000000000000000000000000000000);
+INSERT INTO t1 values(0x00000000);
+INSERT INTO t1 values(0x0000000000);
+INSERT INTO t1 values(0x00000000000000000000);
+INSERT INTO t1 values(0x000000000000);
+INSERT INTO t1 values(0x00000000000000);
+INSERT INTO t1 values(0x000000000000000000);
+
+SELECT hex(vb) FROM t1;
+
+# Use the fact that the rocksdb_locks shows the keys as they are encoded to
+# validate that the keys were encoded as expected
+BEGIN;
+SELECT hex(vb) FROM t1 FOR UPDATE;
+SELECT SUBSTRING(a.key,9) FROM information_schema.rocksdb_locks AS a ORDER BY a.key;
+ROLLBACK;
+
+DROP TABLE t1;
+
+# Now create the same table in the old format to show that they can be read
+# and handled correctly
+set session debug_dbug= '+d,MYROCKS_LEGACY_VARBINARY_FORMAT';
+CREATE TABLE t1(
+  vb VARBINARY(64) primary key
+) ENGINE=rocksdb;
+set session debug_dbug= '-d,MYROCKS_LEGACY_VARBINARY_FORMAT';
+
+INSERT INTO t1 values(0x00);
+INSERT INTO t1 values(0x0000);
+INSERT INTO t1 values(0x0000000000000000);
+INSERT INTO t1 values(0x000000);
+INSERT INTO t1 values(0x000000000000000000000000000000000000000000000000000000000000000000);
+INSERT INTO t1 values(0x00000000000000000000000000000000000000000000000000000000000000);
+INSERT INTO t1 values(0x0000000000000000000000000000000000000000000000000000000000000000);
+INSERT INTO t1 values(0x00000000);
+INSERT INTO t1 values(0x0000000000);
+INSERT INTO t1 values(0x00000000000000000000);
+INSERT INTO t1 values(0x000000000000);
+INSERT INTO t1 values(0x00000000000000);
+INSERT INTO t1 values(0x000000000000000000);
+
+SELECT hex(vb) FROM t1;
+
+# Use the fact that the rocksdb_locks shows the keys as they are encoded to
+# validate that the keys were encoded as expected
+BEGIN;
+SELECT hex(vb) FROM t1 FOR UPDATE;
+SELECT SUBSTRING(a.key,9) FROM information_schema.rocksdb_locks AS a ORDER BY a.key;
+ROLLBACK;
+
+DROP TABLE t1;
+
+# Now create a table with a varchar key using a binary collation with the
+# current format and validate that it sorts correctly
+CREATE TABLE t1(
+  vc VARCHAR(64) collate 'binary' primary key
+) ENGINE=rocksdb;
+
+INSERT INTO t1 values('a');
+INSERT INTO t1 values('aa');
+INSERT INTO t1 values('aaaaaaaa');
+INSERT INTO t1 values('aaa');
+INSERT INTO t1 values('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 values('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 values('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 values('aaaa');
+INSERT INTO t1 values('aaaaa');
+INSERT INTO t1 values('aaaaaaaaaa');
+INSERT INTO t1 values('aaaaaa');
+INSERT INTO t1 values('aaaaaaa');
+INSERT INTO t1 values('aaaaaaaaa');
+
+SELECT * FROM t1;
+
+# Use the fact that the rocksdb_locks shows the keys as they are encoded to
+# validate that the keys were encoded as expected
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+SELECT SUBSTRING(a.key,9) FROM information_schema.rocksdb_locks AS a ORDER BY a.key;
+ROLLBACK;
+
+DROP TABLE t1;
+
+# Now create the same table in the old format to show that they can be read
+# and handled correctly
+set session debug_dbug= '+d,MYROCKS_LEGACY_VARBINARY_FORMAT';
+CREATE TABLE t1(
+  vc VARCHAR(64) collate 'binary' primary key
+) ENGINE=rocksdb;
+set session debug_dbug= '-d,MYROCKS_LEGACY_VARBINARY_FORMAT';
+
+INSERT INTO t1 values('a');
+INSERT INTO t1 values('aa');
+INSERT INTO t1 values('aaaaaaaa');
+INSERT INTO t1 values('aaa');
+INSERT INTO t1 values('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 values('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 values('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 values('aaaa');
+INSERT INTO t1 values('aaaaa');
+INSERT INTO t1 values('aaaaaaaaaa');
+INSERT INTO t1 values('aaaaaa');
+INSERT INTO t1 values('aaaaaaa');
+INSERT INTO t1 values('aaaaaaaaa');
+
+SELECT * FROM t1;
+
+# Use the fact that the rocksdb_locks shows the keys as they are encoded to
+# validate that the keys were encoded as expected
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+SELECT SUBSTRING(a.key,9) FROM information_schema.rocksdb_locks AS a ORDER BY a.key;
+ROLLBACK;
+
+DROP TABLE t1;
+

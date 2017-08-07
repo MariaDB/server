@@ -1,0 +1,9 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+
+--source include/big_test.inc
+
+--let pk_cf=cf1
+--let data_order_desc=1
+
+--source bulk_load.inc

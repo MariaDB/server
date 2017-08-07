@@ -3211,7 +3211,7 @@ drop procedure bug10961|
 DROP PROCEDURE IF EXISTS bug6866|
 DROP VIEW IF EXISTS tv|
 Warnings:
-Note	4068	Unknown VIEW: 'test.tv'
+Note	4089	Unknown VIEW: 'test.tv'
 DROP TABLE IF EXISTS tt1,tt2,tt3|
 Warnings:
 Note	1051	Unknown table 'test.tt1'
@@ -7823,7 +7823,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show warnings;
 Level	Code	Message
 Error	1062	Duplicate entry '2' for key 'PRIMARY'
-Note	4070	At line 5 in test.p1
+Note	4091	At line 5 in test.p1
 select * from t1;
 id
 1

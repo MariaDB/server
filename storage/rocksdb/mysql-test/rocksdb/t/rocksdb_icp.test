@@ -32,10 +32,10 @@ set @count_diff =(select (value - @count) from information_schema.rocksdb_perf_c
 
 --replace_column 9 #
 explain 
-select * from t1 where key1=1;
+select * from t1 force index(key1) where key1=1;
 
 eval $save_query;
-select * from t1 where key1=1;
+select * from t1 force index(key1) where key1=1;
 eval $save_query;
 --echo # The following must be =1, or in any case not 999:
 select @count_diff as "INTERNAL_KEY_SKIPPED_COUNT increment";

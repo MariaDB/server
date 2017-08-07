@@ -1,4 +1,4 @@
-languages czech=cze latin2, danish=dan latin1, dutch=nla latin1, english=eng latin1, estonian=est latin7, french=fre latin1, german=ger latin1, greek=greek greek, hungarian=hun latin2, italian=ita latin1, japanese=jpn ujis, korean=kor euckr, norwegian-ny=norwegian-ny latin1, norwegian=nor latin1, polish=pol latin2, portuguese=por latin1, romanian=rum latin2, russian=rus koi8r, serbian=serbian cp1250, slovak=slo latin2, spanish=spa latin1, swedish=swe latin1, ukrainian=ukr koi8u, bulgarian=bgn cp1251;
+languages czech=cze latin2, danish=dan latin1, dutch=nla latin1, english=eng latin1, estonian=est latin7, french=fre latin1, german=ger latin1, greek=greek greek, hungarian=hun latin2, italian=ita latin1, japanese=jpn ujis, korean=kor euckr, norwegian-ny=norwegian-ny latin1, norwegian=nor latin1, polish=pol latin2, portuguese=por latin1, romanian=rum latin2, russian=rus koi8r, serbian=serbian cp1250, slovak=slo latin2, spanish=spa latin1, swedish=swe latin1, ukrainian=ukr koi8u, bulgarian=bgn cp1251, hindi=hindi utf8;
 
 default-language eng
 
@@ -17,6 +17,7 @@ ER_NO
         fre "NON"
         ger "Nein"
         greek "ΟΧΙ"
+        hindi "नहीं"
         hun "NEM"
         kor "아니오"
         nor "NEI"
@@ -37,6 +38,7 @@ ER_YES
         fre "OUI"
         ger "Ja"
         greek "ΝΑΙ"
+        hindi "हाँ"
         hun "IGEN"
         ita "SI"
         kor "예"
@@ -59,6 +61,7 @@ ER_CANT_CREATE_FILE
         fre "Ne peut créer le fichier '%-.200s' (Errcode: %M)"
         ger "Kann Datei '%-.200s' nicht erzeugen (Fehler: %M)"
         greek "Αδύνατη η δημιουργία του αρχείου '%-.200s' (κωδικός λάθους: %M)"
+        hindi "फ़ाइल '%-.200s' नहीं बन सका (errno: %M)"
         hun "A '%-.200s' file nem hozhato letre (hibakod: %M)"
         ita "Impossibile creare il file '%-.200s' (errno: %M)"
         jpn "ファイル '%-.200s' を作成できません。(エラー番号: %M)"
@@ -84,6 +87,7 @@ ER_CANT_CREATE_TABLE
         fre "Ne peut créer la table %`s.%`s (Errcode: %M)"
         ger "Kann Tabelle %`s.%`s nicht erzeugen (Fehler: %M)"
         greek "Αδύνατη η δημιουργία του πίνακα %`s.%`s (κωδικός λάθους: %M)"
+        hindi "टेबल '%`s.%`s' नहीं बन सका (errno: %M)"
         hun "A %`s.%`s tabla nem hozhato letre (hibakod: %M)"
         ita "Impossibile creare la tabella %`s.%`s (errno: %M)"
         jpn "%`s.%`s テーブルが作れません.(errno: %M)"
@@ -108,6 +112,7 @@ ER_CANT_CREATE_DB
         fre "Ne peut créer la base '%-.192s' (Erreur %M)"
         ger "Kann Datenbank '%-.192s' nicht erzeugen (Fehler: %M)"
         greek "Αδύνατη η δημιουργία της βάσης δεδομένων '%-.192s' (κωδικός λάθους: %M)"
+        hindi "डेटाबेस '%-.192s' नहीं बन सका (errno: %M)"
         hun "Az '%-.192s' adatbazis nem hozhato letre (hibakod: %M)"
         ita "Impossibile creare il database '%-.192s' (errno: %M)"
         jpn "データベース '%-.192s' を作成できません。(エラー番号: %M)"
@@ -132,6 +137,7 @@ ER_DB_CREATE_EXISTS
         fre "Ne peut créer la base '%-.192s'; elle existe déjà"
         ger "Kann Datenbank '%-.192s' nicht erzeugen. Datenbank existiert bereits"
         greek "Αδύνατη η δημιουργία της βάσης δεδομένων '%-.192s'; Η βάση δεδομένων υπάρχει ήδη"
+        hindi "डेटाबेस '%-.192s' नहीं बन सकता है; यह डेटाबेस पहले से ही मौजूद है"
         hun "Az '%-.192s' adatbazis nem hozhato letre Az adatbazis mar letezik"
         ita "Impossibile creare il database '%-.192s'; il database esiste"
         jpn "データベース '%-.192s' を作成できません。データベースはすでに存在します。"
@@ -156,6 +162,7 @@ ER_DB_DROP_EXISTS
         fre "Ne peut effacer la base '%-.192s'; elle n'existe pas"
         ger "Kann Datenbank '%-.192s' nicht löschen; Datenbank nicht vorhanden"
         greek "Αδύνατη η διαγραφή της βάσης δεδομένων '%-.192s'. Η βάση δεδομένων δεν υπάρχει"
+        hindi "डेटाबेस '%-.192s' ड्रॉप नहीं कर सकते हैं; यह डेटाबेस मौजूद नहीं है"
         hun "A(z) '%-.192s' adatbazis nem szuntetheto meg. Az adatbazis nem letezik"
         ita "Impossibile cancellare '%-.192s'; il database non esiste"
         jpn "データベース '%-.192s' を削除できません。データベースは存在しません。"
@@ -180,6 +187,7 @@ ER_DB_DROP_DELETE
         fre "Ne peut effacer la base '%-.192s' (erreur %M)"
         ger "Fehler beim Löschen der Datenbank ('%-.192s' kann nicht gelöscht werden, Fehler: %M)"
         greek "Παρουσιάστηκε πρόβλημα κατά τη διαγραφή της βάσης δεδομένων (αδύνατη η διαγραφή '%-.192s', κωδικός λάθους: %M)"
+        hindi "डेटाबेस ड्रॉप में त्रुटि हुई ('%-.192s' हटा नहीं सकते, errno: %M)"
         hun "Adatbazis megszuntetesi hiba ('%-.192s' nem torolheto, hibakod: %M)"
         ita "Errore durante la cancellazione del database (impossibile cancellare '%-.192s', errno: %M)"
         jpn "データベース削除エラー ('%-.192s' を削除できません。エラー番号: %M)"
@@ -204,6 +212,7 @@ ER_DB_DROP_RMDIR
         fre "Erreur en effaçant la base (rmdir '%-.192s', erreur %M)"
         ger "Fehler beim Löschen der Datenbank (Verzeichnis '%-.192s' kann nicht gelöscht werden, Fehler: %M)"
         greek "Παρουσιάστηκε πρόβλημα κατά τη διαγραφή της βάσης δεδομένων (αδύνατη η διαγραφή του φακέλλου '%-.192s', κωδικός λάθους: %M)"
+        hindi "डेटाबेस ड्रॉप में त्रुटि हुई ('%-.192s' rmdir नहीं कर सकते, errno: %M)"
         hun "Adatbazis megszuntetesi hiba ('%-.192s' nem szuntetheto meg, hibakod: %M)"
         ita "Errore durante la cancellazione del database (impossibile rmdir '%-.192s', errno: %M)"
        jpn "データベース削除エラー (ディレクトリ '%-.192s' を削除できません。エラー番号: %M)"
@@ -228,6 +237,7 @@ ER_CANT_DELETE_FILE
         fre "Erreur en effaçant '%-.192s' (Errcode: %M)"
         ger "Fehler beim Löschen von '%-.192s' (Fehler: %M)"
         greek "Παρουσιάστηκε πρόβλημα κατά τη διαγραφή '%-.192s' (κωδικός λάθους: %M)"
+        hindi "'%-.192s' के हटाने पर त्रुटि हुई (errno: %M)"
         hun "Torlesi hiba: '%-.192s' (hibakod: %M)"
         ita "Errore durante la cancellazione di '%-.192s' (errno: %M)"
 	jpn "ファイル '%-.192s' の削除エラー (エラー番号: %M)"
@@ -252,6 +262,7 @@ ER_CANT_FIND_SYSTEM_REC
         fre "Ne peut lire un enregistrement de la table 'system'"
         ger "Datensatz in der Systemtabelle nicht lesbar"
         greek "Αδύνατη η ανάγνωση εγγραφής από πίνακα του συστήματος"
+        hindi "सिस्टम टेबल से रिकॉर्ड नहीं पढ़ सके"
         hun "Nem olvashato rekord a rendszertablaban"
         ita "Impossibile leggere il record dalla tabella di sistema"
         jpn "システム表のレコードを読み込めません。"
@@ -276,6 +287,7 @@ ER_CANT_GET_STAT
         fre "Ne peut obtenir le status de '%-.200s' (Errcode: %M)"
         ger "Kann Status von '%-.200s' nicht ermitteln (Fehler: %M)"
         greek "Αδύνατη η λήψη πληροφοριών για την κατάσταση του '%-.200s' (κωδικός λάθους: %M)"
+        hindi "'%-.200s' की अवस्था प्राप्त नहीं कर सके (errno: %M)"
         hun "A(z) '%-.200s' statusza nem allapithato meg (hibakod: %M)"
         ita "Impossibile leggere lo stato di '%-.200s' (errno: %M)"
         jpn "'%-.200s' の状態を取得できません。(エラー番号: %M)"
@@ -300,6 +312,7 @@ ER_CANT_GET_WD
         fre "Ne peut obtenir le répertoire de travail (Errcode: %M)"
         ger "Kann Arbeitsverzeichnis nicht ermitteln (Fehler: %M)"
         greek "Ο φάκελλος εργασίας δεν βρέθηκε (κωδικός λάθους: %M)"
+        hindi "Working डाइरेक्टरी प्राप्त नहीं कर सके (errno: %M)"
         hun "A munkakonyvtar nem allapithato meg (hibakod: %M)"
         ita "Impossibile leggere la directory di lavoro (errno: %M)"
         jpn "作業ディレクトリを取得できません。(エラー番号: %M)"
@@ -324,6 +337,7 @@ ER_CANT_LOCK
         fre "Ne peut verrouiller le fichier (Errcode: %M)"
         ger "Datei kann nicht gesperrt werden (Fehler: %M)"
         greek "Το αρχείο δεν μπορεί να κλειδωθεί (κωδικός λάθους: %M)"
+        hindi "फ़ाइल लॉक नहीं कर सके (errno: %M)"
         hun "A file nem zarolhato. (hibakod: %M)"
         ita "Impossibile il locking il file (errno: %M)"
         jpn "ファイルをロックできません。(エラー番号: %M)"
@@ -348,6 +362,7 @@ ER_CANT_OPEN_FILE
         fre "Ne peut ouvrir le fichier: '%-.200s' (Errcode: %M)"
         ger "Kann Datei '%-.200s' nicht öffnen (Fehler: %M)"
         greek "Δεν είναι δυνατό να ανοιχτεί το αρχείο: '%-.200s' (κωδικός λάθους: %M)"
+        hindi "फ़ाइल '%-.200s' नहीं खोल सकते (errno: %M)"
         hun "A '%-.200s' file nem nyithato meg (hibakod: %M)"
         ita "Impossibile aprire il file: '%-.200s' (errno: %M)"
         jpn "ファイル '%-.200s' をオープンできません。(エラー番号: %M)"
@@ -372,6 +387,7 @@ ER_FILE_NOT_FOUND
         fre "Ne peut trouver le fichier: '%-.200s' (Errcode: %M)"
         ger "Kann Datei '%-.200s' nicht finden (Fehler: %M)"
         greek "Δεν βρέθηκε το αρχείο: '%-.200s' (κωδικός λάθους: %M)"
+        hindi "फ़ाइल '%-.200s' नहीं मिला (errno: %M)"
         hun "A(z) '%-.200s' file nem talalhato (hibakod: %M)"
         ita "Impossibile trovare il file: '%-.200s' (errno: %M)"
         jpn "ファイル '%-.200s' が見つかりません。(エラー番号: %M)"
@@ -396,6 +412,7 @@ ER_CANT_READ_DIR
         fre "Ne peut lire le répertoire de '%-.192s' (Errcode: %M)"
         ger "Verzeichnis von '%-.192s' nicht lesbar (Fehler: %M)"
         greek "Δεν είναι δυνατό να διαβαστεί ο φάκελλος του '%-.192s' (κωδικός λάθους: %M)"
+        hindi "'%-.192s' की डायरेक्टरी नहीं पढ़ सके (errno: %M)"
         hun "A(z) '%-.192s' konyvtar nem olvashato. (hibakod: %M)"
         ita "Impossibile leggere la directory di '%-.192s' (errno: %M)"
         jpn "ディレクトリ '%-.192s' を読み込めません。(エラー番号: %M)"
@@ -420,6 +437,7 @@ ER_CANT_SET_WD
         fre "Ne peut changer le répertoire pour '%-.192s' (Errcode: %M)"
         ger "Kann nicht in das Verzeichnis '%-.192s' wechseln (Fehler: %M)"
         greek "Αδύνατη η αλλαγή του τρέχοντος καταλόγου σε '%-.192s' (κωδικός λάθους: %M)"
+        hindi "'%-.192s' डायरेक्टरी में नहीं बदल सके (errno: %M)"
         hun "Konyvtarvaltas nem lehetseges a(z) '%-.192s'-ba. (hibakod: %M)"
         ita "Impossibile cambiare la directory in '%-.192s' (errno: %M)"
         jpn "ディレクトリ '%-.192s' に移動できません。(エラー番号: %M)"
@@ -444,6 +462,7 @@ ER_CHECKREAD
         fre "Enregistrement modifié depuis sa dernière lecture dans la table '%-.192s'"
         ger "Datensatz hat sich seit dem letzten Zugriff auf Tabelle '%-.192s' geändert"
         greek "Η εγγραφή έχει αλλάξει από την τελευταία φορά που ανασύρθηκε από τον πίνακα '%-.192s'"
+        hindi "रिकॉर्ड टेबल '%-.192s' पिछली बार पढ़े जाने के बाद से बदल गया है"
         hun "A(z) '%-.192s' tablaban talalhato rekord megvaltozott az utolso olvasas ota"
         ita "Il record e` cambiato dall'ultima lettura della tabella '%-.192s'"
         jpn "表 '%-.192s' の最後の読み込み時点から、レコードが変化しました。"
@@ -468,6 +487,7 @@ ER_DISK_FULL
         fre "Disque plein (%s). J'attend que quelqu'un libère de l'espace... (Errcode: %M)"
         ger "Festplatte voll (%s). Warte, bis jemand Platz schafft ... (Fehler: %M)"
         greek "Δεν υπάρχει χώρος στο δίσκο (%s). Παρακαλώ, περιμένετε να ελευθερωθεί χώρος... (κωδικός λάθους: %M)"
+        hindi "डिस्क पूरी तरह से भरा हुआ है (%s); कुछ स्थान खाली करें (errno: %M)"
         hun "A lemez megtelt (%s). (hibakod: %M)"
         ita "Disco pieno (%s). In attesa che qualcuno liberi un po' di spazio... (errno: %M)"
         jpn "ディスク領域不足です(%s)。(エラー番号: %M)"
@@ -492,6 +512,7 @@ ER_DUP_KEY 23000
         fre "Ecriture impossible, doublon dans une clé de la table '%-.192s'"
         ger "Kann nicht speichern, Grund: doppelter Schlüssel in Tabelle '%-.192s'"
         greek "Δεν είναι δυνατή η καταχώρηση, η τιμή υπάρχει ήδη στον πίνακα '%-.192s'"
+        hindi "टेबल '%-.192s' में DUPLICATE KEY मौजूद होने के कारण नहीं लिख सके"
         hun "Irasi hiba, duplikalt kulcs a '%-.192s' tablaban"
         ita "Scrittura impossibile: chiave duplicata nella tabella '%-.192s'"
         jpn "書き込めません。表 '%-.192s' に重複するキーがあります。"
@@ -516,6 +537,7 @@ ER_ERROR_ON_CLOSE
         fre "Erreur a la fermeture de '%-.192s' (Errcode: %M)"
         ger "Fehler beim Schließen von '%-.192s' (Fehler: %M)"
         greek "Παρουσιάστηκε πρόβλημα κλείνοντας το '%-.192s' (κωδικός λάθους: %M)"
+        hindi "'%-.192s' के बंद पर त्रुटि हुई (errno: %M)"
         hun "Hiba a(z) '%-.192s' zarasakor. (hibakod: %M)"
         ita "Errore durante la chiusura di '%-.192s' (errno: %M)"
         jpn "'%-.192s' のクローズ時エラー (エラー番号: %M)"
@@ -540,6 +562,7 @@ ER_ERROR_ON_READ
         fre "Erreur en lecture du fichier '%-.200s' (Errcode: %M)"
         ger "Fehler beim Lesen der Datei '%-.200s' (Fehler: %M)"
         greek "Πρόβλημα κατά την ανάγνωση του αρχείου '%-.200s' (κωδικός λάθους: %M)"
+        hindi "फ़ाइल '%-.200s' पढ़ने में त्रुटि हुई (errno: %M)"
         hun "Hiba a '%-.200s'file olvasasakor. (hibakod: %M)"
         ita "Errore durante la lettura del file '%-.200s' (errno: %M)"
         jpn "ファイル '%-.200s' の読み込みエラー (エラー番号: %M)"
@@ -564,6 +587,7 @@ ER_ERROR_ON_RENAME
         fre "Erreur en renommant '%-.210s' en '%-.210s' (Errcode: %M)"
         ger "Fehler beim Umbenennen von '%-.210s' in '%-.210s' (Fehler: %M)"
         greek "Πρόβλημα κατά την μετονομασία του αρχείου '%-.210s' to '%-.210s' (κωδικός λάθους: %M)"
+        hindi "'%-.210s' का नाम '%-.210s' बदलने पर त्रुटि हुई (errno: %M)"
         hun "Hiba a '%-.210s' file atnevezesekor '%-.210s'. (hibakod: %M)"
         ita "Errore durante la rinominazione da '%-.210s' a '%-.210s' (errno: %M)"
         jpn "'%-.210s' の名前を '%-.210s' に変更できません (エラー番号: %M)"
@@ -588,6 +612,7 @@ ER_ERROR_ON_WRITE
         fre "Erreur d'écriture du fichier '%-.200s' (Errcode: %M)"
         ger "Fehler beim Speichern der Datei '%-.200s' (Fehler: %M)"
         greek "Πρόβλημα κατά την αποθήκευση του αρχείου '%-.200s' (κωδικός λάθους: %M)"
+        hindi "फ़ाइल '%-.200s' लिखने में त्रुटि हुई (errno: %M)"
         hun "Hiba a '%-.200s' file irasakor. (hibakod: %M)"
         ita "Errore durante la scrittura del file '%-.200s' (errno: %M)"
         jpn "ファイル '%-.200s' の書き込みエラー (エラー番号: %M)"
@@ -612,6 +637,7 @@ ER_FILE_USED
         fre "'%-.192s' est verrouillé contre les modifications"
         ger "'%-.192s' ist für Änderungen gesperrt"
         greek "'%-.192s' δεν επιτρέπονται αλλαγές"
+        hindi "फ़ाइल '%-.192s' में कोई बदलाव नहीं कर सकते"
         hun "'%-.192s' a valtoztatas ellen zarolva"
         ita "'%-.192s' e` soggetto a lock contro i cambiamenti"
         jpn "'%-.192s' はロックされています。"
@@ -636,6 +662,7 @@ ER_FILSORT_ABORT
         fre "Tri alphabétique abandonné"
         ger "Sortiervorgang abgebrochen"
         greek "Η διαδικασία ταξινόμισης ακυρώθηκε"
+        hindi "SORT निरस्त"
         hun "Sikertelen rendezes"
         ita "Operazione di ordinamento abbandonata"
         jpn "ソート処理を中断しました。"
@@ -660,6 +687,7 @@ ER_FORM_NOT_FOUND
         fre "La vue (View) '%-.192s' n'existe pas pour '%-.192s'"
         ger "View '%-.192s' existiert für '%-.192s' nicht"
         greek "Το View '%-.192s' δεν υπάρχει για '%-.192s'"
+        hindi "VIEW '%-.192s', '%-.192s' के लिए मौजूद नहीं है"
         hun "A(z) '%-.192s' nezet nem letezik a(z) '%-.192s'-hoz"
         ita "La view '%-.192s' non esiste per '%-.192s'"
         jpn "ビュー '%-.192s' は '%-.192s' に存在しません。"
@@ -681,6 +709,7 @@ ER_GET_ERRNO
         fre "Reçu l'erreur %M du handler de la table %s"
         ger "Fehler %M von Speicher-Engine %s"
         greek "Ελήφθη μήνυμα λάθους %M από τον χειριστή πίνακα (table handler) %s"
+        hindi "%M त्रुटि %s स्टोरेज इंजन से"
         ita "Rilevato l'errore %M dal gestore delle tabelle %s"
         nor "Mottok feil %M fra tabell håndterer %s"
         norwegian-ny "Mottok feil %M fra tabell handterar %s"
@@ -694,6 +723,7 @@ ER_GET_ERRNO
 ER_ILLEGAL_HA  
         eng "Storage engine %s of the table %`s.%`s doesn't have this option"
         ger "Diese Option gibt es nicht in Speicher-Engine %s für %`s.%`s"
+        hindi "स्टोरेज इंजन %s में यह विकल्प उपलब्ध नहीं है (टेबल: %`s.%`s)"
         rus "Обработчик %s таблицы %`s.%`s не поддерживает эту возможность"
         ukr "Дескриптор %s таблиці %`s.%`s не має цієї властивості"
 ER_KEY_NOT_FOUND  
@@ -705,6 +735,7 @@ ER_KEY_NOT_FOUND
         fre "Ne peut trouver l'enregistrement dans '%-.192s'"
         ger "Kann Datensatz in '%-.192s' nicht finden"
         greek "Αδύνατη η ανεύρεση εγγραφής στο '%-.192s'"
+        hindi "'%-.192s' में रिकॉर्ड नहीं मिला"
         hun "Nem talalhato a rekord '%-.192s'-ben"
         ita "Impossibile trovare il record in '%-.192s'"
         jpn "'%-.192s' にレコードが見つかりません。"
@@ -729,6 +760,7 @@ ER_NOT_FORM_FILE
         fre "Information erronnée dans le fichier: '%-.200s'"
         ger "Falsche Information in Datei '%-.200s'"
         greek "Λάθος πληροφορίες στο αρχείο: '%-.200s'"
+        hindi "फ़ाइल '%-.200s' में गलत जानकारी है"
         hun "Ervenytelen info a file-ban: '%-.200s'"
         ita "Informazione errata nel file: '%-.200s'"
         jpn "ファイル '%-.200s' 内の情報が不正です。"
@@ -753,6 +785,7 @@ ER_NOT_KEYFILE
         fre "Index corrompu dans la table: '%-.200s'; essayez de le réparer"
         ger "Fehlerhafte Index-Datei für Tabelle '%-.200s'; versuche zu reparieren"
         greek "Λάθος αρχείο ταξινόμισης (key file) για τον πίνακα: '%-.200s'; Παρακαλώ, διορθώστε το!"
+        hindi "टेबल '%-.200s' का इंडेक्स CORRUPT हो गया है; इसे REPAIR करने की कोशिश करें"
         hun "Ervenytelen kulcsfile a tablahoz: '%-.200s'; probalja kijavitani!"
         ita "File chiave errato per la tabella : '%-.200s'; prova a riparalo"
         jpn "表 '%-.200s' の索引ファイル(key file)の内容が不正です。修復を試行してください。"
@@ -777,6 +810,7 @@ ER_OLD_KEYFILE
         fre "Vieux fichier d'index pour la table '%-.192s'; réparez le!"
         ger "Alte Index-Datei für Tabelle '%-.192s'. Bitte reparieren"
         greek "Παλαιό αρχείο ταξινόμισης (key file) για τον πίνακα '%-.192s'; Παρακαλώ, διορθώστε το!"
+        hindi "टेबल '%-.192s' के लिए पुरानी KEY फ़ाइल; इसे REPAIR करने की कोशिश करें"
         hun "Regi kulcsfile a '%-.192s'tablahoz; probalja kijavitani!"
         ita "File chiave vecchio per la tabella '%-.192s'; riparalo!"
         jpn "表 '%-.192s' の索引ファイル(key file)は古い形式です。修復してください。"
@@ -801,6 +835,7 @@ ER_OPEN_AS_READONLY
         fre "'%-.192s' est en lecture seulement"
         ger "Tabelle '%-.192s' ist nur lesbar"
         greek "'%-.192s' επιτρέπεται μόνο η ανάγνωση"
+        hindi "टेबल '%-.192s' READ-ONLY है"
         hun "'%-.192s' irasvedett"
         ita "'%-.192s' e` di sola lettura"
         jpn "表 '%-.192s' は読み込み専用です。"
@@ -897,6 +932,7 @@ ER_CON_COUNT_ERROR 08004
         fre "Trop de connexions"
         ger "Zu viele Verbindungen"
         greek "Υπάρχουν πολλές συνδέσεις..."
+        hindi "अत्यधिक कनेक्शन"
         hun "Tul sok kapcsolat"
         ita "Troppe connessioni"
         jpn "接続が多すぎます。"
@@ -945,6 +981,7 @@ ER_BAD_HOST_ERROR 08S01
         fre "Ne peut obtenir de hostname pour votre adresse"
         ger "Kann Hostnamen für diese Adresse nicht erhalten"
         greek "Δεν έγινε γνωστό το hostname για την address σας"
+        hindi "आपके I.P. ऐड्रेस के लिए होस्टनेम प्राप्त करने में विफल रहे"
         hun "A gepnev nem allapithato meg a cimbol"
         ita "Impossibile risalire al nome dell'host dall'indirizzo (risoluzione inversa)"
         jpn "IPアドレスからホスト名を解決できません。"
@@ -969,6 +1006,7 @@ ER_HANDSHAKE_ERROR 08S01
         fre "Mauvais 'handshake'"
         ger "Ungültiger Handshake"
         greek "Η αναγνώριση (handshake) δεν έγινε σωστά"
+        hindi "संपर्क स्थापित करते समय त्रुटि हुई (BAD HANDSHAKE)"
         hun "A kapcsolatfelvetel nem sikerult (Bad handshake)"
         ita "Negoziazione impossibile"
         jpn "ハンドシェイクエラー"
@@ -994,6 +1032,7 @@ ER_DBACCESS_DENIED_ERROR 42000
         ger "Benutzer '%s'@'%s' hat keine Zugriffsberechtigung für Datenbank '%-.192s'"
         greek "Δεν επιτέρεται η πρόσβαση στο χρήστη: '%s'@'%s' στη βάση δεδομένων '%-.192s'"
         hun "A(z) '%s'@'%s' felhasznalo szamara tiltott eleres az '%-.192s' adabazishoz"
+        hindi "यूज़र '%s'@'%s' को डेटाबेस '%-.192s' की अनुमति नहीं है"
         ita "Accesso non consentito per l'utente: '%s'@'%s' al database '%-.192s'"
         jpn "ユーザー '%s'@'%s' の '%-.192s' データベースへのアクセスを拒否します"
         kor "'%s'@'%s' 사용자는 '%-.192s' 데이타베이스에 접근이 거부 되었습니다."
@@ -1017,6 +1056,7 @@ ER_ACCESS_DENIED_ERROR 28000
         fre "Accès refusé pour l'utilisateur: '%s'@'%s' (mot de passe: %s)"
         ger "Benutzer '%s'@'%s' hat keine Zugriffsberechtigung (verwendetes Passwort: %s)"
         greek "Δεν επιτέρεται η πρόσβαση στο χρήστη: '%s'@'%s' (χρήση password: %s)"
+        hindi "यूज़र '%s'@'%s' को अनुमति नहीं है (पासवर्ड का उपयोग: %s)"
         hun "A(z) '%s'@'%s' felhasznalo szamara tiltott eleres. (Hasznalja a jelszot: %s)"
         ita "Accesso non consentito per l'utente: '%s'@'%s' (Password: %s)"
         jpn "ユーザー '%s'@'%s' を拒否します.uUsing password: %s)"
@@ -1040,6 +1080,7 @@ ER_NO_DB_ERROR 3D000
         fre "Aucune base n'a été sélectionnée"
         ger "Keine Datenbank ausgewählt"
         greek "Δεν επιλέχθηκε βάση δεδομένων"
+        hindi "किसी भी डेटाबेस का चयन नहीं किया गया है"
         hun "Nincs kivalasztott adatbazis"
         ita "Nessun database selezionato"
         jpn "データベースが選択されていません。"
@@ -1064,6 +1105,7 @@ ER_UNKNOWN_COM_ERROR 08S01
         fre "Commande inconnue"
         ger "Unbekannter Befehl"
         greek "Αγνωστη εντολή"
+        hindi "अज्ञात आदेश"
         hun "Ervenytelen parancs"
         ita "Comando sconosciuto"
         jpn "不明なコマンドです。"
@@ -1088,6 +1130,7 @@ ER_BAD_NULL_ERROR 23000
         fre "Le champ '%-.192s' ne peut être vide (null)"
         ger "Feld '%-.192s' darf nicht NULL sein"
         greek "Το πεδίο '%-.192s' δεν μπορεί να είναι κενό (null)"
+        hindi "काँलम '%-.192s' NULL नहीं हो सकता"
         hun "A(z) '%-.192s' oszlop erteke nem lehet nulla"
         ita "La colonna '%-.192s' non puo` essere nulla"
         jpn "列 '%-.192s' は null にできません。"
@@ -1112,6 +1155,7 @@ ER_BAD_DB_ERROR 42000
         fre "Base '%-.192s' inconnue"
         ger "Unbekannte Datenbank '%-.192s'"
         greek "Αγνωστη βάση δεδομένων '%-.192s'"
+        hindi "अज्ञात डाटाबेस '%-.192s'"
         hun "Ervenytelen adatbazis: '%-.192s'"
         ita "Database '%-.192s' sconosciuto"
         jpn "'%-.192s' は不明なデータベースです。"
@@ -1136,6 +1180,7 @@ ER_TABLE_EXISTS_ERROR 42S01
         fre "La table '%-.192s' existe déjà"
         ger "Tabelle '%-.192s' bereits vorhanden"
         greek "Ο πίνακας '%-.192s' υπάρχει ήδη"
+        hindi "टेबल '%-.192s' पहले से ही मौजूद है"
         hun "A(z) '%-.192s' tabla mar letezik"
         ita "La tabella '%-.192s' esiste gia`"
         jpn "表 '%-.192s' はすでに存在します。"
@@ -1160,6 +1205,7 @@ ER_BAD_TABLE_ERROR 42S02
         fre "Table '%-.100s' inconnue"
         ger "Unbekannte Tabelle '%-.100s'"
         greek "Αγνωστος πίνακας '%-.100s'"
+        hindi "अज्ञात टेबल '%-.100s'"
         hun "Ervenytelen tabla: '%-.100s'"
         ita "Tabella '%-.100s' sconosciuta"
         jpn "'%-.100s' は不明な表です。"
@@ -1184,6 +1230,7 @@ ER_NON_UNIQ_ERROR 23000
         fre "Champ: '%-.192s' dans %-.192s est ambigu"
         ger "Feld '%-.192s' in %-.192s ist nicht eindeutig"
         greek "Το πεδίο: '%-.192s' σε %-.192s δεν έχει καθοριστεί"
+        hindi "काँलम '%-.192s' अस्पष्ट है (टेबल: %-.192s)"
         hun "A(z) '%-.192s' oszlop %-.192s-ben ketertelmu"
         ita "Colonna: '%-.192s' di %-.192s e` ambigua"
         jpn "列 '%-.192s' は %-.192s 内で曖昧です。"
@@ -1208,6 +1255,7 @@ ER_SERVER_SHUTDOWN 08S01
         fre "Arrêt du serveur en cours"
         ger "Der Server wird heruntergefahren"
         greek "Εναρξη διαδικασίας αποσύνδεσης του εξυπηρετητή (server shutdown)"
+        hindi "सर्वर बंद हो रहा है"
         hun "A szerver leallitasa folyamatban"
         ita "Shutdown del server in corso"
         jpn "サーバーをシャットダウン中です。"
@@ -1232,6 +1280,7 @@ ER_BAD_FIELD_ERROR 42S22 S0022
         fre "Champ '%-.192s' inconnu dans %-.192s"
         ger "Unbekanntes Tabellenfeld '%-.192s' in %-.192s"
         greek "Αγνωστο πεδίο '%-.192s' σε '%-.192s'"
+        hindi "अज्ञात काँलम '%-.192s'(टेबल: '%-.192s')"
         hun "A(z) '%-.192s' oszlop ervenytelen '%-.192s'-ben"
         ita "Colonna sconosciuta '%-.192s' in '%-.192s'"
         jpn "列 '%-.192s' は '%-.192s' にはありません。"
@@ -1256,6 +1305,7 @@ ER_WRONG_FIELD_WITH_GROUP 42000 S1009
         fre "'%-.192s' n'est pas dans 'group by'"
         ger "'%-.192s' ist nicht in GROUP BY vorhanden"
         greek "Χρησιμοποιήθηκε '%-.192s' που δεν υπήρχε στο group by"
+        hindi "'%-.192s' GROUP BY में नहीं है"
         hun "Used '%-.192s' with wasn't in group by"
         ita "Usato '%-.192s' che non e` nel GROUP BY"
         jpn "'%-.192s' はGROUP BY句で指定されていません。"
@@ -1280,6 +1330,7 @@ ER_WRONG_GROUP_FIELD 42000 S1009
         fre "Ne peut regrouper '%-.192s'"
         ger "Gruppierung über '%-.192s' nicht möglich"
         greek "Αδύνατη η ομαδοποίηση (group on) '%-.192s'"
+        hindi "'%-.192s' पर GROUP नहीं कर सकते"
         hun "A group nem hasznalhato: '%-.192s'"
         ita "Impossibile raggruppare per '%-.192s'"
         jpn "'%-.192s' でのグループ化はできません。"
@@ -1326,6 +1377,7 @@ ER_WRONG_VALUE_COUNT 21S01
         est "Tulpade arv erineb väärtuste arvust"
         ger "Die Anzahl der Spalten entspricht nicht der Anzahl der Werte"
         greek "Το Column count δεν ταιριάζει με το value count"
+        hindi "कॉलम की गिनती मूल्य की गिनती के समान नही है"
         hun "Az oszlopban levo ertek nem egyezik meg a szamitott ertekkel"
         ita "Il numero delle colonne non e` uguale al numero dei valori"
         jpn "列数が値の個数と一致しません。"
@@ -1350,6 +1402,7 @@ ER_TOO_LONG_IDENT 42000 S1009
         fre "Le nom de l'identificateur '%-.100s' est trop long"
         ger "Name des Bezeichners '%-.100s' ist zu lang"
         greek "Το identifier name '%-.100s' είναι πολύ μεγάλο"
+        hindi "पहचानकर्ता का नाम '%-.100s' बहुत लंबा है"
         hun "A(z) '%-.100s' azonositonev tul hosszu"
         ita "Il nome dell'identificatore '%-.100s' e` troppo lungo"
         jpn "識別子名 '%-.100s' は長すぎます。"
@@ -1374,6 +1427,7 @@ ER_DUP_FIELDNAME 42S21 S1009
         fre "Nom du champ '%-.192s' déjà utilisé"
         ger "Doppelter Spaltenname: '%-.192s'"
         greek "Επανάληψη column name '%-.192s'"
+        hindi "समान कॉलम '%-.192s' मौजूद है"
         hun "Duplikalt oszlopazonosito: '%-.192s'"
         ita "Nome colonna duplicato '%-.192s'"
         jpn "列名 '%-.192s' は重複してます。"
@@ -1398,6 +1452,7 @@ ER_DUP_KEYNAME 42000 S1009
         fre "Nom de clef '%-.192s' déjà utilisé"
         ger "Doppelter Name für Schlüssel vorhanden: '%-.192s'"
         greek "Επανάληψη key name '%-.192s'"
+        hindi "समान KEY '%-.192s' मौजूद है"
         hun "Duplikalt kulcsazonosito: '%-.192s'"
         ita "Nome chiave duplicato '%-.192s'"
         jpn "索引名 '%-.192s' は重複しています。"
@@ -1424,6 +1479,7 @@ ER_DUP_ENTRY 23000 S1009
 	fre "Duplicata du champ '%-.192s' pour la clef %d"
 	ger "Doppelter Eintrag '%-.192s' für Schlüssel %d"
 	greek "Διπλή εγγραφή '%-.192s' για το κλειδί %d"
+        hindi "सामान प्रवेश '%-.192s' KEY %d के लिए"
 	hun "Duplikalt bejegyzes '%-.192s' a %d kulcs szerint"
 	ita "Valore duplicato '%-.192s' per la chiave %d"
 	jpn "'%-.192s' は索引 %d で重複しています。"
@@ -1448,6 +1504,7 @@ ER_WRONG_FIELD_SPEC 42000 S1009
         fre "Mauvais paramètre de champ pour le champ '%-.192s'"
         ger "Falsche Spezifikation für Feld '%-.192s'"
         greek "Εσφαλμένο column specifier για το πεδίο '%-.192s'"
+        hindi "कॉलम '%-.192s' के लिए गलत कॉलम विनिर्देशक"
         hun "Rossz oszlopazonosito: '%-.192s'"
         ita "Specifica errata per la colonna '%-.192s'"
         jpn "列 '%-.192s' の定義が不正です。"
@@ -1472,6 +1529,7 @@ ER_PARSE_ERROR 42000 s1009
         fre "%s près de '%-.80s' à la ligne %d"
         ger "%s bei '%-.80s' in Zeile %d"
         greek "%s πλησίον '%-.80s' στη γραμμή %d"
+        hindi "%s के पास '%-.80s' लाइन %d में"
         hun "A %s a '%-.80s'-hez kozeli a %d sorban"
         ita "%s vicino a '%-.80s' linea %d"
         jpn "%s : '%-.80s' 付近 %d 行目"
@@ -1496,6 +1554,7 @@ ER_EMPTY_QUERY 42000
         fre "Query est vide"
         ger "Leere Abfrage"
         greek "Το ερώτημα (query) που θέσατε ήταν κενό"
+        hindi "क्वेरी खली थी"
         hun "Ures lekerdezes"
         ita "La query e` vuota"
         jpn "クエリが空です。"
@@ -1520,6 +1579,7 @@ ER_NONUNIQ_TABLE 42000 S1009
         fre "Table/alias: '%-.192s' non unique"
         ger "Tabellenname/Alias '%-.192s' nicht eindeutig"
         greek "Αδύνατη η ανεύρεση unique table/alias: '%-.192s'"
+        hindi "टेबल या उसका उपनाम '%-.192s' अद्वितीय नहीं है"
         hun "Nem egyedi tabla/alias: '%-.192s'"
         ita "Tabella/alias non unico: '%-.192s'"
         jpn "表名／別名 '%-.192s' は一意ではありません。"
@@ -1544,6 +1604,7 @@ ER_INVALID_DEFAULT 42000 S1009
         fre "Valeur par défaut invalide pour '%-.192s'"
         ger "Fehlerhafter Vorgabewert (DEFAULT) für '%-.192s'"
         greek "Εσφαλμένη προκαθορισμένη τιμή (default value) για '%-.192s'"
+        hindi "'%-.192s' के लिए अवैध डिफ़ॉल्ट मान"
         hun "Ervenytelen ertek: '%-.192s'"
         ita "Valore di default non valido per '%-.192s'"
         jpn "'%-.192s' へのデフォルト値が無効です。"
@@ -1568,6 +1629,7 @@ ER_MULTIPLE_PRI_KEY 42000 S1009
         fre "Plusieurs clefs primaires définies"
         ger "Mehrere Primärschlüssel (PRIMARY KEY) definiert"
         greek "Περισσότερα από ένα primary key ορίστηκαν"
+        hindi "कई PRIMARY KEY परिभाषित"
         hun "Tobbszoros elsodleges kulcs definialas"
         ita "Definite piu` chiave primarie"
         jpn "PRIMARY KEY が複数定義されています。"
@@ -1593,6 +1655,7 @@ ER_TOO_MANY_KEYS 42000 S1009
         ger "Zu viele Schlüssel definiert. Maximal %d Schlüssel erlaubt"
         greek "Πάρα πολλά key ορίσθηκαν. Το πολύ %d επιτρέπονται"
         hun "Tul sok kulcs. Maximum %d kulcs engedelyezett"
+        hindi "बहुत सारी KEYS निर्दिष्ट हैं; अधिकतम %d KEYS की अनुमति है"
         ita "Troppe chiavi. Sono ammesse max %d chiavi"
         jpn "索引の数が多すぎます。最大 %d 個までです。"
         kor "너무 많은 키가 정의되어 있읍니다.. 최대 %d의 키가 가능함"
@@ -1616,6 +1679,7 @@ ER_TOO_MANY_KEY_PARTS 42000 S1009
         fre "Trop de parties specifiées dans la clef. Maximum de %d parties"
         ger "Zu viele Teilschlüssel definiert. Maximal %d Teilschlüssel erlaubt"
         greek "Πάρα πολλά key parts ορίσθηκαν. Το πολύ %d επιτρέπονται"
+        hindi "बहुत सारे KEY के भाग निर्दिष्ट हैं; अधिकतम %d भागों की अनुमति है"
         hun "Tul sok kulcsdarabot definialt. Maximum %d resz engedelyezett"
         ita "Troppe parti di chiave specificate. Sono ammesse max %d parti"
         jpn "索引のキー列指定が多すぎます。最大 %d 個までです。"
@@ -1640,6 +1704,7 @@ ER_TOO_LONG_KEY 42000 S1009
         fre "La clé est trop longue. Longueur maximale: %d"
         ger "Schlüssel ist zu lang. Die maximale Schlüssellänge beträgt %d"
         greek "Το κλειδί που ορίσθηκε είναι πολύ μεγάλο. Το μέγιστο μήκος είναι %d"
+        hindi "निर्दिष्ट KEY बहुत लंबी थी; KEY की अधिकतम लंबाई %d बाइट है"
         hun "A megadott kulcs tul hosszu. Maximalis kulcshosszusag: %d"
         ita "La chiave specificata e` troppo lunga. La max lunghezza della chiave e` %d"
         jpn "索引のキーが長すぎます。最大 %d バイトまでです。"
@@ -1664,6 +1729,7 @@ ER_KEY_COLUMN_DOES_NOT_EXITS 42000 S1009
         fre "La clé '%-.192s' n'existe pas dans la table"
         ger "In der Tabelle gibt es kein Schlüsselfeld '%-.192s'"
         greek "Το πεδίο κλειδί '%-.192s' δεν υπάρχει στον πίνακα"
+        hindi "KEY कॉलम '%-.192s' टेबल में मौजूद नहीं है"
         hun "A(z) '%-.192s'kulcsoszlop nem letezik a tablaban"
         ita "La colonna chiave '%-.192s' non esiste nella tabella"
         jpn "キー列 '%-.192s' は表にありません。"
@@ -1682,6 +1748,7 @@ ER_KEY_COLUMN_DOES_NOT_EXITS 42000 S1009
 ER_BLOB_USED_AS_KEY 42000 S1009
         eng "BLOB column %`s can't be used in key specification in the %s table"
         ger "BLOB-Feld %`s kann beim %s Tabellen nicht als Schlüssel verwendet werden"
+        hindi "BLOB कॉलम %`s टेबल %s में KEY विनिर्देश में इस्तेमाल नहीं किया जा सकता"
         rus "Столбец типа BLOB %`s не может быть использован как значение ключа в %s таблице"
         ukr "BLOB стовбець %`s не може бути використаний у визначенні ключа в %s таблиці"
 ER_TOO_BIG_FIELDLENGTH 42000 S1009
@@ -1693,6 +1760,7 @@ ER_TOO_BIG_FIELDLENGTH 42000 S1009
         fre "Champ '%-.192s' trop long (max = %lu). Utilisez un BLOB"
         ger "Feldlänge für Feld '%-.192s' zu groß (maximal %lu). BLOB- oder TEXT-Spaltentyp verwenden!"
         greek "Πολύ μεγάλο μήκος για το πεδίο '%-.192s' (max = %lu). Παρακαλώ χρησιμοποιείστε τον τύπο BLOB"
+        hindi "कॉलम की लंबाई कॉलम '%-.192s' के लिए बड़ी है (अधिकतम = %lu); BLOB या TEXT का उपयोग करें"
         hun "A(z) '%-.192s' oszlop tul hosszu. (maximum = %lu). Hasznaljon BLOB tipust inkabb"
         ita "La colonna '%-.192s' e` troppo grande (max=%lu). Utilizza un BLOB"
         jpn "列 '%-.192s' のサイズ定義が大きすぎます (最大 %lu まで)。代わりに BLOB または TEXT を使用してください。"
@@ -1717,6 +1785,7 @@ ER_WRONG_AUTO_KEY 42000 S1009
         fre "Un seul champ automatique est permis et il doit être indexé"
         ger "Falsche Tabellendefinition. Es darf nur eine AUTO_INCREMENT-Spalte geben, und diese muss als Schlüssel definiert werden"
         greek "Μπορεί να υπάρχει μόνο ένα auto field και πρέπει να έχει ορισθεί σαν key"
+        hindi "गलत टेबल परिभाषा; टेबल में केवल एक AUTO_INCREMENT कॉलम हो सकता है और इसे एक KEY के रूप में परिभाषित किया जाना चाहिए"
         hun "Csak egy auto mezo lehetseges, es azt kulcskent kell definialni"
         ita "Puo` esserci solo un campo AUTO e deve essere definito come chiave"
         jpn "不正な表定義です。AUTO_INCREMENT列は１個までで、索引を定義する必要があります。"
@@ -1743,6 +1812,7 @@ ER_NORMAL_SHUTDOWN
         fre "%s (%s): Arrêt normal du serveur\n"
         ger "%s (%s): Normal heruntergefahren\n"
         greek "%s (%s): Φυσιολογική διαδικασία shutdown\n"
+        hindi "%s (%s): सामान्य शटडाउन\n"
         hun "%s (%s): Normal leallitas\n"
         ita "%s (%s): Shutdown normale\n"
         jpn "%s (%s): 通常シャットダウン\n"
@@ -1767,6 +1837,7 @@ ER_GOT_SIGNAL
         fre "%s: Reçu le signal %d. Abandonne!\n"
         ger "%s: Signal %d erhalten. Abbruch!\n"
         greek "%s: Ελήφθη το μήνυμα %d. Η διαδικασία εγκαταλείπεται!\n"
+        hindi "%s: सिग्नल %d मिलने के कारण सिस्टम बंद किया जा रहा है!\n"
         hun "%s: %d jelzes. Megszakitva!\n"
         ita "%s: Ricevuto segnale %d. Interruzione!\n"
         jpn "%s: シグナル %d を受信しました。強制終了します！\n"
@@ -1791,6 +1862,7 @@ ER_SHUTDOWN_COMPLETE
         fre "%s: Arrêt du serveur terminé\n"
         ger "%s: Herunterfahren beendet\n"
         greek "%s: Η διαδικασία Shutdown ολοκληρώθηκε\n"
+        hindi "%s: शटडाउन पूर्ण\n"
         hun "%s: A leallitas kesz\n"
         ita "%s: Shutdown completato\n"
         jpn "%s: シャットダウン完了\n"
@@ -1815,6 +1887,7 @@ ER_FORCING_CLOSE 08S01
         fre "%s: Arrêt forcé de la tâche (thread) %ld  utilisateur: '%-.48s'\n"
         ger "%s: Thread %ld zwangsweise beendet. Benutzer: '%-.48s'\n"
         greek "%s: Το thread θα κλείσει %ld  user: '%-.48s'\n"
+        hindi "%s: %ld थ्रेड बंद किया जा रहा है (यूज़र: '%-.48s')\n" 
         hun "%s: A(z) %ld thread kenyszeritett zarasa. Felhasznalo: '%-.48s'\n"
         ita "%s: Forzata la chiusura del thread %ld utente: '%-.48s'\n"
         jpn "%s: スレッド %ld を強制終了します (ユーザー: '%-.48s')\n"
@@ -1839,6 +1912,7 @@ ER_IPSOCK_ERROR 08S01
         fre "Ne peut créer la connexion IP (socket)"
         ger "Kann IP-Socket nicht erzeugen"
         greek "Δεν είναι δυνατή η δημιουργία IP socket"
+        hindi "IP SOCKET नहीं बना सकते"
         hun "Az IP socket nem hozhato letre"
         ita "Impossibile creare il socket IP"
         jpn "IPソケットを作成できません。"
@@ -1863,6 +1937,7 @@ ER_NO_SUCH_INDEX 42S12 S1009
         fre "La table '%-.192s' n'a pas d'index comme celle utilisée dans CREATE INDEX. Recréez la table"
         ger "Tabelle '%-.192s' besitzt keinen wie den in CREATE INDEX verwendeten Index. Tabelle neu anlegen"
         greek "Ο πίνακας '%-.192s' δεν έχει ευρετήριο (index) σαν αυτό που χρησιμοποιείτε στην CREATE INDEX. Παρακαλώ, ξαναδημιουργήστε τον πίνακα"
+        hindi "CREATE INDEX में इस्तेमाल की गयी सूचि टेबल '%-.192s' में उपलब्ध नहीं है; टेबल को पुनः बनायें"
         hun "A(z) '%-.192s' tablahoz nincs meg a CREATE INDEX altal hasznalt index. Alakitsa at a tablat"
         ita "La tabella '%-.192s' non ha nessun indice come quello specificatato dalla CREATE INDEX. Ricrea la tabella"
         jpn "表 '%-.192s' に以前CREATE INDEXで作成された索引がありません。表を作り直してください。"
@@ -1887,6 +1962,7 @@ ER_WRONG_FIELD_TERMINATORS 42000 S1009
         fre "Séparateur de champs inconnu.  Vérifiez dans le manuel"
         ger "Feldbegrenzer-Argument ist nicht in der erwarteten Form. Bitte im Handbuch nachlesen"
         greek "Ο διαχωριστής πεδίων δεν είναι αυτός που αναμενόταν. Παρακαλώ ανατρέξτε στο manual"
+        hindi "फील्ड विभाजक आर्गुमेंट गलत है; मैनुअल की जाँच करें"
         hun "A mezoelvalaszto argumentumok nem egyeznek meg a varttal. Nezze meg a kezikonyvben!"
         ita "L'argomento 'Field separator' non e` quello atteso. Controlla il manuale"
         jpn "フィールド区切り文字が予期せぬ使われ方をしています。マニュアルを確認して下さい。"
@@ -1911,6 +1987,7 @@ ER_BLOBS_AND_NO_TERMINATED 42000 S1009
         fre "Vous ne pouvez utiliser des lignes de longueur fixe avec des BLOBs. Utiliser 'fields terminated by'"
         ger "Eine feste Zeilenlänge kann für BLOB-Felder nicht verwendet werden. Bitte 'fields terminated by' verwenden"
         greek "Δεν μπορείτε να χρησιμοποιήσετε fixed rowlength σε BLOBs. Παρακαλώ χρησιμοποιείστε 'fields terminated by'"
+        hindi "BLOBs को निश्चित लंबाई की पंक्ति के साथ प्रयोग नहीं किया जा सकता है; 'FIELDS TERMINATED BY' का इस्तेमाल करें"
         hun "Fix hosszusagu BLOB-ok nem hasznalhatok. Hasznalja a 'mezoelvalaszto jelet' "
         ita "Non possono essere usate righe a lunghezza fissa con i BLOB. Usa 'FIELDS TERMINATED BY'"
         jpn "BLOBには固定長レコードが使用できません。'FIELDS TERMINATED BY'句を使用して下さい。"
@@ -1935,6 +2012,7 @@ ER_TEXTFILE_NOT_READABLE
         fre "Le fichier '%-.128s' doit être dans le répertoire de la base et lisible par tous"
         ger "Datei '%-.128s' muss im Datenbank-Verzeichnis vorhanden oder lesbar für alle sein"
         greek "Το αρχείο '%-.128s' πρέπει να υπάρχει στο database directory ή να μπορεί να διαβαστεί από όλους"
+        hindi "फ़ाइल '%-.128s' डेटाबेस डायरेक्टरी में या सभी के द्वारा पठनीय होना चाहिए"
         hun "A(z) '%-.128s'-nak az adatbazis konyvtarban kell lennie, vagy mindenki szamara olvashatonak"
         ita "Il file '%-.128s' deve essere nella directory del database e deve essere leggibile da tutti"
         jpn "ファイル '%-.128s' はデータベースディレクトリにあるか、全てのユーザーから読める必要があります。"
@@ -1959,6 +2037,7 @@ ER_FILE_EXISTS_ERROR
         fre "Le fichier '%-.200s' existe déjà"
         ger "Datei '%-.200s' bereits vorhanden"
         greek "Το αρχείο '%-.200s' υπάρχει ήδη"
+        hindi "फ़ाइल '%-.200s' पहले से मौजूद है"
         hun "A '%-.200s' file mar letezik"
         ita "Il file '%-.200s' esiste gia`"
         jpn "ファイル '%-.200s' はすでに存在します。"
@@ -1983,6 +2062,7 @@ ER_LOAD_INFO
         fre "Enregistrements: %ld  Effacés: %ld  Non traités: %ld  Avertissements: %ld"
         ger "Datensätze: %ld  Gelöscht: %ld  Ausgelassen: %ld  Warnungen: %ld"
         greek "Εγγραφές: %ld  Διαγραφές: %ld  Παρεκάμφθησαν: %ld  Προειδοποιήσεις: %ld"
+        hindi "रिकॉर्ड: %ld हटाए गए: %ld छोड़ दिए गए: %ld चेतावनी: %ld"
         hun "Rekordok: %ld  Torolve: %ld  Skipped: %ld  Warnings: %ld"
         ita "Records: %ld  Cancellati: %ld  Saltati: %ld  Avvertimenti: %ld"
         jpn "レコード数: %ld  削除: %ld  スキップ: %ld  警告: %ld"
@@ -2007,6 +2087,7 @@ ER_ALTER_INFO
         fre "Enregistrements: %ld  Doublons: %ld"
         ger "Datensätze: %ld  Duplikate: %ld"
         greek "Εγγραφές: %ld  Επαναλήψεις: %ld"
+        hindi "रिकॉर्ड: %ld डुप्लिकेट: %ld"
         hun "Rekordok: %ld  Duplikalva: %ld"
         ita "Records: %ld  Duplicati: %ld"
         jpn "レコード数: %ld  重複: %ld"
@@ -2055,6 +2136,7 @@ ER_CANT_REMOVE_ALL_FIELDS 42000
         fre "Vous ne pouvez effacer tous les champs avec ALTER TABLE. Utilisez DROP TABLE"
         ger "Mit ALTER TABLE können nicht alle Felder auf einmal gelöscht werden. Dafür DROP TABLE verwenden"
         greek "Δεν είναι δυνατή η διαγραφή όλων των πεδίων με ALTER TABLE. Παρακαλώ χρησιμοποιείστε DROP TABLE"
+        hindi "ALTER TABLE का इस्तेमाल कर सभी कॉलम्स को हटाया नहीं जा सकता; DROP TABLE का इस्तेमाल करें"
         hun "Az osszes mezo nem torolheto az ALTER TABLE-lel. Hasznalja a DROP TABLE-t helyette"
         ita "Non si possono cancellare tutti i campi con una ALTER TABLE. Utilizzare DROP TABLE"
         jpn "ALTER TABLE では全ての列の削除はできません。DROP TABLE を使用してください。"
@@ -2079,6 +2161,7 @@ ER_CANT_DROP_FIELD_OR_KEY 42000
         fre "Ne peut effacer (DROP %s) %`-.192s. Vérifiez s'il existe"
         ger "DROP %s: Kann %`-.192s nicht löschen. Existiert es?"
         greek "Αδύνατη η διαγραφή (DROP %s) %`-.192s. Παρακαλώ ελέγξτε αν το πεδίο/κλειδί υπάρχει"
+        hindi "%s %`-.192s को ड्रॉप नहीं कर सकते हैं; कृपया जाँच करें कि यह मौजूद है"
         hun "A DROP %s %`-.192s nem lehetseges. Ellenorizze, hogy a mezo/kulcs letezik-e"
         ita "Impossibile cancellare (DROP %s) %`-.192s. Controllare che il campo chiave esista"
         nor "Kan ikke DROP %s %`-.192s. Undersøk om felt/nøkkel eksisterer"
@@ -2101,6 +2184,7 @@ ER_INSERT_INFO
         fre "Enregistrements: %ld  Doublons: %ld  Avertissements: %ld"
         ger "Datensätze: %ld  Duplikate: %ld  Warnungen: %ld"
         greek "Εγγραφές: %ld  Επαναλήψεις: %ld  Προειδοποιήσεις: %ld"
+        hindi "रिकॉर्ड: %ld डुप्लिकेट: %ld चेतावनी: %ld"
         hun "Rekordok: %ld  Duplikalva: %ld  Warnings: %ld"
         ita "Records: %ld  Duplicati: %ld  Avvertimenti: %ld"
         jpn "レコード数: %ld  重複数: %ld  警告: %ld"
@@ -2128,6 +2212,7 @@ ER_NO_SUCH_THREAD
         fre "Numéro de tâche inconnu: %lu"
         ger "Unbekannte Thread-ID: %lu"
         greek "Αγνωστο thread id: %lu"
+        hindi "अज्ञात थ्रेड ID: %lu"
         hun "Ervenytelen szal (thread) id: %lu"
         ita "Thread id: %lu sconosciuto"
         jpn "不明なスレッドIDです: %lu"
@@ -2152,6 +2237,7 @@ ER_KILL_DENIED_ERROR
         fre "Vous n'êtes pas propriétaire de la tâche no: %lu"
         ger "Sie sind nicht Eigentümer von Thread %lu"
         greek "Δεν είσθε owner του thread %lu"
+        hindi "आप थ्रेड %lu के OWNER नहीं हैं"
         hun "A %lu thread-nek mas a tulajdonosa"
         ita "Utente non proprietario del thread %lu"
         jpn "スレッド %lu のオーナーではありません。"
@@ -2176,6 +2262,7 @@ ER_NO_TABLES_USED
         fre "Aucune table utilisée"
         ger "Keine Tabellen verwendet"
         greek "Δεν χρησιμοποιήθηκαν πίνακες"
+        hindi "कोई टेबल का इस्तेमाल नहीं हुआ"
         hun "Nincs hasznalt tabla"
         ita "Nessuna tabella usata"
         jpn "表が指定されていません。"
@@ -2224,6 +2311,7 @@ ER_NO_UNIQUE_LOGFILE
         fre "Ne peut générer un unique nom de journal %-.200s.(1-999)\n"
         ger "Kann keinen eindeutigen Dateinamen für die Logdatei %-.200s(1-999) erzeugen\n"
         greek "Αδύνατη η δημιουργία unique log-filename %-.200s.(1-999)\n"
+        hindi "एक अनूठा लॉग-फ़ाइल नाम %-.200s.(1-999) उत्पन्न नहीं कर सके\n"
         hun "Egyedi log-filenev nem generalhato: %-.200s.(1-999)\n"
         ita "Impossibile generare un nome del file log unico %-.200s.(1-999)\n"
         jpn "一意なログファイル名 %-.200s.(1-999) を生成できません。\n"
@@ -2248,6 +2336,7 @@ ER_TABLE_NOT_LOCKED_FOR_WRITE
         fre "Table '%-.192s' verrouillée lecture (READ): modification impossible"
         ger "Tabelle '%-.192s' ist mit Lesesperre versehen und kann nicht aktualisiert werden"
         greek "Ο πίνακας '%-.192s' έχει κλειδωθεί με READ lock και δεν επιτρέπονται αλλαγές"
+        hindi "टेबल '%-.192s' READ लॉक से बंद है और उसे बदल नहीं सकते"
         hun "A(z) '%-.192s' tabla zarolva lett (READ lock) es nem lehet frissiteni"
         ita "La tabella '%-.192s' e` soggetta a lock in lettura e non puo` essere aggiornata"
         jpn "表 '%-.192s' はREADロックされていて、更新できません。"
@@ -2272,6 +2361,7 @@ ER_TABLE_NOT_LOCKED
         fre "Table '%-.192s' non verrouillée: utilisez LOCK TABLES"
         ger "Tabelle '%-.192s' wurde nicht mit LOCK TABLES gesperrt"
         greek "Ο πίνακας '%-.192s' δεν έχει κλειδωθεί με LOCK TABLES"
+        hindi "टेबल '%-.192s' LOCK TABLES से बंद नहीं है"
         hun "A(z) '%-.192s' tabla nincs zarolva a LOCK TABLES-szel"
         ita "Non e` stato impostato il lock per la tabella '%-.192s' con LOCK TABLES"
         jpn "表 '%-.192s' は LOCK TABLES でロックされていません。"
@@ -2296,6 +2386,7 @@ ER_BLOB_CANT_HAVE_DEFAULT 42000
         fre "BLOB '%-.192s' ne peut avoir de valeur par défaut"
         ger "BLOB/TEXT-Feld '%-.192s' darf keinen Vorgabewert (DEFAULT) haben"
         greek "Τα Blob πεδία '%-.192s' δεν μπορούν να έχουν προκαθορισμένες τιμές (default value)"
+        hindi "BLOB/TEXT कॉलम '%-.192s' का डिफ़ॉल्ट मान नहीं हो सकता"
         hun "A(z) '%-.192s' blob objektumnak nem lehet alapertelmezett erteke"
         ita "Il campo BLOB '%-.192s' non puo` avere un valore di default"
         jpn "BLOB/TEXT 列 '%-.192s' にはデフォルト値を指定できません。"
@@ -2320,6 +2411,7 @@ ER_WRONG_DB_NAME 42000
         fre "Nom de base de donnée illégal: '%-.100s'"
         ger "Unerlaubter Datenbankname '%-.100s'"
         greek "Λάθος όνομα βάσης δεδομένων '%-.100s'"
+        hindi "डेटाबेस नाम '%-.100s' गलत है"
         hun "Hibas adatbazisnev: '%-.100s'"
         ita "Nome database errato '%-.100s'"
         jpn "データベース名 '%-.100s' は不正です。"
@@ -2344,6 +2436,7 @@ ER_WRONG_TABLE_NAME 42000
         fre "Nom de table illégal: '%-.100s'"
         ger "Unerlaubter Tabellenname '%-.100s'"
         greek "Λάθος όνομα πίνακα '%-.100s'"
+        hindi "टेबल  नाम '%-.100s' गलत है"
         hun "Hibas tablanev: '%-.100s'"
         ita "Nome tabella errato '%-.100s'"
         jpn "表名 '%-.100s' は不正です。"
@@ -2369,6 +2462,7 @@ ER_TOO_BIG_SELECT 42000
         ger "Die Ausführung des SELECT würde zu viele Datensätze untersuchen und wahrscheinlich sehr lange dauern. Bitte WHERE-Klausel überprüfen und gegebenenfalls SET SQL_BIG_SELECTS=1 oder SET MAX_JOIN_SIZE=# verwenden"
         greek "Το SELECT θα εξετάσει μεγάλο αριθμό εγγραφών και πιθανώς θα καθυστερήσει. Παρακαλώ εξετάστε τις παραμέτρους του WHERE και χρησιμοποιείστε SET SQL_BIG_SELECTS=1 αν το SELECT είναι σωστό"
         hun "A SELECT tul sok rekordot fog megvizsgalni es nagyon sokaig fog tartani. Ellenorizze a WHERE-t es hasznalja a SET SQL_BIG_SELECTS=1 beallitast, ha a SELECT okay"
+        hindi "SELECT कमांड MAX_JOIN_SIZE पंक्तियों से भी ज्यादा की जांच करेगा; कृपया WHERE क्लॉज़ को जाचें अथवा SET SQL_BIG_SELECTS=1 या SET MAX_JOIN_SIZE=# का इस्तेमाल करें"
         ita "La SELECT dovrebbe esaminare troppi record e usare troppo tempo. Controllare la WHERE e usa SET SQL_BIG_SELECTS=1 se e` tutto a posto"
         jpn "SELECTがMAX_JOIN_SIZEを超える行数を処理しました。WHERE句を確認し、SELECT文に問題がなければ、 SET SQL_BIG_SELECTS=1 または SET MAX_JOIN_SIZE=# を使用して下さい。"
         kor "SELECT 명령에서 너무 많은 레코드를 찾기 때문에 많은 시간이 소요됩니다. 따라서 WHERE 문을 점검하거나, 만약 SELECT가 ok되면  SET SQL_BIG_SELECTS=1 옵션을 사용하세요."
@@ -2392,6 +2486,7 @@ ER_UNKNOWN_ERROR
         fre "Erreur inconnue"
         ger "Unbekannter Fehler"
         greek "Προέκυψε άγνωστο λάθος"
+        hindi "अज्ञात त्रुटि हुई"
         hun "Ismeretlen hiba"
         ita "Errore sconosciuto"
         jpn "不明なエラー"
@@ -2415,6 +2510,7 @@ ER_UNKNOWN_PROCEDURE 42000
         fre "Procédure %-.192s inconnue"
         ger "Unbekannte Prozedur '%-.192s'"
         greek "Αγνωστη διαδικασία '%-.192s'"
+        hindi "अज्ञात प्रोसीजर '%-.192s'"
         hun "Ismeretlen eljaras: '%-.192s'"
         ita "Procedura '%-.192s' sconosciuta"
         jpn "'%-.192s' は不明なプロシージャです。"
@@ -2439,6 +2535,7 @@ ER_WRONG_PARAMCOUNT_TO_PROCEDURE 42000
         fre "Mauvais nombre de paramètres pour la procedure %-.192s"
         ger "Falsche Parameterzahl für Prozedur '%-.192s'"
         greek "Λάθος αριθμός παραμέτρων στη διαδικασία '%-.192s'"
+        hindi "प्रोसीजर '%-.192s' के लिए पैरामीटर की संख्या गलत है"
         hun "Rossz parameter a(z) '%-.192s'eljaras szamitasanal"
         ita "Numero di parametri errato per la procedura '%-.192s'"
         jpn "プロシージャ '%-.192s' へのパラメータ数が不正です。"
@@ -2463,6 +2560,7 @@ ER_WRONG_PARAMETERS_TO_PROCEDURE
         fre "Paramètre erroné pour la procedure %-.192s"
         ger "Falsche Parameter für Prozedur '%-.192s'"
         greek "Λάθος παράμετροι στην διαδικασία '%-.192s'"
+        hindi "प्रोसीजर '%-.192s' के लिए पैरामीटर्स गलत हैं"
         hun "Rossz parameter a(z) '%-.192s' eljarasban"
         ita "Parametri errati per la procedura '%-.192s'"
         jpn "プロシージャ '%-.192s' へのパラメータが不正です。"
@@ -2487,6 +2585,7 @@ ER_UNKNOWN_TABLE 42S02
         fre "Table inconnue '%-.192s' dans %-.32s"
         ger "Unbekannte Tabelle '%-.192s' in '%-.32s'"
         greek "Αγνωστος πίνακας '%-.192s' σε %-.32s"
+        hindi "टेबल '%-.192s', %-.32s में नहीं मिला"
         hun "Ismeretlen tabla: '%-.192s' %-.32s-ban"
         ita "Tabella '%-.192s' sconosciuta in %-.32s"
         jpn "'%-.192s' は %-.32s では不明な表です。"
@@ -2511,6 +2610,7 @@ ER_FIELD_SPECIFIED_TWICE 42000
         fre "Champ '%-.192s' spécifié deux fois"
         ger "Feld '%-.192s' wurde zweimal angegeben"
         greek "Το πεδίο '%-.192s' έχει ορισθεί δύο φορές"
+        hindi "कॉलम '%-.192s' दो बार निर्दिष्ट किया गया है"
         hun "A(z) '%-.192s' mezot ketszer definialta"
         ita "Campo '%-.192s' specificato 2 volte"
         jpn "列 '%-.192s' は2回指定されています。"
@@ -2535,6 +2635,7 @@ ER_INVALID_GROUP_FUNC_USE
         fre "Utilisation invalide de la clause GROUP"
         ger "Falsche Verwendung einer Gruppierungsfunktion"
         greek "Εσφαλμένη χρήση της group function"
+        hindi "ग्रुप फंक्शन का अवैध उपयोग"
         hun "A group funkcio ervenytelen hasznalata"
         ita "Uso non valido di una funzione di raggruppamento"
         jpn "集計関数の使用方法が不正です。"
@@ -2556,6 +2657,7 @@ ER_UNSUPPORTED_EXTENSION 42000
         fre "Table '%-.192s' : utilise une extension invalide pour cette version de MariaDB"
         ger "Tabelle '%-.192s' verwendet eine Erweiterung, die in dieser MariaDB-Version nicht verfügbar ist"
         greek "Ο πίνακς '%-.192s' χρησιμοποιεί κάποιο extension που δεν υπάρχει στην έκδοση αυτή της MariaDB"
+        hindi "टेबल '%-.192s' जिस इक्स्टेन्शन का उपयोग कर रहा है, वह इस MariaDB संस्करण में उपलब्ध नहीं है"
         hun "A(z) '%-.192s' tabla olyan bovitest hasznal, amely nem letezik ebben a MariaDB versioban"
         ita "La tabella '%-.192s' usa un'estensione che non esiste in questa versione di MariaDB"
 	jpn "表 '%-.192s' は、このMySQLバージョンには無い機能を使用しています。"
@@ -2580,6 +2682,7 @@ ER_TABLE_MUST_HAVE_COLUMNS 42000
         fre "Une table doit comporter au moins une colonne"
         ger "Eine Tabelle muss mindestens eine Spalte besitzen"
         greek "Ενας πίνακας πρέπει να έχει τουλάχιστον ένα πεδίο"
+        hindi "एक टेबल में कम से कम एक कॉलम होना चाहिए"
         hun "A tablanak legalabb egy oszlopot tartalmazni kell"
         ita "Una tabella deve avere almeno 1 colonna"
         jpn "表には最低でも1個の列が必要です。"
@@ -2601,6 +2704,7 @@ ER_RECORD_FILE_FULL
         fre "La table '%-.192s' est pleine"
         ger "Tabelle '%-.192s' ist voll"
         greek "Ο πίνακας '%-.192s' είναι γεμάτος"
+        hindi "टेबल '%-.192s' पूरा भरा है"
         hun "A '%-.192s' tabla megtelt"
         ita "La tabella '%-.192s' e` piena"
         jpn "表 '%-.192s' は満杯です。"
@@ -2622,6 +2726,7 @@ ER_UNKNOWN_CHARACTER_SET 42000
         fre "Jeu de caractères inconnu: '%-.64s'"
         ger "Unbekannter Zeichensatz: '%-.64s'"
         greek "Αγνωστο character set: '%-.64s'"
+        hindi "अज्ञात CHARACTER SET: '%-.64s'"
         hun "Ervenytelen karakterkeszlet: '%-.64s'"
         ita "Set di caratteri '%-.64s' sconosciuto"
         jpn "不明な文字コードセット: '%-.64s'"
@@ -2643,6 +2748,7 @@ ER_TOO_MANY_TABLES
         fre "Trop de tables. MariaDB ne peut utiliser que %d tables dans un JOIN"
         ger "Zu viele Tabellen. MariaDB kann in einem Join maximal %d Tabellen verwenden"
         greek "Πολύ μεγάλος αριθμός πινάκων. Η MariaDB μπορεί να χρησιμοποιήσει %d πίνακες σε διαδικασία join"
+        hindi "बहुत अधिक टेबल्स, MariaDB एक JOIN में केवल %d टेबल्स का उपयोग कर सकता है"
         hun "Tul sok tabla. A MariaDB csak %d tablat tud kezelni osszefuzeskor"
         ita "Troppe tabelle. MariaDB puo` usare solo %d tabelle in una join"
         jpn "表が多すぎます。MySQLがJOINできる表は %d 個までです。"
@@ -2664,6 +2770,7 @@ ER_TOO_MANY_FIELDS
         fre "Trop de champs"
         ger "Zu viele Felder"
         greek "Πολύ μεγάλος αριθμός πεδίων"
+        hindi "बहुत अधिक कॉलम्स"
         hun "Tul sok mezo"
         ita "Troppi campi"
         jpn "列が多すぎます。"
@@ -2749,6 +2856,7 @@ ER_CANT_FIND_UDF
         fre "Imposible de charger la fonction '%-.192s'"
         ger "Kann Funktion '%-.192s' nicht laden"
         greek "Δεν είναι δυνατή η διαδικασία load για τη συνάρτηση '%-.192s'"
+        hindi "फंक्शन '%-.192s' लोड नहीं किया जा सका"
         hun "A(z) '%-.192s' fuggveny nem toltheto be"
         ita "Impossibile caricare la funzione '%-.192s'"
         jpn "関数 '%-.192s' をロードできません。"
@@ -2770,6 +2878,7 @@ ER_CANT_INITIALIZE_UDF
         fre "Impossible d'initialiser la fonction '%-.192s'; %-.80s"
         ger "Kann Funktion '%-.192s' nicht initialisieren: %-.80s"
         greek "Δεν είναι δυνατή η έναρξη της συνάρτησης '%-.192s'; %-.80s"
+        hindi "फंक्शन '%-.192s' को प्रारंभ नहीं किया जा सका; %-.80s"
         hun "A(z) '%-.192s' fuggveny nem inicializalhato; %-.80s"
         ita "Impossibile inizializzare la funzione '%-.192s'; %-.80s"
         jpn "関数 '%-.192s' を初期化できません。; %-.80s"
@@ -2812,6 +2921,7 @@ ER_UDF_EXISTS
         fre "La fonction '%-.192s' existe déjà"
         ger "Funktion '%-.192s' existiert schon"
         greek "Η συνάρτηση '%-.192s' υπάρχει ήδη"
+        hindi "फंक्शन '%-.192s' पहले से मौजूद है"
         hun "A '%-.192s' fuggveny mar letezik"
         ita "La funzione '%-.192s' esiste gia`"
         jpn "関数 '%-.192s' はすでに定義されています。"
@@ -2878,6 +2988,7 @@ ER_FUNCTION_NOT_DEFINED
         fre "La fonction '%-.192s' n'est pas définie"
         ger "Funktion '%-.192s' ist nicht definiert"
         greek "Η συνάρτηση '%-.192s' δεν έχει ορισθεί"
+        hindi "फंक्शन '%-.192s' की परिभाषा नहीं मिली"
         hun "A '%-.192s' fuggveny nem definialt"
         ita "La funzione '%-.192s' non e` definita"
         jpn "関数 '%-.192s' は定義されていません。"
@@ -2899,6 +3010,7 @@ ER_HOST_IS_BLOCKED
         fre "L'hôte '%-.64s' est bloqué à cause d'un trop grand nombre d'erreur de connexion. Débloquer le par 'mysqladmin flush-hosts'"
         ger "Host '%-.64s' blockiert wegen zu vieler Verbindungsfehler. Aufheben der Blockierung mit 'mysqladmin flush-hosts'"
         greek "Ο υπολογιστής '%-.64s' έχει αποκλεισθεί λόγω πολλαπλών λαθών σύνδεσης. Προσπαθήστε να διορώσετε με 'mysqladmin flush-hosts'"
+        hindi "होस्ट '%-.64s' को कई कनेक्शन में त्रुटियों के कारण ब्लॉक कर दिया गया है; 'mysqladmin flush-hosts' का इस्तेमाल कर अनब्लॉक करें"
         hun "A '%-.64s' host blokkolodott, tul sok kapcsolodasi hiba miatt. Hasznalja a 'mysqladmin flush-hosts' parancsot"
         ita "Sistema '%-.64s' bloccato a causa di troppi errori di connessione. Per sbloccarlo: 'mysqladmin flush-hosts'"
         jpn "接続エラーが多いため、ホスト '%-.64s' は拒否されました。'mysqladmin flush-hosts' で解除できます。"
@@ -2919,6 +3031,7 @@ ER_HOST_NOT_PRIVILEGED
         fre "Le hôte '%-.64s' n'est pas authorisé à se connecter à ce serveur MariaDB"
         ger "Host '%-.64s' hat keine Berechtigung, sich mit diesem MariaDB-Server zu verbinden"
         greek "Ο υπολογιστής '%-.64s' δεν έχει δικαίωμα σύνδεσης με τον MariaDB server"
+        hindi "होस्ट '%-.64s' को इस MariaDB सर्वर से कनेक्ट करने के लिए अनुमति नहीं है"
         hun "A '%-.64s' host szamara nem engedelyezett a kapcsolodas ehhez a MariaDB szerverhez"
         ita "Al sistema '%-.64s' non e` consentita la connessione a questo server MariaDB"
         jpn "ホスト '%-.64s' からのこの MySQL server への接続は許可されていません。"
@@ -2939,6 +3052,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         fre "Vous utilisez un utilisateur anonyme et les utilisateurs anonymes ne sont pas autorisés à changer les mots de passe"
         ger "Sie benutzen MariaDB als anonymer Benutzer und dürfen daher keine Passwörter ändern"
         greek "Χρησιμοποιείτε την MariaDB σαν anonymous user και έτσι δεν μπορείτε να αλλάξετε τα passwords άλλων χρηστών"
+        hindi "आप MariaDB का उपयोग एक बेनाम यूज़र की तरह कर रहे हैं; बेनाम यूज़र्स को 'यूज़र सेटिंग्स' बदलने की अनुमति नहीं है"
         hun "Nevtelen (anonymous) felhasznalokent nem negedelyezett a jelszovaltoztatas"
         ita "Impossibile cambiare la password usando MariaDB come utente anonimo"
         jpn "MySQL を匿名ユーザーで使用しているので、パスワードの変更はできません。"
@@ -2979,6 +3093,7 @@ ER_PASSWORD_NO_MATCH 28000
         fre "Impossible de trouver un enregistrement correspondant dans la table user"
         ger "Kann keinen passenden Datensatz in Tabelle 'user' finden"
         greek "Δεν είναι δυνατή η ανεύρεση της αντίστοιχης εγγραφής στον πίνακα των χρηστών"
+        hindi "यूज़र टेबल में रिकॉर्ड नहीं मिला"
         hun "Nincs megegyezo sor a user tablaban"
         ita "Impossibile trovare la riga corrispondente nella tabella user"
         jpn "ユーザーテーブルに該当するレコードが見つかりません。"
@@ -3057,6 +3172,7 @@ ER_CANT_REOPEN_TABLE
         est "Ei suuda taasavada tabelit '%-.192s'"
         fre "Impossible de réouvrir la table: '%-.192s"
         ger "Kann Tabelle'%-.192s' nicht erneut öffnen"
+        hindi "टेबल '%-.192s' फिर से खोल नहीं सकते"
         hun "Nem lehet ujra-megnyitni a tablat: '%-.192s"
         ita "Impossibile riaprire la tabella: '%-.192s'"
         jpn "表を再オープンできません。: '%-.192s'"
@@ -3080,6 +3196,7 @@ ER_INVALID_USE_OF_NULL 22004
         est "NULL väärtuse väärkasutus"
         fre "Utilisation incorrecte de la valeur NULL"
         ger "Unerlaubte Verwendung eines NULL-Werts"
+        hindi "NULL मान का अवैध उपयोग"
         hun "A NULL ervenytelen hasznalata"
         ita "Uso scorretto del valore NULL"
         jpn "NULL 値の使用方法が不適切です。"
@@ -3099,6 +3216,7 @@ ER_REGEXP_ERROR 42000
         est "regexp tagastas vea '%-.64s'"
         fre "Erreur '%-.64s' provenant de regexp"
         ger "regexp lieferte Fehler '%-.64s'"
+        hindi "regexp में '%-.64s' त्रुटि हुई"
         hun "'%-.64s' hiba a regularis kifejezes hasznalata soran (regexp)"
         ita "Errore '%-.64s' da regexp"
         jpn "regexp がエラー '%-.64s' を返しました。"
@@ -3220,6 +3338,7 @@ ER_GRANT_WRONG_HOST_OR_USER 42000
         est "Masina või kasutaja nimi GRANT lauses on liiga pikk"
         fre "L'hôte ou l'utilisateur donné en argument à GRANT est trop long"
         ger "Das Host- oder User-Argument für GRANT ist zu lang"
+        hindi "GRANT के लिए होस्ट या यूज़र आर्गुमेंट बहुत लंबा है"
         hun "A host vagy felhasznalo argumentuma tul hosszu a GRANT parancsban"
         ita "L'argomento host o utente per la GRANT e` troppo lungo"
         jpn "GRANTコマンドへの、ホスト名やユーザー名が長すぎます。"
@@ -3239,6 +3358,7 @@ ER_NO_SUCH_TABLE 42S02
         est "Tabelit '%-.192s.%-.192s' ei eksisteeri"
         fre "La table '%-.192s.%-.192s' n'existe pas"
         ger "Tabelle '%-.192s.%-.192s' existiert nicht"
+        hindi "टेबल '%-.192s.%-.192s' मौजूद नहीं है"
         hun "A '%-.192s.%-.192s' tabla nem letezik"
         ita "La tabella '%-.192s.%-.192s' non esiste"
         jpn "表 '%-.192s.%-.192s' は存在しません。"
@@ -3281,6 +3401,7 @@ ER_NOT_ALLOWED_COMMAND 42000
         est "Antud käsk ei ole lubatud käesolevas MariaDB versioonis"
         fre "Cette commande n'existe pas dans cette version de MariaDB"
         ger "Der verwendete Befehl ist in dieser MariaDB-Version nicht zulässig"
+        hindi "यह कमांड इस MariaDB संस्करण के साथ इस्तेमाल नहीं किया जा सकता है"
         hun "A hasznalt parancs nem engedelyezett ebben a MariaDB verzioban"
         ita "Il comando utilizzato non e` supportato in questa versione di MariaDB"
         jpn "このMySQLバージョンでは利用できないコマンドです。"
@@ -3301,6 +3422,7 @@ ER_SYNTAX_ERROR 42000
         fre "Erreur de syntaxe"
         ger "Fehler in der SQL-Syntax. Bitte die korrekte Syntax im Handbuch nachschlagen"
         greek "You have an error in your SQL syntax"
+        hindi "आपके SQL सिंटेक्स मैं गलती है; सही सिंटेक्स के लिए अपने MariaDB सर्वर संस्करण के मैन्युअल की सहायता लें"
         hun "Szintaktikai hiba"
         ita "Errore di sintassi nella query SQL"
         jpn "SQL構文エラーです。バージョンに対応するマニュアルを参照して正しい構文を確認してください。"
@@ -3343,6 +3465,7 @@ ER_TOO_MANY_DELAYED_THREADS
         est "Liiga palju DELAYED lõimesid kasutusel"
         fre "Trop de tâche 'delayed' en cours"
         ger "Zu viele verzögerte (DELAYED) Threads in Verwendung"
+        hindi "बहुत से DELAYED थ्रेड्स उपयोग में हैं"
         hun "Tul sok kesletetett thread (delayed)"
         ita "Troppi threads ritardati in uso"
         jpn "'Delayed insert'スレッドが多すぎます。"
@@ -3385,6 +3508,7 @@ ER_NET_PACKET_TOO_LARGE 08S01
         est "Saabus suurem pakett kui lubatud 'max_allowed_packet' muutujaga"
         fre "Paquet plus grand que 'max_allowed_packet' reçu"
         ger "Empfangenes Paket ist größer als 'max_allowed_packet' Bytes"
+        hindi "'max_allowed_packet' से भी बड़ा एक पैकेट मिला"
         hun "A kapott csomag nagyobb, mint a maximalisan engedelyezett: 'max_allowed_packet'"
         ita "Ricevuto un pacchetto piu` grande di 'max_allowed_packet'"
         jpn "'max_allowed_packet'よりも大きなパケットを受信しました。"
@@ -3404,6 +3528,7 @@ ER_NET_READ_ERROR_FROM_PIPE 08S01
         est "Viga ühendustoru lugemisel"
         fre "Erreur de lecture reçue du pipe de connexion"
         ger "Lese-Fehler bei einer Verbindungs-Pipe"
+        hindi "कनेक्शन पाइप से एक READ त्रुटि हुई"
         hun "Olvasasi hiba a kapcsolat soran"
         ita "Rilevato un errore di lettura dalla pipe di connessione"
         jpn "接続パイプの読み込みエラーです。"
@@ -3423,6 +3548,7 @@ ER_NET_FCNTL_ERROR 08S01
         est "fcntl() tagastas vea"
         fre "Erreur reçue de fcntl() "
         ger "fcntl() lieferte einen Fehler"
+        hindi "fcntl() से एक त्रुटि हुई"
         hun "Hiba a fcntl() fuggvenyben"
         ita "Rilevato un errore da fcntl()"
         jpn "fcntl()がエラーを返しました。"
@@ -3442,6 +3568,7 @@ ER_NET_PACKETS_OUT_OF_ORDER 08S01
         est "Paketid saabusid vales järjekorras"
         fre "Paquets reçus dans le désordre"
         ger "Pakete nicht in der richtigen Reihenfolge empfangen"
+        hindi "पैकेट्स क्रम में नहीं प्राप्त हुए"
         hun "Helytelen sorrendben erkezett adatcsomagok"
         ita "Ricevuti pacchetti non in ordine"
         jpn "不正な順序のパケットを受信しました。"
@@ -3461,6 +3588,7 @@ ER_NET_UNCOMPRESS_ERROR 08S01
         est "Viga andmepaketi lahtipakkimisel"
         fre "Impossible de décompresser le paquet reçu"
         ger "Kommunikationspaket lässt sich nicht entpacken"
+        hindi "संचार पैकेट UNCOMPRESS नहीं कर सके"
         hun "A kommunikacios adatcsomagok nem tomorithetok ki"
         ita "Impossibile scompattare i pacchetti di comunicazione"
         jpn "圧縮パケットの展開ができませんでした。"
@@ -3480,6 +3608,7 @@ ER_NET_READ_ERROR 08S01
         est "Viga andmepaketi lugemisel"
         fre "Erreur de lecture des paquets reçus"
         ger "Fehler beim Lesen eines Kommunikationspakets"
+        hindi "संचार पैकेट्स पढ़ते समय एक त्रुटि हुई"
         hun "HIba a kommunikacios adatcsomagok olvasasa soran"
         ita "Rilevato un errore ricevendo i pacchetti di comunicazione"
         jpn "パケットの受信でエラーが発生しました。"
@@ -3499,6 +3628,7 @@ ER_NET_READ_INTERRUPTED 08S01
         est "Kontrollaja ületamine andmepakettide lugemisel"
         fre "Timeout en lecture des paquets reçus"
         ger "Zeitüberschreitung beim Lesen eines Kommunikationspakets"
+        hindi "संचार पैकेट्स पढ़ने के दौरान टाइमआउट"
         hun "Idotullepes a kommunikacios adatcsomagok olvasasa soran"
         ita "Rilevato un timeout ricevendo i pacchetti di comunicazione"
         jpn "パケットの受信でタイムアウトが発生しました。"
@@ -3518,6 +3648,7 @@ ER_NET_ERROR_ON_WRITE 08S01
         est "Viga andmepaketi kirjutamisel"
         fre "Erreur d'écriture des paquets envoyés"
         ger "Fehler beim Schreiben eines Kommunikationspakets"
+        hindi "संचार पैकेट्स लिखते समय एक त्रुटि हुई"
         hun "Hiba a kommunikacios csomagok irasa soran"
         ita "Rilevato un errore inviando i pacchetti di comunicazione"
         jpn "パケットの送信でエラーが発生しました。"
@@ -3537,6 +3668,7 @@ ER_NET_WRITE_INTERRUPTED 08S01
         est "Kontrollaja ületamine andmepakettide kirjutamisel"
         fre "Timeout d'écriture des paquets envoyés"
         ger "Zeitüberschreitung beim Schreiben eines Kommunikationspakets"
+        hindi "संचार पैकेट्स लिखने के दौरान टाइमआउट"
         hun "Idotullepes a kommunikacios csomagok irasa soran"
         ita "Rilevato un timeout inviando i pacchetti di comunicazione"
         jpn "パケットの送信でタイムアウトが発生しました。"
@@ -3556,6 +3688,7 @@ ER_TOO_LONG_STRING 42000
         est "Tulemus on pikem kui lubatud 'max_allowed_packet' muutujaga"
         fre "La chaîne résultat est plus grande que 'max_allowed_packet'"
         ger "Ergebnis-String ist länger als 'max_allowed_packet' Bytes"
+        hindi "रिजल्ट स्ट्रिंग 'max_allowed_packet' से लंबा है"
         hun "Ez eredmeny sztring nagyobb, mint a lehetseges maximum: 'max_allowed_packet'"
         ita "La stringa di risposta e` piu` lunga di 'max_allowed_packet'"
         jpn "結果の文字列が 'max_allowed_packet' よりも大きいです。"
@@ -3574,6 +3707,7 @@ ER_TABLE_CANT_HANDLE_BLOB 42000
         est "Valitud tabelitüüp (%s) ei toeta BLOB/TEXT tüüpi välju"
         fre "Ce type de table (%s) ne supporte pas les colonnes BLOB/TEXT"
         ger "Der verwendete Tabellentyp (%s) unterstützt keine BLOB- und TEXT-Felder"
+        hindi "स्टोरेज इंजन %s BLOB/TEXT कॉलम्स को सपोर्ट नहीं करता"
         hun "A hasznalt tabla tipus (%s) nem tamogatja a BLOB/TEXT mezoket"
         ita "Il tipo di tabella usata (%s) non supporta colonne di tipo BLOB/TEXT"
         por "Tipo de tabela usado (%s) não permite colunas BLOB/TEXT"
@@ -3591,6 +3725,7 @@ ER_TABLE_CANT_HANDLE_AUTO_INCREMENT 42000
         est "Valitud tabelitüüp (%s) ei toeta AUTO_INCREMENT tüüpi välju"
         fre "Ce type de table (%s) ne supporte pas les colonnes AUTO_INCREMENT"
         ger "Der verwendete Tabellentyp (%s) unterstützt keine AUTO_INCREMENT-Felder"
+        hindi "स्टोरेज इंजन %s AUTO_INCREMENT कॉलम्स को सपोर्ट नहीं करता"
         hun "A hasznalt tabla tipus (%s) nem tamogatja az AUTO_INCREMENT tipusu mezoket"
         ita "Il tipo di tabella usata (%s) non supporta colonne di tipo AUTO_INCREMENT"
         por "Tipo de tabela usado (%s) não permite colunas AUTO_INCREMENT"
@@ -3632,6 +3767,7 @@ ER_WRONG_COLUMN_NAME 42000
         est "Vigane tulba nimi '%-.100s'"
         fre "Nom de colonne '%-.100s' incorrect"
         ger "Falscher Spaltenname '%-.100s'"
+        hindi "कॉलम नाम '%-.100s' गलत है"
         hun "Ervenytelen mezonev: '%-.100s'"
         ita "Nome colonna '%-.100s' non corretto"
         jpn "列名 '%-.100s' は不正です。"
@@ -3645,6 +3781,7 @@ ER_WRONG_COLUMN_NAME 42000
 ER_WRONG_KEY_COLUMN 42000 
         eng "The storage engine %s can't index column %`s"
         ger "Die Speicher-Engine %s kann die Spalte %`s nicht indizieren"
+        hindi "स्टोरेज इंजन %s, कॉलम %`s को इंडेक्स नहीं कर सकता"
         rus "Обработчик таблиц %s не может проиндексировать столбец %`s"
         ukr "Вказівник таблиц %s не може індексувати стовбець %`s"
 ER_WRONG_MRG_TABLE  
@@ -3720,6 +3857,7 @@ ER_PRIMARY_CANT_HAVE_NULL 42000
         est "Kõik PRIMARY KEY peavad olema määratletud NOT NULL piiranguga; vajadusel kasuta UNIQUE tüüpi võtit"
         fre "Toutes les parties d'un index PRIMARY KEY doivent être NOT NULL; Si vous avez besoin d'un NULL dans l'index, utilisez un index UNIQUE"
         ger "Alle Teile eines PRIMARY KEY müssen als NOT NULL definiert sein. Wenn NULL in einem Schlüssel benötigt wird, muss ein UNIQUE-Schlüssel verwendet werden"
+        hindi "PRIMARY KEY के सभी भागों को NOT NULL होना चाहिए; यदि आपको एक KEY में NULL की जरूरत है, तो UNIQUE का उपयोग करें"
         hun "Az elsodleges kulcs teljes egeszeben csak NOT NULL tipusu lehet; Ha NULL mezot szeretne a kulcskent, hasznalja inkabb a UNIQUE-ot"
         ita "Tutte le parti di una chiave primaria devono essere dichiarate NOT NULL; se necessitano valori NULL nelle chiavi utilizzare UNIQUE"
         jpn "PRIMARY KEYの列は全てNOT NULLでなければいけません。UNIQUE索引であればNULLを含むことが可能です。"
@@ -3738,6 +3876,7 @@ ER_TOO_MANY_ROWS 42000
         est "Tulemis oli rohkem kui üks kirje"
         fre "Le résultat contient plus d'un enregistrement"
         ger "Ergebnis besteht aus mehr als einer Zeile"
+        hindi "परिणाम एक से अधिक पंक्ति का है"
         hun "Az eredmeny tobb, mint egy sort tartalmaz"
         ita "Il risultato consiste di piu` di una riga"
         jpn "結果が2行以上です。"
@@ -3756,6 +3895,7 @@ ER_REQUIRES_PRIMARY_KEY 42000
         est "Antud tabelitüüp nõuab primaarset võtit"
         fre "Ce type de table nécessite une clé primaire (PRIMARY KEY)"
         ger "Dieser Tabellentyp benötigt einen Primärschlüssel (PRIMARY KEY)"
+        hindi "इस प्रकार के टेबल को एक PRIMARY KEY की आवश्यकता है"
         hun "Az adott tablatipushoz elsodleges kulcs hasznalata kotelezo"
         ita "Questo tipo di tabella richiede una chiave primaria"
         jpn "使用のストレージエンジンでは、PRIMARY KEYが必要です。"
@@ -3774,6 +3914,7 @@ ER_NO_RAID_COMPILED
         est "Antud MariaDB versioon on kompileeritud ilma RAID toeta"
         fre "Cette version de MariaDB n'est pas compilée avec le support RAID"
         ger "Diese MariaDB-Version ist nicht mit RAID-Unterstützung kompiliert"
+        hindi "MariaDB का यह संस्करण RAID सपोर्ट के साथ कॉम्पाईल्ड नहीं है"
         hun "Ezen leforditott MariaDB verzio nem tartalmaz RAID support-ot"
         ita "Questa versione di MYSQL non e` compilata con il supporto RAID"
         jpn "このバージョンのMySQLはRAIDサポートを含めてコンパイルされていません。"
@@ -3809,6 +3950,7 @@ ER_KEY_DOES_NOT_EXITS 42000 S1009
         est "Võti '%-.192s' ei eksisteeri tabelis '%-.192s'"
         fre "L'index '%-.192s' n'existe pas sur la table '%-.192s'"
         ger "Schlüssel '%-.192s' existiert in der Tabelle '%-.192s' nicht"
+        hindi "KEY '%-.192s', टेबल '%-.192s' में मौजूद नहीं है"
         hun "A '%-.192s' kulcs nem letezik a '%-.192s' tablaban"
         ita "La chiave '%-.192s' non esiste nella tabella '%-.192s'"
         jpn "索引 '%-.192s' は表 '%-.192s' には存在しません。"
@@ -3826,6 +3968,7 @@ ER_CHECK_NO_SUCH_TABLE 42000
         est "Ei suuda avada tabelit"
         fre "Impossible d'ouvrir la table"
         ger "Kann Tabelle nicht öffnen"
+        hindi "टेबल नहीं खुल सकता है"
         hun "Nem tudom megnyitni a tablat"
         ita "Impossibile aprire la tabella"
         jpn "表をオープンできません。"
@@ -3844,6 +3987,7 @@ ER_CHECK_NOT_IMPLEMENTED 42000
         fre "Ce type de table ne supporte pas les %s"
         ger "Die Speicher-Engine für diese Tabelle unterstützt kein %s"
         greek "The handler for the table doesn't support %s"
+        hindi "इस टेबल का स्टोरेज इंजन '%s' को सपोर्ट नहीं करता"
         hun "A tabla kezeloje (handler) nem tamogatja az %s"
         ita "Il gestore per la tabella non supporta il %s"
         jpn "この表のストレージエンジンは '%s' を利用できません。"
@@ -3884,6 +4028,7 @@ ER_ERROR_DURING_COMMIT
         est "Viga %M käsu COMMIT täitmisel"
         fre "Erreur %M lors du COMMIT"
         ger "Fehler %M beim COMMIT"
+        hindi "COMMIT के दौरान %M त्रुटि हुई"
         hun "%M hiba a COMMIT vegrehajtasa soran"
         ita "Rilevato l'errore %M durante il COMMIT"
         jpn "COMMIT中にエラー %M が発生しました。"
@@ -3901,6 +4046,7 @@ ER_ERROR_DURING_ROLLBACK
         est "Viga %M käsu ROLLBACK täitmisel"
         fre "Erreur %M lors du ROLLBACK"
         ger "Fehler %M beim ROLLBACK"
+        hindi "ROLLBACK के दौरान %M त्रुटि हुई"
         hun "%M hiba a ROLLBACK vegrehajtasa soran"
         ita "Rilevato l'errore %M durante il ROLLBACK"
         jpn "ROLLBACK中にエラー %M が発生しました。"
@@ -3918,6 +4064,7 @@ ER_ERROR_DURING_FLUSH_LOGS
         est "Viga %M käsu FLUSH_LOGS täitmisel"
         fre "Erreur %M lors du FLUSH_LOGS"
         ger "Fehler %M bei FLUSH_LOGS"
+        hindi "FLUSH_LOGS के दौरान %M त्रुटि हुई"
         hun "%M hiba a FLUSH_LOGS vegrehajtasa soran"
         ita "Rilevato l'errore %M durante il FLUSH_LOGS"
         jpn "FLUSH_LOGS中にエラー %M が発生しました。"
@@ -3935,6 +4082,7 @@ ER_ERROR_DURING_CHECKPOINT
         est "Viga %M käsu CHECKPOINT täitmisel"
         fre "Erreur %M lors du CHECKPOINT"
         ger "Fehler %M bei CHECKPOINT"
+        hindi "CHECKPOINT के दौरान %M त्रुटि हुई"
         hun "%M hiba a CHECKPOINT vegrehajtasa soran"
         ita "Rilevato l'errore %M durante il CHECKPOINT"
         jpn "CHECKPOINT中にエラー %M が発生しました。"
@@ -4071,6 +4219,7 @@ ER_UNKNOWN_SYSTEM_VARIABLE
         est "Tundmatu süsteemne muutuja '%-.*s'"
         fre "Variable système '%-.*s' inconnue"
         ger "Unbekannte Systemvariable '%-.*s'"
+        hindi "अज्ञात सिस्टम वैरिएबल '%-.*s'"
         ita "Variabile di sistema '%-.*s' sconosciuta"
         jpn "'%-.*s' は不明なシステム変数です。"
         por "Variável de sistema '%-.*s' desconhecida"
@@ -4209,6 +4358,7 @@ ER_TOO_MANY_USER_CONNECTIONS 42000
         est "Kasutajal %-.64s on juba rohkem ühendusi kui lubatud 'max_user_connections' muutujaga"
         fre "L'utilisateur %-.64s possède déjà plus de 'max_user_connections' connexions actives"
         ger "Benutzer '%-.64s' hat mehr als 'max_user_connections' aktive Verbindungen"
+        hindi "यूज़र %-.64s के पहले से ही 'max_user_connections' से अधिक सक्रिय कनेक्शन्स हैं"
         ita "L'utente %-.64s ha gia' piu' di 'max_user_connections' connessioni attive"
         jpn "ユーザー '%-.64s' はすでに 'max_user_connections' 以上のアクティブな接続を行っています。"
         por "Usuário '%-.64s' já possui mais que o valor máximo de conexões (max_user_connections) ativas"
@@ -4224,6 +4374,7 @@ ER_SET_CONSTANTS_ONLY
         est "Ainult konstantsed suurused on lubatud SET klauslis"
         fre "Seules les expressions constantes sont autorisées avec SET"
         ger "Bei diesem Befehl dürfen nur konstante Ausdrücke verwendet werden"
+        hindi "इस स्टेटमेंट में आप केवल CONSTANT EXPRESSIONS का उपयोग कर सकते हैं"
         ita "Si possono usare solo espressioni costanti con SET"
         jpn "SET処理が失敗しました。"
         por "Você pode usar apenas expressões constantes com SET"
@@ -4254,6 +4405,7 @@ ER_LOCK_TABLE_FULL
         est "Lukkude koguarv ületab lukutabeli suuruse"
         fre "Le nombre total de verrou dépasse la taille de la table des verrous"
         ger "Die Gesamtzahl der Sperren überschreitet die Größe der Sperrtabelle"
+        hindi "लॉक्स की कुल संख्या लॉक टेबल के साइज से अधिक है"
         ita "Il numero totale di lock e' maggiore della grandezza della tabella di lock"
         jpn "ロックの数が多すぎます。"
         por "O número total de travamentos excede o tamanho da tabela de travamentos"
@@ -4313,6 +4465,7 @@ ER_WRONG_ARGUMENTS
         est "Vigased parameetrid %s-le"
         fre "Mauvais arguments à %s"
         ger "Falsche Argumente für %s"
+        hindi "%s को गलत आर्ग्यूमेंट्स"
         ita "Argomenti errati a %s"
         jpn "%s の引数が不正です"
         por "Argumentos errados para %s"
@@ -4327,6 +4480,7 @@ ER_NO_PERMISSION_TO_CREATE_USER 42000
         est "Kasutajal '%s'@'%s' ei ole lubatud luua uusi kasutajaid"
         fre "'%s'@'%s' n'est pas autorisé à créer de nouveaux utilisateurs"
         ger "'%s'@'%s' ist nicht berechtigt, neue Benutzer hinzuzufügen"
+        hindi "'%s'@'%s' को नए यूज़र्स बनाने की अनुमति नहीं है"
         ita "A '%s'@'%s' non e' permesso creare nuovi utenti"
         por "Não é permitido a '%s'@'%s' criar novos usuários"
         rus "'%s'@'%s' не разрешается создавать новых пользователей"
@@ -4366,6 +4520,7 @@ ER_TABLE_CANT_HANDLE_FT
         est "Antud tabelitüüp (%s) ei toeta FULLTEXT indekseid"
         fre "Le type de table utilisé (%s) ne supporte pas les index FULLTEXT"
         ger "Der verwendete Tabellentyp (%s) unterstützt keine FULLTEXT-Indizes"
+        hindi "स्टोरेज इंजन '%s' FULLTEXT इन्डेक्सेस को सपोर्ट नहीं करता"
         ita "La tabella usata (%s) non supporta gli indici FULLTEXT"
         por "O tipo de tabela utilizado (%s) não suporta índices de texto completo (fulltext indexes)"
         rus "Используемый тип таблиц (%s) не поддерживает полнотекстовых индексов"
@@ -4840,6 +4995,7 @@ WARN_DATA_TRUNCATED 01000
 ER_WARN_USING_OTHER_HANDLER  
         eng "Using storage engine %s for table '%s'"
         ger "Speicher-Engine %s wird für Tabelle '%s' benutzt"
+        hindi "स्टोरेज इंजन %s का इस्तेमाल टेबल '%s' के लिए  किया जा रहा है"
         jpn "ストレージエンジン %s が表 '%s' に利用されています。"
         por "Usando engine de armazenamento %s para tabela '%s'"
         spa "Usando motor de almacenamiento %s para tabla '%s'"
@@ -4967,6 +5123,7 @@ ER_WARN_HOSTNAME_WONT_WORK
 ER_UNKNOWN_STORAGE_ENGINE 42000 
         eng "Unknown storage engine '%s'"
         ger "Unbekannte Speicher-Engine '%s'"
+        hindi "अज्ञात स्टोरेज इंजन '%s'"
         jpn "'%s' は不明なストレージエンジンです。"
         por "Motor de tabela desconhecido '%s'"
         spa "Desconocido motor de tabla '%s'"
@@ -5061,15 +5218,19 @@ ER_SP_NO_RECURSIVE_CREATE 2F003
 ER_SP_ALREADY_EXISTS 42000 
         eng "%s %s already exists"
         ger "%s %s existiert bereits"
+        hindi "%s %s पहले से ही मौजूद है"
 ER_SP_DOES_NOT_EXIST 42000 
         eng "%s %s does not exist"
         ger "%s %s existiert nicht"
+        hindi "%s %s मौजूद नहीं है"
 ER_SP_DROP_FAILED  
         eng "Failed to DROP %s %s"
         ger "DROP %s %s ist fehlgeschlagen"
+        hindi "%s %s को ड्रॉप करने में असफल रहे"
 ER_SP_STORE_FAILED  
         eng "Failed to CREATE %s %s"
         ger "CREATE %s %s ist fehlgeschlagen"
+        hindi "%s %s को बनाने में असफल रहे"
 ER_SP_LILABEL_MISMATCH 42000 
         eng "%s with no matching label: %s"
         ger "%s ohne passende Marke: %s"
@@ -5088,9 +5249,11 @@ ER_SP_BADSELECT 0A000
 ER_SP_BADRETURN 42000 
         eng "RETURN is only allowed in a FUNCTION"
         ger "RETURN ist nur innerhalb einer FUNCTION erlaubt"
+        hindi "RETURN को केवल FUNCTION में इस्तेमाल किया जा सकता है"
 ER_SP_BADSTATEMENT 0A000 
         eng "%s is not allowed in stored procedures"
         ger "%s ist in gespeicherten Prozeduren nicht erlaubt"
+        hindi "%s को STORED PROCEDURE में इस्तेमाल नहीं किया जा सकता है"
 ER_UPDATE_LOG_DEPRECATED_IGNORED 42000 
         eng "The update log is deprecated and replaced by the binary log; SET SQL_LOG_UPDATE has been ignored. This option will be removed in MariaDB 5.6"
         ger "Das Update-Log ist veraltet und wurde durch das Binär-Log ersetzt. SET SQL_LOG_UPDATE wird ignoriert. Diese Option wird in MariaDB 5.6 entfernt"
@@ -5109,9 +5272,11 @@ ER_SP_COND_MISMATCH 42000
 ER_SP_NORETURN 42000 
         eng "No RETURN found in FUNCTION %s"
         ger "Kein RETURN in FUNCTION %s gefunden"
+        hindi "FUNCTION %s में कोई RETURN है"
 ER_SP_NORETURNEND 2F005 
         eng "FUNCTION %s ended without RETURN"
         ger "FUNCTION %s endete ohne RETURN"
+        hindi "FUNCTION %s RETURN के बिना समाप्त हो गया"
 ER_SP_BAD_CURSOR_QUERY 42000 
         eng "Cursor statement must be a SELECT"
         ger "Cursor-Anweisung muss ein SELECT sein"
@@ -5121,9 +5286,11 @@ ER_SP_BAD_CURSOR_SELECT 42000
 ER_SP_CURSOR_MISMATCH 42000 
         eng "Undefined CURSOR: %s"
         ger "Undefinierter CURSOR: %s"
+        hindi "CURSOR %s अपरिभाषित है"
 ER_SP_CURSOR_ALREADY_OPEN 24000 
         eng "Cursor is already open"
         ger "Cursor ist schon geöffnet"
+        hindi "CURSOR पहले से ही खुला है"
 ER_SP_CURSOR_NOT_OPEN 24000 
         eng "Cursor is not open"
         ger "Cursor ist nicht geöffnet"
@@ -5151,6 +5318,7 @@ ER_SP_DUP_CURS 42000
 ER_SP_CANT_ALTER  
         eng "Failed to ALTER %s %s"
         ger "ALTER %s %s fehlgeschlagen"
+        hindi "%s %s को ALTER करने में असफल रहे"
 ER_SP_SUBSELECT_NYI 0A000 
         eng "Subquery value not supported"
         ger "Subquery-Wert wird nicht unterstützt"
@@ -5259,9 +5427,11 @@ ER_SP_GOTO_IN_HNDLR
 ER_TRG_ALREADY_EXISTS  
         eng "Trigger '%s' already exists"
         ger "Trigger '%s' existiert bereits"
+        hindi "TRIGGER '%s' पहले से मौजूद है"
 ER_TRG_DOES_NOT_EXIST  
         eng "Trigger does not exist"
         ger "Trigger existiert nicht"
+        hindi "TRIGGER मौजूद नहीं है"
 ER_TRG_ON_VIEW_OR_TEMP_TABLE  
         eng "Trigger's '%-.192s' is view or temporary table"
         ger "'%-.192s' des Triggers ist View oder temporäre Tabelle"
@@ -5277,6 +5447,7 @@ ER_NO_DEFAULT_FOR_FIELD
 ER_DIVISION_BY_ZERO 22012 
         eng "Division by 0"
         ger "Division durch 0"
+        hindi "0 से विभाजन"
 ER_TRUNCATED_WRONG_VALUE_FOR_FIELD  22007
         eng "Incorrect %-.32s value: '%-.128s' for column '%.192s' at row %lu"
         ger "Falscher %-.32s-Wert: '%-.128s' für Feld '%.192s' in Zeile %lu"
@@ -5314,6 +5485,7 @@ ER_BINLOG_PURGE_PROHIBITED
 ER_FSEEK_FAIL  
         eng "Failed on fseek()"
         ger "fseek() fehlgeschlagen"
+        hindi "fseek() विफल रहा"
 ER_BINLOG_PURGE_FATAL_ERR  
         eng "Fatal error during log purge"
         ger "Schwerwiegender Fehler bei der Log-Bereinigung"
@@ -5597,12 +5769,15 @@ ER_REMOVED_SPACES
 ER_AUTOINC_READ_FAILED
         eng "Failed to read auto-increment value from storage engine"
         ger "Lesen des Autoincrement-Werts von der Speicher-Engine fehlgeschlagen"
+        hindi "स्टोरेज इंजन से auto-increment का मान पढ़ने में असफल रहे"
 ER_USERNAME
         eng "user name"
         ger "Benutzername"
+        hindi "यूज़र का नाम"
 ER_HOSTNAME
         eng "host name"
         ger "Hostname"
+        hindi "होस्ट का नाम"
 ER_WRONG_STRING_LENGTH
         eng "String '%-.70s' is too long for %s (should be no longer than %d)"
         ger "String '%-.70s' ist zu lang für %s (sollte nicht länger sein als %d)"
@@ -5823,9 +5998,11 @@ ER_FILEGROUP_OPTION_ONLY_ONCE
 ER_CREATE_FILEGROUP_FAILED
         eng "Failed to create %s"
         ger "Anlegen von %s fehlgeschlagen"
+        hindi "%s को बनाने में असफल रहे"
 ER_DROP_FILEGROUP_FAILED
         eng "Failed to drop %s"
         ger "Löschen von %s fehlgeschlagen"
+        hindi "%s को हटाने में असफल रहे"
 ER_TABLESPACE_AUTO_EXTEND_ERROR
         eng "The handler doesn't support autoextend of tablespaces"
         ger "Der Handler unterstützt keine automatische Erweiterung (Autoextend) von Tablespaces"
@@ -5838,6 +6015,7 @@ ER_SIZE_OVERFLOW_ERROR
 ER_ALTER_FILEGROUP_FAILED
         eng "Failed to alter: %s"
         ger "Änderung von %s fehlgeschlagen"
+        hindi "%s को ALTER करने में असफल रहे"
 ER_BINLOG_ROW_LOGGING_FAILED
         eng "Writing one row to the row-based binary log failed"
         ger "Schreiben einer Zeilen ins zeilenbasierte Binärlog fehlgeschlagen"
@@ -5859,9 +6037,11 @@ ER_EVENT_DOES_NOT_EXIST
 ER_EVENT_CANT_ALTER
         eng "Failed to alter event '%-.192s'"
         ger "Ändern des Events '%-.192s' fehlgeschlagen"
+        hindi "'%-.192s' EVENT को ALTER करने में असफल रहे"
 ER_EVENT_DROP_FAILED
         eng "Failed to drop %s"
         ger "Löschen von %s fehlgeschlagen"
+        hindi "%s को हटाने में असफल रहे"
 ER_EVENT_INTERVAL_NOT_POSITIVE_OR_TOO_BIG
         eng "INTERVAL is either not positive or too big"
         ger "INTERVAL ist entweder nicht positiv oder zu groß"
@@ -5874,6 +6054,7 @@ ER_EVENT_EXEC_TIME_IN_THE_PAST
 ER_EVENT_OPEN_TABLE_FAILED
         eng "Failed to open mysql.event"
         ger "Öffnen von mysql.event fehlgeschlagen"
+        hindi "mysql.event को खोलने में असफल रहे"
 ER_EVENT_NEITHER_M_EXPR_NOR_M_AT
         eng "No datetime expression provided"
         ger "Kein DATETIME-Ausdruck angegeben"
@@ -5885,6 +6066,7 @@ ER_UNUSED_3
 ER_EVENT_CANNOT_DELETE
         eng "Failed to delete the event from mysql.event"
         ger "Löschen des Events aus mysql.event fehlgeschlagen"
+        hindi "EVENT को mysql.event से हटाने मैं असफल रहे"
 ER_EVENT_COMPILE_ERROR
         eng "Error during compilation of event's body"
         ger "Fehler beim Kompilieren des Event-Bodys"
@@ -5924,6 +6106,7 @@ ER_UNUSED_13
 ER_PARTITION_NO_TEMPORARY
         eng "Cannot create temporary table with partitions"
         ger "Anlegen temporärer Tabellen mit Partitionen nicht möglich"
+        hindi "अस्थाई टेबल को पार्टिशन्स के साथ नहीं बनाया जा सकता"
 ER_PARTITION_CONST_DOMAIN_ERROR
         eng "Partition constant is out of partition function domain"
         ger "Partitionskonstante liegt außerhalb der Partitionsfunktionsdomäne"
@@ -5935,6 +6118,7 @@ ER_PARTITION_FUNCTION_IS_NOT_ALLOWED
 ER_DDL_LOG_ERROR
         eng "Error in DDL log"
         ger "Fehler im DDL-Log"
+        hindi "DDL लॉग में त्रुटि हुई"
 ER_NULL_IN_VALUES_LESS_THAN
         eng "Not allowed to use NULL value in VALUES LESS THAN"
         ger "In VALUES LESS THAN dürfen keine NULL-Werte verwendet werden"
@@ -5942,6 +6126,7 @@ ER_NULL_IN_VALUES_LESS_THAN
 ER_WRONG_PARTITION_NAME
         eng "Incorrect partition name"
         ger "Falscher Partitionsname"
+        hindi "पार्टीशन का नाम गलत है"
         swe "Felaktigt partitionsnamn"
 ER_CANT_CHANGE_TX_CHARACTERISTICS 25001
         eng "Transaction characteristics can't be changed while a transaction is in progress"
@@ -5980,6 +6165,7 @@ ER_ONLY_INTEGERS_ALLOWED
 ER_UNSUPORTED_LOG_ENGINE
         eng "Storage engine %s cannot be used for log tables"
         ger "Speicher-Engine %s kann für Logtabellen nicht verwendet werden"
+        hindi "स्टोरेज इंजन %s को लॉग टेबल्स के लिए इस्तेमाल नहीं किया जा सकता है"
 ER_BAD_LOG_STATEMENT
         eng "You cannot '%s' a log table if logging is enabled"
         ger "Sie können eine Logtabelle nicht '%s', wenn Loggen angeschaltet ist"
@@ -6055,6 +6241,7 @@ ER_SLAVE_RELAY_LOG_WRITE_FAILURE
 ER_SLAVE_CREATE_EVENT_FAILURE
   eng "Failed to create %s"
   ger "Erzeugen von %s fehlgeschlagen"
+  hindi "%s को बनाने मैं असफल रहे"
 ER_SLAVE_MASTER_COM_FAILURE
   eng "Master command %s failed: %s"
   ger "Master-Befehl %s fehlgeschlagen: %s"
@@ -6162,22 +6349,27 @@ ER_DATABASE_NAME
   eng "Database"
   swe "Databas"
   ger "Datenbank"
+  hindi "डेटाबेस"
 ER_TABLE_NAME
   eng "Table"
   swe "Tabell"
   ger "Tabelle"
+  hindi "टेबल"
 ER_PARTITION_NAME
   eng "Partition"
   swe "Partition"
   ger "Partition"
+  hindi "पार्टीशन"
 ER_SUBPARTITION_NAME
   eng "Subpartition"
   swe "Subpartition"
   ger "Unterpartition"
+  hindi "सब-पार्टीशन"
 ER_TEMPORARY_NAME
   eng "Temporary"
   swe "Temporär"
   ger "Temporär"
+  hindi "अस्थायी"
 ER_RENAMED_NAME
   eng "Renamed"
   swe "Namnändrad"
@@ -6299,6 +6491,7 @@ ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT
   eng "Cannot modify @@session.binlog_format inside a transaction"
 ER_PATH_LENGTH
   eng "The path specified for %.64s is too long"
+  hindi "%.64s के लिए निर्दिष्ट पथ बहुत लंबा है"
 ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT  
   eng "'%s' is deprecated and will be removed in a future release"
   ger "'%s' ist veraltet und wird in einer zukünftigen Version entfernt werden"
@@ -6308,6 +6501,7 @@ ER_WRONG_NATIVE_TABLE_STRUCTURE
 
 ER_WRONG_PERFSCHEMA_USAGE
         eng "Invalid performance_schema usage"
+        hindi "performance_schema का अवैध उपयोग"
 ER_WARN_I_S_SKIPPED_TABLE
   eng "Table '%s'.'%s' was skipped since its definition is being modified by concurrent DDL statement"
 
@@ -6344,6 +6538,7 @@ ER_STORED_FUNCTION_PREVENTS_SWITCH_SQL_LOG_BIN
 
 ER_FAILED_READ_FROM_PAR_FILE
   eng "Failed to read from the .par file"
+  hindi ".par फ़ाइल से पढ़ने में असफल रहे"
   swe "Misslyckades läsa från .par filen"
 
 ER_VALUES_IS_NOT_INT_TYPE_ERROR
@@ -6359,6 +6554,7 @@ ER_ACCESS_DENIED_NO_PASSWORD_ERROR 28000
         fre "Accès refusé pour l'utilisateur: '%s'@'%s'"
         ger "Benutzer '%s'@'%s' hat keine Zugriffsberechtigung"
         greek "Δεν επιτέρεται η πρόσβαση στο χρήστη: '%s'@'%s'"
+        hindi "यूज़र '%s'@'%s' को अनुमति नहीं है"
         hun "A(z) '%s'@'%s' felhasznalo szamara tiltott eleres"
         ita "Accesso non consentito per l'utente: '%s'@'%s'"
         kor "'%s'@'%s' 사용자는 접근이 거부 되었습니다."
@@ -6935,6 +7131,7 @@ ER_ACCESS_DENIED_CHANGE_USER_ERROR 28000
 
 ER_INNODB_READ_ONLY
   eng "InnoDB is in read only mode"
+  hindi "InnoDB केवल READ-ONLY मोड में है"
 
 ER_STOP_SLAVE_SQL_THREAD_TIMEOUT
   eng "STOP SLAVE command execution is incomplete: Slave SQL thread got the stop signal, thread is busy, SQL thread will stop once the current task is complete"
@@ -6987,10 +7184,13 @@ ER_UNUSED_21
   eng ""
 ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS
   eng "%s storage engine does not support generated columns"
+  hindi "स्टोरेज इंजन %s COMPUTED कॉलम्स को सपोर्ट नहीं करता"
 ER_UNKNOWN_OPTION
   eng "Unknown option '%-.64s'"
+  hindi "अज्ञात विकल्प '%-.64s'"
 ER_BAD_OPTION_VALUE
   eng "Incorrect value '%-.64s' for option '%-.64s'"
+  hindi "गलत मान '%-.64s' विकल्प '%-.64s' के लिए"
 ER_UNUSED_6
   eng "You should never see it"
 ER_UNUSED_7
@@ -7013,14 +7213,17 @@ ER_DYN_COL_WRONG_CHARSET
         eng "Dynamic column contains unknown character set"
 ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES
         eng "At least one of the 'in_to_exists' or 'materialization' optimizer_switch flags must be 'on'"
+        hindi "कम से कम 'in_to_exists' या 'materialization' optimizer_switch फ्लैग 'ON' होना चाहिए"
 ER_QUERY_CACHE_IS_DISABLED
         eng "Query cache is disabled (resize or similar command in progress); repeat this command later"
 ER_QUERY_CACHE_IS_GLOBALY_DISABLED
         eng "Query cache is globally disabled and you can't enable it only for this session"
+        hindi "क्वेरी कैश ग्लोबल स्तर पर DISABLED है और आप इसे केवल सत्र के लिए ENABLE नहीं कर सकते"
 ER_VIEW_ORDERBY_IGNORED
         eng "View '%-.192s'.'%-.192s' ORDER BY clause ignored because there is other ORDER BY clause already"
 ER_CONNECTION_KILLED 70100 
         eng "Connection was killed"
+        hindi "कनेक्शन को समाप्त कर दिया गया है"
 ER_UNUSED_12
         eng "You should never see it"
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION
@@ -7031,6 +7234,7 @@ ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
         eng "Query execution was interrupted. The query examined at least %llu rows, which exceeds LIMIT ROWS EXAMINED (%llu). The query result may be incomplete"
 ER_NO_SUCH_TABLE_IN_ENGINE 42S02 
         eng "Table '%-.192s.%-.192s' doesn't exist in engine"
+        hindi "टेबल '%-.192s.%-.192s' इंजन में मौजूद नहीं है"
         swe "Det finns ingen tabell som heter '%-.192s.%-.192s' i handlern"
 ER_TARGET_NOT_EXPLAINABLE
         eng "Target is not running an EXPLAINable command"
@@ -7084,20 +7288,25 @@ ER_BINLOG_MUST_BE_EMPTY
 ER_NO_SUCH_QUERY
         eng "Unknown query id: %lld"
         ger "Unbekannte Abfrage-ID: %lld"
+        hindi "अज्ञात क्वेरी ID: %lld"
         rus "Неизвестный номер запроса: %lld"
 ER_BAD_BASE64_DATA
 	eng "Bad base64 data as position %u"
 ER_INVALID_ROLE OP000
        eng "Invalid role specification %`s"
+       hindi "अमान्य रोल विनिर्देश %`s"
        rum "Rolul %`s este invalid"
 ER_INVALID_CURRENT_USER 0L000
 	eng "The current user is invalid"
+        hindi "वर्तमान यूज़र अमान्य है"
 	rum "Utilizatorul curent este invalid"
 ER_CANNOT_GRANT_ROLE
 	eng "Cannot grant role '%s' to: %s"
+        hindi "रोल '%s', %s को प्रदान नहीं कर सकते"
 	rum "Rolul '%s' nu poate fi acordat catre: %s"
 ER_CANNOT_REVOKE_ROLE
 	eng "Cannot revoke role '%s' from: %s"
+        hindi "रोल '%s', %s से हटाया नहीं जा सका"
 	rum "Rolul '%s' nu poate fi revocat de la: %s"
 ER_CHANGE_SLAVE_PARALLEL_THREADS_ACTIVE
 	eng "Cannot change @@slave_parallel_threads while another change is in progress"
@@ -7105,12 +7314,15 @@ ER_PRIOR_COMMIT_FAILED
 	eng "Commit failed due to failure of an earlier commit on which this one depends"
 ER_IT_IS_A_VIEW 42S02
         eng "'%-.192s' is a view"
+        hindi "'%-.192s' एक VIEW है"
 ER_SLAVE_SKIP_NOT_IN_GTID
 	eng "When using parallel replication and GTID with multiple replication domains, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position"
 ER_TABLE_DEFINITION_TOO_BIG
         eng "The definition for table %`s is too big"
+        hindi "टेबल %`s की परिभाषा बहुत बड़ी है"
 ER_PLUGIN_INSTALLED
         eng "Plugin '%-.192s' already installed"
+        hindi "प्लग-इन '%-.192s' पहले से ही इन्स्टॉल्ड है"
         rus "Плагин '%-.192s' уже установлен"
 ER_STATEMENT_TIMEOUT 70100
         eng "Query execution was interrupted (max_statement_time exceeded)"
@@ -7122,22 +7334,29 @@ ER_UNUSED_17
         eng "You should never see it"
 ER_USER_CREATE_EXISTS
         eng "Can't create user '%-.64s'@'%-.64s'; it already exists"
+        hindi "यूज़र '%-.64s'@'%-.64s' को नहीं बना सकते; यह पहले से ही मौजूद है"
 ER_USER_DROP_EXISTS
         eng "Can't drop user '%-.64s'@'%-.64s'; it doesn't exist"
+        hindi "यूज़र '%-.64s'@'%-.64s' को ड्रॉप नहीं कर सकते; यह मौजूद नहीं है"
 ER_ROLE_CREATE_EXISTS
         eng "Can't create role '%-.64s'; it already exists"
+        hindi "रोल '%-.64s' को नहीं बना सकते; यह पहले से ही मौजूद है"
 ER_ROLE_DROP_EXISTS
         eng "Can't drop role '%-.64s'; it doesn't exist"
+        hindi "रोल '%-.64s' को ड्रॉप नहीं कर सकते; यह मौजूद नहीं है"
 ER_CANNOT_CONVERT_CHARACTER
         eng "Cannot convert '%s' character 0x%-.64s to '%s'"
 ER_INVALID_DEFAULT_VALUE_FOR_FIELD  22007
         eng "Incorrect default value '%-.128s' for column '%.192s'"
+        hindi "गलत डिफ़ॉल्ट मान '%-.128s' कॉलम '%.192s' के लिए"
 ER_KILL_QUERY_DENIED_ERROR
         eng "You are not owner of query %lu"
         ger "Sie sind nicht Eigentümer von Abfrage %lu"
+        hindi "आप क्वेरी %lu के OWNER नहीं हैं"
         rus "Вы не являетесь владельцем запроса %lu"
 ER_NO_EIS_FOR_FIELD
         eng "Engine-independent statistics are not collected for column '%s'"
+        hindi "Engine-independent सांख्यिकी कॉलम '%s' के लिए एकत्रित नहीं किया जा रहा है"
         ukr "Незалежна від типу таблиці статистика не збирається для стовбця '%s'"
 ER_WARN_AGGFUNC_DEPENDENCE
         eng "Aggregate function '%-.192s)' of SELECT #%d belongs to SELECT #%d"
@@ -7455,6 +7674,72 @@ ER_SLAVE_SAME_ID
         eng "A slave with the same server_uuid/server_id as this slave has connected to the master"
 ER_FLASHBACK_NOT_SUPPORTED
         eng "Flashback does not support %s %s"
+
+# MARIAROCKS-TODO: Should we add RocksDB error messages here or use some other
+# solution?
+ER_KEYS_OUT_OF_ORDER
+  eng "Keys are out order during bulk load"
+
+ER_OVERLAPPING_KEYS
+  eng "Bulk load rows overlap existing rows"
+
+ER_REQUIRE_ROW_BINLOG_FORMAT
+  eng "Can't execute updates on master with binlog_format != ROW."
+
+ER_ISOLATION_MODE_NOT_SUPPORTED
+  eng "MyRocks supports only READ COMMITTED and REPEATABLE READ isolation levels. Please change from current isolation level %s"
+
+ER_ON_DUPLICATE_DISABLED
+  eng "When unique checking is disabled in MyRocks, INSERT,UPDATE,LOAD statements with clauses that update or replace the key (i.e. INSERT ON DUPLICATE KEY UPDATE, REPLACE) are not allowed. Query: %s"
+
+ER_UPDATES_WITH_CONSISTENT_SNAPSHOT
+  eng "Can't execute updates when you started a transaction with START TRANSACTION WITH CONSISTENT [ROCKSDB] SNAPSHOT."
+
+ER_ROLLBACK_ONLY
+  eng "This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction."
+
+ER_ROLLBACK_TO_SAVEPOINT
+  eng "MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows."
+
+ER_ISOLATION_LEVEL_WITH_CONSISTENT_SNAPSHOT
+  eng "Only REPEATABLE READ isolation level is supported for START TRANSACTION WITH CONSISTENT SNAPSHOT in RocksDB Storage Engine."
+
+ER_UNSUPPORTED_COLLATION
+  eng "Unsupported collation on string indexed column %s.%s Use binary collation (%s)."
+
+ER_METADATA_INCONSISTENCY
+  eng "Table '%s' does not exist, but metadata information exists inside MyRocks. This is a sign of data inconsistency. Please check if '%s.frm' exists, and try to restore it if it does not exist."
+
+ER_KEY_CREATE_DURING_ALTER
+  eng "MyRocks failed creating new key definitions during alter."
+
+ER_SK_POPULATE_DURING_ALTER
+  eng "MyRocks failed populating secondary key during alter."
+
+ER_CF_DIFFERENT
+  eng "Column family ('%s') flag (%d) is different from an existing flag (%d). Assign a new CF flag, or do not change existing CF flag."
+
+ER_RDB_STATUS_GENERAL
+  eng "Status error %d received from RocksDB: %s"
+
+ER_RDB_STATUS_MSG
+  eng "%s, Status error %d received from RocksDB: %s"
+
+ER_NET_OK_PACKET_TOO_LARGE
+  eng "OK packet too large"
+
+ER_RDB_TTL_UNSUPPORTED
+  eng "TTL support is currently disabled when table has secondary indexes or hidden PK."
+
+ER_RDB_TTL_COL_FORMAT
+  eng "TTL column (%s) in MyRocks must be an unsigned non-null 64-bit integer, exist inside the table, and have an accompanying ttl duration."
+
+ER_RDB_TTL_DURATION_FORMAT
+  eng "TTL duration (%s) in MyRocks must be an unsigned non-null 64-bit integer."
+
+ER_PER_INDEX_CF_DEPRECATED
+  eng "The per-index column family option has been deprecated"
+
 ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
         eng "Illegal parameter data types %s and %s for operation '%s'"
 ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION

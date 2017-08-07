@@ -25,7 +25,7 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 22	gl_ES	Galician - Galician	8	8	,		english
 23	gu_IN	Gujarati - India	10	8	.	,	english
 24	he_IL	Hebrew - Israel	7	5	.	,	english
-25	hi_IN	Hindi - India	7	9	.	,	english
+25	hi_IN	Hindi - India	7	9	.	,	hindi
 26	hr_HR	Croatian - Croatia	8	11	,		english
 27	hu_HU	Hungarian - Hungary	10	9	,	.	hungarian
 28	id_ID	Indonesian - Indonesia	9	6	,	.	english
@@ -138,7 +138,7 @@ Id	Name	Description	Error_Message_Language
 22	gl_ES	Galician - Galician	english
 23	gu_IN	Gujarati - India	english
 24	he_IL	Hebrew - Israel	english
-25	hi_IN	Hindi - India	english
+25	hi_IN	Hindi - India	hindi
 26	hr_HR	Croatian - Croatia	english
 27	hu_HU	Hungarian - Hungary	hungarian
 28	id_ID	Indonesian - Indonesia	english

@@ -8634,7 +8634,7 @@ JOIN_TAB *first_top_level_tab(JOIN *join, enum enum_with_const_tables const_tbls
   JOIN_TAB *tab= join->join_tab;
   if (const_tbls == WITHOUT_CONST_TABLES)
   {
-    if (join->const_tables == join->table_count)
+    if (join->const_tables == join->table_count || !tab)
       return NULL;
     tab += join->const_tables;
   }
@@ -8657,6 +8657,10 @@ JOIN_TAB *first_linear_tab(JOIN *join,
                            enum enum_with_const_tables const_tbls)
 {
   JOIN_TAB *first= join->join_tab;
+
+  if (!first)
+    return NULL;
+
   if (const_tbls == WITHOUT_CONST_TABLES)
     first+= join->const_tables;
 
@@ -8743,7 +8747,7 @@ JOIN_TAB *first_depth_first_tab(JOIN* join)
 {
   JOIN_TAB* tab;
   /* This means we're starting the enumeration */
-  if (join->const_tables == join->top_join_tab_count)
+  if (join->const_tables == join->top_join_tab_count || !join->join_tab)
     return NULL;
 
   tab= join->join_tab + join->const_tables;

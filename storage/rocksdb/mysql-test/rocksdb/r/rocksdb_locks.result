@@ -57,7 +57,7 @@ UPDATE t1 SET value=30 WHERE id=3;
 COMMIT;
 connection con1;
 SELECT * FROM t1 WHERE id=3 FOR UPDATE;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction (snapshot conflict)
 ROLLBACK;
 disconnect con1;
 connection default;

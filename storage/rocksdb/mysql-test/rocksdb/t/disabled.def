@@ -7,6 +7,7 @@ level_serializable: Not supported
 slow_query_log: MDEV-11480
 select_for_update_skip_locked_nowait: MDEV-11481
 rpl_read_free: MDEV-10976
+lock_wait_timeout_stats: MDEV-13404
 
 optimizer_loose_index_scans: MariaDB doesnt support Skip Scan
 
@@ -40,6 +41,7 @@ mysqldump : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-key
 mysqldump2 : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-key
 
 show_engine : MariaRocks: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION STATUS
+issue243_transactionStatus: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION STATUS
 
 rpl_row_not_found : MariaDB doesnt support slave_exec_mode='SEMI_STRICT'
 
@@ -70,3 +72,6 @@ col_opt_null :   : MDEV-12474 - Fails in fulltest
 col_opt_unsigned : MDEV-12474 - Fails in fulltest
 col_opt_zerofill : MDEV-12474 - Fails in fulltest
 type_float       : MDEV-12474 - Fails in fulltest
+
+native_procedure : Not supported in MariaDB
+

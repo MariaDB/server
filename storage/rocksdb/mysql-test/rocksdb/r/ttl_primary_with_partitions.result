@@ -1,0 +1,256 @@
+CREATE TABLE t1 (
+c1 INT,
+PRIMARY KEY (`c1`)
+) ENGINE=ROCKSDB
+COMMENT="custom_p0_ttl_duration=1;"
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+set global rocksdb_debug_ttl_rec_ts = -3600;
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (4);
+INSERT INTO t1 values (5);
+INSERT INTO t1 values (6);
+INSERT INTO t1 values (7);
+INSERT INTO t1 values (8);
+INSERT INTO t1 values (9);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT * FROM t1;
+c1
+1
+2
+3
+4
+5
+6
+7
+8
+9
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+SELECT * FROM t1;
+c1
+2
+3
+5
+6
+8
+9
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=my_custom_cf;custom_p2_cfname=baz'
+) ENGINE=ROCKSDB
+COMMENT="custom_p0_ttl_duration=1;custom_p1_ttl_duration=7;"
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+set global rocksdb_debug_ttl_rec_ts = -1200;
+INSERT INTO t1 values (1,1,'a');
+INSERT INTO t1 values (4,4,'aaaa');
+INSERT INTO t1 values (7,7,'aaaaaaa');
+set global rocksdb_debug_ttl_rec_ts = 1200;
+INSERT INTO t1 values (2,2,'aa');
+INSERT INTO t1 values (3,3,'aaa');
+INSERT INTO t1 values (5,5,'aaaaa');
+INSERT INTO t1 values (6,6,'aaaaaa');
+INSERT INTO t1 values (8,8,'aaaaaaaa');
+INSERT INTO t1 values (9,9,'aaaaaaaaa');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT * FROM t1;
+c1	c2	name
+1	1	a
+2	2	aa
+3	3	aaa
+4	4	aaaa
+5	5	aaaaa
+6	6	aaaaaa
+7	7	aaaaaaa
+8	8	aaaaaaaa
+9	9	aaaaaaaaa
+set global rocksdb_force_flush_memtable_now=1;
+set @@global.rocksdb_compact_cf = 'foo';
+set @@global.rocksdb_compact_cf = 'my_custom_cf';
+SELECT * FROM t1;
+c1	c2	name
+2	2	aa
+3	3	aaa
+5	5	aaaaa
+6	6	aaaaaa
+8	8	aaaaaaaa
+9	9	aaaaaaaaa
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set @@global.rocksdb_compact_cf = 'foo';
+SELECT * FROM t1;
+c1	c2	name
+2	2	aa
+3	3	aaa
+5	5	aaaaa
+6	6	aaaaaa
+8	8	aaaaaaaa
+9	9	aaaaaaaaa
+set @@global.rocksdb_compact_cf = 'my_custom_cf';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT * FROM t1;
+c1	c2	name
+3	3	aaa
+6	6	aaaaaa
+9	9	aaaaaaaaa
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz;'
+) ENGINE=ROCKSDB
+COMMENT="custom_p0_ttl_duration=9999;custom_p2_ttl_duration=5;"
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 2, 3),
+PARTITION custom_p1 VALUES IN (4, 5, 6),
+PARTITION custom_p2 VALUES IN (7, 8, 9)
+);
+INSERT INTO t1 VALUES (1, 1, "one", null);
+INSERT INTO t1 VALUES (2, 2, "two", null);
+INSERT INTO t1 VALUES (3, 3, "three", null);
+INSERT INTO t1 VALUES (4, 4, "four", null);
+INSERT INTO t1 VALUES (5, 5, "five", null);
+INSERT INTO t1 VALUES (6, 6, "six", null);
+INSERT INTO t1 VALUES (7, 7, "seven", null);
+INSERT INTO t1 VALUES (8, 8, "eight", null);
+INSERT INTO t1 VALUES (9, 9, "nine", null);
+SELECT * FROM t1;
+c1	c2	name	event
+1	1	one	NULL
+2	2	two	NULL
+3	3	three	NULL
+4	4	four	NULL
+5	5	five	NULL
+6	6	six	NULL
+7	7	seven	NULL
+8	8	eight	NULL
+9	9	nine	NULL
+set global rocksdb_debug_ttl_rec_ts = 600;
+ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(`c2`,`c1`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz;';
+set global rocksdb_debug_ttl_rec_ts = 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL,
+  `c2` int(11) NOT NULL,
+  `name` varchar(25) NOT NULL,
+  `event` date DEFAULT NULL,
+  PRIMARY KEY (`c2`,`c1`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz;'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COMMENT='custom_p0_ttl_duration=9999;custom_p2_ttl_duration=5;'
+ PARTITION BY LIST (`c1`)
+(PARTITION `custom_p0` VALUES IN (1,2,3) ENGINE = ROCKSDB,
+ PARTITION `custom_p1` VALUES IN (4,5,6) ENGINE = ROCKSDB,
+ PARTITION `custom_p2` VALUES IN (7,8,9) ENGINE = ROCKSDB)
+set global rocksdb_debug_ttl_snapshot_ts = 100;
+set global rocksdb_force_flush_memtable_now=1;
+set @@global.rocksdb_compact_cf = 'baz';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT * FROM t1;
+c1	c2	name	event
+1	1	one	NULL
+2	2	two	NULL
+3	3	three	NULL
+4	4	four	NULL
+5	5	five	NULL
+6	6	six	NULL
+7	7	seven	NULL
+8	8	eight	NULL
+9	9	nine	NULL
+set global rocksdb_debug_ttl_snapshot_ts = 1200;
+set @@global.rocksdb_compact_cf = 'foo';
+set @@global.rocksdb_compact_cf = 'baz';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT * FROM t1;
+c1	c2	name	event
+1	1	one	NULL
+2	2	two	NULL
+3	3	three	NULL
+4	4	four	NULL
+5	5	five	NULL
+6	6	six	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 BIGINT,
+c2 BIGINT UNSIGNED NOT NULL,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz;'
+) ENGINE=ROCKSDB
+COMMENT="ttl_duration=1;custom_p1_ttl_duration=100;custom_p1_ttl_col=c2;custom_p2_ttl_duration=5000;"
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 2, 3),
+PARTITION custom_p1 VALUES IN (4, 5, 6),
+PARTITION custom_p2 VALUES IN (7, 8, 9)
+);
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 VALUES (1, UNIX_TIMESTAMP(), "one", null);
+INSERT INTO t1 VALUES (2, UNIX_TIMESTAMP(), "two", null);
+INSERT INTO t1 VALUES (3, UNIX_TIMESTAMP(), "three", null);
+set global rocksdb_debug_ttl_rec_ts = 0;
+INSERT INTO t1 VALUES (4, UNIX_TIMESTAMP(), "four", null);
+INSERT INTO t1 VALUES (5, UNIX_TIMESTAMP(), "five", null);
+INSERT INTO t1 VALUES (6, UNIX_TIMESTAMP(), "six", null);
+INSERT INTO t1 VALUES (7, UNIX_TIMESTAMP(), "seven", null);
+INSERT INTO t1 VALUES (8, UNIX_TIMESTAMP(), "eight", null);
+INSERT INTO t1 VALUES (9, UNIX_TIMESTAMP(), "nine", null);
+set global rocksdb_force_flush_memtable_now=1;
+set @@global.rocksdb_compact_cf = 'foo';
+set @@global.rocksdb_compact_cf = 'baz';
+set @@global.rocksdb_compact_cf = 'bar';
+SELECT c1 FROM t1;
+c1
+4
+5
+6
+7
+8
+9
+set global rocksdb_debug_ttl_snapshot_ts = 600;
+set @@global.rocksdb_compact_cf = 'bar';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT c1 FROM t1;
+c1
+7
+8
+9
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 BIGINT,
+c2 BIGINT UNSIGNED NOT NULL,
+PRIMARY KEY (`c1`, `c2`)
+) ENGINE=ROCKSDB
+COMMENT="ttl_duration=100;ttl_col=c2;"
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1),
+PARTITION custom_p1 VALUES IN (2),
+PARTITION custom_p2 VALUES IN (3)
+);
+INSERT INTO t1 values (1, UNIX_TIMESTAMP());
+INSERT INTO t1 values (2, UNIX_TIMESTAMP());
+INSERT INTO t1 values (3, UNIX_TIMESTAMP());
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+SELECT c1 FROM t1;
+c1
+1
+2
+3
+set global rocksdb_debug_ttl_snapshot_ts = 300;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+SELECT c1 FROM t1;
+c1
+DROP TABLE t1;
