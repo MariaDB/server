@@ -595,6 +595,12 @@ int sequence_definition::write(TABLE *table, bool all_fields)
   else
     table->rpl_write_set= &table->s->all_set;
 
+  /*
+    The following is needed to fix comparison of rows in
+    ha_update_first_row() for InnoDB
+  */
+  memcpy(table->record[1],table->s->default_values, table->s->reclength);
+
   /* Update table */
   save_write_set= table->write_set;
   save_read_set=  table->read_set;
