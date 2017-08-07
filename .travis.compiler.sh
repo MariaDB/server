@@ -8,8 +8,8 @@ if [[ "${TRAVIS_OS_NAME}" == 'linux' ]]; then
       CMAKE_OPT="${CMAKE_OPT} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
     fi
     case ${GCC_VERSION} in
-      5) CXX=clang++-3.9 ;;
-      6) CXX=clang++-4.0 ;;
+      5) CXX=clang++-4.0 ;;
+      6) CXX=clang++-5.0 ;;
     esac
     export CXX CC=${CXX/++/}
   elif [[ "${CXX}" == 'g++' ]]; then
