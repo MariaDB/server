@@ -165,7 +165,7 @@ class JSON : public BLOCK {
   virtual PJPR   GetFirst(void) {X return NULL;}
   virtual int    GetInteger(void) {X return 0;}
   virtual double GetFloat() {X return 0.0;}
-  virtual PSZ    GetString() {X return NULL;}
+  virtual PSZ    GetString(PGLOBAL g) {X return NULL;}
   virtual PSZ    GetText(PGLOBAL g, PSZ text) {X return NULL;}
 	virtual bool   Merge(PGLOBAL g, PJSON jsp) { X return true; }
 	virtual bool   SetValue(PGLOBAL g, PJVAL jvp, int i) { X return true; }
@@ -275,7 +275,7 @@ class JVALUE : public JSON {
 	virtual int    GetInteger(void);
 	virtual long long GetBigint(void);
 	virtual double GetFloat(void);
-  virtual PSZ    GetString(void);
+  virtual PSZ    GetString(PGLOBAL g);
   virtual PSZ    GetText(PGLOBAL g, PSZ text);
 	virtual void   SetValue(PJSON jsp);
 	virtual void   SetValue(PVAL valp) { Value = valp; Jsp = NULL; }

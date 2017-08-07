@@ -70,7 +70,6 @@ public:
 	const char *Uri;							/* MongoDB connection URI              */
 #if defined(MONGO_SUPPORT)
 	PCSZ  Collname;               /* External collection name            */
-	PCSZ  Schema;                 /* External schema (DB) name           */
 	PSZ   Options;                /* Colist ; Pipe                       */
 	PSZ   Filter;                 /* Filter                              */
 	PSZ   Driver;									/* MongoDB Driver (C or JAVA)          */
