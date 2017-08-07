@@ -570,11 +570,6 @@ bool thd_binlog_filter_ok(const MYSQL_THD thd);
 */
 bool thd_sqlcom_can_generate_row_events(const MYSQL_THD thd);
 
-/** Gets information on the durability property requested by a thread.
-@param thd Thread handle
-@return a durability property. */
-durability_properties thd_get_durability_property(const MYSQL_THD thd);
-
 /** Is strict sql_mode set.
 @param thd Thread object
 @return True if sql_mode has strict mode (all or trans), false otherwise. */

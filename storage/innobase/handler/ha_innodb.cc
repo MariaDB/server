@@ -1689,18 +1689,6 @@ thd_is_replication_slave_thread(
 }
 
 /******************************************************************//**
-Gets information on the durability property requested by thread.
-Used when writing either a prepare or commit record to the log
-buffer. @return the durability property. */
-enum durability_properties
-thd_requested_durability(
-/*=====================*/
-	const THD* thd)	/*!< in: thread handle */
-{
-	return(thd_get_durability_property(thd));
-}
-
-/******************************************************************//**
 Returns true if transaction should be flagged as read-only.
 @return true if the thd is marked as read-only */
 bool
@@ -4838,10 +4826,6 @@ innobase_commit(
 		visible to others. So we can wakeup other commits waiting for
 		this one, to allow then to group commit with us. */
 		thd_wakeup_subsequent_commits(thd, 0);
-
-		if (!read_only) {
-			trx->flush_log_later = false;
-		}
 
 		/* Now do a write + flush of logs. */
 		trx_commit_complete_for_mysql(trx);
