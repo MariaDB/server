@@ -1087,7 +1087,6 @@ recv_find_max_checkpoint(ulint* max_field)
 				" The redo log was created with " << creator
 				<< (err == DB_ERROR
 				    ? "." : ", and it appears corrupted.");
-			break;
 		}
 		return(err);
 	}
@@ -3215,7 +3214,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	err = recv_find_max_checkpoint(&max_cp_field);
 
 	if (err != DB_SUCCESS
-	    || (log_sys->log.format != 0
+	    || (log_sys->log.format != LOG_HEADER_FORMAT_3_23
 		&& (log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
 		!= LOG_HEADER_FORMAT_CURRENT)) {
 
