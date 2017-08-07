@@ -33,6 +33,13 @@ SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.
 SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.0, 4.3]}',3));
 SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.0, 4.3]}',4));
 
+SELECT ST_AsGeoJSON(ST_GeomFromText('POINT(5.363 7.266)'),2);
+SELECT ST_AsGeoJSON(ST_GeomFromText('POINT(5.363 7.266)'),1);
+SELECT ST_AsGeoJSON(ST_GeomFromText('POINT(5.363 7.266)'),10);
+
+SELECT ST_AsGeoJSON(ST_GeomFromText("POINT(10 11)"), 100, 1);
+SELECT ST_AsGeoJSON(ST_GeomFromText("POINT(10 11)"), 100, 5);
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

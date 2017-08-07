@@ -21,6 +21,10 @@
 #include "gstream.h"                            // Gis_read_stream
 #include "sql_string.h"                         // String
 
+/* This is from item_func.h. Didn't want to #include the whole file. */
+double my_double_round(double value, longlong dec, bool dec_unsigned,
+                       bool truncate);
+
 #ifdef HAVE_SPATIAL
 
 /* 
@@ -250,6 +254,8 @@ static const uchar feature_type[]= "feature";
 static const int feature_type_len= 7;
 static const uchar feature_coll_type[]= "featurecollection";
 static const int feature_coll_type_len= 17;
+static const uchar bbox_keyname[]= "bbox";
+static const int bbox_keyname_len= 4;
 
 
 int Geometry::as_json(String *wkt, uint max_dec_digits, const char **end)
@@ -258,7 +264,7 @@ int Geometry::as_json(String *wkt, uint max_dec_digits, const char **end)
   if (wkt->reserve(4 + type_keyname_len + 2 + len + 2 + 2 +
                    coord_keyname_len + 4, 512))
     return 1;
-  wkt->qs_append("{\"", 2);
+  wkt->qs_append("\"", 1);
   wkt->qs_append((const char *) type_keyname, type_keyname_len);
   wkt->qs_append("\": \"", 4);
   wkt->qs_append(get_class_info()->m_geojson_name.str, len);
@@ -269,10 +275,35 @@ int Geometry::as_json(String *wkt, uint max_dec_digits, const char **end)
     wkt->qs_append((const char *) coord_keyname, coord_keyname_len);
 
   wkt->qs_append("\": ", 3);
-  if (get_data_as_json(wkt, max_dec_digits, end) ||
-      wkt->reserve(1))
+  if (get_data_as_json(wkt, max_dec_digits, end))
     return 1;
-  wkt->qs_append('}');
+
+  return 0;
+}
+
+
+int Geometry::bbox_as_json(String *wkt)
+{
+  MBR mbr;
+  const char *end;
+  if (wkt->reserve(5 + bbox_keyname_len + (FLOATING_POINT_DECIMALS+2)*4, 512))
+    return 1;
+  wkt->qs_append("\"", 1);
+  wkt->qs_append((const char *) bbox_keyname, bbox_keyname_len);
+  wkt->qs_append("\": [", 4);
+
+  if (get_mbr(&mbr, &end))
+    return 1;
+
+  wkt->qs_append(mbr.xmin);
+  wkt->qs_append(", ", 2);
+  wkt->qs_append(mbr.ymin);
+  wkt->qs_append(", ", 2);
+  wkt->qs_append(mbr.xmax);
+  wkt->qs_append(", ", 2);
+  wkt->qs_append(mbr.ymax);
+  wkt->qs_append("]", 1);
+
   return 0;
 }
 
@@ -670,6 +701,11 @@ static void append_json_point(String *txt, uint max_dec, const char *data)
 {
   double x,y;
   get_point(&x, &y, data);
+  if (max_dec < FLOATING_POINT_DECIMALS)
+  {
+    x= my_double_round(x, max_dec, FALSE, FALSE);
+    y= my_double_round(y, max_dec, FALSE, FALSE);
+  }
   txt->qs_append('[');
   txt->qs_append(x);
   txt->qs_append(", ", 2);
@@ -3106,12 +3142,14 @@ bool Gis_geometry_collection::get_data_as_json(String *txt, uint max_dec_digits,
     if (!(geom= create_by_typeid(&buffer, wkb_type)))
       return 1;
     geom->set_data_ptr(data, (uint) (m_data_end - data));
-    if (geom->as_json(txt, max_dec_digits, &data) ||
-        txt->append(STRING_WITH_LEN(", "), 512))
+    if (txt->append("{", 1) ||
+        geom->as_json(txt, max_dec_digits, &data) ||
+        txt->append(STRING_WITH_LEN("}, "), 512))
       return 1;
   }
   txt->length(txt->length() - 2);
-  txt->qs_append(']');
+  if (txt->append("]", 1))
+    return 1;
 
   *end= data;
   return 0;

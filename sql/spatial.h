@@ -323,6 +323,7 @@ public:
                                   String *res, Gcalc_result_receiver &rr);
   int as_wkt(String *wkt, const char **end);
   int as_json(String *wkt, uint max_dec_digits, const char **end);
+  int bbox_as_json(String *wkt);
 
   inline void set_data_ptr(const char *data, uint32 data_len)
   {

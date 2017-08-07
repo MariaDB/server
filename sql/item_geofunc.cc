@@ -259,6 +259,8 @@ String *Item_func_as_geojson::val_str_ascii(String *str)
   DBUG_ASSERT(fixed == 1);
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
+  uint max_dec= FLOATING_POINT_DECIMALS;
+  longlong options= 0;
   Geometry_buffer buffer;
   Geometry *geom= NULL;
   const char *dummy;
@@ -268,12 +270,41 @@ String *Item_func_as_geojson::val_str_ascii(String *str)
 	!(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())))))
     return 0;
 
+  if (arg_count > 1)
+  {
+    max_dec= (uint) args[1]->val_int();
+    if (args[1]->null_value)
+      max_dec= FLOATING_POINT_DECIMALS;
+    if (arg_count > 2)
+    {
+      options= args[2]->val_int();
+      if (args[2]->null_value)
+        options= 0;
+    }
+  }
+
   str->length(0);
   str->set_charset(&my_charset_latin1);
-  if ((null_value= geom->as_json(str, FLOATING_POINT_DECIMALS, &dummy)))
+
+  if (str->reserve(1, 512))
     return 0;
 
+  str->qs_append('{');
+
+  if (options & 1)
+  {
+    if (geom->bbox_as_json(str) || str->append(", ", 2))
+      goto error;
+  }
+
+  if ((geom->as_json(str, max_dec, &dummy) || str->append("}", 1)))
+      goto error;
+
   return str;
+
+error:
+  null_value= 1;
+  return 0;
 }
 
 
