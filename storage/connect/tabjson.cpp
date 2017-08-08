@@ -54,8 +54,6 @@
 /*  External functions.                                                */
 /***********************************************************************/
 USETEMP UseTemp(void);
-bool    IsNum(PSZ s);
-char   *NextChr(PSZ s, char sep);
 char   *GetJsonNull(void);
 
 typedef struct _jncol {
