@@ -740,12 +740,17 @@ row_mysql_handle_errors(
 {
 	dberr_t	err;
 
+	DBUG_ENTER("row_mysql_handle_errors");
+
 handle_new_error:
 	err = trx->error_state;
 
 	ut_a(err != DB_SUCCESS);
 
 	trx->error_state = DB_SUCCESS;
+
+	DBUG_LOG("trx", "handle error: " << ut_strerr(err)
+		 << ";id=" << ib::hex(trx->id) << ", " << trx);
 
 	switch (err) {
 	case DB_LOCK_WAIT_TIMEOUT:
@@ -795,7 +800,7 @@ handle_new_error:
 
 		*new_err = err;
 
-		return(true);
+		DBUG_RETURN(true);
 
 	case DB_DEADLOCK:
 	case DB_LOCK_TABLE_FULL:
@@ -840,7 +845,7 @@ handle_new_error:
 
 	trx->error_state = DB_SUCCESS;
 
-	return(false);
+	DBUG_RETURN(false);
 }
 
 /********************************************************************//**
