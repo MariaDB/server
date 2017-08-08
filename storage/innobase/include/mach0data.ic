@@ -865,6 +865,8 @@ mach_write_ulonglong(
 	}
 }
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /** Read 1 to 4 bytes from a file page buffered in the buffer pool.
 @param[in]	ptr	pointer where to read
 @param[in]	type	MLOG_1BYTE, MLOG_2BYTES, or MLOG_4BYTES
@@ -889,5 +891,3 @@ mach_read_ulint(
 	ut_error;
 	return(0);
 }
-
-#endif /* !UNIV_INNOCHECKSUM */

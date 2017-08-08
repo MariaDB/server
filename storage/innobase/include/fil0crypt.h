@@ -30,6 +30,7 @@ Created 04/01/2015 Jan Lindström
 
 #include "os0event.h"
 #include "my_crypt.h"
+#endif /*! UNIV_INNOCHECKSUM */
 
 /**
 * Magic pattern in start of crypt data on page 0
@@ -100,6 +101,8 @@ struct fil_space_rotate_state_t
 					     completed */
 	} scrubbing;
 };
+
+#ifndef UNIV_INNOCHECKSUM
 
 struct fil_space_crypt_t : st_encryption_scheme
 {

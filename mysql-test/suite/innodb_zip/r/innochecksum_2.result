@@ -31,6 +31,7 @@ allow-mismatches                  0
 write                             crc32
 page-type-summary                 FALSE
 page-type-dump                    MYSQLTEST_VARDIR/tmp/dump.txt
+per-page-details                  FALSE
 log                               (No default value)
 leaf                              FALSE
 merge                             0
@@ -41,7 +42,7 @@ innochecksum Ver #.#.#
 Copyright (c) YEAR, YEAR , Oracle, MariaDB Corporation Ab and others.
 
 InnoDB offline file checksum utility.
-Usage: innochecksum [-c] [-s <start page>] [-e <end page>] [-p <page>] [-v]  [-a <allow mismatches>] [-n] [-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] [-l <log>] [-e] <filename or [-]>
+Usage: innochecksum [-c] [-s <start page>] [-e <end page>] [-p <page>] [-i] [-v]  [-a <allow mismatches>] [-n] [-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] [-l <log>] [-l] [-m <merge pages>] <filename or [-]>
   -?, --help          Displays this help and exits.
   -I, --info          Synonym for --help.
   -V, --version       Displays version information and exits.
@@ -62,8 +63,10 @@ Usage: innochecksum [-c] [-s <start page>] [-e <end page>] [-p <page>] [-v]  [-a
                       Display a count of each page type in a tablespace.
   -D, --page-type-dump=name 
                       Dump the page type info for each page in a tablespace.
+  -i, --per-page-details 
+                      Print out per-page detail information.
   -l, --log=name      log output.
-  -e, --leaf          Examine leaf index pages
+  -f, --leaf          Examine leaf index pages
   -m, --merge=#       leaf page count if merge given number of consecutive
                       pages
 
@@ -81,6 +84,7 @@ allow-mismatches                  0
 write                             crc32
 page-type-summary                 FALSE
 page-type-dump                    (No default value)
+per-page-details                  FALSE
 log                               (No default value)
 leaf                              FALSE
 merge                             0

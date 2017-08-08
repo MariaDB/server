@@ -4,11 +4,6 @@
 --source include/not_embedded.inc
 --source include/have_innodb_16k.inc
 
---disable_warnings
-DROP TABLE if exists t1;
-DROP TABLE if exists t2;
---enable_warnings
-
 --echo Testing tables with large records
 # Create table.
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), c VARCHAR(256), KEY SECOND(a, b,c)) ENGINE=INNODB;
@@ -36,7 +31,7 @@ while ($size)
 }
 --enable_query_log
 
---source include/wait_innodb_all_purged.inc
+SET GLOBAL innodb_fast_shutdown = 0;
 --source include/restart_mysqld.inc
 optimize table t1;
 
@@ -135,7 +130,7 @@ while ($size)
 }
 --enable_query_log
 
---source include/wait_innodb_all_purged.inc
+SET GLOBAL innodb_fast_shutdown = 0;
 --source include/restart_mysqld.inc
 optimize table t2;
 
@@ -206,5 +201,3 @@ if ($second_before == $second_after) {
 }
 
 DROP TABLE t2;
-
---source include/wait_innodb_all_purged.inc

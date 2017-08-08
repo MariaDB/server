@@ -6,7 +6,6 @@
 #
 
 --source include/have_innodb.inc
---source include/have_debug.inc
 --source include/have_innodb_16k.inc
 
 # turn on flags
@@ -47,17 +46,17 @@ INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
 where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 
-set global innodb_purge_stop_now=ON;
+begin;
 delete from tab1 where a = 12;
 delete from tab1 where a = 13;
 delete from tab1 where a = 14;
 delete from tab1 where a = 5;
 delete from tab1 where a = 6;
 delete from tab1 where a = 7;
-set global innodb_purge_run_now=ON;
+commit;
 
 # wait for purge view progress (records are deleted actually by purge)
---source include/wait_innodb_all_purged.inc
+--source include/wait_all_purged.inc
 
 # not merged yet
 # | 1,2,3,4 | 8,9,10,11 |
@@ -72,34 +71,27 @@ INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
 where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 
-
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 11;
-set global innodb_purge_run_now=ON;
 # wait for purge view progress (records are deleted actually by purge)
---source include/wait_innodb_all_purged.inc
+--source include/wait_all_purged.inc
 
 --echo # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 
 
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 10;
-set global innodb_purge_run_now=ON;
 # wait for purge view progress (records are deleted actually by purge)
---source include/wait_innodb_all_purged.inc
+--source include/wait_all_purged.inc
 
 --echo # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 
 
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 9;
-set global innodb_purge_run_now=ON;
 # wait for purge view progress (records are deleted actually by purge)
---source include/wait_innodb_all_purged.inc
+--source include/wait_all_purged.inc
 
 --echo # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics

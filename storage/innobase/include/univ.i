@@ -108,13 +108,8 @@ support cross-platform development and expose comonly used SQL names. */
 #include <unistd.h>
 #endif
 
-#ifdef UNIV_INNOCHECKSUM
-extern bool 		strict_verify;
-extern FILE* 		log_file;
-extern uintmax_t	cur_page_num;
-#endif /* UNIV_INNOCHECKSUM */
-
 #include "my_pthread.h"
+
 /* Following defines are to enable performance schema
 instrumentation in each of five InnoDB modules if
 HAVE_PSI_INTERFACE is defined. */
@@ -486,6 +481,12 @@ in both 32-bit and 64-bit environments. */
 # define UINT64scan	PRIu64
 # define UINT64PFx	"%016" PRIx64
 #endif
+
+#ifdef UNIV_INNOCHECKSUM
+extern bool 			strict_verify;
+extern FILE* 			log_file;
+extern unsigned long long	cur_page_num;
+#endif /* UNIV_INNOCHECKSUM */
 
 typedef int64_t ib_int64_t;
 typedef uint64_t ib_uint64_t;

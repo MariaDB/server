@@ -24,6 +24,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 *******************************************************/
 
 #include "fil0fil.h"
+#include "mtr0types.h"
 #include "mach0data.h"
 #include "page0size.h"
 #include "page0zip.h"

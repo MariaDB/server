@@ -63,6 +63,7 @@ mach_write_to_2(
 /*============*/
 	byte*	b,	/*!< in: pointer to two bytes where to store */
 	ulint	n);	 /*!< in: ulint integer to be stored, >= 0, < 64k */
+#endif /* !UNIV_INNOCHECKSUM */
 /** The following function is used to fetch data from 2 consecutive
 bytes. The most significant byte is at the lowest address.
 @param[in]	b	pointer to 2 bytes where to store
@@ -72,6 +73,8 @@ uint16_t
 mach_read_from_2(
 	const byte*	b)
 	MY_ATTRIBUTE((warn_unused_result));
+
+#ifndef UNIV_INNOCHECKSUM
 /********************************************************//**
 The following function is used to convert a 16-bit data item
 to the canonical format, for fast bytewise equality test
@@ -362,6 +365,8 @@ mach_write_ulonglong(
 	ulint		len,		/*!< in: length of dest */
 	bool		usign);		/*!< in: signed or unsigned flag */
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /** Read 1 to 4 bytes from a file page buffered in the buffer pool.
 @param[in]	ptr	pointer where to read
 @param[in]	type	MLOG_1BYTE, MLOG_2BYTES, or MLOG_4BYTES
@@ -372,8 +377,6 @@ mach_read_ulint(
 	const byte*	ptr,
 	mlog_id_t	type)
 	MY_ATTRIBUTE((warn_unused_result));
-
-#endif /* !UNIV_INNOCHECKSUM */
 
 #include "mach0data.ic"
 
