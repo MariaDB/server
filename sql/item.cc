@@ -10758,9 +10758,8 @@ Item *Item_field::vers_optimized_fields_transformer(THD *thd, uchar *)
     return this;
 
   if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context &&
-      ((field->table->pos_in_table_list &&
-        field->table->pos_in_table_list->vers_conditions) ||
-       (context->select_lex && context->select_lex->vers_conditions)))
+      field->table->pos_in_table_list &&
+      field->table->pos_in_table_list->vers_conditions)
   {
     push_warning_printf(
         current_thd, Sql_condition::WARN_LEVEL_WARN,

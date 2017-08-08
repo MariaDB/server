@@ -102,7 +102,7 @@ ASOF_x	y
 7	107
 8	108
 9	109
-select x as FROMTO_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
+select x as FROMTO_x, y from t1 for system_time from '0-0-0 0:0:0' to timestamp @t1;
 FROMTO_x	y
 0	100
 1	101
@@ -114,33 +114,8 @@ FROMTO_x	y
 7	107
 8	108
 9	109
-select x as BETWAND_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+select x as BETWAND_x, y from t1 for system_time between '0-0-0 0:0:0' and timestamp @t1;
 BETWAND_x	y
-0	100
-1	101
-2	102
-3	103
-4	104
-5	105
-6	106
-7	107
-8	108
-9	109
-3	33
-select x as FROMTO_ext_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
-FROMTO_ext_x	y
-0	100
-1	101
-2	102
-3	103
-4	104
-5	105
-6	106
-7	107
-8	108
-9	109
-select x as BETWAND_ext_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
-BETWAND_ext_x	y
 0	100
 1	101
 2	102
@@ -188,29 +163,6 @@ FROMTO2_x	y
 8	108
 9	109
 BETWAND2_x	y
-0	100
-1	101
-2	102
-3	103
-4	104
-5	105
-6	106
-7	107
-8	108
-9	109
-3	33
-FROMTO2_ext_x	y
-0	100
-1	101
-2	102
-3	103
-4	104
-5	105
-6	106
-7	107
-8	108
-9	109
-BETWAND2_ext_x	y
 0	100
 1	101
 2	102

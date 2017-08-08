@@ -1,13 +1,13 @@
 -- source include/have_innodb.inc
 
 create table t (a int);
---error ER_VERS_UNUSED_CLAUSE
+--error ER_VERSIONING_REQUIRED
 truncate t for system_time all;
 
 delimiter ~~;
 create procedure truncate_history_of_t()
 begin
-  prepare stmt from 'truncate t for system_time timestamp between \'1-1-1\' and now(6)';
+  prepare stmt from 'truncate t for system_time between \'1-1-1\' and now(6)';
   execute stmt;
   drop prepare stmt;
 end~~
@@ -34,11 +34,11 @@ update t set a=4;
 truncate t for system_time as of timestamp now(6);
 select * from t for system_time all;
 
-truncate t for system_time timestamp between '1-1-1' and now(6);
+truncate t for system_time between '1-1-1' and now(6);
 select * from t for system_time all;
 
 update t set a=5;
-truncate t for system_time timestamp from '1-1-1' to now(6);
+truncate t for system_time from '1-1-1' to now(6);
 select * from t for system_time all;
 
 update t set a=6;
@@ -49,10 +49,10 @@ set @ts1 = now(6);
 update t set a=7;
 set @ts2 = now(6);
 update t set a=8;
-truncate t for system_time timestamp from '1-1-1' to @ts1;
+truncate t for system_time from '1-1-1' to @ts1;
 select * from t for system_time all;
 update t set a=9;
-truncate t for system_time timestamp between '1-1-1' and @ts2;
+truncate t for system_time between '1-1-1' and @ts2;
 select * from t for system_time all;
 
 
@@ -69,11 +69,11 @@ update t set a=4;
 truncate t for system_time as of timestamp now(6);
 select * from t for system_time all;
 
-truncate t for system_time timestamp between '1-1-1' and now(6);
+truncate t for system_time between '1-1-1' and now(6);
 select * from t for system_time all;
 
 update t set a=5;
-truncate t for system_time timestamp from '1-1-1' to now(6);
+truncate t for system_time from '1-1-1' to now(6);
 select * from t for system_time all;
 
 update t set a=6;
@@ -84,10 +84,10 @@ set @ts1 = now(6);
 update t set a=7;
 set @ts2 = now(6);
 update t set a=8;
-truncate t for system_time timestamp from '1-1-1' to @ts1;
+truncate t for system_time from '1-1-1' to timestamp @ts1;
 select * from t for system_time all;
 update t set a=9;
-truncate t for system_time timestamp between '1-1-1' and @ts2;
+truncate t for system_time between '1-1-1' and timestamp @ts2;
 select * from t for system_time all;
 
 create or replace table t (a int) with system versioning;

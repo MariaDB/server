@@ -103,7 +103,7 @@ Sys_start2 SYS_TRX_TYPE generated always as row start,
 Sys_end SYS_TRX_TYPE generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Wrong parameters for `t1`: multiple 'AS ROW START' (`Sys_start2`, `Sys_start`)
+ERROR HY000: Wrong parameters for `t1`: mismatch 'PERIOD FOR SYSTEM_TIME' and 'AS ROW START'
 create or replace table t1 (
 x4 int unsigned,
 Sys_start SYS_TRX_TYPE generated always as row start,
@@ -118,7 +118,7 @@ Sys_end SYS_TRX_TYPE generated always as row end,
 Sys_end2 SYS_TRX_TYPE generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Wrong parameters for `t1`: multiple 'AS ROW END' (`Sys_end2`, `Sys_end`)
+ERROR HY000: Wrong parameters for `t1`: mismatch 'PERIOD FOR SYSTEM_TIME' and 'AS ROW END'
 create or replace table t1 (
 x6 int unsigned,
 period for system_time (Sys_start, Sys_end)
@@ -131,7 +131,7 @@ Sys_end SYS_TRX_TYPE generated always as row end,
 Sys_end2 SYS_TRX_TYPE generated always as row end,
 period for system_time (Sys_start, Sys_end)
 );
-ERROR HY000: Wrong parameters for `t1`: multiple 'AS ROW END' (`Sys_end2`, `Sys_end`)
+ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
 create or replace table t1 (
 x8 int unsigned,
 Sys_start SYS_TRX_TYPE generated always as row start,
@@ -152,7 +152,7 @@ Sys_start SYS_TRX_TYPE generated always as row start,
 Sys_end SYS_TRX_TYPE generated always as row end,
 period for system_time (Sys_start, Sys_start)
 );
-ERROR HY000: Wrong parameters for `t1`: multiple `Sys_start` for 'PERIOD FOR SYSTEM_TIME'
+ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
 create or replace table t1 (
 x11 int unsigned,
 Sys_start bigint unsigned generated always as row start,
@@ -257,34 +257,10 @@ create or replace table t1 (
 A8 int without system versioning
 ) with system versioning;
 ERROR HY000: Wrong parameters for `t1`: no columns defined 'WITH SYSTEM VERSIONING'
-create or replace table t1 (
-A9 int without system versioning with system versioning
-);
-ERROR HY000: Wrong parameters for `t1`: multiple 'WITH/WITHOUT SYSTEM VERSIONING' for `A9`
-create or replace table t1 (
-A10 int with system versioning without system versioning
-);
-ERROR HY000: Wrong parameters for `t1`: multiple 'WITH/WITHOUT SYSTEM VERSIONING' for `A10`
 create table t(
 a11 int
 ) without system versioning;
 ERROR HY000: Wrong parameters for `t`: not allowed 'WITHOUT SYSTEM VERSIONING'
-create or replace table t1 (
-A12 int
-) without system versioning with system versioning;
-ERROR HY000: Wrong parameters for `t1`: multiple 'WITH/WITHOUT SYSTEM VERSIONING'
-create or replace table t1 (
-A13 int
-) with system versioning without system versioning;
-ERROR HY000: Wrong parameters for `t1`: multiple 'WITH/WITHOUT SYSTEM VERSIONING'
-create or replace table t1 (
-A14 int
-) with system versioning with system versioning;
-ERROR HY000: Wrong parameters for `t1`: multiple 'WITH/WITHOUT SYSTEM VERSIONING'
-create or replace table t1 (
-A15 int
-) without system versioning without system versioning;
-ERROR HY000: Wrong parameters for `t1`: multiple 'WITH/WITHOUT SYSTEM VERSIONING'
 create or replace table t1 (a int) with system versioning;
 create temporary table tmp with system versioning select * from t1;
 create or replace table t1 (a int) with system versioning;

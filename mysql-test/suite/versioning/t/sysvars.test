@@ -84,9 +84,9 @@ select * from t for system_time as of timestamp current_timestamp(6);
 --replace_regex /\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{6}/TIMESTAMP/
 select * from t for system_time all;
 --replace_regex /\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{6}/TIMESTAMP/
-select * from t for system_time timestamp from '0-0-0' to current_timestamp(6);
+select * from t for system_time from '0-0-0' to current_timestamp(6);
 --replace_regex /\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{6}/TIMESTAMP/
-select * from t for system_time timestamp between '0-0-0' and current_timestamp(6);
+select * from t for system_time between '0-0-0' and current_timestamp(6);
 
 set versioning_hide= NEVER;
 --replace_regex /\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{6}/TIMESTAMP/

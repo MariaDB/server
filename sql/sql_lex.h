@@ -992,8 +992,9 @@ public:
   thr_lock_type lock_type;
 
   /* System Versioning */
-  vers_select_conds_t vers_conditions;
-  vers_select_conds_t vers_derived_conds;
+  vers_select_conds_t vers_export_outer;
+  bool vers_import_outer;
+  /* push new Item_field into item_list */
   bool vers_push_field(THD *thd, TABLE_LIST *table, const char* field_name);
 
   void init_query();

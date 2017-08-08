@@ -115,11 +115,11 @@ select * from t for system_time all;
 a	sys_trx_start	sys_trx_end
 2	TIMESTAMP	TIMESTAMP
 1	TIMESTAMP	TIMESTAMP
-select * from t for system_time timestamp from '0-0-0' to current_timestamp(6);
+select * from t for system_time from '0-0-0' to current_timestamp(6);
 a	sys_trx_start	sys_trx_end
 2	TIMESTAMP	TIMESTAMP
 1	TIMESTAMP	TIMESTAMP
-select * from t for system_time timestamp between '0-0-0' and current_timestamp(6);
+select * from t for system_time between '0-0-0' and current_timestamp(6);
 a	sys_trx_start	sys_trx_end
 2	TIMESTAMP	TIMESTAMP
 1	TIMESTAMP	TIMESTAMP

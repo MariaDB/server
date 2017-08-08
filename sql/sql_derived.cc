@@ -714,7 +714,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
         cursor->outer_join|= JOIN_TYPE_OUTER;
     }
 
-    // System Versioning begin
+    // System Versioning: fix system fields of versioned derived table
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat"
 #pragma GCC diagnostic ignored "-Wformat-extra-args"
@@ -722,7 +722,11 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       && sl->table_list.elements > 0)
     {
       // Similar logic as in mysql_create_view()
-      TABLE_LIST *impli_table= NULL, *expli_table= NULL;
+      // Leading versioning table detected implicitly (first one selected)
+      TABLE_LIST *impli_table= NULL;
+      // Leading versioning table specified explicitly
+      // (i.e. if at least one system field is selected)
+      TABLE_LIST *expli_table= NULL;
       const char *impli_start, *impli_end;
       Item_field *expli_start= NULL, *expli_end= NULL;
 
@@ -826,14 +830,10 @@ expli_table_err:
 
         if (impli_table->vers_conditions)
         {
-          sl->vers_derived_conds= impli_table->vers_conditions;
-          if (derived->is_view() && !sl->vers_conditions)
-            sl->vers_conditions.import_outer= true;
+          sl->vers_export_outer= impli_table->vers_conditions;
         }
-        else if (sl->vers_conditions)
-          sl->vers_derived_conds= sl->vers_conditions;
         else
-          sl->vers_conditions.import_outer= true;
+          sl->vers_import_outer= true; // FIXME: is needed?
       }
     } // if (sl->table_list.elements > 0)
 #pragma GCC diagnostic pop

@@ -192,42 +192,12 @@ create or replace table t1 (
   A8 int without system versioning
 ) with system versioning;
 
---error ER_VERS_WRONG_PARAMS
-create or replace table t1 (
-  A9 int without system versioning with system versioning
-);
-
---error ER_VERS_WRONG_PARAMS
-create or replace table t1 (
-  A10 int with system versioning without system versioning
-);
-
 # table with/without system versioning
 
 --error ER_VERS_WRONG_PARAMS
 create table t(
   a11 int
 ) without system versioning;
-
---error ER_VERS_WRONG_PARAMS
-create or replace table t1 (
-  A12 int
-) without system versioning with system versioning;
-
---error ER_VERS_WRONG_PARAMS
-create or replace table t1 (
-  A13 int
-) with system versioning without system versioning;
-
---error ER_VERS_WRONG_PARAMS
-create or replace table t1 (
-  A14 int
-) with system versioning with system versioning;
-
---error ER_VERS_WRONG_PARAMS
-create or replace table t1 (
-  A15 int
-) without system versioning without system versioning;
 
 create or replace table t1 (a int) with system versioning;
 create temporary table tmp with system versioning select * from t1;

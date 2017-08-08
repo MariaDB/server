@@ -863,10 +863,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 103 shift/reduce conflicts.
+  Currently there are 116 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 103
+%expect 116
 
 /*
    Comments for TOKENS.
@@ -1623,7 +1623,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_constraint constraint opt_ident
         sp_decl_ident
         sp_block_label
-        period_for_system_time_column_id
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1972,7 +1971,7 @@ END_OF_INPUT
 
 %type <lex_str_list> opt_with_column_list
 
-%type <vers_range_unit> trans_or_timestamp
+%type <vers_range_unit> opt_trans_or_timestamp
 %type <BOOL> opt_for_system_time_clause
 %type <vers_column_versioning> with_or_without_system
 %%
@@ -2510,7 +2509,7 @@ create:
                                                      sequence_definition()))
                MYSQL_YYABORT;
          }
-         opt_sequence opt_create_table_options
+         opt_sequence opt_create_sequence_options
          {
             LEX *lex= thd->lex;
 
@@ -4774,7 +4773,7 @@ create_like:
 
 opt_create_select:
           /* empty */ {}
-        | opt_duplicate opt_as create_select_query_expression
+        | opt_duplicate opt_as create_select_query_expression opt_versioning_option
         ;
 
 create_select_query_expression:
@@ -5691,20 +5690,31 @@ create_or_replace:
           }
          ;
 
-opt_create_table_options:
+opt_create_sequence_options:
           /* empty */
         | create_table_options
         ;
 
-create_table_options_space_separated:
-          create_table_option
-        | create_table_option create_table_options_space_separated
+opt_create_table_options:
+          /* empty */
+        | create_table_options_versioning
+        ;
+
+alter_table_options:
+          create_table_option_versioning
+        | create_table_option_versioning alter_table_options
         ;
 
 create_table_options:
           create_table_option
         | create_table_option     create_table_options
         | create_table_option ',' create_table_options
+        ;
+
+create_table_options_versioning:
+          create_table_option_versioning
+        | create_table_option_versioning     create_table_options_versioning
+        | create_table_option_versioning ',' create_table_options_versioning
         ;
 
 create_table_option:
@@ -5951,28 +5961,27 @@ create_table_option:
 	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
             Lex->create_info.sequence= $3;
 	  }
-        | WITH_SYSTEM_SYM table_versioning
+        ;
+
+create_table_option_versioning:
+          create_table_option
+        | versioning_option
+        ;
+
+opt_versioning_option:
+          /* empty */
+        | versioning_option
+        ;
+
+versioning_option:
+        WITH_SYSTEM_SYM VERSIONING_SYM
           {
             Lex->vers_get_info().with_system_versioning= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
-	| WITHOUT SYSTEM table_versioning
+	| WITHOUT SYSTEM VERSIONING_SYM
           {
             Lex->vers_get_info().without_system_versioning= true;
-          }
-        ;
-
-table_versioning:
-          VERSIONING_SYM
-          {
-            Vers_parse_info &info= Lex->vers_get_info();
-            if (info.with_system_versioning || info.without_system_versioning)
-            {
-              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE, MYF(0),
-                Lex->create_last_non_select_table->table_name,
-                "WITH/WITHOUT SYSTEM VERSIONING");
-              MYSQL_YYABORT;
-            }
           }
         ;
 
@@ -6175,16 +6184,9 @@ constraint_def:
 
 period_for_system_time:
           // If FOR_SYM is followed by SYSTEM_TIME_SYM then they are merged to: FOR_SYSTEM_TIME_SYM .
-          PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
+          PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' ident ',' ident ')'
           {
             Vers_parse_info &info= Lex->vers_get_info();
-            if (!my_strcasecmp(system_charset_info, $4.str, $6.str))
-            {
-              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_IDENTIFIER, MYF(0),
-                Lex->create_last_non_select_table->table_name, $4.str,
-                "PERIOD FOR SYSTEM_TIME");
-              MYSQL_YYABORT;
-            }
             info.set_period_for_system_time($4, $6);
           }
         ;
@@ -6297,7 +6299,6 @@ field_def:
             LEX *lex= Lex;
             Vers_parse_info &info= lex->vers_get_info();
             const char *field_name= lex->last_field->field_name;
-            const char *table_name= lex->create_last_non_select_table->table_name;
 
             LString_i *p;
             const char* clause;
@@ -6319,12 +6320,6 @@ field_def:
               break;
             }
             DBUG_ASSERT(p);
-            if (*p)
-            {
-              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE_2, MYF(0),
-                table_name, clause, field_name, p->ptr());
-              MYSQL_YYABORT;
-            }
             *p= field_name;
             if (lex->last_field->implicit_not_null)
             {
@@ -6821,13 +6816,6 @@ serial_attribute:
           }
         | with_or_without_system VERSIONING_SYM
           {
-            if (Lex->last_field->versioning != Column_definition::VERSIONING_NOT_SET)
-            {
-              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE_FOR, MYF(0),
-                   Lex->create_last_non_select_table->table_name,
-                   "WITH/WITHOUT SYSTEM VERSIONING", Lex->last_field->field_name);
-              MYSQL_YYABORT;
-            }
             Lex->last_field->versioning= $1;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
@@ -7928,7 +7916,7 @@ alter_list_item:
               MYSQL_YYABORT;
             Lex->alter_info.flags|= Alter_info::ALTER_OPTIONS;
           }
-        | create_table_options_space_separated
+        | alter_table_options
           {
             LEX *lex=Lex;
             lex->alter_info.flags|= Alter_info::ALTER_OPTIONS;
@@ -8838,8 +8826,12 @@ select_options:
           }
         ;
 
-trans_or_timestamp:
-          TRANSACTION_SYM
+opt_trans_or_timestamp:
+          /* empty */
+          {
+            $$ = UNIT_AUTO;
+          }
+        | TRANSACTION_SYM
           {
             $$ = UNIT_TRX_ID;
           }
@@ -8855,7 +8847,22 @@ opt_system_time_clause:
         | SYSTEM_TIME_SYM system_time_expr
           {
             DBUG_ASSERT(Select);
-            Select->vers_conditions= Lex->vers_conditions;
+            int used= 0;
+            if (Lex->vers_conditions)
+            {
+              for (TABLE_LIST *table= Select->table_list.first; table; table= table->next_local)
+              {
+                if (!table->vers_conditions)
+                {
+                  table->vers_conditions= Lex->vers_conditions;
+                  used++;
+                }
+              }
+              if (!used)
+              {
+                my_yyabort_error((ER_VERS_UNUSED_CLAUSE, MYF(0), "SYSTEM_TIME"));
+              }
+            }
           }
         ;
 
@@ -8871,7 +8878,7 @@ opt_for_system_time_clause:
         ;
 
 system_time_expr:
-          AS OF_SYM trans_or_timestamp simple_expr
+          AS OF_SYM opt_trans_or_timestamp simple_expr
           {
             Lex->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, $3, $4);
           }
@@ -8884,42 +8891,20 @@ system_time_expr:
           }
         | ALL
           {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_ALL, UNIT_TIMESTAMP);
+            Lex->vers_conditions.init(FOR_SYSTEM_TIME_ALL);
           }
-        | FROM trans_or_timestamp simple_expr
-          TO_SYM trans_or_timestamp simple_expr
+        | FROM opt_trans_or_timestamp simple_expr
+          TO_SYM opt_trans_or_timestamp simple_expr
           {
-            if ($2 != $5)
-            {
-              Lex->parse_error(ER_VERS_RANGE_UNITS_MISMATCH);
-              MYSQL_YYABORT;
-            }
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, $2, $3, $6);
+            Lex->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, $2, $3, $5, $6);
           }
-        | trans_or_timestamp
-          FROM simple_expr
-          TO_SYM simple_expr
+        | BETWEEN_SYM opt_trans_or_timestamp simple_expr
+          AND_SYM opt_trans_or_timestamp simple_expr
           {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, $1, $3, $5);
-          }
-        | BETWEEN_SYM trans_or_timestamp simple_expr
-          AND_SYM trans_or_timestamp simple_expr
-          {
-            if ($2 != $5)
-            {
-              Lex->parse_error(ER_VERS_RANGE_UNITS_MISMATCH);
-              MYSQL_YYABORT;
-            }
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $2, $3, $6);
-          }
-        | trans_or_timestamp
-          BETWEEN_SYM simple_expr
-          AND_SYM simple_expr
-          {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $1, $3, $5);
+            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $2, $3, $5, $6);
           }
         | BEFORE_SYM
-          trans_or_timestamp
+          opt_trans_or_timestamp
           simple_expr
           {
             Lex->vers_conditions.init(FOR_SYSTEM_TIME_BEFORE, $2, $3);
@@ -13047,7 +13032,6 @@ truncate:
             lex->select_lex.init_order();
             YYPS->m_lock_type= TL_WRITE;
             YYPS->m_mdl_type= MDL_EXCLUSIVE;
-            Select->vers_conditions.empty();
           }
           table_name opt_for_system_time_clause opt_lock_wait_timeout
           {
@@ -13057,7 +13041,7 @@ truncate:
             if (lex->m_sql_cmd == NULL)
               MYSQL_YYABORT;
             if ($5)
-              Select->vers_conditions= Lex->vers_conditions;
+              Lex->last_table()->vers_conditions= Lex->vers_conditions;
           }
         ;
 
@@ -16242,13 +16226,6 @@ opt_column_list:
 column_list:
           column_list ',' column_list_id
         | column_list_id
-        ;
-
-period_for_system_time_column_id:
-          ident
-          {
-            $$= $1;
-          }
         ;
 
 column_list_id:

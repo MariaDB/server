@@ -492,18 +492,17 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 bool Sql_cmd_truncate_table::execute(THD *thd)
 {
   bool res= TRUE;
-  TABLE_LIST *first_table= thd->lex->select_lex.table_list.first;
+  TABLE_LIST *table= thd->lex->select_lex.table_list.first;
   DBUG_ENTER("Sql_cmd_truncate_table::execute");
 
-  bool truncate_history= thd->lex->current_select->vers_conditions.type !=
-                         FOR_SYSTEM_TIME_UNSPECIFIED;
-  if (truncate_history)
-    DBUG_RETURN(mysql_delete(thd, first_table, NULL, NULL, -1, 0, NULL));
+  DBUG_ASSERT(table);
+  if (table->vers_conditions)
+    DBUG_RETURN(mysql_delete(thd, table, NULL, NULL, -1, 0, NULL));
 
-  if (check_one_table_access(thd, DROP_ACL, first_table))
+  if (check_one_table_access(thd, DROP_ACL, table))
     DBUG_RETURN(res);
 
-  if (! (res= truncate_table(thd, first_table)))
+  if (! (res= truncate_table(thd, table)))
     my_ok(thd);
 
   DBUG_RETURN(res);

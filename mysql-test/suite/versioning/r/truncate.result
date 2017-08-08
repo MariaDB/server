@@ -1,9 +1,9 @@
 create table t (a int);
 truncate t for system_time all;
-ERROR HY000: Unused clause: 'SYSTEM_TIME'
+ERROR HY000: System Versioning required: t
 create procedure truncate_history_of_t()
 begin
-prepare stmt from 'truncate t for system_time timestamp between \'1-1-1\' and now(6)';
+prepare stmt from 'truncate t for system_time between \'1-1-1\' and now(6)';
 execute stmt;
 drop prepare stmt;
 end~~
@@ -34,12 +34,12 @@ a
 4
 2
 3
-truncate t for system_time timestamp between '1-1-1' and now(6);
+truncate t for system_time between '1-1-1' and now(6);
 select * from t for system_time all;
 a
 4
 update t set a=5;
-truncate t for system_time timestamp from '1-1-1' to now(6);
+truncate t for system_time from '1-1-1' to now(6);
 select * from t for system_time all;
 a
 5
@@ -52,13 +52,13 @@ set @ts1 = now(6);
 update t set a=7;
 set @ts2 = now(6);
 update t set a=8;
-truncate t for system_time timestamp from '1-1-1' to @ts1;
+truncate t for system_time from '1-1-1' to @ts1;
 select * from t for system_time all;
 a
 8
 7
 update t set a=9;
-truncate t for system_time timestamp between '1-1-1' and @ts2;
+truncate t for system_time between '1-1-1' and @ts2;
 select * from t for system_time all;
 a
 9
@@ -82,12 +82,12 @@ a
 4
 2
 3
-truncate t for system_time timestamp between '1-1-1' and now(6);
+truncate t for system_time between '1-1-1' and now(6);
 select * from t for system_time all;
 a
 4
 update t set a=5;
-truncate t for system_time timestamp from '1-1-1' to now(6);
+truncate t for system_time from '1-1-1' to now(6);
 select * from t for system_time all;
 a
 5
@@ -100,13 +100,13 @@ set @ts1 = now(6);
 update t set a=7;
 set @ts2 = now(6);
 update t set a=8;
-truncate t for system_time timestamp from '1-1-1' to @ts1;
+truncate t for system_time from '1-1-1' to timestamp @ts1;
 select * from t for system_time all;
 a
 8
 7
 update t set a=9;
-truncate t for system_time timestamp between '1-1-1' and @ts2;
+truncate t for system_time between '1-1-1' and timestamp @ts2;
 select * from t for system_time all;
 a
 9

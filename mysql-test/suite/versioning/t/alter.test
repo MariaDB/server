@@ -4,8 +4,6 @@ create table t(
 show create table t;
 --error ER_VERS_WRONG_PARAMS
 alter table t without system versioning;
---error ER_VERS_WRONG_PARAMS
-alter table t with system versioning without system versioning;
 
 alter table t with system versioning;
 show create table t;
@@ -118,9 +116,7 @@ show create table t;
 --error ER_VERS_WRONG_PARAMS
 alter table t modify a int with system versioning;
 --error ER_VERS_WRONG_PARAMS
-alter table t modify a int with system versioning with system versioning;
---error ER_VERS_WRONG_PARAMS
-alter table t modify a int with system versioning without system versioning;
+alter table t modify a int without system versioning;
 
 alter table t with system versioning;
 

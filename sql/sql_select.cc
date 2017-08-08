@@ -672,7 +672,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
 {
   st_vers_current_time &in= thd->variables.vers_current_time;
   type= in.type;
-  unit= UNIT_TIMESTAMP;
+  unit_start= UNIT_TIMESTAMP;
   if (type != FOR_SYSTEM_TIME_UNSPECIFIED && type != FOR_SYSTEM_TIME_ALL)
   {
     DBUG_ASSERT(type == FOR_SYSTEM_TIME_AS_OF);
@@ -714,14 +714,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   }
 
   if (versioned_tables == 0)
-  {
-    if (slex->vers_conditions)
-    {
-      my_error(ER_VERS_UNUSED_CLAUSE, MYF(0), "SYSTEM_TIME");
-      DBUG_RETURN(-1);
-    }
     DBUG_RETURN(0);
-  }
 
   /* For prepared statements we create items on statement arena,
      because they must outlive execution phase for multiple executions. */
@@ -771,41 +764,15 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   }
 
   SELECT_LEX *outer_slex= slex->next_select_in_list();
-  bool force_slex_conds= false;
-  if (outer_slex)
+  // propagate derived conditions to outer SELECT_LEX
+  if (outer_slex && slex->vers_export_outer)
   {
-    if (slex->vers_derived_conds)
+    for (table= outer_slex->table_list.first; table; table= table->next_local)
     {
-      // Propagate derived conditions to outer SELECT_LEX:
-      if (!outer_slex->vers_conditions)
+      if (!table->vers_conditions)
       {
-        outer_slex->vers_conditions= slex->vers_derived_conds;
-        outer_slex->vers_conditions.from_inner= true;
-        outer_slex->vers_conditions.used= true;
-      }
-    }
-    if (slex->vers_conditions.import_outer)
-    {
-      DBUG_ASSERT(slex->master_unit());
-      TABLE_LIST* derived= slex->master_unit()->derived;
-      DBUG_ASSERT(derived);
-      if (derived->vers_conditions)
-      {
-        slex->vers_conditions= derived->vers_conditions;
-        derived->vers_conditions.used= true;
-        force_slex_conds= derived->is_view();
-      }
-      else
-      {
-        // Propagate query conditions from nearest outer SELECT_LEX:
-        while (outer_slex && (!outer_slex->vers_conditions || outer_slex->vers_conditions.from_inner))
-          outer_slex= outer_slex->next_select_in_list();
-        if (outer_slex)
-        {
-          slex->vers_conditions= outer_slex->vers_conditions;
-          outer_slex->vers_conditions.used= true;
-          force_slex_conds= derived->is_view();
-        }
+        table->vers_conditions= slex->vers_export_outer;
+        table->vers_conditions.from_inner= true;
       }
     }
   }
@@ -814,10 +781,26 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   {
     if (table->table && table->table->versioned())
     {
-      vers_select_conds_t &vers_conditions= force_slex_conds || !table->vers_conditions?
-          (slex->vers_conditions.used= true, slex->vers_conditions) :
-          table->vers_conditions;
+      vers_select_conds_t &vers_conditions= table->vers_conditions;
 
+      // propagate system_time from nearest outer SELECT_LEX
+      if (!vers_conditions && outer_slex && slex->vers_import_outer)
+      {
+        TABLE_LIST* derived= slex->master_unit()->derived;
+        while (outer_slex && (!derived->vers_conditions || derived->vers_conditions.from_inner))
+        {
+          derived= outer_slex->master_unit()->derived;
+          outer_slex= outer_slex->next_select_in_list();
+        }
+        if (outer_slex)
+        {
+          DBUG_ASSERT(derived);
+          DBUG_ASSERT(derived->vers_conditions);
+          vers_conditions= derived->vers_conditions;
+        }
+      }
+
+      // propagate system_time from sysvar
       if (!vers_conditions)
       {
         if (vers_conditions.init_from_sysvar(thd))
@@ -869,12 +852,57 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       bool tmp_from_ib=
           table->table->s->table_category == TABLE_CATEGORY_TEMPORARY &&
           table->table->vers_start_field()->type() == MYSQL_TYPE_LONGLONG;
-      if (table->table->versioned_by_sql() && !tmp_from_ib)
+      bool timestamps_only= table->table->versioned_by_sql() && !tmp_from_ib;
+
+      if (vers_conditions)
       {
-        if (vers_conditions.unit == UNIT_TRX_ID)
+        vers_conditions.resolve_units(timestamps_only);
+        if (timestamps_only)
         {
-          my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name);
-          DBUG_RETURN(-1);
+          if (vers_conditions.unit_start == UNIT_TRX_ID || vers_conditions.unit_end == UNIT_TRX_ID)
+          {
+            my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name);
+            DBUG_RETURN(-1);
+          }
+        }
+        else if (thd->variables.vers_innodb_algorithm_simple)
+        {
+          DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
+          handlerton *hton= plugin_hton(table->table->s->db_plugin);
+          DBUG_ASSERT(hton);
+          bool convert_start= false;
+          bool convert_end= false;
+          switch (vers_conditions.type)
+          {
+          case FOR_SYSTEM_TIME_AS_OF:
+            if (vers_conditions.unit_start == UNIT_TIMESTAMP)
+              convert_start= convert_end= true;
+            break;
+          case FOR_SYSTEM_TIME_BEFORE:
+            if (vers_conditions.unit_start == UNIT_TIMESTAMP)
+              convert_end= true;
+            break;
+          case FOR_SYSTEM_TIME_FROM_TO:
+          case FOR_SYSTEM_TIME_BETWEEN:
+            if (vers_conditions.unit_start == UNIT_TIMESTAMP)
+              convert_end= true;
+            if (vers_conditions.unit_end == UNIT_TIMESTAMP)
+              convert_start= true;
+          default:
+            break;
+          }
+          if (convert_start)
+            row_start= newx Item_func_vtq_ts(
+              thd,
+              hton,
+              row_start,
+              VTQ_COMMIT_TS);
+          if (convert_end)
+            row_end= newx Item_func_vtq_ts(
+              thd,
+              hton,
+              row_end,
+              VTQ_COMMIT_TS);
         }
       }
 
@@ -943,7 +971,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           cond1= newx Item_func_eq(thd, row_end2, curr);
           break;
         case FOR_SYSTEM_TIME_AS_OF:
-          trx_id0= vers_conditions.unit == UNIT_TIMESTAMP ?
+          trx_id0= vers_conditions.unit_start == UNIT_TIMESTAMP ?
             newx Item_func_vtq_id(thd, hton, vers_conditions.start, VTQ_TRX_ID) :
             vers_conditions.start;
           cond1= newx Item_func_vtq_trx_sees_eq(thd, hton, trx_id0, row_start);
@@ -951,24 +979,19 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           break;
         case FOR_SYSTEM_TIME_FROM_TO:
         case FOR_SYSTEM_TIME_BETWEEN:
-          if (vers_conditions.unit == UNIT_TIMESTAMP)
-          {
-            trx_id0= newx Item_func_vtq_id(thd, hton, vers_conditions.start, VTQ_TRX_ID, true);
-            trx_id1= newx Item_func_vtq_id(thd, hton, vers_conditions.end, VTQ_TRX_ID, false);
-          }
-          else
-          {
-            trx_id0= vers_conditions.start;
-            trx_id1= vers_conditions.end;
-          }
-
+          trx_id0= vers_conditions.unit_start == UNIT_TIMESTAMP ?
+            newx Item_func_vtq_id(thd, hton, vers_conditions.start, VTQ_TRX_ID, true) :
+            vers_conditions.start;
+          trx_id1= vers_conditions.unit_end == UNIT_TIMESTAMP ?
+            newx Item_func_vtq_id(thd, hton, vers_conditions.end, VTQ_TRX_ID, false) :
+            vers_conditions.end;
           cond1= vers_conditions.type == FOR_SYSTEM_TIME_FROM_TO ?
             newx Item_func_vtq_trx_sees(thd, hton, trx_id1, row_start) :
             newx Item_func_vtq_trx_sees_eq(thd, hton, trx_id1, row_start);
           cond2= newx Item_func_vtq_trx_sees_eq(thd, hton, row_end, trx_id0);
           break;
         case FOR_SYSTEM_TIME_BEFORE:
-          trx_id0= vers_conditions.unit == UNIT_TIMESTAMP ?
+          trx_id0= vers_conditions.unit_start == UNIT_TIMESTAMP ?
             newx Item_func_vtq_id(thd, hton, vers_conditions.start, VTQ_TRX_ID) :
             vers_conditions.start;
           cond1= newx Item_func_lt(thd, row_end, trx_id0);
@@ -993,12 +1016,6 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       }
     } // if (... table->table->versioned())
   } // for (table= tables; ...)
-
-  if (!slex->vers_conditions.used && slex->vers_conditions)
-  {
-    my_error(ER_VERS_UNUSED_CLAUSE, MYF(0), "SYSTEM_TIME");
-    DBUG_RETURN(-1);
-  }
 
   DBUG_RETURN(0);
 #undef newx

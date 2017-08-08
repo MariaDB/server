@@ -453,11 +453,15 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     goto err;
   }
 
-  { /* System Versioning begin */
+  { /* System Versioning: fix system fields of versioned view */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat"
 #pragma GCC diagnostic ignored "-Wformat-extra-args"
-    TABLE_LIST *impli_table= NULL, *expli_table= NULL;
+    // Leading versioning table detected implicitly (first one selected)
+    TABLE_LIST *impli_table= NULL;
+    // Leading versioning table specified explicitly
+    // (i.e. if at least one system field is selected)
+    TABLE_LIST *expli_table= NULL;
     const char *impli_start, *impli_end;
     Item_field *expli_start= NULL, *expli_end= NULL;
 

@@ -1845,7 +1845,8 @@ class Item_in_subselect;
 
 enum vers_range_unit_t
 {
-  UNIT_TIMESTAMP = 0,
+  UNIT_AUTO = 0,
+  UNIT_TIMESTAMP,
   UNIT_TRX_ID
 };
 
@@ -1853,31 +1854,32 @@ enum vers_range_unit_t
 struct vers_select_conds_t
 {
   vers_range_type_t type;
-  vers_range_unit_t unit;
+  vers_range_unit_t unit_start, unit_end;
   bool import_outer:1;
   bool from_inner:1;
-  bool used:1;
   Item *start, *end;
 
   void empty()
   {
     type= FOR_SYSTEM_TIME_UNSPECIFIED;
-    unit= UNIT_TIMESTAMP;
-    import_outer= from_inner= used= false;
+    unit_start= unit_end= UNIT_AUTO;
+    import_outer= from_inner= false;
     start= end= NULL;
   }
 
   void init(
     vers_range_type_t t,
-    vers_range_unit_t u,
+    vers_range_unit_t u_start= UNIT_AUTO,
     Item * s= NULL,
+    vers_range_unit_t u_end= UNIT_AUTO,
     Item * e= NULL)
   {
     type= t;
-    unit= u;
+    unit_start= u_start;
+    unit_end= u_end;
     start= s;
     end= e;
-    import_outer= from_inner= used= false;
+    import_outer= from_inner= false;
   }
 
   bool init_from_sysvar(THD *thd);
@@ -1894,6 +1896,7 @@ struct vers_select_conds_t
   {
     return type != FOR_SYSTEM_TIME_UNSPECIFIED;
   }
+  void resolve_units(bool timestamps_only);
 };
 
 struct LEX;

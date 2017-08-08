@@ -8,8 +8,6 @@ t	CREATE TABLE `t` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t without system versioning;
 ERROR HY000: Wrong parameters for `t`: table is not versioned
-alter table t with system versioning without system versioning;
-ERROR HY000: Wrong parameters for `t`: multiple 'WITH/WITHOUT SYSTEM VERSIONING'
 alter table t with system versioning;
 show create table t;
 Table	Create Table
@@ -226,10 +224,8 @@ t	CREATE TABLE `t` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t modify a int with system versioning;
 ERROR HY000: Wrong parameters for `t`: table is not versioned
-alter table t modify a int with system versioning with system versioning;
-ERROR HY000: Wrong parameters for `t`: multiple 'WITH/WITHOUT SYSTEM VERSIONING' for `a`
-alter table t modify a int with system versioning without system versioning;
-ERROR HY000: Wrong parameters for `t`: multiple 'WITH/WITHOUT SYSTEM VERSIONING' for `a`
+alter table t modify a int without system versioning;
+ERROR HY000: Wrong parameters for `t`: table is not versioned
 alter table t with system versioning;
 alter table t modify a int without system versioning;
 show create table t;
