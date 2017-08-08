@@ -1811,14 +1811,10 @@ public:
 
 
 /** Does an update or delete of a row for MySQL.
-@param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
 @return error code or DB_SUCCESS */
-static
 dberr_t
-row_update_for_mysql_using_upd_graph(
-	const byte*	mysql_rec,
-	row_prebuilt_t*	prebuilt)
+row_update_for_mysql(row_prebuilt_t* prebuilt)
 {
 	trx_savept_t	savept;
 	dberr_t		err;
@@ -1834,13 +1830,13 @@ row_update_for_mysql_using_upd_graph(
 	upd_cascade_t*	processed_cascades;
 	bool		got_s_lock	= false;
 
-	DBUG_ENTER("row_update_for_mysql_using_upd_graph");
+	DBUG_ENTER("row_update_for_mysql");
 
 	ut_ad(trx);
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
+	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
 	ut_ad(table->stat_initialized);
-	UT_NOT_USED(mysql_rec);
 
 	if (!table->is_readable()) {
 		return(row_mysql_get_table_status(table, trx, true));
@@ -2155,19 +2151,6 @@ error:
 		      que_graph_free_recursive);
 
 	DBUG_RETURN(err);
-}
-
-/** Does an update or delete of a row for MySQL.
-@param[in]	mysql_rec	row in the MySQL format
-@param[in,out]	prebuilt	prebuilt struct in MySQL handle
-@return error code or DB_SUCCESS */
-dberr_t
-row_update_for_mysql(
-	const byte*		mysql_rec,
-	row_prebuilt_t*		prebuilt)
-{
-	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
-	return(row_update_for_mysql_using_upd_graph(mysql_rec, prebuilt));
 }
 
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
