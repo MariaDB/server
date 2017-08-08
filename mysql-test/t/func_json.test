@@ -138,6 +138,11 @@ select json_keys('{"a":{"c":1, "d":2}, "b":2}');
 select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a");
 select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b");
 select json_keys('foo');
+#
+# mdev-12789 JSON_KEYS returns duplicate keys twice
+#
+select json_keys('{"a":{"c":1, "d":2}, "b":2, "c":1, "a":3, "b":1, "c":2}');
+select json_keys('{"c1": "value 1", "c1": "value 2"}');
 
 SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
 select json_search(@j, 'one', 'abc');

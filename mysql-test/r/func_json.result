@@ -356,6 +356,12 @@ json_keys('foo')
 NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 1
+select json_keys('{"a":{"c":1, "d":2}, "b":2, "c":1, "a":3, "b":1, "c":2}');
+json_keys('{"a":{"c":1, "d":2}, "b":2, "c":1, "a":3, "b":1, "c":2}')
+["a", "b", "c"]
+select json_keys('{"c1": "value 1", "c1": "value 2"}');
+json_keys('{"c1": "value 1", "c1": "value 2"}')
+["c1"]
 SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
 select json_search(@j, 'one', 'abc');
 json_search(@j, 'one', 'abc')
