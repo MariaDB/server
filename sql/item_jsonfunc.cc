@@ -1485,6 +1485,8 @@ void Item_func_json_array::fix_length_and_dec()
   ulonglong char_length= 2;
   uint n_arg;
 
+  result_limit= 0;
+
   if (arg_count == 0)
   {
     collation.set(&my_charset_utf8_general_ci);
@@ -1501,7 +1503,6 @@ void Item_func_json_array::fix_length_and_dec()
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
-  result_limit= 0;
 }
 
 
