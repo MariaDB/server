@@ -46,7 +46,9 @@ typedef int INT;
   sqltypes.h (through sql.h or sqlext.h).
 */
 typedef unsigned long DWORD;
-#endif   /* !NODW */
+#else		  // NODW
+typedef unsigned int DWORD;
+#endif    // NODW
 #undef  HANDLE     
 typedef int   HANDLE;
 
