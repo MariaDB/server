@@ -587,24 +587,40 @@ void Item_func_json_unquote::fix_length_and_dec()
 }
 
 
-String *Item_func_json_unquote::val_str(String *str)
+String *Item_func_json_unquote::read_json(json_engine_t *je)
 {
   String *js= args[0]->val_json(&tmp_s);
-  json_engine_t je;
-  int c_len;
 
   if ((null_value= args[0]->null_value))
-    return NULL;
+    return 0;
 
-  json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
+  json_scan_start(je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
 
-  je.value_type= (enum json_value_types) -1; /* To report errors right. */
+  je->value_type= (enum json_value_types) -1; /* To report errors right. */
 
-  if (json_read_value(&je))
+  if (json_read_value(je))
     goto error;
 
-  if (je.value_type != JSON_VALUE_STRING)
+  return js;
+
+error:
+  if (je->value_type == JSON_VALUE_STRING)
+    report_json_error(js, je, 0);
+  return js;
+}
+
+
+String *Item_func_json_unquote::val_str(String *str)
+{
+  json_engine_t je;
+  int c_len;
+  String *js;
+
+  if (!(js= read_json(&je)))
+    return NULL;
+
+  if (je.s.error || je.value_type != JSON_VALUE_STRING)
     return js;
 
   str->length(0);
@@ -621,10 +637,83 @@ String *Item_func_json_unquote::val_str(String *str)
   return str;
 
 error:
-  if (je.value_type == JSON_VALUE_STRING)
-    report_json_error(js, &je, 0);
-  /* We just return the argument's value in the case of error. */
+  report_json_error(js, &je, 0);
   return js;
+}
+
+
+double Item_func_json_unquote::val_real()
+{
+  json_engine_t je;
+  double d= 0.0;
+  String *js;
+
+  if ((js= read_json(&je)) != NULL)
+  {
+    switch (je.value_type)
+    {
+      case JSON_VALUE_NUMBER:
+      {
+        char *end;
+        int err;
+        d= my_strntod(je.s.cs, (char *) je.value, je.value_len, &end, &err);
+        break;
+      }
+      case JSON_VALUE_TRUE:
+        d= 1.0;
+        break;
+      case JSON_VALUE_STRING:
+      {
+        char *end;
+        int err;
+        d= my_strntod(js->charset(), (char *) js->ptr(), js->length(),
+                      &end, &err);
+        break;
+      }
+      default:
+        break;
+    };
+  }
+
+  return d;
+}
+
+
+longlong Item_func_json_unquote::val_int()
+{
+  json_engine_t je;
+  longlong i= 0;
+  String *js;
+
+  if ((js= read_json(&je)) != NULL)
+  {
+    switch (je.value_type)
+    {
+      case JSON_VALUE_NUMBER:
+      {
+        char *end;
+        int err;
+        i= my_strntoll(je.s.cs, (char *) je.value, je.value_len, 10,
+                       &end, &err);
+        break;
+      }
+      case JSON_VALUE_TRUE:
+        i= 1;
+        break;
+      case JSON_VALUE_STRING:
+      {
+        char *end;
+        int err;
+        i= my_strntoll(js->charset(), (char *) js->ptr(), js->length(), 10,
+                       &end, &err);
+        break;
+      }
+      default:
+        break;
+    };
+  }
+
+  return i;
 }
 
 

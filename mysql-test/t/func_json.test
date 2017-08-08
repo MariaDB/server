@@ -302,3 +302,13 @@ DROP TABLE t1;
 SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*].*' );
 SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*]' );
 
+#
+# MDEV-12604 Comparison of JSON_EXTRACT result differs with Mysql.
+#
+
+select JSON_EXTRACT('{"name":"value"}', '$.name') = 'value';
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true;
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false;
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1;
+select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
+

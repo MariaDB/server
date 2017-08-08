@@ -670,6 +670,15 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
                                   &Arg_comparator::compare_datetime;
   }
 
+  if ((*a)->is_json_type() ^ (*b)->is_json_type())
+  {
+    Item **j_item= (*a)->is_json_type() ? a : b;
+    Item *uf= new(thd->mem_root) Item_func_json_unquote(thd, *j_item);
+    if (!uf || uf->fix_fields(thd, &uf))
+      return 1;
+    *j_item= uf;
+  }
+
   a= cache_converted_constant(thd, a, &a_cache, m_compare_type);
   b= cache_converted_constant(thd, b, &b_cache, m_compare_type);
   return set_compare_func(owner_arg, m_compare_type);

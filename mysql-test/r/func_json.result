@@ -648,3 +648,18 @@ NULL
 SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*]' );
 JSON_EXTRACT( '{"foo":"bar"}', '$[*]' )
 NULL
+select JSON_EXTRACT('{"name":"value"}', '$.name') = 'value';
+JSON_EXTRACT('{"name":"value"}', '$.name') = 'value'
+1
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true;
+JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true
+1
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false;
+JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false
+0
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1;
+JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1
+1
+select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
+JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"')
+"\u00f6"
