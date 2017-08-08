@@ -44,6 +44,8 @@
 #include <errno.h>
 #define BIGMEM         1048576            // 1 Megabyte
 #else     // !__WIN__
+// See comment in os.h
+#define NODW					 
 #include <unistd.h>
 #include <fcntl.h>
 //#if defined(THREAD)
@@ -69,7 +71,6 @@
 #include "valblk.h"
 #include "rcmsg.h"
 #if defined(ODBC_SUPPORT)
-#define NODW					 // See comment in os.h
 #include "tabext.h"
 #include "odbccat.h"
 #include "tabodbc.h"
