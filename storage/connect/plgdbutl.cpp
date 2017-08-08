@@ -44,8 +44,6 @@
 #include <errno.h>
 #define BIGMEM         1048576            // 1 Megabyte
 #else     // !__WIN__
-// See comment in os.h
-#define NODW					 
 #include <unistd.h>
 #include <fcntl.h>
 //#if defined(THREAD)
@@ -70,11 +68,6 @@
 #include "tabcol.h"    // header of XTAB and COLUMN classes
 #include "valblk.h"
 #include "rcmsg.h"
-#if defined(ODBC_SUPPORT)
-#include "tabext.h"
-#include "odbccat.h"
-#include "tabodbc.h"
-#endif   // ODBC_SUPPORT
 #ifdef ZIP_SUPPORT
 #include "filamzip.h"
 #endif // ZIP_SUPPORT
@@ -121,6 +114,9 @@ void CloseXMLFile(PGLOBAL, PFBLOCK, bool);
 #include "libdoc.h"
 #endif   // LIBXML2_SUPPORT
 
+#ifdef ODBC_SUPPORT
+void OdbcClose(PGLOBAL g, PFBLOCK fp);
+#endif   // ODBC_SUPPORT
 
 /***********************************************************************/
 /* Routines for file IO with error reporting to g->Message             */
@@ -887,7 +883,7 @@ FILE *PlugReopenFile(PGLOBAL g, PFBLOCK fp, LPCSTR md)
 /*  Close file routine: the purpose of this routine is to avoid        */
 /*  double closing that freeze the system on some Unix platforms.      */
 /***********************************************************************/
-int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
+int PlugCloseFile(PGLOBAL g, PFBLOCK fp, bool all)
   {
   int rc = 0;
 
@@ -938,7 +934,7 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
 #endif   // LIBXML2_SUPPORT
 #ifdef ODBC_SUPPORT
 		case TYPE_FB_ODBC:
-			((ODBConn*)fp->File)->Close();
+			OdbcClose(g, fp);
 			fp->Count = 0;
 			fp->File = NULL;
 			break;
