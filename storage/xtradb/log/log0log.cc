@@ -3635,6 +3635,7 @@ wait_suspend_loop:
 	before proceeding further. */
 
 	count = 0;
+	os_rmb;
 	while (buf_page_cleaner_is_active || buf_lru_manager_is_active) {
 		if (srv_print_verbose_log && count == 0) {
 			ib_logf(IB_LOG_LEVEL_INFO,
@@ -3646,6 +3647,7 @@ wait_suspend_loop:
 		if (count > 600) {
 			count = 0;
 		}
+		os_rmb;
 	}
 
 	if (log_scrub_thread_active) {

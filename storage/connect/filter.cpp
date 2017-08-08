@@ -87,7 +87,7 @@ BYTE OpBmp(PGLOBAL g, OPVAL opc)
     case OP_EXIST: bt = 0x00; break;
     default:
       sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
-			throw TYPE_ARRAY;
+			throw (int)TYPE_FILTER;
 	} // endswitch opc
 
   return bt;
@@ -1437,7 +1437,7 @@ void FILTER::Printf(PGLOBAL g, FILE *f, uint n)
 
     } // endfor fp
 
-  } // end of Print
+  } // end of Printf
 
 /***********************************************************************/
 /*  Make string output of TABLE contents (z should be checked).        */
@@ -1579,7 +1579,7 @@ void FILTER::Prints(PGLOBAL g, char *ps, uint z)
     bcp = bxp;
     } while (bcp); // enddo
 
-  } // end of Print
+  } // end of Prints
 
 
 /* -------------------- Derived Classes Functions -------------------- */
@@ -1697,8 +1697,6 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
 
   if (trace)
     htrc("PrepareFilter: fp=%p having=%d\n", fp, having);
-//if (fp)
-//  fp->Print(g, debug, 0);
 
   while (fp) {
     if (fp->Opc == OP_SEP)
@@ -1712,7 +1710,7 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
         break;  // Remove eventual ending separator(s)
 
 //  if (fp->Convert(g, having))
-//			throw TYPE_ARRAY;
+//			throw (int)TYPE_FILTER;
 
     filp = fp;
     fp = fp->Next;
@@ -1721,8 +1719,6 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
 
   if (trace)
     htrc(" returning filp=%p\n", filp);
-//if (filp)
-//  filp->Print(g, debug, 0);
 
   return filp;
   } // end of PrepareFilter
@@ -1745,7 +1741,7 @@ DllExport bool ApplyFilter(PGLOBAL g, PFIL filp)
 //  return TRUE;
 
   if (filp->Eval(g))
-		throw TYPE_FILTER;
+		throw (int)TYPE_FILTER;
 
   if (trace > 1)
     htrc("PlugFilter filp=%p result=%d\n",

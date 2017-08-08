@@ -1,4 +1,5 @@
 /* Copyright (C) Olivier Bertrand 2004 - 2017
+   Copyright (C) MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -66,8 +67,10 @@ PGLOBAL CntExit(PGLOBAL g)
   if (g) {
     CntEndDB(g);
 
-    if (g->Activityp)
-      delete g->Activityp;
+		if (g->Activityp) {
+			delete g->Activityp;
+			g->Activityp = NULL;
+		}	// endif Activityp
 
     PlugExit(g);
     g= NULL;
@@ -185,10 +188,10 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
 /***********************************************************************/
 PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 {
-	PTDB    tdbp;
+	PTDB    tdbp = NULL;
 	PTABLE  tabp;
 	PDBUSER dup = PlgGetUser(g);
-	volatile PCATLG  cat = (dup) ? dup->Catalog : NULL;     // Safe over longjmp
+	volatile PCATLG  cat = (dup) ? dup->Catalog : NULL;  // Safe over throw
 
 	if (trace)
 		printf("CntGetTDB: name=%s mode=%d cat=%p\n", name, mode, cat);

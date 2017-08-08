@@ -158,7 +158,8 @@ static void dump_descriptor(DESCRIPTOR d) {
 static void open_header(int fd, FT *header, CACHEFILE cf) {
     FT ft = NULL;
     int r;
-    r = toku_deserialize_ft_from (fd, MAX_LSN, &ft);
+    const char *fn = toku_cachefile_fname_in_env(cf);
+    r = toku_deserialize_ft_from (fd, fn, MAX_LSN, &ft);
     if (r != 0) {
         fprintf(stderr, "%s: can not deserialize from %s error %d\n", arg0, fname, r);
         exit(1);

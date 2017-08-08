@@ -1605,6 +1605,8 @@ srv_printf_innodb_monitor(
 	recv_sys_subtotal = ((recv_sys && recv_sys->addr_hash)
 			? mem_heap_get_size(recv_sys->heap) : 0);
 
+	ulint dict_size = dict_sys ? dict_sys_get_size() : 0;
+
 	fprintf(file,
 			"Internal hash tables (constant factor + variable factor)\n"
 			"    Adaptive hash index %lu \t(%lu + " ULINTPF ")\n"
@@ -1623,11 +1625,11 @@ srv_printf_innodb_monitor(
 			(ulong) (dict_sys ? ((dict_sys->table_hash->n_cells
 						+ dict_sys->table_id_hash->n_cells
 						) * sizeof(hash_cell_t)
-					+ dict_sys->size) : 0),
+					+ dict_size) : 0),
 			(ulong) (dict_sys ? ((dict_sys->table_hash->n_cells
 							+ dict_sys->table_id_hash->n_cells
 							) * sizeof(hash_cell_t)) : 0),
-			dict_sys ? (dict_sys->size) : 0,
+			dict_size,
 
 			(ulong) (fil_system_hash_cells() * sizeof(hash_cell_t)
 					+ fil_system_hash_nodes()),
@@ -1648,7 +1650,7 @@ srv_printf_innodb_monitor(
 
 
 	fprintf(file, "Dictionary memory allocated " ULINTPF "\n",
-		dict_sys ? dict_sys->size : 0);
+		dict_sys ? dict_sys_get_size() : 0);
 
 	buf_print_io(file);
 
@@ -1810,7 +1812,7 @@ srv_export_innodb_status(void)
 	mem_dictionary = (dict_sys ? ((dict_sys->table_hash->n_cells
 					+ dict_sys->table_id_hash->n_cells
 				      ) * sizeof(hash_cell_t)
-				+ dict_sys->size) : 0);
+			+ dict_sys_get_size()) : 0);
 
 	mutex_enter(&srv_innodb_monitor_mutex);
 

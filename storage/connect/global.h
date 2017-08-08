@@ -1,6 +1,7 @@
 /***********************************************************************/
 /*  GLOBAL.H: Declaration file used by all CONNECT implementations.    */
-/*  (C) Copyright Olivier Bertrand                       1993-2017     */
+/*  (C) Copyright MariaDB Corporation Ab                 							 */
+/*  Author Olivier Bertrand                              1993-2017     */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -90,6 +91,7 @@
 #define  TYPE_BIGINT       5
 #define  TYPE_LIST         6
 #define  TYPE_INT          7
+#define  TYPE_DATE         8
 #define  TYPE_DECIM        9
 #define  TYPE_BIN         10
 #define  TYPE_PCHAR       11

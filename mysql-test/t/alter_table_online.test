@@ -285,6 +285,8 @@ CREATE TABLE t1 (a LONGTEXT COLLATE latin1_general_ci);
 ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
 DROP TABLE t1;
 
+# End of 10.0 tests
+
 #
 # MDEV-11335 Changing delay_key_write option for MyISAM table should not copy rows
 #
@@ -306,3 +308,5 @@ flush tables;
 insert t1 values (1,2),(2,3),(3,4);
 show status like 'Feature_delay_key_write';
 drop table t1;
+
+# End of 10.1 tests

@@ -1,5 +1,5 @@
 /****************** jsonudf C++ Program Source Code File (.CPP) ******************/
-/*  PROGRAM NAME: jsonudf     Version 1.5                                        */
+/*  PROGRAM NAME: jsonudf     Version 1.6                                        */
 /*  (C) Copyright to the author Olivier BERTRAND          2015-2017              */
 /*  This program are the JSON User Defined Functions     .                       */
 /*********************************************************************************/
@@ -27,7 +27,8 @@
 #endif
 #define M 7
 
-uint GetJsonGrpSize(void);
+char *GetJsonNull(void);
+uint  GetJsonGrpSize(void);
 static int IsJson(UDF_ARGS *args, uint i);
 static PSZ MakePSZ(PGLOBAL g, UDF_ARGS *args, int i);
 static char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -327,11 +328,13 @@ void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 				SetJsonValue(g, vp, val->GetArray()->GetValue(0), n);
 				break;
 			case TYPE_JOB:
-				//      if (!vp->IsTypeNum() || !Strict) {
+//      if (!vp->IsTypeNum() || !Strict) {
 				vp->SetValue_psz(val->GetObject()->GetText(g, NULL));
 				break;
-				//        } // endif Type
+//      } // endif Type
 
+			case TYPE_NULL:
+				vp->SetNull(true);
 			default:
 				vp->Reset();
 			} // endswitch Type
@@ -459,7 +462,7 @@ PVAL JSNX::ExpandArray(PGLOBAL g, PJAR arp, int n)
 /*********************************************************************************/
 PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 {
-//int     i, ars, nv = 0, nextsame = Tjp->NextSame;
+	//int     i, ars, nv = 0, nextsame = Tjp->NextSame;
 	int     i, ars, nv = 0, nextsame = 0;
 	my_bool err;
 	OPVAL   op = Nodes[n].Op;
@@ -468,15 +471,16 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 	JVALUE  jval;
 
 	vp->Reset();
-//ars = MY_MIN(Tjp->Limit, arp->size());
 	ars = arp->size();
 
 	for (i = 0; i < ars; i++) {
 		jvrp = arp->GetValue(i);
 
-//	do {
-			if (n < Nod - 1 && jvrp->GetJson()) {
-//			Tjp->NextSame = nextsame;
+		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) {
+			if (jvrp->IsNull()) {
+				jvrp->Value = AllocateValue(g, GetJsonNull(), TYPE_STRING);
+				jvp = jvrp;
+			} else if (n < Nod - 1 && jvrp->GetJson()) {
 				jval.SetValue(GetColumnValue(g, jvrp->GetJson(), n + 1));
 				jvp = &jval;
 			} else
@@ -490,25 +494,25 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 
 			if (!MulVal->IsZero()) {
 				switch (op) {
-				case OP_CNC:
-					if (Nodes[n].CncVal) {
-						val[0] = Nodes[n].CncVal;
-						err = vp->Compute(g, val, 1, op);
-					} // endif CncVal
+					case OP_CNC:
+						if (Nodes[n].CncVal) {
+							val[0] = Nodes[n].CncVal;
+							err = vp->Compute(g, val, 1, op);
+						} // endif CncVal
 
-					val[0] = MulVal;
-					err = vp->Compute(g, val, 1, op);
-					break;
-					//        case OP_NUM:
-				case OP_SEP:
-					val[0] = Nodes[n].Valp;
-					val[1] = MulVal;
-					err = vp->Compute(g, val, 2, OP_ADD);
-					break;
-				default:
-					val[0] = Nodes[n].Valp;
-					val[1] = MulVal;
-					err = vp->Compute(g, val, 2, op);
+						val[0] = MulVal;
+						err = vp->Compute(g, val, 1, op);
+						break;
+						//        case OP_NUM:
+					case OP_SEP:
+						val[0] = Nodes[n].Valp;
+						val[1] = MulVal;
+						err = vp->Compute(g, val, 2, OP_ADD);
+						break;
+					default:
+						val[0] = Nodes[n].Valp;
+						val[1] = MulVal;
+						err = vp->Compute(g, val, 2, op);
 				} // endswitch Op
 
 				if (err)
@@ -516,7 +520,7 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 
 			} // endif Zero
 
-//	} while (Tjp->NextSame > nextsame);
+		}	// endif jvrp
 
 	} // endfor i
 
@@ -1081,6 +1085,7 @@ inline void JsonMemSave(PGLOBAL g)
 /*********************************************************************************/
 inline void JsonFreeMem(PGLOBAL g)
 {
+	g->Activityp = NULL;
 	PlugExit(g);
 } /* end of JsonFreeMem */
 
