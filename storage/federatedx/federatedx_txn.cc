@@ -93,8 +93,8 @@ void federatedx_txn::close(FEDERATEDX_SERVER *server)
 }
 
 
-int federatedx_txn::acquire(FEDERATEDX_SHARE *share, bool readonly,
-                            federatedx_io **ioptr)
+int federatedx_txn::acquire(FEDERATEDX_SHARE *share, void *thd,
+                            bool readonly, federatedx_io **ioptr)
 {
   federatedx_io *io;
   FEDERATEDX_SERVER *server= share->s;
@@ -131,6 +131,7 @@ int federatedx_txn::acquire(FEDERATEDX_SHARE *share, bool readonly,
     
     io->busy= TRUE;
     io->owner_ptr= ioptr;
+    io->set_thd(thd);
   }
   
   DBUG_ASSERT(io->busy && io->server == server);
@@ -157,7 +158,10 @@ void federatedx_txn::release(federatedx_io **ioptr)
                 	io->active, io->is_autocommit()));
 
     if (io->is_autocommit())
+    {
+      io->set_thd(NULL);
       io->active= FALSE;
+    }
   }
 
   release_scan();
