@@ -138,6 +138,7 @@ IF (NOT CPACK_GENERATOR)
   ENDIF(WIN32) 
 ENDIF(NOT CPACK_GENERATOR)
 
+INCLUDE(FeatureSummary)
 INCLUDE(misc)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
@@ -162,6 +163,12 @@ INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 INCLUDE(compile_flags)
 INCLUDE(crc32-vpmsum)
+
+FIND_PACKAGE(Git)
+SET_PACKAGE_PROPERTIES(Git PROPERTIES
+  PURPOSE "Detect the git revision hash of the MariaDB version"
+  TYPE OPTIONAL
+)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -378,10 +385,13 @@ ADD_SUBDIRECTORY(sql/share)
 IF(NOT WITHOUT_SERVER)
   ADD_SUBDIRECTORY(tests)
   ADD_SUBDIRECTORY(sql)
-  OPTION (WITH_EMBEDDED_SERVER "Compile MySQL with embedded server" OFF)
+  OPTION (WITH_EMBEDDED_SERVER "Compile MariaDB with embedded server" OFF)
   IF(WITH_EMBEDDED_SERVER) 
-   ADD_SUBDIRECTORY(libmysqld)
-   ADD_SUBDIRECTORY(libmysqld/examples)
+    ADD_SUBDIRECTORY(libmysqld)
+    ADD_SUBDIRECTORY(libmysqld/examples)
+    add_feature_info(EMBEDDED_SERVER "ON" "Embedded MariaDB Server Library")
+  ELSE(WITH_EMBEDDED_SERVER)
+    add_feature_info(EMBEDDED_SERVER "OFF" "Embedded MariaDB Server Library")
   ENDIF(WITH_EMBEDDED_SERVER)
 
   IF(WITH_WSREP)
@@ -465,6 +475,10 @@ IF(WIN32 AND SIGNCODE)
   CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/cmake/sign.cmake.in sign.cmake @ONLY)
   INSTALL(SCRIPT ${PROJECT_BINARY_DIR}/sign.cmake)
 ENDIF()
+
+FEATURE_SUMMARY(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES VAR MARIADB_FEATURE_SUMMARY)
+
+MESSAGE_ONCE(SUMMARY "${MARIADB_FEATURE_SUMMARY}")
 
 IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "

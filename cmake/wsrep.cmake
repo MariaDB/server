@@ -40,4 +40,7 @@ SET(WSREP_PROC_INFO ${WITH_WSREP})
 
 IF(WITH_WSREP)
   SET(WSREP_PATCH_VERSION "wsrep_${WSREP_VERSION}")
+  add_feature_info(WSREP "ON" "WSREP replication API (to use, e.g. Galera Replication library)")
+ELSE(WITH_WSREP)
+  add_feature_info(WSREP "OFF" "WSREP replication API (to use, e.g. Galera Replication library)")
 ENDIF()

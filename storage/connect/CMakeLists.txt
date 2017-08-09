@@ -81,6 +81,9 @@ OPTION(CONNECT_WITH_VCT "Compile CONNECT storage engine with VCT support" ON)
 IF(CONNECT_WITH_VCT)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} filamvct.cpp tabvct.cpp filamvct.h tabvct.h)
   add_definitions(-DVCT_SUPPORT)
+  add_feature_info(CONNECT_VCT "ON" "Support for VCT in the CONNECT storage engine")
+ELSE(CONNECT_WITH_VCT)
+  add_feature_info(CONNECT_VCT "OFF" "Support for VCT in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_VCT)
 
 
@@ -107,12 +110,22 @@ IF(CONNECT_WITH_LIBXML2)
         D:/libxml/lib)
   ENDIF(WIN32)
   FIND_PACKAGE(LibXml2)
+  SET_PACKAGE_PROPERTIES(LibXml2 PROPERTIES
+    DESCRIPTION "XML parsing library"
+    PURPOSE "Enables XML support in the CONNECT storage engine"
+    TYPE OPTIONAL
+  )
   IF (LIBXML2_FOUND)
     INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
     SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} libdoc.cpp libdoc.h)
     add_definitions(-DLIBXML2_SUPPORT)
+    add_feature_info(CONNECT_LIBXML2 "ON" "Support for LIBXML2 in the CONNECT storage engine")
+  ELSE(LIBXML2_FOUND)
+    add_feature_info(CONNECT_LIBXML2 "OFF" "Support for LIBXML2 in the CONNECT storage engine")
   ENDIF(LIBXML2_FOUND)
+ELSE(CONNECT_WITH_LIBXML2)
+  add_feature_info(CONNECT_LIBXML2 "OFF" "Support for LIBXML2 in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_LIBXML2)
 
 
@@ -215,16 +228,21 @@ int main() {
     IF(ODBC_OK)
       INCLUDE_DIRECTORIES(${ODBC_INCLUDE_DIR})
       add_definitions(-DODBC_SUPPORT)
+      add_feature_info(CONNECT_ODBC "ON" "Support for ODBC in the CONNECT storage engine")
       SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabodbc.cpp odbconn.cpp)
     ELSE()
       SET(ODBC_LIBRARY "")
+      add_feature_info(CONNECT_ODBC "OFF" "Support for ODBC in the CONNECT storage engine")
     ENDIF()
   ELSE(NOT UNIX)
     add_definitions(-DODBC_SUPPORT)
+    add_feature_info(CONNECT_ODBC "ON" "Support for ODBC in the CONNECT storage engine")
     SET(ODBC_LIBRARY odbc32.lib odbccp32.lib)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
     tabodbc.cpp tabodbc.h odbccat.h odbconn.cpp odbconn.h)
   ENDIF(UNIX)
+ELSE(CONNECT_WITH_ODBC)
+  add_feature_info(CONNECT_ODBC "OFF" "Support for ODBC in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_ODBC)
 
 #
@@ -235,7 +253,16 @@ OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
   FIND_PACKAGE(Java 1.6)
+  SET_PACKAGE_PROPERTIES(Java PROPERTIES
+    PURPOSE "Enables support for JDBC connections in the CONNECT storage engine"
+    TYPE OPTIONAL
+  )
   FIND_PACKAGE(JNI)
+  SET_PACKAGE_PROPERTIES(JNI PROPERTIES
+    DESCRIPTION "Java Native Interface"
+    PURPOSE "Enables support for JDBC connections in the CONNECT storage engine"
+    TYPE OPTIONAL
+  )
   IF (JAVA_FOUND AND JNI_FOUND)
     INCLUDE(UseJava)
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH})
@@ -251,12 +278,16 @@ IF(CONNECT_WITH_JDBC)
     Mongo2Interface.java Mongo3Interface.java
     JavaWrappers.jar)
     add_definitions(-DJAVA_SUPPORT)
+    add_feature_info(CONNECT_JDBC "ON" "Support for JDBC in the CONNECT storage engine")
     IF(CONNECT_WITH_MONGO)
       add_definitions(-DMONGO_SUPPORT)
     ENDIF()
   ELSE()
     SET(JDBC_LIBRARY "")
+    add_feature_info(CONNECT_JDBC "OFF" "Support for JDBC in the CONNECT storage engine")
   ENDIF()
+ELSE(CONNECT_WITH_JDBC)
+  add_feature_info(CONNECT_JDBC "OFF" "Support for JDBC in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_JDBC)
 
 #
@@ -269,6 +300,9 @@ IF(CONNECT_WITH_ZIP)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} filamzip.cpp tabzip.cpp unzip.c ioapi.c zip.c
     filamzip.h tabzip.h ioapi.h unzip.h zip.h)
   add_definitions(-DZIP_SUPPORT -DNOCRYPT)
+  add_feature_info(CONNECT_ZIP "ON" "Support for ZIP in the CONNECT storage engine")
+ELSE(CONNECT_WITH_ZIP)
+  add_feature_info(CONNECT_ZIP "OFF" "Support for ZIP in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_ZIP)
 
 #
@@ -285,7 +319,12 @@ IF(CONNECT_WITH_MONGO)
         C:/mongo-c-driver/lib
         D:/mongo-c-driver/lib)
   ENDIF(WIN32)
-  FIND_PACKAGE(libmongoc-1.0 1.7 QUIET)
+  FIND_PACKAGE(libmongoc-1.0 1.7)
+  SET_PACKAGE_PROPERTIES(libmongoc PROPERTIES
+    DESCRIPTION "A high-performance MongoDB driver for C"
+    PURPOSE "Enables support for connections to MongoDB in the CONNECT storage engine"
+    TYPE OPTIONAL
+  )
   IF (libmongoc-1.0_FOUND)
     INCLUDE_DIRECTORIES(${MONGOC_INCLUDE_DIRS})
     SET(MONGOC_LIBRARY  ${MONGOC_LIBRARIES})
@@ -293,13 +332,17 @@ IF(CONNECT_WITH_MONGO)
     cmgoconn.cpp cmgfam.cpp tabcmg.cpp
     cmgoconn.h cmgfam.h tabcmg.h)
     add_definitions(-DCMGO_SUPPORT)
+    add_feature_info(CONNECT_MONGODB "ON" "Support for MongoDB in the CONNECT storage engine")
     IF (NOT JAVA_FOUND AND JNI_FOUND)
       SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
       add_definitions(-DMONGO_SUPPORT)
     ENDIF (NOT JAVA_FOUND AND JNI_FOUND)
+  ELSE(libmongoc-1.0_FOUND)
+    add_feature_info(CONNECT_MONGODB "OFF" "Support for MongoDB in the CONNECT storage engine")
   ENDIF(libmongoc-1.0_FOUND)
+ELSE(CONNECT_WITH_MONGO)
+  add_feature_info(CONNECT_MONGODB "OFF" "Support for MongoDB in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_MONGO)
-
 
 #
 # XMAP
@@ -309,6 +352,9 @@ OPTION(CONNECT_WITH_XMAP "Compile CONNECT storage engine with index file mapping
 
 IF(CONNECT_WITH_XMAP)
   add_definitions(-DXMAP)
+  add_feature_info(CONNECT_XMAP "ON" "Support for index file mapping in the CONNECT storage engine")
+ELSE(CONNECT_WITH_XMAP)
+  add_feature_info(CONNECT_XMAP "OFF" "Support for index file mapping in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_XMAP)
 
 #
