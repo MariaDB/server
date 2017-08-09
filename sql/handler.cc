@@ -3499,9 +3499,6 @@ void handler::print_error(int error, myf errflag)
   {
     String str, full_err_msg(ER_DEFAULT(ER_LOCK_DEADLOCK), system_charset_info);
 
-    /* cannot continue. the statement was already aborted in the engine */
-    SET_FATAL_ERROR;
-
     get_error_message(error, &str);
     full_err_msg.append(str);
     my_printf_error(ER_LOCK_DEADLOCK, "%s", errflag, full_err_msg.c_ptr_safe());
