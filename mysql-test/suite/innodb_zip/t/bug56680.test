@@ -127,7 +127,7 @@ INSERT INTO bug56680_2 VALUES(1,_latin1 0xdf,1);
 SELECT HEX(b) FROM bug56680_2 LIMIT 3;
 CHECK TABLE bug56680_2;
 
---let $shutdown_timeout=1
+--let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 
 CHECK TABLE bug56680_2;

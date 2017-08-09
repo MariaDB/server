@@ -5102,7 +5102,9 @@ int query_get_string(MYSQL* mysql, const char* query,
 
 static int my_kill(int pid, int sig)
 {
+  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
 #ifdef _WIN32
+#define SIGKILL 9 /* ignored anyway, see below */
   HANDLE proc;
   if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
     return -1;
@@ -5136,6 +5138,26 @@ static int my_kill(int pid, int sig)
   shutdown_server [<timeout>]
 
 */
+
+
+static int wait_until_dead(int pid, int timeout)
+{
+  DBUG_ENTER("wait_until_dead");
+  /* Check that server dies */
+  while (timeout--)
+  {
+    if (my_kill(pid, 0) < 0)
+    {
+      DBUG_PRINT("info", ("Process %d does not exist anymore", pid));
+      DBUG_RETURN(0);
+    }
+    DBUG_PRINT("info", ("Sleeping, timeout: %d", timeout));
+    /* Sleep one second */
+    my_sleep(1000000L);
+  }
+  DBUG_RETURN(1);                               // Did not die
+}
+
 
 void do_shutdown_server(struct st_command *command)
 {
@@ -5188,24 +5210,31 @@ void do_shutdown_server(struct st_command *command)
   }
   DBUG_PRINT("info", ("Got pid %d", pid));
 
-  /* Tell server to shutdown if timeout > 0*/
+  /*
+    If timeout == 0, it means we should kill the server hard, without
+    any shutdown or core (SIGKILL)
+
+    If timeout is given, then we do things in the following order:
+    - mysql_shutdown()
+      - If server is not dead within timeout
+        - kill SIGABRT  (to get a core)
+        - If server is not dead within new timeout       
+          - kill SIGKILL
+  */
+
   if (timeout && mysql_shutdown(mysql, SHUTDOWN_DEFAULT))
     die("mysql_shutdown failed");
 
-  /* Check that server dies */
-  while(timeout--){
-    if (my_kill(pid, 0) < 0){
-      DBUG_PRINT("info", ("Process %d does not exist anymore", pid));
-      DBUG_VOID_RETURN;
+  if (!timeout || wait_until_dead(pid, timeout))
+  {
+    if (timeout)
+      (void) my_kill(pid, SIGABRT);
+    /* Give server a few seconds to die in all cases */
+    if (!timeout || wait_until_dead(pid, timeout < 5 ? 5 : timeout))
+    {
+      (void) my_kill(pid, SIGKILL);
     }
-    DBUG_PRINT("info", ("Sleeping, timeout: %ld", timeout));
-    my_sleep(1000000L);
   }
-
-  /* Kill the server */
-  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
-  (void)my_kill(pid, 9);
-
   DBUG_VOID_RETURN;
 }
 
