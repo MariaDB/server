@@ -125,12 +125,14 @@ class Item_func_json_unquote: public Item_str_func
 {
 protected:
   String tmp_s;
-
+  String *read_json(json_engine_t *je);
 public:
   Item_func_json_unquote(THD *thd, Item *s): Item_str_func(thd, s) {}
   const char *func_name() const { return "json_unquote"; }
   void fix_length_and_dec();
   String *val_str(String *);
+  double val_real();
+  longlong val_int();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_unquote>(thd, mem_root, this); }
 };

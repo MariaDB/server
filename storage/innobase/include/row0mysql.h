@@ -272,13 +272,10 @@ row_table_got_default_clust_index(
 	const dict_table_t*	table);	/*!< in: table */
 
 /** Does an update or delete of a row for MySQL.
-@param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
 @return error code or DB_SUCCESS */
 dberr_t
-row_update_for_mysql(
-	const byte*		mysql_rec,
-	row_prebuilt_t*		prebuilt)
+row_update_for_mysql(row_prebuilt_t* prebuilt)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this

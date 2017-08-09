@@ -3356,6 +3356,12 @@ void handler::print_error(int error, myf errflag)
   DBUG_ENTER("handler::print_error");
   DBUG_PRINT("enter",("error: %d",error));
 
+  if (ha_thd()->transaction_rollback_request)
+  {
+    /* Ensure this becomes a true error */
+    errflag&= ~(ME_JUST_WARNING | ME_JUST_INFO);
+  }
+
   int textno= -1; // impossible value
   switch (error) {
   case EACCES:
@@ -3503,9 +3509,6 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_LOCK_DEADLOCK:
   {
     String str, full_err_msg(ER_DEFAULT(ER_LOCK_DEADLOCK), system_charset_info);
-
-    /* cannot continue. the statement was already aborted in the engine */
-    SET_FATAL_ERROR;
 
     get_error_message(error, &str);
     full_err_msg.append(str);

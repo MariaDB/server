@@ -545,6 +545,16 @@ bool Arg_comparator::set_cmp_func_string()
     if (owner->agg_arg_charsets_for_comparison(&m_compare_collation, a, b))
       return true;
   }
+
+  if ((*a)->is_json_type() ^ (*b)->is_json_type())
+  {
+    Item **j_item= (*a)->is_json_type() ? a : b;
+    Item *uf= new(thd->mem_root) Item_func_json_unquote(thd, *j_item);
+    if (!uf || uf->fix_fields(thd, &uf))
+      return 1;
+    *j_item= uf;
+  }
+
   a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
   b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
   return false;
