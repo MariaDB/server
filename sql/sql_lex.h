@@ -3153,9 +3153,11 @@ public:
   bool set_trigger_new_row(LEX_CSTRING *name, Item *val);
   bool set_system_variable(struct sys_var_with_base *tmp,
                            enum enum_var_type var_type, Item *val);
+  bool set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val);
   void set_stmt_init();
-  sp_name *make_sp_name(THD *thd, LEX_CSTRING *name);
-  sp_name *make_sp_name(THD *thd, LEX_CSTRING *name1, LEX_CSTRING *name2);
+  sp_name *make_sp_name(THD *thd, const LEX_CSTRING *name);
+  sp_name *make_sp_name(THD *thd, const LEX_CSTRING *name1,
+                                  const LEX_CSTRING *name2);
   sp_head *make_sp_head(THD *thd, const sp_name *name, const Sp_handler *sph);
   sp_head *make_sp_head_no_recursive(THD *thd, const sp_name *name,
                                      const Sp_handler *sph)
@@ -3173,6 +3175,10 @@ public:
       return NULL;
     return make_sp_head_no_recursive(thd, name, sph);
   }
+  bool call_statement_start(THD *thd, sp_name *name);
+  bool call_statement_start(THD *thd, const LEX_CSTRING *name);
+  bool call_statement_start(THD *thd, const LEX_CSTRING *name1,
+                                      const LEX_CSTRING *name2);
   bool init_internal_variable(struct sys_var_with_base *variable,
                              const LEX_CSTRING *name);
   bool init_internal_variable(struct sys_var_with_base *variable,
@@ -3651,6 +3657,9 @@ public:
   bool add_create_view(THD *thd, DDL_options_st ddl,
                        uint16 algorithm, enum_view_suid suid,
                        Table_ident *table_ident);
+
+  bool add_grant_command(THD *thd, enum_sql_command sql_command_arg,
+                         stored_procedure_type type_arg);
 };
 
 

@@ -190,6 +190,9 @@ insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1;
@@ -302,6 +305,9 @@ insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1;
@@ -414,6 +420,9 @@ insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1;
@@ -526,6 +535,9 @@ insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1;
@@ -638,6 +650,9 @@ insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1;

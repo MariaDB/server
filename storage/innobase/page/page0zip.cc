@@ -5063,24 +5063,19 @@ page_zip_verify_checksum(
 	const void*	data,		/*!< in: compressed page */
 	ulint		size)		/*!< in: size of compressed page */
 {
-	const unsigned char*	p = static_cast<const unsigned char*>(data)
-		+ FIL_PAGE_SPACE_OR_CHKSUM;
+	ib_uint32_t	stored;
+	ib_uint32_t	calc;
 
-	const uint32_t		stored = static_cast<uint32_t>(
-		mach_read_from_4(p));
+	stored = static_cast<ib_uint32_t>(mach_read_from_4(
+		static_cast<const unsigned char*>(data) + FIL_PAGE_SPACE_OR_CHKSUM));
 
-#ifdef UNIV_INNOCHECKSUM
-	p = static_cast<const unsigned char*>(data) + FIL_PAGE_TYPE;
-	bool no_checksum = (mach_read_from_2(p) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
-	p = static_cast<const unsigned char*>(data) + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
-	bool encrypted = (mach_read_from_4(p) != 0);
-	p = static_cast<const unsigned char*>(data) + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4;
-	const uint32_t checksum = static_cast<uint32_t>(mach_read_from_4(p));
-
-	if (no_checksum) {
-		return (TRUE);
-	}
-#endif
+	ulint	page_no MY_ATTRIBUTE((unused)) =
+                mach_read_from_4(static_cast<const unsigned char*>
+                                 (data) + FIL_PAGE_OFFSET);
+	ulint	space_id MY_ATTRIBUTE((unused)) =
+                mach_read_from_4(static_cast<const unsigned char*>
+                                 (data) + FIL_PAGE_SPACE_ID);
+	const page_id_t	page_id(space_id, page_no);
 
 #if FIL_PAGE_LSN % 8
 #error "FIL_PAGE_LSN must be 64 bit aligned"
@@ -5100,7 +5095,7 @@ page_zip_verify_checksum(
 		}
 		if (i >= size) {
 			if (log_file) {
-				fprintf(log_file, "Page::%lu is empty and"
+			fprintf(log_file, "Page::%llu is empty and"
 					" uncorrupted\n", cur_page_num);
 			}
 
@@ -5124,21 +5119,12 @@ page_zip_verify_checksum(
 		return(TRUE);
 	}
 
-#ifndef	UNIV_INNOCHECKSUM
-	ulint		page_no = mach_read_from_4(static_cast<
-						   const unsigned char*>
-						   (data) + FIL_PAGE_OFFSET);
-	ulint		space_id = mach_read_from_4(static_cast<
-						    const unsigned char*>
-						    (data) + FIL_PAGE_SPACE_ID);
-	const page_id_t	page_id(space_id, page_no);
-#endif	/* UNIV_INNOCHECKSUM */
-
-	const uint32_t	calc = page_zip_calc_checksum(data, size, curr_algo);
+	calc = static_cast<ib_uint32_t>(page_zip_calc_checksum(
+		data, size, curr_algo));
 
 #ifdef UNIV_INNOCHECKSUM
 	if (log_file) {
-		fprintf(log_file, "page::%lu;"
+		fprintf(log_file, "page::%llu;"
 			" %s checksum: calculated = %u;"
 			" recorded = %u\n", cur_page_num,
 			buf_checksum_algorithm_name(
@@ -5153,21 +5139,17 @@ page_zip_verify_checksum(
 			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
 
 		if (log_file) {
-			fprintf(log_file, "page::%lu: crc32 checksum:"
+			fprintf(log_file, "page::%llu: crc32 checksum:"
 				" calculated = %u; recorded = %u\n",
 				cur_page_num, crc32, stored);
-			fprintf(log_file, "page::%lu: none checksum:"
+			fprintf(log_file, "page::%llu: none checksum:"
 				" calculated = %lu; recorded = %u\n",
 				cur_page_num, BUF_NO_CHECKSUM_MAGIC, stored);
 		}
 	}
 #endif /* UNIV_INNOCHECKSUM */
 
-	if (stored == calc
-#ifdef UNIV_INNOCHECKSUM
-	    || ( encrypted == true && stored == checksum)
-#endif
-	) {
+	if (stored == calc) {
 		return(TRUE);
 	}
 
@@ -5199,11 +5181,7 @@ page_zip_verify_checksum(
 		if (legacy_big_endian_checksum) {
 			const uint32_t calculated =
 				page_zip_calc_checksum(data, size, curr_algo, true);
-			if (stored == calculated
-#ifdef UNIV_INNOCHECKSUM
-			    || ( encrypted == true && calculated == checksum)
-#endif
-			) {
+			if (stored == calculated) {
 
 				return(TRUE);
 			}
@@ -5213,11 +5191,7 @@ page_zip_verify_checksum(
 		uint32_t calculated =
 				page_zip_calc_checksum(data, size, SRV_CHECKSUM_ALGORITHM_INNODB);
 
-		if (stored == calculated
-#ifdef UNIV_INNOCHECKSUM
-		    || ( encrypted == true && stored == checksum)
-#endif
-		) {
+		if (stored == calculated) {
 
 #ifndef	UNIV_INNOCHECKSUM
 			if (curr_algo
@@ -5237,11 +5211,7 @@ page_zip_verify_checksum(
 
 		/* If legacy checksum is not checked, do it now. */
 		if ((legacy_checksum_checked
-		     && stored == calculated)
-#ifdef UNIV_INNOCHECKSUM
-		    || ( encrypted == true && calculated == checksum)
-#endif
-		) {
+		     && stored == calculated)) {
 			legacy_big_endian_checksum = true;
 			return(TRUE);
 		}
@@ -5251,11 +5221,7 @@ page_zip_verify_checksum(
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_INNODB: {
 
-		if (stored == BUF_NO_CHECKSUM_MAGIC
-#ifdef UNIV_INNOCHECKSUM
-		    || ( encrypted == true && checksum == BUF_NO_CHECKSUM_MAGIC)
-#endif
-		) {
+		if (stored == BUF_NO_CHECKSUM_MAGIC) {
 #ifndef	UNIV_INNOCHECKSUM
 			if (curr_algo
 			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
@@ -5274,14 +5240,8 @@ page_zip_verify_checksum(
 		uint32_t calculated1;
 
 		if (stored == calculated
-#ifdef UNIV_INNOCHECKSUM
-		    || ( encrypted == true && checksum == calculated)
-#endif
-		    || stored == (calculated1 = 
+		    || stored == (calculated1 =
 					page_zip_calc_checksum(data, size, SRV_CHECKSUM_ALGORITHM_CRC32, true))
-#ifdef UNIV_INNOCHECKSUM
-		    || ( encrypted == true && checksum == calculated1)
-#endif
 		) {
 #ifndef	UNIV_INNOCHECKSUM
 			if (curr_algo
@@ -5305,12 +5265,7 @@ page_zip_verify_checksum(
 			data, size, SRV_CHECKSUM_ALGORITHM_CRC32, true);
 
 		if (stored == calculated
-		    || stored == calculated1
-#ifdef UNIV_INNOCHECKSUM
-		    || ( encrypted == true && checksum == calculated)
-		    || ( encrypted == true && checksum == calculated1)
-#endif
-		) {
+		    || stored == calculated1) {
 #ifndef	UNIV_INNOCHECKSUM
 			page_warn_strict_checksum(
 				curr_algo,
@@ -5323,11 +5278,7 @@ page_zip_verify_checksum(
 		calculated = page_zip_calc_checksum(
 			data, size, SRV_CHECKSUM_ALGORITHM_INNODB);
 
-		if (stored == calculated
-#ifdef UNIV_INNOCHECKSUM
-		    || ( encrypted == true && checksum == calculated)
-#endif
-		) {
+		if (stored == calculated) {
 
 #ifndef	UNIV_INNOCHECKSUM
 			page_warn_strict_checksum(

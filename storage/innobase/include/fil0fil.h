@@ -28,8 +28,6 @@ Created 10/25/1995 Heikki Tuuri
 #define fil0fil_h
 #include "univ.i"
 
-struct fil_space_t;
-
 #ifndef UNIV_INNOCHECKSUM
 
 #include "log0recv.h"
@@ -281,22 +279,23 @@ but in the MySQL Embedded Server Library and mysqlbackup it is not the default
 directory, and we must set the base file path explicitly */
 extern const char*	fil_path_to_mysql_datadir;
 
-/** Initial size of a single-table tablespace in pages */
-#define FIL_IBD_FILE_INITIAL_SIZE	4
-
-/** 'null' (undefined) page offset in the context of file spaces */
-#define	FIL_NULL	ULINT32_UNDEFINED
-
 /* Space address data type; this is intended to be used when
 addresses accurate to a byte are stored in file pages. If the page part
 of the address is FIL_NULL, the address is considered undefined. */
 
 typedef	byte	fil_faddr_t;	/*!< 'type' definition in C: an address
 				stored in a file page is a string of bytes */
+#endif /* !UNIV_INNOCHECKSUM */
+
+/** Initial size of a single-table tablespace in pages */
+#define FIL_IBD_FILE_INITIAL_SIZE	4
+
+/** 'null' (undefined) page offset in the context of file spaces */
+#define	FIL_NULL	ULINT32_UNDEFINED
+
 
 #define FIL_ADDR_PAGE	0	/* first in address is the page offset */
 #define	FIL_ADDR_BYTE	4	/* then comes 2-byte byte offset within page*/
-#endif /* !UNIV_INNOCHECKSUM */
 #define	FIL_ADDR_SIZE	6	/* address size is 6 bytes */
 
 #ifndef UNIV_INNOCHECKSUM
@@ -431,8 +430,6 @@ index */
 #define fil_page_index_page_check(page)                         \
         fil_page_type_is_index(fil_page_get_type(page))
 
-#ifndef UNIV_INNOCHECKSUM
-
 /** Enum values for encryption table option */
 enum fil_encryption_t {
 	/** Encrypted if innodb_encrypt_tables=ON (srv_encrypt_tables) */
@@ -453,6 +450,8 @@ extern ulint	fil_n_pending_tablespace_flushes;
 
 /** Number of files currently open */
 extern ulint	fil_n_file_opened;
+
+#ifndef UNIV_INNOCHECKSUM
 
 /** Look up a tablespace.
 The caller should hold an InnoDB table lock or a MDL that prevents
@@ -1315,6 +1314,7 @@ fil_page_reset_type(
 	byte*			page,
 	ulint			type,
 	mtr_t*			mtr);
+
 /** Get the file page type.
 @param[in]	page	file page
 @return page type */
@@ -1325,6 +1325,7 @@ fil_page_get_type(
 {
 	return(mach_read_from_2(page + FIL_PAGE_TYPE));
 }
+
 /** Check (and if needed, reset) the page type.
 Data files created before MySQL 5.1 may contain
 garbage in the FIL_PAGE_TYPE field.

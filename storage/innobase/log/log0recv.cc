@@ -821,13 +821,6 @@ recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 			continue;
 		}
 
-		group->state = LOG_GROUP_OK;
-
-		group->lsn = mach_read_from_8(
-			buf + LOG_CHECKPOINT_LSN);
-		group->lsn_offset = static_cast<ib_uint64_t>(
-			mach_read_from_4(buf + OFFSET_HIGH32)) << 32
-			| mach_read_from_4(buf + OFFSET_LOW32);
 		checkpoint_no = mach_read_from_8(
 			buf + LOG_CHECKPOINT_NO);
 
@@ -838,12 +831,21 @@ recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 
 		DBUG_PRINT("ib_log",
 			   ("checkpoint " UINT64PF " at " LSN_PF " found",
-			    checkpoint_no, group->lsn));
+			    checkpoint_no,
+			    mach_read_from_8(buf + LOG_CHECKPOINT_LSN)));
 
 		if (checkpoint_no >= max_no) {
 			*max_group = group;
 			*max_field = field;
 			max_no = checkpoint_no;
+
+			group->state = LOG_GROUP_OK;
+
+			group->lsn = mach_read_from_8(
+				buf + LOG_CHECKPOINT_LSN);
+			group->lsn_offset = static_cast<ib_uint64_t>(
+				mach_read_from_4(buf + OFFSET_HIGH32)) << 32
+				| mach_read_from_4(buf + OFFSET_LOW32);
 		}
 	}
 
@@ -1043,22 +1045,22 @@ recv_find_max_checkpoint(ulint* max_field)
 			continue;
 		}
 
-		group->state = LOG_GROUP_OK;
-
-		group->lsn = mach_read_from_8(
-			buf + LOG_CHECKPOINT_LSN);
-		group->lsn_offset = mach_read_from_8(
-			buf + LOG_CHECKPOINT_OFFSET);
 		checkpoint_no = mach_read_from_8(
 			buf + LOG_CHECKPOINT_NO);
 
 		DBUG_PRINT("ib_log",
-			   ("checkpoint " UINT64PF " at " LSN_PF " found ",
-			    checkpoint_no, group->lsn));
+			   ("checkpoint " UINT64PF " at " LSN_PF " found",
+			    checkpoint_no, mach_read_from_8(
+				    buf + LOG_CHECKPOINT_LSN)));
 
 		if (checkpoint_no >= max_no) {
 			*max_field = field;
 			max_no = checkpoint_no;
+			group->state = LOG_GROUP_OK;
+			group->lsn = mach_read_from_8(
+				buf + LOG_CHECKPOINT_LSN);
+			group->lsn_offset = mach_read_from_8(
+				buf + LOG_CHECKPOINT_OFFSET);
 		}
 	}
 
@@ -3212,7 +3214,11 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	err = recv_find_max_checkpoint(&max_cp_field);
 
-	if (err != DB_SUCCESS) {
+	if (err != DB_SUCCESS
+	    || (log_sys->log.format != 0
+		&& (log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
+		!= LOG_HEADER_FORMAT_CURRENT)) {
+
 		log_mutex_exit();
 		return(err);
 	}
@@ -3242,8 +3248,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	case 0:
 		log_mutex_exit();
 		return(recv_log_format_0_recover(checkpoint_lsn));
-	case LOG_HEADER_FORMAT_CURRENT:
-	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
+	default:
 		if (end_lsn == 0) {
 			break;
 		}
@@ -3251,8 +3256,6 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			contiguous_lsn = end_lsn;
 			break;
 		}
-		/* fall through */
-	default:
 		recv_sys->found_corrupt_log = true;
 		log_mutex_exit();
 		return(DB_ERROR);

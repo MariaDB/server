@@ -3174,6 +3174,18 @@ Nth_value(i,1) OVER()
 1
 DROP TABLE t1;
 #
+# A regression after MDEV-13351:
+# MDEV-13374 : Server crashes in first_linear_tab / st_select_lex::set_explain_type 
+#              upon UNION with aggregate function	
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+SELECT i AS fld FROM t1 UNION SELECT COUNT(*) AS fld FROM t1;
+fld
+1
+2
+DROP TABLE t1;
+#
 # Start of 10.3 tests
 #
 #

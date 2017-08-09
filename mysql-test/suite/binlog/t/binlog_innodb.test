@@ -172,4 +172,33 @@ source include/show_binlog_events.inc;
 # cleanup bug#27716
 drop table t1, t2;
 
+--echo *** MDEV-11937: InnoDB flushes redo log too often ***
+
+# Count number of log fsyncs reported by InnoDB per commit.
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+SET @old_flush = @@GLOBAL.innodb_flush_log_at_trx_commit;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+
+--let $syncs1 = query_get_value(SHOW STATUS LIKE 'Innodb_os_log_fsyncs', Value, 1)
+--let $ROWS = 100
+--disable_query_log
+let $count = $ROWS;
+while ($count) {
+  eval INSERT INTO t1 VALUES ($count);
+  dec $count;
+}
+--let $syncs2 = query_get_value(SHOW STATUS LIKE 'Innodb_os_log_fsyncs', Value, 1)
+eval SET @num_sync = $syncs2 - $syncs1;
+--enable_query_log
+
+# Allow a bit of slack, in case some background process or something
+# is introducing a few more syncs.
+eval SELECT IF(@num_sync < $ROWS*1.5, "OK",
+    CONCAT("ERROR: More than 1 fsync per commit (saw ", @num_sync/$ROWS, ")")) AS status;
+
+DROP TABLE t1;
+SET GLOBAL innodb_flush_log_at_trx_commit=@old_flush;
+
+
 --echo End of tests

@@ -238,6 +238,7 @@ struct TrxFactory {
 
 		trx_init(trx);
 
+		DBUG_LOG("trx", "Init: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 
 		trx->dict_operation_lock_mode = 0;
@@ -452,6 +453,7 @@ trx_create_low()
 
 	/* Trx state can be TRX_STATE_FORCED_ROLLBACK if
 	the trx was forced to rollback before it's reused.*/
+	DBUG_LOG("trx", "Create: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 
 	heap = mem_heap_create(sizeof(ib_vector_t) + sizeof(void*) * 8);
@@ -630,6 +632,7 @@ trx_free_prepared(
 
 	ut_d(trx->in_rw_trx_list = FALSE);
 
+	DBUG_LOG("trx", "Free prepared: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 
 	/* Undo trx_resurrect_table_locks(). */
@@ -1744,6 +1747,7 @@ trx_commit_in_memory(
 		ut_ad(!(trx->in_innodb
 			& (TRX_FORCE_ROLLBACK | TRX_FORCE_ROLLBACK_ASYNC)));
 
+		DBUG_LOG("trx", "Autocommit in memory: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 
 	} else {
@@ -1836,9 +1840,7 @@ trx_commit_in_memory(
 		} else if (trx->flush_log_later) {
 			/* Do nothing yet */
 			trx->must_flush_log_later = true;
-		} else if (srv_flush_log_at_trx_commit == 0
-			   || thd_requested_durability(trx->mysql_thd)
-			   == HA_IGNORE_DURABILITY) {
+		} else if (srv_flush_log_at_trx_commit == 0) {
 			/* Do nothing */
 		} else {
 			trx_flush_log_if_needed(lsn, trx);
@@ -1881,8 +1883,10 @@ trx_commit_in_memory(
 	if (trx->abort) {
 
 		trx->abort = false;
+		DBUG_LOG("trx", "Abort: " << trx);
 		trx->state = TRX_STATE_FORCED_ROLLBACK;
 	} else {
+		DBUG_LOG("trx", "Commit in memory: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 	}
 
@@ -2054,6 +2058,7 @@ trx_cleanup_at_db_startup(
 	ut_ad(trx->is_recovered);
 	ut_ad(!trx->in_rw_trx_list);
 	ut_ad(!trx->in_mysql_trx_list);
+	DBUG_LOG("trx", "Cleanup at startup: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 }
 
@@ -2252,8 +2257,7 @@ trx_commit_complete_for_mysql(
 {
 	if (trx->id != 0
 	    || !trx->must_flush_log_later
-	    || thd_requested_durability(trx->mysql_thd)
-	       == HA_IGNORE_DURABILITY) {
+	    || (srv_flush_log_at_trx_commit == 1 && trx->active_commit_ordered)) {
 
 		return;
 	}
@@ -2734,18 +2738,7 @@ trx_prepare(
 	trx_sys_mutex_exit();
 	/*--------------------------------------*/
 
-	switch (thd_requested_durability(trx->mysql_thd)) {
-	case HA_IGNORE_DURABILITY:
-		/* We set the HA_IGNORE_DURABILITY during prepare phase of
-		binlog group commit to not flush redo log for every transaction
-		here. So that we can flush prepared records of transactions to
-		redo log in a group right before writing them to binary log
-		during flush stage of binlog group commit. */
-		break;
-	case HA_REGULAR_DURABILITY:
-		if (lsn == 0) {
-			break;
-		}
+	if (lsn) {
 		/* Depending on the my.cnf options, we may now write the log
 		buffer to the log files, making the prepared state of the
 		transaction durable if the OS does not crash. We may also

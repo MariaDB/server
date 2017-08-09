@@ -124,14 +124,6 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
   @{
 */
 
-/* Used in error handling only */
-#define SP_COM_STRING(LP) \
-  ((LP)->sql_command == SQLCOM_CREATE_SPFUNCTION || \
-   (LP)->sql_command == SQLCOM_ALTER_FUNCTION || \
-   (LP)->sql_command == SQLCOM_SHOW_CREATE_FUNC || \
-   (LP)->sql_command == SQLCOM_DROP_FUNCTION ? \
-   "FUNCTION" : "PROCEDURE")
-
 static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables);
 static void sql_kill(THD *thd, longlong id, killed_state state, killed_type type);
 static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
@@ -5007,7 +4999,8 @@ end_with_restore_list:
       goto error;
     if (!(res= sql_set_variables(thd, lex_var_list, true)))
     {
-      my_ok(thd);
+      if (!thd->is_error())
+        my_ok(thd);
     }
     else
     {
@@ -5841,11 +5834,11 @@ end_with_restore_list:
 	break;
       case SP_KEY_NOT_FOUND:
 	my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                 SP_COM_STRING(lex), ErrConvDQName(lex->spname).ptr());
+                 sph->type_str(), ErrConvDQName(lex->spname).ptr());
 	goto error;
       default:
 	my_error(ER_SP_CANT_ALTER, MYF(0),
-                 SP_COM_STRING(lex), ErrConvDQName(lex->spname).ptr());
+                 sph->type_str(), ErrConvDQName(lex->spname).ptr());
 	goto error;
       }
       break;
@@ -5950,18 +5943,18 @@ end_with_restore_list:
           res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
 	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			      ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
-                              SP_COM_STRING(lex),
+                              sph->type_str(),
                               ErrConvDQName(lex->spname).ptr());
           if (!res)
             my_ok(thd);
 	  break;
 	}
 	my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                 SP_COM_STRING(lex), ErrConvDQName(lex->spname).ptr());
+                 sph->type_str(), ErrConvDQName(lex->spname).ptr());
 	goto error;
       default:
 	my_error(ER_SP_DROP_FAILED, MYF(0),
-                 SP_COM_STRING(lex), ErrConvDQName(lex->spname).ptr());
+                 sph->type_str(), ErrConvDQName(lex->spname).ptr());
 	goto error;
       }
       break;
@@ -5992,7 +5985,7 @@ end_with_restore_list:
       {
         /* We don't distinguish between errors for now */
         my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                 SP_COM_STRING(lex), lex->spname->m_name.str);
+                 sph->type_str(), lex->spname->m_name.str);
         goto error;
       }
       break;
@@ -9677,7 +9670,7 @@ LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name,
     The function is not used in existing code but can be useful later?
 */
 
-bool check_string_byte_length(LEX_CSTRING *str, uint err_msg,
+bool check_string_byte_length(const LEX_CSTRING *str, uint err_msg,
                               uint max_byte_length)
 {
   if (str->length <= max_byte_length)
@@ -9707,7 +9700,7 @@ bool check_string_byte_length(LEX_CSTRING *str, uint err_msg,
 */
 
 
-bool check_string_char_length(LEX_CSTRING *str, uint err_msg,
+bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
                               bool no_error)
 {
@@ -9726,7 +9719,7 @@ bool check_string_char_length(LEX_CSTRING *str, uint err_msg,
 }
 
 
-bool check_ident_length(LEX_CSTRING *ident)
+bool check_ident_length(const LEX_CSTRING *ident)
 {
   if (check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
   {

@@ -8,17 +8,17 @@ insert into t1 values (1,1);
 
 SET session transaction isolation level read uncommitted;
 begin;
---error ER_UNKNOWN_ERROR
+--error ER_ISOLATION_MODE_NOT_SUPPORTED
 insert into t1 values (2,1);
---error ER_UNKNOWN_ERROR
+--error ER_ISOLATION_MODE_NOT_SUPPORTED
 select * from t1 where id=1;
 rollback;
 
 SET session transaction isolation level serializable;
 begin;
---error ER_UNKNOWN_ERROR
+--error ER_ISOLATION_MODE_NOT_SUPPORTED
 insert into t1 values (2,1);
---error ER_UNKNOWN_ERROR
+--error ER_ISOLATION_MODE_NOT_SUPPORTED
 select * from t1 where id=1;
 rollback;
 

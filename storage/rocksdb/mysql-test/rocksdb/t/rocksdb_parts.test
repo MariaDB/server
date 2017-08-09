@@ -55,9 +55,16 @@ insert into t1 values (2,10,10);
 
 insert into t1 values (11,20,20);
 insert into t1 values (12,20,20);
+
+set @tmp_rfirr= @@rocksdb_force_index_records_in_range;
+set rocksdb_force_index_records_in_range= 12;
+
 explain select * from t1 force index(col1) where col1=10;
 select * from t1 force index(col1) where col1=10;
 select * from t1 use index () where col1=10;
+
+set rocksdb_force_index_records_in_range= @tmp_rfirr;
+
 drop table t1;
 
 --echo #

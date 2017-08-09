@@ -6,7 +6,6 @@
 #
 
 --source include/have_innodb.inc
---source include/have_debug.inc
 --source include/have_innodb_16k.inc
 
 # turn on flags

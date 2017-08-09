@@ -341,7 +341,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
 
 /* Create a SQUENCE object */
 
-SEQUENCE::SEQUENCE() :all_values_used(0), initialized(SEQ_UNINTIALIZED), table(0)
+SEQUENCE::SEQUENCE() :all_values_used(0), initialized(SEQ_UNINTIALIZED)
 {
   mysql_rwlock_init(key_LOCK_SEQUENCE, &mutex);
 }
@@ -389,7 +389,7 @@ void SEQUENCE::read_unlock(TABLE *table)
    This is called from ha_open() when the table is not yet locked
 */
 
-int SEQUENCE::read_initial_values(TABLE *table_arg)
+int SEQUENCE::read_initial_values(TABLE *table)
 {
   int error= 0;
   enum thr_lock_type save_lock_type;
@@ -398,7 +398,6 @@ int SEQUENCE::read_initial_values(TABLE *table_arg)
 
   if (likely(initialized != SEQ_UNINTIALIZED))
     DBUG_RETURN(0);
-  table= table_arg;
   write_lock(table);
   if (likely(initialized == SEQ_UNINTIALIZED))
   {
@@ -438,7 +437,8 @@ int SEQUENCE::read_initial_values(TABLE *table_arg)
         thd->mdl_context.release_lock(mdl_request.ticket);
       DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
     }
-    if (!(error= read_stored_values()))
+    DBUG_ASSERT(table->reginfo.lock_type == TL_READ);
+    if (!(error= read_stored_values(table)))
       initialized= SEQ_READY_TO_USE;
     mysql_unlock_tables(thd, lock, 0);
     if (mdl_lock_used)
@@ -467,7 +467,7 @@ int SEQUENCE::read_initial_values(TABLE *table_arg)
   Called once from when table is opened
 */
 
-int SEQUENCE::read_stored_values()
+int SEQUENCE::read_stored_values(TABLE *table)
 {
   int error;
   my_bitmap_map *save_read_set;
@@ -595,6 +595,12 @@ int sequence_definition::write(TABLE *table, bool all_fields)
   else
     table->rpl_write_set= &table->s->all_set;
 
+  /*
+    The following is needed to fix comparison of rows in
+    ha_update_first_row() for InnoDB
+  */
+  memcpy(table->record[1],table->s->default_values, table->s->reclength);
+
   /* Update table */
   save_write_set= table->write_set;
   save_read_set=  table->read_set;
@@ -621,7 +627,7 @@ int sequence_definition::write(TABLE *table, bool all_fields)
                       push_warning_printf(WARN_LEVEL_WARN) has been called
 
 
-   @retval     0      Next number or error. Check error variable
+   @retval     0      Next number or error. Check error variable
                #      Next sequence number
 
    NOTES:
@@ -755,7 +761,7 @@ void SEQUENCE_LAST_VALUE::set_version(TABLE *table)
    @param in   next_round  Round for 'next_value' (in cace of cycles)
    @param in   is_used     1 if next_val is already used
 
-   @retval     0      ok, value adjusted
+   @retval     0      ok, value adjusted
                1      value was less than current value or
                       error when storing value
 

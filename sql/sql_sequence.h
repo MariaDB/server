@@ -93,7 +93,7 @@ public:
   SEQUENCE();
   ~SEQUENCE();
   int  read_initial_values(TABLE *table);
-  int  read_stored_values();
+  int  read_stored_values(TABLE *table);
   void write_lock(TABLE *table);
   void write_unlock(TABLE *table);
   void read_lock(TABLE *table);
@@ -132,7 +132,6 @@ public:
   seq_init initialized;
 
 private:
-  TABLE         *table;
   mysql_rwlock_t mutex;
 };
 

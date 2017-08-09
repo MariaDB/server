@@ -480,7 +480,7 @@ sp_name::sp_name(const MDL_key *key, char *qname_buff)
 */
 
 bool
-check_routine_name(LEX_CSTRING *ident)
+check_routine_name(const LEX_CSTRING *ident)
 {
   DBUG_ASSERT(ident);
   DBUG_ASSERT(ident->str);

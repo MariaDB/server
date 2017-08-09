@@ -1,0 +1,29 @@
+CREATE TABLE t1(pk INT, PRIMARY KEY(pk));
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(10);
+INSERT INTO t1 VALUES(11);
+INSERT INTO t1 VALUES(9);
+ERROR HY000: Rows must be inserted in primary key order during bulk load operation
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+pk
+10
+11
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(20);
+INSERT INTO t1 VALUES(21);
+# 
+# In MyRocks, the following statement will intentionally crash the server.
+# In MariaDB, it will cause an error
+SET rocksdb_bulk_load=0;
+ERROR HY000: Rows inserted during bulk load must not overlap existing rows
+#
+# Despite the error, bulk load operation is over so the variable value
+# will be 0:
+select @@rocksdb_bulk_load;
+@@rocksdb_bulk_load
+0
+call mtr.add_suppression('finalizing last SST file while setting bulk loading variable');
+DROP TABLE t1;

@@ -173,7 +173,7 @@ set @tmp_rocksdb_strict_collation_check= @@rocksdb_strict_collation_check;
 set global rocksdb_strict_collation_check=1;
 CREATE TABLE t1 (a INT, b TEXT);
 
---error 1105
+--error ER_UNSUPPORTED_COLLATION
 ALTER TABLE t1 ADD KEY kb(b(10));
 ALTER TABLE t1 ADD PRIMARY KEY(a);
 DROP TABLE t1;
@@ -345,3 +345,48 @@ while ($i <= $max) {
 #SHOW TABLE STATUS WHERE name LIKE 't1';
 
 DROP TABLE t1;
+
+# https://github.com/facebook/mysql-5.6/issues/602
+# Add then drop same index should be optimized out.
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+c INT,
+KEY kbc(b,c)) ENGINE = ROCKSDB;
+INSERT INTO t1 (a,b,c) VALUES (1,1,1);
+INSERT INTO t1 (a,b,c) VALUES (2,2,2);
+INSERT INTO t1 (a,b,c) VALUES (3,3,3);
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 DROP INDEX kbc, ADD INDEX kbc(b,c), ALGORITHM=INPLACE;
+ALTER TABLE t1 DROP INDEX kbc;
+DROP TABLE t1;
+
+# Make sure changing key part prefix length causes index rebuild as well.
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b varchar(10),
+index kb(b(5))
+) ENGINE = ROCKSDB charset utf8 collate utf8_bin;
+
+INSERT INTO t1 (a,b) VALUES (1,'1111122222');
+INSERT INTO t1 (a,b) VALUES (2,'2222233333');
+INSERT INTO t1 (a,b) VALUES (3,'3333344444');
+
+--let $start_max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
+
+ALTER TABLE t1 DROP INDEX kb, ADD INDEX kb(b(8)), ALGORITHM=INPLACE;
+SELECT * FROM t1 FORCE INDEX(kb);
+
+--let $end_max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
+
+if ($end_max_index_id <= $start_max_index_id) {
+  echo Max index ID did not increase;
+}
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+
+

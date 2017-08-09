@@ -43,6 +43,7 @@ insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
 
+analyze table t1;
 --echo # Must show 'using index' for latin1_bin and utf8_bin:
 --replace_column 9 #
 explain

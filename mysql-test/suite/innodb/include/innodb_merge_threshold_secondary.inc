@@ -7,7 +7,6 @@
 #
 
 --source include/have_innodb.inc
---source include/have_debug.inc
 --source include/have_innodb_16k.inc
 
 # turn on flags
@@ -79,7 +78,7 @@ INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
 where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 
-set global innodb_purge_stop_now=ON;
+begin;
 delete from tab1 where a = 33;
 delete from tab1 where a = 34;
 delete from tab1 where a = 35;
@@ -100,10 +99,10 @@ delete from tab1 where a = 18;
 delete from tab1 where a = 19;
 delete from tab1 where a = 20;
 delete from tab1 where a = 21;
-set global innodb_purge_run_now=ON;
+commit;
 
 # wait for purge view progress (records are deleted actually by purge)
---source include/wait_innodb_all_purged.inc
+--source include/wait_all_purged.inc
 
 # secondary index is not merged yet
 # | 1,..,11 | 22,..,32 |
@@ -119,33 +118,27 @@ where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 
 
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 32;
-set global innodb_purge_run_now=ON;
 # wait for purge view progress (records are deleted actually by purge)
---source include/wait_innodb_all_purged.inc
+--source include/wait_all_purged.inc
 
 --echo # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 
 
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 31;
-set global innodb_purge_run_now=ON;
 # wait for purge view progress (records are deleted actually by purge)
---source include/wait_innodb_all_purged.inc
+--source include/wait_all_purged.inc
 
 --echo # check page merge happens (MERGE_THRESHOLD=45 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 
 
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 30;
-set global innodb_purge_run_now=ON;
 # wait for purge view progress (records are deleted actually by purge)
---source include/wait_innodb_all_purged.inc
+--source include/wait_all_purged.inc
 
 --echo # check page merge happens (MERGE_THRESHOLD=40 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics

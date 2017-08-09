@@ -293,14 +293,16 @@ trx_purge_add_update_undo_to_history(
 
 	After the purge thread has been given permission to exit,
 	in fast shutdown, we may roll back transactions (trx->undo_no==0)
-	in THD::cleanup() invoked from unlink_thd(). */
+	in THD::cleanup() invoked from unlink_thd(), and we may also
+	continue to execute user transactions. */
 	ut_ad(srv_undo_sources
 	      || ((srv_startup_is_before_trx_rollback_phase
 		   || trx_rollback_or_clean_is_active)
 		  && purge_sys->state == PURGE_STATE_INIT)
 	      || (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND
 		  && purge_sys->state == PURGE_STATE_DISABLED)
-	      || (trx->undo_no == 0 && srv_fast_shutdown));
+	      || ((trx->undo_no == 0 || trx->in_mysql_trx_list)
+		  && srv_fast_shutdown));
 
 	/* Add the log as the first in the history list */
 	flst_add_first(rseg_header + TRX_RSEG_HISTORY,

@@ -359,7 +359,6 @@ log_reserve_and_open(
 
 loop:
 	ut_ad(log_mutex_own());
-	ut_ad(!recv_no_log_write);
 
 	if (log_sys->is_extending) {
 		log_mutex_exit();
@@ -416,7 +415,6 @@ log_write_low(
 
 	ut_ad(log_mutex_own());
 part_loop:
-	ut_ad(!recv_no_log_write);
 	/* Calculate a part length */
 
 	data_len = (log->buf_free % OS_FILE_LOG_BLOCK_SIZE) + str_len;
@@ -2291,6 +2289,7 @@ log_pad_current_log_block(void)
 	ulint		i;
 	lsn_t		lsn;
 
+	ut_ad(!recv_no_log_write);
 	/* We retrieve lsn only because otherwise gcc crashed on HP-UX */
 	lsn = log_reserve_and_open(OS_FILE_LOG_BLOCK_SIZE);
 

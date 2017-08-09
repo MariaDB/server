@@ -253,7 +253,7 @@ static int read_4_hexdigits(json_string_t *s, uchar *dest)
     if ((c_len= json_next_char(s)) <= 0)
       return s->error= json_eos(s) ? JE_EOS : JE_BAD_CHR;
 
-    if (s->c_next >= 128 || (t= json_instr_chr_map[s->c_next]) >= S_F)
+    if (s->c_next >= 128 || (t= json_instr_chr_map[s->c_next]) > S_F)
       return s->error= JE_SYN;
 
     s->c_str+= c_len;
@@ -1756,7 +1756,7 @@ int json_path_parts_compare(
           goto step_fits;
         goto step_failed;
       }
-      if (a->n_item == 0)
+      if ((a->type & JSON_PATH_WILD) == 0 && a->n_item == 0)
         goto step_fits_autowrap;
       goto step_failed;
     }

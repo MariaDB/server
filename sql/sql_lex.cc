@@ -5798,7 +5798,7 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
 }
 
 
-sp_name *LEX::make_sp_name(THD *thd, LEX_CSTRING *name)
+sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name)
 {
   sp_name *res;
   LEX_CSTRING db;
@@ -5810,16 +5810,20 @@ sp_name *LEX::make_sp_name(THD *thd, LEX_CSTRING *name)
 }
 
 
-sp_name *LEX::make_sp_name(THD *thd, LEX_CSTRING *name1, LEX_CSTRING *name2)
+sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name1,
+                                     const LEX_CSTRING *name2)
 {
   sp_name *res;
-  if (!name1->str || check_db_name((LEX_STRING*) name1))
+  LEX_CSTRING norm_name1;
+  if (!name1->str ||
+      !thd->make_lex_string(&norm_name1, name1->str, name1->length) ||
+      check_db_name((LEX_STRING *) &norm_name1))
   {
     my_error(ER_WRONG_DB_NAME, MYF(0), name1->str);
     return NULL;
   }
   if (check_routine_name(name2) ||
-      (!(res= new (thd->mem_root) sp_name(name1, name2, true))))
+      (!(res= new (thd->mem_root) sp_name(&norm_name1, name2, true))))
     return NULL;
   return res;
 }
@@ -6570,6 +6574,18 @@ Item *LEX::create_item_limit(THD *thd,
 }
 
 
+bool LEX::set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val)
+{
+  Item_func_set_user_var *item;
+  set_var_user *var;
+  if (!(item= new (thd->mem_root) Item_func_set_user_var(thd, name,  val)) ||
+      !(var= new (thd->mem_root) set_var_user(item)))
+    return true;
+  var_list.push_back(var, thd->mem_root);
+  return false;
+}
+
+
 /*
   Perform assignment for a trigger, a system variable, or an SP variable.
   "variable" be previously set by init_internal_variable(variable, name).
@@ -7130,4 +7146,43 @@ bool LEX::add_create_view(THD *thd, DDL_options_st ddl,
                                       algorithm, suid)))
     return true;
   return create_or_alter_view_finalize(thd, table_ident);
+}
+
+
+bool LEX::call_statement_start(THD *thd, sp_name *name)
+{
+  sql_command= SQLCOM_CALL;
+  spname= name;
+  value_list.empty();
+  sp_handler_procedure.add_used_routine(this, thd, name);
+  return false;
+}
+
+
+bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name)
+{
+  sp_name *spname= make_sp_name(thd, name);
+  return !spname || call_statement_start(thd, spname);
+}
+
+
+bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name1,
+                                         const LEX_CSTRING *name2)
+{
+  sp_name *spname= make_sp_name(thd, name1, name2);
+  return !spname || call_statement_start(thd, spname);
+}
+
+
+bool LEX::add_grant_command(THD *thd, enum_sql_command sql_command_arg,
+                            stored_procedure_type type_arg)
+{
+  if (columns.elements)
+  {
+    thd->parse_error();
+    return true;
+  }
+  sql_command= sql_command_arg,
+  type= type_arg;
+  return false;
 }

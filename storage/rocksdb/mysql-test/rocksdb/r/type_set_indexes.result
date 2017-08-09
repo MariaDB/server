@@ -77,4 +77,39 @@ a
 Africa,Europe,Asia
 S.America,Europe
 DROP TABLE t1;
+CREATE TABLE t1 (
+a SET('N.America','S.America','Africa','Antarctica','Australia','Europe','Asia'),
+b SET('test1','test2','test3','test4','test5'),
+c SET('01','22','23','33','34','39','40','44','50','63','64'),
+pk SET('1','2','3','4','5','6','7','8','9') PRIMARY KEY,
+UNIQUE INDEX b_a (b,a)
+) ENGINE=rocksdb;
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
+t1	0	b_a	1	b	A	500	NULL	NULL	YES	LSMTREE		
+t1	0	b_a	2	a	A	1000	NULL	NULL	YES	LSMTREE		
+INSERT INTO t1 (a,b,c,pk) VALUES
+('','test2,test3','01,34,44,23',1),
+('',5,2,2),
+('N.America,Asia','test4,test2','',3),
+('Africa,Europe,Asia','test2,test3','01',4),
+('Antarctica','test3','34,44',5),
+('Asia','test5','50',6),
+('Europe,S.America','test1,','39',7);
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 7
+EXPLAIN SELECT DISTINCT a, b FROM t1 ORDER BY b DESC, a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using temporary; Using filesort
+SELECT DISTINCT a, b FROM t1 ORDER BY b DESC, a;
+a	b
+	test1,test3
+	test2,test3
+Africa,Europe,Asia	test2,test3
+Antarctica	test3
+Asia	test5
+N.America,Asia	test2,test4
+S.America,Europe	test1
+DROP TABLE t1;
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

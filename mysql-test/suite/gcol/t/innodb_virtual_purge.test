@@ -1,6 +1,10 @@
 --source include/have_innodb.inc
 --source include/count_sessions.inc
 
+# Ensure that the history list length will actually be decremented by purge.
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
 --echo #
 --echo # Bug#21869656 UNDO LOG DOES NOT CONTAIN ENOUGH INFORMATION
 --echo # ON INDEXED VIRTUAL COLUMNS
@@ -32,8 +36,7 @@ COMMIT;
 UPDATE t1 SET a=1;
 
 connection default;
-# wait for purge to process the update_undo record (in debug builds)
---source include/wait_innodb_all_purged.inc
+--source ../../innodb/include/wait_all_purged.inc
 
 CHECK TABLE t1;
 SELECT b1 FROM t1;
@@ -118,8 +121,7 @@ COMMIT;
 disconnect con1;
 
 connection default;
-# wait for purge to process the update_undo record (in debug builds)
---source include/wait_innodb_all_purged.inc
+--source ../../innodb/include/wait_all_purged.inc
 
 CHECK TABLE t1;
 SELECT b1 FROM t1;
@@ -136,3 +138,4 @@ CREATE INDEX idx ON t1(a2(10), b, a2(20));
 DROP TABLE t1;
 
 --source include/wait_until_count_sessions.inc
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

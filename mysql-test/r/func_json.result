@@ -356,6 +356,12 @@ json_keys('foo')
 NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 1
+select json_keys('{"a":{"c":1, "d":2}, "b":2, "c":1, "a":3, "b":1, "c":2}');
+json_keys('{"a":{"c":1, "d":2}, "b":2, "c":1, "a":3, "b":1, "c":2}')
+["a", "b", "c"]
+select json_keys('{"c1": "value 1", "c1": "value 2"}');
+json_keys('{"c1": "value 1", "c1": "value 2"}')
+["c1"]
 SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
 select json_search(@j, 'one', 'abc');
 json_search(@j, 'one', 'abc')
@@ -642,6 +648,33 @@ SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
 JSON_KEYS(f)
 NULL
 DROP TABLE t1;
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*].*' );
+JSON_EXTRACT( '{"foo":"bar"}', '$[*].*' )
+NULL
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*]' );
+JSON_EXTRACT( '{"foo":"bar"}', '$[*]' )
+NULL
+select JSON_EXTRACT('{"name":"value"}', '$.name') = 'value';
+JSON_EXTRACT('{"name":"value"}', '$.name') = 'value'
+1
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true;
+JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true
+0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'true'
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false;
+JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'true'
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1;
+JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1
+0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'true'
+select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
+JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"')
+"\u00f6"
 #
 # Start of 10.3 tests
 #
