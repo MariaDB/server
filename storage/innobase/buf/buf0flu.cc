@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -58,7 +58,7 @@ is set to TRUE by the page_cleaner thread when it is spawned and is set
 back to FALSE at shutdown by the page_cleaner as well. Therefore no
 need to protect it by a mutex. It is only ever read by the thread
 doing the shutdown */
-UNIV_INTERN ibool buf_page_cleaner_is_active = FALSE;
+UNIV_INTERN bool buf_page_cleaner_is_active;
 
 /** LRU flush batch is further divided into this chunk size to
 reduce the wait time for the threads waiting for a clean block */
@@ -2422,8 +2422,6 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
-	buf_page_cleaner_is_active = TRUE;
-
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
 		page_cleaner_sleep_if_needed(next_loop_time);
@@ -2517,7 +2515,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	/* We have lived our life. Time to die. */
 
 thread_exit:
-	buf_page_cleaner_is_active = FALSE;
+	buf_page_cleaner_is_active = false;
 
 	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created

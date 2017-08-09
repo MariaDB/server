@@ -88,7 +88,7 @@ UNIV_INTERN ibool	srv_error_monitor_active = FALSE;
 
 UNIV_INTERN ibool	srv_buf_dump_thread_active = FALSE;
 
-UNIV_INTERN ibool	srv_dict_stats_thread_active = FALSE;
+UNIV_INTERN bool	srv_dict_stats_thread_active;
 
 UNIV_INTERN const char*	srv_main_thread_op_info = "";
 
@@ -1299,7 +1299,7 @@ srv_printf_innodb_monitor(
 		ut_total_allocated_memory,
 		mem_pool_get_reserved(mem_comm_pool));
 	fprintf(file, "Dictionary memory allocated " ULINTPF "\n",
-		dict_sys->size);
+		dict_sys_get_size());
 
 	buf_print_io(file);
 
@@ -1731,7 +1731,7 @@ loop:
 		}
 	}
 
-	if (srv_shutdown_state >= SRV_SHUTDOWN_CLEANUP) {
+	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		goto exit_func;
 	}
 
@@ -1874,7 +1874,7 @@ loop:
 
 	os_event_wait_time_low(srv_error_event, 1000000, sig_count);
 
-	if (srv_shutdown_state < SRV_SHUTDOWN_CLEANUP) {
+	if (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
 		goto loop;
 	}
@@ -2134,7 +2134,7 @@ srv_shutdown_print_master_pending(
 	time_elapsed = ut_difftime(current_time, *last_print_time);
 
 	if (time_elapsed > 60) {
-		*last_print_time = ut_time();
+		*last_print_time = current_time;
 
 		if (n_tables_to_drop) {
 			ut_print_timestamp(stderr);
@@ -2186,7 +2186,7 @@ srv_master_do_active_tasks(void)
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND, counter_time);
 
-	if (srv_shutdown_state > 0) {
+	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
 
@@ -2220,11 +2220,7 @@ srv_master_do_active_tasks(void)
 			MONITOR_SRV_MEM_VALIDATE_MICROSECOND, counter_time);
 	}
 #endif
-	if (srv_shutdown_state > 0) {
-		return;
-	}
-
-	if (srv_shutdown_state > 0) {
+	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
 
@@ -2235,7 +2231,7 @@ srv_master_do_active_tasks(void)
 			MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 	}
 
-	if (srv_shutdown_state > 0) {
+	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
 
@@ -2278,7 +2274,7 @@ srv_master_do_idle_tasks(void)
 		MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND,
 			 counter_time);
 
-	if (srv_shutdown_state > 0) {
+	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
 
@@ -2294,7 +2290,7 @@ srv_master_do_idle_tasks(void)
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
 
-	if (srv_shutdown_state > 0) {
+	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
 
@@ -2308,7 +2304,7 @@ srv_master_do_idle_tasks(void)
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_LOG_FLUSH_MICROSECOND, counter_time);
 
-	if (srv_shutdown_state > 0) {
+	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
 
@@ -2319,70 +2315,42 @@ srv_master_do_idle_tasks(void)
 				       counter_time);
 }
 
-/*********************************************************************//**
-Perform the tasks during shutdown. The tasks that we do at shutdown
-depend on srv_fast_shutdown:
-2 => very fast shutdown => do no book keeping
-1 => normal shutdown => clear drop table queue and make checkpoint
-0 => slow shutdown => in addition to above do complete purge and ibuf
-merge
-@return TRUE if some work was done. FALSE otherwise */
+/** Perform shutdown tasks.
+@param[in]	ibuf_merge	whether to complete the change buffer merge */
 static
-ibool
-srv_master_do_shutdown_tasks(
-/*=========================*/
-	ib_time_t*	last_print_time)/*!< last time the function
-					print the message */
+void
+srv_shutdown(bool ibuf_merge)
 {
-	ulint		n_bytes_merged = 0;
-	ulint		n_tables_to_drop = 0;
+	ulint		n_bytes_merged	= 0;
+	ulint		n_tables_to_drop;
+	ib_time_t	now = ut_time();
 
-	ut_ad(!srv_read_only_mode);
+	do {
+		ut_ad(!srv_read_only_mode);
+		ut_ad(srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
+		++srv_main_shutdown_loops;
 
-	++srv_main_shutdown_loops;
+		/* FIXME: Remove the background DROP TABLE queue; it is not
+		crash-safe and breaks ACID. */
+		srv_main_thread_op_info = "doing background drop tables";
+		n_tables_to_drop = row_drop_tables_for_mysql_in_background();
 
-	ut_a(srv_shutdown_state > 0);
+		if (ibuf_merge) {
+			srv_main_thread_op_info = "checking free log space";
+			log_free_check();
+			srv_main_thread_op_info = "doing insert buffer merge";
+			n_bytes_merged = ibuf_merge_in_background(true);
 
-	/* In very fast shutdown none of the following is necessary */
-	if (srv_fast_shutdown == 2) {
-		return(FALSE);
-	}
+			/* Flush logs if needed */
+			srv_sync_log_buffer_in_background();
+		}
 
-	/* ALTER TABLE in MySQL requires on Unix that the table handler
-	can drop tables lazily after there no longer are SELECT
-	queries to them. */
-	srv_main_thread_op_info = "doing background drop tables";
-	n_tables_to_drop = row_drop_tables_for_mysql_in_background();
-
-	/* make sure that there is enough reusable space in the redo
-	log files */
-	srv_main_thread_op_info = "checking free log space";
-	log_free_check();
-
-	/* In case of normal shutdown we don't do ibuf merge or purge */
-	if (srv_fast_shutdown == 1) {
-		goto func_exit;
-	}
-
-	/* Do an ibuf merge */
-	srv_main_thread_op_info = "doing insert buffer merge";
-	n_bytes_merged = ibuf_merge_in_background(true);
-
-	/* Flush logs if needed */
-	srv_sync_log_buffer_in_background();
-
-func_exit:
-	/* Make a new checkpoint about once in 10 seconds */
-	srv_main_thread_op_info = "making checkpoint";
-	log_checkpoint(TRUE, FALSE);
-
-	/* Print progress message every 60 seconds during shutdown */
-	if (srv_shutdown_state > 0 && srv_print_verbose_log) {
-		srv_shutdown_print_master_pending(
-			last_print_time, n_tables_to_drop, n_bytes_merged);
-	}
-
-	return(n_bytes_merged || n_tables_to_drop);
+		/* Print progress message every 60 seconds during shutdown */
+		if (srv_print_verbose_log) {
+			srv_shutdown_print_master_pending(
+				&now, n_tables_to_drop, n_bytes_merged);
+		}
+	} while (n_bytes_merged || n_tables_to_drop);
 }
 
 /*********************************************************************//**
@@ -2414,7 +2382,6 @@ DECLARE_THREAD(srv_master_thread)(
 
 	srv_slot_t*	slot;
 	ulint		old_activity_count = srv_get_activity_count();
-	ib_time_t	last_print_time;
 
 	ut_ad(!srv_read_only_mode);
 
@@ -2433,7 +2400,6 @@ DECLARE_THREAD(srv_master_thread)(
 	slot = srv_reserve_slot(SRV_MASTER);
 	ut_a(slot == srv_sys.sys_threads);
 
-	last_print_time = ut_time();
 loop:
 	if (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND) {
 		goto suspend_thread;
@@ -2453,13 +2419,26 @@ loop:
 		}
 	}
 
-	while (srv_master_do_shutdown_tasks(&last_print_time)) {
-
-		/* Shouldn't loop here in case of very fast shutdown */
-		ut_ad(srv_fast_shutdown < 2);
+suspend_thread:
+	switch (srv_shutdown_state) {
+	case SRV_SHUTDOWN_NONE:
+		break;
+	case SRV_SHUTDOWN_FLUSH_PHASE:
+	case SRV_SHUTDOWN_LAST_PHASE:
+		ut_ad(0);
+		/* fall through */
+	case SRV_SHUTDOWN_EXIT_THREADS:
+		/* srv_init_abort() must have been invoked */
+	case SRV_SHUTDOWN_CLEANUP:
+		if (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP
+		    && srv_fast_shutdown < 2) {
+			srv_shutdown(srv_fast_shutdown == 0);
+		}
+		srv_suspend_thread(slot);
+		my_thread_end();
+		os_thread_exit(NULL);
 	}
 
-suspend_thread:
 	srv_main_thread_op_info = "suspending";
 
 	srv_suspend_thread(slot);
@@ -2471,42 +2450,32 @@ suspend_thread:
 	srv_main_thread_op_info = "waiting for server activity";
 
 	srv_resume_thread(slot);
-
-	if (srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS) {
-		my_thread_end();
-		os_thread_exit(NULL);
-	}
-
 	goto loop;
-
-	OS_THREAD_DUMMY_RETURN;	/* Not reached, avoid compiler warning */
 }
 
-/*********************************************************************//**
-Check if purge should stop.
-@return true if it should shutdown. */
+/** Check if purge should stop.
+@param[in]	n_purged	pages purged in the last batch
+@return whether purge should exit */
 static
 bool
-srv_purge_should_exit(
-/*==============*/
-	ulint		n_purged)	/*!< in: pages purged in last batch */
+srv_purge_should_exit(ulint n_purged)
 {
-	switch (srv_shutdown_state) {
-	case SRV_SHUTDOWN_NONE:
-		/* Normal operation. */
-		break;
+	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_NONE
+	      || srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
 
-	case SRV_SHUTDOWN_CLEANUP:
-	case SRV_SHUTDOWN_EXIT_THREADS:
-		/* Exit unless slow shutdown requested or all done. */
-		return(srv_fast_shutdown != 0 || n_purged == 0);
-
-	case SRV_SHUTDOWN_LAST_PHASE:
-	case SRV_SHUTDOWN_FLUSH_PHASE:
-		ut_error;
+	if (srv_undo_sources) {
+		return(false);
 	}
-
-	return(false);
+	if (srv_fast_shutdown) {
+		return(true);
+	}
+	/* Slow shutdown was requested. */
+	if (n_purged) {
+		/* The previous round still did some work. */
+		return(false);
+	}
+	/* Exit if there are no active transactions to roll back. */
+	return(trx_sys_any_active_transactions() == 0);
 }
 
 /*********************************************************************//**
@@ -2767,7 +2736,7 @@ srv_purge_coordinator_suspend(
 		}
 
 		rw_lock_x_unlock(&purge_sys->latch);
-	} while (stop);
+	} while (stop && srv_undo_sources);
 
 	srv_resume_thread(slot, 0, false);
 }
@@ -2818,6 +2787,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		purge didn't purge any records then wait for activity. */
 
 		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		    && srv_undo_sources
 		    && (purge_sys->state == PURGE_STATE_STOP
 			|| n_total_purged == 0)) {
 
@@ -2834,35 +2804,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 		rseg_history_len = srv_do_purge(
 			srv_n_purge_threads, &n_total_purged);
-
 	} while (!srv_purge_should_exit(n_total_purged));
-
-	/* Ensure that we don't jump out of the loop unless the
-	exit condition is satisfied. */
-
-	ut_a(srv_purge_should_exit(n_total_purged));
-
-	ulint	n_pages_purged = ULINT_MAX;
-
-	/* Ensure that all records are purged if it is not a fast shutdown.
-	This covers the case where a record can be added after we exit the
-	loop above. */
-	while (srv_fast_shutdown == 0 && n_pages_purged > 0) {
-		n_pages_purged = trx_purge(1, srv_purge_batch_size, false);
-	}
-
-	/* This trx_purge is called to remove any undo records (added by
-	background threads) after completion of the above loop. When
-	srv_fast_shutdown != 0, a large batch size can cause significant
-	delay in shutdown ,so reducing the batch size to magic number 20
-	(which was default in 5.5), which we hope will be sufficient to
-	remove all the undo records */
-	const	uint temp_batch_size = 20;
-
-	n_pages_purged = trx_purge(1, srv_purge_batch_size <= temp_batch_size
-				      ? srv_purge_batch_size : temp_batch_size,
-				   true);
-	ut_a(n_pages_purged == 0 || srv_fast_shutdown != 0);
 
 	/* The task queue should always be empty, independent of fast
 	shutdown state. */

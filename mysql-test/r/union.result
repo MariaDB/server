@@ -1978,3 +1978,21 @@ d
 2016-06-04 00:00:00
 drop table t1;
 End of 5.0 tests
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+create table t2 (c varchar(30), d varchar(30));
+insert into t1 values ('1','1'),('2','2'),('4','4');
+create table t3 (e int, f int);
+insert into t3 values (1,1),(2,2),(31,31),(32,32);
+select e,f, (e , f) in (select e,b from t1 union select c,d from t2) as sub from t3;
+e	f	sub
+1	1	1
+2	2	1
+31	31	0
+32	32	0
+select avg(f), (e , f) in (select e,b from t1 union select c,d from t2) as sub from t3 group by sub;
+avg(f)	sub
+31.5000	0
+1.5000	1
+drop table t1,t2,t3;
+End of 5.5 tests

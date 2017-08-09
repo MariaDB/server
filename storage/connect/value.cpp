@@ -118,7 +118,8 @@ ulonglong CharToNumber(const char *p, int n, ulonglong maxval,
         maxval++;
         if (minus) *minus = true;
       } // endif Unsigned
-      /* fall through */
+
+			// Fall through
     case '+':
       p++;
       break;
@@ -571,9 +572,9 @@ void VALUE::Printf(PGLOBAL g, FILE *f, uint n)
 	if (Null)
 		fprintf(f, "%s<null>\n", m);
 	else
-		fprintf(f, "%s%s%s", GetCharString(buf), "\n", m);
+		fprintf(f, "%s%s\n", m, GetCharString(buf));
 
-} /* end of Print */
+} /* end of Printf */
 
 /***********************************************************************/
 /*  Make string output of an object value.                             */
@@ -588,7 +589,7 @@ void VALUE::Prints(PGLOBAL g, char *ps, uint z)
 		p = GetCharString(buf);
 
   strncpy(ps, p, z);
-} // end of Print
+} // end of Prints
 
 /* -------------------------- Class TYPVAL ---------------------------- */
 
@@ -1349,7 +1350,7 @@ bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
 
     char buf[64];
 
-    if (!(Null = valp->IsNull() && Nullable))
+    if (!(Null = (valp->IsNull() && Nullable)))
       strncpy(Strp, valp->GetCharString(buf), Len);
     else
       Reset();
@@ -1451,7 +1452,7 @@ void TYPVAL<PSZ>::SetValue(uint n)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-    longjmp(g->jumper[g->jump_level], 138);
+    throw 138;
   } else
     SetValue_psz(buf);
 
@@ -1505,7 +1506,7 @@ void TYPVAL<PSZ>::SetValue(ulonglong n)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-    longjmp(g->jumper[g->jump_level], 138);
+    throw 138;
   } else
     SetValue_psz(buf);
 
@@ -1655,32 +1656,36 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
   int   i;
 
   for (i = 0; i < np; i++)
-    p[i] = vp[i]->GetCharString(val[i]);
+    p[i] = vp[i]->IsNull() ? NULL : vp[i]->GetCharString(val[i]);
 
-  switch (op) {
-    case OP_CNC:
-      assert(np == 1 || np == 2);
+	if (p[i-1]) {
+		switch (op) {
+			case OP_CNC:
+				assert(np == 1 || np == 2);
 
-      if (np == 2)
-				SetValue_psz(p[0]);
+				if (np == 2)
+					SetValue_psz(p[0]);
 
-      if ((i = Len - (signed)strlen(Strp)) > 0)
-        strncat(Strp, p[np - 1], i);
+				if ((i = Len - (signed)strlen(Strp)) > 0)
+					strncat(Strp, p[np - 1], i);
 
-      break;
-    case OP_MIN:
-      assert(np == 2);
-			SetValue_psz((strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
-      break;
-    case OP_MAX:
-      assert(np == 2);
-			SetValue_psz((strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
-      break;
-    default:
-//    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
-      strcpy(g->Message, "Function not supported");
-      return true;
-    } // endswitch op
+				break;
+			case OP_MIN:
+				assert(np == 2);
+				SetValue_psz((strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
+				break;
+			case OP_MAX:
+				assert(np == 2);
+				SetValue_psz((strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
+				break;
+			default:
+				//    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
+				strcpy(g->Message, "Function not supported");
+				return true;
+		} // endswitch op
+
+		Null = false;
+	} // endif p[i]
 
   return false;
   } // end of Compute
@@ -1719,8 +1724,12 @@ void TYPVAL<PSZ>::Prints(PGLOBAL g, char *ps, uint z)
 	else
 		strcat(strncat(strncpy(ps, "\"", z), Strp, z-2), "\"");
 
-} // end of Print
+} // end of Prints
 
+/* -------------------------- Class DECIMAL -------------------------- */
+
+/***********************************************************************/
+/*  DECIMAL public constructor from a constant string.                 */
 /* -------------------------- Class DECIMAL -------------------------- */
 
 /***********************************************************************/
@@ -2562,7 +2571,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 			} else if (valp->GetType() == TYPE_BIGINT &&
 				       !(valp->GetBigintValue() % 1000)) {
 				// Assuming that this timestamp is in milliseconds
-				Tval = valp->GetBigintValue() / 1000;
+				Tval = (int)(valp->GetBigintValue() / 1000);
 			}	else
         Tval = valp->GetIntValue();
 

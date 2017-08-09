@@ -178,7 +178,7 @@ DROP TABLE t1;
 #
 # Testing temporal data types
 #
-CREATE TABLE t1 (a date, b datetime, c time, d timestamp, e year);
+CREATE TABLE t1 (a date, b datetime, c time, d timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, e year);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

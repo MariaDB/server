@@ -2,7 +2,7 @@
 # -*- cperl -*-
 
 # Copyright (c) 2004, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2014, Monty Program Ab
+# Copyright (c) 2009, 2017, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1296,10 +1296,6 @@ sub command_line_setup {
   
   fix_vs_config_dir();
 
-  # Respect MTR_BINDIR variable, which is typically set in to the 
-  # build directory in out-of-source builds.
-  $bindir=$ENV{MTR_BINDIR}||$basedir;
-  
   # Look for the client binaries directory
   if ($path_client_bindir)
   {
@@ -3222,15 +3218,26 @@ sub mysql_server_start($) {
   }
 
   my $mysqld_basedir= $mysqld->value('basedir');
+  my $extra_opts= get_extra_opts($mysqld, $tinfo);
+
   if ( $basedir eq $mysqld_basedir )
   {
     if (! $opt_start_dirty)	# If dirty, keep possibly grown system db
     {
-      # Copy datadir from installed system db
-      my $path= ($opt_parallel == 1) ? "$opt_vardir" : "$opt_vardir/..";
-      my $install_db= "$path/install.db";
-      copytree($install_db, $datadir) if -d $install_db;
-      mtr_error("Failed to copy system db to '$datadir'") unless -d $datadir;
+      # Some InnoDB options are incompatible with the default bootstrap.
+      # If they are used, re-bootstrap
+      if ( $extra_opts and
+           "@$extra_opts" =~ /--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)/ )
+      {
+        mysql_install_db($mysqld, undef, $extra_opts);
+      }
+      else {
+        # Copy datadir from installed system db
+        my $path= ($opt_parallel == 1) ? "$opt_vardir" : "$opt_vardir/..";
+        my $install_db= "$path/install.db";
+        copytree($install_db, $datadir) if -d $install_db;
+        mtr_error("Failed to copy system db to '$datadir'") unless -d $datadir;
+      }
     }
   }
   else
@@ -3269,7 +3276,6 @@ sub mysql_server_start($) {
 
   if (!$opt_embedded_server)
   {
-    my $extra_opts= get_extra_opts($mysqld, $tinfo);
     mysqld_start($mysqld,$extra_opts);
 
     # Save this test case information, so next can examine it
@@ -3493,7 +3499,7 @@ sub default_mysqld {
 
 
 sub mysql_install_db {
-  my ($mysqld, $datadir)= @_;
+  my ($mysqld, $datadir, $extra_opts)= @_;
 
   my $install_datadir= $datadir || $mysqld->value('datadir');
   my $install_basedir= $mysqld->value('basedir');
@@ -3530,6 +3536,13 @@ sub mysql_install_db {
   # need to be given to the bootstrap process as well as the
   # server process.
   foreach my $extra_opt ( @opt_extra_mysqld_opt ) {
+    if ($extra_opt =~ /--innodb/) {
+      mtr_add_arg($args, $extra_opt);
+    }
+  }
+  # InnoDB options can come not only from the command line, but also
+  # from option files or combinations
+  foreach my $extra_opt ( @$extra_opts ) {
     if ($extra_opt =~ /--innodb/) {
       mtr_add_arg($args, $extra_opt);
     }

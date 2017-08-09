@@ -1404,14 +1404,11 @@ innobase_drop_database(
 					the path is used as the database name:
 					for example, in 'mysql/data/test' the
 					database name is 'test' */
-/*******************************************************************//**
-Closes an InnoDB database. */
+/** Shut down the InnoDB storage engine.
+@return	0 */
 static
 int
-innobase_end(
-/*=========*/
-	handlerton*		hton,	/* in: Innodb handlerton */
-	ha_panic_function	type);
+innobase_end(handlerton*, ha_panic_function);
 
 #if NOT_USED
 /*****************************************************************//**
@@ -4206,21 +4203,13 @@ error:
 	DBUG_RETURN(TRUE);
 }
 
-/*******************************************************************//**
-Closes an InnoDB database.
-@return	TRUE if error */
+/** Shut down the InnoDB storage engine.
+@return	0 */
 static
 int
-innobase_end(
-/*=========*/
-	handlerton*		hton,	/*!< in/out: InnoDB handlerton */
-	ha_panic_function	type MY_ATTRIBUTE((unused)))
-					/*!< in: ha_panic() parameter */
+innobase_end(handlerton*, ha_panic_function)
 {
-	int	err= 0;
-
 	DBUG_ENTER("innobase_end");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	if (innodb_inited) {
 
@@ -4237,9 +4226,7 @@ innobase_end(
 		innodb_inited = 0;
 		hash_table_free(innobase_open_tables);
 		innobase_open_tables = NULL;
-		if (innobase_shutdown_for_mysql() != DB_SUCCESS) {
-			err = 1;
-		}
+		innodb_shutdown();
 		srv_free_paths_and_sizes();
 		my_free(internal_innobase_data_file_path);
 		mysql_mutex_destroy(&innobase_share_mutex);
@@ -4248,7 +4235,7 @@ innobase_end(
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
 	}
 
-	DBUG_RETURN(err);
+	DBUG_RETURN(0);
 }
 
 /****************************************************************//**
@@ -18252,6 +18239,10 @@ innodb_sched_priority_cleaner_update(
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
+	if (srv_read_only_mode) {
+		return;
+	}
+
 	ulint	priority = *static_cast<const ulint *>(save);
 	ulint	actual_priority;
 	ulint	nice = 0;
@@ -18278,10 +18269,6 @@ innodb_sched_priority_cleaner_update(
 	}
 
 	/* Set the priority for the page cleaner thread */
-	if (srv_read_only_mode) {
-
-		return;
-	}
 
 	ut_ad(buf_page_cleaner_is_active);
 	nice = os_thread_get_priority(srv_cleaner_tid);

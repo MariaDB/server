@@ -324,7 +324,7 @@ void TDB::Printf(PGLOBAL g, FILE *f, uint n)
 void TDB::Prints(PGLOBAL, char *ps, uint)
   {
   sprintf(ps, "R%d.%s", Tdb_No, Name);
-  } // end of Print
+  } // end of Prints
 
 /* -------------------------- class TDBASE --------------------------- */
 

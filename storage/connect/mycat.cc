@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2017
+/* Copyright (C) MariaDB Corporation Ab
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by

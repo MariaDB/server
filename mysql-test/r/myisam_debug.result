@@ -36,6 +36,6 @@ set debug_dbug='+d,mi_lock_database_failure';
 unlock tables;
 Warnings:
 Error	126	Incorrect key file for table './test/t1.MYI'; try to repair it
-Error	1015	Can't lock file (errno: 22 "Invalid argument")
+Error	1030	Got error 22 "Invalid argument" from storage engine MyISAM
 set debug_dbug=@old_dbug;
 drop table t1;

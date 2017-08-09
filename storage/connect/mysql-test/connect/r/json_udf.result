@@ -608,7 +608,7 @@ JsonGet_String(Json_File('test/fx.json'), '[1]:*')
 {"_id":6,"type":"car","item":"roadster","mileage":56000,"ratings":[6,9]}
 SELECT JsonGet_String(Json_File('test/fx.json'), '[1]');
 JsonGet_String(Json_File('test/fx.json'), '[1]')
-6 car roadster 56000 ???
+6 car roadster 56000 6 9
 SELECT JsonGet_Int(Json_File('test/fx.json'), '[1]:mileage') AS Mileage;
 Mileage
 56000

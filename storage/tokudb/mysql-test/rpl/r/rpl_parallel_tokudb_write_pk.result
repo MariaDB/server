@@ -6,7 +6,6 @@ Variable_name	Value
 tokudb_rpl_unique_checks	OFF
 tokudb_rpl_unique_checks_delay	5000
 create table t (a bigint not null, primary key(a)) engine=tokudb;
-select unix_timestamp() into @tstart;
 insert into t values (1);
 insert into t values (2),(3);
 insert into t values (4);

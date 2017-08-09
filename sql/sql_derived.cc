@@ -537,6 +537,8 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
       DBUG_ASSERT(derived->table);
     }
   }
+  else
+    derived->table= derived->merge_underlying_list->table;
   DBUG_RETURN(FALSE);
 }
 

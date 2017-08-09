@@ -1181,14 +1181,11 @@ innobase_drop_database(
 					the path is used as the database name:
 					for example, in 'mysql/data/test' the
 					database name is 'test' */
-/*******************************************************************//**
-Closes an InnoDB database. */
+/** Shut down the InnoDB storage engine.
+@return	0 */
 static
 int
-innobase_end(
-/*=========*/
-	handlerton*		hton,	/* in: Innodb handlerton */
-	ha_panic_function	type);
+innobase_end(handlerton*, ha_panic_function);
 
 /*****************************************************************//**
 Creates an InnoDB transaction struct for the thd if it does not yet have one.
@@ -3716,21 +3713,13 @@ error:
 	DBUG_RETURN(TRUE);
 }
 
-/*******************************************************************//**
-Closes an InnoDB database.
-@return	TRUE if error */
+/** Shut down the InnoDB storage engine.
+@return	0 */
 static
 int
-innobase_end(
-/*=========*/
-	handlerton*		hton,	/*!< in/out: InnoDB handlerton */
-	ha_panic_function	type MY_ATTRIBUTE((unused)))
-					/*!< in: ha_panic() parameter */
+innobase_end(handlerton*, ha_panic_function)
 {
-	int	err= 0;
-
 	DBUG_ENTER("innobase_end");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	if (innodb_inited) {
 
@@ -3747,9 +3736,7 @@ innobase_end(
 		innodb_inited = 0;
 		hash_table_free(innobase_open_tables);
 		innobase_open_tables = NULL;
-		if (innobase_shutdown_for_mysql() != DB_SUCCESS) {
-			err = 1;
-		}
+		innodb_shutdown();
 		srv_free_paths_and_sizes();
 		my_free(internal_innobase_data_file_path);
 		mysql_mutex_destroy(&innobase_share_mutex);
@@ -3758,7 +3745,7 @@ innobase_end(
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
 	}
 
-	DBUG_RETURN(err);
+	DBUG_RETURN(0);
 }
 
 /****************************************************************//**
@@ -9625,6 +9612,27 @@ ha_innobase::ft_init_ext(
 
 	return((FT_INFO*) fts_hdl);
 }
+
+/*****************************************************************//**
+Copy a cached MySQL row.
+If requested, also avoids overwriting non-read columns.
+@param[out]     buf             Row in MySQL format.
+@param[in]      cached_row      Which row to copy.
+@param[in]	rec_len		Record length. */
+void
+ha_innobase::copy_cached_row(
+	uchar*		buf,
+	const uchar*    cached_row,
+	uint		rec_len)
+{
+	if (prebuilt->keep_other_fields_on_keyread) {
+                row_sel_copy_cached_fields_for_mysql(buf, cached_row,
+                        prebuilt);
+        } else {
+                memcpy(buf, cached_row, rec_len);
+        }
+}
+
 
 /*****************************************************************//**
 Set up search tuple for a query through FTS_DOC_ID_INDEX on

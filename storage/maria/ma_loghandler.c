@@ -1270,6 +1270,7 @@ static my_bool translog_set_lsn_for_files(uint32 from_file, uint32 to_file,
           mysql_file_close(fd, MYF(MY_WME))))
     {
       translog_stop_writing();
+      mysql_mutex_unlock(&log_descriptor.file_header_lock);
       DBUG_RETURN(1);
     }
   }
@@ -2294,10 +2295,11 @@ static void translog_set_only_in_buffers(TRANSLOG_ADDRESS in_buffers)
   if (cmp_translog_addr(in_buffers, log_descriptor.in_buffers_only) > 0)
   {
     if (translog_status != TRANSLOG_OK)
-      DBUG_VOID_RETURN;
+      goto end;
     log_descriptor.in_buffers_only= in_buffers;
     DBUG_PRINT("info", ("set new in_buffers_only"));
   }
+end:
   mysql_mutex_unlock(&log_descriptor.sent_to_disk_lock);
   DBUG_VOID_RETURN;
 }

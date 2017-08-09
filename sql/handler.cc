@@ -3720,6 +3720,8 @@ void handler::print_error(int error, myf errflag)
 */
 bool handler::get_error_message(int error, String* buf)
 {
+  DBUG_EXECUTE_IF("external_lock_failure",
+                  buf->set_ascii(STRING_WITH_LEN("KABOOM!")););
   return FALSE;
 }
 
@@ -6043,6 +6045,8 @@ int handler::ha_external_lock(THD *thd, int lock_type)
   */
   MYSQL_TABLE_LOCK_WAIT(m_psi, PSI_TABLE_EXTERNAL_LOCK, lock_type,
     { error= external_lock(thd, lock_type); })
+
+  DBUG_EXECUTE_IF("external_lock_failure", error= HA_ERR_GENERIC;);
 
   if (error == 0 || lock_type == F_UNLCK)
   {

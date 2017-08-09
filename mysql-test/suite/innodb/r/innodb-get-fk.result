@@ -27,7 +27,7 @@ CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `repr
 CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `repro`.`pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB COMMENT="This is a comment about tables";
 ALTER TABLE `repro`.`crew_role_assigned` COMMENT = 'innodb_read_only';
-ERROR HY000: Can't lock file (errno: 165 "Table is read only")
+ERROR HY000: Table 'crew_role_assigned' is read only
 SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 Table	Create Table
 crew_role_assigned	CREATE TABLE `crew_role_assigned` (

@@ -1,5 +1,5 @@
-/* Copyright (c) 2006, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab
+/* Copyright (c) 2006, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,8 +54,8 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    sync_counter(0), is_relay_log_recovery(is_slave_recovery),
    save_temporary_tables(0), mi(0),
    inuse_relaylog_list(0), last_inuse_relaylog(0),
-   cur_log_old_open_count(0), group_relay_log_pos(0), 
-   event_relay_log_pos(0),
+   cur_log_old_open_count(0), error_on_rli_init_info(false),
+   group_relay_log_pos(0), event_relay_log_pos(0),
 #if HAVE_valgrind
    is_fake(FALSE),
 #endif
@@ -119,7 +119,7 @@ int init_relay_log_info(Relay_log_info* rli,
 			const char* info_fname)
 {
   char fname[FN_REFLEN+128];
-  int info_fd;
+  int info_fd= -1;
   const char* msg = 0;
   int error = 0;
   DBUG_ENTER("init_relay_log_info");
@@ -129,6 +129,8 @@ int init_relay_log_info(Relay_log_info* rli,
     DBUG_RETURN(0);
   fn_format(fname, info_fname, mysql_data_home, "", 4+32);
   mysql_mutex_lock(&rli->data_lock);
+  if (rli->error_on_rli_init_info)
+    goto err;
   info_fd = rli->info_fd;
   rli->cur_log_fd = -1;
   rli->slave_skip_counter=0;
@@ -254,8 +256,8 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     if ((info_fd= mysql_file_open(key_file_relay_log_info,
                                   fname, O_CREAT|O_RDWR|O_BINARY, MYF(MY_WME))) < 0)
     {
-      sql_print_error("Failed to create a new relay log info file (\
-file '%s', errno %d)", fname, my_errno);
+      sql_print_error("Failed to create a new relay log info file ("
+                      "file '%s', errno %d)", fname, my_errno);
       msg= current_thd->get_stmt_da()->message();
       goto err;
     }
@@ -436,16 +438,21 @@ Failed to open the existing relay log info file '%s' (errno %d)",
     goto err;
   }
   rli->inited= 1;
+  rli->error_on_rli_init_info= false;
   mysql_mutex_unlock(&rli->data_lock);
   DBUG_RETURN(0);
 
 err:
-  sql_print_error("%s", msg);
+  rli->error_on_rli_init_info= true;
+  if (msg)
+    sql_print_error("%s", msg);
   end_io_cache(&rli->info_file);
   if (info_fd >= 0)
     mysql_file_close(info_fd, MYF(0));
   rli->info_fd= -1;
+  mysql_mutex_lock(rli->relay_log.get_log_lock());
   rli->relay_log.close(LOG_CLOSE_INDEX | LOG_CLOSE_STOP_EVENT);
+  mysql_mutex_unlock(rli->relay_log.get_log_lock());
   mysql_mutex_unlock(&rli->data_lock);
   DBUG_RETURN(1);
 }
@@ -1101,6 +1108,8 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
                      const char** errmsg)
 {
   int error=0;
+  const char *ln;
+  char name_buf[FN_REFLEN];
   DBUG_ENTER("purge_relay_logs");
 
   /*
@@ -1127,12 +1136,37 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
   if (!rli->inited)
   {
     DBUG_PRINT("info", ("rli->inited == 0"));
-    DBUG_RETURN(0);
+    if (rli->error_on_rli_init_info)
+    {
+      ln= rli->relay_log.generate_name(opt_relay_logname, "-relay-bin",
+                                       1, name_buf);
+
+      if (rli->relay_log.open_index_file(opt_relaylog_index_name, ln, TRUE))
+      {
+        sql_print_error("Unable to purge relay log files. Failed to open relay "
+                        "log index file:%s.", rli->relay_log.get_index_fname());
+        DBUG_RETURN(1);
+      }
+      mysql_mutex_lock(rli->relay_log.get_log_lock());
+      if (rli->relay_log.open(ln, LOG_BIN, 0, SEQ_READ_APPEND,
+                             (rli->max_relay_log_size ? rli->max_relay_log_size :
+                              max_binlog_size), 1, TRUE))
+      {
+        sql_print_error("Unable to purge relay log files. Failed to open relay "
+                        "log file:%s.", rli->relay_log.get_log_fname());
+        mysql_mutex_unlock(rli->relay_log.get_log_lock());
+        DBUG_RETURN(1);
+      }
+      mysql_mutex_unlock(rli->relay_log.get_log_lock());
+    }
+    else
+      DBUG_RETURN(0);
   }
-
-  DBUG_ASSERT(rli->slave_running == 0);
-  DBUG_ASSERT(rli->mi->slave_running == 0);
-
+  else
+  {
+    DBUG_ASSERT(rli->slave_running == 0);
+    DBUG_ASSERT(rli->mi->slave_running == 0);
+  }
   mysql_mutex_lock(&rli->data_lock);
 
   /*
@@ -1179,6 +1213,12 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     rli->group_relay_log_name[0]= rli->event_relay_log_name[0]= 0;
   }
 
+  if (!rli->inited && rli->error_on_rli_init_info)
+  {
+    mysql_mutex_lock(rli->relay_log.get_log_lock());
+    rli->relay_log.close(LOG_CLOSE_INDEX | LOG_CLOSE_STOP_EVENT);
+    mysql_mutex_unlock(rli->relay_log.get_log_lock());
+  }
 err:
 #ifndef DBUG_OFF
   char buf[22];

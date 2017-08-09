@@ -100,6 +100,7 @@ dict_create_sys_tables_tuple(
 			| ((table->flags & DICT_TF_COMPACT) << 31));
 	dfield_set_data(dfield, ptr, 4);
 
+
 	/* 5: TYPE (table flags) -----------------------------*/
 	dfield = dtuple_get_nth_field(
 		entry, DICT_COL__SYS_TABLES__TYPE);

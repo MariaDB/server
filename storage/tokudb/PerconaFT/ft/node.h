@@ -175,11 +175,6 @@ struct ftnode {
     int height;
     int dirty;
     uint32_t fullhash;
-    // current count of rows add or removed as a result of message application
-    // to this node as a basement, irrelevant for internal nodes, gets reset
-    // when node is undirtied. Used to back out tree scoped LRC id node is
-    // evicted but not persisted
-    int64_t logical_rows_delta;
 
     // for internal nodes, if n_children==fanout+1 then the tree needs to be
     // rebalanced. for leaf nodes, represents number of basement nodes
@@ -211,6 +206,10 @@ struct ftnode_leaf_basement_node {
     unsigned int seqinsert;         // number of sequential inserts to this leaf 
     MSN max_msn_applied;            // max message sequence number applied
     bool stale_ancestor_messages_applied;
+    // current count of rows added or removed as a result of message application
+    // to this basement node, gets reset when node is undirtied.
+    // Used to back out tree scoped LRC id node is evicted but not persisted
+    int64_t logical_rows_delta;
     STAT64INFO_S stat64_delta;      // change in stat64 counters since basement was last written to disk
 };
 typedef struct ftnode_leaf_basement_node *BASEMENTNODE;
@@ -384,6 +383,16 @@ enum reactivity {
 enum reactivity toku_ftnode_get_reactivity(FT ft, FTNODE node);
 enum reactivity toku_ftnode_get_nonleaf_reactivity(FTNODE node, unsigned int fanout);
 enum reactivity toku_ftnode_get_leaf_reactivity(FTNODE node, uint32_t nodesize);
+
+inline const char* toku_ftnode_get_cachefile_fname_in_env(FTNODE node) {
+    if (node->ct_pair) {
+        CACHEFILE cf = toku_pair_get_cachefile(node->ct_pair);
+        if (cf) {
+            return toku_cachefile_fname_in_env(cf);
+        }
+    }
+    return nullptr;
+}
 
 /**
  * Finds the next child for HOT to flush to, given that everything up to
@@ -577,3 +586,4 @@ static inline void set_BSB(FTNODE node, int i, struct sub_block *sb) {
 #define BLB_DATA(node,i) (&(BLB(node,i)->data_buffer))
 #define BLB_NBYTESINDATA(node,i) (BLB_DATA(node,i)->get_disk_size())
 #define BLB_SEQINSERT(node,i) (BLB(node,i)->seqinsert)
+#define BLB_LRD(node, i) (BLB(node,i)->logical_rows_delta)

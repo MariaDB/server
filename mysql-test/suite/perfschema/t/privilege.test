@@ -333,4 +333,3 @@ UPDATE performance_schema.setup_consumers SET enabled = 'YES';
 UPDATE performance_schema.setup_timers SET timer_name = 'MICROSECOND' where name="idle";
 UPDATE performance_schema.setup_timers SET timer_name = 'NANOSECOND'  where name="stage";
 UPDATE performance_schema.setup_timers SET timer_name = 'NANOSECOND'  where name="statement";
-

@@ -839,43 +839,16 @@ ibool
 log_calc_max_ages(void)
 /*===================*/
 {
-	log_group_t*	group;
 	lsn_t		margin;
 	ulint		free;
-	ibool		success		= TRUE;
-	lsn_t		smallest_capacity;
-	lsn_t		archive_margin;
-	lsn_t		smallest_archive_margin;
 
-	mutex_enter(&(log_sys->mutex));
-
-	group = UT_LIST_GET_FIRST(log_sys->log_groups);
-
-	ut_ad(group);
-
-	smallest_capacity = LSN_MAX;
-	smallest_archive_margin = LSN_MAX;
-
-	while (group) {
-		if (log_group_get_capacity(group) < smallest_capacity) {
-
-			smallest_capacity = log_group_get_capacity(group);
-		}
-
-		archive_margin = log_group_get_capacity(group)
-			- (group->file_size - LOG_FILE_HDR_SIZE)
-			- LOG_ARCHIVE_EXTRA_MARGIN;
-
-		if (archive_margin < smallest_archive_margin) {
-
-			smallest_archive_margin = archive_margin;
-		}
-
-		group = UT_LIST_GET_NEXT(log_groups, group);
-	}
+	lsn_t smallest_capacity = ((srv_log_file_size_requested
+				    << srv_page_size_shift)
+				   - LOG_FILE_HDR_SIZE)
+		* srv_n_log_files;
 
 	/* Add extra safety */
-	smallest_capacity = smallest_capacity - smallest_capacity / 10;
+	smallest_capacity -= smallest_capacity / 10;
 
 	/* For each OS thread we must reserve so much free space in the
 	smallest log group that it can accommodate the log entries produced
@@ -885,36 +858,6 @@ log_calc_max_ages(void)
 	free = LOG_CHECKPOINT_FREE_PER_THREAD * (10 + srv_thread_concurrency)
 		+ LOG_CHECKPOINT_EXTRA_FREE;
 	if (free >= smallest_capacity / 2) {
-		success = FALSE;
-
-		goto failure;
-	} else {
-		margin = smallest_capacity - free;
-	}
-
-	margin = margin - margin / 10;	/* Add still some extra safety */
-
-	log_sys->log_group_capacity = smallest_capacity;
-
-	log_sys->max_modified_age_async = margin
-		- margin / LOG_POOL_PREFLUSH_RATIO_ASYNC;
-	log_sys->max_modified_age_sync = margin
-		- margin / LOG_POOL_PREFLUSH_RATIO_SYNC;
-
-	log_sys->max_checkpoint_age_async = margin - margin
-		/ LOG_POOL_CHECKPOINT_RATIO_ASYNC;
-	log_sys->max_checkpoint_age = margin;
-
-#ifdef UNIV_LOG_ARCHIVE
-	log_sys->max_archived_lsn_age = smallest_archive_margin;
-
-	log_sys->max_archived_lsn_age_async = smallest_archive_margin
-		- smallest_archive_margin / LOG_ARCHIVE_RATIO_ASYNC;
-#endif /* UNIV_LOG_ARCHIVE */
-failure:
-	mutex_exit(&(log_sys->mutex));
-
-	if (!success) {
 		fprintf(stderr,
 			"InnoDB: Error: ib_logfiles are too small"
 			" for innodb_thread_concurrency %lu.\n"
@@ -934,8 +877,34 @@ failure:
 
 		exit(1);
 	}
+	margin = smallest_capacity - free;
+	margin = margin - margin / 10;	/* Add still some extra safety */
 
-	return(success);
+	mutex_enter(&log_sys->mutex);
+
+	log_sys->log_group_capacity = smallest_capacity;
+
+	log_sys->max_modified_age_async = margin
+		- margin / LOG_POOL_PREFLUSH_RATIO_ASYNC;
+	log_sys->max_modified_age_sync = margin
+		- margin / LOG_POOL_PREFLUSH_RATIO_SYNC;
+
+	log_sys->max_checkpoint_age_async = margin - margin
+		/ LOG_POOL_CHECKPOINT_RATIO_ASYNC;
+	log_sys->max_checkpoint_age = margin;
+
+#ifdef UNIV_LOG_ARCHIVE
+	lsn_t archive_margin = smallest_capacity
+		- (srv_log_file_size_requested - LOG_FILE_HDR_SIZE)
+		- LOG_ARCHIVE_EXTRA_MARGIN;
+	log_sys->max_archived_lsn_age = archive_margin;
+
+	log_sys->max_archived_lsn_age_async = archive_margin
+		- archive_margin / LOG_ARCHIVE_RATIO_ASYNC;
+#endif /* UNIV_LOG_ARCHIVE */
+	mutex_exit(&log_sys->mutex);
+
+	return(true);
 }
 
 /******************************************************//**
@@ -3608,6 +3577,7 @@ loop:
 	before proceeding further. */
 	srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 	count = 0;
+	os_rmb;
 	while (buf_page_cleaner_is_active || buf_lru_manager_is_active) {
 		if (srv_print_verbose_log && count == 0) {
 			ib_logf(IB_LOG_LEVEL_INFO,
@@ -3619,6 +3589,7 @@ loop:
 		if (count > 600) {
 			count = 0;
 		}
+		os_rmb;
 	}
 
 	mutex_enter(&log_sys->mutex);

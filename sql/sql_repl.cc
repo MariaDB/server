@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2665,6 +2665,7 @@ impossible position";
           loop_breaker = (flags & BINLOG_DUMP_NON_BLOCK);
           break;
         }
+        /* fall through */
       default:
 	errmsg = "could not find next log";
 	my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
@@ -3150,6 +3151,7 @@ int reset_slave(THD *thd, Master_info* mi)
   // close master_info_file, relay_log_info_file, set mi->inited=rli->inited=0
   end_master_info(mi);
 
+  end_relay_log_info(&mi->rli);
   // and delete these two files
   create_logfile_name_with_suffix(master_info_file_tmp,
                                   sizeof(master_info_file_tmp),

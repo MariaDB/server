@@ -1080,10 +1080,6 @@ protected:
   const uchar *unpack_int64(uchar* to, const uchar *from,  const uchar *from_end)
   { return unpack_int(to, from, from_end, 8); }
 
-  bool field_flags_are_binary()
-  {
-    return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
-  }
   double pos_in_interval_val_real(Field *min, Field *max);
   double pos_in_interval_val_str(Field *min, Field *max, uint data_offset);
 };
@@ -2620,6 +2616,7 @@ public:
   enum_field_types type() const { return MYSQL_TYPE_GEOMETRY; }
   bool match_collation_to_optimize_range() const { return false; }
   void sql_type(String &str) const;
+  uint is_equal(Create_field *new_field);
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -2966,11 +2963,6 @@ public:
             List<String> *interval_list, CHARSET_INFO *cs,
             uint uint_geom_type, Virtual_column_info *vcol_info,
             engine_option_value *option_list, bool check_exists);
-
-  bool field_flags_are_binary()
-  {
-    return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
-  }
 
   ha_storage_media field_storage_type() const
   {

@@ -435,7 +435,8 @@ int toku_read_ft_and_store_in_cachefile (FT_HANDLE ft_handle, CACHEFILE cf, LSN 
     }
 
     int fd = toku_cachefile_get_fd(cf);
-    int r = toku_deserialize_ft_from(fd, max_acceptable_lsn, &ft);
+    const char *fn = toku_cachefile_fname_in_env(cf);
+    int r = toku_deserialize_ft_from(fd, fn, max_acceptable_lsn, &ft);
     if (r == TOKUDB_BAD_CHECKSUM) {
         fprintf(stderr, "Checksum failure while reading header in file %s.\n", toku_cachefile_fname_in_env(cf));
         assert(false);  // make absolutely sure we crash before doing anything else

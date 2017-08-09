@@ -143,7 +143,7 @@ static int no_close(void *cookie __attribute__((unused)))
 /*
   A hack around a race condition in the implementation of freopen.
 
-  The race condition steams from the fact that the current fd of
+  The race condition stems from the fact that the current fd of
   the stream is closed before its number is used to duplicate the
   new file descriptor. This defeats the desired atomicity of the
   close and duplicate of dup2().

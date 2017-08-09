@@ -36,7 +36,7 @@ CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `rep
 -- let $restart_parameters=--innodb-read-only
 -- source include/restart_mysqld.inc
 
---error ER_CANT_LOCK
+--error ER_OPEN_AS_READONLY
 ALTER TABLE `repro`.`crew_role_assigned` COMMENT = 'innodb_read_only';
 SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 

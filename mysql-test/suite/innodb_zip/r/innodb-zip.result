@@ -1,4 +1,3 @@
-DROP DATABASE IF EXISTS mysqltest_innodb_zip;
 CREATE DATABASE mysqltest_innodb_zip;
 USE mysqltest_innodb_zip;
 SELECT table_name, row_format, data_length, index_length
@@ -379,5 +378,4 @@ select @@innodb_file_format_max;
 @@innodb_file_format_max
 Barracuda
 drop table normal_table, zip_table;
-USE test;
 DROP DATABASE mysqltest_innodb_zip;

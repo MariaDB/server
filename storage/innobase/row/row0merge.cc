@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1452,6 +1452,8 @@ row_merge_read_clustered_index(
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
 
+		mem_heap_empty(row_heap);
+
 		page_cur_move_to_next(cur);
 
 		if (page_cur_is_after_last(cur)) {
@@ -1875,8 +1877,6 @@ write_buffers:
 		if (err != DB_SUCCESS) {
 			goto func_exit;
 		}
-
-		mem_heap_empty(row_heap);
 	}
 
 func_exit:

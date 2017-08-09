@@ -30,6 +30,8 @@ create temporary table t3 (a int);
 create temporary table t4 (a int) select * from t3;
 insert into t3 values(1);
 insert into t4 select * from t3;
+create table t3 (a int);
+ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
 update t1,t3 set t1.a=t3.a+1 where t1.a=t3.a;
 ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
 update t1,t3 set t3.a=t1.a+1 where t1.a=t3.a;

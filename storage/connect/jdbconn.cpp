@@ -120,66 +120,81 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 	int type;
 
 	switch (stp) {
-	case -1:  // LONGVARCHAR
-		if (GetTypeConv() != TPC_YES)
-			return TYPE_ERROR;
-		else
-		  len = MY_MIN(abs(len), GetConvSize());
-	case 12:  // VARCHAR
-		v = 'V';
-	case 1:   // CHAR
-		type = TYPE_STRING;
-		break;
-	case 2:   // NUMERIC
-	case 3:   // DECIMAL
-	case -3:  // VARBINARY
-		type = TYPE_DECIM;
-		break;
-	case 4:   // INTEGER
-		type = TYPE_INT;
-		break;
-	case 5:   // SMALLINT
-		type = TYPE_SHORT;
-		break;
-	case -6:  // TINYINT
-	case -7:  // BIT
-		type = TYPE_TINY;
-		break;
-	case 6:   // FLOAT
-	case 7:   // REAL
-	case 8:   // DOUBLE
-		type = TYPE_DOUBLE;
-		break;
-	case 93:  // TIMESTAMP, DATETIME
-		type = TYPE_DATE;
-		len = 19 + ((prec) ? (prec+1) : 0);
-		v = (tn && toupper(tn[0]) == 'T') ? 'S' : 'E';
-		break;
-	case 91:  // DATE, YEAR
-		type = TYPE_DATE;
+		case -1:   // LONGVARCHAR
+		case -16:  // LONGNVARCHAR	(unicode)
+			if (GetTypeConv() != TPC_YES)
+				return TYPE_ERROR;
+			else
+				len = MY_MIN(abs(len), GetConvSize());
+		case 12:   // VARCHAR
+		case -9:   // NVARCHAR	(unicode)
+			v = 'V';
+		case 1:    // CHAR
+		case -15:  // NCHAR	 (unicode)
+		case -8:   // ROWID
+			type = TYPE_STRING;
+			break;
+		case 2:    // NUMERIC
+		case 3:    // DECIMAL
+		case -3:   // VARBINARY
+			type = TYPE_DECIM;
+			break;
+		case 4:    // INTEGER
+			type = TYPE_INT;
+			break;
+		case 5:    // SMALLINT
+			type = TYPE_SHORT;
+			break;
+		case -6:   // TINYINT
+		case -7:   // BIT
+		case 16:   // BOOLEAN
+			type = TYPE_TINY;
+			break;
+		case 6:    // FLOAT
+		case 7:    // REAL
+		case 8:    // DOUBLE
+			type = TYPE_DOUBLE;
+			break;
+		case 93:   // TIMESTAMP, DATETIME
+			type = TYPE_DATE;
+			len = 19 + ((prec) ? (prec + 1) : 0);
+			v = (tn && toupper(tn[0]) == 'T') ? 'S' : 'E';
+			break;
+		case 91:   // DATE, YEAR
+			type = TYPE_DATE;
 
-		if (!tn || toupper(tn[0]) != 'Y') {
-			len = 10;
-			v = 'D';
-		} else {
-			len = 4;
-			v = 'Y';
-		}	// endif len
+			if (!tn || toupper(tn[0]) != 'Y') {
+				len = 10;
+				v = 'D';
+			} else {
+				len = 4;
+				v = 'Y';
+			}	// endif len
 
-		break;
-	case 92:  // TIME
-		type = TYPE_DATE;
-		len = 8 + ((prec) ? (prec+1) : 0);
-		v = 'T';
-		break;
-	case -5:  // BIGINT
-		type = TYPE_BIGINT;
-		break;
-	case 0:   // NULL
-	case -2:  // BINARY
-	case -4:  // LONGVARBINARY
-	default:
-		type = TYPE_ERROR;
+			break;
+		case 92:   // TIME
+			type = TYPE_DATE;
+			len = 8 + ((prec) ? (prec + 1) : 0);
+			v = 'T';
+			break;
+		case -5:   // BIGINT
+			type = TYPE_BIGINT;
+			break;
+		case 0:    // NULL
+		case -2:   // BINARY
+		case -4:   // LONGVARBINARY
+		case 70:   // DATALINK
+		case 2000: // JAVA_OBJECT
+		case 2001: // DISTINCT
+		case 2002: // STRUCT
+		case 2003: // ARRAY
+		case 2004: // BLOB
+		case 2005: // CLOB
+		case 2006: // REF
+		case 2009: // SQLXML
+		case 2011: // NCLOB
+		default:
+			type = TYPE_ERROR;
 		len = 0;
 	} // endswitch type
 
@@ -1200,7 +1215,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	if (rank == 0)
 		if (!name || (jn = env->NewStringUTF(name)) == nullptr) {
 			sprintf(g->Message, "Fail to allocate jstring %s", SVP(name));
-			throw TYPE_AM_JDBC;
+			throw (int)TYPE_AM_JDBC;
 		}	// endif name
 
 	// Returns 666 is case of error
@@ -1208,7 +1223,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 
 	if (Check((ctyp == 666) ? -1 : 1)) {
 		sprintf(g->Message, "Getting ctyp: %s", Msg);
-		throw TYPE_AM_JDBC;
+		throw (int)TYPE_AM_JDBC;
 	} // endif Check
 
 	if (val->GetNullable())
@@ -1225,9 +1240,12 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 
 	switch (ctyp) {
 	case 12:          // VARCHAR
+	case -9:          // NVARCHAR
 	case -1:          // LONGVARCHAR
 	case 1:           // CHAR
-  case 3:           // DECIMAL
+	case -15:         // NCHAR
+	case 3:           // DECIMAL
+	case -8:          // ROWID
 		if (jb && ctyp != 3)
 			cn = (jstring)jb;
 		else if (!gmID(g, chrfldid, "StringField", "(ILjava/lang/String;)Ljava/lang/String;"))
@@ -1245,6 +1263,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	case 4:           // INTEGER
 	case 5:           // SMALLINT
 	case -6:          // TINYINT
+	case 16:          // BOOLEAN
 	case -7:          // BIT
 		if (!gmID(g, intfldid, "IntField", "(ILjava/lang/String;)I"))
 			val->SetValue((int)env->CallIntMethod(job, intfldid, rank, jn));
@@ -1315,7 +1334,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 			env->DeleteLocalRef(jn);
 
 		sprintf(g->Message, "SetColumnValue: %s rank=%d ctyp=%d", Msg, rank, (int)ctyp);
-		throw TYPE_AM_JDBC;
+		throw (int)TYPE_AM_JDBC;
 	} // endif Check
 
 	if (rank == 0)

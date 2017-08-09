@@ -464,7 +464,10 @@ int toku_cachetable_openf (CACHEFILE *cfptr, CACHETABLE ct, const char *fname_in
 
 char *
 toku_cachefile_fname_in_env (CACHEFILE cf) {
-    return cf->fname_in_env;
+    if (cf) {
+        return cf->fname_in_env;
+    }
+    return nullptr;
 }
 
 void toku_cachefile_set_fname_in_env(CACHEFILE cf, char *new_fname_in_env) {
@@ -2888,6 +2891,10 @@ void *toku_cachefile_get_userdata(CACHEFILE cf) {
 CACHETABLE
 toku_cachefile_get_cachetable(CACHEFILE cf) {
     return cf->cachetable;
+}
+
+CACHEFILE toku_pair_get_cachefile(PAIR pair) {
+    return pair->cachefile;
 }
 
 //Only called by ft_end_checkpoint

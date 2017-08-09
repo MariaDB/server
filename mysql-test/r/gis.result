@@ -333,8 +333,8 @@ fid	IsClosed(g)
 116	0
 SELECT fid, AsText(Centroid(g)) FROM gis_multi_polygon;
 fid	AsText(Centroid(g))
-117	POINT(55.58852775304245 17.426536064113982)
-118	POINT(55.58852775304245 17.426536064113982)
+117	POINT(57.98031067576927 17.854754130800433)
+118	POINT(57.98031067576927 17.854754130800433)
 119	POINT(2 2)
 SELECT fid, Area(g) FROM gis_multi_polygon;
 fid	Area(g)
@@ -684,11 +684,11 @@ insert into t1 values ('85984',GeomFromText('MULTIPOLYGON(((-115.006363
 select object_id, geometrytype(geo), ISSIMPLE(GEO), ASTEXT(centroid(geo)) from
 t1 where object_id=85998;
 object_id	geometrytype(geo)	ISSIMPLE(GEO)	ASTEXT(centroid(geo))
-85998	MULTIPOLYGON	1	POINT(115.31877315203187 -36.23747282102153)
+85998	MULTIPOLYGON	1	POINT(115.2970604672862 -36.23335610879993)
 select object_id, geometrytype(geo), ISSIMPLE(GEO), ASTEXT(centroid(geo)) from
 t1 where object_id=85984;
 object_id	geometrytype(geo)	ISSIMPLE(GEO)	ASTEXT(centroid(geo))
-85984	MULTIPOLYGON	1	POINT(-114.87787186923313 36.33101763469059)
+85984	MULTIPOLYGON	1	POINT(-114.86854472054372 36.34725218253213)
 drop table t1;
 create table t1 (fl geometry not null);
 insert into t1 values (1);
@@ -1640,6 +1640,24 @@ SELECT AsText(g) FROM (SELECT NULL AS g UNION SELECT Point(1,1)) AS t1;
 AsText(g)
 NULL
 POINT(1 1)
+#
+# MDEV-10306 Wrong results with combination of CONCAT, SUBSTR and CONVERT in subquery
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='derived_merge=on';
+CREATE TABLE t1 (x INT, y INT);
+INSERT INTO t1 VALUES(0,0);
+SELECT LENGTH(t2) c2 FROM (SELECT ST_BUFFER(POINT(x,y), 0) t2 FROM t1) sub;
+c2
+25
+SELECT LENGTH(CONCAT(t2,'-',t2)) c2 FROM (SELECT ST_BUFFER(POINT(x,y), 0) t2 FROM t1) sub;
+c2
+51
+SELECT LENGTH(CONCAT(t2,'--',t2)) c2 FROM (SELECT ST_BUFFER(POINT(x,y), 0) t2 FROM t1) sub;
+c2
+52
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
 #
 # End 10.0 tests
 #

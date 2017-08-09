@@ -729,12 +729,6 @@ extern "C"
   @param buffer pointer to preferred result buffer
   @param length length of buffer
   @param max_query_len how many chars of query to copy (0 for all)
-
-  @req LOCK_thread_count
-  
-  @note LOCK_thread_count mutex is not necessary when the function is invoked on
-   the currently running thread (current_thd) or if the caller in some other
-   way guarantees that access to thd->query is serialized.
  
   @return Pointer to string
 */
@@ -748,6 +742,9 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   const Security_context *sctx= &thd->main_security_ctx;
   char header[256];
   int len;
+
+  mysql_mutex_lock(&LOCK_thread_count);
+
   /*
     The pointers thd->query and thd->proc_info might change since they are
     being modified concurrently. This is acceptable for proc_info since its
@@ -803,6 +800,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
+  mysql_mutex_unlock(&LOCK_thread_count);
 
   if (str.c_ptr_safe() == buffer)
     return buffer;
@@ -1596,6 +1594,8 @@ void THD::init(void)
   server_status= SERVER_STATUS_AUTOCOMMIT;
   if (variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)
     server_status|= SERVER_STATUS_NO_BACKSLASH_ESCAPES;
+  if (variables.sql_mode & MODE_ANSI_QUOTES)
+    server_status|= SERVER_STATUS_ANSI_QUOTES;
 
   transaction.all.modified_non_trans_table=
     transaction.stmt.modified_non_trans_table= FALSE;
@@ -4158,7 +4158,7 @@ void Security_context::destroy()
   if (external_user)
   {
     my_free(external_user);
-    user= NULL;
+    external_user= NULL;
   }
 
   my_free(ip);
@@ -4368,6 +4368,10 @@ extern "C" enum thd_kill_levels thd_kill_level(const MYSQL_THD thd)
    however not more often than global.progress_report_time.
    If global.progress_report_time is 0, then don't send progress reports, but
    check every second if the value has changed
+
+  We clear any errors that we get from sending the progress packet to
+  the client as we don't want to set an error without the caller knowing
+  about it.
 */
 
 static void thd_send_progress(THD *thd)
@@ -4384,8 +4388,12 @@ static void thd_send_progress(THD *thd)
     thd->progress.next_report_time= (report_time +
                                      seconds_to_next * 1000000000ULL);
     if (global_system_variables.progress_report_time &&
-        thd->variables.progress_report_time)
+        thd->variables.progress_report_time && !thd->is_error())
+    {
       net_send_progress_packet(thd);
+      if (thd->is_error())
+        thd->clear_error();
+    }
   }
 }
 

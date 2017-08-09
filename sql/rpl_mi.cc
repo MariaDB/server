@@ -1,5 +1,5 @@
-/* Copyright (c) 2006, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011, Monty Program Ab
+/* Copyright (c) 2006, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -715,7 +715,6 @@ void end_master_info(Master_info* mi)
 
   if (!mi->inited)
     DBUG_VOID_RETURN;
-  end_relay_log_info(&mi->rli);
   if (mi->fd >= 0)
   {
     end_io_cache(&mi->file);
@@ -754,6 +753,7 @@ void free_key_master_info(Master_info *mi)
   /* We use 2 here instead of 1 just to make it easier when debugging */
   mi->killed= 2;
   end_master_info(mi);
+  end_relay_log_info(&mi->rli);
   mi->unlock_slave_threads();
   delete mi;
 

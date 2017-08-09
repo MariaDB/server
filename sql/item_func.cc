@@ -848,8 +848,9 @@ void Item_func_num1::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_num1::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
-  switch (cached_result_type= args[0]->cast_to_int_type()) {
+  switch (args[0]->cast_to_int_type()) {
   case INT_RESULT:
+    cached_result_type= INT_RESULT;
     max_length= args[0]->max_length;
     unsigned_flag= args[0]->unsigned_flag;
     break;
@@ -860,8 +861,8 @@ void Item_func_num1::fix_length_and_dec()
     max_length= float_length(decimals);
     break;
   case TIME_RESULT:
-    cached_result_type= DECIMAL_RESULT;
   case DECIMAL_RESULT:
+    cached_result_type= DECIMAL_RESULT;
     decimals= args[0]->decimal_scale(); // Do not preserve NOT_FIXED_DEC
     max_length= args[0]->max_length;
     break;

@@ -273,7 +273,7 @@ PCSZ TDBODBC::GetFile(PGLOBAL g)
 /***********************************************************************/
 /*  Set DBQ and get the new file name into the connect string.         */
 /***********************************************************************/
-void TDBODBC::SetFile(PGLOBAL g, PSZ fn)
+void TDBODBC::SetFile(PGLOBAL g, PCSZ fn)
   {
   if (MulConn) {
     int n = strlen(MulConn) + strlen(fn) - 1;
@@ -289,7 +289,7 @@ void TDBODBC::SetFile(PGLOBAL g, PSZ fn)
     sprintf(Connect, MulConn, fn);
     } // endif MultConn
 
-  DBQ = fn;
+  DBQ = PlugDup(g, fn);
   } // end of SetFile
 
 /***********************************************************************/

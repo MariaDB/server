@@ -1,0 +1,63 @@
+--source include/have_innodb.inc
+# Embedded mode doesn't allow restarting
+--source include/not_embedded.inc
+
+create table t1 (a int not null, d varchar(15) not null, b
+varchar(198) not null, c char(156),
+fulltext ftsic(c)) engine=InnoDB
+row_format=redundant;
+
+insert into t1 values(123, 'abcdef', 'jghikl', 'mnop');
+insert into t1 values(456, 'abcdef', 'jghikl', 'mnop');
+insert into t1 values(789, 'abcdef', 'jghikl', 'mnop');
+insert into t1 values(134, 'kasdfsdsadf', 'adfjlasdkfjasd', 'adfsadflkasdasdfljasdf');
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+
+SET GLOBAL innodb_file_per_table=OFF;
+create table t2 (a int not null, d varchar(15) not null, b
+varchar(198) not null, c char(156), fulltext ftsic(c)) engine=InnoDB
+row_format=redundant;
+
+insert into t2 select * from t1;
+
+create table t3 (a int not null, d varchar(15) not null, b varchar(198),
+c varchar(150), index k1(c(99), b(56)), index k2(b(5), c(10))) engine=InnoDB
+row_format=redundant;
+
+insert into t3 values(444, 'dddd', 'bbbbb', 'aaaaa');
+insert into t3 values(555, 'eeee', 'ccccc', 'aaaaa');
+
+# read-only restart requires the change buffer to be empty; therefore we
+# do a slow shutdown.
+SET GLOBAL innodb_fast_shutdown=0;
+--let $restart_parameters = --innodb-read-only
+--source include/restart_mysqld.inc
+
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t2;
+SELECT COUNT(*) FROM t3;
+
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t1;
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t2;
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t3;
+
+--let $restart_parameters =
+--source include/restart_mysqld.inc
+
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+TRUNCATE TABLE t3;
+
+DROP TABLE t1,t2,t3;

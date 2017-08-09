@@ -90,8 +90,8 @@ class DllExport VALUE : public BLOCK {
   virtual double GetFloatValue(void) = 0;
   virtual void  *GetTo_Val(void) = 0;
   virtual void   SetPrec(int prec) {Prec = prec;}
-          bool   IsNull(void) {return Null;}
-          void   SetNull(bool b) {Null = b;}
+          bool   IsNull(void) {return (Nullable && Null);}
+          void   SetNull(bool b) {Null = (Nullable ? b : false);}
           bool   GetNullable(void) {return Nullable;}
           void   SetNullable(bool b) {Nullable = b;}
           int    GetType(void) {return Type;}
