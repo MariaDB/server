@@ -578,7 +578,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                              void **out_hton)
 {
   TABLE_LIST tlist;
-  int err= 0;
+  int err= 0, not_sql_thread;
   bool table_opened= false;
   TABLE *table;
   list_element *delete_list= 0, *next, *cur, **next_ptr_ptr, **best_ptr_ptr;
@@ -606,7 +606,25 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
 
   if (!in_statement)
     thd->reset_for_next_command();
+
+  /*
+    Only the SQL thread can call select_gtid_pos_table without a mutex
+    Other threads needs to use a mutex and take into account that the
+    result may change during execution, so we have to make a copy.
+  */
+
+  if ((not_sql_thread= (thd->system_thread != SYSTEM_THREAD_SLAVE_SQL)))
+    mysql_mutex_lock(&LOCK_slave_state);
   select_gtid_pos_table(thd, &gtid_pos_table_name);
+  if (not_sql_thread)
+  {
+    LEX_CSTRING *tmp= thd->make_clex_string(gtid_pos_table_name.str,
+                                            gtid_pos_table_name.length);
+    mysql_mutex_unlock(&LOCK_slave_state);
+    if (!tmp)
+      DBUG_RETURN(1);
+    gtid_pos_table_name= *tmp;
+  }
 
   DBUG_EXECUTE_IF("gtid_inject_record_gtid",
                   {
