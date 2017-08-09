@@ -47,6 +47,7 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info)
 	unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
 	int      ncol = sizeof(buftyp) / sizeof(int);
 	int      i, n = 0;
+	PCSZ     drv;
 	PBCOL    bcp;
 	MGODISC *cmgd;
 	PQRYRES  qrp;
@@ -61,7 +62,7 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info)
 	/*********************************************************************/
 	/*  Open MongoDB.                                                    */
 	/*********************************************************************/
-	PCSZ drv = GetStringTableOption(g, topt, "Driver", NULL);
+	drv = GetStringTableOption(g, topt, "Driver", NULL);
 
 	if (drv && toupper(*drv) == 'C') {
 #if defined(CMGO_SUPPORT)
@@ -256,7 +257,7 @@ void MGODISC::AddColumn(PGLOBAL g, PCSZ colname, PCSZ fmt, int k)
 
 		if (k && *fmt && (!bcp->Fmt || strlen(bcp->Fmt) < strlen(fmt))) {
 			bcp->Fmt = PlugDup(g, fmt);
-			length[7] = MY_MAX(length[7], strlen(fmt));
+			length[7] = MY_MAX(length[7], (signed)strlen(fmt));
 		} // endif *fmt
 
 		bcp->Len = MY_MAX(bcp->Len, bcol.Len);
@@ -269,11 +270,11 @@ void MGODISC::AddColumn(PGLOBAL g, PCSZ colname, PCSZ fmt, int k)
 		*bcp = bcol;
 		bcp->Cbn |= (i > 1);
 		bcp->Name = PlugDup(g, colname);
-		length[0] = MY_MAX(length[0], strlen(colname));
+		length[0] = MY_MAX(length[0], (signed)strlen(colname));
 
 		if (k) {
 			bcp->Fmt = PlugDup(g, fmt);
-			length[7] = MY_MAX(length[7], strlen(fmt));
+			length[7] = MY_MAX(length[7], (signed)strlen(fmt));
 		} else
 			bcp->Fmt = NULL;
 

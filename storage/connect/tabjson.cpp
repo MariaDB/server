@@ -1590,18 +1590,20 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
 /***********************************************************************/
 PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
   {
-  int    i, ars, nv = 0, nextsame = Tjp->NextSame;
-  bool   err;
+//int    i, ars, nv = 0, nextsame = Tjp->NextSame;
+	int    i, nv = 0, nextsame = Tjp->NextSame;
+	bool   err;
   OPVAL  op = Nodes[n].Op;
   PVAL   val[2], vp = Nodes[n].Valp;
   PJVAL  jvrp, jvp;
   JVALUE jval;
 
   vp->Reset();
-  ars = MY_MIN(Tjp->Limit, arp->size());
+//ars = MY_MIN(Tjp->Limit, arp->size());
 
-  for (i = 0; i < ars; i++) {
-    jvrp = arp->GetValue(i);
+//for (i = 0; i < ars; i++) {
+	for (i = 0; i < arp->size(); i++) {
+		jvrp = arp->GetValue(i);
 
 		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) do {
 			if (jvrp->IsNull()) {
