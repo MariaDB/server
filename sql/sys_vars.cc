@@ -2553,6 +2553,13 @@ static Sys_var_mybool Sys_numaenable(
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
+static Sys_var_mybool Sys_fakenuma(
+       "fake_numa",
+       "Tests explicit support for numa architecture.",
+       READ_ONLY GLOBAL_VAR(fake_numa),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
 // Small lower limit to be able to test MRR
 static Sys_var_ulong Sys_read_rnd_buff_size(
        "read_rnd_buffer_size",

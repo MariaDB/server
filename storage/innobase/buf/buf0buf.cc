@@ -117,6 +117,19 @@ struct set_numa_t
 					<< strerror(errno);
 			}
 		}
+#ifndef DBUG_OFF
+		DBUG_EXECUTE_IF("fake_numa",
+		{
+			if (set_mempolicy(MPOL_PREFERRED,
+					  numa_mems_allowed->maskp,
+					  numa_mems_allowed->size) != 0) {
+
+				DBUG_LOG( "NUMA Enable", "Failed to set NUMA Policy"
+				" to MPOL_PREFERRED"
+				" (error: " << strerror(errno) << ").");
+			}
+		});
+#endif // DBUG_OFF
 	}
 
 	~set_numa_t()
@@ -601,7 +614,12 @@ buf_block_alloc(
 #ifdef HAVE_LIBNUMA
 		int node = mysql_node_of_cur_thread();
 
-		if (srv_numa_enable && node != -1) {
+#ifndef DBUG_OFF
+		if ((fake_numa || srv_numa_enable)  && node != -1)
+#else
+		if (srv_numa_enable && node != -1)
+#endif // DBUG_OFF
+	    {
 			buf_pool = srv_buf_pool_on_node(node);
 		}
 		else
@@ -1563,6 +1581,24 @@ buf_chunk_init(
 				" (error: " << strerror(errno) << ").";
 		}
 	}
+#ifndef DBUG_OFF
+	DBUG_EXECUTE_IF("fake_numa",
+	{
+		struct bitmask* node_mask = mysql_numa_bitmask_alloc(MYSQL_MAX_NUM_NUMA_NODES);
+		mysql_numa_bitmask_setbit(node_mask, allowed_numa_nodes[instance_no]);
+
+		ulint	mbind_val = mbind(chunk->mem, chunk->mem_size(),
+				   MPOL_PREFERRED,
+				   node_mask->maskp,
+				   node_mask->size,
+				   MPOL_MF_MOVE);
+		if (mbind_val != 0) {
+			DBUG_LOG( "NUMA Enable", "Failed to set NUMA Policy"
+				" buffer pool page frames to MPOL_PREFERRED"
+				" (error: " << strerror(errno) << ").");
+		}
+	});
+#endif //  DBUG_OFF
 #endif /* HAVE_LIBNUMA */
 
 
@@ -1919,7 +1955,13 @@ buf_pool_init_instance(
 	buf_pool_mutex_exit(buf_pool);
 
 #ifdef HAVE_LIBNUMA
-	if (srv_numa_enable) {
+
+#ifndef DBUG_OFF
+	if (fake_numa || srv_numa_enable)
+#else
+	if (srv_numa_enable)
+#endif // DBUG_OFF
+    {
 		ib::info() << "Initialized Buffer Pool Instance " << instance_no << " of size "
 				<< (buf_pool_size / (1024 * 1024)) << "M on node " << allowed_numa_nodes[instance_no];
 	}
@@ -2058,7 +2100,12 @@ buf_pool_init(
 		buf_pool_t*	ptr	= &buf_pool_ptr[i];
 
 #ifdef HAVE_LIBNUMA
-		if (srv_numa_enable) {
+#ifndef DBUG_OFF
+		if (fake_numa || srv_numa_enable)
+#else
+		if (srv_numa_enable)
+#endif // DBUG_OFF
+		{
 			mysql_numa_bitmask_clearall(node_mask);
 			mysql_numa_bitmask_setbit(node_mask, allowed_numa_nodes[i]);
 			size = srv_size_of_buf_pool_in_node[i];
@@ -2679,7 +2726,12 @@ buf_pool_resize()
 		ut_ad(buf_pool->flush_rbt == NULL);
 
 #ifdef HAVE_LIBNUMA
-		if (srv_numa_enable) {
+#ifndef DBUG_OFF
+		if (fake_numa || srv_numa_enable)
+#else
+		if (srv_numa_enable)
+#endif // DBUG_OFF
+		{
 			ulint new_curr_size = ((double) size_of_numa_node[i] / total_numa_nodes_size) * srv_buf_pool_size;
 			new_curr_size /= UNIV_PAGE_SIZE;
 
@@ -2868,7 +2920,12 @@ withdraw_retry:
 		buf_chunk_t*	echunk;
 
 #ifdef HAVE_LIBNUMA
-		if (srv_numa_enable) {
+#ifndef DBUG_OFF
+		if (fake_numa || srv_numa_enable)
+#else
+		if (srv_numa_enable)
+#endif // DBUG_OFF
+		{
 			mysql_numa_bitmask_clearall(node_mask);
 			mysql_numa_bitmask_setbit(node_mask, allowed_numa_nodes[i]);
 		}
@@ -3056,7 +3113,12 @@ calc_buf_pool_size:
 			buf_pool_t*	buf_pool = buf_pool_from_array(i);
 
 #ifdef HAVE_LIBNUMA
-			if (srv_numa_enable) {
+#ifndef DBUG_OFF
+			if (fake_numa || srv_numa_enable)
+#else
+			if (srv_numa_enable)
+#endif // DBUG_OFF
+			{
 				mysql_numa_bitmask_clearall(node_mask);
 				mysql_numa_bitmask_setbit(node_mask, allowed_numa_nodes[i]);
 			}

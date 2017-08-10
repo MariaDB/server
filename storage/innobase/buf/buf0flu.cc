@@ -2852,7 +2852,12 @@ pc_flush_slot(int node = -1)
 		ulint			i;
 
 #ifdef HAVE_LIBNUMA
-		if (srv_numa_enable && node != -1) {
+#ifndef DBUG_OFF
+		if ((fake_numa || srv_numa_enable)  && node != -1)
+#else
+		if (srv_numa_enable && node != -1)
+#endif // DBUG_OFF
+		{
 			i = node;
 			slot = &page_cleaner->slots[i];
 
@@ -3530,7 +3535,12 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 	mutex_exit(&page_cleaner->mutex);
 
 #ifdef HAVE_LIBNUMA
-	if (srv_numa_enable) {
+#ifndef DBUG_OFF
+	if (fake_numa || srv_numa_enable)
+#else
+	if (srv_numa_enable)
+#endif // DBUG_OFF
+	{
 		node = allowed_numa_nodes[node_no++];
 		mysql_bind_thread_to_node(node);
 	}
