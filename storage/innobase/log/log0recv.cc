@@ -3218,6 +3218,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		&& (log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
 		!= LOG_HEADER_FORMAT_CURRENT)) {
 
+		srv_start_lsn = recv_sys->recovered_lsn = log_sys->lsn;
 		log_mutex_exit();
 		return(err);
 	}
