@@ -1,0 +1,1 @@
+SET SESSION debug_dbug="+d,fake_numa";
