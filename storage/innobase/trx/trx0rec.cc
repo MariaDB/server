@@ -469,8 +469,12 @@ trx_undo_page_report_insert(
 	ulint		i;
 
 	ut_ad(dict_index_is_clust(index));
-	ut_ad(*reinterpret_cast<uint16*>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
-					 + undo_page) == 0);
+	/* MariaDB 10.3.1+ in trx_undo_page_init() always initializes
+	TRX_UNDO_PAGE_TYPE as 0, but previous versions wrote
+	TRX_UNDO_INSERT == 1 into insert_undo pages,
+	or TRX_UNDO_UPDATE == 2 into update_undo pages. */
+	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
+			       + undo_page) <= 2);
 
 	first_free = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
 				      + TRX_UNDO_PAGE_FREE);
@@ -875,8 +879,13 @@ trx_undo_page_report_modify(
 
 	ut_a(dict_index_is_clust(index));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(*reinterpret_cast<uint16*>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
-					 + undo_page) == 0);
+	/* MariaDB 10.3.1+ in trx_undo_page_init() always initializes
+	TRX_UNDO_PAGE_TYPE as 0, but previous versions wrote
+	TRX_UNDO_INSERT == 1 into insert_undo pages,
+	or TRX_UNDO_UPDATE == 2 into update_undo pages. */
+	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
+			       + undo_page) <= 2);
+
 	trx_undo_t*	undo = dict_table_is_temporary(table)
 		? NULL : trx->rsegs.m_redo.undo;
 
