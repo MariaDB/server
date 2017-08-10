@@ -386,6 +386,29 @@ Handler_tmp_write	2
 Handler_update	0
 Handler_write	0
 drop table t1;
+#
+# MDEV-11153 - Introduce status variables for table cache monitoring and
+#              tuning
+#
+SET @old_table_open_cache= @@table_open_cache;
+SET @@global.table_open_cache=10;
+FLUSH TABLES;
+FLUSH STATUS;
+SHOW STATUS LIKE 'Table_open_cache%';
+Variable_name	Value
+Table_open_cache_active_instances	1
+Table_open_cache_hits	0
+Table_open_cache_misses	0
+Table_open_cache_overflows	0
+SHOW STATUS LIKE 'Table_open_cache%';
+Variable_name	Value
+Table_open_cache_active_instances	1
+Table_open_cache_hits	30
+Table_open_cache_misses	15
+Table_open_cache_overflows	5
+FLUSH TABLES;
+FLUSH STATUS;
+SET @@global.table_open_cache= @old_table_open_cache;
 connection default;
 set @@global.concurrent_insert= @old_concurrent_insert;
 SET GLOBAL log_output = @old_log_output;
