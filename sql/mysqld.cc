@@ -456,7 +456,7 @@ handlerton *myisam_hton;
 handlerton *partition_hton;
 
 my_bool read_only= 0, opt_readonly= 0;
-my_bool srv_numa_enable= 0;
+my_bool mysql_numa_enable= 0;
 my_bool fake_numa= 0;
 unsigned long int no_of_allowed_nodes= 0;
 unsigned long int allowed_numa_nodes[MYSQL_MAX_NUM_NUMA_NODES];
@@ -5817,9 +5817,9 @@ int mysqld_main(int argc, char **argv)
 
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-  if (fake_numa || srv_numa_enable)
+  if (fake_numa || mysql_numa_enable)
 #else
-  if (srv_numa_enable)
+  if (mysql_numa_enable)
 #endif // DBUG_OFF
   {
     struct bitmask* numa_mems_allowed = mysql_numa_get_mems_allowed();

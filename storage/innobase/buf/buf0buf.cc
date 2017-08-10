@@ -106,7 +106,7 @@ struct set_numa_t
 			}
 		}
 
-		if (srv_numa_enable) {
+		if (mysql_numa_enable) {
 
 			if (set_mempolicy(MPOL_BIND,
 					  numa_mems_allowed->maskp,
@@ -615,9 +615,9 @@ buf_block_alloc(
 		int node = mysql_node_of_cur_thread();
 
 #ifndef DBUG_OFF
-		if ((fake_numa || srv_numa_enable)  && node != -1)
+		if ((fake_numa || mysql_numa_enable)  && node != -1)
 #else
-		if (srv_numa_enable && node != -1)
+		if (mysql_numa_enable && node != -1)
 #endif // DBUG_OFF
 	    {
 			buf_pool = srv_buf_pool_on_node(node);
@@ -1567,7 +1567,7 @@ buf_chunk_init(
 				" (error: " << strerror(errno) << ").";
 		}
 	}
-	if (srv_numa_enable) {
+	if (mysql_numa_enable) {
 		struct bitmask* node_mask = mysql_numa_bitmask_alloc(MYSQL_MAX_NUM_NUMA_NODES);
 		mysql_numa_bitmask_setbit(node_mask, allowed_numa_nodes[instance_no]);
 		ulint	mbind_val = mbind(chunk->mem, chunk->mem_size(),
@@ -1957,9 +1957,9 @@ buf_pool_init_instance(
 #ifdef HAVE_LIBNUMA
 
 #ifndef DBUG_OFF
-	if (fake_numa || srv_numa_enable)
+	if (fake_numa || mysql_numa_enable)
 #else
-	if (srv_numa_enable)
+	if (mysql_numa_enable)
 #endif // DBUG_OFF
     {
 		ib::info() << "Initialized Buffer Pool Instance " << instance_no << " of size "
@@ -2101,9 +2101,9 @@ buf_pool_init(
 
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-		if (fake_numa || srv_numa_enable)
+		if (fake_numa || mysql_numa_enable)
 #else
-		if (srv_numa_enable)
+		if (mysql_numa_enable)
 #endif // DBUG_OFF
 		{
 			mysql_numa_bitmask_clearall(node_mask);
@@ -2727,9 +2727,9 @@ buf_pool_resize()
 
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-		if (fake_numa || srv_numa_enable)
+		if (fake_numa || mysql_numa_enable)
 #else
-		if (srv_numa_enable)
+		if (mysql_numa_enable)
 #endif // DBUG_OFF
 		{
 			ulint new_curr_size = ((double) size_of_numa_node[i] / total_numa_nodes_size) * srv_buf_pool_size;
@@ -2921,9 +2921,9 @@ withdraw_retry:
 
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-		if (fake_numa || srv_numa_enable)
+		if (fake_numa || mysql_numa_enable)
 #else
-		if (srv_numa_enable)
+		if (mysql_numa_enable)
 #endif // DBUG_OFF
 		{
 			mysql_numa_bitmask_clearall(node_mask);
@@ -3114,9 +3114,9 @@ calc_buf_pool_size:
 
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-			if (fake_numa || srv_numa_enable)
+			if (fake_numa || mysql_numa_enable)
 #else
-			if (srv_numa_enable)
+			if (mysql_numa_enable)
 #endif // DBUG_OFF
 			{
 				mysql_numa_bitmask_clearall(node_mask);

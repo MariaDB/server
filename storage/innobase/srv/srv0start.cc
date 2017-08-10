@@ -332,9 +332,9 @@ DECLARE_THREAD(io_handler_thread)(
 			pfs_register_thread(io_read_thread_key);
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-			if (fake_numa || srv_numa_enable)
+			if (fake_numa || mysql_numa_enable)
 #else
-			if (srv_numa_enable)
+			if (mysql_numa_enable)
 #endif // DBUG_OFF
 			{
 				node = allowed_numa_nodes[read_node++/2];
@@ -348,9 +348,9 @@ DECLARE_THREAD(io_handler_thread)(
 		pfs_register_thread(io_write_thread_key);
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-			if (fake_numa || srv_numa_enable)
+			if (fake_numa || mysql_numa_enable)
 #else
-			if (srv_numa_enable)
+			if (mysql_numa_enable)
 #endif // DBUG_OFF
 			{
 				node = allowed_numa_nodes[write_node++/2];
@@ -1695,8 +1695,8 @@ innobase_start_or_create_for_mysql()
 
 #ifdef HAVE_LIBNUMA
 
-	if (srv_numa_interleave && srv_numa_enable) {
-		srv_numa_enable = false;
+	if (srv_numa_interleave && mysql_numa_enable) {
+		mysql_numa_enable = false;
 	}
 
 #ifndef DBUG_OFF
@@ -1706,9 +1706,9 @@ innobase_start_or_create_for_mysql()
 #endif // DBUG_OFF
 
 #ifndef DBUG_OFF
-    if (fake_numa || srv_numa_enable)
+    if (fake_numa || mysql_numa_enable)
 #else
-    if (srv_numa_enable)
+    if (mysql_numa_enable)
 #endif // DBUG_OFF
 	{
 		ulint srv_buf_pool_instances_old_val = srv_buf_pool_instances;
@@ -1764,9 +1764,9 @@ innobase_start_or_create_for_mysql()
 
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-    if (fake_numa || srv_numa_enable)
+    if (fake_numa || mysql_numa_enable)
 #else
-    if (srv_numa_enable)
+    if (mysql_numa_enable)
 #endif // DBUG_OFF
 	{
 		for (ulint i = 0; i < srv_buf_pool_instances; i++) {

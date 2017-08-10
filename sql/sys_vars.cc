@@ -2549,7 +2549,7 @@ static Sys_var_mybool Sys_readonly(
 static Sys_var_mybool Sys_numaenable(
        "numa_enable",
        "Enables explicit support for numa architecture.",
-       READ_ONLY GLOBAL_VAR(srv_numa_enable),
+       READ_ONLY GLOBAL_VAR(mysql_numa_enable),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG);
 

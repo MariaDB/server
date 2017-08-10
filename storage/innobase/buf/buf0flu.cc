@@ -2853,9 +2853,9 @@ pc_flush_slot(int node = -1)
 
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-		if ((fake_numa || srv_numa_enable)  && node != -1)
+		if ((fake_numa || mysql_numa_enable)  && node != -1)
 #else
-		if (srv_numa_enable && node != -1)
+		if (mysql_numa_enable && node != -1)
 #endif // DBUG_OFF
 		{
 			i = node;
@@ -3536,9 +3536,9 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-	if (fake_numa || srv_numa_enable)
+	if (fake_numa || mysql_numa_enable)
 #else
-	if (srv_numa_enable)
+	if (mysql_numa_enable)
 #endif // DBUG_OFF
 	{
 		node = allowed_numa_nodes[node_no++];

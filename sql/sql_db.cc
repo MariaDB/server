@@ -1372,9 +1372,9 @@ static void mysql_change_db_impl(THD *thd,
 
 #ifdef HAVE_LIBNUMA
 #ifndef DBUG_OFF
-    if (fake_numa || srv_numa_enable)
+    if (fake_numa || mysql_numa_enable)
 #else
-    if (srv_numa_enable)
+    if (mysql_numa_enable)
 #endif // DBUG_OFF
     {
       node = search_db_node_map(new_db_name->str);
