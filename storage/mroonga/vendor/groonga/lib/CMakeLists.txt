@@ -90,6 +90,7 @@ endif()
 set_target_properties(libgroonga PROPERTIES OUTPUT_NAME "groonga")
 
 set(GRN_ALL_LIBRARIES
+    ${ATOMIC_LIBS}
     ${EXECINFO_LIBS}
     ${RT_LIBS}
     ${PTHREAD_LIBS}
