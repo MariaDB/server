@@ -1411,7 +1411,8 @@ public:
   bool group_sent;
 
   bool is_for_splittable_grouping_derived;
-  bool with_two_phase_optimization; 
+  bool with_two_phase_optimization;
+  ORDER *partition_list; 
 
   JOIN_TAB *sort_and_group_aggr_tab;
 

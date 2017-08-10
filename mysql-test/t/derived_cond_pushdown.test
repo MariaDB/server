@@ -1552,6 +1552,8 @@ DROP TABLE t1,t2;
 --echo #
 --echo # MDEV-13369: Optimization for equi-joins of grouping derived tables 
 --echo #             (Splitting derived tables / views with GROUP BY)
+--echo # MDEV-13389: Optimization for equi-joins of derived tables with WF
+--echo #             (Splitting derived tables / views with window functions)
 --echo #
 
 let
@@ -1629,9 +1631,9 @@ drop index idx on t2;
 create index idx on t2(b);
 create index idx on t3(a);
 create index idx2 on t4(c);
-insert into t3 select * from t3;
-insert into t3 select * from t3;
-insert into t4 select * from t4;
+insert into t3 select a+1, concat(c,'f') from t3;
+insert into t3 select a+1, concat(c,'h')  from t3;
+insert into t4 select a+1, b+10, concat(c,'h') from t4;
 
 let $q5=
 select t2.a,t2.b,t3.c,t.max,t.min
@@ -1643,5 +1645,14 @@ eval $q5;
 eval explain extended $q5;
 eval explain format=json $q5;
 
-drop table t1,t2,t3,t4;
+let $q6=
+select *
+from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
+where t2.b > 50 and t2.a=t3.a and t3.c=t.c;
 
+eval $no_splitting $q6;
+eval $q6;
+eval explain extended $q6;
+eval explain format=json $q6;
+
+drop table t1,t2,t3,t4;

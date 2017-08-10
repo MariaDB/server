@@ -1055,11 +1055,20 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   select_unit *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
 
-  if (!derived_is_recursive && (unit->uncacheable & UNCACHEABLE_DEPENDENT))
+  if (unit->executed && !derived_is_recursive &&
+      (unit->uncacheable & UNCACHEABLE_DEPENDENT))
   {
     if ((res= derived->table->file->ha_delete_all_rows()))
       goto err;
-    unit->first_select()->join->first_record= false;
+    JOIN *join= unit->first_select()->join;
+    join->first_record= false;
+    for (uint i= join->top_join_tab_count;
+         i < join->top_join_tab_count + join->aggr_tables;
+         i++)
+    { 
+      if ((res= join->join_tab[i].table->file->ha_delete_all_rows()))
+        goto err;
+    }   
   }
   
   if (derived_is_recursive)
