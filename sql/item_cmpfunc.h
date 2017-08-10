@@ -106,6 +106,12 @@ public:
   int compare_e_datetime() { return compare_e_temporal(MYSQL_TYPE_DATETIME); }
   int compare_time()       { return compare_temporal(MYSQL_TYPE_TIME); }
   int compare_e_time()     { return compare_e_temporal(MYSQL_TYPE_TIME); }
+  int compare_json_str_basic(Item *j, Item *s);
+  int compare_json_str();
+  int compare_str_json();
+  int compare_e_json_str_basic(Item *j, Item *s);
+  int compare_e_json_str();
+  int compare_e_str_json();
 
   Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
                                   Item_result type);
