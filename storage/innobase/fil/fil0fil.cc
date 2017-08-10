@@ -4644,7 +4644,7 @@ fil_ibd_load(
 			break;
 		}
 
-		/* Fall through to error handling */
+		/* fall through */
 
 	case DB_TABLESPACE_EXISTS:
 		return(FIL_LOAD_INVALID);
