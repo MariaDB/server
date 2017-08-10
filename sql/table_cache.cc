@@ -56,7 +56,7 @@
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
 uint32 tc_instances;
-static uint32 tc_active_instances= 1;
+uint32 tc_active_instances= 1;
 static uint32 tc_contention_warning_reported;
 
 /** Data collections. */
@@ -369,18 +369,30 @@ void tc_add_table(THD *thd, TABLE *table)
   mysql_mutex_unlock(&element->LOCK_table_share);
 
   mysql_mutex_lock(&tc[i].LOCK_table_cache);
-  if (tc[i].records == tc_size && (LRU_table= tc[i].free_tables.pop_front()))
+  if (tc[i].records == tc_size)
   {
-    LRU_table->s->tdc->free_tables[i].list.remove(LRU_table);
-    /* Needed if MDL deadlock detector chimes in before tc_remove_table() */
-    LRU_table->in_use= thd;
+    if ((LRU_table= tc[i].free_tables.pop_front()))
+    {
+      LRU_table->s->tdc->free_tables[i].list.remove(LRU_table);
+      /* Needed if MDL deadlock detector chimes in before tc_remove_table() */
+      LRU_table->in_use= thd;
+      mysql_mutex_unlock(&tc[i].LOCK_table_cache);
+      /* Keep out of locked LOCK_table_cache */
+      tc_remove_table(LRU_table);
+    }
+    else
+    {
+      tc[i].records++;
+      mysql_mutex_unlock(&tc[i].LOCK_table_cache);
+    }
+    /* Keep out of locked LOCK_table_cache */
+    status_var_increment(thd->status_var.table_open_cache_overflows);
   }
   else
+  {
     tc[i].records++;
-  mysql_mutex_unlock(&tc[i].LOCK_table_cache);
-
-  if (LRU_table)
-    tc_remove_table(LRU_table);
+    mysql_mutex_unlock(&tc[i].LOCK_table_cache);
+  }
 }
 
 
@@ -841,7 +853,10 @@ retry:
 
     tdc_purge(false);
     if (out_table)
+    {
+      status_var_increment(thd->status_var.table_open_cache_misses);
       *out_table= 0;
+    }
     share->m_psi= PSI_CALL_get_table_share(false, share);
     goto end;
   }
@@ -858,8 +873,10 @@ retry:
       DBUG_ASSERT(element->share);
       DBUG_ASSERT(!element->share->error);
       DBUG_ASSERT(!element->share->is_view);
+      status_var_increment(thd->status_var.table_open_cache_hits);
       DBUG_RETURN(element->share);
     }
+    status_var_increment(thd->status_var.table_open_cache_misses);
   }
 
   mysql_mutex_lock(&element->LOCK_table_share);

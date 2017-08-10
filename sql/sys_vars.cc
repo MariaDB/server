@@ -3278,6 +3278,12 @@ static Sys_var_ulong Sys_table_cache_size(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_table_open_cache));
 
+static Sys_var_uint Sys_table_cache_active_instances(
+       "table_open_cache_active_instances",
+       "Number of active table cache instances",
+       READ_ONLY GLOBAL_VAR(tc_active_instances), NO_CMD_LINE,
+       VALID_RANGE(1, 64), DEFAULT(1), BLOCK_SIZE(1));
+
 static Sys_var_uint Sys_table_cache_instances(
        "table_open_cache_instances", "Maximum number of table cache instances",
        READ_ONLY GLOBAL_VAR(tc_instances), CMD_LINE(REQUIRED_ARG),

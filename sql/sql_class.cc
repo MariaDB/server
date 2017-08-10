@@ -1728,6 +1728,9 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   to_var->binlog_bytes_written+= from_var->binlog_bytes_written;
   to_var->cpu_time+=            from_var->cpu_time;
   to_var->busy_time+=           from_var->busy_time;
+  to_var->table_open_cache_hits+= from_var->table_open_cache_hits;
+  to_var->table_open_cache_misses+= from_var->table_open_cache_misses;
+  to_var->table_open_cache_overflows+= from_var->table_open_cache_overflows;
 
   /*
     Update global_memory_used. We have to do this with atomic_add as the
@@ -1779,6 +1782,12 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                                  dec_var->binlog_bytes_written;
   to_var->cpu_time+=             from_var->cpu_time - dec_var->cpu_time;
   to_var->busy_time+=            from_var->busy_time - dec_var->busy_time;
+  to_var->table_open_cache_hits+= from_var->table_open_cache_hits -
+                                  dec_var->table_open_cache_hits;
+  to_var->table_open_cache_misses+= from_var->table_open_cache_misses -
+                                    dec_var->table_open_cache_misses;
+  to_var->table_open_cache_overflows+= from_var->table_open_cache_overflows -
+                                       dec_var->table_open_cache_overflows;
 
   /*
     We don't need to accumulate memory_used as these are not reset or used by

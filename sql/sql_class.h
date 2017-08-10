@@ -822,6 +822,9 @@ typedef struct system_status_var
   ulonglong rows_sent;
   ulonglong rows_tmp_read;
   ulonglong binlog_bytes_written;
+  ulonglong table_open_cache_hits;
+  ulonglong table_open_cache_misses;
+  ulonglong table_open_cache_overflows;
   double last_query_cost;
   double cpu_time, busy_time;
   /* Don't initialize */

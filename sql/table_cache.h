@@ -69,6 +69,7 @@ enum enum_tdc_remove_table_type
 extern ulong tdc_size;
 extern ulong tc_size;
 extern uint32 tc_instances;
+extern uint32 tc_active_instances;
 
 extern bool tdc_init(void);
 extern void tdc_start_shutdown(void);
