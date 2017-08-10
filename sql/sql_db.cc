@@ -1339,7 +1339,7 @@ static void mysql_change_db_impl(THD *thd,
 {
   /* 1. Change current database in THD. */
 
-  uint          node;
+  int           node;
   static uint   static_node = 0;
 
   if (new_db_name == NULL)
