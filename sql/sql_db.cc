@@ -1354,7 +1354,7 @@ static void mysql_change_db_impl(THD *thd,
   else if (new_db_name == &INFORMATION_SCHEMA_NAME)
   {
     /*
-    Here we must use THD::set_db(), because we want to copy
+      Here we must use THD::set_db(), because we want to copy
       INFORMATION_SCHEMA_NAME constant.
     */
 

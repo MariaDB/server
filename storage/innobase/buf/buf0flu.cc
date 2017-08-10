@@ -3524,7 +3524,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
-	static ulint 	node_no = 0;
+	static ulint	node_no = 0;
 	int		node = -1;
 
 	my_thread_init();
