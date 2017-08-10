@@ -544,15 +544,21 @@ bool Arg_comparator::set_cmp_func_string()
     */
     if (owner->agg_arg_charsets_for_comparison(&m_compare_collation, a, b))
       return true;
-  }
 
-  if ((*a)->is_json_type() ^ (*b)->is_json_type())
-  {
-    Item **j_item= (*a)->is_json_type() ? a : b;
-    Item *uf= new(thd->mem_root) Item_func_json_unquote(thd, *j_item);
-    if (!uf || uf->fix_fields(thd, &uf))
-      return 1;
-    *j_item= uf;
+    if ((*a)->type() == Item::FUNC_ITEM &&
+        ((Item_func *) (*a))->functype() == Item_func::JSON_EXTRACT_FUNC)
+    {
+      func= is_owner_equal_func() ? &Arg_comparator::compare_e_json_str:
+                                    &Arg_comparator::compare_json_str;
+      return false;
+    }
+    else if ((*b)->type() == Item::FUNC_ITEM &&
+             ((Item_func *) (*b))->functype() == Item_func::JSON_EXTRACT_FUNC)
+    {
+      func= is_owner_equal_func() ? &Arg_comparator::compare_e_json_str:
+                                    &Arg_comparator::compare_str_json;
+      return false;
+    }
   }
 
   a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
@@ -1141,6 +1147,30 @@ int Arg_comparator::compare_e_row()
       return 0;
   }
   return 1;
+}
+
+
+int Arg_comparator::compare_json_str()
+{
+  return compare_json_str_basic(*a, *b);
+}
+
+
+int Arg_comparator::compare_str_json()
+{
+  return -compare_json_str_basic(*b, *a);
+}
+
+
+int Arg_comparator::compare_e_json_str()
+{
+  return compare_e_json_str_basic(*a, *b);
+}
+
+
+int Arg_comparator::compare_e_str_json()
+{
+  return compare_e_json_str_basic(*b, *a);
 }
 
 
