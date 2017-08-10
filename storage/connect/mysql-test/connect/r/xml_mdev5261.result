@@ -17,7 +17,7 @@ SELECT * FROM t1 WHERE i = 5;
 i
 5
 ALTER TABLE t1 DROP INDEX i;
-ERROR 42000: Can't DROP INDEX `i`; check that it exists
+ERROR 42000: Can't DROP 'i'; check that column/key exists
 DROP INDEX i ON t1;
-ERROR 42000: Can't DROP INDEX `i`; check that it exists
+ERROR 42000: Can't DROP 'i'; check that column/key exists
 DROP TABLE t1;

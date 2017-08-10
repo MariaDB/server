@@ -1,10 +1,5 @@
-connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
-connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
-connection master;
 CREATE DATABASE connect;
-connection slave;
 CREATE DATABASE connect;
-connection default;
 #
 # Checking thread TBL tables
 #
@@ -16,7 +11,6 @@ a	b
 1	test01
 2	test02
 3	test03
-connection master;
 CREATE TABLE rt2 (a int, b char(10));
 INSERT INTO rt2 VALUES (4,'test04'),(5,'test05'),(6,'test06'),(7,'test07');
 SELECT * FROM rt2;
@@ -25,7 +19,7 @@ a	b
 5	test05
 6	test06
 7	test07
-connection slave;
+USE test;
 CREATE TABLE rt3 (a int, b char(10));
 INSERT INTO rt3 VALUES (8,'test08'),(9,'test09'),(10,'test10'),(11,'test11');
 SELECT * FROM rt3;
@@ -34,7 +28,6 @@ a	b
 9	test09
 10	test10
 11	test11
-connection default;
 CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL
 CONNECTION='mysql://root@localhost:MASTER_PORT/test/rt2';
 SELECT * FROM t2;
@@ -68,11 +61,8 @@ a	b
 2	test02
 1	test01
 0	test00
-connection master;
 DROP TABLE rt2;
-connection slave;
 DROP TABLE rt3;
-connection default;
 DROP TABLE t1,t2,t3,total;
 #
 # Old thread TBL tables test modified
@@ -110,9 +100,7 @@ v
 DROP TABLE total;
 DROP TABLE t1;
 DROP TABLE t2;
-connection master;
 DROP TABLE IF EXISTS connect.t1;
 DROP DATABASE IF EXISTS connect;
-connection slave;
 DROP TABLE IF EXISTS connect.t1;
 DROP DATABASE IF EXISTS connect;

@@ -55,6 +55,7 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 
 TYPCONV GetTypeConv();
 int GetConvSize();
+void OdbcClose(PGLOBAL g, PFBLOCK fp);
 
 /***********************************************************************/
 /*  Some macro's (should be defined elsewhere to be more accessible)   */
@@ -300,6 +301,13 @@ static void ResetNullValues(CATPARM *cap)
 
   } // end of ResetNullValues
 #endif
+
+/***********************************************************************/
+/*  Close an ODBC table after a thrown error (called by PlugCloseFile) */
+/***********************************************************************/
+void OdbcClose(PGLOBAL g, PFBLOCK fp) {
+	((ODBConn*)fp->File)->Close();
+}	// end of OdbcClose
 
 /***********************************************************************/
 /*  ODBCColumns: constructs the result blocks containing all columns   */

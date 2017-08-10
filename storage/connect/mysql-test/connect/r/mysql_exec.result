@@ -1,13 +1,8 @@
-connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
-connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
-connection master;
 CREATE DATABASE connect;
-connection slave;
 CREATE DATABASE connect;
 #
 # Checking Sending Commands
 #
-connection master;
 CREATE TABLE t1 (
 command VARCHAR(128) NOT NULL,
 warnings INT(4) NOT NULL FLAG=3,
@@ -53,7 +48,6 @@ command	warnings	number	message
 update t1 set msg = "Five" where id = 5	0	1	Affected rows
 DROP PROCEDURE p1;
 DROP TABLE t1;
-connection slave;
 SELECT * FROM t1;
 id	msg
 1	One
@@ -62,9 +56,7 @@ id	msg
 4	Four
 5	Five
 DROP TABLE t1;
-connection master;
 DROP TABLE IF EXISTS connect.t1;
 DROP DATABASE IF EXISTS connect;
-connection slave;
 DROP TABLE IF EXISTS connect.t1;
 DROP DATABASE IF EXISTS connect;

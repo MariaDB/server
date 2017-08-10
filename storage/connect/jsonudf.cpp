@@ -143,7 +143,7 @@ my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
 				jnp->Rank = B;
 				jnp->Op = OP_LE;
 			} else if (!Value->IsTypeNum()) {
-				jnp->CncVal = AllocateValue(g, (void*)", ", TYPE_STRING);
+				jnp->CncVal = AllocateValue(g, PlugDup(g, ", "), TYPE_STRING);
 				jnp->Op = OP_CNC;
 			} else
 				jnp->Op = OP_ADD;
@@ -181,6 +181,10 @@ my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
 		if (n > 2) {
 			// Set concat intermediate string
 			p[n - 1] = 0;
+
+			if (trace)
+				htrc("Concat string=%s\n", p + 1);
+
 			jnp->CncVal = AllocateValue(g, p + 1, TYPE_STRING);
 		} // endif n
 
@@ -242,6 +246,9 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 		//	Jpath = Name;
 		return true;
 
+	if (trace)
+		htrc("ParseJpath %s\n", SVP(Jpath));
+
 	if (!(pbuf = PlgDBDup(g, Jpath)))
 		return true;
 
@@ -301,6 +308,12 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 
 	Nod = i;
 	MulVal = AllocateValue(g, Value);
+
+	if (trace)
+		for (i = 0; i < Nod; i++)
+			htrc("Node(%d) Key=%s Op=%d Rank=%d\n",
+				i, SVP(Nodes[i].Key), Nodes[i].Op, Nodes[i].Rank);
+
 	Parsed = true;
 	return false;
 } // end of ParseJpath
@@ -485,7 +498,7 @@ PVAL JSNX::ExpandArray(PGLOBAL g, PJAR arp, int n)
 PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 {
 //int     i, ars, nv = 0, nextsame = Tjp->NextSame;
-	int     i, ars, nv = 0, nextsame = 0;
+	int     i, nv = 0, nextsame = 0;
 	my_bool err;
 	OPVAL   op = Nodes[n].Op;
 	PVAL    val[2], vp = Nodes[n].Valp;
@@ -493,10 +506,19 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 	JVALUE  jval;
 
 	vp->Reset();
-	ars = arp->size();
+//ars = arp->size();
 
-	for (i = 0; i < ars; i++) {
+	if (trace)
+		htrc("CalculateArray size=%d\n", arp->size());
+//	htrc("CalculateArray size=%d\n", ars);
+
+	for (i = 0; i < arp->size(); i++) {
+//for (i = 0; i < ars; i++) {			 because compiler bug
 		jvrp = arp->GetValue(i);
+
+		if (trace)
+			htrc("Value %s null=%d nv=%d\n",
+				jvrp->GetString(g), jvrp->IsNull() ? 1 : 0, nv);
 
 		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) {
 			if (jvrp->IsNull()) {
@@ -514,8 +536,8 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 			} else
 				SetJsonValue(g, MulVal, jvp, n);
 
-			if (!MulVal->IsZero()) {
-				switch (op) {
+			if (!MulVal->IsNull()) {
+					switch (op) {
 					case OP_CNC:
 						if (Nodes[n].CncVal) {
 							val[0] = Nodes[n].CncVal;
@@ -1876,7 +1898,7 @@ char *json_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PJAR  arp;
 			PJVAL jvp = MakeValue(g, args, 0, &top);
 			
-			if ((p = jvp->GetString())) {
+			if ((p = jvp->GetString(g))) {
 				if (!(top = ParseJson(g, p, strlen(p)))) {
 					PUSH_WARNING(g->Message);
 					return NULL;
@@ -2666,7 +2688,7 @@ char *json_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PJSON jsp;
 			PJVAL jvp = MakeValue(g, args, 0);
 
-			if ((p = jvp->GetString())) {
+			if ((p = jvp->GetString(g))) {
 				if (!(jsp = ParseJson(g, p, strlen(p)))) {
 					PUSH_WARNING(g->Message);
 					return NULL;
@@ -3050,7 +3072,7 @@ char *json_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} else
 			jvp = MakeValue(g, args, 0);
 
-		if ((p = jvp->GetString())) {
+		if ((p = jvp->GetString(g))) {
 			if (!(jsp = ParseJson(g, p, strlen(p)))) {
 				PUSH_WARNING(g->Message);
 				return NULL;
@@ -3165,7 +3187,7 @@ char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			} else
 				jvp = MakeValue(g, args, 0);
 
-			if ((p = jvp->GetString())) {
+			if ((p = jvp->GetString(g))) {
 				if (!(jsp = ParseJson(g, p, strlen(p)))) {
 					PUSH_WARNING(g->Message);
 					goto err;
@@ -3280,7 +3302,7 @@ long long jsonget_int(UDF_INIT *initid, UDF_ARGS *args,
 		} else
 			jvp = MakeValue(g, args, 0);
 
-		if ((p = jvp->GetString())) {
+		if ((p = jvp->GetString(g))) {
 			if (!(jsp = ParseJson(g, p, strlen(p)))) {
 				PUSH_WARNING(g->Message);
 				if (g->Mrr) *error = 1;
@@ -3395,7 +3417,7 @@ double jsonget_real(UDF_INIT *initid, UDF_ARGS *args,
 		} else
 			jvp = MakeValue(g, args, 0);
 
-		if ((p = jvp->GetString())) {
+		if ((p = jvp->GetString(g))) {
 			if (!(jsp = ParseJson(g, p, strlen(p)))) {
 				PUSH_WARNING(g->Message);
 				*is_null = 1;
@@ -3511,7 +3533,7 @@ char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			} else
 				jvp = MakeValue(g, args, 0);
 
-			if ((p = jvp->GetString())) {
+			if ((p = jvp->GetString(g))) {
 				if (!(jsp = ParseJson(g, p, strlen(p)))) {
 					PUSH_WARNING(g->Message);
 					goto err;
@@ -3635,7 +3657,7 @@ char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			} else
 				jvp = MakeValue(g, args, 0);
 
-			if ((p = jvp->GetString())) {
+			if ((p = jvp->GetString(g))) {
 				if (!(jsp = ParseJson(g, p, strlen(p)))) {
 					PUSH_WARNING(g->Message);
 					goto err;
@@ -3807,7 +3829,7 @@ long long jsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} else
 			jvp = MakeValue(g, args, 0);
 
-		if ((p = jvp->GetString())) {
+		if ((p = jvp->GetString(g))) {
 			if (!(jsp = ParseJson(g, p, strlen(p)))) {
 				PUSH_WARNING(g->Message);
 				goto err;
@@ -3894,7 +3916,7 @@ char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			} else
 				jvp = MakeValue(g, args, 0);
 
-			if ((p = jvp->GetString())) {
+			if ((p = jvp->GetString(g))) {
 				if (!(jsp = ParseJson(g, p, strlen(p)))) {
 					throw 2;
 				} // endif jsp
@@ -4230,14 +4252,14 @@ char *jfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		}	else
 			jvp = MakeValue(g, args, 0);
 
-		if ((p = jvp->GetString())) {
+		if ((p = jvp->GetString(g))) {
 			if (!strchr("[{ \t\r\n", *p)) {
 				// Is this a file name?
 				if (!(p = GetJsonFile(g, p))) {
 					PUSH_WARNING(g->Message);
 					goto fin;
 				} else
-					fn = jvp->GetString();
+					fn = jvp->GetString(g);
 
 			} // endif p
 
@@ -4380,7 +4402,7 @@ char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PJVAL   jvp = MakeValue(g, args, 0, &top);
 			PGLOBAL gb = GetMemPtr(g, args, 0);
 
-			if ((p = jvp->GetString())) {
+			if ((p = jvp->GetString(g))) {
 				if (!(top = ParseJson(g, p, strlen(p)))) {
 					PUSH_WARNING(g->Message);
 					return NULL;
@@ -4918,7 +4940,7 @@ char *jbin_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PJSON jsp;
 			PJVAL jvp = MakeValue(g, args, 0);
 
-			if ((p = jvp->GetString())) {
+			if ((p = jvp->GetString(g))) {
 				if (!(jsp = ParseJson(g, p, strlen(p)))) {
 					PUSH_WARNING(g->Message);
 					return NULL;
@@ -4989,7 +5011,7 @@ char *jbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} else
 			jvp = MakeValue(g, args, 0);
 
-		if ((p = jvp->GetString())) {
+		if ((p = jvp->GetString(g))) {
 			if (!(jsp = ParseJson(g, p, strlen(p)))) {
 				PUSH_WARNING(g->Message);
 				goto fin;
@@ -5163,7 +5185,7 @@ char *bin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} else
 			jvp = MakeValue(g, args, 0);
 
-		if ((p = jvp->GetString())) {
+		if ((p = jvp->GetString(g))) {
 			if (!(jsp = ParseJson(g, p, strlen(p)))) {
 				PUSH_WARNING(g->Message);
 				goto fin;

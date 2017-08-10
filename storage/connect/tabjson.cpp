@@ -54,8 +54,6 @@
 /*  External functions.                                                */
 /***********************************************************************/
 USETEMP UseTemp(void);
-bool    IsNum(PSZ s);
-char   *NextChr(PSZ s, char sep);
 char   *GetJsonNull(void);
 
 typedef struct _jncol {
@@ -500,7 +498,7 @@ JSONDEF::JSONDEF(void)
 	Sep = '.';
 #if defined(MONGO_SUPPORT)
 	Uri = NULL;
-	Collname = Schema = Options = Filter = NULL;
+	Collname = Options = Filter = NULL;
 	Pipe = false;
 	Driver = NULL;
 	Version = 0;
@@ -515,7 +513,8 @@ JSONDEF::JSONDEF(void)
 /***********************************************************************/
 bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 {
-  Jmode = (JMODE)GetIntCatInfo("Jmode", MODE_OBJECT);
+	Schema = GetStringCatInfo(g, "DBname", Schema);
+	Jmode = (JMODE)GetIntCatInfo("Jmode", MODE_OBJECT);
   Objname = GetStringCatInfo(g, "Object", NULL);
   Xcol = GetStringCatInfo(g, "Expand", NULL);
   Pretty = GetIntCatInfo("Pretty", 2);
@@ -528,7 +527,6 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 		Collname = GetStringCatInfo(g, "Name",
 			(Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
 		Collname = GetStringCatInfo(g, "Tabname", Collname);
-		Schema = GetStringCatInfo(g, "Dbname", "test");
 		Options = GetStringCatInfo(g, "Colist", NULL);
 		Filter = GetStringCatInfo(g, "Filter", NULL);
 		Pipe = GetBoolCatInfo("Pipeline", false);
@@ -1592,18 +1590,20 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
 /***********************************************************************/
 PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
   {
-  int    i, ars, nv = 0, nextsame = Tjp->NextSame;
-  bool   err;
+//int    i, ars, nv = 0, nextsame = Tjp->NextSame;
+	int    i, nv = 0, nextsame = Tjp->NextSame;
+	bool   err;
   OPVAL  op = Nodes[n].Op;
   PVAL   val[2], vp = Nodes[n].Valp;
   PJVAL  jvrp, jvp;
   JVALUE jval;
 
   vp->Reset();
-  ars = MY_MIN(Tjp->Limit, arp->size());
+//ars = MY_MIN(Tjp->Limit, arp->size());
 
-  for (i = 0; i < ars; i++) {
-    jvrp = arp->GetValue(i);
+//for (i = 0; i < ars; i++) {
+	for (i = 0; i < arp->size(); i++) {
+		jvrp = arp->GetValue(i);
 
 		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) do {
 			if (jvrp->IsNull()) {
@@ -2278,11 +2278,7 @@ void TDBJSON::CloseDB(PGLOBAL g)
 TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
   {
   Topt = tdp->GetTopt();
-#if defined(MONGO_SUPPORT)
   Db = tdp->Schema;
-#else
-	Db = NULL;
-#endif
 	Dsn = tdp->Uri;
   } // end of TDBJCL constructor
 
