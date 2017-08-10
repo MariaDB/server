@@ -2864,8 +2864,7 @@ pc_flush_slot(int node = -1)
 			if (slot->state != PAGE_CLEANER_STATE_REQUESTED) {
 				goto finish_quick;
 			}
-		}
-		else
+		} else
 #endif // HAVE_LIBNUMA
 		{
 			for (i = 0; i < page_cleaner->n_slots; i++) {
@@ -3525,8 +3524,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
-	static ulint	node_no = 0;
-	int				node = -1;
+	static ulint 	node_no = 0;
+	int		node = -1;
 
 	my_thread_init();
 

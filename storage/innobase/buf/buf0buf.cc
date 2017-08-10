@@ -621,8 +621,7 @@ buf_block_alloc(
 #endif // DBUG_OFF
 	    {
 			buf_pool = srv_buf_pool_on_node(node);
-		}
-		else
+		} else
 #endif // HAVE_LIBNUMA
 		{
 			/* We are allocating memory from any buffer pool, ensure
@@ -2738,8 +2737,7 @@ buf_pool_resize()
 			buf_pool->curr_size = new_curr_size;
 			buf_pool->n_chunks_new = new_curr_size * UNIV_PAGE_SIZE
 				/ srv_buf_pool_chunk_unit;
-		}
-		else
+		} else
 #endif // HAVE_LIBNUMA
 		{
 			buf_pool->curr_size = new_instance_size;
