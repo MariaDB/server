@@ -1746,8 +1746,9 @@ innobase_reset_background_thd(MYSQL_THD thd)
 	ut_ad(THDVAR(thd, background_thread));
 
 	/* background purge thread */
+	const char *proc_info= thd_proc_info(thd, "reset");
 	reset_thd(thd);
-	thd_proc_info(thd, "");
+	thd_proc_info(thd, proc_info);
 }
 
 

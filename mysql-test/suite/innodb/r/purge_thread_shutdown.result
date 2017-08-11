@@ -3,11 +3,11 @@ insert t1 values (1),(2),(3),(4);
 delete from t1 where a=1;
 select user,state from information_schema.processlist order by 2;
 user	state
-system user	
-system user	
-system user	
-system user	
 root	Filling schema table
+system user	InnoDB purge coordinator
+system user	InnoDB purge worker
+system user	InnoDB purge worker
+system user	InnoDB purge worker
 system user	InnoDB shutdown handler
 set global debug_dbug='+d,only_kill_system_threads';
 connect con1, localhost, root;
