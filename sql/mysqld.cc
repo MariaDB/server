@@ -1695,6 +1695,10 @@ static void close_connections(void)
     if (tmp->slave_thread)
       continue;
 
+    /* cannot use 'continue' inside DBUG_EXECUTE_IF()... */
+    if (DBUG_EVALUATE_IF("only_kill_system_threads", !tmp->system_thread, 0))
+      continue;
+
 #ifdef WITH_WSREP
     /* skip wsrep system threads as well */
     if (WSREP(tmp) && (tmp->wsrep_exec_mode==REPL_RECV || tmp->wsrep_applier))
