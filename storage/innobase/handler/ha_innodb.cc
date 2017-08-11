@@ -351,10 +351,11 @@ thd_destructor_proxy(void *)
 	mysql_mutex_unlock(&thd_destructor_mutex);
 	srv_running = NULL;
 
-	if (srv_fast_shutdown == 0) {
-		while (trx_sys_any_active_transactions()) {
-			os_thread_sleep(1000);
-		}
+	while (srv_fast_shutdown == 0 &&
+	       (trx_sys_any_active_transactions() ||
+		(uint)thread_count > srv_n_purge_threads + 1)) {
+		thd_proc_info(thd, "InnoDB slow shutdown wait");
+		os_thread_sleep(1000);
 	}
 
 	/* Some background threads might generate undo pages that will

@@ -2,6 +2,7 @@ source include/have_innodb.inc;
 source include/not_embedded.inc;
 source include/have_debug.inc;
 
+connect con1, localhost, root;
 create table t1 (a int) engine=innodb;
 insert t1 values (1),(2),(3),(4);
 delete from t1 where a=1;
@@ -9,8 +10,7 @@ delete from t1 where a=1;
 select user,state from information_schema.processlist order by 2;
 
 set global debug_dbug='+d,only_kill_system_threads';
-
-connect con1, localhost, root;
+set global innodb_fast_shutdown=0;
 
 let $_server_id= `SELECT @@server_id`;
 let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect;
@@ -20,11 +20,16 @@ send shutdown;
 connection default;
 disconnect con1;
 
+sleep 5;
+select user,state from information_schema.processlist order by 2;
+set global innodb_fast_shutdown=1;
+
 let $wait_condition=select count(*) = 0 from information_schema.processlist where user='system user';
 source include/wait_condition.inc;
+select user,state from information_schema.processlist order by 2;
 
 delete from t1 where a=3;
---error ER_WRONG_VALUE_FOR_VAR
+error ER_WRONG_VALUE_FOR_VAR;
 set global innodb_fast_shutdown=0;
 
 let $me=`select connection_id()`;
