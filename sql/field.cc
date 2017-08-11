@@ -51,7 +51,7 @@
 *****************************************************************************/
 
 static const char *zero_timestamp="0000-00-00 00:00:00.000000";
-LEX_CSTRING temp_lex_str= {"temp", 4};
+LEX_CSTRING temp_lex_str= {STRING_WITH_LEN("temp")};
 
 uchar Field_null::null[1]={1};
 const char field_separator=',';

@@ -167,9 +167,9 @@ int my_random_bytes(unsigned char* buf, int num);
 unsigned int my_aes_get_size(enum my_aes_mode mode, unsigned int source_length);
 unsigned int my_aes_ctx_size(enum my_aes_mode mode);
 extern struct my_print_error_service_st {
-  void(*my_error_func)(unsigned int nr, unsigned long MyFlags, ...);
-  void(*my_printf_error_func)(unsigned int nr, const char *fmt, unsigned long MyFlags,...);
-  void(*my_printv_error_func)(unsigned int error, const char *format, unsigned long MyFlags, va_list ap);
+  void (*my_error_func)(unsigned int nr, unsigned long MyFlags, ...);
+  void (*my_printf_error_func)(unsigned int nr, const char *fmt, unsigned long MyFlags,...);
+  void (*my_printv_error_func)(unsigned int error, const char *format, unsigned long MyFlags, va_list ap);
 } *my_print_error_service;
 extern void my_error(unsigned int nr, unsigned long MyFlags, ...);
 extern void my_printf_error(unsigned int my_err, const char *format, unsigned long MyFlags, ...);
@@ -178,8 +178,7 @@ extern struct my_snprintf_service_st {
   size_t (*my_snprintf_type)(char*, size_t, const char*, ...);
   size_t (*my_vsnprintf_type)(char *, size_t, const char*, va_list);
 } *my_snprintf_service;
-size_t my_snprintf(char* to, size_t n, const char* fmt, ...)
-  ;
+size_t my_snprintf(char* to, size_t n, const char* fmt, ...);
 size_t my_vsnprintf(char *to, size_t n, const char* fmt, va_list ap);
 extern struct progress_report_service_st {
   void (*thd_progress_init_func)(void* thd, unsigned int max_stage);
