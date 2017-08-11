@@ -17,7 +17,7 @@ ERROR HY000: (1049) Unknown database 'unknown'
 CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL OPTION_LIST='host=localhost,user=root,port=PORT' DBNAME='unknown' TABNAME='t1';
 ERROR HY000: (1049) Unknown database 'unknown'
 CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='unknown' OPTION_LIST='host=localhost,user=root,port=PORT';
-ERROR HY000: (1146) Table 'test.unknown' doesn't exist [SHOW FULL COLUMNS FROM unknown FROM test]
+ERROR HY000: (1146) Table 'test.unknown' doesn't exist [SHOW FULL COLUMNS FROM `unknown` FROM test]
 SHOW CREATE TABLE t2;
 ERROR 42S02: Table 'test.t2' doesn't exist
 CREATE TABLE t2 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';

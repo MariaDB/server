@@ -1,3 +1,4 @@
+/* Copyright (C) MariaDB Corporation Ab */
 #ifndef _OS_H_INCLUDED
 #define _OS_H_INCLUDED
 
@@ -45,7 +46,7 @@ typedef int INT;
   sqltypes.h (through sql.h or sqlext.h).
 */
 typedef unsigned long DWORD;
-#endif   /* !NODW */
+#endif   // !NODW
 #undef  HANDLE     
 typedef int   HANDLE;
 

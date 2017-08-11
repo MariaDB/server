@@ -290,6 +290,9 @@ void ZIPUTIL::close()
 		zipfile = NULL;
 	}	// endif zipfile
 
+	if (fp)
+		fp->Count = 0;
+
 }	// end of close
 
 /***********************************************************************/
@@ -492,6 +495,9 @@ void UNZIPUTL::close()
 		unzClose(zipfile);
 		zipfile = NULL;
 	}	// endif zipfile
+
+	if (fp)
+		fp->Count = 0;
 
 }	// end of close
 

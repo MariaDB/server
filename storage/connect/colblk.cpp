@@ -197,7 +197,7 @@ int COLBLK::GetLengthEx(void)
 void COLBLK::ReadColumn(PGLOBAL g)
 {
   sprintf(g->Message, MSG(UNDEFINED_AM), "ReadColumn");
-	throw TYPE_COLBLK;
+	throw (int)TYPE_COLBLK;
 } // end of ReadColumn
 
 /***********************************************************************/
@@ -208,7 +208,7 @@ void COLBLK::ReadColumn(PGLOBAL g)
 void COLBLK::WriteColumn(PGLOBAL g)
 {
   sprintf(g->Message, MSG(UNDEFINED_AM), "WriteColumn");
-	throw TYPE_COLBLK;
+	throw (int)TYPE_COLBLK;
 } // end of WriteColumn
 
 /***********************************************************************/
@@ -262,7 +262,7 @@ SPCBLK::SPCBLK(PCOLUMN cp)
 void SPCBLK::WriteColumn(PGLOBAL g)
 {
   sprintf(g->Message, MSG(SPCOL_READONLY), Name);
-	throw TYPE_COLBLK;
+	throw (int)TYPE_COLBLK;
 } // end of WriteColumn
 
 /***********************************************************************/
