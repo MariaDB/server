@@ -26,9 +26,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <my_global.h>
 #include <windows.h>
-#include <string.h>
+#include <stdio.h>
 
 #define ERRSYM(x) {x, #x}
 static struct {

@@ -26,14 +26,11 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <my_global.h>
 #include "sspi.h"
 #include "common.h"
 #include "server_plugin.h"
 #include <mysql/plugin_auth.h>
-#include <my_sys.h>
 #include <mysqld_error.h>
-#include <log.h>
 
 
 /* This sends the error to the client */
@@ -43,11 +40,11 @@ static void log_error(SECURITY_STATUS err, const char *msg)
   {
     char buf[1024];
     sspi_errmsg(err, buf, sizeof(buf));
-    my_printf_error(ER_UNKNOWN_ERROR, "SSPI server error 0x%x - %s - %s", MYF(0), msg, buf);
+    my_printf_error(ER_UNKNOWN_ERROR, "SSPI server error 0x%x - %s - %s", 0, msg, buf);
   }
   else
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "SSPI server error %s", MYF(0), msg);
+    my_printf_error(ER_UNKNOWN_ERROR, "SSPI server error %s", 0, msg);
   }
 
 }
@@ -250,7 +247,7 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, const char *user, size_t user_len, int co
   {
     my_printf_error(ER_ACCESS_DENIED_ERROR,
       "GSSAPI name mismatch, requested '%s', actual name '%s'",
-      MYF(0), user, client_name);
+      0, user, client_name);
   }
 
 cleanup:
