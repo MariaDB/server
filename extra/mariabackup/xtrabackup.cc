@@ -2238,7 +2238,7 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 
 	end_lsn = copy == COPY_LAST
 		? ut_uint64_align_up(scanned_lsn, OS_FILE_LOG_BLOCK_SIZE)
-		: scanned_lsn & ~(OS_FILE_LOG_BLOCK_SIZE - 1);
+		: scanned_lsn & ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1);
 
 	if (ulint write_size = ulint(end_lsn - start_lsn)) {
 		if (srv_encrypt_log) {
