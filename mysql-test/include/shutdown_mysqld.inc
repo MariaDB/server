@@ -12,7 +12,17 @@ if ($rpl_inited)
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
 --exec echo "wait" > $_expect_file_name
 
+--let $server_shutdown_timeout= 60
+if ($shutdown_timeout)
+{
+  --let $server_shutdown_timeout= $shutdown_timeout
+}
+if ($shutdown_timeout == 0)
+{
+  --let $server_shutdown_timeout= 0
+}
+
 # Send shutdown to the connected server
---shutdown_server
+--shutdown_server $server_shutdown_timeout
 --source include/wait_until_disconnected.inc
 
