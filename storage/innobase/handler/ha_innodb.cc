@@ -723,6 +723,7 @@ static PSI_file_info	all_innodb_files[] = {
 
 static void innodb_remember_check_sysvar_funcs();
 mysql_var_check_func check_sysvar_enum;
+mysql_var_check_func check_sysvar_int;
 
 // should page compression be used by default for new tables
 static MYSQL_THDVAR_BOOL(compression_default, PLUGIN_VAR_OPCMDARG,
@@ -18286,6 +18287,34 @@ innodb_file_format_name_validate(
 	return(1);
 }
 
+/*************************************************************//**
+Don't allow to set innodb_fast_shutdown=0 if purge threads are
+already down.
+@return 0 if innodb_fast_shutdown can be set */
+static
+int
+fast_shutdown_validate(
+/*=============================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
+						variable */
+	void*				save,	/*!< out: immediate result
+						for update function */
+	struct st_mysql_value*		value)	/*!< in: incoming string */
+{
+	if (check_sysvar_int(thd, var, save, value)) {
+		return(1);
+	}
+
+	uint new_val = *reinterpret_cast<uint*>(save);
+
+	if (srv_fast_shutdown && !new_val && !srv_running) {
+		return(1);
+	}
+
+	return(0);
+}
+
 /****************************************************************//**
 Update the system variable innodb_file_format using the "saved"
 value. This function is registered as a callback with MySQL. */
@@ -20628,7 +20657,7 @@ static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   PLUGIN_VAR_OPCMDARG,
   "Speeds up the shutdown process of the InnoDB storage engine. Possible"
   " values are 0, 1 (faster) or 2 (fastest - crash-like).",
-  NULL, NULL, 1, 0, 2, 0);
+  fast_shutdown_validate, NULL, 1, 0, 2, 0);
 
 static MYSQL_SYSVAR_BOOL(file_per_table, srv_file_per_table,
   PLUGIN_VAR_NOCMDARG,
@@ -22924,6 +22953,9 @@ static void innodb_remember_check_sysvar_funcs()
 	/* remember build-in sysvar check functions */
 	ut_ad((MYSQL_SYSVAR_NAME(checksum_algorithm).flags & 0x1FF) == PLUGIN_VAR_ENUM);
 	check_sysvar_enum = MYSQL_SYSVAR_NAME(checksum_algorithm).check;
+
+	ut_ad((MYSQL_SYSVAR_NAME(flush_log_at_timeout).flags & 15) == PLUGIN_VAR_INT);
+	check_sysvar_int = MYSQL_SYSVAR_NAME(flush_log_at_timeout).check;
 }
 
 /********************************************************************//**

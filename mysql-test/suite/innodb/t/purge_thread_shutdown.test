@@ -24,6 +24,8 @@ let $wait_condition=select count(*) = 0 from information_schema.processlist wher
 source include/wait_condition.inc;
 
 delete from t1 where a=3;
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_fast_shutdown=0;
 
 let $me=`select connection_id()`;
 replace_result $me ID;
