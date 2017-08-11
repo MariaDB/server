@@ -1,5 +1,5 @@
 Warnings:
-Warning 1105  No file name. Table will use t1.xml
+Warning	1105	No file name. Table will use t1.xml
 #
 # Beginning of grant.inc
 #
@@ -11,7 +11,7 @@ user()
 user@localhost
 CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML OPTION_LIST='xmlsup=libxml2,rownode=row';
 Warnings:
-Warning 1105  No file name. Table will use t1.xml
+Warning	1105	No file name. Table will use t1.xml
 INSERT INTO t1 VALUES (10);
 SELECT * FROM t1;
 a
@@ -83,7 +83,7 @@ DROP VIEW v1;
 DROP TABLE t1;
 CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML OPTION_LIST='xmlsup=libxml2,rownode=row';
 Warnings:
-Warning 1105  No file name. Table will use t1.xml
+Warning	1105	No file name. Table will use t1.xml
 INSERT INTO t1 VALUES (10);
 SELECT user();
 user()
