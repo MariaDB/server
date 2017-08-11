@@ -6573,6 +6573,25 @@ Warnings:
 Warning	1356	View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 DROP VIEW v;
 #
+# MDEV-13439: Database permissions are not enough to run a subquery
+# with GROUP BY within a view
+#
+create database test_db;
+use test_db;
+create table t (i int);
+create user foo@localhost;
+grant all on test_db.* to foo@localhost;
+connect  con1,localhost,foo,,;
+use test_db;
+create view v as select * from (select i from t group by i) sq;
+select * from v;
+i
+disconnect con1;
+connection default;
+use test;
+drop database test_db;
+drop user foo@localhost;
+#
 # End of 10.2 tests
 #
 #

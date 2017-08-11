@@ -56,7 +56,7 @@ then
 fi
 
 # Check client version
-if ! $MYSQL_CLIENT --version | grep 'Distrib 10.1' >/dev/null
+if ! $MYSQL_CLIENT --version | grep 'Distrib 10.' >/dev/null
 then
     $MYSQL_CLIENT --version >&2
     wsrep_log_error "this operation requires MySQL client version 10 or newer"
@@ -133,7 +133,7 @@ SET_GTID_BINLOG_STATE=""
 SQL_LOG_BIN_OFF=""
 
 # Safety check
-if echo $SERVER_VERSION | grep '^10.1' > /dev/null
+if echo $SERVER_VERSION | grep '^10.' > /dev/null
 then
   # If binary logging is enabled on the joiner node, we need to copy donor's
   # gtid_binlog_state to joiner. In order to do that, a RESET MASTER must be

@@ -2981,8 +2981,6 @@ row_sel_field_store_in_mysql_format_func(
 @param[in]	field_no		templ->rec_field_no or
 					templ->clust_rec_field_no
 					or templ->icp_rec_field_no
-					or sec field no if clust_templ_for_sec
-					is TRUE
 @param[in]	templ			row template
 */
 static MY_ATTRIBUTE((warn_unused_result))
@@ -3141,10 +3139,6 @@ be needed in the query.
 @param[in]	rec_clust		whether the rec in the clustered index
 @param[in]	index			index of rec
 @param[in]	offsets			array returned by rec_get_offsets(rec)
-@param[in]	clust_templ_for_sec	TRUE if rec belongs to secondary index
-					but the prebuilt->template is in
-					clustered index format and it is
-					used only for end range comparison
 @return TRUE on success, FALSE if not all columns could be retrieved */
 static MY_ATTRIBUTE((warn_unused_result))
 ibool

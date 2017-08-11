@@ -550,14 +550,14 @@ bool Arg_comparator::set_cmp_func_string()
     {
       func= is_owner_equal_func() ? &Arg_comparator::compare_e_json_str:
                                     &Arg_comparator::compare_json_str;
-      return false;
+      return 0;
     }
     else if ((*b)->type() == Item::FUNC_ITEM &&
              ((Item_func *) (*b))->functype() == Item_func::JSON_EXTRACT_FUNC)
     {
       func= is_owner_equal_func() ? &Arg_comparator::compare_e_json_str:
                                     &Arg_comparator::compare_str_json;
-      return false;
+      return 0;
     }
   }
 
@@ -649,7 +649,6 @@ bool Arg_comparator::set_cmp_func_real()
   b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
   return false;
 }
-
 
 bool Arg_comparator::set_cmp_func_decimal()
 {
