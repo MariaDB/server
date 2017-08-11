@@ -51,16 +51,13 @@ trx_purge_get_log_from_hist(
 /*========================*/
 	fil_addr_t	node_addr);	/*!< in: file address of the history
 					list node of the log */
-/************************************************************************
-Adds the update undo log as the first log in the history list. Removes the
-update undo log segment from the rseg slot if it is too big for reuse. */
+/** Prepend the history list with an undo log.
+Remove the undo log segment from the rseg slot if it is too big for reuse.
+@param[in]	trx		transaction
+@param[in,out]	undo		undo log
+@param[in,out]	mtr		mini-transaction */
 void
-trx_purge_add_update_undo_to_history(
-/*=================================*/
-	trx_t*		trx,		/*!< in: transaction */
-	page_t*		undo_page,	/*!< in: update undo log header page,
-					x-latched */
-	mtr_t*		mtr);		/*!< in: mtr */
+trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr);
 /*******************************************************************//**
 This function runs a purge batch.
 @return number of undo log pages handled in the batch */

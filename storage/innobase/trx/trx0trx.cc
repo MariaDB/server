@@ -1420,13 +1420,14 @@ trx_write_serialisation_history(
 		temp_mtr.commit();
 	}
 
-	if (!trx->rsegs.m_redo.rseg) {
+	trx_rseg_t*	rseg = trx->rsegs.m_redo.rseg;
+	if (!rseg) {
 		ut_ad(!trx->rsegs.m_redo.undo);
 		ut_ad(!trx->rsegs.m_redo.old_insert);
 		return false;
 	}
 
-	trx_undo_t* undo = trx->rsegs.m_redo.undo;
+	trx_undo_t*& undo = trx->rsegs.m_redo.undo;
 	trx_undo_t*& old_insert = trx->rsegs.m_redo.old_insert;
 
 	if (!undo && !old_insert) {
@@ -1434,40 +1435,29 @@ trx_write_serialisation_history(
 	}
 
 	ut_ad(!trx->read_only);
-	trx_rseg_t*	undo_rseg = undo ? undo->rseg : NULL;
-	ut_ad(!undo || undo->rseg == trx->rsegs.m_redo.rseg);
-	mutex_enter(&trx->rsegs.m_redo.rseg->mutex);
+	trx_rseg_t*	undo_rseg
+		= undo ? undo->rseg : old_insert ? old_insert->rseg : NULL;
+	ut_ad(!undo || undo->rseg == rseg);
+	ut_ad(!old_insert || old_insert->rseg == rseg);
+	mutex_enter(&rseg->mutex);
 
 	/* Assign the transaction serialisation number and add any
 	undo log to the purge queue. */
 	trx_serialise(trx, undo_rseg);
 
 	/* It is not necessary to acquire trx->undo_mutex here because
-	only a single OS thread is allowed to commit this transaction. */
+	only a single OS thread is allowed to commit this transaction.
+	The undo logs will be processed and purged later. */
 	if (UNIV_LIKELY_NULL(old_insert)) {
-		page_t* undo_hdr_page = trx_undo_set_state_at_finish(
-			old_insert, mtr);
-		trx_rseg_t* rseg = trx->rsegs.m_redo.rseg;
-		trx_purge_add_update_undo_to_history(trx, undo_hdr_page, mtr);
 		UT_LIST_REMOVE(rseg->old_insert_list, old_insert);
-
-		if (old_insert->state == TRX_UNDO_CACHED) {
-			UT_LIST_ADD_FIRST(rseg->undo_cached, old_insert);
-			MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
-		} else {
-			ut_ad(old_insert->state == TRX_UNDO_TO_PURGE);
-			trx_undo_mem_free(old_insert);
-		}
-		old_insert = NULL;
+		trx_purge_add_undo_to_history(trx, old_insert, mtr);
 	}
 	if (undo) {
-		/* The undo logs will be processed and purged later. */
-		page_t*	undo_hdr_page = trx_undo_set_state_at_finish(
-			undo, mtr);
-		trx_undo_update_cleanup(trx, undo_hdr_page, mtr);
+		UT_LIST_REMOVE(rseg->undo_list, undo);
+		trx_purge_add_undo_to_history(trx, undo, mtr);
 	}
 
-	mutex_exit(&trx->rsegs.m_redo.rseg->mutex);
+	mutex_exit(&rseg->mutex);
 
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 
@@ -1915,7 +1905,7 @@ trx_commit_low(
 	assert_trx_nonlocking_or_in_list(trx);
 	ut_ad(!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
 	ut_ad(!mtr || mtr->is_active());
-	ut_ad(!mtr == !trx->has_logged());
+	ut_ad(!mtr == !trx->has_logged_or_recovered());
 
 	/* undo_no is non-zero if we're doing the final commit. */
 	if (trx->fts_trx != NULL && trx->undo_no != 0) {

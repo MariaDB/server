@@ -237,21 +237,22 @@ purge_sys_t::~purge_sys_t()
 
 /*================ UNDO LOG HISTORY LIST =============================*/
 
-/********************************************************************//**
-Adds the update undo log as the first log in the history list. Removes the
-update undo log segment from the rseg slot if it is too big for reuse. */
+/** Prepend the history list with an undo log.
+Remove the undo log segment from the rseg slot if it is too big for reuse.
+@param[in]	trx		transaction
+@param[in,out]	undo		undo log
+@param[in,out]	mtr		mini-transaction */
 void
-trx_purge_add_update_undo_to_history(
-/*=================================*/
-	trx_t*		trx,		/*!< in: transaction */
-	page_t*		undo_page,	/*!< in: update undo log header page,
-					x-latched */
-	mtr_t*		mtr)		/*!< in: mtr */
+trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 {
-	trx_undo_t*	undo		= trx->rsegs.m_redo.undo;
-	trx_rseg_t*	rseg		= undo->rseg;
+	ut_ad(undo == trx->rsegs.m_redo.undo
+	      || undo == trx->rsegs.m_redo.old_insert);
+	trx_rseg_t*	rseg		= trx->rsegs.m_redo.rseg;
+	ut_ad(undo->rseg == rseg);
 	trx_rsegf_t*	rseg_header	= trx_rsegf_get(
 		rseg->space, rseg->page_no, mtr);
+	page_t*		undo_page	= trx_undo_set_state_at_finish(
+		undo, mtr);
 	trx_ulogf_t*	undo_header	= undo_page + undo->hdr_offset;
 
 	if (undo->state != TRX_UNDO_CACHED) {
@@ -326,6 +327,16 @@ trx_purge_add_update_undo_to_history(
 		rseg->last_trx_no = trx->no;
 		rseg->last_del_marks = undo->del_marks;
 	}
+
+	if (undo->state == TRX_UNDO_CACHED) {
+		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
+		MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
+	} else {
+		ut_ad(undo->state == TRX_UNDO_TO_PURGE);
+		trx_undo_mem_free(undo);
+	}
+
+	undo = NULL;
 }
 
 /** Remove undo log header from the history list.

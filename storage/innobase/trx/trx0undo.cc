@@ -1623,42 +1623,6 @@ trx_undo_set_state_at_prepare(
 	return(undo_page);
 }
 
-/**********************************************************************//**
-Adds the update undo log header as the first in the history list, and
-frees the memory object, or puts it to the list of cached update undo log
-segments. */
-void
-trx_undo_update_cleanup(
-/*====================*/
-	trx_t*		trx,		/*!< in: trx owning the update
-					undo log */
-	page_t*		undo_page,	/*!< in: update undo log header page,
-					x-latched */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	trx_undo_t*	undo	= trx->rsegs.m_redo.undo;
-	trx_rseg_t*	rseg	= undo->rseg;
-
-	ut_ad(mutex_own(&rseg->mutex));
-
-	trx_purge_add_update_undo_to_history(trx, undo_page, mtr);
-
-	UT_LIST_REMOVE(rseg->undo_list, undo);
-
-	trx->rsegs.m_redo.undo = NULL;
-
-	if (undo->state == TRX_UNDO_CACHED) {
-
-		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
-
-		MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
-	} else {
-		ut_ad(undo->state == TRX_UNDO_TO_PURGE);
-
-		trx_undo_mem_free(undo);
-	}
-}
-
 /** Free an old insert or temporary undo log after commit or rollback.
 The information is not needed after a commit or rollback, therefore
 the data can be discarded.
