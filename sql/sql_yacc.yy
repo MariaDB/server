@@ -6478,8 +6478,11 @@ field_type:
           { $$.set(MYSQL_TYPE_SET); }
         | LONG_SYM opt_binary
           { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
-        | JSON_SYM opt_binary
-          { $$.set(MYSQL_TYPE_BLOB); }
+        | JSON_SYM
+          {
+            Lex->charset= &my_charset_utf8mb4_bin;
+            $$.set(MYSQL_TYPE_LONG_BLOB);
+          }
         ;
 
 spatial_type:
