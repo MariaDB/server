@@ -162,7 +162,7 @@ SELECT table_name FROM information_schema.table_constraints
 WHERE table_name LIKE 't1_my_table%';
 table_name
 CREATE TABLE test.t1_my_table
-(f1 CHAR(12), f2 TIMESTAMP, f4 BIGINT, PRIMARY KEY(f1,f2))
+(f1 CHAR(12), f2 TIMESTAMP, f4 BIGINT, PRIMARY KEY(f1))
 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci
 ENGINE = <engine_type>;
 SELECT constraint_name, table_schema, table_name, constraint_type

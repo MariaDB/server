@@ -323,24 +323,6 @@ DESC t1;
 DROP TABLE t1;
 
 --echo #
---echo # Bug#21346132: WL8149:INNODB: FAILING ASSERTION:
---echo # PRIMARY_KEY_NO == -1 || PRIMARY_KEY_NO == 0
---echo #
-CREATE TABLE t1 (
-  col_int_nokey int(11) NOT NULL,
-  col_int_key int(11) GENERATED ALWAYS AS (col_int_nokey),
-  col_varchar_nokey varchar(1) NOT NULL,
-  col_varchar_key varchar(2) GENERATED ALWAYS AS (col_varchar_nokey),
-  UNIQUE KEY col_int_key (col_int_key),
-  UNIQUE KEY col_varchar_key (col_varchar_key),
-  UNIQUE KEY col_int_key_2 (col_int_key,col_varchar_key),
-  UNIQUE KEY col_varchar_key_2 (col_varchar_key,col_varchar_nokey),
-  KEY col_int_key_3 (col_int_key,col_int_nokey)
-);
-
-ALTER TABLE t1 DROP COLUMN col_varchar_key;
-DROP TABLE t1;
---echo #
 --echo # Bug#21320151 WL8149: WRONG RESULT WITH INDEX SCAN
 --echo #
 

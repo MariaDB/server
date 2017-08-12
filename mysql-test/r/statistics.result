@@ -1162,7 +1162,7 @@ test	t2	idx4	1	6.2000
 test	t2	idx4	2	1.7222
 test	t2	idx4	3	1.1154
 test	t2	idx4	4	1.0000
-ALTER TABLE t2 DROP COLUMN b;
+ALTER TABLE t2 DROP COLUMN b, DROP PRIMARY KEY, ADD PRIMARY KEY(a);
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t2	idx2	1	7.0000

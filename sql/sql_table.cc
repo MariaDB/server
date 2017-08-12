@@ -7549,6 +7549,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   bool modified_primary_key= FALSE;
   Create_field *def;
   Field **f_ptr,*field;
+  MY_BITMAP *dropped_fields= NULL; // if it's NULL - no dropped fields
   DBUG_ENTER("mysql_prepare_alter_table");
 
   /*
@@ -7605,6 +7606,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   /*
     First collect all fields from table which isn't in drop_list
   */
+  bitmap_clear_all(&table->tmp_set);
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
     Alter_drop *drop;
@@ -7630,6 +7632,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (table->s->tmp_table == NO_TMP_TABLE)
         (void) delete_statistics_for_column(thd, table, field);
       drop_it.remove();
+      dropped_fields= &table->tmp_set;
+      bitmap_set_bit(dropped_fields, field->field_index);
       continue;
     }
     /* Check if field is changed */
@@ -7816,6 +7820,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       continue;
     }
 
+    const char *dropped_key_part= NULL;
     KEY_PART_INFO *key_part= key_info->key_part;
     key_parts.empty();
     bool delete_index_stat= FALSE;
@@ -7845,6 +7850,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if (table->s->primary_key == i)
           modified_primary_key= TRUE;
         delete_index_stat= TRUE;
+        dropped_key_part= key_part_name;
 	continue;				// Field is removed
       }
       key_part_length= key_part->length;
@@ -7927,6 +7933,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           key_type= Key::PRIMARY;
         else
           key_type= Key::UNIQUE;
+        if (dropped_key_part)
+        {
+          my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), dropped_key_part);
+          goto err;
+        }
       }
       else if (key_info->flags & HA_FULLTEXT)
         key_type= Key::FULLTEXT;
@@ -7975,6 +7986,23 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         {
           drop_it.remove();
           break;
+        }
+      }
+      /* see if the constraint depends on *only* on dropped fields */
+      if (dropped_fields)
+      {
+        table->default_column_bitmaps();
+        bitmap_clear_all(table->read_set);
+        check->expr->walk(&Item::register_field_in_read_map, 1, 0);
+        if (bitmap_is_subset(table->read_set, dropped_fields))
+          drop= (Alter_drop*)1;
+        else if (bitmap_is_overlapping(dropped_fields, table->read_set))
+        {
+          bitmap_intersect(table->read_set, dropped_fields);
+          uint field_nr= bitmap_get_first_set(table->read_set);
+          my_error(ER_BAD_FIELD_ERROR, MYF(0),
+                   table->field[field_nr]->field_name, "CHECK");
+          goto err;
         }
       }
       if (!drop)

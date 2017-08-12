@@ -172,7 +172,7 @@ WHERE table_name LIKE 't1_my_table%';
 --replace_result $engine_type <engine_type>
 eval
 CREATE TABLE test.t1_my_table
-   (f1 CHAR(12), f2 TIMESTAMP, f4 BIGINT, PRIMARY KEY(f1,f2))
+   (f1 CHAR(12), f2 TIMESTAMP, f4 BIGINT, PRIMARY KEY(f1))
 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci
 ENGINE = $engine_type;
 # Settings used in CREATE TABLE must be visible

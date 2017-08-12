@@ -232,12 +232,6 @@ eval $my_select;
 ALTER TABLE db_datadict.t1_my_tablex ADD UNIQUE my_idx (f4,first_col);
 eval $my_select;
 #
-# Check DROP COLUMN
-eval $my_select;
-ALTER TABLE db_datadict.t1_my_tablex
-DROP COLUMN first_col;
-eval $my_select;
-#
 # Check impact of DROP TABLE
 SELECT table_name, column_name
 FROM information_schema.key_column_usage
