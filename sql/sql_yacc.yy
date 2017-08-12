@@ -1952,8 +1952,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         procedure_list procedure_list2 procedure_item
         field_def handler opt_generated_always
         opt_ignore opt_column opt_restrict
-        grant revoke set lock unlock string_list field_options field_option
-        field_opt_list opt_binary table_lock_list table_lock
+        grant revoke set lock unlock string_list field_options
+        opt_binary table_lock_list table_lock
         ref_list opt_match_clause opt_on_update_delete use
         opt_delete_options opt_delete_option varchar nchar nvarchar
         opt_outer table_list table_name table_alias_ref_list table_alias_ref
@@ -6557,18 +6557,11 @@ precision:
 
 field_options:
           /* empty */ {}
-        | field_opt_list {}
-        ;
-
-field_opt_list:
-          field_opt_list field_option {}
-        | field_option {}
-        ;
-
-field_option:
-          SIGNED_SYM {}
+        | SIGNED_SYM {}
         | UNSIGNED { Lex->last_field->flags|= UNSIGNED_FLAG;}
         | ZEROFILL { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
+        | UNSIGNED ZEROFILL { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
+        | ZEROFILL UNSIGNED { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
         ;
 
 field_length:
