@@ -59,3 +59,12 @@ a	b
 Warnings:
 Warning	1292	Incorrect datetime value: '1'
 drop table t1;
+create table t1 (
+id int  not null ,
+js varchar(1000) not null,
+t time AS (cast(json_value(json_extract(js,concat('$.singleDay."', dayname(curdate()),'"')),'$.start') as time)) virtual);
+insert  into t1(id,js) values (0, '{"default" : {"start": "00:00:00", "end":"23:59:50"}}');
+select * from t1;
+id	js	t
+0	{"default" : {"start": "00:00:00", "end":"23:59:50"}}	NULL
+drop table t1;

@@ -643,17 +643,21 @@ error:
 
 
 static int alloc_tmp_paths(THD *thd, uint n_paths,
-                           json_path_with_flags **paths,String **tmp_paths)
+                           json_path_with_flags **paths, String **tmp_paths)
 {
   if (n_paths > 0)
   {
-    *paths= (json_path_with_flags *) alloc_root(thd->mem_root,
-        sizeof(json_path_with_flags) * n_paths);
-    *tmp_paths= (String *) alloc_root(thd->mem_root, sizeof(String) * n_paths);
-    if (*paths == 0 || *tmp_paths == 0)
-      return 1;
+    if (*tmp_paths == 0)
+    {
+      MEM_ROOT *root= thd->stmt_arena->mem_root;
+      *paths= (json_path_with_flags *) alloc_root(root,
+          sizeof(json_path_with_flags) * n_paths);
+      *tmp_paths= (String *) alloc_root(root, sizeof(String) * n_paths);
+      if (*paths == 0 || *tmp_paths == 0)
+        return 1;
 
-    bzero(*tmp_paths, sizeof(String) * n_paths);
+      bzero(*tmp_paths, sizeof(String) * n_paths);
+    }
 
     return 0;
   }
@@ -687,7 +691,6 @@ void Item_json_str_multipath::cleanup()
   {
     for (uint i= get_n_paths(); i>0; i--)
       tmp_paths[i-1].free();
-    tmp_paths= 0;
   }
   Item_str_func::cleanup();
 }
