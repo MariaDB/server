@@ -7615,20 +7615,18 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     while ((drop=drop_it++))
     {
       if (drop->type == Alter_drop::COLUMN &&
-	  !my_strcasecmp(system_charset_info,field->field_name, drop->name))
-      {
-	/* Reset auto_increment value if it was dropped */
-	if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
-	    !(used_fields & HA_CREATE_USED_AUTO))
-	{
-	  create_info->auto_increment_value=0;
-	  create_info->used_fields|=HA_CREATE_USED_AUTO;
-	}
+	  !my_strcasecmp(system_charset_info, field->field_name, drop->name))
 	break;
-      }
     }
     if (drop)
     {
+      /* Reset auto_increment value if it was dropped */
+      if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
+          !(used_fields & HA_CREATE_USED_AUTO))
+      {
+        create_info->auto_increment_value=0;
+        create_info->used_fields|=HA_CREATE_USED_AUTO;
+      }
       if (table->s->tmp_table == NO_TMP_TABLE)
         (void) delete_statistics_for_column(thd, table, field);
       drop_it.remove();
@@ -8975,11 +8973,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
        alter_info->requested_algorithm !=
        Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
       || is_inplace_alter_impossible(table, create_info, alter_info)
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-      || (partition_changed &&
-          !(table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION))
-#endif
-     )
+      || IF_PARTITIONING((partition_changed &&
+          !(table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
   {
     if (alter_info->requested_algorithm ==
         Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
