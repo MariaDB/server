@@ -9674,8 +9674,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 #endif
 
   /* Ensure that some variables are not set higher than needed */
-  if (back_log > max_connections)
-    SYSVAR_AUTOSIZE(back_log, max_connections);
   if (thread_cache_size > max_connections)
     SYSVAR_AUTOSIZE(thread_cache_size, max_connections);
   
