@@ -57,7 +57,7 @@ INSERT INTO information_schema.character_sets
 SELECT * FROM information_schema.character_sets;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 UPDATE information_schema.character_sets SET description = 'just updated';
-ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+Got one of the listed errors
 DELETE FROM information_schema.character_sets WHERE table_name = 't1';
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 TRUNCATE information_schema.character_sets;

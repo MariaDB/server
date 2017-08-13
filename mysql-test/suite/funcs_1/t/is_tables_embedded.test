@@ -17,8 +17,4 @@ if (`SELECT VERSION() NOT LIKE '%embedded%'`)
 {
    --skip Test requires: embedded server
 }
-if (`SELECT VERSION() LIKE '%embedded%'`)
-{
-   --skip Bug#37456 funcs_1: Several tests crash when used with embedded server
-}
 --source suite/funcs_1/datadict/is_tables.inc

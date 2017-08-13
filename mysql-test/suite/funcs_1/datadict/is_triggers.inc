@@ -236,7 +236,7 @@ ON db_datadict.t1 FOR EACH ROW SET @test_before = 2, new.f1 = @test_before;
 INSERT INTO information_schema.triggers
 SELECT * FROM information_schema.triggers;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_DBACCESS_DENIED_ERROR,ER_NON_UPDATABLE_TABLE
 UPDATE information_schema.triggers SET trigger_schema = 'test'
 WHERE table_name = 't1';
 
