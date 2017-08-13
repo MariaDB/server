@@ -921,15 +921,6 @@ alter table t add unique index (c(39));
 replace into t set a = 'a',b =1;
 replace into t set a = 'a',b =1;
 drop table t;
-CREATE TABLE t (a INT, b INT,  h VARCHAR(10));
-INSERT INTO t VALUES (12, 3,  "ss");
-INSERT INTO t VALUES (13, 4,  "ss");
-INSERT INTO t VALUES (14, 0,  "ss");
-alter table t add  c INT GENERATED ALWAYS AS(a/b);
-create index idx on t(c);
-Warnings:
-Warning	1365	Division by 0
-DROP TABLE t;
 CREATE TABLE t (a INT, b INT, c INT GENERATED ALWAYS AS(a+b), h VARCHAR(10));
 INSERT INTO t VALUES (11, 3, DEFAULT, 'mm');
 INSERT INTO t VALUES (18, 1, DEFAULT, 'mm');

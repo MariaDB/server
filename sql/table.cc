@@ -7468,7 +7468,7 @@ int TABLE::update_virtual_field(Field *vf)
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
   vf->vcol_info->expr->save_in_field(vf, 0);
   in_use->restore_active_arena(expr_arena, &backup_arena);
-  DBUG_RETURN(0);
+  DBUG_RETURN(in_use->is_error());
 }
 
 

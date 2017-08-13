@@ -7179,6 +7179,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
+  bool res;
 
   DBUG_ENTER("mysql_inplace_alter_table");
 
@@ -7313,11 +7314,12 @@ static bool mysql_inplace_alter_table(THD *thd,
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_downgrade");
   THD_STAGE_INFO(thd, stage_alter_inplace);
 
-  if (table->file->ha_inplace_alter_table(altered_table,
-                                          ha_alter_info))
-  {
+  /* We can abort alter table for any table type */
+  thd->abort_on_warning= !ha_alter_info->ignore && thd->is_strict_mode();
+  res= table->file->ha_inplace_alter_table(altered_table, ha_alter_info);
+  thd->abort_on_warning= false;
+  if (res)
     goto rollback;
-  }
 
   // Upgrade to EXCLUSIVE before commit.
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
