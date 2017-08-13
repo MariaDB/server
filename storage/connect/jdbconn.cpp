@@ -110,12 +110,13 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 	int type;
 
 	switch (stp) {
-	case -1:   // LONGVARCHAR
-	case -16:  // LONGNVARCHAR	(unicode)
+	case -1:   // LONGVARCHAR, TEXT
+	case -16:  // LONGNVARCHAR, NTEXT	(unicode)
 		if (GetTypeConv() != TPC_YES)
 			return TYPE_ERROR;
 		else
 		  len = MY_MIN(abs(len), GetConvSize());
+		// Pass through
 	case 12:   // VARCHAR
 	case -9:   // NVARCHAR	(unicode)
 		v = 'V';
@@ -803,9 +804,10 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	switch (ctyp) {
 	case 12:          // VARCHAR
 	case -9:          // NVARCHAR
-	case -1:          // LONGVARCHAR
+	case -1:          // LONGVARCHAR, TEXT
 	case 1:           // CHAR
 	case -15:         // NCHAR
+	case -16:         // LONGNVARCHAR, NTEXT
 	case 3:           // DECIMAL
 	case -8:          // ROWID
 		if (jb && ctyp != 3)
