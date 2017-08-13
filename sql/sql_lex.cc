@@ -6878,14 +6878,15 @@ void binlog_unsafe_map_init()
     st_select_lex and saves this fields. 
 */
 
-void st_select_lex::collect_grouping_fields(THD *thd) 
+void st_select_lex::collect_grouping_fields(THD *thd,
+                                            ORDER *grouping_list) 
 {
   grouping_tmp_fields.empty();
   List_iterator<Item> li(join->fields_list);
   Item *item= li++;
   for (uint i= 0; i < master_unit()->derived->table->s->fields; i++, (item=li++))
   {
-    for (ORDER *ord= join->group_list; ord; ord= ord->next)
+    for (ORDER *ord= grouping_list; ord; ord= ord->next)
     {
       if ((*ord->item)->eq((Item*)item, 0))
       {

@@ -1243,15 +1243,51 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   st_select_lex *save_curr_select= thd->lex->current_select;
   for (; sl; sl= sl->next_select())
   {
+    Item *extracted_cond_copy;
     if (!sl->cond_pushdown_is_allowed())
       continue;
     thd->lex->current_select= sl;
+    if (sl->have_window_funcs())
+    {
+      if (sl->join->group_list || sl->join->implicit_grouping)
+        continue;
+      if (!(sl->window_specs.elements == 1 &&
+            sl->window_specs.head()->partition_list))
+        continue;
+      extracted_cond_copy= !sl->next_select() ?
+                           extracted_cond :
+                           extracted_cond->build_clone(thd, thd->mem_root);
+      if (!extracted_cond_copy)
+        continue;
+
+      Item *cond_over_partition_fields;
+      ORDER *grouping_list= sl->window_specs.head()->partition_list->first; 
+      sl->collect_grouping_fields(thd, grouping_list);
+      sl->check_cond_extraction_for_grouping_fields(extracted_cond_copy,
+                                                    derived);
+      cond_over_partition_fields=
+        sl->build_cond_for_grouping_fields(thd, extracted_cond_copy, true);
+      if (cond_over_partition_fields)
+        cond_over_partition_fields= cond_over_partition_fields->transform(thd,
+                         &Item::derived_grouping_field_transformer_for_where,
+                         (uchar*) sl);
+      if (cond_over_partition_fields)
+      {
+        cond_over_partition_fields->walk(
+          &Item::cleanup_excluding_const_fields_processor, 0, 0);
+        sl->cond_pushed_into_where= cond_over_partition_fields;     
+      }
+
+      continue;
+    }
+
     /*
       For each select of the unit except the last one
       create a clone of extracted_cond
     */
-    Item *extracted_cond_copy= !sl->next_select() ? extracted_cond :
-                               extracted_cond->build_clone(thd, thd->mem_root);
+    extracted_cond_copy= !sl->next_select() ?
+                         extracted_cond :
+                         extracted_cond->build_clone(thd, thd->mem_root);
     if (!extracted_cond_copy)
       continue;
 
@@ -1276,7 +1312,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
       that could be pushed into the where clause of sl
     */
     Item *cond_over_grouping_fields;
-    sl->collect_grouping_fields(thd);
+    sl->collect_grouping_fields(thd, sl->join->group_list);
     sl->check_cond_extraction_for_grouping_fields(extracted_cond_copy,
                                                   derived);
     cond_over_grouping_fields=

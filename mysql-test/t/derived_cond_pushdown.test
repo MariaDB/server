@@ -1550,6 +1550,78 @@ DROP VIEW v2;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-10855: Pushdown into derived with window functions 
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='split_grouping_derived=off';
+             
+create table t1 (a int, c varchar(16));
+insert into t1 values
+(8,'aa'), (5,'cc'), (1,'bb'), (2,'aa'), (9,'cc'),
+(7,'aa'), (2,'aa'), (7,'bb');
+  
+create table t2 (a int, b int, c varchar(16), index idx(a,c));
+insert into t2 values
+  (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
+  (4,71,'xx'), (3,15,'aa'), (7,82,'bb'), (8,12,'dd'), (4,15,'aa'),
+  (11,33,'yy'), (10,42,'zz'), (4,53,'xx'), (10,17,'yy'), (7,12,'bb'),
+  (8,20,'dd'), (7,32,'bb'), (1,50,'aa'), (3,40,'bb'), (3,77,'aa');
+
+let $q1=
+select * from (select a, c, sum(b) over (partition by a,c) from t2) as t
+  where t.a > 2 and t.c in ('aa','bb','cc');
+
+eval $no_pushdown $q1;
+eval $q1;
+eval explain $q1;
+eval explain format=json $q1;
+
+let $q2=
+select * from
+( 
+  select 1 as n, a, c, sum(b) over (partition by a,c) as s from t2
+  union all
+  select 2 as n, a, c, sum(b) over (partition by a) as s from t2
+) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+
+eval $no_pushdown $q2;
+eval $q2;
+eval explain $q2;
+eval explain format=json $q2;
+
+let $q3=
+select * 
+from (select a, c, sum(b) over (partition by a,c) as s from t2) as t, t1
+  where t1.a=t.a and t1.c=t.c and t1.c in ('aa','bb','cc');
+
+eval $no_pushdown $q3;
+eval $q3;
+eval explain $q3;
+eval explain format=json $q3;
+  
+let $q4=
+select * from
+( 
+  select 1 as n, a, c, sum(b) over (partition by a,c) as s from t2
+  union all
+  select 2 as n, a, c, sum(b) over (partition by a) as s from t2
+  union all
+  select 3 as n, a, c, sum(b) as s from t2 group by a
+) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+
+eval $no_pushdown $q4;
+eval $q4;
+eval explain $q4;
+eval explain format=json $q4;
+
+drop table t1,t2;
+
+set optimizer_switch= @save_optimizer_switch;
+
+--echo #
 --echo # MDEV-13369: Optimization for equi-joins of grouping derived tables 
 --echo #             (Splitting derived tables / views with GROUP BY)
 --echo # MDEV-13389: Optimization for equi-joins of derived tables with WF
@@ -1596,14 +1668,12 @@ insert into t3 values
 (8,'aa'), (5,'cc'), (1,'bb'), (2,'aa'), (9,'cc'),
 (7,'aa'), (2,'aa'), (7,'bb');
   
-
 create table t4 (a int, b int, c varchar(16), index idx(a,c));
 insert into t4 values
   (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
   (4,71,'xx'), (3,15,'aa'), (7,82,'bb'), (8,12,'dd'), (4,15,'aa'),
   (11,33,'yy'), (10,42,'zz'), (4,53,'xx'), (10,17,'yy'), (7,12,'bb'),
   (8,20,'dd'), (7,32,'bb'), (1,50,'aa'), (3,40,'bb'), (3,77,'aa');
-
 
 let $q3=
 select t3.a,t3.c,t.max,t.min

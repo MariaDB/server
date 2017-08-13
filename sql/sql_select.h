@@ -1409,6 +1409,11 @@ public:
   bool set_group_rpa;
   /** Exec time only: TRUE <=> current group has been sent */
   bool group_sent;
+  /**
+    TRUE if the query contains an aggregate function but has no GROUP
+    BY clause. 
+  */
+  bool implicit_grouping; 
 
   bool is_for_splittable_grouping_derived;
   bool with_two_phase_optimization;
@@ -1701,11 +1706,6 @@ private:
   */
   void optimize_distinct();
 
-  /**
-    TRUE if the query contains an aggregate function but has no GROUP
-    BY clause. 
-  */
-  bool implicit_grouping; 
   void cleanup_item_list(List<Item> &items) const;
   bool make_aggr_tables_info();
 
