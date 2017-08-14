@@ -1,5 +1,5 @@
---- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/index.result	2017-06-22 00:33:46.419995639 +0300
-+++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/index.reject	2017-06-22 13:55:28.615693291 +0300
+--- suite/storage_engine/index.result	2017-03-12 04:57:07.169911845 +0200
++++ suite/storage_engine/index.reject	2017-08-14 22:41:06.548555663 +0300
 @@ -4,7 +4,7 @@
  ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  SHOW KEYS IN t1;
@@ -20,7 +20,7 @@
  DROP TABLE t1;
  CREATE TABLE t1 (a <INT_COLUMN>,
  b <CHAR_COLUMN>,
-@@ -22,46 +22,48 @@
+@@ -22,8 +22,8 @@
  ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  SHOW KEYS IN t1;
  Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -31,32 +31,16 @@
  DROP TABLE t1;
  CREATE TABLE t1 (a <INT_COLUMN>,
  b <CHAR_COLUMN>,
- UNIQUE INDEX (a)
+@@ -31,7 +31,7 @@
  ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
--SHOW KEYS IN t1;
--Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ SHOW KEYS IN t1;
+ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 -t1	0	a	1	a	#	#	NULL	NULL	#	BTREE		
--INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
--INSERT INTO t1 (a,b) VALUES (1,'c');
--ERROR 23000: Duplicate entry '1' for key 'a'
--# Statement ended with one of expected results (ER_DUP_ENTRY,ER_DUP_KEY). 
--# If you got a difference in error message, just add it to rdiff file
--DROP TABLE t1;
-+ERROR HY000: Unique index support is disabled when the table has no primary key. 
-+# ERROR: Statement ended with errno 1105, errname ER_UNKNOWN_ERROR (expected to succeed)
-+# ------------ UNEXPECTED RESULT ------------
-+# [ CREATE TABLE t1 (a INT(11) /*!*/ /*Custom indexed column options*/,
-+b CHAR(8) /*!*/ /*Custom column options*/,
-+UNIQUE INDEX  (a)
-+) ENGINE=RocksDB /*!*/ /*Custom table options*/ ]
-+# The statement|command finished with ER_UNKNOWN_ERROR.
-+# Unique indexes or the mix could be unsupported|malfunctioning, or the problem was caused by previous errors. 
-+# You can change the engine code, or create an rdiff, or disable the test by adding it to disabled.def.
-+# Further in this test, the message might sometimes be suppressed; a part of the test might be skipped.
-+# Also, this problem may cause a chain effect (more errors of different kinds in the test).
-+# -------------------------------------------
- CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
- INSERT INTO t1 (a,b) VALUES (100,'z');
++t1	0	a	1	a	#	#	NULL	NULL	#	LSMTREE		
+ INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+ INSERT INTO t1 (a,b) VALUES (1,'c');
+ ERROR 23000: Duplicate entry '1' for key 'a'
+@@ -43,7 +43,7 @@
  ALTER TABLE t1 ADD <CUSTOM_INDEX> (a) COMMENT 'simple index on a';
  SHOW INDEX FROM t1;
  Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -65,34 +49,12 @@
  ALTER TABLE t1 DROP KEY a;
  DROP TABLE t1;
  CREATE TABLE t1 (a <INT_COLUMN>,
- b <CHAR_COLUMN>,
- UNIQUE INDEX (a)
+@@ -52,7 +52,7 @@
  ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
--SHOW KEYS IN t1;
--Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ SHOW KEYS IN t1;
+ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 -t1	0	a	1	a	#	#	NULL	NULL	#	BTREE		
--INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
--INSERT INTO t1 (a,b) VALUES (1,'c');
--ERROR 23000: Duplicate entry '1' for key 'a'
--# Statement ended with one of expected results (ER_DUP_ENTRY,ER_DUP_KEY). 
--# If you got a difference in error message, just add it to rdiff file
--ALTER TABLE t1 DROP INDEX a;
--INSERT INTO t1 (a,b) VALUES (1,'c');
--ALTER TABLE t1 ADD UNIQUE INDEX a(a) ;
--ERROR 23000: Duplicate entry '1' for key 'a'
--# Statement ended with one of expected results (ER_DUP_ENTRY,ER_DUP_KEY). 
--# If you got a difference in error message, just add it to rdiff file
--DROP TABLE t1;
-+ERROR HY000: Unique index support is disabled when the table has no primary key. 
-+# ERROR: Statement ended with errno 1105, errname ER_UNKNOWN_ERROR (expected to succeed)
-+# ------------ UNEXPECTED RESULT ------------
-+# [ CREATE TABLE t1 (a INT(11) /*!*/ /*Custom indexed column options*/,
-+b CHAR(8) /*!*/ /*Custom column options*/,
-+UNIQUE INDEX  (a)
-+) ENGINE=RocksDB /*!*/ /*Custom table options*/ ]
-+# The statement|command finished with ER_UNKNOWN_ERROR.
-+# Unique indexes or the mix could be unsupported|malfunctioning, or the problem was caused by previous errors. 
-+# You can change the engine code, or create an rdiff, or disable the test by adding it to disabled.def.
-+# Further in this test, the message might sometimes be suppressed; a part of the test might be skipped.
-+# Also, this problem may cause a chain effect (more errors of different kinds in the test).
-+# -------------------------------------------
++t1	0	a	1	a	#	#	NULL	NULL	#	LSMTREE		
+ INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+ INSERT INTO t1 (a,b) VALUES (1,'c');
+ ERROR 23000: Duplicate entry '1' for key 'a'
