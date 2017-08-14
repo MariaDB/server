@@ -1,7 +1,8 @@
 connect con1, localhost, root;
 CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES(1);
 BEGIN;
-INSERT INTO t VALUES(1),(2);
+INSERT INTO t VALUES(2);
 DELETE FROM t WHERE a=2;
 connection default;
 # Normal MariaDB shutdown would roll back the above transaction.
@@ -16,20 +17,23 @@ ROLLBACK;
 disconnect con1;
 SELECT * FROM t;
 a
+1
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t;
 a
 1
+UPDATE t SET a=3 WHERE a=1;
 # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.
 # In earlier versions, this would return the last committed version
 # (empty table)!
 SELECT * FROM t;
 a
-1
+3
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t;
 a
-1
+3
 SELECT * FROM t;
 a
+3
 DROP TABLE t;
