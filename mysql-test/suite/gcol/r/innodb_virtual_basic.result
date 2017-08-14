@@ -546,9 +546,9 @@ t1	CREATE TABLE `t1` (
   `col2` int(11) NOT NULL,
   `col3` int(11) NOT NULL,
   `col4` int(11) DEFAULT NULL,
-  `col5` int(11) GENERATED ALWAYS AS (`col2` % `col3`) VIRTUAL,
+  `col5` int(11) GENERATED ALWAYS AS (`col2` MOD `col3`) VIRTUAL,
   `col7` int(11) GENERATED ALWAYS AS (`col5` * `col5`) VIRTUAL,
-  `col8` int(11) GENERATED ALWAYS AS (`col5` % `col5`) VIRTUAL,
+  `col8` int(11) GENERATED ALWAYS AS (`col5` MOD `col5`) VIRTUAL,
   `col9` text DEFAULT NULL,
   `col6` int(11) DEFAULT NULL,
   UNIQUE KEY `uidx` (`col5`)

@@ -1103,7 +1103,7 @@ public:
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
-  const char *func_name() const { return "%"; }
+  const char *func_name() const { return "MOD"; }
   enum precedence precedence() const { return MUL_PRECEDENCE; }
   void result_precision();
   void fix_length_and_dec();

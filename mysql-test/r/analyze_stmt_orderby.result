@@ -365,7 +365,7 @@ ANALYZE
           "r_total_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 50,
-          "attached_condition": "t2.a % 2 = 0"
+          "attached_condition": "t2.a MOD 2 = 0"
         }
       }
     }
