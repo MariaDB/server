@@ -3711,7 +3711,7 @@ static int rocksdb_init_func(void *const p) {
   if (rocksdb_db_options->allow_mmap_writes &&
       rocksdb_db_options->use_direct_io_for_flush_and_compaction) {
     // See above comment for allow_mmap_reads. (NO_LINT_DEBUG)
-    sql_print_error("RocksDB: Can't enable both use_direct_io_for_flush_and_compaction "
+    sql_print_error("RocksDB: Can't enable both "
                     "use_direct_io_for_flush_and_compaction and "
                     "allow_mmap_writes\n");
     DBUG_RETURN(HA_EXIT_FAILURE);
