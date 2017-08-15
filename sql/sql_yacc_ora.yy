@@ -12218,7 +12218,7 @@ select_outvar:
           }
         | ident '.' ident
           {
-            if (!($$= Lex->create_outvar(thd, &$1, &$3)))
+            if (!($$= Lex->create_outvar(thd, &$1, &$3)) && Lex->result)
               MYSQL_YYABORT;
           }
         ;
