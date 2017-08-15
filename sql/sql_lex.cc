@@ -5853,6 +5853,32 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
 }
 
 
+bool LEX::sp_body_finalize_procedure(THD *thd)
+{
+  if (sphead->check_unresolved_goto())
+    return true;
+  sphead->set_stmt_end(thd);
+  sphead->restore_thd_mem_root(thd);
+  return false;
+}
+
+
+bool LEX::sp_body_finalize_function(THD *thd)
+{
+  if (sphead->is_not_allowed_in_function("function"))
+    return true;
+  if (!(sphead->m_flags & sp_head::HAS_RETURN))
+  {
+    my_error(ER_SP_NORETURN, MYF(0), ErrConvDQName(sphead).ptr());
+    return true;
+  }
+  if (sp_body_finalize_procedure(thd))
+    return true;
+  (void) is_native_function_with_warn(thd, &sphead->m_name);
+  return false;
+}
+
+
 bool LEX::sp_block_with_exceptions_finalize_declarations(THD *thd)
 {
   /*
