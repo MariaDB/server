@@ -5845,7 +5845,7 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
     sp->reset_thd_mem_root(thd);
     sp->init(this);
     if (name)
-      sp->init_sp_name(thd, name);
+      sp->init_sp_name(name);
     sphead= sp;
   }
   sp_chistics.init();
