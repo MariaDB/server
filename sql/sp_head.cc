@@ -619,14 +619,7 @@ sp_head::init_sp_name(THD *thd, const sp_name *spname)
   DBUG_ASSERT(spname && spname->m_db.str && spname->m_db.length);
 
   /* We have to copy strings to get them into the right memroot. */
-
-  m_db.length= spname->m_db.length;
-  m_db.str= strmake_root(thd->mem_root, spname->m_db.str, spname->m_db.length);
-
-  m_name.length= spname->m_name.length;
-  m_name.str= strmake_root(thd->mem_root, spname->m_name.str,
-                           spname->m_name.length);
-
+  Database_qualified_name::copy(mem_root, spname->m_db, spname->m_name);
   m_explicit_name= spname->m_explicit_name;
 
   spname->make_qname(thd, &m_qname);

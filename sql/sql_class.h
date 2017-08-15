@@ -5974,6 +5974,8 @@ public:
                     (const uchar *) m_name.str, m_name.length,
                     (const uchar *) other->m_name.str, other->m_name.length);
   }
+  void copy(MEM_ROOT *mem_root, const LEX_CSTRING &db,
+                                const LEX_CSTRING &name);
   // Export db and name as a qualified name string: 'db.name'
   size_t make_qname(char *dst, size_t dstlen) const
   {
