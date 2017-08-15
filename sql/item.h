@@ -1047,7 +1047,10 @@ public:
       FALSE value is false or NULL
       TRUE value is true (not equal to 0)
   */
-  virtual bool val_bool();
+  virtual bool val_bool()
+  {
+    return type_handler()->Item_val_bool(this);
+  }
   virtual String *val_nodeset(String*) { return 0; }
 
   /*

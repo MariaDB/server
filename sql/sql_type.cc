@@ -3079,6 +3079,38 @@ bool Type_handler_geometry::
 
 /*************************************************************************/
 
+bool Type_handler_real_result::Item_val_bool(Item *item) const
+{
+  return item->val_real() != 0.0;
+}
+
+bool Type_handler_int_result::Item_val_bool(Item *item) const
+{
+  return item->val_int() != 0;
+}
+
+bool Type_handler_decimal_result::Item_val_bool(Item *item) const
+{
+  my_decimal decimal_value;
+  my_decimal *val= item->val_decimal(&decimal_value);
+  if (val)
+    return !my_decimal_is_zero(val);
+  return false;
+}
+
+bool Type_handler_temporal_result::Item_val_bool(Item *item) const
+{
+  return item->val_real() != 0.0;
+}
+
+bool Type_handler_string_result::Item_val_bool(Item *item) const
+{
+  return item->val_real() != 0.0;
+}
+
+
+/*************************************************************************/
+
 longlong Type_handler_real_result::
            Item_val_int_signed_typecast(Item *item) const
 {

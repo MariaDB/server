@@ -2375,3 +2375,16 @@ DELIMITER ;$$
 CALL p1;
 DROP PROCEDURE p1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-13527 Crash when EXPLAIN SELECT .. INTO row_sp_variable.field
+--echo #
+
+DELIMITER $$;
+DECLARE
+  a ROW(a INT);
+BEGIN
+  EXPLAIN SELECT 1 INTO a.a;
+END;
+$$
+DELIMITER ;$$
