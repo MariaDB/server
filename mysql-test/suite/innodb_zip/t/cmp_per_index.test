@@ -19,6 +19,10 @@ if (`SELECT @@innodb_log_compressed_pages = 0`)
 # include/restart_mysqld.inc does not work in embedded mode
 -- source include/not_embedded.inc
 
+# ensure that all history gets purged on shutdown
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET GLOBAL innodb_fast_shutdown=0;
+
 -- vertical_results
 
 SET GLOBAL innodb_cmp_per_index_enabled=ON;

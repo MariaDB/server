@@ -548,7 +548,7 @@ trx_undo_header_create(
 
 	log_hdr = undo_page + free;
 
-	mach_write_to_2(log_hdr + TRX_UNDO_DEL_MARKS, TRUE);
+	mach_write_to_2(log_hdr + TRX_UNDO_NEEDS_PURGE, 1);
 
 	mach_write_to_8(log_hdr + TRX_UNDO_TRX_ID, trx_id);
 	mach_write_to_2(log_hdr + TRX_UNDO_LOG_START, new_free);
@@ -1274,7 +1274,6 @@ trx_undo_mem_create(
 
 	undo->id = id;
 	undo->state = TRX_UNDO_ACTIVE;
-	undo->del_marks = FALSE;
 	undo->trx_id = trx_id;
 	undo->xid = *xid;
 
@@ -1313,7 +1312,6 @@ trx_undo_mem_init_for_reuse(
 	ut_a(undo->id < TRX_RSEG_N_SLOTS);
 
 	undo->state = TRX_UNDO_ACTIVE;
-	undo->del_marks = FALSE;
 	undo->trx_id = trx_id;
 	undo->xid = *xid;
 
@@ -1795,7 +1793,7 @@ trx_undo_truncate_tablespace(
 		rseg->last_page_no = FIL_NULL;
 		rseg->last_offset = 0;
 		rseg->last_trx_no = 0;
-		rseg->last_del_marks = FALSE;
+		rseg->needs_purge = false;
 	}
 	mtr_commit(&mtr);
 

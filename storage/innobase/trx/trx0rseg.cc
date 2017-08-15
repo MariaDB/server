@@ -204,9 +204,10 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, mtr_t* mtr)
 
 		rseg->last_trx_no = mach_read_from_8(
 			undo_log_hdr + TRX_UNDO_TRX_NO);
-
-		rseg->last_del_marks = mtr_read_ulint(
-			undo_log_hdr + TRX_UNDO_DEL_MARKS, MLOG_2BYTES, mtr);
+		unsigned purge = mach_read_from_2(
+			undo_log_hdr + TRX_UNDO_NEEDS_PURGE);
+		ut_ad(purge <= 1);
+		rseg->needs_purge = purge != 0;
 
 		TrxUndoRsegs elem(rseg->last_trx_no);
 		elem.push_back(rseg);

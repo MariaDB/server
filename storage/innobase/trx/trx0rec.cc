@@ -886,9 +886,6 @@ trx_undo_page_report_modify(
 	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
 			       + undo_page) <= 2);
 
-	trx_undo_t*	undo = dict_table_is_temporary(table)
-		? NULL : trx->rsegs.m_redo.undo;
-
 	first_free = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
 				      + TRX_UNDO_PAGE_FREE);
 	ptr = undo_page + first_free;
@@ -1112,13 +1109,6 @@ trx_undo_page_report_modify(
 					dict_table_page_size(table),
 					&field, &flen, SPATIAL_UNKNOWN);
 
-				/* Notify purge that it eventually has to
-				free the old externally stored field */
-
-				if (undo) {
-					undo->del_marks = TRUE;
-				}
-
 				*type_cmpl_ptr |= TRX_UNDO_UPD_EXTERN;
 			} else {
 				ptr += mach_write_compressed(ptr, flen);
@@ -1185,10 +1175,6 @@ trx_undo_page_report_modify(
 		byte*		old_ptr = ptr;
 		double		mbr[SPDIMS * 2];
 		mem_heap_t*	row_heap = NULL;
-
-		if (undo) {
-			undo->del_marks = TRUE;
-		}
 
 		if (trx_undo_left(undo_page, ptr) < 5) {
 

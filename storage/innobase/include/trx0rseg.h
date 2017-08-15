@@ -185,8 +185,8 @@ struct trx_rseg_t {
 	/** Transaction number of the last not yet purged log */
 	trx_id_t			last_trx_no;
 
-	/** TRUE if the last not yet purged log needs purging */
-	ibool				last_del_marks;
+	/** Whether the log segment needs purge */
+	bool				needs_purge;
 
 	/** Reference counter to track rseg allocated transactions. */
 	ulint				trx_ref_count;
