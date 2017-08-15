@@ -2756,6 +2756,7 @@ mysql_execute_command(THD *thd)
 #endif
   case SQLCOM_SHOW_STATUS:
   {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     execute_show_status(thd, all_tables);
     break;
   }
@@ -5808,11 +5809,10 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
   bool res;
   system_status_var old_status_var= thd->status_var;
   thd->initial_status_var= &old_status_var;
-  WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
   if (!(res= check_table_access(thd, SELECT_ACL, all_tables, FALSE,
                                 UINT_MAX, FALSE)))
     res= execute_sqlcom_select(thd, all_tables);
-error:
+
   /* Don't log SHOW STATUS commands to slow query log */
   thd->server_status&= ~(SERVER_QUERY_NO_INDEX_USED |
                          SERVER_QUERY_NO_GOOD_INDEX_USED);

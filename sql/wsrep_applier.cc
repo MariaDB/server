@@ -224,7 +224,8 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
                  {
                    const char act[]=
                      "now "
-                     "wait_for signal.wsrep_apply_cb";
+                     "SIGNAL sync.wsrep_apply_cb_reached "
+                     "WAIT_FOR signal.wsrep_apply_cb";
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);

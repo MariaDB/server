@@ -1635,12 +1635,6 @@ void THD::init(void)
   wsrep_affected_rows     = 0;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
-  /*
-    @@wsrep_causal_reads is now being handled via wsrep_sync_wait, update it
-    appropriately.
-  */
-  if (variables.wsrep_causal_reads)
-    variables.wsrep_sync_wait|= WSREP_SYNC_WAIT_BEFORE_READ;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
