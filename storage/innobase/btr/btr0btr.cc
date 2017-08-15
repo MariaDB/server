@@ -4680,10 +4680,10 @@ btr_index_rec_validate(
 		length of the prefix index column. */
 
 		if ((field->prefix_len == 0
-		     && len != UNIV_SQL_NULL && fixed_size
+		     && univ_is_stored(len) && fixed_size
 		     && len != fixed_size)
 		    || (field->prefix_len > 0
-			&& len != UNIV_SQL_NULL
+			&& univ_is_stored(len)
 			&& len
 			> field->prefix_len)) {
 

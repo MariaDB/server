@@ -1399,6 +1399,9 @@ row_truncate_update_table_id(
 		"UPDATE SYS_VIRTUAL"
 		" SET TABLE_ID = :new_id\n"
 		" WHERE TABLE_ID = :old_id;\n"
+		"UPDATE SYS_COLUMNS_ADDED"
+		" SET TABLE_ID = :new_id\n"
+		" WHERE TABLE_ID = :old_id;\n"
 		"END;\n", reserve_dict_mutex, trx);
 
 	return(err);
@@ -1617,7 +1620,7 @@ row_truncate_foreign_key_checks(
 	/* Check if the table is referenced by foreign key constraints from
 	some other table (not the table itself) */
 
-	dict_foreign_set::iterator	it
+	dict_foreign_set::const_iterator	it
 		= std::find_if(table->referenced_set.begin(),
 			       table->referenced_set.end(),
 			       dict_foreign_different_tables());

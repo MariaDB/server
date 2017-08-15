@@ -969,6 +969,8 @@ trx_undo_page_report_modify(
 
 	for (i = 0; i < dict_index_get_n_unique(index); i++) {
 
+		/* The ordering columns must not be instant added columns. */
+		ut_ad(!rec_offs_nth_default(offsets, i));
 		field = rec_get_nth_field(rec, offsets, i, &flen);
 
 		/* The ordering columns must not be stored externally. */
@@ -1084,8 +1086,8 @@ trx_undo_page_report_modify(
 						flen, max_v_log_len);
 				}
 			} else {
-				field = rec_get_nth_field(rec, offsets,
-							  pos, &flen);
+				field = rec_get_nth_cfield(rec, offsets,
+							  pos, index, NULL, &flen);
 			}
 
 			if (trx_undo_left(undo_page, ptr) < 15) {
@@ -1236,8 +1238,8 @@ trx_undo_page_report_modify(
 				ptr += mach_write_compressed(ptr, pos);
 
 				/* Save the old value of field */
-				field = rec_get_nth_field(rec, offsets, pos,
-							  &flen);
+				field = rec_get_nth_cfield(rec, offsets, pos,
+							  index, NULL, &flen);
 
 				if (rec_offs_nth_extern(offsets, pos)) {
 					const dict_col_t*	col =

@@ -6208,7 +6208,7 @@ btr_rec_get_field_ref_offs(
 
 	ut_a(rec_offs_nth_extern(offsets, n));
 	field_ref_offs = rec_get_nth_field_offs(offsets, n, &local_len);
-	ut_a(local_len != UNIV_SQL_NULL);
+	ut_a(univ_is_stored(local_len));
 	ut_a(local_len >= BTR_EXTERN_FIELD_REF_SIZE);
 
 	return(field_ref_offs + local_len - BTR_EXTERN_FIELD_REF_SIZE);

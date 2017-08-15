@@ -343,6 +343,23 @@ enum dict_fld_sys_virtual_enum {
 	DICT_NUM_FIELDS__SYS_VIRTUAL		= 5
 };
 
+/* The columns in SYS_COLUMNS_ADDED */
+enum dict_col_sys_columns_added_enum {
+  DICT_COL__SYS_COLUMNS_ADDED__TABLE_ID		= 0,
+  DICT_COL__SYS_COLUMNS_ADDED__POS = 1,
+  DICT_COL__SYS_COLUMNS_ADDED__DEFAULT_VALUE = 2,
+  DICT_NUM_COLS__SYS_COLUMNS_ADDED = 3
+};
+/* The field numbers in the SYS_COLUMNS_ADDED clustered index */
+enum dict_fld_sys_columns_added_enum {
+  DICT_FLD__SYS_COLUMNS_ADDED__TABLE_ID		= 0,
+  DICT_FLD__SYS_COLUMNS_ADDED__POS = 1,
+  DICT_FLD__SYS_COLUMNS_ADDED__DB_TRX_ID	= 2,
+  DICT_FLD__SYS_COLUMNS_ADDED__DB_ROLL_PTR	= 3,
+  DICT_FLD__SYS_COLUMNS_ADDED__DEFAULT_VALUE = 4,
+  DICT_NUM_FIELDS__SYS_COLUMNS_ADDED = 5
+};
+
 /* A number of the columns above occur in multiple tables.  These are the
 length of thos fields. */
 #define	DICT_FLD_LEN_SPACE	4
