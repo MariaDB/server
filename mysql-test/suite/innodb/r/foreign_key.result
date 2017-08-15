@@ -209,7 +209,6 @@ UPDATE users SET name = 'qux' WHERE id = 1;
 connect  con1,localhost,root,,;
 SET innodb_lock_wait_timeout= 1;
 DELETE FROM matchmaking_groups WHERE id = 10;
-disconnect con1;
 connection default;
 COMMIT;
 SELECT * FROM matchmaking_group_users WHERE matchmaking_group_id NOT IN (SELECT id FROM matchmaking_groups);
@@ -222,3 +221,45 @@ id	name
 2	bar
 DROP TABLE
 matchmaking_group_maps, matchmaking_group_users, matchmaking_groups, users;
+#
+# MDEV-13331 FK DELETE CASCADE does not honor innodb_lock_wait_timeout
+#
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (
+id INT NOT NULL PRIMARY KEY,
+ref_id INT NOT NULL DEFAULT 0,
+f INT NULL,
+FOREIGN KEY (ref_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1,1,10),(2,2,20);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `ref_id` int(11) NOT NULL DEFAULT 0,
+  `f` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ref_id` (`ref_id`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`ref_id`) REFERENCES `t1` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection con1;
+BEGIN;
+UPDATE t2 SET f = 11 WHERE id = 1;
+connection default;
+SET innodb_lock_wait_timeout= 1;
+DELETE FROM t1 WHERE id = 1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+COMMIT;
+disconnect con1;
+connection default;
+SELECT * FROM t2;
+id	ref_id	f
+1	1	11
+2	2	20
+DELETE FROM t1 WHERE id = 1;
+SELECT * FROM t2;
+id	ref_id	f
+2	2	20
+DROP TABLE t2, t1;

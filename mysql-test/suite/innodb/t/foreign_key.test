@@ -186,7 +186,6 @@ UPDATE users SET name = 'qux' WHERE id = 1;
 --connect (con1,localhost,root,,)
 SET innodb_lock_wait_timeout= 1;
 DELETE FROM matchmaking_groups WHERE id = 10;
---disconnect con1
 
 --connection default
 COMMIT;
@@ -199,5 +198,42 @@ SELECT * FROM users;
 
 DROP TABLE
 matchmaking_group_maps, matchmaking_group_users, matchmaking_groups, users;
+
+--echo #
+--echo # MDEV-13331 FK DELETE CASCADE does not honor innodb_lock_wait_timeout
+--echo #
+
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+
+CREATE TABLE t2 (
+  id INT NOT NULL PRIMARY KEY,
+  ref_id INT NOT NULL DEFAULT 0,
+  f INT NULL,
+  FOREIGN KEY (ref_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1,1,10),(2,2,20);
+
+SHOW CREATE TABLE t2;
+
+--connection con1
+BEGIN;
+UPDATE t2 SET f = 11 WHERE id = 1;
+
+--connection default
+SET innodb_lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+DELETE FROM t1 WHERE id = 1;
+
+--connection con1
+COMMIT;
+--disconnect con1
+
+--connection default
+SELECT * FROM t2;
+DELETE FROM t1 WHERE id = 1;
+SELECT * FROM t2;
+DROP TABLE t2, t1;
 
 --source include/wait_until_count_sessions.inc
