@@ -3176,6 +3176,8 @@ public:
       return NULL;
     return make_sp_head_no_recursive(thd, name, sph);
   }
+  bool sp_body_finalize_function(THD *);
+  bool sp_body_finalize_procedure(THD *);
   bool call_statement_start(THD *thd, sp_name *name);
   bool call_statement_start(THD *thd, const LEX_CSTRING *name);
   bool call_statement_start(THD *thd, const LEX_CSTRING *name1,

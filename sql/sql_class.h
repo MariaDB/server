@@ -6001,6 +6001,8 @@ public:
                     (const uchar *) m_name.str, m_name.length,
                     (const uchar *) other->m_name.str, other->m_name.length);
   }
+  void copy(MEM_ROOT *mem_root, const LEX_CSTRING &db,
+                                const LEX_CSTRING &name);
   // Export db and name as a qualified name string: 'db.name'
   size_t make_qname(char *dst, size_t dstlen) const
   {
@@ -6009,13 +6011,13 @@ public:
                        (int) m_name.length, m_name.str);
   }
   // Export db and name as a qualified name string, allocate on mem_root.
-  bool make_qname(THD *thd, LEX_CSTRING *dst) const
+  bool make_qname(MEM_ROOT *mem_root, LEX_CSTRING *dst) const
   {
     const uint dot= !!m_db.length;
     char *tmp;
     /* format: [database + dot] + name + '\0' */
     dst->length= m_db.length + dot + m_name.length;
-    if (!(dst->str= tmp= (char*) thd->alloc(dst->length + 1)))
+    if (!(dst->str= tmp= (char*) alloc_root(mem_root, dst->length + 1)))
       return true;
     sprintf(tmp, "%.*s%.*s%.*s",
             (int) m_db.length, (m_db.length ? m_db.str : ""),

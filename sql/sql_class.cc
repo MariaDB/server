@@ -7505,4 +7505,15 @@ void AUTHID::parse(const char *str, size_t length)
 }
 
 
+void Database_qualified_name::copy(MEM_ROOT *mem_root,
+                                   const LEX_CSTRING &db,
+                                   const LEX_CSTRING &name)
+{
+  m_db.length= db.length;
+  m_db.str= strmake_root(mem_root, db.str, db.length);
+  m_name.length= name.length;
+  m_name.str= strmake_root(mem_root, name.str, name.length);
+}
+
+
 #endif /* !defined(MYSQL_CLIENT) */

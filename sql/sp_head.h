@@ -320,7 +320,7 @@ public:
 
   /** Copy sp name from parser. */
   void
-  init_sp_name(THD *thd, const sp_name *spname);
+  init_sp_name(const sp_name *spname);
 
   /** Set the body-definition start position. */
   void
@@ -790,6 +790,8 @@ public:
   }
 
   sp_pcontext *get_parse_context() { return m_pcont; }
+
+  bool check_execute_access(THD *thd) const;
 
 private:
 

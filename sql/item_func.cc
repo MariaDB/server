@@ -6257,7 +6257,7 @@ void my_missing_function_error(const LEX_CSTRING &token, const char *func_name)
 */
 
 bool
-Item_func_sp::init_result_field(THD *thd)
+Item_func_sp::init_result_field(THD *thd, sp_head *sp)
 {
   TABLE_SHARE *share;
   DBUG_ENTER("Item_func_sp::init_result_field");
@@ -6265,7 +6265,7 @@ Item_func_sp::init_result_field(THD *thd)
   DBUG_ASSERT(m_sp == NULL);
   DBUG_ASSERT(sp_result_field == NULL);
 
-  if (!(m_sp= sp_handler_function.sp_find_routine(thd, m_name, true)))
+  if (!(m_sp= sp))
   {
     my_missing_function_error (m_name->m_name, ErrConvDQName(m_name).ptr());
     context->process_error(thd);
@@ -6513,12 +6513,7 @@ Item_func_sp::sp_check_access(THD *thd)
 {
   DBUG_ENTER("Item_func_sp::sp_check_access");
   DBUG_ASSERT(m_sp);
-  if (check_routine_access(thd, EXECUTE_ACL,
-                           m_sp->m_db.str, m_sp->m_name.str,
-                           &sp_handler_function, false))
-    DBUG_RETURN(TRUE);
-
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(m_sp->check_execute_access(thd));
 }
 
 
@@ -6528,6 +6523,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   bool res;
   DBUG_ENTER("Item_func_sp::fix_fields");
   DBUG_ASSERT(fixed == 0);
+  sp_head *sp= sp_handler_function.sp_find_routine(thd, m_name, true);
 
   /* 
     Checking privileges to execute the function while creating view and
@@ -6540,9 +6536,14 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     if (context->security_ctx)
       thd->security_ctx= context->security_ctx;
 
-    res= check_routine_access(thd, EXECUTE_ACL, m_name->m_db.str,
-                              m_name->m_name.str,
-                              &sp_handler_function, false);
+    /*
+      If the routine is not found, let's still check EXECUTE_ACL to decide
+      whether to return "Access denied" or "Routine does not exist".
+    */
+    res= sp ? sp->check_execute_access(thd) :
+              check_routine_access(thd, EXECUTE_ACL, m_name->m_db.str,
+                                   m_name->m_name.str,
+                                   &sp_handler_function, false);
     thd->security_ctx= save_security_ctx;
 
     if (res)
@@ -6557,7 +6558,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     to make m_sp and result_field members available to fix_length_and_dec(),
     which is called from Item_func::fix_fields().
   */
-  res= init_result_field(thd);
+  res= init_result_field(thd, sp);
 
   if (res)
     DBUG_RETURN(res);

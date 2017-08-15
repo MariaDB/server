@@ -5845,11 +5845,37 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
     sp->reset_thd_mem_root(thd);
     sp->init(this);
     if (name)
-      sp->init_sp_name(thd, name);
+      sp->init_sp_name(name);
     sphead= sp;
   }
   sp_chistics.init();
   return sp;
+}
+
+
+bool LEX::sp_body_finalize_procedure(THD *thd)
+{
+  if (sphead->check_unresolved_goto())
+    return true;
+  sphead->set_stmt_end(thd);
+  sphead->restore_thd_mem_root(thd);
+  return false;
+}
+
+
+bool LEX::sp_body_finalize_function(THD *thd)
+{
+  if (sphead->is_not_allowed_in_function("function"))
+    return true;
+  if (!(sphead->m_flags & sp_head::HAS_RETURN))
+  {
+    my_error(ER_SP_NORETURN, MYF(0), ErrConvDQName(sphead).ptr());
+    return true;
+  }
+  if (sp_body_finalize_procedure(thd))
+    return true;
+  (void) is_native_function_with_warn(thd, &sphead->m_name);
+  return false;
 }
 
 
@@ -7160,6 +7186,8 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
   sql_command= SQLCOM_CALL;
   spname= name;
   value_list.empty();
+  if (!(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name)))
+    return true;
   sp_handler_procedure.add_used_routine(this, thd, name);
   return false;
 }

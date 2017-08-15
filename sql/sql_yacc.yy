@@ -16634,6 +16634,7 @@ sf_tail:
           opt_if_not_exists
           sp_name
           {
+            Lex->sql_command= SQLCOM_CREATE_SPFUNCTION;
             if (!Lex->make_sp_head_no_recursive(thd, $1, $2,
                                                 &sp_handler_function))
               MYSQL_YYABORT;
@@ -16650,25 +16651,15 @@ sf_tail:
           }
           sp_proc_stmt_in_returns_clause
           {
-            LEX *lex= thd->lex;
-            sp_head *sp= lex->sphead;
-
-            if (sp->is_not_allowed_in_function("function"))
+            if (Lex->sp_body_finalize_function(thd))
               MYSQL_YYABORT;
-
-            lex->sql_command= SQLCOM_CREATE_SPFUNCTION;
-            sp->set_stmt_end(thd);
-            if (!(sp->m_flags & sp_head::HAS_RETURN))
-              my_yyabort_error((ER_SP_NORETURN, MYF(0),
-                                ErrConvDQName(sp).ptr()));
-            (void) is_native_function_with_warn(thd, &sp->m_name);
-            sp->restore_thd_mem_root(thd);
           }
         ;
 
 sp_tail:
           opt_if_not_exists sp_name
           {
+            Lex->sql_command= SQLCOM_CREATE_PROCEDURE;
             if (!Lex->make_sp_head_no_recursive(thd, $1, $2,
                                                 &sp_handler_procedure))
               MYSQL_YYABORT;
@@ -16681,12 +16672,8 @@ sp_tail:
           }
           sp_proc_stmt
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-
-            sp->set_stmt_end(thd);
-            lex->sql_command= SQLCOM_CREATE_PROCEDURE;
-            sp->restore_thd_mem_root(thd);
+            if (Lex->sp_body_finalize_procedure(thd))
+              MYSQL_YYABORT;
           }
         ;
 
