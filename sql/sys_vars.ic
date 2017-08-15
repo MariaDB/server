@@ -1230,7 +1230,7 @@ public:
     global_var(ulonglong)= def_val;
     SYSVAR_ASSERT(typelib.count > 1);
     SYSVAR_ASSERT(typelib.count <= 65);
-    SYSVAR_ASSERT(def_val < my_set_bits(typelib.count));
+    SYSVAR_ASSERT(def_val <= my_set_bits(typelib.count-1));
     SYSVAR_ASSERT(strcmp(values[typelib.count-1], "default") == 0);
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
