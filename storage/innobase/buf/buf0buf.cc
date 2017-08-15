@@ -6030,7 +6030,7 @@ database_corrupted:
 		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
 		    && page_is_leaf(frame)) {
 
-			if (bpage && bpage->encrypted) {
+			if (bpage->encrypted) {
 				ib::warn()
 					<< "Table in tablespace "
 					<< bpage->id.space()

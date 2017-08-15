@@ -2091,7 +2091,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT (`a` * `b`),
   `d` int(11) DEFAULT (`a` / `b`),
-  `e` int(11) DEFAULT (`a` % `b`)
+  `e` int(11) DEFAULT (`a` MOD `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -2100,7 +2100,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT (`a` * `b`),
   `d` int(11) DEFAULT (`a` / `b`),
-  `e` int(11) DEFAULT (`a` % `b`)
+  `e` int(11) DEFAULT (`a` MOD `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (7, 3, DEFAULT, DEFAULT, DEFAULT);
 SELECT * FROM t1;

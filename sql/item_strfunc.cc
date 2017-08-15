@@ -1205,7 +1205,8 @@ void Item_func_reverse::fix_length_and_dec()
     Fix that this works with binary strings when using USE_MB 
 */
 
-String *Item_func_replace::val_str(String *str)
+String *Item_func_replace::val_str_internal(String *str,
+                                            String *empty_string_for_null)
 {
   DBUG_ASSERT(fixed == 1);
   String *res,*res2,*res3;
@@ -1225,8 +1226,11 @@ String *Item_func_replace::val_str(String *str)
     goto null;
   res2=args[1]->val_str(&tmp_value);
   if (args[1]->null_value)
-    goto null;
-
+  {
+    if (!empty_string_for_null)
+      goto null;
+    res2= empty_string_for_null;
+  }
   res->set_charset(collation.collation);
 
 #ifdef USE_MB
@@ -1244,7 +1248,11 @@ String *Item_func_replace::val_str(String *str)
     return res;
 #endif
   if (!(res3=args[2]->val_str(&tmp_value2)))
-    goto null;
+  {
+    if (!empty_string_for_null)
+      goto null;
+    res3= empty_string_for_null;
+  }
   from_length= res2->length();
   to_length=   res3->length();
 
@@ -1327,6 +1335,9 @@ redo:
     }
     while ((offset=res->strstr(*res2,(uint) offset)) >= 0);
   }
+  if (empty_string_for_null && !res->length())
+    goto null;
+
   return res;
 
 null:

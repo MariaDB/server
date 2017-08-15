@@ -1770,7 +1770,7 @@ bool st_select_lex_unit::cleanup()
 
 void st_select_lex_unit::reinit_exec_mechanism()
 {
-  prepared= optimized= executed= 0;
+  prepared= optimized= optimized_2= executed= 0;
   optimize_started= 0;
 #ifndef DBUG_OFF
   if (is_unit_op())

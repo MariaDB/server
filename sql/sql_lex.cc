@@ -2157,7 +2157,7 @@ void st_select_lex_unit::init_query()
   select_limit_cnt= HA_POS_ERROR;
   offset_limit_cnt= 0;
   union_distinct= 0;
-  prepared= optimized= executed= 0;
+  prepared= optimized= optimized_2= executed= 0;
   optimize_started= 0;
   item= 0;
   union_result= 0;
@@ -4464,7 +4464,12 @@ void st_select_lex::set_explain_type(bool on_the_fly)
     {
       /* If we're a direct child of a UNION, we're the first sibling there */
       if (linkage == DERIVED_TABLE_TYPE)
-        type= "DERIVED";
+      {
+        if (is_uncacheable & UNCACHEABLE_DEPENDENT)
+          type= "LATERAL DERIVED";
+        else
+          type= "DERIVED";
+      }
       else if (using_materialization)
         type= "MATERIALIZED";
       else
@@ -6873,14 +6878,15 @@ void binlog_unsafe_map_init()
     st_select_lex and saves this fields. 
 */
 
-void st_select_lex::collect_grouping_fields(THD *thd) 
+void st_select_lex::collect_grouping_fields(THD *thd,
+                                            ORDER *grouping_list) 
 {
   grouping_tmp_fields.empty();
   List_iterator<Item> li(join->fields_list);
   Item *item= li++;
   for (uint i= 0; i < master_unit()->derived->table->s->fields; i++, (item=li++))
   {
-    for (ORDER *ord= join->group_list; ord; ord= ord->next)
+    for (ORDER *ord= grouping_list; ord; ord= ord->next)
     {
       if ((*ord->item)->eq((Item*)item, 0))
       {
@@ -7185,4 +7191,15 @@ bool LEX::add_grant_command(THD *thd, enum_sql_command sql_command_arg,
   sql_command= sql_command_arg,
   type= type_arg;
   return false;
+}
+
+
+Item *LEX::make_item_func_replace(THD *thd,
+                                  Item *org,
+                                  Item *find,
+                                  Item *replace)
+{
+  return (thd->variables.sql_mode & MODE_ORACLE) ?
+    new (thd->mem_root) Item_func_replace_oracle(thd, org, find, replace) :
+    new (thd->mem_root) Item_func_replace(thd, org, find, replace);
 }

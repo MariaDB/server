@@ -659,19 +659,13 @@ JSON_EXTRACT('{"name":"value"}', '$.name') = 'value'
 1
 select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true;
 JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true
-0
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'true'
+1
 select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false;
 JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false
-1
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'true'
+0
 select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1;
 JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1
-0
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'true'
+1
 select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
 JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"')
 "\u00f6"

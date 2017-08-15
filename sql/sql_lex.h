@@ -690,6 +690,7 @@ public:
   select_result *result;
   bool  prepared, // prepare phase already performed for UNION (unit)
     optimized, // optimize phase already performed for UNION (unit)
+    optimized_2,
     executed, // already executed
     cleaned;
 
@@ -1222,7 +1223,7 @@ public:
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
   bool check_unrestricted_recursive(bool only_standard_compliant);
   bool check_subqueries_with_recursive_references();
-  void collect_grouping_fields(THD *thd); 
+  void collect_grouping_fields(THD *thd, ORDER *grouping_list); 
   void check_cond_extraction_for_grouping_fields(Item *cond,
                                                  TABLE_LIST *derived);
   Item *build_cond_for_grouping_fields(THD *thd, Item *cond,
@@ -1247,7 +1248,7 @@ public:
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
 
   bool cond_pushdown_is_allowed() const
-  { return !have_window_funcs() && !olap && !explicit_limit; }
+  { return !olap && !explicit_limit; }
   
 private:
   bool m_non_agg_field_used;
@@ -3355,6 +3356,8 @@ public:
                           const LEX_CSTRING *var_name,
                           const LEX_CSTRING *field_name,
                           uint pos_in_q, uint length_in_q);
+
+  Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
 
   /*
     Create a my_var instance for a ROW field variable that was used

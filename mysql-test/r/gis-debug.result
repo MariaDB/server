@@ -403,5 +403,5 @@ ERROR HY000: Illegal parameter data types varchar and geometry for operation '-'
 CREATE TABLE t1 AS SELECT '0'/POINT(0,0) LIMIT 0;
 ERROR HY000: Illegal parameter data types varchar and geometry for operation '/'
 CREATE TABLE t1 AS SELECT '0' MOD POINT(0,0) LIMIT 0;
-ERROR HY000: Illegal parameter data types varchar and geometry for operation '%'
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'MOD'
 SET debug_dbug='-d,num_op';

@@ -6275,6 +6275,31 @@ SHOW CREATE VIEW v;
 DROP VIEW v;
 
 --echo #
+--echo # MDEV-13439: Database permissions are not enough to run a subquery
+--echo # with GROUP BY within a view
+--echo #
+
+create database test_db;
+use test_db;
+create table t (i int);
+
+create user foo@localhost;
+grant all on test_db.* to foo@localhost;
+
+--connect (con1,localhost,foo,,)
+
+use test_db;
+create view v as select * from (select i from t group by i) sq;
+select * from v;
+
+# Cleanup
+--disconnect con1
+--connection default
+use test;
+drop database test_db;
+drop user foo@localhost;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
