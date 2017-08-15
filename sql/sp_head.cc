@@ -1424,6 +1424,14 @@ set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx)
 #endif // ! NO_EMBEDDED_ACCESS_CHECKS
 
 
+bool sp_head::check_execute_access(THD *thd) const
+{
+  return check_routine_access(thd, EXECUTE_ACL,
+                              m_db.str, m_name.str,
+                              m_handler, false);
+}
+
+
 /**
   Create rcontext using the routine security.
   This is important for sql_mode=ORACLE to make sure that the invoker has

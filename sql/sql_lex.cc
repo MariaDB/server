@@ -7156,6 +7156,8 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
   sql_command= SQLCOM_CALL;
   spname= name;
   value_list.empty();
+  if (!(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name)))
+    return true;
   sp_handler_procedure.add_used_routine(this, thd, name);
   return false;
 }

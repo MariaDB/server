@@ -791,6 +791,8 @@ public:
 
   sp_pcontext *get_parse_context() { return m_pcont; }
 
+  bool check_execute_access(THD *thd) const;
+
 private:
 
   MEM_ROOT *m_thd_root;		///< Temp. store for thd's mem_root

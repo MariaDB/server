@@ -2679,7 +2679,7 @@ private:
 
   bool execute();
   bool execute_impl(THD *thd);
-  bool init_result_field(THD *thd);
+  bool init_result_field(THD *thd, sp_head *sp);
 
 protected:
   bool is_expensive_processor(void *arg)
