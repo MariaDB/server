@@ -5379,10 +5379,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // __WIN__
 //int      hdr, mxe;
 	int      port = 0, mxr = 0, rc = 0, mul = 0, lrecl = 0;
+	PCSZ     tabtyp = NULL;
 #if defined(ODBC_SUPPORT)
   POPARM   sop= NULL;
 	PCSZ     ucnc= NULL;
-	PCSZ     tabtyp = NULL;
 	bool     cnc= false;
   int      cto= -1, qto= -1;
 #endif   // ODBC_SUPPORT
