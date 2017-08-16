@@ -3,6 +3,8 @@
 #
 
 --source include/galera_cluster.inc
+# This could cause out of storage if run /dev/shm
+--source include/big_test.inc
 
 # Isolate node #2 
 --connection node_2

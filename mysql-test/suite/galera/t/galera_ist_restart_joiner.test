@@ -8,6 +8,8 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 --source suite/galera/include/galera_have_debug_sync.inc
+# This could cause out of storage if run /dev/shm
+--source include/big_test.inc
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1
