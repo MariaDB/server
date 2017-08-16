@@ -42,4 +42,6 @@ SELECT * FROM t1;
 i
 1
 DROP TABLE t1;
+set GLOBAL auto_increment_offset = 1;
+set GLOBAL auto_increment_offset = 2;
 # End of test

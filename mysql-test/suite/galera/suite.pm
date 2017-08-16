@@ -19,6 +19,9 @@ $ENV{WSREP_PROVIDER} = $provider;
 my ($spath) = grep { -f "$_/wsrep_sst_rsync"; } "$::bindir/scripts", $::path_client_bindir;
 return "No SST scripts" unless $spath;
 
+my ($cpath) = grep { -f "$_/mysql"; } "$::bindir/scripts", $::path_client_bindir;
+return "No scritps" unless $cpath;
+
 my ($epath) = grep { -f "$_/my_print_defaults"; } "$::bindir/extra", $::path_client_bindir;
 return "No my_print_defaults" unless $epath;
 
@@ -67,6 +70,8 @@ push @::global_suppressions,
      qr(WSREP: TO isolation failed for: .*),
      qr|WSREP: gcs_caused\(\) returned .*|,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(SYNCED\). Message ignored.|,
+     qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(JOINED\). Message ignored.|,
+     qr|WSREP: Unsupported protocol downgrade: incremental data collection disabled. Expect abort.|,
      qr(WSREP: Action message in non-primary configuration from member [0-9]*),
      qr(WSREP: discarding established .*),
    );
@@ -74,6 +79,7 @@ push @::global_suppressions,
 
 $ENV{PATH}="$epath:$ENV{PATH}";
 $ENV{PATH}="$spath:$ENV{PATH}" unless $epath eq $spath;
+$ENV{PATH}="$cpath:$ENV{PATH}" unless $cpath eq $spath;
 
 bless { };
 

@@ -64,6 +64,10 @@ USE test;
 SELECT * FROM t1;
 # Cleanup
 DROP TABLE t1;
+set GLOBAL auto_increment_offset = 1;
+
+--connection node_2
+set GLOBAL auto_increment_offset = 2;
 
 --source include/galera_end.inc
 --echo # End of test

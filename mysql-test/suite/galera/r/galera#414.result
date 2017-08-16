@@ -2,4 +2,6 @@ SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_on = OFF;
 SET SESSION wsrep_on = ON;
 CALL mtr.add_suppression("Failed to set packet size");
+set GLOBAL auto_increment_offset = 1;
 CALL mtr.add_suppression("Failed to set packet size");
+set GLOBAL auto_increment_offset = 2;
