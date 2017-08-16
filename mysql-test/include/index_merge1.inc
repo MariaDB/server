@@ -64,6 +64,8 @@ explain
 select * from t0 where key1 < 3 or key2 > 1020;
 select * from t0 where key1 < 3 or key2 > 1020;
 
+select * from t0 where key1=1022; # MDEV-13535 no-key-read select after keyread
+
 explain select * from t0 where key1 < 3 or key2 <4;
 
 explain

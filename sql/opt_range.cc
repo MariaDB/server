@@ -10889,13 +10889,13 @@ int read_keys_and_merge_scans(THD *thd,
   DBUG_ENTER("read_keys_and_merge");
 
   /* We're going to just read rowids. */
-  head->file->ha_start_keyread(head->s->primary_key);
   head->prepare_for_position();
 
   cur_quick_it.rewind();
   cur_quick= cur_quick_it++;
   bool first_quick= TRUE;
   DBUG_ASSERT(cur_quick != 0);
+  head->file->ha_start_keyread(cur_quick->index);
   
   /*
     We reuse the same instance of handler so we need to call both init and 
