@@ -1883,6 +1883,16 @@ buf_pool_init_instance(
 		} while (++chunk < buf_pool->chunks + buf_pool->n_chunks);
 
 		buf_pool->instance_no = instance_no;
+#ifdef HAVE_LIBNUMA
+#ifndef DBUG_OFF
+		if (fake_numa || mysql_numa_enable)
+#else
+		if (mysql_numa_enable)
+#endif // DBUG_OFF
+		{
+			buf_pool->numa_node_id = allowed_numa_nodes[instance_no];
+		}
+#endif // HAVE_LIBNUMA
 		buf_pool->read_ahead_area =
 			ut_min(BUF_READ_AHEAD_PAGES,
 			       ut_2_power_up(buf_pool->curr_size /
@@ -6998,6 +7008,8 @@ buf_stats_get_pool_info(
 	pool_info->pool_unique_id = pool_id;
 
 	pool_info->pool_size = buf_pool->curr_size;
+
+	pool_info->numa_node_id = buf_pool->numa_node_id;
 
 	pool_info->lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
 
