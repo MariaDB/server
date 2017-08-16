@@ -118,7 +118,8 @@ ulonglong CharToNumber(const char *p, int n, ulonglong maxval,
         maxval++;
         if (minus) *minus = true;
       } // endif Unsigned
-      /* fall through */
+
+			// Fall through
     case '+':
       p++;
       break;
@@ -664,7 +665,7 @@ bool TYPVAL<TYPE>::SetValue_pval(PVAL valp, bool chktype)
     if (chktype && Type != valp->GetType())
       return true;
 
-    if (!(Null = valp->IsNull() && Nullable))
+    if (!(Null = (valp->IsNull() && Nullable)))
       Tval = GetTypedValue(valp);
     else
       Reset();
@@ -1349,7 +1350,7 @@ bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
 
     char buf[64];
 
-    if (!(Null = valp->IsNull() && Nullable))
+    if (!(Null = (valp->IsNull() && Nullable)))
       strncpy(Strp, valp->GetCharString(buf), Len);
     else
       Reset();
@@ -2566,7 +2567,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 			} else if (valp->GetType() == TYPE_BIGINT &&
 				       !(valp->GetBigintValue() % 1000)) {
 				// Assuming that this timestamp is in milliseconds
-				Tval = valp->GetBigintValue() / 1000;
+				Tval = (int)(valp->GetBigintValue() / 1000);
 			}	else
         Tval = valp->GetIntValue();
 

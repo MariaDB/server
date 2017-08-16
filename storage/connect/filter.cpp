@@ -1406,7 +1406,7 @@ PFIL FILTER::Copy(PTABS t)
   } // end of Copy
 #endif // 0
 
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
 /***********************************************************************/
 /*  Make selector json representation for Mongo tables.                */
 /***********************************************************************/
@@ -1484,7 +1484,7 @@ bool FILTER::MakeSelector(PGLOBAL g, PSTRG s)
 	s->Append('}');
 	return false;
 } // end of MakeSelector
-#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
+#endif   // MONGO_SUPPORT
 
 /*********************************************************************/
 /*  Make file output of FILTER contents.                             */

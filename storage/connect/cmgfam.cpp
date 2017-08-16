@@ -1,7 +1,7 @@
-/************ MONGO FAM C++ Program Source Code File (.CPP) ************/
-/* PROGRAM NAME: mongofam.cpp                                          */
+/************** CMGFAM C++ Program Source Code File (.CPP) *************/
+/* PROGRAM NAME: cmgfam.cpp                                            */
 /* -------------                                                       */
-/*  Version 1.3                                                        */
+/*  Version 1.4                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -30,18 +30,18 @@
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "tabjson.h"
-#include "mongofam.h"
+#include "cmgfam.h"
 
 #if defined(UNIX) || defined(UNIV_LINUX)
 #include "osutil.h"
 #endif
 
-/* --------------------------- Class MGOFAM -------------------------- */
+/* --------------------------- Class CMGFAM -------------------------- */
 
 /***********************************************************************/
 /*  Constructors.                                                      */
 /***********************************************************************/
-MGOFAM::MGOFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
+CMGFAM::CMGFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 {
 	Cmgp = NULL;
 	Pcg.Tdbp = NULL;
@@ -66,20 +66,20 @@ MGOFAM::MGOFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 	Mode = MODE_ANY;
 	Done = false;
 	Lrecl = tdp->Lrecl + tdp->Ending;
-} // end of MGOFAM standard constructor
+} // end of CMGFAM standard constructor
  
- MGOFAM::MGOFAM(PMGOFAM tdfp) : DOSFAM(tdfp)
+ CMGFAM::CMGFAM(PCMGFAM tdfp) : DOSFAM(tdfp)
 {
 	Pcg = tdfp->Pcg;
 	To_Fbt = tdfp->To_Fbt;
 	Mode = tdfp->Mode;
 	Done = tdfp->Done;
- } // end of MGOFAM copy constructor
+ } // end of CMGFAM copy constructor
 
 /***********************************************************************/
 /*  Reset: reset position values at the beginning of file.             */
 /***********************************************************************/
-void MGOFAM::Reset(void)
+void CMGFAM::Reset(void)
 {
 	TXTFAM::Reset();
 	Fpos = Tpos = Spos = 0;
@@ -88,7 +88,7 @@ void MGOFAM::Reset(void)
 /***********************************************************************/
 /*  MGO GetFileLength: returns file size in number of bytes.           */
 /***********************************************************************/
-int MGOFAM::GetFileLength(PGLOBAL g)
+int CMGFAM::GetFileLength(PGLOBAL g)
 {
 	return 0;
 } // end of GetFileLength
@@ -98,7 +98,7 @@ int MGOFAM::GetFileLength(PGLOBAL g)
 /*  This function can be called with a null argument to test the       */
 /*  availability of Cardinality implementation (1 yes, 0 no).          */
 /***********************************************************************/
-int MGOFAM::Cardinality(PGLOBAL g)
+int CMGFAM::Cardinality(PGLOBAL g)
 {
 	if (!g)
 		return 1;
@@ -109,7 +109,7 @@ int MGOFAM::Cardinality(PGLOBAL g)
 /***********************************************************************/
 /*  Note: This function is not really implemented yet.                 */
 /***********************************************************************/
-int MGOFAM::MaxBlkSize(PGLOBAL, int s)
+int CMGFAM::MaxBlkSize(PGLOBAL, int s)
 {
 	return s;
 } // end of MaxBlkSize
@@ -117,7 +117,7 @@ int MGOFAM::MaxBlkSize(PGLOBAL, int s)
 /***********************************************************************/
 /*  Init: initialize MongoDB processing.                               */
 /***********************************************************************/
-bool MGOFAM::Init(PGLOBAL g)
+bool CMGFAM::Init(PGLOBAL g)
 {
 	if (Done)
 		return false;
@@ -141,7 +141,7 @@ bool MGOFAM::Init(PGLOBAL g)
 /***********************************************************************/
 /*  OpenTableFile: Open a MongoDB table.                               */
 /***********************************************************************/
-bool MGOFAM::OpenTableFile(PGLOBAL g)
+bool CMGFAM::OpenTableFile(PGLOBAL g)
 {
 	Mode = Tdbp->GetMode();
 
@@ -165,7 +165,7 @@ bool MGOFAM::OpenTableFile(PGLOBAL g)
 /***********************************************************************/
 /*  GetRowID: return the RowID of last read record.                    */
 /***********************************************************************/
-int MGOFAM::GetRowID(void)
+int CMGFAM::GetRowID(void)
 {
 	return Rows;
 } // end of GetRowID
@@ -173,7 +173,7 @@ int MGOFAM::GetRowID(void)
 /***********************************************************************/
 /*  GetPos: return the position of last read record.                   */
 /***********************************************************************/
-int MGOFAM::GetPos(void)
+int CMGFAM::GetPos(void)
 {
 	return Fpos;
 } // end of GetPos
@@ -181,7 +181,7 @@ int MGOFAM::GetPos(void)
 /***********************************************************************/
 /*  GetNextPos: return the position of next record.                    */
 /***********************************************************************/
-int MGOFAM::GetNextPos(void)
+int CMGFAM::GetNextPos(void)
 {
 	return Fpos;						// TODO
 } // end of GetNextPos
@@ -189,7 +189,7 @@ int MGOFAM::GetNextPos(void)
 /***********************************************************************/
 /*  SetPos: Replace the table at the specified position.               */
 /***********************************************************************/
-bool MGOFAM::SetPos(PGLOBAL g, int pos)
+bool CMGFAM::SetPos(PGLOBAL g, int pos)
 {
 	Fpos = pos;
 	Placed = true;
@@ -199,25 +199,25 @@ bool MGOFAM::SetPos(PGLOBAL g, int pos)
 /***********************************************************************/
 /*  Record file position in case of UPDATE or DELETE.                  */
 /***********************************************************************/
-bool MGOFAM::RecordPos(PGLOBAL g)
+bool CMGFAM::RecordPos(PGLOBAL g)
 {
-	strcpy(g->Message, "MGOFAM::RecordPos NIY");
+	strcpy(g->Message, "CMGFAM::RecordPos NIY");
 	return true;
 } // end of RecordPos
 
 /***********************************************************************/
 /*  Initialize Fpos and the current position for indexed DELETE.       */
 /***********************************************************************/
-int MGOFAM::InitDelete(PGLOBAL g, int fpos, int spos)
+int CMGFAM::InitDelete(PGLOBAL g, int fpos, int spos)
 {
-	strcpy(g->Message, "MGOFAM::InitDelete NIY");
+	strcpy(g->Message, "CMGFAM::InitDelete NIY");
 	return RC_FX;
 } // end of InitDelete
 
 /***********************************************************************/
 /*  Skip one record in file.                                           */
 /***********************************************************************/
-int MGOFAM::SkipRecord(PGLOBAL g, bool header)
+int CMGFAM::SkipRecord(PGLOBAL g, bool header)
 {
 	return RC_OK;                  // Dummy
 } // end of SkipRecord
@@ -225,7 +225,7 @@ int MGOFAM::SkipRecord(PGLOBAL g, bool header)
 /***********************************************************************/
 /*  ReadBuffer: Get next document from a collection.                   */
 /***********************************************************************/
-int MGOFAM::ReadBuffer(PGLOBAL g)
+int CMGFAM::ReadBuffer(PGLOBAL g)
 {
 	int rc = Cmgp->ReadNext(g);
 
@@ -239,7 +239,7 @@ int MGOFAM::ReadBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  WriteBuffer: File write routine for MGO access method.             */
 /***********************************************************************/
-int MGOFAM::WriteBuffer(PGLOBAL g)
+int CMGFAM::WriteBuffer(PGLOBAL g)
 {
 	return Cmgp->Write(g);
 } // end of WriteBuffer
@@ -247,7 +247,7 @@ int MGOFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base delete line routine for MGO and BLK access methods.      */
 /***********************************************************************/
-int MGOFAM::DeleteRecords(PGLOBAL g, int irc)
+int CMGFAM::DeleteRecords(PGLOBAL g, int irc)
 {
 	return (irc == RC_OK) ? WriteBuffer(g) : RC_OK;
 } // end of DeleteRecords
@@ -255,7 +255,7 @@ int MGOFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Table file close routine for MGO access method.                    */
 /***********************************************************************/
-void MGOFAM::CloseTableFile(PGLOBAL g, bool)
+void CMGFAM::CloseTableFile(PGLOBAL g, bool)
 {
 	Cmgp->Close();
 	Done = false;
@@ -264,7 +264,7 @@ void MGOFAM::CloseTableFile(PGLOBAL g, bool)
 /***********************************************************************/
 /*  Rewind routine for MGO access method.                              */
 /***********************************************************************/
-void MGOFAM::Rewind(void)
+void CMGFAM::Rewind(void)
 {
 	Cmgp->Rewind();
 } // end of Rewind

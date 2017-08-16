@@ -53,6 +53,18 @@ extern "C" {
 	DllExport char *json_array_delete(UDF_EXEC_ARGS);
 	DllExport void json_array_delete_deinit(UDF_INIT*);
 
+	DllExport my_bool jsonsum_int_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport long long jsonsum_int(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport void jsonsum_int_deinit(UDF_INIT*);
+
+	DllExport my_bool jsonsum_real_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport double jsonsum_real(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport void jsonsum_real_deinit(UDF_INIT*);
+
+	DllExport my_bool jsonavg_real_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport double jsonavg_real(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport void jsonavg_real_deinit(UDF_INIT*);
+
 	DllExport my_bool json_make_object_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *json_make_object(UDF_EXEC_ARGS);
 	DllExport void json_make_object_deinit(UDF_INIT*);

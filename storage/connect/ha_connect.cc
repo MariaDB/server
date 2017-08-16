@@ -180,6 +180,10 @@ extern "C" {
 #endif  // !__WIN__
 } // extern "C"
 
+#if defined(NEW_MAR)
+#define stored_in_db stored_in_db()
+#endif   // NEW_MAR)
+
 #if defined(XMAP)
        my_bool xmap= false;
 #endif   // XMAP
@@ -197,11 +201,9 @@ extern "C" {
 			 char *ClassPath;
 #endif   // JDBC_SUPPORT
 
-#if defined(__WIN__)
-CRITICAL_SECTION parsec;      // Used calling the Flex parser
-#else   // !__WIN__
-pthread_mutex_t parmut = PTHREAD_MUTEX_INITIALIZER;
-#endif  // !__WIN__
+pthread_mutex_t parmut;
+pthread_mutex_t usrmut;
+pthread_mutex_t tblmut;
 
 /***********************************************************************/
 /*  Utility functions.                                                 */
@@ -219,10 +221,13 @@ bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
 	                                           PCSZ tab, PCSZ src, int port);
 bool    ZipLoadFile(PGLOBAL, PCSZ, PCSZ, PCSZ, bool, bool);
 bool    ExactInfo(void);
+#if defined(CMGO_SUPPORT)
 void    mongo_init(bool);
+#endif   // CMGO_SUPPORT
 USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
+char   *GetJsonNull(void);
 uint    GetJsonGrpSize(void);
 char   *GetJavaWrapper(void);
 uint    GetWorkSize(void);
@@ -332,6 +337,13 @@ static MYSQL_THDVAR_ENUM(
   0,                               // def (no)
   &xconv_typelib);                 // typelib
 
+// Null representation for JSON values
+static MYSQL_THDVAR_STR(json_null,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Representation of Json null values",
+	//     check_json_null, update_json_null,
+	NULL, NULL, "<null>");
+
 // Estimate max number of rows for JSON aggregate functions
 static MYSQL_THDVAR_UINT(json_grp_size,
        PLUGIN_VAR_RQCMDARG,             // opt
@@ -343,7 +355,7 @@ static MYSQL_THDVAR_UINT(json_grp_size,
 static MYSQL_THDVAR_STR(java_wrapper,
 	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
 	"Java wrapper class name",
-	//     check_class_path, update_class_path,
+	//     check_java_wrapper, update_java_wrapper,
 	NULL, NULL, "wrappers/JdbcInterface");
 #endif   // JDBC_SUPPORT
 
@@ -383,6 +395,8 @@ bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
+char *GetJsonNull(void)
+	{return connect_hton ? THDVAR(current_thd, json_null) : NULL;}
 uint GetJsonGrpSize(void)
   {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
 uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
@@ -669,18 +683,20 @@ static int connect_init_func(void *p)
 
 #if defined(__WIN__)
   sql_print_information("CONNECT: %s", compver);
-	InitializeCriticalSection((LPCRITICAL_SECTION)&parsec);
 #else   // !__WIN__
   sql_print_information("CONNECT: %s", version);
 #endif  // !__WIN__
+	pthread_mutex_init(&parmut, NULL);
+	pthread_mutex_init(&usrmut, NULL);
+	pthread_mutex_init(&tblmut, NULL);
 
 #if defined(LIBXML2_SUPPORT)
   XmlInitParserLib();
 #endif   // LIBXML2_SUPPORT
 
-#if defined(MONGO_SUPPORT)
+#if defined(CMGO_SUPPORT)
 	mongo_init(true);
-#endif   // MONGO_SUPPORT
+#endif   // CMGO_SUPPORT
 
   init_connect_psi_keys();
 
@@ -720,21 +736,20 @@ static int connect_done_func(void *)
   XmlCleanupParserLib();
 #endif // LIBXML2_SUPPORT
 
-#if defined(MONGO_SUPPORT)
+#if defined(CMGO_SUPPORT)
 	mongo_init(false);
-#endif   // MONGO_SUPPORT
+#endif   // CMGO_SUPPORT
 
 #ifdef JDBC_SUPPORT
 	JAVAConn::ResetJVM();
 #endif // JDBC_SUPPORT
 
-#if	defined(__WIN__)
-	DeleteCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else   // !__WIN__
+#if	!defined(__WIN__)
 	PROFILE_End();
 #endif  // !__WIN__
 
-  for (pc= user_connect::to_users; pc; pc= pn) {
+	pthread_mutex_lock(&usrmut);
+	for (pc= user_connect::to_users; pc; pc= pn) {
     if (pc->g)
       PlugCleanup(pc->g, true);
 
@@ -742,6 +757,11 @@ static int connect_done_func(void *)
     delete pc;
     } // endfor pc
 
+	pthread_mutex_unlock(&usrmut);
+
+	pthread_mutex_destroy(&usrmut);
+	pthread_mutex_destroy(&parmut);
+	pthread_mutex_destroy(&tblmut);
 	connect_hton= NULL;
   DBUG_RETURN(error);
 } // end of connect_done_func
@@ -854,6 +874,7 @@ ha_connect::~ha_connect(void)
 static void PopUser(PCONNECT xp)
 {
 	if (xp) {
+		pthread_mutex_lock(&usrmut);
 		xp->count--;
 
 		if (!xp->count) {
@@ -878,6 +899,7 @@ static void PopUser(PCONNECT xp)
 			delete xp;
 		} // endif count
 
+		pthread_mutex_unlock(&usrmut);
 	} // endif xp
 
 } // end of PopUser
@@ -891,23 +913,36 @@ static PCONNECT GetUser(THD *thd, PCONNECT xp)
 	if (!thd)
     return NULL;
 
-  if (xp && thd == xp->thdp)
-    return xp;
+	if (xp) {
+		if (thd == xp->thdp)
+			return xp;
 
-  for (xp= user_connect::to_users; xp; xp= xp->next)
+		PopUser(xp);		// Avoid memory leak
+	} // endif xp
+
+	pthread_mutex_lock(&usrmut);
+
+	for (xp= user_connect::to_users; xp; xp= xp->next)
     if (thd == xp->thdp)
       break;
 
-  if (!xp) {
-    xp= new user_connect(thd);
+	if (xp)
+		xp->count++;
 
-    if (xp->user_init()) {
-      delete xp;
-      xp= NULL;
-      } // endif user_init
+	pthread_mutex_unlock(&usrmut);
 
-  } else
-    xp->count++;
+	if (!xp) {
+		xp = new user_connect(thd);
+
+		if (xp->user_init()) {
+			delete xp;
+			xp = NULL;
+		} // endif user_init
+
+	}	// endif xp
+
+  //} else
+  //  xp->count++;
 
   return xp;
 } // end of GetUser
@@ -1458,7 +1493,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     case MYSQL_TYPE_VARCHAR:
     case MYSQL_TYPE_VAR_STRING:
       pcf->Flags |= U_VAR;
-      /* fall through */
+			// fall through
     default:
       pcf->Type= MYSQLtoPLG(fp->type(), &v);
       break;
@@ -1528,7 +1563,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Flags |= U_NULLS;
 
   // Mark virtual columns as such
-  if (fp->vcol_info && !fp->stored_in_db())
+  if (fp->vcol_info && !fp->stored_in_db)
     pcf->Flags |= U_VIRTUAL;
 
   pcf->Key= 0;   // Not used when called from MySQL
@@ -2024,7 +2059,7 @@ int ha_connect::MakeRecord(char *buf)
   for (field= table->field; *field && !rc; field++) {
     fp= *field;
 
-    if (fp->vcol_info && !fp->stored_in_db())
+    if (fp->vcol_info && !fp->stored_in_db)
       continue;            // This is a virtual column
 
     if (bitmap_is_set(map, fp->field_index) || alter) {
@@ -2145,7 +2180,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
   for (Field **field=table->field ; *field ; field++) {
     fp= *field;
 
-    if ((fp->vcol_info && !fp->stored_in_db()) ||
+    if ((fp->vcol_info && !fp->stored_in_db) ||
          fp->option_struct->special)
       continue;            // Is a virtual column possible here ???
 
@@ -2577,7 +2612,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
       case Item_func::LE_FUNC: vop= OP_LE;  break;
       case Item_func::GE_FUNC: vop= OP_GE;  break;
       case Item_func::GT_FUNC: vop= OP_GT;  break;
-      case Item_func::IN_FUNC: vop= OP_IN;
+      case Item_func::IN_FUNC: vop= OP_IN;	/* fall through */
       case Item_func::BETWEEN:
         ismul= true;
         neg= ((Item_func_opt_neg *)condf)->negated;
@@ -2832,10 +2867,10 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 			case Item_func::GT_FUNC:     vop= OP_GT;   break;
 			case Item_func::LIKE_FUNC:   vop= OP_LIKE; break;
 			case Item_func::ISNOTNULL_FUNC:
-				neg = true;
-				/* fall through */
+				neg = true;	
+				// fall through
 			case Item_func::ISNULL_FUNC: vop= OP_NULL; break;
-			case Item_func::IN_FUNC:     vop= OP_IN;
+			case Item_func::IN_FUNC:     vop= OP_IN; /* fall through */
       case Item_func::BETWEEN:
         ismul= true;
         neg= ((Item_func_opt_neg *)condf)->negated;
@@ -2962,6 +2997,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                 break;
                 } // endif ODBC
 
+							// fall through
             case MYSQL_TYPE_DATE:
               if (tty == TYPE_AM_ODBC) {
                 strcat(s, "{d '");
@@ -4363,7 +4399,11 @@ bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
 MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
                            MODE newmode, bool *chk, bool *cras)
 {
+#if defined(DEVELOPMENT)
+	if (true) {
+#else
   if (trace) {
+#endif
     LEX_STRING *query_string= thd_query_string(thd);
     htrc("%p check_mode: cmdtype=%d\n", this, thd_sql_command(thd));
     htrc("Cmd=%.*s\n", (int) query_string->length, query_string->str);
@@ -4375,7 +4415,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
   if (newmode == MODE_WRITE) {
     switch (thd_sql_command(thd)) {
       case SQLCOM_LOCK_TABLES:
-        locked= 2;
+        locked= 2; // fall through
       case SQLCOM_CREATE_TABLE:
       case SQLCOM_INSERT:
       case SQLCOM_LOAD:
@@ -5324,14 +5364,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	bool     cnc= false;
   int      cto= -1, qto= -1;
 #endif   // ODBC_SUPPORT
+#if defined(JDBC_SUPPORT) || defined(MONGO_SUPPORT)
 #if defined(JDBC_SUPPORT)
 	PJPARM   sjp= NULL;
 #endif   // JDBC_SUPPORT
-#if defined(JDBC_SUPPORT) || defined(MONGO_SUPPORT)
 	PCSZ     driver= NULL;
 	char    *url= NULL;
-//char    *prop= NULL;
-#endif   // JDBC_SUPPORT  || MONGO_SUPPORT
+#endif   // JDBC_SUPPORT || MONGO_SUPPORT
   uint     tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool     bif, ok= false, dbf= false;
   TABTYPE  ttp= TAB_UNDEF;
@@ -5339,6 +5378,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   PCOLRES  crp;
   PCONNECT xp= NULL;
   PGLOBAL  g= GetPlug(thd, xp);
+
+  if (!g)
+    return HA_ERR_INTERNAL_ERROR;
+
   PDBUSER  dup= PlgGetUser(g);
   PCATLG   cat= (dup) ? dup->Catalog : NULL;
   PTOS     topt= table_s->option_struct;
@@ -5346,10 +5389,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   String   sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
-
-  if (!g)
-    return HA_ERR_INTERNAL_ERROR;
-
   user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= zfn= dsn= NULL;
 
   // Get the useful create options
@@ -5606,14 +5645,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					ok = true;
 
 				break;
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
 			case TAB_MONGO:
 				if (!topt->tabname)
 					topt->tabname = tab;
 
 				ok = true;
 				break;
-#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
+#endif   // MONGO_SUPPORT
 			case TAB_VIR:
 				ok = true;
 				break;
@@ -5756,34 +5795,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_JSON:
 					qrp = JSONColumns(g, db, dsn, topt, fnc == FNC_COL);
 					break;
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
 				case TAB_MONGO:
 					if (!(url = strz(g, create_info->connect_string)) || !*url)
 						url = "mongodb://localhost:27017";
 
-#if !defined(MONGO_SUPPORT)
-					driver = "JAVA";
-					// strcpy(g->Message, "No column discovery for Java MONGO tables yet");
-					// Temporarily use the JSONColumns function
-					qrp = JSONColumns(g, db, url, topt, fnc == FNC_COL);
-#elif !defined(JDBC_SUPPORT)
-					driver = "C";
 					qrp = MGOColumns(g, db, url, topt, fnc == FNC_COL);
-#else		 // MONGO_SUPPORT  && JDBC_SUPPORT
-					if (!driver)
-						driver = "C";
-
-					if (toupper(*driver) == 'C') {
-						qrp = MGOColumns(g, db, url, topt, fnc == FNC_COL);
-					} else {
-						// strcpy(g->Message, "No column discovery for Java MONGO tables yet");
-						// Temporarily use the JSONColumns function
-						qrp = JSONColumns(g, db, url, topt, fnc == FNC_COL);
-					} // endif driver
-
-#endif   // MONGO_SUPPORT  && JDBC_SUPPORT
 					break;
-#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
+#endif   // MONGO_SUPPORT
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
 				case TAB_XML:
 					qrp = XMLColumns(g, (char*)db, tab, topt, fnc == FNC_COL);
@@ -6201,6 +6220,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         } // endif tabname
 
+				// fall through
       case TAB_MYSQL:
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
         if (!part_info)
@@ -6323,7 +6343,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   for (field= table_arg->field; *field; field++) {
     fp= *field;
 
-    if (fp->vcol_info && !fp->stored_in_db())
+    if (fp->vcol_info && !fp->stored_in_db)
       continue;            // This is a virtual column
 
     if (fp->flags & AUTO_INCREMENT_FLAG) {
@@ -6691,7 +6711,7 @@ bool ha_connect::FileExists(const char *fn, bool bf)
 } // end of FileExists
 
 // Called by SameString and NoFieldOptionChange
-bool ha_connect::CheckString(const char *str1, const char *str2)
+bool ha_connect::CheckString(PCSZ str1, PCSZ str2)
 {
   bool  b1= (!str1 || !*str1), b2= (!str2 || !*str2);
 
@@ -7139,6 +7159,7 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 #if defined(XMSG)
   MYSQL_SYSVAR(errmsg_dir_path),
 #endif   // XMSG
+	MYSQL_SYSVAR(json_null),
   MYSQL_SYSVAR(json_grp_size),
 #if defined(JDBC_SUPPORT)
 	MYSQL_SYSVAR(jvm_path),

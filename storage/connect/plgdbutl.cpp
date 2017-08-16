@@ -70,7 +70,13 @@
 #include "rcmsg.h"
 #ifdef ZIP_SUPPORT
 #include "filamzip.h"
-#endif   // ZIP_SUPPORT
+#endif // ZIP_SUPPORT
+#ifdef JDBC_SUPPORT
+#include "javaconn.h"
+#endif // JDBC_SUPPORT
+#ifdef CMGO_SUPPORT
+#include "cmgoconn.h"
+#endif // MONGO_SUPPORT
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -82,11 +88,11 @@ extern "C" {
 extern char version[];
 } // extern "C"
 
-#if defined(__WIN__)
-extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
-#else   // !__WIN__
+//#if defined(__WIN__)
+//extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
+//#else   // !__WIN__
 extern pthread_mutex_t parmut;
-#endif  // !__WIN__
+//#endif  // !__WIN__
 
 // The debug trace used by the main thread
        FILE *pfile = NULL;
@@ -108,6 +114,9 @@ void CloseXMLFile(PGLOBAL, PFBLOCK, bool);
 #include "libdoc.h"
 #endif   // LIBXML2_SUPPORT
 
+#ifdef ODBC_SUPPORT
+void OdbcClose(PGLOBAL g, PFBLOCK fp);
+#endif   // ODBC_SUPPORT
 
 /***********************************************************************/
 /* Routines for file IO with error reporting to g->Message             */
@@ -695,23 +704,11 @@ PDTP MakeDateFormat(PGLOBAL g, PCSZ dfmt, bool in, bool out, int flag)
 
   /*********************************************************************/
   /* Call the FLEX generated parser. In multi-threading mode the next  */
-  /* instruction is included in an Enter/LeaveCriticalSection bracket. */
+  /* instruction is protected by mutex fmdflex using static variables. */
   /*********************************************************************/
-	//#if defined(THREAD)
-#if defined(__WIN__)
-  EnterCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else   // !__WIN__
   pthread_mutex_lock(&parmut);
-#endif  // !__WIN__
-//#endif  //  THREAD
   rc = fmdflex(pdp);
-//#if defined(THREAD)
-#if defined(__WIN__)
-  LeaveCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else   // !__WIN__
   pthread_mutex_unlock(&parmut);
-#endif  // !__WIN__
-//#endif  //  THREAD
 
   if (trace)
     htrc("Done: in=%s out=%s rc=%d\n", SVP(pdp->InFmt), SVP(pdp->OutFmt), rc);
@@ -886,7 +883,7 @@ FILE *PlugReopenFile(PGLOBAL g, PFBLOCK fp, LPCSTR md)
 /*  Close file routine: the purpose of this routine is to avoid        */
 /*  double closing that freeze the system on some Unix platforms.      */
 /***********************************************************************/
-int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
+int PlugCloseFile(PGLOBAL g, PFBLOCK fp, bool all)
   {
   int rc = 0;
 
@@ -935,6 +932,13 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
       CloseXML2File(g, fp, all);
       break;
 #endif   // LIBXML2_SUPPORT
+#ifdef ODBC_SUPPORT
+		case TYPE_FB_ODBC:
+			OdbcClose(g, fp);
+			fp->Count = 0;
+			fp->File = NULL;
+			break;
+#endif   // ODBC_SUPPORT
 #ifdef ZIP_SUPPORT
 		case TYPE_FB_ZIP:
 			if (fp->Mode == MODE_INSERT)
@@ -948,6 +952,20 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
 			fp->File = NULL;
 			break;
 #endif   // ZIP_SUPPORT
+#ifdef JDBC_SUPPORT
+		case TYPE_FB_JAVA:
+			((JAVAConn*)fp->File)->Close();
+			fp->Count = 0;
+			fp->File = NULL;
+			break;
+#endif   // JDBC_SUPPORT
+#ifdef CMGO_SUPPORT
+		case TYPE_FB_MONGO:
+			((CMgoConn*)fp->File)->Close();
+			fp->Count = 0;
+			fp->File = NULL;
+			break;
+#endif   // MONGO_SUPPORT
 		default:
       rc = RC_FX;
     } // endswitch Type

@@ -1,5 +1,5 @@
-/************** MongoFam H Declares Source Code File (.H) **************/
-/*  Name: mongofam.h    Version 1.4                                    */
+/*************** CMGFam H Declares Source Code File (.H) ***************/
+/*  Name: cmgfam.h    Version 1.5                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2017         */
 /*                                                                     */
@@ -8,19 +8,19 @@
 #include "cmgoconn.h"
 
 typedef class TXTFAM *PTXF;
-typedef class MGOFAM *PMGOFAM;
+typedef class CMGFAM *PCMGFAM;
 typedef class MGODEF *PMGODEF;
-typedef class TDBMGO *PTDBMGO;
+typedef class TDBCMG *PTDBCMG;
 
 /***********************************************************************/
 /*  This is the MongoDB Access Method class declaration.               */
 /***********************************************************************/
-class DllExport MGOFAM : public DOSFAM {
+class DllExport CMGFAM : public DOSFAM {
 	friend void mongo_init(bool);
 public:
 	// Constructor
-	MGOFAM(PJDEF tdp);
-	MGOFAM(PMGOFAM txfp);
+	CMGFAM(PJDEF tdp);
+	CMGFAM(PCMGFAM txfp);
 
 	// Implementation
 	virtual AMT   GetAmType(void) { return TYPE_AM_MGO; }
@@ -28,7 +28,7 @@ public:
 	virtual int   GetPos(void);
 	virtual int   GetNextPos(void);
 	void  SetTdbp(PTDBDOS tdbp) { Tdbp = tdbp; }
-	virtual PTXF  Duplicate(PGLOBAL g) { return (PTXF)new(g) MGOFAM(this); }
+	virtual PTXF  Duplicate(PGLOBAL g) { return (PTXF)new(g) CMGFAM(this); }
 	void  SetLrecl(int lrecl) { Lrecl = lrecl; }
 
 	// Methods
@@ -61,5 +61,5 @@ protected:
 	PFBLOCK   To_Fbt;     // Pointer to temp file block
 	MODE      Mode;
 	bool      Done;			  // Init done
-}; // end of class MGOFAM
+}; // end of class CMGFAM
 

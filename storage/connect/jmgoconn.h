@@ -19,31 +19,6 @@ typedef class MGODEF *PMGODEF;
 typedef class TDBJMG *PTDBJMG;
 typedef class JMGCOL *PJMGCOL;
 
-#if 0
-/***********************************************************************/
-/*  Class used to get the columns of a mongo collection.               */
-/***********************************************************************/
-class MGODISC : public BLOCK {
-public:
-	// Constructor
-	MGODISC(PGLOBAL g, int *lg);
-
-	// Functions
-	int  GetColumns(PGLOBAL g, char *db, PTOS topt);
-	bool FindInDoc(PGLOBAL g, bson_iter_t *iter, const bson_t *doc,
-		char *pcn, char *pfmt, int i, int k, bool b);
-
-	// Members
-	BCOL    bcol;
-	PBCOL   bcp, fbcp, pbcp;
-	PMGODEF tdp;
-	TDBJMG *tmgp;
-	int    *length;
-	int     n, k, lvl;
-	bool    all;
-}; // end of MGODISC
-#endif // 0
-
 typedef struct JKCOL {
 	JKCOL *Next;
 	PJNCOL Jncolp;
@@ -73,6 +48,7 @@ public:
 /***********************************************************************/
 class JMgoConn : public JAVAConn {
 	friend class TDBJMG;
+	friend class JMGDISC;
 	//friend class TDBXJDC;
 	//friend PQRYRES GetColumnInfo(PGLOBAL, char*&, char *, int, PVBLK&);
 private:
@@ -132,5 +108,6 @@ protected:
 	jmethodID deleteid;									// The CollDelete method ID
 	PJNCOL    Fpc;				              // To JNCOL classes
 	int       m_Fetch;
+	int       m_Ncol;
 	int       m_Version;								// Java driver version (2 or 3)
 }; // end of JMgoConn class definition

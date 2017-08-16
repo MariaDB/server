@@ -61,9 +61,9 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
 //virtual PXOB   CheckSubQuery(PGLOBAL, PSQL);
 //virtual bool   CheckLocal(PTDB);
 //virtual int    CheckSpcCol(PTDB tdbp, int n);
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
 					bool   MakeSelector(PGLOBAL g, PSTRG s);
-#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
+#endif   // MONGO_SUPPORT
 	virtual void   Printf(PGLOBAL g, FILE *f, uint n);
   virtual void   Prints(PGLOBAL g, char *ps, uint z);
 //        PFIL   Linearize(bool nosep);

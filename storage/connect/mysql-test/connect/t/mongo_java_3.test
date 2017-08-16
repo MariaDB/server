@@ -1,0 +1,10 @@
+-- source jdbconn.inc
+-- source mongo.inc
+
+eval SET GLOBAL connect_class_path='$MTR_SUITE_DIR/std_data/Mongo3.jar';
+let $DRV= Java;
+let $VERS= 3;
+let $TYPE= MONGO;
+
+-- source mongo_test.inc
+-- source jdbconn_cleanup.inc

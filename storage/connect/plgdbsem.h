@@ -48,7 +48,10 @@ enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
              TYPE_FB_HANDLE  = 24,    /* File block (handle)           */
              TYPE_FB_XML     = 21,    /* DOM XML file block            */
              TYPE_FB_XML2    = 27,    /* libxml2 XML file block        */
-             TYPE_FB_ZIP     = 28};   /* ZIP file block                */
+	           TYPE_FB_ODBC    = 25,    /* ODBC file block               */
+						 TYPE_FB_ZIP     = 28,    /* ZIP file block                */
+	           TYPE_FB_JAVA    = 29,    /* JAVA file block               */
+						 TYPE_FB_MONGO   = 30};   /* MONGO file block              */
 
 enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
               TAB_DOS   =  1,   /* Fixed column offset, variable LRECL */

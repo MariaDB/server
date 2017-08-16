@@ -110,12 +110,13 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 	int type;
 
 	switch (stp) {
-	case -1:   // LONGVARCHAR
-	case -16:  // LONGNVARCHAR	(unicode)
+	case -1:   // LONGVARCHAR, TEXT
+	case -16:  // LONGNVARCHAR, NTEXT	(unicode)
 		if (GetTypeConv() != TPC_YES)
 			return TYPE_ERROR;
 		else
 		  len = MY_MIN(abs(len), GetConvSize());
+		// Pass through
 	case 12:   // VARCHAR
 	case -9:   // NVARCHAR	(unicode)
 		v = 'V';
@@ -289,7 +290,7 @@ PQRYRES JDBCColumns(PGLOBAL g, PCSZ db, PCSZ table, PCSZ colpat,
 	if (trace)
 		htrc("Getting col results ncol=%d\n", qrp->Nbcol);
 
-	if (!(cap = AllocCatInfo(g, CAT_COL, db, table, qrp)))
+	if (!(cap = AllocCatInfo(g, JCAT_COL, db, table, qrp)))
 		return NULL;
 
 	// Colpat cannot be null or empty for some drivers
@@ -410,7 +411,7 @@ PQRYRES JDBCTables(PGLOBAL g, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
 		return qrp;
 
 	// Tabpat cannot be null or empty for some drivers
-	if (!(cap = AllocCatInfo(g, CAT_TAB, db, 
+	if (!(cap = AllocCatInfo(g, JCAT_TAB, db, 
 	               (tabpat && *tabpat) ? tabpat : PlugDup(g, "%"), qrp)))
 		return NULL;
 
@@ -465,7 +466,7 @@ PQRYRES JDBCDrivers(PGLOBAL g, int maxres, bool info)
 	if (!info) {
 		jcp = new(g) JDBConn(g, NULL);
 
-		if (jcp->Open(NULL) != RC_OK)
+		if (jcp->Open(g) != RC_OK)
 			return NULL;
 
 		if (!maxres)
@@ -803,9 +804,10 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	switch (ctyp) {
 	case 12:          // VARCHAR
 	case -9:          // NVARCHAR
-	case -1:          // LONGVARCHAR
+	case -1:          // LONGVARCHAR, TEXT
 	case 1:           // CHAR
 	case -15:         // NCHAR
+	case -16:         // LONGNVARCHAR, NTEXT
 	case 3:           // DECIMAL
 	case -8:          // ROWID
 		if (jb && ctyp != 3)
@@ -1226,7 +1228,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 			case 5: crp->Name = "Nullable";  break;
 		} // endswitch i
 
-		// Build the java string array
+		// Build the java int array
 		jintArray val = env->NewIntArray(4);
 
 		if (val == nullptr) {
@@ -1407,28 +1409,19 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 
 		// Now do call the proper JDBC API
 		switch (cap->Id) {
-		case CAT_COL:
+		case JCAT_COL:
 			fnc = "GetColumns";
 			break;
-		case CAT_TAB:
+		case JCAT_TAB:
 			fnc = "GetTables";
 			break;
 #if 0
-		case CAT_KEY:
+		case JCAT_KEY:
 			fnc = "SQLPrimaryKeys";
 			rc = SQLPrimaryKeys(hstmt, name.ptr(2), name.length(2),
 				name.ptr(1), name.length(1),
 				name.ptr(0), name.length(0));
 			break;
-		case CAT_STAT:
-			fnc = "SQLStatistics";
-			rc = SQLStatistics(hstmt, name.ptr(2), name.length(2),
-				name.ptr(1), name.length(1),
-				name.ptr(0), name.length(0),
-				cap->Unique, cap->Accuracy);
-			break;
-		case CAT_SPC:
-			ThrowDJX("SQLSpecialColumns not available yet");
 #endif // 0
 		default:
 			sprintf(g->Message, "Invalid SQL function id");
