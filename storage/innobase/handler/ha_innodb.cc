@@ -16294,6 +16294,7 @@ ha_innobase::external_lock(
 			if (lock_type != F_WRLCK) {
 				break;
 			}
+			/* fall through */
 		case SQLCOM_UPDATE:
 		case SQLCOM_INSERT:
 		case SQLCOM_REPLACE:
