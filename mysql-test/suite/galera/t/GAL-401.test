@@ -10,6 +10,7 @@ SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
 --connection node_2
 SET @@global.wsrep_desync = 1;
 SET SESSION wsrep_dirty_reads=1;
+SET SESSION wsrep_sync_wait=0;
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 --let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc
