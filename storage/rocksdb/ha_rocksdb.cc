@@ -140,6 +140,14 @@ bool can_use_bloom_filter(THD *thd, const Rdb_key_def &kd,
                           const rocksdb::Slice &eq_cond,
                           const bool use_all_keys);
 
+static rocksdb::CompactRangeOptions getCompactRangeOptions() {
+  rocksdb::CompactRangeOptions compact_range_options;
+  compact_range_options.bottommost_level_compaction =
+      rocksdb::BottommostLevelCompaction::kForce;
+  compact_range_options.exclusive_manual_compaction = false;
+  return compact_range_options;
+}
+
 ///////////////////////////////////////////////////////////
 // Parameters and settings
 ///////////////////////////////////////////////////////////
@@ -207,7 +215,7 @@ static int rocksdb_compact_column_family(THD *const thd,
     if (cfh != nullptr && rdb != nullptr) {
       sql_print_information("RocksDB: Manual compaction of column family: %s\n",
                             cf);
-      rdb->CompactRange(rocksdb::CompactRangeOptions(), cfh, nullptr, nullptr);
+      rdb->CompactRange(getCompactRangeOptions(), cfh, nullptr, nullptr);
     }
   }
   return HA_EXIT_SUCCESS;
@@ -9554,10 +9562,6 @@ void Rdb_drop_index_thread::run() {
         uchar buf[Rdb_key_def::INDEX_NUMBER_SIZE * 2];
         rocksdb::Range range = get_range(d.index_id, buf, is_reverse_cf ? 1 : 0,
                                          is_reverse_cf ? 0 : 1);
-        rocksdb::CompactRangeOptions compact_range_options;
-        compact_range_options.bottommost_level_compaction =
-            rocksdb::BottommostLevelCompaction::kForce;
-        compact_range_options.exclusive_manual_compaction = false;
         rocksdb::Status status = DeleteFilesInRange(rdb->GetBaseDB(), cfh,
                                                     &range.start, &range.limit);
         if (!status.ok()) {
@@ -9566,7 +9570,7 @@ void Rdb_drop_index_thread::run() {
           }
           rdb_handle_io_error(status, RDB_IO_ERROR_BG_THREAD);
         }
-        status = rdb->CompactRange(compact_range_options, cfh, &range.start,
+        status = rdb->CompactRange(getCompactRangeOptions(), cfh, &range.start,
                                    &range.limit);
         if (!status.ok()) {
           if (status.IsShutdownInProgress()) {
@@ -9939,7 +9943,7 @@ int ha_rocksdb::optimize(THD *const thd, HA_CHECK_OPT *const check_opt) {
   for (uint i = 0; i < table->s->keys; i++) {
     uchar buf[Rdb_key_def::INDEX_NUMBER_SIZE * 2];
     auto range = get_range(i, buf);
-    const rocksdb::Status s = rdb->CompactRange(rocksdb::CompactRangeOptions(),
+    const rocksdb::Status s = rdb->CompactRange(getCompactRangeOptions(),
                                                 m_key_descr_arr[i]->get_cf(),
                                                 &range.start, &range.limit);
     if (!s.ok()) {
