@@ -28,12 +28,12 @@ connection default;
 
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL
-CONNECTION='mysql://root@localhost:$MASTER_MYPORT/test/rt2';
+CONNECTION='mysql://root@127.0.0.1:$MASTER_MYPORT/test/rt2';
 SELECT * FROM t2;
 
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 eval CREATE TABLE t3 ENGINE=CONNECT TABLE_TYPE=MYSQL
-CONNECTION='mysql://root@localhost:$SLAVE_MYPORT/test/rt3';
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/rt3';
 SELECT * FROM t3;
 
 --replace_result $PORT PORT

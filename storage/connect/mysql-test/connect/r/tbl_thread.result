@@ -37,7 +37,7 @@ a	b
 11	test11
 connection default;
 CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL
-CONNECTION='mysql://root@localhost:MASTER_PORT/test/rt2';
+CONNECTION='mysql://root@127.0.0.1:MASTER_PORT/test/rt2';
 SELECT * FROM t2;
 a	b
 4	test04
@@ -45,7 +45,7 @@ a	b
 6	test06
 7	test07
 CREATE TABLE t3 ENGINE=CONNECT TABLE_TYPE=MYSQL
-CONNECTION='mysql://root@localhost:SLAVE_PORT/test/rt3';
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/rt3';
 SELECT * FROM t3;
 a	b
 8	test08
