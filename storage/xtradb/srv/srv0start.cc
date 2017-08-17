@@ -1491,6 +1491,18 @@ srv_undo_tablespaces_init(
 		n_undo_tablespaces = n_conf_tablespaces;
 
 		undo_tablespace_ids[n_conf_tablespaces] = ULINT_UNDEFINED;
+
+		if (backup_mode) {
+			ut_ad(!create_new_db);
+			/* MDEV-13561 FIXME: Determine srv_undo_space_id_start
+			from the undo001 file. */
+			srv_undo_space_id_start = 1;
+
+			for (i = 0; i < n_undo_tablespaces; i++) {
+				undo_tablespace_ids[i]
+					= i + srv_undo_space_id_start;
+			}
+		}
 	}
 
 	/* Open all the undo tablespaces that are currently in use. If we
