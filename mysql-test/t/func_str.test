@@ -1889,6 +1889,18 @@ DROP TABLE  t1;
 SELECT LENGTHB('a'), LENGTHB(_utf8 0xC39F), LENGTHB(123), LENGTH(null);
 EXPLAIN EXTENDED SELECT LENGTH('a'), LENGTHB('a');
 
+
+--echo #
+--echo # MDEV-13555 Assertion `!item->null_value' failed in Type_handler::Item_send_str
+--echo #
+
+CREATE TABLE t1 (c VARCHAR(8));
+INSERT INTO t1 VALUES (NULL),('bar');
+SELECT LPAD( c, 0, '?' ) FROM t1;
+SELECT RPAD( c, 0, '?' ) FROM t1;
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.3 tests
 --echo #
