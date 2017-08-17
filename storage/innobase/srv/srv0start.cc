@@ -890,12 +890,28 @@ srv_undo_tablespaces_init(bool create_new_db)
 	the system tablespace (0). If we are creating a new instance then
 	we build the undo_tablespace_ids ourselves since they don't
 	already exist. */
+	n_undo_tablespaces = create_new_db
+		|| srv_operation == SRV_OPERATION_BACKUP
+		? srv_undo_tablespaces
+		: trx_rseg_get_n_undo_tablespaces(undo_tablespace_ids);
+	srv_undo_tablespaces_active = srv_undo_tablespaces;
 
-	if (!create_new_db && srv_operation == SRV_OPERATION_NORMAL) {
-		n_undo_tablespaces = trx_rseg_get_n_undo_tablespaces(
-			undo_tablespace_ids);
-
-		srv_undo_tablespaces_active = n_undo_tablespaces;
+	switch (srv_operation) {
+	case SRV_OPERATION_BACKUP:
+		/* MDEV-13561 FIXME: Determine srv_undo_space_id_start
+		from the undo001 file. */
+		srv_undo_space_id_start = 1;
+		for (i = 0; i < n_undo_tablespaces; i++) {
+			undo_tablespace_ids[i] = i + srv_undo_space_id_start;
+		}
+		break;
+	case SRV_OPERATION_NORMAL:
+		if (create_new_db) {
+			break;
+		}
+		/* fall through */
+	case SRV_OPERATION_RESTORE:
+		ut_ad(!create_new_db);
 
 		/* Check if any of the UNDO tablespace needs fix-up because
 		server crashed while truncate was active on UNDO tablespace.*/
@@ -929,14 +945,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 					undo_tablespace_ids[i]);
 			}
 		}
-	} else {
-		srv_undo_tablespaces_active = srv_undo_tablespaces;
-		n_undo_tablespaces = srv_undo_tablespaces;
-
-		if (n_undo_tablespaces != 0) {
-			srv_undo_space_id_start = undo_tablespace_ids[0];
-			prev_space_id = srv_undo_space_id_start - 1;
-		}
+		break;
 	}
 
 	/* Open all the undo tablespaces that are currently in use. If we
