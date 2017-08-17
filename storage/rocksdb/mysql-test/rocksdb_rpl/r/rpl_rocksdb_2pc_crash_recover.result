@@ -1,19 +1,19 @@
 DROP TABLE IF EXISTS t1;
 create table t1 (a int primary key, msg varchar(255)) engine=rocksdb;
 SET GLOBAL ROCKSDB_ENABLE_2PC = ON;
-SET SESSION debug="d,crash_commit_after_prepare";
+SET SESSION debug_dbug="d,crash_commit_after_prepare";
 insert into t1 values (1, 'dogz');
 select * from t1;
 a	msg
 SET GLOBAL ROCKSDB_ENABLE_2PC = ON;
-SET SESSION debug="d,crash_commit_after_log";
+SET SESSION debug_dbug="d,crash_commit_after_log";
 insert into t1 values (2, 'catz'), (3, 'men');
 select * from t1;
 a	msg
 2	catz
 3	men
 SET GLOBAL ROCKSDB_ENABLE_2PC = ON;
-SET SESSION debug="d,crash_commit_after";
+SET SESSION debug_dbug="d,crash_commit_after";
 insert into t1 values (4, 'cars'), (5, 'foo');
 select * from t1;
 a	msg
@@ -22,7 +22,7 @@ a	msg
 4	cars
 5	foo
 SET GLOBAL ROCKSDB_ENABLE_2PC = OFF;
-SET SESSION debug="d,crash_commit_after_log";
+SET SESSION debug_dbug="d,crash_commit_after_log";
 insert into t1 values (6, 'shipz'), (7, 'tankz');
 select * from t1;
 a	msg
@@ -31,7 +31,7 @@ a	msg
 4	cars
 5	foo
 SET GLOBAL ROCKSDB_ENABLE_2PC = OFF;
-SET SESSION debug="d,crash_commit_after";
+SET SESSION debug_dbug="d,crash_commit_after";
 insert into t1 values (8, 'space'), (9, 'time');
 select * from t1;
 a	msg

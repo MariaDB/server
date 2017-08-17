@@ -49,4 +49,7 @@ typedef struct my_io_perf_struct my_io_perf_t;
 std::vector<std::string> split_into_vector(const std::string& input,
                                            char delimiter);
 
+void
+mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
+
 #endif

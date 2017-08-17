@@ -1082,7 +1082,6 @@ public:
   bool init(Rdb_dict_manager *const dict);
   void cleanup();
   void update(const char *const binlog_name, const my_off_t binlog_pos,
-              const char *const binlog_max_gtid,
               rocksdb::WriteBatchBase *const batch);
   bool read(char *const binlog_name, my_off_t *const binlog_pos,
             char *const binlog_gtid) const;

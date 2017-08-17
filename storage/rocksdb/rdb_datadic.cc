@@ -3961,12 +3961,10 @@ void Rdb_binlog_manager::cleanup() {}
   write succeeded or not is not possible here.
   @param binlog_name   Binlog name
   @param binlog_pos    Binlog pos
-  @param binlog_gtid   Binlog max GTID
   @param batch         WriteBatch
 */
 void Rdb_binlog_manager::update(const char *const binlog_name,
                                 const my_off_t binlog_pos,
-                                const char *const binlog_max_gtid,
                                 rocksdb::WriteBatchBase *const batch) {
   if (binlog_name && binlog_pos) {
     // max binlog length (512) + binlog pos (4) + binlog gtid (57) < 1024
@@ -3974,7 +3972,7 @@ void Rdb_binlog_manager::update(const char *const binlog_name,
     uchar value_buf[RDB_MAX_BINLOG_INFO_LEN];
     m_dict->put_key(
         batch, m_key_slice,
-        pack_value(value_buf, binlog_name, binlog_pos, binlog_max_gtid));
+        pack_value(value_buf, binlog_name, binlog_pos, NULL));
   }
 }
 
@@ -4009,7 +4007,6 @@ bool Rdb_binlog_manager::read(char *const binlog_name,
   @param buf           Preallocated buffer to set binlog info.
   @param binlog_name   Binlog name
   @param binlog_pos    Binlog pos
-  @param binlog_gtid   Binlog GTID
   @return              rocksdb::Slice converted from buf and its length
 */
 rocksdb::Slice
@@ -4038,15 +4035,21 @@ Rdb_binlog_manager::pack_value(uchar *const buf, const char *const binlog_name,
 
   // store binlog gtid length.
   // If gtid was not set, store 0 instead
+#ifdef MARIAROCKS_NOT_YET
   const uint16_t binlog_gtid_len = binlog_gtid ? (uint16_t)strlen(binlog_gtid) : 0;
   rdb_netbuf_store_uint16(buf + pack_len, binlog_gtid_len);
+#endif
   pack_len += sizeof(uint16);
+  // MariaDB:
+  rdb_netbuf_store_uint16(buf + pack_len, 0);
 
+#ifdef MARIAROCKS_NOT_YET
   if (binlog_gtid_len > 0) {
     // store binlog gtid
     memcpy(buf + pack_len, binlog_gtid, binlog_gtid_len);
     pack_len += binlog_gtid_len;
   }
+#endif
 
   return rocksdb::Slice((char *)buf, pack_len);
 }
