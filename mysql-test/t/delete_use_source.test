@@ -4,9 +4,10 @@ create table t1(c1 integer not null,c2 integer not null, key (c1)) engine=InnoDb
 create view v1 as select * from t1 where c1 in (0,1);
 
 insert t1 select 0,seq from seq_1_to_500;
-insert t1 select 1,seq from seq_1_to_50;
-insert t1 select 2,seq from seq_1_to_20;
+insert t1 select 1,seq from seq_1_to_100;
+insert t1 select 2,seq from seq_1_to_50;
 insert t1 select 3,seq from seq_1_to_20;
+analyze table t1;
 
 --echo #
 --echo # Delete with limit (quick select - range acces)
@@ -43,7 +44,7 @@ select count(*) from v1 where c1=2;
 rollback;
 
 --echo #
---echo # Delete throw a view with limit (range access)
+--echo # Delete through a view with limit (range access)
 --echo #
 
 start transaction;
@@ -56,7 +57,7 @@ select count(*) from v1 where c1=0;
 rollback;
 
 --echo #
---echo # Delete throw a view (ALL access)
+--echo # Delete through a view (ALL access)
 --echo #
 
 start transaction;
@@ -97,7 +98,7 @@ rollback;
 drop trigger trg;
 
 --echo #
---echo # Delete throw a view with returning
+--echo # Delete through a view with returning
 --echo #
 
 start transaction;
