@@ -378,13 +378,14 @@ read_ahead:
 					space, i);
 				break;
 			case DB_DECRYPTION_FAILED:
+			case DB_PAGE_CORRUPTED:
 				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Random readahead failed to decrypt page "
-					ULINTPF "." ULINTPF " .",
+					"Random readahead failed to decrypt page or page corrupted "
+					ULINTPF ":" ULINTPF " .",
 					space, i);
 				break;
 			default:
-				ut_error;
+				ib_logf(IB_LOG_LEVEL_FATAL, "Error %u (%s) in random readahead", err, ut_strerr(err));
 			}
 		}
 	}
@@ -514,15 +515,15 @@ buf_read_page_async(
 			" in nonexisting or being-dropped tablespace",
 			space, offset);
 		break;
-
 	case DB_DECRYPTION_FAILED:
+	case DB_PAGE_CORRUPTED:
 		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Async page read failed to decrypt page "
+			"Async page read failed to decrypt page or page corrupted "
 			ULINTPF ":" ULINTPF ".",
 			space, offset);
 		break;
 	default:
-		ut_error;
+		ib_logf(IB_LOG_LEVEL_FATAL, "Error %u (%s) in async page read", err, ut_strerr(err));
 	}
 
 	srv_stats.buf_pool_reads.add(count);
@@ -798,13 +799,14 @@ buf_read_ahead_linear(
 					space, i);
 				break;
 			case DB_DECRYPTION_FAILED:
+			case DB_PAGE_CORRUPTED:
 				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Linear readahead failed to decrypt page "
+					"Linear readahead failed to decrypt page or page corrupted"
 					ULINTPF ":" ULINTPF ".",
 					space, i);
 				break;
 			default:
-				ut_error;
+				ib_logf(IB_LOG_LEVEL_FATAL, "Error %u (%s) in linear readahead", err, ut_strerr(err));
 			}
 		}
 	}
@@ -901,13 +903,14 @@ tablespace_deleted:
 						      zip_size, FALSE);
 			break;
 		case DB_DECRYPTION_FAILED:
+		case DB_PAGE_CORRUPTED:
 			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Failed to decrypt insert buffer page "
+				"Failed to decrypt insert buffer page or page corrupted "
 				ULINTPF ":" ULINTPF ".",
 				space_ids[i], page_nos[i]);
 			break;
 		default:
-			ut_error;
+			ib_logf(IB_LOG_LEVEL_FATAL, "Error %u (%s) in insert buffer read", err, ut_strerr(err));
 		}
 	}
 
