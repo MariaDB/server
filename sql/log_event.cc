@@ -13023,8 +13023,13 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     // check whether master table is unversioned
     if (sys_trx_end->val_int() == 0)
     {
+      // sys_trx_start initialized with NULL when came from plain table.
+      // Set it notnull() because record_compare() count NULLs.
       table->vers_start_field()->set_notnull();
       bitmap_set_bit(table->write_set, sys_trx_end->field_index);
+      // Plain source table may have a PRIMARY KEY. And sys_trx_end is always
+      // a part of PRIMARY KEY. Set it to max value for engine to find it in
+      // index. Needed for an UPDATE/DELETE cases.
       table->vers_end_field()->set_max();
       m_vers_from_plain= true;
     }
