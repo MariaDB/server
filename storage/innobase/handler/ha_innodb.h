@@ -170,6 +170,10 @@ public:
 
 	int index_last(uchar * buf);
 
+	/* Copy a cached MySQL row. If requested, also avoids
+	overwriting non-read columns. */
+	void copy_cached_row(uchar *to_rec, const uchar *from_rec,
+				uint rec_length);
 	int rnd_init(bool scan);
 
 	int rnd_end();

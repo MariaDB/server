@@ -1363,7 +1363,7 @@ srv_printf_innodb_monitor(
 		"Total large memory allocated " ULINTPF "\n"
 		"Dictionary memory allocated " ULINTPF "\n",
 		os_total_large_mem_allocated,
-		dict_sys->size);
+		dict_sys_get_size());
 
 	buf_print_io(file);
 

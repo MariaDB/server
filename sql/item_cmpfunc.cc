@@ -5404,7 +5404,7 @@ void Regexp_processor_pcre::set_recursion_limit(THD *thd)
   DBUG_ASSERT(thd == current_thd);
   stack_used= available_stack_size(thd->thread_stack, &stack_used);
   m_pcre_extra.match_limit_recursion=
-    (my_thread_stack_size - stack_used)/my_pcre_frame_size;
+    (my_thread_stack_size - STACK_MIN_SIZE - stack_used)/my_pcre_frame_size;
 }
 
 
@@ -5667,6 +5667,12 @@ void Regexp_processor_pcre::fix_owner(Item_func *owner,
 }
 
 
+bool Item_func_regex::fix_fields(THD *thd, Item **ref)
+{
+  re.set_recursion_limit(thd);
+  return Item_bool_func::fix_fields(thd, ref);
+}
+
 void
 Item_func_regex::fix_length_and_dec()
 {
@@ -5690,6 +5696,13 @@ longlong Item_func_regex::val_int()
     return 0;
 
   return re.match();
+}
+
+
+bool Item_func_regexp_instr::fix_fields(THD *thd, Item **ref)
+{
+  re.set_recursion_limit(thd);
+  return Item_int_func::fix_fields(thd, ref);
 }
 
 

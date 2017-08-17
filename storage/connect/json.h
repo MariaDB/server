@@ -43,6 +43,10 @@ typedef struct {
   int   len;
   } STRG, *PSG;
 
+bool IsNum(PSZ s);
+char *NextChr(PSZ s, char sep);
+char *GetJsonNull(void);
+
 PJSON ParseJson(PGLOBAL g, char *s, int n, int *prty = NULL, bool *b = NULL);
 PJAR  ParseArray(PGLOBAL g, int& i, STRG& src, bool *pty);
 PJOB  ParseObject(PGLOBAL g, int& i, STRG& src, bool *pty);
@@ -294,4 +298,3 @@ class JVALUE : public JSON {
   PJVAL Next;     // Next value in array
   bool  Del;      // True when deleted
 }; // end of class JVALUE
-

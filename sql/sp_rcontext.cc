@@ -331,8 +331,7 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
 
   /* Reset error state. */
   thd->clear_error();
-  thd->killed= NOT_KILLED; // Some errors set thd->killed
-                           // (e.g. "bad data").
+  thd->reset_killed();      // Some errors set thd->killed, (e.g. "bad data").
 
   /* Add a frame to handler-call-stack. */
   Sql_condition_info *cond_info=

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -481,6 +481,7 @@ int init_slave()
   {
     delete active_mi;
     active_mi= 0;
+    sql_print_error("Failed to allocate memory for the Master Info structure");
     goto err;
   }
 
@@ -543,7 +544,6 @@ end:
   DBUG_RETURN(error);
 
 err:
-  sql_print_error("Failed to allocate memory for the Master Info structure");
   error= 1;
   goto end;
 }
@@ -3729,7 +3729,9 @@ int
 apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
                                         rpl_group_info *rgi)
 {
+#ifndef DBUG_OFF
   Relay_log_info* rli= rgi->rli;
+#endif
   mysql_mutex_assert_not_owner(&rli->data_lock);
   int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
   /*
@@ -6557,6 +6559,7 @@ void end_relay_log_info(Relay_log_info* rli)
   mysql_mutex_t *log_lock;
   DBUG_ENTER("end_relay_log_info");
 
+  rli->error_on_rli_init_info= false;
   if (!rli->inited)
     DBUG_VOID_RETURN;
   if (rli->info_fd >= 0)

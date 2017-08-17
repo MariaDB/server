@@ -1,0 +1,7 @@
+call mtr.add_suppression('debug.key.management');
+install soname 'debug_key_management';
+ERROR HY000: Can't initialize function 'debug_key_management'; Plugin initialization function failed.
+create table t1 (a varchar(255)) engine=innodb encrypted=yes;
+create table t2 (a varchar(255)) engine=innodb;
+create table t3 (a varchar(255)) engine=innodb encrypted=no;
+drop table t1, t2, t3;

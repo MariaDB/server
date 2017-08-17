@@ -31,12 +31,14 @@ bool  IsNum(PSZ s);
 char *NextChr(PSZ s, char sep);
 char *GetJsonNull(void);
 uint  GetJsonGrpSize(void);
-static int   IsJson(UDF_ARGS *args, uint i);
-static PSZ   MakePSZ(PGLOBAL g, UDF_ARGS *args, int i);
+static int IsJson(UDF_ARGS *args, uint i);
+static PSZ MakePSZ(PGLOBAL g, UDF_ARGS *args, int i);
 static char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error);
 static char *bin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error);
+
+void json_array_deinit(UDF_INIT* initid);
 
 static uint JsonGrpSize = 10;
 

@@ -1989,6 +1989,8 @@ row_merge_read_clustered_index(
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
 
+		mem_heap_empty(row_heap);
+
 		/* Do not continue if table pages are still encrypted */
 		if (!old_table->is_readable() ||
 		    !new_table->is_readable()) {

@@ -1196,7 +1196,7 @@ void prepare_new_connection_state(THD* thd)
     if (thd->is_error())
     {
       Host_errors errors;
-      thd->killed= KILL_CONNECTION;
+      thd->set_killed(KILL_CONNECTION);
       thd->print_aborted_warning(0, "init_connect command failed");
       sql_print_warning("%s", thd->get_stmt_da()->message());
 

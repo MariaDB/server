@@ -2167,15 +2167,21 @@ convert_error_code_to_mysql(
 		locally for BLOB fields. Refer to dict_table_get_format().
 		We limit max record size to 16k for 64k page size. */
 		bool prefix = (dict_tf_get_format(flags) == UNIV_FORMAT_A);
+		bool comp = !!(flags & DICT_TF_COMPACT);
+		ulint free_space = page_get_free_space_of_empty(comp) / 2;
+
+		if (free_space >= (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+				          REDUNDANT_REC_MAX_DATA_SIZE)) {
+			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
+		}
+
 		my_printf_error(ER_TOO_BIG_ROWSIZE,
-			"Row size too large (> %lu). Changing some columns"
-			" to TEXT or BLOB %smay help. In current row"
-			" format, BLOB prefix of %d bytes is stored inline.",
+			"Row size too large (> " ULINTPF "). Changing some columns "
+			"to TEXT or BLOB %smay help. In current row "
+			"format, BLOB prefix of %d bytes is stored inline.",
 			MYF(0),
-			srv_page_size == UNIV_PAGE_SIZE_MAX
-			? REC_MAX_DATA_SIZE - 1
-			: page_get_free_space_of_empty(flags &
-				DICT_TF_COMPACT) / 2,
+			free_space,
 			prefix
 			? "or using ROW_FORMAT=DYNAMIC or"
 			  " ROW_FORMAT=COMPRESSED "

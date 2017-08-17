@@ -168,8 +168,9 @@ page_zip_rec_needs_ext(
 	      > ulint(comp ? REC_N_NEW_EXTRA_BYTES : REC_N_OLD_EXTRA_BYTES));
 	ut_ad(comp || !page_size.is_compressed());
 
-#if UNIV_PAGE_SIZE_MAX > REC_MAX_DATA_SIZE
-	if (rec_size >= REC_MAX_DATA_SIZE) {
+#if UNIV_PAGE_SIZE_MAX > COMPRESSED_REC_MAX_DATA_SIZE
+	if (comp ? rec_size >= COMPRESSED_REC_MAX_DATA_SIZE :
+		   rec_size >= REDUNDANT_REC_MAX_DATA_SIZE) {
 		return(TRUE);
 	}
 #endif

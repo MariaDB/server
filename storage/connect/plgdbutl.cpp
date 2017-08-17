@@ -95,7 +95,7 @@ extern pthread_mutex_t parmut;
 //#endif  // !__WIN__
 
 // The debug trace used by the main thread
-       FILE *pfile = NULL;
+FILE *pfile = NULL;
 
 MBLOCK Nmblk = {NULL, false, 0, false, NULL};   // Used to init MBLOCK's
 

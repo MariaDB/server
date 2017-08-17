@@ -93,13 +93,20 @@ static ib_mutex_t crypt_stat_mutex;
 extern my_bool srv_background_scrub_data_uncompressed;
 extern my_bool srv_background_scrub_data_compressed;
 
+/***********************************************************************
+Check if a key needs rotation given a key_state
+@param[in]	encrypt_mode		Encryption mode
+@param[in]	key_version		Current key version
+@param[in]	latest_key_version	Latest key version
+@param[in]	rotate_key_age		when to rotate
+@return true if key needs rotation, false if not */
 static bool
 fil_crypt_needs_rotation(
-	fil_encryption_t        encrypt_mode,           /*!< in: Encryption
-							mode */
-	uint			key_version,		/*!< in: Key version */
-	uint			latest_key_version,	/*!< in: Latest key version */
-	uint			rotate_key_age);	/*!< in: When to rotate */
+	fil_encryption_t	encrypt_mode,
+	uint			key_version,
+	uint			latest_key_version,
+	uint			rotate_key_age)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************
 Init space crypt */
@@ -2375,7 +2382,10 @@ fil_space_crypt_close_tablespace(
 			ib::warn() << "Waited "
 				   << now - start
 				   << " seconds to drop space: "
-				   << space->name << ".";
+				   << space->name << " ("
+				   << space->id << ") active threads "
+				   << cnt << "flushing="
+				   << flushing << ".";
 			last = now;
 		}
 	}

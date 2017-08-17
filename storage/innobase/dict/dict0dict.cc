@@ -1375,9 +1375,6 @@ dict_table_add_to_cache(
 	}
 
 	ut_ad(dict_lru_validate());
-
-	dict_sys->size += mem_heap_get_size(table->heap)
-		+ strlen(table->name.m_name) + 1;
 }
 
 /**********************************************************************//**
@@ -1756,9 +1753,6 @@ dict_table_rename_in_cache(
 	HASH_INSERT(dict_table_t, name_hash, dict_sys->table_hash, fold,
 		    table);
 
-	dict_sys->size += strlen(new_name) - strlen(old_name);
-	ut_a(dict_sys->size > 0);
-
 	/* Update the table_name field in indexes */
 	for (index = dict_table_get_first_index(table);
 	     index != NULL;
@@ -2049,7 +2043,6 @@ dict_table_remove_from_cache_low(
 {
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
-	lint		size;
 
 	ut_ad(table);
 	ut_ad(dict_lru_validate());
@@ -2129,12 +2122,6 @@ dict_table_remove_from_cache_low(
 		dict_free_vc_templ(table->vc_templ);
 		UT_DELETE(table->vc_templ);
 	}
-
-	size = mem_heap_get_size(table->heap) + strlen(table->name.m_name) + 1;
-
-	ut_ad(dict_sys->size >= size);
-
-	dict_sys->size -= size;
 
 	dict_mem_table_free(table);
 }
@@ -2330,9 +2317,10 @@ dict_index_too_big_for_tree(
 		page(16k for 64k page size).  No additional sparse
 		page directory entry will be generated for the first
 		few user records. */
-		page_rec_max = srv_page_size == UNIV_PAGE_SIZE_MAX
-			? REC_MAX_DATA_SIZE - 1
-			: page_get_free_space_of_empty(comp) / 2;
+		page_rec_max = (comp || srv_page_size < UNIV_PAGE_SIZE_MAX)
+			? page_get_free_space_of_empty(comp) / 2
+			: REDUNDANT_REC_MAX_DATA_SIZE;
+
 		page_ptr_max = page_rec_max;
 		/* Each record has a header. */
 		rec_max_size = comp
@@ -2609,8 +2597,6 @@ dict_index_add_to_cache_w_vcol(
 	rw_lock_create(index_tree_rw_lock_key, &new_index->lock,
 		       SYNC_INDEX_TREE);
 
-	dict_sys->size += mem_heap_get_size(new_index->heap);
-
 	dict_mem_index_free(index);
 
 	return(DB_SUCCESS);
@@ -2627,8 +2613,6 @@ dict_index_remove_from_cache_low(
 	ibool		lru_evict)	/*!< in: TRUE if index being evicted
 					to make room in the table LRU list */
 {
-	lint		size;
-
 	ut_ad(table && index);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
@@ -2728,12 +2712,6 @@ dict_index_remove_from_cache_low(
 
 		}
 	}
-
-	size = mem_heap_get_size(index->heap);
-
-	ut_ad(dict_sys->size >= size);
-
-	dict_sys->size -= size;
 
 	dict_mem_index_free(index);
 }
@@ -6871,8 +6849,6 @@ dict_close(void)
 
 	mutex_free(&dict_foreign_err_mutex);
 
-	ut_ad(dict_sys->size == 0);
-
 	ut_free(dict_sys);
 
 	dict_sys = NULL;
@@ -7243,6 +7219,41 @@ dict_tf_to_row_format_string(
 
 	ut_error;
 	return(0);
+}
+
+/** Calculate the used memory occupied by the data dictionary
+table and index objects.
+@return number of bytes occupied. */
+UNIV_INTERN
+ulint
+dict_sys_get_size()
+{
+	ulint size = 0;
+
+	ut_ad(dict_sys);
+
+	mutex_enter(&dict_sys->mutex);
+
+	for(ulint i = 0; i < hash_get_n_cells(dict_sys->table_hash); i++) {
+		dict_table_t* table;
+
+		for (table = static_cast<dict_table_t*>(HASH_GET_FIRST(dict_sys->table_hash,i));
+		     table != NULL;
+		     table = static_cast<dict_table_t*>(HASH_GET_NEXT(name_hash, table))) {
+			dict_index_t* index;
+			size += mem_heap_get_size(table->heap) + strlen(table->name.m_name) +1;
+
+			for(index = dict_table_get_first_index(table);
+			    index != NULL;
+			    index = dict_table_get_next_index(index)) {
+				size += mem_heap_get_size(index->heap);
+			}
+		}
+	}
+
+	mutex_exit(&dict_sys->mutex);
+
+	return (size);
 }
 
 /** Look for any dictionary objects that are found in the given tablespace.
