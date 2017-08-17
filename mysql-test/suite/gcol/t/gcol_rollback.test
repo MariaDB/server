@@ -6,6 +6,11 @@
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
 
+# Make sure there are no unexpected open tables from previous tests
+--disable_query_log
+FLUSH TABLES;
+--enable_query_log
+
 CREATE TABLE t (
   a INTEGER,
   b BLOB GENERATED ALWAYS AS (a) VIRTUAL,
