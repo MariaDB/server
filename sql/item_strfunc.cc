@@ -3267,10 +3267,11 @@ String *Item_func_rpad::val_str(String *str)
       ((count < 0) && !args[1]->unsigned_flag))
     goto err;
 
+  null_value=0;
+
   if (count == 0)
     return make_empty_result();
 
-  null_value=0;
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
   if ((ulonglong) count > INT_MAX32)
@@ -3358,10 +3359,11 @@ String *Item_func_lpad::val_str(String *str)
       ((count < 0) && !args[1]->unsigned_flag))
     goto err;  
 
+  null_value=0;
+
   if (count == 0)
     return make_empty_result();
 
-  null_value=0;
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
   if ((ulonglong) count > INT_MAX32)

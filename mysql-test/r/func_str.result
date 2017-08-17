@@ -4887,5 +4887,19 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select octet_length('a') AS `LENGTH('a')`,octet_length('a') AS `LENGTHB('a')`
 #
+# MDEV-13555 Assertion `!item->null_value' failed in Type_handler::Item_send_str
+#
+CREATE TABLE t1 (c VARCHAR(8));
+INSERT INTO t1 VALUES (NULL),('bar');
+SELECT LPAD( c, 0, '?' ) FROM t1;
+LPAD( c, 0, '?' )
+NULL
+
+SELECT RPAD( c, 0, '?' ) FROM t1;
+RPAD( c, 0, '?' )
+NULL
+
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #
