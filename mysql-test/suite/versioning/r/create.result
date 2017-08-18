@@ -353,5 +353,11 @@ create or replace table t1 (a int, id int) with system versioning engine INNODB_
 create or replace table t2 (b int, id int);
 create or replace table t3 as
 select t2.b, t1.a, t1.sys_trx_start, t1.sys_trx_end from t2 inner join t1 on t2.id=t1.id;
+create or replace table t (sys_trx_start int);
+alter table t with system versioning;
+ERROR 42S21: Duplicate column name 'sys_trx_start'
+create or replace table t (sys_trx_end int);
+alter table t with system versioning;
+ERROR 42S21: Duplicate column name 'sys_trx_end'
 drop database test;
 create database test;

@@ -283,5 +283,13 @@ create or replace table t2 (b int, id int);
 create or replace table t3 as
   select t2.b, t1.a, t1.sys_trx_start, t1.sys_trx_end from t2 inner join t1 on t2.id=t1.id;
 
+create or replace table t (sys_trx_start int);
+--error ER_DUP_FIELDNAME
+alter table t with system versioning;
+
+create or replace table t (sys_trx_end int);
+--error ER_DUP_FIELDNAME
+alter table t with system versioning;
+
 drop database test;
 create database test;
