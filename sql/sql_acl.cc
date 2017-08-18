@@ -724,6 +724,7 @@ static MEM_ROOT acl_memroot, grant_memroot;
 static bool initialized=0;
 static bool allow_all_hosts=1;
 static HASH acl_check_hosts, column_priv_hash, proc_priv_hash, func_priv_hash;
+static HASH package_spec_priv_hash, package_body_priv_hash;
 static DYNAMIC_ARRAY acl_wild_hosts;
 static Hash_filo<acl_entry> *acl_cache;
 static uint grant_version=0; /* Version of priv tables. incremented by acl_load */
@@ -764,6 +765,18 @@ HASH *Sp_handler_procedure::get_priv_hash() const
 HASH *Sp_handler_function::get_priv_hash() const
 {
   return &func_priv_hash;
+}
+
+
+HASH *Sp_handler_package_spec::get_priv_hash() const
+{
+  return &package_spec_priv_hash;
+}
+
+
+HASH *Sp_handler_package_body::get_priv_hash() const
+{
+  return &package_body_priv_hash;
 }
 
 
@@ -1439,6 +1452,8 @@ enum enum_acl_lists
   COLUMN_PRIVILEGES_HASH,
   PROC_PRIVILEGES_HASH,
   FUNC_PRIVILEGES_HASH,
+  PACKAGE_SPEC_PRIVILEGES_HASH,
+  PACKAGE_BODY_PRIVILEGES_HASH,
   PROXY_USERS_ACL,
   ROLES_MAPPINGS_HASH
 };
@@ -5530,7 +5545,10 @@ table_error:
 ******************************************************************/
 struct PRIVS_TO_MERGE
 {
-  enum what { ALL, GLOBAL, DB, TABLE_COLUMN, PROC, FUNC } what;
+  enum what
+  {
+    ALL, GLOBAL, DB, TABLE_COLUMN, PROC, FUNC, PACKAGE_SPEC, PACKAGE_BODY
+  } what;
   const char *db, *name;
 };
 
@@ -5542,6 +5560,10 @@ static enum PRIVS_TO_MERGE::what sp_privs_to_merge(stored_procedure_type type)
     return PRIVS_TO_MERGE::FUNC;
   case TYPE_ENUM_PROCEDURE:
     return PRIVS_TO_MERGE::PROC;
+  case TYPE_ENUM_PACKAGE:
+    return PRIVS_TO_MERGE::PACKAGE_SPEC;
+  case TYPE_ENUM_PACKAGE_BODY:
+    return PRIVS_TO_MERGE::PACKAGE_BODY;
   case TYPE_ENUM_TRIGGER:
   case TYPE_ENUM_PROXY:
     break;
@@ -6360,7 +6382,14 @@ static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
   if (all || data->what == PRIVS_TO_MERGE::FUNC)
     changed|= merge_role_routine_grant_privileges(grantee,
                             data->db, data->name, &role_hash, &func_priv_hash);
-
+  if (all || data->what == PRIVS_TO_MERGE::PACKAGE_SPEC)
+    changed|= merge_role_routine_grant_privileges(grantee,
+                            data->db, data->name, &role_hash,
+                            &package_spec_priv_hash);
+  if (all || data->what == PRIVS_TO_MERGE::PACKAGE_BODY)
+    changed|= merge_role_routine_grant_privileges(grantee,
+                            data->db, data->name, &role_hash,
+                            &package_body_priv_hash);
   return !changed; // don't recurse into the subgraph if privs didn't change
 }
 
@@ -7244,6 +7273,8 @@ void  grant_free(void)
   my_hash_free(&column_priv_hash);
   my_hash_free(&proc_priv_hash);
   my_hash_free(&func_priv_hash);
+  my_hash_free(&package_spec_priv_hash);
+  my_hash_free(&package_body_priv_hash);
   free_root(&grant_memroot,MYF(0));
   DBUG_VOID_RETURN;
 }
@@ -7309,6 +7340,10 @@ static bool grant_load(THD *thd,
   (void) my_hash_init(&proc_priv_hash, &my_charset_utf8_bin,
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
   (void) my_hash_init(&func_priv_hash, &my_charset_utf8_bin,
+                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
+  (void) my_hash_init(&package_spec_priv_hash, &my_charset_utf8_bin,
+                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
+  (void) my_hash_init(&package_body_priv_hash, &my_charset_utf8_bin,
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
   init_sql_alloc(&grant_memroot, "GRANT", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
@@ -7459,6 +7494,7 @@ static my_bool propagate_role_grants_action(void *role_ptr,
 bool grant_reload(THD *thd)
 {
   HASH old_column_priv_hash, old_proc_priv_hash, old_func_priv_hash;
+  HASH old_package_spec_priv_hash, old_package_body_priv_hash;
   MEM_ROOT old_mem;
   int result;
   DBUG_ENTER("grant_reload");
@@ -7478,6 +7514,8 @@ bool grant_reload(THD *thd)
   old_column_priv_hash= column_priv_hash;
   old_proc_priv_hash= proc_priv_hash;
   old_func_priv_hash= func_priv_hash;
+  old_package_spec_priv_hash= package_spec_priv_hash;
+  old_package_body_priv_hash= package_body_priv_hash;
 
   /*
     Create a new memory pool but save the current memory pool to make an undo
@@ -7495,6 +7533,8 @@ bool grant_reload(THD *thd)
     column_priv_hash= old_column_priv_hash;	/* purecov: deadcode */
     proc_priv_hash= old_proc_priv_hash;
     func_priv_hash= old_func_priv_hash;
+    package_spec_priv_hash= old_package_spec_priv_hash;
+    package_body_priv_hash= old_package_body_priv_hash;
     grant_memroot= old_mem;                     /* purecov: deadcode */
   }
   else
@@ -7502,6 +7542,8 @@ bool grant_reload(THD *thd)
     my_hash_free(&old_column_priv_hash);
     my_hash_free(&old_proc_priv_hash);
     my_hash_free(&old_func_priv_hash);
+    my_hash_free(&old_package_spec_priv_hash);
+    my_hash_free(&old_package_body_priv_hash);
     free_root(&old_mem,MYF(0));
   }
 
@@ -8123,7 +8165,9 @@ bool check_grant_db(THD *thd, const char *db)
 
   if (error)
     error= check_grant_db_routine(thd, db, &proc_priv_hash) &&
-           check_grant_db_routine(thd, db, &func_priv_hash);
+           check_grant_db_routine(thd, db, &func_priv_hash) &&
+           check_grant_db_routine(thd, db, &package_spec_priv_hash) &&
+           check_grant_db_routine(thd, db, &package_body_priv_hash);
 
   mysql_rwlock_unlock(&LOCK_grant);
 
@@ -8519,6 +8563,14 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
                           buff, sizeof(buff)))
     return TRUE;
 
+  if (show_routine_grants(thd, role->user.str, "", &sp_handler_package_spec,
+                          buff, sizeof(buff)))
+    return TRUE;
+
+  if (show_routine_grants(thd, role->user.str, "", &sp_handler_package_body,
+                          buff, sizeof(buff)))
+    return TRUE;
+
   return FALSE;
 
 }
@@ -8741,6 +8793,14 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
       goto end;
 
     if (show_routine_grants(thd, username, hostname, &sp_handler_function,
+                            buff, sizeof(buff)))
+      goto end;
+
+    if (show_routine_grants(thd, username, hostname, &sp_handler_package_spec,
+                            buff, sizeof(buff)))
+      goto end;
+
+    if (show_routine_grants(thd, username, hostname, &sp_handler_package_body,
                             buff, sizeof(buff)))
       goto end;
 
@@ -9678,6 +9738,14 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     grant_name_hash= &func_priv_hash;
     elements= grant_name_hash->records;
     break;
+  case PACKAGE_SPEC_PRIVILEGES_HASH:
+    grant_name_hash= &package_spec_priv_hash;
+    elements= grant_name_hash->records;
+    break;
+  case PACKAGE_BODY_PRIVILEGES_HASH:
+    grant_name_hash= &package_body_priv_hash;
+    elements= grant_name_hash->records;
+    break;
   case PROXY_USERS_ACL:
     elements= acl_proxy_users.elements;
     break;
@@ -9716,6 +9784,8 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     case COLUMN_PRIVILEGES_HASH:
     case PROC_PRIVILEGES_HASH:
     case FUNC_PRIVILEGES_HASH:
+    case PACKAGE_SPEC_PRIVILEGES_HASH:
+    case PACKAGE_BODY_PRIVILEGES_HASH:
       grant_name= (GRANT_NAME*) my_hash_element(grant_name_hash, idx);
       user= grant_name->user;
       host= grant_name->host.hostname;
@@ -9798,6 +9868,8 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       case COLUMN_PRIVILEGES_HASH:
       case PROC_PRIVILEGES_HASH:
       case FUNC_PRIVILEGES_HASH:
+      case PACKAGE_SPEC_PRIVILEGES_HASH:
+      case PACKAGE_BODY_PRIVILEGES_HASH:
         my_hash_delete(grant_name_hash, (uchar*) grant_name);
         /*
           In our HASH implementation on deletion one elements
@@ -9843,6 +9915,8 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       case COLUMN_PRIVILEGES_HASH:
       case PROC_PRIVILEGES_HASH:
       case FUNC_PRIVILEGES_HASH:
+      case PACKAGE_SPEC_PRIVILEGES_HASH:
+      case PACKAGE_BODY_PRIVILEGES_HASH:
         {
           /*
             Save old hash key and its length to be able to properly update
@@ -10018,6 +10092,26 @@ static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
     }
     /* Handle funcs array. */
     if ((handle_grant_struct(FUNC_PRIVILEGES_HASH, drop, user_from, user_to) || found)
+        && ! result)
+    {
+      result= 1; /* At least one record/element found. */
+      /* If search is requested, we do not need to search further. */
+      if (search_only)
+        goto end;
+    }
+    /* Handle package spec array. */
+    if ((handle_grant_struct(PACKAGE_SPEC_PRIVILEGES_HASH,
+                             drop, user_from, user_to) || found)
+        && ! result)
+    {
+      result= 1; /* At least one record/element found. */
+      /* If search is requested, we do not need to search further. */
+      if (search_only)
+        goto end;
+    }
+    /* Handle package body array. */
+    if ((handle_grant_struct(PACKAGE_BODY_PRIVILEGES_HASH,
+                             drop, user_from, user_to) || found)
         && ! result)
     {
       result= 1; /* At least one record/element found. */
@@ -10751,7 +10845,9 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 
     /* Remove procedure access */
     if (mysql_revoke_sp_privs(thd, &tables, &sp_handler_function, lex_user) ||
-        mysql_revoke_sp_privs(thd, &tables, &sp_handler_procedure, lex_user))
+        mysql_revoke_sp_privs(thd, &tables, &sp_handler_procedure, lex_user) ||
+        mysql_revoke_sp_privs(thd, &tables, &sp_handler_package_spec, lex_user) ||
+        mysql_revoke_sp_privs(thd, &tables, &sp_handler_package_body, lex_user))
       result= -1;
 
     ACL_USER_BASE *user_or_role;
@@ -11294,6 +11390,8 @@ SHOW_VAR acl_statistics[] = {
   {"database_grants",  (char*)&acl_dbs.elements,           SHOW_UINT},
   {"function_grants",  (char*)&func_priv_hash.records,     SHOW_ULONG},
   {"procedure_grants", (char*)&proc_priv_hash.records,     SHOW_ULONG},
+  {"package_spec_grants", (char*)&package_spec_priv_hash.records, SHOW_ULONG},
+  {"package_body_grants", (char*)&package_body_priv_hash.records, SHOW_ULONG},
   {"proxy_users",      (char*)&acl_proxy_users.elements,   SHOW_UINT},
   {"role_grants",      (char*)&acl_roles_mappings.records, SHOW_ULONG},
   {"roles",            (char*)&acl_roles.records,          SHOW_ULONG},

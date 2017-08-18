@@ -88,6 +88,8 @@ Acl_column_grants	0
 Acl_database_grants	0
 Acl_function_grants	0
 Acl_procedure_grants	0
+Acl_package_spec_grants	0
+Acl_package_body_grants	0
 Acl_proxy_users	0
 Acl_role_grants	0
 Acl_roles	0

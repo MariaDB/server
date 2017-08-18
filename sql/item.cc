@@ -1784,13 +1784,16 @@ void Item_sp_variable::make_field(THD *thd, Send_field *field)
   Item_splocal methods
 *****************************************************************************/
 
-Item_splocal::Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name,
+Item_splocal::Item_splocal(THD *thd,
+                           const Sp_rcontext_handler *rh,
+                           const LEX_CSTRING *sp_var_name,
                            uint sp_var_idx,
                            const Type_handler *handler,
                            uint pos_in_q, uint len_in_q):
   Item_sp_variable(thd, sp_var_name),
   Rewritable_query_parameter(pos_in_q, len_in_q),
   Type_handler_hybrid_field_type(handler),
+  m_rcontext_handler(rh),
   m_var_idx(sp_var_idx)
 {
   maybe_null= TRUE;
@@ -1798,9 +1801,21 @@ Item_splocal::Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name,
 }
 
 
+sp_rcontext *Item_splocal::get_rcontext(sp_rcontext *local_ctx) const
+{
+  return m_rcontext_handler->get_rcontext(local_ctx);
+}
+
+
+Item_field *Item_splocal::get_variable(sp_rcontext *ctx) const
+{
+  return get_rcontext(ctx)->get_variable(m_var_idx);
+}
+
+
 bool Item_splocal::fix_fields(THD *thd, Item **ref)
 {
-  Item_field *item= thd->spcont->get_variable(m_var_idx);
+  Item *item= get_variable(thd->spcont);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, ref, item);
 }
@@ -1811,7 +1826,7 @@ Item_splocal::this_item()
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_variable(m_var_idx);
+  return get_variable(m_thd->spcont);
 }
 
 const Item *
@@ -1819,7 +1834,7 @@ Item_splocal::this_item() const
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_variable(m_var_idx);
+  return get_variable(m_thd->spcont);
 }
 
 
@@ -1828,13 +1843,15 @@ Item_splocal::this_item_addr(THD *thd, Item **)
 {
   DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return thd->spcont->get_variable_addr(m_var_idx);
+  return get_rcontext(thd->spcont)->get_variable_addr(m_var_idx);
 }
 
 
 void Item_splocal::print(String *str, enum_query_type)
 {
-  str->reserve(m_name.length+8);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  str->reserve(m_name.length + 8 + prefix->length);
+  str->append(prefix);
   str->append(m_name.str, m_name.length);
   str->append('@');
   str->qs_append(m_var_idx);
@@ -1843,7 +1860,7 @@ void Item_splocal::print(String *str, enum_query_type)
 
 bool Item_splocal::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 {
-  return ctx->set_variable(thd, get_var_idx(), it);
+  return get_rcontext(ctx)->set_variable(thd, get_var_idx(), it);
 }
 
 
@@ -1925,7 +1942,7 @@ bool Item_splocal::check_cols(uint n)
 
 bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
 {
-  Item *item= thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
+  Item *item= get_variable(thd->spcont)->element_index(m_field_idx);
   return fix_fields_from_item(thd, ref, item);
 }
 
@@ -1935,7 +1952,7 @@ Item_splocal_row_field::this_item()
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
+  return get_variable(m_thd->spcont)->element_index(m_field_idx);
 }
 
 
@@ -1944,7 +1961,7 @@ Item_splocal_row_field::this_item() const
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
+  return get_variable(m_thd->spcont)->element_index(m_field_idx);
 }
 
 
@@ -1953,13 +1970,15 @@ Item_splocal_row_field::this_item_addr(THD *thd, Item **)
 {
   DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return thd->spcont->get_variable(m_var_idx)->addr(m_field_idx);
+  return get_variable(thd->spcont)->addr(m_field_idx);
 }
 
 
 void Item_splocal_row_field::print(String *str, enum_query_type)
 {
-  str->reserve(m_name.length + m_field_name.length + 8);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  str->reserve(m_name.length + m_field_name.length + 8 + prefix->length);
+  str->append(prefix);
   str->append(m_name.str, m_name.length);
   str->append('.');
   str->append(m_field_name.str, m_field_name.length);
@@ -1973,18 +1992,19 @@ void Item_splocal_row_field::print(String *str, enum_query_type)
 
 bool Item_splocal_row_field::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 {
-  return ctx->set_variable_row_field(thd, m_var_idx, m_field_idx, it);
+  return get_rcontext(ctx)->set_variable_row_field(thd, m_var_idx, m_field_idx,
+                                                   it);
 }
 
 
 bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
 {
   m_thd= thd;
-  if (thd->spcont->find_row_field_by_name_or_error(&m_field_idx,
-                                                   m_var_idx,
-                                                   m_field_name))
+  if (get_rcontext(thd->spcont)->find_row_field_by_name_or_error(&m_field_idx,
+                                                                 m_var_idx,
+                                                                 m_field_name))
     return true;
-  Item *item= thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
+  Item *item= get_variable(thd->spcont)->element_index(m_field_idx);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, it, item);
 }
@@ -1992,9 +2012,12 @@ bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
 
 void Item_splocal_row_field_by_name::print(String *str, enum_query_type)
 {
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
   // +16 should be enough for .NNN@[""]
-  if (str->reserve(m_name.length + 2 * m_field_name.length + 16))
+  if (str->reserve(m_name.length + 2 * m_field_name.length +
+                   prefix->length + 16))
     return;
+  str->qs_append(prefix->str, prefix->length);
   str->qs_append(m_name.str, m_name.length);
   str->qs_append('.');
   str->qs_append(m_field_name.str, m_field_name.length);

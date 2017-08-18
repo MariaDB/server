@@ -1,0 +1,110 @@
+--source include/have_metadata_lock_info.inc
+
+#
+# This test demonstrates that:
+# - A call to a package routine acquires a shared MDL lock on the entire package
+# - "DROP PACKAGE" waits until the currently running package routines end
+#
+
+SET sql_mode=ORACLE;
+DO GET_LOCK('lock',300);
+
+
+#
+# conn1 will execute package pkg1 routines and
+# and therefore acquire a shared MDL on "package body pkg1"
+#
+
+connect (conn1,localhost,root,,);
+SET sql_mode=ORACLE;
+let $conn1_id= `SELECT CONNECTION_ID()`;
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    DO GET_LOCK('lock',300);
+  END;
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    CALL p1;
+    RETURN 1;
+  END;
+END;
+$$
+DELIMITER ;$$
+send SELECT pkg1.f1();
+
+#
+# wait for conn1 to actually start execution of pkg1.p1
+#
+
+connection default;
+let $wait_timeout= 60;
+let $wait_condition= SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE ID=$conn1_id AND INFO LIKE '%GET_LOCK%' AND STATE='User lock';
+--source include/wait_condition.inc
+
+
+#
+# conn2 will do "DROP PACKAGE pkg1".
+# It will acquire an exclusive MDL on "package body pkg1", and therefore
+# it should wait until conn1 ends the package routine execution
+#
+
+connect (conn2,localhost,root,,);
+let $conn2_id= `SELECT CONNECTION_ID()`;
+SET sql_mode=ORACLE;
+send DROP PACKAGE pkg1;
+
+#
+# wait for conn2 to actually enter the "DROP" statement and get locked by conn1
+#
+connection default;
+let $wait_timeout= 60;
+let $wait_condition= SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE ID=$conn2_id
+  AND INFO LIKE '%DROP PACKAGE%'
+  AND STATE='Waiting for stored package body metadata lock';
+--source include/wait_condition.inc
+
+#
+# Now we have three threads involved.
+# The following I_S query will check that the threads are in these states:
+#
+#  default (0) - is holding a user lock 'lock'
+#  conn1   (1) - is executing the package procedure test.pkg1.p1,
+#                is holding a shared MDL on 'package body pkg1',
+#                is waiting for the user lock 'lock' to be released
+#  conn2   (2) - is waiting for 'conn1' to end execution of test.pkg1.* routines,
+#                to acquire an exclusive MDL on 'package body pkg1',
+#                to DROP the package pkg1
+#
+--vertical_results
+SELECT ID-CONNECTION_ID() AS CONN,INFO,STATE,LOCK_MODE,LOCK_TYPE,TABLE_NAME
+  FROM INFORMATION_SCHEMA.PROCESSLIST
+  LEFT JOIN INFORMATION_SCHEMA.METADATA_LOCK_INFO
+   ON (ID=THREAD_ID)
+  ORDER BY ID,TABLE_NAME,LOCK_MODE,LOCK_TYPE;
+--horizontal_results
+
+#
+# Now let conn1 finish the package routine execution
+#
+DO RELEASE_LOCK('lock');
+connection conn1;
+reap;
+disconnect conn1;
+
+#
+# Now conn2 should actually DROP the package
+#
+connection conn2;
+reap;
+disconnect conn2;
+
+connection default;

@@ -2630,14 +2630,13 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
   else
   {
     sp_variable *spv;
-    sp_pcontext *spc;
+    const Sp_rcontext_handler *rh;
     LEX *lex;
     if ((lex= thd->lex) &&
-        (spc= lex->spcont) &&
-        (spv= spc->find_variable(&name, false)))
+        (spv= lex->find_variable(&name, &rh)))
     {
       Item_splocal *splocal= new (thd->mem_root)
-        Item_splocal(thd, &name, spv->offset, spv->type_handler(), 0);
+        Item_splocal(thd, rh, &name, spv->offset, spv->type_handler(), 0);
 #ifndef DBUG_OFF
       if (splocal)
         splocal->m_sp= lex->sphead;

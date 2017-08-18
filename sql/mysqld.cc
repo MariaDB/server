@@ -3788,6 +3788,8 @@ SHOW_VAR com_status_vars[]= {
   {"create_event",         STMT_STATUS(SQLCOM_CREATE_EVENT)},
   {"create_function",      STMT_STATUS(SQLCOM_CREATE_SPFUNCTION)},
   {"create_index",         STMT_STATUS(SQLCOM_CREATE_INDEX)},
+  {"create_package",       STMT_STATUS(SQLCOM_CREATE_PACKAGE)},
+  {"create_package_body",  STMT_STATUS(SQLCOM_CREATE_PACKAGE_BODY)},
   {"create_procedure",     STMT_STATUS(SQLCOM_CREATE_PROCEDURE)},
   {"create_role",          STMT_STATUS(SQLCOM_CREATE_ROLE)},
   {"create_sequence",      STMT_STATUS(SQLCOM_CREATE_SEQUENCE)},
@@ -3807,6 +3809,8 @@ SHOW_VAR com_status_vars[]= {
   {"drop_function",        STMT_STATUS(SQLCOM_DROP_FUNCTION)},
   {"drop_index",           STMT_STATUS(SQLCOM_DROP_INDEX)},
   {"drop_procedure",       STMT_STATUS(SQLCOM_DROP_PROCEDURE)},
+  {"drop_package",         STMT_STATUS(SQLCOM_DROP_PACKAGE)},
+  {"drop_package_body",    STMT_STATUS(SQLCOM_DROP_PACKAGE_BODY)},
   {"drop_role",            STMT_STATUS(SQLCOM_DROP_ROLE)},
   {"drop_server",          STMT_STATUS(SQLCOM_DROP_SERVER)},
   {"drop_sequence",        STMT_STATUS(SQLCOM_DROP_SEQUENCE)},
@@ -3863,6 +3867,8 @@ SHOW_VAR com_status_vars[]= {
   {"show_create_db",       STMT_STATUS(SQLCOM_SHOW_CREATE_DB)},
   {"show_create_event",    STMT_STATUS(SQLCOM_SHOW_CREATE_EVENT)},
   {"show_create_func",     STMT_STATUS(SQLCOM_SHOW_CREATE_FUNC)},
+  {"show_create_package",  STMT_STATUS(SQLCOM_SHOW_CREATE_PACKAGE)},
+  {"show_create_package_body",STMT_STATUS(SQLCOM_SHOW_CREATE_PACKAGE_BODY)},
   {"show_create_proc",     STMT_STATUS(SQLCOM_SHOW_CREATE_PROC)},
   {"show_create_table",    STMT_STATUS(SQLCOM_SHOW_CREATE)},
   {"show_create_trigger",  STMT_STATUS(SQLCOM_SHOW_CREATE_TRIGGER)},
@@ -3884,6 +3890,11 @@ SHOW_VAR com_status_vars[]= {
   {"show_keys",            STMT_STATUS(SQLCOM_SHOW_KEYS)},
   {"show_master_status",   STMT_STATUS(SQLCOM_SHOW_MASTER_STAT)},
   {"show_open_tables",     STMT_STATUS(SQLCOM_SHOW_OPEN_TABLES)},
+  {"show_package_status",  STMT_STATUS(SQLCOM_SHOW_STATUS_PACKAGE)},
+#ifndef DBUG_OFF
+  {"show_package_body_code",   STMT_STATUS(SQLCOM_SHOW_PACKAGE_BODY_CODE)},
+#endif
+  {"show_package_body_status", STMT_STATUS(SQLCOM_SHOW_STATUS_PACKAGE_BODY)},
   {"show_plugins",         STMT_STATUS(SQLCOM_SHOW_PLUGINS)},
   {"show_privileges",      STMT_STATUS(SQLCOM_SHOW_PRIVILEGES)},
 #ifndef DBUG_OFF

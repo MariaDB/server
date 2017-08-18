@@ -913,6 +913,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   sp_proc_cache= NULL;
   sp_func_cache= NULL;
+  sp_package_spec_cache= NULL;
+  sp_package_body_cache= NULL;
 
   /* For user vars replication*/
   if (opt_bin_log)
@@ -1477,6 +1479,8 @@ void THD::change_user(void)
                (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
+  sp_cache_clear(&sp_package_spec_cache);
+  sp_cache_clear(&sp_package_body_cache);
 }
 
 
@@ -1534,6 +1538,8 @@ void THD::cleanup(void)
   my_hash_free(&sequences);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
+  sp_cache_clear(&sp_package_spec_cache);
+  sp_cache_clear(&sp_package_body_cache);
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
@@ -3637,7 +3643,8 @@ int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
       mvsp->type_handler() == &type_handler_row)
   {
     // SELECT INTO row_type_sp_variable
-    if (thd->spcont->get_variable(mvsp->offset)->cols() != list.elements)
+    if (mvsp->get_rcontext(thd->spcont)->get_variable(mvsp->offset)->cols() !=
+        list.elements)
       goto error;
     m_var_sp_row= mvsp;
     return 0;
@@ -3981,14 +3988,22 @@ bool my_var_user::set(THD *thd, Item *item)
   return suv->fix_fields(thd, 0) || suv->update();
 }
 
+
+sp_rcontext *my_var_sp::get_rcontext(sp_rcontext *local_ctx) const
+{
+  return m_rcontext_handler->get_rcontext(local_ctx);
+}
+
+
 bool my_var_sp::set(THD *thd, Item *item)
 {
-  return thd->spcont->set_variable(thd, offset, &item);
+  return get_rcontext(thd->spcont)->set_variable(thd, offset, &item);
 }
 
 bool my_var_sp_row_field::set(THD *thd, Item *item)
 {
-  return thd->spcont->set_variable_row_field(thd, offset, m_field_offset, &item);
+  return get_rcontext(thd->spcont)->
+           set_variable_row_field(thd, offset, m_field_offset, &item);
 }
 
 
@@ -4023,7 +4038,8 @@ int select_dumpvar::send_data(List<Item> &items)
     DBUG_RETURN(1);
   }
   if (m_var_sp_row ?
-      thd->spcont->set_variable_row(thd, m_var_sp_row->offset, items) :
+      m_var_sp_row->get_rcontext(thd->spcont)->
+        set_variable_row(thd, m_var_sp_row->offset, items) :
       send_data_to_var_list(items))
     DBUG_RETURN(1);
 

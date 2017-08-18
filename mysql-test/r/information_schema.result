@@ -647,7 +647,7 @@ select * from t115;
 table_name	column_name	column_type
 proc	db	char(64)
 proc	name	char(64)
-proc	type	enum('FUNCTION','PROCEDURE')
+proc	type	enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY')
 proc	specific_name	char(64)
 proc	language	enum('SQL')
 proc	sql_data_access	enum('CONTAINS_SQL','NO_SQL','READS_SQL_DATA','MODIFIES_SQL_DATA')

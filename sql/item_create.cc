@@ -3431,6 +3431,8 @@ Create_sp_func::create_with_db(THD *thd, LEX_CSTRING *db, LEX_CSTRING *name,
   Item *func= NULL;
   LEX *lex= thd->lex;
   sp_name *qname;
+  const Sp_handler *sph= &sp_handler_function;
+  Database_qualified_name pkgname(&null_clex_str, &null_clex_str);
 
   if (has_named_parameters(item_list))
   {
@@ -3451,13 +3453,18 @@ Create_sp_func::create_with_db(THD *thd, LEX_CSTRING *db, LEX_CSTRING *name,
     arg_count= item_list->elements;
 
   qname= new (thd->mem_root) sp_name(db, name, use_explicit_name);
-  sp_handler_function.add_used_routine(lex, thd, qname);
-
+  if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
+                                      qname, &sph, &pkgname))
+    return NULL;
+  sph->add_used_routine(lex, thd, qname);
+  if (pkgname.m_name.length)
+    sp_handler_package_body.add_used_routine(lex, thd, &pkgname);
   if (arg_count > 0)
-    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(), qname,
-                                           *item_list);
+    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(),
+                                           qname, sph, *item_list);
   else
-    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(), qname);
+    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(),
+                                           qname, sph);
 
   lex->safe_to_cache_query= 0;
   return func;

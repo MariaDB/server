@@ -469,6 +469,16 @@ ALTER TABLE proc ADD character_set_client
 ALTER TABLE proc MODIFY character_set_client
                         char(32) collate utf8_bin DEFAULT NULL;
 
+ALTER TABLE proc MODIFY type enum('FUNCTION',
+                                  'PROCEDURE',
+                                  'PACKAGE',
+                                  'PACKAGE BODY') NOT NULL;
+
+ALTER TABLE procs_priv MODIFY Routine_type enum('FUNCTION',
+                                                'PROCEDURE',
+                                                'PACKAGE',
+                                                'PACKAGE BODY') NOT NULL;
+
 SELECT CASE WHEN COUNT(*) > 0 THEN 
 CONCAT ("WARNING: NULL values of the 'character_set_client' column ('mysql.proc' table) have been updated with a default value (", @@character_set_client, "). Please verify if necessary.")
 ELSE NULL 

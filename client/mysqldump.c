@@ -2478,7 +2478,14 @@ static void print_blob_as_hex(FILE *output_file, const char *str, ulong len)
 static uint dump_routines_for_db(char *db)
 {
   char       query_buff[QUERY_LENGTH];
-  const char *routine_type[]= {"FUNCTION", "PROCEDURE"};
+  const char *routine_type[]= {"FUNCTION",
+                               "PROCEDURE",
+                               "PACKAGE",
+                               "PACKAGE BODY"};
+  const char *create_caption_xml[]= {"Create Function",
+                                     "Create Procedure",
+                                     "Create Package",
+                                     "Create Package Body"};
   char       db_name_buff[NAME_LEN*2+3], name_buff[NAME_LEN*2+3];
   char       *routine_name;
   int        i;
@@ -2516,8 +2523,8 @@ static uint dump_routines_for_db(char *db)
   if (opt_xml)
     fputs("\t<routines>\n", sql_file);
 
-  /* 0, retrieve and dump functions, 1, procedures */
-  for (i= 0; i <= 1; i++)
+  /* 0, retrieve and dump functions, 1, procedures, etc. */
+  for (i= 0; i < 4; i++)
   {
     my_snprintf(query_buff, sizeof(query_buff),
                 "SHOW %s STATUS WHERE Db = '%s'",
@@ -2567,12 +2574,8 @@ static uint dump_routines_for_db(char *db)
           {
             if (opt_xml)
             {
-              if (i)                            /* Procedures. */
-                print_xml_row(sql_file, "routine", routine_res, &row,
-                              "Create Procedure");
-              else                              /* Functions. */
-                print_xml_row(sql_file, "routine", routine_res, &row,
-                              "Create Function");
+              print_xml_row(sql_file, "routine", routine_res, &row,
+                            create_caption_xml[i]);
               continue;
             }
             if (opt_drop)

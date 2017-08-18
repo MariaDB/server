@@ -31,7 +31,9 @@ class Sroutine_hash_entry;
 class THD;
 class sp_cache;
 class sp_head;
+class sp_package;
 class sp_pcontext;
+class sp_name;
 class Database_qualified_name;
 struct st_sp_chistics;
 class Stored_program_creation_ctx;
@@ -49,13 +51,28 @@ enum stored_procedure_type
 {
   TYPE_ENUM_FUNCTION=1,
   TYPE_ENUM_PROCEDURE=2,
-  TYPE_ENUM_TRIGGER=3,
-  TYPE_ENUM_PROXY=4
+  TYPE_ENUM_PACKAGE=3,
+  TYPE_ENUM_PACKAGE_BODY=4,
+  TYPE_ENUM_TRIGGER=5,
+  TYPE_ENUM_PROXY=6
 };
 
 
 class Sp_handler
 {
+  bool sp_resolve_package_routine_explicit(THD *thd,
+                                           sp_head *caller,
+                                           sp_name *name,
+                                           const Sp_handler **pkg_routine_hndlr,
+                                           Database_qualified_name *pkgname)
+                                           const;
+  bool sp_resolve_package_routine_implicit(THD *thd,
+                                           sp_head *caller,
+                                           sp_name *name,
+                                           const Sp_handler **pkg_routine_hndlr,
+                                           Database_qualified_name *pkgname)
+                                           const;
+protected:
   int db_find_routine_aux(THD *thd, const Database_qualified_name *name,
                           TABLE *table) const;
   int db_find_routine(THD *thd, const Database_qualified_name *name,
@@ -72,6 +89,7 @@ class Sp_handler
                       const st_sp_chistics &chistics,
                       const AUTHID &definer,
                       longlong created, longlong modified,
+                      sp_package *parent,
                       Stored_program_creation_ctx *creation_ctx) const;
   int sp_drop_routine_internal(THD *thd,
                                const Database_qualified_name *name,
@@ -80,11 +98,37 @@ class Sp_handler
   sp_head *sp_clone_and_link_routine(THD *thd,
                                      const Database_qualified_name *name,
                                      sp_head *sp) const;
+  int sp_cache_package_routine(THD *thd,
+                               const LEX_CSTRING &pkgname_cstr,
+                               const Database_qualified_name *name,
+                               bool lookup_only, sp_head **sp) const;
+  int sp_cache_package_routine(THD *thd,
+                               const Database_qualified_name *name,
+                               bool lookup_only, sp_head **sp) const;
+  sp_head *sp_find_package_routine(THD *thd,
+                                   const LEX_CSTRING pkgname_str,
+                                   const Database_qualified_name *name,
+                                   bool cache_only) const;
+  sp_head *sp_find_package_routine(THD *thd,
+                                   const Database_qualified_name *name,
+                                   bool cache_only) const;
+public: // TODO: make it private or protected
+  virtual int sp_find_and_drop_routine(THD *thd, TABLE *table,
+                                       const Database_qualified_name *name)
+                                       const;
+
 public:
   virtual ~Sp_handler() {}
   static const Sp_handler *handler(enum enum_sql_command cmd);
   static const Sp_handler *handler(stored_procedure_type type);
   static const Sp_handler *handler(MDL_key::enum_mdl_namespace ns);
+  static bool eq_routine_name(const LEX_CSTRING &name1,
+                              const LEX_CSTRING &name2)
+  {
+    return my_strnncoll(system_charset_info,
+                        (const uchar *) name1.str, name1.length,
+                        (const uchar *) name2.str, name2.length) == 0;
+  }
   const char *type_str() const { return type_lex_cstring().str; }
   virtual const char *show_create_routine_col1_caption() const
   {
@@ -95,6 +139,10 @@ public:
   {
     DBUG_ASSERT(0);
     return "";
+  }
+  virtual const Sp_handler *package_routine_handler() const
+  {
+    return this;
   }
   virtual stored_procedure_type type() const= 0;
   virtual LEX_CSTRING type_lex_cstring() const= 0;
@@ -132,12 +180,22 @@ public:
 
   void add_used_routine(Query_tables_list *prelocking_ctx,
                         Query_arena *arena,
-                        const Database_qualified_name *rt) const;
+                        const Database_qualified_name *name) const;
 
-  sp_head *sp_find_routine(THD *thd, const Database_qualified_name *name,
-                           bool cache_only) const;
-  int sp_cache_routine(THD *thd, const Database_qualified_name *name,
-                       bool lookup_only, sp_head **sp) const;
+  bool sp_resolve_package_routine(THD *thd,
+                                  sp_head *caller,
+                                  sp_name *name,
+                                  const Sp_handler **pkg_routine_handler,
+                                  Database_qualified_name *pkgname) const;
+  virtual sp_head *sp_find_routine(THD *thd,
+                                   const Database_qualified_name *name,
+                                   bool cache_only) const;
+  virtual int sp_cache_routine(THD *thd, const Database_qualified_name *name,
+                               bool lookup_only, sp_head **sp) const;
+
+  int sp_cache_routine_reentrant(THD *thd,
+                                 const Database_qualified_name *nm,
+                                 sp_head **sp) const;
 
   bool sp_exist_routines(THD *thd, TABLE_LIST *procs) const;
   bool sp_show_create_routine(THD *thd,
@@ -163,16 +221,17 @@ public:
       @retval   true on error
       @retval   false on success
   */
-  bool show_create_sp(THD *thd, String *buf,
-                      const LEX_CSTRING &db,
-                      const LEX_CSTRING &name,
-                      const LEX_CSTRING &params,
-                      const LEX_CSTRING &returns,
-                      const LEX_CSTRING &body,
-                      const st_sp_chistics &chistics,
-                      const AUTHID &definer,
-                      const DDL_options_st ddl_options,
-                      sql_mode_t sql_mode) const;
+  virtual bool show_create_sp(THD *thd, String *buf,
+                              const LEX_CSTRING &db,
+                              const LEX_CSTRING &name,
+                              const LEX_CSTRING &params,
+                              const LEX_CSTRING &returns,
+                              const LEX_CSTRING &body,
+                              const st_sp_chistics &chistics,
+                              const AUTHID &definer,
+                              const DDL_options_st ddl_options,
+                              sql_mode_t sql_mode) const;
+
 };
 
 
@@ -202,6 +261,7 @@ public:
   {
     return MDL_key::PROCEDURE;
   }
+  const Sp_handler *package_routine_handler() const;
   sp_cache **get_cache(THD *) const;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   HASH *get_priv_hash() const;
@@ -209,6 +269,23 @@ public:
   ulong recursion_depth(THD *thd) const;
   void recursion_level_error(THD *thd, const sp_head *sp) const;
   bool add_instr_preturn(THD *thd, sp_head *sp, sp_pcontext *spcont) const;
+};
+
+
+class Sp_handler_package_procedure: public Sp_handler_procedure
+{
+public:
+  int sp_cache_routine(THD *thd, const Database_qualified_name *name,
+                       bool lookup_only, sp_head **sp) const
+  {
+    return sp_cache_package_routine(thd, name, lookup_only, sp);
+  }
+  sp_head *sp_find_routine(THD *thd,
+                           const Database_qualified_name *name,
+                           bool cache_only) const
+  {
+    return sp_find_package_routine(thd, name, cache_only);
+  }
 };
 
 
@@ -238,12 +315,116 @@ public:
   {
     return MDL_key::FUNCTION;
   }
+  const Sp_handler *package_routine_handler() const;
   sp_cache **get_cache(THD *) const;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   HASH *get_priv_hash() const;
 #endif
   bool add_instr_freturn(THD *thd, sp_head *sp, sp_pcontext *spcont,
                          Item *item, LEX *lex) const;
+};
+
+
+class Sp_handler_package_function: public Sp_handler_function
+{
+public:
+  int sp_cache_routine(THD *thd, const Database_qualified_name *name,
+                       bool lookup_only, sp_head **sp) const
+  {
+    return sp_cache_package_routine(thd, name, lookup_only, sp);
+  }
+  sp_head *sp_find_routine(THD *thd,
+                           const Database_qualified_name *name,
+                           bool cache_only) const
+  {
+    return sp_find_package_routine(thd, name, cache_only);
+  }
+};
+
+
+class Sp_handler_package: public Sp_handler
+{
+public:
+  bool show_create_sp(THD *thd, String *buf,
+                      const LEX_CSTRING &db,
+                      const LEX_CSTRING &name,
+                      const LEX_CSTRING &params,
+                      const LEX_CSTRING &returns,
+                      const LEX_CSTRING &body,
+                      const st_sp_chistics &chistics,
+                      const AUTHID &definer,
+                      const DDL_options_st ddl_options,
+                      sql_mode_t sql_mode) const;
+};
+
+
+class Sp_handler_package_spec: public Sp_handler_package
+{
+public: // TODO: make it private or protected
+  int sp_find_and_drop_routine(THD *thd, TABLE *table,
+                               const Database_qualified_name *name)
+                               const;
+public:
+  stored_procedure_type type() const { return TYPE_ENUM_PACKAGE; }
+  LEX_CSTRING type_lex_cstring() const
+  {
+    static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("PACKAGE")};
+    return m_type_str;
+  }
+  LEX_CSTRING empty_body_lex_cstring() const
+  {
+    static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("BEGIN END")};
+    return m_empty_body;
+  }
+  const char *show_create_routine_col1_caption() const
+  {
+    return "Package";
+  }
+  const char *show_create_routine_col3_caption() const
+  {
+    return "Create Package";
+  }
+  MDL_key::enum_mdl_namespace get_mdl_type() const
+  {
+    return MDL_key::PACKAGE_BODY;
+  }
+  sp_cache **get_cache(THD *) const;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  HASH *get_priv_hash() const;
+#endif
+};
+
+
+class Sp_handler_package_body: public Sp_handler_package
+{
+public:
+  stored_procedure_type type() const { return TYPE_ENUM_PACKAGE_BODY; }
+  LEX_CSTRING type_lex_cstring() const
+  {
+    static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("PACKAGE BODY")};
+    return m_type_str;
+  }
+  LEX_CSTRING empty_body_lex_cstring() const
+  {
+    static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("BEGIN END")};
+    return m_empty_body;
+  }
+  const char *show_create_routine_col1_caption() const
+  {
+    return "Package body";
+  }
+  const char *show_create_routine_col3_caption() const
+  {
+    return "Create Package Body";
+  }
+  MDL_key::enum_mdl_namespace get_mdl_type() const
+  {
+    return MDL_key::PACKAGE_BODY;
+  }
+  sp_cache **get_cache(THD *) const;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  HASH *get_priv_hash() const;
+#endif
 };
 
 
@@ -266,6 +447,10 @@ public:
 
 extern MYSQL_PLUGIN_IMPORT Sp_handler_function sp_handler_function;
 extern MYSQL_PLUGIN_IMPORT Sp_handler_procedure sp_handler_procedure;
+extern MYSQL_PLUGIN_IMPORT Sp_handler_package_spec sp_handler_package_spec;
+extern MYSQL_PLUGIN_IMPORT Sp_handler_package_body sp_handler_package_body;
+extern MYSQL_PLUGIN_IMPORT Sp_handler_package_function sp_handler_package_function;
+extern MYSQL_PLUGIN_IMPORT Sp_handler_package_procedure sp_handler_package_procedure;
 extern MYSQL_PLUGIN_IMPORT Sp_handler_trigger sp_handler_trigger;
 
 
@@ -286,6 +471,17 @@ inline const Sp_handler *Sp_handler::handler(enum_sql_command cmd)
   case SQLCOM_SHOW_CREATE_FUNC:
   case SQLCOM_SHOW_STATUS_FUNC:
     return &sp_handler_function;
+  case SQLCOM_CREATE_PACKAGE:
+  case SQLCOM_DROP_PACKAGE:
+  case SQLCOM_SHOW_CREATE_PACKAGE:
+  case SQLCOM_SHOW_STATUS_PACKAGE:
+    return &sp_handler_package_spec;
+  case SQLCOM_CREATE_PACKAGE_BODY:
+  case SQLCOM_DROP_PACKAGE_BODY:
+  case SQLCOM_SHOW_CREATE_PACKAGE_BODY:
+  case SQLCOM_SHOW_STATUS_PACKAGE_BODY:
+  case SQLCOM_SHOW_PACKAGE_BODY_CODE:
+    return &sp_handler_package_body;
   default:
     break;
   }
@@ -300,6 +496,10 @@ inline const Sp_handler *Sp_handler::handler(stored_procedure_type type)
     return &sp_handler_procedure;
   case TYPE_ENUM_FUNCTION:
     return &sp_handler_function;
+  case TYPE_ENUM_PACKAGE:
+    return &sp_handler_package_spec;
+  case TYPE_ENUM_PACKAGE_BODY:
+    return &sp_handler_package_body;
   case TYPE_ENUM_TRIGGER:
     return &sp_handler_trigger;
   case TYPE_ENUM_PROXY:
@@ -316,6 +516,8 @@ inline const Sp_handler *Sp_handler::handler(MDL_key::enum_mdl_namespace type)
     return &sp_handler_function;
   case MDL_key::PROCEDURE:
     return &sp_handler_procedure;
+  case MDL_key::PACKAGE_BODY:
+    return &sp_handler_package_body;
   case MDL_key::GLOBAL:
   case MDL_key::SCHEMA:
   case MDL_key::TABLE:
@@ -424,12 +626,16 @@ public:
   */
   ulong m_sp_cache_version;
 
+  const Sp_handler *m_handler;
+
   int sp_cache_routine(THD *thd, bool lookup_only, sp_head **sp) const;
 };
 
 
 bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
-                         const MDL_key *key, TABLE_LIST *belong_to_view);
+                         const MDL_key *key,
+                         const Sp_handler *handler,
+                         TABLE_LIST *belong_to_view);
 void sp_remove_not_own_routines(Query_tables_list *prelocking_ctx);
 bool sp_update_sp_used_routines(HASH *dst, HASH *src);
 void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,

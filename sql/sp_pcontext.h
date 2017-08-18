@@ -394,6 +394,9 @@ public:
   sp_pcontext *parent_context() const
   { return m_parent; }
 
+  sp_pcontext *child_context(uint i) const
+  { return i < m_children.elements() ? m_children.at(i) : NULL; }
+
   /// Calculate and return the number of handlers to pop between the given
   /// context and this one.
   ///

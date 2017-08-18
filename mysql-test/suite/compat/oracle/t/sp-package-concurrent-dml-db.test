@@ -1,0 +1,6 @@
+--echo #
+--echo # MDEV-15070 Crash when doing a CREATE VIEW inside a package routine
+--echo #
+
+SET @object_type='db';
+--source sp-package-concurrent-dml.inc

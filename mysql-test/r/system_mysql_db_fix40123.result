@@ -176,7 +176,7 @@ procs_priv	CREATE TABLE `procs_priv` (
   `Db` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
   `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Routine_name` char(64) CHARACTER SET utf8 NOT NULL DEFAULT '',
-  `Routine_type` enum('FUNCTION','PROCEDURE') COLLATE utf8_bin NOT NULL,
+  `Routine_type` enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') COLLATE utf8_bin NOT NULL,
   `Grantor` char(141) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Proc_priv` set('Execute','Alter Routine','Grant') CHARACTER SET utf8 NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -202,7 +202,7 @@ Table	Create Table
 proc	CREATE TABLE `proc` (
   `db` char(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
   `name` char(64) NOT NULL DEFAULT '',
-  `type` enum('FUNCTION','PROCEDURE') NOT NULL,
+  `type` enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') NOT NULL,
   `specific_name` char(64) NOT NULL DEFAULT '',
   `language` enum('SQL') NOT NULL DEFAULT 'SQL',
   `sql_data_access` enum('CONTAINS_SQL','NO_SQL','READS_SQL_DATA','MODIFIES_SQL_DATA') NOT NULL DEFAULT 'CONTAINS_SQL',

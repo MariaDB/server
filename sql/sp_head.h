@@ -133,6 +133,7 @@ class sp_head :private Query_arena,
   sp_head(const sp_head &);	/**< Prevent use of these */
   void operator=(sp_head &);
 
+protected:
   MEM_ROOT main_mem_root;
 public:
   /** Possible values of m_flags */
@@ -168,6 +169,7 @@ public:
     HAS_COLUMN_TYPE_REFS= 8192
   };
 
+  sp_package *m_parent;
   const Sp_handler *m_handler;
   uint m_flags;                 // Boolean attributes of a stored routine
 
@@ -201,13 +203,13 @@ public:
   /**
     Is this routine being executed?
   */
-  bool is_invoked() const { return m_flags & IS_INVOKED; }
+  virtual bool is_invoked() const { return m_flags & IS_INVOKED; }
 
   /**
     Get the value of the SP cache version, as remembered
     when the routine was inserted into the cache.
   */
-  ulong sp_cache_version() const { return m_sp_cache_version; }
+  ulong sp_cache_version() const;
 
   /** Set the value of the SP cache version.  */
   void set_sp_cache_version(ulong version_arg)
@@ -221,6 +223,7 @@ public:
   sp_rcontext *rcontext_create(THD *thd, Field *retval,
                                Row_definition_list *list,
                                bool switch_security_ctx);
+  bool eq_routine_spec(const sp_head *) const;
 private:
   /**
     Version of the stored routine cache at the moment when the
@@ -316,7 +319,7 @@ public:
   static void
   operator delete(void *ptr, size_t size) throw ();
 
-  sp_head(const Sp_handler *handler);
+  sp_head(sp_package *parent, const Sp_handler *handler);
 
   /// Initialize after we have reset mem_root
   void
@@ -395,15 +398,19 @@ public:
     @retval false                  - on success
   */
   bool set_local_variable(THD *thd, sp_pcontext *spcont,
+                          const Sp_rcontext_handler *rh,
                           sp_variable *spv, Item *val, LEX *lex,
                           bool responsible_to_free_lex);
   bool set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
+                                    const Sp_rcontext_handler *rh,
                                     sp_variable *spv, uint field_idx,
                                     Item *val, LEX *lex);
   bool set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
+                                            const Sp_rcontext_handler *rh,
                                             sp_variable *spv,
                                             const LEX_CSTRING *field_name,
                                             Item *val, LEX *lex);
+  bool check_package_routine_end_name(const LEX_CSTRING &end_name) const;
 private:
   /**
     Generate a code to set a single cursor parameter variable.
@@ -426,7 +433,9 @@ private:
     */
     DBUG_ASSERT(m_thd->free_list == NULL);
     m_thd->free_list= prm->get_free_list();
-    if (set_local_variable(thd, param_spcont, spvar, prm->get_item(), prm, true))
+    if (set_local_variable(thd, param_spcont,
+                           &sp_rcontext_handler_local,
+                           spvar, prm->get_item(), prm, true))
       return true;
     /*
       Safety:
@@ -822,9 +831,19 @@ public:
 
   sp_pcontext *get_parse_context() { return m_pcont; }
 
+  /*
+    Check EXECUTE access:
+    - in case of a standalone rotuine, for the routine itself
+    - in case of a package routine, for the owner package body
+  */
   bool check_execute_access(THD *thd) const;
 
-private:
+  virtual sp_package *get_package()
+  {
+    return NULL;
+  }
+
+protected:
 
   MEM_ROOT *m_thd_root;		///< Temp. store for thd's mem_root
   THD *m_thd;			///< Set if we have reset mem_root
@@ -887,6 +906,92 @@ private:
                  backpatch_instr_type itype);
 
 }; // class sp_head : public Sql_alloc
+
+
+class sp_package: public sp_head
+{
+  bool validate_public_routines(THD *thd, sp_package *spec);
+  bool validate_private_routines(THD *thd);
+public:
+  class LexList: public List<LEX>
+  {
+  public:
+    LexList() { elements= 0; }
+    // Find a package routine by a non qualified name
+    LEX *find(const LEX_CSTRING &name, stored_procedure_type type);
+    // Find a package routine by a package-qualified name, e.g. 'pkg.proc'
+    LEX *find_qualified(const LEX_CSTRING &name, stored_procedure_type type);
+    // Check if a routine with the given qualified name already exists
+    bool check_dup_qualified(const LEX_CSTRING &name, const Sp_handler *sph)
+    {
+      if (!find_qualified(name, sph->type()))
+        return false;
+      my_error(ER_SP_ALREADY_EXISTS, MYF(0), sph->type_str(), name.str);
+      return true;
+    }
+    bool check_dup_qualified(const sp_head *sp)
+    {
+      return check_dup_qualified(sp->m_name, sp->m_handler);
+    }
+    void cleanup();
+  };
+  /*
+    The LEX for a new package subroutine is initially assigned to
+    m_current_routine. After scanning parameters, return type and chistics,
+    the parser detects if we have a declaration or a definition, e.g.:
+         PROCEDURE p1(a INT);
+      vs
+         PROCEDURE p1(a INT) AS BEGIN NULL; END;
+    (i.e. either semicolon or the "AS" keyword)
+    m_current_routine is then added either to m_routine_implementations,
+    or m_routine_declarations, and then m_current_routine is set to NULL.
+  */
+  LEX *m_current_routine;
+  LexList m_routine_implementations;
+  LexList m_routine_declarations;
+
+  LEX *m_top_level_lex;
+  sp_rcontext *m_rcontext;
+  uint m_invoked_subroutine_count;
+  bool m_is_instantiated;
+  bool m_is_cloning_routine;
+
+  sp_package(LEX *top_level_lex,
+             const sp_name *name,
+             const Sp_handler *sph);
+  ~sp_package();
+  bool add_routine_declaration(LEX *lex)
+  {
+    return m_routine_declarations.check_dup_qualified(lex->sphead) ||
+           m_routine_declarations.push_back(lex, &main_mem_root);
+  }
+  bool add_routine_implementation(LEX *lex)
+  {
+    return m_routine_implementations.check_dup_qualified(lex->sphead) ||
+           m_routine_implementations.push_back(lex, &main_mem_root);
+  }
+  sp_package *get_package() { return this; }
+  bool is_invoked() const
+  {
+    /*
+      Cannot flush a package out of the SP cache when:
+      - its initialization block is running
+      - one of its subroutine is running
+    */
+    return sp_head::is_invoked() || m_invoked_subroutine_count > 0;
+  }
+  sp_variable *find_package_variable(const LEX_CSTRING *name) const
+  {
+    /*
+      sp_head::m_pcont is a special level for routine parameters.
+      Variables declared inside CREATE PACKAGE BODY reside in m_children.at(0).
+    */
+    sp_pcontext *ctx= m_pcont->child_context(0);
+    return ctx ? ctx->find_variable(name, true) : NULL;
+  }
+  bool validate_after_parser(THD *thd);
+  bool instantiate_if_needed(THD *thd);
+};
 
 
 class sp_lex_cursor: public sp_lex_local, public Query_arena
@@ -1177,9 +1282,11 @@ class sp_instr_set : public sp_instr
 public:
 
   sp_instr_set(uint ip, sp_pcontext *ctx,
+               const Sp_rcontext_handler *rh,
 	       uint offset, Item *val,
                LEX *lex, bool lex_resp)
-    : sp_instr(ip, ctx), m_offset(offset), m_value(val),
+    : sp_instr(ip, ctx),
+      m_rcontext_handler(rh), m_offset(offset), m_value(val),
       m_lex_keeper(lex, lex_resp)
   {}
 
@@ -1193,11 +1300,11 @@ public:
   virtual void print(String *str);
 
 protected:
-
+  sp_rcontext *get_rcontext(THD *thd) const;
+  const Sp_rcontext_handler *m_rcontext_handler;
   uint m_offset;		///< Frame offset
   Item *m_value;
   sp_lex_keeper m_lex_keeper;
-
 }; // class sp_instr_set : public sp_instr
 
 
@@ -1215,10 +1322,11 @@ class sp_instr_set_row_field : public sp_instr_set
 public:
 
   sp_instr_set_row_field(uint ip, sp_pcontext *ctx,
+                         const Sp_rcontext_handler *rh,
                          uint offset, uint field_offset,
                          Item *val,
                          LEX *lex, bool lex_resp)
-    : sp_instr_set(ip, ctx, offset, val, lex, lex_resp),
+    : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp),
       m_field_offset(field_offset)
   {}
 
@@ -1257,10 +1365,11 @@ class sp_instr_set_row_field_by_name : public sp_instr_set
 public:
 
   sp_instr_set_row_field_by_name(uint ip, sp_pcontext *ctx,
+                                 const Sp_rcontext_handler *rh,
                                  uint offset, const LEX_CSTRING &field_name,
                                  Item *val,
                                  LEX *lex, bool lex_resp)
-    : sp_instr_set(ip, ctx, offset, val, lex, lex_resp),
+    : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp),
       m_field_name(field_name)
   {}
 

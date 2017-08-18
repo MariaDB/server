@@ -1119,6 +1119,16 @@ public:
   char *db;
   size_t db_length;
 
+  /*
+    We should eventually replace "db" and "db_length" to LEX_STRING.
+    This helper method can be removed after that.
+  */
+  LEX_CSTRING db_lex_cstring() const
+  {
+    LEX_CSTRING tmp= {db, db_length };
+    return tmp;
+  }
+
   /* This is set to 1 of last call to send_result_to_client() was ok */
   my_bool query_cache_is_applicable;
 
@@ -3072,6 +3082,8 @@ public:
   sp_rcontext *spcont;		// SP runtime context
   sp_cache   *sp_proc_cache;
   sp_cache   *sp_func_cache;
+  sp_cache   *sp_package_spec_cache;
+  sp_cache   *sp_package_body_cache;
 
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
@@ -5740,6 +5752,7 @@ public:
 };
 
 class my_var_sp: public my_var {
+  const Sp_rcontext_handler *m_rcontext_handler;
   const Type_handler *m_type_handler;
 public:
   uint offset;
@@ -5748,13 +5761,17 @@ public:
     runtime context is used for variable handling.
   */
   sp_head *sp;
-  my_var_sp(const LEX_CSTRING *j, uint o, const Type_handler *type_handler,
+  my_var_sp(const Sp_rcontext_handler *rcontext_handler,
+            const LEX_CSTRING *j, uint o, const Type_handler *type_handler,
             sp_head *s)
-    : my_var(j, LOCAL_VAR), m_type_handler(type_handler), offset(o), sp(s) { }
+    : my_var(j, LOCAL_VAR),
+      m_rcontext_handler(rcontext_handler),
+      m_type_handler(type_handler), offset(o), sp(s) { }
   ~my_var_sp() { }
   bool set(THD *thd, Item *val);
   my_var_sp *get_my_var_sp() { return this; }
   const Type_handler *type_handler() const { return m_type_handler; }
+  sp_rcontext *get_rcontext(sp_rcontext *local_ctx) const;
 };
 
 /*
@@ -5765,9 +5782,11 @@ class my_var_sp_row_field: public my_var_sp
 {
   uint m_field_offset;
 public:
-  my_var_sp_row_field(const LEX_CSTRING *varname, const LEX_CSTRING *fieldname,
+  my_var_sp_row_field(const Sp_rcontext_handler *rcontext_handler,
+                      const LEX_CSTRING *varname, const LEX_CSTRING *fieldname,
                       uint var_idx, uint field_idx, sp_head *s)
-   :my_var_sp(varname, var_idx, &type_handler_double/*Not really used*/, s),
+   :my_var_sp(rcontext_handler, varname, var_idx,
+              &type_handler_double/*Not really used*/, s),
     m_field_offset(field_idx)
   { }
   bool set(THD *thd, Item *val);
@@ -6142,6 +6161,9 @@ public:
   Database_qualified_name(const LEX_CSTRING *db, const LEX_CSTRING *name)
    :m_db(*db), m_name(*name)
   { }
+  Database_qualified_name(const LEX_CSTRING &db, const LEX_CSTRING &name)
+   :m_db(db), m_name(name)
+  { }
   Database_qualified_name(const char *db, size_t db_length,
                           const char *name, size_t name_length)
   {
@@ -6189,6 +6211,34 @@ public:
             dot, ".",
             (int) m_name.length, m_name.str);
     DBUG_ASSERT(ok_for_lower_case_names(m_db.str));
+    return false;
+  }
+
+  bool make_package_routine_name(MEM_ROOT *mem_root,
+                                 const LEX_CSTRING &package,
+                                 const LEX_CSTRING &routine)
+  {
+    char *tmp;
+    size_t length= package.length + 1 + routine.length + 1;
+    if (!(tmp= (char *) alloc_root(mem_root, length)))
+      return true;
+    m_name.length= my_snprintf(tmp, length, "%.*s.%.*s",
+                               (int) package.length, package.str,
+                               (int) routine.length, routine.str);
+    m_name.str= tmp;
+    return false;
+  }
+
+  bool make_package_routine_name(MEM_ROOT *mem_root,
+                                 const LEX_CSTRING &db,
+                                 const LEX_CSTRING &package,
+                                 const LEX_CSTRING &routine)
+  {
+    if (make_package_routine_name(mem_root, package, routine))
+      return true;
+    if (!(m_db.str= strmake_root(mem_root, db.str, db.length)))
+      return true;
+    m_db.length= db.length;
     return false;
   }
 };
