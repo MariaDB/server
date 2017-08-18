@@ -715,14 +715,11 @@ static
 bool
 have_queries_to_wait_for(MYSQL *connection, uint threshold)
 {
-	MYSQL_RES *result;
-	MYSQL_ROW row;
-	bool all_queries;
+	MYSQL_RES *result = xb_mysql_query(connection, "SHOW FULL PROCESSLIST",
+					   true);
+	const bool all_queries = (opt_lock_wait_query_type == QUERY_TYPE_ALL);
 
-	result = xb_mysql_query(connection, "SHOW FULL PROCESSLIST", true);
-
-	all_queries = (opt_lock_wait_query_type == QUERY_TYPE_ALL);
-	while ((row = mysql_fetch_row(result)) != NULL) {
+	while (MYSQL_ROW row = mysql_fetch_row(result)) {
 		const char	*info		= row[7];
 		int		duration	= row[5] ? atoi(row[5]) : 0;
 		char		*id		= row[0];
@@ -744,15 +741,12 @@ static
 void
 kill_long_queries(MYSQL *connection, time_t timeout)
 {
-	MYSQL_RES *result;
-	MYSQL_ROW row;
-	bool all_queries;
 	char kill_stmt[100];
 
-	result = xb_mysql_query(connection, "SHOW FULL PROCESSLIST", true);
-
-	all_queries = (opt_kill_long_query_type == QUERY_TYPE_ALL);
-	while ((row = mysql_fetch_row(result)) != NULL) {
+	MYSQL_RES *result = xb_mysql_query(connection, "SHOW FULL PROCESSLIST",
+					   true);
+	const bool all_queries = (opt_kill_long_query_type == QUERY_TYPE_ALL);
+	while (MYSQL_ROW row = mysql_fetch_row(result)) {
 		const char	*info		= row[7];
 		long long		duration	= row[5]? atoll(row[5]) : 0;
 		char		*id		= row[0];
