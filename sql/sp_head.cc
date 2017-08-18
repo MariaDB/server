@@ -4718,3 +4718,68 @@ sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
   }
   return false;
 }
+
+
+bool sp_head::spvar_fill_row(THD *thd,
+                             sp_variable *spvar,
+                             Row_definition_list *defs)
+{
+  spvar->field_def.field_name= spvar->name;
+  if (fill_spvar_definition(thd, &spvar->field_def))
+    return true;
+  row_fill_field_definitions(thd, defs);
+  spvar->field_def.set_row_field_definitions(defs);
+  return false;
+}
+
+
+bool sp_head::spvar_fill_type_reference(THD *thd,
+                                        sp_variable *spvar,
+                                        const LEX_CSTRING &table,
+                                        const LEX_CSTRING &col)
+{
+  Qualified_column_ident *ref;
+  if (!(ref= new (thd->mem_root) Qualified_column_ident(&table, &col)))
+    return true;
+  fill_spvar_using_type_reference(spvar, ref);
+  return false;
+}
+
+
+bool sp_head::spvar_fill_type_reference(THD *thd,
+                                        sp_variable *spvar,
+                                        const LEX_CSTRING &db,
+                                        const LEX_CSTRING &table,
+                                        const LEX_CSTRING &col)
+{
+  Qualified_column_ident *ref;
+  if (!(ref= new (thd->mem_root) Qualified_column_ident(thd, &db, &table, &col)))
+    return true;
+  fill_spvar_using_type_reference(spvar, ref);
+  return false;
+}
+
+
+bool sp_head::spvar_fill_table_rowtype_reference(THD *thd,
+                                                 sp_variable *spvar,
+                                                 const LEX_CSTRING &table)
+{
+  Table_ident *ref;
+  if (!(ref= new (thd->mem_root) Table_ident(&table)))
+    return true;
+  fill_spvar_using_table_rowtype_reference(thd, spvar, ref);
+  return false;
+}
+
+
+bool sp_head::spvar_fill_table_rowtype_reference(THD *thd,
+                                                 sp_variable *spvar,
+                                                 const LEX_CSTRING &db,
+                                                 const LEX_CSTRING &table)
+{
+  Table_ident *ref;
+  if (!(ref= new (thd->mem_root) Table_ident(thd, &db, &table, false)))
+    return true;
+  fill_spvar_using_table_rowtype_reference(thd, spvar, ref);
+  return false;
+}

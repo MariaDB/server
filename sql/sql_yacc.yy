@@ -1633,7 +1633,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_ident_opt_wild create_like
 
 %type <qualified_column_ident>
-        qualified_column_ident
         optionally_qualified_column_ident
 
 %type <simple_string>
@@ -3093,17 +3092,30 @@ sp_param_name_and_type:
             if (Lex->sp_param_fill_definition($$= $1))
               MYSQL_YYABORT;
           }
-        | sp_param_name TYPE_SYM OF_SYM qualified_column_ident
+        | sp_param_name TYPE_SYM OF_SYM ident '.' ident
           {
-            Lex->sphead->fill_spvar_using_type_reference($$= $1, $4);
+            if (Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $4, $6))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name TYPE_SYM OF_SYM ident '.' ident '.' ident
+          {
+            if (Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $4, $6, $8))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name ROW_SYM TYPE_SYM OF_SYM ident
+          {
+            if (Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $5))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name ROW_SYM TYPE_SYM OF_SYM ident '.' ident
+          {
+            if (Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $5, $7))
+              MYSQL_YYABORT;
           }
         | sp_param_name ROW_SYM row_type_body
           {
-            $$= $1;
-            $$->field_def.field_name= $$->name;
-            Lex->sphead->fill_spvar_definition(thd, &$$->field_def);
-            Lex->sphead->row_fill_field_definitions(thd, $3);
-            $$->field_def.set_row_field_definitions($3);
+            if (Lex->sphead->spvar_fill_row(thd, $$= $1, $3))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -3183,20 +3195,6 @@ sp_decl:
           DECLARE_SYM sp_decl_body { $$= $2; }
         ;
 
-
-qualified_column_ident:
-          sp_decl_ident '.' ident
-          {
-            if (!($$= new (thd->mem_root) Qualified_column_ident(&$1, &$3)))
-              MYSQL_YYABORT;
-          }
-        | sp_decl_ident '.' ident '.' ident
-          {
-            if (!($$= new (thd->mem_root) Qualified_column_ident(thd,
-                                                                 &$1, &$3, &$5)))
-              MYSQL_YYABORT;
-          }
-        ;
 
 optionally_qualified_column_ident:
           sp_decl_ident
