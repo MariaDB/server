@@ -67,6 +67,7 @@ Item_func_vtq_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
   {
     null_value= false;
     thd->variables.time_zone->gmt_sec_to_TIME(res, TIMESTAMP_MAX_VALUE);
+    res->second_part= TIME_MAX_SECOND_PART;
     return false;
   }
 

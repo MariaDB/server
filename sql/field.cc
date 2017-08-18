@@ -2012,6 +2012,7 @@ bool Field_vers_system::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglo
   if (trx_id == ULONGLONG_MAX)
   {
     get_thd()->variables.time_zone->gmt_sec_to_TIME(ltime, TIMESTAMP_MAX_VALUE);
+    ltime->second_part= TIME_MAX_SECOND_PART;
     return false;
   }
   if (cached == trx_id)
@@ -5481,10 +5482,11 @@ void Field_timestampf::set_max()
 {
   DBUG_ENTER("Field_timestampf::set_max");
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  DBUG_ASSERT(dec == TIME_SECOND_PART_DIGITS);
 
   set_notnull();
   mi_int4store(ptr, TIMESTAMP_MAX_VALUE);
-  memset(ptr + 4, 0x0, value_length() - 4);
+  mi_int3store(ptr + 4, TIME_MAX_SECOND_PART);
 
   DBUG_VOID_RETURN;
 }
@@ -5494,7 +5496,8 @@ bool Field_timestampf::is_max()
   DBUG_ENTER("Field_timestampf::is_max");
   ASSERT_COLUMN_MARKED_FOR_READ;
 
-  DBUG_RETURN(mi_sint4korr(ptr) == 0x7fffffff);
+  DBUG_RETURN(mi_sint4korr(ptr) == TIMESTAMP_MAX_VALUE &&
+              mi_sint3korr(ptr + 4) == TIME_MAX_SECOND_PART);
 }
 
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,

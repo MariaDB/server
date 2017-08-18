@@ -102,7 +102,7 @@ set @ts_start= sys_commit_ts('sys_trx_start');
 set @ts_end= sys_commit_ts('sys_trx_end');
 set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0) for system_time all');
 prepare select_p0 from @str;
-set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07\' as D from t1 partition (pn) for system_time all');
+set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn) for system_time all');
 prepare select_pn from @str;
 
 execute select_p0;

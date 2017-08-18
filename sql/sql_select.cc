@@ -676,7 +676,8 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   if (type != FOR_SYSTEM_TIME_UNSPECIFIED && type != FOR_SYSTEM_TIME_ALL)
   {
     DBUG_ASSERT(type == FOR_SYSTEM_TIME_AS_OF);
-    start= new (thd->mem_root) Item_datetime_literal(thd, &in.ltime, 6);
+    start= new (thd->mem_root)
+        Item_datetime_literal(thd, &in.ltime, TIME_SECOND_PART_DIGITS);
     if (!start)
       return true;
   }
@@ -921,7 +922,9 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           {
             MYSQL_TIME max_time;
             thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
-            curr= newx Item_datetime_literal(thd, &max_time);
+            max_time.second_part= TIME_MAX_SECOND_PART;
+            curr= newx Item_datetime_literal(thd, &max_time,
+                                             TIME_SECOND_PART_DIGITS);
             cond1= newx Item_func_eq(thd, row_end, curr);
           }
           else

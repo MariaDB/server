@@ -10017,8 +10017,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       // TODO: write directly to record bypassing the same checks on every call
       to_sys_trx_start->store_time(&query_start);
 
-      static const timeval max_tv= {0x7fffffff, 0};
-      static const uint dec= 6;
+      static const timeval max_tv= {TIMESTAMP_MAX_VALUE, TIME_MAX_SECOND_PART};
+      static const uint dec= TIME_SECOND_PART_DIGITS;
       to_sys_trx_end->set_notnull(to_sys_trx_end->null_offset());
       my_timestamp_to_binary(&max_tv, to_sys_trx_end->ptr, dec);
     }
