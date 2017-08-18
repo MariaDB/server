@@ -3326,6 +3326,74 @@ static void stop_backup_threads()
 	}
 }
 
+/** Implement the core of --backup
+@return	whether the operation succeeded */
+static
+bool
+xtrabackup_backup_low()
+{
+	/* read the latest checkpoint lsn */
+	{
+		ulint	max_cp_field;
+
+		log_mutex_enter();
+
+		if (recv_find_max_checkpoint(&max_cp_field) == DB_SUCCESS
+		    && log_sys->log.format != 0) {
+			metadata_to_lsn = mach_read_from_8(
+				log_sys->checkpoint_buf + LOG_CHECKPOINT_LSN);
+			msg("xtrabackup: The latest check point"
+			    " (for incremental): '" LSN_PF "'\n",
+			    metadata_to_lsn);
+		} else {
+			metadata_to_lsn = 0;
+			msg("xtrabackup: Error: recv_find_max_checkpoint() failed.\n");
+		}
+		log_mutex_exit();
+	}
+
+	stop_backup_threads();
+
+	if (!dst_log_file || xtrabackup_copy_logfile(COPY_LAST)) {
+		return false;
+	}
+
+	if (ds_close(dst_log_file)) {
+		dst_log_file = NULL;
+		return false;
+	}
+
+	dst_log_file = NULL;
+
+	if(!xtrabackup_incremental) {
+		strcpy(metadata_type, "full-backuped");
+		metadata_from_lsn = 0;
+	} else {
+		strcpy(metadata_type, "incremental");
+		metadata_from_lsn = incremental_lsn;
+	}
+	metadata_last_lsn = log_copy_scanned_lsn;
+
+	if (!xtrabackup_stream_metadata(ds_meta)) {
+		msg("xtrabackup: Error: failed to stream metadata.\n");
+		return false;
+	}
+	if (xtrabackup_extra_lsndir) {
+		char	filename[FN_REFLEN];
+
+		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
+			XTRABACKUP_METADATA_FILENAME);
+		if (!xtrabackup_write_metadata(filename)) {
+			msg("xtrabackup: Error: failed to write metadata "
+			    "to '%s'.\n", filename);
+			return false;
+		}
+
+	}
+
+	return true;
+}
+
 /** Implement --backup
 @return	whether the operation succeeded */
 static
@@ -3333,7 +3401,6 @@ bool
 xtrabackup_backup_func()
 {
 	MY_STAT			 stat_info;
-	lsn_t			 latest_cp;
 	uint			 i;
 	uint			 count;
 	pthread_mutex_t		 count_mutex;
@@ -3733,70 +3800,19 @@ reread_log_header:
 	}
 	}
 
-	if (!backup_start()) {
-		goto fail;
-	}
+	bool ok = backup_start();
 
-	/* read the latest checkpoint lsn */
-	{
-		ulint	max_cp_field;
+	if (ok) {
+		ok = xtrabackup_backup_low();
 
-		log_mutex_enter();
+		backup_release();
 
-		if (recv_find_max_checkpoint(&max_cp_field) == DB_SUCCESS
-		    && log_sys->log.format != 0) {
-			latest_cp = mach_read_from_8(log_sys->checkpoint_buf +
-						     LOG_CHECKPOINT_LSN);
-			msg("xtrabackup: The latest check point"
-			    " (for incremental): '" LSN_PF "'\n", latest_cp);
-		} else {
-			latest_cp = 0;
-			msg("xtrabackup: Error: recv_find_max_checkpoint() failed.\n");
+		if (ok) {
+			backup_finish();
 		}
-		log_mutex_exit();
 	}
 
-	stop_backup_threads();
-
-	if (!dst_log_file || xtrabackup_copy_logfile(COPY_LAST)) {
-		goto fail;
-	}
-
-	if (ds_close(dst_log_file)) {
-		dst_log_file = NULL;
-		goto fail;
-	}
-
-	dst_log_file = NULL;
-
-	if(!xtrabackup_incremental) {
-		strcpy(metadata_type, "full-backuped");
-		metadata_from_lsn = 0;
-	} else {
-		strcpy(metadata_type, "incremental");
-		metadata_from_lsn = incremental_lsn;
-	}
-	metadata_to_lsn = latest_cp;
-	metadata_last_lsn = log_copy_scanned_lsn;
-
-	if (!xtrabackup_stream_metadata(ds_meta)) {
-		msg("xtrabackup: Error: failed to stream metadata.\n");
-		goto fail;
-	}
-	if (xtrabackup_extra_lsndir) {
-		char	filename[FN_REFLEN];
-
-		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
-			XTRABACKUP_METADATA_FILENAME);
-		if (!xtrabackup_write_metadata(filename)) {
-			msg("xtrabackup: Error: failed to write metadata "
-			    "to '%s'.\n", filename);
-			goto fail;
-		}
-
-	}
-
-	if (!backup_finish()) {
+	if (!ok) {
 		goto fail;
 	}
 
@@ -3809,10 +3825,10 @@ reread_log_header:
 	xb_data_files_close();
 
 	/* Make sure that the latest checkpoint was included */
-	if (latest_cp > log_copy_scanned_lsn) {
+	if (metadata_to_lsn > log_copy_scanned_lsn) {
 		msg("xtrabackup: error: failed to copy enough redo log ("
 		    "LSN=" LSN_PF "; checkpoint LSN=" LSN_PF ").\n",
-		    log_copy_scanned_lsn, latest_cp);
+		    log_copy_scanned_lsn, metadata_to_lsn);
 		goto fail;
 	}
 
