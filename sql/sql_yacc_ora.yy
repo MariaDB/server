@@ -1045,7 +1045,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_ident_opt_wild create_like
 
 %type <qualified_column_ident>
-        qualified_column_ident
         optionally_qualified_column_ident
 
 %type <simple_string>
@@ -2540,17 +2539,30 @@ sp_param_name_and_type:
             if (Lex->sp_param_fill_definition($$= $1))
               MYSQL_YYABORT;
           }
-        | sp_param_name qualified_column_ident '%' TYPE_SYM
+        | sp_param_name sp_decl_ident '.' ident '%' TYPE_SYM
           {
-            Lex->sphead->fill_spvar_using_type_reference($$= $1, $2);
+            if (Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name sp_decl_ident '.' ident '.' ident '%' TYPE_SYM
+          {
+            if (Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4, $6))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name sp_decl_ident '%' ROWTYPE_SYM
+          {
+            if (Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $2))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name sp_decl_ident '.' ident '%' ROWTYPE_SYM
+          {
+            if (Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $2, $4))
+              MYSQL_YYABORT;
           }
         | sp_param_name ROW_SYM row_type_body
           {
-            $$= $1;
-            $$->field_def.field_name= $$->name;
-            Lex->sphead->fill_spvar_definition(thd, &$$->field_def);
-            Lex->sphead->row_fill_field_definitions(thd, $3);
-            $$->field_def.set_row_field_definitions($3);
+            if (Lex->sphead->spvar_fill_row(thd, $$= $1, $3))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -2572,17 +2584,35 @@ sp_pdparam:
             if (Lex->sp_param_fill_definition($1))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_opt_inout qualified_column_ident '%' TYPE_SYM
+        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '%' TYPE_SYM
           {
-            Lex->sphead->fill_spvar_using_type_reference($1, $3);
+            $1->mode= $2;
+            if (Lex->sphead->spvar_fill_type_reference(thd, $1, $3, $5))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '.' ident '%' TYPE_SYM
+          {
+            $1->mode= $2;
+            if (Lex->sphead->spvar_fill_type_reference(thd, $1, $3, $5, $7))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name sp_opt_inout sp_decl_ident '%' ROWTYPE_SYM
+          {
+            $1->mode= $2;
+            if (Lex->sphead->spvar_fill_table_rowtype_reference(thd, $1, $3))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '%' ROWTYPE_SYM
+          {
+            $1->mode= $2;
+            if (Lex->sphead->spvar_fill_table_rowtype_reference(thd, $1, $3, $5))
+              MYSQL_YYABORT;
           }
         | sp_param_name sp_opt_inout ROW_SYM row_type_body
           {
             $1->mode= $2;
-            $1->field_def.field_name= $1->name;
-            Lex->sphead->fill_spvar_definition(thd, &$1->field_def);
-            Lex->sphead->row_fill_field_definitions(thd, $4);
-            $1->field_def.set_row_field_definitions($4);
+            if (Lex->sphead->spvar_fill_row(thd, $1, $4))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -2697,20 +2727,6 @@ sp_decl_handler_list:
 opt_sp_decl_handler_list:
           /* Empty*/ { $$.init(); }
         | sp_decl_handler_list
-        ;
-
-qualified_column_ident:
-          sp_decl_ident '.' ident
-          {
-            if (!($$= new (thd->mem_root) Qualified_column_ident(&$1, &$3)))
-              MYSQL_YYABORT;
-          }
-        | sp_decl_ident '.' ident '.' ident
-          {
-            if (!($$= new (thd->mem_root) Qualified_column_ident(thd,
-                                                                 &$1, &$3, &$5)))
-              MYSQL_YYABORT;
-          }
         ;
 
 optionally_qualified_column_ident:
