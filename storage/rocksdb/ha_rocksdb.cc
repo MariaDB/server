@@ -3143,11 +3143,7 @@ public:
 
       const auto state_it = state_map.find(rdb_trx->GetState());
       DBUG_ASSERT(state_it != state_map.end());
-#ifdef MARIAROCKS_NOT_YET
-      const int is_replication = (thd->rli_slave != nullptr);
-#else
-      const int is_replication= false;
-#endif
+      const int is_replication = (thd->rgi_slave != nullptr);
       uint32_t waiting_cf_id;
       std::string waiting_key;
       rdb_trx->GetWaitingTxns(&waiting_cf_id, &waiting_key),
