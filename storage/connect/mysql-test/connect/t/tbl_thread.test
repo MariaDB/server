@@ -28,12 +28,12 @@ connection default;
 
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL
-CONNECTION='mysql://root@localhost:$MASTER_MYPORT/test/rt2';
+CONNECTION='mysql://root@127.0.0.1:$MASTER_MYPORT/test/rt2';
 SELECT * FROM t2;
 
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 eval CREATE TABLE t3 ENGINE=CONNECT TABLE_TYPE=MYSQL
-CONNECTION='mysql://root@localhost:$SLAVE_MYPORT/test/rt3';
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/rt3';
 SELECT * FROM t3;
 
 --replace_result $PORT PORT
@@ -71,20 +71,20 @@ SELECT * FROM total order by v desc;
 DROP TABLE t1,t2,total;
 
 --echo #
---echo # Old thread TBL tables test not modified
+--echo # Old thread TBL tables test not modified (suppressed until MDEV-10179 is fixed)
 --echo #
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v';
-SELECT * FROM t1;
+#CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v';
+#SELECT * FROM t1;
 
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v';
-SELECT * FROM t2;
+#CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v';
+#SELECT * FROM t2;
 
---replace_result $PORT PORT
---eval CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=$PORT';
-SELECT * FROM total order by v desc;
+#--replace_result $PORT PORT
+#--eval CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=$PORT';
+#SELECT * FROM total order by v desc;
 
-DROP TABLE total;
-DROP TABLE t1;
-DROP TABLE t2;
+#DROP TABLE total;
+#DROP TABLE t1;
+#DROP TABLE t2;
 
 -- source myconn_cleanup.inc
