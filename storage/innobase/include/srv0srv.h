@@ -507,7 +507,9 @@ enum srv_operation_mode {
 	/** Mariabackup taking a backup */
 	SRV_OPERATION_BACKUP,
 	/** Mariabackup restoring a backup */
-	SRV_OPERATION_RESTORE
+	SRV_OPERATION_RESTORE,
+	/** Mariabackup restoring the incremental part of a backup */
+	SRV_OPERATION_RESTORE_DELTA
 };
 
 /** Current mode of operation */

@@ -892,11 +892,13 @@ srv_undo_tablespaces_init(bool create_new_db)
 	already exist. */
 	n_undo_tablespaces = create_new_db
 		|| srv_operation == SRV_OPERATION_BACKUP
+		|| srv_operation == SRV_OPERATION_RESTORE_DELTA
 		? srv_undo_tablespaces
 		: trx_rseg_get_n_undo_tablespaces(undo_tablespace_ids);
 	srv_undo_tablespaces_active = srv_undo_tablespaces;
 
 	switch (srv_operation) {
+	case SRV_OPERATION_RESTORE_DELTA:
 	case SRV_OPERATION_BACKUP:
 		/* MDEV-13561 FIXME: Determine srv_undo_space_id_start
 		from the undo001 file. */
@@ -1317,6 +1319,7 @@ srv_shutdown_all_bg_threads()
 
 		switch (srv_operation) {
 		case SRV_OPERATION_BACKUP:
+		case SRV_OPERATION_RESTORE_DELTA:
 			break;
 		case SRV_OPERATION_NORMAL:
 		case SRV_OPERATION_RESTORE:
@@ -2818,6 +2821,7 @@ innodb_shutdown()
 	switch (srv_operation) {
 	case SRV_OPERATION_BACKUP:
 	case SRV_OPERATION_RESTORE:
+	case SRV_OPERATION_RESTORE_DELTA:
 		fil_close_all_files();
 		break;
 	case SRV_OPERATION_NORMAL:

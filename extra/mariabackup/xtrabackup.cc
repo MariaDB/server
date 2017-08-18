@@ -2517,9 +2517,11 @@ xb_load_single_table_tablespace(
 	const char *filname,
 	bool is_remote)
 {
+	ut_ad(srv_operation == SRV_OPERATION_BACKUP
+	      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
 	/* Ignore .isl files on XtraBackup recovery. All tablespaces must be
 	local. */
-	if (is_remote && srv_operation == SRV_OPERATION_RESTORE) {
+	if (is_remote && srv_operation == SRV_OPERATION_RESTORE_DELTA) {
 		return;
 	}
 	if (check_if_skip_table(filname)) {
@@ -2578,7 +2580,8 @@ xb_load_single_table_tablespace(
 		in the cache to be populated with fields from space header */
 		fil_space_open(space->name);
 
-		if (srv_operation == SRV_OPERATION_RESTORE || xb_close_files) {
+		if (srv_operation == SRV_OPERATION_RESTORE_DELTA
+		    || xb_close_files) {
 			fil_space_close(space->name);
 		}
 	}
@@ -2753,7 +2756,7 @@ xb_load_tablespaces()
         lsn_t	flush_lsn;
 
 	ut_ad(srv_operation == SRV_OPERATION_BACKUP
-	      || srv_operation == SRV_OPERATION_RESTORE);
+	      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
 
 	err = srv_sys_space.check_file_spec(&create_new_db, 0);
 
@@ -4925,6 +4928,8 @@ xtrabackup_prepare_func(char** argv)
 	srv_thread_concurrency = 1;
 
 	if (xtrabackup_incremental) {
+		srv_operation = SRV_OPERATION_RESTORE_DELTA;
+
 		if (innodb_init_param()) {
 error_cleanup:
 			xb_filters_free();
@@ -4943,7 +4948,6 @@ error_cleanup:
 		srv_allow_writes_event = os_event_create(0);
 		os_event_set(srv_allow_writes_event);
 #endif
-
 		dberr_t err = xb_data_files_init();
 		if (err != DB_SUCCESS) {
 			msg("xtrabackup: error: xb_data_files_init() failed "
@@ -4975,6 +4979,8 @@ error_cleanup:
 		sync_check_close();
 		if (!ok) goto error_cleanup;
 	}
+
+	srv_operation = SRV_OPERATION_RESTORE;
 
 	if (innodb_init_param()) {
 		goto error_cleanup;
