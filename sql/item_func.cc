@@ -6295,16 +6295,17 @@ longlong Item_func_row_count::val_int()
 
 
 Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
-                           sp_name *name):
-  Item_func(thd), Item_sp(thd, context_arg, name)
+                           sp_name *name, const Sp_handler *sph):
+  Item_func(thd), Item_sp(thd, context_arg, name), m_handler(sph)
 {
   maybe_null= 1;
 }
 
 
 Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
-                           sp_name *name_arg, List<Item> &list):
-  Item_func(thd, list), Item_sp(thd, context_arg, name_arg)
+                           sp_name *name_arg, const Sp_handler *sph,
+                           List<Item> &list):
+  Item_func(thd, list), Item_sp(thd, context_arg, name_arg), m_handler(sph)
 {
   maybe_null= 1;
 }
@@ -6443,7 +6444,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   bool res;
   DBUG_ENTER("Item_func_sp::fix_fields");
   DBUG_ASSERT(fixed == 0);
-  sp_head *sp= sp_handler_function.sp_find_routine(thd, m_name, true);
+  sp_head *sp= m_handler->sp_find_routine(thd, m_name, true);
 
   /* 
     Checking privileges to execute the function while creating view and

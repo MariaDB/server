@@ -2772,6 +2772,7 @@ class Item_func_sp :public Item_func,
                     public Item_sp
 {
 private:
+  const Sp_handler *m_handler;
 
   bool execute();
 
@@ -2786,10 +2787,11 @@ protected:
   } 
 public:
 
-  Item_func_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name);
+  Item_func_sp(THD *thd, Name_resolution_context *context_arg,
+               sp_name *name, const Sp_handler *sph);
 
   Item_func_sp(THD *thd, Name_resolution_context *context_arg,
-               sp_name *name, List<Item> &list);
+               sp_name *name, const Sp_handler *sph, List<Item> &list);
 
   virtual ~Item_func_sp()
   {}

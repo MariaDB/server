@@ -299,6 +299,7 @@ public:
                             TABLE,
                             FUNCTION,
                             PROCEDURE,
+                            PACKAGE_BODY,
                             TRIGGER,
                             EVENT,
                             COMMIT,

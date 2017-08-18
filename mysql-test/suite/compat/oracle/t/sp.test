@@ -170,6 +170,11 @@ END;
 DELIMITER ;/
 DROP PROCEDURE p1;
 
+--echo # Keywords that are OK for table names, but not for SP variables
+CREATE TABLE function (function int);
+INSERT INTO function SET function=10;
+SELECT function.function FROM function;
+DROP TABLE function;
 
 --echo # Testing that (some) keyword_sp are allowed in Oracle-style assignments
 DELIMITER /;

@@ -2313,6 +2313,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_SHOW_TABLE_STATUS:
   case SQLCOM_SHOW_STATUS_PROC:
   case SQLCOM_SHOW_STATUS_FUNC:
+  case SQLCOM_SHOW_STATUS_PACKAGE:
+  case SQLCOM_SHOW_STATUS_PACKAGE_BODY:
   case SQLCOM_SELECT:
     res= mysql_test_select(stmt, tables);
     if (res == 2)
@@ -2380,6 +2382,21 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
   case SQLCOM_SHOW_CREATE_FUNC:
     if ((res= mysql_test_show_create_routine(stmt, &sp_handler_function)) == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_CREATE_PACKAGE:
+    if ((res= mysql_test_show_create_routine(stmt, &sp_handler_package_spec)) == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_CREATE_PACKAGE_BODY:
+    if ((res= mysql_test_show_create_routine(stmt,
+                                             &sp_handler_package_body)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
@@ -2589,6 +2606,8 @@ void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length)
 
   sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
   sp_cache_enforce_limit(thd->sp_func_cache, stored_program_cache_size);
+  sp_cache_enforce_limit(thd->sp_package_spec_cache, stored_program_cache_size);
+  sp_cache_enforce_limit(thd->sp_package_body_cache, stored_program_cache_size);
 
   /* check_prepared_statemnt sends the metadata packet in case of success */
 end:
@@ -3155,6 +3174,8 @@ static void mysql_stmt_execute_common(THD *thd,
 
   sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
   sp_cache_enforce_limit(thd->sp_func_cache, stored_program_cache_size);
+  sp_cache_enforce_limit(thd->sp_package_spec_cache, stored_program_cache_size);
+  sp_cache_enforce_limit(thd->sp_package_body_cache, stored_program_cache_size);
 
   /* Close connection socket; for use with client testing (Bug#43560). */
   DBUG_EXECUTE_IF("close_conn_after_stmt_execute", vio_close(thd->net.vio););

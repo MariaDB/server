@@ -378,12 +378,13 @@ Item_splocal*
 LEX::create_item_for_sp_var(LEX_CSTRING *name, sp_variable *spvar,
                             const char *start_in_q, const char *end_in_q)
 {
+  const Sp_rcontext_handler *rh;
   Item_splocal *item;
   uint pos_in_q, len_in_q;
 
   /* If necessary, look for the variable. */
   if (spcont && !spvar)
-    spvar= spcont->find_variable(name, false);
+    spvar= find_variable(name, &rh);
 
   if (!spvar)
   {
@@ -398,7 +399,7 @@ LEX::create_item_for_sp_var(LEX_CSTRING *name, sp_variable *spvar,
   len_in_q= (uint)(end_in_q - start_in_q);
 
   item= new (thd->mem_root)
-    Item_splocal(thd, name, spvar->offset, spvar->type_handler(),
+    Item_splocal(thd, rh, name, spvar->offset, spvar->type_handler(),
                  pos_in_q, len_in_q);
 
 #ifdef DBUG_ASSERT_EXISTS
@@ -951,6 +952,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  BIT_XOR                       /* MYSQL-FUNC */
 %token  BLOB_SYM                      /* SQL-2003-R */
 %token  BLOCK_SYM
+%token  BODY_SYM                      /* Oracle-R   */
 %token  BOOLEAN_SYM                   /* SQL-2003-R */
 %token  BOOL_SYM
 %token  BOTH                          /* SQL-2003-R */
@@ -1340,6 +1342,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  OUT_SYM                       /* SQL-2003-R */
 %token  OVER_SYM
 %token  OWNER_SYM
+%token  PACKAGE_SYM                   /* Oracle-R */
 %token  PACK_KEYS_SYM
 %token  PAGE_SYM
 %token  PAGE_CHECKSUM_SYM
@@ -12885,14 +12888,8 @@ select_outvar:
           }
         | ident_or_text
           {
-            sp_variable *t;
-
-            if (!Lex->spcont || !(t= Lex->spcont->find_variable(&$1, false)))
-              my_yyabort_error((ER_SP_UNDECLARED_VAR, MYF(0), $1.str));
-            $$ = Lex->result ? (new (thd->mem_root)
-                                my_var_sp(&$1, t->offset, t->type_handler(),
-                                          Lex->sphead)) :
-                                NULL;
+            if (!($$= Lex->create_outvar(thd, &$1)) && Lex->result)
+              MYSQL_YYABORT;
           }
         | ident '.' ident
           {
@@ -13947,6 +13944,18 @@ show_param:
             lex->sql_command = SQLCOM_SHOW_CREATE_FUNC;
             lex->spname= $3;
           }
+        | CREATE PACKAGE_SYM sp_name
+          {
+            LEX *lex= Lex;
+            lex->sql_command = SQLCOM_SHOW_CREATE_PACKAGE;
+            lex->spname= $3;
+          }
+        | CREATE PACKAGE_SYM BODY_SYM sp_name
+          {
+            LEX *lex= Lex;
+            lex->sql_command = SQLCOM_SHOW_CREATE_PACKAGE_BODY;
+            lex->spname= $4;
+          }
         | CREATE TRIGGER_SYM sp_name
           {
             LEX *lex= Lex;
@@ -13979,6 +13988,20 @@ show_param:
             if (prepare_schema_table(thd, lex, 0, SCH_PROCEDURES))
               MYSQL_YYABORT;
           }
+        | PACKAGE_SYM STATUS_SYM wild_and_where
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_SHOW_STATUS_PACKAGE;
+            if (prepare_schema_table(thd, lex, 0, SCH_PROCEDURES))
+              MYSQL_YYABORT;
+          }
+        | PACKAGE_SYM BODY_SYM STATUS_SYM wild_and_where
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_SHOW_STATUS_PACKAGE_BODY;
+            if (prepare_schema_table(thd, lex, 0, SCH_PROCEDURES))
+              MYSQL_YYABORT;
+          }
         | PROCEDURE_SYM CODE_SYM sp_name
           {
             Lex->sql_command= SQLCOM_SHOW_PROC_CODE;
@@ -13988,6 +14011,11 @@ show_param:
           {
             Lex->sql_command= SQLCOM_SHOW_FUNC_CODE;
             Lex->spname= $3;
+          }
+        | PACKAGE_SYM BODY_SYM CODE_SYM sp_name
+          {
+            Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
+            Lex->spname= $4;
           }
         | CREATE EVENT_SYM sp_name
           {
@@ -15485,6 +15513,7 @@ keyword_sp_not_data_type:
         | AVG_ROW_LENGTH           {}
         | AVG_SYM                  {}
         | BLOCK_SYM                {}
+        | BODY_SYM                 {}
         | BTREE_SYM                {}
         | CASCADED                 {}
         | CATALOG_NAME_SYM         {}
@@ -15660,6 +15689,7 @@ keyword_sp_not_data_type:
         | ONE_SYM                  {}
         | ONLINE_SYM               {}
         | ONLY_SYM                 {}
+        | PACKAGE_SYM              {}
         | PACK_KEYS_SYM            {}
         | PAGE_SYM                 {}
         | PARTIAL                  {}

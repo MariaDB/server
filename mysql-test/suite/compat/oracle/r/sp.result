@@ -166,6 +166,13 @@ IF a=10 THEN NULL; ELSE NULL; END IF;
 END;
 /
 DROP PROCEDURE p1;
+# Keywords that are OK for table names, but not for SP variables
+CREATE TABLE function (function int);
+INSERT INTO function SET function=10;
+SELECT function.function FROM function;
+function
+10
+DROP TABLE function;
 # Testing that (some) keyword_sp are allowed in Oracle-style assignments
 CREATE PROCEDURE p1 (action OUT INT) AS BEGIN action:=10; END;/
 DROP PROCEDURE p1/

@@ -183,7 +183,8 @@ public:
   uint instr_ptr;
 
   /// The stored program for which this runtime context is created. Used for
-  /// checking if correct runtime context is used for variable handling.
+  /// checking if correct runtime context is used for variable handling,
+  /// and to access the package run-time context.
   /// Also used by slow log.
   const sp_head *m_sp;
 

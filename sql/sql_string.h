@@ -487,6 +487,10 @@ public:
                  ls->length == strlen(ls->str)));
     return append(ls->str, (uint32) ls->length);
   }
+  bool append(const LEX_CSTRING &ls)
+  {
+    return append(&ls);
+  }
   bool append(const char *s, size_t size);
   bool append(const char *s, size_t arg_length, CHARSET_INFO *cs);
   bool append_ulonglong(ulonglong val);
