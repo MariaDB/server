@@ -575,7 +575,6 @@ bool
 select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 {
 	MYSQL_RES *mysql_result;
-	MYSQL_ROW row;
 	char query[1000];
 	char buf[100];
 
@@ -608,27 +607,27 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 	mysql_result = xb_mysql_query(mysql_connection, query, true);
 
 	ut_ad(mysql_num_fields(mysql_result) == 1);
-	if (!(row = mysql_fetch_row(mysql_result))) {
+	const MYSQL_ROW row = mysql_fetch_row(mysql_result);
+	if (row) {
+		*incremental_lsn = strtoull(row[0], NULL, 10);
+		msg("Found and using lsn: " LSN_PF " for %s %s\n",
+		    *incremental_lsn,
+		    opt_incremental_history_uuid ? "uuid" : "name",
+		    opt_incremental_history_uuid ?
+		    opt_incremental_history_uuid :
+		    opt_incremental_history_name);
+	} else {
 		msg("Error while attempting to find history record "
 			"for %s %s\n",
 			opt_incremental_history_uuid ? "uuid" : "name",
 			opt_incremental_history_uuid ?
 		    		opt_incremental_history_uuid :
 		    		opt_incremental_history_name);
-		return(false);
 	}
-
-	*incremental_lsn = strtoull(row[0], NULL, 10);
 
 	mysql_free_result(mysql_result);
 
-	msg("Found and using lsn: " LSN_PF " for %s %s\n", *incremental_lsn,
-		opt_incremental_history_uuid ? "uuid" : "name",
-		opt_incremental_history_uuid ?
-	    		opt_incremental_history_uuid :
-	    		opt_incremental_history_name);
-
-	return(true);
+	return(row != NULL);
 }
 
 static
@@ -718,6 +717,7 @@ have_queries_to_wait_for(MYSQL *connection, uint threshold)
 	MYSQL_RES *result = xb_mysql_query(connection, "SHOW FULL PROCESSLIST",
 					   true);
 	const bool all_queries = (opt_lock_wait_query_type == QUERY_TYPE_ALL);
+	bool have_to_wait = false;
 
 	while (MYSQL_ROW row = mysql_fetch_row(result)) {
 		const char	*info		= row[7];
@@ -730,11 +730,13 @@ have_queries_to_wait_for(MYSQL *connection, uint threshold)
 		    	|| is_update_query(info))) {
 			msg_ts("Waiting for query %s (duration %d sec): %s",
 			       id, duration, info);
-			return(true);
+			have_to_wait = true;
+			break;
 		}
 	}
 
-	return(false);
+	mysql_free_result(result);
+	return(have_to_wait);
 }
 
 static
@@ -762,6 +764,8 @@ kill_long_queries(MYSQL *connection, time_t timeout)
 			xb_mysql_query(connection, kill_stmt, false, false);
 		}
 	}
+
+	mysql_free_result(result);
 }
 
 static
