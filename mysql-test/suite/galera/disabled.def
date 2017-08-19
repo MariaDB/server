@@ -41,3 +41,6 @@ mysql-wsrep#33 : MDEV-13549 Galera test failures
 galera_var_auto_inc_control_on : MDEV-13549 Galera test failures
 MW-44 : MDEV-13549 Galera test failures
 galera_var_retry_autocommit : MDEV-13549 Galera test failures
+pxc-421 : MDEV-13549 Galera test failures
+lp1376747-2 : MDEV-13549 Galera test failures
+lp1376747 : MDEV-13549 Galera test failures
