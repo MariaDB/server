@@ -9243,6 +9243,242 @@ EXPLAIN
     }
   }
 }
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by a,c) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+a	c	sum_b	avg_b
+7	cc	28	14.0000
+7	cc	28	14.0000
+3	aa	92	46.0000
+7	bb	126	42.0000
+4	aa	15	15.0000
+7	bb	126	42.0000
+7	bb	126	42.0000
+3	bb	40	40.0000
+3	aa	92	46.0000
+select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by a,c) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+a	c	sum_b	avg_b
+7	cc	28	14.0000
+7	cc	28	14.0000
+3	aa	92	46.0000
+7	bb	126	42.0000
+4	aa	15	15.0000
+7	bb	126	42.0000
+7	bb	126	42.0000
+3	bb	40	40.0000
+3	aa	92	46.0000
+explain select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by a,c) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	Using where
+2	DERIVED	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
+explain format=json select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by a,c) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t.a > 2 and t.c in ('aa','bb','cc')",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "window_functions_computation": {
+            "sorts": {
+              "filesort": {
+                "sort_key": "t2.a, t2.c"
+              }
+            },
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "possible_keys": ["idx"],
+                "rows": 20,
+                "filtered": 80,
+                "attached_condition": "t2.a > 2 and t2.c in ('aa','bb','cc')"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by a) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+a	c	sum_b	avg_b
+7	cc	28	30.8000
+7	cc	28	30.8000
+3	aa	92	44.0000
+7	bb	126	30.8000
+4	aa	15	46.3333
+7	bb	126	30.8000
+7	bb	126	30.8000
+3	bb	40	44.0000
+3	aa	92	44.0000
+select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by a) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+a	c	sum_b	avg_b
+7	cc	28	30.8000
+7	cc	28	30.8000
+3	aa	92	44.0000
+7	bb	126	30.8000
+4	aa	15	46.3333
+7	bb	126	30.8000
+7	bb	126	30.8000
+3	bb	40	44.0000
+3	aa	92	44.0000
+explain select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by a) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	Using where
+2	DERIVED	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
+explain format=json select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by a) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t.a > 2 and t.c in ('aa','bb','cc')",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "window_functions_computation": {
+            "sorts": {
+              "filesort": {
+                "sort_key": "t2.a, t2.c"
+              }
+            },
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "possible_keys": ["idx"],
+                "rows": 20,
+                "filtered": 80,
+                "attached_condition": "t2.a > 2"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by c) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+a	c	sum_b	avg_b
+7	cc	28	14.0000
+7	cc	28	14.0000
+3	aa	92	35.4000
+7	bb	126	36.5000
+4	aa	15	35.4000
+7	bb	126	36.5000
+7	bb	126	36.5000
+3	bb	40	36.5000
+3	aa	92	35.4000
+select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by c) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+a	c	sum_b	avg_b
+7	cc	28	14.0000
+7	cc	28	14.0000
+3	aa	92	35.4000
+7	bb	126	36.5000
+4	aa	15	35.4000
+7	bb	126	36.5000
+7	bb	126	36.5000
+3	bb	40	36.5000
+3	aa	92	35.4000
+explain select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by c) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary
+explain format=json select * from (select a, c,
+sum(b) over (partition by a,c) as sum_b,
+avg(b) over (partition by c) as avg_b
+from t2 ) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 20,
+      "filtered": 100,
+      "attached_condition": "t.a > 2 and t.c in ('aa','bb','cc')",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "window_functions_computation": {
+            "sorts": {
+              "filesort": {
+                "sort_key": "t2.c"
+              },
+              "filesort": {
+                "sort_key": "t2.a, t2.c"
+              }
+            },
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 20,
+                "filtered": 100,
+                "attached_condition": "t2.c in ('aa','bb','cc')"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
 drop table t1,t2;
 set optimizer_switch= @save_optimizer_switch;
 #

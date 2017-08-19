@@ -1246,6 +1246,7 @@ public:
   }
 
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
+  ORDER *find_common_window_func_partition_fields(THD *thd);
 
   bool cond_pushdown_is_allowed() const
   { return !olap && !explicit_limit; }
