@@ -405,7 +405,8 @@ int compare_order_elements(ORDER *ord1, ORDER *ord2)
   Item *item2= (*ord2->item)->real_item();
   DBUG_ASSERT(item1->type() == Item::FIELD_ITEM &&
               item2->type() == Item::FIELD_ITEM); 
-  int cmp= ((Item_field *) item1)->field - ((Item_field *) item2)->field;
+  int cmp= ((Item_field *) item1)->field->field_index -
+           ((Item_field *) item2)->field->field_index;
   if (cmp == 0)
   {
     if (ord1->direction == ord2->direction)

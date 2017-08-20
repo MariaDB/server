@@ -9458,10 +9458,10 @@ EXPLAIN
           "window_functions_computation": {
             "sorts": {
               "filesort": {
-                "sort_key": "t2.c"
+                "sort_key": "t2.a, t2.c"
               },
               "filesort": {
-                "sort_key": "t2.a, t2.c"
+                "sort_key": "t2.c"
               }
             },
             "temporary_table": {
