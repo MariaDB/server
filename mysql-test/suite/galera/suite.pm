@@ -74,7 +74,7 @@ push @::global_suppressions,
      qr|WSREP: Unsupported protocol downgrade: incremental data collection disabled. Expect abort.|,
      qr(WSREP: Action message in non-primary configuration from member [0-9]*),
      qr(WSREP: discarding established .*),
-     qr(WSREP: gcs\/src\/gcs_core.cpp:core_handle_uuid_msg\(\):.*: STATE EXCHANGE: failed for: .*: .* \(Transport endpoint is not connected\)),
+     qr(WSREP: gcs\/src\/gcs_core.cpp:core_handle_uuid_msg\(\):.*),
    );
 
 

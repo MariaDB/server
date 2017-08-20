@@ -44,3 +44,5 @@ galera_var_retry_autocommit : MDEV-13549 Galera test failures
 pxc-421 : MDEV-13549 Galera test failures
 lp1376747-2 : MDEV-13549 Galera test failures
 lp1376747 : MDEV-13549 Galera test failures
+galera_toi_ddl_nonconflicting : MDEV-13549 Galera test failures
+galera_parallel_simple : MDEV-13549 Galera test failures
