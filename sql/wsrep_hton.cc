@@ -42,6 +42,7 @@ void wsrep_cleanup_transaction(THD *thd)
   thd->wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
   thd->wsrep_exec_mode= LOCAL_STATE;
   thd->wsrep_affected_rows= 0;
+  thd->wsrep_skip_wsrep_GTID= false;
   return;
 }
 

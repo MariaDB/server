@@ -33,7 +33,7 @@ wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
 
 # enforce read-committed characteristics across the cluster
 wsrep-causal-reads=ON
-wsrep-sync-wait=7
+wsrep-sync-wait=15
 server-id=2
 
 [mysqld.3]
@@ -57,7 +57,7 @@ wsrep_sst_receive_address='127.0.0.1:@mysqld.3.#sst_port'
 
 # enforce read-committed characteristics across the cluster
 wsrep-causal-reads=ON
-wsrep-sync-wait=7
+wsrep-sync-wait=15
 server-id=3
 
 [ENV]

@@ -18,3 +18,4 @@ VARIABLE_VALUE > 0
 1
 DROP PROCEDURE proc_insert;
 DROP TABLE t1;
+CALL mtr.add_suppression("conflict state 3 after post commit");
