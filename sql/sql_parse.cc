@@ -3663,13 +3663,12 @@ end_with_restore_list:
 #endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE:
   {
-    DBUG_ASSERT(first_table == all_tables && first_table != 0);
+     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 #ifdef DONT_ALLOW_SHOW_COMMANDS
     my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
                MYF(0)); /* purecov: inspected */
     goto error;
 #else
-    {
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
 
      /*
@@ -3892,7 +3891,6 @@ end_with_restore_list:
       DBUG_PRINT("debug", ("Just after generate_incident()"));
     }
 #endif
-  }
   /* fall through */
   case SQLCOM_INSERT:
   {
