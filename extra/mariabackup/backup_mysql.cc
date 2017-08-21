@@ -112,6 +112,11 @@ xb_mysql_connect()
 			      (char *) &opt_secure_auth);
 	}
 
+	if (xb_plugin_dir && *xb_plugin_dir){
+		mysql_options(connection, MYSQL_PLUGIN_DIR, xb_plugin_dir);
+	}
+	mysql_options(connection, MYSQL_OPT_PROTOCOL, &opt_protocol);
+
 	msg_ts("Connecting to MySQL server host: %s, user: %s, password: %s, "
 	       "port: %s, socket: %s\n", opt_host ? opt_host : "localhost",
 	       opt_user ? opt_user : "not set",
