@@ -1,3 +1,4 @@
+#include <my_global.h>
 #include <mysqld.h>
 #include <mysql.h>
 #include <xtrabackup.h>

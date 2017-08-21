@@ -23,7 +23,7 @@ Writes to the destination datasink are guaranteed to not be smaller than a
 specified buffer size (DS_DEFAULT_BUFFER_SIZE by default), with the only
 exception for the last write for a file. */
 
-#include <mysql_version.h>
+#include <my_global.h>
 #include <my_base.h>
 #include "ds_buffer.h"
 #include "common.h"
