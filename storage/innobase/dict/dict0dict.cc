@@ -4600,7 +4600,6 @@ dict_create_foreign_constraints_low(
 	if (!success) {
 		ib::error() << "Could not find the table " << create_name << " being" << operation << " near to "
 			<< orig;
-		mutex_exit(&dict_foreign_err_mutex);
 
 		ib_push_warning(trx, DB_ERROR,
 			"%s table %s with foreign key constraint"
@@ -5278,6 +5277,7 @@ try_find_index:
 			" failed. You have more than one on delete or on update clause"
 			" in '%s' near '%s'.\n",
 			operation, create_name, start_of_latest_foreign, start_of_latest_set);
+		mutex_exit(&dict_foreign_err_mutex);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
@@ -5286,7 +5286,6 @@ try_find_index:
 			operation, create_name, start_of_latest_foreign, start_of_latest_set);
 
 		dict_foreign_free(foreign);
-		mutex_exit(&dict_foreign_err_mutex);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}

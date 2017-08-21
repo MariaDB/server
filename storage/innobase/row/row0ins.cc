@@ -770,9 +770,7 @@ row_ins_foreign_trx_print(
 	ulint	n_trx_locks;
 	ulint	heap_size;
 
-	if (srv_read_only_mode) {
-		return;
-	}
+	ut_ad(!srv_read_only_mode);
 
 	lock_mutex_enter();
 	n_rec_locks = lock_number_of_rows_locked(&trx->lock);

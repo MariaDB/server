@@ -489,6 +489,7 @@ log_free_check(void)
 					commit_try_rebuild() */
 		SYNC_DICT_OPERATION,	/* dict_operation_lock X-latch during
 					commit_try_rebuild() */
+		SYNC_FTS_CACHE,		/* fts_cache_t::lock */
 		SYNC_INDEX_TREE		/* index->lock */
 	};
 #endif /* UNIV_DEBUG */

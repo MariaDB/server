@@ -1764,15 +1764,6 @@ innobase_start_or_create_for_mysql()
 			}
 		}
 
-		mutex_create(LATCH_ID_SRV_DICT_TMPFILE,
-			     &srv_dict_tmpfile_mutex);
-
-		srv_dict_tmpfile = os_file_create_tmpfile(NULL);
-
-		if (!srv_dict_tmpfile && err == DB_SUCCESS) {
-			err = DB_ERROR;
-		}
-
 		mutex_create(LATCH_ID_SRV_MISC_TMPFILE,
 			     &srv_misc_tmpfile_mutex);
 
@@ -2847,11 +2838,6 @@ innodb_shutdown()
 		}
 	}
 
-	if (srv_dict_tmpfile) {
-		fclose(srv_dict_tmpfile);
-		srv_dict_tmpfile = 0;
-	}
-
 	if (srv_misc_tmpfile) {
 		fclose(srv_misc_tmpfile);
 		srv_misc_tmpfile = 0;
@@ -2916,7 +2902,6 @@ innodb_shutdown()
 	the temp files that the cover. */
 	if (!srv_read_only_mode) {
 		mutex_free(&srv_monitor_file_mutex);
-		mutex_free(&srv_dict_tmpfile_mutex);
 		mutex_free(&srv_misc_tmpfile_mutex);
 	}
 

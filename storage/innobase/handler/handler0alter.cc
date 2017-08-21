@@ -6380,6 +6380,7 @@ ha_innobase::inplace_alter_table(
 	DBUG_ENTER("inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
 
+	ut_ad(!sync_check_iterate(sync_check()));
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
 

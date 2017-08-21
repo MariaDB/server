@@ -333,10 +333,17 @@ fil_space_destroy_crypt_data(
 	fil_space_crypt_t **crypt_data)
 {
 	if (crypt_data != NULL && (*crypt_data) != NULL) {
-		mutex_enter(&fil_crypt_threads_mutex);
-		fil_space_crypt_t* c = *crypt_data;
-		*crypt_data = NULL;
-		mutex_exit(&fil_crypt_threads_mutex);
+		fil_space_crypt_t* c;
+		if (UNIV_LIKELY(fil_crypt_threads_inited)) {
+			mutex_enter(&fil_crypt_threads_mutex);
+			c = *crypt_data;
+			*crypt_data = NULL;
+			mutex_exit(&fil_crypt_threads_mutex);
+		} else {
+			ut_ad(srv_read_only_mode || !srv_was_started);
+			c = *crypt_data;
+			*crypt_data = NULL;
+		}
 		if (c) {
 			c->~fil_space_crypt_t();
 			ut_free(c);
