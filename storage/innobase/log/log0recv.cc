@@ -1400,7 +1400,6 @@ parse_log:
 		/* Allow anything in page_type when creating a page. */
 		ptr = ibuf_parse_bitmap_init(ptr, end_ptr, block, mtr);
 		break;
-	case MLOG_INIT_FILE_PAGE:
 	case MLOG_INIT_FILE_PAGE2:
 		/* Allow anything in page_type when creating a page. */
 		ptr = fsp_parse_init_file_page(ptr, end_ptr, block);
@@ -1751,18 +1750,6 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 			recv_data_copy_to_buf(buf, recv);
 		} else {
 			buf = ((byte*)(recv->data)) + sizeof(recv_data_t);
-		}
-
-		if (recv->type == MLOG_INIT_FILE_PAGE) {
-			page_lsn = page_newest_lsn;
-
-			memset(FIL_PAGE_LSN + page, 0, 8);
-			memset(UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM
-			       + page, 0, 8);
-
-			if (page_zip) {
-				memset(FIL_PAGE_LSN + page_zip->data, 0, 8);
-			}
 		}
 
 		/* If per-table tablespace was truncated and there exist REDO
@@ -3618,9 +3605,6 @@ get_mlog_string(mlog_id_t type)
 	case MLOG_LSN:
 		return("MLOG_LSN");
 #endif /* UNIV_LOG_LSN_DEBUG */
-
-	case MLOG_INIT_FILE_PAGE:
-		return("MLOG_INIT_FILE_PAGE");
 
 	case MLOG_WRITE_STRING:
 		return("MLOG_WRITE_STRING");
