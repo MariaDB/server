@@ -154,6 +154,7 @@ SET (SQL_SOURCE
                sql_sequence.cc sql_sequence.h ha_sequence.h
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
+               proxy_protocol.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
                ${GEN_DIGEST_SOURCES}

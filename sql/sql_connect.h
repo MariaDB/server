@@ -85,6 +85,7 @@ bool thd_init_client_charset(THD *thd, uint cs_number);
 bool setup_connection_thread_globals(THD *thd);
 bool thd_prepare_connection(THD *thd);
 bool thd_is_connection_alive(THD *thd);
+int thd_set_peer_addr(THD *thd, sockaddr_storage *addr, const char *ip, uint port, bool check_proxy_networks);
 
 bool login_connection(THD *thd);
 void prepare_new_connection_state(THD* thd);
