@@ -1,3 +1,4 @@
+#include "sql_parse.h"
 #include "sql_select.h"
 #include "sql_list.h"
 #include "item_windowfunc.h"
@@ -307,6 +308,83 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   DBUG_RETURN(0);
 }
 
+
+/**
+  @brief
+  Find fields common for all partition lists used in window functions
+
+  @param thd       The thread handle
+
+  @details
+   This function looks for the field references in the partition lists
+   of all window functions used in this select that are common for
+   all the partition lists. The function returns an ORDER list contained
+   all such references.The list either is specially built by the function
+   or is taken directly from the first window specification.
+
+  @retval
+    pointer to the first element of the ORDER list contained field
+    references common for all partition lists
+    0 if no such reference is found.
+*/
+
+ORDER *st_select_lex::find_common_window_func_partition_fields(THD *thd)
+{
+  ORDER *ord;
+  Item *item;
+  DBUG_ASSERT(window_funcs.elements);
+  List_iterator_fast<Item_window_func> it(window_funcs);
+  Item_window_func *wf= it++;
+  if (!wf->window_spec->partition_list)
+    return 0;
+  List<Item> common_fields;
+  uint first_partition_elements;
+  for (ord= wf->window_spec->partition_list->first; ord; ord= ord->next)
+  {
+    if ((*ord->item)->real_item()->type() == Item::FIELD_ITEM)
+      common_fields.push_back(*ord->item, thd->mem_root);
+    first_partition_elements++;
+  }
+  if (window_specs.elements == 1 &&
+      common_fields.elements == first_partition_elements)
+    return wf->window_spec->partition_list->first;
+  List_iterator<Item> li(common_fields);
+  while (common_fields.elements && (wf= it++))
+  {
+    if (!wf->window_spec->partition_list)
+      return 0;
+    while ((item= li++))
+    {
+      for (ord= wf->window_spec->partition_list->first; ord; ord= ord->next)
+      {
+        if (item->eq(*ord->item, false))
+	  break;
+      }
+      if (!ord)
+        li.remove();
+    }
+    li.rewind();
+  }
+  if (!common_fields.elements)
+    return 0;
+  if (common_fields.elements == first_partition_elements)
+    return wf->window_spec->partition_list->first;
+  SQL_I_List<ORDER> res_list;
+  it.rewind();
+  wf= it++;
+  for (ord= wf->window_spec->partition_list->first, item= li++;
+       ord; ord= ord->next)
+  {
+    if (item != *ord->item)
+      continue;
+    if (add_to_list(thd, res_list, item, ord->direction))
+      return 0;
+    item= li++;
+  }
+  return res_list.first;
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 // Sorting window functions to minimize the number of table scans
 // performed during the computation of these functions 
@@ -327,7 +405,8 @@ int compare_order_elements(ORDER *ord1, ORDER *ord2)
   Item *item2= (*ord2->item)->real_item();
   DBUG_ASSERT(item1->type() == Item::FIELD_ITEM &&
               item2->type() == Item::FIELD_ITEM); 
-  int cmp= ((Item_field *) item1)->field - ((Item_field *) item2)->field;
+  int cmp= ((Item_field *) item1)->field->field_index -
+           ((Item_field *) item2)->field->field_index;
   if (cmp == 0)
   {
     if (ord1->direction == ord2->direction)

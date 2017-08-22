@@ -1251,8 +1251,9 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     {
       if (sl->join->group_list || sl->join->implicit_grouping)
         continue;
-      if (!(sl->window_specs.elements == 1 &&
-            sl->window_specs.head()->partition_list))
+      ORDER *common_partition_fields= 
+	       sl->find_common_window_func_partition_fields(thd);           
+      if (!common_partition_fields)
         continue;
       extracted_cond_copy= !sl->next_select() ?
                            extracted_cond :
@@ -1260,9 +1261,8 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
       if (!extracted_cond_copy)
         continue;
 
-      Item *cond_over_partition_fields;
-      ORDER *grouping_list= sl->window_specs.head()->partition_list->first; 
-      sl->collect_grouping_fields(thd, grouping_list);
+      Item *cond_over_partition_fields;; 
+      sl->collect_grouping_fields(thd, common_partition_fields);
       sl->check_cond_extraction_for_grouping_fields(extracted_cond_copy,
                                                     derived);
       cond_over_partition_fields=
