@@ -484,7 +484,6 @@ log_close(void)
 	lsn_t		checkpoint_age;
 
 	ut_ad(log_mutex_own());
-	ut_ad(!recv_no_log_write);
 
 	lsn = log->lsn;
 
