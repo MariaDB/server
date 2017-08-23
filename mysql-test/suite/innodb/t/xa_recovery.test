@@ -15,7 +15,12 @@ connect (con1,localhost,root);
 XA START 'x'; UPDATE t1 set a=2; XA END 'x'; XA PREPARE 'x';
 connection default;
 
+# innodb_force_recovery=2 prevents the purge and tests that the fix of
+# MDEV-13606 XA PREPARE transactions should survive innodb_force_recovery=1 or 2
+# is present.
+--let $restart_parameters= --innodb-force-recovery=2
 --source include/kill_and_restart_mysqld.inc
+--let $restart_parameters=
 
 disconnect con1;
 connect (con1,localhost,root);
