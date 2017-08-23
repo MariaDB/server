@@ -1596,20 +1596,6 @@ fil_crypt_find_page_to_rotate(
 	return found;
 }
 
-/***********************************************************************
-Check if a page is uninitialized (doesn't need to be rotated)
-@param[in]	frame		Page to check
-@param[in]	page_size	Page size
-@return true if page is uninitialized, false if not. */
-static inline
-bool
-fil_crypt_is_page_uninitialized(
-	const byte	*frame,
-	const page_size_t& page_size)
-{
-	return (buf_page_is_zeroes(frame, page_size));
-}
-
 #define fil_crypt_get_page_throttle(state,offset,mtr,sleeptime_ms) \
 	fil_crypt_get_page_throttle_func(state, offset, mtr, \
 					 sleeptime_ms, __FILE__, __LINE__)
@@ -1770,9 +1756,9 @@ fil_crypt_rotate_page(
 	ulint offset = state->offset;
 	ulint sleeptime_ms = 0;
 	fil_space_crypt_t *crypt_data = space->crypt_data;
-	const page_size_t page_size = page_size_t(space->flags);
 
 	ut_ad(space->n_pending_ops > 0);
+	ut_ad(offset > 0);
 
 	/* In fil_crypt_thread where key rotation is done we have
 	acquired space and checked that this space is not yet
@@ -1787,44 +1773,55 @@ fil_crypt_rotate_page(
 		return;
 	}
 
+	ut_d(const bool was_free = fseg_page_is_free(space, offset));
+
 	mtr_t mtr;
 	mtr.start();
 	if (buf_block_t* block = fil_crypt_get_page_throttle(state,
 							     offset, &mtr,
 							     &sleeptime_ms)) {
-		mtr.set_named_space(space);
-
 		bool modified = false;
 		int needs_scrubbing = BTR_SCRUB_SKIP_PAGE;
 		lsn_t block_lsn = block->page.newest_modification;
 		byte* frame = buf_block_get_frame(block);
 		uint kv =  mach_read_from_4(frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
-		/* check if tablespace is closing after reading page */
-		if (!space->is_stopping()) {
+		if (space->is_stopping()) {
+			/* The tablespace is closing (in DROP TABLE or
+			TRUNCATE TABLE or similar): avoid further access */
+		} else if (!*reinterpret_cast<uint32_t*>(FIL_PAGE_OFFSET
+							 + frame)) {
+			/* It looks like this page was never
+			allocated. Because key rotation is accessing
+			pages in a pattern that is unlike the normal
+			B-tree and undo log access pattern, we cannot
+			invoke fseg_page_is_free() here, because that
+			could result in a deadlock. If we invoked
+			fseg_page_is_free() and released the
+			tablespace latch before acquiring block->lock,
+			then the fseg_page_is_free() information
+			could be stale already. */
+			ut_ad(was_free);
+			ut_ad(kv == 0);
+			ut_ad(page_get_space_id(frame) == 0);
+		} else if (fil_crypt_needs_rotation(
+				   crypt_data->encryption,
+				   kv, key_state->key_version,
+				   key_state->rotate_key_age)) {
 
-			if (kv == 0 &&
-				fil_crypt_is_page_uninitialized(frame, page_size)) {
-				;
-			} else if (fil_crypt_needs_rotation(
-					crypt_data->encryption,
-					kv, key_state->key_version,
-					key_state->rotate_key_age)) {
+			mtr.set_named_space(space);
+			modified = true;
 
-				modified = true;
+			/* force rotation by dummy updating page */
+			mlog_write_ulint(frame + FIL_PAGE_SPACE_ID,
+					 space_id, MLOG_4BYTES, &mtr);
 
-				/* force rotation by dummy updating page */
-				mlog_write_ulint(frame +
-					FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-					space_id, MLOG_4BYTES, &mtr);
-
-				/* statistics */
-				state->crypt_stat.pages_modified++;
-			} else {
-				if (crypt_data->is_encrypted()) {
-					if (kv < state->min_key_version_found) {
-						state->min_key_version_found = kv;
-					}
+			/* statistics */
+			state->crypt_stat.pages_modified++;
+		} else {
+			if (crypt_data->is_encrypted()) {
+				if (kv < state->min_key_version_found) {
+					state->min_key_version_found = kv;
 				}
 			}
 
@@ -1934,7 +1931,8 @@ fil_crypt_rotate_pages(
 	rotate_thread_t*	state)
 {
 	ulint space = state->space->id;
-	ulint end = state->offset + state->batch;
+	ulint end = std::min(state->offset + state->batch,
+			     state->space->free_limit);
 
 	ut_ad(state->space->n_pending_ops > 0);
 
