@@ -266,13 +266,6 @@ IF(CONNECT_WITH_JDBC)
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java
     JavaWrappers.jar)
-    # TODO: Find how to compile and install the java wrapper classes
-    # Find required libraries and include directories
-    SET (JAVA_SOURCES JdbcInterface.java)
-    add_jar(JdbcInterface ${JAVA_SOURCES})
-    INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar
-      ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
-      DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
     add_definitions(-DJDBC_SUPPORT)
   ELSE()
     SET(JDBC_LIBRARY "")
@@ -312,4 +305,19 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
                  ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${IPHLPAPI_LIBRARY})
+
+IF(NOT TARGET connect)
+  RETURN()
+ENDIF()
+
+IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
+  # TODO: Find how to compile and install the java wrapper classes
+  # Find required libraries and include directories
+  SET (JAVA_SOURCES JdbcInterface.java)
+  add_jar(JdbcInterface ${JAVA_SOURCES})
+  INSTALL(FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar
+    ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
+    DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+ENDIF()
 
