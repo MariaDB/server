@@ -436,7 +436,8 @@ xdes_get_descriptor_with_space_hdr(
 		  && (init_space
 		      || space->purpose == FIL_TYPE_TEMPORARY
 		      || (srv_startup_is_before_trx_rollback_phase
-			  && space->id <= srv_undo_tablespaces))));
+			  && (space->id == TRX_SYS_SPACE
+			      || srv_is_undo_tablespace(space->id))))));
 	ut_ad(size == space->size_in_header);
 
 	if ((offset >= size) || (offset >= limit)) {
