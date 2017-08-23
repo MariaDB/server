@@ -1000,15 +1000,6 @@
  VARIABLE_COMMENT	Seconds between sending progress reports to the client for time-consuming statements. Set to 0 to disable progress reporting.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -3376,7 +3376,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
- DEFAULT_VALUE	
- VARIABLE_SCOPE	GLOBAL
- VARIABLE_TYPE	VARCHAR
--VARIABLE_COMMENT	Enable proxy protocol for these source networks. The syntax is a comma separated list of IPv4 and IPv6 networks. If the network doesn't contain mask, it is considered to be a single host. "*" represents all networks and must the only directive on the line.
-+VARIABLE_COMMENT	Enable proxy protocol for these source networks. The syntax is a comma separated list of IPv4 and IPv6 networks. If the network doesn't contain mask, it is considered to be a single host. "*" represents all networks and must the only directive on the line. String "localhost" represents non-TCP local connections (Unix domain socket, Windows named pipe or shared memory).
- NUMERIC_MIN_VALUE	NULL
- NUMERIC_MAX_VALUE	NULL
- NUMERIC_BLOCK_SIZE	NULL
 @@ -3431,7 +3431,7 @@ GLOBAL_VALUE	16384
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	16384

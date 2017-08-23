@@ -3376,7 +3376,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Enable proxy protocol for these source networks. The syntax is a comma separated list of IPv4 and IPv6 networks. If the network doesn't contain mask, it is considered to be a single host. "*" represents all networks and must the only directive on the line.
+VARIABLE_COMMENT	Enable proxy protocol for these source networks. The syntax is a comma separated list of IPv4 and IPv6 networks. If the network doesn't contain mask, it is considered to be a single host. "*" represents all networks and must the only directive on the line. String "localhost" represents non-TCP local connections (Unix domain socket, Windows named pipe or shared memory).
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
