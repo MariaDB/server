@@ -46,8 +46,6 @@
 #include <signal.h>
 #include "probes_mysql.h"
 #include "proxy_protocol.h"
-#include <sql_class.h>
-#include <sql_connect.h>
 
 /*
   to reduce the number of ifdef's in the code
@@ -60,8 +58,11 @@ static void inline EXTRA_DEBUG_fprintf(...) {}
 #ifndef MYSQL_SERVER
 static int inline EXTRA_DEBUG_fflush(...) { return 0; }
 #endif
-#endif
+#endif /* EXTRA_DEBUG */
+
 #ifdef MYSQL_SERVER
+#include <sql_class.h>
+#include <sql_connect.h>
 #define MYSQL_SERVER_my_error my_error
 #else
 static void inline MYSQL_SERVER_my_error(...) {}
@@ -837,15 +838,29 @@ static my_bool my_net_skip_rest(NET *net, uint32 remain, thr_alarm_t *alarmed,
   Note, that proxy header can only be sent either when the connection is established,
   or as the client reply packet to
 */
-static int handle_proxy_header(NET *net)
+#undef IGNORE                   /* for Windows */
+typedef enum { RETRY, ABORT, IGNORE} handle_proxy_header_result;
+static handle_proxy_header_result handle_proxy_header(NET *net)
 {
-  proxy_peer_info peer_info;
+#if !defined(MYSQL_SERVER) || defined(EMBEDDED_LIBRARY)
+  return IGNORE;
+#else
   THD *thd= (THD *)net->thd;
 
-  if (!thd  || !thd->net.vio)
+  if (!has_proxy_protocol_header(net) || !thd ||
+      thd->get_command() != COM_CONNECT)
+    return IGNORE;
+
+  /*
+    Proxy information found in the first 4 bytes received so far.
+    Read and parse proxy header , change peer ip address and port in THD.
+  */
+  proxy_peer_info peer_info;
+
+  if (!thd->net.vio)
   {
     DBUG_ASSERT(0);
-    return 1;
+    return ABORT;
   }
 
   if (!is_proxy_protocol_allowed((sockaddr *)&(thd->net.vio->remote)))
@@ -853,25 +868,22 @@ static int handle_proxy_header(NET *net)
      /* proxy-protocol-networks variable needs to be set to allow this remote address */
      my_printf_error(ER_HOST_NOT_PRIVILEGED, "Proxy header is not accepted from %s",
        MYF(0), thd->main_security_ctx.ip);
-     return 1;
+     return ABORT;
   }
 
   if (parse_proxy_protocol_header(net, &peer_info))
   {
      /* Failed to parse proxy header*/
      my_printf_error(ER_UNKNOWN_ERROR, "Failed to parse proxy header", MYF(0));
-     return 1;
+     return ABORT;
   }
 
   if (peer_info.is_local_command)
     /* proxy header indicates LOCAL connection, no action necessary */
-    return 0;
-#ifdef EMBEDDED_LIBRARY
-   DBUG_ASSERT(0);
-   return 1;
-#else
+    return RETRY;
   /* Change peer address in THD and ACL structures.*/
-  return thd_set_peer_addr(thd, &(peer_info.peer_addr), NULL, peer_info.port, false);
+  return (handle_proxy_header_result)thd_set_peer_addr(thd,
+                         &(peer_info.peer_addr), NULL, peer_info.port, false);
 #endif
 }
 
@@ -1131,20 +1143,15 @@ end:
 
 packets_out_of_order:
   {
-    if (has_proxy_protocol_header(net)
-        && net->thd && 
-        ((THD *)net->thd)->get_command() == COM_CONNECT)
-    {
-      /* Proxy information found in the first 4 bytes received so far.
-         Read and parse proxy header , change peer ip address and port in THD.
-       */
-      if (handle_proxy_header(net))
-      {
+    switch (handle_proxy_header(net)) {
+    case ABORT:
         /* error happened, message is already written. */
         len= packet_error;
         goto end; 
-      }
-      goto retry;
+    case RETRY:
+        goto retry;
+    case IGNORE:
+        break;
     }
 
     DBUG_PRINT("error",
