@@ -8,7 +8,10 @@
 
 if (`SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
 {
-  --source include/galera_wait_ready.inc
+  if (`SELECT @@GLOBAL.WSREP_ON`)
+  {
+    --source include/galera_wait_ready.inc
+  }
 }
 
 --enable_query_log

@@ -4225,7 +4225,7 @@ end_with_restore_list:
     */
     if (thd->slave_thread && !thd->slave_expected_error &&
         slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
-      lex->check_exists= 1;
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
     if (WSREP(thd))
     {
