@@ -1,0 +1,7 @@
+SELECT @@proxy_protocol_networks;
+@@proxy_protocol_networks
+127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32,0:0:0:0:0:0:0:1,FF:FF::0/96,FF::1/128
+SET @@GLOBAL.proxy_protocol_networks='*';
+ERROR HY000: Variable 'proxy_protocol_networks' is a read only variable
+SET @@SESSION.proxy_protocol_networks='foo';
+ERROR HY000: Variable 'proxy_protocol_networks' is a read only variable

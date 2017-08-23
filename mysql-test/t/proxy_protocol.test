@@ -1,0 +1,7 @@
+SELECT @@proxy_protocol_networks;
+
+--echo # An unproxied client connection should be rejected if proxying enabled on the server
+--disable_query_log
+--error ER_BAD_HOST_ERROR,2013
+connect (err,"127.0.0.1",root,,,$MASTER_MYPORT,);
+--enable_query_log

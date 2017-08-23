@@ -1,0 +1,91 @@
+--source include/shutdown_mysqld.inc
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
+let $args=--loose-console > $SEARCH_FILE 2>&1;
+
+--echo Testing malformed arg, case 1
+--error 1
+--exec $MYSQLD_CMD --proxy-protocol-networks=00000000000000000000000000000000000000000000000 $args
+let SEARCH_PATTERN=Too long network in 'proxy_protocol_networks' directive.;
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo Testing malformed arg, case 2
+--error 1
+--exec $MYSQLD_CMD --proxy-protocol-networks=255.255.256.255 $args
+let SEARCH_PATTERN=Bad network '255.255.256.255' in 'proxy_protocol_networks' directive.;
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo Testing malformed arg, case 3
+--error 1
+--exec $MYSQLD_CMD --proxy-protocol-networks=::G $args
+let SEARCH_PATTERN=Bad network '::G' in 'proxy_protocol_networks' directive.;
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo Testing malformed arg, case 4
+--error 1
+--exec $MYSQLD_CMD --proxy-protocol-networks=192.168.0.0/ $args
+let SEARCH_PATTERN=Missing network prefix in 'proxy_protocol_networks' directive.;
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo Testing malformed arg, case 5
+--error 1
+--exec $MYSQLD_CMD --proxy-protocol-networks=0.0.0.0/0000ab $args
+let SEARCH_PATTERN=Bad syntax in 'proxy_protocol_networks' directive.;
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo Testing malformed arg, case 6
+--error 1
+--exec $MYSQLD_CMD --proxy-protocol-networks=0.0.0.0/33 $args
+let SEARCH_PATTERN=Bad IPv4 mask in 'proxy_protocol_networks' directive.;
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo Testing malformed arg, case 7
+--error 1
+--exec $MYSQLD_CMD --proxy-protocol-networks=::0/129 $args
+let SEARCH_PATTERN=Bad IPv6 mask in 'proxy_protocol_networks' directive.;
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+# The following test is split into three parts solely for --exec line readability
+--echo Testing masks hiding addresses, part 1
+--error 1
+--exec $MYSQLD_CMD --proxy-protocol-networks=128.0.0.0/0,196.168.128.0/16,8000::0/0,2001:2001::0/31,20ab:cdef:8000::0/32,cdab:89bc:35bf:2001::0/63,ABORT $args
+let SEARCH_PATTERN=The network mask hides a part of the address for '128.0.0.0/0';
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=The network mask hides a part of the address for '196.168.128.0/16';
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=The network mask hides a part of the address for '8000::0/0';
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=The network mask hides a part of the address for '2001:2001::0/31';
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=The network mask hides a part of the address for '20ab:cdef:8000::0/32';
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=The network mask hides a part of the address for 'cdab:89bc:35bf:2001::0/63';
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo Testing masks hiding addresses, part 2
+--error 1
+--exec $MYSQLD_CMD --proxy-protocol-networks=cdab:89bc:35bf:2001:8000::0/64,cdab:89bc:35bf:2001:8000:9abf::0/95,cdab:89bc:35bf:2001:8000:9abf:8000:0/96,ABORT $args
+let SEARCH_PATTERN=The network mask hides a part of the address for 'cdab:89bc:35bf:2001:8000::0/64';
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=The network mask hides a part of the address for 'cdab:89bc:35bf:2001:8000:9abf::0/95';
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=The network mask hides a part of the address for 'cdab:89bc:35bf:2001:8000:9abf:8000:0/96';
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo Testing masks hiding addresses, part 3
+--error 1
+--exec $MYSQLD_CMD --proxy-protocol-networks=cdab:89bc:35bf:2001:8000:9abf:8000:2001/127,ABORT $args
+let SEARCH_PATTERN=The network mask hides a part of the address for 'cdab:89bc:35bf:2001:8000:9abf:8000:2001/127';
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--source include/start_mysqld.inc

@@ -1,0 +1,27 @@
+Testing malformed arg, case 1
+FOUND /Too long network in 'proxy_protocol_networks' directive./ in my_restart.err
+Testing malformed arg, case 2
+FOUND /Bad network '255.255.256.255' in 'proxy_protocol_networks' directive./ in my_restart.err
+Testing malformed arg, case 3
+FOUND /Bad network '::G' in 'proxy_protocol_networks' directive./ in my_restart.err
+Testing malformed arg, case 4
+FOUND /Missing network prefix in 'proxy_protocol_networks' directive./ in my_restart.err
+Testing malformed arg, case 5
+FOUND /Bad syntax in 'proxy_protocol_networks' directive./ in my_restart.err
+Testing malformed arg, case 6
+FOUND /Bad IPv4 mask in 'proxy_protocol_networks' directive./ in my_restart.err
+Testing malformed arg, case 7
+FOUND /Bad IPv6 mask in 'proxy_protocol_networks' directive./ in my_restart.err
+Testing masks hiding addresses, part 1
+FOUND /The network mask hides a part of the address for '128.0.0.0/0'/ in my_restart.err
+FOUND /The network mask hides a part of the address for '196.168.128.0/16'/ in my_restart.err
+FOUND /The network mask hides a part of the address for '8000::0/0'/ in my_restart.err
+FOUND /The network mask hides a part of the address for '2001:2001::0/31'/ in my_restart.err
+FOUND /The network mask hides a part of the address for '20ab:cdef:8000::0/32'/ in my_restart.err
+FOUND /The network mask hides a part of the address for 'cdab:89bc:35bf:2001::0/63'/ in my_restart.err
+Testing masks hiding addresses, part 2
+FOUND /The network mask hides a part of the address for 'cdab:89bc:35bf:2001:8000::0/64'/ in my_restart.err
+FOUND /The network mask hides a part of the address for 'cdab:89bc:35bf:2001:8000:9abf::0/95'/ in my_restart.err
+FOUND /The network mask hides a part of the address for 'cdab:89bc:35bf:2001:8000:9abf:8000:0/96'/ in my_restart.err
+Testing masks hiding addresses, part 3
+FOUND /The network mask hides a part of the address for 'cdab:89bc:35bf:2001:8000:9abf:8000:2001/127'/ in my_restart.err

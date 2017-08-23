@@ -4017,6 +4017,15 @@ static Sys_var_charptr Sys_license(
        READ_ONLY GLOBAL_VAR(license), NO_CMD_LINE, IN_SYSTEM_CHARSET,
        DEFAULT(STRINGIFY_ARG(LICENSE)));
 
+static Sys_var_charptr Sys_my_proxy_protocol_networks(
+       "proxy_protocol_networks", "Enable proxy protocol for these source "
+       "networks. The syntax is a comma separated list of IPv4 and IPv6 "
+       "networks. If the network doesn't contain mask, it is considered to be "
+       "a single host. \"*\" represents all networks and must the only "
+       "directive on the line.",
+       READ_ONLY GLOBAL_VAR(my_proxy_protocol_networks),
+       CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(""));
+
 static bool check_log_path(sys_var *self, THD *thd, set_var *var)
 {
   if (!var->value)
