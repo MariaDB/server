@@ -53,8 +53,8 @@ static int parse_v1_header(char *hdr, size_t len, proxy_peer_info *peer_info)
     return -1;
   }
 
-  if (client_port < 0 || client_port > UINT16_MAX
-    || server_port < 0 || server_port > UINT16_MAX)
+  if (client_port < 0 || client_port > 0xffff
+    || server_port < 0 || server_port > 0xffff)
     return -1;
 
   if (!strcmp(address_family, "UNKNOWN"))

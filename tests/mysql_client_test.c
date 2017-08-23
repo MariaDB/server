@@ -19679,7 +19679,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   int i;
 
   // normalize IPv4-mapped IPv6 addresses, e.g ::ffff:192.168.0.1 to 192.168.0.1
-  char *normalized_addr= strncmp(ipaddr, "::ffff:", 7)?ipaddr : ipaddr + 7;
+  const char *normalized_addr= strncmp(ipaddr, "::ffff:", 7)?ipaddr : ipaddr + 7;
 
   memset(&v2_header, 0, sizeof(v2_header));
   sprintf(text_header,"PROXY %s %s %s %d 3306\r\n",family == AF_INET?"TCP4":"TCP6", ipaddr, ipaddr, port);
