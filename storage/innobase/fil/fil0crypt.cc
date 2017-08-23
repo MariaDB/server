@@ -1723,7 +1723,7 @@ btr_scrub_get_block_and_allocation_status(
 
 	mtr_start(&local_mtr);
 
-	*allocation_status = fsp_page_is_free(space->id, offset, &local_mtr) ?
+	*allocation_status = fseg_page_is_free(space, offset) ?
 		BTR_SCRUB_PAGE_FREE :
 		BTR_SCRUB_PAGE_ALLOCATED;
 
