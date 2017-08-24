@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2032,15 +2033,6 @@ fseg_create_general(
 
 	mtr_x_lock(latch, mtr);
 
-	if (rw_lock_get_x_lock_count(latch) == 1) {
-		/* This thread did not own the latch before this call: free
-		excess pages from the insert buffer free list */
-
-		if (space == IBUF_SPACE_ID) {
-			ibuf_free_excess_pages();
-		}
-	}
-
 	if (!has_done_reservation) {
 		success = fsp_reserve_free_extents(&n_reserved, space, 2,
 						   FSP_NORMAL, mtr);
@@ -2611,15 +2603,6 @@ fseg_alloc_free_page_general(
 	zip_size = fsp_flags_get_zip_size(flags);
 
 	mtr_x_lock(latch, mtr);
-
-	if (rw_lock_get_x_lock_count(latch) == 1) {
-		/* This thread did not own the latch before this call: free
-		excess pages from the insert buffer free list */
-
-		if (space == IBUF_SPACE_ID) {
-			ibuf_free_excess_pages();
-		}
-	}
 
 	inode = fseg_inode_get(seg_header, space, zip_size, mtr);
 
