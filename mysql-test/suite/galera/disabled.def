@@ -49,3 +49,8 @@ galera_parallel_simple : MDEV-13549 Galera test failures
 galera_admin : MDEV-13549 Galera test failures
 galera_var_max_ws_rows :  MDEV-13549 Galera test failures 10.1
 MW-286 : MDEV-13549 Galera test failures 10.1
+galera_as_master: MDEV-13549 Galera test failures 10.1
+galera_pc_ignore_sb : MDEV-13549 Galera test failures 10.1
+galera_lock_table : MDEV-13549 Galera test failures 10.1
+MW-284 : MDEV-13549 Galera test failures 10.1
+galera_as_slave : MDEV-13549 Galera test failures 10.1
