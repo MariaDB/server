@@ -8041,7 +8041,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
       /* see if the constraint depends on *only* on dropped fields */
-      if (dropped_fields)
+      if (!drop && dropped_fields)
       {
         table->default_column_bitmaps();
         bitmap_clear_all(table->read_set);
