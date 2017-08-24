@@ -1083,7 +1083,7 @@ character-sets-dir MYSQL_CHARSETSDIR/
 chroot (No default value)
 completion-type NO_CHAIN
 concurrent-insert AUTO
-console FALSE
+console TRUE
 date-format %Y-%m-%d
 datetime-format %Y-%m-%d %H:%i:%s
 deadlock-search-depth-long 15
