@@ -16,6 +16,18 @@ BEGIN
 END|
 DELIMITER ;|
 
+# We need two slave threads here to guarantee progress.
+# If we use only one thread the following could happen
+# in node_1:
+# We block the only slave thread in wsrep_apply_cb and we
+# issue an INSERT (by calling the stored procedure) that will
+# try to acquire galera's local monitor in pre_commit().
+# This usually works fine, except for when a commit cut event
+# sneaks in the slave queue and gets a local seqno smaller than
+# that of the INSERT. Because there is only one slave thread,
+# commit cut is not processed and therefore does not advance
+# local monitor, and our INSERT remains stuck there.
+SET GLOBAL wsrep_slave_threads = 2;
 SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
 
 --connection node_2
@@ -27,15 +39,15 @@ SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 
 --connection node_1
 SET SESSION wsrep_sync_wait = 0;
-SET SESSION DEBUG_SYNC = 'wsrep_before_replication SIGNAL wsrep_before_replication_reached WAIT_FOR wsrep_before_replication_continue';
+SET SESSION DEBUG_SYNC = 'wsrep_after_replication SIGNAL wsrep_after_replication_reached WAIT_FOR wsrep_after_replication_continue';
 --send CALL insert_proc ();
 
 --connection node_1a
-SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_before_replication_reached";
+SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_after_replication_reached";
 
---connection node_1a
+
 SET GLOBAL DEBUG = "";
-SET DEBUG_SYNC = "now SIGNAL wsrep_before_replication_continue";
+SET DEBUG_SYNC = "now SIGNAL wsrep_after_replication_continue";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 
 --connection node_2
@@ -44,11 +56,13 @@ SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 --connection node_1
 # We expect no errors here, because the handler in insert_proc() caught the deadlock error
 --reap
-SELECT @errno;
+SELECT @errno = 1213;
 SELECT * FROM t1;
 
 --connection node_2
 SELECT * FROM t1;
 
+--connection node_1
+SET GLOBAL wsrep_slave_threads = DEFAULT;
 DROP TABLE t1;
 DROP PROCEDURE insert_proc;

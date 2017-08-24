@@ -1985,8 +1985,8 @@ row_upd_sec_index_entry(
 			}
 #ifdef WITH_WSREP
 			if (wsrep_on(trx->mysql_thd)                          &&
-			    !wsrep_thd_is_BF(trx->mysql_thd, FALSE)           &&
 			    err == DB_SUCCESS && !referenced                  &&
+			    !wsrep_thd_is_BF(trx->mysql_thd, FALSE)           &&
 			    !(parent && que_node_get_type(parent) ==
 				QUE_NODE_UPDATE                               &&
 			      ((upd_node_t*)parent)->cascade_node == node)    &&

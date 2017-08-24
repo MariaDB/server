@@ -498,6 +498,9 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
   }
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
+  DEBUG_SYNC(thd, "wsrep_after_replication");
+
   switch(rcode) {
   case 0:
     /*

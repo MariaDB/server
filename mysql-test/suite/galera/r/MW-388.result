@@ -8,19 +8,20 @@ END;
 INSERT INTO t1 VALUES (1, 'node 1'),(2, 'node 1');
 INSERT INTO t1 VALUES (3, 'node 1');
 END|
+SET GLOBAL wsrep_slave_threads = 2;
 SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
 INSERT INTO t1 VALUES (1, 'node 2');;
 SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 SET SESSION wsrep_sync_wait = 0;
-SET SESSION DEBUG_SYNC = 'wsrep_before_replication SIGNAL wsrep_before_replication_reached WAIT_FOR wsrep_before_replication_continue';
+SET SESSION DEBUG_SYNC = 'wsrep_after_replication SIGNAL wsrep_after_replication_reached WAIT_FOR wsrep_after_replication_continue';
 CALL insert_proc ();;
-SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_before_replication_reached";
+SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_after_replication_reached";
 SET GLOBAL DEBUG = "";
-SET DEBUG_SYNC = "now SIGNAL wsrep_before_replication_continue";
+SET DEBUG_SYNC = "now SIGNAL wsrep_after_replication_continue";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
-SELECT @errno;
-@errno
-1213
+SELECT @errno = 1213;
+@errno = 1213
+1
 SELECT * FROM t1;
 f1	f2
 1	node 2
@@ -29,5 +30,6 @@ SELECT * FROM t1;
 f1	f2
 1	node 2
 3	node 1
+SET GLOBAL wsrep_slave_threads = DEFAULT;
 DROP TABLE t1;
 DROP PROCEDURE insert_proc;
