@@ -467,6 +467,7 @@ void wsrep_end_nbo_lock(THD*, const TABLE_LIST *table_list);
 void wsrep_to_isolation_end(THD *thd);
 
 void wsrep_cleanup_transaction(THD *thd);
+bool wsrep_append_SR_keys(THD *thd);
 int wsrep_to_buf_helper(
   THD* thd, const char *query, uint query_len, uchar** buf, size_t* buf_len);
 int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);

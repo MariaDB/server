@@ -23,62 +23,6 @@
 #include "debug_sync.h" // DEBUG_SYNC()
 #include "rpl_handler.h" // RUN_hOOK()
 
-void Wsrep_SR_rollback_queue::append_SR_rollback(THD *thd)
-{
-  if (thd->wsrep_SR_rollback_replicated_for_trx == thd->wsrep_trx_id())
-  {
-    WSREP_DEBUG("SR rollback append skipped for thd: %lld conf %d",
-                thd->thread_id, thd->wsrep_conflict_state());
-    return;
-  }
-
-  thd->wsrep_SR_rollback_replicated_for_trx = thd->wsrep_ws_handle.trx_id;
-
-  mysql_mutex_lock(&mutex_);
-  WSREP_DEBUG("SR rollback append for thd: %lld "
-              "query %lld  srctrx: %ld trx %ld  conf %d",
-              thd->thread_id, thd->query_id, thd->wsrep_trx_meta.stid.trx,
-              thd->wsrep_ws_handle.trx_id, thd->wsrep_conflict_state());
-
-  if (map_.find(thd->thread_id) == map_.end())
-  {
-    map_[thd->thread_id] = new wsrep_SR_rollback_event(thd);
-
-    /* TODO: thd should go for wsrep_rollback later to free all trx allocations
-    my_free(thd->wsrep_rbr_buf);
-    thd->wsrep_rbr_buf = NULL;
-    */
-  }
-  mysql_mutex_unlock(&mutex_);
-}
-
-void Wsrep_SR_rollback_queue::send_SR_rollbacks(THD *thd)
-{
-  if (thd->wsrep_exec_mode != LOCAL_STATE) return;
-
-  mysql_mutex_lock(&mutex_);
-
-  std::map<my_thread_id, class wsrep_SR_rollback_event*>::iterator i;
-
-  for(i = map_.begin(); i != map_.end(); ++i)
-  {
-    class wsrep_SR_rollback_event *event = i->second;
-
-    /* replicate event */
-    wsrep_ws_handle_t ws_handle = event->get_ws_handle();
-
-    wsrep_status_t const ret= wsrep->rollback(wsrep, ws_handle.trx_id, NULL);
-
-    if (ret != WSREP_OK)
-    {
-      WSREP_WARN("SR rollback replication failure, thd: %lld, trx_id: %lu SQL: %s",
-                 thd->thread_id, thd->wsrep_trx_id(), thd->query());
-    }
-    delete event;
-  }
-  map_.clear();
-  mysql_mutex_unlock(&mutex_);
-}
 
 void wsrep_SR_trx_info::remove(THD* caller, bool persistent)
 {
@@ -135,34 +79,40 @@ inline bool operator>=(const wsrep_uuid_t& lhs, const wsrep_uuid_t& rhs) {
   return !operator< (lhs,rhs);
 }
 
-wsrep_SR_trx_info*  SR_pool::find(const wsrep_uuid_t& nodeID,
-                                  const uint64_t& trxID) const
+wsrep_SR_trx_info* SR_pool::find(const wsrep_uuid_t& nodeID,
+                                 const uint64_t& trxID) const
 {
   wsrep_SR_trx_info* ret(NULL);
-  if (mysql_mutex_lock (&LOCK_wsrep_SR_pool)) abort();
+  wsp::auto_lock lock(&LOCK_wsrep_SR_pool);
 
   src_pool_t::const_iterator const si(pool_.find(nodeID));
   if (si != pool_.end())
   {
     trx_pool_t::const_iterator const ti(si->second.find(trxID));
-    if (ti != si->second.end()) ret = ti->second;
+    if (ti != si->second.end())
+    {
+      wsrep_SR_trx_info* trx = ti->second;
+      if (!trx->preempted())
+      {
+        ret = trx;
+        trx->acquire();
+      }
+    }
   }
 
-  if (mysql_mutex_unlock (&LOCK_wsrep_SR_pool)) abort();
   return ret;
 }
 
-wsrep_SR_trx_info* SR_pool::add(const wsrep_uuid_t& nodeID, const uint64_t& trxID, THD *thd)
+wsrep_SR_trx_info* SR_pool::add(const wsrep_uuid_t& nodeID,
+                                const uint64_t& trxID,
+                                THD *thd)
 {
   wsrep_SR_trx_info *trx = new wsrep_SR_trx_info(thd);
 
-  if (mysql_mutex_lock (&LOCK_wsrep_SR_pool)) abort();
-
+  wsp::auto_lock lock(&LOCK_wsrep_SR_pool);
   assert(NULL == pool_[nodeID][trxID]);
-
   pool_[nodeID][trxID] = trx;
-
-  if (mysql_mutex_unlock (&LOCK_wsrep_SR_pool)) abort();
+  trx->acquire();
 
   return trx;
 }
@@ -170,91 +120,81 @@ wsrep_SR_trx_info* SR_pool::add(const wsrep_uuid_t& nodeID, const uint64_t& trxI
 void SR_pool::remove(THD* caller, const wsrep_uuid_t& nodeID,
                      const uint64_t& trxID, bool persistent)
 {
-  wsrep_SR_trx_info *trx(NULL);
-  if (mysql_mutex_lock (&LOCK_wsrep_SR_pool)) abort();
-  WSREP_DEBUG("sr_pool remove for node's trx");
-  src_pool_t::iterator const si(pool_.find(nodeID));
-  if (si != pool_.end())
-  {
-    trx_pool_t& trx_pool(si->second);
-    trx_pool_t::iterator ti(trx_pool.find(trxID));
-    if (ti != trx_pool.end())
-    {
-      trx = (wsrep_SR_trx_info*)ti->second;
-      /* remove transaction persistently */
-      trx->remove(caller, persistent);
-      WSREP_DEBUG("sr_pool->trx_pool remove for trx: %lu", trxID);
-      delete trx;
-      trx_pool.erase(ti);
-    }
+  WSREP_DEBUG("SR_pool::remove, trx: %lu, persistent: %d", trxID, persistent);
 
-    if (trx_pool.empty()) pool_.erase(si);
+  wsrep_SR_trx_info *trx(NULL);
+
+  {
+    wsp::auto_lock lock(&LOCK_wsrep_SR_pool);
+
+    src_pool_t::iterator const si(pool_.find(nodeID));
+    if (si != pool_.end())
+    {
+      trx_pool_t& trx_pool(si->second);
+      trx_pool_t::iterator ti(trx_pool.find(trxID));
+      if (ti != trx_pool.end())
+      {
+        if (!ti->second->preempted())
+        {
+          trx = ti->second;
+          trx_pool.erase(ti);
+        }
+      }
+
+      if (trx_pool.empty()) pool_.erase(si);
+    }
   }
 
-  if (mysql_mutex_unlock (&LOCK_wsrep_SR_pool)) abort();
-  return;
+  if (trx)
+  {
+    WSREP_DEBUG("trx->remove for trx: %lu", trxID);
+    trx->remove(caller, persistent);
+    delete trx;
+  }
 }
 
-bool SR_pool::remove(THD* caller, THD *victim, bool persistent)
+void SR_pool::removeAll(THD* caller, bool persistent)
 {
-  bool ret(false);
+  WSREP_DEBUG("SR_pool::removeAll, persistent: %d", persistent);
 
-  if (mysql_mutex_lock (&LOCK_wsrep_SR_pool)) abort();
+  wsp::auto_lock lock(&LOCK_wsrep_SR_pool);
+
   src_pool_t::iterator si;
-  WSREP_DEBUG("sr_pool remove for THD %lld, persistent: %d",
-              (victim) ? victim->thread_id : -1, persistent);
-
   for (si = pool_.begin(); si != pool_.end();)
   {
     trx_pool_t& trx_pool(si->second);
-
     trx_pool_t::iterator ti(trx_pool.begin());
 
     while (ti != trx_pool.end())
     {
-      wsrep_SR_trx_info *trx = (wsrep_SR_trx_info*)ti->second;
-
-      if (!victim || trx->get_THD() == victim)
-      {
-        WSREP_DEBUG("Found SR transaction to remove: %lld", 
-                    (victim) ? victim->thread_id : -1);
-        ret = true;
-
-        trx->remove(caller, persistent);
-        delete trx;
-
-        /* TODO: transaction to rollback */
-        trx_pool_t::iterator prev = ti++;
-
-        trx_pool.erase(prev);
-      }
-      else
-      {
-        ti++;
-      }
+      wsrep_SR_trx_info *trx = ti->second;
+      trx->remove(caller, persistent);
+      delete trx;
+      ++ti;
+    }
 
     pool_.erase(si++);
   }
-  if (mysql_mutex_unlock (&LOCK_wsrep_SR_pool)) abort();
-  return (ret);
-  }
 }
 
-void SR_pool::trimToNodes (THD* caller, const wsrep_member_info_t nodes[], int nodeCount)
+void SR_pool::trimToNodes(THD* caller,
+                          const wsrep_member_info_t nodes[],
+                          int nodeCount)
 {
   WSREP_DEBUG("SR_pool::trimToNodes");
-  src_pool_t::iterator si;
 
-  si = pool_.begin();
-  while(si != pool_.end()) {
+  wsp::auto_lock lock(&LOCK_wsrep_SR_pool);
 
+  src_pool_t::iterator si = pool_.begin();
+  while (si != pool_.end())
+  {
     bool do_remove(true);
     for (int i = 0; i< nodeCount; i++)
     {
       if (si->first == nodes[i].id)
       {
         do_remove = false;
-        continue;
+        break;
       }
     }
 
@@ -270,13 +210,13 @@ void SR_pool::trimToNodes (THD* caller, const wsrep_member_info_t nodes[], int n
 
       while (ti != trx_pool.end())
       {
-        wsrep_SR_trx_info *trx = (wsrep_SR_trx_info*)ti->second;
+        wsrep_SR_trx_info *trx = ti->second;
 
         WSREP_DEBUG("SR transaction to remove: %lld", trx->get_THD()->thread_id);
 
         trx->remove(caller, true);
         delete trx;
-        ti++;
+        ++ti;
       }
 
       /* now removing full trx_pool map */
@@ -284,20 +224,95 @@ void SR_pool::trimToNodes (THD* caller, const wsrep_member_info_t nodes[], int n
     }
     else
     {
-      si++;
+      ++si;
     }
   }
 }
 
+bool SR_pool::preempt(THD* thd)
+{
+  wsp::auto_lock lock(&LOCK_wsrep_SR_pool);
+
+  src_pool_t::iterator si;
+  for (si = pool_.begin(); si != pool_.end(); ++si)
+  {
+    trx_pool_t& trx_pool(si->second);
+    trx_pool_t::iterator ti(trx_pool.begin());
+    while (ti != trx_pool.end())
+    {
+      wsrep_SR_trx_info *trx = ti->second;
+      if (trx->get_THD() == thd)
+      {
+        trx->mark_preempted();
+        return true;
+      }
+      ++ti;
+    }
+  }
+
+  return false;
+}
+
+bool SR_pool::wait_release_and_remove(THD* caller, THD *victim)
+{
+  wsrep_SR_trx_info *trx(NULL);
+
+  {
+    wsp::auto_lock lock(&LOCK_wsrep_SR_pool);
+
+    src_pool_t::iterator si;
+    for (si = pool_.begin(); si != pool_.end();)
+    {
+      trx_pool_t& trx_pool(si->second);
+
+      for (trx_pool_t::iterator ti = trx_pool.begin();
+           ti != trx_pool.end();
+           ++ti)
+      {
+        if (ti->second->get_THD() == victim)
+        {
+          trx = ti->second;
+          trx_pool.erase(ti);
+          break;
+        }
+      }
+
+      if (trx_pool.empty())
+      {
+        pool_.erase(si++);
+      }
+      else
+      {
+        ++si;
+      }
+
+    }
+  }
+
+  DBUG_ASSERT(trx);
+  DBUG_ASSERT(trx->preempted());
+
+  if (trx)
+  {
+    trx->wait_release();
+    trx->remove(caller, true);
+    delete trx;
+    return true;
+  }
+
+  return false;
+}
+
+
 SR_pool *sr_pool;
 
-void  wsrep_close_SR_transactions(THD *thd)
+void wsrep_close_SR_transactions(THD *thd)
 {
 
   if (sr_pool)
   {
     WSREP_DEBUG("deleting streaming replication transaction pool");
-    (void)sr_pool->remove(thd, NULL, false);
+    sr_pool->removeAll(thd, false);
   }
   else
   {
@@ -308,8 +323,6 @@ void  wsrep_close_SR_transactions(THD *thd)
 
   delete sr_pool;
   sr_pool = NULL;
-
-  //if (thd) thd->store_globals();
 }
 
 void trim_SR_pool(THD* thd, const wsrep_member_info_t nodes[], int nodeCount)
@@ -330,12 +343,14 @@ void wsrep_restore_SR_trxs(THD *thd)
   if (wsrep_SR_store) wsrep_SR_store->restore(thd);
 }
 
+bool wsrep_preempt_SR_THD(THD *victim_thd)
+{
+  return sr_pool->preempt(victim_thd);
+}
+
 bool wsrep_abort_SR_THD(THD *thd, THD *victim_thd)
 {
-  bool ret = sr_pool->remove(thd, victim_thd, true);
-  //if (thd) thd->store_globals();
-
-  return (ret);
+  return sr_pool->wait_release_and_remove(thd, victim_thd);
 }
 
 void wsrep_prepare_SR_trx_info_for_rollback(THD *thd)
@@ -361,6 +376,7 @@ void wsrep_prepare_SR_trx_info_for_rollback(THD *thd)
       {
         SR_trx->append_fragment(&(*i));
       }
+      SR_trx->release();
       error= 0;
     }
   }

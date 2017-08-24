@@ -238,6 +238,7 @@ long long   wsrep_local_bf_aborts    = 0;
 const char* wsrep_provider_name      = provider_name;
 const char* wsrep_provider_version   = provider_version;
 const char* wsrep_provider_vendor    = provider_vendor;
+char* wsrep_provider_capabilities    = NULL;
 /* End wsrep status variables */
 
 wsrep_uuid_t               local_uuid        = WSREP_UUID_UNDEFINED;
@@ -254,7 +255,6 @@ class SR_storage       *wsrep_SR_store = NULL;
 #define WSREP_THD_POOL_SIZE 16
 Wsrep_thd_pool* wsrep_thd_pool= 0;
 Wsrep_schema *wsrep_schema= 0;
-Wsrep_SR_rollback_queue* wsrep_SR_rollback_queue= 0;
 
 wsp::Config_state *wsrep_config_state;
 
@@ -1130,8 +1130,6 @@ void wsrep_deinit(bool free_options)
   delete wsrep_thd_pool;
   wsrep_thd_pool= 0;
 
-  delete wsrep_SR_rollback_queue;
-  wsrep_SR_rollback_queue= 0;
   wsrep_unload(wsrep);
   wsrep= 0;
   provider_name[0]=    '\0';
@@ -1140,6 +1138,12 @@ void wsrep_deinit(bool free_options)
 
   wsrep_inited= 0;
 
+  if (free_options && wsrep_provider_capabilities != NULL)
+  {
+    char* p = wsrep_provider_capabilities;
+    wsrep_provider_capabilities = NULL;
+    free(p);
+  }
   if (free_options)
   {
     wsrep_sst_auth_free();
@@ -1222,9 +1226,6 @@ void wsrep_stop_replication(THD *thd)
   delete wsrep_thd_pool;
   wsrep_thd_pool= 0;
 
-  delete wsrep_SR_rollback_queue;
-  wsrep_SR_rollback_queue= 0;
-
   return;
 }
 
@@ -1298,7 +1299,6 @@ bool wsrep_start_replication()
     DBUG_ASSERT(!wsrep_thd_pool);
     wsrep_thd_pool= new Wsrep_thd_pool(WSREP_THD_POOL_SIZE);
   }
-  wsrep_SR_rollback_queue= new Wsrep_SR_rollback_queue();
   wsrep_init_SR_pool();
   wsrep_startup= TRUE;
 
@@ -1642,6 +1642,50 @@ bool wsrep_prepare_key_for_innodb(THD* thd,
     ++(*key_len);
 
     return true;
+}
+
+bool wsrep_append_SR_keys(THD* thd)
+{
+  wsrep_key_set::iterator db_it;
+  for (db_it = thd->wsrep_SR_keys.begin();
+       db_it != thd->wsrep_SR_keys.end();
+       ++db_it)
+  {
+    const std::string& db(db_it->first);
+    wsrep_key_set::mapped_type& table_names(db_it->second);
+    wsrep_key_set::mapped_type::iterator table_it;
+    for (table_it = table_names.begin();
+         table_it != table_names.end();
+         ++table_it)
+    {
+      size_t parts_len(2);
+      wsrep_buf_t parts[2];
+      if (!wsrep_prepare_key_for_isolation(db.c_str(),
+                                           (*table_it).c_str(),
+                                           parts,
+                                           &parts_len))
+      {
+        WSREP_ERROR("Failed to prepare key for streaming transaction, %s",
+                    thd->query());
+        return false;
+      }
+
+      wsrep_key_t key = {parts, parts_len};
+      if (wsrep->append_key(wsrep,
+                            &thd->wsrep_ws_handle,
+                            &key,
+                            1,
+                            WSREP_KEY_SHARED,
+                            true))
+      {
+        WSREP_ERROR("Failed to append key for streaming transaction, %s",
+                    thd->query());
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 /*

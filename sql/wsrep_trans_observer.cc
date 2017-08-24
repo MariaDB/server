@@ -256,16 +256,21 @@ static int wsrep_pre_commit(THD *thd)
     DBUG_RETURN(1);
   }
 
-  /*
-    We must make sure that all rollbacks queued in SR rollback queue
-    will be replicated before this write set is replicated.
-   */
-  wsrep_SR_rollback_queue->send_SR_rollbacks(thd);
-
   uint32_t flags= WSREP_FLAG_TRX_END;
   if (!thd->wsrep_PA_safe || thd->wsrep_is_streaming())
   {
     flags |= WSREP_FLAG_PA_UNSAFE;
+  }
+
+  if (thd->wsrep_is_streaming())
+  {
+    if (!wsrep_append_SR_keys(thd))
+    {
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+      thd->set_wsrep_query_state(QUERY_EXEC);
+      DBUG_RETURN(1);
+    }
   }
 
   wsrep_status_t rcode=
@@ -288,6 +293,9 @@ static int wsrep_pre_commit(THD *thd)
 
   int ret= 1;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
+  DEBUG_SYNC(thd, "wsrep_after_replication");
+  
   switch (rcode)
   {
   case WSREP_TRX_MISSING:
@@ -494,7 +502,6 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
   DBUG_EXECUTE_IF("crash_replicate_fragment_before_pre_commit",
                   DBUG_SUICIDE(););
 
-  wsrep_SR_rollback_queue->send_SR_rollbacks(thd);
   wsrep_status_t rcode= wsrep->pre_commit(wsrep,
                                           (wsrep_conn_id_t)thd->thread_id,
                                           &thd->wsrep_ws_handle,

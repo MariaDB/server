@@ -4768,6 +4768,7 @@ public:
                                           // transaction
   wsrep_trx_id_t            wsrep_SR_rollback_replicated_for_trx;
   wsrep_fragment_set        wsrep_SR_fragments;
+  wsrep_key_set             wsrep_SR_keys;
   TABLE_LIST                wsrep_SR_table;
   uchar*                    wsrep_rbr_buf;
   Wsrep_nbo_ctx*            wsrep_nbo_ctx; // Context for non-blocking operations
