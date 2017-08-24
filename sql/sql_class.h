@@ -2236,6 +2236,7 @@ public:
   // track down slow pthread_create
   ulonglong  prior_thr_create_utime, thr_create_utime;
   ulonglong  start_utime, utime_after_lock, utime_after_query;
+  unsigned long int numa_node_id;
 
   // Process indicator
   struct {

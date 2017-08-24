@@ -305,6 +305,9 @@ DECLARE_THREAD(io_handler_thread)(
 			the aio array */
 {
 	ulint	segment;
+	ulint	node;
+	static ulint	read_node = 0;
+	static ulint	write_node = 0;
 
 	segment = *((ulint*) arg);
 
@@ -327,11 +330,33 @@ DECLARE_THREAD(io_handler_thread)(
 	} else if (segment >= start
 		   && segment < (start + srv_n_read_io_threads)) {
 			pfs_register_thread(io_read_thread_key);
+#ifdef HAVE_LIBNUMA
+#ifndef DBUG_OFF
+			if (fake_numa || mysql_numa_enable)
+#else
+			if (mysql_numa_enable)
+#endif // DBUG_OFF
+			{
+				node = allowed_numa_nodes[read_node++/2];
+				mysql_bind_thread_to_node(node);
+			}
+#endif // HAVE_LIBNUMA
 
 	} else if (segment >= (start + srv_n_read_io_threads)
 		   && segment < (start + srv_n_read_io_threads
 				 + srv_n_write_io_threads)) {
 		pfs_register_thread(io_write_thread_key);
+#ifdef HAVE_LIBNUMA
+#ifndef DBUG_OFF
+			if (fake_numa || mysql_numa_enable)
+#else
+			if (mysql_numa_enable)
+#endif // DBUG_OFF
+			{
+				node = allowed_numa_nodes[write_node++/2];
+				mysql_bind_thread_to_node(node);
+			}
+#endif // HAVE_LIBNUMA
 
 	} else {
 		pfs_register_thread(io_handler_thread_key);
@@ -1703,6 +1728,61 @@ innobase_start_or_create_for_mysql()
 		srv_buf_pool_instances = 1;
 	}
 
+#ifdef HAVE_LIBNUMA
+
+	if (srv_numa_interleave && mysql_numa_enable) {
+		mysql_numa_enable = false;
+	}
+
+#ifndef DBUG_OFF
+	if (srv_numa_interleave && fake_numa) {
+		fake_numa = false;
+	}
+#endif // DBUG_OFF
+
+#ifndef DBUG_OFF
+    if (fake_numa || mysql_numa_enable)
+#else
+    if (mysql_numa_enable)
+#endif // DBUG_OFF
+	{
+		ulint srv_buf_pool_instances_old_val = srv_buf_pool_instances;
+		ulint srv_n_read_io_threads_old_val = srv_n_read_io_threads;
+		ulint srv_n_write_io_threads_old_val = srv_n_write_io_threads;
+		ulint srv_n_page_cleaners_old_val = srv_n_page_cleaners;
+
+		srv_buf_pool_instances = no_of_allowed_nodes;
+		srv_n_read_io_threads = 2 * srv_buf_pool_instances;
+		srv_n_write_io_threads = 2 * srv_buf_pool_instances;
+		srv_n_page_cleaners = srv_buf_pool_instances;
+
+		if (srv_buf_pool_instances != srv_buf_pool_instances_old_val) {
+			ib::info()
+				<< "Adjusting innodb_buffer_pool_instances"
+				" from " << srv_buf_pool_instances_old_val << " to "
+				<< srv_buf_pool_instances << " since numa is enabled.";
+		}
+		if (srv_n_read_io_threads != srv_n_read_io_threads_old_val) {
+			ib::info()
+				<< "Adjusting innodb_read_io_threads"
+				" from " << srv_n_read_io_threads_old_val << " to "
+				<< srv_n_read_io_threads << " since numa is enabled.";
+		}
+		if (srv_n_write_io_threads != srv_n_write_io_threads_old_val) {
+			ib::info()
+				<< "Adjusting innodb_write_io_threads"
+				" from " << srv_n_write_io_threads_old_val << " to "
+				<< srv_n_write_io_threads << " since numa is enabled.";
+		}
+		if (srv_n_page_cleaners != srv_n_page_cleaners_old_val) {
+			ib::info()
+				<< "Adjusting innodb_page_cleaners"
+				" from " << srv_n_page_cleaners_old_val << " to "
+				<< srv_n_page_cleaners << " since numa is enabled.";
+		}
+	}
+#endif // HAVE_LIBNUMA
+
 	if (srv_buf_pool_chunk_unit * srv_buf_pool_instances
 	    > srv_buf_pool_size) {
 		/* Size unit of buffer pool is larger than srv_buf_pool_size.
@@ -1716,6 +1796,20 @@ innobase_start_or_create_for_mysql()
 	}
 
 	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
+
+#ifdef HAVE_LIBNUMA
+#ifndef DBUG_OFF
+    if (fake_numa || mysql_numa_enable)
+#else
+    if (mysql_numa_enable)
+#endif // DBUG_OFF
+	{
+		for (ulint i = 0; i < srv_buf_pool_instances; i++) {
+			srv_size_of_buf_pool_in_node[i] = ((double) size_of_numa_node[i] / total_numa_nodes_size) * srv_buf_pool_size;
+			srv_size_of_buf_pool_in_node[i] = buf_pool_size_align(srv_size_of_buf_pool_in_node[i]);
+		}
+	}
+#endif // HAVE_LIBNUMA
 
 	if (srv_n_page_cleaners > srv_buf_pool_instances) {
 		/* limit of page_cleaner parallelizability
@@ -1875,7 +1969,7 @@ innobase_start_or_create_for_mysql()
 		os_thread_create(buf_flush_page_cleaner_coordinator,
 				 NULL, NULL);
 
-		for (i = 1; i < srv_n_page_cleaners; ++i) {
+		for (i = 0; i < srv_n_page_cleaners; ++i) {
 			os_thread_create(buf_flush_page_cleaner_worker,
 					 NULL, NULL);
 		}

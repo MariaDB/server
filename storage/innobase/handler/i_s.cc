@@ -4405,6 +4405,15 @@ static ST_FIELD_INFO	i_s_innodb_buffer_stats_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
+#define IDX_BUF_STATS_NUMA_NODE_ID		32
+	{STRUCT_FLD(field_name,		"NUMA_NODE"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
 	END_OF_ST_FIELD_INFO
 };
 
@@ -4435,6 +4444,9 @@ i_s_innodb_stats_fill(
 
 	OK(fields[IDX_BUF_STATS_POOL_SIZE]->store(
 		   info->pool_size, true));
+
+	OK(fields[IDX_BUF_STATS_NUMA_NODE_ID]->store(
+		   info->numa_node_id, true));
 
 	OK(fields[IDX_BUF_STATS_LRU_LEN]->store(
 		   info->lru_len, true));

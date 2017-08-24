@@ -1,0 +1,3 @@
+-- source include/have_numa.inc
+
+SELECT @@GLOBAL.numa_enable;

@@ -138,6 +138,7 @@ struct buf_pool_info_t{
 	/* General buffer pool info */
 	ulint	pool_unique_id;		/*!< Buffer Pool ID */
 	ulint	pool_size;		/*!< Buffer Pool size in pages */
+	ulint	numa_node_id;	/*!< NUMA node of this buffer pool instance */
 	ulint	lru_len;		/*!< Length of buf_pool->LRU */
 	ulint	old_lru_len;		/*!< buf_pool->LRU_old_len */
 	ulint	free_list_len;		/*!< Length of buf_pool->free list */
@@ -2113,6 +2114,8 @@ struct buf_pool_t{
 					buf_block_t */
 	ulint		instance_no;	/*!< Array index of this buffer
 					pool instance */
+	ulint		numa_node_id;	/*!< NUMA node of this buffer pool
+					instance */
 	ulint		curr_pool_size;	/*!< Current pool size in bytes */
 	ulint		LRU_old_ratio;  /*!< Reserve this much of the buffer
 					pool for "old" blocks */

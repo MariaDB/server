@@ -1,0 +1,3 @@
+SELECT @@GLOBAL.numa_enable;
+@@GLOBAL.numa_enable
+1

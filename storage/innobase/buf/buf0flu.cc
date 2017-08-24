@@ -2835,7 +2835,7 @@ Do flush for one slot.
 @return	the number of the slots which has not been treated yet. */
 static
 ulint
-pc_flush_slot(void)
+pc_flush_slot(int node = -1)
 {
 	ulint	lru_tm = 0;
 	ulint	list_tm = 0;
@@ -2848,11 +2848,28 @@ pc_flush_slot(void)
 		page_cleaner_slot_t*	slot = NULL;
 		ulint			i;
 
-		for (i = 0; i < page_cleaner->n_slots; i++) {
+#ifdef HAVE_LIBNUMA
+#ifndef DBUG_OFF
+		if ((fake_numa || mysql_numa_enable)  && node != -1)
+#else
+		if (mysql_numa_enable && node != -1)
+#endif // DBUG_OFF
+		{
+			i = node;
 			slot = &page_cleaner->slots[i];
 
-			if (slot->state == PAGE_CLEANER_STATE_REQUESTED) {
-				break;
+			if (slot->state != PAGE_CLEANER_STATE_REQUESTED) {
+				goto finish_quick;
+			}
+		} else
+#endif // HAVE_LIBNUMA
+		{
+			for (i = 0; i < page_cleaner->n_slots; i++) {
+				slot = &page_cleaner->slots[i];
+
+				if (slot->state == PAGE_CLEANER_STATE_REQUESTED) {
+					break;
+				}
 			}
 		}
 
@@ -2928,7 +2945,7 @@ finish_mutex:
 			os_event_set(page_cleaner->is_finished);
 		}
 	}
-
+finish_quick:
 	ulint	ret = page_cleaner->n_slots_requested;
 
 	mutex_exit(&page_cleaner->mutex);
@@ -3498,11 +3515,26 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	static ulint	node_no = 0;
+	int		node = -1;
+
 	my_thread_init();
 
 	mutex_enter(&page_cleaner->mutex);
 	page_cleaner->n_workers++;
 	mutex_exit(&page_cleaner->mutex);
+
+#ifdef HAVE_LIBNUMA
+#ifndef DBUG_OFF
+	if (fake_numa || mysql_numa_enable)
+#else
+	if (mysql_numa_enable)
+#endif // DBUG_OFF
+	{
+		node = allowed_numa_nodes[node_no++];
+		mysql_bind_thread_to_node(node);
+	}
+#endif // HAVE_LIBNUMA
 
 #ifdef UNIV_LINUX
 	/* linux might be able to set different setting for each thread
@@ -3524,7 +3556,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 			break;
 		}
 
-		pc_flush_slot();
+		pc_flush_slot(node);
 	}
 
 	mutex_enter(&page_cleaner->mutex);

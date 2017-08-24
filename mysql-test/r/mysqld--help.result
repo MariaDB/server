@@ -221,6 +221,7 @@ The following options may be given as the first argument:
  --extra-port=#      Extra port number to use for tcp connections in a
  one-thread-per-connection manner. 0 means don't use
  another port
+ --fake-numa         Tests explicit support for numa architecture.
  --flashback         Setup the server to use flashback. This enables binary
  log in row mode and will enable extra logging for DDL's
  needed by flashback feature
@@ -553,6 +554,7 @@ The following options may be given as the first argument:
  --net-write-timeout=# 
  Number of seconds to wait for a block to be written to a
  connection before aborting the write
+ --numa-enable       Enables explicit support for numa architecture.
  --old               Use compatible behavior from previous MariaDB version.
  See also --old-mode
  --old-alter-table   Use old, non-optimized alter table
@@ -1262,6 +1264,7 @@ explicit-defaults-for-timestamp FALSE
 external-locking FALSE
 extra-max-connections 1
 extra-port 0
+fake-numa FALSE
 flashback FALSE
 flush FALSE
 flush-time 0
@@ -1372,6 +1375,7 @@ net-buffer-length 16384
 net-read-timeout 30
 net-retry-count 10
 net-write-timeout 60
+numa-enable FALSE
 old FALSE
 old-alter-table FALSE
 old-mode 

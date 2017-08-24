@@ -457,6 +457,12 @@ handlerton *myisam_hton;
 handlerton *partition_hton;
 
 my_bool read_only= 0, opt_readonly= 0;
+my_bool mysql_numa_enable= 0;
+my_bool fake_numa= 0;
+unsigned long int no_of_allowed_nodes= 0;
+unsigned long int allowed_numa_nodes[MYSQL_MAX_NUM_NUMA_NODES];
+unsigned long int size_of_numa_node[MYSQL_MAX_NUM_NUMA_NODES];
+unsigned long int total_numa_nodes_size;
 my_bool use_temp_pool, relay_log_purge;
 my_bool relay_log_recovery;
 my_bool opt_sync_frm, opt_allow_suspicious_udfs;
@@ -5813,6 +5819,25 @@ int mysqld_main(int argc, char **argv)
   test_lc_time_sz();
   srand((uint) time(NULL)); 
 #endif
+
+#ifdef HAVE_LIBNUMA
+#ifndef DBUG_OFF
+  if (fake_numa || mysql_numa_enable)
+#else
+  if (mysql_numa_enable)
+#endif // DBUG_OFF
+  {
+    struct bitmask* numa_mems_allowed = mysql_numa_get_mems_allowed();
+
+    for (int i = 0; i <= MYSQL_MAX_NUM_NUMA_NODES; i++) {
+      if (mysql_numa_bitmask_isbitset(numa_mems_allowed, i)) {
+        allowed_numa_nodes[no_of_allowed_nodes++] = i;
+        size_of_numa_node[i] = mysql_numa_node_size(i, NULL);
+        total_numa_nodes_size += size_of_numa_node[i];
+      }
+    }
+  }
+#endif // HAVE_LIBNUMA
 
   /*
     We have enough space for fiddling with the argv, continue

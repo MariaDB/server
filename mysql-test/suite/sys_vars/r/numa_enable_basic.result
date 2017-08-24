@@ -1,0 +1,18 @@
+SELECT @@GLOBAL.numa_enable;
+@@GLOBAL.numa_enable
+1
+SELECT @@SESSION.numa_enable;
+ERROR HY000: Variable 'numa_enable' is a GLOBAL variable
+SELECT IF(@@global.numa_enable, "ON", "OFF") = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='numa_enable';
+IF(@@global.numa_enable, "ON", "OFF") = VARIABLE_VALUE
+1
+SELECT IF(@@numa_enable, "ON", "OFF") = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES 
+WHERE VARIABLE_NAME='numa_enable';
+IF(@@numa_enable, "ON", "OFF") = VARIABLE_VALUE
+1
+SELECT @@numa_enable = @@global.numa_enable;
+@@numa_enable = @@global.numa_enable
+1

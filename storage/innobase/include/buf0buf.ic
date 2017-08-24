@@ -1072,6 +1072,27 @@ buf_pool_from_array(
 	return(&buf_pool_ptr[index]);
 }
 
+#ifdef HAVE_LIBNUMA
+/******************************************************************//**
+Returns the buffer pool instance given its numa node
+@return buffer pool */
+UNIV_INLINE
+buf_pool_t*
+srv_buf_pool_on_node(
+/*================*/
+	ulint	node)		/*!< in: numa node to get
+				buffer pool instance from */
+{
+	ulint	index = 0;
+	while (allowed_numa_nodes[index] != node) {
+		index++;
+	}
+	ut_ad(index < MAX_BUFFER_POOLS);
+	ut_ad(index < srv_buf_pool_instances);
+	return(&buf_pool_ptr[index]);
+}
+#endif // HAVE_LIBNUMA
+
 /** Returns the control block of a file page, NULL if not found.
 @param[in]	buf_pool	buffer pool instance
 @param[in]	page_id		page id

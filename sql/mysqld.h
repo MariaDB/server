@@ -29,6 +29,7 @@
 #include <my_rnd.h>
 #include "my_pthread.h"
 #include "my_rdtsc.h"
+#include "mysql/service_numa.h"
 
 class THD;
 class CONNECT;
@@ -133,6 +134,8 @@ extern ulong slave_retried_transactions;
 extern ulong slave_run_triggers_for_rbr;
 extern ulonglong slave_type_conversions_options;
 extern my_bool read_only, opt_readonly;
+extern my_bool mysql_numa_enable;
+extern my_bool fake_numa;
 extern MYSQL_PLUGIN_IMPORT my_bool lower_case_file_system;
 extern my_bool opt_enable_named_pipe, opt_sync_frm, opt_allow_suspicious_udfs;
 extern my_bool opt_secure_auth;

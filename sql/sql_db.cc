@@ -46,6 +46,9 @@
 #include <direct.h>
 #endif
 #include "debug_sync.h"
+#ifdef HAVE_LIBNUMA
+#include <map>
+#endif // HAVE_LIBNUMA
 
 #define MAX_DROP_TABLE_Q_LEN      1024
 
@@ -78,6 +81,25 @@ typedef struct my_dbopt_st
   uint name_length;		/* Database length name           */
   CHARSET_INFO *charset;	/* Database default character set */
 } my_dbopt_t;
+
+#ifdef HAVE_LIBNUMA
+
+/* Map to store database names and associated numa nodes */
+std::map<char*, unsigned long int> db_node_map;
+
+int search_db_node_map(char* db_name)
+{
+  std::map<char*, unsigned long int>::iterator it;
+  for (it = db_node_map.begin(); it != db_node_map.end(); it++)
+  {
+    if (!strcmp(it->first, db_name))
+    {
+      return it->second;
+    }
+  }
+  return -1;
+}
+#endif // HAVE_LIBNUMA
 
 
 /**
@@ -1317,6 +1339,9 @@ static void mysql_change_db_impl(THD *thd,
 {
   /* 1. Change current database in THD. */
 
+  int           node;
+  static uint   static_node = 0;
+
   if (new_db_name == NULL)
   {
     /*
@@ -1344,6 +1369,25 @@ static void mysql_change_db_impl(THD *thd,
     */
     thd->set_db(NULL, 0);
     thd->reset_db(new_db_name->str, new_db_name->length);
+
+#ifdef HAVE_LIBNUMA
+#ifndef DBUG_OFF
+    if (fake_numa || mysql_numa_enable)
+#else
+    if (mysql_numa_enable)
+#endif // DBUG_OFF
+    {
+      node = search_db_node_map(new_db_name->str);
+      if (node == -1)
+      {
+        node = allowed_numa_nodes[static_node++ % no_of_allowed_nodes];
+        char* new_name = strdup(new_db_name->str);
+        db_node_map.insert(std::pair<char*, unsigned long int> (new_name, node));
+      }
+      mysql_bind_thread_to_node(node);
+      thd->numa_node_id = node;
+    }
+#endif // HAVE_LIBNUMA
   }
 
   /* 2. Update security context. */

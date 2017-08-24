@@ -56,6 +56,7 @@ Created 10/10/1995 Heikki Tuuri
 #include "buf0checksum.h"
 #include "ut0counter.h"
 #include "fil0fil.h"
+#include "mysql/service_numa.h"
 
 /** Global counters used inside InnoDB. */
 struct srv_stats_t
@@ -274,6 +275,7 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 extern my_bool	srv_use_native_aio;
 extern my_bool	srv_numa_interleave;
+extern ulint	srv_size_of_buf_pool_in_node[MYSQL_MAX_NUM_NUMA_NODES];
 
 /* Use trim operation */
 extern my_bool srv_use_trim;
