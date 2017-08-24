@@ -3,6 +3,7 @@ INSERT INTO t1 VALUES (1);
 SET GLOBAL wsrep_provider='none';
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
+SET SESSION wsrep_sync_wait = 0;
 INSERT INTO t1 VALUES (4);
 SELECT COUNT(*) = 4 FROM t1;
 COUNT(*) = 4

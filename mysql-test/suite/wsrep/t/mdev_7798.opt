@@ -1,1 +1,1 @@
---wsrep-provider=$WSREP_PROVIDER --wsrep-cluster-address=gcomm:// --wsrep-on=1 --wsrep_causal_reads=ON
+--wsrep-provider=$WSREP_PROVIDER --wsrep-cluster-address=gcomm:// --wsrep-on=1 

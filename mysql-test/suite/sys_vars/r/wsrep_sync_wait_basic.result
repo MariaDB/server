@@ -34,11 +34,9 @@ SELECT @@session.wsrep_sync_wait;
 @@session.wsrep_sync_wait
 7
 SET @@session.wsrep_sync_wait=8;
-Warnings:
-Warning	1292	Truncated incorrect wsrep_sync_wait value: '8'
 SELECT @@session.wsrep_sync_wait;
 @@session.wsrep_sync_wait
-7
+8
 
 # invalid values
 SET @@global.wsrep_sync_wait=NULL;

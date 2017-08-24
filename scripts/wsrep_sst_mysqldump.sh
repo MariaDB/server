@@ -30,6 +30,7 @@ local_ip()
 {
     [ "$1" = "127.0.0.1" ]      && return 0
     [ "$1" = "localhost" ]      && return 0
+    [ "$1" = "[::1]" ]          && return 0
     [ "$1" = "$(hostname -s)" ] && return 0
     [ "$1" = "$(hostname -f)" ] && return 0
     [ "$1" = "$(hostname -d)" ] && return 0
@@ -116,8 +117,9 @@ GTID_BINLOG_STATE=$(echo "SHOW GLOBAL VARIABLES LIKE 'gtid_binlog_state'" |\
 $MYSQL_CLIENT $AUTH -S$WSREP_SST_OPT_SOCKET --disable-reconnect --connect_timeout=10 |\
 tail -1 | awk -F ' ' '{ print $2 }')
 
-MYSQL="$MYSQL_CLIENT $AUTH -h$WSREP_SST_OPT_HOST -P$WSREP_SST_OPT_PORT "\
-"--disable-reconnect --connect_timeout=10"
+MYSQL="$MYSQL_CLIENT --defaults-extra-file=$WSREP_SST_OPT_CONF "\
+"$AUTH -h${WSREP_SST_OPT_HOST_UNESCAPED:-$WSREP_SST_OPT_HOST} "\
+"-P$WSREP_SST_OPT_PORT --disable-reconnect --connect_timeout=10"
 
 # Check if binary logging is enabled on the joiner node.
 # Note: SELECT cannot be used at this point.

@@ -21,11 +21,11 @@ LOCK TABLE t1 WRITE;
 --connection node_1
 --sleep 1
 INSERT INTO t1 VALUES (2);
---sleep 1
+--sleep 2
 INSERT INTO t1 VALUES (3);
---sleep 1
+--sleep 2
 INSERT INTO t1 VALUES (4);
---sleep 1
+--sleep 2
 
 # This query will hang because flow control will kick in
 --send

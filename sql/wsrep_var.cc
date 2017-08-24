@@ -35,6 +35,8 @@ const  char* wsrep_node_address     = 0;
 const  char* wsrep_node_incoming_address = 0;
 const  char* wsrep_start_position   = 0;
 
+static long wsrep_prev_slave_threads = wsrep_slave_threads;
+
 int wsrep_init_vars()
 {
   wsrep_provider        = my_strdup(WSREP_NONE, MYF(MY_WME));
@@ -59,12 +61,23 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
   return false;
 }
 
-bool wsrep_causal_reads_update (SV *sv)
+bool wsrep_causal_reads_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
-  if (sv->wsrep_causal_reads) {
-    sv->wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
+  // global setting should not affect session setting.
+  // if (var_type == OPT_GLOBAL) {
+  //   thd->variables.wsrep_causal_reads = global_system_variables.wsrep_causal_reads;
+  // }
+  if (thd->variables.wsrep_causal_reads) {
+    thd->variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
   } else {
-    sv->wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
+    thd->variables.wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
+  }
+
+  // update global settings too.
+  if (global_system_variables.wsrep_causal_reads) {
+      global_system_variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
+  } else {
+      global_system_variables.wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
   }
 
   return false;
@@ -72,12 +85,17 @@ bool wsrep_causal_reads_update (SV *sv)
 
 bool wsrep_sync_wait_update (sys_var* self, THD* thd, enum_var_type var_type)
 {
-  if (var_type == OPT_GLOBAL)
-    global_system_variables.wsrep_causal_reads =
-      MY_TEST(global_system_variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ);
-  else
-    thd->variables.wsrep_causal_reads =
-      MY_TEST(thd->variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ);
+  // global setting should not affect session setting.
+  // if (var_type == OPT_GLOBAL) {
+  //   thd->variables.wsrep_sync_wait = global_system_variables.wsrep_sync_wait;
+  // }
+  thd->variables.wsrep_causal_reads = thd->variables.wsrep_sync_wait &
+          WSREP_SYNC_WAIT_BEFORE_READ;
+
+  // update global settings too
+  global_system_variables.wsrep_causal_reads = global_system_variables.wsrep_sync_wait &
+          WSREP_SYNC_WAIT_BEFORE_READ;
+
   return false;
 }
 
@@ -502,18 +520,15 @@ void wsrep_node_address_init (const char* value)
   wsrep_node_address = (value) ? my_strdup(value, MYF(0)) : NULL;
 }
 
-bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
+static void wsrep_slave_count_change_update ()
 {
-  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
-  wsrep_slave_count_change += (var->save_result.ulonglong_value -
-                               wsrep_slave_threads);
-  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
-
-  return 0;
+  wsrep_slave_count_change += (wsrep_slave_threads - wsrep_prev_slave_threads);
+  wsrep_prev_slave_threads = wsrep_slave_threads;
 }
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
 {
+  wsrep_slave_count_change_update();
   if (wsrep_slave_count_change > 0)
   {
     wsrep_create_appliers(wsrep_slave_count_change);
