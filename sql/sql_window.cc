@@ -338,7 +338,7 @@ ORDER *st_select_lex::find_common_window_func_partition_fields(THD *thd)
   if (!wf->window_spec->partition_list)
     return 0;
   List<Item> common_fields;
-  uint first_partition_elements;
+  uint first_partition_elements= 0;
   for (ord= wf->window_spec->partition_list->first; ord; ord= ord->next)
   {
     if ((*ord->item)->real_item()->type() == Item::FIELD_ITEM)
