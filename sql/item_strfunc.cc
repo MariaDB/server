@@ -2707,20 +2707,6 @@ String *Item_func_format::val_str_ascii(String *str)
 }
 
 
-void Item_func_format::print(String *str, enum_query_type query_type)
-{
-  str->append(STRING_WITH_LEN("format("));
-  args[0]->print(str, query_type);
-  str->append(',');
-  args[1]->print(str, query_type);
-  if(arg_count > 2)
-  {
-    str->append(',');
-    args[2]->print(str,query_type);
-  }
-  str->append(')');
-}
-
 void Item_func_elt::fix_length_and_dec()
 {
   uint32 char_length= 0;
