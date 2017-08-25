@@ -961,7 +961,7 @@ inline void Query_cache_query::unlock_reading()
 void Query_cache_query::init_n_lock()
 {
   DBUG_ENTER("Query_cache_query::init_n_lock");
-  res=0; wri = 0; len = 0; ready= 0;
+  res=0; wri = 0; len = 0; ready= 0; hit_count = 0;
   mysql_rwlock_init(key_rwlock_query_cache_query_lock, &lock);
   lock_writing();
   DBUG_PRINT("qcache", ("inited & locked query for block 0x%lx",
@@ -2142,6 +2142,7 @@ lookup:
   }
   move_to_query_list_end(query_block);
   hits++;
+  query->increment_hits();
   unlock();
 
   /*
