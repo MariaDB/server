@@ -334,12 +334,12 @@ ORDER *st_select_lex::find_common_window_func_partition_fields(THD *thd)
   Item *item;
   DBUG_ASSERT(window_funcs.elements);
   List_iterator_fast<Item_window_func> it(window_funcs);
-  Item_window_func *wf= it++;
-  if (!wf->window_spec->partition_list)
+  Item_window_func *first_wf= it++;
+  if (!first_wf->window_spec->partition_list)
     return 0;
   List<Item> common_fields;
   uint first_partition_elements= 0;
-  for (ord= wf->window_spec->partition_list->first; ord; ord= ord->next)
+  for (ord= first_wf->window_spec->partition_list->first; ord; ord= ord->next)
   {
     if ((*ord->item)->real_item()->type() == Item::FIELD_ITEM)
       common_fields.push_back(*ord->item, thd->mem_root);
@@ -347,8 +347,9 @@ ORDER *st_select_lex::find_common_window_func_partition_fields(THD *thd)
   }
   if (window_specs.elements == 1 &&
       common_fields.elements == first_partition_elements)
-    return wf->window_spec->partition_list->first;
+    return first_wf->window_spec->partition_list->first;
   List_iterator<Item> li(common_fields);
+  Item_window_func *wf;
   while (common_fields.elements && (wf= it++))
   {
     if (!wf->window_spec->partition_list)
@@ -368,11 +369,9 @@ ORDER *st_select_lex::find_common_window_func_partition_fields(THD *thd)
   if (!common_fields.elements)
     return 0;
   if (common_fields.elements == first_partition_elements)
-    return wf->window_spec->partition_list->first;
+    return first_wf->window_spec->partition_list->first;
   SQL_I_List<ORDER> res_list;
-  it.rewind();
-  wf= it++;
-  for (ord= wf->window_spec->partition_list->first, item= li++;
+  for (ord= first_wf->window_spec->partition_list->first, item= li++;
        ord; ord= ord->next)
   {
     if (item != *ord->item)
