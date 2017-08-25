@@ -7069,6 +7069,7 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
   {
     /* We know that there is an existing row based on code above */
     found= TRUE;
+    part_rec_buf_ptr= m_ordered_rec_buffer;
     /*
       No key found in the first key range
       Collect all partitions that has a key in smallest_range_seq
