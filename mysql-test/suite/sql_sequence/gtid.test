@@ -225,6 +225,9 @@ create sequence s_db.s1;
 show global variables like 'read_only';
 select next value for s_db.s1;
 
+connection master;
+sync_slave_with_master;
+
 connection s_normal_3;
 show global variables like 'read_only';
 --error ER_OPTION_PREVENTS_STATEMENT

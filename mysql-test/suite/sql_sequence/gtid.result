@@ -231,6 +231,8 @@ read_only	OFF
 select next value for s_db.s1;
 next value for s_db.s1
 1
+connection master;
+connection slave;
 connection s_normal_3;
 show global variables like 'read_only';
 Variable_name	Value
