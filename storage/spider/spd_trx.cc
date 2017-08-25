@@ -2688,7 +2688,7 @@ int spider_initinal_xa_recover(
                      FALSE);
   }
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
-  while ((!(read_record->read_record(read_record))) && cnt < (int) len)
+  while ((!(read_record->read_record())) && cnt < (int) len)
   {
     spider_get_sys_xid(table_xa, &xid_list[cnt], &mem_root);
     cnt++;

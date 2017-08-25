@@ -3872,7 +3872,7 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     sjm_tab->read_record.copy_field= sjm->copy_field;
     sjm_tab->read_record.copy_field_end= sjm->copy_field +
                                          sjm->sjm_table_cols.elements;
-    sjm_tab->read_record.read_record= rr_sequential_and_unpack;
+    sjm_tab->read_record.read_record_func= rr_sequential_and_unpack;
   }
 
   sjm_tab->bush_children->end[-1].next_select= end_sj_materialize;

@@ -3828,8 +3828,8 @@ int subselect_single_select_engine::exec()
             {
               /* Change the access method to full table scan */
               tab->save_read_first_record= tab->read_first_record;
-              tab->save_read_record= tab->read_record.read_record;
-              tab->read_record.read_record= rr_sequential;
+              tab->save_read_record= tab->read_record.read_record_func;
+              tab->read_record.read_record_func= rr_sequential;
               tab->read_first_record= read_first_record_seq;
               tab->read_record.record= tab->table->record[0];
               tab->read_record.thd= join->thd;
@@ -3851,8 +3851,8 @@ int subselect_single_select_engine::exec()
       JOIN_TAB *tab= *ptab;
       tab->read_record.record= 0;
       tab->read_record.ref_length= 0;
-      tab->read_first_record= tab->save_read_first_record; 
-      tab->read_record.read_record= tab->save_read_record;
+      tab->read_first_record= tab->save_read_first_record;
+      tab->read_record.read_record_func= tab->save_read_record;
     }
     executed= 1;
     if (!(uncacheable() & ~UNCACHEABLE_EXPLAIN) &&

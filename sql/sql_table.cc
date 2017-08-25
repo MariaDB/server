@@ -9727,7 +9727,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
 
-  while (!(error=info.read_record(&info)))
+  while (!(error= info.read_record()))
   {
     if (thd->killed)
     {

@@ -1828,7 +1828,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   {
     if (host_table.init_read_record(&read_record_info, thd))
       DBUG_RETURN(true);
-    while (!(read_record_info.read_record(&read_record_info)))
+    while (!(read_record_info.read_record()))
     {
       ACL_HOST host;
       update_hostname(&host.host, get_field(&acl_memroot, host_table.host()));
@@ -1932,7 +1932,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   }
 
   allow_all_hosts=0;
-  while (!(read_record_info.read_record(&read_record_info)))
+  while (!(read_record_info.read_record()))
   {
     ACL_USER user;
     bool is_role= FALSE;
@@ -2144,7 +2144,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   const Db_table& db_table= tables.db_table();
   if (db_table.init_read_record(&read_record_info, thd))
     DBUG_RETURN(TRUE);
-  while (!(read_record_info.read_record(&read_record_info)))
+  while (!(read_record_info.read_record()))
   {
     ACL_DB db;
     char *db_name;
@@ -2211,7 +2211,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   {
     if (proxies_priv_table.init_read_record(&read_record_info, thd))
       DBUG_RETURN(TRUE);
-    while (!(read_record_info.read_record(&read_record_info)))
+    while (!(read_record_info.read_record()))
     {
       ACL_PROXY_USER proxy;
       proxy.init(proxies_priv_table, &acl_memroot);
@@ -2240,7 +2240,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
     MEM_ROOT temp_root;
     init_alloc_root(&temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
-    while (!(read_record_info.read_record(&read_record_info)))
+    while (!(read_record_info.read_record()))
     {
       char *hostname= safe_str(get_field(&temp_root, roles_mapping_table.host()));
       char *username= safe_str(get_field(&temp_root, roles_mapping_table.user()));

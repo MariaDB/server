@@ -10972,32 +10972,32 @@ pick_table_access_method(JOIN_TAB *tab)
   {
   case JT_REF:
     tab->read_first_record= join_read_always_key;
-    tab->read_record.read_record= join_read_next_same;
+    tab->read_record.read_record_func= join_read_next_same;
     break;
 
   case JT_REF_OR_NULL:
     tab->read_first_record= join_read_always_key_or_null;
-    tab->read_record.read_record= join_read_next_same_or_null;
+    tab->read_record.read_record_func= join_read_next_same_or_null;
     break;
 
   case JT_CONST:
     tab->read_first_record= join_read_const;
-    tab->read_record.read_record= join_no_more_records;
+    tab->read_record.read_record_func= join_no_more_records;
     break;
 
   case JT_EQ_REF:
     tab->read_first_record= join_read_key;
-    tab->read_record.read_record= join_no_more_records;
+    tab->read_record.read_record_func= join_no_more_records;
     break;
 
   case JT_FT:
     tab->read_first_record= join_ft_read_first;
-    tab->read_record.read_record= join_ft_read_next;
+    tab->read_record.read_record_func= join_ft_read_next;
     break;
 
   case JT_SYSTEM:
     tab->read_first_record= join_read_system;
-    tab->read_record.read_record= join_no_more_records;
+    tab->read_record.read_record_func= join_no_more_records;
     break;
 
   /* keep gcc happy */  
@@ -18883,7 +18883,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
       skip_over= TRUE;
     }
 
-    error= info->read_record(info);
+    error= info->read_record();
 
     if (skip_over && !error) 
     {
@@ -19726,7 +19726,7 @@ int read_first_record_seq(JOIN_TAB *tab)
 {
   if (tab->read_record.table->file->ha_rnd_init_with_error(1))
     return 1;
-  return (*tab->read_record.read_record)(&tab->read_record);
+  return tab->read_record.read_record();
 }
 
 static int
@@ -19781,7 +19781,7 @@ int join_init_read_record(JOIN_TAB *tab)
   if (init_read_record(&tab->read_record, tab->join->thd, tab->table,
                        tab->select, tab->filesort_result, 1,1, FALSE))
     return 1;
-  return (*tab->read_record.read_record)(&tab->read_record);
+  return tab->read_record.read_record();
 }
 
 int
@@ -19801,9 +19801,9 @@ join_read_record_no_init(JOIN_TAB *tab)
 
   tab->read_record.copy_field=     save_copy;
   tab->read_record.copy_field_end= save_copy_end;
-  tab->read_record.read_record= rr_sequential_and_unpack;
+  tab->read_record.read_record_func= rr_sequential_and_unpack;
 
-  return (*tab->read_record.read_record)(&tab->read_record);
+  return tab->read_record.read_record();
 }
 
 
@@ -19836,7 +19836,7 @@ join_read_first(JOIN_TAB *tab)
               !table->covering_keys.is_set(tab->index) ||
               table->file->keyread == tab->index);
   tab->table->status=0;
-  tab->read_record.read_record=join_read_next;
+  tab->read_record.read_record_func= join_read_next;
   tab->read_record.table=table;
   tab->read_record.index=tab->index;
   tab->read_record.record=table->record[0];
@@ -19876,7 +19876,7 @@ join_read_last(JOIN_TAB *tab)
               !table->covering_keys.is_set(tab->index) ||
               table->file->keyread == tab->index);
   tab->table->status=0;
-  tab->read_record.read_record=join_read_prev;
+  tab->read_record.read_record_func= join_read_prev;
   tab->read_record.table=table;
   tab->read_record.index=tab->index;
   tab->read_record.record=table->record[0];
@@ -21842,7 +21842,7 @@ check_reverse_order:
           with key part (A) and then traverse the index backwards.
         */
         tab->read_first_record= join_read_last_key;
-        tab->read_record.read_record= join_read_prev_same;
+        tab->read_record.read_record_func= join_read_prev_same;
         /*
           Cancel Pushed Index Condition, as it doesn't work for reverse scans.
         */
@@ -26767,7 +26767,7 @@ AGGR_OP::end_send()
       error= join_init_read_record(join_tab);
     }
     else
-      error= join_tab->read_record.read_record(&join_tab->read_record);
+      error= join_tab->read_record.read_record();
 
     if (error > 0 || (join->thd->is_error()))   // Fatal error
       rc= NESTED_LOOP_ERROR;
