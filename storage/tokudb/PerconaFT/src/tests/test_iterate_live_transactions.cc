@@ -94,13 +94,13 @@ int test_main(int UU(argc), char *const UU(argv[])) {
     r = env->open(env, TOKU_TEST_FILENAME, env_flags, 0755); CKERR(r);
 
     r = env->txn_begin(env, NULL, &txn1, 0); CKERR(r);
-    txn1->set_client_id(txn1, 0, NULL);
+    txn1->set_client_id(txn1, 0, nullptr);
     txnid1 = txn1->id64(txn1);
     r = env->txn_begin(env, NULL, &txn2, 0); CKERR(r);
-    txn2->set_client_id(txn2, 1, NULL);
+    txn2->set_client_id(txn2, 1, nullptr);
     txnid2 = txn2->id64(txn2);
     r = env->txn_begin(env, NULL, &txn3, 0); CKERR(r);
-    txn3->set_client_id(txn3, 2, NULL);
+    txn3->set_client_id(txn3, 2, nullptr);
     txnid3 = txn3->id64(txn3);
 
     {

@@ -9,19 +9,19 @@
 	<table_data name="t1">
 	<row>
 		<field name="a">1</field>
-		<field name="b">b1</field>
+		<field name="b"> b1</field>
 	</row>
 	<row>
 		<field name="a">2</field>
-		<field name="b">b2</field>
+		<field name="b">  b2</field>
 	</row>
 	<row>
 		<field name="a">3</field>
-		<field name="b">b3</field>
+		<field name="b">   b3</field>
 	</row>
 	<row>
 		<field name="a">11</field>
-		<field name="b">b11</field>
+		<field name="b">           b11</field>
 	</row>
 	
 	<!-- Check field values as tags -->

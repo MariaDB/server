@@ -2655,6 +2655,7 @@ public:
     DBUG_VOID_RETURN;
   }
   longlong val_int();
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
@@ -2699,6 +2700,7 @@ public:
     DBUG_VOID_RETURN;
   }
   longlong val_int();
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   const char *func_name() const { return "regexp_instr"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)

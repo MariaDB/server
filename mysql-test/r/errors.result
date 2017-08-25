@@ -170,7 +170,7 @@ UPDATE t1 SET a = 'new'
 WHERE COLUMN_CREATE( 1, 'v', 1, 'w' ) IS NULL;
 ERROR 22007: Illegal value used as argument of dynamic column function
 drop table t1;
+set max_session_mem_used = 50000;
+select * from seq_1_to_1000;
 set max_session_mem_used = 8192;
 select * from seq_1_to_1000;
-Got one of the listed errors
-set global max_session_mem_used = default;

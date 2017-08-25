@@ -1,0 +1,3 @@
+--innodb-page-size=32K
+--innodb_buffer_pool_size=32M
+--innodb-stats-persistent=ON

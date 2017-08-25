@@ -923,6 +923,7 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   */
   save_vio= thd->net.vio;
   thd->net.vio= 0;
+  thd->clear_error(1);
   dispatch_command(COM_QUERY, thd, buf, len, FALSE, FALSE);
   thd->client_capabilities= save_client_capabilities;
   thd->net.vio= save_vio;
@@ -1054,6 +1055,7 @@ static void handle_bootstrap_impl(THD *thd)
     if (bootstrap_error)
       break;
 
+    thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
     free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
     free_root(&thd->transaction.mem_root,MYF(MY_KEEP_PREALLOC));
     thd->lex->restore_set_statement_var();
@@ -1223,12 +1225,8 @@ bool do_command(THD *thd)
   if(!thd->skip_wait_timeout)
     my_net_set_read_timeout(net, thd->variables.net_wait_timeout);
 
-  /*
-    XXX: this code is here only to clear possible errors of init_connect. 
-    Consider moving to init_connect() instead.
-  */
-  thd->clear_error();				// Clear error message
-  thd->get_stmt_da()->reset_diagnostics_area();
+  /* Errors and diagnostics are cleared once here before query */
+  thd->clear_error(1);
 
   net_new_transaction(net);
 
@@ -1386,6 +1384,7 @@ bool do_command(THD *thd)
         WSREP_WARN("For retry temporally setting character set to : %s",
                    my_charset_latin1.csname);
       }
+      thd->clear_error();
       return_value= dispatch_command(command, thd, thd->wsrep_retry_query,
                                      thd->wsrep_retry_query_len, FALSE, FALSE);
       thd->variables.character_set_client = current_charset;
@@ -1448,10 +1447,9 @@ static my_bool deny_updates_if_read_only_option(THD *thd,
   if (lex->sql_command == SQLCOM_UPDATE_MULTI)
     DBUG_RETURN(FALSE);
 
-  /* Check if we created or dropped temporary tables */
-  if ((sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE) &&
-      lex->tmp_table())
-    DBUG_RETURN(FALSE);
+  /* a table-to-create is not in the temp table list, needs a special check */
+  if (lex->sql_command == SQLCOM_CREATE_TABLE)
+    DBUG_RETURN(!lex->tmp_table());
 
   /* Check if we created or dropped databases */
   if ((sql_command_flags[lex->sql_command] & CF_DB_CHANGE))
@@ -1574,7 +1572,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       my_message(ER_LOCK_DEADLOCK, "wsrep aborted transaction", MYF(0));
       WSREP_DEBUG("Deadlock error for: %s", thd->query());
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-      thd->killed               = NOT_KILLED;
+      thd->reset_killed();
       thd->mysys_var->abort     = 0;
       thd->wsrep_conflict_state = NO_CONFLICT;
       thd->wsrep_retry_counter  = 0;
@@ -1952,7 +1950,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
     }
     packet= arg_end + 1;
-    thd->reset_for_next_command();
+    thd->reset_for_next_command(0);             // Don't clear errors
     // thd->reset_for_next_command reset state => restore it
     if (is_next_command)
     {
@@ -2029,7 +2027,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   }
 #endif
   case COM_QUIT:
-    /* We don't calculate statistics for this command */
+    /* Note: We don't calculate statistics for this command */
+
+    /* Ensure that quit works even if max_mem_used is set */
+    thd->variables.max_mem_used= LONGLONG_MAX;
     general_log_print(thd, command, NullS);
     net->error=0;				// Don't give 'abort' message
     thd->get_stmt_da()->disable_status();       // Don't send anything back
@@ -2057,9 +2058,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 	kill_zombie_dump_threads(slave_server_id);
       thd->variables.server_id = slave_server_id;
 
-      general_log_print(thd, command, "Log: '%s'  Pos: %ld", packet+10,
-                      (long) pos);
-      mysql_binlog_send(thd, thd->strdup(packet + 10), (my_off_t) pos, flags);
+      const char *name= packet + 10;
+      size_t nlen= strlen(name);
+
+      general_log_print(thd, command, "Log: '%s'  Pos: %lu", name, pos);
+      if (nlen < FN_REFLEN)
+        mysql_binlog_send(thd, thd->strmake(name, nlen), (my_off_t)pos, flags);
       unregister_slave(thd,1,1);
       /*  fake COM_QUIT -- if we get here, the thread needs to terminate */
       error = TRUE;
@@ -2396,6 +2400,7 @@ com_multi_end:
     dec_thread_running();
     thd->packet.shrink(thd->variables.net_buffer_length); // Reclaim some memory
   }
+  thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
 
 #if defined(ENABLED_PROFILING)
@@ -5731,7 +5736,7 @@ end_with_restore_list:
     /* Disconnect the current client connection. */
     if (tx_release)
     {
-      thd->killed= KILL_CONNECTION;
+      thd->set_killed(KILL_CONNECTION);
       thd->print_aborted_warning(3, "RELEASE");
     }
 #ifdef WITH_WSREP
@@ -5777,7 +5782,7 @@ end_with_restore_list:
     }
     /* Disconnect the current client connection. */
     if (tx_release)
-      thd->killed= KILL_CONNECTION;
+      thd->set_killed(KILL_CONNECTION);
 #ifdef WITH_WSREP
     if (WSREP(thd) && thd->wsrep_conflict_state != NO_CONFLICT)
     {
@@ -7412,6 +7417,8 @@ bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, ulong *yystacksize)
   Reset the part of THD responsible for the state of command
   processing.
 
+  @param do_clear_error  Set if we should clear errors
+
   This needs to be called before execution of every statement
   (prepared or conventional).  It is not called by substatements of
   routines.
@@ -7419,12 +7426,16 @@ bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, ulong *yystacksize)
   @todo Call it after we use THD for queries, not before.
 */
 
-void THD::reset_for_next_command()
+void THD::reset_for_next_command(bool do_clear_error)
 {
   THD *thd= this;
   DBUG_ENTER("THD::reset_for_next_command");
   DBUG_ASSERT(!thd->spcont); /* not for substatements of routines */
   DBUG_ASSERT(! thd->in_sub_stmt);
+
+  if (do_clear_error)
+    clear_error(1);
+
   thd->free_list= 0;
   thd->select_number= 1;
   /*
@@ -7480,8 +7491,6 @@ void THD::reset_for_next_command()
     reset_dynamic(&thd->user_var_events);
     thd->user_var_events_alloc= thd->mem_root;
   }
-  thd->clear_error();
-  thd->get_stmt_da()->reset_diagnostics_area();
   thd->get_stmt_da()->reset_for_next_command();
   thd->rand_used= 0;
   thd->m_sent_row_count= thd->m_examined_row_count= 0;
@@ -7728,7 +7737,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
           thd->wsrep_conflict_state == CERT_FAILURE)
       {
         thd->reset_for_next_command();
-        thd->killed= NOT_KILLED;
+        thd->reset_killed();
         if (is_autocommit                           &&
             thd->lex->sql_command != SQLCOM_SELECT  &&
             (thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit))
@@ -7757,7 +7766,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                       thd->wsrep_retry_counter, 
                       thd->variables.wsrep_retry_autocommit, thd->query());
           my_message(ER_LOCK_DEADLOCK, "wsrep aborted transaction", MYF(0));
-          thd->killed= NOT_KILLED;
+          thd->reset_killed();
           thd->wsrep_conflict_state= NO_CONFLICT;
           if (thd->wsrep_conflict_state != REPLAYING)
             thd->wsrep_retry_counter= 0;             //  reset
@@ -8894,10 +8903,10 @@ void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
   uint error;
   if (!(error= kill_one_thread(thd, id, state, type)))
   {
-    if ((!thd->killed))
+    if (!thd->killed)
       my_ok(thd);
     else
-      my_error(killed_errno(thd->killed), MYF(0), id);
+      thd->send_kill_message();
   }
   else
     my_error(error, MYF(0), id);

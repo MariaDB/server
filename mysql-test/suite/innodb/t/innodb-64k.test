@@ -3,6 +3,8 @@
 --source include/have_innodb.inc
 --source include/have_innodb_64k.inc
 
+call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
+
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 --echo # Test 1) Show the page size from Information Schema
@@ -12,87 +14,23 @@ SELECT variable_value FROM information_schema.global_status
 --echo # Test 4) The maximum row size is dependent upon the page size.
 
 SET SESSION innodb_strict_mode = ON;
+SELECT @@innodb_strict_mode;
 
-# Redundant table; 32698 bytes
-
-# MDEV-11828 FIXME: The length must be less!
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
-c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
-c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
-c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(200),
-c41 char(200), c42 char(200), c43 char(200), c44 char(200), c45 char(200),
-c46 char(200), c47 char(200), c48 char(200), c49 char(200), c50 char(200),
-c51 char(200), c52 char(200), c53 char(200), c54 char(200), c55 char(200),
-c56 char(200), c57 char(200), c58 char(200), c59 char(200), c60 char(200),
-c61 char(200), c62 char(200), c63 char(200), c64 char(200), c65 char(200),
-c66 char(200), c67 char(200), c68 char(200), c69 char(200), c70 char(200),
-c71 char(200), c72 char(200), c73 char(200), c74 char(200), c75 char(200),
-c76 char(200), c77 char(200), c78 char(200), c79 char(200), c80 char(200),
-c101 char(200), c102 char(200), c103 char(200), c104 char(200), c105 char(200),
-c106 char(200), c107 char(200), c108 char(200), c109 char(200), c110 char(200),
-c111 char(200), c112 char(200), c113 char(200), c114 char(200), c115 char(200),
-c116 char(200), c117 char(200), c118 char(200), c119 char(200), c120 char(200),
-c121 char(200), c122 char(200), c123 char(200), c124 char(200), c125 char(200),
-c126 char(200), c127 char(200), c128 char(200), c129 char(200), c130 char(200),
-c131 char(200), c132 char(200), c133 char(200), c134 char(200), c135 char(200),
-c136 char(200), c137 char(200), c138 char(200), c139 char(200), c140 char(200),
-c141 char(200), c142 char(200), c143 char(200), c144 char(200), c145 char(200),
-c146 char(200), c147 char(200), c148 char(200), c149 char(200), c150 char(200),
-c151 char(200), c152 char(200), c153 char(200), c154 char(200), c155 char(200),
-c156 char(200), c157 char(200), c158 char(200), c159 char(200), c160 char(200),
-c161 char(200), c162 char(200), c163 char(200), c164 char(200), c165 char(200),
-c166 char(200), c167 char(200), c168 char(200), c169 char(200), c170 char(200),
-c171 char(200), c172 char(200), c173 char(200), c174 char(200), c175 char(200),
-c176 char(200), c177 char(200), c178 char(200), c179 char(200), c180 char(200),
-c190 char(200),
-c81 char(143)
-) ROW_FORMAT=redundant;
-
-DROP TABLE t1;
-
---replace_regex /> [0-9]*/> max_row_size/
+# Redundant table
 --error ER_TOO_BIG_ROWSIZE
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
-c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
-c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
-c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(200),
-c41 char(200), c42 char(200), c43 char(200), c44 char(200), c45 char(200),
-c46 char(200), c47 char(200), c48 char(200), c49 char(200), c50 char(200),
-c51 char(200), c52 char(200), c53 char(200), c54 char(200), c55 char(200),
-c56 char(200), c57 char(200), c58 char(200), c59 char(200), c60 char(200),
-c61 char(200), c62 char(200), c63 char(200), c64 char(200), c65 char(200),
-c66 char(200), c67 char(200), c68 char(200), c69 char(200), c70 char(200),
-c71 char(200), c72 char(200), c73 char(200), c74 char(200), c75 char(200),
-c76 char(200), c77 char(200), c78 char(200), c79 char(200), c80 char(200),
-c101 char(200), c102 char(200), c103 char(200), c104 char(200), c105 char(200),
-c106 char(200), c107 char(200), c108 char(200), c109 char(200), c110 char(200),
-c111 char(200), c112 char(200), c113 char(200), c114 char(200), c115 char(200),
-c116 char(200), c117 char(200), c118 char(200), c119 char(200), c120 char(200),
-c121 char(200), c122 char(200), c123 char(200), c124 char(200), c125 char(200),
-c126 char(200), c127 char(200), c128 char(200), c129 char(200), c130 char(200),
-c131 char(200), c132 char(200), c133 char(200), c134 char(200), c135 char(200),
-c136 char(200), c137 char(200), c138 char(200), c139 char(200), c140 char(200),
-c141 char(200), c142 char(200), c143 char(200), c144 char(200), c145 char(200),
-c146 char(200), c147 char(200), c148 char(200), c149 char(200), c150 char(200),
-c151 char(200), c152 char(200), c153 char(200), c154 char(200), c155 char(200),
-c156 char(200), c157 char(200), c158 char(200), c159 char(200), c160 char(200),
-c161 char(200), c162 char(200), c163 char(200), c164 char(200), c165 char(200),
-c166 char(200), c167 char(200), c168 char(200), c169 char(200), c170 char(200),
-c171 char(200), c172 char(200), c173 char(200), c174 char(200), c175 char(200),
-c176 char(200), c177 char(200), c178 char(200), c179 char(200), c180 char(200),
-c190 char(200),
-c81 char(144)
-) ROW_FORMAT=redundant;
+CREATE TABLE tab5(col1 CHAR (255), col2 CHAR (255), col3 CHAR(255),col4 CHAR(255), col5 CHAR(255),
+col6   CHAR(255), col7 CHAR(255),  col8 CHAR(255), col9 CHAR(255),col10 CHAR(255), col11  CHAR(255),
+col12 CHAR(255), col13 CHAR(255),col14 CHAR(255),col15 CHAR(255),col16  CHAR(255), col17 CHAR(255),
+col18 CHAR(255),col19 CHAR(255),col20 CHAR(255),col21 CHAR(255),col22  CHAR(255), col23 CHAR(255),
+col24 CHAR(255),col25 CHAR(255),col26 CHAR(255),col27 CHAR(255),col28  CHAR(255), col29 CHAR(255),
+col30 CHAR(255),col31 CHAR(255),col32 CHAR(255),col33 CHAR(255),col34  CHAR(255), col35 CHAR(255),
+col36 CHAR(255),col37 CHAR(255),col38 CHAR(255),col39 CHAR(255),col40  CHAR(255), col41 CHAR(255),
+col42 CHAR(255),col43 CHAR(255),col44 CHAR(255),col45 CHAR(255),col46  CHAR(255), col47 CHAR(255),
+col48 CHAR(255),col49 CHAR(255),col50 CHAR(255),col51 CHAR(255),col52  CHAR(255), col53 CHAR(255),
+col54 CHAR(255),col55 CHAR(255),col56 CHAR(255),col57 CHAR(255),col58  CHAR(255), col59 CHAR(255),
+col60 CHAR(255),col61 CHAR(255),col62 CHAR(255),col63 CHAR(255),col64  CHAR(255), col65  CHAR(255))
+ENGINE = innodb ROW_FORMAT=REDUNDANT;
+show warnings;
 
 # Compact table, 32701 bytes
 

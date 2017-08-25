@@ -441,7 +441,7 @@ ENGINE = $engine_type;
 INSERT INTO information_schema.tables
 SELECT * FROM information_schema.tables;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_DBACCESS_DENIED_ERROR,ER_NON_UPDATABLE_TABLE
 UPDATE information_schema.tables SET table_schema = 'test'
 WHERE table_name = 't1';
 

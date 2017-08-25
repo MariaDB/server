@@ -1,4 +1,26 @@
 call mtr.add_suppression("rocksdb");
 call mtr.add_suppression("Aborting");
+# This shows that RocksDB plugin is loaded:
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
+plugin_name	plugin_type
+ROCKSDB	STORAGE ENGINE
+# Check that ROCKSDB plugin is not loaded:
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
+plugin_name	plugin_type
+# Check that MyRocks has printed an error message into server error log:
 FOUND 1 /enable both use_direct_reads/ in mysqld.1.err
+# Now, restart the server back with regular settings
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
+plugin_name	plugin_type
+ROCKSDB	STORAGE ENGINE
+#
+# Now, repeat the same with another set of invalid arguments
+#
+# Check that ROCKSDB plugin is not loaded:
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
+plugin_name	plugin_type
 FOUND 1 /enable both use_direct_io_for_flush_and_compaction/ in mysqld.1.err
+# Now, restart the server back with regular settings
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
+plugin_name	plugin_type
+ROCKSDB	STORAGE ENGINE

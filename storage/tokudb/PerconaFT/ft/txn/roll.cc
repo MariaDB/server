@@ -203,7 +203,7 @@ int toku_rollback_frename(BYTESTRING old_iname,
     }
 
     if (toku_stat(new_iname_full.get(), &stat) == -1) {
-        if (ENOENT == errno)
+        if (ENOENT == errno || ENAMETOOLONG == errno)
             new_exist = false;
         else
             return 1;

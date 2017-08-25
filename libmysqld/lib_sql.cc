@@ -140,8 +140,7 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
   }
 
   /* Clear result variables */
-  thd->clear_error();
-  thd->get_stmt_da()->reset_diagnostics_area();
+  thd->clear_error(1);
   mysql->affected_rows= ~(my_ulonglong) 0;
   mysql->field_count= 0;
   net_clear_error(net);

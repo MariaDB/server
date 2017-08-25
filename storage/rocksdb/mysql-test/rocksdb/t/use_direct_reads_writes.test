@@ -3,46 +3,46 @@
 call mtr.add_suppression("rocksdb");
 call mtr.add_suppression("Aborting");
 
+--echo # This shows that RocksDB plugin is loaded:
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
+
 # Issue221
 # Turning on both --rocksdb-allow-mmap-reads and --rocksdb-use-direct-reads
-# caused an assertion in RocksDB.  Now it should not be allowed and the
-# server will not start with that configuration
+# caused an assertion in RocksDB. Now it should not be allowed and ROCKSDB
+# plugin will not load in such configuration.
+#
+# We want the server to still start, so we specify default-storage-engine=myisam
 
-# Write file to make mysql-test-run.pl expect the "crash", but don't restart
-# the server until it is told to
---let $_server_id= `SELECT @@server_id`
---let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
---exec echo "wait" >$_expect_file_name
-shutdown_server 10;
+--let $_mysqld_option=--rocksdb_use_direct_reads=1 --rocksdb_allow_mmap_reads=1 --default-storage-engine=myisam
+--source include/restart_mysqld_with_option.inc
 
-# Attempt to restart the server with invalid options
---exec echo "restart:--rocksdb_use_direct_reads=1 --rocksdb_allow_mmap_reads=1" >$_expect_file_name
---sleep 0.1  # Wait 100ms - that is how long the sleep is in check_expected_crash_and_restart
---exec echo "restart:" >$_expect_file_name
+--echo # Check that ROCKSDB plugin is not loaded:
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
 
-# Cleanup
---enable_reconnect
---source include/wait_until_connected_again.inc
---disable_reconnect
-
-# We should now have an error message
+--echo # Check that MyRocks has printed an error message into server error log:
 let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN=enable both use_direct_reads;
 source include/search_pattern_in_file.inc;
 
-# Repeat with --rocksdb-use-direct-writes
---let $_server_id= `SELECT @@server_id`
---let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
---exec echo "wait" >$_expect_file_name
-shutdown_server 10;
+--echo # Now, restart the server back with regular settings
+--source include/restart_mysqld.inc
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
 
---exec echo "restart:--rocksdb_use_direct_io_for_flush_and_compaction=1 --rocksdb_allow_mmap_writes=1" >$_expect_file_name
---sleep 0.1
---exec echo "restart:" >$_expect_file_name
+--echo #
+--echo # Now, repeat the same with another set of invalid arguments
+--echo #
 
---enable_reconnect
---source include/wait_until_connected_again.inc
---disable_reconnect
+--let $_mysqld_option=--rocksdb_use_direct_io_for_flush_and_compaction=1 --rocksdb_allow_mmap_writes=1 --default-storage-engine=myisam
+--source include/restart_mysqld_with_option.inc
 
+--echo # Check that ROCKSDB plugin is not loaded:
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
+
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN=enable both use_direct_io_for_flush_and_compaction;
 source include/search_pattern_in_file.inc;
+
+--echo # Now, restart the server back with regular settings
+--source include/restart_mysqld.inc
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
+

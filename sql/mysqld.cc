@@ -913,7 +913,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started,
   key_LOCK_status, key_LOCK_show_status,
-  key_LOCK_system_variables_hash, key_LOCK_thd_data,
+  key_LOCK_system_variables_hash, key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
@@ -985,6 +985,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_wait_commit, "wait_for_commit::LOCK_wait_commit", 0},
   { &key_LOCK_gtid_waiting, "gtid_waiting::LOCK_gtid_waiting", 0},
   { &key_LOCK_thd_data, "THD::LOCK_thd_data", 0},
+  { &key_LOCK_thd_kill, "THD::LOCK_thd_kill", 0},
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
   { &key_LOG_LOCK_log, "LOG::LOCK_log", 0},
@@ -1687,8 +1688,12 @@ static void close_connections(void)
   {
     DBUG_PRINT("quit",("Informing thread %ld that it's time to die",
 		       (ulong) tmp->thread_id));
-    /* We skip slave threads & scheduler on this first loop through. */
+    /* We skip slave threads on this first loop through. */
     if (tmp->slave_thread)
+      continue;
+
+    /* cannot use 'continue' inside DBUG_EXECUTE_IF()... */
+    if (DBUG_EVALUATE_IF("only_kill_system_threads", !tmp->system_thread, 0))
       continue;
 
 #ifdef WITH_WSREP
@@ -1696,7 +1701,7 @@ static void close_connections(void)
     if (WSREP(tmp) && (tmp->wsrep_exec_mode==REPL_RECV || tmp->wsrep_applier))
       continue;
 #endif
-    tmp->killed= KILL_SERVER_HARD;
+    tmp->set_killed(KILL_SERVER_HARD);
     MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
     mysql_mutex_lock(&tmp->LOCK_thd_data);
     if (tmp->mysys_var)
@@ -1786,7 +1791,7 @@ static void close_connections(void)
     if (WSREP(tmp) && tmp->wsrep_exec_mode==REPL_RECV)
     {
       sql_print_information("closing wsrep system thread");
-      tmp->killed= KILL_CONNECTION;
+      tmp->set_killed(KILL_CONNECTION);
       MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
       if (tmp->mysys_var)
       {
@@ -3677,7 +3682,6 @@ sizeof(load_default_groups)/sizeof(load_default_groups[0]);
 #endif
 
 
-#ifndef EMBEDDED_LIBRARY
 /**
   This function is used to check for stack overrun for pathological
   cases of  regular expressions and 'like' expressions.
@@ -3706,8 +3710,6 @@ check_enough_stack_size(int recurse_level)
     return 0;
   return check_enough_stack_size_slow();
 }
-#endif
-
 
 
 /*
@@ -3729,11 +3731,12 @@ static void init_pcre()
 {
   pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
   pcre_free= pcre_stack_free= my_str_free_mysqld;
-#ifndef EMBEDDED_LIBRARY
   pcre_stack_guard= check_enough_stack_size_slow;
   /* See http://pcre.org/original/doc/html/pcrestack.html */
-  my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0) + 16;
-#endif
+  my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0);
+  // pcre can underestimate its stack usage. Use a safe value, as in the manual
+  set_if_bigger(my_pcre_frame_size, 500);
+  my_pcre_frame_size += 16; // Again, safety margin, see the manual
 }
 
 
@@ -4041,11 +4044,16 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
         !thd->killed && !thd->get_stmt_da()->is_set())
     {
-      char buf[1024];
-      thd->killed= KILL_QUERY;
+      /* Ensure we don't get called here again */
+      char buf[50], *buf2;
+      thd->set_killed(KILL_QUERY);
       my_snprintf(buf, sizeof(buf), "--max-thread-mem-used=%llu",
                   thd->variables.max_mem_used);
-      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
+      if ((buf2= (char*) thd->alloc(256)))
+      {
+        my_snprintf(buf2, 256, ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);
+        thd->set_killed(KILL_QUERY, ER_OPTION_PREVENTS_STATEMENT, buf2);
+      }
     }
     DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
                 !debug_assert_on_not_freed_memory);
@@ -4412,12 +4420,7 @@ static int init_common_variables()
 
   /* Fix back_log (back_log == 0 added for MySQL compatibility) */
   if (back_log == 0 || IS_SYSVAR_AUTOSIZE(&back_log))
-  {
-    if ((900 - 50) * 5 >= max_connections)
-     SYSVAR_AUTOSIZE(back_log, (50 + max_connections / 5));
-    else
-     SYSVAR_AUTOSIZE(back_log, 900);
-  }
+    SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
 
   /* connections and databases needs lots of files */
   {
@@ -9676,8 +9679,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 #endif
 
   /* Ensure that some variables are not set higher than needed */
-  if (back_log > max_connections)
-    SYSVAR_AUTOSIZE(back_log, max_connections);
   if (thread_cache_size > max_connections)
     SYSVAR_AUTOSIZE(thread_cache_size, max_connections);
   

@@ -166,8 +166,8 @@ public:
   ~ha_connect();
 
   // CONNECT Implementation
-  static   bool connect_init(void);
-  static   bool connect_end(void);
+//static   bool connect_init(void);
+//static   bool connect_end(void);
   TABTYPE  GetRealType(PTOS pos= NULL);
   char    *GetRealString(PCSZ s);
 	PCSZ     GetStringOption(PCSZ opname, PCSZ sdef= NULL);

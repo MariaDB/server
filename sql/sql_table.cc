@@ -4652,7 +4652,7 @@ int create_table_impl(THD *thd,
         thd->variables.option_bits|= OPTION_KEEP_LOG;
         thd->log_current_statement= 1;
         create_info->table_was_deleted= 1;
-        DBUG_EXECUTE_IF("send_kill_after_delete", thd->killed= KILL_QUERY; );
+        DBUG_EXECUTE_IF("send_kill_after_delete", thd->set_killed(KILL_QUERY); );
 
         /*
           Restart statement transactions for the case of CREATE ... SELECT.
@@ -7038,6 +7038,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
+  bool res;
 
   DBUG_ENTER("mysql_inplace_alter_table");
 
@@ -7172,11 +7173,12 @@ static bool mysql_inplace_alter_table(THD *thd,
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_downgrade");
   THD_STAGE_INFO(thd, stage_alter_inplace);
 
-  if (table->file->ha_inplace_alter_table(altered_table,
-                                          ha_alter_info))
-  {
+  /* We can abort alter table for any table type */
+  thd->abort_on_warning= !ha_alter_info->ignore && thd->is_strict_mode();
+  res= table->file->ha_inplace_alter_table(altered_table, ha_alter_info);
+  thd->abort_on_warning= false;
+  if (res)
     goto rollback;
-  }
 
   // Upgrade to EXCLUSIVE before commit.
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
@@ -7408,6 +7410,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   bool modified_primary_key= FALSE;
   Create_field *def;
   Field **f_ptr,*field;
+  MY_BITMAP *dropped_fields= NULL; // if it's NULL - no dropped fields
   DBUG_ENTER("mysql_prepare_alter_table");
 
   /*
@@ -7467,6 +7470,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   /*
     First collect all fields from table which isn't in drop_list
   */
+  bitmap_clear_all(&table->tmp_set);
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
     Alter_drop *drop;
@@ -7477,24 +7481,23 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     while ((drop=drop_it++))
     {
       if (drop->type == Alter_drop::COLUMN &&
-	  !my_strcasecmp(system_charset_info,field->field_name.str,
-                         drop->name))
-      {
-	/* Reset auto_increment value if it was dropped */
-	if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
-	    !(used_fields & HA_CREATE_USED_AUTO))
-	{
-	  create_info->auto_increment_value=0;
-	  create_info->used_fields|=HA_CREATE_USED_AUTO;
-	}
-	break;
-      }
+          !my_strcasecmp(system_charset_info,field->field_name.str, drop->name))
+        break;
     }
     if (drop)
     {
+      /* Reset auto_increment value if it was dropped */
+      if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
+          !(used_fields & HA_CREATE_USED_AUTO))
+      {
+        create_info->auto_increment_value=0;
+        create_info->used_fields|=HA_CREATE_USED_AUTO;
+      }
       if (table->s->tmp_table == NO_TMP_TABLE)
         (void) delete_statistics_for_column(thd, table, field);
       drop_it.remove();
+      dropped_fields= &table->tmp_set;
+      bitmap_set_bit(dropped_fields, field->field_index);
       continue;
     }
     /* Check if field is changed */
@@ -7685,6 +7688,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       continue;
     }
 
+    const char *dropped_key_part= NULL;
     KEY_PART_INFO *key_part= key_info->key_part;
     key_parts.empty();
     bool delete_index_stat= FALSE;
@@ -7714,6 +7718,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if (table->s->primary_key == i)
           modified_primary_key= TRUE;
         delete_index_stat= TRUE;
+        dropped_key_part= key_part_name;
 	continue;				// Field is removed
       }
       key_part_length= key_part->length;
@@ -7796,6 +7801,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           key_type= Key::PRIMARY;
         else
           key_type= Key::UNIQUE;
+        if (dropped_key_part)
+        {
+          my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), dropped_key_part);
+          goto err;
+        }
       }
       else if (key_info->flags & HA_FULLTEXT)
         key_type= Key::FULLTEXT;
@@ -7845,6 +7855,23 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         {
           drop_it.remove();
           break;
+        }
+      }
+      /* see if the constraint depends on *only* on dropped fields */
+      if (dropped_fields)
+      {
+        table->default_column_bitmaps();
+        bitmap_clear_all(table->read_set);
+        check->expr->walk(&Item::register_field_in_read_map, 1, 0);
+        if (bitmap_is_subset(table->read_set, dropped_fields))
+          drop= (Alter_drop*)1;
+        else if (bitmap_is_overlapping(dropped_fields, table->read_set))
+        {
+          bitmap_intersect(table->read_set, dropped_fields);
+          uint field_nr= bitmap_get_first_set(table->read_set);
+          my_error(ER_BAD_FIELD_ERROR, MYF(0),
+                   table->field[field_nr]->field_name.str, "CHECK");
+          goto err;
         }
       }
       if (!drop)
@@ -8843,11 +8870,8 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
        alter_info->requested_algorithm !=
        Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
       || is_inplace_alter_impossible(table, create_info, alter_info)
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-      || (partition_changed &&
-          !(table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION))
-#endif
-     )
+      || IF_PARTITIONING((partition_changed &&
+          !(table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
   {
     if (alter_info->requested_algorithm ==
         Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)

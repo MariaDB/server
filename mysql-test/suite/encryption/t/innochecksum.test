@@ -2,7 +2,6 @@
 # MDEV-8773: InnoDB innochecksum does not work with encrypted or page compressed tables
 #
 
---source include/innodb_page_size_small.inc
 # Don't test under embedded as we restart server
 -- source include/not_embedded.inc
 # Require InnoDB

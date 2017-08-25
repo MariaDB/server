@@ -887,9 +887,7 @@ prototype_redo_exec_hook(REDO_CREATE_TABLE)
   if (create_database_if_not_exists(name))
     goto end;
   fn_format(filename, name, "", MARIA_NAME_IEXT,
-            (MY_UNPACK_FILENAME |
-             (flags & HA_DONT_TOUCH_DATA) ? MY_RETURN_REAL_PATH : 0) |
-            MY_APPEND_EXT);
+            MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH | MY_APPEND_EXT);
   linkname_ptr= NULL;
   create_flag= MY_DELETE_OLD;
   tprint(tracef, "Table '%s' creating as '%s'\n", name, filename);

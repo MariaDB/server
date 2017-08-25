@@ -175,7 +175,8 @@ int lock_request::start(void) {
         m_state = state::PENDING;
         m_start_time = toku_current_time_microsec() / 1000;
         m_conflicting_txnid = conflicts.get(0);
-        if (m_start_before_pending_test_callback) m_start_before_pending_test_callback();
+        if (m_start_before_pending_test_callback)
+            m_start_before_pending_test_callback();
         toku_mutex_lock(&m_info->mutex);
         insert_into_lock_requests();
         if (deadlock_exists(conflicts)) {
@@ -183,7 +184,8 @@ int lock_request::start(void) {
             r = DB_LOCK_DEADLOCK;
         }
         toku_mutex_unlock(&m_info->mutex);
-        if (m_start_test_callback) m_start_test_callback(); // test callback
+        if (m_start_test_callback)
+            m_start_test_callback();  // test callback
     }
 
     if (r != DB_LOCK_NOTGRANTED) {
@@ -242,13 +244,13 @@ int lock_request::wait(uint64_t wait_time_ms, uint64_t killed_time_ms, int (*kil
         invariant(r == 0 || r == ETIMEDOUT);
 
         t_now = toku_current_time_microsec();
-        if (m_state == state::PENDING && t_now >= t_end) {
+        if (m_state == state::PENDING && (t_now >= t_end)) {
             m_info->counters.timeout_count += 1;
-            
+
             // if we're still pending and we timed out, then remove our
             // request from the set of lock requests and fail.
             remove_from_lock_requests();
-            
+
             // complete sets m_state to COMPLETE, breaking us out of the loop
             complete(DB_LOCK_NOTGRANTED);
         }
@@ -297,13 +299,15 @@ TXNID lock_request::get_conflicting_txnid(void) const {
 int lock_request::retry(GrowableArray<TXNID> *conflicts_collector) {
     invariant(m_state == state::PENDING);
     int r;
-
     txnid_set conflicts;
     conflicts.create();
+
     if (m_type == type::WRITE) {
-        r = m_lt->acquire_write_lock(m_txnid, m_left_key, m_right_key, &conflicts, m_big_txn);
+        r = m_lt->acquire_write_lock(
+            m_txnid, m_left_key, m_right_key, &conflicts, m_big_txn);
     } else {
-        r = m_lt->acquire_read_lock(m_txnid, m_left_key, m_right_key, &conflicts, m_big_txn);
+        r = m_lt->acquire_read_lock(
+            m_txnid, m_left_key, m_right_key, &conflicts, m_big_txn);
     }
 
     // if the acquisition succeeded then remove ourselves from the
@@ -311,7 +315,8 @@ int lock_request::retry(GrowableArray<TXNID> *conflicts_collector) {
     if (r == 0) {
         remove_from_lock_requests();
         complete(r);
-        if (m_retry_test_callback) m_retry_test_callback(); // test callback
+        if (m_retry_test_callback)
+            m_retry_test_callback();  // test callback
         toku_cond_broadcast(&m_wait_cond);
     } else {
         m_conflicting_txnid = conflicts.get(0);
@@ -322,10 +327,11 @@ int lock_request::retry(GrowableArray<TXNID> *conflicts_collector) {
     return r;
 }
 
-void lock_request::retry_all_lock_requests(locktree *lt, void (*lock_wait_callback)(void *, TXNID, TXNID), void (*after_retry_all_test_callback)(void)) {
+void lock_request::retry_all_lock_requests(
+    locktree *lt,
+    void (*lock_wait_callback)(void *, TXNID, TXNID),
+    void (*after_retry_all_test_callback)(void)) {
     lt_lock_request_info *info = lt->get_lock_request_info();
-
-    info->retry_want++;
 
     // if there are no pending lock requests than there is nothing to do
     // the unlocked data race on pending_is_empty is OK since lock requests
@@ -333,41 +339,64 @@ void lock_request::retry_all_lock_requests(locktree *lt, void (*lock_wait_callba
     if (info->pending_is_empty)
         return;
 
-    toku_mutex_lock(&info->mutex);
+    // get my retry generation (post increment of retry_want)
+    unsigned long long my_retry_want = (info->retry_want += 1);
+
+    toku_mutex_lock(&info->retry_mutex);
 
     GrowableArray<TXNID> conflicts_collector;
     conflicts_collector.init();
 
     // here is the group retry algorithm.
-    // get the latest retry_want count and use it as the generation number of this retry operation.
-    // if this retry generation is > the last retry generation, then do the lock retries.  otherwise,
-    // no lock retries are needed.
-    unsigned long long retry_gen = info->retry_want.load();
-    if (retry_gen > info->retry_done) {
-
-        // retry all of the pending lock requests.
-        for (size_t i = 0; i < info->pending_lock_requests.size(); ) {
-            lock_request *request;
-            int r = info->pending_lock_requests.fetch(i, &request);
-            invariant_zero(r);
-
-            // retry this lock request. if it didn't succeed,
-            // move on to the next lock request. otherwise
-            // the request is gone from the list so we may
-            // read the i'th entry for the next one.
-            r = request->retry(&conflicts_collector);
-            if (r != 0) {
-                i++;
+    // get the latest retry_want count and use it as the generation number of
+    // this retry operation. if this retry generation is > the last retry
+    // generation, then do the lock retries.  otherwise, no lock retries
+    // are needed.
+    if ((my_retry_want - 1) == info->retry_done) {
+        for (;;) {
+            if (!info->running_retry) {
+                info->running_retry = true;
+                info->retry_done = info->retry_want;
+                toku_mutex_unlock(&info->retry_mutex);
+                retry_all_lock_requests_info(info, &conflicts_collector);
+                if (after_retry_all_test_callback)
+                    after_retry_all_test_callback();
+                toku_mutex_lock(&info->retry_mutex);
+                info->running_retry = false;
+                toku_cond_broadcast(&info->retry_cv);
+                break;
+            } else {
+                toku_cond_wait(&info->retry_cv, &info->retry_mutex);
             }
         }
-        if (after_retry_all_test_callback) after_retry_all_test_callback();
-        info->retry_done = retry_gen;
     }
-
-    toku_mutex_unlock(&info->mutex);
+    toku_mutex_unlock(&info->retry_mutex);
 
     report_waits(&conflicts_collector, lock_wait_callback);
     conflicts_collector.deinit();
+}
+
+void lock_request::retry_all_lock_requests_info(lt_lock_request_info *info, GrowableArray<TXNID> *collector) {
+    toku_mutex_lock(&info->mutex);
+    // retry all of the pending lock requests.
+    for (size_t i = 0; i < info->pending_lock_requests.size();) {
+        lock_request *request;
+        int r = info->pending_lock_requests.fetch(i, &request);
+        invariant_zero(r);
+
+        // retry the lock request. if it didn't succeed,
+        // move on to the next lock request. otherwise
+        // the request is gone from the list so we may
+        // read the i'th entry for the next one.
+        r = request->retry(collector);
+        if (r != 0) {
+            i++;
+        }
+    }
+
+    // future threads should only retry lock requests if some still exist
+    info->should_retry_lock_requests = info->pending_lock_requests.size() > 0;
+    toku_mutex_unlock(&info->mutex);
 }
 
 void lock_request::add_conflicts_to_waits(txnid_set *conflicts,
@@ -429,7 +458,8 @@ lock_request *lock_request::find_lock_request(const TXNID &txnid) {
 void lock_request::insert_into_lock_requests(void) {
     uint32_t idx;
     lock_request *request;
-    int r = m_info->pending_lock_requests.find_zero<TXNID, find_by_txnid>(m_txnid, &request, &idx);
+    int r = m_info->pending_lock_requests.find_zero<TXNID, find_by_txnid>(
+        m_txnid, &request, &idx);
     invariant(r == DB_NOTFOUND);
     r = m_info->pending_lock_requests.insert_at(this, idx);
     invariant_zero(r);
@@ -440,7 +470,8 @@ void lock_request::insert_into_lock_requests(void) {
 void lock_request::remove_from_lock_requests(void) {
     uint32_t idx;
     lock_request *request;
-    int r = m_info->pending_lock_requests.find_zero<TXNID, find_by_txnid>(m_txnid, &request, &idx);
+    int r = m_info->pending_lock_requests.find_zero<TXNID, find_by_txnid>(
+        m_txnid, &request, &idx);
     invariant_zero(r);
     invariant(request == this);
     r = m_info->pending_lock_requests.delete_at(idx);
@@ -449,7 +480,8 @@ void lock_request::remove_from_lock_requests(void) {
         m_info->pending_is_empty = true;
 }
 
-int lock_request::find_by_txnid(lock_request * const &request, const TXNID &txnid) {
+int lock_request::find_by_txnid(lock_request *const &request,
+                                const TXNID &txnid) {
     TXNID request_txnid = request->m_txnid;
     if (request_txnid < txnid) {
         return -1;

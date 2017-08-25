@@ -484,7 +484,6 @@ log_close(void)
 	lsn_t		checkpoint_age;
 
 	ut_ad(log_mutex_own());
-	ut_ad(!recv_no_log_write);
 
 	lsn = log->lsn;
 
@@ -1944,6 +1943,7 @@ loop:
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";
+		goto wait_suspend_loop;
 	} else if (btr_defragment_thread_active) {
 		thread_name = "btr_defragment_thread";
 	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {

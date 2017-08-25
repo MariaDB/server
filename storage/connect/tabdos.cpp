@@ -1311,7 +1311,7 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
         } // endif !opm
 
       // if opm, pass thru
-      /* fall through */
+      // fall through
     case OP_IN:
       if (filp->GetArgType(0) == TYPE_COLBLK &&
           filp->GetArgType(1) == TYPE_ARRAY) {
@@ -1647,8 +1647,8 @@ int TDBDOS::TestBlock(PGLOBAL g)
 /***********************************************************************/
 int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   {
-  int     k, n, rc = RC_OK;
-  bool    fixed, doit, sep, b = (pxdf != NULL);
+	int     k, n, rc = RC_OK;
+	bool    fixed, doit, sep, b = (pxdf != NULL);
   PCOL   *keycols, colp;
   PIXDEF  xdp, sxp = NULL;
   PKPDEF  kdp;
@@ -1694,8 +1694,8 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 
 	try {
 		// Allocate all columns that will be used by indexes.
-		// This must be done before opening the table so specific
-		// column initialization can be done (in particular by TDBVCT)
+	// This must be done before opening the table so specific
+	// column initialization can be done (in particular by TDBVCT)
 		for (n = 0, xdp = pxdf; xdp; xdp = xdp->GetNext())
 			for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
 				if (!(colp = ColDB(g, kdp->GetName(), 0))) {

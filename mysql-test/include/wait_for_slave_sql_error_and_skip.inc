@@ -66,6 +66,13 @@ if (!$slave_skip_counter) {
 }
 source include/start_slave.inc;
 
+# start_slave.inc returns when Slave_SQL_Running=Yes. But the slave
+# thread sets it before clearing Last_SQL_Errno. So we have to wait
+# for Last_SQL_Errno=0 separately.
+
+let $slave_param= Last_SQL_Errno;
+let $slave_param_value= 0;
+source include/wait_for_slave_param.inc;
 
 --let $include_filename= wait_for_slave_sql_error_and_skip.inc [errno=$slave_sql_errno]
 --source include/end_include_file.inc

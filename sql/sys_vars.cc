@@ -371,7 +371,7 @@ static Sys_var_mybool Sys_automatic_sp_privileges(
 
 static Sys_var_ulong Sys_back_log(
        "back_log", "The number of outstanding connection requests "
-       "MariaDB can have. This comes into play when the main MySQL thread "
+       "MariaDB can have. This comes into play when the main MariaDB thread "
        "gets very many connection requests in a very short time",
        AUTO_SET READ_ONLY GLOBAL_VAR(back_log), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 65535), DEFAULT(150), BLOCK_SIZE(1));
@@ -395,7 +395,7 @@ static Sys_var_ulonglong Sys_binlog_stmt_cache_size(
        "binlog_stmt_cache_size", "The size of the statement cache for "
        "updates to non-transactional engines for the binary log. "
        "If you often use statements updating a great number of rows, "
-       "you can increase this to get more performance",
+       "you can increase this to get more performance.",
        GLOBAL_VAR(binlog_stmt_cache_size),
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, SIZE_T_MAX), DEFAULT(32768), BLOCK_SIZE(IO_SIZE));
@@ -823,7 +823,15 @@ export bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type)
 }
 static const char *delay_key_write_names[]= { "OFF", "ON", "ALL", NullS };
 static Sys_var_enum Sys_delay_key_write(
-       "delay_key_write", "Type of DELAY_KEY_WRITE",
+       "delay_key_write", "Specifies how MyISAM tables handles CREATE "
+       "TABLE DELAY_KEY_WRITE. If set to ON, the default, any DELAY KEY "
+       "WRITEs are honored. The key buffer is then flushed only when the "
+       "table closes, speeding up writes. MyISAM tables should be "
+       "automatically checked upon startup in this case, and "
+       "--external locking should not be used, as it can lead to index "
+       "corruption. If set to OFF, DELAY KEY WRITEs are ignored, while if "
+       "set to ALL, all new opened tables are treated as if created with "
+       "DELAY KEY WRITEs enabled.",
        GLOBAL_VAR(delay_key_write_options), CMD_LINE(OPT_ARG),
        delay_key_write_names, DEFAULT(DELAY_KEY_WRITE_ON),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
@@ -833,7 +841,7 @@ static Sys_var_ulong Sys_delayed_insert_limit(
        "delayed_insert_limit",
        "After inserting delayed_insert_limit rows, the INSERT DELAYED "
        "handler will check if there are any SELECT statements pending. "
-       "If so, it allows these to execute before continuing",
+       "If so, it allows these to execute before continuing.",
        GLOBAL_VAR(delayed_insert_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(DELAYED_LIMIT), BLOCK_SIZE(1));
 
@@ -2354,7 +2362,7 @@ static Sys_var_ulong Sys_optimizer_search_depth(
        "query plans, but take longer to compile a query. Values smaller "
        "than the number of tables in a relation result in faster "
        "optimization, but may produce very bad query plans. If set to 0, "
-       "the system will automatically pick a reasonable value",
+       "the system will automatically pick a reasonable value.",
        SESSION_VAR(optimizer_search_depth), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, MAX_TABLES+1), DEFAULT(MAX_TABLES+1), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0));
@@ -2437,7 +2445,7 @@ static Sys_var_ulong Sys_preload_buff_size(
 
 static Sys_var_uint Sys_protocol_version(
        "protocol_version",
-       "The version of the client/server protocol used by the MySQL server",
+       "The version of the client/server protocol used by the MariaDB server",
        READ_ONLY GLOBAL_VAR(protocol_version), CMD_LINE_HELP_ONLY,
        VALID_RANGE(0, ~0U), DEFAULT(PROTOCOL_VERSION), BLOCK_SIZE(1));
 
@@ -2887,7 +2895,7 @@ static Sys_var_enum Slave_exec_mode(
        "For example, in row based replication attempts to delete rows that "
        "doesn't exist will be ignored. "
        "In STRICT mode, replication will stop on any unexpected difference "
-       "between the master and the slave",
+       "between the master and the slave.",
        GLOBAL_VAR(slave_exec_mode_options), CMD_LINE(REQUIRED_ARG),
        slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_STRICT));
 
@@ -3420,14 +3428,17 @@ bool Sys_var_tx_read_only::session_update(THD *thd, set_var *var)
 
 
 static Sys_var_tx_read_only Sys_tx_read_only(
-       "tx_read_only", "Set default transaction access mode to read only.",
+       "tx_read_only", "Default transaction access mode. If set to OFF, "
+       "the default, access is read/write. If set to ON, access is read-only. "
+       "The SET TRANSACTION statement can also change the value of this variable. "
+       "See SET TRANSACTION and START TRANSACTION.",
        SESSION_VAR(tx_read_only), NO_CMD_LINE, DEFAULT(0),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_read_only));
 
 static Sys_var_ulonglong Sys_tmp_table_size(
        "tmp_table_size",
        "Alias for tmp_memory_table_size. "
-       "If an internal in-memory temporary table exceeds this size, MySQL "
+       "If an internal in-memory temporary table exceeds this size, MariaDB "
        "will automatically convert it to an on-disk MyISAM or Aria table.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
@@ -3435,7 +3446,7 @@ static Sys_var_ulonglong Sys_tmp_table_size(
 
 static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "tmp_memory_table_size",
-       "If an internal in-memory temporary table exceeds this size, MySQL "
+       "If an internal in-memory temporary table exceeds this size, MariaDB "
        "will automatically convert it to an on-disk MyISAM or Aria table. "
        "Same as tmp_table_size.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
@@ -3458,27 +3469,35 @@ static Sys_var_mybool Sys_timed_mutexes(
        DEPRECATED(""));
 
 static Sys_var_charptr Sys_version(
-       "version", "Server version",
+       "version", "Server version number. It may also include a suffix "
+       "with configuration or build information. -debug indicates "
+       "debugging support was enabled on the server, and -log indicates "
+       "at least one of the binary log, general log or slow query log are "
+       "enabled, for example 10.1.1-MariaDB-mariadb1precise-log.",
        READ_ONLY GLOBAL_VAR(server_version_ptr),
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(server_version));
 
 static char *server_version_comment_ptr;
 static Sys_var_charptr Sys_version_comment(
-       "version_comment", "version_comment",
+       "version_comment", "Value of the COMPILATION_COMMENT option "
+       "specified by CMake when building MariaDB, for example "
+       "mariadb.org binary distribution.",
        READ_ONLY GLOBAL_VAR(server_version_comment_ptr),
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(MYSQL_COMPILATION_COMMENT));
 
 static char *server_version_compile_machine_ptr;
 static Sys_var_charptr Sys_version_compile_machine(
-       "version_compile_machine", "version_compile_machine",
+       "version_compile_machine", "The machine type or architecture "
+       "MariaDB was built on, for example i686.",
        READ_ONLY GLOBAL_VAR(server_version_compile_machine_ptr),
        CMD_LINE_HELP_ONLY, IN_SYSTEM_CHARSET, DEFAULT(DEFAULT_MACHINE));
 
 static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(
-       "version_compile_os", "version_compile_os",
+       "version_compile_os", "Operating system that MariaDB was built "
+       "on, for example debian-linux-gnu.",
        READ_ONLY GLOBAL_VAR(server_version_compile_os_ptr),
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(SYSTEM_TYPE));
@@ -3664,24 +3683,34 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
 }
 
 static Sys_var_bit Sys_autocommit(
-       "autocommit", "autocommit",
+       "autocommit", "If set to 1, the default, all queries are committed "
+       "immediately. If set to 0, they are only committed upon a COMMIT statement"
+       ", or rolled back with a ROLLBACK statement. If autocommit is set to 0, "
+       "and then changed to 1, all open transactions are immediately committed.",
        NO_SET_STMT SESSION_VAR(option_bits), NO_CMD_LINE,
        OPTION_AUTOCOMMIT, DEFAULT(TRUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_autocommit));
 export sys_var *Sys_autocommit_ptr= &Sys_autocommit; // for sql_yacc.yy
 
 static Sys_var_mybool Sys_big_tables(
-       "big_tables", "Allow big result sets by saving all "
-       "temporary sets on file (Solves most 'table full' errors)",
+       "big_tables", "Old variable, which if set to 1, allows large result sets "
+       "by saving all temporary sets to disk, avoiding 'table full' errors. No "
+       "longer needed, as the server now handles this automatically. "
+       "sql_big_tables is a synonym.",
        SESSION_VAR(big_tables), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_bit Sys_big_selects(
-       "sql_big_selects", "sql_big_selects",
+       "sql_big_selects", "If set to 0, MariaDB will not perform large SELECTs."
+       " See max_join_size for details. If max_join_size is set to anything but "
+       "DEFAULT, sql_big_selects is automatically set to 0. If sql_big_selects "
+       "is again set, max_join_size will be ignored.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_BIG_SELECTS,
        DEFAULT(FALSE));
 
 static Sys_var_bit Sys_log_off(
-       "sql_log_off", "sql_log_off",
+       "sql_log_off", "If set to 1 (0 is the default), no logging to the general "
+       "query log is done for the client. Only clients with the SUPER privilege "
+       "can update this variable.",
        NO_SET_STMT SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_LOG_OFF,
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_has_super));
 
@@ -3738,50 +3767,80 @@ static bool check_sql_log_bin(sys_var *self, THD *thd, set_var *var)
   return FALSE;
 }
 
-static Sys_var_mybool Sys_log_binlog(
-       "sql_log_bin", "Controls whether logging to the binary log is done",
+static Sys_var_mybool Sys_log_binlog(	
+       "sql_log_bin", "If set to 0 (1 is the default), no logging to the binary "
+       "log is done for the client. Only clients with the SUPER privilege can "
+       "update this variable. Can have unintended consequences if set globally, "
+       "see SET SQL_LOG_BIN. Starting MariaDB 10.1.7, this variable does not "
+       "affect the replication of events in a Galera cluster.",
        SESSION_VAR(sql_log_bin), NO_CMD_LINE, DEFAULT(TRUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_sql_log_bin),
        ON_UPDATE(fix_sql_log_bin_after_update));
 
 static Sys_var_bit Sys_sql_warnings(
-       "sql_warnings", "sql_warnings",
+       "sql_warnings", "If set to 1, single-row INSERTs will produce a string "
+       "containing warning information if a warning occurs.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_WARNINGS,
        DEFAULT(FALSE));
 
 static Sys_var_bit Sys_sql_notes(
-       "sql_notes", "sql_notes",
+       "sql_notes", "If set to 1, the default, warning_count is incremented each "
+       "time a Note warning is encountered. If set to 0, Note warnings are not "
+       "recorded. mysqldump has outputs to set this variable to 0 so that no "
+       "unnecessary increments occur when data is reloaded.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_SQL_NOTES,
        DEFAULT(TRUE));
 
 static Sys_var_bit Sys_auto_is_null(
-       "sql_auto_is_null", "sql_auto_is_null",
+       "sql_auto_is_null", "If set to 1, the query SELECT * FROM table_name WHERE "
+       "auto_increment_column IS NULL will return an auto-increment that has just "
+       "been successfully inserted, the same as the LAST_INSERT_ID() function. Some"
+       " ODBC programs make use of this IS NULL comparison.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_AUTO_IS_NULL,
        DEFAULT(FALSE), NO_MUTEX_GUARD, IN_BINLOG);
 
 static Sys_var_bit Sys_safe_updates(
-       "sql_safe_updates", "sql_safe_updates",
+       "sql_safe_updates", "If set to 1, UPDATEs and DELETEs need either a key in "
+       "the WHERE clause, or a LIMIT clause, or else they will aborted. Prevents "
+       "the common mistake of accidentally deleting or updating every row in a table.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_SAFE_UPDATES,
        DEFAULT(FALSE));
 
 static Sys_var_bit Sys_buffer_results(
-       "sql_buffer_result", "sql_buffer_result",
+       "sql_buffer_result", "If set to 1 (0 is default), results from SELECT "
+       "statements are always placed into temporary tables. This can help the "
+       "server when it takes a long time to send the results to the client by "
+       "allowing the table locks to be freed early.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_BUFFER_RESULT,
        DEFAULT(FALSE));
 
 static Sys_var_bit Sys_quote_show_create(
-       "sql_quote_show_create", "sql_quote_show_create",
+       "sql_quote_show_create", "If set to 1, the default, the server will "
+       "quote identifiers for SHOW CREATE DATABASE, SHOW CREATE TABLE and "
+       "SHOW CREATE VIEW statements. Quoting is disabled if set to 0. Enable "
+       "to ensure replications works when identifiers require quoting.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_QUOTE_SHOW_CREATE,
        DEFAULT(TRUE));
 
 static Sys_var_bit Sys_foreign_key_checks(
-       "foreign_key_checks", "foreign_key_checks",
+       "foreign_key_checks", "If set to 1 (the default) foreign key constraints"
+       " (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked,"
+       " while if set to 0, they are not checked. 0 is not recommended for normal "
+       "use, though it can be useful in situations where you know the data is "
+       "consistent, but want to reload data in a different order from that that "
+       "specified by parent/child relationships. Setting this variable to 1 does "
+       "not retrospectively check for inconsistencies introduced while set to 0.",
        SESSION_VAR(option_bits), NO_CMD_LINE,
        REVERSE(OPTION_NO_FOREIGN_KEY_CHECKS),
        DEFAULT(TRUE), NO_MUTEX_GUARD, IN_BINLOG);
 
 static Sys_var_bit Sys_unique_checks(
-       "unique_checks", "unique_checks",
+       "unique_checks", "If set to 1, the default, secondary indexes in InnoDB "
+       "tables are performed. If set to 0, storage engines can (but are not "
+       "required to) assume that duplicate keys are not present in input data. "
+       "Set to 0 to speed up imports of large tables to InnoDB. The storage "
+       "engine will still issue a duplicate key error if it detects one, even "
+       "if set to 0.",
        SESSION_VAR(option_bits), NO_CMD_LINE,
        REVERSE(OPTION_RELAXED_UNIQUE_CHECKS),
        DEFAULT(TRUE), NO_MUTEX_GUARD, IN_BINLOG);
@@ -3801,13 +3860,16 @@ static bool update_profiling(sys_var *self, THD *thd, enum_var_type type)
 }
 
 static Sys_var_bit Sys_profiling(
-       "profiling", "profiling",
+       "profiling", "If set to 1 (0 is default), statement profiling will be "
+       "enabled. See SHOW PROFILES and SHOW PROFILE.",
        NO_SET_STMT SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_PROFILING,
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_profiling));
 
 static Sys_var_ulong Sys_profiling_history_size(
-       "profiling_history_size", "Limit of query profiling memory",
+       "profiling_history_size", "Number of statements about which profiling "
+       "information is maintained. If set to 0, no profiles are stored. "
+       "See SHOW PROFILES.",
        NO_SET_STMT SESSION_VAR(profiling_history_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 100), DEFAULT(15), BLOCK_SIZE(1));
 #endif
@@ -3841,7 +3903,11 @@ static bool check_skip_replication(sys_var *self, THD *thd, set_var *var)
 }
 
 static Sys_var_bit Sys_skip_replication(
-       "skip_replication", "skip_replication",
+       "skip_replication", "Changes are logged into the binary log with the "
+       "@@skip_replication flag set. Such events will not be replicated by "
+       "slaves that run with --replicate-events-marked-for-skip set different "
+       "from its default of REPLICATE. See Selectively skipping replication "
+       "of binlog events for more information.",
        NO_SET_STMT SESSION_ONLY(option_bits),
        NO_CMD_LINE, OPTION_SKIP_REPLICATION,
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
@@ -4184,43 +4250,61 @@ static Sys_var_charptr Sys_slow_log_path(
        ON_CHECK(check_log_path), ON_UPDATE(fix_slow_log_file));
 
 static Sys_var_have Sys_have_compress(
-       "have_compress", "have_compress",
+       "have_compress", "If the zlib compression library is accessible to the "
+       "server, this will be set to YES, otherwise it will be NO. The COMPRESS() "
+       "and UNCOMPRESS() functions will only be available if set to YES.",
        READ_ONLY GLOBAL_VAR(have_compress), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_crypt(
-       "have_crypt", "have_crypt",
+       "have_crypt", "If the crypt() system call is available this variable will "
+       "be set to YES, otherwise it will be set to NO. If set to NO, the "
+       "ENCRYPT() function cannot be used.",
        READ_ONLY GLOBAL_VAR(have_crypt), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_dlopen(
-       "have_dynamic_loading", "have_dynamic_loading",
+       "have_dynamic_loading", "If the server supports dynamic loading of plugins, "
+       "will be set to YES, otherwise will be set to NO.",
        READ_ONLY GLOBAL_VAR(have_dlopen), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_geometry(
-       "have_geometry", "have_geometry",
+       "have_geometry", "If the server supports spatial data types, will be set to "
+       "YES, otherwise will be set to NO.",
        READ_ONLY GLOBAL_VAR(have_geometry), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_openssl(
-       "have_openssl", "have_openssl",
+       "have_openssl", "Comparing have_openssl with have_ssl will indicate whether "
+       "YaSSL or openssl was used. If YaSSL, have_ssl will be YES, but have_openssl "
+       "will be NO.",
        READ_ONLY GLOBAL_VAR(have_openssl), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_profiling(
-       "have_profiling", "have_profiling",
+       "have_profiling", "If statement profiling is available, will be set to YES, "
+       "otherwise will be set to NO. See SHOW PROFILES and SHOW PROFILE.",
        READ_ONLY GLOBAL_VAR(have_profiling), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_query_cache(
-       "have_query_cache", "have_query_cache",
+       "have_query_cache", "If the server supports the query cache, will be set to "
+       "YES, otherwise will be set to NO.",
        READ_ONLY GLOBAL_VAR(have_query_cache), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_rtree_keys(
-       "have_rtree_keys", "have_rtree_keys",
+       "have_rtree_keys", "If RTREE indexes (used for spatial indexes) "
+       "are available, will be set to YES, otherwise will be set to NO.",
        READ_ONLY GLOBAL_VAR(have_rtree_keys), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_ssl(
-       "have_ssl", "have_ssl",
+       "have_ssl", "If the server supports secure connections, will be set to YES, "
+       "otherwise will be set to NO. If set to DISABLED, the server was compiled with "
+       "TLS support, but was not started with TLS support (see the mysqld options). "
+       "See also have_openssl.",
        READ_ONLY GLOBAL_VAR(have_ssl), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_symlink(
-       "have_symlink", "have_symlink",
+       "have_symlink", "If symbolic link support is enabled, will be set to YES, "
+       "otherwise will be set to NO. Required for the INDEX DIRECTORY and DATA "
+       "DIRECTORY table options (see CREATE TABLE) and Windows symlink support. "
+       "Will be set to DISABLED if the server is started with the "
+       "--skip-symbolic-links option.",
        READ_ONLY GLOBAL_VAR(have_symlink), NO_CMD_LINE);
 
 static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type);
@@ -4228,7 +4312,7 @@ static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type);
 static Sys_var_mybool Sys_general_log(
        "general_log", "Log connections and queries to a table or log file. "
        "Defaults logging to a file 'hostname'.log or a table mysql.general_log"
-       "if --log-output=TABLE is used",
+       "if --log-output=TABLE is used.",
        GLOBAL_VAR(opt_log), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_log_state));
@@ -4237,7 +4321,7 @@ static Sys_var_mybool Sys_slow_query_log(
        "slow_query_log",
        "Log slow queries to a table or log file. Defaults logging to a file "
        "'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is "
-       "used. Must be enabled to activate other slow log options",
+       "used. Must be enabled to activate other slow log options.",
        SESSION_VAR(sql_log_slow), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0), ON_UPDATE(fix_log_state));
@@ -4309,12 +4393,12 @@ static Sys_var_set Sys_log_output(
 static Sys_var_mybool Sys_log_slave_updates(
        "log_slave_updates", "Tells the slave to log the updates from "
        "the slave thread to the binary log. You will need to turn it on if "
-       "you plan to daisy-chain the slaves",
+       "you plan to daisy-chain the slaves.",
        READ_ONLY GLOBAL_VAR(opt_log_slave_updates), CMD_LINE(OPT_ARG),
        DEFAULT(0));
 
 static Sys_var_charptr Sys_relay_log(
-       "relay_log", "The location and name to use for relay logs",
+       "relay_log", "The location and name to use for relay logs.",
        READ_ONLY GLOBAL_VAR(opt_relay_logname), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(0));
 
@@ -4325,7 +4409,7 @@ static Sys_var_charptr Sys_relay_log(
 */
 static Sys_var_charptr Sys_relay_log_index(
        "relay_log_index", "The location and name to use for the file "
-       "that keeps a list of the last relay logs",
+       "that keeps a list of the last relay logs.",
        READ_ONLY GLOBAL_VAR(relay_log_index), NO_CMD_LINE,
        IN_FS_CHARSET, DEFAULT(0));
 
@@ -4353,20 +4437,20 @@ static Sys_var_charptr Sys_log_bin_basename(
 
 static Sys_var_charptr Sys_relay_log_info_file(
        "relay_log_info_file", "The location and name of the file that "
-       "remembers where the SQL replication thread is in the relay logs",
+       "remembers where the SQL replication thread is in the relay logs.",
        READ_ONLY GLOBAL_VAR(relay_log_info_file), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(0));
 
 static Sys_var_mybool Sys_relay_log_purge(
        "relay_log_purge", "if disabled - do not purge relay logs. "
-       "if enabled - purge them as soon as they are no more needed",
+       "if enabled - purge them as soon as they are no more needed.",
        GLOBAL_VAR(relay_log_purge), CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
 static Sys_var_mybool Sys_relay_log_recovery(
        "relay_log_recovery", "Enables automatic relay log recovery "
        "right after the database startup, which means that the IO Thread "
        "starts re-fetching from the master right after the last transaction "
-       "processed",
+       "processed.",
        GLOBAL_VAR(relay_log_recovery), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 
@@ -4775,7 +4859,9 @@ static Sys_var_struct Sys_lc_time_names(
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_locale));
 
 static Sys_var_tz Sys_time_zone(
-       "time_zone", "time_zone",
+       "time_zone", "The current time zone, used to initialize the time "
+       "zone for a client when it connects. Set to SYSTEM by default, in "
+       "which the client uses the system time zone value.",
        SESSION_VAR(time_zone), NO_CMD_LINE,
        DEFAULT(&default_tz), NO_MUTEX_GUARD, IN_BINLOG);
 
@@ -4792,7 +4878,8 @@ static Sys_var_charptr Sys_wsrep_provider(
        ON_CHECK(wsrep_provider_check), ON_UPDATE(wsrep_provider_update));
 
 static Sys_var_charptr Sys_wsrep_provider_options(
-       "wsrep_provider_options", "provider specific options",
+       "wsrep_provider_options", "Semicolon (;) separated list of wsrep "
+       "options (see wsrep_provider_options documentation).",
        PREALLOCATED GLOBAL_VAR(wsrep_provider_options), 
        CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
@@ -4823,13 +4910,17 @@ static Sys_var_charptr Sys_wsrep_cluster_address (
        ON_UPDATE(wsrep_cluster_address_update));
 
 static Sys_var_charptr Sys_wsrep_node_name (
-       "wsrep_node_name", "Node name",
+       "wsrep_node_name", "Name of this node. This name can be used in "
+       "wsrep_sst_donor as a preferred donor. Note that multiple nodes "
+       "in a cluster can have the same name.",
        PREALLOCATED GLOBAL_VAR(wsrep_node_name), CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(glob_hostname), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        wsrep_node_name_check, wsrep_node_name_update);
 
 static Sys_var_charptr Sys_wsrep_node_address (
-       "wsrep_node_address", "Node address",
+       "wsrep_node_address", "Specifies the node's network address, in "
+       "the format ip address[:port]. Used in situations where autoguessing "
+       "is not reliable. As of MariaDB 10.1.8, supports IPv6.",
        PREALLOCATED GLOBAL_VAR(wsrep_node_address), CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(""),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
@@ -5047,7 +5138,7 @@ static Sys_var_mybool Sys_wsrep_slave_UK_checks(
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_wsrep_restart_slave(
-       "wsrep_restart_slave", "Should MySQL slave be restarted automatically, when node joins back to cluster",
+       "wsrep_restart_slave", "Should MariaDB slave be restarted automatically, when node joins back to cluster",
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_wsrep_dirty_reads(
@@ -5074,7 +5165,7 @@ static Sys_var_mybool Sys_wsrep_gtid_mode(
 
 static char *wsrep_patch_version_ptr;
 static Sys_var_charptr Sys_wsrep_patch_version(
-       "wsrep_patch_version", "wsrep patch version",
+       "wsrep_patch_version", "Wsrep patch version, for example wsrep_25.10.",
        READ_ONLY GLOBAL_VAR(wsrep_patch_version_ptr), CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(WSREP_PATCH_VERSION));
 

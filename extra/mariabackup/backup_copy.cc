@@ -1342,8 +1342,8 @@ out:
 	return(ret);
 }
 
-bool
-backup_start()
+/** Start --backup */
+bool backup_start()
 {
 	if (!opt_no_lock) {
 		if (opt_safe_slave_backup) {
@@ -1418,9 +1418,8 @@ backup_start()
 	return(true);
 }
 
-
-bool
-backup_finish()
+/** Release resources after backup_start() */
+void backup_release()
 {
 	/* release all locks */
 	if (!opt_no_lock) {
@@ -1435,7 +1434,11 @@ backup_finish()
 		xb_mysql_query(mysql_connection,
 				"START SLAVE SQL_THREAD", false);
 	}
+}
 
+/** Finish after backup_start() and backup_release() */
+bool backup_finish()
+{
 	/* Copy buffer pool dump or LRU dump */
 	if (!opt_rsync) {
 		if (buffer_pool_filename && file_exists(buffer_pool_filename)) {

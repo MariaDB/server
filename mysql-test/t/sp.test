@@ -9590,6 +9590,27 @@ DROP PROCEDURE p1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-13346: CURSOR a query with GROUP BY using derived table
+--echo #
+
+DELIMITER |;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR
+    SELECT
+      IFNULL(NULL,1) AS col
+    FROM
+      ( select 1 as id ) AS t
+    GROUP BY t.id
+  ;
+  OPEN c;
+END
+|
+DELIMITER ;|
+CALL p1();
+DROP PROCEDURE p1;
+
+--echo #
 --echo # Start of 10.3 tests
 --echo #
 

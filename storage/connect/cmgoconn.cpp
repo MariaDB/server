@@ -92,6 +92,32 @@ void INCOL::AddCol(PGLOBAL g, PCOL colp, char *jp)
 
 }	// end of AddCol
 
+/***********************************************************************/
+/*  Clear.                                                             */
+/***********************************************************************/
+void INCOL::Init(void)
+{
+	bson_init(Child);
+
+	for (PKC kp = Klist; kp; kp = kp->Next)
+		if (kp->Incolp)
+			kp->Incolp->Init();
+
+} // end of init
+
+/***********************************************************************/
+/*  Destroy.                                                           */
+/***********************************************************************/
+void INCOL::Destroy(void)
+{
+	bson_destroy(Child);
+
+	for (PKC kp = Klist; kp; kp = kp->Next)
+		if (kp->Incolp)
+			kp->Incolp->Destroy();
+
+} // end of Destroy
+
 /* -------------------------- Class CMgoConn ------------------------- */
 
 /***********************************************************************/
@@ -109,6 +135,7 @@ CMgoConn::CMgoConn(PGLOBAL g, PCPARM pcg)
 	Query = NULL;
 	Opts = NULL;
 	Fpc = NULL;
+	fp = NULL;
 	m_Connected = false;
 } // end of CMgoConn standard constructor
 
@@ -148,6 +175,24 @@ bool CMgoConn::Connect(PGLOBAL g)
 			      Pcg->Db_name, Pcg->Coll_name);
 		return true;
 	}	// endif Collection
+
+	/*********************************************************************/
+	/*  Link a Fblock. This make possible to automatically close it      */
+	/*  in case of error (throw).                                        */
+	/*********************************************************************/
+	PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
+
+	fp = (PFBLOCK)PlugSubAlloc(g, NULL, sizeof(FBLOCK));
+	fp->Type = TYPE_FB_MONGO;
+	fp->Fname = NULL;
+	fp->Next = dbuserp->Openlist;
+	dbuserp->Openlist = fp;
+	fp->Count = 1;
+	fp->Length = 0;
+	fp->Memory = NULL;
+	fp->Mode = MODE_ANY;
+	fp->File = this;
+	fp->Handle = 0;
 
 	m_Connected = true;
 	return false;
@@ -493,19 +538,19 @@ bool CMgoConn::DocWrite(PGLOBAL g, PINCOL icp)
 			bool isdoc = !kp->Incolp->Array;
 
 			if (isdoc)
-				BSON_APPEND_DOCUMENT_BEGIN(&icp->Child, kp->Key, &kp->Incolp->Child);
+				BSON_APPEND_DOCUMENT_BEGIN(icp->Child, kp->Key, kp->Incolp->Child);
 			else
-				BSON_APPEND_ARRAY_BEGIN(&icp->Child, kp->Key, &kp->Incolp->Child);
+				BSON_APPEND_ARRAY_BEGIN(icp->Child, kp->Key, kp->Incolp->Child);
 
 			if (DocWrite(g, kp->Incolp))
 				return true;
 
 			if (isdoc)
-				bson_append_document_end(&icp->Child, &kp->Incolp->Child);
+				bson_append_document_end(icp->Child, kp->Incolp->Child);
 			else
-				bson_append_array_end(&icp->Child, &kp->Incolp->Child);
+				bson_append_array_end(icp->Child, kp->Incolp->Child);
 
-		} else if (AddValue(g, kp->Colp, &icp->Child, kp->Key, false))
+		} else if (AddValue(g, kp->Colp, icp->Child, kp->Key, false))
 			return true;
 
 		return false;
@@ -520,19 +565,19 @@ int CMgoConn::Write(PGLOBAL g)
 	PTDB tp = Pcg->Tdbp;
 
 	if (tp->GetMode() == MODE_INSERT) {
-		bson_init(&Fpc->Child);
+  	Fpc->Init();
 
 		if (DocWrite(g, Fpc))
 			return RC_FX;
 
 		if (trace) {
-			char *str = bson_as_json(&Fpc->Child, NULL);
+			char *str = bson_as_json(Fpc->Child, NULL);
 			htrc("Inserting: %s\n", str);
 			bson_free(str);
 		} // endif trace
 
 		if (!mongoc_collection_insert(Collection, MONGOC_INSERT_NONE,
-			&Fpc->Child, NULL, &Error)) {
+			Fpc->Child, NULL, &Error)) {
 			sprintf(g->Message, "Mongo insert: %s", Error.message);
 			rc = RC_FX;
 		} // endif insert
@@ -641,6 +686,8 @@ void CMgoConn::Close(void)
 	if (Client) mongoc_client_pool_push(Pool, Client);
 	if (Pool) mongoc_client_pool_destroy(Pool);
 	if (Uri) mongoc_uri_destroy(Uri);
+	if (Fpc) Fpc->Destroy();
+	if (fp) fp->Count = 0;
 } // end of Close
 
 /***********************************************************************/

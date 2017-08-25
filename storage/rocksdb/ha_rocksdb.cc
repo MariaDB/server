@@ -140,6 +140,14 @@ bool can_use_bloom_filter(THD *thd, const Rdb_key_def &kd,
                           const rocksdb::Slice &eq_cond,
                           const bool use_all_keys);
 
+static rocksdb::CompactRangeOptions getCompactRangeOptions() {
+  rocksdb::CompactRangeOptions compact_range_options;
+  compact_range_options.bottommost_level_compaction =
+      rocksdb::BottommostLevelCompaction::kForce;
+  compact_range_options.exclusive_manual_compaction = false;
+  return compact_range_options;
+}
+
 ///////////////////////////////////////////////////////////
 // Parameters and settings
 ///////////////////////////////////////////////////////////
@@ -207,7 +215,7 @@ static int rocksdb_compact_column_family(THD *const thd,
     if (cfh != nullptr && rdb != nullptr) {
       sql_print_information("RocksDB: Manual compaction of column family: %s\n",
                             cf);
-      rdb->CompactRange(rocksdb::CompactRangeOptions(), cfh, nullptr, nullptr);
+      rdb->CompactRange(getCompactRangeOptions(), cfh, nullptr, nullptr);
     }
   }
   return HA_EXIT_SUCCESS;
@@ -3711,7 +3719,7 @@ static int rocksdb_init_func(void *const p) {
   if (rocksdb_db_options->allow_mmap_writes &&
       rocksdb_db_options->use_direct_io_for_flush_and_compaction) {
     // See above comment for allow_mmap_reads. (NO_LINT_DEBUG)
-    sql_print_error("RocksDB: Can't enable both use_direct_io_for_flush_and_compaction "
+    sql_print_error("RocksDB: Can't enable both "
                     "use_direct_io_for_flush_and_compaction and "
                     "allow_mmap_writes\n");
     DBUG_RETURN(HA_EXIT_FAILURE);
@@ -9314,6 +9322,7 @@ const char *ha_rocksdb::thd_rocksdb_tmpdir() {
   return (tmp_dir);
 }
 
+
 /**
   @return
     HA_EXIT_SUCCESS  OK
@@ -9327,9 +9336,27 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
   int res = HA_EXIT_SUCCESS;
   int binlog_format = my_core::thd_binlog_format(thd);
   bool unsafe_for_binlog = THDVAR(ha_thd(), unsafe_for_binlog);
+
+  /*
+    A note about (*) below: In fb/mysql, LOCK TABLE myrocks_table WRITE
+    - produces an error when @@binlog_format='ROW'.
+    - does not produce an error with @@binlog_format='STATEMENT'
+
+    We cannot easily provide this behavior in MariaDB, because LOCK ROWS
+    changes @@binlog_format for the duration of the statement.
+
+    Instead we will make the check in ha_rocksdb::start_stmt and will produce
+    an error in the first DML statement done under LOCK TABLE
+
+    (**) - The same happens for other "DDL-type" commands, so allow them here
+    as well.
+  */
   if (lock_type == F_WRLCK && !thd->rgi_slave && !unsafe_for_binlog &&
       binlog_format != BINLOG_FORMAT_ROW &&
       binlog_format != BINLOG_FORMAT_UNSPEC &&
+      thd->lex->sql_command != SQLCOM_LOCK_TABLES &&  // (*)
+      thd->lex->sql_command != SQLCOM_ANALYZE &&   // (**)
+      thd->lex->sql_command != SQLCOM_OPTIMIZE &&  // (**)
       my_core::thd_binlog_filter_ok(thd)) {
     my_error(ER_REQUIRE_ROW_BINLOG_FORMAT, MYF(0));
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
@@ -9426,6 +9453,20 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
 
 int ha_rocksdb::start_stmt(THD *const thd, thr_lock_type lock_type) {
   DBUG_ENTER_FUNC();
+
+  /*
+    MariaDB: the following is a copy of the check in ha_rocksdb::external_lock:
+  */
+  int binlog_format = my_core::thd_binlog_format(thd);
+  bool unsafe_for_binlog = THDVAR(ha_thd(), unsafe_for_binlog);
+  if (lock_type >= TL_WRITE_ALLOW_WRITE &&
+      !thd->rgi_slave && !unsafe_for_binlog &&
+      binlog_format != BINLOG_FORMAT_ROW &&
+      binlog_format != BINLOG_FORMAT_UNSPEC &&
+      my_core::thd_binlog_filter_ok(thd)) {
+    my_error(ER_REQUIRE_ROW_BINLOG_FORMAT, MYF(0));
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
 
   DBUG_ASSERT(thd != nullptr);
 
@@ -9555,10 +9596,6 @@ void Rdb_drop_index_thread::run() {
         uchar buf[Rdb_key_def::INDEX_NUMBER_SIZE * 2];
         rocksdb::Range range = get_range(d.index_id, buf, is_reverse_cf ? 1 : 0,
                                          is_reverse_cf ? 0 : 1);
-        rocksdb::CompactRangeOptions compact_range_options;
-        compact_range_options.bottommost_level_compaction =
-            rocksdb::BottommostLevelCompaction::kForce;
-        compact_range_options.exclusive_manual_compaction = false;
         rocksdb::Status status = DeleteFilesInRange(rdb->GetBaseDB(), cfh,
                                                     &range.start, &range.limit);
         if (!status.ok()) {
@@ -9567,7 +9604,7 @@ void Rdb_drop_index_thread::run() {
           }
           rdb_handle_io_error(status, RDB_IO_ERROR_BG_THREAD);
         }
-        status = rdb->CompactRange(compact_range_options, cfh, &range.start,
+        status = rdb->CompactRange(getCompactRangeOptions(), cfh, &range.start,
                                    &range.limit);
         if (!status.ok()) {
           if (status.IsShutdownInProgress()) {
@@ -9940,7 +9977,7 @@ int ha_rocksdb::optimize(THD *const thd, HA_CHECK_OPT *const check_opt) {
   for (uint i = 0; i < table->s->keys; i++) {
     uchar buf[Rdb_key_def::INDEX_NUMBER_SIZE * 2];
     auto range = get_range(i, buf);
-    const rocksdb::Status s = rdb->CompactRange(rocksdb::CompactRangeOptions(),
+    const rocksdb::Status s = rdb->CompactRange(getCompactRangeOptions(),
                                                 m_key_descr_arr[i]->get_cf(),
                                                 &range.start, &range.limit);
     if (!s.ok()) {

@@ -8129,6 +8129,23 @@ c	1
 DROP PROCEDURE p1;
 DROP TABLE t1;
 #
+# MDEV-13346: CURSOR a query with GROUP BY using derived table
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c CURSOR FOR
+SELECT
+IFNULL(NULL,1) AS col
+FROM
+( select 1 as id ) AS t
+GROUP BY t.id
+;
+OPEN c;
+END
+|
+CALL p1();
+DROP PROCEDURE p1;
+#
 # Start of 10.3 tests
 #
 #

@@ -1,5 +1,5 @@
 /*************** json CPP Declares Source Code File (.H) ***************/
-/*  Name: json.cpp   Version 1.3                                       */
+/*  Name: json.cpp   Version 1.4                                       */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
 /*                                                                     */
@@ -52,6 +52,8 @@ void trans_func(unsigned int u, _EXCEPTION_POINTERS* pExp)
 
 char *GetExceptionDesc(PGLOBAL g, unsigned int e);
 #endif   // SE_CATCH
+
+char *GetJsonNull(void);
 
 /***********************************************************************/
 /* IsNum: check whether this string is all digits.                     */
@@ -964,6 +966,25 @@ return false;
 /* -------------------------- Class JOBJECT -------------------------- */
 
 /***********************************************************************/
+/* Return the number of pairs in this object.                          */
+/***********************************************************************/
+int JOBJECT::GetSize(bool b)
+{
+	if (b) {
+		// Return only non null pairs
+		int n = 0;
+
+		for (PJPR jpp = First; jpp; jpp = jpp->Next)
+			if (jpp->Val && !jpp->Val->IsNull())
+				n++;
+
+		return n;
+	} else
+		return Size;
+
+}	// end of	GetSize
+
+/***********************************************************************/
 /* Add a new pair to an Object.                                        */
 /***********************************************************************/
 PJPR JOBJECT::AddPair(PGLOBAL g, PCSZ key)
@@ -1046,7 +1067,7 @@ PSZ JOBJECT::GetText(PGLOBAL g, PSZ text)
     PlugSubAlloc(g, NULL, strlen(text) + 1);
 
   return text + n;
-} // end of GetValue;
+} // end of GetText;
 
 /***********************************************************************/
 /* Merge two objects.                                                  */
@@ -1087,7 +1108,7 @@ void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PCSZ key)
 } // end of SetValue
 
 /***********************************************************************/
-/* Delete a value corresponding to the given key.                  */
+/* Delete a value corresponding to the given key.                      */
 /***********************************************************************/
 void JOBJECT::DeleteKey(PCSZ key)
 {
@@ -1116,6 +1137,25 @@ bool JOBJECT::IsNull(void)
 } // end of IsNull
 
 /* -------------------------- Class JARRAY --------------------------- */
+
+/***********************************************************************/
+/* Return the number of values in this object.                         */
+/***********************************************************************/
+int JARRAY::GetSize(bool b)
+{
+	if (b) {
+		// Return only non null values
+		int n = 0;
+
+		for (PJVAL jvp = First; jvp; jvp = jvp->Next)
+			if (!jvp->IsNull())
+				n++;
+
+		return n;
+	} else
+		return Size;
+
+}	// end of	GetSize
 
 /***********************************************************************/
 /* Make the array of values from the values list.                      */
@@ -1226,17 +1266,41 @@ bool JARRAY::SetValue(PGLOBAL g, PJVAL jvp, int n)
 } // end of SetValue
 
 /***********************************************************************/
+/* Return the text corresponding to all values.                        */
+/***********************************************************************/
+PSZ JARRAY::GetText(PGLOBAL g, PSZ text)
+{
+	int   n;
+	PJVAL jp;
+
+	if (!text) {
+		text = (char*)PlugSubAlloc(g, NULL, 0);
+		text[0] = 0;
+		n = 1;
+	} else
+		n = 0;
+
+	for (jp = First; jp; jp = jp->Next)
+		jp->GetText(g, text);
+
+	if (n)
+		PlugSubAlloc(g, NULL, strlen(text) + 1);
+
+	return text + n;
+} // end of GetText;
+
+/***********************************************************************/
 /* Delete a Value from the Arrays Value list.                          */
 /***********************************************************************/
 bool JARRAY::DeleteValue(int n)
 {
-  PJVAL jvp = GetValue(n);
+	PJVAL jvp = GetValue(n);
 
-  if (jvp) {
-    jvp->Del = true;
-    return false;
-  } else
-    return true;
+	if (jvp) {
+		jvp->Del = true;
+		return false;
+	} else
+		return true;
 
 } // end of DeleteValue
 
@@ -1286,7 +1350,7 @@ JTYP JVALUE::GetValType(void)
   else if (Value)
     return (JTYP)Value->GetType();
   else
-    return (JTYP)TYPE_VOID;
+    return TYPE_NULL;
 
 } // end of GetValType
 
@@ -1339,10 +1403,20 @@ double JVALUE::GetFloat(void)
 /***********************************************************************/
 /* Return the Value's String value.                                    */
 /***********************************************************************/
-PSZ JVALUE::GetString(void)
+PSZ JVALUE::GetString(PGLOBAL g)
 {
-  char buf[32];
-  return (Value) ? Value->GetCharString(buf) : NULL;
+	char *p;
+
+	if (Value) {
+		char buf[32];
+
+		if ((p = Value->GetCharString(buf)) == buf)
+			p = PlugDup(g, buf);
+
+	} else
+		p = NULL;
+
+	return p;
 } // end of GetString
 
 /***********************************************************************/
@@ -1350,7 +1424,7 @@ PSZ JVALUE::GetString(void)
 /***********************************************************************/
 PSZ JVALUE::GetText(PGLOBAL g, PSZ text)
 {
-  if (Jsp && Jsp->GetType() == TYPE_JOB)
+  if (Jsp)
     return Jsp->GetText(g, text);
 
   char buf[32];
@@ -1358,8 +1432,8 @@ PSZ JVALUE::GetText(PGLOBAL g, PSZ text)
 
   if (s)
     strcat(strcat(text, " "), s);
-  else
-    strcat(text, " <null>");
+  else if (GetJsonNull())
+    strcat(strcat(text, " "), GetJsonNull());
 
   return text;
 } // end of GetText

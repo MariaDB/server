@@ -1989,6 +1989,8 @@ row_merge_read_clustered_index(
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
 
+		mem_heap_empty(row_heap);
+
 		/* Do not continue if table pages are still encrypted */
 		if (!old_table->is_readable() ||
 		    !new_table->is_readable()) {
@@ -3616,7 +3618,16 @@ row_merge_insert_index_tuples(
 				dtuple, tuple_heap);
 		}
 
+#ifdef UNIV_DEBUG
+		static const latch_level_t latches[] = {
+			SYNC_INDEX_TREE,	/* index->lock */
+			SYNC_LEVEL_VARYING	/* btr_bulk->m_page_bulks */
+		};
+#endif /* UNIV_DEBUG */
+
 		ut_ad(dtuple_validate(dtuple));
+		ut_ad(!sync_check_iterate(sync_allowed_latches(latches,
+							       latches + 2)));
 		error = btr_bulk->insert(dtuple);
 
 		if (error != DB_SUCCESS) {
