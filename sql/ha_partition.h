@@ -240,6 +240,7 @@ private:
   bool m_is_sub_partitioned;             // Is subpartitioned
   bool m_ordered_scan_ongoing;
   bool m_rnd_init_and_first;
+  bool m_mrr_is_inited;
 
   /*
     If set, this object was created with ha_partition::clone and doesn't

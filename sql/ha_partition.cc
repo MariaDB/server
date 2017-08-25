@@ -5274,6 +5274,7 @@ int ha_partition::index_init(uint inx, bool sorted)
   m_start_key.length= 0;
   m_ordered= sorted;
   m_ordered_scan_ongoing= FALSE;
+  m_mrr_is_inited= FALSE;
   m_curr_key_info[0]= table->key_info+inx;
   if (m_pkey_is_clustered && table->s->primary_key != MAX_KEY)
   {
@@ -6245,6 +6246,7 @@ calc_cost:
   else
     cost->io_count= read_time(keyno, n_ranges, rows);
   cost->cpu_cost= (double) rows / TIME_FOR_COMPARE + 0.01;
+  m_mrr_is_inited= TRUE;
   DBUG_RETURN(rows);
 }
 
@@ -6282,6 +6284,7 @@ ha_rows ha_partition::multi_range_read_info(uint keyno, uint n_ranges,
     cost->io_count= keyread_time(keyno, n_ranges, (uint) rows);
   else
     cost->io_count= read_time(keyno, n_ranges, rows);
+  m_mrr_is_inited= TRUE;
   DBUG_RETURN(0);
 }
 
@@ -6297,6 +6300,15 @@ int ha_partition::multi_range_read_init(RANGE_SEQ_IF *seq,
   uchar *tmp_buffer;
   DBUG_ENTER("ha_partition::multi_range_read_init");
   DBUG_PRINT("info", ("partition this: %p", this));
+
+  if (!m_mrr_is_inited)
+  {
+    /* sometimes multi_range_read_init is called
+       without multi_range_read_info_const and multi_range_read_info */
+    m_mrr_new_full_buffer_size= 0;
+    bzero(m_mrr_buffer_size, m_tot_parts * sizeof(uint));
+    m_mrr_is_inited= TRUE;
+  }
 
   m_seq_if= seq;
   m_seq= seq->init(seq_init_param, n_ranges, mrr_mode);
@@ -6344,6 +6356,12 @@ int ha_partition::multi_range_read_init(RANGE_SEQ_IF *seq,
         m_mrr_buffer[i].end_of_used_area= tmp_buffer;
         tmp_buffer+= m_mrr_buffer_size[i];
         m_mrr_buffer[i].buffer_end= tmp_buffer;
+      }
+      else
+      {
+        m_mrr_buffer[i].buffer= NULL;
+        m_mrr_buffer[i].end_of_used_area= NULL;
+        m_mrr_buffer[i].buffer_end= NULL;
       }
       if ((error= (*file)->
            multi_range_read_init(&m_part_seq_if,
