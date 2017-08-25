@@ -1,0 +1,520 @@
+create table t1 (a int, b int);
+insert into t1 
+values (1,2), (4,6), (9,7),
+(1,1), (2,5), (7,8);
+create table t2 (a int, b int, c int);
+insert into t2 
+values (1,2,3), (5,1,2), (4,3,7), 
+(8,9,0), (10,7,1), (5,5,1);
+# optimization is not used
+select * from t1 where a in (1,2);
+a	b
+1	2
+1	1
+2	5
+explain select * from t1 where a in (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using where
+explain format=json select * from t1 where a in (1,2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 6,
+      "filtered": 100,
+      "attached_condition": "t1.a in (1,2)"
+    }
+  }
+}
+# set minimum number of values in VALUEs list when optimization works to 2
+set @@in_subquery_conversion_threshold= 2;
+# single IN-predicate in WHERE-part
+select * from t1 where a in (1,2);
+a	b
+1	2
+1	1
+2	5
+select * from t1 
+where a in 
+(
+select * 
+from (values (1),(2)) as new_tvc
+);
+a	b
+1	2
+1	1
+2	5
+explain select * from t1 where a in (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+explain select * from t1 
+where a in 
+(
+select * 
+from (values (1),(2)) as new_tvc
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+explain format=json select * from t1 where a in (1,2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "ALL",
+      "possible_keys": ["distinct_key"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "union_result": {
+                  "table_name": "<unit3>",
+                  "access_type": "ALL",
+                  "query_specifications": [
+                    {
+                      "query_block": {
+                        "select_id": 3,
+                        "table": {
+                          "message": "No tables used"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t1",
+        "access_type": "ALL",
+        "rows": 6,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "t1.a = new_tvc.`1`"
+    }
+  }
+}
+# AND-condition with IN-predicates in WHERE-part
+select * from t1 
+where a in (1,2) and 
+b in (1,5);
+a	b
+1	1
+2	5
+select * from t1 
+where a in 
+(
+select * 
+from (values (1),(2)) as new_tvc
+) 
+and b in
+(
+select * 
+from (values (1),(5)) as new_tvc
+);
+a	b
+1	1
+2	5
+explain select * from t1 
+where a in (1,2) and 
+b in (1,5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery4>	ALL	distinct_key	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+explain select * from t1 
+where a in 
+(
+select * 
+from (values (1),(2)) as new_tvc
+) 
+and b in
+(
+select * 
+from (values (1),(5)) as new_tvc
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery4>	ALL	distinct_key	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+explain format=json select * from t1 
+where a in (1,2) and 
+b in (1,5);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery4>",
+      "access_type": "ALL",
+      "possible_keys": ["distinct_key"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 4,
+          "table": {
+            "table_name": "<derived5>",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "union_result": {
+                  "table_name": "<unit5>",
+                  "access_type": "ALL",
+                  "query_specifications": [
+                    {
+                      "query_block": {
+                        "select_id": 5,
+                        "table": {
+                          "message": "No tables used"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t1",
+        "access_type": "ALL",
+        "rows": 6,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "t1.b = new_tvc.`1`"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "4",
+      "used_key_parts": ["1"],
+      "ref": ["func"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "union_result": {
+                  "table_name": "<unit3>",
+                  "access_type": "ALL",
+                  "query_specifications": [
+                    {
+                      "query_block": {
+                        "select_id": 3,
+                        "table": {
+                          "message": "No tables used"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# OR-condition with IN-predicates in WHERE-part
+select * from t1 
+where a in (1,2) or 
+b in (4,5);
+a	b
+1	2
+1	1
+2	5
+select * from t1 
+where a in 
+(
+select * 
+from (values (1),(2)) as new_tvc
+) 
+or b in
+(
+select * 
+from (values (4),(5)) as new_tvc
+);
+a	b
+1	2
+1	1
+2	5
+explain select * from t1 
+where a in (1,2) or 
+b in (4,5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	Using where
+4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+explain select * from t1 
+where a in 
+(
+select * 
+from (values (1),(2)) as new_tvc
+) 
+or b in
+(
+select * 
+from (values (4),(5)) as new_tvc
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	Using where
+4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+explain format=json select * from t1 
+where a in (1,2) or 
+b in (4,5);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 6,
+      "filtered": 100,
+      "attached_condition": "<in_optimizer>(t1.a,t1.a in (subquery#2)) or <in_optimizer>(t1.b,t1.b in (subquery#4))"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 4,
+          "table": {
+            "table_name": "<derived5>",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "union_result": {
+                  "table_name": "<unit5>",
+                  "access_type": "ALL",
+                  "query_specifications": [
+                    {
+                      "query_block": {
+                        "select_id": 5,
+                        "table": {
+                          "message": "No tables used"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "union_result": {
+                  "table_name": "<unit3>",
+                  "access_type": "ALL",
+                  "query_specifications": [
+                    {
+                      "query_block": {
+                        "select_id": 3,
+                        "table": {
+                          "message": "No tables used"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# subquery with IN-predicate
+select * from t1 
+where a in 
+(
+select a 
+from t2 where b in (3,4)
+)
+;
+a	b
+4	6
+select * from t1 
+where a in (
+select a from t2 
+where b in 
+(
+select * 
+from (values (3),(4)) as new_tvc)
+)
+;
+a	b
+4	6
+explain select * from t1 
+where a in 
+(
+select a 
+from t2 where b in (3,4)
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+explain select * from t1 
+where a in (
+select a from t2 
+where b in 
+(
+select * 
+from (values (3),(4)) as new_tvc)
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+explain format=json select * from t1 
+where a in 
+(
+select a 
+from t2 where b in (3,4)
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 6,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "4",
+      "used_key_parts": ["a"],
+      "ref": ["func"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "union_result": {
+                  "table_name": "<unit4>",
+                  "access_type": "ALL",
+                  "query_specifications": [
+                    {
+                      "query_block": {
+                        "select_id": 4,
+                        "table": {
+                          "message": "No tables used"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "block-nl-join": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 6,
+              "filtered": 100
+            },
+            "buffer_type": "flat",
+            "buffer_size": "256Kb",
+            "join_type": "BNL",
+            "attached_condition": "t2.b = new_tvc.`3`"
+          }
+        }
+      }
+    }
+  }
+}
+drop table t1;
+set @@in_subquery_conversion_threshold= default;
