@@ -2107,7 +2107,7 @@ err_exit:
 			}
 		}
 #ifdef WITH_WSREP
-		if (!referenced                                              &&
+		if (wsrep_on(trx->mysql_thd) && !referenced                  &&
 		    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
 		      ((upd_node_t*)parent)->cascade_node == node)           &&
 		    foreign
@@ -2313,6 +2313,7 @@ row_upd_del_mark_clust_rec(
 #ifdef WITH_WSREP
 	rec_t*		rec;
 	que_node_t *parent = que_node_get_parent(node);
+        trx_t* trx = 	    thr_get_trx(thr);
 #endif /* WITH_WSREP */
 
 	ut_ad(node);
@@ -2348,11 +2349,10 @@ row_upd_del_mark_clust_rec(
 			node, pcur, index->table, index, offsets, thr, mtr);
 	}
 #ifdef WITH_WSREP
-	if (err == DB_SUCCESS && !referenced                         &&
+	if (trx && wsrep_on(trx->mysql_thd)                          &&
+	    err == DB_SUCCESS && !referenced && foreign              &&
 	    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
-	      ((upd_node_t*)parent)->cascade_node == node)           &&
-	    thr_get_trx(thr)                                         &&
-	    foreign
+	      ((upd_node_t*)parent)->cascade_node == node)
 	) {
 		err = wsrep_row_upd_check_foreign_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
