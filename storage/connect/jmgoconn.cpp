@@ -110,8 +110,8 @@ JMgoConn::JMgoConn(PGLOBAL g, PCSZ collname, PCSZ wrapper)
 	deleteid = gcollid =	countid =	rewindid = nullptr;
 	DiscFunc = "MongoDisconnect";
 	Fpc = NULL;
-	m_Version = 0;
 	m_Fetch = 0;
+	m_Ncol = 0;
 	m_Version = 0;
 } // end of JMgoConn
 
@@ -122,13 +122,13 @@ void JMgoConn::AddJars(PSTRG jpop, char sep)
 {
 #if defined(DEVELOPMENT)
 	if (m_Version == 2) {
-		//jpop->Append(sep);
-		//jpop->Append("C:/Eclipse/workspace/MongoWrap2/bin");
+		jpop->Append(sep);
+		jpop->Append("C:/Eclipse/workspace/MongoWrap2/bin");
 		jpop->Append(sep);
 		jpop->Append("C:/mongo-java-driver/mongo-java-driver-2.13.3.jar");
 	} else {
-		//jpop->Append(sep);
-		//jpop->Append("C:/Eclipse/workspace/MongoWrap3/bin");
+		jpop->Append(sep);
+		jpop->Append("C:/Eclipse/workspace/MongoWrap3/bin");
 		jpop->Append(sep);
 		jpop->Append("C:/mongo-java-driver/mongo-java-driver-3.4.2.jar");
 	} // endif m_Version
@@ -495,13 +495,15 @@ int JMgoConn::Fetch(int pos)
 			//else
 			//	m_Fetch++;
 
-			m_Rows += (int)rc;
+			m_Ncol = (int)rc;
+			rc = MY_MIN(rc, 1);
+			m_Rows += rc;
 		} else
 			sprintf(g->Message, "Fetch: %s", Msg);
 
 	//} // endif pos
 
-	return (int)rc;
+	return rc;
 } // end of Fetch
 
 /***********************************************************************/
@@ -730,7 +732,7 @@ int JMgoConn::DocUpdate(PGLOBAL g, PTDB tdbp)
 			return RC_FX;
 
 		if (env->CallBooleanMethod(job, docaddid, updlist, jkey, val))
-			return 0;
+			return RC_OK;
 
 		env->DeleteLocalRef(jkey);
 	}	// endfor colp
@@ -740,7 +742,7 @@ int JMgoConn::DocUpdate(PGLOBAL g, PTDB tdbp)
 	jkey = env->NewStringUTF("$set");
 
 	if (env->CallBooleanMethod(job, docaddid, upd, jkey, updlist))
-		return 0;
+		return RC_OK;
 
 	env->DeleteLocalRef(jkey);
 
@@ -808,4 +810,3 @@ PSZ JMgoConn::GetColumnValue(PSZ path)
 
 	return fld;
 } // end of GetColumnValue
-

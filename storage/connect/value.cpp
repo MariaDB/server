@@ -118,7 +118,8 @@ ulonglong CharToNumber(const char *p, int n, ulonglong maxval,
         maxval++;
         if (minus) *minus = true;
       } // endif Unsigned
-      /* fall through */
+
+			// Fall through
     case '+':
       p++;
       break;
@@ -664,7 +665,7 @@ bool TYPVAL<TYPE>::SetValue_pval(PVAL valp, bool chktype)
     if (chktype && Type != valp->GetType())
       return true;
 
-    if (!(Null = valp->IsNull() && Nullable))
+    if (!(Null = (valp->IsNull() && Nullable)))
       Tval = GetTypedValue(valp);
     else
       Reset();
@@ -1349,7 +1350,7 @@ bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
 
     char buf[64];
 
-    if (!(Null = valp->IsNull() && Nullable))
+    if (!(Null = (valp->IsNull() && Nullable)))
       strncpy(Strp, valp->GetCharString(buf), Len);
     else
       Reset();
@@ -1655,35 +1656,36 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
   int   i;
 
   for (i = 0; i < np; i++)
-    if (vp[i]->IsNull())
-      return false;
-    else
-      p[i] = vp[i]->GetCharString(val[i]);
+    p[i] = vp[i]->IsNull() ? NULL : vp[i]->GetCharString(val[i]);
 
-  switch (op) {
-    case OP_CNC:
-      assert(np == 1 || np == 2);
+	if (p[i-1]) {
+		switch (op) {
+			case OP_CNC:
+				assert(np == 1 || np == 2);
 
-      if (np == 2)
-        SetValue_psz(p[0]);
+				if (np == 2)
+					SetValue_psz(p[0]);
 
-      if ((i = Len - (signed)strlen(Strp)) > 0)
-        strncat(Strp, p[np - 1], i);
+				if ((i = Len - (signed)strlen(Strp)) > 0)
+					strncat(Strp, p[np - 1], i);
 
-      break;
-    case OP_MIN:
-      assert(np == 2);
-      SetValue_psz((strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
-      break;
-    case OP_MAX:
-      assert(np == 2);
-      SetValue_psz((strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
-      break;
-    default:
-      //    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
-      strcpy(g->Message, "Function not supported");
-      return true;
-  } // endswitch op
+				break;
+			case OP_MIN:
+				assert(np == 2);
+				SetValue_psz((strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
+				break;
+			case OP_MAX:
+				assert(np == 2);
+				SetValue_psz((strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
+				break;
+			default:
+				//    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
+				strcpy(g->Message, "Function not supported");
+				return true;
+		} // endswitch op
+
+		Null = false;
+	} // endif p[i]
 
   Null = false;
   return false;
@@ -2566,7 +2568,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 			} else if (valp->GetType() == TYPE_BIGINT &&
 				       !(valp->GetBigintValue() % 1000)) {
 				// Assuming that this timestamp is in milliseconds
-				Tval = valp->GetBigintValue() / 1000;
+				Tval = (int)(valp->GetBigintValue() / 1000);
 			}	else
         Tval = valp->GetIntValue();
 

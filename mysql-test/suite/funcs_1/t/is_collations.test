@@ -9,10 +9,6 @@
 #                   Create this script based on older scripts and new code.
 #
 
-if (`SELECT VERSION() LIKE '%embedded%'`)
-{
-   --skip Bug#37456 funcs_1: Several tests crash when used with embedded server
-}
 let $is_table = COLLATIONS;
 
 # The table INFORMATION_SCHEMA.COLLATIONS must exist
@@ -86,7 +82,7 @@ INSERT INTO information_schema.collations
        (collation_name,character_set_name,id,is_default,is_compiled,sortlen)
 VALUES (  'cp1251_bin',          'cp1251',50,        '',         '',0);
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_DBACCESS_DENIED_ERROR,ER_NON_UPDATABLE_TABLE
 UPDATE information_schema.collations SET description = 'just updated';
 
 --error ER_DBACCESS_DENIED_ERROR

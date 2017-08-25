@@ -1,0 +1,24 @@
+create table t1 (a int) engine=rocksdb;
+# Should have binlog ON
+select @@log_bin;
+@@log_bin
+1
+set binlog_format='row';
+# Should succeed
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+#
+# MDEV-13602: rocksdb.index_merge_rocksdb2 failed in buildbot
+#
+lock tables t1 write;
+insert into t1 values(1);
+unlock tables;
+set @tmp_bf= @@binlog_format;
+set binlog_format='STATEMENT';
+lock tables t1 write;
+insert into t1 values(1);
+ERROR HY000: Can't execute updates on master with binlog_format != ROW.
+unlock tables;
+set @@binlog_format=@tmp_bf;
+drop table t1;

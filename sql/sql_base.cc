@@ -8379,7 +8379,7 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
   if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
       !in_use->killed)
   {
-    in_use->killed= KILL_SYSTEM_THREAD;
+    in_use->set_killed(KILL_SYSTEM_THREAD);
     mysql_mutex_lock(&in_use->mysys_var->mutex);
     if (in_use->mysys_var->current_cond)
     {

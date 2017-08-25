@@ -3668,7 +3668,13 @@ row_drop_table_for_mysql(
 
 		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
-		btr_defragment_remove_table(table);
+		if (btr_defragment_thread_active) {
+			/* During fts_drop_orphaned_tables() in
+			recv_recovery_rollback_active() the
+			btr_defragment_mutex has not yet been
+			initialized by btr_defragment_init(). */
+			btr_defragment_remove_table(table);
+		}
 
 		/* Remove stats for this table and all of its indexes from the
 		persistent storage if it exists and if there are stats for this

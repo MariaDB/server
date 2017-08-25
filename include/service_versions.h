@@ -36,7 +36,7 @@
 #define VERSION_progress_report         0x0100
 #define VERSION_thd_alloc               0x0100
 #define VERSION_thd_autoinc             0x0100
-#define VERSION_thd_error_context       0x0100
+#define VERSION_thd_error_context       0x0200
 #define VERSION_thd_rnd                 0x0100
 #define VERSION_thd_specifics           0x0100
 #define VERSION_thd_timezone            0x0100

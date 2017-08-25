@@ -1,6 +1,5 @@
 usr/bin/mysql_config
-usr/include/mysql/*.h
-usr/include/mysql/psi/*.h
+usr/include/mysql
 usr/lib/*/libmariadb.so
 usr/lib/*/libmariadbclient.a
 usr/lib/*/libmysqlservices.a

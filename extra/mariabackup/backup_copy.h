@@ -31,10 +31,12 @@ copy_file(ds_ctxt_t *datasink,
 	  const char *dst_file_path,
 	  uint thread_n);
 
-bool
-backup_start();
-bool
-backup_finish();
+/** Start --backup */
+bool backup_start();
+/** Release resources after backup_start() */
+void backup_release();
+/** Finish after backup_start() and backup_release() */
+bool backup_finish();
 bool
 apply_log_finish();
 bool

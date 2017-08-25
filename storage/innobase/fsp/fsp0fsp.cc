@@ -436,7 +436,8 @@ xdes_get_descriptor_with_space_hdr(
 		  && (init_space
 		      || space->purpose == FIL_TYPE_TEMPORARY
 		      || (srv_startup_is_before_trx_rollback_phase
-			  && space->id <= srv_undo_tablespaces))));
+			  && (space->id == TRX_SYS_SPACE
+			      || srv_is_undo_tablespace(space->id))))));
 	ut_ad(size == space->size_in_header);
 
 	if ((offset >= size) || (offset >= limit)) {
@@ -504,6 +505,51 @@ xdes_get_descriptor(
 	sp_header = FSP_HEADER_OFFSET + buf_block_get_frame(block);
 	return(xdes_get_descriptor_with_space_hdr(
 		       sp_header, space, offset, mtr));
+}
+
+/** Get the extent descriptor of a page.
+The page where the extent descriptor resides is x-locked. If the page
+offset is equal to the free limit of the space, we will add new
+extents from above the free limit to the space free list, if not free
+limit == space size. This adding is necessary to make the descriptor
+defined, as they are uninitialized above the free limit.
+@param[in]	space		tablespace
+@param[in]	page		descriptor page offset
+@param[in]	offset		page offset
+@param[in]	page_size	page size
+@param[in,out]	mtr		mini-transaction
+@return	the extent descriptor
+@retval	NULL	if the descriptor is not available */
+MY_ATTRIBUTE((warn_unused_result))
+static
+const xdes_t*
+xdes_get_descriptor_const(
+	const fil_space_t*	space,
+	page_no_t		page,
+	page_no_t		offset,
+	const page_size_t&	page_size,
+	mtr_t*			mtr)
+{
+	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_S_LOCK));
+	ut_ad(offset < space->free_limit);
+	ut_ad(offset < space->size_in_header);
+
+	if (buf_block_t* block = buf_page_get(page_id_t(space->id, page),
+					      page_size, RW_S_LATCH, mtr)) {
+		buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
+
+		ut_ad(page != 0 || space->free_limit == mach_read_from_4(
+			      FSP_FREE_LIMIT + FSP_HEADER_OFFSET
+			      + block->frame));
+		ut_ad(page != 0 || space->size_in_header == mach_read_from_4(
+			      FSP_SIZE + FSP_HEADER_OFFSET
+			      + block->frame));
+
+		return(block->frame + XDES_ARR_OFFSET + XDES_SIZE
+		       * xdes_calc_descriptor_index(page_size, offset));
+	}
+
+	return(NULL);
 }
 
 /** Get a pointer to the extent descriptor. The page where the
@@ -611,24 +657,30 @@ fsp_space_modify_check(
 #endif /* UNIV_DEBUG */
 
 /** Initialize a file page.
-@param[in]	space	tablespace
 @param[in,out]	block	file page
 @param[in,out]	mtr	mini-transaction */
-MY_ATTRIBUTE((nonnull))
 static
 void
-fsp_init_file_page(
-	const fil_space_t*	space MY_ATTRIBUTE((unused)),
-	buf_block_t*		block,
-	mtr_t*			mtr)
+fsp_init_file_page(buf_block_t* block, mtr_t* mtr)
 {
-	ut_d(fsp_space_modify_check(space, mtr));
-	ut_ad(space->id == block->page.id.space());
 	fsp_init_file_page_low(block);
 
 	mlog_write_initial_log_record(buf_block_get_frame(block),
 				      MLOG_INIT_FILE_PAGE2, mtr);
 }
+
+#ifdef UNIV_DEBUG
+static
+void
+fsp_init_file_page(const fil_space_t* space, buf_block_t* block, mtr_t* mtr)
+{
+	ut_d(fsp_space_modify_check(space, mtr));
+	ut_ad(space->id == block->page.id.space());
+	fsp_init_file_page(block, mtr);
+}
+#else /* UNIV_DEBUG */
+# define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
+#endif
 
 /***********************************************************//**
 Parses a redo log record of a file page init.
@@ -3149,39 +3201,31 @@ fseg_free_page_func(
 	DBUG_VOID_RETURN;
 }
 
-/**********************************************************************//**
-Checks if a single page of a segment is free.
-@return true if free */
+/** Determine whether a page is free.
+@param[in,out]	space	tablespace
+@param[in]	page	page number
+@return whether the page is marked as free */
 bool
-fseg_page_is_free(
-/*==============*/
-	fseg_header_t*	seg_header,	/*!< in: segment header */
-	ulint		space_id,	/*!< in: space id */
-	ulint		page)		/*!< in: page offset */
+fseg_page_is_free(fil_space_t* space, unsigned page)
 {
+	bool		is_free;
 	mtr_t		mtr;
-	ibool		is_free;
-	xdes_t*		descr;
-	fseg_inode_t*	seg_inode;
+	page_size_t	page_size(space->flags);
+	page_no_t	dpage = xdes_calc_descriptor_page(page_size, page);
 
-	mtr_start(&mtr);
-	const fil_space_t*	space = mtr_x_lock_space(space_id, &mtr);
-	const page_size_t	page_size(space->flags);
+	mtr.start();
+	mtr_s_lock(&space->latch, &mtr);
 
-	seg_inode = fseg_inode_get(seg_header, space_id, page_size, &mtr);
-
-	ut_a(seg_inode);
-	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
-	      == FSEG_MAGIC_N_VALUE);
-	ut_ad(!((page_offset(seg_inode) - FSEG_ARR_OFFSET) % FSEG_INODE_SIZE));
-
-	descr = xdes_get_descriptor(space, page, page_size, &mtr);
-	ut_a(descr);
-
-	is_free = xdes_mtr_get_bit(
-		descr, XDES_FREE_BIT, page % FSP_EXTENT_SIZE, &mtr);
-
-	mtr_commit(&mtr);
+	if (page >= space->free_limit || page >= space->size_in_header) {
+		is_free = true;
+	} else if (const xdes_t* descr = xdes_get_descriptor_const(
+			   space, dpage, page, page_size, &mtr)) {
+		is_free = xdes_get_bit(descr, XDES_FREE_BIT,
+				       page % FSP_EXTENT_SIZE);
+	} else {
+		is_free = true;
+	}
+	mtr.commit();
 
 	return(is_free);
 }
@@ -3563,28 +3607,3 @@ fseg_header::to_stream(std::ostream&	out) const
 	return(out);
 }
 #endif /* UNIV_DEBUG */
-
-/**********************************************************************//**
-Checks if a single page is free.
-@return	true if free */
-UNIV_INTERN
-bool
-fsp_page_is_free_func(
-/*==============*/
-	ulint		space_id,	/*!< in: space id */
-	ulint		page_no,	/*!< in: page offset */
-	mtr_t*		mtr,		/*!< in/out: mini-transaction */
-	const char *file,
-	unsigned line)
-{
-	ut_ad(mtr);
-
-	fil_space_t*		space = mtr_x_lock_space(space_id, mtr);
-	const page_size_t	page_size(space->flags);
-
-	xdes_t* descr = xdes_get_descriptor(space, page_no, page_size, mtr);
-	ut_a(descr);
-
-	return xdes_mtr_get_bit(
-		descr, XDES_FREE_BIT, page_no % FSP_EXTENT_SIZE, mtr);
-}

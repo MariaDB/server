@@ -6063,6 +6063,23 @@ SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
 drop view v1;
 drop table t1,t2;
 
+#
+# MDEV-7828 Assertion `key_read == 0' failed in TABLE::enable_keyread with SELECT SQ and WHERE SQ
+#
+CREATE TABLE t1 (f1 INT, KEY(f1)) ENGINE=MyISAM;
+INSERT t1 VALUES (4),(8);
+CREATE TABLE t2 (f2 INT, KEY(f2)) ENGINE=MyISAM;
+INSERT t2 VALUES (6);
+SELECT (SELECT MAX(sq.f2) FROM t1) FROM (SELECT * FROM t2) AS sq WHERE f2 = 2;
+--echo #
+--echo # Disable this query till MDEV-13399 is resolved
+--echo #
+--echo # INSERT t2 VALUES (9);
+--echo # --error ER_SUBQUERY_NO_1_ROW
+--echo # SELECT (SELECT MAX(sq.f2) FROM t1) FROM (SELECT * FROM t2) AS sq WHERE f2 = 2;
+--echo #
+drop table t1, t2;
+
 --echo # End of 10.0 tests
 
 --echo #

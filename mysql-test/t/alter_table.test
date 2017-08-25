@@ -1801,3 +1801,35 @@ DROP TABLE t1;
 --error ER_DUP_CONSTRAINT_NAME
 CREATE TABLE t1(a INT, b INT, CONSTRAINT min check (a>5),
                               CONSTRAINT min check (b>5));
+
+#
+# MDEV-11114 Cannot drop column referenced by CHECK constraint
+#
+create table t1 (a int, b int, check(a>b));
+--error ER_BAD_FIELD_ERROR
+alter table t1 drop column a;
+--error ER_BAD_FIELD_ERROR
+alter table t1 drop column b, add column b bigint first;
+show create table t1;
+drop table t1;
+
+create table t1 (a int, b int, check(a>0));
+alter table t1 drop column a;
+show create table t1;
+drop table t1;
+
+create table t1 (a int, b int, check(a>0));
+alter table t1 drop column a, add column a bigint first;
+show create table t1;
+drop table t1;
+
+create table t1 (a int, b int, c int, unique(a));
+alter table t1 drop column a;
+show create table t1;
+drop table t1;
+
+create table t1 (a int, b int, c int, unique(a,b));
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+alter table t1 drop column a;
+show create table t1;
+drop table t1;

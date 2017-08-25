@@ -215,6 +215,7 @@ public:
                              void *ref)=0;
   virtual int seek_position(FEDERATEDX_IO_RESULT **io_result,
                             const void *ref)=0;
+  virtual void set_thd(void *thd) { }
 
 };
 
@@ -233,7 +234,7 @@ public:
 
   bool has_connections() const { return txn_list != NULL; }
   bool in_transaction() const { return savepoint_next != 0; }
-  int acquire(FEDERATEDX_SHARE *share, bool readonly, federatedx_io **io);
+  int acquire(FEDERATEDX_SHARE *share, void *thd, bool readonly, federatedx_io **io);
   void release(federatedx_io **io);
   void close(FEDERATEDX_SERVER *);
 

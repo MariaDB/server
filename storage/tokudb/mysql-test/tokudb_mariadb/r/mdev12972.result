@@ -1,0 +1,19 @@
+CREATE TABLE t1 (pk INT PRIMARY KEY, i1 INT, c1 VARCHAR(1), KEY(c1)) ENGINE=TokuDB;
+INSERT INTO t1 VALUES
+(1,2,NULL),(2,5,'x'),(3,3,'i'),(4,1,'e'),(5,4,'p');
+CREATE TABLE t2 (i2 INT) ENGINE=TokuDB;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (i3 INT, c3 VARCHAR(1), KEY(i3)) ENGINE=TokuDB;
+INSERT INTO t3 VALUES
+(1,'e'),(1,'z'),(1,'i'),(1,'q'),(1,'i'),(1,'f'),(1,'m'),(2,'c'),(1,'d'),
+(2,'n'),(1,'t'),(2,'e'),(1,'w'),(2,'y'),(1,'j'),(2,'i'),(1,'f'),(2,'f'),
+(1,'s'),(2,'y');
+SET join_cache_level = 8;
+SET optimizer_switch ='mrr=on,mrr_sort_keys=on,optimize_join_buffer_size=on';
+SELECT * FROM t1 AS t1_outer WHERE EXISTS ( SELECT * FROM t2 WHERE i2 IN ( SELECT i3 FROM t3 INNER JOIN t1 AS t1_inner ON (t1_inner.c1 = c3 ) WHERE t1_inner.i1 < t1_outer.i1 ) );
+pk	i1	c1
+1	2	NULL
+2	5	x
+3	3	i
+5	4	p
+DROP TABLE t1, t2, t3;

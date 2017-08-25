@@ -1469,17 +1469,15 @@ buf_block_init(
 
 	rw_lock_create(PFS_NOT_INSTRUMENTED, &block->lock, SYNC_LEVEL_VARYING);
 
-	ut_d(rw_lock_create(
-			PFS_NOT_INSTRUMENTED,
-			&block->debug_latch, SYNC_NO_ORDER_CHECK));
+	ut_d(rw_lock_create(PFS_NOT_INSTRUMENTED, &block->debug_latch,
+			    SYNC_LEVEL_VARYING));
 
 #else /* PFS_SKIP_BUFFER_MUTEX_RWLOCK || PFS_GROUP_BUFFER_SYNC */
 
 	rw_lock_create(buf_block_lock_key, &block->lock, SYNC_LEVEL_VARYING);
 
-	ut_d(rw_lock_create(
-			buf_block_debug_latch_key,
-			&block->debug_latch, SYNC_NO_ORDER_CHECK));
+	ut_d(rw_lock_create(buf_block_debug_latch_key,
+			    &block->debug_latch, SYNC_LEVEL_VARYING));
 
 #endif /* PFS_SKIP_BUFFER_MUTEX_RWLOCK || PFS_GROUP_BUFFER_SYNC */
 

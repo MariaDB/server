@@ -25,18 +25,16 @@
 //efine MAX_DNAME_LEN    256    // Max size of Recordset names
 //efine MAX_CONNECT_LEN  512    // Max size of Connect string
 //efine MAX_CURSOR_NAME  18     // Max size of a cursor name
-#define DEFAULT_FIELD_TYPE 0    // TYPE_NULL
+//efine DEFAULT_FIELD_TYPE 0    // TYPE_NULL
 
 #if !defined(__WIN__)
 typedef unsigned char *PUCHAR;
 #endif   // !__WIN__
 
 enum JCATINFO {
-	CAT_TAB = 1,      // JDBC Tables
-	CAT_COL = 2,      // JDBC Columns
-	CAT_KEY = 3,      // JDBC PrimaryKeys
-//CAT_STAT = 4,     // SQLStatistics
-//CAT_SPC = 5       // SQLSpecialColumns
+	JCAT_TAB = 1,      // JDBC Tables
+	JCAT_COL = 2,      // JDBC Columns
+	JCAT_KEY = 3,      // JDBC PrimaryKeys
 };
 
 /***********************************************************************/
@@ -63,6 +61,7 @@ class JAVAConn;
 /***********************************************************************/
 class JAVAConn : public BLOCK {
 	friend class TDBJMG;
+	friend class JMGDISC;
 private:
 	JAVAConn();                      // Standard (unused) constructor
 
@@ -120,6 +119,7 @@ protected:
 	jclass    jdi;											// Pointer to the java wrapper class
 	jobject   job;											// The java wrapper class object
 	jmethodID errid;										// The GetErrmsg method ID
+	PFBLOCK   fp;
 	bool      m_Opened;
 	bool      m_Connected;
 	PCSZ      DiscFunc;

@@ -320,14 +320,22 @@ my_error_innodb(
 	case DB_CORRUPTION:
 		my_error(ER_NOT_KEYFILE, MYF(0), table);
 		break;
-	case DB_TOO_BIG_RECORD:
-		/* We limit max record size to 16k for 64k page size. */
-		my_error(ER_TOO_BIG_ROWSIZE, MYF(0),
-			 srv_page_size == UNIV_PAGE_SIZE_MAX
-			 ? REC_MAX_DATA_SIZE - 1
-			 : page_get_free_space_of_empty(
-				 flags & DICT_TF_COMPACT) / 2);
+	case DB_TOO_BIG_RECORD: {
+		/* Note that in page0zip.ic page_zip_rec_needs_ext() rec_size
+		is limited to COMPRESSED_REC_MAX_DATA_SIZE (16K) or
+		REDUNDANT_REC_MAX_DATA_SIZE (16K-1). */
+		bool comp = !!(flags & DICT_TF_COMPACT);
+		ulint free_space = page_get_free_space_of_empty(comp) / 2;
+
+		if (free_space >= (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+					  REDUNDANT_REC_MAX_DATA_SIZE)) {
+			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
+		}
+
+		my_error(ER_TOO_BIG_ROWSIZE, MYF(0), free_space);
 		break;
+	}
 	case DB_INVALID_NULL:
 		/* TODO: report the row, as we do for DB_DUPLICATE_KEY */
 		my_error(ER_INVALID_USE_OF_NULL, MYF(0));
@@ -3294,8 +3302,8 @@ innobase_pk_col_prefix_compare(
 	ulint	new_prefix_len,
 	ulint	old_prefix_len)
 {
-	ut_ad(new_prefix_len < REC_MAX_DATA_SIZE);
-	ut_ad(old_prefix_len < REC_MAX_DATA_SIZE);
+	ut_ad(new_prefix_len < COMPRESSED_REC_MAX_DATA_SIZE);
+	ut_ad(old_prefix_len < COMPRESSED_REC_MAX_DATA_SIZE);
 
 	if (new_prefix_len == old_prefix_len) {
 		return(0);
@@ -6373,6 +6381,7 @@ ha_innobase::inplace_alter_table(
 	DBUG_ENTER("inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
 
+	ut_ad(!sync_check_iterate(sync_check()));
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
 

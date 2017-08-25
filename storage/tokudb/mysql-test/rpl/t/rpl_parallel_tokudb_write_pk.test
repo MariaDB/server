@@ -22,7 +22,6 @@ connection master;
 # select @@autocommit;
 eval create table t (a bigint not null, primary key(a)) engine=$engine;
 # show create table t;
-select unix_timestamp() into @tstart;
 insert into t values (1);
 insert into t values (2),(3);
 insert into t values (4);
@@ -30,8 +29,7 @@ insert into t values (4);
 sync_slave_with_master;
 # source include/sync_slave_sql_with_master.inc;
 
-#connection master;
-#select unix_timestamp()-@tstart;
+connection master;
 
 connection slave;
 # insert into t values (5); # test read-only

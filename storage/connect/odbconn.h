@@ -27,7 +27,7 @@
 //efine MAX_DNAME_LEN    256    // Max size of Recordset names
 #define MAX_CONNECT_LEN  1024   // Max size of Connect string
 //efine MAX_CURSOR_NAME  18     // Max size of a cursor name
-#define DEFAULT_FIELD_TYPE SQL_TYPE_NULL // pick "C" data type to match SQL data type
+//efine DEFAULT_FIELD_TYPE SQL_TYPE_NULL // pick "C" data type to match SQL data type
 
 #if !defined(__WIN__)
 typedef unsigned char *PUCHAR;
@@ -105,7 +105,7 @@ class DBX : public BLOCK {
 class ODBConn : public BLOCK {
   friend class TDBODBC;
   friend class DBX;
-  friend PQRYRES GetColumnInfo(PGLOBAL, char*&, char *, int, PVBLK&);
+//friend PQRYRES GetColumnInfo(PGLOBAL, char*&, char *, int, PVBLK&);
  private:
   ODBConn();                      // Standard (unused) constructor
 
@@ -169,7 +169,7 @@ class ODBConn : public BLOCK {
   bool DriverConnect(DWORD Options);
   void VerifyConnect(void);
   void GetConnectInfo(void);
-  void Free(void);
+//void Free(void);
 
  protected:
   // Static members
@@ -187,7 +187,8 @@ class ODBConn : public BLOCK {
   DWORD    m_UpdateOptions;
   DWORD    m_RowsetSize;
   char     m_IDQuoteChar[2];
-  PCSZ     m_Connect;
+	PFBLOCK  m_Fp;
+	PCSZ     m_Connect;
   PCSZ     m_User;
   PCSZ     m_Pwd;
   int      m_Catver;

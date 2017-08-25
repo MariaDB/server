@@ -37,3 +37,14 @@ disconnect con1;
 connection default;
 select * from t1;
 drop table t1;
+
+#
+# MDEV-13435 Crash when selecting virtual columns generated using JSON functions
+#
+create table t1 (
+  id int  not null ,
+  js varchar(1000) not null,
+  t time AS (cast(json_value(json_extract(js,concat('$.singleDay."', dayname(curdate()),'"')),'$.start') as time)) virtual);
+insert  into t1(id,js) values (0, '{"default" : {"start": "00:00:00", "end":"23:59:50"}}');
+select * from t1;
+drop table t1;

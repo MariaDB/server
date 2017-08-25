@@ -199,9 +199,17 @@ struct trx_rseg_t {
 	bool is_persistent() const
 	{
 		ut_ad(space == SRV_TMP_SPACE_ID
-		      || space <= TRX_SYS_MAX_UNDO_SPACES);
+		      || space == TRX_SYS_SPACE
+		      || (srv_undo_space_id_start > 0
+			  && space >= srv_undo_space_id_start
+			  && space <= srv_undo_space_id_start
+			  + TRX_SYS_MAX_UNDO_SPACES));
 		ut_ad(space == SRV_TMP_SPACE_ID
-		      || space <= srv_undo_tablespaces_active
+		      || space == TRX_SYS_SPACE
+		      || (srv_undo_space_id_start > 0
+			  && space >= srv_undo_space_id_start
+			  && space <= srv_undo_space_id_start
+			  + srv_undo_tablespaces_active)
 		      || !srv_was_started);
 		return(space != SRV_TMP_SPACE_ID);
 	}

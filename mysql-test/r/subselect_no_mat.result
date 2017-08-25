@@ -7194,6 +7194,21 @@ SELECT ( SELECT MAX(f1) FROM t2 ) FROM t1;
 ERROR 21000: Subquery returns more than 1 row
 drop view v1;
 drop table t1,t2;
+CREATE TABLE t1 (f1 INT, KEY(f1)) ENGINE=MyISAM;
+INSERT t1 VALUES (4),(8);
+CREATE TABLE t2 (f2 INT, KEY(f2)) ENGINE=MyISAM;
+INSERT t2 VALUES (6);
+SELECT (SELECT MAX(sq.f2) FROM t1) FROM (SELECT * FROM t2) AS sq WHERE f2 = 2;
+(SELECT MAX(sq.f2) FROM t1)
+NULL
+#
+# Disable this query till MDEV-13399 is resolved
+#
+# INSERT t2 VALUES (9);
+# --error ER_SUBQUERY_NO_1_ROW
+# SELECT (SELECT MAX(sq.f2) FROM t1) FROM (SELECT * FROM t2) AS sq WHERE f2 = 2;
+#
+drop table t1, t2;
 # End of 10.0 tests
 #
 # MDEV-9487: Server crashes in Time_and_counter_tracker::incr_loops

@@ -9,11 +9,6 @@
 #                   Create this script based on older scripts and new code.
 #
 
-if (`SELECT VERSION() LIKE '%embedded%'`)
-{
-   --skip Bug#37456 funcs_1: Several tests crash when used with embedded server
-}
-
 let $is_table = CHARACTER_SETS;
 
 # The table INFORMATION_SCHEMA.CHARACTER_SETS must exist
@@ -82,7 +77,7 @@ CREATE DATABASE db_datadict;
 INSERT INTO information_schema.character_sets
 SELECT * FROM information_schema.character_sets;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_DBACCESS_DENIED_ERROR,ER_NON_UPDATABLE_TABLE
 UPDATE information_schema.character_sets SET description = 'just updated';
 
 --error ER_DBACCESS_DENIED_ERROR

@@ -124,6 +124,7 @@ JAVAConn::JAVAConn(PGLOBAL g, PCSZ wrapper)
 		m_Wrap = strcat(strcpy(wn, "wrappers/"), m_Wrap);
 	} // endif m_Wrap
 
+	fp = NULL;
 	m_Opened = false;
 	m_Connected = false;
 	m_Rows = 0;
@@ -567,6 +568,24 @@ bool JAVAConn::Open(PGLOBAL g)
 		return true;
 	} // endif Check
 
+	/*********************************************************************/
+	/*  Link a Fblock. This make possible to automatically close it      */
+	/*  in case of error (throw).                                        */
+	/*********************************************************************/
+	PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
+
+	fp = (PFBLOCK)PlugSubAlloc(g, NULL, sizeof(FBLOCK));
+	fp->Type = TYPE_FB_JAVA;
+	fp->Fname = NULL;
+	fp->Next = dbuserp->Openlist;
+	dbuserp->Openlist = fp;
+	fp->Count = 1;
+	fp->Length = 0;
+	fp->Memory = NULL;
+	fp->Mode = MODE_ANY;
+	fp->File = this;
+	fp->Handle = 0;
+
 	m_Opened = true;
 	return false;
 } // end of Open
@@ -594,6 +613,9 @@ void JAVAConn::Close()
 
 	if ((rc = jvm->DetachCurrentThread()) != JNI_OK)
 		printf("DetachCurrentThread: rc=%d\n", (int)rc);
+
+	if (fp)
+		fp->Count = 0;
 
 	m_Opened = false;
 } // end of Close

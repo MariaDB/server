@@ -3881,7 +3881,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 #endif
 
     DBUG_EXECUTE_IF("bug11747970_raise_error",
-                    { join->thd->killed= KILL_QUERY_HARD; });
+                    { join->thd->set_killed(KILL_QUERY_HARD); });
     if (error)
     {
       table->file->print_error(error, MYF(0));
@@ -16867,7 +16867,12 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   Field **tmp_from_field=from_field;
   while ((item=li++))
   {
-    Item::Type type=item->type();
+    Item::Type type= item->type();
+    if (type == Item::COPY_STR_ITEM)
+    {
+      item= ((Item_copy *)item)->get_item();
+      type= item->type();
+    }
     if (not_all_columns)
     {
       if (item->with_sum_func && type != Item::SUM_FUNC_ITEM)

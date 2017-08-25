@@ -1,17 +1,3 @@
-IF(NOT EXISTS ${CMAKE_SOURCE_DIR}/libmariadb/CMakeLists.txt AND GIT_EXECUTABLE)
-  EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule init
-                  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
-  EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule update
-                  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
-ENDIF()
-IF(NOT EXISTS ${CMAKE_SOURCE_DIR}/libmariadb/CMakeLists.txt)
-  MESSAGE(FATAL_ERROR "No MariaDB Connector/C! Run
-    git submodule init
-    git submodule update
-Then restart the build.
-")
-ENDIF()
-
 SET(OPT CONC_)
 
 IF (CMAKE_BUILD_TYPE STREQUAL "Debug")

@@ -1335,16 +1335,6 @@ dict_stats_analyze_index_level(
 	mem_heap_free(heap);
 }
 
-/* aux enum for controlling the behavior of dict_stats_scan_page() @{ */
-enum page_scan_method_t {
-	/** scan the records on the given page, counting the number
-	of distinct ones; @see srv_stats_include_delete_marked */
-	COUNT_ALL_NON_BORING,
-	/** quit on the first record that differs from its right neighbor */
-	QUIT_ON_FIRST_NON_BORING
-};
-/* @} */
-
 /** Scan a page, reading records from left to right and counting the number
 of distinct records (looking only at the first n_prefix
 columns) and the number of external pages pointed by records from this page.
@@ -1361,7 +1351,7 @@ be big enough)
 @param[in]	index			index of the page
 @param[in]	page			the page to scan
 @param[in]	n_prefix		look at the first n_prefix columns
-@param[in]	scan_method		scan to the end of the page or not
+@param[in]	is_leaf			whether this is the leaf page
 @param[out]	n_diff			number of distinct records encountered
 @param[out]	n_external_pages	if this is non-NULL then it will be set
 to the number of externally stored pages which were encountered
@@ -1376,7 +1366,7 @@ dict_stats_scan_page(
 	const dict_index_t*	index,
 	const page_t*		page,
 	ulint			n_prefix,
-	page_scan_method_t	scan_method,
+	bool			is_leaf,
 	ib_uint64_t*		n_diff,
 	ib_uint64_t*		n_external_pages)
 {
@@ -1388,8 +1378,9 @@ dict_stats_scan_page(
 	Because offsets1,offsets2 should be big enough,
 	this memory heap should never be used. */
 	mem_heap_t*	heap			= NULL;
+	ut_ad(is_leaf == page_is_leaf(page));
 	const rec_t*	(*get_next)(const rec_t*)
-		= srv_stats_include_delete_marked
+		= !is_leaf || srv_stats_include_delete_marked
 		? page_rec_get_next_const
 		: page_rec_get_next_non_del_marked;
 
@@ -1440,7 +1431,7 @@ dict_stats_scan_page(
 
 			(*n_diff)++;
 
-			if (scan_method == QUIT_ON_FIRST_NON_BORING) {
+			if (!is_leaf) {
 				break;
 			}
 		}
@@ -1566,7 +1557,7 @@ dict_stats_analyze_index_below_cur(
 		/* search for the first non-boring record on the page */
 		offsets_rec = dict_stats_scan_page(
 			&rec, offsets1, offsets2, index, page, n_prefix,
-			QUIT_ON_FIRST_NON_BORING, n_diff, NULL);
+			false, n_diff, NULL);
 
 		/* pages on level > 0 are not allowed to be empty */
 		ut_a(offsets_rec != NULL);
@@ -1611,7 +1602,7 @@ dict_stats_analyze_index_below_cur(
 
 	offsets_rec = dict_stats_scan_page(
 		&rec, offsets1, offsets2, index, page, n_prefix,
-		COUNT_ALL_NON_BORING, n_diff,
+		true, n_diff,
 		n_external_pages);
 
 #if 0

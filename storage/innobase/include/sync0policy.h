@@ -61,7 +61,7 @@ public:
 			:
 			latch_t(id)
 		{
-			/* No op */
+			ut_ad(id != LATCH_ID_NONE);
 		}
 
 		/** Set to locked state

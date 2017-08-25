@@ -3065,7 +3065,7 @@ trx_set_rw_mode(
 	ut_ad(!trx->in_rw_trx_list);
 	ut_ad(!trx_is_autocommit_non_locking(trx));
 
-	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
+	if (high_level_read_only) {
 		return;
 	}
 

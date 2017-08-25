@@ -232,12 +232,6 @@ eval $my_select;
 ALTER TABLE db_datadict.t1_my_tablex ADD UNIQUE my_idx (f4,first_col);
 eval $my_select;
 #
-# Check DROP COLUMN
-eval $my_select;
-ALTER TABLE db_datadict.t1_my_tablex
-DROP COLUMN first_col;
-eval $my_select;
-#
 # Check impact of DROP TABLE
 SELECT table_name, column_name
 FROM information_schema.key_column_usage
@@ -328,7 +322,7 @@ if (!$mysql_errno)
 INSERT INTO information_schema.key_column_usage
 SELECT * FROM information_schema.key_column_usage;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_DBACCESS_DENIED_ERROR,ER_NON_UPDATABLE_TABLE
 UPDATE information_schema.key_column_usage
 SET  table_name = 'db1' WHERE constraint_name = 'primary';
 

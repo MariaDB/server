@@ -48,6 +48,8 @@
 #include "user_connect.h"
 #include "mycat.h"
 
+extern pthread_mutex_t usrmut;
+
 /****************************************************************************/
 /*  Initialize the user_connect static member.                              */
 /****************************************************************************/
@@ -112,7 +114,10 @@ bool user_connect::user_init()
 
     int rc= PlugExit(g);
     g= NULL;
-    free(dup);
+
+		if (dup)
+	    free(dup);
+
     return true;
     } // endif g->
 
@@ -123,14 +128,18 @@ bool user_connect::user_init()
   strcpy(ap->Ap_Name, "CONNECT");
   g->Activityp= ap;
   g->Activityp->Aptr= dup;
+
+	pthread_mutex_lock(&usrmut);
   next= to_users;
   to_users= this;
 
   if (next)
     next->previous= this;
 
-  last_query_id= thdp->query_id;
-  count= 1;
+	count = 1;
+	pthread_mutex_unlock(&usrmut);
+
+	last_query_id= thdp->query_id;
   return false;
 } // end of user_init
 
@@ -153,10 +162,17 @@ bool user_connect::CheckCleanup(bool force)
     PlugCleanup(g, true);
 
     if (g->Sarea_Size != worksize) {
-      if (g->Sarea)
-        free(g->Sarea);
+			if (g->Sarea) {
+#if !defined(DEVELOPMENT)
+				if (trace)
+#endif
+					htrc("CheckCleanup: Free Sarea at %p size=%d\n",
+																g->Sarea, g->Sarea_Size);
 
-      // Check whether the work area size was changed
+				free(g->Sarea);
+			}	// endif Size
+
+      // Check whether the work area could be allocated
       if (!(g->Sarea = PlugAllocMem(g, worksize))) {
         g->Sarea = PlugAllocMem(g, g->Sarea_Size);
         SetWorkSize(g->Sarea_Size);       // Was too big

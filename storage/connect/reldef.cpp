@@ -228,10 +228,10 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat,
   {
   int   poff = 0;
 
-  Name = (PSZ)name;
-	Schema = (PSZ)schema;
+	Hc = ((MYCAT*)cat)->GetHandler();
+	Name = (PSZ)name;
+	Schema = (PSZ)Hc->GetDBName(schema);
   Cat = cat;
-  Hc = ((MYCAT*)cat)->GetHandler();
   Catfunc = GetFuncID(GetStringCatInfo(g, "Catfunc", NULL));
   Elemt = GetIntCatInfo("Elements", 0);
   Multiple = GetIntCatInfo("Multiple", 0);

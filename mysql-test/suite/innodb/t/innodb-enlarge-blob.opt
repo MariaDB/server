@@ -1,0 +1,6 @@
+--innodb-file-per-table
+--innodb-file-format='Barracuda'
+--innodb-buffer-pool-size=32M
+--innodb-log-file-size=32M
+--innodb-strict-mode=OFF
+

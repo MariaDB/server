@@ -22,6 +22,7 @@
 #ifndef _m_string_h
 #define _m_string_h
 
+#include "my_global.h"                          /* HAVE_* */
 #include "my_decimal_limits.h"
 
 #ifndef __USE_GNU

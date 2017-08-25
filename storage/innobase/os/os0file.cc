@@ -857,17 +857,29 @@ os_file_get_block_size(
 		sizeof(disk_alignment),
 		&tmp);
 
-	CloseHandle(volume_handle);
-
 	if (!result) {
-		os_file_handle_error_no_exit(volume,
-			"DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY)", FALSE);
+		if (GetLastError() == ERROR_INVALID_FUNCTION) {
+			// Don't report error, it is driver's fault, not ours or users.
+			// We handle this with fallback. Report wit info message, just once.
+			static bool write_info = true;
+			if (write_info) {
+				ib::info() << "DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY)"
+					<< " unsupported on volume " << volume;
+				write_info = false;
+			}
+		} else {
+				os_file_handle_error_no_exit(volume,
+					"DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY)", FALSE);
+		}
 		goto end;
 	}
 
 	fblock_size = disk_alignment.BytesPerPhysicalSector;
 
 end:
+	if (volume_handle != INVALID_HANDLE_VALUE) {
+		CloseHandle(volume_handle);
+	}
 #endif /* _WIN32 */
 
 	/* Currently we support file block size up to 4Kb */
