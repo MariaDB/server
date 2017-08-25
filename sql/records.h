@@ -55,7 +55,7 @@ struct READ_RECORD
   //handler *file;
   TABLE **forms;                                /* head and ref forms */
   Unlock_row_func unlock_row;
-  Read_func read_record;
+  Read_func read_record_func;
   THD *thd;
   SQL_SELECT *select;
   uint cache_records;
@@ -69,6 +69,8 @@ struct READ_RECORD
   struct st_io_cache *io_cache;
   bool print_error, ignore_not_found_rows;
   void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *);
+
+  int read_record() { return read_record_func(this); }
 
   /* 
     SJ-Materialization runtime may need to read fields from the materialized

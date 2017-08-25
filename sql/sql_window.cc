@@ -740,7 +740,7 @@ public:
   void init(READ_RECORD *info)
   {
     ref_length= info->ref_length;
-    if (info->read_record == rr_from_pointers)
+    if (info->read_record_func == rr_from_pointers)
     {
       io_cache= NULL;
       cache_start= info->cache_pos;
@@ -2700,7 +2700,7 @@ bool compute_window_func(THD *thd,
 
   while (true)
   {
-    if ((err= info.read_record(&info)))
+    if ((err= info.read_record()))
       break; // End of file.
 
     /* Remember current row so that we can restore it before computing

@@ -3373,7 +3373,7 @@ int JOIN_TAB_SCAN::next()
   if (is_first_record)
     is_first_record= FALSE;
   else
-    err= info->read_record(info);
+    err= info->read_record();
 
   if (!err)
   {
@@ -3388,7 +3388,7 @@ int JOIN_TAB_SCAN::next()
       Move to the next record if the last retrieved record does not
       meet the condition pushed to the table join_tab.
     */
-    err= info->read_record(info);
+    err= info->read_record();
     if (!err)
     {
       join_tab->tracker->r_rows++;

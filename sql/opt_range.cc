@@ -11042,7 +11042,7 @@ int QUICK_INDEX_MERGE_SELECT::get_next()
   if (doing_pk_scan)
     DBUG_RETURN(pk_quick_select->get_next());
 
-  if ((result= read_record.read_record(&read_record)) == -1)
+  if ((result= read_record.read_record()) == -1)
   {
     result= HA_ERR_END_OF_FILE;
     end_read_record(&read_record);
@@ -11078,7 +11078,7 @@ int QUICK_INDEX_INTERSECT_SELECT::get_next()
   int result;
   DBUG_ENTER("QUICK_INDEX_INTERSECT_SELECT::get_next");
 
-  if ((result= read_record.read_record(&read_record)) == -1)
+  if ((result= read_record.read_record()) == -1)
   {
     result= HA_ERR_END_OF_FILE;
     end_read_record(&read_record);

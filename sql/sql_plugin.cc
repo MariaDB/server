@@ -1840,7 +1840,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     goto end;
   }
   table->use_all_columns();
-  while (!(error= read_record_info.read_record(&read_record_info)))
+  while (!(error= read_record_info.read_record()))
   {
     DBUG_PRINT("info", ("init plugin record"));
     String str_name, str_dl;
