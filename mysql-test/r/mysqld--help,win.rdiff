@@ -45,22 +45,19 @@
   --standard-compliant-cte 
   Allow only CTEs compliant to SQL standard
   (Defaults to on; use --skip-standard-compliant-cte to disable.)
-@@ -1134,8 +1142,12 @@
+@@ -1134,6 +1142,11 @@
   --thread-pool-max-threads=# 
   Maximum allowed number of worker threads in the thread
   pool
-- --thread-pool-oversubscribe=# 
-- How many additional active worker threads in a group are
 + --thread-pool-min-threads=# 
 + Minimum number of threads in the thread pool.
 + --thread-pool-mode=name 
 + Chose implementation of the threadpool. One of: windows, 
 + generic
-+ --thread-pool-oversubscribe=#  How many additional active worker threads in a group are
+  --thread-pool-oversubscribe=# 
+  How many additional active worker threads in a group are
   allowed.
-  --thread-pool-prio-kickup-timer=# 
-  The number of milliseconds before a dequeued low-priority
-@@ -1172,8 +1184,8 @@
+@@ -1172,8 +1185,8 @@
   automatically convert it to an on-disk MyISAM or Aria
   table.
   -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
@@ -71,7 +68,7 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -1298,7 +1310,6 @@
+@@ -1298,7 +1311,6 @@
  key-cache-division-limit 100
  key-cache-file-hash-size 512
  key-cache-segments 0
@@ -79,7 +76,7 @@
  lc-messages en_US
  lc-messages-dir MYSQL_SHAREDIR/
  lc-time-names en_US
-@@ -1368,6 +1379,7 @@
+@@ -1368,6 +1380,7 @@
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
  mysql56-temporal-format TRUE
@@ -87,7 +84,7 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1469,6 +1481,8 @@
+@@ -1469,6 +1482,8 @@
  session-track-state-change FALSE
  session-track-system-variables 
  session-track-transaction-info OFF
@@ -96,7 +93,7 @@
  show-slave-auth-info FALSE
  silent-startup FALSE
  skip-grant-tables TRUE
-@@ -1493,6 +1507,7 @@
+@@ -1493,6 +1508,7 @@
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
@@ -104,7 +101,7 @@
  sort-buffer-size 2097152
  sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  stack-trace TRUE
-@@ -1506,14 +1521,16 @@
+@@ -1506,14 +1522,16 @@
  sync-relay-log 10000
  sync-relay-log-info 10000
  sysdate-is-now FALSE
