@@ -28,18 +28,6 @@
 
 #include <boost/tuple/tuple.hpp>
 
-/* This is needed as boost undef's isfinite */
-#ifndef isfinite
-#ifdef HAVE_FINITE
-#define isfinite(x) finite(x)
-#else
-#define isfinite(x) (1.0 / fabs(x) > 0.0)
-#endif /* HAVE_FINITE */
-#elif (__cplusplus >= 201103L)
-#include <cmath>
-static inline bool isfinite(double x) { return std::isfinite(x); }
-#endif /* isfinite */
-
 #include "unireg.h"
 #include "sql_base.h"
 #include "table.h"
