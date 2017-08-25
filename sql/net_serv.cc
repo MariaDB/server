@@ -882,8 +882,10 @@ static handle_proxy_header_result handle_proxy_header(NET *net)
     /* proxy header indicates LOCAL connection, no action necessary */
     return RETRY;
   /* Change peer address in THD and ACL structures.*/
+  uint host_errors;
   return (handle_proxy_header_result)thd_set_peer_addr(thd,
-                         &(peer_info.peer_addr), NULL, peer_info.port, false);
+                         &(peer_info.peer_addr), NULL, peer_info.port,
+                         false, &host_errors);
 #endif
 }
 

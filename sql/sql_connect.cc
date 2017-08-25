@@ -837,10 +837,34 @@ bool init_new_connection_handler_thread()
   return 0;
 }
 
-int thd_set_peer_addr(THD *thd, sockaddr_storage *addr, const char *ip,uint port, bool check_proxy_networks)
+/**
+  Set client address during authentication.
+
+  Initializes THD::main_security_ctx and THD::peer_port.
+  Optionally does ip to hostname translation.
+
+  @param thd   current THD handle
+  @param addr  peer address (can be NULL, if 'ip' is set)
+  @param ip    peer address as string (can be NULL if 'addr' is set)
+  @param port  peer port
+  @param check_proxy_networks if true, and host is in
+               'proxy_protocol_networks' list, skip
+               "host not privileged" check
+  @param[out] host_errors - number of connect
+              errors for this host
+
+  @retval 0 ok, 1 error
+*/
+int thd_set_peer_addr(THD *thd,
+  sockaddr_storage *addr,
+  const char *ip,
+  uint port,
+  bool check_proxy_networks,
+  uint *host_errors)
 {
-  uint connect_errors;
-  thd->peer_port = port;
+  *host_errors= 0;
+
+  thd->peer_port= port;
 
   char ip_string[128];
   if (!ip)
@@ -886,7 +910,7 @@ int thd_set_peer_addr(THD *thd, sockaddr_storage *addr, const char *ip,uint port
     rc = ip_to_hostname(addr,
       thd->main_security_ctx.ip,
       &thd->main_security_ctx.host,
-      &connect_errors);
+      host_errors);
 
     /* Cut very long hostnames to avoid possible overflows */
     if (thd->main_security_ctx.host)
@@ -1027,7 +1051,8 @@ static int check_connection(THD *thd)
       return 1;
     }
 
-    if (thd_set_peer_addr(thd, &net->vio->remote, ip, peer_port, true))
+    if (thd_set_peer_addr(thd, &net->vio->remote, ip, peer_port,
+                          true, &connect_errors))
       return 1;
   }
   else /* Hostname given means that the connection was on a socket */
