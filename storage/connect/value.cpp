@@ -236,6 +236,7 @@ bool IsTypeChar(int type)
   switch (type) {
     case TYPE_STRING:
     case TYPE_DECIM:
+		case TYPE_BIN:
       return true;
     } // endswitch type
 
@@ -1857,8 +1858,9 @@ int DECVAL::CompareValue(PVAL vp)
 BINVAL::BINVAL(PGLOBAL g, void *p, int cl, int n) : VALUE(TYPE_BIN)
   {
   assert(g);
-  Len = n;
-  Clen = cl;
+//Len = n;
+	Len = (g) ? n : (p) ? strlen((char*)p) : 0;
+	Clen = cl;
 	Binp = PlugSubAlloc(g, NULL, Clen + 1);
   memset(Binp, 0, Clen + 1);
 
@@ -1991,10 +1993,15 @@ bool BINVAL::SetValue_pval(PVAL valp, bool chktype)
       return true;
 
     if (!(Null = valp->IsNull() && Nullable)) {
-      if ((rc = (Len = valp->GetSize()) > Clen))
+			int len = Len;
+
+			if ((rc = (Len = valp->GetSize()) > Clen))
         Len = Clen;
+			else if (len > Len)
+				memset(Binp, 0, len);
 
       memcpy(Binp, valp->GetTo_Val(), Len);
+			((char*)Binp)[Len] = 0;
     } else
       Reset();
 
@@ -2011,10 +2018,15 @@ bool BINVAL::SetValue_char(const char *p, int n)
   bool rc;
 
   if (p && n > 0) {
-    rc = n > Clen;
-    Len = MY_MIN(n, Clen);
-    memcpy(Binp, p, Len);
-    Null = false;
+		int len = Len;
+
+    if (len > (Len = MY_MIN(n, Clen)))
+			memset(Binp, 0, len);
+
+		memcpy(Binp, p, Len);
+		((char*)Binp)[Len] = 0;
+		rc = n > Clen;
+		Null = false;
   } else {
     rc = false;
     Reset();
@@ -2030,9 +2042,14 @@ bool BINVAL::SetValue_char(const char *p, int n)
 void BINVAL::SetValue_psz(PCSZ s)
   {
   if (s) {
-    Len = MY_MIN(Clen, (signed)strlen(s));
-    memcpy(Binp, s, Len);
-    Null = false;
+		int len = Len;
+
+		if (len > (Len = MY_MIN(Clen, (signed)strlen(s))))
+			memset(Binp, 0, len);
+
+		memcpy(Binp, s, Len);
+		((char*)Binp)[Len] = 0;
+		Null = false;
   } else {
     Reset();
     Null = Nullable;
@@ -2052,14 +2069,19 @@ void BINVAL::SetValue_pvblk(PVBLK blk, int n)
     Reset();
     Null = Nullable;
   } else if (vp != Binp) {
+		int len = Len;
+
     if (blk->GetType() == TYPE_STRING)
       Len = strlen((char*)vp);
     else
       Len = blk->GetVlen();
 
-    Len = MY_MIN(Clen, Len);
+    if (len > (Len = MY_MIN(Clen, Len)))
+			memset(Binp, 0, len);
+
     memcpy(Binp, vp, Len);
-    Null = false;
+		((char*)Binp)[Len] = 0;
+		Null = false;
   } // endif vp
 
   } // end of SetValue_pvblk
@@ -2070,7 +2092,10 @@ void BINVAL::SetValue_pvblk(PVBLK blk, int n)
 void BINVAL::SetValue(int n)
   {
   if (Clen >= 4) {
-    *((int*)Binp) = n;
+		if (Len > 4)
+			memset(Binp, 0, Len);
+
+		*((int*)Binp) = n;
     Len = 4;
   } else
     SetValue((short)n);
@@ -2083,7 +2108,10 @@ void BINVAL::SetValue(int n)
 void BINVAL::SetValue(uint n)
   {
   if (Clen >= 4) {
-    *((uint*)Binp) = n;
+		if (Len > 4)
+			memset(Binp, 0, Len);
+
+		*((uint*)Binp) = n;
     Len = 4;
   } else
     SetValue((ushort)n);
@@ -2096,7 +2124,10 @@ void BINVAL::SetValue(uint n)
 void BINVAL::SetValue(short i)
   {
   if (Clen >= 2) {
-    *((int*)Binp) = i;
+		if (Len > 2)
+			memset(Binp, 0, Len);
+
+		*((int*)Binp) = i;
     Len = 2;
   } else
     SetValue((char)i);
@@ -2109,7 +2140,10 @@ void BINVAL::SetValue(short i)
 void BINVAL::SetValue(ushort i)
   {
   if (Clen >= 2) {
-    *((uint*)Binp) = i;
+		if (Len > 2)
+			memset(Binp, 0, Len);
+
+		*((uint*)Binp) = i;
     Len = 2;
   } else
     SetValue((uchar)i);
@@ -2122,7 +2156,10 @@ void BINVAL::SetValue(ushort i)
 void BINVAL::SetValue(longlong n)
   {
   if (Clen >= 8) {
-    *((longlong*)Binp) = n;
+		if (Len > 8)
+			memset(Binp, 0, Len);
+
+		*((longlong*)Binp) = n;
     Len = 8;
   } else
     SetValue((int)n);
@@ -2135,7 +2172,10 @@ void BINVAL::SetValue(longlong n)
 void BINVAL::SetValue(ulonglong n)
   {
   if (Clen >= 8) {
-    *((ulonglong*)Binp) = n;
+		if (Len > 8)
+			memset(Binp, 0, Len);
+
+		*((ulonglong*)Binp) = n;
     Len = 8;
   } else
     SetValue((uint)n);
@@ -2146,6 +2186,9 @@ void BINVAL::SetValue(ulonglong n)
 /***********************************************************************/
 void BINVAL::SetValue(double n)
   {
+	if (Len > 8)
+	  memset(Binp, 0, Len);
+
   if (Clen >= 8) {
     *((double*)Binp) = n;
     Len = 8;
@@ -2162,7 +2205,10 @@ void BINVAL::SetValue(double n)
 /***********************************************************************/
 void BINVAL::SetValue(char c)
   {
-  *((char*)Binp) = c;
+	if (Len > 1)
+		memset(Binp, 0, Len);
+
+	*((char*)Binp) = c;
   Len = 1;
   } // end of SetValue
 
@@ -2171,7 +2217,10 @@ void BINVAL::SetValue(char c)
 /***********************************************************************/
 void BINVAL::SetValue(uchar c)
   {
-  *((uchar*)Binp) = c;
+	if (Len > 1)
+		memset(Binp, 0, Len);
+
+	*((uchar*)Binp) = c;
   Len = 1;
   } // end of SetValue
 
@@ -2181,6 +2230,7 @@ void BINVAL::SetValue(uchar c)
 void BINVAL::SetBinValue(void *p)
   {
   memcpy(Binp, p, Clen);
+	Len = Clen;
   } // end of SetBinValue
 
 /***********************************************************************/
@@ -2206,10 +2256,11 @@ bool BINVAL::GetBinValue(void *buf, int buflen, bool go)
 /***********************************************************************/
 char *BINVAL::ShowValue(char *buf, int len)
   {
-  int n = MY_MIN(Len, len / 2);
+  //int n = MY_MIN(Len, len / 2);
 
-  sprintf(buf, GetXfmt(), n, Binp);
-  return buf;
+  //sprintf(buf, GetXfmt(), n, Binp);
+  //return buf;
+	return (char*)Binp;
   } // end of ShowValue
 
 /***********************************************************************/

@@ -1285,9 +1285,15 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
 		else
 			opval= GetListOption(xp->g, opname, options->oplist);
 
-  } else if (!stricmp(opname, "Query_String"))
-    opval= thd_query_string(table->in_use)->str;
-  else if (!stricmp(opname, "Partname"))
+	} else if (!stricmp(opname, "Query_String")) {
+//  This escapes everything and returns a wrong query 
+//	opval = thd_query_string(table->in_use)->str;
+		size_t len = thd_query_string(table->in_use)->length;
+
+		opval = (PCSZ)PlugSubAlloc(xp->g, NULL, len + 1);
+		sprintf((char*)opval, "%s", thd_query_string(table->in_use)->str);
+		((char*)opval)[len] = 0;
+	} else if (!stricmp(opname, "Partname"))
     opval= partname;
   else if (!stricmp(opname, "Table_charset")) {
     const CHARSET_INFO *chif= (tshp) ? tshp->table_charset 
@@ -1501,8 +1507,9 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 
   switch (pcf->Type) {
     case TYPE_STRING:
-      // Do something for case
-      cp= fp->charset()->name;
+		case TYPE_BIN:
+			// Do something for case
+      cp= chset;
 
       // Find if collation name ends by _ci
       if (!strcmp(cp + strlen(cp) - 3, "_ci")) {
@@ -2114,6 +2121,11 @@ int ha_connect::MakeRecord(char *buf)
             charset= tdbp->data_charset();
             rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
             break;
+					case TYPE_BIN:
+						p = value->GetCharValue();
+						charset = &my_charset_bin;
+						rc = fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
+						break;
           case TYPE_DOUBLE:
             rc= fp->store(value->GetFloatValue());
             break;

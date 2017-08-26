@@ -146,6 +146,7 @@ class DllExport TDBTBM : public TDBTBL {
 
  protected:
   // Internal functions
+	bool  IsLocal(PTABLE tbp);
   bool  OpenTables(PGLOBAL g);
   int   ReadNextRemote(PGLOBAL g);
 
