@@ -669,6 +669,9 @@ bool TDBTBM::OpenTables(PGLOBAL g)
       // Remove remote table from the local list
       *ptabp = tabp->Next;
 
+			if (trace)
+				htrc("=====> New remote table %s\n", tabp->GetName());
+
       // Make the remote table block
       tp = (PTBMT)PlugSubAlloc(g, NULL, sizeof(TBMT));
       memset(tp, 0, sizeof(TBMT));
@@ -692,7 +695,10 @@ bool TDBTBM::OpenTables(PGLOBAL g)
       ptp = &tp->Next;
       Nrc++;         // Number of remote connections
     } else {
-      ptabp = &tabp->Next;
+			if (trace)
+				htrc("=====> Local table %s\n", tabp->GetName());
+
+			ptabp = &tabp->Next;
       Nlc++;         // Number of local connections
     } // endif Type
 

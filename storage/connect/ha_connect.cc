@@ -1288,11 +1288,10 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
 	} else if (!stricmp(opname, "Query_String")) {
 //  This escapes everything and returns a wrong query 
 //	opval = thd_query_string(table->in_use)->str;
-		size_t len = thd_query_string(table->in_use)->length;
-
-		opval = (PCSZ)PlugSubAlloc(xp->g, NULL, len + 1);
-		sprintf((char*)opval, "%s", thd_query_string(table->in_use)->str);
-		((char*)opval)[len] = 0;
+		opval = (PCSZ)PlugSubAlloc(xp->g, NULL, 
+			thd_query_string(table->in_use)->length + 1);
+		strcpy((char*)opval, thd_query_string(table->in_use)->str);
+//	sprintf((char*)opval, "%s", thd_query_string(table->in_use)->str);
 	} else if (!stricmp(opname, "Partname"))
     opval= partname;
   else if (!stricmp(opname, "Table_charset")) {
