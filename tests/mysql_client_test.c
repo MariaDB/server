@@ -19678,7 +19678,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   size_t header_lengths[2];
   int i;
 
-  // normalize IPv4-mapped IPv6 addresses, e.g ::ffff:192.168.0.1 to 192.168.0.1
+  // normalize IPv4-mapped IPv6 addresses, e.g ::ffff:127.0.0.2 to 127.0.0.2
   const char *normalized_addr= strncmp(ipaddr, "::ffff:", 7)?ipaddr : ipaddr + 7;
 
   memset(&v2_header, 0, sizeof(v2_header));
@@ -19736,6 +19736,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
     mytest(result);
     row = mysql_fetch_row(result);
     addrlen = strlen(normalized_addr);
+    printf("%.*s %.*s\n", (int)addrlen, row[0], (int)addrlen, normalized_addr);
     DIE_UNLESS(strncmp(row[0], normalized_addr, addrlen) == 0);
     DIE_UNLESS(atoi(row[0] + addrlen+1) == port);
     mysql_close(m);
@@ -19804,9 +19805,9 @@ static void test_proxy_header_ignore()
 
 static void test_proxy_header()
 {
-  test_proxy_header_tcp("192.168.0.1",3333);
+  test_proxy_header_tcp("127.0.0.2",3333);
   test_proxy_header_tcp("2001:db8:85a3::8a2e:370:7334",2222);
-  test_proxy_header_tcp("::ffff:192.168.0.1",2222);
+  test_proxy_header_tcp("::ffff:127.0.0.2",2222);
   test_proxy_header_localhost();
   test_proxy_header_ignore();
 }
