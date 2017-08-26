@@ -7,16 +7,13 @@ call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the
 SELECT @@innodb_page_size;
 
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
-let $innodb_file_format = `SELECT @@innodb_file_format`;
 let $innodb_strict_mode = `SELECT @@innodb_strict_mode`;
 
 --disable_warnings
-SET GLOBAL innodb_file_format='Barracuda';
 SET GLOBAL innodb_file_per_table=ON;
 SET @@innodb_strict_mode=ON;
 --enable_warnings
 
-SELECT @@innodb_file_format;
 SELECT @@innodb_file_per_table;
 SELECT @@innodb_strict_mode;
 
@@ -597,7 +594,6 @@ DROP TABLE t;
 # cleanup
 --disable_query_log
 --disable_warnings
-eval SET GLOBAL INNODB_FILE_FORMAT=$innodb_file_format;
 eval SET GLOBAL INNODB_FILE_PER_TABLE=$innodb_file_per_table;
 eval SET GLOBAL INNODB_STRICT_MODE=$innodb_strict_mode;
 --enable_warnings

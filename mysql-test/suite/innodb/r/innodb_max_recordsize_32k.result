@@ -2,12 +2,8 @@ call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the
 SELECT @@innodb_page_size;
 @@innodb_page_size
 32768
-SET GLOBAL innodb_file_format='Barracuda';
 SET GLOBAL innodb_file_per_table=ON;
 SET @@innodb_strict_mode=ON;
-SELECT @@innodb_file_format;
-@@innodb_file_format
-Barracuda
 SELECT @@innodb_file_per_table;
 @@innodb_file_per_table
 1
