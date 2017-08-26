@@ -19805,9 +19805,9 @@ static void test_proxy_header_ignore()
 
 static void test_proxy_header()
 {
-  test_proxy_header_tcp("127.0.0.2",3333);
+  test_proxy_header_tcp("192.0.2.1",3333);
   test_proxy_header_tcp("2001:db8:85a3::8a2e:370:7334",2222);
-  test_proxy_header_tcp("::ffff:127.0.0.2",2222);
+  test_proxy_header_tcp("::ffff:192.0.2.1",2222);
   test_proxy_header_localhost();
   test_proxy_header_ignore();
 }
