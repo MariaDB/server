@@ -94,6 +94,7 @@ public:
   virtual void   SetIndx(PIXDEF) {}
   virtual bool   IsHuge(void) {return false;}
   const CHARSET_INFO *data_charset() {return m_data_charset;}
+	const   char  *GetCsName(void) {return csname;}
 
   // Methods
           int  GetColCatInfo(PGLOBAL g);

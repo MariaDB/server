@@ -986,108 +986,108 @@ DELETE FROM t1;
 INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	sixty
-81	eighty one
-72	seventy two
-11	eleven
-1	one
-35	thirty five
-8	eight
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	sixty           
+81	eighty one      
+72	seventy two     
+11	eleven          
+1	one             
+35	thirty five     
+8	eight           
 UPDATE t1 SET msg = 'bof' WHERE id = 35;
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	sixty
-81	eighty one
-72	seventy two
-11	eleven
-1	one
-35	bof
-8	eight
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	sixty           
+81	eighty one      
+72	seventy two     
+11	eleven          
+1	one             
+35	bof             
+8	eight           
 UPDATE t1 SET msg = 'big' WHERE id > 50;
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	big
-81	big
-72	big
-11	eleven
-1	one
-35	bof
-8	eight
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	big             
+81	big             
+72	big             
+11	eleven          
+1	one             
+35	bof             
+8	eight           
 UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	updated
-81	big
-72	updated
-11	eleven
-1	one
-35	updated
-8	updated
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	updated         
+81	big             
+72	updated         
+11	eleven          
+1	one             
+35	updated         
+8	updated         
 UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	twin
-40	forty
-60	updated
-81	twin
-72	updated
-11	eleven
-1	one
-35	updated
-8	updated
+4	four            
+7	seven           
+10	twin            
+40	forty           
+60	updated         
+81	twin            
+72	updated         
+11	eleven          
+1	one             
+35	updated         
+8	updated         
 UPDATE t1 SET msg = 'sixty' WHERE id = 60;
 SELECT * FROM t1 WHERE id = 60;
 id	msg
-60	sixty
+60	sixty           
 DELETE FROM t1 WHERE id = 4;
 SELECT * FROM t1;
 id	msg
-7	seven
-10	twin
-40	forty
-60	sixty
-81	twin
-72	updated
-11	eleven
-1	one
-35	updated
-8	updated
+7	seven           
+10	twin            
+40	forty           
+60	sixty           
+81	twin            
+72	updated         
+11	eleven          
+1	one             
+35	updated         
+8	updated         
 DELETE FROM t1 WHERE id IN (40,11,35);
 SELECT * FROM t1;
 id	msg
-7	seven
-10	twin
-60	sixty
-81	twin
-72	updated
-1	one
-8	updated
+7	seven           
+10	twin            
+60	sixty           
+81	twin            
+72	updated         
+1	one             
+8	updated         
 DELETE FROM t1 WHERE id IN (4,60,1);
 SELECT msg FROM t1;
 msg
-seven
-twin
-twin
-updated
-updated
+seven           
+twin            
+twin            
+updated         
+updated         
 DELETE FROM t1 WHERE id IN (81,72);
 SELECT id FROM t1;
 id
@@ -1097,7 +1097,7 @@ id
 DELETE FROM t1 WHERE id IN (7,10);
 SELECT * FROM t1;
 id	msg
-8	updated
+8	updated         
 DELETE FROM t1 WHERE id = 8;
 SELECT * FROM t1;
 id	msg
@@ -1106,108 +1106,108 @@ DELETE FROM t1;
 INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	sixty
-81	eighty one
-72	seventy two
-11	eleven
-1	one
-35	thirty five
-8	eight
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	sixty           
+81	eighty one      
+72	seventy two     
+11	eleven          
+1	one             
+35	thirty five     
+8	eight           
 UPDATE t1 SET msg = 'bof' WHERE id = 35;
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	sixty
-81	eighty one
-72	seventy two
-11	eleven
-1	one
-35	bof
-8	eight
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	sixty           
+81	eighty one      
+72	seventy two     
+11	eleven          
+1	one             
+35	bof             
+8	eight           
 UPDATE t1 SET msg = 'big' WHERE id > 50;
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	big
-81	big
-72	big
-11	eleven
-1	one
-35	bof
-8	eight
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	big             
+81	big             
+72	big             
+11	eleven          
+1	one             
+35	bof             
+8	eight           
 UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	updated
-81	big
-72	updated
-11	eleven
-1	one
-35	updated
-8	updated
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	updated         
+81	big             
+72	updated         
+11	eleven          
+1	one             
+35	updated         
+8	updated         
 UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	twin
-40	forty
-60	updated
-81	twin
-72	updated
-11	eleven
-1	one
-35	updated
-8	updated
+4	four            
+7	seven           
+10	twin            
+40	forty           
+60	updated         
+81	twin            
+72	updated         
+11	eleven          
+1	one             
+35	updated         
+8	updated         
 UPDATE t1 SET msg = 'sixty' WHERE id = 60;
 SELECT * FROM t1 WHERE id = 60;
 id	msg
-60	sixty
+60	sixty           
 DELETE FROM t1 WHERE id = 4;
 SELECT * FROM t1;
 id	msg
-7	seven
-10	twin
-40	forty
-60	sixty
-81	twin
-72	updated
-11	eleven
-1	one
-35	updated
-8	updated
+7	seven           
+10	twin            
+40	forty           
+60	sixty           
+81	twin            
+72	updated         
+11	eleven          
+1	one             
+35	updated         
+8	updated         
 DELETE FROM t1 WHERE id IN (40,11,35);
 SELECT * FROM t1;
 id	msg
-7	seven
-10	twin
-60	sixty
-81	twin
-72	updated
-1	one
-8	updated
+7	seven           
+10	twin            
+60	sixty           
+81	twin            
+72	updated         
+1	one             
+8	updated         
 DELETE FROM t1 WHERE id IN (4,60,1);
 SELECT msg FROM t1;
 msg
-seven
-twin
-twin
-updated
-updated
+seven           
+twin            
+twin            
+updated         
+updated         
 DELETE FROM t1 WHERE id IN (81,72);
 SELECT id FROM t1;
 id
@@ -1217,7 +1217,7 @@ id
 DELETE FROM t1 WHERE id IN (7,10);
 SELECT * FROM t1;
 id	msg
-8	updated
+8	updated         
 DELETE FROM t1 WHERE id = 8;
 SELECT * FROM t1;
 id	msg
@@ -1226,108 +1226,108 @@ DELETE FROM t1;
 INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	sixty
-81	eighty one
-72	seventy two
-11	eleven
-1	one
-35	thirty five
-8	eight
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	sixty           
+81	eighty one      
+72	seventy two     
+11	eleven          
+1	one             
+35	thirty five     
+8	eight           
 UPDATE t1 SET msg = 'bof' WHERE id = 35;
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	sixty
-81	eighty one
-72	seventy two
-11	eleven
-1	one
-35	bof
-8	eight
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	sixty           
+81	eighty one      
+72	seventy two     
+11	eleven          
+1	one             
+35	bof             
+8	eight           
 UPDATE t1 SET msg = 'big' WHERE id > 50;
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	big
-81	big
-72	big
-11	eleven
-1	one
-35	bof
-8	eight
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	big             
+81	big             
+72	big             
+11	eleven          
+1	one             
+35	bof             
+8	eight           
 UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	ten
-40	forty
-60	updated
-81	big
-72	updated
-11	eleven
-1	one
-35	updated
-8	updated
+4	four            
+7	seven           
+10	ten             
+40	forty           
+60	updated         
+81	big             
+72	updated         
+11	eleven          
+1	one             
+35	updated         
+8	updated         
 UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
 SELECT * FROM t1;
 id	msg
-4	four
-7	seven
-10	twin
-40	forty
-60	updated
-81	twin
-72	updated
-11	eleven
-1	one
-35	updated
-8	updated
+4	four            
+7	seven           
+10	twin            
+40	forty           
+60	updated         
+81	twin            
+72	updated         
+11	eleven          
+1	one             
+35	updated         
+8	updated         
 UPDATE t1 SET msg = 'sixty' WHERE id = 60;
 SELECT * FROM t1 WHERE id = 60;
 id	msg
-60	sixty
+60	sixty           
 DELETE FROM t1 WHERE id = 4;
 SELECT * FROM t1;
 id	msg
-7	seven
-10	twin
-40	forty
-60	sixty
-81	twin
-72	updated
-11	eleven
-1	one
-35	updated
-8	updated
+7	seven           
+10	twin            
+40	forty           
+60	sixty           
+81	twin            
+72	updated         
+11	eleven          
+1	one             
+35	updated         
+8	updated         
 DELETE FROM t1 WHERE id IN (40,11,35);
 SELECT * FROM t1;
 id	msg
-7	seven
-10	twin
-60	sixty
-81	twin
-72	updated
-1	one
-8	updated
+7	seven           
+10	twin            
+60	sixty           
+81	twin            
+72	updated         
+1	one             
+8	updated         
 DELETE FROM t1 WHERE id IN (4,60,1);
 SELECT msg FROM t1;
 msg
-seven
-twin
-twin
-updated
-updated
+seven           
+twin            
+twin            
+updated         
+updated         
 DELETE FROM t1 WHERE id IN (81,72);
 SELECT id FROM t1;
 id
@@ -1337,7 +1337,7 @@ id
 DELETE FROM t1 WHERE id IN (7,10);
 SELECT * FROM t1;
 id	msg
-8	updated
+8	updated         
 DELETE FROM t1 WHERE id = 8;
 SELECT * FROM t1;
 id	msg

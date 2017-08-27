@@ -214,7 +214,7 @@ class TYPBLK : public VALBLK {
 class CHRBLK : public VALBLK {
  public:
   // Constructors
-  CHRBLK(void *mp, int size, int len, int prec, bool b);
+  CHRBLK(void *mp, int size, int type, int len, int prec, bool b);
 
   // Implementation
   virtual bool   Init(PGLOBAL g, bool check);
@@ -267,7 +267,7 @@ class CHRBLK : public VALBLK {
 class STRBLK : public VALBLK {
  public:
   // Constructors
-  STRBLK(PGLOBAL g, void *mp, int size);
+  STRBLK(PGLOBAL g, void *mp, int size, int type);
 
   // Implementation
   virtual void   SetNull(int n, bool b) {if (b) {Strp[n] = NULL;}}
@@ -345,7 +345,7 @@ class PTRBLK : public STRBLK {
                                               bool, bool, bool);
  protected:
   // Constructors
-  PTRBLK(PGLOBAL g, void *mp, int size) : STRBLK(g, mp, size) {}
+  PTRBLK(PGLOBAL g, void *mp, int size) : STRBLK(g, mp, size, TYPE_PCHAR) {}
 
   // Implementation
 

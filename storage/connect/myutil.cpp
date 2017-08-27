@@ -218,7 +218,7 @@ int MYSQLtoPLG(int mytype, char *var)
     case MYSQL_TYPE_VARCHAR:
 #endif   // !ALPHA)
     case MYSQL_TYPE_STRING:
-      type = TYPE_STRING;
+      type = (*var == 'B') ? TYPE_BIN : TYPE_STRING;
       break;
     case MYSQL_TYPE_BLOB:
     case MYSQL_TYPE_TINY_BLOB:
@@ -232,7 +232,7 @@ int MYSQLtoPLG(int mytype, char *var)
               type = TYPE_STRING;
               *var = 'X';
             } else
-              type = TYPE_ERROR;
+              type = TYPE_BIN;
  
             break;
           case TPC_SKIP:
