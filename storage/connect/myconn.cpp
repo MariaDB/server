@@ -472,7 +472,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             int pt, const char *csname)
   {
   const char *pipe = NULL;
-  uint        cto = 6000, nrt = 12000;
+  uint        cto = 10, nrt = 20;
   my_bool     my_true= 1;
 
   m_DB = mysql_init(NULL);
@@ -525,7 +525,8 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
                   (char*)&my_true);
 
-  if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe, CLIENT_MULTI_RESULTS)) {
+  if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe,
+		CLIENT_MULTI_RESULTS | CLIENT_REMEMBER_OPTIONS)) {
 #if defined(_DEBUG)
     sprintf(g->Message, "mysql_real_connect failed: (%d) %s",
                         mysql_errno(m_DB), mysql_error(m_DB));
