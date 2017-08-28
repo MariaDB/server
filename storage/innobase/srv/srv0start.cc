@@ -850,7 +850,7 @@ open_or_create_data_files(
 	ibool		one_created	= FALSE;
 	os_offset_t	size;
 	ulint		flags;
-	ulint		space;
+	ulint		space=0;
 	ulint		rounded_size_pages;
 	char		name[10000];
 	fil_space_crypt_t*    crypt_data=NULL;
@@ -1332,11 +1332,30 @@ srv_undo_tablespace_open(
 		size = os_file_get_size(fh);
 		ut_a(size != (os_offset_t) -1);
 
+		/* Load the tablespace into InnoDB's internal
+		data structures. */
+
+		const char* check_msg;
+		fil_space_crypt_t* crypt_data = NULL;
+
+		/* Set the compressed page size to 0 (non-compressed) */
+		flags = FSP_FLAGS_PAGE_SSIZE();
+
+		/* Read first page to find out does the crypt_info
+		exists on undo tablespace. */
+		check_msg = fil_read_first_page(
+				fh, FALSE, &flags, &space,
+				NULL, &crypt_data, false);
+
 		ret = os_file_close(fh);
 		ut_a(ret);
 
-		/* Load the tablespace into InnoDB's internal
-		data structures. */
+		if (check_msg) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"%s in data file %s",
+				check_msg, name);
+			return (err);
+		}
 
 		/* We set the biggest space id to the undo tablespace
 		because InnoDB hasn't opened any other tablespace apart
@@ -1344,10 +1363,8 @@ srv_undo_tablespace_open(
 
 		fil_set_max_space_id_if_bigger(space);
 
-		/* Set the compressed page size to 0 (non-compressed) */
-		flags = FSP_FLAGS_PAGE_SSIZE();
 		fil_space_create(name, space, flags, FIL_TABLESPACE,
-				NULL /* no encryption */,
+				crypt_data,
 				true /* create */);
 
 		ut_a(fil_validate());

@@ -1,3 +1,5 @@
+call mtr.add_suppression("InnoDB: New log files created");
+call mtr.add_suppression("InnoDB: Creating foreign key constraint system tables.");
 SET @start_global_value = @@global.innodb_encryption_threads;
 SHOW VARIABLES LIKE 'innodb_encrypt%';
 Variable_name	Value

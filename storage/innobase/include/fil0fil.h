@@ -802,6 +802,8 @@ the first page of a first data file at database startup.
 					data files
 @param[out]	flushed_lsn		flushed lsn value
 @param[out]	crypt_data		encryption crypt data
+@param[in]	check_first_page	true if first page contents
+					should be checked
 @retval NULL on success, or if innodb_force_recovery is set
 @return pointer to an error message string */
 UNIV_INTERN
@@ -816,7 +818,8 @@ fil_read_first_page(
 	ulint*		max_arch_log_no,
 #endif /* UNIV_LOG_ARCHIVE */
 	lsn_t*		flushed_lsn,
-	fil_space_crypt_t**   crypt_data)
+	fil_space_crypt_t**   crypt_data,
+	bool		check_first_page=true)
 	MY_ATTRIBUTE((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 

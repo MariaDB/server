@@ -2372,8 +2372,10 @@ the first page of a first data file at database startup.
 @param[out]	space_id		tablepspace ID
 @param[out]	flushed_lsn		flushed lsn value
 @param[out]	crypt_data		encryption crypt data
-@retval NULL on success, or if innodb_force_recovery is set
-@return pointer to an error message string */
+@param[in]	check_first_page	true if first page contents
+					should be checked
+@return NULL on success, or if innodb_force_recovery is set
+@retval pointer to an error message string */
 UNIV_INTERN
 const char*
 fil_read_first_page(
@@ -2382,7 +2384,8 @@ fil_read_first_page(
 	ulint*		flags,
 	ulint*		space_id,
 	lsn_t*		flushed_lsn,
-	fil_space_crypt_t**   crypt_data)
+	fil_space_crypt_t**   crypt_data,
+	bool		check_first_page)
 {
 	byte*		buf;
 	byte*		page;
@@ -2418,28 +2421,32 @@ fil_read_first_page(
 	*flags and *space_id as they were read from the first file and
 	do not validate the first page. */
 	if (!one_read_already) {
-		*space_id = fsp_header_get_space_id(page);
-		*flags = fsp_header_get_flags(page);
+		/* Undo tablespace does not contain correct FSP_HEADER,
+		and actually we really need to read only crypt_data. */
+		if (check_first_page) {
+			*space_id = fsp_header_get_space_id(page);
+			*flags = fsp_header_get_flags(page);
 
-		if (flushed_lsn) {
-			*flushed_lsn = mach_read_from_8(page +
+			if (flushed_lsn) {
+				*flushed_lsn = mach_read_from_8(page +
 				       FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-		}
-
-		if (!fsp_flags_is_valid(*flags, *space_id)) {
-			ulint cflags = fsp_flags_convert_from_101(*flags);
-			if (cflags == ULINT_UNDEFINED) {
-				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Invalid flags 0x%x in tablespace %u",
-					unsigned(*flags), unsigned(*space_id));
-				return "invalid tablespace flags";
-			} else {
-				*flags = cflags;
 			}
-		}
 
-		if (!(IS_XTRABACKUP() && srv_backup_mode)) {
-			check_msg = fil_check_first_page(page, *space_id, *flags);
+			if (!fsp_flags_is_valid(*flags, *space_id)) {
+				ulint cflags = fsp_flags_convert_from_101(*flags);
+				if (cflags == ULINT_UNDEFINED) {
+					ib_logf(IB_LOG_LEVEL_ERROR,
+						"Invalid flags 0x%x in tablespace %u",
+						unsigned(*flags), unsigned(*space_id));
+					return "invalid tablespace flags";
+				} else {
+					*flags = cflags;
+				}
+			}
+
+			if (!(IS_XTRABACKUP() && srv_backup_mode)) {
+				check_msg = fil_check_first_page(page, *space_id, *flags);
+			}
 		}
 
 		/* Possible encryption crypt data is also stored only to first page

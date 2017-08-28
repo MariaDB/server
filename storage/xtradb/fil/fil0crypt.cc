@@ -191,7 +191,12 @@ fil_crypt_get_latest_key_version(
 				crypt_data->min_key_version,
 				key_version,
 				srv_fil_crypt_rotate_key_age)) {
-			os_event_set(fil_crypt_threads_event);
+			/* Below event seen as NULL-pointer at startup
+			when new database was created and we create a
+			checkpoint. Only seen when debugging. */
+			if (fil_crypt_threads_inited) {
+				os_event_set(fil_crypt_threads_event);
+			}
 		}
 	}
 
