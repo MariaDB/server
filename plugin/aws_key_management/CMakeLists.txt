@@ -20,6 +20,7 @@ MACRO(SKIP_AWS_PLUGIN msg)
   ENDIF()
   RETURN()
 ENDMACRO()
+SET(CMAKE_CXX_STANDARD 11)
 
 MYSQL_ADD_PLUGIN(aws_key_management aws_key_management_plugin.cc DISABLED
                  COMPONENT aws-key-management)
