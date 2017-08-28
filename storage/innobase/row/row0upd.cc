@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2300,17 +2300,18 @@ row_upd_sec_index_entry(
 			    "before_row_upd_sec_index_entry");
 
 	mtr_start_trx(&mtr, trx);
-	mtr.set_named_space(index->space);
 
-	/* Disable REDO logging as lifetime of temp-tables is limited to
-	server or connection lifetime and so REDO information is not needed
-	on restart for recovery.
-	Disable locking as temp-tables are not shared across connection. */
-	if (dict_table_is_temporary(index->table)) {
-		flags = BTR_NO_LOCKING_FLAG;
+	switch (index->space) {
+	case SRV_TMP_SPACE_ID:
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-	} else {
+		flags = BTR_NO_LOCKING_FLAG;
+		break;
+	default:
+		mtr.set_named_space(index->space);
+		/* fall through */
+	case IBUF_SPACE_ID:
 		flags = 0;
+		break;
 	}
 
 	if (!index->is_committed()) {

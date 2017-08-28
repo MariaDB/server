@@ -2107,15 +2107,6 @@ fseg_create_general(
 		fil_block_check_type(block, type, mtr);
 	}
 
-	if (rw_lock_get_x_lock_count(&space->latch) == 1) {
-		/* This thread did not own the latch before this call: free
-		excess pages from the insert buffer free list */
-
-		if (space_id == IBUF_SPACE_ID) {
-			ibuf_free_excess_pages();
-		}
-	}
-
 	if (!has_done_reservation
 	    && !fsp_reserve_free_extents(&n_reserved, space_id, 2,
 					 FSP_NORMAL, mtr)) {
@@ -2698,15 +2689,6 @@ fseg_alloc_free_page_general(
 	space_id = page_get_space_id(page_align(seg_header));
 	space = mtr_x_lock_space(space_id, mtr);
 	const page_size_t	page_size(space->flags);
-
-	if (rw_lock_get_x_lock_count(&space->latch) == 1) {
-		/* This thread did not own the latch before this call: free
-		excess pages from the insert buffer free list */
-
-		if (space_id == IBUF_SPACE_ID) {
-			ibuf_free_excess_pages();
-		}
-	}
 
 	inode = fseg_inode_get(seg_header, space_id, page_size, mtr, &iblock);
 	fil_block_check_type(iblock, FIL_PAGE_INODE, mtr);
