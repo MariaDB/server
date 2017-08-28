@@ -2,6 +2,7 @@
 # MDEV-12288 Reset DB_TRX_ID when the history is removed,
 # to speed up MVCC
 #
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 CREATE TABLE t1(a INT PRIMARY KEY, b INT NOT NULL)
 ROW_FORMAT=REDUNDANT ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1,2),(3,4);

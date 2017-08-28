@@ -9,6 +9,8 @@ let MYSQLD_DATADIR=`select @@datadir`;
 --echo # to speed up MVCC
 --echo #
 
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
 CREATE TABLE t1(a INT PRIMARY KEY, b INT NOT NULL)
 ROW_FORMAT=REDUNDANT ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1,2),(3,4);
