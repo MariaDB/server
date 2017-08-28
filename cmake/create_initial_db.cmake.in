@@ -82,7 +82,3 @@ EXECUTE_PROCESS (
 IF(NOT RESULT EQUAL 0)
   MESSAGE(FATAL_ERROR "Could not create initial database \n ${OUT} \n ${ERR}")
 ENDIF()
- 
-EXECUTE_PROCESS (  
-  COMMAND "@CMAKE_COMMAND@" -E touch ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
-)
