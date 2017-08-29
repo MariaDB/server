@@ -7490,3 +7490,5 @@ ER_WRONG_INSERT_INTO_SEQUENCE
         eng "Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a squence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead."
 ER_SP_STACK_TRACE
         eng "At line %u in %s"
+ER_WRONG_NUMBER_OF_COLUMNS_IN_TABLE_VALUE_CONSTRUCTOR
+        eng "The used TABLE VALUE CONSTRUCTOR has a different number of columns"

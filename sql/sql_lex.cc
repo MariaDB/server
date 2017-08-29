@@ -2224,6 +2224,7 @@ void st_select_lex::init_query()
   m_agg_func_used= false;
   window_specs.empty();
   window_funcs.empty();
+  tvc= 0;
 }
 
 void st_select_lex::init_select()
@@ -2263,6 +2264,8 @@ void st_select_lex::init_select()
   join= 0;
   lock_type= TL_READ_DEFAULT;
   tvc= 0;
+  in_funcs.empty();
+  cur_tvc= 0;
 }
 
 /*
@@ -2807,7 +2810,10 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
     }
     if (sl->braces)
       str->append('(');
-    sl->print(thd, str, query_type);
+    if (sl->tvc)
+      sl->tvc->print(thd, str, query_type);
+    else
+      sl->print(thd, str, query_type);
     if (sl->braces)
       str->append(')');
   }
@@ -4187,6 +4193,22 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
       sj_subselects.push_back(in_subq, thd->mem_root);
       if (in_subq->emb_on_expr_nest == NO_JOIN_NEST)
          in_subq->emb_on_expr_nest= derived;
+    }
+
+    uint cnt= sizeof(expr_cache_may_be_used)/sizeof(bool);
+    for (uint i= 0; i < cnt; i++)
+    {
+      if (subq_select->expr_cache_may_be_used[i])
+	expr_cache_may_be_used[i]= true;
+    }
+
+    List_iterator_fast<Item_func_in> it(subq_select->in_funcs);
+    Item_func_in *in_func;
+    while ((in_func= it++))
+    {
+      in_funcs.push_back(in_func, thd->mem_root);
+      if (in_func->emb_on_expr_nest == NO_JOIN_NEST)
+        in_func->emb_on_expr_nest= derived;
     }
   }
 

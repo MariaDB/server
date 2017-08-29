@@ -347,7 +347,8 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
   MYSQL_SELECT_START(thd->query());
 
   if (select_lex->master_unit()->is_unit_op() ||
-      select_lex->master_unit()->fake_select_lex)
+      select_lex->master_unit()->fake_select_lex ||
+      select_lex->tvc)
     res= mysql_union(thd, lex, result, &lex->unit, setup_tables_done_option);
   else
   {
@@ -1187,6 +1188,11 @@ JOIN::optimize_inner()
       DBUG_RETURN(TRUE);  
     table_count= select_lex->leaf_tables.elements;
   }
+
+  if (select_lex->first_cond_optimization &&
+      transform_in_predicate_into_tvc(thd))
+    DBUG_RETURN(1);
+
   // Update used tables after all handling derived table procedures
   select_lex->update_used_tables();
 
@@ -13628,8 +13634,9 @@ static int compare_fields_by_table_order(Item *field1,
 static TABLE_LIST* embedding_sjm(Item *item)
 {
   Item_field *item_field= (Item_field *) (item->real_item());
-  TABLE_LIST *nest= item_field->field->table->pos_in_table_list->embedding;
-  if (nest && nest->sj_mat_info && nest->sj_mat_info->is_used)
+  TABLE_LIST *tbl= item_field->field->table->pos_in_table_list;
+  TABLE_LIST *nest= tbl->embedding;
+  if (nest && nest->sj_mat_info && nest->sj_mat_info->is_used && !tbl->is_for_tvc)
     return nest;
   else
     return NULL;
@@ -13706,6 +13713,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   Item *head;
   TABLE_LIST *current_sjm= NULL;
   Item *current_sjm_head= NULL;
+  bool force_producing_equality= false;
 
   DBUG_ASSERT(!cond ||
               cond->type() == Item::INT_ITEM ||
@@ -13727,6 +13735,8 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
     TABLE_LIST *emb_nest;
     head= item_equal->get_first(NO_PARTICULAR_TAB, NULL);
     it++;
+    if (((Item_field *)(head->real_item()))->field->table->pos_in_table_list->is_for_tvc)
+      force_producing_equality= true;
     if ((emb_nest= embedding_sjm(head)))
     {
       current_sjm= emb_nest;
@@ -13794,7 +13804,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
         produce_equality= FALSE;
     }
 
-    if (produce_equality)
+    if (produce_equality || force_producing_equality)
     {
       if (eq_item && eq_list.push_back(eq_item, thd->mem_root))
         return 0;
@@ -13809,7 +13819,8 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
         equals on top level, or the constant.
       */
       Item *head_item= (!item_const && current_sjm && 
-                        current_sjm_head != field_item) ? current_sjm_head: head; 
+                        current_sjm_head != field_item &&
+                        !force_producing_equality) ? current_sjm_head: head;
       Item *head_real_item=  head_item->real_item();
       if (head_real_item->type() == Item::FIELD_ITEM)
         head_item= head_real_item;

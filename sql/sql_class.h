@@ -691,6 +691,7 @@ typedef struct system_variables
   uint idle_transaction_timeout;
   uint idle_readonly_transaction_timeout;
   uint idle_readwrite_transaction_timeout;
+  ulong in_subquery_conversion_threshold;
 } SV;
 
 /**

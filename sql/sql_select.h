@@ -1648,6 +1648,7 @@ public:
                                bool need_order, bool distinct,
                                const char *message);
   JOIN_TAB *first_breadth_first_tab() { return join_tab; }
+  bool transform_in_predicate_into_tvc(THD *thd_arg);
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER

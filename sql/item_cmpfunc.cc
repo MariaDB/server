@@ -4327,6 +4327,16 @@ longlong Item_func_in::val_int()
 }
 
 
+void Item_func_in::mark_as_condition_AND_part(TABLE_LIST *embedding)
+{
+  THD *thd= current_thd;
+  if (can_be_transformed_in_tvc(thd))
+    thd->lex->current_select->in_funcs.push_back(this, thd->mem_root);
+
+  emb_on_expr_nest= embedding;
+}
+
+
 longlong Item_func_bit_or::val_int()
 {
   DBUG_ASSERT(fixed == 1);

@@ -1,13 +1,13 @@
 create table t1 (a int, b int);
 
-insert into t1 
+insert into t1
 values (1,2), (4,6), (9,7),
        (1,1), (2,5), (7,8);
 
 create table t2 (a int, b int, c int);
 
-insert into t2 
-values (1,2,3), (5,1,2), (4,3,7), 
+insert into t2
+values (1,2,3), (5,1,2), (4,3,7),
        (8,9,0), (10,7,1), (5,5,1);
 
 --echo # optimization is not used
@@ -15,7 +15,7 @@ values (1,2,3), (5,1,2), (4,3,7),
 let $query= select * from t1 where a in (1,2);
 eval $query;
 eval explain $query;
-eval explain format=json $query; 
+eval explain format=json $query;
 
 --echo # set minimum number of values in VALUEs list when optimization works to 2
 
@@ -25,100 +25,212 @@ set @@in_subquery_conversion_threshold= 2;
 
 let $query= select * from t1 where a in (1,2);
 
-let $optimized_query= 
-select * from t1 
-where a in 
+let $optimized_query=
+select * from t1
+where a in
       (
-        select * 
-        from (values (1),(2)) as new_tvc
+        select *
+        from (values (1),(2)) as tvc_0
       );
 
 eval $query;
 eval $optimized_query;
-eval explain $query;
-eval explain $optimized_query;
-eval explain format=json $query; 
+eval explain extended $query;
+eval explain extended $optimized_query;
 
 --echo # AND-condition with IN-predicates in WHERE-part
 
-let $query= 
-select * from t1 
-where a in (1,2) and 
+let $query=
+select * from t1
+where a in (1,2) and
       b in (1,5);
 
-let $optimized_query= 
-select * from t1 
-where a in 
+let $optimized_query=
+select * from t1
+where a in
 (
-  select * 
-  from (values (1),(2)) as new_tvc
-) 
+  select *
+  from (values (1),(2)) as tvc_0
+)
 and b in
 (
-  select * 
-  from (values (1),(5)) as new_tvc
+  select *
+  from (values (1),(5)) as tvc_1
 );
-      
+
 eval $query;
 eval $optimized_query;
-eval explain $query;
-eval explain $optimized_query;
-eval explain format=json $query; 
-
---echo # OR-condition with IN-predicates in WHERE-part
-
-let $query= 
-select * from t1 
-where a in (1,2) or 
-      b in (4,5);
-
-let $optimized_query= 
-select * from t1 
-where a in 
-(
-  select * 
-  from (values (1),(2)) as new_tvc
-) 
-or b in
-(
-  select * 
-  from (values (4),(5)) as new_tvc
-);
-      
-eval $query;
-eval $optimized_query;
-eval explain $query;
-eval explain $optimized_query;
-eval explain format=json $query; 
+eval explain extended $query;
+eval explain extended $optimized_query;
 
 --echo # subquery with IN-predicate
 
-let $query= 
-select * from t1 
-where a in 
-  (
-   select a 
-   from t2 where b in (3,4)
-  )
-;
+let $query=
+select * from t1
+where a in
+(
+  select a
+  from t2 where b in (3,4)
+);
 
-let $optimized_query= 
-select * from t1 
-where a in (
-  select a from t2 
-  where b in 
+let $optimized_query=
+select * from t1
+where a in
+(
+  select a from t2
+  where b in
   (
-    select * 
-    from (values (3),(4)) as new_tvc)
+    select *
+    from (values (3),(4)) as tvc_0
   )
-;
-      
+);
+
 eval $query;
 eval $optimized_query;
-eval explain $query;
-eval explain $optimized_query;
-eval explain format=json $query; 
+eval explain extended $query;
+eval explain extended $optimized_query;
 
-drop table t1;
+--echo # derived table with IN-predicate
+
+let $query=
+select * from
+(
+  select *
+  from t1
+  where a in (1,2)
+) as dr_table;
+
+let $optimized_query=
+select * from
+(
+  select *
+  from t1
+  where a in
+  (
+    select *
+    from (values (1),(2))
+    as tvc_0
+  )
+) as dr_table;
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+--echo # non-recursive CTE with IN-predicate
+
+let $cte_query=
+with tvc_0 as
+(
+  select *
+  from t1
+  where a in (1,2)
+)
+select * from tvc_0;
+
+eval $cte_query;
+eval $optimized_query;
+eval explain extended $cte_query;
+eval explain extended $optimized_query;
+
+--echo # VIEW with IN-predicate
+
+create view v1 as
+  select *
+  from t1
+  where a in (1,2);
+
+create view v2 as
+  select *
+  from t1
+  where a in
+  (
+    select *
+    from (values (1),(2))
+    as tvc_0
+  )
+;
+
+let $query= select * from v1;
+let $optimized_query= select * from v2;
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+drop view v1,v2;
+
+--echo # subselect defined by derived table with IN-predicate
+
+let $query=
+select * from t1
+where a in
+(
+  select 1
+  from
+  (
+    select *
+    from t1
+    where a in (1,2)
+  )
+  as dr_table
+);
+
+let $optimized_query=
+select * from t1
+where a in
+(
+  select 1
+  from
+  (
+    select *
+    from t1
+    where a in
+    (
+      select *
+      from (values (1),(2))
+      as tvc_0
+    )
+  )
+  as dr_table
+);
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+--echo # derived table with IN-predicate and group by
+
+let $query=
+select * from
+(
+  select max(a),b
+  from t1
+  where b in (3,5)
+  group by b
+) as dr_table;
+
+let $optimized_query=
+select * from
+(
+  select max(a),b
+  from t1
+  where b in
+  (
+    select *
+    from (values (3),(5))
+    as tvc_0
+  )
+  group by b
+) as dr_table;
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+drop table t1, t2;
 set @@in_subquery_conversion_threshold= default;
-

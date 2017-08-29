@@ -864,6 +864,17 @@ public:
     those converted to jtbm nests. The list is emptied when conversion is done.
   */
   List<Item_in_subselect> sj_subselects;
+  /*
+    List of IN-predicates in this st_select_lex that
+    can be transformed into IN-subselect defined with TVC.
+  */
+  List<Item_func_in> in_funcs;
+  /*
+    Number of current derived table made with TVC during the
+    transformation of IN-predicate into IN-subquery for this
+    st_select_lex.
+  */
+  uint cur_tvc;
   
   /*
     Needed to correctly generate 'PRIMARY' or 'SIMPLE' for select_type column
@@ -1215,7 +1226,7 @@ public:
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
 
   bool cond_pushdown_is_allowed() const
-  { return !have_window_funcs() && !olap && !explicit_limit; }
+  { return !have_window_funcs() && !olap && !explicit_limit && !tvc; }
   
 private:
   bool m_non_agg_field_used;
@@ -1239,7 +1250,12 @@ typedef class st_select_lex SELECT_LEX;
 inline bool st_select_lex_unit::is_unit_op ()
 {
   if (!first_select()->next_select())
-    return 0;
+  {
+    if (first_select()->tvc)
+      return 1;
+    else
+      return 0;
+  }
 
   enum sub_select_type linkage= first_select()->next_select()->linkage;
   return linkage == UNION_TYPE || linkage == INTERSECT_TYPE ||

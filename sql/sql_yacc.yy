@@ -1782,7 +1782,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_primary_ident table_primary_derived
         select_derived derived_table_list
         select_derived_union
+        derived_simple_table
         derived_query_specification
+        derived_table_value_constructor
 %type <date_time_type> date_time_type;
 %type <interval> interval
 
@@ -8549,6 +8551,15 @@ select_paren_derived:
           {
             Lex->current_select->set_braces(true);
           }
+          table_value_constructor
+          {
+            DBUG_ASSERT(Lex->current_select->braces);
+            $$= Lex->current_select->master_unit()->first_select();
+          }
+        |
+          {
+            Lex->current_select->set_braces(true);
+          }
           SELECT_SYM select_part2_derived
           opt_table_expression
           opt_order_clause
@@ -11250,9 +11261,9 @@ select_derived_union:
             }
           }
           union_list_derived_part2
-        | derived_query_specification opt_select_lock_type
-        | derived_query_specification order_or_limit opt_select_lock_type
-        | derived_query_specification opt_select_lock_type union_list_derived
+        | derived_simple_table opt_select_lock_type
+        | derived_simple_table order_or_limit opt_select_lock_type
+        | derived_simple_table opt_select_lock_type union_list_derived
        ;
 
 union_list_derived_part2:
@@ -11307,6 +11318,10 @@ select_derived:
           }
         ;
 
+derived_simple_table:
+          derived_query_specification     { $$= $1; }
+        | derived_table_value_constructor { $$= $1; }
+        ;
 /*
   Similar to query_specification, but for derived tables.
   Example: the inner parenthesized SELECT in this query:
@@ -11320,6 +11335,41 @@ derived_query_specification:
             $$= NULL;
           }
         ;
+
+derived_table_value_constructor:
+          VALUES
+          {
+	    LEX *lex=Lex;
+            lex->field_list.empty();
+            lex->many_values.empty();
+            lex->insert_list=0;
+	  }
+          values_list
+          {
+            LEX *lex= Lex;
+            lex->derived_tables|= DERIVED_SUBQUERY;
+            if (!lex->expr_allows_subselect ||
+                lex->sql_command == (int)SQLCOM_PURGE)
+            {
+              thd->parse_error();
+              MYSQL_YYABORT;
+            }
+            if (lex->current_select->linkage == GLOBAL_OPTIONS_TYPE ||
+                mysql_new_select(lex, 1, NULL))
+              MYSQL_YYABORT;
+            mysql_init_select(lex);
+            lex->current_select->linkage= DERIVED_TABLE_TYPE;
+
+            if (!(lex->current_select->tvc=
+	          new (lex->thd->mem_root) table_value_constr(lex->many_values,
+							      lex->current_select,
+							      lex->current_select->options)))
+	      MYSQL_YYABORT;
+	    lex->many_values.empty();
+            $$= NULL;
+          }
+        ;
+
 
 select_derived2:
           {
@@ -16273,13 +16323,22 @@ simple_table:
         ;
         
 table_value_constructor:
-	  VALUES values_list 
+	  VALUES
+	  {
+	    LEX *lex=Lex;
+            lex->field_list.empty();
+            lex->many_values.empty();
+            lex->insert_list=0;
+	  }
+	  values_list
 	  { 
 	    LEX *lex=Lex;
-	    $$= Lex->current_select;
+	    $$= lex->current_select;
 	    mysql_init_select(Lex);
-	    table_value_constr tvc(lex->many_values);
-	    $$->tvc= &tvc;
+	    if (!($$->tvc=
+	          new (lex->thd->mem_root) table_value_constr(lex->many_values, $$, $$->options)))
+	      MYSQL_YYABORT;
+	    lex->many_values.empty();
 	  }
 	;
 	

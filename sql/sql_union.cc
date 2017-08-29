@@ -819,6 +819,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   bool is_union_select;
   bool have_except= FALSE, have_intersect= FALSE;
   bool instantiate_tmp_table= false;
+  bool single_tvc= !first_sl->next_select() && first_sl->tvc;
   DBUG_ENTER("st_select_lex_unit::prepare");
   DBUG_ASSERT(thd == thd_arg);
   DBUG_ASSERT(thd == current_thd);
@@ -845,16 +846,26 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       /* fast reinit for EXPLAIN */
       for (sl= first_sl; sl; sl= sl->next_select())
       {
-	sl->join->result= result;
-	select_limit_cnt= HA_POS_ERROR;
-	offset_limit_cnt= 0;
-	if (!sl->join->procedure &&
-	    result->prepare(sl->join->fields_list, this))
+	if (sl->tvc)
 	{
-	  DBUG_RETURN(TRUE);
+	  sl->tvc->result= result;
+	  if (result->prepare(sl->item_list, this))
+	    DBUG_RETURN(TRUE);
+	  sl->tvc->select_options|= SELECT_DESCRIBE;
 	}
-	sl->join->select_options|= SELECT_DESCRIBE;
-	sl->join->reinit();
+	else
+	{
+	  sl->join->result= result;
+	  select_limit_cnt= HA_POS_ERROR;
+	  offset_limit_cnt= 0;
+	  if (!sl->join->procedure &&
+	      result->prepare(sl->join->fields_list, this))
+	  {
+	    DBUG_RETURN(TRUE);
+	  }
+	  sl->join->select_options|= SELECT_DESCRIBE;
+	  sl->join->reinit();
+	}
       }
     }
     DBUG_RETURN(FALSE);
@@ -864,7 +875,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   
   thd_arg->lex->current_select= sl= first_sl;
   found_rows_for_union= first_sl->options & OPTION_FOUND_ROWS;
-  is_union_select= is_unit_op() || fake_select_lex;
+  is_union_select= is_unit_op() || fake_select_lex || single_tvc;
 
   for (SELECT_LEX *s= first_sl; s; s= s->next_select())
   {
@@ -884,8 +895,8 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
 
   if (is_union_select || is_recursive)
   {
-    if (is_unit_op() && !union_needs_tmp_table() &&
-        !have_except && !have_intersect)
+    if ((is_unit_op() && !union_needs_tmp_table() &&
+        !have_except && !have_intersect) || single_tvc)
     {
       SELECT_LEX *last= first_select();
       while (last->next_select())
@@ -922,7 +933,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   {
     if (sl->tvc)
     {
-      if (sl->tvc->prepare(thd_arg, sl, tmp_result))
+      if (sl->tvc->prepare(thd_arg, sl, tmp_result, this))
 	goto err;
     }
     else if (prepare_join(thd_arg, first_sl, tmp_result, additional_options,
@@ -936,7 +947,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   {
     if (sl->tvc)
     {
-      if (sl->tvc->prepare(thd_arg, sl, tmp_result))
+      if (sl->tvc->prepare(thd_arg, sl, tmp_result, this))
 	goto err;
     }
     else if (prepare_join(thd_arg, sl, tmp_result, additional_options,
@@ -1249,7 +1260,13 @@ bool st_select_lex_unit::optimize()
     for (SELECT_LEX *sl= select_cursor; sl; sl= sl->next_select())
     {
       if (sl->tvc)
+      {
+	sl->tvc->select_options=
+          (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
+          sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
+	sl->tvc->optimize(thd);
 	continue;
+      }
       thd->lex->current_select= sl;
 
       if (optimized)
@@ -1273,7 +1290,7 @@ bool st_select_lex_unit::optimize()
           we don't calculate found_rows() per union part.
           Otherwise, SQL_CALC_FOUND_ROWS should be done on all sub parts.
         */
-        sl->join->select_options= 
+        sl->join->select_options=
           (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
           sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
 
@@ -1357,7 +1374,14 @@ bool st_select_lex_unit::exec()
           we don't calculate found_rows() per union part.
           Otherwise, SQL_CALC_FOUND_ROWS should be done on all sub parts.
         */
-	if (!sl->tvc)
+	if (sl->tvc)
+	{
+	  sl->tvc->select_options=
+             (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
+             sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
+	  sl->tvc->optimize(thd);
+	}
+	else
 	{
           sl->join->select_options= 
             (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
@@ -1369,7 +1393,7 @@ bool st_select_lex_unit::exec()
       {
 	records_at_start= table->file->stats.records;
 	if (sl->tvc)
-	  sl->tvc->exec();
+	  sl->tvc->exec(sl);
 	else
 	  sl->join->exec();
         if (sl == union_distinct && !(with_element && with_element->is_recursive))
@@ -1611,8 +1635,13 @@ bool st_select_lex_unit::exec_recursive()
   for (st_select_lex *sl= start ; sl != end; sl= sl->next_select())
   {
     thd->lex->current_select= sl;
-    sl->join->exec();
-    saved_error= sl->join->error;
+    if (sl->tvc)
+      sl->tvc->exec(sl);
+    else
+    {
+      sl->join->exec();
+      saved_error= sl->join->error;
+    }
     if (!saved_error)
     {
        examined_rows+= thd->get_examined_row_count();
