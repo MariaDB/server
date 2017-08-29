@@ -34,6 +34,7 @@ Created 2/27/1997 Heikki Tuuri
 #include "trx0roll.h"
 #include "btr0btr.h"
 #include "mach0data.h"
+#include "ibuf0ibuf.h"
 #include "row0undo.h"
 #include "row0vers.h"
 #include "row0log.h"

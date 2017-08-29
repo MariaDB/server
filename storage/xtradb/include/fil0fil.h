@@ -804,8 +804,10 @@ the first page of a first data file at database startup.
 @param[out]	space_id		tablepspace ID
 @param[out]	flushed_lsn		flushed lsn value
 @param[out]	crypt_data		encryption crypt data
-@retval NULL on success, or if innodb_force_recovery is set
-@return pointer to an error message string */
+@param[in]	check_first_page	true if first page contents
+					should be checked
+@return NULL on success, or if innodb_force_recovery is set
+@retval pointer to an error message string */
 UNIV_INTERN
 const char*
 fil_read_first_page(
@@ -814,7 +816,8 @@ fil_read_first_page(
 	ulint*		flags,
 	ulint*		space_id,
 	lsn_t*		flushed_lsn,
-	fil_space_crypt_t**   crypt_data)
+	fil_space_crypt_t**   crypt_data,
+	bool		check_first_page=true)
 	MY_ATTRIBUTE((warn_unused_result));
 
 #endif /* !UNIV_HOTBACKUP */

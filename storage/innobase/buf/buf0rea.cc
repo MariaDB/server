@@ -478,13 +478,15 @@ buf_read_page_background(
 			<< " in the background"
 			" in a non-existing or being-dropped tablespace";
 		break;
+	case DB_PAGE_CORRUPTED:
 	case DB_DECRYPTION_FAILED:
 		ib::error()
-			<< "Background Page read failed to decrypt page "
-			<< page_id;
+			<< "Background Page read failed to "
+			"read or decrypt " << page_id;
 		break;
 	default:
-		ut_error;
+		ib::fatal() << "Error " << err << " in background read of "
+			<< page_id;
 	}
 
 	srv_stats.buf_pool_reads.add(count);
@@ -755,9 +757,10 @@ buf_read_ahead_linear(
 			case DB_TABLESPACE_DELETED:
 			case DB_ERROR:
 				break;
+			case DB_PAGE_CORRUPTED:
 			case DB_DECRYPTION_FAILED:
 				ib::error() << "linear readahead failed to"
-					" decrypt page "
+					" read or decrypt "
 					<< page_id_t(page_id.space(), i);
 				break;
 			default:
@@ -853,8 +856,9 @@ tablespace_deleted:
 			break;
 		case DB_TABLESPACE_DELETED:
 			goto tablespace_deleted;
+		case DB_PAGE_CORRUPTED:
 		case DB_DECRYPTION_FAILED:
-			ib::error() << "Failed to decrypt page " << page_id
+			ib::error() << "Failed to read or decrypt " << page_id
 				<< " for change buffer merge";
 			break;
 		default:
@@ -936,8 +940,8 @@ buf_read_recv_pages(
 				cur_page_id, page_size, true);
 		}
 
-		if (err == DB_DECRYPTION_FAILED) {
-			ib::error() << "Recovery failed to decrypt page "
+		if (err == DB_DECRYPTION_FAILED || err == DB_PAGE_CORRUPTED) {
+			ib::error() << "Recovery failed to read or decrypt "
 				<< cur_page_id;
 		}
 	}

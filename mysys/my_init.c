@@ -200,7 +200,6 @@ Voluntary context switches %ld, Involuntary context switches %ld\n",
    _CrtSetReportMode( _CRT_ASSERT, _CRTDBG_MODE_FILE );
    _CrtSetReportFile( _CRT_ASSERT, _CRTDBG_FILE_STDERR );
    _CrtCheckMemory();
-   _CrtDumpMemoryLeaks();
 #endif
   }
 

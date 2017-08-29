@@ -3,9 +3,13 @@
 #
 -- source include/have_innodb.inc
 -- source include/have_example_key_management_plugin.inc
+-- source include/innodb_undo_tablespaces.inc
 
 # embedded does not support restart
 -- source include/not_embedded.inc
+
+call mtr.add_suppression("InnoDB: New log files created");
+call mtr.add_suppression("InnoDB: Creating foreign key constraint system tables.");
 
 SET @start_global_value = @@global.innodb_encryption_threads;
 
