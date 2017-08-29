@@ -1,3 +1,17 @@
+# ==== Usage ====
+#
+# [--let $shutdown_timeout= 30]
+# [--let $allow_rpl_inited= 1]
+# --source include/shutdown_mysqld.inc
+
+# The default value is empty
+--let $server_shutdown_timeout=
+
+if ($shutdown_timeout)
+{
+  --let $server_shutdown_timeout= $shutdown_timeout
+}
+
 # This is the first half of include/restart_mysqld.inc.
 if ($rpl_inited)
 {
@@ -13,6 +27,6 @@ if ($rpl_inited)
 --exec echo "wait" > $_expect_file_name
 
 # Send shutdown to the connected server
---shutdown_server
+--shutdown_server $server_shutdown_timeout
 --source include/wait_until_disconnected.inc
 

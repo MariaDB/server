@@ -8960,8 +8960,10 @@ int TC_LOG_BINLOG::open(const char *opt_name)
 
   if (using_heuristic_recover())
   {
+    mysql_mutex_lock(&LOCK_log);
     /* generate a new binlog to mask a corrupted one */
     open(opt_name, LOG_BIN, 0, WRITE_CACHE, max_binlog_size, 0, TRUE);
+    mysql_mutex_unlock(&LOCK_log);
     cleanup();
     return 1;
   }

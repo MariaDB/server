@@ -15395,6 +15395,10 @@ innobase_commit_by_xid(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
+	if (high_level_read_only) {
+		return(XAER_RMFAIL);
+	}
+
 	trx = trx_get_trx_by_xid(xid);
 
 	if (trx) {
@@ -15422,8 +15426,11 @@ innobase_rollback_by_xid(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	trx = trx_get_trx_by_xid(xid);
+	if (high_level_read_only) {
+		return(XAER_RMFAIL);
+	}
 
+	trx = trx_get_trx_by_xid(xid);
 	if (trx) {
 		int	ret = innobase_rollback_trx(trx);
 		trx_free_for_background(trx);
