@@ -53,8 +53,7 @@ public:
 		m_last_file_size_max(),
 		m_created_new_raw(),
 		m_is_tablespace_full(false),
-		m_sanity_checks_done(false),
-		m_crypt_info()
+		m_sanity_checks_done(false)
 	{
 		/* No op */
 	}
@@ -264,9 +263,6 @@ private:
 
 	/** if false, then sanity checks are still pending */
 	bool		m_sanity_checks_done;
-
-	/** Encryption information */
-	fil_space_crypt_t* m_crypt_info;
 };
 
 /* GLOBAL OBJECTS */

@@ -562,8 +562,6 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 	err = it->read_first_page(
 		m_ignore_read_only ?  false : srv_read_only_mode);
 
-	m_crypt_info = it->m_crypt_info;
-
 	if (err != DB_SUCCESS) {
 		return(err);
 	}
@@ -919,19 +917,10 @@ SysTablespace::open_or_create(
 
 			/* Create the tablespace entry for the multi-file
 			tablespace in the tablespace manager. */
-
-			if (!m_crypt_info) {
-				/* Create default crypt info for system
-				tablespace if it does not yet exists. */
-				m_crypt_info = fil_space_create_crypt_data(
-					FIL_ENCRYPTION_DEFAULT,
-					FIL_DEFAULT_ENCRYPTION_KEY);
-			}
-
 			space = fil_space_create(
 				name(), space_id(), flags(), is_temp
 				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
-				m_crypt_info);
+				NULL);
 		}
 
 		ut_a(fil_validate());

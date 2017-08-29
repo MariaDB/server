@@ -4341,11 +4341,18 @@ fil_ibd_open(
 
 skip_validate:
 	if (err == DB_SUCCESS) {
-		fil_space_t*	space = fil_space_create(
-			space_name, id, flags, purpose,
-			df_remote.is_open() ? df_remote.get_crypt_info() :
-			df_dict.is_open() ? df_dict.get_crypt_info() :
-			df_default.get_crypt_info());
+		const byte* first_page =
+			df_default.is_open() ? df_default.get_first_page() :
+			df_dict.is_open() ? df_dict.get_first_page() :
+			df_remote.get_first_page();
+
+		fil_space_crypt_t* crypt_data = first_page
+			? fil_space_read_crypt_data(page_size_t(flags),
+						    first_page)
+			: NULL;
+
+		fil_space_t* space = fil_space_create(
+			space_name, id, flags, purpose, crypt_data);
 
 		/* We do not measure the size of the file, that is why
 		we pass the 0 below */
@@ -4663,9 +4670,12 @@ fil_ibd_load(
 			<< FSP_FLAGS_MEM_COMPRESSION_LEVEL;
 	}
 
+	const byte* first_page = file.get_first_page();
+	fil_space_crypt_t* crypt_data = first_page
+		? fil_space_read_crypt_data(page_size_t(flags), first_page)
+		: NULL;
 	space = fil_space_create(
-		file.name(), space_id, flags, FIL_TYPE_TABLESPACE,
-		file.get_crypt_info());
+		file.name(), space_id, flags, FIL_TYPE_TABLESPACE, crypt_data);
 
 	if (space == NULL) {
 		return(FIL_LOAD_INVALID);

@@ -1340,12 +1340,12 @@ fil_crypt_realloc_iops(
 		state->cnt_waited = 0;
 		state->sum_waited_us = 0;
 	} else {
-
 		DBUG_PRINT("ib_crypt",
-			("thr_no: %u only waited " ULINTPF
-			 "%% skip re-estimate.",
-			state->thread_no,
-			(100 * state->cnt_waited) / state->batch));
+			   ("thr_no: %u only waited " ULINTPF
+			    "%% skip re-estimate.",
+			    state->thread_no,
+			    (100 * state->cnt_waited)
+			    / (state->batch ? state->batch : 1)));
 	}
 
 	if (state->estimated_max_iops <= state->allocated_iops) {
@@ -1448,7 +1448,7 @@ fil_crypt_find_space_to_rotate(
 	/* we need iops to start rotating */
 	while (!state->should_shutdown() && !fil_crypt_alloc_iops(state)) {
 		os_event_reset(fil_crypt_threads_event);
-		os_event_wait_time(fil_crypt_threads_event, 1000000);
+		os_event_wait_time(fil_crypt_threads_event, 100000);
 	}
 
 	if (state->should_shutdown()) {
@@ -2271,7 +2271,13 @@ fil_crypt_set_thread_cnt(
 
 	while(srv_n_fil_crypt_threads_started != srv_n_fil_crypt_threads) {
 		os_event_reset(fil_crypt_event);
-		os_event_wait_time(fil_crypt_event, 1000000);
+		os_event_wait_time(fil_crypt_event, 100000);
+	}
+
+	/* Send a message to encryption threads that there could be
+	something to do. */
+	if (srv_n_fil_crypt_threads) {
+		os_event_set(fil_crypt_threads_event);
 	}
 }
 
@@ -2424,10 +2430,11 @@ fil_space_crypt_get_status(
 		fil_crypt_read_crypt_data(const_cast<fil_space_t*>(space));
 	}
 
+	status->space = ULINT_UNDEFINED;
 	fil_space_crypt_t* crypt_data = space->crypt_data;
-	status->space = space->id;
 
 	if (crypt_data != NULL) {
+		status->space = space->id;
 		mutex_enter(&crypt_data->mutex);
 		status->scheme = crypt_data->type;
 		status->keyserver_requests = crypt_data->keyserver_requests;
