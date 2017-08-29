@@ -37,32 +37,35 @@ SET SESSION wsrep_sync_wait = 0;
 --source include/galera_wait_sync_point.inc
 
 # Issue a conflicting insert on node #2
---connection node_2
-INSERT INTO t1 VALUES (2, 2);
-
-
-# Wait until applying begins in node_1
 --connection node_1a
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Write_rows_log_event::write_row%';
---source include/wait_condition.inc
+SET GLOBAL DEBUG = 'd,sync.wsrep_before_BF_victim_unlock';
+
+--connection node_2
+--send INSERT INTO t1 VALUES (2, 2);
+
+# Wait until it BF aborts the SP
+--connection node_1a
+SET SESSION DEBUG_SYNC = 'now WAIT_FOR sync.wsrep_before_BF_victim_unlock_reached';
+SET GLOBAL DEBUG = '';
 
 # Unblock the SP
 --connection node_1a
 --source include/galera_clear_sync_point.inc
 --source include/galera_signal_sync_point.inc
 
+--connection node_2
+--reap
+SELECT * FROM t1;
+
 # SP succeeds
 --connection node_1
 --reap
-
---connection node_2
 SELECT * FROM t1;
 
 # wsrep_local_replays has increased by 1
---connection node_1
 --let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
 --disable_query_log
---eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 1 AS wsrep_local_replays;
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old AS wsrep_local_replays;
 --enable_query_log
 
 DROP PROCEDURE proc_update;

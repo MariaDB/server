@@ -19673,6 +19673,15 @@ wsrep_innobase_kill_one_trx(
 			  wsrep_thd_query_state(thd));
 		break;
 	}
+
+	DBUG_EXECUTE_IF("sync.wsrep_before_BF_victim_unlock", {
+			const char act[]=
+				"now "
+				"SIGNAL sync.wsrep_before_BF_victim_unlock_reached";
+			DBUG_ASSERT(!debug_sync_set_action(bf_thd,
+							   STRING_WITH_LEN(act)));
+		};);
+
 	wsrep_thd_UNLOCK(thd);
 
 	DBUG_RETURN(0);

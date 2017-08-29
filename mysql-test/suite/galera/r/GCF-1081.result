@@ -9,9 +9,17 @@ CALL proc_update ();;
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
-INSERT INTO t1 VALUES (2, 2);
+SET GLOBAL DEBUG = 'd,sync.wsrep_before_BF_victim_unlock';
+INSERT INTO t1 VALUES (2, 2);;
+SET SESSION DEBUG_SYNC = 'now WAIT_FOR sync.wsrep_before_BF_victim_unlock_reached';
+SET GLOBAL DEBUG = '';
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_master_enter_sync';
+SELECT * FROM t1;
+f1	f2
+1	1
+2	2
+3	1
 SELECT * FROM t1;
 f1	f2
 1	1
