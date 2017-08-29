@@ -117,6 +117,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/ha_sequence.cc ../sql/ha_sequence.h
            ../sql/temporary_tables.cc
            ../sql/session_tracker.cc
+           ../sql/sql_tvc.cc ../sql/sql_tvc.h
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )
