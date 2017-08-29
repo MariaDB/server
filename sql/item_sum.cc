@@ -441,7 +441,6 @@ Item_sum::Item_sum(THD *thd, List<Item> &list): Item_func_or_sum(thd, list)
   mark_as_sum_func();
   init_aggregator();
   list.empty();					// Fields are used
-  has_error= FALSE;
 }
 
 
@@ -453,7 +452,7 @@ Item_sum::Item_sum(THD *thd, Item_sum *item):
   Item_func_or_sum(thd, item),
   aggr_sel(item->aggr_sel),
   nest_level(item->nest_level), aggr_level(item->aggr_level),
-  quick_group(item->quick_group), has_error(FALSE),
+  quick_group(item->quick_group),
   orig_args(NULL)
 {
   if (arg_count <= 2)

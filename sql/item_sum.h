@@ -367,7 +367,6 @@ public:
   int8 max_arg_level;     /* max level of unbound column references          */
   int8 max_sum_func_level;/* max level of aggregation for embedded functions */
   bool quick_group;			/* If incremental update of fields */
-  bool has_error;
   /*
     This list is used by the check for mixing non aggregated fields and
     sum functions in the ONLY_FULL_GROUP_BY_MODE. We save all outer fields
@@ -389,19 +388,19 @@ protected:
 public:  
 
   void mark_as_sum_func();
-  Item_sum(THD *thd): Item_func_or_sum(thd), quick_group(1), has_error(0)
+  Item_sum(THD *thd): Item_func_or_sum(thd), quick_group(1)
   {
     mark_as_sum_func();
     init_aggregator();
   }
   Item_sum(THD *thd, Item *a): Item_func_or_sum(thd, a), quick_group(1),
-    has_error(0), orig_args(tmp_orig_args)
+    orig_args(tmp_orig_args)
   {
     mark_as_sum_func();
     init_aggregator();
   }
   Item_sum(THD *thd, Item *a, Item *b): Item_func_or_sum(thd, a, b),
-    quick_group(1), has_error(0), orig_args(tmp_orig_args)
+    quick_group(1), orig_args(tmp_orig_args)
   {
     mark_as_sum_func();
     init_aggregator();

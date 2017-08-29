@@ -1080,8 +1080,6 @@ protected:
     while ((item_sum= it++))
     {
       item_sum->add();
-      if (item_sum->has_error)
-        return;
     }
   }
 
@@ -2807,10 +2805,11 @@ bool compute_window_func(THD *thd,
         cursor_manager->notify_cursors_next_row();
       }
 
-      /* check if we found any error in the window function while calling the add function */
+      /* Check if we found any error in the window function while adding values
+         through cursors. */
+      if (thd->is_error() || thd->is_killed())
+        break;
 
-      if (win_func->window_func()->has_error)
-        goto label;
 
       /* Return to current row after notifying cursors for each window
          function. */
@@ -2824,7 +2823,6 @@ bool compute_window_func(THD *thd,
     rownum++;
   }
 
-label:
   my_free(rowid_buf);
   partition_trackers.delete_elements();
   end_read_record(&info);
