@@ -466,7 +466,6 @@ st_select_lex *make_new_subselect_for_tvc(THD *thd_arg,
                                         TL_READ, MDL_SHARED_READ)))
     goto err;
 
-  new_tab->is_for_tvc= true; //shows that this derived table is defined by TVC
   sel->add_joined_table(new_tab);
 
   new_tab->select_lex->add_where_field(new_tab->derived->first_select());

@@ -646,9 +646,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   SELECT_LEX *first_select= unit->first_select();
 
-  if (first_select->tvc)
-    derived->is_for_tvc= true;
-
   if (derived->is_recursive_with_table() &&
       !derived->is_with_table_recursive_reference() &&
       !derived->with->rec_result && derived->with->get_sq_rec_ref())

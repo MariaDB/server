@@ -1930,7 +1930,6 @@ struct TABLE_LIST
   */
   st_select_lex_unit *derived;		/* SELECT_LEX_UNIT of derived table */
   With_element *with;          /* With element defining this table (if any) */
-  bool is_for_tvc;		/* If specification of this table contains tvc*/
   /* Bitmap of the defining with element */
   table_map with_internal_reference_map; 
   bool block_handle_derived;
