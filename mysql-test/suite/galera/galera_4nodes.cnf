@@ -10,7 +10,7 @@ wsrep-provider=@ENV.WSREP_PROVIDER
 wsrep_node_address=127.0.0.1
 # enforce read-committed characteristics across the cluster
 wsrep-causal-reads=ON
-wsrep-sync-wait=7
+wsrep-sync-wait=15
 
 [mysqld.1]
 #galera_port=@OPT.port

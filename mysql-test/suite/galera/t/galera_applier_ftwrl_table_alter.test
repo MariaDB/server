@@ -29,7 +29,7 @@ SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system use
 
 UNLOCK TABLES;
 
-SET SESSION wsrep_sync_wait = 7;
+SET SESSION wsrep_sync_wait = 15;
 
 SHOW CREATE TABLE t1;
 SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock';

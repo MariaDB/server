@@ -8,3 +8,5 @@
 
 --let $galera_cluster_size = 2
 --source include/galera_init.inc
+
+--source include/have_innodb.inc

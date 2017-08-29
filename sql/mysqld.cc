@@ -9226,8 +9226,29 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   }
 #ifdef WITH_WSREP
   case OPT_WSREP_CAUSAL_READS:
-    wsrep_causal_reads_update(&global_system_variables);
+  {
+    if (global_system_variables.wsrep_causal_reads)
+    {
+      WSREP_WARN("option --wsrep-causal-reads is deprecated");
+      if (!(global_system_variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ))
+      {
+        WSREP_WARN("--wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=%u. "
+                     "WSREP_SYNC_WAIT_BEFORE_READ is on",
+                     global_system_variables.wsrep_sync_wait);
+        global_system_variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
+      }
+    }
+    else
+    {
+      if (global_system_variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ) {
+          WSREP_WARN("--wsrep-sync-wait=%u takes precedence over --wsrep-causal-reads=OFF. "
+                     "WSREP_SYNC_WAIT_BEFORE_READ is on",
+                     global_system_variables.wsrep_sync_wait);
+          global_system_variables.wsrep_causal_reads = 1;
+      }
+    }
     break;
+  }
   case OPT_WSREP_SYNC_WAIT:
     global_system_variables.wsrep_causal_reads=
       MY_TEST(global_system_variables.wsrep_sync_wait &

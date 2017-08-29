@@ -937,7 +937,7 @@ row_ins_invalidate_query_cache(
 	mem_free(buf);
 }
 #ifdef WITH_WSREP
-dberr_t wsrep_append_foreign_key(trx_t *trx,  
+dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       dict_foreign_t*	foreign,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
@@ -1464,7 +1464,7 @@ row_ins_check_foreign_constraint(
 	rec_offs_init(offsets_);
 
 #ifdef WITH_WSREP
-       upd_node= NULL;
+	upd_node= NULL;
 #endif /* WITH_WSREP */
 run_again:
 #ifdef UNIV_SYNC_DEBUG
@@ -1655,7 +1655,7 @@ run_again:
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
-						rec, 
+						rec,
 						check_index,
 						check_ref,
 						(upd_node) ? TRUE : FALSE);

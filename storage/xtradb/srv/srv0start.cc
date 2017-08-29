@@ -3145,7 +3145,6 @@ files_checked:
 				"wsrep recovery.");
 		}
 #endif /* WITH_WSREP */
-
 		/* Create thread(s) that handles key rotation */
 		fil_system_enter();
 		fil_crypt_threads_init();
