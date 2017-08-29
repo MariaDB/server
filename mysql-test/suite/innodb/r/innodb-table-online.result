@@ -31,14 +31,21 @@ ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 # session con1
-SET SESSION DEBUG = '+d,innodb_OOM_prepare_inplace_alter';
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG = '+d,innodb_OOM_prepare_inplace_alter';
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION DEBUG = '-d,innodb_OOM_prepare_inplace_alter';
+SET SESSION DEBUG = @saved_debug_dbug;
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 SET SESSION DEBUG = '+d,innodb_OOM_inplace_alter';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION DEBUG = '-d,innodb_OOM_inplace_alter';
+SET SESSION DEBUG = @saved_debug_dbug;
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 # session default
 SHOW CREATE TABLE t1;
@@ -68,7 +75,7 @@ LOCK = SHARED, ALGORITHM = INPLACE;
 ALTER TABLE t1 ADD UNIQUE INDEX(c2),
 LOCK = EXCLUSIVE, ALGORITHM = INPLACE;
 Warnings:
-Note	1831	Duplicate index 'c2_2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index `c2_2`. This is deprecated and will be disallowed in a future release.
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -359,10 +366,8 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`c1`,`c22f`,`c4`(5))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
 SET DEBUG_SYNC = 'RESET';
-SET DEBUG = '';
 SET GLOBAL innodb_monitor_disable = module_ddl;
 DROP TABLE t1;
-SET GLOBAL DEBUG = '';
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;

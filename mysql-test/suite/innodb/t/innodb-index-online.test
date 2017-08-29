@@ -1,4 +1,4 @@
---source include/have_innodb.inc
+--source include/innodb_page_size_small.inc
 --source include/have_debug_sync.inc
 
 let $innodb_metrics_select=
@@ -42,14 +42,15 @@ reap;
 eval $innodb_metrics_select;
 
 connection con1;
-SET SESSION DEBUG = '+d,innodb_OOM_prepare_inplace_alter';
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG = '+d,innodb_OOM_prepare_inplace_alter';
 --error ER_OUT_OF_RESOURCES
 ALTER TABLE t1 ADD UNIQUE INDEX(c2);
-SET SESSION DEBUG = '-d,innodb_OOM_prepare_inplace_alter';
-SET SESSION DEBUG = '+d,innodb_OOM_inplace_alter';
+SET DEBUG_DBUG = @saved_debug_dbug;
+SET DEBUG_DBUG = '+d,innodb_OOM_inplace_alter';
 --error ER_OUT_OF_RESOURCES
 CREATE UNIQUE INDEX c2 ON t1(c2);
-SET SESSION DEBUG = '-d,innodb_OOM_inplace_alter';
+SET DEBUG_DBUG = @saved_debug_dbug;
 CREATE UNIQUE INDEX c2 ON t1(c2);
 DROP INDEX c2 ON t1;
 
@@ -206,7 +207,9 @@ SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2e_created WAIT_FOR dml2_done';
 # Ensure that the ALTER TABLE will be executed even with some concurrent DML.
 SET lock_wait_timeout = 10;
 --send
-ALTER TABLE t1 CHANGE c2 c22 INT, DROP INDEX c2d, ADD INDEX c2e(c22),
+# FIXME: MDEV-13668
+#ALTER TABLE t1 CHANGE c2 c22 INT, DROP INDEX c2d, ADD INDEX c2e(c22),
+ALTER TABLE t1 DROP INDEX c2d, ADD INDEX c2e(c2),
 ALGORITHM = INPLACE;
 
 # Generate some log (delete-mark, delete-unmark, insert etc.)
@@ -215,7 +218,7 @@ ALGORITHM = INPLACE;
 connection default;
 INSERT INTO t1 SELECT  80 + c1, c2, c3 FROM t1;
 INSERT INTO t1 SELECT 160 + c1, c2, c3 FROM t1;
-UPDATE t1 SET c2 = c2 + 1;
+#UPDATE t1 SET c2 = c2 + 1;
 SET DEBUG_SYNC = 'now WAIT_FOR c2e_created';
 # At this point, the clustered index scan must have completed,
 # but the modification log keeps accumulating due to the DEBUG_SYNC.
@@ -271,7 +274,9 @@ connection con1;
 # Accumulate and apply some modification log.
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2f_created WAIT_FOR dml3_done';
 --send
-ALTER TABLE t1 ADD INDEX c2f(c22f), CHANGE c2 c22f INT;
+# FIXME: MDEV-13668
+#ALTER TABLE t1 ADD INDEX c2f(c22f), CHANGE c2 c22f INT;
+ALTER TABLE t1 ADD INDEX c2f(c2);
 
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR c2f_created';
@@ -291,6 +296,9 @@ SET DEBUG_SYNC = 'now SIGNAL dml3_done';
 
 connection con1;
 reap;
+# FIXME: MDEV-13668
+ALTER TABLE t1 CHANGE c2 c22f INT;
+
 eval $innodb_metrics_select;
 SELECT COUNT(c22f) FROM t1;
 CHECK TABLE t1;
@@ -386,7 +394,6 @@ ALTER TABLE t1 ADD INDEX c2h(c22f), ALGORITHM = INPLACE;
 ALTER TABLE t1 ADD INDEX c2h(c22f), ALGORITHM = COPY;
 
 SET DEBUG_SYNC = 'RESET';
-SET DEBUG = '';
 SET GLOBAL innodb_monitor_disable = module_ddl;
 
 DROP TABLE t1;
@@ -395,7 +402,6 @@ DROP TABLE t1;
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
 
-SET GLOBAL DEBUG = '';
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 --disable_warnings
 SET GLOBAL innodb_monitor_enable  = default;

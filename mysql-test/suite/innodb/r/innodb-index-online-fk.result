@@ -90,11 +90,12 @@ a1	a2
 2	3
 10	20
 SET foreign_key_checks = 0;
-SET DEBUG = '+d,innodb_test_open_ref_fail';
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG = '+d,innodb_test_open_ref_fail';
 ALTER TABLE child ADD CONSTRAINT fk_4 FOREIGN KEY (a1, a2)
 REFERENCES parent(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-SET DEBUG = '-d,innodb_test_open_ref_fail';
+SET DEBUG_DBUG = @saved_debug_dbug;
 SELECT * FROM information_schema.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 test/fk_1	test/child	test/parent	1	6
@@ -125,9 +126,6 @@ SYS_FOREIGN_COLS
 SYS_TABLESPACES
 mysql/innodb_index_stats
 mysql/innodb_table_stats
-mysql/slave_master_info
-mysql/slave_relay_log_info
-mysql/slave_worker_info
 test/child
 test/parent
 INSERT INTO child VALUES(5,4);
@@ -139,12 +137,12 @@ CREATE TABLE `#parent` (a INT PRIMARY KEY, b INT NOT NULL) ENGINE = InnoDB;
 CREATE INDEX tb ON `#parent`(a, b);
 CREATE TABLE `#child` (a1 INT PRIMARY KEY, a2 INT) ENGINE = InnoDB;
 CREATE INDEX tb ON `#child`(a1, a2);
-SET DEBUG = '+d,innodb_test_no_foreign_idx';
+SET DEBUG_DBUG = '+d,innodb_test_no_foreign_idx';
 ALTER TABLE `#child` ADD CONSTRAINT fk_40 FOREIGN KEY (a1, a2)
 REFERENCES `#parent`(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
 ERROR HY000: Failed to add the foreign key constaint. Missing index for constraint 'fk_40' in the foreign table '#child'
-SET DEBUG = '-d,innodb_test_no_foreign_idx';
+SET DEBUG_DBUG = @saved_debug_dbug;
 SHOW ERRORS;
 Level	Code	Message
 Error	1821	Failed to add the foreign key constaint. Missing index for constraint 'fk_40' in the foreign table '#child'
@@ -166,21 +164,21 @@ test/fk_3	a1	a	0
 test/fk_3	a2	b	1
 test/fk_4	a1	a	0
 test/fk_4	a2	b	1
-SET DEBUG = '+d,innodb_test_no_reference_idx';
+SET DEBUG_DBUG = '+d,innodb_test_no_reference_idx';
 ALTER TABLE child ADD CONSTRAINT fk_42 FOREIGN KEY (a1, a2)
 REFERENCES parent(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
 ERROR HY000: Failed to add the foreign key constaint. Missing index for constraint 'fk_42' in the referenced table 'parent'
-SET DEBUG = '-d,innodb_test_no_reference_idx';
+SET DEBUG_DBUG = @saved_debug_dbug;
 SHOW ERRORS;
 Level	Code	Message
 Error	1822	Failed to add the foreign key constaint. Missing index for constraint 'fk_42' in the referenced table 'parent'
-SET DEBUG = '+d,innodb_test_wrong_fk_option';
+SET DEBUG_DBUG = '+d,innodb_test_wrong_fk_option';
 ALTER TABLE child ADD CONSTRAINT fk_42 FOREIGN KEY (a1, a2)
 REFERENCES parent(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
 ERROR HY000: Failed to add the foreign key constraint on table 'child'. Incorrect options in FOREIGN KEY constraint 'test/fk_42'
-SET DEBUG = '-d,innodb_test_wrong_fk_option';
+SET DEBUG_DBUG = @saved_debug_dbug;
 SELECT * FROM information_schema.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 test/fk_1	test/child	test/parent	1	6
@@ -199,12 +197,12 @@ test/fk_3	a1	a	0
 test/fk_3	a2	b	1
 test/fk_4	a1	a	0
 test/fk_4	a2	b	1
-SET DEBUG = '+d,innodb_test_cannot_add_fk_system';
+SET DEBUG_DBUG = '+d,innodb_test_cannot_add_fk_system';
 ALTER TABLE `#child` ADD CONSTRAINT fk_43 FOREIGN KEY (a1, a2)
 REFERENCES `#parent`(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
 ERROR HY000: Failed to add the foreign key constraint 'test/fk_43' to system tables
-SET DEBUG = '-d,innodb_test_cannot_add_fk_system';
+SET DEBUG_DBUG = @saved_debug_dbug;
 SHOW ERRORS;
 Level	Code	Message
 Error	1823	Failed to add the foreign key constraint 'test/fk_43' to system tables
@@ -295,13 +293,13 @@ INSERT INTO parent VALUES(10,20),(20,30);
 CREATE TABLE child (a1 INT NOT NULL, a2 INT) ENGINE = InnoDB;
 CREATE INDEX tb ON child(a2);
 SET foreign_key_checks = 0;
-SET DEBUG = '+d,innodb_test_cannot_add_fk_system';
+SET DEBUG_DBUG = '+d,innodb_test_cannot_add_fk_system';
 ALTER TABLE child ADD PRIMARY KEY idx (a3), CHANGE a1 a3 INT,
 ADD CONSTRAINT fk_1 FOREIGN KEY (a2) REFERENCES parent(b)
 ON DELETE SET NULL ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
 ERROR HY000: Failed to add the foreign key constraint 'test/fk_1' to system tables
-SET DEBUG = '-d,innodb_test_cannot_add_fk_system';
+SET DEBUG_DBUG = @saved_debug_dbug;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;
@@ -318,9 +316,6 @@ SYS_FOREIGN_COLS
 SYS_TABLESPACES
 mysql/innodb_index_stats
 mysql/innodb_table_stats
-mysql/slave_master_info
-mysql/slave_relay_log_info
-mysql/slave_worker_info
 test/child
 test/parent
 ALTER TABLE child ADD PRIMARY KEY idx (a3), CHANGE a1 a3 INT,
@@ -345,9 +340,6 @@ SYS_FOREIGN_COLS
 SYS_TABLESPACES
 mysql/innodb_index_stats
 mysql/innodb_table_stats
-mysql/slave_master_info
-mysql/slave_relay_log_info
-mysql/slave_worker_info
 test/child
 test/parent
 SHOW CREATE TABLE child;
@@ -383,9 +375,6 @@ SYS_FOREIGN_COLS
 SYS_TABLESPACES
 mysql/innodb_index_stats
 mysql/innodb_table_stats
-mysql/slave_master_info
-mysql/slave_relay_log_info
-mysql/slave_worker_info
 test/child
 test/parent
 SHOW CREATE TABLE child;
@@ -421,9 +410,6 @@ SYS_FOREIGN_COLS
 SYS_TABLESPACES
 mysql/innodb_index_stats
 mysql/innodb_table_stats
-mysql/slave_master_info
-mysql/slave_relay_log_info
-mysql/slave_worker_info
 test/child
 test/parent
 SHOW CREATE TABLE child;

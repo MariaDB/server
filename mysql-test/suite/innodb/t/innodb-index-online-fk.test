@@ -92,11 +92,12 @@ SET foreign_key_checks = 0;
 # This is to test the scenario we cannot open the referenced table.
 # Since foreign_key_checks is set to 0, the foreign key should still
 # be added.
-SET DEBUG = '+d,innodb_test_open_ref_fail';
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG = '+d,innodb_test_open_ref_fail';
 ALTER TABLE child ADD CONSTRAINT fk_4 FOREIGN KEY (a1, a2)
 REFERENCES parent(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-SET DEBUG = '-d,innodb_test_open_ref_fail';
+SET DEBUG_DBUG = @saved_debug_dbug;
 
 SELECT * FROM information_schema.INNODB_SYS_FOREIGN;
 
@@ -127,12 +128,12 @@ CREATE TABLE `#child` (a1 INT PRIMARY KEY, a2 INT) ENGINE = InnoDB;
 CREATE INDEX tb ON `#child`(a1, a2);
 
 # This is to test the scenario no foreign index, alter table should fail
-SET DEBUG = '+d,innodb_test_no_foreign_idx';
+SET DEBUG_DBUG = '+d,innodb_test_no_foreign_idx';
 --error ER_FK_NO_INDEX_CHILD,
 ALTER TABLE `#child` ADD CONSTRAINT fk_40 FOREIGN KEY (a1, a2)
 REFERENCES `#parent`(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-SET DEBUG = '-d,innodb_test_no_foreign_idx';
+SET DEBUG_DBUG = @saved_debug_dbug;
 
 SHOW ERRORS;
 
@@ -142,23 +143,23 @@ SELECT * FROM information_schema.INNODB_SYS_FOREIGN_COLS;
 
 # This is to test the scenario no index on referenced table,
 # alter table should fail
-SET DEBUG = '+d,innodb_test_no_reference_idx';
+SET DEBUG_DBUG = '+d,innodb_test_no_reference_idx';
 --error ER_FK_NO_INDEX_PARENT,
 ALTER TABLE child ADD CONSTRAINT fk_42 FOREIGN KEY (a1, a2)
 REFERENCES parent(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-SET DEBUG = '-d,innodb_test_no_reference_idx';
+SET DEBUG_DBUG = @saved_debug_dbug;
 
 SHOW ERRORS;
 
 # This is to test the scenario no index on referenced table,
 # alter table should fail
-SET DEBUG = '+d,innodb_test_wrong_fk_option';
+SET DEBUG_DBUG = '+d,innodb_test_wrong_fk_option';
 --error ER_FK_INCORRECT_OPTION
 ALTER TABLE child ADD CONSTRAINT fk_42 FOREIGN KEY (a1, a2)
 REFERENCES parent(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-SET DEBUG = '-d,innodb_test_wrong_fk_option';
+SET DEBUG_DBUG = @saved_debug_dbug;
 
 SELECT * FROM information_schema.INNODB_SYS_FOREIGN;
 
@@ -166,12 +167,12 @@ SELECT * FROM information_schema.INNODB_SYS_FOREIGN_COLS;
 
 # This is to test the scenario cannot add fk to the system table,
 # alter table should fail
-SET DEBUG = '+d,innodb_test_cannot_add_fk_system';
+SET DEBUG_DBUG = '+d,innodb_test_cannot_add_fk_system';
 --error ER_FK_FAIL_ADD_SYSTEM
 ALTER TABLE `#child` ADD CONSTRAINT fk_43 FOREIGN KEY (a1, a2)
 REFERENCES `#parent`(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-SET DEBUG = '-d,innodb_test_cannot_add_fk_system';
+SET DEBUG_DBUG = @saved_debug_dbug;
 
 SHOW ERRORS;
 
@@ -275,13 +276,13 @@ SET foreign_key_checks = 0;
 
 # Let's rebuild the table and add the FK, make the add FK failed.
 
-SET DEBUG = '+d,innodb_test_cannot_add_fk_system';
+SET DEBUG_DBUG = '+d,innodb_test_cannot_add_fk_system';
 --error ER_FK_FAIL_ADD_SYSTEM
 ALTER TABLE child ADD PRIMARY KEY idx (a3), CHANGE a1 a3 INT,
 ADD CONSTRAINT fk_1 FOREIGN KEY (a2) REFERENCES parent(b)
 ON DELETE SET NULL ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-SET DEBUG = '-d,innodb_test_cannot_add_fk_system';
+SET DEBUG_DBUG = @saved_debug_dbug;
 
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;

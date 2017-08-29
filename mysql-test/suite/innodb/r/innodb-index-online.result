@@ -26,14 +26,15 @@ ddl_background_drop_indexes	0
 ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
-SET SESSION DEBUG = '+d,innodb_OOM_prepare_inplace_alter';
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG = '+d,innodb_OOM_prepare_inplace_alter';
 ALTER TABLE t1 ADD UNIQUE INDEX(c2);
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION DEBUG = '-d,innodb_OOM_prepare_inplace_alter';
-SET SESSION DEBUG = '+d,innodb_OOM_inplace_alter';
+SET DEBUG_DBUG = @saved_debug_dbug;
+SET DEBUG_DBUG = '+d,innodb_OOM_inplace_alter';
 CREATE UNIQUE INDEX c2 ON t1(c2);
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION DEBUG = '-d,innodb_OOM_inplace_alter';
+SET DEBUG_DBUG = @saved_debug_dbug;
 CREATE UNIQUE INDEX c2 ON t1(c2);
 DROP INDEX c2 ON t1;
 SHOW CREATE TABLE t1;
@@ -121,9 +122,6 @@ database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size
 test	t1	PRIMARY	LAST_UPDATE	n_diff_pfx01	5	1	c1
 test	t1	PRIMARY	LAST_UPDATE	n_leaf_pages	1	NULL	Number of leaf pages in the index
 test	t1	PRIMARY	LAST_UPDATE	size	1	NULL	Number of pages in the index
-test	t1_c2_stats	GEN_CLUST_INDEX	LAST_UPDATE	n_diff_pfx01	3	1	DB_ROW_ID
-test	t1_c2_stats	GEN_CLUST_INDEX	LAST_UPDATE	n_leaf_pages	1	NULL	Number of leaf pages in the index
-test	t1_c2_stats	GEN_CLUST_INDEX	LAST_UPDATE	size	1	NULL	Number of pages in the index
 KILL QUERY @id;
 ERROR 70100: Query execution was interrupted
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2d_created WAIT_FOR kill_done';
@@ -184,11 +182,10 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=1
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2e_created WAIT_FOR dml2_done';
 SET lock_wait_timeout = 10;
-ALTER TABLE t1 CHANGE c2 c22 INT, DROP INDEX c2d, ADD INDEX c2e(c22),
+ALTER TABLE t1 DROP INDEX c2d, ADD INDEX c2e(c2),
 ALGORITHM = INPLACE;
 INSERT INTO t1 SELECT  80 + c1, c2, c3 FROM t1;
 INSERT INTO t1 SELECT 160 + c1, c2, c3 FROM t1;
-UPDATE t1 SET c2 = c2 + 1;
 SET DEBUG_SYNC = 'now WAIT_FOR c2e_created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
@@ -249,7 +246,7 @@ ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2f_created WAIT_FOR dml3_done';
-ALTER TABLE t1 ADD INDEX c2f(c22f), CHANGE c2 c22f INT;
+ALTER TABLE t1 ADD INDEX c2f(c2);
 SET DEBUG_SYNC = 'now WAIT_FOR c2f_created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
@@ -273,7 +270,8 @@ ddl_online_create_index	1
 ddl_pending_alter_table	1
 SET DEBUG_SYNC = 'now SIGNAL dml3_done';
 Warnings:
-Note	1831	Duplicate index 'c2f' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index `c2f`. This is deprecated and will be disallowed in a future release.
+ALTER TABLE t1 CHANGE c2 c22f INT;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
@@ -339,10 +337,8 @@ ALTER TABLE t1 ADD INDEX c2h(c22f), ALGORITHM = INPLACE;
 ALTER TABLE t1 ADD INDEX c2h(c22f), ALGORITHM = COPY;
 ERROR 42000: Duplicate key name 'c2h'
 SET DEBUG_SYNC = 'RESET';
-SET DEBUG = '';
 SET GLOBAL innodb_monitor_disable = module_ddl;
 DROP TABLE t1;
-SET GLOBAL DEBUG = '';
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;

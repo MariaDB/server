@@ -1,4 +1,5 @@
---source include/have_innodb.inc
+--source include/innodb_page_size.inc
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 
 let $innodb_metrics_select=
@@ -48,14 +49,15 @@ eval $innodb_metrics_select;
 
 --echo # session con1
 connection con1;
-SET SESSION DEBUG = '+d,innodb_OOM_prepare_inplace_alter';
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG = '+d,innodb_OOM_prepare_inplace_alter';
 --error ER_OUT_OF_RESOURCES
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
-SET SESSION DEBUG = '-d,innodb_OOM_prepare_inplace_alter';
+SET SESSION DEBUG = @saved_debug_dbug;
 SET SESSION DEBUG = '+d,innodb_OOM_inplace_alter';
 --error ER_OUT_OF_RESOURCES
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
-SET SESSION DEBUG = '-d,innodb_OOM_inplace_alter';
+SET SESSION DEBUG = @saved_debug_dbug;
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 
 --echo # session default
@@ -363,7 +365,6 @@ disconnect con1;
 connection default;
 SHOW CREATE TABLE t1;
 SET DEBUG_SYNC = 'RESET';
-SET DEBUG = '';
 SET GLOBAL innodb_monitor_disable = module_ddl;
 DROP TABLE t1;
 
@@ -371,7 +372,6 @@ DROP TABLE t1;
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
 
-SET GLOBAL DEBUG = '';
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 --disable_warnings
 SET GLOBAL innodb_monitor_enable  = default;
