@@ -116,13 +116,13 @@ from (values (1),(5)) as tvc_1
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery4>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	Using where
 4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) semi join ((values (1),(5)) `tvc_1`) where `test`.`t1`.`b` = `tvc_1`.`1`
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) semi join ((values (1),(5)) `tvc_1`) where `tvc_0`.`1` = `test`.`t1`.`a` and `test`.`t1`.`b` = `tvc_1`.`1`
 # subquery with IN-predicate
 select * from t1
 where a in
@@ -463,10 +463,10 @@ group by b
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using temporary; Using filesort
-2	DERIVED	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	DERIVED	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	Using where
 3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `dr_table`.`max(a)` AS `max(a)`,`dr_table`.`b` AS `b` from (/* select#2 */ select max(`test`.`t1`.`a`) AS `max(a)`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (3),(5)) `tvc_0`) where 1 group by `test`.`t1`.`b`) `dr_table`
+Note	1003	/* select#1 */ select `dr_table`.`max(a)` AS `max(a)`,`dr_table`.`b` AS `b` from (/* select#2 */ select max(`test`.`t1`.`a`) AS `max(a)`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (3),(5)) `tvc_0`) where `tvc_0`.`3` = `test`.`t1`.`b` group by `test`.`t1`.`b`) `dr_table`
 drop table t1, t2;
 set @@in_subquery_conversion_threshold= default;

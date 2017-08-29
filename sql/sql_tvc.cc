@@ -46,13 +46,20 @@ bool join_type_handlers_for_tvc(THD *thd_arg, List_iterator_fast<List_item> &li,
   
     if (first_list_el_count != lst->elements)
     {
-      my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_TABLE_VALUE_CONSTRUCTOR,
-                 ER_THD(thd_arg, ER_WRONG_NUMBER_OF_COLUMNS_IN_TABLE_VALUE_CONSTRUCTOR),
+      my_message(ER_WRONG_NUMBER_OF_VALUES_IN_TVC,
+                 ER_THD(thd_arg, ER_WRONG_NUMBER_OF_VALUES_IN_TVC),
                  MYF(0));
       DBUG_RETURN(true);
     }
     for (uint pos= 0; (item=it++); pos++)
     {
+       if (item->type() == Item::FIELD_ITEM)
+      {
+        my_error(ER_UNKNOWN_VALUE_IN_TVC, MYF(0),
+		 ((Item_field *)item)->full_name(),
+		 MYF(0));
+	DBUG_RETURN(true);
+      }
       const Type_handler *item_type_handler= item->real_type_handler();
       if (first)
         holders[pos].set_handler(item_type_handler);

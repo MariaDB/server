@@ -265,6 +265,13 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   if (check_stack_overrun(thd, STACK_MIN_SIZE, (uchar*)&res))
     return TRUE;
   
+  if (unit->first_select() &&
+      unit->first_select()->tvc)
+  {
+    my_error(ER_NO_TVC_IN_SUBQUERY, MYF(0));
+    res= 1;
+    goto end;
+  }
   
   if (!(res= engine->prepare(thd)))
   {

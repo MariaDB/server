@@ -347,8 +347,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
   MYSQL_SELECT_START(thd->query());
 
   if (select_lex->master_unit()->is_unit_op() ||
-      select_lex->master_unit()->fake_select_lex ||
-      select_lex->tvc)
+      select_lex->master_unit()->fake_select_lex)
     res= mysql_union(thd, lex, result, &lex->unit, setup_tables_done_option);
   else
   {

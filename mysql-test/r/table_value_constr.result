@@ -1,5 +1,6 @@
 create table t1 (a int, b int);
-insert into t1 values (1,2),(4,6),(9,7),(1,1),(2,5),(7,8);
+insert into t1 values (1,2),(4,6),(9,7),
+(1,1),(2,5),(7,8);
 # just VALUES
 values (1,2);
 1	2

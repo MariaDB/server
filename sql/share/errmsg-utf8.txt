@@ -7490,5 +7490,9 @@ ER_WRONG_INSERT_INTO_SEQUENCE
         eng "Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a squence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead."
 ER_SP_STACK_TRACE
         eng "At line %u in %s"
-ER_WRONG_NUMBER_OF_COLUMNS_IN_TABLE_VALUE_CONSTRUCTOR
-        eng "The used TABLE VALUE CONSTRUCTOR has a different number of columns"
+ER_WRONG_NUMBER_OF_VALUES_IN_TVC
+        eng "The used table value constructor has a different number of values"
+ER_UNKNOWN_VALUE_IN_TVC
+        eng "Unknown value '%d' in table values constructor definition"
+ER_NO_TVC_IN_SUBQUERY
+	eng "The usage of table value constructor as specification of subselect isn't implemented yet"
