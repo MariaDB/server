@@ -729,7 +729,11 @@ fsp_header_init(ulint space_id, ulint size, mtr_t* mtr)
 	fil_space_t* space = fil_space_acquire(space_id);
 	ut_ad(space);
 
-	if (space->crypt_data) {
+	/* Write encryption metadata to page 0 if tablespace is
+	encrypted or encryption is disabled by table option. */
+	if (space->crypt_data &&
+	    (space->crypt_data->should_encrypt() ||
+	     space->crypt_data->not_encrypted())) {
 		space->crypt_data->write_page0(page, mtr);
 	}
 

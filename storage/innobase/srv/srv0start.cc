@@ -1191,11 +1191,6 @@ check_first_page:
 		ut_a(ret);
 
 		if (i == 0) {
-			if (!crypt_data) {
-				crypt_data = fil_space_create_crypt_data(FIL_ENCRYPTION_DEFAULT,
-					FIL_DEFAULT_ENCRYPTION_KEY);
-			}
-
 			flags = FSP_FLAGS_PAGE_SSIZE();
 
 			fil_space_create(name, 0, flags, FIL_TABLESPACE,

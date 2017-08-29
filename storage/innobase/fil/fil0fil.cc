@@ -2214,7 +2214,7 @@ fil_write_flushed_lsn(
 	/* If tablespace is not encrypted, stamp flush_lsn to
 	first page of all system tablespace datafiles to avoid
 	unnecessary error messages on possible downgrade. */
-	if (space->crypt_data->min_key_version == 0) {
+	if (!space->crypt_data || space->crypt_data->min_key_version == 0) {
 		fil_node_t*     node;
 		ulint   sum_of_sizes = 0;
 

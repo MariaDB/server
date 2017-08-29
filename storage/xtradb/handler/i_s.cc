@@ -8524,6 +8524,12 @@ i_s_dict_fill_tablespaces_encryption(
 
 	fil_space_crypt_get_status(space, &status);
 
+	/* If tablespace id does not match, we did not find
+	encryption information for this tablespace. */
+	if (!space->crypt_data || space->id != status.space) {
+		goto skip;
+	}
+
 	OK(fields[TABLESPACES_ENCRYPTION_SPACE]->store(space->id));
 
 	OK(field_store_string(fields[TABLESPACES_ENCRYPTION_NAME],
@@ -8558,6 +8564,7 @@ i_s_dict_fill_tablespaces_encryption(
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
+skip:
 	DBUG_RETURN(0);
 }
 /*******************************************************************//**
