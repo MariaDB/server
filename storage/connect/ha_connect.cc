@@ -171,9 +171,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0001 April 17, 2017";
+       char version[]= "Version 1.06.0003 August 28, 2017";
 #if defined(__WIN__)
-       char compver[]= "Version 1.06.0001 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.06.0003 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -182,7 +182,10 @@ extern "C" {
 
 #if defined(NEW_MAR)
 #define stored_in_db stored_in_db()
-#endif   // NEW_MAR)
+#define MONGO_ENABLED	1
+#else		// !NEW_MAR
+#define MONGO_ENABLED	0
+#endif  // !NEW_MAR)
 
 #if defined(XMAP)
        my_bool xmap= false;
@@ -359,6 +362,13 @@ static MYSQL_THDVAR_STR(java_wrapper,
 	NULL, NULL, "wrappers/JdbcInterface");
 #endif   // JDBC_SUPPORT
 
+#if defined(MONGO_SUPPORT)
+// Enabling MONGO table type
+static MYSQL_THDVAR_BOOL(enable_mongo, PLUGIN_VAR_RQCMDARG,
+	"Enabling the MongoDB access",
+	NULL, NULL, MONGO_ENABLED);
+#endif   // MONGO_SUPPORT
+
 #if defined(XMSG) || defined(NEWMSG)
 const char *language_names[]=
 {
@@ -418,6 +428,10 @@ extern "C" const char *msglang(void)
 char *GetJavaWrapper(void)
 {return connect_hton ? THDVAR(current_thd, java_wrapper) : (char*)"wrappers/JdbcInterface";}
 #endif   // JDBC_SUPPORT
+
+#if defined(MONGO_SUPPORT)
+bool MongoEnabled(void) { return THDVAR(current_thd, enable_mongo); }
+#endif   // MONGO_SUPPORT
 
 extern "C" const char *msglang(void)
 {
@@ -7176,7 +7190,10 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 	MYSQL_SYSVAR(class_path),
 	MYSQL_SYSVAR(java_wrapper),
 #endif   // JDBC_SUPPORT
-	NULL
+#if defined(MONGO_SUPPORT)
+	MYSQL_SYSVAR(enable_mongo),
+#endif   // MONGO_SUPPORT
+NULL
 };
 
 maria_declare_plugin(connect)
@@ -7185,14 +7202,14 @@ maria_declare_plugin(connect)
   &connect_storage_engine,
   "CONNECT",
   "Olivier Bertrand",
-  "Management of External Data (SQL/MED), including many file formats",
+  "Management of External Data (SQL/NOSQL/MED), including many file formats",
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
   0x0106,                                       /* version number (1.05) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.06.0001",                                  /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
+  "1.06.0003",                                  /* string version */
+	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;
