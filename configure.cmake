@@ -70,7 +70,8 @@ IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "i686" AND CMAKE_COMPILER_IS_GNUCC AND
    CMAKE_C_COMPILER_VERSION VERSION_LESS "4.4.0")
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=i686")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=i686")
-  SET(PLUGIN_QUERY_RESPONSE_TIME NO) # "error: unable to find a register to spill"
+  # query_response_time.cc causes "error: unable to find a register to spill"
+  SET(PLUGIN_QUERY_RESPONSE_TIME NO CACHE BOOL "Disabled, gcc is too old")
 ENDIF()
 
 IF(WITHOUT_DYNAMIC_PLUGINS)
