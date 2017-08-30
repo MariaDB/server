@@ -149,7 +149,8 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("VTQ_ISO_LEVEL") }, BUILDER(Create_func_vtq<VTQ_ISO_LEVEL>)},
   { { C_STRING_WITH_LEN("VTQ_TRX_ID") }, BUILDER(Create_func_vtq<VTQ_TRX_ID>)},
   { { C_STRING_WITH_LEN("VTQ_TRX_SEES") }, BUILDER(Create_func_vtq_trx_sees<Item_func_vtq_trx_sees>)},
-  { { C_STRING_WITH_LEN("VTQ_TRX_SEES_EQ") }, BUILDER(Create_func_vtq_trx_sees<Item_func_vtq_trx_sees_eq>)}
+  { { C_STRING_WITH_LEN("VTQ_TRX_SEES_EQ") }, BUILDER(Create_func_vtq_trx_sees<Item_func_vtq_trx_sees_eq>)},
+  { {0, 0}, NULL}
 };
 
 
