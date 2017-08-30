@@ -513,18 +513,8 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
   if (Query)
     return false;        // already done
 
-	if (Srcdef) {
-		if (strstr(Srcdef, "%s")) {
-			char *fil;
-
-			fil = (To_CondFil) ? To_CondFil->Body : PlugDup(g, "1=1");
-			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil));
-			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil));
-		} else
-			Query = new(g)STRING(g, 0, Srcdef);
-
-		return false;
-	} // endif Srcdef
+	if (Srcdef)
+		return MakeSrcdef(g);
 
   // Allocate the string used to contain Query
   Query = new(g) STRING(g, 1023, "SELECT ");
