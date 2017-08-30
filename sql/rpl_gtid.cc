@@ -2046,7 +2046,7 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
   {
     case -1:
       status_var_increment(thd->status_var.master_gtid_wait_timeouts);
-      /* Deliberate fall through. */
+      /* fall through */
     case 0:
       status_var_add(thd->status_var.master_gtid_wait_time,
                      microsecond_interval_timer() - before);

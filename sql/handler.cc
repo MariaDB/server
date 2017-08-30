@@ -1660,6 +1660,11 @@ int ha_rollback_trans(THD *thd, bool all)
       { // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
+#ifdef WITH_WSREP
+         WSREP_WARN("handlerton rollback failed, thd %lu %lld conf %d SQL %s",
+                    thd->thread_id, thd->query_id, thd->wsrep_conflict_state,
+                    thd->query());
+#endif /* WITH_WSREP */
       }
       status_var_increment(thd->status_var.ha_rollback_count);
       ha_info_next= ha_info->next();
@@ -4857,7 +4862,12 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
     {
       if (error)
       {
-        DBUG_ASSERT(share->error); // tdc_lock_share needs that
+        if (!share->error)
+        {
+          share->error= OPEN_FRM_ERROR_ALREADY_ISSUED;
+          plugin_unlock(0, share->db_plugin);
+        }
+
         /*
           report an error, unless it is "generic" and a more
           specific one was already reported
@@ -5747,6 +5757,20 @@ static int binlog_log_row(TABLE* table,
        table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
       (thd->wsrep_ignore_table == true))
     return 0;
+
+  /* enforce wsrep_max_ws_rows */
+  if (WSREP(thd) && table->s->tmp_table == NO_TMP_TABLE)
+  {
+    thd->wsrep_affected_rows++;
+    if (wsrep_max_ws_rows &&
+        thd->wsrep_exec_mode != REPL_RECV &&
+        thd->wsrep_affected_rows > wsrep_max_ws_rows)
+    {
+      trans_rollback_stmt(thd) || trans_rollback(thd);
+      my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
+      return ER_ERROR_DURING_COMMIT;
+    }
+  }
 #endif /* WITH_WSREP */
 
   if (check_table_binlog_row_based(thd, table))
@@ -5830,7 +5854,7 @@ int handler::ha_external_lock(THD *thd, int lock_type)
 
   DBUG_EXECUTE_IF("external_lock_failure", error= HA_ERR_GENERIC;);
 
-  if (error == 0)
+  if (error == 0 || lock_type == F_UNLCK)
   {
     m_lock_type= lock_type;
     cached_table_flags= table_flags();

@@ -921,12 +921,18 @@ lock_reset_lock_and_trx_wait(
 		const char*	stmt2=NULL;
 		size_t		stmt_len;
 		trx_id_t trx_id = 0;
-		stmt = innobase_get_stmt(lock->trx->mysql_thd, &stmt_len);
+		stmt = lock->trx->mysql_thd
+			? innobase_get_stmt(lock->trx->mysql_thd, &stmt_len)
+			: NULL;
 
 		if (lock->trx->lock.wait_lock &&
 			lock->trx->lock.wait_lock->trx) {
 			trx_id = lock->trx->lock.wait_lock->trx->id;
-			stmt2 = innobase_get_stmt(lock->trx->lock.wait_lock->trx->mysql_thd, &stmt_len);
+			stmt2 = lock->trx->lock.wait_lock->trx->mysql_thd
+				? innobase_get_stmt(
+					lock->trx->lock.wait_lock
+					->trx->mysql_thd, &stmt_len)
+				: NULL;
 		}
 
 		ib_logf(IB_LOG_LEVEL_INFO,
@@ -1762,7 +1768,6 @@ wsrep_kill_victim(
 			is in the queue*/
 		} else if (lock->trx != trx) {
 			if (wsrep_log_conflicts) {
-				mutex_enter(&trx_sys->mutex);
 				if (bf_this) {
 					fputs("\n*** Priority TRANSACTION:\n",
 					      stderr);
@@ -1771,7 +1776,7 @@ wsrep_kill_victim(
 					      stderr);
 				}
 
-				trx_print_latched(stderr, trx, 3000);
+				wsrep_trx_print_locking(stderr, trx, 3000);
 
 				if (bf_other) {
 					fputs("\n*** Priority TRANSACTION:\n",
@@ -1780,10 +1785,7 @@ wsrep_kill_victim(
 					fputs("\n*** Victim TRANSACTION:\n",
 					      stderr);
 				}
-
-				trx_print_latched(stderr, lock->trx, 3000);
-
-				mutex_exit(&trx_sys->mutex);
+                                wsrep_trx_print_locking(stderr, lock->trx, 3000);
 
 				fputs("*** WAITING FOR THIS LOCK TO BE GRANTED:\n",
 				      stderr);
@@ -5640,13 +5642,11 @@ lock_rec_unlock(
 	trx_mutex_exit(trx);
 
 	stmt = innobase_get_stmt(trx->mysql_thd, &stmt_len);
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: Error: unlock row could not"
-		" find a %lu mode lock on the record\n",
-		(ulong) lock_mode);
-	ut_print_timestamp(stderr);
-	fprintf(stderr, " InnoDB: current statement: %.*s\n",
+
+	ib_logf(IB_LOG_LEVEL_ERROR,
+		"unlock row could not find a %u mode lock on the record;"
+		" statement=%.*s",
+		lock_mode,
 		(int) stmt_len, stmt);
 
 	return;

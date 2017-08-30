@@ -1,4 +1,5 @@
-# Copyright (c) 2006, 2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2006, 2017, Oracle and/or its affiliates.
+# Copyright (c) 2011, 2017, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -114,6 +115,13 @@ IF(CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
     SET(CFLAGS   "${CFLAGS} -arch ${ARCH}")
     SET(CXXFLAGS "${CXXFLAGS} -arch ${ARCH}")
   ENDFOREACH()
+ENDIF()
+
+
+IF(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+  SET (PERL_PATH "/usr/local/bin/perl")
+ELSE()
+  SET (PERL_PATH "/usr/bin/perl")
 ENDIF()
 
 IF(UNIX)
@@ -294,9 +302,13 @@ ELSE()
       wsrep_sst_rsync
       wsrep_sst_xtrabackup
       wsrep_sst_xtrabackup-v2
+      wsrep_sst_mariabackup
     )
-    INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/wsrep_sst_common
-            DESTINATION ${INSTALL_BINDIR} COMPONENT Server)
+    # The following script is sourced from other SST scripts, so it should
+    # not be made executable.
+    SET(WSREP_SOURCE
+      wsrep_sst_common
+    )
   ENDIF()
   IF (NOT WITHOUT_SERVER)
     SET(SERVER_SCRIPTS
@@ -336,6 +348,9 @@ ELSE()
       MESSAGE(FATAL_ERROR "Can not find ${file}.sh or ${file} in "
         "${CMAKE_CURRENT_SOURCE_DIR}" )
     ENDIF()
+    # TODO: The following EXECUTE could be redundant as INSTALL_SCRIPT
+    # macro does an INSTALL(PROGRAMS ..) that automatically sets +x on
+    # the executable.
     EXECUTE_PROCESS(COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/${file})
     IF(NOT ${file}_COMPONENT)
       SET(${file}_COMPONENT Server)
@@ -346,6 +361,20 @@ ELSE()
       COMPONENT ${${file}_COMPONENT}
      )
   ENDFOREACH()
+
+  FOREACH(file ${WSREP_SOURCE})
+    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
+      ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
+    IF(NOT ${file}_COMPONENT)
+      SET(${file}_COMPONENT Server)
+    ENDIF()
+    INSTALL(FILES
+      ${CMAKE_CURRENT_BINARY_DIR}/${file}
+      DESTINATION ${INSTALL_BINDIR}
+      COMPONENT ${${file}_COMPONENT}
+     )
+  ENDFOREACH()
+
 ENDIF()
 
 # Install libgcc as  mylibgcc.a
@@ -363,4 +392,3 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_FLAGS MATCHES "-static")
     COMPONENT Development)
   ENDIF()
 ENDIF()
-

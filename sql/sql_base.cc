@@ -400,7 +400,7 @@ void kill_delayed_threads_for_table(TDC_element *element)
     if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
         ! in_use->killed)
     {
-      in_use->killed= KILL_SYSTEM_THREAD;
+      in_use->set_killed(KILL_SYSTEM_THREAD);
       mysql_mutex_lock(&in_use->mysys_var->mutex);
       if (in_use->mysys_var->current_cond)
       {
@@ -1245,6 +1245,7 @@ bool close_temporary_tables(THD *thd)
       thd->variables.character_set_client= cs_save;
 
       thd->get_stmt_da()->set_overwrite_status(true);
+      thd->transaction.stmt.mark_dropped_temp_table();
       if ((error= (mysql_bin_log.write(&qinfo) || error)))
       {
         /*
@@ -9135,7 +9136,7 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
   if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
       !in_use->killed)
   {
-    in_use->killed= KILL_SYSTEM_THREAD;
+    in_use->set_killed(KILL_SYSTEM_THREAD);
     mysql_mutex_lock(&in_use->mysys_var->mutex);
     if (in_use->mysys_var->current_cond)
     {

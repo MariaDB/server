@@ -463,7 +463,7 @@ static void timeout_check(pool_timer_t *timer)
     {
       /* Wait timeout exceeded, kill connection. */
       mysql_mutex_lock(&thd->LOCK_thd_data);
-      thd->killed = KILL_CONNECTION;
+      thd->set_killed(KILL_CONNECTION);
       post_kill_notification(thd);
       mysql_mutex_unlock(&thd->LOCK_thd_data);
     }
@@ -982,24 +982,26 @@ static void thread_group_close(thread_group_t *thread_group)
 
   if (pipe(thread_group->shutdown_pipe))
   {
-    DBUG_VOID_RETURN;
+    goto end;
   }
   
   /* Wake listener */
   if (io_poll_associate_fd(thread_group->pollfd, 
       thread_group->shutdown_pipe[0], NULL))
   {
-    DBUG_VOID_RETURN;
+    goto end;
   }
-  char c= 0;
-  if (write(thread_group->shutdown_pipe[1], &c, 1) < 0)
-    DBUG_VOID_RETURN;
-
+  {
+    char c= 0;
+    if (write(thread_group->shutdown_pipe[1], &c, 1) < 0)
+      goto end;
+  }
   /* Wake all workers. */
   while(wake_thread(thread_group) == 0) 
   { 
   }
   
+end:
   mysql_mutex_unlock(&thread_group->mutex);
 
   DBUG_VOID_RETURN;

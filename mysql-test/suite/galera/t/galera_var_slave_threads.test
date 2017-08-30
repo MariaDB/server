@@ -6,7 +6,7 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
-
+CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread.");
 --let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
 
 --connection node_1

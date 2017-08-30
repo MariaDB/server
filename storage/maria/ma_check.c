@@ -4220,6 +4220,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     printf("Data records: %s\n", llstr(start_records, llbuff));
   }
 
+  bzero(&new_data_cache, sizeof(new_data_cache));
   if (initialize_variables_for_repair(param, &sort_info, &tmp_sort_param, info,
                                       rep_quick, &backup_share))
     goto err;
@@ -4259,6 +4260,8 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     }
   */
   DBUG_PRINT("info", ("is quick repair: %d", (int) rep_quick));
+  if (!rep_quick)
+    my_b_clear(&new_data_cache);
 
   /* Initialize pthread structures before goto err. */
   mysql_mutex_init(key_SORT_INFO_mutex, &sort_info.mutex, MY_MUTEX_INIT_FAST);
@@ -4624,7 +4627,7 @@ err:
     already or they were not yet started (if the error happend before
     creating the threads).
   */
-  if (!rep_quick)
+  if (!rep_quick && my_b_inited(&new_data_cache))
     end_io_cache(&new_data_cache);
   if (!got_error)
   {

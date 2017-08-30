@@ -557,6 +557,8 @@ typedef struct st_join_table {
             !(used_sjm_lookup_tables & ~emb_sj_nest->sj_inner_tables));
   }
 
+  bool keyuse_is_valid_for_access_in_chosen_plan(JOIN *join, KEYUSE *keyuse);
+
   void remove_redundant_bnl_scan_conds();
 
   void save_explain_data(Explain_table_access *eta, table_map prefix_tables, 
@@ -1042,6 +1044,11 @@ public:
     to materialize and access by lookups
   */
   table_map sjm_lookup_tables;
+  /** 
+    Bitmap of semijoin tables that the chosen plan decided
+    to materialize to scan the results of materialization
+  */
+  table_map sjm_scan_tables;
   /*
     Constant tables for which we have found a row (as opposed to those for
     which we didn't).
@@ -1415,6 +1422,7 @@ public:
     pre_sort_join_tab= NULL;
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
+    sjm_scan_tables= 0;
 
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 

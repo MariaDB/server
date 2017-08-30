@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -62,10 +62,10 @@ is set to TRUE by the page_cleaner thread when it is spawned and is set
 back to FALSE at shutdown by the page_cleaner as well. Therefore no
 need to protect it by a mutex. It is only ever read by the thread
 doing the shutdown */
-UNIV_INTERN ibool buf_page_cleaner_is_active = FALSE;
+UNIV_INTERN bool buf_page_cleaner_is_active;
 
 /** Flag indicating if the lru_manager is in active state. */
-UNIV_INTERN bool buf_lru_manager_is_active = false;
+UNIV_INTERN bool buf_lru_manager_is_active;
 
 #ifdef UNIV_PFS_THREAD
 UNIV_INTERN mysql_pfs_key_t buf_page_cleaner_thread_key;
@@ -352,6 +352,7 @@ buf_flush_insert_into_flush_list(
 	buf_block_t*	block,		/*!< in/out: block which is modified */
 	lsn_t		lsn)		/*!< in: oldest modification */
 {
+	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
 	ut_ad(log_flush_order_mutex_own());
 	ut_ad(mutex_own(&block->mutex));
 
@@ -410,6 +411,7 @@ buf_flush_insert_sorted_into_flush_list(
 	buf_page_t*	prev_b;
 	buf_page_t*	b;
 
+	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
 	ut_ad(log_flush_order_mutex_own());
 	ut_ad(mutex_own(&block->mutex));
 	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
@@ -715,6 +717,7 @@ buf_flush_write_complete(
 	buf_page_set_io_fix(bpage, BUF_IO_NONE);
 
 	buf_pool->n_flush[flush_type]--;
+	ut_ad(buf_pool->n_flush[flush_type] != ULINT_MAX);
 
 #ifdef UNIV_MTFLUSH_DEBUG
 	fprintf(stderr, "n pending flush %lu\n",
@@ -873,11 +876,12 @@ buf_flush_write_block_low(
 	buf_flush_t	flush_type,	/*!< in: type of flush */
 	bool		sync)		/*!< in: true if sync IO request */
 {
+	fil_space_t*	space = fil_space_acquire_for_io(bpage->space);
+	if (!space) {
+		return;
+	}
 	ulint	zip_size	= buf_page_get_zip_size(bpage);
 	page_t*	frame		= NULL;
-	ulint space_id          = buf_page_get_space(bpage);
-	atomic_writes_t awrites = fil_space_get_atomic_writes(space_id);
-
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
@@ -947,7 +951,7 @@ buf_flush_write_block_low(
 		break;
 	}
 
-	frame = buf_page_encrypt_before_write(bpage, frame, space_id);
+	frame = buf_page_encrypt_before_write(space, bpage, frame);
 
 	if (!srv_use_doublewrite_buf || !buf_dblwr) {
 		fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
@@ -968,7 +972,8 @@ buf_flush_write_block_low(
 		atomic writes should be used, no doublewrite buffer
 		is used. */
 
-		if (awrites == ATOMIC_WRITES_ON) {
+		if (fsp_flags_get_atomic_writes(space->flags)
+		    == ATOMIC_WRITES_ON) {
 			fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
 				FALSE,
 				buf_page_get_space(bpage),
@@ -991,9 +996,24 @@ buf_flush_write_block_low(
 	are working on. */
 	if (sync) {
 		ut_ad(flush_type == BUF_FLUSH_SINGLE_PAGE);
-		fil_flush(buf_page_get_space(bpage));
+		fil_flush(space);
+
+		/* The tablespace could already have been dropped,
+		because fil_io(request, sync) would already have
+		decremented the node->n_pending. However,
+		buf_page_io_complete() only needs to look up the
+		tablespace during read requests, not during writes. */
+		ut_ad(buf_page_get_io_fix_unlocked(bpage) == BUF_IO_WRITE);
+
+#ifdef UNIV_DEBUG
+		dberr_t err =
+#endif
 		buf_page_io_complete(bpage);
+
+		ut_ad(err == DB_SUCCESS);
 	}
+
+	fil_space_release_for_io(space);
 
 	/* Increment the counter of I/O operations used
 	for selecting LRU policy. */
@@ -1082,6 +1102,7 @@ buf_flush_page(
 		}
 
 		++buf_pool->n_flush[flush_type];
+		ut_ad(buf_pool->n_flush[flush_type] != 0);
 
 		mutex_exit(&buf_pool->flush_state_mutex);
 
@@ -2247,13 +2268,14 @@ Clears up tail of the LRU lists:
 * Flush dirty pages at the tail of LRU to the disk
 The depth to which we scan each buffer pool is controlled by dynamic
 config parameter innodb_LRU_scan_depth.
-@return number of pages flushed */
+@return number of flushed and evicted pages */
 UNIV_INTERN
 ulint
 buf_flush_LRU_tail(void)
 /*====================*/
 {
 	ulint	total_flushed = 0;
+	ulint	total_evicted = 0;
 	ulint	start_time = ut_time_ms();
 	ulint	scan_depth[MAX_BUFFER_POOLS];
 	ulint	requested_pages[MAX_BUFFER_POOLS];
@@ -2324,6 +2346,7 @@ buf_flush_LRU_tail(void)
 				limited_scan[i]
 					= (previous_evicted[i] > n.evicted);
 				previous_evicted[i] = n.evicted;
+				total_evicted += n.evicted;
 
 				requested_pages[i] += lru_chunk_size;
 
@@ -2364,7 +2387,7 @@ buf_flush_LRU_tail(void)
 		}
 	}
 
-	return(total_flushed);
+	return(total_flushed + total_evicted);
 }
 
 /*********************************************************************//**
@@ -2665,6 +2688,23 @@ buf_get_total_free_list_length(void)
 	return result;
 }
 
+/** Returns the aggregate LRU list length over all buffer pool instances.
+@return total LRU list length. */
+MY_ATTRIBUTE((warn_unused_result))
+static
+ulint
+buf_get_total_LRU_list_length(void)
+{
+        ulint result = 0;
+
+        for (ulint i = 0; i < srv_buf_pool_instances; i++) {
+
+                result += UT_LIST_GET_LEN(buf_pool_from_array(i)->LRU);
+        }
+
+        return result;
+}
+
 /*********************************************************************//**
 Adjust the desired page cleaner thread sleep time for LRU flushes.  */
 MY_ATTRIBUTE((nonnull))
@@ -2677,8 +2717,9 @@ page_cleaner_adapt_lru_sleep_time(
 	ulint	lru_n_flushed) /*!< in: number of flushed in previous batch */
 
 {
-	ulint free_len = buf_get_total_free_list_length();
-	ulint max_free_len = srv_LRU_scan_depth * srv_buf_pool_instances;
+        ulint free_len = buf_get_total_free_list_length();
+        ulint max_free_len = ut_min(buf_get_total_LRU_list_length(),
+                        srv_LRU_scan_depth * srv_buf_pool_instances);
 
 	if (free_len < max_free_len / 100 && lru_n_flushed) {
 
@@ -2690,7 +2731,7 @@ page_cleaner_adapt_lru_sleep_time(
 
 		/* Free lists filled more than 20%
 		or no pages flushed in previous batch, sleep a bit more */
-		*lru_sleep_time += 50;
+		*lru_sleep_time += 1;
 		if (*lru_sleep_time > srv_cleaner_max_lru_time)
 			*lru_sleep_time = srv_cleaner_max_lru_time;
 	} else if (free_len < max_free_len / 20 && *lru_sleep_time >= 50) {
@@ -2737,6 +2778,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
 	ulint	next_loop_time = ut_time_ms() + 1000;
 	ulint	n_flushed = 0;
 	ulint	last_activity = srv_get_activity_count();
@@ -2756,8 +2798,6 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	fprintf(stderr, "InnoDB: page_cleaner thread running, id %lu\n",
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
-
-	buf_page_cleaner_is_active = TRUE;
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
@@ -2821,7 +2861,10 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	when SRV_SHUTDOWN_CLEANUP is set other threads like the master
 	and the purge threads may be working as well. We start flushing
 	the buffer pool but can't be sure that no new pages are being
-	dirtied until we enter SRV_SHUTDOWN_FLUSH_PHASE phase. */
+	dirtied until we enter SRV_SHUTDOWN_FLUSH_PHASE phase. Because
+	the LRU manager thread is also flushing at SRV_SHUTDOWN_CLEANUP
+	but not SRV_SHUTDOWN_FLUSH_PHASE, we only leave the
+	SRV_SHUTDOWN_CLEANUP loop when the LRU manager quits. */
 
 	do {
 		n_flushed = page_cleaner_do_flush_batch(PCT_IO(100), LSN_MAX);
@@ -2830,7 +2873,10 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 		if (n_flushed == 0) {
 			os_thread_sleep(100000);
 		}
-	} while (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
+
+		os_rmb;
+	} while (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP
+		 || buf_lru_manager_is_active);
 
 	/* At this point all threads including the master and the purge
 	thread must have been suspended. */
@@ -2847,6 +2893,11 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
 	buf_flush_wait_LRU_batch_end();
 
+#ifdef UNIV_DEBUG
+	os_rmb;
+	ut_ad(!buf_lru_manager_is_active);
+#endif
+
 	bool	success;
 
 	do {
@@ -2854,7 +2905,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 		success = buf_flush_list(PCT_IO(100), LSN_MAX, &n_flushed);
 		buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
 
-	} while (!success || n_flushed > 0);
+	} while (!success || n_flushed > 0 || (IS_XTRABACKUP() && buf_get_n_pending_read_ios() > 0));
 
 	/* Some sanity checks */
 	ut_a(srv_get_active_thread_type() == SRV_NONE);
@@ -2867,8 +2918,9 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	/* We have lived our life. Time to die. */
 
 thread_exit:
-	buf_page_cleaner_is_active = FALSE;
+	buf_page_cleaner_is_active = false;
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);
@@ -2907,8 +2959,6 @@ DECLARE_THREAD(buf_flush_lru_manager_thread)(
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
-	buf_lru_manager_is_active = true;
-
 	/* On server shutdown, the LRU manager thread runs through cleanup
 	phase to provide free pages for the master and purge threads.  */
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE
@@ -2926,6 +2976,7 @@ DECLARE_THREAD(buf_flush_lru_manager_thread)(
 	}
 
 	buf_lru_manager_is_active = false;
+	os_wmb;
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */

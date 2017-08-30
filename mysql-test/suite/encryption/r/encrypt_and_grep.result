@@ -1,10 +1,15 @@
 SET GLOBAL innodb_file_per_table = ON;
+SET GLOBAL innodb_file_format = `Barracuda`;
 create table t1 (a varchar(255)) engine=innodb encrypted=yes;
 create table t2 (a varchar(255)) engine=innodb;
+show warnings;
+Level	Code	Message
 create table t3 (a varchar(255)) engine=innodb encrypted=no;
-insert t1 values (repeat('foobar', 42));
-insert t2 values (repeat('temp', 42));
-insert t3 values (repeat('dummy', 42));
+insert t1 values (repeat('foobarsecret', 22));
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+insert t2 values (repeat('tempsecret', 22));
+insert t3 values (repeat('dummysecret', 22));
 # Wait max 10 min for key encryption threads to encrypt all spaces
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 NAME
@@ -17,15 +22,14 @@ test/t1
 test/t2
 ./ibdata1
 # t1 yes on expecting NOT FOUND
-NOT FOUND /foobar/ in t1.ibd
+NOT FOUND /foobarsecret/ in t1.ibd
 # t2 ... on expecting NOT FOUND
-NOT FOUND /temp/ in t2.ibd
+NOT FOUND /tempsecret/ in t2.ibd
 # t3 no  on expecting FOUND
-FOUND /dummy/ in t3.ibd
+FOUND /dummysecret/ in t3.ibd
 # ibdata1 expecting NOT FOUND
-NOT FOUND /foobar/ in ibdata1
+NOT FOUND /foobarsecret/ in ibdata1
 # Now turn off encryption and wait for threads to decrypt everything
-SET GLOBAL innodb_encryption_threads = 1;
 SET GLOBAL innodb_encrypt_tables = off;
 # Wait max 10 min for key encryption threads to decrypt all spaces
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
@@ -39,15 +43,14 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 NAME
 test/t1
 # t1 yes on expecting NOT FOUND
-NOT FOUND /foobar/ in t1.ibd
-# t2 ... on expecting FOUND
-NOT FOUND /temp/ in t2.ibd
+NOT FOUND /foobarsecret/ in t1.ibd
+# t2 ... default expecting FOUND
+FOUND /tempsecret/ in t2.ibd
 # t3 no  on expecting FOUND
-FOUND /dummy/ in t3.ibd
+FOUND /dummysecret/ in t3.ibd
 # ibdata1 expecting NOT FOUND
-NOT FOUND /foobar/ in ibdata1
+NOT FOUND /foobarsecret/ in ibdata1
 # Now turn on encryption and wait for threads to encrypt all spaces
-SET GLOBAL innodb_encryption_threads = 4;
 SET GLOBAL innodb_encrypt_tables = on;
 # Wait max 10 min for key encryption threads to encrypt all spaces
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
@@ -61,11 +64,11 @@ test/t1
 test/t2
 ./ibdata1
 # t1 yes on expecting NOT FOUND
-NOT FOUND /foobar/ in t1.ibd
+NOT FOUND /foobarsecret/ in t1.ibd
 # t2 ... on expecting NOT FOUND
-NOT FOUND /temp/ in t2.ibd
+NOT FOUND /tempsecret/ in t2.ibd
 # t3 no  on expecting FOUND
-FOUND /dummy/ in t3.ibd
+FOUND /dummysecret/ in t3.ibd
 # ibdata1 expecting NOT FOUND
-NOT FOUND /foobar/ in ibdata1
+NOT FOUND /foobarsecret/ in ibdata1
 drop table t1, t2, t3;

@@ -1,0 +1,4 @@
+--skip-innodb-doublewrite
+--innodb-file-per-table
+--innodb-file-format=Barracuda
+--innodb-change-buffering=none

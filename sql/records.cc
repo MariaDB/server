@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -69,7 +70,7 @@ static int rr_index_desc(READ_RECORD *info);
 bool init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
                           bool print_error, uint idx, bool reverse)
 {
-  int error;
+  int error= 0;
   DBUG_ENTER("init_read_record_idx");
 
   empty_record(table);

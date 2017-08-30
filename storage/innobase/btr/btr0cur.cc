@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -613,7 +613,11 @@ retry_page_get:
 		space, zip_size, page_no, rw_latch, guess, buf_mode,
 		file, line, mtr, &err);
 
+	/* Note that block==NULL signifies either an error or change
+	buffering. */
+
 	if (err != DB_SUCCESS) {
+		ut_ad(block == NULL);
 		if (err == DB_DECRYPTION_FAILED) {
 			ib_push_warning((void *)NULL,
 				DB_DECRYPTION_FAILED,
@@ -621,7 +625,7 @@ retry_page_get:
 				" used key_id is not available. "
 				" Can't continue reading table.",
 				index->table->name);
-			index->table->is_encrypted = true;
+			index->table->file_unreadable = true;
 		}
 
 		goto func_exit;
@@ -872,7 +876,7 @@ btr_cur_open_at_index_side_func(
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*		offsets		= offsets_;
 	dberr_t		err = DB_SUCCESS;
-	
+
 	rec_offs_init(offsets_);
 
 	estimate = latch_mode & BTR_ESTIMATE;
@@ -916,6 +920,9 @@ btr_cur_open_at_index_side_func(
 		block = buf_page_get_gen(space, zip_size, page_no,
 					 RW_NO_LATCH, NULL, BUF_GET,
 					 file, line, mtr, &err);
+
+		ut_ad((block != NULL) == (err == DB_SUCCESS));
+
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
@@ -924,7 +931,7 @@ btr_cur_open_at_index_side_func(
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					index->table->name);
-				index->table->is_encrypted = true;
+				index->table->file_unreadable = true;
 			}
 
 			goto exit_loop;
@@ -1073,6 +1080,8 @@ btr_cur_open_at_rnd_pos_func(
 					 RW_NO_LATCH, NULL, BUF_GET,
 					 file, line, mtr, &err);
 
+		ut_ad((block != NULL) == (err == DB_SUCCESS));
+
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
@@ -1081,8 +1090,9 @@ btr_cur_open_at_rnd_pos_func(
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					index->table->name);
-				index->table->is_encrypted = true;
+				index->table->file_unreadable = true;
 			}
+
 			goto exit_loop;
 		}
 
@@ -1217,18 +1227,21 @@ btr_cur_ins_lock_and_undo(
 					     index, thr, mtr, inherit);
 
 	if (err != DB_SUCCESS
+	    || !(~flags | (BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG))
 	    || !dict_index_is_clust(index) || dict_index_is_ibuf(index)) {
 
 		return(err);
 	}
 
-	err = trx_undo_report_row_operation(flags, TRX_UNDO_INSERT_OP,
-					    thr, index, entry,
-					    NULL, 0, NULL, NULL,
-					    &roll_ptr);
-	if (err != DB_SUCCESS) {
-
-		return(err);
+	if (flags & BTR_NO_UNDO_LOG_FLAG) {
+		roll_ptr = 0;
+	} else {
+		err = trx_undo_report_row_operation(thr, index, entry,
+						    NULL, 0, NULL, NULL,
+						    &roll_ptr);
+		if (err != DB_SUCCESS) {
+			return(err);
+		}
 	}
 
 	/* Now we can fill in the roll ptr field in entry */
@@ -1277,15 +1290,17 @@ btr_cur_optimistic_insert(
 	btr_cur_t*	cursor,	/*!< in: cursor on page after which to insert;
 				cursor stays valid */
 	ulint**		offsets,/*!< out: offsets on *rec */
-	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
+	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap */
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
 	rec_t**		rec,	/*!< out: pointer to inserted record if
 				succeed */
 	big_rec_t**	big_rec,/*!< out: big rec vector whose fields have to
-				be stored externally by the caller, or
-				NULL */
+				be stored externally by the caller */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	que_thr_t*	thr,	/*!< in: query thread or NULL */
+	que_thr_t*	thr,	/*!< in/out: query thread; can be NULL if
+				!(~flags
+				& (BTR_NO_LOCKING_FLAG
+				| BTR_NO_UNDO_LOG_FLAG)) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction;
 				if this function returns DB_SUCCESS on
 				a leaf page of a secondary index in a
@@ -1306,6 +1321,7 @@ btr_cur_optimistic_insert(
 	ulint		rec_size;
 	dberr_t		err;
 
+	ut_ad(thr || !(~flags & (BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG)));
 	*big_rec = NULL;
 
 	block = btr_cur_get_block(cursor);
@@ -1564,15 +1580,17 @@ btr_cur_pessimistic_insert(
 				cursor stays valid */
 	ulint**		offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap
-				that can be emptied, or NULL */
+				that can be emptied */
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
 	rec_t**		rec,	/*!< out: pointer to inserted record if
 				succeed */
 	big_rec_t**	big_rec,/*!< out: big rec vector whose fields have to
-				be stored externally by the caller, or
-				NULL */
+				be stored externally by the caller */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	que_thr_t*	thr,	/*!< in: query thread or NULL */
+	que_thr_t*	thr,	/*!< in/out: query thread; can be NULL if
+				!(~flags
+				& (BTR_NO_LOCKING_FLAG
+				| BTR_NO_UNDO_LOG_FLAG)) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	dict_index_t*	index		= cursor->index;
@@ -1584,6 +1602,7 @@ btr_cur_pessimistic_insert(
 	ulint		n_reserved	= 0;
 
 	ut_ad(dtuple_check_typed(entry));
+	ut_ad(thr || !(~flags & (BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG)));
 
 	*big_rec = NULL;
 
@@ -1768,9 +1787,10 @@ btr_cur_upd_lock_and_undo(
 
 	/* Append the info about the update in the undo log */
 
-	return(trx_undo_report_row_operation(
-		       flags, TRX_UNDO_MODIFY_OP, thr,
-		       index, NULL, update,
+	return((flags & BTR_NO_UNDO_LOG_FLAG)
+	       ? DB_SUCCESS
+	       : trx_undo_report_row_operation(
+		       thr, index, NULL, update,
 		       cmpl_info, rec, offsets, roll_ptr));
 }
 
@@ -2296,6 +2316,15 @@ any_extern:
 		rec = page_cur_get_rec(page_cursor);
 	}
 
+	/* We limit max record size to 16k even for 64k page size. */
+	if (new_rec_size >= COMPRESSED_REC_MAX_DATA_SIZE ||
+	    (!dict_table_is_comp(index->table)
+	     && new_rec_size >= REDUNDANT_REC_MAX_DATA_SIZE)) {
+		err = DB_OVERFLOW;
+
+		goto func_exit;
+	}
+
 	if (UNIV_UNLIKELY(new_rec_size
 			  >= (page_get_free_space_of_empty(page_is_comp(page))
 			      / 2))) {
@@ -2501,12 +2530,12 @@ btr_cur_pessimistic_update(
 	ulint**		offsets,/*!< out: offsets on cursor->page_cur.rec */
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: pointer to memory heap
-				that can be emptied, or NULL */
+				that can be emptied */
 	mem_heap_t*	entry_heap,
 				/*!< in/out: memory heap for allocating
 				big_rec and the index tuple */
 	big_rec_t**	big_rec,/*!< out: big rec vector whose fields have to
-				be stored externally by the caller, or NULL */
+				be stored externally by the caller */
 	const upd_t*	update,	/*!< in: update vector; this is allowed also
 				contain trx id and roll ptr fields, but
 				the values in update vector have no effect */
@@ -3053,7 +3082,7 @@ btr_cur_del_mark_set_clust_rec(
 		return(err);
 	}
 
-	err = trx_undo_report_row_operation(0, TRX_UNDO_MODIFY_OP, thr,
+	err = trx_undo_report_row_operation(thr,
 					    index, NULL, NULL, 0, rec, offsets,
 					    &roll_ptr);
 	if (err != DB_SUCCESS) {
@@ -3667,6 +3696,8 @@ btr_estimate_n_rows_in_range_on_level(
 					 NULL, BUF_GET_POSSIBLY_FREED,
 					 __FILE__, __LINE__, &mtr, &err);
 
+		ut_ad((block != NULL) == (err == DB_SUCCESS));
+
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
@@ -3675,13 +3706,12 @@ btr_estimate_n_rows_in_range_on_level(
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					index->table->name);
-				index->table->is_encrypted = true;
+				index->table->file_unreadable = true;
 			}
 
 			mtr_commit(&mtr);
 			goto inexact;
 		}
-
 
 		page = buf_block_get_frame(block);
 
@@ -3800,6 +3830,10 @@ btr_estimate_n_rows_in_range(
 	}
 
 	mtr_commit(&mtr);
+
+	if (index->table->file_unreadable) {
+		return (0);
+	}
 
 	mtr_start_trx(&mtr, trx);
 
@@ -4094,6 +4128,11 @@ btr_estimate_number_of_different_key_vals(
 		because otherwise our algorithm would give a wrong estimate
 		for an index where there is just one key value. */
 
+		if (index->table->file_unreadable) {
+			mtr_commit(&mtr);
+			goto exit_loop;
+		}
+
 		page = btr_cur_get_page(&cursor);
 
 		rec = page_rec_get_next(page_get_infimum_rec(page));
@@ -4180,6 +4219,7 @@ btr_estimate_number_of_different_key_vals(
 		mtr_commit(&mtr);
 	}
 
+exit_loop:
 	/* If we saw k borders between different key values on
 	n_sample_pages leaf pages, we can estimate how many
 	there will be in index->stat_n_leaf_pages */

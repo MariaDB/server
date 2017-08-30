@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2017, MariaDB
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -5037,7 +5037,9 @@ static int my_uni_utf8_no_range(CHARSET_INFO *cs __attribute__((unused)),
   {
     /* Fall through all cases!!! */
     case 3: r[2]= (uchar) (0x80 | (wc & 0x3f)); wc= wc >> 6; wc |= 0x800;
+      /* fall through */
     case 2: r[1]= (uchar) (0x80 | (wc & 0x3f)); wc= wc >> 6; wc |= 0xc0;
+      /* fall through */
     case 1: r[0]= (uchar) wc;
   }
   return count;
@@ -7443,8 +7445,11 @@ my_wc_mb_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
   switch (count) {
     /* Fall through all cases!!! */
     case 4: r[3] = (uchar) (0x80 | (wc & 0x3f)); wc = wc >> 6; wc |= 0x10000;
+      /* fall through */
     case 3: r[2] = (uchar) (0x80 | (wc & 0x3f)); wc = wc >> 6; wc |= 0x800;
+      /* fall through */
     case 2: r[1] = (uchar) (0x80 | (wc & 0x3f)); wc = wc >> 6; wc |= 0xc0;
+      /* fall through */
     case 1: r[0] = (uchar) wc;
   }
   return count;
@@ -7475,8 +7480,11 @@ my_wc_mb_utf8mb4_no_range(CHARSET_INFO *cs __attribute__((unused)),
   {
     /* Fall through all cases!!! */
     case 4: r[3]= (uchar) (0x80 | (wc & 0x3f)); wc= wc >> 6; wc |= 0x10000;
+      /* fall through */
     case 3: r[2]= (uchar) (0x80 | (wc & 0x3f)); wc= wc >> 6; wc |= 0x800;
+      /* fall through */
     case 2: r[1]= (uchar) (0x80 | (wc & 0x3f)); wc= wc >> 6; wc |= 0xc0;
+      /* fall through */
     case 1: r[0]= (uchar) wc;
   }
   return count;

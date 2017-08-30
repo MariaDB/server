@@ -1,20 +1,98 @@
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
-create table t1 (c1 int not null primary key auto_increment, b char(200)) engine=innodb page_compressed=1;
-insert into t1 values(NULL,'compressed_text_aaaaaaaaabbbbbbbbbbbbbccccccccccccc');
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-insert into t1(b) select b from t1;
-# t1 compressed expected NOT FOUND
-NOT FOUND /compressed_text/ in t1.ibd
-drop table t1;
+call mtr.add_suppression("InnoDB: Compression failed for space [0-9]+ name test/innodb_page_compressed[0-9] len [0-9]+ err 2 write_size [0-9]+.");
+set global innodb_file_format = `Barracuda`;
+set global innodb_file_per_table = on;
+create table innodb_normal (c1 int not null auto_increment primary key, b char(200)) engine=innodb;
+create table innodb_page_compressed1 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=1;
+create table innodb_page_compressed2 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=2;
+create table innodb_page_compressed3 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=3;
+create table innodb_page_compressed4 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=4;
+create table innodb_page_compressed5 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=5;
+create table innodb_page_compressed6 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=6;
+create table innodb_page_compressed7 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=7;
+create table innodb_page_compressed8 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=8;
+create table innodb_page_compressed9 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=9;
+select count(*) from innodb_page_compressed1;
+count(*)
+10000
+select count(*) from innodb_page_compressed3;
+count(*)
+10000
+select count(*) from innodb_page_compressed4;
+count(*)
+10000
+select count(*) from innodb_page_compressed5;
+count(*)
+10000
+select count(*) from innodb_page_compressed6;
+count(*)
+10000
+select count(*) from innodb_page_compressed6;
+count(*)
+10000
+select count(*) from innodb_page_compressed7;
+count(*)
+10000
+select count(*) from innodb_page_compressed8;
+count(*)
+10000
+select count(*) from innodb_page_compressed9;
+count(*)
+10000
+# innodb_normal expected FOUND
+FOUND /AaAaAaAa/ in innodb_normal.ibd
+# innodb_page_compressed1 page compressed expected NOT FOUND
+NOT FOUND /AaAaAaAa/ in innodb_page_compressed1.ibd
+# innodb_page_compressed2 page compressed expected NOT FOUND
+NOT FOUND /AaAaAaAa/ in innodb_page_compressed2.ibd
+# innodb_page_compressed3 page compressed expected NOT FOUND
+NOT FOUND /AaAaAaAa/ in innodb_page_compressed3.ibd
+# innodb_page_compressed4 page compressed expected NOT FOUND
+NOT FOUND /AaAaAaAa/ in innodb_page_compressed4.ibd
+# innodb_page_compressed5 page compressed expected NOT FOUND
+NOT FOUND /AaAaAaAa/ in innodb_page_compressed5.ibd
+# innodb_page_compressed6 page compressed expected NOT FOUND
+NOT FOUND /AaAaAaAa/ in innodb_page_compressed6.ibd
+# innodb_page_compressed7 page compressed expected NOT FOUND
+NOT FOUND /AaAaAaAa/ in innodb_page_compressed7.ibd
+# innodb_page_compressed8 page compressed expected NOT FOUND
+NOT FOUND /AaAaAaAa/ in innodb_page_compressed8.ibd
+# innodb_page_compressed9 page compressed expected NOT FOUND
+NOT FOUND /AaAaAaAa/ in innodb_page_compressed9.ibd
+select count(*) from innodb_page_compressed1;
+count(*)
+10000
+select count(*) from innodb_page_compressed3;
+count(*)
+10000
+select count(*) from innodb_page_compressed4;
+count(*)
+10000
+select count(*) from innodb_page_compressed5;
+count(*)
+10000
+select count(*) from innodb_page_compressed6;
+count(*)
+10000
+select count(*) from innodb_page_compressed6;
+count(*)
+10000
+select count(*) from innodb_page_compressed7;
+count(*)
+10000
+select count(*) from innodb_page_compressed8;
+count(*)
+10000
+select count(*) from innodb_page_compressed9;
+count(*)
+10000
+drop table innodb_normal;
+drop table innodb_page_compressed1;
+drop table innodb_page_compressed2;
+drop table innodb_page_compressed3;
+drop table innodb_page_compressed4;
+drop table innodb_page_compressed5;
+drop table innodb_page_compressed6;
+drop table innodb_page_compressed7;
+drop table innodb_page_compressed8;
+drop table innodb_page_compressed9;
+#done

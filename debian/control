@@ -10,13 +10,14 @@ Build-Depends: bison,
                dh-apparmor,
                dpatch,
                libaio-dev,
+               libarchive-dev,
                libboost-dev,
                libjudy-dev,
                libkrb5-dev,
                libncurses5-dev (>= 5.0-6~),
                libpam0g-dev,
                libreadline-gplv2-dev,
-               libssl-dev,
+               ${LIBSSL},
                lsb-release,
                perl (>= 5.6.0),
                po-debconf,
@@ -443,3 +444,10 @@ Section: database
 Architecture: any
 Depends: libgssapi-krb5-2, mariadb-client-10.1
 Description: GSSAPI authentication plugin for MariaDB client
+
+
+Package: mariadb-backup-10.1
+Section: database
+Architecture: any
+Depends: libarchive12 | libarchive13
+Description: Backup tool for MariaDB server

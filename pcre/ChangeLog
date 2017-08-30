@@ -4,6 +4,53 @@ ChangeLog for PCRE
 Note that the PCRE 8.xx series (PCRE1) is now in a bugfix-only state. All
 development is happening in the PCRE2 10.xx series.
 
+Version 8.41 05-July-2017
+-------------------------
+
+1.  Fixed typo in CMakeLists.txt (wrong number of arguments for
+PCRE_STATIC_RUNTIME (affects MSVC only).
+
+2.  Issue 1 for 8.40 below was not correctly fixed. If pcregrep in multiline
+mode with --only-matching matched several lines, it restarted scanning at the
+next line instead of moving on to the end of the matched string, which can be
+several lines after the start.
+
+3.  Fix a missing else in the JIT compiler reported by 'idaifish'.
+
+4.  A (?# style comment is now ignored between a basic quantifier and a
+following '+' or '?' (example: /X+(?#comment)?Y/.
+
+5.  Avoid use of a potentially overflowing buffer in pcregrep (patch by Petr
+Pisar).
+
+6.  Fuzzers have reported issues in pcretest. These are NOT serious (it is,
+after all, just a test program). However, to stop the reports, some easy ones
+are fixed:
+
+    (a) Check for values < 256 when calling isprint() in pcretest.
+    (b) Give an error for too big a number after \O.
+
+7.  In the 32-bit library in non-UTF mode, an attempt to find a Unicode
+property for a character with a code point greater than 0x10ffff (the Unicode
+maximum) caused a crash.
+
+8. The alternative matching function, pcre_dfa_exec() misbehaved if it
+encountered a character class with a possessive repeat, for example [a-f]{3}+.
+
+9. When pcretest called pcre_copy_substring() in 32-bit mode, it set the buffer
+length incorrectly, which could result in buffer overflow.
+
+10. Remove redundant line of code (accidentally left in ages ago).
+
+11. Applied C++ patch from Irfan Adilovic to guard 'using std::' directives
+with namespace pcrecpp (Bugzilla #2084).
+
+12. Remove a duplication typo in pcre_tables.c.
+
+13. Fix returned offsets from regexec() when REG_STARTEND is used with a
+starting offset greater than zero.
+
+
 Version 8.40 11-January-2017
 ----------------------------
 

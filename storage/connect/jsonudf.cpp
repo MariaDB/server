@@ -537,7 +537,7 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 				SetJsonValue(g, MulVal, jvp, n);
 
 			if (!MulVal->IsNull()) {
-					switch (op) {
+				switch (op) {
 					case OP_CNC:
 						if (Nodes[n].CncVal) {
 							val[0] = Nodes[n].CncVal;

@@ -1,0 +1,9 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+innodb_log_file_size=110M
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.recover=yes;pc.ignore_sb=true;'
+
+[mysqld.2]
+innodb_log_file_size=110M
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.recover=yes;pc.ignore_sb=true;'

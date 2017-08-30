@@ -10,11 +10,13 @@ CREATE OR REPLACE EVENT IF NOT EXISTS ev1 ON SCHEDULE EVERY 1 SECOND DO DROP DAT
 
 CREATE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO INSERT INTO t1 VALUES (10);
 SELECT EVENT_NAME, EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
+--source include/count_sessions.inc
 SET GLOBAL event_scheduler=on;
 let $wait_condition= SELECT count(*)>0 FROM t1;
 --source include/wait_condition.inc
 SELECT DISTINCT a FROM t1;
 SET GLOBAL event_scheduler=off;
+--source include/wait_until_count_sessions.inc
 DELETE FROM t1;
 
 --error ER_EVENT_ALREADY_EXISTS
@@ -30,6 +32,7 @@ let $wait_condition= SELECT count(*)>0 FROM t1;
 --source include/wait_condition.inc
 SELECT DISTINCT a FROM t1;
 SET GLOBAL event_scheduler=off;
+--source include/wait_until_count_sessions.inc
 DELETE FROM t1;
 
 DROP EVENT IF EXISTS ev1;

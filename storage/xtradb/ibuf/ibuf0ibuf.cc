@@ -2216,6 +2216,8 @@ ibuf_remove_free_page(void)
 	page_t*	root;
 	page_t*	bitmap_page;
 
+	log_free_check();
+
 	mtr_start(&mtr);
 
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
@@ -2327,22 +2329,7 @@ ibuf_free_excess_pages(void)
 {
 	ulint		i;
 
-#ifdef UNIV_SYNC_DEBUG
-	ut_ad(rw_lock_own(fil_space_get_latch(IBUF_SPACE_ID, NULL),
-			  RW_LOCK_EX));
-#endif /* UNIV_SYNC_DEBUG */
-
-	ut_ad(rw_lock_get_x_lock_count(
-		fil_space_get_latch(IBUF_SPACE_ID, NULL)) == 1);
-
-	/* NOTE: We require that the thread did not own the latch before,
-	because then we know that we can obey the correct latching order
-	for ibuf latches */
-
-	if (!ibuf) {
-		/* Not yet initialized; not sure if this is possible, but
-		does no harm to check for it. */
-
+	if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
 		return;
 	}
 
@@ -2963,8 +2950,7 @@ ibuf_get_volume_buffered_hash(
 	fold = ut_fold_binary(data, len);
 
 	hash += (fold / (CHAR_BIT * sizeof *hash)) % size;
-	bitmask = static_cast<ulint>(
-		1 << (fold % (CHAR_BIT * sizeof(*hash))));
+	bitmask = static_cast<ulint>(1) << (fold % (CHAR_BIT * sizeof(*hash)));
 
 	if (*hash & bitmask) {
 
@@ -3733,7 +3719,7 @@ fail_exit:
 
 	if (mode == BTR_MODIFY_PREV) {
 		err = btr_cur_optimistic_insert(
-			BTR_NO_LOCKING_FLAG,
+			BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG,
 			cursor, &offsets, &offsets_heap,
 			ibuf_entry, &ins_rec,
 			&dummy_big_rec, 0, thr, &mtr);

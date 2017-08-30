@@ -574,6 +574,7 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
 
       // Selective delete, pass thru
       Bin = true;
+      /* fall through */
     case MODE_UPDATE:
       if ((UseTemp = Tdbp->IsUsingTemp(g))) {
         strcpy(opmode, "r");

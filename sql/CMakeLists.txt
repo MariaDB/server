@@ -60,15 +60,22 @@ SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES}
 
 # Gen_lex_token
 # Make sure sql_yacc.h is generated before compiling gen_lex_token
+
+IF(NOT CMAKE_GENERATOR MATCHES "Visual Studio")
+  SET(DEPENDS_gen_lex_token DEPENDS gen_lex_token)
+  SET(DEPENDS_gen_lex_hash DEPENDS gen_lex_hash)
+ENDIF()
+
+
 IF(NOT CMAKE_CROSSCOMPILING)
-  ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc)
-  ADD_DEPENDENCIES(gen_lex_token GenServerSource)
+  ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
+    ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h)
 ENDIF()
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
   COMMAND gen_lex_token > lex_token.h
-  DEPENDS gen_lex_token
+  ${DEPENDS_gen_lex_token}
 )
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER)
@@ -83,30 +90,30 @@ SET (SQL_SOURCE
                filesort_utils.cc
                filesort.cc gstream.cc
                signal_handler.cc
-               handler.cc hash_filo.h
+               handler.cc
                hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc 
                item_create.cc item_func.cc item_geofunc.cc item_row.cc 
                item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc 
                key.cc log.cc lock.cc
                log_event.cc rpl_record.cc rpl_reporting.cc
                log_event_old.cc rpl_record_old.cc
-               message.h mf_iocache.cc my_decimal.cc ../sql-common/my_time.c
+               mf_iocache.cc my_decimal.cc ../sql-common/my_time.c
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c
-               opt_range.cc opt_range.h opt_sum.cc 
+               opt_range.cc opt_sum.cc
                ../sql-common/pack.c parse_file.cc password.c procedure.cc 
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc set_var.cc 
                slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc 
                sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc 
-               sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc sql_crypt.h 
+               sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc
                sql_digest.cc sql_do.cc 
                sql_error.cc sql_handler.cc sql_get_diagnostics.cc
                sql_help.cc sql_insert.cc sql_lex.cc 
                sql_list.cc sql_load.cc sql_manager.cc
-               sql_parse.cc sql_bootstrap.cc sql_bootstrap.h
+               sql_parse.cc sql_bootstrap.cc
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc 
-               debug_sync.cc debug_sync.h
+               debug_sync.cc
                sql_repl.cc sql_select.cc sql_show.cc sql_state.c
                group_by_handler.cc
                sql_statistics.cc sql_string.cc 
@@ -122,21 +129,21 @@ SET (SQL_SOURCE
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc rpl_handler.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
-               sql_reload.cc sql_cmd.h item_inetfunc.cc
+               sql_reload.cc item_inetfunc.cc
 
                # added in MariaDB:
-               sql_explain.h sql_explain.cc
-               sql_analyze_stmt.h sql_analyze_stmt.cc
-               sql_lifo_buffer.h sql_join_cache.h sql_join_cache.cc
+               sql_explain.cc
+               sql_analyze_stmt.cc
+               sql_join_cache.cc
                create_options.cc multi_range_read.cc
                opt_index_cond_pushdown.cc opt_subselect.cc
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
                threadpool_common.cc ../sql-common/mysql_async.c
-               my_apc.cc my_apc.h mf_iocache_encr.cc
-               my_json_writer.cc my_json_writer.h
+               my_apc.cc mf_iocache_encr.cc
+               my_json_writer.cc
                rpl_gtid.cc rpl_parallel.cc
-               sql_type.cc sql_type.h
+               sql_type.cc
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
@@ -172,10 +179,67 @@ TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS}
   ${LIBSYSTEMD})
 
 IF(WIN32)
-  SET(MYSQLD_SOURCE main.cc nt_servc.cc nt_servc.h message.rc)
+  SET(MYSQLD_SOURCE main.cc nt_servc.cc message.rc)
   TARGET_LINK_LIBRARIES(sql psapi)
 ELSE()
   SET(MYSQLD_SOURCE main.cc ${DTRACE_PROBES_ALL})
+ENDIF()
+
+
+IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
+
+  # mysqld.exe must to export symbols from some specific libs.
+  # These symbols are used by dynamic plugins, that "link" to mysqld.
+  #
+  # To do that, we
+  #
+  # 1. Generate mysqld_lib.def text file with all symbols from static
+  # libraries mysys, dbug, strings, sql.
+  # 2. Then we call
+  #  lib.exe /DEF:mysqld_lib.def ...
+  #  to create import library mysqld_lib.lib and export library mysqld_lib.exp
+  # 3. mysqld.exe links with mysqld_lib.exp (exporting symbols)
+  # 4. plugins link with mysqld_lib.lib (importing symbols)
+  #
+  # We do not not regenerate .def, .lib and .exp
+  # without necessity.E.g source modifications, that do not
+  # change list of exported symbols, will not result in a relink for plugins.
+
+  SET(MYSQLD_DEF ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.def)
+  SET(MYSQLD_EXP ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.exp)
+  SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.lib)
+  SET(MYSQLD_CORELIBS sql mysys mysys_ssl dbug strings)
+  FOREACH (CORELIB ${MYSQLD_CORELIBS})
+    GET_TARGET_PROPERTY(LOC ${CORELIB} LOCATION)
+    FILE(TO_NATIVE_PATH ${LOC} LOC)
+    SET (LIB_LOCATIONS ${LIB_LOCATIONS} ${LOC})
+  ENDFOREACH (CORELIB)
+
+  SET(_PLATFORM x86)
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    SET(_PLATFORM  x64)
+  ENDIF()
+
+  ADD_CUSTOM_COMMAND(
+    OUTPUT ${MYSQLD_DEF}
+    COMMAND cscript ARGS //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
+    ${_PLATFORM} /forLib ${LIB_LOCATIONS} > mysqld_lib.def.tmp
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different mysqld_lib.def.tmp mysqld_lib.def
+    COMMAND ${CMAKE_COMMAND} -E remove mysqld_lib.def.tmp
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${MYSQLD_CORELIBS}
+  )
+
+  ADD_CUSTOM_COMMAND(
+    OUTPUT ${MYSQLD_LIB}
+    COMMAND lib
+    ARGS /NAME:mysqld.exe "/DEF:${MYSQLD_DEF}" "/MACHINE:${_PLATFORM}"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${MYSQLD_DEF}
+  )
+  ADD_CUSTOM_TARGET(gen_mysqld_lib DEPENDS ${MYSQLD_LIB})
+  ADD_LIBRARY(mysqld_import_lib UNKNOWN IMPORTED GLOBAL)
+  SET_TARGET_PROPERTIES(mysqld_import_lib PROPERTIES IMPORTED_LOCATION ${MYSQLD_LIB})
 ENDIF()
 
 MYSQL_ADD_EXECUTABLE(mysqld ${MYSQLD_SOURCE} DESTINATION ${INSTALL_SBINDIR} COMPONENT Server)
@@ -198,25 +262,9 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
     SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} -Wl,--export-all-symbols")
   ENDIF()
   IF(MSVC)
-    # Set module definition file. Also use non-incremental linker, 
-    # incremental appears to crash from time to time,if used with /DEF option
-    SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} /DEF:mysqld.def /INCREMENTAL:NO")
-
-    FOREACH (CORELIB sql mysys mysys_ssl dbug strings)
-      GET_TARGET_PROPERTY(LOC ${CORELIB} LOCATION)
-      FILE(TO_NATIVE_PATH ${LOC} LOC)
-      SET (LIB_LOCATIONS ${LIB_LOCATIONS} ${LOC}) 
-    ENDFOREACH (CORELIB ${MYSQLD_CORE_LIBS})
-    SET(_PLATFORM x86)
-    IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
-      SET(_PLATFORM  x64)
-    ENDIF()
-    ADD_CUSTOM_COMMAND(TARGET mysqld PRE_LINK
-      COMMAND echo ${_PLATFORM} && cscript ARGS //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
-                  ${_PLATFORM}  ${LIB_LOCATIONS} > mysqld.def 
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    ADD_DEPENDENCIES(sql GenError)
-  ENDIF(MSVC)
+    SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} \"${MYSQLD_EXP}\"")
+    ADD_DEPENDENCIES(mysqld gen_mysqld_lib)
+  ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
 SET_TARGET_PROPERTIES(mysqld PROPERTIES ENABLE_EXPORTS TRUE) 
@@ -282,7 +330,7 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
   COMMAND gen_lex_hash > lex_hash.h
-  DEPENDS gen_lex_hash
+  ${DEPENDS_gen_lex_hash}
 )
 
 MYSQL_ADD_EXECUTABLE(mysql_tzinfo_to_sql tztime.cc COMPONENT Server)

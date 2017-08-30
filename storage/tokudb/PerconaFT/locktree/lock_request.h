@@ -108,9 +108,14 @@ public:
     TXNID get_conflicting_txnid(void) const;
 
     // effect: Retries all of the lock requests for the given locktree.
-    //         Any lock requests successfully restarted is completed and woken up.
+    //         Any lock requests successfully restarted is completed and woken
+    //         up.
     //         The rest remain pending.
-    static void retry_all_lock_requests(locktree *lt, void (*lock_wait_callback)(void *, TXNID, TXNID) = nullptr, void (*after_retry_test_callback)(void) = nullptr);
+    static void retry_all_lock_requests(
+        locktree *lt,
+        void (*lock_wait_callback)(void *, TXNID, TXNID) = nullptr,
+        void (*after_retry_test_callback)(void) = nullptr);
+    static void retry_all_lock_requests_info(lt_lock_request_info *info, GrowableArray<TXNID> *collector);
 
     void set_start_test_callback(void (*f)(void));
     void set_start_before_pending_test_callback(void (*f)(void));
@@ -121,7 +126,7 @@ public:
     void kill_waiter(void);
     static void kill_waiter(locktree *lt, void *extra);
 
-private:
+   private:
     enum state {
         UNINITIALIZED,
         INITIALIZED,
@@ -193,7 +198,7 @@ private:
 
     void copy_keys(void);
 
-    static int find_by_txnid(lock_request * const &request, const TXNID &txnid);
+    static int find_by_txnid(lock_request *const &request, const TXNID &txnid);
 
     // Report list of conflicts to lock wait callback.
     static void report_waits(GrowableArray<TXNID> *wait_conflicts,

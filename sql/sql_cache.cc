@@ -2160,8 +2160,7 @@ lookup:
     response, we can't handle it anyway.
   */
   (void) trans_commit_stmt(thd);
-  if (!thd->get_stmt_da()->is_set())
-    thd->get_stmt_da()->disable_status();
+  thd->get_stmt_da()->disable_status();
 
   BLOCK_UNLOCK_RD(query_block);
   MYSQL_QUERY_CACHE_HIT(thd->query(), (ulong) thd->limit_found_rows);
@@ -4615,7 +4614,7 @@ void Query_cache::wreck(uint line, const char *message)
   DBUG_PRINT("warning", ("%5d QUERY CACHE WRECK => DISABLED",line));
   DBUG_PRINT("warning", ("=================================="));
   if (thd)
-    thd->killed= KILL_CONNECTION;
+    thd->set_killed(KILL_CONNECTION);
   cache_dump();
   /* check_integrity(0); */ /* Can't call it here because of locks */
   bins_dump();

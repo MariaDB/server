@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
@@ -333,6 +333,7 @@ DECLARE_THREAD(recv_writer_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
 	ut_ad(!srv_read_only_mode);
 
 #ifdef UNIV_PFS_THREAD
@@ -366,6 +367,7 @@ DECLARE_THREAD(recv_writer_thread)(
 
 	recv_writer_thread_active = false;
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit().
 	A created thread should always use that to exit and not
 	use return() to exit. */
@@ -1297,7 +1299,12 @@ recv_parse_or_apply_log_rec_body(
 		}
 		break;
 	case MLOG_FILE_WRITE_CRYPT_DATA:
-		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block));
+		dberr_t err;
+		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block, &err));
+
+		if (err != DB_SUCCESS) {
+			recv_sys->found_corrupt_log = TRUE;
+		}
 		break;
 	default:
 		ptr = NULL;
@@ -1640,7 +1647,7 @@ recv_recover_page_func(
 			}
 
 			DBUG_PRINT("ib_log",
-				   ("apply " DBUG_LSN_PF ": %u len %u "
+				   ("apply " LSN_PF ": %u len %u "
 				    "page %u:%u", recv->start_lsn,
 				    (unsigned) recv->type,
 				    (unsigned) recv->len,
@@ -1769,6 +1776,7 @@ recv_read_in_area(
 /** Apply the hash table of stored log records to persistent data pages.
 @param[in]	last_batch	whether the change buffer merge will be
 				performed as part of the operation */
+
 UNIV_INTERN
 void
 recv_apply_hashed_log_recs(bool last_batch)
@@ -1778,6 +1786,11 @@ recv_apply_hashed_log_recs(bool last_batch)
 
 		if (!recv_sys->apply_batch_on) {
 			break;
+		}
+
+		if (recv_sys->found_corrupt_log) {
+			mutex_exit(&recv_sys->mutex);
+			return;
 		}
 
 		mutex_exit(&recv_sys->mutex);
@@ -1843,6 +1856,10 @@ recv_apply_hashed_log_recs(bool last_batch)
 	while (recv_sys->n_addrs != 0) {
 
 		mutex_exit(&(recv_sys->mutex));
+
+		if (recv_sys->found_corrupt_log) {
+			return;
+		}
 
 		os_thread_sleep(500000);
 
@@ -2301,7 +2318,7 @@ loop:
 		recv_sys->recovered_lsn = new_recovered_lsn;
 
 		DBUG_PRINT("ib_log",
-			   ("scan " DBUG_LSN_PF ": log rec %u len %u "
+			   ("scan " LSN_PF ": log rec %u len %u "
 			    "page %u:%u", old_lsn,
 			    (unsigned) type, (unsigned) len,
 			    (unsigned) space, (unsigned) page_no));
@@ -2393,7 +2410,7 @@ loop:
 #endif /* UNIV_LOG_DEBUG */
 
 			DBUG_PRINT("ib_log",
-				   ("scan " DBUG_LSN_PF ": multi-log rec %u "
+				   ("scan " LSN_PF ": multi-log rec %u "
 				    "len %u page %u:%u",
 				    recv_sys->recovered_lsn,
 				    (unsigned) type, (unsigned) len,
@@ -2897,11 +2914,6 @@ recv_init_crash_recovery(void)
 	possible */
 
 	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-
-		ib_logf(IB_LOG_LEVEL_INFO,
-			"Restoring possible half-written data pages "
-			"from the doublewrite buffer...");
-
 		buf_dblwr_process();
 
 		/* Spawn the background thread to flush dirty pages
@@ -2912,22 +2924,22 @@ recv_init_crash_recovery(void)
 	}
 }
 
-/********************************************************//**
-Recovers from a checkpoint. When this function returns, the database is able
+/** Recovers from a checkpoint. When this function returns, the database is able
 to start processing of new user transactions, but the function
 recv_recovery_from_checkpoint_finish should be called later to complete
 the recovery and free the resources used in it.
+@param[in]	type		LOG_CHECKPOINT or LOG_ARCHIVE
+@param[in]	limit_lsn	recover up to this lsn if possible
+@param[in]	flushed_lsn	flushed lsn from first data file
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
 dberr_t
 recv_recovery_from_checkpoint_start_func(
-/*=====================================*/
 #ifdef UNIV_LOG_ARCHIVE
-	ulint	type,		/*!< in: LOG_CHECKPOINT or LOG_ARCHIVE */
-	lsn_t	limit_lsn,	/*!< in: recover up to this lsn if possible */
+	ulint		type,
+	lsn_t		limit_lsn,
 #endif /* UNIV_LOG_ARCHIVE */
-	lsn_t	min_flushed_lsn,/*!< in: min flushed lsn from data files */
-	lsn_t	max_flushed_lsn)/*!< in: max flushed lsn from data files */
+	lsn_t		flushed_lsn)
 {
 	log_group_t*	group;
 	log_group_t*	max_cp_group;
@@ -3148,6 +3160,7 @@ recv_recovery_from_checkpoint_start_func(
 
 		group = UT_LIST_GET_NEXT(log_groups, group);
 	}
+
 	/* Done with startup scan. Clear the flag. */
 	recv_log_scan_is_startup_type = FALSE;
 
@@ -3160,38 +3173,16 @@ recv_recovery_from_checkpoint_start_func(
 		there is something wrong we will print a message to the
 		user about recovery: */
 
-		if (checkpoint_lsn != max_flushed_lsn
-		    || checkpoint_lsn != min_flushed_lsn) {
-
-			if (checkpoint_lsn < max_flushed_lsn) {
-
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"The log sequence number "
-					"in the ibdata files is higher "
-					"than the log sequence number "
-					"in the ib_logfiles! Are you sure "
-					"you are using the right "
-					"ib_logfiles to start up the database. "
-					"Log sequence number in the "
-					"ib_logfiles is " LSN_PF ", log"
-					"sequence numbers stamped "
-					"to ibdata file headers are between "
-					"" LSN_PF " and " LSN_PF ".",
-					checkpoint_lsn,
-					min_flushed_lsn,
-					max_flushed_lsn);
-			}
-
+		if (checkpoint_lsn != flushed_lsn) {
 			if (!recv_needed_recovery) {
 				ib_logf(IB_LOG_LEVEL_INFO,
-					"The log sequence numbers "
-					LSN_PF " and " LSN_PF
-					" in ibdata files do not match"
+					"The log sequence number "
+					LSN_PF
+					" in ibdata file do not match"
 					" the log sequence number "
 					LSN_PF
 					" in the ib_logfiles!",
-					min_flushed_lsn,
-					max_flushed_lsn,
+					flushed_lsn,
 					checkpoint_lsn);
 
 				if (!srv_read_only_mode) {

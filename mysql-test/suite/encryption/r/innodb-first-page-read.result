@@ -1,0 +1,98 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+FLUSH STATUS;
+create database innodb_test;
+use innodb_test;
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic;
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed;
+create table innodb_compressed1(c1 bigint not null, b char(200)) engine=innodb row_format=compressed key_block_size=1;
+create table innodb_compressed2(c1 bigint not null, b char(200)) engine=innodb row_format=compressed key_block_size=2;
+create table innodb_compressed4(c1 bigint not null, b char(200)) engine=innodb row_format=compressed key_block_size=4;
+create table innodb_compressed8(c1 bigint not null, b char(200)) engine=innodb row_format=compressed key_block_size=8;
+create table innodb_compressed16(c1 bigint not null, b char(200)) engine=innodb row_format=compressed key_block_size=16;
+create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant;
+create table innodb_pagecomp(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes;
+create table innodb_pagecomp1(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=1;
+create table innodb_pagecomp2(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=2;
+create table innodb_pagecomp3(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=3;
+create table innodb_pagecomp4(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=4;
+create table innodb_pagecomp5(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=5;
+create table innodb_pagecomp6(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=6;
+create table innodb_pagecomp7(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=7;
+create table innodb_pagecomp8(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=8;
+create table innodb_pagecomp9(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes page_compression_level=9;
+create table innodb_datadir1(c1 bigint not null, b char(200)) engine=innodb DATA DIRECTORY='MYSQL_TMP_DIR';
+create table innodb_datadir2(c1 bigint not null, b char(200)) engine=innodb row_format=compressed DATA DIRECTORY='MYSQL_TMP_DIR';
+create table innodb_datadir3(c1 bigint not null, b char(200)) engine=innodb page_compressed=yes DATA DIRECTORY='MYSQL_TMP_DIR';
+begin;
+insert into innodb_normal values (1,'secret');
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+insert into innodb_compressed select * from innodb_normal;
+insert into innodb_compressed1 select * from innodb_normal;
+insert into innodb_compressed2 select * from innodb_normal;
+insert into innodb_compressed4 select * from innodb_normal;
+insert into innodb_compressed8 select * from innodb_normal;
+insert into innodb_compressed16 select * from innodb_normal;
+insert into innodb_redundant select * from innodb_normal;
+insert into innodb_pagecomp select * from innodb_normal;
+insert into innodb_pagecomp1 select * from innodb_normal;
+insert into innodb_pagecomp2 select * from innodb_normal;
+insert into innodb_pagecomp3 select * from innodb_normal;
+insert into innodb_pagecomp4 select * from innodb_normal;
+insert into innodb_pagecomp5 select * from innodb_normal;
+insert into innodb_pagecomp6 select * from innodb_normal;
+insert into innodb_pagecomp7 select * from innodb_normal;
+insert into innodb_pagecomp8 select * from innodb_normal;
+insert into innodb_pagecomp9 select * from innodb_normal;
+insert into innodb_datadir1 select * from innodb_normal;
+insert into innodb_datadir2 select * from innodb_normal;
+insert into innodb_datadir3 select * from innodb_normal;
+commit;
+FLUSH STATUS;
+# Restart server and see how many page 0's are read
+# result should actual number of tables except remote tables could be read twice
+# i.e. < 23 + 3*2 = 29
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
+VARIABLE_VALUE <= 29
+1
+use innodb_test;
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
+VARIABLE_VALUE <= 29
+1
+use test;
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
+VARIABLE_VALUE <= 29
+1
+set global innodb_encrypt_tables=OFF;
+# wait until tables are decrypted
+# result should be actual number of tables except remote tables could be read twice
+# i.e. < 23 + 3*2 = 29
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
+VARIABLE_VALUE <= 29
+1
+use innodb_test;
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
+VARIABLE_VALUE <= 29
+1
+use test;
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
+VARIABLE_VALUE <= 29
+1
+FLUSH STATUS;
+# restart and see number read page 0
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
+VARIABLE_VALUE <= 29
+1
+use innodb_test;
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
+VARIABLE_VALUE <= 29
+1
+use test;
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
+VARIABLE_VALUE <= 29
+1
+drop database innodb_test;
+FLUSH STATUS;

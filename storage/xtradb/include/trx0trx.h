@@ -1,8 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation. All Rights Reserved.
-
+Copyright (c) 2015, 2017, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -334,6 +333,24 @@ trx_print_low(
 			/*!< in: mem_heap_get_size(trx->lock.lock_heap) */
 	MY_ATTRIBUTE((nonnull));
 
+#ifdef WITH_WSREP
+/**********************************************************************//**
+Prints info about a transaction.
+Transaction information may be retrieved without having trx_sys->mutex acquired
+so it may not be completely accurate. The caller must own lock_sys->mutex
+and the trx must have some locks to make sure that it does not escape
+without locking lock_sys->mutex. */
+UNIV_INTERN
+void
+wsrep_trx_print_locking(
+/*==============*/
+	FILE*		f,		/*!< in: output stream */
+	const trx_t*	trx,		/*!< in: transaction */
+	ulint		max_query_len)	/*!< in: max query length to print,
+					or 0 to use the default max length */
+	MY_ATTRIBUTE((nonnull));
+#endif /* WITH_WSREP */
+
 /**********************************************************************//**
 Prints info about a transaction.
 The caller must hold lock_sys->mutex and trx_sys->mutex.
@@ -348,6 +365,23 @@ trx_print_latched(
 					or 0 to use the default max length */
 	MY_ATTRIBUTE((nonnull));
 
+#ifdef WITH_WSREP
+/**********************************************************************//**
+Prints info about a transaction.
+Transaction information may be retrieved without having trx_sys->mutex acquired
+so it may not be completely accurate. The caller must own lock_sys->mutex
+and the trx must have some locks to make sure that it does not escape
+without locking lock_sys->mutex. */
+UNIV_INTERN
+void
+wsrep_trx_print_locking(
+/*==============*/
+	FILE*		f,		/*!< in: output stream */
+	const trx_t*	trx,		/*!< in: transaction */
+	ulint		max_query_len)	/*!< in: max query length to print,
+					or 0 to use the default max length */
+	MY_ATTRIBUTE((nonnull));
+#endif /* WITH_WSREP */
 /**********************************************************************//**
 Prints info about a transaction.
 Acquires and releases lock_sys->mutex and trx_sys->mutex. */

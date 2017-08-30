@@ -28,7 +28,7 @@ select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
 plugin_status
 install soname 'file_key_management';
-ERROR HY000: Invalid key id at MYSQL_TMP_DIR/keys.txt line 2, column 11
+ERROR HY000: Invalid key id at MYSQL_TMP_DIR/keys.txt line 2, column 10
 call mtr.add_suppression("Invalid key id");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");

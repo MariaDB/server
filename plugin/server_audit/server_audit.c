@@ -1041,6 +1041,7 @@ static int start_logging()
     error_header();
     fprintf(stderr, "logging started to the file %s.\n", alt_fname);
     strncpy(current_log_buf, alt_fname, sizeof(current_log_buf));
+    current_log_buf[sizeof(current_log_buf)-1]= 0;
   }
   else if (output_type == OUTPUT_SYSLOG)
   {
@@ -2570,6 +2571,7 @@ static void update_file_path(MYSQL_THD thd,
   }
 
   strncpy(path_buffer, new_name, sizeof(path_buffer));
+  path_buffer[sizeof(path_buffer)-1]= 0;
   file_path= path_buffer;
 exit_func:
   internal_stop_logging= 0;
@@ -2622,6 +2624,7 @@ static void update_incl_users(MYSQL_THD thd,
     flogger_mutex_lock(&lock_operations);
   mark_always_logged(thd);
   strncpy(incl_user_buffer, new_users, sizeof(incl_user_buffer));
+  incl_user_buffer[sizeof(incl_user_buffer)-1]= 0;
   incl_users= incl_user_buffer;
   user_coll_fill(&incl_user_coll, incl_users, &excl_user_coll, 1);
   error_header();
@@ -2640,6 +2643,7 @@ static void update_excl_users(MYSQL_THD thd  __attribute__((unused)),
     flogger_mutex_lock(&lock_operations);
   mark_always_logged(thd);
   strncpy(excl_user_buffer, new_users, sizeof(excl_user_buffer));
+  excl_user_buffer[sizeof(excl_user_buffer)-1]= 0;
   excl_users= excl_user_buffer;
   user_coll_fill(&excl_user_coll, excl_users, &incl_user_coll, 0);
   error_header();
@@ -2771,6 +2775,7 @@ static void update_syslog_ident(MYSQL_THD thd  __attribute__((unused)),
 {
   char *new_ident= (*(char **) save) ? *(char **) save : empty_str;
   strncpy(syslog_ident_buffer, new_ident, sizeof(syslog_ident_buffer));
+  syslog_ident_buffer[sizeof(syslog_ident_buffer)-1]= 0;
   syslog_ident= syslog_ident_buffer;
   error_header();
   fprintf(stderr, "SYSYLOG ident was changed to '%s'\n", syslog_ident);

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2298,7 +2298,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     /* mysql_test_update returns 2 if we need to switch to multi-update */
     if (res != 2)
       break;
-
+    /* fall through */
   case SQLCOM_UPDATE_MULTI:
     res= mysql_test_multiupdate(stmt, tables, res == 2);
     break;
@@ -3306,7 +3306,7 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
   {
     stmt->state= Query_arena::STMT_ERROR;
     stmt->last_errno= thd->get_stmt_da()->sql_errno();
-    strncpy(stmt->last_error, thd->get_stmt_da()->message(), MYSQL_ERRMSG_SIZE);
+    strmake_buf(stmt->last_error, thd->get_stmt_da()->message());
   }
   thd->set_stmt_da(save_stmt_da);
 

@@ -137,26 +137,25 @@ a freshly read page)
 */
 # define recv_recover_page(jri, block)	recv_recover_page_func(block)
 #endif /* !UNIV_HOTBACKUP */
-/********************************************************//**
-Recovers from a checkpoint. When this function returns, the database is able
+
+/** Recovers from a checkpoint. When this function returns, the database is able
 to start processing of new user transactions, but the function
 recv_recovery_from_checkpoint_finish should be called later to complete
 the recovery and free the resources used in it.
+@param[in]	type		LOG_CHECKPOINT or LOG_ARCHIVE
+@param[in]	limit_lsn	recover up to this lsn if possible
+@param[in]	flushed_lsn	flushed lsn from first data file
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
 dberr_t
 recv_recovery_from_checkpoint_start_func(
-/*=====================================*/
 #ifdef UNIV_LOG_ARCHIVE
-	ulint		type,		/*!< in: LOG_CHECKPOINT or
-					LOG_ARCHIVE */
-	lsn_t		limit_lsn,	/*!< in: recover up to this lsn
-					if possible */
+	ulint		type,
+	lsn_t		limit_lsn,
 #endif /* UNIV_LOG_ARCHIVE */
-	lsn_t		min_flushed_lsn,/*!< in: min flushed lsn from
-					data files */
-	lsn_t		max_flushed_lsn);/*!< in: max flushed lsn from
-					 data files */
+	lsn_t		flushed_lsn)
+	MY_ATTRIBUTE((warn_unused_result));
+
 #ifdef UNIV_LOG_ARCHIVE
 /** Wrapper for recv_recovery_from_checkpoint_start_func().
 Recovers from a checkpoint. When this function returns, the database is able
@@ -165,11 +164,10 @@ recv_recovery_from_checkpoint_finish should be called later to complete
 the recovery and free the resources used in it.
 @param type	in: LOG_CHECKPOINT or LOG_ARCHIVE
 @param lim	in: recover up to this log sequence number if possible
-@param min	in: minimum flushed log sequence number from data files
-@param max	in: maximum flushed log sequence number from data files
+@param lsn	in: flushed log sequence number from first data file
 @return	error code or DB_SUCCESS */
-# define recv_recovery_from_checkpoint_start(type,lim,min,max)		\
-	recv_recovery_from_checkpoint_start_func(type,lim,min,max)
+# define recv_recovery_from_checkpoint_start(type,lim,lsn)		\
+	recv_recovery_from_checkpoint_start_func(type,lim,lsn)
 #else /* UNIV_LOG_ARCHIVE */
 /** Wrapper for recv_recovery_from_checkpoint_start_func().
 Recovers from a checkpoint. When this function returns, the database is able
@@ -178,12 +176,12 @@ recv_recovery_from_checkpoint_finish should be called later to complete
 the recovery and free the resources used in it.
 @param type	ignored: LOG_CHECKPOINT or LOG_ARCHIVE
 @param lim	ignored: recover up to this log sequence number if possible
-@param min	in: minimum flushed log sequence number from data files
-@param max	in: maximum flushed log sequence number from data files
+@param lsn	in: flushed log sequence number from first data file
 @return	error code or DB_SUCCESS */
-# define recv_recovery_from_checkpoint_start(type,lim,min,max)		\
-	recv_recovery_from_checkpoint_start_func(min,max)
+# define recv_recovery_from_checkpoint_start(type,lim,lsn)		\
+	recv_recovery_from_checkpoint_start_func(lsn)
 #endif /* UNIV_LOG_ARCHIVE */
+
 /********************************************************//**
 Completes recovery from a checkpoint. */
 UNIV_INTERN

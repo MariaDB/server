@@ -1502,7 +1502,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
   {
     if (!--action->hit_limit)
     {
-      thd->killed= KILL_QUERY;
+      thd->set_killed(KILL_QUERY);
       my_error(ER_DEBUG_SYNC_HIT_LIMIT, MYF(0));
     }
     DBUG_PRINT("debug_sync_exec", ("hit_limit: %lu  at: '%s'",

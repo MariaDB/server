@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -367,9 +368,9 @@ row_log_online_op(
 			goto err_exit;
 		}
 
-		ret = os_file_write(
+		ret = os_file_write_int_fd(
 			"(modification log)",
-			OS_FILE_FROM_FD(log->fd),
+			log->fd,
 			log->tail.block, byte_offset, srv_sort_buf_size);
 		log->tail.blocks++;
 		if (!ret) {
@@ -483,9 +484,9 @@ row_log_table_close_func(
 			goto err_exit;
 		}
 
-		ret = os_file_write(
+		ret = os_file_write_int_fd(
 			"(modification log)",
-			OS_FILE_FROM_FD(log->fd),
+			log->fd,
 			log->tail.block, byte_offset, srv_sort_buf_size);
 		log->tail.blocks++;
 		if (!ret) {
@@ -1880,6 +1881,7 @@ row_log_table_apply_update(
 
 		When applying the subsequent ROW_T_DELETE, no matching
 		record will be found. */
+		/* fall through */
 	case DB_SUCCESS:
 		ut_ad(row != NULL);
 		break;
@@ -2617,11 +2619,10 @@ all_done:
 			goto func_exit;
 		}
 
-		success = os_file_read_no_error_handling(
-			OS_FILE_FROM_FD(index->online_log->fd),
+		success = os_file_read_no_error_handling_int_fd(
+			index->online_log->fd,
 			index->online_log->head.block, ofs,
 			srv_sort_buf_size);
-
 		if (!success) {
 			fprintf(stderr, "InnoDB: unable to read temporary file"
 				" for table %s\n", index->table_name);
@@ -3444,8 +3445,8 @@ all_done:
 			goto func_exit;
 		}
 
-		success = os_file_read_no_error_handling(
-			OS_FILE_FROM_FD(index->online_log->fd),
+		success = os_file_read_no_error_handling_int_fd(
+			index->online_log->fd,
 			index->online_log->head.block, ofs,
 			srv_sort_buf_size);
 
@@ -3674,7 +3675,7 @@ row_log_apply(
 
 	rw_lock_x_lock(dict_index_get_lock(index));
 
-	if (!dict_table_is_corrupted(index->table)) {
+	if (!index->table->corrupted) {
 		error = row_log_apply_ops(trx, index, &dup);
 	} else {
 		error = DB_SUCCESS;

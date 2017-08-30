@@ -24,7 +24,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	The number of outstanding connection requests MariaDB can have. This comes into play when the main MySQL thread gets very many connection requests in a very short time
+ VARIABLE_COMMENT	The number of outstanding connection requests MariaDB can have. This comes into play when the main MariaDB thread gets very many connection requests in a very short time
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	65535
 @@ -144,7 +144,7 @@
@@ -64,7 +64,7 @@
  READ_ONLY	NO
 @@ -256,7 +256,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
- VARIABLE_COMMENT	The size of the statement cache for updates to non-transactional engines for the binary log. If you often use statements updating a great number of rows, you can increase this to get more performance
+ VARIABLE_COMMENT	The size of the statement cache for updates to non-transactional engines for the binary log. If you often use statements updating a great number of rows, you can increase this to get more performance.
  NUMERIC_MIN_VALUE	4096
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -140,7 +140,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	After inserting delayed_insert_limit rows, the INSERT DELAYED handler will check if there are any SELECT statements pending. If so, it allows these to execute before continuing
+ VARIABLE_COMMENT	After inserting delayed_insert_limit rows, the INSERT DELAYED handler will check if there are any SELECT statements pending. If so, it allows these to execute before continuing.
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
 @@ -659,7 +659,7 @@
@@ -458,7 +458,7 @@
  VARIABLE_COMMENT	Limit assumed max number of seeks when looking up rows based on a key
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
-@@ -2199,7 +2199,7 @@
+@@ -2213,7 +2213,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1024
  VARIABLE_SCOPE	SESSION
@@ -467,7 +467,7 @@
  VARIABLE_COMMENT	The number of bytes to use when sorting BLOB or TEXT values (only the first max_sort_length bytes of each value are used; the rest are ignored)
  NUMERIC_MIN_VALUE	4
  NUMERIC_MAX_VALUE	8388608
-@@ -2213,7 +2213,7 @@
+@@ -2227,7 +2227,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	SESSION
@@ -664,7 +664,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value; if set to 63, the optimizer will switch to the original find_best search. NOTE: The value 63 and its associated behaviour is deprecated
+ VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value; if set to 63, the optimizer will switch to the original find_best search. NOTE: The value 63 and its associated behaviour is deprecated.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	63
 @@ -2647,7 +2647,7 @@
@@ -979,7 +979,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Limit of query profiling memory
+ VARIABLE_COMMENT	Number of statements about which profiling information is maintained. If set to 0, no profiles are stored. See SHOW PROFILES.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	100
 @@ -3235,7 +3235,7 @@
@@ -1208,7 +1208,7 @@
  NUMERIC_MAX_VALUE	512
 @@ -4764,7 +4764,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
- VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MySQL will automatically convert it to an on-disk MyISAM or Aria table
+ VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table.
  NUMERIC_MIN_VALUE	1024
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295

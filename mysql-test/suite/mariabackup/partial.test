@@ -1,0 +1,31 @@
+# Export single table from backup
+# (xtrabackup with --prepare --export)
+
+CREATE TABLE t1(i INT) ENGINE INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t2(i int) ENGINE INNODB;
+
+echo # xtrabackup backup;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables=test.*1" --target-dir=$targetdir;
+--enable_result_log
+list_files $targetdir/test *.ibd;
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP --prepare --export --target-dir=$targetdir;
+--enable_result_log
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+let $MYSQLD_DATADIR= `select @@datadir`;
+copy_file $targetdir/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd;
+copy_file $targetdir/test/t1.cfg $MYSQLD_DATADIR/test/t1.cfg;
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP TABLE t2;
+rmdir $targetdir;
+

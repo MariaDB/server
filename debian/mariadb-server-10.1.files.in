@@ -57,6 +57,7 @@ usr/bin/wsrep_sst_mysqldump
 usr/bin/wsrep_sst_rsync
 usr/bin/wsrep_sst_xtrabackup
 usr/bin/wsrep_sst_xtrabackup-v2
+usr/bin/wsrep_sst_mariabackup
 usr/share/doc/mariadb-server-10.1/mysqld.sym.gz
 usr/share/doc/mariadb-server-10.1/INFO_SRC
 usr/share/doc/mariadb-server-10.1/INFO_BIN

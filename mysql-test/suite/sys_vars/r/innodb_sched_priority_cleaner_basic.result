@@ -1,4 +1,4 @@
-SET @start_value = @@GLOBAL.innodb_sched_priority_cleaner;
+SET GLOBAL innodb_sched_priority_cleaner=39;
 SELECT @@GLOBAL.innodb_sched_priority_cleaner;
 @@GLOBAL.innodb_sched_priority_cleaner
 19

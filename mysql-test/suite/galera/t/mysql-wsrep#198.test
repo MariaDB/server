@@ -5,6 +5,9 @@ CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
 
 --connection node_2
+# Ensure that the tables have been created on node #2
+SELECT 1 FROM DUAL;
+
 LOCK TABLE t2 WRITE;
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2

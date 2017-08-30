@@ -120,6 +120,7 @@ public:
                              void *ref);
   virtual int seek_position(FEDERATEDX_IO_RESULT **io_result,
                             const void *ref);
+  virtual void set_thd(void *thd);
 };
 
 
@@ -648,3 +649,7 @@ int federatedx_io_mysql::seek_position(FEDERATEDX_IO_RESULT **io_result,
   return 0;
 }
 
+void federatedx_io_mysql::set_thd(void *thd)
+{
+  mysql.net.thd= thd;
+}

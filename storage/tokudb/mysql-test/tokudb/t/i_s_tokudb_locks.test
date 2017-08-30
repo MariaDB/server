@@ -1,3 +1,4 @@
+skip Tokudb Lock Waits not in I_S in MariaDB;
 # verify that information_schema.tokudb_locks gets populated with locks for 2 clients
 
 source include/have_tokudb.inc;

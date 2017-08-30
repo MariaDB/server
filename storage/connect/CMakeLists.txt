@@ -38,7 +38,7 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 # Definitions that are shared for all OSes
 #
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
-add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT -DPIVOT_SUPPORT )
+add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT -DPIVOT_SUPPORT -DUSE_TRY )
 
 
 #
@@ -270,7 +270,7 @@ IF(CONNECT_WITH_JDBC)
       jmgfam.cpp jmgoconn.cpp mongo.cpp tabjmg.cpp
       jmgfam.h jmgoconn.h mongo.h tabjmg.h
       Mongo2Interface.java Mongo3Interface.java)
-      add_definitions(-DMONGO_SUPPORT)
+      add_definitions(-DMONGO_SUPPORT -DMONGO_ENABLED=0)
     ENDIF()
   ELSE()
     SET(JDBC_LIBRARY "")
@@ -368,6 +368,4 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
     ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
     DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
 ENDIF()
-
-
 

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates
+   Copyright (c) 2009, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1406,7 +1406,7 @@ void set_stmt_errmsg(MYSQL_STMT *stmt, NET *net)
   DBUG_ASSERT(stmt != 0);
 
   stmt->last_errno= net->last_errno;
-  if (net->last_error && net->last_error[0])
+  if (net->last_error[0])
     strmov(stmt->last_error, net->last_error);
   strmov(stmt->sqlstate, net->sqlstate);
 
@@ -4709,8 +4709,7 @@ my_bool STDCALL mysql_stmt_close(MYSQL_STMT *stmt)
     {
       uchar buff[MYSQL_STMT_HEADER];             /* 4 bytes - stmt id */
 
-      if ((rc= reset_stmt_handle(stmt, RESET_ALL_BUFFERS | RESET_CLEAR_ERROR)))
-        return rc;
+      reset_stmt_handle(stmt, RESET_ALL_BUFFERS | RESET_CLEAR_ERROR);
 
       int4store(buff, stmt->stmt_id);
       if ((rc= stmt_command(mysql, COM_STMT_CLOSE, buff, 4, stmt)))
@@ -4920,4 +4919,3 @@ ulong STDCALL mysql_net_field_length(uchar **packet)
 {
   return net_field_length(packet);
 }
-

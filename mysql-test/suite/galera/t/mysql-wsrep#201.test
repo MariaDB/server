@@ -8,7 +8,6 @@ INSERT INTO t1 VALUES (DEFAULT);
 --connection node_2
 --let $qcache_size_orig = `SELECT @@GLOBAL.query_cache_size`
 SET GLOBAL query_cache_size=1355776;
-SET SESSION wsrep_sync_wait = 7;
 
 --disable_query_log
 

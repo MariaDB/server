@@ -1844,8 +1844,8 @@ int spider_db_append_key_where_internal(
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
           case HA_READ_PREFIX_LAST:
             result_list->desc_flg = TRUE;
-            /* fall through */
 #endif
+            /* fall through */
           case HA_READ_KEY_EXACT:
             if (sql_kind == SPIDER_SQL_KIND_SQL)
             {

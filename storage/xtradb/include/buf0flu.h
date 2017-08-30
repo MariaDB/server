@@ -34,7 +34,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0types.h"
 
 /** Flag indicating if the page_cleaner is in active state. */
-extern ibool buf_page_cleaner_is_active;
+extern bool buf_page_cleaner_is_active;
 
 /** Flag indicating if the lru_manager is in active state. */
 extern bool buf_lru_manager_is_active;

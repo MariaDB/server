@@ -1,0 +1,16 @@
+CREATE TABLE t(c VARCHAR(10)) ENGINE INNODB encrypted=yes;
+Warnings:
+Note	1105	AWS KMS plugin: generated encrypted datakey for key id=1, version=1
+Note	1105	AWS KMS plugin: loaded key 1, version 1, key length 128 bit
+INSERT INTO t VALUES('foobar1');
+# xtrabackup backup
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+SELECT * from t;
+c
+foobar1
+Warnings:
+Note	1105	AWS KMS plugin: loaded key 1, version 1, key length 128 bit
+DROP TABLE t;

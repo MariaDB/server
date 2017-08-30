@@ -1,3 +1,4 @@
+skip Tokudb Fractal Tree info not in I_S in MariaDB;
 # test DB-718, a crash caused by broken error handling in tokudb's fractal_tree_info information schema
 source include/have_tokudb.inc;
 set default_storage_engine='tokudb';
