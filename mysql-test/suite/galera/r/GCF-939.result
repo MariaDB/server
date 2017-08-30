@@ -1,0 +1,7 @@
+DROP TABLE t1;
+ERROR 42S02: Unknown table 'test.t1'
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+GRA_.log
+DROP TABLE t1;
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table 'test.t1'' on query");
