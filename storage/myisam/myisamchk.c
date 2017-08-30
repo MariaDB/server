@@ -1397,7 +1397,7 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
 	 key < share->state.header.uniques; key++, uniqueinfo++)
     {
       my_bool new_row=0;
-      char null_bit[8],null_pos[8];
+      char null_bit[8],null_pos[10];
       printf("%-8d%-5d",key+1,uniqueinfo->key+1);
       for (keyseg=uniqueinfo->seg ; keyseg->type != HA_KEYTYPE_END ; keyseg++)
       {
