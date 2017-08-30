@@ -35,3 +35,9 @@ SELECT 3;
 SET @@global.wait_timeout= <start_value>;
 disconnect con1;
 connect  default,localhost,root,,test,,;
+set global log_warnings=2;
+connect  foo,localhost,root;
+set @@wait_timeout=1;
+connection default;
+FOUND 1 /Aborted.*Got timeout reading communication packets/ in mysqld.1.err
+set global log_warnings=@@log_warnings;

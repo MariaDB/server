@@ -492,6 +492,11 @@ enum killed_state
   KILL_SYSTEM_THREAD_HARD= 15,
   KILL_SERVER= 16,
   KILL_SERVER_HARD= 17,
+  /*
+    Used in threadpool to signal wait timeout.
+  */
+  KILL_WAIT_TIMEOUT= 18,
+  KILL_WAIT_TIMEOUT_HARD= 19
 
 };
 

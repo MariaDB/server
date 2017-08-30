@@ -2008,6 +2008,9 @@ int THD::killed_errno()
     DBUG_RETURN(ER_SERVER_SHUTDOWN);
   case KILL_SLAVE_SAME_ID:
     DBUG_RETURN(ER_SLAVE_SAME_ID);
+  case KILL_WAIT_TIMEOUT:
+  case KILL_WAIT_TIMEOUT_HARD:
+    DBUG_RETURN(ER_NET_READ_INTERRUPTED);
   }
   DBUG_RETURN(0);                               // Keep compiler happy
 }
