@@ -346,18 +346,18 @@ EOF
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around
 
     # If the IP is local listen only in it
-    if is_local_ip $RSYNC_ADDR
+    if is_local_ip "$RSYNC_ADDR"
     then
-      rsync --daemon --no-detach --address $RSYNC_ADDR --port $RSYNC_PORT --config "$RSYNC_CONF" &
+      rsync --daemon --no-detach --address "$RSYNC_ADDR" --port "$RSYNC_PORT" --config "$RSYNC_CONF" &
     else
       # Not local, possibly a NAT, listen in all interface
-      rsync --daemon --no-detach --port $RSYNC_PORT --config "$RSYNC_CONF" &
+      rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" &
       # Overwrite address with all
       RSYNC_ADDR="*"
     fi
     RSYNC_REAL_PID=$!
 
-    until check_pid_and_port $RSYNC_PID $RSYNC_REAL_PID $RSYNC_ADDR $RSYNC_PORT
+    until check_pid_and_port "$RSYNC_PID" "$RSYNC_REAL_PID" "$RSYNC_ADDR" "$RSYNC_PORT"
     do
         sleep 0.2
     done
