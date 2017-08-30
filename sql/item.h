@@ -480,20 +480,8 @@ public:
   String_copier_for_item(THD *thd): m_thd(thd) { }
 };
 
-/* System versioning */
-class Vers_extended_item
-{
-public:
-  virtual vtq_record_t* vtq_cached_result()
-  {
-    return NULL;
-  }
-};
-
-
 class Item: public Value_source,
-            public Type_std_attributes,
-            public Vers_extended_item
+            public Type_std_attributes
 {
   void operator=(Item &);
   /**
@@ -1845,8 +1833,10 @@ public:
   {
     marker &= ~EXTRACTION_MASK;
   }
-};
 
+  /* System versioning */
+  virtual vtq_record_t *vtq_cached_result() { return NULL; }
+};
 
 template <class T>
 inline Item* get_item_copy (THD *thd, MEM_ROOT *mem_root, T* item)
