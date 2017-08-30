@@ -503,7 +503,8 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
         break;
         } // endif
 
-      // Selective delete, pass thru
+      // Selective delete
+      /* fall through */
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
       strcpy(opmode, (UseTemp) ? "rb" : "r+b");
@@ -623,6 +624,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
             case 'L':           // Large (big) integer
             case 'T':           // Tiny integer
               c = 'N';          // Numeric
+              /* fall through */
             case 'N':           // Numeric (integer)
             case 'F':           // Float (double)
               descp->Decimals = (uchar)cdp->F.Prec;

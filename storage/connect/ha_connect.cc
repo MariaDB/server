@@ -182,10 +182,7 @@ extern "C" {
 
 #if defined(NEW_MAR)
 #define stored_in_db stored_in_db()
-#define MONGO_ENABLED	1
-#else		// !NEW_MAR
-#define MONGO_ENABLED	0
-#endif  // !NEW_MAR)
+#endif   // NEW_MAR)
 
 #if defined(XMAP)
        my_bool xmap= false;

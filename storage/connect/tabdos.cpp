@@ -1311,6 +1311,7 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
         } // endif !opm
 
       // if opm, pass thru
+      // fall through
     case OP_IN:
       if (filp->GetArgType(0) == TYPE_COLBLK &&
           filp->GetArgType(1) == TYPE_ARRAY) {

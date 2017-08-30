@@ -270,7 +270,7 @@ IF(CONNECT_WITH_JDBC)
       jmgfam.cpp jmgoconn.cpp mongo.cpp tabjmg.cpp
       jmgfam.h jmgoconn.h mongo.h tabjmg.h
       Mongo2Interface.java Mongo3Interface.java)
-      add_definitions(-DMONGO_SUPPORT)
+      add_definitions(-DMONGO_SUPPORT -DMONGO_ENABLED=1)
     ENDIF()
   ELSE()
     SET(JDBC_LIBRARY "")
