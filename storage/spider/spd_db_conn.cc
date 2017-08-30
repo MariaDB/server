@@ -4130,8 +4130,10 @@ void spider_db_discard_multiple_result(
     if (!conn->db_conn->cmp_request_key_to_snd(&request_key))
       break;
     if ((result = conn->db_conn->use_result(&request_key, &error_num)))
+    {
       result->free_result();
       delete result;
+    }
   } while (!conn->db_conn->next_result());
   DBUG_VOID_RETURN;
 }
