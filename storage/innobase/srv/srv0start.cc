@@ -2729,6 +2729,7 @@ files_checked:
 		will flush dirty pages and that might need e.g.
 		fil_crypt_threads_event. */
 		fil_system_enter();
+		btr_scrub_init();
 		fil_crypt_threads_init();
 		fil_system_exit();
 
@@ -2738,9 +2739,6 @@ files_checked:
 		  before any log blocks encrypted with that key.
 		*/
 		log_make_checkpoint_at(LSN_MAX, TRUE);
-
-		/* Init data for datafile scrub threads */
-		btr_scrub_init();
 
 		/* Initialize online defragmentation. */
 		btr_defragment_init();

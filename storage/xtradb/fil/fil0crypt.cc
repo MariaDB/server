@@ -2127,7 +2127,8 @@ fil_crypt_complete_rotate_space(
 		mutex_exit(&crypt_data->mutex);
 
 		/* all threads must call btr_scrub_complete_space wo/ mutex held */
-		if (btr_scrub_complete_space(&state->scrub_data) == true) {
+		if (state->scrub_data.scrubbing) {
+			btr_scrub_complete_space(&state->scrub_data);
 			if (should_flush) {
 				/* only last thread updates last_scrub_completed */
 				ut_ad(crypt_data);
