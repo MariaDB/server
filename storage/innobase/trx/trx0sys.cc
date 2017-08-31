@@ -344,6 +344,7 @@ static inline void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
 @param[in]	xid		Transaction XID
 @param[in,out]	sys_header	sys_header
 @param[in]	mtr		minitransaction */
+UNIV_INTERN
 void
 trx_sys_update_wsrep_checkpoint(
 	const XID*	xid,
@@ -402,8 +403,10 @@ trx_sys_update_wsrep_checkpoint(
 }
 
 /** Read WSREP XID from sys_header of TRX_SYS_PAGE_NO = 5.
-@param[out]	xid	Transaction XID */
-void
+@param[out]	xid	Transaction XID
+@return  true on success, false on error. */
+UNIV_INTERN
+bool
 trx_sys_read_wsrep_checkpoint(XID* xid)
 {
 	trx_sysf_t* sys_header;
@@ -423,8 +426,8 @@ trx_sys_read_wsrep_checkpoint(XID* xid)
 		xid->formatID = -1;
 		trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
 		mtr_commit(&mtr);
-		return;
-        }
+		return false;
+	}
 
 	xid->formatID     = (int)mach_read_from_4(
 		sys_header
@@ -440,6 +443,7 @@ trx_sys_read_wsrep_checkpoint(XID* xid)
 		XIDDATASIZE);
 
 	mtr_commit(&mtr);
+	return true;
 }
 
 #endif /* WITH_WSREP */

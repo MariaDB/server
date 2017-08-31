@@ -73,8 +73,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "btr0defragment.h"
 #include "ut0timer.h"
 #include "btr0scrub.h"
-
-#include <mysql/service_wsrep.h>
+#include "mysql/service_wsrep.h" /* wsrep_recovery */
 
 #ifndef UNIV_HOTBACKUP
 # include "trx0rseg.h"

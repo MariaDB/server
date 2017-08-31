@@ -70,8 +70,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "btr0defragment.h"
-
-#include <mysql/service_wsrep.h>
+#include "mysql/service_wsrep.h" /* wsrep_recovery */
 
 #ifndef UNIV_HOTBACKUP
 # include "trx0rseg.h"
@@ -3014,6 +3013,7 @@ files_checked:
 		*/
 		if (!wsrep_recovery) {
 #endif /* WITH_WSREP */
+
 		/* Create the buffer pool dump/load thread */
 		srv_buf_dump_thread_active = true;
 		buf_dump_thread_handle=
@@ -3027,6 +3027,7 @@ files_checked:
 				"wsrep recovery.");
 		}
 #endif /* WITH_WSREP */
+
 		/* Create thread(s) that handles key rotation */
 		fil_system_enter();
 		fil_crypt_threads_init();
