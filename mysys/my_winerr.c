@@ -75,7 +75,9 @@ static struct errentry errtable[]= {
   {  ERROR_ALREADY_EXISTS,         EEXIST    },  /* 183 */
   {  ERROR_FILENAME_EXCED_RANGE,   ENOENT    },  /* 206 */
   {  ERROR_NESTING_NOT_ALLOWED,    EAGAIN    },  /* 215 */
-  {  ERROR_NOT_ENOUGH_QUOTA,       ENOMEM    }    /* 1816 */
+  {  ERROR_FILE_SYSTEM_LIMITATION, EFBIG     },  /* 665 */
+  {  ERROR_NO_SYSTEM_RESOURCES,    ENOMEM    },  /* 1450 */
+  {  ERROR_NOT_ENOUGH_QUOTA,       ENOMEM    }   /* 1816 */
 };
 
 /* size of the table */
