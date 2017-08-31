@@ -574,15 +574,17 @@ struct st_replace *glob_replace= 0;
 void replace_strings_append(struct st_replace *rep, DYNAMIC_STRING* ds,
 const char *from, int len);
 
-static void cleanup_and_exit(int exit_code) __attribute__((noreturn));
+ATTRIBUTE_NORETURN
+static void cleanup_and_exit(int exit_code);
 
-void really_die(const char *msg) __attribute__((noreturn));
+ATTRIBUTE_NORETURN
+void really_die(const char *msg);
 void report_or_die(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-void die(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2)
-  __attribute__((noreturn));
+ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
+void die(const char *fmt, ...);
 static void make_error_message(char *buf, size_t len, const char *fmt, va_list args);
-void abort_not_supported_test(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2)
-  __attribute__((noreturn));
+ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
+void abort_not_supported_test(const char *fmt, ...);
 void verbose_msg(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 void log_msg(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 

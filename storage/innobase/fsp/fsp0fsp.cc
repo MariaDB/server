@@ -102,7 +102,7 @@ then we will not allocate more extents
 @param[in,out]	space		tablespace
 @param[in,out]	header		tablespace header
 @param[in,out]	mtr		mini-transaction */
-static UNIV_COLD
+static ATTRIBUTE_COLD
 void
 fsp_fill_free_list(
 	bool		init_space,
@@ -899,7 +899,7 @@ data file.
 @param[in,out]	header	tablespace header
 @param[in,out]	mtr	mini-transaction
 @return true if success */
-static UNIV_COLD MY_ATTRIBUTE((warn_unused_result))
+static ATTRIBUTE_COLD __attribute__((warn_unused_result))
 bool
 fsp_try_extend_data_file_with_pages(
 	fil_space_t*	space,
@@ -932,7 +932,7 @@ fsp_try_extend_data_file_with_pages(
 @param[in,out]	mtr	mini-transaction
 @return	number of pages added
 @retval	0 if the tablespace was not extended */
-UNIV_COLD MY_ATTRIBUTE((nonnull))
+ATTRIBUTE_COLD __attribute__((nonnull))
 static
 ulint
 fsp_try_extend_data_file(fil_space_t* space, fsp_header_t* header, mtr_t* mtr)

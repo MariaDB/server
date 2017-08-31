@@ -1005,7 +1005,7 @@ skip_flush:
 @param[in]	size	desired size in number of pages
 @param[out]	success	whether the operation succeeded
 @return	whether the operation should be retried */
-static UNIV_COLD __attribute__((warn_unused_result, nonnull))
+static ATTRIBUTE_COLD __attribute__((warn_unused_result, nonnull))
 bool
 fil_space_extend_must_retry(
 	fil_space_t*	space,

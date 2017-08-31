@@ -1570,7 +1570,7 @@ static void close_server_sock();
 static void clean_up_mutexes(void);
 static void wait_for_signal_thread_to_end(void);
 static void create_pid_file();
-static void mysqld_exit(int exit_code) __attribute__((noreturn));
+ATTRIBUTE_NORETURN static void mysqld_exit(int exit_code);
 #endif
 static void delete_pid_file(myf flags);
 static void end_ssl();

@@ -174,9 +174,9 @@ os_thread_join(
 /** Exits the current thread.
 @param[in]	detach	if true, the thread will be detached right before
 exiting. If false, another thread is responsible for joining this thread */
+ATTRIBUTE_NORETURN
 void
-os_thread_exit(
-	bool	detach)
+os_thread_exit(bool detach)
 {
 #ifdef UNIV_DEBUG_THREAD_CREATION
 	ib::info() << "Thread exits, id "

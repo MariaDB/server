@@ -319,7 +319,7 @@ void
 trx_undo_free_prepared(
 /*===================*/
 	trx_t*	trx)	/*!< in/out: PREPARED transaction */
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	ATTRIBUTE_COLD __attribute__((nonnull));
 
 /* Forward declaration. */
 namespace undo {
