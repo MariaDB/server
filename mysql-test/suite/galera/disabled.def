@@ -55,3 +55,4 @@ galera_lock_table : MDEV-13549 Galera test failures 10.1
 MW-284 : MDEV-13549 Galera test failures 10.1
 galera_as_slave : MDEV-13549 Galera test failures 10.1
 galera_var_innodb_disallow_writes : MDEV-10949
+galera_kill_applier : race condition at the start of the test
