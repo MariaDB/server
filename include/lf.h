@@ -62,14 +62,12 @@ typedef struct {
 } LF_PINBOX;
 
 typedef struct {
-  void * volatile pin[LF_PINBOX_PINS];
+  void * volatile pin[LF_PINBOX_PINS] MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE);
   LF_PINBOX *pinbox;
   void  **stack_ends_here;
   void  *purgatory;
   uint32 purgatory_count;
   uint32 volatile link;
-  /* avoid false sharing */
-  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
 } LF_PINS;
 
 /* compile-time assert to make sure we have enough pins.  */

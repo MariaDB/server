@@ -20,10 +20,10 @@
 
 struct Share_free_tables
 {
-  typedef I_P_List <TABLE, TABLE_share> List;
+  /** MY_ALIGNED - Avoid false sharing between instances */
+  typedef I_P_List <TABLE, TABLE_share> List
+    MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE);
   List list;
-  /** Avoid false sharing between instances */
-  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
 };
 
 
@@ -51,9 +51,8 @@ struct TDC_element
     Doubly-linked (back-linked) lists of used and unused TABLE objects
     for this share.
   */
-  All_share_tables_list all_tables;
+  All_share_tables_list all_tables MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE);
   /** Avoid false sharing between TDC_element and free_tables */
-  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
   Share_free_tables free_tables[1];
 };
 

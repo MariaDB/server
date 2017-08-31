@@ -270,6 +270,9 @@
 /* this means WITH_VALGRIND - we change some code paths for valgrind */
 #cmakedefine HAVE_valgrind 1
 
+/* detected cache size */
+#cmakedefine CPU_LEVEL1_DCACHE_LINESIZE @CPU_LEVEL1_DCACHE_LINESIZE@
+
 /* Types we may use */
 #ifdef __APPLE__
   /*

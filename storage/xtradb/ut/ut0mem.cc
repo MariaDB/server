@@ -32,7 +32,7 @@ Created 5/11/1994 Heikki Tuuri
 #ifndef UNIV_HOTBACKUP
 # include "os0thread.h"
 # include "srv0srv.h"
-
+# include <my_align_alloc.h>
 #include <stdlib.h>
 
 /** The total amount of memory currently allocated from the operating
@@ -114,7 +114,7 @@ ut_malloc_low(
 retry:
 	os_fast_mutex_lock(&ut_list_mutex);
 
-	ret = malloc(n + sizeof(ut_mem_block_t));
+	ret = ALIGNED_ALLOC(n + sizeof(ut_mem_block_t), CACHE_LINE_SIZE);
 
 	if (ret == NULL && retry_count < 60) {
 		if (retry_count == 0) {

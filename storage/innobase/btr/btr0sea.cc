@@ -57,25 +57,16 @@ ulint		btr_search_n_succ	= 0;
 ulint		btr_search_n_hash_fail	= 0;
 #endif /* UNIV_SEARCH_PERF_STAT */
 
-/** padding to prevent other memory update
-hotspots from residing on the same memory
-cache line as btr_search_latches */
-UNIV_INTERN byte		btr_sea_pad1[CACHE_LINE_SIZE];
-
 /** The latches protecting the adaptive search system: this latches protects the
 (1) positions of records on those pages where a hash index has been built.
 NOTE: It does not protect values of non-ordering fields within a record from
 being updated in-place! We can use fact (1) to perform unique searches to
 indexes. We will allocate the latches from dynamic memory to get it to the
 same DRAM page as other hotspot semaphores */
-rw_lock_t**	btr_search_latches;
-
-/** padding to prevent other memory update hotspots from residing on
-the same memory cache line */
-UNIV_INTERN byte		btr_sea_pad2[CACHE_LINE_SIZE];
+rw_lock_t**	btr_search_latches MY_ALIGNED(CACHE_LINE_SIZE);
 
 /** The adaptive hash index */
-btr_search_sys_t*	btr_search_sys;
+btr_search_sys_t*	btr_search_sys MY_ALIGNED(CACHE_LINE_SIZE);
 
 /** If the number of records on the page divided by this parameter
 would have been successfully accessed using a hash index, the index
