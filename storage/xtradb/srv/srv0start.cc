@@ -3146,11 +3146,9 @@ files_checked:
 #endif /* WITH_WSREP */
 		/* Create thread(s) that handles key rotation */
 		fil_system_enter();
+		btr_scrub_init();
 		fil_crypt_threads_init();
 		fil_system_exit();
-
-		/* Init data for datafile scrub threads */
-		btr_scrub_init();
 
 		/* Initialize online defragmentation. */
 		btr_defragment_init();
