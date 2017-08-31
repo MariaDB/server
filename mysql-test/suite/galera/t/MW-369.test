@@ -244,4 +244,3 @@ SELECT * FROM c;
 DROP TABLE c;
 DROP TABLE p;
 
---sleep 3

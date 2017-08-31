@@ -78,7 +78,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "btr0defragment.h"
 #include "fsp0sysspace.h"
 #include "row0trunc.h"
-#include <mysql/service_wsrep.h>
+#include "mysql/service_wsrep.h" /* wsrep_recovery */
 #include "trx0rseg.h"
 #include "os0proc.h"
 #include "buf0flu.h"
@@ -2710,6 +2710,7 @@ files_checked:
 		*/
 		if (!wsrep_recovery) {
 #endif /* WITH_WSREP */
+
 		/* Create the buffer pool dump/load thread */
 		srv_buf_dump_thread_active = true;
 		buf_dump_thread_handle=

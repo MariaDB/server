@@ -4022,7 +4022,25 @@ static int rmtree(const char *dir)
     strxnmov(path, sizeof(path), dir, sep, file->name, NULL);
 
     if (!MY_S_ISDIR(file->mystat->st_mode))
+    {
       err= my_delete(path, 0);
+#ifdef _WIN32
+      /*
+        On Windows, check and possible reset readonly attribute.
+        my_delete(), or DeleteFile does not remove theses files.
+      */
+      if (err)
+      {
+        DWORD attr= GetFileAttributes(path);
+        if (attr != INVALID_FILE_ATTRIBUTES &&
+           (attr & FILE_ATTRIBUTE_READONLY))
+        {
+          SetFileAttributes(path, attr &~ FILE_ATTRIBUTE_READONLY);
+          err= my_delete(path, 0);
+        }
+      }
+#endif
+    }
     else
       err= rmtree(path);
 

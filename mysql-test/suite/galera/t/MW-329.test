@@ -82,3 +82,6 @@ SELECT VARIABLE_VALUE > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 --connection node_1
 DROP PROCEDURE proc_insert;
 DROP TABLE t1;
+
+# Due to MW-330, Multiple "conflict state 3 after post commit" warnings if table is dropped while SP is running
+CALL mtr.add_suppression("conflict state 3 after post commit");

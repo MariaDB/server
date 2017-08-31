@@ -9,20 +9,15 @@ connection node_1;
 UPDATE t1 SET f2 = 'b' WHERE f1 > 1;
 UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
 connection node_2;
-SET GLOBAL wsrep_provider_options = 'dbug=d,recv_IST_after_apply_trx';
-SET SESSION wsrep_sync_wait = 0;
 Loading wsrep_provider ...
-SHOW STATUS LIKE 'wsrep_debug_sync_waiters';
-Variable_name	Value
-wsrep_debug_sync_waiters	recv_IST_after_apply_trx
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_on=ON;
 connection node_1;
 connection node_1;
 UPDATE t1 SET f2 = 'd' WHERE f1 > 3;
-CREATE TABLE t2 (f1 INTEGER);
 connection node_2;
 connection node_1;
 UPDATE t1 SET f2 = 'e' WHERE f1 > 4;
-CREATE TABLE t3 (f1 INTEGER);
 connection node_2;
 Performing --wsrep-recover ...
 Starting server ...
@@ -46,13 +41,7 @@ f1	f2
 4	d
 5	e
 6	f
-SELECT COUNT(*) = 0 FROM t2;
-COUNT(*) = 0
-1
-SELECT COUNT(*) = 0 FROM t3;
-COUNT(*) = 0
-1
 connection node_1;
-DROP TABLE t1, t2, t3;
+DROP TABLE t1;
 disconnect node_2;
 disconnect node_1;

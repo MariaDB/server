@@ -804,7 +804,7 @@ fsp_header_init(ulint space_id, ulint size, mtr_t* mtr)
 	if (space->crypt_data &&
 	    (space->crypt_data->should_encrypt() ||
 	     space->crypt_data->not_encrypted())) {
-	     space->crypt_data->write_page0(space, page, mtr);
+		space->crypt_data->write_page0(space, page, mtr);
 	}
 }
 

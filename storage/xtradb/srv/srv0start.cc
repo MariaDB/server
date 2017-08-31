@@ -73,8 +73,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "btr0defragment.h"
 #include "ut0timer.h"
 #include "btr0scrub.h"
-
-#include <mysql/service_wsrep.h>
+#include "mysql/service_wsrep.h" /* wsrep_recovery */
 
 #ifndef UNIV_HOTBACKUP
 # include "trx0rseg.h"
@@ -1228,11 +1227,6 @@ check_first_page:
 		ut_a(ret);
 
 		if (i == 0) {
-			if (!crypt_data) {
-				crypt_data = fil_space_create_crypt_data(FIL_ENCRYPTION_DEFAULT,
-					FIL_DEFAULT_ENCRYPTION_KEY);
-			}
-
 			flags = FSP_FLAGS_PAGE_SSIZE();
 
 			fil_space_create(name, 0, flags, FIL_TABLESPACE,
@@ -3119,7 +3113,6 @@ files_checked:
 				"wsrep recovery.");
 		}
 #endif /* WITH_WSREP */
-
 		/* Create thread(s) that handles key rotation */
 		fil_system_enter();
 		fil_crypt_threads_init();

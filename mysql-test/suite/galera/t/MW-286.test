@@ -25,6 +25,7 @@ SET wsrep_on = FALSE;
 --error ER_QUERY_INTERRUPTED
 ALTER TABLE t1 ADD PRIMARY KEY (f1);
 
+SET SESSION wsrep_sync_wait = 0;
 SET wsrep_on = TRUE;
 SET GLOBAL wsrep_desync = FALSE;
 

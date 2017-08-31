@@ -19,3 +19,5 @@ innodb.innodb_defragment : MDEV-11336 Fix and enable innodb_defragment
 innodb.innodb_defragment_fill_factor : MDEV-11336 Fix and enable innodb_defragment
 innodb.innodb_defragment_small : MDEV-11336 Fix and enable innodb_defragment
 innodb.innodb_defrag_binlog : MDEV-11336 Fix and enable innodb_defragment
+innodb-wl5980-alter : MDEV-9469 / MDEV-13668 extra crash in 10.2
+create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails

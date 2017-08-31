@@ -2257,7 +2257,7 @@ fil_crypt_set_thread_cnt(
 		for (uint i = 0; i < add; i++) {
 			os_thread_id_t rotation_thread_id;
 			os_thread_create(fil_crypt_thread, NULL, &rotation_thread_id);
-			ib::info() << "Creating "
+			ib::info() << "Creating #"
 				   << i+1 << " encryption thread id "
 				   << os_thread_pf(rotation_thread_id)
 				   << " total threads " << new_cnt << ".";
@@ -2431,9 +2431,8 @@ fil_space_crypt_get_status(
 	}
 
 	status->space = ULINT_UNDEFINED;
-	fil_space_crypt_t* crypt_data = space->crypt_data;
 
-	if (crypt_data != NULL) {
+	if (fil_space_crypt_t* crypt_data = space->crypt_data) {
 		status->space = space->id;
 		mutex_enter(&crypt_data->mutex);
 		status->scheme = crypt_data->type;

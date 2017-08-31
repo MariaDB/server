@@ -27,7 +27,7 @@ UNLOCK TABLES;
 
 COMMIT;
 SET AUTOCOMMIT=ON;
-SET SESSION wsrep_sync_wait = 7;
+SET SESSION wsrep_sync_wait = 15;
 SELECT COUNT(*) = 1 FROM t1;
 
 --let $wsrep_local_bf_aborts_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`

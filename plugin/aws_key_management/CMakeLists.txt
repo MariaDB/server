@@ -15,6 +15,7 @@ MACRO(SKIP_AWS_PLUGIN msg)
   MESSAGE_ONCE(SKIP_AWS_PLUGIN "Skip aws_key_management - ${msg}")
   RETURN()
 ENDMACRO()
+SET(CMAKE_CXX_STANDARD 11)
 
 
 

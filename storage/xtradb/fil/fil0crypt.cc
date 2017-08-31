@@ -1403,7 +1403,7 @@ fil_crypt_realloc_iops(
 		DBUG_PRINT("ib_crypt",
 			("thr_no: %u only waited %lu%% skip re-estimate.",
 			state->thread_no,
-			(100 * state->cnt_waited) / state->batch));
+			(100 * state->cnt_waited) / (state->batch ? state->batch : 1)));
 	}
 
 	if (state->estimated_max_iops <= state->allocated_iops) {
@@ -1506,7 +1506,7 @@ fil_crypt_find_space_to_rotate(
 	/* we need iops to start rotating */
 	while (!state->should_shutdown() && !fil_crypt_alloc_iops(state)) {
 		os_event_reset(fil_crypt_threads_event);
-		os_event_wait_time(fil_crypt_threads_event, 1000000);
+		os_event_wait_time(fil_crypt_threads_event, 100000);
 	}
 
 	if (state->should_shutdown()) {
@@ -2303,7 +2303,7 @@ fil_crypt_set_thread_cnt(
 			os_thread_create(fil_crypt_thread, NULL, &rotation_thread_id);
 
 			ib_logf(IB_LOG_LEVEL_INFO,
-				"Creating #%d thread id %lu total threads %u.",
+				"Creating #%d encryption thread id %lu total threads %u.",
 				i+1, os_thread_pf(rotation_thread_id), new_cnt);
 		}
 	} else if (new_cnt < srv_n_fil_crypt_threads) {
@@ -2315,7 +2315,13 @@ fil_crypt_set_thread_cnt(
 
 	while(srv_n_fil_crypt_threads_started != srv_n_fil_crypt_threads) {
 		os_event_reset(fil_crypt_event);
-		os_event_wait_time(fil_crypt_event, 1000000);
+		os_event_wait_time(fil_crypt_event, 100000);
+	}
+
+	/* Send a message to encryption threads that there could be
+	something to do. */
+	if (srv_n_fil_crypt_threads) {
+		os_event_set(fil_crypt_threads_event);
 	}
 }
 
@@ -2461,9 +2467,10 @@ fil_space_crypt_get_status(
 
 	ut_ad(space->n_pending_ops > 0);
 	fil_crypt_read_crypt_data(const_cast<fil_space_t*>(space));
-	status->space = space->id;
+	status->space = ULINT_UNDEFINED;
 
 	if (fil_space_crypt_t* crypt_data = space->crypt_data) {
+		status->space = space->id;
 		mutex_enter(&crypt_data->mutex);
 		status->scheme = crypt_data->type;
 		status->keyserver_requests = crypt_data->keyserver_requests;

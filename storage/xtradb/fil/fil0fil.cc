@@ -654,7 +654,7 @@ fil_node_open_file(
 		page = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
 
 		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE);
-		srv_stats.page0_read.add(1);
+		srv_stats.page0_read.inc();
 
 		const ulint space_id = fsp_header_get_space_id(page);
 		ulint flags = fsp_header_get_flags(page);
@@ -2268,7 +2268,7 @@ fil_write_flushed_lsn(
 	/* If tablespace is not encrypted, stamp flush_lsn to
 	first page of all system tablespace datafiles to avoid
 	unnecessary error messages on possible downgrade. */
-	if (space->crypt_data->min_key_version == 0) {
+	if (!space->crypt_data || space->crypt_data->min_key_version == 0) {
 		fil_node_t*     node;
 		ulint   sum_of_sizes = 0;
 
@@ -2414,7 +2414,7 @@ fil_read_first_page(
 
 	os_file_read(data_file, page, 0, UNIV_PAGE_SIZE);
 
-	srv_stats.page0_read.add(1);
+	srv_stats.page0_read.inc();
 
 	/* The FSP_HEADER on page 0 is only valid for the first file
 	in a tablespace.  So if this is not the first datafile, leave

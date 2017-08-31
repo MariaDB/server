@@ -1,6 +1,6 @@
-SET GLOBAL wsrep_sync_wait = 7;
+SET GLOBAL wsrep_sync_wait = 15;
 connection node_2;
-SET GLOBAL wsrep_sync_wait = 7;
+SET GLOBAL wsrep_sync_wait = 15;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);

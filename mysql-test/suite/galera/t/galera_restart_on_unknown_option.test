@@ -154,3 +154,5 @@ DROP TABLE t1;
    }
 EOF
 --remove_file $TEST_LOG.copy
+
+--source include/auto_increment_offset_restore.inc
