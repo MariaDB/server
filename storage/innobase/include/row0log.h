@@ -48,6 +48,7 @@ for online creation.
 bool
 row_log_allocate(
 /*=============*/
+	const trx_t*	trx,	/*!< in: the ALTER TABLE transaction */
 	dict_index_t*	index,	/*!< in/out: index */
 	dict_table_t*	table,	/*!< in/out: new table being rebuilt,
 				or NULL when creating a secondary index */

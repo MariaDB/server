@@ -163,16 +163,31 @@ trx_write_trx_id(
 /*=============*/
 	byte*		ptr,	/*!< in: pointer to memory where written */
 	trx_id_t	id);	/*!< in: id */
-/*****************************************************************//**
-Reads a trx id from an index page. In case that the id size changes in
-some future version, this function should be used instead of
-mach_read_...
+
+/** Read a transaction identifier.
 @return id */
-UNIV_INLINE
+inline
 trx_id_t
-trx_read_trx_id(
-/*============*/
-	const byte*	ptr);	/*!< in: pointer to memory from where to read */
+trx_read_trx_id(const byte* ptr)
+{
+#if DATA_TRX_ID_LEN != 6
+# error "DATA_TRX_ID_LEN != 6"
+#endif
+	return(mach_read_from_6(ptr));
+}
+
+#ifdef UNIV_DEBUG
+/** Check that the DB_TRX_ID in a record is valid.
+@param[in]	db_trx_id	the DB_TRX_ID column to validate
+@param[in]	trx_id		the id of the ALTER TABLE transaction */
+inline bool trx_id_check(const void* db_trx_id, trx_id_t trx_id)
+{
+	trx_id_t id = trx_read_trx_id(static_cast<const byte*>(db_trx_id));
+	ut_ad(id == 0 || id > trx_id);
+	return true;
+}
+#endif
+
 /****************************************************************//**
 Looks for the trx instance with the given id in the rw trx_list.
 @return	the trx handle or NULL if not found */

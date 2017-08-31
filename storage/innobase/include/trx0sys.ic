@@ -191,23 +191,6 @@ trx_write_trx_id(
 	mach_write_to_6(ptr, id);
 }
 
-/*****************************************************************//**
-Reads a trx id from an index page. In case that the id size changes in
-some future version, this function should be used instead of
-mach_read_...
-@return id */
-UNIV_INLINE
-trx_id_t
-trx_read_trx_id(
-/*============*/
-	const byte*	ptr)	/*!< in: pointer to memory from where to read */
-{
-#if DATA_TRX_ID_LEN != 6
-# error "DATA_TRX_ID_LEN != 6"
-#endif
-	return(mach_read_from_6(ptr));
-}
-
 /****************************************************************//**
 Looks for the trx handle with the given id in rw_trx_list.
 The caller must be holding trx_sys->mutex.

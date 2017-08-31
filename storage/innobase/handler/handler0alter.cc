@@ -4911,7 +4911,8 @@ new_clustered_failed:
 					goto error_handling;);
 			rw_lock_x_lock(&ctx->add_index[a]->lock);
 
-			bool ok = row_log_allocate(ctx->add_index[a],
+			bool ok = row_log_allocate(ctx->prebuilt->trx,
+						   ctx->add_index[a],
 						   NULL, true, NULL, NULL,
 						   path);
 			rw_lock_x_unlock(&ctx->add_index[a]->lock);
@@ -4961,6 +4962,7 @@ new_clustered_failed:
 			/* Allocate a log for online table rebuild. */
 			rw_lock_x_lock(&clust_index->lock);
 			bool ok = row_log_allocate(
+				ctx->prebuilt->trx,
 				clust_index, ctx->new_table,
 				!(ha_alter_info->handler_flags
 				  & Alter_inplace_info::ADD_PK_INDEX),
