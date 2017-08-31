@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -47,8 +48,6 @@ sess_open(void)
 
 	sess->trx = trx_allocate_for_background();
 	sess->trx->sess = sess;
-
-	UT_LIST_INIT(sess->graphs);
 
 	return(sess);
 }

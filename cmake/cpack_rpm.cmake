@@ -23,13 +23,22 @@ SET(CPACK_COMPONENT_SHAREDLIBRARIES_GROUP "shared")
 SET(CPACK_COMPONENT_COMMON_GROUP "common")
 SET(CPACK_COMPONENT_CLIENTPLUGINS_GROUP "common")
 SET(CPACK_COMPONENT_COMPAT_GROUP "compat")
+SET(CPACK_COMPONENT_BACKUP_GROUP "backup")
+
 SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
                          SupportFiles Development ManPagesDevelopment
                          ManPagesTest Readme ManPagesClient Test 
-                         Common Client SharedLibraries ClientPlugins)
+                         Common Client SharedLibraries ClientPlugins
+                         backup
+)
 
 SET(CPACK_RPM_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
-SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
+IF(CMAKE_VERSION VERSION_LESS "3.6.0")
+  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
+ELSE()
+  SET(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
+  SET(CPACK_RPM_DEBUGINFO_PACKAGE ON)
+ENDIF()
 
 SET(CPACK_RPM_PACKAGE_RELEASE "1%{?dist}")
 SET(CPACK_RPM_PACKAGE_LICENSE "GPLv2")
@@ -98,6 +107,7 @@ SET(CPACK_RPM_client_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSC
 SET(CPACK_RPM_compat_USER_FILELIST ${ignored})
 SET(CPACK_RPM_devel_USER_FILELIST ${ignored})
 SET(CPACK_RPM_test_USER_FILELIST ${ignored})
+SET(CPACK_RPM_backup_USER_FILELIST ${ignored})
 
 # "set/append array" - append a set of strings, separated by a space
 MACRO(SETA var)

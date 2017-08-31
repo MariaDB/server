@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+
+<resultset statement="SELECT 'test' AS c1, NULL AS c2
+" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <row>
+	<field name="c1">test</field>
+	<field name="c2" xsi:nil="true" />
+  </row>
+</resultset>

@@ -1,8 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2558,34 +2558,32 @@ row_sel_store_row_id_to_prebuilt(
 	row_sel_field_store_in_mysql_format_func(dest,templ,src,len)
 #endif /* UNIV_DEBUG */
 
-/**************************************************************//**
-Stores a non-SQL-NULL field in the MySQL format. The counterpart of this
-function is row_mysql_store_col_in_innobase_format() in row0mysql.cc. */
+/** Stores a non-SQL-NULL field in the MySQL format. The counterpart of this
+function is row_mysql_store_col_in_innobase_format() in row0mysql.cc.
+@param[in,out]	dest		buffer where to store; NOTE
+				that BLOBs are not in themselves stored
+				here: the caller must allocate and copy
+				the BLOB into buffer before, and pass
+				the pointer to the BLOB in 'data'
+@param[in]	templ		MySQL column template. Its following fields
+				are referenced: type, is_unsigned, mysql_col_len,
+				mbminlen, mbmaxlen
+@param[in]	index		InnoDB index
+@param[in]	field_no	templ->rec_field_no or templ->clust_rec_field_no
+				or templ->icp_rec_field_no
+@param[in]	data		data to store
+@param[in]	len		length of the data */
 static MY_ATTRIBUTE((nonnull))
 void
 row_sel_field_store_in_mysql_format_func(
-/*=====================================*/
-	byte*		dest,	/*!< in/out: buffer where to store; NOTE
-				that BLOBs are not in themselves
-				stored here: the caller must allocate
-				and copy the BLOB into buffer before,
-				and pass the pointer to the BLOB in
-				'data' */
+	byte*		dest,
 	const mysql_row_templ_t* templ,
-				/*!< in: MySQL column template.
-				Its following fields are referenced:
-				type, is_unsigned, mysql_col_len,
-				mbminlen, mbmaxlen */
 #ifdef UNIV_DEBUG
 	const dict_index_t* index,
-				/*!< in: InnoDB index */
 	ulint		field_no,
-				/*!< in: templ->rec_field_no or
-				templ->clust_rec_field_no or
-				templ->icp_rec_field_no */
 #endif /* UNIV_DEBUG */
-	const byte*	data,	/*!< in: data to store */
-	ulint		len)	/*!< in: length of the data */
+	const byte*	data,
+	ulint		len)
 {
 	byte*			ptr;
 #ifdef UNIV_DEBUG
@@ -2748,27 +2746,32 @@ row_sel_field_store_in_mysql_format_func(
 # define row_sel_store_mysql_field(m,p,r,i,o,f,t) \
 	row_sel_store_mysql_field_func(m,p,r,o,f,t)
 #endif /* UNIV_DEBUG */
-/**************************************************************//**
-Convert a field in the Innobase format to a field in the MySQL format. */
+/** Convert a field in the Innobase format to a field in the MySQL format.
+@param[out]	mysql_rec		record in the MySQL format
+@param[in,out]	prebuilt		prebuilt struct
+@param[in]	rec			InnoDB record; must be protected
+					by a page latch
+@param[in]	index			index of rec
+@param[in]	offsets			array returned by rec_get_offsets()
+@param[in]	field_no		templ->rec_field_no or
+					templ->clust_rec_field_no
+					or templ->icp_rec_field_no
+					or sec field no if clust_templ_for_sec
+					is TRUE
+@param[in]	templ			row template
+*/
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
 row_sel_store_mysql_field_func(
-/*===========================*/
-	byte*			mysql_rec,	/*!< out: record in the
-						MySQL format */
-	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt struct */
-	const rec_t*		rec,		/*!< in: InnoDB record;
-						must be protected by
-						a page latch */
+	byte*			mysql_rec,
+	row_prebuilt_t*		prebuilt,
+	const rec_t*		rec,
 #ifdef UNIV_DEBUG
-	const dict_index_t*	index,		/*!< in: index of rec */
+	const dict_index_t*	index,
 #endif
-	const ulint*		offsets,	/*!< in: array returned by
-						rec_get_offsets() */
-	ulint			field_no,	/*!< in: templ->rec_field_no or
-						templ->clust_rec_field_no or
-						templ->icp_rec_field_no */
-	const mysql_row_templ_t*templ)		/*!< in: row template */
+	const ulint*		offsets,
+	ulint			field_no,
+	const mysql_row_templ_t*templ)
 {
 	const byte*	data;
 	ulint		len;
@@ -2894,30 +2897,35 @@ row_sel_store_mysql_field_func(
 	return(TRUE);
 }
 
-/**************************************************************//**
-Convert a row in the Innobase format to a row in the MySQL format.
+/** Convert a row in the Innobase format to a row in the MySQL format.
 Note that the template in prebuilt may advise us to copy only a few
 columns to mysql_rec, other columns are left blank. All columns may not
 be needed in the query.
+@param[out]	mysql_rec		row in the MySQL format
+@param[in]	prebuilt		prebuilt structure
+@param[in]	rec			Innobase record in the index
+					which was described in prebuilt's
+					template, or in the clustered index;
+					must be protected by a page latch
+@param[in]	rec_clust		TRUE if the rec in the clustered index
+@param[in]	index			index of rec
+@param[in]	offsets			array returned by rec_get_offsets(rec)
+@param[in]	clust_templ_for_sec	TRUE if rec belongs to secondary index
+					but the prebuilt->template is in
+					clustered index format and it is
+					used only for end range comparison
 @return TRUE on success, FALSE if not all columns could be retrieved */
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
 row_sel_store_mysql_rec(
-/*====================*/
-	byte*		mysql_rec,	/*!< out: row in the MySQL format */
-	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct */
-	const rec_t*	rec,		/*!< in: Innobase record in the index
-					which was described in prebuilt's
-					template, or in the clustered index;
-					must be protected by a page latch */
-	ibool		rec_clust,	/*!< in: TRUE if rec is in the
-					clustered index instead of
-					prebuilt->index */
-	const dict_index_t* index,	/*!< in: index of rec */
-	const ulint*	offsets)	/*!< in: array returned by
-					rec_get_offsets(rec) */
+	byte*		mysql_rec,
+	row_prebuilt_t*	prebuilt,
+	const rec_t*	rec,
+	ibool		rec_clust,
+	const dict_index_t* index,
+	const ulint*	offsets)
 {
-	ulint	i;
+	ulint			i;
 
 	ut_ad(rec_clust || index == prebuilt->index);
 	ut_ad(!rec_clust || dict_index_is_clust(index));
@@ -3035,10 +3043,11 @@ row_sel_get_clust_rec_for_mysql(
 	dberr_t		err;
 	trx_t*		trx;
 
-	srv_stats.n_sec_rec_cluster_reads.inc();
-
 	*out_rec = NULL;
 	trx = thr_get_trx(thr);
+
+	srv_stats.n_sec_rec_cluster_reads.inc(
+		thd_get_thread_id(trx->mysql_thd));
 
 	row_build_row_ref_in_tuple(prebuilt->clust_ref, rec,
 				   sec_index, *offsets, trx);
@@ -3326,6 +3335,36 @@ row_sel_copy_cached_field_for_mysql(
 	}
 
 	ut_memcpy(buf, cache, len);
+}
+
+/** Copy used fields from cached row.
+Copy cache record field by field, don't touch fields that
+are not covered by current key.
+@param[out]     buf             Where to copy the MySQL row.
+@param[in]      cached_rec      What to copy (in MySQL row format).
+@param[in]      prebuilt        prebuilt struct. */
+void
+row_sel_copy_cached_fields_for_mysql(
+        byte*           buf,
+        const byte*     cached_rec,
+        row_prebuilt_t* prebuilt)
+{
+        const mysql_row_templ_t*templ;
+        ulint                   i;
+        for (i = 0; i < prebuilt->n_template; i++) {
+                templ = prebuilt->mysql_template + i;
+
+                row_sel_copy_cached_field_for_mysql(
+                        buf, cached_rec, templ);
+                /* Copy NULL bit of the current field from cached_rec
+                to buf */
+                if (templ->mysql_null_bit_mask) {
+                        buf[templ->mysql_null_byte_offset]
+                                ^= (buf[templ->mysql_null_byte_offset]
+                                    ^ cached_rec[templ->mysql_null_byte_offset])
+                                & (byte) templ->mysql_null_bit_mask;
+                }
+        }
 }
 
 /********************************************************************//**
@@ -3667,7 +3706,7 @@ row_search_for_mysql(
 	trx_t*		trx		= prebuilt->trx;
 	dict_index_t*	clust_index;
 	que_thr_t*	thr;
-	const rec_t*	rec;
+	const rec_t*	rec = NULL;
 	const rec_t*	result_rec = NULL;
 	const rec_t*	clust_rec;
 	dberr_t		err				= DB_SUCCESS;
@@ -3714,13 +3753,12 @@ row_search_for_mysql(
 
 		return(DB_TABLESPACE_DELETED);
 
-	} else if (prebuilt->table->ibd_file_missing) {
-
-		return(DB_TABLESPACE_NOT_FOUND);
-
-	} else if (prebuilt->table->is_encrypted) {
-
-		return(DB_DECRYPTION_FAILED);
+	} else if (!prebuilt->table->is_readable()) {
+		if (fil_space_get(prebuilt->table->space) == NULL) {
+			return(DB_TABLESPACE_NOT_FOUND);
+		} else {
+			return(DB_DECRYPTION_FAILED);
+		}
 	} else if (!prebuilt->index_usable) {
 
 		return(DB_MISSING_HISTORY);
@@ -3970,7 +4008,8 @@ row_search_for_mysql(
 
 				if (!row_sel_store_mysql_rec(
 					    buf, prebuilt,
-					    rec, FALSE, index, offsets)) {
+					    rec, FALSE, index,
+					    offsets)) {
 					/* Only fresh inserts may contain
 					incomplete externally stored
 					columns. Pretend that such
@@ -4200,7 +4239,7 @@ wait_table_again:
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					prebuilt->table->name);
-				index->table->is_encrypted = true;
+				index->table->file_unreadable = true;
 			}
 			rec = NULL;
 			goto lock_wait_or_error;
@@ -4220,7 +4259,7 @@ rec_loop:
 
 	rec = btr_pcur_get_rec(pcur);
 
-	if (!rec) {
+	if (!index->table->is_readable()) {
 		err = DB_DECRYPTION_FAILED;
 		goto lock_wait_or_error;
 	}
@@ -4314,13 +4353,15 @@ wrong_offs:
 				(void*) rec, (ulong)
 				btr_cur_get_block(btr_pcur_get_btr_cur(pcur))
 				->page.buf_fix_count);
-			fprintf(stderr,
-				"InnoDB: Index corruption: rec offs %lu"
-				" next offs %lu, page no %lu,\n"
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Index corruption: rec offs " ULINTPF
+				" next offs " ULINTPF
+				", page no " ULINTPF " ,"
 				"InnoDB: ",
-				(ulong) page_offset(rec),
-				(ulong) next_offs,
-				(ulong) page_get_page_no(page_align(rec)));
+				page_offset(rec),
+				next_offs,
+				page_get_page_no(page_align(rec)));
+
 			dict_index_name_print(stderr, trx, index);
 			fputs(". Run CHECK TABLE. You may need to\n"
 			      "InnoDB: restore from a backup, or"
@@ -4362,16 +4403,18 @@ wrong_offs:
 	if (UNIV_UNLIKELY(srv_force_recovery > 0)) {
 		if (!rec_validate(rec, offsets)
 		    || !btr_index_rec_validate(rec, index, FALSE)) {
-			fprintf(stderr,
-				"InnoDB: Index corruption: rec offs %lu"
-				" next offs %lu, page no %lu,\n"
-				"InnoDB: ",
-				(ulong) page_offset(rec),
-				(ulong) next_offs,
-				(ulong) page_get_page_no(page_align(rec)));
-			dict_index_name_print(stderr, trx, index);
-			fputs(". We try to skip the record.\n",
-			      stderr);
+			char		buf[MAX_FULL_NAME_LEN];
+			ut_format_name(index->table->name, FALSE, buf, sizeof(buf));
+
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Index %s corrupted: rec offs " ULINTPF
+				" next offs " ULINTPF
+				", page no " ULINTPF " ."
+				" We try to skip the record.",
+				buf,
+				page_offset(rec),
+				next_offs,
+				page_get_page_no(page_align(rec)));
 
 			goto next_rec;
 		}

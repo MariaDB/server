@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -201,6 +202,10 @@ row_undo_ins_remove_sec_low(
 		mtr_s_lock(dict_index_get_lock(index), &mtr);
 	} else {
 		ut_ad(mode == BTR_MODIFY_TREE);
+		if (index->space == IBUF_SPACE_ID
+		    && !dict_index_is_unique(index)) {
+			ibuf_free_excess_pages();
+		}
 		mtr_x_lock(dict_index_get_lock(index), &mtr);
 	}
 
@@ -320,7 +325,7 @@ row_undo_ins_parse_undo_rec(
 
 	/* Skip the UNDO if we can't find the table or the .ibd file. */
 	if (UNIV_UNLIKELY(node->table == NULL)) {
-	} else if (UNIV_UNLIKELY(node->table->ibd_file_missing)) {
+	} else if (UNIV_UNLIKELY(node->table->file_unreadable)) {
 close_table:
 		dict_table_close(node->table, dict_locked, FALSE);
 		node->table = NULL;

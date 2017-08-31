@@ -3,10 +3,10 @@ have_ssl
 1
 SHOW STATUS LIKE 'Ssl_server_not_before';
 Variable_name	Value
-Ssl_server_not_before	Apr 25 14:55:05 2015 GMT
+Ssl_server_not_before	Apr 25 20:52:21 2017 GMT
 SHOW STATUS LIKE 'Ssl_server_not_after';
 Variable_name	Value
-Ssl_server_not_after	Apr 20 14:55:05 2035 GMT
+Ssl_server_not_after	Apr 20 20:52:21 2037 GMT
 drop table if exists t1,t2,t3,t4;
 CREATE TABLE t1 (
 Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
@@ -2173,7 +2173,7 @@ select 'still connected?';
 still connected?
 still connected?
 create user mysqltest_1@localhost;
-grant usage on mysqltest.* to mysqltest_1@localhost require cipher "EDH-RSA-DES-CBC3-SHA";
+grant usage on mysqltest.* to mysqltest_1@localhost require cipher "AES256-SHA";
 Variable_name	Value
-Ssl_cipher	EDH-RSA-DES-CBC3-SHA
+Ssl_cipher	AES256-SHA
 drop user mysqltest_1@localhost;

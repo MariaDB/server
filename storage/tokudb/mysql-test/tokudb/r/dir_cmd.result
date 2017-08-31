@@ -1,0 +1,58 @@
+SET GLOBAL tokudb_dir_per_db = ON;
+SET tokudb_dir_cmd = "attach test_dname_1 test_iname_1";
+SET tokudb_dir_cmd = "attach test_dname_2 test_iname_2";
+SELECT dictionary_name, internal_file_name
+FROM information_schema.TokuDB_file_map;
+dictionary_name	internal_file_name
+test_dname_1	test_iname_1
+test_dname_2	test_iname_2
+SET tokudb_dir_cmd = "detach test_dname_1";
+SELECT dictionary_name, internal_file_name
+FROM information_schema.TokuDB_file_map;
+dictionary_name	internal_file_name
+test_dname_2	test_iname_2
+SET tokudb_dir_cmd = "move test_dname_2 test_dname_3";
+SELECT dictionary_name, internal_file_name
+FROM information_schema.TokuDB_file_map;
+dictionary_name	internal_file_name
+test_dname_3	test_iname_2
+SET tokudb_dir_cmd = "detach test_dname_3";
+SELECT dictionary_name, internal_file_name
+FROM information_schema.TokuDB_file_map;
+dictionary_name	internal_file_name
+CREATE TABLE t1(a int) ENGINE=tokudb;
+INSERT INTO t1 (a) VALUES (10);
+SELECT dictionary_name, internal_file_name
+FROM information_schema.TokuDB_file_map;
+dictionary_name	internal_file_name
+./test/t1-main	./test/t1_main_id.tokudb
+./test/t1-status	./test/t1_status_id.tokudb
+SET tokudb_dir_cmd = "attach ./test/t1-main test/t1-main-renamed.tokudb";
+SELECT dictionary_name, internal_file_name
+FROM information_schema.TokuDB_file_map;
+dictionary_name	internal_file_name
+./test/t1-main	test/t1-main-renamed.tokudb
+./test/t1-status	./test/t1_status_id.tokudb
+### rename t1_main_id.tokudb to t1-main-renamed.tokudb
+SELECT * FROM t1;
+a
+10
+### Test for errors notification
+SET tokudb_dir_cmd = "detach foo";
+ERROR 42000: Variable 'tokudb_dir_cmd' can't be set to the value of 'detach foo'
+SELECT @@tokudb_dir_cmd_last_error;
+@@tokudb_dir_cmd_last_error
+17
+SELECT @@tokudb_dir_cmd_last_error_string;
+@@tokudb_dir_cmd_last_error_string
+detach command error
+SET @@tokudb_dir_cmd_last_error_string = "blablabla";
+SELECT @@tokudb_dir_cmd_last_error_string;
+@@tokudb_dir_cmd_last_error_string
+blablabla
+SET STATEMENT tokudb_dir_cmd_last_error_string = "statement_blablabla" FOR
+SELECT @@tokudb_dir_cmd_last_error_string;
+@@tokudb_dir_cmd_last_error_string
+statement_blablabla
+DROP TABLE t1;
+SET GLOBAL tokudb_dir_per_db = default;

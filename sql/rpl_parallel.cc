@@ -714,9 +714,7 @@ do_retry:
   DBUG_EXECUTE_IF("inject_mdev8031", {
       /* Simulate that we get deadlock killed at this exact point. */
       rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      thd->killed= KILL_CONNECTION;
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      thd->set_killed(KILL_CONNECTION);
   });
   rgi->cleanup_context(thd, 1);
   wait_for_pending_deadlock_kill(thd, rgi);
@@ -862,9 +860,7 @@ do_retry:
             /* Simulate that we get deadlock killed during open_binlog(). */
             thd->reset_for_next_command();
             rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-            mysql_mutex_lock(&thd->LOCK_thd_data);
-            thd->killed= KILL_CONNECTION;
-            mysql_mutex_unlock(&thd->LOCK_thd_data);
+            thd->set_killed(KILL_CONNECTION);
             thd->send_kill_message();
             fd= (File)-1;
             err= 1;
@@ -1157,7 +1153,8 @@ handle_rpl_parallel_thread(void *arg)
 
         thd->wait_for_commit_ptr= &rgi->commit_orderer;
 
-        if (opt_gtid_ignore_duplicates)
+        if (opt_gtid_ignore_duplicates &&
+            rgi->rli->mi->using_gtid != Master_info::USE_GTID_NO)
         {
           int res=
             rpl_global_gtid_slave_state->check_duplicate_gtid(&rgi->current_gtid,

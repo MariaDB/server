@@ -208,6 +208,10 @@ sub mtr_report_test ($) {
     {
       mtr_report("[ skipped ]");
     }
+    if ( $tinfo->{'warnings'} )
+    {
+      mtr_report($tinfo->{'warnings'});
+    }
   }
   elsif ($result eq 'MTR_RES_PASSED')
   {

@@ -519,16 +519,14 @@ fsp_header_init_fields(
 	ulint	space_id,	/*!< in: space id */
 	ulint	flags);		/*!< in: tablespace flags (FSP_SPACE_FLAGS):
 				0, or table->flags if newer than COMPACT */
-/**********************************************************************//**
-Initializes the space header of a new created space and creates also the
-insert buffer tree root if space == 0. */
+/** Initialize a tablespace header.
+@param[in]	space_id	space id
+@param[in]	size		current size in blocks
+@param[in,out]	mtr		mini-transaction */
 UNIV_INTERN
 void
-fsp_header_init(
-/*============*/
-	ulint	space,		/*!< in: space id */
-	ulint	size,		/*!< in: current size in blocks */
-	mtr_t*	mtr);		/*!< in/out: mini-transaction */
+fsp_header_init(ulint space_id, ulint size, mtr_t* mtr);
+
 /**********************************************************************//**
 Increases the space size field of a space. */
 UNIV_INTERN
@@ -789,11 +787,12 @@ fseg_print(
 /** Validate the tablespace flags, which are stored in the
 tablespace header at offset FSP_SPACE_FLAGS.
 @param[in]	flags	the contents of FSP_SPACE_FLAGS
+@param[in]	is_ibd	whether this is an .ibd file (not system tablespace)
 @return	whether the flags are correct (not in the buggy 10.1) format */
 MY_ATTRIBUTE((warn_unused_result, const))
 UNIV_INLINE
 bool
-fsp_flags_is_valid(ulint flags)
+fsp_flags_is_valid(ulint flags, bool is_ibd)
 {
 	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure",
 			return(false););
@@ -817,7 +816,7 @@ fsp_flags_is_valid(ulint flags)
 	bits 10..14 would be nonzero 0bsssaa where sss is
 	nonzero PAGE_SSIZE (3, 4, 6, or 7)
 	and aa is ATOMIC_WRITES (not 0b11). */
-	if (FSP_FLAGS_GET_RESERVED(flags) & ~1) {
+	if (FSP_FLAGS_GET_RESERVED(flags) & ~1U) {
 		return(false);
 	}
 
@@ -840,7 +839,12 @@ fsp_flags_is_valid(ulint flags)
 		return(false);
 	}
 
-	return(true);
+	/* The flags do look valid. But, avoid misinterpreting
+	buggy MariaDB 10.1 format flags for
+	PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL={0,2,3}
+	as valid-looking PAGE_SSIZE if this is known to be
+	an .ibd file and we are using the default innodb_page_size=16k. */
+	return(ssize == 0 || !is_ibd || srv_page_size != UNIV_PAGE_SIZE_ORIG);
 }
 
 /** Convert FSP_SPACE_FLAGS from the buggy MariaDB 10.1.0..10.1.20 format.
@@ -949,7 +953,7 @@ fsp_flags_convert_from_101(ulint flags)
 	flags = ((flags & 0x3f) | ssize << FSP_FLAGS_POS_PAGE_SSIZE
 		 | FSP_FLAGS_GET_PAGE_COMPRESSION_MARIADB101(flags)
 		 << FSP_FLAGS_POS_PAGE_COMPRESSION);
-	ut_ad(fsp_flags_is_valid(flags));
+	ut_ad(fsp_flags_is_valid(flags, false));
 	return(flags);
 }
 
@@ -963,7 +967,7 @@ bool
 fsp_flags_match(ulint expected, ulint actual)
 {
 	expected &= ~FSP_FLAGS_MEM_MASK;
-	ut_ad(fsp_flags_is_valid(expected));
+	ut_ad(fsp_flags_is_valid(expected, false));
 
 	if (actual == expected) {
 		return(true);

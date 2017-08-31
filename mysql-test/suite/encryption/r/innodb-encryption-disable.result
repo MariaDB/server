@@ -1,12 +1,6 @@
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
-call mtr.add_suppression("InnoDB: Block in space_id .* in file test/.* encrypted");
-call mtr.add_suppression("InnoDB: However key management plugin or used key_version .* is not found or used encryption algorithm or method does not match.");
-call mtr.add_suppression("InnoDB: Marking tablespace as missing. You may drop this table or install correct key management plugin and key file.");
-call mtr.add_suppression(".*InnoDB: Cannot open table test/.* from the internal data dictionary of InnoDB though the .frm file for the table exists. See .* for how you can resolve the problem.");
-call mtr.add_suppression("InnoDB: .ibd file is missing for table test/.*");
+call mtr.add_suppression("InnoDB: The page \[page id: space=[0-9]+, page number=[0-9]+\] in file test/t1 cannot be decrypted.");
+call mtr.add_suppression("InnoDB: The page \[page id: space=[0-9]+, page number=[0-9]+\] in file test/t5 cannot be decrypted.");
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management*");
-call mtr.add_suppression("InnoDB: Tablespace id.* is encrypted but encryption service or used key_id .* is not available. Can't continue opening tablespace.");
 create table t5 (
 `intcol1` int(32) DEFAULT NULL,
 `intcol2` int(32) DEFAULT NULL,

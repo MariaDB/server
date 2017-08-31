@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+
+SET @innodb_defragment_orig=@@GLOBAL.innodb_defragment;
+SET GLOBAL innodb_defragment = 1;
+
+# Small tests copied from innodb.innodb_defragment
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(256), KEY(a, b)) ENGINE=INNODB;
+OPTIMIZE TABLE t1;
+
+INSERT INTO t1 VALUES (100000, REPEAT('A', 256));
+INSERT INTO t1 VALUES (200000, REPEAT('A', 256));
+INSERT INTO t1 VALUES (300000, REPEAT('A', 256));
+INSERT INTO t1 VALUES (400000, REPEAT('A', 256));
+
+OPTIMIZE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12198 innodb_defragment=1 crashes server on
+--echo # OPTIMIZE TABLE when FULLTEXT index exists
+--echo #
+
+CREATE TABLE t1 (c TEXT, FULLTEXT KEY (c)) ENGINE=InnoDB;
+
+OPTIMIZE TABLE t1;
+DROP TABLE t1;
+
+SET GLOBAL innodb_defragment = @innodb_defragment_orig;

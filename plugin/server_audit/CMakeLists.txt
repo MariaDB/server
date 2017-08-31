@@ -13,7 +13,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
 
-SET(SERVER_AUDIT_SOURCES
-   server_audit.c test_audit_v4.c plugin_audit_v4.h)
+SET(SOURCES server_audit.c test_audit_v4.c plugin_audit_v4.h)
 
- MYSQL_ADD_PLUGIN(server_audit ${SERVER_AUDIT_SOURCES} MODULE_ONLY)
+MYSQL_ADD_PLUGIN(server_audit ${SOURCES} MODULE_ONLY RECOMPILE_FOR_EMBEDDED)

@@ -62,3 +62,25 @@ SELECT fid, AsText(g) FROM t1 WHERE ST_Within(g,
 DROP TABLE t1;
 
 --echo End of 5.5 tests.
+
+#
+# MDEV-12078 Using spatial index changes type from point to geometry.
+#
+CREATE TABLE t1 (
+      coordinate point NOT NULL,
+      SPATIAL KEY coordinate (coordinate)
+) ENGINE=Aria DEFAULT CHARSET=ascii PAGE_CHECKSUM=1;
+   
+SHOW COLUMNS FROM t1;
+   
+INSERT INTO t1 (coordinate) VALUES(ST_PointFromText("POINT(0 0)"));
+INSERT INTO t1 (coordinate) VALUES(ST_PointFromText("POINT(10 0)"));
+INSERT INTO t1 (coordinate) VALUES(ST_PointFromText("POINT(10 10)"));
+INSERT INTO t1 (coordinate) VALUES(ST_PointFromText("POINT(0 10)"));
+INSERT INTO t1 (coordinate) VALUES(ST_PointFromText("POINT(5 5)"));
+   
+SELECT astext(coordinate) FROM t1 WHERE ST_Intersects(ST_LineFromText("LINESTRING(0 0, 10 0, 10 10, 0 10)"), coordinate);
+   
+SHOW COLUMNS FROM t1;
+   
+DROP TABLE t1;

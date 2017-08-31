@@ -2,16 +2,14 @@
 -- source include/have_file_key_management_plugin.inc
 # embedded does not support restart
 -- source include/not_embedded.inc
--- source include/not_valgrind.inc
-# Avoid CrashReporter popup on Mac
--- source include/not_crashrep.inc
 
 #
 # MDEV-11004: Unable to start (Segfault or os error 2) when encryption key missing
 #
-call mtr.add_suppression("InnoDB: Block in space_id .* in file test/.* encrypted");
-call mtr.add_suppression("InnoDB: However key management plugin or used key_version .* is not found or used encryption algorithm or method does not match.");
-call mtr.add_suppression("InnoDB: Marking tablespace as missing. You may drop this table or install correct key management plugin and key file.");
+
+call mtr.add_suppression("InnoDB: The page \[page id: space=[0-9]+, page number=[0-9]+\] in file test/t1 cannot be decrypted.");
+call mtr.add_suppression("InnoDB: The page \[page id: space=[0-9]+, page number=[0-9]+\] in file test/t2 cannot be decrypted.");
+call mtr.add_suppression("InnoDB: The page \[page id: space=[0-9]+, page number=[0-9]+\] in file test/t3 cannot be decrypted.");
 
 --echo
 --echo # Start server with keys2.txt

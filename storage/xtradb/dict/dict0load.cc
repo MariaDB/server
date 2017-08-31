@@ -945,6 +945,10 @@ dict_insert_tablespace_and_filepath(
 	return(err);
 }
 
+/* Set by Xtrabackup */
+my_bool (*dict_check_if_skip_table)(const char*	name) = 0;
+
+
 /********************************************************************//**
 This function looks at each table defined in SYS_TABLES.  It checks the
 tablespace for any table with a space_id > 0.  It looks up the tablespace
@@ -1064,6 +1068,9 @@ loop:
 
 		bool		is_temp = false;
 		bool		discarded = false;
+		bool		print_error_if_does_not_exist;
+		bool		remove_from_data_dict_if_does_not_exist;
+
 		ib_uint32_t	flags2 = static_cast<ib_uint32_t>(
 			mach_read_from_4(field));
 
@@ -1089,6 +1096,19 @@ loop:
 			goto loop;
 		}
 
+
+		ut_a(!IS_XTRABACKUP() || dict_check_if_skip_table);
+
+		if (is_temp || discarded ||
+			(IS_XTRABACKUP() && dict_check_if_skip_table(name))) {
+			print_error_if_does_not_exist = false;
+		}
+		else {
+			print_error_if_does_not_exist = true;
+		}
+
+		remove_from_data_dict_if_does_not_exist = IS_XTRABACKUP() && !(is_temp || discarded);
+
 		mtr_commit(&mtr);
 
 		switch (dict_check) {
@@ -1096,8 +1116,8 @@ loop:
 			/* All tablespaces should have been found in
 			fil_load_single_table_tablespaces(). */
 			if (fil_space_for_table_exists_in_mem(
-				space_id, name, !(is_temp || discarded),
-				false, NULL, 0, flags)
+				space_id, name, print_error_if_does_not_exist,
+				remove_from_data_dict_if_does_not_exist , false, NULL, 0, flags)
 			    && !(is_temp || discarded)) {
 				/* If user changes the path of .ibd files in
 				   *.isl files before doing crash recovery ,
@@ -1130,7 +1150,7 @@ loop:
 			trx_resurrect_table_locks(). */
 			if (fil_space_for_table_exists_in_mem(
 				    space_id, name, false,
-				    false, NULL, 0, flags)) {
+				    false, false, NULL, 0, flags)) {
 				break;
 			}
 			/* fall through */
@@ -1173,7 +1193,7 @@ loop:
 			dberr_t	err = fil_open_single_table_tablespace(
 				read_page_0, srv_read_only_mode ? false : true,
 				space_id, dict_tf_to_fsp_flags(flags),
-				name, filepath, NULL);
+				name, filepath);
 
 			if (err != DB_SUCCESS) {
 				ib_logf(IB_LOG_LEVEL_ERROR,
@@ -1964,7 +1984,7 @@ dict_load_indexes(
 			dict_mem_index_free(index);
 			goto func_exit;
 		} else if (index->page == FIL_NULL
-			   && !table->ibd_file_missing
+			   && !table->file_unreadable
 			   && (!(index->type & DICT_FTS))) {
 
 			fprintf(stderr,
@@ -2193,7 +2213,7 @@ err_len:
 
 	(*table)->id = mach_read_from_8(field);
 
-	(*table)->ibd_file_missing = FALSE;
+	(*table)->file_unreadable = false;
 
 	return(NULL);
 }
@@ -2380,15 +2400,15 @@ err_exit:
 			"Table '%s' tablespace is set as discarded.",
 			table_name);
 
-		table->ibd_file_missing = TRUE;
+		table->file_unreadable = true;
 
 	} else if (!fil_space_for_table_exists_in_mem(
-			table->space, name, false, true, heap,
+			table->space, name, false, IS_XTRABACKUP(), true, heap,
 			table->id, table->flags)) {
 
 		if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 			/* Do not bother to retry opening temporary tables. */
-			table->ibd_file_missing = TRUE;
+			table->file_unreadable = true;
 
 		} else {
 			if (!(ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)) {
@@ -2417,14 +2437,15 @@ err_exit:
 			err = fil_open_single_table_tablespace(
 				true, false, table->space,
 				dict_tf_to_fsp_flags(table->flags),
-				name, filepath, table);
+				name, filepath);
 
 			if (err != DB_SUCCESS) {
 				/* We failed to find a sensible
 				tablespace file */
 
-				table->ibd_file_missing = TRUE;
+				table->file_unreadable = true;
 			}
+
 			if (filepath) {
 				mem_free(filepath);
 			}
@@ -2448,9 +2469,10 @@ err_exit:
 	were not allowed while the table is being locked by a transaction. */
 	dict_err_ignore_t index_load_err =
 		!(ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)
-		&& table->ibd_file_missing
+		&& table->file_unreadable
 		? DICT_ERR_IGNORE_ALL
 		: ignore_err;
+
 	err = dict_load_indexes(table, heap, index_load_err);
 
 	if (err == DB_INDEX_CORRUPT) {
@@ -2485,7 +2507,7 @@ err_exit:
 	of the error condition, since the user may want to dump data from the
 	clustered index. However we load the foreign key information only if
 	all indexes were loaded. */
-	if (!cached || table->ibd_file_missing) {
+	if (!cached || table->file_unreadable) {
 		/* Don't attempt to load the indexes from disk. */
 	} else if (err == DB_SUCCESS) {
 		err = dict_load_foreigns(table->name, NULL, true, true,
@@ -2518,12 +2540,12 @@ err_exit:
 			table = NULL;
 
 		} else if (dict_index_is_corrupted(index)
-			   && !table->ibd_file_missing) {
+			   && !table->file_unreadable) {
 
 			/* It is possible we force to load a corrupted
 			clustered index if srv_load_corrupted is set.
 			Mark the table as corrupted in this case */
-			table->corrupted = TRUE;
+			table->corrupted = true;
 		}
 	}
 
@@ -2532,7 +2554,7 @@ func_exit:
 
 	ut_ad(!table
 	      || ignore_err != DICT_ERR_IGNORE_NONE
-	      || table->ibd_file_missing
+	      || table->file_unreadable
 	      || !table->corrupted);
 
 	if (table && table->fts) {

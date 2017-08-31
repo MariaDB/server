@@ -1,4 +1,5 @@
 /* Copyright (c) 2004, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2017, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1422,6 +1423,7 @@ bool ha_federated::create_where_from_key(String *to,
           }
           break;
         }
+        /* fall through */
       case HA_READ_KEY_OR_NEXT:
         DBUG_PRINT("info", ("federated HA_READ_KEY_OR_NEXT %d", i));
         if (emit_key_part_name(&tmp, key_part) ||
@@ -1441,6 +1443,7 @@ bool ha_federated::create_where_from_key(String *to,
             goto err;
           break;
         }
+        /* fall through */
       case HA_READ_KEY_OR_PREV:
         DBUG_PRINT("info", ("federated HA_READ_KEY_OR_PREV %d", i));
         if (emit_key_part_name(&tmp, key_part) ||
@@ -2945,6 +2948,7 @@ int ha_federated::extra(ha_extra_function operation)
     break;
   case HA_EXTRA_PREPARE_FOR_DROP:
     table_will_be_deleted = TRUE;
+    break;
   default:
     /* do nothing */
     DBUG_PRINT("info",("unhandled operation: %d", (uint) operation));

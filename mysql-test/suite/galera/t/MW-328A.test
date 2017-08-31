@@ -1,0 +1,56 @@
+#
+# MW-328 Fix unnecessary/silent BF aborts
+# 
+
+#
+# Attempt to insert into t2 and check if insert actually inserted rows if 
+# a success was reported.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source suite/galera/t/MW-328-header.inc
+
+--connection node_2
+--let $count = 100
+--let $successes = 0
+--let $deadlocks = 0
+
+SET SESSION wsrep_retry_autocommit = 0;
+
+--disable_query_log
+
+while ($count)
+{
+  TRUNCATE TABLE t2;
+
+  --error 0,1213
+  INSERT IGNORE INTO t2 SELECT f2 FROM t1;
+  if ($mysql_errno != 1213) {
+    --inc $successes
+    if (`SELECT COUNT(*) = 0 FROM t2`) {
+      --die No rows arrived in table t2
+    }
+  }
+
+  if ($mysql_errno == 1213) {
+    --inc $deadlocks
+      
+  }
+
+  --dec $count
+}
+
+--enable_query_log
+
+#
+# Check that the test produced both deadlocks and successes
+#
+
+--disable_query_log
+--eval SELECT $successes > 0 AS have_successes
+--eval SELECT $deadlocks > 0 AS have_deadlocks
+--enable_query_log
+
+
+--source suite/galera/t/MW-328-footer.inc

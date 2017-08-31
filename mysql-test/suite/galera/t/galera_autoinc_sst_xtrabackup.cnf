@@ -1,9 +1,8 @@
 !include ../galera_2nodes.cnf
 
 [mysqld]
-#wsrep_sst_method=xtrabackup-v2
-#wsrep_sst_auth="root:"
-#wsrep_debug=ON
+wsrep_sst_method=xtrabackup-v2
+wsrep_sst_auth="root:"
 
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'

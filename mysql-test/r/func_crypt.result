@@ -107,6 +107,24 @@ OLD_PASSWORD(c1)	PASSWORD(c1)
 DROP TABLE t1;
 End of 5.0 tests
 #
+# Start of 10.0 tests
+#
+#
+# MDEV-10306 Wrong results with combination of CONCAT, SUBSTR and CONVERT in subquery
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='derived_merge=on';
+CREATE TABLE t1 (t VARCHAR(32) CHARSET latin1);
+INSERT INTO t1 VALUES('abcdefghi');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT ENCRYPT(t,'aa') t2 FROM t1) sub;
+c2
+aaHHlPHAM4sjs-aaHHlPHAM4sjs
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
+#
+# End of 10.0 tests
+#
+#
 # Start of 10.1 tests
 #
 # Start of func_str_ascii_checksum.inc

@@ -45,7 +45,7 @@ SET SESSION wsrep_sync_wait = 0;
 
 UNLOCK TABLES;
 
-SET SESSION wsrep_sync_wait = 7;
+SET SESSION wsrep_sync_wait = 15;
 
 SELECT COUNT(*) = 10 FROM t1;
 SELECT COUNT(*) = 10 FROM t2;

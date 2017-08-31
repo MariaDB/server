@@ -1423,4 +1423,3 @@ inline_mysql_file_sync(
 /** @} (end of group File_instrumentation) */
 
 #endif
-

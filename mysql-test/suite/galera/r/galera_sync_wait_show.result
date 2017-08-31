@@ -1,4 +1,4 @@
-SET SESSION wsrep_sync_wait = 1;
+SET SESSION wsrep_sync_wait = 8;
 CREATE DATABASE db1;
 SHOW CREATE DATABASE db1;
 Database	Create Database

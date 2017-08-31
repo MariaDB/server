@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,29 +35,37 @@ High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
-@return TRUE if page has been read in, FALSE in case of failure */
+
+@param[in]	space		space_id
+@param[in]	zip_size	compressed page size in bytes, or 0
+@param[in]	offset		page number
+@param[in]	trx		transaction
+@return DB_SUCCESS if page has been read and is not corrupted,
+@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
+@retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
+after decryption normal page checksum does not match.
+@retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
 UNIV_INTERN
-ibool
+dberr_t
 buf_read_page(
-/*==========*/
-	ulint	space,		/*!< in: space id */
-	ulint	zip_size,	/*!< in: compressed page size in bytes, or 0 */
-	ulint	offset,		/*!< in: page number */
-	trx_t*	trx,		/*!< in: trx */
-	buf_page_t** bpage	/*!< out: page */
-);
+	ulint	space,
+	ulint	zip_size,
+	ulint	offset,
+	trx_t*	trx);
+
 /********************************************************************//**
 High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
-@return TRUE if page has been read in, FALSE in case of failure */
+@param[in]	space		Tablespace id
+@param[in]	offset		Page number */
 UNIV_INTERN
-ibool
+void
 buf_read_page_async(
-/*================*/
-	ulint	space,	/*!< in: space id */
-	ulint	offset);/*!< in: page number */
+	ulint	space,
+	ulint	offset);
+
 /********************************************************************//**
 Applies a random read-ahead in buf_pool if there are at least a threshold
 value of accessed pages from the random read-ahead area. Does not read any

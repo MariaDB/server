@@ -1,0 +1,59 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+### Create some data on master
+CREATE TABLE t1(a INT, b INT, PRIMARY KEY (a)) ENGINE=TokuDB;
+INSERT INTO t1 SET a=100, b=100;
+INSERT INTO t1 SET a=200, b=100;
+INSERT INTO t1 SET a=300, b=100;
+INSERT INTO t1 SET a=400, b=100;
+INSERT INTO t1 SET a=500, b=100;
+UPDATE t1 SET b = 200 WHERE a = 200;
+DELETE FROM t1 WHERE a = 100;
+SELECT * FROM t1;
+a	b
+200	200
+300	100
+400	100
+500	100
+### Check for slave options
+SELECT @@tokudb_commit_sync;
+@@tokudb_commit_sync
+0
+SELECT @@tokudb_fsync_log_period;
+@@tokudb_fsync_log_period
+1000000
+### Check data on slave after sync
+SELECT * FROM t1;
+a	b
+200	200
+300	100
+400	100
+500	100
+### Do backup on slave
+### Check for errors
+SELECT @@session.tokudb_backup_last_error;
+@@session.tokudb_backup_last_error
+0
+SELECT @@session.tokudb_backup_last_error_string;
+@@session.tokudb_backup_last_error_string
+NULL
+### Stop slave server
+include/rpl_stop_server.inc [server_number=2]
+### Restore backup
+### Start slave server and slave threads
+include/rpl_start_server.inc [server_number=2]
+include/start_slave.inc
+### Sync slave with master
+### Check data on slave
+SELECT * FROM t1;
+a	b
+200	200
+300	100
+400	100
+500	100
+### Cleanup
+DROP TABLE t1;
+include/rpl_end.inc

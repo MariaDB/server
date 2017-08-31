@@ -128,8 +128,6 @@ buf_calc_page_old_checksum(
 	return(checksum);
 }
 
-#ifndef UNIV_INNOCHECKSUM
-
 /********************************************************************//**
 Return a printable string describing the checksum algorithm.
 @return	algorithm name */
@@ -158,4 +156,3 @@ buf_checksum_algorithm_name(
 	return(NULL);
 }
 
-#endif /* !UNIV_INNOCHECKSUM */

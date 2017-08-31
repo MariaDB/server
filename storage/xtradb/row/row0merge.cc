@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,6 +26,7 @@ Completed by Sunny Bains and Marko Makela
 *******************************************************/
 #include <my_config.h>
 #include <log.h>
+#include <sql_class.h>
 
 #include "row0merge.h"
 #include "row0ext.h"
@@ -188,7 +189,8 @@ row_merge_tuple_print(
 			}
 			ut_print_buf(f, dfield_get_data(field), len);
 			if (len != field_len) {
-				fprintf(f, " (total %lu bytes)", field_len);
+				fprintf(f, " (total " ULINTPF " bytes)",
+					field_len);
 			}
 		}
 	}
@@ -881,9 +883,9 @@ row_merge_buf_write(
 		ut_ad(b < &block[srv_sort_buf_size]);
 #ifdef UNIV_DEBUG
 		if (row_merge_print_write) {
-			fprintf(stderr, "row_merge_buf_write %p,%d,%lu %lu",
-				(void*) b, of->fd, (ulong) of->offset,
-				(ulong) i);
+			fprintf(stderr, "row_merge_buf_write %p,%d,"
+				ULINTPF " " ULINTPF,
+				(void*) b, of->fd, of->offset, i);
 			row_merge_tuple_print(stderr, entry, n_fields);
 		}
 #endif /* UNIV_DEBUG */
@@ -900,8 +902,8 @@ row_merge_buf_write(
 #endif /* UNIV_DEBUG_VALGRIND */
 #ifdef UNIV_DEBUG
 	if (row_merge_print_write) {
-		fprintf(stderr, "row_merge_buf_write %p,%d,%lu EOF\n",
-			(void*) b, of->fd, (ulong) of->offset);
+		fprintf(stderr, "row_merge_buf_write %p,%d," ULINTPF " EOF\n",
+			(void*) b, of->fd, of->offset);
 	}
 #endif /* UNIV_DEBUG */
 }
@@ -960,20 +962,13 @@ row_merge_read(
 
 #ifdef UNIV_DEBUG
 	if (row_merge_print_block_read) {
-		fprintf(stderr, "row_merge_read fd=%d ofs=%lu\n",
-			fd, (ulong) offset);
+		fprintf(stderr, "row_merge_read fd=%d ofs=" ULINTPF "\n",
+			fd, offset);
 	}
 #endif /* UNIV_DEBUG */
 
-#ifdef UNIV_DEBUG
-	if (row_merge_print_block_read) {
-		fprintf(stderr, "row_merge_read fd=%d ofs=%lu\n",
-			fd, (ulong) offset);
-	}
-#endif /* UNIV_DEBUG */
-
-	success = os_file_read_no_error_handling(OS_FILE_FROM_FD(fd), buf,
-		                                 ofs, srv_sort_buf_size);
+	success = os_file_read_no_error_handling_int_fd(fd, buf,
+						 ofs, srv_sort_buf_size);
 
 	/* For encrypted tables, decrypt data after reading and copy data */
 	if (crypt_data && crypt_buf) {
@@ -1028,12 +1023,12 @@ row_merge_write(
 		mach_write_to_4((byte *)out_buf, 0);
 	}
 
-	ret = os_file_write("(merge)", OS_FILE_FROM_FD(fd), out_buf, ofs, buf_len);
+	ret = os_file_write_int_fd("(merge)", fd, out_buf, ofs, buf_len);
 
 #ifdef UNIV_DEBUG
 	if (row_merge_print_block_write) {
-		fprintf(stderr, "row_merge_write fd=%d ofs=%lu\n",
-			fd, (ulong) offset);
+		fprintf(stderr, "row_merge_write fd=%d ofs=" ULINTPF "\n",
+			fd, offset);
 	}
 #endif /* UNIV_DEBUG */
 
@@ -1088,9 +1083,10 @@ row_merge_read_rec(
 		*mrec = NULL;
 #ifdef UNIV_DEBUG
 		if (row_merge_print_read) {
-			fprintf(stderr, "row_merge_read %p,%p,%d,%lu EOF\n",
+			fprintf(stderr, "row_merge_read %p,%p,%d," ULINTPF
+				" EOF\n",
 				(const void*) b, (const void*) block,
-				fd, (ulong) *foffs);
+				fd, *foffs);
 		}
 #endif /* UNIV_DEBUG */
 		return(NULL);
@@ -1208,9 +1204,9 @@ err_exit:
 func_exit:
 #ifdef UNIV_DEBUG
 	if (row_merge_print_read) {
-		fprintf(stderr, "row_merge_read %p,%p,%d,%lu ",
+		fprintf(stderr, "row_merge_read %p,%p,%d," ULINTPF " ",
 			(const void*) b, (const void*) block,
-			fd, (ulong) *foffs);
+			fd, *foffs);
 		rec_print_comp(stderr, *mrec, offsets);
 		putc('\n', stderr);
 	}
@@ -1244,8 +1240,8 @@ row_merge_write_rec_low(
 	ut_ad(e == rec_offs_extra_size(offsets) + 1);
 
 	if (row_merge_print_write) {
-		fprintf(stderr, "row_merge_write %p,%d,%lu ",
-			(void*) b, fd, (ulong) foffs);
+		fprintf(stderr, "row_merge_write %p,%d," ULINTPF " ",
+			(void*) b, fd, foffs);
 		rec_print_comp(stderr, mrec, offsets);
 		putc('\n', stderr);
 	}
@@ -1358,8 +1354,8 @@ row_merge_write_eof(
 	ut_ad(foffs);
 #ifdef UNIV_DEBUG
 	if (row_merge_print_write) {
-		fprintf(stderr, "row_merge_write %p,%p,%d,%lu EOF\n",
-			(void*) b, (void*) block, fd, (ulong) *foffs);
+		fprintf(stderr, "row_merge_write %p,%p,%d," ULINTPF " EOF\n",
+			(void*) b, (void*) block, fd, *foffs);
 	}
 #endif /* UNIV_DEBUG */
 
@@ -1624,7 +1620,8 @@ row_merge_read_clustered_index(
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
 
 		/* Do not continue if table pages are still encrypted */
-		if (old_table->is_encrypted || new_table->is_encrypted) {
+		if (!old_table->is_readable() ||
+		    !new_table->is_readable()) {
 			err = DB_DECRYPTION_FAILED;
 			trx->error_key_num = 0;
 			goto func_exit;
@@ -2258,11 +2255,12 @@ row_merge_blocks(
 #ifdef UNIV_DEBUG
 	if (row_merge_print_block) {
 		fprintf(stderr,
-			"row_merge_blocks fd=%d ofs=%lu + fd=%d ofs=%lu"
-			" = fd=%d ofs=%lu\n",
-			file->fd, (ulong) *foffs0,
-			file->fd, (ulong) *foffs1,
-			of->fd, (ulong) of->offset);
+			"row_merge_blocks fd=%d ofs=" ULINTPF
+			" + fd=%d ofs=" ULINTPF
+			" = fd=%d ofs=" ULINTPF "\n",
+			file->fd, *foffs0,
+			file->fd, *foffs1,
+			of->fd, of->offset);
 	}
 #endif /* UNIV_DEBUG */
 
@@ -2373,10 +2371,10 @@ row_merge_blocks_copy(
 #ifdef UNIV_DEBUG
 	if (row_merge_print_block) {
 		fprintf(stderr,
-			"row_merge_blocks_copy fd=%d ofs=%lu"
-			" = fd=%d ofs=%lu\n",
-			file->fd, (ulong) foffs0,
-			of->fd, (ulong) of->offset);
+			"row_merge_blocks_copy fd=%d ofs=" ULINTPF
+			" = fd=%d ofs=" ULINTPF "\n",
+			file->fd, *foffs0,
+			of->fd, of->offset);
 	}
 #endif /* UNIV_DEBUG */
 
@@ -2635,7 +2633,11 @@ row_merge_sort(
 		thd_progress_init(trx->mysql_thd, 1);
 	}
 
-	sql_print_information("InnoDB: Online DDL : merge-sorting has estimated %lu runs", num_runs);
+	if (global_system_variables.log_warnings > 2) {
+		sql_print_information("InnoDB: Online DDL : merge-sorting"
+				      " has estimated " ULINTPF " runs",
+				      num_runs);
+	}
 
 	/* Merge the runs until we have one big run */
 	do {
@@ -3425,14 +3427,21 @@ row_merge_file_create_low(
 	performance schema */
 	struct PSI_file_locker*	locker = NULL;
 	PSI_file_locker_state	state;
-	register_pfs_file_open_begin(&state, locker, innodb_file_temp_key,
-				     PSI_FILE_OPEN,
-				     "Innodb Merge Temp File",
-				     __FILE__, __LINE__);
+	locker = PSI_FILE_CALL(get_thread_file_name_locker)(
+			       &state, innodb_file_temp_key, PSI_FILE_OPEN,
+			       "Innodb Merge Temp File", &locker);
+	if (locker != NULL) {
+		PSI_FILE_CALL(start_file_open_wait)(locker,
+						    __FILE__,
+						    __LINE__);
+	}
 #endif
 	fd = innobase_mysql_tmpfile(path);
 #ifdef UNIV_PFS_IO
-	register_pfs_file_open_end(locker, fd);
+	if (locker != NULL) {
+		PSI_FILE_CALL(end_file_open_wait_and_bind_to_descriptor)(
+			      locker, fd);
+	}
 #endif
 
 	if (fd < 0) {
@@ -3479,15 +3488,20 @@ row_merge_file_destroy_low(
 #ifdef UNIV_PFS_IO
 	struct PSI_file_locker*	locker = NULL;
 	PSI_file_locker_state	state;
-	register_pfs_file_io_begin(&state, locker,
-				   fd, 0, PSI_FILE_CLOSE,
-				   __FILE__, __LINE__);
+	locker = PSI_FILE_CALL(get_thread_file_descriptor_locker)(
+			       &state, fd, PSI_FILE_CLOSE);
+	if (locker != NULL) {
+		PSI_FILE_CALL(start_file_wait)(
+			      locker, 0, __FILE__, __LINE__);
+	}
 #endif
 	if (fd >= 0) {
 		close(fd);
 	}
 #ifdef UNIV_PFS_IO
-	register_pfs_file_io_end(locker, 0);
+	if (locker != NULL) {
+		PSI_FILE_CALL(end_file_wait)(locker, 0);
+	}
 #endif
 }
 /*********************************************************************//**
@@ -3694,7 +3708,7 @@ row_merge_rename_tables_dict(
 	table is in a non-system tablespace where space > 0. */
 	if (err == DB_SUCCESS
 	    && old_table->space != TRX_SYS_SPACE
-	    && !old_table->ibd_file_missing) {
+	    && fil_space_get(old_table->space) != NULL) {
 		/* Make pathname to update SYS_DATAFILES. */
 		char* tmp_path = row_make_new_pathname(old_table, tmp_name);
 
@@ -4004,6 +4018,7 @@ row_merge_build_indexes(
 			os_mem_alloc_large(&block_size));
 
 		if (crypt_block == NULL) {
+			fil_space_release(space);
 			DBUG_RETURN(DB_OUT_OF_MEMORY);
 		}
 	} else {
@@ -4022,6 +4037,7 @@ row_merge_build_indexes(
 
 	for (i = 0; i < n_indexes; i++) {
 		merge_files[i].fd = -1;
+		merge_files[i].offset = 0;
 	}
 
 	total_static_cost = COST_BUILD_INDEX_STATIC * n_indexes + COST_READ_CLUSTERED_INDEX;
@@ -4060,20 +4076,24 @@ row_merge_build_indexes(
 	duplicate keys. */
 	innobase_rec_reset(table);
 
-	sql_print_information("InnoDB: Online DDL : Start");
-	sql_print_information("InnoDB: Online DDL : Start reading clustered "
-		"index of the table and create temporary files");
+	if (global_system_variables.log_warnings > 2) {
+		sql_print_information("InnoDB: Online DDL : Start reading"
+				      " clustered index of the table"
+				      " and create temporary files");
+	}
 
 	pct_cost = COST_READ_CLUSTERED_INDEX * 100 / (total_static_cost + total_dynamic_cost);
 
 	/* Do not continue if we can't encrypt table pages */
-	if (old_table->is_encrypted || new_table->is_encrypted) {
+	if (!old_table->is_readable() ||
+	    !new_table->is_readable()) {
 		error = DB_DECRYPTION_FAILED;
 		ib_push_warning(trx->mysql_thd, DB_DECRYPTION_FAILED,
 			"Table %s is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",
-			old_table->is_encrypted ? old_table->name : new_table->name);
+			!old_table->is_readable() ? old_table->name :
+				new_table->name);
 		goto func_exit;
 	}
 
@@ -4089,8 +4109,11 @@ row_merge_build_indexes(
 
 	pct_progress += pct_cost;
 
-	sql_print_information("InnoDB: Online DDL : End of reading "
-		"clustered index of the table and create temporary files");
+	if (global_system_variables.log_warnings > 2) {
+		sql_print_information("InnoDB: Online DDL : End of reading "
+				      "clustered index of the table"
+				      " and create temporary files");
+	}
 
 	for (i = 0; i < n_indexes; i++) {
 		total_index_blocks += merge_files[i].offset;
@@ -4186,8 +4209,7 @@ wait_again:
 			DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Insert\n");
 #endif
 		} else if (merge_files[i].fd != -1) {
-			char		buf[3 * NAME_LEN];
-			char		*bufend;
+			char	buf[NAME_LEN + 1];
 			row_merge_dup_t	dup = {
 				sort_idx, table, col_map, 0};
 
@@ -4196,18 +4218,25 @@ wait_again:
 					total_index_blocks)) /
 				(total_static_cost + total_dynamic_cost)
 				* PCT_COST_MERGESORT_INDEX * 100;
-
-			bufend = innobase_convert_name(
+			char*	bufend = innobase_convert_name(
 				buf, sizeof buf,
-				indexes[i]->name, strlen(indexes[i]->name),
+				indexes[i]->name,
+				strlen(indexes[i]->name),
 				trx->mysql_thd,
 				FALSE);
-
 			buf[bufend - buf]='\0';
 
-			sql_print_information("InnoDB: Online DDL : Start merge-sorting"
-				" index %s (%lu / %lu), estimated cost : %2.4f",
-				buf, (i+1), n_indexes, pct_cost);
+			if (global_system_variables.log_warnings > 2) {
+				sql_print_information("InnoDB: Online DDL :"
+						      " Start merge-sorting"
+						      " index %s"
+						      " (" ULINTPF
+						      " / " ULINTPF "),"
+						      " estimated cost :"
+						      " %2.4f",
+						      buf, i + 1, n_indexes,
+						      pct_cost);
+			}
 
 			error = row_merge_sort(
 					trx, &dup, &merge_files[i],
@@ -4217,9 +4246,14 @@ wait_again:
 
 			pct_progress += pct_cost;
 
-			sql_print_information("InnoDB: Online DDL : End of "
-				" merge-sorting index %s (%lu / %lu)",
-				buf, (i+1), n_indexes);
+			if (global_system_variables.log_warnings > 2) {
+				sql_print_information("InnoDB: Online DDL :"
+						      " End of "
+						      " merge-sorting index %s"
+						      " (" ULINTPF
+						      " / " ULINTPF ")",
+						      buf, i + 1, n_indexes);
+			}
 
 			DBUG_EXECUTE_IF(
 				"ib_merge_wait_after_sort",
@@ -4232,10 +4266,15 @@ wait_again:
 					(total_static_cost + total_dynamic_cost) *
 					PCT_COST_INSERT_INDEX * 100;
 
-				sql_print_information("InnoDB: Online DDL : Start "
-					"building index %s (%lu / %lu), estimated "
-					"cost : %2.4f", buf, (i+1),
-					n_indexes, pct_cost);
+				if (global_system_variables.log_warnings > 2) {
+					sql_print_information(
+						"InnoDB: Online DDL : Start "
+						"building index %s"
+						" (" ULINTPF
+						" / " ULINTPF "), estimated "
+						"cost : %2.4f", buf, i + 1,
+						n_indexes, pct_cost);
+				}
 
 				error = row_merge_insert_index_tuples(
 					trx->id, sort_idx, old_table,
@@ -4244,9 +4283,13 @@ wait_again:
 					crypt_data, crypt_block, new_table->space);
 				pct_progress += pct_cost;
 
-				sql_print_information("InnoDB: Online DDL : "
-					"End of building index %s (%lu / %lu)",
-					buf, (i+1), n_indexes);
+				if (global_system_variables.log_warnings > 2) {
+					sql_print_information(
+						"InnoDB: Online DDL : "
+						"End of building index %s"
+						" (" ULINTPF " / " ULINTPF ")",
+						buf, i + 1, n_indexes);
+				}
 			}
 		}
 
@@ -4263,14 +4306,15 @@ wait_again:
 			ut_ad(sort_idx->online_status
 			      == ONLINE_INDEX_COMPLETE);
 		} else {
-			sql_print_information("InnoDB: Online DDL : Start applying row log");
+			if (global_system_variables.log_warnings > 2) {
+				sql_print_information(
+					"InnoDB: Online DDL : Applying"
+					" log to index");
+			}
 			DEBUG_SYNC_C("row_log_apply_before");
 			error = row_log_apply(trx, sort_idx, table);
 			DEBUG_SYNC_C("row_log_apply_after");
-			sql_print_information("InnoDB: Online DDL : End of applying row log");
 		}
-
-		sql_print_information("InnoDB: Online DDL : Completed");
 
 		if (error != DB_SUCCESS) {
 			trx->error_key_num = key_numbers[i];

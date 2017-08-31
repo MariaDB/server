@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -663,6 +663,7 @@ handle_new_error:
 		abort();
 
 	case DB_CORRUPTION:
+	case DB_PAGE_CORRUPTED:
 		fputs("InnoDB: We detected index corruption"
 		      " in an InnoDB type table.\n"
 		      "InnoDB: You have to dump + drop + reimport"
@@ -1280,6 +1281,71 @@ run_again:
 }
 
 /*********************************************************************//**
+Determine is tablespace encrypted but decryption failed, is table corrupted
+or is tablespace .ibd file missing.
+@param[in]	table		Table
+@param[in]	trx		Transaction
+@param[in]	push_warning	true if we should push warning to user
+@return	DB_DECRYPTION_FAILED	table is encrypted but decryption failed
+DB_CORRUPTION			table is corrupted
+DB_TABLESPACE_NOT_FOUND		tablespace .ibd file not found */
+static
+dberr_t
+row_mysql_get_table_status(
+	const dict_table_t*	table,
+	trx_t*			trx,
+	bool 			push_warning = true)
+{
+	dberr_t err = DB_SUCCESS;
+	FilSpace space(table->space, true);
+	char	buf[MAX_FULL_NAME_LEN];
+	ut_format_name(table->name, TRUE, buf, sizeof(buf));
+
+	if (space()) {
+
+		if (space()->crypt_data && space()->crypt_data->is_encrypted()) {
+			// maybe we cannot access the table due to failing
+			// to decrypt
+			if (push_warning) {
+				ib_push_warning(trx,HA_ERR_DECRYPTION_FAILED,
+					"Table %s in file %s is encrypted but encryption service or"
+					" used key_id %u is not available. "
+					" Can't continue reading table.",
+					buf, space()->chain.start->name,
+					space()->crypt_data->key_id);
+			}
+
+			err = DB_DECRYPTION_FAILED;
+		} else {
+			if (push_warning) {
+				ib_push_warning(trx, DB_CORRUPTION,
+					"Table %s in file %s corrupted.",
+					buf, space()->chain.start->name);
+			}
+
+			err = DB_CORRUPTION;
+		}
+
+	} else {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"InnoDB: MySQL is trying to use a table handle"
+			" but the .ibd file for"
+			" table %s does not exist."
+			" Have you deleted the .ibd file"
+			" from the database directory under"
+			" the MySQL datadir, or have you"
+			" used DISCARD TABLESPACE?"
+			" Look from " REFMAN "innodb-troubleshooting.html"
+			" how you can resolve the problem.",
+			buf);
+
+		 err = DB_TABLESPACE_NOT_FOUND;
+	}
+
+	return (err);
+}
+
+/*********************************************************************//**
 Does an insert for MySQL.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
@@ -1308,20 +1374,8 @@ row_insert_for_mysql(
 
 		return(DB_TABLESPACE_DELETED);
 
-	} else if (prebuilt->table->ibd_file_missing) {
-
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			".ibd file is missing for table %s",
-			prebuilt->table->name);
-
-		return(DB_TABLESPACE_NOT_FOUND);
-	} else if (prebuilt->table->is_encrypted) {
-		ib_push_warning(trx, DB_DECRYPTION_FAILED,
-			"Table %s in tablespace %lu encrypted."
-			"However key management plugin or used key_id is not found or"
-			" used encryption algorithm or method does not match.",
-			prebuilt->table->name, prebuilt->table->space);
-		return(DB_DECRYPTION_FAILED);
+	} else if (!prebuilt->table->is_readable()) {
+		return (row_mysql_get_table_status(prebuilt->table, trx, true));
 	} else if (prebuilt->magic_n != ROW_PREBUILT_ALLOCATED) {
 		fprintf(stderr,
 			"InnoDB: Error: trying to free a corrupt\n"
@@ -1460,11 +1514,10 @@ error_exit:
 	que_thr_stop_for_mysql_no_error(thr, trx);
 
 	if (UNIV_LIKELY(!(trx->fake_changes))) {
-
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_inserted.add((size_t)trx->id, 1);
+			srv_stats.n_system_rows_inserted.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_inserted.add((size_t)trx->id, 1);
+			srv_stats.n_rows_inserted.inc(size_t(trx->id));
 		}
 
 		if (prebuilt->clust_index_was_generated) {
@@ -1712,28 +1765,8 @@ row_update_for_mysql(
 	ut_ad(trx != NULL);
 	UT_NOT_USED(mysql_rec);
 
-	if (prebuilt->table->ibd_file_missing) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr, "  InnoDB: Error:\n"
-			"InnoDB: MySQL is trying to use a table handle"
-			" but the .ibd file for\n"
-			"InnoDB: table %s does not exist.\n"
-			"InnoDB: Have you deleted the .ibd file"
-			" from the database directory under\n"
-			"InnoDB: the MySQL datadir, or have you"
-			" used DISCARD TABLESPACE?\n"
-			"InnoDB: Look from\n"
-			"InnoDB: " REFMAN "innodb-troubleshooting.html\n"
-			"InnoDB: how you can resolve the problem.\n",
-			prebuilt->table->name);
-		return(DB_ERROR);
-	} else if (prebuilt->table->is_encrypted) {
-		ib_push_warning(trx, DB_DECRYPTION_FAILED,
-			"Table %s in tablespace %lu encrypted."
-			"However key management plugin or used key_id is not found or"
-			" used encryption algorithm or method does not match.",
-			prebuilt->table->name, prebuilt->table->space);
-		return (DB_TABLE_NOT_FOUND);
+	if (!table->is_readable()) {
+		return (row_mysql_get_table_status(table, trx, true));
 	}
 
 	if (UNIV_UNLIKELY(prebuilt->magic_n != ROW_PREBUILT_ALLOCATED)) {
@@ -1873,17 +1906,15 @@ run_again:
 		dict_table_n_rows_dec(prebuilt->table);
 
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_deleted.add(
-				(size_t)trx->id, 1);
+			srv_stats.n_system_rows_deleted.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+			srv_stats.n_rows_deleted.inc(size_t(trx->id));
 		}
 	} else {
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_updated.add(
-				(size_t)trx->id, 1);
+			srv_stats.n_system_rows_updated.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+			srv_stats.n_rows_updated.inc(size_t(trx->id));
 		}
 	}
 
@@ -2121,17 +2152,15 @@ run_again:
 		dict_table_n_rows_dec(table);
 
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_deleted.add(
-				(size_t)trx->id, 1);
+			srv_stats.n_system_rows_deleted.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+			srv_stats.n_rows_deleted.inc(size_t(trx->id));
 		}
 	} else {
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_updated.add(
-				(size_t)trx->id, 1);
+			srv_stats.n_system_rows_updated.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+			srv_stats.n_rows_updated.inc(size_t(trx->id));
 		}
 	}
 
@@ -3128,7 +3157,7 @@ row_discard_tablespace(
 		/* All persistent operations successful, update the
 		data dictionary memory cache. */
 
-		table->ibd_file_missing = TRUE;
+		table->file_unreadable = true;
 
 		table->flags2 |= DICT_TF2_DISCARDED;
 
@@ -3185,8 +3214,6 @@ row_discard_tablespace_for_mysql(
 
 	if (table == 0) {
 		err = DB_TABLE_NOT_FOUND;
-	} else if (table->is_encrypted) {
-		err = DB_DECRYPTION_FAILED;
 	} else if (table->space == TRX_SYS_SPACE) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 
@@ -3401,10 +3428,8 @@ row_truncate_table_for_mysql(
 
 	if (dict_table_is_discarded(table)) {
 		return(DB_TABLESPACE_DELETED);
-	} else if (table->is_encrypted) {
-		return(DB_DECRYPTION_FAILED);
-	} else if (table->ibd_file_missing) {
-		return(DB_TABLESPACE_NOT_FOUND);
+	} else if (!table->is_readable()) {
+		return (row_mysql_get_table_status(table, trx, true));
 	}
 
 	trx_start_for_ddl(trx, TRX_DICT_OP_TABLE);
@@ -3570,7 +3595,7 @@ row_truncate_table_for_mysql(
 					"create a new tablespace",
 					table->name);
 
-				table->ibd_file_missing = 1;
+				table->file_unreadable = true;
 				err = DB_ERROR;
 				goto funct_exit;
 			}
@@ -3994,19 +4019,6 @@ row_drop_table_for_mysql(
 		goto funct_exit;
 	}
 
-	/* If table is encrypted and table page encryption failed
-	return error. */
-	if (table->is_encrypted) {
-
-		if (table->can_be_evicted) {
-			dict_table_move_from_lru_to_non_lru(table);
-		}
-
-		dict_table_close(table, TRUE, FALSE);
-		err = DB_DECRYPTION_FAILED;
-		goto funct_exit;
-	}
-
 	/* Turn on this drop bit before we could release the dictionary
 	latch */
 	table->to_be_dropped = true;
@@ -4260,18 +4272,6 @@ row_drop_table_for_mysql(
 		rw_lock_x_unlock(dict_index_get_lock(index));
 	}
 
-	/* If table has not yet have crypt_data, try to read it to
-	make freeing the table easier. */
-	if (!table->crypt_data) {
-
-		if (fil_space_t* space = fil_space_acquire_silent(table->space)) {
-			/* We use crypt data in dict_table_t in ha_innodb.cc
-			to push warnings to user thread. */
-			table->crypt_data = space->crypt_data;
-			fil_space_release(space);
-		}
-	}
-
 	/* We use the private SQL parser of Innobase to generate the
 	query graphs needed in deleting the dictionary data from system
 	tables in Innobase. Deleting a row from SYS_INDEXES table also
@@ -4378,7 +4378,7 @@ row_drop_table_for_mysql(
 		from table->heap, which will be freed by
 		dict_table_remove_from_cache(table) below. */
 		space_id = table->space;
-		ibd_file_missing = table->ibd_file_missing;
+		ibd_file_missing = table->file_unreadable;
 
 		table_flags = table->flags;
 		is_temp = DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY);
@@ -4389,7 +4389,8 @@ row_drop_table_for_mysql(
 		have a temp flag but not know the temp path */
 		ut_a(table->dir_path_of_temp_table == NULL || is_temp);
 		if (dict_table_is_discarded(table)
-		    || table->ibd_file_missing) {
+		    || (!table->is_readable()
+			    && fil_space_get(table->space) == NULL)) {
 			/* Do not attempt to drop known-to-be-missing
 			tablespaces. */
 			space_id = 0;
@@ -4465,8 +4466,9 @@ row_drop_table_for_mysql(
 			if (!is_temp
 			    && !fil_space_for_table_exists_in_mem(
 					space_id, tablename,
-					print_msg, false, NULL, 0,
+					print_msg, IS_XTRABACKUP() && print_msg, false, NULL, 0,
 					table_flags)) {
+
 				/* This might happen if we are dropping a
 				discarded tablespace */
 				err = DB_SUCCESS;
@@ -4801,7 +4803,8 @@ loop:
 					"'%s.frm' was lost.", table->name);
 			}
 
-			if (table->ibd_file_missing) {
+			if (!table->is_readable()
+			    && fil_space_get(table->space) == NULL) {
 				ib_logf(IB_LOG_LEVEL_WARN,
 					"Missing %s.ibd file for table %s.",
 					table->name, table->name);
@@ -5075,7 +5078,8 @@ row_rename_table_for_mysql(
 		      stderr);
 		goto funct_exit;
 
-	} else if (table->ibd_file_missing
+	} else if (!table->is_readable()
+		   && fil_space_get(table->space) == NULL
 		   && !dict_table_is_discarded(table)) {
 
 		err = DB_TABLE_NOT_FOUND;
@@ -5145,7 +5149,7 @@ row_rename_table_for_mysql(
 	which have space IDs > 0. */
 	if (err == DB_SUCCESS
 	    && table->space != TRX_SYS_SPACE
-	    && !table->ibd_file_missing) {
+	    && table->is_readable()) {
 		/* Make a new pathname to update SYS_DATAFILES. */
 		char*	new_path = row_make_new_pathname(table, new_name);
 
@@ -5526,7 +5530,8 @@ loop:
 		fputs("  InnoDB: Warning: CHECK TABLE on ", stderr);
 		dict_index_name_print(stderr, prebuilt->trx, index);
 		fprintf(stderr, " returned %lu\n", ret);
-		/* fall through (this error is ignored by CHECK TABLE) */
+		/* (this error is ignored by CHECK TABLE) */
+		/* fall through */
 	case DB_END_OF_INDEX:
 func_exit:
 		mem_free(buf);

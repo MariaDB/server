@@ -1144,6 +1144,7 @@ sync_thread_add_level(
 			upgrading in innobase_start_or_create_for_mysql(). */
 			break;
 		}
+		/* fall through */
 	case SYNC_MEM_POOL:
 	case SYNC_MEM_HASH:
 	case SYNC_RECV:

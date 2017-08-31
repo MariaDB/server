@@ -95,7 +95,7 @@ extern pthread_mutex_t parmut;
 //#endif  // !__WIN__
 
 // The debug trace used by the main thread
-       FILE *pfile = NULL;
+FILE *pfile = NULL;
 
 MBLOCK Nmblk = {NULL, false, 0, false, NULL};   // Used to init MBLOCK's
 
@@ -912,7 +912,7 @@ int PlugCloseFile(PGLOBAL g, PFBLOCK fp, bool all)
 
       fp->Memory = NULL;
       fp->Mode = MODE_ANY;
-      // Passthru
+      // fall through
     case TYPE_FB_HANDLE:
       if (fp->Handle && fp->Handle != INVALID_HANDLE_VALUE)
         if (CloseFileHandle(fp->Handle))

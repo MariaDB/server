@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -483,6 +483,7 @@ int init_slave()
   {
     delete active_mi;
     active_mi= 0;
+    sql_print_error("Failed to allocate memory for the Master Info structure");
     goto err;
   }
 
@@ -545,7 +546,6 @@ end:
   DBUG_RETURN(error);
 
 err:
-  sql_print_error("Failed to allocate memory for the Master Info structure");
   error= 1;
   goto end;
 }
@@ -2466,6 +2466,7 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
     }
     if (rli->ign_gtids.count())
     {
+      DBUG_ASSERT(!rli->is_in_group());         // Ensure no active transaction
       glev= new Gtid_list_log_event(&rli->ign_gtids,
                                     Gtid_list_log_event::FLAG_IGN_GTIDS);
       rli->ign_gtids.reset();
@@ -3610,7 +3611,9 @@ int
 apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
                                         rpl_group_info *rgi)
 {
+#ifndef DBUG_OFF
   Relay_log_info* rli= rgi->rli;
+#endif
   mysql_mutex_assert_not_owner(&rli->data_lock);
   int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
   /*
@@ -3854,7 +3857,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         DBUG_RETURN(1);
       }
 
-      if (opt_gtid_ignore_duplicates)
+      if (opt_gtid_ignore_duplicates &&
+          rli->mi->using_gtid != Master_info::USE_GTID_NO)
       {
         int res= rpl_global_gtid_slave_state->check_duplicate_gtid
           (&serial_rgi->current_gtid, serial_rgi);
@@ -5581,7 +5585,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   bool gtid_skip_enqueue= false;
   bool got_gtid_event= false;
   rpl_gtid event_gtid;
-
+#ifndef DBUG_OFF
+  static uint dbug_rows_event_count= 0;
+#endif
   /*
     FD_q must have been prepared for the first R_a event
     inside get_master_version_and_clock()
@@ -5648,6 +5654,26 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       (uchar)buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT /* a way to escape */)
     DBUG_RETURN(queue_old_event(mi,buf,event_len));
 
+#ifdef ENABLED_DEBUG_SYNC
+  /*
+    A (+d,dbug.rows_events_to_delay_relay_logging)-test is supposed to
+    create a few Write_log_events and after receiving the 1st of them
+    the IO thread signals to launch the SQL thread, and sets itself to
+    wait for a release signal.
+  */
+  DBUG_EXECUTE_IF("dbug.rows_events_to_delay_relay_logging",
+                  if ((buf[EVENT_TYPE_OFFSET] == WRITE_ROWS_EVENT_V1 ||
+                       buf[EVENT_TYPE_OFFSET] == WRITE_ROWS_EVENT) &&
+                      ++dbug_rows_event_count == 2)
+                  {
+                    const char act[]=
+                      "now SIGNAL start_sql_thread "
+                      "WAIT_FOR go_on_relay_logging";
+                    DBUG_ASSERT(debug_sync_service);
+                    DBUG_ASSERT(!debug_sync_set_action(current_thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
+#endif
   mysql_mutex_lock(&mi->data_lock);
 
   switch ((uchar)buf[EVENT_TYPE_OFFSET]) {
@@ -5910,8 +5936,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
 
        TODO: handling `when' for SHOW SLAVE STATUS' snds behind
     */
-    if ((memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len())
-         && mi->master_log_name != NULL)
+    if (memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len())
         || mi->master_log_pos > hb.log_pos)
     {
       /* missed events of heartbeat from the past */
@@ -6071,9 +6096,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
           mi->last_queued_gtid.seq_no == 1000)
         goto skip_relay_logging;
     });
-    /* Fall through to default case ... */
 #endif
-
+    /* fall through */
   default:
   default_action:
     DBUG_EXECUTE_IF("kill_slave_io_after_2_events",
@@ -6315,6 +6339,7 @@ void end_relay_log_info(Relay_log_info* rli)
   mysql_mutex_t *log_lock;
   DBUG_ENTER("end_relay_log_info");
 
+  rli->error_on_rli_init_info= false;
   if (!rli->inited)
     DBUG_VOID_RETURN;
   if (rli->info_fd >= 0)
@@ -6464,7 +6489,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
 
   /* we disallow empty users */
-  if (mi->user == NULL || mi->user[0] == 0)
+  if (mi->user[0] == 0)
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -6898,9 +6923,12 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
           DBUG_RETURN(ev);
         }
 
-        if (rli->ign_gtids.count())
+        if (rli->ign_gtids.count() && !rli->is_in_group())
         {
-          /* We generate and return a Gtid_list, to update gtid_slave_pos. */
+          /*
+            We generate and return a Gtid_list, to update gtid_slave_pos,
+            unless being in the middle of a group.
+          */
           DBUG_PRINT("info",("seeing ignored end gtids"));
           ev= new Gtid_list_log_event(&rli->ign_gtids,
                                       Gtid_list_log_event::FLAG_IGN_GTIDS);

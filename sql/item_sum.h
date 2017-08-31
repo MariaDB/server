@@ -458,6 +458,7 @@ public:
     used_tables_cache= 0; 
     const_item_cache= true;
   }
+  void reset_forced_const() { const_item_cache= false; }
   virtual bool const_during_execution() const { return false; }
   virtual void print(String *str, enum_query_type query_type);
   void fix_num_length_and_dec();

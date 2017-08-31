@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -41,6 +41,9 @@ Created April 08, 2011 Vasil Dimov
 #include "sync0rw.h" /* rw_lock_s_lock() */
 #include "ut0byte.h" /* ut_ull_create() */
 #include "ut0sort.h" /* UT_SORT_FUNCTION_BODY */
+#ifdef WITH_WSREP
+extern my_bool wsrep_recovery;
+#endif /* WITH_WSREP */
 
 enum status_severity {
 	STATUS_INFO,
@@ -612,6 +615,7 @@ buf_load()
 
 	if (dump_n == 0) {
 		ut_free(dump);
+		ut_free(dump_tmp);
 		ut_sprintf_timestamp(now);
 		buf_load_status(STATUS_NOTICE,
 				"Buffer pool(s) load completed at %s "
@@ -685,13 +689,20 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(buf_dump_thread)(void*)
 {
+	my_thread_init();
 	ut_ad(!srv_read_only_mode);
 
 	buf_dump_status(STATUS_INFO, "Dumping buffer pool(s) not yet started");
 	buf_load_status(STATUS_INFO, "Loading buffer pool(s) not yet started");
 
 	if (srv_buffer_pool_load_at_startup) {
+#ifdef WITH_WSREP
+		if (!wsrep_recovery) {
+#endif /* WITH_WSREP */
 		buf_load();
+#ifdef WITH_WSREP
+                }
+#endif /* WITH_WSREP */
 	}
 
 	while (!SHUTTING_DOWN()) {
@@ -715,12 +726,19 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 	}
 
 	if (srv_buffer_pool_dump_at_shutdown && srv_fast_shutdown != 2) {
+#ifdef WITH_WSREP
+		if (!wsrep_recovery) {
+#endif /* WITH_WSREP */
 		buf_dump(FALSE /* ignore shutdown down flag,
 		keep going even if we are in a shutdown state */);
+#ifdef WITH_WSREP
+		}
+#endif /* WITH_WSREP */
 	}
 
 	srv_buf_dump_thread_active = false;
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);

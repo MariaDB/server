@@ -4,6 +4,7 @@
 source include/master-slave.inc;
 source include/have_tokudb.inc;
 source include/have_binlog_format_statement.inc;
+# gtids disabled because it tests DROP TEMPORARY inside a transaction
 
 source extra/rpl_tests/rpl_tokudb.test;
 --source include/rpl_end.inc

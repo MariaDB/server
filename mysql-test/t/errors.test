@@ -1,6 +1,7 @@
 #
 # Test some error conditions
 #
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t1;
@@ -198,3 +199,17 @@ CREATE TABLE t1 (a CHAR(3), b BLOB);
 UPDATE t1 SET a = 'new'
 WHERE COLUMN_CREATE( 1, 'v', 1, 'w' ) IS NULL;
 drop table t1;
+
+#
+# errors caused by max_session_mem_used
+#
+--disable_result_log
+set max_session_mem_used = 50000;
+--error 0,ER_OPTION_PREVENTS_STATEMENT
+select * from seq_1_to_1000;
+set max_session_mem_used = 8192;
+--error 0,ER_OPTION_PREVENTS_STATEMENT
+select * from seq_1_to_1000;
+--enable_result_log
+# We may not be able to execute any more queries with this connection
+# because of too little memory#

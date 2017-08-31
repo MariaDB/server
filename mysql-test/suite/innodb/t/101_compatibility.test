@@ -1,4 +1,4 @@
---source include/have_innodb.inc
+--source include/innodb_page_size.inc
 --source include/not_embedded.inc
 
 -- echo #
@@ -28,7 +28,7 @@ CREATE TABLE tz(a INT)ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 EVAL CREATE TABLE tdd(a INT) ENGINE=InnoDB, DATA DIRECTORY='$MYSQL_TMP_DIR';
 
-CREATE TABLE tp(a INT) ENGINE=InnoDB page_compressed=1;
+CREATE TABLE tp(a INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC PAGE_COMPRESSED=1;
 CREATE TABLE ti(a INT) ENGINE=InnoDB;
 FLUSH TABLES ti FOR EXPORT;
 perl;

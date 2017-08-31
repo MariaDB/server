@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -75,22 +76,12 @@ are not found and the user wants.
 @return	DB_SUCCESS or error code */
 UNIV_INTERN
 dberr_t
-innobase_start_or_create_for_mysql(void);
-/*====================================*/
-/****************************************************************//**
-Shuts down the Innobase database.
-@return	DB_SUCCESS or error code */
-UNIV_INTERN
-dberr_t
-innobase_shutdown_for_mysql(void);
+innobase_start_or_create_for_mysql();
 
-/********************************************************************
-Signal all per-table background threads to shutdown, and wait for them to do
-so. */
+/** Shut down InnoDB. */
 UNIV_INTERN
 void
-srv_shutdown_table_bg_threads(void);
-/*=============================*/
+innodb_shutdown();
 
 /*************************************************************//**
 Copy the file path component of the physical file to parameter. It will
@@ -139,6 +130,8 @@ extern	ibool	srv_startup_is_before_trx_rollback_phase;
 /** TRUE if a raw partition is in use */
 extern	ibool	srv_start_raw_disk_in_use;
 
+/** Undo tablespaces starts with space_id. */
+extern	ulint	srv_undo_space_id_start;
 
 /** Shutdown state */
 enum srv_shutdown_state {
@@ -155,6 +148,9 @@ enum srv_shutdown_state {
 				all file spaces and close all files */
 	SRV_SHUTDOWN_EXIT_THREADS/*!< Exit all threads */
 };
+
+/** Whether any undo log records can be generated */
+extern bool srv_undo_sources;
 
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */

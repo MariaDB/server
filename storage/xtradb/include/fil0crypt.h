@@ -109,7 +109,7 @@ struct fil_space_crypt_t : st_encryption_scheme
 	The object is expected to be placed in a buffer that
 	has been zero-initialized. */
 	fil_space_crypt_t(
-		ulint new_type,
+		uint new_type,
 		uint new_min_key_version,
 		uint new_key_id,
 		fil_encryption_t new_encryption)
@@ -117,10 +117,9 @@ struct fil_space_crypt_t : st_encryption_scheme
 		min_key_version(new_min_key_version),
 		page0_offset(0),
 		encryption(new_encryption),
-		key_found(),
+		key_found(0),
 		rotate_state()
 	{
-		key_found = new_min_key_version;
 		key_id = new_key_id;
 		my_random_bytes(iv, sizeof(iv));
 		mutex_create(fil_crypt_data_mutex_key,
@@ -136,6 +135,8 @@ struct fil_space_crypt_t : st_encryption_scheme
 			type = CRYPT_SCHEME_1;
 			min_key_version = key_get_latest_version();
 		}
+
+		key_found = min_key_version;
 	}
 
 	/** Destructor */
@@ -298,13 +299,15 @@ Parse a MLOG_FILE_WRITE_CRYPT_DATA log entry
 @param[in]	ptr		Log entry start
 @param[in]	end_ptr		Log entry end
 @param[in]	block		buffer block
+@param[out]	err		DB_SUCCESS or DB_DECRYPTION_FAILED
 @return position on log buffer */
 UNIV_INTERN
-const byte*
+byte*
 fil_parse_write_crypt_data(
-	const byte*		ptr,
+	byte*			ptr,
 	const byte*		end_ptr,
-	const buf_block_t*	block)
+	const buf_block_t*	block,
+	dberr_t*		err)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************************

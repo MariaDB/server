@@ -1,3 +1,4 @@
+skip Background Job Manager not supported in MariaDB;
 source include/have_tokudb.inc;
 set default_storage_engine='tokudb';
 disable_warnings;

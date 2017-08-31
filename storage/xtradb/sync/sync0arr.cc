@@ -522,13 +522,14 @@ sync_array_cell_print(
 		if (mutex) {
 			fprintf(file,
 				"Mutex at %p '%s', lock var %lu\n"
-				"Last time reserved by thread %lu in file %s line %lu, "
-				"waiters flag %lu\n",
+				"Last time reserved by thread " ULINTPF
+				" in file %s line " ULINTPF ", "
+				"waiters flag " ULINTPF "\n",
 				(void*) mutex, mutex->cmutex_name,
 				(ulong) mutex->lock_word,
-				mutex->thread_id,
-				mutex->file_name, (ulong) mutex->line,
-				(ulong) mutex->waiters);
+				os_thread_pf(mutex->thread_id),
+				mutex->file_name, mutex->line,
+				mutex->waiters);
 		}
 
 		/* If stacktrace feature is enabled we will send a SIGUSR2
@@ -582,9 +583,9 @@ sync_array_cell_print(
 
 			if (writer && writer != RW_LOCK_NOT_LOCKED) {
 				fprintf(file,
-					"a writer (thread id %lu) has"
+					"a writer (thread id " ULINTPF ") has"
 					" reserved it in mode %s",
-					(ulong) os_thread_pf(rwlock->writer_thread),
+					os_thread_pf(rwlock->writer_thread),
 					writer == RW_LOCK_EX
 					? " exclusive\n"
 					: " wait exclusive\n");
@@ -593,21 +594,23 @@ sync_array_cell_print(
 			}
 
 			fprintf(file,
-				"number of readers %lu, waiters flag %lu, "
+				"number of readers " ULINTPF
+				", waiters flag " ULINTPF ", "
 				"lock_word: %lx\n"
-				"Last time read locked in file %s line %lu\n"
-				"Last time write locked in file %s line %lu\n",
-				(ulong) rw_lock_get_reader_count(rwlock),
-				(ulong) rwlock->waiters,
+				"Last time read locked in file %s line %u\n"
+				"Last time write locked in file %s line %u\n"
+				"Holder thread " ULINTPF
+				" file %s line " ULINTPF "\n",
+				rw_lock_get_reader_count(rwlock),
+				rwlock->waiters,
 				rwlock->lock_word,
 				innobase_basename(rwlock->last_s_file_name),
-				(ulong) rwlock->last_s_line,
-				rwlock->last_x_file_name,
-				(ulong) rwlock->last_x_line);
-
-			fprintf(file,
-				"Holder thread %lu file %s line %lu\n",
-				rwlock->thread_id, rwlock->file_name, rwlock->line);
+				rwlock->last_s_line,
+				innobase_basename(rwlock->last_x_file_name),
+				rwlock->last_x_line,
+				os_thread_pf(rwlock->thread_id),
+				innobase_basename(rwlock->file_name),
+				rwlock->line);
 
 			/* If stacktrace feature is enabled we will send a SIGUSR2
 			signal to thread that has locked RW-latch with write mode.
@@ -1175,9 +1178,10 @@ sync_array_print_long_waits(
 		now the values of pending calls of these. */
 
 		fprintf(stderr,
-			"InnoDB: Pending preads %lu, pwrites %lu\n",
-			(ulong) os_file_n_pending_preads,
-			(ulong) os_file_n_pending_pwrites);
+			"InnoDB: Pending reads " UINT64PF
+			", writes " UINT64PF "\n",
+			MONITOR_VALUE(MONITOR_OS_PENDING_READS),
+			MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
 		srv_print_innodb_monitor = TRUE;
 		os_event_set(srv_monitor_event);

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,6 +38,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "mach0data.h"
+#include "ibuf0ibuf.h"
 #include "que0que.h"
 #include "row0upd.h"
 #include "row0sel.h"
@@ -935,7 +937,7 @@ row_ins_invalidate_query_cache(
 	mem_free(buf);
 }
 #ifdef WITH_WSREP
-dberr_t wsrep_append_foreign_key(trx_t *trx,  
+dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       dict_foreign_t*	foreign,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
@@ -1295,11 +1297,12 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(
-				       thr_get_trx(thr),
-				       foreign,
-				       clust_rec,
-				       clust_index,
-				       FALSE, FALSE);
+					thr_get_trx(thr),
+					foreign,
+					clust_rec,
+					clust_index,
+					FALSE,
+					(node) ? TRUE : FALSE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -1460,6 +1463,9 @@ row_ins_check_foreign_constraint(
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
+#ifdef WITH_WSREP
+	upd_node= NULL;
+#endif /* WITH_WSREP */
 run_again:
 #ifdef UNIV_SYNC_DEBUG
 	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_SHARED));
@@ -1518,7 +1524,7 @@ run_again:
 	}
 
 	if (check_table == NULL
-	    || check_table->ibd_file_missing
+	    || check_table->file_unreadable
 	    || check_index == NULL) {
 
 		if (!srv_read_only_mode && check_ref) {
@@ -1649,9 +1655,10 @@ run_again:
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
-						rec, 
-						check_index, 
-						check_ref, TRUE);
+						rec,
+						check_index,
+						check_ref,
+						(upd_node) ? TRUE : FALSE);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
@@ -2166,14 +2173,10 @@ for a clustered index!
 @retval DB_SUCCESS if no error
 @retval DB_DUPLICATE_KEY if error,
 @retval DB_LOCK_WAIT if we have to wait for a lock on a possible duplicate
-record
-@retval DB_SUCCESS_LOCKED_REC if an exact match of the record was found
-in online table rebuild (flags & (BTR_KEEP_SYS_FLAG | BTR_NO_LOCKING_FLAG)) */
+record */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_ins_duplicate_error_in_clust(
-/*=============================*/
-	ulint		flags,	/*!< in: undo logging and locking flags */
 	btr_cur_t*	cursor,	/*!< in: B-tree cursor */
 	const dtuple_t*	entry,	/*!< in: entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread */
@@ -2410,8 +2413,7 @@ row_ins_clust_index_entry_low(
 				    &cursor, 0, __FILE__, __LINE__, &mtr);
 
 	if (err != DB_SUCCESS) {
-		index->table->is_encrypted = true;
-		index->table->ibd_file_missing = true;
+		index->table->file_unreadable = true;
 		mtr_commit(&mtr);
 		goto func_exit;
 	}
@@ -2455,7 +2457,7 @@ row_ins_clust_index_entry_low(
 			DB_LOCK_WAIT */
 
 			err = row_ins_duplicate_error_in_clust(
-				flags, &cursor, entry, thr, &mtr);
+				&cursor, entry, thr, &mtr);
 		}
 
 		if (err != DB_SUCCESS) {
@@ -2771,7 +2773,7 @@ row_ins_sec_index_entry_low(
 				" used key_id is not available. "
 				" Can't continue reading table.",
 				index->table->name);
-			index->table->is_encrypted = true;
+			index->table->file_unreadable = true;
 		}
 		goto func_exit;
 	}
@@ -3062,6 +3064,11 @@ row_ins_sec_index_entry(
 		0, BTR_MODIFY_LEAF, index, offsets_heap, heap, entry, 0, thr);
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
+
+		if (index->space == IBUF_SPACE_ID
+		    && !dict_index_is_unique(index)) {
+			ibuf_free_excess_pages();
+		}
 
 		/* Try then pessimistic descent to the B-tree */
 

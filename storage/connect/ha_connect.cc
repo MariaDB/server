@@ -182,10 +182,7 @@ extern "C" {
 
 #if defined(NEW_MAR)
 #define stored_in_db stored_in_db()
-#define MONGO_ENABLED	1
-#else		// !NEW_MAR
-#define MONGO_ENABLED	0
-#endif  // !NEW_MAR)
+#endif   // NEW_MAR)
 
 #if defined(XMAP)
        my_bool xmap= false;
@@ -4346,7 +4343,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 			} else
         return false;
 
-      /* Fall through to check FILE_ACL */
+			/* Fall through to check FILE_ACL */
     case TAB_ODBC:
 		case TAB_JDBC:
 		case TAB_MYSQL:

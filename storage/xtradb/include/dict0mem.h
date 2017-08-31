@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -795,6 +795,9 @@ struct dict_index_t{
 				to first_blob_page_no; protected by
 				blobs_mutex; @see btr_blob_dbg_t */
 #endif /* UNIV_BLOB_DEBUG */
+
+	bool is_readable() const;
+
 #ifdef UNIV_DEBUG
 	ulint		magic_n;/*!< magic number */
 /** Value of dict_index_t::magic_n */
@@ -1045,10 +1048,6 @@ struct dict_table_t{
 	table_id_t	id;	/*!< id of the table */
 	mem_heap_t*	heap;	/*!< memory heap */
 	char*		name;	/*!< table name */
-	void*		thd;		/*!< thd */
-	bool		page_0_read; /*!< true if page 0 has
-				     been already read */
-	fil_space_crypt_t *crypt_data; /*!< crypt data if present */
 	const char*	dir_path_of_temp_table;/*!< NULL or the directory path
 				where a TEMPORARY table that was explicitly
 				created by a user should be placed if
@@ -1062,11 +1061,13 @@ struct dict_table_t{
 				table is placed */
 	unsigned	flags:DICT_TF_BITS;	/*!< DICT_TF_... */
 	unsigned	flags2:DICT_TF2_BITS;	/*!< DICT_TF2_... */
-	unsigned	ibd_file_missing:1;
-				/*!< TRUE if this is in a single-table
-				tablespace and the .ibd file is missing; then
-				we must return in ha_innodb.cc an error if the
-				user tries to query such an orphaned table */
+	unsigned	file_unreadable:1;
+				/*!< true if this is in a single-table
+				tablespace and the .ibd file is missing
+				or page decryption failed and page is
+				corrupted; then we must return in
+				ha_innodb.cc an error if the
+				user tries to query such table */
 	unsigned	cached:1;/*!< TRUE if the table object has been added
 				to the dictionary cache */
 	unsigned	to_be_dropped:1;
@@ -1364,9 +1365,18 @@ struct dict_table_t{
 	UT_LIST_BASE_NODE_T(lock_t)
 			locks;	/*!< list of locks on the table; protected
 				by lock_sys->mutex */
-	ibool		is_corrupt;
-	ibool		is_encrypted;
+
 #endif /* !UNIV_HOTBACKUP */
+
+	/* Returns true if this is a single-table tablespace
+	and the .ibd file is missing or page decryption failed
+	and/or page is corrupted.
+	@return true if table is readable
+	@retval false if table is not readable */
+	inline bool is_readable() const
+	{
+		return(UNIV_LIKELY(!file_unreadable));
+	}
 
 #ifdef UNIV_DEBUG
 	ulint		magic_n;/*!< magic number */
@@ -1374,6 +1384,16 @@ struct dict_table_t{
 # define DICT_TABLE_MAGIC_N	76333786
 #endif /* UNIV_DEBUG */
 };
+
+/* Returns true if this is a single-table tablespace
+and the .ibd file is missing or page decryption failed
+and/or page is corrupted.
+@return true if table is readable
+@retval false if table is not readable */
+inline bool dict_index_t::is_readable() const
+{
+	return(UNIV_LIKELY(!table->file_unreadable));
+}
 
 /** A function object to add the foreign key constraint to the referenced set
 of the referenced table, if it exists in the dictionary cache. */

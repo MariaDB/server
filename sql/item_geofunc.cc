@@ -1859,7 +1859,7 @@ String *Item_func_buffer::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_buffer::val_str");
   DBUG_ASSERT(fixed == 1);
-  String *obj= args[0]->val_str(&tmp_value);
+  String *obj= args[0]->val_str(str_value);
   double dist= args[1]->val_real();
   Geometry_buffer buffer;
   Geometry *g;

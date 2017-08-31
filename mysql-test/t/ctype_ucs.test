@@ -928,6 +928,22 @@ SET NAMES utf8, character_set_connection=ucs2;
 SELECT 'a','aa';
 
 --echo #
+--echo # MDEV-10306 Wrong results with combination of CONCAT, SUBSTR and CONVERT in subquery
+--echo #
+
+SET NAMES utf8, character_set_connection=ucs2;
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch=_utf8'derived_merge=on';
+CREATE TABLE t1 (t VARCHAR(10) CHARSET latin1);
+INSERT INTO t1 VALUES('abcdefghi');
+SET NAMES utf8, character_set_connection=ucs2;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT HEX(t) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT TO_BASE64(t) t2 FROM t1) sub;
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
+
+
+--echo #
 --echo # End of 10.0 tests
 --echo #
 

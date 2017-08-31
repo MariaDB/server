@@ -325,7 +325,7 @@ check_block(BLOCKNUM blocknum, int64_t UU(blocksize), int64_t UU(address), void 
         }
         just_decompress_sub_block(&sb);
 	
-        r = verify_ftnode_sub_block(&sb);
+        r = verify_ftnode_sub_block(&sb, nullptr, blocknum);
         if (r != 0) {
             printf(" Uncompressed child partition %d checksum failed.\n", i);
             failure++;

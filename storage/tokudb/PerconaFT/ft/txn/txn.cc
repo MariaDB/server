@@ -707,8 +707,8 @@ bool toku_txn_has_spilled_rollback(TOKUTXN txn) {
 }
 
 void toku_txn_get_client_id(TOKUTXN txn, uint64_t *client_id, void **client_extra) {
-    *client_id = txn->client_id;
-    *client_extra = txn->client_extra;
+    if (client_id) *client_id = txn->client_id;
+    if (client_extra) *client_extra = txn->client_extra;
 }
 
 void toku_txn_set_client_id(TOKUTXN txn, uint64_t client_id, void *client_extra) {

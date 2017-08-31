@@ -61,7 +61,7 @@ btr_block_get_func(
 
 	if (err == DB_DECRYPTION_FAILED) {
 		if (index && index->table) {
-			index->table->is_encrypted = true;
+			index->table->file_unreadable = true;
 		}
 	}
 

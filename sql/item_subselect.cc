@@ -330,7 +330,8 @@ bool Item_subselect::enumerate_field_refs_processor(uchar *arg)
   
   while ((upper= it++))
   {
-    if (upper->item->walk(&Item::enumerate_field_refs_processor, FALSE, arg))
+    if (upper->item &&
+        upper->item->walk(&Item::enumerate_field_refs_processor, FALSE, arg))
       return TRUE;
   }
   return FALSE;
@@ -1430,8 +1431,9 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
 				     st_select_lex *select_lex):
   Item_exists_subselect(thd), left_expr_cache(0), first_execution(TRUE),
   in_strategy(SUBS_NOT_TRANSFORMED),
-  pushed_cond_guards(NULL), is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE),
-  is_flattenable_semijoin(FALSE), is_registered_semijoin(FALSE),
+  pushed_cond_guards(NULL), do_not_convert_to_sj(FALSE), is_jtbm_merged(FALSE),
+  is_jtbm_const_tab(FALSE), is_flattenable_semijoin(FALSE),
+  is_registered_semijoin(FALSE),
   upper_item(0)
 {
   DBUG_ENTER("Item_in_subselect::Item_in_subselect");
@@ -2584,6 +2586,27 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
   DBUG_ENTER("Item_in_subselect::inject_in_to_exists_cond");
   DBUG_ASSERT(thd == join_arg->thd);
 
+  if (select_lex->min_max_opt_list.elements)
+  {
+    /*
+      MIN/MAX optimizations have been applied to Item_sum objects
+      of the subquery this subquery predicate in opt_sum_query().
+      Injection of new condition invalidates this optimizations.
+      Thus those optimizations must be rolled back.
+    */
+    List_iterator_fast<Item_sum> it(select_lex->min_max_opt_list);
+    Item_sum *item;
+    while ((item= it++))
+    {
+      item->clear();
+      item->reset_forced_const();
+    }
+    if (where_item)
+      where_item->update_used_tables();
+    if (having_item)
+      having_item->update_used_tables();
+  }
+
   if (where_item)
   {
     List<Item> *and_args= NULL;
@@ -3391,7 +3414,8 @@ bool Item_in_subselect::init_cond_guards()
 {
   DBUG_ASSERT(thd);
   uint cols_num= left_expr->cols();
-  if (!abort_on_null && left_expr->maybe_null && !pushed_cond_guards)
+  if (!abort_on_null && !pushed_cond_guards &&
+      (left_expr->maybe_null || cols_num > 1))
   {
     if (!(pushed_cond_guards= (bool*)thd->alloc(sizeof(bool) * cols_num)))
         return TRUE;

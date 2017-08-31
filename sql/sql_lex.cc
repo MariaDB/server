@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1395,12 +1395,14 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 	state= MY_LEX_HEX_NUMBER;
 	break;
       }
+      /* fall through */
     case MY_LEX_IDENT_OR_BIN:
       if (lip->yyPeek() == '\'')
       {                                 // Found b'bin-number'
         state= MY_LEX_BIN_NUMBER;
         break;
       }
+      /* fall through */
     case MY_LEX_IDENT:
       const char *start;
 #if defined(USE_MB) && defined(USE_MB_IDENT)
@@ -1745,6 +1747,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 	break;
       }
       /* " used for strings */
+      /* fall through */
     case MY_LEX_STRING:			// Incomplete text string
     {
       uint sep;
@@ -2092,6 +2095,7 @@ void st_select_lex::init_query()
   leaf_tables_prep.empty();
   leaf_tables.empty();
   item_list.empty();
+  min_max_opt_list.empty();
   join= 0;
   having= prep_having= where= prep_where= 0;
   olap= UNSPECIFIED_OLAP_TYPE;

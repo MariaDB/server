@@ -1,0 +1,12 @@
+[crc32]
+loose-innodb-tablespaces-encryption
+loose-innodb-encrypt-tables=on
+loose-innodb-encryption-threads=4
+max_allowed_packet=64K
+loose-innodb-checksum-algorithm=crc32
+[none]
+loose-innodb-tablespaces-encryption
+loose-innodb-encrypt-tables=on
+loose-innodb-encryption-threads=4
+max_allowed_packet=64K
+loose-innodb-checksum-algorithm=none

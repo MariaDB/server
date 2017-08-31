@@ -12,8 +12,8 @@ begin
 declare current_num int;
 set current_num = 0;
 while current_num < repeat_count do
-insert into t1 values (current_num,repeat('foobar',42));
-insert into t2 values (current_num,repeat('temp', 42));
+insert into t1 values (current_num,repeat('foobar',12));
+insert into t2 values (current_num,repeat('tempsecret', 12));
 insert into t3 values (current_num,repeat('barfoo',42));
 insert into t4 values (current_num,repeat('repeat',42));
 insert into t5 values (current_num,substring('A BC DEF GHIJ KLM NOPQRS TUV WXYZ 012 3456789', rand()*36+1, 100), repeat('author new',22));
@@ -31,7 +31,7 @@ set autocommit=1;
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobar/ in t1.ibd
 # t2 ... on expecting NOT FOUND
-NOT FOUND /temp/ in t2.ibd
+NOT FOUND /tempsecret/ in t2.ibd
 # t3 ... on expecting NOT FOUND
 NOT FOUND /barfoo/ in t3.ibd
 # t4 ... on expecting NOT FOUND
@@ -126,7 +126,7 @@ t7	CREATE TABLE `t7` (
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobar/ in t1.ibd
 # t2 ... on expecting NOT FOUND
-NOT FOUND /temp/ in t2.ibd
+NOT FOUND /tempsecret/ in t2.ibd
 # t3 ... on expecting NOT FOUND
 NOT FOUND /barfoo/ in t3.ibd
 # t4 ... on expecting NOT FOUND

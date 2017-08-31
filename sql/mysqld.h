@@ -126,7 +126,7 @@ extern ulong slave_retried_transactions;
 extern ulong slave_run_triggers_for_rbr;
 extern ulonglong slave_type_conversions_options;
 extern my_bool read_only, opt_readonly;
-extern my_bool lower_case_file_system;
+extern MYSQL_PLUGIN_IMPORT my_bool lower_case_file_system;
 extern my_bool opt_enable_named_pipe, opt_sync_frm, opt_allow_suspicious_udfs;
 extern my_bool opt_secure_auth;
 extern const char *current_dbug_option;
@@ -290,7 +290,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started,
   key_LOCK_status, key_LOCK_show_status,
-  key_LOCK_thd_data,
+  key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
@@ -521,6 +521,8 @@ extern pthread_t signal_thread;
 #ifdef HAVE_OPENSSL
 extern struct st_VioSSLFd * ssl_acceptor_fd;
 #endif /* HAVE_OPENSSL */
+
+extern ulonglong my_pcre_frame_size;
 
 /*
   The following variables were under INNODB_COMPABILITY_HOOKS
@@ -761,20 +763,6 @@ inline void dec_thread_running()
 
 void set_server_version(void);
 
-#if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)
-extern "C" THD *_current_thd_noinline();
-#define _current_thd() _current_thd_noinline()
-#else
-/*
-  THR_THD is a key which will be used to set/get THD* for a thread,
-  using my_pthread_setspecific_ptr()/my_thread_getspecific_ptr().
-*/
-extern pthread_key(THD*, THR_THD);
-inline THD *_current_thd(void)
-{
-  return my_pthread_getspecific_ptr(THD*,THR_THD);
-}
-#endif
 #define current_thd _current_thd()
 inline int set_current_thd(THD *thd)
 {

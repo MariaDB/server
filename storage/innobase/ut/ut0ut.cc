@@ -849,6 +849,8 @@ ut_strerr(
 		return("BLOB record length is greater than 10%% of redo log");
 	case DB_DECRYPTION_FAILED:
 		return("Table is encrypted but decrypt failed.");
+	case DB_PAGE_CORRUPTED:
+		return("Page read from tablespace is corrupted.");
 
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */

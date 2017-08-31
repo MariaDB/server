@@ -613,7 +613,7 @@ static VOID CALLBACK timer_callback(PTP_CALLBACK_INSTANCE instance,
 
   if (timeout <= now())
   {
-    con->thd->killed = KILL_CONNECTION;
+    con->thd->set_killed(KILL_CONNECTION);
     if(con->thd->net.vio)
       vio_shutdown(con->thd->net.vio, SD_BOTH);
   }

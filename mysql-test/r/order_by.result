@@ -3145,3 +3145,19 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 drop table t0,t1,t2,t3;
 set @@optimizer_switch=@tmp_8989;
 set optimizer_switch='orderby_uses_equalities=on';
+#
+# MDEV-10880: Assertions `keypart_map' or
+# `prebuilt->search_tuple->n_fields > 0' fail on DISTINCT and
+# GROUP BY constant
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT DISTINCT pk FROM t1 GROUP BY 'foo';
+pk
+1
+SELECT DISTINCT pk FROM t1;
+pk
+1
+2
+3
+DROP TABLE t1;
