@@ -68,6 +68,8 @@ Created 2/16/1996 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "srv0start.h"
 #include "srv0srv.h"
+#include "wsrep_mysqld.h" /* wsrep_recovery */
+
 #ifndef UNIV_HOTBACKUP
 # include "trx0rseg.h"
 # include "os0proc.h"
@@ -195,10 +197,6 @@ UNIV_INTERN mysql_pfs_key_t	srv_master_thread_key;
 UNIV_INTERN mysql_pfs_key_t	srv_purge_thread_key;
 UNIV_INTERN mysql_pfs_key_t	srv_log_tracking_thread_key;
 #endif /* UNIV_PFS_THREAD */
-
-#ifdef WITH_WSREP
-extern my_bool wsrep_recovery;
-#endif /* WITH_WSREP */
 
 /*********************************************************************//**
 Convert a numeric string that optionally ends in G or M or K, to a number
