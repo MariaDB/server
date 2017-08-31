@@ -7263,9 +7263,8 @@ int spider_db_delete_all_rows(
       spider->conn_link_idx, roop_count, share->link_count,
       SPIDER_LINK_STATUS_RECOVERY)
   ) {
-    uint dbton_id = share->use_sql_dbton_ids[roop_count];
-    spider_db_handler *dbton_hdl = spider->dbton_handler[dbton_id];
     conn = spider->conns[roop_count];
+    spider_db_handler *dbton_hdl = spider->dbton_handler[conn->dbton_id];
     if (dbton_hdl->need_lock_before_set_sql_for_exec(
       SPIDER_SQL_TYPE_DELETE_SQL))
     {
