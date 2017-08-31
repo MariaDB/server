@@ -323,7 +323,7 @@ drop table t1;
 --echo # On node-1
 --connection node_1
 create table t1 (a char(1) not null collate koi8r_general_ci) engine=innodb;
-insert into t1 values(_koi8r"á");
+insert into t1 values(_koi8r 0xc3);
 set CHARACTER SET koi8r;
 select * from t1;
 set CHARACTER SET cp1251_koi8;
@@ -861,7 +861,7 @@ drop table t1;
 --connection node_1
 SET NAMES koi8r;
 CREATE TABLE t1 (a char(1) character set koi8r) engine=innodb;
-INSERT INTO t1 VALUES (_koi8r'á'),(_koi8r'Á');
+INSERT INTO t1 VALUES (_koi8r 0xc3),(_koi8r 0xc3);
 #
 # Run select
 #
