@@ -85,7 +85,7 @@ x
 create or replace view vt1 as select * from t1;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from `t1` FOR SYSTEM_TIME ALL where `t1`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07.999999'	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from `t1` FOR SYSTEM_TIME ALL where `t1`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
 drop view vt1;
 drop view vt2;
 create view vt1 as select * from t1 for system_time all;
@@ -178,15 +178,15 @@ create or replace table t3 (x int);
 create or replace view vt1 as select * from t1, t2, t3;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`b` AS `b`,`t3`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from ((`t1` FOR SYSTEM_TIME ALL join `t2` FOR SYSTEM_TIME ALL) join `t3`) where `t1`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07.999999' and `t2`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07.999999'	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`b` AS `b`,`t3`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from ((`t1` FOR SYSTEM_TIME ALL join `t2` FOR SYSTEM_TIME ALL) join `t3`) where `t1`.`sys_trx_end` = 18446744073709551615 and `t2`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
 create or replace view vt1 as select * from t3, t2, t1;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t3`.`x` AS `x`,`t2`.`b` AS `b`,`t1`.`a` AS `a`,`t2`.`sys_trx_start` AS `sys_trx_start`,`t2`.`sys_trx_end` AS `sys_trx_end` from ((`t3` join `t2` FOR SYSTEM_TIME ALL) join `t1` FOR SYSTEM_TIME ALL) where `t2`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07.999999' and `t1`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07.999999'	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t3`.`x` AS `x`,`t2`.`b` AS `b`,`t1`.`a` AS `a`,`t2`.`sys_trx_start` AS `sys_trx_start`,`t2`.`sys_trx_end` AS `sys_trx_end` from ((`t3` join `t2` FOR SYSTEM_TIME ALL) join `t1` FOR SYSTEM_TIME ALL) where `t2`.`sys_trx_end` = 18446744073709551615 and `t1`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
 create or replace view vt1 as select a, t2.sys_trx_end as endo from t3, t1, t2;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`sys_trx_end` AS `endo`,`t2`.`sys_trx_start` AS `sys_trx_start` from ((`t3` join `t1` FOR SYSTEM_TIME ALL) join `t2` FOR SYSTEM_TIME ALL) where `t1`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07.999999' and `t2`.`sys_trx_end` = TIMESTAMP'2038-01-19 03:14:07.999999'	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`sys_trx_end` AS `endo`,`t2`.`sys_trx_start` AS `sys_trx_start` from ((`t3` join `t1` FOR SYSTEM_TIME ALL) join `t2` FOR SYSTEM_TIME ALL) where `t1`.`sys_trx_end` = 18446744073709551615 and `t2`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
 create or replace view vvt1 as select * from t1, t2, vt1;
 ERROR HY000: Creating VIEW `vvt1` is prohibited: versioned VIEW `vt1` in query!
 drop view vt1, vt12;

@@ -175,6 +175,9 @@ x	A	B
 execute select_pn;
 x	C	D
 1	1	1
+explain partitions select * from t1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn	system	NULL	NULL	NULL	NULL	1	
 set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
 prepare stmt from @str;
 execute stmt;

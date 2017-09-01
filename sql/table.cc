@@ -4730,16 +4730,19 @@ bool TABLE_LIST::create_field_translation(THD *thd)
     */
     if (is_view() && get_unit()->prepared && !field_translation_updated)
     {
+      field_translation_updated= TRUE;
+      if (field_translation_end - field_translation < select->item_list.elements)
+        goto allocate;
       while ((item= it++))
       {
         field_translation[field_count++].item= item;
       }
-      field_translation_updated= TRUE;
     }
 
     DBUG_RETURN(FALSE);
   }
 
+allocate:
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   /* Create view fields translation table */

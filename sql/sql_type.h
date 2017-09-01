@@ -1473,16 +1473,17 @@ public:
 class Type_handler_hybrid_field_type
 {
   const Type_handler *m_type_handler;
+  bool m_vers_trx_id;
 public:
   Type_handler_hybrid_field_type();
   Type_handler_hybrid_field_type(const Type_handler *handler)
-   :m_type_handler(handler)
+   :m_type_handler(handler), m_vers_trx_id(false)
   { }
   Type_handler_hybrid_field_type(enum_field_types type)
-    :m_type_handler(Type_handler::get_handler_by_field_type(type))
+    :m_type_handler(Type_handler::get_handler_by_field_type(type)), m_vers_trx_id(false)
   { }
   Type_handler_hybrid_field_type(const Type_handler_hybrid_field_type *other)
-    :m_type_handler(other->m_type_handler)
+    :m_type_handler(other->m_type_handler), m_vers_trx_id(other->m_vers_trx_id)
   { }
   const Type_handler *type_handler() const { return m_type_handler; }
   enum_field_types field_type() const { return m_type_handler->field_type(); }

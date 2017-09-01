@@ -1337,6 +1337,8 @@ public:
     {
       if (other->cmp_type() == TIME_RESULT)
         return other->field_type();
+      if (vers_trx_id() || other->vers_trx_id())
+        return MYSQL_TYPE_DATETIME;
       DBUG_ASSERT(0); // Two non-temporal data types, we should not get to here
       return MYSQL_TYPE_DATETIME;
     }
@@ -1649,6 +1651,8 @@ public:
 
   virtual Item *vers_optimized_fields_transformer(THD *thd, uchar *)
   { return this; }
+  virtual bool vers_trx_id() const
+  { return false; }
   virtual Item *neg_transformer(THD *thd) { return NULL; }
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg)
   { return this; }
@@ -2751,6 +2755,7 @@ public:
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
   virtual Item *vers_optimized_fields_transformer(THD *thd, uchar *);
+  virtual bool vers_trx_id() const;
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
@@ -3188,6 +3193,9 @@ public:
   Item_int(THD *thd, const char *str_arg,longlong i,uint length):
     Item_num(thd), value(i)
     { max_length=length; name=(char*) str_arg; fixed= 1; }
+  Item_int(THD *thd, const char *str_arg,longlong i,uint length, bool flag):
+    Item_num(thd), value(i)
+    { max_length=length; name=(char*) str_arg; fixed= 1; unsigned_flag= flag; }
   Item_int(THD *thd, const char *str_arg, uint length=64);
   enum Type type() const { return INT_ITEM; }
   enum Item_result result_type () const { return INT_RESULT; }

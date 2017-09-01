@@ -6328,7 +6328,7 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table,
     if (field_flags() & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
     {
       field= new (mem_root)
-        Field_vers_system((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+        Field_vers_trx_id((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
                       name, 0, unsigned_flag);
     }
     else
@@ -6671,7 +6671,7 @@ int Item_int::save_in_field(Field *field, bool no_conversions)
 
 Item *Item_int::clone_item(THD *thd)
 {
-  return new (thd->mem_root) Item_int(thd, name, value, max_length);
+  return new (thd->mem_root) Item_int(thd, name, value, max_length, unsigned_flag);
 }
 
 
@@ -10773,6 +10773,12 @@ Item *Item_field::vers_optimized_fields_transformer(THD *thd, uchar *)
   }
 
   return this;
+}
+
+bool Item_field::vers_trx_id() const
+{
+  DBUG_ASSERT(field);
+  return field->vers_trx_id();
 }
 
 void Item::register_in(THD *thd)

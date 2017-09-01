@@ -918,7 +918,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         switch (vers_conditions.type)
         {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
-          if (!tmp_from_ib)
+          if (t->vers_start_field()->real_type() != MYSQL_TYPE_LONGLONG)
           {
             MYSQL_TIME max_time;
             thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
@@ -25555,6 +25555,11 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       }
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
     }
+    if (table && table->versioned())
+    {
+      // versioning conditions are already unwrapped to WHERE clause
+      str->append(" FOR SYSTEM_TIME ALL");
+    }
     if (my_strcasecmp(table_alias_charset, cmp_name, alias))
     {
       char t_alias_buff[MAX_ALIAS_NAME];
@@ -25572,11 +25577,6 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       }
 
       append_identifier(thd, str, t_alias, strlen(t_alias));
-    }
-    if (table && table->versioned())
-    {
-      // versioning conditions are already unwrapped to WHERE clause
-      str->append(" FOR SYSTEM_TIME ALL");
     }
 
     if (index_hints)

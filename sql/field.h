@@ -1407,6 +1407,11 @@ public:
     return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
   }
 
+  virtual bool vers_trx_id() const
+  {
+    return false;
+  }
+
   /*
     Validate a non-null field value stored in the given record
     according to the current thread settings, e.g. sql_mode.
@@ -2130,11 +2135,11 @@ public:
 };
 
 
-class Field_vers_system :public Field_longlong {
+class Field_vers_trx_id :public Field_longlong {
   MYSQL_TIME cache;
   ulonglong cached;
 public:
-  Field_vers_system(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
+  Field_vers_trx_id(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
 	      enum utype unireg_check_arg, const char *field_name_arg,
 	      bool zero_arg, bool unsigned_arg)
@@ -2143,12 +2148,36 @@ public:
     cached(0)
     {}
   enum_field_types real_type() const { return MYSQL_TYPE_LONGLONG; }
-  enum_field_types type() const { return MYSQL_TYPE_DATETIME;}
+  enum_field_types type() const { return MYSQL_TYPE_LONGLONG;}
   uint size_of() const { return sizeof(*this); }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   {
     return get_date(ltime, fuzzydate, (ulonglong) val_int());
+  }
+  bool test_if_equality_guarantees_uniqueness(const Item *item) const;
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                      const Item *item) const
+  {
+    return true;
+  }
+
+  bool can_optimize_group_min_max(const Item_bool_func *cond,
+                                        const Item *const_item) const
+  {
+    return true;
+  }
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const
+  {
+    return true;
+  }
+  /* cmp_type() cannot be TIME_RESULT, because we want to compare this field against
+     integers. But in all other cases we treat it as TIME_RESULT! */
+  bool vers_trx_id() const
+  {
+    return true;
   }
 };
 

@@ -410,7 +410,6 @@ public:
       ftree= Item_func::get_mm_tree(param, cond_ptr);
     DBUG_RETURN(ftree);
   }
-  bool fix_fields(THD *thd, Item **ref);
 };
 
 

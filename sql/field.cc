@@ -1999,7 +1999,7 @@ bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
-bool Field_vers_system::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id)
+bool Field_vers_trx_id::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   DBUG_ASSERT(ltime);
@@ -10568,7 +10568,7 @@ Field *make_field(TABLE_SHARE *share,
     if (flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
     {
       return new (mem_root)
-        Field_vers_system(ptr, field_length, null_pos, null_bit,
+        Field_vers_trx_id(ptr, field_length, null_pos, null_bit,
                       unireg_check, field_name,
                       f_is_zerofill(pack_flag) != 0,
                       f_is_dec(pack_flag) == 0);
@@ -10655,6 +10655,11 @@ Field *make_field(TABLE_SHARE *share,
     break;
   }
   return 0;
+}
+
+bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item) const
+{
+  return item->type() == Item::DATE_ITEM;
 }
 
 

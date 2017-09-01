@@ -108,6 +108,10 @@ prepare select_pn from @str;
 execute select_p0;
 execute select_pn;
 
+# pruning check
+--replace_result ALL system "Using where" ""
+explain partitions select * from t1;
+
 set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 
