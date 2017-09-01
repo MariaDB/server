@@ -16,7 +16,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "mysqld_error.h"
 
@@ -319,7 +319,7 @@ public:
       LEX_STRING tmp_str;
       if (copy_event_cache_to_string_and_reinit(m_cache, &tmp_str))
         exit(1);
-      m_ev->output_buf.append(tmp_str.str, tmp_str.length);
+      m_ev->output_buf.append(&tmp_str);
       my_free(tmp_str.str);
     }
 #else /* MySQL_SERVER */
@@ -389,12 +389,6 @@ static void pretty_print_str(IO_CACHE* cache, const char* str, int len)
 #endif /* MYSQL_CLIENT */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-
-static void clear_all_errors(THD *thd, Relay_log_info *rli)
-{
-  thd->is_slave_error = 0;
-  thd->clear_error();
-}
 
 inline int idempotent_error_code(int err_code)
 {
@@ -4993,6 +4987,7 @@ bool test_if_equal_repl_errors(int expected_error, int actual_error)
     return 1;
   switch (expected_error) {
   case ER_DUP_ENTRY:
+  case ER_DUP_ENTRY_WITH_KEY_NAME:
   case ER_AUTOINC_READ_FAILED:
     return (actual_error == ER_AUTOINC_READ_FAILED ||
             actual_error == HA_ERR_AUTOINC_ERANGE);
@@ -5059,7 +5054,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
 
   DBUG_PRINT("info", ("log_pos: %lu", (ulong) log_pos));
 
-  clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+  thd->clear_error(1);
   current_stmt_is_commit= is_commit();
 
   DBUG_ASSERT(!current_stmt_is_commit || !rgi->tables_to_lock);
@@ -5253,13 +5248,13 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
          if (thd->slave_thread)
          {
            /*
-             The opt_log_slow_slave_statements variable can be changed
-             dynamically, so we have to set the sql_log_slow respectively.
+             To be compatible with previous releases, the slave thread uses the global
+             log_slow_disabled_statements value, wich can be changed dynamically, so we
+             have to set the sql_log_slow respectively.
            */
-           thd->variables.sql_log_slow= opt_log_slow_slave_statements;
+           thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
          }
 
-        thd->enable_slow_log= thd->variables.sql_log_slow;
         mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
                     FALSE, FALSE);
         /* Finalize server status flags after executing a statement. */
@@ -5280,7 +5275,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         to check/fix it.
       */
       if (mysql_test_parse_for_slave(thd, thd->query(), thd->query_length()))
-        clear_all_errors(thd, const_cast<Relay_log_info*>(rli)); /* Can ignore query */
+        thd->clear_error(1);
       else
       {
         rli->report(ERROR_LEVEL, expected_error, rgi->gtid_info(),
@@ -5362,7 +5357,7 @@ compare_errors:
              ignored_error_code(actual_error))
     {
       DBUG_PRINT("info",("error ignored"));
-      clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+      thd->clear_error(1);
       if (actual_error == ER_QUERY_INTERRUPTED ||
           actual_error == ER_CONNECTION_KILLED)
         thd->reset_killed();
@@ -6012,7 +6007,7 @@ bool Format_description_log_event::write()
     FD_queue checksum_alg value.
   */
   compile_time_assert(BINLOG_CHECKSUM_ALG_DESC_LEN == 1);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   data_written= 0; // to prepare for need_checksum assert
 #endif
   uint8 checksum_byte= (uint8)
@@ -6841,8 +6836,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   new_db.str= (char *) rpl_filter->get_rewrite_db(db, &new_db.length);
   thd->set_db(new_db.str, new_db.length);
   DBUG_ASSERT(thd->query() == 0);
-  thd->is_slave_error= 0;
-  clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+  thd->clear_error(1);
 
   /* see Query_log_event::do_apply_event() and BUG#13360 */
   DBUG_ASSERT(!rgi->m_table_map.count());
@@ -6852,7 +6846,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   */
   lex_start(thd);
   thd->lex->local_file= local_fname;
-  thd->reset_for_next_command();
+  thd->reset_for_next_command(0);               // Errors are cleared above
 
    /*
     We test replicate_*_db rules. Note that we have already prepared
@@ -8687,7 +8681,7 @@ User_var_log_event(const char* buf, uint event_len,
       we keep the flags set to UNDEF_F.
     */
     uint bytes_read= ((val + val_len) - buf_start);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     bool old_pre_checksum_fd= description_event->is_version_before_checksum(
         &description_event->server_version_split);
 #endif
@@ -10956,7 +10950,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
             slave_rows_error_report(WARNING_LEVEL, error, rgi, thd, table,
                                     get_type_str(),
                                     RPL_LOG_NAME, (ulong) log_pos);
-          clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+          thd->clear_error(1);
           error= 0;
           if (idempotent_error == 0)
             break;
@@ -11008,7 +11002,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         slave_rows_error_report(WARNING_LEVEL, error, rgi, thd, table,
                                 get_type_str(),
                                 RPL_LOG_NAME, (ulong) log_pos);
-      clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+      thd->clear_error(1);
       error= 0;
     }
   } // if (table)
@@ -12912,7 +12906,7 @@ int Rows_log_event::find_key()
     */
     last_part= key->user_defined_key_parts - 1;
     DBUG_PRINT("info", ("Index %s rec_per_key[%u]= %lu",
-                        key->name, last_part, key->rec_per_key[last_part]));
+                        key->name.str, last_part, key->rec_per_key[last_part]));
     if (!(m_table->file->index_flags(i, last_part, 1) & HA_READ_NEXT))
       continue;
 
@@ -12963,13 +12957,13 @@ void issue_long_find_row_warning(Log_event_type type,
   if ((global_system_variables.log_warnings > 1 && 
        !rgi->is_long_find_row_note_printed()))
   {
-    time_t now= my_time(0);
-    time_t stmt_ts= rgi->get_row_stmt_start_timestamp();
+    ulonglong now= microsecond_interval_timer();
+    ulonglong stmt_ts= rgi->get_row_stmt_start_timestamp();
     
     DBUG_EXECUTE_IF("inject_long_find_row_note", 
-                    stmt_ts-=(LONG_FIND_ROW_THRESHOLD*2););
+                    stmt_ts-=(LONG_FIND_ROW_THRESHOLD*2*HRTIME_RESOLUTION););
 
-    long delta= (long) (now - stmt_ts);
+    longlong delta= (now - stmt_ts)/HRTIME_RESOLUTION;
 
     if (delta > LONG_FIND_ROW_THRESHOLD)
     {
@@ -13099,10 +13093,10 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   if (m_key_info)
   {
     DBUG_PRINT("info",("locating record using key #%u [%s] (index_read)",
-                       m_key_nr, m_key_info->name));
+                       m_key_nr, m_key_info->name.str));
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_wrong_index",
-                    if(0 != strcmp(m_key_info->name,"expected_key")) abort(););
+                    if(0 != strcmp(m_key_info->name.str,"expected_key")) abort(););
 
     /* The key is active: search the table using the index */
     if (!table->file->inited &&
@@ -13375,7 +13369,6 @@ int
 Delete_rows_log_event::do_after_row_operations(const Slave_reporting_capability *const, 
                                                int error)
 {
-  /*error= ToDo:find out what this should really be, this triggers close_scan in nbd, returning error?*/
   m_table->file->ha_index_or_rnd_end();
   my_free(m_key);
   m_key= NULL;

@@ -158,7 +158,7 @@ TODO: Remove this function. Everything should use MYSQL_TYPE_NEWDECIMAL.
 @param[in] b_length length of b, in bytes (not UNIV_SQL_NULL)
 @return positive, 0, negative, if a is greater, equal, less than b,
 respectively */
-static UNIV_COLD
+static ATTRIBUTE_COLD
 int
 cmp_decimal(
 	const byte*	a,

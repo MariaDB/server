@@ -3901,8 +3901,10 @@ any_extern:
 	}
 
 	/* We limit max record size to 16k even for 64k page size. */
-	if (new_rec_size >= REC_MAX_DATA_SIZE) {
-		err = DB_OVERFLOW;
+  if (new_rec_size >= COMPRESSED_REC_MAX_DATA_SIZE ||
+      (!dict_table_is_comp(index->table)
+       && new_rec_size >= REDUNDANT_REC_MAX_DATA_SIZE)) {
+          err = DB_OVERFLOW;
 
 		goto func_exit;
 	}

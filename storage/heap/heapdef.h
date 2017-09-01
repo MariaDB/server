@@ -15,7 +15,8 @@
 
 /* This file is included in all heap-files */
 
-#include <my_base.h>			/* This includes global */
+#include <my_global.h>
+#include <my_base.h>
 C_MODE_START
 #include <my_pthread.h>
 #include "heap.h"			/* Structs & some defines */

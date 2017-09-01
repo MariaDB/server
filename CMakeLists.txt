@@ -243,8 +243,8 @@ ENDIF()
 # Set DBUG_OFF and other optional release-only flags for non-debug project types
 FOREACH(BUILD_TYPE RELEASE RELWITHDEBINFO MINSIZEREL)
   FOREACH(LANG C CXX)
-    IF (NOT CMAKE_${LANG}_FLAGS_${BUILD_TYPE} MATCHES "DDBUG_" AND
-        NOT CMAKE_${LANG}_FLAGS MATCHES "DDBUG_")
+    IF (NOT CMAKE_${LANG}_FLAGS_${BUILD_TYPE} MATCHES "DDBUG_ON" AND
+        NOT CMAKE_${LANG}_FLAGS MATCHES "DDBUG_ON")
       SET(CMAKE_${LANG}_FLAGS_${BUILD_TYPE} 
        "${CMAKE_${LANG}_FLAGS_${BUILD_TYPE}} -DDBUG_OFF")
     ENDIF()
@@ -363,7 +363,7 @@ ENDIF()
 
 SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
 
-# mariadb_connector_c fetches submodules which is useful for plugins
+INCLUDE(submodules)
 INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 
 # Add storage engines and plugins.
@@ -460,7 +460,6 @@ INSTALL_DOCUMENTATION(README.md CREDITS COPYING COPYING.thirdparty
 #                      ${CMAKE_BINARY_DIR}/Docs/INFO_BIN)
 
 IF(UNIX)
-  INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY COMPONENT Readme)
   INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY Docs/README-wsrep COMPONENT Readme)
 ENDIF()
 

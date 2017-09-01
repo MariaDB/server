@@ -1035,6 +1035,9 @@ row_purge_record_func(
 			MONITOR_INC(MONITOR_N_DEL_ROW_PURGE);
 		}
 		break;
+	case TRX_UNDO_INSERT_REC:
+		node->roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
+		/* fall through */
 	default:
 		if (!updated_extern) {
 			mtr_t		mtr;

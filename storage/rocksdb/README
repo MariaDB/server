@@ -1,12 +1,20 @@
 == Summary ==
-This directory contains RocksDB-based Storage Engine (RDBSE) for MySQL = "MyRocks". 
+This directory contains RocksDB-based Storage Engine (RDBSE) for MySQL,
+also known as "MyRocks".
 
 == Resources ==
-See https://github.com/facebook/mysql-5.6/wiki/Getting-Started-with-MyRocks
-Facebook group: https://www.facebook.com/groups/mysqlonrocksdb/
+https://github.com/facebook/mysql-5.6/wiki/Getting-Started-with-MyRocks
+https://www.facebook.com/groups/MyRocks/
 
 == Coding Conventions ==
-The baseline for MyRocks coding conventions is the MySQL set, available at
+The baseline for MyRocks coding conventions for the code in storage/rocksdb/
+is based on the default clang format with a few minor changes.  The file
+storage/rocksdb/.clang-format describes conventions and can be integrated
+with Vim or Emacs as described here:
+http://releases.llvm.org/3.6.0/tools/clang/docs/ClangFormat.html#vim-integration
+
+All code outside of storage/rocksdb/ should conform to the MySQL coding
+conventions:
 http://dev.mysql.com/doc/internals/en/coding-guidelines.html.
 
 Several refinements:
@@ -34,5 +42,9 @@ Several refinements:
      "_vect" for a std::vector etc.
 
 == Running Tests ==
-To run tests from rocksdb, rocksd_rpl or rocksdb_sys_vars packages, use the following parameters:
---mysqld=--default-storage-engine=rocksdb  --mysqld=--skip-innodb --mysqld=--default-tmp-storage-engine=MyISAM --mysqld=--rocksdb
+To run tests from rocksdb, rocksdb_rpl or other rocksdb_* packages, use the
+following parameters:
+  --default-storage-engine=rocksdb
+  --skip-innodb
+  --default-tmp-storage-engine=MyISAM
+  --rocksdb

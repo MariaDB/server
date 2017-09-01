@@ -995,7 +995,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST ((`f_int1` + `f_int2`) % 4)
+ PARTITION BY LIST ((`f_int1` + `f_int2`) MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = TokuDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = TokuDB,
  PARTITION `part_1` VALUES IN (-1) ENGINE = TokuDB,
@@ -2886,7 +2886,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST (abs(`f_int1` % 3))
+ PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int2` + 1)
 (PARTITION `part1` VALUES IN (0)
  (SUBPARTITION `sp11` ENGINE = TokuDB,
@@ -3361,7 +3361,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST (abs(`f_int1` % 2))
+ PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int2`)
 SUBPARTITIONS 3
 (PARTITION `part1` VALUES IN (0) ENGINE = TokuDB,
@@ -4831,7 +4831,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   PRIMARY KEY (`f_int1`,`f_int2`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST ((`f_int1` + `f_int2`) % 4)
+ PARTITION BY LIST ((`f_int1` + `f_int2`) MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = TokuDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = TokuDB,
  PARTITION `part_1` VALUES IN (-1) ENGINE = TokuDB,
@@ -6878,7 +6878,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   PRIMARY KEY (`f_int1`,`f_int2`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST (abs(`f_int1` % 3))
+ PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int2` + 1)
 (PARTITION `part1` VALUES IN (0)
  (SUBPARTITION `sp11` ENGINE = TokuDB,
@@ -7392,7 +7392,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   PRIMARY KEY (`f_int1`,`f_int2`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST (abs(`f_int1` % 2))
+ PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int2`)
 SUBPARTITIONS 3
 (PARTITION `part1` VALUES IN (0) ENGINE = TokuDB,
@@ -8899,7 +8899,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   PRIMARY KEY (`f_int2`,`f_int1`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST ((`f_int1` + `f_int2`) % 4)
+ PARTITION BY LIST ((`f_int1` + `f_int2`) MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = TokuDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = TokuDB,
  PARTITION `part_1` VALUES IN (-1) ENGINE = TokuDB,
@@ -10946,7 +10946,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   PRIMARY KEY (`f_int2`,`f_int1`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST (abs(`f_int1` % 3))
+ PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int2` + 1)
 (PARTITION `part1` VALUES IN (0)
  (SUBPARTITION `sp11` ENGINE = TokuDB,
@@ -11460,7 +11460,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   PRIMARY KEY (`f_int2`,`f_int1`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST (abs(`f_int1` % 2))
+ PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int2`)
 SUBPARTITIONS 3
 (PARTITION `part1` VALUES IN (0) ENGINE = TokuDB,
@@ -12994,7 +12994,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST ((`f_int1` + `f_int2`) % 4)
+ PARTITION BY LIST ((`f_int1` + `f_int2`) MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = TokuDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = TokuDB,
  PARTITION `part_1` VALUES IN (-1) ENGINE = TokuDB,
@@ -15093,7 +15093,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST (abs(`f_int1` % 3))
+ PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int2` + 1)
 (PARTITION `part1` VALUES IN (0)
  (SUBPARTITION `sp11` ENGINE = TokuDB,
@@ -15620,7 +15620,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST (abs(`f_int1` % 2))
+ PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int2`)
 SUBPARTITIONS 3
 (PARTITION `part1` VALUES IN (0) ENGINE = TokuDB,
@@ -17166,7 +17166,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST ((`f_int1` + `f_int2`) % 4)
+ PARTITION BY LIST ((`f_int1` + `f_int2`) MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = TokuDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = TokuDB,
  PARTITION `part_1` VALUES IN (-1) ENGINE = TokuDB,
@@ -19265,7 +19265,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST (abs(`f_int1` % 3))
+ PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int2` + 1)
 (PARTITION `part1` VALUES IN (0)
  (SUBPARTITION `sp11` ENGINE = TokuDB,
@@ -19792,7 +19792,7 @@ t1	CREATE TABLE `t1` (
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
- PARTITION BY LIST (abs(`f_int1` % 2))
+ PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int2`)
 SUBPARTITIONS 3
 (PARTITION `part1` VALUES IN (0) ENGINE = TokuDB,

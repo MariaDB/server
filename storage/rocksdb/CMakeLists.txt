@@ -16,6 +16,11 @@ IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile")
   SKIP_ROCKSDB_PLUGIN("Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
 
+CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
+IF(HAVE_SCHED_GETCPU)
+  ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1 -DROCKSDB_SCHED_GETCPU_PRESENT)
+ENDIF()
+
 # We've had our builders hang during the build process. This prevents MariaRocks
 # to be built on 32 bit intel OS kernels.
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "i[36]86")
@@ -106,6 +111,19 @@ IF(HAVE_FALLOCATE)
   ADD_DEFINITIONS(-DROCKSDB_FALLOCATE_PRESENT)
 ENDIF()
 
+
+CHECK_CXX_SOURCE_COMPILES("
+#if defined(_MSC_VER) && !defined(__thread)
+#define __thread __declspec(thread)
+#endif
+int main() {
+  static __thread int tls;
+}
+" HAVE_THREAD_LOCAL)
+if(HAVE_THREAD_LOCAL)
+  ADD_DEFINITIONS(-DROCKSDB_SUPPORT_THREAD_LOCAL)
+endif()
+
 INCLUDE(build_rocksdb.cmake)
 
 ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
@@ -120,13 +138,16 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
   rdb_perf_context.h
   rdb_sst_info.cc
   rdb_sst_info.h
+  rdb_io_watchdog.cc rdb_io_watchdog.h
   rdb_buff.h
   rdb_mariadb_port.h
 )
 
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
 
-TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY})
+# MARIAROCKS-TODO: how to properly depend on -lrt ?
+TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY} -lrt)
+
 TARGET_LINK_LIBRARIES(rocksdb rocksdb_aux_lib)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -160,6 +181,8 @@ ENDIF()
 #IF(WITH_UNIT_TESTS AND WITH_EMBEDDED_SERVER)
 #  ADD_SUBDIRECTORY(unittest)
 #ENDIF()
+
+SET(rocksdb_static_libs ${rocksdb_static_libs} "-lrt")
 
 ADD_LIBRARY(rocksdb_tools STATIC
    rocksdb/tools/ldb_tool.cc

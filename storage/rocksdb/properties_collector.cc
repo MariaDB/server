@@ -14,9 +14,11 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#include <my_config.h>
 #ifdef _WIN32
 #define _CRT_RAND_S
+#endif
+#include <my_global.h>
+#ifdef _WIN32
 #include <stdlib.h>
 #define rand_r rand_s
 #endif

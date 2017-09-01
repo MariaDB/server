@@ -14,7 +14,7 @@
    51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 
-#include <my_global.h>
+#include "mariadb.h"
 #include <ctype.h>
 #include <string.h>
 #include "sql_bootstrap.h"

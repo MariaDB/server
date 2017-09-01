@@ -18,7 +18,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_select.h"
 #include "my_json_writer.h"
@@ -1145,7 +1145,7 @@ void Explain_table_access::fill_key_len_str(String *key_len_str) const
 
 void Explain_index_use::set(MEM_ROOT *mem_root, KEY *key, uint key_len_arg)
 {
-  set_pseudo_key(mem_root, key->name);
+  set_pseudo_key(mem_root, key->name.str);
   key_len= key_len_arg;
   uint len= 0;
   for (uint i= 0; i < key->usable_key_parts; i++)
@@ -2450,7 +2450,8 @@ int Explain_range_checked_fer::append_possible_keys_stat(MEM_ROOT *alloc,
   for (j= 0; j < table->s->keys; j++)
   {
     if (possible_keys.is_set(j))
-      keys_stat_names[j]= key_set.append_str(alloc, table->key_info[j].name);
+      keys_stat_names[j]= key_set.append_str(alloc,
+                                             table->key_info[j].name.str);
     else
       keys_stat_names[j]= NULL;
   }

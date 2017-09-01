@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_base.h"                           // close_thread_tables
@@ -499,7 +499,7 @@ Event_db_repository::table_scan_all_for_i_s(THD *thd, TABLE *schema_table,
   */
   do
   {
-    ret= read_record_info.read_record(&read_record_info);
+    ret= read_record_info.read_record();
     if (ret == 0)
       ret= copy_event_to_schema_table(thd, schema_table, event_table);
   } while (ret == 0);
@@ -1008,7 +1008,7 @@ Event_db_repository::drop_schema_events(THD *thd, const LEX_CSTRING *schema)
   if (init_read_record(&read_record_info, thd, table, NULL, NULL, 1, 0, FALSE))
     goto end;
 
-  while (!ret && !(read_record_info.read_record(&read_record_info)) )
+  while (!ret && !(read_record_info.read_record()))
   {
     char *et_field= get_field(thd->mem_root, table->field[field]);
 

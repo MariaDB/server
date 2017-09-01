@@ -2,6 +2,8 @@
 -- source include/have_file_key_management_plugin.inc
 -- source include/not_embedded.inc
 
+FLUSH STATUS;
+
 create database innodb_test;
 use innodb_test;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
@@ -58,16 +60,19 @@ insert into innodb_datadir2 select * from innodb_normal;
 insert into innodb_datadir3 select * from innodb_normal;
 commit;
 
+FLUSH STATUS;
+
 --echo # Restart server and see how many page 0's are read
 --source include/restart_mysqld.inc
 
---echo # result should be less than actual number of tables
---echo # i.e. < 23 + 3 = 26
-show status like 'innodb_pages0_read%';
+--echo # result should actual number of tables except remote tables could be read twice
+--echo # i.e. < 23 + 3*2 = 29
+
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
 use innodb_test;
-show status like 'innodb_pages0_read%';
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
 use test;
-show status like 'innodb_pages0_read%';
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
 
 set global innodb_encrypt_tables=OFF;
 
@@ -75,18 +80,25 @@ set global innodb_encrypt_tables=OFF;
 --let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
 --source include/wait_condition.inc
 
-show status like 'innodb_pages0_read%';
+--echo # result should be actual number of tables except remote tables could be read twice
+--echo # i.e. < 23 + 3*2 = 29
+
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
 use innodb_test;
-show status like 'innodb_pages0_read%';
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
 use test;
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
+
+FLUSH STATUS;
 
 --echo # restart and see number read page 0
 -- source include/restart_mysqld.inc
 
-show status like 'innodb_pages0_read%';
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
 use innodb_test;
-show status like 'innodb_pages0_read%';
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
 use test;
+SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';
 
 drop database innodb_test;
-show status like 'innodb_pages0_read%';
+FLUSH STATUS;

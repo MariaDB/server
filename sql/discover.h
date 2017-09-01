@@ -16,8 +16,6 @@
 #ifndef DISCOVER_INCLUDED
 #define DISCOVER_INCLUDED
 
-#include "my_global.h"                          /* uchar */
-
 int extension_based_table_discovery(MY_DIR *dirp, const char *ext,
                                     handlerton::discovered_list *tl);
 

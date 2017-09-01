@@ -33,7 +33,7 @@
   currently running transactions etc will not be disrupted.
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_servers.h"
 #include "unireg.h"
@@ -208,7 +208,7 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
   if (init_read_record(&read_record_info,thd,table=tables[0].table, NULL, NULL,
                        1,0, FALSE))
     DBUG_RETURN(1);
-  while (!(read_record_info.read_record(&read_record_info)))
+  while (!(read_record_info.read_record()))
   {
     /* return_val is already TRUE, so no need to set */
     if ((get_server_from_table_to_cache(table)))

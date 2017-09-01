@@ -679,10 +679,6 @@ SELECT
 
 
 --echo #
---echo # End of 10.0 tests
---echo #
-
---echo #
 --echo # Start of 10.1 tests
 --echo #
 
@@ -701,7 +697,25 @@ SELECT NULL+1 AS c0,
 --disable_metadata
 --enable_ps_protocol
 
+--echo #
+--echo # Start of 10.2 tests
+--echo #
 
---echo #
---echo # Start of 10.1 tests
---echo #
+#
+# MDEV-8659 Conflicting declaration is accepted: INT SIGNED ZEROFILL
+#
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a INT SIGNED ZEROFILL);
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a INT SIGNED UNSIGNED);
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a INT ZEROFILL UNSIGNED ZEROFILL);
+
+# documented syntax:
+CREATE OR REPLACE TABLE t1 (a INT SIGNED);
+CREATE OR REPLACE TABLE t1 (a INT UNSIGNED);
+CREATE OR REPLACE TABLE t1 (a INT ZEROFILL);
+# not documented, supported for backward compatibility
+CREATE OR REPLACE TABLE t1 (a INT UNSIGNED ZEROFILL);
+CREATE OR REPLACE TABLE t1 (a INT ZEROFILL UNSIGNED);
+DROP TABLE t1;

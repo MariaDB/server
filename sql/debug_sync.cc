@@ -15,7 +15,7 @@
 
 /* see include/mysql/service_debug_sync.h for debug sync documentation */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "debug_sync.h"
 
 #if defined(ENABLED_DEBUG_SYNC)
@@ -1457,7 +1457,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
                        ER_DEBUG_SYNC_TIMEOUT,
                        ER_THD(thd, ER_DEBUG_SYNC_TIMEOUT));
           thd->abort_on_warning= save_abort_on_warning;
-          DBUG_EXECUTE_IF("debug_sync_abort_on_timeout", DBUG_ABORT(););
+          DBUG_EXECUTE_IF("debug_sync_abort_on_timeout", DBUG_ASSERT(0););
           break;
         }
         error= 0;
@@ -1505,7 +1505,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
   {
     if (!--action->hit_limit)
     {
-      thd->killed= KILL_QUERY;
+      thd->set_killed(KILL_QUERY);
       my_error(ER_DEBUG_SYNC_HIT_LIMIT, MYF(0));
     }
     DBUG_PRINT("debug_sync_exec", ("hit_limit: %lu  at: '%s'",

@@ -13,7 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -534,8 +534,7 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
 
   /* Reset error state. */
   thd->clear_error();
-  thd->killed= NOT_KILLED; // Some errors set thd->killed
-                           // (e.g. "bad data").
+  thd->reset_killed();      // Some errors set thd->killed, (e.g. "bad data").
 
   /* Add a frame to handler-call-stack. */
   Sql_condition_info *cond_info=

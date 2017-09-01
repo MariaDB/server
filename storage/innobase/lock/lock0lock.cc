@@ -1853,6 +1853,7 @@ lock_rec_insert_by_trx_age(
 	return DB_SUCCESS;
 }
 
+#ifdef UNIV_DEBUG
 static
 bool
 lock_queue_validate(
@@ -1864,7 +1865,7 @@ lock_queue_validate(
 	hash_table_t*		hash;
 	hash_cell_t*		cell;
 	lock_t*				next;
-	bool				wait_lock = false;
+	bool				wait_lock __attribute__((unused))= false;
 
 	if (in_lock == NULL) {
 		return true;
@@ -1888,6 +1889,7 @@ lock_queue_validate(
 	}
 	return true;
 }
+#endif /* UNIV_DEBUG */
 
 static
 void

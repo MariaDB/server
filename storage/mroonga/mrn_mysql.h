@@ -21,7 +21,7 @@
 #define MRN_MYSQL_H_
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include <my_global.h>
 /* We need to undefine them because my_config.h defines them. :< */
 #  undef VERSION
 #  undef PACKAGE

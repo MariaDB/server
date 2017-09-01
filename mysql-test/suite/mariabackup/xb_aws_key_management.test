@@ -1,13 +1,9 @@
 --source include/innodb_page_size.inc
+--source include/have_debug.inc
 
 if (`SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'aws_key_management' AND PLUGIN_STATUS='ACTIVE'`)
 {
-  --skip needs aws_key_management plugin plugin
-}
-
-if (`SELECT @@aws_key_management_master_key_id=''`)
-{
-  --skip Test requires AWS_KEY_MANAGEMEMENT_MASTER_KEY_ID env. variable
+  --skip needs aws_key_management plugin
 }
 
 CREATE TABLE t(c VARCHAR(10)) ENGINE INNODB encrypted=yes;

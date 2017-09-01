@@ -28,6 +28,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include <gssapi.h>
 #include <string.h>
+
 void gssapi_errmsg(OM_uint32 major, OM_uint32 minor, char *buf, size_t size)
 {
   OM_uint32 message_context;

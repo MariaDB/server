@@ -16,7 +16,7 @@
 
 /* Functions to handle keys and fields in forms */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "key.h"                                // key_rec_cmp
 #include "field.h"                              // Field

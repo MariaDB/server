@@ -22,6 +22,7 @@
 #pragma implementation
 #endif
 
+#include "mariadb.h"
 #include "mysqld.h"
 #include "sql_connect.h"         // init_new_connection_handler_thread
 #include "scheduler.h"

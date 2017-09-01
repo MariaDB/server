@@ -22,7 +22,7 @@
   Sorts a database
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "filesort.h"
 #ifdef HAVE_STDDEF_H
@@ -37,7 +37,6 @@
 #include "bounded_queue.h"
 #include "filesort_utils.h"
 #include "sql_select.h"
-#include "log_slow.h"
 #include "debug_sync.h"
 
 /// How to write record_ref.

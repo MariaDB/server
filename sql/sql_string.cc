@@ -20,8 +20,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include <my_global.h>
-#include <my_sys.h>
+#include "mariadb.h"
 #include <m_string.h>
 #include <m_ctype.h>
 #include <mysql_com.h>

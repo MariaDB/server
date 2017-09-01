@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -437,9 +437,8 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 #define SIGNAL_HANDLER_RESET_ON_DELIVERY
 #endif
 
-#ifndef STDERR_FILENO
-#define STDERR_FILENO fileno(stderr)
-#endif
+/* don't assume that STDERR_FILENO is 2, mysqld can freopen */
+#undef STDERR_FILENO
 
 #ifndef SO_EXT
 #ifdef _WIN32
@@ -803,26 +802,35 @@ inline unsigned long long my_double2ulonglong(double d)
 #define SIZE_T_MAX      (~((size_t) 0))
 #endif
 
-#ifndef isfinite
-#ifdef HAVE_FINITE
-#define isfinite(x) finite(x)
-#else
+#ifndef HAVE_FINITE
 #define finite(x) (1.0 / fabs(x) > 0.0)
-#endif /* HAVE_FINITE */
-#elif (__cplusplus >= 201103L)
-#include <cmath>
-static inline bool isfinite(double x) { return std::isfinite(x); }
-#endif /* isfinite */
+#endif
+
+#ifndef isfinite
+#define isfinite(x) finite(x)
+#endif
 
 #ifndef HAVE_ISNAN
 #define isnan(x) ((x) != (x))
 #endif
 #define my_isnan(x) isnan(x)
 
-#ifdef HAVE_ISINF
+#ifndef HAVE_ISINF
+#define isinf(X) (!isfinite(X) && !isnan(X))
+#endif
 #define my_isinf(X) isinf(X)
-#else /* !HAVE_ISINF */
-#define my_isinf(X) (!finite(X) && !isnan(X))
+
+#ifdef __cplusplus
+#include <cmath>
+#ifndef isfinite
+#define isfinite(X) std::isfinite(X)
+#endif
+#ifndef isnan
+#define isnan(X) std::isnan(X)
+#endif
+#ifndef isinf
+#define isinf(X) std::isinf(X)
+#endif
 #endif
 
 /* Define missing math constants. */

@@ -534,7 +534,6 @@ ibuf_init_at_db_start(void)
 
 	fseg_n_reserved_pages(header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
 			      &n_used, &mtr);
-	ibuf_enter(&mtr);
 
 	ut_ad(n_used >= 2);
 
@@ -556,7 +555,7 @@ ibuf_init_at_db_start(void)
 	mutex_exit(&ibuf_mutex);
 
 	ibuf->empty = page_is_empty(root);
-	ibuf_mtr_commit(&mtr);
+	mtr.commit();
 
 	ibuf->index = dict_mem_index_create(
 		"innodb_change_buffer", "CLUST_IND",
@@ -2105,6 +2104,8 @@ ibuf_remove_free_page(void)
 	page_t*	root;
 	page_t*	bitmap_page;
 
+	log_free_check();
+
 	mtr_start(&mtr);
 	fil_space_t*		space = mtr.set_sys_modified();
 	const page_size_t	page_size(space->flags);
@@ -2212,19 +2213,7 @@ void
 ibuf_free_excess_pages(void)
 /*========================*/
 {
-	ut_ad(rw_lock_own(fil_space_get_latch(IBUF_SPACE_ID, NULL), RW_LOCK_X));
-
-	ut_ad(rw_lock_get_x_lock_count(
-		fil_space_get_latch(IBUF_SPACE_ID, NULL)) == 1);
-
-	/* NOTE: We require that the thread did not own the latch before,
-	because then we know that we can obey the correct latching order
-	for ibuf latches */
-
-	if (!ibuf) {
-		/* Not yet initialized; not sure if this is possible, but
-		does no harm to check for it. */
-
+	if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
 		return;
 	}
 

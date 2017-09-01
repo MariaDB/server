@@ -17,6 +17,7 @@
 
 #ifndef MY_APC_STANDALONE
 
+#include "mariadb.h"
 #include "sql_class.h"
 
 #endif

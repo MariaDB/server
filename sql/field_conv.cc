@@ -25,7 +25,7 @@
     gives much more speed.
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"                          // THD
 #include <m_ctype.h>
@@ -737,7 +737,8 @@ Field::Copy_func *Field_varstring::get_copy_func(const Field *from) const
     return do_field_varbinary_pre50;
   if (Field_varstring::real_type() != from->real_type() ||
       Field_varstring::charset() != from->charset() ||
-      length_bytes != ((const Field_varstring*) from)->length_bytes)
+      length_bytes != ((const Field_varstring*) from)->length_bytes ||
+      !compression_method() != !from->compression_method())
     return do_field_string;
   return length_bytes == 1 ?
          (from->charset()->mbmaxlen == 1 ? do_varstring1 : do_varstring1_mb) :

@@ -4846,7 +4846,6 @@ btr_validate_level(
 	bool		ret	= true;
 	mtr_t		mtr;
 	mem_heap_t*	heap	= mem_heap_create(256);
-	fseg_header_t*	seg;
 	ulint*		offsets	= NULL;
 	ulint*		offsets2= NULL;
 #ifdef UNIV_ZIP_DEBUG
@@ -4870,7 +4869,6 @@ btr_validate_level(
 
 	block = btr_root_block_get(index, RW_SX_LATCH, &mtr);
 	page = buf_block_get_frame(block);
-	seg = page + PAGE_HEADER + PAGE_BTR_SEG_TOP;
 
 #ifdef UNIV_DEBUG
 	if (dict_index_is_spatial(index)) {
@@ -4879,7 +4877,7 @@ btr_validate_level(
 	}
 #endif
 
-	const fil_space_t*	space	= fil_space_get(index->space);
+	fil_space_t*		space	= fil_space_get(index->space);
 	const page_size_t	table_page_size(
 		dict_table_page_size(index->table));
 	const page_size_t	space_page_size(space->flags);
@@ -4897,9 +4895,7 @@ btr_validate_level(
 	while (level != btr_page_get_level(page, &mtr)) {
 		const rec_t*	node_ptr;
 
-		if (fseg_page_is_free(seg,
-				      block->page.id.space(),
-				      block->page.id.page_no())) {
+		if (fseg_page_is_free(space, block->page.id.page_no())) {
 
 			btr_validate_report1(index, level, block);
 
@@ -4959,11 +4955,6 @@ btr_validate_level(
 	/* Now we are on the desired level. Loop through the pages on that
 	level. */
 
-	if (level == 0) {
-		/* Leaf pages are managed in their own file segment. */
-		seg -= PAGE_BTR_SEG_TOP - PAGE_BTR_SEG_LEAF;
-	}
-
 loop:
 	mem_heap_empty(heap);
 	offsets = offsets2 = NULL;
@@ -4982,9 +4973,7 @@ loop:
 
 	ut_a(block->page.id.space() == index->space);
 
-	if (fseg_page_is_free(seg,
-			      block->page.id.space(),
-			      block->page.id.page_no())) {
+	if (fseg_page_is_free(space, block->page.id.page_no())) {
 
 		btr_validate_report1(index, level, block);
 

@@ -20,7 +20,7 @@
   Multi-table updates were introduced by Sinisa & Monty
 */
 
-#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "sql_update.h"
 #include "sql_cache.h"                          // query_cache_*
@@ -616,7 +616,7 @@ int mysql_update(THD *thd,
       THD_STAGE_INFO(thd, stage_searching_rows_for_update);
       ha_rows tmp_limit= limit;
 
-      while (!(error=info.read_record(&info)) && !thd->killed)
+      while (!(error=info.read_record()) && !thd->killed)
       {
         explain->buf_tracker.on_record_read();
         thd->inc_examined_row_count(1);
@@ -732,7 +732,7 @@ int mysql_update(THD *thd,
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
 
-  while (!(error=info.read_record(&info)) && !thd->killed)
+  while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();
     thd->inc_examined_row_count(1);
@@ -918,7 +918,7 @@ int mysql_update(THD *thd,
   // simulated killing after the loop must be ineffective for binlogging
   DBUG_EXECUTE_IF("simulate_kill_bug27571",
                   {
-                    thd->killed= KILL_QUERY;
+                    thd->set_killed(KILL_QUERY);
                   };);
   error= (killed_status == NOT_KILLED)?  error : 1;
   

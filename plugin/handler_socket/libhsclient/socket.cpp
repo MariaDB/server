@@ -6,13 +6,10 @@
  * See COPYRIGHT.txt for details.
  */
 
-#include <my_config.h>
+#include <my_global.h>
 
 #include <stdexcept>
 #include <string.h>
-#include <errno.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <signal.h>
 #include <sys/un.h>
 

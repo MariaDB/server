@@ -22,13 +22,12 @@
    ======================================================================
 */
 
-#include <my_config.h>
+#define MYSQL_SERVER
+#include <my_global.h>
 #include "oqgraph_thunk.h"
 
 #include <boost/tuple/tuple.hpp>
 
-#define MYSQL_SERVER
-#include <my_global.h>
 #include "unireg.h"
 #include "sql_base.h"
 #include "table.h"
@@ -39,7 +38,6 @@
 // Allow compatibility with build for 5.5.32
 #define user_defined_key_parts key_parts
 #endif
-
 
 static int debugid = 0;
 

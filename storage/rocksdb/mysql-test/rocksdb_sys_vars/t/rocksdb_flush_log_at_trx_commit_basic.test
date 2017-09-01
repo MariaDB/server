@@ -10,9 +10,8 @@ INSERT INTO invalid_values VALUES('\'aaa\'');
 
 --let $sys_var=ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT
 --let $read_only=0
---let $session=1
+--let $session=0
 --source include/rocksdb_sys_var.inc
 
 DROP TABLE valid_values;
 DROP TABLE invalid_values;
-

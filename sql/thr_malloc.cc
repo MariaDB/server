@@ -17,7 +17,7 @@
 
 /* Mallocs for used in threads */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "thr_malloc.h"

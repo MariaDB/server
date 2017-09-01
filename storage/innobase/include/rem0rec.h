@@ -27,12 +27,14 @@ Created 5/30/1994 Heikki Tuuri
 #ifndef rem0rec_h
 #define rem0rec_h
 
+#ifndef UNIV_INNOCHECKSUM
 #include "univ.i"
 #include "data0data.h"
 #include "rem0types.h"
 #include "mtr0types.h"
 #include "page0types.h"
 #include "trx0types.h"
+#endif /*! UNIV_INNOCHECKSUM */
 #include <ostream>
 #include <sstream>
 
@@ -99,6 +101,7 @@ offsets[] array, first passed to rec_get_offsets() */
 #define REC_OFFS_NORMAL_SIZE	OFFS_IN_REC_NORMAL_SIZE
 #define REC_OFFS_SMALL_SIZE	10
 
+#ifndef UNIV_INNOCHECKSUM
 /******************************************************//**
 The following function is used to get the pointer of the next chained record
 on the same page.
@@ -1198,9 +1201,15 @@ are given in one byte (resp. two byte) format. */
 #define REC_1BYTE_OFFS_LIMIT	0x7FUL
 #define REC_2BYTE_OFFS_LIMIT	0x7FFFUL
 
-/* The data size of record must be smaller than this because we reserve
-two upmost bits in a two byte offset for special purposes */
-#define REC_MAX_DATA_SIZE	16384
+/* The data size of record must not be larger than this on
+REDUNDANT row format because we reserve two upmost bits in a
+two byte offset for special purposes */
+#define REDUNDANT_REC_MAX_DATA_SIZE    (16383)
+
+/* The data size of record must be smaller than this on
+COMPRESSED row format because we reserve two upmost bits in a
+two byte offset for special purposes */
+#define COMPRESSED_REC_MAX_DATA_SIZE   (16384)
 
 #ifdef WITH_WSREP
 int wsrep_rec_get_foreign_key(
@@ -1214,4 +1223,5 @@ int wsrep_rec_get_foreign_key(
 
 #include "rem0rec.ic"
 
+#endif /* !UNIV_INNOCHECKSUM */
 #endif /* rem0rec_h */

@@ -39,7 +39,7 @@
 #pragma implementation                          // gcc: Class implementation
 #endif
 
-#include <my_config.h>
+#include <my_global.h>
 #define MYSQL_SERVER 1                          // to have THD
 /* For the moment, include code to deal with integer latches.
  * I have wrapped it with this #ifdef to make it easier to find and remove in the future.

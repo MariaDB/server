@@ -67,7 +67,7 @@ INSERT INTO information_schema.collations
 VALUES (  'cp1251_bin',          'cp1251',50,        '',         '',0);
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 UPDATE information_schema.collations SET description = 'just updated';
-ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+Got one of the listed errors
 DELETE FROM information_schema.collations WHERE table_name = 't1';
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 TRUNCATE information_schema.collations;

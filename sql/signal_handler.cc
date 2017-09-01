@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
-#include "my_global.h"
+#include "mariadb.h"
 #include <signal.h>
 
 //#include "sys_vars.h"
@@ -163,7 +163,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
       "where mysqld died. If you see no messages after this, something went\n"
       "terribly wrong...\n");
     my_print_stacktrace(thd ? (uchar*) thd->thread_stack : NULL,
-                        (ulong)my_thread_stack_size);
+                        (ulong)my_thread_stack_size, 0);
   }
   if (thd)
   {
@@ -203,6 +203,10 @@ extern "C" sig_handler handle_fatal_signal(int sig)
       break;
     case KILL_SLAVE_SAME_ID:
       kreason= "KILL_SLAVE_SAME_ID";
+      break;
+    case KILL_WAIT_TIMEOUT:
+    case KILL_WAIT_TIMEOUT_HARD:
+      kreason= "KILL_WAIT_TIMEOUT";
       break;
     }
     my_safe_printf_stderr("%s", "\n"

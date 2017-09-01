@@ -102,14 +102,18 @@ extern  const char* _db_get_func_(void);
 #define DBUG_END()  _db_end_ ()
 #define DBUG_LOCK_FILE _db_lock_file_()
 #define DBUG_UNLOCK_FILE _db_unlock_file_()
-#define DBUG_ASSERT(A) assert(A)
+#define DBUG_ASSERT(A) do { if (!(A)) { _db_flush_(); assert(A); }} while (0)
+#define DBUG_SLOW_ASSERT(A) DBUG_ASSERT(A)
+#define DBUG_ASSERT_EXISTS
 #define DBUG_EXPLAIN(buf,len) _db_explain_(0, (buf),(len))
 #define DBUG_EXPLAIN_INITIAL(buf,len) _db_explain_init_((buf),(len))
 #define DEBUGGER_OFF                    do { _dbug_on_= 0; } while(0)
 #define DEBUGGER_ON                     do { _dbug_on_= 1; } while(0)
 #define IF_DBUG(A,B)                    A
+#define IF_DBUG_ASSERT(A,B)             A
 #define DBUG_SWAP_CODE_STATE(arg) dbug_swap_code_state(arg)
 #define DBUG_FREE_CODE_STATE(arg) dbug_free_code_state(arg)
+#undef DBUG_ASSERT_AS_PRINTF
 
 #ifndef __WIN__
 #define DBUG_ABORT()                    (_db_flush_(), abort())
@@ -138,7 +142,7 @@ extern  const char* _db_get_func_(void);
 #else
 extern void _db_suicide_(void);
 #define DBUG_SUICIDE() (_db_flush_(), _db_suicide_())
-#endif
+#endif /* __WIN__ */
 
 #else                                           /* No debugger */
 
@@ -159,7 +163,7 @@ extern void _db_suicide_(void);
 #define DBUG_PROCESS(a1)                do { } while(0)
 #define DBUG_DUMP(keyword,a1,a2)        do { } while(0)
 #define DBUG_END()                      do { } while(0)
-#define DBUG_ASSERT(A)                  do { } while(0)
+#define DBUG_SLOW_ASSERT(A)             do { } while(0)
 #define DBUG_LOCK_FILE                  do { } while(0)
 #define DBUG_FILE (stderr)
 #define DBUG_UNLOCK_FILE                do { } while(0)
@@ -176,7 +180,16 @@ extern void _db_suicide_(void);
 #define DBUG_CRASH_VOID_RETURN          do { return; } while(0)
 #define DBUG_SUICIDE()                  do { } while(0)
 
-#endif
+#ifdef DBUG_ASSERT_AS_PRINTF
+extern void (*my_dbug_assert_failed)(const char *assert_expr, const char* file, unsigned long line);
+#define DBUG_ASSERT(assert_expr) do { if (!(assert_expr)) { my_dbug_assert_failed(#assert_expr, __FILE__, __LINE__); }} while (0)
+#define DBUG_ASSERT_EXISTS
+#define IF_DBUG_ASSERT(A,B)             A
+#else
+#define DBUG_ASSERT(A)                  do { } while(0)
+#define IF_DBUG_ASSERT(A,B)             B
+#endif /* DBUG_ASSERT_AS_PRINTF */
+#endif /* !defined(DBUG_OFF) && !defined(_lint) */
 
 #ifdef EXTRA_DEBUG
 /**

@@ -33,7 +33,7 @@
 #define Lex (thd->lex)
 
 #define Select Lex->current_select
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_parse.h"                        /* comp_*_creator */
 #include "sql_table.h"                        /* primary_key_name */
@@ -217,7 +217,7 @@ int LEX::case_stmt_action_when(Item *when, bool simple)
     var= new (thd->mem_root)
          Item_case_expr(thd, spcont->get_current_case_expr_id());
 
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     if (var)
     {
       var->m_sp= sphead;
@@ -399,7 +399,7 @@ LEX::create_item_for_sp_var(LEX_CSTRING *name, sp_variable *spvar,
     Item_splocal(thd, name, spvar->offset, spvar->sql_type(),
                  pos_in_q, len_in_q);
 
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   if (item)
     item->m_sp= sphead;
 #endif
@@ -1634,7 +1634,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_ident_opt_wild create_like
 
 %type <qualified_column_ident>
-        qualified_column_ident
         optionally_qualified_column_ident
 
 %type <simple_string>
@@ -1643,6 +1642,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <const_simple_string>
         field_length opt_field_length opt_field_length_default_1
+        opt_compression_method
 
 %type <string>
         text_string hex_or_bin_String opt_gconcat_separator
@@ -1863,8 +1863,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         procedure_list procedure_list2 procedure_item
         field_def handler opt_generated_always
         opt_ignore opt_column opt_restrict
-        grant revoke set lock unlock string_list field_options field_option
-        field_opt_list opt_binary table_lock_list table_lock
+        grant revoke set lock unlock string_list field_options
+        opt_binary table_lock_list table_lock
         ref_list opt_match_clause opt_on_update_delete use
         opt_delete_options opt_delete_option varchar nchar nvarchar
         opt_outer table_list table_name table_alias_ref_list table_alias_ref
@@ -3041,12 +3041,8 @@ sp_suid:
 call:
           CALL_SYM sp_name
           {
-            LEX *lex = Lex;
-
-            lex->sql_command= SQLCOM_CALL;
-            lex->spname= $2;
-            lex->value_list.empty();
-            sp_handler_procedure.add_used_routine(lex, thd, $2);
+            if (Lex->call_statement_start(thd, $2))
+              MYSQL_YYABORT;
           }
           opt_sp_cparam_list {}
         ;
@@ -3098,17 +3094,30 @@ sp_param_name_and_type:
             if (Lex->sp_param_fill_definition($$= $1))
               MYSQL_YYABORT;
           }
-        | sp_param_name TYPE_SYM OF_SYM qualified_column_ident
+        | sp_param_name TYPE_SYM OF_SYM ident '.' ident
           {
-            Lex->sphead->fill_spvar_using_type_reference($$= $1, $4);
+            if (Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $4, $6))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name TYPE_SYM OF_SYM ident '.' ident '.' ident
+          {
+            if (Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $4, $6, $8))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name ROW_SYM TYPE_SYM OF_SYM ident
+          {
+            if (Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $5))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name ROW_SYM TYPE_SYM OF_SYM ident '.' ident
+          {
+            if (Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $5, $7))
+              MYSQL_YYABORT;
           }
         | sp_param_name ROW_SYM row_type_body
           {
-            $$= $1;
-            $$->field_def.field_name= $$->name;
-            Lex->sphead->fill_spvar_definition(thd, &$$->field_def);
-            Lex->sphead->row_fill_field_definitions(thd, $3);
-            $$->field_def.set_row_field_definitions($3);
+            if (Lex->sphead->spvar_fill_row(thd, $$= $1, $3))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -3188,20 +3197,6 @@ sp_decl:
           DECLARE_SYM sp_decl_body { $$= $2; }
         ;
 
-
-qualified_column_ident:
-          sp_decl_ident '.' ident
-          {
-            if (!($$= new (thd->mem_root) Qualified_column_ident(&$1, &$3)))
-              MYSQL_YYABORT;
-          }
-        | sp_decl_ident '.' ident '.' ident
-          {
-            if (!($$= new (thd->mem_root) Qualified_column_ident(thd,
-                                                                 &$1, &$3, &$5)))
-              MYSQL_YYABORT;
-          }
-        ;
 
 optionally_qualified_column_ident:
           sp_decl_ident
@@ -6502,8 +6497,11 @@ field_type_lob:
           { $$.set(&type_handler_long_blob); }
         | LONG_SYM opt_binary
           { $$.set(&type_handler_medium_blob); }
-        | JSON_SYM opt_binary
-          { $$.set(&type_handler_blob); }
+        | JSON_SYM
+          {
+            Lex->charset= &my_charset_utf8mb4_bin;
+            $$.set(&type_handler_long_blob);
+          }
         ;
 
 field_type_misc:
@@ -6587,18 +6585,11 @@ precision:
 
 field_options:
           /* empty */ {}
-        | field_opt_list {}
-        ;
-
-field_opt_list:
-          field_opt_list field_option {}
-        | field_option {}
-        ;
-
-field_option:
-          SIGNED_SYM {}
+        | SIGNED_SYM {}
         | UNSIGNED { Lex->last_field->flags|= UNSIGNED_FLAG;}
         | ZEROFILL { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
+        | UNSIGNED ZEROFILL { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
+        | ZEROFILL UNSIGNED { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
         ;
 
 field_length:
@@ -6654,7 +6645,17 @@ attribute:
                                 $2->name,Lex->charset->csname));
             Lex->last_field->charset= $2;
           }
+        | COMPRESSED_SYM opt_compression_method
+          {
+            if (Lex->last_field->set_compressed($2))
+              MYSQL_YYABORT;
+          }
         | serial_attribute
+        ;
+
+opt_compression_method:
+          /* empty */ { $$= NULL; }
+        | equal ident { $$= $2.str; }
         ;
 
 serial_attribute:
@@ -10088,8 +10089,7 @@ function_call_conflict:
           }
         | REPLACE '(' expr ',' expr ',' expr ')'
           {
-            $$= new (thd->mem_root) Item_func_replace(thd, $3, $5, $7);
-            if ($$ == NULL)
+            if (!($$= Lex->make_item_func_replace(thd, $3, $5, $7)))
               MYSQL_YYABORT;
           }
         | REVERSE_SYM '(' expr ')'
@@ -10733,7 +10733,7 @@ variable_aux:
               thd->parse_error();
               MYSQL_YYABORT;
             }
-            if (!($$= get_system_var(thd, $2, $3, $4)))
+            if (!($$= get_system_var(thd, $2, &$3, &$4)))
               MYSQL_YYABORT;
             if (!((Item_func_get_system_var*) $$)->is_written_to_binlog())
               Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_VARIABLE);
@@ -12161,7 +12161,7 @@ select_outvar:
           }
         | ident '.' ident
           {
-            if (!($$= Lex->create_outvar(thd, &$1, &$3)))
+            if (!($$= Lex->create_outvar(thd, &$1, &$3)) && Lex->result)
               MYSQL_YYABORT;
           }
         ;
@@ -13042,9 +13042,15 @@ show_param:
             lex->sql_command= SQLCOM_SHOW_PRIVILEGES;
           }
         | COUNT_SYM '(' '*' ')' WARNINGS
-          { (void) create_select_for_variable("warning_count"); }
+          {
+            LEX_CSTRING var= {STRING_WITH_LEN("warning_count")};
+            (void) create_select_for_variable(thd, &var);
+          }
         | COUNT_SYM '(' '*' ')' ERRORS
-          { (void) create_select_for_variable("error_count"); }
+          {
+            LEX_CSTRING var= {STRING_WITH_LEN("error_count")};
+            (void) create_select_for_variable(thd, &var);
+          }
         | WARNINGS opt_limit_clause
           { Lex->sql_command = SQLCOM_SHOW_WARNS;}
         | ERRORS opt_limit_clause
@@ -15174,14 +15180,8 @@ option_value_no_option_type:
           }
         | '@' ident_or_text equal expr
           {
-            Item_func_set_user_var *item;
-            item= new (thd->mem_root) Item_func_set_user_var(thd, &$2, $4);
-            if (item == NULL)
+            if (Lex->set_user_variable(thd, &$2, $4))
               MYSQL_YYABORT;
-            set_var_user *var= new (thd->mem_root) set_var_user(item);
-            if (var == NULL)
-              MYSQL_YYABORT;
-            Lex->var_list.push_back(var, thd->mem_root);
           }
         | '@' '@' opt_var_ident_type internal_variable_name equal set_expr_or_default
           {
@@ -15603,25 +15603,13 @@ revoke_command:
           }
         | grant_privileges ON FUNCTION_SYM grant_ident FROM user_and_role_list
           {
-            LEX *lex= Lex;
-            if (lex->columns.elements)
-            {
-              thd->parse_error();
+            if (Lex->add_grant_command(thd, SQLCOM_REVOKE, TYPE_ENUM_FUNCTION))
               MYSQL_YYABORT;
-            }
-            lex->sql_command= SQLCOM_REVOKE;
-            lex->type= TYPE_ENUM_FUNCTION;
           }
         | grant_privileges ON PROCEDURE_SYM grant_ident FROM user_and_role_list
           {
-            LEX *lex= Lex;
-            if (lex->columns.elements)
-            {
-              thd->parse_error();
+            if (Lex->add_grant_command(thd, SQLCOM_REVOKE, TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
-            }
-            lex->sql_command= SQLCOM_REVOKE;
-            lex->type= TYPE_ENUM_PROCEDURE;
           }
         | ALL opt_privileges ',' GRANT OPTION FROM user_and_role_list
           {
@@ -15665,26 +15653,14 @@ grant_command:
         | grant_privileges ON FUNCTION_SYM grant_ident TO_SYM grant_list
           opt_require_clause opt_grant_options
           {
-            LEX *lex= Lex;
-            if (lex->columns.elements)
-            {
-              thd->parse_error();
+            if (Lex->add_grant_command(thd, SQLCOM_GRANT, TYPE_ENUM_FUNCTION))
               MYSQL_YYABORT;
-            }
-            lex->sql_command= SQLCOM_GRANT;
-            lex->type= TYPE_ENUM_FUNCTION;
           }
         | grant_privileges ON PROCEDURE_SYM grant_ident TO_SYM grant_list
           opt_require_clause opt_grant_options
           {
-            LEX *lex= Lex;
-            if (lex->columns.elements)
-            {
-              thd->parse_error();
+            if (Lex->add_grant_command(thd, SQLCOM_GRANT, TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
-            }
-            lex->sql_command= SQLCOM_GRANT;
-            lex->type= TYPE_ENUM_PROCEDURE;
           }
         | PROXY_SYM ON user TO_SYM grant_list opt_grant_option
           {
@@ -16669,6 +16645,7 @@ sf_tail:
           opt_if_not_exists
           sp_name
           {
+            Lex->sql_command= SQLCOM_CREATE_SPFUNCTION;
             if (!Lex->make_sp_head_no_recursive(thd, $1, $2,
                                                 &sp_handler_function))
               MYSQL_YYABORT;
@@ -16685,25 +16662,15 @@ sf_tail:
           }
           sp_proc_stmt_in_returns_clause
           {
-            LEX *lex= thd->lex;
-            sp_head *sp= lex->sphead;
-
-            if (sp->is_not_allowed_in_function("function"))
+            if (Lex->sp_body_finalize_function(thd))
               MYSQL_YYABORT;
-
-            lex->sql_command= SQLCOM_CREATE_SPFUNCTION;
-            sp->set_stmt_end(thd);
-            if (!(sp->m_flags & sp_head::HAS_RETURN))
-              my_yyabort_error((ER_SP_NORETURN, MYF(0),
-                                ErrConvDQName(sp).ptr()));
-            (void) is_native_function_with_warn(thd, &sp->m_name);
-            sp->restore_thd_mem_root(thd);
           }
         ;
 
 sp_tail:
           opt_if_not_exists sp_name
           {
+            Lex->sql_command= SQLCOM_CREATE_PROCEDURE;
             if (!Lex->make_sp_head_no_recursive(thd, $1, $2,
                                                 &sp_handler_procedure))
               MYSQL_YYABORT;
@@ -16716,12 +16683,8 @@ sp_tail:
           }
           sp_proc_stmt
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-
-            sp->set_stmt_end(thd);
-            lex->sql_command= SQLCOM_CREATE_PROCEDURE;
-            sp->restore_thd_mem_root(thd);
+            if (Lex->sp_body_finalize_procedure(thd))
+              MYSQL_YYABORT;
           }
         ;
 

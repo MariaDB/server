@@ -88,7 +88,7 @@
     while(!(X))                                                         \
     {                                                                   \
       fprintf(stderr, "Sysvar '%s' failed '%s'\n", name_arg, #X);       \
-      DBUG_ABORT();                                                     \
+      DBUG_ASSERT(0);                                                   \
       exit(255);                                                        \
     }
 
@@ -612,7 +612,7 @@ public:
      /* parse and feel list with default values */
      if (thd)
      {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
        bool res=
 #endif
          sysvartrack_validate_value(thd,
@@ -1230,7 +1230,7 @@ public:
     global_var(ulonglong)= def_val;
     SYSVAR_ASSERT(typelib.count > 1);
     SYSVAR_ASSERT(typelib.count <= 65);
-    SYSVAR_ASSERT(def_val < my_set_bits(typelib.count));
+    SYSVAR_ASSERT(def_val <= my_set_bits(typelib.count-1));
     SYSVAR_ASSERT(strcmp(values[typelib.count-1], "default") == 0);
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
@@ -1764,12 +1764,12 @@ public:
                       binlog_status_arg, on_check_func, on_update_func,
                       substitute)
   {
-    option.var_type|= GET_BOOL;
+    option.var_type|= GET_BIT;
     reverse_semantics= my_count_bits(bitmask_arg) > 1;
     bitmask= reverse_semantics ? ~bitmask_arg : bitmask_arg;
+    option.block_size= reverse_semantics ? -(long) bitmask : bitmask;
     set(global_var_ptr(), def_val);
     SYSVAR_ASSERT(def_val < 2);
-    SYSVAR_ASSERT(getopt.id < 0); // force NO_CMD_LINE
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
   bool session_update(THD *thd, set_var *var)

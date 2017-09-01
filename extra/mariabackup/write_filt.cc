@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 /* Page write filters implementation */
 
+#include <my_global.h>
 #include <my_base.h>
 #include "common.h"
 #include "write_filt.h"

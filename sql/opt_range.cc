@@ -108,7 +108,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "key.h"        // is_key_used, key_copy, key_cmp, key_restore
 #include "sql_parse.h"                          // check_stack_overrun
@@ -6273,7 +6273,7 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
   DBUG_ENTER("ror_intersect_add");
   DBUG_PRINT("info", ("Current out_rows= %g", info->out_rows));
   DBUG_PRINT("info", ("Adding scan on %s",
-                      info->param->table->key_info[ror_scan->keynr].name));
+                      info->param->table->key_info[ror_scan->keynr].name.str));
   DBUG_PRINT("info", ("is_cpk_scan: %d",is_cpk_scan));
 
   selectivity_mult = ror_scan_selectivity(info, ror_scan);
@@ -6656,7 +6656,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
     total_cost += (*ror_scan_mark)->index_read_cost;
     records += (*ror_scan_mark)->records;
     DBUG_PRINT("info", ("Adding scan on %s",
-                        param->table->key_info[(*ror_scan_mark)->keynr].name));
+                        param->table->key_info[(*ror_scan_mark)->keynr].name.str));
     if (total_cost > read_time)
       DBUG_RETURN(NULL);
     /* F=F-covered by first(I) */
@@ -6818,7 +6818,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       read_plan->mrr_buf_size= best_buf_size;
       DBUG_PRINT("info",
                  ("Returning range plan for key %s, cost %g, records %lu",
-                  param->table->key_info[param->real_keynr[best_idx]].name,
+                  param->table->key_info[param->real_keynr[best_idx]].name.str,
                   read_plan->read_cost, (ulong) read_plan->records));
     }
   }
@@ -10911,13 +10911,13 @@ int read_keys_and_merge_scans(THD *thd,
   DBUG_ENTER("read_keys_and_merge");
 
   /* We're going to just read rowids. */
-  head->file->ha_start_keyread(head->s->primary_key);
   head->prepare_for_position();
 
   cur_quick_it.rewind();
   cur_quick= cur_quick_it++;
   bool first_quick= TRUE;
   DBUG_ASSERT(cur_quick != 0);
+  head->file->ha_start_keyread(cur_quick->index);
   
   /*
     We reuse the same instance of handler so we need to call both init and 
@@ -10928,7 +10928,7 @@ int read_keys_and_merge_scans(THD *thd,
 
   if (unique == NULL)
   {
-    DBUG_EXECUTE_IF("index_merge_may_not_create_a_Unique", DBUG_ABORT(); );
+    DBUG_EXECUTE_IF("index_merge_may_not_create_a_Unique", DBUG_SUICIDE(); );
     DBUG_EXECUTE_IF("only_one_Unique_may_be_created", 
                     DBUG_SET("+d,index_merge_may_not_create_a_Unique"); );
 
@@ -11042,7 +11042,7 @@ int QUICK_INDEX_MERGE_SELECT::get_next()
   if (doing_pk_scan)
     DBUG_RETURN(pk_quick_select->get_next());
 
-  if ((result= read_record.read_record(&read_record)) == -1)
+  if ((result= read_record.read_record()) == -1)
   {
     result= HA_ERR_END_OF_FILE;
     end_read_record(&read_record);
@@ -11078,7 +11078,7 @@ int QUICK_INDEX_INTERSECT_SELECT::get_next()
   int result;
   DBUG_ENTER("QUICK_INDEX_INTERSECT_SELECT::get_next");
 
-  if ((result= read_record.read_record(&read_record)) == -1)
+  if ((result= read_record.read_record()) == -1)
   {
     result= HA_ERR_END_OF_FILE;
     end_read_record(&read_record);
@@ -11830,7 +11830,7 @@ void QUICK_SELECT_I::add_key_name(String *str, bool *first)
     *first= FALSE;
   else
     str->append(',');
-  str->append(key_info->name);
+  str->append(&key_info->name);
 }
  
 
@@ -11985,7 +11985,7 @@ void QUICK_SELECT_I::add_key_and_length(String *key_names,
     key_names->append(',');
     used_lengths->append(',');
   }
-  key_names->append(key_info->name);
+  key_names->append(&key_info->name);
   length= longlong10_to_str(max_used_key_length, buf, 10) - buf;
   used_lengths->append(buf, length);
 }
@@ -14628,7 +14628,7 @@ static void print_sel_tree(PARAM *param, SEL_TREE *tree, key_map *tree_map,
       uint keynr= param->real_keynr[idx];
       if (tmp.length())
         tmp.append(',');
-      tmp.append(param->table->key_info[keynr].name);
+      tmp.append(&param->table->key_info[keynr].name);
     }
   }
   if (!tmp.length())
@@ -14654,7 +14654,7 @@ static void print_ror_scans_arr(TABLE *table, const char *msg,
   {
     if (tmp.length())
       tmp.append(',');
-    tmp.append(table->key_info[(*start)->keynr].name);
+    tmp.append(&table->key_info[(*start)->keynr].name);
   }
   if (!tmp.length())
     tmp.append(STRING_WITH_LEN("(empty)"));
@@ -14736,7 +14736,7 @@ void QUICK_RANGE_SELECT::dbug_dump(int indent, bool verbose)
 {
   /* purecov: begin inspected */
   fprintf(DBUG_FILE, "%*squick range select, key %s, length: %d\n",
-	  indent, "", head->key_info[index].name, max_used_key_length);
+	  indent, "", head->key_info[index].name.str, max_used_key_length);
 
   if (verbose)
   {
@@ -14840,7 +14840,7 @@ void QUICK_GROUP_MIN_MAX_SELECT::dbug_dump(int indent, bool verbose)
 {
   fprintf(DBUG_FILE,
           "%*squick_group_min_max_select: index %s (%d), length: %d\n",
-	  indent, "", index_info->name, index, max_used_key_length);
+	  indent, "", index_info->name.str, index, max_used_key_length);
   if (key_infix_len > 0)
   {
     fprintf(DBUG_FILE, "%*susing key_infix with length %d:\n",

@@ -267,12 +267,10 @@ ut_stage_alter_t::n_pk_recs_inc()
 }
 
 /** Flag either one record or one page processed, depending on the
-current phase.
-@param[in]	inc_val	flag this many units processed at once */
+current phase. */
 inline
 void
-ut_stage_alter_t::inc(
-        ulint	inc_val __attribute__((unused)) /* = 1 */)
+ut_stage_alter_t::inc(ulint)
 {
 	if (m_progress == NULL) {
 		return;
@@ -286,12 +284,14 @@ ut_stage_alter_t::inc(
 		ut_error;
 	case READ_PK:
 		m_n_pk_pages++;
+#if 0 /* TODO: MySQL 5.7 PSI */
 		ut_ad(inc_val == 1);
 		/* Overall the read pk phase will read all the pages from the
 		PK and will do work, proportional to the number of added
 		indexes, thus when this is called once per read page we
 		increment with 1 + m_n_sort_indexes */
 		inc_val = 1 + m_n_sort_indexes;
+#endif
 		break;
 	case SORT:
 		multi_factor = m_sort_multi_factor;

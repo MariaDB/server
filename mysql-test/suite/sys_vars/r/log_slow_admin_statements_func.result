@@ -10,7 +10,7 @@ j VARCHAR(255)
 SET GLOBAL log_output = 'file,table';
 SET GLOBAL slow_query_log = on;
 SET SESSION long_query_time = 0;
-SET GLOBAL log_slow_admin_statements = on;
+SET SESSION log_slow_admin_statements = on;
 ALTER TABLE log_slow_admin_statements ADD COLUMN k INT DEFAULT 17;
 CREATE PROCEDURE add_rows()
 BEGIN
@@ -44,3 +44,37 @@ SET @@session.long_query_time=          @old_long_query_time;
 SET @@global.log_slow_admin_statements= @old_log_slow_admin_statements;
 DROP PROCEDURE add_rows;
 TRUNCATE TABLE mysql.slow_log;
+SET @save_log_slow_disabled_statements= @@global.log_slow_disabled_statements;
+SET @@SESSION.log_slow_admin_statements= TRUE;
+select @@SESSION.log_slow_disabled_statements;
+@@SESSION.log_slow_disabled_statements
+sp
+SET @@SESSION.log_slow_admin_statements= FALSE;
+select @@SESSION.log_slow_disabled_statements;
+@@SESSION.log_slow_disabled_statements
+admin,sp
+SET @@GLOBAL.log_slow_admin_statements= TRUE;
+select @@GLOBAL.log_slow_disabled_statements;
+@@GLOBAL.log_slow_disabled_statements
+sp
+SET @@GLOBAL.log_slow_admin_statements= FALSE;
+select @@GLOBAL.log_slow_disabled_statements;
+@@GLOBAL.log_slow_disabled_statements
+admin,sp
+SET @@SESSION.log_slow_disabled_statements="";
+select @@SESSION.log_slow_admin_statements;
+@@SESSION.log_slow_admin_statements
+1
+SET @@SESSION.log_slow_disabled_statements="admin";
+select @@SESSION.log_slow_admin_statements;
+@@SESSION.log_slow_admin_statements
+0
+SET @@GLOBAL.log_slow_disabled_statements="";
+select @@GLOBAL.log_slow_admin_statements;
+@@GLOBAL.log_slow_admin_statements
+1
+SET @@GLOBAL.log_slow_disabled_statements="admin";
+select @@GLOBAL.log_slow_admin_statements;
+@@GLOBAL.log_slow_admin_statements
+0
+SET @@global.log_slow_disabled_statements= @save_log_slow_disabled_statements;

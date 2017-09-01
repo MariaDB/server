@@ -20,7 +20,6 @@
 
 /* Classes in mysql */
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
@@ -38,6 +37,7 @@
 #include "thr_lock.h"       /* thr_lock_type, THR_LOCK_DATA, THR_LOCK_INFO */
 #include "thr_timer.h"
 #include "thr_malloc.h"
+#include "log_slow.h"      /* LOG_SLOW_DISABLE_... */
 
 #include "sql_digest_stream.h"            // sql_digest_state
 
@@ -477,10 +477,14 @@ enum killed_state
   KILL_SYSTEM_THREAD_HARD= 15,
   KILL_SERVER= 16,
   KILL_SERVER_HARD= 17,
+  /*
+    Used in threadpool to signal wait timeout.
+  */
+  KILL_WAIT_TIMEOUT= 18,
+  KILL_WAIT_TIMEOUT_HARD= 19
 
 };
 
-extern int killed_errno(killed_state killed);
 #define killed_mask_hard(killed) ((killed_state) ((killed) & ~KILL_HARD_BIT))
 
 enum killed_type
@@ -532,6 +536,8 @@ typedef struct system_variables
   ulonglong join_buff_space_limit;
   ulonglong log_slow_filter; 
   ulonglong log_slow_verbosity; 
+  ulonglong log_slow_disabled_statements;
+  ulonglong log_disabled_statements;
   ulonglong bulk_insert_buff_size;
   ulonglong join_buff_size;
   ulonglong sortbuff_size;
@@ -550,6 +556,7 @@ typedef struct system_variables
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
   ulong auto_increment_increment, auto_increment_offset;
+  ulong column_compression_zlib_strategy;
   ulong lock_wait_timeout;
   ulong join_cache_level;
   ulong max_allowed_packet;
@@ -637,6 +644,7 @@ typedef struct system_variables
   my_bool sql_log_bin_off;
   my_bool binlog_annotate_row_events;
   my_bool binlog_direct_non_trans_update;
+  my_bool column_compression_zlib_wrap;
 
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
@@ -691,6 +699,8 @@ typedef struct system_variables
   uint idle_transaction_timeout;
   uint idle_readonly_transaction_timeout;
   uint idle_readwrite_transaction_timeout;
+  uint column_compression_threshold;
+  uint column_compression_zlib_level;
 } SV;
 
 /**
@@ -701,6 +711,8 @@ typedef struct system_variables
 
 typedef struct system_status_var
 {
+  ulong column_compressions;
+  ulong column_decompressions;
   ulong com_stat[(uint) SQLCOM_END];
   ulong com_create_tmp_table;
   ulong com_drop_tmp_table;
@@ -898,7 +910,7 @@ void free_tmp_table(THD *thd, TABLE *entry);
 
 
 /* The following macro is to make init of Query_arena simpler */
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 #define INIT_ARENA_DBUG_INFO is_backup_arena= 0; is_reprepared= FALSE;
 #else
 #define INIT_ARENA_DBUG_INFO
@@ -913,7 +925,7 @@ public:
   */
   Item *free_list;
   MEM_ROOT *mem_root;                   // Pointer to current memroot
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   bool is_backup_arena; /* True if this arena is used for backup. */
   bool is_reprepared;
 #endif
@@ -1516,19 +1528,25 @@ public:
 class Sub_statement_state
 {
 public:
+  Discrete_interval auto_inc_interval_for_cur_row;
+  Discrete_intervals_list auto_inc_intervals_forced;
+  SAVEPOINT *savepoints;
   ulonglong option_bits;
   ulonglong first_successful_insert_id_in_prev_stmt;
   ulonglong first_successful_insert_id_in_cur_stmt, insert_id_for_cur_row;
-  Discrete_interval auto_inc_interval_for_cur_row;
-  Discrete_intervals_list auto_inc_intervals_forced;
   ulonglong limit_found_rows;
-  ha_rows    cuted_fields, sent_row_count, examined_row_count;
+  ulonglong tmp_tables_size;
   ulonglong client_capabilities;
+  ulonglong cuted_fields, sent_row_count, examined_row_count;
+  ulonglong affected_rows;
+  ulonglong bytes_sent_old;
+  ulong     tmp_tables_used;
+  ulong     tmp_tables_disk_used;
+  ulong     query_plan_fsort_passes;
   ulong query_plan_flags; 
   uint in_sub_stmt;    /* 0,  SUB_STMT_TRIGGER or SUB_STMT_FUNCTION */
   bool enable_slow_log;
   bool last_insert_id_used;
-  SAVEPOINT *savepoints;
   enum enum_check_fields count_cuted_fields;
 };
 
@@ -1996,6 +2014,16 @@ struct wait_for_commit
   void reinit();
 };
 
+/*
+  Structure to store the start time for a query
+*/
+
+typedef struct
+{
+  my_time_t start_time;
+  ulong      start_time_sec_part;
+  ulonglong start_utime, utime_after_lock;
+} QUERY_START_TIME_INFO;
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
@@ -2054,7 +2082,7 @@ public:
     rpl_sql_thread_info *rpl_sql_info;
   } system_thread_info;
 
-  void reset_for_next_command();
+  void reset_for_next_command(bool do_clear_errors= 1);
   /*
     Constant for THD::where initialization in the beginning of every query.
 
@@ -2110,6 +2138,8 @@ public:
     Is locked when THD is deleted.
   */
   mysql_mutex_t LOCK_thd_data;
+  /* Protect kill information */
+  mysql_mutex_t LOCK_thd_kill;
 
   /* all prepared statements and cursors of this connection */
   Statement_map stmt_map;
@@ -2214,7 +2244,7 @@ public:
   HASH ull_hash;
   /* Hash of used seqeunces (for PREVIOUS value) */
   HASH sequences;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   uint dbug_sentry; // watch out for memory corruption
 #endif
   struct st_my_thread_var *mysys_var;
@@ -2695,6 +2725,14 @@ public:
   {
     m_row_count_func= row_count_func;
   }
+  inline void set_affected_rows(longlong row_count_func)
+  {
+    /*
+      We have to add to affected_rows (used by slow log), as otherwise
+      information for 'call' will be wrong
+    */
+    affected_rows+= (row_count_func >= 0 ? row_count_func : 0);
+  }
 
   ha_rows    cuted_fields;
 
@@ -2723,6 +2761,9 @@ public:
 
   ha_rows get_examined_row_count() const
   { return m_examined_row_count; }
+
+  ulonglong get_affected_rows() const
+  { return affected_rows; }
 
   void set_sent_row_count(ha_rows count);
   void set_examined_row_count(ha_rows count);
@@ -2758,7 +2799,7 @@ public:
   void check_limit_rows_examined()
   {
     if (++accessed_rows_and_keys > lex->limit_rows_examined_cnt)
-      killed= ABORT_QUERY;
+      set_killed(ABORT_QUERY);
   }
 
   USER_CONN *user_connect;
@@ -2801,8 +2842,16 @@ public:
   /* Statement id is thread-wide. This counter is used to generate ids */
   ulong      statement_id_counter;
   ulong	     rand_saved_seed1, rand_saved_seed2;
+
+  /* The following variables are used when printing to slow log */
   ulong      query_plan_flags; 
   ulong      query_plan_fsort_passes; 
+  ulong      tmp_tables_used;
+  ulong      tmp_tables_disk_used;
+  ulonglong  tmp_tables_size;
+  ulonglong  bytes_sent_old;
+  ulonglong  affected_rows;                     /* Number of changed rows */
+
   pthread_t  real_id;                           /* For debugging */
   my_thread_id  thread_id, thread_dbug_id;
   uint32      os_thread_id;
@@ -2859,6 +2908,16 @@ public:
   */
   killed_state volatile killed;
 
+  /*
+    The following is used if one wants to have a specific error number and
+    text for the kill
+  */
+  struct err_info
+  {
+    int no;
+    const char msg[256];
+  } *killed_err;
+
   /* See also thd_killed() */
   inline bool check_killed()
   {
@@ -2882,7 +2941,6 @@ public:
   uint8      failed_com_change_user;
   bool       slave_thread;
   bool       extra_port;                        /* If extra connection */
-
   bool	     no_errors;
 
   /**
@@ -2926,7 +2984,7 @@ public:
   */
   bool	     charset_is_system_charset, charset_is_collation_connection;
   bool       charset_is_character_set_filesystem;
-  bool       enable_slow_log;   /* enable slow log for current statement */
+  bool       enable_slow_log;    /* Enable slow log for current statement */
   bool	     abort_on_warning;
   bool 	     got_warning;       /* Set on call to push_warning() */
   /* set during loop of derived table processing */
@@ -2958,6 +3016,7 @@ public:
     the query. 0 if no error on the master.
   */
   int	     slave_expected_error;
+  enum_sql_command last_sql_command;  // Last sql_command exceuted in mysql_execute_command()
 
   sp_rcontext *spcont;		// SP runtime context
   sp_cache   *sp_proc_cache;
@@ -3250,6 +3309,20 @@ public:
     MYSQL_SET_STATEMENT_LOCK_TIME(m_statement_psi,
                                   (utime_after_lock - start_utime));
   }
+  void get_time(QUERY_START_TIME_INFO *time_info)
+  {
+    time_info->start_time=          start_time;
+    time_info->start_time_sec_part= start_time_sec_part;
+    time_info->start_utime=         start_utime;
+    time_info->utime_after_lock=    utime_after_lock;
+  }
+  void set_time(QUERY_START_TIME_INFO *time_info)
+  {
+    start_time=          time_info->start_time;
+    start_time_sec_part= time_info->start_time_sec_part;
+    start_utime=         time_info->start_utime;
+    utime_after_lock=    time_info->utime_after_lock;
+  }
   ulonglong current_utime()  { return microsecond_interval_timer(); }
 
   /* Tell SHOW PROCESSLIST to show time from this point */
@@ -3268,7 +3341,7 @@ public:
   void update_server_status()
   {
     set_time_for_next_stage();
-    if (utime_after_query > utime_after_lock + variables.long_query_time)
+    if (utime_after_query >= utime_after_lock + variables.long_query_time)
       server_status|= SERVER_QUERY_WAS_SLOW;
   }
   inline ulonglong found_rows(void)
@@ -3376,17 +3449,31 @@ public:
   LEX_STRING *make_lex_string(const char* str, uint length)
   {
     LEX_STRING *lex_str;
-    if (!(lex_str= (LEX_STRING *)alloc_root(mem_root, sizeof(LEX_STRING))))
+    char *tmp;
+    if (!(lex_str= (LEX_STRING *) alloc_root(mem_root, sizeof(LEX_STRING) +
+                                             length+1)))
       return 0;
-    return make_lex_string(lex_str, str, length);
+    tmp= (char*) (lex_str+1);
+    lex_str->str= tmp;
+    memcpy(tmp, str, length);
+    tmp[length]= 0;
+    lex_str->length= length;
+    return lex_str;
   }
 
   LEX_CSTRING *make_clex_string(const char* str, uint length)
   {
     LEX_CSTRING *lex_str;
-    if (!(lex_str= (LEX_CSTRING *)alloc_root(mem_root, sizeof(LEX_CSTRING))))
+    char *tmp;
+    if (!(lex_str= (LEX_CSTRING *)alloc_root(mem_root, sizeof(LEX_CSTRING) +
+                                             length+1)))
       return 0;
-    return make_lex_string(lex_str, str, length);
+    tmp= (char*) (lex_str+1);
+    lex_str->str= tmp;
+    memcpy(tmp, str, length);
+    tmp[length]= 0;
+    lex_str->length= length;
+    return lex_str;
   }
 
   // Allocate LEX_STRING for character set conversion
@@ -3466,18 +3553,18 @@ public:
     @todo: To silence an error, one should use Internal_error_handler
     mechanism. Issuing an error that can be possibly later "cleared" is not
     compatible with other installed error handlers and audit plugins.
-    In future this function will be removed.
   */
-  inline void clear_error()
+  inline void clear_error(bool clear_diagnostics= 0)
   {
     DBUG_ENTER("clear_error");
-    if (get_stmt_da()->is_error())
+    if (get_stmt_da()->is_error() || clear_diagnostics)
       get_stmt_da()->reset_diagnostics_area();
     is_slave_error= 0;
     if (killed == KILL_BAD_DATA)
-      killed= NOT_KILLED; // KILL_BAD_DATA can be reset w/o a mutex
+      reset_killed();
     DBUG_VOID_RETURN;
   }
+
 #ifndef EMBEDDED_LIBRARY
   inline bool vio_ok() const { return net.vio != 0; }
   /** Return FALSE if connection to client is broken. */
@@ -3609,10 +3696,54 @@ public:
     state after execution of a non-prepared SQL statement.
   */
   void end_statement();
-  inline int killed_errno() const
+
+  /*
+    Mark thread to be killed, with optional error number and string.
+    string is not released, so it has to be allocted on thd mem_root
+    or be a global string
+
+    Ensure that we don't replace a kill with a lesser one. For example
+    if user has done 'kill_connection' we shouldn't replace it with
+    KILL_QUERY.
+  */
+  inline void set_killed(killed_state killed_arg,
+                         int killed_errno_arg= 0,
+                         const char *killed_err_msg_arg= 0)
   {
-    return ::killed_errno(killed);
+    mysql_mutex_lock(&LOCK_thd_kill);
+    set_killed_no_mutex(killed_arg, killed_errno_arg, killed_err_msg_arg);
+    mysql_mutex_unlock(&LOCK_thd_kill);
   }
+  /*
+    This is only used by THD::awake where we need to keep the lock mutex
+    locked over some time.
+    It's ok to have this inline, as in most cases killed_errno_arg will
+    be a constant 0 and most of the function will disappear.
+  */
+  inline void set_killed_no_mutex(killed_state killed_arg,
+                                  int killed_errno_arg= 0,
+                                  const char *killed_err_msg_arg= 0)
+  {
+    if (killed <= killed_arg)
+    {
+      killed= killed_arg;
+      if (killed_errno_arg)
+      {
+        /*
+          If alloc fails, we only remember the killed flag.
+          The worst things that can happen is that we get
+          a suboptimal error message.
+        */
+        if ((killed_err= (err_info*) alloc(sizeof(*killed_err))))
+        {
+          killed_err->no= killed_errno_arg;
+          ::strmake((char*) killed_err->msg, killed_err_msg_arg,
+                    sizeof(killed_err->msg)-1);
+        }
+      }
+    }
+  }
+  int killed_errno();
   inline void reset_killed()
   {
     /*
@@ -3621,9 +3752,10 @@ public:
     */
     if (killed != NOT_KILLED)
     {
-      mysql_mutex_lock(&LOCK_thd_data);
+      mysql_mutex_lock(&LOCK_thd_kill);
       killed= NOT_KILLED;
-      mysql_mutex_unlock(&LOCK_thd_data);
+      killed_err= 0;
+      mysql_mutex_unlock(&LOCK_thd_kill);
     }
   }
   inline void reset_kill_query()
@@ -3634,11 +3766,14 @@ public:
       mysys_var->abort= 0;
     }
   }
-  inline void send_kill_message() const
+  inline void send_kill_message()
   {
+    mysql_mutex_lock(&LOCK_thd_kill);
     int err= killed_errno();
     if (err)
-      my_message(err, ER_THD(this, err), MYF(0));
+      my_message(err, killed_err ? killed_err->msg : ER_THD(this, err),
+                 MYF(0));
+    mysql_mutex_unlock(&LOCK_thd_kill);
   }
   /* return TRUE if we will abort query if we make a warning now */
   inline bool really_abort_on_warning()
@@ -3652,6 +3787,9 @@ public:
   void restore_backup_open_tables_state(Open_tables_backup *backup);
   void reset_sub_statement_state(Sub_statement_state *backup, uint new_state);
   void restore_sub_statement_state(Sub_statement_state *backup);
+  void store_slow_query_state(Sub_statement_state *backup);
+  void reset_slow_query_state();
+  void add_slow_query_state(Sub_statement_state *backup);
   void set_n_backup_active_arena(Query_arena *set, Query_arena *backup);
   void restore_active_arena(Query_arena *set, Query_arena *backup);
 
@@ -4346,6 +4484,8 @@ public:
   bool                      wsrep_ignore_table;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
   ulong                     wsrep_affected_rows;
+  bool                      wsrep_replicate_GTID;
+  bool                      wsrep_skip_wsrep_GTID;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */
@@ -4451,6 +4591,12 @@ public:
   */
   bool restore_from_local_lex_to_old_lex(LEX *oldlex);
 
+  inline void prepare_logs_for_admin_command()
+  {
+    enable_slow_log&= !MY_TEST(variables.log_slow_disabled_statements &
+                               LOG_SLOW_DISABLE_ADMIN);
+    query_plan_flags|= QPLAN_ADMIN;
+  }
 };
 
 inline void add_to_active_threads(THD *thd)
@@ -4477,11 +4623,12 @@ inline void unlink_not_visible_thd(THD *thd)
 /** A short cut for thd->get_stmt_da()->set_ok_status(). */
 
 inline void
-my_ok(THD *thd, ulonglong affected_rows= 0, ulonglong id= 0,
+my_ok(THD *thd, ulonglong affected_rows_arg= 0, ulonglong id= 0,
         const char *message= NULL)
 {
-  thd->set_row_count_func(affected_rows);
-  thd->get_stmt_da()->set_ok_status(affected_rows, id, message);
+  thd->set_row_count_func(affected_rows_arg);
+  thd->set_affected_rows(affected_rows_arg);
+  thd->get_stmt_da()->set_ok_status(affected_rows_arg, id, message);
 }
 
 
@@ -6002,6 +6149,8 @@ public:
                     (const uchar *) m_name.str, m_name.length,
                     (const uchar *) other->m_name.str, other->m_name.length);
   }
+  void copy(MEM_ROOT *mem_root, const LEX_CSTRING &db,
+                                const LEX_CSTRING &name);
   // Export db and name as a qualified name string: 'db.name'
   size_t make_qname(char *dst, size_t dstlen) const
   {
@@ -6010,19 +6159,19 @@ public:
                        (int) m_name.length, m_name.str);
   }
   // Export db and name as a qualified name string, allocate on mem_root.
-  bool make_qname(THD *thd, LEX_CSTRING *dst) const
+  bool make_qname(MEM_ROOT *mem_root, LEX_CSTRING *dst) const
   {
     const uint dot= !!m_db.length;
     char *tmp;
     /* format: [database + dot] + name + '\0' */
     dst->length= m_db.length + dot + m_name.length;
-    if (!(dst->str= tmp= (char*) thd->alloc(dst->length + 1)))
+    if (!(dst->str= tmp= (char*) alloc_root(mem_root, dst->length + 1)))
       return true;
     sprintf(tmp, "%.*s%.*s%.*s",
             (int) m_db.length, (m_db.length ? m_db.str : ""),
             dot, ".",
             (int) m_name.length, m_name.str);
-    DBUG_ASSERT(ok_for_lower_case_names(m_db.str));
+    DBUG_SLOW_ASSERT(ok_for_lower_case_names(m_db.str));
     return false;
   }
 };
@@ -6042,6 +6191,25 @@ public:
   }
 };
 
+/* Functions to compare if two lex strings are equal */
+inline bool lex_string_cmp(CHARSET_INFO *charset,
+                           const LEX_CSTRING *a,
+                           const LEX_CSTRING *b)
+{
+  return my_strcasecmp(charset, a->str, b->str);
+}
+
+/*
+  Compare if two LEX_CSTRING are equal. Assumption is that
+  character set is ASCII (like for plugin names)
+*/
+inline bool lex_string_eq(const LEX_CSTRING *a,
+                          const LEX_CSTRING *b)
+{
+  if (a->length != b->length)
+    return 1;                                   /* Different */
+  return strcasecmp(a->str, b->str) != 0;
+}
 
 #endif /* MYSQL_SERVER */
 

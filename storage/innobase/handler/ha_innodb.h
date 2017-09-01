@@ -170,6 +170,10 @@ public:
 
 	int index_last(uchar * buf);
 
+	/* Copy a cached MySQL row. If requested, also avoids
+	overwriting non-read columns. */
+	void copy_cached_row(uchar *to_rec, const uchar *from_rec,
+				uint rec_length);
 	int rnd_init(bool scan);
 
 	int rnd_end();
@@ -579,11 +583,6 @@ bool thd_binlog_filter_ok(const MYSQL_THD thd);
 @retval 1 the query may generate row changes, 0 otherwise.
 */
 bool thd_sqlcom_can_generate_row_events(const MYSQL_THD thd);
-
-/** Gets information on the durability property requested by a thread.
-@param thd Thread handle
-@return a durability property. */
-durability_properties thd_get_durability_property(const MYSQL_THD thd);
 
 /** Is strict sql_mode set.
 @param thd Thread object

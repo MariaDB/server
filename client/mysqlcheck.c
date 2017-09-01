@@ -19,8 +19,6 @@
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
 #define CHECK_VERSION "2.7.4-MariaDB"
-/* Avoid warnings from %'s format */
-#define USING_MARIADB_SNPRINTF_EXTENSIONS
 
 #include "client_priv.h"
 #include <m_ctype.h>

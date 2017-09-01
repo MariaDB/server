@@ -16,11 +16,10 @@
 
 /* Definitions for MariaDB global transaction ID (GTID). */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
-#include "my_sys.h"
 #include "unireg.h"
-#include "my_global.h"
+#include "mariadb.h"
 #include "sql_base.h"
 #include "sql_parse.h"
 #include "key.h"
@@ -318,7 +317,7 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
   {
     if (rgi->gtid_ignore_duplicate_state==rpl_group_info::GTID_DUPLICATE_OWNER)
     {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
       Relay_log_info *rli= rgi->rli;
 #endif
       uint32 count= elem->owner_count;
@@ -579,7 +578,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                              void **out_hton)
 {
   TABLE_LIST tlist;
-  int err= 0;
+  int err= 0, not_sql_thread;
   bool table_opened= false;
   TABLE *table;
   list_element *delete_list= 0, *next, *cur, **next_ptr_ptr, **best_ptr_ptr;
@@ -607,7 +606,25 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
 
   if (!in_statement)
     thd->reset_for_next_command();
+
+  /*
+    Only the SQL thread can call select_gtid_pos_table without a mutex
+    Other threads needs to use a mutex and take into account that the
+    result may change during execution, so we have to make a copy.
+  */
+
+  if ((not_sql_thread= (thd->system_thread != SYSTEM_THREAD_SLAVE_SQL)))
+    mysql_mutex_lock(&LOCK_slave_state);
   select_gtid_pos_table(thd, &gtid_pos_table_name);
+  if (not_sql_thread)
+  {
+    LEX_CSTRING *tmp= thd->make_clex_string(gtid_pos_table_name.str,
+                                            gtid_pos_table_name.length);
+    mysql_mutex_unlock(&LOCK_slave_state);
+    if (!tmp)
+      DBUG_RETURN(1);
+    gtid_pos_table_name= *tmp;
+  }
 
   DBUG_EXECUTE_IF("gtid_inject_record_gtid",
                   {
@@ -2097,15 +2114,14 @@ void
 slave_connection_state::remove(const rpl_gtid *in_gtid)
 {
   uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   bool err;
   rpl_gtid *slave_gtid= &((entry *)rec)->gtid;
   DBUG_ASSERT(rec /* We should never try to remove not present domain_id. */);
   DBUG_ASSERT(slave_gtid->server_id == in_gtid->server_id);
   DBUG_ASSERT(slave_gtid->seq_no == in_gtid->seq_no);
+  err= 
 #endif
-
-  IF_DBUG(err=, )
     my_hash_delete(&hash, rec);
   DBUG_ASSERT(!err);
 }

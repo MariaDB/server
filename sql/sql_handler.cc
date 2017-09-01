@@ -52,7 +52,7 @@
   cursor points at the first record).
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_handler.h"
 #include "sql_base.h"                           // close_thread_tables
@@ -571,7 +571,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
     if (handler->keyno < 0 ||
         my_strcasecmp(&my_charset_latin1,
                       keyname,
-                      table->s->key_info[handler->keyno].name))
+                      table->s->key_info[handler->keyno].name.str))
     {
       if ((handler->keyno= find_type(keyname, &table->s->keynames,
                                      FIND_TYPE_NO_PREFIX) - 1) < 0)

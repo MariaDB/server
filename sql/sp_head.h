@@ -27,7 +27,6 @@
   are dependencies on include order for set_var.h and item.h. This
   will be resolved later.
 */
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"                            // Item
 #include "sp_pcontext.h"                        // sp_pcontext
@@ -125,7 +124,7 @@ public:
 
 
 bool
-check_routine_name(LEX_CSTRING *ident);
+check_routine_name(const LEX_CSTRING *ident);
 
 class sp_head :private Query_arena,
                public Database_qualified_name
@@ -320,7 +319,7 @@ public:
 
   /** Copy sp name from parser. */
   void
-  init_sp_name(THD *thd, const sp_name *spname);
+  init_sp_name(const sp_name *spname);
 
   /** Set the body-definition start position. */
   void
@@ -676,6 +675,8 @@ public:
     def->field_name= *name;
     return fill_spvar_definition(thd, def);
   }
+
+private:
   /**
     Set a column type reference for a parameter definition
   */
@@ -686,6 +687,31 @@ public:
     spvar->field_def.field_name= spvar->name;
     m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
   }
+
+  void fill_spvar_using_table_rowtype_reference(THD *thd,
+                                                sp_variable *spvar,
+                                                Table_ident *ref)
+  {
+    spvar->field_def.set_table_rowtype_ref(ref);
+    spvar->field_def.field_name= spvar->name;
+    fill_spvar_definition(thd, &spvar->field_def);
+    m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+  }
+
+public:
+  bool spvar_fill_row(THD *thd, sp_variable *spvar, Row_definition_list *def);
+  bool spvar_fill_type_reference(THD *thd, sp_variable *spvar,
+                                 const LEX_CSTRING &table,
+                                 const LEX_CSTRING &column);
+  bool spvar_fill_type_reference(THD *thd, sp_variable *spvar,
+                                 const LEX_CSTRING &db,
+                                 const LEX_CSTRING &table,
+                                 const LEX_CSTRING &column);
+  bool spvar_fill_table_rowtype_reference(THD *thd, sp_variable *spvar,
+                                          const LEX_CSTRING &table);
+  bool spvar_fill_table_rowtype_reference(THD *thd, sp_variable *spvar,
+                                          const LEX_CSTRING &db,
+                                          const LEX_CSTRING &table);
 
   void set_chistics(const st_sp_chistics &chistics);
   void set_info(longlong created, longlong modified,
@@ -790,6 +816,8 @@ public:
   }
 
   sp_pcontext *get_parse_context() { return m_pcont; }
+
+  bool check_execute_access(THD *thd) const;
 
 private:
 

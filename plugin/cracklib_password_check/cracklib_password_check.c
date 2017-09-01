@@ -13,17 +13,15 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <my_config.h>
 #include <mysql/plugin_password_validation.h>
 #include <crack.h>
 #include <string.h>
 #include <alloca.h>
-#include <my_sys.h>
 #include <mysqld_error.h>
 
 static char *dictionary;
 
-static int crackme(MYSQL_LEX_STRING *username, MYSQL_LEX_STRING *password)
+static int crackme(MYSQL_CONST_LEX_STRING *username, MYSQL_CONST_LEX_STRING *password)
 {
   char *user= alloca(username->length + 1);
   char *host;
@@ -37,11 +35,11 @@ static int crackme(MYSQL_LEX_STRING *username, MYSQL_LEX_STRING *password)
   if ((res= FascistCheckUser(password->str, dictionary, user, host)))
   {
     my_printf_error(ER_NOT_VALID_PASSWORD, "cracklib: %s",
-                    MYF(ME_JUST_WARNING), res);
-    return TRUE;
+                    ME_WARNING, res);
+    return 1;
   }
 
-  return FALSE;
+  return 0;
 }
 
 static MYSQL_SYSVAR_STR(dictionary, dictionary, PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

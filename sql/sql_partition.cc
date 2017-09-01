@@ -47,7 +47,7 @@
 /* Some general useful functions */
 
 #define MYSQL_LEX 1
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_partition.h"
 #include "key.h"                            // key_restore

@@ -14,6 +14,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #define MYSQL_SERVER 1
+#include <my_global.h>
 #include "mysql_version.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
@@ -1665,8 +1666,8 @@ int spider_db_append_key_where_internal(
 
   if (sql_kind == SPIDER_SQL_KIND_HANDLER)
   {
-    const char *key_name = key_info->name;
-    key_name_length = strlen(key_name);
+    const char *key_name = key_info->name.str;
+    key_name_length =      key_info->name.length;
     if (str->reserve(SPIDER_SQL_READ_LEN +
       /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + key_name_length))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4134,8 +4135,10 @@ void spider_db_discard_multiple_result(
     if (!conn->db_conn->cmp_request_key_to_snd(&request_key))
       break;
     if ((result = conn->db_conn->use_result(&request_key, &error_num)))
+    {
       result->free_result();
       delete result;
+    }
   } while (!conn->db_conn->next_result());
   DBUG_VOID_RETURN;
 }

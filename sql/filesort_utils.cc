@@ -13,11 +13,11 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
+#include "mariadb.h"
 #include "filesort_utils.h"
 #include "sql_const.h"
 #include "sql_sort.h"
 #include "table.h"
-#include "my_sys.h"
 
 
 namespace {

@@ -1,4 +1,4 @@
-#include <my_config.h>
+#include <my_global.h>
 
 
 /* MySQL includes */
@@ -6,7 +6,6 @@
 #include "./my_bit.h"
 #include "./my_stacktrace.h"
 #include "./sql_table.h"
-#include "./my_global.h"
 #include "./log.h"
 #include <mysys_err.h>
 #include <mysql/psi/mysql_table.h>
@@ -93,5 +92,33 @@ bool Regex_list_handler::matches(const std::string& str) const
   mysql_rwlock_unlock(&m_rwlock);
 
   return found;
+}
+
+// Split a string based on a delimiter.  Two delimiters in a row will not add
+// an empty string in the set.
+std::vector<std::string> split_into_vector(const std::string& input,
+                                           char delimiter)
+{
+  size_t                   pos;
+  size_t                   start = 0;
+  std::vector<std::string> elems;
+
+  // Find next delimiter
+  while ((pos = input.find(delimiter, start)) != std::string::npos)
+  {
+    // If there is any data since the last delimiter add it to the list
+    if (pos > start)
+      elems.push_back(input.substr(start, pos - start));
+
+    // Set our start position to the character after the delimiter
+    start = pos + 1;
+  }
+
+  // Add a possible string since the last delimiter
+  if (input.length() > start)
+    elems.push_back(input.substr(start));
+
+  // Return the resulting list back to the caller
+  return elems;
 }
 

@@ -6,13 +6,11 @@
  * See COPYRIGHT.txt for details.
  */
 
-#include <my_config.h>
-#include <sys/types.h>
+#include <my_global.h>
 #include <netinet/in.h>
 #include <errno.h>
 #include <poll.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <stdexcept>
 #include <signal.h>
 #include <list>

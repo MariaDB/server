@@ -3,14 +3,14 @@ CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb DATA DIRECTORY = '
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 show warnings;
 Level	Code	Message
-Warning	1296	Got error 200 'Specifying DATA DIRECTORY for an individual table is not supported.' from ROCKSDB
+Warning	1296	Got error 198 'Specifying DATA DIRECTORY for an individual table is not supported.' from ROCKSDB
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine ROCKSDB
 CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb INDEX DIRECTORY = '/foo/bar/index';
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 show warnings;
 Level	Code	Message
-Warning	1296	Got error 201 'Specifying INDEX DIRECTORY for an individual table is not supported.' from ROCKSDB
+Warning	1296	Got error 199 'Specifying INDEX DIRECTORY for an individual table is not supported.' from ROCKSDB
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine ROCKSDB
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=rocksdb PARTITION BY RANGE (id)

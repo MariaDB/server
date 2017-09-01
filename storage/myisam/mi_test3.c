@@ -17,6 +17,7 @@
 
 #ifndef _WIN32 /*no fork() in Windows*/
 
+#include <my_global.h>
 #include "myisam.h"
 #include <sys/types.h>
 #ifdef HAVE_SYS_WAIT_H

@@ -16,8 +16,6 @@
 #ifndef MY_DIR_H
 #define MY_DIR_H
 
-#include "my_global.h"
-
 #include <sys/stat.h>
 
 #ifdef	__cplusplus

@@ -25,7 +25,7 @@
   in the relevant fields. Empty strings comes last.
 */
 
-#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "sql_acl.h"         // MYSQL_DB_FIELD_COUNT, ACL_ACCESS
 #include "sql_base.h"                           // close_mysql_tables
@@ -362,8 +362,8 @@ static bool show_database_privileges(THD *, const char *, const char *,
                                      char *, size_t);
 static bool show_table_and_column_privileges(THD *, const char *, const char *,
                                              char *, size_t);
-static int show_routine_grants(THD *, const char *, const char *, HASH *,
-                               const char *, int, char *, int);
+static int show_routine_grants(THD *, const char *, const char *,
+                               const Sp_handler *sph, char *, int);
 
 class Grant_tables;
 class User_table;
@@ -1594,12 +1594,10 @@ static const char *fix_plugin_ptr(const char *name)
 */
 static bool fix_user_plugin_ptr(ACL_USER *user)
 {
-  if (my_strcasecmp(system_charset_info, user->plugin.str,
-                    native_password_plugin_name.str) == 0)
+  if (lex_string_eq(&user->plugin, &native_password_plugin_name) == 0)
     user->plugin= native_password_plugin_name;
   else
-  if (my_strcasecmp(system_charset_info, user->plugin.str,
-                    old_password_plugin_name.str) == 0)
+  if (lex_string_eq(&user->plugin, &old_password_plugin_name) == 0)
     user->plugin= old_password_plugin_name;
   else
     return true;
@@ -1639,12 +1637,10 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
   DBUG_ASSERT(user->plugin.length || !user->auth.length);
   DBUG_ASSERT(!(user->plugin.length && (user->pwtext.length || user->pwhash.length)));
 
-  if (my_strcasecmp(system_charset_info, user->plugin.str,
-                    native_password_plugin_name.str) == 0)
+  if (lex_string_eq(&user->plugin, &native_password_plugin_name) == 0)
     check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
   else
-  if (my_strcasecmp(system_charset_info, user->plugin.str,
-                    old_password_plugin_name.str) == 0)
+  if (lex_string_eq(&user->plugin, &old_password_plugin_name) == 0)
     check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
   else
   if (user->plugin.length)
@@ -1832,7 +1828,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   {
     if (host_table.init_read_record(&read_record_info, thd))
       DBUG_RETURN(true);
-    while (!(read_record_info.read_record(&read_record_info)))
+    while (!(read_record_info.read_record()))
     {
       ACL_HOST host;
       update_hostname(&host.host, get_field(&acl_memroot, host_table.host()));
@@ -1936,7 +1932,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   }
 
   allow_all_hosts=0;
-  while (!(read_record_info.read_record(&read_record_info)))
+  while (!(read_record_info.read_record()))
   {
     ACL_USER user;
     bool is_role= FALSE;
@@ -2148,7 +2144,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   const Db_table& db_table= tables.db_table();
   if (db_table.init_read_record(&read_record_info, thd))
     DBUG_RETURN(TRUE);
-  while (!(read_record_info.read_record(&read_record_info)))
+  while (!(read_record_info.read_record()))
   {
     ACL_DB db;
     char *db_name;
@@ -2215,7 +2211,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   {
     if (proxies_priv_table.init_read_record(&read_record_info, thd))
       DBUG_RETURN(TRUE);
-    while (!(read_record_info.read_record(&read_record_info)))
+    while (!(read_record_info.read_record()))
     {
       ACL_PROXY_USER proxy;
       proxy.init(proxies_priv_table, &acl_memroot);
@@ -2244,7 +2240,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
     MEM_ROOT temp_root;
     init_alloc_root(&temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
-    while (!(read_record_info.read_record(&read_record_info)))
+    while (!(read_record_info.read_record()))
     {
       char *hostname= safe_str(get_field(&temp_root, roles_mapping_table.host()));
       char *username= safe_str(get_field(&temp_root, roles_mapping_table.user()));
@@ -3175,7 +3171,7 @@ static void remove_ptr_from_dynarray(DYNAMIC_ARRAY *array, void *ptr)
     {
       DBUG_ASSERT(!found);
       delete_dynamic_element(array, i);
-      IF_DBUG(found= true, break);
+      IF_DBUG_ASSERT(found= true, break);
     }
   }
   DBUG_ASSERT(found);
@@ -7630,8 +7626,11 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       /*
         It is subquery in the FROM clause. VIEW set t_ref->derived after
         table opening, but this function always called before table opening.
+
+        NOTE: is_derived() can't be used here because subquery in this case
+        the FROM clase (derived tables) can be not be marked yet.
       */
-      if (!t_ref->referencing_view)
+      if (t_ref->is_anonymous_derived_table() || t_ref->schema_table)
       {
         /*
           If it's a temporary table created for a subquery in the FROM
@@ -8378,18 +8377,18 @@ static void add_user_parameters(String *result, ACL_USER* acl_user,
     {
       DBUG_ASSERT(acl_user->salt_len);
       result->append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD '"));
-      result->append(acl_user->auth_string.str, acl_user->auth_string.length);
+      result->append(&acl_user->auth_string);
       result->append('\'');
     }
   }
   else
   {
     result->append(STRING_WITH_LEN(" IDENTIFIED VIA "));
-    result->append(acl_user->plugin.str, acl_user->plugin.length);
+    result->append(&acl_user->plugin);
     if (acl_user->auth_string.length)
     {
       result->append(STRING_WITH_LEN(" USING '"));
-      result->append(acl_user->auth_string.str, acl_user->auth_string.length);
+      result->append(&acl_user->auth_string);
       result->append('\'');
     }
   }
@@ -8484,12 +8483,12 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
   if (show_table_and_column_privileges(thd, role->user.str, "", buff, sizeof(buff)))
     return TRUE;
 
-  if (show_routine_grants(thd, role->user.str, "", &proc_priv_hash,
-                          STRING_WITH_LEN("PROCEDURE"), buff, sizeof(buff)))
+  if (show_routine_grants(thd, role->user.str, "", &sp_handler_procedure,
+                          buff, sizeof(buff)))
     return TRUE;
 
-  if (show_routine_grants(thd, role->user.str, "", &func_priv_hash,
-                          STRING_WITH_LEN("FUNCTION"), buff, sizeof(buff)))
+  if (show_routine_grants(thd, role->user.str, "", &sp_handler_function,
+                          buff, sizeof(buff)))
     return TRUE;
 
   return FALSE;
@@ -8709,12 +8708,12 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     if (show_table_and_column_privileges(thd, username, hostname, buff, sizeof(buff)))
       goto end;
 
-    if (show_routine_grants(thd, username, hostname, &proc_priv_hash,
-                            STRING_WITH_LEN("PROCEDURE"), buff, sizeof(buff)))
+    if (show_routine_grants(thd, username, hostname, &sp_handler_procedure,
+                            buff, sizeof(buff)))
       goto end;
 
-    if (show_routine_grants(thd, username, hostname, &func_priv_hash,
-                            STRING_WITH_LEN("FUNCTION"), buff, sizeof(buff)))
+    if (show_routine_grants(thd, username, hostname, &sp_handler_function,
+                            buff, sizeof(buff)))
       goto end;
 
     if (show_proxy_grants(thd, username, hostname, buff, sizeof(buff)))
@@ -9094,12 +9093,13 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
 
 static int show_routine_grants(THD* thd,
                                const char *username, const char *hostname,
-                               HASH *hash, const char *type, int typelen,
+                               const Sp_handler *sph,
                                char *buff, int buffsize)
 {
   uint counter, index;
   int error= 0;
   Protocol *protocol= thd->protocol;
+  HASH *hash= sph->get_priv_hash();
   /* Add routine access */
   for (index=0 ; index < hash->records ; index++)
   {
@@ -9153,7 +9153,7 @@ static int show_routine_grants(THD* thd,
 	  }
 	}
 	global.append(STRING_WITH_LEN(" ON "));
-        global.append(type,typelen);
+        global.append(sph->type_lex_cstring());
         global.append(' ');
 	append_identifier(thd, &global, grant_proc->db,
 			  strlen(grant_proc->db));
@@ -11196,7 +11196,7 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
   if (!is_role)
   {
     if (data->user->default_rolename.length &&
-        !strcmp(data->user->default_rolename.str, role->user.str))
+        !lex_string_eq(&data->user->default_rolename, &role->user))
       table->field[3]->store(STRING_WITH_LEN("YES"), cs);
     else
       table->field[3]->store(STRING_WITH_LEN("NO"), cs);
@@ -12765,8 +12765,8 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     restarted and a server auth plugin will read the data that the client
     has just send. Cache them to return in the next server_mpvio_read_packet().
   */
-  if (my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
-                    plugin_name(mpvio->plugin)->str) != 0)
+  if (lex_string_eq(&mpvio->acl_user->plugin,
+                    plugin_name(mpvio->plugin)) != 0)
   {
     mpvio->cached_client_reply.pkt= passwd;
     mpvio->cached_client_reply.pkt_len= passwd_len;
@@ -13196,8 +13196,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   {
     DBUG_ASSERT(mpvio.acl_user);
     DBUG_ASSERT(command == COM_CHANGE_USER ||
-                my_strcasecmp(system_charset_info, auth_plugin_name->str,
-                              mpvio.acl_user->plugin.str));
+                lex_string_eq(auth_plugin_name, &mpvio.acl_user->plugin));
     auth_plugin_name= &mpvio.acl_user->plugin;
     res= do_auth_once(thd, auth_plugin_name, &mpvio);
   }

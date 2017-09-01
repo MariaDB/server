@@ -1,0 +1,15 @@
+create table t (i int);
+insert into t values (1), (2), (3), (4), (5);
+set session rocksdb_write_batch_max_bytes = 1000;
+insert into t values (1), (2), (3), (4), (5);
+set session rocksdb_write_batch_max_bytes = 10;
+insert into t values (1), (2), (3), (4), (5);
+ERROR HY000: Status error 10 received from RocksDB: Operation aborted: Memory limit reached
+set session rocksdb_write_batch_max_bytes = 0;
+insert into t values (1), (2), (3), (4), (5);
+set session rocksdb_write_batch_max_bytes = 10;
+begin;
+insert into t values (1), (2), (3), (4), (5);
+ERROR HY000: Status error 10 received from RocksDB: Operation aborted: Memory limit reached
+rollback;
+drop table t;

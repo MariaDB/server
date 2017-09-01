@@ -13,7 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_help.h"
@@ -202,7 +202,7 @@ int search_topics(THD *thd, TABLE *topics, struct st_find_field *find_fields,
                        FALSE))
     DBUG_RETURN(0);
 
-  while (!read_record_info.read_record(&read_record_info))
+  while (!read_record_info.read_record())
   {
     if (!select->cond->val_int())		// Doesn't match like
       continue;
@@ -246,7 +246,7 @@ int search_keyword(THD *thd, TABLE *keywords,
                        FALSE))
     DBUG_RETURN(0);
 
-  while (!read_record_info.read_record(&read_record_info) && count<2)
+  while (!read_record_info.read_record() && count<2)
   {
     if (!select->cond->val_int())		// Dosn't match like
       continue;
@@ -380,7 +380,7 @@ int search_categories(THD *thd, TABLE *categories,
   if (init_read_record(&read_record_info, thd, categories, select, NULL,
                        1, 0, FALSE))
     DBUG_RETURN(0);
-  while (!read_record_info.read_record(&read_record_info))
+  while (!read_record_info.read_record())
   {
     if (select && !select->cond->val_int())
       continue;
@@ -418,7 +418,7 @@ void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
                        FALSE))
     DBUG_VOID_RETURN;
 
-  while (!read_record_info.read_record(&read_record_info))
+  while (!read_record_info.read_record())
   {
     if (!select->cond->val_int())
       continue;

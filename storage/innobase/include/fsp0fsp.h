@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -158,8 +158,6 @@ descriptor page, but used only in the first. */
 					FSP_FREE_LIMIT at a time */
 /* @} */
 
-#ifndef UNIV_INNOCHECKSUM
-
 /* @defgroup File Segment Inode Constants (moved from fsp0fsp.c) @{ */
 
 /*			FILE SEGMENT INODE
@@ -293,6 +291,7 @@ the extent are free and which contain old tuple version to clean. */
 /** Offset of the descriptor array on a descriptor page */
 #define	XDES_ARR_OFFSET		(FSP_HEADER_OFFSET + FSP_HEADER_SIZE)
 
+#ifndef UNIV_INNOCHECKSUM
 /* @} */
 
 /**********************************************************************//**
@@ -589,15 +588,12 @@ fseg_free_page_func(
 # define fseg_free_page(header, space_id, page, ahi, mtr)	\
 	fseg_free_page_func(header, space_id, page, mtr)
 #endif /* BTR_CUR_HASH_ADAPT */
-/**********************************************************************//**
-Checks if a single page of a segment is free.
-@return true if free */
+/** Determine whether a page is free.
+@param[in,out]	space	tablespace
+@param[in]	page	page number
+@return whether the page is marked as free */
 bool
-fseg_page_is_free(
-/*==============*/
-	fseg_header_t*	seg_header,	/*!< in: segment header */
-	ulint		space_id,	/*!< in: space id */
-	ulint		page)		/*!< in: page offset */
+fseg_page_is_free(fil_space_t* space, unsigned page)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /**********************************************************************//**
 Frees part of a segment. This function can be used to free a segment
@@ -834,22 +830,6 @@ ulint
 xdes_calc_descriptor_page(
 	const page_size_t&	page_size,
 	ulint			offset);
-
-/**********************************************************************//**
-Checks if a single page is free.
-@return	true if free */
-UNIV_INTERN
-bool
-fsp_page_is_free_func(
-/*==============*/
-	ulint		space,		/*!< in: space id */
-	ulint		page,		/*!< in: page offset */
-	mtr_t*		mtr,		/*!< in/out: mini-transaction */
-	const char *file,
-	unsigned line);
-
-#define fsp_page_is_free(space,page,mtr)				\
-	fsp_page_is_free_func(space,page,mtr, __FILE__, __LINE__)
 
 #endif /* UNIV_INNOCHECKSUM */
 

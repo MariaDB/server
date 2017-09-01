@@ -13,6 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
+#include "mariadb.h"
 #include <mysqld.h>
 #include "sql_base.h"
 #include "rpl_filter.h"
@@ -42,6 +43,7 @@ void wsrep_cleanup_transaction(THD *thd)
   thd->wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
   thd->wsrep_exec_mode= LOCAL_STATE;
   thd->wsrep_affected_rows= 0;
+  thd->wsrep_skip_wsrep_GTID= false;
   return;
 }
 

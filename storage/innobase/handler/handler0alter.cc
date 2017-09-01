@@ -277,7 +277,7 @@ innobase_get_int_col_max_value(
 	const Field*	field);	/*!< in: MySQL field */
 
 /* Report an InnoDB error to the client by invoking my_error(). */
-static UNIV_COLD MY_ATTRIBUTE((nonnull))
+static ATTRIBUTE_COLD __attribute__((nonnull))
 void
 my_error_innodb(
 /*============*/
@@ -326,14 +326,22 @@ my_error_innodb(
 	case DB_CORRUPTION:
 		my_error(ER_NOT_KEYFILE, MYF(0), table);
 		break;
-	case DB_TOO_BIG_RECORD:
-		/* We limit max record size to 16k for 64k page size. */
-		my_error(ER_TOO_BIG_ROWSIZE, MYF(0),
-			 srv_page_size == UNIV_PAGE_SIZE_MAX
-			 ? REC_MAX_DATA_SIZE - 1
-			 : page_get_free_space_of_empty(
-				 flags & DICT_TF_COMPACT) / 2);
+	case DB_TOO_BIG_RECORD: {
+		/* Note that in page0zip.ic page_zip_rec_needs_ext() rec_size
+		is limited to COMPRESSED_REC_MAX_DATA_SIZE (16K) or
+		REDUNDANT_REC_MAX_DATA_SIZE (16K-1). */
+		bool comp = !!(flags & DICT_TF_COMPACT);
+		ulint free_space = page_get_free_space_of_empty(comp) / 2;
+
+		if (free_space >= (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+					  REDUNDANT_REC_MAX_DATA_SIZE)) {
+			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
+		}
+
+		my_error(ER_TOO_BIG_ROWSIZE, MYF(0), free_space);
 		break;
+	}
 	case DB_INVALID_NULL:
 		/* TODO: report the row, as we do for DB_DUPLICATE_KEY */
 		my_error(ER_INVALID_USE_OF_NULL, MYF(0));
@@ -725,6 +733,13 @@ ha_innobase::check_if_supported_inplace_alter(
 
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		}
+
+		/* Disable online ALTER TABLE for compressed columns until
+		MDEV-13359 - "Online ALTER TABLE will be disabled for compressed columns"
+		is fixed. */
+		if (field->compression_method()) {
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
 	}
 
 	ulint n_indexes = UT_LIST_GET_LEN((m_prebuilt->table)->indexes);
@@ -925,7 +940,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		for (uint i = 0; i < ha_alter_info->index_drop_count; i++) {
 			if (!my_strcasecmp(
 				    system_charset_info,
-				    ha_alter_info->index_drop_buffer[i]->name,
+				    ha_alter_info->index_drop_buffer[i]->name.str,
 				    FTS_DOC_ID_INDEX_NAME)) {
 				ha_alter_info->unsupported_reason = innobase_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_CHANGE_FTS);
@@ -1023,6 +1038,12 @@ ha_innobase::check_if_supported_inplace_alter(
 			    || (ha_alter_info->handler_flags
 				& Alter_inplace_info::ADD_COLUMN));
 
+		/* Disable online ALTER TABLE for compressed columns until
+		MDEV-13359 - "Online ALTER TABLE will be disabled for compressed columns"
+		is fixed. */
+		if (cf->compression_method()) {
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
 		if (const Field* f = cf->field) {
 			/* This could be changing an existing column
 			from NULL to NOT NULL. */
@@ -2007,7 +2028,7 @@ innobase_check_index_keys(
 			const KEY&	key2 = info->key_info_buffer[
 				info->index_add_buffer[i]];
 
-			if (0 == strcmp(key.name, key2.name)) {
+			if (0 == strcmp(key.name.str, key2.name.str)) {
 				my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
 					 key.name);
 
@@ -2023,7 +2044,7 @@ innobase_check_index_keys(
 		     index; index = dict_table_get_next_index(index)) {
 
 			if (index->is_committed()
-			    && !strcmp(key.name, index->name)) {
+			    && !strcmp(key.name.str, index->name)) {
 				break;
 			}
 		}
@@ -2048,7 +2069,8 @@ innobase_check_index_keys(
 				const KEY*	drop_key
 					= info->index_drop_buffer[i];
 
-				if (0 == strcmp(key.name, drop_key->name)) {
+				if (0 == strcmp(key.name.str,
+                                                drop_key->name.str)) {
 					goto name_ok;
 				}
 			}
@@ -2232,7 +2254,7 @@ innobase_create_index_def(
 	index->parser = NULL;
 	index->key_number = key_number;
 	index->n_fields = n_fields;
-	index->name = mem_heap_strdup(heap, key->name);
+	index->name = mem_heap_strdup(heap, key->name.str);
 	index->rebuild = new_clustered;
 
 	if (key_clustered) {
@@ -2252,8 +2274,8 @@ innobase_create_index_def(
 
 		if (key->flags & HA_USES_PARSER) {
 			for (ulint j = 0; j < altered_table->s->keys; j++) {
-				if (ut_strcmp(altered_table->key_info[j].name,
-					      key->name) == 0) {
+				if (ut_strcmp(altered_table->key_info[j].name.str,
+					      key->name.str) == 0) {
 					ut_ad(altered_table->key_info[j].flags
 					      & HA_USES_PARSER);
 
@@ -2429,13 +2451,13 @@ innobase_fts_check_doc_id_index(
 			const KEY& key = altered_table->key_info[i];
 
 			if (innobase_strcasecmp(
-				    key.name, FTS_DOC_ID_INDEX_NAME)) {
+				    key.name.str, FTS_DOC_ID_INDEX_NAME)) {
 				continue;
 			}
 
 			if ((key.flags & HA_NOSAME)
 			    && key.user_defined_key_parts == 1
-			    && !strcmp(key.name, FTS_DOC_ID_INDEX_NAME)
+			    && !strcmp(key.name.str, FTS_DOC_ID_INDEX_NAME)
 			    && !strcmp(key.key_part[0].field->field_name.str,
 				       FTS_DOC_ID_COL_NAME)) {
 				if (fts_doc_col_no) {
@@ -2506,7 +2528,7 @@ innobase_fts_check_doc_id_index_in_def(
 	for (ulint j = 0; j < n_key; j++) {
 		const KEY*	key = &key_info[j];
 
-		if (innobase_strcasecmp(key->name, FTS_DOC_ID_INDEX_NAME)) {
+		if (innobase_strcasecmp(key->name.str, FTS_DOC_ID_INDEX_NAME)) {
 			continue;
 		}
 
@@ -2514,7 +2536,7 @@ innobase_fts_check_doc_id_index_in_def(
 		named as "FTS_DOC_ID_INDEX" and on column "FTS_DOC_ID" */
 		if (!(key->flags & HA_NOSAME)
 		    || key->user_defined_key_parts != 1
-		    || strcmp(key->name, FTS_DOC_ID_INDEX_NAME)
+		    || strcmp(key->name.str, FTS_DOC_ID_INDEX_NAME)
 		    || strcmp(key->key_part[0].field->field_name.str,
 			      FTS_DOC_ID_COL_NAME)) {
 			return(FTS_INCORRECT_DOC_ID_INDEX);
@@ -2586,7 +2608,7 @@ innobase_create_key_defs(
 
 	new_primary = n_add > 0
 		&& !my_strcasecmp(system_charset_info,
-				  key_info[*add].name, "PRIMARY");
+				  key_info[*add].name.str, "PRIMARY");
 	n_fts_add = 0;
 
 	/* If there is a UNIQUE INDEX consisting entirely of NOT NULL
@@ -3300,8 +3322,8 @@ innobase_pk_col_prefix_compare(
 	ulint	new_prefix_len,
 	ulint	old_prefix_len)
 {
-	ut_ad(new_prefix_len < REC_MAX_DATA_SIZE);
-	ut_ad(old_prefix_len < REC_MAX_DATA_SIZE);
+	ut_ad(new_prefix_len < COMPRESSED_REC_MAX_DATA_SIZE);
+	ut_ad(old_prefix_len < COMPRESSED_REC_MAX_DATA_SIZE);
 
 	if (new_prefix_len == old_prefix_len) {
 		return(0);
@@ -5326,7 +5348,8 @@ new_clustered_failed:
 					goto error_handling;);
 			rw_lock_x_lock(&ctx->add_index[a]->lock);
 
-			bool ok = row_log_allocate(ctx->add_index[a],
+			bool ok = row_log_allocate(ctx->prebuilt->trx,
+						   ctx->add_index[a],
 						   NULL, true, NULL, NULL,
 						   path);
 			rw_lock_x_unlock(&ctx->add_index[a]->lock);
@@ -5376,6 +5399,7 @@ new_clustered_failed:
 			/* Allocate a log for online table rebuild. */
 			rw_lock_x_lock(&clust_index->lock);
 			bool ok = row_log_allocate(
+				ctx->prebuilt->trx,
 				clust_index, ctx->new_table,
 				!(ha_alter_info->handler_flags
 				  & Alter_inplace_info::ADD_PK_INDEX),
@@ -6323,7 +6347,7 @@ found_fk:
 				= ha_alter_info->index_drop_buffer[i];
 			dict_index_t*	index
 				= dict_table_get_index_on_name(
-					indexed_table, key->name);
+					indexed_table, key->name.str);
 
 			if (!index) {
 				push_warning_printf(
@@ -6365,7 +6389,7 @@ found_fk:
 				if (!my_strcasecmp(
 					    system_charset_info,
 					    FTS_DOC_ID_INDEX_NAME,
-					    table->key_info[i].name)) {
+					    table->key_info[i].name.str)) {
 					/* The index exists in the MySQL
 					data dictionary. Do not drop it,
 					even though it is no longer needed
@@ -6785,7 +6809,7 @@ get_error_key_name(
 	} else if (ha_alter_info->key_count == 0) {
 		return(dict_table_get_first_index(table)->name);
 	} else {
-		return(ha_alter_info->key_info_buffer[error_key_num].name);
+		return(ha_alter_info->key_info_buffer[error_key_num].name.str);
 	}
 }
 
@@ -6817,6 +6841,7 @@ ha_innobase::inplace_alter_table(
 	DBUG_ENTER("inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
 
+	ut_ad(!sync_check_iterate(sync_check()));
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
 
@@ -8720,7 +8745,7 @@ alter_stats_norebuild(
 		char	errstr[1024];
 
 		if (dict_stats_drop_index(
-			    ctx->new_table->name.m_name, key->name,
+			    ctx->new_table->name.m_name, key->name.str,
 			    errstr, sizeof errstr) != DB_SUCCESS) {
 			push_warning(thd,
 				     Sql_condition::WARN_LEVEL_WARN,

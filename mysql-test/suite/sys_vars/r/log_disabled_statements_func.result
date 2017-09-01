@@ -1,0 +1,82 @@
+SET @old_log_output=                @@global.log_output;
+SET @old_log_disable_statements=    @@global.log_disabled_statements;
+CREATE TABLE t1 (i INT PRIMARY KEY AUTO_INCREMENT, j VARCHAR(255) ) ENGINE=MyISAM;
+insert into t1 (j) values ('a'),('b'),('c'),('d');
+SET GLOBAL log_output = 'file,table';
+CREATE PROCEDURE slow()
+BEGIN
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b';
+SELECT count(*) from t1 where j>'a';
+END
+$
+select @@log_disabled_statements;
+@@log_disabled_statements
+sp
+TRUNCATE TABLE mysql.general_log;
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+CALL slow();
+count(if(sleep(1) >= 0,0,NULL))
+2
+count(*)
+3
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part2';
+count(if(sleep(1) >= 0,0,NULL))
+2
+-->
+SELECT argument FROM mysql.general_log where command_type <> "Close stmt" and command_type <> "Prepare" and argument not like "%general_log%";
+argument
+check table t1
+CALL slow()
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part2'
+<--
+TRUNCATE TABLE mysql.general_log;
+SET SESSION log_disabled_statements="";
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+CALL slow();
+count(if(sleep(1) >= 0,0,NULL))
+2
+count(*)
+3
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part3';
+count(if(sleep(1) >= 0,0,NULL))
+2
+-->
+SELECT argument FROM mysql.general_log where command_type <> "Close stmt" and command_type <> "Prepare" and argument not like "%general_log%";
+argument
+SET SESSION log_disabled_statements=""
+check table t1
+CALL slow()
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b'
+SELECT count(*) from t1 where j>'a'
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part3'
+<--
+TRUNCATE TABLE mysql.general_log;
+SET SESSION log_disabled_statements="sp,slave";
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+CALL slow();
+count(if(sleep(1) >= 0,0,NULL))
+2
+count(*)
+3
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part4';
+count(if(sleep(1) >= 0,0,NULL))
+2
+-->
+SELECT argument FROM mysql.general_log where command_type <> "Close stmt" and command_type <> "Prepare" and argument not like "%general_log%";
+argument
+SET SESSION log_disabled_statements="sp,slave"
+check table t1
+CALL slow()
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part4'
+<--
+DROP TABLE t1;
+DROP PROCEDURE slow;
+TRUNCATE TABLE mysql.general_log;
+SET @@global.log_output=              @old_log_output;
+SET @@global.log_disabled_statements= @old_log_disable_statements;

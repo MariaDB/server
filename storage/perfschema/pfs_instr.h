@@ -29,12 +29,12 @@ struct PFS_table_share;
 struct PFS_thread_class;
 struct PFS_socket_class;
 
+#include "my_global.h"
 #ifdef __WIN__
 #include <winsock2.h>
 #else
 #include <arpa/inet.h>
 #endif
-#include "my_global.h"
 #include "my_compiler.h"
 #include "pfs_lock.h"
 #include "pfs_stat.h"

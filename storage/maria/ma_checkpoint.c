@@ -131,7 +131,7 @@ int ma_checkpoint_execute(CHECKPOINT_LEVEL level, my_bool no_wait)
 
   result= really_execute_checkpoint();
   DBUG_EXECUTE_IF("maria_crash_after_checkpoint",
-                  { DBUG_PRINT("maria_crash", ("now")); DBUG_ABORT(); });
+                  { DBUG_PRINT("maria_crash", ("now")); DBUG_SUICIDE(); });
 
   mysql_cond_broadcast(&COND_checkpoint);
 end:
@@ -426,7 +426,7 @@ void ma_checkpoint_end(void)
                     flush_all_tables(1);
                   });
   DBUG_EXECUTE_IF("maria_crash",
-                  { DBUG_PRINT("maria_crash", ("now")); DBUG_ABORT(); });
+                  { DBUG_PRINT("maria_crash", ("now")); DBUG_SUICIDE(); });
 
   if (checkpoint_control.inited)
   {

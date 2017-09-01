@@ -19,6 +19,7 @@
   All methods pertaining to temporary tables.
 */
 
+#include "mariadb.h"
 #include "sql_acl.h"                            /* TMP_TABLE_ACLS */
 #include "sql_base.h"                           /* tdc_create_key */
 #include "lock.h"                               /* mysql_lock_remove */
@@ -1118,6 +1119,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   table->grant.privilege= TMP_TABLE_ACLS;
   share->tmp_table= (table->file->has_transaction_manager() ?
                      TRANSACTIONAL_TMP_TABLE : NON_TRANSACTIONAL_TMP_TABLE);
+  share->not_usable_by_query_cache= 1;
 
   table->pos_in_table_list= 0;
   table->query_id= query_id;

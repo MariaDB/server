@@ -18,6 +18,7 @@
   Miscellaneous global dependencies (implementation).
 */
 
+#include <my_global.h>
 #include "pfs_global.h"
 #include <my_sys.h>
 #include <my_net.h>

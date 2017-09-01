@@ -15,7 +15,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 
-#include <my_global.h>
+#include "mariadb.h"
 #include <my_sys.h>
 #include <m_string.h>
 

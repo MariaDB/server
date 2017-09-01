@@ -17,7 +17,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_plist.h"
 #include "sql_list.h"                           /* Sql_alloc */
 #include "mdl.h"
@@ -694,6 +693,8 @@ struct TABLE_SHARE
   bool use_ext_keys;                    /* Extended keys can be used */
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
+  bool not_usable_by_query_cache;
+  bool no_replicate;
   bool crypted;                         /* If .frm file is crypted */
   bool crashed;
   bool is_view;
@@ -703,6 +704,8 @@ struct TABLE_SHARE
   bool vcols_need_refixing;
   bool check_set_initialized;
   bool has_update_default_function;
+  bool can_do_row_logging;              /* 1 if table supports RBR */
+
   ulong table_map_id;                   /* for row-based replication */
 
   /*
@@ -720,14 +723,6 @@ struct TABLE_SHARE
 
   /* For sequence tables, the current sequence state */
   SEQUENCE *sequence;
-
-  /*
-    Cache for row-based replication table share checks that does not
-    need to be repeated. Possible values are: -1 when cache value is
-    not calculated yet, 0 when table *shall not* be replicated, 1 when
-    table *may* be replicated.
-  */
-  int cached_row_logging_check;
 
   /* Name of the tablespace used for this table */
   char *tablespace;
@@ -1255,7 +1250,6 @@ public:
     If set, indicate that the table is not replicated by the server.
   */
   bool locked_by_logger;
-  bool no_replicate;
   bool locked_by_name;
   bool fulltext_searched;
   bool no_cache;
@@ -1305,6 +1299,7 @@ public:
   bool stats_is_read;     /* Persistent statistics is read for the table */
   bool histograms_are_read;
   MDL_ticket *mdl_ticket;
+  List<Field> splitting_fields;
 
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
@@ -2610,7 +2605,7 @@ static inline void tmp_restore_column_map(MY_BITMAP *bitmap,
 static inline my_bitmap_map *dbug_tmp_use_all_columns(TABLE *table,
                                                       MY_BITMAP *bitmap)
 {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   return tmp_use_all_columns(table, bitmap);
 #else
   return 0;
@@ -2620,7 +2615,7 @@ static inline my_bitmap_map *dbug_tmp_use_all_columns(TABLE *table,
 static inline void dbug_tmp_restore_column_map(MY_BITMAP *bitmap,
                                                my_bitmap_map *old)
 {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   tmp_restore_column_map(bitmap, old);
 #endif
 }
@@ -2635,7 +2630,7 @@ static inline void dbug_tmp_use_all_columns(TABLE *table,
                                             MY_BITMAP *read_set,
                                             MY_BITMAP *write_set)
 {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   save[0]= read_set->bitmap;
   save[1]= write_set->bitmap;
   (void) tmp_use_all_columns(table, read_set);
@@ -2648,7 +2643,7 @@ static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
                                                 MY_BITMAP *write_set,
                                                 my_bitmap_map **old)
 {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   tmp_restore_column_map(read_set, old[0]);
   tmp_restore_column_map(write_set, old[1]);
 #endif

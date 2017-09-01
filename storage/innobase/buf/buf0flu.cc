@@ -1884,8 +1884,6 @@ buf_flush_batch(
 
 	buf_pool_mutex_enter(buf_pool);
 
-	ulint	count __attribute__((unused))= 0;
-
 	/* Note: The buffer pool mutex is released and reacquired within
 	the flush functions. */
 	switch (flush_type) {
@@ -1902,8 +1900,7 @@ buf_flush_batch(
 
 	buf_pool_mutex_exit(buf_pool);
 
-	DBUG_PRINT("ib_buf", ("flush %u completed, %u pages",
-			      unsigned(flush_type), unsigned(count)));
+	DBUG_LOG("ib_buf", "flush " << flush_type << " completed");
 }
 
 /******************************************************************//**

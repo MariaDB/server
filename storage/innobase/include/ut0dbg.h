@@ -39,13 +39,13 @@ Created 1/30/1994 Heikki Tuuri
 
 /*************************************************************//**
 Report a failed assertion. */
+ATTRIBUTE_NORETURN ATTRIBUTE_COLD __attribute__((nonnull(2)))
 void
 ut_dbg_assertion_failed(
 /*====================*/
 	const char*	expr,	/*!< in: the failed assertion */
 	const char*	file,	/*!< in: source file containing the assertion */
-	unsigned	line)	/*!< in: line number of the assertion */
-	UNIV_COLD MY_ATTRIBUTE((nonnull(2), noreturn));
+	unsigned	line);	/*!< in: line number of the assertion */
 
 /** Abort execution if EXPR does not evaluate to nonzero.
 @param EXPR assertion expression that should hold */
@@ -61,7 +61,7 @@ ut_dbg_assertion_failed(
 	ut_dbg_assertion_failed(0, __FILE__, __LINE__)
 
 /** Debug assertion */
-#define ut_ad	DBUG_ASSERT
+#define ut_ad	DBUG_SLOW_ASSERT
 #if defined(UNIV_DEBUG) || !defined(DBUG_OFF)
 /** Debug statement. Does nothing unless UNIV_DEBUG is defined. */
 #define ut_d(EXPR)	EXPR

@@ -6,15 +6,11 @@
  * See COPYRIGHT.txt for details.
  */
 
-#include <my_config.h>
-
-#include <stdlib.h>
+#include <my_global.h>
 #include <vector>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <sys/resource.h>
 
 #include "hstcpsvr.hpp"

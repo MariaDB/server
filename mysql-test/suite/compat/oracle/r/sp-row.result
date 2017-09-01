@@ -3070,3 +3070,14 @@ b
 10
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# MDEV-13527 Crash when EXPLAIN SELECT .. INTO row_sp_variable.field
+#
+DECLARE
+a ROW(a INT);
+BEGIN
+EXPLAIN SELECT 1 INTO a.a;
+END;
+$$
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used

@@ -20,6 +20,7 @@
 #define _GNU_SOURCE // POSIX_SPAWN_USEVFORK flag
 #endif
 
+#include "mariadb.h"
 #include "wsrep_utils.h"
 #include "wsrep_mysqld.h"
 
@@ -573,3 +574,17 @@ done:
   return ret;
 }
 
+/* returns the length of the host part of the address string */
+size_t wsrep_host_len(const char* const addr, size_t const addr_len)
+{
+  // check for IPv6 notation first
+  const char* const bracket= ('[' == addr[0] ? strchr(addr, ']') : NULL);
+
+  if (bracket) { // IPv6
+    return (bracket - addr + 1);
+  }
+  else { // host part ends at ':' or end of string
+    const char* const colon= strchr(addr, ':');
+    return (colon ? colon - addr : addr_len);
+  }
+}

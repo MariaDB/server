@@ -16,7 +16,7 @@
 #ifndef SQL_CONNECT_INCLUDED
 #define SQL_CONNECT_INCLUDED
 
-#include "my_sys.h"                          /* pthread_handler_t */
+#include <my_sys.h>                          /* pthread_handler_t */
 #include "mysql_com.h"                         /* enum_server_command */
 #include "structs.h"
 #include <mysql/psi/mysql_socket.h>
@@ -85,6 +85,10 @@ bool thd_init_client_charset(THD *thd, uint cs_number);
 bool setup_connection_thread_globals(THD *thd);
 bool thd_prepare_connection(THD *thd);
 bool thd_is_connection_alive(THD *thd);
+int thd_set_peer_addr(THD *thd, sockaddr_storage *addr,
+                      const char *ip, uint port,
+                      bool check_proxy_networks,
+                      uint *host_errors);
 
 bool login_connection(THD *thd);
 void prepare_new_connection_state(THD* thd);

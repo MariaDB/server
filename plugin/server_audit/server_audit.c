@@ -20,10 +20,6 @@
 #define _my_thread_var loc_thread_var
 
 #include <my_config.h>
-#include <stdio.h>
-#include <time.h>
-#include <string.h>
-#include <fcntl.h>
 
 #ifndef _WIN32
 #include <syslog.h>
@@ -75,6 +71,7 @@ static void closelog() {}
 */
 
 #if !defined(MYSQL_DYNAMIC_PLUGIN) && !defined(MARIADB_ONLY)
+#include <typelib.h>
 #define MARIADB_ONLY
 #endif /*MYSQL_PLUGIN_DYNAMIC*/
 
@@ -82,11 +79,12 @@ static void closelog() {}
 #define MYSQL_SERVICE_LOGGER_INCLUDED
 #endif /*MARIADB_ONLY*/
 
+#include <my_global.h>
 #include <my_base.h>
-//#include <my_dir.h>
 #include <typelib.h>
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
+#include <string.h>
 #ifndef RTLD_DEFAULT
 #define RTLD_DEFAULT NULL
 #endif

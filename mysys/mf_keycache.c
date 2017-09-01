@@ -421,11 +421,12 @@ static int keycache_pthread_cond_signal(mysql_cond_t *cond);
 #undef inline
 #endif
 #define inline  /* disabled inline for easier debugging */
-static int fail_block(BLOCK_LINK *block);
 static int fail_hlink(HASH_LINK *hlink);
 static int cache_empty(SIMPLE_KEY_CACHE_CB *keycache);
 #endif
-
+#ifdef DBUG_ASSERT_EXISTS
+static int fail_block(BLOCK_LINK *block);
+#endif
 
 static inline uint next_power(uint value)
 {
@@ -713,7 +714,7 @@ int prepare_resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
       res= 1;
       goto finish;
     }
-    DBUG_ASSERT(cache_empty(keycache));
+    DBUG_SLOW_ASSERT(cache_empty(keycache));
 
     /* End the flush phase. */
     keycache->resize_in_flush= 0;
@@ -1088,7 +1089,7 @@ static void unlink_from_queue(KEYCACHE_WQUEUE *wqueue,
                                       thread->prev);
   }
   thread->next= NULL;
-#if !defined(DBUG_OFF)
+#ifdef DBUG_ASSERT_EXISTS
   /*
     This makes it easier to see it's not in a chain during debugging.
     And some DBUG_ASSERT() rely on it.
@@ -1211,7 +1212,7 @@ static inline void unlink_changed(BLOCK_LINK *block)
     block->next_changed->prev_changed= block->prev_changed;
   *block->prev_changed= block->next_changed;
 
-#if !defined(DBUG_OFF)
+#ifdef DBUG_ASSERT_EXISTS
   /*
     This makes it easier to see it's not in a chain during debugging.
     And some DBUG_ASSERT() rely on it.
@@ -1497,7 +1498,7 @@ static void unlink_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
       keycache->used_ins=STRUCT_PTR(BLOCK_LINK, next_used, block->prev_used);
   }
   block->next_used= NULL;
-#if !defined(DBUG_OFF)
+#ifdef DBUG_ASSERT_EXISTS
   /*
     This makes it easier to see it's not in a chain during debugging.
     And some DBUG_ASSERT() rely on it.
@@ -4309,10 +4310,8 @@ restart:
 
   } /* if (keycache->disk_blocks > 0 */
 
-#ifndef DBUG_OFF
   DBUG_EXECUTE("check_keycache",
                test_key_cache(keycache, "end of flush_key_blocks", 0););
-#endif
 err:
   if (cache != cache_buff)
     my_free(cache);
@@ -4790,11 +4789,12 @@ void keycache_debug_log_close(void)
 
 #endif /* defined(KEYCACHE_DEBUG) */
 
-#if !defined(DBUG_OFF)
+#ifdef DBUG_ASSERT_EXISTS 
 #define F_B_PRT(_f_, _v_) DBUG_PRINT("assert_fail", (_f_, _v_))
 
-static int fail_block(BLOCK_LINK *block)
+static int fail_block(BLOCK_LINK *block  __attribute__((unused)))
 {
+#ifndef DBUG_OFF
   F_B_PRT("block->next_used:    %lx\n", (ulong) block->next_used);
   F_B_PRT("block->prev_used:    %lx\n", (ulong) block->prev_used);
   F_B_PRT("block->next_changed: %lx\n", (ulong) block->next_changed);
@@ -4805,10 +4805,13 @@ static int fail_block(BLOCK_LINK *block)
   F_B_PRT("block->offset:       %u\n", block->offset);
   F_B_PRT("block->requests:     %u\n", block->requests);
   F_B_PRT("block->temperature:  %u\n", block->temperature);
+#endif
   return 0; /* Let the assert fail. */
 }
+#endif
 
-static int fail_hlink(HASH_LINK *hlink)
+#ifndef DBUG_OFF
+static int fail_hlink(HASH_LINK *hlink  __attribute__((unused)))
 {
   F_B_PRT("hlink->next:    %lx\n", (ulong) hlink->next);
   F_B_PRT("hlink->prev:    %lx\n", (ulong) hlink->prev);

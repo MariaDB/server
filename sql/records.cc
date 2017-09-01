@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +26,7 @@
   Functions for easy reading of records, possible through a cache
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "records.h"
 #include "sql_priv.h"
 #include "records.h"
@@ -88,8 +89,8 @@ bool init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
       table->file->print_error(error, MYF(0));
   }
 
-  /* read_record will be changed to rr_index in rr_index_first */
-  info->read_record= reverse ? rr_index_last : rr_index_first;
+  /* read_record_func will be changed to rr_index in rr_index_first */
+  info->read_record_func= reverse ? rr_index_last : rr_index_first;
   DBUG_RETURN(error != 0);
 }
 
@@ -228,8 +229,8 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   if (tempfile && !(select && select->quick))
   {
     DBUG_PRINT("info",("using rr_from_tempfile"));
-    info->read_record= (addon_field ?
-                        rr_unpack_from_tempfile : rr_from_tempfile);
+    info->read_record_func=
+        addon_field ? rr_unpack_from_tempfile : rr_from_tempfile;
     info->io_cache= tempfile;
     reinit_io_cache(info->io_cache,READ_CACHE,0L,0,0);
     info->ref_pos=table->file->ref;
@@ -259,14 +260,14 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
       if (! init_rr_cache(thd, info))
       {
 	DBUG_PRINT("info",("using rr_from_cache"));
-	info->read_record=rr_from_cache;
+        info->read_record_func= rr_from_cache;
       }
     }
   }
   else if (select && select->quick)
   {
     DBUG_PRINT("info",("using rr_quick"));
-    info->read_record=rr_quick;
+    info->read_record_func= rr_quick;
   }
   else if (filesort && filesort->record_pointers)
   {
@@ -276,13 +277,13 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
     info->cache_pos= filesort->record_pointers;
     info->cache_end= (info->cache_pos+ 
                       filesort->return_rows * info->ref_length);
-    info->read_record= (addon_field ?
-                        rr_unpack_from_buffer : rr_from_pointers);
+    info->read_record_func=
+        addon_field ? rr_unpack_from_buffer : rr_from_pointers;
   }
   else if (table->file->keyread_enabled())
   {
     int error;
-    info->read_record= rr_index_first;
+    info->read_record_func= rr_index_first;
     if (!table->file->inited &&
         (error= table->file->ha_index_init(table->file->keyread, 1)))
     {
@@ -294,7 +295,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   else
   {
     DBUG_PRINT("info",("using rr_sequential"));
-    info->read_record=rr_sequential;
+    info->read_record_func= rr_sequential;
     if (table->file->ha_rnd_init_with_error(1))
       DBUG_RETURN(1);
     /* We can use record cache if we don't update dynamic length tables */
@@ -330,7 +331,7 @@ void end_read_record(READ_RECORD *info)
   {
     if (info->table->is_created())
       (void) info->table->file->extra(HA_EXTRA_NO_CACHE);
-    if (info->read_record != rr_quick) // otherwise quick_range does it
+    if (info->read_record_func != rr_quick) // otherwise quick_range does it
       (void) info->table->file->ha_index_or_rnd_end();
     info->table=0;
   }
@@ -398,7 +399,7 @@ static int rr_index_first(READ_RECORD *info)
   }
 
   tmp= info->table->file->ha_index_first(info->record);
-  info->read_record= rr_index;
+  info->read_record_func= rr_index;
   if (tmp)
     tmp= rr_handle_error(info, tmp);
   return tmp;
@@ -421,7 +422,7 @@ static int rr_index_first(READ_RECORD *info)
 static int rr_index_last(READ_RECORD *info)
 {
   int tmp= info->table->file->ha_index_last(info->record);
-  info->read_record= rr_index_desc;
+  info->read_record_func= rr_index_desc;
   if (tmp)
     tmp= rr_handle_error(info, tmp);
   return tmp;

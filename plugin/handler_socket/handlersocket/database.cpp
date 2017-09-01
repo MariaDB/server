@@ -6,10 +6,7 @@
  * See COPYRIGHT.txt for details.
  */
 
-#include <my_config.h>
-
-#include <stdlib.h>
-#include <stdio.h>
+#include <my_global.h>
 #include <string.h>
 
 #include "database.hpp"
@@ -1050,7 +1047,7 @@ dbcontext::cmd_open(dbcallback_i& cb, const cmd_open_args& arg)
     TABLE *const table = table_vec[tblnum].table;
     for (uint i = 0; i < table->s->keys; ++i) {
       KEY& kinfo = table->key_info[i];
-      if (strcmp(kinfo.name, idx_name_to_open) == 0) {
+      if (strcmp(kinfo.name.str, idx_name_to_open) == 0) {
 	idxnum = i;
 	break;
       }

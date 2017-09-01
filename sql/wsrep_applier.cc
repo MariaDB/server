@@ -13,6 +13,7 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
+#include "mariadb.h"
 #include "wsrep_priv.h"
 #include "wsrep_binlog.h" // wsrep_dump_rbr_buf()
 #include "wsrep_xid.h"
@@ -217,12 +218,15 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
 {
   THD* const thd((THD*)ctx);
 
+  assert(thd->wsrep_apply_toi == false);
+
   // Allow tests to block the applier thread using the DBUG facilities.
   DBUG_EXECUTE_IF("sync.wsrep_apply_cb",
                  {
                    const char act[]=
                      "now "
-                     "wait_for signal.wsrep_apply_cb";
+                     "SIGNAL sync.wsrep_apply_cb_reached "
+                     "WAIT_FOR signal.wsrep_apply_cb";
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
@@ -382,7 +386,7 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
     mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
   }
 
-  if (*exit == false && thd->wsrep_applier)
+  if (thd->wsrep_applier)
   {
     /* From trans_begin() */
     thd->variables.option_bits|= OPTION_BEGIN;

@@ -1,3 +1,4 @@
+source include/have_rocksdb.inc;
 source include/master-slave.inc;
 -- let $uuid = `select @@server_uuid;`
 

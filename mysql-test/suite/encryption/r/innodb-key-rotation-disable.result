@@ -2,9 +2,6 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 NAME
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 NAME
-mysql/innodb_table_stats
-mysql/innodb_index_stats
-innodb_system
 SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
 create database enctests;

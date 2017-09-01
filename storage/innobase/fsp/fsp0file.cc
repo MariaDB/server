@@ -58,11 +58,6 @@ Datafile::shutdown()
 
 	ut_free(m_name);
 	m_name = NULL;
-
-	/* The fil_space_t::crypt_data was freed in
-	fil_space_free_low(). Invalidate our redundant pointer. */
-	m_crypt_info = NULL;
-
 	free_filepath();
 	free_first_page();
 }
@@ -373,8 +368,6 @@ Datafile::read_first_page(bool read_only_mode)
 			<< page_size << " bytes";
 		return(DB_CORRUPTION);
 	}
-
-	m_crypt_info = fil_space_read_crypt_data(ps, m_first_page);
 
 	return(err);
 }

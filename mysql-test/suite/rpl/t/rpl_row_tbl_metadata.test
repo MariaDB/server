@@ -238,11 +238,11 @@ DROP TABLE `t1`;
 # 
 # Each varchar field takes up to 2 metadata bytes, see:
 #
-#  Field_varstring::do_save_field_metadata (field.cc)
+#  Field_varstring::save_field_metadata (field.cc)
 #
 # The float field takes 1 byte, see:
 #
-#  Field_float::do_save_field_metadata (field.cc)
+#  Field_float::save_field_metadata (field.cc)
 #
 
 -- let $generated_sql= $MYSQLTEST_VARDIR/tmp/b50018.sql

@@ -22,8 +22,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 /* Source file cursor implementation */
 
+#include <my_global.h>
 #include <my_base.h>
-
 #include <fil0fil.h>
 #include <fsp0fsp.h>
 #include <srv0start.h>
@@ -159,7 +159,7 @@ xb_fil_cur_open(
 	/* In the backup mode we should already have a tablespace handle created
 	by fil_ibd_load() unless it is a system
 	tablespace. Otherwise we open the file here. */
-	if (cursor->is_system() || srv_operation == SRV_OPERATION_RESTORE
+	if (cursor->is_system() || srv_operation == SRV_OPERATION_RESTORE_DELTA
 	    || xb_close_files) {
 		node->handle = os_file_create_simple_no_error_handling(
 			0, node->name,

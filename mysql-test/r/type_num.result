@@ -1219,9 +1219,6 @@ Warning	1292	Truncated incorrect INTEGER value: '1E+'
 Warning	1292	Truncated incorrect DECIMAL value: '1E+'
 Warning	1292	Truncated incorrect DOUBLE value: '1E+'
 #
-# End of 10.0 tests
-#
-#
 # Start of 10.1 tests
 #
 #
@@ -1247,5 +1244,17 @@ Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Truncated incorrect DOUBLE value: ''
 #
-# Start of 10.1 tests
+# Start of 10.2 tests
 #
+CREATE TABLE t1 (a INT SIGNED ZEROFILL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ZEROFILL)' at line 1
+CREATE TABLE t1 (a INT SIGNED UNSIGNED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNSIGNED)' at line 1
+CREATE TABLE t1 (a INT ZEROFILL UNSIGNED ZEROFILL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ZEROFILL)' at line 1
+CREATE OR REPLACE TABLE t1 (a INT SIGNED);
+CREATE OR REPLACE TABLE t1 (a INT UNSIGNED);
+CREATE OR REPLACE TABLE t1 (a INT ZEROFILL);
+CREATE OR REPLACE TABLE t1 (a INT UNSIGNED ZEROFILL);
+CREATE OR REPLACE TABLE t1 (a INT ZEROFILL UNSIGNED);
+DROP TABLE t1;

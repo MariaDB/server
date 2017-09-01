@@ -25,7 +25,7 @@
     Abort logging when we get an error in reading or writing log files
 */
 
-#include <my_global.h>		/* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"		/* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "log.h"
 #include "sql_base.h"                           // open_log_table
@@ -39,11 +39,9 @@
 #include "rpl_filter.h"
 #include "rpl_rli.h"
 #include "sql_audit.h"
-#include "log_slow.h"
 #include "mysqld.h"
 
 #include <my_dir.h>
-#include <stdarg.h>
 #include <m_ctype.h>				// For test_if_number
 
 #ifdef _WIN32
@@ -56,6 +54,8 @@
 #include "sql_show.h"
 #include "my_pthread.h"
 #include "wsrep_mysqld.h"
+#include "sp_rcontext.h"
+#include "sp_head.h"
 
 /* max size of the log message */
 #define MAX_LOG_BUFFER_SIZE 1024
@@ -2672,7 +2672,7 @@ bool MYSQL_LOG::open(
                         mysqld_port, mysqld_unix_port
 #endif
                        );
-    end= strnmov(buff + len, "Time                 Id Command    Argument\n",
+    end= strnmov(buff + len, "Time\t\t    Id Command\tArgument\n",
                  sizeof(buff) - len);
     if (my_b_write(&log_file, (uchar*) buff, (uint) (end-buff)) ||
 	flush_io_cache(&log_file))
@@ -2887,27 +2887,27 @@ bool MYSQL_QUERY_LOG::write(time_t event_time, const char *user_host,
     DBUG_EXECUTE_IF("reset_log_last_time", last_time= 0;);
 
     /* Note that my_b_write() assumes it knows the length for this */
-      if (event_time != last_time)
-      {
-        last_time= event_time;
+    if (event_time != last_time)
+    {
+      last_time= event_time;
 
-        localtime_r(&event_time, &start);
+      localtime_r(&event_time, &start);
 
-        time_buff_len= my_snprintf(local_time_buff, MAX_TIME_SIZE,
-                                   "%02d%02d%02d %2d:%02d:%02d\t",
-                                   start.tm_year % 100, start.tm_mon + 1,
-                                   start.tm_mday, start.tm_hour,
-                                   start.tm_min, start.tm_sec);
+      time_buff_len= my_snprintf(local_time_buff, MAX_TIME_SIZE,
+                                 "%02d%02d%02d %2d:%02d:%02d\t",
+                                 start.tm_year % 100, start.tm_mon + 1,
+                                 start.tm_mday, start.tm_hour,
+                                 start.tm_min, start.tm_sec);
 
-        if (my_b_write(&log_file, (uchar*) local_time_buff, time_buff_len))
-          goto err;
-      }
-      else
-        if (my_b_write(&log_file, (uchar*) "\t\t" ,2) < 0)
-          goto err;
+      if (my_b_write(&log_file, (uchar*) local_time_buff, time_buff_len))
+        goto err;
+    }
+    else
+      if (my_b_write(&log_file, (uchar*) "\t\t" ,2) < 0)
+        goto err;
 
-      /* command_type, thread_id */
-      size_t length= my_snprintf(buff, 32, "%5llu ", thread_id_arg);
+    /* command_type, thread_id */
+    size_t length= my_snprintf(buff, 32, "%6llu ", thread_id_arg);
 
     if (my_b_write(&log_file, (uchar*) buff, length))
       goto err;
@@ -2976,6 +2976,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                             const char *sql_text, uint sql_text_len)
 {
   bool error= 0;
+  char llbuff[22];
   DBUG_ENTER("MYSQL_QUERY_LOG::write");
 
   mysql_mutex_lock(&LOCK_log);
@@ -3018,22 +3019,39 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
     sprintf(query_time_buff, "%.6f", ulonglong2double(query_utime)/1000000.0);
     sprintf(lock_time_buff,  "%.6f", ulonglong2double(lock_utime)/1000000.0);
     if (my_b_printf(&log_file,
-                    "# Thread_id: %lu  Schema: %s  QC_hit: %s\n" \
-                    "# Query_time: %s  Lock_time: %s  Rows_sent: %lu  Rows_examined: %lu\n" \
-                    "# Rows_affected: %lu\n",
+                    "# Thread_id: %lu  Schema: %s  QC_hit: %s\n"
+                    "# Query_time: %s  Lock_time: %s  Rows_sent: %lu  Rows_examined: %lu\n"
+                    "# Rows_affected: %lu  Bytes_sent: %lu\n",
                     (ulong) thd->thread_id, (thd->db ? thd->db : ""),
                     ((thd->query_plan_flags & QPLAN_QC) ? "Yes" : "No"),
                     query_time_buff, lock_time_buff,
                     (ulong) thd->get_sent_row_count(),
                     (ulong) thd->get_examined_row_count(),
-                    thd->get_stmt_da()->is_ok() ?
-                    (ulong) thd->get_stmt_da()->affected_rows() :
-                    0) == (size_t) -1)
+                    (ulong) thd->get_affected_rows(),
+                    (ulong) (thd->status_var.bytes_sent - thd->bytes_sent_old))
+        == (size_t) -1)
       tmp_errno= errno;
+
+    if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN)
+        && thd->tmp_tables_used &&
+        my_b_printf(&log_file,
+                    "# Tmp_tables: %lu  Tmp_disk_tables: %lu  "
+                    "Tmp_table_sizes: %s\n",
+                    (ulong) thd->tmp_tables_used,
+                    (ulong) thd->tmp_tables_disk_used,
+                    llstr(thd->tmp_tables_size, llbuff)) == (uint) -1)
+      tmp_errno= errno;
+
+    if (thd->spcont)
+      if (my_b_printf(&log_file, "# Stored_routine: %s\n",
+                      ErrConvDQName(thd->spcont->sp).ptr()) == (uint) -1)
+        tmp_errno= errno;
+
      if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
          (thd->query_plan_flags &
           (QPLAN_FULL_SCAN | QPLAN_FULL_JOIN | QPLAN_TMP_TABLE |
-           QPLAN_TMP_DISK | QPLAN_FILESORT | QPLAN_FILESORT_DISK)) &&
+           QPLAN_TMP_DISK | QPLAN_FILESORT | QPLAN_FILESORT_DISK |
+           QPLAN_FILESORT_PRIORITY_QUEUE)) &&
          my_b_printf(&log_file,
                      "# Full_scan: %s  Full_join: %s  "
                      "Tmp_table: %s  Tmp_table_on_disk: %s\n"
@@ -3041,8 +3059,8 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                      "Priority_queue: %s\n",
                      ((thd->query_plan_flags & QPLAN_FULL_SCAN) ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_FULL_JOIN) ? "Yes" : "No"),
-                     ((thd->query_plan_flags & QPLAN_TMP_TABLE) ? "Yes" : "No"),
-                     ((thd->query_plan_flags & QPLAN_TMP_DISK) ? "Yes" : "No"),
+                     (thd->tmp_tables_used ? "Yes" : "No"),
+                     (thd->tmp_tables_disk_used ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_FILESORT) ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_FILESORT_DISK) ?
                       "Yes" : "No"),
@@ -5433,13 +5451,14 @@ stmt_has_updated_trans_table(const THD *thd)
 */
 bool use_trans_cache(const THD* thd, bool is_transactional)
 {
+  if (is_transactional)
+    return 1;
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 
-  return
-    ((thd->is_current_stmt_binlog_format_row() ||
-     thd->variables.binlog_direct_non_trans_update) ? is_transactional :
-     (is_transactional || !cache_mngr->trx_cache.empty()));
+  return ((thd->is_current_stmt_binlog_format_row() ||
+           thd->variables.binlog_direct_non_trans_update) ? 0 :
+          !cache_mngr->trx_cache.empty());
 }
 
 /**
@@ -5869,6 +5888,8 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
 #endif /* WITH_WSREP */
   local_server_id= thd->variables.server_id;
   seq_no= thd->variables.gtid_seq_no;
+
+  DBUG_ASSERT(local_server_id != 0);
 
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
   {
@@ -6358,7 +6379,6 @@ err:
              */
             update_binlog_end_pos(offset);
 
-            signal_update();
             if ((error= rotate(false, &check_purge)))
               check_purge= false;
           }
@@ -6425,31 +6445,29 @@ bool slow_log_print(THD *thd, const char *query, uint query_length,
 }
 
 
+/**
+  Decide if we should log the command to general log
+
+  @retval
+     FALSE  No logging
+     TRUE   Ok to log
+*/
+
 bool LOGGER::log_command(THD *thd, enum enum_server_command command)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  Security_context *sctx= thd->security_ctx;
-#endif
   /*
     Log command if we have at least one log event handler enabled and want
     to log this king of commands
   */
-  if (*general_log_handler_list && (what_to_log & (1L << (uint) command)))
-  {
-    if ((thd->variables.option_bits & OPTION_LOG_OFF)
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-         && (sctx->master_access & SUPER_ACL)
-#endif
-       )
-    {
-      /* No logging */
-      return FALSE;
-    }
+  if (!(*general_log_handler_list && (what_to_log & (1L << (uint) command))))
+    return FALSE;
 
-    return TRUE;
-  }
-
-  return FALSE;
+  /*
+    If LOG_SLOW_DISABLE_SLAVE is set when slave thread starts, then
+    OPTION_LOG_OFF is set.
+    Only the super user can set this bit.
+  */
+  return !(thd->variables.option_bits & OPTION_LOG_OFF);
 }
 
 
@@ -6459,7 +6477,7 @@ bool general_log_print(THD *thd, enum enum_server_command command,
   va_list args;
   uint error= 0;
 
-  /* Print the message to the buffer if we want to log this king of commands */
+  /* Print the message to the buffer if we want to log this kind of commands */
   if (! logger.log_command(thd, command))
     return FALSE;
 
@@ -7673,7 +7691,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     else
     {
       bool any_error= false;
-      bool all_error= true;
 
       mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
       mysql_mutex_assert_owner(&LOCK_log);
@@ -7695,8 +7712,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
           current->error_cache= NULL;
           any_error= true;
         }
-        else
-          all_error= false;
         first= false;
       }
 
@@ -7710,8 +7725,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
       if (any_error)
         sql_print_error("Failed to run 'after_flush' hooks");
-      if (!all_error)
-        signal_update();
     }
 
     /*
@@ -8115,23 +8128,6 @@ void MYSQL_BIN_LOG::wait_for_update_relay_log(THD* thd)
     LOCK_log is released by the caller.
 */
 
-int MYSQL_BIN_LOG::wait_for_update_bin_log(THD* thd,
-                                           const struct timespec *timeout)
-{
-  int ret= 0;
-  DBUG_ENTER("wait_for_update_bin_log");
-
-  thd_wait_begin(thd, THD_WAIT_BINLOG);
-  mysql_mutex_assert_owner(&LOCK_log);
-  if (!timeout)
-    mysql_cond_wait(&update_cond, &LOCK_log);
-  else
-    ret= mysql_cond_timedwait(&update_cond, &LOCK_log,
-                              const_cast<struct timespec *>(timeout));
-  thd_wait_end(thd);
-  DBUG_RETURN(ret);
-}
-
 int MYSQL_BIN_LOG::wait_for_update_binlog_end_pos(THD* thd,
                                                   struct timespec *timeout)
 {
@@ -8458,7 +8454,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   time_t skr;
   struct tm tm_tmp;
   struct tm *start;
-  THD *thd;
+  THD *thd= 0;
   int tag_length= 0;
   char tag[NAME_LEN];
   DBUG_ENTER("print_buffer_to_file");
@@ -8492,7 +8488,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
           start->tm_hour,
           start->tm_min,
           start->tm_sec,
-          (unsigned long) pthread_self(),
+          (unsigned long) (thd ? thd->thread_id : 0),
           (level == ERROR_LEVEL ? "ERROR" : level == WARNING_LEVEL ?
            "Warning" : "Note"),
           tag_length, tag,
@@ -9353,8 +9349,10 @@ int TC_LOG_BINLOG::open(const char *opt_name)
 
   if (using_heuristic_recover())
   {
+    mysql_mutex_lock(&LOCK_log);
     /* generate a new binlog to mask a corrupted one */
     open(opt_name, LOG_BIN, 0, 0, WRITE_CACHE, max_binlog_size, 0, TRUE);
+    mysql_mutex_unlock(&LOCK_log);
     cleanup();
     return 1;
   }
@@ -9800,8 +9798,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                                           sizeof(xev->xid));
           if (!x || my_hash_insert(&xids, x))
             goto err2;
-          break;
         }
+        break;
       }
       case BINLOG_CHECKPOINT_EVENT:
         if (first_round && do_xa)

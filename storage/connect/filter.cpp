@@ -87,7 +87,7 @@ BYTE OpBmp(PGLOBAL g, OPVAL opc)
     case OP_EXIST: bt = 0x00; break;
     default:
       sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
-			throw (int)TYPE_ARRAY;
+			throw (int)TYPE_FILTER;
 	} // endswitch opc
 
   return bt;
@@ -1406,7 +1406,7 @@ PFIL FILTER::Copy(PTABS t)
   } // end of Copy
 #endif // 0
 
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(MONGO_SUPPORT)
 /***********************************************************************/
 /*  Make selector json representation for Mongo tables.                */
 /***********************************************************************/
@@ -1484,7 +1484,7 @@ bool FILTER::MakeSelector(PGLOBAL g, PSTRG s)
 	s->Append('}');
 	return false;
 } // end of MakeSelector
-#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
+#endif   // MONGO_SUPPORT
 
 /*********************************************************************/
 /*  Make file output of FILTER contents.                             */
@@ -1790,7 +1790,7 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
         break;  // Remove eventual ending separator(s)
 
 //  if (fp->Convert(g, having))
-//		(int)throw TYPE_ARRAY;
+//			throw (int)TYPE_FILTER;
 
     filp = fp;
     fp = fp->Next;
@@ -1799,8 +1799,6 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
 
   if (trace)
     htrc(" returning filp=%p\n", filp);
-//if (filp)
-//  filp->Print(g, debug, 0);
 
   return filp;
   } // end of PrepareFilter

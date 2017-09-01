@@ -125,7 +125,7 @@ typedef unsigned long long ulonglong;
 typedef long long longlong;
 #endif /*__WIN__*/
 #else
-#include <my_global.h>
+#include "mariadb.h"
 #include <my_sys.h>
 #if defined(MYSQL_SERVER)
 #include <m_string.h>		/* To get strmov() */

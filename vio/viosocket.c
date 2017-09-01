@@ -627,7 +627,7 @@ my_socket vio_fd(Vio* vio)
   @param dst_length [out] actual length of the normalized IP address.
 */
 
-static void vio_get_normalized_ip(const struct sockaddr *src,
+void vio_get_normalized_ip(const struct sockaddr *src,
                                   int src_length,
                                   struct sockaddr *dst,
                                   int *dst_length)

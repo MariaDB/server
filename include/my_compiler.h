@@ -24,8 +24,6 @@
   specific to a target compiler.
 */
 
-#include <my_global.h>                          /* stddef.h offsetof */
-
 /**
   Compiler-dependent internal convenience macros.
 */
@@ -146,6 +144,29 @@ struct my_aligned_storage
   have a way of aligning data structures.
 */
 #define MY_ALIGNED(size)
+#endif
+
+#ifdef __GNUC__
+# define ATTRIBUTE_NORETURN __attribute__((noreturn))
+# if MY_GNUC_PREREQ(4,3)
+/** Starting with GCC 4.3, the "cold" attribute is used to inform the
+compiler that a function is unlikely executed.  The function is
+optimized for size rather than speed and on many targets it is placed
+into special subsection of the text section so all cold functions
+appears close together improving code locality of non-cold parts of
+program.  The paths leading to call of cold functions within code are
+marked as unlikely by the branch prediction mechanism.  optimize a
+rarely invoked function for size instead for speed. */
+#  define ATTRIBUTE_COLD __attribute__((cold))
+# endif
+#elif defined _WIN32
+# define ATTRIBUTE_NORETURN __declspec(noreturn)
+#else
+# define ATTRIBUTE_NORETURN /* empty */
+#endif
+
+#ifndef ATTRIBUTE_COLD
+# define ATTRIBUTE_COLD /* empty */
 #endif
 
 #include <my_attribute.h>

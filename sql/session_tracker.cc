@@ -1216,7 +1216,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
           tx_isolation_typelib as it hyphenates its items.
         */
         buf->append(STRING_WITH_LEN("SET TRANSACTION ISOLATION LEVEL "));
-        buf->append(isol[tx_isol_level - 1].str, isol[tx_isol_level - 1].length);
+        buf->append(&isol[tx_isol_level - 1]);
         buf->append(STRING_WITH_LEN("; "));
       }
 

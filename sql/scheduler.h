@@ -25,8 +25,6 @@
 #pragma interface
 #endif
 
-#include <my_global.h>
-
 class THD;
 
 /* Functions used when manipulating threads */

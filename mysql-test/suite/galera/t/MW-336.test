@@ -1,0 +1,64 @@
+#
+# MW-336 Slave threads may leak if variable wsrep_slave_threads is set repeatedly
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+
+--connection node_1
+SET GLOBAL wsrep_slave_threads = 10;
+SET GLOBAL wsrep_slave_threads = 1;
+
+--connection node_2
+INSERT INTO t1 VALUES (1);
+
+--connection node_1
+--sleep 0.5
+SET GLOBAL wsrep_slave_threads = 10;
+--sleep 0.5
+SELECT COUNT(*) = 11 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+
+SET GLOBAL wsrep_slave_threads = 20;
+--sleep 0.5
+SELECT COUNT(*) = 21 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+
+
+SET GLOBAL wsrep_slave_threads = 1;
+
+--connection node_2
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+INSERT INTO t1 VALUES (6);
+INSERT INTO t1 VALUES (7);
+INSERT INTO t1 VALUES (8);
+INSERT INTO t1 VALUES (9);
+
+
+--connection node_1
+SET GLOBAL wsrep_slave_threads = 10;
+SET GLOBAL wsrep_slave_threads = 0;
+
+--connection node_2
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (13);
+INSERT INTO t1 VALUES (14);
+INSERT INTO t1 VALUES (15);
+INSERT INTO t1 VALUES (16);
+INSERT INTO t1 VALUES (17);
+INSERT INTO t1 VALUES (18);
+INSERT INTO t1 VALUES (19);
+INSERT INTO t1 VALUES (20);
+
+--connection node_1
+--sleep 0.5
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+
+SET GLOBAL wsrep_slave_threads = 1;
+DROP TABLE t1;

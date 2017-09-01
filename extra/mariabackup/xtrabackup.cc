@@ -43,6 +43,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 
 //#define XTRABACKUP_TARGET_IS_PLUGIN
 
+#include <my_global.h>
 #include <my_config.h>
 #include <unireg.h>
 #include <mysql_version.h>
@@ -119,6 +120,7 @@ my_bool xtrabackup_export;
 
 longlong xtrabackup_use_memory;
 
+uint opt_protocol;
 long xtrabackup_throttle; /* 0:unlimited */
 static lint io_ticket;
 static os_event_t wait_throttle;
@@ -527,6 +529,7 @@ enum options_xtrabackup
 
   OPT_XTRA_TABLES_EXCLUDE,
   OPT_XTRA_DATABASES_EXCLUDE,
+  OPT_PROTOCOL
 };
 
 struct my_option xb_client_options[] =
@@ -758,6 +761,9 @@ struct my_option xb_client_options[] =
    "See mysql --help for details.",
    0, 0, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+
+  {"protocol", OPT_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe, memory).",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
   {"socket", 'S', "This option specifies the socket to use when "
    "connecting to the local database server with a UNIX domain socket.  "
@@ -1290,8 +1296,13 @@ xb_get_one_option(int optid,
         start[1]=0 ;
     }
     break;
-
-
+  case OPT_PROTOCOL:
+    if (argument)
+    {
+       opt_protocol= find_type_or_exit(argument, &sql_protocol_typelib,
+                                    opt->name);
+    }
+    break;
 #include "sslopt-case.h"
 
   case '?':
@@ -2235,7 +2246,7 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 
 	end_lsn = copy == COPY_LAST
 		? ut_uint64_align_up(scanned_lsn, OS_FILE_LOG_BLOCK_SIZE)
-		: scanned_lsn & ~(OS_FILE_LOG_BLOCK_SIZE - 1);
+		: scanned_lsn & ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1);
 
 	if (ulint write_size = ulint(end_lsn - start_lsn)) {
 		if (srv_encrypt_log) {
@@ -2514,9 +2525,11 @@ xb_load_single_table_tablespace(
 	const char *filname,
 	bool is_remote)
 {
+	ut_ad(srv_operation == SRV_OPERATION_BACKUP
+	      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
 	/* Ignore .isl files on XtraBackup recovery. All tablespaces must be
 	local. */
-	if (is_remote && srv_operation == SRV_OPERATION_RESTORE) {
+	if (is_remote && srv_operation == SRV_OPERATION_RESTORE_DELTA) {
 		return;
 	}
 	if (check_if_skip_table(filname)) {
@@ -2575,16 +2588,13 @@ xb_load_single_table_tablespace(
 		in the cache to be populated with fields from space header */
 		fil_space_open(space->name);
 
-		if (srv_operation == SRV_OPERATION_RESTORE || xb_close_files) {
+		if (srv_operation == SRV_OPERATION_RESTORE_DELTA
+		    || xb_close_files) {
 			fil_space_close(space->name);
 		}
 	}
 
 	ut_free(name);
-
-	if (fil_space_crypt_t* crypt_info = file->get_crypt_info()) {
-		fil_space_destroy_crypt_data(&crypt_info);
-	}
 
 	delete file;
 
@@ -2750,7 +2760,7 @@ xb_load_tablespaces()
         lsn_t	flush_lsn;
 
 	ut_ad(srv_operation == SRV_OPERATION_BACKUP
-	      || srv_operation == SRV_OPERATION_RESTORE);
+	      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
 
 	err = srv_sys_space.check_file_spec(&create_new_db, 0);
 
@@ -3320,6 +3330,74 @@ static void stop_backup_threads()
 	}
 }
 
+/** Implement the core of --backup
+@return	whether the operation succeeded */
+static
+bool
+xtrabackup_backup_low()
+{
+	/* read the latest checkpoint lsn */
+	{
+		ulint	max_cp_field;
+
+		log_mutex_enter();
+
+		if (recv_find_max_checkpoint(&max_cp_field) == DB_SUCCESS
+		    && log_sys->log.format != 0) {
+			metadata_to_lsn = mach_read_from_8(
+				log_sys->checkpoint_buf + LOG_CHECKPOINT_LSN);
+			msg("xtrabackup: The latest check point"
+			    " (for incremental): '" LSN_PF "'\n",
+			    metadata_to_lsn);
+		} else {
+			metadata_to_lsn = 0;
+			msg("xtrabackup: Error: recv_find_max_checkpoint() failed.\n");
+		}
+		log_mutex_exit();
+	}
+
+	stop_backup_threads();
+
+	if (!dst_log_file || xtrabackup_copy_logfile(COPY_LAST)) {
+		return false;
+	}
+
+	if (ds_close(dst_log_file)) {
+		dst_log_file = NULL;
+		return false;
+	}
+
+	dst_log_file = NULL;
+
+	if(!xtrabackup_incremental) {
+		strcpy(metadata_type, "full-backuped");
+		metadata_from_lsn = 0;
+	} else {
+		strcpy(metadata_type, "incremental");
+		metadata_from_lsn = incremental_lsn;
+	}
+	metadata_last_lsn = log_copy_scanned_lsn;
+
+	if (!xtrabackup_stream_metadata(ds_meta)) {
+		msg("xtrabackup: Error: failed to stream metadata.\n");
+		return false;
+	}
+	if (xtrabackup_extra_lsndir) {
+		char	filename[FN_REFLEN];
+
+		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
+			XTRABACKUP_METADATA_FILENAME);
+		if (!xtrabackup_write_metadata(filename)) {
+			msg("xtrabackup: Error: failed to write metadata "
+			    "to '%s'.\n", filename);
+			return false;
+		}
+
+	}
+
+	return true;
+}
+
 /** Implement --backup
 @return	whether the operation succeeded */
 static
@@ -3327,7 +3405,6 @@ bool
 xtrabackup_backup_func()
 {
 	MY_STAT			 stat_info;
-	lsn_t			 latest_cp;
 	uint			 i;
 	uint			 count;
 	pthread_mutex_t		 count_mutex;
@@ -3727,70 +3804,19 @@ reread_log_header:
 	}
 	}
 
-	if (!backup_start()) {
-		goto fail;
-	}
+	bool ok = backup_start();
 
-	/* read the latest checkpoint lsn */
-	{
-		ulint	max_cp_field;
+	if (ok) {
+		ok = xtrabackup_backup_low();
 
-		log_mutex_enter();
+		backup_release();
 
-		if (recv_find_max_checkpoint(&max_cp_field) == DB_SUCCESS
-		    && log_sys->log.format != 0) {
-			latest_cp = mach_read_from_8(log_sys->checkpoint_buf +
-						     LOG_CHECKPOINT_LSN);
-			msg("xtrabackup: The latest check point"
-			    " (for incremental): '" LSN_PF "'\n", latest_cp);
-		} else {
-			latest_cp = 0;
-			msg("xtrabackup: Error: recv_find_max_checkpoint() failed.\n");
+		if (ok) {
+			backup_finish();
 		}
-		log_mutex_exit();
 	}
 
-	stop_backup_threads();
-
-	if (!dst_log_file || xtrabackup_copy_logfile(COPY_LAST)) {
-		goto fail;
-	}
-
-	if (ds_close(dst_log_file)) {
-		dst_log_file = NULL;
-		goto fail;
-	}
-
-	dst_log_file = NULL;
-
-	if(!xtrabackup_incremental) {
-		strcpy(metadata_type, "full-backuped");
-		metadata_from_lsn = 0;
-	} else {
-		strcpy(metadata_type, "incremental");
-		metadata_from_lsn = incremental_lsn;
-	}
-	metadata_to_lsn = latest_cp;
-	metadata_last_lsn = log_copy_scanned_lsn;
-
-	if (!xtrabackup_stream_metadata(ds_meta)) {
-		msg("xtrabackup: Error: failed to stream metadata.\n");
-		goto fail;
-	}
-	if (xtrabackup_extra_lsndir) {
-		char	filename[FN_REFLEN];
-
-		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
-			XTRABACKUP_METADATA_FILENAME);
-		if (!xtrabackup_write_metadata(filename)) {
-			msg("xtrabackup: Error: failed to write metadata "
-			    "to '%s'.\n", filename);
-			goto fail;
-		}
-
-	}
-
-	if (!backup_finish()) {
+	if (!ok) {
 		goto fail;
 	}
 
@@ -3803,10 +3829,10 @@ reread_log_header:
 	xb_data_files_close();
 
 	/* Make sure that the latest checkpoint was included */
-	if (latest_cp > log_copy_scanned_lsn) {
+	if (metadata_to_lsn > log_copy_scanned_lsn) {
 		msg("xtrabackup: error: failed to copy enough redo log ("
 		    "LSN=" LSN_PF "; checkpoint LSN=" LSN_PF ").\n",
-		    log_copy_scanned_lsn, latest_cp);
+		    log_copy_scanned_lsn, metadata_to_lsn);
 		goto fail;
 	}
 
@@ -4922,6 +4948,8 @@ xtrabackup_prepare_func(char** argv)
 	srv_thread_concurrency = 1;
 
 	if (xtrabackup_incremental) {
+		srv_operation = SRV_OPERATION_RESTORE_DELTA;
+
 		if (innodb_init_param()) {
 error_cleanup:
 			xb_filters_free();
@@ -4940,7 +4968,6 @@ error_cleanup:
 		srv_allow_writes_event = os_event_create(0);
 		os_event_set(srv_allow_writes_event);
 #endif
-
 		dberr_t err = xb_data_files_init();
 		if (err != DB_SUCCESS) {
 			msg("xtrabackup: error: xb_data_files_init() failed "
@@ -4972,6 +4999,8 @@ error_cleanup:
 		sync_check_close();
 		if (!ok) goto error_cleanup;
 	}
+
+	srv_operation = SRV_OPERATION_RESTORE;
 
 	if (innodb_init_param()) {
 		goto error_cleanup;
@@ -5523,8 +5552,7 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	for (n = 0; (*argv_client)[n]; n++) {};
  	argc_client = n;
 
-	if (strcmp(base_name(my_progname), INNOBACKUPEX_BIN_NAME) == 0 &&
-	    argc_client > 0) {
+	if (innobackupex_mode && argc_client > 0) {
 		/* emulate innobackupex script */
 		innobackupex_mode = true;
 		if (!ibx_handle_options(&argc_client, argv_client)) {
@@ -5569,12 +5597,10 @@ static int main_low(char** argv);
 int main(int argc, char **argv)
 {
 	char **client_defaults, **server_defaults;
-	static char INNOBACKUPEX_EXE[]= "innobackupex";
 	if (argc > 1 && (strcmp(argv[1], "--innobackupex") == 0))
 	{
 		argv++;
 		argc--;
-		argv[0] = INNOBACKUPEX_EXE;
 		innobackupex_mode = true;
 	}
 

@@ -18,7 +18,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 *******************************************************/
 
-#include <mysql_version.h>
+#include <my_global.h>
 #include <my_base.h>
 #include <my_getopt.h>
 #include <hash.h>

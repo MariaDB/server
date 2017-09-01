@@ -41,7 +41,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	18
+#define INNODB_VERSION_BUGFIX	19
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -108,13 +108,8 @@ support cross-platform development and expose comonly used SQL names. */
 #include <unistd.h>
 #endif
 
-#ifdef UNIV_INNOCHECKSUM
-extern bool 		strict_verify;
-extern FILE* 		log_file;
-extern uintmax_t	cur_page_num;
-#endif /* UNIV_INNOCHECKSUM */
-
 #include "my_pthread.h"
+
 /* Following defines are to enable performance schema
 instrumentation in each of five InnoDB modules if
 HAVE_PSI_INTERFACE is defined. */
@@ -261,23 +256,6 @@ easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
 #else
 #  define MY_ATTRIBUTE(A)
 #endif
-#endif
-
-#if defined(COMPILER_HINTS)      \
-    && defined __GNUC__                 \
-    && (__GNUC__ > 4 || __GNUC__ == 4 && __GNUC_MINOR__ >= 3)
-
-/** Starting with GCC 4.3, the "cold" attribute is used to inform the
-compiler that a function is unlikely executed.  The function is
-optimized for size rather than speed and on many targets it is placed
-into special subsection of the text section so all cold functions
-appears close together improving code locality of non-cold parts of
-program.  The paths leading to call of cold functions within code are
-marked as unlikely by the branch prediction mechanism.  optimize a
-rarely invoked function for size instead for speed. */
-# define UNIV_COLD MY_ATTRIBUTE((cold))
-#else
-# define UNIV_COLD /* empty */
 #endif
 
 #define UNIV_INLINE static inline
@@ -462,6 +440,12 @@ in both 32-bit and 64-bit environments. */
 # define UINT64scan	PRIu64
 # define UINT64PFx	"%016" PRIx64
 #endif
+
+#ifdef UNIV_INNOCHECKSUM
+extern bool 			strict_verify;
+extern FILE* 			log_file;
+extern unsigned long long	cur_page_num;
+#endif /* UNIV_INNOCHECKSUM */
 
 typedef int64_t ib_int64_t;
 typedef uint64_t ib_uint64_t;

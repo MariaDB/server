@@ -548,7 +548,7 @@ trx_undo_header_create(
 
 	log_hdr = undo_page + free;
 
-	mach_write_to_2(log_hdr + TRX_UNDO_DEL_MARKS, TRUE);
+	mach_write_to_2(log_hdr + TRX_UNDO_NEEDS_PURGE, 1);
 
 	mach_write_to_8(log_hdr + TRX_UNDO_TRX_ID, trx_id);
 	mach_write_to_2(log_hdr + TRX_UNDO_LOG_START, new_free);
@@ -1274,7 +1274,6 @@ trx_undo_mem_create(
 
 	undo->id = id;
 	undo->state = TRX_UNDO_ACTIVE;
-	undo->del_marks = FALSE;
 	undo->trx_id = trx_id;
 	undo->xid = *xid;
 
@@ -1313,7 +1312,6 @@ trx_undo_mem_init_for_reuse(
 	ut_a(undo->id < TRX_RSEG_N_SLOTS);
 
 	undo->state = TRX_UNDO_ACTIVE;
-	undo->del_marks = FALSE;
 	undo->trx_id = trx_id;
 	undo->xid = *xid;
 
@@ -1623,42 +1621,6 @@ trx_undo_set_state_at_prepare(
 	return(undo_page);
 }
 
-/**********************************************************************//**
-Adds the update undo log header as the first in the history list, and
-frees the memory object, or puts it to the list of cached update undo log
-segments. */
-void
-trx_undo_update_cleanup(
-/*====================*/
-	trx_t*		trx,		/*!< in: trx owning the update
-					undo log */
-	page_t*		undo_page,	/*!< in: update undo log header page,
-					x-latched */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	trx_undo_t*	undo	= trx->rsegs.m_redo.undo;
-	trx_rseg_t*	rseg	= undo->rseg;
-
-	ut_ad(mutex_own(&rseg->mutex));
-
-	trx_purge_add_update_undo_to_history(trx, undo_page, mtr);
-
-	UT_LIST_REMOVE(rseg->undo_list, undo);
-
-	trx->rsegs.m_redo.undo = NULL;
-
-	if (undo->state == TRX_UNDO_CACHED) {
-
-		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
-
-		MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
-	} else {
-		ut_ad(undo->state == TRX_UNDO_TO_PURGE);
-
-		trx_undo_mem_free(undo);
-	}
-}
-
 /** Free an old insert or temporary undo log after commit or rollback.
 The information is not needed after a commit or rollback, therefore
 the data can be discarded.
@@ -1831,7 +1793,7 @@ trx_undo_truncate_tablespace(
 		rseg->last_page_no = FIL_NULL;
 		rseg->last_offset = 0;
 		rseg->last_trx_no = 0;
-		rseg->last_del_marks = FALSE;
+		rseg->needs_purge = false;
 	}
 	mtr_commit(&mtr);
 

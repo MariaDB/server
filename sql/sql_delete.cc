@@ -21,7 +21,7 @@
   Multi-table deletes were introduced by Monty and Sinisa
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_delete.h"
@@ -588,7 +588,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     deltempfile= new (thd->mem_root) Unique (refpos_order_cmp, table->file,
                                              table->file->ref_length,
                                              MEM_STRIP_BUF_SIZE);
-    while (!(error=info.read_record(&info)) && !thd->killed &&
+    while (!(error=info.read_record()) && !thd->killed &&
           ! thd->is_error())
     {
       if (record_should_be_deleted(thd, table, select, explain))
@@ -613,7 +613,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     delete_record= true;
   }
 
-  while (!(error=info.read_record(&info)) && !thd->killed &&
+  while (!(error=info.read_record()) && !thd->killed &&
         ! thd->is_error())
   {
     if (delete_while_scanning)
@@ -1286,7 +1286,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
   */
   info.ignore_not_found_rows= 1;
   bool will_batch= !table->file->start_bulk_delete();
-  while (!(local_error= info.read_record(&info)) && !thd->killed)
+  while (!(local_error= info.read_record()) && !thd->killed)
   {
     if (table->triggers &&
         table->triggers->process_triggers(thd, TRG_EVENT_DELETE,

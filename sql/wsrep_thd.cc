@@ -13,8 +13,8 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
+#include "mariadb.h"
 #include "wsrep_thd.h"
-
 #include "transaction.h"
 #include "rpl_rli.h"
 #include "log_event.h"
@@ -234,7 +234,7 @@ void wsrep_replay_transaction(THD *thd)
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
       thd->reset_for_next_command();
-      thd->killed= NOT_KILLED;
+      thd->reset_killed();
       close_thread_tables(thd);
       if (thd->locked_tables_mode && thd->lock)
       {

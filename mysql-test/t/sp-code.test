@@ -734,3 +734,27 @@ DROP PROCEDURE testp_bug11763507;
 DROP FUNCTION testf_bug11763507;
 
 --echo #END OF BUG#11763507 test.
+
+
+--echo #
+--echo # MDEV-13581 ROW TYPE OF t1 and t1%ROWTYPE for routine parameters
+--echo #
+
+CREATE TABLE t1 (a INT, b TEXT);
+DELIMITER $$;
+CREATE PROCEDURE p1(a ROW TYPE OF t1, OUT b ROW TYPE OF t1)
+BEGIN
+  SET a.a = 100;
+  SET a.b = 'aaa';
+  SET b.a = 200;
+  SET b.b = 'bbb';
+  SET a = b;
+  SET b = a;
+  SET a.a = b.a;
+  SET b.a = a.a;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;

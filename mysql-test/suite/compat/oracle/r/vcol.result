@@ -1,0 +1,23 @@
+#
+# MDEV-13500 sql_mode=ORACLE: can't create a virtual column with function MOD
+#
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (c1 INTEGER, c2 INTEGER AS (c1 MOD 10) VIRTUAL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "c1" int(11) DEFAULT NULL,
+  "c2" int(11) GENERATED ALWAYS AS ("c1" MOD 10) VIRTUAL
+)
+INSERT INTO t1 (c1) VALUES (999);
+SELECT * FROM t1;
+c1	c2
+999	9
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT a MOD 10 FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select "t1"."a" MOD 10 AS "a MOD 10" from "t1"	latin1	latin1_swedish_ci
+DROP VIEW v1;
+DROP TABLE t1;

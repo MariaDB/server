@@ -30,7 +30,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	autocommit
+VARIABLE_COMMENT	If set to 1, the default, all queries are committed immediately. If set to 0, they are only committed upon a COMMIT statement, or rolled back with a ROLLBACK statement. If autocommit is set to 0, and then changed to 1, all open transactions are immediately committed.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -86,7 +86,7 @@ GLOBAL_VALUE_ORIGIN	AUTO
 DEFAULT_VALUE	150
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The number of outstanding connection requests MariaDB can have. This comes into play when the main MySQL thread gets very many connection requests in a very short time
+VARIABLE_COMMENT	The number of outstanding connection requests MariaDB can have. This comes into play when the main MariaDB thread gets very many connection requests in a very short time
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	65535
 NUMERIC_BLOCK_SIZE	1
@@ -114,7 +114,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Allow big result sets by saving all temporary sets on file (Solves most 'table full' errors)
+VARIABLE_COMMENT	Old variable, which if set to 1, allows large result sets by saving all temporary sets to disk, avoiding 'table full' errors. No longer needed, as the server now handles this automatically. sql_big_tables is a synonym.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -254,7 +254,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	32768
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The size of the statement cache for updates to non-transactional engines for the binary log. If you often use statements updating a great number of rows, you can increase this to get more performance
+VARIABLE_COMMENT	The size of the statement cache for updates to non-transactional engines for the binary log. If you often use statements updating a great number of rows, you can increase this to get more performance.
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	4096
@@ -443,6 +443,62 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	COLUMN_COMPRESSION_THRESHOLD
+SESSION_VALUE	100
+GLOBAL_VALUE	100
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	100
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Minimum column data length eligible for compression
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	COLUMN_COMPRESSION_ZLIB_LEVEL
+SESSION_VALUE	6
+GLOBAL_VALUE	6
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	6
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	zlib compression level (1 gives best speed, 9 gives best compression)
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	9
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	COLUMN_COMPRESSION_ZLIB_STRATEGY
+SESSION_VALUE	DEFAULT_STRATEGY
+GLOBAL_VALUE	DEFAULT_STRATEGY
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	DEFAULT_STRATEGY
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	The strategy parameter is used to tune the compression algorithm. Use the value DEFAULT_STRATEGY for normal data, FILTERED for data produced by a filter (or predictor), HUFFMAN_ONLY to force Huffman encoding only (no string match), or RLE to limit match distances to one (run-length encoding). Filtered data consists mostly of small values with a somewhat random distribution. In this case, the compression algorithm is tuned to compress them better. The effect of FILTERED is to force more Huffman coding and less string matching; it is somewhat intermediate between DEFAULT_STRATEGY and HUFFMAN_ONLY. RLE is designed to be almost as fast as HUFFMAN_ONLY, but give better compression for PNG image data. The strategy parameter only affects the compression ratio but not the correctness of the compressed output even if it is not set appropriately. FIXED prevents the use of dynamic Huffman codes, allowing for a simpler decoder for special applications.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	DEFAULT_STRATEGY,FILTERED,HUFFMAN_ONLY,RLE,FIXED
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	COLUMN_COMPRESSION_ZLIB_WRAP
+SESSION_VALUE	OFF
+GLOBAL_VALUE	OFF
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Generate zlib header and trailer and compute adler32 check value. It can be used with storage engines that don't provide data integrity verification to detect data corruption.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	COMPLETION_TYPE
 SESSION_VALUE	NO_CHAIN
 GLOBAL_VALUE	NO_CHAIN
@@ -646,7 +702,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	100
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	After inserting delayed_insert_limit rows, the INSERT DELAYED handler will check if there are any SELECT statements pending. If so, it allows these to execute before continuing
+VARIABLE_COMMENT	After inserting delayed_insert_limit rows, the INSERT DELAYED handler will check if there are any SELECT statements pending. If so, it allows these to execute before continuing.
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -688,7 +744,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Type of DELAY_KEY_WRITE
+VARIABLE_COMMENT	Specifies how MyISAM tables handles CREATE TABLE DELAY_KEY_WRITE. If set to ON, the default, any DELAY KEY WRITEs are honored. The key buffer is then flushed only when the table closes, speeding up writes. MyISAM tables should be automatically checked upon startup in this case, and --external locking should not be used, as it can lead to index corruption. If set to OFF, DELAY KEY WRITEs are ignored, while if set to ALL, all new opened tables are treated as if created with DELAY KEY WRITEs enabled.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -898,7 +954,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	foreign_key_checks
+VARIABLE_COMMENT	If set to 1 (the default) foreign key constraints (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked, while if set to 0, they are not checked. 0 is not recommended for normal use, though it can be useful in situations where you know the data is consistent, but want to reload data in a different order from that that specified by parent/child relationships. Setting this variable to 1 does not retrospectively check for inconsistencies introduced while set to 0.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -982,7 +1038,7 @@ GLOBAL_VALUE_ORIGIN	CONFIG
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Log connections and queries to a table or log file. Defaults logging to a file 'hostname'.log or a table mysql.general_logif --log-output=TABLE is used
+VARIABLE_COMMENT	Log connections and queries to a table or log file. Defaults logging to a file 'hostname'.log or a table mysql.general_logif --log-output=TABLE is used.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1052,7 +1108,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	have_compress
+VARIABLE_COMMENT	If the zlib compression library is accessible to the server, this will be set to YES, otherwise it will be NO. The COMPRESS() and UNCOMPRESS() functions will only be available if set to YES.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1066,7 +1122,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	have_crypt
+VARIABLE_COMMENT	If the crypt() system call is available this variable will be set to YES, otherwise it will be set to NO. If set to NO, the ENCRYPT() function cannot be used.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1080,7 +1136,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	have_dynamic_loading
+VARIABLE_COMMENT	If the server supports dynamic loading of plugins, will be set to YES, otherwise will be set to NO.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1094,7 +1150,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	have_geometry
+VARIABLE_COMMENT	If the server supports spatial data types, will be set to YES, otherwise will be set to NO.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1108,7 +1164,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	have_profiling
+VARIABLE_COMMENT	If statement profiling is available, will be set to YES, otherwise will be set to NO. See SHOW PROFILES and SHOW PROFILE.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1122,7 +1178,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	have_query_cache
+VARIABLE_COMMENT	If the server supports the query cache, will be set to YES, otherwise will be set to NO.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1136,7 +1192,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	have_rtree_keys
+VARIABLE_COMMENT	If RTREE indexes (used for spatial indexes) are available, will be set to YES, otherwise will be set to NO.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1150,7 +1206,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	have_ssl
+VARIABLE_COMMENT	If the server supports secure connections, will be set to YES, otherwise will be set to NO. If set to DISABLED, the server was compiled with TLS support, but was not started with TLS support (see the mysqld options). See also have_openssl.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1703,6 +1759,20 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	LOG_DISABLED_STATEMENTS
+SESSION_VALUE	sp
+GLOBAL_VALUE	sp
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	sp
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	SET
+VARIABLE_COMMENT	Don't log certain types of statements to general log
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	slave,sp
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_ERROR
 SESSION_VALUE	NULL
 GLOBAL_VALUE	
@@ -1732,13 +1802,13 @@ ENUM_VALUE_LIST	NONE,FILE,TABLE
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_QUERIES_NOT_USING_INDEXES
-SESSION_VALUE	NULL
+SESSION_VALUE	OFF
 GLOBAL_VALUE	OFF
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
-VARIABLE_SCOPE	GLOBAL
+VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Log queries that are executed without benefit of any index to the slow log if it is open
+VARIABLE_COMMENT	Log queries that are executed without benefit of any index to the slow log if it is open. Same as log_slow_filter='not_using_index'
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1746,31 +1816,45 @@ ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LOG_SLOW_ADMIN_STATEMENTS
-SESSION_VALUE	NULL
+SESSION_VALUE	ON
 GLOBAL_VALUE	ON
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	ON
-VARIABLE_SCOPE	GLOBAL
+VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements to the slow log if it is open.
+VARIABLE_COMMENT	Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements to the slow log if it is open.  Resets or sets the option 'admin' in log_slow_disabled_statements
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
-VARIABLE_NAME	LOG_SLOW_FILTER
-SESSION_VALUE	admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
-GLOBAL_VALUE	admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+VARIABLE_NAME	LOG_SLOW_DISABLED_STATEMENTS
+SESSION_VALUE	sp
+GLOBAL_VALUE	sp
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+DEFAULT_VALUE	sp
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	Log only certain types of queries
+VARIABLE_COMMENT	Don't log certain types of statements to slow log
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+ENUM_VALUE_LIST	admin,call,slave,sp
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	LOG_SLOW_FILTER
+SESSION_VALUE	admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+GLOBAL_VALUE	admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	SET
+VARIABLE_COMMENT	Log only certain types of queries to the slow log. If variable empty alll kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,not_using_index,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_RATE_LIMIT
@@ -1788,13 +1872,13 @@ ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_SLAVE_STATEMENTS
-SESSION_VALUE	NULL
+SESSION_VALUE	ON
 GLOBAL_VALUE	ON
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	ON
-VARIABLE_SCOPE	GLOBAL
+VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Log slow statements executed by slave thread to the slow log if it is open.
+VARIABLE_COMMENT	Log slow statements executed by slave thread to the slow log if it is open. Resets or sets the option 'slave' in log_slow_disabled_statements
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -2536,7 +2620,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	62
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value
+VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	62
 NUMERIC_BLOCK_SIZE	1
@@ -2558,17 +2642,17 @@ ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_SWITCH
-SESSION_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on
-GLOBAL_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on
+SESSION_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_grouping_derived=on
+GLOBAL_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_grouping_derived=on
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on
+DEFAULT_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_grouping_derived=on
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	FLAGSET
 VARIABLE_COMMENT	Fine-tune the optimizer behavior
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,engine_condition_pushdown,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,default
+ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,engine_condition_pushdown,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_grouping_derived,default
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_USE_CONDITION_SELECTIVITY
@@ -3110,7 +3194,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	profiling
+VARIABLE_COMMENT	If set to 1 (0 is default), statement profiling will be enabled. See SHOW PROFILES and SHOW PROFILE.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3124,7 +3208,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	15
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Limit of query profiling memory
+VARIABLE_COMMENT	Number of statements about which profiling information is maintained. If set to 0, no profiles are stored. See SHOW PROFILES.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	100
 NUMERIC_BLOCK_SIZE	1
@@ -3152,13 +3236,27 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	The version of the client/server protocol used by the MySQL server
+VARIABLE_COMMENT	The version of the client/server protocol used by the MariaDB server
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	PROXY_PROTOCOL_NETWORKS
+SESSION_VALUE	NULL
+GLOBAL_VALUE	
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Enable proxy protocol for these source networks. The syntax is a comma separated list of IPv4 and IPv6 networks. If the network doesn't contain mask, it is considered to be a single host. "*" represents all networks and must the only directive on the line. String "localhost" represents non-TCP local connections (Unix domain socket, Windows named pipe or shared memory).
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PROXY_USER
 SESSION_VALUE	
 GLOBAL_VALUE	NULL
@@ -3474,7 +3572,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION ONLY
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	skip_replication
+VARIABLE_COMMENT	Changes are logged into the binary log with the @@skip_replication flag set. Such events will not be replicated by slaves that run with --replicate-events-marked-for-skip set different from its default of REPLICATE. See Selectively skipping replication of binlog events for more information.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3544,7 +3642,7 @@ GLOBAL_VALUE_ORIGIN	CONFIG
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Log slow queries to a table or log file. Defaults logging to a file 'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is used. Must be enabled to activate other slow log options
+VARIABLE_COMMENT	Log slow queries to a table or log file. Defaults logging to a file 'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is used. Must be enabled to activate other slow log options.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3600,7 +3698,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	sql_auto_is_null
+VARIABLE_COMMENT	If set to 1, the query SELECT * FROM table_name WHERE auto_increment_column IS NULL will return an auto-increment that has just been successfully inserted, the same as the LAST_INSERT_ID() function. Some ODBC programs make use of this IS NULL comparison.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3614,7 +3712,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	sql_big_selects
+VARIABLE_COMMENT	If set to 0, MariaDB will not perform large SELECTs. See max_join_size for details. If max_join_size is set to anything but DEFAULT, sql_big_selects is automatically set to 0. If sql_big_selects is again set, max_join_size will be ignored.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3628,7 +3726,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	sql_buffer_result
+VARIABLE_COMMENT	If set to 1 (0 is default), results from SELECT statements are always placed into temporary tables. This can help the server when it takes a long time to send the results to the client by allowing the table locks to be freed early.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3642,7 +3740,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Controls whether logging to the binary log is done
+VARIABLE_COMMENT	If set to 0 (1 is the default), no logging to the binary log is done for the client. Only clients with the SUPER privilege can update this variable. Can have unintended consequences if set globally, see SET SQL_LOG_BIN. Starting MariaDB 10.1.7, this variable does not affect the replication of events in a Galera cluster.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3656,7 +3754,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	sql_log_off
+VARIABLE_COMMENT	If set to 1 (0 is the default), no logging to the general query log is done for the client. Only clients with the SUPER privilege can update this variable.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3684,7 +3782,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	sql_notes
+VARIABLE_COMMENT	If set to 1, the default, warning_count is incremented each time a Note warning is encountered. If set to 0, Note warnings are not recorded. mysqldump has outputs to set this variable to 0 so that no unnecessary increments occur when data is reloaded.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3698,7 +3796,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	sql_quote_show_create
+VARIABLE_COMMENT	If set to 1, the default, the server will quote identifiers for SHOW CREATE DATABASE, SHOW CREATE TABLE and SHOW CREATE VIEW statements. Quoting is disabled if set to 0. Enable to ensure replications works when identifiers require quoting.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3712,7 +3810,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	sql_safe_updates
+VARIABLE_COMMENT	If set to 1, UPDATEs and DELETEs need either a key in the WHERE clause, or a LIMIT clause, or else they will aborted. Prevents the common mistake of accidentally deleting or updating every row in a table.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3740,7 +3838,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	sql_warnings
+VARIABLE_COMMENT	If set to 1, single-row INSERTs will produce a string containing warning information if a warning occurs.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4090,7 +4188,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	SYSTEM
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	time_zone
+VARIABLE_COMMENT	The current time zone, used to initialize the time zone for a client when it connects. Set to SYSTEM by default, in which the client uses the system time zone value.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4132,7 +4230,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	16777216
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MySQL will automatically convert it to an on-disk MyISAM or Aria table. Same as tmp_table_size.
+VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table. Same as tmp_table_size.
 NUMERIC_MIN_VALUE	1024
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -4146,7 +4244,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	16777216
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Alias for tmp_memory_table_size. If an internal in-memory temporary table exceeds this size, MySQL will automatically convert it to an on-disk MyISAM or Aria table.
+VARIABLE_COMMENT	Alias for tmp_memory_table_size. If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table.
 NUMERIC_MIN_VALUE	1024
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -4202,7 +4300,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Set default transaction access mode to read only.
+VARIABLE_COMMENT	Default transaction access mode. If set to OFF, the default, access is read/write. If set to ON, access is read-only. The SET TRANSACTION statement can also change the value of this variable. See SET TRANSACTION and START TRANSACTION.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4216,7 +4314,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	unique_checks
+VARIABLE_COMMENT	If set to 1, the default, secondary indexes in InnoDB tables are performed. If set to 0, storage engines can (but are not required to) assume that duplicate keys are not present in input data. Set to 0 to speed up imports of large tables to InnoDB. The storage engine will still issue a duplicate key error if it detects one, even if set to 0.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4316,7 +4414,7 @@ order by variable_name;
 VARIABLE_NAME	HAVE_OPENSSL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	have_openssl
+VARIABLE_COMMENT	Comparing have_openssl with have_ssl will indicate whether YaSSL or openssl was used. If YaSSL, have_ssl will be YES, but have_openssl will be NO.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4326,7 +4424,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HAVE_SYMLINK
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	have_symlink
+VARIABLE_COMMENT	If symbolic link support is enabled, will be set to YES, otherwise will be set to NO. Required for the INDEX DIRECTORY and DATA DIRECTORY table options (see CREATE TABLE) and Windows symlink support. Will be set to DISABLED if the server is started with the --skip-symbolic-links option.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4416,7 +4514,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	VERSION
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Server version
+VARIABLE_COMMENT	Server version number. It may also include a suffix with configuration or build information. -debug indicates debugging support was enabled on the server, and -log indicates at least one of the binary log, general log or slow query log are enabled, for example 10.1.1-MariaDB-mariadb1precise-log.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4426,7 +4524,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	VERSION_COMMENT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	version_comment
+VARIABLE_COMMENT	Value of the COMPILATION_COMMENT option specified by CMake when building MariaDB, for example mariadb.org binary distribution.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4436,7 +4534,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	VERSION_COMPILE_MACHINE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	version_compile_machine
+VARIABLE_COMMENT	The machine type or architecture MariaDB was built on, for example i686.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4446,7 +4544,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	VERSION_COMPILE_OS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	version_compile_os
+VARIABLE_COMMENT	Operating system that MariaDB was built on, for example debian-linux-gnu.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

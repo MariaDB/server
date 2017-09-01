@@ -116,6 +116,12 @@ public:
   int compare_e_datetime() { return compare_e_temporal(MYSQL_TYPE_DATETIME); }
   int compare_time()       { return compare_temporal(MYSQL_TYPE_TIME); }
   int compare_e_time()     { return compare_e_temporal(MYSQL_TYPE_TIME); }
+  int compare_json_str_basic(Item *j, Item *s);
+  int compare_json_str();
+  int compare_str_json();
+  int compare_e_json_str_basic(Item *j, Item *s);
+  int compare_e_json_str();
+  int compare_e_str_json();
 
   Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
                                   const Type_handler *type);
@@ -2649,6 +2655,7 @@ public:
     DBUG_VOID_RETURN;
   }
   longlong val_int();
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
@@ -2693,6 +2700,7 @@ public:
     DBUG_VOID_RETURN;
   }
   longlong val_int();
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   const char *func_name() const { return "regexp_instr"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)

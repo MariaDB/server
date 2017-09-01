@@ -19,8 +19,7 @@
 
 #define MYSQL_SERVER 1
 
-#include <my_config.h>
-
+#include <my_global.h>
 #include <mysql_version.h>
 
 #if MYSQL_VERSION_ID >= 50505

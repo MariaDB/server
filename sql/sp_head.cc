@@ -15,7 +15,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_prepare.h"
@@ -480,7 +480,7 @@ sp_name::sp_name(const MDL_key *key, char *qname_buff)
 */
 
 bool
-check_routine_name(LEX_CSTRING *ident)
+check_routine_name(const LEX_CSTRING *ident)
 {
   DBUG_ASSERT(ident);
   DBUG_ASSERT(ident->str);
@@ -610,7 +610,7 @@ sp_head::init(LEX *lex)
 
 
 void
-sp_head::init_sp_name(THD *thd, const sp_name *spname)
+sp_head::init_sp_name(const sp_name *spname)
 {
   DBUG_ENTER("sp_head::init_sp_name");
 
@@ -619,17 +619,10 @@ sp_head::init_sp_name(THD *thd, const sp_name *spname)
   DBUG_ASSERT(spname && spname->m_db.str && spname->m_db.length);
 
   /* We have to copy strings to get them into the right memroot. */
-
-  m_db.length= spname->m_db.length;
-  m_db.str= strmake_root(thd->mem_root, spname->m_db.str, spname->m_db.length);
-
-  m_name.length= spname->m_name.length;
-  m_name.str= strmake_root(thd->mem_root, spname->m_name.str,
-                           spname->m_name.length);
-
+  Database_qualified_name::copy(&main_mem_root, spname->m_db, spname->m_name);
   m_explicit_name= spname->m_explicit_name;
 
-  spname->make_qname(thd, &m_qname);
+  spname->make_qname(&main_mem_root, &m_qname);
 
   DBUG_VOID_RETURN;
 }
@@ -1424,6 +1417,14 @@ set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx)
 #endif // ! NO_EMBEDDED_ACCESS_CHECKS
 
 
+bool sp_head::check_execute_access(THD *thd) const
+{
+  return check_routine_access(thd, EXECUTE_ACL,
+                              m_db.str, m_name.str,
+                              m_handler, false);
+}
+
+
 /**
   Create rcontext using the routine security.
   This is important for sql_mode=ORACLE to make sure that the invoker has
@@ -1560,9 +1561,8 @@ sp_head::execute_trigger(THD *thd,
     goto err_with_cleanup;
   }
 
-#ifndef DBUG_OFF
+  /* Needed by slow log */
   nctx->sp= this;
-#endif
 
   thd->spcont= nctx;
 
@@ -1684,9 +1684,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   */
   thd->restore_active_arena(&call_arena, &backup_arena);
 
-#ifndef DBUG_OFF
+  /* Needed by slow log */
   nctx->sp= this;
-#endif
 
   /* Pass arguments. */
   for (arg_no= 0; arg_no < argcount; arg_no++)
@@ -1890,9 +1889,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       DBUG_RETURN(TRUE);
     }
 
-#ifndef DBUG_OFF
     octx->sp= 0;
-#endif
     thd->spcont= octx;
 
     /* set callers_arena to thd, for upper-level function to work */
@@ -1905,9 +1902,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     thd->spcont= save_spcont;
     DBUG_RETURN(TRUE);
   }
-#ifndef DBUG_OFF
   nctx->sp= this;
-#endif
 
   if (params > 0)
   {
@@ -2004,13 +1999,32 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     DBUG_PRINT("info",(" %.*s: eval args done", (int) m_name.length, 
                        m_name.str));
   }
+
   save_enable_slow_log= thd->enable_slow_log;
-  if (!(m_flags & LOG_SLOW_STATEMENTS) && save_enable_slow_log)
+
+  /*
+    Disable slow log if:
+    - Slow logging is enabled (no change needed)
+    - This is a normal SP (not event log)
+    - If we have not explicitely disabled logging of SP
+  */
+  if (save_enable_slow_log &&
+      ((!(m_flags & LOG_SLOW_STATEMENTS) &&
+        (thd->variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SP))))
   {
     DBUG_PRINT("info", ("Disabling slow log for the execution"));
     thd->enable_slow_log= FALSE;
   }
-  if (!(m_flags & LOG_GENERAL_LOG) && !(thd->variables.option_bits & OPTION_LOG_OFF))
+
+  /*
+    Disable general log if:
+    - If general log is enabled (no change needed)
+    - This is a normal SP (not event log)
+    - If we have not explicitely disabled logging of SP
+  */
+  if (!(thd->variables.option_bits & OPTION_LOG_OFF) &&
+      (!(m_flags & LOG_GENERAL_LOG) &&
+       (thd->variables.log_disabled_statements & LOG_DISABLE_SP)))
   {
     DBUG_PRINT("info", ("Disabling general log for the execution"));
     save_log_general= true;
@@ -2034,6 +2048,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (save_log_general)
     thd->variables.option_bits &= ~OPTION_LOG_OFF;
   thd->enable_slow_log= save_enable_slow_log;
+
   /*
     In the case when we weren't able to employ reuse mechanism for
     OUT/INOUT paranmeters, we should reallocate memory. This
@@ -2288,9 +2303,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       */
       continue;
     }
-    if (my_strcasecmp(system_charset_info,
-                      bp->lab->name.str,
-                      lab->name.str) == 0)
+    if (lex_string_cmp(system_charset_info, &bp->lab->name, &lab->name) == 0)
     {
       if (bp->instr_type == GOTO)
       {
@@ -3195,14 +3208,29 @@ int
 sp_instr_stmt::execute(THD *thd, uint *nextp)
 {
   int res;
+  bool save_enable_slow_log;
+  const CSET_STRING query_backup= thd->query_string;
+  QUERY_START_TIME_INFO time_info;
+  Sub_statement_state backup_state;
   DBUG_ENTER("sp_instr_stmt::execute");
   DBUG_PRINT("info", ("command: %d", m_lex_keeper.sql_command()));
 
-  const CSET_STRING query_backup= thd->query_string;
 #if defined(ENABLED_PROFILING)
   /* This s-p instr is profilable and will be captured. */
   thd->profiling.set_query_source(m_query.str, m_query.length);
 #endif
+
+  if ((save_enable_slow_log= thd->enable_slow_log))
+  {
+    /*
+      Save start time info for the CALL statement and overwrite it with the
+      current time for log_slow_statement() to log the individual query timing.
+    */
+    thd->get_time(&time_info);
+    thd->set_time();
+  }
+  thd->store_slow_query_state(&backup_state);
+
   if (!(res= alloc_query(thd, m_query.str, m_query.length)) &&
       !(res=subst_spvars(thd, this, &m_query)))
   {
@@ -3215,6 +3243,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
     if (query_cache_send_result_to_client(thd, thd->query(),
                                           thd->query_length()) <= 0)
     {
+      thd->reset_slow_query_state();
       res= m_lex_keeper.reset_lex_and_exec_core(thd, nextp, FALSE, this);
       bool log_slow= !res && thd->enable_slow_log;
 
@@ -3234,6 +3263,15 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
 
       if (log_slow)
         log_slow_statement(thd);
+
+      /*
+        Restore enable_slow_log, that can be changed by a admin or call
+        command
+      */
+      thd->enable_slow_log= save_enable_slow_log;
+
+      /* Add the number of rows to thd for the 'call' statistics */
+      thd->add_slow_query_state(&backup_state);
     }
     else
     {
@@ -3254,6 +3292,10 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       thd->get_stmt_da()->reset_diagnostics_area();
     }
   }
+  /* Restore the original query start time */
+  if (thd->enable_slow_log)
+    thd->set_time(&time_info);
+
   DBUG_RETURN(res || thd->is_error());
 }
 
@@ -3356,7 +3398,7 @@ sp_instr_set::print(String *str)
   str->qs_append(STRING_WITH_LEN("set "));
   if (var)
   {
-    str->qs_append(var->name.str, var->name.length);
+    str->qs_append(&var->name);
     str->qs_append('@');
   }
   str->qs_append(m_offset);
@@ -3402,9 +3444,9 @@ sp_instr_set_row_field::print(String *str)
   if (str->reserve(rsrv))
     return;
   str->qs_append(STRING_WITH_LEN("set "));
-    str->qs_append(var->name.str, var->name.length);
+  str->qs_append(&var->name);
   str->qs_append('.');
-  str->qs_append(def->field_name.str, def->field_name.length);
+  str->qs_append(&def->field_name);
   str->qs_append('@');
   str->qs_append(m_offset);
   str->qs_append('[');
@@ -3460,13 +3502,13 @@ sp_instr_set_row_field_by_name::print(String *str)
   if (str->reserve(rsrv))
     return;
   str->qs_append(STRING_WITH_LEN("set "));
-    str->qs_append(var->name.str, var->name.length);
+  str->qs_append(&var->name);
   str->qs_append('.');
-  str->qs_append(m_field_name.str, m_field_name.length);
+  str->qs_append(&m_field_name);
   str->qs_append('@');
   str->qs_append(m_offset);
   str->qs_append("[\"",2);
-  str->qs_append(m_field_name.str, m_field_name.length);
+  str->qs_append(&m_field_name);
   str->qs_append("\"]",2);
   str->qs_append(' ');
   m_value->print(str, enum_query_type(QT_ORDINARY |
@@ -4119,7 +4161,7 @@ sp_instr_cfetch::print(String *str)
     if (str->reserve(pv->name.length+SP_INSTR_UINT_MAXLEN+2))
       return;
     str->qs_append(' ');
-    str->qs_append(pv->name.str, pv->name.length);
+    str->qs_append(&pv->name);
     str->qs_append('@');
     str->qs_append(pv->offset);
   }
@@ -4715,5 +4757,70 @@ sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
                            param_lex, last))
       return true;
   }
+  return false;
+}
+
+
+bool sp_head::spvar_fill_row(THD *thd,
+                             sp_variable *spvar,
+                             Row_definition_list *defs)
+{
+  spvar->field_def.field_name= spvar->name;
+  if (fill_spvar_definition(thd, &spvar->field_def))
+    return true;
+  row_fill_field_definitions(thd, defs);
+  spvar->field_def.set_row_field_definitions(defs);
+  return false;
+}
+
+
+bool sp_head::spvar_fill_type_reference(THD *thd,
+                                        sp_variable *spvar,
+                                        const LEX_CSTRING &table,
+                                        const LEX_CSTRING &col)
+{
+  Qualified_column_ident *ref;
+  if (!(ref= new (thd->mem_root) Qualified_column_ident(&table, &col)))
+    return true;
+  fill_spvar_using_type_reference(spvar, ref);
+  return false;
+}
+
+
+bool sp_head::spvar_fill_type_reference(THD *thd,
+                                        sp_variable *spvar,
+                                        const LEX_CSTRING &db,
+                                        const LEX_CSTRING &table,
+                                        const LEX_CSTRING &col)
+{
+  Qualified_column_ident *ref;
+  if (!(ref= new (thd->mem_root) Qualified_column_ident(thd, &db, &table, &col)))
+    return true;
+  fill_spvar_using_type_reference(spvar, ref);
+  return false;
+}
+
+
+bool sp_head::spvar_fill_table_rowtype_reference(THD *thd,
+                                                 sp_variable *spvar,
+                                                 const LEX_CSTRING &table)
+{
+  Table_ident *ref;
+  if (!(ref= new (thd->mem_root) Table_ident(&table)))
+    return true;
+  fill_spvar_using_table_rowtype_reference(thd, spvar, ref);
+  return false;
+}
+
+
+bool sp_head::spvar_fill_table_rowtype_reference(THD *thd,
+                                                 sp_variable *spvar,
+                                                 const LEX_CSTRING &db,
+                                                 const LEX_CSTRING &table)
+{
+  Table_ident *ref;
+  if (!(ref= new (thd->mem_root) Table_ident(thd, &db, &table, false)))
+    return true;
+  fill_spvar_using_table_rowtype_reference(thd, spvar, ref);
   return false;
 }

@@ -1410,6 +1410,9 @@ static grn_builtin_type mrn_grn_type_from_field(grn_ctx *ctx, Field *field,
   case MYSQL_TYPE_GEOMETRY:     // case-by-case
     type = GRN_DB_WGS84_GEO_POINT; // 8bytes
     break;
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
+  case MYSQL_TYPE_BLOB_COMPRESSED:
+    DBUG_ASSERT(0);
   }
   return type;
 }
@@ -2984,7 +2987,7 @@ int ha_mroonga::wrapper_create_index_fulltext(const char *grn_table_name,
   if (error) {
     DBUG_RETURN(error);
   }
-  mrn::IndexTableName index_table_name(grn_table_name, key_info->name);
+  mrn::IndexTableName index_table_name(grn_table_name, key_info->name.str);
   index_table = grn_table_create(ctx,
                                  index_table_name.c_str(),
                                  index_table_name.length(),
@@ -3060,7 +3063,7 @@ int ha_mroonga::wrapper_create_index_geo(const char *grn_table_name,
   if (error)
     DBUG_RETURN(error);
 
-  mrn::IndexTableName index_table_name(grn_table_name, key_info->name);
+  mrn::IndexTableName index_table_name(grn_table_name, key_info->name.str);
 
   grn_obj_flags index_table_flags =
     GRN_OBJ_TABLE_PAT_KEY |
@@ -3684,7 +3687,7 @@ int ha_mroonga::storage_create_index_table(TABLE *table,
   }
 
   {
-    mrn::IndexTableName index_table_name(grn_table_name, key_info->name);
+    mrn::IndexTableName index_table_name(grn_table_name, key_info->name.str);
     index_table = grn_table_create(ctx,
                                    index_table_name.c_str(),
                                    index_table_name.length(),
@@ -3788,7 +3791,7 @@ int ha_mroonga::storage_create_index(TABLE *table, const char *grn_table_name,
   index_table = index_tables[i];
   const char *index_column_name;
   if (tmp_share->index_table && tmp_share->index_table[i]) {
-    index_column_name = key_info->name;
+    index_column_name = key_info->name.str;
   } else {
     index_column_name = INDEX_COLUMN_NAME;
   }
@@ -4097,7 +4100,7 @@ int ha_mroonga::wrapper_open_indexes(const char *name)
       continue;
     }
 
-    mrn::IndexTableName index_table_name(mapper.table_name(), key_info->name);
+    mrn::IndexTableName index_table_name(mapper.table_name(), key_info->name.str);
     grn_index_tables[i] = grn_ctx_get(ctx,
                                       index_table_name.c_str(),
                                       index_table_name.length());
@@ -4395,11 +4398,12 @@ int ha_mroonga::storage_open_indexes(const char *name)
       if (ctx->rc == GRN_SUCCESS) {
         grn_index_columns[i] = grn_obj_column(ctx,
                                               grn_index_tables[i],
-                                              key_info->name,
-                                              strlen(key_info->name));
+                                              key_info->name.str,
+                                              key_info->name.length);
       }
     } else {
-      mrn::IndexTableName index_table_name(mapper.table_name(), key_info->name);
+      mrn::IndexTableName index_table_name(mapper.table_name(),
+                                           key_info->name.str);
       grn_index_tables[i] = grn_ctx_get(ctx,
                                         index_table_name.c_str(),
                                         index_table_name.length());
@@ -8800,7 +8804,7 @@ int ha_mroonga::drop_index(MRN_SHARE *target_share, uint key_index)
   if (!target_share->wrapper_mode && target_share->index_table[key_index]) {
     const char *table_name = target_share->index_table[key_index];
     snprintf(target_name, GRN_TABLE_MAX_KEY_SIZE,
-             "%s.%s", table_name, key_info[key_index].name);
+             "%s.%s", table_name, key_info[key_index].name.str);
     target_name_length = strlen(target_name);
     grn_obj *index_column = grn_ctx_get(ctx, target_name, target_name_length);
     if (index_column) {
@@ -8809,7 +8813,7 @@ int ha_mroonga::drop_index(MRN_SHARE *target_share, uint key_index)
   } else {
     mrn::PathMapper mapper(target_share->table_name);
     mrn::IndexTableName index_table_name(mapper.table_name(),
-                                         key_info[key_index].name);
+                                         key_info[key_index].name.str);
     grn_obj *index_table = grn_ctx_get(ctx,
                                        index_table_name.c_str(),
                                        index_table_name.length());
@@ -10905,6 +10909,9 @@ void ha_mroonga::storage_store_field(Field *field,
   case MYSQL_TYPE_GEOMETRY:
     storage_store_field_geometry(field, value, value_length);
     break;
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
+  case MYSQL_TYPE_BLOB_COMPRESSED:
+    DBUG_ASSERT(0);
   }
 }
 
@@ -12782,7 +12789,7 @@ int ha_mroonga::wrapper_rename_index(const char *from, const char *to,
 
   uint i;
   for (i = 0; i < tmp_table_share->keys; i++) {
-    const char *mysql_index_name = tmp_table_share->key_info[i].name;
+    const char *mysql_index_name = tmp_table_share->key_info[i].name.str;
     mrn::IndexTableName from_index_table_name(from_table_name, mysql_index_name);
     mrn::IndexTableName  to_index_table_name(to_table_name, mysql_index_name);
     grn_obj *index_table;
@@ -12845,7 +12852,7 @@ int ha_mroonga::storage_rename_table(const char *from, const char *to,
 
   uint i;
   for (i = 0; i < tmp_table_share->keys; i++) {
-    const char *mysql_index_name = tmp_table_share->key_info[i].name;
+    const char *mysql_index_name = tmp_table_share->key_info[i].name.str;
     mrn::IndexTableName from_index_table_name(from_table_name,
                                               mysql_index_name);
     mrn::IndexTableName to_index_table_name(to_table_name,
@@ -13103,7 +13110,7 @@ int ha_mroonga::generic_disable_index(int i, KEY *key_info)
   if (share->index_table[i]) {
     char index_column_name[GRN_TABLE_MAX_KEY_SIZE];
     snprintf(index_column_name, GRN_TABLE_MAX_KEY_SIZE - 1,
-             "%s.%s", share->index_table[i], key_info[i].name);
+             "%s.%s", share->index_table[i], key_info[i].name.str);
     grn_obj *index_column = grn_ctx_get(ctx,
                                         index_column_name,
                                         strlen(index_column_name));
@@ -13113,7 +13120,7 @@ int ha_mroonga::generic_disable_index(int i, KEY *key_info)
   } else {
     mrn::PathMapper mapper(share->table_name);
     mrn::IndexTableName index_table_name(mapper.table_name(),
-                                         key_info[i].name);
+                                         key_info[i].name.str);
     grn_obj *index_table = grn_ctx_get(ctx,
                                        index_table_name.c_str(),
                                        index_table_name.length());
@@ -13577,7 +13584,7 @@ int ha_mroonga::wrapper_recreate_indexes(THD *thd)
       continue;
     }
     mrn::IndexTableName index_table_name(mapper.table_name(),
-                                         table_share->key_info[i].name);
+                                         table_share->key_info[i].name.str);
     char index_column_full_name[MRN_MAX_PATH_SIZE];
     snprintf(index_column_full_name, MRN_MAX_PATH_SIZE,
              "%s.%s", index_table_name.c_str(), INDEX_COLUMN_NAME);
@@ -13629,7 +13636,7 @@ int ha_mroonga::storage_recreate_indexes(THD *thd)
       continue;
 
     mrn::IndexTableName index_table_name(mapper.table_name(),
-                                         table_share->key_info[i].name);
+                                         table_share->key_info[i].name.str);
     char index_column_full_name[MRN_MAX_PATH_SIZE];
     snprintf(index_column_full_name, MRN_MAX_PATH_SIZE,
              "%s.%s", index_table_name.c_str(), INDEX_COLUMN_NAME);
@@ -14209,10 +14216,10 @@ bool ha_mroonga::wrapper_inplace_alter_table(
     if (!(key->flags & HA_FULLTEXT || mrn_is_geo_key(key))) {
       continue;
     }
-    while (strcmp(key_info[j].name, key->name)) {
+    while (strcmp(key_info[j].name.str, key->name.str)) {
       ++j;
     }
-    DBUG_PRINT("info", ("mroonga: key_name=%s", key->name));
+    DBUG_PRINT("info", ("mroonga: key_name=%s", key->name.str));
     error = drop_index(share, j);
     if (error)
       DBUG_RETURN(true);
@@ -14377,7 +14384,7 @@ bool ha_mroonga::storage_inplace_alter_table_index(
   n_keys = ha_alter_info->index_drop_count;
   for (i = 0; i < n_keys; ++i) {
     KEY *key = ha_alter_info->index_drop_buffer[i];
-    while (strcmp(key_info[j].name, key->name)) {
+    while (strcmp(key_info[j].name.str, key->name.str)) {
       ++j;
     }
     error = drop_index(share, j);

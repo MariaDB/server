@@ -1,0 +1,3 @@
+--skip-innodb-doublewrite
+--innodb-file-per-table
+--innodb-change-buffering=none

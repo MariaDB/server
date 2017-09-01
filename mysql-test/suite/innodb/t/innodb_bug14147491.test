@@ -16,6 +16,10 @@ call mtr.add_suppression("mysqld: Index for table 't1' is corrupt; try to repair
 call mtr.add_suppression("mysqld.exe: Index for table 't1' is corrupt; try to repair it");
 --enable_query_log
 
+--echo # Ensure that purge will not crash on the table after we corrupt it.
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+SET GLOBAL innodb_fast_shutdown=0;
+
 --echo # Create and populate the table to be corrupted
 
 set global innodb_file_per_table=ON;

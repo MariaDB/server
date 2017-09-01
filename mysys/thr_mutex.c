@@ -149,10 +149,11 @@ static inline void remove_from_active_list(safe_mutex_t *mp)
 }
 
 /*
-  We initialise the hashes for deadlock detection lazily.
-  This greatly helps with performance when lots of mutexes are initiased but
+  We initialize the hashes for deadlock detection lazily.
+  This greatly helps with performance when lots of mutexes are initialized but
   only a few of them are actually used (eg. InnoDB).
 */
+
 static int safe_mutex_lazy_init_deadlock_detection(safe_mutex_t *mp)
 {
   if (!my_multi_malloc(MY_FAE | MY_WME,

@@ -1,3 +1,4 @@
+set sql_mode="";
 SHOW TABLES FROM information_schema LIKE 'ROUTINES';
 Tables_in_information_schema (ROUTINES)
 ROUTINES
@@ -29,11 +30,19 @@ DROP FUNCTION test.f1;
 DESCRIBE          information_schema.ROUTINES;
 Field	Type	Null	Key	Default	Extra
 SPECIFIC_NAME	varchar(64)	NO			
-ROUTINE_CATALOG	varchar(512)	YES		NULL	
+ROUTINE_CATALOG	varchar(512)	NO			
 ROUTINE_SCHEMA	varchar(64)	NO			
 ROUTINE_NAME	varchar(64)	NO			
 ROUTINE_TYPE	varchar(9)	NO			
-DTD_IDENTIFIER	varchar(64)	YES		NULL	
+DATA_TYPE	varchar(64)	NO			
+CHARACTER_MAXIMUM_LENGTH	int(21)	YES		NULL	
+CHARACTER_OCTET_LENGTH	int(21)	YES		NULL	
+NUMERIC_PRECISION	int(21)	YES		NULL	
+NUMERIC_SCALE	int(21)	YES		NULL	
+DATETIME_PRECISION	bigint(21) unsigned	YES		NULL	
+CHARACTER_SET_NAME	varchar(64)	YES		NULL	
+COLLATION_NAME	varchar(64)	YES		NULL	
+DTD_IDENTIFIER	longtext	YES		NULL	
 ROUTINE_BODY	varchar(8)	NO			
 ROUTINE_DEFINITION	longtext	YES		NULL	
 EXTERNAL_NAME	varchar(64)	YES		NULL	
@@ -45,23 +54,31 @@ SQL_PATH	varchar(64)	YES		NULL
 SECURITY_TYPE	varchar(7)	NO			
 CREATED	datetime	NO		0000-00-00 00:00:00	
 LAST_ALTERED	datetime	NO		0000-00-00 00:00:00	
-SQL_MODE	longtext	NO		NULL	
-ROUTINE_COMMENT	varchar(64)	NO			
-DEFINER	varchar(77)	NO			
+SQL_MODE	varchar(8192)	NO			
+ROUTINE_COMMENT	longtext	NO			
+DEFINER	varchar(189)	NO			
 CHARACTER_SET_CLIENT	varchar(32)	NO			
 COLLATION_CONNECTION	varchar(32)	NO			
-DATABASE_COLLATION	varchar(32)	NO
+DATABASE_COLLATION	varchar(32)	NO			
 SHOW CREATE TABLE information_schema.ROUTINES;
 Table	Create Table
 ROUTINES	CREATE TEMPORARY TABLE `ROUTINES` (
   `SPECIFIC_NAME` varchar(64) NOT NULL DEFAULT '',
-  `ROUTINE_CATALOG` varchar(512) DEFAULT NULL,
+  `ROUTINE_CATALOG` varchar(512) NOT NULL DEFAULT '',
   `ROUTINE_SCHEMA` varchar(64) NOT NULL DEFAULT '',
   `ROUTINE_NAME` varchar(64) NOT NULL DEFAULT '',
   `ROUTINE_TYPE` varchar(9) NOT NULL DEFAULT '',
-  `DTD_IDENTIFIER` varchar(64) DEFAULT NULL,
+  `DATA_TYPE` varchar(64) NOT NULL DEFAULT '',
+  `CHARACTER_MAXIMUM_LENGTH` int(21) DEFAULT NULL,
+  `CHARACTER_OCTET_LENGTH` int(21) DEFAULT NULL,
+  `NUMERIC_PRECISION` int(21) DEFAULT NULL,
+  `NUMERIC_SCALE` int(21) DEFAULT NULL,
+  `DATETIME_PRECISION` bigint(21) unsigned DEFAULT NULL,
+  `CHARACTER_SET_NAME` varchar(64) DEFAULT NULL,
+  `COLLATION_NAME` varchar(64) DEFAULT NULL,
+  `DTD_IDENTIFIER` longtext DEFAULT NULL,
   `ROUTINE_BODY` varchar(8) NOT NULL DEFAULT '',
-  `ROUTINE_DEFINITION` longtext,
+  `ROUTINE_DEFINITION` longtext DEFAULT NULL,
   `EXTERNAL_NAME` varchar(64) DEFAULT NULL,
   `EXTERNAL_LANGUAGE` varchar(64) DEFAULT NULL,
   `PARAMETER_STYLE` varchar(8) NOT NULL DEFAULT '',
@@ -71,21 +88,29 @@ ROUTINES	CREATE TEMPORARY TABLE `ROUTINES` (
   `SECURITY_TYPE` varchar(7) NOT NULL DEFAULT '',
   `CREATED` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
   `LAST_ALTERED` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `SQL_MODE` longtext NOT NULL,
-  `ROUTINE_COMMENT` varchar(64) NOT NULL DEFAULT '',
-  `DEFINER` varchar(77) NOT NULL DEFAULT '',
+  `SQL_MODE` varchar(8192) NOT NULL DEFAULT '',
+  `ROUTINE_COMMENT` longtext NOT NULL DEFAULT '',
+  `DEFINER` varchar(189) NOT NULL DEFAULT '',
   `CHARACTER_SET_CLIENT` varchar(32) NOT NULL DEFAULT '',
   `COLLATION_CONNECTION` varchar(32) NOT NULL DEFAULT '',
   `DATABASE_COLLATION` varchar(32) NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+)  DEFAULT CHARSET=utf8
 SHOW COLUMNS FROM information_schema.ROUTINES;
 Field	Type	Null	Key	Default	Extra
 SPECIFIC_NAME	varchar(64)	NO			
-ROUTINE_CATALOG	varchar(512)	YES		NULL	
+ROUTINE_CATALOG	varchar(512)	NO			
 ROUTINE_SCHEMA	varchar(64)	NO			
 ROUTINE_NAME	varchar(64)	NO			
 ROUTINE_TYPE	varchar(9)	NO			
-DTD_IDENTIFIER	varchar(64)	YES		NULL	
+DATA_TYPE	varchar(64)	NO			
+CHARACTER_MAXIMUM_LENGTH	int(21)	YES		NULL	
+CHARACTER_OCTET_LENGTH	int(21)	YES		NULL	
+NUMERIC_PRECISION	int(21)	YES		NULL	
+NUMERIC_SCALE	int(21)	YES		NULL	
+DATETIME_PRECISION	bigint(21) unsigned	YES		NULL	
+CHARACTER_SET_NAME	varchar(64)	YES		NULL	
+COLLATION_NAME	varchar(64)	YES		NULL	
+DTD_IDENTIFIER	longtext	YES		NULL	
 ROUTINE_BODY	varchar(8)	NO			
 ROUTINE_DEFINITION	longtext	YES		NULL	
 EXTERNAL_NAME	varchar(64)	YES		NULL	
@@ -97,12 +122,12 @@ SQL_PATH	varchar(64)	YES		NULL
 SECURITY_TYPE	varchar(7)	NO			
 CREATED	datetime	NO		0000-00-00 00:00:00	
 LAST_ALTERED	datetime	NO		0000-00-00 00:00:00	
-SQL_MODE	longtext	NO		NULL	
-ROUTINE_COMMENT	varchar(64)	NO			
-DEFINER	varchar(77)	NO			
+SQL_MODE	varchar(8192)	NO			
+ROUTINE_COMMENT	longtext	NO			
+DEFINER	varchar(189)	NO			
 CHARACTER_SET_CLIENT	varchar(32)	NO			
 COLLATION_CONNECTION	varchar(32)	NO			
-DATABASE_COLLATION	varchar(32)	NO
+DATABASE_COLLATION	varchar(32)	NO			
 USE test;
 DROP PROCEDURE IF EXISTS sp_for_routines;
 DROP FUNCTION  IF EXISTS function_for_routines;
@@ -111,11 +136,14 @@ CREATE FUNCTION function_for_routines() RETURNS INT RETURN 0;
 SELECT specific_name,routine_catalog,routine_schema,routine_name,routine_type,
 routine_body,external_name,external_language,parameter_style,sql_path
 FROM information_schema.routines
-WHERE routine_catalog   IS NOT NULL OR external_name   IS NOT NULL
+WHERE routine_schema = 'test' AND
+(routine_catalog   IS NOT NULL OR external_name   IS NOT NULL
 OR external_language IS NOT NULL OR sql_path        IS NOT NULL
 OR routine_body      <> 'SQL'    OR parameter_style <> 'SQL'
-   OR specific_name     <> routine_name;
+   OR specific_name     <> routine_name);
 specific_name	routine_catalog	routine_schema	routine_name	routine_type	routine_body	external_name	external_language	parameter_style	sql_path
+function_for_routines	def	test	function_for_routines	FUNCTION	SQL	NULL	NULL	SQL	NULL
+sp_for_routines	def	test	sp_for_routines	PROCEDURE	SQL	NULL	NULL	SQL	NULL
 DROP PROCEDURE sp_for_routines;
 DROP FUNCTION  function_for_routines;
 ################################################################################
@@ -159,34 +187,46 @@ GRANT EXECUTE ON PROCEDURE db_datadict_2.sp_6_408002_2
 TO 'testuser2'@'localhost';
 GRANT EXECUTE ON db_datadict_2.* TO 'testuser2'@'localhost';
 FLUSH PRIVILEGES;
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , db_datadict;
 SELECT * FROM information_schema.routines;
-SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
-sp_6_408002_1	NULL	db_datadict	sp_6_408002_1	PROCEDURE	NULL	SQL	BEGIN
+SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
+sp_6_408002_1	def	db_datadict	sp_6_408002_1	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN
 SELECT * FROM db_datadict.res_6_408002_1;
 END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-sp_6_408002_2	NULL	db_datadict_2	sp_6_408002_2	PROCEDURE	NULL	SQL	BEGIN
+sp_6_408002_2	def	db_datadict_2	sp_6_408002_2	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN
 SELECT * FROM db_datadict_2.res_6_408002_2;
 END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-# Establish connection testuser2 (user=testuser2)
+add_suppression	def	mtr	add_suppression	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN   INSERT INTO test_suppressions (pattern) VALUES (pattern);   FLUSH NO_WRITE_TO_BINLOG TABLE test_suppressions; END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+check_testcase	def	mtr	check_testcase	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN    SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES     WHERE variable_name NOT IN ('timestamp')      AND variable_name not like "Last_IO_Err*"      AND variable_name != 'INNODB_IBUF_MAX_SIZE'      AND variable_name != 'INNODB_USE_NATIVE_AIO'      AND variable_name != 'INNODB_BUFFER_POOL_LOAD_AT_STARTUP'      AND variable_name not like 'GTID%POS'      AND variable_name != 'GTID_BINLOG_STATE'    ORDER BY variable_name;    SELECT * FROM INFORMATION_SCHEMA.SCHEMATA;    SELECT * FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME NOT IN ('mtr_wsrep_notify', 'wsrep_schema');    SELECT table_name AS tables_in_test FROM INFORMATION_SCHEMA.TABLES     WHERE table_schema='test';    SELECT CONCAT(table_schema, '.', table_name) AS tables_in_mysql     FROM INFORMATION_SCHEMA.TABLES       WHERE table_schema='mysql'         ORDER BY tables_in_mysql;   SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql;    SELECT * FROM INFORMATION_SCHEMA.EVENTS;   SELECT * FROM INFORMATION_SCHEMA.TRIGGERS          WHERE TRIGGER_NAME NOT IN ('gs_insert', 'ts_insert');   SELECT * FROM INFORMATION_SCHEMA.ROUTINES;    SHOW STATUS LIKE 'slave_open_temp_tables';    checksum table     mysql.columns_priv,     mysql.db,     mysql.func,     mysql.help_category,     mysql.help_keyword,     mysql.help_relation,     mysql.host,     mysql.plugin,     mysql.proc,     mysql.procs_priv,     mysql.roles_mapping,     mysql.tables_priv,     mysql.time_zone,     mysql.time_zone_leap_second,     mysql.time_zone_name,     mysql.time_zone_transition,     mysql.time_zone_transition_type,     mysql.user;    SELECT * FROM INFORMATION_SCHEMA.PLUGINS;    select * from information_schema.session_variables     where variable_name = 'debug_sync';  END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+check_warnings	def	mtr	check_warnings	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN   DECLARE `pos` bigint unsigned;    SET SQL_LOG_BIN=0;    UPDATE error_log el, global_suppressions gs     SET suspicious=0       WHERE el.suspicious=1 AND el.line REGEXP gs.pattern;    UPDATE error_log el, test_suppressions ts     SET suspicious=0       WHERE el.suspicious=1 AND el.line REGEXP ts.pattern;    SELECT COUNT(*) INTO @num_warnings FROM error_log     WHERE suspicious=1;    IF @num_warnings > 0 THEN     SELECT line         FROM error_log WHERE suspicious=1;     SELECT 2 INTO result;   ELSE     SELECT 0 INTO RESULT;   END IF;    TRUNCATE test_suppressions;   DROP TABLE error_log;  END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+connect  testuser2, localhost, testuser2, , db_datadict;
 SELECT * FROM information_schema.routines;
-SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
-sp_6_408002_1	NULL	db_datadict	sp_6_408002_1	PROCEDURE	NULL	SQL	BEGIN
+SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
+sp_6_408002_1	def	db_datadict	sp_6_408002_1	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN
 SELECT * FROM db_datadict.res_6_408002_1;
 END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-sp_6_408002_2	NULL	db_datadict_2	sp_6_408002_2	PROCEDURE	NULL	SQL	BEGIN
+sp_6_408002_2	def	db_datadict_2	sp_6_408002_2	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN
 SELECT * FROM db_datadict_2.res_6_408002_2;
 END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-# Establish connection testuser3 (user=testuser3)
+add_suppression	def	mtr	add_suppression	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN   INSERT INTO test_suppressions (pattern) VALUES (pattern);   FLUSH NO_WRITE_TO_BINLOG TABLE test_suppressions; END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+check_testcase	def	mtr	check_testcase	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN    SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES     WHERE variable_name NOT IN ('timestamp')      AND variable_name not like "Last_IO_Err*"      AND variable_name != 'INNODB_IBUF_MAX_SIZE'      AND variable_name != 'INNODB_USE_NATIVE_AIO'      AND variable_name != 'INNODB_BUFFER_POOL_LOAD_AT_STARTUP'      AND variable_name not like 'GTID%POS'      AND variable_name != 'GTID_BINLOG_STATE'    ORDER BY variable_name;    SELECT * FROM INFORMATION_SCHEMA.SCHEMATA;    SELECT * FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME NOT IN ('mtr_wsrep_notify', 'wsrep_schema');    SELECT table_name AS tables_in_test FROM INFORMATION_SCHEMA.TABLES     WHERE table_schema='test';    SELECT CONCAT(table_schema, '.', table_name) AS tables_in_mysql     FROM INFORMATION_SCHEMA.TABLES       WHERE table_schema='mysql'         ORDER BY tables_in_mysql;   SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql;    SELECT * FROM INFORMATION_SCHEMA.EVENTS;   SELECT * FROM INFORMATION_SCHEMA.TRIGGERS          WHERE TRIGGER_NAME NOT IN ('gs_insert', 'ts_insert');   SELECT * FROM INFORMATION_SCHEMA.ROUTINES;    SHOW STATUS LIKE 'slave_open_temp_tables';    checksum table     mysql.columns_priv,     mysql.db,     mysql.func,     mysql.help_category,     mysql.help_keyword,     mysql.help_relation,     mysql.host,     mysql.plugin,     mysql.proc,     mysql.procs_priv,     mysql.roles_mapping,     mysql.tables_priv,     mysql.time_zone,     mysql.time_zone_leap_second,     mysql.time_zone_name,     mysql.time_zone_transition,     mysql.time_zone_transition_type,     mysql.user;    SELECT * FROM INFORMATION_SCHEMA.PLUGINS;    select * from information_schema.session_variables     where variable_name = 'debug_sync';  END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+check_warnings	def	mtr	check_warnings	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN   DECLARE `pos` bigint unsigned;    SET SQL_LOG_BIN=0;    UPDATE error_log el, global_suppressions gs     SET suspicious=0       WHERE el.suspicious=1 AND el.line REGEXP gs.pattern;    UPDATE error_log el, test_suppressions ts     SET suspicious=0       WHERE el.suspicious=1 AND el.line REGEXP ts.pattern;    SELECT COUNT(*) INTO @num_warnings FROM error_log     WHERE suspicious=1;    IF @num_warnings > 0 THEN     SELECT line         FROM error_log WHERE suspicious=1;     SELECT 2 INTO result;   ELSE     SELECT 0 INTO RESULT;   END IF;    TRUNCATE test_suppressions;   DROP TABLE error_log;  END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+connect  testuser3, localhost, testuser3, , test;
 SELECT * FROM information_schema.routines;
-SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
-sp_6_408002_1	NULL	db_datadict	sp_6_408002_1	PROCEDURE	NULL	SQL	BEGIN
+SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
+sp_6_408002_1	def	db_datadict	sp_6_408002_1	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN
 SELECT * FROM db_datadict.res_6_408002_1;
 END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-sp_6_408002_2	NULL	db_datadict_2	sp_6_408002_2	PROCEDURE	NULL	SQL	BEGIN
+sp_6_408002_2	def	db_datadict_2	sp_6_408002_2	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN
 SELECT * FROM db_datadict_2.res_6_408002_2;
 END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-# Switch to connection default and close connections testuser1,testuser2,testuser3
+add_suppression	def	mtr	add_suppression	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN   INSERT INTO test_suppressions (pattern) VALUES (pattern);   FLUSH NO_WRITE_TO_BINLOG TABLE test_suppressions; END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+check_testcase	def	mtr	check_testcase	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN    SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES     WHERE variable_name NOT IN ('timestamp')      AND variable_name not like "Last_IO_Err*"      AND variable_name != 'INNODB_IBUF_MAX_SIZE'      AND variable_name != 'INNODB_USE_NATIVE_AIO'      AND variable_name != 'INNODB_BUFFER_POOL_LOAD_AT_STARTUP'      AND variable_name not like 'GTID%POS'      AND variable_name != 'GTID_BINLOG_STATE'    ORDER BY variable_name;    SELECT * FROM INFORMATION_SCHEMA.SCHEMATA;    SELECT * FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME NOT IN ('mtr_wsrep_notify', 'wsrep_schema');    SELECT table_name AS tables_in_test FROM INFORMATION_SCHEMA.TABLES     WHERE table_schema='test';    SELECT CONCAT(table_schema, '.', table_name) AS tables_in_mysql     FROM INFORMATION_SCHEMA.TABLES       WHERE table_schema='mysql'         ORDER BY tables_in_mysql;   SELECT CONCAT(table_schema, '.', table_name) AS columns_in_mysql,   	 column_name, ordinal_position, column_default, is_nullable,          data_type, character_maximum_length, character_octet_length,          numeric_precision, numeric_scale, character_set_name,          collation_name, column_type, column_key, extra, column_comment     FROM INFORMATION_SCHEMA.COLUMNS       WHERE table_schema='mysql'         ORDER BY columns_in_mysql;    SELECT * FROM INFORMATION_SCHEMA.EVENTS;   SELECT * FROM INFORMATION_SCHEMA.TRIGGERS          WHERE TRIGGER_NAME NOT IN ('gs_insert', 'ts_insert');   SELECT * FROM INFORMATION_SCHEMA.ROUTINES;    SHOW STATUS LIKE 'slave_open_temp_tables';    checksum table     mysql.columns_priv,     mysql.db,     mysql.func,     mysql.help_category,     mysql.help_keyword,     mysql.help_relation,     mysql.host,     mysql.plugin,     mysql.proc,     mysql.procs_priv,     mysql.roles_mapping,     mysql.tables_priv,     mysql.time_zone,     mysql.time_zone_leap_second,     mysql.time_zone_name,     mysql.time_zone_transition,     mysql.time_zone_transition_type,     mysql.user;    SELECT * FROM INFORMATION_SCHEMA.PLUGINS;    select * from information_schema.session_variables     where variable_name = 'debug_sync';  END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+check_warnings	def	mtr	check_warnings	PROCEDURE		NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	SQL	BEGIN   DECLARE `pos` bigint unsigned;    SET SQL_LOG_BIN=0;    UPDATE error_log el, global_suppressions gs     SET suspicious=0       WHERE el.suspicious=1 AND el.line REGEXP gs.pattern;    UPDATE error_log el, test_suppressions ts     SET suspicious=0       WHERE el.suspicious=1 AND el.line REGEXP ts.pattern;    SELECT COUNT(*) INTO @num_warnings FROM error_log     WHERE suspicious=1;    IF @num_warnings > 0 THEN     SELECT line         FROM error_log WHERE suspicious=1;     SELECT 2 INTO result;   ELSE     SELECT 0 INTO RESULT;   END IF;    TRUNCATE test_suppressions;   DROP TABLE error_log;  END	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	YYYY-MM-DD hh:mm:ss	YYYY-MM-DD hh:mm:ss			root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+connection default;
+disconnect testuser1;
+disconnect testuser2;
+disconnect testuser3;
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP USER 'testuser3'@'localhost';
@@ -199,17 +239,25 @@ DROP DATABASE db_datadict_2;
 DROP DATABASE IF EXISTS db_datadict;
 CREATE DATABASE db_datadict;
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict';
-SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
+SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
 USE db_datadict;
 CREATE PROCEDURE sp_for_routines()      SELECT 'db_datadict';
 CREATE FUNCTION function_for_routines() RETURNS INT RETURN 0;
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict'
 ORDER BY routine_name;
 SPECIFIC_NAME	function_for_routines
-ROUTINE_CATALOG	NULL
+ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_datadict
 ROUTINE_NAME	function_for_routines
 ROUTINE_TYPE	FUNCTION
+DATA_TYPE	int
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	10
+NUMERIC_SCALE	0
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
 DTD_IDENTIFIER	int(11)
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	RETURN 0
@@ -229,10 +277,18 @@ CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	latin1_swedish_ci
 SPECIFIC_NAME	sp_for_routines
-ROUTINE_CATALOG	NULL
+ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_datadict
 ROUTINE_NAME	sp_for_routines
 ROUTINE_TYPE	PROCEDURE
+DATA_TYPE	
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
 DTD_IDENTIFIER	NULL
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	SELECT 'db_datadict'
@@ -256,10 +312,18 @@ ALTER FUNCTION function_for_routines COMMENT 'updated comments';
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict'
 ORDER BY routine_name;
 SPECIFIC_NAME	function_for_routines
-ROUTINE_CATALOG	NULL
+ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_datadict
 ROUTINE_NAME	function_for_routines
 ROUTINE_TYPE	FUNCTION
+DATA_TYPE	int
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	10
+NUMERIC_SCALE	0
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
 DTD_IDENTIFIER	int(11)
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	RETURN 0
@@ -279,10 +343,18 @@ CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	latin1_swedish_ci
 SPECIFIC_NAME	sp_for_routines
-ROUTINE_CATALOG	NULL
+ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_datadict
 ROUTINE_NAME	sp_for_routines
 ROUTINE_TYPE	PROCEDURE
+DATA_TYPE	
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
 DTD_IDENTIFIER	NULL
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	SELECT 'db_datadict'
@@ -304,16 +376,24 @@ DATABASE_COLLATION	latin1_swedish_ci
 DROP PROCEDURE sp_for_routines;
 DROP FUNCTION function_for_routines;
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict';
-SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
+SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
 CREATE PROCEDURE sp_for_routines()      SELECT 'db_datadict';
 CREATE FUNCTION function_for_routines() RETURNS INT RETURN 0;
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict'
 ORDER BY routine_name;
 SPECIFIC_NAME	function_for_routines
-ROUTINE_CATALOG	NULL
+ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_datadict
 ROUTINE_NAME	function_for_routines
 ROUTINE_TYPE	FUNCTION
+DATA_TYPE	int
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	10
+NUMERIC_SCALE	0
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
 DTD_IDENTIFIER	int(11)
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	RETURN 0
@@ -333,10 +413,18 @@ CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	latin1_swedish_ci
 SPECIFIC_NAME	sp_for_routines
-ROUTINE_CATALOG	NULL
+ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_datadict
 ROUTINE_NAME	sp_for_routines
 ROUTINE_TYPE	PROCEDURE
+DATA_TYPE	
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
 DTD_IDENTIFIER	NULL
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	SELECT 'db_datadict'
@@ -358,7 +446,7 @@ DATABASE_COLLATION	latin1_swedish_ci
 use test;
 DROP DATABASE db_datadict;
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict';
-SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
+SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
 #########################################################################
 # 3.2.8.4: INFORMATION_SCHEMA.ROUTINES routine body too big for
 #          ROUTINE_DEFINITION column
@@ -498,10 +586,18 @@ abc	98765	99999999	98765	2010
 SELECT *, LENGTH(routine_definition) FROM information_schema.routines
 WHERE routine_schema = 'db_datadict';
 SPECIFIC_NAME	sp_6_408004
-ROUTINE_CATALOG	NULL
+ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_datadict
 ROUTINE_NAME	sp_6_408004
 ROUTINE_TYPE	PROCEDURE
+DATA_TYPE	
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
 DTD_IDENTIFIER	NULL
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	BEGIN
@@ -630,7 +726,7 @@ VALUES ('p2', 'procedure');
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 UPDATE information_schema.routines SET routine_name = 'p2'
 WHERE routine_body = 'sql';
-ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+ERROR HY000: The target table routines of the UPDATE is not updatable
 DELETE FROM information_schema.routines ;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 TRUNCATE information_schema.routines ;

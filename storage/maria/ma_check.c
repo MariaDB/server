@@ -3175,7 +3175,7 @@ int maria_sort_index(HA_CHECK *param, register MARIA_HA *info, char *name)
   DBUG_EXECUTE_IF("maria_crash_sort_index",
                   {
                     DBUG_PRINT("maria_crash_sort_index", ("now"));
-                    DBUG_ABORT();
+                    DBUG_SUICIDE();
                   });
   DBUG_RETURN(0);
 
@@ -3913,7 +3913,7 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
     DBUG_EXECUTE_IF("maria_crash_create_index_by_sort",
                     {
                       DBUG_PRINT("maria_crash_create_index_by_sort", ("now"));
-                      DBUG_ABORT();
+                      DBUG_SUICIDE();
                     });
     if (scan_inited)
     {
@@ -4124,7 +4124,7 @@ err:
     DBUG_EXECUTE_IF("maria_crash_repair",
                     {
                       DBUG_PRINT("maria_crash_repair", ("now"));
-                      DBUG_ABORT();
+                      DBUG_SUICIDE();
                     });
   }
   share->state.changed|= STATE_NOT_SORTED_PAGES;
@@ -4261,6 +4261,8 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     }
   */
   DBUG_PRINT("info", ("is quick repair: %d", (int) rep_quick));
+  if (!rep_quick)
+    my_b_clear(&new_data_cache);
 
   /* Initialize pthread structures before goto err. */
   mysql_mutex_init(key_SORT_INFO_mutex, &sort_info.mutex, MY_MUTEX_INIT_FAST);
@@ -4626,7 +4628,7 @@ err:
     already or they were not yet started (if the error happend before
     creating the threads).
   */
-  if (!rep_quick)
+  if (!rep_quick && my_b_inited(&new_data_cache))
     end_io_cache(&new_data_cache);
   if (!got_error)
   {

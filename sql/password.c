@@ -60,7 +60,7 @@
 
 *****************************************************************************/
 
-#include <my_global.h>
+#include "mariadb.h"
 #include <my_sys.h>
 #include <m_string.h>
 #include <password.h>

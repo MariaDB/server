@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 /*
   It is necessary to include set_var.h instead of item.h because there
@@ -2622,7 +2622,7 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
     {
       Item_splocal *splocal= new (thd->mem_root)
         Item_splocal(thd, &name, spv->offset, spv->sql_type(), 0);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
       if (splocal)
         splocal->m_sp= lex->sphead;
 #endif

@@ -39,6 +39,8 @@ set session log_slow_filter='full_join';
 select @@session.log_slow_filter;
 set session log_slow_filter='full_scan';
 select @@session.log_slow_filter;
+set session log_slow_filter='not_using_index';
+select @@session.log_slow_filter;
 set session log_slow_filter='query_cache';
 select @@session.log_slow_filter;
 set session log_slow_filter='query_cache_miss';
@@ -49,7 +51,7 @@ set session log_slow_filter='tmp_table_on_disk';
 select @@session.log_slow_filter;
 set session log_slow_filter='filesort,query_cache';
 select @@session.log_slow_filter;
-set session log_slow_filter='admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk';
+set session log_slow_filter='admin,not_using_index,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk';
 select @@session.log_slow_filter;
 set session log_slow_filter='';
 select @@session.log_slow_filter;
@@ -64,6 +66,6 @@ set session log_slow_filter=1e1;
 --error ER_WRONG_VALUE_FOR_VAR
 set session log_slow_filter="foo";
 --error ER_WRONG_VALUE_FOR_VAR
-set session log_slow_filter=1024;
+set session log_slow_filter=16384;
 
 SET @@global.log_slow_filter = @start_global_value;

@@ -19,46 +19,7 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
-#include "my_sys.h"                    /* alloc_root, TRASH, MY_WME,
-                                          MY_FAE, MY_ALLOW_ZERO_PTR */
-#include "m_string.h"                           /* bfill */
-
-THD *thd_get_current_thd();
-
-/* mysql standard class memory allocator */
-
-class Sql_alloc
-{
-public:
-  static void *operator new(size_t size) throw ()
-  {
-    return thd_alloc(thd_get_current_thd(), size);
-  }
-  static void *operator new[](size_t size) throw ()
-  {
-    return thd_alloc(thd_get_current_thd(), size);
-  }
-  static void *operator new[](size_t size, MEM_ROOT *mem_root) throw ()
-  { return alloc_root(mem_root, size); }
-  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
-  { return alloc_root(mem_root, size); }
-  static void operator delete(void *ptr, size_t size) { TRASH(ptr, size); }
-  static void operator delete(void *ptr, MEM_ROOT *mem_root)
-  { /* never called */ }
-  static void operator delete[](void *ptr, MEM_ROOT *mem_root)
-  { /* never called */ }
-  static void operator delete[](void *ptr, size_t size) { TRASH(ptr, size); }
-#ifdef HAVE_valgrind
-  bool dummy_for_valgrind;
-  inline Sql_alloc() :dummy_for_valgrind(0) {}
-  inline ~Sql_alloc() {}
-#else
-  inline Sql_alloc() {}
-  inline ~Sql_alloc() {}
-#endif
-
-};
-
+#include "sql_alloc.h"
 
 /**
   Simple intrusive linked list.
@@ -67,6 +28,7 @@ public:
           a pointer to the first element in the list and a indirect
           reference to the last element.
 */
+
 template <typename T>
 class SQL_I_List :public Sql_alloc
 {

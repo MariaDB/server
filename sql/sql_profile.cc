@@ -29,10 +29,9 @@
   - "profiling_history_size", integer, session + global, "Num queries stored?"
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_profile.h"
-#include <my_sys.h>
 #include "sql_show.h"                     // schema_table_store_record
 #include "sql_class.h"                    // THD
 

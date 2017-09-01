@@ -33,6 +33,9 @@
 */
 
 #include "mysql_client_fw.c"
+#ifndef _WIN32
+#include <arpa/inet.h>
+#endif
 
 static const my_bool my_true= 1;
 
@@ -19635,6 +19638,182 @@ static void test_mdev12579()
 }
 
 
+typedef struct {
+  char sig[12];
+  char ver_cmd;
+  char fam;
+  short len;
+  union {
+    struct {  /* for TCP/UDP over IPv4, len = 12 */
+      int src_addr;
+      int dst_addr;
+      short src_port;
+      short dst_port;
+    } ip4;
+    struct {  /* for TCP/UDP over IPv6, len = 36 */
+      char  src_addr[16];
+      char  dst_addr[16];
+      short src_port;
+      short dst_port;
+    } ip6;
+    struct {  /* for AF_UNIX sockets, len = 216 */
+      char src_addr[108];
+      char dst_addr[108];
+    } unx;
+  } addr;
+} v2_proxy_header;
+
+#ifndef EMBEDDED_LIBRARY
+static void test_proxy_header_tcp(const char *ipaddr, int port)
+{
+ 
+  int rc;
+  MYSQL_RES *result;
+  int family = (strchr(ipaddr,':') == NULL)?AF_INET:AF_INET6;
+  char query[256];
+  char text_header[256];
+  char addr_bin[16];
+  v2_proxy_header v2_header;
+  void *header_data[2];
+  size_t header_lengths[2];
+  int i;
+
+  // normalize IPv4-mapped IPv6 addresses, e.g ::ffff:127.0.0.2 to 127.0.0.2
+  const char *normalized_addr= strncmp(ipaddr, "::ffff:", 7)?ipaddr : ipaddr + 7;
+
+  memset(&v2_header, 0, sizeof(v2_header));
+  sprintf(text_header,"PROXY %s %s %s %d 3306\r\n",family == AF_INET?"TCP4":"TCP6", ipaddr, ipaddr, port);
+ 
+  inet_pton(family,ipaddr,addr_bin);
+
+  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
+  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* Version (0x2) , Command = PROXY (0x1) */
+  if(family == AF_INET)
+  {
+    v2_header.fam= 0x11;
+    v2_header.len= htons(12);
+    v2_header.addr.ip4.src_port= htons(port);
+    v2_header.addr.ip4.dst_port= htons(3306);
+    memcpy(&v2_header.addr.ip4.src_addr,addr_bin, sizeof (v2_header.addr.ip4.src_addr));
+    memcpy(&v2_header.addr.ip4.dst_addr,addr_bin, sizeof (v2_header.addr.ip4.dst_addr));
+  }
+  else
+  {
+    v2_header.fam= 0x21;
+    v2_header.len= htons(36);
+    v2_header.addr.ip6.src_port= htons(port);
+    v2_header.addr.ip6.dst_port= htons(3306);
+    memcpy(v2_header.addr.ip6.src_addr,addr_bin, sizeof (v2_header.addr.ip6.src_addr));
+    memcpy(v2_header.addr.ip6.dst_addr,addr_bin, sizeof (v2_header.addr.ip6.dst_addr));
+  }
+
+  sprintf(query,"CREATE USER 'u'@'%s' IDENTIFIED BY 'password'",normalized_addr);
+  rc= mysql_query(mysql, query);
+  myquery(rc);
+
+  header_data[0]= text_header;
+  header_data[1]= &v2_header;
+
+  header_lengths[0]= strlen(text_header);
+  header_lengths[1]= family == AF_INET ? 28 : 52;
+
+  for (i = 0; i < 2; i++)
+  {
+    MYSQL *m;
+    size_t addrlen;
+    MYSQL_ROW row;
+    m = mysql_client_init(NULL);
+    DIE_UNLESS(m);
+    mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header_data[i], header_lengths[i]);
+    if (!mysql_real_connect(m, opt_host, "u", "password", NULL, opt_port, opt_unix_socket, 0))
+    {
+       DIE_UNLESS(0);
+    }
+    rc= mysql_query(m, "select host from information_schema.processlist WHERE ID = connection_id()");
+    myquery(rc);
+    /* get the result */
+    result= mysql_store_result(m);
+    mytest(result);
+    row = mysql_fetch_row(result);
+    addrlen = strlen(normalized_addr);
+    printf("%.*s %.*s\n", (int)addrlen, row[0], (int)addrlen, normalized_addr);
+    DIE_UNLESS(strncmp(row[0], normalized_addr, addrlen) == 0);
+    DIE_UNLESS(atoi(row[0] + addrlen+1) == port);
+    mysql_close(m);
+  }
+  sprintf(query,"DROP USER 'u'@'%s'",normalized_addr);
+  rc = mysql_query(mysql, query);
+  myquery(rc);
+}
+
+
+/* Test proxy protocol with AF_UNIX (localhost) */
+static void test_proxy_header_localhost()
+{
+  v2_proxy_header v2_header;
+  void *header_data = &v2_header;
+  size_t header_length= 216 + 16;
+  MYSQL *m;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  int rc;
+
+  memset(&v2_header, 0, sizeof(v2_header));
+  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
+  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* Version (0x2) , Command = PROXY (0x1) */
+  v2_header.fam= 0x31;
+  v2_header.len= htons(216);
+  strcpy(v2_header.addr.unx.src_addr,"/tmp/mysql.sock");
+  strcpy(v2_header.addr.unx.dst_addr,"/tmp/mysql.sock");
+  rc = mysql_query(mysql, "CREATE USER 'u'@'localhost' IDENTIFIED BY 'password'");
+  myquery(rc);
+  m = mysql_client_init(NULL);
+  DIE_UNLESS(m != NULL);
+  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header_data, header_length);
+  DIE_UNLESS(mysql_real_connect(m, opt_host, "u", "password", NULL, opt_port, opt_unix_socket, 0) == m);
+  DIE_UNLESS(mysql_query(m, "select host from information_schema.processlist WHERE ID = connection_id()") == 0);
+  /* get the result */
+  result= mysql_store_result(m);
+  mytest(result);
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "localhost") == 0);
+  mysql_close(m);
+  rc = mysql_query(mysql,  "DROP USER 'u'@'localhost'");
+  myquery(rc);
+}
+
+/* Proxy header ignoring */
+static void test_proxy_header_ignore()
+{
+  MYSQL *m = mysql_client_init(NULL);
+  v2_proxy_header v2_header;
+  DIE_UNLESS(m != NULL);
+  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, "PROXY UNKNOWN\r\n",15);
+  DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == m);
+  mysql_close(m);
+
+  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
+  v2_header.ver_cmd = (0x2 << 4) | 0x0; /* Version (0x2) , Command = LOCAL (0x0) */
+  v2_header.fam= 0x0; /* AF_UNSPEC*/
+  v2_header.len= htons(0);
+  m = mysql_client_init(NULL);
+  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, &v2_header,16);
+  DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == m);
+  mysql_close(m);
+}
+
+
+static void test_proxy_header()
+{
+  test_proxy_header_tcp("192.0.2.1",3333);
+  test_proxy_header_tcp("2001:db8:85a3::8a2e:370:7334",2222);
+  test_proxy_header_tcp("::ffff:192.0.2.1",2222);
+  test_proxy_header_localhost();
+  test_proxy_header_ignore();
+}
+
+#endif
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -19914,6 +20093,9 @@ static struct my_tests_st my_tests[]= {
   { "test_big_packet", test_big_packet },
   { "test_prepare_analyze", test_prepare_analyze },
   { "test_mdev12579", test_mdev12579 },
+#ifndef EMBEDDED_LIBRARY
+  { "test_proxy_header", test_proxy_header},
+#endif
   { 0, 0 }
 };
 

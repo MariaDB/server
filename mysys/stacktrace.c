@@ -178,12 +178,13 @@ int my_safe_print_str(const char* val, int max_len)
 #include <ucontext.h>
 
 void my_print_stacktrace(uchar* stack_bottom __attribute__((unused)), 
-                         ulong thread_stack __attribute__((unused)))
+                         ulong thread_stack __attribute__((unused)),
+                         my_bool silent)
 {
   if (printstack(fileno(stderr)) == -1)
     my_safe_printf_stderr("%s",
       "Error when traversing the stack, stack appears corrupt.\n");
-  else
+  else if (!silent)
     my_safe_printf_stderr("%s",
       "Please read "
       "http://dev.mysql.com/doc/refman/5.1/en/resolve-stack-dump.html\n"
@@ -260,7 +261,8 @@ static int print_with_addr_resolve(void **addrs, int n)
 }
 #endif
 
-void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack)
+void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
+                         my_bool silent __attribute__((unused)))
 {
   void *addrs[128];
   char **strings __attribute__((unused)) = NULL;
@@ -334,7 +336,8 @@ inline uint32* find_prev_pc(uint32* pc, uchar** fp)
 }
 #endif /* defined(__alpha__) && defined(__GNUC__) */
 
-void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack)
+void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
+                         my_bool silent)
 {
   uchar** UNINIT_VAR(fp);
   uint frame_count = 0, sigreturn_frame_count;
@@ -449,7 +452,8 @@ void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack)
                         "Stack trace seems successful - bottom reached\n");
 
 end:
-  my_safe_printf_stderr("%s",
+  if (!silent)
+    my_safe_printf_stderr("%s",
     "Please read "
     "http://dev.mysql.com/doc/refman/5.1/en/resolve-stack-dump.html\n"
     "and follow instructions on how to resolve the stack trace.\n"
@@ -610,7 +614,7 @@ static void get_symbol_path(char *path, size_t size)
 #define SYMOPT_NO_PROMPTS 0
 #endif
 
-void my_print_stacktrace(uchar* unused1, ulong unused2)
+void my_print_stacktrace(uchar* unused1, ulong unused2, my_bool silent)
 {
   HANDLE  hProcess= GetCurrentProcess();
   HANDLE  hThread= GetCurrentThread();
@@ -776,7 +780,7 @@ int my_safe_print_str(const char *val, int len)
 
 size_t my_write_stderr(const void *buf, size_t count)
 {
-  return (size_t) write(STDERR_FILENO, buf, count);
+  return (size_t) write(fileno(stderr), buf, count);
 }
 
 

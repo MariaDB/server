@@ -13,7 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include <violite.h>
 #include <sql_priv.h>
 #include <sql_class.h>
@@ -308,6 +308,24 @@ static void threadpool_remove_connection(THD *thd)
   my_thread_end();
 }
 
+
+/*
+  Ensure that proper error message is sent to client,
+  and "aborted" message appears in the log in case of
+  wait timeout.
+
+  See also timeout handling in net_serv.cc
+*/
+static void handle_wait_timeout(THD *thd)
+{
+  thd->get_stmt_da()->reset_diagnostics_area();
+  thd->reset_killed();
+  my_error(ER_NET_READ_INTERRUPTED, MYF(0));
+  thd->net.last_errno= ER_NET_READ_INTERRUPTED;
+  thd->net.error= 2;
+}
+
+
 /**
  Process a single client request or a single batch.
 */
@@ -323,6 +341,8 @@ static int threadpool_process_request(THD *thd)
       or KILL command. Return error.
     */
     retval= 1;
+    if(thd->killed == KILL_WAIT_TIMEOUT)
+      handle_wait_timeout(thd);
     goto end;
   }
 
@@ -458,7 +478,7 @@ void tp_timeout_handler(TP_connection *c)
     return;
   THD *thd=c->thd;
   mysql_mutex_lock(&thd->LOCK_thd_data);
-  thd->killed= KILL_CONNECTION;
+  thd->set_killed(KILL_WAIT_TIMEOUT);
   c->priority= TP_PRIORITY_HIGH;
   post_kill_notification(thd);
   mysql_mutex_unlock(&thd->LOCK_thd_data);

@@ -18,7 +18,7 @@
   This code needs extra visibility in the lexer structures
 */
 
-#include "my_global.h"
+#include "mariadb.h"
 #include "my_md5.h"
 #include "mysqld_error.h"
 
@@ -30,11 +30,6 @@
 #include "sql_digest_stream.h"
 
 #include "sql_get_diagnostics.h"
-
-#ifdef NEVER
-#include "my_sys.h"
-#include "sql_signal.h"
-#endif
 
 /* Generated code */
 #include "sql_yacc.h"

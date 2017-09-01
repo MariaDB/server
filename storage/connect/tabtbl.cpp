@@ -84,6 +84,8 @@
 #define SYSEXIT void *
 #endif  // !__WIN__
 
+extern pthread_mutex_t tblmut;
+
 /* ---------------------------- Class TBLDEF ---------------------------- */
 
 /**************************************************************************/
@@ -575,8 +577,10 @@ pthread_handler_t ThreadOpen(void *p)
 
     // Try to open the connection
     if (!cmp->Tap->GetTo_Tdb()->OpenDB(cmp->G)) {
-      cmp->Ready = true;
-    } else
+			pthread_mutex_lock(&tblmut);
+			cmp->Ready = true;
+			pthread_mutex_unlock(&tblmut);
+		} else
       cmp->Rc = RC_FX;
 
     my_thread_end();
@@ -648,6 +652,7 @@ bool TDBTBM::OpenTables(PGLOBAL g)
       tp = (PTBMT)PlugSubAlloc(g, NULL, sizeof(TBMT));
       memset(tp, 0, sizeof(TBMT));
       tp->G = g;
+			tp->Ready = false;
       tp->Tap = tabp;
       tp->Thd = thd;
 
@@ -792,13 +797,18 @@ int TDBTBM::ReadNextRemote(PGLOBAL g)
 
  retry:
   // Search for a remote table having its result set
-  for (PTBMT  tp = Tmp; tp; tp = tp->Next)
+	pthread_mutex_lock(&tblmut);
+	for (PTBMT  tp = Tmp; tp; tp = tp->Next)
     if (tp->Ready) {
-      if (!tp->Complete)
-        Cmp = tp;
+			if (!tp->Complete) {
+				Cmp = tp;
+				break;
+			}	// endif Complete
 
     } else
       b = true;
+
+	pthread_mutex_unlock(&tblmut);
 
   if (!Cmp) {
     if (b) {          // more result to come

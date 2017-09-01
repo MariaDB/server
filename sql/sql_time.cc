@@ -17,7 +17,7 @@
 
 /* Functions to handle date and time */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_time.h"
 #include "tztime.h"                      // struct Time_zone

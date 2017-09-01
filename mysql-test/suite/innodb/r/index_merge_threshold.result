@@ -1,3 +1,5 @@
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 CREATE TABLE tab(a BIGINT PRIMARY KEY,c1 TINYTEXT,c2 TEXT,c3 MEDIUMTEXT,
 c4 TINYBLOB,c5 BLOB,c6 MEDIUMBLOB,c7 LONGBLOB) ENGINE=InnoDB;
 CREATE INDEX index1 ON tab(c1(255)) COMMENT 'Check index level merge MERGE_THRESHOLD=51';
@@ -205,14 +207,15 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	7
 5	7
-set global innodb_purge_stop_now=ON;
+begin;
 delete from tab1 where a = 12;
 delete from tab1 where a = 13;
 delete from tab1 where a = 14;
 delete from tab1 where a = 5;
 delete from tab1 where a = 6;
 delete from tab1 where a = 7;
-set global innodb_purge_run_now=ON;
+commit;
+InnoDB		0 transactions not purged
 # check page merge happens (nothing is expected)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -228,27 +231,24 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	4
 5	4
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 11;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	1
 index_page_merge_successful	1
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 10;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	2
 index_page_merge_successful	2
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 9;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -288,14 +288,15 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	7
 5	7
-set global innodb_purge_stop_now=ON;
+begin;
 delete from tab1 where a = 12;
 delete from tab1 where a = 13;
 delete from tab1 where a = 14;
 delete from tab1 where a = 5;
 delete from tab1 where a = 6;
 delete from tab1 where a = 7;
-set global innodb_purge_run_now=ON;
+commit;
+InnoDB		0 transactions not purged
 # check page merge happens (nothing is expected)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -311,27 +312,24 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	4
 5	4
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 11;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	0
 index_page_merge_successful	0
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 10;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	1
 index_page_merge_successful	1
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 9;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -371,14 +369,15 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	7
 5	7
-set global innodb_purge_stop_now=ON;
+begin;
 delete from tab1 where a = 12;
 delete from tab1 where a = 13;
 delete from tab1 where a = 14;
 delete from tab1 where a = 5;
 delete from tab1 where a = 6;
 delete from tab1 where a = 7;
-set global innodb_purge_run_now=ON;
+commit;
+InnoDB		0 transactions not purged
 # check page merge happens (nothing is expected)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -394,27 +393,24 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	4
 5	4
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 11;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	0
 index_page_merge_successful	0
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 10;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	0
 index_page_merge_successful	0
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 9;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -459,14 +455,15 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	7
 5	7
-set global innodb_purge_stop_now=ON;
+begin;
 delete from tab1 where a = 12;
 delete from tab1 where a = 13;
 delete from tab1 where a = 14;
 delete from tab1 where a = 5;
 delete from tab1 where a = 6;
 delete from tab1 where a = 7;
-set global innodb_purge_run_now=ON;
+commit;
+InnoDB		0 transactions not purged
 # check page merge happens (nothing is expected)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -483,27 +480,24 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	4
 5	4
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 11;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	0
 index_page_merge_successful	0
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 10;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	1
 index_page_merge_successful	1
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 9;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -872,7 +866,7 @@ PAGE_NUMBER	NUMBER_RECORDS
 4	2
 27	21
 28	21
-set global innodb_purge_stop_now=ON;
+begin;
 delete from tab1 where a = 33;
 delete from tab1 where a = 34;
 delete from tab1 where a = 35;
@@ -893,7 +887,8 @@ delete from tab1 where a = 18;
 delete from tab1 where a = 19;
 delete from tab1 where a = 20;
 delete from tab1 where a = 21;
-set global innodb_purge_run_now=ON;
+commit;
+InnoDB		0 transactions not purged
 # check page merge happens (nothing is expected)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -910,27 +905,24 @@ PAGE_NUMBER	NUMBER_RECORDS
 4	2
 27	11
 28	11
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 32;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	1
 index_page_merge_successful	1
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 31;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=45 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	2
 index_page_merge_successful	2
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 30;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=40 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -1000,7 +992,7 @@ PAGE_NUMBER	NUMBER_RECORDS
 4	2
 27	21
 28	21
-set global innodb_purge_stop_now=ON;
+begin;
 delete from tab1 where a = 33;
 delete from tab1 where a = 34;
 delete from tab1 where a = 35;
@@ -1021,7 +1013,8 @@ delete from tab1 where a = 18;
 delete from tab1 where a = 19;
 delete from tab1 where a = 20;
 delete from tab1 where a = 21;
-set global innodb_purge_run_now=ON;
+commit;
+InnoDB		0 transactions not purged
 # check page merge happens (nothing is expected)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -1038,27 +1031,24 @@ PAGE_NUMBER	NUMBER_RECORDS
 4	2
 27	11
 28	11
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 32;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	0
 index_page_merge_successful	0
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 31;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=45 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	1
 index_page_merge_successful	1
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 30;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=40 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -1128,7 +1118,7 @@ PAGE_NUMBER	NUMBER_RECORDS
 4	2
 27	21
 28	21
-set global innodb_purge_stop_now=ON;
+begin;
 delete from tab1 where a = 33;
 delete from tab1 where a = 34;
 delete from tab1 where a = 35;
@@ -1149,7 +1139,8 @@ delete from tab1 where a = 18;
 delete from tab1 where a = 19;
 delete from tab1 where a = 20;
 delete from tab1 where a = 21;
-set global innodb_purge_run_now=ON;
+commit;
+InnoDB		0 transactions not purged
 # check page merge happens (nothing is expected)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -1166,27 +1157,24 @@ PAGE_NUMBER	NUMBER_RECORDS
 4	2
 27	11
 28	11
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 32;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	0
 index_page_merge_successful	0
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 31;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=45 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	0
 index_page_merge_successful	0
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 30;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=40 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -1257,7 +1245,7 @@ PAGE_NUMBER	NUMBER_RECORDS
 4	2
 27	21
 28	21
-set global innodb_purge_stop_now=ON;
+begin;
 delete from tab1 where a = 33;
 delete from tab1 where a = 34;
 delete from tab1 where a = 35;
@@ -1278,7 +1266,8 @@ delete from tab1 where a = 18;
 delete from tab1 where a = 19;
 delete from tab1 where a = 20;
 delete from tab1 where a = 21;
-set global innodb_purge_run_now=ON;
+commit;
+InnoDB		0 transactions not purged
 # check page merge happens (nothing is expected)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -1295,27 +1284,24 @@ PAGE_NUMBER	NUMBER_RECORDS
 4	2
 27	11
 28	11
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 32;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	0
 index_page_merge_successful	0
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 31;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=45 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
 index_page_merge_attempts	1
 index_page_merge_successful	1
-set global innodb_purge_stop_now=ON;
 delete from tab1 where a = 30;
-set global innodb_purge_run_now=ON;
+InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=40 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
@@ -1323,3 +1309,4 @@ name	count_reset
 index_page_merge_attempts	2
 index_page_merge_successful	2
 DROP TABLE tab1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

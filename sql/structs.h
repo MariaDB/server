@@ -109,9 +109,9 @@ typedef struct st_key {
       pk2 is explicitly present in idx1, it is not in the extension, so
       ext_key_part_map.is_set(1) == false
   */
+  LEX_CSTRING name;
   key_part_map ext_key_part_map;
   uint  block_size;
-  uint  name_length;
   enum  ha_key_alg algorithm;
   /* 
     The flag is on if statistical data for the index prefixes
@@ -128,7 +128,6 @@ typedef struct st_key {
     LEX_CSTRING *parser_name;           /* Fulltext [pre]parser name */
   };
   KEY_PART_INFO *key_part;
-  const char *name;				/* Name of key */
   /* Unique name for cache;  db + \0 + table_name + \0 + key_name + \0 */
   uchar *cache_name;
   /*

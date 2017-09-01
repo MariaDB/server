@@ -15,8 +15,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
-#include "sql_plugin.h"                         // Includes my_global.h
-#include "sql_priv.h"                         // SHOW_MY_BOOL
+#include "sql_plugin.h"                         // SHOW_MY_BOOL
+#include "sql_priv.h"
 #include "unireg.h"
 #include "sql_class.h"                          // set_var.h: THD
 #include "sys_vars_shared.h"
@@ -1669,7 +1669,7 @@ int plugin_init(int *argc, char **argv, int flags)
     */
     global_system_variables.table_plugin =
       intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
-      DBUG_ASSERT(plugin_ptr->ref_count == 1);
+    DBUG_SLOW_ASSERT(plugin_ptr->ref_count == 1);
 
   }
   mysql_mutex_unlock(&LOCK_plugin);
@@ -1840,7 +1840,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     goto end;
   }
   table->use_all_columns();
-  while (!(error= read_record_info.read_record(&read_record_info)))
+  while (!(error= read_record_info.read_record()))
   {
     DBUG_PRINT("info", ("init plugin record"));
     String str_name, str_dl;

@@ -1,8 +1,26 @@
 DROP TABLE IF EXISTS t1, t2, t3;
-CREATE TABLE t1(pk CHAR(5) PRIMARY KEY, a char(30), b char(30), key(a)) COLLATE 'latin1_bin';
-CREATE TABLE t2(pk CHAR(5) PRIMARY KEY, a char(30), b char(30), key(a)) COLLATE 'latin1_bin';
-CREATE TABLE t3(pk CHAR(5) PRIMARY KEY, a char(30), b char(30), key(a)) COLLATE 'latin1_bin'
-  PARTITION BY KEY() PARTITIONS 4;
+Data will be ordered in ascending order
+CREATE TABLE t1(
+pk CHAR(5),
+a CHAR(30),
+b CHAR(30),
+PRIMARY KEY(pk) COMMENT "cf1",
+KEY(a)
+) COLLATE 'latin1_bin';
+CREATE TABLE t2(
+pk CHAR(5),
+a CHAR(30),
+b CHAR(30),
+PRIMARY KEY(pk) COMMENT "cf1",
+KEY(a)
+) COLLATE 'latin1_bin';
+CREATE TABLE t3(
+pk CHAR(5),
+a CHAR(30),
+b CHAR(30),
+PRIMARY KEY(pk) COMMENT "cf1",
+KEY(a)
+) COLLATE 'latin1_bin' PARTITION BY KEY() PARTITIONS 4;
 connect  other,localhost,root,,;
 set session transaction isolation level repeatable read;
 select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';

@@ -711,7 +711,6 @@ public:
   void wait_for_sufficient_commits();
   void binlog_trigger_immediate_group_commit();
   void wait_for_update_relay_log(THD* thd);
-  int  wait_for_update_bin_log(THD* thd, const struct timespec * timeout);
   void init(ulong max_size);
   void init_pthread_objects();
   void cleanup();

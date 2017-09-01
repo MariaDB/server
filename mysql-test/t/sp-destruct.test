@@ -39,7 +39,7 @@ create table t1 (id int);
 create trigger t1_ai after insert on t1 for each row call bug14233();
 
 # Unsupported tampering with the mysql.proc definition
-alter table mysql.proc drop type;
+alter table mysql.proc drop security_type;
 --error ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2
 call bug14233();
 --error ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2
@@ -238,7 +238,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 create database mysqltest;
 --echo # Corrupt mysql.proc to make it unusable by current version of server.
-alter table mysql.proc drop column type;
+alter table mysql.proc drop column security_type;
 --echo # The below statement should not cause assertion failure.
 drop database mysqltest;
 

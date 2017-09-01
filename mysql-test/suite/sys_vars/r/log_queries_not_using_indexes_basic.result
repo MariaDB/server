@@ -1,4 +1,9 @@
 SET @start_value= @@global.log_queries_not_using_indexes;
+SET @filter_start_value= @@global.log_slow_filter;
+SET @@global.log_queries_not_using_indexes= TRUE;
+SET @@session.log_queries_not_using_indexes= TRUE;
+SET @@global.log_queries_not_using_indexes= FALSE;
+SET @@session.log_queries_not_using_indexes= FALSE;
 SET @@global.log_queries_not_using_indexes= DEFAULT;
 SELECT @@global.log_queries_not_using_indexes;
 @@global.log_queries_not_using_indexes
@@ -61,16 +66,41 @@ SET @@global.log_queries_not_using_indexes= @badvar;
 ERROR 42000: Variable 'log_queries_not_using_indexes' can't be set to the value of 'true'
 SET GLOBAL log_queries_not_using_indexes= 'DEFAULT';
 ERROR 42000: Variable 'log_queries_not_using_indexes' can't be set to the value of 'DEFAULT'
-SET log_queries_not_using_indexes= TRUE;
-ERROR HY000: Variable 'log_queries_not_using_indexes' is a GLOBAL variable and should be set with SET GLOBAL
-SET SESSION log_queries_not_using_indexes= TRUE;
-ERROR HY000: Variable 'log_queries_not_using_indexes' is a GLOBAL variable and should be set with SET GLOBAL
-SET @@session.log_queries_not_using_indexes= TRUE;
-ERROR HY000: Variable 'log_queries_not_using_indexes' is a GLOBAL variable and should be set with SET GLOBAL
-SET LOCAL log_queries_not_using_indexes= TRUE;
-ERROR HY000: Variable 'log_queries_not_using_indexes' is a GLOBAL variable and should be set with SET GLOBAL
 SET @@global log_queries_not_using_indexes= TRUE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'log_queries_not_using_indexes= TRUE' at line 1
 SET @@SESSION log_queries_not_using_indexes= TRUE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'log_queries_not_using_indexes= TRUE' at line 1
+SET @@SESSION.log_queries_not_using_indexes= TRUE;
+select @@SESSION.log_slow_filter;
+@@SESSION.log_slow_filter
+admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,not_using_index,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+SET @@SESSION.log_queries_not_using_indexes= FALSE;
+select @@SESSION.log_slow_filter;
+@@SESSION.log_slow_filter
+admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+SET @@GLOBAL.log_queries_not_using_indexes= TRUE;
+select @@GLOBAL.log_slow_filter;
+@@GLOBAL.log_slow_filter
+admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,not_using_index,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+SET @@GLOBAL.log_queries_not_using_indexes= FALSE;
+select @@GLOBAL.log_slow_filter;
+@@GLOBAL.log_slow_filter
+admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+SET @@SESSION.log_slow_filter="";
+select @@SESSION.log_queries_not_using_indexes;
+@@SESSION.log_queries_not_using_indexes
+0
+SET @@SESSION.log_slow_filter="not_using_index";
+select @@SESSION.log_queries_not_using_indexes;
+@@SESSION.log_queries_not_using_indexes
+1
+SET @@GLOBAL.log_slow_filter="";
+select @@GLOBAL.log_queries_not_using_indexes;
+@@GLOBAL.log_queries_not_using_indexes
+0
+SET @@GLOBAL.log_slow_filter="not_using_index";
+select @@GLOBAL.log_queries_not_using_indexes;
+@@GLOBAL.log_queries_not_using_indexes
+1
 SET @@global.log_queries_not_using_indexes= @start_value;
+SET @@global.log_slow_filter= @filter_start_value;

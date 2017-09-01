@@ -1,0 +1,14 @@
+set @prior_lock_wait_timeout = @@rocksdb_lock_wait_timeout; set @prior_deadlock_detect = @@rocksdb_deadlock_detect; set global rocksdb_deadlock_detect = on; set global rocksdb_lock_wait_timeout = 100000;;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection default;
+create table t (i int primary key) engine=rocksdb;
+insert into t values (1), (2), (3);
+#
+# The following is disabled due:
+#   MDEV-13404: MyRocks upstream uses I_S.table_statistics.row_lock_deadlocks, should we import?
+#
+disconnect con1;
+disconnect con2;
+set global rocksdb_lock_wait_timeout = @prior_lock_wait_timeout; set global rocksdb_deadlock_detect = @prior_deadlock_detect;;
+drop table t;

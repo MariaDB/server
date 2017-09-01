@@ -1,0 +1,15 @@
+# BUG#37656
+#  
+#  For details look into extra/rpl_tests/rpl_lower_case_table_names.test
+# 
+skip Missing extra/rpl_tests/rpl_lower_case_table_names.test;
+
+-- source include/not_gtid_enabled.inc
+-- source include/have_tokudb.inc
+-- source include/not_windows.inc
+-- source include/have_binlog_format_row.inc
+-- source include/master-slave.inc
+
+-- let $engine=TokuDB
+-- source extra/rpl_tests/rpl_lower_case_table_names.test
+-- source include/rpl_end.inc

@@ -1,10 +1,27 @@
+/*
+   Copyright (c) 2016, 2017 MariaDB
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+
+#include "mariadb.h"
+#include "sql_parse.h"
 #include "sql_select.h"
 #include "sql_list.h"
 #include "item_windowfunc.h"
 #include "filesort.h"
 #include "sql_base.h"
 #include "sql_window.h"
-#include "my_dbug.h"
 
 
 bool
@@ -307,6 +324,82 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   DBUG_RETURN(0);
 }
 
+
+/**
+  @brief
+  Find fields common for all partition lists used in window functions
+
+  @param thd       The thread handle
+
+  @details
+   This function looks for the field references in the partition lists
+   of all window functions used in this select that are common for
+   all the partition lists. The function returns an ORDER list contained
+   all such references.The list either is specially built by the function
+   or is taken directly from the first window specification.
+
+  @retval
+    pointer to the first element of the ORDER list contained field
+    references common for all partition lists
+    0 if no such reference is found.
+*/
+
+ORDER *st_select_lex::find_common_window_func_partition_fields(THD *thd)
+{
+  ORDER *ord;
+  Item *item;
+  DBUG_ASSERT(window_funcs.elements);
+  List_iterator_fast<Item_window_func> it(window_funcs);
+  Item_window_func *first_wf= it++;
+  if (!first_wf->window_spec->partition_list)
+    return 0;
+  List<Item> common_fields;
+  uint first_partition_elements= 0;
+  for (ord= first_wf->window_spec->partition_list->first; ord; ord= ord->next)
+  {
+    if ((*ord->item)->real_item()->type() == Item::FIELD_ITEM)
+      common_fields.push_back(*ord->item, thd->mem_root);
+    first_partition_elements++;
+  }
+  if (window_specs.elements == 1 &&
+      common_fields.elements == first_partition_elements)
+    return first_wf->window_spec->partition_list->first;
+  List_iterator<Item> li(common_fields);
+  Item_window_func *wf;
+  while (common_fields.elements && (wf= it++))
+  {
+    if (!wf->window_spec->partition_list)
+      return 0;
+    while ((item= li++))
+    {
+      for (ord= wf->window_spec->partition_list->first; ord; ord= ord->next)
+      {
+        if (item->eq(*ord->item, false))
+	  break;
+      }
+      if (!ord)
+        li.remove();
+    }
+    li.rewind();
+  }
+  if (!common_fields.elements)
+    return 0;
+  if (common_fields.elements == first_partition_elements)
+    return first_wf->window_spec->partition_list->first;
+  SQL_I_List<ORDER> res_list;
+  for (ord= first_wf->window_spec->partition_list->first, item= li++;
+       ord; ord= ord->next)
+  {
+    if (item != *ord->item)
+      continue;
+    if (add_to_list(thd, res_list, item, ord->direction))
+      return 0;
+    item= li++;
+  }
+  return res_list.first;
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 // Sorting window functions to minimize the number of table scans
 // performed during the computation of these functions 
@@ -327,7 +420,8 @@ int compare_order_elements(ORDER *ord1, ORDER *ord2)
   Item *item2= (*ord2->item)->real_item();
   DBUG_ASSERT(item1->type() == Item::FIELD_ITEM &&
               item2->type() == Item::FIELD_ITEM); 
-  int cmp= ((Item_field *) item1)->field - ((Item_field *) item2)->field;
+  int cmp= ((Item_field *) item1)->field->field_index -
+           ((Item_field *) item2)->field->field_index;
   if (cmp == 0)
   {
     if (ord1->direction == ord2->direction)
@@ -645,7 +739,7 @@ public:
   void init(READ_RECORD *info)
   {
     ref_length= info->ref_length;
-    if (info->read_record == rr_from_pointers)
+    if (info->read_record_func == rr_from_pointers)
     {
       io_cache= NULL;
       cache_start= info->cache_pos;
@@ -2605,7 +2699,7 @@ bool compute_window_func(THD *thd,
 
   while (true)
   {
-    if ((err= info.read_record(&info)))
+    if ((err= info.read_record()))
       break; // End of file.
 
     /* Remember current row so that we can restore it before computing
@@ -3049,5 +3143,3 @@ Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root,
   }
   else
 #endif
-
-

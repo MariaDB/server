@@ -14,6 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
+#include "mariadb.h"
 #include "sql_parse.h"                       // check_access
 #include "sql_table.h"                       // mysql_alter_table,
                                              // mysql_exchange_partition
@@ -89,7 +90,7 @@ Alter_table_ctx::Alter_table_ctx()
     new_db(NULL), new_name(NULL), new_alias(NULL),
     fk_error_if_delete_row(false), fk_error_id(NULL),
     fk_error_table(NULL)
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     , tmp_table(false)
 #endif
 {
@@ -109,7 +110,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
     new_db(new_db_arg), new_name(new_name_arg),
     fk_error_if_delete_row(false), fk_error_id(NULL),
     fk_error_table(NULL)
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     , tmp_table(false)
 #endif
 {
@@ -186,7 +187,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
       this case. This fact is enforced with assert.
     */
     build_tmptable_filename(thd, tmp_path, sizeof(tmp_path));
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     tmp_table= true;
 #endif
   }
@@ -309,7 +310,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                         "INDEX DIRECTORY");
   create_info.data_file_name= create_info.index_file_name= NULL;
 
-  thd->enable_slow_log= opt_log_slow_admin_statements;
+  thd->prepare_logs_for_admin_command();
 
 #ifdef WITH_WSREP
   if ((!thd->is_current_stmt_binlog_format_row() ||
@@ -354,7 +355,7 @@ bool Sql_cmd_discard_import_tablespace::execute(THD *thd)
   if (check_grant(thd, ALTER_ACL, table_list, false, UINT_MAX, false))
     return true;
 
-  thd->enable_slow_log= opt_log_slow_admin_statements;
+  thd->prepare_logs_for_admin_command();
 
   /*
     Check if we attempt to alter mysql.slow_log or

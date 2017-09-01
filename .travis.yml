@@ -136,18 +136,17 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-trusty
-      - llvm-toolchain-trusty-3.9
       - llvm-toolchain-trusty-4.0
+      - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main'
     packages: # make sure these match the build requirements
       - gcc-5
       - g++-5
       - gcc-6
       - g++-6
-      - clang-3.9
-      - llvm-3.9-dev
       - clang-4.0
       - llvm-4.0-dev
+      - clang-5.0
+      - llvm-5.0-dev
       - libasan0
       - bison
       - chrpath

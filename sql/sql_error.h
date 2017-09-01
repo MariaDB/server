@@ -17,12 +17,12 @@
 #ifndef SQL_ERROR_H
 #define SQL_ERROR_H
 
-#include "sql_list.h" /* Sql_alloc, MEM_ROOT */
-#include "m_string.h" /* LEX_STRING */
-#include "sql_string.h"                        /* String */
-#include "sql_plist.h" /* I_P_List */
-#include "mysql_com.h" /* MYSQL_ERRMSG_SIZE */
-#include "my_time.h"   /* MYSQL_TIME */
+#include "sql_list.h" 	/* Sql_alloc, MEM_ROOT, list */
+#include "m_string.h"		/* LEX_STRING */
+#include "sql_string.h"       /* String */
+#include "sql_plist.h"        /* I_P_List */
+#include "mysql_com.h"        /* MYSQL_ERRMSG_SIZE */
+#include "my_time.h"          /* MYSQL_TIME */
 #include "decimal.h"
 
 class THD;

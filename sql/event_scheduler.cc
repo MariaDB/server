@@ -13,7 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "event_scheduler.h"
@@ -85,7 +85,7 @@ Event_worker_thread::print_warnings(THD *thd, Event_job_data *et)
   char prefix_buf[5 * STRING_BUFFER_USUAL_SIZE];
   String prefix(prefix_buf, sizeof(prefix_buf), system_charset_info);
   prefix.length(0);
-  prefix.append("Event Scheduler: [");
+  prefix.append(STRING_WITH_LEN("Event Scheduler: ["));
 
   prefix.append(et->definer.str, et->definer.length, system_charset_info);
   prefix.append("][", 2);

@@ -574,15 +574,17 @@ struct st_replace *glob_replace= 0;
 void replace_strings_append(struct st_replace *rep, DYNAMIC_STRING* ds,
 const char *from, int len);
 
-static void cleanup_and_exit(int exit_code) __attribute__((noreturn));
+ATTRIBUTE_NORETURN
+static void cleanup_and_exit(int exit_code);
 
-void really_die(const char *msg) __attribute__((noreturn));
+ATTRIBUTE_NORETURN
+void really_die(const char *msg);
 void report_or_die(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-void die(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2)
-  __attribute__((noreturn));
+ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
+void die(const char *fmt, ...);
 static void make_error_message(char *buf, size_t len, const char *fmt, va_list args);
-void abort_not_supported_test(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2)
-  __attribute__((noreturn));
+ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
+void abort_not_supported_test(const char *fmt, ...);
 void verbose_msg(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 void log_msg(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 
@@ -4022,7 +4024,25 @@ static int rmtree(const char *dir)
     strxnmov(path, sizeof(path), dir, sep, file->name, NULL);
 
     if (!MY_S_ISDIR(file->mystat->st_mode))
+    {
       err= my_delete(path, 0);
+#ifdef _WIN32
+      /*
+        On Windows, check and possible reset readonly attribute.
+        my_delete(), or DeleteFile does not remove theses files.
+      */
+      if (err)
+      {
+        DWORD attr= GetFileAttributes(path);
+        if (attr != INVALID_FILE_ATTRIBUTES &&
+           (attr & FILE_ATTRIBUTE_READONLY))
+        {
+          SetFileAttributes(path, attr &~ FILE_ATTRIBUTE_READONLY);
+          err= my_delete(path, 0);
+        }
+      }
+#endif
+    }
     else
       err= rmtree(path);
 
@@ -5102,7 +5122,9 @@ int query_get_string(MYSQL* mysql, const char* query,
 
 static int my_kill(int pid, int sig)
 {
+  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
 #ifdef _WIN32
+#define SIGKILL 9 /* ignored anyway, see below */
   HANDLE proc;
   if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
     return -1;
@@ -5136,6 +5158,26 @@ static int my_kill(int pid, int sig)
   shutdown_server [<timeout>]
 
 */
+
+
+static int wait_until_dead(int pid, int timeout)
+{
+  DBUG_ENTER("wait_until_dead");
+  /* Check that server dies */
+  while (timeout--)
+  {
+    if (my_kill(pid, 0) < 0)
+    {
+      DBUG_PRINT("info", ("Process %d does not exist anymore", pid));
+      DBUG_RETURN(0);
+    }
+    DBUG_PRINT("info", ("Sleeping, timeout: %d", timeout));
+    /* Sleep one second */
+    my_sleep(1000000L);
+  }
+  DBUG_RETURN(1);                               // Did not die
+}
+
 
 void do_shutdown_server(struct st_command *command)
 {
@@ -5188,24 +5230,31 @@ void do_shutdown_server(struct st_command *command)
   }
   DBUG_PRINT("info", ("Got pid %d", pid));
 
-  /* Tell server to shutdown if timeout > 0*/
+  /*
+    If timeout == 0, it means we should kill the server hard, without
+    any shutdown or core (SIGKILL)
+
+    If timeout is given, then we do things in the following order:
+    - mysql_shutdown()
+      - If server is not dead within timeout
+        - kill SIGABRT  (to get a core)
+        - If server is not dead within new timeout       
+          - kill SIGKILL
+  */
+
   if (timeout && mysql_shutdown(mysql, SHUTDOWN_DEFAULT))
     die("mysql_shutdown failed");
 
-  /* Check that server dies */
-  while(timeout--){
-    if (my_kill(pid, 0) < 0){
-      DBUG_PRINT("info", ("Process %d does not exist anymore", pid));
-      DBUG_VOID_RETURN;
+  if (!timeout || wait_until_dead(pid, timeout))
+  {
+    if (timeout)
+      (void) my_kill(pid, SIGABRT);
+    /* Give server a few seconds to die in all cases */
+    if (!timeout || wait_until_dead(pid, timeout < 5 ? 5 : timeout))
+    {
+      (void) my_kill(pid, SIGKILL);
     }
-    DBUG_PRINT("info", ("Sleeping, timeout: %ld", timeout));
-    my_sleep(1000000L);
   }
-
-  /* Kill the server */
-  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
-  (void)my_kill(pid, 9);
-
   DBUG_VOID_RETURN;
 }
 
@@ -8907,7 +8956,7 @@ static void dump_backtrace(void)
 #endif
   }
   fputs("Attempting backtrace...\n", stderr);
-  my_print_stacktrace(NULL, (ulong)my_thread_stack_size);
+  my_print_stacktrace(NULL, (ulong)my_thread_stack_size, 0);
 }
 
 #else

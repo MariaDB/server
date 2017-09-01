@@ -20,19 +20,18 @@
   !! This file is built from my_locale.pl !!
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_locale.h"
 #include "sql_class.h"                          // THD
-#include "my_sys.h"                             // MY_*, NullS, NULL
 
 
 enum err_msgs_index
 {
   en_US= 0, cs_CZ, da_DK, nl_NL, et_EE, fr_FR, de_DE, el_GR, hu_HU, it_IT,
   ja_JP, ko_KR, no_NO, nn_NO, pl_PL, pt_PT, ro_RO, ru_RU, sr_RS,  sk_SK,
-  es_ES, sv_SE, uk_UA
+  es_ES, sv_SE, uk_UA, hi_IN
 } ERR_MSGS_INDEX;
 
 
@@ -61,6 +60,7 @@ MY_LOCALE_ERRMSGS global_errmsgs[]=
   {"spanish", NULL},
   {"swedish", NULL},
   {"ukrainian", NULL},
+  {"hindi", NULL},
   {NULL, NULL}
 };
 
@@ -889,7 +889,7 @@ MY_LOCALE my_locale_hi_IN
   '.',        /* decimal point hi_IN */
   ',',        /* thousands_sep hi_IN */
   "\x03",     /* grouping      hi_IN */
-  &global_errmsgs[en_US]
+  &global_errmsgs[hi_IN]
 );
 /***** LOCALE END hi_IN *****/
 

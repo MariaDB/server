@@ -10,11 +10,17 @@ parent_id INT
 ) ENGINE=InnoDB;
 INSERT INTO parent VALUES (1);
 INSERT INTO child (parent_id) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+connection node_1;
 ALTER TABLE child ADD FOREIGN KEY (parent_id) REFERENCES parent(id) ON UPDATE CASCADE;;
+connection node_2;
 UPDATE parent SET id = 2 WHERE id = 1;;
+connection node_1;
+connection node_2;
+connection node_2;
 SELECT COUNT(*) = 10000 FROM child WHERE parent_id = 2;
 COUNT(*) = 10000
 1
+connection node_1;
 SELECT COUNT(*) = 10000 FROM child WHERE parent_id = 2;
 COUNT(*) = 10000
 1

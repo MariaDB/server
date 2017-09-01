@@ -158,6 +158,7 @@ public:
     case GET_BOOL:
     case GET_SET:
     case GET_FLAGSET:
+    case GET_BIT:
       return type != STRING_RESULT && type != INT_RESULT;
     case GET_DOUBLE:
       return type != INT_RESULT && type != REAL_RESULT && type != DECIMAL_RESULT;

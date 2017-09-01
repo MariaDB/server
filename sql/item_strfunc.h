@@ -359,11 +359,25 @@ class Item_func_replace :public Item_str_func
 public:
   Item_func_replace(THD *thd, Item *org, Item *find, Item *replace):
     Item_str_func(thd, org, find, replace) {}
-  String *val_str(String *);
+  String *val_str(String *to) { return val_str_internal(to, NULL); };
   void fix_length_and_dec();
+  String *val_str_internal(String *str, String *empty_string_for_null);
   const char *func_name() const { return "replace"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_replace>(thd, mem_root, this); }
+};
+
+
+class Item_func_replace_oracle :public Item_func_replace
+{
+  String tmp_emtpystr;
+public:
+  Item_func_replace_oracle(THD *thd, Item *org, Item *find, Item *replace):
+    Item_func_replace(thd, org, find, replace) {}
+  String *val_str(String *to) { return val_str_internal(to, &tmp_emtpystr); };
+  const char *func_name() const { return "replace_oracle"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_replace_oracle>(thd, mem_root, this); }
 };
 
 
@@ -385,6 +399,7 @@ public:
     DBUG_VOID_RETURN;
   }
   String *val_str(String *str);
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   const char *func_name() const { return "regexp_replace"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -407,6 +422,7 @@ public:
     DBUG_VOID_RETURN;
   }
   String *val_str(String *str);
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   const char *func_name() const { return "regexp_substr"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)

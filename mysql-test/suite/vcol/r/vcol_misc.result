@@ -284,7 +284,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` varchar(32) DEFAULT NULL,
-  `c` int(11) GENERATED ALWAYS AS (`a` % 10) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (`a` MOD 10) VIRTUAL,
   `d` varchar(5) GENERATED ALWAYS AS (left(`b`,5)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show columns from t1;

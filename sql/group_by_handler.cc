@@ -21,6 +21,7 @@
   upper level.
 */
 
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_select.h"
 

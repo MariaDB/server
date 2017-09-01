@@ -16,7 +16,7 @@
 */
 
 #define MYSQL_LEX 1
-#include <my_global.h>   /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"   /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_view.h"
@@ -140,7 +140,7 @@ bool check_duplicate_names(THD *thd, List<Item> &item_list, bool gen_unique_view
     itc.rewind();
     while ((check= itc++) && check != item)
     {
-      if (my_strcasecmp(system_charset_info, item->name.str, check->name.str) == 0)
+      if (lex_string_cmp(system_charset_info, &item->name, &check->name) == 0)
       {
         if (!gen_unique_view_name)
           goto err;
@@ -647,8 +647,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
        { C_STRING_WITH_LEN("ALTER ") },
        { C_STRING_WITH_LEN("CREATE OR REPLACE ") }};
 
-    buff.append(command[thd->lex->create_view->mode].str,
-                command[thd->lex->create_view->mode].length);
+    buff.append(&command[thd->lex->create_view->mode]);
     view_store_options(thd, views, &buff);
     buff.append(STRING_WITH_LEN("VIEW "));
 
@@ -680,7 +679,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       buff.append(')');
     }
     buff.append(STRING_WITH_LEN(" AS "));
-    buff.append(views->source.str, views->source.length);
+    buff.append(&views->source);
 
     int errcode= query_error_code(thd, TRUE);
     /*

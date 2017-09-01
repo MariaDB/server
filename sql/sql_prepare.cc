@@ -84,7 +84,7 @@ When one supplies long data for a placeholder:
     at statement execute.
 */
 
-#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_class.h"                          // set_var.h: THD
@@ -2953,7 +2953,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
       for (order= sl->order_list.first; order; order= order->next)
         order->item= &order->item_ptr;
       {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
         bool res=
 #endif
           sl->handle_derived(lex, DT_REINIT);
@@ -4254,7 +4254,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
   packet_end= packet_end_arg;
   iterations= TRUE;
   start_param= true;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   Item *free_list_state= thd->free_list;
 #endif
   thd->select_number= select_number_after_prepare;
@@ -4479,7 +4479,7 @@ Prepared_statement::reprepare()
   {
     swap_prepared_statement(&copy);
     swap_parameter_array(param_array, copy.param_array, param_count);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     is_reprepared= TRUE;
 #endif
     /*

@@ -1,0 +1,397 @@
+create database linkdb;
+use linkdb;
+create table linktable (
+id1 bigint(20) unsigned NOT NULL DEFAULT '0',
+id2 bigint(20) unsigned NOT NULL DEFAULT '0',
+link_type bigint(20) unsigned NOT NULL DEFAULT '0',
+visibility tinyint(3) NOT NULL DEFAULT '0',
+data varchar(255) NOT NULL DEFAULT '',
+time bigint(20) unsigned NOT NULL DEFAULT '0',
+version int(11) unsigned NOT NULL DEFAULT '0',
+primary key (id1,id2,link_type) COMMENT 'cf_link_pk',
+KEY id1_type (id1,link_type,visibility,time,version,data)
+COMMENT 'rev:cf_link_id1_type') ENGINE=rocksdb DEFAULT COLLATE=latin1_bin;
+create table counttable (
+id bigint(20) unsigned NOT NULL DEFAULT '0',
+link_type bigint(20) unsigned NOT NULL DEFAULT '0',
+count int(10) unsigned NOT NULL DEFAULT '0',
+time bigint(20) unsigned NOT NULL DEFAULT '0',
+version bigint(20) unsigned NOT NULL DEFAULT '0',
+primary key (id,link_type) COMMENT 'cf_count_pk')
+ENGINE=rocksdb DEFAULT COLLATE=latin1_bin;
+create table nodetable (
+id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+type int(10) unsigned NOT NULL,
+version bigint(20) unsigned NOT NULL,
+time int(10) unsigned NOT NULL,
+data mediumtext NOT NULL,
+primary key(id) COMMENT 'cf_node_pk')
+ENGINE=rocksdb DEFAULT COLLATE=latin1_bin;
+#
+# Test nodeGet function
+#
+create native procedure nodeGet soname "NP_EXAMPLE_LIB";
+%nodeGet 1;
+id	type	version	time	data
+1	1	1	1000	data
+%nodeGet 50 anything can go here;
+id	type	version	time	data
+50	1	1	50000	data
+%nodeGet 39;
+id	type	version	time	data
+39	1	1	39000	data
+%nodeGet 98;
+id	type	version	time	data
+98	1	1	98000	data
+%nodeGet 1000;
+id	type	version	time	data
+%nodeGet -1;
+ERROR HY000: Native procedure failed. (code: 7, msg: 'Invalid arguments: Conversion failed for field id.', query 'nodeGet -1')
+%nodeGet asdf;
+ERROR HY000: Native procedure failed. (code: 7, msg: 'Invalid arguments: Conversion failed for field id.', query 'nodeGet asdf')
+#
+# Test linkGetRange/linkGetId2s function
+#
+create native procedure linkGetRange soname "NP_EXAMPLE_LIB";
+create native procedure linkGetId2s soname "NP_EXAMPLE_LIB";
+%linkGetRange 1 1 1000 2000 0 1000;
+id1	id2	link_type	visibility	data	time	version
+1	5	1	1	data	1005	1
+1	4	1	1	data	1004	1
+1	3	1	1	data	1003	1
+1	2	1	1	data	1002	1
+1	1	1	1	data	1001	1
+%linkGetRange 1 2 1000 2000 0 1000;
+id1	id2	link_type	visibility	data	time	version
+%linkGetRange 1 1 5000 2000 0 1000;
+id1	id2	link_type	visibility	data	time	version
+%linkGetRange 1 2 1000 6000 0 5;
+id1	id2	link_type	visibility	data	time	version
+1	5	2	1	data	2005	1
+1	4	2	1	data	2004	1
+1	3	2	1	data	2003	1
+1	2	2	1	data	2002	1
+1	1	2	1	data	2001	1
+%linkGetRange 1 2 1000 6000 0 2;
+id1	id2	link_type	visibility	data	time	version
+1	5	2	1	data	2005	1
+1	4	2	1	data	2004	1
+%linkGetRange 1 2 1000 6000 2 2;
+id1	id2	link_type	visibility	data	time	version
+1	3	2	1	data	2003	1
+1	2	2	1	data	2002	1
+%linkGetId2s 1 3 3 1 2 3;
+id1	id2	link_type	visibility	data	time	version
+1	1	3	1	data	3001	1
+1	2	3	1	data	3002	1
+1	3	3	1	data	3003	1
+%linkGetId2s 1 3 3 3 2 1;
+id1	id2	link_type	visibility	data	time	version
+1	3	3	1	data	3003	1
+1	2	3	1	data	3002	1
+1	1	3	1	data	3001	1
+%linkGetId2s 1 3 3 3 2 10;
+id1	id2	link_type	visibility	data	time	version
+1	3	3	1	data	3003	1
+1	2	3	1	data	3002	1
+%linkGetId2s 1 3 3 3 2 1 asdf;
+id1	id2	link_type	visibility	data	time	version
+1	3	3	1	data	3003	1
+1	2	3	1	data	3002	1
+1	1	3	1	data	3001	1
+%linkGetId2s 1 3 0;
+id1	id2	link_type	visibility	data	time	version
+%linkGetId2s 1 3 4 2;
+ERROR HY000: Incorrect arguments to native procedure. (query 'linkGetId2s 1 3 4 2')
+#
+# Test rangeQuery function
+#
+create native procedure rangeQuery soname "NP_EXAMPLE_LIB";
+%rangeQuery 1 0 0 4 id1 1 link_type 1 visibility 1 time 1001 4 id1 1 link_type 1 visibility 1 time 1005;
+id1	id2	link_type	visibility	data	time	version
+1	1	1	1	data	1001	1
+1	2	1	1	data	1002	1
+1	3	1	1	data	1003	1
+1	4	1	1	data	1004	1
+1	5	1	1	data	1005	1
+%rangeQuery 1 0 1 4 id1 1 link_type 1 visibility 1 time 1001 4 id1 1 link_type 1 visibility 1 time 1005;
+id1	id2	link_type	visibility	data	time	version
+1	1	1	1	data	1001	1
+1	2	1	1	data	1002	1
+1	3	1	1	data	1003	1
+1	4	1	1	data	1004	1
+%rangeQuery 1 1 0 4 id1 1 link_type 1 visibility 1 time 1001 4 id1 1 link_type 1 visibility 1 time 1005;
+id1	id2	link_type	visibility	data	time	version
+1	2	1	1	data	1002	1
+1	3	1	1	data	1003	1
+1	4	1	1	data	1004	1
+1	5	1	1	data	1005	1
+%rangeQuery 1 1 1 4 id1 1 link_type 1 visibility 1 time 1001 4 id1 1 link_type 1 visibility 1 time 1005;
+id1	id2	link_type	visibility	data	time	version
+1	2	1	1	data	1002	1
+1	3	1	1	data	1003	1
+1	4	1	1	data	1004	1
+%rangeQuery 0 0 0 4 id1 1 link_type 1 visibility 1 time 1001 4 id1 1 link_type 1 visibility 1 time 1005;
+id1	id2	link_type	visibility	data	time	version
+1	5	1	1	data	1005	1
+1	4	1	1	data	1004	1
+1	3	1	1	data	1003	1
+1	2	1	1	data	1002	1
+1	1	1	1	data	1001	1
+%rangeQuery 0 0 1 4 id1 1 link_type 1 visibility 1 time 1001 4 id1 1 link_type 1 visibility 1 time 1005;
+id1	id2	link_type	visibility	data	time	version
+1	4	1	1	data	1004	1
+1	3	1	1	data	1003	1
+1	2	1	1	data	1002	1
+1	1	1	1	data	1001	1
+%rangeQuery 0 1 0 4 id1 1 link_type 1 visibility 1 time 1001 4 id1 1 link_type 1 visibility 1 time 1005;
+id1	id2	link_type	visibility	data	time	version
+1	5	1	1	data	1005	1
+1	4	1	1	data	1004	1
+1	3	1	1	data	1003	1
+1	2	1	1	data	1002	1
+%rangeQuery 0 1 1 4 id1 1 link_type 1 visibility 1 time 1001 4 id1 1 link_type 1 visibility 1 time 1005;
+id1	id2	link_type	visibility	data	time	version
+1	4	1	1	data	1004	1
+1	3	1	1	data	1003	1
+1	2	1	1	data	1002	1
+%rangeQuery 1 0 0 2 id1 1 link_type 1 2 id1 1 link_type 2;
+id1	id2	link_type	visibility	data	time	version
+1	1	1	1	data	1001	1
+1	2	1	1	data	1002	1
+1	3	1	1	data	1003	1
+1	4	1	1	data	1004	1
+1	5	1	1	data	1005	1
+1	1	2	1	data	2001	1
+1	2	2	1	data	2002	1
+1	3	2	1	data	2003	1
+1	4	2	1	data	2004	1
+1	5	2	1	data	2005	1
+%rangeQuery 1 0 1 2 id1 1 link_type 1 2 id1 1 link_type 2;
+id1	id2	link_type	visibility	data	time	version
+1	1	1	1	data	1001	1
+1	2	1	1	data	1002	1
+1	3	1	1	data	1003	1
+1	4	1	1	data	1004	1
+1	5	1	1	data	1005	1
+%rangeQuery 1 1 0 2 id1 1 link_type 1 2 id1 1 link_type 2;
+id1	id2	link_type	visibility	data	time	version
+1	1	2	1	data	2001	1
+1	2	2	1	data	2002	1
+1	3	2	1	data	2003	1
+1	4	2	1	data	2004	1
+1	5	2	1	data	2005	1
+%rangeQuery 1 1 1 2 id1 1 link_type 1 2 id1 1 link_type 2;
+id1	id2	link_type	visibility	data	time	version
+%rangeQuery 0 0 0 2 id1 1 link_type 1 2 id1 1 link_type 2;
+id1	id2	link_type	visibility	data	time	version
+1	5	2	1	data	2005	1
+1	4	2	1	data	2004	1
+1	3	2	1	data	2003	1
+1	2	2	1	data	2002	1
+1	1	2	1	data	2001	1
+1	5	1	1	data	1005	1
+1	4	1	1	data	1004	1
+1	3	1	1	data	1003	1
+1	2	1	1	data	1002	1
+1	1	1	1	data	1001	1
+%rangeQuery 0 0 1 2 id1 1 link_type 1 2 id1 1 link_type 2;
+id1	id2	link_type	visibility	data	time	version
+1	5	1	1	data	1005	1
+1	4	1	1	data	1004	1
+1	3	1	1	data	1003	1
+1	2	1	1	data	1002	1
+1	1	1	1	data	1001	1
+%rangeQuery 0 1 0 2 id1 1 link_type 1 2 id1 1 link_type 2;
+id1	id2	link_type	visibility	data	time	version
+1	5	2	1	data	2005	1
+1	4	2	1	data	2004	1
+1	3	2	1	data	2003	1
+1	2	2	1	data	2002	1
+1	1	2	1	data	2001	1
+%rangeQuery 0 1 1 2 id1 1 link_type 1 2 id1 1 link_type 2;
+id1	id2	link_type	visibility	data	time	version
+%rangeQuery 0 0 0 2 id1 1 link_type 1 4 id1 1 link_type 2 visibility 1 time 2004;
+id1	id2	link_type	visibility	data	time	version
+1	4	2	1	data	2004	1
+1	3	2	1	data	2003	1
+1	2	2	1	data	2002	1
+1	1	2	1	data	2001	1
+1	5	1	1	data	1005	1
+1	4	1	1	data	1004	1
+1	3	1	1	data	1003	1
+1	2	1	1	data	1002	1
+1	1	1	1	data	1001	1
+%rangeQuery 0 0 1 2 id1 1 link_type 1 4 id1 1 link_type 2 visibility 1 time 2004;
+id1	id2	link_type	visibility	data	time	version
+1	3	2	1	data	2003	1
+1	2	2	1	data	2002	1
+1	1	2	1	data	2001	1
+1	5	1	1	data	1005	1
+1	4	1	1	data	1004	1
+1	3	1	1	data	1003	1
+1	2	1	1	data	1002	1
+1	1	1	1	data	1001	1
+%rangeQuery 0 1 0 2 id1 1 link_type 1 4 id1 1 link_type 2 visibility 1 time 2004;
+id1	id2	link_type	visibility	data	time	version
+1	4	2	1	data	2004	1
+1	3	2	1	data	2003	1
+1	2	2	1	data	2002	1
+1	1	2	1	data	2001	1
+%rangeQuery 0 1 1 2 id1 1 link_type 1 4 id1 1 link_type 2 visibility 1 time 2004;
+id1	id2	link_type	visibility	data	time	version
+1	3	2	1	data	2003	1
+1	2	2	1	data	2002	1
+1	1	2	1	data	2001	1
+#
+# Test countGet function
+#
+create native procedure countGet soname "NP_EXAMPLE_LIB";
+%countGet 1 1;
+count
+2
+%countGet 10 1;
+count
+20
+%countGet 111 1;
+count
+%countGet 1 111;
+count
+%countGet -1 1 1;
+ERROR HY000: Native procedure failed. (code: 7, msg: 'Invalid arguments: Conversion failed for field id.', query 'countGet -1 1 1')
+%countGet -1 1 2;
+ERROR HY000: Native procedure failed. (code: 7, msg: 'Invalid arguments: Conversion failed for field id.', query 'countGet -1 1 2')
+%countGet;
+ERROR HY000: Incorrect arguments to native procedure. (query 'countGet')
+#
+# Check that DDL locks are respected.
+#
+create native procedure sleepRange soname "NP_EXAMPLE_LIB";
+%sleepRange 1;
+set @start_lock_wait_timeout = @@session.lock_wait_timeout;
+set lock_wait_timeout = 1;
+drop table counttable;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: linkdb.counttable
+set lock_wait_timeout = @start_lock_wait_timeout;
+count
+2
+4
+6
+8
+10
+12
+14
+16
+18
+20
+#
+# Check that queries can be killed.
+#
+%sleepRange 0;
+kill query ID;
+ERROR 70100: Query execution was interrupted
+#
+# Check that native procedures work properly with transactions.
+#
+use linkdb;
+set session transaction isolation level repeatable read;
+%countGet 1 1;
+count
+2
+begin;
+select count from counttable where id = 1 and link_type = 1;
+count
+2
+%countGet 1 1;
+count
+2
+# Before update
+%countGet 1 1;
+count
+2
+update counttable set count = count + 1 where id = 1 and link_type = 1;
+# After update
+%countGet 1 1;
+count
+3
+# Unchanged due to consistent reads
+%countGet 1 1;
+count
+2
+#
+# Check index reads on prefixed data.
+#
+alter table linktable drop index id1_type;
+alter table linktable
+add index id1_type (id1,link_type,visibility,time,version,data(1))
+COMMENT 'rev:cf_link_id1_type';
+%linkGetRange 1 1 1000 2000 0 1000;
+id1	id2	link_type	visibility	data	time	version
+1	5	1	1	data	1005	1
+1	4	1	1	data	1004	1
+1	3	1	1	data	1003	1
+1	2	1	1	data	1002	1
+1	1	1	1	data	1001	1
+#
+# Check correct error handling for various scenarios.
+#
+create native procedure invalidKey1 soname "NP_EXAMPLE_LIB";
+%invalidKey1;
+ERROR HY000: Native procedure failed. (code: 6, msg: 'Not found: ', query 'invalidKey1')
+create native procedure invalidOpen1 soname "NP_EXAMPLE_LIB";
+%invalidOpen1;
+ERROR HY000: Native procedure failed. (code: 5, msg: 'Cannot reinitialize: ', query 'invalidOpen1')
+create native procedure invalidOpen2 soname "NP_EXAMPLE_LIB";
+%invalidOpen2;
+ERROR HY000: Native procedure failed. (code: 5, msg: 'Cannot reinitialize: ', query 'invalidOpen2')
+create native procedure invalidOpen3 soname "NP_EXAMPLE_LIB";
+%invalidOpen3;
+ERROR HY000: Native procedure failed. (code: 5, msg: 'Cannot reinitialize: ', query 'invalidOpen3')
+create native procedure invalidOpen4 soname "NP_EXAMPLE_LIB";
+%invalidOpen4;
+ERROR HY000: Native procedure failed. (code: 5, msg: 'Cannot reinitialize: ', query 'invalidOpen4')
+%invalidProcedure;
+ERROR HY000: Unknown native procedure. 'invalidProcedure'
+create native procedure invalidProcedure soname "invalid.so";
+ERROR HY000: Can't open shared library
+create native procedure invalidProcedure soname "NP_EXAMPLE_LIB";
+ERROR HY000: Can't find symbol 'invalidProcedure' in library
+#
+# Check that our functions are reloaded after restart.
+#
+select * from mysql.native_proc order by name;
+name	type	dl	lua
+countGet	native	np_example.so	
+invalidKey1	native	np_example.so	
+invalidOpen1	native	np_example.so	
+invalidOpen2	native	np_example.so	
+invalidOpen3	native	np_example.so	
+invalidOpen4	native	np_example.so	
+linkGetId2s	native	np_example.so	
+linkGetRange	native	np_example.so	
+nodeGet	native	np_example.so	
+rangeQuery	native	np_example.so	
+sleepRange	native	np_example.so	
+drop native procedure nodeGet;
+create native procedure nodeGet soname "NP_EXAMPLE_LIB";
+ERROR HY000: Native procedure 'nodeGet' exists.
+drop native procedure linkGetRange;
+drop native procedure linkGetId2s;
+drop native procedure countGet;
+drop native procedure sleepRange;
+drop native procedure rangeQuery;
+drop native procedure invalidKey1;
+drop native procedure invalidOpen1;
+drop native procedure invalidOpen2;
+drop native procedure invalidOpen3;
+drop native procedure invalidOpen4;
+%nodeGet 1;
+ERROR HY000: Unknown native procedure. 'nodeGet'
+#
+# Check that our functions are unloaded after restart.
+#
+select * from mysql.native_proc order by name;
+name	type	dl	lua
+%nodeGet 1;
+ERROR HY000: Unknown native procedure. 'nodeGet'
+drop database linkdb;

@@ -15,7 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #define MYSQL_LEX 1
-#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_parse.h"                          // parse_sql
@@ -1236,7 +1236,7 @@ Event_timed::get_create_event(THD *thd, String *buf)
     append_unescaped(buf, comment.str, comment.length);
   }
   buf->append(STRING_WITH_LEN(" DO "));
-  buf->append(body.str, body.length);
+  buf->append(&body);
 
   DBUG_RETURN(0);
 }
@@ -1284,7 +1284,7 @@ Event_job_data::construct_sp_sql(THD *thd, String *sp_sql)
   */
   sp_sql->append(C_STRING_WITH_LEN("() SQL SECURITY INVOKER "));
 
-  sp_sql->append(body.str, body.length);
+  sp_sql->append(&body);
 
   DBUG_RETURN(thd->is_fatal_error);
 }

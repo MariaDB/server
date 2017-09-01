@@ -19,6 +19,7 @@
   Engine defined options of tables/fields/keys in CREATE/ALTER TABLE.
 */
 
+#include "mariadb.h"
 #include "create_options.h"
 #include <my_getopt.h>
 #include "set_var.h"

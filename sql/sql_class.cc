@@ -28,7 +28,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"
 #include "sql_cache.h"                          // query_cache_abort
@@ -121,8 +121,8 @@ extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
 bool Key_part_spec::operator==(const Key_part_spec& other) const
 {
   return length == other.length &&
-         !my_strcasecmp(system_charset_info, field_name.str,
-                        other.field_name.str);
+         !lex_string_cmp(system_charset_info, &field_name,
+                         &other.field_name);
 }
 
 /**
@@ -249,9 +249,9 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
   {
     it.rewind();
     while ((sql_field= it++) &&
-           my_strcasecmp(system_charset_info,
-                         column->field_name.str,
-                         sql_field->field_name.str)) {}
+           lex_string_cmp(system_charset_info,
+                          &column->field_name,
+                          &sql_field->field_name)) {}
     if (!sql_field)
     {
       my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
@@ -554,6 +554,9 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   const Security_context *sctx= &thd->main_security_ctx;
   char header[256];
   int len;
+
+  mysql_mutex_lock(&LOCK_thread_count);
+
   /*
     The pointers thd->query and thd->proc_info might change since they are
     being modified concurrently. This is acceptable for proc_info since its
@@ -609,6 +612,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
+  mysql_mutex_unlock(&LOCK_thread_count);
 
   if (str.c_ptr_safe() == buffer)
     return buffer;
@@ -800,6 +804,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   query_start_used= query_start_sec_part_used= 0;
   count_cuted_fields= CHECK_FIELD_IGNORE;
   killed= NOT_KILLED;
+  killed_err= 0;
   col_access=0;
   is_slave_error= thread_specific_used= FALSE;
   my_hash_clear(&handler_tables_hash);
@@ -833,7 +838,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   enable_slow_log= 0;
   durability_property= HA_REGULAR_DURABILITY;
 
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   dbug_sentry=THD_SENTRY_MAGIC;
 #endif
   mysql_audit_init_thd(this);
@@ -855,6 +860,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 #endif
   mysql_mutex_init(key_LOCK_thd_data, &LOCK_thd_data, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wakeup_ready, &LOCK_wakeup_ready, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_thd_kill, &LOCK_thd_kill, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wakeup_ready, &COND_wakeup_ready, 0);
   /*
     LOCK_thread_count goes before LOCK_thd_data - the former is called around
@@ -885,6 +891,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
   wsrep_affected_rows     = 0;
+  wsrep_replicate_GTID    = false;
+  wsrep_skip_wsrep_GTID   = false;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1330,6 +1338,8 @@ void THD::init(void)
   wsrep_TOI_pre_query_len = 0;
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
   wsrep_affected_rows     = 0;
+  wsrep_replicate_GTID    = false;
+  wsrep_skip_wsrep_GTID   = false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -1475,7 +1485,7 @@ void THD::cleanup(void)
   DBUG_ENTER("THD::cleanup");
   DBUG_ASSERT(cleanup_done == 0);
 
-  killed= KILL_CONNECTION;
+  set_killed(KILL_CONNECTION);
 #ifdef ENABLE_WHEN_BINLOG_WILL_BE_ABLE_TO_PREPARE
   if (transaction.xid_state.xa_state == XA_PREPARED)
   {
@@ -1635,7 +1645,8 @@ THD::~THD()
   mysql_cond_destroy(&COND_wakeup_ready);
   mysql_mutex_destroy(&LOCK_wakeup_ready);
   mysql_mutex_destroy(&LOCK_thd_data);
-#ifndef DBUG_OFF
+  mysql_mutex_destroy(&LOCK_thd_kill);
+#ifdef DBUG_ASSERT_EXISTS
   dbug_sentry= THD_SENTRY_GONE;
 #endif  
 #ifndef EMBEDDED_LIBRARY
@@ -1812,7 +1823,8 @@ void THD::awake(killed_state state_to_set)
     state_to_set= killed;
 
   /* Set the 'killed' flag of 'this', which is the target THD object. */
-  killed= state_to_set;
+  mysql_mutex_lock(&LOCK_thd_kill);
+  set_killed_no_mutex(state_to_set);
 
   if (state_to_set >= KILL_CONNECTION || state_to_set == NOT_KILLED)
   {
@@ -1898,6 +1910,7 @@ void THD::awake(killed_state state_to_set)
     }
     mysql_mutex_unlock(&mysys_var->mutex);
   }
+  mysql_mutex_unlock(&LOCK_thd_kill);
   DBUG_VOID_RETURN;
 }
 
@@ -1915,7 +1928,7 @@ void THD::disconnect()
 
   mysql_mutex_lock(&LOCK_thd_data);
 
-  killed= KILL_CONNECTION;
+  set_killed(KILL_CONNECTION);
 
 #ifdef SIGNAL_WITH_VIO_CLOSE
   /*
@@ -1951,7 +1964,7 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
     DBUG_PRINT("info", ("kill delayed thread"));
     mysql_mutex_lock(&in_use->LOCK_thd_data);
     if (in_use->killed < KILL_CONNECTION)
-      in_use->killed= KILL_CONNECTION;
+      in_use->set_killed(KILL_CONNECTION);
     if (in_use->mysys_var)
     {
       mysql_mutex_lock(&in_use->mysys_var->mutex);
@@ -2004,13 +2017,21 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
 /*
   Get error number for killed state
   Note that the error message can't have any parameters.
+  If one needs parameters, one should use THD::killed_err_msg
   See thd::kill_message()
 */
 
-int killed_errno(killed_state killed)
+int THD::killed_errno()
 {
   DBUG_ENTER("killed_errno");
-  DBUG_PRINT("enter", ("killed: %d", killed));
+  DBUG_PRINT("enter", ("killed: %d  killed_errno: %d",
+                       killed, killed_err ? killed_err->no: 0));
+
+  /* Ensure that killed_err is not set if we are not killed */
+  DBUG_ASSERT(!killed_err || killed != NOT_KILLED);
+
+  if (killed_err)
+    DBUG_RETURN(killed_err->no);
 
   switch (killed) {
   case NOT_KILLED:
@@ -2037,6 +2058,9 @@ int killed_errno(killed_state killed)
     DBUG_RETURN(ER_SERVER_SHUTDOWN);
   case KILL_SLAVE_SAME_ID:
     DBUG_RETURN(ER_SLAVE_SAME_ID);
+  case KILL_WAIT_TIMEOUT:
+  case KILL_WAIT_TIMEOUT_HARD:
+    DBUG_RETURN(ER_NET_READ_INTERRUPTED);
   }
   DBUG_RETURN(0);                               // Keep compiler happy
 }
@@ -2486,7 +2510,7 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
   {
     my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_FATALERROR),
              ALIGN_SIZE(sizeof(TABLE_LIST)) + key_length + 1);
-    killed= KILL_CONNECTION;
+    set_killed(KILL_CONNECTION);
     return 0;
   }
 
@@ -3692,7 +3716,7 @@ void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
 
   backup->set_query_arena(this);
   set_query_arena(set);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   backup->is_backup_arena= TRUE;
 #endif
   DBUG_VOID_RETURN;
@@ -3711,7 +3735,7 @@ void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
   DBUG_ASSERT(backup->is_backup_arena);
   set->set_query_arena(this);
   set_query_arena(backup);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   backup->is_backup_arena= FALSE;
 #endif
   DBUG_VOID_RETURN;
@@ -5097,10 +5121,7 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   backup->count_cuted_fields= count_cuted_fields;
   backup->in_sub_stmt=     in_sub_stmt;
   backup->enable_slow_log= enable_slow_log;
-  backup->query_plan_flags= query_plan_flags;
   backup->limit_found_rows= limit_found_rows;
-  backup->examined_row_count= m_examined_row_count;
-  backup->sent_row_count=   m_sent_row_count;
   backup->cuted_fields=     cuted_fields;
   backup->client_capabilities= client_capabilities;
   backup->savepoints= transaction.savepoints;
@@ -5108,6 +5129,7 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
     first_successful_insert_id_in_prev_stmt;
   backup->first_successful_insert_id_in_cur_stmt= 
     first_successful_insert_id_in_cur_stmt;
+  store_slow_query_state(backup);
 
   if ((!lex->requires_prelocking() || is_update_query(lex->sql_command)) &&
       !is_current_stmt_binlog_format_row())
@@ -5123,13 +5145,11 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   /* Disable result sets */
   client_capabilities &= ~CLIENT_MULTI_RESULTS;
   in_sub_stmt|= new_state;
-  m_examined_row_count= 0;
-  m_sent_row_count= 0;
   cuted_fields= 0;
   transaction.savepoints= 0;
   first_successful_insert_id_in_cur_stmt= 0;
+  reset_slow_query_state();
 }
-
 
 void THD::restore_sub_statement_state(Sub_statement_state *backup)
 {
@@ -5165,7 +5185,6 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
   variables.option_bits= backup->option_bits;
   in_sub_stmt=      backup->in_sub_stmt;
   enable_slow_log=  backup->enable_slow_log;
-  query_plan_flags= backup->query_plan_flags;
   first_successful_insert_id_in_prev_stmt= 
     backup->first_successful_insert_id_in_prev_stmt;
   first_successful_insert_id_in_cur_stmt= 
@@ -5173,6 +5192,10 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
   limit_found_rows= backup->limit_found_rows;
   set_sent_row_count(backup->sent_row_count);
   client_capabilities= backup->client_capabilities;
+
+  /* Restore statistic needed for slow log */
+  add_slow_query_state(backup);
+
   /*
     If we've left sub-statement mode, reset the fatal error flag.
     Otherwise keep the current value, to propagate it up the sub-statement
@@ -5195,6 +5218,56 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
   inc_examined_row_count(backup->examined_row_count);
   cuted_fields+=       backup->cuted_fields;
   DBUG_VOID_RETURN;
+}
+
+/*
+  Store slow query state at start of a stored procedure statment
+*/
+
+void THD::store_slow_query_state(Sub_statement_state *backup)
+{
+  backup->affected_rows=           affected_rows;
+  backup->bytes_sent_old=          bytes_sent_old;
+  backup->examined_row_count=      m_examined_row_count;
+  backup->query_plan_flags=        query_plan_flags;
+  backup->query_plan_fsort_passes= query_plan_fsort_passes;
+  backup->sent_row_count=          m_sent_row_count;
+  backup->tmp_tables_disk_used=    tmp_tables_disk_used;
+  backup->tmp_tables_size=         tmp_tables_size;
+  backup->tmp_tables_used=         tmp_tables_used;
+}
+
+/* Reset variables related to slow query log */
+
+void THD::reset_slow_query_state()
+{
+  affected_rows=                0;
+  bytes_sent_old=               status_var.bytes_sent;
+  m_examined_row_count=         0;
+  m_sent_row_count=             0;
+  query_plan_flags=             QPLAN_INIT;
+  query_plan_fsort_passes=      0;
+  tmp_tables_disk_used=         0;
+  tmp_tables_size=              0;
+  tmp_tables_used=              0;
+}
+
+/*
+  Add back the stored values to the current counters to be able to get
+  right status for 'call procedure_name'
+*/
+
+void THD::add_slow_query_state(Sub_statement_state *backup)
+{
+  affected_rows+=                backup->affected_rows;
+  bytes_sent_old=                backup->bytes_sent_old;
+  m_examined_row_count+=         backup->examined_row_count;
+  m_sent_row_count+=             backup->sent_row_count;
+  query_plan_flags|=             backup->query_plan_flags;
+  query_plan_fsort_passes+=      backup->query_plan_fsort_passes;
+  tmp_tables_disk_used+=         backup->tmp_tables_disk_used;
+  tmp_tables_size+=              backup->tmp_tables_size;
+  tmp_tables_used+=              backup->tmp_tables_used;
 }
 
 
@@ -5231,6 +5304,8 @@ void THD::inc_examined_row_count(ha_rows count)
 
 void THD::inc_status_created_tmp_disk_tables()
 {
+  tmp_tables_disk_used++;
+  query_plan_flags|= QPLAN_TMP_DISK;
   status_var_increment(status_var.created_tmp_disk_tables_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_STATEMENT_CALL(inc_statement_created_tmp_disk_tables)(m_statement_psi, 1);
@@ -5239,6 +5314,8 @@ void THD::inc_status_created_tmp_disk_tables()
 
 void THD::inc_status_created_tmp_tables()
 {
+  tmp_tables_used++;
+  query_plan_flags|= QPLAN_TMP_TABLE;
   status_var_increment(status_var.created_tmp_tables_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_STATEMENT_CALL(inc_statement_created_tmp_tables)(m_statement_psi, 1);
@@ -5895,7 +5972,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       DBUG_PRINT("info", ("table: %s; ha_table_flags: 0x%llx",
                           table->table_name, flags));
 
-      if (table->table->no_replicate)
+      if (table->table->s->no_replicate)
       {
         /*
           The statement uses a table that is not replicated.
@@ -6419,7 +6496,7 @@ CPP_UNNAMED_NS_START
     {
       DBUG_ASSERT(s < sizeof(m_ptr)/sizeof(*m_ptr));
       DBUG_ASSERT(m_ptr[s] != 0);
-      DBUG_ASSERT(m_alloc_checked == TRUE);
+      DBUG_SLOW_ASSERT(m_alloc_checked == TRUE);
       return m_ptr[s];
     }
 
@@ -7512,6 +7589,17 @@ void AUTHID::parse(const char *str, size_t length)
     user.length= USERNAME_LENGTH;
   if (host.length > HOSTNAME_LENGTH)
     host.length= HOSTNAME_LENGTH;
+}
+
+
+void Database_qualified_name::copy(MEM_ROOT *mem_root,
+                                   const LEX_CSTRING &db,
+                                   const LEX_CSTRING &name)
+{
+  m_db.length= db.length;
+  m_db.str= strmake_root(mem_root, db.str, db.length);
+  m_name.length= name.length;
+  m_name.str= strmake_root(mem_root, name.str, name.length);
 }
 
 

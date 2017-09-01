@@ -29,7 +29,7 @@ wsrep_node_address=127.0.0.1
 wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
 # enforce read-committed characteristics across the cluster
 wsrep-causal-reads=ON
-wsrep-sync-wait=7
+wsrep-sync-wait=15
 
 [mysqld.2]
 #galera_port=@OPT.port
@@ -48,7 +48,7 @@ wsrep_node_address=127.0.0.1
 wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
 # enforce read-committed characteristics across the cluster
 wsrep-causal-reads=ON
-wsrep-sync-wait=7
+wsrep-sync-wait=15
 
 [mysqld.3]
 server-id=3

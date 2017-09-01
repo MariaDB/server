@@ -518,6 +518,9 @@ namespace mrn {
       *data_type = TYPE_BYTE_SEQUENCE;
       *data_size = key_part->length;
       break;
+    case MYSQL_TYPE_VARCHAR_COMPRESSED:
+    case MYSQL_TYPE_BLOB_COMPRESSED:
+      DBUG_ASSERT(0);
     }
     DBUG_VOID_RETURN;
   }

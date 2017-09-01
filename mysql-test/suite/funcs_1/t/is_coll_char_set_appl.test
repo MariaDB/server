@@ -9,11 +9,6 @@
 #                   Create this script based on older scripts and new code.
 #
 
-if (`SELECT VERSION() LIKE '%embedded%'`)
-{
-   --skip Bug#37456 funcs_1: Several tests crash when used with embedded server
-}
-
 let $is_table = COLLATION_CHARACTER_SET_APPLICABILITY;
 
 # The table INFORMATION_SCHEMA.CHARACTER_SET_APPLICABILITY must exist
@@ -79,10 +74,10 @@ CREATE DATABASE db_datadict;
 INSERT INTO information_schema.collation_character_set_applicability
 SELECT * FROM information_schema.collation_character_set_applicability;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_DBACCESS_DENIED_ERROR,ER_NON_UPDATABLE_TABLE
 UPDATE information_schema.collation_character_set_applicability
 SET collation_name = 'big6_chinese_ci' WHERE character_set_name = 'big6';
---error ER_DBACCESS_DENIED_ERROR
+--error ER_DBACCESS_DENIED_ERROR,ER_NON_UPDATABLE_TABLE
 UPDATE information_schema.collation_character_set_applicability
 SET character_set_name = 't_4711';
 

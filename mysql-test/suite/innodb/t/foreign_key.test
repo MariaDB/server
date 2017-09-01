@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/count_sessions.inc
 
 --echo #
 --echo # Bug #19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
@@ -137,3 +138,102 @@ SET FOREIGN_KEY_CHECKS=DEFAULT;
 LOCK TABLE staff WRITE;
 UNLOCK TABLES;
 DROP TABLES staff, store;
+SET FOREIGN_KEY_CHECKS=1;
+
+--echo #
+--echo # MDEV-13246 Stale rows despite ON DELETE CASCADE constraint
+--echo #
+
+CREATE TABLE users (
+  id int unsigned AUTO_INCREMENT PRIMARY KEY,
+  name varchar(32) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE matchmaking_groups (
+  id bigint unsigned AUTO_INCREMENT PRIMARY KEY,
+  host_user_id int unsigned NOT NULL UNIQUE,
+  CONSTRAINT FOREIGN KEY (host_user_id) REFERENCES users (id)
+  ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE matchmaking_group_users (
+  matchmaking_group_id bigint unsigned NOT NULL,
+  user_id int unsigned NOT NULL,
+  PRIMARY KEY (matchmaking_group_id,user_id),
+  UNIQUE KEY user_id (user_id),
+  CONSTRAINT FOREIGN KEY (matchmaking_group_id)
+  REFERENCES matchmaking_groups (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT FOREIGN KEY (user_id)
+  REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE matchmaking_group_maps (
+  matchmaking_group_id bigint unsigned NOT NULL,
+  map_id tinyint unsigned NOT NULL,
+  PRIMARY KEY (matchmaking_group_id,map_id),
+  CONSTRAINT FOREIGN KEY (matchmaking_group_id)
+  REFERENCES matchmaking_groups (id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO users VALUES (NULL,'foo'),(NULL,'bar');
+INSERT INTO matchmaking_groups VALUES (10,1),(11,2);
+INSERT INTO matchmaking_group_users VALUES (10,1),(11,2);
+INSERT INTO matchmaking_group_maps VALUES (10,55),(11,66);
+
+BEGIN;
+UPDATE users SET name = 'qux' WHERE id = 1;
+
+--connect (con1,localhost,root,,)
+SET innodb_lock_wait_timeout= 1;
+DELETE FROM matchmaking_groups WHERE id = 10;
+
+--connection default
+COMMIT;
+--sorted_result
+SELECT * FROM matchmaking_group_users WHERE matchmaking_group_id NOT IN (SELECT id FROM matchmaking_groups);
+--sorted_result
+SELECT * FROM matchmaking_group_maps WHERE matchmaking_group_id NOT IN (SELECT id FROM matchmaking_groups);
+--sorted_result
+SELECT * FROM users;
+
+DROP TABLE
+matchmaking_group_maps, matchmaking_group_users, matchmaking_groups, users;
+
+--echo #
+--echo # MDEV-13331 FK DELETE CASCADE does not honor innodb_lock_wait_timeout
+--echo #
+
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+
+CREATE TABLE t2 (
+  id INT NOT NULL PRIMARY KEY,
+  ref_id INT NOT NULL DEFAULT 0,
+  f INT NULL,
+  FOREIGN KEY (ref_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1,1,10),(2,2,20);
+
+SHOW CREATE TABLE t2;
+
+--connection con1
+BEGIN;
+UPDATE t2 SET f = 11 WHERE id = 1;
+
+--connection default
+SET innodb_lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+DELETE FROM t1 WHERE id = 1;
+
+--connection con1
+COMMIT;
+--disconnect con1
+
+--connection default
+SELECT * FROM t2;
+DELETE FROM t1 WHERE id = 1;
+SELECT * FROM t2;
+DROP TABLE t2, t1;
+
+--source include/wait_until_count_sessions.inc

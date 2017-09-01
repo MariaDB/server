@@ -17,8 +17,6 @@
 #ifndef MY_BIT_INCLUDED
 #define MY_BIT_INCLUDED
 
-#include <my_global.h>
-
 /*
   Some useful bit functions
 */
@@ -119,9 +117,9 @@ static inline uint32 my_reverse_bits(uint32 key)
   a number with the n lowest bits set
   an overflow-safe version of  (1 << n) - 1
 */
-static inline uint32 my_set_bits(int n)
+static inline uint64 my_set_bits(int n)
 {
-  return (((1UL << (n - 1)) - 1) << 1) | 1;
+  return (((1ULL << (n - 1)) - 1) << 1) | 1;
 }
 
 C_MODE_END

@@ -78,11 +78,9 @@ So, we can read full search-structure as 32-bit word
 */
 
 #define NO_YACC_SYMBOLS
-#include <my_global.h>
+#include "mariadb.h"
 #include "mysql_version.h"
 #include "lex.h"
-#include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */

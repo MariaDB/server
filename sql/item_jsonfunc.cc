@@ -14,7 +14,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"
 #include "item.h"
@@ -587,24 +587,40 @@ void Item_func_json_unquote::fix_length_and_dec()
 }
 
 
-String *Item_func_json_unquote::val_str(String *str)
+String *Item_func_json_unquote::read_json(json_engine_t *je)
 {
   String *js= args[0]->val_json(&tmp_s);
-  json_engine_t je;
-  int c_len;
 
   if ((null_value= args[0]->null_value))
-    return NULL;
+    return 0;
 
-  json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
+  json_scan_start(je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
 
-  je.value_type= (enum json_value_types) -1; /* To report errors right. */
+  je->value_type= (enum json_value_types) -1; /* To report errors right. */
 
-  if (json_read_value(&je))
+  if (json_read_value(je))
     goto error;
 
-  if (je.value_type != JSON_VALUE_STRING)
+  return js;
+
+error:
+  if (je->value_type == JSON_VALUE_STRING)
+    report_json_error(js, je, 0);
+  return js;
+}
+
+
+String *Item_func_json_unquote::val_str(String *str)
+{
+  json_engine_t je;
+  int c_len;
+  String *js;
+
+  if (!(js= read_json(&je)))
+    return NULL;
+
+  if (je.s.error || je.value_type != JSON_VALUE_STRING)
     return js;
 
   str->length(0);
@@ -621,25 +637,27 @@ String *Item_func_json_unquote::val_str(String *str)
   return str;
 
 error:
-  if (je.value_type == JSON_VALUE_STRING)
-    report_json_error(js, &je, 0);
-  /* We just return the argument's value in the case of error. */
+  report_json_error(js, &je, 0);
   return js;
 }
 
 
 static int alloc_tmp_paths(THD *thd, uint n_paths,
-                           json_path_with_flags **paths,String **tmp_paths)
+                           json_path_with_flags **paths, String **tmp_paths)
 {
   if (n_paths > 0)
   {
-    *paths= (json_path_with_flags *) alloc_root(thd->mem_root,
-        sizeof(json_path_with_flags) * n_paths);
-    *tmp_paths= (String *) alloc_root(thd->mem_root, sizeof(String) * n_paths);
-    if (*paths == 0 || *tmp_paths == 0)
-      return 1;
+    if (*tmp_paths == 0)
+    {
+      MEM_ROOT *root= thd->stmt_arena->mem_root;
+      *paths= (json_path_with_flags *) alloc_root(root,
+          sizeof(json_path_with_flags) * n_paths);
+      *tmp_paths= (String *) alloc_root(root, sizeof(String) * n_paths);
+      if (*paths == 0 || *tmp_paths == 0)
+        return 1;
 
-    bzero(*tmp_paths, sizeof(String) * n_paths);
+      bzero(*tmp_paths, sizeof(String) * n_paths);
+    }
 
     return 0;
   }
@@ -673,7 +691,6 @@ void Item_json_str_multipath::cleanup()
   {
     for (uint i= get_n_paths(); i>0; i--)
       tmp_paths[i-1].free();
-    tmp_paths= 0;
   }
   Item_str_func::cleanup();
 }
@@ -690,7 +707,7 @@ void Item_func_json_extract::fix_length_and_dec()
 
 
 static bool path_exact(const json_path_with_flags *paths_list, int n_paths,
-                       const json_path_t *p, enum json_value_types vt)
+                       const json_path_t *p, json_value_types vt)
 {
   for (; n_paths > 0; n_paths--, paths_list++)
   {
@@ -702,7 +719,7 @@ static bool path_exact(const json_path_with_flags *paths_list, int n_paths,
 
 
 static bool path_ok(const json_path_with_flags *paths_list, int n_paths,
-                    const json_path_t *p, enum json_value_types vt)
+                    const json_path_t *p, json_value_types vt)
 {
   for (; n_paths > 0; n_paths--, paths_list++)
   {
@@ -713,7 +730,9 @@ static bool path_ok(const json_path_with_flags *paths_list, int n_paths,
 }
 
 
-String *Item_func_json_extract::val_str(String *str)
+String *Item_func_json_extract::read_json(String *str,
+                                          json_value_types *type,
+                                          char **out_val, int *value_len)
 {
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je, sav_je;
@@ -749,8 +768,13 @@ String *Item_func_json_extract::val_str(String *str)
   possible_multiple_values= arg_count > 2 ||
     (paths[0].p.types_used & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD));
 
-  str->set_charset(js->charset());
-  str->length(0);
+  *type= possible_multiple_values ? JSON_VALUE_ARRAY : JSON_VALUE_NULL;
+
+  if (str)
+  {
+    str->set_charset(js->charset());
+    str->length(0);
+  }
 
   if (possible_multiple_values && str->append("[", 1))
     goto error;
@@ -764,6 +788,18 @@ String *Item_func_json_extract::val_str(String *str)
       continue;
 
     value= je.value_begin;
+
+    if (*type == JSON_VALUE_NULL)
+    {
+      *type= je.value_type;
+      *out_val= (char *) je.value;
+      *value_len= je.value_len;
+    }
+    if (!str)
+    {
+      /* If str is NULL, we only care about the first found value. */
+      goto return_ok;
+    }
 
     if (json_value_scalar(&je))
       v_len= je.value_end - value;
@@ -808,6 +844,7 @@ String *Item_func_json_extract::val_str(String *str)
   if (json_nice(&je, &tmp_js, Item_func_json_format::LOOSE))
     goto error;
 
+return_ok:
   return &tmp_js;
 
 error:
@@ -818,68 +855,74 @@ return_null:
 }
 
 
+String *Item_func_json_extract::val_str(String *str)
+{
+  json_value_types type;
+  char *value;
+  int value_len;
+  return read_json(str, &type, &value, &value_len);
+}
+
+
 longlong Item_func_json_extract::val_int()
 {
-  String *js= args[0]->val_json(&tmp_js);
-  json_engine_t je;
-  uint n_arg;
-  uint array_counters[JSON_DEPTH_LIMIT];
+  json_value_types type;
+  char *value;
+  int value_len;
+  longlong i;
 
-  if ((null_value= args[0]->null_value))
-    return 0;
-
-  for (n_arg=1; n_arg < arg_count; n_arg++)
+  if (read_json(NULL, &type, &value, &value_len) != NULL)
   {
-    json_path_with_flags *c_path= paths + n_arg - 1;
-    if (!c_path->parsed)
+    switch (type)
     {
-      String *s_p= args[n_arg]->val_str(tmp_paths+(n_arg-1));
-      if (s_p &&
-          json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
-                          (const uchar *) s_p->ptr() + s_p->length()))
-        goto error;
-      c_path->parsed= c_path->constant;
-    }
+      case JSON_VALUE_NUMBER:
+      case JSON_VALUE_STRING:
+      {
+        char *end;
+        int err;
+        i= my_strntoll(collation.collation, value, value_len, 10, &end, &err);
+        break;
+      }
+      case JSON_VALUE_TRUE:
+        i= 1;
+        break;
+      default:
+        i= 0;
+        break;
+    };
+  }
+  return i;
+}
 
-    if (args[n_arg]->null_value)
-      goto error;
 
-    json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
-                    (const uchar *) js->ptr() + js->length());
+double Item_func_json_extract::val_real()
+{
+  json_value_types type;
+  char *value;
+  int value_len;
+  double d= 0.0;
 
-    c_path->cur_step= c_path->p.steps;
-
-    if (json_find_path(&je, &c_path->p, &c_path->cur_step, array_counters))
+  if (read_json(NULL, &type, &value, &value_len) != NULL)
+  {
+    switch (type)
     {
-      /* Path wasn't found. */
-      if (je.s.error)
-        goto error;
-
-      continue;
-    }
-
-    if (json_read_value(&je))
-      goto error;
-
-    if (json_value_scalar(&je))
-    {
-      int err;
-      char *v_end= (char *) je.value_end;
-      return (je.s.cs->cset->strtoll10)(je.s.cs, (const char *) je.value_begin,
-                                        &v_end, &err);
-    }
-    else
-      break;
+      case JSON_VALUE_STRING:
+      case JSON_VALUE_NUMBER:
+      {
+        char *end;
+        int err;
+        d= my_strntod(collation.collation, value, value_len, &end, &err);
+        break;
+      }
+      case JSON_VALUE_TRUE:
+        d= 1.0;
+        break;
+      default:
+        break;
+    };
   }
 
-  /* Nothing was found. */
-  null_value= 1;
-  return 0;
-
-error:
-  /* TODO: launch error messages. */
-  null_value= 1;
-  return 0;
+  return d;
 }
 
 
@@ -1397,6 +1440,8 @@ void Item_func_json_array::fix_length_and_dec()
   ulonglong char_length= 2;
   uint n_arg;
 
+  result_limit= 0;
+
   if (arg_count == 0)
   {
     collation.set(&my_charset_utf8_general_ci);
@@ -1413,7 +1458,6 @@ void Item_func_json_array::fix_length_and_dec()
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
-  result_limit= 0;
 }
 
 
@@ -2692,6 +2736,41 @@ void Item_func_json_keys::fix_length_and_dec()
 }
 
 
+/*
+  That function is for Item_func_json_keys::val_str exclusively.
+  It utilizes the fact the resulting string is in specific format:
+        ["key1", "key2"...]
+*/
+static int check_key_in_list(String *res,
+                             const uchar *key, int key_len)
+{
+  const uchar *c= (const uchar *) res->ptr() + 2; /* beginning '["' */
+  const uchar *end= (const uchar *) res->end() - 1; /* ending '"' */
+
+  while (c < end)
+  {
+    int n_char;
+    for (n_char=0; c[n_char] != '"' && n_char < key_len; n_char++)
+    {
+      if (c[n_char] != key[n_char])
+        break;
+    }
+    if (c[n_char] == '"')
+    {
+      if (n_char == key_len)
+        return 1;
+    }
+    else
+    {
+      while (c[n_char] != '"')
+        n_char++;
+    }
+    c+= n_char + 4; /* skip ', "' */
+  }
+  return 0;
+}
+
+
 String *Item_func_json_keys::val_str(String *str)
 {
   json_engine_t je;
@@ -2748,6 +2827,7 @@ skip_search:
   while (json_scan_next(&je) == 0 && je.state != JST_OBJ_END)
   {
     const uchar *key_start, *key_end;
+    int key_len;
 
     switch (je.state)
     {
@@ -2757,13 +2837,19 @@ skip_search:
       {
         key_end= je.s.c_str;
       } while (json_read_keyname_chr(&je) == 0);
-      if (je.s.error ||
-          (n_keys > 0 && str->append(", ", 2)) ||
+      if (je.s.error)
+        goto err_return;
+      key_len= key_end - key_start;
+
+      if (!check_key_in_list(str, key_start, key_len))
+      { 
+        if ((n_keys > 0 && str->append(", ", 2)) ||
           str->append("\"", 1) ||
-          append_simple(str, key_start, key_end - key_start) ||
+          append_simple(str, key_start, key_len) ||
           str->append("\"", 1))
         goto err_return;
-      n_keys++;
+        n_keys++;
+      }
       break;
     case JST_OBJ_START:
     case JST_ARRAY_START:
@@ -3062,6 +3148,73 @@ String *Item_func_json_format::val_json(String *str)
   if ((null_value= args[0]->null_value))
     return 0;
   return js;
+}
+
+int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
+{
+  String *res1,*res2;
+  json_value_types type;
+  char *value;
+  int value_len, c_len;
+  Item_func_json_extract *e= (Item_func_json_extract *) j;
+
+  if ((res1= e->read_json(&value1, &type, &value, &value_len)))
+  {
+    if ((res2= s->val_str(&value2)))
+    {
+      if (type == JSON_VALUE_STRING)
+      {
+        if (value1.realloc_with_extra_if_needed(value_len) ||
+            (c_len= json_unescape(value1.charset(), (uchar *) value,
+                                  (uchar *) value+value_len,
+                                  &my_charset_utf8_general_ci,
+                                  (uchar *) value1.ptr(),
+                                  (uchar *) (value1.ptr() + value_len))) < 0)
+          goto error;
+        value1.length(c_len);
+        res1= &value1;
+      }
+
+      if (set_null)
+        owner->null_value= 0;
+      return sortcmp(res1, res2, compare_collation());
+    }
+  }
+error:
+  if (set_null)
+    owner->null_value= 1;
+  return -1;
+}
+
+
+int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
+{
+  String *res1,*res2;
+  json_value_types type;
+  char *value;
+  int value_len, c_len;
+  Item_func_json_extract *e= (Item_func_json_extract *) j;
+
+  res1= e->read_json(&value1, &type, &value, &value_len);
+  res2= s->val_str(&value2);
+
+  if (!res1 || !res2)
+    return MY_TEST(res1 == res2);
+
+  if (type == JSON_VALUE_STRING)
+  {
+    if (value1.realloc_with_extra_if_needed(value_len) ||
+        (c_len= json_unescape(value1.charset(), (uchar *) value,
+                              (uchar *) value+value_len,
+                              &my_charset_utf8_general_ci,
+                              (uchar *) value1.ptr(),
+                              (uchar *) (value1.ptr() + value_len))) < 0)
+      return 1;
+    value1.length(c_len);
+    res1= &value1;
+  }
+
+  return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
 }
 
 

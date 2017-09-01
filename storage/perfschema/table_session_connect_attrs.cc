@@ -13,6 +13,7 @@
   along with this program; if not, write to the Free Software Foundation,
   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
+#include <my_global.h>
 #include "table_session_connect_attrs.h"
 
 THR_LOCK table_session_connect_attrs::m_table_lock;

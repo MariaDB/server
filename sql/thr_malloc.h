@@ -16,8 +16,6 @@
 #ifndef THR_MALLOC_INCLUDED
 #define THR_MALLOC_INCLUDED
 
-#include "my_global.h"                          // uint, size_t
-
 typedef struct st_mem_root MEM_ROOT;
 
 void init_sql_alloc(MEM_ROOT *root, uint block_size, uint pre_alloc_size,

@@ -17,8 +17,7 @@
 #ifndef SQL_TABLE_INCLUDED
 #define SQL_TABLE_INCLUDED
 
-#include "my_global.h"                          /* my_bool */
-#include "my_sys.h"                             // pthread_mutex_t
+#include <my_sys.h>                             // pthread_mutex_t
 #include "m_string.h"                           // LEX_CUSTRING
 
 class Alter_info;

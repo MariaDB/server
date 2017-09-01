@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -44,6 +44,12 @@ Created 2011-05-26 Marko Makela
 ulint onlineddl_rowlog_rows;
 ulint onlineddl_rowlog_pct_used;
 ulint onlineddl_pct_progress;
+
+/** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
+static const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN] = {
+	0, 0, 0, 0, 0, 0,
+	0x80, 0, 0, 0, 0, 0, 0
+};
 
 /** Table row modification operations during online table rebuild.
 Delete-marked records are not copied to the rebuilt table. */
@@ -187,6 +193,20 @@ struct row_log_t {
 				new ones, or NULL if !table */
 	dberr_t		error;	/*!< error that occurred during online
 				table rebuild */
+	/** The transaction ID of the ALTER TABLE transaction.  Any
+	concurrent DML would necessarily be logged with a larger
+	transaction ID, because ha_innobase::prepare_inplace_alter_table()
+	acts as a barrier that ensures that any concurrent transaction
+	that operates on the table would have been started after
+	ha_innobase::prepare_inplace_alter_table() returns and before
+	ha_innobase::commit_inplace_alter_table(commit=true) is invoked.
+
+	Due to the nondeterministic nature of purge and due to the
+	possibility of upgrading from an earlier version of MariaDB
+	or MySQL, it is possible that row_log_table_low() would be
+	fed DB_TRX_ID that precedes than min_trx. We must normalize
+	such references to reset_trx_id[]. */
+	trx_id_t	min_trx;
 	trx_id_t	max_trx;/*!< biggest observed trx_id in
 				row_log_online_op();
 				protected by mutex and index->lock S-latch,
@@ -586,6 +606,7 @@ row_log_table_delete(
 
 	ut_ad(dict_index_is_clust(new_index));
 	ut_ad(!dict_index_is_online_ddl(new_index));
+	ut_ad(index->online_log->min_trx);
 
 	/* Create the tuple PRIMARY KEY,DB_TRX_ID,DB_ROLL_PTR in new_table. */
 	if (index->online_log->same_pk) {
@@ -612,16 +633,27 @@ row_log_table_delete(
 			dfield_set_data(dfield, field, len);
 		}
 
-		if (sys) {
-			dfield_set_data(
-				dtuple_get_nth_field(tuple,
-						     new_index->n_uniq),
-				sys, DATA_TRX_ID_LEN);
-			dfield_set_data(
-				dtuple_get_nth_field(tuple,
-						     new_index->n_uniq + 1),
-				sys + DATA_TRX_ID_LEN, DATA_ROLL_PTR_LEN);
+		dfield_t* db_trx_id = dtuple_get_nth_field(
+			tuple, new_index->n_uniq);
+
+		const bool replace_sys_fields
+			= sys
+			|| trx_read_trx_id(static_cast<byte*>(db_trx_id->data))
+			< index->online_log->min_trx;
+
+		if (replace_sys_fields) {
+			if (!sys || trx_read_trx_id(sys)
+			    < index->online_log->min_trx) {
+				sys = reset_trx_id;
+			}
+
+			dfield_set_data(db_trx_id, sys, DATA_TRX_ID_LEN);
+			dfield_set_data(db_trx_id + 1, sys + DATA_TRX_ID_LEN,
+					DATA_ROLL_PTR_LEN);
 		}
+
+		ut_d(trx_id_check(db_trx_id->data,
+				  index->online_log->min_trx));
 	} else {
 		/* The PRIMARY KEY has changed. Translate the tuple. */
 		old_pk = row_log_table_get_pk(
@@ -1184,6 +1216,7 @@ row_log_table_get_pk(
 
 	ut_ad(log);
 	ut_ad(log->table);
+	ut_ad(log->min_trx);
 
 	if (log->same_pk) {
 		/* The PRIMARY KEY columns are unchanged. */
@@ -1208,8 +1241,13 @@ row_log_table_get_pk(
 				ut_ad(len == DATA_TRX_ID_LEN);
 			}
 
-			memcpy(sys, rec + trx_id_offs,
-			       DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+			const byte* ptr = trx_read_trx_id(rec + trx_id_offs)
+				< log->min_trx
+				? reset_trx_id
+				: rec + trx_id_offs;
+
+			memcpy(sys, ptr, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+			ut_d(trx_id_check(sys, log->min_trx));
 		}
 
 		return(NULL);
@@ -1326,7 +1364,13 @@ err_exit:
 		/* Copy the fields, because the fields will be updated
 		or the record may be moved somewhere else in the B-tree
 		as part of the upcoming operation. */
-		if (sys) {
+		if (trx_read_trx_id(trx_roll) < log->min_trx) {
+			trx_roll = reset_trx_id;
+			if (sys) {
+				memcpy(sys, trx_roll,
+				       DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+			}
+		} else if (sys) {
 			memcpy(sys, trx_roll,
 			       DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
 			trx_roll = sys;
@@ -1336,6 +1380,8 @@ err_exit:
 					*heap, trx_roll,
 					DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN));
 		}
+
+		ut_d(trx_id_check(trx_roll, log->min_trx));
 
 		dfield_set_data(dtuple_get_nth_field(tuple, new_n_uniq),
 				trx_roll, DATA_TRX_ID_LEN);
@@ -1453,7 +1499,6 @@ row_log_table_apply_convert_mrec(
 	const ulint*		offsets,	/*!< in: offsets of mrec */
 	const row_log_t*	log,		/*!< in: rebuild context */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
-	trx_id_t		trx_id,		/*!< in: DB_TRX_ID of mrec */
 	dberr_t*		error)		/*!< out: DB_SUCCESS or
 						DB_MISSING_HISTORY or
 						reason of failure */
@@ -1617,7 +1662,6 @@ row_log_table_apply_insert_low(
 	que_thr_t*		thr,		/*!< in: query graph */
 	const dtuple_t*		row,		/*!< in: table row
 						in the old table definition */
-	trx_id_t		trx_id,		/*!< in: trx_id of the row */
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
@@ -1631,7 +1675,6 @@ row_log_table_apply_insert_low(
 	ulint		n_index = 0;
 
 	ut_ad(dtuple_validate(row));
-	ut_ad(trx_id);
 
 	DBUG_LOG("ib_alter_table",
 		 "insert table " << index->table->id << " (index "
@@ -1673,8 +1716,8 @@ row_log_table_apply_insert_low(
 		entry = row_build_index_entry(row, NULL, index, heap);
 		error = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE,
-			index, offsets_heap, heap, entry, trx_id, thr,
-			false);
+			index, offsets_heap, heap, entry,
+			thr_get_trx(thr)->id, thr, false);
 
 		/* Report correct index name for duplicate key error. */
 		if (error == DB_DUPLICATE_KEY) {
@@ -1699,14 +1742,13 @@ row_log_table_apply_insert(
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
-	row_merge_dup_t*	dup,		/*!< in/out: for reporting
+	row_merge_dup_t*	dup)		/*!< in/out: for reporting
 						duplicate key errors */
-	trx_id_t		trx_id)		/*!< in: DB_TRX_ID of mrec */
 {
 	const row_log_t*log	= dup->index->online_log;
 	dberr_t		error;
 	const dtuple_t*	row	= row_log_table_apply_convert_mrec(
-		mrec, dup->index, offsets, log, heap, trx_id, &error);
+		mrec, dup->index, offsets, log, heap, &error);
 
 	switch (error) {
 	case DB_MISSING_HISTORY:
@@ -1729,7 +1771,7 @@ row_log_table_apply_insert(
 	}
 
 	error = row_log_table_apply_insert_low(
-		thr, row, trx_id, offsets_heap, heap, dup);
+		thr, row, offsets_heap, heap, dup);
 	if (error != DB_SUCCESS) {
 		/* Report the erroneous row using the new
 		version of the table. */
@@ -1942,6 +1984,8 @@ all_done:
 			= rec_get_nth_field(btr_pcur_get_rec(&pcur), offsets,
 					    trx_id_col, &len);
 		ut_ad(len == DATA_TRX_ID_LEN);
+		ut_d(trx_id_check(rec_trx_id, log->min_trx));
+		ut_d(trx_id_check(mrec_trx_id, log->min_trx));
 
 		ut_ad(rec_get_nth_field(mrec, moffsets, trx_id_col + 1, &len)
 		      == mrec_trx_id + DATA_TRX_ID_LEN);
@@ -1997,7 +2041,6 @@ row_log_table_apply_update(
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	row_merge_dup_t*	dup,		/*!< in/out: for reporting
 						duplicate key errors */
-	trx_id_t		trx_id,		/*!< in: DB_TRX_ID of mrec */
 	const dtuple_t*		old_pk)		/*!< in: PRIMARY KEY and
 						DB_TRX_ID,DB_ROLL_PTR
 						of the old value,
@@ -2018,7 +2061,7 @@ row_log_table_apply_update(
 	      + (log->same_pk ? 0 : 2));
 
 	row = row_log_table_apply_convert_mrec(
-		mrec, dup->index, offsets, log, heap, trx_id, &error);
+		mrec, dup->index, offsets, log, heap, &error);
 
 	switch (error) {
 	case DB_MISSING_HISTORY:
@@ -2106,7 +2149,7 @@ row_log_table_apply_update(
 			ROW_T_UPDATE or ROW_T_DELETE will delete it. */
 			mtr_commit(&mtr);
 			error = row_log_table_apply_insert_low(
-				thr, row, trx_id, offsets_heap, heap, dup);
+				thr, row, offsets_heap, heap, dup);
 		} else {
 			/* Some BLOBs are missing, so we are interpreting
 			this ROW_T_UPDATE as ROW_T_DELETE (see *1).
@@ -2137,21 +2180,21 @@ func_exit_committed:
 		/* Only update the record if DB_TRX_ID,DB_ROLL_PTR match what
 		was buffered. */
 		ulint		len;
-		const void*	rec_trx_id
+		const byte*	rec_trx_id
 			= rec_get_nth_field(btr_pcur_get_rec(&pcur),
 					    cur_offsets, index->n_uniq, &len);
+		const dfield_t*	old_pk_trx_id
+			= dtuple_get_nth_field(old_pk, index->n_uniq);
 		ut_ad(len == DATA_TRX_ID_LEN);
-		ut_ad(dtuple_get_nth_field(old_pk, index->n_uniq)->len
-		      == DATA_TRX_ID_LEN);
-		ut_ad(dtuple_get_nth_field(old_pk, index->n_uniq + 1)->len
-		      == DATA_ROLL_PTR_LEN);
-		ut_ad(DATA_TRX_ID_LEN + static_cast<const char*>(
-			      dtuple_get_nth_field(old_pk,
-						   index->n_uniq)->data)
-		      == dtuple_get_nth_field(old_pk,
-					      index->n_uniq + 1)->data);
-		if (memcmp(rec_trx_id,
-			   dtuple_get_nth_field(old_pk, index->n_uniq)->data,
+		ut_d(trx_id_check(rec_trx_id, log->min_trx));
+		ut_ad(old_pk_trx_id->len == DATA_TRX_ID_LEN);
+		ut_ad(old_pk_trx_id[1].len == DATA_ROLL_PTR_LEN);
+		ut_ad(DATA_TRX_ID_LEN
+		      + static_cast<const char*>(old_pk_trx_id->data)
+		      == old_pk_trx_id[1].data);
+		ut_d(trx_id_check(old_pk_trx_id->data, log->min_trx));
+
+		if (memcmp(rec_trx_id, old_pk_trx_id->data,
 			   DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN)) {
 			/* The ROW_T_UPDATE was logged for a different
 			DB_TRX_ID,DB_ROLL_PTR. This is possible if an
@@ -2232,7 +2275,7 @@ func_exit_committed:
 
 		if (error == DB_SUCCESS) {
 			error = row_log_table_apply_insert_low(
-				thr, row, trx_id, offsets_heap, heap, dup);
+				thr, row, offsets_heap, heap, dup);
 		}
 
 		goto func_exit_committed;
@@ -2332,7 +2375,7 @@ func_exit_committed:
 			BTR_CREATE_FLAG | BTR_NO_LOCKING_FLAG
 			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG,
 			BTR_MODIFY_TREE, index, offsets_heap, heap,
-			entry, trx_id, thr, false);
+			entry, thr_get_trx(thr)->id, thr, false);
 
 		/* Report correct index name for duplicate key error. */
 		if (error == DB_DUPLICATE_KEY) {
@@ -2355,8 +2398,6 @@ const mrec_t*
 row_log_table_apply_op(
 /*===================*/
 	que_thr_t*		thr,		/*!< in: query graph */
-	ulint			trx_id_col,	/*!< in: position of
-						DB_TRX_ID in old index */
 	ulint			new_trx_id_col,	/*!< in: position of
 						DB_TRX_ID in new index */
 	row_merge_dup_t*	dup,		/*!< in/out: for reporting
@@ -2419,6 +2460,9 @@ row_log_table_apply_op(
 		next_mrec = mrec + rec_offs_data_size(offsets);
 
 		if (log->table->n_v_cols) {
+			if (next_mrec + 2 > mrec_end) {
+				return(NULL);
+			}
 			next_mrec += mach_read_from_2(next_mrec);
 		}
 
@@ -2426,15 +2470,9 @@ row_log_table_apply_op(
 			return(NULL);
 		} else {
 			log->head.total += next_mrec - mrec_start;
-
-			ulint		len;
-			const byte*	db_trx_id
-				= rec_get_nth_field(
-					mrec, offsets, trx_id_col, &len);
-			ut_ad(len == DATA_TRX_ID_LEN);
 			*error = row_log_table_apply_insert(
 				thr, mrec, offsets, offsets_heap,
-				heap, dup, trx_read_trx_id(db_trx_id));
+				heap, dup);
 		}
 		break;
 
@@ -2457,7 +2495,7 @@ row_log_table_apply_op(
 		rec_init_offsets_temp(mrec, new_index, offsets);
 		next_mrec = mrec + rec_offs_data_size(offsets) + ext_size;
 		if (log->table->n_v_cols) {
-			if (next_mrec + 2 >= mrec_end) {
+			if (next_mrec + 2 > mrec_end) {
 				return(NULL);
 			}
 
@@ -2666,18 +2704,9 @@ row_log_table_apply_op(
 		log->head.total += next_mrec - mrec_start;
 		dtuple_set_n_fields_cmp(old_pk, new_index->n_uniq);
 
-		{
-			ulint		len;
-			const byte*	db_trx_id
-				= rec_get_nth_field(
-					mrec, offsets, trx_id_col, &len);
-			ut_ad(len == DATA_TRX_ID_LEN);
-			*error = row_log_table_apply_update(
-				thr, new_trx_id_col,
-				mrec, offsets, offsets_heap,
-				heap, dup, trx_read_trx_id(db_trx_id), old_pk);
-		}
-
+		*error = row_log_table_apply_update(
+			thr, new_trx_id_col,
+			mrec, offsets, offsets_heap, heap, dup, old_pk);
 		break;
 	}
 
@@ -2773,8 +2802,6 @@ row_log_table_apply_ops(
 	const ulint	i		= 1 + REC_OFFS_HEADER_SIZE
 		+ ut_max(dict_index_get_n_fields(index),
 			 dict_index_get_n_unique(new_index) + 2);
-	const ulint	trx_id_col	= dict_col_get_clust_pos(
-		dict_table_get_sys_col(index->table, DATA_TRX_ID), index);
 	const ulint	new_trx_id_col	= dict_col_get_clust_pos(
 		dict_table_get_sys_col(new_table, DATA_TRX_ID), new_index);
 	trx_t*		trx		= thr_get_trx(thr);
@@ -2784,8 +2811,9 @@ row_log_table_apply_ops(
 	ut_ad(trx->mysql_thd);
 	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
 	ut_ad(!dict_index_is_online_ddl(new_index));
-	ut_ad(trx_id_col > 0);
-	ut_ad(trx_id_col != ULINT_UNDEFINED);
+	ut_ad(dict_col_get_clust_pos(
+		      dict_table_get_sys_col(index->table, DATA_TRX_ID), index)
+	      != ULINT_UNDEFINED);
 	ut_ad(new_trx_id_col > 0);
 	ut_ad(new_trx_id_col != ULINT_UNDEFINED);
 
@@ -2932,7 +2960,7 @@ all_done:
 		memcpy((mrec_t*) mrec_end, next_mrec,
 		       (&index->online_log->head.buf)[1] - mrec_end);
 		mrec = row_log_table_apply_op(
-			thr, trx_id_col, new_trx_id_col,
+			thr, new_trx_id_col,
 			dup, &error, offsets_heap, heap,
 			index->online_log->head.buf,
 			(&index->online_log->head.buf)[1], offsets);
@@ -3030,7 +3058,7 @@ all_done:
 		}
 
 		next_mrec = row_log_table_apply_op(
-			thr, trx_id_col, new_trx_id_col,
+			thr, new_trx_id_col,
 			dup, &error, offsets_heap, heap,
 			mrec, mrec_end, offsets);
 
@@ -3152,6 +3180,7 @@ for online creation.
 bool
 row_log_allocate(
 /*=============*/
+	const trx_t*	trx,	/*!< in: the ALTER TABLE transaction */
 	dict_index_t*	index,	/*!< in/out: index */
 	dict_table_t*	table,	/*!< in/out: new table being rebuilt,
 				or NULL when creating a secondary index */
@@ -3174,6 +3203,8 @@ row_log_allocate(
 	ut_ad(!table || col_map);
 	ut_ad(!add_cols || col_map);
 	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
+	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
+	ut_ad(trx->id);
 
 	log = static_cast<row_log_t*>(ut_malloc_nokey(sizeof *log));
 
@@ -3190,6 +3221,7 @@ row_log_allocate(
 	log->add_cols = add_cols;
 	log->col_map = col_map;
 	log->error = DB_SUCCESS;
+	log->min_trx = trx->id;
 	log->max_trx = 0;
 	log->tail.blocks = log->tail.bytes = 0;
 	log->tail.total = 0;

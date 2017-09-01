@@ -17,7 +17,7 @@
 
 /* Function with list databases, tables or fields */
 
-#include "sql_plugin.h"                         // Includes my_global.h
+#include "sql_plugin.h"                         // SHOW_MY_BOOL
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_acl.h"                        // fill_schema_*_privileges
@@ -1773,7 +1773,7 @@ static void append_create_options(THD *thd, String *packet,
     if (opt->quoted_value)
       append_unescaped(packet, opt->value.str, opt->value.length);
     else
-      packet->append(opt->value.str, opt->value.length);
+      packet->append(&opt->value);
   }
   if (in_comment)
     packet->append(STRING_WITH_LEN(" */"));
@@ -2169,7 +2169,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     bool found_primary=0;
     packet->append(STRING_WITH_LEN(",\n  "));
 
-    if (i == primary_key && !strcmp(key_info->name, primary_key_name))
+    if (i == primary_key && !strcmp(key_info->name.str, primary_key_name))
     {
       found_primary=1;
       /*
@@ -2188,7 +2188,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       packet->append(STRING_WITH_LEN("KEY "));
 
     if (!found_primary)
-     append_identifier(thd, packet, key_info->name, strlen(key_info->name));
+     append_identifier(thd, packet, key_info->name.str, key_info->name.length);
 
     packet->append(STRING_WITH_LEN(" ("));
 
@@ -6235,7 +6235,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
         table->field[3]->store((longlong) ((key_info->flags &
                                             HA_NOSAME) ? 0 : 1), TRUE);
         table->field[4]->store(db_name->str, db_name->length, cs);
-        table->field[5]->store(key_info->name, strlen(key_info->name), cs);
+        table->field[5]->store(key_info->name.str, key_info->name.length, cs);
         table->field[6]->store((longlong) (j+1), TRUE);
         str= (key_part->field ? &key_part->field->field_name :
               &unknown);
@@ -6483,17 +6483,17 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
       if (i != primary_key && !(key_info->flags & HA_NOSAME))
         continue;
 
-      if (i == primary_key && !strcmp(key_info->name, primary_key_name))
+      if (i == primary_key && !strcmp(key_info->name.str, primary_key_name))
       {
-        if (store_constraints(thd, table, db_name, table_name, key_info->name,
-                              strlen(key_info->name),
+        if (store_constraints(thd, table, db_name, table_name,
+                              key_info->name.str, key_info->name.length,
                               STRING_WITH_LEN("PRIMARY KEY")))
           DBUG_RETURN(1);
       }
       else if (key_info->flags & HA_NOSAME)
       {
-        if (store_constraints(thd, table, db_name, table_name, key_info->name,
-                              strlen(key_info->name),
+        if (store_constraints(thd, table, db_name, table_name,
+                              key_info->name.str, key_info->name.length,
                               STRING_WITH_LEN("UNIQUE")))
           DBUG_RETURN(1);
       }
@@ -6689,8 +6689,7 @@ static int get_schema_key_column_usage_record(THD *thd,
           f_idx++;
           restore_record(table, s->default_values);
           store_key_column_usage(table, db_name, table_name,
-                                 key_info->name,
-                                 strlen(key_info->name),
+                                 key_info->name.str, key_info->name.length,
                                  key_part->field->field_name.str,
                                  key_part->field->field_name.length,
                                  (longlong) f_idx);
@@ -7089,7 +7088,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
         tmp_res.length(0);
         if (part_elem->has_null_value)
         {
-          tmp_str.append("NULL");
+          tmp_str.append(STRING_WITH_LEN("NULL"));
           if (num_items > 0)
             tmp_str.append(",");
         }
@@ -7098,7 +7097,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
           if (part_info->column_list)
           {
             if (part_info->part_field_list.elements > 1U)
-              tmp_str.append("(");
+              tmp_str.append(STRING_WITH_LEN("("));
             if (get_partition_column_description(thd,
                                                  part_info,
                                                  list_value,

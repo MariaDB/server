@@ -29,7 +29,7 @@
 
 #define MYSQL_LEX 1
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "procedure.h"
 #include "sql_analyse.h"

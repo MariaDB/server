@@ -8,6 +8,10 @@
 #include "my_global.h"                   /* ulonglong */
 #include "atomic_stat.h"
 
+// These are for split_into_vector:
+#include <vector>
+#include <string>
+
 /* The following is copied from storage/innobase/univ.i: */
 #ifndef MY_ATTRIBUTE
 #if defined(__GNUC__)
@@ -41,5 +45,8 @@ typedef struct my_io_perf_atomic_struct my_io_perf_atomic_t;
 
 ////////////////////////////////////////////////////////////////////////////
 typedef struct my_io_perf_struct my_io_perf_t;
+
+std::vector<std::string> split_into_vector(const std::string& input,
+                                           char delimiter);
 
 #endif

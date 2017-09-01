@@ -106,16 +106,16 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 
 --echo #### Setup tables ####
 
-CREATE TABLE t0 (a CHAR(100));
-CREATE TABLE t1 (a CHAR(100));
-CREATE TABLE t2 (a CHAR(100));
-CREATE TABLE t3 (a CHAR(100));
-CREATE TABLE ta0 (a CHAR(100));
-CREATE TABLE ta1 (a CHAR(100));
-CREATE TABLE ta2 (a CHAR(100));
-CREATE TABLE ta3 (a CHAR(100));
+CREATE TABLE t0 (a CHAR(200));
+CREATE TABLE t1 (a CHAR(200));
+CREATE TABLE t2 (a CHAR(200));
+CREATE TABLE t3 (a CHAR(200));
+CREATE TABLE ta0 (a CHAR(200));
+CREATE TABLE ta1 (a CHAR(200));
+CREATE TABLE ta2 (a CHAR(200));
+CREATE TABLE ta3 (a CHAR(200));
 CREATE TABLE autoinc_table (a INT PRIMARY KEY AUTO_INCREMENT);
-CREATE TABLE data_table (a CHAR(100));
+CREATE TABLE data_table (a CHAR(200));
 INSERT INTO data_table VALUES ('foo');
 CREATE TABLE trigger_table_1 (a INT);
 CREATE TABLE trigger_table_2 (a INT);
@@ -429,7 +429,7 @@ DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 --enable_warnings
 
-CREATE TABLE t1 (a VARCHAR(100), b VARCHAR(100));
+CREATE TABLE t1 (a VARCHAR(200), b VARCHAR(200));
 INSERT INTO t1 VALUES ('a','b');
 UPDATE t1 SET b = '%s%s%s%s%s%s%s%s%s%s%s%s%s%s' WHERE a = 'a' LIMIT 1;
 DROP TABLE t1;
@@ -467,7 +467,7 @@ CREATE FUNCTION fun_check_log_bin() RETURNS INT
 BEGIN
   SET @@SQL_LOG_BIN = 0;
   INSERT INTO t1 VALUES(@@global.sync_binlog);
-  RETURN 100;
+  RETURN 200;
 END|
 DELIMITER ;|
 --echo "One unsafe warning should be issued in the following statement"

@@ -1,4 +1,4 @@
-#include "my_global.h"
+#include "mariadb.h"
 #include "rpl_parallel.h"
 #include "slave.h"
 #include "rpl_mi.h"
@@ -256,7 +256,9 @@ signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi, int err)
   rgi->rli->stop_for_until= false;
   mysql_mutex_lock(rgi->rli->relay_log.get_log_lock());
   mysql_mutex_unlock(rgi->rli->relay_log.get_log_lock());
+  rgi->rli->relay_log.lock_binlog_end_pos();
   rgi->rli->relay_log.signal_update();
+  rgi->rli->relay_log.unlock_binlog_end_pos();
 }
 
 
@@ -720,9 +722,7 @@ do_retry:
   DBUG_EXECUTE_IF("inject_mdev8031", {
       /* Simulate that we get deadlock killed at this exact point. */
       rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      thd->killed= KILL_CONNECTION;
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      thd->set_killed(KILL_CONNECTION);
   });
   rgi->cleanup_context(thd, 1);
   wait_for_pending_deadlock_kill(thd, rgi);
@@ -868,9 +868,7 @@ do_retry:
             /* Simulate that we get deadlock killed during open_binlog(). */
             thd->reset_for_next_command();
             rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-            mysql_mutex_lock(&thd->LOCK_thd_data);
-            thd->killed= KILL_CONNECTION;
-            mysql_mutex_unlock(&thd->LOCK_thd_data);
+            thd->set_killed(KILL_CONNECTION);
             thd->send_kill_message();
             fd= (File)-1;
             err= 1;
@@ -1006,8 +1004,7 @@ handle_rpl_parallel_thread(void *arg)
   thd->security_ctx->skip_grants();
   thd->variables.max_allowed_packet= slave_max_allowed_packet;
   thd->slave_thread= 1;
-  thd->variables.sql_log_slow= opt_log_slow_slave_statements;
-  thd->variables.log_slow_filter= global_system_variables.log_slow_filter;
+
   set_slave_thread_options(thd);
   thd->client_capabilities = CLIENT_LOCAL_FILES;
   thd->net.reading_or_writing= 0;

@@ -13,7 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -132,8 +132,8 @@ sp_pcontext *sp_pcontext::push_context(THD *thd, sp_pcontext::enum_scope scope)
 
 bool cmp_labels(sp_label *a, sp_label *b)
 {
-  return (my_strcasecmp(system_charset_info, a->name.str, b->name.str) == 0
-          && a->type == b->type);
+  return (lex_string_cmp(system_charset_info, &a->name, &b->name) == 0 &&
+          a->type == b->type);
 }
 
 sp_pcontext *sp_pcontext::pop_context()
@@ -304,7 +304,7 @@ sp_label *sp_pcontext::find_goto_label(const LEX_CSTRING *name, bool recusive)
 
   while ((lab= li++))
   {
-    if (my_strcasecmp(system_charset_info, name->str, lab->name.str) == 0)
+    if (lex_string_cmp(system_charset_info, name, &lab->name) == 0)
       return lab;
   }
 
@@ -341,7 +341,7 @@ sp_label *sp_pcontext::find_label(const LEX_CSTRING *name)
 
   while ((lab= li++))
   {
-    if (my_strcasecmp(system_charset_info, name->str, lab->name.str) == 0)
+    if (lex_string_cmp(system_charset_info, name, &lab->name) == 0)
       return lab;
   }
 
@@ -416,6 +416,7 @@ static sp_condition_value
   // Errors
   cond_invalid_cursor(ER_SP_CURSOR_NOT_OPEN, "24000"),
   cond_dup_val_on_index(ER_DUP_ENTRY, "23000"),
+  cond_dup_val_on_index2(ER_DUP_ENTRY_WITH_KEY_NAME, "23000"),
   cond_too_many_rows(ER_TOO_MANY_ROWS, "42000");
 
 
@@ -426,6 +427,7 @@ static sp_condition sp_predefined_conditions[]=
   // Errors
   sp_condition(C_STRING_WITH_LEN("INVALID_CURSOR"), &cond_invalid_cursor),
   sp_condition(C_STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index),
+  sp_condition(C_STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index2),
   sp_condition(C_STRING_WITH_LEN("TOO_MANY_ROWS"), &cond_too_many_rows)
 };
 

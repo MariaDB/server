@@ -16,6 +16,7 @@
 /* Testing of the basic functions of a MARIA spatial table        */
 /* Written by Alex Barkov, who has a shared copyright to this code */
 
+#include <my_global.h>
 #include "maria.h"
 
 #ifdef HAVE_SPATIAL

@@ -939,7 +939,7 @@ int ha_tokudb::do_optimize(THD* thd) {
             const char* this_index_name =
                 i >= table_share->keys ?
                     "primary" :
-                    table_share->key_info[i].name;
+                    table_share->key_info[i].name.str;
             if (strcasecmp(optimize_index_name, this_index_name) != 0) {
                 continue;
             }
@@ -1069,7 +1069,7 @@ int ha_tokudb::check(THD* thd, HA_CHECK_OPT* check_opt) {
             DB* db = share->key_file[i];
             assert_always(db != NULL);
             const char* kname =
-                i == primary_key ? "primary" : table_share->key_info[i].name;
+                i == primary_key ? "primary" : table_share->key_info[i].name.str;
             snprintf(
                 write_status_msg,
                 sizeof(write_status_msg),

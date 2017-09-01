@@ -31,7 +31,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_base.h"                           // close_mysql_tables
@@ -189,7 +189,7 @@ void udf_init()
   }
 
   table->use_all_columns();
-  while (!(error= read_record_info.read_record(&read_record_info)))
+  while (!(error= read_record_info.read_record()))
   {
     DBUG_PRINT("info",("init udf record"));
     LEX_CSTRING name;

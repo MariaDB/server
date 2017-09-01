@@ -25,7 +25,7 @@
     str is a (long) to record position where 0 is the first position.
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_partition.h"                      // struct partition_info
@@ -478,7 +478,7 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
   *pos++=(uchar) NAMES_SEP_CHAR;
   for (key=keyinfo ; key != end ; key++)
   {
-    uchar *tmp=(uchar*) strmov((char*) pos,key->name);
+    uchar *tmp=(uchar*) strmov((char*) pos,key->name.str);
     *tmp++= (uchar) NAMES_SEP_CHAR;
     *tmp=0;
     pos=tmp;
@@ -539,7 +539,7 @@ static bool pack_expression(String *buf, Virtual_column_info *vcol,
   size_t len_off= buf->length();
   buf->q_append2b(0); // to be added later
   buf->q_append((char)vcol->name.length);
-  buf->q_append(vcol->name.str, vcol->name.length);
+  buf->q_append(&vcol->name);
   size_t expr_start= buf->length();
   vcol->print(buf);
   size_t expr_len= buf->length() - expr_start;

@@ -138,6 +138,11 @@ select json_keys('{"a":{"c":1, "d":2}, "b":2}');
 select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a");
 select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b");
 select json_keys('foo');
+#
+# mdev-12789 JSON_KEYS returns duplicate keys twice
+#
+select json_keys('{"a":{"c":1, "d":2}, "b":2, "c":1, "a":3, "b":1, "c":2}');
+select json_keys('{"c1": "value 1", "c1": "value 2"}');
 
 SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
 select json_search(@j, 'one', 'abc');
@@ -295,6 +300,22 @@ CREATE TABLE t1 (f INT NOT NULL);
 INSERT INTO t1 VALUES (0);
 SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
 DROP TABLE t1;
+
+#
+# MDEV-12324 Wrong result (phantom array value) on JSON_EXTRACT.
+#
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*].*' );
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*]' );
+
+#
+# MDEV-12604 Comparison of JSON_EXTRACT result differs with Mysql.
+#
+
+select JSON_EXTRACT('{"name":"value"}', '$.name') = 'value';
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true;
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false;
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1;
+select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
 
 --echo #
 --echo # Start of 10.3 tests

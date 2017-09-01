@@ -235,19 +235,19 @@ inline mutex_t::mutex_t(void) {
         _owners = 0;
         _owner = _null_owner;
     #endif
-    int r = pthread_mutex_init(&_mutex, MY_MUTEX_INIT_FAST);
+    int r __attribute__((unused)) = pthread_mutex_init(&_mutex, MY_MUTEX_INIT_FAST);
     assert_debug(r == 0);
 }
 inline mutex_t::~mutex_t(void) {
     #ifdef TOKUDB_DEBUG
         assert_debug(_owners == 0);
     #endif
-    int r = pthread_mutex_destroy(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_destroy(&_mutex);
     assert_debug(r == 0);
 }
 inline void mutex_t::lock(void) {
     assert_debug(is_owned_by_me() == false);
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     #ifdef TOKUDB_DEBUG
         _owners++;
@@ -274,7 +274,7 @@ inline void mutex_t::unlock(void) {
         _owners--;
         _owner = _null_owner;
     #endif
-    int r = pthread_mutex_unlock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_unlock(&_mutex);
     assert_debug(r == 0);
 }
 #ifdef TOKUDB_DEBUG
@@ -285,11 +285,11 @@ inline bool mutex_t::is_owned_by_me(void) const {
 
 
 inline rwlock_t::rwlock_t(void) {
-    int r = pthread_rwlock_init(&_rwlock, NULL);
+    int r  __attribute__((unused)) = pthread_rwlock_init(&_rwlock, NULL);
     assert_debug(r == 0);
 }
 inline rwlock_t::~rwlock_t(void) {
-    int r = pthread_rwlock_destroy(&_rwlock);
+    int r  __attribute__((unused)) = pthread_rwlock_destroy(&_rwlock);
     assert_debug(r == 0);
 }
 inline void rwlock_t::lock_read(void) {
@@ -345,7 +345,7 @@ inline int rwlock_t::lock_write(ulonglong microseconds) {
     return r;
 }
 inline void rwlock_t::unlock(void) {
-    int r = pthread_rwlock_unlock(&_rwlock);
+    int r  __attribute__((unused)) = pthread_rwlock_unlock(&_rwlock);
     assert_debug(r == 0);
 }
 inline rwlock_t::rwlock_t(const rwlock_t&) {
@@ -358,7 +358,7 @@ inline rwlock_t& rwlock_t::operator=(const rwlock_t&) {
 inline event_t::event_t(bool create_signalled, bool manual_reset) :
     _manual_reset(manual_reset) {
 
-    int r = pthread_mutex_init(&_mutex, NULL);
+    int  __attribute__((unused)) r = pthread_mutex_init(&_mutex, NULL);
     assert_debug(r == 0);
     r = pthread_cond_init(&_cond, NULL);
     assert_debug(r == 0);
@@ -370,13 +370,13 @@ inline event_t::event_t(bool create_signalled, bool manual_reset) :
     _pulsed = false;
 }
 inline event_t::~event_t(void) {
-    int r = pthread_mutex_destroy(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_destroy(&_mutex);
     assert_debug(r == 0);
     r = pthread_cond_destroy(&_cond);
     assert_debug(r == 0);
 }
 inline void event_t::wait(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     while (_signalled == false && _pulsed == false) {
         r = pthread_cond_wait(&_cond, &_mutex);
@@ -413,7 +413,7 @@ inline int event_t::wait(ulonglong microseconds) {
     return 0;
 }
 inline void event_t::signal(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _signalled = true;
     if (_manual_reset) {
@@ -427,7 +427,7 @@ inline void event_t::signal(void) {
     assert_debug(r == 0);
 }
 inline void event_t::pulse(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _pulsed = true;
     r = pthread_cond_signal(&_cond);
@@ -437,7 +437,7 @@ inline void event_t::pulse(void) {
 }
 inline bool event_t::signalled(void) {
     bool ret = false;
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     ret = _signalled;
     r = pthread_mutex_unlock(&_mutex);
@@ -445,7 +445,7 @@ inline bool event_t::signalled(void) {
     return ret;
 }
 inline void event_t::reset(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _signalled = false;
     _pulsed = false;
@@ -467,21 +467,21 @@ inline semaphore_t::semaphore_t(
     _initial_count(initial_count),
     _max_count(max_count) {
 
-    int r = pthread_mutex_init(&_mutex, NULL);
+    int r  __attribute__((unused)) = pthread_mutex_init(&_mutex, NULL);
     assert_debug(r == 0);
     r = pthread_cond_init(&_cond, NULL);
     assert_debug(r == 0);
     _signalled = _initial_count;
 }
 inline semaphore_t::~semaphore_t(void) {
-    int r = pthread_mutex_destroy(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_destroy(&_mutex);
     assert_debug(r == 0);
     r = pthread_cond_destroy(&_cond);
     assert_debug(r == 0);
 }
 inline semaphore_t::E_WAIT semaphore_t::wait(void) {
     E_WAIT ret;
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     while (_signalled == 0 && _interrupted == false) {
         r = pthread_cond_wait(&_cond, &_mutex);
@@ -524,7 +524,7 @@ inline semaphore_t::E_WAIT semaphore_t::wait(ulonglong microseconds) {
 }
 inline bool semaphore_t::signal(void) {
     bool ret = false;
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     if (_signalled < _max_count) {
         _signalled++;
@@ -538,7 +538,7 @@ inline bool semaphore_t::signal(void) {
 }
 inline int semaphore_t::signalled(void) {
     int ret = 0;
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     ret = _signalled;
     r = pthread_mutex_unlock(&_mutex);
@@ -546,7 +546,7 @@ inline int semaphore_t::signalled(void) {
     return ret;
 }
 inline void semaphore_t::reset(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _signalled = 0;
     r = pthread_mutex_unlock(&_mutex);
@@ -554,7 +554,7 @@ inline void semaphore_t::reset(void) {
     return;
 }
 inline void semaphore_t::set_interrupt(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _interrupted = true;
     r = pthread_cond_broadcast(&_cond);
@@ -563,7 +563,7 @@ inline void semaphore_t::set_interrupt(void) {
     assert_debug(r == 0);
 }
 inline void semaphore_t::clear_interrupt(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r  __attribute__((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _interrupted = false;
     r = pthread_mutex_unlock(&_mutex);

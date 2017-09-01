@@ -60,6 +60,9 @@ class Sp_handler
                           TABLE *table) const;
   int db_find_routine(THD *thd, const Database_qualified_name *name,
                       sp_head **sphp) const;
+  int db_find_and_cache_routine(THD *thd,
+                                const Database_qualified_name *name,
+                                sp_head **sp) const;
   int db_load_routine(THD *thd, const Database_qualified_name *name,
                       sp_head **sphp,
                       sql_mode_t sql_mode,
@@ -73,7 +76,12 @@ class Sp_handler
   int sp_drop_routine_internal(THD *thd,
                                const Database_qualified_name *name,
                                TABLE *table) const;
+
+  sp_head *sp_clone_and_link_routine(THD *thd,
+                                     const Database_qualified_name *name,
+                                     sp_head *sp) const;
 public:
+  virtual ~Sp_handler() {}
   static const Sp_handler *handler(enum enum_sql_command cmd);
   static const Sp_handler *handler(stored_procedure_type type);
   static const Sp_handler *handler(MDL_key::enum_mdl_namespace ns);

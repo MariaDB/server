@@ -1541,7 +1541,7 @@ void thr_downgrade_write_lock(THR_LOCK_DATA *in_data,
                               enum thr_lock_type new_lock_type)
 {
   THR_LOCK *lock=in_data->lock;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   enum thr_lock_type old_lock_type= in_data->type;
 #endif
   DBUG_ENTER("thr_downgrade_write_only_lock");
@@ -1684,31 +1684,35 @@ void thr_print_locks(void)
   uint count=0;
 
   mysql_mutex_lock(&THR_LOCK_lock);
-  puts("Current locks:");
+  puts("Current active THR (table level locks):");
   for (list= thr_lock_thread_list; list && count++ < MAX_THREADS;
        list= list_rest(list))
   {
     THR_LOCK *lock=(THR_LOCK*) list->data;
     mysql_mutex_lock(&lock->mutex);
-    printf("lock: 0x%lx:",(ulong) lock);
-    if ((lock->write_wait.data || lock->read_wait.data) &&
-	(! lock->read.data && ! lock->write.data))
-      printf(" WARNING: ");
-    if (lock->write.data)
-      printf(" write");
-    if (lock->write_wait.data)
-      printf(" write_wait");
-    if (lock->read.data)
-      printf(" read");
-    if (lock->read_wait.data)
-      printf(" read_wait");
-    puts("");
-    thr_print_lock("write",&lock->write);
-    thr_print_lock("write_wait",&lock->write_wait);
-    thr_print_lock("read",&lock->read);
-    thr_print_lock("read_wait",&lock->read_wait);
+    if ((lock->write.data || lock->read.data ||
+         lock->write_wait.data || lock->read_wait.data))
+    {
+      printf("lock: 0x%lx:",(ulong) lock);
+      if ((lock->write_wait.data || lock->read_wait.data) &&
+          (! lock->read.data && ! lock->write.data))
+        printf(" WARNING: ");
+      if (lock->write.data)
+        printf(" write");
+      if (lock->write_wait.data)
+        printf(" write_wait");
+      if (lock->read.data)
+        printf(" read");
+      if (lock->read_wait.data)
+        printf(" read_wait");
+      puts("");
+      thr_print_lock("write",&lock->write);
+      thr_print_lock("write_wait",&lock->write_wait);
+      thr_print_lock("read",&lock->read);
+      thr_print_lock("read_wait",&lock->read_wait);
+      puts("");
+    }
     mysql_mutex_unlock(&lock->mutex);
-    puts("");
   }
   fflush(stdout);
   mysql_mutex_unlock(&THR_LOCK_lock);

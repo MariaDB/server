@@ -31,7 +31,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include <my_global.h>                          // HAVE_*
+#include "mariadb.h"                          // HAVE_*
 
 #include "sql_priv.h"
 /*
@@ -1205,7 +1205,8 @@ void Item_func_reverse::fix_length_and_dec()
     Fix that this works with binary strings when using USE_MB 
 */
 
-String *Item_func_replace::val_str(String *str)
+String *Item_func_replace::val_str_internal(String *str,
+                                            String *empty_string_for_null)
 {
   DBUG_ASSERT(fixed == 1);
   String *res,*res2,*res3;
@@ -1225,8 +1226,11 @@ String *Item_func_replace::val_str(String *str)
     goto null;
   res2=args[1]->val_str(&tmp_value);
   if (args[1]->null_value)
-    goto null;
-
+  {
+    if (!empty_string_for_null)
+      goto null;
+    res2= empty_string_for_null;
+  }
   res->set_charset(collation.collation);
 
 #ifdef USE_MB
@@ -1244,7 +1248,11 @@ String *Item_func_replace::val_str(String *str)
     return res;
 #endif
   if (!(res3=args[2]->val_str(&tmp_value2)))
-    goto null;
+  {
+    if (!empty_string_for_null)
+      goto null;
+    res3= empty_string_for_null;
+  }
   from_length= res2->length();
   to_length=   res3->length();
 
@@ -1327,6 +1335,9 @@ redo:
     }
     while ((offset=res->strstr(*res2,(uint) offset)) >= 0);
   }
+  if (empty_string_for_null && !res->length())
+    goto null;
+
   return res;
 
 null:
@@ -1352,6 +1363,13 @@ void Item_func_replace::fix_length_and_dec()
 
 
 /*********************************************************************/
+bool Item_func_regexp_replace::fix_fields(THD *thd, Item **ref)
+{
+  re.set_recursion_limit(thd);
+  return Item_str_func::fix_fields(thd, ref);
+}
+
+
 void Item_func_regexp_replace::fix_length_and_dec()
 {
   if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 3))
@@ -1484,6 +1502,13 @@ String *Item_func_regexp_replace::val_str(String *str)
 err:
   null_value= true;
   return (String *) 0;
+}
+
+
+bool Item_func_regexp_substr::fix_fields(THD *thd, Item **ref)
+{
+  re.set_recursion_limit(thd);
+  return Item_str_func::fix_fields(thd, ref);
 }
 
 
@@ -3256,10 +3281,11 @@ String *Item_func_rpad::val_str(String *str)
       ((count < 0) && !args[1]->unsigned_flag))
     goto err;
 
+  null_value=0;
+
   if (count == 0)
     return make_empty_result();
 
-  null_value=0;
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
   if ((ulonglong) count > INT_MAX32)
@@ -3347,10 +3373,11 @@ String *Item_func_lpad::val_str(String *str)
       ((count < 0) && !args[1]->unsigned_flag))
     goto err;  
 
+  null_value=0;
+
   if (count == 0)
     return make_empty_result();
 
-  null_value=0;
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
   if ((ulonglong) count > INT_MAX32)
@@ -4504,6 +4531,9 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
       case MYSQL_TYPE_GEOMETRY:
         type= DYN_COL_STRING;
         break;
+      case MYSQL_TYPE_VARCHAR_COMPRESSED:
+      case MYSQL_TYPE_BLOB_COMPRESSED:
+        DBUG_ASSERT(0);
       }
     }
     if (type == DYN_COL_STRING &&

@@ -17,7 +17,7 @@
 
 /* Some general useful functions */
 
-#include <my_global.h>                 /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"                 /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "table.h"
 #include "key.h"                                // find_ref_key
@@ -251,30 +251,18 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
   if (is_infoschema_db(db->str, db->length))
     return TABLE_CATEGORY_INFORMATION;
 
-  if ((db->length == PERFORMANCE_SCHEMA_DB_NAME.length) &&
-      (my_strcasecmp(system_charset_info,
-                     PERFORMANCE_SCHEMA_DB_NAME.str,
-                     db->str) == 0))
+  if (lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, db) == 0)
     return TABLE_CATEGORY_PERFORMANCE;
 
-  if ((db->length == MYSQL_SCHEMA_NAME.length) &&
-      (my_strcasecmp(system_charset_info,
-                     MYSQL_SCHEMA_NAME.str,
-                     db->str) == 0))
+  if (lex_string_eq(&MYSQL_SCHEMA_NAME, db) == 0)
   {
     if (is_system_table_name(name->str, name->length))
       return TABLE_CATEGORY_SYSTEM;
 
-    if ((name->length == GENERAL_LOG_NAME.length) &&
-        (my_strcasecmp(system_charset_info,
-                       GENERAL_LOG_NAME.str,
-                       name->str) == 0))
+    if (lex_string_eq(&GENERAL_LOG_NAME, name) == 0)
       return TABLE_CATEGORY_LOG;
 
-    if ((name->length == SLOW_LOG_NAME.length) &&
-        (my_strcasecmp(system_charset_info,
-                       SLOW_LOG_NAME.str,
-                       name->str) == 0))
+    if (lex_string_eq(&SLOW_LOG_NAME, name) == 0)
       return TABLE_CATEGORY_LOG;
   }
 
@@ -328,8 +316,13 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     share->normalized_path.length= path_length;
     share->table_category= get_table_category(& share->db, & share->table_name);
     share->open_errno= ENOENT;
-    /* The following will be fixed in open_table_from_share */
-    share->cached_row_logging_check= 1;
+    /* The following will be updated in open_table_from_share */
+    share->can_do_row_logging= 1;
+    if (share->table_category == TABLE_CATEGORY_LOG)
+      share->no_replicate= 1;
+    if (my_strnncoll(table_alias_charset, (uchar*) db, 6,
+                     (const uchar*) "mysql", 6) == 0)
+      share->not_usable_by_query_cache= 1;
 
     init_sql_alloc(&share->stats_cb.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
@@ -402,8 +395,8 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   share->normalized_path.str=    (char*) path;
   share->path.length= share->normalized_path.length= strlen(path);
   share->frm_version= 		 FRM_VER_CURRENT;
-
-  share->cached_row_logging_check= 0;           // No row logging
+  share->not_usable_by_query_cache= 1;
+  share->can_do_row_logging= 0;           // No row logging
 
   /*
     table_map_id is also used for MERGE tables to suppress repeated
@@ -2124,18 +2117,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     for (uint key=0 ; key < keys ; key++,keyinfo++)
     {
       uint usable_parts= 0;
-      keyinfo->name=(char*) share->keynames.type_names[key];
-      keyinfo->name_length= strlen(keyinfo->name);
+      keyinfo->name.str=    share->keynames.type_names[key];
+      keyinfo->name.length= strlen(keyinfo->name.str);
       keyinfo->cache_name=
         (uchar*) alloc_root(&share->mem_root,
                             share->table_cache_key.length+
-                            keyinfo->name_length + 1);
+                            keyinfo->name.length + 1);
       if (keyinfo->cache_name)           // If not out of memory
       {
         uchar *pos= keyinfo->cache_name;
         memcpy(pos, share->table_cache_key.str, share->table_cache_key.length);
-        memcpy(pos + share->table_cache_key.length, keyinfo->name,
-               keyinfo->name_length+1);
+        memcpy(pos + share->table_cache_key.length, keyinfo->name.str,
+               keyinfo->name.length+1);
       }
 
       if (!key)
@@ -3379,24 +3372,20 @@ partititon_err:
 
   outparam->mark_columns_used_by_check_constraints();
 
-  if (share->table_category == TABLE_CATEGORY_LOG)
+  if (db_stat)
   {
-    outparam->no_replicate= TRUE;
-  }
-  else if (outparam->file)
-  {
+    /* Set some flags in share on first open of the table */
     handler::Table_flags flags= outparam->file->ha_table_flags();
-    outparam->no_replicate= ! MY_TEST(flags & (HA_BINLOG_STMT_CAPABLE
-                                               | HA_BINLOG_ROW_CAPABLE))
-                            || MY_TEST(flags & HA_HAS_OWN_BINLOGGING);
-  }
-  else
-  {
-    outparam->no_replicate= FALSE;
+    if (! MY_TEST(flags & (HA_BINLOG_STMT_CAPABLE |
+                           HA_BINLOG_ROW_CAPABLE)) ||
+        MY_TEST(flags & HA_HAS_OWN_BINLOGGING))
+      share->no_replicate= TRUE;
+    if (outparam->file->table_cache_type() & HA_CACHE_TBL_NOCACHE)
+      share->not_usable_by_query_cache= TRUE;
   }
 
-  if (outparam->no_replicate || !binlog_filter->db_ok(outparam->s->db.str))
-    outparam->s->cached_row_logging_check= 0;   // No row based replication
+  if (share->no_replicate || !binlog_filter->db_ok(share->db.str))
+    share->can_do_row_logging= 0;   // No row based replication
 
   /* Increment the opened_tables counter, only when open flags set. */
   if (db_stat)
@@ -6895,7 +6884,8 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   if (unique)
     keyinfo->flags|= HA_NOSAME;
   sprintf(buf, "key%i", key);
-  if (!(keyinfo->name= strdup_root(&mem_root, buf)))
+  keyinfo->name.length= strlen(buf);
+  if (!(keyinfo->name.str= strmake_root(&mem_root, buf, keyinfo->name.length)))
     return TRUE;
   keyinfo->rec_per_key= (ulong*) alloc_root(&mem_root,
                                             sizeof(ulong)*key_parts);
@@ -7480,7 +7470,7 @@ int TABLE::update_virtual_field(Field *vf)
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
   vf->vcol_info->expr->save_in_field(vf, 0);
   in_use->restore_active_arena(expr_arena, &backup_arena);
-  DBUG_RETURN(0);
+  DBUG_RETURN(in_use->is_error());
 }
 
 
@@ -8297,7 +8287,7 @@ Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
   for (Field **tmp= field; *tmp; tmp++)
   {
     if ((*tmp)->field_name.length == length &&
-        !my_strcasecmp(system_charset_info, (*tmp)->field_name.str, str->str))
+        !lex_string_cmp(system_charset_info, &(*tmp)->field_name, str))
       return *tmp;
   }
   return NULL;

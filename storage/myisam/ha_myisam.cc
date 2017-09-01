@@ -21,13 +21,14 @@
 #endif
 
 #define MYSQL_SERVER 1
+#include <my_global.h>
 #include "sql_plugin.h"
+#include "myisamdef.h"
 #include "sql_priv.h"
 #include "key.h"                                // key_copy
 #include <m_ctype.h>
 #include <my_bit.h>
 #include "ha_myisam.h"
-#include "myisamdef.h"
 #include "rt_index.h"
 #include "sql_table.h"                          // tablename_to_filename
 #include "sql_class.h"                          // THD
@@ -2349,7 +2350,7 @@ ha_myisam::check_if_supported_inplace_alter(TABLE *new_table,
           old_key->flags != new_key->flags ||
           old_key->user_defined_key_parts != new_key->user_defined_key_parts ||
           old_key->algorithm != new_key->algorithm ||
-          strcmp(old_key->name, new_key->name))
+          strcmp(old_key->name.str, new_key->name.str))
         DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
       for (uint j= 0; j < old_key->user_defined_key_parts; j++)

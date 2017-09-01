@@ -23,7 +23,6 @@
 
 #include "violite.h"                            /* SSL_type */
 #include "sql_trigger.h"
-#include "item.h"               /* From item_subselect.h: subselect_union_engine */
 #include "thr_lock.h"                  /* thr_lock_type, TL_UNLOCK */
 #include "mem_root_array.h"
 #include "sql_cmd.h"
@@ -690,6 +689,7 @@ public:
   select_result *result;
   bool  prepared, // prepare phase already performed for UNION (unit)
     optimized, // optimize phase already performed for UNION (unit)
+    optimized_2,
     executed, // already executed
     cleaned;
 
@@ -1222,7 +1222,7 @@ public:
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
   bool check_unrestricted_recursive(bool only_standard_compliant);
   bool check_subqueries_with_recursive_references();
-  void collect_grouping_fields(THD *thd); 
+  void collect_grouping_fields(THD *thd, ORDER *grouping_list); 
   void check_cond_extraction_for_grouping_fields(Item *cond,
                                                  TABLE_LIST *derived);
   Item *build_cond_for_grouping_fields(THD *thd, Item *cond,
@@ -1245,9 +1245,10 @@ public:
   }
 
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
+  ORDER *find_common_window_func_partition_fields(THD *thd);
 
   bool cond_pushdown_is_allowed() const
-  { return !have_window_funcs() && !olap && !explicit_limit; }
+  { return !olap && !explicit_limit; }
   
 private:
   bool m_non_agg_field_used;
@@ -3153,9 +3154,11 @@ public:
   bool set_trigger_new_row(LEX_CSTRING *name, Item *val);
   bool set_system_variable(struct sys_var_with_base *tmp,
                            enum enum_var_type var_type, Item *val);
+  bool set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val);
   void set_stmt_init();
-  sp_name *make_sp_name(THD *thd, LEX_CSTRING *name);
-  sp_name *make_sp_name(THD *thd, LEX_CSTRING *name1, LEX_CSTRING *name2);
+  sp_name *make_sp_name(THD *thd, const LEX_CSTRING *name);
+  sp_name *make_sp_name(THD *thd, const LEX_CSTRING *name1,
+                                  const LEX_CSTRING *name2);
   sp_head *make_sp_head(THD *thd, const sp_name *name, const Sp_handler *sph);
   sp_head *make_sp_head_no_recursive(THD *thd, const sp_name *name,
                                      const Sp_handler *sph)
@@ -3173,6 +3176,12 @@ public:
       return NULL;
     return make_sp_head_no_recursive(thd, name, sph);
   }
+  bool sp_body_finalize_function(THD *);
+  bool sp_body_finalize_procedure(THD *);
+  bool call_statement_start(THD *thd, sp_name *name);
+  bool call_statement_start(THD *thd, const LEX_CSTRING *name);
+  bool call_statement_start(THD *thd, const LEX_CSTRING *name1,
+                                      const LEX_CSTRING *name2);
   bool init_internal_variable(struct sys_var_with_base *variable,
                              const LEX_CSTRING *name);
   bool init_internal_variable(struct sys_var_with_base *variable,
@@ -3349,6 +3358,8 @@ public:
                           const LEX_CSTRING *var_name,
                           const LEX_CSTRING *field_name,
                           uint pos_in_q, uint length_in_q);
+
+  Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
 
   /*
     Create a my_var instance for a ROW field variable that was used
@@ -3651,6 +3662,9 @@ public:
   bool add_create_view(THD *thd, DDL_options_st ddl,
                        uint16 algorithm, enum_view_suid suid,
                        Table_ident *table_ident);
+
+  bool add_grant_command(THD *thd, enum_sql_command sql_command_arg,
+                         stored_procedure_type type_arg);
 };
 
 

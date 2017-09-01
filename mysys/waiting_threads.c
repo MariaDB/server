@@ -172,6 +172,7 @@
       !! thread4 should not wait for thread2.
 */
 
+#include <my_global.h>
 #include <waiting_threads.h>
 #include <m_string.h>
 

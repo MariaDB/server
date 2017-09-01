@@ -24,7 +24,7 @@
   Hostnames are checked with reverse name lookup and checked that they
   doesn't resemble an IP address.
 */
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"                             // SPECIAL_NO_HOST_CACHE
 #include "hostname.h"

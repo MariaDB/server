@@ -17,7 +17,6 @@
 #ifndef MYSQLD_INCLUDED
 #define MYSQLD_INCLUDED
 
-#include <my_global.h> /* MYSQL_PLUGIN_IMPORT, FN_REFLEN, FN_EXTLEN */
 #include "sql_basic_types.h"			/* query_id_t */
 #include "sql_plugin.h"
 #include "sql_bitmap.h"                         /* Bitmap */
@@ -117,7 +116,6 @@ extern my_bool opt_backup_progress_log;
 extern my_bool opt_support_flashback;
 extern ulonglong log_output_options;
 extern ulong log_backup_output_options;
-extern my_bool opt_log_queries_not_using_indexes;
 extern bool opt_disable_networking, opt_skip_show_db;
 extern bool opt_skip_name_resolve;
 extern bool opt_ignore_builtin_innodb;
@@ -144,7 +142,6 @@ extern const char *current_dbug_option;
 extern char* opt_secure_file_priv;
 extern char* opt_secure_backup_file_priv;
 extern size_t opt_secure_backup_file_priv_len;
-extern my_bool opt_log_slow_admin_statements, opt_log_slow_slave_statements;
 extern my_bool sp_automatic_privileges, opt_noacl;
 extern ulong use_stat_tables;
 extern my_bool opt_old_style_user_limits, trust_function_creators;
@@ -299,7 +296,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started,
   key_LOCK_status, key_LOCK_show_status,
-  key_LOCK_thd_data,
+  key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
@@ -558,6 +555,7 @@ extern MYSQL_PLUGIN_IMPORT char mysql_real_data_home[];
 extern char mysql_unpacked_real_data_home[];
 extern MYSQL_PLUGIN_IMPORT struct system_variables global_system_variables;
 extern char default_logfile_name[FN_REFLEN];
+extern char *my_proxy_protocol_networks;
 
 #define mysql_tmpdir (my_tmpdir(&mysql_tmpdir_list))
 
@@ -717,7 +715,7 @@ enum enum_query_type
 /* query_id */
 extern query_id_t global_query_id;
 
-void unireg_end(void) __attribute__((noreturn));
+ATTRIBUTE_NORETURN void unireg_end(void);
 
 /* increment query_id and return it.  */
 inline __attribute__((warn_unused_result)) query_id_t next_query_id()

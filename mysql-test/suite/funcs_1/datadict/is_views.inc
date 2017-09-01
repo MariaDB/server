@@ -278,7 +278,7 @@ SELECT * FROM information_schema.views;
 INSERT INTO information_schema.views(table_schema, table_name)
 VALUES ('db2', 'v2');
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_DBACCESS_DENIED_ERROR,ER_NON_UPDATABLE_TABLE
 UPDATE information_schema.views SET table_schema = 'test'
 WHERE table_name = 't1';
 

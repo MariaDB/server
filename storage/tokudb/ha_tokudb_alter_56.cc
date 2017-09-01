@@ -234,7 +234,7 @@ static bool is_disjoint_add_drop(Alter_inplace_info *ha_alter_info) {
         for (uint a = 0; a < ha_alter_info->index_add_count; a++) {
             KEY* add_key =
                 &ha_alter_info->key_info_buffer[ha_alter_info->index_add_buffer[a]];
-            if (strcmp(drop_key->name, add_key->name) == 0) {
+            if (strcmp(drop_key->name.str, add_key->name.str) == 0) {
                 return false;
             }
         }
@@ -718,7 +718,7 @@ static bool find_index_of_key(
     uint* index_offset_ptr) {
 
     for (uint i = 0; i < table->s->keys; i++) {
-        if (strcmp(key_name, table->key_info[i].name) == 0) {
+        if (strcmp(key_name, table->key_info[i].name.str) == 0) {
             *index_offset_ptr = i;
             return true;
         }
@@ -733,7 +733,7 @@ static bool find_index_of_key(
     uint* index_offset_ptr) {
 
     for (uint i = 0; i < key_count; i++) {
-        if (strcmp(key_name, key_info[i].name) == 0) {
+        if (strcmp(key_name, key_info[i].name.str) == 0) {
             *index_offset_ptr = i;
             return true;
         }
@@ -751,13 +751,13 @@ int ha_tokudb::alter_table_drop_index(
     for (uint i = 0; i < ha_alter_info->index_drop_count; i++) {
         bool found;
         found = find_index_of_key(
-            ha_alter_info->index_drop_buffer[i]->name,
+            ha_alter_info->index_drop_buffer[i]->name.str,
             table,
             &index_drop_offsets[i]);
         if (!found) {
             // undo of add key in partition engine
             found = find_index_of_key(
-                ha_alter_info->index_drop_buffer[i]->name,
+                ha_alter_info->index_drop_buffer[i]->name.str,
                 ha_alter_info->key_info_buffer,
                 ha_alter_info->key_count,
                 &index_drop_offsets[i]);
@@ -1005,7 +1005,7 @@ bool ha_tokudb::commit_inplace_alter_table(
             uint index_drop_offsets[ha_alter_info->index_drop_count];
             for (uint i = 0; i < ha_alter_info->index_drop_count; i++) {
                 bool found = find_index_of_key(
-                    ha_alter_info->index_drop_buffer[i]->name,
+                    ha_alter_info->index_drop_buffer[i]->name.str,
                     table,
                     &index_drop_offsets[i]);
                 assert_always(found);

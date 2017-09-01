@@ -16,7 +16,7 @@
 
 /* variable declarations are in sys_vars.cc now !!! */
 
-#include "sql_plugin.h"                         // Includes my_global.h
+#include "sql_plugin.h"
 #include "sql_class.h"                   // set_var.h: session_var_ptr
 #include "set_var.h"
 #include "sql_priv.h"
@@ -1162,6 +1162,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       { STRING_WITH_LEN("SET") },                    // GET_SET       13
       { STRING_WITH_LEN("DOUBLE") },                 // GET_DOUBLE    14
       { STRING_WITH_LEN("FLAGSET") },                // GET_FLAGSET   15
+      { STRING_WITH_LEN("BOOLEAN") },                // GET_BIT       16
     };
     const ulong vartype= (var->option.var_type & GET_TYPE_MASK);
     const LEX_CSTRING *type= types + vartype;
@@ -1482,7 +1483,7 @@ pretty_print_engine_list(THD *thd, plugin_ref *list)
   size_t size;
   char *buf, *pos;
 
-  if (!list)
+  if (!list || !*list)
     return thd->strmake("", 0);
 
   size= 0;

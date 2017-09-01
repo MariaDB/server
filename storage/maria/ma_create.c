@@ -1141,7 +1141,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     DBUG_EXECUTE_IF("maria_crash_create_table",
                     {
                       DBUG_PRINT("maria_crash_create_table", ("now"));
-                      DBUG_ABORT();
+                      DBUG_SUICIDE();
                     });
     /*
       store LSN into file, needed for Recovery to not be confused if a

@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
-#include "sql_plugin.h"                         // Includes my_global.h
+#include "sql_plugin.h"                         // Includes mariadb.h
 #include "sql_priv.h"
 #include "unireg.h"
 #include <signal.h>
@@ -75,6 +75,7 @@
 #include "wsrep_var.h"
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
+#include "proxy_protocol.h"
 
 #include "sql_callback.h"
 #include "threadpool.h"
@@ -395,7 +396,6 @@ my_bool disable_log_notes, opt_support_flashback= 0;
 static my_bool opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
-my_bool opt_log_queries_not_using_indexes= 0;
 bool opt_error_log= IF_WIN(1,0);
 bool opt_disable_networking=0, opt_skip_show_db=0;
 bool opt_skip_name_resolve=0;
@@ -457,8 +457,6 @@ my_bool relay_log_recovery;
 my_bool opt_sync_frm, opt_allow_suspicious_udfs;
 my_bool opt_secure_auth= 0;
 char* opt_secure_file_priv;
-my_bool opt_log_slow_admin_statements= 0;
-my_bool opt_log_slow_slave_statements= 0;
 my_bool lower_case_file_system= 0;
 my_bool opt_large_pages= 0;
 my_bool opt_super_large_pages= 0;
@@ -918,7 +916,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started,
   key_LOCK_status, key_LOCK_show_status,
-  key_LOCK_system_variables_hash, key_LOCK_thd_data,
+  key_LOCK_system_variables_hash, key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
@@ -990,6 +988,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_wait_commit, "wait_for_commit::LOCK_wait_commit", 0},
   { &key_LOCK_gtid_waiting, "gtid_waiting::LOCK_gtid_waiting", 0},
   { &key_LOCK_thd_data, "THD::LOCK_thd_data", 0},
+  { &key_LOCK_thd_kill, "THD::LOCK_thd_kill", 0},
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
   { &key_LOG_LOCK_log, "LOG::LOCK_log", 0},
@@ -1570,7 +1569,7 @@ static void close_server_sock();
 static void clean_up_mutexes(void);
 static void wait_for_signal_thread_to_end(void);
 static void create_pid_file();
-static void mysqld_exit(int exit_code) __attribute__((noreturn));
+ATTRIBUTE_NORETURN static void mysqld_exit(int exit_code);
 #endif
 static void delete_pid_file(myf flags);
 static void end_ssl();
@@ -1692,8 +1691,12 @@ static void close_connections(void)
   {
     DBUG_PRINT("quit",("Informing thread %ld that it's time to die",
 		       (ulong) tmp->thread_id));
-    /* We skip slave threads & scheduler on this first loop through. */
+    /* We skip slave threads on this first loop through. */
     if (tmp->slave_thread)
+      continue;
+
+    /* cannot use 'continue' inside DBUG_EXECUTE_IF()... */
+    if (DBUG_EVALUATE_IF("only_kill_system_threads", !tmp->system_thread, 0))
       continue;
 
 #ifdef WITH_WSREP
@@ -1701,7 +1704,7 @@ static void close_connections(void)
     if (WSREP(tmp) && (tmp->wsrep_exec_mode==REPL_RECV || tmp->wsrep_applier))
       continue;
 #endif
-    tmp->killed= KILL_SERVER_HARD;
+    tmp->set_killed(KILL_SERVER_HARD);
     MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
     mysql_mutex_lock(&tmp->LOCK_thd_data);
     if (tmp->mysys_var)
@@ -1791,7 +1794,7 @@ static void close_connections(void)
     if (WSREP(tmp) && tmp->wsrep_exec_mode==REPL_RECV)
     {
       sql_print_information("closing wsrep system thread");
-      tmp->killed= KILL_CONNECTION;
+      tmp->set_killed(KILL_CONNECTION);
       MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
       if (tmp->mysys_var)
       {
@@ -2159,7 +2162,7 @@ static void mysqld_exit(int exit_code)
   set_malloc_size_cb(NULL);
   if (!opt_debugging && !my_disable_leak_check)
   {
-    DBUG_ASSERT(global_status_var.global_memory_used == 0);
+    DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
   }
   cleanup_tls();
   DBUG_LEAVE;
@@ -2286,6 +2289,7 @@ void clean_up(bool print_message)
   my_free(const_cast<char*>(relay_log_index));
 #endif
   free_list(opt_plugin_load_list_ptr);
+  cleanup_proxy_protocol_networks();
 
   /*
     The following lines may never be executed as the main thread may have
@@ -2681,6 +2685,9 @@ static void network_init(void)
 
   if (MYSQL_CALLBACK_ELSE(thread_scheduler, init, (), 0))
     unireg_abort(1);			/* purecov: inspected */
+
+  if (set_proxy_protocol_networks(my_proxy_protocol_networks))
+    unireg_abort(1);
 
   set_ports();
 
@@ -3317,6 +3324,20 @@ static size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize)
 }
 #endif
 
+#ifdef DBUG_ASSERT_AS_PRINTF
+extern "C" void
+mariadb_dbug_assert_failed(const char *assert_expr, const char *file,
+                           unsigned long line)
+{
+  fprintf(stderr, "Warning: assertion failed: %s at %s line %lu\n",
+          assert_expr, file, line);
+  if (opt_stack_trace)
+  {
+    fprintf(stderr, "Attempting backtrace to find out the reason for the assert:\n");
+    my_print_stacktrace(NULL, (ulong) my_thread_stack_size, 1);
+  }
+}
+#endif /* DBUG_ASSERT_AS_PRINT */
 
 #if !defined(__WIN__)
 #ifndef SA_RESETHAND
@@ -3682,7 +3703,6 @@ sizeof(load_default_groups)/sizeof(load_default_groups[0]);
 #endif
 
 
-#ifndef EMBEDDED_LIBRARY
 /**
   This function is used to check for stack overrun for pathological
   cases of  regular expressions and 'like' expressions.
@@ -3711,8 +3731,6 @@ check_enough_stack_size(int recurse_level)
     return 0;
   return check_enough_stack_size_slow();
 }
-#endif
-
 
 
 /*
@@ -3734,11 +3752,12 @@ static void init_pcre()
 {
   pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
   pcre_free= pcre_stack_free= my_str_free_mysqld;
-#ifndef EMBEDDED_LIBRARY
   pcre_stack_guard= check_enough_stack_size_slow;
   /* See http://pcre.org/original/doc/html/pcrestack.html */
-  my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0) + 16;
-#endif
+  my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0);
+  // pcre can underestimate its stack usage. Use a safe value, as in the manual
+  set_if_bigger(my_pcre_frame_size, 500);
+  my_pcre_frame_size += 16; // Again, safety margin, see the manual
 }
 
 
@@ -4046,11 +4065,16 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
         !thd->killed && !thd->get_stmt_da()->is_set())
     {
-      char buf[1024];
-      thd->killed= KILL_QUERY;
+      /* Ensure we don't get called here again */
+      char buf[50], *buf2;
+      thd->set_killed(KILL_QUERY);
       my_snprintf(buf, sizeof(buf), "--max-thread-mem-used=%llu",
                   thd->variables.max_mem_used);
-      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
+      if ((buf2= (char*) thd->alloc(256)))
+      {
+        my_snprintf(buf2, 256, ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);
+        thd->set_killed(KILL_QUERY, ER_OPTION_PREVENTS_STATEMENT, buf2);
+      }
     }
     DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
                 !debug_assert_on_not_freed_memory);
@@ -4135,7 +4159,10 @@ static int init_common_variables()
 
 #ifdef SAFEMALLOC
   sf_malloc_dbug_id= mariadb_dbug_id;
-#endif
+#endif /* SAFEMALLOC */
+#ifdef DBUG_ASSERT_AS_PRINTF
+  my_dbug_assert_failed= mariadb_dbug_assert_failed;
+#endif /* DBUG_ASSERT_AS_PRINTF */
 
   if (!(type_handler_data= new Type_handler_data) ||
       type_handler_data->init())
@@ -4418,12 +4445,7 @@ static int init_common_variables()
 
   /* Fix back_log (back_log == 0 added for MySQL compatibility) */
   if (back_log == 0 || IS_SYSVAR_AUTOSIZE(&back_log))
-  {
-    if ((900 - 50) * 5 >= max_connections)
-     SYSVAR_AUTOSIZE(back_log, (50 + max_connections / 5));
-    else
-     SYSVAR_AUTOSIZE(back_log, 900);
-  }
+    SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
 
   /* connections and databases needs lots of files */
   {
@@ -8413,6 +8435,8 @@ SHOW_VAR status_vars[]= {
   {"Busy_time",                (char*) offsetof(STATUS_VAR, busy_time), SHOW_DOUBLE_STATUS},
   {"Bytes_received",           (char*) offsetof(STATUS_VAR, bytes_received), SHOW_LONGLONG_STATUS},
   {"Bytes_sent",               (char*) offsetof(STATUS_VAR, bytes_sent), SHOW_LONGLONG_STATUS},
+  {"Column_compressions",      (char*) offsetof(STATUS_VAR, column_compressions), SHOW_LONG_STATUS},
+  {"Column_decompressions",    (char*) offsetof(STATUS_VAR, column_decompressions), SHOW_LONG_STATUS},
   {"Com",                      (char*) com_status_vars, SHOW_ARRAY},
   {"Compression",              (char*) &show_net_compression, SHOW_SIMPLE_FUNC},
   {"Connections",              (char*) &global_thread_id,         SHOW_LONG_NOFLUSH},
@@ -9360,8 +9384,29 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   }
 #ifdef WITH_WSREP
   case OPT_WSREP_CAUSAL_READS:
-    wsrep_causal_reads_update(&global_system_variables);
+  {
+    if (global_system_variables.wsrep_causal_reads)
+    {
+      WSREP_WARN("option --wsrep-causal-reads is deprecated");
+      if (!(global_system_variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ))
+      {
+        WSREP_WARN("--wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=%u. "
+                     "WSREP_SYNC_WAIT_BEFORE_READ is on",
+                     global_system_variables.wsrep_sync_wait);
+        global_system_variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
+      }
+    }
+    else
+    {
+      if (global_system_variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ) {
+          WSREP_WARN("--wsrep-sync-wait=%u takes precedence over --wsrep-causal-reads=OFF. "
+                     "WSREP_SYNC_WAIT_BEFORE_READ is on",
+                     global_system_variables.wsrep_sync_wait);
+          global_system_variables.wsrep_causal_reads = 1;
+      }
+    }
     break;
+  }
   case OPT_WSREP_SYNC_WAIT:
     global_system_variables.wsrep_causal_reads=
       MY_TEST(global_system_variables.wsrep_sync_wait &
@@ -9727,8 +9772,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 #endif
 
   /* Ensure that some variables are not set higher than needed */
-  if (back_log > max_connections)
-    SYSVAR_AUTOSIZE(back_log, max_connections);
   if (thread_cache_size > max_connections)
     SYSVAR_AUTOSIZE(thread_cache_size, max_connections);
   

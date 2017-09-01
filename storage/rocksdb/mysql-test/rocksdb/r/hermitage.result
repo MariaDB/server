@@ -483,7 +483,7 @@ delete from test where value = 20;
 connection con1;
 commit;
 connection con2;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction (snapshot conflict)
 select variable_value-@a from information_schema.global_status where variable_name='rocksdb_snapshot_conflict_errors';
 variable_value-@a
 1
@@ -511,7 +511,7 @@ update test set value = 12 where id = 1;
 connection con1;
 commit;
 connection con2;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction (snapshot conflict)
 commit;
 connection con1;
 truncate table test;
@@ -582,7 +582,7 @@ update test set value = 18 where id = 2;
 commit;
 connection con1;
 delete from test where value = 20;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction (snapshot conflict)
 commit;
 connection con1;
 truncate table test;

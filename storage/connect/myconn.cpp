@@ -139,7 +139,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
 	unsigned int length[] = {0, 4, 0, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
 	PCSZ    fmt;
 	char   *fld, *colname, *chset, v, buf[128], uns[16], zero[16];
-  int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
+  int     i, n, nf = 0, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
 	bool    b;
   PQRYRES qrp;
@@ -160,7 +160,9 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
     /*  Do an evaluation of the result size.                            */
     /********************************************************************/
     STRING cmd(g, 64, "SHOW FULL COLUMNS FROM ");
-    b = cmd.Append((PSZ)table);
+		b = cmd.Append('`');
+    b |= cmd.Append((PSZ)table);
+		b |= cmd.Append('`');
 
     b |= cmd.Append(" FROM ");
     b |= cmd.Append((PSZ)(db ? db : PlgGetUser(g)->DBName));

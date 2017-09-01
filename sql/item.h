@@ -1047,7 +1047,10 @@ public:
       FALSE value is false or NULL
       TRUE value is true (not equal to 0)
   */
-  virtual bool val_bool();
+  virtual bool val_bool()
+  {
+    return type_handler()->Item_val_bool(this);
+  }
   virtual String *val_nodeset(String*) { return 0; }
 
   /*
@@ -1605,6 +1608,7 @@ public:
   */
   virtual bool check_valid_arguments_processor(void *arg) { return 0; }
   virtual bool update_vcol_processor(void *arg) { return 0; }
+  virtual bool set_fields_as_dependent_processor(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
   virtual Item *get_copy(THD *thd, MEM_ROOT *mem_root)=0;
@@ -2216,7 +2220,7 @@ public:
   LEX_CSTRING m_name;
 
 public:
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   /*
     Routine to which this Item_splocal belongs. Used for checking if correct
     runtime context is used for variable handling.
@@ -2827,6 +2831,15 @@ public:
       return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
     }
     return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF);
+  }
+  bool set_fields_as_dependent_processor(void *arg)
+  {
+    if (!(used_tables() & OUTER_REF_TABLE_BIT))
+    {
+      depended_from= (st_select_lex *) arg;
+      item_equal= NULL;
+    }
+    return 0;
   }
   void cleanup();
   Item_equal *get_item_equal() { return item_equal; }

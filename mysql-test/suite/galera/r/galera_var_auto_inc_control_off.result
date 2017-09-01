@@ -59,7 +59,7 @@ connection node_1a;
 COMMIT;
 connection node_2a;
 COMMIT;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: wsrep aborted transaction
 connection node_1a;
 SELECT * FROM t1;
 f1	node

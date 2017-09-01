@@ -20,7 +20,7 @@
   Handler-calling-functions
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "rpl_handler.h"
@@ -73,6 +73,14 @@ KEY_CREATE_INFO default_key_create_info=
 ulong total_ha= 0;
 /* number of storage engines (from handlertons[]) that support 2pc */
 ulong total_ha_2pc= 0;
+#ifndef DBUG_OFF
+/*
+  Number of non-mandatory 2pc handlertons whose initialization failed
+  to estimate total_ha_2pc value under supposition of the failures
+  have not occcured.
+*/
+ulong failed_ha_2pc= 0;
+#endif
 /* size of savepoint storage area (see ha_init) */
 ulong savepoint_alloc_size= 0;
 
@@ -652,6 +660,10 @@ err_deinit:
     (void) plugin->plugin->deinit(NULL);
           
 err:
+#ifndef DBUG_OFF
+  if (hton->prepare && hton->state == SHOW_OPTION_YES)
+    failed_ha_2pc++;
+#endif
   my_free(hton);
 err_no_hton_memory:
   plugin->data= NULL;
@@ -1668,6 +1680,11 @@ int ha_rollback_trans(THD *thd, bool all)
       { // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
+#ifdef WITH_WSREP
+         WSREP_WARN("handlerton rollback failed, thd %lu %lld conf %d SQL %s",
+                    thd->thread_id, thd->query_id, thd->wsrep_conflict_state,
+                    thd->query());
+#endif /* WITH_WSREP */
       }
       status_var_increment(thd->status_var.ha_rollback_count);
       ha_info_next= ha_info->next();
@@ -1862,7 +1879,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         {
 #ifndef DBUG_OFF
           char buf[XIDDATASIZE*4+6]; // see xid_to_str
-          sql_print_information("ignore xid %s", xid_to_str(buf, info->list+i));
+          DBUG_PRINT("info", ("ignore xid %s", xid_to_str(buf, info->list+i)));
 #endif
           xid_cache_insert(info->list+i, XA_PREPARED);
           info->found_foreign_xids++;
@@ -1879,19 +1896,31 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
         {
 #ifndef DBUG_OFF
-          char buf[XIDDATASIZE*4+6]; // see xid_to_str
-          sql_print_information("commit xid %s", xid_to_str(buf, info->list+i));
+          int rc=
 #endif
-          hton->commit_by_xid(hton, info->list+i);
+            hton->commit_by_xid(hton, info->list+i);
+#ifndef DBUG_OFF
+          if (rc == 0)
+          {
+            char buf[XIDDATASIZE*4+6]; // see xid_to_str
+            DBUG_PRINT("info", ("commit xid %s", xid_to_str(buf, info->list+i)));
+          }
+#endif
         }
         else
         {
 #ifndef DBUG_OFF
-          char buf[XIDDATASIZE*4+6]; // see xid_to_str
-          sql_print_information("rollback xid %s",
-                                xid_to_str(buf, info->list+i));
+          int rc=
 #endif
-          hton->rollback_by_xid(hton, info->list+i);
+            hton->rollback_by_xid(hton, info->list+i);
+#ifndef DBUG_OFF
+          if (rc == 0)
+          {
+            char buf[XIDDATASIZE*4+6]; // see xid_to_str
+            DBUG_PRINT("info", ("rollback xid %s",
+                                xid_to_str(buf, info->list+i)));
+          }
+#endif
         }
       }
       if (got < info->len)
@@ -1913,7 +1942,8 @@ int ha_recover(HASH *commit_list)
   /* commit_list and tc_heuristic_recover cannot be set both */
   DBUG_ASSERT(info.commit_list==0 || tc_heuristic_recover==0);
   /* if either is set, total_ha_2pc must be set too */
-  DBUG_ASSERT(info.dry_run || total_ha_2pc>(ulong)opt_bin_log);
+  DBUG_ASSERT(info.dry_run ||
+              (failed_ha_2pc + total_ha_2pc) > (ulong)opt_bin_log);
 
   if (total_ha_2pc <= (ulong)opt_bin_log)
     DBUG_RETURN(0);
@@ -2360,6 +2390,18 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
 /****************************************************************************
 ** General handler functions
 ****************************************************************************/
+
+
+/**
+   Clone a handler
+
+   @param name     name of new table instance
+   @param mem_root Where 'this->ref' should be allocated. It can't be
+                   in this->table->mem_root as otherwise we will not be
+                   able to reclaim that memory when the clone handler
+                   object is destroyed.
+*/
+
 handler *handler::clone(const char *name, MEM_ROOT *mem_root)
 {
   handler *new_handler= get_new_handler(table->s, mem_root, ht);
@@ -2370,16 +2412,6 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
     goto err;
 
   /*
-    Allocate handler->ref here because otherwise ha_open will allocate it
-    on this->table->mem_root and we will not be able to reclaim that memory 
-    when the clone handler object is destroyed.
-  */
-
-  if (!(new_handler->ref= (uchar*) alloc_root(mem_root,
-                                              ALIGN_SIZE(ref_length)*2)))
-    goto err;
-
-  /*
     TODO: Implement a more efficient way to have more than one index open for
     the same table instance. The ha_open call is not cachable for clone.
 
@@ -2387,7 +2419,7 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
     and should be able to use the original instance of the table.
   */
   if (new_handler->ha_open(table, name, table->db_stat,
-                           HA_OPEN_IGNORE_IF_LOCKED))
+                           HA_OPEN_IGNORE_IF_LOCKED, mem_root))
     goto err;
 
   return new_handler;
@@ -2465,7 +2497,7 @@ PSI_table_share *handler::ha_table_share_psi() const
     Don't wait for locks if not HA_OPEN_WAIT_IF_LOCKED is set
 */
 int handler::ha_open(TABLE *table_arg, const char *name, int mode,
-                     uint test_if_locked)
+                     uint test_if_locked, MEM_ROOT *mem_root)
 {
   int error;
   DBUG_ENTER("handler::ha_open");
@@ -2512,9 +2544,9 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
       table->db_stat|=HA_READ_ONLY;
     (void) extra(HA_EXTRA_NO_READCHECK);	// Not needed in SQL
 
-    /* ref is already allocated for us if we're called from handler::clone() */
-    if (!ref && !(ref= (uchar*) alloc_root(&table->mem_root, 
-                                          ALIGN_SIZE(ref_length)*2)))
+    /* Allocate ref in thd or on the table's mem_root */
+    if (!(ref= (uchar*) alloc_root(mem_root ? mem_root : &table->mem_root, 
+                                   ALIGN_SIZE(ref_length)*2)))
     {
       ha_close();
       error=HA_ERR_OUT_OF_MEM;
@@ -3300,6 +3332,10 @@ void handler::ha_release_auto_increment()
   @param msg      Error message template to which key value should be
                   added.
   @param errflag  Flags for my_error() call.
+
+  @notes
+    The error message is from ER_DUP_ENTRY_WITH_KEY_NAME but to keep things compatibly
+    with old code, the error number is ER_DUP_ENTRY
 */
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
@@ -3324,7 +3360,8 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
       str.length(max_length-4);
       str.append(STRING_WITH_LEN("..."));
     }
-    my_printf_error(ER_DUP_ENTRY, msg, errflag, str.c_ptr_safe(), key->name);
+    my_printf_error(ER_DUP_ENTRY, msg, errflag, str.c_ptr_safe(),
+                    key->name.str);
   }
 }
 
@@ -3360,6 +3397,12 @@ void handler::print_error(int error, myf errflag)
   bool fatal_error= 0;
   DBUG_ENTER("handler::print_error");
   DBUG_PRINT("enter",("error: %d",error));
+
+  if (ha_thd()->transaction_rollback_request)
+  {
+    /* Ensure this becomes a true error */
+    errflag&= ~(ME_JUST_WARNING | ME_JUST_INFO);
+  }
 
   int textno= -1; // impossible value
   switch (error) {
@@ -3506,10 +3549,14 @@ void handler::print_error(int error, myf errflag)
     textno=ER_LOCK_TABLE_FULL;
     break;
   case HA_ERR_LOCK_DEADLOCK:
-    textno=ER_LOCK_DEADLOCK;
-    /* cannot continue. the statement was already aborted in the engine */
-    SET_FATAL_ERROR;
-    break;
+  {
+    String str, full_err_msg(ER_DEFAULT(ER_LOCK_DEADLOCK), system_charset_info);
+
+    get_error_message(error, &str);
+    full_err_msg.append(str);
+    my_printf_error(ER_LOCK_DEADLOCK, "%s", errflag, full_err_msg.c_ptr_safe());
+    DBUG_VOID_RETURN;
+  }
   case HA_ERR_READ_ONLY_TRANSACTION:
     textno=ER_READ_ONLY_TRANSACTION;
     break;
@@ -3549,7 +3596,7 @@ void handler::print_error(int error, myf errflag)
     const char *ptr= "???";
     uint key_nr= get_dup_key(error);
     if ((int) key_nr >= 0)
-      ptr= table->key_info[key_nr].name;
+      ptr= table->key_info[key_nr].name.str;
     my_error(ER_DROP_INDEX_FK, errflag, ptr);
     DBUG_VOID_RETURN;
   }
@@ -4625,7 +4672,7 @@ void handler::update_global_index_stats()
       DBUG_ASSERT(key_info->cache_name);
       if (!key_info->cache_name)
         continue;
-      key_length= table->s->table_cache_key.length + key_info->name_length + 1;
+      key_length= table->s->table_cache_key.length + key_info->name.length + 1;
       mysql_mutex_lock(&LOCK_global_index_stats);
       // Gets the global index stats, creating one if necessary.
       if (!(index_stats= (INDEX_STATS*) my_hash_search(&global_index_stats,
@@ -5673,7 +5720,7 @@ bool handler::check_table_binlog_row_based_internal(bool binlog_row)
   }
 #endif
 
-  return (table->s->cached_row_logging_check &&
+  return (table->s->can_do_row_logging &&
           thd->is_current_stmt_binlog_format_row() &&
           /*
             Wsrep partially enables binary logging if it have not been
@@ -6533,7 +6580,7 @@ end:
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
 {
   INDEX_STATS *index_stats;
-  uint key_length= table->s->table_cache_key.length + key_info->name_length + 1;
+  uint key_length= table->s->table_cache_key.length + key_info->name.length + 1;
   int res = 0;
   DBUG_ENTER("del_global_index_stat");
   mysql_mutex_lock(&LOCK_global_index_stats);

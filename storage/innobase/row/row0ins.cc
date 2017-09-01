@@ -34,6 +34,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "mach0data.h"
+#include "ibuf0ibuf.h"
 #include "que0que.h"
 #include "row0upd.h"
 #include "row0sel.h"
@@ -770,9 +771,7 @@ row_ins_foreign_trx_print(
 	ulint	n_trx_locks;
 	ulint	heap_size;
 
-	if (srv_read_only_mode) {
-		return;
-	}
+	ut_ad(!srv_read_only_mode);
 
 	lock_mutex_enter();
 	n_rec_locks = lock_number_of_rows_locked(&trx->lock);
@@ -1759,13 +1758,6 @@ row_ins_check_foreign_constraint(
 		cmp = cmp_dtuple_rec(entry, rec, offsets);
 
 		if (cmp == 0) {
-
-			ulint	lock_type;
-
-			lock_type = skip_gap_lock
-				? LOCK_REC_NOT_GAP
-				: LOCK_ORDINARY;
-
 			if (rec_get_deleted_flag(rec,
 						 rec_offs_comp(offsets))) {
 				/* In delete-marked records, DB_TRX_ID must
@@ -1775,7 +1767,9 @@ row_ins_check_foreign_constraint(
 							    offsets));
 
 				err = row_ins_set_shared_rec_lock(
-					lock_type, block,
+					skip_gap_lock
+					? LOCK_REC_NOT_GAP
+					: LOCK_ORDINARY, block,
 					rec, check_index, offsets, thr);
 				switch (err) {
 				case DB_SUCCESS_LOCKED_REC:
@@ -1857,23 +1851,21 @@ row_ins_check_foreign_constraint(
 		} else {
 			ut_a(cmp < 0);
 
-			err = DB_SUCCESS;
-
-			if (!skip_gap_lock) {
-				err = row_ins_set_shared_rec_lock(
+			err = skip_gap_lock
+				? DB_SUCCESS
+				: row_ins_set_shared_rec_lock(
 					LOCK_GAP, block,
 					rec, check_index, offsets, thr);
-			}
 
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
+				err = DB_SUCCESS;
+				/* fall through */
 			case DB_SUCCESS:
 				if (check_ref) {
 					err = DB_NO_REFERENCED_ROW;
 					row_ins_foreign_report_add_err(
 						trx, foreign, rec, entry);
-				} else {
-					err = DB_SUCCESS;
 				}
 			default:
 				break;
@@ -1921,18 +1913,10 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-		DBUG_PRINT("to_be_dropped",
-			   ("table: %s", check_table->name.m_name));
-		if (check_table->to_be_dropped) {
-			/* The table is being dropped. We shall timeout
-			this operation */
-			err = DB_LOCK_WAIT_TIMEOUT;
-
-			goto exit_func;
-		}
-
+		err = check_table->to_be_dropped
+			? DB_LOCK_WAIT_TIMEOUT
+			: trx->error_state;
 	}
-
 
 exit_func:
 	if (heap != NULL) {
@@ -3283,6 +3267,11 @@ row_ins_sec_index_entry(
 		0, thr, dup_chk_only);
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
+
+		if (index->space == IBUF_SPACE_ID
+		    && !(index->type & (DICT_UNIQUE | DICT_SPATIAL))) {
+			ibuf_free_excess_pages();
+		}
 
 		/* Try then pessimistic descent to the B-tree */
 		log_free_check();

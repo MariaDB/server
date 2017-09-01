@@ -61,7 +61,7 @@ connect  con2,localhost,USER_1,,db1;
 call p1();
 ERROR 42000: execute command denied to user 'USER_1'@'localhost' for routine 'db1.p1'
 call P1();
-ERROR 42000: execute command denied to user 'USER_1'@'localhost' for routine 'db1.P1'
+ERROR 42000: execute command denied to user 'USER_1'@'localhost' for routine 'db1.p1'
 select f1(1);
 ERROR 42000: execute command denied to user 'USER_1'@'localhost' for routine 'db1.f1'
 connection default;

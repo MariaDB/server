@@ -16,7 +16,6 @@
 #ifndef PFS_GLOBAL_H
 #define PFS_GLOBAL_H
 
-#include "my_global.h"
 #include "my_compiler.h"
 
 /**

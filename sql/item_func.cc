@@ -3651,6 +3651,7 @@ longlong Item_master_gtid_wait::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   longlong result= 0;
+  String *gtid_pos __attribute__((unused)) = args[0]->val_str(&value);
 
   if (args[0]->null_value)
   {
@@ -3660,7 +3661,6 @@ longlong Item_master_gtid_wait::val_int()
 
   null_value=0;
 #ifdef HAVE_REPLICATION
-  String *gtid_pos = args[0]->val_str(&value);
   THD* thd= current_thd;
   longlong timeout_us;
 
@@ -3670,7 +3670,9 @@ longlong Item_master_gtid_wait::val_int()
     timeout_us= (longlong)-1;
 
   result= rpl_global_gtid_waiting.wait_for_pos(thd, gtid_pos, timeout_us);
-#endif
+#else
+  null_value= 0;
+#endif /* REPLICATION */
   return result;
 }
 
@@ -4995,7 +4997,7 @@ bool Item_func_set_user_var::is_null_result()
 void Item_func_set_user_var::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("@"));
-  str->append(name.str, name.length);
+  str->append(&name);
   str->append(STRING_WITH_LEN(":="));
   args[0]->print_parenthesised(str, query_type, precedence());
 }
@@ -5005,7 +5007,7 @@ void Item_func_set_user_var::print_as_stmt(String *str,
                                            enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("set @"));
-  str->append(name.str, name.length);
+  str->append(&name);
   str->append(STRING_WITH_LEN(":="));
   args[0]->print_parenthesised(str, query_type, precedence());
 }
@@ -5588,7 +5590,7 @@ void Item_func_get_system_var::fix_length_and_dec()
 void Item_func_get_system_var::print(String *str, enum_query_type query_type)
 {
   if (name.length)
-    str->append(name.str, name.length);
+    str->append(&name);
   else
   {
     str->append(STRING_WITH_LEN("@@"));
@@ -6122,39 +6124,41 @@ longlong Item_func_bit_xor::val_int()
 */
 
 
-Item *get_system_var(THD *thd, enum_var_type var_type, LEX_CSTRING name,
-		     LEX_CSTRING component)
+Item *get_system_var(THD *thd, enum_var_type var_type,
+                     const LEX_CSTRING *name,
+		     const LEX_CSTRING *component)
 {
   sys_var *var;
-  LEX_CSTRING *base_name, *component_name;
+  LEX_CSTRING base_name, component_name;
 
-  if (component.str)
+  if (component->str)
   {
-    base_name= &component;
-    component_name= &name;
+    base_name= *component;
+    component_name= *name;
   }
   else
   {
-    base_name= &name;
-    component_name= &component;			// Empty string
+    base_name= *name;
+    component_name= *component;			// Empty string
   }
 
-  if (!(var= find_sys_var(thd, base_name->str, base_name->length)))
+  if (!(var= find_sys_var(thd, base_name.str, base_name.length)))
     return 0;
-  if (component.str)
+  if (component->str)
   {
     if (!var->is_struct())
     {
-      my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), base_name->str);
+      my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), base_name.str);
       return 0;
     }
   }
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
 
-  set_if_smaller(component_name->length, MAX_SYS_VAR_LENGTH);
+  set_if_smaller(component_name.length, MAX_SYS_VAR_LENGTH);
 
-  return new (thd->mem_root) Item_func_get_system_var(thd, var, var_type, component_name,
-                                      NULL, 0);
+  return new (thd->mem_root) Item_func_get_system_var(thd, var, var_type,
+                                                      &component_name,
+                                                      NULL, 0);
 }
 
 
@@ -6257,7 +6261,7 @@ void my_missing_function_error(const LEX_CSTRING &token, const char *func_name)
 */
 
 bool
-Item_func_sp::init_result_field(THD *thd)
+Item_func_sp::init_result_field(THD *thd, sp_head *sp)
 {
   TABLE_SHARE *share;
   DBUG_ENTER("Item_func_sp::init_result_field");
@@ -6265,7 +6269,7 @@ Item_func_sp::init_result_field(THD *thd)
   DBUG_ASSERT(m_sp == NULL);
   DBUG_ASSERT(sp_result_field == NULL);
 
-  if (!(m_sp= sp_handler_function.sp_find_routine(thd, m_name, true)))
+  if (!(m_sp= sp))
   {
     my_missing_function_error (m_name->m_name, ErrConvDQName(m_name).ptr());
     context->process_error(thd);
@@ -6513,12 +6517,7 @@ Item_func_sp::sp_check_access(THD *thd)
 {
   DBUG_ENTER("Item_func_sp::sp_check_access");
   DBUG_ASSERT(m_sp);
-  if (check_routine_access(thd, EXECUTE_ACL,
-                           m_sp->m_db.str, m_sp->m_name.str,
-                           &sp_handler_function, false))
-    DBUG_RETURN(TRUE);
-
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(m_sp->check_execute_access(thd));
 }
 
 
@@ -6528,6 +6527,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   bool res;
   DBUG_ENTER("Item_func_sp::fix_fields");
   DBUG_ASSERT(fixed == 0);
+  sp_head *sp= sp_handler_function.sp_find_routine(thd, m_name, true);
 
   /* 
     Checking privileges to execute the function while creating view and
@@ -6540,9 +6540,14 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     if (context->security_ctx)
       thd->security_ctx= context->security_ctx;
 
-    res= check_routine_access(thd, EXECUTE_ACL, m_name->m_db.str,
-                              m_name->m_name.str,
-                              &sp_handler_function, false);
+    /*
+      If the routine is not found, let's still check EXECUTE_ACL to decide
+      whether to return "Access denied" or "Routine does not exist".
+    */
+    res= sp ? sp->check_execute_access(thd) :
+              check_routine_access(thd, EXECUTE_ACL, m_name->m_db.str,
+                                   m_name->m_name.str,
+                                   &sp_handler_function, false);
     thd->security_ctx= save_security_ctx;
 
     if (res)
@@ -6557,7 +6562,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     to make m_sp and result_field members available to fix_length_and_dec(),
     which is called from Item_func::fix_fields().
   */
-  res= init_result_field(thd);
+  res= init_result_field(thd, sp);
 
   if (res)
     DBUG_RETURN(res);

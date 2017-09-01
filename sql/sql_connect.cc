@@ -20,7 +20,7 @@
   Functions to autenticate and handle reqests for a connection
 */
 
-#include <my_global.h>
+#include "mariadb.h"
 #include "sql_priv.h"
 #ifndef __WIN__
 #include <netdb.h>        // getservbyname, servent
@@ -37,6 +37,7 @@
 #include "sql_acl.h"  // acl_getroot, NO_ACCESS, SUPER_ACL
 #include "sql_callback.h"
 #include "wsrep_mysqld.h"
+#include "proxy_protocol.h"
 
 HASH global_user_stats, global_client_stats, global_table_stats;
 HASH global_index_stats;
@@ -836,6 +837,113 @@ bool init_new_connection_handler_thread()
   return 0;
 }
 
+/**
+  Set client address during authentication.
+
+  Initializes THD::main_security_ctx and THD::peer_port.
+  Optionally does ip to hostname translation.
+
+  @param thd   current THD handle
+  @param addr  peer address (can be NULL, if 'ip' is set)
+  @param ip    peer address as string (can be NULL if 'addr' is set)
+  @param port  peer port
+  @param check_proxy_networks if true, and host is in
+               'proxy_protocol_networks' list, skip
+               "host not privileged" check
+  @param[out] host_errors - number of connect
+              errors for this host
+
+  @retval 0 ok, 1 error
+*/
+int thd_set_peer_addr(THD *thd,
+  sockaddr_storage *addr,
+  const char *ip,
+  uint port,
+  bool check_proxy_networks,
+  uint *host_errors)
+{
+  *host_errors= 0;
+
+  thd->peer_port= port;
+
+  char ip_string[128];
+  if (!ip)
+  {
+    void *addr_data;
+    if (addr->ss_family == AF_UNIX)
+    {
+        /* local connection */
+        my_free((void *)thd->main_security_ctx.ip);
+        thd->main_security_ctx.host_or_ip= thd->main_security_ctx.host = my_localhost;
+        thd->main_security_ctx.ip= 0;
+        return 0;
+    }
+    else if (addr->ss_family == AF_INET)
+      addr_data= &((struct sockaddr_in *)addr)->sin_addr;
+    else
+      addr_data= &((struct sockaddr_in6 *)addr)->sin6_addr;
+    if (!inet_ntop(addr->ss_family,addr_data, ip_string, sizeof(ip_string)))
+    {
+      DBUG_ASSERT(0);
+      return 1;
+    }
+    ip= ip_string;
+  }
+
+  my_free((void *)thd->main_security_ctx.ip);
+  if (!(thd->main_security_ctx.ip = my_strdup(ip, MYF(MY_WME))))
+  {
+    /*
+    No error accounting per IP in host_cache,
+    this is treated as a global server OOM error.
+    TODO: remove the need for my_strdup.
+    */
+    statistic_increment(aborted_connects, &LOCK_status);
+    statistic_increment(connection_errors_internal, &LOCK_status);
+    return 1; /* The error is set by my_strdup(). */
+  }
+  thd->main_security_ctx.host_or_ip = thd->main_security_ctx.ip;
+  if (!(specialflag & SPECIAL_NO_RESOLVE))
+  {
+    int rc;
+
+    rc = ip_to_hostname(addr,
+      thd->main_security_ctx.ip,
+      &thd->main_security_ctx.host,
+      host_errors);
+
+    /* Cut very long hostnames to avoid possible overflows */
+    if (thd->main_security_ctx.host)
+    {
+      if (thd->main_security_ctx.host != my_localhost)
+        ((char*)thd->main_security_ctx.host)[MY_MIN(strlen(thd->main_security_ctx.host),
+          HOSTNAME_LENGTH)] = 0;
+      thd->main_security_ctx.host_or_ip = thd->main_security_ctx.host;
+    }
+
+    if (rc == RC_BLOCKED_HOST)
+    {
+      /* HOST_CACHE stats updated by ip_to_hostname(). */
+      my_error(ER_HOST_IS_BLOCKED, MYF(0), thd->main_security_ctx.host_or_ip);
+      return 1;
+    }
+  }
+  DBUG_PRINT("info", ("Host: %s  ip: %s",
+    (thd->main_security_ctx.host ?
+      thd->main_security_ctx.host : "unknown host"),
+      (thd->main_security_ctx.ip ?
+        thd->main_security_ctx.ip : "unknown ip")));
+  if ((!check_proxy_networks || !is_proxy_protocol_allowed((struct sockaddr *) addr)) 
+      && acl_check_host(thd->main_security_ctx.host, thd->main_security_ctx.ip))
+  {
+    /* HOST_CACHE stats updated by acl_check_host(). */
+    my_error(ER_HOST_NOT_PRIVILEGED, MYF(0),
+      thd->main_security_ctx.host_or_ip);
+    return 1;
+  }
+  return 0;
+}
+
 /*
   Perform handshake, authorize client and update thd ACL variables.
 
@@ -865,8 +973,9 @@ static int check_connection(THD *thd)
   {
     my_bool peer_rc;
     char ip[NI_MAXHOST];
+    uint16 peer_port;
 
-    peer_rc= vio_peer_addr(net->vio, ip, &thd->peer_port, NI_MAXHOST);
+    peer_rc= vio_peer_addr(net->vio, ip, &peer_port, NI_MAXHOST);
 
     /*
     ===========================================================================
@@ -941,55 +1050,10 @@ static int check_connection(THD *thd)
       my_error(ER_BAD_HOST_ERROR, MYF(0));
       return 1;
     }
-    if (!(thd->main_security_ctx.ip= my_strdup(ip,MYF(MY_WME))))
-    {
-      /*
-        No error accounting per IP in host_cache,
-        this is treated as a global server OOM error.
-        TODO: remove the need for my_strdup.
-      */
-      statistic_increment(aborted_connects,&LOCK_status);
-      statistic_increment(connection_errors_internal, &LOCK_status);
-      return 1; /* The error is set by my_strdup(). */
-    }
-    thd->main_security_ctx.host_or_ip= thd->main_security_ctx.ip;
-    if (!(specialflag & SPECIAL_NO_RESOLVE))
-    {
-      int rc;
 
-      rc= ip_to_hostname(&net->vio->remote,
-                         thd->main_security_ctx.ip,
-                         &thd->main_security_ctx.host,
-                         &connect_errors);
-
-      /* Cut very long hostnames to avoid possible overflows */
-      if (thd->main_security_ctx.host)
-      {
-        if (thd->main_security_ctx.host != my_localhost)
-          ((char*) thd->main_security_ctx.host)[MY_MIN(strlen(thd->main_security_ctx.host),
-                                          HOSTNAME_LENGTH)]= 0;
-        thd->main_security_ctx.host_or_ip= thd->main_security_ctx.host;
-      }
-
-      if (rc == RC_BLOCKED_HOST)
-      {
-        /* HOST_CACHE stats updated by ip_to_hostname(). */
-        my_error(ER_HOST_IS_BLOCKED, MYF(0), thd->main_security_ctx.host_or_ip);
-        return 1;
-      }
-    }
-    DBUG_PRINT("info",("Host: %s  ip: %s",
-		       (thd->main_security_ctx.host ?
-                        thd->main_security_ctx.host : "unknown host"),
-		       (thd->main_security_ctx.ip ?
-                        thd->main_security_ctx.ip : "unknown ip")));
-    if (acl_check_host(thd->main_security_ctx.host, thd->main_security_ctx.ip))
-    {
-      /* HOST_CACHE stats updated by acl_check_host(). */
-      my_error(ER_HOST_NOT_PRIVILEGED, MYF(0),
-               thd->main_security_ctx.host_or_ip);
+    if (thd_set_peer_addr(thd, &net->vio->remote, ip, peer_port,
+                          true, &connect_errors))
       return 1;
-    }
   }
   else /* Hostname given means that the connection was on a socket */
   {
@@ -1196,7 +1260,7 @@ void prepare_new_connection_state(THD* thd)
     if (thd->is_error())
     {
       Host_errors errors;
-      thd->killed= KILL_CONNECTION;
+      thd->set_killed(KILL_CONNECTION);
       thd->print_aborted_warning(0, "init_connect command failed");
       sql_print_warning("%s", thd->get_stmt_da()->message());
 

@@ -821,13 +821,6 @@ recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 			continue;
 		}
 
-		group->state = LOG_GROUP_OK;
-
-		group->lsn = mach_read_from_8(
-			buf + LOG_CHECKPOINT_LSN);
-		group->lsn_offset = static_cast<ib_uint64_t>(
-			mach_read_from_4(buf + OFFSET_HIGH32)) << 32
-			| mach_read_from_4(buf + OFFSET_LOW32);
 		checkpoint_no = mach_read_from_8(
 			buf + LOG_CHECKPOINT_NO);
 
@@ -838,12 +831,21 @@ recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 
 		DBUG_PRINT("ib_log",
 			   ("checkpoint " UINT64PF " at " LSN_PF " found",
-			    checkpoint_no, group->lsn));
+			    checkpoint_no,
+			    mach_read_from_8(buf + LOG_CHECKPOINT_LSN)));
 
 		if (checkpoint_no >= max_no) {
 			*max_group = group;
 			*max_field = field;
 			max_no = checkpoint_no;
+
+			group->state = LOG_GROUP_OK;
+
+			group->lsn = mach_read_from_8(
+				buf + LOG_CHECKPOINT_LSN);
+			group->lsn_offset = static_cast<ib_uint64_t>(
+				mach_read_from_4(buf + OFFSET_HIGH32)) << 32
+				| mach_read_from_4(buf + OFFSET_LOW32);
 		}
 	}
 
@@ -1043,30 +1045,30 @@ recv_find_max_checkpoint(ulint* max_field)
 			continue;
 		}
 
-		group->state = LOG_GROUP_OK;
-
-		group->lsn = mach_read_from_8(
-			buf + LOG_CHECKPOINT_LSN);
-		group->lsn_offset = mach_read_from_8(
-			buf + LOG_CHECKPOINT_OFFSET);
 		checkpoint_no = mach_read_from_8(
 			buf + LOG_CHECKPOINT_NO);
 
 		DBUG_PRINT("ib_log",
-			   ("checkpoint " UINT64PF " at " LSN_PF " found ",
-			    checkpoint_no, group->lsn));
+			   ("checkpoint " UINT64PF " at " LSN_PF " found",
+			    checkpoint_no, mach_read_from_8(
+				    buf + LOG_CHECKPOINT_LSN)));
 
 		if (checkpoint_no >= max_no) {
 			*max_field = field;
 			max_no = checkpoint_no;
+			group->state = LOG_GROUP_OK;
+			group->lsn = mach_read_from_8(
+				buf + LOG_CHECKPOINT_LSN);
+			group->lsn_offset = mach_read_from_8(
+				buf + LOG_CHECKPOINT_OFFSET);
 		}
 	}
 
 	if (*max_field == 0) {
-		/* Before 5.7.9, we could get here during database
+		/* Before 10.2.2, we could get here during database
 		initialization if we created an ib_logfile0 file that
 		was filled with zeroes, and were killed. After
-		5.7.9, we would reject such a file already earlier,
+		10.2.2, we would reject such a file already earlier,
 		when checking the file header. */
 		ib::error() << "No valid checkpoint found"
 			" (corrupted redo log)."
@@ -1085,7 +1087,6 @@ recv_find_max_checkpoint(ulint* max_field)
 				" The redo log was created with " << creator
 				<< (err == DB_ERROR
 				    ? "." : ", and it appears corrupted.");
-			break;
 		}
 		return(err);
 	}
@@ -1456,7 +1457,6 @@ parse_log:
 		/* Allow anything in page_type when creating a page. */
 		ptr = ibuf_parse_bitmap_init(ptr, end_ptr, block, mtr);
 		break;
-	case MLOG_INIT_FILE_PAGE:
 	case MLOG_INIT_FILE_PAGE2:
 		/* Allow anything in page_type when creating a page. */
 		ptr = fsp_parse_init_file_page(ptr, end_ptr, block);
@@ -1813,18 +1813,6 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 			recv_data_copy_to_buf(buf, recv);
 		} else {
 			buf = ((byte*)(recv->data)) + sizeof(recv_data_t);
-		}
-
-		if (recv->type == MLOG_INIT_FILE_PAGE) {
-			page_lsn = page_newest_lsn;
-
-			memset(FIL_PAGE_LSN + page, 0, 8);
-			memset(UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM
-			       + page, 0, 8);
-
-			if (page_zip) {
-				memset(FIL_PAGE_LSN + page_zip->data, 0, 8);
-			}
 		}
 
 		/* If per-table tablespace was truncated and there exist REDO
@@ -3212,7 +3200,12 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	err = recv_find_max_checkpoint(&max_cp_field);
 
-	if (err != DB_SUCCESS) {
+	if (err != DB_SUCCESS
+	    || (log_sys->log.format != LOG_HEADER_FORMAT_3_23
+		&& (log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
+		!= LOG_HEADER_FORMAT_CURRENT)) {
+
+		srv_start_lsn = recv_sys->recovered_lsn = log_sys->lsn;
 		log_mutex_exit();
 		return(err);
 	}
@@ -3242,8 +3235,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	case 0:
 		log_mutex_exit();
 		return(recv_log_format_0_recover(checkpoint_lsn));
-	case LOG_HEADER_FORMAT_CURRENT:
-	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
+	default:
 		if (end_lsn == 0) {
 			break;
 		}
@@ -3251,8 +3243,6 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			contiguous_lsn = end_lsn;
 			break;
 		}
-		/* fall through */
-	default:
 		recv_sys->found_corrupt_log = true;
 		log_mutex_exit();
 		return(DB_ERROR);
@@ -3676,9 +3666,6 @@ get_mlog_string(mlog_id_t type)
 	case MLOG_LSN:
 		return("MLOG_LSN");
 #endif /* UNIV_LOG_LSN_DEBUG */
-
-	case MLOG_INIT_FILE_PAGE:
-		return("MLOG_INIT_FILE_PAGE");
 
 	case MLOG_WRITE_STRING:
 		return("MLOG_WRITE_STRING");

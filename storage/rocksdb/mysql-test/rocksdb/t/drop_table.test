@@ -107,48 +107,5 @@ let $wait_condition = select count(*) = 0
                       where TYPE = 'DDL_DROP_INDEX_ONGOING';
 --source include/wait_condition.inc
 
-# Get list of all indices needing to be dropped
-# Check total compacted-away rows for all indices
-# Check that all indices have been successfully dropped
-perl;
-
-sub print_array {
-  $str = shift;
-  $prev= $_[0];
-  foreach (@_) {
-    $dummy_idx = $_ - $prev;
-    $prev= $_;
-    print "$str $dummy_idx\n";
-  }
-}
-
-$filename= "$ENV{MYSQLTEST_VARDIR}/log/mysqld.1.err";
-open(F, '<', $filename) || die("Can't open file $filename: $!");
-while (<F>) {
-  %a = @b = @c = () if /CURRENT_TEST/;
-  if (/Compacting away elements from dropped index \(\d+,(\d+)\): (\d+)/) {
-    $a{$1} += $2;
-  }
-  if (/Begin filtering dropped index \(\d+,(\d+)\)/) {
-    push @b, $1;
-  }
-  if (/Finished filtering dropped index \(\d+,(\d+)\)/) {
-    push @c, $1;
-  }
-}
-
-$prev= 0;
-foreach (sort {$a <=> $b} keys %a){
-  if ($prev) {
-    $dummy_idx= $_ - $prev;
-  }else {
-    $dummy_idx= 0;
-  }
-  $prev= $_;
-}
-print_array("Begin filtering dropped index+", sort {$a <=> $b} @b);
-print_array("Finished filtering dropped index+", sort {$a <=> $b} @c);
-EOF
-
 # Cleanup
 drop table t1;

@@ -14,6 +14,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #define MYSQL_SERVER 1
+#include <my_global.h>
 #include "mysql_version.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
@@ -2720,8 +2721,8 @@ void spider_db_mysql::set_dup_key_idx(
       key_name = spider->share->tgt_pk_names[all_link_idx];
       key_name_length = spider->share->tgt_pk_names_lengths[all_link_idx];
     } else {
-      key_name = table->s->key_info[roop_count].name;
-      key_name_length = strlen(key_name);
+      key_name =        table->s->key_info[roop_count].name.str;
+      key_name_length = table->s->key_info[roop_count].name.length;
     }
     DBUG_PRINT("info",("spider key_name=%s", key_name));
     if (
