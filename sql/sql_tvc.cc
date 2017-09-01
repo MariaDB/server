@@ -374,121 +374,6 @@ void table_value_constr::print(THD *thd_arg, String *str,
 
 /**
   @brief
-    Creates new SELECT defined by TVC as derived table
-
-  @param thd_arg     The context of the statement
-  @param values      List of values that defines TVC
-
-  @details
-    The method creates this SELECT statement:
-
-    SELECT * FROM (VALUES  values) AS new_tvc
-
-    If during creation of SELECT statement some action is
-    unsuccesfull backup is made to the state in which system
-    was at the beginning of the method.
-
-  @retval
-    pointer to the created SELECT statement
-    NULL - if creation was unsuccesfull
-*/
-
-st_select_lex *make_new_subselect_for_tvc(THD *thd_arg,
-				          List<List_item> *values)
-{
-  LEX *lex= thd_arg->lex;
-  Item *item;
-  SELECT_LEX *sel;
-  SELECT_LEX_UNIT *unit;
-  TABLE_LIST *new_tab;
-  Table_ident *ti;
-
-  Query_arena backup;
-  Query_arena *arena= thd_arg->activate_stmt_arena_if_needed(&backup);
-
-  char buff[6];
-  LEX_CSTRING alias;
-  alias.length= my_snprintf(buff, sizeof(buff),
-                            "tvc_%u", thd_arg->lex->current_select->cur_tvc);
-  alias.str= thd_arg->strmake(buff, alias.length);
-  if (!alias.str)
-    goto err;
-
-  /*
-    Creation of SELECT statement: SELECT * FROM ...
-  */
-
-  if (mysql_new_select(lex, 1, NULL))
-    goto err;
-
-  mysql_init_select(lex);
-  lex->current_select->parsing_place= SELECT_LIST;
-
-  item= new (thd_arg->mem_root)
-                Item_field(thd_arg, &lex->current_select->context,
-                           NULL, NULL, &star_clex_str);
-  if (item == NULL)
-    goto err;
-  if (add_item_to_list(thd_arg, item))
-    goto err;
-  (lex->current_select->with_wild)++;
-
-  /*
-    Creation of TVC as derived table
-  */
-
-  lex->derived_tables|= DERIVED_SUBQUERY;
-  if (mysql_new_select(lex, 1, NULL))
-    goto err;
-
-  mysql_init_select(lex);
-
-  sel= lex->current_select;
-  unit= sel->master_unit();
-  sel->linkage= DERIVED_TABLE_TYPE;
-
-  if (!(sel->tvc=
-          new (thd_arg->mem_root)
-	    table_value_constr(*values,
-                               sel,
-                               sel->options)))
-    goto err;
-
-  lex->check_automatic_up(UNSPECIFIED_TYPE);
-  lex->current_select= sel= unit->outer_select();
-
-  ti= new (thd_arg->mem_root) Table_ident(unit);
-  if (ti == NULL)
-    goto err;
-
-  if (!(new_tab= sel->add_table_to_list(thd_arg,
-                                        ti, &alias, 0,
-                                        TL_READ, MDL_SHARED_READ)))
-    goto err;
-
-  sel->add_joined_table(new_tab);
-
-  new_tab->select_lex->add_where_field(new_tab->derived->first_select());
-
-  sel->context.table_list=
-  sel->context.first_name_resolution_table=
-  sel->table_list.first;
-
-  sel->where= 0;
-  sel->set_braces(false);
-  unit->with_clause= 0;
-
-  return sel;
-
-err:
-  if (arena)
-    thd_arg->restore_active_arena(arena, &backup);
-  return NULL;
-}
-
-
-/**
-  @brief
     Transforms IN-predicate in IN-subselect
 
   @param thd_arg     The context of the statement
@@ -512,7 +397,25 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
 							uchar *arg)
 {
   SELECT_LEX *old_select= thd->lex->current_select;
+
   List<List_item> values;
+  Item *item;
+  SELECT_LEX *sel;
+  SELECT_LEX_UNIT *unit;
+  TABLE_LIST *new_tab;
+  Table_ident *ti;
+  Item_in_subselect *in_subs;
+
+  Query_arena backup;
+  Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
+  LEX *lex= thd->lex;
+
+  char buff[6];
+  LEX_CSTRING alias;
+
+  /*
+    Creation of values list of lists
+  */
   bool list_of_lists= false;
 
   if (args[1]->type() == Item::ROW_ITEM)
@@ -535,26 +438,100 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
     values.push_back(new_value, thd->mem_root);
   }
 
-  st_select_lex *new_subselect=
-    make_new_subselect_for_tvc(thd, &values);
+  /*
+    Creation of TVC name
+  */
+  alias.length= my_snprintf(buff, sizeof(buff),
+                            "tvc_%u", old_select->cur_tvc);
+  alias.str= thd->strmake(buff, alias.length);
+  if (!alias.str)
+    goto err;
 
-  if (new_subselect)
-  {
-    new_subselect->parsing_place= old_select->parsing_place;
-    new_subselect->table_list.first->derived_type= 10;
+  /*
+    Creation of SELECT statement: SELECT * FROM ...
+  */
 
-    Item_in_subselect *in_subs= new (thd->mem_root) Item_in_subselect
-                                  (thd, args[0], new_subselect);
-    thd->lex->derived_tables |= DERIVED_SUBQUERY;
-    in_subs->emb_on_expr_nest= emb_on_expr_nest;
-    in_subs->fix_fields(thd, (Item **)&in_subs);
+  if (mysql_new_select(lex, 1, NULL))
+    goto err;
 
-    old_select->cur_tvc++;
-    thd->lex->current_select= old_select;
-    return in_subs;
-  }
+  mysql_init_select(lex);
+  lex->current_select->parsing_place= SELECT_LIST;
 
+  item= new (thd->mem_root) Item_field(thd, &lex->current_select->context,
+                                       NULL, NULL, &star_clex_str);
+  if (item == NULL)
+    goto err;
+  if (add_item_to_list(thd, item))
+    goto err;
+  (lex->current_select->with_wild)++;
+
+  /*
+    Creation of TVC as derived table
+  */
+
+  lex->derived_tables|= DERIVED_SUBQUERY;
+  if (mysql_new_select(lex, 1, NULL))
+    goto err;
+
+  mysql_init_select(lex);
+
+  sel= lex->current_select;
+  unit= sel->master_unit();
+  sel->linkage= DERIVED_TABLE_TYPE;
+
+  if (!(sel->tvc=
+          new (thd->mem_root)
+	    table_value_constr(values,
+                               sel,
+                               sel->options)))
+    goto err;
+
+  lex->check_automatic_up(UNSPECIFIED_TYPE);
+  lex->current_select= sel= unit->outer_select();
+
+  ti= new (thd->mem_root) Table_ident(unit);
+  if (ti == NULL)
+    goto err;
+
+  if (!(new_tab= sel->add_table_to_list(thd,
+                                        ti, &alias, 0,
+                                        TL_READ, MDL_SHARED_READ)))
+    goto err;
+
+  sel->add_joined_table(new_tab);
+
+  new_tab->select_lex->add_where_field(new_tab->derived->first_select());
+
+  sel->context.table_list=
+  sel->context.first_name_resolution_table=
+  sel->table_list.first;
+
+  sel->where= 0;
+  sel->set_braces(false);
+  unit->with_clause= 0;
+
+  if (!sel)
+    goto err;
+
+  sel->parsing_place= old_select->parsing_place;
+  sel->table_list.first->derived_type= 10;
+
+  in_subs= new (thd->mem_root) Item_in_subselect(thd, args[0], sel);
+  thd->lex->derived_tables |= DERIVED_SUBQUERY;
+  in_subs->emb_on_expr_nest= emb_on_expr_nest;
+
+  old_select->cur_tvc++;
   thd->lex->current_select= old_select;
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  in_subs->fix_fields(thd, (Item **)&in_subs);
+  return in_subs;
+
+err:
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
   return this;
 }
 
@@ -633,9 +610,12 @@ bool JOIN::transform_in_predicate_into_tvc(THD *thd_arg)
           table->on_expr->transform(thd_arg,
 		                    &Item::in_predicate_to_in_subs_transformer,
                                     (uchar*) 0);
+	table->prep_on_expr= table->on_expr ?
+                             table->on_expr->copy_andor_structure(thd) : 0;
       }
     }
   }
+  select_lex->in_funcs.empty();
   select_lex->parsing_place= old_parsing_place;
   thd_arg->lex->current_select= old_select;
   return false;
