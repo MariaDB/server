@@ -232,5 +232,12 @@ eval $optimized_query;
 eval explain extended $query;
 eval explain extended $optimized_query;
 
+--echo # prepare statement
+
+prepare stmt from "select * from t1 where a in (1,2)";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
 drop table t1, t2;
 set @@in_subquery_conversion_threshold= default;
