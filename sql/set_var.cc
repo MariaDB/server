@@ -1483,7 +1483,7 @@ pretty_print_engine_list(THD *thd, plugin_ref *list)
   size_t size;
   char *buf, *pos;
 
-  if (!list)
+  if (!list || !*list)
     return thd->strmake("", 0);
 
   size= 0;
