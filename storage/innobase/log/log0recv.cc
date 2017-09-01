@@ -1065,10 +1065,10 @@ recv_find_max_checkpoint(ulint* max_field)
 	}
 
 	if (*max_field == 0) {
-		/* Before 5.7.9, we could get here during database
+		/* Before 10.2.2, we could get here during database
 		initialization if we created an ib_logfile0 file that
 		was filled with zeroes, and were killed. After
-		5.7.9, we would reject such a file already earlier,
+		10.2.2, we would reject such a file already earlier,
 		when checking the file header. */
 		ib::error() << "No valid checkpoint found"
 			" (corrupted redo log)."

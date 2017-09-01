@@ -17,6 +17,6 @@
 #define INIT_INCLUDED
 
 void unireg_init(ulong options);
-void unireg_end(void) __attribute__((noreturn));
+ATTRIBUTE_NORETURN void unireg_end(void);
 
 #endif /* INIT_INCLUDED */

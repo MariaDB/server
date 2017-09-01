@@ -5,6 +5,7 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/big_test.inc
 
 --connection node_1
 SELECT @@wsrep_provider_options LIKE '%ist.recv_bind = 127.0.0.1%';

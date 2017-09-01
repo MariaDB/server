@@ -1,0 +1,5 @@
+[undo0]
+innodb-undo-tablespaces=0
+
+[undo3]
+innodb-undo-tablespaces=3

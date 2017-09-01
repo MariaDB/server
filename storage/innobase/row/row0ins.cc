@@ -34,6 +34,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "mach0data.h"
+#include "ibuf0ibuf.h"
 #include "que0que.h"
 #include "row0upd.h"
 #include "row0sel.h"
@@ -3266,6 +3267,11 @@ row_ins_sec_index_entry(
 		0, thr, dup_chk_only);
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
+
+		if (index->space == IBUF_SPACE_ID
+		    && !(index->type & (DICT_UNIQUE | DICT_SPATIAL))) {
+			ibuf_free_excess_pages();
+		}
 
 		/* Try then pessimistic descent to the B-tree */
 		log_free_check();

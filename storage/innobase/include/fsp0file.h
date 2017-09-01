@@ -66,8 +66,7 @@ public:
 		m_first_page_buf(),
 		m_first_page(),
 		m_last_os_error(),
-		m_file_info(),
-		m_crypt_info()
+		m_file_info()
 	{
 		/* No op */
 	}
@@ -89,8 +88,7 @@ public:
 		m_first_page_buf(),
 		m_first_page(),
 		m_last_os_error(),
-		m_file_info(),
-		m_crypt_info()
+		m_file_info()
 	{
 		ut_ad(m_name != NULL);
 		/* No op */
@@ -110,8 +108,7 @@ public:
 		m_first_page_buf(),
 		m_first_page(),
 		m_last_os_error(),
-		m_file_info(),
-		m_crypt_info()
+		m_file_info()
 	{
 		m_name = mem_strdup(file.m_name);
 		ut_ad(m_name != NULL);
@@ -169,8 +166,6 @@ public:
 		it should be reread if needed */
 		m_first_page_buf = NULL;
 		m_first_page = NULL;
-		/* Do not copy crypt info it is read from first page */
-		m_crypt_info = NULL;
 
 		return(*this);
 	}
@@ -321,11 +316,6 @@ public:
 		return(m_last_os_error);
 	}
 
-	fil_space_crypt_t* get_crypt_info() const
-	{
-		return(m_crypt_info);
-	}
-
 	/** Test if the filepath provided looks the same as this filepath
 	by string comparison. If they are two different paths to the same
 	file, same_as() will be used to show that after the files are opened.
@@ -338,6 +328,11 @@ public:
 	@param[in]	other	Datafile to compare with
 	@return true if it is the same file, else false */
 	bool same_as(const Datafile&	other) const;
+
+	/** Get access to the first data page.
+	It is valid after open_read_only() succeeded.
+	@return the first data page */
+	const byte* get_first_page() const { return(m_first_page); }
 
 private:
 	/** Free the filepath buffer. */
@@ -465,9 +460,6 @@ public:
 	/* Use field st_ino. */
 	struct stat			m_file_info;
 #endif	/* WIN32 */
-
-	/** Encryption information */
-	fil_space_crypt_t* 	m_crypt_info;
 };
 
 

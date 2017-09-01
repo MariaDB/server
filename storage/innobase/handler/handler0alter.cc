@@ -271,7 +271,7 @@ innobase_get_int_col_max_value(
 	const Field*	field);	/*!< in: MySQL field */
 
 /* Report an InnoDB error to the client by invoking my_error(). */
-static UNIV_COLD MY_ATTRIBUTE((nonnull))
+static ATTRIBUTE_COLD __attribute__((nonnull))
 void
 my_error_innodb(
 /*============*/

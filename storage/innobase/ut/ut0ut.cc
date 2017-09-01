@@ -834,6 +834,7 @@ error::~error()
 	sql_print_error("InnoDB: %s", m_oss.str().c_str());
 }
 
+ATTRIBUTE_NORETURN
 fatal::~fatal()
 {
 	sql_print_error("[FATAL] InnoDB: %s", m_oss.str().c_str());

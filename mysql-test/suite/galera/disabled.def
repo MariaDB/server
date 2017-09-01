@@ -1,47 +1,58 @@
-galera_wsrep_provider_unset_set : lp1379204 'Unsupported protocol downgrade: incremental data collection disabled. Expect abort.'
-galera_kill_nochanges : mysql-wsrep#24 Galera server does not restart properly if killed
-galera_bf_abort_for_update : mysql-wsrep#26 SELECT FOR UPDATE sometimes allowed to proceed in the face of a concurrent update
-galera_toi_ddl_fk_insert : qa#39 galera_toi_ddl_fk_insert fails sporadically
-galera_binlog_row_image : MDEV-7471 - Enable binlog_row_image parameter in MariaDB
-galera_binlog_rows_query_log_events : Unknown system variable 'binlog_rows_query_log_events' (see annotate_rows_log_event)
-
-galera_ist_mysqldump : Lost connection to MySQL server during query
-galera_ist_xtrabackup-v2 : mysqltest failed but provided no output
-galera_ist_innodb_flush_logs : mysqltest failed but provided no output
-galera_sst_mysqldump : query 'show status' failed with wrong errno 1927
-galera_as_master_gtid : Needs to be re-worked
-galera_as_master_gtid_change_master : Needs to be re-worked
-galera_migrate : query 'let $success= `$wait_condition`' failed: 1146
-galera_var_notify_cmd : Result content mismatch
-query_cache : Fails intermittently due to content mismatch. Needs to be investigated
-basic : Fails intermittently without providing any output. Needs to be investigated
-galera_var_auto_inc_control_on : Failing sporadically with content mismatch
-galera_parallel_simple : Failing sporadically
-galera_bf_abort : Failing sporadically
-galera_log_output_csv : Failing sporadically
-galera_as_slave_preordered : wsrep-preordered is not available in MariaDB Galera cluster
-galera_gra_log : TODO: investigate
-galera_as_slave_replication_bundle : TODO: investigate
-galera_ssl_upgrade : TODO: investigate
-mysql-wsrep#90 : TODO: investigate
-galera_flush : mysql-wsrep/issues/229
-galera_transaction_read_only : mysql-wsrep/issues/229
-galera_gcs_fragment : Incorrect arguments to SET
-galera_flush_local : Fails sporadically
-galera_binlog_stmt_autoinc : TODO: investigate
-galera_concurrent_ctas : Test times out, investigate
-MW-286 : TODO: investigate
-galera_sst_xtrabackup-v2-options : TODO: Fix test case
-galera_sst_xtrabackup-v2 : MDEV-11208
-galera_sst_xtrabackup-v2_encrypt_with_key : MDEV-11208
-mysql-wsrep#33 : TODO: investigate
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : MDEV-<xxxx> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+MW-336 : MDEV-13549 Galera test failures
+galera_gra_log : MDEV-13549 Galera test failures
+galera_flush_local : MDEV-13549 Galera test failures
+galera_flush :  MDEV-13549 Galera test failures
+MW-329 : MDEV-13549 Galera test failures
+galera_account_management : MariaDB 10.0 does not support ALTER USER
+galera_binlog_row_image : MariaDB 10.0 does not support binlog_row_image
+galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events
+GAL-419 : MDEV-13549 Galera test failures
+galera_toi_ddl_fk_insert : MDEV-13549 Galera test failures
+galera_var_notify_cmd : MDEV-13549 Galera test failures
+galera_var_slave_threads : MDEV-13549 Galera test failures
+mysql-wsrep#90 : MDEV-13549 Galera test failures
+galera_as_master_gtid : Requires MySQL GTID
+galera_as_master_gtid_change_master : Requires MySQL GTID
+galera_as_slave_replication_bundle : MDEV-13549 Galera test failures
+galera_as_slave_preordered : wsrep-preordered feature not merged to MariaDB
+galera_gcs_fragment : MDEV-13549 Galera test failures
+galera_gcache_recover : MDEV-13549 Galera test failures
+galera_gcache_recover_full_gcache : MDEV-13549 Galera test failures
+galera_gcache_recover_manytrx : MDEV-13549 Galera test failures
+galera_ist_mysqldump : MDEV-13549 Galera test failures
+mysql-wsrep#31 :  MDEV-13549 Galera test failures
+galera_migrate : MariaDB 10.0 does not support START SLAVE USER
+galera_concurrent_ctas : MDEV-13549 Galera test failures
+galera_bf_abort_for_update : MDEV-13549 Galera test failures
+galera_wsrep_desync_wsrep_on : MDEV-13549 Galera test failures
+galera_ssl_upgrade : MDEV-13549 Galera test failures
+mysql-wsrep#33 : MDEV-13549 Galera test failures
+galera_var_auto_inc_control_on : MDEV-13549 Galera test failures
+MW-44 : MDEV-13549 Galera test failures
+galera_var_retry_autocommit : MDEV-13549 Galera test failures
+pxc-421 : MDEV-13549 Galera test failures
+lp1376747-2 : MDEV-13549 Galera test failures
+lp1376747 : MDEV-13549 Galera test failures
+galera_toi_ddl_nonconflicting : MDEV-13549 Galera test failures
+galera_parallel_simple : MDEV-13549 Galera test failures
+galera_admin : MDEV-13549 Galera test failures
+galera_var_max_ws_rows :  MDEV-13549 Galera test failures 10.1
+MW-286 : MDEV-13549 Galera test failures 10.1
+galera_as_master: MDEV-13549 Galera test failures 10.1
+galera_pc_ignore_sb : MDEV-13549 Galera test failures 10.1
+galera_lock_table : MDEV-13549 Galera test failures 10.1
+MW-284 : MDEV-13549 Galera test failures 10.1
+galera_as_slave : MDEV-13549 Galera test failures 10.1
 galera_var_innodb_disallow_writes : MDEV-10949
-MW-258              : MDEV-11229
-galera_as_master    : MDEV-11229
-MW-44               : MDEV-11229
-galera_gcs_fc_limit : MDEV-11229
-galera_roles        : MDEV-11229
-galera_lock_table   : MDEV-11229
-GAL-480 : Investigate
-galera_fk_no_pk :Investigate
-galera_account_management : Investigate
+galera_kill_applier : race condition at the start of the test

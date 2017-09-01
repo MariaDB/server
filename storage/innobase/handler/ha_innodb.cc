@@ -3645,6 +3645,16 @@ static uint innobase_partition_flags()
 	return (0);
 }
 
+static const char*	deprecated_use_mtflush
+	= "Using innodb_use_mtflush is deprecated"
+	" and the parameter will be removed in MariaDB 10.3."
+	" Use innodb-page-cleaners instead. ";
+
+static const char*	deprecated_mtflush_threads
+	= "Using innodb_mtflush_threads is deprecated"
+	" and the parameter will be removed in MariaDB 10.3."
+	" Use innodb-page-cleaners instead. ";
+
 /** Update log_checksum_algorithm_ptr with a pointer to the function
 corresponding to whether checksums are enabled.
 @param[in,out]	thd	client session, or NULL if at startup
@@ -3980,6 +3990,14 @@ innobase_init(
 	if (strchr(srv_log_group_home_dir, ';')) {
 		sql_print_error("syntax error in innodb_log_group_home_dir");
 		DBUG_RETURN(innobase_init_abort());
+	}
+
+	if (srv_use_mtflush) {
+		ib::warn() << deprecated_use_mtflush;
+	}
+
+	if (srv_use_mtflush && srv_mtflush_threads != MTFLUSH_DEFAULT_WORKER) {
+		ib::warn() << deprecated_mtflush_threads;
 	}
 
 	if (innobase_change_buffering) {
@@ -17687,9 +17705,11 @@ innobase_commit_by_xid(
 {
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	trx_t*	trx = trx_get_trx_by_xid(xid);
+	if (high_level_read_only) {
+		return(XAER_RMFAIL);
+	}
 
-	if (trx != NULL) {
+	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
 		TrxInInnoDB	trx_in_innodb(trx);
 
 		innobase_commit_low(trx);
@@ -17719,9 +17739,11 @@ innobase_rollback_by_xid(
 {
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	trx_t*	trx = trx_get_trx_by_xid(xid);
+	if (high_level_read_only) {
+		return(XAER_RMFAIL);
+	}
 
-	if (trx != NULL) {
+	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
 		TrxInInnoDB	trx_in_innodb(trx);
 
 		int	ret = innobase_rollback_trx(trx);
@@ -19927,7 +19949,7 @@ wsrep_fake_trx_id(
 	mutex_enter(&trx_sys->mutex);
 	trx_id_t trx_id = trx_sys_get_new_trx_id();
 	mutex_exit(&trx_sys->mutex);
-
+	WSREP_DEBUG("innodb fake trx id: %lu thd: %s", trx_id, wsrep_thd_query(thd));
 	wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd), trx_id);
 }
 
@@ -20992,7 +21014,7 @@ static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Number of multi-threaded flush threads",
+  "DEPRECATED. Number of multi-threaded flush threads",
   NULL, NULL,
   MTFLUSH_DEFAULT_WORKER, /* Default setting */
   1,                      /* Minimum setting */
@@ -21001,7 +21023,7 @@ static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
 
 static MYSQL_SYSVAR_BOOL(use_mtflush, srv_use_mtflush,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Use multi-threaded flush. Default FALSE.",
+  "DEPRECATED. Use multi-threaded flush. Default FALSE.",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wait_threshold,

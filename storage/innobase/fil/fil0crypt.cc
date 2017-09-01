@@ -168,7 +168,12 @@ fil_crypt_get_latest_key_version(
 				crypt_data->min_key_version,
 				key_version,
 				srv_fil_crypt_rotate_key_age)) {
-			os_event_set(fil_crypt_threads_event);
+			/* Below event seen as NULL-pointer at startup
+			when new database was created and we create a
+			checkpoint. Only seen when debugging. */
+			if (fil_crypt_threads_inited) {
+				os_event_set(fil_crypt_threads_event);
+			}
 		}
 	}
 
@@ -1335,12 +1340,12 @@ fil_crypt_realloc_iops(
 		state->cnt_waited = 0;
 		state->sum_waited_us = 0;
 	} else {
-
 		DBUG_PRINT("ib_crypt",
-			("thr_no: %u only waited " ULINTPF
-			 "%% skip re-estimate.",
-			state->thread_no,
-			(100 * state->cnt_waited) / state->batch));
+			   ("thr_no: %u only waited " ULINTPF
+			    "%% skip re-estimate.",
+			    state->thread_no,
+			    (100 * state->cnt_waited)
+			    / (state->batch ? state->batch : 1)));
 	}
 
 	if (state->estimated_max_iops <= state->allocated_iops) {
@@ -1443,7 +1448,7 @@ fil_crypt_find_space_to_rotate(
 	/* we need iops to start rotating */
 	while (!state->should_shutdown() && !fil_crypt_alloc_iops(state)) {
 		os_event_reset(fil_crypt_threads_event);
-		os_event_wait_time(fil_crypt_threads_event, 1000000);
+		os_event_wait_time(fil_crypt_threads_event, 100000);
 	}
 
 	if (state->should_shutdown()) {
@@ -2078,7 +2083,8 @@ fil_crypt_complete_rotate_space(
 		mutex_exit(&crypt_data->mutex);
 
 		/* all threads must call btr_scrub_complete_space wo/ mutex held */
-		if (btr_scrub_complete_space(&state->scrub_data) == true) {
+		if (state->scrub_data.scrubbing) {
+			btr_scrub_complete_space(&state->scrub_data);
 			if (should_flush) {
 				/* only last thread updates last_scrub_completed */
 				ut_ad(crypt_data);
@@ -2252,7 +2258,7 @@ fil_crypt_set_thread_cnt(
 		for (uint i = 0; i < add; i++) {
 			os_thread_id_t rotation_thread_id;
 			os_thread_create(fil_crypt_thread, NULL, &rotation_thread_id);
-			ib::info() << "Creating "
+			ib::info() << "Creating #"
 				   << i+1 << " encryption thread id "
 				   << os_thread_pf(rotation_thread_id)
 				   << " total threads " << new_cnt << ".";
@@ -2266,7 +2272,13 @@ fil_crypt_set_thread_cnt(
 
 	while(srv_n_fil_crypt_threads_started != srv_n_fil_crypt_threads) {
 		os_event_reset(fil_crypt_event);
-		os_event_wait_time(fil_crypt_event, 1000000);
+		os_event_wait_time(fil_crypt_event, 100000);
+	}
+
+	/* Send a message to encryption threads that there could be
+	something to do. */
+	if (srv_n_fil_crypt_threads) {
+		os_event_set(fil_crypt_threads_event);
 	}
 }
 
@@ -2419,10 +2431,10 @@ fil_space_crypt_get_status(
 		fil_crypt_read_crypt_data(const_cast<fil_space_t*>(space));
 	}
 
-	fil_space_crypt_t* crypt_data = space->crypt_data;
-	status->space = space->id;
+	status->space = ULINT_UNDEFINED;
 
-	if (crypt_data != NULL) {
+	if (fil_space_crypt_t* crypt_data = space->crypt_data) {
+		status->space = space->id;
 		mutex_enter(&crypt_data->mutex);
 		status->scheme = crypt_data->type;
 		status->keyserver_requests = crypt_data->keyserver_requests;

@@ -745,7 +745,7 @@ ssize_t wsrep_sst_prepare (void** msg)
 
   // Attempt 1: wsrep_sst_receive_address
   if (wsrep_sst_receive_address &&
-    strcmp (wsrep_sst_receive_address, WSREP_SST_ADDRESS_AUTO))
+      strcmp (wsrep_sst_receive_address, WSREP_SST_ADDRESS_AUTO))
   {
     addr_in= wsrep_sst_receive_address;
   }
@@ -885,16 +885,13 @@ static int sst_donate_mysqldump (const char*         addr,
 {
   char host[256];
   wsp::Address address(addr);
-
   if (!address.is_valid())
   {
     WSREP_ERROR("Could not parse SST address : %s", addr);
     return 0;
   }
-
   memcpy(host, address.get_address(), address.get_address_len());
   int port= address.get_port();
-
   int const cmd_len= 4096;
   wsp::string  cmd_str(cmd_len);
 
@@ -911,7 +908,7 @@ static int sst_donate_mysqldump (const char*         addr,
 
   int ret= snprintf (cmd_str(), cmd_len,
                      "wsrep_sst_mysqldump "
-                     WSREP_SST_OPT_HOST" '%s' "
+                     WSREP_SST_OPT_ADDR" '%s' "
                      WSREP_SST_OPT_PORT" '%d' "
                      WSREP_SST_OPT_LPORT" '%u' "
                      WSREP_SST_OPT_SOCKET" '%s' "
@@ -919,7 +916,7 @@ static int sst_donate_mysqldump (const char*         addr,
                      WSREP_SST_OPT_GTID" '%s:%lld' "
                      WSREP_SST_OPT_GTID_DOMAIN_ID" '%d'"
                      "%s",
-                     host, port, mysqld_port, mysqld_unix_port,
+	             addr, port, mysqld_port, mysqld_unix_port,
                      wsrep_defaults_file, uuid_str,
                      (long long)seqno, wsrep_gtid_domain_id,
                      bypass ? " " WSREP_SST_OPT_BYPASS : "");

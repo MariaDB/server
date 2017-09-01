@@ -1,6 +1,9 @@
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
 connection node_2;
+SELECT 1 FROM DUAL;
+1
+1
 LOCK TABLE t2 WRITE;
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2a;

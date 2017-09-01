@@ -835,18 +835,9 @@ trx_resurrect_insert(
 				<< trx_get_id_for_print(trx)
 				<< " was in the XA prepared state.";
 
-			if (srv_force_recovery == 0) {
-
-				trx->state = TRX_STATE_PREPARED;
-				++trx_sys->n_prepared_trx;
-				++trx_sys->n_prepared_recovered_trx;
-			} else {
-
-				ib::info() << "Since innodb_force_recovery"
-					" > 0, we will force a rollback.";
-
-				trx->state = TRX_STATE_ACTIVE;
-			}
+			trx->state = TRX_STATE_PREPARED;
+			trx_sys->n_prepared_trx++;
+			trx_sys->n_prepared_recovered_trx++;
 		} else {
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
 		}
@@ -898,24 +889,14 @@ trx_resurrect_update_in_prepared_state(
 		ib::info() << "Transaction " << trx_get_id_for_print(trx)
 			<< " was in the XA prepared state.";
 
-		if (srv_force_recovery == 0) {
-
-			ut_ad(trx->state != TRX_STATE_FORCED_ROLLBACK);
-
-			if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
-				++trx_sys->n_prepared_trx;
-				++trx_sys->n_prepared_recovered_trx;
-			} else {
-				ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
-			}
-
-			trx->state = TRX_STATE_PREPARED;
+		if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
+			trx_sys->n_prepared_trx++;
+			trx_sys->n_prepared_recovered_trx++;
 		} else {
-			ib::info() << "Since innodb_force_recovery > 0, we"
-				" will rollback it anyway.";
-
-			trx->state = TRX_STATE_ACTIVE;
+			ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
 		}
+
+		trx->state = TRX_STATE_PREPARED;
 	} else {
 		trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
 	}

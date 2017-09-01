@@ -5,7 +5,6 @@ SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT1S";
 SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
-SET SESSION wsrep_sync_wait = 7;
 SELECT MAX(id) FROM t1;
 MAX(id)
 1
@@ -19,7 +18,6 @@ Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 FLUSH QUERY CACHE;
-SET SESSION wsrep_sync_wait = 7;
 SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
@@ -36,11 +34,9 @@ SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 connection node_1;
 INSERT INTO t1 VALUES (4);
 connection node_2;
-SET SESSION wsrep_sync_wait = 7;
 SELECT MAX(id) FROM t1;
 MAX(id)
 4
-SET SESSION wsrep_sync_wait = 7;
 FLUSH STATUS;
 SELECT MAX(id) FROM t1;
 MAX(id)
@@ -54,7 +50,6 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 connection node_1;
 INSERT INTO t1 VALUES (5);
 connection node_2;
-SET SESSION wsrep_sync_wait = 7;
 SELECT MAX(id) FROM t1 ;
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2a;

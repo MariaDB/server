@@ -102,7 +102,7 @@ then we will not allocate more extents
 @param[in,out]	space		tablespace
 @param[in,out]	header		tablespace header
 @param[in,out]	mtr		mini-transaction */
-static UNIV_COLD
+static ATTRIBUTE_COLD
 void
 fsp_fill_free_list(
 	bool		init_space,
@@ -799,7 +799,11 @@ fsp_header_init(ulint space_id, ulint size, mtr_t* mtr)
 	fsp_fill_free_list(!is_system_tablespace(space_id),
 			   space, header, mtr);
 
-	if (space->crypt_data) {
+	/* Write encryption metadata to page 0 if tablespace is
+	encrypted or encryption is disabled by table option. */
+	if (space->crypt_data &&
+	    (space->crypt_data->should_encrypt() ||
+	     space->crypt_data->not_encrypted())) {
 		space->crypt_data->write_page0(space, page, mtr);
 	}
 }
@@ -895,7 +899,7 @@ data file.
 @param[in,out]	header	tablespace header
 @param[in,out]	mtr	mini-transaction
 @return true if success */
-static UNIV_COLD MY_ATTRIBUTE((warn_unused_result))
+static ATTRIBUTE_COLD __attribute__((warn_unused_result))
 bool
 fsp_try_extend_data_file_with_pages(
 	fil_space_t*	space,
@@ -928,7 +932,7 @@ fsp_try_extend_data_file_with_pages(
 @param[in,out]	mtr	mini-transaction
 @return	number of pages added
 @retval	0 if the tablespace was not extended */
-UNIV_COLD MY_ATTRIBUTE((nonnull))
+ATTRIBUTE_COLD __attribute__((nonnull))
 static
 ulint
 fsp_try_extend_data_file(fil_space_t* space, fsp_header_t* header, mtr_t* mtr)
@@ -2107,15 +2111,6 @@ fseg_create_general(
 		fil_block_check_type(block, type, mtr);
 	}
 
-	if (rw_lock_get_x_lock_count(&space->latch) == 1) {
-		/* This thread did not own the latch before this call: free
-		excess pages from the insert buffer free list */
-
-		if (space_id == IBUF_SPACE_ID) {
-			ibuf_free_excess_pages();
-		}
-	}
-
 	if (!has_done_reservation
 	    && !fsp_reserve_free_extents(&n_reserved, space_id, 2,
 					 FSP_NORMAL, mtr)) {
@@ -2698,15 +2693,6 @@ fseg_alloc_free_page_general(
 	space_id = page_get_space_id(page_align(seg_header));
 	space = mtr_x_lock_space(space_id, mtr);
 	const page_size_t	page_size(space->flags);
-
-	if (rw_lock_get_x_lock_count(&space->latch) == 1) {
-		/* This thread did not own the latch before this call: free
-		excess pages from the insert buffer free list */
-
-		if (space_id == IBUF_SPACE_ID) {
-			ibuf_free_excess_pages();
-		}
-	}
 
 	inode = fseg_inode_get(seg_header, space_id, page_size, mtr, &iblock);
 	fil_block_check_type(iblock, FIL_PAGE_INODE, mtr);

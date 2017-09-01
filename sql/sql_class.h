@@ -477,6 +477,11 @@ enum killed_state
   KILL_SYSTEM_THREAD_HARD= 15,
   KILL_SERVER= 16,
   KILL_SERVER_HARD= 17,
+  /*
+    Used in threadpool to signal wait timeout.
+  */
+  KILL_WAIT_TIMEOUT= 18,
+  KILL_WAIT_TIMEOUT_HARD= 19
 
 };
 
@@ -4472,6 +4477,8 @@ public:
   bool                      wsrep_ignore_table;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
   ulong                     wsrep_affected_rows;
+  bool                      wsrep_replicate_GTID;
+  bool                      wsrep_skip_wsrep_GTID;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */

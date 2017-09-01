@@ -9,10 +9,12 @@ SELECT 1 = 1 FROM t1;
 SELECT COUNT(*) = 1 FROM mysql.slow_log WHERE sql_text = 'SELECT 1 = 1 FROM t1';
 COUNT(*) = 1
 1
+connection node_2;
 SELECT 2 = 2 FROM t1;
 2 = 2
 1
 SELECT COUNT(*) = 1 FROM mysql.slow_log WHERE sql_text = 'SELECT 2 = 2 FROM t1';
 COUNT(*) = 1
 1
+connection node_1;
 DROP TABLE t1;

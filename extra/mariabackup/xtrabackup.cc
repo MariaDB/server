@@ -120,6 +120,7 @@ my_bool xtrabackup_export;
 
 longlong xtrabackup_use_memory;
 
+uint opt_protocol;
 long xtrabackup_throttle; /* 0:unlimited */
 static lint io_ticket;
 static os_event_t wait_throttle;
@@ -528,6 +529,7 @@ enum options_xtrabackup
 
   OPT_XTRA_TABLES_EXCLUDE,
   OPT_XTRA_DATABASES_EXCLUDE,
+  OPT_PROTOCOL
 };
 
 struct my_option xb_client_options[] =
@@ -759,6 +761,9 @@ struct my_option xb_client_options[] =
    "See mysql --help for details.",
    0, 0, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+
+  {"protocol", OPT_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe, memory).",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
   {"socket", 'S', "This option specifies the socket to use when "
    "connecting to the local database server with a UNIX domain socket.  "
@@ -1291,8 +1296,13 @@ xb_get_one_option(int optid,
         start[1]=0 ;
     }
     break;
-
-
+  case OPT_PROTOCOL:
+    if (argument)
+    {
+       opt_protocol= find_type_or_exit(argument, &sql_protocol_typelib,
+                                    opt->name);
+    }
+    break;
 #include "sslopt-case.h"
 
   case '?':
@@ -2585,10 +2595,6 @@ xb_load_single_table_tablespace(
 	}
 
 	ut_free(name);
-
-	if (fil_space_crypt_t* crypt_info = file->get_crypt_info()) {
-		fil_space_destroy_crypt_data(&crypt_info);
-	}
 
 	delete file;
 

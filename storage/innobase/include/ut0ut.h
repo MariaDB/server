@@ -299,7 +299,7 @@ void
 ut_print_timestamp(
 /*===============*/
 	FILE*	file)	/*!< in: file where to print */
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	ATTRIBUTE_COLD __attribute__((nonnull));
 
 #ifndef UNIV_INNOCHECKSUM
 
@@ -505,6 +505,7 @@ use this class directly, instead use one of the derived classes. */
 class logger {
 public:
 	template<typename T>
+	ATTRIBUTE_COLD
 	logger& operator<<(const T& rhs)
 	{
 		m_oss << rhs;
@@ -515,6 +516,7 @@ public:
 	@param[in]	buf	the buffer whose contents will be logged.
 	@param[in]	count	the length of the buffer buf.
 	@return the output stream into which buffer was written. */
+	ATTRIBUTE_COLD
 	std::ostream&
 	write(
 		const char*		buf,
@@ -527,6 +529,7 @@ public:
 	@param[in]	buf	the buffer whose contents will be logged.
 	@param[in]	count	the length of the buffer buf.
 	@return the output stream into which buffer was written. */
+	ATTRIBUTE_COLD
 	std::ostream&
 	write(
 		const byte*		buf,
@@ -539,6 +542,7 @@ public:
 protected:
 	/* This class must not be used directly, hence making the default
 	constructor protected. */
+	ATTRIBUTE_COLD
 	logger() {}
 };
 
@@ -555,6 +559,7 @@ statement.  If a named object is created, then the log message will be emitted
 only when it goes out of scope or destroyed. */
 class info : public logger {
 public:
+	ATTRIBUTE_COLD
 	~info();
 };
 
@@ -562,6 +567,7 @@ public:
 class info for further details. */
 class warn : public logger {
 public:
+	ATTRIBUTE_COLD
 	~warn();
 };
 
@@ -569,6 +575,7 @@ public:
 documentation of class info for further details. */
 class error : public logger {
 public:
+	ATTRIBUTE_COLD
 	~error();
 };
 
@@ -577,6 +584,7 @@ by crashing it.  Use this class when MySQL server needs to be stopped
 immediately.  Refer to the documentation of class info for usage details. */
 class fatal : public logger {
 public:
+	ATTRIBUTE_NORETURN
 	~fatal();
 };
 
@@ -584,10 +592,12 @@ public:
 warning message */
 class error_or_warn : public logger {
 public:
+	ATTRIBUTE_COLD
 	error_or_warn(bool	pred)
 	: m_error(pred)
 	{}
 
+	ATTRIBUTE_COLD
 	~error_or_warn();
 private:
 	const bool	m_error;
@@ -597,10 +607,12 @@ private:
 error message. */
 class fatal_or_error : public logger {
 public:
+	ATTRIBUTE_COLD
 	fatal_or_error(bool	pred)
 	: m_fatal(pred)
 	{}
 
+	ATTRIBUTE_COLD
 	~fatal_or_error();
 private:
 	const bool	m_fatal;

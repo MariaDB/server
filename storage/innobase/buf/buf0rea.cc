@@ -105,6 +105,7 @@ flag is cleared and the x-lock released by an i/o-handler thread.
 @param[in] mode		BUF_READ_IBUF_PAGES_ONLY, ...,
 @param[in] page_id	page id
 @param[in] unzip	true=request uncompressed page
+@param[in] ignore_missing_space  true=ignore missing space when reading
 @return 1 if a read request was queued, 0 if the page already resided
 in buf_pool, or if the page is in the doublewrite buffer blocks in
 which case it is never read into the pool, or if the tablespace does
@@ -118,7 +119,8 @@ buf_read_page_low(
 	ulint			mode,
 	const page_id_t&	page_id,
 	const page_size_t&	page_size,
-	bool			unzip)
+	bool			unzip,
+	bool			ignore_missing_space = false)
 {
 	buf_page_t*	bpage;
 
@@ -178,7 +180,7 @@ buf_read_page_low(
 
 	*err = fil_io(
 		request, sync, page_id, page_size, 0, page_size.physical(),
-		dst, bpage);
+		dst, bpage, ignore_missing_space);
 
 	if (sync) {
 		thd_wait_end(NULL);
@@ -478,13 +480,15 @@ buf_read_page_background(
 			<< " in the background"
 			" in a non-existing or being-dropped tablespace";
 		break;
+	case DB_PAGE_CORRUPTED:
 	case DB_DECRYPTION_FAILED:
 		ib::error()
-			<< "Background Page read failed to decrypt page "
-			<< page_id;
+			<< "Background Page read failed to "
+			"read or decrypt " << page_id;
 		break;
 	default:
-		ut_error;
+		ib::fatal() << "Error " << err << " in background read of "
+			<< page_id;
 	}
 
 	srv_stats.buf_pool_reads.add(count);
@@ -755,9 +759,10 @@ buf_read_ahead_linear(
 			case DB_TABLESPACE_DELETED:
 			case DB_ERROR:
 				break;
+			case DB_PAGE_CORRUPTED:
 			case DB_DECRYPTION_FAILED:
 				ib::error() << "linear readahead failed to"
-					" decrypt page "
+					" read or decrypt "
 					<< page_id_t(page_id.space(), i);
 				break;
 			default:
@@ -844,7 +849,7 @@ tablespace_deleted:
 				  sync && (i + 1 == n_stored),
 				  0,
 				  BUF_READ_ANY_PAGE, page_id, page_size,
-				  true);
+				  true, true /* ignore_missing_space */);
 
 		switch(err) {
 		case DB_SUCCESS:
@@ -853,8 +858,9 @@ tablespace_deleted:
 			break;
 		case DB_TABLESPACE_DELETED:
 			goto tablespace_deleted;
+		case DB_PAGE_CORRUPTED:
 		case DB_DECRYPTION_FAILED:
-			ib::error() << "Failed to decrypt page " << page_id
+			ib::error() << "Failed to read or decrypt " << page_id
 				<< " for change buffer merge";
 			break;
 		default:
@@ -936,8 +942,8 @@ buf_read_recv_pages(
 				cur_page_id, page_size, true);
 		}
 
-		if (err == DB_DECRYPTION_FAILED) {
-			ib::error() << "Recovery failed to decrypt page "
+		if (err == DB_DECRYPTION_FAILED || err == DB_PAGE_CORRUPTED) {
+			ib::error() << "Recovery failed to read or decrypt "
 				<< cur_page_id;
 		}
 	}

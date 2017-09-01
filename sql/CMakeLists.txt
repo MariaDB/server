@@ -232,23 +232,35 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
     SET(_PLATFORM  x64)
   ENDIF()
 
+  # Create a cmake script to generate import and export libs
+  # from a .def file
+  SET(CMAKE_CONFIGURABLE_FILE_CONTENT "
+    IF ((mysqld_lib.def IS_NEWER_THAN mysqld_lib.lib) OR
+        (mysqld_lib.def IS_NEWER_THAN mysqld_lib.exp))
+      SET(ENV{VS_UNICODE_OUTPUT})
+      EXECUTE_PROCESS (
+        COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${MYSQLD_DEF}\" /MACHINE:${_PLATFORM}
+        RESULT_VARIABLE ret)
+      IF(NOT ret EQUAL 0)
+        MESSAGE(FATAL_ERROR \"process failed ret=\${ret}\")
+      ENDIF()
+    ENDIF()
+  ")
+
+  CONFIGURE_FILE(
+    ${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in
+    make_mysqld_lib.cmake)
+
   ADD_CUSTOM_COMMAND(
-    OUTPUT ${MYSQLD_DEF}
+    OUTPUT ${MYSQLD_DEF} ${MYSQLD_LIB} ${MYSQLD_EXP}
     COMMAND cscript ARGS //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
     ${_PLATFORM} /forLib ${LIB_LOCATIONS} > mysqld_lib.def.tmp
     COMMAND ${CMAKE_COMMAND} -E copy_if_different mysqld_lib.def.tmp mysqld_lib.def
-    COMMAND ${CMAKE_COMMAND} -E remove mysqld_lib.def.tmp
+    COMMAND ${CMAKE_COMMAND} -P make_mysqld_lib.cmake
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     DEPENDS ${MYSQLD_CORELIBS}
   )
 
-  ADD_CUSTOM_COMMAND(
-    OUTPUT ${MYSQLD_LIB}
-    COMMAND lib
-    ARGS /NAME:mysqld.exe "/DEF:${MYSQLD_DEF}" "/MACHINE:${_PLATFORM}"
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS ${MYSQLD_DEF}
-  )
   ADD_CUSTOM_TARGET(gen_mysqld_lib DEPENDS ${MYSQLD_LIB})
   ADD_LIBRARY(mysqld_import_lib UNKNOWN IMPORTED GLOBAL)
   SET_TARGET_PROPERTIES(mysqld_import_lib PROPERTIES IMPORTED_LOCATION ${MYSQLD_LIB})
@@ -265,7 +277,10 @@ IF(APPLE)
 ENDIF() 
 
 IF(NOT WITHOUT_DYNAMIC_PLUGINS)
-  SET_TARGET_PROPERTIES(mysqld PROPERTIES ENABLE_EXPORTS TRUE)
+  IF(NOT MSVC)
+    SET_TARGET_PROPERTIES(mysqld PROPERTIES ENABLE_EXPORTS TRUE)
+  ENDIF()
+
   GET_TARGET_PROPERTY(mysqld_link_flags mysqld LINK_FLAGS)
   IF(NOT mysqld_link_flags)
     SET(mysqld_link_flags)
@@ -279,7 +294,6 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
-SET_TARGET_PROPERTIES(mysqld PROPERTIES ENABLE_EXPORTS TRUE) 
 TARGET_LINK_LIBRARIES(mysqld sql)
 
 # Provide plugins with minimal set of libraries
@@ -424,15 +438,15 @@ IF(WIN32 AND MYSQLD_EXECUTABLE)
   ENDIF()
   MAKE_DIRECTORY(${CMAKE_CURRENT_BINARY_DIR}/data)
   ADD_CUSTOM_COMMAND(
-     OUTPUT initdb.dep
-     COMMAND ${CMAKE_COMMAND}
-     ${CONFIG_PARAM} -P ${CMAKE_CURRENT_BINARY_DIR}/create_initial_db.cmake
+     OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
+     COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM} -P ${CMAKE_CURRENT_BINARY_DIR}/create_initial_db.cmake
+     COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
      DEPENDS mysqld
   )
   ADD_CUSTOM_TARGET(initial_database  
     ALL
-    DEPENDS  initdb.dep
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
   )
   INSTALL(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data DESTINATION . 
   COMPONENT DataFiles 

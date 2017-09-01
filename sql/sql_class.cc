@@ -891,6 +891,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
   wsrep_affected_rows     = 0;
+  wsrep_replicate_GTID    = false;
+  wsrep_skip_wsrep_GTID   = false;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1336,6 +1338,8 @@ void THD::init(void)
   wsrep_TOI_pre_query_len = 0;
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
   wsrep_affected_rows     = 0;
+  wsrep_replicate_GTID    = false;
+  wsrep_skip_wsrep_GTID   = false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -2054,6 +2058,9 @@ int THD::killed_errno()
     DBUG_RETURN(ER_SERVER_SHUTDOWN);
   case KILL_SLAVE_SAME_ID:
     DBUG_RETURN(ER_SLAVE_SAME_ID);
+  case KILL_WAIT_TIMEOUT:
+  case KILL_WAIT_TIMEOUT_HARD:
+    DBUG_RETURN(ER_NET_READ_INTERRUPTED);
   }
   DBUG_RETURN(0);                               // Keep compiler happy
 }

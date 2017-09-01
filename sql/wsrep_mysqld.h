@@ -99,11 +99,12 @@ enum enum_wsrep_OSU_method {
 
 enum enum_wsrep_sync_wait {
     WSREP_SYNC_WAIT_NONE = 0x0,
-    // show, select, begin
+    // select, begin
     WSREP_SYNC_WAIT_BEFORE_READ = 0x1,
     WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE = 0x2,
     WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE = 0x4,
-    WSREP_SYNC_WAIT_MAX = 0x7
+    WSREP_SYNC_WAIT_BEFORE_SHOW = 0x8,
+    WSREP_SYNC_WAIT_MAX = 0xF
 };
 
 // MySQL status variables
@@ -217,6 +218,8 @@ void wsrep_log(void (*fun)(const char *, ...), const char *format, ...);
 
 #define WSREP_PROVIDER_EXISTS                                                  \
   (wsrep_provider && strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN))
+
+#define WSREP_QUERY(thd) (thd->query())
 
 extern void wsrep_ready_wait();
 

@@ -73,6 +73,14 @@ KEY_CREATE_INFO default_key_create_info=
 ulong total_ha= 0;
 /* number of storage engines (from handlertons[]) that support 2pc */
 ulong total_ha_2pc= 0;
+#ifndef DBUG_OFF
+/*
+  Number of non-mandatory 2pc handlertons whose initialization failed
+  to estimate total_ha_2pc value under supposition of the failures
+  have not occcured.
+*/
+ulong failed_ha_2pc= 0;
+#endif
 /* size of savepoint storage area (see ha_init) */
 ulong savepoint_alloc_size= 0;
 
@@ -652,6 +660,10 @@ err_deinit:
     (void) plugin->plugin->deinit(NULL);
           
 err:
+#ifndef DBUG_OFF
+  if (hton->prepare && hton->state == SHOW_OPTION_YES)
+    failed_ha_2pc++;
+#endif
   my_free(hton);
 err_no_hton_memory:
   plugin->data= NULL;
@@ -1668,6 +1680,11 @@ int ha_rollback_trans(THD *thd, bool all)
       { // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
+#ifdef WITH_WSREP
+         WSREP_WARN("handlerton rollback failed, thd %lu %lld conf %d SQL %s",
+                    thd->thread_id, thd->query_id, thd->wsrep_conflict_state,
+                    thd->query());
+#endif /* WITH_WSREP */
       }
       status_var_increment(thd->status_var.ha_rollback_count);
       ha_info_next= ha_info->next();
@@ -1862,7 +1879,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         {
 #ifndef DBUG_OFF
           char buf[XIDDATASIZE*4+6]; // see xid_to_str
-          sql_print_information("ignore xid %s", xid_to_str(buf, info->list+i));
+          DBUG_PRINT("info", ("ignore xid %s", xid_to_str(buf, info->list+i)));
 #endif
           xid_cache_insert(info->list+i, XA_PREPARED);
           info->found_foreign_xids++;
@@ -1879,19 +1896,31 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
         {
 #ifndef DBUG_OFF
-          char buf[XIDDATASIZE*4+6]; // see xid_to_str
-          sql_print_information("commit xid %s", xid_to_str(buf, info->list+i));
+          int rc=
 #endif
-          hton->commit_by_xid(hton, info->list+i);
+            hton->commit_by_xid(hton, info->list+i);
+#ifndef DBUG_OFF
+          if (rc == 0)
+          {
+            char buf[XIDDATASIZE*4+6]; // see xid_to_str
+            DBUG_PRINT("info", ("commit xid %s", xid_to_str(buf, info->list+i)));
+          }
+#endif
         }
         else
         {
 #ifndef DBUG_OFF
-          char buf[XIDDATASIZE*4+6]; // see xid_to_str
-          sql_print_information("rollback xid %s",
-                                xid_to_str(buf, info->list+i));
+          int rc=
 #endif
-          hton->rollback_by_xid(hton, info->list+i);
+            hton->rollback_by_xid(hton, info->list+i);
+#ifndef DBUG_OFF
+          if (rc == 0)
+          {
+            char buf[XIDDATASIZE*4+6]; // see xid_to_str
+            DBUG_PRINT("info", ("rollback xid %s",
+                                xid_to_str(buf, info->list+i)));
+          }
+#endif
         }
       }
       if (got < info->len)
@@ -1913,7 +1942,8 @@ int ha_recover(HASH *commit_list)
   /* commit_list and tc_heuristic_recover cannot be set both */
   DBUG_ASSERT(info.commit_list==0 || tc_heuristic_recover==0);
   /* if either is set, total_ha_2pc must be set too */
-  DBUG_ASSERT(info.dry_run || total_ha_2pc>(ulong)opt_bin_log);
+  DBUG_ASSERT(info.dry_run ||
+              (failed_ha_2pc + total_ha_2pc) > (ulong)opt_bin_log);
 
   if (total_ha_2pc <= (ulong)opt_bin_log)
     DBUG_RETURN(0);

@@ -1,5 +1,5 @@
 connection node_2;
-SET SESSION wsrep_sync_wait = 1;
+SET SESSION wsrep_sync_wait = 8;
 connection node_1;
 CREATE DATABASE db1;
 connection node_2;
@@ -35,7 +35,7 @@ CREATE FUNCTION f1 () RETURNS INTEGER RETURN 123;
 connection node_2;
 SHOW FUNCTION CODE f1;
 Pos	Instruction
-0	freturn 3 123
+0	freturn int 123
 DROP FUNCTION f1;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
