@@ -18,13 +18,7 @@ SET SESSION wsrep_on = OFF;
 SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
 COUNT(*) > 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
-COUNT(*) = 0
-1
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
-COUNT(*) > 0
-1
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 COUNT(*) = 0
 1

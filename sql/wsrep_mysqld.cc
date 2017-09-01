@@ -398,6 +398,11 @@ static void wsrep_rollback_SR_connections()
       {
         wsrep_fire_rollbacker(tmp);
       }
+      /*
+        No need to send rollback fragment for this trx: slaves rollback
+        all SR transactions whose master goes non-Primary.
+      */
+      tmp->wsrep_SR_rollback_replicated_for_trx= tmp->wsrep_trx_id();
     }
     mysql_mutex_unlock(&tmp->LOCK_wsrep_thd);
   }

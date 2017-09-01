@@ -41,8 +41,9 @@ SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 
-# SR table on slave should have cleaned up entries
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+# SR table on slave should eventually clean up entries when master goes non-Prim
+--let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR
+--source include/wait_condition.inc
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
@@ -77,8 +78,9 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 
 --source include/galera_wait_ready.inc
 
-# SR table still has stuff in it on master
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+# SR table on master should contain no entries after going back to Prim state
+--let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR
+--source include/wait_condition.inc
 
 --connection node_2
 # And none on slave
