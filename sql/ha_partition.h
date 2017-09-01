@@ -1348,6 +1348,7 @@ public:
                                          Field **top_table_field,
                                          uint top_table_fields);
     virtual void clear_top_table_fields();
+    virtual bool prune_partitions_for_child(THD *thd, Item *pprune_cond);
 
     private:
     int handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt, uint flags);

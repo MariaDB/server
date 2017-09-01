@@ -11621,6 +11621,30 @@ void ha_partition::clear_top_table_fields()
 
 
 /**
+  Prune partitions on each child partition node
+
+  SYNOPSIS
+    prune_partitions_for_child()
+
+  RETURN VALUE
+    TRUE                      Failure
+    FALSE                     Success or no partition pruning to be done
+*/
+
+bool ha_partition::prune_partitions_for_child(THD *thd, Item *pprune_cond)
+{
+  bool res= TRUE;
+  handler **file;
+  DBUG_ENTER("ha_partition::prune_partitions_for_child");
+
+  for (file= m_file; *file; file++)
+    if (bitmap_is_set(&(m_part_info->read_partitions), (file - m_file)))
+      if (!(*file)->prune_partitions_for_child(thd, pprune_cond))
+        res= FALSE;
+  DBUG_RETURN(res);
+}
+
+/**
   Allocate and initialize a bulk access request info structure
 
   SYNOPSIS

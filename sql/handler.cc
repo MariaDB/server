@@ -6136,6 +6136,111 @@ void handler::unlock_shared_ha_data()
     mysql_mutex_unlock(&table_share->LOCK_ha_data);
 }
 
+
+/**
+  @brief  Set the table and fields of a vertical partition
+          that are mapped to child table fields.
+
+  @param  top_table               Local table
+  @param  top_table_field         Mapping of local table fields
+  @param  top_table_fields        Number of fields in the array
+
+  @return always 0
+*/
+
+int handler::set_top_table_and_fields(TABLE *top_table,
+                                      Field **top_table_field,
+                                      uint top_table_fields)
+{
+  DBUG_ENTER("handler::set_top_table_and_fields");
+  DBUG_PRINT("info", ("set_top_table_fields=%s",
+                      set_top_table_fields ? "TRUE" : "FALSE"));
+  if (!set_top_table_fields)
+  {
+    set_top_table_fields = TRUE;
+    this->top_table = top_table;
+    this->top_table_field = top_table_field;
+    this->top_table_fields = top_table_fields;
+  }
+  DBUG_RETURN(0);
+}
+
+
+/**
+  @brief  Clear the table and fields of a vertical partition
+          that are mapped to child table fields.
+
+  @return NONE
+*/
+
+void handler::clear_top_table_fields()
+{
+  DBUG_ENTER("handler::clear_top_table_fields");
+  DBUG_PRINT("info", ("set_top_table_fields=%s",
+                      set_top_table_fields ? "TRUE" : "FALSE"));
+  if (set_top_table_fields)
+  {
+    set_top_table_fields = FALSE;
+    top_table = NULL;
+    top_table_field = NULL;
+    top_table_fields = 0;
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+/**
+  @brief  Return a field that is part of a vertical partition's
+          table field mapping.
+
+  @param  field_index             Field index
+
+  @return Table field
+*/
+
+Field *handler::get_top_table_field(uint16 field_index)
+{
+  DBUG_ENTER("handler::get_top_table_field");
+  Field *field;
+  DBUG_PRINT("info", ("set_top_table_fields=%s",
+                      set_top_table_fields ? "TRUE" : "FALSE"));
+  if (set_top_table_fields)
+    field = top_table->field[field_index];
+  else
+    field = table->field[field_index];
+  DBUG_RETURN(field);
+}
+
+
+/**
+  @brief  Return the local table field that is mapped to a
+          vertically partitioned table field.
+
+  @param  field                   Mapped field
+
+  @return Local table field that is mapped to the
+          vertically partitioned table field
+*/
+
+Field *handler::field_exchange(Field *field)
+{
+  DBUG_ENTER("handler::field_exchange");
+  DBUG_PRINT("info", ("set_top_table_fields=%s",
+                      set_top_table_fields ? "TRUE" : "FALSE"));
+  if (set_top_table_fields)
+  {
+    if (field->table != top_table)
+      DBUG_RETURN(NULL);
+    if (!(field = top_table_field[field->field_index]))
+      DBUG_RETURN(NULL);
+  }
+  else
+    if (field->table != table)
+      DBUG_RETURN(NULL);
+  DBUG_RETURN(field);
+}
+
+
 /** @brief
   Dummy function which accept information about log files which is not need
   by handlers
