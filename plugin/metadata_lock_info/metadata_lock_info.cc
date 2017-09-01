@@ -44,12 +44,6 @@ static const LEX_STRING metadata_lock_info_lock_mode[] = {
   { C_STRING_WITH_LEN("MDL_EXCLUSIVE") },
 };
 
-static const LEX_STRING metadata_lock_info_duration[] = {
-  { C_STRING_WITH_LEN("MDL_STATEMENT") },
-  { C_STRING_WITH_LEN("MDL_TRANSACTION") },
-  { C_STRING_WITH_LEN("MDL_EXPLICIT") },
-};
-
 static ST_FIELD_INFO i_s_metadata_lock_info_fields_info[] =
 {
   {"THREAD_ID", 20, MYSQL_TYPE_LONGLONG, 0,
