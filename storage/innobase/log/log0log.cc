@@ -1937,6 +1937,7 @@ loop:
 		thread_name = "srv_monitor_thread";
 	} else if (srv_buf_resize_thread_active) {
 		thread_name = "buf_resize_thread";
+		goto wait_suspend_loop;
 	} else if (srv_dict_stats_thread_active) {
 		thread_name = "dict_stats_thread";
 	} else if (lock_sys && lock_sys->timeout_thread_active) {
