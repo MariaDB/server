@@ -53,14 +53,6 @@ innobase_row_to_mysql(
 	const dtuple_t*		row)	/*!< in: InnoDB row */
 	MY_ATTRIBUTE((nonnull));
 
-/*************************************************************//**
-Resets table->record[0]. */
-void
-innobase_rec_reset(
-/*===============*/
-	struct TABLE*		table)		/*!< in/out: MySQL table */
-	MY_ATTRIBUTE((nonnull));
-
 /** Generate the next autoinc based on a snapshot of the session
 auto_increment_increment and auto_increment_offset variables. */
 struct ib_sequence_t {

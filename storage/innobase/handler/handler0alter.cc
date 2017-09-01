@@ -727,13 +727,6 @@ ha_innobase::check_if_supported_inplace_alter(
 
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		}
-
-		/* Disable online ALTER TABLE for compressed columns until
-		MDEV-13359 - "Online ALTER TABLE will be disabled for compressed columns"
-		is fixed. */
-		if (field->compression_method()) {
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
 	}
 
 	ulint n_indexes = UT_LIST_GET_LEN((m_prebuilt->table)->indexes);
@@ -1032,12 +1025,6 @@ ha_innobase::check_if_supported_inplace_alter(
 			    || (ha_alter_info->handler_flags
 				& Alter_inplace_info::ADD_COLUMN));
 
-		/* Disable online ALTER TABLE for compressed columns until
-		MDEV-13359 - "Online ALTER TABLE will be disabled for compressed columns"
-		is fixed. */
-		if (cf->compression_method()) {
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
 		if (const Field* f = cf->field) {
 			/* This could be changing an existing column
 			from NULL to NOT NULL. */
@@ -1979,21 +1966,6 @@ innobase_row_to_mysql(
 		my_bitmap_map*	old_vcol_set = tmp_use_all_columns(table, table->vcol_set);
 		table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
 		tmp_restore_column_map(table->vcol_set, old_vcol_set);
-	}
-}
-
-/*************************************************************//**
-Resets table->record[0]. */
-void
-innobase_rec_reset(
-/*===============*/
-	TABLE*			table)		/*!< in/out: MySQL table */
-{
-	uint	n_fields	= table->s->fields;
-	uint	i;
-
-	for (i = 0; i < n_fields; i++) {
-		table->field[i]->set_default();
 	}
 }
 
