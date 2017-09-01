@@ -18,6 +18,6 @@ connection node_1;
 COMMIT;
 connection node_2;
 COMMIT;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: wsrep aborted transaction
 DROP SCHEMA test;
 CREATE SCHEMA test;
