@@ -2477,8 +2477,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       *(end= path + path_length - reg_ext_length)= '\0';
 
       if (thd->lex->sql_command == SQLCOM_DROP_TABLE &&
-        thd->variables.vers_ddl_survival &&
-        table_type && table_type != view_pseudo_hton)
+          thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE &&
+          table_type && table_type != view_pseudo_hton)
       {
         error= vtmd.check_exists(thd);
         if (error)
@@ -5075,7 +5075,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     }
   }
 
-  if (create_info->versioned() && thd->variables.vers_ddl_survival)
+  if (create_info->versioned() &&
+      thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
   {
     VTMD_table vtmd(*create_table);
     if (vtmd.update(thd))
@@ -6372,6 +6373,8 @@ static bool fill_alter_inplace_info(THD *thd,
     ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_CHECK_CONSTRAINT;
   if (alter_info->flags & Alter_info::ALTER_DROP_CHECK_CONSTRAINT)
     ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_CHECK_CONSTRAINT;
+  if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_DROP)
+    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_HISTORICAL;
 
   /*
     If we altering table with old VARCHAR fields we will be automatically
@@ -8561,8 +8564,11 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     else
     {
       VTMD_rename vtmd(*table_list);
-      if (thd->variables.vers_ddl_survival && vtmd.try_rename(thd, new_db_name, new_table_name))
+      if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE &&
+          vtmd.try_rename(thd, new_db_name, new_table_name))
+      {
         goto revert_table_name;
+      }
       else if (Table_triggers_list::change_table_name(thd,
                                                       alter_ctx->db,
                                                       alter_ctx->alias,
@@ -8570,7 +8576,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                                       alter_ctx->new_db,
                                                       alter_ctx->new_alias))
       {
-        if (thd->variables.vers_ddl_survival)
+        if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
           vtmd.revert_rename(thd, new_db_name);
 revert_table_name:
         (void) mysql_rename_table(old_db_type,
@@ -8711,7 +8717,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   thd->open_options&= ~HA_OPEN_FOR_ALTER;
   bool versioned= table_list->table && table_list->table->versioned();
   bool vers_data_mod= versioned &&
-    thd->variables.vers_ddl_survival &&
+    thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE &&
     alter_info->vers_data_modifying();
 
   if (vers_data_mod)
@@ -9949,11 +9955,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   else if (keep_versioned)
   {
     to->file->vers_auto_decrement= 0xffffffffffffffff;
-    if (thd->variables.vers_ddl_survival)
+    if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
     {
       query_start= thd->query_start_TIME();
       from_sys_trx_end= from->vers_end_field();
       to_sys_trx_start= to->vers_start_field();
+    } else if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_DROP)
+    {
+      from_sys_trx_end= from->vers_end_field();
     }
   }
 
@@ -10011,6 +10020,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       copy_ptr->do_copy(copy_ptr);
     }
 
+    if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_DROP &&
+        from_sys_trx_end && !from_sys_trx_end->is_max())
+    {
+      continue;
+    }
+
     if (make_versioned)
     {
       to_sys_trx_start->set_notnull();
@@ -10022,7 +10037,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       if (!from_sys_trx_end->is_max())
         continue; // Drop history rows.
     }
-    else if (keep_versioned && thd->variables.vers_ddl_survival)
+    else if (keep_versioned &&
+             thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
     {
       if (!from_sys_trx_end->is_max())
         continue; // Do not copy history rows.
@@ -10048,13 +10064,13 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       break;
     }
     if (keep_versioned && to->versioned_by_engine() &&
-        !thd->variables.vers_ddl_survival)
+        thd->variables.vers_alter_history != VERS_ALTER_HISTORY_SURVIVE)
     {
       to->s->versioned= false;
     }
     error= to->file->ha_write_row(to->record[0]);
     if (keep_versioned && to->versioned_by_engine() &&
-        !thd->variables.vers_ddl_survival)
+        thd->variables.vers_alter_history != VERS_ALTER_HISTORY_SURVIVE)
     {
       to->s->versioned= true;
     }

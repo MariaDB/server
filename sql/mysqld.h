@@ -208,6 +208,13 @@ enum vers_hide_enum
   VERS_HIDE_FULL,
   VERS_HIDE_NEVER
 };
+
+enum vers_alter_history_enum
+{
+  VERS_ALTER_HISTORY_KEEP,
+  VERS_ALTER_HISTORY_SURVIVE,
+  VERS_ALTER_HISTORY_DROP
+};
 /* System Versioning end */
 
 extern char *mysql_home_ptr, *pidfile_name_ptr;

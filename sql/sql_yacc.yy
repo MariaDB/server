@@ -15660,6 +15660,12 @@ set_expr_or_default:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
+        | DROP
+          {
+            $$=new (thd->mem_root) Item_string_sys(thd, "DROP",  4);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
         ;
 
 /* Lock function */

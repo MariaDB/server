@@ -68,7 +68,7 @@ create table t (a int) with system versioning;
 --error ER_NO_SUCH_TABLE
 show create table t for system_time as of now;
 
-set versioning_ddl_survival=on;
+set versioning_alter_history=survive;
 
 create or replace table t (a int) with system versioning;
 --error ER_VERS_RANGE_PROHIBITED

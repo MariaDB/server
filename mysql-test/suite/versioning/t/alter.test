@@ -257,6 +257,22 @@ select * from t;
 alter table t without system versioning;
 show create table t;
 
+set versioning_alter_history = DROP;
+
+create or replace table t (a int) with system versioning engine innodb;
+insert into t values (1);
+update t set a = 2;
+select * from t for system_time all;
+alter table t add column b int;
+select * from t for system_time all;
+
+create or replace table t (a int) with system versioning engine myisam;
+insert into t values (1);
+update t set a = 2;
+select * from t for system_time all;
+alter table t add column b int;
+select * from t for system_time all;
+
 call verify_vtq;
 drop table t;
 

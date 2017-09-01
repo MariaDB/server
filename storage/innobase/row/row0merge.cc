@@ -1797,7 +1797,8 @@ row_merge_read_clustered_index(
 	double 			pct_cost,
 	fil_space_crypt_t*	crypt_data,
 	row_merge_block_t*	crypt_block,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			drop_historical)
 
 {
 	dict_index_t*		clust_index;	/* Clustered index */
@@ -2237,7 +2238,7 @@ end_of_index:
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
 
-			bool row_is_historic = false;
+			bool historical_row = false;
 			if (DICT_TF2_FLAG_IS_SET(
 				    new_table, DICT_TF2_VERSIONED)) {
 				const dfield_t *dfield = dtuple_get_nth_field(
@@ -2245,7 +2246,7 @@ end_of_index:
 				const byte *data = static_cast<const byte *>(
 					dfield_get_data(dfield));
 				ut_ad(dfield_get_len(dfield) == 8);
-				row_is_historic =
+				historical_row =
 					mach_read_from_8(data) != TRX_ID_MAX;
 			}
 
@@ -2270,7 +2271,7 @@ end_of_index:
 			}
 
 			ulonglong value;
-			if (likely(!row_is_historic))
+			if (likely(!historical_row))
 				value = sequence++;
                         else
 				value = historic_auto_decrement--;
@@ -2302,8 +2303,9 @@ end_of_index:
 		}
 
 		if (DICT_TF2_FLAG_IS_SET(old_table, DICT_TF2_VERSIONED)) {
-			if (DICT_TF2_FLAG_IS_SET(
-				    new_table, DICT_TF2_VERSIONED)) {
+			if (DICT_TF2_FLAG_IS_SET(new_table,
+						 DICT_TF2_VERSIONED) &&
+			    !drop_historical) {
 				dfield_t *end = dtuple_get_nth_field(
 					row, new_table->vers_row_end);
 				byte *data = static_cast<byte *>(
@@ -4674,7 +4676,8 @@ row_merge_build_indexes(
 	bool			skip_pk_sort,
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			drop_historical)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
@@ -4848,7 +4851,8 @@ row_merge_build_indexes(
 			fts_sort_idx, psort_info, merge_files, key_numbers,
 			n_indexes, add_cols, add_v, col_map, add_autoinc,
 			sequence, block, skip_pk_sort, &tmpfd, stage,
-			pct_cost, crypt_data, crypt_block, eval_table);
+			pct_cost, crypt_data, crypt_block, eval_table,
+			drop_historical);
 
 	stage->end_phase_read_pk();
 

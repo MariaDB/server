@@ -44,12 +44,12 @@ substr(archive_name, 1, instr(archive_name, '_')) as C_archive_name
 from tmp_vtmd for system_time all;
 drop table tmp_vtmd;
 end~~
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 create or replace table t0 (x int) with system versioning;
 show tables;
 Tables_in_test
 t0
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 create or replace table t0 (x int) with system versioning;
 show tables;
 Tables_in_test
@@ -72,9 +72,9 @@ call check_vtmd('t0_vtmd');
 1
 A_start	B_end	name	C_archive_name
 1	1	t0	NULL
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 drop table t0;
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 create or replace table t0 (x int) with system versioning;
 ERROR HY000: VTMD error: `test.t0_vtmd` exists and not empty!
 alter table t0 add column (y int);
@@ -93,19 +93,19 @@ call check_vtmd('t0_vtmd');
 A_start	B_end	name	C_archive_name
 1	1	t0	t0_
 call drop_archives('t0_vtmd');
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 drop tables t0, t0_vtmd;
-set versioning_ddl_survival= on;
-set versioning_ddl_survival= off;
+set versioning_alter_history= survive;
+set versioning_alter_history= keep;
 create or replace table x0 (x int) with system versioning;
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 rename table x0 to d0;
 show tables;
 Tables_in_test
 d0
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 drop table d0;
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 create or replace table x0 (x int) with system versioning;
 rename table x0 to d0;
 show tables;
@@ -118,9 +118,9 @@ call check_vtmd('d0_vtmd');
 A_start	B_end	name	C_archive_name
 1	0	x0	NULL
 1	1	d0	NULL
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 drop table d0;
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 create or replace table x0 (x int) with system versioning;
 rename table x0 to d0;
 ERROR HY000: VTMD error: `test.d0_vtmd` table already exists!

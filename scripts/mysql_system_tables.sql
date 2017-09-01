@@ -23,7 +23,7 @@ set sql_mode='';
 set @orig_storage_engine=@@storage_engine;
 set storage_engine=myisam;
 
-set versioning_ddl_survival=off;
+set versioning_alter_history=keep;
 
 set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
 SET @innodb_or_myisam=IF(@have_innodb <> 0, 'InnoDB', 'MyISAM');

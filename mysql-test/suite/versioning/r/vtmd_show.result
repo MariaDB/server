@@ -52,7 +52,7 @@ end~~
 create table t (a int) with system versioning;
 show create table t for system_time as of now;
 ERROR 42S02: Table 'test.t_vtmd' doesn't exist
-set versioning_ddl_survival=on;
+set versioning_alter_history=survive;
 create or replace table t (a int) with system versioning;
 show create table t for system_time between timestamp @tm1 and timestamp @tm1;
 ERROR HY000: SYSTEM_TIME range selector is prohibited

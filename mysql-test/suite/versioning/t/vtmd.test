@@ -57,18 +57,18 @@ end~~
 delimiter ;~~
 
 # create
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 create or replace table t0 (x int) with system versioning;
 show tables;
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 create or replace table t0 (x int) with system versioning;
 show tables;
 show create table t0_vtmd;
 call check_vtmd('t0_vtmd');
 
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 drop table t0;
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 --error ER_VERS_VTMD_ERROR
 create or replace table t0 (x int) with system versioning;
 
@@ -82,28 +82,28 @@ alter table t0 drop column y;
 call check_vtmd('t0_vtmd');
 
 call drop_archives('t0_vtmd');
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 drop tables t0, t0_vtmd;
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 
 # rename
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 create or replace table x0 (x int) with system versioning;
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 rename table x0 to d0;
 show tables;
 
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 drop table d0;
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 create or replace table x0 (x int) with system versioning;
 rename table x0 to d0;
 show tables;
 call check_vtmd('d0_vtmd');
 
-set versioning_ddl_survival= off;
+set versioning_alter_history= keep;
 drop table d0;
-set versioning_ddl_survival= on;
+set versioning_alter_history= survive;
 create or replace table x0 (x int) with system versioning;
 
 --error ER_VERS_VTMD_ERROR

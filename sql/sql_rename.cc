@@ -300,7 +300,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
         (void) rename_table_in_stat_tables(thd, &db_name, &table_name,
                                            &new_db_name, &new_table);
         VTMD_rename vtmd(*ren_table);
-        if (thd->variables.vers_ddl_survival)
+        if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
         {
           rc= vtmd.try_rename(thd, new_db_name, new_table);
           if (rc)
@@ -313,7 +313,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
                                                       new_alias);
         if (rc)
         {
-          if (thd->variables.vers_ddl_survival)
+          if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
             vtmd.revert_rename(thd, new_db_name);
 revert_table_name:
           /*
