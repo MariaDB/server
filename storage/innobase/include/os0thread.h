@@ -128,10 +128,8 @@ os_thread_join(
 /** Exits the current thread.
 @param[in]	detach	if true, the thread will be detached right before
 exiting. If false, another thread is responsible for joining this thread */
-void
-os_thread_exit(
-	bool	detach = true)
-	UNIV_COLD MY_ATTRIBUTE((noreturn));
+ATTRIBUTE_NORETURN ATTRIBUTE_COLD
+void os_thread_exit(bool detach = true);
 
 /*****************************************************************//**
 Returns the thread identifier of current thread.

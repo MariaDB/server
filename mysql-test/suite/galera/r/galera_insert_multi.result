@@ -51,7 +51,7 @@ connection node_1;
 COMMIT;
 connection node_2;
 COMMIT;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: wsrep aborted transaction
 ROLLBACK;
 INSERT INTO t1 VALUES (1), (2);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'

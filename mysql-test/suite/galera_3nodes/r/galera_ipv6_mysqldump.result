@@ -1,0 +1,26 @@
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
+SET GLOBAL wsrep_sst_auth = 'sst:';
+SET GLOBAL wsrep_sst_method = 'mysqldump';
+Unloading wsrep provider ...
+SET GLOBAL wsrep_provider = 'none';
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+Loading wsrep provider ...
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+DROP TABLE t1;
+SELECT VARIABLE_VALUE LIKE '%[::1]%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_incoming_addresses';
+VARIABLE_VALUE LIKE '%[::1]%'
+1
+CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+DROP USER sst;
+CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+CALL mtr.add_suppression("InnoDB: Error: Table \"mysql\"\\.\"innodb_index_stats\" not found");
+CALL mtr.add_suppression("InnoDB: New log files created");
+CALL mtr.add_suppression("InnoDB: Creating foreign key constraint system tables");
+CALL mtr.add_suppression("Can't open and lock time zone table");
+CALL mtr.add_suppression("Can't open and lock privilege tables");
+CALL mtr.add_suppression("Info table is not ready to be used");
+CALL mtr.add_suppression("Native table .* has the wrong structure");
+CALL mtr.add_suppression("Unsupported protocol downgrade: incremental data collection disabled. Expect abort");

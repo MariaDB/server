@@ -217,12 +217,15 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
 {
   THD* const thd((THD*)ctx);
 
+  assert(thd->wsrep_apply_toi == false);
+
   // Allow tests to block the applier thread using the DBUG facilities.
   DBUG_EXECUTE_IF("sync.wsrep_apply_cb",
                  {
                    const char act[]=
                      "now "
-                     "wait_for signal.wsrep_apply_cb";
+                     "SIGNAL sync.wsrep_apply_cb_reached "
+                     "WAIT_FOR signal.wsrep_apply_cb";
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
@@ -382,7 +385,7 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
     mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
   }
 
-  if (*exit == false && thd->wsrep_applier)
+  if (thd->wsrep_applier)
   {
     /* From trans_begin() */
     thd->variables.option_bits|= OPTION_BEGIN;

@@ -1867,7 +1867,7 @@ dict_set_corrupted(
 	dict_index_t*	index,	/*!< in/out: index */
 	trx_t*		trx,	/*!< in/out: transaction */
 	const char*	ctx)	/*!< in: context */
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	ATTRIBUTE_COLD __attribute__((nonnull));
 
 /** Flags an index corrupted in the data dictionary cache only. This
 is used mostly to mark a corrupted index when index's own dictionary

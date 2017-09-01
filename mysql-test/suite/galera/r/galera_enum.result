@@ -38,7 +38,7 @@ connection node_1;
 COMMIT;
 connection node_2;
 COMMIT;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: wsrep aborted transaction
 connection node_1;
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 'three';
 COUNT(*) = 1

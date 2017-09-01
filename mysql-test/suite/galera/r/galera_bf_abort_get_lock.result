@@ -10,7 +10,7 @@ SELECT GET_LOCK("foo", 1000);;
 connection node_1;
 INSERT INTO t1 VALUES (1);
 connection node_2;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: wsrep aborted transaction
 wsrep_local_aborts_increment
 1
 DROP TABLE t1;

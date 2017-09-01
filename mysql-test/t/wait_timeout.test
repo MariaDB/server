@@ -122,9 +122,21 @@ SELECT 3;
 eval SET @@global.wait_timeout= $start_value;
 disconnect con1;
 
-
-# The last connect is to keep tools checking the current test happy.
 connect (default,localhost,root,,test,,);
+
+#
+# MDEV-7775 Wrong error message (Unknown error) when idle sessions are killed after wait_timeout
+#
+set global log_warnings=2;
+connect (foo,localhost,root);
+set @@wait_timeout=1;
+sleep 2;
+connection default;
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= Aborted.*Got timeout reading communication packets;
+source include/search_pattern_in_file.inc;
+set global log_warnings=@@log_warnings;
+
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc

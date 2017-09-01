@@ -9,7 +9,7 @@ connection node_1;
 TRUNCATE TABLE t1;;
 connection node_1;
 connection node_2;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: wsrep aborted transaction
 connection node_2;
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0

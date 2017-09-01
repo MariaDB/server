@@ -17,7 +17,7 @@ INSERT INTO t1 VALUES (1);
 connection node_3;
 connection node_1;
 DROP TABLE t1;
-SET global wsrep_sync_wait=7;
+SET global wsrep_sync_wait=15;
 connection node_3;
 STOP SLAVE;
 RESET SLAVE ALL;

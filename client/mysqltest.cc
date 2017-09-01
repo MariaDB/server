@@ -574,15 +574,17 @@ struct st_replace *glob_replace= 0;
 void replace_strings_append(struct st_replace *rep, DYNAMIC_STRING* ds,
 const char *from, int len);
 
-static void cleanup_and_exit(int exit_code) __attribute__((noreturn));
+ATTRIBUTE_NORETURN
+static void cleanup_and_exit(int exit_code);
 
-void really_die(const char *msg) __attribute__((noreturn));
+ATTRIBUTE_NORETURN
+void really_die(const char *msg);
 void report_or_die(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-void die(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2)
-  __attribute__((noreturn));
+ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
+void die(const char *fmt, ...);
 static void make_error_message(char *buf, size_t len, const char *fmt, va_list args);
-void abort_not_supported_test(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2)
-  __attribute__((noreturn));
+ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
+void abort_not_supported_test(const char *fmt, ...);
 void verbose_msg(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 void log_msg(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 
@@ -4022,7 +4024,25 @@ static int rmtree(const char *dir)
     strxnmov(path, sizeof(path), dir, sep, file->name, NULL);
 
     if (!MY_S_ISDIR(file->mystat->st_mode))
+    {
       err= my_delete(path, 0);
+#ifdef _WIN32
+      /*
+        On Windows, check and possible reset readonly attribute.
+        my_delete(), or DeleteFile does not remove theses files.
+      */
+      if (err)
+      {
+        DWORD attr= GetFileAttributes(path);
+        if (attr != INVALID_FILE_ATTRIBUTES &&
+           (attr & FILE_ATTRIBUTE_READONLY))
+        {
+          SetFileAttributes(path, attr &~ FILE_ATTRIBUTE_READONLY);
+          err= my_delete(path, 0);
+        }
+      }
+#endif
+    }
     else
       err= rmtree(path);
 

@@ -777,7 +777,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
       (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table))  &&
       wsrep_to_isolation_begin(
-        thd, first_table->db, first_table->table_name, NULL)
+          thd, first_table->db, first_table->table_name, NULL)
       )
   {
     WSREP_WARN("ALTER TABLE TRUNCATE PARTITION isolation failure");

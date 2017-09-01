@@ -191,7 +191,12 @@ fil_crypt_get_latest_key_version(
 				crypt_data->min_key_version,
 				key_version,
 				srv_fil_crypt_rotate_key_age)) {
-			os_event_set(fil_crypt_threads_event);
+			/* Below event seen as NULL-pointer at startup
+			when new database was created and we create a
+			checkpoint. Only seen when debugging. */
+			if (fil_crypt_threads_inited) {
+				os_event_set(fil_crypt_threads_event);
+			}
 		}
 	}
 
@@ -1398,7 +1403,7 @@ fil_crypt_realloc_iops(
 		DBUG_PRINT("ib_crypt",
 			("thr_no: %u only waited %lu%% skip re-estimate.",
 			state->thread_no,
-			(100 * state->cnt_waited) / state->batch));
+			(100 * state->cnt_waited) / (state->batch ? state->batch : 1)));
 	}
 
 	if (state->estimated_max_iops <= state->allocated_iops) {
@@ -1501,7 +1506,7 @@ fil_crypt_find_space_to_rotate(
 	/* we need iops to start rotating */
 	while (!state->should_shutdown() && !fil_crypt_alloc_iops(state)) {
 		os_event_reset(fil_crypt_threads_event);
-		os_event_wait_time(fil_crypt_threads_event, 1000000);
+		os_event_wait_time(fil_crypt_threads_event, 100000);
 	}
 
 	if (state->should_shutdown()) {
@@ -1647,20 +1652,6 @@ fil_crypt_find_page_to_rotate(
 	crypt_data->rotate_state.next_offset += batch;
 	mutex_exit(&crypt_data->mutex);
 	return found;
-}
-
-/***********************************************************************
-Check if a page is uninitialized (doesn't need to be rotated)
-@param[in]	frame		Page to check
-@param[in]	zip_size	zip_size or 0
-@return true if page is uninitialized, false if not. */
-static inline
-bool
-fil_crypt_is_page_uninitialized(
-	const byte	*frame,
-	uint		zip_size)
-{
-	return (buf_page_is_zeroes(frame, zip_size));
 }
 
 #define fil_crypt_get_page_throttle(state,offset,mtr,sleeptime_ms) \
@@ -1823,6 +1814,7 @@ fil_crypt_rotate_page(
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
 	ut_ad(space->n_pending_ops > 0);
+	ut_ad(offset > 0);
 
 	/* In fil_crypt_thread where key rotation is done we have
 	acquired space and checked that this space is not yet
@@ -1851,31 +1843,40 @@ fil_crypt_rotate_page(
 		byte* frame = buf_block_get_frame(block);
 		uint kv =  mach_read_from_4(frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
-		/* check if tablespace is closing after reading page */
-		if (!space->is_stopping()) {
+		if (space->is_stopping()) {
+			/* The tablespace is closing (in DROP TABLE or
+			TRUNCATE TABLE or similar): avoid further access */
+		} else if (!*reinterpret_cast<uint32_t*>(FIL_PAGE_OFFSET
+							 + frame)) {
+			/* It looks like this page was never
+			allocated. Because key rotation is accessing
+			pages in a pattern that is unlike the normal
+			B-tree and undo log access pattern, we cannot
+			invoke fseg_page_is_free() here, because that
+			could result in a deadlock. If we invoked
+			fseg_page_is_free() and released the
+			tablespace latch before acquiring block->lock,
+			then the fseg_page_is_free() information
+			could be stale already. */
+			ut_ad(kv == 0);
+			ut_ad(page_get_space_id(frame) == 0);
+		} else if (fil_crypt_needs_rotation(
+				   crypt_data->encryption,
+				   kv, key_state->key_version,
+				   key_state->rotate_key_age)) {
 
-			if (kv == 0 &&
-				fil_crypt_is_page_uninitialized(frame, zip_size)) {
-				;
-			} else if (fil_crypt_needs_rotation(
-					crypt_data->encryption,
-					kv, key_state->key_version,
-					key_state->rotate_key_age)) {
+			modified = true;
 
-				modified = true;
+			/* force rotation by dummy updating page */
+			mlog_write_ulint(frame + FIL_PAGE_SPACE_ID,
+					 space_id, MLOG_4BYTES, &mtr);
 
-				/* force rotation by dummy updating page */
-				mlog_write_ulint(frame +
-					FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-					space_id, MLOG_4BYTES, &mtr);
-
-				/* statistics */
-				state->crypt_stat.pages_modified++;
-			} else {
-				if (crypt_data->is_encrypted()) {
-					if (kv < state->min_key_version_found) {
-						state->min_key_version_found = kv;
-					}
+			/* statistics */
+			state->crypt_stat.pages_modified++;
+		} else {
+			if (crypt_data->is_encrypted()) {
+				if (kv < state->min_key_version_found) {
+					state->min_key_version_found = kv;
 				}
 			}
 
@@ -2126,7 +2127,8 @@ fil_crypt_complete_rotate_space(
 		mutex_exit(&crypt_data->mutex);
 
 		/* all threads must call btr_scrub_complete_space wo/ mutex held */
-		if (btr_scrub_complete_space(&state->scrub_data) == true) {
+		if (state->scrub_data.scrubbing) {
+			btr_scrub_complete_space(&state->scrub_data);
 			if (should_flush) {
 				/* only last thread updates last_scrub_completed */
 				ut_ad(crypt_data);
@@ -2302,7 +2304,7 @@ fil_crypt_set_thread_cnt(
 			os_thread_create(fil_crypt_thread, NULL, &rotation_thread_id);
 
 			ib_logf(IB_LOG_LEVEL_INFO,
-				"Creating #%d thread id %lu total threads %u.",
+				"Creating #%d encryption thread id %lu total threads %u.",
 				i+1, os_thread_pf(rotation_thread_id), new_cnt);
 		}
 	} else if (new_cnt < srv_n_fil_crypt_threads) {
@@ -2314,7 +2316,13 @@ fil_crypt_set_thread_cnt(
 
 	while(srv_n_fil_crypt_threads_started != srv_n_fil_crypt_threads) {
 		os_event_reset(fil_crypt_event);
-		os_event_wait_time(fil_crypt_event, 1000000);
+		os_event_wait_time(fil_crypt_event, 100000);
+	}
+
+	/* Send a message to encryption threads that there could be
+	something to do. */
+	if (srv_n_fil_crypt_threads) {
+		os_event_set(fil_crypt_threads_event);
 	}
 }
 
@@ -2460,9 +2468,10 @@ fil_space_crypt_get_status(
 
 	ut_ad(space->n_pending_ops > 0);
 	fil_crypt_read_crypt_data(const_cast<fil_space_t*>(space));
-	status->space = space->id;
+	status->space = ULINT_UNDEFINED;
 
 	if (fil_space_crypt_t* crypt_data = space->crypt_data) {
+		status->space = space->id;
 		mutex_enter(&crypt_data->mutex);
 		status->scheme = crypt_data->type;
 		status->keyserver_requests = crypt_data->keyserver_requests;

@@ -34,6 +34,7 @@ Created 2/27/1997 Heikki Tuuri
 #include "trx0roll.h"
 #include "btr0btr.h"
 #include "mach0data.h"
+#include "ibuf0ibuf.h"
 #include "row0undo.h"
 #include "row0vers.h"
 #include "row0log.h"
@@ -422,23 +423,15 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	mtr_t			mtr;
 	mtr_t			mtr_vers;
 	row_search_result	search_result;
-	ibool			modify_leaf = false;
+	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
-	log_free_check();
-	//mtr_start_trx(&mtr, thr_get_trx(thr));
-	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
-	dict_disable_redo_if_temporary(index->table, &mtr);
-
-	if (mode == BTR_MODIFY_LEAF) {
-		modify_leaf = true;
-	}
+	row_mtr_start(&mtr, index, !modify_leaf);
 
 	if (!index->is_committed()) {
 		/* The index->online_status may change if the index is
 		or was being created online, but not committed yet. It
 		is protected by index->lock. */
-		if (mode == BTR_MODIFY_LEAF) {
+		if (modify_leaf) {
 			mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
 			mtr_s_lock(dict_index_get_lock(index), &mtr);
 		} else {
@@ -459,7 +452,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	btr_cur = btr_pcur_get_btr_cur(&pcur);
 
 	if (dict_index_is_spatial(index)) {
-		if (mode & BTR_MODIFY_LEAF) {
+		if (modify_leaf) {
 			btr_cur->thr = thr;
 			mode |= BTR_RTREE_DELETE_MARK;
 		}
@@ -631,11 +624,7 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 	}
 
 try_again:
-	log_free_check();
-	//mtr_start_trx(&mtr, thr_get_trx(thr));
-	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
-	dict_disable_redo_if_temporary(index->table, &mtr);
+	row_mtr_start(&mtr, index, !(mode & BTR_MODIFY_LEAF));
 
 	if (!index->is_committed()) {
 		/* The index->online_status may change if the index is

@@ -204,6 +204,10 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     case KILL_SLAVE_SAME_ID:
       kreason= "KILL_SLAVE_SAME_ID";
       break;
+    case KILL_WAIT_TIMEOUT:
+    case KILL_WAIT_TIMEOUT_HARD:
+      kreason= "KILL_WAIT_TIMEOUT";
+      break;
     }
     my_safe_printf_stderr("%s", "\n"
       "Trying to get some variables.\n"

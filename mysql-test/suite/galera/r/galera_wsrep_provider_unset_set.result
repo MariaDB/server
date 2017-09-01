@@ -1,12 +1,20 @@
+connection node_1;
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
+connection node_2;
 SET GLOBAL wsrep_provider='none';
 INSERT INTO t1 VALUES (2);
+connection node_1;
 INSERT INTO t1 VALUES (3);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
 INSERT INTO t1 VALUES (4);
 SELECT COUNT(*) = 4 FROM t1;
 COUNT(*) = 4
 1
+connection node_1;
 SELECT COUNT(*) = 3 FROM t1;
 COUNT(*) = 3
 1

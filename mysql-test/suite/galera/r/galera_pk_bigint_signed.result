@@ -27,6 +27,6 @@ COMMIT;
 SET AUTOCOMMIT=ON;
 connection node_2;
 COMMIT;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: wsrep aborted transaction
 SET AUTOCOMMIT=ON;
 DROP TABLE t1;

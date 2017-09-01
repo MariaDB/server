@@ -3624,6 +3624,7 @@ mysql_execute_command(THD *thd)
 #endif
   case SQLCOM_SHOW_STATUS:
   {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     execute_show_status(thd, all_tables);
     break;
   }
@@ -3662,21 +3663,21 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_TABLE_STATUS:
   case SQLCOM_SHOW_OPEN_TABLES:
   case SQLCOM_SHOW_GENERIC:
+  case SQLCOM_SHOW_PLUGINS:
   case SQLCOM_SHOW_FIELDS:
   case SQLCOM_SHOW_KEYS:
-  case SQLCOM_SELECT:
-    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
-      goto error;
-    /* fall through */
-  case SQLCOM_SHOW_PLUGINS:
   case SQLCOM_SHOW_VARIABLES:
   case SQLCOM_SHOW_CHARSETS:
   case SQLCOM_SHOW_COLLATIONS:
   case SQLCOM_SHOW_STORAGE_ENGINES:
   case SQLCOM_SHOW_PROFILE:
-  {
+  case SQLCOM_SELECT:
+   {
 #ifdef WITH_WSREP
-    DBUG_ASSERT(thd->wsrep_exec_mode != REPL_RECV);
+      if (lex->sql_command == SQLCOM_SELECT)
+        WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ)
+      else
+        WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW)
 #endif /* WITH_WSREP */
 
     thd->status_var.last_query_cost= 0.0;
@@ -3805,6 +3806,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_RELAYLOG_EVENTS: /* fall through */
   case SQLCOM_SHOW_BINLOG_EVENTS:
   {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     if (check_global_access(thd, REPL_SLAVE_ACL))
       goto error;
     res = mysql_show_binlog_events(thd);
@@ -4385,6 +4387,7 @@ end_with_restore_list:
     {
       if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
 	goto error;
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
       res = show_binlogs(thd);
       break;
     }
@@ -4392,15 +4395,13 @@ end_with_restore_list:
 #endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE:
   {
-    DBUG_ASSERT(first_table == all_tables && first_table != 0);
+     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 #ifdef DONT_ALLOW_SHOW_COMMANDS
     my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
                MYF(0)); /* purecov: inspected */
     goto error;
 #else
-
-      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
-        goto error;
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
 
      /*
         Access check:
@@ -4463,8 +4464,7 @@ end_with_restore_list:
   case SQLCOM_CHECKSUM:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
-    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
-      goto error;
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ);
 
     if (check_table_access(thd, SELECT_ACL, all_tables,
                            FALSE, UINT_MAX, FALSE))
@@ -4475,6 +4475,7 @@ end_with_restore_list:
   }
   case SQLCOM_UPDATE:
   {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
     ha_rows found= 0, updated= 0;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
       if (WSREP_CLIENT(thd) &&
@@ -4517,9 +4518,7 @@ end_with_restore_list:
     /* if we switched from normal update, rights are checked */
     if (up_result != 2)
     {
-      if (WSREP_CLIENT(thd) &&
-          wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE))
-        goto error;
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
       if ((res= multi_update_precheck(thd, all_tables)))
         break;
     }
@@ -4589,10 +4588,6 @@ end_with_restore_list:
     break;
   }
   case SQLCOM_REPLACE:
-  {
-    if (WSREP_CLIENT(thd) &&
-        wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE))
-      goto error;
 #ifndef DBUG_OFF
     if (mysql_bin_log.is_open())
     {
@@ -4627,10 +4622,10 @@ end_with_restore_list:
       DBUG_PRINT("debug", ("Just after generate_incident()"));
     }
 #endif
-  }
   /* fall through */
   case SQLCOM_INSERT:
   {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 
     if (WSREP_CLIENT(thd) &&
@@ -4689,6 +4684,7 @@ end_with_restore_list:
   case SQLCOM_REPLACE_SELECT:
   case SQLCOM_INSERT_SELECT:
   {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
     select_result *sel_result;
     bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
@@ -4812,6 +4808,7 @@ end_with_restore_list:
   }
   case SQLCOM_DELETE:
   {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
     select_result *sel_result=lex->result;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if (WSREP_CLIENT(thd) &&
@@ -4872,6 +4869,7 @@ end_with_restore_list:
   }
   case SQLCOM_DELETE_MULTI:
   {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
     multi_delete *result;
@@ -4953,19 +4951,6 @@ end_with_restore_list:
       /* So that DROP TEMPORARY TABLE gets to binlog at commit/rollback */
       thd->variables.option_bits|= OPTION_KEEP_LOG;
     }
-   if (WSREP(thd))
-   {
-     for (TABLE_LIST *table= all_tables; table; table= table->next_global)
-     {
-       if (!lex->tmp_table() &&
-          (!thd->is_current_stmt_binlog_format_row() ||
-	   !thd->find_temporary_table(table)))
-       {
-         WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
-         break;
-       }
-     }
-   }
     /*
       If we are a slave, we should add IF EXISTS if the query executed
       on the master without an error. This will help a slave to
@@ -4975,6 +4960,20 @@ end_with_restore_list:
     if (thd->slave_thread && !thd->slave_expected_error &&
         slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
+
+    if (WSREP(thd))
+    {
+      for (TABLE_LIST *table= all_tables; table; table= table->next_global)
+      {
+        if (!lex->tmp_table() &&
+           (!thd->is_current_stmt_binlog_format_row() ||
+	    !thd->find_temporary_table(table)))
+        {
+          WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
+          break;
+        }
+      }
+    }
     
     /* DDL and binlog write order are protected by metadata locks. */
     res= mysql_rm_table(thd, first_table, lex->if_exists(), lex->tmp_table(),
@@ -5219,9 +5218,7 @@ end_with_restore_list:
     db_name.length= lex->name.length;
     strmov(db_name_buff, lex->name.str);
 
-#ifdef WITH_WSREP
-    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
-#endif /* WITH_WSREP */
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
 
     if (check_db_name((LEX_STRING*) &db_name))
     {
@@ -5276,9 +5273,7 @@ end_with_restore_list:
   /* lex->unit.cleanup() is called outside, no need to call it here */
   break;
   case SQLCOM_SHOW_CREATE_EVENT:
-#ifdef WITH_WSREP
-    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
-#endif /* WITH_WSREP */
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     res= Events::show_create_event(thd, &lex->spname->m_db,
                                    &lex->spname->m_name);
     break;
@@ -5662,6 +5657,7 @@ end_with_restore_list:
     if (!grant_user)
       goto error;
 
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     res = mysql_show_grants(thd, grant_user);
     break;
   }
@@ -5976,10 +5972,8 @@ end_with_restore_list:
   case SQLCOM_SHOW_CREATE_PROC:
   case SQLCOM_SHOW_CREATE_FUNC:
     {
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
       const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
-#ifdef WITH_WSREP
-      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
-#endif /* WITH_WSREP */
       if (sph->sp_show_create_routine(thd, lex->spname))
         goto error;
       break;
@@ -5990,9 +5984,7 @@ end_with_restore_list:
 #ifndef DBUG_OFF
       sp_head *sp;
       const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
-#ifdef WITH_WSREP
-      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
-#endif /* WITH_WSREP */
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
       if (sph->sp_cache_routine(thd, lex->spname, false, &sp))
         goto error;
       if (!sp || sp->show_routine_code(thd))
@@ -6014,9 +6006,7 @@ end_with_restore_list:
       if (check_ident_length(&lex->spname->m_name))
         goto error;
 
-#ifdef WITH_WSREP
-      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
-#endif /* WITH_WSREP */
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
       if (show_create_trigger(thd, lex->spname))
         goto error; /* Error has been already logged. */
 
@@ -6477,6 +6467,7 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
   if (!(res= check_table_access(thd, SELECT_ACL, all_tables, FALSE,
                                 UINT_MAX, FALSE)))
     res= execute_sqlcom_select(thd, all_tables);
+
   /* Don't log SHOW STATUS commands to slow query log */
   thd->server_status&= ~(SERVER_QUERY_NO_INDEX_USED |
                          SERVER_QUERY_NO_GOOD_INDEX_USED);

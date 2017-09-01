@@ -720,25 +720,9 @@ trx_resurrect_insert(
 				"InnoDB: Transaction " TRX_ID_FMT " was in the"
 				" XA prepared state.\n", trx->id);
 
-			if (srv_force_recovery == 0) {
-
-				/* XtraBackup should rollback prepared XA
-				transactions */
-				if (IS_XTRABACKUP()) {
-					trx->state = TRX_STATE_ACTIVE;
-				}
-				else {
-					trx->state = TRX_STATE_PREPARED;
-					trx_sys->n_prepared_trx++;
-					trx_sys->n_prepared_recovered_trx++;
-				}
-			} else {
-				fprintf(stderr,
-					"InnoDB: Since innodb_force_recovery"
-					" > 0, we will rollback it anyway.\n");
-
-				trx->state = TRX_STATE_ACTIVE;
-			}
+			trx->state = TRX_STATE_PREPARED;
+			trx_sys->n_prepared_trx++;
+			trx_sys->n_prepared_recovered_trx++;
 		} else {
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
 		}
@@ -796,25 +780,14 @@ trx_resurrect_update_in_prepared_state(
 			"InnoDB: Transaction " TRX_ID_FMT
 			" was in the XA prepared state.\n", trx->id);
 
-		if (srv_force_recovery == 0) {
-			if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
-				if (!IS_XTRABACKUP()) {
-					trx_sys->n_prepared_trx++;
-					trx_sys->n_prepared_recovered_trx++;
-				}
-			} else {
-				ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
-			}
-			/* XtraBackup should rollback prepared XA
-			transactions */
-			trx->state = IS_XTRABACKUP()?TRX_STATE_ACTIVE: TRX_STATE_PREPARED;
+		if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
+			trx_sys->n_prepared_trx++;
+			trx_sys->n_prepared_recovered_trx++;
 		} else {
-			fprintf(stderr,
-				"InnoDB: Since innodb_force_recovery"
-				" > 0, we will rollback it anyway.\n");
-
-			trx->state = TRX_STATE_ACTIVE;
+			ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
 		}
+
+		trx->state = TRX_STATE_PREPARED;
 	} else {
 		trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
 	}

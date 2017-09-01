@@ -10,6 +10,7 @@ SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
 --connection node_2
 SET @@global.wsrep_desync = 1;
 SET SESSION wsrep_dirty_reads=1;
+SET SESSION wsrep_sync_wait=0;
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 --let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc
@@ -27,9 +28,12 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
 # Reconnect node 2 to the PC:
 --connection node_2
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+SET wsrep_dirty_reads=0;
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
 --source include/wait_condition.inc
 
 # Must return 0:
@@ -41,6 +45,7 @@ SET @@global.wsrep_desync = 0;
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
 --source include/wait_condition.inc
 
+SET SESSION wsrep_sync_wait=15;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 CALL mtr.add_suppression("WSREP: Protocol violation. JOIN message sender (.*) is not in state transfer \\(SYNCED\\). Message ignored.");

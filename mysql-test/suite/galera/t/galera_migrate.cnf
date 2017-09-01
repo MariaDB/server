@@ -13,7 +13,7 @@ log-bin=mysqld-bin
 
 wsrep_node_address=127.0.0.1
 wsrep_causal_reads=ON
-wsrep_sync_wait = 7
+wsrep_sync_wait = 15
 
 [mysqld.1]
 #galera_port=@OPT.port
