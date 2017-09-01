@@ -73,6 +73,7 @@ void select_unit::change_select()
   case INTERSECT_TYPE:
     intersect_mark->value= prev_step= curr_step;
     curr_step= current_select_number;
+    /* fall through */
   case EXCEPT_TYPE:
     step= thd->lex->current_select->linkage;
     break;
