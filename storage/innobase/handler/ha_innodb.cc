@@ -3645,16 +3645,6 @@ static uint innobase_partition_flags()
 	return (0);
 }
 
-static const char*	deprecated_use_mtflush
-	= "Using innodb_use_mtflush is deprecated"
-	" and the parameter will be removed in MariaDB 10.3."
-	" Use innodb-page-cleaners instead. ";
-
-static const char*	deprecated_mtflush_threads
-	= "Using innodb_mtflush_threads is deprecated"
-	" and the parameter will be removed in MariaDB 10.3."
-	" Use innodb-page-cleaners instead. ";
-
 /** Update log_checksum_algorithm_ptr with a pointer to the function
 corresponding to whether checksums are enabled.
 @param[in,out]	thd	client session, or NULL if at startup
@@ -3990,14 +3980,6 @@ innobase_init(
 	if (strchr(srv_log_group_home_dir, ';')) {
 		sql_print_error("syntax error in innodb_log_group_home_dir");
 		DBUG_RETURN(innobase_init_abort());
-	}
-
-	if (srv_use_mtflush) {
-		ib::warn() << deprecated_use_mtflush;
-	}
-
-	if (srv_use_mtflush && srv_mtflush_threads != MTFLUSH_DEFAULT_WORKER) {
-		ib::warn() << deprecated_mtflush_threads;
 	}
 
 	if (innobase_change_buffering) {
@@ -21012,20 +20994,6 @@ static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   PAGE_ZLIB_ALGORITHM,
   &page_compression_algorithms_typelib);
 
-static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "DEPRECATED. Number of multi-threaded flush threads",
-  NULL, NULL,
-  MTFLUSH_DEFAULT_WORKER, /* Default setting */
-  1,                      /* Minimum setting */
-  MTFLUSH_MAX_WORKER,     /* Max setting */
-  0);
-
-static MYSQL_SYSVAR_BOOL(use_mtflush, srv_use_mtflush,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "DEPRECATED. Use multi-threaded flush. Default FALSE.",
-  NULL, NULL, FALSE);
-
 static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wait_threshold,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Maximum number of seconds that semaphore times out in InnoDB.",
@@ -21324,8 +21292,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   /* Table page compression feature */
   MYSQL_SYSVAR(compression_default),
   MYSQL_SYSVAR(compression_algorithm),
-  MYSQL_SYSVAR(mtflush_threads),
-  MYSQL_SYSVAR(use_mtflush),
   /* Encryption feature */
   MYSQL_SYSVAR(encrypt_tables),
   MYSQL_SYSVAR(encryption_threads),

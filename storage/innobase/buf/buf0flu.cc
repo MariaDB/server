@@ -31,7 +31,6 @@ Created 11/11/1995 Heikki Tuuri
 
 #include "buf0flu.h"
 #include "buf0buf.h"
-#include "buf0mtflu.h"
 #include "buf0checksum.h"
 #include "srv0start.h"
 #include "srv0srv.h"
@@ -2142,10 +2141,6 @@ buf_flush_lists(
 	ulint		n_flushed = 0;
 	bool		success = true;
 
-	if (buf_mtflu_init_done()) {
-		return(buf_mtflu_flush_list(min_n, lsn_limit, n_processed));
-	}
-
 	if (n_processed) {
 		*n_processed = 0;
 	}
@@ -2303,11 +2298,6 @@ buf_flush_LRU_list(
 	flush_counters_t	n;
 
 	memset(&n, 0, sizeof(flush_counters_t));
-
-	if(buf_mtflu_init_done())
-	{
-		return(buf_mtflu_flush_LRU_tail());
-	}
 
 	ut_ad(buf_pool);
 	/* srv_LRU_scan_depth can be arbitrarily large value.

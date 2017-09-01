@@ -36,7 +36,6 @@ SET(INNOBASE_SOURCES
 	buf/buf0flu.cc
 	buf/buf0lru.cc
 	buf/buf0rea.cc
-	buf/buf0mtflu.cc
 	data/data0data.cc
 	data/data0type.cc
 	dict/dict0boot.cc
