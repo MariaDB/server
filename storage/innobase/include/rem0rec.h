@@ -894,7 +894,7 @@ rec_fold(
 	const ulint*	offsets,
 	ulint		n_fields,
 	ulint		n_bytes,
-	const dict_index_t*	index)
+	index_id_t	index_id)
 	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************//**
 Builds a physical record out of a data tuple and
