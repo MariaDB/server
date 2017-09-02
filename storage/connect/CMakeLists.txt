@@ -290,33 +290,33 @@ IF(CONNECT_WITH_ZIP)
 ENDIF(CONNECT_WITH_ZIP)
 
 #
-# MONGO C Driver (CMAKE NOT YET WORKING)
+# MONGO C Driver
 #
 
-#IF(CONNECT_WITH_MONGO)
-#  IF(WIN32)
-#    # Adding some typical places to search in
-#    SET(PC_MONGO_INCLUDE_DIRS
-#        C:/mongo-c-driver/include
-#        D:/mongo-c-driver/include)
-#    SET(PC_MONGO_LIBRARY_DIRS
-#        C:/mongo-c-driver/lib
-#        D:/mongo-c-driver/lib)
-#  ENDIF(WIN32)
-#  FIND_PACKAGE(libmongoc 1.7)
-#  IF (MONGO_FOUND)
-#    INCLUDE_DIRECTORIES(${MONGO_INCLUDE_DIR})
-#    SET(MONGO_LIBRARY   ${MONGO_LIBRARIES})
-#    SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-#    cmgoconn.cpp cmgfam.cpp tabcmg.cpp
-#    cmgoconn.h cmgfam.h tabcmg.h)
-#    add_definitions(-DCMGO_SUPPORT)
-#    IF (NOT JAVA_FOUND AND JNI_FOUND)
-#      SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
-#      add_definitions(-DMONGO_SUPPORT)
-#    ENDIF (NOT JAVA_FOUND AND JNI_FOUND)
-#  ENDIF(MONGO_FOUND)
-#ENDIF(CONNECT_WITH_MONGO)
+IF(CONNECT_WITH_MONGO)
+  IF(WIN32)
+    # Adding some typical places to search in
+    SET(PC_MONGO_INCLUDE_DIRS
+        C:/mongo-c-driver/include
+        D:/mongo-c-driver/include)
+    SET(PC_MONGO_LIBRARY_DIRS
+        C:/mongo-c-driver/lib
+        D:/mongo-c-driver/lib)
+  ENDIF(WIN32)
+  FIND_PACKAGE(libmongoc-1.0 1.7)
+  IF (libmongoc-1.0_FOUND)
+    INCLUDE_DIRECTORIES(${MONGOC_INCLUDE_DIRS})
+    SET(MONGOC_LIBRARY  ${MONGOC_LIBRARIES})
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES}
+    cmgoconn.cpp cmgfam.cpp tabcmg.cpp
+    cmgoconn.h cmgfam.h tabcmg.h)
+    add_definitions(-DCMGO_SUPPORT)
+    IF (NOT JAVA_FOUND AND JNI_FOUND)
+      SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
+      add_definitions(-DMONGO_SUPPORT)
+    ENDIF (NOT JAVA_FOUND AND JNI_FOUND)
+  ENDIF(libmongoc-1.0_FOUND)
+ENDIF(CONNECT_WITH_MONGO)
 
 
 #
@@ -337,9 +337,8 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   STORAGE_ENGINE
   COMPONENT connect-engine
   RECOMPILE_FOR_EMBEDDED
-#  LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY} $(MONGO_LIBRARY)
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
-                 ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${IPHLPAPI_LIBRARY})
+    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY})
 
 IF(NOT TARGET connect)
   RETURN()
