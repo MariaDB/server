@@ -87,6 +87,7 @@ a	b
 CREATE TABLE total (a int, b char(10))
 ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2,t3,t4,t5'
 OPTION_LIST='thread=yes,port=PORT';
+set connect_xtrace=1;
 SELECT * FROM total order by a desc;
 a	b
 19	test19
@@ -109,6 +110,7 @@ a	b
 2	test02
 1	test01
 0	test00
+set connect_xtrace=0;
 connection master;
 DROP TABLE rt2;
 connection slave;
@@ -127,10 +129,12 @@ SELECT * FROM t2;
 v
 22
 CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=PORT';;
+set connect_xtrace=1;
 SELECT * FROM total order by v desc;
 v
 22
 11
+set connect_xtrace=0;
 DROP TABLE t1,t2,total;
 #
 # Old thread TBL tables test not modified (suppressed until MDEV-10179 is fixed)
