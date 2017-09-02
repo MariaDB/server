@@ -374,164 +374,211 @@ void table_value_constr::print(THD *thd_arg, String *str,
 
 /**
   @brief
-    Transforms IN-predicate in IN-subselect
+    Create list of lists for TVC from the list of this IN predicate
 
-  @param thd_arg     The context of the statement
-  @param arg         Argument is 0 in this context
+  @param thd         The context of the statement
+  @param values      TVC list of values
 
   @details
-    The method creates this SELECT statement:
+    The method uses the list of values of this IN predicate to build
+    an equivalent list of values that can be used in TVC.
 
-    SELECT * FROM (VALUES  values) AS new_tvc
+    E.g.:
 
-    If during creation of SELECT statement some action is
-    unsuccesfull backup is made to the state in which system
-    was at the beginning of the procedure.
+    <value_list> = 5,2,7
+    <transformed_value_list> = (5),(2),(7)
+
+    <value_list> = (5,2),(7,1)
+    <transformed_value_list> = (5,2),(7,1)
 
   @retval
-    pointer to the created SELECT statement
-    NULL - if creation was unsuccesfull
+    false     if the method succeeds
+    true      otherwise
+*/
+
+bool Item_func_in::create_value_list_for_tvc(THD *thd,
+				             List< List<Item> > *values)
+{
+  bool is_list_of_rows= args[1]->type() == Item::ROW_ITEM;
+
+  for (uint i=1; i < arg_count; i++)
+  {
+    List<Item> *tvc_value;
+    if (!(tvc_value= new (thd->mem_root) List<Item>()))
+      return true;
+
+    if (is_list_of_rows)
+    {
+      Item_row *row_list= (Item_row *)(args[i]);
+
+      for (uint j=0; j < row_list->cols(); j++)
+      {
+	if (tvc_value->push_back(row_list->element_index(j),
+				 thd->mem_root))
+	  return true;
+      }
+    }
+    else if (tvc_value->push_back(args[i]))
+      return true;
+
+    if (values->push_back(tvc_value, thd->mem_root))
+      return true;
+  }
+  return false;
+}
+
+
+static bool create_tvc_name(THD *thd, st_select_lex *parent_select,
+			    LEX_CSTRING *alias)
+{
+  char buff[6];
+
+  alias->length= my_snprintf(buff, sizeof(buff),
+                            "tvc_%u", parent_select->curr_tvc_name);
+  alias->str= thd->strmake(buff, alias->length);
+  if (!alias->str)
+    return true;
+
+  return false;
+}
+
+/**
+  @brief
+    Transform IN predicate into IN subquery
+
+  @param thd     The context of the statement
+  @param arg     Not used
+
+  @details
+    The method transforms this IN predicate into in equivalent IN subquery:
+
+    <left_expr> IN (<value_list>)
+    =>
+    <left_expr> IN (SELECT * FROM (VALUES <transformed_value_list>) AS tvc_#)
+
+    E.g.:
+
+    <value_list> = 5,2,7
+    <transformed_value_list> = (5),(2),(7)
+
+    <value_list> = (5,2),(7,1)
+    <transformed_value_list> = (5,2),(7,1)
+
+    If the transformation succeeds the method returns the result IN subquery,
+    otherwise this IN predicate is returned.
+
+  @retval
+    pointer to the result of transformation if succeeded
+    pointer to this IN predicate otherwise
 */
 
 Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
 							uchar *arg)
 {
-  SELECT_LEX *old_select= thd->lex->current_select;
+  if (!transform_into_subq)
+    return this;
+
+  transform_into_subq= false;
 
   List<List_item> values;
-  Item *item;
-  SELECT_LEX *sel;
-  SELECT_LEX_UNIT *unit;
-  TABLE_LIST *new_tab;
-  Table_ident *ti;
-  Item_in_subselect *in_subs;
+
+  LEX *lex= thd->lex;
+  /* SELECT_LEX object where the transformation is performed */
+  SELECT_LEX *parent_select= lex->current_select;
+  uint8 save_derived_tables= lex->derived_tables;
 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
-  LEX *lex= thd->lex;
-
-  char buff[6];
-  LEX_CSTRING alias;
 
   /*
-    Creation of values list of lists
+    Create SELECT_LEX of the subquery SQ used in the result of transformation
   */
-  bool list_of_lists= false;
-
-  if (args[1]->type() == Item::ROW_ITEM)
-    list_of_lists= true;
-
-  for (uint i=1; i < arg_count; i++)
-  {
-    List<Item> *new_value= new (thd->mem_root) List<Item>();
-
-    if (list_of_lists)
-    {
-      Item_row *in_list= (Item_row *)(args[i]);
-
-      for (uint j=0; j < in_list->cols(); i++)
-	new_value->push_back(in_list->element_index(j), thd->mem_root);
-    }
-    else
-      new_value->push_back(args[i]);
-
-    values.push_back(new_value, thd->mem_root);
-  }
-
-  /*
-    Creation of TVC name
-  */
-  alias.length= my_snprintf(buff, sizeof(buff),
-                            "tvc_%u", old_select->cur_tvc);
-  alias.str= thd->strmake(buff, alias.length);
-  if (!alias.str)
-    goto err;
-
-  /*
-    Creation of SELECT statement: SELECT * FROM ...
-  */
-
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-
   mysql_init_select(lex);
-  lex->current_select->parsing_place= SELECT_LIST;
-
-  item= new (thd->mem_root) Item_field(thd, &lex->current_select->context,
+  /* Create item list as '*' for the subquery SQ */
+  Item *item;
+  SELECT_LEX *sq_select; // select for IN subquery;
+  sq_select= lex->current_select;
+  sq_select->parsing_place= SELECT_LIST;
+  item= new (thd->mem_root) Item_field(thd, &sq_select->context,
                                        NULL, NULL, &star_clex_str);
-  if (item == NULL)
+  if (item == NULL || add_item_to_list(thd, item))
     goto err;
-  if (add_item_to_list(thd, item))
-    goto err;
-  (lex->current_select->with_wild)++;
-
+  (sq_select->with_wild)++;
   /*
-    Creation of TVC as derived table
+    Create derived table DT that will wrap TVC in the result of transformation
   */
-
-  lex->derived_tables|= DERIVED_SUBQUERY;
+  SELECT_LEX *tvc_select; // select for tvc
+  SELECT_LEX_UNIT *derived_unit; // unit for tvc_select
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-
   mysql_init_select(lex);
+  tvc_select= lex->current_select;
+  derived_unit= tvc_select->master_unit();
+  tvc_select->linkage= DERIVED_TABLE_TYPE;
 
-  sel= lex->current_select;
-  unit= sel->master_unit();
-  sel->linkage= DERIVED_TABLE_TYPE;
-
-  if (!(sel->tvc=
+  /* Create TVC used in the transformation */
+  if (create_value_list_for_tvc(thd, &values))
+    goto err;
+  if (!(tvc_select->tvc=
           new (thd->mem_root)
 	    table_value_constr(values,
-                               sel,
-                               sel->options)))
+                               tvc_select,
+                               tvc_select->options)))
     goto err;
 
-  lex->check_automatic_up(UNSPECIFIED_TYPE);
-  lex->current_select= sel= unit->outer_select();
+  lex->current_select= sq_select;
 
-  ti= new (thd->mem_root) Table_ident(unit);
-  if (ti == NULL)
+  /*
+    Create the name of the wrapping derived table and
+    add it to the FROM list of the subquery SQ
+   */
+  Table_ident *ti;
+  LEX_CSTRING alias;
+  TABLE_LIST *derived_tab;
+  if (!(ti= new (thd->mem_root) Table_ident(derived_unit)) ||
+      create_tvc_name(thd, parent_select, &alias))
     goto err;
-
-  if (!(new_tab= sel->add_table_to_list(thd,
-                                        ti, &alias, 0,
-                                        TL_READ, MDL_SHARED_READ)))
+  if (!(derived_tab=
+          sq_select->add_table_to_list(thd,
+				       ti, &alias, 0,
+                                       TL_READ, MDL_SHARED_READ)))
     goto err;
+  sq_select->add_joined_table(derived_tab);
+  sq_select->add_where_field(derived_unit->first_select());
+  sq_select->context.table_list= sq_select->table_list.first;
+  sq_select->context.first_name_resolution_table= sq_select->table_list.first;
+  sq_select->table_list.first->derived_type= DTYPE_TABLE | DTYPE_MATERIALIZE;
+  lex->derived_tables|= DERIVED_SUBQUERY;
 
-  sel->add_joined_table(new_tab);
+  sq_select->where= 0;
+  sq_select->set_braces(false);
+  derived_unit->set_with_clause(0);
 
-  new_tab->select_lex->add_where_field(new_tab->derived->first_select());
-
-  sel->context.table_list=
-  sel->context.first_name_resolution_table=
-  sel->table_list.first;
-
-  sel->where= 0;
-  sel->set_braces(false);
-  unit->with_clause= 0;
-
-  if (!sel)
+  /* Create IN subquery predicate */
+  sq_select->parsing_place= parent_select->parsing_place;
+  Item_in_subselect *in_subs;
+  if (!(in_subs=
+          new (thd->mem_root) Item_in_subselect(thd, args[0], sq_select)))
     goto err;
-
-  sel->parsing_place= old_select->parsing_place;
-  sel->table_list.first->derived_type= 10;
-
-  in_subs= new (thd->mem_root) Item_in_subselect(thd, args[0], sel);
-  thd->lex->derived_tables |= DERIVED_SUBQUERY;
   in_subs->emb_on_expr_nest= emb_on_expr_nest;
-
-  old_select->cur_tvc++;
-  thd->lex->current_select= old_select;
 
   if (arena)
     thd->restore_active_arena(arena, &backup);
+  thd->lex->current_select= parent_select;
 
-  in_subs->fix_fields(thd, (Item **)&in_subs);
+  if (in_subs->fix_fields(thd, (Item **)&in_subs))
+    goto err;
+
+  parent_select->curr_tvc_name++;
   return in_subs;
 
 err:
   if (arena)
     thd->restore_active_arena(arena, &backup);
+  lex->derived_tables= save_derived_tables;
+  thd->lex->current_select= parent_select;
   return this;
 }
 
@@ -552,9 +599,9 @@ err:
     false    otherwise
 */
 
-bool Item_func_in::can_be_transformed_in_tvc(THD *thd)
+bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
 {
-  uint opt_can_be_used= arg_count;
+  uint opt_can_be_used= arg_count-1;
 
   if (args[1]->type() == Item::ROW_ITEM)
     opt_can_be_used*= ((Item_row *)(args[1]))->cols();
@@ -567,32 +614,35 @@ bool Item_func_in::can_be_transformed_in_tvc(THD *thd)
 
 /**
   @brief
-    Calls transformer that transforms IN-predicate into IN-subquery
-    for this select
+    Transform IN predicates into IN subqueries in WHERE and ON expressions
 
-  @param thd_arg     The context of the statement
+  @param thd     The context of the statement
 
   @details
-    Calls in_predicate_to_in_subs_transformer
-    for WHERE-part and each table from join list of this SELECT
+    For each IN predicate from AND parts of the WHERE condition and/or
+    ON expressions of the SELECT for this join the method performs
+    the intransformation into an equivalent IN sunquery if it's needed.
+
+  @retval
+    false     always
 */
 
-bool JOIN::transform_in_predicate_into_tvc(THD *thd_arg)
+bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
 {
   if (!select_lex->in_funcs.elements)
     return false;
 
-  SELECT_LEX *old_select= thd_arg->lex->current_select;
-  enum_parsing_place old_parsing_place= select_lex->parsing_place;
-
-  thd_arg->lex->current_select= select_lex;
+  SELECT_LEX *save_current_select= thd->lex->current_select;
+  enum_parsing_place save_parsing_place= select_lex->parsing_place;
+  thd->lex->current_select= select_lex;
   if (conds)
   {
     select_lex->parsing_place= IN_WHERE;
     conds=
-      conds->transform(thd_arg,
+      conds->transform(thd,
 		       &Item::in_predicate_to_in_subs_transformer,
                        (uchar*) 0);
+    select_lex->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
     select_lex->where= conds;
   }
 
@@ -607,7 +657,7 @@ bool JOIN::transform_in_predicate_into_tvc(THD *thd_arg)
       if (table->on_expr)
       {
         table->on_expr=
-          table->on_expr->transform(thd_arg,
+          table->on_expr->transform(thd,
 		                    &Item::in_predicate_to_in_subs_transformer,
                                     (uchar*) 0);
 	table->prep_on_expr= table->on_expr ?
@@ -615,8 +665,9 @@ bool JOIN::transform_in_predicate_into_tvc(THD *thd_arg)
       }
     }
   }
+
   select_lex->in_funcs.empty();
-  select_lex->parsing_place= old_parsing_place;
-  thd_arg->lex->current_select= old_select;
+  select_lex->parsing_place= save_parsing_place;
+  thd->lex->current_select= save_current_select;
   return false;
 }

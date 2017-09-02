@@ -10,12 +10,21 @@ insert into t2
 values (1,2,3), (5,1,2), (4,3,7),
        (8,9,0), (10,7,1), (5,5,1);
 
+create table t3 (a int, b varchar(16), index idx(a));
+insert into t3 values
+  (1, "abc"), (3, "egh"), (8, "axxx"), (10, "abc"),
+  (2, "ccw"), (8, "wqqe"), (7, "au"), (9, "waa"),
+  (3, "rass"), (9, "ert"), (9, "lok"), (8, "aww"),
+  (1, "todd"), (3, "rew"), (8, "aww"), (3, "sw"),
+  (11, "llk"), (7, "rbw"), (1, "sm"), (2, "jyp"),
+  (4, "yq"), (5, "pled"), (12, "ligin"), (12, "toww"),
+  (6, "mxm"), (15, "wanone"), (9, "sunqq"), (2, "abe");
+
 --echo # optimization is not used
 
 let $query= select * from t1 where a in (1,2);
 eval $query;
-eval explain $query;
-eval explain format=json $query;
+eval explain extended $query;
 
 --echo # set minimum number of values in VALUEs list when optimization works to 2
 
@@ -239,5 +248,39 @@ execute stmt;
 execute stmt;
 deallocate prepare stmt;
 
-drop table t1, t2;
+--echo # use inside out access from tvc rows
+
+let $query= select * from t3 where a in (1,4,10);
+set @@in_subquery_conversion_threshold= default;
+eval $query;
+eval explain extended $query;
+set @@in_subquery_conversion_threshold= 2;
+eval $query;
+eval explain extended $query;
+
+--echo # use vectors in IN predeicate
+
+set @@in_subquery_conversion_threshold= 4;
+
+let $query=
+select * from t1 where (a,b) in ((1,2),(3,4));
+
+eval $query;
+eval explain extended $query;
+set @@in_subquery_conversion_threshold= 2;
+
+--echo # trasformation works for the one IN predicate and doesn't work for the other
+
+set @@in_subquery_conversion_threshold= 5;
+
+let $query=
+select * from t2
+where (a,b) in ((1,2),(8,9)) and
+      (a,c) in ((1,3),(8,0),(5,1));
+
+eval $query;
+eval explain extended $query;
+set @@in_subquery_conversion_threshold= 2;
+
+drop table t1, t2, t3;
 set @@in_subquery_conversion_threshold= default;

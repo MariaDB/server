@@ -2128,6 +2128,7 @@ class Item_func_in :public Item_func_opt_neg,
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value);
+  bool transform_into_subq;
 public:
   /// An array of values, created when the bisection lookup method is used
   in_vector *array;
@@ -2244,7 +2245,8 @@ public:
     return clone;
   }
   void mark_as_condition_AND_part(TABLE_LIST *embedding);
-  bool can_be_transformed_in_tvc(THD *thd);
+  bool to_be_transformed_into_in_subq(THD *thd);
+  bool create_value_list_for_tvc(THD *thd, List< List<Item> > *values);
   Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg);
 };
 

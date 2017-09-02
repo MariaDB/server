@@ -1047,7 +1047,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
       DBUG_RETURN(1);
     if (subq_sel->handle_derived(thd->lex, DT_MERGE))
       DBUG_RETURN(TRUE);
-    if (subq_sel->join->transform_in_predicate_into_tvc(thd))
+    if (subq_sel->join->transform_in_predicates_into_in_subq(thd))
       DBUG_RETURN(TRUE);
     subq_sel->update_used_tables();
   }

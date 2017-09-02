@@ -874,7 +874,7 @@ public:
     transformation of IN-predicate into IN-subquery for this
     st_select_lex.
   */
-  uint cur_tvc;
+  uint curr_tvc_name;
   
   /*
     Needed to correctly generate 'PRIMARY' or 'SIMPLE' for select_type column

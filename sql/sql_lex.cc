@@ -2265,7 +2265,7 @@ void st_select_lex::init_select()
   lock_type= TL_READ_DEFAULT;
   tvc= 0;
   in_funcs.empty();
-  cur_tvc= 0;
+  curr_tvc_name= 0;
 }
 
 /*

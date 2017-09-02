@@ -1189,7 +1189,7 @@ JOIN::optimize_inner()
   }
 
   if (select_lex->first_cond_optimization &&
-      transform_in_predicate_into_tvc(thd))
+      transform_in_predicates_into_in_subq(thd))
     DBUG_RETURN(1);
 
   // Update used tables after all handling derived table procedures
