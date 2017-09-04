@@ -136,6 +136,7 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
   tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
   tdp->Pretty = GetIntegerTableOption(g, topt, "Pretty", 2);
 	tdp->Xcol = GetStringTableOption(g, topt, "Expand", NULL);
+	tdp->Accept = GetBooleanTableOption(g, topt, "Accept", false);
 	tdp->Uri = (dsn && *dsn ? dsn : NULL);
 
 	if (!tdp->Fn && !tdp->Uri) {
@@ -365,7 +366,7 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
         jcp->Scale = MY_MAX(jcp->Scale, jcol.Scale);
         jcp->Cbn |= jcol.Cbn;
         jcp->Found = true;
-      } else {
+      } else if (jcol.Type != TYPE_UNKNOWN || tdp->Accept) {
         // New column
         jcp = (PJCL)PlugSubAlloc(g, NULL, sizeof(JCOL));
         *jcp = jcol;
@@ -448,8 +449,8 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
   /*  Now get the results into blocks.                                 */
   /*********************************************************************/
   for (i = 0, jcp = fjcp; jcp; i++, jcp = jcp->Next) {
-    if (jcp->Type == TYPE_UNKNOWN)            // Void column
-      jcp->Type = TYPE_STRING;
+		if (jcp->Type == TYPE_UNKNOWN)
+			jcp->Type = TYPE_STRING;             // Void column
 
     crp = qrp->Colresp;                    // Column Name
     crp->Kdata->SetValue(jcp->Name, i);
