@@ -3303,6 +3303,7 @@ fts_fetch_doc_from_rec(
 	parser = get_doc->index_cache->index->parser;
 
 	clust_rec = btr_pcur_get_rec(pcur);
+	ut_ad(!page_rec_is_comp(clust_rec) || !rec_is_instant(clust_rec));
 
 	num_field = dict_index_get_n_fields(index);
 
@@ -3325,11 +3326,8 @@ fts_fetch_doc_from_rec(
 					static_cast<mem_heap_t*>(
 						doc->self_heap->arg));
 		} else {
-			ut_ad(rec_offs_validate(clust_rec, clust_index, offsets));
-
-			doc->text.f_str = (byte*) rec_get_nth_cfield(
-				clust_rec, offsets, clust_pos, clust_index,
-				static_cast<mem_heap_t*>(doc->self_heap->arg),
+			doc->text.f_str = (byte*) rec_get_nth_field(
+				clust_rec, offsets, clust_pos,
 				&doc->text.f_len);
 		}
 
