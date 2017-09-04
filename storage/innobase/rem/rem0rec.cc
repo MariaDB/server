@@ -339,12 +339,12 @@ rec_init_offsets_comp_ordinary(
 
 		/* set default value flag */
 		if (i >= field_count) {
-			ulint def_len;
+			ulint dlen;
 
 			ut_ad(rec_is_instant(rec) || index->is_instant());
-			if (!dict_index_get_nth_col_def(index, i, &def_len)) {
-				len = offs | REC_OFFS_SQL_NULL;	
-				ut_ad(def_len == UNIV_SQL_NULL);
+			if (!dict_index_get_nth_field_def(index, i, &dlen)) {
+				len = offs | REC_OFFS_SQL_NULL;
+				ut_ad(dlen == UNIV_SQL_NULL);
 			} else {
 				len = offs | REC_OFFS_DEFAULT;
 				any_def = REC_OFFS_DEFAULT;
@@ -817,18 +817,17 @@ rec_get_nth_cfield(
 {
 	const byte*		field;
 	ulint off = rec_get_nth_field_offs(offsets, n, len);
-
-	ut_a(index || !rec_offs_nth_default(offsets, n));
+	ut_ad(index || !rec_offs_nth_default(offsets, n));
 
 	if (*len != UNIV_SQL_DEFAULT || !index) {
 		return rec + off;
 	}
 
-	ut_a(index);
-
-	/* If heap = NULL, return the dictionary memory directly. */
-	field = dict_index_get_nth_col_def_with_heap(index, n, heap, len);
+	field = dict_index_get_nth_field_def(index, n, len);
 	ut_ad(*len != UNIV_SQL_DEFAULT);
+	if (heap) {
+		field = static_cast<byte*>(mem_heap_dup(heap, field, *len));
+	}
 
 	return field;
 }

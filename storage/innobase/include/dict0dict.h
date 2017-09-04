@@ -1282,6 +1282,16 @@ dict_index_get_nth_col_no(
 	const dict_index_t*	index,	/*!< in: index */
 	ulint			pos)	/*!< in: position of the field */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Get the default value of a clustered index field.
+@param[in]	index	clustered index
+@param[in]	pos	field position in the clustered index
+@param[out]	len	length of the default value, in bytes
+@return	default value */
+UNIV_INLINE
+const byte*
+dict_index_get_nth_field_def(const dict_index_t* index, uint pos, ulint* len);
+
 /********************************************************************//**
 Looks for column n in an index.
 @return position in internal representation of the index;
@@ -1294,28 +1304,6 @@ dict_index_get_nth_col_pos(
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos) /*!< out: col num if prefix */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
-/********************************************************************//**
-Get the default value of column from dict
-@return	default value*/
-UNIV_INLINE
-const byte*
-dict_index_get_nth_col_def(
-/*===================*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint		pos,	/*!< in: position of the field */
-	ulint*		len );  /*!< out: length of default value */
-/********************************************************************//**
-Get the default value of column from dict
-@return	default value */
-UNIV_INLINE
-const byte*
-dict_index_get_nth_col_def_with_heap(
-/*===================*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint			pos,	/*!< in: position of the field */
-	mem_heap_t* 	heap, 	/*!< in: alloc memory from heap, can be NULL */
-	ulint*			len); 	/*!< out: length of default value */
 
 /** Looks for column n in an index.
 @param[in]	index		index
