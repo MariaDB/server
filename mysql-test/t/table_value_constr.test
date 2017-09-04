@@ -852,4 +852,25 @@ values (3,4)
 union all
 values (1,2);
 
+--echo # different number of values in TVC
+--error ER_WRONG_NUMBER_OF_VALUES_IN_TVC
+values (1,2),(3,4,5);
+
+--echo # subquery that uses VALUES structure(s)
+--error ER_TVC_IN_SUBQUERY
+select * from t1
+where a in (values (1));
+--error ER_TVC_IN_SUBQUERY
+select * from t1
+where a in (select 2 union values (1));
+--error ER_TVC_IN_SUBQUERY
+select * from t1
+where a in (values (1) union select 2);
+
+--echo # illegal parameter data types in TVC
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+values (1,point(1,1)),(1,1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+values (1,point(1,1)+1);
+
 drop table t1;

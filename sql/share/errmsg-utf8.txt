@@ -7492,7 +7492,5 @@ ER_SP_STACK_TRACE
         eng "At line %u in %s"
 ER_WRONG_NUMBER_OF_VALUES_IN_TVC
         eng "The used table value constructor has a different number of values"
-ER_UNKNOWN_VALUE_IN_TVC
-        eng "Unknown value '%d' in table values constructor definition"
-ER_NO_TVC_IN_SUBQUERY
-	eng "The usage of table value constructor as specification of subselect isn't implemented yet"
+ER_TVC_IN_SUBQUERY
+	eng "Table value constructor can't be used as specification of subquery isn't implemented yet"

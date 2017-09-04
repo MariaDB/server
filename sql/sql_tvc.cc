@@ -6,13 +6,51 @@
 #include "sql_explain.h"
 #include "sql_parse.h"
 
+
+/**
+  @brief
+    Fix fields for TVC values
+
+  @param
+    @param thd	 The context of the statement
+    @param li	 The iterator on the list of lists
+
+  @details
+    Call fix_fields procedure for TVC values.
+
+  @retval
+    true     if an error was reported
+    false    otherwise
+*/
+
+bool fix_fields_for_tvc(THD *thd, List_iterator_fast<List_item> &li)
+{
+  DBUG_ENTER("fix_fields_for_tvc");
+  List_item *lst;
+  li.rewind();
+
+  while ((lst= li++))
+  {
+    List_iterator_fast<Item> it(*lst);
+    Item *item;
+
+    while ((item= it++))
+    {
+      if (item->fix_fields(thd, 0))
+	DBUG_RETURN(true);
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
 /**
   @brief
     Defines types of matrix columns elements where matrix rows are defined by
     some lists of values.
 
   @param
-    @param thd_arg   	        The context of the statement
+    @param thd   	        The context of the statement
     @param li	     		The iterator on the list of lists
     @param holders   		The structure where types of matrix columns are stored
     @param first_list_el_count  Count of the list values that should be. It should
@@ -31,7 +69,7 @@
     false   otherwise
 */
 
-bool join_type_handlers_for_tvc(THD *thd_arg, List_iterator_fast<List_item> &li,
+bool join_type_handlers_for_tvc(THD *thd, List_iterator_fast<List_item> &li,
 			        Type_holder *holders, uint first_list_el_count)
 {
   DBUG_ENTER("join_type_handlers_for_tvc");
@@ -39,7 +77,7 @@ bool join_type_handlers_for_tvc(THD *thd_arg, List_iterator_fast<List_item> &li,
   li.rewind();
   bool first= true;
   
-  while ((lst=li++))
+  while ((lst= li++))
   {
     List_iterator_fast<Item> it(*lst);
     Item *item;
@@ -47,19 +85,12 @@ bool join_type_handlers_for_tvc(THD *thd_arg, List_iterator_fast<List_item> &li,
     if (first_list_el_count != lst->elements)
     {
       my_message(ER_WRONG_NUMBER_OF_VALUES_IN_TVC,
-                 ER_THD(thd_arg, ER_WRONG_NUMBER_OF_VALUES_IN_TVC),
+                 ER_THD(thd, ER_WRONG_NUMBER_OF_VALUES_IN_TVC),
                  MYF(0));
       DBUG_RETURN(true);
     }
     for (uint pos= 0; (item=it++); pos++)
     {
-       if (item->type() == Item::FIELD_ITEM)
-      {
-        my_error(ER_UNKNOWN_VALUE_IN_TVC, MYF(0),
-		 ((Item_field *)item)->full_name(),
-		 MYF(0));
-	DBUG_RETURN(true);
-      }
       const Type_handler *item_type_handler= item->real_type_handler();
       if (first)
         holders[pos].set_handler(item_type_handler);
@@ -80,11 +111,11 @@ bool join_type_handlers_for_tvc(THD *thd_arg, List_iterator_fast<List_item> &li,
 
 /**
   @brief
-    Defines attributes of matrix columns elements where matrix rows are defined by
+    Define attributes of matrix columns elements where matrix rows are defined by
     some lists of values.
 
   @param
-    @param thd_arg   	        The context of the statement
+    @param thd	  	        The context of the statement
     @param li	     		The iterator on the list of lists
     @param holders   		The structure where names of matrix columns are stored
     @param count_of_lists	Count of list of lists elements
@@ -102,7 +133,7 @@ bool join_type_handlers_for_tvc(THD *thd_arg, List_iterator_fast<List_item> &li,
     false    otherwise
 */
 
-bool get_type_attributes_for_tvc(THD *thd_arg,
+bool get_type_attributes_for_tvc(THD *thd,
 			         List_iterator_fast<List_item> &li, 
                                  Type_holder *holders, uint count_of_lists,
 				 uint first_list_el_count)
@@ -113,11 +144,11 @@ bool get_type_attributes_for_tvc(THD *thd_arg,
   
   for (uint pos= 0; pos < first_list_el_count; pos++)
   {
-    if (holders[pos].alloc_arguments(thd_arg, count_of_lists))
+    if (holders[pos].alloc_arguments(thd, count_of_lists))
       DBUG_RETURN(true);
   }
   
-  while ((lst=li++))
+  while ((lst= li++))
   {
     List_iterator_fast<Item> it(*lst);
     Item *item;
@@ -130,7 +161,7 @@ bool get_type_attributes_for_tvc(THD *thd_arg,
   
   for (uint pos= 0; pos < first_list_el_count; pos++)
   {
-    if (holders[pos].aggregate_attributes(thd_arg))
+    if (holders[pos].aggregate_attributes(thd))
       DBUG_RETURN(true);
   }
   DBUG_RETURN(false);
@@ -142,10 +173,10 @@ bool get_type_attributes_for_tvc(THD *thd_arg,
     Prepare of TVC
 
   @param
-    @param thd_arg      The context of the statement
+    @param thd	        The context of the statement
     @param sl	     	The select where this TVC is defined
     @param tmp_result	Structure that contains the information
-			about where result of the query should be sent
+			about where to send the result of the query
     @param unit_arg  	The union where sl is defined
 
   @details
@@ -159,7 +190,7 @@ bool get_type_attributes_for_tvc(THD *thd_arg,
     false    otherwise
 */
 
-bool table_value_constr::prepare(THD *thd_arg, SELECT_LEX *sl,
+bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
 				 select_result *tmp_result,
 				 st_select_lex_unit *unit_arg)
 {
@@ -170,11 +201,14 @@ bool table_value_constr::prepare(THD *thd_arg, SELECT_LEX *sl,
   uint cnt= first_elem->elements;
   Type_holder *holders;
   
-  if (!(holders= new (thd_arg->mem_root)
+  if (fix_fields_for_tvc(thd, li))
+    DBUG_RETURN(true);
+
+  if (!(holders= new (thd->mem_root)
                 Type_holder[cnt]) || 
-       join_type_handlers_for_tvc(thd_arg, li, holders,
+       join_type_handlers_for_tvc(thd, li, holders,
 				  cnt) ||
-       get_type_attributes_for_tvc(thd_arg, li, holders,
+       get_type_attributes_for_tvc(thd, li, holders,
 				   lists_of_values.elements, cnt))
     DBUG_RETURN(true);
   
@@ -185,17 +219,17 @@ bool table_value_constr::prepare(THD *thd_arg, SELECT_LEX *sl,
   for (uint pos= 0; (item= it++); pos++)
   {
     /* Error's in 'new' will be detected after loop */
-    Item_type_holder *new_holder= new (thd_arg->mem_root)
-                      Item_type_holder(thd_arg,
+    Item_type_holder *new_holder= new (thd->mem_root)
+                      Item_type_holder(thd,
                                        &item->name,
                                        holders[pos].type_handler(),
                                        &holders[pos]/*Type_all_attributes*/,
                                        holders[pos].get_maybe_null());
-    new_holder->fix_fields(thd_arg, 0);
+    new_holder->fix_fields(thd, 0);
     sl->item_list.push_back(new_holder);
   }
   
-  if (thd_arg->is_fatal_error)
+  if (thd->is_fatal_error)
     DBUG_RETURN(true); // out of memory
     
   result= tmp_result;
@@ -211,7 +245,7 @@ bool table_value_constr::prepare(THD *thd_arg, SELECT_LEX *sl,
     Save Query Plan Footprint
 */
 
-int table_value_constr::save_explain_data_intern(THD *thd_arg,
+int table_value_constr::save_explain_data_intern(THD *thd,
 						 Explain_query *output)
 {
   const char *message= "No tables used";
@@ -227,7 +261,7 @@ int table_value_constr::save_explain_data_intern(THD *thd_arg,
                select_lex->master_unit()->derived->is_with_table());
 
   explain= new (output->mem_root) Explain_select(output->mem_root,
-                                                 thd_arg->lex->analyze_stmt);
+                                                 thd->lex->analyze_stmt);
   select_lex->set_explain_type(true);
 
   explain->select_id= select_lex->select_number;
@@ -254,18 +288,18 @@ int table_value_constr::save_explain_data_intern(THD *thd_arg,
   Optimization of TVC
 */
 
-void table_value_constr::optimize(THD *thd_arg)
+void table_value_constr::optimize(THD *thd)
 {
-  create_explain_query_if_not_exists(thd_arg->lex, thd_arg->mem_root);
+  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   have_query_plan= QEP_AVAILABLE;
 
   if (select_lex->select_number != UINT_MAX &&
       select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ &&
       have_query_plan != QEP_NOT_PRESENT_YET &&
-      thd_arg->lex->explain && // for "SET" command in SPs.
-      (!thd_arg->lex->explain->get_select(select_lex->select_number)))
+      thd->lex->explain && // for "SET" command in SPs.
+      (!thd->lex->explain->get_select(select_lex->select_number)))
   {
-    save_explain_data_intern(thd_arg, thd_arg->lex->explain);
+    save_explain_data_intern(thd, thd->lex->explain);
   }
 }
 
@@ -290,7 +324,7 @@ bool table_value_constr::exec(SELECT_LEX *sl)
     DBUG_RETURN(true);
   }
 
-  while ((elem=li++))
+  while ((elem= li++))
   {
     result->send_data(*elem);
   }
@@ -301,52 +335,40 @@ bool table_value_constr::exec(SELECT_LEX *sl)
   DBUG_RETURN(false);
 }
 
+
 /**
   @brief
-    Print list of lists
+    Print list
 
-  @param str         Where to print to
+  @param str         The reference on the string representation of the list
+  @param list	     The list that needed to be print
   @param query_type  The mode of printing
-  @param values      List of lists that needed to be print
 
   @details
-    The method prints a string representation of list of lists in the
-    string str. The parameter query_type specifies the mode of printing.
+    The method saves a string representation of list in the
+    string str.
 */
 
-void print_list_of_lists(String *str,
-			 enum_query_type query_type,
-			 List<List_item> *values)
+void print_list_item(String *str, List_item *list,
+		     enum_query_type query_type)
 {
-  str->append(STRING_WITH_LEN("values "));
+  bool is_first_elem= true;
+  List_iterator_fast<Item> it(*list);
+  Item *item;
 
-  bool first= 1;
-  List_iterator_fast<List_item> li(*values);
-  List_item *list;
-  while ((list=li++))
+  str->append('(');
+
+  while ((item= it++))
   {
-    if (first)
-      first= 0;
+    if (is_first_elem)
+      is_first_elem= false;
     else
       str->append(',');
 
-    str->append('(');
-
-    List_iterator_fast<Item> it(*list);
-    Item *item;
-    first= 1;
-
-    while ((item=it++))
-    {
-      if (first)
-        first= 0;
-      else
-        str->append(',');
-
-      item->print(str, query_type);
-    }
-    str->append(')');
+    item->print(str, query_type);
   }
+
+  str->append(')');
 }
 
 
@@ -354,21 +376,35 @@ void print_list_of_lists(String *str,
   @brief
     Print this TVC
 
-  @param thd_arg     The context of the statement
-  @param str         Where to print to
+  @param thd         The context of the statement
+  @param str         The reference on the string representation of this TVC
   @param query_type  The mode of printing
 
   @details
-    The method prints a string representation of this TVC in the
-    string str. The parameter query_type specifies the mode of printing.
+    The method saves a string representation of this TVC in the
+    string str.
 */
 
-void table_value_constr::print(THD *thd_arg, String *str,
+void table_value_constr::print(THD *thd, String *str,
 			       enum_query_type query_type)
 {
-  DBUG_ASSERT(thd_arg);
+  DBUG_ASSERT(thd);
 
-  print_list_of_lists(str, query_type, &lists_of_values);
+  str->append(STRING_WITH_LEN("values "));
+
+  bool is_first_elem= true;
+  List_iterator_fast<List_item> li(lists_of_values);
+  List_item *list;
+
+  while ((list= li++))
+  {
+    if (is_first_elem)
+      is_first_elem= false;
+    else
+      str->append(',');
+
+    print_list_item(str, list, query_type);
+  }
 }
 
 
@@ -428,6 +464,23 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
 }
 
 
+/**
+  @brief
+    Create name for the derived table defined by TVC
+
+  @param thd               The context of the statement
+  @param parent_select     The SELECT where derived table is used
+  @param alias		   The returned created name
+
+  @details
+    Create name for the derived table using current TVC number
+    for this parent_select stored in parent_select
+
+  @retval
+    true     if creation fails
+    false    otherwise
+*/
+
 static bool create_tvc_name(THD *thd, st_select_lex *parent_select,
 			    LEX_CSTRING *alias)
 {
@@ -441,6 +494,7 @@ static bool create_tvc_name(THD *thd, st_select_lex *parent_select,
 
   return false;
 }
+
 
 /**
   @brief
@@ -579,18 +633,19 @@ err:
     thd->restore_active_arena(arena, &backup);
   lex->derived_tables= save_derived_tables;
   thd->lex->current_select= parent_select;
-  return this;
+  return NULL;
 }
+
 
 /**
   @brief
-    Checks if this IN-predicate can be transformed in IN-subquery
+    Check if this IN-predicate can be transformed in IN-subquery
     with TVC
 
   @param thd     The context of the statement
 
   @details
-    Compares the number of elements in the list of
+    Compare the number of elements in the list of
     values in this IN-predicate with the
     in_subquery_conversion_threshold special variable
 
@@ -601,16 +656,17 @@ err:
 
 bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
 {
-  uint opt_can_be_used= arg_count-1;
+  uint values_count= arg_count-1;
 
   if (args[1]->type() == Item::ROW_ITEM)
-    opt_can_be_used*= ((Item_row *)(args[1]))->cols();
+    values_count*= ((Item_row *)(args[1]))->cols();
 
-  if (opt_can_be_used < thd->variables.in_subquery_conversion_threshold)
+  if (values_count < thd->variables.in_subquery_conversion_threshold)
     return false;
 
   return true;
 }
+
 
 /**
   @brief
@@ -629,8 +685,9 @@ bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
 
 bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
 {
+  DBUG_ENTER("JOIN::transform_in_predicates_into_in_subq");
   if (!select_lex->in_funcs.elements)
-    return false;
+    DBUG_RETURN(false);
 
   SELECT_LEX *save_current_select= thd->lex->current_select;
   enum_parsing_place save_parsing_place= select_lex->parsing_place;
@@ -642,6 +699,8 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
       conds->transform(thd,
 		       &Item::in_predicate_to_in_subs_transformer,
                        (uchar*) 0);
+    if (!conds)
+      DBUG_RETURN(true);
     select_lex->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
     select_lex->where= conds;
   }
@@ -660,6 +719,8 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
           table->on_expr->transform(thd,
 		                    &Item::in_predicate_to_in_subs_transformer,
                                     (uchar*) 0);
+	if (!table->on_expr)
+	  DBUG_RETURN(true);
 	table->prep_on_expr= table->on_expr ?
                              table->on_expr->copy_andor_structure(thd) : 0;
       }
@@ -669,5 +730,5 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
   select_lex->in_funcs.empty();
   select_lex->parsing_place= save_parsing_place;
   thd->lex->current_select= save_current_select;
-  return false;
+  DBUG_RETURN(false);
 }

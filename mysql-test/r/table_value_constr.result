@@ -1630,4 +1630,22 @@ ANALYZE
     }
   }
 }
+# different number of values in TVC
+values (1,2),(3,4,5);
+ERROR HY000: The used table value constructor has a different number of values
+# subquery that uses VALUES structure(s)
+select * from t1
+where a in (values (1));
+ERROR HY000: Table value constructor can't be used as specification of subquery isn't implemented yet
+select * from t1
+where a in (select 2 union values (1));
+ERROR HY000: Table value constructor can't be used as specification of subquery isn't implemented yet
+select * from t1
+where a in (values (1) union select 2);
+ERROR HY000: Table value constructor can't be used as specification of subquery isn't implemented yet
+# illegal parameter data types in TVC
+values (1,point(1,1)),(1,1);
+ERROR HY000: Illegal parameter data types geometry and int for operation 'TABLE VALUE CONSTRUCTOR'
+values (1,point(1,1)+1);
+ERROR HY000: Illegal parameter data types geometry and int for operation '+'
 drop table t1;
