@@ -11398,7 +11398,7 @@ create_table_info_t::create_table_def()
 	}
 
 	table = dict_mem_table_create(m_table_name, space_id,
-				      actual_n_cols, 0, num_v, m_flags, m_flags2);
+				      actual_n_cols, num_v, m_flags, m_flags2);
 
 	/* Set the hidden doc_id column. */
 	if (m_flags2 & DICT_TF2_FTS) {
@@ -17795,6 +17795,7 @@ bool ha_innobase::check_instant_alter(
 	const Alter_inplace_info* 	inplace_info	/*!< in: in-place alter */
 ) const
 {
+#if 0//FIXME: Re-enable instant ADD COLUMN, but remove this method
 	if (inplace_info->handler_flags == Alter_inplace_info::ADD_STORED_BASE_COLUMN 
 		|| inplace_info->handler_flags == Alter_inplace_info::ADD_INSTANT_COLUMN) {
 		
@@ -17803,6 +17804,7 @@ bool ha_innobase::check_instant_alter(
 			return true;
 		}
 	}
+#endif
 	return false;
 }
 
@@ -21379,7 +21381,6 @@ i_s_innodb_sys_foreign_cols,
 i_s_innodb_sys_tablespaces,
 i_s_innodb_sys_datafiles,
 i_s_innodb_sys_virtual,
-i_s_innodb_sys_columns_added,
 i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption,

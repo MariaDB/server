@@ -4188,57 +4188,9 @@ convert:
 		}
 	}
 
-	info = pars_info_create();
+	// FIXME: replace a MIN_REC with the column values */
 
-	pars_info_add_ull_literal(info, "id", table->id);
-	pars_info_add_int4_literal(info, "pos", pos_in_innodb);
-	pars_info_add_literal(info, "default_value", def_val, def_val_len, DATA_BLOB, DATA_BINARY_TYPE);
-
-	error = que_eval_sql(
-		info,
-		"PROCEDURE P () IS\n"
-		"BEGIN\n"
-		"INSERT INTO SYS_COLUMNS_ADDED VALUES"
-		"(:id, :pos, :default_value);\n"
-		"END;\n",
-		FALSE, trx);
-
-	return(error);
-}
-
-/** Update INNODB SYS_TABLES on number of instant added columns
-@param[in] user_table	InnoDB table
-@param[in] n_col	number of columns
-@param[in] trx		transaction
-@return DB_SUCCESS if successful, otherwise error code */
-static
-dberr_t
-innobase_update_n_instant(
-	const dict_table_t*	table,
-	ulint			n_col,
-	trx_t*			trx)
-{
-	dberr_t		err = DB_SUCCESS;
-	pars_info_t*    info = pars_info_create();
-
-	ulint mix_len = dict_table_encode_mix_len(table->flags2, 
-			table->n_core_cols - dict_table_get_n_sys_cols(table));
-
-	pars_info_add_int4_literal(info, "num_col", n_col);
-	pars_info_add_int4_literal(info, "mix_len", mix_len);
-	pars_info_add_ull_literal(info, "id", table->id);
-
-	err = que_eval_sql(
-                info,
-                "PROCEDURE RENUMBER_TABLE_ID_PROC () IS\n"
-                "BEGIN\n"
-                "UPDATE SYS_TABLES"
-                " SET N_COLS = :num_col,\n"
-                " MIX_LEN = :mix_len\n"
-                " WHERE ID = :id;\n"
-		"END;\n", FALSE, trx);
-
-	return(err);
+	return(DB_SUCCESS);
 }
 
 /** Update system table for instant adding column(s)
@@ -4311,14 +4263,6 @@ next_col:
 
 	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
 			+ ((user_table->flags & DICT_TF_COMPACT) << 31);
-
-	err = innobase_update_n_instant(user_table, new_n, trx);
-
-	if (err != DB_SUCCESS) {
-		my_error(ER_INTERNAL_ERROR, MYF(0),
-			 "InnoDB: ADD COLUMN...INSTANT");
-		return(true);
-	}
 
 	return(false);
 }
@@ -4910,7 +4854,7 @@ prepare_inplace_alter_table_dict(
 		/* The initial space id 0 may be overridden later if this
 		table is going to be a file_per_table tablespace. */
 		ctx->new_table = dict_mem_table_create(
-			new_table_name, space_id, n_cols + n_v_cols, 0, n_v_cols,
+			new_table_name, space_id, n_cols + n_v_cols, n_v_cols,
 			flags, flags2);
 
 		/* The rebuilt indexed_table will use the renamed

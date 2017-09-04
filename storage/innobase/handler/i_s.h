@@ -61,7 +61,6 @@ extern struct st_maria_plugin	i_s_innodb_sys_tablespaces;
 extern struct st_maria_plugin	i_s_innodb_sys_datafiles;
 extern struct st_maria_plugin	i_s_innodb_mutexes;
 extern struct st_maria_plugin	i_s_innodb_sys_virtual;
-extern struct st_maria_plugin	i_s_innodb_sys_columns_added;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_scrubbing;
 extern struct st_maria_plugin	i_s_innodb_sys_semaphore_waits;

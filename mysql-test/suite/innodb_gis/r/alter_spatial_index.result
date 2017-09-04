@@ -427,36 +427,6 @@ ALTER TABLE tab ADD SPATIAL INDEX idx4(c4 ASC) COMMENT 'testing spatial index on
 ALTER TABLE tab ADD SPATIAL KEY idx5(c5 ASC) COMMENT 'testing spatial index on Geometry';
 ALTER TABLE tab ADD INDEX idx6(c4(10)) USING BTREE;
 ALTER TABLE tab MODIFY COLUMN c2 GEOMETRY NOT NULL;
-ALTER TABLE tab add COLUMN c8 POINT NOT NULL, ALGORITHM = INPLACE, LOCK=NONE;
-SELECT HEX(c8) FROM tab;
-HEX(c8)
-
-
-
-
-
-
-
-
-
-
-BEGIN;
-INSERT INTO tab SELECT 0,c2,c3,c4,c5,ST_GeomFromText('POINT(67 89)')
-FROM tab LIMIT 1;
-SELECT HEX(c8) FROM tab;
-HEX(c8)
-0000000001010000000000000000C050400000000000405640
-
-
-
-
-
-
-
-
-
-
-ROLLBACK;
 ALTER TABLE tab add COLUMN c7 POINT NOT NULL after c5, ALGORITHM = INPLACE, LOCK=NONE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Do not support online operation on table with GIS index. Try ALGORITHM=COPY
 SHOW CREATE TABLE tab;
@@ -467,7 +437,6 @@ tab	CREATE TABLE `tab` (
   `c3` linestring NOT NULL,
   `c4` polygon NOT NULL,
   `c5` geometry NOT NULL,
-  `c8` point NOT NULL,
   PRIMARY KEY (`c1`),
   SPATIAL KEY `idx2` (`c2`),
   SPATIAL KEY `idx3` (`c3`),
@@ -501,7 +470,6 @@ tab	CREATE TABLE `tab` (
   `c3` linestring NOT NULL,
   `c4` geometry NOT NULL,
   `c5` geometry NOT NULL,
-  `c8` point NOT NULL,
   PRIMARY KEY (`c1`),
   SPATIAL KEY `idx2` (`c2`),
   SPATIAL KEY `idx3` (`c3`),
@@ -552,7 +520,6 @@ tab	CREATE TABLE `tab` (
   `c3` linestring NOT NULL,
   `c4` polygon NOT NULL,
   `c5` geometry NOT NULL,
-  `c8` point NOT NULL,
   PRIMARY KEY (`c1`),
   SPATIAL KEY `idx2` (`c2`),
   SPATIAL KEY `idx3` (`c3`),

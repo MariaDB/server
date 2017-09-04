@@ -3017,8 +3017,6 @@ row_mysql_table_id_reassign(
 		" WHERE TABLE_ID = :old_id;\n"
 		"UPDATE SYS_VIRTUAL SET TABLE_ID = :new_id\n"
 		" WHERE TABLE_ID = :old_id;\n"
-		"UPDATE SYS_COLUMNS_ADDED SET TABLE_ID = :new_id\n"
-		" WHERE TABLE_ID = :old_id;\n"
 		"END;\n", FALSE, trx);
 
 	return(err);
@@ -3993,12 +3991,8 @@ row_drop_table_for_mysql(
 		}
 
 		sql +=	"DELETE FROM SYS_VIRTUAL\n"
-			"WHERE TABLE_ID = table_id;\n";
-
-		sql +=	"DELETE FROM SYS_COLUMNS_ADDED\n"
-			"WHERE TABLE_ID = table_id;\n";
-
-		sql += "END;\n";
+			"WHERE TABLE_ID = table_id;\n"
+			"END;\n";
 
 		err = que_eval_sql(info, sql.c_str(), FALSE, trx);
 	} else {

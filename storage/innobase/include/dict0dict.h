@@ -2061,29 +2061,6 @@ dict_table_decode_n_col(
 	ulint*	n_col,
 	ulint*	n_v_col);
 
-/** encode flags2 and number of core columns in one
-4 bytes value. We could do this because the number of columns in
-InnoDB is limited to 1017
-@param[in]  flags2	
-@param[in]	n_cols_core column number before first time instant add column	
-@return encoded value */
-UNIV_INLINE
-ulint
-dict_table_encode_mix_len(
-	ulint	flags2,
-	ulint	n_cols_core);
-
-/** Decode number of flags2 and number of core columns in one 4 bytes value.
-@param[in]	encoded	encoded value
-@param[in,out]	flags2 
-@param[in,out]	n_cols_core column number before first time instant add column*/
-UNIV_INLINE
-void
-dict_table_decode_mix_len(
-	ulint	encoded,
-	ulint*	flags2,
-	ulint*	n_cols_core);
-
 /** Calculate the used memory occupied by the data dictionary
 table and index objects.
 @return number of bytes occupied. */

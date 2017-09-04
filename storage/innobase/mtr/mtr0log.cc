@@ -552,7 +552,6 @@ mlog_parse_index(
 	dict_table_t*	table;
 	dict_index_t*	ind;
 	ulint		n_core_fields = 0;
-	ibool		is_instant = FALSE;
 
 	ut_ad(comp == FALSE || comp == TRUE);
 
@@ -563,12 +562,12 @@ mlog_parse_index(
 		n = mach_read_from_2(ptr);
 		ptr += 2;
 		if (n & 0x8000) {  // instant record
-			is_instant = TRUE;
 			n &= 0x7FFF;
 
 			n_core_fields = mach_read_from_2(ptr);
 			ptr += 2;
-			ut_ad(n_core_fields <= n && n_core_fields > 0);
+			ut_ad(n_core_fields > 0);
+			ut_ad(n_core_fields <= n);
 
 			if (end_ptr < ptr + 2) {
 				return(NULL);
@@ -584,7 +583,7 @@ mlog_parse_index(
 	} else {
 		n = n_uniq = 1;
 	}
-	table = dict_mem_table_create("LOG_DUMMY", DICT_HDR_SPACE, n, n_core_fields, 0,
+	table = dict_mem_table_create("LOG_DUMMY", DICT_HDR_SPACE, n, 0,
 				      comp ? DICT_TF_COMPACT : 0, 0);
 	ind = dict_mem_index_create("LOG_DUMMY", "LOG_DUMMY",
 				    DICT_HDR_SPACE, 0, n);
@@ -608,8 +607,7 @@ mlog_parse_index(
 				len & 0x8000 ? DATA_NOT_NULL : 0,
 				len & 0x7fff);
 
-			if (is_instant && 
-				n_core_fields >0 && n_core_fields <= i) {
+			if (n_core_fields > 0 && n_core_fields <= i) {
 
 				/* For recovery, it does not need the true default values.
 					We fake it!*/
@@ -635,11 +633,9 @@ mlog_parse_index(
 				= &table->cols[n + DATA_ROLL_PTR];
 		}
 
-		if (ind->is_instant()) {
-			ut_ad(table->n_cols == table->n_def);
-			ut_ad(table->n_core_cols> 0 &&
-				table->n_core_cols <= table->n_cols);
+		ut_ad(table->n_cols == table->n_def);
 
+		if (n_core_fields) {
 			ind->n_core_fields = n_core_fields; 
 			ind->n_core_nullable = dict_index_get_first_n_field_n_nullable(ind, ind->n_core_fields);
 		} else {

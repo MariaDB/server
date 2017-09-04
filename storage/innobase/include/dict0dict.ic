@@ -321,16 +321,6 @@ dict_table_get_next_index(
 }
 #endif /* UNIV_DEBUG */
 
-/** @return whether the index is the clustered index of instant table.
-@retval true if clustered index of instant table
-@retval false otherwise */
-inline 
-bool 
-dict_index_t::is_instant() const
-{
-	return dict_index_is_clust(this) && table->is_instant();
-}
-
 /********************************************************************//**
 Check whether the index is the clustered index.
 @return nonzero for clustered index, zero for other indexes */
@@ -1714,41 +1704,6 @@ dict_table_decode_n_col(
 	ulint	num = encoded & ~DICT_N_COLS_COMPACT;
 	*n_v_col = num >> 16;
 	*n_col = num & 0xFFFF;
-}
-
-/** encode flags2 and number of core columns in one
-4 bytes value. We could do this because the number of columns in
-InnoDB is limited to 1017
-@param[in]  flags2	
-@param[in]	n_cols_core column number before first time instant add column	
-@return encoded value */
-UNIV_INLINE
-ulint
-dict_table_encode_mix_len(
-	ulint	flags2,
-	ulint	n_cols_core)
-{
-	/* Be sure all non-used bits are zero. */
-	ut_a(!(flags2 & DICT_TF2_UNUSED_BIT_MASK));
-	ut_a(!(flags2 & 0xFFFF0000));
-	
-	return (flags2 + (n_cols_core<<16));
-}
-
-/** Decode number of flags2 and number of core columns in one 4 bytes value.
-@param[in]	encoded	encoded value
-@param[in,out]	flags2 
-@param[in,out]	n_cols_core column number before first time instant add column*/
-UNIV_INLINE
-void
-dict_table_decode_mix_len(
-	ulint	encoded,
-	ulint*	flags2,
-	ulint*	n_cols_core)
-{
-	*flags2 = encoded & 0xFFFF;
-	
-	*n_cols_core = encoded  >> 16;	
 }
 
 /** Free the virtual column template

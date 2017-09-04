@@ -99,9 +99,6 @@ dict_mem_table_create(
 				the table is placed */
 	ulint		n_cols,	/*!< in: total number of columns including
 				virtual and non-virtual columns */
-	ulint		n_cols_core, /*!< in: total number of columns before 
-				first time instant add column. 
-				If zero, means non-instant */
 	ulint		n_v_cols,/*!< in: number of virtual columns */
 	ulint		flags,	/*!< in: table flags */
 	ulint		flags2)	/*!< in: table flags2 */
@@ -135,10 +132,6 @@ dict_mem_table_create(
 			dict_table_get_n_sys_cols(table));
 	table->n_v_cols = (unsigned int) (n_v_cols);
 	table->n_cols = table->n_t_cols - table->n_v_cols;
-	ut_ad(n_cols_core <= n_cols);
-	table->n_core_cols = n_cols_core ? 
-			(n_cols_core + dict_table_get_n_sys_cols(table)) : 
-			table->n_cols;
 
 	table->cols = static_cast<dict_col_t*>(
 		mem_heap_zalloc(heap, table->n_cols * sizeof(dict_col_t)));

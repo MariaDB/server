@@ -321,9 +321,6 @@ dict_mem_table_create(
 	ulint		n_cols,		/*!< in: total number of columns
 					including virtual and non-virtual
 					columns */
-	ulint		n_cols_core, /*!< in: total number of columns before 
-				first time instant add column. 
-				If zero, means non-instant */
 	ulint		n_v_cols,	/*!< in: number of virtual columns */
 	ulint		flags,		/*!< in: table flags */
 	ulint		flags2);	/*!< in: table flags2 */
@@ -1004,10 +1001,12 @@ struct dict_index_t{
 			page cannot be read or decrypted */
 	inline bool is_readable() const;
 
-	/** @return whether the index is the clustered index of instant table.
-	@retval true if clustered index of instant table
-	@retval false otherwise */
-	inline bool is_instant() const;
+	/** @return whether instant ADD COLUMN is in effect */
+	bool is_instant() const {
+		ut_ad(n_core_fields <= n_fields);
+		ut_ad(n_core_fields == n_fields || (type & DICT_CLUSTERED));
+		return(n_core_fields != n_fields);
+	}
 };
 
 /** The status of online index creation */
@@ -1363,12 +1362,10 @@ struct dict_table_t {
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
-	/** @return whether the table has been instant added columns.
-	@retval true if table has been instant added columns
-	@retval false if table hasn't been instant added columns */
+	/** @return whether instant ADD COLUMN is in effect */
 	bool is_instant() const
 	{
-		return (n_core_cols < n_cols);
+		return(UT_LIST_GET_FIRST(indexes)->is_instant());
 	}
 
 	/** Id of the table. */
@@ -1434,10 +1431,6 @@ struct dict_table_t {
 
 	/** Number of non-virtual columns. */
 	unsigned				n_cols:10;
-
-	/** Number of non-virtual columns before the first time instant add columns. 
-	If n_cols_core < n_cols, means dict_table_is_instant return TRUE */
-	unsigned				n_core_cols:10;
 
 	/** Number of total columns (inlcude virtual and non-virtual) */
 	unsigned				n_t_cols:10;
