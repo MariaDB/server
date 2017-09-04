@@ -31,31 +31,6 @@ Created 6/9/1994 Heikki Tuuri
 #include "srv0srv.h"
 #include <stdarg.h>
 
-/** Duplicates a NUL-terminated string, allocated from a memory heap.
-@param[in]	heap,	memory heap where string is allocated
-@param[in]	str)	string to be copied
-@return own: a copy of the string */
-char*
-mem_heap_strdup(
-	mem_heap_t*	heap,
-	const char*	str)
-{
-	return(static_cast<char*>(mem_heap_dup(heap, str, strlen(str) + 1)));
-}
-
-/**********************************************************************//**
-Duplicate a block of data, allocated from a memory heap.
-@return own: a copy of the data */
-void*
-mem_heap_dup(
-/*=========*/
-	mem_heap_t*	heap,	/*!< in: memory heap where copy is allocated */
-	const void*	data,	/*!< in: data to be copied */
-	ulint		len)	/*!< in: length of data, in bytes */
-{
-	return(memcpy(mem_heap_alloc(heap, len), data, len));
-}
-
 /**********************************************************************//**
 Concatenate two strings and return the result, using a memory heap.
 @return own: the result */
