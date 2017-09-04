@@ -1,7 +1,7 @@
-#ifndef ATOMIC_SOLARIS_INCLUDED
-#define ATOMIC_SOLARIS_INCLUDED
+#ifndef GCC_SYNC_INCLUDED
+#define GCC_SYNC_INCLUDED
 
-/* Copyright (c) 2008, 2014, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2016, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,102 +16,91 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <atomic.h>
-
-#if defined(__GNUC__)
-#define atomic_typeof(T,V)      __typeof__(V)
-#else
-#define atomic_typeof(T,V)      T
-#endif
+/* Old GCC __sync builtins introduced in GCC 4.1 */
 
 static inline int my_atomic_cas32(int32 volatile *a, int32 *cmp, int32 set)
 {
-  int ret;
-  atomic_typeof(uint32_t, *cmp) sav;
-  sav= atomic_cas_32((volatile uint32_t *)a, (uint32_t)*cmp, (uint32_t)set);
-  ret= (sav == *cmp);
+  int32 cmp_val= *cmp;
+  int32 sav= __sync_val_compare_and_swap(a, cmp_val, set);
+  int ret= (sav == cmp_val);
   if (!ret)
-    *cmp= sav;
+    *cmp = sav;
   return ret;
 }
 
 static inline int my_atomic_cas64(int64 volatile *a, int64 *cmp, int64 set)
 {
-  int ret;
-  atomic_typeof(uint64_t, *cmp) sav;
-  sav= atomic_cas_64((volatile uint64_t *)a, (uint64_t)*cmp, (uint64_t)set);
-  ret= (sav == *cmp);
+  int64 cmp_val= *cmp;
+  int64 sav= __sync_val_compare_and_swap(a, cmp_val, set);
+  int ret= (sav == cmp_val);
   if (!ret)
-    *cmp= sav;
+    *cmp = sav;
   return ret;
 }
 
 static inline int my_atomic_casptr(void * volatile *a, void **cmp, void *set)
 {
-  int ret;
-  atomic_typeof(void *, *cmp) sav;
-  sav= atomic_cas_ptr((volatile void **)a, (void *)*cmp, (void *)set);
-  ret= (sav == *cmp);
+  void *cmp_val= *cmp;
+  void *sav= __sync_val_compare_and_swap(a, cmp_val, set);
+  int ret= (sav == cmp_val);
   if (!ret)
-    *cmp= sav;
+    *cmp = sav;
   return ret;
 }
 
 static inline int32 my_atomic_add32(int32 volatile *a, int32 v)
 {
-  int32 nv= atomic_add_32_nv((volatile uint32_t *)a, v);
-  return nv - v;
+  return __sync_fetch_and_add(a, v);
 }
 
 static inline int64 my_atomic_add64(int64 volatile *a, int64 v)
 {
-  int64 nv= atomic_add_64_nv((volatile uint64_t *)a, v);
-  return nv - v;
+  return __sync_fetch_and_add(a, v);
 }
 
 static inline int32 my_atomic_fas32(int32 volatile *a, int32 v)
 {
-  return atomic_swap_32((volatile uint32_t *)a, (uint32_t)v);
+  return __sync_lock_test_and_set(a, v);
 }
 
 static inline int64 my_atomic_fas64(int64 volatile *a, int64 v)
 {
-  return atomic_swap_64((volatile uint64_t *)a, (uint64_t)v);
+  return __sync_lock_test_and_set(a, v);
 }
 
 static inline void * my_atomic_fasptr(void * volatile *a, void * v)
 {
-  return atomic_swap_ptr(a, v);
+  return __sync_lock_test_and_set(a, v);
 }
 
 static inline int32 my_atomic_load32(int32 volatile *a)
 {
-  return atomic_or_32_nv((volatile uint32_t *)a, 0);
+  return __sync_fetch_and_or(a, 0);
 }
 
 static inline int64 my_atomic_load64(int64 volatile *a)
 {
-  return atomic_or_64_nv((volatile uint64_t *)a, 0);
+  return __sync_fetch_and_or(a, 0);
 }
 
 static inline void* my_atomic_loadptr(void * volatile *a)
 {
-  return atomic_add_ptr_nv(a, 0);
+  return __sync_fetch_and_or(a, 0);
 }
 
 static inline void my_atomic_store32(int32 volatile *a, int32 v)
 {
-  (void) atomic_swap_32((volatile uint32_t *)a, (uint32_t)v);
+  (void) __sync_lock_test_and_set(a, v);
 }
 
 static inline void my_atomic_store64(int64 volatile *a, int64 v)
 {
-  (void) atomic_swap_64((volatile uint64_t *)a, (uint64_t)v);
+  (void) __sync_lock_test_and_set(a, v);
 }
 
 static inline void my_atomic_storeptr(void * volatile *a, void *v)
 {
-  (void) atomic_swap_ptr((volatile void **)a, (void *)v);
+  (void) __sync_lock_test_and_set(a, v);
 }
 
-#endif /* ATOMIC_SOLARIS_INCLUDED */
+#endif /* GCC_SYNC_INCLUDED */
