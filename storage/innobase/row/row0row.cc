@@ -1229,6 +1229,8 @@ row_raw_format(
 	ulint	ret;
 	ibool	format_in_hex;
 
+	ut_ad(data_len != UNIV_SQL_DEFAULT);
+
 	if (buf_size == 0) {
 
 		return(0);
