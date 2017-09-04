@@ -849,7 +849,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
                    0, 0))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
-  if (check_grant(thd, ALTER_ACL, first_table, FALSE, UINT_MAX, FALSE))
+  if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
   if (lex->check_exists)
