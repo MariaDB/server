@@ -1,7 +1,7 @@
 #ifndef ATOMIC_GCC_BUILTINS_INCLUDED
 #define ATOMIC_GCC_BUILTINS_INCLUDED
 
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2017 MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,8 +16,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#if defined(HAVE_GCC_C11_ATOMICS)
-#define MY_ATOMIC_MODE "gcc-atomics-smp"
 
 #define MY_MEMORY_ORDER_RELAXED __ATOMIC_RELAXED
 #define MY_MEMORY_ORDER_CONSUME __ATOMIC_CONSUME
@@ -76,21 +74,5 @@
   __atomic_compare_exchange_n((P), (E), (D), 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
 #define my_atomic_casptr(P, E, D) \
   __atomic_compare_exchange_n((P), (E), (D), 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
-#else
-#define MY_ATOMIC_MODE "gcc-builtins-smp"
-#define make_atomic_load_body(S)                    \
-  ret= __sync_fetch_and_or(a, 0);
-#define make_atomic_store_body(S)                   \
-  (void) __sync_lock_test_and_set(a, v);
-#define make_atomic_add_body(S)                     \
-  v= __sync_fetch_and_add(a, v);
-#define make_atomic_fas_body(S)                     \
-  v= __sync_lock_test_and_set(a, v);
-#define make_atomic_cas_body(S)                     \
-  int ## S sav;                                     \
-  int ## S cmp_val= *cmp;                           \
-  sav= __sync_val_compare_and_swap(a, cmp_val, set);\
-  if (!(ret= (sav == cmp_val))) *cmp= sav
-#endif
 
 #endif /* ATOMIC_GCC_BUILTINS_INCLUDED */

@@ -67,7 +67,7 @@ int main(int argc __attribute__((unused)), char **argv)
 #define CYCLES 3000
 #define THREADS 30
 
-  diag("N CPUs: %d, atomic ops: %s", my_getncpus(), MY_ATOMIC_MODE);
+  diag("N CPUs: %d", my_getncpus());
 
   do_tests();
 
