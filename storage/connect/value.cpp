@@ -176,7 +176,7 @@ int GetTypeSize(int type, int len)
     case TYPE_DOUBLE: len = sizeof(double);     break;
     case TYPE_TINY:   len = sizeof(char);       break;
     case TYPE_PCHAR:  len = sizeof(char*);      break;
-    default:          len = 0;
+    default:          len = -1;
     } // endswitch type
 
   return len;
@@ -1370,7 +1370,7 @@ bool TYPVAL<PSZ>::SetValue_char(const char *cp, int n)
 
   if (!cp || n == 0) {
 		Reset();
-		Null = Nullable;
+		Null = (cp) ? false : Nullable;
 	} else if (cp != Strp) {
 		const char *p = cp + n - 1;
 

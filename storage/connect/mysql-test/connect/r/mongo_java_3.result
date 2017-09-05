@@ -1,4 +1,5 @@
-SET GLOBAL connect_class_path='C:/MariaDB-10.2/MariaDB/storage/connect/mysql-test/connect/std_data/Mongo3.jar';
+SET GLOBAL connect_class_path='C:/MariaDB-10.1/MariaDB/storage/connect/mysql-test/connect/std_data/Mongo3.jar';
+set connect_enable_mongo=1;
 #
 # Test the MONGO table type
 #
@@ -377,3 +378,4 @@ planner	167	41.75
 postcard	23	5.75
 DROP TABLE t1;
 true
+set connect_enable_mongo=0;

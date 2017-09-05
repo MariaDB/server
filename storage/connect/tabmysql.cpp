@@ -1260,7 +1260,8 @@ MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
         : COLBLK(NULL, tdbp, i)
   {
   const char *chset = get_charset_name(fld->charsetnr);
-  char  v = (!strcmp(chset, "binary")) ? 'B' : 0;
+//char  v = (!strcmp(chset, "binary")) ? 'B' : 0;
+	char  v = 0;
 
   Name = fld->name;
   Opt = 0;
