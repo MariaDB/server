@@ -789,7 +789,7 @@ int COLDEF::Define(PGLOBAL g, void *, PCOLINFO cfp, int poff)
     Poff = poff;
     Buf_Type = cfp->Type;
 
-    if ((Clen = GetTypeSize(Buf_Type, cfp->Length)) <= 0) {
+    if ((Clen = GetTypeSize(Buf_Type, cfp->Length)) < 0) {
       sprintf(g->Message, MSG(BAD_COL_TYPE), GetTypeName(Buf_Type), Name);
       return -1;
       } // endswitch

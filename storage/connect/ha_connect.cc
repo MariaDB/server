@@ -171,9 +171,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0003 August 28, 2017";
+       char version[]= "Version 1.06.0004 September 03, 2017";
 #if defined(__WIN__)
-       char compver[]= "Version 1.06.0003 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.06.0004 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -1449,7 +1449,7 @@ PFOS ha_connect::GetFieldOptionStruct(Field *fdp)
 void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 {
   const char *cp;
-  char   *chset, v;
+  char   *chset, v = 0;
   ha_field_option_struct *fop;
   Field*  fp;
   Field* *fldp;
@@ -1502,7 +1502,6 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   } // endif fop
 
   chset = (char *)fp->charset()->name;
-  v = (!strcmp(chset, "binary")) ? 'B' : 0;
 
   switch (fp->type()) {
     case MYSQL_TYPE_BLOB:
@@ -4343,7 +4342,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 			} else
         return false;
 
-			/* Fall through to check FILE_ACL */
+      /* Fall through to check FILE_ACL */
     case TAB_ODBC:
 		case TAB_JDBC:
 		case TAB_MYSQL:
@@ -5184,7 +5183,8 @@ static bool add_field(String *sql, const char *field_name, int typ, int len,
   error|= sql->append("` ");
   error|= sql->append(type);
 
-	if (len && typ != TYPE_DATE && (typ != TYPE_DOUBLE || dec >= 0)) {
+	if (typ == TYPE_STRING || 
+		 (len && typ != TYPE_DATE && (typ != TYPE_DOUBLE || dec >= 0))) {
     error|= sql->append('(');
     error|= sql->append_ulonglong(len);
 
@@ -6410,6 +6410,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case MYSQL_TYPE_VARCHAR:
       case MYSQL_TYPE_VAR_STRING:
       case MYSQL_TYPE_STRING:
+#if 0
         if (!fp->field_length) {
           sprintf(g->Message, "Unsupported 0 length for column %s",
                               fp->field_name);
@@ -6419,7 +6420,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
                           MYF(0), fp->field_name);
           DBUG_RETURN(rc);
           } // endif fp
-
+#endif // 0
         break;                     // To be checked
       case MYSQL_TYPE_BIT:
       case MYSQL_TYPE_NULL:
@@ -7206,7 +7207,7 @@ maria_declare_plugin(connect)
   0x0106,                                       /* version number (1.05) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.06.0003",                                  /* string version */
+  "1.06.0004",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;

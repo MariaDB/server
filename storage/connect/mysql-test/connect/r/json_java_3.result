@@ -1,4 +1,5 @@
-SET GLOBAL connect_class_path='C:/MariaDB-10.2/MariaDB/storage/connect/mysql-test/connect/std_data/Mongo3.jar';
+SET GLOBAL connect_class_path='C:/MariaDB-10.1/MariaDB/storage/connect/mysql-test/connect/std_data/Mongo3.jar';
+set connect_enable_mongo=1;
 #
 # Test the MONGO table type
 #
@@ -25,7 +26,6 @@ address_street	1	CHAR	38	38	0	0	address.street
 address_zipcode	1	CHAR	5	5	0	0	address.zipcode
 borough	1	CHAR	13	13	0	0	
 cuisine	1	CHAR	64	64	0	0	
-grades	1	CHAR	0	0	0	1	
 grades_date	1	CHAR	256	256	0	1	grades.0.date
 grades_grade	1	CHAR	14	14	0	1	grades.0.grade
 grades_score	5	BIGINT	2	2	0	1	grades.0.score
@@ -72,7 +72,6 @@ t1	CREATE TABLE `t1` (
   `address_zipcode` char(5) NOT NULL `FIELD_FORMAT`='address.zipcode',
   `borough` char(13) NOT NULL,
   `cuisine` char(64) NOT NULL,
-  `grades` char(1) DEFAULT NULL,
   `grades_date` varchar(256) DEFAULT NULL `FIELD_FORMAT`='grades.0.date',
   `grades_grade` char(14) DEFAULT NULL `FIELD_FORMAT`='grades.0.grade',
   `grades_score` bigint(2) DEFAULT NULL `FIELD_FORMAT`='grades.0.score',
@@ -80,12 +79,12 @@ t1	CREATE TABLE `t1` (
   `restaurant_id` char(8) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mongodb://localhost:27017' `TABLE_TYPE`='JSON' `TABNAME`='restaurants' `OPTION_LIST`='Level=1,Driver=Java,Version=3' `DATA_CHARSET`='utf8' `LRECL`=4096
 SELECT * FROM t1 LIMIT 5;
-_id	address_building	address_coord	address_street	address_zipcode	borough	cuisine	grades	grades_date	grades_grade	grades_score	name	restaurant_id
-58ada47de5a51ddfcd5ed51c	1007	-73.856077	Morris Park Ave	10462	Bronx	Bakery	1	1393804800	A	2	Morris Park Bake Shop	30075445
-58ada47de5a51ddfcd5ed51d	469	-73.961704	Flatbush Avenue	11225	Brooklyn	Hamburgers	1	1419897600	A	8	Wendy'S	30112340
-58ada47de5a51ddfcd5ed51e	351	-73.98513559999999	West   57 Street	10019	Manhattan	Irish	1	1409961600	A	2	Dj Reynolds Pub And Restaurant	30191841
-58ada47de5a51ddfcd5ed51f	2780	-73.98241999999999	Stillwell Avenue	11224	Brooklyn	American	1	1402358400	A	5	Riviera Caterer	40356018
-58ada47de5a51ddfcd5ed520	97-22	-73.8601152	63 Road	11374	Queens	Jewish/Kosher	1	1416787200	Z	20	Tov Kosher Kitchen	40356068
+_id	address_building	address_coord	address_street	address_zipcode	borough	cuisine	grades_date	grades_grade	grades_score	name	restaurant_id
+58ada47de5a51ddfcd5ed51c	1007	-73.856077	Morris Park Ave	10462	Bronx	Bakery	1393804800	A	2	Morris Park Bake Shop	30075445
+58ada47de5a51ddfcd5ed51d	469	-73.961704	Flatbush Avenue	11225	Brooklyn	Hamburgers	1419897600	A	8	Wendy'S	30112340
+58ada47de5a51ddfcd5ed51e	351	-73.98513559999999	West   57 Street	10019	Manhattan	Irish	1409961600	A	2	Dj Reynolds Pub And Restaurant	30191841
+58ada47de5a51ddfcd5ed51f	2780	-73.98241999999999	Stillwell Avenue	11224	Brooklyn	American	1402358400	A	5	Riviera Caterer	40356018
+58ada47de5a51ddfcd5ed520	97-22	-73.8601152	63 Road	11374	Queens	Jewish/Kosher	1416787200	Z	20	Tov Kosher Kitchen	40356068
 DROP TABLE t1;
 #
 # Dropping a column
@@ -259,7 +258,6 @@ t1	CREATE TABLE `t1` (
   `address_street` char(38) NOT NULL `FIELD_FORMAT`='address.street',
   `address_zipcode` char(5) NOT NULL `FIELD_FORMAT`='address.zipcode',
   `borough` char(13) NOT NULL,
-  `grades` char(1) DEFAULT NULL,
   `grades_date` bigint(13) DEFAULT NULL `FIELD_FORMAT`='grades.0.date',
   `grades_grade` char(14) DEFAULT NULL `FIELD_FORMAT`='grades.0.grade',
   `grades_score` bigint(2) DEFAULT NULL `FIELD_FORMAT`='grades.0.score',
@@ -384,3 +382,4 @@ planner	167	41.75
 postcard	23	5.75
 DROP TABLE t1;
 true
+set connect_enable_mongo=0;
