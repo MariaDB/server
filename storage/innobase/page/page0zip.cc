@@ -1775,7 +1775,7 @@ page_zip_fields_decode(
 		}
 	}
 
-	/* set core fields for internal index  */
+	/* ROW_FORMAT=COMPRESSED does not support instant ADD COLUMN */
 	index->n_core_fields = index->n_fields;
 	index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
 

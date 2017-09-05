@@ -1624,6 +1624,8 @@ ibuf_build_entry_from_ibuf_rec_func(
 		ibuf_dummy_index_add_col(index, dfield_get_type(field), len);
 	}
 
+	index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
+
 	/* Prevent an ut_ad() failure in page_zip_write_rec() by
 	adding system columns to the dummy table pointed to by the
 	dummy secondary index.  The insert buffer is only used for
