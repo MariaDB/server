@@ -636,12 +636,15 @@ mlog_parse_index(
 		ut_ad(table->n_cols == table->n_def);
 
 		if (n_core_fields) {
-			ind->n_core_fields = n_core_fields; 
-			ind->n_core_nullable = dict_index_get_first_n_field_n_nullable(ind, ind->n_core_fields);
+			ind->n_core_fields = n_core_fields;
+			ind->n_core_null_bytes = UT_BITS_IN_BYTES(
+				dict_index_get_first_n_field_n_nullable(
+					ind, ind->n_core_fields));
 		} else {
-			ind->n_core_nullable = ind->n_nullable;
+			ind->n_core_null_bytes = UT_BITS_IN_BYTES(
+				ind->n_nullable);
 			ind->n_core_fields = ind->n_fields;
-		} 
+		}
 	}
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */
 	ind->cached = TRUE;

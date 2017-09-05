@@ -271,46 +271,42 @@ rec_init_offsets_comp_ordinary(
 	ulint*			offsets)/*!< in/out: array of offsets;
 					in: n=rec_offs_n_fields(offsets) */
 {
-	ulint		i		= 0;
 	ulint		offs		= 0;
-	ulint		any_ext		= 0;
-	ulint		any_def		= 0;
+	ulint		any		= 0;
 	const byte*	nulls		= NULL;
 	const byte*	lens		= NULL;
-	ulint		field_count = ULINT_UNDEFINED;      /* Init as a big value */
-	ulint		n_null = ULINT_UNDEFINED;
+	ulint		n_fields;
 	ulint		null_mask	= 1;
 	ulint		extra_bytes = temp ? 0 : REC_N_NEW_EXTRA_BYTES;	
+
+	ut_ad(index->n_core_fields > 0);
+	ut_ad(index->n_fields >= index->n_core_fields);
+	ut_d(ulint n_null);
 
 	if (!temp && rec_is_instant(rec)) {
 		ulint field_count_len;
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_ibuf(index));
 
-		field_count = rec_get_field_count(rec, &field_count_len);
+		n_fields = rec_get_field_count(rec, &field_count_len);
 
 		ut_a(extra_bytes == REC_N_NEW_EXTRA_BYTES);
-		nulls = (byte*) rec - (1 + extra_bytes + field_count_len);
+		nulls = rec - (1 + extra_bytes + field_count_len);
 
-		n_null = rec_get_n_nullable(rec, index);
-		lens	= nulls - UT_BITS_IN_BYTES(n_null);
-
-	} else if (index->is_instant()) {
-		ut_ad(index->n_core_fields > 0);
-		ut_ad(!dict_index_is_ibuf(index));
-
-		n_null = index->n_core_nullable;
-		field_count = index->n_core_fields;
-
-		nulls		= rec - (1 + extra_bytes);
-
-		lens = nulls - UT_BITS_IN_BYTES(n_null);
+		const ulint n_nullable = rec_get_n_nullable(rec, index);
+		const ulint n_null_bits = UT_BITS_IN_BYTES(n_nullable);
+		ut_d(n_null = n_nullable);
+		ut_ad(n_null <= index->n_nullable);
+		ut_ad(n_null_bits >= index->n_core_null_bytes);
+		lens = nulls - n_null_bits;
 	} else {
-		n_null = index->n_nullable;
+		ut_ad(!index->is_instant());
+		nulls = rec - (1 + extra_bytes);
+		lens = nulls - index->n_core_null_bytes;
 
-		nulls		= rec - (1 + extra_bytes);
-
-		lens = nulls - UT_BITS_IN_BYTES(n_null);
+		ut_d(n_null = std::min(index->n_core_null_bytes * 8U,
+				       index->n_nullable));
+		n_fields = index->n_core_fields;
 	}
 
 #ifdef UNIV_DEBUG
@@ -329,7 +325,8 @@ rec_init_offsets_comp_ordinary(
 		temp = false;
 	}
 
-	/* read the lengths of fields 0..n */
+	/* read the lengths of fields 0..n_fields */
+	ulint i = 0;
 	do {
 		const dict_field_t*	field
 			= dict_index_get_nth_field(index, i);
@@ -338,16 +335,16 @@ rec_init_offsets_comp_ordinary(
 		ulint			len;
 
 		/* set default value flag */
-		if (i >= field_count) {
+		if (i >= n_fields) {
 			ulint dlen;
 
-			ut_ad(rec_is_instant(rec) || index->is_instant());
+			ut_ad(index->is_instant());
 			if (!dict_index_get_nth_field_def(index, i, &dlen)) {
 				len = offs | REC_OFFS_SQL_NULL;
 				ut_ad(dlen == UNIV_SQL_NULL);
 			} else {
 				len = offs | REC_OFFS_DEFAULT;
-				any_def = REC_OFFS_DEFAULT;
+				any |= REC_OFFS_DEFAULT;
 			}
 
 			goto resolved;
@@ -385,26 +382,21 @@ rec_init_offsets_comp_ordinary(
 			stored in one byte for 0..127.  The length
 			will be encoded in two bytes when it is 128 or
 			more, or when the field is stored externally. */
-			if (DATA_BIG_COL(col)) {
-				if (len & 0x80) {
-					/* 1exxxxxxx xxxxxxxx */
-					len <<= 8;
-					len |= *lens--;
+			if ((len & 0x80) && DATA_BIG_COL(col)) {
+				/* 1exxxxxxx xxxxxxxx */
+				len <<= 8;
+				len |= *lens--;
 
-					offs += len & 0x3fff;
-					if (UNIV_UNLIKELY(len
-							  & 0x4000)) {
-						ut_ad(dict_index_is_clust
-						      (index));
-						any_ext = REC_OFFS_EXTERNAL;
-						len = offs
-							| REC_OFFS_EXTERNAL;
-					} else {
-						len = offs;
-					}
-
-					goto resolved;
+				offs += len & 0x3fff;
+				if (UNIV_UNLIKELY(len & 0x4000)) {
+					ut_ad(dict_index_is_clust(index));
+					any |= REC_OFFS_EXTERNAL;
+					len = offs | REC_OFFS_EXTERNAL;
+				} else {
+					len = offs;
 				}
+
+				goto resolved;
 			}
 
 			len = offs += len;
@@ -416,7 +408,7 @@ resolved:
 	} while (++i < rec_offs_n_fields(offsets));
 
 	*rec_offs_base(offsets)
-		= (rec - (lens + 1)) | REC_OFFS_COMPACT | any_ext | any_def;
+		= (rec - (lens + 1)) | REC_OFFS_COMPACT | any;
 }
 
 /******************************************************//**
@@ -487,7 +479,7 @@ rec_init_offsets(
 		ut_ad(index->n_core_fields > 0);
 
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
-		lens = nulls - UT_BITS_IN_BYTES(index->n_core_nullable);
+		lens = nulls - index->n_core_null_bytes;
 		offs = 0;
 		null_mask = 1;
 
@@ -905,36 +897,36 @@ rec_get_converted_size_comp_prefix_low(
 	bool			temp)	/*!< in: whether this is a
 					temporary file record */
 {
-	ulint	extra_size = 0;
+	ulint	extra_size;
 	ulint	data_size;
 	ulint	i;
-	ulint	n_null	= (n_fields > 0) ? index->n_nullable : 0;
 	ulint	n_v_fields;
+	ut_ad(n_fields > 0);
 	ut_ad(n_fields <= dict_index_get_n_fields(index));
 	ut_ad(!temp || extra);
+	ut_ad(!temp || rec_flag == REC_FLAG_NONE);
+	ut_ad(!v_entry || rec_flag == REC_FLAG_NONE);
 
 	/* At the time being, only temp file record could possible
 	store virtual columns */
 	ut_ad(!v_entry || (dict_index_is_clust(index) && temp));
 	n_v_fields = v_entry ? dtuple_get_n_v_fields(v_entry) : 0;
 
-	extra_size += temp ? 0 : REC_N_NEW_EXTRA_BYTES;
+	ut_d(ulint n_null = index->n_nullable);
+	ut_d(const ulint n_null_bits = UT_BITS_IN_BYTES(n_null));
 
-	if (index->is_instant()) {
-		if (rec_flag & REC_FLAG_NODE_PTR) {
-			ut_ad(!temp && n_fields > 0 && !n_v_fields);
-			
-			/* Always use n_core_nullable for NODE_PTR */
-			n_null = index->n_core_nullable;
+	if (rec_flag == REC_FLAG_INSTANT && index->is_instant()) {
+		ut_ad(n_null_bits >= index->n_core_null_bytes);
+		extra_size = REC_N_NEW_EXTRA_BYTES
+			+ UT_BITS_IN_BYTES(index->n_nullable)
+			+ rec_get_field_count_len(n_fields);
+	} else {
+		ut_ad(n_null_bits == index->n_core_null_bytes);
+		extra_size = temp
+			? index->n_core_null_bytes
+			: REC_N_NEW_EXTRA_BYTES + index->n_core_null_bytes;
+	}
 
-		} else if (rec_flag & REC_FLAG_INSTANT) {
-			ut_ad(!temp && n_fields > 0 && !n_v_fields);
-
-			extra_size += rec_get_field_count_len(n_fields);
-		} 
-	} 
-
-	extra_size += UT_BITS_IN_BYTES(n_null);
 	data_size = 0;
 
 	if (temp && dict_table_is_comp(index->table)) {
@@ -1338,19 +1330,19 @@ rec_convert_dtuple_to_rec_comp(
 	ulint		n_node_ptr_field;
 	ulint		fixed_len;
 	ulint		null_mask	= 1;
-	ulint		n_null;
-	ulint		num_v = v_entry ? dtuple_get_n_v_fields(v_entry) : 0;
-	ibool		is_instant = FALSE;
+	bool		is_instant = false;
 
+	ut_ad(n_fields > 0);
 	ut_ad(temp || dict_table_is_comp(index->table));
 
-	n_null = index->n_nullable;
+	ut_d(ulint n_null = index->n_nullable);
 
 	if (temp) {
 		ut_ad(status == REC_STATUS_ORDINARY);
 		ut_ad(n_fields <= dict_index_get_n_fields(index));
 		n_node_ptr_field = ULINT_UNDEFINED;
 		nulls = rec - 1;
+		lens = nulls - index->n_core_null_bytes;
 		if (dict_table_is_comp(index->table)) {
 			/* No need to do adjust fixed_len=0. We only
 			need to adjust it for ROW_FORMAT=REDUNDANT. */
@@ -1358,51 +1350,48 @@ rec_convert_dtuple_to_rec_comp(
 		}
 	} else {
 		ut_ad(v_entry == NULL);
-		ut_ad(num_v == 0);
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 
 		switch (UNIV_EXPECT(status, REC_STATUS_ORDINARY)) {
 		case REC_STATUS_ORDINARY:
 			ut_ad(n_fields <= dict_index_get_n_fields(index));
-			if (index->is_instant()) {
-				ulint field_count_len;
-
-				n_null = index->n_nullable;
-				ut_ad(n_fields == dict_index_get_n_fields(index));
-
-				field_count_len = rec_set_field_count(rec, n_fields);
-				nulls = rec - (REC_N_NEW_EXTRA_BYTES + field_count_len + 1);
-				is_instant = TRUE;
-			} else {
-				n_null = index->n_nullable;
+			is_instant = index->is_instant();
+			if (is_instant) {
+				ut_ad(n_fields == index->n_fields);
+				ulint field_count_len = rec_set_field_count(
+					rec, n_fields);
+				nulls = rec - (REC_N_NEW_EXTRA_BYTES
+					       + field_count_len + 1);
 			}
 
 			n_node_ptr_field = ULINT_UNDEFINED;
+			lens = nulls - UT_BITS_IN_BYTES(index->n_nullable);
 			break;
 		case REC_STATUS_NODE_PTR:
 			ut_ad(n_fields
 			      == dict_index_get_n_unique_in_tree_nonleaf(index)
 				 + 1);
-			n_null = index->n_core_nullable;
+			ut_d(n_null = std::min(index->n_core_null_bytes * 8U,
+					       index->n_nullable));
 			n_node_ptr_field = n_fields - 1;
+			lens = nulls - index->n_core_null_bytes;
 			break;
 		case REC_STATUS_INFIMUM:
 		case REC_STATUS_SUPREMUM:
 			ut_ad(n_fields == 1);
 			n_node_ptr_field = ULINT_UNDEFINED;
+			lens = nulls;
+			ut_d(n_null = 0);
 			break;
 		default:
 			ut_error;
-			return FALSE;
+			return false;
 		}
 	}
 
 	end = rec;
-	if (n_fields != 0) {
-		lens = nulls - UT_BITS_IN_BYTES(n_null);
-		/* clear the SQL-null flags */
-		memset(lens + 1, 0, nulls - lens);
-	}
+	/* clear the SQL-null flags */
+	memset(lens + 1, 0, nulls - lens);
 
 	/* Store the data and the offsets */
 
@@ -1498,9 +1487,13 @@ rec_convert_dtuple_to_rec_comp(
 		}
 	}
 
-	if (!num_v) {
+	if (!v_entry) {
 		return is_instant;
 	}
+
+	ut_ad(temp);
+	ut_ad(!is_instant);
+	const ulint num_v = dtuple_get_n_v_fields(v_entry);
 
 	/* reserve 2 bytes for writing length */
 	byte*	ptr = end;
@@ -1547,10 +1540,7 @@ rec_convert_dtuple_to_rec_comp(
 	}
 
 	mach_write_to_2(end, ptr - end);
-
-	ut_ad(!is_instant);
-	return is_instant;
-
+	return false;
 }
 
 /*********************************************************//**
@@ -1859,13 +1849,9 @@ rec_copy_prefix_to_buf(
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + field_count_len + 1);
 		lens  = nulls - UT_BITS_IN_BYTES(n_nullable);
 
-	} else if (index->is_instant()) {
-		ut_ad(!dict_index_is_ibuf(index));
-		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
-		lens = nulls - UT_BITS_IN_BYTES(index->n_core_nullable);
 	} else {
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
-		lens = nulls - UT_BITS_IN_BYTES(index->n_nullable);
+		lens = nulls - index->n_core_null_bytes;
 	}
 
 	UNIV_PREFETCH_R(lens);

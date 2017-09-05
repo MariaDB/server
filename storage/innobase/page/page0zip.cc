@@ -1777,7 +1777,7 @@ page_zip_fields_decode(
 
 	/* set core fields for internal index  */
 	index->n_core_fields = index->n_fields;
-	index->n_core_nullable = index->n_nullable;
+	index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
 
 	ut_ad(b == end);
 

@@ -874,8 +874,10 @@ struct dict_index_t{
 	unsigned	n_nullable:10;/*!< number of nullable fields */
 	unsigned	n_core_fields:10;/*!< number of fields in the index
 				(before the first time of instant add columns) */
-	unsigned	n_core_nullable:10;/*!< number of nullable fields 
-				(before the first time of instant add columns) */
+	/** number of null bits in ROW_FORMAT!=REDUNDANT node pointer
+	records; usually equal to UT_BITS_IN_BYTES(n_nullable), but
+	can be less in clustered indexes with instant ADD COLUMN */
+	unsigned	n_core_null_bytes:8;
 	unsigned	cached:1;/*!< TRUE if the index object is in the
 				dictionary cache */
 	unsigned	to_be_dropped:1;
@@ -1003,8 +1005,11 @@ struct dict_index_t{
 
 	/** @return whether instant ADD COLUMN is in effect */
 	bool is_instant() const {
+		ut_ad(n_core_fields > 0);
 		ut_ad(n_core_fields <= n_fields);
-		ut_ad(n_core_fields == n_fields || (type & DICT_CLUSTERED));
+		ut_ad(n_core_fields == n_fields
+		      || (type & ~(DICT_UNIQUE | DICT_CORRUPT))
+		      == DICT_CLUSTERED);
 		return(n_core_fields != n_fields);
 	}
 };

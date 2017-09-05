@@ -2602,11 +2602,12 @@ dict_index_add_to_cache_w_vcol(
 	// FIXME: set n_core_fields for is_instant()
 
 	if (new_index->is_instant()) {
-		new_index->n_core_nullable
-			= dict_index_get_first_n_field_n_nullable(
-				new_index, new_index->n_core_fields);
+		new_index->n_core_null_bytes = UT_BITS_IN_BYTES(
+			dict_index_get_first_n_field_n_nullable(
+				new_index, new_index->n_core_fields));
 	} else {
-		new_index->n_core_nullable = new_index->n_nullable;
+		new_index->n_core_null_bytes = UT_BITS_IN_BYTES(
+			new_index->n_nullable);
 	}
 
 	dict_mem_index_free(index);
