@@ -561,7 +561,7 @@ struct TABLE_STATISTICS_CB
   bool histograms_are_read;   
 };
 
-class Vers_field_stats;
+class Vers_min_max_stats;
 
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
@@ -755,7 +755,7 @@ struct TABLE_SHARE
   uint16 row_start_field;
   uint16 row_end_field;
   uint32 hist_part_id;
-  Vers_field_stats** stat_trx;
+  Vers_min_max_stats** stat_trx;
   ulonglong stat_serial; // guards check_range_constants() updates
 
   bool busy_rotation;

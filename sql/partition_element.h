@@ -90,7 +90,9 @@ typedef struct p_elem_val
 
 struct st_ddl_log_memory_entry;
 
-class Vers_field_stats : public Sql_alloc
+/* Used for collecting MIN/MAX stats on sys_trx_end for doing pruning
+   in SYSTEM_TIME partitiong. */
+class Vers_min_max_stats : public Sql_alloc
 {
   static const uint buf_size= 4 + (TIME_SECOND_PART_DIGITS + 1) / 2;
   uchar min_buf[buf_size];
@@ -100,7 +102,7 @@ class Vers_field_stats : public Sql_alloc
   mysql_rwlock_t lock;
 
 public:
-  Vers_field_stats(const char *field_name, TABLE_SHARE *share) :
+  Vers_min_max_stats(const char *field_name, TABLE_SHARE *share) :
     min_value(min_buf, NULL, 0, Field::NONE, field_name, share, 6),
     max_value(max_buf, NULL, 0, Field::NONE, field_name, share, 6)
   {
@@ -108,7 +110,7 @@ public:
     memset(max_buf, 0, buf_size);
     mysql_rwlock_init(key_rwlock_LOCK_vers_stats, &lock);
   }
-  ~Vers_field_stats()
+  ~Vers_min_max_stats()
   {
     mysql_rwlock_destroy(&lock);
   }

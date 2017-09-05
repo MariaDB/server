@@ -2495,32 +2495,11 @@ public:
 class Sys_var_vers_asof: public sys_var
 {
 public:
-  Sys_var_vers_asof(
-    const char *name_arg,
-    const char *comment,
-    int flag_args,
-    ptrdiff_t off,
-    size_t size,
-    CMD_LINE getopt,
-    enum charset_enum is_os_charset_arg,
-    const char *def_val,
-    on_check_function on_check_func=0,
-    on_update_function on_update_func=0) :
-  sys_var(
-    &all_sys_vars,
-    name_arg,
-    comment,
-    flag_args,
-    off,
-    getopt.id,
-    getopt.arg_type,
-    SHOW_CHAR,
-    (intptr) def_val,
-    0,
-    VARIABLE_NOT_IN_BINLOG,
-    on_check_func,
-    on_update_func,
-    0)
+  Sys_var_vers_asof(const char *name_arg, const char *comment, int flag_args,
+    ptrdiff_t off, size_t size, CMD_LINE getopt, enum charset_enum is_os_charset_arg,
+    const char *def_val, on_check_function on_check_func=0, on_update_function on_update_func=0) :
+  sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id, getopt.arg_type,
+    SHOW_CHAR, (intptr) def_val, 0, VARIABLE_NOT_IN_BINLOG, on_check_func, on_update_func, 0)
   {
     option.var_type|= GET_STR;
     if (global_update(def_val))
@@ -2534,31 +2513,18 @@ public:
 
   bool update(String &in, st_vers_current_time &out)
   {
-    if (in.length() == 3 &&
-      0 == my_strcasecmp(
-        in.charset(),
-        "ALL",
-        in.ptr()))
+    if (in.length() == 3 && 0 == my_strcasecmp(in.charset(), "ALL", in.ptr()))
     {
       out.type= FOR_SYSTEM_TIME_ALL;
     }
-    else if (in.length() == 3 &&
-      0 == my_strcasecmp(
-        in.charset(),
-        "NOW",
-        in.ptr()))
+    else if (in.length() == 3 && 0 == my_strcasecmp(in.charset(), "NOW", in.ptr()))
     {
       out.type= FOR_SYSTEM_TIME_UNSPECIFIED;
     }
     else
     {
       MYSQL_TIME_STATUS status;
-      if (str_to_datetime(
-            in.ptr(),
-            in.length(),
-            &out.ltime,
-            flags,
-            &status) ||
+      if (str_to_datetime(in.ptr(), in.length(), &out.ltime, flags, &status) ||
           out.ltime.time_type != MYSQL_TIMESTAMP_DATETIME ||
           (status.warnings & ~MYSQL_TIME_NOTE_TRUNCATED) != 0)
       {

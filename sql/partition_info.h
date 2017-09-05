@@ -478,14 +478,14 @@ public:
     // TODO: cache thread-shared part_recs and increment on INSERT
     return table->file->part_records(part) >= vers_info->limit;
   }
-  Vers_field_stats& vers_stat_trx(stat_trx_field fld, uint32 part_element_id)
+  Vers_min_max_stats& vers_stat_trx(stat_trx_field fld, uint32 part_element_id)
   {
     DBUG_ASSERT(table && table->s && table->s->stat_trx);
-    Vers_field_stats* res= table->s->stat_trx[part_element_id * num_columns + fld];
+    Vers_min_max_stats* res= table->s->stat_trx[part_element_id * num_columns + fld];
     DBUG_ASSERT(res);
     return *res;
   }
-  Vers_field_stats& vers_stat_trx(stat_trx_field fld, partition_element *part)
+  Vers_min_max_stats& vers_stat_trx(stat_trx_field fld, partition_element *part)
   {
     DBUG_ASSERT(part);
     return vers_stat_trx(fld, part->id);

@@ -926,8 +926,8 @@ bool partition_info::vers_setup_1(THD * thd, uint32 added)
   if (added)
   {
     DBUG_ASSERT(partitions.elements > added + 1);
-    Vers_field_stats** old_array= table->s->stat_trx;
-    table->s->stat_trx= static_cast<Vers_field_stats**>(
+    Vers_min_max_stats** old_array= table->s->stat_trx;
+    table->s->stat_trx= static_cast<Vers_min_max_stats**>(
       alloc_root(&table->s->mem_root, sizeof(void *) * partitions.elements * num_columns));
     memcpy(table->s->stat_trx, old_array, sizeof(void *) * (partitions.elements - added) * num_columns);
   }
@@ -961,8 +961,8 @@ bool partition_info::vers_setup_1(THD * thd, uint32 added)
       if (el->id == UINT32_MAX || el->type == partition_element::AS_OF_NOW)
       {
         DBUG_ASSERT(table && table->s);
-        Vers_field_stats *stat_trx_end= new (&table->s->mem_root)
-          Vers_field_stats(table->s->vers_end_field()->field_name, table->s);
+        Vers_min_max_stats *stat_trx_end= new (&table->s->mem_root)
+          Vers_min_max_stats(table->s->vers_end_field()->field_name, table->s);
         table->s->stat_trx[id * num_columns + STAT_TRX_END]= stat_trx_end;
         el->id= id++;
         if (el->type == partition_element::AS_OF_NOW)
@@ -1107,7 +1107,7 @@ void partition_info::vers_update_col_vals(THD *thd, partition_element *el0, part
   my_time_t ts;
   part_column_list_val *col_val;
   Item_datetime_literal *val_item;
-  Vers_field_stats *stat_trx_x;
+  Vers_min_max_stats *stat_trx_x;
   for (uint i= 0; i < num_columns; ++i)
   {
     stat_trx_x= table->s->stat_trx[idx + i];
@@ -1118,8 +1118,11 @@ void partition_info::vers_update_col_vals(THD *thd, partition_element *el0, part
       col_val= &el0->get_col_val(i);
       val_item= static_cast<Item_datetime_literal*>(col_val->item_expression);
       DBUG_ASSERT(val_item);
-      if (val_item->set_lower(&t))
+      if (*val_item > t)
+      {
+        val_item->set_time(&t);
         col_val->fixed= 0;
+      }
     }
     col_val= &el1->get_col_val(i);
     if (!col_val->max_value)
@@ -1128,8 +1131,11 @@ void partition_info::vers_update_col_vals(THD *thd, partition_element *el0, part
       thd->variables.time_zone->gmt_sec_to_TIME(&t, ts);
       val_item= static_cast<Item_datetime_literal*>(col_val->item_expression);
       DBUG_ASSERT(val_item);
-      if (val_item->set_higher(&t))
+      if (*val_item < t)
+      {
+        val_item->set_time(&t);
         col_val->fixed= 0;
+      }
     }
   }
 }
@@ -1162,7 +1168,7 @@ bool partition_info::vers_setup_2(THD * thd, bool is_create_table_ind)
     if (!table->s->stat_trx)
     {
       DBUG_ASSERT(partitions.elements > 1);
-      table->s->stat_trx= static_cast<Vers_field_stats**>(
+      table->s->stat_trx= static_cast<Vers_min_max_stats**>(
         alloc_root(&table->s->mem_root, sizeof(void *) * partitions.elements * num_columns));
       dont_stat= false;
     }
@@ -1183,8 +1189,8 @@ bool partition_info::vers_setup_2(THD * thd, bool is_create_table_ind)
       }
 
       {
-        Vers_field_stats *stat_trx_end= new (&table->s->mem_root)
-          Vers_field_stats(table->s->vers_end_field()->field_name, table->s);
+        Vers_min_max_stats *stat_trx_end= new (&table->s->mem_root)
+          Vers_min_max_stats(table->s->vers_end_field()->field_name, table->s);
         table->s->stat_trx[el->id * num_columns + STAT_TRX_END]= stat_trx_end;
       }
 
