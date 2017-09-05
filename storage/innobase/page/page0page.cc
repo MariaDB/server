@@ -379,7 +379,8 @@ page_create_low(
 
 	memset(page + PAGE_HEADER, 0, PAGE_HEADER_PRIV_END);
 	page[PAGE_HEADER + PAGE_N_DIR_SLOTS + 1] = 2;
-	page[PAGE_HEADER + PAGE_DIRECTION + 1] = PAGE_NO_DIRECTION;
+	page[PAGE_HEADER + PAGE_INSTANT] = 0;
+	page[PAGE_HEADER + PAGE_DIRECTION_B] = PAGE_NO_DIRECTION;
 
 	if (comp) {
 		page[PAGE_HEADER + PAGE_N_HEAP] = 0x80;/*page_is_comp()*/
@@ -1879,7 +1880,7 @@ page_header_print(
 		(ulong) page_header_get_field(page, PAGE_FREE),
 		(ulong) page_header_get_field(page, PAGE_GARBAGE),
 		(ulong) page_header_get_field(page, PAGE_LAST_INSERT),
-		(ulong) page_header_get_field(page, PAGE_DIRECTION),
+		(ulong) page[PAGE_HEADER + PAGE_DIRECTION_B],
 		(ulong) page_header_get_field(page, PAGE_N_DIRECTION));
 }
 

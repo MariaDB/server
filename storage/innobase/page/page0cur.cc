@@ -358,19 +358,15 @@ page_cur_search_with_match(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (page_is_leaf(page)
-	    && (mode == PAGE_CUR_LE)
+	    && page[PAGE_HEADER + PAGE_DIRECTION_B] == PAGE_RIGHT
+	    && page_header_get_offs(page, PAGE_LAST_INSERT)
+	    && mode == PAGE_CUR_LE
 	    && !dict_index_is_spatial(index)
-	    && (page_header_get_field(page, PAGE_N_DIRECTION) > 3)
-	    && (page_header_get_ptr(page, PAGE_LAST_INSERT))
-	    && (page_header_get_field(page, PAGE_DIRECTION) == PAGE_RIGHT)) {
-
-		if (page_cur_try_search_shortcut(
-			    block, index, tuple,
-			    iup_matched_fields,
-			    ilow_matched_fields,
-			    cursor)) {
-			return;
-		}
+	    && page_header_get_field(page, PAGE_N_DIRECTION) > 3
+	    && page_cur_try_search_shortcut(
+		    block, index, tuple,
+		    iup_matched_fields, ilow_matched_fields, cursor)) {
+		return;
 	}
 # ifdef PAGE_CUR_DBG
 	if (mode == PAGE_CUR_DBG) {
@@ -619,18 +615,16 @@ page_cur_search_with_match_bytes(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (page_is_leaf(page)
-	    && (mode == PAGE_CUR_LE)
-	    && (page_header_get_field(page, PAGE_N_DIRECTION) > 3)
-	    && (page_header_get_ptr(page, PAGE_LAST_INSERT))
-	    && (page_header_get_field(page, PAGE_DIRECTION) == PAGE_RIGHT)) {
-
-		if (page_cur_try_search_shortcut_bytes(
-			    block, index, tuple,
-			    iup_matched_fields, iup_matched_bytes,
-			    ilow_matched_fields, ilow_matched_bytes,
-			    cursor)) {
-			return;
-		}
+	    && page[PAGE_HEADER + PAGE_DIRECTION_B] == PAGE_RIGHT
+	    && page_header_get_offs(page, PAGE_LAST_INSERT)
+	    && mode == PAGE_CUR_LE
+	    && page_header_get_field(page, PAGE_N_DIRECTION) > 3
+	    && page_cur_try_search_shortcut_bytes(
+		    block, index, tuple,
+		    iup_matched_fields, iup_matched_bytes,
+		    ilow_matched_fields, ilow_matched_bytes,
+		    cursor)) {
+		return;
 	}
 # ifdef PAGE_CUR_DBG
 	if (mode == PAGE_CUR_DBG) {
@@ -1379,34 +1373,27 @@ use_heap:
 	      == rec_get_node_ptr_flag(insert_rec));
 
 	if (!dict_index_is_spatial(index)) {
+		byte* ptr = PAGE_HEADER + PAGE_DIRECTION_B + page;
 		if (UNIV_UNLIKELY(last_insert == NULL)) {
-			page_header_set_field(page, NULL, PAGE_DIRECTION,
-					      PAGE_NO_DIRECTION);
-			page_header_set_field(page, NULL, PAGE_N_DIRECTION, 0);
-
-		} else if ((last_insert == current_rec)
-			   && (page_header_get_field(page, PAGE_DIRECTION)
-			       != PAGE_LEFT)) {
-
-			page_header_set_field(page, NULL, PAGE_DIRECTION,
-					      PAGE_RIGHT);
+no_direction:
+			*ptr = PAGE_NO_DIRECTION;
+			*reinterpret_cast<uint16_t*>(
+				PAGE_HEADER + PAGE_N_DIRECTION + page) = 0;
+		} else if (last_insert == current_rec && *ptr != PAGE_LEFT) {
+			*ptr = PAGE_RIGHT;
 			page_header_set_field(page, NULL, PAGE_N_DIRECTION,
 					      page_header_get_field(
 						page, PAGE_N_DIRECTION) + 1);
 
-		} else if ((page_rec_get_next(insert_rec) == last_insert)
-			   && (page_header_get_field(page, PAGE_DIRECTION)
-			       != PAGE_RIGHT)) {
+		} else if (*ptr != PAGE_RIGHT
+			   && page_rec_get_next(insert_rec) == last_insert) {
 
-			page_header_set_field(page, NULL, PAGE_DIRECTION,
-					      PAGE_LEFT);
+			*ptr = PAGE_LEFT;
 			page_header_set_field(page, NULL, PAGE_N_DIRECTION,
 					      page_header_get_field(
 						page, PAGE_N_DIRECTION) + 1);
 		} else {
-			page_header_set_field(page, NULL, PAGE_DIRECTION,
-					      PAGE_NO_DIRECTION);
-			page_header_set_field(page, NULL, PAGE_N_DIRECTION, 0);
+			goto no_direction;
 		}
 	}
 
@@ -1489,7 +1476,7 @@ page_cur_insert_rec_zip(
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID) == index->id
 	      || (mtr ? mtr->is_inside_ibuf() : dict_index_is_ibuf(index))
 	      || recv_recovery_is_on());
-
+	ut_ad(!page[PAGE_HEADER + PAGE_INSTANT]);
 	ut_ad(!page_cur_is_after_last(cursor));
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(page_zip_validate(page_zip, page, index));
@@ -1850,36 +1837,30 @@ use_heap:
 	      == rec_get_node_ptr_flag(insert_rec));
 
 	if (!dict_index_is_spatial(index)) {
+		byte* ptr = PAGE_HEADER + PAGE_DIRECTION_B + page;
 		if (UNIV_UNLIKELY(last_insert == NULL)) {
-			page_header_set_field(page, page_zip, PAGE_DIRECTION,
-					      PAGE_NO_DIRECTION);
-			page_header_set_field(page, page_zip,
-					      PAGE_N_DIRECTION, 0);
-
-		} else if ((last_insert == cursor->rec)
-			   && (page_header_get_field(page, PAGE_DIRECTION)
-			       != PAGE_LEFT)) {
-
-			page_header_set_field(page, page_zip, PAGE_DIRECTION,
-					      PAGE_RIGHT);
+no_direction:
+			*ptr = PAGE_NO_DIRECTION;
+			page_zip_write_header(page_zip, ptr, 1, NULL);
+			ptr = PAGE_HEADER + PAGE_N_DIRECTION + page;
+			*reinterpret_cast<uint16_t*>(ptr) = 0;
+			page_zip_write_header(page_zip, ptr, 2, NULL);
+		} else if (last_insert == cursor->rec && *ptr != PAGE_LEFT) {
+			*ptr = PAGE_RIGHT;
+			page_zip_write_header(page_zip, ptr, 1, NULL);
 			page_header_set_field(page, page_zip, PAGE_N_DIRECTION,
 					      page_header_get_field(
 						page, PAGE_N_DIRECTION) + 1);
 
-		} else if ((page_rec_get_next(insert_rec) == last_insert)
-			   && (page_header_get_field(page, PAGE_DIRECTION)
-			       != PAGE_RIGHT)) {
-
-			page_header_set_field(page, page_zip, PAGE_DIRECTION,
-					      PAGE_LEFT);
+		} else if (*ptr != PAGE_RIGHT
+			   && page_rec_get_next(insert_rec) == last_insert) {
+			*ptr = PAGE_LEFT;
+			page_zip_write_header(page_zip, ptr, 1, NULL);
 			page_header_set_field(page, page_zip, PAGE_N_DIRECTION,
 					      page_header_get_field(
 						page, PAGE_N_DIRECTION) + 1);
 		} else {
-			page_header_set_field(page, page_zip, PAGE_DIRECTION,
-					      PAGE_NO_DIRECTION);
-			page_header_set_field(page, page_zip,
-					      PAGE_N_DIRECTION, 0);
+			goto no_direction;
 		}
 	}
 
@@ -1980,6 +1961,10 @@ page_parse_copy_rec_list_to_created_page(
 		return(rec_end);
 	}
 
+	/* This function is never invoked on the clustered index root page.
+	For other pages, this field must be zero-initialized. */
+	ut_ad(!block->frame[PAGE_HEADER + PAGE_INSTANT]);
+
 	while (ptr < rec_end) {
 		ptr = page_cur_parse_insert_rec(TRUE, ptr, end_ptr,
 						block, index, mtr);
@@ -1993,9 +1978,15 @@ page_parse_copy_rec_list_to_created_page(
 	page_header_set_ptr(page, page_zip, PAGE_LAST_INSERT, NULL);
 
 	if (!dict_index_is_spatial(index)) {
-		page_header_set_field(page, page_zip, PAGE_DIRECTION,
-				      PAGE_NO_DIRECTION);
-		page_header_set_field(page, page_zip, PAGE_N_DIRECTION, 0);
+		byte* dir = PAGE_HEADER + PAGE_DIRECTION_B + page;
+		*dir = PAGE_NO_DIRECTION;
+		byte* n_dir = PAGE_HEADER + PAGE_N_DIRECTION + page;
+		*reinterpret_cast<uint16_t*>(n_dir) = 0;
+
+		if (page_zip) {
+			page_zip_write_header(page_zip, dir, 1, NULL);
+			page_zip_write_header(page_zip, n_dir, 2, NULL);
+		}
 	}
 
 	return(rec_end);
@@ -2035,6 +2026,9 @@ page_copy_rec_list_end_to_created_page(
 	ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 	ut_ad(page_align(rec) != new_page);
 	ut_ad(page_rec_is_comp(rec) == page_is_comp(new_page));
+	/* This function is never invoked on the clustered index root page.
+	For other pages, this field must be zero-initialized. */
+	ut_ad(!new_page[PAGE_HEADER + PAGE_INSTANT]);
 
 	if (page_rec_is_infimum(rec)) {
 
@@ -2147,6 +2141,10 @@ page_copy_rec_list_end_to_created_page(
 		mem_heap_free(heap);
 	}
 
+	/* Restore the log mode */
+
+	mtr_set_log_mode(mtr, log_mode);
+
 	log_data_len = mtr->get_log()->size() - log_data_len;
 
 	ut_a(log_data_len < 100 * UNIV_PAGE_SIZE);
@@ -2171,15 +2169,11 @@ page_copy_rec_list_end_to_created_page(
 	page_dir_set_n_heap(new_page, NULL, PAGE_HEAP_NO_USER_LOW + n_recs);
 	page_header_set_field(new_page, NULL, PAGE_N_RECS, n_recs);
 
-	page_header_set_ptr(new_page, NULL, PAGE_LAST_INSERT, NULL);
-
-	page_header_set_field(new_page, NULL, PAGE_DIRECTION,
-			      PAGE_NO_DIRECTION);
-	page_header_set_field(new_page, NULL, PAGE_N_DIRECTION, 0);
-
-	/* Restore the log mode */
-
-	mtr_set_log_mode(mtr, log_mode);
+	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_LAST_INSERT + new_page)
+		= 0;
+	new_page[PAGE_HEADER + PAGE_DIRECTION_B] = PAGE_NO_DIRECTION;
+	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_N_DIRECTION + new_page)
+		= 0;
 }
 
 /***********************************************************//**

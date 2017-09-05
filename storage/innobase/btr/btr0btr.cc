@@ -1901,6 +1901,7 @@ btr_root_raise_and_insert(
 	root_page_zip = buf_block_get_page_zip(root_block);
 	ut_ad(!page_is_empty(root));
 	index = btr_cur_get_index(cursor);
+	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!root_page_zip || page_zip_validate(root_page_zip, root, index));
 #endif /* UNIV_ZIP_DEBUG */
@@ -2044,6 +2045,19 @@ btr_root_raise_and_insert(
 
 	/* Rebuild the root page to get free space */
 	btr_page_empty(root_block, root_page_zip, index, level + 1, mtr);
+	/* btr_page_empty() is supposed to zero-initialize the field. */
+	ut_ad(!root_block->frame[PAGE_HEADER + PAGE_INSTANT]);
+
+	if (dict_index_is_clust(index) && dict_table_is_comp(index->table)
+	    && index->is_instant()) {
+		/* ROW_FORMAT=COMPRESSED does not support instant ADD COLUMN.
+		Only ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC set the
+		PAGE_INSTANT field on the clustered index root page. */
+		ut_ad(!root_page_zip);
+		mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT
+				 + root_block->frame,
+				 index->n_core_null_bytes, MLOG_1BYTE, mtr);
+	}
 
 	/* Set the next node and previous node fields, although
 	they should already have been set.  The previous node field

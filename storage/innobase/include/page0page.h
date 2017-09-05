@@ -63,9 +63,27 @@ typedef	byte		page_header_t;
 #define	PAGE_FREE	 6	/* pointer to start of page free record list */
 #define	PAGE_GARBAGE	 8	/* number of bytes in deleted records */
 #define	PAGE_LAST_INSERT 10	/* pointer to the last inserted record, or
-				NULL if this info has been reset by a delete,
+				0 if this info has been reset by a delete,
 				for example */
-#define	PAGE_DIRECTION	 12	/* last insert direction: PAGE_LEFT, ... */
+
+/** This field is usually 0. In B-tree index pages of
+ROW_FORMAT=REDUNDANT tables, this byte can contain garbage if the .ibd
+file was created in MySQL 4.1.0 or if the table resides in the system
+tablespace and was created before MySQL 4.1.1 or MySQL 4.0.14.
+
+In ROW_FORMAT=COMPRESSED tables, this field is always 0.
+
+In ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC tables, this field is
+always 0, except in the root page of the clustered index after instant
+ADD COLUMN. In that case, the root page will contain the value of
+dict_index_t::n_core_null_bytes. If instant ADD COLUMN was not used,
+the value is 0. */
+#define PAGE_INSTANT	12
+
+/** last insert direction: PAGE_LEFT, ....
+In ROW_FORMAT=REDUNDANT tables created before MySQL 4.1.1 or MySQL 4.0.14,
+this byte can be garbage. */
+#define	PAGE_DIRECTION_B 13
 #define	PAGE_N_DIRECTION 14	/* number of consecutive inserts to the same
 				direction */
 #define	PAGE_N_RECS	 16	/* number of user records on the page */

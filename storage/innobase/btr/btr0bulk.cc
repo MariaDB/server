@@ -290,12 +290,12 @@ PageBulk::finish()
 	page_dir_set_n_slots(m_page, NULL, 2 + slot_index);
 	page_header_set_ptr(m_page, NULL, PAGE_HEAP_TOP, m_heap_top);
 	page_dir_set_n_heap(m_page, NULL, PAGE_HEAP_NO_USER_LOW + m_rec_no);
-	page_header_set_field(m_page, NULL, PAGE_N_RECS, m_rec_no);
-
 	page_header_set_ptr(m_page, NULL, PAGE_LAST_INSERT, m_cur_rec);
-	page_header_set_field(m_page, NULL, PAGE_DIRECTION, PAGE_RIGHT);
-	page_header_set_field(m_page, NULL, PAGE_N_DIRECTION, 0);
-
+	mach_write_to_2(PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
+	ut_ad(!m_page[PAGE_HEADER + PAGE_INSTANT]);
+	m_page[PAGE_HEADER + PAGE_DIRECTION_B] = PAGE_RIGHT;
+	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_N_DIRECTION + m_page)
+		= 0;
 	m_block->skip_flush_check = false;
 }
 
