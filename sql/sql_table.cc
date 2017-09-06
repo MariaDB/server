@@ -3021,10 +3021,9 @@ int prepare_create_field(Column_definition *sql_field,
     */
     if (decimals >= FLOATING_POINT_DECIMALS)
       decimals= FLOATING_POINT_DECIMALS;
-    /* fall-trough */
+    /* fall through */
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_TIMESTAMP2:
-    /* fall-through */
   default:
     sql_field->pack_flag=(FIELDFLAG_NUMBER |
                           (sql_field->flags & UNSIGNED_FLAG ? 0 :
