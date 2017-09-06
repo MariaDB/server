@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/innodb_page_size.inc
 
 #
 # MDEV-13227: Assertion failure len < 16384 in file rem0rec.cc line 1285
