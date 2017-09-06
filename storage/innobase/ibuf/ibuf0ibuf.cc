@@ -4034,7 +4034,7 @@ ibuf_insert_to_index_page(
 		      "InnoDB: but the number of fields does not match!\n",
 		      stderr);
 dump:
-		buf_page_print(page, 0, BUF_PAGE_PRINT_NO_CRASH);
+		buf_page_print(page, 0);
 
 		dtuple_print(stderr, entry);
 		ut_ad(0);
@@ -4644,14 +4644,12 @@ ibuf_merge_or_delete_for_page(
 
 			bitmap_page = ibuf_bitmap_get_map_page(space, page_no,
 							       zip_size, &mtr);
-			buf_page_print(bitmap_page, 0,
-				       BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(bitmap_page, 0);
 			ibuf_mtr_commit(&mtr);
 
 			fputs("\nInnoDB: Dump of the page:\n", stderr);
 
-			buf_page_print(block->frame, 0,
-				       BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(block->frame, 0);
 
 			fprintf(stderr,
 				"InnoDB: Error: corruption in the tablespace."
