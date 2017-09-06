@@ -6589,5 +6589,40 @@ use test;
 drop database test_db;
 drop user foo@localhost;
 #
+# MDEV-13523: Group By in a View, called within a Stored Routine
+# causes Error Code 1356 when a non-root user runs the routine for
+# a second time
+#
+CREATE DATABASE bugTest;
+USE bugTest;
+CREATE TABLE `procViewTable` (`id` int(10), `someText` varchar(50) NOT NULL);
+insert  into `procViewTable` values (1,'Test'), (2,'Test 2');
+CREATE USER 'procView'@'%';
+GRANT ALL PRIVILEGES ON `bugTest`.* TO 'procView'@'%';
+CREATE DEFINER=`procView`@`%` VIEW `procViewSimple` AS (
+select * from (
+select `id` from `bugTest`.`procViewTable`
+  ) `innerQuery`
+  group by `innerQuery`.`id`
+);
+connect  con1,localhost,procView,,;
+use bugTest;
+prepare stmt from "SELECT * FROM procViewSimple";
+execute stmt;
+id
+1
+2
+execute stmt;
+id
+1
+2
+disconnect con1;
+connection default;
+drop user procView;
+drop view procViewSimple;
+drop table procViewTable;
+use test;
+drop database bugTest;
+#
 # End of 10.2 tests
 #
