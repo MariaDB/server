@@ -8087,6 +8087,34 @@ CALL sp1();
 CALL sp1();
 drop user 'foo'@'%';
 drop procedure sp1;
+#
+# MDEV-10972: Insert from select / view / union --
+# repeatable crash in 10.1, 10.2 Linux/Mac/Windows
+#
+create table t (id int auto_increment primary key);
+insert into t values (9494),(9495),(9496),(9497),(9498),(9499),(9500),(9501),(9502),(9503);
+create VIEW v AS
+select id from t
+union
+select id from t
+;
+drop procedure if exists p;
+Warnings:
+Note	1305	PROCEDURE test.p does not exist
+create procedure p()
+insert into tmp_t select t.id from (
+select id from v
+union
+select id from v
+) sq
+inner join t on (sq.id = t.id);
+CALL p();
+ERROR 42S02: Table 'test.tmp_t' doesn't exist
+create table tmp_t (id int null);
+CALL p();
+drop procedure p;
+drop view v;
+drop table t, tmp_t;
 #End of 10.1 tests
 #
 # MDEV-11081: CURSOR for query with GROUP BY

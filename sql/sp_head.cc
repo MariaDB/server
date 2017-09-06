@@ -579,7 +579,7 @@ sp_head::sp_head()
    m_flags(0),
    m_sp_cache_version(0),
    m_creation_ctx(0),
-   unsafe_flags(0),
+   unsafe_flags(0), m_select_number(1),
    m_recursion_level(0),
    m_next_cached_sp(0),
    m_cont_level(0)
@@ -2110,8 +2110,26 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
   if (!err_status)
   {
+    /*
+      Normally the counter is not reset between parsing and first execution,
+      but it is possible in case of error to have parsing on one CALL and
+      first execution (where VIEW will be parsed and added). So we store the
+      counter after parsing and restore it before execution just to avoid
+      repeating SELECT numbers.
+    */
+    thd->select_number= m_select_number;
+
     err_status= execute(thd, TRUE);
     DBUG_PRINT("info", ("execute returned %d", (int) err_status));
+    /*
+      This execution of the SP was aborted with an error (e.g. "Table not
+      found").  However it might still have consumed some numbers from the
+      thd->select_number counter.  The next sp->exec() call must not use the
+      consumed numbers, so we remember the first free number (We know that
+      nobody will use it as this execution has stopped with an error).
+    */
+    if (err_status)
+      set_select_number(thd->select_number);
   }
 
   if (save_log_general)

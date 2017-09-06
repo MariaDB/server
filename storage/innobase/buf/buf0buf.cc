@@ -1173,28 +1173,20 @@ buf_page_is_corrupted(
 }
 
 #ifndef UNIV_INNOCHECKSUM
-
-/** Prints a page to stderr.
-@param[in]	read_buf	a database page
-@param[in]	page_size	page size
-@param[in]	flags		0 or BUF_PAGE_PRINT_NO_CRASH or
-BUF_PAGE_PRINT_NO_FULL */
+/** Dump a page to stderr.
+@param[in]	read_buf	database page
+@param[in]	page_size	page size */
+UNIV_INTERN
 void
-buf_page_print(
-	const byte*		read_buf,
-	const page_size_t&	page_size,
-	ulint			flags)
+buf_page_print(const byte* read_buf, const page_size_t& page_size)
 {
 	dict_index_t*	index;
 
-	if (!(flags & BUF_PAGE_PRINT_NO_FULL)) {
+	ib::info() << "Page dump in ascii and hex ("
+		<< page_size.physical() << " bytes):";
 
-		ib::info() << "Page dump in ascii and hex ("
-			<< page_size.physical() << " bytes):";
-
-		ut_print_buf(stderr, read_buf, page_size.physical());
-		fputs("\nInnoDB: End of page dump\n", stderr);
-	}
+	ut_print_buf(stderr, read_buf, page_size.physical());
+	fputs("\nInnoDB: End of page dump\n", stderr);
 
 	if (page_size.is_compressed()) {
 		/* Print compressed page. */
@@ -1359,8 +1351,6 @@ buf_page_print(
 		      stderr);
 		break;
 	}
-
-	ut_ad(flags & BUF_PAGE_PRINT_NO_CRASH);
 }
 
 # ifdef PFS_GROUP_BUFFER_SYNC
@@ -5984,8 +5974,7 @@ database_corrupted:
 					<< ". You may have to recover from "
 					<< "a backup.";
 
-				buf_page_print(frame, bpage->size,
-					BUF_PAGE_PRINT_NO_CRASH);
+				buf_page_print(frame, bpage->size);
 
 				ib::info()
 					<< "It is also possible that your"
