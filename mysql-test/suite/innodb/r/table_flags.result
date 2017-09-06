@@ -174,7 +174,6 @@ a
 SELECT * FROM tp;
 a
 DROP TABLE tr,tc,td,tz,tp;
-ib_buffer_pool
 ib_logfile0
 ib_logfile1
 ibdata1

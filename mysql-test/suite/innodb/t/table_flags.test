@@ -194,6 +194,11 @@ DROP TABLE tr,tc,td,tz,tp;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 
+--error 0,1
+--remove_file $bugdir/ibtmp1
+--error 0,1
+--remove_file $bugdir/ib_buffer_pool
+
 --list_files $bugdir
 --remove_files_wildcard $bugdir
 --rmdir $bugdir
