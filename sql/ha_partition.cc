@@ -7897,7 +7897,7 @@ uint32 ha_partition::calculate_key_hash_value(Field **field_array)
       case MYSQL_TYPE_BLOB:
       case MYSQL_TYPE_VAR_STRING:
       case MYSQL_TYPE_GEOMETRY:
-        /* fall through. */
+        /* fall through */
       default:
         DBUG_ASSERT(0);                    // New type?
         /* Fall through for default hashing (5.5). */

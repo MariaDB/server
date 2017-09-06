@@ -5077,6 +5077,11 @@ sub mysqld_start ($$) {
     }
   }
 
+  # "Dynamic" version of MYSQLD_CMD is reevaluated with each mysqld_start.
+  # Use it to restart the server at testing a failing server start (e.g
+  # due to incompatible options).
+  $ENV{'MYSQLD_LAST_CMD'}= "$exe  @$args";
+
   if ( $opt_gdb || $opt_manual_gdb )
   {
     gdb_arguments(\$args, \$exe, $mysqld->name());
@@ -5172,11 +5177,6 @@ sub mysqld_start ($$) {
 
   # Remember options used when starting
   $mysqld->{'started_opts'}= $extra_opts;
-
-  # "Dynamic" version of MYSQLD_CMD is reevaluated with each mysqld_start.
-  # Use it to restart the server at testing a failing server start (e.g
-  # due to incompatible options).
-  $ENV{'MYSQLD_LAST_CMD'}= "$exe  @$args";
 
   return;
 }
