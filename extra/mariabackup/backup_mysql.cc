@@ -840,7 +840,7 @@ stop_thread:
 
 	os_event_set(kill_query_thread_stopped);
 
-	os_thread_exit(NULL);
+	os_thread_exit();
 	OS_THREAD_DUMMY_RETURN;
 }
 
