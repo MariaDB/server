@@ -62,6 +62,12 @@ float my_log2f(float n)
 # define posix_fadvise(fd, offset, len, advice) /* nothing */
 #endif /* _WIN32 */
 
+/** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
+const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN] = {
+	0, 0, 0, 0, 0, 0,
+	0x80, 0, 0, 0, 0, 0, 0
+};
+
 /* Whether to disable file system cache */
 char	srv_disable_sort_file_cache;
 
@@ -2302,13 +2308,11 @@ end_of_index:
 			for which history is not going to be
 			available after the rebuild operation.
 			This essentially mimics row_purge_reset_trx_id(). */
-			byte* ptr = static_cast<byte*>(
-				row->fields[new_trx_id_col].data);
-
-			memset(ptr, 0, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
-			ptr[DATA_TRX_ID_LEN] = 1U
-				<< (ROLL_PTR_INSERT_FLAG_POS - CHAR_BIT
-				    * (DATA_ROLL_PTR_LEN - 1));
+			row->fields[new_trx_id_col].data
+				= const_cast<byte*>(reset_trx_id);
+			row->fields[new_trx_id_col + 1].data
+				= const_cast<byte*>(reset_trx_id
+						    + DATA_TRX_ID_LEN);
 		}
 
 		if (add_autoinc != ULINT_UNDEFINED) {
