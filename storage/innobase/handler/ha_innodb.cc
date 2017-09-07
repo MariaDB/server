@@ -8208,11 +8208,37 @@ ha_innobase::write_row(
 	recovery if server crashes while ALTER is active. */
 	sql_command = thd_sql_command(m_user_thd);
 
+#ifdef WITH_WSREP
+	const bool provider_is_SR_capable = wsrep_provider_is_SR_capable();
+
+	/* If this is true when we commit internally every N rows,
+	 * see `num_write_row >= 10000` below. */
+	const bool wsrep_commit_every_N_rows =
+		wsrep_on(m_user_thd) &&
+		!provider_is_SR_capable &&
+		wsrep_load_data_splitting &&
+		sql_command == SQLCOM_LOAD &&
+		!thd_test_options(m_user_thd,
+				  OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN);
+#endif /* WITH_WSREP */
+
 	if ((sql_command == SQLCOM_ALTER_TABLE
 	     || sql_command == SQLCOM_OPTIMIZE
 	     || sql_command == SQLCOM_CREATE_INDEX
+#ifdef WITH_WSREP
+	     || wsrep_commit_every_N_rows
+#endif /* WITH_WSREP */
 	     || sql_command == SQLCOM_DROP_INDEX)
 	    && m_num_write_row >= 10000) {
+#ifdef WITH_WSREP
+		if (!provider_is_SR_capable &&
+		    wsrep_on(m_user_thd) &&
+		    sql_command == SQLCOM_LOAD) {
+
+			WSREP_DEBUG("Forced trx split for LOAD: %s",
+				    wsrep_thd_query(m_user_thd));
+		}
+#endif /* WITH_WSREP */
 		/* ALTER TABLE is COMMITted at every 10000 copied rows.
 		The IX table lock for the original table has to be re-issued.
 		As this method will be called on a temporary table where the
@@ -8239,6 +8265,12 @@ no_commit:
 			/* Unknown situation: do not commit */
 			;
 		} else if (src_table == m_prebuilt->table) {
+#ifdef WITH_WSREP
+			if (wsrep_commit_every_N_rows &&
+			    wsrep_tc_log_commit(m_user_thd) != WSREP_OK) {
+				DBUG_RETURN(1);
+			}
+#endif /* WITH_WSREP */
 			/* Source table is not in InnoDB format:
 			no need to re-acquire locks on it. */
 
@@ -8249,6 +8281,12 @@ no_commit:
 			/* We will need an IX lock on the destination table. */
 			m_prebuilt->sql_stat_start = TRUE;
 		} else {
+#ifdef WITH_WSREP
+			if (wsrep_commit_every_N_rows &&
+			    wsrep_tc_log_commit(m_user_thd) != WSREP_OK) {
+				DBUG_RETURN(1);
+			}
+#endif /* WITH_WSREP */
 			/* Ensure that there are no other table locks than
 			LOCK_IX and LOCK_AUTO_INC on the destination table. */
 

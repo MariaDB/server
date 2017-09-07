@@ -1,0 +1,23 @@
+SELECT variable_value FROM information_schema.session_variables
+WHERE variable_name = 'wsrep_trx_fragment_size';
+variable_value
+0
+SET SESSION wsrep_trx_fragment_size = 0;
+SET SESSION wsrep_trx_fragment_size = 123;
+ERROR 42000: Variable 'wsrep_trx_fragment_size' can't be set to the value of '123'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Cannot set 'wsrep_trx_fragment_size' to a value other than 0 because the wsrep_provider does not support streaming replication.
+Error	1231	Variable 'wsrep_trx_fragment_size' can't be set to the value of '123'
+SELECT variable_value FROM information_schema.global_variables
+WHERE variable_name = 'wsrep_trx_fragment_size';
+variable_value
+0
+SET GLOBAL wsrep_trx_fragment_size = 0;
+SET GLOBAL wsrep_trx_fragment_size = 123;
+ERROR 42000: Variable 'wsrep_trx_fragment_size' can't be set to the value of '123'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Cannot set 'wsrep_trx_fragment_size' to a value other than 0 because the wsrep_provider does not support streaming replication.
+Error	1231	Variable 'wsrep_trx_fragment_size' can't be set to the value of '123'
+SET GLOBAL wsrep_trx_fragment_size = default;

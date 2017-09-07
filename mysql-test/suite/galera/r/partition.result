@@ -113,7 +113,7 @@ SELECT COUNT(*) = 20002 FROM t1;
 COUNT(*) = 20002
 1
 wsrep_last_committed_diff
-1
+AS_EXPECTED_3_or_5
 DROP TABLE t1;
 # Case 2: wsrep_load_data_splitting = ON & LOAD DATA with 101 entries.
 SET GLOBAL wsrep_load_data_splitting = ON;
@@ -134,7 +134,7 @@ SELECT COUNT(*) = 20002 FROM t1;
 COUNT(*) = 20002
 1
 wsrep_last_committed_diff
-1
+AS_EXPECTED_1_or_2
 DROP TABLE t1;
 SET GLOBAL wsrep_load_data_splitting = 1;;
 # End of test

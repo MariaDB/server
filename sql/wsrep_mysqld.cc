@@ -44,9 +44,11 @@
 #include "wsrep_trans_observer.h"
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include "log_event.h"
 #include <slave.h>
 #include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
+#include <rpl_handler.h>
 
 wsrep_t *wsrep                  = NULL;
 /*
@@ -794,6 +796,67 @@ static wsrep_cb_status_t wsrep_synced_cb(void* app_ctx)
   return WSREP_CB_SUCCESS;
 }
 
+/** Export the WSREP provider's capabilities as a human readable string.
+ * The result is saved in a dynamically allocated string of the form:
+ * :cap1:cap2:cap3:
+ * and the global variable `wsrep_provider_capabilities` is set to point
+ * to it.
+ */
+static void wsrep_provider_capabilities_export()
+{
+  static const char* names[] =
+  {
+    /* Keep in sync with wsrep/wsrep_api.h WSREP_CAP_* macros. */
+    "MULTI_MASTER",
+    "CERTIFICATION",
+    "PARALLEL_APPLYING",
+    "TRX_REPLAY",
+    "ISOLATION",
+    "PAUSE",
+    "CAUSAL_READS",
+    "CAUSAL_TRX",
+    "INCREMENTAL_WRITESET",
+    "SESSION_LOCKS",
+    "DISTRIBUTED_LOCKS",
+    "CONSISTENCY_CHECK",
+    "UNORDERED",
+    "ANNOTATION",
+    "PREORDERED",
+    "STREAMING",
+    "SNAPSHOT",
+    "NBO",
+  };
+
+  /* A read from the string pointed to by `wsrep_provider_capabilities` may
+   * be started at any time, so it must never point to free(3)d memory or
+   * non '\0' terminated string. */
+
+  const uint64_t cap = wsrep->capabilities(wsrep);
+
+  std::string s;
+  for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
+  {
+    if (cap & (1ULL << i))
+    {
+      if (s.empty())
+      {
+        s = ":";
+      }
+      s += names[i];
+      s += ":";
+    }
+  }
+
+  char* previous = wsrep_provider_capabilities;
+
+  wsrep_provider_capabilities = strdup(s.c_str());
+
+  if (previous != NULL)
+  {
+    free(previous);
+  }
+}
+
 static void wsrep_init_position()
 {
   /* read XIDs from storage engines */
@@ -1024,27 +1087,43 @@ done:
     wsrep->free(wsrep);
     free(wsrep);
     wsrep = NULL;
+    return rcode;
   }
-  else
-  {
-    wsrep_inited= 1;
-    WSREP_DEBUG("SR storage init for: %s", 
-                (wsrep_SR_store_type == WSREP_SR_STORE_TABLE) ? "table" :
-                (wsrep_SR_store_type == WSREP_SR_STORE_FILE) ? "file" : "void");
 
-    switch (wsrep_SR_store_type)
-    {
-    case WSREP_SR_STORE_FILE:
-      wsrep_SR_store = wsrep_SR_store_file = 
-        new SR_storage_file(mysql_real_data_home_ptr,
-                            1024,
-                            wsrep_cluster_state_uuid);
-      break;
-    case WSREP_SR_STORE_TABLE:
-      wsrep_SR_store = wsrep_SR_store_table = new SR_storage_table();
-      break;
-    case WSREP_SR_STORE_NONE: break;
-    }
+  if (!wsrep_provider_is_SR_capable() &&
+      global_system_variables.wsrep_trx_fragment_size > 0)
+  {
+    WSREP_ERROR("The WSREP provider (%s) does not support streaming "
+                "replication but wsrep_trx_fragment_size is set to a "
+                "value other than 0 (%lu). Cannot continue. Either set "
+                "wsrep_trx_fragment_size to 0 or use wsrep_provider that "
+                "supports streaming replication.",
+                wsrep_provider, global_system_variables.wsrep_trx_fragment_size);
+    wsrep->free(wsrep);
+    free(wsrep);
+    wsrep = NULL;
+    return -1;
+  }
+  wsrep_inited= 1;
+
+  wsrep_provider_capabilities_export();
+
+  WSREP_DEBUG("SR storage init for: %s",
+              (wsrep_SR_store_type == WSREP_SR_STORE_TABLE) ? "table" :
+              (wsrep_SR_store_type == WSREP_SR_STORE_FILE) ? "file" : "void");
+
+  switch (wsrep_SR_store_type)
+  {
+  case WSREP_SR_STORE_FILE:
+    wsrep_SR_store = wsrep_SR_store_file =
+      new SR_storage_file(mysql_real_data_home_ptr,
+                          1024,
+                          wsrep_cluster_state_uuid);
+    break;
+  case WSREP_SR_STORE_TABLE:
+    wsrep_SR_store = wsrep_SR_store_table = new SR_storage_table();
+    break;
+  case WSREP_SR_STORE_NONE: break;
   }
 
   return rcode;

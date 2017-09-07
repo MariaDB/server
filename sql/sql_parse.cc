@@ -5184,7 +5184,11 @@ end_with_restore_list:
      */
     ulong wsrep_trx_fragment_size_orig= thd->variables.wsrep_trx_fragment_size;
     ulong wsrep_trx_fragment_unit_orig= thd->variables.wsrep_trx_fragment_unit;
-    if (wsrep_load_data_splitting)
+    if (!wsrep_provider_is_SR_capable())
+    {
+      thd->variables.wsrep_trx_fragment_size= 0;
+    }
+    else if (wsrep_load_data_splitting)
     {
       thd->variables.wsrep_trx_fragment_size= 10000;
       thd->variables.wsrep_trx_fragment_unit= WSREP_FRAG_ROWS;

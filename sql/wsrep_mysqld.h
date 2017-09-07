@@ -174,6 +174,7 @@ extern long long   wsrep_local_bf_aborts;
 extern const char* wsrep_provider_name;
 extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
+extern char*       wsrep_provider_capabilities;
 
 //int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff,
 //                       enum enum_var_type scope);
@@ -692,4 +693,20 @@ bool wsrep_node_is_synced();
 #define WSREP_BINLOG_FORMAT(my_format) my_format
 
 #endif /* WITH_WSREP */
+/**
+ * Check if the wsrep provider (ie the Galera library) is capable of
+ * doing streaming replication.
+ * @return true if SR capable
+ */
+bool wsrep_provider_is_SR_capable();
+
+/**
+ * Commit the current transaction with the
+ * MySQL "Transaction Coordinator Log" (see `class TC_LOG` in sql/log.h).
+ * Calling this function will generate and assign a new wsrep transaction id
+ * for `thd`.
+ * @return WSREP_OK on success or other WSREP_* error code on failure
+ */
+wsrep_status_t wsrep_tc_log_commit(THD* thd);
+
 #endif /* WSREP_MYSQLD_H */

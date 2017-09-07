@@ -633,6 +633,26 @@ bool wsrep_max_ws_size_check(sys_var *self, THD* thd, set_var* var)
   return false;
 }
 
+bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
+{
+  if (var->value == NULL) {
+    return false;
+  }
+
+  const ulong new_trx_fragment_size = var->value->val_uint();
+
+  if (new_trx_fragment_size > 0 && !wsrep_provider_is_SR_capable()) {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                  "0 because the wsrep_provider does not support streaming "
+                  "replication.");
+    return true;
+  }
+
+  return false;
+}
+
 bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
 {
   DBUG_ASSERT(wsrep);
@@ -659,10 +679,11 @@ static SHOW_VAR wsrep_status_vars[]=
   {"cluster_status",    (char*) &wsrep_cluster_status,    SHOW_CHAR_PTR},
   {"cluster_size",      (char*) &wsrep_cluster_size,      SHOW_LONG_NOFLUSH},
   {"local_index",       (char*) &wsrep_local_index,       SHOW_LONG_NOFLUSH},
-  {"local_bf_aborts",   (char*) &wsrep_show_bf_aborts,    SHOW_SIMPLE_FUNC},
+  {"local_bf_aborts",   (char*) &wsrep_show_bf_aborts,    SHOW_FUNC},
   {"provider_name",     (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
   {"provider_version",  (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
   {"provider_vendor",   (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
+  {"wsrep_provider_capabilities", (char*) &wsrep_provider_capabilities, SHOW_CHAR_PTR},
   {"thread_count",      (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH}
 };
 

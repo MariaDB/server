@@ -5433,7 +5433,8 @@ static Sys_var_mybool Sys_wsrep_restart_slave(
 static Sys_var_ulong Sys_wsrep_trx_fragment_size(
       "wsrep_trx_fragment_size", "size (in bytes) for transaction fragments for streaming replication",
        SESSION_VAR(wsrep_trx_fragment_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, WSREP_MAX_WS_SIZE), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, WSREP_MAX_WS_SIZE), DEFAULT(0), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(wsrep_trx_fragment_size_check));
 
 extern const char *wsrep_fragment_units[];
 
