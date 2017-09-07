@@ -19513,8 +19513,7 @@ wsrep_innobase_kill_one_trx(
 	}
 
 	if (wsrep_thd_trx_id(thd) == WSREP_UNDEFINED_TRX_ID) {
-		wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd),
-			wsrep_thd_next_trx_id(thd));
+		wsrep_ws_handle(thd);
 	}
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
