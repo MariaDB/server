@@ -1308,14 +1308,15 @@ retry_page_get:
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(index->id == btr_page_get_index_id(page));
 
-	if (UNIV_UNLIKELY(height == ULINT_UNDEFINED)) {
+	if (height == ULINT_UNDEFINED) {
 		/* We are in the root node */
 
 		height = btr_page_get_level(page, mtr);
 		root_height = height;
 		cursor->tree_height = root_height + 1;
 
-		if (dict_index_is_spatial(index)) {
+		if (btr_init_instant_root(index, page)) {
+		} else if (UNIV_UNLIKELY(dict_index_is_spatial(index))) {
 			ut_ad(cursor->rtr_info);
 
 			node_seq_t      seq_no = rtr_get_current_ssn_id(index);
@@ -2205,6 +2206,8 @@ btr_cur_open_at_index_side_func(
 			height = btr_page_get_level(page, mtr);
 			root_height = height;
 			ut_a(height >= level);
+
+			btr_init_instant_root(index, page);
 		} else {
 			/* TODO: flag the index corrupted if this fails */
 			ut_ad(height == btr_page_get_level(page, mtr));
@@ -2563,6 +2566,7 @@ btr_cur_open_at_rnd_pos_func(
 			/* We are in the root node */
 
 			height = btr_page_get_level(page, mtr);
+			btr_init_instant_root(index, page);
 		}
 
 		if (height == 0) {

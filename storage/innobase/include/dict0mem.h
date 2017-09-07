@@ -878,6 +878,9 @@ struct dict_index_t{
 	records; usually equal to UT_BITS_IN_BYTES(n_nullable), but
 	can be less in clustered indexes with instant ADD COLUMN */
 	unsigned	n_core_null_bytes:8;
+	/** magic value signalling that n_core_null_bytes was not
+	initialized yet */
+	static const unsigned NO_CORE_NULL_BYTES = 0xff;
 	unsigned	cached:1;/*!< TRUE if the index object is in the
 				dictionary cache */
 	unsigned	to_be_dropped:1;
@@ -1371,6 +1374,14 @@ struct dict_table_t {
 	bool is_instant() const
 	{
 		return(UT_LIST_GET_FIRST(indexes)->is_instant());
+	}
+
+	/** @return whether the table depends on the PAGE_INSTANT flag
+	on the clustered index root page */
+	bool has_page_instant() const
+	{
+		return(((DICT_TF_MASK_ZIP_SSIZE | DICT_TF_MASK_COMPACT)
+			& flags) == DICT_TF_MASK_COMPACT);
 	}
 
 	/** Id of the table. */

@@ -618,7 +618,6 @@ mlog_parse_index(
 					   dict_table_get_nth_col(table, i),
 					   0);
 		}
-		ind->n_core_null_bytes = UT_BITS_IN_BYTES(ind->n_nullable);
 		dict_table_add_system_columns(table, table->heap);
 		if (n_uniq != n) {
 			/* Identify DB_TRX_ID and DB_ROLL_PTR in the index. */

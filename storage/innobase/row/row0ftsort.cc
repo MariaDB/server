@@ -1699,6 +1699,20 @@ row_fts_merge_insert(
 	ut_ad(aux_table != NULL);
 	dict_table_close(aux_table, FALSE, FALSE);
 	aux_index = dict_table_get_first_index(aux_table);
+	switch (aux_index->n_core_null_bytes) {
+	case dict_index_t::NO_CORE_NULL_BYTES:
+		ut_ad(aux_table->has_page_instant());
+		aux_index->n_core_null_bytes = UT_BITS_IN_BYTES(
+			aux_index->n_nullable);
+		break;
+	default:
+		ut_ad(!aux_table->has_page_instant());
+	}
+
+	ut_ad(!aux_index->is_instant());
+	/* row_merge_write_fts_node() depends on the correct value */
+	ut_ad(aux_index->n_core_null_bytes
+	      == UT_BITS_IN_BYTES(aux_index->n_nullable));
 
 	FlushObserver* observer;
 	observer = psort_info[0].psort_common->trx->flush_observer;

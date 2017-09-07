@@ -2048,7 +2048,7 @@ btr_root_raise_and_insert(
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!root_block->frame[PAGE_HEADER + PAGE_INSTANT]);
 
-	if (dict_index_is_clust(index) && dict_table_is_comp(index->table)
+	if (dict_index_is_clust(index) && index->table->has_page_instant()
 	    && index->is_instant()) {
 		/* ROW_FORMAT=COMPRESSED does not support instant ADD COLUMN.
 		Only ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC set the
@@ -5402,6 +5402,7 @@ btr_validate_index(
 		return err;
 	}
 
+	btr_init_instant_root(index, root);
 	ulint	n = btr_page_get_level(root, &mtr);
 
 	for (ulint i = 0; i <= n; ++i) {

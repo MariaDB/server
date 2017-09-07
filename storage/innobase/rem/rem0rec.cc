@@ -281,6 +281,7 @@ rec_init_offsets_comp_ordinary(
 
 	ut_ad(index->n_core_fields > 0);
 	ut_ad(index->n_fields >= index->n_core_fields);
+	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	ut_d(ulint n_null);
 
 	if (!temp && rec_is_instant(rec)) {
@@ -294,11 +295,11 @@ rec_init_offsets_comp_ordinary(
 		nulls = rec - (1 + extra_bytes + field_count_len);
 
 		const ulint n_nullable = rec_get_n_nullable(rec, index);
-		const ulint n_null_bits = UT_BITS_IN_BYTES(n_nullable);
+		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 		ut_d(n_null = n_nullable);
 		ut_ad(n_null <= index->n_nullable);
-		ut_ad(n_null_bits >= index->n_core_null_bytes);
-		lens = nulls - n_null_bits;
+		ut_ad(n_null_bytes >= index->n_core_null_bytes);
+		lens = nulls - n_null_bytes;
 	} else {
 		ut_ad(!index->is_instant());
 		nulls = rec - (1 + extra_bytes);
@@ -437,6 +438,7 @@ rec_init_offsets(
 	ulint	i	= 0;
 	ulint	offs;
 
+	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	rec_offs_make_valid(rec, index, offsets);
 
 	if (dict_table_is_comp(index->table)) {
@@ -913,15 +915,15 @@ rec_get_converted_size_comp_prefix_low(
 	n_v_fields = v_entry ? dtuple_get_n_v_fields(v_entry) : 0;
 
 	ut_d(ulint n_null = index->n_nullable);
-	ut_d(const ulint n_null_bits = UT_BITS_IN_BYTES(n_null));
+	ut_d(const ulint n_null_bytes = UT_BITS_IN_BYTES(n_null));
 
 	if (rec_flag == REC_FLAG_INSTANT && index->is_instant()) {
-		ut_ad(n_null_bits >= index->n_core_null_bytes);
+		ut_ad(n_null_bytes >= index->n_core_null_bytes);
 		extra_size = REC_N_NEW_EXTRA_BYTES
 			+ UT_BITS_IN_BYTES(index->n_nullable)
 			+ rec_get_field_count_len(n_fields);
 	} else {
-		ut_ad(n_null_bits == index->n_core_null_bytes);
+		ut_ad(n_null_bytes == index->n_core_null_bytes);
 		extra_size = temp
 			? index->n_core_null_bytes
 			: REC_N_NEW_EXTRA_BYTES + index->n_core_null_bytes;
@@ -1334,6 +1336,7 @@ rec_convert_dtuple_to_rec_comp(
 
 	ut_ad(n_fields > 0);
 	ut_ad(temp || dict_table_is_comp(index->table));
+	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 
 	ut_d(ulint n_null = index->n_nullable);
 
@@ -1795,6 +1798,7 @@ rec_copy_prefix_to_buf(
 	ulint		status;
 	bool		is_rtr_node_ptr = false;
 
+	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	UNIV_PREFETCH_RW(*buf);
 
 	if (!dict_table_is_comp(index->table)) {

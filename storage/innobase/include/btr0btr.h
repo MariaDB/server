@@ -820,6 +820,43 @@ btr_lift_page_up(
 	mtr_t*		mtr)	/*!< in: mtr */
 	__attribute__((nonnull));
 
+/** Initialize the n_core_null_bytes on first access to a clustered
+index root page.
+@param[in]	index	clustered index that is on its first access
+@param[in]	page	clustered index root page
+@return whether the PAGE_INSTANT field was read */
+inline
+bool
+btr_init_instant_root(dict_index_t* index, const page_t* page)
+{
+	ut_ad(page_is_root(page));
+	if (UNIV_LIKELY(index->n_core_null_bytes
+			!= dict_index_t::NO_CORE_NULL_BYTES)) {
+		return(false);
+	}
+
+	/* The field PAGE_INSTANT is only valid on clustered index
+	root pages of ROW_FORMAT=COMPACT or ROW_FORMAT=DYNAMIC. */
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->table->has_page_instant());
+
+	uint n = page[PAGE_HEADER + PAGE_INSTANT];
+	ut_ad(n <= UT_BITS_IN_BYTES(index->n_nullable));
+	if (n == 0) {
+		/* Instant ADD COLUMN was not used. */
+		ut_ad(!index->is_instant());
+		n = UT_BITS_IN_BYTES(index->n_nullable);
+	}
+	/* Multiple threads could be accessing the clustered index
+	root page and updating this field at the same time.  But each
+	thread should deliver the same value. Outside instant ADD
+	COLUMN, the PAGE_INSTANT field is never modified. */
+	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES
+	      || index->n_core_null_bytes == n);
+	index->n_core_null_bytes = n;
+	return(true);
+}
+
 #define BTR_N_LEAF_PAGES	1
 #define BTR_TOTAL_SIZE		2
 
