@@ -1743,7 +1743,17 @@ public:
     /* Walk to the end of the partition, find how many rows there are. */
     while (!cursor.next())
       num_rows_in_partition++;
+    set_win_funcs_row_count(num_rows_in_partition);
+  }
 
+  ha_rows get_curr_rownum() const
+  {
+    return cursor.get_rownum();
+  }
+
+protected:
+  void set_win_funcs_row_count(ha_rows num_rows_in_partition)
+  {
     List_iterator_fast<Item_sum> it(sum_functions);
     Item_sum* item;
     while ((item= it++))
@@ -1753,20 +1763,16 @@ public:
       item_with_row_count->set_row_count(num_rows_in_partition);
     }
   }
-
-  ha_rows get_curr_rownum() const
-  {
-    return cursor.get_rownum();
-  }
 };
 
-class Frame_unbounded_following_set_count_special: public Frame_unbounded_following_set_count
+class Frame_unbounded_following_set_count_no_nulls: 
+            public Frame_unbounded_following_set_count
 {
 
 public:
-  Frame_unbounded_following_set_count_special(THD *thd,
+  Frame_unbounded_following_set_count_no_nulls(THD *thd,
       SQL_I_List<ORDER> *partition_list,
-      SQL_I_List<ORDER> *order_list, Item* arg) :
+      SQL_I_List<ORDER> *order_list) :
   Frame_unbounded_following_set_count(thd,partition_list, order_list)
   {
     order_item= order_list->first->item[0];
@@ -1782,16 +1788,9 @@ public:
     {
       if (!order_item->is_null())
         num_rows_in_partition++;
-    }while (!cursor.next());
+    } while (!cursor.next());
 
-    List_iterator_fast<Item_sum> it(sum_functions);
-    Item_sum* item;
-    while ((item= it++))
-    {
-      Item_sum_window_with_row_count* item_with_row_count =
-        static_cast<Item_sum_window_with_row_count *>(item);
-      item_with_row_count->set_row_count(num_rows_in_partition);
-    }
+    set_win_funcs_row_count(num_rows_in_partition);
   }
 
   ha_rows get_curr_rownum() const
@@ -2614,9 +2613,9 @@ void get_window_functions_required_cursors(
     {
       if (item_win_func->only_single_element_order_list())
       {
-        fc= new Frame_unbounded_following_set_count_special(thd,
+        fc= new Frame_unbounded_following_set_count_no_nulls(thd,
                 item_win_func->window_spec->partition_list,
-                item_win_func->window_spec->order_list, item_win_func->window_func()->get_arg(0));
+                item_win_func->window_spec->order_list);
       }
       else
       {
