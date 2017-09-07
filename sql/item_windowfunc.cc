@@ -109,15 +109,6 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     return true;
   }
 
-  if (only_single_element_order_list())
-  {
-    if (window_spec->order_list->elements != 1)
-    {
-      my_error(ER_NOT_SINGLE_ELEMENT_ORDER_LIST, MYF(0), window_func()->func_name());
-      return true;
-    }
-  }
-
   /*
     TODO: why the last parameter is 'ref' in this call? What if window_func
     decides to substitute itself for something else and does *ref=.... ? 
@@ -182,9 +173,11 @@ bool Item_window_func::check_result_type_of_order_item()
 {
   if (only_single_element_order_list())
   {
-    Item_result rtype= window_spec->order_list->first->item[0]->result_type();
+    Item_result rtype= window_spec->order_list->first->item[0]->cmp_type();
+    // TODO (varun) : support date type in percentile_cont function 
     if (rtype != REAL_RESULT && rtype != INT_RESULT &&
-        rtype != DECIMAL_RESULT && window_func()->sum_func() == Item_sum::PERCENTILE_CONT_FUNC)
+        rtype != DECIMAL_RESULT && rtype != TIME_RESULT 
+        window_func()->sum_func() == Item_sum::PERCENTILE_CONT_FUNC)
     {
       my_error(ER_WRONG_TYPE_FOR_PERCENTILE_CONT, MYF(0));
       return TRUE;
@@ -242,6 +235,45 @@ void Item_sum_percentile_cont::setup_window_func(THD *thd, Window_spec *window_s
     return;
   floor_value->setup(thd, order_item);
   floor_value->store(order_item);
+}
+bool Item_sum_percentile_cont::fix_fields(THD *thd, Item **ref)
+{
+  bool res;
+  res= Item_sum_num::fix_fields(thd, ref);
+  if (res)
+    return res;
+
+  switch(args[0]->cmp_type())
+  {
+    case DECIMAL_RESULT:
+    case REAL_RESULT:
+    case INT_RESULT:
+      break;
+    default:
+      my_error(ER_WRONG_TYPE_OF_ARGUMENT, MYF(0));
+      return TRUE;
+  }
+  return res;
+}
+bool Item_sum_percentile_disc::fix_fields(THD *thd, Item **ref)
+{
+  bool res;
+  res= Item_sum_num::fix_fields(thd, ref);
+  if (res)
+    return res;
+
+  switch(args[0]->cmp_type())
+  {
+    case DECIMAL_RESULT:
+    case REAL_RESULT:
+    case INT_RESULT:
+      break;
+    default:
+      my_error(ER_WRONG_TYPE_OF_ARGUMENT, MYF(0));
+      return TRUE;
+  }
+  return res;
+
 }
 
 bool Item_sum_dense_rank::add()

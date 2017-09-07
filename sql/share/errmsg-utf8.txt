@@ -7794,3 +7794,5 @@ ER_ARGUMENT_NOT_CONSTANT
         eng "Argument to the percentile functions is not a constant"
 ER_ARGUMENT_OUT_OF_RANGE
         eng "Argument to the percentile functions does not belong to the range [0,1]"
+ER_WRONG_TYPE_OF_ARGUMENT
+        eng "Numeric values are only allowed as arguments to percentile functions"
