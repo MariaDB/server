@@ -6396,6 +6396,7 @@ static void bootstrap(MYSQL_FILE *file)
     sql_print_warning("Can't create thread to handle bootstrap (errno= %d)",
                       error);
     bootstrap_error=-1;
+    delete thd;
     DBUG_VOID_RETURN;
   }
   /* Wait for thread to die */

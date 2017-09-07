@@ -1935,7 +1935,6 @@ pthread_handler_t start_wsrep_THD(void *arg)
     close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
     MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
-
     goto error;
   }
 
@@ -1958,7 +1957,6 @@ pthread_handler_t start_wsrep_THD(void *arg)
     close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
     MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
-    delete thd;
     goto error;
   }
 
@@ -2002,13 +2000,8 @@ pthread_handler_t start_wsrep_THD(void *arg)
     // at server shutdown
   }
 
-  if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
-  {
-    mysql_mutex_lock(&LOCK_thread_count);
-    thd->unlink();
-    mysql_mutex_unlock(&LOCK_thread_count);
-    delete thd;
-  }
+  unlink_not_visible_thd(thd);
+  delete thd;
   my_thread_end();
   return(NULL);
 
@@ -2733,6 +2726,7 @@ void wsrep_unlock_rollback()
 
 my_bool wsrep_aborting_thd_contains(THD *thd)
 {
+  mysql_mutex_assert_owner(&LOCK_wsrep_rollback);
   wsrep_aborting_thd_t abortees = wsrep_aborting_thd;
   while (abortees)
   {

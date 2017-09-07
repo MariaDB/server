@@ -3737,20 +3737,7 @@ public:
     }
   }
   int killed_errno();
-  inline void reset_killed()
-  {
-    /*
-      Resetting killed has to be done under a mutex to ensure
-      its not done during an awake() call.
-    */
-    if (killed != NOT_KILLED)
-    {
-      mysql_mutex_lock(&LOCK_thd_kill);
-      killed= NOT_KILLED;
-      killed_err= 0;
-      mysql_mutex_unlock(&LOCK_thd_kill);
-    }
-  }
+  void reset_killed();
   inline void reset_kill_query()
   {
     if (killed < KILL_CONNECTION)

@@ -2067,6 +2067,23 @@ int THD::killed_errno()
 }
 
 
+void THD::reset_killed()
+{
+  /*
+    Resetting killed has to be done under a mutex to ensure
+    its not done during an awake() call.
+  */
+  DBUG_ENTER("reset_killed");
+  if (killed != NOT_KILLED)
+  {
+    mysql_mutex_lock(&LOCK_thd_kill);
+    killed= NOT_KILLED;
+    killed_err= 0;
+    mysql_mutex_unlock(&LOCK_thd_kill);
+  }
+  DBUG_VOID_RETURN;
+}
+
 /*
   Remember the location of thread info, the structure needed for
   the structure for the net buffer
@@ -4630,7 +4647,6 @@ void destroy_thd(MYSQL_THD thd)
   thd->add_status_to_global();
   unlink_not_visible_thd(thd);
   delete thd;
-  dec_thread_running();
 }
 
 void reset_thd(MYSQL_THD thd)
