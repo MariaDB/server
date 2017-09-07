@@ -313,7 +313,8 @@ fil_compress_page(
 
 		if (buf_page_is_corrupted(false, uncomp_page, univ_page_size,
 					  space)) {
-			buf_page_print(uncomp_page, univ_page_size, 0);
+			buf_page_print(uncomp_page, univ_page_size);
+			ut_ad(0);
 		}
 
 		ut_free(comp_page);
@@ -641,6 +642,7 @@ err_exit:
 		    << " compression method: "
 		    << fil_get_compression_alg_name(compression_alg) << ".";
 
-	buf_page_print(buf, univ_page_size, 0);
+	buf_page_print(buf, univ_page_size);
 	fil_space_release_for_io(space);
+	ut_ad(0);
 }

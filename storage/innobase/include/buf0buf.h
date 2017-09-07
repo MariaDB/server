@@ -893,24 +893,13 @@ buf_print(void);
 /*============*/
 #endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
 
-enum buf_page_print_flags {
-	/** Do not crash at the end of buf_page_print(). */
-	BUF_PAGE_PRINT_NO_CRASH	= 1,
-	/** Do not print the full page dump. */
-	BUF_PAGE_PRINT_NO_FULL = 2
-};
-
-/** Prints a page to stderr.
-@param[in]	read_buf	a database page
-@param[in]	page_size	page size
-@param[in]	flags		0 or BUF_PAGE_PRINT_NO_CRASH or
-BUF_PAGE_PRINT_NO_FULL */
+/** Dump a page to stderr.
+@param[in]	read_buf	database page
+@param[in]	page_size	page size */
+UNIV_INTERN
 void
-buf_page_print(
-	const byte*		read_buf,
-	const page_size_t&	page_size,
-	ulint			flags);
-
+buf_page_print(const byte* read_buf, const page_size_t& page_size)
+	ATTRIBUTE_COLD __attribute__((nonnull));
 /********************************************************************//**
 Decompress a block.
 @return TRUE if successful */
