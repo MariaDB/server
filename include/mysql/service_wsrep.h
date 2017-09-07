@@ -121,6 +121,7 @@ extern struct wsrep_service_st {
 #endif
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
 #define MYSQL_SERVICE_WSREP_DYNAMIC_INCLUDED
 #define get_wsrep() wsrep_service->get_wsrep_func()
 #define get_wsrep_certify_nonPK() wsrep_service->get_wsrep_certify_nonPK_func()
@@ -176,10 +177,10 @@ extern my_bool wsrep_drupal_282555_workaround;
 extern my_bool wsrep_recovery;
 extern long wsrep_protocol_version;
 extern my_thread_id wsrep_thd_thread_id(THD *thd);
-
+  
 bool wsrep_consistency_check(THD *thd);
 bool wsrep_prepare_key_for_innodb(THD* thd, const unsigned char* cache_key, size_t cache_key_len, const unsigned char* row_id, size_t row_id_len, struct wsrep_buf* key, size_t* key_len);
-char *wsrep_thd_query(THD *thd);
+extern "C" char *wsrep_thd_query(THD *thd);
 const char *wsrep_thd_conflict_state_str(THD *thd);
 const char *wsrep_thd_exec_mode_str(THD *thd);
 const char *wsrep_thd_query_state_str(THD *thd);
@@ -221,7 +222,7 @@ void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
 #endif
 
 #ifdef __cplusplus
-  //}
+//}
 #endif
 
 

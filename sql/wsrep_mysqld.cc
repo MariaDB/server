@@ -1223,13 +1223,13 @@ void wsrep_deinit(bool free_options)
 
   wsrep_inited= 0;
 
-  if (free_options && wsrep_provider_capabilities != NULL)
+  if (wsrep_provider_capabilities != NULL)
   {
     char* p = wsrep_provider_capabilities;
     wsrep_provider_capabilities = NULL;
     free(p);
   }
-  if (free_options)
+  if (free_options && wsrep_provider_capabilities != NULL)
   {
     wsrep_sst_auth_free();
   }
@@ -3843,3 +3843,45 @@ my_bool get_wsrep_certify_nonPK()
   return wsrep_certify_nonPK;
 }
 
+bool wsrep_provider_is_SR_capable()
+{
+  return wsrep->capabilities(wsrep) & WSREP_CAP_STREAMING;
+}
+
+wsrep_status_t wsrep_tc_log_commit(THD* thd)
+{
+#ifdef RUN_HOOK_FIX
+  if (RUN_HOOK(transaction, before_commit, (thd, true)))
+  {
+    return WSREP_TRX_FAIL;
+  }
+#endif /* RUN_HOOK_FIX */
+  //if (tc_log->commit(thd, 1))
+  if (tc_log->log_and_order(thd, thd->transaction.xid_state.xid.get_my_xid(),
+                            true, false, false))
+  {
+    return WSREP_TRX_FAIL;
+  }
+
+#ifdef RUN_HOOK_FIX
+  if (RUN_HOOK(transaction, after_commit, (thd, true)))
+  {
+    return WSREP_TRX_FAIL;
+  }
+#endif /* RUN_HOOK_FIX */
+
+  /* Set wsrep transaction id if not set. */
+  if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
+  {
+    if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+    {
+      thd->set_wsrep_next_trx_id(thd->query_id);
+    }
+    DBUG_ASSERT(thd->wsrep_next_trx_id() != WSREP_UNDEFINED_TRX_ID);
+
+    wsrep_ws_handle_for_trx(&thd->wsrep_ws_handle, thd->wsrep_next_trx_id());
+  }
+  DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
+
+  return WSREP_OK;
+}

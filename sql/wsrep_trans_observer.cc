@@ -1357,16 +1357,19 @@ Trans_observer wsrep_trans_observer =
   wsrep_after_command,
   wsrep_before_GTID_binlog
 };
-
 int wsrep_register_trans_observer(void *p)
 {
+#ifdef RUN_HOOK_FIX
   int ret= register_trans_observer(&wsrep_trans_observer, p);
   WSREP_INFO("wsrep_register_trans_observer: %d", ret);
   return ret;
+#endif /* RUN_HOOK_FIX */
+  return 0;  
 }
 
 int wsrep_unregister_trans_observer(void *p)
 {
+#ifdef RUN_HOOK_FIX
   int ret= unregister_trans_observer(&wsrep_trans_observer, p);
   WSREP_INFO("wsrep_unregister_trans_observer: %d", ret);
   if (ret)
@@ -1374,4 +1377,6 @@ int wsrep_unregister_trans_observer(void *p)
     WSREP_ERROR("wsrep_unregister_trans_observer failed");
   }
   return ret;
+#endif /* RUN_HOOK_FIX */
+  return 0;
 }

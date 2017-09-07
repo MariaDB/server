@@ -94,7 +94,7 @@ void wsrep_create_rollbacker();
 
 int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
                                 my_bool signal);
-
+#ifndef OUT
 /*
   PA = Parallel Applying (on the slave side)
 */
@@ -104,7 +104,8 @@ extern my_bool  wsrep_thd_is_BF(void *thd_ptr, my_bool sync);
 extern my_bool wsrep_thd_is_wsrep(void *thd_ptr);
 
 //enum wsrep_conflict_state wsrep_thd_conflict_state(void *thd_ptr, my_bool sync);
-extern int wsrep_thd_conflict_state(void *thd_ptr, my_bool sync);
+//extern int wsrep_thd_conflict_state(void *thd_ptr, my_bool sync);
+//extern char* wsrep_thd_query(void *thd_ptr);
 extern "C" my_bool  wsrep_thd_is_BF_or_commit(void *thd_ptr, my_bool sync);
 extern "C" my_bool  wsrep_thd_is_local(void *thd_ptr, my_bool sync);
 int  wsrep_thd_in_locking_session(void *thd_ptr);
@@ -112,7 +113,7 @@ THD* wsrep_start_SR_THD(char *thread_stack);
 void wsrep_end_SR_THD(THD* thd);
 extern my_bool  wsrep_thd_is_SR(void *thd_ptr);
 extern my_bool wsrep_thd_skip_locking(void *thd);
-
+#endif
 
 /**
    Helper functions to override error status

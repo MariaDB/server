@@ -207,7 +207,7 @@ extern my_bool     wsrep_inited; // whether wsrep is initialized ?
 
 extern "C" {
   enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
-  enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd);
+  enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd, my_bool sync);
   void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
   void wsrep_thd_set_conflict_state(
         THD *thd, enum wsrep_conflict_state state);
@@ -222,45 +222,7 @@ const char * wsrep_thd_conflict_state_str(THD *thd);
 const char * wsrep_thd_query_state_str(THD *thd);
 wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd);
 }
-#ifdef OUT
-void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
 
-void wsrep_fire_rollbacker(THD *thd);
-uint32 wsrep_thd_wsrep_rand(THD *thd);
-time_t wsrep_thd_query_start(THD *thd);
-my_thread_id wsrep_thd_thread_id(THD *thd);
-int64_t wsrep_thd_trx_seqno(const THD *thd);
-query_id_t wsrep_thd_query_id(THD *thd);
-wsrep_trx_id_t wsrep_thd_next_trx_id(THD *thd);
-wsrep_trx_id_t wsrep_thd_trx_id(THD *thd);
-query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
-void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
-
-void wsrep_thd_last_written_gtid(THD *thd, wsrep_gtid_t *t);
-ulong wsrep_thd_trx_fragment_size(THD *thd);
-
-void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
-
-extern int  wsrep_wait_committing_connections_close(int wait_time);
-extern void wsrep_close_applier(THD *thd);
-extern void wsrep_wait_appliers_close(THD *thd);
-extern void wsrep_close_applier_threads(int count);
-extern void wsrep_kill_mysql(THD *thd);
-
-
-/* new defines */
-extern void wsrep_stop_replication(THD *thd);
-extern bool wsrep_start_replication();
-extern void wsrep_shutdown_replication();
-extern bool wsrep_must_sync_wait(THD* thd, uint mask = WSREP_SYNC_WAIT_BEFORE_READ);
-extern bool wsrep_sync_wait(THD* thd, uint mask = WSREP_SYNC_WAIT_BEFORE_READ);
-extern wsrep_status_t wsrep_sync_wait_upto (THD* thd, wsrep_gtid_t* upto, int timeout);
-extern void wsrep_last_committed_id (wsrep_gtid_t* gtid);
-extern int  wsrep_check_opts();
-extern void wsrep_prepend_PATH (const char* path);
-
-
-#else
 extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
 
 extern "C" void wsrep_fire_rollbacker(THD *thd);
@@ -272,6 +234,7 @@ extern "C" query_id_t wsrep_thd_query_id(THD *thd);
 extern "C" wsrep_trx_id_t wsrep_thd_next_trx_id(THD *thd);
 extern "C" wsrep_trx_id_t wsrep_thd_trx_id(THD *thd);
 extern "C" char * wsrep_thd_query(THD *thd);
+//extern char * wsrep_thd_query(THD *thd);
 extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
 extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
 
@@ -296,7 +259,7 @@ extern wsrep_status_t wsrep_sync_wait_upto (THD* thd, wsrep_gtid_t* upto, int ti
 extern void wsrep_last_committed_id (wsrep_gtid_t* gtid);
 extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
-#endif
+
 
 
 /* Other global variables */
