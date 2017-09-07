@@ -1521,13 +1521,13 @@ public:
   bool versioned_by_sql() const
   {
     DBUG_ASSERT(s && file);
-    return s->versioned && !file->versioned();
+    return s->versioned && !file->native_versioned();
   }
 
   bool versioned_by_engine() const
   {
     DBUG_ASSERT(s && file);
-    return s->versioned && file->versioned();
+    return s->versioned && file->native_versioned();
   }
 
   Field *vers_start_field() const

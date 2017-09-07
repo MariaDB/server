@@ -2022,15 +2022,12 @@ int ha_partition::copy_partitions(ulonglong * const copied,
       else
       {
         THD *thd= ha_thd();
-        handler *new_file= m_new_file[new_part];
         /* Copy record to new handler */
         (*copied)++;
-        if (new_file->ha_external_lock(thd, F_UNLCK) || new_file->ha_external_lock(thd, F_WRLCK))
-          goto error;
         tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
-        result= new_file->ha_write_row(m_rec0);
+        result= m_new_file[new_part]->ha_write_row(m_rec0);
         reenable_binlog(thd);
-        if (new_file->ha_external_lock(thd, F_UNLCK) || new_file->ha_external_lock(thd, F_RDLCK) || result)
+        if (result)
           goto error;
       }
     }

@@ -3455,7 +3455,7 @@ partititon_err:
       thd->stmt_arena= &part_func_arena;
     }
 
-    bool err= outparam->part_info->vers_setup_2(thd, is_create_table);
+    bool err= outparam->part_info->vers_setup_stats(thd, is_create_table);
 
     if (!work_part_info_used)
     {

@@ -1689,7 +1689,7 @@ bool fix_partition_func(THD *thd, TABLE *table,
     if (part_info->column_list)
     {
       if (part_info->part_type == VERSIONING_PARTITION &&
-        part_info->vers_setup_1(thd))
+        part_info->vers_setup_expression(thd))
         goto end;
       List_iterator<char> it(part_info->part_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, FALSE)))
@@ -2392,7 +2392,7 @@ static int add_partition_values(File fptr, partition_info *part_info,
   }
   else if (part_info->part_type == VERSIONING_PARTITION)
   {
-    switch (p_elem->type)
+    switch (p_elem->type())
     {
     case partition_element::AS_OF_NOW:
       err+= add_string(fptr, " AS OF NOW");
@@ -5300,7 +5300,7 @@ that are reorganised.
           partition_element *el;
           while ((el= it++))
           {
-            if (el->type == partition_element::AS_OF_NOW)
+            if (el->type() == partition_element::AS_OF_NOW)
             {
               DBUG_ASSERT(tab_part_info->vers_info && el == tab_part_info->vers_info->now_part);
               it.remove();
@@ -5393,7 +5393,7 @@ that are reorganised.
         if (is_name_in_list(part_elem->partition_name,
                             alter_info->partition_names))
         {
-          if (part_elem->type == partition_element::AS_OF_NOW)
+          if (part_elem->type() == partition_element::AS_OF_NOW)
           {
             DBUG_ASSERT(table && table->s && table->s->table_name.str);
             my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);
@@ -5724,7 +5724,7 @@ the generated partition syntax in a correct manner.
 
       if (alter_info->flags & Alter_info::ALTER_ADD_PARTITION &&
         tab_part_info->part_type == VERSIONING_PARTITION &&
-        tab_part_info->vers_setup_1(thd, alt_part_info->partitions.elements))
+        tab_part_info->vers_setup_expression(thd, alt_part_info->partitions.elements))
         goto err;
 
       if (tab_part_info->check_partition_info(thd, (handlerton**)NULL,

@@ -57,13 +57,12 @@ struct Vers_part_info : public Sql_alloc
   {
     if (now_part)
     {
-      DBUG_ASSERT(
-        now_part->id != UINT32_MAX &&
-        now_part->type == partition_element::AS_OF_NOW &&
-        (fully ? (bool) hist_part : true) &&
-        (!hist_part || (
+      DBUG_ASSERT(now_part->id != UINT32_MAX);
+      DBUG_ASSERT(now_part->type() == partition_element::AS_OF_NOW);
+      DBUG_ASSERT(!fully || (bool) hist_part);
+      DBUG_ASSERT(!hist_part || (
           hist_part->id != UINT32_MAX &&
-          hist_part->type == partition_element::VERSIONING)));
+          hist_part->type() == partition_element::VERSIONING));
       return true;
     }
     return false;
@@ -352,7 +351,7 @@ public:
   char *find_duplicate_field();
   char *find_duplicate_name();
   bool check_engine_mix(handlerton *engine_type, bool default_engine);
-  bool check_range_constants(THD *thd, bool init= true);
+  bool check_range_constants(THD *thd, bool alloc= true);
   bool check_list_constants(THD *thd);
   bool check_partition_info(THD *thd, handlerton **eng_type,
                             handler *file, HA_CREATE_INFO *info,
@@ -426,8 +425,9 @@ public:
   bool vers_set_interval(const INTERVAL &i);
   bool vers_set_limit(ulonglong limit);
   partition_element* vers_part_rotate(THD *thd);
-  bool vers_setup_1(THD *thd, uint32 added= 0);
-  bool vers_setup_2(THD *thd, bool is_create_table_ind);
+  bool vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME &t);
+  bool vers_setup_expression(THD *thd, uint32 alter_add= 0); /* Stage 1. */
+  bool vers_setup_stats(THD *thd, bool is_create_table_ind); /* Stage 2. */
   bool vers_scan_min_max(THD *thd, partition_element *part);
   void vers_update_col_vals(THD *thd, partition_element *el0, partition_element *el1);
 
@@ -443,8 +443,8 @@ public:
     partition_element *el;
     while ((el= it++))
     {
-      DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
-      if (el->type == partition_element::VERSIONING &&
+      DBUG_ASSERT(el->type() != partition_element::CONVENTIONAL);
+      if (el->type() == partition_element::VERSIONING &&
         el->id == table->s->hist_part_id)
       {
         vers_info->hist_part= el;
@@ -516,7 +516,7 @@ public:
   {
     DBUG_ASSERT(vers_info && vers_info->initialized());
     DBUG_ASSERT(table && table->s);
-    DBUG_ASSERT(el && el->type == partition_element::VERSIONING);
+    DBUG_ASSERT(el && el->type() == partition_element::VERSIONING);
     bool updated;
     mysql_rwlock_wrlock(&table->s->LOCK_stat_serial);
     el->empty= false;
@@ -552,7 +552,7 @@ public:
     if (part_id < vers_info->now_part->id)
       vers_update_stats(thd, get_partition(part_id));
   }
-  void vers_update_range_constants(THD *thd)
+  bool vers_update_range_constants(THD *thd)
   {
     DBUG_ASSERT(vers_info && vers_info->initialized());
     DBUG_ASSERT(table && table->s);
@@ -561,17 +561,19 @@ public:
     if (vers_info->stat_serial == table->s->stat_serial)
     {
       mysql_rwlock_unlock(&table->s->LOCK_stat_serial);
-      return;
+      return false;
     }
 
+    bool result= false;
     for (uint i= 0; i < num_columns; ++i)
     {
       Field *f= part_field_array[i];
       bitmap_set_bit(f->table->write_set, f->field_index);
     }
-    check_range_constants(thd, false);
+    result= check_range_constants(thd, false);
     vers_info->stat_serial= table->s->stat_serial;
     mysql_rwlock_unlock(&table->s->LOCK_stat_serial);
+    return result;
   }
 };
 

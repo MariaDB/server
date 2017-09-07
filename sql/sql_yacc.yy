@@ -5212,7 +5212,7 @@ opt_part_values:
               my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0),
                 Lex->create_last_non_select_table->table_name));
             }
-            elem->type= partition_element::AS_OF_NOW;
+            elem->type(partition_element::AS_OF_NOW);
             DBUG_ASSERT(part_info->vers_info);
             part_info->vers_info->now_part= elem;
             if (part_info->init_column_part(thd))
@@ -5243,7 +5243,7 @@ opt_part_values:
               DBUG_ASSERT(Lex->create_last_non_select_table->table_name);
               my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0), Lex->create_last_non_select_table->table_name));
             }
-            elem->type= partition_element::VERSIONING;
+            elem->type(partition_element::VERSIONING);
             if (part_info->init_column_part(thd))
             {
               MYSQL_YYABORT;

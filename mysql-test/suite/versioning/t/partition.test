@@ -29,7 +29,7 @@ partition by system_time (
     partition pn as of now);
 
 create or replace table t1 (x int);
---error ER_VERSIONING_REQUIRED
+--error ER_VERSIONING_REQUIRED,ER_VERSIONING_REQUIRED
 alter table t1
 partition by system_time (
     partition p0 versioning,

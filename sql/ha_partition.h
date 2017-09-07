@@ -1355,11 +1355,6 @@ public:
     return h;
   }
 
-  virtual bool versioned() const
-  {
-    return m_innodb;
-  }
-
   virtual ha_rows part_records(void *_part_elem)
   {
     partition_element *part_elem= reinterpret_cast<partition_element *>(_part_elem);

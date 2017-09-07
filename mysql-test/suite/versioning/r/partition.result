@@ -93,13 +93,13 @@ create or replace table t1 (x int)
 partition by system_time (
 partition p0 versioning,
 partition pn as of now);
-ERROR HY000: System Versioning required: `BY SYSTEM_TIME` partitioning
+ERROR HY000: System Versioning required: t1
 create or replace table t1 (x int);
 alter table t1
 partition by system_time (
 partition p0 versioning,
 partition pn as of now);
-ERROR HY000: System Versioning required: `BY SYSTEM_TIME` partitioning
+Got one of the listed errors
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (

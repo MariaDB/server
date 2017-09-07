@@ -151,6 +151,13 @@ enum stat_trx_field
 class partition_element :public Sql_alloc
 {
 public:
+  enum elem_type
+  {
+    CONVENTIONAL= 0,
+    AS_OF_NOW,
+    VERSIONING
+  };
+
   List<partition_element> subpartitions;
   List<part_elem_value> list_val_list;
   ha_rows part_max_rows;
@@ -172,14 +179,18 @@ public:
   uint32 id;
   bool empty;
 
-  enum elem_type
+  // TODO: subclass partition_element by partitioning type to avoid such semantic
+  // mixup
+  elem_type type()
   {
-    CONVENTIONAL= 0,
-    AS_OF_NOW,
-    VERSIONING
-  };
+    return (elem_type)(signed_flag << 1 | max_value);
+  }
 
-  elem_type type;
+  void type(elem_type val)
+  {
+    max_value= val & 1;
+    signed_flag= val & 2;
+  }
 
   partition_element()
   : part_max_rows(0), part_min_rows(0), range_value(0),
@@ -190,8 +201,7 @@ public:
     nodegroup_id(UNDEF_NODEGROUP), has_null_value(FALSE),
     signed_flag(FALSE), max_value(FALSE),
     id(UINT32_MAX),
-    empty(true),
-    type(CONVENTIONAL)
+    empty(true)
   {}
   partition_element(partition_element *part_elem)
   : part_max_rows(part_elem->part_max_rows),
@@ -207,17 +217,16 @@ public:
     nodegroup_id(part_elem->nodegroup_id),
     has_null_value(FALSE),
     id(part_elem->id),
-    empty(part_elem->empty),
-    type(part_elem->type)
+    empty(part_elem->empty)
   {}
   ~partition_element() {}
 
   part_column_list_val& get_col_val(uint idx)
   {
-    DBUG_ASSERT(type != CONVENTIONAL);
-    DBUG_ASSERT(list_val_list.elements == 1);
-    part_elem_value *ev= static_cast<part_elem_value*>(list_val_list.first_node()->info);
-    DBUG_ASSERT(ev && ev->col_val_array);
+    DBUG_ASSERT(type() == CONVENTIONAL || list_val_list.elements == 1);
+    part_elem_value *ev= list_val_list.head();
+    DBUG_ASSERT(ev);
+    DBUG_ASSERT(ev->col_val_array);
     return ev->col_val_array[idx];
   }
 };
