@@ -162,8 +162,6 @@ wsrep_ws_handle(THD* thd, const trx_t* trx) {
 				       wsrep_thd_next_trx_id(thd));
 }
 
-extern TC_LOG* tc_log;
-extern void wsrep_cleanup_transaction(THD *thd);
 static int
 wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 			my_bool signal);
@@ -171,6 +169,15 @@ static void
 wsrep_fake_trx_id(handlerton* hton, THD *thd);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
+
+extern bool wsrep_prepare_key_for_innodb(
+	THD* thd,
+	const uchar *cache_key,
+	size_t cache_key_len,
+	const uchar* row_id,
+	size_t row_id_len,
+	wsrep_buf_t* key,
+	size_t* key_len);
 #endif /* WITH_WSREP */
 
 /** to protect innobase_open_files */
