@@ -4789,7 +4789,7 @@ public:
 
   /*
     Transaction id:
-    * m_next_wsrep_trx_id is assigned on the first query after
+    * m_wsrep_next_trx_id is assigned on the first query after
       wsrep_next_trx_id() return WSREP_UNDEFINED_TRX_ID
     * Each storage engine must assign value of wsrep_next_trx_id()
       via wsrep_ws_handle_for_trx() when the transaction starts.
