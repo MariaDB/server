@@ -6709,7 +6709,6 @@ ha_innobase::close()
 UNIV_INTERN
 int
 wsrep_innobase_mysql_sort(
-/*======================*/
 					/* out: str contains sort string */
 	int		mysql_type,	/* in: MySQL type */
 	uint		charset_number,	/* in: number of the charset */
@@ -7133,7 +7132,6 @@ Stores a key value for a row to a buffer.
 UNIV_INTERN
 uint
 wsrep_store_key_val_for_row(
-/*=========================*/
 	THD* 		thd,
 	TABLE*		table,
 	uint		keynr,	/*!< in: key number */
@@ -7145,7 +7143,7 @@ wsrep_store_key_val_for_row(
 {
 	KEY*		key_info	= table->key_info + keynr;
 	KEY_PART_INFO*	key_part	= key_info->key_part;
-	KEY_PART_INFO*	end		= key_part + key_info->user_defined_key_parts;
+		key_part + key_info->user_defined_key_parts;
 	char*		buff_start	= buff;
 	enum_field_types mysql_type;
 	Field*		field;
@@ -8937,7 +8935,6 @@ calc_row_difference(
 static
 int
 wsrep_calc_row_hash(
-/*================*/
 	byte*		digest,		/*!< in/out: md5 sum */
 	const uchar*	row,		/*!< in: row in MySQL format */
 	TABLE*		table,		/*!< in: table in MySQL data
@@ -10553,7 +10550,6 @@ wsrep_dict_foreign_find_index(
 
 extern dberr_t
 wsrep_append_foreign_key(
-/*===========================*/
 	trx_t*		trx,		/*!< in: trx */
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
 	const rec_t*	rec,		/*!<in: clustered index record */
@@ -10735,7 +10731,6 @@ wsrep_append_foreign_key(
 
 static int
 wsrep_append_key(
-/*=============*/
 	THD		*thd,
 	trx_t 		*trx,
 	TABLE_SHARE 	*table_share,
@@ -10823,7 +10818,6 @@ referenced_by_foreign_key2(
 
 int
 ha_innobase::wsrep_append_keys(
-/*===========================*/
 	THD 		*thd,
 	bool		shared,
 	const uchar*	record0,	/* in: row in MySQL format */
@@ -10913,12 +10907,10 @@ ha_innobase::wsrep_append_keys(
 						thd, trx, table_share, table,
 						keyval0, len+1, shared);
 
-					if (rcode) {
-						DBUG_RETURN(rcode);
-					}
+					if (rcode) DBUG_RETURN(rcode);
 
-				if (key_info->flags & HA_NOSAME || shared)
-			  		key_appended = true;
+					if (key_info->flags & HA_NOSAME || shared)
+			  			key_appended = true;
 				} else {
 					WSREP_DEBUG("NULL key skipped: %s",
 						    wsrep_thd_query(thd));
@@ -19693,14 +19685,9 @@ wsrep_innobase_kill_one_trx(
 	DBUG_RETURN(0);
 }
 
-static
-int
-wsrep_abort_transaction(
-/*====================*/
-	handlerton* hton,
-	THD *bf_thd,
-	THD *victim_thd,
-	my_bool signal)
+static int
+wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
+			my_bool signal)
 {
 	DBUG_ENTER("wsrep_innobase_abort_thd");
 	trx_t* victim_trx = thd_to_trx(victim_thd);
@@ -19784,7 +19771,6 @@ innobase_wsrep_get_checkpoint(
 static
 void
 wsrep_fake_trx_id(
-/*==============*/
 	handlerton	*hton,
 	THD		*thd)	/*!< in: user thread handle */
 {
