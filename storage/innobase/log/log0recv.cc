@@ -3461,6 +3461,7 @@ recv_reset_logs(
 	log_sys->next_checkpoint_no = 0;
 	log_sys->last_checkpoint_lsn = 0;
 
+	memset(log_sys->buf, 0, log_sys->buf_size);
 	log_block_init(log_sys->buf, log_sys->lsn);
 	log_block_set_first_rec_group(log_sys->buf, LOG_BLOCK_HDR_SIZE);
 
