@@ -400,7 +400,6 @@ class Ha_trx_info;
 struct THD_TRANS;
 void wsrep_register_hton(THD* thd, bool all);
 void wsrep_register_hton(THD* thd, bool all, bool force);
-void wsrep_post_commit(THD* thd, bool all);
 void wsrep_post_rollback(THD* thd);
 void wsrep_brute_force_killer(THD *thd);
 int  wsrep_hire_brute_force_killer(THD *thd, uint64_t trx_id);
