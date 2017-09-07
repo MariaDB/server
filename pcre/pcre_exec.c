@@ -1053,6 +1053,8 @@ for (;;)
     group. At this point, the return is converted into MATCH_NOMATCH so that
     previous backup points can be taken. */
 
+    /* fall through */
+
     case OP_ONCE:
     case OP_BRA:
     case OP_SBRA:

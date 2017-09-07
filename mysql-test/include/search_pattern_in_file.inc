@@ -76,5 +76,6 @@ perl;
     my $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
     $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
     print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
-    exit $ENV{SEARCH_ABORT} && $res =~ /^$ENV{SEARCH_ABORT}/;
+    die "$ENV{SEARCH_ABORT}\n"
+    if $ENV{SEARCH_ABORT} && $res =~ /^$ENV{SEARCH_ABORT}/;
 EOF

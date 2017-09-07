@@ -742,11 +742,12 @@ fil_space_encrypt(
 			fprintf(stderr, "ok %d corrupted %d corrupted1 %d err %d different %d\n",
 				ok , corrupted, corrupted1, err, different);
 			fprintf(stderr, "src_frame\n");
-			buf_page_print(src_frame, zip_size, BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(src_frame, zip_size);
 			fprintf(stderr, "encrypted_frame\n");
-			buf_page_print(tmp, zip_size, BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(tmp, zip_size);
 			fprintf(stderr, "decrypted_frame\n");
-			buf_page_print(tmp_mem, zip_size, 0);
+			buf_page_print(tmp_mem, zip_size);
+			ut_ad(0);
 		}
 
 		free(tmp_mem);

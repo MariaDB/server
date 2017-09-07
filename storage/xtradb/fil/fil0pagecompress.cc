@@ -397,7 +397,8 @@ fil_compress_page(
 		fil_decompress_page(uncomp_page, comp_page, ulong(len), NULL);
 
 		if (buf_page_is_corrupted(false, uncomp_page, 0, space)) {
-			buf_page_print(uncomp_page, 0, 0);
+			buf_page_print(uncomp_page, 0);
+			ut_ad(0);
 		}
 
 		ut_free(comp_page);
