@@ -157,7 +157,7 @@ extern handlerton *binlog_hton;
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 
 static inline wsrep_ws_handle_t*
-wsrep_ws_handle(THD* thd, const trx_t* trx) {
+wsrep_ws_handle(THD* thd) {
 	return wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd),
 				       wsrep_thd_next_trx_id(thd));
 }
@@ -10715,7 +10715,7 @@ wsrep_append_foreign_key(
 
 	rcode = (int)wsrep->append_key(
 		wsrep,
-		wsrep_ws_handle(thd, trx),
+		wsrep_ws_handle(thd),
 		&wkey,
 		1,
 		shared ? WSREP_KEY_SHARED : WSREP_KEY_EXCLUSIVE,
@@ -10780,7 +10780,7 @@ wsrep_append_key(
 
 	int rcode = (int)wsrep->append_key(
 			       wsrep,
-			       wsrep_ws_handle(thd, trx),
+			       wsrep_ws_handle(thd),
 			       &wkey,
 			       1,
 			       shared ? WSREP_KEY_SHARED : WSREP_KEY_EXCLUSIVE,
