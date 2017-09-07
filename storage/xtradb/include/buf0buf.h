@@ -725,7 +725,7 @@ buf_print(void);
 UNIV_INTERN
 void
 buf_page_print(const byte* read_buf, ulint zip_size)
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	UNIV_COLD;
 
 /********************************************************************//**
 Decompress a block.
