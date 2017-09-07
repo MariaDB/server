@@ -349,12 +349,13 @@ static int wsrep_pre_commit(THD *thd)
     my_error(ER_LOCK_DEADLOCK, MYF(0), WSREP_TRX_FAIL);
     break;
   case WSREP_SIZE_EXCEEDED:
-    WSREP_ERROR("wsrep_run_wsrep_commit(%lld): transaction size exceeded",
+
+    WSREP_ERROR("wsrep_pre_commit(%lld): transaction size exceeded",
                 thd->thread_id);
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED);
     break;
   case WSREP_CONN_FAIL:
-    WSREP_DEBUG("wsrep_run_wsrep_commit(%lld): replication aborted",
+    WSREP_DEBUG("wsrep_pre_commit(%lld): replication aborted",
                 thd->thread_id);
     my_error(ER_LOCK_DEADLOCK, MYF(0), WSREP_CONN_FAIL);
     break;
@@ -371,7 +372,7 @@ static int wsrep_pre_commit(THD *thd)
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_NOT_IMPLEMENTED);
     break;
   default:
-    WSREP_ERROR("wsrep_run_wsrep_commit(%lld): unknown provider failure",
+    WSREP_ERROR("wsrep_pre_commit(%lld): unknown provider failure",
                 thd->thread_id);
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), rcode);
     break;
