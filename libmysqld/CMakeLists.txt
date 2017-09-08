@@ -152,15 +152,6 @@ MERGE_LIBRARIES(mysqlserver STATIC ${EMBEDDED_LIBS}
 
 INSTALL(FILES embedded_priv.h DESTINATION ${INSTALL_INCLUDEDIR}/private COMPONENT  ${COMPONENT_MYSQLSERVER})
 
-# Visual Studio users need debug  static library 
-IF(MSVC)
- INSTALL_DEBUG_TARGET(mysqlserver DESTINATION ${INSTALL_LIBDIR}/debug)
-ENDIF()
-
-IF(UNIX)
- INSTALL_DEBUG_TARGET(mysqlserver DESTINATION ${INSTALL_LIBDIR} RENAME
-  ${CMAKE_STATIC_LIBRARY_PREFIX}mysqld-debug)
-ENDIF()
 
 # List of exported functions in embedded (client api except client plugin or 
 # async (*_start/*_cont functions)

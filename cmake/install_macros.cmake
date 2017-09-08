@@ -32,17 +32,8 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
   ENDIF()
   SET(targets ${ARG_DEFAULT_ARGS})
   FOREACH(target ${targets})
-    GET_TARGET_PROPERTY(type ${target} TYPE)
-    GET_TARGET_PROPERTY(location ${target} LOCATION)
-    STRING(REPLACE ".exe" ".pdb" pdb_location ${location})
-    STRING(REPLACE ".dll" ".pdb" pdb_location ${pdb_location})
-    STRING(REPLACE ".lib" ".pdb" pdb_location ${pdb_location})
-    IF(CMAKE_GENERATOR MATCHES "Visual Studio")
-      STRING(REPLACE
-        "${CMAKE_CFG_INTDIR}" "\${CMAKE_INSTALL_CONFIG_NAME}"
-        pdb_location ${pdb_location})
-    ENDIF()
-	
+    GET_TARGET_PROPERTY(target_type ${target} TYPE)
+
     set(comp "")
     IF(ARG_COMPONENT STREQUAL "Server")
       IF(target MATCHES "mysqld" OR type MATCHES "MODULE")
@@ -62,11 +53,9 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
     IF(NOT comp)
       SET(comp Debuginfo_archive_only) # not in MSI
     ENDIF()
-	IF(type MATCHES "STATIC")
-	  # PDB for static libraries might be unsupported http://public.kitware.com/Bug/view.php?id=14600
-	  SET(opt OPTIONAL)
-	ENDIF()
-    INSTALL(FILES ${pdb_location} DESTINATION ${ARG_INSTALL_LOCATION} COMPONENT ${comp} ${opt})
+    IF(NOT target_type MATCHES "STATIC")
+      INSTALL(FILES $<TARGET_PDB_FILE:${target}> DESTINATION ${ARG_INSTALL_LOCATION} COMPONENT ${comp})
+    ENDIF()
   ENDFOREACH()
   ENDIF()
 ENDFUNCTION()
@@ -218,37 +207,22 @@ IF(WIN32)
   ENDIF()
 ENDIF()
 
-MACRO(SIGN_TARGET)
- MYSQL_PARSE_ARGUMENTS(ARG "COMPONENT" "" ${ARGN})
- SET(target ${ARG_DEFAULT_ARGS})
- IF(ARG_COMPONENT)
-  SET(comp COMPONENT ${ARG_COMPONENT})
- ELSE()
-  SET(comp)
- ENDIF()
- GET_TARGET_PROPERTY(target_type ${target} TYPE)
- IF(target_type AND NOT target_type MATCHES "STATIC")
-   GET_TARGET_PROPERTY(target_location ${target}  LOCATION)
-   IF(CMAKE_GENERATOR MATCHES "Visual Studio")
-   STRING(REPLACE "${CMAKE_CFG_INTDIR}" "\${CMAKE_INSTALL_CONFIG_NAME}" 
-     target_location ${target_location})
-   ENDIF()
-   INSTALL(CODE
-   "EXECUTE_PROCESS(COMMAND 
-   \"${SIGNTOOL_EXECUTABLE}\" verify /pa /q \"${target_location}\"
-   RESULT_VARIABLE ERR)
-   IF(NOT \${ERR} EQUAL 0)
-     EXECUTE_PROCESS(COMMAND 
-     \"${SIGNTOOL_EXECUTABLE}\" sign ${SIGNTOOL_PARAMETERS} \"${target_location}\"
-     RESULT_VARIABLE ERR)
-   ENDIF()
-   IF(NOT \${ERR} EQUAL 0)
-    MESSAGE(FATAL_ERROR \"Error signing  '${target_location}'\")
-   ENDIF()
-   " ${comp})
- ENDIF()
-ENDMACRO()
 
+FUNCTION(SIGN_TARGET target)
+   IF(NOT SIGNCODE)
+     RETURN()
+   ENDIF()
+   GET_TARGET_PROPERTY(target_type ${target} TYPE)
+   IF((NOT target_type) OR (target_type MATCHES "STATIC"))
+     RETURN()
+   ENDIF()
+    # Mark executable for signing by creating empty *.signme file
+    # The actual signing happens in preinstall step
+    # (which traverses 
+    ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E touch "$<TARGET_FILE:${target}>.signme"
+   )
+ENDFUNCTION()
 
 # Installs targets, also installs pdbs on Windows.
 #

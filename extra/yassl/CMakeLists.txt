@@ -30,8 +30,3 @@ SET(YASSL_SOURCES  src/buffer.cpp src/cert_wrapper.cpp src/crypto_wrapper.cpp sr
 ADD_CONVENIENCE_LIBRARY(yassl ${YASSL_SOURCES})
 RESTRICT_SYMBOL_EXPORTS(yassl)
 
-IF(MSVC)
-   INSTALL_DEBUG_TARGET(yassl DESTINATION ${INSTALL_LIBDIR}/debug)
-ENDIF()
-
-

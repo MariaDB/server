@@ -492,6 +492,12 @@ ENDIF()
 
 INCLUDE(CPack)
 
+IF(WIN32 AND SIGNCODE)
+  # Configure post-install script for authenticode signing
+  CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/cmake/sign.cmake.in sign.cmake @ONLY)
+  INSTALL(SCRIPT ${PROJECT_BINARY_DIR}/sign.cmake)
+ENDIF()
+
 IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
 You have linked MariaDB with GPLv3 libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with Free Software Foundation.")
