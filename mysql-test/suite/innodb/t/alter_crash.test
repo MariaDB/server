@@ -18,14 +18,15 @@ call mtr.add_suppression('InnoDB: Index `c[23]` .*is corrupted');
 --echo #
 
 CREATE TABLE t1(c1 INT PRIMARY KEY, c2 CHAR(1), c3 INT UNSIGNED) ENGINE=InnoDB;
-SET DEBUG='+d,ib_create_table_fail_too_many_trx';
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG='+d,ib_create_table_fail_too_many_trx';
 --error ER_TOO_MANY_CONCURRENT_TRXS
 ALTER TABLE t1 ADD INDEX (c2), ADD INDEX (c3);
 
-SET DEBUG='-d,ib_create_table_fail_too_many_trx';
+SET DEBUG_DBUG=@saved_debug_dbug;
 ALTER TABLE t1 ADD INDEX (c2), ADD INDEX (c3);
 # Flag the secondary indexes corrupted.
-SET DEBUG='+d,dict_set_index_corrupted';
+SET DEBUG_DBUG='+d,dict_set_index_corrupted';
 CHECK TABLE t1;
 
 # Ensure that the corruption is permanent.
@@ -35,7 +36,7 @@ ALTER TABLE t1 DROP INDEX c2;
 CHECK TABLE t1;
 # We refuse an ALTER TABLE that would modify the InnoDB data dictionary
 # while leaving some of the table corrupted.
---error ER_CHECK_NO_SUCH_TABLE
+--error ER_INDEX_CORRUPT
 ALTER TABLE t1 ADD INDEX (c2,c3);
 # This will rebuild the table, uncorrupting all secondary indexes.
 ALTER TABLE t1 CHANGE c3 c3 INT NOT NULL;
@@ -59,7 +60,7 @@ let datadir= `select @@datadir`;
 
 CREATE TABLE t1 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=innodb;
 INSERT INTO t1 VALUES (1,2),(3,4);
-SET DEBUG='d,innodb_alter_commit_crash_after_commit';
+SET DEBUG_DBUG='+d,innodb_alter_commit_crash_after_commit';
 
 let $orig_table_id = `SELECT table_id
 	FROM information_schema.innodb_sys_tables
@@ -118,7 +119,7 @@ DROP TABLE t1;
 
 CREATE TABLE t2 (f1 int not null, f2 int not null) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1,2),(3,4);
-SET DEBUG='d,innodb_alter_commit_crash_before_commit';
+SET DEBUG_DBUG='+d,innodb_alter_commit_crash_before_commit';
 
 let $orig_table_id = `SELECT table_id
 	FROM information_schema.innodb_sys_tables
@@ -177,18 +178,20 @@ DROP TABLE t2;
 --echo # DATA DICTIONARY INCONSISTENCY
 --echo #
 
-CREATE TABLE t1(a int PRIMARY KEY, b varchar(255), c int NOT NULL);
+CREATE TABLE t1(a int PRIMARY KEY, b varchar(255), c int NOT NULL)
+ENGINE=InnoDB;
 INSERT INTO t1 SET a=1,c=2;
-SET DEBUG='d,innodb_alter_commit_crash_after_commit';
+SET DEBUG_DBUG='+d,innodb_alter_commit_crash_after_commit';
 
 let $orig_table_id = `select table_id from
   information_schema.innodb_sys_tables where name = 'test/t1'`;
 
+# FIXME: MDEV-9469 'Incorrect key file' on ALTER TABLE
 # Write file to make mysql-test-run.pl expect crash
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-
+#
 --error 2013
-ALTER TABLE t1 ADD INDEX (b), CHANGE c d int;
+ALTER TABLE t1 ADD INDEX (b), CHANGE c d int, ALGORITHM=INPLACE;
 
 --echo # Restart mysqld after the crash and reconnect.
 --source include/start_mysqld.inc
