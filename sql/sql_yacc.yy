@@ -8903,12 +8903,6 @@ system_time_expr:
           {
             Lex->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $2, $3, $5, $6);
           }
-        | BEFORE_SYM
-          opt_trans_or_timestamp
-          simple_expr
-          {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BEFORE, $2, $3);
-          }
         ;
 
 select_option_list:
@@ -13025,8 +13019,17 @@ opt_delete_option:
         | IGNORE_SYM   { Lex->ignore= 1; }
         ;
 
+truncate_end:
+          opt_lock_wait_timeout
+          | TO_SYM SYSTEM_TIME_SYM opt_trans_or_timestamp simple_expr
+          {
+            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BEFORE, $3, $4);
+            Lex->last_table()->vers_conditions= Lex->vers_conditions;
+          }
+        ;
+
 truncate:
-          TRUNCATE_SYM opt_table_sym
+          TRUNCATE_SYM
           {
             LEX* lex= Lex;
             lex->sql_command= SQLCOM_TRUNCATE;
@@ -13037,15 +13040,13 @@ truncate:
             YYPS->m_lock_type= TL_WRITE;
             YYPS->m_mdl_type= MDL_EXCLUSIVE;
           }
-          table_name opt_for_system_time_clause opt_lock_wait_timeout
+          opt_table_sym table_name truncate_end
           {
             LEX* lex= thd->lex;
             DBUG_ASSERT(!lex->m_sql_cmd);
             lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_truncate_table();
             if (lex->m_sql_cmd == NULL)
               MYSQL_YYABORT;
-            if ($5)
-              Lex->last_table()->vers_conditions= Lex->vers_conditions;
           }
         ;
 
@@ -16076,6 +16077,7 @@ object_privilege:
         | EVENT_SYM               { Lex->grant |= EVENT_ACL;}
         | TRIGGER_SYM             { Lex->grant |= TRIGGER_ACL; }
         | CREATE TABLESPACE       { Lex->grant |= CREATE_TABLESPACE_ACL; }
+        | DELETE_SYM VERSIONING_SYM ROWS_SYM  { Lex->grant |= DELETE_VERSIONING_ROWS_ACL; }
         ;
 
 opt_and:

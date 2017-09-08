@@ -75,8 +75,6 @@ create or replace table t (a int) with system versioning;
 show create table t for system_time between timestamp @tm1 and timestamp @tm1;
 --error ER_VERS_RANGE_PROHIBITED
 show create table t for system_time from timestamp @tm1 to timestamp @tm1;
---error ER_VERS_RANGE_PROHIBITED
-show create table t for system_time before timestamp @tm1;
 --error ER_VERS_VTMD_ERROR
 show create table t for system_time as of timestamp '01-01-1990';
 --error ER_VERS_VTMD_ERROR

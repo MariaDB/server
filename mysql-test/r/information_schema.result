@@ -488,6 +488,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	ALTER ROUTINE	YES
 'mysqltest_1'@'localhost'	def	test	EVENT	YES
 'mysqltest_1'@'localhost'	def	test	TRIGGER	YES
+'mysqltest_1'@'localhost'	def	test	DELETE VERSIONING ROWS	YES
 select * from information_schema.TABLE_PRIVILEGES where grantee like '%mysqltest_1%';
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	t1	SELECT	NO
@@ -744,6 +745,7 @@ Lock_tables_priv	select,insert,update,references
 Show_view_priv	select,insert,update,references
 Create_routine_priv	select,insert,update,references
 Alter_routine_priv	select,insert,update,references
+Delete_versioning_rows_priv	select,insert,update,references
 max_questions	select,insert,update,references
 max_connections	select,insert,update,references
 max_user_connections	select,insert,update,references
