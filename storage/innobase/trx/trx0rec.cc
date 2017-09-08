@@ -635,7 +635,7 @@ trx_undo_rec_get_row_ref(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
-	dtuple_t**	ref,	/*!< out, own: row reference */
+	const dtuple_t**ref,	/*!< out, own: row reference */
 	mem_heap_t*	heap)	/*!< in: memory heap from which the memory
 				needed is allocated */
 {
@@ -647,17 +647,17 @@ trx_undo_rec_get_row_ref(
 
 	ref_len = dict_index_get_n_unique(index);
 
-	*ref = dtuple_create(heap, ref_len);
+	dtuple_t* tuple = dtuple_create(heap, ref_len);
+	*ref = tuple;
 
-	dict_index_copy_types(*ref, index, ref_len);
+	dict_index_copy_types(tuple, index, ref_len);
 
 	for (i = 0; i < ref_len; i++) {
-		dfield_t*	dfield;
 		const byte*	field;
 		ulint		len;
 		ulint		orig_len;
 
-		dfield = dtuple_get_nth_field(*ref, i);
+		dfield_t* dfield = dtuple_get_nth_field(tuple, i);
 
 		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
 

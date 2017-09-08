@@ -111,7 +111,7 @@ struct undo_node_t{
 	ulint		cmpl_info;/*!< compiler analysis of an update */
 	upd_t*		update;	/*!< update vector for a clustered index
 				record */
-	dtuple_t*	ref;	/*!< row reference to the next row to handle */
+	const dtuple_t*	ref;	/*!< row reference to the next row to handle */
 	dtuple_t*	row;	/*!< a copy (also fields copied to heap) of the
 				row to handle */
 	row_ext_t*	ext;	/*!< NULL, or prefixes of the externally
