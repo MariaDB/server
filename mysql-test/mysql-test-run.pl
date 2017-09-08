@@ -5055,13 +5055,6 @@ sub mysqld_start ($$) {
 		$path_vardir_trace, $mysqld->name());
   }
 
-  if (IS_WINDOWS)
-  {
-    # Trick the server to send output to stderr, with --console
-    if (!(grep(/^--log-error/, @$args))) {
-      mtr_add_arg($args, "--console");
-    }
-  }
 
   # "Dynamic" version of MYSQLD_CMD is reevaluated with each mysqld_start.
   # Use it to restart the server at testing a failing server start (e.g
@@ -5524,14 +5517,6 @@ sub start_mysqltest ($) {
     my $extra_opts= get_extra_opts($mysqld, $tinfo);
     mysqld_arguments($mysqld_args, $mysqld, $extra_opts);
     mtr_add_arg($args, "--server-arg=%s", $_) for @$mysqld_args;
-
-    if (IS_WINDOWS)
-    {
-      # Trick the server to send output to stderr, with --console
-      if (!(grep(/^--server-arg=--log-error/, @$args))) {
-        mtr_add_arg($args, "--server-arg=--console");
-      }
-    }
   }
 
   # ----------------------------------------------------------------------

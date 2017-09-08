@@ -1199,7 +1199,7 @@ static int prepare_export()
       " --defaults-extra-file=./backup-my.cnf --datadir=."
       " --innodb --innodb-fast-shutdown=0"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --log-error= --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
+      " --console  --skip-log-error --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe, 
       orig_argv1, (my_defaults_group_suffix?my_defaults_group_suffix:""),
       xtrabackup_use_memory);
@@ -1228,7 +1228,6 @@ static int prepare_export()
     fprintf(stderr,"%s",outline);
 
   err = pclose(outf);
-
 end:
   unlink(BOOTSTRAP_FILENAME);
   return err;
@@ -5028,7 +5027,7 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	my_sigset(SIGINT, SIG_DFL);
 #endif
 
-	sf_leaking_memory = 0; /* don't report memory leaks on early exist */
+	sf_leaking_memory = 1; /* don't report memory leaks on early exist */
 
 	int i;
 	int ho_error;
