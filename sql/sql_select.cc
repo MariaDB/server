@@ -1109,7 +1109,7 @@ int JOIN::optimize()
 {
   int res= 0;
   join_optimization_state init_state= optimization_state;
-  if (optimization_state == JOIN::OPTIMIZATION_IN_STAGE_2)
+  if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
     res= optimize_stage2();
   else
   {
@@ -1121,7 +1121,7 @@ int JOIN::optimize()
     res= optimize_inner();
   }
   if (!with_two_phase_optimization ||
-      init_state == JOIN::OPTIMIZATION_IN_STAGE_2)
+      init_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
   {
     if (!res && have_query_plan != QEP_DELETED)
       build_explain();
@@ -1339,6 +1339,11 @@ JOIN::optimize_inner()
       */
       if (tbl->is_materialized_derived())
       {
+        JOIN *join= tbl->get_unit()->first_select()->join;
+        if (join &&
+            join->optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE &&
+            join->with_two_phase_optimization)
+          continue;
         /* 
           Do not push conditions from where into materialized inner tables
           of outer joins: this is not valid.
@@ -1533,7 +1538,7 @@ JOIN::optimize_inner()
 setup_subq_exit:
   with_two_phase_optimization= check_two_phase_optimization(thd);
   if (with_two_phase_optimization)
-    optimization_state= JOIN::OPTIMIZATION_IN_STAGE_2;
+    optimization_state= JOIN::OPTIMIZATION_PHASE_1_DONE;
   else
   { 
     if (optimize_stage2())
@@ -1554,7 +1559,7 @@ int JOIN::optimize_stage2()
     goto setup_subq_exit;
 
   if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
-     DBUG_RETURN(1);
+    DBUG_RETURN(1);
 
   if (thd->check_killed())
     DBUG_RETURN(1);
