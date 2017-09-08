@@ -1028,10 +1028,20 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 
 	trx_undo_rec_t*	undo_rec = trx_roll_pop_top_rec(trx, undo, &mtr);
 	const undo_no_t	undo_no = trx_undo_rec_get_undo_no(undo_rec);
-	if (trx_undo_rec_get_type(undo_rec) == TRX_UNDO_INSERT_REC) {
+	switch (trx_undo_rec_get_type(undo_rec)) {
+	case TRX_UNDO_INSERT_DEFAULT:
+		/* This record type was introduced in MDEV-11369
+		instant ADD COLUMN, which was implemented after
+		MDEV-12288 removed the insert_undo log. There is no
+		instant ADD COLUMN for temporary tables. Therefore,
+		this record can only be present in the main undo log. */
+		ut_ad(undo == update);
+		/* fall through */
+	case TRX_UNDO_INSERT_REC:
 		ut_ad(undo == insert || undo == update || undo == temp);
 		*roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
-	} else {
+		break;
+	default:
 		ut_ad(undo == update || undo == temp);
 	}
 

@@ -905,6 +905,7 @@ row_purge_parse_undo_rec(
 	node->rec_type = type;
 
 	switch (type) {
+	case TRX_UNDO_INSERT_DEFAULT:
 	case TRX_UNDO_INSERT_REC:
 		break;
 	default:
@@ -942,9 +943,15 @@ try_again:
 		goto err_exit;
 	}
 
-	if (type != TRX_UNDO_INSERT_REC
-	    && node->table->n_v_cols && !node->table->vc_templ
-	    && dict_table_has_indexed_v_cols(node->table)) {
+	switch (type) {
+	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_REC:
+		break;
+	default:
+		if (!node->table->n_v_cols || node->table->vc_templ
+		    || !dict_table_has_indexed_v_cols(node->table)) {
+			break;
+		}
 		/* Need server fully up for virtual column computation */
 		if (!mysqld_server_started) {
 
@@ -977,7 +984,9 @@ err_exit:
 	ptr = trx_undo_rec_get_row_ref(ptr, clust_index, &(node->ref),
 				       node->heap);
 
-	if (type == TRX_UNDO_INSERT_REC) {
+	switch (type) {
+	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_REC:
 		return(true);
 	}
 
@@ -1035,6 +1044,7 @@ row_purge_record_func(
 			MONITOR_INC(MONITOR_N_DEL_ROW_PURGE);
 		}
 		break;
+	case TRX_UNDO_INSERT_DEFAULT:
 	case TRX_UNDO_INSERT_REC:
 		node->roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
 		/* fall through */

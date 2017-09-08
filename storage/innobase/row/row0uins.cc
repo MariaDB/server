@@ -334,7 +334,7 @@ row_undo_ins_parse_undo_rec(
 
 	ptr = trx_undo_rec_get_pars(node->undo_rec, &type, &dummy,
 				    &dummy_extern, &undo_no, &table_id);
-	ut_ad(type == TRX_UNDO_INSERT_REC);
+	ut_ad(type == TRX_UNDO_INSERT_REC || type == TRX_UNDO_INSERT_DEFAULT);
 	node->rec_type = type;
 
 	node->update = NULL;
@@ -363,8 +363,22 @@ close_table:
 		clust_index = dict_table_get_first_index(node->table);
 
 		if (clust_index != NULL) {
-			ptr = trx_undo_rec_get_row_ref(
-				ptr, clust_index, &node->ref, node->heap);
+			if (type == TRX_UNDO_INSERT_REC) {
+				ptr = trx_undo_rec_get_row_ref(
+					ptr, clust_index, &node->ref,
+					node->heap);
+			} else {
+				ut_ad(type == TRX_UNDO_INSERT_DEFAULT);
+				static const dtuple_t min_rec = {
+					REC_INFO_MIN_REC_FLAG, 0, 0,
+					NULL, 0, NULL,
+					UT_LIST_NODE_T(dtuple_t)()
+#ifdef UNIV_DEBUG
+					, DATA_TUPLE_MAGIC_N
+#endif /* UNIV_DEBUG */
+				};
+				node->ref = &min_rec;
+			}
 
 			if (!row_undo_search_clust_to_pcur(node)) {
 				/* An error probably occurred during

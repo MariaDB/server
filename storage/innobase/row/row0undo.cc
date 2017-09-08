@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -226,10 +227,13 @@ row_undo_search_clust_to_pcur(
 		}
 
 		if (node->rec_type == TRX_UNDO_UPD_EXIST_REC) {
+			ut_ad(node->row->info_bits == REC_INFO_MIN_REC_FLAG
+			      || node->row->info_bits == 0);
 			node->undo_row = dtuple_copy(node->row, node->heap);
 			row_upd_replace(node->undo_row, &node->undo_ext,
 					clust_index, node->update, node->heap);
 		} else {
+			ut_ad(!(node->row->info_bits & REC_INFO_MIN_REC_FLAG));
 			node->undo_row = NULL;
 			node->undo_ext = NULL;
 		}

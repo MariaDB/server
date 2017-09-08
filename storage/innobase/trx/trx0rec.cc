@@ -499,6 +499,13 @@ trx_undo_page_report_insert(
 	/*----------------------------------------*/
 	/* Store then the fields required to uniquely determine the record
 	to be inserted in the clustered index */
+	if (UNIV_UNLIKELY(clust_entry->info_bits)) {
+		ut_ad(clust_entry->info_bits == REC_INFO_MIN_REC_FLAG);
+		ut_ad(index->is_instant());
+		ut_ad(undo_page[first_free + 2] == TRX_UNDO_INSERT_REC);
+		undo_page[first_free + 2] = TRX_UNDO_INSERT_DEFAULT;
+		goto done;
+	}
 
 	for (i = 0; i < dict_index_get_n_unique(index); i++) {
 
@@ -530,6 +537,7 @@ trx_undo_page_report_insert(
 		}
 	}
 
+done:
 	return(trx_undo_page_set_next_prev_and_add(undo_page, ptr, mtr));
 }
 

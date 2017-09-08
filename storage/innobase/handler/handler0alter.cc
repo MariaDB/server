@@ -4070,6 +4070,7 @@ innobase_add_one_instant(
 	/* First check whether the column to be added has a
 	system reserved name. */
 	if (dict_col_name_is_reserved(field->field_name.str)){
+		// FIXME: Check already in prepare_inplace_alter_table()
 		my_error(ER_WRONG_COLUMN_NAME, MYF(0),
 			field->field_name.str);
 
@@ -4094,6 +4095,7 @@ innobase_add_one_instant(
 	if (dtype_is_string_type(col_type)) {
 		charset_no = (ulint) field->charset()->number;
 
+		// FIXME: Check already in prepare_inplace_alter_table()
 		if (charset_no > MAX_CHAR_COLL_NUM) {
 			my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
 				field->field_name);
@@ -4264,6 +4266,7 @@ next_col:
 	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
 			+ ((user_table->flags & DICT_TF_COMPACT) << 31);
 
+	// FIXME: insert/update a MIN_REC with the default values */
 	return(false);
 }
 
