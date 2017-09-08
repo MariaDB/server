@@ -589,16 +589,18 @@ row_quiesce_table_complete(
 		++count;
 	}
 
-	/* Remove the .cfg file now that the user has resumed
-	normal operations. Otherwise it will cause problems when
-	the user tries to drop the database (remove directory). */
-	char		cfg_name[OS_FILE_MAX_PATH];
+	if (!opt_bootstrap) {
+		/* Remove the .cfg file now that the user has resumed
+		normal operations. Otherwise it will cause problems when
+		the user tries to drop the database (remove directory). */
+		char		cfg_name[OS_FILE_MAX_PATH];
 
-	srv_get_meta_data_filename(table, cfg_name, sizeof(cfg_name));
+		srv_get_meta_data_filename(table, cfg_name, sizeof(cfg_name));
 
-	os_file_delete_if_exists(innodb_data_file_key, cfg_name, NULL);
+		os_file_delete_if_exists(innodb_data_file_key, cfg_name, NULL);
 
-	ib::info() << "Deleting the meta-data file '" << cfg_name << "'";
+		ib::info() << "Deleting the meta-data file '" << cfg_name << "'";
+	}
 
 	if (trx_purge_state() != PURGE_STATE_DISABLED) {
 		trx_purge_run();
