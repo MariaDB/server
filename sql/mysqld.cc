@@ -5044,6 +5044,11 @@ static int init_server_components()
     help information. Since the implementation of plugin server
     variables the help output is now written much later.
   */
+#ifdef _WIN32
+  if (opt_console)
+   opt_error_log= false;
+#endif
+
   if (opt_error_log && !opt_abort)
   {
     if (!log_error_file_ptr[0])
