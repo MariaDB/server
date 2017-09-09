@@ -1,0 +1,11 @@
+--- suite/sys_vars/r/sysvars_debug.result	2017-09-14 10:37:46.000000000 +0000
++++ suite/sys_vars/r/sysvars_debug,32bit.reject	2017-09-26 13:15:14.197012523 +0000
+@@ -21,7 +21,7 @@
+ GLOBAL_VALUE_ORIGIN	CONFIG
+ DEFAULT_VALUE	0
+ VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	BIGINT UNSIGNED
++VARIABLE_TYPE	INT UNSIGNED
+ VARIABLE_COMMENT	Extra sleep (in microseconds) to add to binlog fsync(), for debugging
+ NUMERIC_MIN_VALUE	0
+ NUMERIC_MAX_VALUE	4294967295

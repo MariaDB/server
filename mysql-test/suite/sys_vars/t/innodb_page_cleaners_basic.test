@@ -1,6 +1,6 @@
 # Variable name: innodb_page_cleaners
 # Scope: Global
-# Access type: Static
+# Access type: Dynamic
 # Data type: numeric
 
 --source include/have_innodb.inc
@@ -8,12 +8,38 @@
 SELECT COUNT(@@GLOBAL.innodb_page_cleaners);
 --echo 1 Expected
 
-SELECT COUNT(@@innodb_page_cleaners);
+SELECT @@innodb_page_cleaners;
 --echo 1 Expected
 
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.innodb_page_cleaners=2;
+--echo Expected to pass
+
+SELECT @@innodb_page_cleaners;
+--echo 2 Expected
+
 SET @@GLOBAL.innodb_page_cleaners=1;
---echo Expected error 'Read-only variable'
+--echo Expected to pass
+
+SELECT @@innodb_page_cleaners;
+--echo 1 Expected
+
+SET @@GLOBAL.innodb_page_cleaners=6;
+--echo Expected to pass
+
+SELECT @@innodb_page_cleaners;
+--echo 6 Expected
+
+SET @@GLOBAL.innodb_page_cleaners=4;
+--echo Expected to pass
+
+SELECT @@innodb_page_cleaners;
+--echo 4 Expected
+
+SET @@GLOBAL.innodb_page_cleaners=0;
+--echo Warning expected
+
+SELECT @@innodb_page_cleaners;
+--echo 1 Expected
 
 --Error ER_BAD_FIELD_ERROR
 SELECT innodb_page_cleaners = @@SESSION.innodb_page_cleaners;

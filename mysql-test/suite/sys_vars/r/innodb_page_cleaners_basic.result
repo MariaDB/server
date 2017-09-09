@@ -2,13 +2,42 @@ SELECT COUNT(@@GLOBAL.innodb_page_cleaners);
 COUNT(@@GLOBAL.innodb_page_cleaners)
 1
 1 Expected
-SELECT COUNT(@@innodb_page_cleaners);
-COUNT(@@innodb_page_cleaners)
+SELECT @@innodb_page_cleaners;
+@@innodb_page_cleaners
 1
 1 Expected
+SET @@GLOBAL.innodb_page_cleaners=2;
+Expected to pass
+SELECT @@innodb_page_cleaners;
+@@innodb_page_cleaners
+2
+2 Expected
 SET @@GLOBAL.innodb_page_cleaners=1;
-ERROR HY000: Variable 'innodb_page_cleaners' is a read only variable
-Expected error 'Read-only variable'
+Expected to pass
+SELECT @@innodb_page_cleaners;
+@@innodb_page_cleaners
+1
+1 Expected
+SET @@GLOBAL.innodb_page_cleaners=6;
+Expected to pass
+SELECT @@innodb_page_cleaners;
+@@innodb_page_cleaners
+6
+6 Expected
+SET @@GLOBAL.innodb_page_cleaners=4;
+Expected to pass
+SELECT @@innodb_page_cleaners;
+@@innodb_page_cleaners
+4
+4 Expected
+SET @@GLOBAL.innodb_page_cleaners=0;
+Warnings:
+Warning	1292	Truncated incorrect innodb_page_cleaners value: '0'
+Warning expected
+SELECT @@innodb_page_cleaners;
+@@innodb_page_cleaners
+1
+1 Expected
 SELECT innodb_page_cleaners = @@SESSION.innodb_page_cleaners;
 ERROR 42S22: Unknown column 'innodb_page_cleaners' in 'field list'
 Expected error 'Read-only variable'

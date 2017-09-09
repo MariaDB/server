@@ -19984,10 +19984,20 @@ static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path to InnoDB log files.", NULL, NULL, NULL);
 
+/** Update innodb_page_cleaners.
+@param[in]	save	the new value of innodb_page_cleaners */
+static
+void
+innodb_page_cleaners_threads_update(THD*, struct st_mysql_sys_var*, void*, const void *save)
+{
+	buf_flush_set_page_cleaner_thread_cnt(*static_cast<const ulong*>(save));
+}
+
 static MYSQL_SYSVAR_ULONG(page_cleaners, srv_n_page_cleaners,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_RQCMDARG,
   "Page cleaner threads can be from 1 to 64. Default is 4.",
-  NULL, NULL, 4, 1, 64, 0);
+  NULL,
+  innodb_page_cleaners_threads_update, 4, 1, 64, 0);
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,

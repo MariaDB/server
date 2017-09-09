@@ -243,6 +243,12 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 /*===============================================*/
 	void*	arg);		/*!< in: a dummy parameter required by
 				os_thread_create */
+
+/** Adjust thread count for page cleaner workers.
+@param[in]	new_cnt		Number of threads to be used */
+void
+buf_flush_set_page_cleaner_thread_cnt(ulong new_cnt);
+
 /******************************************************************//**
 Worker thread of page_cleaner.
 @return a dummy parameter */
