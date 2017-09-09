@@ -4213,7 +4213,6 @@ int ha_partition::write_row(uchar * buf)
   sql_mode_t saved_sql_mode= thd->variables.sql_mode;
   bool saved_auto_inc_field_not_null= table->auto_increment_field_not_null;
   DBUG_ENTER("ha_partition::write_row");
-  DBUG_ASSERT(buf == m_rec0);
 
   /*
     If we have an auto_increment column and we are writing a changed row

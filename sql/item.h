@@ -5560,6 +5560,7 @@ public:
   }
 
   virtual void store(Item *item);
+  virtual Item *get_item() { return example; }
   virtual bool cache_value()= 0;
   bool basic_const_item() const
   { return MY_TEST(example && example->basic_const_item()); }

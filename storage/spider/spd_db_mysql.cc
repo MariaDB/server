@@ -15,6 +15,7 @@
 
 #define MYSQL_SERVER 1
 #include "mysql_version.h"
+#include "spd_environ.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
 #include <mysql/plugin.h>

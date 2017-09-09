@@ -3445,7 +3445,7 @@ public:
     return 0;
   }
   virtual void set_part_info(partition_info *part_info) {return;}
-  virtual void return_record_by_parent() {return;}
+  virtual void return_record_by_parent() { return; }
 
   virtual ulong index_flags(uint idx, uint part, bool all_parts) const =0;
 

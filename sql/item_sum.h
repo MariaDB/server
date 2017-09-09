@@ -524,6 +524,7 @@ public:
   Item *get_arg(uint i) { return args[i]; }
   Item *set_arg(uint i, THD *thd, Item *new_val);
   uint get_arg_count() const { return arg_count; }
+  virtual Item **get_args() { return fixed ? orig_args : args; }
 
   /* Initialization of distinct related members */
   void init_aggregator()
@@ -761,14 +762,20 @@ class Item_sum_sum :public Item_sum_num,
                    public Type_handler_hybrid_field_type 
 {
 protected:
+  bool direct_added;
+  bool direct_reseted_field;
+  bool direct_sum_is_null;
+  double direct_sum_real;
   double sum;
+  my_decimal direct_sum_decimal;
   my_decimal dec_buffs[2];
   uint curr_dec_buff;
   void fix_length_and_dec();
 
 public:
   Item_sum_sum(THD *thd, Item *item_par, bool distinct):
-    Item_sum_num(thd, item_par)
+    Item_sum_num(thd, item_par), direct_added(FALSE),
+    direct_reseted_field(FALSE)
   {
     set_distinct(distinct);
   }
@@ -777,6 +784,9 @@ public:
   { 
     return has_with_distinct() ? SUM_DISTINCT_FUNC : SUM_FUNC; 
   }
+  void cleanup();
+  void direct_add(my_decimal *add_sum_decimal);
+  void direct_add(double add_sum_real, bool add_sum_is_null);
   void clear();
   bool add();
   double val_real();
@@ -814,6 +824,9 @@ private:
 
 class Item_sum_count :public Item_sum_int
 {
+  bool direct_counted;
+  bool direct_reseted_field;
+  longlong direct_count;
   longlong count;
 
   friend class Aggregator_distinct;
@@ -823,9 +836,10 @@ class Item_sum_count :public Item_sum_int
   void cleanup();
   void remove();
 
-  public:
+public:
   Item_sum_count(THD *thd, Item *item_par):
-    Item_sum_int(thd, item_par), count(0)
+    Item_sum_int(thd, item_par), direct_counted(FALSE),
+    direct_reseted_field(FALSE), count(0)
   {}
 
   /**
@@ -837,12 +851,14 @@ class Item_sum_count :public Item_sum_int
   */
 
   Item_sum_count(THD *thd, List<Item> &list):
-    Item_sum_int(thd, list), count(0)
+    Item_sum_int(thd, list), direct_counted(FALSE),
+    direct_reseted_field(FALSE), count(0)
   {
     set_distinct(TRUE);
   }
   Item_sum_count(THD *thd, Item_sum_count *item):
-    Item_sum_int(thd, item), count(item->count)
+    Item_sum_int(thd, item), direct_counted(FALSE),
+    direct_reseted_field(FALSE), count(item->count)
   {}
   enum Sumfunctype sum_func () const 
   { 
@@ -857,6 +873,7 @@ class Item_sum_count :public Item_sum_int
   longlong val_int();
   void reset_field();
   void update_field();
+  void direct_add(longlong add_count);
   const char *func_name() const 
   { 
     return has_with_distinct() ? "count(distinct " : "count(";
@@ -1012,6 +1029,8 @@ class Item_cache;
 class Item_sum_hybrid :public Item_sum, public Type_handler_hybrid_field_type
 {
 protected:
+  bool direct_added;
+  Item *direct_item;
   Item_cache *value, *arg_cache;
   Arg_comparator *cmp;
   int cmp_sign;
@@ -1022,18 +1041,19 @@ protected:
   Item_sum_hybrid(THD *thd, Item *item_par,int sign):
     Item_sum(thd, item_par),
     Type_handler_hybrid_field_type(MYSQL_TYPE_LONGLONG),
-    value(0), arg_cache(0), cmp(0),
+    direct_added(FALSE), value(0), arg_cache(0), cmp(0),
     cmp_sign(sign), was_values(TRUE)
   { collation.set(&my_charset_bin); }
   Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
     :Item_sum(thd, item),
     Type_handler_hybrid_field_type(item),
-    value(item->value), arg_cache(0),
+    direct_added(FALSE), value(item->value), arg_cache(0),
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
   bool fix_fields(THD *, Item **);
   void setup_hybrid(THD *thd, Item *item, Item *value_arg);
   void clear();
+  void direct_add(Item *item);
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
