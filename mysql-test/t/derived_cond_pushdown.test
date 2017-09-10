@@ -1794,3 +1794,25 @@ eval explain format=json $q1;
 
 DROP VIEW v1;
 DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-13710: Optimization for equi-joins of grouping derived tables
+--echo #             (Splitting derived tables / views with GROUP BY) :
+--echo #             FROM list of the derived table contains constant tables
+--echo #
+
+CREATE TABLE t1 (a int, INDEX(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (9),(5),(1);
+
+CREATE TABLE t2 (b int) ENGINE=MyISAM;
+
+CREATE TABLE t3 (c varchar(8), d int) ENGINE=MyISAM;
+INSERT INTO t3 VALUES ('foo',2),('bar',6);
+
+CREATE VIEW v1 AS SELECT a FROM t1, t2 GROUP BY a;
+
+SELECT * FROM t3
+  WHERE d IN ( SELECT * FROM v1 ) AND c LIKE 'z%' OR c IS NULL;
+
+DROP VIEW v1;
+DROP TABLE t1,t2,t3;

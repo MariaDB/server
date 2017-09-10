@@ -9073,12 +9073,10 @@ bool JOIN::push_splitting_cond_into_derived(THD *thd, Item *cond)
 {
   enum_reopt_result reopt_result= REOPT_NONE;
   table_map all_table_map= 0;
-  for (JOIN_TAB *tab= join_tab + const_tables;
+  for (JOIN_TAB *tab= join_tab;
        tab < join_tab + top_join_tab_count; tab++)
-  {
     all_table_map|= tab->table->map;
-  }
-  reopt_result= reoptimize(cond, all_table_map, NULL);
+  reopt_result= reoptimize(cond, all_table_map & ~const_table_map, NULL);
   if (reopt_result == REOPT_ERROR)
     return true;
   if (inject_cond_into_where(cond))
