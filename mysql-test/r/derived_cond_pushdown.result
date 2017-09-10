@@ -10165,3 +10165,17 @@ WHERE d IN ( SELECT * FROM v1 ) AND c LIKE 'z%' OR c IS NULL;
 c	d
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
+#
+# MDEV-13734: Optimization for equi-joins of grouping derived tables
+#             (Splitting derived tables / views with GROUP BY) :
+#             derived table / view is empty
+#
+CREATE TABLE t1 (a int, b int, INDEX(a)) ENGINE=MyISAM;
+CREATE TABLE t2 (c int) ENGINE=MyISAM;
+CREATE VIEW v1 AS SELECT a, b FROM t1 STRAIGHT_JOIN t2;
+CREATE VIEW v2 AS SELECT a, max(b) as bmax FROM v1 GROUP BY a;
+CREATE VIEW v3 AS SELECT v2.* FROM t1 JOIN v2 ON t1.b = v2.bmax ;
+SELECT * FROM v3 JOIN t1 ON (bmax = b);
+a	bmax	a	b
+DROP VIEW v1,v2,v3;
+DROP TABLE t1,t2;

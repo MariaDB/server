@@ -4608,7 +4608,8 @@ void SELECT_LEX::mark_const_derived(bool empty)
   {
     if (!empty)
       increase_derived_records(1);
-    if (!master_unit()->is_unit_op() && !derived->is_merged_derived())
+    if (!master_unit()->is_unit_op() && !derived->is_merged_derived() &&
+        !(join && join->with_two_phase_optimization))
       derived->fill_me= TRUE;
   }
 }
