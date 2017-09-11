@@ -4635,11 +4635,11 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       const_item_cache= FALSE;
     } 
   
-    with_sum_func=	    with_sum_func || item->with_sum_func;
-    with_field=             with_field || item->with_field;
-    with_subselect|=        item->has_subquery();
-    if (item->maybe_null)
-      maybe_null=1;
+    with_sum_func|=    item->with_sum_func;
+    with_field|=       item->with_field;
+    with_subselect|=   item->has_subquery();
+    with_window_func|= item->with_window_func;
+    maybe_null|=       item->maybe_null;
   }
   fix_length_and_dec();
   fixed= 1;

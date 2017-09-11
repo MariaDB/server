@@ -3214,3 +3214,51 @@ SELECT * FROM fv_result;
 somedate
 2017-07-20 12:47:56
 DROP TABLE fv_test, fv_result;
+#
+# MDEV-13649: Server crashes in set_field_to_null_with_conversions or in Field::set_notnull
+#
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (0),(1),(2);
+SELECT LEAD(a) OVER (PARTITION BY a) as lead,
+a AND LEAD(a) OVER (PARTITION BY a) AS a_and_lead_part
+FROM t1;
+lead	a_and_lead_part
+NULL	0
+NULL	NULL
+NULL	NULL
+SELECT a OR LEAD(a) OVER (ORDER BY a) AS a_or_lead_order
+FROM t1
+ORDER BY a;
+a_or_lead_order
+1
+1
+1
+SELECT a AND LEAD(a) OVER (ORDER BY a) AS a_and_lead_order
+FROM t1
+ORDER BY a;
+a_and_lead_order
+0
+1
+NULL
+SELECT a XOR LEAD(a) OVER (ORDER BY a) AS a_xor_lead_order
+FROM t1
+ORDER BY a;
+a_xor_lead_order
+1
+0
+NULL
+SELECT NOT LEAD(a) OVER (ORDER BY a) AS not_lead_order
+FROM t1
+ORDER BY a;
+not_lead_order
+0
+0
+NULL
+SELECT LEAD(a) OVER (ORDER BY a) is not null AS is_not_null_lead_order
+FROM t1
+ORDER BY a;
+is_not_null_lead_order
+1
+1
+0
+drop table t1;

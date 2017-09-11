@@ -1993,3 +1993,35 @@ SHOW CREATE TABLE fv_result;
 SELECT * FROM fv_result;
 
 DROP TABLE fv_test, fv_result;
+
+--echo #
+--echo # MDEV-13649: Server crashes in set_field_to_null_with_conversions or in Field::set_notnull
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (0),(1),(2);
+SELECT LEAD(a) OVER (PARTITION BY a) as lead,
+       a AND LEAD(a) OVER (PARTITION BY a) AS a_and_lead_part
+FROM t1;
+
+SELECT a OR LEAD(a) OVER (ORDER BY a) AS a_or_lead_order
+FROM t1
+ORDER BY a;
+
+SELECT a AND LEAD(a) OVER (ORDER BY a) AS a_and_lead_order
+FROM t1
+ORDER BY a;
+
+SELECT a XOR LEAD(a) OVER (ORDER BY a) AS a_xor_lead_order
+FROM t1
+ORDER BY a;
+
+SELECT NOT LEAD(a) OVER (ORDER BY a) AS not_lead_order
+FROM t1
+ORDER BY a;
+
+SELECT LEAD(a) OVER (ORDER BY a) is not null AS is_not_null_lead_order
+FROM t1
+ORDER BY a;
+
+drop table t1;
