@@ -62,6 +62,7 @@
 #include "sql_repl.h"
 #include "opt_range.h"
 #include "rpl_parallel.h"
+#include <ssl_compat.h>
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -3527,16 +3528,6 @@ static Sys_var_charptr Sys_malloc_library(
        "version_malloc_library", "Version of the used malloc library",
        READ_ONLY GLOBAL_VAR(malloc_library), CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(guess_malloc_library()));
-
-#ifdef HAVE_YASSL
-#include <openssl/ssl.h>
-#define SSL_LIBRARY "YaSSL " YASSL_VERSION
-#elif HAVE_OPENSSL
-#include <openssl/crypto.h>
-#define SSL_LIBRARY SSLeay_version(SSLEAY_VERSION)
-#else
-#error No SSL?
-#endif
 
 static char *ssl_library;
 static Sys_var_charptr Sys_ssl_library(

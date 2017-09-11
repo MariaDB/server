@@ -25,8 +25,8 @@
 
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
 #define HAVE_OPENSSL11 1
+#define SSL_LIBRARY OpenSSL_version(OPENSSL_VERSION)
 #define ERR_remove_state(X) ERR_clear_error()
-#define EVP_MD_CTX_cleanup(X) EVP_MD_CTX_reset(X)
 #define EVP_CIPHER_CTX_SIZE 168
 #define EVP_MD_CTX_SIZE 48
 #undef EVP_MD_CTX_init
@@ -34,8 +34,23 @@
 #undef EVP_CIPHER_CTX_init
 #define EVP_CIPHER_CTX_init(X) do { bzero((X), EVP_CIPHER_CTX_SIZE); EVP_CIPHER_CTX_reset(X); } while(0)
 
+/*
+  Macros below are deprecated. OpenSSL 1.1 may define them or not,
+  depending on how it was built.
+*/
+#undef ERR_free_strings
+#define ERR_free_strings()
+#undef EVP_cleanup
+#define EVP_cleanup()
+#undef CRYPTO_cleanup_all_ex_data
+#define CRYPTO_cleanup_all_ex_data()
+#undef SSL_load_error_strings
+#define SSL_load_error_strings()
+
 #else
 #define HAVE_OPENSSL10 1
+#define SSL_LIBRARY SSLeay_version(SSLEAY_VERSION)
+
 /*
   Unfortunately RAND_bytes manual page does not provide any guarantees
   in relation to blocking behavior. Here we explicitly use SSLeay random
@@ -51,6 +66,7 @@
 #endif /* HAVE_OPENSSL11 */
 
 #elif defined(HAVE_YASSL)
+#define SSL_LIBRARY "YaSSL " YASSL_VERSION
 #define BN_free(X) do { } while(0)
 #endif /* !defined(HAVE_YASSL) */
 
@@ -62,6 +78,11 @@
 #define EVP_CIPHER_CTX_encrypting(ctx)  ((ctx)->encrypt)
 #define EVP_CIPHER_CTX_SIZE             sizeof(EVP_CIPHER_CTX)
 #define EVP_MD_CTX_SIZE                 sizeof(EVP_MD_CTX)
+
+#define EVP_MD_CTX_reset(X) EVP_MD_CTX_cleanup(X)
+#define EVP_CIPHER_CTX_reset(X) EVP_CIPHER_CTX_cleanup(X)
+#define X509_get0_notBefore(X) X509_get_notBefore(X)
+#define X509_get0_notAfter(X) X509_get_notAfter(X)
 #endif
 
 #ifdef	__cplusplus
