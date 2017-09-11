@@ -100,7 +100,11 @@ bool Item_sum::init_sum_func_check(THD *thd)
 
     The method verifies whether context conditions imposed on a usage
     of any set function are met for this occurrence.
-    It checks whether the set function occurs in the position where it
+
+    The function first checks if we are using any window functions as
+    arguments to the set function. In that case it returns an error.
+
+    Afterwards, it checks whether the set function occurs in the position where it
     can be aggregated and, when it happens to occur in argument of another
     set function, the method checks that these two functions are aggregated in
     different subqueries.
@@ -151,6 +155,20 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
                                curr_sel->name_visibility_map);
   bool invalid= FALSE;
   DBUG_ASSERT(curr_sel->name_visibility_map); // should be set already
+
+  /*
+     Window functions can not be used as arguments to sum functions.
+     Aggregation happes before window function computation, so there
+     are no values to aggregate over.
+  */
+  if (with_window_func)
+  {
+    my_message(ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG,
+               ER_THD(thd, ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG),
+               MYF(0));
+    return TRUE;
+  }
+
   if (window_func_sum_expr_flag)
     return false;
   /*  
@@ -1108,6 +1126,7 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
       return TRUE;
     set_if_bigger(decimals, args[i]->decimals);
     with_subselect|= args[i]->with_subselect;
+    with_window_func|= args[i]->with_window_func;
   }
   result_field=0;
   max_length=float_length(decimals);
@@ -1139,6 +1158,7 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
     return TRUE;
   Type_std_attributes::set(args[0]);
   with_subselect= args[0]->with_subselect;
+  with_window_func|= args[0]->with_window_func;
 
   Item *item2= item->real_item();
   if (item2->type() == Item::FIELD_ITEM)
@@ -3480,6 +3500,7 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
         args[i]->check_cols(1))
       return TRUE;
     with_subselect|= args[i]->with_subselect;
+    with_window_func|= args[i]->with_window_func;
   }
 
   /* skip charset aggregation for order columns */

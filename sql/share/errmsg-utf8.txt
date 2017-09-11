@@ -7740,4 +7740,5 @@ ER_RDB_TTL_DURATION_FORMAT
 ER_PER_INDEX_CF_DEPRECATED
   eng "The per-index column family option has been deprecated"
 
-
+ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+  eng "Window functions can not be used as arguments to group functions."
