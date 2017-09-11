@@ -24,7 +24,7 @@ SET(TOKUDB_SOURCES
     tokudb_thread.cc
     tokudb_dir_cmd.cc)
 MYSQL_ADD_PLUGIN(tokudb ${TOKUDB_SOURCES} STORAGE_ENGINE MODULE_ONLY
-                 COMPONENT tokudb-engine)
+                 COMPONENT tokudb-engine CONFIG tokudb.cnf)
 
 IF(NOT TARGET tokudb)
   RETURN()
@@ -111,8 +111,3 @@ TARGET_LINK_LIBRARIES(tokudb tokufractaltree_static tokuportability_static
 
 SET(CMAKE_MODULE_LINKER_FLAGS_RELEASE "${CMAKE_MODULE_LINKER_FLAGS_RELEASE} -flto -fuse-linker-plugin")
 SET(CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO} -flto -fuse-linker-plugin")
-
-IF (INSTALL_SYSCONF2DIR)
-  INSTALL(FILES tokudb.cnf DESTINATION ${INSTALL_SYSCONF2DIR}
-          COMPONENT tokudb-engine)
-ENDIF(INSTALL_SYSCONF2DIR)
