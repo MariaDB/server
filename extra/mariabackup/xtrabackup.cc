@@ -296,6 +296,8 @@ my_bool opt_noversioncheck = FALSE;
 my_bool opt_no_backup_locks = FALSE;
 my_bool opt_decompress = FALSE;
 
+my_bool opt_lock_ddl_per_table = FALSE;
+
 static const char *binlog_info_values[] = {"off", "lockless", "on", "auto",
 					   NullS};
 static TYPELIB binlog_info_typelib = {array_elements(binlog_info_values)-1, "",
@@ -537,7 +539,8 @@ enum options_xtrabackup
 
   OPT_XTRA_TABLES_EXCLUDE,
   OPT_XTRA_DATABASES_EXCLUDE,
-  OPT_PROTOCOL
+  OPT_PROTOCOL,
+  OPT_LOCK_DDL_PER_TABLE
 };
 
 struct my_option xb_client_options[] =
@@ -1071,6 +1074,11 @@ struct my_option xb_server_options[] =
    "descriptors to reserve with setrlimit().",
    (G_PTR*) &xb_open_files_limit, (G_PTR*) &xb_open_files_limit, 0, GET_ULONG,
    REQUIRED_ARG, 0, 0, UINT_MAX, 0, 1, 0},
+
+  {"lock-ddl-per-table", OPT_LOCK_DDL_PER_TABLE, "Lock DDL for each table "
+   "before xtrabackup starts to copy it and until the backup is completed.",
+   (uchar*) &opt_lock_ddl_per_table, (uchar*) &opt_lock_ddl_per_table, 0,
+   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -2203,6 +2211,10 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n)
 	    && check_if_skip_table(node_name)) {
 		msg("[%02u] Skipping %s.\n", thread_n, node_name);
 		return(FALSE);
+	}
+
+	if (opt_lock_ddl_per_table) {
+		mdl_lock_table(node->space->id);
 	}
 
 	if (!changed_page_bitmap) {
@@ -3552,6 +3564,10 @@ xtrabackup_backup_func()
 		    "or RENAME TABLE during the backup, inconsistent backup will be "
 		    "produced.\n");
 
+	if (opt_lock_ddl_per_table) {
+		mdl_lock_init();
+	}
+
 	/* initialize components */
         if(innodb_init_param()) {
 fail:
@@ -3928,6 +3944,10 @@ reread_log_header:
 
 	if (!ok) {
 		goto fail;
+	}
+
+	if (opt_lock_ddl_per_table) {
+		mdl_unlock_all();
 	}
 
 	xtrabackup_destroy_datasinks();
