@@ -2359,10 +2359,18 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 
 		scanned_checkpoint = checkpoint;
 		ulint	data_len = log_block_get_data_len(log_block);
-		scanned_lsn += data_len;
 
-		if (data_len != OS_FILE_LOG_BLOCK_SIZE) {
-			/* The current end of the log was reached. */
+		if (data_len == OS_FILE_LOG_BLOCK_SIZE) {
+			/* We got a full log block. */
+			scanned_lsn += data_len;
+		} else if (data_len
+			   >= OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE
+			   || data_len <= LOG_BLOCK_HDR_SIZE) {
+			/* We got a garbage block (abrupt end of the log). */
+			break;
+		} else {
+			/* We got a partial block (abrupt end of the log). */
+			scanned_lsn += data_len;
 			break;
 		}
 	}
@@ -2375,7 +2383,7 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 
 	if (ulint write_size = ulint(end_lsn - start_lsn)) {
 		if (srv_encrypt_log) {
-			log_crypt(log_sys->buf, write_size);
+			log_crypt(log_sys->buf, start_lsn, write_size);
 		}
 
 		if (ds_write(dst_log_file, log_sys->buf, write_size)) {
@@ -3757,10 +3765,10 @@ old_format:
 
 	const byte* buf = log_sys->checkpoint_buf;
 
-	checkpoint_lsn_start = mach_read_from_8(buf + LOG_CHECKPOINT_LSN);
-	checkpoint_no_start = mach_read_from_8(buf + LOG_CHECKPOINT_NO);
-
 reread_log_header:
+	checkpoint_lsn_start = log_sys->log.lsn;
+	checkpoint_no_start = log_sys->next_checkpoint_no;
+
 	err = recv_find_max_checkpoint(&max_cp_field);
 
 	if (err != DB_SUCCESS) {
@@ -3774,10 +3782,9 @@ reread_log_header:
 	ut_ad(!((log_sys->log.format ^ LOG_HEADER_FORMAT_CURRENT)
 		& ~LOG_HEADER_FORMAT_ENCRYPTED));
 
-	if (checkpoint_no_start != mach_read_from_8(buf + LOG_CHECKPOINT_NO)) {
+	log_group_header_read(&log_sys->log, max_cp_field);
 
-		checkpoint_lsn_start = mach_read_from_8(buf + LOG_CHECKPOINT_LSN);
-		checkpoint_no_start = mach_read_from_8(buf + LOG_CHECKPOINT_NO);
+	if (checkpoint_no_start != mach_read_from_8(buf + LOG_CHECKPOINT_NO)) {
 		goto reread_log_header;
 	}
 
