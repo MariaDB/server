@@ -3330,8 +3330,8 @@ sub run_query_output {
   mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
   mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
 
-  mtr_add_arg($args, "-s");
-  mtr_add_arg($args, "-e %s", $query);
+  mtr_add_arg($args, "--silent");
+  mtr_add_arg($args, "--execute=%s", $query);
 
   my $res= My::SafeProcess->run
     (
@@ -3363,20 +3363,20 @@ sub wait_wsrep_ready($$) {
     if (run_query_output($mysqld, $query, $outfile) != 0)
     {
       $tinfo->{logfile}= "WSREP error while trying to determine node state";
-      return 1;
+      return 0;
     }
 
     if (mtr_grab_file($outfile) =~ /^ON/)
     {
       unlink($outfile);
-      return 0;
+      return 1;
     }
 
     mtr_milli_sleep($sleeptime);
   }
 
   $tinfo->{logfile}= "WSREP did not transition to state READY";
-  return 1;
+  return 0;
 }
 
 
@@ -5414,12 +5414,9 @@ sub start_servers($) {
       return 1;
     }
 
-    if (have_wsrep())
+    if (have_wsrep() && !wait_wsrep_ready($tinfo, $mysqld))
     {
-      if (wait_wsrep_ready($tinfo, $mysqld))
-      {
-        return 1;
-      }
+      return 1;
     }
   }
 
