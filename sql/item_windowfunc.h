@@ -851,7 +851,7 @@ public:
   bool is_null()
   {
     if (force_return_blank)
-      return false;
+      return true;
 
     if (read_value_from_result_field)
       return result_field->is_null();
@@ -865,7 +865,7 @@ public:
     if (force_return_blank)
     {
       res= 0.0;
-      null_value= false;
+      null_value= true;
     }
     else if (read_value_from_result_field)
     {
@@ -886,7 +886,7 @@ public:
     if (force_return_blank)
     {
       res= 0;
-      null_value= false;
+      null_value= true;
     }
     else if (read_value_from_result_field)
     {
@@ -906,9 +906,8 @@ public:
     String *res;
     if (force_return_blank)
     {
-      null_value= false;
-      str->length(0);
-      res= str;
+      null_value= true;
+      res= NULL;
     }
     else if (read_value_from_result_field)
     {
@@ -930,9 +929,8 @@ public:
     my_decimal *res;
     if (force_return_blank)
     {
-      my_decimal_set_zero(dec);
-      null_value= false;
-      res= dec;
+      null_value= true;
+      res= NULL;
     }
     else if (read_value_from_result_field)
     {
