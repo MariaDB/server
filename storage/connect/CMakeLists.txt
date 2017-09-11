@@ -313,7 +313,10 @@ IF(CONNECT_WITH_MONGO)
     add_definitions(-DCMGO_SUPPORT)
     IF (NOT JAVA_FOUND AND JNI_FOUND)
       SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
-      add_definitions(-DMONGO_SUPPORT)
+      add_definitions(-DMONGO_SUPPORT -DMONGO_ENABLED=1)
+    ELSE ()
+      remove_definitions(-DMONGO_ENABLED=0)
+      add_definitions(-DMONGO_ENABLED=1)
     ENDIF (NOT JAVA_FOUND AND JNI_FOUND)
   ENDIF(libmongoc-1.0_FOUND)
 ENDIF(CONNECT_WITH_MONGO)
@@ -367,6 +370,4 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
     ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
     DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
 ENDIF()
-
-
 
