@@ -2924,3 +2924,18 @@ a	b
 2001-01-01 02:03:04	02.03.04
 drop table t1;
 set sql_warnings = 0;
+# TIME_FORMAT() STORED
+set sql_warnings = 1;
+create table t1 (a datetime, b varchar(10) as (time_format(a,"%H.%i.%S")) STORED);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` datetime DEFAULT NULL,
+  `b` varchar(10) GENERATED ALWAYS AS (time_format(`a`,'%H.%i.%S')) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values ('2001-01-01 02:03:04',default);
+select * from t1;
+a	b
+2001-01-01 02:03:04	02.03.04
+drop table t1;
+set sql_warnings = 0;
