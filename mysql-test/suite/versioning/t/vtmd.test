@@ -155,6 +155,11 @@ use test;
 show tables;
 call check_vtmd('t2_vtmd');
 
+create or replace table t3 (x int) with system versioning;
+alter table t3 change x x bigint;
+alter table t3 change x x bigint after sys_trx_start;
+call check_vtmd('t3_vtmd');
+
 drop database db0;
 drop database db1;
 drop database test;
