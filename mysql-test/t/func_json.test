@@ -322,3 +322,9 @@ select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
 #
 select JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo');
 
+#
+# MDEV-13138 JSON_OBJECT returns null with strings containing backticks.
+#
+SELECT JSON_OBJECT('foo', '`');
+SELECT JSON_OBJECT("foo", "bar`bar");
+
