@@ -696,3 +696,6 @@ SET @path = "$.\"\\u00e4\"";
 select @str, @path, JSON_EXTRACT(@str, @path);
 @str	@path	JSON_EXTRACT(@str, @path)
 {"\u00e4":"yes"}	$."\u00e4"	"yes"
+select json_array(5,json_query('[1,2]','$'));
+json_array(5,json_query('[1,2]','$'))
+[5, [1,2]]

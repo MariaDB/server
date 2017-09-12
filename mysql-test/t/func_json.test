@@ -349,3 +349,8 @@ SET @str = "{\"\\u00e4\":\"yes\"}";
 SET @path = "$.\"\\u00e4\"";
 select @str, @path, JSON_EXTRACT(@str, @path);
 
+#
+# MDEV-12877 Wrong result from JSON native function.
+#
+select json_array(5,json_query('[1,2]','$'));
+

@@ -101,6 +101,7 @@ class Item_func_json_query: public Item_func_json_value
 public:
   Item_func_json_query(THD *thd, Item *js, Item *i_path):
     Item_func_json_value(thd, js, i_path) {}
+  bool is_json_type() { return true; }
   const char *func_name() const { return "json_query"; }
   bool check_and_get_value(json_engine_t *je, String *res, int *error);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
