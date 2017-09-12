@@ -402,12 +402,20 @@ analyze table t1;
 -- enable_query_log
 
 #  index_merge on first table in join
+if ($index_merge_random_rows_in_EXPLAIN)
+{
+  --replace_column 9 #
+}
 explain select * from t0 left join t1 on (t0.key1=t1.key1)
   where t0.key1=3 or t0.key2=4;
 
 select * from t0 left join t1 on (t0.key1=t1.key1)
   where t0.key1=3 or t0.key2=4;
 
+if ($index_merge_random_rows_in_EXPLAIN)
+{
+  --replace_column 9 #
+}
 explain
 select * from t0,t1 where (t0.key1=t1.key1) and ( t0.key1=3 or t0.key2=4);
 
