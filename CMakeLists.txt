@@ -204,6 +204,11 @@ IF (WITH_ASAN)
   ENDIF()
 ENDIF()
 
+OPTION(WITH_TSAN "Enable thread sanitizer" OFF)
+IF (WITH_TSAN)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=thread" DEBUG RELWITHDEBINFO)
+ENDIF()
+
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
 IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6")
