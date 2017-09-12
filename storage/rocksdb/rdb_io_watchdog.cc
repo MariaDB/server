@@ -22,7 +22,7 @@
 #include <vector>
 
 /* Rdb_io_watchdog doesn't work on Windows [yet] */
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
 
 namespace myrocks {
 

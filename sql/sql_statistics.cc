@@ -666,16 +666,22 @@ public:
   {
     if (find_stat())
     {    
+      bool res;
       store_record_for_update();
       store_stat_fields();
-      return update_record();
+      res= update_record();
+      DBUG_ASSERT(res == 0);
+      return res;
     }
     else
     {
       int err;
       store_stat_fields();
       if ((err= stat_file->ha_write_row(record[0])))
+      {
+        DBUG_ASSERT(0);
 	return TRUE;
+      }
       /* Make change permanent and avoid 'table is marked as crashed' errors */
       stat_file->extra(HA_EXTRA_FLUSH);
     } 

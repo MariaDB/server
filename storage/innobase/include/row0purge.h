@@ -98,7 +98,7 @@ struct purge_node_t{
 
 	upd_t*		update;	/*!< update vector for a clustered index
 				record */
-	dtuple_t*	ref;	/*!< NULL, or row reference to the next row to
+	const dtuple_t*	ref;	/*!< NULL, or row reference to the next row to
 				handle */
 	dtuple_t*	row;	/*!< NULL, or a copy (also fields copied to
 				heap) of the indexed fields of the row to

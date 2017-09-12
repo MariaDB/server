@@ -62,6 +62,9 @@ Created 13/06/2005 Jan Lindstrom
 // Forward declaration
 struct ib_sequence_t;
 
+/** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
+extern const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
+
 /** @brief Block size for I/O operations in merge sort.
 
 The minimum is UNIV_PAGE_SIZE, or page_get_free_space_of_empty()

@@ -716,6 +716,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    protocol_text(this), protocol_binary(this),
+   m_current_stage_key(0),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
    binlog_table_maps(0),
@@ -2065,6 +2066,23 @@ int THD::killed_errno()
   DBUG_RETURN(0);                               // Keep compiler happy
 }
 
+
+void THD::reset_killed()
+{
+  /*
+    Resetting killed has to be done under a mutex to ensure
+    its not done during an awake() call.
+  */
+  DBUG_ENTER("reset_killed");
+  if (killed != NOT_KILLED)
+  {
+    mysql_mutex_lock(&LOCK_thd_kill);
+    killed= NOT_KILLED;
+    killed_err= 0;
+    mysql_mutex_unlock(&LOCK_thd_kill);
+  }
+  DBUG_VOID_RETURN;
+}
 
 /*
   Remember the location of thread info, the structure needed for
@@ -4629,7 +4647,6 @@ void destroy_thd(MYSQL_THD thd)
   thd->add_status_to_global();
   unlink_not_visible_thd(thd);
   delete thd;
-  dec_thread_running();
 }
 
 void reset_thd(MYSQL_THD thd)

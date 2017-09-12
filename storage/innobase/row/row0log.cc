@@ -45,12 +45,6 @@ ulint onlineddl_rowlog_rows;
 ulint onlineddl_rowlog_pct_used;
 ulint onlineddl_pct_progress;
 
-/** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
-static const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN] = {
-	0, 0, 0, 0, 0, 0,
-	0x80, 0, 0, 0, 0, 0, 0
-};
-
 /** Table row modification operations during online table rebuild.
 Delete-marked records are not copied to the rebuilt table. */
 enum row_tab_op {

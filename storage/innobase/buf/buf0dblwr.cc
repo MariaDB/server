@@ -827,7 +827,7 @@ buf_dblwr_assert_on_corrupt_block(
 /*==============================*/
 	const buf_block_t*	block)	/*!< in: block to check */
 {
-	buf_page_print(block->frame, univ_page_size, BUF_PAGE_PRINT_NO_CRASH);
+	buf_page_print(block->frame, univ_page_size);
 
 	ib::fatal() << "Apparent corruption of an index page "
 		<< block->page.id

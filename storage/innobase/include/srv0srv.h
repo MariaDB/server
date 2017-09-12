@@ -275,16 +275,6 @@ extern my_bool srv_use_atomic_writes;
 /* Compression algorithm*/
 extern ulong innodb_compression_algorithm;
 
-/* Number of flush threads */
-#define MTFLUSH_MAX_WORKER		64
-#define MTFLUSH_DEFAULT_WORKER		8
-
-/* Number of threads used for multi-threaded flush */
-extern long    srv_mtflush_threads;
-
-/* If this flag is TRUE, then we will use multi threaded flush. */
-extern my_bool	srv_use_mtflush;
-
 /** TRUE if the server was successfully started */
 extern bool	srv_was_started;
 

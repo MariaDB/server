@@ -172,10 +172,6 @@ my_bool	srv_numa_interleave;
 my_bool	srv_use_atomic_writes;
 /** innodb_compression_algorithm; used with page compression */
 ulong	innodb_compression_algorithm;
-/** innodb_mtflush_threads; number of threads used for multi-threaded flush */
-long srv_mtflush_threads;
-/** innodb_use_mtflush; whether to use multi threaded flush. */
-my_bool	srv_use_mtflush;
 
 #ifdef UNIV_DEBUG
 /** Used by SET GLOBAL innodb_master_thread_disabled_debug = X. */

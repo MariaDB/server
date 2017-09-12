@@ -1938,7 +1938,7 @@ cleanup:
 
 	ctxt->ret = ret;
 
-	os_thread_exit(NULL);
+	os_thread_exit();
 	OS_THREAD_DUMMY_RETURN;
 }
 

@@ -83,7 +83,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "os0proc.h"
 #include "buf0flu.h"
 #include "buf0rea.h"
-#include "buf0mtflu.h"
 #include "dict0boot.h"
 #include "dict0load.h"
 #include "dict0stats_bg.h"
@@ -191,9 +190,7 @@ static ulint		n[SRV_MAX_N_IO_THREADS + 6];
 /** io_handler_thread identifiers, 32 is the maximum number of purge threads  */
 /** 6 is the ? */
 #define	START_OLD_THREAD_CNT	(SRV_MAX_N_IO_THREADS + 6 + 32)
-static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 6 + 32 + MTFLUSH_MAX_WORKER];
-/* Thread contex data for multi-threaded flush */
-void *mtflush_ctx=NULL;
+static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 6 + 32];
 
 /** Thead handles */
 static os_thread_t	thread_handles[SRV_MAX_N_IO_THREADS + 6 + 32];
@@ -1307,10 +1304,6 @@ srv_shutdown_all_bg_threads()
 			}
 
 			os_event_set(buf_flush_event);
-
-			if (srv_use_mtflush) {
-				buf_mtflu_io_thread_exit();
-			}
 		}
 
 		if (!os_thread_count) {
@@ -2639,19 +2632,6 @@ files_checked:
 	if (!srv_read_only_mode) {
 		/* wake main loop of page cleaner up */
 		os_event_set(buf_flush_event);
-
-		if (srv_use_mtflush) {
-			/* Start multi-threaded flush threads */
-			mtflush_ctx = buf_mtflu_handler_init(
-				srv_mtflush_threads,
-				srv_buf_pool_instances);
-
-			/* Set up the thread ids */
-			buf_mtflu_set_thread_ids(
-				srv_mtflush_threads,
-				mtflush_ctx,
-				(thread_ids + 6 + 32));
-		}
 	}
 
 	if (srv_print_verbose_log) {

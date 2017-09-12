@@ -7580,10 +7580,18 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
     ulong orig_want_access= original_want_access;
 
-    if (t_ref->sequence)
+    /*
+      If sequence is used as part of NEXT VALUE, PREVIUS VALUE or SELECT,
+      we need to modify the requested access rights depending on how the
+      sequence is used.
+    */
+    if (t_ref->sequence &
+        (orig_want_access &
+         (SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
     {
-      /* We want to have either SELECT or INSERT rights to sequences depending
-         on how they are accessed
+      /*
+        We want to have either SELECT or INSERT rights to sequences depending
+        on how they are accessed
       */
       orig_want_access= ((t_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
                          INSERT_ACL : SELECT_ACL);
