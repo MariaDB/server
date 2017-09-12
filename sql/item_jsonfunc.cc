@@ -2450,6 +2450,8 @@ String *Item_func_json_insert::val_str(String *str)
     }
     else /*JSON_PATH_KEY*/
     {
+      uint n_key= 0;
+
       if (je.value_type != JSON_VALUE_OBJECT)
         continue;
 
@@ -2461,6 +2463,7 @@ String *Item_func_json_insert::val_str(String *str)
           json_string_set_str(&key_name, lp->key, lp->key_end);
           if (json_key_matches(&je, &key_name))
             goto v_found;
+          n_key++;
           if (json_skip_key(&je))
             goto js_error;
           break;
@@ -2478,7 +2481,8 @@ String *Item_func_json_insert::val_str(String *str)
       v_to= (const char *) (je.s.c_str - je.sav_c_len);
       str->length(0);
       if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
-          str->append(", \"", 3) ||
+          (n_key > 0 && str->append(", ", 2)) ||
+          str->append("\"", 1) ||
           append_simple(str, lp->key, lp->key_end - lp->key) ||
           str->append("\":", 2) ||
           append_json_value(str, args[n_arg+1], &tmp_val) ||

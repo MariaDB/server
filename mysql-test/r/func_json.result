@@ -680,3 +680,6 @@ JSON_OBJECT('foo', '`')
 SELECT JSON_OBJECT("foo", "bar`bar");
 JSON_OBJECT("foo", "bar`bar")
 {"foo": "bar`bar"}
+SELECT JSON_SET('{}', '$.age', 87);
+JSON_SET('{}', '$.age', 87)
+{"age": 87}

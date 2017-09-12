@@ -328,3 +328,8 @@ select JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo');
 SELECT JSON_OBJECT('foo', '`');
 SELECT JSON_OBJECT("foo", "bar`bar");
 
+#
+# MDEV-13324 JSON_SET returns NULL instead of object.
+#
+SELECT JSON_SET('{}', '$.age', 87);
+
