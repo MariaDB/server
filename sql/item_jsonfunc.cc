@@ -873,7 +873,7 @@ longlong Item_func_json_extract::val_int()
   json_value_types type;
   char *value;
   int value_len;
-  longlong i;
+  longlong i= 0;
 
   if (read_json(NULL, &type, &value, &value_len) != NULL)
   {
