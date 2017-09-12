@@ -1971,14 +1971,25 @@ continue_j2:
   else
   {
     const uchar *end1, *beg1, *end2, *beg2;
+    int empty_array= 0;
 
     beg1= je1->value_begin;
 
     /* Merge as a single array. */
     if (je1->value_type == JSON_VALUE_ARRAY)
     {
-      if (json_skip_level(je1))
+      int cur_level= je1->stack_p;
+      empty_array= 1;
+      while (json_scan_next(je1) == 0)
+      {
+        if (je1->stack_p < cur_level)
+          break;
+        empty_array= 0;
+      }
+
+      if (je1->s.error)
         return 1;
+
       end1= je1->s.c_str - je1->sav_c_len;
     }
     else
@@ -1995,8 +2006,8 @@ continue_j2:
         end1= je1->value_end;
     }
 
-    if (str->append((const char*) beg1, end1 - beg1),
-        str->append(", ", 2))
+    if (str->append((const char*) beg1, end1 - beg1) ||
+        (!empty_array && str->append(", ", 2)))
       return 3;
 
     if (json_value_scalar(je2))

@@ -683,3 +683,6 @@ JSON_OBJECT("foo", "bar`bar")
 SELECT JSON_SET('{}', '$.age', 87);
 JSON_SET('{}', '$.age', 87)
 {"age": 87}
+SELECT JSON_MERGE('[]', '{"c":"d"}');
+JSON_MERGE('[]', '{"c":"d"}')
+[{"c": "d"}]

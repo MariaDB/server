@@ -333,3 +333,8 @@ SELECT JSON_OBJECT("foo", "bar`bar");
 #
 SELECT JSON_SET('{}', '$.age', 87);
 
+#
+# MDEV-13104 Json functions.
+#
+SELECT JSON_MERGE('[]', '{"c":"d"}');
+
