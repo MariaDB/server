@@ -686,3 +686,13 @@ JSON_SET('{}', '$.age', 87)
 SELECT JSON_MERGE('[]', '{"c":"d"}');
 JSON_MERGE('[]', '{"c":"d"}')
 [{"c": "d"}]
+SET @str = "{\"\\u00e4\\u00f6\":\"yes\"}";
+SET @path = "$.\"\\u00e4\\u00f6\"";
+select @str, @path, JSON_EXTRACT(@str, @path);
+@str	@path	JSON_EXTRACT(@str, @path)
+{"\u00e4\u00f6":"yes"}	$."\u00e4\u00f6"	"yes"
+SET @str = "{\"\\u00e4\":\"yes\"}";
+SET @path = "$.\"\\u00e4\"";
+select @str, @path, JSON_EXTRACT(@str, @path);
+@str	@path	JSON_EXTRACT(@str, @path)
+{"\u00e4":"yes"}	$."\u00e4"	"yes"
