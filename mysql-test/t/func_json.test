@@ -317,3 +317,8 @@ select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false;
 select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1;
 select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
 
+#
+# MDEV-129892 JSON_EXTRACT returns data for invalid JSON
+#
+select JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo');
+

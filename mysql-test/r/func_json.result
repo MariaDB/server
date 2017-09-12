@@ -669,3 +669,8 @@ JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1
 select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
 JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"')
 "\u00f6"
+select JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo');
+JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 15

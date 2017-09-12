@@ -821,7 +821,11 @@ String *Item_func_json_extract::read_json(String *str,
     not_first_value= 1;
 
     if (!possible_multiple_values)
+    {
+      /* Loop to the end of the JSON just to make sure it's valid. */
+      while (json_get_path_next(&je, &p) == 0) {}
       break;
+    }
   }
 
   if (je.s.error)
