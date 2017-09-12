@@ -166,12 +166,8 @@ bool Partition_share::init(uint num_parts)
   auto_inc_initialized= false;
   partition_name_hash_initialized= false;
   next_auto_inc_val= 0;
-  partitions_share_refs= new Parts_share_refs;
-  if (!partitions_share_refs)
-    DBUG_RETURN(true);
-  if (partitions_share_refs->init(num_parts))
+  if (partitions_share_refs.init(num_parts))
   {
-    delete partitions_share_refs;
     DBUG_RETURN(true);
   }
   DBUG_RETURN(false);
@@ -3305,9 +3301,8 @@ bool ha_partition::set_ha_share_ref(Handler_share **ha_share_arg)
     DBUG_RETURN(true);
   if (!(part_share= get_share()))
     DBUG_RETURN(true);
-  DBUG_ASSERT(part_share->partitions_share_refs);
-  DBUG_ASSERT(part_share->partitions_share_refs->num_parts >= m_tot_parts);
-  ha_shares= part_share->partitions_share_refs->ha_shares;
+  DBUG_ASSERT(part_share->partitions_share_refs.num_parts >= m_tot_parts);
+  ha_shares= part_share->partitions_share_refs.ha_shares;
   for (i= 0; i < m_tot_parts; i++)
   {
     if (m_file[i]->set_ha_share_ref(&ha_shares[i]))

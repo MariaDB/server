@@ -48,10 +48,8 @@ public:
   {
     uint i;
     for (i= 0; i < num_parts; i++)
-      if (ha_shares[i])
-        delete ha_shares[i];
-    if (ha_shares)
-      delete [] ha_shares;
+      delete ha_shares[i];
+    delete[] ha_shares;
   }
   bool init(uint arg_num_parts)
   {
@@ -86,7 +84,7 @@ public:
   bool partition_name_hash_initialized;
   HASH partition_name_hash;
   /** Storage for each partitions Handler_share */
-  Parts_share_refs *partitions_share_refs;
+  Parts_share_refs partitions_share_refs;
   Partition_share() {}
   ~Partition_share()
   {
@@ -94,8 +92,6 @@ public:
     mysql_mutex_destroy(&auto_inc_mutex);
     if (partition_name_hash_initialized)
       my_hash_free(&partition_name_hash);
-    if (partitions_share_refs)
-      delete partitions_share_refs;
     DBUG_VOID_RETURN;
   }
   bool init(uint num_parts);
