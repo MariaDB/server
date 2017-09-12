@@ -3127,11 +3127,7 @@ innobase_build_col_map(
 	}
 
 	while (const Create_field* new_field = cf_it++) {
-		bool	is_v = false;
-
-		if (innobase_is_v_fld(new_field)) {
-			is_v = true;
-		}
+		bool	is_v = innobase_is_v_fld(new_field);
 
 		ulint	num_old_v = 0;
 
@@ -4069,172 +4065,30 @@ innobase_add_virtual_try(
 	return(false);
 }
 
-/** Get the default value
-@param[in] table			MySQL table
-@param[in] col				dict_col_t
-@param[in] pos_in_mysql		The field position in MySQL table
-@param[in] comp				true: compact table
-@param[in] heap				memory heap for def
-@param[in/out] def			the default value, maybe NULL
-@param[out] def_length		the length of default value
-@retval DB_SUCCESS Success */
-static
-dberr_t 
-innobase_get_field_def_value(
-	const TABLE*        table,
-	dict_col_t*         col,
-	ulint               pos_in_mysql,
-	ulint               comp,
-	mem_heap_t*         heap,
-	byte**              def,    
-	ulint*              def_length  
-)
-{
-	Field*              field;
-	ulong               data_offset = 0;
-	ulint               copy_length;
-	unsigned char*      def_pos;
-	ulint               n_null = 0;
-	ulint               i = 0;
-	dfield_t			dfield;
-#define DATA_INT_MAX_LEN 8
-	unsigned char       int_buff[DATA_INT_MAX_LEN + 1];
-	unsigned char       current_buff[DATA_INT_MAX_LEN + 1];
-
-	DBUG_ENTER("innobase_get_field_def_value");
-	ut_ad(pos_in_mysql < table->s->fields);
-
-	field = table->field[pos_in_mysql];
-	if (field->default_value && field->has_default_now_unireg_check()) {
-		//for current_timestamp
-		Item* item_def = field->default_value->expr;
-
-		THD* thd = table->in_use;
-		uchar* tmp = NULL;
-
-		// see Item::save_date_in_field
-		MYSQL_TIME ltime;
-		if (item_def->get_date(&ltime, sql_mode_for_dates(thd))) {
-			ut_ad(0);
-		}
-
-		// backup the ptr
-		tmp = field->ptr;
-		field->ptr = &current_buff[0];
-
-		ut_ad(field->pack_length() <= DATA_INT_MAX_LEN);
-
-		switch (field->real_type()) {
-			case MYSQL_TYPE_TIMESTAMP: 
-			case MYSQL_TYPE_TIMESTAMP2: 
-				{
-					uint conversion_error;
-					Field_timestamp* f = (Field_timestamp*)field;
-					my_time_t timestamp= TIME_to_timestamp(thd, &ltime, &conversion_error);
-					ut_ad(!conversion_error);
-					f->store_TIME(timestamp, ltime.second_part);
-				}
-				break;
-
-			case MYSQL_TYPE_DATETIME:
-			case MYSQL_TYPE_DATETIME2:
-				{
-					Field_datetime* f = (Field_datetime*)field;
-					f->store_TIME(&ltime);
-				}
-				break;
-
-			default:
-				ut_ad(0);
-		}
-		// retore the ptr
-		field->ptr = tmp;
-		def_pos = &current_buff[0];
-	} else {
-		// read default value from table->default_values
-		for (i = 0; i < table->s->fields; ++i) {
-			Field* f = table->field[i];
-
-			if (i < pos_in_mysql) {
-				// ignore virtual field
-				if (!innobase_is_v_fld(f)) {
-					data_offset += f->pack_length();
-				}
-			}
-
-			if (f->maybe_null()) {
-				n_null++;
-			} 
-		}
-
-		/* If fixed row records, we need one bit to check for deleted rows: refer to mysql_create_frm:140l */ 
-		if(!(table->s->db_options_in_use  & HA_OPTION_PACK_RECORD)){
-			n_null ++;
-		}
-
-		field = table->field[pos_in_mysql];
-		if (field->maybe_null()) {
-			if (table->s->default_values[field->null_offset()] 
-			& field->null_bit) {
-				// if default value is NULL
-				*def = NULL;
-				*def_length = UNIV_SQL_NULL;
-
-				DBUG_RETURN(DB_SUCCESS);
-			}
-		}
-
-		data_offset += (n_null + 7) / 8;
-
-		/* postion of default value */
-		def_pos = table->s->default_values + data_offset;
-	}
-	dict_col_copy_type(col, dfield_get_type(&dfield));
-	copy_length = field->pack_length();
-
-	ut_a(dfield.type.mtype != DATA_INT || copy_length <= DATA_INT_MAX_LEN);
-
-	row_mysql_store_col_in_innobase_format(&dfield,(unsigned char *)&int_buff[0],TRUE,
-		def_pos,copy_length,comp);
-
-	// maybe default value is ''
-	ut_ad(dfield.len <= field->pack_length());
-
-	*def = (byte*)mem_heap_dup(heap,dfield.data,dfield.len);
-	*def_length = dfield.len;
-
-	DBUG_RETURN(DB_SUCCESS);
-}
-
 /** Update INNODB SYS_COLUMNS on new virtual columns
 @param[in] table	InnoDB table
-@param[in] altered_table MySQL table
 @param[in] field	added field
-@param[in] pos		position of table
-@param[in] trx		transaction
+@param[in] pos		position in InnoDB table
+@param[in] trx		dictionary transaction
 @return DB_SUCCESS if successful, otherwise error code */
 static
 dberr_t
 innobase_add_one_instant(
 	const dict_table_t*	table,
-	const TABLE*		altered_table,
 	const Field*		field,
-	uint				pos_in_innodb,
-	trx_t*				trx)
+	uint			pos_in_innodb,
+	trx_t*			trx)
 {
 	ulint	col_len;
 	ulint	is_unsigned;
 	ulint	field_type;
 	ulint	charset_no;
 	dberr_t error;
-	mem_heap_t*	heap = NULL;
 	dict_col_t	tmp_col;
 	ulint 		prtype;
 	pars_info_t*    info;
-	byte*		def_val = NULL;
-	ulint		def_val_len = 0;
-
-
+	byte*		def_val;
+	ulint		def_val_len;
 	ulint	col_type
 		= get_innobase_type_from_mysql_type(
 		&is_unsigned, field);
@@ -4247,8 +4101,7 @@ innobase_add_one_instant(
 		my_error(ER_WRONG_COLUMN_NAME, MYF(0),
 			field->field_name.str);
 
-		error = DB_ERROR;
-		goto err_exit;
+		return(DB_ERROR);
 	}
 
 	col_len = field->pack_length();
@@ -4272,8 +4125,7 @@ innobase_add_one_instant(
 		if (charset_no > MAX_CHAR_COLL_NUM) {
 			my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
 				field->field_name);
-			error = DB_ERROR;
-			goto err_exit;
+			return(DB_ERROR);
 		}
 	} else {
 		charset_no = 0;
@@ -4290,7 +4142,6 @@ innobase_add_one_instant(
 			field_type |= DATA_LONG_TRUE_VARCHAR;
 		}
 	}
-
 
 	prtype	= dtype_form_prtype(field_type, charset_no);
 
@@ -4314,18 +4165,55 @@ innobase_add_one_instant(
 			FALSE, trx);
 
 	if (error != DB_SUCCESS) {
-		goto err_exit;
+		return(error);
 	}
 
 	memset((byte*)&tmp_col, 0, sizeof(dict_col_t));
 	dict_mem_fill_column_struct(&tmp_col, pos_in_innodb, col_type, prtype, col_len);
 
-	heap = mem_heap_create(1024);
-	
-	// Note: field->field_index is not always equal to pos(because of virtual columns)
-	error = innobase_get_field_def_value(altered_table, &tmp_col, field->field_index, dict_table_is_comp(table), heap, &def_val, &def_val_len);
-	if (error != DB_SUCCESS) {
-		goto err_exit;
+	byte int_buf[8];
+
+	if (field->is_real_null()) {
+		def_val = NULL;
+		def_val_len = UNIV_SQL_NULL;
+	} else {
+		def_val_len = field->pack_length();
+		dfield_t dfield;
+		dict_col_copy_type(&tmp_col, &dfield.type);
+		dfield_set_data(&dfield, field->ptr, def_val_len);
+		switch (field->type()) {
+		case MYSQL_TYPE_VARCHAR:
+			def_val = const_cast<byte*>(
+				row_mysql_read_true_varchar(
+					&def_val_len, field->ptr,
+					reinterpret_cast<const Field_varstring*>
+					(field)->length_bytes));
+			goto convert;
+		case MYSQL_TYPE_GEOMETRY:
+		case MYSQL_TYPE_TINY_BLOB:
+		case MYSQL_TYPE_MEDIUM_BLOB:
+		case MYSQL_TYPE_BLOB:
+		case MYSQL_TYPE_LONG_BLOB:
+			{
+				const Field_blob* b = reinterpret_cast
+					<const Field_blob*>(field);
+				def_val = const_cast<byte*>(b->get_ptr());
+				def_val_len = b->get_length();
+				dfield_set_data(&dfield, def_val, def_val_len);
+			}
+			break;
+		default:
+			if (col_type == DATA_INT) {
+				ut_ad(def_val_len <= sizeof int_buf);
+				def_val = int_buf;
+			} else {
+				def_val = static_cast<byte*>(dfield.data);
+			}
+convert:
+			row_mysql_store_col_in_innobase_format(
+				&dfield, def_val, true, field->ptr,
+				def_val_len, dict_table_is_comp(table));
+		}
 	}
 
 	info = pars_info_create();
@@ -4343,15 +4231,6 @@ innobase_add_one_instant(
 		"END;\n",
 		FALSE, trx);
 
-	if (error != DB_SUCCESS) {
-		goto err_exit;
-	}
-
-
-err_exit:
-	if (heap) {
-		mem_heap_free(heap);
-	}
 	return(error);
 }
 
@@ -4391,11 +4270,10 @@ innobase_update_n_instant(
 }
 
 /** Update system table for instant adding column(s)
-@param[in]	ha_alter_info	Data used during in-place alter
+@param[in,out]	ha_alter_info	Data used during in-place alter
 @param[in]	altered_table	MySQL table that is being altered
 @param[in]	table		MySQL table as it is before the ALTER operation
-@param[in]	user_table	InnoDB table
-@param[in]	trx		transaction
+@param[in,out]	trx		dictionary transaction
 @retval true Failure
 @retval false Success */
 static
@@ -4404,45 +4282,54 @@ innobase_add_instant_try(
 	Alter_inplace_info*	ha_alter_info,
 	const TABLE*		altered_table,
 	const TABLE*		table,
-	const dict_table_t*     user_table,
 	trx_t*			trx)
 {
 	dberr_t				err = DB_SUCCESS;
+	ha_innobase_inplace_ctx* ctx = static_cast<ha_innobase_inplace_ctx*>(
+		ha_alter_info->handler_ctx);
 
 	ut_ad(altered_table->s->fields > table->s->fields);
 
-	Field *field = NULL;
-	ulint i = 0, j = 0;
-	ulint pos_in_innodb = 0;
+	uint i = 0;
 	ulint added_column = 0;
 
-	for(i = 0; i < altered_table->s->fields; i++)
-	{
-		field = altered_table->field[i];
-		// ignore virtual field
-		if(innobase_is_v_fld(field)) {
-			// It doesn't support add virtual columns when instant adding columns.
-			ut_ad(i < table->s->fields);
-			continue;
+	List_iterator_fast<Create_field> cf_it(
+		ha_alter_info->alter_info->create_list);
+	Field **af = altered_table->field;
+
+	while (const Create_field* new_field = cf_it++) {
+		bool	is_v = innobase_is_v_fld(new_field);
+
+		for (uint old_i = 0; table->field[old_i]; old_i++) {
+			const Field* old_field = table->field[old_i];
+			if (innobase_is_v_fld(old_field)) {
+				if (is_v && new_field->field == old_field) {
+					goto next_col;
+				}
+			} else if (new_field->field == old_field) {
+				if (!is_v) i++;
+				goto next_col;
+			}
 		}
 
-		pos_in_innodb = j++;
-		// find the first instant add columns
-		if (i < table->s->fields) {
-			continue;
-		}
+		ut_ad(!is_v);
+		added_column++;
 
-		// instant add columns
-		err = innobase_add_one_instant(user_table,
-					altered_table, field, pos_in_innodb, trx);
+		err = innobase_add_one_instant(ctx->new_table, *af, i, trx);
 		if (err != DB_SUCCESS) {
 			my_error(ER_INTERNAL_ERROR, MYF(0),
 				"InnoDB: ADD COLUMN...INSTANT");
 			return(true);
 		}
-		added_column++;
+
+		i++;
+next_col:
+		af++;
 	}
 
+	ut_ad(af == &altered_table->field[altered_table->s->fields]);
+
+	const dict_table_t* user_table = ctx->old_table;
 	ulint	n_col = user_table->n_cols;
 	ulint	n_v_col = user_table->n_v_cols;
 
@@ -8565,8 +8452,7 @@ commit_try_norebuild(
 	if ((ha_alter_info->handler_flags
 		& Alter_inplace_info::ADD_INSTANT_COLUMN)
 		&& innobase_add_instant_try(
-			ha_alter_info, altered_table, old_table, 
-			ctx->old_table, trx)) {
+			ha_alter_info, altered_table, old_table, trx)) {
 		DBUG_RETURN(true);
 	}
 

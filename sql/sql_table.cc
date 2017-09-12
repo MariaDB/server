@@ -6141,7 +6141,6 @@ static bool fill_alter_inplace_info(THD *thd,
   KEY_PART_INFO *end;
   uint candidate_key_count= 0;
   Alter_info *alter_info= ha_alter_info->alter_info;
-  bool has_expr_default = false;
   DBUG_ENTER("fill_alter_inplace_info");
 
   /* Allocate result buffers. */
@@ -6452,9 +6451,6 @@ static bool fill_alter_inplace_info(THD *thd,
 					ha_alter_info->handler_flags|=
 					Alter_inplace_info::ADD_VIRTUAL_COLUMN;
 			else {
-				if (new_field->has_default_expression() && !new_field->has_default_now_unireg_check()) {
-					has_expr_default = true;
-				}
 				ha_alter_info->handler_flags|=
 					Alter_inplace_info::ADD_STORED_BASE_COLUMN;
 			}
@@ -6685,7 +6681,6 @@ static bool fill_alter_inplace_info(THD *thd,
 
   // If ADD_STORED_BASE_COLUMN only, we can change to ADD_INSTANT_COLUMN in some cases
   if (ha_alter_info->handler_flags == Alter_inplace_info::ADD_STORED_BASE_COLUMN &&
-    !has_expr_default && 
     table->file->check_instant_alter(ha_alter_info)) {
 		
     ha_alter_info->handler_flags = Alter_inplace_info::ADD_INSTANT_COLUMN;
