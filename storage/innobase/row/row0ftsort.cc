@@ -1701,12 +1701,12 @@ row_fts_merge_insert(
 	aux_index = dict_table_get_first_index(aux_table);
 	switch (aux_index->n_core_null_bytes) {
 	case dict_index_t::NO_CORE_NULL_BYTES:
-		ut_ad(aux_table->has_page_instant());
+		ut_ad(aux_table->supports_instant());
 		aux_index->n_core_null_bytes = UT_BITS_IN_BYTES(
 			aux_index->n_nullable);
 		break;
 	default:
-		ut_ad(!aux_table->has_page_instant());
+		ut_ad(!aux_table->supports_instant());
 	}
 
 	ut_ad(!aux_index->is_instant());

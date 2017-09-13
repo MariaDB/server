@@ -66,18 +66,33 @@ typedef	byte		page_header_t;
 				0 if this info has been reset by a delete,
 				for example */
 
-/** This field is usually 0. In B-tree index pages of
+/** This 10-bit field is usually 0. In B-tree index pages of
 ROW_FORMAT=REDUNDANT tables, this byte can contain garbage if the .ibd
 file was created in MySQL 4.1.0 or if the table resides in the system
 tablespace and was created before MySQL 4.1.1 or MySQL 4.0.14.
+In this case, the FIL_PAGE_TYPE would be FIL_PAGE_INDEX.
 
-In ROW_FORMAT=COMPRESSED tables, this field is always 0.
+In ROW_FORMAT=COMPRESSED tables, this field is always 0, because
+instant ADD COLUMN is not supported.
 
 In ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC tables, this field is
 always 0, except in the root page of the clustered index after instant
-ADD COLUMN. In that case, the root page will contain the value of
-dict_index_t::n_core_null_bytes. If instant ADD COLUMN was not used,
-the value is 0. */
+ADD COLUMN.
+
+Instant ADD COLUMN will change FIL_PAGE_TYPE to FIL_PAGE_TYPE_INSTANT
+and initialize the PAGE_INSTANT field to the original number of
+fields in the clustered index (dict_index_t::n_core_fields).  The most
+significant 8 bits are in the first byte, and the least significant 2
+bits are stored in the most significant 2 bits of PAGE_DIRECTION_B.
+
+These FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be assigned even if
+instant ADD COLUMN was not committed. Changes to these page header fields
+are not undo-logged, but changes to the 'default value record' are.
+If the server is killed and restarted, the page header fields could
+remain set even though no 'default value record' is present.
+
+When the table becomes empty, the PAGE_INSTANT field and the
+FIL_PAGE_TYPE can be reset and any 'default value record' be removed. */
 #define PAGE_INSTANT	12
 
 /** last insert direction: PAGE_LEFT, ....
@@ -873,6 +888,21 @@ page_mem_free(
 	const dict_index_t*	index,	/*!< in: index of rec */
 	const ulint*		offsets);/*!< in: array returned by
 					 rec_get_offsets() */
+
+/** Read the PAGE_INSTANT field.
+@param[in]	page	index page
+@return the value of the PAGE_INSTANT field */
+inline
+uint16_t
+page_get_instant(const page_t* page);
+/** Assign the PAGE_INSTANT field.
+@param[in,out]	page	clustered index root page
+@param[in]	n	original number of clustered index fields
+@param[in,out]	mtr	mini-transaction */
+inline
+void
+page_set_instant(page_t* page, unsigned n, mtr_t* mtr);
+
 /**********************************************************//**
 Create an uncompressed B-tree index page.
 @return pointer to the page */

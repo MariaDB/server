@@ -392,7 +392,7 @@ extern fil_addr_t	fil_addr_null;
 						 then encrypted */
 #define FIL_PAGE_PAGE_COMPRESSED 34354  /*!< page compressed page */
 #define FIL_PAGE_INDEX		17855	/*!< B-tree node */
-#define FIL_PAGE_RTREE		17854	/*!< B-tree node */
+#define FIL_PAGE_RTREE		17854	/*!< R-tree node (SPATIAL INDEX) */
 #define FIL_PAGE_UNDO_LOG	2	/*!< Undo log page */
 #define FIL_PAGE_INODE		3	/*!< Index node */
 #define FIL_PAGE_IBUF_FREE_LIST	4	/*!< Insert buffer free list */
@@ -415,15 +415,26 @@ extern fil_addr_t	fil_addr_null;
 //#define FIL_PAGE_ENCRYPTED	15
 //#define FIL_PAGE_COMPRESSED_AND_ENCRYPTED 16
 //#define FIL_PAGE_ENCRYPTED_RTREE 17
+/** Clustered index root page after instant ADD COLUMN */
+#define FIL_PAGE_TYPE_INSTANT	18
 
-/** Used by i_s.cc to index into the text description. */
+/** Used by i_s.cc to index into the text description.
+Note: FIL_PAGE_TYPE_INSTANT maps to the same as FIL_PAGE_INDEX. */
 #define FIL_PAGE_TYPE_LAST	FIL_PAGE_TYPE_UNKNOWN
 					/*!< Last page type */
 /* @} */
 
-/** macro to check whether the page type is index (Btree or Rtree) type */
-#define fil_page_type_is_index(page_type)                          \
-        (page_type == FIL_PAGE_INDEX || page_type == FIL_PAGE_RTREE)
+/** @return whether the page type is B-tree or R-tree index */
+inline bool fil_page_type_is_index(ulint page_type)
+{
+        switch (page_type) {
+	case FIL_PAGE_TYPE_INSTANT:
+	case FIL_PAGE_INDEX:
+	case FIL_PAGE_RTREE:
+		return(true);
+	}
+	return(false);
+}
 
 /** Check whether the page is index page (either regular Btree index or Rtree
 index */

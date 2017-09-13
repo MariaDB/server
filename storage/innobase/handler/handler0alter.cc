@@ -5186,12 +5186,12 @@ new_clustered_failed:
 
 		switch (new_clust_index->n_core_null_bytes) {
 		case dict_index_t::NO_CORE_NULL_BYTES:
-			ut_ad(ctx->new_table->has_page_instant());
+			ut_ad(ctx->new_table->supports_instant());
 			new_clust_index->n_core_null_bytes = UT_BITS_IN_BYTES(
 				new_clust_index->n_nullable);
 			break;
 		default:
-			ut_ad(!ctx->new_table->has_page_instant());
+			ut_ad(!ctx->new_table->supports_instant());
 		}
 
 		ut_ad(!new_clust_index->is_instant());

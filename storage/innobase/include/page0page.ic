@@ -1284,6 +1284,51 @@ page_mem_free(
 	}
 }
 
+/** Read the PAGE_INSTANT field.
+@param[in]	page	index page
+@return the value of the PAGE_INSTANT field */
+inline
+uint16_t
+page_get_instant(const page_t* page)
+{
+	uint16_t i = page_header_get_field(page, PAGE_INSTANT);
+#ifdef UNIV_DEBUG
+	switch (fil_page_get_type(page)) {
+	case FIL_PAGE_TYPE_INSTANT:
+		ut_ad((i & ~(~0U << 6)) <= PAGE_NO_DIRECTION);
+		ut_ad(i >> 6);
+		break;
+	case FIL_PAGE_INDEX:
+		ut_ad(i <= PAGE_NO_DIRECTION || !page_is_comp(page));
+		break;
+	case FIL_PAGE_RTREE:
+		ut_ad(i == PAGE_NO_DIRECTION || i == 0);
+		break;
+	default:
+		ut_ad(!"invalid page type");
+		break;
+	}
+#endif /* UNIV_DEBUG */
+	return(i >> 6);
+}
+
+/** Assign the PAGE_INSTANT field.
+@param[in,out]	page	clustered index root page
+@param[in]	n	original number of clustered index fields
+@param[in,out]	mtr	mini-transaction */
+inline
+void
+page_set_instant(page_t* page, unsigned n, mtr_t* mtr)
+{
+	ut_ad(fil_page_get_type(page) == FIL_PAGE_TYPE_INSTANT);
+	ut_ad(n > 0);
+	ut_ad(n < 1U << 10);
+	uint16_t i = page_header_get_field(page, PAGE_INSTANT);
+	ut_ad(i <= PAGE_NO_DIRECTION);
+	i |= n << 10;
+	mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + page, i,
+			 MLOG_2BYTES, mtr);
+}
 #endif /* !UNIV_INNOCHECKSUM */
 
 #ifdef UNIV_MATERIALIZE

@@ -904,9 +904,6 @@ rec_get_converted_size_comp_prefix_low(
 	ut_ad(n_fields <= dict_index_get_n_fields(index));
 	ut_ad(!temp || extra);
 	ut_ad(!temp || rec_flag == REC_FLAG_NONE);
-	ut_ad(!v_entry || rec_flag == REC_FLAG_NONE);
-
-	ut_d(ulint n_null = index->n_nullable);
 
 	ut_d(ulint n_null = index->n_nullable);
 	ut_d(const ulint n_null_bytes = UT_BITS_IN_BYTES(n_null));
@@ -1505,10 +1502,6 @@ rec_convert_dtuple_to_temp_v(
 	const dtuple_t*		v_entry)
 {
 	ut_ad(dict_index_is_clust(index));
-	const ulint num_v = dtuple_get_n_v_fields(v_entry);
-
-	ut_ad(temp);
-	ut_ad(!is_instant);
 	const ulint num_v = dtuple_get_n_v_fields(v_entry);
 
 	/* reserve 2 bytes for writing length */

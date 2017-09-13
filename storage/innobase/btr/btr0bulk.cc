@@ -292,7 +292,7 @@ PageBulk::finish()
 	page_dir_set_n_heap(m_page, NULL, PAGE_HEAP_NO_USER_LOW + m_rec_no);
 	page_header_set_ptr(m_page, NULL, PAGE_LAST_INSERT, m_cur_rec);
 	mach_write_to_2(PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
-	ut_ad(!m_page[PAGE_HEADER + PAGE_INSTANT]);
+	ut_ad(!page_get_instant(m_page));
 	m_page[PAGE_HEADER + PAGE_DIRECTION_B] = PAGE_RIGHT;
 	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_N_DIRECTION + m_page)
 		= 0;

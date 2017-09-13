@@ -2600,7 +2600,7 @@ dict_index_add_to_cache_w_vcol(
 
 	new_index->n_core_fields = new_index->n_fields;
 
-	new_index->n_core_null_bytes = table->has_page_instant()
+	new_index->n_core_null_bytes = table->supports_instant()
 		&& dict_index_is_clust(new_index)
 		? dict_index_t::NO_CORE_NULL_BYTES
 		: UT_BITS_IN_BYTES(new_index->n_nullable);

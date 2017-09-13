@@ -2046,17 +2046,11 @@ btr_root_raise_and_insert(
 	/* Rebuild the root page to get free space */
 	btr_page_empty(root_block, root_page_zip, index, level + 1, mtr);
 	/* btr_page_empty() is supposed to zero-initialize the field. */
-	ut_ad(!root_block->frame[PAGE_HEADER + PAGE_INSTANT]);
+	ut_ad(!page_get_instant(root_block->frame));
 
-	if (dict_index_is_clust(index) && index->table->has_page_instant()
-	    && index->is_instant()) {
-		/* ROW_FORMAT=COMPRESSED does not support instant ADD COLUMN.
-		Only ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC set the
-		PAGE_INSTANT field on the clustered index root page. */
+	if (dict_index_is_clust(index) && index->is_instant()) {
 		ut_ad(!root_page_zip);
-		mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT
-				 + root_block->frame,
-				 index->n_core_null_bytes, MLOG_1BYTE, mtr);
+		page_set_instant(root_block->frame, index->n_core_fields, mtr);
 	}
 
 	/* Set the next node and previous node fields, although

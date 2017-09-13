@@ -1476,7 +1476,7 @@ page_cur_insert_rec_zip(
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID) == index->id
 	      || (mtr ? mtr->is_inside_ibuf() : dict_index_is_ibuf(index))
 	      || recv_recovery_is_on());
-	ut_ad(!page[PAGE_HEADER + PAGE_INSTANT]);
+	ut_ad(!page_get_instant(page));
 	ut_ad(!page_cur_is_after_last(cursor));
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(page_zip_validate(page_zip, page, index));
@@ -1963,7 +1963,7 @@ page_parse_copy_rec_list_to_created_page(
 
 	/* This function is never invoked on the clustered index root page.
 	For other pages, this field must be zero-initialized. */
-	ut_ad(!block->frame[PAGE_HEADER + PAGE_INSTANT]);
+	ut_ad(!page_get_instant(block->frame));
 
 	while (ptr < rec_end) {
 		ptr = page_cur_parse_insert_rec(TRUE, ptr, end_ptr,
@@ -2028,7 +2028,7 @@ page_copy_rec_list_end_to_created_page(
 	ut_ad(page_rec_is_comp(rec) == page_is_comp(new_page));
 	/* This function is never invoked on the clustered index root page.
 	For other pages, this field must be zero-initialized. */
-	ut_ad(!new_page[PAGE_HEADER + PAGE_INSTANT]);
+	ut_ad(!page_get_instant(new_page));
 
 	if (page_rec_is_infimum(rec)) {
 

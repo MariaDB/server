@@ -1007,14 +1007,7 @@ struct dict_index_t{
 	inline bool is_readable() const;
 
 	/** @return whether instant ADD COLUMN is in effect */
-	bool is_instant() const {
-		ut_ad(n_core_fields > 0);
-		ut_ad(n_core_fields <= n_fields);
-		ut_ad(n_core_fields == n_fields
-		      || (type & ~(DICT_UNIQUE | DICT_CORRUPT))
-		      == DICT_CLUSTERED);
-		return(n_core_fields != n_fields);
-	}
+	inline bool is_instant() const;
 };
 
 /** The status of online index creation */
@@ -1376,9 +1369,8 @@ struct dict_table_t {
 		return(UT_LIST_GET_FIRST(indexes)->is_instant());
 	}
 
-	/** @return whether the table depends on the PAGE_INSTANT flag
-	on the clustered index root page */
-	bool has_page_instant() const
+	/** @return whether the table supports instant ADD COLUMN */
+	bool supports_instant() const
 	{
 		return(((DICT_TF_MASK_ZIP_SSIZE | DICT_TF_MASK_COMPACT)
 			& flags) == DICT_TF_MASK_COMPACT);
@@ -1766,6 +1758,17 @@ public:
 inline bool dict_index_t::is_readable() const
 {
 	return(UNIV_LIKELY(!table->file_unreadable));
+}
+
+inline bool dict_index_t::is_instant() const
+{
+	ut_ad(n_core_fields > 0);
+	ut_ad(n_core_fields <= n_fields);
+	ut_ad(n_core_fields == n_fields
+	      || (type & ~(DICT_UNIQUE | DICT_CORRUPT)) == DICT_CLUSTERED);
+	ut_ad(n_core_fields == n_fields
+	      || !(table->flags & DICT_TF_MASK_ZIP_SSIZE));
+	return(n_core_fields != n_fields);
 }
 
 /*******************************************************************//**
