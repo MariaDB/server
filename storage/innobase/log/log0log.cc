@@ -997,10 +997,6 @@ loop:
 	      || log_block_get_hdr_no(buf)
 		 == log_block_convert_lsn_to_no(start_lsn));
 
-	if (log_sys->is_encrypted()) {
-		log_crypt(buf, write_len);
-	}
-
 	/* Calculate the checksums for each log block and write them to
 	the trailer fields of the log blocks */
 
@@ -1264,6 +1260,12 @@ loop:
 			::memset(write_buf + area_end, 0, pad_size);
 		}
 	}
+
+	if (log_sys->is_encrypted()) {
+		log_crypt(write_buf + area_start, log_sys->write_lsn,
+			  area_end - area_start);
+	}
+
 	/* Do the write to the log files */
 	log_group_write_buf(
 		&log_sys->log, write_buf + area_start,

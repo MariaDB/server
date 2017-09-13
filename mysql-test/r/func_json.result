@@ -669,6 +669,36 @@ JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1
 select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
 JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"')
 "\u00f6"
+select JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo');
+JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 15
+SELECT JSON_OBJECT('foo', '`');
+JSON_OBJECT('foo', '`')
+{"foo": "`"}
+SELECT JSON_OBJECT("foo", "bar`bar");
+JSON_OBJECT("foo", "bar`bar")
+{"foo": "bar`bar"}
+SELECT JSON_SET('{}', '$.age', 87);
+JSON_SET('{}', '$.age', 87)
+{"age": 87}
+SELECT JSON_MERGE('[]', '{"c":"d"}');
+JSON_MERGE('[]', '{"c":"d"}')
+[{"c": "d"}]
+SET @str = "{\"\\u00e4\\u00f6\":\"yes\"}";
+SET @path = "$.\"\\u00e4\\u00f6\"";
+select @str, @path, JSON_EXTRACT(@str, @path);
+@str	@path	JSON_EXTRACT(@str, @path)
+{"\u00e4\u00f6":"yes"}	$."\u00e4\u00f6"	"yes"
+SET @str = "{\"\\u00e4\":\"yes\"}";
+SET @path = "$.\"\\u00e4\"";
+select @str, @path, JSON_EXTRACT(@str, @path);
+@str	@path	JSON_EXTRACT(@str, @path)
+{"\u00e4":"yes"}	$."\u00e4"	"yes"
+select json_array(5,json_query('[1,2]','$'));
+json_array(5,json_query('[1,2]','$'))
+[5, [1,2]]
 #
 # Start of 10.3 tests
 #

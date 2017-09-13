@@ -32,7 +32,11 @@ MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 /** innodb_encrypt_log: whether to encrypt the redo log */
 extern my_bool srv_encrypt_log;
 
-/** Initialize the redo log encryption key.
+/** Initialize the redo log encryption key and random parameters
+when creating a new redo log.
+The random parameters will be persisted in the log checkpoint pages.
+@see log_crypt_write_checkpoint_buf()
+@see log_crypt_read_checkpoint_buf()
 @return whether the operation succeeded */
 UNIV_INTERN
 bool
@@ -71,10 +75,11 @@ log_crypt_read_checkpoint_buf(const byte* buf);
 
 /** Encrypt or decrypt log blocks.
 @param[in,out]	buf	log blocks to encrypt or decrypt
+@param[in]	lsn	log sequence number of the start of the buffer
 @param[in]	size	size of the buffer, in bytes
 @param[in]	decrypt	whether to decrypt instead of encrypting */
 UNIV_INTERN
 void
-log_crypt(byte* buf, ulint size, bool decrypt = false);
+log_crypt(byte* buf, lsn_t lsn, ulint size, bool decrypt = false);
 
 #endif  // log0crypt.h
