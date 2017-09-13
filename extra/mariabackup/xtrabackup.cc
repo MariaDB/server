@@ -2771,14 +2771,12 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 	ret = fil_file_readdir_next_file(&err, fil_path_to_mysql_datadir, dir,
 					 &dbinfo);
 	while (ret == 0) {
-		size_t len = strlen(dbinfo.name);
 
 		/* General tablespaces are always at the first level of the
 		data home dir */
-		if (dbinfo.type == OS_FILE_TYPE_FILE && len > 4) {
-			bool is_isl = !strcmp(dbinfo.name + len - 4, ".isl");
-			bool is_ibd = !is_isl
-				&& !strcmp(dbinfo.name + len - 4, ".ibd");
+		if (dbinfo.type == OS_FILE_TYPE_FILE) {
+			bool is_isl = ends_with(dbinfo.name, ".isl");
+			bool is_ibd = !is_isl && ends_with(dbinfo.name,".ibd");
 
 			if (is_isl || is_ibd) {
 				(*callback)(NULL, dbinfo.name, is_isl);
@@ -2794,7 +2792,7 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 		/* We found a symlink or a directory; try opening it to see
 		if a symlink is a directory */
 
-		len = strlen(fil_path_to_mysql_datadir)
+		size_t len = strlen(fil_path_to_mysql_datadir)
 			+ strlen (dbinfo.name) + 2;
 		if (len > dbpath_len) {
 			dbpath_len = len;
@@ -2837,16 +2835,16 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 				size_t len = strlen(fileinfo.name);
 
 				/* We found a symlink or a file */
-				if (len > 4
-				    && !strcmp(fileinfo.name + len - 4,
-					       ".ibd")) {
-					(*callback)(dbinfo.name, fileinfo.name, false);
+				if (len > 4) {
+					bool is_isl= false;
+					if (ends_with(fileinfo.name, ".ibd") || ((is_isl = ends_with(fileinfo.name, ".ibd"))))
+						(*callback)(dbinfo.name, fileinfo.name, is_isl);
 				}
 			}
 
 			if (0 != os_file_closedir(dbdir)) {
 				fprintf(stderr, "InnoDB: Warning: could not"
-				      " close database directory %s\n",
+				 " close database directory %s\n",
 					dbpath);
 
 				err = DB_ERROR;
