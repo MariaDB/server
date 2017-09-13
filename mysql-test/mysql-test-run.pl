@@ -4570,8 +4570,8 @@ sub check_warnings ($) {
 
   my $timeout= start_timer(check_timeout($tinfo));
 
+  my $result= 0;
   while (1){
-    my $result= 0;
     my $proc= My::SafeProcess->wait_any_timeout($timeout);
     mtr_report("Got $proc");
 
