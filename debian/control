@@ -172,8 +172,7 @@ Description: MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)
 
 Package: mariadb-client-core-10.2
 Architecture: any
-Depends: libmariadb3 (>= ${source:Version}),
-         mariadb-common (>= ${source:Version}),
+Depends: mariadb-common (>= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Conflicts: mariadb-client-10.0,
@@ -236,7 +235,6 @@ Description: MariaDB database core client binaries
 Package: mariadb-client-10.2
 Architecture: any
 Depends: debianutils (>=1.6),
-         libmariadb3 (>= ${source:Version}),
          mariadb-client-core-10.2 (>= ${source:Version}),
          mariadb-common,
          ${misc:Depends},
@@ -290,8 +288,7 @@ Description: MariaDB database client binaries
 
 Package: mariadb-server-core-10.2
 Architecture: any
-Depends: libmariadb3 (>= ${binary:Version}),
-         mariadb-common (>= ${source:Version}),
+Depends: mariadb-common (>= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Conflicts: mariadb-server-core-10.0,
