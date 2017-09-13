@@ -170,7 +170,7 @@ page_set_ssn_id(
 /*************************************************************//**
 Reads the given header field. */
 UNIV_INLINE
-ulint
+uint16_t
 page_header_get_field(
 /*==================*/
 	const page_t*	page,	/*!< in: page */
