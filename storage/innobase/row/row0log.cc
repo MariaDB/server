@@ -316,7 +316,7 @@ row_log_online_op(
 	extra_size+1 (and reserve 0 as the end-of-chunk marker). */
 
 	size = rec_get_converted_size_temp(
-		index, tuple->fields, tuple->n_fields, NULL, &extra_size);
+		index, tuple->fields, tuple->n_fields, &extra_size);
 	ut_ad(size >= extra_size);
 	ut_ad(size <= sizeof log->tail.buf);
 
@@ -364,7 +364,7 @@ row_log_online_op(
 	}
 
 	rec_convert_dtuple_to_temp(
-		b + extra_size, index, tuple->fields, tuple->n_fields, NULL);
+		b + extra_size, index, tuple->fields, tuple->n_fields);
 	b += size;
 
 	if (mrec_size >= avail_size) {
@@ -667,7 +667,7 @@ row_log_table_delete(
 	ut_ad(DATA_ROLL_PTR_LEN == dtuple_get_nth_field(
 		      old_pk, old_pk->n_fields - 1)->len);
 	old_pk_size = rec_get_converted_size_temp(
-		new_index, old_pk->fields, old_pk->n_fields, NULL,
+		new_index, old_pk->fields, old_pk->n_fields,
 		&old_pk_extra_size);
 	ut_ad(old_pk_extra_size < 0x100);
 
@@ -697,9 +697,7 @@ row_log_table_delete(
 
 	/* Check if we need to log virtual column data */
 	if (ventry->n_v_fields > 0) {
-		ulint	v_extra;
-		mrec_size += rec_get_converted_size_temp(
-			new_index, NULL, 0, ventry, &v_extra);
+		mrec_size += rec_get_converted_size_temp_v(new_index, ventry);
 	}
 
 	if (byte* b = row_log_table_open(index->online_log,
@@ -713,7 +711,7 @@ row_log_table_delete(
 
 		rec_convert_dtuple_to_temp(
 			b + old_pk_extra_size, new_index,
-			old_pk->fields, old_pk->n_fields, NULL);
+			old_pk->fields, old_pk->n_fields);
 
 		b += old_pk_size;
 
@@ -746,8 +744,7 @@ row_log_table_delete(
 
 		/* log virtual columns */
 		if (ventry->n_v_fields > 0) {
-                        rec_convert_dtuple_to_temp(
-                                b, new_index, NULL, 0, ventry);
+                        rec_convert_dtuple_to_temp_v(b, new_index, ventry);
                         b += mach_read_from_2(b);
                 }
 
@@ -838,15 +835,16 @@ row_log_table_low_redundant(
 	}
 
 	size = rec_get_converted_size_temp(
-		index, tuple->fields, tuple->n_fields, ventry, &extra_size);
+		index, tuple->fields, tuple->n_fields, &extra_size);
+	ulint v_size = ventry
+		? rec_get_converted_size_temp_v(index, ventry) : 0;
 
-	mrec_size = ROW_LOG_HEADER_SIZE + size + (extra_size >= 0x80);
+	mrec_size = ROW_LOG_HEADER_SIZE + size + v_size + (extra_size >= 0x80);
 
 	if (num_v) {
 		if (o_ventry) {
-			ulint	v_extra = 0;
-			mrec_size += rec_get_converted_size_temp(
-				index, NULL, 0, o_ventry, &v_extra);
+			mrec_size += rec_get_converted_size_temp_v(
+				index, o_ventry);
 		}
 	} else if (index->table->n_v_cols) {
 		mrec_size += 2;
@@ -865,7 +863,7 @@ row_log_table_low_redundant(
 
 		old_pk_size = rec_get_converted_size_temp(
 			new_index, old_pk->fields, old_pk->n_fields,
-			ventry, &old_pk_extra_size);
+			&old_pk_extra_size);
 		ut_ad(old_pk_extra_size < 0x100);
 		mrec_size += 1/*old_pk_extra_size*/ + old_pk_size;
 	}
@@ -879,8 +877,7 @@ row_log_table_low_redundant(
 
 			rec_convert_dtuple_to_temp(
 				b + old_pk_extra_size, new_index,
-				old_pk->fields, old_pk->n_fields,
-				ventry);
+				old_pk->fields, old_pk->n_fields);
 			b += old_pk_size;
 		}
 
@@ -893,14 +890,17 @@ row_log_table_low_redundant(
 		}
 
 		rec_convert_dtuple_to_temp(
-			b + extra_size, index, tuple->fields, tuple->n_fields,
-			ventry);
+			b + extra_size, index, tuple->fields, tuple->n_fields);
 		b += size;
+		if (ventry) {
+                        rec_convert_dtuple_to_temp_v(b, new_index, ventry);
+			b += v_size;
+		}
 
 		if (num_v) {
 			if (o_ventry) {
-				rec_convert_dtuple_to_temp(
-					b, new_index, NULL, 0, o_ventry);
+				rec_convert_dtuple_to_temp_v(
+					b, new_index, o_ventry);
 				b += mach_read_from_2(b);
 			}
 		} else if (index->table->n_v_cols) {
@@ -990,13 +990,11 @@ row_log_table_low(
 		+ (extra_size >= 0x80) + rec_offs_size(offsets) - omit_size;
 
 	if (ventry && ventry->n_v_fields > 0) {
-		ulint	v_extra = 0;
-		mrec_size += rec_get_converted_size_temp(
-			new_index, NULL, 0, ventry, &v_extra);
+		mrec_size += rec_get_converted_size_temp_v(new_index, ventry);
 
 		if (o_ventry) {
-			mrec_size += rec_get_converted_size_temp(
-				new_index, NULL, 0, o_ventry, &v_extra);
+			mrec_size += rec_get_converted_size_temp_v(
+				new_index, o_ventry);
 		}
 	} else if (index->table->n_v_cols) {
 		/* Always leave 2 bytes length marker for virtual column
@@ -1018,7 +1016,7 @@ row_log_table_low(
 
 		old_pk_size = rec_get_converted_size_temp(
 			new_index, old_pk->fields, old_pk->n_fields,
-			NULL, &old_pk_extra_size);
+			&old_pk_extra_size);
 		ut_ad(old_pk_extra_size < 0x100);
 		mrec_size += 1/*old_pk_extra_size*/ + old_pk_size;
 	}
@@ -1032,8 +1030,7 @@ row_log_table_low(
 
 			rec_convert_dtuple_to_temp(
 				b + old_pk_extra_size, new_index,
-				old_pk->fields, old_pk->n_fields,
-				NULL);
+				old_pk->fields, old_pk->n_fields);
 			b += old_pk_size;
 		}
 
@@ -1051,13 +1048,12 @@ row_log_table_low(
 		b += rec_offs_data_size(offsets);
 
 		if (ventry && ventry->n_v_fields > 0) {
-			rec_convert_dtuple_to_temp(
-				b, new_index, NULL, 0, ventry);
+			rec_convert_dtuple_to_temp_v(b, new_index, ventry);
 			b += mach_read_from_2(b);
 
 			if (o_ventry) {
-				rec_convert_dtuple_to_temp(
-					b, new_index, NULL, 0, o_ventry);
+				rec_convert_dtuple_to_temp_v(
+					b, new_index, o_ventry);
 				b += mach_read_from_2(b);
 			}
 		} else if (index->table->n_v_cols) {

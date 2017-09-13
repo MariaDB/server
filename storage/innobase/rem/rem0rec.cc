@@ -892,8 +892,6 @@ rec_get_converted_size_comp_prefix_low(
 					it does not */
 	const dfield_t*		fields,	/*!< in: array of data fields */
 	ulint			n_fields,/*!< in: number of data fields */
-	const dtuple_t*		v_entry,/*!< in: dtuple contains virtual column
-					data */
 	ulint*			extra,	/*!< out: extra size */
 	ulint			rec_flag,	/*!< in: REC_FLAG_* */
 	bool			temp)	/*!< in: whether this is a
@@ -902,17 +900,13 @@ rec_get_converted_size_comp_prefix_low(
 	ulint	extra_size;
 	ulint	data_size;
 	ulint	i;
-	ulint	n_v_fields;
 	ut_ad(n_fields > 0);
 	ut_ad(n_fields <= dict_index_get_n_fields(index));
 	ut_ad(!temp || extra);
 	ut_ad(!temp || rec_flag == REC_FLAG_NONE);
 	ut_ad(!v_entry || rec_flag == REC_FLAG_NONE);
 
-	/* At the time being, only temp file record could possible
-	store virtual columns */
-	ut_ad(!v_entry || (dict_index_is_clust(index) && temp));
-	n_v_fields = v_entry ? dtuple_get_n_v_fields(v_entry) : 0;
+	ut_d(ulint n_null = index->n_nullable);
 
 	ut_d(ulint n_null = index->n_nullable);
 	ut_d(const ulint n_null_bytes = UT_BITS_IN_BYTES(n_null));
@@ -1030,42 +1024,50 @@ rec_get_converted_size_comp_prefix_low(
 		*extra = extra_size;
 	}
 
-	/* Log virtual columns */
-	if (n_v_fields != 0) {
-		/* length marker */
-		data_size += 2;
+	return(extra_size + data_size);
+}
 
-		for (i = 0; i < n_v_fields; i++) {
-			dfield_t*       vfield;
-			ulint		flen;
+/** Determine the converted size of virtual column data in a temporary file.
+@see rec_convert_dtuple_to_temp_v()
+@param[in]	index	clustered index
+@param[in]	v	clustered index record augmented with the values
+			of virtual columns
+@return size in bytes */
+ulint
+rec_get_converted_size_temp_v(const dict_index_t* index, const dtuple_t* v)
+{
+	ut_ad(dict_index_is_clust(index));
 
-                        const dict_v_col_t*     col
-                                = dict_table_get_nth_v_col(index->table, i);
+	/* length marker */
+	ulint data_size = 2;
+	const ulint n_v_fields = dtuple_get_n_v_fields(v);
 
-			/* Only those indexed needs to be logged */
-                        if (col->m_col.ord_part) {
-				data_size += mach_get_compressed_size(
-					i + REC_MAX_N_FIELDS);
-				vfield = dtuple_get_nth_v_field(
-                                                v_entry, col->v_pos);
+	for (ulint i = 0; i < n_v_fields; i++) {
+		const dict_v_col_t*     col
+			= dict_table_get_nth_v_col(index->table, i);
 
-                                flen = vfield->len;
-
-				if (flen != UNIV_SQL_NULL) {
-                                        flen = ut_min(
-                                                flen,
-                                                static_cast<ulint>(
-                                                DICT_MAX_FIELD_LEN_BY_FORMAT(
-                                                        index->table)));
-					data_size += flen;
-                                }
-
-				data_size += mach_get_compressed_size(flen);
-			}
+		/* Only those indexed needs to be logged */
+		if (!col->m_col.ord_part) {
+			continue;
 		}
+
+		data_size += mach_get_compressed_size(i + REC_MAX_N_FIELDS);
+		const dfield_t* vfield = dtuple_get_nth_v_field(v, col->v_pos);
+		ulint		flen = vfield->len;
+
+		if (flen != UNIV_SQL_NULL) {
+			flen = ut_min(
+				flen,
+				static_cast<ulint>(
+					DICT_MAX_FIELD_LEN_BY_FORMAT(
+						index->table)));
+			data_size += flen;
+		}
+
+		data_size += mach_get_compressed_size(flen);
 	}
 
-	return(extra_size + data_size);
+	return(data_size);
 }
 
 /**********************************************************//**
@@ -1081,7 +1083,7 @@ rec_get_converted_size_comp_prefix(
 {
 	ut_ad(dict_table_is_comp(index->table));
 	return(rec_get_converted_size_comp_prefix_low(
-		       index, fields, n_fields, NULL, extra, REC_FLAG_NONE, false));
+		       index, fields, n_fields, extra, REC_FLAG_NONE, false));
 }
 
 /**********************************************************//**
@@ -1130,7 +1132,7 @@ rec_get_converted_size_comp(
 	}
 
 	return(size + rec_get_converted_size_comp_prefix_low(
-		       index, fields, n_fields, NULL, extra, rec_flag, false));
+		       index, fields, n_fields, extra, rec_flag, false));
 }
 
 /***********************************************************//**
@@ -1315,8 +1317,6 @@ rec_convert_dtuple_to_rec_comp(
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	const dfield_t*		fields,	/*!< in: array of data fields */
 	ulint			n_fields,/*!< in: number of data fields */
-	const dtuple_t*		v_entry,/*!< in: dtuple contains
-					virtual column data */
 	ulint			status,	/*!< in: status bits of the record */
 	bool			temp)	/*!< in: whether to use the
 					format for temporary files in
@@ -1352,7 +1352,6 @@ rec_convert_dtuple_to_rec_comp(
 			temp = false;
 		}
 	} else {
-		ut_ad(v_entry == NULL);
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 
 		switch (UNIV_EXPECT(status, REC_STATUS_ORDINARY)) {
@@ -1490,16 +1489,30 @@ rec_convert_dtuple_to_rec_comp(
 		}
 	}
 
-	if (!v_entry) {
-		return is_instant;
-	}
+	return is_instant;
+}
+
+/** Write indexed virtual column data into a temporary file.
+@see rec_get_converted_size_temp_v()
+@param[out]	rec	serialized record
+@param[in]	index	clustered index
+@param[in]	v_entry	clustered index record augmented with the values
+			of virtual columns */
+void
+rec_convert_dtuple_to_temp_v(
+	byte*			rec,
+	const dict_index_t*	index,
+	const dtuple_t*		v_entry)
+{
+	ut_ad(dict_index_is_clust(index));
+	const ulint num_v = dtuple_get_n_v_fields(v_entry);
 
 	ut_ad(temp);
 	ut_ad(!is_instant);
 	const ulint num_v = dtuple_get_n_v_fields(v_entry);
 
 	/* reserve 2 bytes for writing length */
-	byte*	ptr = end;
+	byte*	ptr = rec;
 	ptr += 2;
 
 	/* Now log information on indexed virtual columns */
@@ -1542,8 +1555,7 @@ rec_convert_dtuple_to_rec_comp(
 		}
 	}
 
-	mach_write_to_2(end, ptr - end);
-	return false;
+	mach_write_to_2(rec, ptr - rec);
 }
 
 /*********************************************************//**
@@ -1569,8 +1581,7 @@ rec_convert_dtuple_to_rec_new(
 	rec = buf + extra_size;
 
 	if (rec_convert_dtuple_to_rec_comp(
-		rec, index, dtuple->fields, dtuple->n_fields, NULL,
-		status, false)) {
+		rec, index, dtuple->fields, dtuple->n_fields, status, false)) {
 		/* Set the info bits of the record */
 		rec_set_info_and_status_bits(rec, dtuple_get_info_bits(dtuple));
 		
@@ -1640,21 +1651,21 @@ rec_convert_dtuple_to_rec(
 	return(rec);
 }
 
-/**********************************************************//**
-Determines the size of a data tuple prefix in ROW_FORMAT=COMPACT.
-@return total size */
+/** Determine the size of a data tuple prefix in a temporary file.
+@param[in]	index		clustered or secondary index
+@param[in]	fields		data fields
+@param[in]	n_fields	number of data fields
+@param[out]	extra		record header size
+@return	total size, in bytes */
 ulint
 rec_get_converted_size_temp(
-/*========================*/
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	const dfield_t*		fields,	/*!< in: array of data fields */
-	ulint			n_fields,/*!< in: number of data fields */
-	const dtuple_t*		v_entry,/*!< in: dtuple contains virtual column
-					data */
-	ulint*			extra)	/*!< out: extra size */
+	const dict_index_t*	index,
+	const dfield_t*		fields,
+	ulint			n_fields,
+	ulint*			extra)
 {
 	return(rec_get_converted_size_comp_prefix_low(
-		       index, fields, n_fields, v_entry, extra, REC_FLAG_NONE, true));
+		       index, fields, n_fields, extra, REC_FLAG_NONE, true));
 }
 
 /******************************************************//**
@@ -1680,11 +1691,9 @@ rec_convert_dtuple_to_temp(
 	rec_t*			rec,		/*!< out: record */
 	const dict_index_t*	index,		/*!< in: record descriptor */
 	const dfield_t*		fields,		/*!< in: array of data fields */
-	ulint			n_fields,	/*!< in: number of fields */
-	const dtuple_t*		v_entry)	/*!< in: dtuple contains
-						virtual column data */
+	ulint			n_fields)	/*!< in: number of fields */
 {
-	rec_convert_dtuple_to_rec_comp(rec, index, fields, n_fields, v_entry,
+	rec_convert_dtuple_to_rec_comp(rec, index, fields, n_fields,
 				       REC_STATUS_ORDINARY, true);
 }
 
