@@ -19750,8 +19750,6 @@ innobase_fts_find_ranking(FT_INFO* fts_hdl, uchar*, uint)
 
 #ifdef UNIV_DEBUG
 static my_bool	innodb_background_drop_list_empty = TRUE;
-static my_bool	innodb_purge_run_now = TRUE;
-static my_bool	innodb_purge_stop_now = TRUE;
 static my_bool	innodb_log_checkpoint_now = TRUE;
 static my_bool	innodb_buf_flush_list_now = TRUE;
 static uint	innodb_merge_threshold_set_all_debug
@@ -19773,52 +19771,6 @@ wait_background_drop_list_empty(
 						check function */
 {
 	row_wait_for_background_drop_list_empty();
-}
-
-/****************************************************************//**
-Set the purge state to RUN. If purge is disabled then it
-is a no-op. This function is registered as a callback with MySQL. */
-static
-void
-purge_run_now_set(
-/*==============*/
-	THD*				thd	/*!< in: thread handle */
-					MY_ATTRIBUTE((unused)),
-	struct st_mysql_sys_var*	var	/*!< in: pointer to system
-						variable */
-					MY_ATTRIBUTE((unused)),
-	void*				var_ptr	/*!< out: where the formal
-						string goes */
-					MY_ATTRIBUTE((unused)),
-	const void*			save)	/*!< in: immediate result from
-						check function */
-{
-	if (*(my_bool*) save && trx_purge_state() != PURGE_STATE_DISABLED) {
-		trx_purge_run();
-	}
-}
-
-/****************************************************************//**
-Set the purge state to STOP. If purge is disabled then it
-is a no-op. This function is registered as a callback with MySQL. */
-static
-void
-purge_stop_now_set(
-/*===============*/
-	THD*				thd	/*!< in: thread handle */
-					MY_ATTRIBUTE((unused)),
-	struct st_mysql_sys_var*	var	/*!< in: pointer to system
-						variable */
-					MY_ATTRIBUTE((unused)),
-	void*				var_ptr	/*!< out: where the formal
-						string goes */
-					MY_ATTRIBUTE((unused)),
-	const void*			save)	/*!< in: immediate result from
-						check function */
-{
-	if (*(my_bool*) save && trx_purge_state() != PURGE_STATE_DISABLED) {
-		trx_purge_stop();
-	}
 }
 
 /****************************************************************//**
@@ -20628,16 +20580,6 @@ static MYSQL_SYSVAR_BOOL(background_drop_list_empty,
   PLUGIN_VAR_OPCMDARG,
   "Wait for the background drop list to become empty",
   NULL, wait_background_drop_list_empty, FALSE);
-
-static MYSQL_SYSVAR_BOOL(purge_run_now, innodb_purge_run_now,
-  PLUGIN_VAR_OPCMDARG,
-  "Set purge state to RUN",
-  NULL, purge_run_now_set, FALSE);
-
-static MYSQL_SYSVAR_BOOL(purge_stop_now, innodb_purge_stop_now,
-  PLUGIN_VAR_OPCMDARG,
-  "Set purge state to STOP",
-  NULL, purge_stop_now_set, FALSE);
 
 static MYSQL_SYSVAR_BOOL(log_checkpoint_now, innodb_log_checkpoint_now,
   PLUGIN_VAR_OPCMDARG,
@@ -21912,8 +21854,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(purge_batch_size),
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(background_drop_list_empty),
-  MYSQL_SYSVAR(purge_run_now),
-  MYSQL_SYSVAR(purge_stop_now),
   MYSQL_SYSVAR(log_checkpoint_now),
   MYSQL_SYSVAR(buf_flush_list_now),
   MYSQL_SYSVAR(merge_threshold_set_all_debug),
