@@ -5431,7 +5431,9 @@ static Sys_var_mybool Sys_wsrep_restart_slave(
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_ulong Sys_wsrep_trx_fragment_size(
-      "wsrep_trx_fragment_size", "size (in bytes) for transaction fragments for streaming replication",
+      "wsrep_trx_fragment_size",
+      "Size of transaction fragments for streaming replication (measured in "
+      "units of 'wsrep_trx_fragment_unit')",
        SESSION_VAR(wsrep_trx_fragment_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, WSREP_MAX_WS_SIZE), DEFAULT(0), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(wsrep_trx_fragment_size_check));
@@ -5439,7 +5441,9 @@ static Sys_var_ulong Sys_wsrep_trx_fragment_size(
 extern const char *wsrep_fragment_units[];
 
 static Sys_var_enum Sys_wsrep_trx_fragment_unit(
-      "wsrep_trx_fragment_unit", "unit for fragments size: (bytes, events, rows, statements)",
+      "wsrep_trx_fragment_unit",
+      "Unit for streaming replication transaction fragments' size: bytes, "
+      "events, rows, statements",
       SESSION_VAR(wsrep_trx_fragment_unit), CMD_LINE(REQUIRED_ARG),
       wsrep_fragment_units,
       DEFAULT(WSREP_FRAG_BYTES),
