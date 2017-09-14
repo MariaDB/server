@@ -2615,7 +2615,7 @@ n_owned_zero:
 		goto func_exit;
 	}
 
-	if (UNIV_UNLIKELY(page_header_get_field(page, PAGE_N_RECS)
+	if (UNIV_UNLIKELY(ulint(page_header_get_field(page, PAGE_N_RECS))
 			  + PAGE_HEAP_NO_USER_LOW
 			  != count + 1)) {
 		ib::error() << "n recs wrong "
