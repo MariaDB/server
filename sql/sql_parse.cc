@@ -1303,12 +1303,13 @@ bool do_command(THD *thd)
   command= fetch_command(thd, packet);
 
 #ifdef WITH_WSREP
-  if (WSREP(thd)) {
+  if (WSREP(thd))
+  {
     /*
      * bail out if DB snapshot has not been installed. We however,
      * allow queries "SET" and "SHOW", they are trapped later in execute_command
      */
-    if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready_get() &&
+    if (!thd->wsrep_applier && !wsrep_ready_get() &&
         command != COM_QUERY        &&
         command != COM_PING         &&
         command != COM_QUIT         &&
@@ -1321,8 +1322,8 @@ bool do_command(THD *thd)
         command != COM_TIME         &&
         command != COM_END
     ) {
-      my_error(ER_UNKNOWN_COM_ERROR, MYF(0),
-               "WSREP has not yet prepared node for application use");
+      my_message(ER_UNKNOWN_COM_ERROR,
+                 "WSREP has not yet prepared node for application use", MYF(0));
       /* Performance Schema Interface instrumentation end. */
       MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
       thd->m_statement_psi= NULL;
@@ -3456,7 +3457,7 @@ mysql_execute_command(THD *thd)
   } /* endif unlikely slave */
 #endif
 #ifdef WITH_WSREP
-  if  (wsrep && WSREP(thd))
+  if (WSREP(thd))
   {
     /*
       change LOCK TABLE WRITE to transaction
