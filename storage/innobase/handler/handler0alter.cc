@@ -5184,16 +5184,6 @@ new_clustered_failed:
 		DBUG_EXECUTE_IF("innodb_alter_table_pk_assert_no_sort",
 			DBUG_ASSERT(ctx->skip_pk_sort););
 
-		switch (new_clust_index->n_core_null_bytes) {
-		case dict_index_t::NO_CORE_NULL_BYTES:
-			ut_ad(ctx->new_table->supports_instant());
-			new_clust_index->n_core_null_bytes = UT_BITS_IN_BYTES(
-				new_clust_index->n_nullable);
-			break;
-		default:
-			ut_ad(!ctx->new_table->supports_instant());
-		}
-
 		ut_ad(!new_clust_index->is_instant());
 		/* row_merge_build_index() depends on the correct value */
 		ut_ad(new_clust_index->n_core_null_bytes

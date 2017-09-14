@@ -2497,12 +2497,14 @@ dict_index_add_to_cache_w_vcol(
 	/* Build the cache internal representation of the index,
 	containing also the added system fields */
 
-	if (index->type == DICT_FTS) {
-		new_index = dict_index_build_internal_fts(table, index);
-	} else if (dict_index_is_clust(index)) {
+	if (dict_index_is_clust(index)) {
 		new_index = dict_index_build_internal_clust(table, index);
 	} else {
-		new_index = dict_index_build_internal_non_clust(table, index);
+		new_index = (index->type & DICT_FTS)
+			? dict_index_build_internal_fts(table, index)
+			: dict_index_build_internal_non_clust(table, index);
+		new_index->n_core_null_bytes = UT_BITS_IN_BYTES(
+			new_index->n_nullable);
 	}
 
 	/* Set the n_fields value in new_index to the actual defined
@@ -2599,11 +2601,6 @@ dict_index_add_to_cache_w_vcol(
 		       SYNC_INDEX_TREE);
 
 	new_index->n_core_fields = new_index->n_fields;
-
-	new_index->n_core_null_bytes = table->supports_instant()
-		&& dict_index_is_clust(new_index)
-		? dict_index_t::NO_CORE_NULL_BYTES
-		: UT_BITS_IN_BYTES(new_index->n_nullable);
 
 	dict_mem_index_free(index);
 
@@ -3192,6 +3189,9 @@ dict_index_build_internal_clust(
 
 	ut_ad(UT_LIST_GET_LEN(table->indexes) == 0);
 
+	new_index->n_core_null_bytes = table->supports_instant()
+		? dict_index_t::NO_CORE_NULL_BYTES
+		: UT_BITS_IN_BYTES(new_index->n_nullable);
 	new_index->cached = TRUE;
 
 	return(new_index);

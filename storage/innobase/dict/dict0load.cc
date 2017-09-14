@@ -3050,6 +3050,11 @@ err_exit:
 		}
 	}
 
+	if (err == DB_SUCCESS && cached && table->is_readable()
+	    && table->supports_instant()) {
+		err = btr_cur_instant_init(table);
+	}
+
 	/* Initialize table foreign_child value. Its value could be
 	changed when dict_load_foreigns() is called below */
 	table->fk_max_recusive_level = 0;

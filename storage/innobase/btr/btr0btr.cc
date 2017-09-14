@@ -5396,7 +5396,6 @@ btr_validate_index(
 		return err;
 	}
 
-	btr_init_instant_root(index, root);
 	ulint	n = btr_page_get_level(root, &mtr);
 
 	for (ulint i = 0; i <= n; ++i) {

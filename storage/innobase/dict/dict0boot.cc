@@ -367,6 +367,9 @@ dict_boot(void)
 						       MLOG_4BYTES, &mtr),
 					FALSE);
 	ut_a(error == DB_SUCCESS);
+	ut_ad(!table->is_instant());
+	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
+		table->indexes.start->n_nullable);
 
 	/*-------------------------*/
 	index = dict_mem_index_create("SYS_TABLES", "ID_IND",
@@ -413,6 +416,9 @@ dict_boot(void)
 						       MLOG_4BYTES, &mtr),
 					FALSE);
 	ut_a(error == DB_SUCCESS);
+	ut_ad(!table->is_instant());
+	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
+		table->indexes.start->n_nullable);
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_INDEXES", DICT_HDR_SPACE,
@@ -447,6 +453,9 @@ dict_boot(void)
 						       MLOG_4BYTES, &mtr),
 					FALSE);
 	ut_a(error == DB_SUCCESS);
+	ut_ad(!table->is_instant());
+	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
+		table->indexes.start->n_nullable);
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_FIELDS", DICT_HDR_SPACE, 3, 0, 0, 0);
@@ -475,6 +484,9 @@ dict_boot(void)
 						       MLOG_4BYTES, &mtr),
 					FALSE);
 	ut_a(error == DB_SUCCESS);
+	ut_ad(!table->is_instant());
+	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
+		table->indexes.start->n_nullable);
 
 	mtr_commit(&mtr);
 

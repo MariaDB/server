@@ -1372,8 +1372,7 @@ struct dict_table_t {
 	/** @return whether the table supports instant ADD COLUMN */
 	bool supports_instant() const
 	{
-		return(((DICT_TF_MASK_ZIP_SSIZE | DICT_TF_MASK_COMPACT)
-			& flags) == DICT_TF_MASK_COMPACT);
+		return(!(flags & DICT_TF_MASK_ZIP_SSIZE));
 	}
 
 	/** Id of the table. */

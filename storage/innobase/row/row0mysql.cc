@@ -2648,6 +2648,8 @@ row_create_index_for_mysql(
 		index = dict_index_get_if_in_cache_low(index_id);
 		ut_a(index != NULL);
 		index->table = table;
+		ut_ad(!index->is_instant());
+		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
 
 		err = dict_create_index_tree_in_mem(index, trx);
 

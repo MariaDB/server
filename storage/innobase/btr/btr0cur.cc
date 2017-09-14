@@ -393,6 +393,119 @@ btr_cur_latch_leaves(
 	return(latch_leaves);
 }
 
+/** Load the instant ALTER TABLE metadata from the clustered index
+when loading a table definition.
+@param[in,out]	index	clustered index definition
+@param[in,out]	mtr	mini-transaction
+@return	error code
+@retval	DB_SUCCESS	if no error occurred */
+static
+dberr_t
+btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
+{
+	if (page_t* root = btr_root_get(index, mtr)) {
+		btr_cur_instant_root_init(index, root);
+		ut_ad(index->n_core_null_bytes
+		      != dict_index_t::NO_CORE_NULL_BYTES);
+		if (!index->is_instant()) {
+			return(DB_SUCCESS);
+		}
+		btr_cur_t	cur;
+		dberr_t err = btr_cur_open_at_index_side(
+			true, index, BTR_SEARCH_LEAF, &cur, 0, mtr);
+		if (err != DB_SUCCESS) {
+			index->table->corrupted = true;
+			return(err);
+		}
+
+		page_cur_set_before_first(cur.page_cur.block, &cur.page_cur);
+		page_cur_move_to_next(&cur.page_cur);
+		const rec_t* rec = cur.page_cur.rec;
+		if (page_rec_is_supremum(rec)
+		    || rec_get_info_bits(rec, page_rec_is_comp(rec))
+		    != REC_INFO_MIN_REC_FLAG) {
+			ib::error() << "Table " << index->table->name
+				    << " is missing instant ALTER metadata";
+			index->table->corrupted = true;
+			return(DB_CORRUPTION);
+		} else {
+			/* TODO: read the default values, using
+			READ COMMITTED isolation level */
+		}
+	}
+
+	return(DB_SUCCESS);
+}
+
+/** Load the instant ALTER TABLE metadata from the clustered index
+when loading a table definition.
+@param[in,out]	table	table definition from the data dictionary
+@return	error code
+@retval	DB_SUCCESS	if no error occurred */
+dberr_t
+btr_cur_instant_init(dict_table_t* table)
+{
+	ut_ad(table->supports_instant());
+	ut_ad(table->is_readable());
+	dict_index_t*	index = dict_table_get_first_index(table);
+	mtr_t		mtr;
+
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
+	mtr.start();
+	dberr_t	err = btr_cur_instant_init_low(index, &mtr);
+	mtr.commit();
+	return(err);
+}
+
+/** Initialize the n_core_null_bytes on first access to a clustered
+index root page.
+@param[in]	index	clustered index that is on its first access
+@param[in]	page	clustered index root page */
+void
+btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
+{
+	ut_ad(page_is_root(page));
+	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
+	/* ROW_FORMAT=COMPRESSED does not support instant ADD COLUMN. */
+	ut_ad(!(index->table->flags & DICT_TF_MASK_ZIP_SSIZE));
+	/* This is normally executed as part of btr_cur_instant_init()
+	when dict_load_table_one() is loading a table definition.
+	Other threads should not access or modify the n_core_null_bytes,
+	n_core_fields before dict_load_table_one() returns.
+
+	This can also be executed during IMPORT TABLESPACE, where the
+	table definition is exclusively locked. */
+
+	switch (fil_page_get_type(page)) {
+	default:
+		ut_ad(!"wrong page type");
+		/* fall through */
+	case FIL_PAGE_INDEX:
+		/* The field PAGE_INSTANT is guaranteed 0 on clustered
+		index root pages of ROW_FORMAT=COMPACT or
+		ROW_FORMAT=DYNAMIC when instant ADD COLUMN is not used. */
+		ut_ad(!page_is_comp(page) || !page_get_instant(page));
+		ut_ad(!index->is_instant());
+		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
+		return;
+	case FIL_PAGE_TYPE_INSTANT:
+		break;
+	}
+
+	uint16_t n = page_get_instant(page);
+	ut_ad(index->n_core_fields == index->n_fields);
+	ut_ad(n <= index->n_fields);
+	ut_ad(n > 0);
+	index->n_core_fields = n;
+	uint16_t n_null_bytes = UT_BITS_IN_BYTES(
+		dict_index_get_first_n_field_n_nullable(index, n));
+	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
+	index->n_core_null_bytes = n_null_bytes;
+}
+
 /** Optimistically latches the leaf page or pages requested.
 @param[in]	block		guessed buffer block
 @param[in]	modify_clock	modify clock value
@@ -1315,8 +1428,7 @@ retry_page_get:
 		root_height = height;
 		cursor->tree_height = root_height + 1;
 
-		if (btr_init_instant_root(index, page)) {
-		} else if (UNIV_UNLIKELY(dict_index_is_spatial(index))) {
+		if (UNIV_UNLIKELY(dict_index_is_spatial(index))) {
 			ut_ad(cursor->rtr_info);
 
 			node_seq_t      seq_no = rtr_get_current_ssn_id(index);
@@ -2206,8 +2318,6 @@ btr_cur_open_at_index_side_func(
 			height = btr_page_get_level(page, mtr);
 			root_height = height;
 			ut_a(height >= level);
-
-			btr_init_instant_root(index, page);
 		} else {
 			/* TODO: flag the index corrupted if this fails */
 			ut_ad(height == btr_page_get_level(page, mtr));
@@ -2566,7 +2676,6 @@ btr_cur_open_at_rnd_pos_func(
 			/* We are in the root node */
 
 			height = btr_page_get_level(page, mtr);
-			btr_init_instant_root(index, page);
 		}
 
 		if (height == 0) {

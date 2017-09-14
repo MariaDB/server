@@ -1518,6 +1518,14 @@ dict_create_index_step(
 			goto function_exit;
 		}
 
+		ut_ad(!node->index->is_instant());
+		ut_ad(node->index->n_core_null_bytes
+		      == ((dict_index_is_clust(node->index)
+			   && node->table->supports_instant())
+			  ? dict_index_t::NO_CORE_NULL_BYTES
+			  : UT_BITS_IN_BYTES(node->index->n_nullable)));
+		node->index->n_core_null_bytes = UT_BITS_IN_BYTES(
+			node->index->n_nullable);
 		node->state = INDEX_CREATE_INDEX_TREE;
 	}
 

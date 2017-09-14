@@ -820,62 +820,6 @@ btr_lift_page_up(
 	mtr_t*		mtr)	/*!< in: mtr */
 	__attribute__((nonnull));
 
-/** Initialize the n_core_null_bytes on first access to a clustered
-index root page.
-@param[in]	index	clustered index that is on its first access
-@param[in]	page	clustered index root page
-@return whether the page contents was consulted */
-inline
-bool
-btr_init_instant_root(dict_index_t* index, const page_t* page)
-{
-	ut_ad(page_is_root(page));
-	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
-
-	if (UNIV_LIKELY(index->n_core_null_bytes
-			!= dict_index_t::NO_CORE_NULL_BYTES)) {
-		return(false);
-	}
-
-	ut_ad(dict_index_is_clust(index));
-	/* ROW_FORMAT=COMPRESSED does not support instant ADD COLUMN. */
-	ut_ad(!(index->table->flags & DICT_TF_MASK_ZIP_SSIZE));
-
-	switch (fil_page_get_type(page)) {
-	default:
-		ut_ad(!"wrong page type");
-		/* fall through */
-	case FIL_PAGE_INDEX:
-		/* The field PAGE_INSTANT is guaranteed 0 on clustered
-		index root pages of ROW_FORMAT=COMPACT or
-		ROW_FORMAT=DYNAMIC when instant ADD COLUMN is not used. */
-		ut_ad(!page_is_comp(page) || !page_get_instant(page));
-		ut_ad(!index->is_instant());
-		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
-		return(true);
-	case FIL_PAGE_TYPE_INSTANT:
-		break;
-	}
-
-	/* FIXME: On first table access, read the clustered index page
-	and the 'default value' record.
-
-	Multiple threads could be accessing the clustered index
-	root page and updating these fields at the same time.  But each
-	thread should deliver the same values. Outside instant ADD COLUMN,
-	the PAGE_INSTANT field is never modified to nonzero. */
-	uint16_t n = page_get_instant(page);
-	ut_ad(n <= index->n_fields);
-	ut_ad(n > 0);
-	index->n_core_fields = n;
-	uint16_t n_null_bytes = UT_BITS_IN_BYTES(
-		dict_index_get_first_n_field_n_nullable(index, n));
-	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES
-	      || index->n_core_null_bytes == n_null_bytes);
-	index->n_core_null_bytes = n_null_bytes;
-	return(true);
-}
-
 #define BTR_N_LEAF_PAGES	1
 #define BTR_TOTAL_SIZE		2
 
