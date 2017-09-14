@@ -79,88 +79,6 @@ UNIV_INTERN char	srv_disable_sort_file_cache;
 /* Maximum pending doc memory limit in bytes for a fts tokenization thread */
 #define FTS_PENDING_DOC_MEMORY_LIMIT	1000000
 
-
-/******************************************************//**
-Encrypt a merge block. */
-static
-void
-row_merge_encrypt_buf(
-/*==================*/
-	fil_space_crypt_t*	crypt_data,	/*!< in: table crypt data */
-	ulint			offset,		/*!< in: offset where to
-						write */
-	ulint			space,		/*!< in: tablespace id */
-	const byte*		input_buf,	/*!< in: input buffer */
-	byte*			crypted_buf)	/*!< out: crypted buffer */
-{
-	uint key_version;
-	uint dstlen=0;
-	os_offset_t ofs = (os_offset_t)srv_sort_buf_size * (os_offset_t)offset;
-
-	key_version =  encryption_key_get_latest_version(crypt_data->key_id);
-
-	/* Store key_version at the begining of the input buffer */
-	mach_write_to_4((byte *)crypted_buf, key_version);
-
-	int rc = encryption_scheme_encrypt(input_buf+ROW_MERGE_RESERVE_SIZE,
-					   srv_sort_buf_size-ROW_MERGE_RESERVE_SIZE,
-					   crypted_buf+ROW_MERGE_RESERVE_SIZE, &dstlen,
-					   crypt_data, key_version,
-					   space, ofs, 0);
-
-	if (! ((rc == MY_AES_OK) && ((ulint)dstlen == srv_sort_buf_size-ROW_MERGE_RESERVE_SIZE))) {
-		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Unable to encrypt data-block "
-			" src: %p srclen: %lu buf: %p buflen: %d."
-			" return-code: %d. Can't continue!\n",
-			input_buf, srv_sort_buf_size,
-			crypted_buf, dstlen, rc);
-	}
-}
-
-/******************************************************//**
-Decrypt a merge block. */
-static
-bool
-row_merge_decrypt_buf(
-/*==================*/
-	fil_space_crypt_t*	crypt_data,	/*!< in: table crypt data */
-	ulint			offset,		/*!< in: offset where to
-						write */
-	ulint			space,		/*!< in: tablespace id */
-	const byte*		input_buf,	/*!< in: input buffer */
-	byte*			crypted_buf)	/*!< out: crypted buffer */
-{
-	uint key_version;
-	uint dstlen=0;
-	os_offset_t ofs = (os_offset_t)srv_sort_buf_size * (os_offset_t)offset;
-
-	/* Read key_version from begining of the buffer */
-	key_version = mach_read_from_4((byte *)input_buf);
-
-	if (key_version == 0) {
-		/* block not encrypted */
-		return false;
-	}
-
-	int rc = encryption_scheme_decrypt(input_buf+ROW_MERGE_RESERVE_SIZE,
-					   srv_sort_buf_size-ROW_MERGE_RESERVE_SIZE,
-					   crypted_buf+ROW_MERGE_RESERVE_SIZE, &dstlen,
-					   crypt_data, key_version,
-					   space, ofs, 0);
-
-	if (! ((rc == MY_AES_OK) && ((ulint)dstlen == srv_sort_buf_size-ROW_MERGE_RESERVE_SIZE))) {
-		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Unable to encrypt data-block "
-			" src: %p srclen: %lu buf: %p buflen: %d."
-			" return-code: %d. Can't continue!\n",
-			input_buf, srv_sort_buf_size,
-			crypted_buf, dstlen, rc);
-	}
-
-	return true;
-}
-
 #ifdef UNIV_DEBUG
 /******************************************************//**
 Display a merge tuple. */
@@ -279,7 +197,7 @@ row_merge_buf_create(
 	ulint			buf_size;
 	mem_heap_t*		heap;
 
-	max_tuples = (srv_sort_buf_size - ROW_MERGE_RESERVE_SIZE)
+	max_tuples = (srv_sort_buf_size)
 		/ ut_max(1, dict_index_get_min_size(index));
 
 	buf_size = (sizeof *buf);
@@ -695,7 +613,7 @@ row_merge_buf_add(
 	ut_ad(data_size < srv_sort_buf_size);
 
 	/* Reserve bytes for the end marker of row_merge_block_t. */
-	if (buf->total_size + data_size >= (srv_sort_buf_size - ROW_MERGE_RESERVE_SIZE)) {
+	if (buf->total_size + data_size >= srv_sort_buf_size) {
 		DBUG_RETURN(0);
 	}
 
@@ -816,7 +734,7 @@ UT_SORT_FUNCTION_BODY().
 
 /**********************************************************************//**
 Merge sort the tuple buffer in main memory. */
-static MY_ATTRIBUTE((nonnull(4,5)))
+static
 void
 row_merge_tuple_sort(
 /*=================*/
@@ -867,7 +785,7 @@ row_merge_buf_write(
 {
 	const dict_index_t*	index	= buf->index;
 	ulint			n_fields= dict_index_get_n_fields(index);
-	byte*			b	= &block[ROW_MERGE_RESERVE_SIZE];
+	byte*			b	= &block[0];
 
 	for (ulint i = 0; i < buf->n_tuples; i++) {
 		const mtuple_t*	entry	= &buf->tuples[i];
@@ -886,7 +804,7 @@ row_merge_buf_write(
 
 	/* Write an "end-of-chunk" marker. */
 	ut_a(b < &block[srv_sort_buf_size]);
-	ut_a(b == &block[0] + buf->total_size + ROW_MERGE_RESERVE_SIZE);
+	ut_a(b == &block[0] + buf->total_size);
 	*b++ = 0;
 #ifdef UNIV_DEBUG_VALGRIND
 	/* The rest of the block is uninitialized.  Initialize it
@@ -936,7 +854,7 @@ row_merge_heap_create(
 Read a merge block from the file system.
 @return	TRUE if request was successful, FALSE if fail */
 UNIV_INTERN
-ibool
+bool
 row_merge_read(
 /*===========*/
 	int			fd,	/*!< in: file descriptor */
@@ -944,12 +862,11 @@ row_merge_read(
 					in number of row_merge_block_t
 					elements */
 	row_merge_block_t*	buf,	/*!< out: data */
-	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_buf, /*!< in: crypt buf or NULL */
-	ulint			space)	   /*!< in: space id */
+	ulint			space)		/*!< in: space id */
 {
 	os_offset_t	ofs = ((os_offset_t) offset) * srv_sort_buf_size;
-	ibool		success;
+	bool		success;
 
 	DBUG_EXECUTE_IF("row_merge_read_failure", return(FALSE););
 
@@ -964,10 +881,14 @@ row_merge_read(
 						 ofs, srv_sort_buf_size);
 
 	/* For encrypted tables, decrypt data after reading and copy data */
-	if (crypt_data && crypt_buf) {
-		if (row_merge_decrypt_buf(crypt_data, offset, space, buf, crypt_buf)) {
-			memcpy(buf, crypt_buf, srv_sort_buf_size);
+	if (log_tmp_is_encrypted()) {
+		if (!log_tmp_block_decrypt(buf, srv_sort_buf_size,
+					   crypt_buf, ofs, space)) {
+			return (FALSE);
 		}
+
+		srv_stats.n_merge_blocks_decrypted.inc();
+		memcpy(buf, crypt_buf, srv_sort_buf_size);
 	}
 
 #ifdef POSIX_FADV_DONTNEED
@@ -989,31 +910,32 @@ row_merge_read(
 Write a merge block to the file system.
 @return	TRUE if request was successful, FALSE if fail */
 UNIV_INTERN
-ibool
+bool
 row_merge_write(
 /*============*/
 	int		fd,			/*!< in: file descriptor */
 	ulint		offset,			/*!< in: offset where to write,
 						in number of row_merge_block_t elements */
 	const void*	buf,			/*!< in: data */
-	fil_space_crypt_t*	crypt_data,	/*!< in: table crypt data */
 	void*		crypt_buf,		/*!< in: crypt buf or NULL */
 	ulint		space)			/*!< in: space id */
 {
 	size_t		buf_len = srv_sort_buf_size;
 	os_offset_t	ofs = buf_len * (os_offset_t) offset;
-	ibool		ret;
+	bool		ret;
 	void*		out_buf = (void *)buf;
 
 	DBUG_EXECUTE_IF("row_merge_write_failure", return(FALSE););
 
 	/* For encrypted tables, encrypt data before writing */
-	if (crypt_data && crypt_buf) {
-		row_merge_encrypt_buf(crypt_data, offset, space, (const byte *)buf, (byte *)crypt_buf);
+	if (log_tmp_is_encrypted()) {
+		if (!log_tmp_block_encrypt((const byte *)buf, buf_len,
+				(byte *)crypt_buf, ofs, space)) {
+			return (FALSE);
+		}
+
+		srv_stats.n_merge_blocks_encrypted.inc();
 		out_buf = crypt_buf;
-	} else {
-		/* Mark block unencrypted */
-		mach_write_to_4((byte *)out_buf, 0);
 	}
 
 	ret = os_file_write_int_fd("(merge)", fd, out_buf, ofs, buf_len);
@@ -1051,9 +973,8 @@ row_merge_read_rec(
 					or NULL on end of list
 					(non-NULL on I/O error) */
 	ulint*			offsets,/*!< out: offsets of mrec */
-	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
-	ulint			space)	   /*!< in: space id */
+	ulint			space) /*!< in: space id */
 {
 	ulint	extra_size;
 	ulint	data_size;
@@ -1064,10 +985,6 @@ row_merge_read_rec(
 
 	ut_ad(*offsets == 1 + REC_OFFS_HEADER_SIZE
 	      + dict_index_get_n_fields(index));
-
-	if (b == &block[0]) {
-		b+= ROW_MERGE_RESERVE_SIZE;
-	}
 
 	extra_size = *b++;
 
@@ -1090,7 +1007,8 @@ row_merge_read_rec(
 
 		if (UNIV_UNLIKELY(b >= &block[srv_sort_buf_size])) {
 			if (!row_merge_read(fd, ++(*foffs), block,
-					    crypt_data, crypt_block, space)) {
+					    crypt_block,
+					    space)) {
 err_exit:
 				/* Signal I/O error. */
 				*mrec = b;
@@ -1098,7 +1016,7 @@ err_exit:
 			}
 
 			/* Wrap around to the beginning of the buffer. */
-			b = &block[ROW_MERGE_RESERVE_SIZE];
+			b = &block[0];
 		}
 
 		extra_size = (extra_size & 0x7f) << 8;
@@ -1120,13 +1038,14 @@ err_exit:
 		memcpy(*buf, b, avail_size);
 
 		if (!row_merge_read(fd, ++(*foffs), block,
-				    crypt_data, crypt_block, space)) {
+				    crypt_block,
+				    space)) {
 
 			goto err_exit;
 		}
 
 		/* Wrap around to the beginning of the buffer. */
-		b = &block[ROW_MERGE_RESERVE_SIZE];
+		b = &block[0];
 
 		/* Copy the record. */
 		memcpy(*buf + avail_size, b, extra_size - avail_size);
@@ -1182,13 +1101,14 @@ err_exit:
 #endif /* UNIV_DEBUG */
 
 	if (!row_merge_read(fd, ++(*foffs), block,
-			    crypt_data, crypt_block, space)) {
+			    crypt_block,
+			    space)) {
 
 		goto err_exit;
 	}
 
 	/* Wrap around to the beginning of the buffer. */
-	b = &block[ROW_MERGE_RESERVE_SIZE];
+	b = &block[0];
 
 	/* Copy the rest of the record. */
 	memcpy(*buf + avail_size, b, extra_size + data_size - avail_size);
@@ -1265,7 +1185,6 @@ row_merge_write_rec(
 	ulint*			foffs,	/*!< in/out: file offset */
 	const mrec_t*		mrec,	/*!< in: record to write */
 	const ulint*            offsets,/*!< in: offsets of mrec */
-	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */
 {
@@ -1288,10 +1207,6 @@ row_merge_write_rec(
 	size = extra_size + (extra_size >= 0x80)
 		+ rec_offs_data_size(offsets);
 
-	if (b == &block[0]) {
-		b+= ROW_MERGE_RESERVE_SIZE;
-	}
-
 	if (UNIV_UNLIKELY(b + size >= &block[srv_sort_buf_size])) {
 		/* The record spans two blocks.
 		Copy it to the temporary buffer first. */
@@ -1307,14 +1222,15 @@ row_merge_write_rec(
 		memcpy(b, buf[0], avail_size);
 
 		if (!row_merge_write(fd, (*foffs)++, block,
-				     crypt_data, crypt_block, space)) {
+				     crypt_block,
+				     space)) {
 			return(NULL);
 		}
 
 		UNIV_MEM_INVALID(&block[0], srv_sort_buf_size);
 
 		/* Copy the rest. */
-		b = &block[ROW_MERGE_RESERVE_SIZE];
+		b = &block[0];
 		memcpy(b, buf[0] + avail_size, size - avail_size);
 		b += size - avail_size;
 	} else {
@@ -1337,7 +1253,6 @@ row_merge_write_eof(
 	byte*			b,		/*!< in: pointer to end of block */
 	int			fd,		/*!< in: file descriptor */
 	ulint*			foffs,		/*!< in/out: file offset */
-	fil_space_crypt_t*	crypt_data,	/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, 	/*!< in: crypt buf or NULL */
 	ulint			space)	   	/*!< in: space id */
 {
@@ -1352,10 +1267,6 @@ row_merge_write_eof(
 	}
 #endif /* UNIV_DEBUG */
 
-	if (b == &block[0]) {
-		b+= ROW_MERGE_RESERVE_SIZE;
-	}
-
 	*b++ = 0;
 	UNIV_MEM_ASSERT_RW(&block[0], b - &block[0]);
 	UNIV_MEM_ASSERT_W(&block[0], srv_sort_buf_size);
@@ -1367,7 +1278,8 @@ row_merge_write_eof(
 #endif /* UNIV_DEBUG_VALGRIND */
 
 	if (!row_merge_write(fd, (*foffs)++, block,
-			     crypt_data, crypt_block, space)) {
+			     crypt_block,
+			     space)) {
 		return(NULL);
 	}
 
@@ -1445,10 +1357,9 @@ containing the index entries for the indexes to be built.
 @param[in,out]	block		file buffer
 @param[in,out]	tmpfd		temporary file handle
 @param[in]	pct_cost	percent of task weight out of total alter job
-@param[in]	crypt_data	crypt data or NULL
 @param[in,out]	crypt_block	crypted file buffer
-return	DB_SUCCESS or error */
-static MY_ATTRIBUTE((nonnull(1,2,3,4,6,9,10,16), warn_unused_result))
+@return	DB_SUCCESS or error */
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_merge_read_clustered_index(
 	trx_t*			trx,
@@ -1469,7 +1380,6 @@ row_merge_read_clustered_index(
 	row_merge_block_t*	block,
 	int*			tmpfd,
 	float 			pct_cost,
-	fil_space_crypt_t*	crypt_data,
 	row_merge_block_t*	crypt_block)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
@@ -2004,8 +1914,8 @@ write_buffers:
 				row_merge_buf_write(buf, file, block);
 
 				if (!row_merge_write(file->fd, file->offset++,
-					block, crypt_data, crypt_block,
-					new_table->space)) {
+						     block, crypt_block,
+						     new_table->space)) {
 					err = DB_TEMP_FILE_WRITE_FAILURE;
 					trx->error_key_num = i;
 					break;
@@ -2054,7 +1964,7 @@ write_buffers:
 		if(read_rows % 1000 == 0) {
 			/* Update progress for each 1000 rows */
 			curr_progress = (read_rows >= table_total_rows) ?
-					pct_cost : 
+					pct_cost :
 				((pct_cost * read_rows) / table_total_rows);
 			/* presenting 10.12% as 1012 integer */
 			onlineddl_pct_progress = curr_progress * 100;
@@ -2183,9 +2093,8 @@ wait_again:
 					 &buf[2], b2,			\
 					 of->fd, &of->offset,		\
 					 mrec##N, offsets##N,		\
-					 crypt_data,			\
 			crypt_block ? &crypt_block[2 * srv_sort_buf_size] : NULL , \
-					 space);			\
+					space);				\
 		if (UNIV_UNLIKELY(!b2 || ++of->n_rec > file->n_rec)) {	\
 			goto corrupt;					\
 		}							\
@@ -2193,7 +2102,6 @@ wait_again:
 					  &buf[N], b##N, INDEX,		\
 					  file->fd, foffs##N,		\
 					  &mrec##N, offsets##N,		\
-					  crypt_data,			\
 			crypt_block ? &crypt_block[N * srv_sort_buf_size] : NULL, \
 					  space);			\
 									\
@@ -2208,7 +2116,7 @@ wait_again:
 /*************************************************************//**
 Merge two blocks of records on disk and write a bigger block.
 @return	DB_SUCCESS or error code */
-static __attribute__((nonnull(1,2,3,4,5,6), warn_unused_result))
+static __attribute__((warn_unused_result))
 dberr_t
 row_merge_blocks(
 /*=============*/
@@ -2222,7 +2130,6 @@ row_merge_blocks(
 	ulint*			foffs1,	/*!< in/out: offset of second
 					source list in the file */
 	merge_file_t*		of,	/*!< in/out: output file */
-	fil_space_crypt_t*	crypt_data,/*!< in: crypt data or NULL */
 	row_merge_block_t*	crypt_block,/*!< in: in/out: crypted file
 					    buffer */
 	ulint			space)	/*!< in: space id */
@@ -2258,9 +2165,11 @@ row_merge_blocks(
 	file in two halves, which can be merged on the following pass. */
 
 	if (!row_merge_read(file->fd, *foffs0, &block[0],
-			crypt_data, crypt_block ? &crypt_block[0] : NULL, space)
-		|| !row_merge_read(file->fd, *foffs1, &block[srv_sort_buf_size],
-			crypt_data, crypt_block ? &crypt_block[srv_sort_buf_size] : NULL, space)) {
+			    crypt_block ? &crypt_block[0] : NULL,
+			    space) ||
+	    !row_merge_read(file->fd, *foffs1, &block[srv_sort_buf_size],
+			    crypt_block ? &crypt_block[srv_sort_buf_size] : NULL,
+			    space)) {
 corrupt:
 		mem_heap_free(heap);
 		return(DB_CORRUPTION);
@@ -2273,13 +2182,15 @@ corrupt:
 	b0 = row_merge_read_rec(
 		&block[0], &buf[0], b0, dup->index,
 		file->fd, foffs0, &mrec0, offsets0,
-		crypt_data, crypt_block ? &crypt_block[0] : NULL, space);
+		crypt_block ? &crypt_block[0] : NULL,
+		space);
 
 	b1 = row_merge_read_rec(
 		&block[srv_sort_buf_size],
 		&buf[srv_sort_buf_size], b1, dup->index,
 		file->fd, foffs1, &mrec1, offsets1,
-		crypt_data, crypt_block ? &crypt_block[srv_sort_buf_size] : NULL, space);
+		crypt_block ? &crypt_block[srv_sort_buf_size] : NULL,
+		space);
 
 	if (UNIV_UNLIKELY(!b0 && mrec0)
 	    || UNIV_UNLIKELY(!b1 && mrec1)) {
@@ -2325,7 +2236,8 @@ done1:
 
 	b2 = row_merge_write_eof(&block[2 * srv_sort_buf_size],
 		b2, of->fd, &of->offset,
-		crypt_data, crypt_block ? &crypt_block[2 * srv_sort_buf_size] : NULL, space);
+		crypt_block ? &crypt_block[2 * srv_sort_buf_size] : NULL,
+		space);
 
 	return(b2 ? DB_SUCCESS : DB_CORRUPTION);
 }
@@ -2333,8 +2245,8 @@ done1:
 /*************************************************************//**
 Copy a block of index entries.
 @return	TRUE on success, FALSE on failure */
-static __attribute__((nonnull(1,2,3,4,5), warn_unused_result))
-ibool
+static __attribute__((warn_unused_result))
+bool
 row_merge_blocks_copy(
 /*==================*/
 	const dict_index_t*	index,	/*!< in: index being created */
@@ -2342,9 +2254,8 @@ row_merge_blocks_copy(
 	row_merge_block_t*	block,	/*!< in/out: 3 buffers */
 	ulint*			foffs0,	/*!< in/out: input file offset */
 	merge_file_t*		of,	/*!< in/out: output file */
-	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
-	ulint			space)	   /*!< in: space id */
+	ulint			space)	/*!< in: space id */
 {
 	mem_heap_t*	heap;	/*!< memory heap for offsets0, offsets1 */
 
@@ -2372,7 +2283,8 @@ row_merge_blocks_copy(
 	file in two halves, which can be merged on the following pass. */
 
 	if (!row_merge_read(file->fd, *foffs0, &block[0],
-			    crypt_data, crypt_block ? &crypt_block[0] : NULL, space)) {
+			crypt_block ? &crypt_block[0] : NULL,
+			space)) {
 corrupt:
 		mem_heap_free(heap);
 		return(FALSE);
@@ -2384,7 +2296,8 @@ corrupt:
 
 	b0 = row_merge_read_rec(&block[0], &buf[0], b0, index,
 				file->fd, foffs0, &mrec0, offsets0,
-				crypt_data, crypt_block ? &crypt_block[0] : NULL, space);
+				crypt_block ? &crypt_block[0] : NULL,
+				space);
 
 	if (UNIV_UNLIKELY(!b0 && mrec0)) {
 
@@ -2407,15 +2320,15 @@ done0:
 
 	return(row_merge_write_eof(&block[2 * srv_sort_buf_size],
 				   b2, of->fd, &of->offset,
-				   crypt_data,
-				   crypt_block ? &crypt_block[2 * srv_sort_buf_size] : NULL, space)
+				   crypt_block ? &crypt_block[2 * srv_sort_buf_size] : NULL,
+				   space)
 	       != NULL);
 }
 
 /*************************************************************//**
 Merge disk files.
 @return	DB_SUCCESS or error code */
-static __attribute__((nonnull(1,2,3,4,5,6,7)))
+static
 dberr_t
 row_merge(
 /*======*/
@@ -2431,9 +2344,8 @@ row_merge(
 	ulint*			run_offset, /*!< in/out: Array contains the
 					first offset number for each merge
 					run */
-	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
-	ulint			space)	   /*!< in: space id */
+	ulint			space)	/*!< in: space id */
 {
 	ulint		foffs0;	/*!< first input offset */
 	ulint		foffs1;	/*!< second input offset */
@@ -2481,7 +2393,8 @@ row_merge(
 
 		error = row_merge_blocks(dup, file, block,
 					 &foffs0, &foffs1, &of,
-					 crypt_data, crypt_block, space);
+					 crypt_block,
+					 space);
 
 		if (error != DB_SUCCESS) {
 			return(error);
@@ -2502,7 +2415,8 @@ row_merge(
 
 		if (!row_merge_blocks_copy(dup->index, file, block,
 					   &foffs0, &of,
-					   crypt_data, crypt_block, space)) {
+					   crypt_block,
+					   space)) {
 			return(DB_CORRUPTION);
 		}
 	}
@@ -2520,7 +2434,8 @@ row_merge(
 
 		if (!row_merge_blocks_copy(dup->index, file, block,
 					   &foffs1, &of,
-					   crypt_data, crypt_block, space)) {
+					   crypt_block,
+					   space)) {
 			return(DB_CORRUPTION);
 		}
 	}
@@ -2576,9 +2491,8 @@ row_merge_sort(
 					/*!< in: total progress percent
 					until now */
 	const float		pct_cost, /*!< in: current progress percent */
-	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
-	ulint			space)	   /*!< in: space id */
+	ulint			space)	/*!< in: space id */
 {
 	const ulint	half	= file->offset / 2;
 	ulint		num_runs;
@@ -2646,7 +2560,8 @@ row_merge_sort(
 
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset,
-				  crypt_data, crypt_block, space);
+				  crypt_block,
+				  space);
 
 		if(update_progress) {
 			merge_count++;
@@ -2723,7 +2638,7 @@ row_merge_copy_blobs(
 Read sorted file containing index data tuples and insert these data
 tuples to the index
 @return	DB_SUCCESS or error number */
-static __attribute__((nonnull(2,3,5), warn_unused_result))
+static __attribute__((warn_unused_result))
 dberr_t
 row_merge_insert_index_tuples(
 /*==========================*/
@@ -2736,9 +2651,8 @@ row_merge_insert_index_tuples(
 	const float		pct_progress,	/*!< in: total progress percent until now */
 	const float		pct_cost, /*!< in: current progress percent
 					  */
-	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
-	ulint			space)	   /*!< in: space id */
+	ulint			space)	  /*!< in: space id */
 {
 	const byte*		b;
 	mem_heap_t*		heap;
@@ -2772,7 +2686,8 @@ row_merge_insert_index_tuples(
 	b = &block[0];
 
 	if (!row_merge_read(fd, foffs, block,
-			    crypt_data, crypt_block, space)) {
+			    crypt_block,
+			    space)) {
 		error = DB_CORRUPTION;
 	} else {
 		buf = static_cast<mrec_buf_t*>(
@@ -2789,7 +2704,9 @@ row_merge_insert_index_tuples(
 
 			b = row_merge_read_rec(block, buf, b, index,
 					       fd, &foffs, &mrec, offsets,
-					       crypt_data, crypt_block, space);
+					       crypt_block,
+					       space);
+
 			if (UNIV_UNLIKELY(!b)) {
 				/* End of list, or I/O error */
 				if (mrec) {
@@ -3974,7 +3891,6 @@ row_merge_build_indexes(
 	fts_psort_t*		merge_info = NULL;
 	ib_int64_t		sig_count = 0;
 	bool			fts_psort_initiated = false;
-	fil_space_crypt_t *	crypt_data = NULL;
 
 	float total_static_cost = 0;
 	float total_dynamic_cost = 0;
@@ -4003,25 +3919,20 @@ row_merge_build_indexes(
 	from concurrent DDL (e.g. drop table) by MDL-locks. */
 	fil_space_t* space = fil_space_acquire(new_table->space);
 
-	if (space) {
-		crypt_data = space->crypt_data;
-	} else {
+	if (!space) {
 		DBUG_RETURN(DB_TABLESPACE_NOT_FOUND);
 	}
 
 	/* If tablespace is encrypted, allocate additional buffer for
 	encryption/decryption. */
-	if (crypt_data && crypt_data->should_encrypt()) {
+	if (log_tmp_is_encrypted()) {
 		crypt_block = static_cast<row_merge_block_t*>(
-			os_mem_alloc_large(&block_size));
+				os_mem_alloc_large(&block_size));
 
 		if (crypt_block == NULL) {
 			fil_space_release(space);
 			DBUG_RETURN(DB_OUT_OF_MEMORY);
 		}
-	} else {
-		/* Not needed */
-		crypt_data = NULL;
 	}
 
 	trx_start_if_not_started_xa(trx);
@@ -4103,7 +4014,7 @@ row_merge_build_indexes(
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, add_cols, col_map,
 		add_autoinc, sequence, block, &tmpfd,
-		pct_cost, crypt_data, crypt_block);
+		pct_cost, crypt_block);
 
 	pct_progress += pct_cost;
 
@@ -4240,7 +4151,8 @@ wait_again:
 					trx, &dup, &merge_files[i],
 					block, &tmpfd, true,
 					pct_progress, pct_cost,
-					crypt_data, crypt_block, new_table->space);
+					crypt_block,
+					new_table->space);
 
 			pct_progress += pct_cost;
 
@@ -4278,7 +4190,8 @@ wait_again:
 					trx->id, sort_idx, old_table,
 					merge_files[i].fd, block,
 					merge_files[i].n_rec, pct_progress, pct_cost,
-					crypt_data, crypt_block, new_table->space);
+					crypt_block, new_table->space);
+
 				pct_progress += pct_cost;
 
 				if (global_system_variables.log_warnings > 2) {

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -72,7 +72,6 @@ struct fts_psort_common_t {
 						store Doc ID during sort, if
 						Doc ID will not be big enough
 						to use 8 bytes value */
-	fil_space_crypt_t*	crypt_data;	/*!< crypt data or NULL */
 };
 
 struct fts_psort_t {

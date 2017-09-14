@@ -182,6 +182,7 @@ struct row_log_t {
 	dict_table_t*	table;	/*!< table that is being rebuilt,
 				or NULL when this is a secondary
 				index that is being created online */
+	dict_index_t*	index;	/*!< index to be build */
 	bool		same_pk;/*!< whether the definition of the PRIMARY KEY
 				has remained the same */
 	const dtuple_t*	add_cols;
@@ -197,8 +198,14 @@ struct row_log_t {
 	row_log_buf_t	tail;	/*!< writer context;
 				protected by mutex and index->lock S-latch,
 				or by index->lock X-latch only */
+	byte*		crypt_tail; /*!< writer context;
+				temporary buffer used in encryption,
+				decryption or NULL*/
 	row_log_buf_t	head;	/*!< reader context; protected by MDL only;
 				modifiable by row_log_apply_ops() */
+	byte*		crypt_head; /*!< reader context;
+				temporary buffer used in encryption,
+				decryption or NULL */
 	const char*	path;	/*!< where to create temporary file during
 				log operation */
 };
@@ -349,6 +356,7 @@ row_log_online_op(
 			= (os_offset_t) log->tail.blocks
 			* srv_sort_buf_size;
 		ibool			ret;
+		byte * buf = log->tail.block;
 
 		if (byte_offset + srv_sort_buf_size >= srv_online_max_size) {
 			goto write_failed;
@@ -368,11 +376,29 @@ row_log_online_op(
 			goto err_exit;
 		}
 
+		/* If encryption is enabled encrypt buffer before writing it
+		to file system. */
+		if (log_tmp_is_encrypted()) {
+			if (!log_tmp_block_encrypt(log->tail.block,
+						   srv_sort_buf_size,
+						   log->crypt_tail,
+						   byte_offset,
+						   index->table->space)) {
+				log->error = DB_DECRYPTION_FAILED;
+				goto err_exit;
+			}
+
+			srv_stats.n_rowlog_blocks_encrypted.inc();
+			buf = log->crypt_tail;
+		}
+
 		ret = os_file_write_int_fd(
 			"(modification log)",
 			log->fd,
-			log->tail.block, byte_offset, srv_sort_buf_size);
+			buf, byte_offset, srv_sort_buf_size);
+
 		log->tail.blocks++;
+
 		if (!ret) {
 write_failed:
 			/* We set the flag directly instead of invoking
@@ -380,7 +406,9 @@ write_failed:
 			because the index is not "public" yet. */
 			index->type |= DICT_CORRUPT;
 		}
+
 		UNIV_MEM_INVALID(log->tail.block, srv_sort_buf_size);
+
 		memcpy(log->tail.block, log->tail.buf + avail_size,
 		       mrec_size - avail_size);
 		log->tail.bytes = mrec_size - avail_size;
@@ -465,6 +493,7 @@ row_log_table_close_func(
 			= (os_offset_t) log->tail.blocks
 			* srv_sort_buf_size;
 		ibool			ret;
+		byte * buf = log->tail.block;
 
 		if (byte_offset + srv_sort_buf_size >= srv_online_max_size) {
 			goto write_failed;
@@ -484,11 +513,29 @@ row_log_table_close_func(
 			goto err_exit;
 		}
 
+		/* If encryption is enabled encrypt buffer before writing it
+		to file system. */
+		if (log_tmp_is_encrypted()) {
+			if (!log_tmp_block_encrypt(log->tail.block,
+						   srv_sort_buf_size,
+						   log->crypt_tail,
+						   byte_offset,
+						   log->index->table->space)) {
+				log->error = DB_DECRYPTION_FAILED;
+				goto err_exit;
+			}
+
+			srv_stats.n_rowlog_blocks_encrypted.inc();
+			buf = log->crypt_tail;
+		}
+
 		ret = os_file_write_int_fd(
 			"(modification log)",
 			log->fd,
-			log->tail.block, byte_offset, srv_sort_buf_size);
+			buf, byte_offset, srv_sort_buf_size);
+
 		log->tail.blocks++;
+
 		if (!ret) {
 write_failed:
 			log->error = DB_ONLINE_LOG_TOO_BIG;
@@ -2622,10 +2669,29 @@ all_done:
 			goto func_exit;
 		}
 
+		byte * buf = index->online_log->head.block;
+
 		success = os_file_read_no_error_handling_int_fd(
 			index->online_log->fd,
-			index->online_log->head.block, ofs,
+			buf, ofs,
 			srv_sort_buf_size);
+
+		/* If encryption is enabled decrypt buffer after reading it
+		from file system. */
+		if (log_tmp_is_encrypted()) {
+			if (!log_tmp_block_decrypt(buf,
+						   srv_sort_buf_size,
+						   index->online_log->crypt_head,
+						   ofs,
+						   index->table->space)) {
+				error = DB_DECRYPTION_FAILED;
+				goto func_exit;
+			}
+
+			srv_stats.n_rowlog_blocks_decrypted.inc();
+			memcpy(buf, index->online_log->crypt_head, srv_sort_buf_size);
+		}
+
 		if (!success) {
 			fprintf(stderr, "InnoDB: unable to read temporary file"
 				" for table %s\n", index->table_name);
@@ -2932,8 +2998,21 @@ row_log_allocate(
 	log->head.blocks = log->head.bytes = 0;
 	log->head.total = 0;
 	log->path = path;
+	log->crypt_tail = log->crypt_head = NULL;
+	log->index = index;
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
 	index->online_log = log;
+
+	if (log_tmp_is_encrypted()) {
+		ulint size = srv_sort_buf_size;
+		log->crypt_head = static_cast<byte *>(os_mem_alloc_large(&size));
+		log->crypt_tail = static_cast<byte *>(os_mem_alloc_large(&size));
+
+		if (!log->crypt_head || !log->crypt_tail) {
+			row_log_free(log);
+			DBUG_RETURN(false);
+		}
+	}
 
 	/* While we might be holding an exclusive data dictionary lock
 	here, in row_log_abort_sec() we will not always be holding it. Use
@@ -2957,6 +3036,15 @@ row_log_free(
 	row_log_block_free(log->tail);
 	row_log_block_free(log->head);
 	row_merge_file_destroy_low(log->fd);
+
+	if (log->crypt_head) {
+		os_mem_free_large(log->crypt_head, srv_sort_buf_size);
+	}
+
+	if (log->crypt_tail) {
+		os_mem_free_large(log->crypt_tail, srv_sort_buf_size);
+	}
+
 	mutex_free(&log->mutex);
 	ut_free(log);
 	log = 0;
@@ -3451,10 +3539,28 @@ all_done:
 			goto func_exit;
 		}
 
+		byte* buf = index->online_log->head.block;
+
 		success = os_file_read_no_error_handling_int_fd(
 			index->online_log->fd,
-			index->online_log->head.block, ofs,
+			buf, ofs,
 			srv_sort_buf_size);
+
+		/* If encryption is enabled decrypt buffer after reading it
+		from file system. */
+		if (log_tmp_is_encrypted()) {
+			if (!log_tmp_block_decrypt(buf,
+						   srv_sort_buf_size,
+						   index->online_log->crypt_head,
+						   ofs,
+						   index->table->space)) {
+				error = DB_DECRYPTION_FAILED;
+				goto func_exit;
+			}
+
+			srv_stats.n_rowlog_blocks_decrypted.inc();
+			memcpy(buf, index->online_log->crypt_head, srv_sort_buf_size);
+		}
 
 		if (!success) {
 			fprintf(stderr, "InnoDB: unable to read temporary file"
