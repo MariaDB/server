@@ -1447,7 +1447,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
           /* Path already failed. */
           continue;
         if (state->paths[p_c].steps[state->cur_depth].type &
-            (je->state == JST_OBJ_START) ? JSON_PATH_KEY : JSON_PATH_ARRAY)
+            ((je->state == JST_OBJ_START) ? JSON_PATH_KEY : JSON_PATH_ARRAY))
           state->path_depths[p_c]++;
       }
       state->cur_depth++;
