@@ -403,6 +403,11 @@ static
 dberr_t
 btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 {
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
+	ut_ad(index->table->supports_instant());
+	ut_ad(index->table->is_readable());
+
 	if (page_t* root = btr_root_get(index, mtr)) {
 		btr_cur_instant_root_init(index, root);
 		ut_ad(index->n_core_null_bytes
@@ -445,15 +450,9 @@ when loading a table definition.
 dberr_t
 btr_cur_instant_init(dict_table_t* table)
 {
-	ut_ad(table->supports_instant());
-	ut_ad(table->is_readable());
-	dict_index_t*	index = dict_table_get_first_index(table);
 	mtr_t		mtr;
-
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
 	mtr.start();
-	dberr_t	err = btr_cur_instant_init_low(index, &mtr);
+	dberr_t	err = btr_cur_instant_init_low(table->indexes.start, &mtr);
 	mtr.commit();
 	return(err);
 }
@@ -468,9 +467,7 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 	ut_ad(page_is_root(page));
 	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
 	ut_ad(dict_index_is_clust(index));
-	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
-	/* ROW_FORMAT=COMPRESSED does not support instant ADD COLUMN. */
-	ut_ad(!(index->table->flags & DICT_TF_MASK_ZIP_SSIZE));
+	ut_ad(index->table->supports_instant());
 	/* This is normally executed as part of btr_cur_instant_init()
 	when dict_load_table_one() is loading a table definition.
 	Other threads should not access or modify the n_core_null_bytes,
@@ -502,7 +499,6 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 	index->n_core_fields = n;
 	uint16_t n_null_bytes = UT_BITS_IN_BYTES(
 		dict_index_get_first_n_field_n_nullable(index, n));
-	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
 	index->n_core_null_bytes = n_null_bytes;
 }
 
