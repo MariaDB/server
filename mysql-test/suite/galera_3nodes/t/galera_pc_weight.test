@@ -9,16 +9,12 @@
 
 --connection node_1
 SET GLOBAL wsrep_provider_options = 'pc.weight=3';
-
---source include/wait_until_connected_again.inc
 --source include/galera_suspend.inc
 --sleep 10
 
 --connection node_2
 # Do not wait for causality as we are no longer in the primary component
 SET SESSION wsrep_sync_wait=0;
---source include/wait_until_connected_again.inc
-
 SET SESSION wsrep_on=OFF;
 --let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
 --source include/wait_condition.inc
@@ -39,7 +35,6 @@ SHOW STATUS LIKE 'wsrep_local_state_comment';
 --source include/galera_connect.inc
 --connection node_3
 SET SESSION wsrep_sync_wait=0;
---source include/wait_until_connected_again.inc
 
 SHOW STATUS LIKE 'wsrep_cluster_size';
 SHOW STATUS LIKE 'wsrep_cluster_status';
