@@ -319,7 +319,7 @@ page_header_set_field(
 Returns the offset stored in the given header field.
 @return offset from the start of the page, or 0 */
 UNIV_INLINE
-ulint
+uint16_t
 page_header_get_offs(
 /*=================*/
 	const page_t*	page,	/*!< in: page */
@@ -429,7 +429,7 @@ Gets the number of user records on page (the infimum and supremum records
 are not user records).
 @return number of user records */
 UNIV_INLINE
-ulint
+uint16_t
 page_get_n_recs(
 /*============*/
 	const page_t*	page);	/*!< in: index page */
@@ -447,7 +447,7 @@ page_rec_get_n_recs_before(
 Gets the number of records in the heap.
 @return number of user records */
 UNIV_INLINE
-ulint
+uint16_t
 page_dir_get_n_heap(
 /*================*/
 	const page_t*	page);	/*!< in: index page */
@@ -468,7 +468,7 @@ page_dir_set_n_heap(
 Gets the number of dir slots in directory.
 @return number of slots */
 UNIV_INLINE
-ulint
+uint16_t
 page_dir_get_n_slots(
 /*=================*/
 	const page_t*	page);	/*!< in: index page */
@@ -842,7 +842,7 @@ Returns the sum of the sizes of the records in the record list
 excluding the infimum and supremum records.
 @return data in bytes */
 UNIV_INLINE
-ulint
+uint16_t
 page_get_data_size(
 /*===============*/
 	const page_t*	page);	/*!< in: index page */
@@ -888,6 +888,30 @@ page_mem_free(
 	const dict_index_t*	index,	/*!< in: index of rec */
 	const ulint*		offsets);/*!< in: array returned by
 					 rec_get_offsets() */
+
+/** Read the PAGE_DIRECTION field from a byte.
+@param[in]	ptr	pointer to PAGE_DIRECTION_B
+@return	the value of the PAGE_DIRECTION field */
+inline
+byte
+page_ptr_get_direction(const byte* ptr);
+
+/** Set the PAGE_DIRECTION field.
+@param[in]	ptr	pointer to PAGE_DIRECTION_B
+@param[in]	dir	the value of the PAGE_DIRECTION field */
+inline
+void
+page_ptr_set_direction(byte* ptr, byte dir);
+
+/** Read the PAGE_DIRECTION field.
+@param[in]	page	index page
+@return	the value of the PAGE_DIRECTION field */
+inline
+byte
+page_get_direction(const page_t* page)
+{
+	return page_ptr_get_direction(PAGE_HEADER + PAGE_DIRECTION_B + page);
+}
 
 /** Read the PAGE_INSTANT field.
 @param[in]	page	index page

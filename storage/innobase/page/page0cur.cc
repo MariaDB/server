@@ -358,7 +358,7 @@ page_cur_search_with_match(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (page_is_leaf(page)
-	    && page[PAGE_HEADER + PAGE_DIRECTION_B] == PAGE_RIGHT
+	    && page_get_direction(page) == PAGE_RIGHT
 	    && page_header_get_offs(page, PAGE_LAST_INSERT)
 	    && mode == PAGE_CUR_LE
 	    && !dict_index_is_spatial(index)
@@ -615,7 +615,7 @@ page_cur_search_with_match_bytes(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (page_is_leaf(page)
-	    && page[PAGE_HEADER + PAGE_DIRECTION_B] == PAGE_RIGHT
+	    && page_get_direction(page) == PAGE_RIGHT
 	    && page_header_get_offs(page, PAGE_LAST_INSERT)
 	    && mode == PAGE_CUR_LE
 	    && page_header_get_field(page, PAGE_N_DIRECTION) > 3
@@ -1376,19 +1376,20 @@ use_heap:
 		byte* ptr = PAGE_HEADER + PAGE_DIRECTION_B + page;
 		if (UNIV_UNLIKELY(last_insert == NULL)) {
 no_direction:
-			*ptr = PAGE_NO_DIRECTION;
+			page_ptr_set_direction(ptr, PAGE_NO_DIRECTION);
 			*reinterpret_cast<uint16_t*>(
 				PAGE_HEADER + PAGE_N_DIRECTION + page) = 0;
-		} else if (last_insert == current_rec && *ptr != PAGE_LEFT) {
-			*ptr = PAGE_RIGHT;
+		} else if (last_insert == current_rec
+			   && page_ptr_get_direction(ptr) != PAGE_LEFT) {
+			page_ptr_set_direction(ptr, PAGE_RIGHT);
 			page_header_set_field(page, NULL, PAGE_N_DIRECTION,
 					      page_header_get_field(
 						page, PAGE_N_DIRECTION) + 1);
 
-		} else if (*ptr != PAGE_RIGHT
+		} else if (page_ptr_get_direction(ptr) != PAGE_RIGHT
 			   && page_rec_get_next(insert_rec) == last_insert) {
 
-			*ptr = PAGE_LEFT;
+			page_ptr_set_direction(ptr, PAGE_LEFT);
 			page_header_set_field(page, NULL, PAGE_N_DIRECTION,
 					      page_header_get_field(
 						page, PAGE_N_DIRECTION) + 1);
@@ -1840,21 +1841,22 @@ use_heap:
 		byte* ptr = PAGE_HEADER + PAGE_DIRECTION_B + page;
 		if (UNIV_UNLIKELY(last_insert == NULL)) {
 no_direction:
-			*ptr = PAGE_NO_DIRECTION;
+			page_ptr_set_direction(ptr, PAGE_NO_DIRECTION);
 			page_zip_write_header(page_zip, ptr, 1, NULL);
 			ptr = PAGE_HEADER + PAGE_N_DIRECTION + page;
 			*reinterpret_cast<uint16_t*>(ptr) = 0;
 			page_zip_write_header(page_zip, ptr, 2, NULL);
-		} else if (last_insert == cursor->rec && *ptr != PAGE_LEFT) {
-			*ptr = PAGE_RIGHT;
+		} else if (last_insert == cursor->rec
+			   && page_ptr_get_direction(ptr) != PAGE_LEFT) {
+			page_ptr_set_direction(ptr, PAGE_RIGHT);
 			page_zip_write_header(page_zip, ptr, 1, NULL);
 			page_header_set_field(page, page_zip, PAGE_N_DIRECTION,
 					      page_header_get_field(
 						page, PAGE_N_DIRECTION) + 1);
 
-		} else if (*ptr != PAGE_RIGHT
+		} else if (page_ptr_get_direction(ptr) != PAGE_RIGHT
 			   && page_rec_get_next(insert_rec) == last_insert) {
-			*ptr = PAGE_LEFT;
+			page_ptr_set_direction(ptr, PAGE_LEFT);
 			page_zip_write_header(page_zip, ptr, 1, NULL);
 			page_header_set_field(page, page_zip, PAGE_N_DIRECTION,
 					      page_header_get_field(
@@ -1979,7 +1981,7 @@ page_parse_copy_rec_list_to_created_page(
 
 	if (!dict_index_is_spatial(index)) {
 		byte* dir = PAGE_HEADER + PAGE_DIRECTION_B + page;
-		*dir = PAGE_NO_DIRECTION;
+		page_ptr_set_direction(dir, PAGE_NO_DIRECTION);
 		byte* n_dir = PAGE_HEADER + PAGE_N_DIRECTION + page;
 		*reinterpret_cast<uint16_t*>(n_dir) = 0;
 

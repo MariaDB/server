@@ -1868,20 +1868,20 @@ page_header_print(
 	fprintf(stderr,
 		"--------------------------------\n"
 		"PAGE HEADER INFO\n"
-		"Page address %p, n records %lu (%s)\n"
-		"n dir slots %lu, heap top %lu\n"
-		"Page n heap %lu, free %lu, garbage %lu\n"
-		"Page last insert %lu, direction %lu, n direction %lu\n",
-		page, (ulong) page_header_get_field(page, PAGE_N_RECS),
+		"Page address %p, n records %u (%s)\n"
+		"n dir slots %u, heap top %u\n"
+		"Page n heap %u, free %u, garbage %u\n"
+		"Page last insert %u, direction %u, n direction %u\n",
+		page, page_header_get_field(page, PAGE_N_RECS),
 		page_is_comp(page) ? "compact format" : "original format",
-		(ulong) page_header_get_field(page, PAGE_N_DIR_SLOTS),
-		(ulong) page_header_get_field(page, PAGE_HEAP_TOP),
-		(ulong) page_dir_get_n_heap(page),
-		(ulong) page_header_get_field(page, PAGE_FREE),
-		(ulong) page_header_get_field(page, PAGE_GARBAGE),
-		(ulong) page_header_get_field(page, PAGE_LAST_INSERT),
-		(ulong) page[PAGE_HEADER + PAGE_DIRECTION_B],
-		(ulong) page_header_get_field(page, PAGE_N_DIRECTION));
+		page_header_get_field(page, PAGE_N_DIR_SLOTS),
+		page_header_get_field(page, PAGE_HEAP_TOP),
+		page_dir_get_n_heap(page),
+		page_header_get_field(page, PAGE_FREE),
+		page_header_get_field(page, PAGE_GARBAGE),
+		page_header_get_field(page, PAGE_LAST_INSERT),
+		page_get_direction(page),
+		page_header_get_field(page, PAGE_N_DIRECTION));
 }
 
 /***************************************************************//**
