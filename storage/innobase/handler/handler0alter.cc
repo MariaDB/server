@@ -43,6 +43,7 @@ Smart ALTER TABLE
 #include "rem0types.h"
 #include "row0log.h"
 #include "row0merge.h"
+#include "row0ins.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "handler0alter.h"
@@ -4275,7 +4276,32 @@ next_col:
 		"UPDATE SYS_TABLES SET N_COLS = :n_cols WHERE ID = :id;\n"
 		"END;\n", FALSE, trx);
 	if (err == DB_SUCCESS) {
-		// FIXME: insert/update a MIN_REC with the default values */
+		mtr_t mtr;
+		dict_index_t* index = dict_table_get_first_index(user_table);
+		dtuple_t defaults = {
+			REC_INFO_MIN_REC_FLAG, 0, 0, NULL, 0, NULL,
+			UT_LIST_NODE_T(dtuple_t)()
+#ifdef UNIV_DEBUG
+			, DATA_TUPLE_MAGIC_N
+#endif
+		};
+		mtr.start();
+		mtr.set_named_space(index->space);
+
+		if (user_table->is_instant()) {
+			btr_pcur_t pcur;
+			btr_pcur_open(index, &defaults, PAGE_CUR_LE,
+				      BTR_MODIFY_TREE, &pcur, &mtr);
+			// FIXME: extend the MIN_REC with the added columns
+		} else {
+			/* FIXME: construct a MIN_REC entry with the
+			added columns */
+			err = row_ins_clust_index_entry_low(
+				BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
+				index->n_uniq, &defaults, 0, ctx->thr, false);
+		}
+
+		mtr.commit();
 	}
 
 	return(err != DB_SUCCESS);
