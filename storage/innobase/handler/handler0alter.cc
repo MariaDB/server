@@ -4215,9 +4215,11 @@ innobase_add_instant_try(
 		ha_alter_info->handler_ctx);
 
 	ut_ad(altered_table->s->fields > table->s->fields);
+	ut_ad(!ctx->need_rebuild());
 
+	const dict_table_t* user_table = ctx->old_table;
 	uint i = 0;
-	ulint added_column = 0;
+	ut_d(uint added_col = 0);
 
 	List_iterator_fast<Create_field> cf_it(
 		ha_alter_info->alter_info->create_list);
@@ -4239,9 +4241,9 @@ innobase_add_instant_try(
 		}
 
 		ut_ad(!is_v);
-		added_column++;
+		ut_d(added_col++);
 
-		err = innobase_add_one_instant(ctx->new_table, *af, i, trx);
+		err = innobase_add_one_instant(user_table, *af, i, trx);
 		if (err != DB_SUCCESS) {
 			my_error(ER_INTERNAL_ERROR, MYF(0),
 				"InnoDB: ADD COLUMN...INSTANT");
@@ -4254,20 +4256,29 @@ next_col:
 	}
 
 	ut_ad(af == &altered_table->field[altered_table->s->fields]);
+	ut_ad(added_col > 0);
+	ut_ad(added_col + table->s->fields == altered_table->s->fields);
+	ut_ad(added_col + user_table->n_cols
+	      - dict_table_get_n_sys_cols(user_table) == i);
 
-	const dict_table_t* user_table = ctx->old_table;
-	ulint	n_col = user_table->n_cols;
-	ulint	n_v_col = user_table->n_v_cols;
+	const ulint	n_cols = dict_table_encode_n_col(
+		i, user_table->n_v_cols)
+		+ ((user_table->flags & DICT_TF_COMPACT) << 31);
+	pars_info_t*	info = pars_info_create();
+	pars_info_add_int4_literal(info, "n_cols", n_cols);
+	pars_info_add_int4_literal(info, "id", user_table->id);
 
-	n_col -= dict_table_get_n_sys_cols(user_table);
+	err = que_eval_sql(
+		info,
+		"PROCEDURE ADD_COLS () IS\n"
+		"BEGIN\n"
+		"UPDATE SYS_TABLES SET N_COLS = :n_cols WHERE ID = :id;\n"
+		"END;\n", FALSE, trx);
+	if (err == DB_SUCCESS) {
+		// FIXME: insert/update a MIN_REC with the default values */
+	}
 
-	n_col += added_column;
-
-	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
-			+ ((user_table->flags & DICT_TF_COMPACT) << 31);
-
-	// FIXME: insert/update a MIN_REC with the default values */
-	return(false);
+	return(err != DB_SUCCESS);
 }
 
 /** Update INNODB SYS_COLUMNS on new virtual column's position
