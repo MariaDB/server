@@ -5090,7 +5090,8 @@ int TABLE::verify_constraints(bool ignore_failure)
   {
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
     {
-      if ((*chk)->expr->val_int() == 0)
+      /* yes! NULL is ok, see 4.23.3.4 Table check constraints, part 2, SQL:2016 */
+      if ((*chk)->expr->val_int() == 0 && !(*chk)->expr->null_value)
       {
         my_error(ER_CONSTRAINT_FAILED,
                  MYF(ignore_failure ? ME_JUST_WARNING : 0), (*chk)->name.str,

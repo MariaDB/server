@@ -92,3 +92,14 @@ create or replace table t1( c1 int auto_increment primary key, check( c1 > 0 or 
 create table t1 (a int check (@b in (select user from mysql.user)));
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a int check (a > @b));
+
+#
+# MDEV-13596 CHECK constraints disallow NULL to pass through, violating SQL
+#
+create table t1 (a int check (a = 1));
+insert t1 values (1);
+--error ER_CONSTRAINT_FAILED
+insert t1 values (2);
+insert t1 values (NULL);
+select * from t1;
+drop table t1;
