@@ -2093,4 +2093,14 @@ create table t1 (col1 int default(-(default(col1))));
 --error ER_DATA_OUT_OF_RANGE
 create table t1 (col int default (yearweek((exp(710)))));
 
+--echo #
+--echo # MDEV-13707 Server in ORACLE mode crashes on ALTER with wrong DEFAULT clause
+--echo #
+
+CREATE OR REPLACE TABLE t1(i int);
+--error ER_BAD_FIELD_ERROR
+ALTER TABLE t1 ADD b CHAR(255) DEFAULT `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`;
+DROP TABLE t1;
+
+
 --echo # end of 10.2 test

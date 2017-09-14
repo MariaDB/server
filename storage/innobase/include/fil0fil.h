@@ -1321,9 +1321,8 @@ fil_page_reset_type(
 @param[in]	page	file page
 @return page type */
 inline
-ulint
-fil_page_get_type(
-	const byte*	page)
+uint16_t
+fil_page_get_type(const byte*	page)
 {
 	return(mach_read_from_2(page + FIL_PAGE_TYPE));
 }

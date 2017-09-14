@@ -354,6 +354,12 @@ select @str, @path, JSON_EXTRACT(@str, @path);
 #
 select json_array(5,json_query('[1,2]','$'));
 
+#
+# MDEV-13633 JSON_ARRAY() - bad output with some UTF8 characters.
+#
+
+SELECT JSON_ARRAY('1. ě 2. š 3. č 4. ř 5. ž 6. ý 7. á 8. í 9. é 10. ů 11. ú') AS json_data;
+SELECT JSON_OBJECT("user","Jožko Mrkvičká") as json_data;
 
 --echo #
 --echo # Start of 10.3 tests

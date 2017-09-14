@@ -699,6 +699,12 @@ select @str, @path, JSON_EXTRACT(@str, @path);
 select json_array(5,json_query('[1,2]','$'));
 json_array(5,json_query('[1,2]','$'))
 [5, [1,2]]
+SELECT JSON_ARRAY('1. ě 2. š 3. č 4. ř 5. ž 6. ý 7. á 8. í 9. é 10. ů 11. ú') AS json_data;
+json_data
+["1. ě 2. š 3. č 4. ř 5. ž 6. ý 7. á 8. í 9. é 10. ů 11. ú"]
+SELECT JSON_OBJECT("user","Jožko Mrkvičká") as json_data;
+json_data
+{"user": "Jožko Mrkvičká"}
 #
 # Start of 10.3 tests
 #

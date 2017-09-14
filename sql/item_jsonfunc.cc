@@ -1474,6 +1474,7 @@ String *Item_func_json_array::val_str(String *str)
   uint n_arg;
 
   str->length(0);
+  str->set_charset(collation.collation);
 
   if (str->append("[", 1) ||
       ((arg_count > 0) && append_json_value(str, args[0], &tmp_val)))
@@ -1798,6 +1799,7 @@ String *Item_func_json_object::val_str(String *str)
   uint n_arg;
 
   str->length(0);
+  str->set_charset(collation.collation);
 
   if (str->append("{", 1) ||
       (arg_count > 0 &&

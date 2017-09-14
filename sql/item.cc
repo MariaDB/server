@@ -1490,9 +1490,9 @@ static inline
 void mark_unsupported_func(const char *where, const char *processor_name)
 {
   char buff[64];
-  sprintf(buff, "%s::%s", where ? where: "", processor_name);
+  my_snprintf(buff, sizeof(buff), "%s::%s", where ? where: "", processor_name);
   DBUG_ENTER(buff);
-  sprintf(buff, "%s returns TRUE: unsupported function", processor_name);
+  my_snprintf(buff, sizeof(buff), "%s returns TRUE: unsupported function", processor_name);
   DBUG_PRINT("info", ("%s", buff));
   DBUG_VOID_RETURN;
 }
