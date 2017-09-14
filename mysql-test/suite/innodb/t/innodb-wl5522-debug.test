@@ -1055,7 +1055,9 @@ CREATE TABLE test_wl5522.t1 (
 	INDEX idx3(c4(512))) Engine=InnoDB;
 
 # Stop purge so that it doesn't remove the delete marked entries.
-SET GLOBAL INNODB_PURGE_STOP_NOW=ON;
+connect (purge_control,localhost,root);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
 
 # Disable change buffer merge from the master thread, additionally
 # enable aggressive flushing so that more changes are buffered.
@@ -1125,7 +1127,10 @@ SELECT name
 SET GLOBAL innodb_disable_background_merge=OFF;
 
 # Enable normal operation
-SET GLOBAL INNODB_PURGE_RUN_NOW=ON;
+connection purge_control;
+COMMIT;
+disconnect purge_control;
+connection default;
 
 DROP TABLE test_wl5522.t1;
 

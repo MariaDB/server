@@ -1383,7 +1383,7 @@ public:
 
   enum join_optimization_state { NOT_OPTIMIZED=0,
                                  OPTIMIZATION_IN_PROGRESS=1,
-                                 OPTIMIZATION_IN_STAGE_2=2,
+                                 OPTIMIZATION_PHASE_1_DONE=2,
                                  OPTIMIZATION_DONE=3};
   // state of JOIN optimization
   enum join_optimization_state optimization_state;

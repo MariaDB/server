@@ -6351,6 +6351,27 @@ use test;
 drop database bugTest;
 
 --echo #
+--echo # MDEV-13436: PREPARE doesn't work as expected & throws errors but
+--echo # MySQL is working fine
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2);
+SET @sql_query = "
+  CREATE VIEW v1 AS
+    SELECT * FROM (
+          SELECT CASE WHEN 1 IN (SELECT a from t1 where a < 2) THEN TRUE END AS testcase
+    ) testalias
+";
+PREPARE stmt FROM @sql_query;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+show create view v1;
+SELECT * FROM v1;
+drop view v1;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

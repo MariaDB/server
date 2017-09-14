@@ -2085,11 +2085,11 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
   if (thd->open_temporary_tables(tables))
     goto err;
 
+  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
                                      DT_PREPARE))
     goto err;
 
-  lex->context_analysis_only|=  CONTEXT_ANALYSIS_ONLY_VIEW;
   res= select_like_stmt_test(stmt, 0, 0);
 
 err:

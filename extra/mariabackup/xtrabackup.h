@@ -193,4 +193,8 @@ xb_get_one_option(int optid,
 const char*
 xb_get_copy_action(const char *dflt = "Copying");
 
+void mdl_lock_init();
+void mdl_lock_table(ulint space_id);
+void mdl_unlock_all();
+
 #endif /* XB_XTRABACKUP_H */

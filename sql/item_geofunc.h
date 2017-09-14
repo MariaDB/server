@@ -550,7 +550,18 @@ public:
     maybe_null= true;
   }
   enum Functype functype() const { return spatial_rel; }
-  enum Functype rev_functype() const { return spatial_rel; }
+  enum Functype rev_functype() const
+  {
+    switch (spatial_rel)
+    {
+      case SP_CONTAINS_FUNC:
+        return SP_WITHIN_FUNC;
+      case SP_WITHIN_FUNC:
+        return SP_CONTAINS_FUNC;
+      default:
+        return spatial_rel;
+    }
+  }
   bool is_null() { (void) val_int(); return null_value; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,

@@ -1573,18 +1573,11 @@ rec_convert_dtuple_to_rec_new(
 		index, status, dtuple->fields, dtuple->n_fields, &extra_size);
 	rec = buf + extra_size;
 
-	if (rec_convert_dtuple_to_rec_comp(
-		rec, index, dtuple->fields, dtuple->n_fields, status, false)) {
-		/* Set the info bits of the record */
-		rec_set_info_and_status_bits(rec, dtuple_get_info_bits(dtuple));
-		
-		// INSTANT RECORD
-		rec_set_instant_flag(rec, TRUE);
-	} else {
-		/* Set the info bits of the record */
-		rec_set_info_and_status_bits(rec, dtuple_get_info_bits(dtuple));
-		rec_set_instant_flag(rec, FALSE);
-	}
+	bool is_instant = rec_convert_dtuple_to_rec_comp(
+		rec, index, dtuple->fields, dtuple->n_fields, status, false);
+	rec_set_info_and_status_bits(rec, dtuple_get_info_bits(dtuple));
+
+	rec_set_instant_flag(rec, is_instant);
 
 	return(rec);
 }

@@ -317,6 +317,50 @@ select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false;
 select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1;
 select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
 
+#
+# MDEV-129892 JSON_EXTRACT returns data for invalid JSON
+#
+select JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo');
+
+#
+# MDEV-13138 JSON_OBJECT returns null with strings containing backticks.
+#
+SELECT JSON_OBJECT('foo', '`');
+SELECT JSON_OBJECT("foo", "bar`bar");
+
+#
+# MDEV-13324 JSON_SET returns NULL instead of object.
+#
+SELECT JSON_SET('{}', '$.age', 87);
+
+#
+# MDEV-13104 Json functions.
+#
+SELECT JSON_MERGE('[]', '{"c":"d"}');
+
+#
+# MDEV-12774 JSON_EXTRACT fails with some escaped unicode as key.
+#
+
+SET @str = "{\"\\u00e4\\u00f6\":\"yes\"}";
+SET @path = "$.\"\\u00e4\\u00f6\"";
+select @str, @path, JSON_EXTRACT(@str, @path);
+SET @str = "{\"\\u00e4\":\"yes\"}";
+SET @path = "$.\"\\u00e4\"";
+select @str, @path, JSON_EXTRACT(@str, @path);
+
+#
+# MDEV-12877 Wrong result from JSON native function.
+#
+select json_array(5,json_query('[1,2]','$'));
+
+#
+# MDEV-13633 JSON_ARRAY() - bad output with some UTF8 characters.
+#
+
+SELECT JSON_ARRAY('1. ě 2. š 3. č 4. ř 5. ž 6. ý 7. á 8. í 9. é 10. ů 11. ú') AS json_data;
+SELECT JSON_OBJECT("user","Jožko Mrkvičká") as json_data;
+
 --echo #
 --echo # Start of 10.3 tests
 --echo #

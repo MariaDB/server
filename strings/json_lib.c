@@ -1584,7 +1584,7 @@ int json_escape(CHARSET_INFO *str_cs,
       enum json_esc_char_classes c_class;
       
       str+= c_len;
-      if (c_chr > 0x60 || (c_class= json_escape_chr_map[c_chr]) == ESC_)
+      if (c_chr >= 0x60 || (c_class= json_escape_chr_map[c_chr]) == ESC_)
       {
         if ((c_len= json_cs->cset->wc_mb(json_cs, c_chr, json, json_end)) > 0)
         {

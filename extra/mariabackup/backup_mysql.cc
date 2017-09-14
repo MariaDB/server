@@ -117,6 +117,7 @@ xb_mysql_connect()
 		mysql_options(connection, MYSQL_PLUGIN_DIR, xb_plugin_dir);
 	}
 	mysql_options(connection, MYSQL_OPT_PROTOCOL, &opt_protocol);
+	mysql_options(connection,MYSQL_SET_CHARSET_NAME, "utf8");
 
 	msg_ts("Connecting to MySQL server host: %s, user: %s, password: %s, "
 	       "port: %s, socket: %s\n", opt_host ? opt_host : "localhost",
@@ -1629,3 +1630,86 @@ backup_cleanup()
 		mysql_close(mysql_connection);
 	}
 }
+
+
+static pthread_mutex_t mdl_lock_con_mutex;
+static MYSQL *mdl_con = NULL;
+
+void
+mdl_lock_init()
+{
+  pthread_mutex_init(&mdl_lock_con_mutex, NULL);
+  mdl_con = xb_mysql_connect();
+  if (mdl_con)
+  {
+    xb_mysql_query(mdl_con, "BEGIN", false, true);
+  }
+}
+
+#ifndef DBUF_OFF
+/* Test  that table is really locked, if lock_ddl_per_table is set.
+   The test is executed in DBUG_EXECUTE_IF block inside mdl_lock_table().
+*/
+static void check_mdl_lock_works(const char *table_name)
+{
+  MYSQL *test_con=  xb_mysql_connect();
+  char *query;
+  xb_a(asprintf(&query,
+    "SET STATEMENT max_statement_time=1 FOR ALTER TABLE %s"
+    " ADD COLUMN mdl_lock_column int", table_name));
+  int err = mysql_query(test_con, query);
+  DBUG_ASSERT(err);
+  int err_no = mysql_errno(test_con);
+  DBUG_ASSERT(err_no == ER_STATEMENT_TIMEOUT);
+  mysql_close(test_con);
+  free(query);
+}
+#endif
+
+extern void
+dict_fs2utf8(const char*, char*, size_t, char*, size_t);
+
+void
+mdl_lock_table(ulint space_id)
+{
+  static const char q[] = "SELECT NAME "
+    "FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES "
+    "WHERE SPACE = " ULINTPF " AND NAME LIKE '%%/%%'";
+  char query[22 + sizeof q];
+  snprintf(query, sizeof query, q, space_id);
+
+  pthread_mutex_lock(&mdl_lock_con_mutex);
+
+  MYSQL_RES *mysql_result = xb_mysql_query(mdl_con, query, true, true);
+  while (MYSQL_ROW row = mysql_fetch_row(mysql_result)) {
+    char full_table_name[2*FN_REFLEN +2];
+    char db_utf8[FN_REFLEN];
+    char table_utf8[FN_REFLEN];
+    static const char lq[] = "SELECT * FROM %s LIMIT 0";
+    char lock_query[sizeof full_table_name + sizeof lq];
+
+    dict_fs2utf8(row[0], db_utf8, sizeof db_utf8,table_utf8,sizeof table_utf8);
+    snprintf(full_table_name,sizeof(full_table_name),"`%s`.`%s`",db_utf8,table_utf8);
+    msg_ts("Locking MDL for %s\n", full_table_name);
+    snprintf(lock_query, sizeof lock_query, lq, full_table_name);
+
+    xb_mysql_query(mdl_con, lock_query, false, false);
+
+    DBUG_EXECUTE_IF("check_mdl_lock_works",
+      check_mdl_lock_works(full_table_name););
+  }
+
+  pthread_mutex_unlock(&mdl_lock_con_mutex);
+  mysql_free_result(mysql_result);
+}
+
+
+void
+mdl_unlock_all()
+{
+  msg_ts("Unlocking MDL for all tables\n");
+  xb_mysql_query(mdl_con, "COMMIT", false, true);
+  mysql_close(mdl_con);
+  pthread_mutex_destroy(&mdl_lock_con_mutex);
+}
+
