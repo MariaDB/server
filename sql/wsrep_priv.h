@@ -19,6 +19,7 @@
 #ifndef WSREP_PRIV_H
 #define WSREP_PRIV_H
 
+#include <my_global.h>
 #include "wsrep_mysqld.h"
 #include "../wsrep/wsrep_api.h"
 

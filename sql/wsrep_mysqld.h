@@ -21,6 +21,7 @@
 #include <mysql/plugin.h>
 //#include <mysql/service_wsrep.h>
 
+#include <my_global.h>
 #include <my_pthread.h>
 
 #ifdef WITH_WSREP

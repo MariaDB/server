@@ -1535,15 +1535,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       }
       else
       {
-        thd->killed               = NOT_KILLED;
-        thd->mysys_var->abort     = 0;
-        thd->wsrep_retry_counter  = 0;
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-        /*
-          Increment threads running to compensate dec_thread_running() called
-          after dispatch_end label.
-        */
-        inc_thread_running();
+        thd->reset_killed();
+        thd->mysys_var->abort       = 0;
+        thd->set_wsrep_conflict_state(NO_CONFLICT);
+        thd->wsrep_retry_counter    = 0;
         goto dispatch_end;
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       }
