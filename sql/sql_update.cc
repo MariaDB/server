@@ -2308,6 +2308,26 @@ int multi_update::do_updates()
   do_update= 0;					// Don't retry this function
   if (!found)
     DBUG_RETURN(0);
+
+  /*
+    Update read_set to include all fields that virtual columns may depend on.
+    Usually they're already in the read_set, but if the previous access
+    method was keyread, only the virtual column itself will be in read_set,
+    not its dependencies
+  */
+  while(TABLE *tbl= check_opt_it++)
+  {
+    if (tbl->vcol_set)
+    {
+      bitmap_clear_all(tbl->vcol_set);
+      for (Field **vf= tbl->vfield; *vf; vf++)
+      {
+        if (bitmap_is_set(tbl->read_set, (*vf)->field_index))
+          tbl->mark_virtual_col(*vf);
+      }
+    }
+  }
+
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {
     bool can_compare_record;
