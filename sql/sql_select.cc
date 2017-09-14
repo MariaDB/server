@@ -17079,6 +17079,10 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     share->row_start_field= sys_trx_start->field_index;
     share->row_end_field= sys_trx_end->field_index;
   }
+  else
+  {
+    DBUG_ASSERT(!sys_trx_start && !sys_trx_end);
+  }
 
   DBUG_ASSERT(fieldnr == (uint) (reg_field - table->field));
   DBUG_ASSERT(field_count >= (uint) (reg_field - table->field));

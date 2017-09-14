@@ -187,6 +187,10 @@ create or replace view vt1 as select a, t2.sys_trx_end as endo from t3, t1, t2;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
 vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`sys_trx_end` AS `endo`,`t2`.`sys_trx_start` AS `sys_trx_start` from ((`t3` join `t1` FOR SYSTEM_TIME ALL) join `t2` FOR SYSTEM_TIME ALL) where `t1`.`sys_trx_end` = 18446744073709551615 and `t2`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+create or replace view vt1 as select * from t1 union select * from t1;
+select * from vt1;
+a
+1
 create or replace view vvt1 as select * from t1, t2, vt1;
 ERROR HY000: Creating VIEW `vvt1` is prohibited: versioned VIEW `vt1` in query!
 drop view vt1, vt12;

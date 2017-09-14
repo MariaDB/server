@@ -85,6 +85,9 @@ show create view vt1;
 create or replace view vt1 as select a, t2.sys_trx_end as endo from t3, t1, t2;
 show create view vt1;
 
+create or replace view vt1 as select * from t1 union select * from t1;
+select * from vt1;
+
 --error ER_VERS_VIEW_PROHIBITED
 create or replace view vvt1 as select * from t1, t2, vt1;
 

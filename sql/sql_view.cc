@@ -453,10 +453,12 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     goto err;
   }
 
+  for (SELECT_LEX *sl= select_lex; sl; sl= sl->next_select())
   { /* System Versioning: fix system fields of versioned view */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat"
 #pragma GCC diagnostic ignored "-Wformat-extra-args"
+    // Similar logic as in mysql_derived_prepare()
     // Leading versioning table detected implicitly (first one selected)
     TABLE_LIST *impli_table= NULL;
     // Leading versioning table specified explicitly
@@ -498,7 +500,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
       /* Implicitly add versioning fields if needed */
       Item *item;
-      List_iterator_fast<Item> it(select_lex->item_list);
+      List_iterator_fast<Item> it(sl->item_list);
 
       DBUG_ASSERT(table->alias);
       while ((item= it++))
@@ -577,9 +579,9 @@ expli_table_err:
 
     if (impli_table)
     {
-      if (!expli_start && select_lex->vers_push_field(thd, impli_table, impli_start))
+      if (!expli_start && sl->vers_push_field(thd, impli_table, impli_start))
         goto err;
-      if (!expli_end && select_lex->vers_push_field(thd, impli_table, impli_end))
+      if (!expli_end && sl->vers_push_field(thd, impli_table, impli_end))
         goto err;
     }
 #pragma GCC diagnostic pop
