@@ -777,19 +777,42 @@ rec_copy(
 	const rec_t*	rec,
 	const ulint*	offsets);
 
-/**********************************************************//**
-Determines the size of a data tuple prefix in a temporary file.
-@return total size */
+/** Determine the size of a data tuple prefix in a temporary file.
+@param[in]	index		clustered or secondary index
+@param[in]	fields		data fields
+@param[in]	n_fields	number of data fields
+@param[out]	extra		record header size
+@return	total size, in bytes */
 ulint
 rec_get_converted_size_temp(
-/*========================*/
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	const dfield_t*		fields,	/*!< in: array of data fields */
-	ulint			n_fields,/*!< in: number of data fields */
-	const dtuple_t*		v_entry,/*!< in: dtuple contains virtual column
-					data */
-	ulint*			extra)	/*!< out: extra size */
-	MY_ATTRIBUTE((warn_unused_result));
+	const dict_index_t*	index,
+	const dfield_t*		fields,
+	ulint			n_fields,
+	ulint*			extra)
+	MY_ATTRIBUTE((warn_unused_result, nonnull(1,2)));
+
+/** Determine the converted size of virtual column data in a temporary file.
+@see rec_convert_dtuple_to_temp_v()
+@param[in]	index	clustered index
+@param[in]	v	clustered index record augmented with the values
+			of virtual columns
+@return size in bytes */
+ulint
+rec_get_converted_size_temp_v(const dict_index_t* index, const dtuple_t* v)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
+/** Write indexed virtual column data into a temporary file.
+@see rec_get_converted_size_temp_v()
+@param[out]	rec	serialized record
+@param[in]	index	clustered index
+@param[in]	v_entry	clustered index record augmented with the values
+			of virtual columns */
+void
+rec_convert_dtuple_to_temp_v(
+	byte*			rec,
+	const dict_index_t*	index,
+	const dtuple_t*		v_entry)
+	MY_ATTRIBUTE((nonnull));
 
 /******************************************************//**
 Determine the offset to each field in temporary file.
@@ -812,10 +835,7 @@ rec_convert_dtuple_to_temp(
 	rec_t*			rec,		/*!< out: record */
 	const dict_index_t*	index,		/*!< in: record descriptor */
 	const dfield_t*		fields,		/*!< in: array of data fields */
-	ulint			n_fields,	/*!< in: number of fields */
-	const dtuple_t*		v_entry);	/*!< in: dtuple contains
-						virtual column data */
-
+	ulint			n_fields);	/*!< in: number of fields */
 
 /**************************************************************//**
 Copies the first n fields of a physical record to a new physical record in

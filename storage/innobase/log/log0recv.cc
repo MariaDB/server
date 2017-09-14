@@ -715,7 +715,8 @@ loop:
 			}
 
 			if (group->is_encrypted()) {
-				log_crypt(buf, OS_FILE_LOG_BLOCK_SIZE, true);
+				log_crypt(buf, start_lsn,
+					  OS_FILE_LOG_BLOCK_SIZE, true);
 			}
 		}
 	}
@@ -1061,6 +1062,7 @@ recv_find_max_checkpoint(ulint* max_field)
 				buf + LOG_CHECKPOINT_LSN);
 			group->lsn_offset = mach_read_from_8(
 				buf + LOG_CHECKPOINT_OFFSET);
+			log_sys->next_checkpoint_no = checkpoint_no;
 		}
 	}
 

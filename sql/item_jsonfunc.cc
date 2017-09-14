@@ -650,6 +650,7 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
     if (*tmp_paths == 0)
     {
       MEM_ROOT *root= thd->stmt_arena->mem_root;
+
       *paths= (json_path_with_flags *) alloc_root(root,
           sizeof(json_path_with_flags) * n_paths);
       *tmp_paths= (String *) alloc_root(root, sizeof(String) * n_paths);
@@ -657,6 +658,8 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
         return 1;
 
       bzero(*tmp_paths, sizeof(String) * n_paths);
+      for (uint c_path=0; c_path < n_paths; c_path++)
+        (*tmp_paths)[c_path].set_charset(&my_charset_utf8_general_ci);
     }
 
     return 0;
@@ -821,7 +824,11 @@ String *Item_func_json_extract::read_json(String *str,
     not_first_value= 1;
 
     if (!possible_multiple_values)
+    {
+      /* Loop to the end of the JSON just to make sure it's valid. */
+      while (json_get_path_next(&je, &p) == 0) {}
       break;
+    }
   }
 
   if (je.s.error)
@@ -869,7 +876,7 @@ longlong Item_func_json_extract::val_int()
   json_value_types type;
   char *value;
   int value_len;
-  longlong i;
+  longlong i= 0;
 
   if (read_json(NULL, &type, &value, &value_len) != NULL)
   {
@@ -1467,6 +1474,7 @@ String *Item_func_json_array::val_str(String *str)
   uint n_arg;
 
   str->length(0);
+  str->set_charset(collation.collation);
 
   if (str->append("[", 1) ||
       ((arg_count > 0) && append_json_value(str, args[0], &tmp_val)))
@@ -1791,6 +1799,7 @@ String *Item_func_json_object::val_str(String *str)
   uint n_arg;
 
   str->length(0);
+  str->set_charset(collation.collation);
 
   if (str->append("{", 1) ||
       (arg_count > 0 &&
@@ -1968,14 +1977,25 @@ continue_j2:
   else
   {
     const uchar *end1, *beg1, *end2, *beg2;
+    int empty_array= 0;
 
     beg1= je1->value_begin;
 
     /* Merge as a single array. */
     if (je1->value_type == JSON_VALUE_ARRAY)
     {
-      if (json_skip_level(je1))
+      int cur_level= je1->stack_p;
+      empty_array= 1;
+      while (json_scan_next(je1) == 0)
+      {
+        if (je1->stack_p < cur_level)
+          break;
+        empty_array= 0;
+      }
+
+      if (je1->s.error)
         return 1;
+
       end1= je1->s.c_str - je1->sav_c_len;
     }
     else
@@ -1992,8 +2012,8 @@ continue_j2:
         end1= je1->value_end;
     }
 
-    if (str->append((const char*) beg1, end1 - beg1),
-        str->append(", ", 2))
+    if (str->append((const char*) beg1, end1 - beg1) ||
+        (!empty_array && str->append(", ", 2)))
       return 3;
 
     if (json_value_scalar(je2))
@@ -2449,6 +2469,8 @@ String *Item_func_json_insert::val_str(String *str)
     }
     else /*JSON_PATH_KEY*/
     {
+      uint n_key= 0;
+
       if (je.value_type != JSON_VALUE_OBJECT)
         continue;
 
@@ -2460,6 +2482,7 @@ String *Item_func_json_insert::val_str(String *str)
           json_string_set_str(&key_name, lp->key, lp->key_end);
           if (json_key_matches(&je, &key_name))
             goto v_found;
+          n_key++;
           if (json_skip_key(&je))
             goto js_error;
           break;
@@ -2477,7 +2500,8 @@ String *Item_func_json_insert::val_str(String *str)
       v_to= (const char *) (je.s.c_str - je.sav_c_len);
       str->length(0);
       if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
-          str->append(", \"", 3) ||
+          (n_key > 0 && str->append(", ", 2)) ||
+          str->append("\"", 1) ||
           append_simple(str, lp->key, lp->key_end - lp->key) ||
           str->append("\":", 2) ||
           append_json_value(str, args[n_arg+1], &tmp_val) ||

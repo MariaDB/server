@@ -1,9 +1,12 @@
---source include/have_debug.inc
 --source include/have_innodb.inc
-# The embedded server does not support restarting.
---source include/not_embedded.inc
 
-set global innodb_purge_stop_now = 1;
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
+connect (purge_control,localhost,root);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
 
 # Index on virtual column
 
@@ -16,10 +19,12 @@ insert into t1(f1,f2,f3) values(1, repeat('a',8000), repeat('b', 9000));
 update t1 set f1=5 where f1=1;
 delete from t1 where f1=5;
 
-set global innodb_purge_run_now=1;
-set global innodb_fast_shutdown=0;
---source include/restart_mysqld.inc
-set global innodb_purge_stop_now = 1;
+connection purge_control;
+COMMIT;
+--source ../../innodb/include/wait_all_purged.inc
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
 drop table t1;
 
 # Index on virtual column and blob
@@ -33,10 +38,11 @@ insert into t1(f1,f2,f3) values(1, repeat('a',8000), repeat('b', 9000));
 update t1 set f1=5 where f1=1;
 delete from t1 where f1=5;
 
-set global innodb_purge_run_now=1;
-set global innodb_fast_shutdown=0;
---source include/restart_mysqld.inc
-set global innodb_purge_stop_now = 1;
+connection purge_control;
+COMMIT;
+--source ../../innodb/include/wait_all_purged.inc
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
 drop table t1;
 
 # Index on virtual column of blob type
@@ -50,7 +56,12 @@ insert into t1(f1,f2,f3) values(1, repeat('a',8000), repeat('b', 9000));
 update t1 set f1=5 where f1=1;
 delete from t1 where f1=5;
 
-set global innodb_purge_run_now=1;
-set global innodb_fast_shutdown=0;
---source include/restart_mysqld.inc
+connection purge_control;
+COMMIT;
+--source ../../innodb/include/wait_all_purged.inc
+disconnect purge_control;
+
+connection default;
 drop table t1;
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

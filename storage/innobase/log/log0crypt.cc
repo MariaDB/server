@@ -104,11 +104,12 @@ get_crypt_info(ulint checkpoint_no)
 
 /** Encrypt or decrypt log blocks.
 @param[in,out]	buf	log blocks to encrypt or decrypt
+@param[in]	lsn	log sequence number of the start of the buffer
 @param[in]	size	size of the buffer, in bytes
 @param[in]	decrypt	whether to decrypt instead of encrypting */
 UNIV_INTERN
 void
-log_crypt(byte* buf, ulint size, bool decrypt)
+log_crypt(byte* buf, lsn_t lsn, ulint size, bool decrypt)
 {
 	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
 	ut_a(info.key_version);
@@ -118,12 +119,12 @@ log_crypt(byte* buf, ulint size, bool decrypt)
 	compile_time_assert(sizeof(uint32_t) == 4);
 
 #define LOG_CRYPT_HDR_SIZE 4
+	lsn &= ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1);
 
 	for (const byte* const end = buf + size; buf != end;
-	     buf += OS_FILE_LOG_BLOCK_SIZE) {
+	     buf += OS_FILE_LOG_BLOCK_SIZE, lsn += OS_FILE_LOG_BLOCK_SIZE) {
 		uint32_t dst[(OS_FILE_LOG_BLOCK_SIZE - LOG_CRYPT_HDR_SIZE)
 			     / sizeof(uint32_t)];
-		const ulint log_block_no = log_block_get_hdr_no(buf);
 
 		/* The log block number is not encrypted. */
 		*aes_ctr_iv =
@@ -138,10 +139,10 @@ log_crypt(byte* buf, ulint size, bool decrypt)
 # error "LOG_BLOCK_HDR_NO has been moved; redo log format affected!"
 #endif
 		aes_ctr_iv[1] = info.crypt_nonce.word;
-		mach_write_to_8(reinterpret_cast<byte*>(aes_ctr_iv + 2),
-				log_block_get_start_lsn(
-					decrypt ? srv_start_lsn : log_sys->lsn,
-					log_block_no));
+		mach_write_to_8(reinterpret_cast<byte*>(aes_ctr_iv + 2), lsn);
+		ut_ad(log_block_get_start_lsn(lsn,
+					      log_block_get_hdr_no(buf))
+		      == lsn);
 
 		int rc = encryption_crypt(
 			buf + LOG_CRYPT_HDR_SIZE, sizeof dst,
@@ -207,7 +208,11 @@ init_crypt_key(crypt_info_t* info, bool upgrade = false)
 	return true;
 }
 
-/** Initialize the redo log encryption key.
+/** Initialize the redo log encryption key and random parameters
+when creating a new redo log.
+The random parameters will be persisted in the log checkpoint pages.
+@see log_crypt_write_checkpoint_buf()
+@see log_crypt_read_checkpoint_buf()
 @return whether the operation succeeded */
 UNIV_INTERN
 bool

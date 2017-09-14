@@ -891,7 +891,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
       JOIN *join= first_select->join;
       unit->set_limit(unit->global_parameters());
       if (join &&
-          join->optimization_state == JOIN::OPTIMIZATION_IN_STAGE_2 &&
+          join->optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE &&
           join->with_two_phase_optimization)
       {
         if (unit->optimized_2)

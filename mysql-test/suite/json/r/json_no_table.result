@@ -2109,10 +2109,9 @@ ERROR 42000: Incorrect parameter count in the call to native function 'json_set'
 error ER_INVALID_JSON_TEXT_IN_PARAM
 SELECT JSON_SET('{}', '$.name', JSON_EXTRACT('', '$'));
 JSON_SET('{}', '$.name', JSON_EXTRACT('', '$'))
-NULL
+{"name": null}
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 2
 select json_set('[1,2,3]', '$[2]', 4);
 json_set('[1,2,3]', '$[2]', 4)
 [1, 2, 4]

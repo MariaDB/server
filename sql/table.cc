@@ -7944,9 +7944,8 @@ int TABLE_LIST::fetch_number_of_rows()
   if (jtbm_subselect)
     return 0;
   if (is_materialized_derived() && !fill_me)
-
   {
-    table->file->stats.records= ((select_unit*)derived->result)->records;
+    table->file->stats.records= ((select_unit*)(get_unit()->result))->records;
     set_if_bigger(table->file->stats.records, 2);
     table->used_stat_records= table->file->stats.records;
   }

@@ -6638,6 +6638,29 @@ drop table procViewTable;
 use test;
 drop database bugTest;
 #
+# MDEV-13436: PREPARE doesn't work as expected & throws errors but
+# MySQL is working fine
+#
+create table t1 (a int);
+insert into t1 values (1),(2);
+SET @sql_query = "
+  CREATE VIEW v1 AS
+    SELECT * FROM (
+          SELECT CASE WHEN 1 IN (SELECT a from t1 where a < 2) THEN TRUE END AS testcase
+    ) testalias
+";
+PREPARE stmt FROM @sql_query;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `testalias`.`testcase` AS `testcase` from (select case when 1 in (select `test`.`t1`.`a` from `test`.`t1` where `test`.`t1`.`a` < 2) then 1 end AS `testcase`) `testalias`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+testcase
+1
+drop view v1;
+drop table t1;
+#
 # End of 10.2 tests
 #
 #

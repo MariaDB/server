@@ -2194,14 +2194,6 @@ files_checked:
 
 		recv_sys->dblwr.pages.clear();
 
-		if (err == DB_SUCCESS && !srv_read_only_mode) {
-			log_mutex_enter();
-			if (log_sys->is_encrypted() && !log_crypt_init()) {
-				err = DB_ERROR;
-			}
-			log_mutex_exit();
-		}
-
 		if (err == DB_SUCCESS) {
 			/* Initialize the change buffer. */
 			err = dict_boot();
@@ -2682,13 +2674,6 @@ files_checked:
 		btr_scrub_init();
 		fil_crypt_threads_init();
 		fil_system_exit();
-
-		/*
-		  Create a checkpoint before logging anything new, so that
-		  the current encryption key in use is definitely logged
-		  before any log blocks encrypted with that key.
-		*/
-		log_make_checkpoint_at(LSN_MAX, TRUE);
 
 		/* Initialize online defragmentation. */
 		btr_defragment_init();

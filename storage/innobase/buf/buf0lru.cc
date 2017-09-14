@@ -2697,14 +2697,13 @@ buf_LRU_print_instance(
 			const byte*	frame;
 		case BUF_BLOCK_FILE_PAGE:
 			frame = buf_block_get_frame((buf_block_t*) bpage);
-			fprintf(stderr, "\ntype " ULINTPF
-				" index id " IB_ID_FMT "\n",
+			fprintf(stderr, "\ntype %u index id " IB_ID_FMT "\n",
 				fil_page_get_type(frame),
 				btr_page_get_index_id(frame));
 			break;
 		case BUF_BLOCK_ZIP_PAGE:
 			frame = bpage->zip.data;
-			fprintf(stderr, "\ntype " ULINTPF " size " ULINTPF
+			fprintf(stderr, "\ntype %u size " ULINTPF
 				" index id " IB_ID_FMT "\n",
 				fil_page_get_type(frame),
 				bpage->size.physical(),
