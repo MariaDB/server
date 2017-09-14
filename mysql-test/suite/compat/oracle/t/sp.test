@@ -286,6 +286,8 @@ CREATE PROCEDURE p1 (commit OUT INT) AS BEGIN commit:=10; END;/
 CREATE PROCEDURE p1 (rollback OUT INT) AS BEGIN rollback:=10; END;/
 --error ER_PARSE_ERROR
 CREATE PROCEDURE p1 (shutdown OUT INT) AS BEGIN shutdown:=10; END;/
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 (exception OUT INT) AS BEGIN exception:=10; END;/
 DELIMITER ;/
 
 
@@ -317,6 +319,8 @@ CREATE PROCEDURE p1 (begin OUT INT) AS BEGIN SET begin=10; END;/
 DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (end OUT INT) AS BEGIN SET end=10; END;/
 DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (exception OUT INT) AS BEGIN SET exception=10; END;/
+DROP PROCEDURE p1/
 DELIMITER ;/
 
 --echo # Testing that keyword_directly_not_assignable works in table/column names
@@ -346,6 +350,8 @@ CREATE TABLE begin (begin INT);
 DROP TABLE begin;
 CREATE TABLE end (end INT);
 DROP TABLE end;
+CREATE TABLE exception (exception INT);
+DROP TABLE exception;
 
 --echo # Testing ELSIF
 DELIMITER /;
@@ -2131,3 +2137,12 @@ DROP PROCEDURE p1;
 SELECT SQL%ROWCOUNT;
 --enable_ps_protocol
 --disable_metadata
+
+--echo #
+--echo # MDEV-13686 EXCEPTION reserved keyword in SQL_MODE=oracle but not in Oracle itself
+--echo #
+CREATE TABLE t1 (c1 int);
+CREATE VIEW v1 AS SELECT c1 exception FROM t1;
+SELECT exception FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
