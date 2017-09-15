@@ -1080,3 +1080,14 @@ DROP TABLE t2;
 --echo
 --echo # -- Done.
 --echo
+
+
+--echo #
+--echo # MDEV-13685 Can not replay binary log due to Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb4_general_ci,COERCIBLE) for operation 'concat'
+--echo #
+SET NAMES utf8;
+SELECT COERCIBILITY(NAME_CONST('name','test'));
+SELECT COERCIBILITY(NAME_CONST('name',TIME'00:00:00'));
+SELECT COERCIBILITY(NAME_CONST('name',15));
+SELECT CONCAT(NAME_CONST('name',15),'오');
+SET NAMES latin1;
