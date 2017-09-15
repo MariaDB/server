@@ -32,8 +32,11 @@ Warning	192	Table test/t1 in tablespace  is encrypted but encryption service or 
 Warning	192	Table t1 in file ./test/t1.ibd is encrypted but encryption service or used key_id  is not available.  Can't continue reading table.
 Error	1296	Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
 DROP TABLE t1;
+Warnings:
+Warning	192	Table test/t1 in tablespace  is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
 SHOW WARNINGS;
 Level	Code	Message
+Warning	192	Table test/t1 in tablespace  is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
 # Start server with keys3.txt
 SET GLOBAL innodb_default_encryption_key_id=5;
 CREATE TABLE t2 (c VARCHAR(8), id int not null primary key, b int, key(b)) ENGINE=InnoDB ENCRYPTED=YES;
