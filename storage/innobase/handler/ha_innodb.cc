@@ -6689,11 +6689,8 @@ ha_innobase::open(const char* name, int, uint)
 	a row in our table. Note that MySQL may also compare two row
 	references for equality by doing a simple memcmp on the strings
 	of length ref_length! */
-
-	if (!row_table_got_default_clust_index(ib_table)) {
-
-		m_prebuilt->clust_index_was_generated = FALSE;
-
+	if (!(m_prebuilt->clust_index_was_generated
+	      = dict_index_is_auto_gen_clust(ib_table->indexes.start))) {
 		if (m_primary_key >= MAX_KEY) {
 			ib_table->dict_frm_mismatch = DICT_FRM_NO_PK;
 
@@ -6758,8 +6755,6 @@ ha_innobase::open(const char* name, int, uint)
 			in the errorlog */
 			ib_push_frm_error(thd, ib_table, table, 0, true);
 		}
-
-		m_prebuilt->clust_index_was_generated = TRUE;
 
 		ref_length = DATA_ROW_ID_LEN;
 
@@ -14462,7 +14457,8 @@ innobase_get_mysql_key_number_for_index(
 			i++;
 		}
 
-		if (row_table_got_default_clust_index(index->table)) {
+		if (dict_index_is_clust(index)
+		    && dict_index_is_auto_gen_clust(index)) {
 			ut_a(i > 0);
 			i--;
 		}

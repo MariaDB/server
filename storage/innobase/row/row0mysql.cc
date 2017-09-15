@@ -2284,22 +2284,6 @@ no_unlock:
 }
 
 /*********************************************************************//**
-Checks if a table is such that we automatically created a clustered
-index on it (on row id).
-@return TRUE if the clustered index was generated automatically */
-ibool
-row_table_got_default_clust_index(
-/*==============================*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	const dict_index_t*	clust_index;
-
-	clust_index = dict_table_get_first_index(table);
-
-	return(dict_index_get_nth_col(clust_index, 0)->mtype == DATA_SYS);
-}
-
-/*********************************************************************//**
 Locks the data dictionary in shared mode from modifications, for performing
 foreign key check, rollback, or other operation invisible to MySQL. */
 void

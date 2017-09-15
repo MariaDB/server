@@ -689,7 +689,8 @@ ha_innobase::check_if_supported_inplace_alter(
 
 		/* See if MYSQL table has no pk but we do. */
 		if (UNIV_UNLIKELY(my_primary_key >= MAX_KEY)
-		    && !row_table_got_default_clust_index(m_prebuilt->table)) {
+		    && !dict_index_is_auto_gen_clust(
+			    dict_table_get_first_index(m_prebuilt->table))) {
 			ha_alter_info->unsupported_reason = innobase_get_err_msg(
 				ER_PRIMARY_CANT_HAVE_NULL);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -4448,7 +4449,8 @@ prepare_inplace_alter_table_dict(
 	index_defs = innobase_create_key_defs(
 		ctx->heap, ha_alter_info, altered_table, ctx->num_to_add_index,
 		num_fts_index,
-		row_table_got_default_clust_index(ctx->new_table),
+		dict_index_is_auto_gen_clust(dict_table_get_first_index(
+						     ctx->new_table)),
 		fts_doc_id_col, add_fts_doc_id, add_fts_doc_id_idx,
 		old_table);
 
