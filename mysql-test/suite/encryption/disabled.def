@@ -13,3 +13,4 @@
 innodb_scrub            : MDEV-8139 scrubbing does not work reliably
 innodb_scrub_background : MDEV-8139 scrubbing does not work reliably
 
+innodb-bad-key-change : MDEV-11369 FIXME: nondeterministic result
