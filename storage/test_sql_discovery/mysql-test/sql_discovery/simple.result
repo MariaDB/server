@@ -4,7 +4,7 @@ test_sql_discovery_statement
 test_sql_discovery_write_frm	ON
 set sql_quote_show_create=0;
 create table t1 (a int) engine=test_sql_discovery;
-ERROR HY000: Can't create table `test`.`t1` (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table `test`.`t1` (errno: 131 "Command not supported by the engine")
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 set @@test_sql_discovery_statement='t1:foobar bwa-ha-ha';
