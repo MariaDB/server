@@ -6230,7 +6230,7 @@ sub debugger_arguments {
     $$exe= $debugger;
 
   }
-  elsif ( $debugger =~ /windbg/ )
+  elsif ( $debugger =~ /windbg|vsjitdebugger/ )
   {
     # windbg exe arg1 .. argn
 
