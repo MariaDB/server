@@ -1945,7 +1945,7 @@ Warnings:
 Warning	1300	Invalid utf8 character string: 'FD'
 select convert(char(0xff,0x8f) using utf8);
 convert(char(0xff,0x8f) using utf8)
-NULL
+??
 Warnings:
 Warning	1300	Invalid utf8 character string: '\xFF\x8F'
 select hex(convert(char(2557 using latin1) using utf8));
@@ -2114,7 +2114,7 @@ Warnings:
 Warning	1300	Invalid utf8 character string: 'FF'
 select hex(convert(0xFF using utf8));
 hex(convert(0xFF using utf8))
-NULL
+3F
 Warnings:
 Warning	1300	Invalid utf8 character string: '\xFF'
 select hex(_utf8 0x616263FF);
@@ -10472,6 +10472,31 @@ SELECT N'tëst\0';
 END
 DROP PROCEDURE p1;
 SET @@SQL_MODE=default;
+#
+# MDEV-10191 non convertible chars convert() resulted in Null instead "?" on Windows
+#
+SET sql_mode='STRICT_TRANS_TABLES';
+SELECT CONVERT(_utf8 0xC499 USING latin1);
+CONVERT(_utf8 0xC499 USING latin1)
+?
+Warnings:
+Warning	1977	Cannot convert 'utf8' character 0xC499 to 'latin1'
+SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
+CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1)
+?
+Warnings:
+Warning	1977	Cannot convert 'utf8' character 0xC499 to 'latin1'
+SET sql_mode=default;
+SELECT CONVERT(_utf8 0xC499 USING latin1);
+CONVERT(_utf8 0xC499 USING latin1)
+?
+Warnings:
+Warning	1977	Cannot convert 'utf8' character 0xC499 to 'latin1'
+SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
+CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1)
+?
+Warnings:
+Warning	1977	Cannot convert 'utf8' character 0xC499 to 'latin1'
 #
 # End of 10.1 tests
 #
