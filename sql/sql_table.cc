@@ -6440,23 +6440,22 @@ static bool fill_alter_inplace_info(THD *thd,
 
   new_field_it.init(alter_info->create_list);
   while ((new_field= new_field_it++))
-	{
-		if (! new_field->field)
-		{
-			// Field is not present in old version of table and therefore was added.
-			if (new_field->vcol_info)
-				if (new_field->stored_in_db())
-					ha_alter_info->handler_flags|=
-					Alter_inplace_info::ADD_STORED_GENERATED_COLUMN;
-				else
-					ha_alter_info->handler_flags|=
-					Alter_inplace_info::ADD_VIRTUAL_COLUMN;
-			else {
-				ha_alter_info->handler_flags|=
-					Alter_inplace_info::ADD_STORED_BASE_COLUMN;
-			}
-		}
-	}
+  {
+    if (! new_field->field)
+    {
+      // Field is not present in old version of table and therefore was added.
+      if (new_field->vcol_info)
+        if (new_field->stored_in_db())
+          ha_alter_info->handler_flags|=
+            Alter_inplace_info::ADD_STORED_GENERATED_COLUMN;
+        else
+          ha_alter_info->handler_flags|=
+            Alter_inplace_info::ADD_VIRTUAL_COLUMN;
+      else
+        ha_alter_info->handler_flags|=
+          Alter_inplace_info::ADD_STORED_BASE_COLUMN;
+    }
+  }
 
   /*
     Go through keys and check if the original ones are compatible
@@ -6678,13 +6677,6 @@ static bool fill_alter_inplace_info(THD *thd,
     }
     else
       ha_alter_info->handler_flags|= Alter_inplace_info::ADD_INDEX;
-  }
-
-  // If ADD_STORED_BASE_COLUMN only, we can change to ADD_INSTANT_COLUMN in some cases
-  if (ha_alter_info->handler_flags == Alter_inplace_info::ADD_STORED_BASE_COLUMN &&
-    table->file->check_instant_alter(ha_alter_info)) {
-		
-    ha_alter_info->handler_flags = Alter_inplace_info::ADD_INSTANT_COLUMN;
   }
 
   DBUG_RETURN(false);
