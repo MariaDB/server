@@ -34,6 +34,8 @@
   /etc/mysql/*.pem r,
   /etc/mysql/conf.d/ r,
   /etc/mysql/conf.d/* r,
+  /etc/mysql/mariadb.conf.d/ r,
+  /etc/mysql/mariadb.conf.d/* r,
   /etc/nsswitch.conf r,
   /etc/passwd r,
   /etc/services r,
