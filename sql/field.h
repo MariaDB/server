@@ -3106,7 +3106,7 @@ private:
 
 
 class Field_varstring :public Field_longstr {
-protected:
+public:
   uchar *get_data() const
   {
     return ptr + length_bytes;
@@ -3115,6 +3115,7 @@ protected:
   {
     return length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
   }
+protected:
   void store_length(uint32 number)
   {
     if (length_bytes == 1)

@@ -44,6 +44,7 @@ Smart ALTER TABLE
 #include "row0log.h"
 #include "row0merge.h"
 #include "row0ins.h"
+#include "row0row.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "handler0alter.h"
@@ -4038,164 +4039,6 @@ innobase_add_virtual_try(
 	return(false);
 }
 
-/** Update INNODB SYS_COLUMNS on new virtual columns
-@param[in] table	InnoDB table
-@param[in] field	added field
-@param[in] pos		position in InnoDB table
-@param[in] trx		dictionary transaction
-@return DB_SUCCESS if successful, otherwise error code */
-static
-dberr_t
-innobase_add_one_instant(
-	const dict_table_t*	table,
-	const Field*		field,
-	uint			pos_in_innodb,
-	trx_t*			trx)
-{
-	ulint	col_len;
-	ulint	is_unsigned;
-	ulint	field_type;
-	ulint	charset_no;
-	dberr_t error;
-	dict_col_t	tmp_col;
-	ulint 		prtype;
-	pars_info_t*    info;
-	byte*		def_val;
-	ulint		def_val_len;
-	ulint	col_type
-		= get_innobase_type_from_mysql_type(
-		&is_unsigned, field);
-
-	ut_ad(!innobase_is_v_fld(field));
-
-	/* First check whether the column to be added has a
-	system reserved name. */
-	if (dict_col_name_is_reserved(field->field_name.str)){
-		// FIXME: Check already in prepare_inplace_alter_table()
-		my_error(ER_WRONG_COLUMN_NAME, MYF(0),
-			field->field_name.str);
-
-		return(DB_ERROR);
-	}
-
-	col_len = field->pack_length();
-	field_type = (ulint) field->type();
-
-	if (!field->real_maybe_null()) {
-		field_type |= DATA_NOT_NULL;
-	}
-
-	if (field->binary()) {
-		field_type |= DATA_BINARY_TYPE;
-	}
-
-	if (is_unsigned) {
-		field_type |= DATA_UNSIGNED;
-	}
-
-	if (dtype_is_string_type(col_type)) {
-		charset_no = (ulint) field->charset()->number;
-
-		// FIXME: Check already in prepare_inplace_alter_table()
-		if (charset_no > MAX_CHAR_COLL_NUM) {
-			my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
-				field->field_name);
-			return(DB_ERROR);
-		}
-	} else {
-		charset_no = 0;
-	}
-
-	if (field->type() == MYSQL_TYPE_VARCHAR) {
-		uint32  length_bytes
-			= static_cast<const Field_varstring*>(
-			field)->length_bytes;
-
-		col_len -= length_bytes;
-
-		if (length_bytes == 2) {
-			field_type |= DATA_LONG_TRUE_VARCHAR;
-		}
-	}
-
-	prtype	= dtype_form_prtype(field_type, charset_no);
-
-	info = pars_info_create();
-
-	pars_info_add_ull_literal(info, "id", table->id);
-	pars_info_add_int4_literal(info, "pos", pos_in_innodb);
-	pars_info_add_str_literal(info, "name", field->field_name.str);
-	pars_info_add_int4_literal(info, "mtype", col_type);
-	pars_info_add_int4_literal(info, "prtype", prtype);
-	pars_info_add_int4_literal(info, "len", col_len);
-	pars_info_add_int4_literal(info, "prec", 0);
-
-	error = que_eval_sql(
-			info,
-			"PROCEDURE P () IS\n"
-			"BEGIN\n"
-			"INSERT INTO SYS_COLUMNS VALUES"
-			"(:id, :pos, :name, :mtype, :prtype, :len, :prec);\n"
-			"END;\n",
-			FALSE, trx);
-
-	if (error != DB_SUCCESS) {
-		return(error);
-	}
-
-	memset((byte*)&tmp_col, 0, sizeof(dict_col_t));
-	dict_mem_fill_column_struct(&tmp_col, pos_in_innodb, col_type, prtype, col_len);
-
-	byte int_buf[8];
-
-	if (field->is_real_null()) {
-		def_val = NULL;
-		def_val_len = UNIV_SQL_NULL;
-	} else {
-		def_val_len = field->pack_length();
-		dfield_t dfield;
-		dict_col_copy_type(&tmp_col, &dfield.type);
-		dfield_set_data(&dfield, field->ptr, def_val_len);
-		switch (field->type()) {
-		case MYSQL_TYPE_VARCHAR:
-			def_val = const_cast<byte*>(
-				row_mysql_read_true_varchar(
-					&def_val_len, field->ptr,
-					reinterpret_cast<const Field_varstring*>
-					(field)->length_bytes));
-			goto convert;
-		case MYSQL_TYPE_GEOMETRY:
-		case MYSQL_TYPE_TINY_BLOB:
-		case MYSQL_TYPE_MEDIUM_BLOB:
-		case MYSQL_TYPE_BLOB:
-		case MYSQL_TYPE_LONG_BLOB:
-			{
-				const Field_blob* b = reinterpret_cast
-					<const Field_blob*>(field);
-				def_val = const_cast<byte*>(b->get_ptr());
-				def_val_len = b->get_length();
-				dfield_set_data(&dfield, def_val, def_val_len);
-			}
-			break;
-		default:
-			if (col_type == DATA_INT) {
-				ut_ad(def_val_len <= sizeof int_buf);
-				def_val = int_buf;
-			} else {
-				def_val = static_cast<byte*>(dfield.data);
-			}
-convert:
-			row_mysql_store_col_in_innobase_format(
-				&dfield, def_val, true, field->ptr,
-				def_val_len, dict_table_is_comp(table));
-		}
-	}
-
-	// FIXME: replace a MIN_REC with the column values */
-
-	return(DB_SUCCESS);
-}
-
 /** Update system table for instant adding column(s)
 @param[in,out]	ha_alter_info	Data used during in-place alter
 @param[in]	altered_table	MySQL table that is being altered
@@ -4211,94 +4054,221 @@ innobase_add_instant_try(
 	const TABLE*		table,
 	trx_t*			trx)
 {
-	dberr_t				err = DB_SUCCESS;
 	ha_innobase_inplace_ctx* ctx = static_cast<ha_innobase_inplace_ctx*>(
 		ha_alter_info->handler_ctx);
 
-	ut_ad(altered_table->s->fields > table->s->fields);
-	ut_ad(!ctx->need_rebuild());
+	DBUG_ASSERT(altered_table->s->fields > table->s->fields);
+	DBUG_ASSERT(!ctx->need_rebuild());
 
+	uint n_stored = 0;
+	for (uint i = 0; i < altered_table->s->fields; i++) {
+		n_stored += altered_table->field[i]->stored_in_db();
+	}
 	const dict_table_t* user_table = ctx->old_table;
-	uint i = 0;
-	ut_d(uint added_col = 0);
+	DBUG_ASSERT(n_stored > user_table->n_cols);
+	DBUG_ASSERT(user_table->n_cols > 0);
+
+	dict_index_t* index = dict_table_get_first_index(user_table);
+	/* Construct a table row of default values for the stored columns. */
+	dtuple_t* row = dtuple_create(ctx->heap, n_stored);
+#if 1 // FIXME: Remove this hack, and do construct ctx->new_table
+	for (uint i = 0; i < user_table->n_cols; i++) {
+		dfield_t* dfield = dtuple_get_nth_field(row, i);
+		dict_col_copy_type(dict_table_get_nth_col(user_table, i),
+				   &dfield->type);
+	}
+#else
+	dict_table_copy_types(row, ctx->new_table);
+#endif
+	uint i = 0; /* index of stored columns in ctx->new_table->cols[] */
+	Field **af = altered_table->field;
 
 	List_iterator_fast<Create_field> cf_it(
 		ha_alter_info->alter_info->create_list);
-	Field **af = altered_table->field;
 
 	while (const Create_field* new_field = cf_it++) {
-		bool	is_v = innobase_is_v_fld(new_field);
+		DBUG_ASSERT(!new_field->field
+			    || std::find(table->field,
+					 table->field + table->s->fields,
+					 new_field->field) !=
+			    table->field + table->s->fields);
+		DBUG_ASSERT(new_field->field
+			    || !strcmp(new_field->field_name.str,
+				       (*af)->field_name.str));
 
-		for (uint old_i = 0; table->field[old_i]; old_i++) {
-			const Field* old_field = table->field[old_i];
-			if (innobase_is_v_fld(old_field)) {
-				if (is_v && new_field->field == old_field) {
-					goto next_col;
-				}
-			} else if (new_field->field == old_field) {
-				if (!is_v) i++;
-				goto next_col;
+		if (!(*af)->stored_in_db()) {
+			af++;
+			continue;
+		}
+
+		dfield_t* dfield = dtuple_get_nth_field(row, i);
+#if 1 // FIXME: Remove this hack, and do construct ctx->new_table
+		ulint uflag;
+		const CHARSET_INFO* cs = (*af)->charset();
+		ulint mtype = get_innobase_type_from_mysql_type(&uflag, *af);
+		ulint prtype = dtype_form_prtype((*af)->type()
+						 | uflag
+						 | ((*af)->real_maybe_null()
+						    ? 0 : DATA_NOT_NULL)
+						 | ((*af)->binary()
+						    ? DATA_BINARY_TYPE : 0)
+						 | ((*af)->type()
+						    == MYSQL_TYPE_VARCHAR
+						    && static_cast<const Field_varstring*>(*af)->length_bytes == 2
+						    ? DATA_LONG_TRUE_VARCHAR
+						    : 0),
+						 dtype_is_string_type(mtype)
+						 ? cs->number : 0);
+		ulint mbminmaxlen = dtype_is_string_type(mtype)
+			? DATA_MBMINMAXLEN(cs->mbminlen, cs->mbmaxlen) : 0;
+		ulint len = (*af)->type() == MYSQL_TYPE_VARCHAR
+			? (*af)->pack_length()
+			- static_cast<const Field_varstring*>(*af)
+			->length_bytes
+			: (*af)->pack_length();
+
+		/* FIXME: special handling of FTS_DOC_ID may be needed
+		when the table contains at most 1 row */
+
+		if (new_field->field) {
+			ut_ad(i < n_stored);
+			ut_ad(dfield->type.mtype == mtype);
+			ut_ad(dfield->type.prtype == prtype);
+			ut_ad(dfield->type.len == len);
+			ut_ad(dfield->type.mbminmaxlen == mbminmaxlen);
+		} else {
+			dfield->type.mtype = mtype;
+			dfield->type.prtype = prtype;
+			dfield->type.len = len;
+			dfield->type.mbminmaxlen = mbminmaxlen;
+		}
+#endif
+		if ((*af)->is_real_null()) {
+			dfield_set_null(dfield);
+		} else {
+			switch ((*af)->type()) {
+			case MYSQL_TYPE_VARCHAR:
+				dfield_set_data(dfield,
+						reinterpret_cast
+						<const Field_varstring*>
+						((*af))->get_data(),
+						reinterpret_cast
+						<const Field_varstring*>
+						((*af))->get_length());
+				break;
+			case MYSQL_TYPE_GEOMETRY:
+			case MYSQL_TYPE_TINY_BLOB:
+			case MYSQL_TYPE_MEDIUM_BLOB:
+			case MYSQL_TYPE_BLOB:
+			case MYSQL_TYPE_LONG_BLOB:
+				dfield_set_data(dfield,
+						reinterpret_cast
+						<const Field_blob*>
+						((*af))->get_ptr(),
+						reinterpret_cast
+						<const Field_blob*>
+						((*af))->get_length());
+				break;
+			default:
+				DBUG_ASSERT(mtype != DATA_INT || len <= 8);
+				row_mysql_store_col_in_innobase_format(
+					dfield,
+					mtype == DATA_INT
+					? static_cast<byte*>(
+						mem_heap_alloc(ctx->heap, len))
+					: NULL, true, (*af)->ptr, len,
+					dict_table_is_comp(user_table));
 			}
 		}
 
-		ut_ad(!is_v);
-		ut_d(added_col++);
+		if (!new_field->field) {
+			pars_info_t*    info = pars_info_create();
+			pars_info_add_ull_literal(info, "id", user_table->id);
+			pars_info_add_int4_literal(info, "pos", i);
+			pars_info_add_str_literal(info, "name",
+						  (*af)->field_name.str);
+			pars_info_add_int4_literal(info, "mtype",
+						   dfield->type.mtype);
+			pars_info_add_int4_literal(info, "prtype",
+						   dfield->type.prtype);
+			pars_info_add_int4_literal(info, "len",
+						   dfield->type.len);
 
-		err = innobase_add_one_instant(user_table, *af, i, trx);
-		if (err != DB_SUCCESS) {
-			my_error(ER_INTERNAL_ERROR, MYF(0),
-				"InnoDB: ADD COLUMN...INSTANT");
-			return(true);
+			dberr_t err = que_eval_sql(
+				info,
+				"PROCEDURE ADD_COL () IS\n"
+				"BEGIN\n"
+				"INSERT INTO SYS_COLUMNS VALUES"
+				"(:id,:pos,:name,:mtype,:prtype,:len,0);\n"
+				"END;\n",
+				FALSE, trx);
+			if (err != DB_SUCCESS) {
+				return(true);
+			}
 		}
 
 		i++;
-next_col:
 		af++;
 	}
 
-	ut_ad(af == &altered_table->field[altered_table->s->fields]);
-	ut_ad(added_col > 0);
-	ut_ad(added_col + table->s->fields == altered_table->s->fields);
-	ut_ad(added_col + user_table->n_cols
-	      - dict_table_get_n_sys_cols(user_table) == i);
+	DBUG_ASSERT(af == &altered_table->field[altered_table->s->fields]);
+	DBUG_ASSERT(i == n_stored);
 
 	const ulint	n_cols = dict_table_encode_n_col(
-		i, user_table->n_v_cols)
+		n_stored, user_table->n_v_cols)
 		+ ((user_table->flags & DICT_TF_COMPACT) << 31);
 	pars_info_t*	info = pars_info_create();
 	pars_info_add_int4_literal(info, "n_cols", n_cols);
 	pars_info_add_int4_literal(info, "id", user_table->id);
 
-	err = que_eval_sql(
+	dtuple_t* entry = row_build_index_entry(row, NULL, index, ctx->heap);
+	entry->info_bits = REC_INFO_MIN_REC_FLAG;
+
+	dberr_t err = que_eval_sql(
 		info,
-		"PROCEDURE ADD_COLS () IS\n"
+		"PROCEDURE N_COLS () IS\n"
 		"BEGIN\n"
 		"UPDATE SYS_TABLES SET N_COLS = :n_cols WHERE ID = :id;\n"
 		"END;\n", FALSE, trx);
 	if (err == DB_SUCCESS) {
 		mtr_t mtr;
-		dict_index_t* index = dict_table_get_first_index(user_table);
-		dtuple_t defaults = {
-			REC_INFO_MIN_REC_FLAG, 0, 0, NULL, 0, NULL,
-			UT_LIST_NODE_T(dtuple_t)()
-#ifdef UNIV_DEBUG
-			, DATA_TUPLE_MAGIC_N
-#endif
-		};
 		mtr.start();
 		mtr.set_named_space(index->space);
 
 		if (user_table->is_instant()) {
 			btr_pcur_t pcur;
-			btr_pcur_open(index, &defaults, PAGE_CUR_LE,
+			btr_pcur_open(index, entry, PAGE_CUR_LE,
 				      BTR_MODIFY_TREE, &pcur, &mtr);
 			// FIXME: extend the MIN_REC with the added columns
-		} else {
+		} else if (page_t* root = btr_root_get(index, &mtr)) {
+#ifdef UNIV_DEBUG
+			switch (fil_page_get_type(root)) {
+			case FIL_PAGE_TYPE_INSTANT:
+				DBUG_ASSERT(page_get_instant(root)
+					    == index->n_fields);
+				break;
+			case FIL_PAGE_INDEX:
+				DBUG_ASSERT(!page_is_comp(root)
+					    || !page_get_instant(root));
+				break;
+			default:
+				DBUG_ASSERT(!"wrong page type");
+			}
+#endif /* UNIV_DEBUG */
+			mlog_write_ulint(root + FIL_PAGE_TYPE,
+					 FIL_PAGE_TYPE_INSTANT, MLOG_2BYTES,
+					 &mtr);
+			page_set_instant(root, index->n_fields, &mtr);
+			mtr.commit();
+			mtr.start();
+			mtr.set_named_space(index->space);
 			/* FIXME: construct a MIN_REC entry with the
 			added columns */
 			err = row_ins_clust_index_entry_low(
 				BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
-				index->n_uniq, &defaults, 0, ctx->thr, false);
+				index->n_uniq, entry, 0, ctx->thr, false);
+		} else {
+			err = DB_CORRUPTION;
 		}
 
 		mtr.commit();
