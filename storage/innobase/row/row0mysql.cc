@@ -2029,7 +2029,6 @@ run_again:
 		node->cascade_upd_nodes = cascade_upd_nodes;
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
-		prebuilt->m_mysql_table = NULL;
 
 		goto run_again;
 	}

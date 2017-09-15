@@ -2966,7 +2966,8 @@ row_upd_del_mark_clust_rec(
 	entries */
 
 	row_upd_store_row(node, trx->mysql_thd,
-			  thr->prebuilt ? thr->prebuilt->m_mysql_table : NULL);
+			  thr->prebuilt  && thr->prebuilt->table == node->table
+			  ? thr->prebuilt->m_mysql_table : NULL);
 
 	/* Mark the clustered index record deleted; we do not have to check
 	locks, because we assume that we have an x-lock on the record */
