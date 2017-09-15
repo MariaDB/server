@@ -106,6 +106,12 @@ IF (NOT "$ENV{WITH_ZSTD}" STREQUAL "")
   ADD_DEFINITIONS(-DZSTD)
 ENDIF()
 
+IF (NOT "$ENV{WITH_TBB}" STREQUAL "")
+  SET(rocksdb_static_libs ${rocksdb_static_libs}
+  $ENV{WITH_TBB}/libtbb${PIC_EXT}.a)
+  ADD_DEFINITIONS(-DTBB)
+ENDIF()
+
 CHECK_INCLUDE_FILES(zlib.h HAVE_ZLIB_H)
 
 IF (HAVE_ZLIB_H)

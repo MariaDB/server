@@ -46,3 +46,26 @@ SHOW KEYS IN t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	PRIMARY	1	b	A	#	NULL	NULL		LSMTREE		
 DROP TABLE t1;
+set global rocksdb_large_prefix=0;
+CREATE TABLE t1 (
+a BLOB(1024),
+PRIMARY KEY (a(767))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a BLOB(1024),
+PRIMARY KEY (a(768))
+) ENGINE=rocksdb;
+ERROR 42000: Specified key was too long; max key length is 767 bytes
+set global rocksdb_large_prefix=1;
+CREATE TABLE t1 (
+a BLOB(4096),
+PRIMARY KEY (a(3072))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a BLOB(4096),
+PRIMARY KEY (a(3073))
+) ENGINE=rocksdb;
+ERROR 42000: Specified key was too long; max key length is 3072 bytes
+set global rocksdb_large_prefix=DEFAULT;

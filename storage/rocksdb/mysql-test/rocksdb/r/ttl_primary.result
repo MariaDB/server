@@ -337,9 +337,7 @@ b INT
 ) ENGINE=rocksdb
 COMMENT='ttl_duration=100;';
 ALTER TABLE t1 DROP PRIMARY KEY;
-ERROR HY000: TTL support is currently disabled when table has secondary indexes or hidden PK.
-ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
-ERROR HY000: TTL support is currently disabled when table has secondary indexes or hidden PK.
+ERROR HY000: TTL support is currently disabled when table has a hidden PK.
 DROP TABLE t1;
 CREATE TABLE t1 (
 a INT PRIMARY KEY,

@@ -1,0 +1,39 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+include/rpl_connect.inc [creating slave_block]
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection slave
+select * from t1;
+i
+1
+2
+3
+connection slave_block
+lock tables t1 read;
+connection master;
+create high_priority index idx1 on t1 (i);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL,
+  KEY `idx1` (`i`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL,
+  KEY `idx1` (`i`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+drop table t1;
+include/rpl_end.inc

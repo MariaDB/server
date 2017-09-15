@@ -108,30 +108,42 @@ class Rdb_io_perf {
   // Context management
   Rdb_atomic_perf_counters *m_atomic_counters = nullptr;
   my_io_perf_atomic_t *m_shared_io_perf_read = nullptr;
+  my_io_perf_atomic_t *m_shared_io_perf_write = nullptr;
   ha_statistics *m_stats = nullptr;
 
-public:
+  uint64_t io_write_bytes;
+  uint64_t io_write_requests;
+
+ public:
   Rdb_io_perf(const Rdb_io_perf &) = delete;
   Rdb_io_perf &operator=(const Rdb_io_perf &) = delete;
 
   void init(Rdb_atomic_perf_counters *const atomic_counters,
             my_io_perf_atomic_t *const shared_io_perf_read,
+            my_io_perf_atomic_t *const shared_io_perf_write,
             ha_statistics *const stats) {
     DBUG_ASSERT(atomic_counters != nullptr);
     DBUG_ASSERT(shared_io_perf_read != nullptr);
+    DBUG_ASSERT(shared_io_perf_write != nullptr);
     DBUG_ASSERT(stats != nullptr);
 
     m_atomic_counters = atomic_counters;
     m_shared_io_perf_read = shared_io_perf_read;
+    m_shared_io_perf_write = shared_io_perf_write;
     m_stats = stats;
+
+    io_write_bytes = 0;
+    io_write_requests = 0;
   }
 
   bool start(const uint32_t perf_context_level);
+  void update_bytes_written(const uint32_t perf_context_level,
+                            ulonglong bytes_written);
   void end_and_record(const uint32_t perf_context_level);
 
   explicit Rdb_io_perf()
       : m_atomic_counters(nullptr), m_shared_io_perf_read(nullptr),
-        m_stats(nullptr) {}
+        m_stats(nullptr), io_write_bytes(0), io_write_requests(0) {}
 };
 
 } // namespace myrocks

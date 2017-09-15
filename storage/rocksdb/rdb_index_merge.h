@@ -49,23 +49,23 @@ class Rdb_index_merge {
   Rdb_index_merge(const Rdb_index_merge &p) = delete;
   Rdb_index_merge &operator=(const Rdb_index_merge &p) = delete;
 
-public:
+ public:
   /* Information about temporary files used in external merge sort */
   struct merge_file_info {
-    File fd = -1;           /* file descriptor */
-    ulong num_sort_buffers; /* number of sort buffers in temp file */
+    File m_fd = -1;               /* file descriptor */
+    ulong m_num_sort_buffers = 0; /* number of sort buffers in temp file */
   };
 
   /* Buffer for sorting in main memory. */
   struct merge_buf_info {
     /* heap memory allocated for main memory sort/merge  */
-    std::unique_ptr<uchar[]> block;
+    std::unique_ptr<uchar[]> m_block;
     const ulonglong
-        block_len;         /* amount of data bytes allocated for block above */
-    ulonglong curr_offset; /* offset of the record pointer for the block */
-    ulonglong disk_start_offset; /* where the chunk starts on disk */
-    ulonglong disk_curr_offset;  /* current offset on disk */
-    ulonglong total_size;        /* total # of data bytes in chunk */
+        m_block_len;       /* amount of data bytes allocated for block above */
+    ulonglong m_curr_offset; /* offset of the record pointer for the block */
+    ulonglong m_disk_start_offset; /* where the chunk starts on disk */
+    ulonglong m_disk_curr_offset;  /* current offset on disk */
+    ulonglong m_total_size;        /* total # of data bytes in chunk */
 
     void store_key_value(const rocksdb::Slice &key, const rocksdb::Slice &val)
         MY_ATTRIBUTE((__nonnull__));
@@ -78,32 +78,33 @@ public:
         MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
 
     inline bool is_chunk_finished() const {
-      return curr_offset + disk_curr_offset - disk_start_offset == total_size;
+      return m_curr_offset + m_disk_curr_offset - m_disk_start_offset ==
+             m_total_size;
     }
 
     inline bool has_space(uint64 needed) const {
-      return curr_offset + needed <= block_len;
+      return m_curr_offset + needed <= m_block_len;
     }
 
     explicit merge_buf_info(const ulonglong merge_block_size)
-        : block(nullptr), block_len(merge_block_size), curr_offset(0),
-          disk_start_offset(0), disk_curr_offset(0),
-          total_size(merge_block_size) {
+        : m_block(nullptr), m_block_len(merge_block_size), m_curr_offset(0),
+          m_disk_start_offset(0), m_disk_curr_offset(0),
+          m_total_size(merge_block_size) {
       /* Will throw an exception if it runs out of memory here */
-      block = std::unique_ptr<uchar[]>(new uchar[merge_block_size]);
+      m_block = std::unique_ptr<uchar[]>(new uchar[merge_block_size]);
 
       /* Initialize entire buffer to 0 to avoid valgrind errors */
-      memset(block.get(), 0, merge_block_size);
+      memset(m_block.get(), 0, merge_block_size);
     }
   };
 
   /* Represents an entry in the heap during merge phase of external sort */
   struct merge_heap_entry {
-    std::shared_ptr<merge_buf_info> chunk_info; /* pointer to buffer info */
-    uchar *block; /* pointer to heap memory where record is stored */
-    const rocksdb::Comparator *const comparator;
-    rocksdb::Slice key; /* current key pointed to by block ptr */
-    rocksdb::Slice val;
+    std::shared_ptr<merge_buf_info> m_chunk_info; /* pointer to buffer info */
+    uchar *m_block; /* pointer to heap memory where record is stored */
+    const rocksdb::Comparator *const m_comparator;
+    rocksdb::Slice m_key; /* current key pointed to by block ptr */
+    rocksdb::Slice m_val;
 
     size_t prepare(File fd, ulonglong f_offset, ulonglong chunk_size)
         MY_ATTRIBUTE((__nonnull__));
@@ -118,35 +119,37 @@ public:
         MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
 
     explicit merge_heap_entry(const rocksdb::Comparator *const comparator)
-        : chunk_info(nullptr), block(nullptr), comparator(comparator) {}
+        : m_chunk_info(nullptr), m_block(nullptr), m_comparator(comparator) {}
   };
 
   struct merge_heap_comparator {
     bool operator()(const std::shared_ptr<merge_heap_entry> &lhs,
                     const std::shared_ptr<merge_heap_entry> &rhs) {
-      return lhs->comparator->Compare(rhs->key, lhs->key) < 0;
+      return lhs->m_comparator->Compare(rhs->m_key, lhs->m_key) < 0;
     }
   };
 
   /* Represents a record in unsorted buffer */
   struct merge_record {
-    uchar *block; /* points to offset of key in sort buffer */
-    const rocksdb::Comparator *const comparator;
+    uchar *m_block; /* points to offset of key in sort buffer */
+    const rocksdb::Comparator *const m_comparator;
 
     bool operator<(const merge_record &record) const {
-      return merge_record_compare(this->block, record.block, comparator) < 0;
+      return merge_record_compare(this->m_block, record.m_block, m_comparator) <
+             0;
     }
 
     merge_record(uchar *const block,
                  const rocksdb::Comparator *const comparator)
-        : block(block), comparator(comparator) {}
+        : m_block(block), m_comparator(comparator) {}
   };
 
-private:
+ private:
   const char *m_tmpfile_path;
   const ulonglong m_merge_buf_size;
   const ulonglong m_merge_combine_read_size;
-  const rocksdb::Comparator *m_comparator;
+  const ulonglong m_merge_tmp_file_removal_delay;
+  rocksdb::ColumnFamilyHandle *m_cf_handle;
   struct merge_file_info m_merge_file;
   std::shared_ptr<merge_buf_info> m_rec_buf_unsorted;
   std::shared_ptr<merge_buf_info> m_output_buf;
@@ -184,11 +187,12 @@ private:
   void read_slice(rocksdb::Slice *slice, const uchar *block_ptr)
       MY_ATTRIBUTE((__nonnull__));
 
-public:
+ public:
   Rdb_index_merge(const char *const tmpfile_path,
                   const ulonglong &merge_buf_size,
                   const ulonglong &merge_combine_read_size,
-                  const rocksdb::Comparator *const comparator);
+                  const ulonglong &merge_tmp_file_removal_delay,
+                  rocksdb::ColumnFamilyHandle *cf);
   ~Rdb_index_merge();
 
   int init() MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
@@ -213,6 +217,8 @@ public:
       MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
 
   void merge_reset();
+
+  rocksdb::ColumnFamilyHandle *get_cf() const { return m_cf_handle; }
 };
 
-} // namespace myrocks
+}  // namespace myrocks

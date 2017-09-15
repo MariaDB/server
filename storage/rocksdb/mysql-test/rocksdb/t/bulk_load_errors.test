@@ -1,5 +1,6 @@
 --source include/have_rocksdb.inc
 
+### Bulk load ###
 CREATE TABLE t1(pk INT, PRIMARY KEY(pk));
 
 # Make sure we get an error with out of order keys during bulk load
@@ -36,4 +37,29 @@ SET rocksdb_bulk_load=0;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
+TRUNCATE TABLE t1;
+
+### Bulk load with unsorted PKs ###
+SET rocksdb_bulk_load_allow_unsorted=1;
+
+# We should not get an error with out of order PKs
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(100);
+INSERT INTO t1 VALUES(101);
+INSERT INTO t1 VALUES(99);
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+
+# We should get an error with duplicate PKs in the same bulk load
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(201);
+INSERT INTO t1 VALUES(200);
+INSERT INTO t1 VALUES(202);
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES(201);
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+
+SET rocksdb_bulk_load_allow_unsorted=DEFAULT;
 DROP TABLE t1;

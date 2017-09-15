@@ -1,0 +1,4 @@
+CREATE TABLE t1 (pk int primary key) ENGINE=ROCKSDB;
+set session debug="+d,gen_sql_table_name";
+rename table t1 to t2;
+set session debug= "-d,gen_sql_table_name";

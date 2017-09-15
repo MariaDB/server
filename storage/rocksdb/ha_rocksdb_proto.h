@@ -76,6 +76,7 @@ bool rdb_is_ttl_read_filtering_enabled();
 int rdb_dbug_set_ttl_rec_ts();
 int rdb_dbug_set_ttl_snapshot_ts();
 int rdb_dbug_set_ttl_read_filter_ts();
+bool rdb_dbug_set_ttl_ignore_pk();
 #endif
 
 enum operation_type : int;

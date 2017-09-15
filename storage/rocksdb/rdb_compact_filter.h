@@ -138,6 +138,14 @@ public:
                       gl_index_id.cf_id, gl_index_id.index_id);
     }
 
+#ifndef NDEBUG
+    if (rdb_dbug_set_ttl_ignore_pk() &&
+        index_info.m_index_type == Rdb_key_def::INDEX_TYPE_PRIMARY) {
+      *ttl_duration = 0;
+      return;
+    }
+#endif
+
     *ttl_duration = index_info.m_ttl_duration;
     if (Rdb_key_def::has_index_flag(index_info.m_index_flags,
                                     Rdb_key_def::TTL_FLAG)) {

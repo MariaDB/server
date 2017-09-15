@@ -1,0 +1,87 @@
+--source include/have_debug.inc
+--source include/have_rocksdb.inc
+
+# Multiple indexes, trigger compaction on sk and check consistency
+CREATE TABLE t1 (
+  a int NOT NULL,
+  b int NOT NULL,
+  c int NOT NULL,
+  PRIMARY KEY (a),
+  KEY kb (b) COMMENT 'kb',
+  KEY kc (c) COMMENT 'kc'
+) ENGINE=ROCKSDB
+COMMENT='ttl_duration=1';
+
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1, 1);
+INSERT INTO t1 values (2, 2, 2);
+set global rocksdb_debug_ttl_rec_ts = 100;
+INSERT INTO t1 values (3, 3, 3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='kb';
+
+# Results should be consistent
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+SELECT * FROM t1 FORCE INDEX (kb);
+SELECT * FROM t1 FORCE INDEX (kc);
+
+DROP TABLE t1;
+
+# Trigger compaction on pk and check consistency
+CREATE TABLE t1 (
+  a int NOT NULL,
+  b int NOT NULL,
+  c int NOT NULL,
+  PRIMARY KEY (a),
+  KEY kb (b) COMMENT 'kb',
+  KEY kc (c) COMMENT 'kc'
+) ENGINE=ROCKSDB
+COMMENT='ttl_duration=1';
+
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1, 1);
+INSERT INTO t1 values (2, 2, 2);
+set global rocksdb_debug_ttl_rec_ts = 100;
+INSERT INTO t1 values (3, 3, 3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+
+# Results should be consistent
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+SELECT * FROM t1 FORCE INDEX (kb);
+SELECT * FROM t1 FORCE INDEX (kc);
+
+DROP TABLE t1;
+
+# Trigger compaction on pk and sk and check consistency
+CREATE TABLE t1 (
+  a int NOT NULL,
+  b int NOT NULL,
+  c int NOT NULL,
+  PRIMARY KEY (a),
+  KEY kb (b) COMMENT 'kb',
+  KEY kc (c) COMMENT 'kc'
+) ENGINE=ROCKSDB
+COMMENT='ttl_duration=1';
+
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1, 1);
+INSERT INTO t1 values (2, 2, 2);
+set global rocksdb_debug_ttl_rec_ts = 100;
+INSERT INTO t1 values (3, 3, 3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_compact_cf='kb';
+
+# Results should be consistent
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+SELECT * FROM t1 FORCE INDEX (kb);
+SELECT * FROM t1 FORCE INDEX (kc);
+
+DROP TABLE t1;

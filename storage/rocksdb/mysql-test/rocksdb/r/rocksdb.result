@@ -868,6 +868,7 @@ rocksdb_block_restart_interval	16
 rocksdb_block_size	4096
 rocksdb_block_size_deviation	10
 rocksdb_bulk_load	OFF
+rocksdb_bulk_load_allow_unsorted	OFF
 rocksdb_bulk_load_size	1000
 rocksdb_bytes_per_sync	0
 rocksdb_cache_index_and_filter_blocks	ON
@@ -880,13 +881,16 @@ rocksdb_compaction_sequential_deletes	0
 rocksdb_compaction_sequential_deletes_count_sd	OFF
 rocksdb_compaction_sequential_deletes_file_size	0
 rocksdb_compaction_sequential_deletes_window	0
+rocksdb_concurrent_prepare	ON
 rocksdb_create_checkpoint	
 rocksdb_create_if_missing	ON
 rocksdb_create_missing_column_families	OFF
 rocksdb_datadir	./.rocksdb
 rocksdb_db_write_buffer_size	0
 rocksdb_deadlock_detect	OFF
+rocksdb_deadlock_detect_depth	50
 rocksdb_debug_optimizer_no_zero_cardinality	ON
+rocksdb_debug_ttl_ignore_pk	OFF
 rocksdb_debug_ttl_read_filter_ts	0
 rocksdb_debug_ttl_rec_ts	0
 rocksdb_debug_ttl_snapshot_ts	0
@@ -903,6 +907,7 @@ rocksdb_error_if_exists	OFF
 rocksdb_flush_log_at_trx_commit	1
 rocksdb_flush_memtable_on_analyze	ON
 rocksdb_force_compute_memtable_stats	ON
+rocksdb_force_compute_memtable_stats_cachetime	0
 rocksdb_force_flush_memtable_and_lzero_now	OFF
 rocksdb_force_flush_memtable_now	OFF
 rocksdb_force_index_records_in_range	0
@@ -912,12 +917,15 @@ rocksdb_info_log_level	error_level
 rocksdb_io_write_timeout	0
 rocksdb_is_fd_close_on_exec	ON
 rocksdb_keep_log_file_num	1000
+rocksdb_large_prefix	OFF
 rocksdb_lock_scanned_rows	OFF
 rocksdb_lock_wait_timeout	1
 rocksdb_log_file_time_to_roll	0
 rocksdb_manifest_preallocation_size	4194304
+rocksdb_manual_wal_flush	ON
 rocksdb_master_skip_tx_api	OFF
 rocksdb_max_background_jobs	2
+rocksdb_max_latest_deadlocks	5
 rocksdb_max_log_file_size	0
 rocksdb_max_manifest_file_size	18446744073709551615
 rocksdb_max_open_files	-1
@@ -926,6 +934,7 @@ rocksdb_max_subcompactions	1
 rocksdb_max_total_wal_size	0
 rocksdb_merge_buf_size	67108864
 rocksdb_merge_combine_read_size	1073741824
+rocksdb_merge_tmp_file_removal_delay_ms	0
 rocksdb_new_table_reader_for_compaction_inputs	OFF
 rocksdb_no_block_cache	OFF
 rocksdb_override_cf_options	
@@ -942,6 +951,7 @@ rocksdb_records_in_range	50
 rocksdb_reset_stats	OFF
 rocksdb_seconds_between_stat_computes	3600
 rocksdb_signal_drop_index_thread	OFF
+rocksdb_sim_cache_size	0
 rocksdb_skip_bloom_filter_on_read	OFF
 rocksdb_skip_fill_cache	OFF
 rocksdb_skip_unique_check_tables	.*
@@ -957,6 +967,7 @@ rocksdb_trace_sst_api	OFF
 rocksdb_unsafe_for_binlog	OFF
 rocksdb_update_cf_options	
 rocksdb_use_adaptive_mutex	OFF
+rocksdb_use_clock_cache	OFF
 rocksdb_use_direct_io_for_flush_and_compaction	OFF
 rocksdb_use_direct_reads	OFF
 rocksdb_use_fsync	OFF
@@ -1444,6 +1455,7 @@ rocksdb_memtable_total	#
 rocksdb_memtable_unflushed	#
 rocksdb_queries_point	#
 rocksdb_queries_range	#
+rocksdb_covered_secondary_key_lookups	#
 rocksdb_block_cache_add	#
 rocksdb_block_cache_data_hit	#
 rocksdb_block_cache_data_miss	#
@@ -1496,6 +1508,16 @@ rocksdb_number_superversion_cleanups	#
 rocksdb_number_superversion_releases	#
 rocksdb_rate_limit_delay_millis	#
 rocksdb_snapshot_conflict_errors	#
+rocksdb_stall_l0_file_count_limit_slowdowns	#
+rocksdb_stall_locked_l0_file_count_limit_slowdowns	#
+rocksdb_stall_l0_file_count_limit_stops	#
+rocksdb_stall_locked_l0_file_count_limit_stops	#
+rocksdb_stall_pending_compaction_limit_stops	#
+rocksdb_stall_pending_compaction_limit_slowdowns	#
+rocksdb_stall_memtable_limit_stops	#
+rocksdb_stall_memtable_limit_slowdowns	#
+rocksdb_stall_total_stops	#
+rocksdb_stall_total_slowdowns	#
 rocksdb_stall_micros	#
 rocksdb_wal_bytes	#
 rocksdb_wal_group_syncs	#
@@ -1520,6 +1542,7 @@ ROCKSDB_MEMTABLE_TOTAL
 ROCKSDB_MEMTABLE_UNFLUSHED
 ROCKSDB_QUERIES_POINT
 ROCKSDB_QUERIES_RANGE
+ROCKSDB_COVERED_SECONDARY_KEY_LOOKUPS
 ROCKSDB_BLOCK_CACHE_ADD
 ROCKSDB_BLOCK_CACHE_DATA_HIT
 ROCKSDB_BLOCK_CACHE_DATA_MISS
@@ -1572,6 +1595,16 @@ ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
 ROCKSDB_NUMBER_SUPERVERSION_RELEASES
 ROCKSDB_RATE_LIMIT_DELAY_MILLIS
 ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_MEMTABLE_LIMIT_STOPS
+ROCKSDB_STALL_MEMTABLE_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_TOTAL_STOPS
+ROCKSDB_STALL_TOTAL_SLOWDOWNS
 ROCKSDB_STALL_MICROS
 ROCKSDB_WAL_BYTES
 ROCKSDB_WAL_GROUP_SYNCS
@@ -1598,6 +1631,7 @@ ROCKSDB_MEMTABLE_TOTAL
 ROCKSDB_MEMTABLE_UNFLUSHED
 ROCKSDB_QUERIES_POINT
 ROCKSDB_QUERIES_RANGE
+ROCKSDB_COVERED_SECONDARY_KEY_LOOKUPS
 ROCKSDB_BLOCK_CACHE_ADD
 ROCKSDB_BLOCK_CACHE_DATA_HIT
 ROCKSDB_BLOCK_CACHE_DATA_MISS
@@ -1650,6 +1684,16 @@ ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
 ROCKSDB_NUMBER_SUPERVERSION_RELEASES
 ROCKSDB_RATE_LIMIT_DELAY_MILLIS
 ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_MEMTABLE_LIMIT_STOPS
+ROCKSDB_STALL_MEMTABLE_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_TOTAL_STOPS
+ROCKSDB_STALL_TOTAL_SLOWDOWNS
 ROCKSDB_STALL_MICROS
 ROCKSDB_WAL_BYTES
 ROCKSDB_WAL_GROUP_SYNCS
@@ -2149,7 +2193,9 @@ SET @old_mode = @@sql_mode;
 SET sql_mode = 'strict_all_tables';
 create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(c, b(255))) engine=rocksdb;
 drop table t1;
+set global rocksdb_large_prefix=1;
 create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(1255))) engine=rocksdb;
+set global rocksdb_large_prefix=0;
 insert into t1 values (1, '1abcde', '1abcde'), (2, '2abcde', '2abcde'), (3, '3abcde', '3abcde');
 select * from t1;
 a	b	c
@@ -2170,7 +2216,7 @@ a	b	c
 3	3abcde	3abcde
 drop table t1;
 create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(2255))) engine=rocksdb;
-ERROR 42000: Specified key was too long; max key length is 2048 bytes
+ERROR 42000: Specified key was too long; max key length is 767 bytes
 SET sql_mode = @old_mode;
 drop table t0;
 #

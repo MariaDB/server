@@ -845,17 +845,22 @@ static int rdb_i_s_compact_stats_fill_table(
       continue;
     }
 
-    std::map<std::string, double> props;
+    std::map<std::string, std::string> props;
     bool bool_ret MY_ATTRIBUTE((__unused__));
     bool_ret = rdb->GetMapProperty(cfh, "rocksdb.cfstats", &props);
     DBUG_ASSERT(bool_ret);
 
+    const std::string prop_name_prefix = "compaction.";
     for (auto const &prop_ent : props) {
       std::string prop_name = prop_ent.first;
-      double value = prop_ent.second;
-      std::size_t del_pos = prop_name.find('.');
+      if (prop_name.find(prop_name_prefix) != 0) {
+        continue;
+      }
+      std::string value = prop_ent.second;
+      std::size_t del_pos = prop_name.find('.', prop_name_prefix.size());
       DBUG_ASSERT(del_pos != std::string::npos);
-      std::string level_str = prop_name.substr(0, del_pos);
+      std::string level_str = prop_name.substr(
+          prop_name_prefix.size(), del_pos - prop_name_prefix.size());
       std::string type_str = prop_name.substr(del_pos + 1);
 
       Field **field = tables->table->field;
@@ -864,7 +869,7 @@ static int rdb_i_s_compact_stats_fill_table(
       field[0]->store(cf_name.c_str(), cf_name.size(), system_charset_info);
       field[1]->store(level_str.c_str(), level_str.size(), system_charset_info);
       field[2]->store(type_str.c_str(), type_str.size(), system_charset_info);
-      field[3]->store(value, true);
+      field[3]->store(std::stod(value));
 
       ret |= static_cast<int>(
           my_core::schema_table_store_record(thd, tables->table));

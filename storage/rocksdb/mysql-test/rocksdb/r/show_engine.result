@@ -7,17 +7,8 @@ CREATE TABLE t2 (j INT, PRIMARY KEY (j) COMMENT 'rev:cf_t2') ENGINE = ROCKSDB;
 CREATE TABLE t3 (k INT, PRIMARY KEY (k) COMMENT 'cf_t1') ENGINE = ROCKSDB;
 CREATE TABLE t4 (l INT, PRIMARY KEY (l) COMMENT 'cf_t4') ENGINE = ROCKSDB
 PARTITION BY KEY(l) PARTITIONS 4;
-SET GLOBAL rocksdb_force_flush_memtable_now=1;
-SHOW ENGINE rocksdb STATUS;
-Type	Name	Status
-STATISTICS	#	#
-DBSTATS	#	#
-CF_COMPACTION	#	#
-CF_COMPACTION	#	#
-CF_COMPACTION	#	#
-CF_COMPACTION	#	#
-MEMORY_STATS	#	#
-BG_THREADS	#	#
+SET @save.rocksdb_max_background_jobs= @@global.rocksdb_max_background_jobs;
+SET GLOBAL rocksdb_max_background_jobs= 1;
 INSERT INTO t1 VALUES (1), (2), (3);
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -30,6 +21,19 @@ INSERT INTO t4 VALUES (1), (2), (3), (4), (5);
 SELECT COUNT(*) FROM t4;
 COUNT(*)
 5
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+SET GLOBAL rocksdb_compact_cf="cf_t1";
+SHOW ENGINE rocksdb STATUS;
+Type	Name	Status
+STATISTICS	#	#
+DBSTATS	#	#
+CF_COMPACTION	#	#
+CF_COMPACTION	#	#
+CF_COMPACTION	#	#
+CF_COMPACTION	#	#
+MEMORY_STATS	#	#
+BG_THREADS	#	#
+BG_THREADS	#	#
 SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_CFSTATS;
 CF_NAME	STAT_TYPE	VALUE
 __system__	NUM_IMMUTABLE_MEM_TABLE	#
@@ -356,7 +360,7 @@ Type	Name	Status
 SHOW ENGINE ALL MUTEX;
 SHOW ENGINE rocksdb TRANSACTION STATUS;
 Type	Name	Status
-SNAPSHOTS	rocksdb	
+rocksdb		
 ============================================================
 TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
 ============================================================
@@ -364,6 +368,7 @@ TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
 SNAPSHOTS
 ---------
 LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
 -----------------------------------------
 END OF ROCKSDB TRANSACTION MONITOR OUTPUT
 =========================================
@@ -371,7 +376,7 @@ END OF ROCKSDB TRANSACTION MONITOR OUTPUT
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 SHOW ENGINE rocksdb TRANSACTION STATUS;
 Type	Name	Status
-SNAPSHOTS	rocksdb	
+rocksdb		
 ============================================================
 TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
 ============================================================
@@ -384,8 +389,10 @@ MySQL thread id TID, OS thread handle PTR, query id QID localhost root ACTION
 SHOW ENGINE rocksdb TRANSACTION STATUS
 lock count 0, write count 0
 insert count 0, update count 0, delete count 0
+----------LATEST DETECTED DEADLOCKS----------
 -----------------------------------------
 END OF ROCKSDB TRANSACTION MONITOR OUTPUT
 =========================================
 
 ROLLBACK;
+SET GLOBAL rocksdb_max_background_jobs= @save.rocksdb_max_background_jobs;

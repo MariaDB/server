@@ -9,9 +9,9 @@ KEY (x)) ENGINE = ROCKSDB;
 SELECT TABLE_SCHEMA,TABLE_NAME,PARTITION_NAME,INDEX_NAME,INDEX_TYPE,KV_FORMAT_VERSION,CF FROM INFORMATION_SCHEMA.ROCKSDB_DDL WHERE TABLE_NAME like 'is_ddl_t%';
 TABLE_SCHEMA	TABLE_NAME	PARTITION_NAME	INDEX_NAME	INDEX_TYPE	KV_FORMAT_VERSION	CF
 test	is_ddl_t2	NULL	PRIMARY	1	13	zy_cf
-test	is_ddl_t2	NULL	x	2	12	default
+test	is_ddl_t2	NULL	x	2	13	default
 test	is_ddl_t1	NULL	PRIMARY	1	13	default
-test	is_ddl_t1	NULL	j	2	12	default
-test	is_ddl_t1	NULL	k	2	12	kl_cf
+test	is_ddl_t1	NULL	j	2	13	default
+test	is_ddl_t1	NULL	k	2	13	kl_cf
 DROP TABLE is_ddl_t1;
 DROP TABLE is_ddl_t2;

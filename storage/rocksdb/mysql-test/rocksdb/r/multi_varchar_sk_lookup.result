@@ -1,0 +1,37 @@
+DROP TABLE IF EXISTS T1;
+CREATE TABLE T1 (
+P1 VARCHAR(64), P2 VARCHAR(64), P3 VARCHAR(64), P4 VARCHAR(64),
+S1 VARCHAR(64), S2 VARCHAR(64), S3 VARCHAR(64), S4 VARCHAR(64),
+S5 VARCHAR(64), S6 VARCHAR(64), S7 VARCHAR(64), S8 VARCHAR(64),
+S9 VARCHAR(64), S10 VARCHAR(64), S11 VARCHAR(64), S12 VARCHAR(64),
+S13 VARCHAR(64), S14 VARCHAR(64), S15 VARCHAR(64), S16 VARCHAR(64),
+PRIMARY KEY (P1(8), P2(8), P3(8), P4(8)),
+KEY SK (S1(8), S2(8), S3(8), S4(8),
+S5(8), S6(8), S7(8), S8(8),
+S9(8), S10(8), S11(8), S12(8),
+S13(8), S14(8), S15(8), S16(8))
+) ENGINE=rocksdb;
+INSERT INTO T1 VALUES ('1', '2', '3', '4',
+'5', '6', '7', '8',
+'9', '10', '11', '12',
+'13', '14', '15', '16',
+'17', '18', '19', '20');
+SELECT * FROM T1;
+P1	P2	P3	P4	S1	S2	S3	S4	S5	S6	S7	S8	S9	S10	S11	S12	S13	S14	S15	S16
+1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	16	17	18	19	20
+# Not eligible for optimization, shorter than prefix length.
+SELECT P4, S2 FROM T1 FORCE INDEX(SK) WHERE S1='5';
+P4	S2
+4	6
+include/assert.inc [Not eligible for optimization, shorter than prefix length.: 0 rocksdb_covered_secondary_key_lookups]
+DELETE FROM T1;
+INSERT INTO T1 VALUES ('100000000', '200000000', '300000000', '400000000',
+'500000000', '600000000', '700000000', '800000000',
+'900000000', '100000000', '110000000', '120000000',
+'130000000', '140000000', '150000000', '160000000',
+'170000000', '180000000', '190000000', '200000000');
+# Not eligible for optimization, longer than prefix length.
+SELECT P4, S2 FROM T1 FORCE INDEX(SK) WHERE S1='5';
+P4	S2
+include/assert.inc [Not eligible for optimization, longer than prefix length.: 0 rocksdb_covered_secondary_key_lookups]
+DROP TABLE T1;

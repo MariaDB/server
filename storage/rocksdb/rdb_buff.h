@@ -359,6 +359,22 @@ public:
     DBUG_ASSERT(pos < get_current_pos() && (pos + 1) < get_current_pos());
     rdb_netbuf_store_uint16(m_data.data() + pos, new_val);
   }
+
+  void truncate(const size_t &pos) {
+    DBUG_ASSERT(0 <= pos && pos < m_data.size());
+    m_data.resize(pos);
+  }
+
+  void allocate(const size_t &len, const uchar &val = 0) {
+    DBUG_ASSERT(len > 0);
+    m_data.resize(m_data.size() + len, val);
+  }
+
+  /*
+    An awful hack to deallocate the buffer without relying on the deconstructor.
+    This is needed to suppress valgrind errors in rocksdb.partition
+  */
+  void free() { std::vector<uchar>().swap(m_data); }
 };
 
 /*

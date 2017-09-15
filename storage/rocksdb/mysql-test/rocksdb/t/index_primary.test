@@ -62,3 +62,35 @@ ALTER TABLE t1 ADD CONSTRAINT PRIMARY KEY pk (a);
 SHOW KEYS IN t1;
 DROP TABLE t1;
 
+#
+# Test index prefix length limits.
+#
+set global rocksdb_large_prefix=0;
+
+CREATE TABLE t1 (
+  a BLOB(1024),
+  PRIMARY KEY (a(767))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+
+--error ER_TOO_LONG_KEY
+CREATE TABLE t1 (
+  a BLOB(1024),
+  PRIMARY KEY (a(768))
+) ENGINE=rocksdb;
+
+set global rocksdb_large_prefix=1;
+
+CREATE TABLE t1 (
+  a BLOB(4096),
+  PRIMARY KEY (a(3072))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+
+--error ER_TOO_LONG_KEY
+CREATE TABLE t1 (
+  a BLOB(4096),
+  PRIMARY KEY (a(3073))
+) ENGINE=rocksdb;
+
+set global rocksdb_large_prefix=DEFAULT;

@@ -1,4 +1,6 @@
 DROP TABLE IF EXISTS t1;
+call mtr.add_suppression("Column family 'cf1' not found");
+call mtr.add_suppression("Column family 'rev:cf2' not found");
 set global rocksdb_compact_cf = 'cf1';
 set global rocksdb_compact_cf = 'rev:cf2';
 set global rocksdb_signal_drop_index_thread = 1;

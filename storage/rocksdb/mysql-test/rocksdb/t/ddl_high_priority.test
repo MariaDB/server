@@ -1,0 +1,18 @@
+# Test high priority DDL
+# There are two modes of high priority DDL:
+# 1. Through the system variable high_priority_ddl
+# 2. Through syntax: CREATE/ALTER/DROP/OPTIMIZE HIGH_PRIORITY ...
+
+--source include/have_rocksdb.inc
+
+--echo ##
+--echo ## Using the system variable high_priority_ddl"
+--echo ##
+--let $use_sys_var = 1;
+--source include/ddl_high_priority.inc
+
+--echo ##
+--echo ## Using HIGH_PRIORITY syntax
+--echo ##
+--let $use_sys_var = 0;
+--source include/ddl_high_priority.inc
