@@ -1661,13 +1661,16 @@ bool CSphSEQuery::ParseField ( char * sField )
 			char * sLat = sValue;
 			char * p = sValue;
 
-			if (!( p = strchr ( p, ',' ) )) break; *p++ = '\0';
+			if (!( p = strchr ( p, ',' ) )) break;
+                        *p++ = '\0';
 			char * sLong = p;
 
-			if (!( p = strchr ( p, ',' ) )) break; *p++ = '\0';
+			if (!( p = strchr ( p, ',' ) )) break;
+                        *p++ = '\0';
 			char * sLatVal = p;
 
-			if (!( p = strchr ( p, ',' ) )) break; *p++ = '\0';
+			if (!( p = strchr ( p, ',' ) )) break;
+                        *p++ = '\0';
 			char * sLongVal = p;
 
 			m_sGeoLatAttr = chop(sLat);
@@ -1736,7 +1739,8 @@ bool CSphSEQuery::ParseField ( char * sField )
 		while ( sRest )
 		{
 			char * sId = sRest;
-			if (!( sRest = strchr ( sRest, ':' ) )) break; *sRest++ = '\0';
+			if (!( sRest = strchr ( sRest, ':' ) )) break;
+                        *sRest++ = '\0';
 			if (!( sRest - sId )) break;
 
 			char * sValue = sRest;

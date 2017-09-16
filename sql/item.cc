@@ -6004,7 +6004,7 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
                               collation.collation);
       break;
     }
-    /* Fall through to make_string_field() */
+    /* fall through */
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
   case MYSQL_TYPE_VAR_STRING:

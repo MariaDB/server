@@ -3635,7 +3635,7 @@ check_next_foreign:
 
 		row_mysql_handle_errors(&err, trx, NULL, NULL);
 
-		/* Fall through to raise error */
+		/* fall through */ /* to raise error */
 
 	default:
 		/* No other possible error returns */
@@ -4455,7 +4455,7 @@ loop:
 		fputs("  InnoDB: Warning: CHECK TABLE on ", stderr);
 		dict_index_name_print(stderr, prebuilt->trx, index);
 		fprintf(stderr, " returned %lu\n", ret);
-		/* fall through (this error is ignored by CHECK TABLE) */
+		/* fall through */ /* this error is ignored by CHECK TABLE */
 	case DB_END_OF_INDEX:
 func_exit:
 		mem_free(buf);

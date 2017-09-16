@@ -3059,7 +3059,7 @@ static MARIA_HA *get_MARIA_HA_from_REDO_record(const
   case LOGREC_REDO_INDEX:
   case LOGREC_REDO_INDEX_FREE_PAGE:
     index_page_redo_entry= 1;
-    /* Fall trough*/
+    /* fall through*/
   case LOGREC_REDO_INSERT_ROW_HEAD:
   case LOGREC_REDO_INSERT_ROW_TAIL:
   case LOGREC_REDO_PURGE_ROW_HEAD:

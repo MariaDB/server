@@ -1169,6 +1169,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
         goto err;
       }
       page_length= page.size;
+      break;
     }
     case KEY_OP_NONE:
     default:

@@ -100,6 +100,7 @@ endmacro(append_cflags_if_supported)
 
 set_cflags_if_supported(-Wno-missing-field-initializers)
 append_cflags_if_supported(-Wno-vla)
+append_cflags_if_supported(-Wno-implicit-fallthrough)
 
 ADD_SUBDIRECTORY(ft-index)
 

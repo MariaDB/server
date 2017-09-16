@@ -1078,42 +1078,42 @@ static bool plugin_add(MEM_ROOT *tmp_root,
     if (!name->str && plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN))
       continue; // already installed
 
-      struct st_plugin_int *tmp_plugin_ptr;
-      if (*(int*)plugin->info <
-          min_plugin_info_interface_version[plugin->type] ||
-          ((*(int*)plugin->info) >> 8) >
-          (cur_plugin_info_interface_version[plugin->type] >> 8))
-      {
-        char buf[256];
-        strxnmov(buf, sizeof(buf) - 1, "API version for ",
-                 plugin_type_names[plugin->type].str,
-                 " plugin ", tmp.name.str,
-                 " not supported by this version of the server", NullS);
-        report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, ENOEXEC, buf);
-        goto err;
-      }
-      if (plugin_maturity_map[plugin->maturity] < plugin_maturity)
-      {
-        char buf[256];
-        strxnmov(buf, sizeof(buf) - 1, "Loading of ",
-                 plugin_maturity_names[plugin->maturity],
-                 " plugin ", tmp.name.str,
-                 " is prohibited by --plugin-maturity=",
-                 plugin_maturity_names[plugin_maturity],
-                 NullS);
-        report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, EPERM, buf);
-        goto err;
-      }
-      tmp.plugin= plugin;
-      tmp.ref_count= 0;
-      tmp.state= PLUGIN_IS_UNINITIALIZED;
-      tmp.load_option= PLUGIN_ON;
+    struct st_plugin_int *tmp_plugin_ptr;
+    if (*(int*)plugin->info <
+        min_plugin_info_interface_version[plugin->type] ||
+        ((*(int*)plugin->info) >> 8) >
+        (cur_plugin_info_interface_version[plugin->type] >> 8))
+    {
+      char buf[256];
+      strxnmov(buf, sizeof(buf) - 1, "API version for ",
+               plugin_type_names[plugin->type].str,
+               " plugin ", tmp.name.str,
+               " not supported by this version of the server", NullS);
+      report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, ENOEXEC, buf);
+      goto err;
+    }
+    if (plugin_maturity_map[plugin->maturity] < plugin_maturity)
+    {
+      char buf[256];
+      strxnmov(buf, sizeof(buf) - 1, "Loading of ",
+               plugin_maturity_names[plugin->maturity],
+               " plugin ", tmp.name.str,
+               " is prohibited by --plugin-maturity=",
+               plugin_maturity_names[plugin_maturity],
+               NullS);
+      report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, EPERM, buf);
+      goto err;
+    }
+    tmp.plugin= plugin;
+    tmp.ref_count= 0;
+    tmp.state= PLUGIN_IS_UNINITIALIZED;
+    tmp.load_option= PLUGIN_ON;
 
-      if (!(tmp_plugin_ptr= plugin_insert_or_reuse(&tmp)))
-        goto err;
-      if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
-        tmp_plugin_ptr->state= PLUGIN_IS_FREED;
-      init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096);
+    if (!(tmp_plugin_ptr= plugin_insert_or_reuse(&tmp)))
+      goto err;
+    if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
+      tmp_plugin_ptr->state= PLUGIN_IS_FREED;
+    init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096);
 
     if (name->str)
       DBUG_RETURN(FALSE); // all done
@@ -1822,10 +1822,10 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
     case '\0':
       list= NULL; /* terminate the loop */
       /* fall through */
+    case ';':
 #ifndef __WIN__
     case ':':     /* can't use this as delimiter as it may be drive letter */
 #endif
-    case ';':
       str->str[str->length]= '\0';
       if (str == &name)  // load all plugins in named module
       {
@@ -1863,6 +1863,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
         str->str= p;
         continue;
       }
+      /* fall through */
     default:
       str->length++;
       continue;
@@ -3947,4 +3948,3 @@ void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root)
         insert_dynamic(options, (uchar*) opt);
   }
 }
-

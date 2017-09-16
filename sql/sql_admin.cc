@@ -54,7 +54,6 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
   if (thd->stmt_da->is_ok())
     thd->stmt_da->reset_diagnostics_area();
   table_list->table= NULL;
-  result_code= result_code ? HA_ADMIN_FAILED : HA_ADMIN_OK;
   DBUG_RETURN(result_code);
 }
 
