@@ -85,7 +85,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include "xbstream.h"
 #include "changed_page_bitmap.h"
 #include "read_filt.h"
-#include "wsrep.h"
+#include "backup_wsrep.h"
 #include "innobackupex.h"
 #include "backup_mysql.h"
 #include "backup_copy.h"

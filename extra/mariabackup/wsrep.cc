@@ -46,6 +46,7 @@ permission notice:
 #include <trx0sys.h>
 
 #include "common.h"
+#include "backup_wsrep.h"
 #ifdef WITH_WSREP
 #define WSREP_XID_PREFIX "WSREPXid"
 #define WSREP_XID_PREFIX_LEN MYSQL_XID_PREFIX_LEN
