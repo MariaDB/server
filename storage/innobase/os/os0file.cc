@@ -569,9 +569,8 @@ os_file_get_last_error_low(
 				REFMAN
 				"operating-system-error-codes.html\n");
 		}
+		fflush(stderr);
 	}
-
-	fflush(stderr);
 
 	if (err == ERROR_FILE_NOT_FOUND) {
 		return(OS_FILE_NOT_FOUND);
