@@ -50,6 +50,7 @@ echo # Restore and check results;
 --source include/restart_and_restore.inc
 
 rmdir $basedir;
+rmdir $incremental_dir;
 
 SELECT COUNT(*) FROM t;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
