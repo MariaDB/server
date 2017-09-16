@@ -4037,10 +4037,6 @@ row_merge_build_indexes(
 	/* Now we have files containing index entries ready for
 	sorting and inserting. */
 
-	DBUG_EXECUTE_IF(
-		"ib_merge_wait_after_read",
-		os_thread_sleep(20000000););  /* 20 sec */
-
 	for (i = 0; i < n_indexes; i++) {
 		dict_index_t*	sort_idx = indexes[i];
 
