@@ -629,6 +629,11 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	update_thd();
 
+	// FIXME: Construct ha_innobase_inplace_ctx here and determine
+	// if instant ALTER TABLE is possible. If yes, we will be able to
+	// allow ADD COLUMN even if SPATIAL INDEX, FULLTEXT INDEX or
+	// virtual columns exist, also together with adding virtual columns.
+
 	/* Change on engine specific table options require rebuild of the
 	table */
 	if (ha_alter_info->handler_flags
@@ -5150,6 +5155,11 @@ new_clustered_failed:
 			goto error_handling;);
 
 	if (ctx->need_rebuild()) {
+		if (~ha_alter_info->handler_flags
+		    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
+			goto not_instant_add_column;
+		}
+
 		if (ha_alter_info->handler_flags
 		    & (INNOBASE_ALTER_REBUILD
 		       & ~Alter_inplace_info::ADD_STORED_BASE_COLUMN
@@ -5165,13 +5175,6 @@ new_clustered_failed:
 			goto not_instant_add_column;
 		}
 
-		DBUG_ASSERT(ctx->new_table->n_cols > ctx->old_table->n_cols);
-
-		if (ha_alter_info->handler_flags & INNOBASE_ONLINE_CREATE) {
-			/* FIXME: allow these with instant ADD COLUMN */
-			goto not_instant_add_column;
-		}
-
 		for (uint i = ctx->old_table->n_cols
 			     - dict_table_get_n_sys_cols(ctx->old_table);
 		     i--; ) {
@@ -5179,6 +5182,14 @@ new_clustered_failed:
 				goto not_instant_add_column;
 			}
 		}
+
+		DBUG_ASSERT(ctx->new_table->n_cols > ctx->old_table->n_cols);
+
+		if (ha_alter_info->handler_flags & INNOBASE_ONLINE_CREATE) {
+			/* FIXME: allow these with instant ADD COLUMN */
+			goto not_instant_add_column;
+		}
+
 #if 0 // FIXME: enable instant ADD COLUMN
 		/* FIXME: allow ADD INDEX together with instant ADD COLUMN */
 		DBUG_ASSERT(ha_alter_info->key_count
