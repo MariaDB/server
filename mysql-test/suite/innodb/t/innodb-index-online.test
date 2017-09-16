@@ -1,4 +1,5 @@
 --source include/innodb_page_size_small.inc
+--source include/innodb_encrypt_log.inc
 --source include/have_debug_sync.inc
 
 let $innodb_metrics_select=
@@ -200,6 +201,18 @@ EXPLAIN SELECT COUNT(*) FROM t1 WHERE c2 > 3;
 
 SHOW CREATE TABLE t1;
 
+connection default;
+SET @merge_encrypt_0=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_0=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_0=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+connection con1;
+
 # Exceed the configured innodb_online_alter_log_max_size.
 # The actual limit is a multiple of innodb_sort_buf_size,
 # because that is the size of the in-memory log buffers.
@@ -223,7 +236,7 @@ SET DEBUG_SYNC = 'now WAIT_FOR c2e_created';
 # At this point, the clustered index scan must have completed,
 # but the modification log keeps accumulating due to the DEBUG_SYNC.
 eval $innodb_metrics_select;
-let $c= 2;
+let $c= 4;
 while ($c)
 {
   BEGIN;
@@ -242,6 +255,22 @@ eval $innodb_metrics_select;
 SELECT sf.name, sf.pos FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES si
 INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_FIELDS sf
 ON si.index_id = sf.index_id WHERE si.name = '?c2e';
+
+SET @merge_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+
+SELECT
+(@merge_encrypt_1-@merge_encrypt_0)-
+(@merge_decrypt_1-@merge_decrypt_0) as sort_balance,
+@merge_encrypt_1>@merge_encrypt_0, @merge_decrypt_1>@merge_decrypt_0,
+@rowlog_encrypt_1>@rowlog_encrypt_0;
 
 # Release con1.
 SET DEBUG_SYNC = 'now SIGNAL dml2_done';
@@ -270,6 +299,19 @@ ALTER TABLE t1 COMMENT 'testing if c2e will be dropped';
 # Check that the 'zombie' index c2e was dropped.
 eval $innodb_metrics_select;
 
+SET @merge_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+SET @rowlog_decrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
+
 connection con1;
 # Accumulate and apply some modification log.
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2f_created WAIT_FOR dml3_done';
@@ -282,6 +324,9 @@ connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR c2f_created';
 # Generate some log (delete-mark, delete-unmark, insert etc.)
 eval $innodb_metrics_select;
+let $c= 2;
+while ($c)
+{
 BEGIN;
 INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
 DELETE FROM t1 WHERE c1 > 320;
@@ -290,6 +335,8 @@ BEGIN;
 UPDATE t1 SET c2 = c2 + 1;
 DELETE FROM t1;
 ROLLBACK;
+dec $c;
+}
 eval $innodb_metrics_select;
 # Release con1.
 SET DEBUG_SYNC = 'now SIGNAL dml3_done';
@@ -300,6 +347,34 @@ reap;
 ALTER TABLE t1 CHANGE c2 c22f INT;
 
 eval $innodb_metrics_select;
+
+connection default;
+
+SET @merge_encrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+SET @rowlog_decrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
+
+SELECT
+(@merge_encrypt_2-@merge_encrypt_1)-
+(@merge_decrypt_2-@merge_decrypt_1) as sort_balance,
+(@rowlog_encrypt_2-@rowlog_encrypt_1)-
+(@rowlog_decrypt_2-@rowlog_decrypt_1) as log_balance;
+SELECT
+@merge_encrypt_2-@merge_encrypt_1>0 as sort_encrypted,
+@merge_decrypt_2-@merge_decrypt_1>0 as sort_decrypted,
+@rowlog_encrypt_2-@rowlog_encrypt_1>0 as log_encrypted,
+@rowlog_decrypt_2-@rowlog_decrypt_1>0 as log_decrypted;
+
+connection con1;
 SELECT COUNT(c22f) FROM t1;
 CHECK TABLE t1;
 

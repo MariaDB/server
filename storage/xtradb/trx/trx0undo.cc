@@ -2037,6 +2037,7 @@ trx_undo_free_prepared(
 			/* lock_trx_release_locks() assigns
 			trx->is_recovered=false */
 			ut_a(srv_read_only_mode
+			     || srv_apply_log_only
 			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 			break;
 		default:

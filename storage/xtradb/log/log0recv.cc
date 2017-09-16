@@ -1980,7 +1980,7 @@ recv_apply_hashed_log_recs(bool last_batch)
 
 		mutex_enter(&(log_sys->mutex));
 		mutex_enter(&(recv_sys->mutex));
-		ut_d(recv_no_log_write = FALSE);
+		ut_d(recv_no_log_write = srv_apply_log_only);
 
 		recv_no_ibuf_operations = FALSE;
 	}
@@ -3461,7 +3461,8 @@ recv_recovery_from_checkpoint_finish(void)
 	that the data dictionary tables will be free of any locks.
 	The data dictionary latch should guarantee that there is at
 	most one data dictionary transaction active at a time. */
-	if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+	if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+	    && !srv_apply_log_only) {
 		trx_rollback_or_clean_recovered(FALSE);
 	}
 }

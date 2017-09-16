@@ -2422,7 +2422,7 @@ String *Item_char_typecast::copy(String *str, CHARSET_INFO *strcs)
   if (copier.copy_with_warn(cast_cs, &tmp_value, strcs,
                             str->ptr(), str->length(), cast_length))
   {
-    null_value= 1; // In strict mode: malformed data or could not convert
+    null_value= 1; // EOM
     return 0;
   }
   check_truncation_with_warn(str, copier.source_end_pos() - str->ptr());

@@ -214,6 +214,17 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`c1`),
   KEY `c2d` (`c2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=1
+connection default;
+SET @merge_encrypt_0=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_0=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_0=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+connection con1;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2e_created WAIT_FOR dml2_done';
 SET lock_wait_timeout = 10;
 ALTER TABLE t1 DROP INDEX c2d, ADD INDEX c2e(c2),
@@ -246,6 +257,22 @@ BEGIN;
 UPDATE t1 SET c2 = c2 + 1;
 DELETE FROM t1;
 ROLLBACK;
+BEGIN;
+DELETE FROM t1;
+ROLLBACK;
+UPDATE t1 SET c2 = c2 + 1;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+DELETE FROM t1;
+ROLLBACK;
+BEGIN;
+DELETE FROM t1;
+ROLLBACK;
+UPDATE t1 SET c2 = c2 + 1;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+DELETE FROM t1;
+ROLLBACK;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
@@ -253,12 +280,28 @@ ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
-ddl_log_file_alter_table	0
+ddl_log_file_alter_table	1
 SELECT sf.name, sf.pos FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES si
 INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_FIELDS sf
 ON si.index_id = sf.index_id WHERE si.name = '?c2e';
 name	pos
 c2	0
+SET @merge_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+SELECT
+(@merge_encrypt_1-@merge_encrypt_0)-
+(@merge_decrypt_1-@merge_decrypt_0) as sort_balance,
+@merge_encrypt_1>@merge_encrypt_0, @merge_decrypt_1>@merge_decrypt_0,
+@rowlog_encrypt_1>@rowlog_encrypt_0;
+sort_balance	@merge_encrypt_1>@merge_encrypt_0	@merge_decrypt_1>@merge_decrypt_0	@rowlog_encrypt_1>@rowlog_encrypt_0
+0	0	0	0
 SET DEBUG_SYNC = 'now SIGNAL dml2_done';
 connection con1;
 ERROR HY000: Creating index 'c2e' required more than 'innodb_online_alter_log_max_size' bytes of modification log. Please try again
@@ -269,7 +312,7 @@ ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
-ddl_log_file_alter_table	0
+ddl_log_file_alter_table	1
 SELECT sf.name, sf.pos FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES si
 INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_FIELDS sf
 ON si.index_id = sf.index_id WHERE si.name = 'c2e';
@@ -281,7 +324,7 @@ ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
-ddl_log_file_alter_table	0
+ddl_log_file_alter_table	1
 connection default;
 ALTER TABLE t1 COMMENT 'testing if c2e will be dropped';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
@@ -291,7 +334,19 @@ ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
-ddl_log_file_alter_table	0
+ddl_log_file_alter_table	1
+SET @merge_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+SET @rowlog_decrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 connection con1;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2f_created WAIT_FOR dml3_done';
 ALTER TABLE t1 ADD INDEX c2f(c2);
@@ -304,7 +359,15 @@ ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
-ddl_log_file_alter_table	0
+ddl_log_file_alter_table	1
+BEGIN;
+INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
+DELETE FROM t1 WHERE c1 > 320;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET c2 = c2 + 1;
+DELETE FROM t1;
+ROLLBACK;
 BEGIN;
 INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
 DELETE FROM t1 WHERE c1 > 320;
@@ -320,7 +383,7 @@ ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
-ddl_log_file_alter_table	0
+ddl_log_file_alter_table	2
 SET DEBUG_SYNC = 'now SIGNAL dml3_done';
 connection con1;
 Warnings:
@@ -333,7 +396,35 @@ ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
-ddl_log_file_alter_table	0
+ddl_log_file_alter_table	2
+connection default;
+SET @merge_encrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+SET @rowlog_decrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
+SELECT
+(@merge_encrypt_2-@merge_encrypt_1)-
+(@merge_decrypt_2-@merge_decrypt_1) as sort_balance,
+(@rowlog_encrypt_2-@rowlog_encrypt_1)-
+(@rowlog_decrypt_2-@rowlog_decrypt_1) as log_balance;
+sort_balance	log_balance
+0	0
+SELECT
+@merge_encrypt_2-@merge_encrypt_1>0 as sort_encrypted,
+@merge_decrypt_2-@merge_decrypt_1>0 as sort_decrypted,
+@rowlog_encrypt_2-@rowlog_encrypt_1>0 as log_encrypted,
+@rowlog_decrypt_2-@rowlog_decrypt_1>0 as log_decrypted;
+sort_encrypted	sort_decrypted	log_encrypted	log_decrypted
+0	0	0	0
+connection con1;
 SELECT COUNT(c22f) FROM t1;
 COUNT(c22f)
 320
@@ -369,7 +460,7 @@ ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
-ddl_log_file_alter_table	0
+ddl_log_file_alter_table	2
 connection default;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
@@ -378,7 +469,7 @@ ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
-ddl_log_file_alter_table	0
+ddl_log_file_alter_table	2
 connection con1;
 disconnect con1;
 connection default;
@@ -400,7 +491,7 @@ ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
-ddl_log_file_alter_table	0
+ddl_log_file_alter_table	2
 ALTER TABLE t1 ADD INDEX c2h(c22f), ALGORITHM = INPLACE;
 ALTER TABLE t1 ADD INDEX c2h(c22f), ALGORITHM = COPY;
 ERROR 42000: Duplicate key name 'c2h'

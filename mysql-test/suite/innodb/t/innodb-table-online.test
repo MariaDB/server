@@ -1,4 +1,5 @@
 --source include/innodb_page_size_small.inc
+--source include/innodb_encrypt_log.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
@@ -17,7 +18,7 @@ SET GLOBAL innodb_file_per_table = on;
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
 
-CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT NOT NULL, c3 TEXT NOT NULL)
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT NOT NULL, c3 CHAR(255) NOT NULL)
 ENGINE = InnoDB;
 INSERT INTO t1 VALUES (1,1,''), (2,2,''), (3,3,''), (4,4,''), (5,5,'');
 
@@ -183,9 +184,19 @@ INSERT INTO t1 SELECT 10 + c1, c2, c3 FROM t1;
 INSERT INTO t1 SELECT 20 + c1, c2, c3 FROM t1;
 INSERT INTO t1 SELECT 40 + c1, c2, c3 FROM t1;
 # Purge may or may not have cleaned up the DELETE FROM t1 WHERE c1 = 7;
---replace_result 81 80
+--replace_column 9 ROWS
 EXPLAIN SELECT COUNT(*) FROM t1 WHERE c2 > 3;
 ANALYZE TABLE t1;
+
+SET @merge_encrypt_0=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_0=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_0=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 
 --echo # session con1
 connection con1;
@@ -228,6 +239,22 @@ while ($c)
 # Temporary table should exist until the DDL thread notices the overflow.
 eval $innodb_metrics_select;
 
+SET @merge_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+
+SELECT
+(@merge_encrypt_1-@merge_encrypt_0)-
+(@merge_decrypt_1-@merge_decrypt_0) as sort_balance,
+@merge_encrypt_1>@merge_encrypt_0, @merge_decrypt_1>@merge_decrypt_0,
+@rowlog_encrypt_1>@rowlog_encrypt_0;
+
 # Release con1.
 SET DEBUG_SYNC = 'now SIGNAL dml2_done';
 
@@ -241,6 +268,19 @@ reap;
 # when the above error was noticed.
 eval $innodb_metrics_select;
 
+SET @merge_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+SET @rowlog_decrypt_1=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
+
 # Accumulate and apply some modification log.
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt3 WAIT_FOR dml3_done';
 --error ER_MULTIPLE_PRI_KEY
@@ -249,8 +289,8 @@ ALTER TABLE t1 ADD PRIMARY KEY(c22f), CHANGE c2 c22f INT;
 ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(c22f), CHANGE c2 c22f INT;
 --send
 ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(c1,c22f,c4(5)),
-CHANGE c2 c22f INT, CHANGE c3 c3 TEXT NULL, CHANGE c1 c1 INT AFTER c22f,
-ADD COLUMN c4 VARCHAR(6) DEFAULT 'Online';
+CHANGE c2 c22f INT, CHANGE c3 c3 CHAR(255) NULL, CHANGE c1 c1 INT AFTER c22f,
+ADD COLUMN c4 VARCHAR(6) DEFAULT 'Online', LOCK=NONE;
 
 --echo # session default
 connection default;
@@ -276,6 +316,30 @@ eval $innodb_metrics_select;
 SELECT COUNT(c22f) FROM t1;
 CHECK TABLE t1;
 
+SET @merge_encrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
+SET @merge_decrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
+SET @rowlog_encrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
+SET @rowlog_decrypt_2=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
+
+SELECT
+(@merge_encrypt_2-@merge_encrypt_1)-
+(@merge_decrypt_2-@merge_decrypt_1) as sort_balance,
+(@rowlog_encrypt_2-@rowlog_encrypt_1)-
+(@rowlog_decrypt_2-@rowlog_decrypt_1) as log_balance;
+SELECT
+@merge_encrypt_2-@merge_encrypt_1>0 as sort_encrypted,
+@merge_decrypt_2-@merge_decrypt_1>0 as sort_decrypted,
+@rowlog_encrypt_2-@rowlog_encrypt_1>0 as log_encrypted,
+@rowlog_decrypt_2-@rowlog_decrypt_1>0 as log_decrypted;
+
 # Create a column prefix index.
 --error ER_DUP_ENTRY
 ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY c3p5(c3(5));
@@ -292,15 +356,15 @@ ALTER TABLE t1 DROP COLUMN c22f, DROP PRIMARY KEY, ADD PRIMARY KEY c3p5(c3(5)),
 ALGORITHM = INPLACE;
 
 --error ER_INVALID_USE_OF_NULL
-ALTER TABLE t1 MODIFY c3 TEXT NOT NULL;
+ALTER TABLE t1 MODIFY c3 CHAR(255) NOT NULL;
 SET @@sql_mode = @old_sql_mode;
-UPDATE t1 SET c3=CONCAT(c1,REPEAT('foo',c1)) WHERE c3 IS NULL;
+UPDATE t1 SET c3=LEFT(CONCAT(c1,REPEAT('foo',c1)),255) WHERE c3 IS NULL;
 
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL c3p5_created0 WAIT_FOR ins_done0';
 # NULL -> NOT NULL only allowed INPLACE if strict sql_mode is on.
 SET @@sql_mode = 'STRICT_TRANS_TABLES';
 --send
-ALTER TABLE t1 MODIFY c3 TEXT NOT NULL, DROP COLUMN c22f,
+ALTER TABLE t1 MODIFY c3 CHAR(255) NOT NULL, DROP COLUMN c22f,
 DROP PRIMARY KEY, ADD PRIMARY KEY(c1,c4(5)),
 ADD COLUMN c5 CHAR(5) DEFAULT 'tired' FIRST;
 
@@ -325,7 +389,7 @@ ROLLBACK;
 
 --echo # session con1
 connection con1;
-ALTER TABLE t1 MODIFY c3 TEXT NOT NULL;
+ALTER TABLE t1 MODIFY c3 CHAR(255) NOT NULL;
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL c3p5_created WAIT_FOR ins_done';
 --send
 ALTER TABLE t1 DROP PRIMARY KEY, DROP COLUMN c22f,

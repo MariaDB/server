@@ -587,8 +587,7 @@ class Item_func_not;
 class Item_splocal;
 
 /**
-  String_copier that honors the current sql_mode (strict vs non strict)
-  and can send warnings.
+  String_copier that sends Item specific warnings.
 */
 class String_copier_for_item: public String_copier
 {

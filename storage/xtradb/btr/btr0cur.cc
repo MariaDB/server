@@ -4378,8 +4378,8 @@ btr_estimate_number_of_different_key_vals(
                 */
 		if (index->stat_index_size > 1) {
 			n_sample_pages = (srv_stats_transient_sample_pages < index->stat_index_size) ?
-                               (ulint) ut_min((double) index->stat_index_size,
-				       log2(index->stat_index_size)*srv_stats_transient_sample_pages)
+				ut_min(index->stat_index_size,
+				       ulint(log2(index->stat_index_size)*srv_stats_transient_sample_pages))
 				: index->stat_index_size;
 
 		}
