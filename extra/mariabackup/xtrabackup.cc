@@ -95,6 +95,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <sql_plugin.h>
 #include <srv0srv.h>
 #include <crc_glue.h>
+#include <log.h>
 
 /* TODO: replace with appropriate macros used in InnoDB 5.6 */
 #define PAGE_ZIP_MIN_SIZE_SHIFT	10
@@ -6482,6 +6483,11 @@ int main(int argc, char **argv)
 
 	system_charset_info = &my_charset_utf8_general_ci;
 	key_map_full.set_all();
+
+	logger.init_base();
+	logger.set_handlers(LOG_FILE, LOG_NONE, LOG_NONE);
+	mysql_mutex_init(key_LOCK_error_log, &LOCK_error_log,
+			 MY_MUTEX_INIT_FAST);
 
 	handle_options(argc, argv, &client_defaults, &server_defaults);
 

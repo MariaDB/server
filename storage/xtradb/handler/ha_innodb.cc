@@ -21949,27 +21949,21 @@ ib_logf(
 	str = static_cast<char*>(malloc(BUFSIZ));
 	my_vsnprintf(str, BUFSIZ, format, args);
 #endif /* __WIN__ */
-	if (!IS_XTRABACKUP()) {
-		switch (level) {
-		case IB_LOG_LEVEL_INFO:
-			sql_print_information("InnoDB: %s", str);
-			break;
-		case IB_LOG_LEVEL_WARN:
-			sql_print_warning("InnoDB: %s", str);
-			break;
-		case IB_LOG_LEVEL_ERROR:
-			sql_print_error("InnoDB: %s", str);
-			sd_notifyf(0, "STATUS=InnoDB: Error: %s", str);
-			break;
-		case IB_LOG_LEVEL_FATAL:
-			sql_print_error("InnoDB: %s", str);
-			sd_notifyf(0, "STATUS=InnoDB: Fatal: %s", str);
-			break;
-		}
-	}
-	else {
-		/* Don't use server logger for XtraBackup, just print to stderr. */
-		fprintf(stderr, "InnoDB: %s\n", str);
+	switch (level) {
+	case IB_LOG_LEVEL_INFO:
+		sql_print_information("InnoDB: %s", str);
+		break;
+	case IB_LOG_LEVEL_WARN:
+		sql_print_warning("InnoDB: %s", str);
+		break;
+	case IB_LOG_LEVEL_ERROR:
+		sql_print_error("InnoDB: %s", str);
+		sd_notifyf(0, "STATUS=InnoDB: Error: %s", str);
+		break;
+	case IB_LOG_LEVEL_FATAL:
+		sql_print_error("InnoDB: %s", str);
+		sd_notifyf(0, "STATUS=InnoDB: Fatal: %s", str);
+		break;
 	}
 
 	va_end(args);
