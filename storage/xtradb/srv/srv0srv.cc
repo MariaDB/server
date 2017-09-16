@@ -2470,7 +2470,7 @@ srv_get_active_thread_type(void)
 {
 	srv_thread_type ret = SRV_NONE;
 
-	if (srv_read_only_mode) {
+	if (srv_read_only_mode || srv_apply_log_only) {
 		return(SRV_NONE);
 	}
 

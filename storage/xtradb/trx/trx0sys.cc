@@ -1346,8 +1346,7 @@ trx_sys_close(void)
 	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx
 	     || srv_read_only_mode
 	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
-	     || (IS_XTRABACKUP() && srv_apply_log_only));
-
+	     || srv_apply_log_only);
 
 	while ((trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list)) != NULL) {
 		trx_free_prepared(trx);
@@ -1378,7 +1377,7 @@ trx_sys_close(void)
 		UT_LIST_REMOVE(view_list, trx_sys->view_list, prev_view);
 	}
 
-	if (!IS_XTRABACKUP() || !srv_apply_log_only) {
+	if (!srv_apply_log_only) {
 		ut_a(UT_LIST_GET_LEN(trx_sys->view_list) == 0);
 		ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
 		ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == 0);
@@ -1430,7 +1429,7 @@ ulint
 trx_sys_any_active_transactions(void)
 /*=================================*/
 {
-	if (IS_XTRABACKUP() && srv_apply_log_only) {
+	if (srv_apply_log_only) {
 		return(0);
 	}
 	mutex_enter(&trx_sys->mutex);

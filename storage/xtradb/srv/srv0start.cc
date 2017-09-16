@@ -767,7 +767,7 @@ create_log_files(
 
 	/* Create a log checkpoint. */
 	mutex_enter(&log_sys->mutex);
-	ut_d(recv_no_log_write = FALSE);
+	ut_d(recv_no_log_write = srv_apply_log_only);
 	recv_reset_logs(
 #ifdef UNIV_LOG_ARCHIVE
 		UT_LIST_GET_FIRST(log_sys->log_groups)->archived_file_no,
@@ -2748,6 +2748,11 @@ files_checked:
 
 		recv_recovery_from_checkpoint_finish();
 
+		if (srv_apply_log_only) {
+			ut_ad(IS_XTRABACKUP());
+			goto skip_processes;
+		}
+
 		if (srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE) {
 			/* The following call is necessary for the insert
 			buffer to work with multiple tablespaces. We must
@@ -3156,6 +3161,7 @@ files_checked:
 		os_thread_create(btr_defragment_thread, NULL, NULL);
 	}
 
+skip_processes:
 	srv_was_started = TRUE;
 
 	return(DB_SUCCESS);
@@ -3318,7 +3324,7 @@ innodb_shutdown()
 		srv_misc_tmpfile = 0;
 	}
 
-	if (!srv_read_only_mode) {
+	if (!srv_read_only_mode && !srv_apply_log_only) {
 		dict_stats_thread_deinit();
 		fil_crypt_threads_cleanup();
 		btr_scrub_cleanup();
