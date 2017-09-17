@@ -30,6 +30,7 @@ Created 2011-05-26 Marko Makela
 #include "row0upd.h"
 #include "row0merge.h"
 #include "row0ext.h"
+#include "log0crypt.h"
 #include "data0data.h"
 #include "que0que.h"
 #include "srv0mon.h"
@@ -194,8 +195,14 @@ struct row_log_t {
 	row_log_buf_t	tail;	/*!< writer context;
 				protected by mutex and index->lock S-latch,
 				or by index->lock X-latch only */
+	byte*		crypt_tail; /*!< writer context;
+				temporary buffer used in encryption,
+				decryption or NULL*/
 	row_log_buf_t	head;	/*!< reader context; protected by MDL only;
 				modifiable by row_log_apply_ops() */
+	byte*		crypt_head; /*!< reader context;
+				temporary buffer used in encryption,
+				decryption or NULL */
 	ulint		n_old_col;
 				/*!< number of non-virtual column in
 				old table */
@@ -358,24 +365,40 @@ row_log_online_op(
 			= (os_offset_t) log->tail.blocks
 			* srv_sort_buf_size;
 		IORequest		request(IORequest::WRITE);
+		byte*			buf = log->tail.block;
 
 		if (byte_offset + srv_sort_buf_size >= srv_online_max_size) {
 			goto write_failed;
 		}
 
 		if (mrec_size == avail_size) {
-			ut_ad(b == &log->tail.block[srv_sort_buf_size]);
+			ut_ad(b == &buf[srv_sort_buf_size]);
 		} else {
 			ut_ad(b == log->tail.buf + mrec_size);
-			memcpy(log->tail.block + log->tail.bytes,
+			memcpy(buf + log->tail.bytes,
 			       log->tail.buf, avail_size);
 		}
 
-		UNIV_MEM_ASSERT_RW(log->tail.block, srv_sort_buf_size);
+		UNIV_MEM_ASSERT_RW(buf, srv_sort_buf_size);
 
 		if (row_log_tmpfile(log) < 0) {
 			log->error = DB_OUT_OF_MEMORY;
 			goto err_exit;
+		}
+
+		/* If encryption is enabled encrypt buffer before writing it
+		to file system. */
+		if (log_tmp_is_encrypted()) {
+			if (!log_tmp_block_encrypt(
+				    buf, srv_sort_buf_size,
+				    log->crypt_tail, byte_offset,
+				    index->table->space)) {
+				log->error = DB_DECRYPTION_FAILED;
+				goto write_failed;
+			}
+
+			srv_stats.n_rowlog_blocks_encrypted.inc();
+			buf = log->crypt_tail;
 		}
 
 		log->tail.blocks++;
@@ -383,14 +406,17 @@ row_log_online_op(
 			    request,
 			    "(modification log)",
 			    log->fd,
-			    log->tail.block, byte_offset, srv_sort_buf_size)) {
+			    buf, byte_offset, srv_sort_buf_size)) {
 write_failed:
 			/* We set the flag directly instead of invoking
 			dict_set_corrupted_index_cache_only(index) here,
 			because the index is not "public" yet. */
 			index->type |= DICT_CORRUPT;
 		}
+
 		UNIV_MEM_INVALID(log->tail.block, srv_sort_buf_size);
+		UNIV_MEM_INVALID(buf, srv_sort_buf_size);
+
 		memcpy(log->tail.block, log->tail.buf + avail_size,
 		       mrec_size - avail_size);
 		log->tail.bytes = mrec_size - avail_size;
@@ -460,13 +486,15 @@ static MY_ATTRIBUTE((nonnull))
 void
 row_log_table_close_func(
 /*=====================*/
-	row_log_t*	log,	/*!< in/out: online rebuild log */
+	dict_index_t*	index,	/*!< in/out: online rebuilt index */
 #ifdef UNIV_DEBUG
 	const byte*	b,	/*!< in: end of log record */
 #endif /* UNIV_DEBUG */
 	ulint		size,	/*!< in: size of log record */
 	ulint		avail)	/*!< in: available size for log record */
 {
+	row_log_t*	log = index->online_log;
+
 	ut_ad(mutex_own(&log->mutex));
 
 	if (size >= avail) {
@@ -474,24 +502,39 @@ row_log_table_close_func(
 			= (os_offset_t) log->tail.blocks
 			* srv_sort_buf_size;
 		IORequest		request(IORequest::WRITE);
+		byte*			buf = log->tail.block;
 
 		if (byte_offset + srv_sort_buf_size >= srv_online_max_size) {
 			goto write_failed;
 		}
 
 		if (size == avail) {
-			ut_ad(b == &log->tail.block[srv_sort_buf_size]);
+			ut_ad(b == &buf[srv_sort_buf_size]);
 		} else {
 			ut_ad(b == log->tail.buf + size);
-			memcpy(log->tail.block + log->tail.bytes,
-			       log->tail.buf, avail);
+			memcpy(buf + log->tail.bytes, log->tail.buf, avail);
 		}
 
-		UNIV_MEM_ASSERT_RW(log->tail.block, srv_sort_buf_size);
+		UNIV_MEM_ASSERT_RW(buf, srv_sort_buf_size);
 
 		if (row_log_tmpfile(log) < 0) {
 			log->error = DB_OUT_OF_MEMORY;
 			goto err_exit;
+		}
+
+		/* If encryption is enabled encrypt buffer before writing it
+		to file system. */
+		if (log_tmp_is_encrypted()) {
+			if (!log_tmp_block_encrypt(
+				    log->tail.block, srv_sort_buf_size,
+				    log->crypt_tail, byte_offset,
+				    index->table->space)) {
+				log->error = DB_DECRYPTION_FAILED;
+				goto err_exit;
+			}
+
+			srv_stats.n_rowlog_blocks_encrypted.inc();
+			buf = log->crypt_tail;
 		}
 
 		log->tail.blocks++;
@@ -499,11 +542,12 @@ row_log_table_close_func(
 			    request,
 			    "(modification log)",
 			    log->fd,
-			    log->tail.block, byte_offset, srv_sort_buf_size)) {
+			    buf, byte_offset, srv_sort_buf_size)) {
 write_failed:
 			log->error = DB_ONLINE_LOG_TOO_BIG;
 		}
 		UNIV_MEM_INVALID(log->tail.block, srv_sort_buf_size);
+		UNIV_MEM_INVALID(buf, srv_sort_buf_size);
 		memcpy(log->tail.block, log->tail.buf + avail, size - avail);
 		log->tail.bytes = size - avail;
 	} else {
@@ -522,11 +566,11 @@ err_exit:
 }
 
 #ifdef UNIV_DEBUG
-# define row_log_table_close(log, b, size, avail)	\
-	row_log_table_close_func(log, b, size, avail)
+# define row_log_table_close(index, b, size, avail)	\
+	row_log_table_close_func(index, b, size, avail)
 #else /* UNIV_DEBUG */
 # define row_log_table_close(log, b, size, avail)	\
-	row_log_table_close_func(log, size, avail)
+	row_log_table_close_func(index, size, avail)
 #endif /* UNIV_DEBUG */
 
 /** Check whether a virtual column is indexed in the new table being
@@ -722,8 +766,7 @@ row_log_table_delete(
                         b += mach_read_from_2(b);
                 }
 
-		row_log_table_close(
-			index->online_log, b, mrec_size, avail_size);
+		row_log_table_close(index, b, mrec_size, avail_size);
 	}
 
 func_exit:
@@ -885,8 +928,7 @@ row_log_table_low_redundant(
 			b += 2;
 		}
 
-		row_log_table_close(
-			index->online_log, b, mrec_size, avail_size);
+		row_log_table_close(index, b, mrec_size, avail_size);
 	}
 
 	mem_heap_free(heap);
@@ -1038,8 +1080,7 @@ row_log_table_low(
 			b += 2;
 		}
 
-		row_log_table_close(
-			index->online_log, b, mrec_size, avail_size);
+		row_log_table_close(index, b, mrec_size, avail_size);
 	}
 }
 
@@ -2885,17 +2926,29 @@ all_done:
 		}
 
 		IORequest		request(IORequest::READ);
-
+		byte*			buf = index->online_log->head.block;
 
 		if (!os_file_read_no_error_handling_int_fd(
-			    request,
-			    index->online_log->fd,
-			    index->online_log->head.block, ofs,
-			    srv_sort_buf_size)) {
+			    request, index->online_log->fd,
+			    buf, ofs, srv_sort_buf_size)) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for table " << index->table_name;
 			goto corruption;
+		}
+
+		if (log_tmp_is_encrypted()) {
+			if (!log_tmp_block_decrypt(
+				    buf, srv_sort_buf_size,
+				    index->online_log->crypt_head,
+				    ofs, index->table->space)) {
+				error = DB_DECRYPTION_FAILED;
+				goto func_exit;
+			}
+
+			srv_stats.n_rowlog_blocks_decrypted.inc();
+			memcpy(buf, index->online_log->crypt_head,
+			       srv_sort_buf_size);
 		}
 
 #ifdef POSIX_FADV_DONTNEED
@@ -3193,6 +3246,7 @@ row_log_allocate(
 	log->tail.blocks = log->tail.bytes = 0;
 	log->tail.total = 0;
 	log->tail.block = log->head.block = NULL;
+	log->crypt_tail = log->crypt_head = NULL;
 	log->head.blocks = log->head.bytes = 0;
 	log->head.total = 0;
 	log->path = path;
@@ -3201,6 +3255,17 @@ row_log_allocate(
 
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
 	index->online_log = log;
+
+	if (log_tmp_is_encrypted()) {
+		ulint size = srv_sort_buf_size;
+		log->crypt_head = static_cast<byte *>(os_mem_alloc_large(&size));
+		log->crypt_tail = static_cast<byte *>(os_mem_alloc_large(&size));
+
+		if (!log->crypt_head || !log->crypt_tail) {
+			row_log_free(log);
+			DBUG_RETURN(false);
+		}
+	}
 
 	/* While we might be holding an exclusive data dictionary lock
 	here, in row_log_abort_sec() we will not always be holding it. Use
@@ -3223,6 +3288,15 @@ row_log_free(
 	row_log_block_free(log->tail);
 	row_log_block_free(log->head);
 	row_merge_file_destroy_low(log->fd);
+
+	if (log->crypt_head) {
+		os_mem_free_large(log->crypt_head, srv_sort_buf_size);
+	}
+
+	if (log->crypt_tail) {
+		os_mem_free_large(log->crypt_tail, srv_sort_buf_size);
+	}
+
 	mutex_free(&log->mutex);
 	ut_free(log);
 	log = NULL;
@@ -3717,15 +3791,28 @@ all_done:
 			goto func_exit;
 		}
 
+		byte*	buf = index->online_log->head.block;
+
 		if (!os_file_read_no_error_handling_int_fd(
-			    request,
-			    index->online_log->fd,
-			    index->online_log->head.block, ofs,
-			    srv_sort_buf_size)) {
+			    request, index->online_log->fd,
+			    buf, ofs, srv_sort_buf_size)) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for index " << index->name;
 			goto corruption;
+		}
+
+		if (log_tmp_is_encrypted()) {
+			if (!log_tmp_block_decrypt(
+				    buf, srv_sort_buf_size,
+				    index->online_log->crypt_head,
+				    ofs, index->table->space)) {
+				error = DB_DECRYPTION_FAILED;
+				goto func_exit;
+			}
+
+			srv_stats.n_rowlog_blocks_decrypted.inc();
+			memcpy(buf, index->online_log->crypt_head, srv_sort_buf_size);
 		}
 
 #ifdef POSIX_FADV_DONTNEED

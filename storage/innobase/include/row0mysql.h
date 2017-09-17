@@ -262,15 +262,6 @@ row_get_prebuilt_update_vector(
 /*===========================*/
 	row_prebuilt_t*	prebuilt);	/*!< in: prebuilt struct in MySQL
 					handle */
-/*********************************************************************//**
-Checks if a table is such that we automatically created a clustered
-index on it (on row id).
-@return TRUE if the clustered index was generated automatically */
-ibool
-row_table_got_default_clust_index(
-/*==============================*/
-	const dict_table_t*	table);	/*!< in: table */
-
 /** Does an update or delete of a row for MySQL.
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
 @return error code or DB_SUCCESS */

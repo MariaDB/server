@@ -82,4 +82,44 @@ UNIV_INTERN
 void
 log_crypt(byte* buf, lsn_t lsn, ulint size, bool decrypt = false);
 
+/** Encrypt or decrypt a temporary file block.
+@param[in]	src		block to encrypt or decrypt
+@param[in]	size		size of the block
+@param[out]	dst		destination block
+@param[in]	offs		offset to block
+@param[in]	space_id	tablespace id
+@param[in]	encrypt		true=encrypt; false=decrypt
+@return whether the operation succeeded */
+UNIV_INTERN
+bool
+log_tmp_block_encrypt(
+	const byte*	src,
+	ulint		size,
+	byte*		dst,
+	uint64_t	offs,
+	ulint		space_id,
+	bool		encrypt = true)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
+/** Decrypt a temporary file block.
+@param[in]	src		block to decrypt
+@param[in]	size		size of the block
+@param[out]	dst		destination block
+@param[in]	offs		offset to block
+@param[in]	space_id	tablespace id
+@return whether the operation succeeded */
+inline
+bool
+log_tmp_block_decrypt(
+	const byte*	src,
+	ulint		size,
+	byte*		dst,
+	uint64_t	offs,
+	ulint		space_id)
+{
+	return(log_tmp_block_encrypt(src, size, dst, offs, space_id, false));
+}
+
+/** @return whether temporary files are encrypted */
+inline bool log_tmp_is_encrypted() { return srv_encrypt_log; }
 #endif  // log0crypt.h

@@ -55,6 +55,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include "encryption_plugin.h"
 #include <sstream>
 #include <sql_error.h>
+#include <ut0ut.h>
 
 
 char *tool_name;
@@ -1665,38 +1666,28 @@ static void check_mdl_lock_works(const char *table_name)
   free(query);
 }
 #endif
-
-extern void
-dict_fs2utf8(const char*, char*, size_t, char*, size_t);
-
 void
 mdl_lock_table(ulint space_id)
 {
-  static const char q[] = "SELECT NAME "
+  std::ostringstream oss;
+  oss << "SELECT NAME "
     "FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES "
-    "WHERE SPACE = " ULINTPF " AND NAME LIKE '%%/%%'";
-  char query[22 + sizeof q];
-  snprintf(query, sizeof query, q, space_id);
+    "WHERE SPACE = " << space_id << " AND NAME LIKE '%%/%%'";
 
   pthread_mutex_lock(&mdl_lock_con_mutex);
 
-  MYSQL_RES *mysql_result = xb_mysql_query(mdl_con, query, true, true);
+  MYSQL_RES *mysql_result = xb_mysql_query(mdl_con, oss.str().c_str(), true, true);
+
   while (MYSQL_ROW row = mysql_fetch_row(mysql_result)) {
-    char full_table_name[2*FN_REFLEN +2];
-    char db_utf8[FN_REFLEN];
-    char table_utf8[FN_REFLEN];
-    static const char lq[] = "SELECT * FROM %s LIMIT 0";
-    char lock_query[sizeof full_table_name + sizeof lq];
+    std::string full_table_name =  ut_get_name(0,row[0]);
+    std::ostringstream lock_query;
+    lock_query << "SELECT * FROM " << full_table_name  << " LIMIT 0";
 
-    dict_fs2utf8(row[0], db_utf8, sizeof db_utf8,table_utf8,sizeof table_utf8);
-    snprintf(full_table_name,sizeof(full_table_name),"`%s`.`%s`",db_utf8,table_utf8);
-    msg_ts("Locking MDL for %s\n", full_table_name);
-    snprintf(lock_query, sizeof lock_query, lq, full_table_name);
-
-    xb_mysql_query(mdl_con, lock_query, false, false);
+    msg_ts("Locking MDL for %s\n", full_table_name.c_str());
+    xb_mysql_query(mdl_con, lock_query.str().c_str(), false, false);
 
     DBUG_EXECUTE_IF("check_mdl_lock_works",
-      check_mdl_lock_works(full_table_name););
+      check_mdl_lock_works(full_table_name.c_str()););
   }
 
   pthread_mutex_unlock(&mdl_lock_con_mutex);

@@ -73,7 +73,6 @@ struct fts_psort_common_t {
 						store Doc ID during sort, if
 						Doc ID will not be big enough
 						to use 8 bytes value */
-	fil_space_crypt_t*	crypt_data;	/*!< crypt data or NULL */
 };
 
 struct fts_psort_t {

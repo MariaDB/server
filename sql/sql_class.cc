@@ -4951,9 +4951,15 @@ extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 
 extern "C" int thd_binlog_format(const MYSQL_THD thd)
 {
-  if (((WSREP(thd) &&  wsrep_emulate_bin_log) || mysql_bin_log.is_open()) &&
-      thd->variables.option_bits & OPTION_BIN_LOG)
-    return (int) thd->wsrep_binlog_format();
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    /* for wsrep binlog format is meaningful also when binlogging is off */
+    return (int) WSREP_BINLOG_FORMAT(thd->variables.binlog_format);
+  }
+#endif /* WITH_WSREP */
+  if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
+    return (int) thd->variables.binlog_format;
   else
     return BINLOG_FORMAT_UNSPEC;
 }
