@@ -14,7 +14,7 @@
  @rowlog_decrypt_2-@rowlog_decrypt_1>0 as log_decrypted;
  sort_encrypted	sort_decrypted	log_encrypted	log_decrypted
 -0	0	0	0
-+0	0	1	1
++1	1	1	1
  ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY c3p5(c3(5));
  ERROR 23000: Duplicate entry '' for key 'PRIMARY'
  UPDATE t1 SET c3 = NULL WHERE c3 = '';
