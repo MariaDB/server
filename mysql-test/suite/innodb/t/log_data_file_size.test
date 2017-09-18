@@ -24,13 +24,13 @@ use Fcntl 'SEEK_CUR', 'SEEK_END';
 
 my $page_size = $ENV{'INNODB_PAGE_SIZE'};
 my $restart;
+open(FILE, "+<", "$ENV{'MYSQLD_DATADIR'}ibdata1") or die;
 if ($ENV{'MYSQLD_IS_DEBUG'})
 {
   # It is impractical to ensure that CREATE TABLE t will extend ibdata1.
   # We rely on innodb_system_tablespace_extend_debug=1
   # to recover from this fault injection if no size change was redo-logged.
   my $root = $ENV{'INNODB_ROOT_PAGE'};
-  open(FILE, "+<", "$ENV{'MYSQLD_DATADIR'}ibdata1") or die;
   my $size = sysseek(FILE, 0, SEEK_END) / $page_size;
   seek(FILE, $page_size * ($root + 1), SEEK_SET) or die;
   my $empty_tail= 1;
@@ -40,8 +40,22 @@ if ($ENV{'MYSQLD_IS_DEBUG'})
     $restart = "--innodb-data-file-size-debug=$size";
     truncate(FILE, $page_size * $root);
   }
-  close FILE;
 }
+# Clear the doublewrite buffer entries for our tables.
+sysseek(FILE, 6 * $page_size - 190, 0)||die "Unable to seek ibdata1\n";
+sysread(FILE, $_, 12) == 12||die "Unable to read TRX_SYS\n";
+my($magic,$d1,$d2)=unpack "NNN", $_;
+die "magic=$magic, $d1, $d2\n" unless $magic == 536853855 && $d2 >= $d1 + 64;
+sysseek(FILE, $d1 * $page_size, 0)||die "Unable to seek ibdata1\n";
+# Find the pages in the doublewrite buffer
+for (my $d = $d1; $d < $d2 + 64; $d++) {
+  sysread(FILE, $_, $page_size)==$page_size||die "Cannot read doublewrite\n";
+  my($space_id,$offset)=unpack "x[4]Nx[26]N",$_;
+  next unless $space_id && $offset > 3;
+  sysseek(FILE, $d * $page_size, 0)||die "Unable to seek ibdata1\n";
+  syswrite(FILE, chr(0) x $page_size)==$page_size||die;
+}
+close FILE;
 open(FILE, ">$ENV{MYSQLTEST_VARDIR}/log/start_mysqld.txt") || die;
 print FILE "--let \$restart_parameters=$restart\n" if $restart;
 print FILE "--source include/start_mysqld.inc\n";
