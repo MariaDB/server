@@ -111,8 +111,9 @@ typedef void (*wsrep_log_cb_t)(wsrep_log_level_t, const char *);
 #define WSREP_CAP_UNORDERED             ( 1ULL << 12 )
 #define WSREP_CAP_ANNOTATION            ( 1ULL << 13 )
 #define WSREP_CAP_PREORDERED            ( 1ULL << 14 )
-#define WSREP_CAP_SNAPSHOT              ( 1ULL << 15 )
-#define WSREP_CAP_NBO                   ( 1ULL << 16 )
+#define WSREP_CAP_STREAMING             ( 1ULL << 15 )
+#define WSREP_CAP_SNAPSHOT              ( 1ULL << 16 )
+#define WSREP_CAP_NBO                   ( 1ULL << 17 )
 
 
 /*!
