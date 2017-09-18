@@ -70,4 +70,37 @@ class Regex_list_handler
 void warn_about_bad_patterns(const Regex_list_handler* regex_list_handler,
                              const char *name);
 
+void print_keydup_error(TABLE *table, KEY *key, myf errflag,
+                        const THD *thd, const char *org_table_name=NULL);
+
+// Split a string based on a delimiter.  Two delimiters in a row will not add
+// an empty string in the set.
+inline
+std::vector<std::string> split_into_vector(const std::string& input,
+                                           char delimiter)
+{
+  size_t                   pos;
+  size_t                   start = 0;
+  std::vector<std::string> elems;
+
+  // Find next delimiter
+  while ((pos = input.find(delimiter, start)) != std::string::npos)
+  {
+    // If there is any data since the last delimiter add it to the list
+    if (pos > start)
+      elems.push_back(input.substr(start, pos - start));
+
+    // Set our start position to the character after the delimiter
+    start = pos + 1;
+  }
+
+  // Add a possible string since the last delimiter
+  if (input.length() > start)
+    elems.push_back(input.substr(start));
+
+  // Return the resulting list back to the caller
+  return elems;
+}
+
+
 #endif

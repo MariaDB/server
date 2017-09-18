@@ -16,6 +16,12 @@ IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile")
   SKIP_ROCKSDB_PLUGIN("Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
 
+CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
+IF(HAVE_SCHED_GETCPU)
+  ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1 -DROCKSDB_SCHED_GETCPU_PRESENT)
+ENDIF()
+
+
 # We've had our builders hang during the build process. This prevents MariaRocks
 # to be built on 32 bit intel OS kernels.
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "i[36]86")
@@ -84,6 +90,9 @@ SET(ROCKSDB_SE_SOURCES
   rdb_psi.cc
 )
 
+# This is a strong requirement coming from RocksDB. No conditional checks here.
+ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX
+)
 MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} STORAGE_ENGINE
                  MODULE_OUTPUT_NAME ha_rocksdb
                  COMPONENT rocksdb-engine)
@@ -93,11 +102,31 @@ IF(NOT TARGET rocksdb)
   RETURN()
 ENDIF()
 
-# MARIAROCKS-TODO: ???
-CHECK_FUNCTION_EXISTS(fallocate HAVE_FALLOCATE)
-IF(HAVE_FALLOCATE)
-  ADD_DEFINITIONS(-DROCKSDB_FALLOCATE_PRESENT)
+IF(UNIX)
+  IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    ADD_DEFINITIONS(-DOS_LINUX)
+
+    CHECK_INCLUDE_FILES(linux/falloc.h HAVE_LINUX_FALLOC_H)
+
+    CHECK_FUNCTION_EXISTS(fallocate HAVE_FALLOCATE)
+
+    IF(HAVE_FALLOCATE AND HAVE_LINUX_FALLOC_H)
+      ADD_DEFINITIONS(-DROCKSDB_FALLOCATE_PRESENT)
+    ENDIF()
+  ENDIF()
 ENDIF()
+
+CHECK_CXX_SOURCE_COMPILES("
+#if defined(_MSC_VER) && !defined(__thread)
+#define __thread __declspec(thread)
+#endif
+int main() {
+  static __thread int tls;
+}
+" HAVE_THREAD_LOCAL)
+if(HAVE_THREAD_LOCAL)
+  ADD_DEFINITIONS(-DROCKSDB_SUPPORT_THREAD_LOCAL)
+endif()
 
 INCLUDE(build_rocksdb.cmake)
 
@@ -147,12 +176,27 @@ IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1)
 ENDIF()
 
+IF (NOT "$ENV{WITH_TBB}" STREQUAL "")
+  SET(rocksdb_static_libs ${rocksdb_static_libs}
+  $ENV{WITH_TBB}/libtbb${PIC_EXT}.a)
+  ADD_DEFINITIONS(-DTBB)
+ENDIF()
+
 #
 # MariaDB: Dynamic plugin build is not suitable with unittest ATM
 #
 #IF(WITH_UNIT_TESTS AND WITH_EMBEDDED_SERVER)
 #  ADD_SUBDIRECTORY(unittest)
 #ENDIF()
+
+CHECK_INCLUDE_FILES(zlib.h HAVE_ZLIB_H)
+
+IF (HAVE_ZLIB_H)
+  ADD_DEFINITIONS(-DZLIB)
+  SET(rocksdb_static_libs ${rocksdb_static_libs} ${ZLIB_LIBRARY})
+ENDIF()
+
+SET(rocksdb_static_libs ${rocksdb_static_libs} "-lrt")
 
 ADD_LIBRARY(rocksdb_tools STATIC
    rocksdb/tools/ldb_tool.cc

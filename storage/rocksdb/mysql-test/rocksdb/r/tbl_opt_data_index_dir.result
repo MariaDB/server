@@ -21,7 +21,7 @@ PARTITION P1 VALUES LESS THAN (2000)
 DATA DIRECTORY =  '/foo/bar/data/',
 PARTITION P2 VALUES LESS THAN (MAXVALUE)
 );
-ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+ERROR HY000: Got error 195 'Specifying DATA DIRECTORY for an individual table is not supported.' from ROCKSDB
 CREATE TABLE t1 (id int not null primary key) ENGINE=rocksdb PARTITION BY RANGE (id)
 (
 PARTITION P0 VALUES LESS THAN (1000)
@@ -30,4 +30,4 @@ PARTITION P1 VALUES LESS THAN (2000)
 INDEX DIRECTORY =  '/foo/bar/data/',
 PARTITION P2 VALUES LESS THAN (MAXVALUE)
 );
-ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+ERROR HY000: Got error 196 'Specifying INDEX DIRECTORY for an individual table is not supported.' from ROCKSDB

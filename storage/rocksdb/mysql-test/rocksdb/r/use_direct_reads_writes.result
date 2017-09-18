@@ -1,4 +1,4 @@
 call mtr.add_suppression("rocksdb");
 call mtr.add_suppression("Aborting");
 FOUND 1 /enable both use_direct_reads/ in mysqld.1.err
-FOUND 1 /enable both use_direct_writes/ in mysqld.1.err
+FOUND 1 /enable both use_direct_io_for_flush_and_compaction/ in mysqld.1.err

@@ -1,0 +1,39 @@
+--source include/have_rocksdb.inc
+--source include/have_debug.inc
+
+# Write file to make mysql-test-run.pl expect the "crash", but don't restart the
+# server until it is told to
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+
+CREATE TABLE t1 (pk int primary key) ENGINE=ROCKSDB;
+
+# Create a .frm file without a matching table
+--exec cp $MYSQLTEST_VARDIR/mysqld.$_server_id/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.$_server_id/data/test/t1#sql-test.frm
+
+# Restart the server with a .frm file exist but that table is not registered in RocksDB
+--exec echo "wait" >$_expect_file_name
+shutdown_server 10;
+--exec echo "restart" >$_expect_file_name
+--sleep 5
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+# This will append '#sql-test' to the end of new name
+set session debug="+d,gen_sql_table_name";
+rename table t1 to t2;
+set session debug= "-d,gen_sql_table_name";
+
+# Remove the corresponding .frm files
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.$_server_id/data/test *t1*.frm
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.$_server_id/data/test *t2*.frm
+
+# Restart the server with a table registered in RocksDB but does not have a .frm file
+--exec echo "wait" >$_expect_file_name
+shutdown_server 10;
+--exec echo "restart" >$_expect_file_name
+--sleep 5
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect

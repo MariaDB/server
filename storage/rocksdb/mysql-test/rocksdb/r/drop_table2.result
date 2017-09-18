@@ -5,6 +5,8 @@ DROP TABLE IF EXISTS t2;
 DROP TABLE IF EXISTS t3;
 DROP TABLE IF EXISTS t4;
 DROP TABLE IF EXISTS t5;
+call mtr.add_suppression("Column family 'cf1' not found");
+call mtr.add_suppression("Column family 'rev:cf2' not found");
 set global rocksdb_compact_cf = 'cf1';
 set global rocksdb_compact_cf = 'rev:cf2';
 set global rocksdb_signal_drop_index_thread = 1;
@@ -47,9 +49,15 @@ primary key (a,b) comment 'cf1',
 key (b) comment 'rev:cf2'
 ) ENGINE=RocksDB;
 DELETE FROM t5;
+set @@global.rocksdb_compact_cf = 'cf1';
+set @@global.rocksdb_compact_cf = 'rev:cf2';
+set @@global.rocksdb_compact_cf = 'default';
 drop table t1;
 drop table t2;
 drop table t3;
 drop table t4;
 drop table t5;
+set @@global.rocksdb_compact_cf = 'cf1';
+set @@global.rocksdb_compact_cf = 'rev:cf2';
+set @@global.rocksdb_compact_cf = 'default';
 Compacted

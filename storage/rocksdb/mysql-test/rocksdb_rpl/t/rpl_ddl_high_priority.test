@@ -1,0 +1,2 @@
+--source include/have_rocksdb.inc
+--source include/rpl_ddl_high_priority.inc

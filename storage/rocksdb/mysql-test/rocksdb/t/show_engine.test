@@ -26,8 +26,8 @@ CREATE TABLE t3 (k INT, PRIMARY KEY (k) COMMENT 'cf_t1') ENGINE = ROCKSDB;
 CREATE TABLE t4 (l INT, PRIMARY KEY (l) COMMENT 'cf_t4') ENGINE = ROCKSDB
     PARTITION BY KEY(l) PARTITIONS 4;
 
---replace_column 3 #
-SHOW ENGINE rocksdb STATUS;
+SET @save.rocksdb_max_background_jobs= @@global.rocksdb_max_background_jobs;
+SET GLOBAL rocksdb_max_background_jobs= 1;
 
 INSERT INTO t1 VALUES (1), (2), (3);
 SELECT COUNT(*) FROM t1;
@@ -37,6 +37,11 @@ SELECT COUNT(*) FROM t2;
 
 INSERT INTO t4 VALUES (1), (2), (3), (4), (5);
 SELECT COUNT(*) FROM t4;
+
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+SET GLOBAL rocksdb_compact_cf="cf_t1";
+--replace_column 2 # 3 #
+SHOW ENGINE rocksdb STATUS;
 
 # Fetch data from information schema as well
 --replace_column 3 #
@@ -52,7 +57,7 @@ GROUP BY TABLE_NAME, PARTITION_NAME;
 
 --replace_column 3 #
 SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_CF_OPTIONS;
-
+ 
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
@@ -81,3 +86,5 @@ SHOW ENGINE rocksdb TRANSACTION STATUS;
 
 ROLLBACK;
 
+# Restore old values
+SET GLOBAL rocksdb_max_background_jobs= @save.rocksdb_max_background_jobs;

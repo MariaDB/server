@@ -1,0 +1,161 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+id INT,
+val1 INT,
+val2 INT,
+PRIMARY KEY (id)
+) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1,1,1),(2,1,2);
+SELECT * FROM t1;
+id	val1	val2
+1	1	1
+2	1	2
+UPDATE t1 SET val1=2 WHERE id=2;
+SELECT * FROM t1;
+id	val1	val2
+1	1	1
+2	2	2
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+SET AUTOCOMMIT=0;
+START TRANSACTION;
+INSERT INTO t1 VALUES(20,1,1),(30,30,30);
+SELECT * FROM t1;
+id	val1	val2
+1	1	1
+2	2	2
+20	1	1
+30	30	30
+UPDATE t1 SET val1=20, val2=20 WHERE id=20;
+SELECT * FROM t1;
+id	val1	val2
+1	1	1
+2	2	2
+20	20	20
+30	30	30
+DELETE FROM t1 WHERE id=30;
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+---SNAPSHOT, ACTIVE NUM sec
+MySQL thread id TID, OS thread handle PTR, query id QID localhost root ACTION
+SHOW ENGINE rocksdb TRANSACTION STATUS
+lock count 8, write count 4
+insert count 2, update count 1, delete count 1
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+ROLLBACK;
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+START TRANSACTION;
+INSERT INTO t1 VALUES(40,40,40);
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+---SNAPSHOT, ACTIVE NUM sec
+MySQL thread id TID, OS thread handle PTR, query id QID localhost root ACTION
+SHOW ENGINE rocksdb TRANSACTION STATUS
+lock count 2, write count 1
+insert count 1, update count 0, delete count 0
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+COMMIT;
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+SET AUTOCOMMIT=1;
+DROP TABLE t1;
+DROP TABLE IF EXISTS t2;
+CREATE TABLE t2 (
+id1 INT,
+id2 INT,
+value INT,
+PRIMARY KEY (id1),
+KEY (id2)
+) ENGINE=rocksdb;
+SET AUTOCOMMIT=0;
+START TRANSACTION;
+INSERT INTO t2 VALUES(1,2,0),(10,20,30);
+UPDATE t2 SET value=3 WHERE id2=2;
+DELETE FROM t2 WHERE id1=10;
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+---SNAPSHOT, ACTIVE NUM sec
+MySQL thread id TID, OS thread handle PTR, query id QID localhost root ACTION
+SHOW ENGINE rocksdb TRANSACTION STATUS
+lock count 9, write count 7
+insert count 2, update count 1, delete count 1
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+ROLLBACK;
+SET AUTOCOMMIT=1;
+DROP TABLE t2;
