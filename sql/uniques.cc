@@ -712,8 +712,8 @@ bool Unique::merge(TABLE *table, uchar *buff, bool without_last_merge)
    full_size;
   sort_param.min_dupl_count= min_dupl_count;
   sort_param.res_length= 0;
-  sort_param.keys= (uint) MY_MAX((max_in_memory_size / sort_param.sort_length),
-                                 MERGEBUFF2);
+  sort_param.max_keys_per_buffer=
+    (uint) MY_MAX((max_in_memory_size / sort_param.sort_length), MERGEBUFF2);
   sort_param.not_killable= 1;
 
   sort_param.unique_buff= buff +(sort_param.max_keys_per_buffer *
