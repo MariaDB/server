@@ -197,6 +197,4 @@ f1	f2
 1	2
 SELECT * FROM c;
 f1	p1_id	p2_id	f2
-DROP TABLE c;
-DROP TABLE p1;
-DROP TABLE p2;
+DROP TABLE c,p1,p2;

@@ -1,6 +1,5 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source include/have_debug_sync.inc
 --source suite/galera/include/galera_have_debug_sync.inc
 
 #
@@ -19,7 +18,6 @@
 CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
 CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER, f2 INTEGER,
                 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1) ON DELETE CASCADE);
-                
 
 INSERT INTO p VALUES (1, 0);
 INSERT INTO p VALUES (2, 0);
@@ -179,6 +177,4 @@ SELECT * FROM p1;
 SELECT * FROM p2;
 SELECT * FROM c;
 
-DROP TABLE c;
-DROP TABLE p1;
-DROP TABLE p2;
+DROP TABLE c,p1,p2;
