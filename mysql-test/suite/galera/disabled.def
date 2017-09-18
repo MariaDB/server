@@ -10,6 +10,7 @@
 #
 ##############################################################################
 MW-336 : MDEV-13549 Galera test failures
+MW-360 : needs rewrite to be MariaDB gtid compatible
 galera_gra_log : MDEV-13549 Galera test failures
 galera_flush_local : MDEV-13549 Galera test failures
 galera_flush :  MDEV-13549 Galera test failures

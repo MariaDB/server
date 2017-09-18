@@ -1327,8 +1327,6 @@ void THD::init(bool skip_lock)
   first_successful_insert_id_in_prev_stmt_for_binlog= 0;
   first_successful_insert_id_in_cur_stmt= 0;
 #ifdef WITH_WSREP
-  mysql_mutex_init(key_LOCK_wsrep_thd, &LOCK_wsrep_thd, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
   m_wsrep_conflict_state= NO_CONFLICT;
   m_wsrep_query_state= QUERY_IDLE;
