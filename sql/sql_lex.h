@@ -608,14 +608,6 @@ public:
   virtual TABLE_LIST* get_table_list();
   virtual List<Item>* get_item_list();
   virtual ulong get_table_join_options();
-  virtual TABLE_LIST *add_table_to_list(THD *thd, Table_ident *table,
-					LEX_CSTRING *alias,
-					ulong table_options,
-					thr_lock_type flags= TL_UNLOCK,
-                                        enum_mdl_type mdl_type= MDL_SHARED_READ,
-					List<Index_hint> *hints= 0,
-                                        List<String> *partition_names= 0,
-                                        LEX_STRING *option= 0);
   virtual void set_lock_for_tables(thr_lock_type lock_type) {}
   void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
   void move_node(st_select_lex_node *where_to_move)
