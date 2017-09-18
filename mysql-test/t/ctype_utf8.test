@@ -1990,6 +1990,18 @@ SET @@SQL_MODE=default;
 #DROP FUNCTION f1;
 #SET NAMES utf8;
 
+--echo #
+--echo # MDEV-10191 non convertible chars convert() resulted in Null instead "?" on Windows
+--echo #
+
+SET sql_mode='STRICT_TRANS_TABLES';
+SELECT CONVERT(_utf8 0xC499 USING latin1);
+SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
+
+SET sql_mode=default;
+SELECT CONVERT(_utf8 0xC499 USING latin1);
+SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
+
 
 --echo #
 --echo # End of 10.1 tests

@@ -1,1 +1,1 @@
---innodb --loose-changed_page_bitmaps --innodb-sys-tables
+--innodb --loose-changed_page_bitmaps --innodb-sys-tables --partition

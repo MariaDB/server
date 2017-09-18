@@ -273,6 +273,8 @@ CREATE PROCEDURE p1 (rollback OUT INT) AS BEGIN rollback:=10; END;/
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':=10; END' at line 1
 CREATE PROCEDURE p1 (shutdown OUT INT) AS BEGIN shutdown:=10; END;/
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':=10; END' at line 1
+CREATE PROCEDURE p1 (exception OUT INT) AS BEGIN exception:=10; END;/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':=10; END' at line 1
 # Testing that keyword_directly_not_assignable works in SET statements.
 CREATE PROCEDURE p1 (contains OUT INT) AS BEGIN SET contains=10; END;/
 DROP PROCEDURE p1/
@@ -299,6 +301,8 @@ DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (begin OUT INT) AS BEGIN SET begin=10; END;/
 DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (end OUT INT) AS BEGIN SET end=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (exception OUT INT) AS BEGIN SET exception=10; END;/
 DROP PROCEDURE p1/
 # Testing that keyword_directly_not_assignable works in table/column names
 CREATE TABLE contains (contains INT);
@@ -327,6 +331,8 @@ CREATE TABLE begin (begin INT);
 DROP TABLE begin;
 CREATE TABLE end (end INT);
 DROP TABLE end;
+CREATE TABLE exception (exception INT);
+DROP TABLE exception;
 # Testing ELSIF
 CREATE FUNCTION f1(a INT) RETURN CLOB
 AS
@@ -2282,3 +2288,12 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					SQL%ROWCOUNT	8	21	1	N	32897	0	63
 SQL%ROWCOUNT
 0
+#
+# MDEV-13686 EXCEPTION reserved keyword in SQL_MODE=oracle but not in Oracle itself
+#
+CREATE TABLE t1 (c1 int);
+CREATE VIEW v1 AS SELECT c1 exception FROM t1;
+SELECT exception FROM v1;
+exception
+DROP VIEW v1;
+DROP TABLE t1;

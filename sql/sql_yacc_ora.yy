@@ -482,7 +482,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  EXCEPT_SYM                    /* SQL-2003-R */
 %token  EXCLUDE_SYM                   /* SQL-2011-N */
 %token  EXECUTE_SYM                   /* SQL-2003-R */
-%token  EXCEPTION_SYM                 /* SQL-2003-N */
+%token  EXCEPTION_SYM                 /* SQL-2003-N, Oracle-PLSQL-R */
 %token  EXISTS                        /* SQL-2003-R */
 %token  EXIT_SYM
 %token  EXPANSION_SYM
@@ -14803,7 +14803,7 @@ keyword_sp:
 
 
 /*
-  Keywords that start a statement.
+  Keywords that start a statement or an SP block section.
   Generally allowed as identifiers (e.g. table, column names)
   - not allowed as SP label names
   - not allowed as variable names in Oracle-style assignments:
@@ -14813,6 +14813,7 @@ keyword_sp_verb_clause:
           BEGIN_SYM             { /* Compound.    Reserved in Oracle */ }
         | CLOSE_SYM             { /* Verb clause. Reserved in Oracle */ }
         | COMMIT_SYM            { /* Verb clause. Reserved in Oracle */ }
+        | EXCEPTION_SYM         { /* EXCEPTION section in SP blocks  */ }
         | DO_SYM                { /* Verb clause                     */ }
         | END                   { /* Compound.    Reserved in Oracle */ }
         | HANDLER_SYM           { /* Verb clause                     */ }

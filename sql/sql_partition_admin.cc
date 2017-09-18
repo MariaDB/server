@@ -90,9 +90,15 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
 
   /* Not allowed with EXCHANGE PARTITION */
   DBUG_ASSERT(!create_info.data_file_name && !create_info.index_file_name);
+  WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
 
   thd->prepare_logs_for_admin_command();
   DBUG_RETURN(exchange_partition(thd, first_table, &alter_info));
+#ifdef WITH_WSREP
+ error:
+  /* handle errors in TO_ISOLATION here */
+  DBUG_RETURN(true);
+#endif /* WITH_WSREP */
 }
 
 
@@ -524,21 +530,6 @@ bool Sql_cmd_alter_table_exchange_partition::
   if (open_tables(thd, &table_list, &table_counter, 0,
                   &alter_prelocking_strategy))
     DBUG_RETURN(true);
-
-#ifdef WITH_WSREP
-  if (WSREP_ON)
-  {
-    if ((!thd->is_current_stmt_binlog_format_row() ||
-         /* TODO: Do we really need to check for temp tables in this case? */
-         !thd->find_temporary_table(table_list)) &&
-        wsrep_to_isolation_begin(thd, table_list->db, table_list->table_name,
-                                 NULL))
-    {
-      WSREP_WARN("ALTER TABLE EXCHANGE PARTITION isolation failure");
-      DBUG_RETURN(TRUE);
-    }
-  }
-#endif /* WITH_WSREP */
 
   part_table= table_list->table;
   swap_table= swap_table_list->table;

@@ -946,7 +946,7 @@ recv_log_recover_10_2()
 	}
 
 	if (group->is_encrypted()) {
-		log_crypt(buf, OS_FILE_LOG_BLOCK_SIZE, true);
+		log_crypt(buf, lsn, OS_FILE_LOG_BLOCK_SIZE, true);
 	}
 
 	/* On a clean shutdown, the redo log will be logically empty

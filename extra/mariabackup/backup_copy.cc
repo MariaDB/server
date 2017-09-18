@@ -594,7 +594,6 @@ trim_dotslash(const char *path)
 /************************************************************************
 Check if string ends with given suffix.
 @return true if string ends with given suffix. */
-static
 bool
 ends_with(const char *str, const char *suffix)
 {
