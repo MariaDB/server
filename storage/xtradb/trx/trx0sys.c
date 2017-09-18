@@ -730,7 +730,7 @@ trx_sys_doublewrite_init_or_restore_pages(
 				    TRUE, read_buf, zip_size))) {
 
 				fprintf(stderr,
-					"InnoDB: Warning: database page"
+					"InnoDB: Database page"
 					" corruption or a failed\n"
 					"InnoDB: file read of"
 					" space %lu page %lu.\n"
