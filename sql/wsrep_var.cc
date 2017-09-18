@@ -644,7 +644,7 @@ bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
   }
   return refresh_provider_options();
 }
-#ifdef OLD_MARIADB
+
 static SHOW_VAR wsrep_status_vars[]=
 {
   {"connected",         (char*) &wsrep_connected,         SHOW_BOOL},
@@ -665,7 +665,6 @@ static int show_var_cmp(const void *var1, const void *var2)
 {
   return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
 }
-#endif
 
 /*
  * Status variables stuff below
@@ -689,7 +688,6 @@ wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep)
     break;
   }
 }
-
 
 #ifdef OLD_MARIADB
 int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,

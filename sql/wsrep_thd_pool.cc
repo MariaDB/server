@@ -24,13 +24,12 @@
 
 static THD* wsrep_thd_pool_new_thd()
 {
-  THD *thd = new THD(0);
+  THD *thd = new THD(next_thread_id());
   thd->thread_stack= (char*) &thd;
   thd->security_ctx->skip_grants();
   thd->system_thread= SYSTEM_THREAD_GENERIC;
 
   mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id= next_thread_id();
 
   thd->real_id=pthread_self(); // Keep purify happy
 
