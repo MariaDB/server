@@ -104,6 +104,8 @@ protected:
 /*  This is the base class for all external tables.                    */
 /***********************************************************************/
 class DllExport TDBEXT : public TDB {
+	friend class JAVAConn;
+	friend class JMgoConn;
 public:
 	// Constructors
 	TDBEXT(EXTDEF *tdp);
@@ -124,6 +126,7 @@ public:
 
 protected:
 	// Internal functions
+	virtual bool MakeSrcdef(PGLOBAL g);
 	virtual bool MakeSQL(PGLOBAL g, bool cnt);
 	//virtual bool MakeInsert(PGLOBAL g);
 	virtual bool MakeCommand(PGLOBAL g);
@@ -164,7 +167,7 @@ protected:
 }; // end of class TDBEXT
 
 /***********************************************************************/
-/*  Virual class EXTCOL: external column.                              */
+/*  Virtual class EXTCOL: external column.                             */
 /***********************************************************************/
 class DllExport EXTCOL : public COLBLK {
 	friend class TDBEXT;

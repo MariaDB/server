@@ -139,7 +139,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
 	unsigned int length[] = {0, 4, 0, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
 	PCSZ    fmt;
 	char   *fld, *colname, *chset, v, buf[128], uns[16], zero[16];
-  int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
+  int     i, n, nf = 0, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
 	bool    b;
   PQRYRES qrp;
@@ -160,7 +160,9 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
     /*  Do an evaluation of the result size.                            */
     /********************************************************************/
     STRING cmd(g, 64, "SHOW FULL COLUMNS FROM ");
-    b = cmd.Append((PSZ)table);
+		b = cmd.Append('`');
+    b |= cmd.Append((PSZ)table);
+		b |= cmd.Append('`');
 
     b |= cmd.Append(" FROM ");
     b |= cmd.Append((PSZ)(db ? db : PlgGetUser(g)->DBName));
@@ -470,7 +472,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             int pt, const char *csname)
   {
   const char *pipe = NULL;
-  uint        cto = 6000, nrt = 12000;
+  uint        cto = 10, nrt = 20;
   my_bool     my_true= 1;
 
   m_DB = mysql_init(NULL);
@@ -523,7 +525,8 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
                   (char*)&my_true);
 
-  if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe, CLIENT_MULTI_RESULTS)) {
+  if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe,
+		CLIENT_MULTI_RESULTS | CLIENT_REMEMBER_OPTIONS)) {
 #if defined(_DEBUG)
     sprintf(g->Message, "mysql_real_connect failed: (%d) %s",
                         mysql_errno(m_DB), mysql_error(m_DB));

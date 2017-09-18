@@ -166,8 +166,8 @@ public:
   ~ha_connect();
 
   // CONNECT Implementation
-  static   bool connect_init(void);
-  static   bool connect_end(void);
+//static   bool connect_init(void);
+//static   bool connect_end(void);
   TABTYPE  GetRealType(PTOS pos= NULL);
   char    *GetRealString(PCSZ s);
 	PCSZ     GetStringOption(PCSZ opname, PCSZ sdef= NULL);
@@ -347,6 +347,13 @@ PCFIL CheckCond(PGLOBAL g, PCFIL filp, const Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
 PFIL  CondFilter(PGLOBAL g, Item *cond);
 //PFIL  CheckFilter(PGLOBAL g);
+
+/** admin commands - called from mysql_admin_table */
+virtual int check(THD* thd, HA_CHECK_OPT* check_opt)
+{
+	// TODO: implement it
+	return HA_ADMIN_OK;	// Just to avoid error message with checktables
+}	// end of check
 
  /**
    Number of rows in table. It will only be called if

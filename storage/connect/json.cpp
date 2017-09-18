@@ -1403,10 +1403,20 @@ double JVALUE::GetFloat(void)
 /***********************************************************************/
 /* Return the Value's String value.                                    */
 /***********************************************************************/
-PSZ JVALUE::GetString(void)
+PSZ JVALUE::GetString(PGLOBAL g)
 {
-  char buf[32];
-  return (Value) ? Value->GetCharString(buf) : NULL;
+	char *p;
+
+	if (Value) {
+		char buf[32];
+
+		if ((p = Value->GetCharString(buf)) == buf)
+			p = PlugDup(g, buf);
+
+	} else
+		p = NULL;
+
+	return p;
 } // end of GetString
 
 /***********************************************************************/

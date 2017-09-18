@@ -319,7 +319,7 @@ void TDB::Printf(PGLOBAL g, FILE *f, uint n)
 
     } /* endfor tp */
 
-  } // end of Print
+  } // end of Printf
 
 void TDB::Prints(PGLOBAL, char *ps, uint)
   {

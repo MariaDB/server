@@ -1,10 +1,10 @@
 --disable_query_log
 
-DROP FUNCTION json_array;
+DROP FUNCTION json_make_array;
 DROP FUNCTION json_array_add;
 DROP FUNCTION json_array_add_values;
 DROP FUNCTION json_array_delete;
-DROP FUNCTION json_object;
+DROP FUNCTION json_make_object;
 DROP FUNCTION json_object_nonull;
 DROP FUNCTION json_object_key;
 DROP FUNCTION json_object_add;
