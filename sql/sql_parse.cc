@@ -2598,7 +2598,8 @@ mysql_execute_command(THD *thd)
   } /* endif unlikely slave */
 #endif
 #ifdef WITH_WSREP
-  if (WSREP(thd)) {
+  if (WSREP(thd))
+  {
     /*
       change LOCK TABLE WRITE to transaction
     */
