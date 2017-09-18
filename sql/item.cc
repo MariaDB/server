@@ -6193,7 +6193,7 @@ String_copier_for_item::copy_with_warn(CHARSET_INFO *dstcs, String *dst,
                         srccs == &my_charset_bin ?
                         dstcs->csname : srccs->csname,
                         err.ptr());
-    return m_thd->is_strict_mode();
+    return false;
   }
   if (const char *pos= cannot_convert_error_pos())
   {
@@ -6205,7 +6205,7 @@ String_copier_for_item::copy_with_warn(CHARSET_INFO *dstcs, String *dst,
                         ER_CANNOT_CONVERT_CHARACTER,
                         ER_THD(m_thd, ER_CANNOT_CONVERT_CHARACTER),
                         srccs->csname, buf, dstcs->csname);
-    return m_thd->is_strict_mode();
+    return false;
   }
   return false;
 }

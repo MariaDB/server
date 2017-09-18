@@ -281,7 +281,7 @@ chr	upper	lower	utf8	roundtrip	issafe
 95	95	95	E280A2	95	
 96	96	96	E28093	96	
 97	97	97	E28094	97	
-98	98	98	NULL	NULL	Round trip unsafe
+98	98	98	3F	3F	Round trip unsafe
 99	99	99	E284A2	99	
 9A	9A	9A	D199	9A	
 9B	9B	9B	E280BA	9B	

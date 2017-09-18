@@ -367,3 +367,44 @@ log_crypt_read_checkpoint_buf(const byte* buf)
 
 	return init_crypt_key(&info);
 }
+
+/** Encrypt or decrypt a temporary file block.
+@param[in]	src		block to encrypt or decrypt
+@param[in]	size		size of the block
+@param[out]	dst		destination block
+@param[in]	offs		offset to block
+@param[in]	space_id	tablespace id
+@param[in]	encrypt		true=encrypt; false=decrypt
+@return whether the operation succeeded */
+UNIV_INTERN
+bool
+log_tmp_block_encrypt(
+	const byte*	src,
+	ulint		size,
+	byte*		dst,
+	uint64_t	offs,
+	ulint		space_id,
+	bool		encrypt)
+{
+	uint dst_len;
+	uint64_t aes_ctr_iv[MY_AES_BLOCK_SIZE / sizeof(uint64_t)];
+	bzero(aes_ctr_iv, sizeof aes_ctr_iv);
+	aes_ctr_iv[0] = space_id;
+	aes_ctr_iv[1] = offs;
+
+	int rc = encryption_crypt(
+		src, size, dst, &dst_len,
+		const_cast<byte*>(info.crypt_key.bytes), sizeof info.crypt_key,
+		reinterpret_cast<byte*>(aes_ctr_iv), sizeof aes_ctr_iv,
+		encrypt
+		? ENCRYPTION_FLAG_ENCRYPT|ENCRYPTION_FLAG_NOPAD
+		: ENCRYPTION_FLAG_DECRYPT|ENCRYPTION_FLAG_NOPAD,
+		LOG_DEFAULT_ENCRYPTION_KEY, info.key_version);
+
+	if (rc != MY_AES_OK) {
+		ib::error() << (encrypt ? "Encryption" : "Decryption")
+			    << " failed for temporary file: " << rc;
+	}
+
+	return rc == MY_AES_OK;
+}

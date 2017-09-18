@@ -44,9 +44,6 @@ Created 13/06/2005 Jan Lindstrom
 /* Reserve free space from every block for key_version */
 #define ROW_MERGE_RESERVE_SIZE 4
 
-/* Reserve free space from every block for key_version */
-#define ROW_MERGE_RESERVE_SIZE 4
-
 /* Cluster index read task is mandatory */
 #define COST_READ_CLUSTERED_INDEX            1.0
 
@@ -376,15 +373,15 @@ row_merge_buf_sort(
 
 /********************************************************************//**
 Write a merge block to the file system.
-@return TRUE if request was successful, FALSE if fail */
-ibool
+@return whether the request was completed successfully */
+UNIV_INTERN
+bool
 row_merge_write(
 /*============*/
 	int		fd,	/*!< in: file descriptor */
 	ulint		offset,	/*!< in: offset where to write,
 				in number of row_merge_block_t elements */
 	const void*	buf,	/*!< in: data */
-	fil_space_crypt_t*	crypt_data,	/*!< in: table crypt data */
 	void*		crypt_buf,		/*!< in: crypt buf or NULL */
 	ulint		space)			/*!< in: space id */
 	MY_ATTRIBUTE((warn_unused_result));
@@ -417,7 +414,6 @@ row_merge_file_create(
 @param[in]      update_progress true, if we should update progress status
 @param[in]      pct_progress total progress percent until now
 @param[in]      pct_ocst current progress percent
-@param[in]      crypt_data tale crypt data
 @param[in]      crypt_block crypt buf or NULL
 @param[in]      space    space_id
 @param[in,out]	stage	performance schema accounting object, used by
@@ -435,7 +431,6 @@ row_merge_sort(
 	const bool		update_progress,
 	const double	pct_progress,
 	const double	pct_cost,
-	fil_space_crypt_t*	crypt_data,
 	row_merge_block_t*	crypt_block,
 	ulint			space,
 	ut_stage_alter_t*	stage = NULL)
@@ -467,7 +462,7 @@ row_merge_file_destroy(
 	MY_ATTRIBUTE((nonnull));
 
 /** Read a merge block from the file system.
-@return whether the request was successful */
+@return whether the request was completed successfully */
 bool
 row_merge_read(
 /*===========*/
@@ -476,7 +471,6 @@ row_merge_read(
 					in number of row_merge_block_t
 					elements */
 	row_merge_block_t*	buf,	/*!< out: data */
-	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_buf, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */
 	MY_ATTRIBUTE((warn_unused_result));
@@ -497,7 +491,6 @@ row_merge_read_rec(
 					or NULL on end of list
 					(non-NULL on I/O error) */
 	ulint*			offsets,/*!< out: offsets of mrec */
-	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */
 	MY_ATTRIBUTE((warn_unused_result));

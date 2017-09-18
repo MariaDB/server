@@ -1149,17 +1149,12 @@ static void append_export_table(const char *dbname, const char *tablename, bool 
   if(dbname && tablename && !is_remote)
   {
     char buf[3*FN_REFLEN];
-    char db_utf8[FN_REFLEN];
-    char table_utf8[FN_REFLEN];
-
     snprintf(buf,sizeof(buf),"%s/%s",dbname, tablename);
     // trim .ibd
     char *p=strrchr(buf, '.');
     if (p) *p=0;
 
-    dict_fs2utf8(buf, db_utf8, sizeof(db_utf8),table_utf8,sizeof(table_utf8));
-    snprintf(buf,sizeof(buf),"`%s`.`%s`",db_utf8,table_utf8);
-    tables_for_export.push_back(buf);
+    tables_for_export.push_back(ut_get_name(0,buf));
   }
 }
 
@@ -2751,6 +2746,7 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 	os_file_stat_t	dbinfo;
 	os_file_stat_t	fileinfo;
 	dberr_t		err		= DB_SUCCESS;
+	size_t len;
 
 	/* The datadir of MySQL is always the default directory of mysqld */
 
@@ -2769,14 +2765,12 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 	ret = fil_file_readdir_next_file(&err, fil_path_to_mysql_datadir, dir,
 					 &dbinfo);
 	while (ret == 0) {
-		size_t len = strlen(dbinfo.name);
 
 		/* General tablespaces are always at the first level of the
 		data home dir */
-		if (dbinfo.type == OS_FILE_TYPE_FILE && len > 4) {
-			bool is_isl = !strcmp(dbinfo.name + len - 4, ".isl");
-			bool is_ibd = !is_isl
-				&& !strcmp(dbinfo.name + len - 4, ".ibd");
+		if (dbinfo.type == OS_FILE_TYPE_FILE) {
+			bool is_isl = ends_with(dbinfo.name, ".isl");
+			bool is_ibd = !is_isl && ends_with(dbinfo.name,".ibd");
 
 			if (is_isl || is_ibd) {
 				(*callback)(NULL, dbinfo.name, is_isl);
@@ -2832,19 +2826,17 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 					continue;
 				}
 
-				size_t len = strlen(fileinfo.name);
-
 				/* We found a symlink or a file */
-				if (len > 4
-				    && !strcmp(fileinfo.name + len - 4,
-					       ".ibd")) {
-					(*callback)(dbinfo.name, fileinfo.name, false);
+				if (strlen(fileinfo.name) > 4) {
+					bool is_isl= false;
+					if (ends_with(fileinfo.name, ".ibd") || ((is_isl = ends_with(fileinfo.name, ".ibd"))))
+						(*callback)(dbinfo.name, fileinfo.name, is_isl);
 				}
 			}
 
 			if (0 != os_file_closedir(dbdir)) {
 				fprintf(stderr, "InnoDB: Warning: could not"
-				      " close database directory %s\n",
+				 " close database directory %s\n",
 					dbpath);
 
 				err = DB_ERROR;

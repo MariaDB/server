@@ -1137,21 +1137,21 @@ int json_path_setup(json_path_t *p,
     case PS_EKY:
       p->last_step->key_end= p->s.c_str - c_len;
       state= PS_KEY;
-      /* Note no 'continue' here. */
+      /* fall through */
     case PS_KEY:
       p->last_step++;
       if (p->last_step - p->steps >= JSON_DEPTH_LIMIT)
         return p->s.error= JE_DEPTH;
       p->types_used|= p->last_step->type= JSON_PATH_KEY | double_wildcard;
       double_wildcard= JSON_PATH_KEY_NULL;
-      /* Note no 'continue' here. */
+      /* fall through */
     case PS_KEYX:
       p->last_step->key= p->s.c_str;
       continue;
     case PS_EAR:
       p->last_step->key_end= p->s.c_str - c_len;
       state= PS_AR;
-      /* Note no 'continue' here. */
+      /* fall through */
     case PS_AR:
       p->last_step++;
       if (p->last_step - p->steps >= JSON_DEPTH_LIMIT)
@@ -1445,7 +1445,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
           /* Path already failed. */
           continue;
         if (state->paths[p_c].steps[state->cur_depth].type &
-            (je->state == JST_OBJ_START) ? JSON_PATH_KEY : JSON_PATH_ARRAY)
+            ((je->state == JST_OBJ_START) ? JSON_PATH_KEY : JSON_PATH_ARRAY))
           state->path_depths[p_c]++;
       }
       state->cur_depth++;
@@ -1703,6 +1703,7 @@ int json_get_path_next(json_engine_t *je, json_path_t *p)
         return 1;
       /* Now we have je.state == JST_VALUE, so let's handle it. */
 
+      /* fall through */
     case JST_VALUE:
       if (json_read_value(je))
         return 1;
