@@ -3262,3 +3262,14 @@ is_not_null_lead_order
 1
 0
 drop table t1;
+#
+# MDEV-13354: Server crashes in find_field_in_tables upon PS with window function and subquery
+#
+CREATE TABLE t1 (i INT, a char);
+INSERT INTO t1 VALUES (1, 'a'),(2, 'b');
+PREPARE stmt FROM "SELECT row_number() over (partition by i order by i), i FROM (SELECT * from t1) as sq";
+EXECUTE stmt;
+row_number() over (partition by i order by i)	i
+1	1
+1	2
+DROP TABLE t1;

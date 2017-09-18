@@ -2025,3 +2025,14 @@ FROM t1
 ORDER BY a;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-13354: Server crashes in find_field_in_tables upon PS with window function and subquery
+--echo #
+
+CREATE TABLE t1 (i INT, a char);
+INSERT INTO t1 VALUES (1, 'a'),(2, 'b');
+PREPARE stmt FROM "SELECT row_number() over (partition by i order by i), i FROM (SELECT * from t1) as sq";
+EXECUTE stmt;
+
+DROP TABLE t1;
