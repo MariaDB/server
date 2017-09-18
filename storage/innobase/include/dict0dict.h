@@ -609,16 +609,6 @@ dict_foreign_find_index(
 					happened */
 
 	MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
-/**********************************************************************//**
-Returns a column's name.
-@return column name. NOTE: not guaranteed to stay valid if table is
-modified in any way (columns added, etc.). */
-const char*
-dict_table_get_col_name(
-/*====================*/
-	const dict_table_t*	table,	/*!< in: table */
-	ulint			col_nr)	/*!< in: column number */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Returns a virtual column's name.
 @param[in]	table		table object
@@ -922,6 +912,19 @@ dict_v_col_t*
 dict_table_get_nth_v_col(
         const dict_table_t*	table,
         ulint			pos);
+
+/** @return column name. NOTE: not guaranteed to stay valid if table is
+modified in any way (columns added, etc.). */
+inline
+const char*
+dict_table_get_col_name(
+/*====================*/
+	const dict_table_t*	table,	/*!< in: table */
+	ulint			col_nr)	/*!< in: column number */
+{
+	return(dict_table_get_nth_col(table, col_nr)->name(*table));
+}
+
 /********************************************************************//**
 Gets the given system column of a table.
 @return pointer to column object */

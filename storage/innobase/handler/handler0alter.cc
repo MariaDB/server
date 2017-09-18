@@ -264,25 +264,120 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	@return whether the table will be rebuilt */
 	bool need_rebuild () const { return(old_table != new_table); }
 
-	/** Convert table-rebuilding ALTER to instant ALTER */
-	void make_instant()
+	/** Convert table-rebuilding ALTER to instant ALTER. */
+	void prepare_instant()
 	{
 		DBUG_ASSERT(need_rebuild());
-		DBUG_ASSERT(!instant_table);
+		DBUG_ASSERT(!is_instant());
 		DBUG_ASSERT(num_to_add_index == 0);
 		DBUG_ASSERT(new_table->n_cols > old_table->n_cols);
+		DBUG_ASSERT(UT_LIST_GET_LEN(old_table->indexes)
+			    == UT_LIST_GET_LEN(new_table->indexes));
 
 		instant_table = new_table;
-		new_table = old_table;
-		if (num_to_add_index == 0) {
-			/* We do not add any indexes, so all work can
-			be deferred until commit_inplace_alter_table(). */
-			online = false;
+		instant_table->remove_stub_from_cache();
+		instant_table->id = old_table->id;
+		instant_table->space = old_table->space;
+
+		const dict_index_t* old_index = dict_table_get_first_index(
+			old_table);
+		dict_index_t* index = dict_table_get_first_index(
+			instant_table);
+		DBUG_ASSERT(!index->is_instant());
+		/* We do not support renaming an index yet; it could
+		be implemented easily. */
+		DBUG_ASSERT(!strcmp(old_index->name, index->name));
+		DBUG_ASSERT(index->n_fields > old_index->n_fields);
+		index->prepare_instant_copy(*old_index, true);
+
+		while ((old_index = dict_table_get_next_index(old_index))) {
+			index = dict_table_get_next_index(index);
+			index->prepare_instant_copy(*old_index);
 		}
+
+		DBUG_ASSERT(!dict_table_get_next_index(index));
+		new_table = old_table;
 	}
 
 	/** @return whether this is instant ALTER TABLE */
-	bool is_instant() const { return instant_table; }
+	bool is_instant() const
+	{
+		DBUG_ASSERT(!instant_table || !instant_table->can_be_evicted);
+		return instant_table;
+	}
+
+	/** Apply the instant ALTER changes to the table.
+	We will copy the metadata to the old_table, so that
+	there will be no need to drop any adaptive hash indexes. */
+	void commit_instant()
+	{
+		DBUG_ASSERT(is_instant());
+		DBUG_ASSERT(!num_to_add_index);
+
+		/* Swap the column names. */
+		const char* end = instant_table->col_names;
+		unsigned i = instant_table->n_cols;
+		while (i--) end += strlen(end) + 1;
+
+		old_table->col_names = static_cast<char*>(
+			mem_heap_dup(old_table->heap, instant_table->col_names,
+				     end - instant_table->col_names));
+
+		end = instant_table->v_col_names;
+		i = instant_table->n_v_cols;
+		while (i--) end += strlen(end) + 1;
+
+		old_table->v_col_names = end ? static_cast<char*>(
+			mem_heap_dup(old_table->heap,
+				     instant_table->v_col_names,
+				     end - instant_table->v_col_names)) : NULL;
+
+		old_table->cols = static_cast<dict_col_t*>(
+			mem_heap_dup(old_table->heap, instant_table->cols,
+				     instant_table->n_cols
+				     * sizeof *old_table->cols));
+
+		for (uint i = old_table->n_v_def; i--; ) {
+			UT_DELETE(dict_table_get_nth_v_col(old_table, i)
+				  ->v_indexes);
+		}
+
+		if (old_table->n_v_cols < instant_table->n_v_cols) {
+			old_table->v_cols = static_cast<dict_v_col_t*>(
+				mem_heap_dup(old_table->heap,
+					     instant_table->v_cols,
+					     instant_table->n_v_cols
+					     * sizeof *old_table->v_cols));
+		} else {
+			memcpy(old_table->v_cols, instant_table->v_cols,
+			       instant_table->n_v_cols
+			       * sizeof *old_table->v_cols);
+		}
+
+		old_table->n_def = instant_table->n_def;
+		old_table->n_t_def = instant_table->n_t_def;
+		old_table->n_v_def = instant_table->n_v_def;
+		old_table->n_cols = instant_table->n_cols;
+		old_table->n_t_cols = instant_table->n_t_cols;
+		old_table->n_v_cols = instant_table->n_v_cols;
+		instant_table->n_v_def = 0;
+
+		dict_index_t* index = dict_table_get_first_index(old_table);
+		const dict_index_t* new_index = dict_table_get_first_index(
+			instant_table);
+		index->commit_instant_copy(*new_index);
+		DBUG_ASSERT(index->is_instant());
+
+		while ((index = dict_table_get_next_index(index))) {
+			new_index = dict_table_get_next_index(new_index);
+			index->commit_instant_copy(*new_index);
+		}
+
+		DBUG_ASSERT(!dict_table_get_next_index(new_index));
+		dict_mem_table_free(instant_table);
+		instant_table = NULL;
+		DBUG_ASSERT(!is_instant());
+	}
 
 private:
 	// Disable copying
@@ -4068,7 +4163,8 @@ innobase_add_instant_try(
 
 	const dict_index_t* old_index = dict_table_get_first_index(user_table);
 	dict_index_t* index = dict_table_get_first_index(new_table);
-	DBUG_ASSERT(!index->is_instant());
+	DBUG_ASSERT(index->is_instant());
+	DBUG_ASSERT(index->same(*old_index, true));
 	DBUG_ASSERT(index->n_fields > old_index->n_fields);
 	index->n_core_fields = old_index->n_core_fields;
 	index->n_core_null_bytes = old_index->n_core_null_bytes;
@@ -4193,6 +4289,14 @@ innobase_add_instant_try(
 		- dict_table_get_n_sys_cols(new_table);
 	/* FIXME: account for a hidden FTS_DOC_ID column */
 	DBUG_ASSERT(i == n_stored);
+	byte trx_id[DATA_TRX_ID_LEN], roll_ptr[DATA_ROLL_PTR_LEN];
+	dfield_set_data(dtuple_get_nth_field(row, i++), field_ref_zero,
+			DATA_ROW_ID_LEN);
+	dfield_set_data(dtuple_get_nth_field(row, i++), trx_id, sizeof trx_id);
+	dfield_set_data(dtuple_get_nth_field(row, i),roll_ptr,sizeof roll_ptr);
+	DBUG_ASSERT(i + 1 == new_table->n_cols);
+	trx_write_trx_id(trx_id, trx->id);
+
 	const ulint	n_cols = dict_table_encode_n_col(
 		n_stored, user_table->n_v_cols)
 		+ ((user_table->flags & DICT_TF_COMPACT) << 31);
@@ -4213,6 +4317,12 @@ innobase_add_instant_try(
 		mtr_t mtr;
 		mtr.start();
 		mtr.set_named_space(index->space);
+		/* FIXME: DBUG_ASSERT(!index->is_committed())
+		and adjust all users of the AHI to skip updates
+		when the condition holds. We do not want any
+		buf_block_t to point to our 'stub' index.
+		They may keep pointing to the clustered index
+		in user_table. */
 
 		if (user_table->is_instant()) {
 			btr_pcur_t pcur;
@@ -5199,7 +5309,7 @@ new_clustered_failed:
 		ctx->num_to_add_index = 0;
 		ctx->add_index = NULL;
 
-		ctx->make_instant();
+		ctx->prepare_instant();
 #endif
 	}
 
@@ -5255,7 +5365,7 @@ not_instant_add_column:
 		}
 	}
 
-	if (ctx->online) {
+	if (ctx->online && (ctx->need_rebuild() || ctx->num_to_add_index)) {
 		/* Assign a consistent read view for
 		row_merge_read_clustered_index(). */
 		trx_assign_read_view(ctx->prebuilt->trx);
@@ -8408,23 +8518,21 @@ commit_try_norebuild(
 
 /** Commit the changes to the data dictionary cache
 after a successful commit_try_norebuild() call.
-@param ctx In-place ALTER TABLE context
+@param ha_alter_info algorithm=inplace context
+@param ctx In-place ALTER TABLE context for the current partition
 @param table the TABLE before the ALTER
-@param trx Data dictionary transaction object
-(will be started and committed)
-@return whether all replacements were found for dropped indexes */
-inline MY_ATTRIBUTE((nonnull, warn_unused_result))
-bool
+@param trx Data dictionary transaction
+(will be started and committed, for DROP INDEX) */
+inline MY_ATTRIBUTE((nonnull))
+void
 commit_cache_norebuild(
 /*===================*/
+	Alter_inplace_info*	ha_alter_info,
 	ha_innobase_inplace_ctx*ctx,
 	const TABLE*		table,
 	trx_t*			trx)
 {
 	DBUG_ENTER("commit_cache_norebuild");
-
-	bool	found = true;
-
 	DBUG_ASSERT(!ctx->need_rebuild());
 
 	col_set			drop_list;
@@ -8480,7 +8588,7 @@ commit_cache_norebuild(
 
 			if (!dict_foreign_replace_index(
 				    index->table, ctx->col_names, index)) {
-				found = false;
+				ut_a(!ctx->prebuilt->trx->check_foreigns);
 			}
 
 			/* Mark the index dropped
@@ -8512,6 +8620,16 @@ commit_cache_norebuild(
 		trx_commit_for_mysql(trx);
 	}
 
+	if (ctx->is_instant()) {
+		ctx->commit_instant();
+	} else {
+		innobase_rename_or_enlarge_columns_cache(
+			ha_alter_info, table, ctx->new_table);
+#ifdef MYSQL_RENAME_INDEX
+		rename_indexes_in_cache(ctx, ha_alter_info);
+#endif
+	}
+
 	ctx->new_table->fts_doc_id_index
 		= ctx->new_table->fts
 		? dict_table_get_index_on_name(
@@ -8519,8 +8637,7 @@ commit_cache_norebuild(
 		: NULL;
 	DBUG_ASSERT((ctx->new_table->fts == NULL)
 		    == (ctx->new_table->fts_doc_id_index == NULL));
-
-	DBUG_RETURN(found);
+	DBUG_VOID_RETURN;
 }
 
 /** Adjust the persistent statistics after non-rebuilding ALTER TABLE.
@@ -9115,19 +9232,9 @@ foreign_fail:
 					"InnoDB: Could not add foreign"
 					" key constraints.");
 			} else {
-				if (!commit_cache_norebuild(
-					    ctx, table, trx)) {
-					ut_a(!m_prebuilt->trx->check_foreigns);
-				}
-
-				innobase_rename_or_enlarge_columns_cache(
-					ha_alter_info, table,
-					ctx->new_table);
-#ifdef MYSQL_RENAME_INDEX
-				rename_indexes_in_cache(ctx, ha_alter_info);
-#endif
+				commit_cache_norebuild(ha_alter_info, ctx,
+						       table, trx);
 			}
-
 		}
 
 		dict_mem_table_free_foreign_vcol_set(ctx->new_table);

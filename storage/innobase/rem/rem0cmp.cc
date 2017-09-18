@@ -802,11 +802,12 @@ cmp_dtuple_rec_with_match_bytes(
 
 	ut_ad(dtuple_check_typed(dtuple));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	//ut_ad(page_is_leaf(page_align(rec)));
 	ut_ad(!(REC_INFO_MIN_REC_FLAG
-		& dtuple_get_info_bits(dtuple)));
+		& dtuple_get_info_bits(dtuple))
+	      || (page_is_leaf(page_align(rec)) && index->is_instant()));
 	ut_ad(!(REC_INFO_MIN_REC_FLAG
-		& rec_get_info_bits(rec, rec_offs_comp(offsets))));
+		& rec_get_info_bits(rec, rec_offs_comp(offsets)))
+	      || (page_is_leaf(page_align(rec)) && index->is_instant()));
 
 	cur_field = *matched_fields;
 	cur_bytes = *matched_bytes;

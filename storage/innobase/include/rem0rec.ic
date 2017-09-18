@@ -522,13 +522,15 @@ rec_n_fields_is_sane(
 	const rec_t*	rec,
 	const dtuple_t*	entry)
 {
-	return(rec_get_n_fields(rec, index)
-	       == dtuple_get_n_fields(entry)
+	const ulint n_fields = rec_get_n_fields(rec, index);
+
+	return(n_fields == dtuple_get_n_fields(entry)
+	       || (index->is_instant()
+		   && n_fields >= index->n_core_fields)
 	       /* a record for older SYS_INDEXES table
 	       (missing merge_threshold column) is acceptable. */
 	       || (index->table->id == DICT_INDEXES_ID
-		   && rec_get_n_fields(rec, index)
-		      == dtuple_get_n_fields(entry) - 1));
+		   && n_fields == dtuple_get_n_fields(entry) - 1));
 }
 
 /******************************************************//**

@@ -331,8 +331,7 @@ dict_index_is_clust(
 	const dict_index_t*	index)	/*!< in: index */
 {
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_CLUSTERED);
+	return(index->is_clust());
 }
 
 /** Check if index is auto-generated clustered index.

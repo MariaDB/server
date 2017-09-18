@@ -2251,6 +2251,8 @@ row_ins_duplicate_error_in_clust_online(
 	dberr_t		err	= DB_SUCCESS;
 	const rec_t*	rec	= btr_cur_get_rec(cursor);
 
+	ut_ad(!cursor->index->is_instant());
+
 	if (cursor->low_match >= n_uniq && !page_rec_is_infimum(rec)) {
 		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
 					   ULINT_UNDEFINED, heap);
@@ -2630,6 +2632,30 @@ row_ins_clust_index_entry_low(
 	}
 #endif /* UNIV_DEBUG */
 
+	if (entry->info_bits) {
+		ut_ad(entry->info_bits == REC_INFO_MIN_REC_FLAG);
+		ut_ad(flags == BTR_NO_LOCKING_FLAG);
+		ut_ad(index->is_instant());
+		ut_ad(!dict_index_is_online_ddl(index));
+		ut_ad(!dup_chk_only);
+
+		const rec_t* rec = btr_cur_get_rec(cursor);
+
+		switch (rec_get_info_bits(rec, page_rec_is_comp(rec))
+			& (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)) {
+		case REC_INFO_MIN_REC_FLAG:
+			thr_get_trx(thr)->error_info = index;
+			err = DB_DUPLICATE_KEY;
+			goto err_exit;
+		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
+			ut_ad(row_ins_must_modify_rec(cursor));
+			goto do_insert;
+		default:
+			ut_ad(!row_ins_must_modify_rec(cursor));
+			goto do_insert;
+		}
+	}
+
 	if (n_uniq
 	    && (cursor->up_match >= n_uniq || cursor->low_match >= n_uniq)) {
 
@@ -2672,6 +2698,7 @@ err_exit:
 		goto func_exit;
 	}
 
+do_insert:
 	/* Note: Allowing duplicates would qualify for modification of
 	an existing record as the new entry is exactly same as old entry. */
 	if (row_ins_must_modify_rec(cursor)) {

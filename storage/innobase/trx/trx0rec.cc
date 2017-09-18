@@ -1898,10 +1898,15 @@ trx_undo_report_row_operation(
 	} else {
 		ut_ad(!trx->read_only);
 		ut_ad(trx->id);
-		/* Keep INFORMATION_SCHEMA.TABLES.UPDATE_TIME
-		up-to-date for persistent tables. Temporary tables are
-		not listed there. */
-		trx->mod_tables.insert(index->table);
+		if (UNIV_LIKELY(!clust_entry || clust_entry->info_bits
+				!= REC_INFO_MIN_REC_FLAG)) {
+			/* Keep INFORMATION_SCHEMA.TABLES.UPDATE_TIME
+			up-to-date for persistent tables outside
+			instant ADD COLUMN. */
+			trx->mod_tables.insert(index->table);
+		} else {
+			ut_ad(index->is_instant());
+		}
 
 		pundo = &trx->rsegs.m_redo.undo;
 		rseg = trx->rsegs.m_redo.rseg;

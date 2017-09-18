@@ -618,26 +618,17 @@ dict_table_has_column(
 	return(col_max);
 }
 
-/**********************************************************************//**
-Returns a column's name.
-@return column name. NOTE: not guaranteed to stay valid if table is
-modified in any way (columns added, etc.). */
-const char*
-dict_table_get_col_name(
-/*====================*/
-	const dict_table_t*	table,	/*!< in: table */
-	ulint			col_nr)	/*!< in: column number */
+/** Retrieve the column name.
+@param[in]	table	table name */
+const char* dict_col_t::name(const dict_table_t& table) const
 {
-	ulint		i;
-	const char*	s;
+	size_t col_nr = this - table.cols;
+	ut_ad(col_nr < table.n_def);
+	ut_ad(table.magic_n == DICT_TABLE_MAGIC_N);
 
-	ut_ad(table);
-	ut_ad(col_nr < table->n_def);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	s = table->col_names;
+	const char* s = table.col_names;
 	if (s) {
-		for (i = 0; i < col_nr; i++) {
+		for (size_t i = 0; i < col_nr; i++) {
 			s += strlen(s) + 1;
 		}
 	}
@@ -1372,6 +1363,30 @@ dict_table_add_to_cache(
 		UT_LIST_ADD_FIRST(dict_sys->table_LRU, table);
 	} else {
 		UT_LIST_ADD_FIRST(dict_sys->table_non_LRU, table);
+	}
+
+	ut_ad(dict_lru_validate());
+}
+
+/** When engaging instant ALTER TABLE, remove a table stub
+from the data dictionary cache. */
+void dict_table_t::remove_stub_from_cache()
+{
+	ut_ad(mutex_own(&dict_sys->mutex));
+
+	HASH_DELETE(dict_table_t, name_hash, dict_sys->table_hash,
+		    ut_fold_string(name.m_name), this);
+
+	HASH_DELETE(dict_table_t, id_hash, dict_sys->table_id_hash,
+		    ut_fold_ull(id), this);
+
+	if (can_be_evicted) {
+		ut_ad(dict_lru_find_table(this));
+		UT_LIST_REMOVE(dict_sys->table_LRU, this);
+		can_be_evicted = false;
+	} else {
+		ut_ad(dict_non_lru_find_table(this));
+		UT_LIST_REMOVE(dict_sys->table_non_LRU, this);
 	}
 
 	ut_ad(dict_lru_validate());
