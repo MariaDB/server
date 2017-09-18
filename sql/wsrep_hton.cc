@@ -539,6 +539,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     break;
   case WSREP_BF_ABORT:
     DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
+    /* fall through */
   case WSREP_TRX_FAIL:
     WSREP_DEBUG("commit failed for reason: %d", rcode);
     DBUG_PRINT("wsrep", ("replicating commit fail"));
