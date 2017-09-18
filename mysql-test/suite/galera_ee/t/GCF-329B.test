@@ -22,6 +22,13 @@ SET SESSION wsrep_OSU_method=NBO;
 --connection node_2
 --source include/kill_galera.inc
 
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+--connection node_1a
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 --connection node_2
 --source include/start_mysqld.inc
 
