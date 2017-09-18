@@ -913,18 +913,6 @@ dict_table_get_nth_v_col(
         const dict_table_t*	table,
         ulint			pos);
 
-/** @return column name. NOTE: not guaranteed to stay valid if table is
-modified in any way (columns added, etc.). */
-inline
-const char*
-dict_table_get_col_name(
-/*====================*/
-	const dict_table_t*	table,	/*!< in: table */
-	ulint			col_nr)	/*!< in: column number */
-{
-	return(dict_table_get_nth_col(table, col_nr)->name(*table));
-}
-
 /********************************************************************//**
 Gets the given system column of a table.
 @return pointer to column object */
@@ -944,6 +932,18 @@ dict_table_get_sys_col(
 /* Get nth virtual columns */
 #define dict_table_get_nth_v_col(table, pos)	((table)->v_cols + (pos))
 #endif /* UNIV_DEBUG */
+/** Wrapper function.
+@see dict_col_t::name()
+@param[in]	table	table
+@param[in]	col_nr	column number in table
+@return	column name */
+inline
+const char*
+dict_table_get_col_name(const dict_table_t* table, ulint col_nr)
+{
+	return(dict_table_get_nth_col(table, col_nr)->name(*table));
+}
+
 /********************************************************************//**
 Gets the given system column number of a table.
 @return column number */
