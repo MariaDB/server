@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -47,6 +47,7 @@ static uint opt_count_iterations= 0, my_end_arg;
 static ulong opt_connect_timeout, opt_shutdown_timeout;
 static char * unix_port=0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
+static bool sql_log_bin_off= false;
 
 #ifdef HAVE_SMEM
 static char *shared_memory_base_name=0;
@@ -600,6 +601,31 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
 }
 
 
+static int maybe_disable_binlog(MYSQL *mysql)
+{
+  if (opt_local && !sql_log_bin_off)
+  {
+    if (mysql_query(mysql,  "set local sql_log_bin=0"))
+    {
+      my_printf_error(0, "SET LOCAL SQL_LOG_BIN=0 failed; error: '%-.200s'",
+                      error_flags, mysql_error(mysql));
+      return -1;
+    }
+  }
+  sql_log_bin_off= true;
+  return 0;
+}
+
+
+int flush(MYSQL *mysql, const char *what)
+{
+  char buf[FN_REFLEN];
+  my_snprintf(buf, sizeof(buf), "flush %s%s",
+              (opt_local && !sql_log_bin_off ? "local " : ""), what);
+  return mysql_query(mysql, buf);
+}
+
+
 /**
    @brief Execute all commands
 
@@ -616,6 +642,7 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
 
 static int execute_commands(MYSQL *mysql,int argc, char **argv)
 {
+  int ret = 0;
   const char *status;
   /*
     MySQL documentation relies on the fact that mysqladmin will
@@ -628,17 +655,6 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
   struct my_rnd_struct rand_st;
   char buff[FN_REFLEN + 20];
 
-  if (opt_local)
-  {
-    sprintf(buff, "set local sql_log_bin=0");
-    if (mysql_query(mysql, buff))
-    {
-      my_printf_error(0, "SET LOCAL SQL_LOG_BIN=0 failed; error: '%-.200s'",
-                      error_flags, mysql_error(mysql));
-      return -1;
-    }
-  }
-
   for (; argc > 0 ; argv++,argc--)
   {
     int command;
@@ -650,6 +666,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	my_printf_error(0, "Too few arguments to create", error_flags);
 	return 1;
       }
+      if (maybe_disable_binlog(mysql))
+        return -1;
       sprintf(buff,"create database `%.*s`",FN_REFLEN,argv[1]);
       if (mysql_query(mysql,buff))
       {
@@ -667,6 +685,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	my_printf_error(0, "Too few arguments to drop", error_flags);
 	return 1;
       }
+      if (maybe_disable_binlog(mysql))
+        return -1;
       if (drop_db(mysql,argv[1]))
 	return -1;
       argc--; argv++;
@@ -707,7 +727,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_PRIVILEGES:
     case ADMIN_RELOAD:
-      if (mysql_query(mysql,"flush privileges"))
+      if (flush(mysql, "privileges"))
       {
 	my_printf_error(0, "reload failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -911,7 +931,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_LOGS:
     {
-      if (mysql_query(mysql,"flush logs"))
+      if (flush(mysql, "logs"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -921,7 +941,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_BINARY_LOG:
     {
-      if (mysql_query(mysql, "flush binary logs"))
+      if (flush(mysql, "binary logs"))
       {
         my_printf_error(0, "flush failed; error: '%s'", error_flags,
                         mysql_error(mysql));
@@ -931,7 +951,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_ENGINE_LOG:
     {
-      if (mysql_query(mysql,"flush engine logs"))
+      if (flush(mysql, "engine logs"))
       {
         my_printf_error(0, "flush failed; error: '%s'", error_flags,
                         mysql_error(mysql));
@@ -941,7 +961,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_ERROR_LOG:
     {
-      if (mysql_query(mysql, "flush error logs"))
+      if (flush(mysql, "error logs"))
       {
         my_printf_error(0, "flush failed; error: '%s'", error_flags,
                         mysql_error(mysql));
@@ -951,7 +971,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_GENERAL_LOG:
     {
-      if (mysql_query(mysql, "flush general logs"))
+      if (flush(mysql, "general logs"))
       {
         my_printf_error(0, "flush failed; error: '%s'", error_flags,
                         mysql_error(mysql));
@@ -961,7 +981,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_RELAY_LOG:
     {
-      if (mysql_query(mysql, "flush relay logs"))
+      if (flush(mysql, "relay logs"))
       {
         my_printf_error(0, "flush failed; error: '%s'", error_flags,
                         mysql_error(mysql));
@@ -971,7 +991,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_SLOW_LOG:
     {
-      if (mysql_query(mysql,"flush slow logs"))
+      if (flush(mysql, "slow logs"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -981,7 +1001,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_HOSTS:
     {
-      if (mysql_query(mysql,"flush hosts"))
+      if (flush(mysql, "hosts"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -991,7 +1011,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_TABLES:
     {
-      if (mysql_query(mysql,"flush tables"))
+      if (flush(mysql, "tables"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1001,7 +1021,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_STATUS:
     {
-      if (mysql_query(mysql,"flush status"))
+      if (flush(mysql, "status"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1011,7 +1031,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_TABLE_STATISTICS:
     {
-      if (mysql_query(mysql,"flush table_statistics"))
+      if (flush(mysql, "table_statistics"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1021,7 +1041,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_INDEX_STATISTICS:
     {
-      if (mysql_query(mysql,"flush index_statistics"))
+      if (flush(mysql, "index_statistics"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1031,7 +1051,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_USER_STATISTICS:
     {
-      if (mysql_query(mysql,"flush user_statistics"))
+      if (flush(mysql, "user_statistics"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1041,7 +1061,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_USER_RESOURCES:
     {
-      if (mysql_query(mysql, "flush user_resources"))
+      if (flush(mysql, "user_resources"))
       {
         my_printf_error(0, "flush failed; error: '%s'", error_flags,
                         mysql_error(mysql));
@@ -1051,7 +1071,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_CLIENT_STATISTICS:
     {
-      if (mysql_query(mysql,"flush client_statistics"))
+      if (flush(mysql, "client_statistics"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1061,9 +1081,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_ALL_STATISTICS:
     {
-      if (mysql_query(mysql,
-                      "flush table_statistics,index_statistics,"
-                      "user_statistics,client_statistics"))
+      if (flush(mysql, "table_statistics,index_statistics,"
+                       "user_statistics,client_statistics"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1073,9 +1092,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_ALL_STATUS:
     {
-      if (mysql_query(mysql,
-                      "flush status,table_statistics,index_statistics,"
-                      "user_statistics,client_statistics"))
+      if (flush(mysql, "status,table_statistics,index_statistics,"
+                       "user_statistics,client_statistics"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1093,6 +1111,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       start_time=time((time_t*) 0);
       my_rnd_init(&rand_st,(ulong) start_time,(ulong) start_time/2);
 
+      if (maybe_disable_binlog(mysql))
+        return -1;
       if (argc < 1)
       {
 	my_printf_error(0, "Too few arguments to change password", error_flags);
@@ -1106,7 +1126,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
         if (strcmp(typed_password, verified) != 0)
         {
           my_printf_error(0,"Passwords don't match",MYF(ME_BELL));
-          return -1;
+          ret = -1;
+          goto password_done;
         }
       }
       else
@@ -1133,7 +1154,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
           {
             my_printf_error(0, "Could not determine old_passwords setting from server; error: '%s'",
                 	    error_flags, mysql_error(mysql));
-            return -1;
+            ret = -1;
+            goto password_done;
           }
           else
           {
@@ -1144,7 +1166,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
                               "Could not get old_passwords setting from "
                               "server; error: '%s'",
         		      error_flags, mysql_error(mysql));
-              return -1;
+              ret = -1;
+              goto password_done;
             }
             if (!mysql_num_rows(res))
               old= 1;
@@ -1169,15 +1192,15 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       {
 	my_printf_error(0, "Can't turn off logging; error: '%s'",
 			error_flags, mysql_error(mysql));
-	return -1;
+        ret = -1;
       }
+      else
       if (mysql_query(mysql,buff))
       {
 	if (mysql_errno(mysql)!=1290)
 	{
 	  my_printf_error(0,"unable to change password; error: '%s'",
 			  error_flags, mysql_error(mysql));
-	  return -1;
 	}
 	else
 	{
@@ -1191,9 +1214,10 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 			  " --skip-grant-tables).\n"
 			  "Use: \"mysqladmin flush-privileges password '*'\""
 			  " instead", error_flags);
-	  return -1;
 	}
+        ret = -1;
       }
+password_done:
       /* free up memory from prompted password */
       if (typed_password != argv[1]) 
       {
@@ -1300,7 +1324,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       return 1;
     }
   }
-  return 0;
+  return ret;
 }
 
 /**

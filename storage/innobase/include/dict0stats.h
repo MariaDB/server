@@ -110,6 +110,13 @@ dict_stats_deinit(
 	dict_table_t*	table)	/*!< in/out: table */
 	MY_ATTRIBUTE((nonnull));
 
+/** Update the table modification counter and if necessary,
+schedule new estimates for table and index statistics to be calculated.
+@param[in,out]	table	persistent or temporary table */
+void
+dict_stats_update_if_needed(dict_table_t* table)
+	MY_ATTRIBUTE((nonnull));
+
 /*********************************************************************//**
 Calculates new estimates for table and index statistics. The statistics
 are used in query optimization.
@@ -251,6 +258,17 @@ dict_stats_save_index_stat(
 	ib_uint64_t*	sample_size,
 	const char*	stat_description,
 	trx_t*		trx);
+
+/** Report an error if updating table statistics failed because
+.ibd file is missing, table decryption failed or table is corrupted.
+@param[in,out]	table	Table
+@param[in]	defragment	true if statistics is for defragment
+@retval DB_DECRYPTION_FAILED if decryption of the table failed
+@retval DB_TABLESPACE_DELETED if .ibd file is missing
+@retval DB_CORRUPTION if table is marked as corrupted */
+dberr_t
+dict_stats_report_error(dict_table_t* table, bool defragment = false)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 #include "dict0stats.ic"
 

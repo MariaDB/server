@@ -107,9 +107,10 @@ int maria_write(MARIA_HA *info, uchar *record)
   if (_ma_readinfo(info,F_WRLCK,1))
     DBUG_RETURN(my_errno);
 
-  if (share->base.reloc == (ha_rows) 1 &&
-      share->base.records == (ha_rows) 1 &&
-      share->state.state.records == (ha_rows) 1)
+  if ((share->state.changed & STATE_DATA_FILE_FULL) ||
+      (share->base.reloc == (ha_rows) 1 &&
+       share->base.records == (ha_rows) 1 &&
+       share->state.state.records == (ha_rows) 1))
   {						/* System file */
     my_errno=HA_ERR_RECORD_FILE_FULL;
     goto err2;

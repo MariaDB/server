@@ -27,7 +27,7 @@ typedef struct _WMIutil {
 /***********************************************************************/
 /*  Functions used externally.                                         */
 /***********************************************************************/
-PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info);
+PQRYRES WMIColumns(PGLOBAL g, PCSZ nsp, PCSZ cls, bool info);
 
 /* -------------------------- WMI classes ---------------------------- */
 

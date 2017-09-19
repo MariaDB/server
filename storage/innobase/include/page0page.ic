@@ -27,8 +27,8 @@ Created 2/2/1994 Heikki Tuuri
 #ifndef page0page_ic
 #define page0page_ic
 
-#include "mach0data.h"
 #ifndef UNIV_INNOCHECKSUM
+#include "mach0data.h"
 #ifdef UNIV_DEBUG
 # include "log0recv.h"
 #endif /* !UNIV_DEBUG */
@@ -40,6 +40,7 @@ Created 2/2/1994 Heikki Tuuri
 #undef UNIV_INLINE
 #define UNIV_INLINE
 #endif
+#endif /* !UNIV_INNOCHECKSUM */
 
 /************************************************************//**
 Gets the start of a page.
@@ -53,6 +54,7 @@ page_align(
 	return((page_t*) ut_align_down(ptr, UNIV_PAGE_SIZE));
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /************************************************************//**
 Gets the offset within a page.
 @return offset from the start of the page */
@@ -168,7 +170,7 @@ page_set_ssn_id(
 /*************************************************************//**
 Reads the given header field. */
 UNIV_INLINE
-ulint
+uint16_t
 page_header_get_field(
 /*==================*/
 	const page_t*	page,	/*!< in: page */
@@ -181,7 +183,6 @@ page_header_get_field(
 }
 
 #ifndef UNIV_INNOCHECKSUM
-
 /*************************************************************//**
 Sets the given header field. */
 UNIV_INLINE
@@ -285,6 +286,8 @@ page_header_reset_last_insert(
 	}
 }
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /************************************************************//**
 Determine whether the page is in new-style compact format.
 @return nonzero if the page is in compact format, zero if it is in
@@ -298,6 +301,7 @@ page_is_comp(
 	return(page[PAGE_HEADER + PAGE_N_HEAP] & 0x80);
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /************************************************************//**
 TRUE if the record is on a page in compact format.
 @return nonzero if in compact format */
@@ -326,6 +330,8 @@ page_rec_get_heap_no(
 	}
 }
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /************************************************************//**
 Determine whether the page is a B-tree leaf.
 @return true if the page is a B-tree leaf (PAGE_LEVEL = 0) */
@@ -338,6 +344,7 @@ page_is_leaf(
 	return(!*(const uint16*) (page + (PAGE_HEADER + PAGE_LEVEL)));
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /************************************************************//**
 Determine whether the page is empty.
 @return true if the page is empty (PAGE_N_RECS = 0) */
@@ -627,6 +634,8 @@ page_get_middle_rec(
 	return(page_rec_get_nth(page, middle));
 }
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /*************************************************************//**
 Gets the page number.
 @return page number */
@@ -640,6 +649,7 @@ page_get_page_no(
 	return(mach_read_from_4(page + FIL_PAGE_OFFSET));
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /*************************************************************//**
 Gets the tablespace identifier.
 @return space id */
@@ -652,6 +662,8 @@ page_get_space_id(
 	ut_ad(page == page_align((page_t*) page));
 	return(mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID));
 }
+
+#endif /* !UNIV_INNOCHECKSUM */
 
 /*************************************************************//**
 Gets the number of user records on page (infimum and supremum records
@@ -666,6 +678,7 @@ page_get_n_recs(
 	return(page_header_get_field(page, PAGE_N_RECS));
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /*************************************************************//**
 Gets the number of dir slots in directory.
 @return number of slots */
@@ -718,7 +731,7 @@ page_dir_set_n_heap(
 	ulint		n_heap)	/*!< in: number of records */
 {
 	ut_ad(n_heap < 0x8000);
-	ut_ad(!page_zip || n_heap
+	ut_ad(!page_zip || uint16_t(n_heap)
 	      == (page_header_get_field(page, PAGE_N_HEAP) & 0x7fff) + 1);
 
 	page_header_set_field(page, page_zip, PAGE_N_HEAP, n_heap
@@ -1054,6 +1067,8 @@ page_rec_get_base_extra_size(
 	return(REC_N_NEW_EXTRA_BYTES + (ulint) !page_rec_is_comp(rec));
 }
 
+#endif /* UNIV_INNOCHECKSUM */
+
 /************************************************************//**
 Returns the sum of the sizes of the records in the record list, excluding
 the infimum and supremum records.
@@ -1077,6 +1092,7 @@ page_get_data_size(
 	return(ret);
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /************************************************************//**
 Allocates a block of memory from the free list of an index page. */
 UNIV_INLINE

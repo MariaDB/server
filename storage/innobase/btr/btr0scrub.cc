@@ -140,6 +140,7 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 		} else {
 			return false;
 		}
+
 		os_thread_sleep(250000);
 
 		time_t now = time(0);
@@ -571,7 +572,7 @@ btr_scrub_table_needs_scrubbing(
 		return false;
 	}
 
-	if (table->corrupted) {
+	if (!table->is_readable()) {
 		return false;
 	}
 
@@ -882,17 +883,15 @@ btr_scrub_update_total_stat(btr_scrub_t *scrub_data)
 	memset(&scrub_data->scrub_stat, 0, sizeof(scrub_data->scrub_stat));
 }
 
-/**************************************************************//**
-Complete iterating a space */
+/** Complete iterating a space.
+@param[in,out]	scrub_data	 scrub data */
 UNIV_INTERN
-bool
-btr_scrub_complete_space(
-/*=====================*/
-	btr_scrub_t* scrub_data) /*!< in/out: scrub data */
+void
+btr_scrub_complete_space(btr_scrub_t* scrub_data)
 {
+	ut_ad(scrub_data->scrubbing);
 	btr_scrub_table_close_for_thread(scrub_data);
 	btr_scrub_update_total_stat(scrub_data);
-	return scrub_data->scrubbing;
 }
 
 /*********************************************************************

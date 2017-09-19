@@ -4,9 +4,10 @@
 
 --connect(con1, localhost, root)
 CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES(1);
 BEGIN;
 # Generate insert_undo log.
-INSERT INTO t VALUES(1),(2);
+INSERT INTO t VALUES(2);
 # Generate update_undo log.
 DELETE FROM t WHERE a=2;
 --connection default
@@ -27,6 +28,7 @@ ROLLBACK;
 SELECT * FROM t;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t;
+UPDATE t SET a=3 WHERE a=1;
 --let $restart_parameters= --innodb-read-only
 --source include/restart_mysqld.inc
 --echo # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.

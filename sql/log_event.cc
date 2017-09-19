@@ -390,12 +390,6 @@ static void pretty_print_str(IO_CACHE* cache, const char* str, int len)
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 
-static void clear_all_errors(THD *thd, Relay_log_info *rli)
-{
-  thd->is_slave_error = 0;
-  thd->clear_error();
-}
-
 inline int idempotent_error_code(int err_code)
 {
   int ret= 0;
@@ -3477,7 +3471,8 @@ void Log_event::print_base64(IO_CACHE* file,
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   if (print_event_info->verbose || need_flashback_review)
 #else
-  if (print_event_info->verbose)
+  // Flashback need the table_map to parse the event
+  if (print_event_info->verbose || is_flashback)
 #endif
   {
     Rows_log_event *ev= NULL;
@@ -3564,7 +3559,8 @@ void Log_event::print_base64(IO_CACHE* file,
         close_cached_file(&tmp_cache);
       }
 #else
-      ev->print_verbose(file, print_event_info);
+      if (print_event_info->verbose)
+        ev->print_verbose(file, print_event_info);
 #endif
       delete ev;
     }
@@ -5056,7 +5052,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
 
   DBUG_PRINT("info", ("log_pos: %lu", (ulong) log_pos));
 
-  clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+  thd->clear_error(1);
   current_stmt_is_commit= is_commit();
 
   DBUG_ASSERT(!current_stmt_is_commit || !rgi->tables_to_lock);
@@ -5277,7 +5273,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         to check/fix it.
       */
       if (mysql_test_parse_for_slave(thd, thd->query(), thd->query_length()))
-        clear_all_errors(thd, const_cast<Relay_log_info*>(rli)); /* Can ignore query */
+        thd->clear_error(1);
       else
       {
         rli->report(ERROR_LEVEL, expected_error, rgi->gtid_info(),
@@ -5358,7 +5354,7 @@ compare_errors:
              ignored_error_code(actual_error))
     {
       DBUG_PRINT("info",("error ignored"));
-      clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+      thd->clear_error(1);
       if (actual_error == ER_QUERY_INTERRUPTED ||
           actual_error == ER_CONNECTION_KILLED)
         thd->reset_killed();
@@ -6836,8 +6832,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   new_db.str= (char *) rpl_filter->get_rewrite_db(db, &new_db.length);
   thd->set_db(new_db.str, new_db.length);
   DBUG_ASSERT(thd->query() == 0);
-  thd->is_slave_error= 0;
-  clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+  thd->clear_error(1);
 
   /* see Query_log_event::do_apply_event() and BUG#13360 */
   DBUG_ASSERT(!rgi->m_table_map.count());
@@ -6847,7 +6842,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   */
   lex_start(thd);
   thd->lex->local_file= local_fname;
-  thd->reset_for_next_command();
+  thd->reset_for_next_command(0);               // Errors are cleared above
 
    /*
     We test replicate_*_db rules. Note that we have already prepared
@@ -7449,8 +7444,10 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   if (thd_arg->transaction.stmt.trans_did_wait() ||
       thd_arg->transaction.all.trans_did_wait())
     flags2|= FL_WAITED;
-  if (sql_command_flags[thd->lex->sql_command] &
-      (CF_DISALLOW_IN_RO_TRANS | CF_AUTO_COMMIT_TRANS))
+  if (thd_arg->transaction.stmt.trans_did_ddl() ||
+      thd_arg->transaction.stmt.has_created_dropped_temp_table() ||
+      thd_arg->transaction.all.trans_did_ddl() ||
+      thd_arg->transaction.all.has_created_dropped_temp_table())
     flags2|= FL_DDL;
   else if (is_transactional)
     flags2|= FL_TRANSACTIONAL;
@@ -8402,7 +8399,6 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
     consistent.
   */
 #ifdef WITH_WSREP
-  /*Set wsrep_affected_rows = 0 */
   thd->wsrep_affected_rows= 0;
 #endif
 
@@ -10252,6 +10248,7 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
     post_start+= RW_FLAGS_OFFSET;
   }
 
+  m_flags_pos= post_start - buf;
   m_flags= uint2korr(post_start);
   post_start+= 2;
 
@@ -10946,7 +10943,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
             slave_rows_error_report(WARNING_LEVEL, error, rgi, thd, table,
                                     get_type_str(),
                                     RPL_LOG_NAME, (ulong) log_pos);
-          clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+          thd->clear_error(1);
           error= 0;
           if (idempotent_error == 0)
             break;
@@ -10998,7 +10995,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         slave_rows_error_report(WARNING_LEVEL, error, rgi, thd, table,
                                 get_type_str(),
                                 RPL_LOG_NAME, (ulong) log_pos);
-      clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+      thd->clear_error(1);
       error= 0;
     }
   } // if (table)
@@ -11300,18 +11297,18 @@ void Rows_log_event::print_helper(FILE *file,
 
   if (get_flags(STMT_END_F))
   {
-    reinit_io_cache(head, READ_CACHE, 0L, FALSE, FALSE);
-    output_buf.append(head, head->end_of_file);
-    reinit_io_cache(head, WRITE_CACHE, 0, FALSE, TRUE);
+    LEX_STRING tmp_str;
 
-    reinit_io_cache(body, READ_CACHE, 0L, FALSE, FALSE);
-    output_buf.append(body, body->end_of_file);
-    reinit_io_cache(body, WRITE_CACHE, 0, FALSE, TRUE);
-
+    copy_event_cache_to_string_and_reinit(head, &tmp_str);
+    output_buf.append(&tmp_str);
+    my_free(tmp_str.str);
+    copy_event_cache_to_string_and_reinit(body, &tmp_str);
+    output_buf.append(&tmp_str);
+    my_free(tmp_str.str);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
-    reinit_io_cache(sql, READ_CACHE, 0L, FALSE, FALSE);
-    output_buf.append(sql, sql->end_of_file);
-    reinit_io_cache(sql, WRITE_CACHE, 0, FALSE, TRUE);
+    copy_event_cache_to_string_and_reinit(sql, &tmp_str);
+    output_buf.append(&tmp_str);
+    my_free(tmp_str.str);
 #endif
   }
 }

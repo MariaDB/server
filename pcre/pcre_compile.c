@@ -1249,6 +1249,7 @@ else
 
     if ((c = *ptr) >= CHAR_8) break;
 
+    /* fall through */
     /* Fall through with a digit less than 8 */
 
     /* \0 always starts an octal number, but we may drop through to here with a
@@ -5097,6 +5098,8 @@ for (;; ptr++)
             either not match or match, depending on whether the class is or is
             not negated. */
 
+            /* fall through */
+
             default:
             if (local_negate &&
                 (xclass || tempptr[2] != CHAR_RIGHT_SQUARE_BRACKET))
@@ -5737,6 +5740,21 @@ for (;; ptr++)
           }           /* Loop for comment characters */
         }             /* Loop for multiple comments */
       ptr = p - 1;    /* Character before the next significant one. */
+      }
+
+    /* We also need to skip over (?# comments, which are not dependent on
+    extended mode. */
+
+    if (ptr[1] == CHAR_LEFT_PARENTHESIS && ptr[2] == CHAR_QUESTION_MARK &&
+        ptr[3] == CHAR_NUMBER_SIGN)
+      {
+      ptr += 4;
+      while (*ptr != CHAR_NULL && *ptr != CHAR_RIGHT_PARENTHESIS) ptr++;
+      if (*ptr == CHAR_NULL)
+        {
+        *errorcodeptr = ERR18;
+        goto FAILED;
+        }
       }
 
     /* If the next character is '+', we have a possessive quantifier. This
@@ -7150,7 +7168,7 @@ for (;; ptr++)
           goto FAILED;
           }
         /* Fall through to handle (?P< as (?< is handled */
-
+        /* fall through */
 
         /* ------------------------------------------------------------ */
         DEFINE_NAME:    /* Come here from (?< handling */
@@ -8210,7 +8228,6 @@ for (;; ptr++)
 
       if (mclength == 1 || req_caseopt == 0)
         {
-        firstchar = mcbuffer[0] | req_caseopt;
         firstchar = mcbuffer[0];
         firstcharflags = req_caseopt;
 

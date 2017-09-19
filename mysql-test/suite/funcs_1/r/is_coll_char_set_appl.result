@@ -52,10 +52,10 @@ SELECT * FROM information_schema.collation_character_set_applicability;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 UPDATE information_schema.collation_character_set_applicability
 SET collation_name = 'big6_chinese_ci' WHERE character_set_name = 'big6';
-ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+Got one of the listed errors
 UPDATE information_schema.collation_character_set_applicability
 SET character_set_name = 't_4711';
-ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+Got one of the listed errors
 DELETE FROM information_schema.collation_character_set_applicability;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 TRUNCATE information_schema.collation_character_set_applicability;

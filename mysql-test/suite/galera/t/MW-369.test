@@ -1,0 +1,246 @@
+#
+# Test A Outline:
+# ===============
+#
+# This test tests the scenario for MW-369 where a new child table
+# row referring to parent table row is inserted concurrently from
+# another node while the transaction which tries to delete a
+# referred row from the parent table is committing.
+#
+# The p table will originally have rows (1, 0), (2, 0).
+# The c table will be empty.
+#
+# A new row (1, 1) pointing to parent row (1, 0) is inserted from
+# connection node_2, the transaction which tries to remove the
+# parent row (1, 0) is run from connection node_1.
+#
+# Expected outcome:
+# ================
+#
+# The transaction on node_1 will fail. The parent table will contain
+# rows (1, 0), (2, 0) and the child table will contain row (1, 1).
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source suite/galera/include/galera_have_debug_sync.inc
+
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
+
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+
+--let $mw_369_parent_query = DELETE FROM p WHERE f1 = 1
+--let $mw_369_child_query = INSERT INTO c VALUES (1, 1)
+
+#
+# we must open connection node_1a here, MW-369.inc will use it later
+#
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--source MW-369.inc
+
+# Commit fails
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
+
+#
+# Test B Outline:
+# ===============
+#
+# This test tests the scenario for MW-369 where a existing
+# child table row is updated concurrently from another node
+# with a transaction which updates the parent table.
+#
+# The p table will originally have rows (1, 0), (2, 0).
+# The c table will originally have rows (1, 1, 0) which points
+# to parent table row (1, 0).
+#
+# Expected outcome:
+# ================
+#
+# Both updates should succeed since they are done to separate tables and
+# rows. The parent table will contain rows (1, 1), (2, 0). The child
+# table will contain row (1, 1, 1).
+#
+
+--connection node_1
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+                f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
+
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1, 0);
+
+--let mw_369_parent_query = UPDATE p SET f2 = 1 WHERE f1 = 1
+--let $mw_369_child_query = UPDATE c SET f2 = 1 WHERE f1 = 1
+--source MW-369.inc
+
+# Commit succeeds
+--connection node_1
+--reap
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
+
+#
+# Test C Outline:
+# ===============
+#
+# This test tests the scenario for MW-369 where a child table row is
+# deleted concurrently from the other node while a transaction updates
+# the parent table referred by the child table row.
+#
+# The p table will originally have rows (1, 0), (2, 0)
+# The c table will originally have row (1, 1) which points to parent
+# table row (1, 0).
+#
+# A row (1, 1) pointing to parent row (1, 0) is deleted from
+# connection node_2, the transaction which tries to update the
+# parent row (1, 0) is run from connection node_1.
+#
+# Expected Outcome:
+# ================
+# Both operations on node_1 and node_2 should succeed without conflicts.
+# The parent table should contain values (1, 1), (2, 0) and the child
+# table should be empty.
+
+--connection node_1
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
+
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1);
+
+--let $mw_369_parent_query = UPDATE p SET f2 = 1 WHERE f1 = 1
+--let $mw_369_child_query = DELETE FROM c WHERE f1 = 1
+--source MW-369.inc
+
+# Commit succeeds
+--connection node_1
+--reap
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
+
+
+#
+# Test D Outline:
+# ===============
+#
+# This test is similar to test A, where parent row is deleted while a child row
+# is inserted simultaneously on node 2. However, in this test case the FK
+# constraint's target column is a unique key, and parent row is not delete,
+# but this key value is changed so that insert on node 2 will cause FK
+# violation
+#
+# The p table will originally have rows (1, 0)
+# The c table will originally be empty 
+#
+# in node_1, parent row is updated to value (1,1)
+# A row (1, 0) pointing to the old version of parent row (1, 0) is inserted
+# in connection node_2
+#
+# Expected Outcome:
+# ================
+# This is a true conflict and one transaciton must abort. In this case it is node_1
+# transaction, which was scheduled later.
+#    Parent table should have row (1,0)
+#    child table should have row (1,0)
+#
+
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER UNIQUE KEY) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f2))  ;
+
+INSERT INTO p VALUES (1, 0);
+
+--let $mw_369_parent_query = UPDATE p SET f2 = 1 WHERE f1 = 1
+--let $mw_369_child_query = INSERT INTO c VALUES (1, 0);
+--source MW-369.inc
+
+# Commit fails
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
+
+#
+# Test E Outline:
+# ===============
+#
+# This test is similar to test B, where parent row is deleted while a child row
+# is updated simultaneously on node 2. However, in this test case the FK
+# constraint has ON DELETE CASCADE option, and the delete on parent row will
+# cascade a delete on child row as well. This will cause true conflict with 
+# connection node_2, which tries to update unrelated column on child table.
+#
+# The p table will originally have rows (1, 0), (2,0)
+# The c table will originally have row (1,1,0)
+#
+# in node_1, parent row (1,0) is deleted and cascaded delete will happen on
+# child table row (1,1,0).
+# in connection node_2 child table row is update to value (1,1,1)
+#
+# Expected Outcome:
+# ================
+# This is a true conflict and one transaciton must abort. In this case it is node_1
+# transaction, which was scheduled later.
+#    Parent table should have rows (1,0), (2,0)
+#    child table should have row (1,1,1)
+#
+
+
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER, f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1)
+                ON DELETE CASCADE)  ;
+
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1, 0);
+
+--let $mw_369_parent_query = DELETE FROM p WHERE f1 = 1
+--let $mw_369_child_query = UPDATE c SET f2 = 1 WHERE f1 = 1
+--source MW-369.inc
+
+# Commit fails
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
+

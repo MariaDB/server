@@ -621,6 +621,7 @@ sync_array_cell_print(
 	}
 }
 
+#ifdef UNIV_DEBUG
 /******************************************************************//**
 Looks for a cell with the given thread id.
 @return pointer to cell or NULL if not found */
@@ -648,7 +649,6 @@ sync_array_find_thread(
 	return(NULL);	/* Not found */
 }
 
-#ifdef UNIV_DEBUG
 /******************************************************************//**
 Recursion step for deadlock detection.
 @return TRUE if deadlock detected */

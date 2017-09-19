@@ -2,4 +2,5 @@ perl mysql-test-run.pl --verbose-restart --force --testcase-timeout=45 --suite-t
 main,^
 innodb,^
 plugins,^
+mariabackup,^
 rocksdb

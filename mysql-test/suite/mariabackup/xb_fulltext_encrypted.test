@@ -1,0 +1,24 @@
+#--source include/innodb_page_size.inc
+--source include/have_file_key_management.inc
+
+CREATE TABLE film_text (
+film_id SMALLINT NOT NULL,
+title VARCHAR(255) NOT NULL,
+description TEXT,
+PRIMARY KEY (film_id),
+FULLTEXT KEY idx_title_description (title,description),
+FULLTEXT KEY (description),
+FULLTEXT KEY (title)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8 ENCRYPTED=YES;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+
+exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --no-timestamp $targetdir;
+exec $INNOBACKUPEX --apply-log --rebuild-indexes --rebuild-threads=2 $targetdir;
+--source include/restart_and_restore.inc
+
+--enable_result_log
+
+drop table film_text;

@@ -1,0 +1,19 @@
+--source include/innodb_page_size.inc
+
+# Check if ibd smaller than page size are skipped
+# It is possible, due to race conditions that new file
+# is created by server while xtrabackup is running
+# The first page in this file does not yet exist.
+# xtrabackup should skip such file.
+
+let $_datadir= `SELECT @@datadir`;
+write_file  $_datadir/test/small.ibd;
+EOF
+echo #backup;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+remove_file  $_datadir/test/small.ibd;
+rmdir $targetdir;

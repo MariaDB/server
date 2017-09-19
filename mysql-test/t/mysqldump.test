@@ -2490,6 +2490,58 @@ DROP TABLE t2;
 DROP DATABASE db_20772273;
 USE test;
 
+--echo #
+--echo # Bug #25717383: MYSQLDUMP MAY EXECUTE ANY ARBITRARY QUERY
+--echo #
+
+
+CREATE DATABASE bug25717383;
+use bug25717383;
+
+CREATE TABLE `tab
+one` (a int);
+CREATE VIEW `view
+one` as SELECT * FROM `tab
+one`;
+
+CREATE PROCEDURE `proc
+one`() SELECT * from `tab
+one`;
+
+CREATE TEMPORARY TABLE `temp
+one` (id INT);
+
+CREATE TRIGGER `trig
+one` BEFORE INSERT ON `tab
+one` FOR EACH ROW SET NEW.a = 1;
+
+CREATE EVENT `event
+one` ON SCHEDULE AT '2030-01-01 00:00:00' DO SET @a=5;
+
+SHOW TABLES FROM bug25717383;
+--replace_column 6 #
+SHOW TRIGGERS FROM bug25717383;
+--replace_column 6 #
+SHOW EVENTS FROM bug25717383;
+
+SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES
+       WHERE ROUTINE_SCHEMA='bug25717383' AND ROUTINE_TYPE= 'PROCEDURE'
+       ORDER BY ROUTINE_NAME;
+
+--exec $MYSQL_DUMP --triggers --events --routines --add-drop-database --databases bug25717383 > $MYSQLTEST_VARDIR/tmp/bug25717383.sql
+
+SHOW TABLES FROM bug25717383;
+--replace_column 6 #
+SHOW TRIGGERS FROM bug25717383;
+--replace_column 6 #
+SHOW EVENTS FROM bug25717383;
+
+SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES
+       WHERE ROUTINE_SCHEMA='bug25717383' AND ROUTINE_TYPE= 'PROCEDURE'
+       ORDER BY ROUTINE_NAME;
+
+DROP DATABASE bug25717383;
+
 #
 # MDEV-6091 mysqldump goes in a loop and segfaults if --dump-slave is specified and it cannot connect to the server
 #
@@ -2582,3 +2634,15 @@ let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/bug11505.sql;
 let SEARCH_PATTERN=Database: mysql;
 exec $MYSQL_DUMP mysql func  > $SEARCH_FILE;
 source include/search_pattern_in_file.inc;
+
+--echo #
+--echo # Test for --add-drop-trigger
+--echo #
+use test;
+CREATE TABLE t1 (a int, b int);
+CREATE TRIGGER tt1_t1 BEFORE INSERT ON t1 FOR EACH ROW 
+  SET NEW.b=NEW.a + 10;
+
+INSERT INTO t1 (a) VALUES (1),(2),(3);
+--exec $MYSQL_DUMP --triggers --no-data --no-create-info --add-drop-trigger --skip-comments --databases test
+DROP TABLE t1;

@@ -169,10 +169,10 @@ btr_root_block_get(
 
 	if (!block) {
 		if (index && index->table) {
-			index->table->is_encrypted = TRUE;
-			index->table->corrupted = FALSE;
+			index->table->file_unreadable = true;
 
-			ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
+			ib_push_warning(
+				static_cast<THD*>(NULL), DB_DECRYPTION_FAILED,
 				"Table %s in tablespace %lu is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue reading table.",
@@ -183,6 +183,7 @@ btr_root_block_get(
 	}
 
 	btr_assert_not_corrupted(block, index);
+
 #ifdef UNIV_BTR_DEBUG
 	if (!dict_index_is_ibuf(index)) {
 		const page_t*	root = buf_block_get_frame(block);
@@ -713,7 +714,7 @@ btr_page_free_low(
 		* pages should be possible
 		*/
 		uint cnt = 0;
-		uint bytes = 0;
+		ulint bytes = 0;
 		page_t* page = buf_block_get_frame(block);
 		mem_heap_t* heap = NULL;
 		ulint* offsets = NULL;
@@ -731,7 +732,7 @@ btr_page_free_low(
 #ifdef UNIV_DEBUG_SCRUBBING
 		fprintf(stderr,
 			"btr_page_free_low: scrub %lu/%lu - "
-			"%u records %u bytes\n",
+			"%u records " ULINTPF " bytes\n",
 			buf_block_get_space(block),
 			buf_block_get_page_no(block),
 			cnt, bytes);
@@ -1133,9 +1134,7 @@ btr_create(
 	const btr_create_t*	btr_redo_create_info,
 	mtr_t*			mtr)
 {
-	ulint			page_no;
 	buf_block_t*		block;
-	buf_frame_t*		frame;
 	page_t*			page;
 	page_zip_des_t*		page_zip;
 
@@ -1170,33 +1169,28 @@ btr_create(
 			+ IBUF_HEADER + IBUF_TREE_SEG_HEADER,
 			IBUF_TREE_ROOT_PAGE_NO,
 			FSP_UP, mtr);
+
+		if (block == NULL) {
+			return(FIL_NULL);
+		}
+
 		ut_ad(block->page.id.page_no() == IBUF_TREE_ROOT_PAGE_NO);
+
+		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
+
+		flst_init(block->frame + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
+			  mtr);
 	} else {
 		block = fseg_create(space, 0,
 				    PAGE_HEADER + PAGE_BTR_SEG_TOP, mtr);
-	}
 
-	if (block == NULL) {
+		if (block == NULL) {
+			return(FIL_NULL);
+		}
 
-		return(FIL_NULL);
-	}
-
-	page_no = block->page.id.page_no();
-	frame = buf_block_get_frame(block);
-
-	if (type & DICT_IBUF) {
-		/* It is an insert buffer tree: initialize the free list */
-		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
-
-		ut_ad(page_no == IBUF_TREE_ROOT_PAGE_NO);
-
-		flst_init(frame + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, mtr);
-	} else {
-		/* It is a non-ibuf tree: create a file segment for leaf
-		pages */
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE_NEW);
 
-		if (!fseg_create(space, page_no,
+		if (!fseg_create(space, block->page.id.page_no(),
 				 PAGE_HEADER + PAGE_BTR_SEG_LEAF, mtr)) {
 			/* Not enough space for new segment, free root
 			segment before return. */
@@ -1287,7 +1281,7 @@ btr_create(
 
 	ut_ad(page_get_max_insert_size(page, 2) > 2 * BTR_PAGE_MAX_REC_SIZE);
 
-	return(page_no);
+	return(block->page.id.page_no());
 }
 
 /** Free a B-tree except the root page. The root page MUST be freed after
@@ -1991,10 +1985,9 @@ btr_root_raise_and_insert(
 		longer is a leaf page. (Older versions of InnoDB did
 		set PAGE_MAX_TRX_ID on all secondary index pages.) */
 		if (root_page_zip) {
-			page_zip_write_header(
-				root_page_zip,
-				PAGE_HEADER + PAGE_MAX_TRX_ID
-				+ root, 0, mtr);
+			byte* p = PAGE_HEADER + PAGE_MAX_TRX_ID + root;
+			memset(p, 0, 8);
+			page_zip_write_header(root_page_zip, p, 8, mtr);
 		} else {
 			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID
 				       + root, 0, mtr);
@@ -2004,10 +1997,9 @@ btr_root_raise_and_insert(
 		root page; on other clustered index pages, we want to reserve
 		the field PAGE_MAX_TRX_ID for future use. */
 		if (new_page_zip) {
-			page_zip_write_header(
-				new_page_zip,
-				PAGE_HEADER + PAGE_MAX_TRX_ID
-				+ new_page, 0, mtr);
+			byte* p = PAGE_HEADER + PAGE_MAX_TRX_ID + new_page;
+			memset(p, 0, 8);
+			page_zip_write_header(new_page_zip, p, 8, mtr);
 		} else {
 			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID
 				       + new_page, 0, mtr);
@@ -4681,28 +4673,11 @@ btr_index_rec_validate(
 		rec_get_nth_field_offs(offsets, i, &len);
 
 		/* Note that if fixed_size != 0, it equals the
-		length of a fixed-size column in the clustered index,
-		except the DATA_POINT, whose length would be MBR_LEN
-		when it's indexed in a R-TREE. We should adjust it here.
+		length of a fixed-size column in the clustered index.
+		We should adjust it here.
 		A prefix index of the column is of fixed, but different
 		length.  When fixed_size == 0, prefix_len is the maximum
 		length of the prefix index column. */
-
-		if (dict_field_get_col(field)->mtype == DATA_POINT) {
-			ut_ad(fixed_size == DATA_POINT_LEN);
-			if (dict_index_is_spatial(index)) {
-				/* For DATA_POINT data, when it has R-tree
-				index, the fixed_len is the MBR of the point.
-				But if it's a primary key and on R-TREE
-				as the PK pointer, the length shall be
-				DATA_POINT_LEN as well. */
-				ut_ad((field->fixed_len == DATA_MBR_LEN
-				       && i == 0)
-				      || (field->fixed_len == DATA_POINT_LEN
-					  && i != 0));
-				fixed_size = field->fixed_len;
-			}
-		}
 
 		if ((field->prefix_len == 0
 		     && len != UNIV_SQL_NULL && fixed_size
@@ -4871,7 +4846,6 @@ btr_validate_level(
 	bool		ret	= true;
 	mtr_t		mtr;
 	mem_heap_t*	heap	= mem_heap_create(256);
-	fseg_header_t*	seg;
 	ulint*		offsets	= NULL;
 	ulint*		offsets2= NULL;
 #ifdef UNIV_ZIP_DEBUG
@@ -4895,7 +4869,6 @@ btr_validate_level(
 
 	block = btr_root_block_get(index, RW_SX_LATCH, &mtr);
 	page = buf_block_get_frame(block);
-	seg = page + PAGE_HEADER + PAGE_BTR_SEG_TOP;
 
 #ifdef UNIV_DEBUG
 	if (dict_index_is_spatial(index)) {
@@ -4904,7 +4877,7 @@ btr_validate_level(
 	}
 #endif
 
-	const fil_space_t*	space	= fil_space_get(index->space);
+	fil_space_t*		space	= fil_space_get(index->space);
 	const page_size_t	table_page_size(
 		dict_table_page_size(index->table));
 	const page_size_t	space_page_size(space->flags);
@@ -4922,9 +4895,7 @@ btr_validate_level(
 	while (level != btr_page_get_level(page, &mtr)) {
 		const rec_t*	node_ptr;
 
-		if (fseg_page_is_free(seg,
-				      block->page.id.space(),
-				      block->page.id.page_no())) {
+		if (fseg_page_is_free(space, block->page.id.page_no())) {
 
 			btr_validate_report1(index, level, block);
 
@@ -4984,11 +4955,6 @@ btr_validate_level(
 	/* Now we are on the desired level. Loop through the pages on that
 	level. */
 
-	if (level == 0) {
-		/* Leaf pages are managed in their own file segment. */
-		seg -= PAGE_BTR_SEG_TOP - PAGE_BTR_SEG_LEAF;
-	}
-
 loop:
 	mem_heap_empty(heap);
 	offsets = offsets2 = NULL;
@@ -5007,9 +4973,7 @@ loop:
 
 	ut_a(block->page.id.space() == index->space);
 
-	if (fseg_page_is_free(seg,
-			      block->page.id.space(),
-			      block->page.id.page_no())) {
+	if (fseg_page_is_free(space, block->page.id.page_no())) {
 
 		btr_validate_report1(index, level, block);
 
@@ -5418,7 +5382,7 @@ btr_validate_index(
 
 	page_t*	root = btr_root_get(index, &mtr);
 
-	if (root == NULL && index->table->is_encrypted) {
+	if (root == NULL && !index->is_readable()) {
 		err = DB_DECRYPTION_FAILED;
 		mtr_commit(&mtr);
 		return err;

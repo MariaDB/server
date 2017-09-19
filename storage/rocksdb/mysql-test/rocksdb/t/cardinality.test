@@ -3,7 +3,7 @@
 --source include/restart_mysqld.inc
 
 --disable_warnings
-DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t1,t10,t11;
 --enable_warnings
 
 create table t1(
@@ -18,13 +18,26 @@ create table t1(
        index t1_4(c1, c2),
        index t1_5(c2, c1)
 ) engine=rocksdb;
+
 --disable_query_log
+create table t10(a int primary key);
+insert into t10 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t11(a int primary key);
+insert into t11 select A.a + B.a* 10 + C.a * 100 from t10 A, t10 B, t10 C;
+
+set @a=0;
 let $i=0;
-while ($i<100000)
+set rocksdb_bulk_load=1;
+while ($i<100)
 {
   inc $i;
-  eval insert t1(id, i1, i2, c1, c2) values($i, $i, $i div 10, $i, $i div 10);
+  eval insert into t1 select (@a:=@a+1), @a, @a div 10, @a, @a div 10 from t11;
 }
+set rocksdb_bulk_load=0;
+
+drop table t10;
+drop table t11;
 --enable_query_log
 
 # Flush memtable out to SST and display index cardinalities

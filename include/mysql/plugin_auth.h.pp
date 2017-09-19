@@ -137,6 +137,43 @@ size_t my_md5_context_size();
 void my_md5_init(void *context);
 void my_md5_input(void *context, const unsigned char *buf, size_t len);
 void my_md5_result(void *context, unsigned char *digest);
+enum my_aes_mode {
+    MY_AES_ECB, MY_AES_CBC
+};
+extern struct my_crypt_service_st {
+  int (*my_aes_crypt_init)(void *ctx, enum my_aes_mode mode, int flags,
+                      const unsigned char* key, unsigned int klen,
+                      const unsigned char* iv, unsigned int ivlen);
+  int (*my_aes_crypt_update)(void *ctx, const unsigned char *src, unsigned int slen,
+                        unsigned char *dst, unsigned int *dlen);
+  int (*my_aes_crypt_finish)(void *ctx, unsigned char *dst, unsigned int *dlen);
+  int (*my_aes_crypt)(enum my_aes_mode mode, int flags,
+                 const unsigned char *src, unsigned int slen, unsigned char *dst, unsigned int *dlen,
+                 const unsigned char *key, unsigned int klen, const unsigned char *iv, unsigned int ivlen);
+  unsigned int (*my_aes_get_size)(enum my_aes_mode mode, unsigned int source_length);
+  unsigned int (*my_aes_ctx_size)(enum my_aes_mode mode);
+  int (*my_random_bytes)(unsigned char* buf, int num);
+} *my_crypt_service;
+int my_aes_crypt_init(void *ctx, enum my_aes_mode mode, int flags,
+                      const unsigned char* key, unsigned int klen,
+                      const unsigned char* iv, unsigned int ivlen);
+int my_aes_crypt_update(void *ctx, const unsigned char *src, unsigned int slen,
+                        unsigned char *dst, unsigned int *dlen);
+int my_aes_crypt_finish(void *ctx, unsigned char *dst, unsigned int *dlen);
+int my_aes_crypt(enum my_aes_mode mode, int flags,
+                 const unsigned char *src, unsigned int slen, unsigned char *dst, unsigned int *dlen,
+                 const unsigned char *key, unsigned int klen, const unsigned char *iv, unsigned int ivlen);
+int my_random_bytes(unsigned char* buf, int num);
+unsigned int my_aes_get_size(enum my_aes_mode mode, unsigned int source_length);
+unsigned int my_aes_ctx_size(enum my_aes_mode mode);
+extern struct my_print_error_service_st {
+  void(*my_error_func)(unsigned int nr, unsigned long MyFlags, ...);
+  void(*my_printf_error_func)(unsigned int nr, const char *fmt, unsigned long MyFlags,...);
+  void(*my_printv_error_func)(unsigned int error, const char *format, unsigned long MyFlags, va_list ap);
+} *my_print_error_service;
+extern void my_error(unsigned int nr, unsigned long MyFlags, ...);
+extern void my_printf_error(unsigned int my_err, const char *format, unsigned long MyFlags, ...);
+extern void my_printv_error(unsigned int error, const char *format, unsigned long MyFlags,va_list ap);
 extern struct my_snprintf_service_st {
   size_t (*my_snprintf_type)(char*, size_t, const char*, ...);
   size_t (*my_vsnprintf_type)(char *, size_t, const char*, va_list);

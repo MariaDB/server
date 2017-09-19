@@ -4075,6 +4075,30 @@ disconnect con2;
 disconnect con3;
 
 
+--echo #
+--echo # MDEV-12620 - set lock_wait_timeout = 1;flush tables with read lock;
+--echo #              lock not released after timeout
+--echo #
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+SET debug_sync='open_tables_after_open_and_process_table SIGNAL ready WAIT_FOR go';
+send SELECT * FROM t1;
+
+connect (con1,localhost,root,,);
+SET debug_sync='now WAIT_FOR ready';
+# lock_wait_timeout should be 0 in 10.3, so that we don't have to wait at all
+SET lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+FLUSH TABLES WITH READ LOCK;
+SET debug_sync='now SIGNAL go';
+
+connection default;
+reap;
+SET debug_sync='RESET';
+DROP TABLE t1;
+
+disconnect con1;
+
+
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc

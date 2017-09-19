@@ -1846,8 +1846,8 @@ int spider_db_append_key_where_internal(
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
           case HA_READ_PREFIX_LAST:
             result_list->desc_flg = TRUE;
-            /* fall through */
 #endif
+            /* fall through */
           case HA_READ_KEY_EXACT:
             if (sql_kind == SPIDER_SQL_KIND_SQL)
             {
@@ -4132,8 +4132,10 @@ void spider_db_discard_multiple_result(
     if (!conn->db_conn->cmp_request_key_to_snd(&request_key))
       break;
     if ((result = conn->db_conn->use_result(&request_key, &error_num)))
+    {
       result->free_result();
       delete result;
+    }
   } while (!conn->db_conn->next_result());
   DBUG_VOID_RETURN;
 }

@@ -2762,10 +2762,8 @@ CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (3), (1), (2);
 SELECT i, ROW_NUMBER() OVER () FROM t1 WHERE 1 = 2;
 i	ROW_NUMBER() OVER ()
-NULL	1
 SELECT i, COUNT(*) OVER () FROM t1 WHERE 1 = 2;
 i	COUNT(*) OVER ()
-NULL	1
 DROP TABLE t1;
 #
 # MDEV-12051: window function in query with implicit grouping 
@@ -3055,3 +3053,135 @@ name	row_cnt	pct_of_total
 Fred	2	66.67
 Joe	1	33.33
 drop table t1;
+#
+# MDEV-11990: window function over min/max aggregation
+#
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2), (4), (2);
+select sum(max(id)) over (order by max(id)) from t1;
+sum(max(id)) over (order by max(id))
+4
+explain
+select sum(max(id)) over (order by max(id)) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary
+create index idx on t1(id);
+select sum(max(id)) over (order by max(id)) from t1;
+sum(max(id)) over (order by max(id))
+4
+explain
+select sum(max(id)) over (order by max(id)) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+select sum(max(id)) over (order by max(id)) from t1 where id < 3;
+sum(max(id)) over (order by max(id))
+2
+select count(max(id)) over (order by max(id)) from t1 where id < 3;
+count(max(id)) over (order by max(id))
+1
+select max(id), rank() over (order by max(id)) from t1 where id < 3;
+max(id)	rank() over (order by max(id))
+2	1
+drop table t1;
+#
+# main.win failure post MDEV-12336
+#
+create table t(a decimal(35,10), b int);
+insert into t values (1, 10), (2, 20), (3, 30);
+prepare stmt from "SELECT (CASE WHEN sum(t.a) over (partition by t.b)=1 THEN 1000 ELSE 300 END) AS a FROM t";
+execute stmt;
+a
+1000
+300
+300
+drop table t;
+#
+# MDEV-12851 case with window functions query crashes server
+#
+create table t1(dt datetime);
+insert into t1 values ('2017-05-17'), ('2017-05-18');
+select dt,
+case when (max(dt) over (order by dt rows between 1 following and 1 following) is null)
+then '9999-12-31 12:00:00'
+       else max(dt) over (order by dt rows between 1 following and 1 following)
+end x,
+case when (max(dt) over (order by dt rows between 1 following and 1 following) is not null)
+then '9999-12-31 12:00:00'
+       else max(dt) over (order by dt rows between 1 following and 1 following)
+end x
+from t1;
+dt	x	x
+2017-05-17 00:00:00	2017-05-18 00:00:00	9999-12-31 12:00:00
+2017-05-18 00:00:00	9999-12-31 12:00:00	NULL
+drop table t1;
+create table t1(i int);
+insert into t1 values (null),(1),(2);
+select max(i) over (order by i),
+max(i) over (order by i) is null,
+max(i) over (order by i) is not null
+from t1;
+max(i) over (order by i)	max(i) over (order by i) is null	max(i) over (order by i) is not null
+NULL	1	0
+1	0	1
+2	0	1
+drop table t1;
+#
+# MDEV-13189: Window functions crash when using INTERVAL function
+#
+create table t1(i int);
+insert into t1 values (1),(2),(10),(20),(30);
+select sum(i) over (order by i), interval(sum(i) over (order by i), 10, 20)
+from t1;
+sum(i) over (order by i)	interval(sum(i) over (order by i), 10, 20)
+1	0
+3	0
+13	1
+33	2
+63	2
+drop table t1;
+#
+# MDEV-13352: Server crashes in st_join_table::remove_duplicates
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+ROW_NUMBER() OVER()	i
+SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+ROW_NUMBER() OVER()	i
+DROP TABLE t1;
+#
+# MDEV-13344: Server crashes in in AGGR_OP::put_record on subquery 
+#             with window function and constant table
+# (Testcase only)
+#
+CREATE TABLE t1 (c CHAR(8)) ENGINE=MyISAM;
+INSERT IGNORE INTO t1 VALUES ('foo');
+SELECT ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1);
+('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1)
+0
+DROP TABLE t1;
+#
+# MDEV-13351: Server crashes in st_select_lex::set_explain_type upon UNION with window function 
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT Nth_value(i,1) OVER() FROM t1 
+UNION ALL 
+( SELECT Nth_value(i,2) OVER() FROM t1 LIMIT 0 )
+;
+Nth_value(i,1) OVER()
+1
+1
+DROP TABLE t1;
+#
+# A regression after MDEV-13351:
+# MDEV-13374 : Server crashes in first_linear_tab / st_select_lex::set_explain_type 
+#              upon UNION with aggregate function	
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+SELECT i AS fld FROM t1 UNION SELECT COUNT(*) AS fld FROM t1;
+fld
+1
+2
+DROP TABLE t1;

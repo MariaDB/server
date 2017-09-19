@@ -93,7 +93,7 @@ public:
   {
     return val_str_from_val_str_ascii(str, &ascii_buf);
   }
-  virtual String *val_str_ascii(String *)= 0;
+  String *val_str_ascii(String *)= 0;
 };
 
 
@@ -142,7 +142,6 @@ public:
 
 class Item_func_md5 :public Item_str_ascii_checksum_func
 {
-  String tmp_value;
 public:
   Item_func_md5(THD *thd, Item *a): Item_str_ascii_checksum_func(thd, a) {}
   String *val_str_ascii(String *);
@@ -258,7 +257,6 @@ public:
 
 class Item_func_decode_histogram :public Item_str_func
 {
-  String tmp_value;
 public:
   Item_func_decode_histogram(THD *thd, Item *a, Item *b):
     Item_str_func(thd, a, b) {}
@@ -332,6 +330,7 @@ public:
     DBUG_VOID_RETURN;
   }
   String *val_str(String *str);
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   const char *func_name() const { return "regexp_replace"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -354,6 +353,7 @@ public:
     DBUG_VOID_RETURN;
   }
   String *val_str(String *str);
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   const char *func_name() const { return "regexp_substr"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -490,7 +490,7 @@ public:
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "trim"; }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   virtual const char *mode_name() const { return "both"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_trim>(thd, mem_root, this); }
@@ -684,10 +684,7 @@ class Item_func_sysconst :public Item_str_func
 public:
   Item_func_sysconst(THD *thd): Item_str_func(thd)
   { collation.set(system_charset_info,DERIVATION_SYSCONST); }
-  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
-  {
-    return const_charset_converter(thd, tocs, true, fully_qualified_func_name());
-  }
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   /*
     Used to create correct Item name in new converted item in
     safe_charset_converter, return string representation of this function
@@ -699,6 +696,7 @@ public:
     return mark_unsupported_function(fully_qualified_func_name(), arg,
                                      VCOL_SESSION_FUNC);
   }
+  bool const_item() const;
 };
 
 
@@ -787,7 +785,7 @@ public:
   String *val_str(String *)
   {
     DBUG_ASSERT(fixed == 1);
-    return (null_value ? 0 : &str_value);
+    return null_value ? NULL : &str_value;
   }
   bool check_vcol_func_processor(void *arg)
   {
@@ -844,7 +842,6 @@ public:
 
 class Item_func_format :public Item_str_ascii_func
 {
-  String tmp_str;
   MY_LOCALE *locale;
 public:
   Item_func_format(THD *thd, Item *org, Item *dec):
@@ -856,7 +853,6 @@ public:
   String *val_str_ascii(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "format"; }
-  virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_format>(thd, mem_root, this); }
 };
@@ -909,7 +905,6 @@ public:
 
 class Item_func_binlog_gtid_pos :public Item_str_func
 {
-  String tmp_value;
 public:
   Item_func_binlog_gtid_pos(THD *thd, Item *arg1, Item *arg2):
     Item_str_func(thd, arg1, arg2) {}
@@ -918,7 +913,6 @@ public:
   const char *func_name() const { return "binlog_gtid_pos"; }
   bool check_vcol_func_processor(void *arg)
   {
-
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1074,7 +1068,7 @@ public:
     collation.set(&my_charset_bin);
     max_length=args[0]->max_length;
   }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   const char *func_name() const { return "cast_as_binary"; }
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1218,7 +1212,7 @@ public:
   }
   void fix_length_and_dec();
   const char *func_name() const { return "convert"; }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_conv_charset>(thd, mem_root, this); }
 };
@@ -1234,7 +1228,7 @@ public:
   const char *func_name() const { return "collate"; }
   enum precedence precedence() const { return COLLATE_PRECEDENCE; }
   enum Functype functype() const { return COLLATE_FUNC; }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   Item_field *field_for_view_update()
   {
     /* this function is transparent for view updating */
@@ -1354,7 +1348,7 @@ public:
 
 class Item_func_compress: public Item_str_binary_checksum_func
 {
-  String buffer;
+  String tmp_value;
 public:
   Item_func_compress(THD *thd, Item *a)
    :Item_str_binary_checksum_func(thd, a) {}
@@ -1367,7 +1361,7 @@ public:
 
 class Item_func_uncompress: public Item_str_binary_checksum_func
 {
-  String buffer;
+  String tmp_value;
 public:
   Item_func_uncompress(THD *thd, Item *a)
    :Item_str_binary_checksum_func(thd, a) {}
@@ -1416,8 +1410,8 @@ public:
   void fix_length_and_dec();
   const char *func_name() const{ return "column_create"; }
   String *val_str(String *);
-  virtual void print(String *str, enum_query_type query_type);
-  virtual enum Functype functype() const   { return DYNCOL_FUNC; }
+  void print(String *str, enum_query_type query_type);
+  enum Functype functype() const   { return DYNCOL_FUNC; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_dyncol_create>(thd, mem_root, this); }
 };
@@ -1431,7 +1425,7 @@ public:
   {}
   const char *func_name() const{ return "column_add"; }
   String *val_str(String *);
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_dyncol_add>(thd, mem_root, this); }
 };

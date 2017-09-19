@@ -32,7 +32,11 @@ MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 /** innodb_encrypt_log: whether to encrypt the redo log */
 extern my_bool srv_encrypt_log;
 
-/** Initialize the redo log encryption key.
+/** Initialize the redo log encryption key and random parameters
+when creating a new redo log.
+The random parameters will be persisted in the log checkpoint pages.
+@see log_crypt_write_checkpoint_buf()
+@see log_crypt_read_checkpoint_buf()
 @return whether the operation succeeded */
 UNIV_INTERN
 bool
@@ -71,10 +75,51 @@ log_crypt_read_checkpoint_buf(const byte* buf);
 
 /** Encrypt or decrypt log blocks.
 @param[in,out]	buf	log blocks to encrypt or decrypt
+@param[in]	lsn	log sequence number of the start of the buffer
 @param[in]	size	size of the buffer, in bytes
 @param[in]	decrypt	whether to decrypt instead of encrypting */
 UNIV_INTERN
 void
-log_crypt(byte* buf, ulint size, bool decrypt = false);
+log_crypt(byte* buf, lsn_t lsn, ulint size, bool decrypt = false);
 
+/** Encrypt or decrypt a temporary file block.
+@param[in]	src		block to encrypt or decrypt
+@param[in]	size		size of the block
+@param[out]	dst		destination block
+@param[in]	offs		offset to block
+@param[in]	space_id	tablespace id
+@param[in]	encrypt		true=encrypt; false=decrypt
+@return whether the operation succeeded */
+UNIV_INTERN
+bool
+log_tmp_block_encrypt(
+	const byte*	src,
+	ulint		size,
+	byte*		dst,
+	uint64_t	offs,
+	ulint		space_id,
+	bool		encrypt = true)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
+/** Decrypt a temporary file block.
+@param[in]	src		block to decrypt
+@param[in]	size		size of the block
+@param[out]	dst		destination block
+@param[in]	offs		offset to block
+@param[in]	space_id	tablespace id
+@return whether the operation succeeded */
+inline
+bool
+log_tmp_block_decrypt(
+	const byte*	src,
+	ulint		size,
+	byte*		dst,
+	uint64_t	offs,
+	ulint		space_id)
+{
+	return(log_tmp_block_encrypt(src, size, dst, offs, space_id, false));
+}
+
+/** @return whether temporary files are encrypted */
+inline bool log_tmp_is_encrypted() { return srv_encrypt_log; }
 #endif  // log0crypt.h

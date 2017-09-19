@@ -1,9 +1,9 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation Ab. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -55,11 +55,10 @@ Created 10/10/1995 Heikki Tuuri
 
 /* Global counters used inside InnoDB. */
 struct srv_stats_t {
-	typedef ib_counter_t<lsn_t, 1, single_indexer_t> lsn_ctr_1_t;
-	typedef ib_counter_t<ulint, 1, single_indexer_t> ulint_ctr_1_t;
-	typedef ib_counter_t<lint, 1, single_indexer_t> lint_ctr_1_t;
 	typedef ib_counter_t<ulint, 64> ulint_ctr_64_t;
-	typedef ib_counter_t<ib_int64_t, 1, single_indexer_t> ib_int64_ctr_1_t;
+	typedef simple_counter<lsn_t> lsn_ctr_1_t;
+	typedef simple_counter<ulint> ulint_ctr_1_t;
+	typedef simple_counter<ib_int64_t> ib_int64_ctr_1_t;
 
 	/** Count the amount of data written in total (in bytes) */
 	ulint_ctr_1_t		data_written;
@@ -73,8 +72,9 @@ struct srv_stats_t {
 	/** Amount of data written to the log files in bytes */
 	lsn_ctr_1_t		os_log_written;
 
-	/** Number of writes being done to the log files */
-	lint_ctr_1_t		os_log_pending_writes;
+	/** Number of writes being done to the log files.
+	Protected by log_sys->write_mutex. */
+	ulint_ctr_1_t		os_log_pending_writes;
 
 	/** We increase this counter, when we don't have enough
 	space in the log buffer and have to flush it */
@@ -137,6 +137,14 @@ struct srv_stats_t {
 	ulint_ctr_64_t          pages_encrypted;
    	/* Number of pages decrypted */
 	ulint_ctr_64_t          pages_decrypted;
+	/* Number of merge blocks encrypted */
+	ulint_ctr_64_t          n_merge_blocks_encrypted;
+	/* Number of merge blocks decrypted */
+	ulint_ctr_64_t          n_merge_blocks_decrypted;
+	/* Number of row log blocks encrypted */
+	ulint_ctr_64_t          n_rowlog_blocks_encrypted;
+	/* Number of row log blocks decrypted */
+	ulint_ctr_64_t          n_rowlog_blocks_decrypted;
 
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
@@ -148,7 +156,7 @@ struct srv_stats_t {
 	ulint_ctr_1_t		n_lock_wait_count;
 
 	/** Number of threads currently waiting on database locks */
-	lint_ctr_1_t		n_lock_wait_current_count;
+	simple_counter<ulint, true> n_lock_wait_current_count;
 
 	/** Number of rows read. */
 	ulint_ctr_64_t		n_rows_read;
@@ -496,7 +504,9 @@ as enum type because the configure option takes unsigned integer type. */
 extern ulong	srv_innodb_stats_method;
 
 #ifdef UNIV_LOG_ARCHIVE
-extern ibool		srv_log_archive_on;
+extern bool		srv_log_archive_on;
+extern bool		srv_archive_recovery;
+extern ib_uint64_t	srv_archive_recovery_limit_lsn;
 #endif /* UNIV_LOG_ARCHIVE */
 
 extern char*	srv_file_flush_method_str;
@@ -546,6 +556,14 @@ extern my_bool  srv_use_stacktrace;
 extern ulong	srv_pass_corrupt_table;
 
 extern ulong	srv_log_checksum_algorithm;
+
+extern bool	srv_apply_log_only;
+
+extern bool	srv_backup_mode;
+extern bool	srv_close_files;
+extern bool	srv_xtrabackup;
+
+#define IS_XTRABACKUP() (srv_xtrabackup)
 
 extern my_bool	srv_force_primary_key;
 
@@ -1086,6 +1104,13 @@ UNIV_INTERN
 void
 srv_purge_wakeup();
 
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+bool
+srv_is_undo_tablespace(
+	ulint	space_id);
+
 /** Status variables to be passed to MySQL */
 struct export_var_t{
 	ulint innodb_adaptive_hash_hash_searches;
@@ -1255,6 +1280,15 @@ struct export_var_t{
 						encrypted */
 	ib_int64_t innodb_pages_decrypted;      /*!< Number of pages
 						decrypted */
+
+	/*!< Number of merge blocks encrypted */
+	ib_int64_t innodb_n_merge_blocks_encrypted;
+	/*!< Number of merge blocks decrypted */
+	ib_int64_t innodb_n_merge_blocks_decrypted;
+	/*!< Number of row log blocks encrypted */
+	ib_int64_t innodb_n_rowlog_blocks_encrypted;
+	/*!< Number of row log blocks decrypted */
+	ib_int64_t innodb_n_rowlog_blocks_decrypted;
 
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
 	ulint innodb_sec_rec_cluster_reads_avoided;/*!< srv_sec_rec_cluster_reads_avoided */

@@ -500,7 +500,7 @@ SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 
-ALTER TABLE t2 DROP COLUMN b;
+ALTER TABLE t2 DROP COLUMN b, DROP PRIMARY KEY, ADD PRIMARY KEY(a);
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;

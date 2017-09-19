@@ -5,6 +5,9 @@
 
 set default_storage_engine=innodb;
 set @old_dbug=@@global.debug_dbug;
+# Ensure that the history list length will actually be decremented by purge.
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 CREATE TABLE `t` (
   `a` BLOB,
@@ -21,10 +24,9 @@ CREATE INDEX idx ON t(c(100));
 
 SET global debug_dbug="+d,ib_purge_virtual_index_callback";
 UPDATE t SET a = REPEAT('m', 16000) WHERE a like "aaa%";
-select sleep(3);
+--source ../../innodb/include/wait_all_purged.inc
 SET global debug_dbug=@old_dbug;
 DROP TABLE t;
-
 
 CREATE TABLE t (
   a TINYBLOB,
@@ -41,7 +43,7 @@ CREATE INDEX idx ON t(c(100));
 
 SET global debug_dbug="+d,ib_purge_virtual_index_callback";
 UPDATE t SET a = REPEAT('m', 100) WHERE a like "aaa%";
-select sleep(3);
+--source ../../innodb/include/wait_all_purged.inc
 SET global debug_dbug=@old_dbug;
 DROP TABLE t;
 
@@ -68,7 +70,7 @@ CREATE INDEX idx ON t1(x);
 
 SET global debug_dbug="+d,ib_purge_virtual_index_callback";
 UPDATE t1 SET id = 10 WHERE id = 1;
-select sleep(3);
+--source ../../innodb/include/wait_all_purged.inc
 SET global debug_dbug=@old_dbug;
 DROP TABLE t1;
 
@@ -109,7 +111,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR uncommitted';
 COMMIT;
 
 --echo # wait for purge to process the deleted records.
---source include/wait_innodb_all_purged.inc
+--source ../../innodb/include/wait_all_purged.inc
 
 SET DEBUG_SYNC= 'now SIGNAL purged';
 
@@ -154,7 +156,7 @@ INSERT INTO t1(a, b) VALUES (8, 8);
 COMMIT;
 
 --echo # wait for purge to process the deleted/updated records.
---source include/wait_innodb_all_purged.inc
+--source ../../innodb/include/wait_all_purged.inc
 
 SET DEBUG_SYNC= 'now SIGNAL purged';
 
@@ -175,20 +177,24 @@ DROP TABLE t0, t1;
 create table t (a blob, b blob, c blob as (concat(a,b)), h varchar(10), index (c(100)));
 insert t(a,b,h) values (repeat('g', 16000), repeat('x', 16000), "kk");
 insert t(a,b,h) values (repeat('a', 16000), repeat('b', 16000), "mm");
-set global innodb_purge_stop_now = 1;
 set global debug_dbug="+d,ib_purge_virtual_index_callback";
+connect(prevent_purge, localhost, root);
+start transaction with consistent snapshot;
+connection default;
 update t set a = repeat('m', 16000) where a like "aaa%";
 connect(con1, localhost, root);
 lock table t write;
+disconnect prevent_purge;
 connection default;
-set global innodb_purge_run_now=1;
-sleep 3;
 select variable_value>1 from information_schema.global_status where variable_name='innodb_purge_trx_id_age';
 disconnect con1;
-sleep 3;
+start transaction with consistent snapshot;
+commit;
+--source ../../innodb/include/wait_all_purged.inc
 select variable_value>1 from information_schema.global_status where variable_name='innodb_purge_trx_id_age';
 set global debug_dbug=@old_dbug;
 drop table t;
 
 --source include/wait_until_count_sessions.inc
 set debug_sync=reset;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

@@ -278,10 +278,8 @@ The flags below only exist in fil_space_t::flags, not in FSP_SPACE_FLAGS:
 
 /** Zero relative shift position of the DATA_DIR flag */
 #define FSP_FLAGS_MEM_DATA_DIR		25
-/** Zero relative shift position of the ATOMIC_WRITES field */
-#define FSP_FLAGS_MEM_ATOMIC_WRITES	26
 /** Zero relative shift position of the COMPRESSION_LEVEL field */
-#define FSP_FLAGS_MEM_COMPRESSION_LEVEL	28
+#define FSP_FLAGS_MEM_COMPRESSION_LEVEL	26
 
 /** Zero relative shift position of the POST_ANTELOPE field */
 #define FSP_FLAGS_POS_POST_ANTELOPE	0
@@ -327,10 +325,6 @@ these are only used in MySQL 5.7 and used for compatibility. */
 		((~(~0U << FSP_FLAGS_WIDTH_PAGE_COMPRESSION))	\
 		<< FSP_FLAGS_POS_PAGE_COMPRESSION)
 
-/** Bit mask of the in-memory ATOMIC_WRITES field */
-#define FSP_FLAGS_MASK_MEM_ATOMIC_WRITES			\
-		(3U << FSP_FLAGS_MEM_ATOMIC_WRITES)
-
 /** Bit mask of the in-memory COMPRESSION_LEVEL field */
 #define FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL			\
 		(15U << FSP_FLAGS_MEM_COMPRESSION_LEVEL)
@@ -371,21 +365,18 @@ these are only used in MySQL 5.7 and used for compatibility. */
 #define FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags)		\
 	((flags & FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL)		\
 	 >> FSP_FLAGS_MEM_COMPRESSION_LEVEL)
-/** @return the ATOMIC_WRITES field */
-#define FSP_FLAGS_GET_ATOMIC_WRITES(flags)		\
-	((flags & FSP_FLAGS_MASK_MEM_ATOMIC_WRITES)	\
-	 >> FSP_FLAGS_MEM_ATOMIC_WRITES)
 
 /* @} */
 
 /** Validate the tablespace flags, which are stored in the
 tablespace header at offset FSP_SPACE_FLAGS.
 @param[in]	flags	the contents of FSP_SPACE_FLAGS
+@param[in]	is_ibd	whether this is an .ibd file (not system tablespace)
 @return	whether the flags are correct (not in the buggy 10.1) format */
 MY_ATTRIBUTE((warn_unused_result, const))
 UNIV_INLINE
 bool
-fsp_flags_is_valid(ulint flags)
+fsp_flags_is_valid(ulint flags, bool is_ibd)
 {
 	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure",
 			return(false););
@@ -432,7 +423,12 @@ fsp_flags_is_valid(ulint flags)
 		return(false);
 	}
 
-	return(true);
+	/* The flags do look valid. But, avoid misinterpreting
+	buggy MariaDB 10.1 format flags for
+	PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL={0,2,3}
+	as valid-looking PAGE_SSIZE if this is known to be
+	an .ibd file and we are using the default innodb_page_size=16k. */
+	return(ssize == 0 || !is_ibd || srv_page_size != UNIV_PAGE_SIZE_ORIG);
 }
 
 #endif /* fsp0types_h */

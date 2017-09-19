@@ -321,16 +321,6 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   TABLE *table= NULL;
 
   /*
-    Since temporary tables are not safe for parallel replication, lets
-    wait for the prior commits in case the table is found to be in use.
-  */
-  if (rgi_slave &&
-      rgi_slave->is_parallel_exec &&
-      find_temporary_table(tl) &&
-      wait_for_prior_commit())
-    DBUG_RETURN(true);
-
-  /*
     Code in open_table() assumes that TABLE_LIST::table can be non-zero only
     for pre-opened temporary tables.
   */
@@ -349,6 +339,22 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     DBUG_PRINT("info", ("skip_temporary is set or no temporary tables"));
     DBUG_RETURN(false);
   }
+
+  /*
+    Temporary tables are not safe for parallel replication. They were
+    designed to be visible to one thread only, so have no table locking.
+    Thus there is no protection against two conflicting transactions
+    committing in parallel and things like that.
+
+    So for now, anything that uses temporary tables will be serialised
+    with anything before it, when using parallel replication.
+  */
+
+  if (rgi_slave &&
+      rgi_slave->is_parallel_exec &&
+      find_temporary_table(tl) &&
+      wait_for_prior_commit())
+    DBUG_RETURN(true);
 
   /*
     First check if there is a reusable open table available in the
@@ -377,26 +383,6 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     }
     DBUG_RETURN(false);
   }
-
-  /*
-    Temporary tables are not safe for parallel replication. They were
-    designed to be visible to one thread only, so have no table locking.
-    Thus there is no protection against two conflicting transactions
-    committing in parallel and things like that.
-
-    So for now, anything that uses temporary tables will be serialised
-    with anything before it, when using parallel replication.
-
-    TODO: We might be able to introduce a reference count or something
-    on temp tables, and have slave worker threads wait for it to reach
-    zero before being allowed to use the temp table. Might not be worth
-    it though, as statement-based replication using temporary tables is
-    in any case rather fragile.
-  */
-  if (rgi_slave &&
-      rgi_slave->is_parallel_exec &&
-      wait_for_prior_commit())
-    DBUG_RETURN(true);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (tl->partition_names)
@@ -1398,6 +1384,7 @@ bool THD::log_events_and_free_tmp_shares()
       variables.character_set_client= cs_save;
 
       get_stmt_da()->set_overwrite_status(true);
+      transaction.stmt.mark_dropped_temp_table();
       if ((error= (mysql_bin_log.write(&qinfo) || error)))
       {
         /*

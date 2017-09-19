@@ -1,6 +1,6 @@
-SET GLOBAL wsrep_sync_wait = 7;
+SET GLOBAL wsrep_sync_wait = 15;
 connection node_2;
-SET GLOBAL wsrep_sync_wait = 7;
+SET GLOBAL wsrep_sync_wait = 15;
 connection node_1;
 CREATE DATABASE `database with space`;
 USE `database with space`;

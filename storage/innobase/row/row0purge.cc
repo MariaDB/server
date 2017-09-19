@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,6 +27,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "row0purge.h"
 #include "fsp0fsp.h"
 #include "mach0data.h"
+#include "dict0stats.h"
 #include "trx0rseg.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
@@ -158,6 +160,9 @@ row_purge_remove_clust_if_poss_low(
 	}
 
 	ut_ad(rec_get_deleted_flag(rec, rec_offs_comp(offsets)));
+	/* In delete-marked records, DB_TRX_ID must
+	always refer to an existing undo log record. */
+	ut_ad(row_get_rec_trx_id(rec, index, offsets));
 
 	if (mode == BTR_MODIFY_LEAF) {
 		success = btr_cur_optimistic_delete(
@@ -535,8 +540,9 @@ row_purge_remove_sec_if_poss_leaf(
 				success = false;
 			}
 		}
-		/* fall through (the index entry is still needed,
+		/* (The index entry is still needed,
 		or the deletion succeeded) */
+		/* fall through */
 	case ROW_NOT_DELETED_REF:
 		/* The index entry is still needed. */
 	case ROW_BUFFERED:
@@ -951,10 +957,13 @@ row_purge_record_func(
 	switch (node->rec_type) {
 	case TRX_UNDO_DEL_MARK_REC:
 		purged = row_purge_del_mark(node);
-		if (!purged) {
-			break;
+		if (purged) {
+			if (node->table->stat_initialized
+			    && srv_stats_include_delete_marked) {
+				dict_stats_update_if_needed(node->table);
+			}
+			MONITOR_INC(MONITOR_N_DEL_ROW_PURGE);
 		}
-		MONITOR_INC(MONITOR_N_DEL_ROW_PURGE);
 		break;
 	default:
 		if (!updated_extern) {

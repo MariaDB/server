@@ -478,6 +478,7 @@ mtr_write_log(
 	const ulint	len = log->size();
 	mtr_write_log_t	write_log;
 
+	ut_ad(!recv_no_log_write);
 	DBUG_PRINT("ib_log",
 		   (ULINTPF " extra bytes written at " LSN_PF,
 		    len, log_sys->lsn));
@@ -557,7 +558,7 @@ mtr_t::commit()
 	m_impl.m_state = MTR_STATE_COMMITTING;
 
 	/* This is a dirty read, for debugging. */
-	ut_ad(!recv_no_log_write);
+	ut_ad(!m_impl.m_modifications || !recv_no_log_write);
 
 	Command	cmd(this);
 
@@ -598,9 +599,6 @@ mtr_t::commit_checkpoint(
 	ut_ad(!srv_read_only_mode);
 	ut_d(m_impl.m_state = MTR_STATE_COMMITTING);
 	ut_ad(write_mlog_checkpoint || m_impl.m_n_log_recs > 1);
-
-	/* This is a dirty read, for debugging. */
-	ut_ad(!recv_no_log_write);
 
 	switch (m_impl.m_n_log_recs) {
 	case 0:
@@ -802,6 +800,8 @@ mtr_t::release_page(const void* ptr, mtr_memo_type_t type)
 ulint
 mtr_t::Command::prepare_write()
 {
+	ut_ad(!recv_no_log_write);
+
 	switch (m_impl->m_log_mode) {
 	case MTR_LOG_SHORT_INSERTS:
 		ut_ad(0);
@@ -829,7 +829,7 @@ mtr_t::Command::prepare_write()
 
 	fil_space_t*	space = m_impl->m_user_space;
 
-	if (space != NULL && space->id <= srv_undo_tablespaces_open) {
+	if (space != NULL && is_predefined_tablespace(space->id)) {
 		/* Omit MLOG_FILE_NAME for predefined tablespaces. */
 		space = NULL;
 	}

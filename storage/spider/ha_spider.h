@@ -751,6 +751,8 @@ public:
   );
   uint check_partitioned();
   void check_direct_order_limit();
+  void check_distinct_key_query();
+  bool is_sole_projection_field( uint16 field_index );
   int check_ha_range_eof();
   int drop_tmp_tables();
   bool handler_opened(

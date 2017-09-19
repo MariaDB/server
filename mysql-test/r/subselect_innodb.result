@@ -312,7 +312,7 @@ EXPLAIN SELECT 1 FROM t1 WHERE NOT EXISTS
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
 2	DEPENDENT SUBQUERY	t2	eq_ref	PRIMARY,d	PRIMARY	1	func	1	Using where
-3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using where; Using index
+3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using index
 DROP TABLE t2;
 CREATE TABLE t2 (b INT, c INT, UNIQUE KEY (b), UNIQUE KEY (b, c )) ENGINE=INNODB;
 INSERT INTO t2 VALUES (1, 1);
@@ -509,6 +509,20 @@ set join_cache_level = default;
 drop view v1;
 drop table t1,t2;
 #
+# MDEV-10693: cost-based choice between materialization and in-to-exists
+#             for a subquery from the expression used in ref access 
+#
+CREATE TABLE t1 (i1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (i2 INT) ENGINE=InnoDB;
+CREATE TABLE t3 (i3 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (3);
+SELECT * FROM t1
+WHERE NULL IN ( SELECT i2 FROM t2 
+WHERE i1 IN ( i2 IN ( SELECT i3 FROM t3 ) ) AND i2 = 2 );
+i1
+DROP TABLE t1,t2,t3;
+#
 # MDEV-6041: ORDER BY+subqueries: subquery_table.key=outer_table.col is not recongized as binding
 #
 create table t1(a int) engine=innodb;
@@ -562,3 +576,42 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	#	
 2	DEPENDENT SUBQUERY	t2	ref	key1	key1	5	test.t1.a	#	Using where; Using filesort
 drop table t1,t2;
+#
+# mdev-12931: semi-join in ON expression of STRAIGHT_JOIN 
+#             joining a base table and a mergeable derived table
+#
+CREATE TABLE t1 (f1 int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (3),(2);
+CREATE TABLE t2 (f2 int) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(4);
+CREATE TABLE t3 (f3 int) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (5),(6);
+CREATE TABLE t4 (f4 int) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (1),(8);
+SELECT * 
+FROM t1 
+INNER JOIN 
+( t2 STRAIGHT_JOIN ( SELECT * FROM t3 ) AS sq
+ON ( 1 IN ( SELECT f4 FROM t4 ) ) )
+ON ( f1 >= f2 );
+f1	f2	f3
+3	1	5
+2	1	5
+3	1	6
+2	1	6
+EXPLAIN EXTENDED
+SELECT * 
+FROM t1 
+INNER JOIN 
+( t2 STRAIGHT_JOIN ( SELECT * FROM t3 ) AS sq
+ON ( 1 IN ( SELECT f4 FROM t4 ) ) )
+ON ( f1 >= f2 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (incremental, BNL join)
+3	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t3`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` semi join (`test`.`t4`) join `test`.`t3` where `test`.`t4`.`f4` = 1 and `test`.`t1`.`f1` >= `test`.`t2`.`f2`
+DROP TABLE t1,t2,t3,t4;

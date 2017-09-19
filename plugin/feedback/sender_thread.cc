@@ -204,7 +204,7 @@ static void send_report(const char *when)
     /*
       otherwise, prepare the THD and TABLE_LIST,
       create and fill the temporary table with data just like
-      SELECT * FROM INFORMATION_SCHEMA.feedback is doing,
+      SELECT * FROM INFORMATION_SCHEMA.FEEDBACK is doing,
       read and concatenate table data into a String.
     */
     if (!(thd= new THD(thd_thread_id)))

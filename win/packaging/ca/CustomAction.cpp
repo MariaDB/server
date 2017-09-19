@@ -180,7 +180,7 @@ extern "C" UINT __stdcall CheckDirectoryEmpty(MSIHANDLE hInstall,
      empty= true;
      for(;;)
      {
-       if (wcscmp(data.cFileName, L".") || wcscmp(data.cFileName, L".."))
+       if (wcscmp(data.cFileName, L".") &&  wcscmp(data.cFileName, L".."))
        {
          empty= false;
          break;

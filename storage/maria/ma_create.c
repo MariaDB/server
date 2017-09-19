@@ -375,18 +375,18 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       if (rows_per_page > 0)
       {
         set_if_smaller(rows_per_page, MAX_ROWS_PER_PAGE);
-        ci->max_rows= data_file_length / maria_block_size * rows_per_page;
+        ci->max_rows= (data_file_length / maria_block_size+1) * rows_per_page;
       }
       else
         ci->max_rows= data_file_length / (min_pack_length +
                                           extra_header_size +
-                                          DIR_ENTRY_SIZE);
+                                          DIR_ENTRY_SIZE)+1;
     }
     else
       ci->max_rows=(ha_rows) (ci->data_file_length/(min_pack_length +
                                                     ((options &
                                                       HA_OPTION_PACK_RECORD) ?
-                                                     3 : 0)));
+                                                     3 : 0)))+1;
   }
   max_rows= (ulonglong) ci->max_rows;
   if (datafile_type == BLOCK_RECORD)
@@ -1204,7 +1204,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   if (mysql_file_chsize(file,(ulong) share.base.keystart,0,MYF(0)))
     goto err;
 
-  if (sync_dir && mysql_file_sync(file, MYF(0)))
+  if (!internal_table && sync_dir && mysql_file_sync(file, MYF(0)))
     goto err;
 
   if (! (flags & HA_DONT_TOUCH_DATA))
@@ -1214,7 +1214,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                           share.base.min_pack_length*ci->reloc_rows,0,MYF(0)))
       goto err;
 #endif
-    if (sync_dir && mysql_file_sync(dfile, MYF(0)))
+    if (!internal_table && sync_dir && mysql_file_sync(dfile, MYF(0)))
       goto err;
     if (mysql_file_close(dfile,MYF(0)))
       goto err;

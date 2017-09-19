@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -697,9 +697,9 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   bool using_bulk_insert= 0;
   uint value_count;
   ulong counter = 1;
-  ulong iteration= 0;
+  /* counter of iteration in bulk PS operation*/
+  ulonglong iteration= 0;
   ulonglong id;
-  ulong bulk_iterations= bulk_parameters_iterations(thd);
   COPY_INFO info;
   TABLE *table= 0;
   List_iterator_fast<List_item> its(values_list);
@@ -767,7 +767,6 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
   value_count= values->elements;
 
-  DBUG_ASSERT(bulk_iterations > 0);
   if (mysql_prepare_insert(thd, table_list, table, fields, values,
 			   update_fields, update_values, duplic, &unused_conds,
                            FALSE))
@@ -939,6 +938,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   }
   do
   {
+    DBUG_PRINT("info", ("iteration %llu", iteration));
     if (iteration && bulk_parameters_set(thd))
       goto abort;
 
@@ -1059,7 +1059,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     }
     its.rewind();
     iteration++;
-  } while (iteration < bulk_iterations);
+  } while (bulk_parameters_iterations(thd));
 
 values_loop_end:
   free_underlaid_joins(thd, &thd->lex->select_lex);
@@ -1206,7 +1206,7 @@ values_loop_end:
     retval= thd->lex->explain->send_explain(thd);
     goto abort;
   }
-  if ((bulk_iterations * values_list.elements) == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
+  if ((iteration * values_list.elements) == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
 				    !thd->cuted_fields))
   {
     my_ok(thd, info.copied + info.deleted +
@@ -2700,7 +2700,7 @@ void kill_delayed_threads(void)
   {
     mysql_mutex_lock(&di->thd.LOCK_thd_data);
     if (di->thd.killed < KILL_CONNECTION)
-      di->thd.killed= KILL_CONNECTION;
+      di->thd.set_killed(KILL_CONNECTION);
     if (di->thd.mysys_var)
     {
       mysql_mutex_lock(&di->thd.mysys_var->mutex);
@@ -2844,7 +2844,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
   thd->set_current_time();
   add_to_active_threads(thd);
   if (abort_loop)
-    thd->killed= KILL_CONNECTION;
+    thd->set_killed(KILL_CONNECTION);
   else
     thd->reset_killed();
 
@@ -2990,7 +2990,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
           }
 #endif
           if (error == ETIMEDOUT || error == ETIME)
-            thd->killed= KILL_CONNECTION;
+            thd->set_killed(KILL_CONNECTION);
         }
         /* We can't lock di->mutex and mysys_var->mutex at the same time */
         mysql_mutex_unlock(&di->mutex);
@@ -3019,7 +3019,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
         if (! (thd->lock= mysql_lock_tables(thd, &di->table, 1, 0)))
         {
           /* Fatal error */
-          thd->killed= KILL_CONNECTION;
+          thd->set_killed(KILL_CONNECTION);
         }
         mysql_cond_broadcast(&di->cond_client);
       }
@@ -3028,7 +3028,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
         if (di->handle_inserts())
         {
           /* Some fatal error */
-          thd->killed= KILL_CONNECTION;
+          thd->set_killed(KILL_CONNECTION);
         }
       }
       di->status=0;
@@ -3072,7 +3072,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
       this.
     */
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    thd->killed= KILL_CONNECTION_HARD;	        // If error
+    thd->set_killed(KILL_CONNECTION_HARD);	        // If error
     thd->mdl_context.set_needs_thr_lock_abort(0);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
 
@@ -3173,7 +3173,7 @@ bool Delayed_insert::handle_inserts(void)
   max_rows= delayed_insert_limit;
   if (thd.killed || table->s->tdc->flushed)
   {
-    thd.killed= KILL_SYSTEM_THREAD;
+    thd.set_killed(KILL_SYSTEM_THREAD);
     max_rows= ULONG_MAX;                     // Do as much as possible
   }
 
@@ -3750,9 +3750,6 @@ int select_insert::send_data(List<Item> &values)
       DBUG_RETURN(1);
     }
   }
-
-  // Release latches in case bulk insert takes a long time
-  ha_release_temporary_latches(thd);
 
   error= write_record(thd, table, &info);
   table->auto_increment_field_not_null= FALSE;
@@ -4422,6 +4419,15 @@ void select_create::store_values(List<Item> &values)
 bool select_create::send_eof()
 {
   DBUG_ENTER("select_create::send_eof");
+
+  /*
+    The routine that writes the statement in the binary log
+    is in select_insert::prepare_eof(). For that reason, we
+    mark the flag at this point.
+  */
+  if (table->s->tmp_table)
+    thd->transaction.stmt.mark_created_temp_table();
+
   if (prepare_eof())
   {
     abort_result_set();

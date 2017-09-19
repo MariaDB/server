@@ -359,7 +359,7 @@ private:
 
 	/** Encryption information of the table */
 	fil_encryption_t	m_encryption;
-	uint			m_key_id;
+	uint32_t		m_key_id;
 
 	/** Vector of tables to truncate. */
 	typedef	std::vector<truncate_t*, ut_allocator<truncate_t*> >

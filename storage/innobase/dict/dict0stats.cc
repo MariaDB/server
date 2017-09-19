@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -913,10 +913,15 @@ dict_stats_update_transient_for_index(
 
 		index->stat_n_leaf_pages = size;
 
-		/* We don't handle the return value since it will be false
-		only when some thread is dropping the table and we don't
-		have to empty the statistics of the to be dropped index */
-		btr_estimate_number_of_different_key_vals(index);
+		/* Do not continue if table decryption has failed or
+		table is already marked as corrupted. */
+		if (index->is_readable()) {
+			/* We don't handle the return value since it
+			will be false only when some thread is
+			dropping the table and we don't have to empty
+			the statistics of the to be dropped index */
+			btr_estimate_number_of_different_key_vals(index);
+		}
 	}
 }
 
@@ -967,8 +972,9 @@ dict_stats_update_transient(
 			continue;
 		}
 
-		/* Do not continue if table decryption has failed. */
-		if (index->table->is_encrypted) {
+		/* Do not continue if table decryption has failed or
+		table is already marked as corrupted. */
+		if (!index->is_readable()) {
 			break;
 		}
 
@@ -1153,10 +1159,11 @@ dict_stats_analyze_index_level(
 		leaf-level delete marks because delete marks on
 		non-leaf level do not make sense. */
 
-		if (level == 0 && (srv_stats_include_delete_marked ? 0:
-		    rec_get_deleted_flag(
+		if (level == 0
+		    && !srv_stats_include_delete_marked
+		    && rec_get_deleted_flag(
 			    rec,
-			    page_is_comp(btr_pcur_get_page(&pcur))))) {
+			    page_is_comp(btr_pcur_get_page(&pcur)))) {
 
 			if (rec_is_last_on_page
 			    && !prev_rec_is_copied
@@ -1328,21 +1335,6 @@ dict_stats_analyze_index_level(
 	mem_heap_free(heap);
 }
 
-/* aux enum for controlling the behavior of dict_stats_scan_page() @{ */
-enum page_scan_method_t {
-	COUNT_ALL_NON_BORING_AND_SKIP_DEL_MARKED,/* scan all records on
-				the given page and count the number of
-				distinct ones, also ignore delete marked
-				records */
-	QUIT_ON_FIRST_NON_BORING,/* quit when the first record that differs
-				from its right neighbor is found */
-	COUNT_ALL_NON_BORING_INCLUDE_DEL_MARKED/* scan all records on
-				the given page and count the number of
-				distinct ones, include delete marked
-				records */
-};
-/* @} */
-
 /** Scan a page, reading records from left to right and counting the number
 of distinct records (looking only at the first n_prefix
 columns) and the number of external pages pointed by records from this page.
@@ -1359,7 +1351,7 @@ be big enough)
 @param[in]	index			index of the page
 @param[in]	page			the page to scan
 @param[in]	n_prefix		look at the first n_prefix columns
-@param[in]	scan_method		scan to the end of the page or not
+@param[in]	is_leaf			whether this is the leaf page
 @param[out]	n_diff			number of distinct records encountered
 @param[out]	n_external_pages	if this is non-NULL then it will be set
 to the number of externally stored pages which were encountered
@@ -1374,7 +1366,7 @@ dict_stats_scan_page(
 	const dict_index_t*	index,
 	const page_t*		page,
 	ulint			n_prefix,
-	page_scan_method_t	scan_method,
+	bool			is_leaf,
 	ib_uint64_t*		n_diff,
 	ib_uint64_t*		n_external_pages)
 {
@@ -1386,13 +1378,11 @@ dict_stats_scan_page(
 	Because offsets1,offsets2 should be big enough,
 	this memory heap should never be used. */
 	mem_heap_t*	heap			= NULL;
-	const rec_t*	(*get_next)(const rec_t*);
-
-	if (scan_method == COUNT_ALL_NON_BORING_AND_SKIP_DEL_MARKED) {
-		get_next = page_rec_get_next_non_del_marked;
-	} else {
-		get_next = page_rec_get_next_const;
-	}
+	ut_ad(is_leaf == page_is_leaf(page));
+	const rec_t*	(*get_next)(const rec_t*)
+		= !is_leaf || srv_stats_include_delete_marked
+		? page_rec_get_next_const
+		: page_rec_get_next_non_del_marked;
 
 	const bool	should_count_external_pages = n_external_pages != NULL;
 
@@ -1441,7 +1431,7 @@ dict_stats_scan_page(
 
 			(*n_diff)++;
 
-			if (scan_method == QUIT_ON_FIRST_NON_BORING) {
+			if (!is_leaf) {
 				break;
 			}
 		}
@@ -1567,7 +1557,7 @@ dict_stats_analyze_index_below_cur(
 		/* search for the first non-boring record on the page */
 		offsets_rec = dict_stats_scan_page(
 			&rec, offsets1, offsets2, index, page, n_prefix,
-			QUIT_ON_FIRST_NON_BORING, n_diff, NULL);
+			false, n_diff, NULL);
 
 		/* pages on level > 0 are not allowed to be empty */
 		ut_a(offsets_rec != NULL);
@@ -1612,9 +1602,7 @@ dict_stats_analyze_index_below_cur(
 
 	offsets_rec = dict_stats_scan_page(
 		&rec, offsets1, offsets2, index, page, n_prefix,
-		srv_stats_include_delete_marked ?
-		COUNT_ALL_NON_BORING_INCLUDE_DEL_MARKED:
-		COUNT_ALL_NON_BORING_AND_SKIP_DEL_MARKED, n_diff,
+		true, n_diff,
 		n_external_pages);
 
 #if 0
@@ -2419,6 +2407,41 @@ dict_stats_save_index_stat(
 	return(ret);
 }
 
+/** Report an error if updating table statistics failed because
+.ibd file is missing, table decryption failed or table is corrupted.
+@param[in,out]	table	Table
+@param[in]	defragment	true if statistics is for defragment
+@retval DB_DECRYPTION_FAILED if decryption of the table failed
+@retval DB_TABLESPACE_DELETED if .ibd file is missing
+@retval DB_CORRUPTION if table is marked as corrupted */
+dberr_t
+dict_stats_report_error(dict_table_t* table, bool defragment)
+{
+	dberr_t		err;
+
+	FilSpace space(table->space);
+	const char*	df = defragment ? " defragment" : "";
+
+	if (!space()) {
+		ib::warn() << "Cannot save" << df << " statistics for table "
+			   << table->name
+			   << " because the .ibd file is missing. "
+			   << TROUBLESHOOTING_MSG;
+		err = DB_TABLESPACE_DELETED;
+	} else {
+		ib::warn() << "Cannot save" << df << " statistics for table "
+			   << table->name
+			   << " because file " << space()->chain.start->name
+			   << (table->corrupted
+			       ? " is corrupted."
+			       : " cannot be decrypted.");
+		err = table->corrupted ? DB_CORRUPTION : DB_DECRYPTION_FAILED;
+	}
+
+	dict_stats_empty_table(table, defragment);
+	return err;
+}
+
 /** Save the table's statistics into the persistent statistics storage.
 @param[in]	table_orig	table whose stats to save
 @param[in]	only_for_index	if this is non-NULL, then stats for indexes
@@ -2437,6 +2460,11 @@ dict_stats_save(
 	dict_table_t*	table;
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
+
+	if (table_orig->is_readable()) {
+	} else {
+		return (dict_stats_report_error(table_orig));
+	}
 
 	table = dict_stats_snapshot_create(table_orig);
 
@@ -3160,15 +3188,8 @@ dict_stats_update(
 {
 	ut_ad(!mutex_own(&dict_sys->mutex));
 
-	if (table->ibd_file_missing) {
-
-		ib::warn() << "Cannot calculate statistics for table "
-			<< table->name
-			<< " because the .ibd file is missing. "
-			<< TROUBLESHOOTING_MSG;
-
-		dict_stats_empty_table(table, true);
-		return(DB_TABLESPACE_DELETED);
+	if (!table->is_readable()) {
+		return (dict_stats_report_error(table));
 	} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
 		/* If we have set a high innodb_force_recovery level, do
 		not calculate statistics, as a badly corrupted index can

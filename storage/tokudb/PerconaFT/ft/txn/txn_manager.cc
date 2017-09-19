@@ -970,11 +970,11 @@ int toku_txn_manager_recover_root_txn (
         txn_manager->last_xid_seen_for_recover = curr_txn->txnid.parent_id64;
         // if we found the maximum number of prepared transactions we are
         // allowed to find, then break
-        if (num_txns_returned >= count) {
+        if ((long) num_txns_returned >= count) {
             break;
         }
     }
-    invariant(num_txns_returned <= count);
+    invariant((long) num_txns_returned <= count);
     *retp = num_txns_returned;
     ret_val = 0;
 exit:

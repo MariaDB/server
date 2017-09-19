@@ -2,10 +2,6 @@
 -- source include/not_embedded.inc
 -- source include/have_file_key_management_plugin.inc
 
-call mtr.add_suppression("KeyID 0 not found or with error. Check the key and the log*");
-call mtr.add_suppression("Disabling redo log encryp*");
-call mtr.add_suppression("InnoDB: Redo log crypto: Can't initialize to key version*");
-
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 show warnings;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1;
@@ -35,36 +31,19 @@ end//
 delimiter ;//
 commit;
 
-set autocommit=0;
+begin;
 call innodb_insert_proc(2000);
-commit;
-set autocommit=1;
-
 insert into innodb_compact select * from innodb_normal;
 insert into innodb_compressed select * from innodb_normal;
 insert into innodb_dynamic select * from innodb_normal;
 insert into innodb_redundant select * from innodb_normal;
+commit;
 
-update innodb_normal set c1 = c1 +1;
-update innodb_compact set c1 = c1 + 1;
-update innodb_compressed set c1 = c1 + 1;
-update innodb_dynamic set c1 = c1 + 1;
-update innodb_redundant set c1 = c1 + 1;
-select count(*) from innodb_compact where c1 < 1500000;
-select count(*) from innodb_compressed where c1 < 1500000;
-select count(*) from innodb_dynamic where c1 < 1500000;
-select count(*) from innodb_redundant where c1 < 1500000;
-select count(*) from innodb_compact t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_dynamic t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_compressed t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_redundant t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
+let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_ENCRYPTED';
+--source include/wait_condition.inc
 
 # Note there that these variables are updated only when real I/O is done, thus they are not reliable
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 
 --source include/restart_mysqld.inc
@@ -74,22 +53,14 @@ update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 update innodb_redundant set c1 = c1 + 1;
-select count(*) from innodb_compact where c1 < 1500000;
-select count(*) from innodb_compressed where c1 < 1500000;
-select count(*) from innodb_dynamic where c1 < 1500000;
-select count(*) from innodb_redundant where c1 < 1500000;
-select count(*) from innodb_compact t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_dynamic t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_compressed t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_redundant t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_ENCRYPTED';
+--source include/wait_condition.inc
 
+SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+
+SET GLOBAL innodb_encrypt_tables=OFF;
 alter table innodb_compact engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_compact;
 alter table innodb_compressed engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
@@ -99,30 +70,8 @@ show create table innodb_dynamic;
 alter table innodb_redundant engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_redundant;
 
---source include/restart_mysqld.inc
-
-show create table innodb_compact;
-show create table innodb_compressed;
-show create table innodb_dynamic;
-show create table innodb_redundant;
-
-update innodb_normal set c1 = c1 +1;
-update innodb_compact set c1 = c1 + 1;
-update innodb_compressed set c1 = c1 + 1;
-update innodb_dynamic set c1 = c1 + 1;
-update innodb_redundant set c1 = c1 + 1;
-select count(*) from innodb_compact where c1 < 1500000;
-select count(*) from innodb_compressed where c1 < 1500000;
-select count(*) from innodb_dynamic where c1 < 1500000;
-select count(*) from innodb_redundant where c1 < 1500000;
-select count(*) from innodb_compact t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_dynamic t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_compressed t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
-select count(*) from innodb_redundant t1, innodb_normal t2 where
-t1.c1 = t2.c1 and t1.b = t2.b;
+let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_DECRYPTED';
+--source include/wait_condition.inc
 
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
@@ -133,7 +82,6 @@ drop table innodb_compact;
 drop table innodb_compressed;
 drop table innodb_dynamic;
 drop table innodb_redundant;
-
 #
 # MDEV-8143: InnoDB: Database page corruption on disk or a failed file read
 #

@@ -1,6 +1,5 @@
-/* Copyright (c) 2006, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab
-   Copyright (c) 2016, MariaDB Corporation
+/* Copyright (c) 2006, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -52,8 +51,8 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    sync_counter(0), is_relay_log_recovery(is_slave_recovery),
    save_temporary_tables(0),
    mi(0), inuse_relaylog_list(0), last_inuse_relaylog(0),
-   cur_log_old_open_count(0), group_relay_log_pos(0), 
-   event_relay_log_pos(0),
+   cur_log_old_open_count(0), error_on_rli_init_info(false),
+   group_relay_log_pos(0), event_relay_log_pos(0),
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
    last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
@@ -124,10 +123,13 @@ int Relay_log_info::init(const char* info_fname)
   char fname[FN_REFLEN+128];
   const char* msg = 0;
   int error = 0;
+  mysql_mutex_t *log_lock;
   DBUG_ENTER("Relay_log_info::init");
 
   if (inited)                       // Set if this function called
     DBUG_RETURN(0);
+
+  log_lock= relay_log.get_log_lock();
   fn_format(fname, info_fname, mysql_data_home, "", 4+32);
   mysql_mutex_lock(&data_lock);
   cur_log_fd = -1;
@@ -135,6 +137,9 @@ int Relay_log_info::init(const char* info_fname)
   abort_pos_wait=0;
   log_space_limit= relay_log_space_limit;
   log_space_total= 0;
+
+  if (error_on_rli_init_info)
+    goto err;
 
   char pattern[FN_REFLEN];
   (void) my_realpath(pattern, slave_load_tmpdir, 0);
@@ -207,7 +212,6 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     /* For multimaster, add connection name to relay log filenames */
     char buf_relay_logname[FN_REFLEN], buf_relaylog_index_name_buff[FN_REFLEN];
     char *buf_relaylog_index_name= opt_relaylog_index_name;
-    mysql_mutex_t *log_lock;
 
     create_logfile_name_with_suffix(buf_relay_logname,
                                     sizeof(buf_relay_logname),
@@ -227,7 +231,6 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       note, that if open() fails, we'll still have index file open
       but a destructor will take care of that
     */
-    log_lock= relay_log.get_log_lock();
     mysql_mutex_lock(log_lock);
     if (relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
         relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
@@ -253,8 +256,8 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     if ((info_fd= mysql_file_open(key_file_relay_log_info,
                                   fname, O_CREAT|O_RDWR|O_BINARY, MYF(MY_WME))) < 0)
     {
-      sql_print_error("Failed to create a new relay log info file (\
-file '%s', errno %d)", fname, my_errno);
+      sql_print_error("Failed to create a new relay log info file ("
+                      "file '%s', errno %d)", fname, my_errno);
       msg= current_thd->get_stmt_da()->message();
       goto err;
     }
@@ -304,7 +307,9 @@ Failed to open the existing relay log info file '%s' (errno %d)",
         if (info_fd >= 0)
           mysql_file_close(info_fd, MYF(0));
         info_fd= -1;
+        mysql_mutex_lock(log_lock);
         relay_log.close(LOG_CLOSE_INDEX | LOG_CLOSE_STOP_EVENT);
+        mysql_mutex_unlock(log_lock);
         mysql_mutex_unlock(&data_lock);
         DBUG_RETURN(1);
       }
@@ -417,16 +422,21 @@ Failed to open the existing relay log info file '%s' (errno %d)",
     goto err;
   }
   inited= 1;
+  error_on_rli_init_info= false;
   mysql_mutex_unlock(&data_lock);
   DBUG_RETURN(0);
 
 err:
-  sql_print_error("%s", msg);
+  error_on_rli_init_info= true;
+  if (msg)
+    sql_print_error("%s", msg);
   end_io_cache(&info_file);
   if (info_fd >= 0)
     mysql_file_close(info_fd, MYF(0));
   info_fd= -1;
+  mysql_mutex_lock(log_lock);
   relay_log.close(LOG_CLOSE_INDEX | LOG_CLOSE_STOP_EVENT);
+  mysql_mutex_unlock(log_lock);
   mysql_mutex_unlock(&data_lock);
   DBUG_RETURN(1);
 }
@@ -1124,6 +1134,8 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
                      const char** errmsg)
 {
   int error=0;
+  const char *ln;
+  char name_buf[FN_REFLEN];
   DBUG_ENTER("purge_relay_logs");
 
   /*
@@ -1150,12 +1162,37 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
   if (!rli->inited)
   {
     DBUG_PRINT("info", ("rli->inited == 0"));
-    DBUG_RETURN(0);
+    if (rli->error_on_rli_init_info)
+    {
+      ln= rli->relay_log.generate_name(opt_relay_logname, "-relay-bin",
+                                       1, name_buf);
+
+      if (rli->relay_log.open_index_file(opt_relaylog_index_name, ln, TRUE))
+      {
+        sql_print_error("Unable to purge relay log files. Failed to open relay "
+                        "log index file:%s.", rli->relay_log.get_index_fname());
+        DBUG_RETURN(1);
+      }
+      mysql_mutex_lock(rli->relay_log.get_log_lock());
+      if (rli->relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
+                             (rli->max_relay_log_size ? rli->max_relay_log_size :
+                              max_binlog_size), 1, TRUE))
+      {
+        sql_print_error("Unable to purge relay log files. Failed to open relay "
+                        "log file:%s.", rli->relay_log.get_log_fname());
+        mysql_mutex_unlock(rli->relay_log.get_log_lock());
+        DBUG_RETURN(1);
+      }
+      mysql_mutex_unlock(rli->relay_log.get_log_lock());
+    }
+    else
+      DBUG_RETURN(0);
   }
-
-  DBUG_ASSERT(rli->slave_running == 0);
-  DBUG_ASSERT(rli->mi->slave_running == 0);
-
+  else
+  {
+    DBUG_ASSERT(rli->slave_running == 0);
+    DBUG_ASSERT(rli->mi->slave_running == 0);
+  }
   mysql_mutex_lock(&rli->data_lock);
 
   /*
@@ -1202,6 +1239,12 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     rli->group_relay_log_name[0]= rli->event_relay_log_name[0]= 0;
   }
 
+  if (!rli->inited && rli->error_on_rli_init_info)
+  {
+    mysql_mutex_lock(rli->relay_log.get_log_lock());
+    rli->relay_log.close(LOG_CLOSE_INDEX | LOG_CLOSE_STOP_EVENT);
+    mysql_mutex_unlock(rli->relay_log.get_log_lock());
+  }
 err:
   DBUG_PRINT("info",("log_space_total: %llu",rli->log_space_total));
   mysql_mutex_unlock(&rli->data_lock);

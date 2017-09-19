@@ -89,9 +89,15 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
 
   /* Not allowed with EXCHANGE PARTITION */
   DBUG_ASSERT(!create_info.data_file_name && !create_info.index_file_name);
+  WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
 
   thd->enable_slow_log= opt_log_slow_admin_statements;
   DBUG_RETURN(exchange_partition(thd, first_table, &alter_info));
+#ifdef WITH_WSREP
+ error:
+  /* handle errors in TO_ISOLATION here */
+  DBUG_RETURN(true);
+#endif /* WITH_WSREP */
 }
 
 
@@ -493,7 +499,7 @@ bool Sql_cmd_alter_table_exchange_partition::
   partition_element *part_elem;
   char *partition_name;
   char temp_name[FN_REFLEN+1];
-  char part_file_name[FN_REFLEN+1];
+  char part_file_name[2*FN_REFLEN+1];
   char swap_file_name[FN_REFLEN+1];
   char temp_file_name[FN_REFLEN+1];
   uint swap_part_id;
@@ -531,21 +537,6 @@ bool Sql_cmd_alter_table_exchange_partition::
   if (open_tables(thd, &table_list, &table_counter, 0,
                   &alter_prelocking_strategy))
     DBUG_RETURN(true);
-
-#ifdef WITH_WSREP
-  if (WSREP_ON)
-  {
-    if ((!thd->is_current_stmt_binlog_format_row() ||
-         /* TODO: Do we really need to check for temp tables in this case? */
-         !thd->find_temporary_table(table_list)) &&
-        wsrep_to_isolation_begin(thd, table_list->db, table_list->table_name,
-                                 NULL))
-    {
-      WSREP_WARN("ALTER TABLE EXCHANGE PARTITION isolation failure");
-      DBUG_RETURN(TRUE);
-    }
-  }
-#endif /* WITH_WSREP */
 
   part_table= table_list->table;
   swap_table= swap_table_list->table;
@@ -588,9 +579,9 @@ bool Sql_cmd_alter_table_exchange_partition::
                        temp_name, "", FN_IS_TMP);
 
   if (!(part_elem= part_table->part_info->get_part_elem(partition_name,
-                                                        part_file_name +
-                                                          part_file_name_len,
-                                                        &swap_part_id)))
+                                  part_file_name + part_file_name_len,
+                                  sizeof(part_file_name) - part_file_name_len,
+                                  &swap_part_id)))
   {
  // my_error(ER_UNKNOWN_PARTITION, MYF(0), partition_name,
  //          part_table->alias);
@@ -785,7 +776,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
       (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table))  &&
       wsrep_to_isolation_begin(
-        thd, first_table->db, first_table->table_name, NULL)
+          thd, first_table->db, first_table->table_name, NULL)
       )
   {
     WSREP_WARN("ALTER TABLE TRUNCATE PARTITION isolation failure");

@@ -65,6 +65,7 @@ inline bool field_check_field_name_match(Field *field, const char *name)
                              name));
 }
 
+
 /*
   Rdb_key_def class implementation
 */

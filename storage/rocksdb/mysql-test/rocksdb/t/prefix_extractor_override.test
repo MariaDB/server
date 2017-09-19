@@ -26,7 +26,9 @@ select variable_value into @u from information_schema.global_status where variab
 SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2=1 AND id3=1;
 select variable_value-@u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
---exec echo "" > $MYSQLTEST_VARDIR/log/mysqld.1.err
+# MariaDB: the following doesn't work on Windows and doesn't seem to be needed
+# on Linux:
+#--exec echo "" > $MYSQLTEST_VARDIR/log/mysqld.1.err
 --let $_mysqld_option=--rocksdb_override_cf_options=cf1={prefix_extractor=capped:26};
 
 --echo

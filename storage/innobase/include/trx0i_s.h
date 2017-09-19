@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -162,10 +163,6 @@ struct i_s_trx_row_t {
 					/*!< check_foreigns in trx_t */
 	const char*	trx_foreign_key_error;
 					/*!< detailed_error in trx_t */
-#ifdef BTR_CUR_HASH_ADAPT
-	ibool		trx_has_search_latch;
-					/*!< has_search_latch in trx_t */
-#endif /* BTR_CUR_HASH_ADAPT */
 	ulint		trx_is_read_only;
 					/*!< trx_t::read_only */
 	ulint		trx_is_autocommit_non_locking;

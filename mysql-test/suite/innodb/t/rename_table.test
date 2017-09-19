@@ -1,0 +1,31 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+CREATE DATABASE test_jfg;
+CREATE DATABASE test_jfg2;
+CREATE TABLE test_jfg.test (a int unsigned PRIMARY KEY) ENGINE=InnoDB;
+RENAME TABLE test_jfg.test TO test_jfg2.test;
+
+SELECT REPLACE(path,'\\','/') path
+FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%';
+
+DROP DATABASE test_jfg;
+
+--source include/restart_mysqld.inc
+
+DROP DATABASE test_jfg2;
+
+CREATE DATABASE abc_def;
+CREATE DATABASE abc_def2;
+
+CREATE TABLE abc_def.test (a int unsigned PRIMARY KEY) ENGINE=InnoDB;
+RENAME TABLE abc_def.test TO abc_def2.test1;
+
+SELECT REPLACE(path,'\\','/') path
+FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%';
+
+DROP DATABASE abc_def;
+
+--source include/restart_mysqld.inc
+
+DROP DATABASE abc_def2;

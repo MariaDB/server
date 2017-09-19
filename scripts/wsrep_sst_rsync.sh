@@ -68,7 +68,7 @@ check_pid_and_port()
         local port_info="$(sockstat -46lp ${rsync_port} 2>/dev/null | \
             grep ":${rsync_port}")"
         local is_rsync="$(echo $port_info | \
-            grep -w '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
+            grep '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
         ;;
     *)
         if ! which lsof > /dev/null; then
@@ -135,9 +135,19 @@ fi
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
 # if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
 if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$($MY_PRINT_DEFAULTS --mysqld \
-                    | grep -- '--innodb[-_]log[-_]group[-_]home[-_]dir=' \
-                    | cut -b 29- )
+    WSREP_LOG_DIR=$(parse_cnf mariadb-10.0 innodb_log_group_home_dir "")
+fi
+if [ -z "$WSREP_LOG_DIR" ]; then
+    WSREP_LOG_DIR=$(parse_cnf mysqld innodb_log_group_home_dir "")
+fi
+if [ -z "$WSREP_LOG_DIR" ]; then
+    WSREP_LOG_DIR=$(parse_cnf server innodb_log_group_home_dir "")
+fi
+if [ -z "$WSREP_LOG_DIR" ]; then
+    WSREP_LOG_DIR=$(parse_cnf mariadb innodb_log_group_home_dir "")
+fi
+if [ -z "$WSREP_LOG_DIR" ]; then
+    WSREP_LOG_DIR=$(parse_cnf mysqld-10.0 innodb_log_group_home_dir "")
 fi
 
 if [ -n "$WSREP_LOG_DIR" ]; then
@@ -263,8 +273,8 @@ then
         [ "$OS" = "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
         [ "$OS" = "Darwin" -o "$OS" = "FreeBSD" ] && count=$(sysctl -n hw.ncpu)
 
-        find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" -print0 | \
-             xargs -I{} -0 -P $count \
+        find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" \
+             -print0 | xargs -I{} -0 -P $count \
              rsync --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
              $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \
@@ -326,9 +336,9 @@ then
     RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
 
     if [ -n "${MYSQL_TMP_DIR:-}" ] ; then
-      SILENT="log file = $MYSQL_TMP_DIR/rsynd.log"
+        SILENT="log file = $MYSQL_TMP_DIR/rsyncd.log"
     else
-      SILENT=""
+        SILENT=""
     fi
 
 cat << EOF > "$RSYNC_CONF"
@@ -345,24 +355,25 @@ EOF
 
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around
 
+    readonly RSYNC_PORT=${WSREP_SST_OPT_PORT:-4444}
     # If the IP is local listen only in it
-    if is_local_ip $RSYNC_ADDR
+    if is_local_ip "$RSYNC_ADDR"
     then
-      rsync --daemon --no-detach --address $RSYNC_ADDR --port $RSYNC_PORT --config "$RSYNC_CONF" &
+      rsync --daemon --no-detach --address "$RSYNC_ADDR" --port "$RSYNC_PORT" --config "$RSYNC_CONF" &
     else
       # Not local, possibly a NAT, listen in all interface
-      rsync --daemon --no-detach --port $RSYNC_PORT --config "$RSYNC_CONF" &
+      rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" &
       # Overwrite address with all
       RSYNC_ADDR="*"
     fi
     RSYNC_REAL_PID=$!
 
-    until check_pid_and_port $RSYNC_PID $RSYNC_REAL_PID $RSYNC_ADDR $RSYNC_PORT
+    until check_pid_and_port "$RSYNC_PID" "$RSYNC_REAL_PID" "$RSYNC_ADDR" "$RSYNC_PORT"
     do
         sleep 0.2
     done
 
-    echo "ready $ADDR/$MODULE"
+    echo "ready $WSREP_SST_OPT_HOST:$RSYNC_PORT/$MODULE"
 
     # wait for SST to complete by monitoring magic file
     while [ ! -r "$MAGIC_FILE" ] && check_pid "$RSYNC_PID" && \

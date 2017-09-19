@@ -1,11 +1,11 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.9.2                                                      */
+/*  Version 4.9.3                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -98,6 +98,7 @@ DOSDEF::DOSDEF(void)
   Ofn = NULL;
 	Entry = NULL;
   To_Indx = NULL;
+	Pwd = NULL;
   Recfm = RECFM_VAR;
   Mapped = false;
 	Zipped = false;
@@ -131,7 +132,8 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   bool   map = (am && (*am == 'M' || *am == 'm'));
   LPCSTR dfm = (am && (*am == 'F' || *am == 'f')) ? "F"
              : (am && (*am == 'B' || *am == 'b')) ? "B"
-             : (am && !stricmp(am, "DBF"))        ? "D" : "V";
+		         : (am && (*am == 'X' || *am == 'x')) ? "X"
+		         : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
 	if ((Zipped = GetBoolCatInfo("Zipped", false))) {
 		Entry = GetStringCatInfo(g, "Entry", NULL);
@@ -139,14 +141,16 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
 		                               : false;
 		Mulentries = GetBoolCatInfo("Mulentries", Mulentries);
 		Append = GetBoolCatInfo("Append", false);
-	}
+		Pwd = GetStringCatInfo(g, "Password", NULL);
+	}	// endif Zipped
 
   Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
   Ofn = GetStringCatInfo(g, "Optname", Fn);
   GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
           (toupper(*buf) == 'B') ? RECFM_BIN :
-          (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
+		      (toupper(*buf) == 'X') ? RECFM_NAF : // MGO
+		      (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
   Lrecl = GetIntCatInfo("Lrecl", 0);
 
   if (Recfm != RECFM_DBF)
@@ -180,7 +184,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
 /***********************************************************************/
 bool DOSDEF::GetOptFileName(PGLOBAL g, char *filename)
   {
-  char   *ftype;
+  PCSZ ftype;
 
   switch (Recfm) {
     case RECFM_VAR: ftype = ".dop"; break;
@@ -237,9 +241,9 @@ void DOSDEF::RemoveOptValues(PGLOBAL g)
 /***********************************************************************/
 bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   {
-  char   *ftype;
-  char    filename[_MAX_PATH];
-  bool    sep, rc = false;
+  PCSZ ftype;
+  char filename[_MAX_PATH];
+  bool sep, rc = false;
 
   if (!To_Indx)
     return false;           // No index
@@ -351,7 +355,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 	if (Zipped) {
 #if defined(ZIP_SUPPORT)
 		if (Recfm == RECFM_VAR) {
-			if (mode == MODE_READ || mode == MODE_ANY) {
+			if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
 				txfp = new(g) UNZFAM(this);
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);
@@ -362,7 +366,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 
 			tdbp = new(g) TDBDOS(this, txfp);
 		} else {
-			if (mode == MODE_READ || mode == MODE_ANY) {
+			if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
 				txfp = new(g) UZXFAM(this);
 			} else if (mode == MODE_INSERT) {
 				txfp = new(g) ZPXFAM(this);
@@ -1307,6 +1311,7 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
         } // endif !opm
 
       // if opm, pass thru
+      // fall through
     case OP_IN:
       if (filp->GetArgType(0) == TYPE_COLBLK &&
           filp->GetArgType(1) == TYPE_ARRAY) {
@@ -1509,8 +1514,8 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
     if (n == 8 && ctype != TYPE_LIST) {
       // Should never happen
       strcpy(g->Message, "Block opt: bad constant");
-      longjmp(g->jumper[g->jump_level], 99);
-      } // endif Conv
+			throw 99;
+		} // endif Conv
 
     if (type[0] == 1) {
       // Make it always as Column-op-Value
@@ -1642,8 +1647,8 @@ int TDBDOS::TestBlock(PGLOBAL g)
 /***********************************************************************/
 int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   {
-  int     k, n;
-  bool    fixed, doit, sep, b = (pxdf != NULL);
+	int     k, n, rc = RC_OK;
+	bool    fixed, doit, sep, b = (pxdf != NULL);
   PCOL   *keycols, colp;
   PIXDEF  xdp, sxp = NULL;
   PKPDEF  kdp;
@@ -1687,95 +1692,105 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   } else if (!(pxdf = dfp->GetIndx()))
     return RC_INFO;              // No index to make
 
-  // Allocate all columns that will be used by indexes.
-  // This must be done before opening the table so specific
-  // column initialization can be done (in particular by TDBVCT)
-  for (n = 0, xdp = pxdf; xdp; xdp = xdp->GetNext())
-    for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
-      if (!(colp = ColDB(g, kdp->GetName(), 0))) {
-        sprintf(g->Message, MSG(INDX_COL_NOTIN), kdp->GetName(), Name);
-        goto err;
-      } else if (colp->GetResultType() == TYPE_DECIM) {
-        sprintf(g->Message, "Decimal columns are not indexable yet");
-        goto err;
-      } // endif Type
+	try {
+		// Allocate all columns that will be used by indexes.
+	// This must be done before opening the table so specific
+	// column initialization can be done (in particular by TDBVCT)
+		for (n = 0, xdp = pxdf; xdp; xdp = xdp->GetNext())
+			for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
+				if (!(colp = ColDB(g, kdp->GetName(), 0))) {
+					sprintf(g->Message, MSG(INDX_COL_NOTIN), kdp->GetName(), Name);
+					goto err;
+				} else if (colp->GetResultType() == TYPE_DECIM) {
+					sprintf(g->Message, "Decimal columns are not indexable yet");
+					goto err;
+				} // endif Type
 
-      colp->InitValue(g);
-      n = MY_MAX(n, xdp->GetNparts());
-      } // endfor kdp
+				colp->InitValue(g);
+				n = MY_MAX(n, xdp->GetNparts());
+			} // endfor kdp
 
-  keycols = (PCOL*)PlugSubAlloc(g, NULL, n * sizeof(PCOL));
-  sep = dfp->GetBoolCatInfo("SepIndex", false);
+		keycols = (PCOL*)PlugSubAlloc(g, NULL, n * sizeof(PCOL));
+		sep = dfp->GetBoolCatInfo("SepIndex", false);
 
-  /*********************************************************************/
-  /*  Construct and save the defined indexes.                          */
-  /*********************************************************************/
-  for (xdp = pxdf; xdp; xdp = xdp->GetNext())
-    if (!OpenDB(g)) {
-      if (xdp->IsAuto() && fixed)
-        // Auto increment key and fixed file: use an XXROW index
-        continue;      // XXROW index doesn't need to be made
+		/*********************************************************************/
+		/*  Construct and save the defined indexes.                          */
+		/*********************************************************************/
+		for (xdp = pxdf; xdp; xdp = xdp->GetNext())
+			if (!OpenDB(g)) {
+				if (xdp->IsAuto() && fixed)
+					// Auto increment key and fixed file: use an XXROW index
+					continue;      // XXROW index doesn't need to be made
 
-      // On Update, redo only indexes that are modified
-      doit = !To_SetCols;
-      n = 0;
+				// On Update, redo only indexes that are modified
+				doit = !To_SetCols;
+				n = 0;
 
-      if (sxp)
-        xdp->SetID(sxp->GetID() + 1);
+				if (sxp)
+					xdp->SetID(sxp->GetID() + 1);
 
-      for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
-        // Check whether this column was updated
-        for (colp = To_SetCols; !doit && colp; colp = colp->GetNext())
-          if (!stricmp(kdp->GetName(), colp->GetName()))
-            doit = true;
+				for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
+					// Check whether this column was updated
+					for (colp = To_SetCols; !doit && colp; colp = colp->GetNext())
+						if (!stricmp(kdp->GetName(), colp->GetName()))
+							doit = true;
 
-        keycols[n++] = ColDB(g, kdp->GetName(), 0);
-        } // endfor kdp
+					keycols[n++] = ColDB(g, kdp->GetName(), 0);
+				} // endfor kdp
 
-      // If no indexed columns were updated, don't remake the index
-      // if indexes are in separate files.
-      if (!doit && sep)
-        continue;
+			// If no indexed columns were updated, don't remake the index
+			// if indexes are in separate files.
+				if (!doit && sep)
+					continue;
 
-      k = xdp->GetNparts();
+				k = xdp->GetNparts();
 
-      // Make the index and save it
-      if (dfp->Huge)
-        pxp = new(g) XHUGE;
-      else
-        pxp = new(g) XFILE;
+				// Make the index and save it
+				if (dfp->Huge)
+					pxp = new(g) XHUGE;
+				else
+					pxp = new(g) XFILE;
 
-      if (k == 1)            // Simple index
-        x = new(g) XINDXS(this, xdp, pxp, keycols);
-      else                   // Multi-Column index
-        x = new(g) XINDEX(this, xdp, pxp, keycols);
+				if (k == 1)            // Simple index
+					x = new(g) XINDXS(this, xdp, pxp, keycols);
+				else                   // Multi-Column index
+					x = new(g) XINDEX(this, xdp, pxp, keycols);
 
-      if (!x->Make(g, sxp)) {
-        // Retreive define values from the index
-        xdp->SetMaxSame(x->GetMaxSame());
-//      xdp->SetSize(x->GetSize());
+				if (!x->Make(g, sxp)) {
+					// Retreive define values from the index
+					xdp->SetMaxSame(x->GetMaxSame());
+					//      xdp->SetSize(x->GetSize());
 
-        // store KXYCOL Mxs in KPARTDEF Mxsame
-        xdp->SetMxsame(x);
+									// store KXYCOL Mxs in KPARTDEF Mxsame
+					xdp->SetMxsame(x);
 
 #if defined(TRACE)
-        printf("Make done...\n");
+					printf("Make done...\n");
 #endif   // TRACE
 
-//      if (x->GetSize() > 0)
-          sxp = xdp;
+					//      if (x->GetSize() > 0)
+					sxp = xdp;
 
-        xdp->SetInvalid(false);
-      } else
-        goto err;
+					xdp->SetInvalid(false);
+				} else
+					goto err;
 
-    } else
-      return RC_INFO;     // Error or Physical table does not exist
+			} else
+				return RC_INFO;     // Error or Physical table does not exist
 
-  if (Use == USE_OPEN)
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		rc = RC_FX;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		rc = RC_FX;
+	} // end catch
+
+	if (Use == USE_OPEN)
     CloseDB(g);
 
-  return RC_OK;
+  return rc;
 
 err:
   if (sxp)
@@ -1790,8 +1805,8 @@ err:
 /*  Make a dynamic index.                                              */
 /***********************************************************************/
 bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
-  {
-  int     k, rc;
+{
+  int     k;
   volatile bool dynamic;
   bool    brc;
   PCOL    colp;
@@ -1861,13 +1876,7 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
   } else                      // Column contains same values as ROWID
     kxp = new(g) XXROW(this);
 
-  //  Prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return true;
-    } // endif
-
-  if (!(rc = setjmp(g->jumper[++g->jump_level])) != 0) {
+	try {
     if (dynamic) {
       ResetBlockFilter(g);
       kxp->SetDynamic(dynamic);
@@ -1892,12 +1901,17 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
 
       } // endif brc
 
-  } else
-    brc = true;
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		brc = true;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		brc = true;
+	} // end catch
 
-  g->jump_level--;
-  return brc;
-  } // end of InitialyzeIndex
+	return brc;
+} // end of InitialyzeIndex
 
 /***********************************************************************/
 /*  DOS GetProgMax: get the max value for progress information.        */
@@ -2118,7 +2132,8 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     return false;
     } // endif use
 
-  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() != TYPE_AM_DOS) {
+  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() != TYPE_AM_DOS
+		                               && Txfp->GetAmType() != TYPE_AM_MGO) {
     // Delete all lines. Not handled in MAP or block mode
     Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
     Txfp->SetTdbp(this);
@@ -2156,16 +2171,18 @@ bool TDBDOS::OpenDB(PGLOBAL g)
   To_BlkFil = InitBlockFilter(g, To_Filter);
 
   /*********************************************************************/
-  /*  Allocate the line buffer plus a null character.                  */
-  /*********************************************************************/
-  To_Line = (char*)PlugSubAlloc(g, NULL, Lrecl + 1);
+	/*  Lrecl does not include line ending															 */
+	/*********************************************************************/
+	size_t linelen = Lrecl + ((PDOSDEF)To_Def)->Ending + 1;
+
+  To_Line = (char*)PlugSubAlloc(g, NULL, linelen);
 
   if (Mode == MODE_INSERT) {
     // Spaces between fields must be filled with blanks
     memset(To_Line, ' ', Lrecl);
     To_Line[Lrecl] = '\0';
   } else
-    memset(To_Line, 0, Lrecl + 1);
+    memset(To_Line, 0, linelen);
 
   if (trace)
     htrc("OpenDos: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
@@ -2304,8 +2321,8 @@ void TDBDOS::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  DOSCOL public constructor (also called by MAPCOL).                 */
 /***********************************************************************/
-DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
-  : COLBLK(cdp, tp, i)
+DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am)
+      : COLBLK(cdp, tp, i)
   {
   char *p;
   int   prec = Format.Prec;
@@ -2335,7 +2352,7 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   Dval = NULL;
   Buf = NULL;
 
-  if (txfp->Blocked && Opt && (cdp->GetMin() || cdp->GetDval())) {
+  if (txfp && txfp->Blocked && Opt && (cdp->GetMin() || cdp->GetDval())) {
     int nblk = txfp->GetBlock();
 
     Clustered = (cdp->GetXdb2()) ? 2 : 1;
@@ -2514,8 +2531,8 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       if (rc == RC_EF)
         sprintf(g->Message, MSG(INV_DEF_READ), rc);
 
-      longjmp(g->jumper[g->jump_level], 11);
-      } // endif
+			throw 11;
+		} // endif
 
   p = tdbp->To_Line + Deplac;
   field = Long;
@@ -2570,8 +2587,8 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       break;
     default:
       sprintf(g->Message, MSG(BAD_RECFM), tdbp->Ftype);
-      longjmp(g->jumper[g->jump_level], 34);
-    } // endswitch Ftype
+			throw 34;
+	} // endswitch Ftype
 
   // Set null when applicable
   if (Nullable)
@@ -2679,8 +2696,8 @@ void DOSCOL::WriteColumn(PGLOBAL g)
           break;
         default:
           sprintf(g->Message, "Invalid field format for column %s", Name);
-          longjmp(g->jumper[g->jump_level], 31);
-        } // endswitch BufType
+					throw 31;
+			} // endswitch BufType
 
       p2 = Buf;
     } else                 // Standard CONNECT format
@@ -2691,8 +2708,8 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 
     if ((len = strlen(p2)) > field) {
       sprintf(g->Message, MSG(VALUE_TOO_LONG), p2, Name, field);
-      longjmp(g->jumper[g->jump_level], 31);
-    } else if (Dsp)
+			throw 31;
+		} else if (Dsp)
       for (i = 0; i < len; i++)
         if (p2[i] == '.')
           p2[i] = Dsp; 
@@ -2720,7 +2737,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     if (Value->GetBinValue(p, Long, Status)) {
       sprintf(g->Message, MSG(BIN_F_TOO_LONG),
                           Name, Value->GetSize(), Long);
-      longjmp(g->jumper[g->jump_level], 31);
+      throw 31;
       } // endif
 
   } // end of WriteColumn
@@ -2863,13 +2880,4 @@ bool DOSCOL::AddDistinctValue(PGLOBAL g)
   return false;
   } // end of AddDistinctValue
 
-/***********************************************************************/
-/*  Make file output of a Dos column descriptor block.                 */
-/***********************************************************************/
-void DOSCOL::Print(PGLOBAL g, FILE *f, uint n)
-  {
-  COLBLK::Print(g, f, n);
-  } // end of Print
-
 /* ------------------------------------------------------------------- */
-

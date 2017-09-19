@@ -34,11 +34,11 @@ DROP TABLE t1;
 
 # Now create the same table in the old format to show that they can be read
 # and handled correctly
-set session debug= '+d,MYROCKS_LEGACY_VARBINARY_FORMAT';
+set session debug_dbug= '+d,MYROCKS_LEGACY_VARBINARY_FORMAT';
 CREATE TABLE t1(
   vb VARBINARY(64) primary key
 ) ENGINE=rocksdb;
-set session debug= '-d,MYROCKS_LEGACY_VARBINARY_FORMAT';
+set session debug_dbug= '-d,MYROCKS_LEGACY_VARBINARY_FORMAT';
 
 INSERT INTO t1 values(0x00);
 INSERT INTO t1 values(0x0000);
@@ -98,11 +98,11 @@ DROP TABLE t1;
 
 # Now create the same table in the old format to show that they can be read
 # and handled correctly
-set session debug= '+d,MYROCKS_LEGACY_VARBINARY_FORMAT';
+set session debug_dbug= '+d,MYROCKS_LEGACY_VARBINARY_FORMAT';
 CREATE TABLE t1(
   vc VARCHAR(64) collate 'binary' primary key
 ) ENGINE=rocksdb;
-set session debug= '-d,MYROCKS_LEGACY_VARBINARY_FORMAT';
+set session debug_dbug= '-d,MYROCKS_LEGACY_VARBINARY_FORMAT';
 
 INSERT INTO t1 values('a');
 INSERT INTO t1 values('aa');

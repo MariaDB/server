@@ -1,7 +1,7 @@
 /*************** Filter H Declares Source Code File (.H) ***************/
-/*  Name: FILTER.H    Version 1.2                                      */
+/*  Name: FILTER.H    Version 1.3                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2010-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2010-2017    */
 /*                                                                     */
 /*  This file contains the FILTER and derived classes declares.        */
 /***********************************************************************/
@@ -61,8 +61,11 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
 //virtual PXOB   CheckSubQuery(PGLOBAL, PSQL);
 //virtual bool   CheckLocal(PTDB);
 //virtual int    CheckSpcCol(PTDB tdbp, int n);
-  virtual void   Print(PGLOBAL g, FILE *f, uint n);
-  virtual void   Print(PGLOBAL g, char *ps, uint z);
+#if defined(MONGO_SUPPORT)
+					bool   MakeSelector(PGLOBAL g, PSTRG s);
+#endif   // MONGO_SUPPORT
+	virtual void   Printf(PGLOBAL g, FILE *f, uint n);
+  virtual void   Prints(PGLOBAL g, char *ps, uint z);
 //        PFIL   Linearize(bool nosep);
 //        PFIL   Link(PGLOBAL g, PFIL fil2);
 //        PFIL   RemoveLastSep(void);

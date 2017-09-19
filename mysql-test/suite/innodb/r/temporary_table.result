@@ -130,7 +130,6 @@ ERROR HY000: The table 't1' is full
 drop procedure populate_t1;
 # test read-only mode
 # files in MYSQL_DATA_DIR
-ibtmp1
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 show tables;
@@ -138,6 +137,7 @@ Tables_in_test
 create temporary table t1 (keyc int, c1 char(100), c2 char(100)) engine = innodb;
 ERROR HY000: Can't create table `test`.`t1` (errno: 165 "Table is read only")
 # test various bad start-up parameters
+FOUND 2 /InnoDB: Unable to create temporary file/ in mysqld.1.err
 FOUND 1 /innodb_temporary and innodb_system file names seem to be the same/ in mysqld.1.err
 SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
@@ -147,10 +147,6 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 2 /support raw device/ in mysqld.1.err
-SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
-ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /The innodb_temporary data file 'ibtmp1' must be at least/ in mysqld.1.err
 SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS

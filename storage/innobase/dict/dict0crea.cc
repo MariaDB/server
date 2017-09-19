@@ -104,6 +104,7 @@ dict_create_sys_tables_tuple(
 			| ((table->flags & DICT_TF_COMPACT) << 31));
 	dfield_set_data(dfield, ptr, 4);
 
+
 	/* 5: TYPE (table flags) -----------------------------*/
 	dfield = dtuple_get_nth_field(
 		entry, DICT_COL__SYS_TABLES__TYPE);
@@ -460,14 +461,9 @@ dict_build_tablespace_for_table(
 		mtr_start(&mtr);
 		mtr.set_named_space(table->space);
 
-		bool ret = fsp_header_init(table->space,
-					   FIL_IBD_FILE_INITIAL_SIZE,
-					   &mtr);
+		fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 
 		mtr_commit(&mtr);
-		if (!ret) {
-			return(DB_ERROR);
-		}
 	} else {
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);
@@ -890,7 +886,7 @@ dict_create_index_tree_step(
 
 	mtr_start(&mtr);
 
-	const bool	missing = index->table->ibd_file_missing
+	const bool	missing = !index->is_readable()
 		|| dict_table_is_discarded(index->table);
 
 	if (!missing) {
@@ -963,8 +959,8 @@ dict_create_index_tree_in_mem(
 
 	/* Currently this function is being used by temp-tables only.
 	Import/Discard of temp-table is blocked and so this assert. */
-	ut_ad(index->table->ibd_file_missing == 0
-	      && !dict_table_is_discarded(index->table));
+	ut_ad(index->is_readable());
+	ut_ad(!dict_table_is_discarded(index->table));
 
 	page_no = btr_create(
 		index->type, index->space,
@@ -1246,7 +1242,7 @@ tab_create_graph_create(
 				structure */
 	mem_heap_t*	heap,	/*!< in: heap where created */
 	fil_encryption_t mode,	/*!< in: encryption mode */
-	ulint		key_id)	/*!< in: encryption key_id */
+	uint32_t	key_id)	/*!< in: encryption key_id */
 {
 	tab_node_t*	node;
 
@@ -2054,7 +2050,7 @@ dict_foreign_def_get_fields(
 	trx_t*		trx,	/*!< in: trx */
 	char**		field,  /*!< out: foreign column */
 	char**		field2, /*!< out: referenced column */
-	int		col_no) /*!< in: column number */
+	ulint		col_no) /*!< in: column number */
 {
 	char* bufend;
 	char* fieldbuf = (char *)mem_heap_alloc(foreign->heap, MAX_TABLE_NAME_LEN+1);
@@ -2511,6 +2507,7 @@ dict_create_or_check_sys_tablespace(void)
 			<< ". Dropping incompletely created tables.";
 
 		ut_a(err == DB_OUT_OF_FILE_SPACE
+		     || err == DB_DUPLICATE_KEY
 		     || err == DB_TOO_MANY_CONCURRENT_TRXS);
 
 		row_drop_table_for_mysql("SYS_TABLESPACES", trx, TRUE, TRUE);
@@ -2538,11 +2535,11 @@ dict_create_or_check_sys_tablespace(void)
 
 	sys_tablespaces_err = dict_check_if_system_table_exists(
 		"SYS_TABLESPACES", DICT_NUM_FIELDS__SYS_TABLESPACES + 1, 1);
-	ut_a(sys_tablespaces_err == DB_SUCCESS);
+	ut_a(sys_tablespaces_err == DB_SUCCESS || err != DB_SUCCESS);
 
 	sys_datafiles_err = dict_check_if_system_table_exists(
 		"SYS_DATAFILES", DICT_NUM_FIELDS__SYS_DATAFILES + 1, 1);
-	ut_a(sys_datafiles_err == DB_SUCCESS);
+	ut_a(sys_datafiles_err == DB_SUCCESS || err != DB_SUCCESS);
 
 	return(err);
 }

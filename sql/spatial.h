@@ -255,6 +255,7 @@ public:
     GEOJ_INCORRECT_GEOJSON= 1,
     GEOJ_TOO_FEW_POINTS= 2,
     GEOJ_POLYGON_NOT_CLOSED= 3,
+    GEOJ_DIMENSION_NOT_SUPPORTED= 4,
   };
 
 
@@ -281,7 +282,8 @@ public:
   virtual uint init_from_opresult(String *bin,
                                   const char *opres, uint res_len)
   { return init_from_wkb(opres + 4, UINT_MAX32, wkb_ndr, bin) + 4; }
-  virtual bool init_from_json(json_engine_t *je, String *wkb) {return true;}
+  virtual bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb)
+  { return true; }
 
   virtual bool get_data_as_wkt(String *txt, const char **end) const=0;
   virtual bool get_data_as_json(String *txt, uint max_dec_digits,
@@ -315,12 +317,13 @@ public:
 				   bool init_stream=1);
   static Geometry *create_from_wkb(Geometry_buffer *buffer,
                                    const char *wkb, uint32 len, String *res);
-  static Geometry *create_from_json(Geometry_buffer *buffer,
-                                    json_engine_t *je, String *res);
+  static Geometry *create_from_json(Geometry_buffer *buffer, json_engine_t *je,
+                                    bool er_on_3D, String *res);
   static Geometry *create_from_opresult(Geometry_buffer *g_buf,
                                   String *res, Gcalc_result_receiver &rr);
   int as_wkt(String *wkt, const char **end);
   int as_json(String *wkt, uint max_dec_digits, const char **end);
+  int bbox_as_json(String *wkt);
 
   inline void set_data_ptr(const char *data, uint32 data_len)
   {
@@ -395,7 +398,7 @@ public:
   uint32 get_data_size() const;
   bool init_from_wkt(Gis_read_stream *trs, String *wkb);
   uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
-  bool init_from_json(json_engine_t *je, String *wkb);
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
@@ -450,7 +453,7 @@ public:
   uint32 get_data_size() const;
   bool init_from_wkt(Gis_read_stream *trs, String *wkb);
   uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
-  bool init_from_json(json_engine_t *je, String *wkb);
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
@@ -484,7 +487,7 @@ public:
   bool init_from_wkt(Gis_read_stream *trs, String *wkb);
   uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
   uint init_from_opresult(String *bin, const char *opres, uint res_len);
-  bool init_from_json(json_engine_t *je, String *wkb);
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
@@ -521,7 +524,7 @@ public:
   bool init_from_wkt(Gis_read_stream *trs, String *wkb);
   uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
   uint init_from_opresult(String *bin, const char *opres, uint res_len);
-  bool init_from_json(json_engine_t *je, String *wkb);
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
@@ -550,7 +553,7 @@ public:
   bool init_from_wkt(Gis_read_stream *trs, String *wkb);
   uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
   uint init_from_opresult(String *bin, const char *opres, uint res_len);
-  bool init_from_json(json_engine_t *je, String *wkb);
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
@@ -580,7 +583,7 @@ public:
   uint32 get_data_size() const;
   bool init_from_wkt(Gis_read_stream *trs, String *wkb);
   uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
-  bool init_from_json(json_engine_t *je, String *wkb);
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;
@@ -612,7 +615,7 @@ public:
   bool init_from_wkt(Gis_read_stream *trs, String *wkb);
   uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
   uint init_from_opresult(String *bin, const char *opres, uint res_len);
-  bool init_from_json(json_engine_t *je, String *wkb);
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
   bool get_data_as_wkt(String *txt, const char **end) const;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const;

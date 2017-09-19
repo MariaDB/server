@@ -5739,4 +5739,7 @@ AbcdCBefgBhiBqz
 /(?=.*X)X$/ 
     \  X
      
+/X+(?#comment)?/
+    >XXX<
+
 /-- End of testinput1 --/

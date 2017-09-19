@@ -192,7 +192,7 @@ btr_search_sys_create(
 				&btr_search_latch_arr[i], SYNC_SEARCH_SYS);
 
 		btr_search_sys->hash_tables[i]
-			= ha_create(hash_size, 0, MEM_HEAP_FOR_BTR_SEARCH, 0);
+			= ib_create(hash_size, 0, MEM_HEAP_FOR_BTR_SEARCH, 0);
 
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 		btr_search_sys->hash_tables[i]->adaptive = TRUE;
@@ -2022,9 +2022,7 @@ btr_search_validate_one_table(
 					(ulong) block->curr_left_side);
 
 				if (n_page_dumps < 20) {
-					buf_page_print(
-						page, 0,
-						BUF_PAGE_PRINT_NO_CRASH);
+					buf_page_print(page, 0);
 					n_page_dumps++;
 				}
 			}

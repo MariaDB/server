@@ -1,6 +1,7 @@
 /***********************************************************************/
 /*  GLOBAL.H: Declaration file used by all CONNECT implementations.    */
-/*  (C) Copyright Olivier Bertrand                       1993-2014     */
+/*  (C) Copyright MariaDB Corporation Ab                 							 */
+/*  Author Olivier Bertrand                              1993-2017     */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -57,31 +58,10 @@
 /*  Miscellaneous Constants                                            */
 /***********************************************************************/
 #define  NO_IVAL   -95684275        /* Used by GetIntegerOption        */
-#define  VMLANG          370        /* Size of olf VM lang blocks      */
 #define  MAX_JUMP         24        /* Maximum jump level number       */
-#define  MAX_STR        1024        /* Maximum string length           */
-#define  STR_SIZE        501        /* Length of char strings.         */
-#define  STD_INPUT         0        /* Standard language input         */
-#define  STD_OUTPUT        1        /* Standard language output        */
-#define  ERROR_OUTPUT      2        /* Error    message  output        */
-#define  DEBUG_OUTPUT      3        /* Debug    info     output        */
-#define  PROMPT_OUTPUT     4        /* Prompt   message  output        */
-#define  COPY_OUTPUT       5        /* Copy of  language input         */
-#define  STD_MSG           6        /* System message file             */
-#define  DEBUG_MSG         7        /* Debug  message file             */
-#define  DUMMY             0        /* Dummy  file index in Ldm block  */
-#define  STDIN             1        /* stdin  file index in Ldm block  */
-#define  STDOUT            2        /* stdout file index in Ldm block  */
-#define  STDERR            3        /* stderr file index in Ldm block  */
-#define  STDEBUG           4        /* debug  file index in Ldm block  */
-#define  STDPRN            5        /* stdprn file index in Ldm block  */
-#define  STDFREE           6        /* Free   file index in Ldm block  */
+#define  MAX_STR        4160        /* Maximum message length          */
 
-#define  TYPE_SEM         -2        /* Returned semantic function      */
-#define  TYPE_DFONC       -2        /* Indirect sem ref in FPARM       */
 #define  TYPE_VOID        -1
-#define  TYPE_SBPAR       -1        /* Phrase reference in FPARM       */
-#define  TYPE_SEMX         0        /* Initial semantic function type? */
 #define  TYPE_ERROR        0
 #define  TYPE_STRING       1
 #define  TYPE_DOUBLE       2
@@ -90,25 +70,10 @@
 #define  TYPE_BIGINT       5
 #define  TYPE_LIST         6
 #define  TYPE_INT          7
+#define  TYPE_DATE         8
 #define  TYPE_DECIM        9
 #define  TYPE_BIN         10
 #define  TYPE_PCHAR       11
-
-#if defined(OS32)
-  #define  SYS_STAMP   "OS32"
-#elif defined(UNIX) || defined(LINUX) || defined(UNIV_LINUX)
-  #define  SYS_STAMP   "UNIX"
-#elif defined(OS16)
-  #define  SYS_STAMP   "OS16"
-#elif defined(DOSR)
-  #define  SYS_STAMP   "DOSR"
-#elif defined(WIN)
-  #define  SYS_STAMP   "WIN1"
-#elif defined(__WIN__)
-  #define  SYS_STAMP   "WIN2"
-#else
-  #define  SYS_STAMP   "XXXX"
-#endif
 
 #if defined(__cplusplus)
 extern "C" {
@@ -117,11 +82,6 @@ extern "C" {
 /***********************************************************************/
 /*  Static variables                                                   */
 /***********************************************************************/
-#if defined(STORAGE)
-         char      sys_stamp[5] = SYS_STAMP;
-#else
-  extern char      sys_stamp[];
-#endif
 
 /***********************************************************************/
 /*                       File-Selection Indicators                     */
@@ -229,9 +189,10 @@ typedef struct _parm {
 typedef struct _global {            /* Global structure                */
   void     *Sarea;                  /* Points to work area             */
   uint      Sarea_Size;             /* Work area size                  */
-  PACTIVITY Activityp, ActivityStart;
+	PACTIVITY Activityp;
   char      Message[MAX_STR];
-  int       Createas;               /* To pass info to created table   */
+	ulong     More;										/* Used by jsonudf                 */
+	int       Createas;               /* To pass info to created table   */
   void     *Xchk;                   /* indexes in create/alter         */
   short     Alchecked;              /* Checked for ALTER               */
   short     Mrr;                    /* True when doing mrr             */

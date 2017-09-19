@@ -9,7 +9,7 @@ SET SESSION wsrep_sync_wait = 0;
 UNLOCK TABLES;
 COMMIT;
 SET AUTOCOMMIT=ON;
-SET SESSION wsrep_sync_wait = 7;
+SET SESSION wsrep_sync_wait = 15;
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1

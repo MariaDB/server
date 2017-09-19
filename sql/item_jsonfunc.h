@@ -101,6 +101,7 @@ class Item_func_json_query: public Item_func_json_value
 public:
   Item_func_json_query(THD *thd, Item *js, Item *i_path):
     Item_func_json_value(thd, js, i_path) {}
+  bool is_json_type() { return true; }
   const char *func_name() const { return "json_query"; }
   bool check_and_get_value(json_engine_t *je, String *res, int *error);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -127,7 +128,7 @@ class Item_func_json_unquote: public Item_str_func
 {
 protected:
   String tmp_s;
-
+  String *read_json(json_engine_t *je);
 public:
   Item_func_json_unquote(THD *thd, Item *s): Item_str_func(thd, s) {}
   const char *func_name() const { return "json_unquote"; }
@@ -158,12 +159,16 @@ class Item_func_json_extract: public Item_json_str_multipath
 protected:
   String tmp_js;
 public:
+  String *read_json(String *str, json_value_types *type,
+                    char **out_val, int *value_len);
   Item_func_json_extract(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
   const char *func_name() const { return "json_extract"; }
+  enum Functype functype() const   { return JSON_EXTRACT_FUNC; }
   void fix_length_and_dec();
   String *val_str(String *);
   longlong val_int();
+  double val_real();
   uint get_n_paths() const { return arg_count - 1; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_extract>(thd, mem_root, this); }

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -298,29 +298,23 @@ struct LatchDebug {
 	}
 
 	/** Iterate over a thread's latches.
-	@param[in,out]	functor		The callback
+	@param[in]	functor		The callback
 	@return true if the functor returns true. */
-	bool for_each(sync_check_functor_t& functor)
+	bool for_each(const sync_check_functor_t& functor)
 		UNIV_NOTHROW
 	{
-		const Latches*	latches = thread_latches();
+		if (const Latches* latches = thread_latches()) {
+			Latches::const_iterator	end = latches->end();
+			for (Latches::const_iterator it = latches->begin();
+			     it != end; ++it) {
 
-		if (latches == 0) {
-			return(functor.result());
-		}
-
-		Latches::const_iterator	end = latches->end();
-
-		for (Latches::const_iterator it = latches->begin();
-		     it != end;
-		     ++it) {
-
-			if (functor(it->m_level)) {
-				break;
+				if (functor(it->m_level)) {
+					return(true);
+				}
 			}
 		}
 
-		return(functor.result());
+		return(false);
 	}
 
 	/** Removes a latch from the thread level array if it is found there.
@@ -1215,13 +1209,12 @@ sync_check_find(latch_level_t level)
 
 /** Iterate over the thread's latches.
 @param[in,out]	functor		called for each element.
-@return false if the sync debug hasn't been initialised
-@return the value returned by the functor */
+@return true if the functor returns true for any element */
 bool
-sync_check_iterate(sync_check_functor_t& functor)
+sync_check_iterate(const sync_check_functor_t& functor)
 {
-	if (LatchDebug::instance() != NULL) {
-		return(LatchDebug::instance()->for_each(functor));
+	if (LatchDebug* debug = LatchDebug::instance()) {
+		return(debug->for_each(functor));
 	}
 
 	return(false);
@@ -1273,11 +1266,6 @@ LatchDebug::shutdown()
 	rw_lock_debug_event = NULL;
 
 	mutex_free(&rw_lock_debug_mutex);
-
-	if (instance() == NULL) {
-
-		return;
-	}
 
 	ut_a(s_initialized);
 
@@ -1443,9 +1431,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(RW_LOCK_MUTEX, SYNC_NO_ORDER_CHECK, rw_lock_mutex_key);
 
-	LATCH_ADD_MUTEX(SRV_DICT_TMPFILE, SYNC_DICT_OPERATION,
-			srv_dict_tmpfile_mutex_key);
-
 	LATCH_ADD_MUTEX(SRV_INNODB_MONITOR, SYNC_NO_ORDER_CHECK,
 			srv_innodb_monitor_mutex_key);
 
@@ -1498,8 +1483,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(SYNC_ARRAY_MUTEX, SYNC_NO_ORDER_CHECK,
 			sync_array_mutex_key);
 
-	LATCH_ADD_MUTEX(THREAD_MUTEX, SYNC_NO_ORDER_CHECK, thread_mutex_key);
-
 	LATCH_ADD_MUTEX(ZIP_PAD_MUTEX, SYNC_NO_ORDER_CHECK, zip_pad_mutex_key);
 
 	LATCH_ADD_MUTEX(OS_AIO_READ_MUTEX, SYNC_NO_ORDER_CHECK,
@@ -1532,11 +1515,12 @@ sync_latch_meta_init()
 			 buf_block_lock_key);
 
 #ifdef UNIV_DEBUG
-	LATCH_ADD_RWLOCK(BUF_BLOCK_DEBUG, SYNC_NO_ORDER_CHECK,
+	LATCH_ADD_RWLOCK(BUF_BLOCK_DEBUG, SYNC_LEVEL_VARYING,
 			 buf_block_debug_latch_key);
 #endif /* UNIV_DEBUG */
 
-	LATCH_ADD_RWLOCK(DICT_OPERATION, SYNC_DICT, dict_operation_lock_key);
+	LATCH_ADD_RWLOCK(DICT_OPERATION, SYNC_DICT_OPERATION,
+			 dict_operation_lock_key);
 
 	LATCH_ADD_RWLOCK(CHECKPOINT, SYNC_NO_ORDER_CHECK, checkpoint_lock_key);
 

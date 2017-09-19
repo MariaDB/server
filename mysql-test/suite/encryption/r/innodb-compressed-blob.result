@@ -1,0 +1,21 @@
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[123]\\.ibd' cannot be decrypted\\.");
+call mtr.add_suppression("InnoDB: Unable to decompress ..test.t[1-3]\\.ibd\\[page id: space=[1-9][0-9]*, page number=[0-9]+\\]");
+# Restart mysqld --file-key-management-filename=keys2.txt
+SET GLOBAL innodb_file_per_table = ON;
+set GLOBAL innodb_default_encryption_key_id=4;
+create table t1(a int not null primary key, b blob, index(b(10))) engine=innodb row_format=compressed;
+create table t2(a int not null primary key, b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes;
+create table t3(a int not null primary key, b blob, index(b(10))) engine=innodb row_format=compressed encrypted=no;
+insert into t1 values (1, repeat('secret',6000));
+insert into t2 values (1, repeat('secret',6000));
+insert into t3 values (1, repeat('secret',6000));
+# Restart mysqld --file-key-management-filename=keys3.txt
+select count(*) from t1 FORCE INDEX (b) where b like 'secret%';
+ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
+select count(*) from t2 FORCE INDEX (b) where b like 'secret%';
+ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
+select count(*) from t3 FORCE INDEX (b) where b like 'secret%';
+count(*)
+1
+# Restart mysqld --file-key-management-filename=keys2.txt
+drop table t1,t2,t3;

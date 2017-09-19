@@ -1,0 +1,26 @@
+### connection default
+CREATE TABLE t (a INT PRIMARY KEY, b INT) ENGINE=TokuDB;
+INSERT INTO t (a, b) VALUES (1, 1), (2, 2), (3, 3), (4, 4), (5, 5),
+(6, 6), (7, 7), (8, 8), (9, 9), (10, 10),
+(11, 11), (12, 12), (13, 13), (14, 14), (15, 15),
+(16, 16), (17, 17), (18, 18), (19, 19), (20, 20);
+### connection con1
+SET DEBUG_SYNC= 'toku_range_lock_granted_immediately SIGNAL lock_granted WAIT_FOR lock_granted_continue';
+UPDATE t SET b=1 WHERE a BETWEEN 5 AND 10;
+### connection default
+SET DEBUG_SYNC= 'now WAIT_FOR lock_granted';
+### connection con2
+SET DEBUG_SYNC= 'toku_range_lock_before_wait SIGNAL lock_not_granted WAIT_FOR lock_not_granted_continue';
+SET DEBUG_SYNC= 'toku_range_lock_not_granted_after_wait SIGNAL lock_not_granted_after_wait';
+UPDATE t SET b=1 WHERE a BETWEEN 5 AND 10;
+### connection default
+SET DEBUG_SYNC= 'now SIGNAL lock_not_granted_continue WAIT_FOR lock_not_granted';
+KILL QUERY con2_id
+SET DEBUG_SYNC= 'now SIGNAL lock_granted_continue WAIT_FOR lock_not_granted_after_wait';
+### connection con1
+### reap
+### connection con2
+### reap
+ERROR 70100: Query execution was interrupted
+### connection default
+DROP TABLE t;

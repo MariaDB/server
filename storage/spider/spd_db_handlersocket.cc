@@ -4994,6 +4994,15 @@ int spider_handlersocket_handler::append_explain_select_part(
   DBUG_RETURN(0);
 }
 
+int spider_handlersocket_handler::is_sole_projection_field(
+  uint16 field_index
+) {
+  DBUG_ENTER("spider_handlersocket_handler::is_sole_projection_field");
+  DBUG_PRINT("info", ("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
 bool spider_handlersocket_handler::is_bulk_insert_exec_period(
   bool bulk_end
 ) {

@@ -235,8 +235,10 @@ struct ut_new_pfx_t {
 #endif
 };
 
-/** Allocator class for allocating memory from inside std::* containers. */
-template <class T>
+/** Allocator class for allocating memory from inside std::* containers.
+@tparam	T		type of allocated object
+@tparam oom_fatal	whether to commit suicide when running out of memory */
+template <class T, bool oom_fatal = true>
 class ut_allocator {
 public:
 	typedef T*		pointer;
@@ -249,13 +251,10 @@ public:
 
 	/** Default constructor. */
 	explicit
-	ut_allocator(
-		PSI_memory_key	key = PSI_NOT_INSTRUMENTED)
-		:
+	ut_allocator(PSI_memory_key key = PSI_NOT_INSTRUMENTED)
 #ifdef UNIV_PFS_MEMORY
-		m_key(key),
+		: m_key(key)
 #endif /* UNIV_PFS_MEMORY */
-		m_oom_fatal(true)
 	{
 	}
 
@@ -263,30 +262,10 @@ public:
 	template <class U>
 	ut_allocator(
 		const ut_allocator<U>&	other)
-		: m_oom_fatal(other.is_oom_fatal())
-	{
 #ifdef UNIV_PFS_MEMORY
-		const PSI_memory_key	other_key = other.get_mem_key(NULL);
-
-		m_key = (other_key != mem_key_std)
-			? other_key
-			: PSI_NOT_INSTRUMENTED;
+		: m_key(other.m_key)
 #endif /* UNIV_PFS_MEMORY */
-	}
-
-	/** When out of memory (OOM) happens, report error and do not
-	make it fatal.
-	@return a reference to the allocator. */
-	ut_allocator&
-	set_oom_not_fatal() {
-		m_oom_fatal = false;
-		return(*this);
-	}
-
-	/** Check if allocation failure is a fatal error.
-	@return true if allocation failure is fatal, false otherwise. */
-	bool is_oom_fatal() const {
-		return(m_oom_fatal);
+	{
 	}
 
 	/** Return the maximum number of objects that can be allocated by
@@ -364,7 +343,7 @@ public:
 		}
 
 		if (ptr == NULL) {
-			ib::fatal_or_error(m_oom_fatal)
+			ib::fatal_or_error(oom_fatal)
 				<< "Cannot allocate " << total_bytes
 				<< " bytes of memory after "
 				<< alloc_max_retries << " retries over "
@@ -499,14 +478,13 @@ public:
 		}
 
 		if (pfx_new == NULL) {
-			ib::fatal_or_error(m_oom_fatal)
+			ib::fatal_or_error(oom_fatal)
 				<< "Cannot reallocate " << total_bytes
 				<< " bytes of memory after "
 				<< alloc_max_retries << " retries over "
 				<< alloc_max_retries << " seconds. OS error: "
 				<< strerror(errno) << " (" << errno << "). "
 				<< OUT_OF_MEMORY_MSG;
-			/* not reached */
 			return(NULL);
 		}
 
@@ -739,10 +717,6 @@ private:
 	void
 	operator=(
 		const ut_allocator<U>&);
-
-	/** A flag to indicate whether out of memory (OOM) error is considered
-	fatal.  If true, it is fatal. */
-	bool	m_oom_fatal;
 };
 
 /** Compare two allocators of the same type.
@@ -882,9 +856,8 @@ ut_delete_array(
 		n_bytes, NULL, __FILE__, true, false))
 
 #define ut_zalloc_nokey_nofatal(n_bytes)	static_cast<void*>( \
-	ut_allocator<byte>(PSI_NOT_INSTRUMENTED). \
-		set_oom_not_fatal(). \
-		allocate(n_bytes, NULL, __FILE__, true, false))
+	ut_allocator<byte, false>(PSI_NOT_INSTRUMENTED).allocate( \
+		n_bytes, NULL, __FILE__, true, false))
 
 #define ut_realloc(ptr, n_bytes)	static_cast<void*>( \
 	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).reallocate( \

@@ -44,6 +44,10 @@ public:
 
 	/** Data file information - each Datafile can be accessed globally */
 	files_t		m_files;
+	/** Data file iterator */
+	typedef files_t::iterator iterator;
+	/** Data file iterator */
+	typedef files_t::const_iterator const_iterator;
 
 	Tablespace()
 		:
@@ -62,15 +66,20 @@ public:
 		shutdown();
 		ut_ad(m_files.empty());
 		ut_ad(m_space_id == ULINT_UNDEFINED);
-		if (m_path != NULL) {
-			ut_free(m_path);
-			m_path = NULL;
-		}
 	}
 
 	// Disable copying
 	Tablespace(const Tablespace&);
 	Tablespace& operator=(const Tablespace&);
+
+	/** Data file iterator */
+	const_iterator begin() const { return m_files.begin(); }
+	/** Data file iterator */
+	const_iterator end() const { return m_files.end(); }
+	/** Data file iterator */
+	iterator begin() { return m_files.begin(); }
+	/** Data file iterator */
+	iterator end() { return m_files.end(); }
 
 	void set_name(const char* name) { m_name = name; }
 	const char* name() const { return m_name; }
@@ -120,7 +129,7 @@ public:
 	@param[in]	fsp_flags	tablespace flags */
 	void set_flags(ulint fsp_flags)
 	{
-		ut_ad(fsp_flags_is_valid(fsp_flags));
+		ut_ad(fsp_flags_is_valid(fsp_flags, false));
 		m_flags = fsp_flags;
 	}
 
@@ -140,7 +149,7 @@ public:
 
 	/** Get the tablespace encryption key_id
 	@return m_key_id tablespace encryption key_id */
-	ulint key_id() const
+	uint32_t key_id() const
 	{
 		return (m_key_id);
 	}
@@ -160,8 +169,7 @@ public:
 	{
 		ulint	sum = 0;
 
-		for (files_t::const_iterator it = m_files.begin();
-		     it != m_files.end(); ++it) {
+		for (const_iterator it = begin(); it != end(); ++it) {
 			sum += it->m_size;
 		}
 
@@ -204,7 +212,7 @@ private:
 	/**
 	@param[in]	filename	Name to lookup in the data files.
 	@return true if the filename exists in the data files */
-	bool find(const char* filename);
+	bool find(const char* filename) const;
 
 	/** Note that the data file was found.
 	@param[in]	file	data file object */
@@ -226,7 +234,7 @@ private:
 
 	/** Encryption mode and key_id */
 	fil_encryption_t m_mode;
-	ulint		m_key_id;
+	uint32_t	m_key_id;
 
 protected:
 	/** Ignore server read only configuration for this tablespace. */

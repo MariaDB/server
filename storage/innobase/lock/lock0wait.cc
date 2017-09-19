@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -263,6 +263,9 @@ lock_wait_suspend_thread(
 
 	slot = lock_wait_table_reserve_slot(thr, lock_wait_timeout);
 
+	lock_wait_mutex_exit();
+	trx_mutex_exit(trx);
+
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
 		srv_stats.n_lock_wait_count.inc();
 		srv_stats.n_lock_wait_current_count.inc();
@@ -274,22 +277,20 @@ lock_wait_suspend_thread(
 		}
 	}
 
-	/* Wake the lock timeout monitor thread, if it is suspended */
-
-	os_event_set(lock_sys->timeout_event);
-
-	lock_wait_mutex_exit();
-	trx_mutex_exit(trx);
-
 	ulint	lock_type = ULINT_UNDEFINED;
 
-	lock_mutex_enter();
-
+	/* The wait_lock can be cleared by another thread when the
+	lock is released. But the wait can only be initiated by the
+	current thread which owns the transaction. Only acquire the
+	mutex if the wait_lock is still active. */
 	if (const lock_t* wait_lock = trx->lock.wait_lock) {
-		lock_type = lock_get_type_low(wait_lock);
+		lock_mutex_enter();
+		wait_lock = trx->lock.wait_lock;
+		if (wait_lock) {
+			lock_type = lock_get_type_low(wait_lock);
+		}
+		lock_mutex_exit();
 	}
-
-	lock_mutex_exit();
 
 	ulint	had_dict_lock = trx->dict_operation_lock_mode;
 

@@ -67,7 +67,7 @@ public:
                   NOW_FUNC, NOW_UTC_FUNC, SYSDATE_FUNC, TRIG_COND_FUNC,
                   SUSERVAR_FUNC, GUSERVAR_FUNC, COLLATE_FUNC,
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
-                  NEG_FUNC, GSYSVAR_FUNC, DYNCOL_FUNC };
+                  NEG_FUNC, GSYSVAR_FUNC, DYNCOL_FUNC, JSON_EXTRACT_FUNC };
   enum Type type() const { return FUNC_ITEM; }
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
   Item_func(THD *thd): Item_func_or_sum(thd), allowed_arg_cols(1)
@@ -314,6 +314,19 @@ public:
     */
     Item_args::propagate_equal_fields(thd, Context_identity(), cond);
     return this;
+  }
+
+  bool excl_dep_on_table(table_map tab_map)
+  {
+    if (used_tables() & OUTER_REF_TABLE_BIT)
+      return false; 
+    return !(used_tables() & ~tab_map) || 
+           Item_args::excl_dep_on_table(tab_map);
+  }
+
+  bool excl_dep_on_grouping_fields(st_select_lex *sel)
+  {
+    return Item_args::excl_dep_on_grouping_fields(sel);
   }
 
   /*
@@ -1270,7 +1283,11 @@ public:
   longlong val_int();
   const char *func_name() const { return "coercibility"; }
   void fix_length_and_dec() { max_length=10; maybe_null= 0; }
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *)
+  {
+    not_null_tables_cache= 0;
+    return false;
+  }
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   { return this; }
   bool const_item() const { return true; }
@@ -1588,7 +1605,11 @@ public:
   }
   void cleanup();
   Item_result result_type () const { return udf.result_type(); }
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *opt_arg)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
   bool is_expensive() { return 1; }
   virtual void print(String *str, enum_query_type query_type);
   bool check_vcol_func_processor(void *arg)
@@ -1835,7 +1856,7 @@ public:
   Item_master_gtid_wait(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "master_gtid_wait"; }
-  void fix_length_and_dec() { max_length=10+1+10+1+20+1; maybe_null=0;}
+  void fix_length_and_dec() { max_length=2; }
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
@@ -2118,7 +2139,11 @@ public:
   bool is_expensive_processor(void *arg) { return TRUE; }
   enum Functype functype() const { return FT_FUNC; }
   const char *func_name() const { return "match"; }
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *opt_arg)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
   bool fix_fields(THD *thd, Item **ref);
   bool eq(const Item *, bool binary_cmp) const;
   /* The following should be safe, even if we compare doubles */
@@ -2401,6 +2426,11 @@ public:
       clone->sp_result_field= NULL;
     return clone;
   }
+  bool eval_not_null_tables(void *opt_arg)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
 };
 
 
@@ -2453,7 +2483,11 @@ public:
   void fix_length_and_dec();
   enum Item_result result_type () const { return last_value->result_type(); }
   const char *func_name() const { return "last_value"; }
-  table_map not_null_tables() const { return 0; }
+  bool eval_not_null_tables(void *)
+  {
+    not_null_tables_cache= 0;
+    return 0;
+  }
   enum_field_types field_type() const { return last_value->field_type(); }
   bool const_item() const { return 0; }
   void evaluate_sideeffects();

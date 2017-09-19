@@ -366,3 +366,12 @@ SET NAMES latin1;
 --echo #
 --echo # End of 5.1 tests
 --echo #
+
+#
+# TIME_FORMAT and non-time format specifiers
+#
+select time_format('2001-01-01 02:02:02', '%d.%m.%Y');
+select time_format('2001-01-01 02:02:02', '%d %T');
+select time_format('01 02:02:02', '%d %T');
+select time_format('01 02:02:02', '%T');
+select time_format('2001-01-01 02:02:02', '%T');

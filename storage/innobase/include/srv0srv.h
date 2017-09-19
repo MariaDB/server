@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2017, MariaDB Corporation.
@@ -57,15 +57,13 @@ Created 10/10/1995 Heikki Tuuri
 #include "ut0counter.h"
 #include "fil0fil.h"
 
-struct fil_space_t;
-
-/* Global counters used inside InnoDB. */
-struct srv_stats_t {
+/** Global counters used inside InnoDB. */
+struct srv_stats_t
+{
 	typedef ib_counter_t<ulint, 64> ulint_ctr_64_t;
-	typedef ib_counter_t<lsn_t, 1, single_indexer_t> lsn_ctr_1_t;
-	typedef ib_counter_t<ulint, 1, single_indexer_t> ulint_ctr_1_t;
-	typedef ib_counter_t<lint, 1, single_indexer_t> lint_ctr_1_t;
-	typedef ib_counter_t<int64_t, 1, single_indexer_t> int64_ctr_1_t;
+	typedef simple_counter<lsn_t> lsn_ctr_1_t;
+	typedef simple_counter<ulint> ulint_ctr_1_t;
+	typedef simple_counter<int64_t> int64_ctr_1_t;
 
 	/** Count the amount of data written in total (in bytes) */
 	ulint_ctr_1_t		data_written;
@@ -82,8 +80,9 @@ struct srv_stats_t {
 	/** Amount of data written to the log files in bytes */
 	lsn_ctr_1_t		os_log_written;
 
-	/** Number of writes being done to the log files */
-	lint_ctr_1_t		os_log_pending_writes;
+	/** Number of writes being done to the log files.
+	Protected by log_sys->write_mutex. */
+	ulint_ctr_1_t		os_log_pending_writes;
 
 	/** We increase this counter, when we don't have enough
 	space in the log buffer and have to flush it */
@@ -130,6 +129,14 @@ struct srv_stats_t {
 	ulint_ctr_64_t          pages_encrypted;
    	/* Number of pages decrypted */
 	ulint_ctr_64_t          pages_decrypted;
+	/* Number of merge blocks encrypted */
+	ulint_ctr_64_t          n_merge_blocks_encrypted;
+	/* Number of merge blocks decrypted */
+	ulint_ctr_64_t          n_merge_blocks_decrypted;
+	/* Number of row log blocks encrypted */
+	ulint_ctr_64_t          n_rowlog_blocks_encrypted;
+	/* Number of row log blocks decrypted */
+	ulint_ctr_64_t          n_rowlog_blocks_decrypted;
 
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
@@ -141,7 +148,7 @@ struct srv_stats_t {
 	ulint_ctr_1_t		n_lock_wait_count;
 
 	/** Number of threads currently waiting on database locks */
-	lint_ctr_1_t		n_lock_wait_current_count;
+	simple_counter<ulint, true> n_lock_wait_current_count;
 
 	/** Number of rows read. */
 	ulint_ctr_64_t		n_rows_read;
@@ -228,12 +235,6 @@ extern ib_mutex_t	page_zip_stat_per_index_mutex;
 extern ib_mutex_t	srv_monitor_file_mutex;
 /* Temporary file for innodb monitor output */
 extern FILE*	srv_monitor_file;
-/* Mutex for locking srv_dict_tmpfile. Only created if !srv_read_only_mode.
-This mutex has a very high rank; threads reserving it should not
-be holding any InnoDB latches. */
-extern ib_mutex_t	srv_dict_tmpfile_mutex;
-/* Temporary file for output from the data dictionary */
-extern FILE*	srv_dict_tmpfile;
 /* Mutex for locking srv_misc_tmpfile. Only created if !srv_read_only_mode.
 This mutex has a very low rank; threads reserving it should not
 acquire any further latches or sleep before releasing this one. */
@@ -318,6 +319,22 @@ segment). It is quite possible that some of the tablespaces doesn't host
 any of the rollback-segment based on configuration used. */
 extern ulint	srv_undo_tablespaces_active;
 
+/** Undo tablespaces starts with space_id. */
+extern	ulint	srv_undo_space_id_start;
+
+/** Check whether given space id is undo tablespace id
+@param[in]	space_id	space id to check
+@return true if it is undo tablespace else false. */
+inline
+bool
+srv_is_undo_tablespace(ulint space_id)
+{
+	return srv_undo_space_id_start > 0
+		&& space_id >= srv_undo_space_id_start
+		&& space_id < (srv_undo_space_id_start
+			       + srv_undo_tablespaces_open);
+}
+
 /** The number of undo segments to use */
 extern ulong	srv_undo_logs;
 
@@ -345,17 +362,9 @@ extern char*	srv_log_group_home_dir;
 /** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
 #define SRV_N_LOG_FILES_MAX 100
 extern ulong	srv_n_log_files;
-/** At startup, this is the current redo log file size.
-During startup, if this is different from srv_log_file_size_requested
-(innodb_log_file_size), the redo log will be rebuilt and this size
-will be initialized to srv_log_file_size_requested.
-When upgrading from a previous redo log format, this will be set to 0,
-and writing to the redo log is not allowed.
-
-During startup, this is in bytes, and later converted to pages. */
-extern ib_uint64_t	srv_log_file_size;
-/** The value of the startup parameter innodb_log_file_size */
-extern ib_uint64_t	srv_log_file_size_requested;
+/** The InnoDB redo log file size, or 0 when changing the redo log format
+at startup (while disallowing writes to the redo log). */
+extern ulonglong	srv_log_file_size;
 extern ulint	srv_log_buffer_size;
 extern ulong	srv_flush_log_at_trx_commit;
 extern uint	srv_flush_log_at_timeout;
@@ -493,6 +502,21 @@ extern ulong	srv_max_purge_lag_delay;
 extern ulong	srv_replication_delay;
 /*-------------------------------------------*/
 
+/** Modes of operation */
+enum srv_operation_mode {
+	/** Normal mode (MariaDB Server) */
+	SRV_OPERATION_NORMAL,
+	/** Mariabackup taking a backup */
+	SRV_OPERATION_BACKUP,
+	/** Mariabackup restoring a backup */
+	SRV_OPERATION_RESTORE,
+	/** Mariabackup restoring the incremental part of a backup */
+	SRV_OPERATION_RESTORE_DELTA
+};
+
+/** Current mode of operation */
+extern enum srv_operation_mode srv_operation;
+
 extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
 extern ibool	srv_print_verbose_log;
@@ -531,7 +555,10 @@ extern my_bool	srv_purge_view_update_only_debug;
 
 /** Value of MySQL global used to disable master thread. */
 extern my_bool	srv_master_thread_disabled_debug;
+/** InnoDB system tablespace to set during recovery */
 extern uint	srv_sys_space_size_debug;
+/** whether redo log files have been created at startup */
+extern bool	srv_log_files_created;
 #endif /* UNIV_DEBUG */
 
 #define SRV_SEMAPHORE_WAIT_EXTENSION	7200
@@ -1032,6 +1059,15 @@ struct export_var_t{
 						encrypted */
 	int64_t innodb_pages_decrypted;      /*!< Number of pages
 						decrypted */
+
+	/*!< Number of merge blocks encrypted */
+	ib_int64_t innodb_n_merge_blocks_encrypted;
+	/*!< Number of merge blocks decrypted */
+	ib_int64_t innodb_n_merge_blocks_decrypted;
+	/*!< Number of row log blocks encrypted */
+	ib_int64_t innodb_n_rowlog_blocks_encrypted;
+	/*!< Number of row log blocks decrypted */
+	ib_int64_t innodb_n_rowlog_blocks_decrypted;
 
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
 	ulint innodb_sec_rec_cluster_reads_avoided;/*!< srv_sec_rec_cluster_reads_avoided */

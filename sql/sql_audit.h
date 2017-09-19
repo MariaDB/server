@@ -170,6 +170,8 @@ void mysql_audit_general(THD *thd, uint event_subtype,
     }
     else
     {
+      event.general_user= NULL;
+      event.general_user_length= 0;
       event.general_thread_id= 0;
       event.general_query= NULL;
       event.general_query_length= 0;

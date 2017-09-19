@@ -37,9 +37,9 @@ class DOMDOC : public XMLDOCUMENT {
   virtual void   SetNofree(bool b) {}   // Only libxml2
 
   // Methods
-	virtual bool    Initialize(PGLOBAL g, char *entry, bool zipped);
+	virtual bool    Initialize(PGLOBAL g, PCSZ entry, bool zipped);
   virtual bool    ParseFile(PGLOBAL g, char *fn);
-  virtual bool    NewDoc(PGLOBAL g, char *ver);
+  virtual bool    NewDoc(PGLOBAL g, PCSZ ver);
   virtual void    AddComment(PGLOBAL g, char *com);
   virtual PXNODE  GetRoot(PGLOBAL g);
   virtual PXNODE  NewRoot(PGLOBAL g, char *name);
@@ -78,9 +78,9 @@ class DOMNODE : public XMLNODE {
   virtual PXLIST SelectNodes(PGLOBAL g, char *xp, PXLIST lp);
   virtual PXNODE SelectSingleNode(PGLOBAL g, char *xp, PXNODE np);
   virtual PXATTR GetAttribute(PGLOBAL g, char *name, PXATTR ap);
-  virtual PXNODE AddChildNode(PGLOBAL g, char *name, PXNODE np);
+  virtual PXNODE AddChildNode(PGLOBAL g, PCSZ name, PXNODE np);
   virtual PXATTR AddProperty(PGLOBAL g, char *name, PXATTR ap);
-  virtual void   AddText(PGLOBAL g, char *txtp);
+  virtual void   AddText(PGLOBAL g, PCSZ txtp);
   virtual void   DeleteChild(PGLOBAL g, PXNODE dnp);
 
  protected:

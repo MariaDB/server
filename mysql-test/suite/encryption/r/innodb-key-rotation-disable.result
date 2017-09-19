@@ -2,9 +2,6 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 NAME
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 NAME
-mysql/innodb_table_stats
-mysql/innodb_index_stats
-innodb_system
 create database enctests;
 use enctests;
 create table t1(a int not null primary key, b char(200)) engine=innodb;
@@ -62,5 +59,4 @@ FOUND 1 /public/ in t7.ibd
 FOUND 1 /public/ in t8.ibd
 # t9 page compressed expecting NOT FOUND
 NOT FOUND /public/ in t9.ibd
-use test;
 drop database enctests;

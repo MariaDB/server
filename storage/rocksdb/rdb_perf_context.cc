@@ -205,7 +205,8 @@ void Rdb_io_perf::end_and_record(const uint32_t perf_context_level) {
   if (m_shared_io_perf_read &&
       (rocksdb::get_perf_context()->block_read_byte != 0 ||
        rocksdb::get_perf_context()->block_read_count != 0 ||
-       rocksdb::get_perf_context()->block_read_time != 0)) {
+       rocksdb::get_perf_context()->block_read_time != 0)) 
+  {
 #ifdef MARIAROCKS_NOT_YET
     my_io_perf_t io_perf_read;
 

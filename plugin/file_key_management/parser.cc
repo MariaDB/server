@@ -143,13 +143,13 @@ void Parser::bytes_to_key(const unsigned char *salt, const char *input,
 }
 
 
-bool Parser::parse(Dynamic_array<keyentry> *keys)
+bool Parser::parse(std::map<uint,keyentry> *keys)
 {
   const char *secret= filekey;
   char buf[MAX_SECRET_SIZE + 1];
 
   //If secret starts with FILE: interpret the secret as a filename.
-  if (is_prefix(filekey, FILE_PREFIX))
+  if (strncmp(filekey, FILE_PREFIX,sizeof(FILE_PREFIX) -1) == 0)
   {
     if (read_filekey(filekey + sizeof(FILE_PREFIX) - 1, buf))
       return 1;
@@ -166,22 +166,26 @@ bool Parser::parse(Dynamic_array<keyentry> *keys)
 
 bool Parser::read_filekey(const char *filekey, char *secret)
 {
-  int f= my_open(filekey, O_RDONLY, MYF(MY_WME));
+  int f= open(filekey, O_RDONLY|O_BINARY);
   if (f == -1)
+  {
+    my_error(EE_FILENOTFOUND,ME_ERROR_LOG, filekey, errno);
     return 1;
-  int len= my_read(f, (uchar*)secret, MAX_SECRET_SIZE, MYF(MY_WME));
-  my_close(f, MYF(MY_WME));
+  }
+
+  int len= read(f, secret, MAX_SECRET_SIZE);
   if (len <= 0)
+  {
+    my_error(EE_READ,ME_ERROR_LOG, filekey, errno);
+    close(f);
     return 1;
+  }
+  close(f);
   while (secret[len - 1] == '\r' || secret[len - 1] == '\n') len--;
   secret[len]= '\0';
   return 0;
 }
 
-static int sort_keys(const keyentry *k1, const keyentry *k2)
-{
-  return k1->id < k2->id ? -1 : k1->id > k2->id;
-}
 
 /**
    Get the keys from the key file <filename> and decrypt it with the
@@ -191,7 +195,7 @@ static int sort_keys(const keyentry *k1, const keyentry *k2)
    @return 0 when ok, 1 for an error
  */
 
-bool Parser::parse_file(Dynamic_array<keyentry> *keys, const char *secret)
+bool Parser::parse_file(std::map<uint,keyentry> *keys, const char *secret)
 {
   char *buffer= read_and_decrypt_file(secret);
 
@@ -208,19 +212,16 @@ bool Parser::parse_file(Dynamic_array<keyentry> *keys, const char *secret)
     case 1: // comment
       break;
     case -1: // error
-      my_free(buffer);
+      free(buffer);
       return 1;
     case 0:
-      if (keys->push(key))
-        return 1;
+      (*keys)[key.id] = key;
       break;
     }
   }
 
-  keys->sort(sort_keys);
-  my_free(buffer);
-
-  if (keys->elements() == 0 || keys->at(0).id != 1)
+  free(buffer);
+  if (keys->size() == 0 || (*keys)[1].id == 0)
   {
     report_error("System key id 1 is missing", 0);
     return 1;
@@ -232,7 +233,7 @@ bool Parser::parse_file(Dynamic_array<keyentry> *keys, const char *secret)
 void Parser::report_error(const char *reason, uint position)
 {
   my_printf_error(EE_READ, "%s at %s line %u, column %u",
-    MYF(ME_NOREFRESH), reason, filename, line_number, position + 1);
+    ME_ERROR_LOG, reason, filename, line_number, position + 1);
 }
 
 /*
@@ -247,16 +248,25 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
   while (isspace(*p) && *p != '\n') p++;
   if (*p != '#' && *p != '\n')
   {
-    int error;
-    p+= 100; // the number will surely end here (on a non-digit or with an overflow)
-    longlong id= my_strtoll10(p - 100, &p, &error);
-    if (error)
+    if (!isdigit(*p))
     {
       report_error("Syntax error", p - *line_ptr);
       return -1;
     }
 
-    if (id < 1 || id > UINT_MAX32)
+    longlong id = 0;
+    while (isdigit(*p))
+    {
+      id = id * 10 + *p - '0';
+      if (id > UINT_MAX32)
+      {
+        report_error("Invalid key id", p - *line_ptr);
+        return -1;
+      }
+      p++;
+    }
+
+    if (id < 1)
     {
       report_error("Invalid key id", p - *line_ptr);
       return -1;
@@ -269,7 +279,7 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
     }
 
     p++;
-    key->id= id;
+    key->id= (unsigned int)id;
     key->length=0;
     while (isxdigit(p[0]) && isxdigit(p[1]) && key->length < sizeof(key->key))
     {
@@ -295,26 +305,35 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
    'secret'.  Store the content of the decrypted file in 'buffer'. The
    buffer has to be freed in the calling function.
  */
+#ifdef _WIN32
+#define lseek _lseeki64
+#endif
 
 char* Parser::read_and_decrypt_file(const char *secret)
 {
+  int f;
   if (!filename || !filename[0])
   {
-    my_printf_error(EE_CANT_OPEN_STREAM,
-                    "file-key-management-filename is not set",
-                    MYF(ME_NOREFRESH));
+    my_printf_error(EE_CANT_OPEN_STREAM, "file-key-management-filename is not set",
+                    ME_ERROR_LOG);
     goto err0;
   }
 
-  int f;
-  if ((f= my_open(filename, O_RDONLY, MYF(MY_WME))) < 0)
+  f= open(filename, O_RDONLY|O_BINARY, 0);
+  if (f < 0)
+  {
+    my_error(EE_FILENOTFOUND, ME_ERROR_LOG, filename, errno);
     goto err0;
+  }
 
   my_off_t file_size;
-  file_size= my_seek(f, 0, SEEK_END, MYF(MY_WME));
+  file_size= lseek(f, 0, SEEK_END);
 
-  if (file_size == MY_FILEPOS_ERROR)
+  if (file_size == MY_FILEPOS_ERROR || (my_off_t)lseek(f, 0, SEEK_SET) == MY_FILEPOS_ERROR)
+  {
+    my_error(EE_CANT_SEEK, MYF(0), filename, errno);
     goto err1;
+  }
 
   if (file_size > MAX_KEY_FILE_SIZE)
   {
@@ -324,57 +343,67 @@ char* Parser::read_and_decrypt_file(const char *secret)
 
   //Read file into buffer
   uchar *buffer;
-  buffer= (uchar*)my_malloc(file_size + 1, MYF(MY_WME));
+  buffer= (uchar*)malloc((size_t)file_size + 1);
   if (!buffer)
+  {
+    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG| ME_FATAL, file_size);
     goto err1;
+  }
 
-  if (my_pread(f, buffer, file_size, 0, MYF(MY_WME)) != file_size)
+  if (read(f, buffer, (int)file_size) != (int)file_size)
+  {
+    my_printf_error(EE_READ,
+      "read from %s failed, errno %d",
+      MYF(ME_ERROR_LOG|ME_FATAL), filename, errno);
     goto err2;
+  }
 
 // Check for file encryption
   uchar *decrypted;
-  if (file_size > OpenSSL_prefix_len && is_prefix((char*)buffer, OpenSSL_prefix))
+  if (file_size > OpenSSL_prefix_len && strncmp((char*)buffer, OpenSSL_prefix, OpenSSL_prefix_len) == 0)
   {
     uchar key[OpenSSL_key_len];
     uchar iv[OpenSSL_iv_len];
 
-    decrypted= (uchar*)my_malloc(file_size, MYF(MY_WME));
+    decrypted= (uchar*)malloc((size_t)file_size);
     if (!decrypted)
+    {
+      my_error(EE_OUTOFMEMORY, ME_ERROR_LOG | ME_FATAL, file_size);
       goto err2;
-
+    }
     bytes_to_key(buffer + OpenSSL_prefix_len, secret, key, iv);
     uint32 d_size;
     if (my_aes_crypt(MY_AES_CBC, ENCRYPTION_FLAG_DECRYPT,
                      buffer + OpenSSL_prefix_len + OpenSSL_salt_len,
-                     file_size - OpenSSL_prefix_len - OpenSSL_salt_len,
+                     (unsigned int)file_size - OpenSSL_prefix_len - OpenSSL_salt_len,
                      decrypted, &d_size, key, OpenSSL_key_len,
                      iv, OpenSSL_iv_len))
 
     {
-      my_printf_error(EE_READ, "Cannot decrypt %s. Wrong key?", MYF(ME_NOREFRESH), filename);
+      my_printf_error(EE_READ, "Cannot decrypt %s. Wrong key?", ME_ERROR_LOG, filename);
       goto err3;
     }
 
-    my_free(buffer);
+    free(buffer);
     buffer= decrypted;
     file_size= d_size;
   }
   else if (*secret)
   {
-    my_printf_error(EE_READ, "Cannot decrypt %s. Not encrypted", MYF(ME_NOREFRESH), filename);
+    my_printf_error(EE_READ, "Cannot decrypt %s. Not encrypted", ME_ERROR_LOG, filename);
     goto err2;
   }
 
   buffer[file_size]= '\0';
-  my_close(f, MYF(MY_WME));
+  close(f);
   return (char*) buffer;
 
 err3:
-  my_free(decrypted);
+  free(decrypted);
 err2:
-  my_free(buffer);
+  free(buffer);
 err1:
-  my_close(f, MYF(MY_WME));
+  close(f);
 err0:
   return NULL;
 }

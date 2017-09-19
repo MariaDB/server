@@ -40,15 +40,66 @@ matrix:
   include:
     - os: linux
       compiler: gcc
+      addons:
+        apt:
+          packages: # make sure these match debian/control contents
+            - bison
+            - chrpath
+            - cmake
+            - debhelper
+            - dh-apparmor
+            - dpatch
+            - gdb
+            - libaio-dev
+            - libboost-dev
+            - libcurl3-dev
+            - libdbd-mysql
+            - libjudy-dev
+            - libncurses5-dev
+            - libpam0g-dev
+            - libpcre3-dev
+            - libreadline-gplv2-dev
+            - libstemmer-dev
+            - libssl-dev
+            - libnuma-dev
+            - libxml2-dev
+            - lsb-release
+            - perl
+            - po-debconf
+            - psmisc
+            - zlib1g-dev
+            - libcrack2-dev
+            - cracklib-runtime
+            - libjemalloc-dev
+            - libsnappy-dev
+            - liblzma-dev
+            - libzmq-dev
+            - libdistro-info-perl
+            - uuid-dev
+            - devscripts
+            - fakeroot
       script:
         - ${CC} --version ; ${CXX} --version
-      # Just for disabling hotcopy tests for now
         - source .travis.compiler.sh
       # https://github.com/travis-ci/travis-ci/issues/7062 - /run/shm isn't writable or executable
       # in trusty containers
         - export MTR_MEM=/tmp
         - env DEB_BUILD_OPTIONS="parallel=6" debian/autobake-deb.sh;
         - ccache --show-stats
+  # Until OSX becomes a bit more stable: MDEV-12435
+  allow_failures:
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
 
 # Matrix include for coverity
 #    - env:
@@ -85,29 +136,26 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-trusty
-      - llvm-toolchain-trusty-3.9
       - llvm-toolchain-trusty-4.0
-    packages: # make sure these match debian/control contents
+      - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main'
+    packages: # make sure these match the build requirements
       - gcc-5
       - g++-5
       - gcc-6
       - g++-6
-      - clang-3.9
-      - llvm-3.9-dev
       - clang-4.0
       - llvm-4.0-dev
+      - clang-5.0
+      - llvm-5.0-dev
       - libasan0
       - bison
       - chrpath
       - cmake
-      - debhelper
-      - dh-apparmor
-      - dpatch
       - gdb
       - libaio-dev
       - libboost-dev
       - libcurl3-dev
+      - libdbd-mysql
       - libjudy-dev
       - libncurses5-dev
       - libpam0g-dev
@@ -119,16 +167,15 @@ addons:
       - libxml2-dev
       - lsb-release
       - perl
-      - po-debconf
       - psmisc
       - zlib1g-dev
       - libcrack2-dev
+      - cracklib-runtime
       - libjemalloc-dev
       - libsnappy-dev
       - liblzma-dev
       - libzmq-dev
-      - libdistro-info-perl
-      - devscripts # implicit for any build on Ubuntu
+      - uuid-dev
 
 # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
 

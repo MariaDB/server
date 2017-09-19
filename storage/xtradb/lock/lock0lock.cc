@@ -921,12 +921,18 @@ lock_reset_lock_and_trx_wait(
 		const char*	stmt2=NULL;
 		size_t		stmt_len;
 		trx_id_t trx_id = 0;
-		stmt = innobase_get_stmt(lock->trx->mysql_thd, &stmt_len);
+		stmt = lock->trx->mysql_thd
+			? innobase_get_stmt(lock->trx->mysql_thd, &stmt_len)
+			: NULL;
 
 		if (lock->trx->lock.wait_lock &&
 			lock->trx->lock.wait_lock->trx) {
 			trx_id = lock->trx->lock.wait_lock->trx->id;
-			stmt2 = innobase_get_stmt(lock->trx->lock.wait_lock->trx->mysql_thd, &stmt_len);
+			stmt2 = lock->trx->lock.wait_lock->trx->mysql_thd
+				? innobase_get_stmt(
+					lock->trx->lock.wait_lock
+					->trx->mysql_thd, &stmt_len)
+				: NULL;
 		}
 
 		ib_logf(IB_LOG_LEVEL_INFO,
@@ -1915,7 +1921,7 @@ lock_sec_rec_some_has_impl(
 
 	} else if (!lock_check_trx_id_sanity(max_trx_id, rec, index, offsets)) {
 
-		buf_page_print(page, 0, 0);
+		buf_page_print(page, 0);
 
 		/* The page is corrupt: try to avoid a crash by returning 0 */
 		trx_id = 0;
@@ -5636,13 +5642,11 @@ lock_rec_unlock(
 	trx_mutex_exit(trx);
 
 	stmt = innobase_get_stmt(trx->mysql_thd, &stmt_len);
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: Error: unlock row could not"
-		" find a %lu mode lock on the record\n",
-		(ulong) lock_mode);
-	ut_print_timestamp(stderr);
-	fprintf(stderr, " InnoDB: current statement: %.*s\n",
+
+	ib_logf(IB_LOG_LEVEL_ERROR,
+		"unlock row could not find a %u mode lock on the record;"
+		" statement=%.*s",
+		lock_mode,
 		(int) stmt_len, stmt);
 
 	return;

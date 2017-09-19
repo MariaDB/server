@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1399,12 +1399,14 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 	state= MY_LEX_HEX_NUMBER;
 	break;
       }
+      /* fall through */
     case MY_LEX_IDENT_OR_BIN:
       if (lip->yyPeek() == '\'')
       {                                 // Found b'bin-number'
         state= MY_LEX_BIN_NUMBER;
         break;
       }
+      /* fall through */
     case MY_LEX_IDENT:
       const char *start;
 #if defined(USE_MB) && defined(USE_MB_IDENT)
@@ -1741,6 +1743,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 	break;
       }
       /* " used for strings */
+      /* fall through */
     case MY_LEX_STRING:			// Incomplete text string
     {
       uint sep;
@@ -2094,6 +2097,7 @@ void st_select_lex::init_query()
   leaf_tables_prep.empty();
   leaf_tables.empty();
   item_list.empty();
+  min_max_opt_list.empty();
   join= 0;
   having= prep_having= where= prep_where= 0;
   cond_pushed_into_where= cond_pushed_into_having= 0;
@@ -2667,18 +2671,8 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
       MIN/MAX rewrite in Item_in_subselect::single_value_transformer.
       In the usual case we can reuse the array from the prepare phase.
       If we need a bigger array, we must allocate a new one.
-    */
-    if (ref_pointer_array.size() == n_elems)
-      return false;
-
-    /*
-      We need to take 'n_sum_items' into account when allocating the array,
-      and this may actually increase during the optimization phase due to
-      MIN/MAX rewrite in Item_in_subselect::single_value_transformer.
-      In the usual case we can reuse the array from the prepare phase.
-      If we need a bigger array, we must allocate a new one.
      */
-    if (ref_pointer_array.size() == n_elems)
+    if (ref_pointer_array.size() >= n_elems)
       return false;
    }
   Item **array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
@@ -4401,10 +4395,16 @@ void st_select_lex::set_explain_type(bool on_the_fly)
         if (join)
         {
           bool uses_cte= false;
-          for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
-               tab= next_explain_order_tab(join, tab))
+          for (JOIN_TAB *tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS,
+                                                     WITH_CONST_TABLES);
+               tab;
+               tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
           {
-            if (tab->table && tab->table->pos_in_table_list->with)
+            /*
+              pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
+            */
+            if (tab->table && tab->table->pos_in_table_list &&
+                tab->table->pos_in_table_list->with)
             {
               uses_cte= true;
               break;
@@ -5002,8 +5002,9 @@ void st_select_lex::collect_grouping_fields(THD *thd)
     from cond.
 */ 
 
-void st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
-                                              Item_processor check_processor)
+void 
+st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
+                                                         TABLE_LIST *derived)
 {
   cond->clear_extraction_flag();
   if (cond->type() == Item::COND_ITEM)
@@ -5016,7 +5017,7 @@ void st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
     Item *item;
     while ((item=li++))
     {
-      check_cond_extraction_for_grouping_fields(item, check_processor);
+      check_cond_extraction_for_grouping_fields(item, derived);
       if (item->get_extraction_flag() !=  NO_EXTRACTION_FL)
       {
         count++;
@@ -5037,10 +5038,12 @@ void st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
         item->clear_extraction_flag();
     }
   }
-  else 
-    cond->set_extraction_flag(cond->walk(check_processor, 
-				   0, (uchar *) this) ?
-     NO_EXTRACTION_FL : FULL_EXTRACTION_FL);
+  else
+  {
+    int fl= cond->excl_dep_on_grouping_fields(this) ?
+      FULL_EXTRACTION_FL : NO_EXTRACTION_FL;
+    cond->set_extraction_flag(fl);
+  }
 }
 
 

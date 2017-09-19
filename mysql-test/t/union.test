@@ -1405,6 +1405,20 @@ drop table t1;
 
 --echo End of 5.0 tests
 
+#
+#  Bug #24595639: INCORRECT BEHAVIOR IN QUERY WITH UNION AND GROUP BY
+#
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+create table t2 (c varchar(30), d varchar(30));
+insert into t1 values ('1','1'),('2','2'),('4','4');
+create table t3 (e int, f int);
+insert into t3 values (1,1),(2,2),(31,31),(32,32);
+select e,f, (e , f) in (select e,b from t1 union select c,d from t2) as sub from t3;
+select avg(f), (e , f) in (select e,b from t1 union select c,d from t2) as sub from t3 group by sub;
+drop table t1,t2,t3;
+
+--echo End of 5.5 tests
 
 --echo #
 --echo # WL#1763 Avoid creating temporary table in UNION ALL
@@ -1507,3 +1521,28 @@ SELECT * FROM t1 t1_1 LEFT JOIN t1 t1_2 ON ( t1_2.b = t1_1.a )
   WHERE t1_2.b NOT IN ( SELECT 4 UNION ALL SELECT 5 );
 
 DROP TABLE t1;
+
+--echo #
+--echo # Bug mdev-12788: UNION ALL + impossible having for derived
+--echo #                 with IN subquery in WHERE
+--echo #
+
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (pk int PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+
+let $q=
+SELECT 1, 2
+UNION ALL
+SELECT i, COUNT(*) FROM (
+  SELECT * FROM t1 WHERE i IN ( SELECT pk FROM t2 )
+) AS sq
+GROUP BY i
+HAVING i = 10;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+DROP TABLE t1,t2;

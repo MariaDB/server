@@ -681,7 +681,7 @@ public:
     in_partitioning_expr= TRUE;
   }
   inline bool is_equal(const Virtual_column_info* vcol) const;
-  void print(String*);
+  inline void print(String*);
 };
 
 class Field: public Value_source
@@ -3092,6 +3092,7 @@ private:
 
 
 class Field_varstring :public Field_longstr {
+public:
   uchar *get_data() const
   {
     return ptr + length_bytes;
@@ -3100,7 +3101,6 @@ class Field_varstring :public Field_longstr {
   {
     return length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
   }
-public:
   /*
     The maximum space available in a Field_varstring, in bytes. See
     length_bytes.

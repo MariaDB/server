@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,12 +24,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef	XA_H
 #define	XA_H
 
-/* Missing MySQL 5.7 header */
-#ifdef HAVE_XA_H
-#include "xa.h"
-#else
 #include "handler.h"
-#endif
 
 /*
  * Transaction branch identification: XID and NULLXID:

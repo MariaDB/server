@@ -888,6 +888,12 @@ dict_index_get_nth_col_or_prefix_pos(
 
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+	ut_ad((inc_prefix && !prefix_col_pos) || (!inc_prefix));
+
+	if (!prefix_col_pos) {
+		prefix_col_pos = &prefixed_pos_dummy;
+	}
+	*prefix_col_pos = ULINT_UNDEFINED;
 
 	if (!prefix_col_pos) {
 		prefix_col_pos = &prefixed_pos_dummy;
@@ -1185,12 +1191,29 @@ dict_table_open_on_name(
 
 	if (table != NULL) {
 
-		/* If table is encrypted return table */
+		/* If table is encrypted or corrupted */
 		if (ignore_err == DICT_ERR_IGNORE_NONE
-			&& table->is_encrypted) {
+		    && !table->is_readable()) {
 			/* Make life easy for drop table. */
 			if (table->can_be_evicted) {
 				dict_table_move_from_lru_to_non_lru(table);
+			}
+
+			if (table->corrupted) {
+
+				if (!dict_locked) {
+					mutex_exit(&dict_sys->mutex);
+				}
+
+				char		buf[MAX_FULL_NAME_LEN];
+				ut_format_name(table->name, TRUE, buf, sizeof(buf));
+
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Table %s is corrupted. Please "
+					"drop the table and recreate.",
+					buf);
+
+				return(NULL);
 			}
 
 			if (table->can_be_evicted) {
@@ -1204,28 +1227,6 @@ dict_table_open_on_name(
 			}
 
 			return (table);
-		}
-		/* If table is corrupted, return NULL */
-		else if (ignore_err == DICT_ERR_IGNORE_NONE
-		    && table->corrupted) {
-
-			/* Make life easy for drop table. */
-			if (table->can_be_evicted) {
-				dict_table_move_from_lru_to_non_lru(table);
-			}
-
-			if (!dict_locked) {
-				mutex_exit(&dict_sys->mutex);
-			}
-
-			ut_print_timestamp(stderr);
-
-			fprintf(stderr, "  InnoDB: table ");
-			ut_print_name(stderr, NULL, TRUE, table->name);
-			fprintf(stderr, "is corrupted. Please drop the table "
-				"and recreate\n");
-
-			return(NULL);
 		}
 
 		if (table->can_be_evicted) {
@@ -1394,9 +1395,6 @@ dict_table_add_to_cache(
 	dict_table_autoinc_restore(table);
 
 	ut_ad(dict_lru_validate());
-
-	dict_sys->size += mem_heap_get_size(table->heap)
-		+ strlen(table->name) + 1;
 }
 
 /**********************************************************************//**
@@ -1811,9 +1809,6 @@ dict_table_rename_in_cache(
 	HASH_INSERT(dict_table_t, name_hash, dict_sys->table_hash, fold,
 		    table);
 
-	dict_sys->size += strlen(new_name) - strlen(old_name);
-	ut_a(dict_sys->size > 0);
-
 	/* Update the table_name field in indexes */
 	for (index = dict_table_get_first_index(table);
 	     index != NULL;
@@ -2100,7 +2095,6 @@ dict_table_remove_from_cache_low(
 {
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
-	ulint		size;
 
 	ut_ad(table);
 	ut_ad(dict_lru_validate());
@@ -2179,12 +2173,6 @@ dict_table_remove_from_cache_low(
 		trx->dict_operation_lock_mode = 0;
 		trx_free_for_background(trx);
 	}
-
-	size = mem_heap_get_size(table->heap) + strlen(table->name) + 1;
-
-	ut_ad(dict_sys->size >= size);
-
-	dict_sys->size -= size;
 
 	dict_mem_table_free(table);
 }
@@ -2429,9 +2417,13 @@ dict_index_too_big_for_tree(
 		rec_max_size = 2;
 	} else {
 		/* The maximum allowed record size is half a B-tree
-		page.  No additional sparse page directory entry will
-		be generated for the first few user records. */
-		page_rec_max = page_get_free_space_of_empty(comp) / 2;
+		page(16k for 64k page size).  No additional sparse
+		page directory entry will be generated for the first
+		few user records. */
+		page_rec_max = (comp || UNIV_PAGE_SIZE < UNIV_PAGE_SIZE_MAX)
+			? page_get_free_space_of_empty(comp) / 2
+			: REDUNDANT_REC_MAX_DATA_SIZE;
+
 		page_ptr_max = page_rec_max;
 		/* Each record has a header. */
 		rec_max_size = comp
@@ -2515,7 +2507,6 @@ add_field_size:
 
 		/* Check the size limit on leaf pages. */
 		if (UNIV_UNLIKELY(rec_max_size >= page_rec_max)) {
-
 			return(TRUE);
 		}
 
@@ -2728,8 +2719,6 @@ undo_size_ok:
 		       dict_index_is_ibuf(index)
 		       ? SYNC_IBUF_INDEX_TREE : SYNC_INDEX_TREE);
 
-	dict_sys->size += mem_heap_get_size(new_index->heap);
-
 	dict_mem_index_free(index);
 
 	return(DB_SUCCESS);
@@ -2746,7 +2735,6 @@ dict_index_remove_from_cache_low(
 	ibool		lru_evict)	/*!< in: TRUE if index being evicted
 					to make room in the table LRU list */
 {
-	ulint		size;
 	ulint		retries = 0;
 	btr_search_t*	info;
 
@@ -2814,12 +2802,6 @@ dict_index_remove_from_cache_low(
 
 	/* Remove the index from the list of indexes of the table */
 	UT_LIST_REMOVE(indexes, table->indexes, index);
-
-	size = mem_heap_get_size(index->heap);
-
-	ut_ad(dict_sys->size >= size);
-
-	dict_sys->size -= size;
 
 	dict_mem_index_free(index);
 }
@@ -6183,9 +6165,27 @@ dict_set_corrupted_by_space(
 
 	/* mark the table->corrupted bit only, since the caller
 	could be too deep in the stack for SYS_INDEXES update */
-	table->corrupted = TRUE;
+	table->corrupted = true;
+	table->file_unreadable = true;
 
 	return(TRUE);
+}
+
+
+/** Flags a table with specified space_id encrypted in the data dictionary
+cache
+@param[in]	space_id	Tablespace id */
+UNIV_INTERN
+void
+dict_set_encrypted_by_space(ulint	space_id)
+{
+	dict_table_t*   table;
+
+	table = dict_find_table_by_space(space_id);
+
+	if (table) {
+		table->file_unreadable = true;
+	}
 }
 
 /**********************************************************************//**
@@ -6325,43 +6325,6 @@ dict_set_corrupted_index_cache_only(
 	index->type |= DICT_CORRUPT;
 }
 
-/*************************************************************************
-set is_corrupt flag by space_id*/
-
-void
-dict_table_set_corrupt_by_space(
-/*============================*/
-	ulint	space_id,
-	ibool	need_mutex)
-{
-	dict_table_t*	table;
-	ibool		found = FALSE;
-
-	ut_a(space_id != 0 && space_id < SRV_LOG_SPACE_FIRST_ID);
-
-	if (need_mutex)
-		mutex_enter(&(dict_sys->mutex));
-
-	table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
-
-	while (table) {
-		if (table->space == space_id) {
-			table->is_corrupt = TRUE;
-			found = TRUE;
-		}
-
-		table = UT_LIST_GET_NEXT(table_LRU, table);
-	}
-
-	if (need_mutex)
-		mutex_exit(&(dict_sys->mutex));
-
-	if (!found) {
-		fprintf(stderr, "InnoDB: space to be marked as "
-			"crashed was not found for id " ULINTPF ".\n",
-			space_id);
-	}
-}
 #endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
@@ -6683,7 +6646,8 @@ dict_table_schema_check(
 		}
 	}
 
-	if (table->ibd_file_missing) {
+	if (!table->is_readable() &&
+	    fil_space_get(table->space) == NULL) {
 		/* missing tablespace */
 
 		ut_snprintf(errstr, errstr_sz,
@@ -7340,3 +7304,38 @@ dict_tf_to_row_format_string(
 	return(0);
 }
 #endif /* !UNIV_HOTBACKUP */
+
+/** Calculate the used memory occupied by the data dictionary
+table and index objects.
+@return number of bytes occupied. */
+UNIV_INTERN
+ulint
+dict_sys_get_size()
+{
+	ulint size = 0;
+
+	ut_ad(dict_sys);
+
+	mutex_enter(&dict_sys->mutex);
+
+	for(ulint i = 0; i < hash_get_n_cells(dict_sys->table_hash); i++) {
+		dict_table_t* table;
+
+		for (table = static_cast<dict_table_t*>(HASH_GET_FIRST(dict_sys->table_hash,i));
+		     table != NULL;
+		     table = static_cast<dict_table_t*>(HASH_GET_NEXT(name_hash, table))) {
+			dict_index_t* index;
+			size += mem_heap_get_size(table->heap) + strlen(table->name) +1;
+
+			for(index = dict_table_get_first_index(table);
+			    index != NULL;
+			    index = dict_table_get_next_index(index)) {
+				size += mem_heap_get_size(index->heap);
+			}
+		}
+	}
+
+	mutex_exit(&dict_sys->mutex);
+
+	return (size);
+}

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyrigth (c) 2014, 2017, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -72,6 +72,8 @@ extern struct st_maria_plugin	i_s_innodb_sys_semaphore_waits;
 	if ((expr) != 0) {	\
 		DBUG_RETURN(1);	\
 	}
+
+#define BREAK_IF(expr) if ((expr)) break
 
 #define RETURN_IF_INNODB_NOT_STARTED(plugin_name)			\
 do {									\

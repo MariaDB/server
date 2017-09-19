@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation
+Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,43 +38,26 @@ struct dict_table_t;
 only one buffer pool instance is used. */
 #define BUF_POOL_SIZE_THRESHOLD		(1024 * 1024 * 1024)
 
-/*********************************************************************//**
-Parse temporary tablespace configuration.
-@return true if ok, false on parse error */
-bool
-srv_parse_temp_data_file_paths_and_sizes(
-/*=====================================*/
-	char*	str);	/*!< in/out: the data file path string */
-/*********************************************************************//**
-Frees the memory allocated by srv_parse_data_file_paths_and_sizes()
-and srv_parse_log_group_home_dirs(). */
-void
-srv_free_paths_and_sizes(void);
-/*==========================*/
-/*********************************************************************//**
-Adds a slash or a backslash to the end of a string if it is missing
-and the string is not empty.
-@return string which has the separator if the string is not empty */
-char*
-srv_add_path_separator_if_needed(
-/*=============================*/
-	char*	str);	/*!< in: null-terminated character string */
+/** Open the configured number of dedicated undo tablespaces.
+@param[in]	create_new_db	whether the database is being initialized
+@return DB_SUCCESS or error code */
+dberr_t
+srv_undo_tablespaces_init(bool create_new_db);
 
 /****************************************************************//**
 Starts Innobase and creates a new database if database files
 are not found and the user wants.
 @return DB_SUCCESS or error code */
 dberr_t
-innobase_start_or_create_for_mysql(void);
-/*====================================*/
+innobase_start_or_create_for_mysql();
+
 /** Shut down InnoDB. */
 void
 innodb_shutdown();
 
-/****************************************************************//**
-Shuts down background threads that can generate undo pages. */
+/** Shut down background threads that can generate undo log. */
 void
-srv_shutdown_bg_undo_sources(void);
+srv_shutdown_bg_undo_sources();
 
 /*************************************************************//**
 Copy the file path component of the physical file to parameter. It will
@@ -144,7 +127,13 @@ enum srv_shutdown_t {
 	SRV_SHUTDOWN_EXIT_THREADS/*!< Exit all threads */
 };
 
+/** Whether any undo log records can be generated */
+extern bool srv_undo_sources;
+
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
 extern	enum srv_shutdown_t	srv_shutdown_state;
+
+/** Files comprising the system tablespace */
+extern pfs_os_file_t	files[1000];
 #endif

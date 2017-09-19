@@ -2,7 +2,7 @@
 # -*- cperl -*-
 
 # Copyright (c) 2004, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2014, Monty Program Ab
+# Copyright (c) 2009, 2017, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -184,6 +184,7 @@ my @DEFAULT_SUITES= qw(
     innodb_zip-
     json-
     maria-
+    mariabackup-
     multi_source-
     optimizer_unfixed_bugs-
     parts-
@@ -196,6 +197,7 @@ my @DEFAULT_SUITES= qw(
     unit-
     vcol-
     wsrep-
+    galera-
   );
 my $opt_suites;
 
@@ -1261,10 +1263,6 @@ sub command_line_setup {
   
   fix_vs_config_dir();
 
-  # Respect MTR_BINDIR variable, which is typically set in to the 
-  # build directory in out-of-source builds.
-  $bindir=$ENV{MTR_BINDIR}||$basedir;
-  
   # Look for the client binaries directory
   if ($path_client_bindir)
   {
@@ -2278,6 +2276,16 @@ sub environment_setup {
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
 
+  my $client_config_exe=
+    mtr_exe_maybe_exists(
+        "$bindir/libmariadb/mariadb_config$opt_vs_config/mariadb_config",
+               "$bindir/bin/mariadb_config");
+  if ($client_config_exe)
+  {
+    my $tls_info= `$client_config_exe --tlsinfo`;
+    ($ENV{CLIENT_TLS_LIBRARY},$ENV{CLIENT_TLS_LIBRARY_VERSION})=
+      split(/ /, $tls_info, 2);
+  }
   my $exe_mysqld= find_mysqld($basedir);
   $ENV{'MYSQLD'}= $exe_mysqld;
   my $extra_opts= join (" ", @opt_extra_mysqld_opt);
@@ -2786,18 +2794,26 @@ sub mysql_server_start($) {
   }
 
   my $mysqld_basedir= $mysqld->value('basedir');
+  my $extra_opts= get_extra_opts($mysqld, $tinfo);
+
   if ( $basedir eq $mysqld_basedir )
   {
     if (! $opt_start_dirty)	# If dirty, keep possibly grown system db
     {
-      # Copy datadir from installed system db
-      for my $path ( "$opt_vardir", "$opt_vardir/..") {
-        my $install_db= "$path/install.db";
-        copytree($install_db, $datadir)
-          if -d $install_db;
+      # Some InnoDB options are incompatible with the default bootstrap.
+      # If they are used, re-bootstrap
+      if ( $extra_opts and
+           "@$extra_opts" =~ /--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)/ )
+      {
+        mysql_install_db($mysqld, undef, $extra_opts);
       }
-      mtr_error("Failed to copy system db to '$datadir'")
-        unless -d $datadir;
+      else {
+        # Copy datadir from installed system db
+        my $path= ($opt_parallel == 1) ? "$opt_vardir" : "$opt_vardir/..";
+        my $install_db= "$path/install.db";
+        copytree($install_db, $datadir) if -d $install_db;
+        mtr_error("Failed to copy system db to '$datadir'") unless -d $datadir;
+      }
     }
   }
   else
@@ -2836,7 +2852,6 @@ sub mysql_server_start($) {
 
   if (!$opt_embedded_server)
   {
-    my $extra_opts= get_extra_opts($mysqld, $tinfo);
     mysqld_start($mysqld,$extra_opts);
 
     # Save this test case information, so next can examine it
@@ -3060,7 +3075,7 @@ sub default_mysqld {
 
 
 sub mysql_install_db {
-  my ($mysqld, $datadir)= @_;
+  my ($mysqld, $datadir, $extra_opts)= @_;
 
   my $install_datadir= $datadir || $mysqld->value('datadir');
   my $install_basedir= $mysqld->value('basedir');
@@ -3072,17 +3087,20 @@ sub mysql_install_db {
   my $args;
   mtr_init_args(\$args);
   mtr_add_arg($args, "--no-defaults");
+  mtr_add_arg($args, "--disable-getopt-prefix-matching");
   mtr_add_arg($args, "--bootstrap");
   mtr_add_arg($args, "--basedir=%s", $install_basedir);
   mtr_add_arg($args, "--datadir=%s", $install_datadir);
+  mtr_add_arg($args, "--plugin-dir=%s", $plugindir);
   mtr_add_arg($args, "--default-storage-engine=myisam");
-  mtr_add_arg($args, "--skip-plugin-$_") for @optional_plugins;
+  mtr_add_arg($args, "--loose-skip-plugin-$_") for @optional_plugins;
   # starting from 10.0 bootstrap scripts require InnoDB
   mtr_add_arg($args, "--loose-innodb");
   mtr_add_arg($args, "--loose-innodb-log-file-size=5M");
   mtr_add_arg($args, "--disable-sync-frm");
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
+  mtr_add_arg($args, "--console");
 
   if ( $opt_debug )
   {
@@ -3115,97 +3133,107 @@ sub mysql_install_db {
   # ----------------------------------------------------------------------
   $ENV{'MYSQLD_BOOTSTRAP_CMD'}= "$exe_mysqld_bootstrap " . join(" ", @$args);
 
-
+  # Extra options can come not only from the command line, but also
+  # from option files or combinations. We want them on a command line
+  # that is executed now, because otherwise the datadir might be 
+  # incompatible with the test settings, but not on the general
+  # $MYSQLD_BOOTSTRAP_CMD line
+  foreach my $extra_opt ( @$extra_opts ) {
+    mtr_add_arg($args, $extra_opt);
+  }
 
   # ----------------------------------------------------------------------
   # Create the bootstrap.sql file
   # ----------------------------------------------------------------------
-  my $bootstrap_sql_file= "$opt_vardir/tmp/bootstrap.sql";
+  my $bootstrap_sql_file= "$opt_vardir/log/bootstrap.sql";
 
-  if ($opt_boot_gdb) {
-    gdb_arguments(\$args, \$exe_mysqld_bootstrap, $mysqld->name(),
-		  $bootstrap_sql_file);
-  }
-  if ($opt_boot_dbx) {
-    dbx_arguments(\$args, \$exe_mysqld_bootstrap, $mysqld->name(),
-		  $bootstrap_sql_file);
-  }
-  if ($opt_boot_ddd) {
-    ddd_arguments(\$args, \$exe_mysqld_bootstrap, $mysqld->name(),
-		  $bootstrap_sql_file);
-  }
-
-  my $path_sql= my_find_file($install_basedir,
-			     ["mysql", "sql/share", "share/mariadb",
-			      "share/mysql", "share", "scripts"],
-			     "mysql_system_tables.sql",
-			     NOT_REQUIRED);
-
-  if (-f $path_sql )
+  if (! -e $bootstrap_sql_file)
   {
-    my $sql_dir= dirname($path_sql);
-    # Use the mysql database for system tables
-    mtr_tofile($bootstrap_sql_file, "use mysql;\n");
+    if ($opt_boot_gdb) {
+      gdb_arguments(\$args, \$exe_mysqld_bootstrap, $mysqld->name(),
+        $bootstrap_sql_file);
+    }
+    if ($opt_boot_dbx) {
+      dbx_arguments(\$args, \$exe_mysqld_bootstrap, $mysqld->name(),
+        $bootstrap_sql_file);
+    }
+    if ($opt_boot_ddd) {
+      ddd_arguments(\$args, \$exe_mysqld_bootstrap, $mysqld->name(),
+        $bootstrap_sql_file);
+    }
 
-    # Add the offical mysql system tables
-    # for a production system
-    mtr_appendfile_to_file("$sql_dir/mysql_system_tables.sql",
-			   $bootstrap_sql_file);
+    my $path_sql= my_find_file($install_basedir,
+             ["mysql", "sql/share", "share/mariadb",
+              "share/mysql", "share", "scripts"],
+             "mysql_system_tables.sql",
+             NOT_REQUIRED);
 
-    # Add the performance tables
-    # for a production system
-    mtr_appendfile_to_file("$sql_dir/mysql_performance_tables.sql",
-                          $bootstrap_sql_file);
+    if (-f $path_sql )
+    {
+      my $sql_dir= dirname($path_sql);
+      # Use the mysql database for system tables
+      mtr_tofile($bootstrap_sql_file, "use mysql;\n");
 
-    # Add the mysql system tables initial data
-    # for a production system
-    mtr_appendfile_to_file("$sql_dir/mysql_system_tables_data.sql",
-			   $bootstrap_sql_file);
+      # Add the offical mysql system tables
+      # for a production system
+      mtr_appendfile_to_file("$sql_dir/mysql_system_tables.sql",
+           $bootstrap_sql_file);
 
-    # Add test data for timezone - this is just a subset, on a real
-    # system these tables will be populated either by mysql_tzinfo_to_sql
-    # or by downloading the timezone table package from our website
-    mtr_appendfile_to_file("$sql_dir/mysql_test_data_timezone.sql",
-			   $bootstrap_sql_file);
+      # Add the performance tables
+      # for a production system
+      mtr_appendfile_to_file("$sql_dir/mysql_performance_tables.sql",
+                            $bootstrap_sql_file);
 
-    # Fill help tables, just an empty file when running from bk repo
-    # but will be replaced by a real fill_help_tables.sql when
-    # building the source dist
-    mtr_appendfile_to_file("$sql_dir/fill_help_tables.sql",
-			   $bootstrap_sql_file);
+      # Add the mysql system tables initial data
+      # for a production system
+      mtr_appendfile_to_file("$sql_dir/mysql_system_tables_data.sql",
+           $bootstrap_sql_file);
 
-    # mysql.gtid_slave_pos was created in InnoDB, but many tests
-    # run without InnoDB. Alter it to MyISAM now
-    mtr_tofile($bootstrap_sql_file, "ALTER TABLE gtid_slave_pos ENGINE=MyISAM;\n");
-  }
-  else
-  {
-    # Install db from init_db.sql that exist in early 5.1 and 5.0
-    # versions of MySQL
-    my $init_file= "$install_basedir/mysql-test/lib/init_db.sql";
-    mtr_report(" - from '$init_file'");
-    my $text= mtr_grab_file($init_file) or
-      mtr_error("Can't open '$init_file': $!");
+      # Add test data for timezone - this is just a subset, on a real
+      # system these tables will be populated either by mysql_tzinfo_to_sql
+      # or by downloading the timezone table package from our website
+      mtr_appendfile_to_file("$sql_dir/mysql_test_data_timezone.sql",
+           $bootstrap_sql_file);
 
+      # Fill help tables, just an empty file when running from bk repo
+      # but will be replaced by a real fill_help_tables.sql when
+      # building the source dist
+      mtr_appendfile_to_file("$sql_dir/fill_help_tables.sql",
+           $bootstrap_sql_file);
+
+      # mysql.gtid_slave_pos was created in InnoDB, but many tests
+      # run without InnoDB. Alter it to MyISAM now
+      mtr_tofile($bootstrap_sql_file, "ALTER TABLE gtid_slave_pos ENGINE=MyISAM;\n");
+    }
+    else
+    {
+      # Install db from init_db.sql that exist in early 5.1 and 5.0
+      # versions of MySQL
+      my $init_file= "$install_basedir/mysql-test/lib/init_db.sql";
+      mtr_report(" - from '$init_file'");
+      my $text= mtr_grab_file($init_file) or
+        mtr_error("Can't open '$init_file': $!");
+
+      mtr_tofile($bootstrap_sql_file,
+           sql_to_bootstrap($text));
+    }
+
+    # Remove anonymous users
     mtr_tofile($bootstrap_sql_file,
-	       sql_to_bootstrap($text));
+         "DELETE FROM mysql.user where user= '';\n");
+
+    # Create mtr database
+    mtr_tofile($bootstrap_sql_file,
+         "CREATE DATABASE mtr CHARSET=latin1;\n");
+
+    # Add help tables and data for warning detection and supression
+    mtr_tofile($bootstrap_sql_file,
+               sql_to_bootstrap(mtr_grab_file("include/mtr_warnings.sql")));
+
+    # Add procedures for checking server is restored after testcase
+    mtr_tofile($bootstrap_sql_file,
+               sql_to_bootstrap(mtr_grab_file("include/mtr_check.sql")));
   }
-
-  # Remove anonymous users
-  mtr_tofile($bootstrap_sql_file,
-	     "DELETE FROM mysql.user where user= '';\n");
-
-  # Create mtr database
-  mtr_tofile($bootstrap_sql_file,
-	     "CREATE DATABASE mtr CHARSET=latin1;\n");
-
-  # Add help tables and data for warning detection and supression
-  mtr_tofile($bootstrap_sql_file,
-             sql_to_bootstrap(mtr_grab_file("include/mtr_warnings.sql")));
-
-  # Add procedures for checking server is restored after testcase
-  mtr_tofile($bootstrap_sql_file,
-             sql_to_bootstrap(mtr_grab_file("include/mtr_check.sql")));
 
   # Log bootstrap command
   my $path_bootstrap_log= "$opt_vardir/log/bootstrap.log";
@@ -3985,12 +4013,13 @@ sub run_testcase ($$) {
     {
       my $res= $test->exit_status();
 
-      if ($res == 0 and $opt_warnings and check_warnings($tinfo) )
+      if (($res == 0 or $res == 62) and $opt_warnings and check_warnings($tinfo) )
       {
-	# Test case suceeded, but it has produced unexpected
-	# warnings, continue in $res == 1
-	$res= 1;
-	resfile_output($tinfo->{'warnings'}) if $opt_resfile;
+        # If test case suceeded, but it has produced unexpected
+        # warnings, continue with $res == 1;
+        # but if the test was skipped, it should remain skipped
+        $res= 1 if $res == 0;
+        resfile_output($tinfo->{'warnings'}) if $opt_resfile;
       }
 
       if ( $res == 0 )
@@ -4541,8 +4570,8 @@ sub check_warnings ($) {
 
   my $timeout= start_timer(check_timeout($tinfo));
 
+  my $result= 0;
   while (1){
-    my $result= 0;
     my $proc= My::SafeProcess->wait_any_timeout($timeout);
     mtr_report("Got $proc");
 
@@ -5026,13 +5055,11 @@ sub mysqld_start ($$) {
 		$path_vardir_trace, $mysqld->name());
   }
 
-  if (IS_WINDOWS)
-  {
-    # Trick the server to send output to stderr, with --console
-    if (!(grep(/^--log-error/, @$args))) {
-      mtr_add_arg($args, "--console");
-    }
-  }
+
+  # "Dynamic" version of MYSQLD_CMD is reevaluated with each mysqld_start.
+  # Use it to restart the server at testing a failing server start (e.g
+  # due to incompatible options).
+  $ENV{'MYSQLD_LAST_CMD'}= "$exe  @$args";
 
   if ( $opt_gdb || $opt_manual_gdb )
   {
@@ -5490,14 +5517,6 @@ sub start_mysqltest ($) {
     my $extra_opts= get_extra_opts($mysqld, $tinfo);
     mysqld_arguments($mysqld_args, $mysqld, $extra_opts);
     mtr_add_arg($args, "--server-arg=%s", $_) for @$mysqld_args;
-
-    if (IS_WINDOWS)
-    {
-      # Trick the server to send output to stderr, with --console
-      if (!(grep(/^--server-arg=--log-error/, @$args))) {
-        mtr_add_arg($args, "--server-arg=--console");
-      }
-    }
   }
 
   # ----------------------------------------------------------------------

@@ -4255,8 +4255,9 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
         else
           lock_type= TL_READ;
 
-        if (table_already_fk_prelocked(table_list, fk->foreign_db,
-                                       fk->foreign_table, lock_type))
+        if (table_already_fk_prelocked(prelocking_ctx->query_tables,
+                                       fk->foreign_db, fk->foreign_table,
+                                       lock_type))
           continue;
 
         TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
@@ -7067,10 +7068,13 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       split_sum_func() must be called for Window Function items, see
       Item_window_func::split_sum_func.
     */
-    if ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM &&
-	 sum_func_list) || item->with_window_func)
+    if (sum_func_list &&
+         ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM) ||
+          item->with_window_func))
+    {
       item->split_sum_func(thd, ref_pointer_array, *sum_func_list,
                            SPLIT_SUM_SELECT);
+    }
     thd->lex->current_select->select_list_tables|= item->used_tables();
     thd->lex->used_tables|= item->used_tables();
     thd->lex->current_select->cur_pos_in_select_list++;
@@ -8331,7 +8335,7 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
   if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
       !in_use->killed)
   {
-    in_use->killed= KILL_SYSTEM_THREAD;
+    in_use->set_killed(KILL_SYSTEM_THREAD);
     mysql_mutex_lock(&in_use->mysys_var->mutex);
     if (in_use->mysys_var->current_cond)
     {

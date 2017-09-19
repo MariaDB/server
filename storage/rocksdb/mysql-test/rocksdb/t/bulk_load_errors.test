@@ -21,21 +21,18 @@ INSERT INTO t1 VALUES(2);
 INSERT INTO t1 VALUES(20);
 INSERT INTO t1 VALUES(21);
 
-# This last crashes the server (intentionally) because we can't return any
-# error information from a SET <variable>=<value>
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---error 2013
+--echo # 
+--echo # In MyRocks, the following statement will intentionally crash the server.
+--echo # In MariaDB, it will cause an error
+--error ER_OVERLAPPING_KEYS
 SET rocksdb_bulk_load=0;
 
---exec grep "RocksDB: Error 197 finalizing last SST file while setting bulk loading variable" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
---exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
+--echo #
+--echo # Despite the error, bulk load operation is over so the variable value
+--echo # will be 0:
+select @@rocksdb_bulk_load;
 
-# restart the crashed server
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-
-# Make sure the error exists in the .err log and then restart the server
---enable_reconnect
---source include/wait_until_connected_again.inc
+call mtr.add_suppression('finalizing last SST file while setting bulk loading variable');
 
 TRUNCATE TABLE t1;
 

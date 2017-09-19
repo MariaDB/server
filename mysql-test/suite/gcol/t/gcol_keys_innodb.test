@@ -37,7 +37,7 @@ eval SET @@session.default_storage_engine = 'InnoDB';
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
 let $skip_spatial_index_check = 1;
-let $support_virtual_index= 0;
+let $support_virtual_index= 1;
 --source suite/gcol/inc/gcol_keys.inc
 
 if ($support_virtual_index) {

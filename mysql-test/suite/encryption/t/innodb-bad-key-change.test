@@ -2,10 +2,6 @@
 -- source include/have_file_key_management_plugin.inc
 # embedded does not support restart
 -- source include/not_embedded.inc
--- source include/not_valgrind.inc
-# Avoid CrashReporter popup on Mac
--- source include/not_crashrep.inc
--- source include/not_windows.inc
 
 #
 # MDEV-8588: Assertion failure in file ha_innodb.cc line 21140 if at least one encrypted
@@ -14,13 +10,14 @@
 
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-call mtr.add_suppression("InnoDB: The page .* in file test/.* cannot be decrypted");
-call mtr.add_suppression("mysqld: File .* not found");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[12]\\.ibd' cannot be decrypted\\.");
+call mtr.add_suppression("File '.*mysql-test.std_data.keysbad3\\.txt' not found");
 
---echo
 --echo # Start server with keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
+
+SET GLOBAL innodb_file_per_table = ON;
 
 CREATE TABLE t1 (c VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=2;
 INSERT INTO t1 VALUES ('foobar');
@@ -41,14 +38,14 @@ SELECT * FROM t1;
 
 --error ER_GET_ERRMSG
 SELECT * FROM t1;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keysbad3.txt
 -- source include/restart_mysqld.inc
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 DROP TABLE t1;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 
 #
@@ -56,10 +53,11 @@ SHOW WARNINGS;
 # line 2856 on querying a table using wrong default encryption key
 #
 
---echo # Start server with keys.txt
--- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
+--echo # Start server with keys3.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 -- source include/restart_mysqld.inc
 
+SET GLOBAL innodb_default_encryption_key_id=5;
 CREATE TABLE t2 (c VARCHAR(8), id int not null primary key, b int, key(b)) ENGINE=InnoDB ENCRYPTED=YES;
 INSERT INTO t2 VALUES ('foobar',1,2);
 
@@ -70,58 +68,50 @@ INSERT INTO t2 VALUES ('foobar',1,2);
 
 --error ER_GET_ERRMSG
 SELECT * FROM t2;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 SELECT * FROM t2 where id = 1;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 SELECT * FROM t2 where b = 1;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 INSERT INTO t2 VALUES ('tmp',3,3);
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 DELETE FROM t2 where b = 3;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 DELETE FROM t2 where id = 3;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 UPDATE t2 set b = b +1;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 OPTIMIZE TABLE t2;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
-ALTER TABLE t2 ADD COLUMN c INT;
---replace_regex /tablespace [0-9]*/tablespace /
+ALTER TABLE t2 ADD COLUMN d INT;
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 ANALYZE TABLE t2;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 TRUNCATE TABLE t2;
---replace_regex /tablespace [0-9]*/tablespace /
+--replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
---replace_regex /.*tablespace [0-9]*//
---error ER_GET_ERRMSG
+
 DROP TABLE t2;
---replace_regex /tablespace [0-9]*/tablespace /
-SHOW WARNINGS;
 
 --echo
---echo # Restart server with keys.txt
--- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
+--echo # Start server with keys2.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
-
---replace_regex /.*tablespace [0-9]*//
-DROP TABLE t2;
---replace_regex /tablespace [0-9]*/tablespace /
-SHOW WARNINGS;

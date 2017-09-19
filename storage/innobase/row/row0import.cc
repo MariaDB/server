@@ -527,7 +527,7 @@ AbstractCallback::init(
 	const page_t*		page = block->frame;
 
 	m_space_flags = fsp_header_get_flags(page);
-	if (!fsp_flags_is_valid(m_space_flags)) {
+	if (!fsp_flags_is_valid(m_space_flags, true)) {
 		ulint cflags = fsp_flags_convert_from_101(m_space_flags);
 		if (cflags == ULINT_UNDEFINED) {
 			ib::error() << "Invalid FSP_SPACE_FLAGS="
@@ -1926,6 +1926,7 @@ PageConverter::update_page(
 	case FIL_PAGE_TYPE_XDES:
 		err = set_current_xdes(
 			block->page.id.page_no(), get_frame(block));
+		/* fall through */
 	case FIL_PAGE_INODE:
 	case FIL_PAGE_TYPE_TRX_SYS:
 	case FIL_PAGE_IBUF_FREE_LIST:
@@ -1959,16 +1960,13 @@ PageConverter::validate(
 	buf_block_t*	block) UNIV_NOTHROW
 {
 	buf_frame_t*	page = get_frame(block);
-	ulint space_id = mach_read_from_4(
-		page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-	fil_space_t* space = fil_space_found_by_id(space_id);
 
 	/* Check that the page number corresponds to the offset in
 	the file. Flag as corrupt if it doesn't. Disable the check
 	for LSN in buf_page_is_corrupted() */
 
 	if (buf_page_is_corrupted(
-		false, page, get_page_size(), space)
+		false, page, get_page_size(), NULL)
 	    || (page_get_page_no(page) != offset / m_page_size.physical()
 		&& page_get_page_no(page) != 0)) {
 
@@ -2101,7 +2099,7 @@ row_import_discard_changes(
 		index->space = FIL_NULL;
 	}
 
-	table->ibd_file_missing = TRUE;
+	table->file_unreadable = true;
 
 	fil_close_tablespace(trx, table->space);
 }
@@ -3004,21 +3002,19 @@ row_import_read_v1(
 	cfg->m_n_cols = mach_read_from_4(ptr);
 
 	if (!dict_tf_is_valid(cfg->m_flags)) {
+		ib_errf(thd, IB_LOG_LEVEL_ERROR,
+			ER_TABLE_SCHEMA_MISMATCH,
+			"Invalid table flags: " ULINTPF, cfg->m_flags);
 
 		return(DB_CORRUPTION);
-
-	} else if ((err = row_import_read_columns(file, thd, cfg))
-		   != DB_SUCCESS) {
-
-		return(err);
-
-	} else  if ((err = row_import_read_indexes(file, thd, cfg))
-		   != DB_SUCCESS) {
-
-		return(err);
 	}
 
-	ut_a(err == DB_SUCCESS);
+	err = row_import_read_columns(file, thd, cfg);
+
+	if (err == DB_SUCCESS) {
+		err = row_import_read_indexes(file, thd, cfg);
+	}
+
 	return(err);
 }
 
@@ -3357,7 +3353,7 @@ row_import_for_mysql(
 
 	ut_a(table->space);
 	ut_ad(prebuilt->trx);
-	ut_a(table->ibd_file_missing);
+	ut_a(!table->is_readable());
 
 	ibuf_delete_for_discarded_space(table->space);
 
@@ -3558,7 +3554,7 @@ row_import_for_mysql(
 
 	err = fil_ibd_open(
 		true, true, FIL_TYPE_IMPORT, table->space,
-		fsp_flags, table->name.m_name, filepath, table);
+		fsp_flags, table->name.m_name, filepath);
 
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
 			err = DB_TABLESPACE_NOT_FOUND;);
@@ -3691,7 +3687,7 @@ row_import_for_mysql(
 		return(row_import_error(prebuilt, trx, err));
 	}
 
-	table->ibd_file_missing = false;
+	table->file_unreadable = false;
 	table->flags2 &= ~DICT_TF2_DISCARDED;
 
 	/* Set autoinc value read from .cfg file, if one was specified.

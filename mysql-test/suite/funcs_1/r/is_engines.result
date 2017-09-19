@@ -64,7 +64,7 @@ INSERT INTO information_schema.engines
 SELECT * FROM information_schema.engines;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 UPDATE information_schema.engines SET engine = '1234567';
-ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+Got one of the listed errors
 DELETE FROM information_schema.engines WHERE support IN ('DEFAULT','YES');
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 TRUNCATE information_schema.engines;

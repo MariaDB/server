@@ -1,0 +1,91 @@
+# Set the environmental variables
+call mtr.add_suppression("InnoDB: Unable to read tablespace .* page no .* into the buffer pool after 100 attempts");
+call mtr.add_suppression("InnoDB: Warning: database page corruption or a failed");
+CREATE TABLE tab1(c1 INT PRIMARY KEY,c2 VARCHAR(20)) ENGINE=InnoDB;
+CREATE INDEX idx1 ON tab1(c2(10));
+INSERT INTO tab1 VALUES(1, 'Innochecksum InnoDB1');
+CREATE TABLE t1(id INT AUTO_INCREMENT PRIMARY KEY, msg VARCHAR(255)) ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+insert into t1 values(1,"i");
+insert into t1 values(2,"am");
+insert into t1 values(3,"compressed table");
+# Shutdown the Server
+# Server Default checksum = innodb
+[1b]: check the innochecksum without --strict-check
+[2]: check the innochecksum with full form --strict-check=crc32
+[3]: check the innochecksum with short form -C crc32
+[4]: check the innochecksum with --no-check ignores algorithm check, warning is expected
+FOUND 1 /Error: --no-check must be associated with --write option./ in my_restart.err
+[5]: check the innochecksum with short form --no-check ignores algorithm check, warning is expected
+FOUND 1 /Error: --no-check must be associated with --write option./ in my_restart.err
+[6]: check the innochecksum with full form strict-check & no-check , an error is expected
+FOUND 1 /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
+[7]: check the innochecksum with short form strict-check & no-check , an error is expected
+FOUND 1 /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
+[8]: check the innochecksum with short & full form combination
+# strict-check & no-check, an error is expected
+FOUND 1 /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
+[9]: check the innochecksum with full form --strict-check=innodb
+[10]: check the innochecksum with full form --strict-check=none
+# when server Default checksum=crc32
+[11]: check the innochecksum with short form -C innodb
+# when server Default checksum=crc32
+[12]: check the innochecksum with short form -C none
+# when server Default checksum=crc32
+[13]: check strict-check with invalid values
+FOUND 1 /Error while setting value \'strict_innodb\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_innodb\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_crc32\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_crc32\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_none\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_none\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'InnoBD\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'InnoBD\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'crc\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'no\' to \'strict-check\'/ in my_restart.err
+[14a]: when server default checksum=crc32 rewrite new checksum=crc32 with innochecksum
+# Also check the long form of write option.
+[14b]: when server default checksum=crc32 rewrite new checksum=innodb with innochecksum
+# Also check the long form of write option.
+# start the server with innodb_checksum_algorithm=InnoDB
+INSERT INTO tab1 VALUES(2, 'Innochecksum CRC32');
+SELECT c1,c2 FROM tab1 order by c1,c2;
+c1	c2
+1	Innochecksum InnoDB1
+2	Innochecksum CRC32
+# Stop the server
+[15]: when server default checksum=crc32 rewrite new checksum=none with innochecksum
+# Also check the short form of write option.
+# Start the server with checksum algorithm=none
+INSERT INTO tab1 VALUES(3, 'Innochecksum None');
+SELECT c1,c2 FROM tab1 order by c1,c2;
+c1	c2
+1	Innochecksum InnoDB1
+2	Innochecksum CRC32
+3	Innochecksum None
+DROP TABLE t1;
+# Stop the server
+[16]: rewrite into new checksum=crc32 with innochecksum
+# Restart the DB server with  innodb_checksum_algorithm=crc32
+SELECT * FROM tab1;
+c1	c2
+1	Innochecksum InnoDB1
+2	Innochecksum CRC32
+3	Innochecksum None
+DELETE FROM tab1 where c1=3;
+SELECT c1,c2 FROM tab1 order by c1,c2;
+c1	c2
+1	Innochecksum InnoDB1
+2	Innochecksum CRC32
+# Stop server
+[17]: rewrite into new checksum=InnoDB
+# Restart the DB server with innodb_checksum_algorithm=InnoDB
+DELETE FROM tab1 where c1=2;
+SELECT * FROM tab1;
+c1	c2
+1	Innochecksum InnoDB1
+# Stop server
+[18]:check Innochecksum with invalid write options
+FOUND 1 /Error while setting value \'strict_crc32\' to \'write\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_innodb\' to \'write\'/ in my_restart.err
+FOUND 1 /Error while setting value \'crc23\' to \'write\'/ in my_restart.err
+DROP TABLE tab1;

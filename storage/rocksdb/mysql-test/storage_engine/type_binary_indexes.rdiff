@@ -1,0 +1,11 @@
+--- suite/storage_engine/type_binary_indexes.result	2017-03-12 04:57:07.173911845 +0200
++++ suite/storage_engine/type_binary_indexes.reject	2017-08-14 22:54:02.144555066 +0300
+@@ -91,7 +91,7 @@
+ INSERT INTO t1 (b,b20,v16,v128) SELECT b,b20,v16,v128 FROM t1;
+ EXPLAIN SELECT HEX(SUBSTRING(v16,0,3)) FROM t1 WHERE v16 LIKE 'varchar%';
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-#	#	#	#	#	NULL	#	#	#	#
++#	#	#	#	#	v16	#	#	#	#
+ SELECT HEX(SUBSTRING(v16,7,3)) FROM t1 WHERE v16 LIKE 'varchar%';
+ HEX(SUBSTRING(v16,7,3))
+ 723161

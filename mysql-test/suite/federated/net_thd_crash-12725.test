@@ -1,0 +1,17 @@
+#
+# MDEV-12725 select on federated table crashes server
+# 
+#
+SET GLOBAL query_cache_size= 16*1024*1024;
+SET GLOBAL query_cache_type= 1;
+CREATE TABLE t1 (i INT);
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval CREATE TABLE t2 (i INT) ENGINE=FEDERATED CONNECTION="mysql://root@localhost:$MASTER_MYPORT/test/t1";
+--error ER_ILLEGAL_HA
+ALTER TABLE t2 DISABLE KEYS;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval CREATE TABLE t3 (i INT) ENGINE=FEDERATED CONNECTION="mysql://root@localhost:$MASTER_MYPORT/test/t1";
+source include/restart_mysqld.inc;
+SET GLOBAL query_cache_size= default;
+SET GLOBAL query_cache_type= default;
+drop table t1, t2, t3;

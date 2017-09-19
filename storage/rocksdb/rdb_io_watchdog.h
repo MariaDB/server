@@ -34,6 +34,9 @@
 
 namespace myrocks {
 
+// Rdb_io_watchdog does not support Windows ATM.
+#if !defined(_WIN32) && !defined(__APPLE__)
+
 class Rdb_io_watchdog {
   const int RDB_IO_WRITE_BUFFER_SIZE = 4096;
   const char *const RDB_IO_DUMMY_FILE_NAME = "myrocks_io_watchdog_write_file";
@@ -110,4 +113,5 @@ class Rdb_io_watchdog {
   Rdb_io_watchdog &operator=(const Rdb_io_watchdog &) = delete;
 };
 
+#endif 
 }  // namespace myrocks

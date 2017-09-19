@@ -44,7 +44,6 @@ typedef struct
   int buf_len;
   int final_used;
   uchar tao_buf[sizeof(TaoCrypt::AES)];   // TaoCrypt::AES object
-  uchar oiv[TaoCrypt::AES::BLOCK_SIZE];   // original IV
   uchar buf[TaoCrypt::AES::BLOCK_SIZE];   // last partial input block
   uchar final[TaoCrypt::AES::BLOCK_SIZE]; // last decrypted (output) block
 } EVP_CIPHER_CTX;
@@ -97,10 +96,7 @@ static int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
                                        : TaoCrypt::DECRYPTION, cipher->mode);
   TAO(ctx)->SetKey(key, cipher->key_len);
   if (iv)
-  {
     TAO(ctx)->SetIV(iv);
-    memcpy(ctx->oiv, iv, TaoCrypt::AES::BLOCK_SIZE);
-  }
   ctx->encrypt= enc;
   ctx->key_len= cipher->key_len;
   ctx->flags|= cipher->mode == TaoCrypt::CBC ? EVP_CIPH_CBC_MODE : EVP_CIPH_ECB_MODE;

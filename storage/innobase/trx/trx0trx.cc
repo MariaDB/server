@@ -238,6 +238,7 @@ struct TrxFactory {
 
 		trx_init(trx);
 
+		DBUG_LOG("trx", "Init: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 
 		trx->dict_operation_lock_mode = 0;
@@ -272,8 +273,6 @@ struct TrxFactory {
 
 		ut_a(trx->lock.wait_lock == NULL);
 		ut_a(trx->lock.wait_thr == NULL);
-
-		trx_assert_no_search_latch(trx);
 		ut_a(trx->dict_operation_lock_mode == 0);
 
 		if (trx->lock.lock_heap != NULL) {
@@ -341,9 +340,6 @@ struct TrxFactory {
 
 		ut_a(trx->lock.wait_thr == NULL);
 		ut_a(trx->lock.wait_lock == NULL);
-
-		trx_assert_no_search_latch(trx);
-
 		ut_a(trx->dict_operation_lock_mode == 0);
 
 		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
@@ -457,6 +453,7 @@ trx_create_low()
 
 	/* Trx state can be TRX_STATE_FORCED_ROLLBACK if
 	the trx was forced to rollback before it's reused.*/
+	DBUG_LOG("trx", "Create: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 
 	heap = mem_heap_create(sizeof(ib_vector_t) + sizeof(void*) * 8);
@@ -553,6 +550,10 @@ static
 void
 trx_validate_state_before_free(trx_t* trx)
 {
+	ut_ad(!trx->declared_to_be_inside_innodb);
+	ut_ad(!trx->n_mysql_tables_in_use);
+	ut_ad(!trx->mysql_n_tables_locked);
+
 	if (trx->declared_to_be_inside_innodb) {
 
 		ib::error() << "Freeing a trx (" << trx << ", "
@@ -563,7 +564,7 @@ trx_validate_state_before_free(trx_t* trx)
 		putc('\n', stderr);
 
 		/* This is an error but not a fatal error. We must keep
-		the counters like srv_conc_n_threads accurate. */
+		the counters like srv_conc.n_active accurate. */
 		srv_conc_force_exit_innodb(trx);
 	}
 
@@ -618,6 +619,7 @@ trx_free_prepared(
 	     || (trx_state_eq(trx, TRX_STATE_ACTIVE)
 		 && trx->is_recovered
 		 && (!srv_was_started
+		     || srv_operation == SRV_OPERATION_RESTORE
 		     || srv_read_only_mode
 		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
 	ut_a(trx->magic_n == TRX_MAGIC_N);
@@ -631,6 +633,7 @@ trx_free_prepared(
 
 	ut_d(trx->in_rw_trx_list = FALSE);
 
+	DBUG_LOG("trx", "Free prepared: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 
 	/* Undo trx_resurrect_table_locks(). */
@@ -773,8 +776,7 @@ trx_resurrect_table_locks(
 	     i != tables.end(); i++) {
 		if (dict_table_t* table = dict_table_open_on_id(
 			    *i, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE)) {
-			if (table->ibd_file_missing
-			    || dict_table_is_temporary(table)) {
+			if (!table->is_readable()) {
 				mutex_enter(&dict_sys->mutex);
 				dict_table_close(table, TRUE, FALSE);
 				dict_table_remove_from_cache(table);
@@ -842,18 +844,9 @@ trx_resurrect_insert(
 				<< trx_get_id_for_print(trx)
 				<< " was in the XA prepared state.";
 
-			if (srv_force_recovery == 0) {
-
-				trx->state = TRX_STATE_PREPARED;
-				++trx_sys->n_prepared_trx;
-				++trx_sys->n_prepared_recovered_trx;
-			} else {
-
-				ib::info() << "Since innodb_force_recovery"
-					" > 0, we will force a rollback.";
-
-				trx->state = TRX_STATE_ACTIVE;
-			}
+			trx->state = TRX_STATE_PREPARED;
+			trx_sys->n_prepared_trx++;
+			trx_sys->n_prepared_recovered_trx++;
 		} else {
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
 		}
@@ -913,24 +906,14 @@ trx_resurrect_update_in_prepared_state(
 		ib::info() << "Transaction " << trx_get_id_for_print(trx)
 			<< " was in the XA prepared state.";
 
-		if (srv_force_recovery == 0) {
-
-			ut_ad(trx->state != TRX_STATE_FORCED_ROLLBACK);
-
-			if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
-				++trx_sys->n_prepared_trx;
-				++trx_sys->n_prepared_recovered_trx;
-			} else {
-				ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
-			}
-
-			trx->state = TRX_STATE_PREPARED;
+		if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
+			trx_sys->n_prepared_trx++;
+			trx_sys->n_prepared_recovered_trx++;
 		} else {
-			ib::info() << "Since innodb_force_recovery > 0, we"
-				" will rollback it anyway.";
-
-			trx->state = TRX_STATE_ACTIVE;
+			ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
 		}
+
+		trx->state = TRX_STATE_PREPARED;
 	} else {
 		trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
 	}
@@ -1497,7 +1480,6 @@ trx_write_serialisation_history(
 		trx_sys_update_mysql_binlog_offset(
 			trx->mysql_log_file_name,
 			trx->mysql_log_offset,
-			TRX_SYS_MYSQL_LOG_INFO,
 			sys_header,
 			mtr);
 
@@ -1756,6 +1738,7 @@ trx_commit_in_memory(
 		ut_ad(!(trx->in_innodb
 			& (TRX_FORCE_ROLLBACK | TRX_FORCE_ROLLBACK_ASYNC)));
 
+		DBUG_LOG("trx", "Autocommit in memory: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 
 	} else {
@@ -1848,9 +1831,7 @@ trx_commit_in_memory(
 		} else if (trx->flush_log_later) {
 			/* Do nothing yet */
 			trx->must_flush_log_later = true;
-		} else if (srv_flush_log_at_trx_commit == 0
-			   || thd_requested_durability(trx->mysql_thd)
-			   == HA_IGNORE_DURABILITY) {
+		} else if (srv_flush_log_at_trx_commit == 0) {
 			/* Do nothing */
 		} else {
 			trx_flush_log_if_needed(lsn, trx);
@@ -1893,8 +1874,10 @@ trx_commit_in_memory(
 	if (trx->abort) {
 
 		trx->abort = false;
+		DBUG_LOG("trx", "Abort: " << trx);
 		trx->state = TRX_STATE_FORCED_ROLLBACK;
 	} else {
+		DBUG_LOG("trx", "Commit in memory: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 	}
 
@@ -2066,6 +2049,7 @@ trx_cleanup_at_db_startup(
 	ut_ad(trx->is_recovered);
 	ut_ad(!trx->in_rw_trx_list);
 	ut_ad(!trx->in_mysql_trx_list);
+	DBUG_LOG("trx", "Cleanup at startup: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 }
 
@@ -2264,8 +2248,7 @@ trx_commit_complete_for_mysql(
 {
 	if (trx->id != 0
 	    || !trx->must_flush_log_later
-	    || thd_requested_durability(trx->mysql_thd)
-	       == HA_IGNORE_DURABILITY) {
+	    || (srv_flush_log_at_trx_commit == 1 && trx->active_commit_ordered)) {
 
 		return;
 	}
@@ -2413,13 +2396,6 @@ state_ok:
 			(ulong) n_rec_locks);
 	}
 
-#ifdef BTR_CUR_HASH_ADAPT
-	if (trx->has_search_latch) {
-		newline = TRUE;
-		fputs(", holds adaptive hash latch", f);
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
-
 	if (trx->undo_no != 0) {
 		newline = TRUE;
 		fprintf(f, ", undo log entries " TRX_ID_FMT, trx->undo_no);
@@ -2549,11 +2525,6 @@ state_ok:
 		fputs("COMMITTING ", f); break;
 	default:
 		fprintf(f, "que state %lu ", (ulong) trx->lock.que_state);
-	}
-
-	if (trx->has_search_latch) {
-		newline = TRUE;
-		fputs(", holds adaptive hash latch", f);
 	}
 
 	if (trx->undo_no != 0) {
@@ -2765,18 +2736,7 @@ trx_prepare(
 	trx_sys_mutex_exit();
 	/*--------------------------------------*/
 
-	switch (thd_requested_durability(trx->mysql_thd)) {
-	case HA_IGNORE_DURABILITY:
-		/* We set the HA_IGNORE_DURABILITY during prepare phase of
-		binlog group commit to not flush redo log for every transaction
-		here. So that we can flush prepared records of transactions to
-		redo log in a group right before writing them to binary log
-		during flush stage of binlog group commit. */
-		break;
-	case HA_REGULAR_DURABILITY:
-		if (lsn == 0) {
-			break;
-		}
+	if (lsn) {
 		/* Depending on the my.cnf options, we may now write the log
 		buffer to the log files, making the prepared state of the
 		transaction durable if the OS does not crash. We may also
@@ -3113,7 +3073,7 @@ trx_set_rw_mode(
 	ut_ad(!trx->in_rw_trx_list);
 	ut_ad(!trx_is_autocommit_non_locking(trx));
 
-	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
+	if (high_level_read_only) {
 		return;
 	}
 

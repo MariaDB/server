@@ -1,22 +1,18 @@
 -- source include/have_innodb.inc
 # embedded does not support restart
 -- source include/not_embedded.inc
--- source include/not_valgrind.inc
-# Avoid CrashReporter popup on Mac
--- source include/not_crashrep.inc
 -- source filekeys_plugin_exists.inc
 
 #
 # MDEV-9559: Server without encryption configs crashes if selecting from an implicitly encrypted table
 #
-call mtr.add_suppression("InnoDB: The page .* in file test/t[15] cannot be decrypted");
+
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[15]\\.ibd' cannot be decrypted\\.");
+
+# Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 
---write_file $MYSQLTEST_VARDIR/keys1.txt
-1;770A8A65DA156D24EE2A093277530142
-EOF
-
---let $restart_parameters= --innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt
+--let $restart_parameters=--innodb-encrypt-tables=ON --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
 create table t5 (
@@ -38,16 +34,9 @@ CREATE TABLE `t1` (
 ) ENGINE=InnoDB;
 
 insert into t1 values (1,2,'maria','db','encryption');
-
-select * from t1;
-select * from t5;
-
 alter table t1 encrypted='yes' `encryption_key_id`=1;
 
-select * from t1;
-select * from t5;
-
---let $restart_parameters= --innodb-encrypt-tables=OFF
+--let $restart_parameters=--innodb-encrypt-tables=OFF
 --source include/restart_mysqld.inc
 
 --error ER_GET_ERRMSG
@@ -55,10 +44,8 @@ select * from t1;
 --error ER_GET_ERRMSG
 select * from t5;
 
---let $restart_parameters= --innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt
+--let $restart_parameters=--innodb-encrypt-tables=ON --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
 drop table t1;
 drop table t5;
-
---remove_file $MYSQLTEST_VARDIR/keys1.txt

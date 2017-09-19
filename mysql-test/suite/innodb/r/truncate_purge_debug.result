@@ -22,8 +22,8 @@ connection default;
 InnoDB		0 transactions not purged
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 SET DEBUG_SYNC = 'now SIGNAL finish_scan';
-SET DEBUG_SYNC = 'RESET';
 connection con1;
 disconnect con1;
 connection default;
+SET DEBUG_SYNC = 'RESET';
 drop table t1;

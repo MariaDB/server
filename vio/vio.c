@@ -22,6 +22,7 @@
 */
 
 #include "vio_priv.h"
+#include "ssl_compat.h"
 
 #ifdef _WIN32
 

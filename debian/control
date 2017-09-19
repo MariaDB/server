@@ -21,7 +21,7 @@ Build-Depends: bison,
                libpam0g-dev,
                libpcre3-dev (>= 2:8.35-3.2~),
                libreadline-gplv2-dev,
-               libssl-dev,
+               libssl-dev | libssl1.0-dev,
                libsnappy-dev,
                libsystemd-dev,
                libxml2-dev,
@@ -30,6 +30,7 @@ Build-Depends: bison,
                po-debconf,
                psmisc,
                unixodbc-dev,
+               uuid-dev,
                zlib1g-dev (>= 1:1.1.3-5~)
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
@@ -47,13 +48,9 @@ Conflicts: mariadb-galera-server-10.0 (<< 10.0.5),
            mariadb-server-5.2,
            mariadb-server-5.3,
            mariadb-server-5.5 (<< 5.5.33)
-Replaces: libmariadbclient18,
-          libmysqlclient18,
-          libmysqlclient19,
+Replaces: libmysqlclient19,
           libmysqlclient20
-Provides: libmariadbclient18,
-          libmysqlclient18,
-          libmysqlclient19,
+Provides: libmysqlclient19,
           libmysqlclient20
 Description: MariaDB database client library
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -67,27 +64,29 @@ Package: libmariadbclient18
 Section: libs
 Architecture: any
 Depends: libmariadb3 (= ${binary:Version}), ${misc:Depends}
+Replaces: libmariadbclient18
+Provides: libmariadbclient18
 Description: Virtual package to satisfy external depends
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This is an empty package that depends on the libmariadb3
- package.
+ This package provides compatibility symlinks for libmariadb3
 
 Package: libmysqlclient18
 Section: libs
 Architecture: any
 Depends: libmariadb3 (= ${binary:Version}), ${misc:Depends}
+Replaces: libmysqlclient18
+Provides: libmysqlclient18
 Description: Virtual package to satisfy external depends
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This is an empty package that depends on the libmariadb3
- package.
+ This package provides compatibility symlinks for libmariadb3
 
 Package: libmariadb-dev
 Architecture: any
@@ -173,8 +172,7 @@ Description: MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)
 
 Package: mariadb-client-core-10.2
 Architecture: any
-Depends: libmariadb3 (>= ${source:Version}),
-         mariadb-common (>= ${source:Version}),
+Depends: mariadb-common (>= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Conflicts: mariadb-client-10.0,
@@ -237,7 +235,6 @@ Description: MariaDB database core client binaries
 Package: mariadb-client-10.2
 Architecture: any
 Depends: debianutils (>=1.6),
-         libmariadb3 (>= ${source:Version}),
          mariadb-client-core-10.2 (>= ${source:Version}),
          mariadb-common,
          ${misc:Depends},
@@ -291,8 +288,7 @@ Description: MariaDB database client binaries
 
 Package: mariadb-server-core-10.2
 Architecture: any
-Depends: libmariadb3 (>= ${binary:Version}),
-         mariadb-common (>= ${source:Version}),
+Depends: mariadb-common (>= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Conflicts: mariadb-server-core-10.0,
@@ -552,6 +548,16 @@ Breaks: mariadb-gssapi-client-10.1, mariadb-gssapi-client-10.2
 Replaces: mariadb-gssapi-client-10.1, mariadb-gssapi-client-10.2
 Description: GSSAPI authentication plugin for MariaDB client
 
+Package: mariadb-backup-10.2
+Section: database
+Architecture: any
+Breaks: mariadb-backup-10.1
+Replaces: mariadb-backup-10.1
+Depends: mariadb-server-10.2,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Backup tool for MariaDB server
+
 Package: mariadb-plugin-cracklib-password-check
 Architecture: any
 Depends: libcrack2 (>= 2.9.0),
@@ -561,6 +567,20 @@ Depends: libcrack2 (>= 2.9.0),
 Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
+
+Package: mariadb-plugin-aws-key-management-10.2
+Section: database
+Architecture: any
+Breaks: mariadb-aws-key-management-10.1
+Replaces: mariadb-aws-key-management-10.1
+Depends: mariadb-server-10.2,
+         libcurl3,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Amazon Web Service Key Management Service Plugin for MariaDB
+ This encryption key management plugin gives an interface to the Amazon Web
+ Services Key Management Service for managing encryption keys used for MariaDB
+ data-at-rest encryption.
 
 Package: mariadb-test
 Architecture: any

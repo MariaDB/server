@@ -604,6 +604,8 @@ typedef struct st_join_table {
             !(used_sjm_lookup_tables & ~emb_sj_nest->sj_inner_tables));
   }
 
+  bool keyuse_is_valid_for_access_in_chosen_plan(JOIN *join, KEYUSE *keyuse);
+
   void remove_redundant_bnl_scan_conds();
 
   void save_explain_data(Explain_table_access *eta, table_map prefix_tables, 
@@ -1120,6 +1122,11 @@ public:
     to materialize and access by lookups
   */
   table_map sjm_lookup_tables;
+  /** 
+    Bitmap of semijoin tables that the chosen plan decided
+    to materialize to scan the results of materialization
+  */
+  table_map sjm_scan_tables;
   /*
     Constant tables for which we have found a row (as opposed to those for
     which we didn't).
@@ -1488,10 +1495,13 @@ public:
     in_to_exists_having= NULL;
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
+    sjm_scan_tables= 0;
   }
 
   /* True if the plan guarantees that it will be returned zero or one row */
   bool only_const_tables()  { return const_tables == table_count; }
+  /* Number of tables actually joined at the top level */
+  uint exec_join_tab_cnt() { return tables_list ? top_join_tab_count : 0; }
 
   int prepare(TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,

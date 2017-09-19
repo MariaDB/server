@@ -43,6 +43,8 @@
 #include "./rdb_utils.h"
 #include "./rdb_mariadb_server_port.h"
 
+#include "./rdb_mariadb_port.h"
+
 namespace myrocks {
 
 /**

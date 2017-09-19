@@ -1,6 +1,6 @@
---- repair_table.result	2013-01-23 01:35:44.388267080 +0400
-+++ repair_table.reject	2013-01-23 03:16:26.468307847 +0400
-@@ -1,234 +1,114 @@
+--- suite/storage_engine/parts/repair_table.result	2017-08-28 19:29:20.491633306 +0300
++++ suite/storage_engine/parts/repair_table.reject	2017-08-28 19:34:41.723633059 +0300
+@@ -1,235 +1,115 @@
  call mtr.add_suppression("Table '.*t1.*' is marked as crashed and should be repaired");
  DROP TABLE IF EXISTS t1, t2;
  CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS> PARTITION BY HASH(a) PARTITIONS 2;
@@ -144,6 +144,7 @@
  call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
  call mtr.add_suppression(" '\..test.t1'");
  call mtr.add_suppression("Couldn't repair table: test.t1");
+ call mtr.add_suppression("Table 't1' is marked as crashed.*");
  CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>, <CUSTOM_INDEX> (a)) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS> PARTITION BY HASH(a) PARTITIONS 2;
 +ERROR HY000: Engine cannot be used in partitioned tables
 +# ERROR: Statement ended with errno 1572, errname ER_PARTITION_MERGE_ERROR (expected to succeed)

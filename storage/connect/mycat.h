@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2015
+/* Copyright (C) MariaDB Corporation Ab
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 
 /**************** MYCAT H Declares Source Code File (.H) ***************/
 /*  Name: MYCAT.H  Version 2.3                                         */
-/*                                                                     */
+/*  Author: Olivier Bertrand                                           */
 /*  This file contains the CONNECT plugin MYCAT class definitions.     */
 /***********************************************************************/
 #ifndef __MYCAT__H
@@ -47,6 +47,7 @@ struct ha_table_option_struct {
   const char *catfunc;
   const char *srcdef;
   const char *colist;
+	const char *filter;
   const char *oplist;
   const char *data_charset;
   ulonglong lrecl;
@@ -98,10 +99,7 @@ class MYCAT : public CATALOG {
 
   // Methods
   void    Reset(void);
-//void    SetDataPath(PGLOBAL g, const char *path) 
-//            {SetPath(g, &DataPath, path);}
   bool    StoreIndex(PGLOBAL, PTABDEF) {return false;}  // Temporary
-//  PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name,
 	PRELDEF GetTableDesc(PGLOBAL g, PTABLE tablep,
 		                   LPCSTR type, PRELDEF *prp = NULL);
   PTDB    GetTable(PGLOBAL g, PTABLE tablep, 
@@ -109,9 +107,7 @@ class MYCAT : public CATALOG {
   void    ClearDB(PGLOBAL g);
 
  protected:
-//  PRELDEF MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am);
 	PRELDEF MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am);
-	//void    SetPath(PGLOBAL g, LPCSTR *datapath, const char *path);
 
   // Members
   ha_connect *Hc;                          // The Connect handler

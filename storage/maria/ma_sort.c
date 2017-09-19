@@ -896,8 +896,6 @@ cleanup:
   {
     DBUG_ASSERT(t_file2.type == WRITE_CACHE);
     *t_file=t_file2;                            /* Copy result file */
-    t_file->current_pos= &t_file->write_pos;
-    t_file->current_end= &t_file->write_end;
   }
 
   DBUG_RETURN(*maxbuffer >= MERGEBUFF2);        /* Return 1 if interrupted */

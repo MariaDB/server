@@ -58,11 +58,6 @@ Datafile::shutdown()
 
 	ut_free(m_name);
 	m_name = NULL;
-
-	/* The fil_space_t::crypt_data was freed in
-	fil_space_free_low(). Invalidate our redundant pointer. */
-	m_crypt_info = NULL;
-
 	free_filepath();
 	free_first_page();
 }
@@ -334,6 +329,8 @@ Datafile::read_first_page(bool read_only_mode)
 
 			break;
 
+		} else if (srv_operation == SRV_OPERATION_BACKUP) {
+			break;
 		} else {
 
 			ib::error()
@@ -351,7 +348,7 @@ Datafile::read_first_page(bool read_only_mode)
 	if (m_order == 0) {
 		m_space_id = fsp_header_get_space_id(m_first_page);
 		m_flags = fsp_header_get_flags(m_first_page);
-		if (!fsp_flags_is_valid(m_flags)) {
+		if (!fsp_flags_is_valid(m_flags, m_space_id)) {
 			ulint cflags = fsp_flags_convert_from_101(m_flags);
 			if (cflags == ULINT_UNDEFINED) {
 				ib::error()
@@ -371,8 +368,6 @@ Datafile::read_first_page(bool read_only_mode)
 			<< page_size << " bytes";
 		return(DB_CORRUPTION);
 	}
-
-	m_crypt_info = fil_space_read_crypt_data(ps, m_first_page);
 
 	return(err);
 }
@@ -425,13 +420,10 @@ Datafile::validate_to_dd(ulint space_id, ulint flags)
 	/* else do not use this tablespace. */
 	m_is_valid = false;
 
-	ib::error() << "In file '" << m_filepath << "', tablespace id and"
-		" flags are " << m_space_id << " and " << ib::hex(m_flags)
-		<< ", but in the InnoDB data dictionary they are "
-		<< space_id << " and " << ib::hex(flags)
-		<< ". Have you moved InnoDB .ibd files around without"
-		" using the commands DISCARD TABLESPACE and IMPORT TABLESPACE?"
-		" " << TROUBLESHOOT_DATADICT_MSG;
+	ib::error() << "Refusing to load '" << m_filepath << "' (id="
+		<< m_space_id << ", flags=" << ib::hex(m_flags)
+		<< "); dictionary contains id="
+		<< space_id << ", flags=" << ib::hex(flags);
 
 	return(DB_ERROR);
 }
@@ -525,9 +517,7 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 	}
 
 	/* Check if the whole page is blank. */
-	if (error_txt == NULL
-	    && m_space_id == srv_sys_space.space_id()
-	    && !m_flags) {
+	if (error_txt == NULL && !m_space_id && !m_flags) {
 		const byte*	b		= m_first_page;
 		ulint		nonzero_bytes	= UNIV_PAGE_SIZE;
 
@@ -559,7 +549,7 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 		free_first_page();
 
 		return(DB_ERROR);
-	} else if (!fsp_flags_is_valid(m_flags)) {
+	} else if (!fsp_flags_is_valid(m_flags, m_space_id)) {
 		/* Tablespace flags must be valid. */
 		error_txt = "Tablespace flags are invalid";
 	} else if (page_get_page_no(m_first_page) != 0) {
@@ -800,7 +790,7 @@ Datafile::restore_from_doublewrite()
 	ulint	flags = mach_read_from_4(
 		FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
-	if (!fsp_flags_is_valid(flags)) {
+	if (!fsp_flags_is_valid(flags, m_space_id)) {
 		ulint cflags = fsp_flags_convert_from_101(flags);
 		if (cflags == ULINT_UNDEFINED) {
 			ib::warn()

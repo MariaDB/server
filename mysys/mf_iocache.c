@@ -74,34 +74,6 @@ int (*_my_b_encr_read)(IO_CACHE *info,uchar *Buffer,size_t Count)= 0;
 int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count)= 0;
 
 
-/*
-  Setup internal pointers inside IO_CACHE
-
-  SYNOPSIS
-    setup_io_cache()
-    info		IO_CACHE handler
-
-  NOTES
-    This is called on automatically on init or reinit of IO_CACHE
-    It must be called externally if one moves or copies an IO_CACHE
-    object.
-*/
-
-void setup_io_cache(IO_CACHE* info)
-{
-  /* Ensure that my_b_tell() and my_b_bytes_in_cache works */
-  if (info->type == WRITE_CACHE)
-  {
-    info->current_pos= &info->write_pos;
-    info->current_end= &info->write_end;
-  }
-  else
-  {
-    info->current_pos= &info->read_pos;
-    info->current_end= &info->read_end;
-  }
-}
-
 
 static void
 init_functions(IO_CACHE* info)
@@ -148,8 +120,6 @@ init_functions(IO_CACHE* info)
     DBUG_ASSERT(0);
     break;
   }
-
-  setup_io_cache(info);
 }
 
 
@@ -360,12 +330,7 @@ int init_slave_io_cache(IO_CACHE *master, IO_CACHE *slave)
   memcpy(slave->buffer, master->buffer, master->buffer_length);
   slave->read_pos= slave->buffer + (master->read_pos - master->buffer);
   slave->read_end= slave->buffer + (master->read_end - master->buffer);
-   
-  DBUG_ASSERT(master->current_pos == &master->read_pos);
-  slave->current_pos= &slave->read_pos;
-  DBUG_ASSERT(master->current_end == &master->read_end);
-  slave->current_end= &slave->read_end;
-  
+
   if (master->next_file_user)
   {
     IO_CACHE *p;
@@ -924,8 +889,6 @@ void init_io_cache_share(IO_CACHE *read_cache, IO_CACHE_SHARE *cshare,
 
   read_cache->share=         cshare;
   read_cache->read_function= _my_b_cache_read_r;
-  read_cache->current_pos=   NULL;
-  read_cache->current_end=   NULL;
 
   if (write_cache)
   {

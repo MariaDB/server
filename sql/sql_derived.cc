@@ -520,6 +520,8 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
                       derived->merge_underlying_list != 0));
   if (derived->merged_for_insert)
     DBUG_RETURN(FALSE);
+  if (derived->init_derived(thd, FALSE))
+    DBUG_RETURN(TRUE);
   if (derived->is_materialized_derived())
     DBUG_RETURN(mysql_derived_prepare(thd, lex, derived));
   if ((thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
@@ -822,13 +824,14 @@ exit:
     table->derived_select_number= first_select->select_number;
     table->s->tmp_table= INTERNAL_TMP_TABLE;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (derived->referencing_view)
+    if (derived->is_view())
       table->grant= derived->grant;
     else
     {
+      DBUG_ASSERT(derived->is_derived());
+      DBUG_ASSERT(derived->is_anonymous_derived_table());
       table->grant.privilege= SELECT_ACL;
-      if (derived->is_derived())
-        derived->grant.privilege= SELECT_ACL;
+      derived->grant.privilege= SELECT_ACL;
     }
 #endif
     /* Add new temporary table to list of open derived tables */
@@ -1246,7 +1249,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     Item *cond_over_grouping_fields;
     sl->collect_grouping_fields(thd);
     sl->check_cond_extraction_for_grouping_fields(extracted_cond_copy,
-              &Item::exclusive_dependence_on_grouping_fields_processor);
+                                                  derived);
     cond_over_grouping_fields=
       sl->build_cond_for_grouping_fields(thd, extracted_cond_copy, true);
   
@@ -1285,7 +1288,8 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     if (!extracted_cond_copy)
       continue;
 
-    extracted_cond_copy->walk(&Item::cleanup_processor, 0, 0);
+    extracted_cond_copy->walk(&Item::cleanup_excluding_const_fields_processor,
+                              0, 0);
     sl->cond_pushed_into_having= extracted_cond_copy;
   }
   thd->lex->current_select= save_curr_select;

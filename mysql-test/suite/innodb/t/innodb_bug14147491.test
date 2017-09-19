@@ -1,28 +1,26 @@
 #
 # Test opening a corrupted table.
 #
-# Valgrind can hang or return spurious messages on DBUG_SUICIDE
-source include/not_valgrind.inc;
-# Avoid CrashReporter popup on Mac
-source include/not_crashrep.inc;
 # Restarting is not supported under embedded
-source include/not_embedded.inc;
+-- source include/not_embedded.inc
 # Require InnoDB
-source include/have_innodb.inc;
-# Require Debug for SET DEBUG
-source include/have_debug.inc;
-# Not encrypted tables
-source include/not_encrypted.inc;
-# Test could open crash reporter on Windows 
-# if compiler set up
-source include/not_windows.inc;
+-- source include/have_innodb.inc
+-- source include/not_encrypted.inc
 
 --disable_query_log
-CALL mtr.add_suppression("\\[ERROR\\] \\[FATAL\\] InnoDB: Unable to read page \\[page id: space=.*, page number=.*\\] into the buffer pool after 100 attempts");
-CALL mtr.add_suppression("\\[ERROR\\] InnoDB: Database page corruption on disk or a failed");
+call mtr.add_suppression("InnoDB: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
+call mtr.add_suppression("InnoDB: Cannot open table test/t1 from the internal data dictionary of InnoDB though the .frm file for the table exists. Please refer to http://dev.mysql.com/doc/refman/5.7/en/innodb-troubleshooting.html for how to resolve the issue.");
+call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed file read of tablespace test/t1 page \[page id: space=[0-9]+, page number=[0-9]+\]. You may have to recover from a backup.");
+call mtr.add_suppression("InnoDB: We detected index corruption in an InnoDB type table.*");
+call mtr.add_suppression("mysqld: Index for table 't1' is corrupt; try to repair it");
+call mtr.add_suppression("mysqld.exe: Index for table 't1' is corrupt; try to repair it");
 --enable_query_log
 
-CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ROW_FORMAT=COMPACT ENGINE=InnoDB;
+--echo # Create and populate the table to be corrupted
+
+set global innodb_file_per_table=ON;
+
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 INSERT INTO t1 (b) VALUES ('corrupt me');
 --disable_query_log
 --let $i = 10
@@ -38,9 +36,6 @@ let $MYSQLD_DATADIR=`select @@datadir`;
 let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
 
 --source include/shutdown_mysqld.inc
-
---echo # Backup the t1.ibd before corrupting
---copy_file $t1_IBD $MYSQLD_DATADIR/test/t1.ibd.backup
 
 --echo # Corrupt the table
 
@@ -71,27 +66,16 @@ EOF
 
 --source include/start_mysqld.inc
 
-SET DEBUG_DBUG = '+d,innodb_page_corruption_retries';
+--echo # Now t1 is corrupted but we should not crash
 
---echo # Write file to make mysql-test-run.pl expect the "crash", but don't
---echo # start it until it's told to
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-
---echo # The below SELECT query will crash the server because some pages
---echo # on the disk are corrupted
---error 2013
+--error 1030,1712,1932
 SELECT * FROM t1;
 
-# The below mtr command --remove_file fails randomly on windows with
-# error number 13 which is permission denied on nix systems. We sleep
-# 1 second hoping that any process holding lock on t1.ibd is released.
-SLEEP 1;
+--error 126,1030,1034,1712,1932
+INSERT INTO t1(b) VALUES('abcdef');
 
---echo # Restore the original t1.ibd
---remove_file $MYSQLD_DATADIR/test/t1.ibd
---move_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
+--error 1030,1712,1932
+UPDATE t1 set b = 'deadbeef' where a = 1;
 
---source include/start_mysqld.inc
-
---echo # Cleanup
+--echo # Cleanup, this must be possible
 DROP TABLE t1;

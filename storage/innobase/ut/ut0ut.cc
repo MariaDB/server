@@ -38,8 +38,6 @@ Created 5/11/1994 Heikki Tuuri
 #include <string>
 #include "log.h"
 
-/** A constant to prevent the compiler from optimizing ut_delay() away. */
-ibool	ut_always_false	= FALSE;
 #ifdef _WIN32
 /*****************************************************************//**
 NOTE: The Windows epoch starts from 1601/01/01 whereas the Unix
@@ -285,26 +283,21 @@ ut_sprintf_timestamp(
 Runs an idle loop on CPU. The argument gives the desired delay
 in microseconds on 100 MHz Pentium + Visual C++.
 @return dummy value */
-ulint
+void
 ut_delay(
 /*=====*/
 	ulint	delay)	/*!< in: delay in microseconds on 100 MHz Pentium */
 {
-	ulint	i, j;
+	ulint	i;
 
 	UT_LOW_PRIORITY_CPU();
 
-	j = 0;
-
 	for (i = 0; i < delay * 50; i++) {
-		j += i;
 		UT_RELAX_CPU();
 		UT_COMPILER_BARRIER();
 	}
 
 	UT_RESUME_PRIORITY_CPU();
-
-	return(j);
 }
 
 /*************************************************************//**
@@ -757,6 +750,8 @@ ut_strerr(
 		       "of stored column");
 	case DB_IO_NO_PUNCH_HOLE:
 		return ("File system does not support punch hole (trim) operation.");
+	case DB_PAGE_CORRUPTED:
+		return("Page read from tablespace is corrupted.");
 
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */
@@ -839,10 +834,11 @@ error::~error()
 	sql_print_error("InnoDB: %s", m_oss.str().c_str());
 }
 
+ATTRIBUTE_NORETURN
 fatal::~fatal()
 {
 	sql_print_error("[FATAL] InnoDB: %s", m_oss.str().c_str());
-	ut_error;
+	abort();
 }
 
 error_or_warn::~error_or_warn()
@@ -856,8 +852,11 @@ error_or_warn::~error_or_warn()
 
 fatal_or_error::~fatal_or_error()
 {
-	sql_print_error("InnoDB: %s", m_oss.str().c_str());
-	ut_a(!m_fatal);
+	sql_print_error(m_fatal ? "[FATAL] InnoDB: %s" : "InnoDB: %s",
+			m_oss.str().c_str());
+	if (m_fatal) {
+		abort();
+	}
 }
 
 } // namespace ib

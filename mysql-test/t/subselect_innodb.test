@@ -503,6 +503,27 @@ drop view v1;
 drop table t1,t2;
 
 --echo #
+--echo # MDEV-10693: cost-based choice between materialization and in-to-exists
+--echo #             for a subquery from the expression used in ref access 
+--echo #
+
+--source include/have_innodb.inc
+ 
+CREATE TABLE t1 (i1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+ 
+CREATE TABLE t2 (i2 INT) ENGINE=InnoDB;
+ 
+CREATE TABLE t3 (i3 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (3);
+ 
+SELECT * FROM t1
+  WHERE NULL IN ( SELECT i2 FROM t2 
+                    WHERE i1 IN ( i2 IN ( SELECT i3 FROM t3 ) ) AND i2 = 2 );
+
+DROP TABLE t1,t2,t3;
+
+--echo #
 --echo # MDEV-6041: ORDER BY+subqueries: subquery_table.key=outer_table.col is not recongized as binding
 --echo #
 create table t1(a int) engine=innodb;
@@ -555,3 +576,38 @@ from
   t1;
 
 drop table t1,t2;
+
+--echo #
+--echo # mdev-12931: semi-join in ON expression of STRAIGHT_JOIN 
+--echo #             joining a base table and a mergeable derived table
+--echo #
+
+CREATE TABLE t1 (f1 int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (3),(2);
+
+CREATE TABLE t2 (f2 int) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(4);
+
+CREATE TABLE t3 (f3 int) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (5),(6);
+
+CREATE TABLE t4 (f4 int) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (1),(8);
+
+SELECT * 
+FROM t1 
+     INNER JOIN 
+     ( t2 STRAIGHT_JOIN ( SELECT * FROM t3 ) AS sq
+       ON ( 1 IN ( SELECT f4 FROM t4 ) ) )
+     ON ( f1 >= f2 );
+
+EXPLAIN EXTENDED
+SELECT * 
+FROM t1 
+     INNER JOIN 
+     ( t2 STRAIGHT_JOIN ( SELECT * FROM t3 ) AS sq
+       ON ( 1 IN ( SELECT f4 FROM t4 ) ) )
+     ON ( f1 >= f2 );
+
+DROP TABLE t1,t2,t3,t4;
+

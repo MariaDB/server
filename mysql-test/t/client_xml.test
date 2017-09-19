@@ -14,7 +14,7 @@ drop table if exists t1;
 # sure that basic encoding issues are handled properly
 create table t1 (
   `a&b` int,
-  `a<b` int,
+  `a<b` int NOT NULL,
   `a>b` text
 );
 insert into t1 values (1, 2, 'a&b a<b a>b');

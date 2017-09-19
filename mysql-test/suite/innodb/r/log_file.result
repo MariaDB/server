@@ -340,7 +340,7 @@ WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 1
 1
-FOUND 1 /Resizing redo log from 1\*\d+ to 3\*\d+ pages; LSN=\d+/ in mysqld.1.err
+FOUND 1 /Resizing redo log from 1\*\d+ to 3\*\d+ bytes; LSN=\d+/ in mysqld.1.err
 # Cleanup
 bak_ib_logfile0
 bak_ib_logfile1

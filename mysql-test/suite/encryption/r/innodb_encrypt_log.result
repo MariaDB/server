@@ -25,6 +25,7 @@ CREATE TEMPORARY TABLE t LIKE t0;
 INSERT INTO t VALUES
 (NULL,1,1,'private','secret'),(NULL,2,2,'sacred','success'),
 (NULL,3,3,'story','secure'),(NULL,4,4,'security','sacrament');
+SET GLOBAL innodb_change_buffering=none;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 INSERT INTO t0
 SELECT NULL, t1.col_int, t1.col_int_key, t1.col_char, t1.col_char_key
@@ -36,8 +37,6 @@ NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)/ in ibdata1
 NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)/ in t0.ibd
 # ib_logfile0 expecting NOT FOUND
 NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)/ in ib_logfile0
-# ib_logfile1 expecting NOT FOUND
-NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)/ in ib_logfile1
 # Restart without redo log encryption
 SELECT COUNT(*) FROM t0;
 COUNT(*)
@@ -51,7 +50,7 @@ INSERT INTO t0 VALUES(NULL, 5, 5, 'public', 'gossip');
 # ib_logfile0 expecting NOT FOUND
 NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)/ in ib_logfile0
 # ib_logfile0 expecting FOUND
-FOUND 3 /public|gossip/ in ib_logfile0
+FOUND 1 /(public|gossip).*/ in ib_logfile0
 # ibdata1 expecting NOT FOUND
 NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)|public|gossip/ in ibdata1
 # t0.ibd expecting NOT FOUND

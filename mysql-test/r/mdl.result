@@ -1,0 +1,22 @@
+#
+# MDEV-12882 - Assertion `mdl_ticket->m_type == MDL_SHARED_UPGRADABLE ||
+#                         mdl_ticket->m_type == MDL_SHARED_NO_WRITE ||
+#                         mdl_ticket->m_type == MDL_SHARED_NO_READ_WRITE ||
+#                         mdl_ticket->m_type == MDL_SHARED_READ'
+#                         failed in MDL_context::upgrade_shared_lock
+#
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+LOCK TABLES t1 WRITE CONCURRENT, t1 AS t2 READ;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_INTENTION_EXCLUSIVE	Global read lock		
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+UNLOCK TABLES;
+LOCK TABLES t1 AS t2 READ, t1 WRITE CONCURRENT;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_INTENTION_EXCLUSIVE	Global read lock		
+MDL_SHARED_WRITE	Table metadata lock	test	t1
+MDL_SHARED_READ_ONLY	Table metadata lock	test	t1
+UNLOCK TABLES;
+DROP TABLE t1;

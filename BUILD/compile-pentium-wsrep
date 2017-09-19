@@ -4,7 +4,7 @@ path=`dirname $0`
 . "$path/SETUP.sh"
 
 extra_flags="$pentium_cflags $fast_cflags $wsrep_cflags"
-extra_configs="$pentium_configs $wsrep_configs --with-wsrep"
+extra_configs="$pentium_configs $wsrep_configs --with-wsrep $disable_64_bit_plugins"
 
 #strip=yes
 

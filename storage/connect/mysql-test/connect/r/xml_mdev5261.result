@@ -1,9 +1,7 @@
-Warnings:
-Warning	1105	No file name. Table will use t1.xml
 SET NAMES utf8;
-CREATE TABLE t1 (i INT UNIQUE NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='Rownode=N';
+CREATE TABLE t1 (i INT UNIQUE NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='xmlsup=domdoc,Rownode=N';
 ERROR HY000: Table type XML is not indexable
-CREATE TABLE t1 (i INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='Rownode=N';
+CREATE TABLE t1 (i INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xt1.xml' OPTION_LIST='xmlsup=domdoc,Rownode=N';
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 i	int(11)	NO		NULL	

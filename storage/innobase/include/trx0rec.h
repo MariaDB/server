@@ -188,28 +188,28 @@ transaction.
 dberr_t
 trx_undo_report_row_operation(
 /*==========================*/
-	ulint		flags,		/*!< in: if BTR_NO_UNDO_LOG_FLAG bit is
-					set, does nothing */
-	ulint		op_type,	/*!< in: TRX_UNDO_INSERT_OP or
-					TRX_UNDO_MODIFY_OP */
 	que_thr_t*	thr,		/*!< in: query thread */
 	dict_index_t*	index,		/*!< in: clustered index */
 	const dtuple_t*	clust_entry,	/*!< in: in the case of an insert,
 					index entry to insert into the
-					clustered index, otherwise NULL */
+					clustered index; in updates,
+					may contain a clustered index
+					record tuple that also contains
+					virtual columns of the table;
+					otherwise, NULL */
 	const upd_t*	update,		/*!< in: in the case of an update,
 					the update vector, otherwise NULL */
 	ulint		cmpl_info,	/*!< in: compiler info on secondary
 					index updates */
 	const rec_t*	rec,		/*!< in: case of an update or delete
 					marking, the record in the clustered
-					index, otherwise NULL */
+					index; NULL if insert */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
 	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
 					inserted undo log record,
 					0 if BTR_NO_UNDO_LOG
 					flag was specified */
-	MY_ATTRIBUTE((nonnull(3,4,10), warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1,2,8), warn_unused_result));
 
 /** status bit used for trx_undo_prev_version_build() */
 
@@ -340,10 +340,6 @@ record */
 					to denote that we updated external
 					storage fields: used by purge to
 					free the external storage */
-
-/* Operation type flags used in trx_undo_report_row_operation */
-#define	TRX_UNDO_INSERT_OP		1U
-#define	TRX_UNDO_MODIFY_OP		2U
 
 #include "trx0rec.ic"
 

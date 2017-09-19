@@ -55,9 +55,17 @@ insert into t1 values (2,10,10);
 
 insert into t1 values (11,20,20);
 insert into t1 values (12,20,20);
+
+set @tmp_rfirr= @@rocksdb_force_index_records_in_range;
+set rocksdb_force_index_records_in_range= 12;
+
+--replace_column 9 #
 explain select * from t1 force index(col1) where col1=10;
 select * from t1 force index(col1) where col1=10;
 select * from t1 use index () where col1=10;
+
+set rocksdb_force_index_records_in_range= @tmp_rfirr;
+
 drop table t1;
 
 --echo #
@@ -119,4 +127,15 @@ SHOW TABLES;
 DROP TABLE t2;
 use test;
 DROP DATABASE db3;
+
+--echo #
+--echo # MDEV-13153 Assertion `global_status_var.global_memory_used == 0 ' 
+--echo #            failed upon server restart with partitioned RocksDB table
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=RocksDB PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1 (a) VALUES (1),(2);
+ALTER TABLE t1 ADD PARTITION PARTITIONS 2;
+--source include/restart_mysqld.inc
+SELECT 1;
+DROP TABLE t1;
 

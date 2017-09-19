@@ -27,12 +27,14 @@ Created 5/30/1994 Heikki Tuuri
 #ifndef rem0rec_h
 #define rem0rec_h
 
+#ifndef UNIV_INNOCHECKSUM
 #include "univ.i"
 #include "data0data.h"
 #include "rem0types.h"
 #include "mtr0types.h"
 #include "page0types.h"
 #include "trx0types.h"
+#endif /*! UNIV_INNOCHECKSUM */
 #include <ostream>
 #include <sstream>
 
@@ -92,6 +94,7 @@ offsets[] array, first passed to rec_get_offsets() */
 #define REC_OFFS_NORMAL_SIZE	OFFS_IN_REC_NORMAL_SIZE
 #define REC_OFFS_SMALL_SIZE	10
 
+#ifndef UNIV_INNOCHECKSUM
 /******************************************************//**
 The following function is used to get the pointer of the next chained record
 on the same page.
@@ -774,19 +777,42 @@ rec_copy(
 	const rec_t*	rec,
 	const ulint*	offsets);
 
-/**********************************************************//**
-Determines the size of a data tuple prefix in a temporary file.
-@return total size */
+/** Determine the size of a data tuple prefix in a temporary file.
+@param[in]	index		clustered or secondary index
+@param[in]	fields		data fields
+@param[in]	n_fields	number of data fields
+@param[out]	extra		record header size
+@return	total size, in bytes */
 ulint
 rec_get_converted_size_temp(
-/*========================*/
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	const dfield_t*		fields,	/*!< in: array of data fields */
-	ulint			n_fields,/*!< in: number of data fields */
-	const dtuple_t*		v_entry,/*!< in: dtuple contains virtual column
-					data */
-	ulint*			extra)	/*!< out: extra size */
-	MY_ATTRIBUTE((warn_unused_result));
+	const dict_index_t*	index,
+	const dfield_t*		fields,
+	ulint			n_fields,
+	ulint*			extra)
+	MY_ATTRIBUTE((warn_unused_result, nonnull(1,2)));
+
+/** Determine the converted size of virtual column data in a temporary file.
+@see rec_convert_dtuple_to_temp_v()
+@param[in]	index	clustered index
+@param[in]	v	clustered index record augmented with the values
+			of virtual columns
+@return size in bytes */
+ulint
+rec_get_converted_size_temp_v(const dict_index_t* index, const dtuple_t* v)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
+/** Write indexed virtual column data into a temporary file.
+@see rec_get_converted_size_temp_v()
+@param[out]	rec	serialized record
+@param[in]	index	clustered index
+@param[in]	v_entry	clustered index record augmented with the values
+			of virtual columns */
+void
+rec_convert_dtuple_to_temp_v(
+	byte*			rec,
+	const dict_index_t*	index,
+	const dtuple_t*		v_entry)
+	MY_ATTRIBUTE((nonnull));
 
 /******************************************************//**
 Determine the offset to each field in temporary file.
@@ -809,10 +835,7 @@ rec_convert_dtuple_to_temp(
 	rec_t*			rec,		/*!< out: record */
 	const dict_index_t*	index,		/*!< in: record descriptor */
 	const dfield_t*		fields,		/*!< in: array of data fields */
-	ulint			n_fields,	/*!< in: number of fields */
-	const dtuple_t*		v_entry);	/*!< in: dtuple contains
-						virtual column data */
-
+	ulint			n_fields);	/*!< in: number of fields */
 
 /**************************************************************//**
 Copies the first n fields of a physical record to a new physical record in
@@ -1080,14 +1103,14 @@ private:
 # endif /* !DBUG_OFF */
 
 # ifdef UNIV_DEBUG
-/************************************************************//**
-Reads the DB_TRX_ID of a clustered index record.
+/** Read the DB_TRX_ID of a clustered index record.
+@param[in]	rec	clustered index record
+@param[in]	index	clustered index
 @return the value of DB_TRX_ID */
 trx_id_t
 rec_get_trx_id(
-/*===========*/
-	const rec_t*		rec,	/*!< in: record */
-	const dict_index_t*	index)	/*!< in: clustered index */
+	const rec_t*		rec,
+	const dict_index_t*	index)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 # endif /* UNIV_DEBUG */
 
@@ -1096,9 +1119,15 @@ are given in one byte (resp. two byte) format. */
 #define REC_1BYTE_OFFS_LIMIT	0x7FUL
 #define REC_2BYTE_OFFS_LIMIT	0x7FFFUL
 
-/* The data size of record must be smaller than this because we reserve
-two upmost bits in a two byte offset for special purposes */
-#define REC_MAX_DATA_SIZE	16384
+/* The data size of record must not be larger than this on
+REDUNDANT row format because we reserve two upmost bits in a
+two byte offset for special purposes */
+#define REDUNDANT_REC_MAX_DATA_SIZE    (16383)
+
+/* The data size of record must be smaller than this on
+COMPRESSED row format because we reserve two upmost bits in a
+two byte offset for special purposes */
+#define COMPRESSED_REC_MAX_DATA_SIZE   (16384)
 
 #ifdef WITH_WSREP
 int wsrep_rec_get_foreign_key(
@@ -1112,4 +1141,5 @@ int wsrep_rec_get_foreign_key(
 
 #include "rem0rec.ic"
 
+#endif /* !UNIV_INNOCHECKSUM */
 #endif /* rem0rec_h */

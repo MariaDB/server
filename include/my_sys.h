@@ -42,6 +42,7 @@ typedef struct my_aio_result {
 #include <malloc.h> /*for alloca*/
 #endif
 #include <mysql/plugin.h>
+#include <mysql/service_my_print_error.h>
 
 #define MY_INIT(name)   { my_progname= name; my_init(); }
 
@@ -104,18 +105,10 @@ typedef struct my_aio_result {
 #define MY_GIVE_INFO	2U	/* Give time info about process*/
 #define MY_DONT_FREE_DBUG 4U    /* Do not call DBUG_END() in my_end() */
 
-#define ME_HIGHBYTE	8U	/* Shift for colours */
-#define ME_NOCUR	1U	/* Don't use curses message */
-#define ME_OLDWIN	2U	/* Use old window */
-#define ME_BELL		4U	/* Ring bell then printing message */
-#define ME_HOLDTANG	8U	/* Don't delete last keys */
-#define ME_WAITTOT	16U	/* Wait for errtime secs of for a action */
-#define ME_WAITTANG	32U	/* Wait for a user action  */
-#define ME_NOREFRESH	64U	/* Write the error message to error log */
-#define ME_NOINPUT	128U	/* Dont use the input libary */
-#define ME_COLOUR1	((1U << ME_HIGHBYTE))	/* Possibly error-colours */
-#define ME_COLOUR2	((2U << ME_HIGHBYTE))
-#define ME_COLOUR3	((3U << ME_HIGHBYTE))
+#define ME_BELL         4U      /* Ring bell then printing message */
+#define ME_WAITTANG     0       /* Wait for a user action  */
+#define ME_NOREFRESH    64U     /* Write the error message to error log */
+#define ME_NOINPUT      0       /* Dont use the input libary */
 #define ME_JUST_INFO    1024U   /**< not error but just info */
 #define ME_JUST_WARNING 2048U   /**< not error but just warning */
 #define ME_FATALERROR   4096U   /* Fatal statement error */
@@ -430,14 +423,6 @@ typedef struct st_io_cache		/* Used when cacheing files */
   uchar *write_end;
 
   /*
-    Current_pos and current_end are convenience variables used by
-    my_b_tell() and other routines that need to know the current offset
-    current_pos points to &write_pos, and current_end to &write_end in a
-    WRITE_CACHE, and &read_pos and &read_end respectively otherwise
-  */
-  uchar  **current_pos, **current_end;
-
-  /*
     The lock is for append buffer used in SEQ_READ_APPEND cache
     need mutex copying from append buffer to read buffer.
   */
@@ -591,7 +576,11 @@ static inline size_t my_b_fill(IO_CACHE *info)
 
 static inline my_off_t my_b_tell(const IO_CACHE *info)
 {
-  return info->pos_in_file + (*info->current_pos - info->request_pos);
+  if (info->type == WRITE_CACHE) {
+    return info->pos_in_file + (info->write_pos - info->request_pos);
+
+  }
+  return info->pos_in_file + (info->read_pos - info->request_pos);
 }
 
 static inline my_off_t my_b_write_tell(const IO_CACHE *info)
@@ -616,7 +605,10 @@ static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
 
 static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
 {
-  return *info->current_end - *info->current_pos;
+  if (info->type == WRITE_CACHE) {
+    return info->write_end - info->write_pos;
+  }
+  return info->read_end - info->read_pos;
 }
 
 int      my_b_copy_to_file(IO_CACHE *cache, FILE *file);
@@ -725,12 +717,6 @@ extern int my_sync(File fd, myf my_flags);
 extern int my_sync_dir(const char *dir_name, myf my_flags);
 extern int my_sync_dir_by_file(const char *file_name, myf my_flags);
 extern const char *my_get_err_msg(uint nr);
-extern void my_error(uint nr,myf MyFlags, ...);
-extern void my_printf_error(uint my_err, const char *format,
-                            myf MyFlags, ...)
-                            ATTRIBUTE_FORMAT(printf, 2, 4);
-extern void my_printv_error(uint error, const char *format, myf MyFlags,
-                            va_list ap);
 extern int my_error_register(const char** (*get_errmsgs) (int nr),
                              uint first, uint last);
 extern my_bool my_error_unregister(uint first, uint last);
@@ -816,7 +802,6 @@ extern int init_io_cache(IO_CACHE *info,File file,size_t cachesize,
 extern my_bool reinit_io_cache(IO_CACHE *info,enum cache_type type,
 			       my_off_t seek_offset, my_bool use_async_io,
 			       my_bool clear_cache);
-extern void setup_io_cache(IO_CACHE* info);
 extern void init_io_cache_share(IO_CACHE *read_cache, IO_CACHE_SHARE *cshare,
                                 IO_CACHE *write_cache, uint num_threads);
 
@@ -961,6 +946,12 @@ extern ulonglong my_getcputime(void);
 #define hrtime_to_double(X)             ((X).val/(double)HRTIME_RESOLUTION)
 #define hrtime_sec_part(X)              ((ulong)((X).val % HRTIME_RESOLUTION))
 #define my_time(X)                      hrtime_to_time(my_hrtime())
+
+#if STACK_DIRECTION < 0
+#define available_stack_size(CUR,END) (long) ((char*)(CUR) - (char*)(END))
+#else
+#define available_stack_size(CUR,END) (long) ((char*)(END) - (char*)(CUR))
+#endif
 
 #ifdef HAVE_SYS_MMAN_H
 #include <sys/mman.h>

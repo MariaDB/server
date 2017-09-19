@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -327,123 +328,126 @@ trx_sys_print_mysql_binlog_offset(void)
 static long long trx_sys_cur_xid_seqno = -1;
 static unsigned char trx_sys_cur_xid_uuid[16];
 
-long long read_wsrep_xid_seqno(const XID* xid)
+/** Read WSREP XID seqno */
+static inline long long read_wsrep_xid_seqno(const XID* xid)
 {
-    long long seqno;
-    memcpy(&seqno, xid->data + 24, sizeof(long long));
-    return seqno;
+	long long seqno;
+	memcpy(&seqno, xid->data + 24, sizeof(long long));
+	return seqno;
 }
 
-void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
+/** Read WSREP XID UUID */
+static inline void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
 {
-    memcpy(buf, xid->data + 8, 16);
+	memcpy(buf, xid->data + 8, 16);
 }
 
 #endif /* UNIV_DEBUG */
 
+/** Update WSREP XID info in sys_header of TRX_SYS_PAGE_NO = 5.
+@param[in]	xid		Transaction XID
+@param[in,out]	sys_header	sys_header
+@param[in]	mtr		minitransaction */
+UNIV_INTERN
 void
 trx_sys_update_wsrep_checkpoint(
-        const XID*      xid,        /*!< in: transaction XID */
-        trx_sysf_t*     sys_header, /*!< in: sys_header */
-        mtr_t*          mtr)        /*!< in: mtr */
+	const XID*	xid,
+	trx_sysf_t*	sys_header,
+	mtr_t*		mtr)
 {
 #ifdef UNIV_DEBUG
-        {
-            /* Check that seqno is monotonically increasing */
-            unsigned char xid_uuid[16];
-            long long xid_seqno = read_wsrep_xid_seqno(xid);
-            read_wsrep_xid_uuid(xid, xid_uuid);
-            if (!memcmp(xid_uuid, trx_sys_cur_xid_uuid, 16))
-            {
-              /*
-                This check is a protection against the initial seqno (-1)
-                assigned in read_wsrep_xid_uuid(), which, if not checked,
-                would cause the following assertion to fail.
-              */
-              if (xid_seqno > -1 )
-              {
-                ut_ad(xid_seqno > trx_sys_cur_xid_seqno);
-              }
-            }
-            else
-            {
-                memcpy(trx_sys_cur_xid_uuid, xid_uuid, 16);
-            }
-            trx_sys_cur_xid_seqno = xid_seqno;
-        }
+	if (xid->formatID != -1
+	    && mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
+			+ TRX_SYS_WSREP_XID_MAGIC_N_FLD)
+		== TRX_SYS_WSREP_XID_MAGIC_N) {
+		/* Check that seqno is monotonically increasing */
+		unsigned char xid_uuid[16];
+		long long xid_seqno = read_wsrep_xid_seqno(xid);
+		read_wsrep_xid_uuid(xid, xid_uuid);
+
+		if (!memcmp(xid_uuid, trx_sys_cur_xid_uuid, 8)) {
+			ut_ad(xid_seqno > trx_sys_cur_xid_seqno);
+			trx_sys_cur_xid_seqno = xid_seqno;
+		} else {
+			memcpy(trx_sys_cur_xid_uuid, xid_uuid, 16);
+		}
+
+		trx_sys_cur_xid_seqno = xid_seqno;
+	}
 #endif /* UNIV_DEBUG */
 
-        ut_ad(xid && mtr);
-        ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid(xid));
+	ut_ad(xid && mtr);
+	ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid((const XID *)xid));
 
-        if (mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
-                             + TRX_SYS_WSREP_XID_MAGIC_N_FLD)
-            != TRX_SYS_WSREP_XID_MAGIC_N) {
-                mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
-                                 + TRX_SYS_WSREP_XID_MAGIC_N_FLD,
-                                 TRX_SYS_WSREP_XID_MAGIC_N,
-                                 MLOG_4BYTES, mtr);
-        }
+	if (mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
+			+ TRX_SYS_WSREP_XID_MAGIC_N_FLD)
+		!= TRX_SYS_WSREP_XID_MAGIC_N) {
+		mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
+			+ TRX_SYS_WSREP_XID_MAGIC_N_FLD,
+			TRX_SYS_WSREP_XID_MAGIC_N,
+			MLOG_4BYTES, mtr);
+	}
 
-        mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
-                         + TRX_SYS_WSREP_XID_FORMAT,
-                         (int)xid->formatID,
-                         MLOG_4BYTES, mtr);
-        mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
-                         + TRX_SYS_WSREP_XID_GTRID_LEN,
-                         (int)xid->gtrid_length,
-                         MLOG_4BYTES, mtr);
-        mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
-                         + TRX_SYS_WSREP_XID_BQUAL_LEN,
-                         (int)xid->bqual_length,
-                         MLOG_4BYTES, mtr);
-        mlog_write_string(sys_header + TRX_SYS_WSREP_XID_INFO
-                          + TRX_SYS_WSREP_XID_DATA,
-                          (const unsigned char*) xid->data,
-                          XIDDATASIZE, mtr);
-
+	mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
+		+ TRX_SYS_WSREP_XID_FORMAT,
+		(int)xid->formatID,
+		MLOG_4BYTES, mtr);
+	mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
+		+ TRX_SYS_WSREP_XID_GTRID_LEN,
+		(int)xid->gtrid_length,
+		MLOG_4BYTES, mtr);
+	mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
+		+ TRX_SYS_WSREP_XID_BQUAL_LEN,
+		(int)xid->bqual_length,
+		MLOG_4BYTES, mtr);
+	mlog_write_string(sys_header + TRX_SYS_WSREP_XID_INFO
+		+ TRX_SYS_WSREP_XID_DATA,
+		(const unsigned char*) xid->data,
+		XIDDATASIZE, mtr);
 }
 
-void
+/** Read WSREP XID from sys_header of TRX_SYS_PAGE_NO = 5.
+@param[out]	xid	Transaction XID
+@retval true if found, false if not */
+UNIV_INTERN
+bool
 trx_sys_read_wsrep_checkpoint(XID* xid)
-/*===================================*/
 {
-        trx_sysf_t* sys_header;
-	mtr_t	    mtr;
-        ulint       magic;
+	trx_sysf_t*	sys_header;
+	mtr_t		mtr;
+	ulint		magic;
 
-        ut_ad(xid);
+	ut_ad(xid);
 
 	mtr_start(&mtr);
 
 	sys_header = trx_sysf_get(&mtr);
 
-        if ((magic = mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
-                                      + TRX_SYS_WSREP_XID_MAGIC_N_FLD))
-            != TRX_SYS_WSREP_XID_MAGIC_N) {
-                memset(xid, 0, sizeof(*xid));
-                long long seqno= -1;
-                memcpy(xid->data + 24, &seqno, sizeof(long long));
-                xid->formatID = -1;
-                trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
-                mtr_commit(&mtr);
-                return;
-        }
+	if ((magic = mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
+				+ TRX_SYS_WSREP_XID_MAGIC_N_FLD))
+		!= TRX_SYS_WSREP_XID_MAGIC_N) {
+		memset(xid, 0, sizeof(*xid));
+		xid->formatID = -1;
+		trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
+		mtr_commit(&mtr);
+		return false;
+	}
 
-        xid->formatID     = (int)mach_read_from_4(
-                sys_header
-                + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_FORMAT);
-        xid->gtrid_length = (int)mach_read_from_4(
-                sys_header
-                + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_GTRID_LEN);
-        xid->bqual_length = (int)mach_read_from_4(
-                sys_header
-                + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_BQUAL_LEN);
-        ut_memcpy(xid->data,
-                  sys_header + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_DATA,
-                  XIDDATASIZE);
+	xid->formatID     = (int)mach_read_from_4(
+		sys_header
+		+ TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_FORMAT);
+	xid->gtrid_length = (int)mach_read_from_4(
+		sys_header
+		+ TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_GTRID_LEN);
+	xid->bqual_length = (int)mach_read_from_4(
+		sys_header
+		+ TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_BQUAL_LEN);
+	ut_memcpy(xid->data,
+		sys_header + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_DATA,
+		XIDDATASIZE);
 
 	mtr_commit(&mtr);
+	return true;
 }
 
 #endif /* WITH_WSREP */
@@ -1063,18 +1067,12 @@ trx_sys_create_rsegs(
 		ulint	new_rsegs = n_rsegs - n_used;
 
 		for (i = 0; i < new_rsegs; ++i) {
-			ulint	space;
+			ulint	space_id;
+			space_id = (n_spaces == 0) ? 0
+				: (srv_undo_space_id_start + i % n_spaces);
 
-			/* Tablespace 0 is the system tablespace. All UNDO
-			log tablespaces start from 1. */
-
-			if (n_spaces > 0) {
-				space = (i % n_spaces) + 1;
-			} else {
-				space = 0; /* System tablespace */
-			}
-
-			if (trx_rseg_create(space) != NULL) {
+			/* Tablespace 0 is the system tablespace. */
+			if (trx_rseg_create(space_id) != NULL) {
 				++n_used;
 			} else {
 				break;
@@ -1339,14 +1337,16 @@ trx_sys_close(void)
 	trx_purge_sys_close();
 
 	/* Free the double write data structures. */
-	buf_dblwr_free();
+	if (buf_dblwr) {
+		buf_dblwr_free();
+	}
 
-	ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
 
 	/* Only prepared transactions may be left in the system. Free them. */
 	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx
 	     || srv_read_only_mode
-	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
+	     || srv_apply_log_only);
 
 	while ((trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list)) != NULL) {
 		trx_free_prepared(trx);
@@ -1377,10 +1377,12 @@ trx_sys_close(void)
 		UT_LIST_REMOVE(view_list, trx_sys->view_list, prev_view);
 	}
 
-	ut_a(UT_LIST_GET_LEN(trx_sys->view_list) == 0);
-	ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
-	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == 0);
-	ut_a(UT_LIST_GET_LEN(trx_sys->mysql_trx_list) == 0);
+	if (!srv_apply_log_only) {
+		ut_a(UT_LIST_GET_LEN(trx_sys->view_list) == 0);
+		ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
+		ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == 0);
+		ut_a(UT_LIST_GET_LEN(trx_sys->mysql_trx_list) == 0);
+	}
 
 	mutex_free(&trx_sys->mutex);
 
@@ -1427,6 +1429,9 @@ ulint
 trx_sys_any_active_transactions(void)
 /*=================================*/
 {
+	if (srv_apply_log_only) {
+		return(0);
+	}
 	mutex_enter(&trx_sys->mutex);
 
 	ulint	total_trx = UT_LIST_GET_LEN(trx_sys->mysql_trx_list);

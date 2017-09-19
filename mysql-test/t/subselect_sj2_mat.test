@@ -263,3 +263,43 @@ DROP TABLE t1,t2,t3;
 set join_cache_level= @save_join_cache_level;
 set optimizer_switch=@save_optimizer_switch;
 
+--echo #
+--echo # mdev-7791: materialization of a semi-join subquery +
+--echo #            RAND() in WHERE
+--echo #            (materialized table is accessed last)
+--echo #
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='materialization=on';
+
+create table t1(i int);
+insert into t1 values (1), (2), (3), (7), (9), (10);
+create table t2(i int);
+insert into t2 values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+select * from t1 where (rand() < 0) and i in (select i from t2);
+explain extended
+select * from t1 where (rand() < 0) and i in (select i from t2);
+
+drop table t1,t2;
+set optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # mdev-12855: materialization of a semi-join subquery + ORDER BY 
+--echo #
+
+CREATE TABLE t1 (f1 varchar(8), KEY(f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('qux'),('foo');
+CREATE TABLE t2 (f2 varchar(8)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('bar'),('foo'),('qux');
+
+let $q=
+SELECT f1 FROM t1 
+WHERE f1 IN ( SELECT f2 FROM t2 WHERE f2 > 'bar' )
+HAVING f1 != 'foo'
+ORDER BY f1;
+
+eval $q;
+eval explain $q;
+
+DROP TABLE t1,t2;

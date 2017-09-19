@@ -1,0 +1,52 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("read free replication is disabled for tokudb table");
+connection master;
+CREATE TABLE t (a int(11), b char(20)) ENGINE = TokuDB;
+INSERT INTO t (a, b) VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e');
+connection slave;
+SELECT * FROM t;
+a	b
+1	a
+2	b
+3	c
+4	d
+5	e
+connection master;
+UPDATE t SET a = a + 10 WHERE b = 'b';
+SELECT * FROM t;
+a	b
+1	a
+12	b
+3	c
+4	d
+5	e
+connection slave;
+SELECT * FROM t;
+a	b
+1	a
+12	b
+3	c
+4	d
+5	e
+connection master;
+UPDATE t SET a = a + 10 WHERE b = 'b';
+SELECT * FROM t;
+a	b
+1	a
+22	b
+3	c
+4	d
+5	e
+connection slave;
+SELECT * FROM t;
+a	b
+1	a
+22	b
+3	c
+4	d
+5	e
+connection master;
+DROP TABLE t;
+connection slave;
+include/rpl_end.inc

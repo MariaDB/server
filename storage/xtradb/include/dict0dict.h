@@ -1192,7 +1192,7 @@ dict_index_get_nth_col_pos(
 	const dict_index_t*	index,	/*!< in: index */
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos) /*!< out: col num if prefix */
-	__attribute__((nonnull(1), warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 /********************************************************************//**
 Looks for column n in an index.
 @return position in internal representation of the index;
@@ -1207,7 +1207,7 @@ dict_index_get_nth_col_or_prefix_pos(
 						column prefixes too */
 	ulint*			prefix_col_pos)	/*!< out: col num if prefix */
 
-	__attribute__((nonnull(1), warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 /********************************************************************//**
 Returns TRUE if the index contains a column or a prefix of that column.
 @return	TRUE if contains the column or its prefix */
@@ -1653,9 +1653,6 @@ struct dict_sys_t{
 					on name */
 	hash_table_t*	table_id_hash;	/*!< hash table of the tables, based
 					on id */
-	ulint		size;		/*!< varying space in bytes occupied
-					by the data dictionary table and
-					index objects */
 	dict_table_t*	sys_tables;	/*!< SYS_TABLES table */
 	dict_table_t*	sys_columns;	/*!< SYS_COLUMNS table */
 	dict_table_t*	sys_indexes;	/*!< SYS_INDEXES table */
@@ -1767,16 +1764,6 @@ dict_close(void);
 /*============*/
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
-Check whether the table is corrupted.
-@return	nonzero for corrupted table, zero for valid tables */
-UNIV_INLINE
-ulint
-dict_table_is_corrupted(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/**********************************************************************//**
 Check whether the index is corrupted.
 @return	nonzero for corrupted index, zero for valid indexes */
 UNIV_INLINE
@@ -1819,6 +1806,15 @@ ibool
 dict_set_corrupted_by_space(
 /*========================*/
 	ulint		space_id);	/*!< in: space ID */
+
+/**********************************************************************//**
+Flags a table with specified space_id encrypted in the data dictionary
+cache
+@param[in]	space_id	Tablespace id */
+UNIV_INTERN
+void
+dict_set_encrypted_by_space(
+	ulint	space_id);
 
 /********************************************************************//**
 Validate the table flags.
@@ -1899,15 +1895,14 @@ dict_table_get_index_on_first_col(
 	ulint			col_index);	/*!< in: position of column
 						in table */
 
-#endif /* !UNIV_HOTBACKUP */
-/*************************************************************************
-set is_corrupt flag by space_id*/
+/** Calculate the used memory occupied by the data dictionary
+table and index objects.
+@return number of bytes occupied. */
+UNIV_INTERN
+ulint
+dict_sys_get_size();
 
-void
-dict_table_set_corrupt_by_space(
-/*============================*/
-	ulint	space_id,
-	ibool	need_mutex);
+#endif /* !UNIV_HOTBACKUP */
 
 #ifndef UNIV_NONINL
 #include "dict0dict.ic"

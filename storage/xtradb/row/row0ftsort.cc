@@ -40,7 +40,7 @@ Created 10/13/2010 Jimmy Yang
 		b[N] = row_merge_read_rec(				\
 			block[N], buf[N], b[N], index,			\
 			fd[N], &foffs[N], &mrec[N], offsets[N],		\
-			crypt_data, crypt_block[N], space);		\
+			crypt_block[N], space);				\
 		if (UNIV_UNLIKELY(!b[N])) {				\
 			if (mrec[N]) {					\
 				goto exit;				\
@@ -194,7 +194,6 @@ row_fts_psort_info_init(
 	fts_psort_t*		merge_info = NULL;
 	ulint			block_size;
 	ibool			ret = TRUE;
-	fil_space_crypt_t*	crypt_data = NULL;
 	bool			encrypted = false;
 
 	block_size = 3 * srv_sort_buf_size;
@@ -225,21 +224,8 @@ row_fts_psort_info_init(
 	common_info->merge_event = os_event_create();
 	common_info->opt_doc_id_size = opt_doc_id_size;
 
-	/* Theoretically the tablespace can be dropped straight away.
-	In practice, the DDL completion will wait for this thread to
-	finish. */
-	if (fil_space_t* space = fil_space_acquire(new_table->space)) {
-		crypt_data = space->crypt_data;
-		fil_space_release(space);
-	}
-
-	if (crypt_data && crypt_data->should_encrypt()) {
-		common_info->crypt_data = crypt_data;
+	if (log_tmp_is_encrypted()) {
 		encrypted = true;
-	} else {
-		/* Not needed */
-		common_info->crypt_data = NULL;
-		crypt_data = NULL;
 	}
 
 	ut_ad(trx->mysql_thd != NULL);
@@ -249,9 +235,6 @@ row_fts_psort_info_init(
 	each parallel sort thread. Each "sort bucket" holds records for
 	a particular "FTS index partition" */
 	for (j = 0; j < fts_sort_pll_degree; j++) {
-
-		UT_LIST_INIT(psort_info[j].fts_doc_list);
-
 		for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
 
 			psort_info[j].merge_file[i] =
@@ -580,11 +563,9 @@ row_merge_fts_doc_tokenize(
 		cur_len += len;
 		dfield_dup(field, buf->heap);
 
-		/* Reserve one byte for the end marker of row_merge_block_t
-		and we have reserved ROW_MERGE_RESERVE_SIZE (= 4) for
-		encryption key_version in the beginning of the buffer. */
+		/* Reserve one byte for the end marker of row_merge_block_t */
 		if (buf->total_size + data_size[idx] + cur_len
-			>= (srv_sort_buf_size - 1 - ROW_MERGE_RESERVE_SIZE)) {
+			>= (srv_sort_buf_size - 1)) {
 
 			buf_full = TRUE;
 			break;
@@ -678,7 +659,6 @@ fts_parallel_tokenization(
 	fts_tokenize_ctx_t	t_ctx;
 	ulint			retried = 0;
 	dberr_t			error = DB_SUCCESS;
-	fil_space_crypt_t*	crypt_data = NULL;
 
 	ut_ad(psort_info->psort_common->trx->mysql_thd != NULL);
 
@@ -699,7 +679,6 @@ fts_parallel_tokenization(
 
 	block = psort_info->merge_block;
 	crypt_block = psort_info->crypt_block;
-	crypt_data = psort_info->psort_common->crypt_data;
 	zip_size = dict_table_zip_size(table);
 
 	row_merge_fts_get_next_doc_item(psort_info, &doc_item);
@@ -794,7 +773,6 @@ loop:
 		if (!row_merge_write(merge_file[t_ctx.buf_used]->fd,
 				     merge_file[t_ctx.buf_used]->offset++,
 				     block[t_ctx.buf_used],
-				     crypt_data,
 				     crypt_block[t_ctx.buf_used],
 				     table->space)) {
 			error = DB_TEMP_FILE_WRITE_FAILURE;
@@ -890,7 +868,6 @@ exit:
 				if (!row_merge_write(merge_file[i]->fd,
 						merge_file[i]->offset++,
 						block[i],
-						crypt_data,
 						crypt_block[i],
 						table->space)) {
 					error = DB_TEMP_FILE_WRITE_FAILURE;
@@ -930,7 +907,7 @@ exit:
 				       psort_info->psort_common->dup,
 				       merge_file[i], block[i], &tmpfd[i],
 				       false, 0.0/* pct_progress */, 0.0/* pct_cost */,
-				       crypt_data, crypt_block[i], table->space);
+				       crypt_block[i], table->space);
 
 		if (error != DB_SUCCESS) {
 			close(tmpfd[i]);
@@ -1442,7 +1419,6 @@ row_fts_merge_insert(
 	ulint			start;
 	fts_psort_insert_t	ins_ctx;
 	ulint			count_diag = 0;
-	fil_space_crypt_t*	crypt_data = NULL;
 	ulint			space;
 
 	ut_ad(index);
@@ -1456,7 +1432,6 @@ row_fts_merge_insert(
 	ins_ctx.trx->op_info = "inserting index entries";
 
 	ins_ctx.opt_doc_id_size = psort_info[0].psort_common->opt_doc_id_size;
-	crypt_data = psort_info[0].psort_common->crypt_data;
 
 	heap = mem_heap_create(500 + sizeof(mrec_buf_t));
 
@@ -1550,7 +1525,6 @@ row_fts_merge_insert(
 			    && (!row_merge_read(
 					fd[i], foffs[i],
 					(row_merge_block_t*) block[i],
-					crypt_data,
 					(row_merge_block_t*) crypt_block[i],
 					space))) {
 				error = DB_CORRUPTION;

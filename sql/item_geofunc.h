@@ -297,7 +297,6 @@ public:
 
 class Item_func_spatial_collection: public Item_geometry_func
 {
-  String tmp_value;
   enum Geometry::wkbType coll_type; 
   enum Geometry::wkbType item_type;
 public:
@@ -350,7 +349,18 @@ public:
     maybe_null= true;
   }
   enum Functype functype() const { return spatial_rel; }
-  enum Functype rev_functype() const { return spatial_rel; }
+  enum Functype rev_functype() const
+  {
+    switch (spatial_rel)
+    {
+      case SP_CONTAINS_FUNC:
+        return SP_WITHIN_FUNC;
+      case SP_WITHIN_FUNC:
+        return SP_CONTAINS_FUNC;
+      default:
+        return spatial_rel;
+    }
+  }
   bool is_null() { (void) val_int(); return null_value; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
@@ -483,7 +493,6 @@ protected:
 
   Gcalc_result_receiver res_receiver;
   Gcalc_operation_reducer operation;
-  String tmp_value;
 
 public:
   Item_func_buffer(THD *thd, Item *obj, Item *distance):

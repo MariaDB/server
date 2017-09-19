@@ -576,7 +576,8 @@ dtype_get_fixed_size_low(
 #else /* !UNIV_HOTBACKUP */
 		return(len);
 #endif /* !UNIV_HOTBACKUP */
-		/* fall through for variable-length charsets */
+		/* Treat as variable-length. */
+		/* Fall through */
 	case DATA_VARCHAR:
 	case DATA_BINARY:
 	case DATA_DECIMAL:

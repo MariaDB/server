@@ -30,6 +30,7 @@ static int crackme(MYSQL_LEX_STRING *username, MYSQL_LEX_STRING *password)
   const char *res;
 
   memcpy(user, username->str, username->length);
+  user[username->length]= 0;
   if ((host= strchr(user, '@')))
     *host++= 0;
 

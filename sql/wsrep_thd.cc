@@ -234,7 +234,7 @@ void wsrep_replay_transaction(THD *thd)
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
       thd->reset_for_next_command();
-      thd->killed= NOT_KILLED;
+      thd->reset_killed();
       close_thread_tables(thd);
       if (thd->locked_tables_mode && thd->lock)
       {
@@ -385,7 +385,8 @@ static void wsrep_replication_process(THD *thd)
   case WSREP_TRX_MISSING:
     /* these suggests a bug in provider code */
     WSREP_WARN("bad return from recv() call: %d", rcode);
-    /* fall through to node shutdown */
+    /* Shut down this node. */
+    /* fall through */
   case WSREP_FATAL:
     /* Cluster connectivity is lost.
      *

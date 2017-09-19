@@ -460,6 +460,30 @@ SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
 SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
 
 
+--echo *** MDEV-8075: DROP TEMPORARY TABLE not marked as ddl, causing optimistic parallel replication to fail ***
+
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (40, 10);
+CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (41);
+BEGIN;
+INSERT INTO t2 SELECT a, 20 FROM t1;
+DROP TEMPORARY TABLE t1;
+COMMIT;
+INSERT INTO t1 VALUES (42, 10);
+--source include/save_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 40 ORDER BY a;
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+
+--connection server_2
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 40 ORDER BY a;
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+
 # Clean up.
 
 --connection server_2

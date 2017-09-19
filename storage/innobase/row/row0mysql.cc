@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -69,11 +69,6 @@ Created 9/17/2000 Heikki Tuuri
 #include <algorithm>
 #include <deque>
 #include <vector>
-
-static const char* MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY =
-	"innodb_force_recovery is on. We do not allow database modifications"
-	" by the user. Shut down mysqld and edit my.cnf to set"
-	" innodb_force_recovery=0";
 
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
 ibool	row_rollback_on_timeout	= FALSE;
@@ -633,8 +628,6 @@ row_mysql_store_col_in_innobase_format(
 
 		ptr = row_mysql_read_blob_ref(&col_len, mysql_data, col_len);
 	} else if (DATA_GEOMETRY_MTYPE(type)) {
-		/* We use blob to store geometry data except DATA_POINT
-		internally, but in MySQL Layer the datatype is always blob. */
 		ptr = row_mysql_read_geometry(&col_len, mysql_data, col_len);
 	}
 
@@ -747,12 +740,17 @@ row_mysql_handle_errors(
 {
 	dberr_t	err;
 
+	DBUG_ENTER("row_mysql_handle_errors");
+
 handle_new_error:
 	err = trx->error_state;
 
 	ut_a(err != DB_SUCCESS);
 
 	trx->error_state = DB_SUCCESS;
+
+	DBUG_LOG("trx", "handle error: " << ut_strerr(err)
+		 << ";id=" << ib::hex(trx->id) << ", " << trx);
 
 	switch (err) {
 	case DB_LOCK_WAIT_TIMEOUT:
@@ -802,7 +800,7 @@ handle_new_error:
 
 		*new_err = err;
 
-		return(true);
+		DBUG_RETURN(true);
 
 	case DB_DEADLOCK:
 	case DB_LOCK_TABLE_FULL:
@@ -819,6 +817,7 @@ handle_new_error:
 		break;
 
 	case DB_CORRUPTION:
+	case DB_PAGE_CORRUPTED:
 		ib::error() << "We detected index corruption in an InnoDB type"
 			" table. You have to dump + drop + reimport the"
 			" table or, in a case of widespread corruption,"
@@ -846,7 +845,7 @@ handle_new_error:
 
 	trx->error_state = DB_SUCCESS;
 
-	return(false);
+	DBUG_RETURN(false);
 }
 
 /********************************************************************//**
@@ -1196,58 +1195,6 @@ row_get_prebuilt_insert_row(
 }
 
 /*********************************************************************//**
-Updates the table modification counter and calculates new estimates
-for table and index statistics if necessary. */
-UNIV_INLINE
-void
-row_update_statistics_if_needed(
-/*============================*/
-	dict_table_t*	table)	/*!< in: table */
-{
-	ib_uint64_t	counter;
-	ib_uint64_t	n_rows;
-
-	if (!table->stat_initialized) {
-		DBUG_EXECUTE_IF(
-			"test_upd_stats_if_needed_not_inited",
-			fprintf(stderr, "test_upd_stats_if_needed_not_inited"
-				" was executed\n");
-		);
-		return;
-	}
-
-	counter = table->stat_modified_counter++;
-	n_rows = dict_table_get_n_rows(table);
-
-	if (dict_stats_is_persistent_enabled(table)) {
-		if (counter > n_rows / 10 /* 10% */
-		    && dict_stats_auto_recalc_is_enabled(table)) {
-
-			dict_stats_recalc_pool_add(table);
-			table->stat_modified_counter = 0;
-		}
-		return;
-	}
-
-	/* Calculate new statistics if 1 / 16 of table has been modified
-	since the last time a statistics batch was run.
-	We calculate statistics at most every 16th round, since we may have
-	a counter table which is very small and updated very often. */
-	ib_uint64_t threshold= 16 + n_rows / 16; /* 6.25% */
-
-	if (srv_stats_modified_counter) {
-		threshold= ut_min((ib_uint64_t)srv_stats_modified_counter, threshold);
-	}
-
-	if (counter > threshold) {
-
-		ut_ad(!mutex_own(&dict_sys->mutex));
-		/* this will reset table->stat_modified_counter to 0 */
-		dict_stats_update(table, DICT_STATS_RECALC_TRANSIENT);
-	}
-}
-
-/*********************************************************************//**
 Sets an AUTO_INC type lock on the table mentioned in prebuilt. The
 AUTO_INC lock gives exclusive access to the auto-inc counter of the
 table. The lock is reserved only for the duration of an SQL statement.
@@ -1399,6 +1346,55 @@ run_again:
 	return(err);
 }
 
+/** Determine is tablespace encrypted but decryption failed, is table corrupted
+or is tablespace .ibd file missing.
+@param[in]	table		Table
+@param[in]	trx		Transaction
+@param[in]	push_warning	true if we should push warning to user
+@retval	DB_DECRYPTION_FAILED	table is encrypted but decryption failed
+@retval	DB_CORRUPTION		table is corrupted
+@retval	DB_TABLESPACE_NOT_FOUND	tablespace .ibd file not found */
+static
+dberr_t
+row_mysql_get_table_status(
+	const dict_table_t*	table,
+	trx_t*			trx,
+	bool 			push_warning = true)
+{
+	dberr_t err;
+	if (fil_space_t* space = fil_space_acquire_silent(table->space)) {
+		if (space->crypt_data && space->crypt_data->is_encrypted()) {
+			// maybe we cannot access the table due to failing
+			// to decrypt
+			if (push_warning) {
+				ib_push_warning(trx, DB_DECRYPTION_FAILED,
+					"Table %s in tablespace %lu encrypted."
+					"However key management plugin or used key_id is not found or"
+					" used encryption algorithm or method does not match.",
+					table->name, table->space);
+			}
+
+			err = DB_DECRYPTION_FAILED;
+		} else {
+			if (push_warning) {
+				ib_push_warning(trx, DB_CORRUPTION,
+					"Table %s in tablespace %lu corrupted.",
+					table->name, table->space);
+			}
+
+			err = DB_CORRUPTION;
+		}
+
+		fil_space_release(space);
+	} else {
+		ib::error() << ".ibd file is missing for table "
+			<< table->name;
+		err = DB_TABLESPACE_NOT_FOUND;
+	}
+
+	return(err);
+}
+
 /** Does an insert for MySQL.
 @param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
@@ -1432,22 +1428,9 @@ row_insert_for_mysql(
 
 		return(DB_TABLESPACE_DELETED);
 
-	} else if (prebuilt->table->ibd_file_missing) {
-
-		ib::error() << ".ibd file is missing for table "
-			<< prebuilt->table->name;
-
-		return(DB_TABLESPACE_NOT_FOUND);
-	} else if (prebuilt->table->is_encrypted) {
-		ib_push_warning(trx, DB_DECRYPTION_FAILED,
-			"Table %s in tablespace " ULINTPF " encrypted."
-			"However key management plugin or used key_id is not found or"
-			" used encryption algorithm or method does not match.",
-			prebuilt->table->name, prebuilt->table->space);
-		return(DB_DECRYPTION_FAILED);
-	} else if (srv_force_recovery) {
-
-		ib::error() << MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY;
+	} else if (!prebuilt->table->is_readable()) {
+		return(row_mysql_get_table_status(prebuilt->table, trx, true));
+	} else if (high_level_read_only) {
 		return(DB_READ_ONLY);
 	}
 	DBUG_EXECUTE_IF("mark_table_corrupted", {
@@ -1594,9 +1577,9 @@ error_exit:
 	que_thr_stop_for_mysql_no_error(thr, trx);
 
 	if (table->is_system_db) {
-		srv_stats.n_system_rows_inserted.inc();
+		srv_stats.n_system_rows_inserted.inc(size_t(trx->id));
 	} else {
-		srv_stats.n_rows_inserted.inc();
+		srv_stats.n_rows_inserted.inc(size_t(trx->id));
 	}
 
 	/* Not protected by dict_table_stats_lock() for performance
@@ -1610,7 +1593,7 @@ error_exit:
 		ut_memcpy(prebuilt->row_id, node->row_id_buf, DATA_ROW_ID_LEN);
 	}
 
-	row_update_statistics_if_needed(table);
+	dict_stats_update_if_needed(table);
 	trx->op_info = "";
 
 	if (blob_heap != NULL) {
@@ -1828,14 +1811,10 @@ public:
 
 
 /** Does an update or delete of a row for MySQL.
-@param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
 @return error code or DB_SUCCESS */
-static
 dberr_t
-row_update_for_mysql_using_upd_graph(
-	const byte*	mysql_rec,
-	row_prebuilt_t*	prebuilt)
+row_update_for_mysql(row_prebuilt_t* prebuilt)
 {
 	trx_savept_t	savept;
 	dberr_t		err;
@@ -1851,33 +1830,20 @@ row_update_for_mysql_using_upd_graph(
 	upd_cascade_t*	processed_cascades;
 	bool		got_s_lock	= false;
 
-	DBUG_ENTER("row_update_for_mysql_using_upd_graph");
+	DBUG_ENTER("row_update_for_mysql");
 
 	ut_ad(trx);
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
-	UT_NOT_USED(mysql_rec);
+	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
+	ut_ad(table->stat_initialized);
 
-	if (prebuilt->table->ibd_file_missing) {
-		ib::error() << "MySQL is trying to use a table handle but the"
-			" .ibd file for table " << prebuilt->table->name
-			<< " does not exist. Have you deleted"
-			" the .ibd file from the database directory under"
-			" the MySQL datadir, or have you used DISCARD"
-			" TABLESPACE? " << TROUBLESHOOTING_MSG;
-		DBUG_RETURN(DB_ERROR);
-	} else if (prebuilt->table->is_encrypted) {
-		ib_push_warning(trx, DB_DECRYPTION_FAILED,
-			"Table %s in tablespace " ULINTPF " encrypted."
-			"However key management plugin or used key_id is not found or"
-			" used encryption algorithm or method does not match.",
-			prebuilt->table->name, prebuilt->table->space);
-		return (DB_TABLE_NOT_FOUND);
+	if (!table->is_readable()) {
+		return(row_mysql_get_table_status(table, trx, true));
 	}
 
-	if(srv_force_recovery) {
-		ib::error() << MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY;
-		DBUG_RETURN(DB_READ_ONLY);
+	if (high_level_read_only) {
+		return(DB_READ_ONLY);
 	}
 
 	DEBUG_SYNC_C("innodb_row_update_for_mysql_begin");
@@ -1903,6 +1869,8 @@ row_update_for_mysql_using_upd_graph(
 	}
 
 	node = prebuilt->upd_node;
+	const bool is_delete = node->is_delete;
+	ut_ad(node->table == table);
 
 	if (node->cascade_heap) {
 		mem_heap_empty(node->cascade_heap);
@@ -2061,7 +2029,6 @@ run_again:
 		node->cascade_upd_nodes = cascade_upd_nodes;
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
-		prebuilt->m_mysql_table = NULL;
 
 		goto run_again;
 	}
@@ -2073,8 +2040,11 @@ run_again:
 
 	thr->fk_cascade_depth = 0;
 
-	/* Update the statistics only after completing all cascaded
-	operations */
+	/* Update the statistics of each involved table
+	only after completing all operations, including
+	FOREIGN KEY...ON...CASCADE|SET NULL. */
+	bool	update_statistics;
+
 	for (upd_cascade_t::iterator i = processed_cascades->begin();
 	     i != processed_cascades->end();
 	     ++i) {
@@ -2088,47 +2058,54 @@ run_again:
 			than protecting the following code with a latch. */
 			dict_table_n_rows_dec(node->table);
 
-			srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+			update_statistics = !srv_stats_include_delete_marked;
+			srv_stats.n_rows_deleted.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+			update_statistics
+				= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
+			srv_stats.n_rows_updated.inc(size_t(trx->id));
 		}
 
-		row_update_statistics_if_needed(node->table);
+		if (update_statistics) {
+			dict_stats_update_if_needed(node->table);
+		} else {
+			/* Always update the table modification counter. */
+			node->table->stat_modified_counter++;
+		}
+
 		que_graph_free_recursive(node);
 	}
 
-	if (node->is_delete) {
+	if (is_delete) {
 		/* Not protected by dict_table_stats_lock() for performance
 		reasons, we would rather get garbage in stat_n_rows (which is
 		just an estimate anyway) than protecting the following code
 		with a latch. */
 		dict_table_n_rows_dec(prebuilt->table);
 
-		if (table->is_system_db) {	
-			srv_stats.n_system_rows_deleted.inc();
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_deleted.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_deleted.inc();
+			srv_stats.n_rows_deleted.inc(size_t(trx->id));
 		}
 
+		update_statistics = !srv_stats_include_delete_marked;
 	} else {
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_updated.inc();
+			srv_stats.n_system_rows_updated.inc(size_t(trx->id));
 		} else {
-			srv_stats.n_rows_updated.inc();
+			srv_stats.n_rows_updated.inc(size_t(trx->id));
 		}
+
+		update_statistics
+			= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
 	}
 
-	/* We update table statistics only if it is a DELETE or UPDATE
-	that changes indexed columns, UPDATEs that change only non-indexed
-	columns would not affect statistics. */
-	if (node->is_delete || !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
-		row_update_statistics_if_needed(prebuilt->table);
+	if (update_statistics) {
+		dict_stats_update_if_needed(prebuilt->table);
 	} else {
-		/* Update the table modification counter even when
-		non-indexed columns change if statistics is initialized. */
-		if (prebuilt->table->stat_initialized) {
-			prebuilt->table->stat_modified_counter++;
-		}
+		/* Always update the table modification counter. */
+		prebuilt->table->stat_modified_counter++;
 	}
 
 	trx->op_info = "";
@@ -2173,19 +2150,6 @@ error:
 		      que_graph_free_recursive);
 
 	DBUG_RETURN(err);
-}
-
-/** Does an update or delete of a row for MySQL.
-@param[in]	mysql_rec	row in the MySQL format
-@param[in,out]	prebuilt	prebuilt struct in MySQL handle
-@return error code or DB_SUCCESS */
-dberr_t
-row_update_for_mysql(
-	const byte*		mysql_rec,
-	row_prebuilt_t*		prebuilt)
-{
-	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
-	return(row_update_for_mysql_using_upd_graph(mysql_rec, prebuilt));
 }
 
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
@@ -2319,22 +2283,6 @@ no_unlock:
 }
 
 /*********************************************************************//**
-Checks if a table is such that we automatically created a clustered
-index on it (on row id).
-@return TRUE if the clustered index was generated automatically */
-ibool
-row_table_got_default_clust_index(
-/*==============================*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	const dict_index_t*	clust_index;
-
-	clust_index = dict_table_get_first_index(table);
-
-	return(dict_index_get_nth_col(clust_index, 0)->mtype == DATA_SYS);
-}
-
-/*********************************************************************//**
 Locks the data dictionary in shared mode from modifications, for performing
 foreign key check, rollback, or other operation invisible to MySQL. */
 void
@@ -2422,7 +2370,7 @@ row_create_table_for_mysql(
 	trx_t*		trx,	/*!< in/out: transaction */
 	bool		commit,	/*!< in: if true, commit the transaction */
 	fil_encryption_t mode,	/*!< in: encryption mode */
-	ulint		key_id)	/*!< in: encryption key_id */
+	uint32_t	key_id)	/*!< in: encryption key_id */
 {
 	tab_node_t*	node;
 	mem_heap_t*	heap;
@@ -3259,7 +3207,7 @@ row_discard_tablespace(
 		/* All persistent operations successful, update the
 		data dictionary memory cache. */
 
-		table->ibd_file_missing = TRUE;
+		table->file_unreadable = true;
 
 		table->flags2 |= DICT_TF2_DISCARDED;
 
@@ -3298,7 +3246,7 @@ row_discard_tablespace(
 /*********************************************************************//**
 Discards the tablespace of a table which stored in an .ibd file. Discarding
 means that this function renames the .ibd file and assigns a new table id for
-the table. Also the flag table->ibd_file_missing is set to TRUE.
+the table. Also the file_unreadable flag is set.
 @return error code or DB_SUCCESS */
 dberr_t
 row_discard_tablespace_for_mysql(
@@ -3315,8 +3263,6 @@ row_discard_tablespace_for_mysql(
 
 	if (table == 0) {
 		err = DB_TABLE_NOT_FOUND;
-	} else if (table->is_encrypted) {
-		err = DB_DECRYPTION_FAILED;
 	} else if (dict_table_is_temporary(table)) {
 
 		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
@@ -3324,7 +3270,7 @@ row_discard_tablespace_for_mysql(
 
 		err = DB_ERROR;
 
-	} else if (table->space == srv_sys_space.space_id()) {
+	} else if (table->space == TRX_SYS_SPACE) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 
 		innobase_format_name(
@@ -3571,8 +3517,7 @@ row_drop_single_table_tablespace(
 
 	/* If the tablespace is not in the cache, just delete the file. */
 	if (!fil_space_for_table_exists_in_mem(
-		    space_id, tablename, true, false, NULL, 0, NULL,
-		    table_flags)) {
+		    space_id, tablename, true, false, NULL, 0, table_flags)) {
 
 		/* Force a delete of any discarded or temporary files. */
 		fil_delete_file(filepath);
@@ -3655,18 +3600,6 @@ row_drop_table_for_mysql(
 		err = DB_TABLE_NOT_FOUND;
 		goto funct_exit;
 	}
-	/* If table is encrypted and table page encryption failed
-	return error. */
-	if (table->is_encrypted) {
-
-		if (table->can_be_evicted) {
-			dict_table_move_from_lru_to_non_lru(table);
-		}
-
-		dict_table_close(table, TRUE, FALSE);
-		err = DB_DECRYPTION_FAILED;
-		goto funct_exit;
-	}
 
 	/* This function is called recursively via fts_drop_tables(). */
 	if (!trx_is_started(trx)) {
@@ -3716,7 +3649,13 @@ row_drop_table_for_mysql(
 
 		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
-		btr_defragment_remove_table(table);
+		if (btr_defragment_thread_active) {
+			/* During fts_drop_orphaned_tables() in
+			recv_recovery_rollback_active() the
+			btr_defragment_mutex has not yet been
+			initialized by btr_defragment_init(). */
+			btr_defragment_remove_table(table);
+		}
 
 		/* Remove stats for this table and all of its indexes from the
 		persistent storage if it exists and if there are stats for this
@@ -3922,19 +3861,6 @@ row_drop_table_for_mysql(
 	we need to avoid running removal of these entries. */
 	if (!dict_table_is_temporary(table)) {
 
-		/* If table has not yet have crypt_data, try to read it to
-		make freeing the table easier. */
-		if (!table->crypt_data) {
-			if (fil_space_t* space = fil_space_acquire_silent(
-				    table->space)) {
-				/* We use crypt data in dict_table_t
-				in ha_innodb.cc to push warnings to
-				user thread. */
-				table->crypt_data = space->crypt_data;
-				fil_space_release(space);
-			}
-		}
-
 		/* We use the private SQL parser of Innobase to generate the
 		query graphs needed in deleting the dictionary data from system
 		tables in Innobase. Deleting a row from SYS_INDEXES table also
@@ -4065,13 +3991,11 @@ row_drop_table_for_mysql(
 
 	switch (err) {
 		ulint	space_id;
-		bool	ibd_file_missing;
 		bool	is_discarded;
 		ulint	table_flags;
 
 	case DB_SUCCESS:
 		space_id = table->space;
-		ibd_file_missing = table->ibd_file_missing;
 		is_discarded = dict_table_is_discarded(table);
 		table_flags = table->flags;
 		ut_ad(!dict_table_is_temporary(table));
@@ -4102,8 +4026,7 @@ row_drop_table_for_mysql(
 
 		/* Do not attempt to drop known-to-be-missing tablespaces,
 		nor the system tablespace. */
-		if (is_discarded || ibd_file_missing
-		    || is_system_tablespace(space_id)) {
+		if (is_discarded || is_system_tablespace(space_id)) {
 			break;
 		}
 
@@ -4336,7 +4259,8 @@ loop:
 					<< table->name << ".frm' was lost.";
 			}
 
-			if (table->ibd_file_missing) {
+			if (!table->is_readable()
+			    && !fil_space_get(table->space)) {
 				ib::warn() << "Missing .ibd file for table "
 					<< table->name << ".";
 			}
@@ -4515,10 +4439,8 @@ row_rename_table_for_mysql(
 	ut_a(new_name != NULL);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 
-	if (srv_force_recovery) {
-		ib::info() << MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY;
-		err = DB_READ_ONLY;
-		goto funct_exit;
+	if (high_level_read_only) {
+		return(DB_READ_ONLY);
 
 	} else if (row_mysql_is_system_table(new_name)) {
 
@@ -4592,7 +4514,8 @@ row_rename_table_for_mysql(
 		err = DB_TABLE_NOT_FOUND;
 		goto funct_exit;
 
-	} else if (table->ibd_file_missing
+	} else if (!table->is_readable()
+		   && fil_space_get(table->space) == NULL
 		   && !dict_table_is_discarded(table)) {
 
 		err = DB_TABLE_NOT_FOUND;
@@ -4658,10 +4581,18 @@ row_rename_table_for_mysql(
 	/* SYS_TABLESPACES and SYS_DATAFILES need to be updated if
 	the table is in a single-table tablespace. */
 	if (err == DB_SUCCESS
-	    && dict_table_is_file_per_table(table)
-	    && !table->ibd_file_missing) {
+	    && dict_table_is_file_per_table(table)) {
 		/* Make a new pathname to update SYS_DATAFILES. */
 		char*	new_path = row_make_new_pathname(table, new_name);
+		char*	old_path = fil_space_get_first_path(table->space);
+
+		/* If old path and new path are the same means tablename
+		has not changed and only the database name holding the table
+		has changed so we need to make the complete filepath again. */
+		if (!dict_tables_have_same_db(old_name, new_name)) {
+			ut_free(new_path);
+			new_path = fil_make_filepath(NULL, new_name, IBD, false);
+		}
 
 		info = pars_info_create();
 
@@ -4681,6 +4612,7 @@ row_rename_table_for_mysql(
 				   "END;\n"
 				   , FALSE, trx);
 
+		ut_free(old_path);
 		ut_free(new_path);
 	}
 	if (err != DB_SUCCESS) {
@@ -5111,12 +5043,10 @@ loop:
 	case DB_INTERRUPTED:
 		goto func_exit;
 	default:
-	{
-		const char* doing = "CHECK TABLE";
-		ib::warn() << doing << " on index " << index->name << " of"
+		ib::warn() << "CHECK TABLE on index " << index->name << " of"
 			" table " << index->table->name << " returned " << ret;
-		/* fall through (this error is ignored by CHECK TABLE) */
-	}
+		/* (this error is ignored by CHECK TABLE) */
+		/* fall through */
 	case DB_END_OF_INDEX:
 		ret = DB_SUCCESS;
 func_exit:

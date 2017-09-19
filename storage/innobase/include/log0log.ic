@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -23,7 +24,6 @@ Database log
 Created 12/9/1995 Heikki Tuuri
 *******************************************************/
 
-#include "os0file.h"
 #include "mach0data.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
@@ -479,24 +479,24 @@ void
 log_free_check(void)
 /*================*/
 {
-#ifdef UNIV_DEBUG
 	/* During row_log_table_apply(), this function will be called while we
 	are holding some latches. This is OK, as long as we are not holding
 	any latches on buffer blocks. */
 
+#ifdef UNIV_DEBUG
 	static const latch_level_t latches[] = {
 		SYNC_DICT,		/* dict_sys->mutex during
 					commit_try_rebuild() */
 		SYNC_DICT_OPERATION,	/* dict_operation_lock X-latch during
 					commit_try_rebuild() */
+		SYNC_FTS_CACHE,		/* fts_cache_t::lock */
 		SYNC_INDEX_TREE		/* index->lock */
 	};
-
-	sync_allowed_latches check(
-		latches, latches + sizeof(latches)/sizeof(*latches));
-
-        ut_ad(!sync_check_iterate(check));
 #endif /* UNIV_DEBUG */
+
+	ut_ad(!sync_check_iterate(
+		      sync_allowed_latches(latches,
+					   latches + UT_ARR_SIZE(latches))));
 
 	if (log_sys->check_flush_or_checkpoint) {
 

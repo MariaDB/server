@@ -5,7 +5,6 @@ SET GLOBAL rocksdb_write_disable_wal=false;
 SET GLOBAL rocksdb_write_ignore_missing_column_families=true;
 
 create table aaa (id int primary key, i int) engine rocksdb;
-set @save_rocksdb_flush_log_at_trx_commit= @@global.rocksdb_flush_log_at_trx_commit;
 set @save_rocksdb_flush_log_at_trx_commit=@@global.rocksdb_flush_log_at_trx_commit;
 SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
 --exec sleep 5

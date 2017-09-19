@@ -1,0 +1,160 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+--source include/not_windows.inc
+
+select @@innodb_adaptive_hash_index_partitions, @@innodb_adaptive_hash_index_parts;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global innodb_adaptive_hash_index_partitions=1;
+
+select @@innodb_buffer_pool_populate;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global innodb_buffer_pool_populate=1;
+
+select @@innodb_cleaner_eviction_factor;
+set global innodb_cleaner_eviction_factor=1;
+select @@innodb_cleaner_eviction_factor;
+
+select @@innodb_cleaner_flush_chunk_size;
+set global innodb_cleaner_flush_chunk_size=8;
+select @@innodb_cleaner_flush_chunk_size;
+
+select @@innodb_cleaner_free_list_lwm;
+set global innodb_cleaner_free_list_lwm=1;
+select @@innodb_cleaner_free_list_lwm;
+
+select @@innodb_cleaner_lru_chunk_size;
+set global innodb_cleaner_lru_chunk_size=8;
+select @@innodb_cleaner_lru_chunk_size;
+
+select @@innodb_cleaner_lsn_age_factor;
+set global innodb_cleaner_lsn_age_factor=HIGH_CHECKPOINT;
+select @@innodb_cleaner_lsn_age_factor;
+
+select @@innodb_cleaner_max_flush_time;
+set global innodb_cleaner_max_flush_time=1;
+select @@innodb_cleaner_max_flush_time;
+
+select @@innodb_cleaner_max_lru_time;
+set global innodb_cleaner_max_lru_time=1;
+select @@innodb_cleaner_max_lru_time;
+
+select @@innodb_corrupt_table_action;
+set global innodb_corrupt_table_action=salvage;
+select @@innodb_corrupt_table_action;
+
+select @@innodb_empty_free_list_algorithm;
+set global innodb_empty_free_list_algorithm=BACKOFF;
+select @@innodb_empty_free_list_algorithm;
+
+select @@innodb_fake_changes;
+set global innodb_fake_changes=1;
+select @@innodb_fake_changes;
+
+--echo # @@innodb_file_io_threads is absent
+
+select @@innodb_foreground_preflush;
+set global innodb_foreground_preflush=EXPONENTIAL_BACKOFF;
+select @@innodb_foreground_preflush;
+
+select @@innodb_kill_idle_transaction;
+set global innodb_kill_idle_transaction=1;
+select @@innodb_kill_idle_transaction;
+
+select @@innodb_locking_fake_changes;
+set global innodb_locking_fake_changes=1;
+select @@innodb_locking_fake_changes;
+
+select @@innodb_log_arch_expire_sec;
+set global innodb_log_arch_expire_sec=1;
+select @@innodb_log_arch_expire_sec;
+
+select @@innodb_log_block_size;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global innodb_log_block_size= 8;
+
+select @@innodb_log_checksum_algorithm, @@innodb_log_checksums;
+set global innodb_log_checksum_algorithm=NONE;
+select @@innodb_log_checksum_algorithm, @@innodb_log_checksums;
+set global innodb_log_checksum_algorithm=STRICT_INNODB;
+select @@innodb_log_checksum_algorithm, @@innodb_log_checksums;
+
+select @@innodb_max_bitmap_file_size;
+set global innodb_max_bitmap_file_size=1;
+select @@innodb_max_bitmap_file_size;
+
+select @@innodb_max_changed_pages;
+set global innodb_max_changed_pages=1;
+select @@innodb_max_changed_pages;
+
+select @@innodb_mirrored_log_groups;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global innodb_mirrored_log_groups= 4;
+
+select @@innodb_priority_cleaner;
+set global innodb_priority_cleaner=1;
+select @@innodb_priority_cleaner;
+
+select @@innodb_priority_io;
+set global innodb_priority_io=1;
+select @@innodb_priority_io;
+
+select @@innodb_priority_master;
+set global innodb_priority_master=1;
+select @@innodb_priority_master;
+
+select @@innodb_priority_purge;
+set global innodb_priority_purge=1;
+select @@innodb_priority_purge;
+
+select @@innodb_sched_priority_cleaner;
+set global innodb_sched_priority_cleaner=8;
+select @@innodb_sched_priority_cleaner;
+
+select @@innodb_sched_priority_io;
+set global innodb_sched_priority_io=8;
+select @@innodb_sched_priority_io;
+
+select @@innodb_sched_priority_master;
+set global innodb_sched_priority_master=8;
+select @@innodb_sched_priority_master;
+
+select @@innodb_sched_priority_purge;
+set global innodb_sched_priority_purge=8;
+select @@innodb_sched_priority_purge;
+
+select @@innodb_show_locks_held;
+set global innodb_show_locks_held=8;
+select @@innodb_show_locks_held;
+
+select @@innodb_show_verbose_locks;
+set global innodb_show_verbose_locks=1;
+select @@innodb_show_verbose_locks;
+
+select @@innodb_track_changed_pages;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global innodb_track_changed_pages=1;
+
+select @@innodb_track_redo_log_now;
+set global innodb_track_redo_log_now=1;
+select @@innodb_track_redo_log_now;
+
+select @@innodb_use_global_flush_log_at_trx_commit;
+set global innodb_use_global_flush_log_at_trx_commit=1;
+select @@innodb_use_global_flush_log_at_trx_commit;
+
+select @@innodb_use_stacktrace;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global innodb_use_stacktrace=1;
+
+select @@innodb_log_archive;
+set global innodb_log_archive=1;
+select @@innodb_log_archive;
+
+select @@innodb_log_arch_dir;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global innodb_log_arch_dir="ttt";
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=Using [A-Za-z\\-]* is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+--source include/search_pattern_in_file.inc

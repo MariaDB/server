@@ -89,8 +89,7 @@ int readfrm(const char *name, const uchar **frmdata, size_t *len)
   error= 0;
   
  err:
-  if (file > 0)
-    (void) mysql_file_close(file, MYF(MY_WME));
+  (void) mysql_file_close(file, MYF(MY_WME));
   
  err_end:		      /* Here when no file */
   DBUG_RETURN (error);

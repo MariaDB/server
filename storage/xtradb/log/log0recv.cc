@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
@@ -332,6 +332,7 @@ DECLARE_THREAD(recv_writer_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
 	ut_ad(!srv_read_only_mode);
 
 #ifdef UNIV_PFS_THREAD
@@ -362,6 +363,7 @@ DECLARE_THREAD(recv_writer_thread)(
 
 	recv_writer_thread_active = false;
 
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit().
 	A created thread should always use that to exit and not
 	use return() to exit. */
@@ -692,7 +694,6 @@ recv_synchronize_groups(
 /***********************************************************************//**
 Checks the consistency of the checkpoint info
 @return	TRUE if ok */
-static
 ibool
 recv_check_cp_is_consistent(
 /*========================*/
@@ -722,7 +723,7 @@ recv_check_cp_is_consistent(
 /********************************************************//**
 Looks for the maximum consistent checkpoint from the log groups.
 @return	error code or DB_SUCCESS */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 recv_find_max_checkpoint(
 /*=====================*/
@@ -841,10 +842,8 @@ not_consistent:
 
 		fprintf(stderr,
 			"InnoDB: No valid checkpoint found.\n"
-			"InnoDB: If you are attempting downgrade"
-			" from MySQL 5.7.9 or later,\n"
-			"InnoDB: please refer to " REFMAN
-			"upgrading-downgrading.html\n"
+			"InnoDB: A downgrade from MariaDB 10.2.2"
+			" or later is not supported.\n"
 			"InnoDB: If this error appears when you are"
 			" creating an InnoDB database,\n"
 			"InnoDB: the problem may be that during"
@@ -1383,7 +1382,12 @@ recv_parse_or_apply_log_rec_body(
 		}
 		break;
 	case MLOG_FILE_WRITE_CRYPT_DATA:
-		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block));
+		dberr_t err;
+		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block, &err));
+
+		if (err != DB_SUCCESS) {
+			recv_sys->found_corrupt_log = TRUE;
+		}
 		break;
 	default:
 		ptr = NULL;
@@ -1868,6 +1872,11 @@ recv_apply_hashed_log_recs(bool last_batch)
 			break;
 		}
 
+		if (recv_sys->found_corrupt_log) {
+			mutex_exit(&recv_sys->mutex);
+			return;
+		}
+
 		mutex_exit(&recv_sys->mutex);
 		os_thread_sleep(500000);
 	}
@@ -1932,6 +1941,10 @@ recv_apply_hashed_log_recs(bool last_batch)
 
 		mutex_exit(&(recv_sys->mutex));
 
+		if (recv_sys->found_corrupt_log) {
+			return;
+		}
+
 		os_thread_sleep(500000);
 
 		mutex_enter(&(recv_sys->mutex));
@@ -1967,7 +1980,7 @@ recv_apply_hashed_log_recs(bool last_batch)
 
 		mutex_enter(&(log_sys->mutex));
 		mutex_enter(&(recv_sys->mutex));
-		ut_d(recv_no_log_write = FALSE);
+		ut_d(recv_no_log_write = srv_apply_log_only);
 
 		recv_no_ibuf_operations = FALSE;
 	}
@@ -2989,11 +3002,6 @@ recv_init_crash_recovery(void)
 	possible */
 
 	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-
-		ib_logf(IB_LOG_LEVEL_INFO,
-			"Restoring possible half-written data pages "
-			"from the doublewrite buffer...");
-
 		buf_dblwr_process();
 
 		/* Spawn the background thread to flush dirty pages
@@ -3004,22 +3012,22 @@ recv_init_crash_recovery(void)
 	}
 }
 
-/********************************************************//**
-Recovers from a checkpoint. When this function returns, the database is able
+/** Recovers from a checkpoint. When this function returns, the database is able
 to start processing of new user transactions, but the function
 recv_recovery_from_checkpoint_finish should be called later to complete
 the recovery and free the resources used in it.
+@param[in]	type		LOG_CHECKPOINT or LOG_ARCHIVE
+@param[in]	limit_lsn	recover up to this lsn if possible
+@param[in]	flushed_lsn	flushed lsn from first data file
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
 dberr_t
 recv_recovery_from_checkpoint_start_func(
-/*=====================================*/
 #ifdef UNIV_LOG_ARCHIVE
-	ulint	type,		/*!< in: LOG_CHECKPOINT or LOG_ARCHIVE */
-	lsn_t	limit_lsn,	/*!< in: recover up to this lsn if possible */
+	ulint		type,
+	lsn_t		limit_lsn,
 #endif /* UNIV_LOG_ARCHIVE */
-	lsn_t	min_flushed_lsn,/*!< in: min flushed lsn from data files */
-	lsn_t	max_flushed_lsn)/*!< in: max flushed lsn from data files */
+	lsn_t		flushed_lsn)
 {
 	log_group_t*	group;
 	log_group_t*	max_cp_group;
@@ -3247,6 +3255,7 @@ recv_recovery_from_checkpoint_start_func(
 
 		group = UT_LIST_GET_NEXT(log_groups, group);
 	}
+
 	/* Done with startup scan. Clear the flag. */
 	recv_log_scan_is_startup_type = FALSE;
 
@@ -3259,38 +3268,16 @@ recv_recovery_from_checkpoint_start_func(
 		there is something wrong we will print a message to the
 		user about recovery: */
 
-		if (checkpoint_lsn != max_flushed_lsn
-		    || checkpoint_lsn != min_flushed_lsn) {
-
-			if (checkpoint_lsn < max_flushed_lsn) {
-
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"The log sequence number "
-					"in the ibdata files is higher "
-					"than the log sequence number "
-					"in the ib_logfiles! Are you sure "
-					"you are using the right "
-					"ib_logfiles to start up the database. "
-					"Log sequence number in the "
-					"ib_logfiles is " LSN_PF ", log"
-					"sequence numbers stamped "
-					"to ibdata file headers are between "
-					"" LSN_PF " and " LSN_PF ".",
-					checkpoint_lsn,
-					min_flushed_lsn,
-					max_flushed_lsn);
-			}
-
+		if (checkpoint_lsn != flushed_lsn) {
 			if (!recv_needed_recovery) {
 				ib_logf(IB_LOG_LEVEL_INFO,
-					"The log sequence numbers "
-					LSN_PF " and " LSN_PF
-					" in ibdata files do not match"
+					"The log sequence number "
+					LSN_PF
+					" in ibdata file do not match"
 					" the log sequence number "
 					LSN_PF
 					" in the ib_logfiles!",
-					min_flushed_lsn,
-					max_flushed_lsn,
+					flushed_lsn,
 					checkpoint_lsn);
 
 				if (!srv_read_only_mode) {
@@ -3460,6 +3447,7 @@ recv_recovery_from_checkpoint_finish(void)
 #ifdef __WIN__
 	if (recv_writer_thread_handle) {
 		CloseHandle(recv_writer_thread_handle);
+		recv_writer_thread_handle = 0;
 	}
 #endif /* __WIN__ */
 
@@ -3473,7 +3461,8 @@ recv_recovery_from_checkpoint_finish(void)
 	that the data dictionary tables will be free of any locks.
 	The data dictionary latch should guarantee that there is at
 	most one data dictionary transaction active at a time. */
-	if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+	if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+	    && !srv_apply_log_only) {
 		trx_rollback_or_clean_recovered(FALSE);
 	}
 }
@@ -3576,6 +3565,7 @@ recv_reset_logs(
 
 	log_sys->tracked_lsn = log_sys->lsn;
 
+	memset(log_sys->buf, 0, log_sys->buf_size);
 	log_block_init(log_sys->buf, log_sys->lsn);
 	log_block_set_first_rec_group(log_sys->buf, LOG_BLOCK_HDR_SIZE);
 
@@ -3685,6 +3675,102 @@ recv_reset_log_files_for_backup(
 	ut_free(buf);
 }
 #endif /* UNIV_HOTBACKUP */
+
+/******************************************************//**
+Checks the 4-byte checksum to the trailer checksum field of a log
+block.  We also accept a log block in the old format before
+InnoDB-3.23.52 where the checksum field contains the log block number.
+@return TRUE if ok, or if the log block may be in the format of InnoDB
+version predating 3.23.52 */
+UNIV_INTERN
+ibool
+log_block_checksum_is_ok_or_old_format(
+/*===================================*/
+	const byte*	block)	/*!< in: pointer to a log block */
+{
+#ifdef UNIV_LOG_DEBUG
+	return(TRUE);
+#endif /* UNIV_LOG_DEBUG */
+
+	ulint block_checksum = log_block_get_checksum(block);
+
+	if (UNIV_LIKELY(srv_log_checksum_algorithm ==
+			SRV_CHECKSUM_ALGORITHM_NONE ||
+			log_block_calc_checksum(block) == block_checksum)) {
+
+		return(TRUE);
+	}
+
+	if (srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 ||
+	    srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB ||
+	    srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_NONE) {
+
+		const char*	algo = NULL;
+
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"log block checksum mismatch: expected " ULINTPF ", "
+			"calculated checksum " ULINTPF,
+			block_checksum,
+			log_block_calc_checksum(block));
+
+		if (block_checksum == LOG_NO_CHECKSUM_MAGIC) {
+
+			algo = "none";
+		} else if (block_checksum ==
+			   log_block_calc_checksum_crc32(block)) {
+
+			algo = "crc32";
+		} else if (block_checksum ==
+			   log_block_calc_checksum_innodb(block)) {
+
+			algo = "innodb";
+		}
+
+		if (algo) {
+
+			const char*	current_algo;
+
+			current_algo = buf_checksum_algorithm_name(
+				(srv_checksum_algorithm_t)
+				srv_log_checksum_algorithm);
+
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"current InnoDB log checksum type: %s, "
+				"detected log checksum type: %s",
+				current_algo,
+				algo);
+		}
+
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"STRICT method was specified for innodb_log_checksum, "
+			"so we intentionally assert here.");
+	}
+
+	ut_ad(srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_CRC32 ||
+	      srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_INNODB);
+
+	if (block_checksum == LOG_NO_CHECKSUM_MAGIC ||
+	    block_checksum == log_block_calc_checksum_crc32(block) ||
+	    block_checksum == log_block_calc_checksum_innodb(block)) {
+
+		return(TRUE);
+	}
+
+	if (log_block_get_hdr_no(block) == block_checksum) {
+
+		/* We assume the log block is in the format of
+		InnoDB version < 3.23.52 and the block is ok */
+#if 0
+		fprintf(stderr,
+			"InnoDB: Scanned old format < InnoDB-3.23.52"
+			" log block number %lu\n",
+			log_block_get_hdr_no(block));
+#endif
+		return(TRUE);
+	}
+
+	return(FALSE);
+}
 
 void recv_dblwr_t::add(byte* page)
 {

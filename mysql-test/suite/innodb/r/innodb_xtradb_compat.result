@@ -1,0 +1,313 @@
+select @@innodb_adaptive_hash_index_partitions, @@innodb_adaptive_hash_index_parts;
+@@innodb_adaptive_hash_index_partitions	@@innodb_adaptive_hash_index_parts
+16	16
+set global innodb_adaptive_hash_index_partitions=1;
+ERROR HY000: Variable 'innodb_adaptive_hash_index_partitions' is a read only variable
+select @@innodb_buffer_pool_populate;
+@@innodb_buffer_pool_populate
+1
+set global innodb_buffer_pool_populate=1;
+ERROR HY000: Variable 'innodb_buffer_pool_populate' is a read only variable
+select @@innodb_cleaner_eviction_factor;
+@@innodb_cleaner_eviction_factor
+1
+set global innodb_cleaner_eviction_factor=1;
+Warnings:
+Warning	1287	Using innodb_cleaner_eviction_factor is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_cleaner_eviction_factor;
+@@innodb_cleaner_eviction_factor
+1
+select @@innodb_cleaner_flush_chunk_size;
+@@innodb_cleaner_flush_chunk_size
+16
+set global innodb_cleaner_flush_chunk_size=8;
+Warnings:
+Warning	1287	Using innodb_cleaner_flush_chunk_size is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_cleaner_flush_chunk_size;
+@@innodb_cleaner_flush_chunk_size
+16
+select @@innodb_cleaner_free_list_lwm;
+@@innodb_cleaner_free_list_lwm
+1
+set global innodb_cleaner_free_list_lwm=1;
+Warnings:
+Warning	1287	Using innodb_cleaner_free_list_lwm is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_cleaner_free_list_lwm;
+@@innodb_cleaner_free_list_lwm
+1
+select @@innodb_cleaner_lru_chunk_size;
+@@innodb_cleaner_lru_chunk_size
+1
+set global innodb_cleaner_lru_chunk_size=8;
+Warnings:
+Warning	1287	Using innodb_cleaner_lru_chunk_size is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_cleaner_lru_chunk_size;
+@@innodb_cleaner_lru_chunk_size
+1
+select @@innodb_cleaner_lsn_age_factor;
+@@innodb_cleaner_lsn_age_factor
+HIGH_CHECKPOINT
+set global innodb_cleaner_lsn_age_factor=HIGH_CHECKPOINT;
+Warnings:
+Warning	1287	Using innodb_cleaner_lsn_age_factor is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_cleaner_lsn_age_factor;
+@@innodb_cleaner_lsn_age_factor
+HIGH_CHECKPOINT
+select @@innodb_cleaner_max_flush_time;
+@@innodb_cleaner_max_flush_time
+1
+set global innodb_cleaner_max_flush_time=1;
+Warnings:
+Warning	1287	Using innodb_cleaner_max_flush_time is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_cleaner_max_flush_time;
+@@innodb_cleaner_max_flush_time
+1
+select @@innodb_cleaner_max_lru_time;
+@@innodb_cleaner_max_lru_time
+1
+set global innodb_cleaner_max_lru_time=1;
+Warnings:
+Warning	1287	Using innodb_cleaner_max_lru_time is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_cleaner_max_lru_time;
+@@innodb_cleaner_max_lru_time
+1
+select @@innodb_corrupt_table_action;
+@@innodb_corrupt_table_action
+salvage
+set global innodb_corrupt_table_action=salvage;
+Warnings:
+Warning	1287	Using innodb_corrupt_table_action is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_corrupt_table_action;
+@@innodb_corrupt_table_action
+salvage
+select @@innodb_empty_free_list_algorithm;
+@@innodb_empty_free_list_algorithm
+BACKOFF
+set global innodb_empty_free_list_algorithm=BACKOFF;
+Warnings:
+Warning	1287	Using innodb_empty_free_list_algorithm is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_empty_free_list_algorithm;
+@@innodb_empty_free_list_algorithm
+BACKOFF
+select @@innodb_fake_changes;
+@@innodb_fake_changes
+1
+set global innodb_fake_changes=1;
+Warnings:
+Warning	1287	Using innodb_fake_changes is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_fake_changes;
+@@innodb_fake_changes
+1
+# @@innodb_file_io_threads is absent
+select @@innodb_foreground_preflush;
+@@innodb_foreground_preflush
+EXPONENTIAL_BACKOFF
+set global innodb_foreground_preflush=EXPONENTIAL_BACKOFF;
+Warnings:
+Warning	1287	Using innodb_foreground_preflush is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_foreground_preflush;
+@@innodb_foreground_preflush
+EXPONENTIAL_BACKOFF
+select @@innodb_kill_idle_transaction;
+@@innodb_kill_idle_transaction
+1
+set global innodb_kill_idle_transaction=1;
+Warnings:
+Warning	1287	Using innodb_kill_idle_transaction is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_kill_idle_transaction;
+@@innodb_kill_idle_transaction
+1
+select @@innodb_locking_fake_changes;
+@@innodb_locking_fake_changes
+1
+set global innodb_locking_fake_changes=1;
+Warnings:
+Warning	1287	Using innodb_locking_fake_changes is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_locking_fake_changes;
+@@innodb_locking_fake_changes
+1
+select @@innodb_log_arch_expire_sec;
+@@innodb_log_arch_expire_sec
+1
+set global innodb_log_arch_expire_sec=1;
+Warnings:
+Warning	1287	Using innodb_log_arch_expire_sec is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_log_arch_expire_sec;
+@@innodb_log_arch_expire_sec
+1
+select @@innodb_log_block_size;
+@@innodb_log_block_size
+16
+set global innodb_log_block_size= 8;
+ERROR HY000: Variable 'innodb_log_block_size' is a read only variable
+select @@innodb_log_checksum_algorithm, @@innodb_log_checksums;
+@@innodb_log_checksum_algorithm	@@innodb_log_checksums
+STRICT_INNODB	1
+set global innodb_log_checksum_algorithm=NONE;
+Warnings:
+Warning	1287	Using innodb_log_checksum_algorithm is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_log_checksum_algorithm, @@innodb_log_checksums;
+@@innodb_log_checksum_algorithm	@@innodb_log_checksums
+NONE	0
+set global innodb_log_checksum_algorithm=STRICT_INNODB;
+Warnings:
+Warning	1287	Using innodb_log_checksum_algorithm is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_log_checksum_algorithm, @@innodb_log_checksums;
+@@innodb_log_checksum_algorithm	@@innodb_log_checksums
+STRICT_INNODB	1
+select @@innodb_max_bitmap_file_size;
+@@innodb_max_bitmap_file_size
+1
+set global innodb_max_bitmap_file_size=1;
+Warnings:
+Warning	1287	Using innodb_max_bitmap_file_size is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_max_bitmap_file_size;
+@@innodb_max_bitmap_file_size
+1
+select @@innodb_max_changed_pages;
+@@innodb_max_changed_pages
+1
+set global innodb_max_changed_pages=1;
+Warnings:
+Warning	1287	Using innodb_max_changed_pages is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_max_changed_pages;
+@@innodb_max_changed_pages
+1
+select @@innodb_mirrored_log_groups;
+@@innodb_mirrored_log_groups
+8
+set global innodb_mirrored_log_groups= 4;
+ERROR HY000: Variable 'innodb_mirrored_log_groups' is a read only variable
+select @@innodb_priority_cleaner;
+@@innodb_priority_cleaner
+1
+set global innodb_priority_cleaner=1;
+Warnings:
+Warning	1287	Using innodb_priority_cleaner is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_priority_cleaner;
+@@innodb_priority_cleaner
+1
+select @@innodb_priority_io;
+@@innodb_priority_io
+1
+set global innodb_priority_io=1;
+Warnings:
+Warning	1287	Using innodb_priority_io is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_priority_io;
+@@innodb_priority_io
+1
+select @@innodb_priority_master;
+@@innodb_priority_master
+1
+set global innodb_priority_master=1;
+Warnings:
+Warning	1287	Using innodb_priority_master is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_priority_master;
+@@innodb_priority_master
+1
+select @@innodb_priority_purge;
+@@innodb_priority_purge
+1
+set global innodb_priority_purge=1;
+Warnings:
+Warning	1287	Using innodb_priority_purge is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_priority_purge;
+@@innodb_priority_purge
+1
+select @@innodb_sched_priority_cleaner;
+@@innodb_sched_priority_cleaner
+16
+set global innodb_sched_priority_cleaner=8;
+Warnings:
+Warning	1287	Using innodb_sched_priority_cleaner is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_sched_priority_cleaner;
+@@innodb_sched_priority_cleaner
+16
+select @@innodb_sched_priority_io;
+@@innodb_sched_priority_io
+16
+set global innodb_sched_priority_io=8;
+Warnings:
+Warning	1287	Using innodb_sched_priority_io is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_sched_priority_io;
+@@innodb_sched_priority_io
+16
+select @@innodb_sched_priority_master;
+@@innodb_sched_priority_master
+16
+set global innodb_sched_priority_master=8;
+Warnings:
+Warning	1287	Using innodb_sched_priority_master is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_sched_priority_master;
+@@innodb_sched_priority_master
+16
+select @@innodb_sched_priority_purge;
+@@innodb_sched_priority_purge
+16
+set global innodb_sched_priority_purge=8;
+Warnings:
+Warning	1287	Using innodb_sched_priority_purge is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_sched_priority_purge;
+@@innodb_sched_priority_purge
+16
+select @@innodb_show_locks_held;
+@@innodb_show_locks_held
+16
+set global innodb_show_locks_held=8;
+Warnings:
+Warning	1287	Using innodb_show_locks_held is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_show_locks_held;
+@@innodb_show_locks_held
+16
+select @@innodb_show_verbose_locks;
+@@innodb_show_verbose_locks
+1
+set global innodb_show_verbose_locks=1;
+Warnings:
+Warning	1287	Using innodb_show_verbose_locks is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_show_verbose_locks;
+@@innodb_show_verbose_locks
+1
+select @@innodb_track_changed_pages;
+@@innodb_track_changed_pages
+1
+set global innodb_track_changed_pages=1;
+ERROR HY000: Variable 'innodb_track_changed_pages' is a read only variable
+select @@innodb_track_redo_log_now;
+@@innodb_track_redo_log_now
+1
+set global innodb_track_redo_log_now=1;
+Warnings:
+Warning	1287	Using innodb_track_redo_log_now is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_track_redo_log_now;
+@@innodb_track_redo_log_now
+1
+select @@innodb_use_global_flush_log_at_trx_commit;
+@@innodb_use_global_flush_log_at_trx_commit
+1
+set global innodb_use_global_flush_log_at_trx_commit=1;
+Warnings:
+Warning	1287	Using innodb_use_global_flush_log_at_trx_commit is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_use_global_flush_log_at_trx_commit;
+@@innodb_use_global_flush_log_at_trx_commit
+1
+select @@innodb_use_stacktrace;
+@@innodb_use_stacktrace
+1
+set global innodb_use_stacktrace=1;
+ERROR HY000: Variable 'innodb_use_stacktrace' is a read only variable
+select @@innodb_log_archive;
+@@innodb_log_archive
+1
+set global innodb_log_archive=1;
+Warnings:
+Warning	1287	Using innodb_log_archive is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
+select @@innodb_log_archive;
+@@innodb_log_archive
+1
+select @@innodb_log_arch_dir;
+@@innodb_log_arch_dir
+ttt
+set global innodb_log_arch_dir="ttt";
+ERROR HY000: Variable 'innodb_log_arch_dir' is a read only variable
+FOUND 36 /Using [A-Za-z\-]* is deprecated and the parameter may be removed in future releases. Ignoning the parameter./ in mysqld.1.err

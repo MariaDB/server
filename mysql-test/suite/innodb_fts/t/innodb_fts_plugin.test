@@ -145,13 +145,18 @@ INSERT INTO articles (title, body) VALUES
   ('How To Use MySQL Well','After you went through a ...'),
   ('Optimizing MySQL','In this tutorial we will show ...'),
   ('1001 MySQL Tricks','How to use full-text search engine'),
-  ('Go MySQL Tricks','How to use full text search engine');
+  ('Go MariaDB Tricks','How to use full text search engine');
 
 --source include/restart_mysqld.inc
 
-# Simple term search - 4 records expected
+SELECT * FROM articles WHERE
+         MATCH(title, body) AGAINST('MySQL');
+SELECT * FROM articles WHERE
+         MATCH(title, body) AGAINST('tutorial');
 SELECT * FROM articles WHERE
          MATCH(title, body) AGAINST('Tricks');
+SELECT * FROM articles WHERE
+         MATCH(title, body) AGAINST('full text search');
 SELECT COUNT(*) FROM articles;
 DROP TABLE articles;
 

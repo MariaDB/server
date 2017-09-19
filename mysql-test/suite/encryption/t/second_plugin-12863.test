@@ -1,0 +1,16 @@
+#
+# MDEV-12863 No table can be created after second encryption plugin attempted to load
+#
+--source include/have_innodb.inc
+--source include/have_file_key_management_plugin.inc
+
+call mtr.add_suppression('debug.key.management');
+
+--error 1123
+install soname 'debug_key_management';
+
+create table t1 (a varchar(255)) engine=innodb encrypted=yes;
+create table t2 (a varchar(255)) engine=innodb;
+create table t3 (a varchar(255)) engine=innodb encrypted=no;
+
+drop table t1, t2, t3;

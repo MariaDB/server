@@ -326,8 +326,8 @@ fid	IsClosed(g)
 116	0
 SELECT fid, AsText(Centroid(g)) FROM gis_multi_polygon ORDER by fid;
 fid	AsText(Centroid(g))
-117	POINT(55.58852775304245 17.426536064113982)
-118	POINT(55.58852775304245 17.426536064113982)
+117	POINT(57.98031067576927 17.854754130800433)
+118	POINT(57.98031067576927 17.854754130800433)
 119	POINT(2 2)
 SELECT fid, Area(g) FROM gis_multi_polygon ORDER by fid;
 fid	Area(g)
@@ -610,7 +610,7 @@ set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
 set transaction isolation level read uncommitted;
 select count(*) from t1 where ST_Within(t1.c2, @g1);
 count(*)
-0
+1
 disconnect con1;
 connection a;
 commit;

@@ -1,3 +1,5 @@
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 #
 # Bug#21869656 UNDO LOG DOES NOT CONTAIN ENOUGH INFORMATION
 # ON INDEXED VIRTUAL COLUMNS
@@ -21,6 +23,7 @@ connection con1;
 COMMIT;
 UPDATE t1 SET a=1;
 connection default;
+InnoDB		0 transactions not purged
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -119,6 +122,7 @@ connection con1;
 COMMIT;
 disconnect con1;
 connection default;
+InnoDB		0 transactions not purged
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -138,3 +142,4 @@ CREATE TABLE t1 (a VARCHAR(30), b INT, a2 VARCHAR(30) GENERATED ALWAYS AS (a) VI
 CREATE INDEX idx ON t1(a2(10), b, a2(20));
 ERROR 42S21: Duplicate column name 'a2'
 DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

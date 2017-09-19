@@ -111,3 +111,17 @@ check table t; select * from t;
 update t, t tt set t.b=11, tt.d=11 where t.a=tt.a;
 check table t; select * from t;
 drop table t, t1, t2;
+
+#
+# MDEV-13623 Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index))' failed in virtual longlong Field_long::val_int
+#
+create table t (f1 int, f2 int, f3 int as (f1*2) virtual, key(f3,f2));
+insert into t (f1,f2) values (1,1),(2,2);
+create view v as
+  select a2.f1, a2.f2, a1.f3
+  from t a1, t a2
+  where a2.f3 <> 0
+  with local check option;
+update v set f3 = 52;
+drop view v;
+drop table t;

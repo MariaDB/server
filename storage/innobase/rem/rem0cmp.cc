@@ -158,7 +158,7 @@ TODO: Remove this function. Everything should use MYSQL_TYPE_NEWDECIMAL.
 @param[in] b_length length of b, in bytes (not UNIV_SQL_NULL)
 @return positive, 0, negative, if a is greater, equal, less than b,
 respectively */
-static UNIV_COLD
+static ATTRIBUTE_COLD
 int
 cmp_decimal(
 	const byte*	a,
@@ -378,8 +378,6 @@ cmp_whole_field(
 	case DATA_MYSQL:
 		return(innobase_mysql_cmp(prtype,
 					  a, a_length, b, b_length));
-	case DATA_POINT:
-	case DATA_VAR_POINT:
 	case DATA_GEOMETRY:
 		return(cmp_geometry_field(mtype, prtype, a, a_length, b,
 				b_length));
@@ -437,11 +435,6 @@ cmp_data(
 	case DATA_SYS:
 		pad = ULINT_UNDEFINED;
 		break;
-	case DATA_POINT:
-	case DATA_VAR_POINT:
-		/* Since DATA_POINT has a fixed length of DATA_POINT_LEN,
-		currently, pad is not needed. Meanwhile, DATA_VAR_POINT acts
-		the same as DATA_GEOMETRY */
 	case DATA_GEOMETRY:
 		ut_ad(prtype & DATA_BINARY_TYPE);
 		pad = ULINT_UNDEFINED;

@@ -1,0 +1,30 @@
+!include ../my.cnf
+
+[mysqld.1]
+gtid-domain-id=4
+server-id=4
+#
+log-slave-updates
+slave-parallel-threads=0
+gtid-strict-mode=1
+gtid-ignore-duplicates=1
+
+#
+# Max-size row events to minimum with the idea to create
+# a number of Rows_log_event per Query.
+#
+binlog-row-event-max-size=1024
+
+[mysqld.2]
+gtid-domain-id=2
+server-id=2
+#
+log-slave-updates
+slave-parallel-threads=0
+gtid-strict-mode=1
+gtid-ignore-duplicates=1
+binlog-row-event-max-size=1024
+# The slave will be initialized with a @@global.dbug-var value
+skip-slave-start=1
+
+

@@ -21,6 +21,7 @@ show status like '%libraries%';
 --sorted_result
 --replace_result .dll .so
 show plugins soname like '%example%';
+--replace_result 8 7
 show status like '%libraries%';
 --sorted_result
 --replace_result .dll .so

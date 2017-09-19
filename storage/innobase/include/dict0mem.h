@@ -137,21 +137,11 @@ This flag prevents older engines from attempting to open the table and
 allows InnoDB to update_create_info() accordingly. */
 #define DICT_TF_WIDTH_DATA_DIR		1
 
-/** Width of the SHARED tablespace flag (Oracle MYSQL 5.7).
-Not supported by MariaDB. */
-#define DICT_TF_WIDTH_SHARED_SPACE	1
-
 /**
 Width of the page compression flag
 */
 #define DICT_TF_WIDTH_PAGE_COMPRESSION  1
 #define DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL 4
-
-/**
-Width of the page encryption flag
-*/
-#define DICT_TF_WIDTH_PAGE_ENCRYPTION  1
-#define DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY 8
 
 /**
 Width of atomic writes flag
@@ -164,15 +154,8 @@ DEFAULT=0, ON = 1, OFF = 2
 			+ DICT_TF_WIDTH_ZIP_SSIZE		\
 			+ DICT_TF_WIDTH_ATOMIC_BLOBS		\
 			+ DICT_TF_WIDTH_DATA_DIR		\
-			+ DICT_TF_WIDTH_SHARED_SPACE		\
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION	\
-			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL	\
-			+ DICT_TF_WIDTH_ATOMIC_WRITES		\
-			+ DICT_TF_WIDTH_PAGE_ENCRYPTION		\
-			+ DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
-
-/** A mask of all the known/used bits in table flags */
-#define DICT_TF_BIT_MASK	(~(~0U << DICT_TF_BITS))
+			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)
 
 /** Zero relative shift position of the COMPACT field */
 #define DICT_TF_POS_COMPACT		0
@@ -185,26 +168,17 @@ DEFAULT=0, ON = 1, OFF = 2
 /** Zero relative shift position of the DATA_DIR field */
 #define DICT_TF_POS_DATA_DIR		(DICT_TF_POS_ATOMIC_BLOBS	\
 					+ DICT_TF_WIDTH_ATOMIC_BLOBS)
-/** Zero relative shift position of the SHARED TABLESPACE field */
-#define DICT_TF_POS_SHARED_SPACE	(DICT_TF_POS_DATA_DIR		\
-					+ DICT_TF_WIDTH_DATA_DIR)
 /** Zero relative shift position of the PAGE_COMPRESSION field */
-#define DICT_TF_POS_PAGE_COMPRESSION	(DICT_TF_POS_SHARED_SPACE	\
-					+ DICT_TF_WIDTH_SHARED_SPACE)
+#define DICT_TF_POS_PAGE_COMPRESSION	(DICT_TF_POS_DATA_DIR		\
+					+ DICT_TF_WIDTH_DATA_DIR)
 /** Zero relative shift position of the PAGE_COMPRESSION_LEVEL field */
 #define DICT_TF_POS_PAGE_COMPRESSION_LEVEL	(DICT_TF_POS_PAGE_COMPRESSION	\
 					+ DICT_TF_WIDTH_PAGE_COMPRESSION)
 /** Zero relative shift position of the ATOMIC_WRITES field */
 #define DICT_TF_POS_ATOMIC_WRITES	(DICT_TF_POS_PAGE_COMPRESSION_LEVEL \
 					+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)
-/** Zero relative shift position of the PAGE_ENCRYPTION field */
-#define DICT_TF_POS_PAGE_ENCRYPTION	(DICT_TF_POS_ATOMIC_WRITES	\
+#define DICT_TF_POS_UNUSED		(DICT_TF_POS_ATOMIC_WRITES     \
 					+ DICT_TF_WIDTH_ATOMIC_WRITES)
-/** Zero relative shift position of the PAGE_ENCRYPTION_KEY field */
-#define DICT_TF_POS_PAGE_ENCRYPTION_KEY	(DICT_TF_POS_PAGE_ENCRYPTION	\
-					+ DICT_TF_WIDTH_PAGE_ENCRYPTION)
-#define DICT_TF_POS_UNUSED		(DICT_TF_POS_PAGE_ENCRYPTION_KEY     \
-					+ DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
 
 /** Bit mask of the COMPACT field */
 #define DICT_TF_MASK_COMPACT				\
@@ -234,14 +208,6 @@ DEFAULT=0, ON = 1, OFF = 2
 #define DICT_TF_MASK_ATOMIC_WRITES		\
 		((~(~0U << DICT_TF_WIDTH_ATOMIC_WRITES)) \
 		<< DICT_TF_POS_ATOMIC_WRITES)
-/** Bit mask of the PAGE_ENCRYPTION field */
-#define DICT_TF_MASK_PAGE_ENCRYPTION			\
-		((~(~0U << DICT_TF_WIDTH_PAGE_ENCRYPTION))	\
-		<< DICT_TF_POS_PAGE_ENCRYPTION)
-/** Bit mask of the PAGE_ENCRYPTION_KEY field */
-#define DICT_TF_MASK_PAGE_ENCRYPTION_KEY		\
-		((~(~0U << DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)) \
-		<< DICT_TF_POS_PAGE_ENCRYPTION_KEY)
 
 /** Return the value of the COMPACT field */
 #define DICT_TF_GET_COMPACT(flags)			\
@@ -271,18 +237,7 @@ DEFAULT=0, ON = 1, OFF = 2
 #define DICT_TF_GET_ATOMIC_WRITES(flags)       \
 		((flags & DICT_TF_MASK_ATOMIC_WRITES)	\
 		>> DICT_TF_POS_ATOMIC_WRITES)
-/** Return the contents of the PAGE_ENCRYPTION field */
-#define DICT_TF_GET_PAGE_ENCRYPTION(flags)			\
-		((flags & DICT_TF_MASK_PAGE_ENCRYPTION) \
-		>> DICT_TF_POS_PAGE_ENCRYPTION)
-/** Return the contents of the PAGE_ENCRYPTION KEY field */
-#define DICT_TF_GET_PAGE_ENCRYPTION_KEY(flags)			\
-		((flags & DICT_TF_MASK_PAGE_ENCRYPTION_KEY) \
-		>> DICT_TF_POS_PAGE_ENCRYPTION_KEY)
 
-/** Return the contents of the UNUSED bits */
-#define DICT_TF_GET_UNUSED(flags)			\
-		(flags >> DICT_TF_POS_UNUSED)
 /* @} */
 
 /** @brief Table Flags set number 2.
@@ -294,9 +249,8 @@ ROW_FORMAT=REDUNDANT.  InnoDB engines do not check these flags
 for unknown bits in order to protect backward incompatibility. */
 /* @{ */
 /** Total number of bits in table->flags2. */
-#define DICT_TF2_BITS			9
-#define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS | \
-					 1U << DICT_TF_POS_SHARED_SPACE)
+#define DICT_TF2_BITS			7
+#define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS)
 #define DICT_TF2_BIT_MASK		~DICT_TF2_UNUSED_BIT_MASK
 
 /** TEMPORARY; TRUE for tables from CREATE TEMPORARY TABLE. */
@@ -918,8 +872,6 @@ struct dict_index_t{
 	dict_field_t*	fields;	/*!< array of field descriptions */
 	st_mysql_ftparser*
 			parser;	/*!< fulltext parser plugin */
-	bool		is_ngram;
-				/*!< true if it's ngram parser */
 	bool		has_new_v_col;
 				/*!< whether it has a newly added virtual
 				column in ALTER */
@@ -1012,6 +964,13 @@ struct dict_index_t{
 		ut_ad(committed || !(type & DICT_CLUSTERED));
 		uncommitted = !committed;
 	}
+
+	/** @return whether this index is readable
+	@retval	true	normally
+	@retval	false	if this is a single-table tablespace
+			and the .ibd file is missing, or a
+			page cannot be read or decrypted */
+	inline bool is_readable() const;
 };
 
 /** The status of online index creation */
@@ -1349,13 +1308,18 @@ struct dict_table_t {
 	/** Acquire the table handle. */
 	inline void acquire();
 
-	void*		thd;		/*!< thd */
-	bool		page_0_read; /*!< true if page 0 has
-				     been already read */
-	fil_space_crypt_t *crypt_data; /*!< crypt data if present */
-
 	/** Release the table handle. */
 	inline void release();
+
+	/** @return whether this table is readable
+	@retval	true	normally
+	@retval	false	if this is a single-table tablespace
+			and the .ibd file is missing, or a
+			page cannot be read or decrypted */
+	bool is_readable() const
+	{
+		return(UNIV_LIKELY(!file_unreadable));
+	}
 
 	/** Id of the table. */
 	table_id_t				id;
@@ -1398,15 +1362,12 @@ struct dict_table_t {
 	5 whether the table is being created its own tablespace,
 	6 whether the table has been DISCARDed,
 	7 whether the aux FTS tables names are in hex.
-	8 whether the table is instinc table.
-	9 whether the table has encryption setting.
 	Use DICT_TF2_FLAG_IS_SET() to parse this flag. */
 	unsigned				flags2:DICT_TF2_BITS;
 
-	/** TRUE if this is in a single-table tablespace and the .ibd file is
-	missing. Then we must return in ha_innodb.cc an error if the user
-	tries to query such an orphaned table. */
-	unsigned				ibd_file_missing:1;
+	/*!< whether this is in a single-table tablespace and the .ibd
+	file is missing or page decryption failed and page is corrupted */
+	unsigned				file_unreadable:1;
 
 	/** TRUE if the table object has been added to the dictionary cache. */
 	unsigned				cached:1;
@@ -1727,8 +1688,6 @@ public:
 	/** Timestamp of the last modification of this table. */
 	time_t					update_time;
 
-	bool					is_encrypted;
-
 #ifdef UNIV_DEBUG
 	/** Value of 'magic_n'. */
 	#define DICT_TABLE_MAGIC_N		76333786
@@ -1740,6 +1699,11 @@ public:
 	columns */
 	dict_vcol_templ_t*			vc_templ;
 };
+
+inline bool dict_index_t::is_readable() const
+{
+	return(UNIV_LIKELY(!table->file_unreadable));
+}
 
 /*******************************************************************//**
 Initialise the table lock list. */

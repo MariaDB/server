@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -271,7 +271,7 @@ innobase_get_int_col_max_value(
 	const Field*	field);	/*!< in: MySQL field */
 
 /* Report an InnoDB error to the client by invoking my_error(). */
-static UNIV_COLD MY_ATTRIBUTE((nonnull))
+static ATTRIBUTE_COLD __attribute__((nonnull))
 void
 my_error_innodb(
 /*============*/
@@ -320,14 +320,22 @@ my_error_innodb(
 	case DB_CORRUPTION:
 		my_error(ER_NOT_KEYFILE, MYF(0), table);
 		break;
-	case DB_TOO_BIG_RECORD:
-		/* We limit max record size to 16k for 64k page size. */
-		my_error(ER_TOO_BIG_ROWSIZE, MYF(0),
-			 srv_page_size == UNIV_PAGE_SIZE_MAX
-			 ? REC_MAX_DATA_SIZE - 1
-			 : page_get_free_space_of_empty(
-				 flags & DICT_TF_COMPACT) / 2);
+	case DB_TOO_BIG_RECORD: {
+		/* Note that in page0zip.ic page_zip_rec_needs_ext() rec_size
+		is limited to COMPRESSED_REC_MAX_DATA_SIZE (16K) or
+		REDUNDANT_REC_MAX_DATA_SIZE (16K-1). */
+		bool comp = !!(flags & DICT_TF_COMPACT);
+		ulint free_space = page_get_free_space_of_empty(comp) / 2;
+
+		if (free_space >= (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+					  REDUNDANT_REC_MAX_DATA_SIZE)) {
+			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
+		}
+
+		my_error(ER_TOO_BIG_ROWSIZE, MYF(0), free_space);
 		break;
+	}
 	case DB_INVALID_NULL:
 		/* TODO: report the row, as we do for DB_DUPLICATE_KEY */
 		my_error(ER_INVALID_USE_OF_NULL, MYF(0));
@@ -591,7 +599,6 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	update_thd();
-	trx_assert_no_search_latch(m_prebuilt->trx);
 
 	/* Change on engine specific table options require rebuild of the
 	table */
@@ -682,7 +689,8 @@ ha_innobase::check_if_supported_inplace_alter(
 
 		/* See if MYSQL table has no pk but we do. */
 		if (UNIV_UNLIKELY(my_primary_key >= MAX_KEY)
-		    && !row_table_got_default_clust_index(m_prebuilt->table)) {
+		    && !dict_index_is_auto_gen_clust(
+			    dict_table_get_first_index(m_prebuilt->table))) {
 			ha_alter_info->unsupported_reason = innobase_get_err_msg(
 				ER_PRIMARY_CANT_HAVE_NULL);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -719,35 +727,6 @@ ha_innobase::check_if_supported_inplace_alter(
 		if ((col->prtype & DATA_UNSIGNED) != unsigned_flag) {
 
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
-	}
-
-	/* If we have column that has changed from NULL -> NOT NULL
-	and column default has changed we need to do additional
-	check. */
-	if ((ha_alter_info->handler_flags
-			& Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE) &&
-	    (ha_alter_info->handler_flags
-		    & Alter_inplace_info::ALTER_COLUMN_DEFAULT)) {
-		Alter_info *alter_info = ha_alter_info->alter_info;
-		List_iterator<Create_field> def_it(alter_info->create_list);
-		Create_field *def;
-		while ((def=def_it++)) {
-
-			/* If this is first column definition whose SQL type
-			is TIMESTAMP and it is defined as NOT NULL and
-			it has either constant default or function default
-			we must use "Copy" method. */
-			if (is_timestamp_type(def->sql_type)) {
-				if ((def->flags & NOT_NULL_FLAG) != 0 && // NOT NULL
-					(def->default_value != NULL || // constant default ?
-					 def->unireg_check != Field::NONE)) { // function default
-					ha_alter_info->unsupported_reason = innobase_get_err_msg(
-						ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
-					DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-				}
-				break;
-			}
 		}
 	}
 
@@ -794,8 +773,8 @@ ha_innobase::check_if_supported_inplace_alter(
 			   | Alter_inplace_info::DROP_INDEX);
 
 		if (flags != 0
-		    || (altered_table->s->partition_info_str
-			&& altered_table->s->partition_info_str_len)
+		    || IF_PARTITIONING((altered_table->s->partition_info_str
+			&& altered_table->s->partition_info_str_len), 0)
 		    || (!check_v_col_in_order(
 			this->table, altered_table, ha_alter_info))) {
 			ha_alter_info->unsupported_reason =
@@ -1034,6 +1013,95 @@ ha_innobase::check_if_supported_inplace_alter(
 			}
 		}
 	}
+
+	/* When changing a NULL column to NOT NULL and specifying a
+	DEFAULT value, ensure that the DEFAULT expression is a constant.
+	Also, in ADD COLUMN, for now we only support a
+	constant DEFAULT expression. */
+	cf_it.rewind();
+	Field **af = altered_table->field;
+
+	while (Create_field* cf = cf_it++) {
+		DBUG_ASSERT(cf->field
+			    || (ha_alter_info->handler_flags
+				& Alter_inplace_info::ADD_COLUMN));
+
+		if (const Field* f = cf->field) {
+			/* This could be changing an existing column
+			from NULL to NOT NULL. */
+			switch ((*af)->type()) {
+			case MYSQL_TYPE_TIMESTAMP:
+			case MYSQL_TYPE_TIMESTAMP2:
+				/* Inserting NULL into a TIMESTAMP column
+				would cause the DEFAULT value to be
+				replaced. Ensure that the DEFAULT
+				expression is not changing during
+				ALTER TABLE. */
+				if (!f->real_maybe_null()
+				    || (*af)->real_maybe_null()) {
+					/* The column was NOT NULL, or it
+					will allow NULL after ALTER TABLE. */
+					goto next_column;
+				}
+
+				if (!(*af)->default_value
+				    && (*af)->is_real_null()) {
+					/* No DEFAULT value is
+					specified. We can report
+					errors for any NULL values for
+					the TIMESTAMP.
+
+					FIXME: Allow any DEFAULT
+					expression whose value does
+					not change during ALTER TABLE.
+					This would require a fix in
+					row_merge_read_clustered_index()
+					to try to replace the DEFAULT
+					value before reporting
+					DB_INVALID_NULL. */
+					goto next_column;
+				}
+				break;
+			default:
+				/* For any other data type, NULL
+				values are not converted.
+				(An AUTO_INCREMENT attribute cannot
+				be introduced to a column with
+				ALGORITHM=INPLACE.) */
+				ut_ad((MTYP_TYPENR((*af)->unireg_check)
+				       == Field::NEXT_NUMBER)
+				      == (MTYP_TYPENR(f->unireg_check)
+					  == Field::NEXT_NUMBER));
+				goto next_column;
+			}
+
+			ha_alter_info->unsupported_reason
+				= innobase_get_err_msg(
+					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
+		} else if (!(*af)->default_value
+			   || !((*af)->default_value->flags
+				& ~(VCOL_SESSION_FUNC | VCOL_TIME_FUNC))) {
+			/* The added NOT NULL column lacks a DEFAULT value,
+			or the DEFAULT is the same for all rows.
+			(Time functions, such as CURRENT_TIMESTAMP(),
+			are evaluated from a timestamp that is assigned
+			at the start of the statement. Session
+			functions, such as USER(), always evaluate the
+			same within a statement.) */
+
+			/* Compute the DEFAULT values of non-constant columns
+			(VCOL_SESSION_FUNC | VCOL_TIME_FUNC). */
+			(*af)->set_default();
+			goto next_column;
+		}
+
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
+next_column:
+		af++;
+	}
+
+	cf_it.rewind();
 
 	DBUG_RETURN(online
 		    ? HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
@@ -1701,7 +1769,6 @@ innobase_col_to_mysql(
 		memcpy(dest, data, len);
 		break;
 
-	case DATA_VAR_POINT:
 	case DATA_GEOMETRY:
 	case DATA_BLOB:
 		/* Skip MySQL BLOBs when reporting an erroneous row
@@ -1726,7 +1793,6 @@ innobase_col_to_mysql(
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 	case DATA_DECIMAL:
-	case DATA_POINT:
 		/* Above are the valid column types for MySQL data. */
 		ut_ad(flen == len);
 		/* fall through */
@@ -2166,7 +2232,6 @@ innobase_create_index_def(
 	memset(index->fields, 0, n_fields * sizeof *index->fields);
 
 	index->parser = NULL;
-	index->is_ngram = false;
 	index->key_number = key_number;
 	index->n_fields = n_fields;
 	index->name = mem_heap_strdup(heap, key->name);
@@ -2199,12 +2264,6 @@ innobase_create_index_def(
 					index->parser =
 						static_cast<st_mysql_ftparser*>(
 						plugin_decl(parser)->info);
-
-					index->is_ngram = strncmp(
-						plugin_name(parser)->str,
-						FTS_NGRAM_PARSER_NAME,
-						plugin_name(parser)->length)
-						 == 0;
 
 					break;
 				}
@@ -2793,10 +2852,10 @@ online_retry_drop_indexes_with_trx(
 @param drop_fk constraints being dropped
 @param n_drop_fk number of constraints that are being dropped
 @return whether the constraint is being dropped */
-inline MY_ATTRIBUTE((warn_unused_result))
+MY_ATTRIBUTE((pure, nonnull(1), warn_unused_result))
+inline
 bool
 innobase_dropping_foreign(
-/*======================*/
 	const dict_foreign_t*	foreign,
 	dict_foreign_t**	drop_fk,
 	ulint			n_drop_fk)
@@ -2820,10 +2879,10 @@ column that is being dropped or modified to NOT NULL.
 @retval true Not allowed (will call my_error())
 @retval false Allowed
 */
-static MY_ATTRIBUTE((warn_unused_result))
+MY_ATTRIBUTE((pure, nonnull(1,4), warn_unused_result))
+static
 bool
 innobase_check_foreigns_low(
-/*========================*/
 	const dict_table_t*	user_table,
 	dict_foreign_t**	drop_fk,
 	ulint			n_drop_fk,
@@ -2920,10 +2979,10 @@ column that is being dropped or modified to NOT NULL.
 @retval true Not allowed (will call my_error())
 @retval false Allowed
 */
-static MY_ATTRIBUTE((warn_unused_result))
+MY_ATTRIBUTE((pure, nonnull(1,2,3,4), warn_unused_result))
+static
 bool
 innobase_check_foreigns(
-/*====================*/
 	Alter_inplace_info*	ha_alter_info,
 	const TABLE*		altered_table,
 	const TABLE*		old_table,
@@ -2959,29 +3018,6 @@ innobase_check_foreigns(
 	return(false);
 }
 
-/** Get the default POINT value in MySQL format
-@param[in]	heap	memory heap where allocated
-@param[in]	length	length of MySQL format
-@return mysql format data */
-static
-const byte*
-innobase_build_default_mysql_point(
-	mem_heap_t*	heap,
-	ulint		length)
-{
-	byte*	buf	= static_cast<byte*>(mem_heap_alloc(
-				heap, DATA_POINT_LEN + length));
-
-	byte*	wkb	= buf + length;
-
-	ulint   len = get_wkb_of_default_point(SPDIMS, wkb, DATA_POINT_LEN);
-	ut_ad(len == DATA_POINT_LEN);
-
-	row_mysql_store_blob_ref(buf, length, wkb, len);
-
-	return(buf);
-}
-
 /** Convert a default value for ADD COLUMN.
 
 @param heap Memory heap where allocated
@@ -3007,16 +3043,6 @@ innobase_build_col_map_add(
 	byte*	buf	= static_cast<byte*>(mem_heap_alloc(heap, size));
 
 	const byte*	mysql_data = field->ptr;
-
-	if (dfield_get_type(dfield)->mtype == DATA_POINT) {
-		/** If the DATA_POINT field is NOT NULL, we need to
-		give it a default value, since DATA_POINT is a fixed length
-		type, we couldn't store a value of length 0, like other
-		geom types. Server doesn't provide the default value, and
-		we would use POINT(0 0) here instead. */
-
-		mysql_data = innobase_build_default_mysql_point(heap, size);
-	}
 
 	row_mysql_store_col_in_innobase_format(
 		dfield, buf, true, mysql_data, size, comp);
@@ -3276,8 +3302,8 @@ innobase_pk_col_prefix_compare(
 	ulint	new_prefix_len,
 	ulint	old_prefix_len)
 {
-	ut_ad(new_prefix_len < REC_MAX_DATA_SIZE);
-	ut_ad(old_prefix_len < REC_MAX_DATA_SIZE);
+	ut_ad(new_prefix_len < COMPRESSED_REC_MAX_DATA_SIZE);
+	ut_ad(old_prefix_len < COMPRESSED_REC_MAX_DATA_SIZE);
 
 	if (new_prefix_len == old_prefix_len) {
 		return(0);
@@ -4423,7 +4449,8 @@ prepare_inplace_alter_table_dict(
 	index_defs = innobase_create_key_defs(
 		ctx->heap, ha_alter_info, altered_table, ctx->num_to_add_index,
 		num_fts_index,
-		row_table_got_default_clust_index(ctx->new_table),
+		dict_index_is_auto_gen_clust(dict_table_get_first_index(
+						     ctx->new_table)),
 		fts_doc_id_col, add_fts_doc_id, add_fts_doc_id_idx,
 		old_table);
 
@@ -4442,11 +4469,13 @@ prepare_inplace_alter_table_dict(
 		       || !innobase_fulltext_exist(altered_table))) {
 		/* InnoDB can perform an online operation (LOCK=NONE). */
 	} else {
+		size_t query_length;
 		/* This should have been blocked in
 		check_if_supported_inplace_alter(). */
 		ut_ad(0);
 		my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-			 thd_query(ctx->prebuilt->trx->mysql_thd));
+			 innobase_get_stmt_unsafe(ctx->prebuilt->trx->mysql_thd,
+						  &query_length));
 		goto error_handled;
 	}
 
@@ -4520,7 +4549,7 @@ prepare_inplace_alter_table_dict(
 		dtuple_t*	add_cols;
 		ulint		space_id = 0;
 		ulint		z = 0;
-		ulint		key_id = FIL_DEFAULT_ENCRYPTION_KEY;
+		uint32_t	key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t mode = FIL_ENCRYPTION_DEFAULT;
 
 		fil_space_t* space = fil_space_acquire(ctx->prebuilt->table->space);
@@ -4647,12 +4676,6 @@ prepare_inplace_alter_table_dict(
 					field_type |= DATA_LONG_TRUE_VARCHAR;
 				}
 
-			}
-
-			if (col_type == DATA_POINT) {
-				/* DATA_POINT should be of fixed length,
-				instead of the pack_length(blob length). */
-				col_len = DATA_POINT_LEN;
 			}
 
 			if (dict_col_name_is_reserved(field->field_name)) {
@@ -4863,7 +4886,7 @@ new_clustered_failed:
 		clustered index of the old table, later. */
 		if (new_clustered
 		    || !ctx->online
-		    || user_table->ibd_file_missing
+		    || !user_table->is_readable()
 		    || dict_table_is_discarded(user_table)) {
 			/* No need to allocate a modification log. */
 			ut_ad(!ctx->add_index[a]->online_log);
@@ -5545,30 +5568,6 @@ ha_innobase::prepare_inplace_alter_table(
 
 	indexed_table = m_prebuilt->table;
 
-	if (indexed_table->is_encrypted) {
-		String str;
-		const char* engine= table_type();
-		push_warning_printf(m_user_thd, Sql_condition::WARN_LEVEL_WARN,
-			HA_ERR_DECRYPTION_FAILED,
-			"Table %s is encrypted but encryption service or"
-			" used key_id is not available. "
-			" Can't continue reading table.",
-			indexed_table->name);
-		get_error_message(HA_ERR_DECRYPTION_FAILED, &str);
-		my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
-
-		DBUG_RETURN(true);
-	}
-
-	if (indexed_table->corrupted
-	    || dict_table_get_first_index(indexed_table) == NULL
-	    || dict_index_is_corrupted(
-		    dict_table_get_first_index(indexed_table))) {
-		/* The clustered index is corrupted. */
-		my_error(ER_CHECK_NO_SUCH_TABLE, MYF(0));
-		DBUG_RETURN(true);
-	}
-
 	/* ALTER TABLE will not implicitly move a table from a single-table
 	tablespace to the system tablespace when innodb_file_per_table=OFF.
 	But it will implicitly move a table from the system tablespace to a
@@ -5586,6 +5585,42 @@ ha_innobase::prepare_inplace_alter_table(
 		if (info.gcols_in_fulltext_or_spatial()) {
 			goto err_exit_no_heap;
 		}
+	}
+
+	if (indexed_table->is_readable()) {
+	} else {
+		if (indexed_table->corrupted) {
+			/* Handled below */
+		} else {
+			FilSpace space(indexed_table->space, true);
+
+			if (space()) {
+				String str;
+				const char* engine= table_type();
+
+				push_warning_printf(
+					m_user_thd,
+					Sql_condition::WARN_LEVEL_WARN,
+					HA_ERR_DECRYPTION_FAILED,
+					"Table %s in file %s is encrypted but encryption service or"
+					" used key_id is not available. "
+					" Can't continue reading table.",
+					table_share->table_name.str,
+					space()->chain.start->name);
+
+				my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
+				DBUG_RETURN(true);
+			}
+		}
+	}
+
+	if (indexed_table->corrupted
+	    || dict_table_get_first_index(indexed_table) == NULL
+	    || dict_index_is_corrupted(
+		    dict_table_get_first_index(indexed_table))) {
+		/* The clustered index is corrupted. */
+		my_error(ER_CHECK_NO_SUCH_TABLE, MYF(0));
+		DBUG_RETURN(true);
 	}
 
 	if (ha_alter_info->handler_flags
@@ -6347,6 +6382,7 @@ ha_innobase::inplace_alter_table(
 	DBUG_ENTER("inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
 
+	ut_ad(!sync_check_iterate(sync_check()));
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
 
@@ -6381,7 +6417,7 @@ ok_exit:
 
 	ctx->m_stage = UT_NEW_NOKEY(ut_stage_alter_t(pk));
 
-	if (m_prebuilt->table->ibd_file_missing
+	if (!m_prebuilt->table->is_readable()
 	    || dict_table_is_discarded(m_prebuilt->table)) {
 		goto all_done;
 	}
@@ -7804,7 +7840,7 @@ commit_try_rebuild(
 	/* The new table must inherit the flag from the
 	"parent" table. */
 	if (dict_table_is_discarded(user_table)) {
-		rebuilt_table->ibd_file_missing = true;
+		rebuilt_table->file_unreadable = true;
 		rebuilt_table->flags2 |= DICT_TF2_DISCARDED;
 	}
 
@@ -8311,20 +8347,20 @@ alter_stats_rebuild(
 	}
 
 #ifndef DBUG_OFF
-	bool	ibd_file_missing_orig = false;
+	bool	file_unreadable_orig = false;
 #endif /* DBUG_OFF */
 
 	DBUG_EXECUTE_IF(
 		"ib_rename_index_fail2",
-		ibd_file_missing_orig = table->ibd_file_missing;
-		table->ibd_file_missing = TRUE;
+		file_unreadable_orig = table->file_unreadable;
+		table->file_unreadable = true;
 	);
 
 	dberr_t	ret = dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
 
 	DBUG_EXECUTE_IF(
 		"ib_rename_index_fail2",
-		table->ibd_file_missing = ibd_file_missing_orig;
+		table->file_unreadable = file_unreadable_orig;
 	);
 
 	if (ret != DB_SUCCESS) {
@@ -8454,6 +8490,19 @@ ha_innobase::commit_inplace_alter_table(
 		ha_innobase_inplace_ctx*	ctx
 			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
 		DBUG_ASSERT(ctx->prebuilt->trx == m_prebuilt->trx);
+
+		/* If decryption failed for old table or new table
+		fail here. */
+		if ((!ctx->old_table->is_readable()
+		     && fil_space_get(ctx->old_table->space))
+		    || (!ctx->new_table->is_readable()
+			&& fil_space_get(ctx->new_table->space))) {
+			String str;
+			const char* engine= table_type();
+			get_error_message(HA_ERR_DECRYPTION_FAILED, &str);
+			my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
+			DBUG_RETURN(true);
+		}
 
 		/* Exclusively lock the table, to ensure that no other
 		transaction is holding locks on the table while we

@@ -762,7 +762,7 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
 
   /* Rules: Context */
   case _CS_CONTEXT:
-    if (len < sizeof(i->context) + 1)
+    if (len < sizeof(i->context))
     {
       memcpy(i->context, attr, len);
       i->context[len]= '\0';

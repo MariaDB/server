@@ -28,6 +28,13 @@ IF(CMAKE_SYSTEM_PROCESSOR MATCHES "i[36]86")
   SKIP_ROCKSDB_PLUGIN("Intel 32 bit not supported.")
 ENDIF()
 
+# Due to retrieved data being incorrect endian
+include(TestBigEndian)
+test_big_endian(BIG_ENDIAN)
+if(BIG_ENDIAN)
+  SKIP_ROCKSDB_PLUGIN("Big Endian not supported.")
+endif()
+
 #
 # Also, disable building on 32-bit Windows
 #
@@ -104,19 +111,7 @@ IF(NOT TARGET rocksdb)
   RETURN()
 ENDIF()
 
-IF(UNIX)
-  IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    ADD_DEFINITIONS(-DOS_LINUX)
 
-    CHECK_INCLUDE_FILES(linux/falloc.h HAVE_LINUX_FALLOC_H)
-
-    CHECK_FUNCTION_EXISTS(fallocate HAVE_FALLOCATE)
-
-    IF(HAVE_FALLOCATE AND HAVE_LINUX_FALLOC_H)
-      ADD_DEFINITIONS(-DROCKSDB_FALLOCATE_PRESENT)
-    ENDIF()
-  ENDIF()
-ENDIF()
 
 CHECK_CXX_SOURCE_COMPILES("
 #if defined(_MSC_VER) && !defined(__thread)
@@ -150,7 +145,12 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
 
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
 
+# MARIAROCKS-TODO: how to properly depend on -lrt ?
 TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY})
+if (UNIX AND NOT APPLE)
+  TARGET_LINK_LIBRARIES(rocksdb_aux_lib -lrt)
+endif()
+
 TARGET_LINK_LIBRARIES(rocksdb rocksdb_aux_lib)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -191,14 +191,10 @@ ENDIF()
 #  ADD_SUBDIRECTORY(unittest)
 #ENDIF()
 
-CHECK_INCLUDE_FILES(zlib.h HAVE_ZLIB_H)
+if (UNIX AND NOT APPLE)
+  SET(rocksdb_static_libs ${rocksdb_static_libs} "-lrt")
+endif()
 
-IF (HAVE_ZLIB_H)
-  ADD_DEFINITIONS(-DZLIB)
-  SET(rocksdb_static_libs ${rocksdb_static_libs} ${ZLIB_LIBRARY})
-ENDIF()
-
-SET(rocksdb_static_libs ${rocksdb_static_libs} "-lrt")
 
 ADD_LIBRARY(rocksdb_tools STATIC
    rocksdb/tools/ldb_tool.cc

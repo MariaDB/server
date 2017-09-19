@@ -22,6 +22,9 @@
 unsigned int wsrep_check_ip (const char* const addr, bool *is_ipv6);
 size_t wsrep_guess_ip (char* buf, size_t buf_len);
 
+/* returns the length of the host part of the address string */
+size_t wsrep_host_len(const char* addr, size_t addr_len);
+
 namespace wsp {
 
 class Address {

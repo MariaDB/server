@@ -44,6 +44,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "dict0boot.h"
 #include "dict0stats_bg.h"
+#include "btr0defragment.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "trx0sys.h"
@@ -358,7 +359,6 @@ log_reserve_and_open(
 
 loop:
 	ut_ad(log_mutex_own());
-	ut_ad(!recv_no_log_write);
 
 	if (log_sys->is_extending) {
 		log_mutex_exit();
@@ -415,7 +415,6 @@ log_write_low(
 
 	ut_ad(log_mutex_own());
 part_loop:
-	ut_ad(!recv_no_log_write);
 	/* Calculate a part length */
 
 	data_len = (log->buf_free % OS_FILE_LOG_BLOCK_SIZE) + str_len;
@@ -485,7 +484,6 @@ log_close(void)
 	lsn_t		checkpoint_age;
 
 	ut_ad(log_mutex_own());
-	ut_ad(!recv_no_log_write);
 
 	lsn = log->lsn;
 
@@ -545,23 +543,6 @@ log_close(void)
 function_exit:
 
 	return(lsn);
-}
-
-/******************************************************//**
-Calculates the data capacity of a log group, when the log file headers are not
-included.
-@return capacity in bytes */
-static
-lsn_t
-log_group_get_capacity(
-/*===================*/
-	const log_group_t*	group)	/*!< in: log group */
-{
-	/* The lsn parameters are updated while holding both the mutexes
-	and it is ok to have either of them while reading */
-	ut_ad(log_mutex_own() || log_write_mutex_own());
-
-	return((group->file_size - LOG_FILE_HDR_SIZE) * group->n_files);
 }
 
 /******************************************************//**
@@ -627,7 +608,7 @@ log_group_calc_lsn_offset(
 	gr_lsn_size_offset = log_group_calc_size_offset(
 		group->lsn_offset, group);
 
-	group_size = log_group_get_capacity(group);
+	group_size = group->capacity();
 
 	if (lsn >= gr_lsn) {
 
@@ -666,42 +647,22 @@ log_group_set_fields(
 	group->lsn = lsn;
 }
 
-/*****************************************************************//**
-Calculates the recommended highest values for lsn - last_checkpoint_lsn
+/** Calculate the recommended highest values for lsn - last_checkpoint_lsn
 and lsn - buf_get_oldest_modification().
+@param[in]	file_size	requested innodb_log_file_size
 @retval true on success
 @retval false if the smallest log group is too small to
 accommodate the number of OS threads in the database server */
-static MY_ATTRIBUTE((warn_unused_result))
 bool
-log_calc_max_ages(void)
-/*===================*/
+log_set_capacity(ulonglong file_size)
 {
-	log_group_t*	group;
 	lsn_t		margin;
 	ulint		free;
-	bool		success	= true;
-	lsn_t		smallest_capacity;
 
-	log_mutex_enter();
-
-	group = UT_LIST_GET_FIRST(log_sys->log_groups);
-
-	ut_ad(group);
-
-	smallest_capacity = LSN_MAX;
-
-	while (group) {
-		if (log_group_get_capacity(group) < smallest_capacity) {
-
-			smallest_capacity = log_group_get_capacity(group);
-		}
-
-		group = UT_LIST_GET_NEXT(log_groups, group);
-	}
-
+	lsn_t smallest_capacity = (file_size - LOG_FILE_HDR_SIZE)
+		* srv_n_log_files;
 	/* Add extra safety */
-	smallest_capacity = smallest_capacity - smallest_capacity / 10;
+	smallest_capacity -= smallest_capacity / 10;
 
 	/* For each OS thread we must reserve so much free space in the
 	smallest log group that it can accommodate the log entries produced
@@ -711,14 +672,19 @@ log_calc_max_ages(void)
 	free = LOG_CHECKPOINT_FREE_PER_THREAD * (10 + srv_thread_concurrency)
 		+ LOG_CHECKPOINT_EXTRA_FREE;
 	if (free >= smallest_capacity / 2) {
-		success = false;
-
-		goto failure;
-	} else {
-		margin = smallest_capacity - free;
+		ib::error() << "Cannot continue operation. ib_logfiles are too"
+			" small for innodb_thread_concurrency="
+			<< srv_thread_concurrency << ". The combined size of"
+			" ib_logfiles should be bigger than"
+			" 200 kB * innodb_thread_concurrency. "
+			<< INNODB_PARAMETERS_MSG;
+		return(false);
 	}
 
+	margin = smallest_capacity - free;
 	margin = margin - margin / 10;	/* Add still some extra safety */
+
+	log_mutex_enter();
 
 	log_sys->log_group_capacity = smallest_capacity;
 
@@ -731,26 +697,14 @@ log_calc_max_ages(void)
 		/ LOG_POOL_CHECKPOINT_RATIO_ASYNC;
 	log_sys->max_checkpoint_age = margin;
 
-failure:
 	log_mutex_exit();
 
-	if (!success) {
-		ib::error() << "Cannot continue operation. ib_logfiles are too"
-			" small for innodb_thread_concurrency="
-			<< srv_thread_concurrency << ". The combined size of"
-			" ib_logfiles should be bigger than"
-			" 200 kB * innodb_thread_concurrency. "
-			<< INNODB_PARAMETERS_MSG;
-	}
-
-	return(success);
+	return(true);
 }
 
-/******************************************************//**
-Initializes the log. */
+/** Initializes the redo logging subsystem. */
 void
-log_init(void)
-/*==========*/
+log_sys_init()
 {
 	log_sys = static_cast<log_t*>(ut_zalloc_nokey(sizeof(log_t)));
 
@@ -779,7 +733,6 @@ log_init(void)
 	log_sys->max_buf_free = log_sys->buf_size / LOG_BUF_FLUSH_RATIO
 		- LOG_BUF_FLUSH_MARGIN;
 	log_sys->check_flush_or_checkpoint = true;
-	UT_LIST_INIT(log_sys->log_groups, &log_group_t::log_groups);
 
 	log_sys->n_log_ios_old = log_sys->n_log_ios;
 	log_sys->last_printout_time = time(NULL);
@@ -823,32 +776,19 @@ log_init(void)
 	}
 }
 
-/******************************************************************//**
-Inits a log group to the log system.
-@return true if success, false if not */
-MY_ATTRIBUTE((warn_unused_result))
-bool
-log_group_init(
-/*===========*/
-	ulint	id,			/*!< in: group id */
-	ulint	n_files,		/*!< in: number of log files */
-	lsn_t	file_size,		/*!< in: log file size in bytes */
-	ulint	space_id)		/*!< in: space id of the file space
-					which contains the log files of this
-					group */
+/** Initialize the redo log.
+@param[in]	n_files		number of files */
+void
+log_init(ulint n_files)
 {
 	ulint	i;
-	log_group_t*	group;
+	log_group_t*	group = &log_sys->log;
 
-	group = static_cast<log_group_t*>(ut_malloc_nokey(sizeof(log_group_t)));
-
-	group->id = id;
 	group->n_files = n_files;
 	group->format = srv_encrypt_log
 		? LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED
 		: LOG_HEADER_FORMAT_CURRENT;
-	group->file_size = file_size;
-	group->space_id = space_id;
+	group->file_size = srv_log_file_size;
 	group->state = LOG_GROUP_OK;
 	group->lsn = LOG_START_LSN;
 	group->lsn_offset = LOG_FILE_HDR_SIZE;
@@ -874,9 +814,6 @@ log_group_init(
 
 	group->checkpoint_buf = static_cast<byte*>(
 		ut_align(group->checkpoint_buf_ptr,OS_FILE_LOG_BLOCK_SIZE));
-
-	UT_LIST_ADD_LAST(log_sys->log_groups, group);
-	return(log_calc_max_ages());
 }
 
 /******************************************************//**
@@ -899,12 +836,11 @@ log_io_complete(
 		case SRV_O_DIRECT:
 		case SRV_O_DIRECT_NO_FSYNC:
 		case SRV_ALL_O_DIRECT_FSYNC:
-			fil_flush(group->space_id);
+			fil_flush(SRV_LOG_SPACE_FIRST_ID);
 		}
 
 
-		DBUG_PRINT("ib_log", ("checkpoint info written to group %u",
-				      unsigned(group->id)));
+		DBUG_PRINT("ib_log", ("checkpoint info written"));
 		log_io_complete_checkpoint();
 
 		return;
@@ -931,7 +867,6 @@ log_group_file_header_flush(
 
 	ut_ad(log_write_mutex_own());
 	ut_ad(!recv_no_log_write);
-	ut_ad(group->id == 0);
 	ut_a(nth_file < group->n_files);
 	ut_ad((group->format & ~LOG_HEADER_FORMAT_ENCRYPTED)
 	      == LOG_HEADER_FORMAT_CURRENT);
@@ -950,9 +885,8 @@ log_group_file_header_flush(
 	dest_offset = nth_file * group->file_size;
 
 	DBUG_PRINT("ib_log", ("write " LSN_PF
-			      " group " ULINTPF
 			      " file " ULINTPF " header",
-			      start_lsn, group->id, nth_file));
+			      start_lsn, nth_file));
 
 	log_sys->n_log_ios++;
 
@@ -964,7 +898,7 @@ log_group_file_header_flush(
 		= (ulint) (dest_offset / univ_page_size.physical());
 
 	fil_io(IORequestLogWrite, true,
-	       page_id_t(group->space_id, page_no),
+	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
 	       (ulint) (dest_offset % univ_page_size.physical()),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, group);
@@ -1050,10 +984,10 @@ loop:
 
 	DBUG_PRINT("ib_log",
 		   ("write " LSN_PF " to " LSN_PF
-		    ": group " ULINTPF " len " ULINTPF
+		    ": len " ULINTPF
 		    " blocks " ULINTPF ".." ULINTPF,
 		    start_lsn, next_offset,
-		    group->id, write_len,
+		    write_len,
 		    log_block_get_hdr_no(buf),
 		    log_block_get_hdr_no(
 			    buf + write_len
@@ -1062,10 +996,6 @@ loop:
 	ut_ad(pad_len >= len
 	      || log_block_get_hdr_no(buf)
 		 == log_block_convert_lsn_to_no(start_lsn));
-
-	if (log_sys->is_encrypted()) {
-		log_crypt(buf, write_len);
-	}
 
 	/* Calculate the checksums for each log block and write them to
 	the trailer fields of the log blocks */
@@ -1091,7 +1021,7 @@ loop:
 		= (ulint) (next_offset / univ_page_size.physical());
 
 	fil_io(IORequestLogWrite, true,
-	       page_id_t(group->space_id, page_no),
+	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
 	       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
 	       group);
@@ -1259,7 +1189,6 @@ loop:
 		return;
 	}
 
-	log_group_t*	group;
 	ulint		start_offset;
 	ulint		end_offset;
 	ulint		area_start;
@@ -1303,9 +1232,7 @@ loop:
 
 	log_buffer_switch();
 
-	group = UT_LIST_GET_FIRST(log_sys->log_groups);
-
-	log_group_set_fields(group, log_sys->write_lsn);
+	log_group_set_fields(&log_sys->log, log_sys->write_lsn);
 
 	log_mutex_exit();
 	/* Calculate pad_size if needed. */
@@ -1316,7 +1243,7 @@ loop:
 		end_offset = log_group_calc_lsn_offset(
 			ut_uint64_align_up(write_lsn,
 					   OS_FILE_LOG_BLOCK_SIZE),
-			group);
+			&log_sys->log);
 		end_offset_in_unit = (ulint) (end_offset % write_ahead_size);
 
 		if (end_offset_in_unit > 0
@@ -1333,9 +1260,15 @@ loop:
 			::memset(write_buf + area_end, 0, pad_size);
 		}
 	}
+
+	if (log_sys->is_encrypted()) {
+		log_crypt(write_buf + area_start, log_sys->write_lsn,
+			  area_end - area_start);
+	}
+
 	/* Do the write to the log files */
 	log_group_write_buf(
-		group, write_buf + area_start,
+		&log_sys->log, write_buf + area_start,
 		area_end - area_start + pad_size,
 #ifdef UNIV_DEBUG
 		pad_size,
@@ -1538,11 +1471,10 @@ log_io_complete_checkpoint(void)
 }
 
 /** Write checkpoint info to the log header.
-@param[in,out]	group	redo log
 @param[in]	end_lsn	start LSN of the MLOG_CHECKPOINT mini-transaction */
 static
 void
-log_group_checkpoint(log_group_t* group, lsn_t end_lsn)
+log_group_checkpoint(lsn_t end_lsn)
 {
 	lsn_t		lsn_offset;
 	byte*		buf;
@@ -1555,10 +1487,11 @@ log_group_checkpoint(log_group_t* group, lsn_t end_lsn)
 	      || srv_shutdown_state != SRV_SHUTDOWN_NONE);
 
 	DBUG_PRINT("ib_log", ("checkpoint " UINT64PF " at " LSN_PF
-			      " written to group " ULINTPF,
+			      " written",
 			      log_sys->next_checkpoint_no,
-			      log_sys->next_checkpoint_lsn,
-			      group->id));
+			      log_sys->next_checkpoint_lsn));
+
+	log_group_t*	group = &log_sys->log;
 
 	buf = group->checkpoint_buf;
 	memset(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
@@ -1600,7 +1533,7 @@ log_group_checkpoint(log_group_t* group, lsn_t end_lsn)
 	file write and a checkpoint field write */
 
 	fil_io(IORequestLogWrite, false,
-	       page_id_t(group->space_id, 0),
+	       page_id_t(SRV_LOG_SPACE_FIRST_ID, 0),
 	       univ_page_size,
 	       (log_sys->next_checkpoint_no & 1)
 	       ? LOG_CHECKPOINT_2 : LOG_CHECKPOINT_1,
@@ -1625,7 +1558,8 @@ log_group_header_read(
 	MONITOR_INC(MONITOR_LOG_IO);
 
 	fil_io(IORequestLogRead, true,
-	       page_id_t(group->space_id, header / univ_page_size.physical()),
+	       page_id_t(SRV_LOG_SPACE_FIRST_ID,
+			 header / univ_page_size.physical()),
 	       univ_page_size, header % univ_page_size.physical(),
 	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL);
 }
@@ -1639,12 +1573,7 @@ log_write_checkpoint_info(bool sync, lsn_t end_lsn)
 	ut_ad(log_mutex_own());
 	ut_ad(!srv_read_only_mode);
 
-	for (log_group_t* group = UT_LIST_GET_FIRST(log_sys->log_groups);
-	     group;
-	     group = UT_LIST_GET_NEXT(log_groups, group)) {
-
-		log_group_checkpoint(group, end_lsn);
-	}
+	log_group_checkpoint(end_lsn);
 
 	log_mutex_exit();
 
@@ -1971,6 +1900,12 @@ loop:
 		} else {
 			ut_ad(!srv_dict_stats_thread_active);
 		}
+		if (recv_sys && recv_sys->flush_start) {
+			/* This is in case recv_writer_thread was never
+			started, or buf_flush_page_cleaner_coordinator
+			failed to notice its termination. */
+			os_event_set(recv_sys->flush_start);
+		}
 	}
 	os_thread_sleep(100000);
 
@@ -2004,12 +1939,16 @@ loop:
 		thread_name = "srv_monitor_thread";
 	} else if (srv_buf_resize_thread_active) {
 		thread_name = "buf_resize_thread";
+		goto wait_suspend_loop;
 	} else if (srv_dict_stats_thread_active) {
 		thread_name = "dict_stats_thread";
 	} else if (lock_sys && lock_sys->timeout_thread_active) {
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";
+		goto wait_suspend_loop;
+	} else if (btr_defragment_thread_active) {
+		thread_name = "btr_defragment_thread";
 	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {
 		thread_name = "rollback of recovered transactions";
 	} else {
@@ -2031,8 +1970,8 @@ wait_suspend_loop:
 
 	switch (srv_get_active_thread_type()) {
 	case SRV_NONE:
-		srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 		if (!srv_n_fil_crypt_threads_started) {
+			srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 			break;
 		}
 		os_event_set(fil_crypt_threads_event);
@@ -2280,13 +2219,11 @@ log_refresh_stats(void)
 	log_sys->last_printout_time = time(NULL);
 }
 
-/********************************************************//**
-Closes a log group. */
+/** Close a log group.
+@param[in,out]	group	log group to close */
 static
 void
-log_group_close(
-/*===========*/
-	log_group_t*	group)		/* in,own: log group to close */
+log_group_close(log_group_t* group)
 {
 	ulint	i;
 
@@ -2297,7 +2234,10 @@ log_group_close(
 	ut_free(group->file_header_bufs_ptr);
 	ut_free(group->file_header_bufs);
 	ut_free(group->checkpoint_buf_ptr);
-	ut_free(group);
+	group->n_files = 0;
+	group->file_header_bufs_ptr = NULL;
+	group->file_header_bufs = NULL;
+	group->checkpoint_buf_ptr = NULL;
 }
 
 /********************************************************//**
@@ -2306,26 +2246,12 @@ void
 log_group_close_all(void)
 /*=====================*/
 {
-	log_group_t*	group;
-
-	group = UT_LIST_GET_FIRST(log_sys->log_groups);
-
-	while (UT_LIST_GET_LEN(log_sys->log_groups) > 0) {
-		log_group_t*	prev_group = group;
-
-		group = UT_LIST_GET_NEXT(log_groups, group);
-
-		UT_LIST_REMOVE(log_sys->log_groups, prev_group);
-
-		log_group_close(prev_group);
-	}
+	log_group_close(&log_sys->log);
 }
 
-/********************************************************//**
-Shutdown the log system but do not release all the memory. */
+/** Shut down the redo log subsystem. */
 void
-log_shutdown(void)
-/*==============*/
+log_shutdown()
 {
 	log_group_close_all();
 
@@ -2349,20 +2275,8 @@ log_shutdown(void)
 	}
 
 	recv_sys_close();
-}
-
-/********************************************************//**
-Free the log system data structures. */
-void
-log_mem_free(void)
-/*==============*/
-{
-	if (log_sys != NULL) {
-		recv_sys_mem_free();
-		ut_free(log_sys);
-
-		log_sys = NULL;
-	}
+	ut_free(log_sys);
+	log_sys = NULL;
 }
 
 /******************************************************//**
@@ -2378,6 +2292,7 @@ log_pad_current_log_block(void)
 	ulint		i;
 	lsn_t		lsn;
 
+	ut_ad(!recv_no_log_write);
 	/* We retrieve lsn only because otherwise gcc crashed on HP-UX */
 	lsn = log_reserve_and_open(OS_FILE_LOG_BLOCK_SIZE);
 

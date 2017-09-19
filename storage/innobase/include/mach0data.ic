@@ -827,13 +827,13 @@ mach_swap_byte_order(
         dest += len;
 
         switch (len & 0x7) {
-        case 0: *--dest = *from++;
-        case 7: *--dest = *from++;
-        case 6: *--dest = *from++;
-        case 5: *--dest = *from++;
-        case 4: *--dest = *from++;
-        case 3: *--dest = *from++;
-        case 2: *--dest = *from++;
+        case 0: *--dest = *from++; /* fall through */
+        case 7: *--dest = *from++; /* fall through */
+        case 6: *--dest = *from++; /* fall through */
+        case 5: *--dest = *from++; /* fall through */
+        case 4: *--dest = *from++; /* fall through */
+        case 3: *--dest = *from++; /* fall through */
+        case 2: *--dest = *from++; /* fall through */
         case 1: *--dest = *from;
         }
 }
@@ -865,6 +865,8 @@ mach_write_ulonglong(
 	}
 }
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /** Read 1 to 4 bytes from a file page buffered in the buffer pool.
 @param[in]	ptr	pointer where to read
 @param[in]	type	MLOG_1BYTE, MLOG_2BYTES, or MLOG_4BYTES
@@ -889,5 +891,3 @@ mach_read_ulint(
 	ut_error;
 	return(0);
 }
-
-#endif /* !UNIV_INNOCHECKSUM */

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -121,9 +122,11 @@ trx_rseg_mem_free(
 
 	mutex_free(&rseg->mutex);
 
+	if (!srv_apply_log_only) {
 	/* There can't be any active transactions. */
 	ut_a(UT_LIST_GET_LEN(rseg->update_undo_list) == 0);
 	ut_a(UT_LIST_GET_LEN(rseg->insert_undo_list) == 0);
+	}
 
 	for (undo = UT_LIST_GET_FIRST(rseg->update_undo_cached);
 	     undo != NULL;
@@ -293,14 +296,13 @@ trx_rseg_create_instance(
 	}
 }
 
-/*********************************************************************
-Creates a rollback segment.
-@return pointer to new rollback segment if create successful */
+/** Create a rollback segment.
+@param[in]	space	undo tablespace ID
+@return pointer to new rollback segment
+@retval	NULL	on failure */
 UNIV_INTERN
 trx_rseg_t*
-trx_rseg_create(
-/*============*/
-	ulint		space)		/*!< in: id of UNDO tablespace */
+trx_rseg_create(ulint space)
 {
 	mtr_t		mtr;
 	ulint		slot_no;
@@ -323,22 +325,21 @@ trx_rseg_create(
 		page_no = trx_rseg_header_create(
 			space, 0, ULINT_MAX, slot_no, &mtr);
 
-		ut_a(page_no != FIL_NULL);
+		if (page_no != FIL_NULL) {
+			sys_header = trx_sysf_get(&mtr);
 
-		sys_header = trx_sysf_get(&mtr);
+			id = trx_sysf_rseg_get_space(sys_header, slot_no, &mtr);
+			ut_a(id == space);
 
-		id = trx_sysf_rseg_get_space(sys_header, slot_no, &mtr);
-		ut_a(id == space);
+			zip_size = space ? fil_space_get_zip_size(space) : 0;
 
-		zip_size = space ? fil_space_get_zip_size(space) : 0;
-
-		rseg = trx_rseg_mem_create(
-			slot_no, space, zip_size, page_no,
-			purge_sys->ib_bh, &mtr);
+			rseg = trx_rseg_mem_create(
+				slot_no, space, zip_size, page_no,
+				purge_sys->ib_bh, &mtr);
+		}
 	}
 
 	mtr_commit(&mtr);
-
 	return(rseg);
 }
 

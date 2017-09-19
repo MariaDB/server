@@ -1,0 +1,180 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source suite/galera/include/galera_have_debug_sync.inc
+
+#
+# we must open connection node_1a here, MW-369.inc will use it later
+#
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+#
+# cascading delete operation is replicated from node2
+# and this conflicts with an update for child table in node1
+#
+# As a result, the update should fail for certification error
+#
+--connection node_1
+
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER, f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1) ON DELETE CASCADE);
+
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+
+INSERT INTO c VALUES (1, 1, 0);
+
+--let $mw_369_parent_query = UPDATE c SET f2=1 where f1=1
+--let $mw_369_child_query = DELETE FROM p WHERE f1 = 1
+
+--connection node_1a
+--source MW-369.inc
+
+# Commit fails
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
+
+#
+# cascading update operation is replicated from node2
+# and this conflicts with an update for child table in node1
+#
+# As a result, the update should fail for certification error
+#
+--connection node_1
+
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER, f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1) ON UPDATE CASCADE);
+                
+
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+
+INSERT INTO c VALUES (1, 1, 0);
+
+--let $mw_369_parent_query = UPDATE c SET f2=2 where f1=1
+--let $mw_369_child_query = UPDATE p set f1=11 WHERE f1 = 1
+
+--connection node_1a
+--source MW-369.inc
+
+# Commit fails
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
+
+#
+# ON UPDATE CASCADE tests
+# Here we update primary key of parent table to cause cascaded update
+# on child table
+#
+# cascading update operation is replicated from node2
+# and this conflicts with an update for child table in node1
+#
+# As a result, the update should fail for certification error
+#
+--connection node_1
+
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER, f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1) ON UPDATE CASCADE);
+                
+
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+
+INSERT INTO c VALUES (1, 1, 0);
+
+--let $mw_369_parent_query = UPDATE c SET p_id=2 where f1=1
+--let $mw_369_child_query = UPDATE p set f1=11 WHERE f1 = 1
+
+--connection node_1a
+--source MW-369.inc
+
+# Commit fails
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+# same as previous, but statements in different order
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+--let $mw_369_parent_query = UPDATE p set f1=21 WHERE f1 = 11
+--let $mw_369_child_query = UPDATE c SET p_id=2 where f1=1
+
+--connection node_1a
+--source MW-369.inc
+
+# Commit fails
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
+
+
+#
+# CASCADE DELETE tests with two parent tables
+# Here we cause cascaded operation on child table through
+# one parent table and have other operation on the other
+# parent table
+#
+# cascading update operation is replicated from node2
+# but this does not conflict with an update for the other parent table in node1
+#
+# As a result, the update on p2 should succeed
+#
+--connection node_1
+
+CREATE TABLE p1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE p2 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p1_id INTEGER, p2_id INTEGER, f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p1_id) REFERENCES p1 (f1) ON DELETE CASCADE,
+                CONSTRAINT fk_2 FOREIGN KEY (p2_id) REFERENCES p2 (f1));
+                
+
+INSERT INTO p1 VALUES (1, 0);
+INSERT INTO p2 VALUES (1, 0);
+
+INSERT INTO c VALUES (1, 1, 1, 0);
+
+--let $mw_369_parent_query = UPDATE p2 SET f2=2 where f1=1
+--let $mw_369_child_query = DELETE FROM p1 WHERE f1 = 1
+
+--connection node_1a
+--source MW-369.inc
+
+# Commit succeeds
+--connection node_1
+--reap
+
+# same as previous, but statements in different order
+--connection node_2
+SELECT * FROM p1;
+SELECT * FROM p2;
+SELECT * FROM c;
+
+DROP TABLE c,p1,p2;

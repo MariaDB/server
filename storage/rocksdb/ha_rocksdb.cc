@@ -109,6 +109,8 @@ int thd_binlog_format(const MYSQL_THD thd);
 bool thd_binlog_filter_ok(const MYSQL_THD thd);
 }
 
+MYSQL_PLUGIN_IMPORT bool my_disable_leak_check;
+
 namespace myrocks {
 
 static st_global_stats global_stats;
@@ -172,8 +174,10 @@ Rdb_dict_manager dict_manager;
 Rdb_cf_manager cf_manager;
 Rdb_ddl_manager ddl_manager;
 Rdb_binlog_manager binlog_manager;
-Rdb_io_watchdog *io_watchdog = nullptr;
 
+#if !defined(_WIN32) && !defined(__APPLE__)
+Rdb_io_watchdog *io_watchdog = nullptr;
+#endif
 /**
   MyRocks background thread control
   N.B. This is besides RocksDB's own background threads
@@ -568,15 +572,18 @@ static void rocksdb_set_io_write_timeout(
     void *const var_ptr MY_ATTRIBUTE((__unused__)), const void *const save) {
   DBUG_ASSERT(save != nullptr);
   DBUG_ASSERT(rdb != nullptr);
+#if !defined(_WIN32) && !defined(__APPLE__)
   DBUG_ASSERT(io_watchdog != nullptr);
+#endif
 
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
 
   const uint32_t new_val = *static_cast<const uint32_t *>(save);
 
   rocksdb_io_write_timeout_secs = new_val;
+#if !defined(_WIN32) && !defined(__APPLE__)
   io_watchdog->reset_timeout(rocksdb_io_write_timeout_secs);
-
+#endif
   RDB_MUTEX_UNLOCK_CHECK(rdb_sysvars_mutex);
 }
 
@@ -988,11 +995,10 @@ static MYSQL_SYSVAR_BOOL(
 
 static MYSQL_SYSVAR_BOOL(
     use_direct_io_for_flush_and_compaction,
-    *reinterpret_cast<my_bool *>(
-        &rocksdb_db_options->use_direct_io_for_flush_and_compaction),
+    *reinterpret_cast<my_bool *>(&rocksdb_db_options->use_direct_io_for_flush_and_compaction),
     PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-    "DBOptions::use_direct_io_for_flush_and_compaction for RocksDB", nullptr,
-    nullptr, rocksdb_db_options->use_direct_io_for_flush_and_compaction);
+    "DBOptions::use_direct_io_for_flush_and_compaction for RocksDB", nullptr, nullptr,
+    rocksdb_db_options->use_direct_io_for_flush_and_compaction);
 
 static MYSQL_SYSVAR_BOOL(
     allow_mmap_reads,
@@ -3367,11 +3373,9 @@ public:
         return;
       }
 
-      std::string query_str;
-      LEX_STRING *const lex_str = thd_query_string(thd);
-      if (lex_str != nullptr && lex_str->str != nullptr) {
-        query_str = std::string(lex_str->str);
-      }
+      char query_buf[NAME_LEN+1];
+      thd_query_safe(thd, query_buf, sizeof(query_buf));
+      std::string query_str(query_buf);
 
       const auto state_it = state_map.find(rdb_trx->GetState());
       DBUG_ASSERT(state_it != state_map.end());
@@ -3592,6 +3596,9 @@ static bool rocksdb_show_status(handlerton *const hton, THD *const thd,
                            str, stat_print);
       }
     }
+#endif
+
+#ifdef MARIAROCKS_NOT_YET
   } else if (stat_type == HA_ENGINE_TRX) {
     /* Handle the SHOW ENGINE ROCKSDB TRANSACTION STATUS command */
     res |= rocksdb_show_snapshot_status(hton, thd, stat_print);
@@ -4192,6 +4199,13 @@ static int rocksdb_init_func(void *const p) {
   }
 #endif
 
+  /**
+    Rocksdb does not always shutdown its threads, when
+    plugin is shut down. Disable server's leak check
+    at exit to avoid crash.
+  */
+  my_disable_leak_check = true;
+
   err = my_error_register(rdb_get_error_messages, HA_ERR_ROCKSDB_FIRST,
                           HA_ERR_ROCKSDB_LAST);
   if (err != 0) {
@@ -4200,6 +4214,8 @@ static int rocksdb_init_func(void *const p) {
     rdb_open_tables.m_hash.~Rdb_table_set();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
+
+
 
   // Creating an instance of HistogramImpl should only happen after RocksDB
   // has been successfully initialized.
@@ -4217,8 +4233,10 @@ static int rocksdb_init_func(void *const p) {
     directories.push_back(myrocks::rocksdb_wal_dir);
   }
 
+#if !defined(_WIN32) && !defined(__APPLE__)
   io_watchdog = new Rdb_io_watchdog(directories);
   io_watchdog->reset_timeout(rocksdb_io_write_timeout_secs);
+#endif
 
   // NO_LINT_DEBUG
   sql_print_information("MyRocks storage engine plugin has been successfully "
@@ -4307,8 +4325,10 @@ static int rocksdb_done_func(void *const p) {
   delete commit_latency_stats;
   commit_latency_stats = nullptr;
 
+#if !defined(_WIN32) && !defined(__APPLE__)
   delete io_watchdog;
   io_watchdog = nullptr;
+#endif
 
 // Disown the cache data since we're shutting down.
 // This results in memory leaks but it improved the shutdown time.
@@ -9747,6 +9767,7 @@ const char *ha_rocksdb::thd_rocksdb_tmpdir() {
   return (tmp_dir);
 }
 
+
 /**
   @return
     HA_EXIT_SUCCESS  OK
@@ -9760,9 +9781,27 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
   int res = HA_EXIT_SUCCESS;
   int binlog_format = my_core::thd_binlog_format(thd);
   bool unsafe_for_binlog = THDVAR(ha_thd(), unsafe_for_binlog);
+
+  /*
+    A note about (*) below: In fb/mysql, LOCK TABLE myrocks_table WRITE
+    - produces an error when @@binlog_format='ROW'.
+    - does not produce an error with @@binlog_format='STATEMENT'
+
+    We cannot easily provide this behavior in MariaDB, because LOCK ROWS
+    changes @@binlog_format for the duration of the statement.
+
+    Instead we will make the check in ha_rocksdb::start_stmt and will produce
+    an error in the first DML statement done under LOCK TABLE
+
+    (**) - The same happens for other "DDL-type" commands, so allow them here
+    as well.
+  */
   if (lock_type == F_WRLCK && !thd->rgi_slave && !unsafe_for_binlog &&
       binlog_format != BINLOG_FORMAT_ROW &&
       binlog_format != BINLOG_FORMAT_UNSPEC &&
+      thd->lex->sql_command != SQLCOM_LOCK_TABLES &&  // (*)
+      thd->lex->sql_command != SQLCOM_ANALYZE &&   // (**)
+      thd->lex->sql_command != SQLCOM_OPTIMIZE &&  // (**)
       my_core::thd_binlog_filter_ok(thd)) {
     my_error(ER_REQUIRE_ROW_BINLOG_FORMAT, MYF(0));
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
@@ -9859,6 +9898,20 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
 
 int ha_rocksdb::start_stmt(THD *const thd, thr_lock_type lock_type) {
   DBUG_ENTER_FUNC();
+
+  /*
+    MariaDB: the following is a copy of the check in ha_rocksdb::external_lock:
+  */
+  int binlog_format = my_core::thd_binlog_format(thd);
+  bool unsafe_for_binlog = THDVAR(ha_thd(), unsafe_for_binlog);
+  if (lock_type >= TL_WRITE_ALLOW_WRITE &&
+      !thd->rgi_slave && !unsafe_for_binlog &&
+      binlog_format != BINLOG_FORMAT_ROW &&
+      binlog_format != BINLOG_FORMAT_UNSPEC &&
+      my_core::thd_binlog_filter_ok(thd)) {
+    my_error(ER_REQUIRE_ROW_BINLOG_FORMAT, MYF(0));
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
 
   DBUG_ASSERT(thd != nullptr);
 
@@ -11044,7 +11097,7 @@ int ha_rocksdb::inplace_populate_sk(
 
           print_keydup_error(new_table_arg,
                              &new_table_arg->key_info[index->get_keyno()],
-                             MYF(0), ha_thd());
+                             MYF(0));
           DBUG_RETURN(ER_DUP_ENTRY);
         }
       }
@@ -12041,7 +12094,14 @@ void rocksdb_set_bulk_load(THD *const thd, struct st_mysql_sys_var *const var
       sql_print_error("RocksDB: Error %d finalizing last SST file while "
                       "setting bulk loading variable",
                       rc);
-      abort_with_stack_traces();
+      /*
+        MariaDB doesn't do the following:
+        abort_with_stack_traces();
+        because it doesn't seem a good idea to crash a server when a user makes
+        a mistake.
+        Instead, we return an error to the user. The error has already been
+        produced inside ha_rocksdb::finalize_bulk_load().
+      */
     }
   }
 

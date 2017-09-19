@@ -15,6 +15,7 @@ MACRO(SKIP_AWS_PLUGIN msg)
   MESSAGE_ONCE(SKIP_AWS_PLUGIN "Skip aws_key_management - ${msg}")
   RETURN()
 ENDMACRO()
+SET(CMAKE_CXX_STANDARD 11)
 
 
 
@@ -86,6 +87,10 @@ ELSE()
       IF(NOT UUID_LIBRARIES)
         SKIP_AWS_PLUGIN("AWS C++ SDK requires uuid development package")
       ENDIF()
+      FIND_PACKAGE(OpenSSL)
+      IF(NOT OPENSSL_FOUND)
+        SKIP_AWS_PLUGIN("AWS C++ SDK requires openssl development package")
+      ENDIF()
     ENDIF()
   ENDIF()
   IF(MSVC)
@@ -109,11 +114,10 @@ ELSE()
   ENDFOREACH()
 
   # To be compatible with older cmake, we use older version of the SDK
-  # We increase the version for macs however, so the newest mac could built it.
-  IF(APPLE)
-    SET(GIT_TAG "1.0.100")
+  IF(CMAKE_VERSION LESS "3.0")
+     SET(GIT_TAG "1.0.8")
   ELSE()
-    SET(GIT_TAG "1.0.8")
+    SET(GIT_TAG "1.1.27")
   ENDIF()
 
   SET(AWS_SDK_PATCH_COMMAND )
@@ -135,6 +139,7 @@ ELSE()
     "-DCMAKE_CXX_FLAGS_MINSIZEREL=${CMAKE_CXX_FLAGS_MINSIZEREL} ${PIC_FLAG}"
     ${EXTRA_SDK_CMAKE_FLAGS}
     -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/aws_sdk_cpp
+    -DCMAKE_INSTALL_LIBDIR=lib
     TEST_COMMAND ""
   )
   SET_TARGET_PROPERTIES(aws_sdk_cpp PROPERTIES EXCLUDE_FROM_ALL TRUE)
@@ -156,7 +161,7 @@ ENDIF()
 IF(WIN32)
  SET(AWS_CPP_SDK_DEPENDENCIES bcrypt winhttp wininet userenv version)
 ELSE()
- SET(AWS_CPP_SDK_DEPENDENCIES ${SSL_LIBRARIES} ${CURL_LIBRARIES} ${UUID_LIBRARIES})
+ SET(AWS_CPP_SDK_DEPENDENCIES ${OPENSSL_LIBRARIES} ${CURL_LIBRARIES} ${UUID_LIBRARIES})
 ENDIF()
 MYSQL_ADD_PLUGIN(aws_key_management aws_key_management_plugin.cc
                  LINK_LIBRARIES ${AWS_SDK_LIBS} ${AWS_CPP_SDK_DEPENDENCIES}

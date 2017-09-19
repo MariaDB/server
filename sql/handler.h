@@ -1211,7 +1211,6 @@ struct handlerton
                             enum_binlog_command binlog_command,
                             const char *query, uint query_length,
                             const char *db, const char *table_name);
-   int (*release_temporary_latches)(handlerton *hton, THD *thd);
 
    /*
      Get log status.
@@ -1466,15 +1465,29 @@ struct THD_TRANS
   static unsigned int const CREATED_TEMP_TABLE= 0x02;
   static unsigned int const DROPPED_TEMP_TABLE= 0x04;
   static unsigned int const DID_WAIT= 0x08;
+  static unsigned int const DID_DDL= 0x10;
 
   void mark_created_temp_table()
   {
     DBUG_PRINT("debug", ("mark_created_temp_table"));
     m_unsafe_rollback_flags|= CREATED_TEMP_TABLE;
   }
+  void mark_dropped_temp_table()
+  {
+    DBUG_PRINT("debug", ("mark_dropped_temp_table"));
+    m_unsafe_rollback_flags|= DROPPED_TEMP_TABLE;
+  }
+  bool has_created_dropped_temp_table() const {
+    return
+      (m_unsafe_rollback_flags & (CREATED_TEMP_TABLE|DROPPED_TEMP_TABLE)) != 0;
+  }
   void mark_trans_did_wait() { m_unsafe_rollback_flags|= DID_WAIT; }
   bool trans_did_wait() const {
     return (m_unsafe_rollback_flags & DID_WAIT) != 0;
+  }
+  void mark_trans_did_ddl() { m_unsafe_rollback_flags|= DID_DDL; }
+  bool trans_did_ddl() const {
+    return (m_unsafe_rollback_flags & DID_DDL) != 0;
   }
 
 };
@@ -4281,9 +4294,6 @@ int ha_resize_key_cache(KEY_CACHE *key_cache);
 int ha_change_key_cache_param(KEY_CACHE *key_cache);
 int ha_repartition_key_cache(KEY_CACHE *key_cache);
 int ha_change_key_cache(KEY_CACHE *old_key_cache, KEY_CACHE *new_key_cache);
-
-/* report to InnoDB that control passes to the client */
-int ha_release_temporary_latches(THD *thd);
 
 /* transactions: interface to handlerton functions */
 int ha_start_consistent_snapshot(THD *thd);

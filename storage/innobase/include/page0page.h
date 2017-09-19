@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -85,8 +85,6 @@ Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 				This field should not be written to after
 				page creation. */
 
-#ifndef UNIV_INNOCHECKSUM
-
 #define PAGE_BTR_SEG_LEAF 36	/* file segment header for the leaf pages in
 				a B-tree: defined only on the root page of a
 				B-tree, but not in the root of an ibuf tree */
@@ -140,6 +138,8 @@ Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 #define	PAGE_SAME_REC		3
 #define	PAGE_SAME_PAGE		4
 #define	PAGE_NO_DIRECTION	5
+
+#ifndef UNIV_INNOCHECKSUM
 
 /*			PAGE DIRECTORY
 			==============
@@ -264,7 +264,7 @@ page_set_ssn_id(
 /*************************************************************//**
 Reads the given header field. */
 UNIV_INLINE
-ulint
+uint16_t
 page_header_get_field(
 /*==================*/
 	const page_t*	page,	/*!< in: page */

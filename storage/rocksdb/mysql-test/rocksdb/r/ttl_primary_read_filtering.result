@@ -171,11 +171,14 @@ SELECT * FROM t1;
 a	b
 998	5
 DROP TABLE t1;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
 CREATE TABLE t1 (
 a int PRIMARY KEY
 ) ENGINE=rocksdb
 COMMENT='ttl_duration=5;';
 INSERT INTO t1 values (1);
+connection con1;
 # Creating Snapshot (start transaction)
 BEGIN;
 SELECT * FROM t1;
@@ -185,11 +188,13 @@ SELECT * FROM t1;
 a
 1
 # Switching to connection 2
+connection con2;
 set global rocksdb_force_flush_memtable_now=1;
 set global rocksdb_compact_cf='default';
 SELECT * FROM t1;
 a
 # Switching to connection 1
+connection con1;
 SELECT * FROM t1;
 a
 1
@@ -201,6 +206,10 @@ COMMIT;
 SELECT * FROM t1;
 a
 DROP TABLE t1;
+disconnect con1;
+disconnect con2;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
 set global rocksdb_force_flush_memtable_now=1;
 set global rocksdb_compact_cf='default';
 CREATE TABLE t1 (
@@ -208,11 +217,13 @@ a int PRIMARY KEY
 ) ENGINE=rocksdb
 COMMENT='ttl_duration=1;';
 # On Connection 1
+connection con1;
 # Creating Snapshot (start transaction)
 BEGIN;
 SELECT * FROM t1;
 a
 # On Connection 2
+connection con2;
 set global rocksdb_debug_ttl_rec_ts = -2;
 INSERT INTO t1 values (1);
 INSERT INTO t1 values (3);
@@ -222,9 +233,11 @@ set global rocksdb_debug_ttl_rec_ts = 0;
 set global rocksdb_force_flush_memtable_now=1;
 set global rocksdb_compact_cf='default';
 # On Connection 1
+connection con1;
 SELECT * FROM t1;
 a
 # On Connection 2
+connection con2;
 SELECT * FROM t1;
 a
 set global rocksdb_enable_ttl_read_filtering=0;
@@ -235,4 +248,7 @@ a
 5
 7
 set global rocksdb_enable_ttl_read_filtering=1;
+disconnect con2;
+disconnect con1;
+connection default;
 DROP TABLE t1;

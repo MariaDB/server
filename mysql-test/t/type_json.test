@@ -1,0 +1,31 @@
+#
+# MDEV-9144 JSON data type
+#
+
+create or replace table t1(a json);
+show create table t1;
+
+--error ER_PARSE_ERROR
+create or replace table t1(a json character set utf8);
+
+create or replace table t1(a json default '{a:1}');
+show create table t1;
+
+create or replace table t1(a json not null check (json_valid(a)));
+show create table t1;
+insert t1 values ('[]');
+--error ER_CONSTRAINT_FAILED
+insert t1 values ('a');
+
+set timestamp=unix_timestamp('2010:11:12 13:14:15');
+create or replace table t1(a json default(json_object('now', now())));
+show create table t1;
+insert t1 values ();
+select * from t1;
+
+drop table t1;
+
+--error ER_PARSE_ERROR
+select cast('{a:1}' as text);
+--error ER_PARSE_ERROR
+select cast('{a:1}' as json);

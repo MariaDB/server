@@ -53,8 +53,7 @@ public:
 		m_last_file_size_max(),
 		m_created_new_raw(),
 		m_is_tablespace_full(false),
-		m_sanity_checks_done(false),
-		m_crypt_info()
+		m_sanity_checks_done(false)
 	{
 		/* No op */
 	}
@@ -264,9 +263,6 @@ private:
 
 	/** if false, then sanity checks are still pending */
 	bool		m_sanity_checks_done;
-
-	/** Encryption information */
-	fil_space_crypt_t* m_crypt_info;
 };
 
 /* GLOBAL OBJECTS */
@@ -287,16 +283,6 @@ is_system_tablespace(ulint	id)
 	return(id == TRX_SYS_SPACE || id == SRV_TMP_SPACE_ID);
 }
 
-/** Check if shared-system or undo tablespace.
-@return true if shared-system or undo tablespace */
-UNIV_INLINE
-bool
-is_system_or_undo_tablespace(
-	ulint   id)
-{
-	return(id <= srv_undo_tablespaces_open);
-}
-
 /** Check if predefined shared tablespace.
 @return true if predefined shared tablespace */
 UNIV_INLINE
@@ -306,7 +292,8 @@ is_predefined_tablespace(
 {
 	ut_ad(srv_sys_space.space_id() == TRX_SYS_SPACE);
 	ut_ad(TRX_SYS_SPACE == 0);
-	return(id <= srv_undo_tablespaces_open
-	       || id == SRV_TMP_SPACE_ID);
+	return(id == TRX_SYS_SPACE
+	       || id == SRV_TMP_SPACE_ID
+	       || srv_is_undo_tablespace(id));
 }
 #endif /* fsp0sysspace_h */

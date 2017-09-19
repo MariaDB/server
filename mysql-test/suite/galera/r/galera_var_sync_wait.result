@@ -3,7 +3,7 @@
 #
 SELECT @@global.wsrep_sync_wait;
 @@global.wsrep_sync_wait
-7
+15
 SELECT @@global.wsrep_causal_reads;
 @@global.wsrep_causal_reads
 1
@@ -11,9 +11,6 @@ connection node_1;
 CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
 connection node_2;
 SET GLOBAL wsrep_sync_wait = 1;
-SHOW TABLES LIKE '%t1';
-Tables_in_test (%t1)
-t1
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
 1
@@ -31,7 +28,7 @@ UPDATE t3 SET f1 = 2;
 affected rows: 1
 info: Rows matched: 1  Changed: 1  Warnings: 0
 connection node_2;
-SET GLOBAL wsrep_sync_wait = 7;
+SET GLOBAL wsrep_sync_wait = 15;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;

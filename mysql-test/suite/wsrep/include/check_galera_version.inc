@@ -2,7 +2,7 @@
 # Enable tests to check the galera library version.
 #
 # ==== Usage ====
-# --let $galera_version=25.3.6
+# --let $galera_version=3.6
 # source include/check_galera_lib_version.inc;
 #
 # Parameters:
@@ -12,11 +12,26 @@
 
 --disable_query_log
 
-eval SET @GALERA_VERSION=(SELECT CONCAT('$galera_version', '%'));
+# Required Version
 
-if (!`SELECT COUNT(*) FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE
-        VARIABLE_NAME LIKE 'wsrep_provider_version' AND
-            VARIABLE_VALUE LIKE @GALERA_VERSION`)
+eval SET @GALERA_VERSION='$galera_version';
+SELECT CAST(REGEXP_REPLACE(@GALERA_VERSION,'^(\\d+)\\.(\\d+).*','\\1') AS UNSIGNED) INTO @GALERA_MAJOR_VERSION;
+SELECT CAST(REGEXP_REPLACE(@GALERA_VERSION,'^(\\d+)\\.(\\d+).*','\\2') AS UNSIGNED) INTO @GALERA_MINOR_VERSION;
+
+# Actual
+SELECT VARIABLE_VALUE INTO @ACTUAL_GALERA_VERSION FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME LIKE 'wsrep_provider_version';
+
+SELECT CAST(REGEXP_REPLACE(@ACTUAL_GALERA_VERSION,'^(\\d+)\\.(\\d+).*','\\1') AS UNSIGNED) INTO @ACTUAL_GALERA_MAJOR_VERSION;
+SELECT CAST(REGEXP_REPLACE(@ACTUAL_GALERA_VERSION,'^(\\d+)\\.(\\d+).*','\\2') AS UNSIGNED) INTO @ACTUAL_GALERA_MINOR_VERSION;
+
+# For testing
+#SELECT @GALERA_MAJOR_VERSION, @GALERA_MINOR_VERSION;
+#SELECT @ACTUAL_GALERA_VERSION;
+#SELECT @ACTUAL_GALERA_MAJOR_VERSION, @ACTUAL_GALERA_MINOR_VERSION;
+
+if (!`SELECT (@ACTUAL_GALERA_MAJOR_VERSION > @GALERA_MAJOR_VERSION) OR
+              (@ACTUAL_GALERA_MAJOR_VERSION = @GALERA_MAJOR_VERSION AND @ACTUAL_GALERA_MINOR_VERSION >= @GALERA_MINOR_VERSION)
+   `)
 {
     skip Test requires Galera library version $galera_version;
 }

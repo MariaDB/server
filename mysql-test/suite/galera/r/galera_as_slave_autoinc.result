@@ -38,11 +38,9 @@ i	c
 show variables like 'binlog_format';
 Variable_name	Value
 binlog_format	STATEMENT
-show variables like '%auto_increment%';
+show variables like 'auto_increment_increment';
 Variable_name	Value
 auto_increment_increment	7
-auto_increment_offset	5
-wsrep_auto_increment_control	ON
 connection node_2;
 select * from t1;
 i	c

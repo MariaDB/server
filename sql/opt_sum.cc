@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+   Copyright (c) 2008, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -254,6 +254,8 @@ int opt_sum_query(THD *thd,
   int error= 0;
   DBUG_ENTER("opt_sum_query");
 
+  thd->lex->current_select->min_max_opt_list.empty();
+
   if (conds)
     where_tables= conds->used_tables();
 
@@ -447,7 +449,14 @@ int opt_sum_query(THD *thd,
           item_sum->aggregator_clear();
         }
         else
+        {
           item_sum->reset_and_add();
+          /*
+            Save a reference to the item for possible rollback
+            of the min/max optimizations for this select
+          */
+	  thd->lex->current_select->min_max_opt_list.push_back(item_sum);
+        }
         item_sum->make_const();
         recalc_const_item= 1;
         break;
@@ -461,7 +470,7 @@ int opt_sum_query(THD *thd,
     {
       if (recalc_const_item)
         item->update_used_tables();
-      if (!item->const_item())
+      if (!item->const_item() && item->type() != Item::WINDOW_FUNC_ITEM)
         const_result= 0;
     }
   }
@@ -1042,6 +1051,7 @@ static int maxmin_in_range(bool max_fl, Field* field, COND *cond)
   case Item_func::LT_FUNC:
   case Item_func::LE_FUNC:
     less_fl= 1;
+    /* fall through */
   case Item_func::GT_FUNC:
   case Item_func::GE_FUNC:
   {

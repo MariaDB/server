@@ -394,9 +394,9 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
   {
     const char *error_string;
     if (part_type == RANGE_PARTITION)
-      error_string= partition_keywords[PKW_RANGE].str;
+      error_string= "RANGE";
     else
-      error_string= partition_keywords[PKW_LIST].str;
+      error_string= "LIST";
     my_error(ER_PARTITIONS_MUST_BE_DEFINED_ERROR, MYF(0), error_string);
     goto end;
   }
@@ -608,6 +608,7 @@ char* partition_info::find_duplicate_field()
 */
 partition_element *partition_info::get_part_elem(const char *partition_name,
                                                  char *file_name,
+                                                 size_t file_name_size,
                                                  uint32 *part_id)
 {
   List_iterator<partition_element> part_it(partitions);
@@ -629,10 +630,10 @@ partition_element *partition_info::get_part_elem(const char *partition_name,
                            sub_part_elem->partition_name, partition_name))
         {
           if (file_name)
-            create_subpartition_name(file_name, "",
-                                     part_elem->partition_name,
-                                     partition_name,
-                                     NORMAL_PART_NAME);
+            if (create_subpartition_name(file_name, file_name_size, "",
+                                         part_elem->partition_name,
+                                         partition_name, NORMAL_PART_NAME))
+              DBUG_RETURN(NULL);
           *part_id= j + (i * num_subparts);
           DBUG_RETURN(sub_part_elem);
         }
@@ -647,8 +648,9 @@ partition_element *partition_info::get_part_elem(const char *partition_name,
                             part_elem->partition_name, partition_name))
     {
       if (file_name)
-        create_partition_name(file_name, "", partition_name,
-                              NORMAL_PART_NAME, TRUE);
+        if (create_partition_name(file_name, file_name_size, "",
+                                  partition_name, NORMAL_PART_NAME, TRUE))
+          DBUG_RETURN(NULL);
       *part_id= i;
       DBUG_RETURN(part_elem);
     }
@@ -1683,15 +1685,11 @@ bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
   {
     list_of_subpart_fields= FALSE;
     subpart_expr= item_ptr;
-    subpart_func_string= func_string;
-    subpart_func_len= expr_len;
   }
   else
   {
     list_of_part_fields= FALSE;
     part_expr= item_ptr;
-    part_func_string= func_string;
-    part_func_len= expr_len;
   }
   return FALSE;
 }

@@ -30,5 +30,29 @@ connection slave;
 SELECT * FROM t1;
 DROP TABLE t1;
 
+#
+#
+#
+create table t1 (
+  a bigint(20) not null auto_increment,
+  b bigint(20) not null,
+  c tinyint(4) not null,
+  d varchar(4096) not null,
+  primary key (a),
+  key (b,c,d(255))
+);
+show create table t1;
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval create table t1 engine=federated
+  connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+show create table t1;
+drop table t1;
+
+connection slave;
+drop table t1;
+
 source include/federated_cleanup.inc;
 

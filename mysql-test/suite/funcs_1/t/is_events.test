@@ -10,11 +10,6 @@
 #                           testsuite funcs_1
 #
 
-if (`SELECT VERSION() LIKE '%embedded%'`)
-{
-   --skip Bug#37456 funcs_1: Several tests crash when used with embedded server
-}
-
 let $engine_type       = MEMORY;
 let $other_engine_type = MyISAM;
 
@@ -143,7 +138,7 @@ ENGINE = $engine_type;
 INSERT INTO information_schema.events
 SELECT * FROM information_schema.events;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_DBACCESS_DENIED_ERROR,ER_NON_UPDATABLE_TABLE
 UPDATE information_schema.events SET event_name = '1234567'
 WHERE table_name = 't1';
 

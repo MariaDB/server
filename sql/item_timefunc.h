@@ -199,7 +199,6 @@ public:
   }
   bool check_vcol_func_processor(void *arg)
   {
-
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -693,8 +692,7 @@ public:
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)=0;
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), "()", arg,
-                                                          VCOL_TIME_FUNC);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
 };
 
@@ -832,6 +830,8 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
   bool check_vcol_func_processor(void *arg)
   {
+    if (is_time_format)
+      return false;
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)

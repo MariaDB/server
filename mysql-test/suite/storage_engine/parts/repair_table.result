@@ -88,6 +88,7 @@ call mtr.add_suppression("Got an error from thread_id=.*");
 call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
 call mtr.add_suppression(" '\..test.t1'");
 call mtr.add_suppression("Couldn't repair table: test.t1");
+call mtr.add_suppression("Table 't1' is marked as crashed.*");
 CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>, <CUSTOM_INDEX> (a)) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS> PARTITION BY HASH(a) PARTITIONS 2;
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text

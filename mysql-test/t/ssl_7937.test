@@ -26,7 +26,7 @@ create procedure have_ssl()
 # we fake the test result for yassl
 let yassl=`select variable_value='Unknown' from information_schema.session_status where variable_name='Ssl_session_cache_mode'`;
 if (!$yassl) {
-  --replace_result "self signed certificate in certificate chain" "Failed to verify the server certificate"
+  --replace_result "self signed certificate in certificate chain" "Failed to verify the server certificate" "Error in the certificate." "Failed to verify the server certificate"
   --exec $MYSQL --ssl --ssl-verify-server-cert -e "call test.have_ssl()" 2>&1
 }
 if ($yassl) {

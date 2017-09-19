@@ -565,7 +565,10 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     set_if_smaller(max_data_file_length, INT_MAX32);
     set_if_smaller(max_key_file_length, INT_MAX32);
 #endif
-    share->base.max_data_file_length=(my_off_t) max_data_file_length;
+    /* For internal temporary tables, max_data_file_length is already set */
+    if (!internal_table || !share->base.max_data_file_length)
+      share->base.max_data_file_length=(my_off_t) max_data_file_length;
+    DBUG_ASSERT(share->base.max_data_file_length);
     share->base.max_key_file_length=(my_off_t) max_key_file_length;
 
     if (share->options & HA_OPTION_COMPRESS_RECORD)
@@ -909,9 +912,12 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
 					 share->block_size * keys : 0));
     my_free(disk_cache);
     _ma_setup_functions(share);
+    max_data_file_length= share->base.max_data_file_length;
     if ((*share->once_init)(share, info.dfile.file))
       goto err;
-    if (share->now_transactional)
+    if (internal_table)
+      set_if_smaller(share->base.max_data_file_length,
+                     max_data_file_length);
     {
       /* Setup initial state that is visible for all */
       MARIA_STATE_HISTORY_CLOSED *history;

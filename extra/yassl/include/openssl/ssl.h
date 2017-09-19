@@ -540,7 +540,7 @@ void MD5_Final(unsigned char*, MD5_CTX*);
 
 /* yaSSL extensions */
 int SSL_set_compression(SSL*);   /* turn on yaSSL zlib compression */
-char *yaSSL_ASN1_TIME_to_string(ASN1_TIME *time, char *buf, size_t len);
+char *yaSSL_ASN1_TIME_to_string(const ASN1_TIME *time, char *buf, size_t len);
 
 #include "transport_types.h"
 

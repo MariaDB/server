@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -677,7 +677,7 @@ int main(int argc, char **argv)
                                                  MYF(0))))
       return -2;
 
-    for (counter= 0; *argv != NULL; argv++) /* Loop through tables */
+    for (; *argv != NULL; argv++) /* Loop through tables */
     {
       pthread_mutex_lock(&counter_mutex);
       while (counter == opt_use_threads)
