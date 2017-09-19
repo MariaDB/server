@@ -873,7 +873,7 @@ page_copy_rec_list_start(
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
 	if (dict_index_is_sec_or_ibuf(index)
-	    && page_is_leaf(page_align(rec))
+	    && page_rec_is_leaf(rec)
 	    && !dict_table_is_temporary(index->table)) {
 		page_update_max_trx_id(new_block, NULL,
 				       page_get_max_trx_id(page_align(rec)),

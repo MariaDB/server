@@ -832,7 +832,7 @@ btr_node_ptr_set_child_page_no(
 	ulint	len;
 
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
-	ut_ad(!page_is_leaf(page_align(rec)));
+	ut_ad(!page_rec_is_leaf(rec));
 	ut_ad(!rec_offs_comp(offsets) || rec_get_node_ptr_flag(rec));
 
 	/* The child address is in the last field */

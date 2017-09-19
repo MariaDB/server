@@ -5685,7 +5685,7 @@ dict_index_copy_rec_order_prefix(
 		ut_a(!dict_table_is_comp(index->table));
 		n = rec_get_n_fields_old(rec);
 	} else {
-		if (page_is_leaf(page_align(rec))) {
+		if (page_rec_is_leaf(rec)) {
 			n = dict_index_get_n_unique_in_tree(index);
 		} else {
 			n = dict_index_get_n_unique_in_tree_nonleaf(index);
