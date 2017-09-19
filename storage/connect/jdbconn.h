@@ -35,16 +35,6 @@ public:
 	// Operations
 	virtual bool Connect(PJPARM sop);
 	virtual bool MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
-
-	// Attributes
-public:
-	char   *GetQuoteChar(void) { return m_IDQuoteChar; }
-	virtual int  GetMaxValue(int infotype);
-
-public:
-	// Operations
-	virtual bool Connect(PJPARM sop);
-	virtual bool MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 		PCSZ filter, bool pipe) {return true;}
 	virtual int  GetResultSize(PCSZ sql, PCOL colp);
 	virtual int  ExecuteCommand(PCSZ sql);
@@ -55,6 +45,7 @@ public:
 
 	// Jdbc operations
 	bool    PrepareSQL(PCSZ sql);
+	int     ExecuteSQL(void);					 // Prepared statement
 	bool    SetParam(JDBCCOL *colp);
 	int     GetCatInfo(JCATPARM *cap);
 	bool    GetDrivers(PQRYRES qrp);

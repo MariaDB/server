@@ -1,3 +1,4 @@
+/************* tabjson C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: tabjson     Version 1.5                               */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
 /*  This program are the JSON class DB execution routines.             */
@@ -860,9 +861,6 @@ bool TDBJSN::OpenDB(PGLOBAL g)
           sprintf(g->Message, "Invalid Jmode %d", Jmode);
           return true;
         } // endswitch Jmode
-
-		if (Xcol && Txfp->GetAmType() != TYPE_AM_MGO)
-			To_Filter = NULL;							 // Imcompatible
 
 	} // endif Use
 

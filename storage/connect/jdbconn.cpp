@@ -154,13 +154,13 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 	case 91:   // DATE, YEAR
 		type = TYPE_DATE;
 
-			if (!tn || toupper(tn[0]) != 'Y') {
-				len = 10;
-				v = 'D';
-			} else {
-				len = 4;
-				v = 'Y';
-			}	// endif len
+		if (!tn || toupper(tn[0]) != 'Y') {
+			len = 10;
+			v = 'D';
+		} else {
+			len = 4;
+			v = 'Y';
+		}	// endif len
 
 		break;
 	case 92:   // TIME
