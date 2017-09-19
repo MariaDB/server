@@ -90,9 +90,11 @@ SET(ROCKSDB_SE_SOURCES
   rdb_psi.cc
 )
 
+# MariaDB: the following is added in build_rocksdb.cmake, when appropriate:
 # This is a strong requirement coming from RocksDB. No conditional checks here.
-ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX
-)
+#ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX
+#)
+
 MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} STORAGE_ENGINE
                  MODULE_OUTPUT_NAME ha_rocksdb
                  COMPONENT rocksdb-engine)
