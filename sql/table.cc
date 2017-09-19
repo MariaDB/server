@@ -4642,6 +4642,9 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
              main_view->view_name.str);
     return(VIEW_CHECK_ERROR);
   }
+  /* We check thd->error() because it can be set by conversion problem. */
+  if (thd->is_error())
+    return(VIEW_CHECK_ERROR);
   return(VIEW_CHECK_OK);
 }
 
