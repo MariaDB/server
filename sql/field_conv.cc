@@ -219,6 +219,13 @@ set_field_to_null_with_conversions(Field *field, bool no_conversions)
 }
 
 
+static int copy_timestamp_fields(Field *from, Field *to)
+{
+  DBUG_ASSERT(from->type() == MYSQL_TYPE_TIMESTAMP);
+  DBUG_ASSERT(to->type() == MYSQL_TYPE_TIMESTAMP);
+  return ((Field_timestamp*)to)->store_timestamp((Field_timestamp*)from);
+}
+
 static void do_skip(Copy_field *copy __attribute__((unused)))
 {
 }
@@ -419,13 +426,7 @@ static void do_field_decimal(Copy_field *copy)
 
 static void do_field_timestamp(Copy_field *copy)
 {
-  DBUG_ASSERT(copy->from_field->type() == MYSQL_TYPE_TIMESTAMP);
-  DBUG_ASSERT(copy->to_field->type() == MYSQL_TYPE_TIMESTAMP);
-  ulong sec_part;
-  Field_timestamp *f= static_cast<Field_timestamp*>(copy->from_field);
-  Field_timestamp *t= static_cast<Field_timestamp*>(copy->to_field);
-  my_time_t ts= f->get_timestamp(&sec_part);
-  t->store_TIME(ts, sec_part);
+  copy_timestamp_fields(copy->from_field, copy->to_field);
 }
 
 
@@ -937,6 +938,10 @@ int field_conv_incompatible(Field *to, Field *from)
   {
     my_decimal buff;
     return to->store_decimal(from->val_decimal(&buff));
+  }
+  if (from->type() == MYSQL_TYPE_TIMESTAMP && to->type() == MYSQL_TYPE_TIMESTAMP)
+  {
+    return copy_timestamp_fields(from, to);
   }
   if (from->cmp_type() == TIME_RESULT)
   {

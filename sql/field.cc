@@ -5064,6 +5064,23 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
 }
 
 
+int Field_timestamp::store_timestamp(Field_timestamp *from)
+{
+  ulong sec_part;
+  my_time_t ts= from->get_timestamp(&sec_part);
+  store_TIME(ts, sec_part);
+  if (!ts && !sec_part && get_thd()->variables.sql_mode & MODE_NO_ZERO_DATE)
+  {
+    ErrConvString s(
+      STRING_WITH_LEN("0000-00-00 00:00:00.000000") - (decimals() ? 6 - decimals() : 7),
+      system_charset_info);
+    set_datetime_warning(WARN_DATA_TRUNCATED, &s, MYSQL_TIMESTAMP_DATETIME, 1);
+    return 1;
+  }
+  return 0;
+}
+
+
 double Field_timestamp::val_real(void)
 {
   return (double) Field_timestamp::val_int();

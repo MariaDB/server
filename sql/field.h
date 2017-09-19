@@ -2186,6 +2186,7 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
+  int  store_timestamp(Field_timestamp *from);
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
