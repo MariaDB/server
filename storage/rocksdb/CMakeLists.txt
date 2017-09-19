@@ -80,6 +80,8 @@ SET(ROCKSDB_SE_SOURCES
   ha_rocksdb.h
   rdb_i_s.cc
   rdb_i_s.h
+  rdb_io_watchdog.h
+  rdb_io_watchdog.cc
   rdb_mutex_wrapper.cc
   rdb_mutex_wrapper.h
   rdb_index_merge.cc

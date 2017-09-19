@@ -21,9 +21,9 @@ shutdown_server 10;
 --disable_reconnect
 
 # This will append '#sql-test' to the end of new name
-set session debug="+d,gen_sql_table_name";
+set session debug_dbug="+d,gen_sql_table_name";
 rename table t1 to t2;
-set session debug= "-d,gen_sql_table_name";
+set session debug_dbug= "-d,gen_sql_table_name";
 
 # Remove the corresponding .frm files
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.$_server_id/data/test *t1*.frm

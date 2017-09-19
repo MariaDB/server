@@ -1,6 +1,6 @@
 # Disable until covered unpack_info format enabled in prod
 --source include/have_debug.inc
---source include/have_nodebug.inc
+--source include/not_debug.inc
 
 --source include/have_rocksdb.inc
 

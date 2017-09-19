@@ -197,6 +197,8 @@ UPDATE t1 set a = 1;
 DROP TABLE t1;
 # Ensure no rows can disappear in the middle of long-running transactions
 # Also ensure repeatable-read works as expected
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
 CREATE TABLE t1 (
 a int PRIMARY KEY,
 b int NOT NULL,
@@ -204,6 +206,7 @@ KEY kb (b)
 ) ENGINE=rocksdb
 COMMENT='ttl_duration=5;';
 INSERT INTO t1 values (1, 1);
+connection con1;
 # Creating Snapshot (start transaction)
 BEGIN;
 # Nothing filtered out here
@@ -220,6 +223,7 @@ SELECT * FROM t1 FORCE INDEX (kb);
 a	b
 1	1
 # Switching to connection 2
+connection con2;
 # compaction doesn't do anything since con1 snapshot is still open
 set global rocksdb_debug_ttl_ignore_pk = 1;
 set global rocksdb_force_flush_memtable_now=1;
@@ -233,6 +237,7 @@ a	b
 SELECT * FROM t1 FORCE INDEX (kb);
 a	b
 # Switching to connection 1
+connection con1;
 SELECT * FROM t1 FORCE INDEX (PRIMARY);
 a	b
 1	1
@@ -252,6 +257,10 @@ a	b
 SELECT * FROM t1 FORCE INDEX (kb);
 a	b
 DROP TABLE t1;
+disconnect con1;
+disconnect con2;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
 set global rocksdb_force_flush_memtable_now=1;
 set global rocksdb_compact_cf='default';
 CREATE TABLE t1 (
@@ -261,11 +270,13 @@ KEY kb (b)
 ) ENGINE=rocksdb
 COMMENT='ttl_duration=1;';
 # On Connection 1
+connection con1;
 # Creating Snapshot (start transaction)
 BEGIN;
 SELECT * FROM t1 FORCE INDEX (kb);
 a	b
 # On Connection 2
+connection con2;
 set global rocksdb_debug_ttl_rec_ts = -2;
 INSERT INTO t1 values (1, 1);
 INSERT INTO t1 values (3, 3);
@@ -275,11 +286,13 @@ set global rocksdb_debug_ttl_rec_ts = 0;
 set global rocksdb_force_flush_memtable_now=1;
 set global rocksdb_compact_cf='default';
 # On Connection 1
+connection con1;
 SELECT * FROM t1 FORCE INDEX (PRIMARY);
 a	b
 SELECT * FROM t1 FORCE INDEX (kb);
 a	b
 # On Connection 2
+connection con2;
 SELECT * FROM t1 FORCE INDEX (PRIMARY);
 a	b
 SELECT * FROM t1 FORCE INDEX (kb);
@@ -298,6 +311,9 @@ a	b
 5	5
 7	7
 set global rocksdb_enable_ttl_read_filtering=1;
+disconnect con2;
+disconnect con1;
+connection default;
 DROP TABLE t1;
 CREATE TABLE t1 (
 a int,
