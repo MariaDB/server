@@ -1,4 +1,5 @@
 --source include/have_rocksdb.inc
+--source include/have_partition.inc
 
 --let pk_cf=cf1
 
