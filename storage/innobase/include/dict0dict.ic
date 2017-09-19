@@ -327,20 +327,6 @@ dict_index_is_unique(
 }
 
 /********************************************************************//**
-Check whether the index is an universal index tree.
-@return	nonzero for universal tree, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_univ(
-/*===============*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_UNIVERSAL);
-}
-
-/********************************************************************//**
 Check whether the index is a Spatial Index.
 @return	nonzero for Spatial Index, zero for other indexes */
 UNIV_INLINE
