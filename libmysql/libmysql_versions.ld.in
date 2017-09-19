@@ -16,6 +16,8 @@
 
 @CLIENT_API_5_1_ALIASES@
 
+@DEBIAN9_ALIASES@
+
 /*
   On Fedora the following symbols are exported, but renamed into a mysql_
   namespace. We export them as aliases, but keep original symbols too. See

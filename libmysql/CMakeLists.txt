@@ -391,6 +391,10 @@ IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
       *;
   };
 
+  libmariadbclient_18 {
+    /* empty here. aliases are added above */
+  };
+
   libmysqlclient_16 {
     /* empty here. aliases are added above */
   };
@@ -399,15 +403,22 @@ IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
 
   SET (CLIENT_API_5_1_LIST)
   SET (CLIENT_API_5_1_ALIASES)
+  SET (DEBIAN9_ALIASES)
   FOREACH (f ${CLIENT_API_FUNCTIONS_5_1} ${CLIENT_API_5_1_EXTRA})
     SET(CLIENT_API_5_1_LIST "${CLIENT_API_5_1_LIST}\t${f};\n")
     SET(CLIENT_API_5_1_ALIASES "${CLIENT_API_5_1_ALIASES}\"${f}@libmysqlclient_16\" = ${f};\n")
+    SET(DEBIAN9_ALIASES "${DEBIAN9_ALIASES}\"${f}@libmariadbclient_18\" = ${f};\n")
   ENDFOREACH()
       
   SET (CLIENT_API_5_5_LIST)
   FOREACH (f ${CLIENT_API_FUNCTIONS_5_5} ${CLIENT_API_5_5_EXTRA})
     SET(CLIENT_API_5_5_LIST "${CLIENT_API_5_5_LIST}\t${f};\n")
+    SET(DEBIAN9_ALIASES "${DEBIAN9_ALIASES}\"${f}@libmariadbclient_18\" = ${f};\n")
   ENDFOREACH()
+
+  IF(NOT DEB)
+    SET (DEBIAN9_ALIASES)
+  ENDIF()
 
   ELSE (NOT DISABLE_LIBMYSQLCLIENT_SYMBOL_VERSIONING)
     SET (CLIENT_API_5_1_ALIASES "/* Versioning disabled per user request. MDEV-5982 */")
