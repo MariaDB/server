@@ -1,0 +1,31 @@
+#
+# Test ALTER TABLE RENAME TO with NBO
+# All DML and SELECTs are expected to be blocked.
+#
+
+--source include/galera_cluster.inc
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+
+SET SESSION wsrep_osu_method=NBO;
+
+--error ER_TABLE_EXISTS_ERROR
+ALTER TABLE t1 LOCK=EXCLUSIVE, RENAME TO t2;
+
+ALTER TABLE t1 LOCK=EXCLUSIVE, RENAME TO t3;
+
+--connection node_2
+SHOW CREATE TABLE t3;
+SELECT COUNT(*) = 1 FROM t3;
+
+
+SET SESSION wsrep_osu_method=TOI;
+
+DROP TABLE t2;
+DROP TABLE t3;
+
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't2' already exists' on query.");
+

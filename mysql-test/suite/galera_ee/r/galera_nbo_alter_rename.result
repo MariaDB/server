@@ -1,0 +1,19 @@
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t1 LOCK=EXCLUSIVE, RENAME TO t2;
+ERROR 42S01: Table 't2' already exists
+ALTER TABLE t1 LOCK=EXCLUSIVE, RENAME TO t3;
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `f1` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 1 FROM t3;
+COUNT(*) = 1
+1
+SET SESSION wsrep_osu_method=TOI;
+DROP TABLE t2;
+DROP TABLE t3;
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't2' already exists' on query.");

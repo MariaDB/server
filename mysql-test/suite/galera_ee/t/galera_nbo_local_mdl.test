@@ -1,0 +1,55 @@
+#
+# Test that if a local MDL lock prevents a particular NBO DDL from completing then:
+# * all operations on the local node are blocked
+# * all operations on remote node are allowed
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER, f2 INTEGER);
+CREATE TABLE t2 (f1 INTEGER);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+LOCK TABLE t1 WRITE;
+
+--connection node_1
+SET SESSION wsrep_OSU_method=NBO;
+--send ALTER TABLE t1 LOCK=SHARED, DROP COLUMN f2;
+
+
+# Confirm that the ALTER is blocked
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1b
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Waiting for table metadata lock'
+--source include/wait_condition.inc
+
+# Local DML blocks
+--send INSERT INTO t2 VALUES (1);
+
+# Confirm that the INSERT is blocked
+--connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1c
+SET SESSION wsrep_sync_wait = 0;
+
+--let $wait_condition = SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'INSERT INTO t2 VALUES (1)' AND STATE = 'query end'
+--source include/wait_condition.inc
+
+# Remote operations are allowed
+--connection node_2
+INSERT INTO t2 VALUES (1);
+CREATE TABLE t3 (t4 INTEGER);
+
+--connection node_1a
+UNLOCK TABLES;
+
+--connection node_1
+--reap
+
+--connection node_1b
+--reap
+
+DROP TABLE t1, t2, t3;

@@ -1,0 +1,37 @@
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+SET SESSION wsrep_osu_method=NBO;
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+ALTER TABLE t1 LOCK=EXCLUSIVE, ADD PRIMARY KEY (f1);;
+SET SESSION wsrep_sync_wait=0;
+SET SESSION lock_wait_timeout=1;
+INSERT INTO t1 VALUES (1);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT * FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET SESSION lock_wait_timeout=1;
+INSERT INTO t1 VALUES (3);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT * FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET GLOBAL debug = '';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SET SESSION wsrep_osu_method=TOI;
+DROP TABLE t1;

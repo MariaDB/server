@@ -1,0 +1,14 @@
+SET GLOBAL wsrep_slave_threads=2;
+CREATE TABLE t1 (f1 INTEGER NOT NULL, f2 INTEGER NOT NULL) ENGINE=InnoDB;
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t1 LOCK=SHARED, ADD PRIMARY KEY (f1);;
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t1 LOCK=SHARED, ADD PRIMARY KEY (f2);;
+SET SESSION wsrep_sync_wait=0;
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET GLOBAL debug = '';
+SET SESSION wsrep_OSU_method=TOI;
+DROP TABLE t1;
+CALL mtr.add_suppression("Slave SQL: Error 'Multiple primary key defined' on query");
+SET GLOBAL wsrep_slave_threads = 1;

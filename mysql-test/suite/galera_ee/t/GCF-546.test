@@ -1,0 +1,47 @@
+#
+# GCF-546 NB-DDL: Assertion `thd->wsrep_trx_meta.gtid.seqno == (-1)' failed in wsrep_to_isolation_begin with conflicting DDL on same table
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+
+--connection node_2
+SET GLOBAL DEBUG = 'd,sync.alter_locked_tables';
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_1
+SET SESSION wsrep_osu_method=NBO;
+--send ALTER TABLE t1 LOCK=SHARED, ALGORITHM=COPY, ADD PRIMARY KEY (f1);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE 'ALTER%';
+--source include/wait_condition.inc
+
+--error ER_LOCK_DEADLOCK
+ALTER TABLE t1 LOCK=SHARED, ALGORITHM=COPY, ADD PRIMARY KEY (f1);
+
+SET GLOBAL DEBUG = '';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables';
+
+--connection node_1
+--reap
+
+--connection node_2
+--error ER_MULTIPLE_PRI_KEY
+ALTER TABLE t1 LOCK=SHARED, ALGORITHM=COPY, ADD PRIMARY KEY (f1);
+
+SHOW CREATE TABLE t1;
+
+CALL mtr.add_suppression("TO isolation failed");
+CALL mtr.add_suppression("ALTER TABLE isolation failure");
+
+--connection node_1
+SHOW CREATE TABLE t1;
+CALL mtr.add_suppression("Slave SQL: Error");
+
+SET SESSION wsrep_osu_method=TOI;
+DROP TABLE t1;

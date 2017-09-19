@@ -1,0 +1,52 @@
+SET GLOBAL wsrep_slave_threads=2;
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t1 LOCK=SHARED, ADD PRIMARY KEY (f1);;
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t2 LOCK=SHARED, ADD PRIMARY KEY (f1);;
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL debug = '';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP TABLE t2;
+SET GLOBAL wsrep_slave_threads=1;
