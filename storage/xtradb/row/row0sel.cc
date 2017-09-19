@@ -2601,7 +2601,6 @@ row_sel_field_store_in_mysql_format_func(
 #ifdef UNIV_DEBUG
 	const dict_field_t*	field
 		= dict_index_get_nth_field(index, field_no);
-	bool	clust_templ_for_sec = (sec_field != ULINT_UNDEFINED);
 #endif /* UNIV_DEBUG */
 
 	ut_ad(len != UNIV_SQL_NULL);
@@ -2715,8 +2714,7 @@ row_sel_field_store_in_mysql_format_func(
 		containing UTF-8 ENUM columns due to Bug #9526. */
 		ut_ad(!templ->mbmaxlen
 		      || !(templ->mysql_col_len % templ->mbmaxlen));
-		ut_ad(clust_templ_for_sec
-		      || len * templ->mbmaxlen >= templ->mysql_col_len
+		ut_ad(len * templ->mbmaxlen >= templ->mysql_col_len
 		      || (field_no == templ->icp_rec_field_no
 			  && field->prefix_len > 0)
 		      || templ->rec_field_is_prefix);
@@ -2745,14 +2743,9 @@ row_sel_field_store_in_mysql_format_func(
 	case DATA_DECIMAL:
 		/* Above are the valid column types for MySQL data. */
 #endif /* UNIV_DEBUG */
-		/* If sec_field value is present then mapping of
-		secondary index records to clustered index template
-		happens for end range comparison. So length can
-		vary according to secondary index record length. */
 		ut_ad(field->prefix_len
 		      ? field->prefix_len == len
-		      : (clust_templ_for_sec ?
-				1 : (templ->mysql_col_len == len)));
+		      : (templ->mysql_col_len == len));
 		memcpy(dest, data, len);
 	}
 }
@@ -2776,8 +2769,6 @@ row_sel_field_store_in_mysql_format_func(
 @param[in]	field_no		templ->rec_field_no or
 					templ->clust_rec_field_no
 					or templ->icp_rec_field_no
-					or sec field no if clust_templ_for_sec
-					is TRUE
 @param[in]	templ			row template
 */
 static MY_ATTRIBUTE((warn_unused_result))
@@ -2796,7 +2787,6 @@ row_sel_store_mysql_field_func(
 	const byte*	data;
 	ulint		len;
 	ulint		clust_field_no;
-	bool		clust_templ_for_sec = (sec_field_no != ULINT_UNDEFINED);
 
 	ut_ad(prebuilt->default_rec);
 	ut_ad(templ);
@@ -2905,11 +2895,6 @@ row_sel_store_mysql_field_func(
 				mem_heap_dup(prebuilt->blob_heap, data, len));
 		}
 
-		/* Reassign the clustered index field no. */
-		if (clust_templ_for_sec) {
-			field_no = clust_field_no;
-		}
-
 		row_sel_field_store_in_mysql_format(
 			mysql_rec + templ->mysql_col_offset,
 			templ, index, field_no, data, len);
@@ -2966,7 +2951,6 @@ row_sel_store_mysql_rec(
 			= rec_clust
 			? templ->clust_rec_field_no
 			: templ->rec_field_no;
-		ulint		sec_field_no = ULINT_UNDEFINED;
 
 		/* We should never deliver column prefixes to MySQL,
 		except for evaluating innobase_index_cond() and if the prefix
@@ -2988,8 +2972,7 @@ row_sel_store_mysql_rec(
 	NOTE, the record must be cluster index record. Secondary index
 	might not have the Doc ID */
 	if (dict_table_has_fts_index(prebuilt->table)
-	    && dict_index_is_clust(index)
-	    && !clust_templ_for_sec) {
+	    && dict_index_is_clust(index)) {
 
 		prebuilt->fts_doc_id = fts_get_doc_id_from_rec(
 			prebuilt->table, rec, NULL);
