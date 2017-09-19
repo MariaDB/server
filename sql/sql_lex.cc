@@ -681,7 +681,6 @@ void LEX::start(THD *thd_arg)
 
   context_stack.empty();
   unit.init_query();
-  unit.init_select();
   select_lex.linkage= UNSPECIFIED_TYPE;
   /* 'parent_lex' is used in init_query() so it must be before it. */
   select_lex.parent_lex= this;
@@ -2146,10 +2145,6 @@ void st_select_lex_node::init_query()
   uncacheable= 0;
 }
 
-void st_select_lex_node::init_select()
-{
-}
-
 void st_select_lex_unit::init_query()
 {
   st_select_lex_node::init_query();
@@ -2233,7 +2228,6 @@ void st_select_lex::init_query()
 
 void st_select_lex::init_select()
 {
-  st_select_lex_node::init_select();
   sj_nests.empty();
   sj_subselects.empty();
   group_list.empty();
@@ -2554,15 +2548,6 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
   is_correlated= TRUE;
   this->master_unit()->item->is_correlated= TRUE;
   return FALSE;
-}
-
-bool st_select_lex_node::inc_in_sum_expr()           { return 1; }
-uint st_select_lex_node::get_in_sum_expr()           { return 0; }
-TABLE_LIST* st_select_lex_node::get_table_list()     { return 0; }
-List<Item>* st_select_lex_node::get_item_list()      { return 0; }
-ulong st_select_lex_node::get_table_join_options()
-{
-  return 0;
 }
 
 /*
