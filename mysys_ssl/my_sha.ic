@@ -134,7 +134,7 @@ void my_sha(uchar *digest, const char *buf, size_t len)
   CONTEXT context;
 
   sha_init_fast(&context);
-  sha_input(&context, (const uchar *)buf, len);
+  sha_input(&context, (const uchar *)buf, (unsigned int)len);
   sha_result(&context, digest);
 }
 

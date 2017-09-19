@@ -787,7 +787,7 @@ int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
   MARIA_SHARE *share= info->s;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
   DBUG_ENTER("_ma_insert");
-  DBUG_PRINT("enter",("key_pos: 0x%lx", (ulong) key_pos));
+  DBUG_PRINT("enter",("key_pos:%p", key_pos));
   DBUG_EXECUTE("key", _ma_print_key(DBUG_FILE, key););
 
   /*
@@ -813,8 +813,8 @@ int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
   {
     DBUG_PRINT("test",("t_length: %d  ref_len: %d",
 		       t_length,s_temp.ref_length));
-    DBUG_PRINT("test",("n_ref_len: %d  n_length: %d  key_pos: 0x%lx",
-		       s_temp.n_ref_length, s_temp.n_length, (long) s_temp.key));
+    DBUG_PRINT("test",("n_ref_len: %d  n_length: %d  key_pos: %p",
+		       s_temp.n_ref_length, s_temp.n_length, s_temp.key));
   }
 #endif
   if (t_length > 0)
@@ -1128,8 +1128,8 @@ uchar *_ma_find_half_pos(MARIA_KEY *key, MARIA_PAGE *ma_page,
       DBUG_RETURN(0);
   } while (page < end);
   *after_key= page;
-  DBUG_PRINT("exit",("returns: 0x%lx  page: 0x%lx  half: 0x%lx",
-                     (long) lastpos, (long) page, (long) end));
+  DBUG_PRINT("exit",("returns: %p  page: %p  half: %p",
+                     lastpos, page, end));
   DBUG_RETURN(lastpos);
 } /* _ma_find_half_pos */
 
@@ -1211,8 +1211,8 @@ static uchar *_ma_find_last_pos(MARIA_KEY *int_key, MARIA_PAGE *ma_page,
   } while (page < end);
 
   *after_key=lastpos;
-  DBUG_PRINT("exit",("returns: 0x%lx  page: 0x%lx  end: 0x%lx",
-                     (long) prevpos,(long) page,(long) end));
+  DBUG_PRINT("exit",("returns: %p  page: %p  end: %p",
+                     prevpos,page,end));
   DBUG_RETURN(prevpos);
 } /* _ma_find_last_pos */
 

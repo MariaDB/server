@@ -308,7 +308,7 @@ static my_bool _ma_log_rt_split(MARIA_PAGE *page,
   uint translog_parts, extra_length= 0;
   my_off_t page_pos;
   DBUG_ENTER("_ma_log_rt_split");
-  DBUG_PRINT("enter", ("page: %lu", (ulong) page));
+  DBUG_PRINT("enter", ("page: %p", page));
 
   DBUG_ASSERT(share->now_transactional);
   page_pos= page->pos / share->block_size;

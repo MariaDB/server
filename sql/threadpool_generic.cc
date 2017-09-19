@@ -450,7 +450,7 @@ static void* native_event_get_userdata(native_event *event)
 static int io_poll_create()
 {
   HANDLE h= CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
-  return (int)h;
+  return PtrToInt(h);
 }
 
 
@@ -476,7 +476,7 @@ int io_poll_start_read(int pollfd, int fd, void *, void *opt)
 
 static int io_poll_associate_fd(int pollfd, int fd, void *data, void *opt)
 {
-  HANDLE h= CreateIoCompletionPort((HANDLE)fd, (HANDLE)pollfd, (ULONG_PTR)data, 0);
+  HANDLE h= CreateIoCompletionPort(IntToPtr(fd), IntToPtr(pollfd), (ULONG_PTR)data, 0);
   if (!h) 
     return -1;
   return io_poll_start_read(pollfd,fd, 0, opt); 

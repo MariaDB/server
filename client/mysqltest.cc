@@ -7532,7 +7532,7 @@ void fix_win_paths(char *val, size_t len)
       DBUG_PRINT("info", ("Converted \\ to /, p: %s", p));
     }
   }
-  DBUG_PRINT("exit", (" val: %s, len: %d", val, len));
+  DBUG_PRINT("exit", (" val: %s, len: %zu", val, len));
   DBUG_VOID_RETURN;
 #endif
 }

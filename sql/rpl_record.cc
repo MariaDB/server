@@ -105,10 +105,10 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
 #endif
         pack_ptr= field->pack(pack_ptr, field->ptr + offset,
                               field->max_data_length());
-        DBUG_PRINT("debug", ("field: %s; real_type: %d, pack_ptr: 0x%lx;"
-                             " pack_ptr':0x%lx; bytes: %d",
+        DBUG_PRINT("debug", ("field: %s; real_type: %d, pack_ptr: %p;"
+                             " pack_ptr':%p; bytes: %d",
                              field->field_name, field->real_type(),
-                             (ulong) old_pack_ptr, (ulong) pack_ptr,
+                             old_pack_ptr,pack_ptr,
                              (int) (pack_ptr - old_pack_ptr)));
         DBUG_DUMP("packed_data", old_pack_ptr, pack_ptr - old_pack_ptr);
       }
@@ -322,9 +322,9 @@ unpack_row(rpl_group_info *rgi,
 
         pack_ptr= f->unpack(f->ptr, pack_ptr, row_end, metadata);
 	DBUG_PRINT("debug", ("field: %s; metadata: 0x%x;"
-                             " pack_ptr: 0x%lx; pack_ptr': 0x%lx; bytes: %d",
+                             " pack_ptr: %p; pack_ptr': %p; bytes: %d",
                              f->field_name, metadata,
-                             (ulong) old_pack_ptr, (ulong) pack_ptr,
+                             old_pack_ptr, pack_ptr,
                              (int) (pack_ptr - old_pack_ptr)));
         if (!pack_ptr)
         {
@@ -336,8 +336,8 @@ unpack_row(rpl_group_info *rgi,
               Galera Node throws "Could not read field" error and drops out of cluster
             */
             WSREP_WARN("ROW event unpack field: %s  metadata: 0x%x;"
-                       " pack_ptr: 0x%lx; conv_table %p conv_field %p table %s"
-                       " row_end: 0x%lx",
+                       " pack_ptr: %p; conv_table %p conv_field %p table %s"
+                       " row_end: %p",
                        f->field_name, metadata,
                        (ulong) old_pack_ptr, conv_table, conv_field,
                        (table_found) ? "found" : "not found", (ulong)row_end

@@ -759,7 +759,7 @@ void lex_start(THD *thd)
 void lex_end(LEX *lex)
 {
   DBUG_ENTER("lex_end");
-  DBUG_PRINT("enter", ("lex: 0x%lx", (long) lex));
+  DBUG_PRINT("enter", ("lex: %p", lex));
 
   lex_end_stage1(lex);
   lex_end_stage2(lex);
@@ -2594,7 +2594,7 @@ bool st_select_lex::add_gorder_to_list(THD *thd, Item *item, bool asc)
 bool st_select_lex::add_item_to_list(THD *thd, Item *item)
 {
   DBUG_ENTER("st_select_lex::add_item_to_list");
-  DBUG_PRINT("info", ("Item: 0x%lx", (long) item));
+  DBUG_PRINT("info", ("Item: %p", item));
   DBUG_RETURN(item_list.push_back(item, thd->mem_root));
 }
 
@@ -4657,9 +4657,9 @@ bool LEX::set_arena_for_set_stmt(Query_arena *backup)
         Query_arena_memroot(mem_root_for_set_stmt,
                             Query_arena::STMT_INITIALIZED)))
     DBUG_RETURN(1);
-  DBUG_PRINT("info", ("mem_root: 0x%lx  arena: 0x%lx",
-                      (ulong) mem_root_for_set_stmt,
-                      (ulong) arena_for_set_stmt));
+  DBUG_PRINT("info", ("mem_root: %p  arena: %p",
+                      mem_root_for_set_stmt,
+                      arena_for_set_stmt));
   thd->set_n_backup_active_arena(arena_for_set_stmt, backup);
   DBUG_RETURN(0);
 }
@@ -4670,9 +4670,9 @@ void LEX::reset_arena_for_set_stmt(Query_arena *backup)
   DBUG_ENTER("LEX::reset_arena_for_set_stmt");
   DBUG_ASSERT(arena_for_set_stmt);
   thd->restore_active_arena(arena_for_set_stmt, backup);
-  DBUG_PRINT("info", ("mem_root: 0x%lx  arena: 0x%lx",
-                      (ulong) arena_for_set_stmt->mem_root,
-                      (ulong) arena_for_set_stmt));
+  DBUG_PRINT("info", ("mem_root: %p  arena: %p",
+                      arena_for_set_stmt->mem_root,
+                      arena_for_set_stmt));
   DBUG_VOID_RETURN;
 }
 
@@ -4682,9 +4682,9 @@ void LEX::free_arena_for_set_stmt()
   DBUG_ENTER("LEX::free_arena_for_set_stmt");
   if (!arena_for_set_stmt)
     return;
-  DBUG_PRINT("info", ("mem_root: 0x%lx  arena: 0x%lx",
-                      (ulong) arena_for_set_stmt->mem_root,
-                      (ulong) arena_for_set_stmt));
+  DBUG_PRINT("info", ("mem_root: %p  arena: %p",
+                      arena_for_set_stmt->mem_root,
+                      arena_for_set_stmt));
   arena_for_set_stmt->free_items();
   delete(arena_for_set_stmt);
   free_root(mem_root_for_set_stmt, MYF(MY_KEEP_PREALLOC));

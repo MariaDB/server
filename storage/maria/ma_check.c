@@ -2519,8 +2519,8 @@ static int maria_drop_all_indexes(HA_CHECK *param, MARIA_HA *info,
     DBUG_PRINT("repair", ("creating missing indexes"));
     for (i= 0; i < share->base.keys; i++)
     {
-      DBUG_PRINT("repair", ("index #: %u  key_root: 0x%lx  active: %d",
-                            i, (long) state->key_root[i],
+      DBUG_PRINT("repair", ("index #: %u  key_root:%lld  active: %d",
+                            i, state->key_root[i],
                             maria_is_key_active(state->key_map, i)));
       if ((state->key_root[i] != HA_OFFSET_ERROR) &&
           !maria_is_key_active(state->key_map, i))
@@ -4477,8 +4477,8 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     */
     sort_param[i].read_cache= ((rep_quick || !i) ? param->read_cache :
                                new_data_cache);
-    DBUG_PRINT("io_cache_share", ("thread: %u  read_cache: 0x%lx",
-                                  i, (long) &sort_param[i].read_cache));
+    DBUG_PRINT("io_cache_share", ("thread: %u  read_cache: %p",
+                                  i, &sort_param[i].read_cache));
 
     /*
       two approaches: the same amount of memory for each thread

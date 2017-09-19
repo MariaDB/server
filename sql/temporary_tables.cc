@@ -1127,8 +1127,8 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
     thread_safe_increment32(&slave_open_temp_tables);
   }
 
-  DBUG_PRINT("tmptable", ("Opened table: '%s'.'%s' 0x%lx", table->s->db.str,
-                          table->s->table_name.str, (long) table));
+  DBUG_PRINT("tmptable", ("Opened table: '%s'.'%s'%p", table->s->db.str,
+                          table->s->table_name.str, table));
   DBUG_RETURN(table);
 }
 
@@ -1221,9 +1221,9 @@ void THD::close_temporary_table(TABLE *table)
 {
   DBUG_ENTER("THD::close_temporary_table");
 
-  DBUG_PRINT("tmptable", ("closing table: '%s'.'%s' 0x%lx  alias: '%s'",
+  DBUG_PRINT("tmptable", ("closing table: '%s'.'%s'%p  alias: '%s'",
                           table->s->db.str, table->s->table_name.str,
-                          (long) table, table->alias.c_ptr()));
+                          table, table->alias.c_ptr()));
 
   closefrm(table);
   my_free(table);

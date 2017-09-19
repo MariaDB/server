@@ -3462,11 +3462,11 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
                         "ev->when= %lu "
                         "rli->mi->clock_diff_with_master= %lu "
                         "now= %ld "
-                        "sql_delay_end= %lu "
+                        "sql_delay_end= %llu "
                         "nap_time= %ld",
                         sql_delay, (long)ev->when,
                         rli->mi->clock_diff_with_master,
-                        (long)now, sql_delay_end, (long)nap_time));
+                        (long)now, (ulonglong)sql_delay_end, (long)nap_time));
 
     if (sql_delay_end > now)
     {

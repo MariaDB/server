@@ -159,7 +159,7 @@ void stop_handle_manager()
   if (manager_thread_in_use)
   {
     mysql_mutex_lock(&LOCK_manager);
-    DBUG_PRINT("quit", ("initiate shutdown of handle manager thread: 0x%lx",
+    DBUG_PRINT("quit", ("initiate shutdown of handle manager thread: %lu",
                         (ulong)manager_thread));
     mysql_cond_signal(&COND_manager);
     mysql_mutex_unlock(&LOCK_manager);

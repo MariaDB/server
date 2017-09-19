@@ -86,8 +86,8 @@ my_bool _ma_setup_live_state(MARIA_HA *info)
 
   mysql_mutex_lock(&share->intern_lock);
   share->in_trans++;
-  DBUG_PRINT("info", ("share: 0x%lx  in_trans: %d",
-                      (ulong) share, share->in_trans));
+  DBUG_PRINT("info", ("share: %p  in_trans: %d",
+                     share, share->in_trans));
 
   history= share->state_history;
 
@@ -524,8 +524,8 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
             /* Remove not visible states */
             share->state_history= _ma_remove_not_visible_states(history, 0, 1);
           }
-          DBUG_PRINT("info", ("share: 0x%lx  in_trans: %d",
-                              (ulong) share, share->in_trans));
+          DBUG_PRINT("info", ("share: %p in_trans: %d",
+                              share, share->in_trans));
         }
       }
       share->in_trans--;

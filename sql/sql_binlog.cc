@@ -192,8 +192,8 @@ void mysql_client_binlog_statement(THD* thd)
         since it will read from unassigned memory.
       */
     DBUG_PRINT("info",
-               ("bytes_decoded: %d  strptr: 0x%lx  endptr: 0x%lx ('%c':%d)",
-                bytes_decoded, (long) strptr, (long) endptr, *endptr,
+               ("bytes_decoded: %d  strptr: %p  endptr: %p ('%c':%d)",
+                bytes_decoded, strptr, endptr, *endptr,
                 *endptr));
 #endif
 

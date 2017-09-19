@@ -952,7 +952,7 @@ void STDCALL
 mysql_free_result(MYSQL_RES *result)
 {
   DBUG_ENTER("mysql_free_result");
-  DBUG_PRINT("enter",("mysql_res: 0x%lx", (long) result));
+  DBUG_PRINT("enter",("mysql_res: %p", result));
   if (result)
   {
     MYSQL *mysql= result->handle;
@@ -1653,7 +1653,7 @@ mysql_init(MYSQL *mysql)
   */
   mysql->reconnect= 0;
 
-  DBUG_PRINT("mysql",("mysql: 0x%lx", (long) mysql));
+  DBUG_PRINT("mysql",("mysql: %p", mysql));
   return mysql;
 }
 
@@ -3379,7 +3379,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     }
     DBUG_PRINT("info",
                ("End of connect attempts, sock: %d  status: %d  error: %d",
-                sock, status, saved_error));
+                (int)sock, status, saved_error));
 
     freeaddrinfo(res_lst);
 
@@ -3633,7 +3633,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   }
 #endif
 
-  DBUG_PRINT("exit", ("Mysql handler: 0x%lx", (long) mysql));
+  DBUG_PRINT("exit", ("Mysql handler: %p",mysql));
   DBUG_RETURN(mysql);
 
 error:
@@ -3955,7 +3955,7 @@ void STDCALL mysql_close_slow_part(MYSQL *mysql)
 void STDCALL mysql_close(MYSQL *mysql)
 {
   DBUG_ENTER("mysql_close");
-  DBUG_PRINT("enter", ("mysql: 0x%lx", (long) mysql));
+  DBUG_PRINT("enter", ("mysql: %p",  mysql));
 
   if (mysql)					/* Some simple safety */
   {
@@ -4066,7 +4066,7 @@ int STDCALL
 mysql_real_query(MYSQL *mysql, const char *query, ulong length)
 {
   DBUG_ENTER("mysql_real_query");
-  DBUG_PRINT("enter",("handle: 0x%lx", (long) mysql));
+  DBUG_PRINT("enter",("handle: %p", mysql));
   DBUG_PRINT("query",("Query = '%-.4096s'",query));
 
   if (mysql_send_query(mysql,query,length))

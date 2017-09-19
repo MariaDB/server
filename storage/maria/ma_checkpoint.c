@@ -170,7 +170,7 @@ static int really_execute_checkpoint(void)
     "Horizon" is a lower bound of the LSN of the next log record.
   */
   checkpoint_start_log_horizon= translog_get_horizon();
-  DBUG_PRINT("info",("checkpoint_start_log_horizon (%lu,0x%lx)",
+  DBUG_PRINT("info",("checkpoint_start_log_horizon " LSN_FMT,
                      LSN_IN_PARTS(checkpoint_start_log_horizon)));
   lsn_store(checkpoint_start_log_horizon_char, checkpoint_start_log_horizon);
 
@@ -333,10 +333,11 @@ int ma_checkpoint_init(ulong interval)
   else if (interval > 0)
   {
     compile_time_assert(sizeof(void *) >= sizeof(ulong));
+    size_t intv= interval;
     if ((res= mysql_thread_create(key_thread_checkpoint,
                                   &checkpoint_control.thread, NULL,
                                   ma_checkpoint_background,
-                                  (void*) interval)))
+                                  (void*) intv)))
       checkpoint_control.killed= TRUE;
   }
   else
@@ -375,7 +376,7 @@ static void flush_all_tables(int what_to_flush)
                                   MA_STATE_INFO_WRITE_DONT_MOVE_OFFSET|
                                   MA_STATE_INFO_WRITE_LOCK);
         DBUG_PRINT("maria_flush_states",
-                   ("is_of_horizon: LSN (%lu,0x%lx)",
+                   ("is_of_horizon: LSN " LSN_FMT,
                     LSN_IN_PARTS(info->s->state.is_of_horizon)));
         break;
       case 2:
@@ -546,8 +547,8 @@ pthread_handler_t ma_checkpoint_background(void *arg)
     right after "case 0", thus having 'dfile' unset. So the thread cares only
     about the interval's value when it started.
   */
-  const ulong interval= (ulong)arg;
-  uint sleeps, sleep_time;
+  const size_t interval= (size_t)arg;
+  size_t sleeps, sleep_time;
   TRANSLOG_ADDRESS log_horizon_at_last_checkpoint=
     translog_get_horizon();
   ulonglong pagecache_flushes_at_last_checkpoint=

@@ -913,8 +913,8 @@ retry:
   }
 
 end:
-  DBUG_PRINT("exit", ("share: 0x%lx  ref_count: %u",
-                      (ulong) share, share->tdc->ref_count));
+  DBUG_PRINT("exit", ("share: %p  ref_count: %u",
+                      share, share->tdc->ref_count));
   if (flags & GTS_NOLOCK)
   {
     tdc_release_share(share);
@@ -945,8 +945,8 @@ void tdc_release_share(TABLE_SHARE *share)
 
   mysql_mutex_lock(&share->tdc->LOCK_table_share);
   DBUG_PRINT("enter",
-             ("share: 0x%lx  table: %s.%s  ref_count: %u  version: %lu",
-              (ulong) share, share->db.str, share->table_name.str,
+             ("share: %p  table: %s.%s  ref_count: %u  version: %lu",
+              share, share->db.str, share->table_name.str,
               share->tdc->ref_count, share->tdc->version));
   DBUG_ASSERT(share->tdc->ref_count);
 

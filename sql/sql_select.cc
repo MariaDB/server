@@ -10274,8 +10274,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             tmp_cond= new (thd->mem_root) Item_func_trig_cond(thd, tmp_cond,
                                               &first_inner_tab->
                                               not_null_compl);
-            DBUG_PRINT("info", ("Item_func_trig_cond 0x%lx",
-                                (ulong) tmp_cond));
+            DBUG_PRINT("info", ("Item_func_trig_cond %p",
+                                tmp_cond));
             if (tmp_cond)
               tmp_cond->quick_fix_field();
 	    /* Add the predicate to other pushed down predicates */
@@ -10283,8 +10283,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             *sel_cond_ref= !(*sel_cond_ref) ? 
                              tmp_cond :
                              new (thd->mem_root) Item_cond_and(thd, *sel_cond_ref, tmp_cond);
-            DBUG_PRINT("info", ("Item_cond_and 0x%lx",
-                                (ulong)(*sel_cond_ref)));
+            DBUG_PRINT("info", ("Item_cond_and %p",
+                                (*sel_cond_ref)));
             if (!(*sel_cond_ref))
               DBUG_RETURN(1);
             (*sel_cond_ref)->quick_fix_field();
@@ -20033,9 +20033,9 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     Item *item= *group->item;
     if (group->fast_field_copier_setup != group->field)
     {
-      DBUG_PRINT("info", ("new setup 0x%lx -> 0x%lx",
-                          (ulong)group->fast_field_copier_setup,
-                          (ulong)group->field));
+      DBUG_PRINT("info", ("new setup %p -> %p",
+                          group->fast_field_copier_setup,
+                          group->field));
       group->fast_field_copier_setup= group->field;
       group->fast_field_copier_func=
         item->setup_fast_field_copier(group->field);
@@ -24667,8 +24667,8 @@ int JOIN::save_explain_data_intern(Explain_query *output,
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
   int cur_error= 0;
   DBUG_ENTER("JOIN::save_explain_data_intern");
-  DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
-		      (ulong)join->select_lex, join->select_lex->type,
+  DBUG_PRINT("info", ("Select %p, type %s, message %s",
+		      join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
   DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
   /* fake_select_lex is created/printed by Explain_union */

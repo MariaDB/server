@@ -79,7 +79,7 @@ void set_token(int tok, const char *str)
   }
 
   compiled_token_array[tok].m_token_string= str;
-  compiled_token_array[tok].m_token_length= strlen(str);
+  compiled_token_array[tok].m_token_length= (int)strlen(str);
   compiled_token_array[tok].m_append_space= true;
   compiled_token_array[tok].m_start_expr= false;
 }

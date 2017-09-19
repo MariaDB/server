@@ -6293,8 +6293,8 @@ void Item_field::save_org_in_field(Field *to,
                                    fast_field_copier fast_field_copier_func)
 {
   DBUG_ENTER("Item_field::save_org_in_field");
-  DBUG_PRINT("enter", ("setup: 0x%lx  data: 0x%lx",
-                       (ulong) to, (ulong) fast_field_copier_func));
+  DBUG_PRINT("enter", ("setup: %p  data: %p",
+                       to, fast_field_copier_func));
   if (fast_field_copier_func)
   {
     if (field->is_null())

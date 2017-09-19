@@ -1151,7 +1151,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
   bool result, view_is_mergeable;
   TABLE_LIST *UNINIT_VAR(view_main_select_tables);
   DBUG_ENTER("mysql_make_view");
-  DBUG_PRINT("info", ("table: 0x%lx (%s)", (ulong) table, table->table_name));
+  DBUG_PRINT("info", ("table: %p (%s)", table, table->table_name));
 
   if (table->required_type == FRMTYPE_TABLE)
   {

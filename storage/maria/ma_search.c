@@ -380,8 +380,8 @@ int _ma_seq_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
     {
       _ma_set_fatal_error(share, HA_ERR_CRASHED);
       DBUG_PRINT("error",
-                 ("Found wrong key:  length: %u  page: 0x%lx  end: 0x%lx",
-                  length, (long) page, (long) end));
+                 ("Found wrong key:  length: %u  page: %p  end: %p",
+                  length, page, end));
       DBUG_RETURN(MARIA_FOUND_WRONG_KEY);
     }
     if ((flag= ha_key_cmp(keyinfo->seg, t_buff, key->data,
@@ -389,15 +389,15 @@ int _ma_seq_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
                           comp_flag | tmp_key.flag,
                           not_used)) >= 0)
       break;
-    DBUG_PRINT("loop_extra",("page: 0x%lx  key: '%s'  flag: %d",
-                             (long) page, t_buff, flag));
+    DBUG_PRINT("loop_extra",("page:%p  key: '%s'  flag: %d",
+                             page, t_buff, flag));
     memcpy(buff,t_buff,length);
     *ret_pos=page;
   }
   if (flag == 0)
     memcpy(buff,t_buff,length);                 /* Result is first key */
   *last_key= page == end;
-  DBUG_PRINT("exit",("flag: %d  ret_pos: 0x%lx", flag, (long) *ret_pos));
+  DBUG_PRINT("exit",("flag: %d  ret_pos: %p", flag, *ret_pos));
   DBUG_RETURN(flag);
 } /* _ma_seq_search */
 
@@ -555,8 +555,8 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
     {
       _ma_set_fatal_error(share, HA_ERR_CRASHED);
       DBUG_PRINT("error",
-                 ("Found wrong key:  length: %u  page: 0x%lx  end: %lx",
-                  length, (long) page, (long) end));
+                 ("Found wrong key:  length: %u  page: %p  end: %p",
+                  length, page, end));
       DBUG_RETURN(MARIA_FOUND_WRONG_KEY);
     }
 
@@ -692,7 +692,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 
   *last_key= page == end;
 
-  DBUG_PRINT("exit",("flag: %d  ret_pos: 0x%lx", flag, (long) *ret_pos));
+  DBUG_PRINT("exit",("flag: %d  ret_pos: %p", flag, *ret_pos));
   DBUG_RETURN(flag);
 } /* _ma_prefix_search */
 
@@ -1047,8 +1047,8 @@ uint _ma_get_pack_key(MARIA_KEY *int_key, uint page_flag,
 	  if (length > keyseg->length)
 	  {
 	    DBUG_PRINT("error",
-                       ("Found too long null packed key: %u of %u at 0x%lx",
-                        length, keyseg->length, (long) *page_pos));
+                       ("Found too long null packed key: %u of %u at %p",
+                        length, keyseg->length, *page_pos));
 	    DBUG_DUMP("key", *page_pos, 16);
             _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
 	    return 0;
@@ -1104,8 +1104,8 @@ uint _ma_get_pack_key(MARIA_KEY *int_key, uint page_flag,
       }
       if (length > (uint) keyseg->length)
       {
-        DBUG_PRINT("error",("Found too long packed key: %u of %u at 0x%lx",
-                            length, keyseg->length, (long) *page_pos));
+        DBUG_PRINT("error",("Found too long packed key: %u of %u at %p",
+                            length, keyseg->length, *page_pos));
         DBUG_DUMP("key", *page_pos, 16);
         _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
         return 0;                               /* Error */
@@ -1263,8 +1263,8 @@ uint _ma_get_binary_pack_key(MARIA_KEY *int_key, uint page_flag, uint nod_flag,
     if (length > keyinfo->maxlength)
     {
       DBUG_PRINT("error",
-                 ("Found too long binary packed key: %u of %u at 0x%lx",
-                  length, keyinfo->maxlength, (long) *page_pos));
+                 ("Found too long binary packed key: %u of %u at %p",
+                  length, keyinfo->maxlength, *page_pos));
       DBUG_DUMP("key", *page_pos, 16);
       _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
       DBUG_RETURN(0);                                 /* Wrong key */
@@ -1325,8 +1325,8 @@ uint _ma_get_binary_pack_key(MARIA_KEY *int_key, uint page_flag, uint nod_flag,
       from=page; from_end=page_end;
     }
     DBUG_ASSERT((int) length >= 0);
-    DBUG_PRINT("info",("key: 0x%lx  from: 0x%lx  length: %u",
-		       (long) key, (long) from, length));
+    DBUG_PRINT("info",("key: %p  from: %p  length: %u",
+		       key, from, length));
     memmove(key, from, (size_t) length);
     key+=length;
     from+=length;
@@ -1452,7 +1452,7 @@ uchar *_ma_get_key(MARIA_KEY *key, MARIA_PAGE *ma_page, uchar *keypos)
       }
     }
   }
-  DBUG_PRINT("exit",("page: 0x%lx  length: %u", (long) page,
+  DBUG_PRINT("exit",("page: %p  length: %u", page,
                      key->data_length + key->ref_length));
   DBUG_RETURN(page);
 } /* _ma_get_key */
@@ -1522,8 +1522,8 @@ uchar *_ma_get_last_key(MARIA_KEY *key, MARIA_PAGE *ma_page, uchar *endpos)
   uchar *lastpos, *page;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
   DBUG_ENTER("_ma_get_last_key");
-  DBUG_PRINT("enter",("page: 0x%lx  endpos: 0x%lx", (long) ma_page->buff,
-                      (long) endpos));
+  DBUG_PRINT("enter",("page: %p  endpos: %p", ma_page->buff,
+                      endpos));
 
   page_flag= ma_page->flag;
   nod_flag=  ma_page->node;
@@ -1548,14 +1548,14 @@ uchar *_ma_get_last_key(MARIA_KEY *key, MARIA_PAGE *ma_page, uchar *endpos)
       lastpos= page;
       if (!(*keyinfo->get_key)(key, page_flag, nod_flag, &page))
       {
-        DBUG_PRINT("error",("Couldn't find last key:  page: 0x%lx",
-                            (long) page));
+        DBUG_PRINT("error",("Couldn't find last key:  page: %p",
+                            page));
         _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
         DBUG_RETURN(0);
       }
     }
   }
-  DBUG_PRINT("exit",("lastpos: 0x%lx  length: %u", (ulong) lastpos,
+  DBUG_PRINT("exit",("lastpos: %p  length: %u", lastpos,
                      key->data_length + key->ref_length));
   DBUG_RETURN(lastpos);
 } /* _ma_get_last_key */
@@ -1654,9 +1654,9 @@ int _ma_search_next(register MARIA_HA *info, MARIA_KEY *key,
   MARIA_KEY tmp_key;
   MARIA_PAGE page;
   DBUG_ENTER("_ma_search_next");
-  DBUG_PRINT("enter",("nextflag: %u  lastpos: %lu  int_keypos: 0x%lx  page_changed %d  keyread_buff_used: %d",
+  DBUG_PRINT("enter",("nextflag: %u  lastpos: %lu  int_keypos:%p  page_changed %d  keyread_buff_used: %d",
                       nextflag, (ulong) info->cur_row.lastpos,
-                      (ulong) info->int_keypos,
+                      info->int_keypos,
                       info->page_changed, info->keyread_buff_used));
   DBUG_EXECUTE("key", _ma_print_key(DBUG_FILE, key););
 
@@ -2142,8 +2142,8 @@ _ma_calc_var_pack_key_length(const MARIA_KEY *int_key, uint nod_flag,
         ref_length=0;
         next_length_pack=0;
      }
-      DBUG_PRINT("test",("length: %d  next_key: 0x%lx", length,
-                         (long) next_key));
+      DBUG_PRINT("test",("length: %d  next_key: %p", length,
+                         next_key));
 
       {
         uint tmp_length;

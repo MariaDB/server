@@ -1470,8 +1470,8 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   bool res= 0;
   table_map map= 0;
   DBUG_ENTER("mysql_prepare_insert");
-  DBUG_PRINT("enter", ("table_list: 0x%lx  table: 0x%lx  view: %d",
-		       (ulong)table_list, (ulong)table,
+  DBUG_PRINT("enter", ("table_list: %p  table: %p  view: %d",
+		       table_list, table,
 		       (int)insert_into_view));
   /* INSERT should have a SELECT or VALUES clause */
   DBUG_ASSERT (!select_insert || !values);

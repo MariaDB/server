@@ -88,7 +88,7 @@ static int find_type_eol(const char **x, const TYPELIB *typelib, uint flags,
   const char *j;
   CHARSET_INFO *cs= &my_charset_latin1;
   DBUG_ENTER("find_type_eol");
-  DBUG_PRINT("enter",("x: '%s'  lib: 0x%lx", *x, (long) typelib));
+  DBUG_PRINT("enter",("x: '%s'  lib: %p", *x, typelib));
 
   DBUG_ASSERT(!(flags & ~(FIND_TYPE_NO_PREFIX | FIND_TYPE_COMMA_TERM)));
 
@@ -200,7 +200,7 @@ my_ulonglong find_typeset(char *x, TYPELIB *lib, int *err)
   int find;
   char *i;
   DBUG_ENTER("find_set");
-  DBUG_PRINT("enter",("x: '%s'  lib: 0x%lx", x, (long) lib));
+  DBUG_PRINT("enter",("x: '%s'  lib: %p", x, lib));
 
   if (!lib->count)
   {

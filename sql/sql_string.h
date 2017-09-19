@@ -466,8 +466,8 @@ public:
   }
   bool append(const String &s);
   bool append(const char *s);
-  bool append(const LEX_STRING *ls) { return append(ls->str, ls->length); }
-  bool append(const LEX_CSTRING *ls) { return append(ls->str, ls->length); }
+  bool append(const LEX_STRING *ls) { return append(ls->str, (uint32)ls->length); }
+  bool append(const LEX_CSTRING *ls) { return append(ls->str, (uint32)ls->length); }
   bool append(const char *s, uint32 arg_length);
   bool append(const char *s, uint32 arg_length, CHARSET_INFO *cs);
   bool append_ulonglong(ulonglong val);
@@ -634,7 +634,7 @@ public:
   }
   bool append_for_single_quote(const char *st)
   {
-    return append_for_single_quote(st, strlen(st));
+    return append_for_single_quote(st, (uint)strlen(st));
   }
 
   /* Swap two string objects. Efficient way to exchange data without memcpy. */

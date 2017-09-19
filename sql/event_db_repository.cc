@@ -1060,7 +1060,7 @@ Event_db_repository::load_named_event(THD *thd, LEX_STRING dbname,
   TABLE_LIST event_table;
 
   DBUG_ENTER("Event_db_repository::load_named_event");
-  DBUG_PRINT("enter",("thd: 0x%lx  name: %*s", (long) thd,
+  DBUG_PRINT("enter",("thd: %p  name: %*s", thd,
                       (int) name.length, name.str));
 
   event_table.init_one_table("mysql", 5, "event", 5, "event", TL_READ);
@@ -1183,7 +1183,7 @@ Event_db_repository::check_system_tables(THD *thd)
   const unsigned int event_priv_column_position= 29;
 
   DBUG_ENTER("Event_db_repository::check_system_tables");
-  DBUG_PRINT("enter", ("thd: 0x%lx", (long) thd));
+  DBUG_PRINT("enter", ("thd: %p", thd));
 
   /* Check mysql.db */
   tables.init_one_table("mysql", 5, "db", 2, "db", TL_READ);

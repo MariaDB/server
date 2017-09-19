@@ -3239,14 +3239,14 @@ static bool rocksdb_show_status(handlerton *const hton, THD *const thd,
       // NB! We're replacing hyphens with underscores in output to better match
       // the existing naming convention.
       if (rdb->GetIntProperty("rocksdb.is-write-stopped", &v)) {
-        snprintf(buf, sizeof(buf), "rocksdb.is_write_stopped COUNT : %lu\n", v);
+        snprintf(buf, sizeof(buf), "rocksdb.is_write_stopped COUNT : %llu\n", (ulonglong)v);
         str.append(buf);
       }
 
       if (rdb->GetIntProperty("rocksdb.actual-delayed-write-rate", &v)) {
         snprintf(buf, sizeof(buf), "rocksdb.actual_delayed_write_rate "
-                                   "COUNT : %lu\n",
-                 v);
+                                   "COUNT : %llu\n",
+                 (ulonglong)v);
         str.append(buf);
       }
 
@@ -4178,7 +4178,7 @@ std::vector<std::string> rdb_get_open_table_names(void) {
 }
 
 std::vector<std::string> Rdb_open_tables_map::get_table_names(void) const {
-  ulong i;
+  size_t i;
   const Rdb_table_handler *table_handler;
   std::vector<std::string> names;
 

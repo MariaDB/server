@@ -2427,9 +2427,9 @@ void Log_event::print_header(IO_CACHE* file,
   if (checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
       checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
   {
-    char checksum_buf[BINLOG_CHECKSUM_LEN * 2 + 4]; // to fit to "0x%lx "
+    char checksum_buf[BINLOG_CHECKSUM_LEN * 2 + 4]; // to fit to "%p "
     size_t const bytes_written=
-      my_snprintf(checksum_buf, sizeof(checksum_buf), "0x%08lx ", (ulong) crc);
+      my_snprintf(checksum_buf, sizeof(checksum_buf), "0x%08x ", crc);
     my_b_printf(file, "%s ", get_type(&binlog_checksum_typelib, checksum_alg));
     my_b_printf(file, checksum_buf, bytes_written);
   }
@@ -4345,8 +4345,8 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
       break;
     }
     case Q_CATALOG_NZ_CODE:
-      DBUG_PRINT("info", ("case Q_CATALOG_NZ_CODE; pos: 0x%lx; end: 0x%lx",
-                          (ulong) pos, (ulong) end));
+      DBUG_PRINT("info", ("case Q_CATALOG_NZ_CODE; pos:%p; end:%p",
+                          pos, end));
       if (get_str_len_and_pointer(&pos, &catalog, &catalog_len, end))
       {
         DBUG_PRINT("info", ("query= 0"));
@@ -10456,7 +10456,7 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     would save binlog space. TODO
   */
   DBUG_ENTER("Rows_log_event::do_add_row_data");
-  DBUG_PRINT("enter", ("row_data: 0x%lx  length: %lu", (ulong) row_data,
+  DBUG_PRINT("enter", ("row_data:%p  length: %lu", row_data,
                        (ulong) length));
 
   /*
@@ -10836,8 +10836,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
   table= m_table= rgi->m_table_map.get_table(m_table_id);
 
-  DBUG_PRINT("debug", ("m_table: 0x%lx, m_table_id: %lu%s",
-                       (ulong) m_table, m_table_id,
+  DBUG_PRINT("debug", ("m_table:%p, m_table_id: %lu%s",
+                       m_table, m_table_id,
                        table && master_had_triggers ?
                        " (master had triggers)" : ""));
   if (table)
@@ -10957,8 +10957,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
        m_curr_row_end.
       */ 
    
-      DBUG_PRINT("info", ("curr_row: 0x%lu; curr_row_end: 0x%lu; rows_end: 0x%lu",
-                          (ulong) m_curr_row, (ulong) m_curr_row_end, (ulong) m_rows_end));
+      DBUG_PRINT("info", ("curr_row: %p; curr_row_end: %p; rows_end:%p",
+                          m_curr_row, m_curr_row_end, m_rows_end));
 
       if (!m_curr_row_end && !error)
         error= unpack_current_row(rgi);

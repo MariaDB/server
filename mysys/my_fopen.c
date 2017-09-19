@@ -74,7 +74,7 @@ FILE *my_fopen(const char *filename, int flags, myf MyFlags)
     my_file_total_opened++;
     my_file_info[filedesc].type= STREAM_BY_FOPEN;
     mysql_mutex_unlock(&THR_LOCK_open);
-    DBUG_PRINT("exit",("stream: 0x%lx", (long) fd));
+    DBUG_PRINT("exit",("stream: %p", fd));
     DBUG_RETURN(fd);
   }
   else
@@ -222,7 +222,7 @@ int my_fclose(FILE *fd, myf MyFlags)
 {
   int err,file;
   DBUG_ENTER("my_fclose");
-  DBUG_PRINT("my",("stream: 0x%lx  MyFlags: %lu", (long) fd, MyFlags));
+  DBUG_PRINT("my",("stream: %p  MyFlags: %lu", fd, MyFlags));
 
   mysql_mutex_lock(&THR_LOCK_open);
   file= my_fileno(fd);
@@ -292,7 +292,7 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
     mysql_mutex_unlock(&THR_LOCK_open);
   }
 
-  DBUG_PRINT("exit",("stream: 0x%lx", (long) fd));
+  DBUG_PRINT("exit",("stream: %p", fd));
   DBUG_RETURN(fd);
 } /* my_fdopen */
 

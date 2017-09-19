@@ -7531,9 +7531,9 @@ AIO::to_file(FILE* file) const
 
 			fprintf(file,
 				"%s IO for %s (offset=" UINT64PF
-				", size=" ULINTPF ")\n",
+				", size=%lu)\n",
 				slot.type.is_read() ? "read" : "write",
-				slot.name, slot.offset, slot.len);
+				slot.name, slot.offset, (unsigned long)(slot.len));
 		}
 	}
 
