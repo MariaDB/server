@@ -48,23 +48,12 @@ ${WSREP_INCLUDES}
 SET(GEN_SOURCES
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h 
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h 
-)
-SET(GEN_DIGEST_SOURCES
-  ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h 
+${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
+${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
 )
 
 SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES}
-                            ${GEN_DIGEST_SOURCES}
                             PROPERTIES GENERATED 1)
-
-# Gen_lex_token
-# Make sure sql_yacc.h is generated before compiling gen_lex_token
-
-IF(NOT CMAKE_GENERATOR MATCHES "Visual Studio")
-  SET(DEPENDS_gen_lex_token DEPENDS gen_lex_token)
-  SET(DEPENDS_gen_lex_hash DEPENDS gen_lex_hash)
-ENDIF()
 
 
 IF(NOT CMAKE_CROSSCOMPILING)
@@ -75,7 +64,7 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
   COMMAND gen_lex_token > lex_token.h
-  ${DEPENDS_gen_lex_token}
+  DEPENDS gen_lex_token
 )
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER)
@@ -153,7 +142,6 @@ SET (SQL_SOURCE
                table_cache.cc encryption.cc temporary_tables.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
-               ${GEN_DIGEST_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 			   )
   
@@ -174,7 +162,6 @@ RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 ADD_DEPENDENCIES(sql GenServerSource)
-ADD_DEPENDENCIES(sql GenDigestServerSource)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
   mysys mysys_ssl dbug strings vio pcre
@@ -213,7 +200,7 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   SET(MYSQLD_DEF ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.def)
   SET(MYSQLD_EXP ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.exp)
   SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.lib)
-  SET(MYSQLD_CORELIBS sql mysys mysys_ssl dbug strings)
+  SET(MYSQLD_CORELIBS sql mysys dbug strings)
   FOREACH (CORELIB ${MYSQLD_CORELIBS})
     GET_TARGET_PROPERTY(LOC ${CORELIB} LOCATION)
     FILE(TO_NATIVE_PATH ${LOC} LOC)
@@ -223,6 +210,29 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   SET(_PLATFORM x86)
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
     SET(_PLATFORM  x64)
+  ENDIF()
+  # Create a cmake script to generate import and export libs
+  # from a .def file
+  SET(CMAKE_CONFIGURABLE_FILE_CONTENT "
+    IF ((mysqld_lib.def IS_NEWER_THAN mysqld_lib.lib) OR
+        (mysqld_lib.def IS_NEWER_THAN mysqld_lib.exp))
+      FILE(REMOVE mysqld_lib.lib mysqld_lib.exp)
+      SET(ENV{VS_UNICODE_OUTPUT})
+      EXECUTE_PROCESS (
+        COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${MYSQLD_DEF}\" /MACHINE:${_PLATFORM}
+        RESULT_VARIABLE ret)
+      IF(NOT ret EQUAL 0)
+        MESSAGE(FATAL_ERROR \"process failed ret=\${ret}\")
+      ENDIF()
+    ENDIF()
+  ")
+
+  CONFIGURE_FILE(
+    ${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in
+    make_mysqld_lib.cmake)
+
+  IF(CMAKE_VERSION VERSION_GREATER "3.2.0")
+    SET(MYSQLD_LIB_BYPRODUCTS  BYPRODUCTS ${MYSQLD_DEF} ${MYSQLD_LIB} ${MYSQLD_EXP})
   ENDIF()
 
   # Create a cmake script to generate import and export libs
@@ -245,16 +255,20 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
     make_mysqld_lib.cmake)
 
   ADD_CUSTOM_COMMAND(
-    OUTPUT ${MYSQLD_DEF} ${MYSQLD_LIB} ${MYSQLD_EXP}
-    COMMAND cscript ARGS //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
-    ${_PLATFORM} /forLib ${LIB_LOCATIONS} > mysqld_lib.def.tmp
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.stamp
+    ${MYSQLD_LIB_BYPRODUCTS}
+    COMMENT "Generating mysqld_lib.def, mysqld_lib.lib, mysqld_lib.exp"
+    COMMAND cscript //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
+            ${_PLATFORM} /forLib ${LIB_LOCATIONS} > mysqld_lib.def.tmp
     COMMAND ${CMAKE_COMMAND} -E copy_if_different mysqld_lib.def.tmp mysqld_lib.def
+    COMMAND ${CMAKE_COMMAND} -E remove mysqld_lib.def.tmp
     COMMAND ${CMAKE_COMMAND} -P make_mysqld_lib.cmake
+    COMMAND ${CMAKE_COMMAND} -E touch mysqld_lib.stamp
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     DEPENDS ${MYSQLD_CORELIBS}
   )
 
-  ADD_CUSTOM_TARGET(gen_mysqld_lib DEPENDS ${MYSQLD_LIB})
+  ADD_CUSTOM_TARGET(gen_mysqld_lib DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.stamp)
   ADD_LIBRARY(mysqld_import_lib UNKNOWN IMPORTED GLOBAL)
   SET_TARGET_PROPERTIES(mysqld_import_lib PROPERTIES IMPORTED_LOCATION ${MYSQLD_LIB})
 ENDIF()
@@ -273,7 +287,6 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   IF(NOT MSVC)
     SET_TARGET_PROPERTIES(mysqld PROPERTIES ENABLE_EXPORTS TRUE)
   ENDIF()
-
   GET_TARGET_PROPERTY(mysqld_link_flags mysqld LINK_FLAGS)
   IF(NOT mysqld_link_flags)
     SET(mysqld_link_flags)
@@ -312,10 +325,6 @@ IF(WITH_MYSQLD_LDFLAGS)
   SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS 
      "${MYSQLD_LINK_FLAGS} ${WITH_MYSQLD_LDFLAGS}")
 ENDIF()
-INSTALL_DEBUG_TARGET(mysqld 
-  DESTINATION ${INSTALL_SBINDIR} 
-  PDB_DESTINATION ${INSTALL_SBINDIR}/debug
-  RENAME mysqld-debug)
 
 INCLUDE(${CMAKE_SOURCE_DIR}/cmake/bison.cmake)
 
@@ -349,7 +358,7 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
   COMMAND gen_lex_hash > lex_hash.h
-  ${DEPENDS_gen_lex_hash}
+  DEPENDS gen_lex_hash
 )
 
 MYSQL_ADD_EXECUTABLE(mysql_tzinfo_to_sql tztime.cc COMPONENT Server)
@@ -359,11 +368,6 @@ TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys mysys_ssl)
 ADD_CUSTOM_TARGET( 
         GenServerSource
         DEPENDS ${GEN_SOURCES}
-)
-
-ADD_CUSTOM_TARGET( 
-        GenDigestServerSource
-        DEPENDS ${GEN_DIGEST_SOURCES}
 )
 
 #Need this only for embedded
