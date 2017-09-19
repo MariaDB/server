@@ -5653,7 +5653,7 @@ dict_index_build_node_ptr(
 
 	dtype_set(dfield_get_type(field), DATA_SYS_CHILD, DATA_NOT_NULL, 4);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, n_unique, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index, !level, n_unique, heap);
 	dtuple_set_info_bits(tuple, dtuple_get_info_bits(tuple)
 			     | REC_STATUS_NODE_PTR);
 
@@ -5722,7 +5722,7 @@ dict_index_build_data_tuple(
 
 	dict_index_copy_types(tuple, index, n_fields);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, n_fields, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index, true, n_fields, heap);
 
 	ut_ad(dtuple_check_typed(tuple));
 

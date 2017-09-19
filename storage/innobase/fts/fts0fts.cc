@@ -3460,10 +3460,10 @@ fts_add_doc_by_id(
 
 		}
 
-		offsets = rec_get_offsets(clust_rec, clust_index,
-					  NULL, ULINT_UNDEFINED, &heap);
+		offsets = rec_get_offsets(clust_rec, clust_index, NULL, true,
+					  ULINT_UNDEFINED, &heap);
 
-		 for (ulint i = 0; i < num_idx; ++i) {
+		for (ulint i = 0; i < num_idx; ++i) {
 			fts_doc_t       doc;
 			dict_table_t*   table;
 			fts_get_doc_t*  get_doc;
@@ -3633,7 +3633,7 @@ fts_get_max_doc_id(
 		}
 
 		offsets = rec_get_offsets(
-			rec, index, offsets, ULINT_UNDEFINED, &heap);
+			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
 
 		data = rec_get_nth_field(rec, offsets, 0, &len);
 
@@ -5120,7 +5120,7 @@ fts_get_doc_id_from_rec(
 	rec_offs_init(offsets_);
 
 	offsets = rec_get_offsets(
-		rec, index, offsets, ULINT_UNDEFINED, &my_heap);
+		rec, index, offsets, true, ULINT_UNDEFINED, &my_heap);
 
 	col_no = dict_col_get_index_pos(
 		&table->cols[table->fts->doc_col], index);

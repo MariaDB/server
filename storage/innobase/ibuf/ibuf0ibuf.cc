@@ -1502,6 +1502,7 @@ ibuf_dummy_index_create(
 
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */
 	index->cached = TRUE;
+	ut_d(index->is_dummy = true);
 
 	return(index);
 }
@@ -4000,8 +4001,8 @@ dump:
 		row_ins_sec_index_entry_by_modify(BTR_MODIFY_LEAF). */
 		ut_ad(rec_get_deleted_flag(rec, page_is_comp(page)));
 
-		offsets = rec_get_offsets(rec, index, NULL, ULINT_UNDEFINED,
-					  &heap);
+		offsets = rec_get_offsets(rec, index, NULL, true,
+					  ULINT_UNDEFINED, &heap);
 		update = row_upd_build_sec_rec_difference_binary(
 			rec, index, offsets, entry, heap);
 
@@ -4193,7 +4194,7 @@ ibuf_delete(
 		rec_offs_init(offsets_);
 
 		offsets = rec_get_offsets(
-			rec, index, offsets, ULINT_UNDEFINED, &heap);
+			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
 
 		if (page_get_n_recs(page) <= 1
 		    || !(REC_INFO_DELETED_FLAG

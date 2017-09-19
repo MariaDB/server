@@ -152,7 +152,7 @@ row_purge_remove_clust_if_poss_low(
 	rec = btr_pcur_get_rec(&node->pcur);
 
 	offsets = rec_get_offsets(
-		rec, index, offsets_, ULINT_UNDEFINED, &heap);
+		rec, index, offsets_, true, ULINT_UNDEFINED, &heap);
 
 	if (node->roll_ptr != row_get_rec_roll_ptr(rec, index, offsets)) {
 		/* Someone else has modified the record later: do not remove */
@@ -1140,7 +1140,8 @@ purge_node_t::validate_pcur()
 	dict_index_t*	clust_index = pcur.btr_cur.index;
 
 	ulint*	offsets = rec_get_offsets(
-		pcur.old_rec, clust_index, NULL, pcur.old_n_fields, &heap);
+		pcur.old_rec, clust_index, NULL, true,
+		pcur.old_n_fields, &heap);
 
 	/* Here we are comparing the purge ref record and the stored initial
 	part in persistent cursor. Both cases we store n_uniq fields of the

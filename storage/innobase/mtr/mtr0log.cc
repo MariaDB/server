@@ -603,6 +603,7 @@ mlog_parse_index(
 	}
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */
 	ind->cached = TRUE;
+	ut_d(ind->is_dummy = true);
 	*index = ind;
 	return(ptr);
 }

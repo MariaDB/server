@@ -5590,13 +5590,14 @@ lock_rec_print(FILE* file, const lock_t* lock)
 		fprintf(file, "Record lock, heap no %lu", (ulong) i);
 
 		if (block) {
+			ut_ad(page_is_leaf(block->frame));
 			const rec_t*	rec;
 
 			rec = page_find_rec_with_heap_no(
 				buf_block_get_frame(block), i);
 
 			offsets = rec_get_offsets(
-				rec, lock->index, offsets,
+				rec, lock->index, offsets, true,
 				ULINT_UNDEFINED, &heap);
 
 			putc(' ', file);
@@ -6428,8 +6429,10 @@ loop:
 
 			rec = page_find_rec_with_heap_no(block->frame, i);
 			ut_a(rec);
+			ut_ad(page_rec_is_leaf(rec));
 			offsets = rec_get_offsets(rec, lock->index, offsets,
-						  ULINT_UNDEFINED, &heap);
+						  true, ULINT_UNDEFINED,
+						  &heap);
 
 			/* If this thread is holding the file space
 			latch (fil_space_t::latch), the following
@@ -6772,7 +6775,7 @@ lock_rec_insert_check_and_lock(
 		const ulint*	offsets;
 		rec_offs_init(offsets_);
 
-		offsets = rec_get_offsets(next_rec, index, offsets_,
+		offsets = rec_get_offsets(next_rec, index, offsets_, true,
 					  ULINT_UNDEFINED, &heap);
 
 		ut_ad(lock_rec_queue_validate(
@@ -6999,7 +7002,7 @@ lock_sec_rec_modify_check_and_lock(
 		const ulint*	offsets;
 		rec_offs_init(offsets_);
 
-		offsets = rec_get_offsets(rec, index, offsets_,
+		offsets = rec_get_offsets(rec, index, offsets_, true,
 					  ULINT_UNDEFINED, &heap);
 
 		ut_ad(lock_rec_queue_validate(
@@ -7209,7 +7212,8 @@ lock_clust_rec_read_check_and_lock_alt(
 	dberr_t		err;
 	rec_offs_init(offsets_);
 
-	offsets = rec_get_offsets(rec, index, offsets,
+	ut_ad(page_rec_is_leaf(rec));
+	offsets = rec_get_offsets(rec, index, offsets, true,
 				  ULINT_UNDEFINED, &tmp_heap);
 	err = lock_clust_rec_read_check_and_lock(flags, block, rec, index,
 						 offsets, mode, gap_mode, thr);

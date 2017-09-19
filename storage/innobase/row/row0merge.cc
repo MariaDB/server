@@ -2043,7 +2043,7 @@ end_of_index:
 		rec = page_cur_get_rec(cur);
 
 		if (online) {
-			offsets = rec_get_offsets(rec, clust_index, NULL,
+			offsets = rec_get_offsets(rec, clust_index, NULL, true,
 						  ULINT_UNDEFINED, &row_heap);
 
 			/* Perform a REPEATABLE READ.
@@ -2115,7 +2115,7 @@ end_of_index:
 			keys. */
 			continue;
 		} else {
-			offsets = rec_get_offsets(rec, clust_index, NULL,
+			offsets = rec_get_offsets(rec, clust_index, NULL, true,
 						  ULINT_UNDEFINED, &row_heap);
 		}
 

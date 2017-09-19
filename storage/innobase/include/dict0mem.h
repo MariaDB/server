@@ -863,6 +863,8 @@ struct dict_index_t{
 				data dictionary yet */
 
 #ifdef UNIV_DEBUG
+	/** whether this is a dummy index object */
+	bool		is_dummy;
 	uint32_t	magic_n;/*!< magic number */
 /** Value of dict_index_t::magic_n */
 # define DICT_INDEX_MAGIC_N	76789786

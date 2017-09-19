@@ -303,10 +303,10 @@ btr_pcur_restore_position_func(
 
 				heap = mem_heap_create(256);
 				offsets1 = rec_get_offsets(
-					cursor->old_rec, index, NULL,
+					cursor->old_rec, index, NULL, true,
 					cursor->old_n_fields, &heap);
 				offsets2 = rec_get_offsets(
-					rec, index, NULL,
+					rec, index, NULL, true,
 					cursor->old_n_fields, &heap);
 
 				ut_ad(!cmp_rec_rec(cursor->old_rec,
@@ -365,7 +365,8 @@ btr_pcur_restore_position_func(
 	    && btr_pcur_is_on_user_rec(cursor)
 	    && !cmp_dtuple_rec(tuple, btr_pcur_get_rec(cursor),
 			       rec_get_offsets(btr_pcur_get_rec(cursor),
-			       index, NULL, ULINT_UNDEFINED, &heap))) {
+					       index, NULL, true,
+					       ULINT_UNDEFINED, &heap))) {
 
 		/* We have to store the NEW value for the modify clock,
 		since the cursor can now be on a different page!
