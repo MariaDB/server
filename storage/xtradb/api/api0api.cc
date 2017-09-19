@@ -1991,11 +1991,9 @@ ib_cursor_read_row(
 
 			rec = btr_pcur_get_rec(pcur);
 
-			if (!rec_get_deleted_flag(rec, page_format)) {
-				if (prebuilt->innodb_api &&
-					prebuilt->innodb_api_rec != NULL) {
-					rec =prebuilt->innodb_api_rec;
-				}
+			if (prebuilt->innodb_api_rec &&
+			    prebuilt->innodb_api_rec != rec) {
+				rec = prebuilt->innodb_api_rec;
 			}
 
 			if (!rec_get_deleted_flag(rec, page_format)) {
@@ -2032,9 +2030,6 @@ ib_cursor_position(
 
 	buf = static_cast<unsigned char*>(mem_alloc(UNIV_PAGE_SIZE));
 
-	if (prebuilt->innodb_api) {
-                prebuilt->cursor_heap = cursor->heap;
-        }
 
 	/* We want to position at one of the ends, row_search_for_mysql()
 	uses the search_tuple fields to work out what to do. */
@@ -2090,9 +2085,6 @@ ib_cursor_next(
         row_prebuilt_t* prebuilt = cursor->prebuilt;
 	byte		buf[UNIV_PAGE_SIZE_MAX];
 
-	if (prebuilt->innodb_api) {
-                prebuilt->cursor_heap = cursor->heap;
-        }
         /* We want to move to the next record */
         dtuple_set_n_fields(prebuilt->search_tuple, 0);
 
@@ -2145,9 +2137,6 @@ ib_cursor_moveto(
 
 	buf = static_cast<unsigned char*>(mem_alloc(UNIV_PAGE_SIZE));
 
-	if (prebuilt->innodb_api) {
-		prebuilt->cursor_heap = cursor->heap;
-	}
 	err = static_cast<ib_err_t>(row_search_for_mysql(
 		buf, ib_srch_mode, prebuilt, cursor->match_mode, 0));
 
