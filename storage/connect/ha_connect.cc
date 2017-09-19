@@ -5579,7 +5579,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // JDBC_SUPPORT
 			case TAB_DBF:
 				dbf = true;
-				// Passthru
+				// fall through
 			case TAB_CSV:
 				if (!fn && fnc != FNC_NO)
 					sprintf(g->Message, "Missing %s file name", topt->type);
