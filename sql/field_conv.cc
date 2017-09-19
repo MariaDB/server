@@ -417,6 +417,18 @@ static void do_field_decimal(Copy_field *copy)
 }
 
 
+static void do_field_timestamp(Copy_field *copy)
+{
+  DBUG_ASSERT(copy->from_field->type() == MYSQL_TYPE_TIMESTAMP);
+  DBUG_ASSERT(copy->to_field->type() == MYSQL_TYPE_TIMESTAMP);
+  ulong sec_part;
+  Field_timestamp *f= static_cast<Field_timestamp*>(copy->from_field);
+  Field_timestamp *t= static_cast<Field_timestamp*>(copy->to_field);
+  my_time_t ts= f->get_timestamp(&sec_part);
+  t->store_TIME(ts, sec_part);
+}
+
+
 static void do_field_temporal(Copy_field *copy)
 {
   MYSQL_TIME ltime;
@@ -724,7 +736,9 @@ Copy_field::get_copy_func(Field *to,Field *from)
           ((to->table->in_use->variables.sql_mode &
             (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE)) &&
              mysql_type_to_time_type(to->type()) != MYSQL_TIMESTAMP_TIME))
-        return do_field_temporal;
+        return (from->type() == MYSQL_TYPE_TIMESTAMP &&
+                to->type() == MYSQL_TYPE_TIMESTAMP)
+                ? do_field_timestamp : do_field_temporal;
       /* Do binary copy */
     }
     // Check if identical fields
