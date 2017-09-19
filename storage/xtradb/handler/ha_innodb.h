@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -144,6 +144,10 @@ class ha_innobase: public handler
 	int index_first(uchar * buf);
 	int index_last(uchar * buf);
 
+	/* Copy a cached MySQL row. If requested, also avoids
+	overwriting non-read columns. */
+	void copy_cached_row(uchar *to_rec, const uchar *from_rec,
+				uint rec_length);
 	bool has_gap_locks() const { return true; }
 
 	int rnd_init(bool scan);
