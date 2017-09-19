@@ -223,10 +223,10 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	} // endif Connect
 
 	if (Url)
-		rc = ParseURL(g, Url);
-
-	if (rc == RC_FX)						// Error
-		return true;
+		if ((rc = ParseURL(g, Url)) == RC_FX) {
+			sprintf(g->Message, "Wrong JDBC URL %s", Url);
+			return true;
+		} // endif rc
 
 	Wrapname = GetStringCatInfo(g, "Wrapper", NULL);
 	return false;
@@ -305,12 +305,12 @@ TDBJDBC::TDBJDBC(PJDBCDEF tdp) : TDBEXT(tdp)
 	if (tdp) {
 		Ops.Driver = tdp->Driver;
 		Ops.Url = tdp->Url;
-		WrapName = tdp->Wrapname;
+		Wrapname = tdp->Wrapname;
 		Ops.User = tdp->Username;
 		Ops.Pwd = tdp->Password;
 		Ops.Scrollable = tdp->Scrollable;
 	} else {
-		WrapName = NULL;
+		Wrapname = NULL;
 		Ops.Driver = NULL;
 		Ops.Url = NULL;
 		Ops.User = NULL;
@@ -328,7 +328,7 @@ TDBJDBC::TDBJDBC(PTDBJDBC tdbp) : TDBEXT(tdbp)
 {
 	Jcp = tdbp->Jcp;            // is that right ?
 	Cnp = tdbp->Cnp;
-	WrapName = tdbp->WrapName;
+	Wrapname = tdbp->Wrapname;
 	Ops = tdbp->Ops;
 	Prepared = tdbp->Prepared;
 	Werr = tdbp->Werr;
@@ -562,7 +562,7 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 		/*  Table already open, just replace it at its beginning.          */
 		/*******************************************************************/
 		if (Memory == 1) {
-			if ((Qrp = Jcp->AllocateResult(g)))
+			if ((Qrp = Jcp->AllocateResult(g, this)))
 				Memory = 2;            // Must be filled
 			else
 				Memory = 0;            // Allocation failed, don't use it
@@ -596,11 +596,11 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 	/*  drivers allowing concurency in getting results ???               */
 	/*********************************************************************/
 	if (!Jcp)
-		Jcp = new(g)JDBConn(g, this);
+		Jcp = new(g)JDBConn(g, Wrapname);
 	else if (Jcp->IsOpen())
 		Jcp->Close();
 
-	if (Jcp->Open(&Ops) == RC_FX)
+	if (Jcp->Connect(&Ops))
 		return true;
 	else if (Quoted)
 		Quote = Jcp->GetQuoteChar();
@@ -608,7 +608,7 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 	Use = USE_OPEN;       // Do it now in case we are recursively called
 
 	/*********************************************************************/
-	/*  Make the command and allocate whatever is used for getting results.                   */
+	/* Make the command and allocate whatever is used for getting results*/
 	/*********************************************************************/
 	if (Mode == MODE_READ || Mode == MODE_READX) {
 		if (Memory > 1 && !Srcdef) {
@@ -625,7 +625,7 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 				} else if (n) {
 					Jcp->m_Rows = n;
 
-					if ((Qrp = Jcp->AllocateResult(g)))
+					if ((Qrp = Jcp->AllocateResult(g, this)))
 						Memory = 2;            // Must be filled
 					else {
 						strcpy(g->Message, "Result set memory allocation failed");
@@ -1134,11 +1134,11 @@ bool TDBXJDC::OpenDB(PGLOBAL g)
 	/*  drivers allowing concurency in getting results ???               */
 	/*********************************************************************/
 	if (!Jcp) {
-		Jcp = new(g) JDBConn(g, this);
+		Jcp = new(g) JDBConn(g, Wrapname);
 	} else if (Jcp->IsOpen())
 		Jcp->Close();
 
-	if (Jcp->Open(&Ops) == RC_FX)
+	if (Jcp->Connect(&Ops))
 		return true;
 
 	Use = USE_OPEN;       // Do it now in case we are recursively called
@@ -1173,7 +1173,7 @@ int TDBXJDC::ReadDB(PGLOBAL g)
 		else
 			Query->Set(Cmdlist->Cmd);
 
-		if ((rc = Jcp->ExecSQLcommand(Query->GetStr())) == RC_FX)
+		if ((rc = Jcp->ExecuteCommand(Query->GetStr())) == RC_FX)
 			Nerr++;
 
 		if (rc == RC_NF)

@@ -1,5 +1,7 @@
 source include/have_tokudb.inc;
 
+SET @orig_tokudb_dir_per_db=@@global.tokudb_dir_per_db;
+
 --let $DB= test
 --let $DATADIR= `select @@datadir`
 --let $i= 2
@@ -73,4 +75,17 @@ while ($i) {
   --source dir_per_db_show_table_files.inc
 }
 
-SET GLOBAL tokudb_dir_per_db=default;
+
+# test case for TDB-72 : Can not rename table in database with non alphanum
+# characters in its name.
+CREATE DATABASE `a::a@@`;
+CREATE TABLE `a::a@@`.`t1` (a INT) ENGINE=TOKUDB;
+CREATE DATABASE `!@#$%^&*()`;
+ALTER TABLE `a::a@@`.`t1` RENAME `!@#$%^&*()`.`t1`;
+
+DROP TABLE `!@#$%^&*()`.`t1`;
+DROP DATABASE `!@#$%^&*()`;
+DROP DATABASE `a::a@@`;
+
+# cleanup
+SET GLOBAL tokudb_dir_per_db=@orig_tokudb_dir_per_db;

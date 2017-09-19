@@ -975,7 +975,7 @@ int ARRAY::BlockTest(PGLOBAL, int opc, int opm,
 PSZ ARRAY::MakeArrayList(PGLOBAL g)
   {
   char   *p, *tp;
-  int    i;
+  int     i;
   size_t  z, len = 2;
 
   if (Type == TYPE_LIST)

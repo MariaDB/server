@@ -1,5 +1,3 @@
-Warnings:
-Warning	1105	No file name. Table will use t1.xml
 SET NAMES utf8;
 #
 # Testing HTML like XML file
@@ -9,7 +7,7 @@ CREATE TABLE beers (
 `Origin` CHAR(16) FIELD_FORMAT='origin',
 `Description` CHAR(32) FIELD_FORMAT='details')
 ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='beers.xml'
-TABNAME='table' OPTION_LIST='xmlsup=libxml2,rownode=tr,colnode=td';
+TABNAME='table' OPTION_LIST='xmlsup=domdoc,rownode=tr,colnode=td';
 SELECT * FROM beers;
 Name	Origin	Description
 Huntsman	Bath, UK	Wonderful hop, light alcohol
@@ -24,7 +22,7 @@ CREATE TABLE coffee (
 `Type` CHAR(16),
 `Sugar` CHAR(4))
 ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='coffee.htm'
-TABNAME='TABLE' HEADER=1 OPTION_LIST='xmlsup=libxml2,Coltype=HTML';
+TABNAME='TABLE' HEADER=1 OPTION_LIST='xmlsup=domdoc,Coltype=HTML';
 SELECT * FROM coffee;
 Name	Cups	Type	Sugar
 T. Sexton	10	Espresso	No

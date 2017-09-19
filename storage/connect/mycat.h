@@ -47,6 +47,7 @@ struct ha_table_option_struct {
   const char *catfunc;
   const char *srcdef;
   const char *colist;
+	const char *filter;
   const char *oplist;
   const char *data_charset;
   ulonglong lrecl;

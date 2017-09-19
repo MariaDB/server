@@ -1,0 +1,9 @@
+#
+# MDEV-9739 Assertion `m_status == DA_ERROR || m_status == DA_OK' failed in Diagnostics_area::message() ; connect.xml* tests fail in buildbot
+#
+
+--source have_libxml2.inc
+
+create table t1 (i int) engine=Connect table_type=XML option_list='xmlsup=libxml2';
+select * from information_schema.tables where create_options like '%table_type=XML%';
+drop table t1;

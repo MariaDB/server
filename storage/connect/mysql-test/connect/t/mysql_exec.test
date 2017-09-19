@@ -19,7 +19,7 @@ SELECT * FROM t1 WHERE command IN ('Warning','Note',
   "insert into t1(msg) values('One'),(NULL),('Three')",
   "insert into t1 values(2,'Deux') on duplicate key update msg = 'Two'",
   "insert into t1(message) values('Four'),('Five'),('Six')",
-  'insert into t1(id) values(NULL)',
+  'insert ignore into t1(id) values(NULL)',
   "update t1 set msg = 'Four' where id = 4",
   'select * from t1');
 
@@ -31,7 +31,7 @@ CREATE PROCEDURE p1(cmd varchar(512))
   READS SQL DATA
   SELECT * FROM t1 WHERE command IN ('Warning','Note',cmd);
 
-CALL p1('insert into t1(id) values(NULL)');
+CALL p1('insert ignore into t1(id) values(NULL)');
 CALL p1('update t1 set msg = "Five" where id = 5');
 DROP PROCEDURE p1;
 DROP TABLE t1;

@@ -1,4 +1,4 @@
--- source include/not_embedded.inc
+--source include/not_embedded.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 let $PORT= `select @@port`;
@@ -51,20 +51,3 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 DROP TABLE t4;
-
---echo #
---echo # Checking thread TBL tables
---echo #
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v';
-SELECT * FROM t1;
-
-CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v';
-SELECT * FROM t2;
-
---replace_result $PORT PORT
---eval CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=$PORT';
-SELECT * FROM total order by v desc;
-
-DROP TABLE total;
-DROP TABLE t1;
-DROP TABLE t2;
