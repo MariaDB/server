@@ -550,6 +550,8 @@ protected:
   st_select_lex_node *next, **prev,   /* neighbor list */
     *master, *slave,                  /* vertical links */
     *link_next, **link_prev;          /* list of whole SELECT_LEX */
+
+  void init_query_common();
 public:
 
   ulonglong options;
@@ -587,11 +589,8 @@ public:
       linkage(UNSPECIFIED_TYPE)
   {
   }
-  virtual ~st_select_lex_node() {}
 
   inline st_select_lex_node* get_master() { return master; }
-  virtual void init_query();
-  virtual void init_select();
   void include_down(st_select_lex_node *upper);
   void add_slave(st_select_lex_node *slave_arg);
   void include_neighbour(st_select_lex_node *before);
@@ -600,15 +599,6 @@ public:
   void exclude();
   void exclude_from_tree();
 
-  virtual st_select_lex* outer_select()= 0;
-  virtual st_select_lex* return_after_parsing()= 0;
-
-  virtual bool inc_in_sum_expr();
-  virtual uint get_in_sum_expr();
-  virtual TABLE_LIST* get_table_list();
-  virtual List<Item>* get_item_list();
-  virtual ulong get_table_join_options();
-  virtual void set_lock_for_tables(thr_lock_type lock_type) {}
   void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
   void move_node(st_select_lex_node *where_to_move)
   {
