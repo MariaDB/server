@@ -1,9 +1,220 @@
 --source include/innodb_page_size.inc
---let $row_format=redundant
---source ../include/instant_alter.inc
---let $row_format=compact
---source ../include/instant_alter.inc
---let $row_format=dynamic
---source ../include/instant_alter.inc
-#--let $row_format=compressed
-#--source ../include/instant_alter.inc
+
+--echo #
+--echo # MDEV-11369: Instant ADD COLUMN for InnoDB
+--echo #
+
+SET timestamp = 42;
+SET time_zone='+03:00';
+
+let $format= 4;
+while ($format) {
+let $engine= `SELECT CONCAT('ENGINE=InnoDB ROW_FORMAT=',CASE $format
+WHEN 1 THEN CASE WHEN @@GLOBAL.innodb_page_size>16384
+THEN 'DYNAMIC' ELSE 'COMPRESSED' END
+WHEN 2 THEN 'DYNAMIC'
+WHEN 3 THEN 'COMPACT'
+ELSE 'REDUNDANT' END)`;
+
+eval CREATE TABLE t1
+(id INT PRIMARY KEY, c2 INT UNIQUE,
+ c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
+ SPATIAL INDEX(c3)) $engine;
+
+INSERT INTO t1 (id, c2) values(1,1);
+SELECT * FROM t1;
+
+SET GLOBAL innodb_monitor_enable = module_ddl;
+--enable_info
+ALTER TABLE t1 ADD COLUMN (
+  d1 INT, d2 INT UNSIGNED DEFAULT 10, d3 VARCHAR(20) NOT NULL DEFAULT 'abcde',
+  d4 TIMESTAMP NOT NULL DEFAULT current_timestamp());
+--disable_info
+
+SELECT * FROM t1;
+INSERT INTO t1 (id) VALUES(2),(3),(4),(5),(6);
+
+--enable_info
+ALTER TABLE t1 CHANGE d1 d1 INT DEFAULT 5, CHANGE d2 d2 INT DEFAULT 15,
+CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'fghij',
+CHANGE d4 dfour TIMESTAMP NOT NULL DEFAULT now();
+--disable_info
+
+INSERT INTO t1 SET id = 7;
+SELECT * FROM t1;
+
+# add virtual columns
+--enable_info
+ALTER TABLE t1 ADD COLUMN e1 INT AS (id * 3);
+ALTER TABLE t1 ADD COLUMN e2 VARCHAR(30) AS (d3);
+ALTER TABLE t1 ADD COLUMN e3 INT AS (id * 2);
+
+# instant alter
+ALTER TABLE t1 CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'foobar',
+ADD COLUMN (d5 CHAR(20) DEFAULT 'hijkl', d6 INT DEFAULT -12345, d7 INT);
+--disable_info
+
+INSERT INTO t1 SET id = 8;
+
+# Updating a column by extending an existing record
+UPDATE t1 SET d3 = 'yyyyy' WHERE id = 1;
+
+# Updating an already materialized column
+UPDATE t1 SET d3 = 'xxxxx' WHERE id = 2;
+
+# transaction rollback
+BEGIN;
+UPDATE t1 SET d3 = 'xxxxx' WHERE id = 3;
+SELECT * FROM t1 WHERE id = 3;
+ROLLBACK;
+SELECT * FROM t1 WHERE id = 3;
+
+# NULL to NULL, no change
+BEGIN;
+UPDATE t1 SET d7 = NULL WHERE ID = 5;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET d7 = NULL, d6 = 10 WHERE id = 5;
+SELECT * FROM t1 WHERE id = 5;
+ROLLBACK;
+SELECT * FROM t1 WHERE id = 5;
+
+# add virtual stored columns; not instant
+--enable_info
+ALTER TABLE t1 ADD COLUMN (f1 VARCHAR(20) AS (concat('x', e2)) STORED);
+
+# instant add
+ALTER TABLE t1 ADD COLUMN (d8 VARCHAR(20) DEFAULT 'omnopq');
+--disable_info
+
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+
+--enable_info
+ALTER TABLE t1
+CHANGE c2 c2 INT DEFAULT 42,
+CHANGE d1 d1 INT DEFAULT 1,
+CHANGE d2 d2 INT DEFAULT 20,
+CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'boofar';
+--disable_info
+INSERT INTO t1 SET id=9;
+--enable_info
+ALTER TABLE t1 DROP c3;
+--disable_info
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t2
+(id INT primary key, c1 VARCHAR(4000),
+ p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+ SPATIAL INDEX(p))
+$engine;
+
+BEGIN;
+INSERT INTO t2 SET id=1, c1=REPEAT('a', 4000);
+INSERT INTO t2 SET id=2, c1=REPEAT('a', 4000), p=ST_GeomFromText('POINT(1 1)');
+COMMIT;
+
+--enable_info
+ALTER TABLE t2 ADD COLUMN d1 VARCHAR(2000) DEFAULT REPEAT('asdf',500);
+--disable_info
+SELECT * FROM t2;
+
+# inplace update, rollback
+BEGIN;
+UPDATE t2 SET c1 = repeat(id, 4000);
+ROLLBACK;
+
+# non-inplace update. Rollback will materialize off-page columns.
+BEGIN;
+UPDATE t2 SET d1 = repeat(id, 200);
+ROLLBACK;
+
+--enable_info
+ALTER TABLE t2 DROP p;
+--disable_info
+SELECT * FROM t2;
+DROP TABLE t2;
+
+# datetime
+eval CREATE TABLE t3
+(id INT PRIMARY KEY, c2 INT UNSIGNED NOT NULL UNIQUE,
+ c3 POLYGON NOT NULL DEFAULT ST_PolyFromText('POLYGON((1 1,2 2,3 3,1 1))'),
+ SPATIAL INDEX(c3))
+$engine;
+INSERT INTO t3(id,c2) VALUES(1,1),(2,2),(3,3);
+SELECT * FROM t3;
+--enable_info
+ALTER TABLE t3 ADD COLUMN
+(c4 DATETIME DEFAULT current_timestamp(),
+ c5 TIMESTAMP NOT NULL DEFAULT current_timestamp(),
+ c6 POINT);
+SELECT * FROM t3;
+ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
+ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
+--disable_info
+SELECT * FROM t3;
+
+--enable_info
+ALTER TABLE t3 ADD COLUMN t TEXT CHARSET utf8
+DEFAULT 'The quick brown fox jumps over the lazy dog';
+ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
+--error ER_NO_DEFAULT_FOR_FIELD
+INSERT INTO t3 SET id=4;
+INSERT INTO t3 SET id=4, c2=0, b=0xf09f98b1;
+
+ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
+CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
+--disable_info
+INSERT INTO t3 SET id=5, c2=9;
+SELECT * FROM t3;
+--enable_info
+ALTER TABLE t3 DROP c3, DROP c7;
+--disable_info
+SELECT * FROM t3;
+DROP TABLE t3;
+
+eval CREATE TABLE big
+(id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
+ p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
+$engine;
+BEGIN;
+INSERT INTO big
+SET id=1, c1=REPEAT('a', 200), c2=REPEAT('b', 200), c3=REPEAT('c', 159);
+SET @i:=1;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+COMMIT;
+--enable_info
+ALTER TABLE big ADD COLUMN
+(d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+ d3 TIMESTAMP NOT NULL DEFAULT current_timestamp ON UPDATE current_timestamp);
+--disable_info
+CHECKSUM TABLE big;
+BEGIN;
+INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
+INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
+CHECKSUM TABLE big;
+ROLLBACK;
+CHECKSUM TABLE big;
+
+DROP TABLE big;
+
+dec $format;
+}
+SET GLOBAL innodb_monitor_disable = module_ddl;
+--disable_warnings
+SET GLOBAL innodb_monitor_enable  = default;
+SET GLOBAL innodb_monitor_disable = default;
+--enable_warnings
