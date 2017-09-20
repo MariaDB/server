@@ -16,8 +16,8 @@
 #   has been fixed.
 # 
 
--- source include/master-slave.inc
 -- source include/have_binlog_format_row.inc
+-- source include/master-slave.inc
 
 #
 # Case #1: master has key, but slave has not. 

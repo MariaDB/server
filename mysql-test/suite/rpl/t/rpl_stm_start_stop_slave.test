@@ -1,9 +1,9 @@
 ################################################################################
 # Please, check ./extra/rpl_tests/rpl_start_stop_slave.test
 ################################################################################
---source include/master-slave.inc
 --source include/have_binlog_format_statement.inc
 --source include/have_innodb.inc
+--source include/master-slave.inc
 
 # make innodb updates run fast
 --connection slave
