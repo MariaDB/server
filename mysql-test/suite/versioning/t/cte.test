@@ -28,7 +28,7 @@ insert into emp (emp_id, name, salary, dept_id, mgr) values
 (20, "john", 500, 10, 1),
 (30, "jane", 750, 10,1 );
 
-select vtq_commit_ts(max(sys_trx_start + 0)) into @ts_1 from emp;
+select vtq_commit_ts(max(sys_trx_start)) into @ts_1 from emp;
 
 update emp set mgr=30 where name ="john";
 select vtq_commit_ts(sys_trx_start) into @ts_2 from emp where name="john";
