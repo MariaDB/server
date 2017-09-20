@@ -3354,7 +3354,8 @@ sub wait_wsrep_ready($$) {
 
   my $name= $mysqld->name();
   my $outfile= "$opt_vardir/tmp/$name.wsrep_ready";
-  my $query= "SELECT VARIABLE_VALUE
+  my $query= "SET SESSION wsrep_sync_wait = 0;
+              SELECT VARIABLE_VALUE
               FROM INFORMATION_SCHEMA.GLOBAL_STATUS
               WHERE VARIABLE_NAME = 'wsrep_ready'";
 
