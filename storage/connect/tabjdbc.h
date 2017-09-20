@@ -41,7 +41,7 @@ protected:
 	// Members
 	PSZ     Driver;             /* JDBC driver                           */
 	PSZ     Url;                /* JDBC driver URL                       */
-	PSZ     Wrapname;           /* Java wrapper name                     */
+	PSZ     Wrapname;           /* Java driver name                      */
 }; // end of JDBCDEF
 
 #if !defined(NJDBC)
@@ -89,7 +89,7 @@ protected:
 	JDBConn *Jcp;               // Points to a JDBC connection class
 	JDBCCOL *Cnp;               // Points to count(*) column
 	JDBCPARM Ops;               // Additional parameters
-	char    *WrapName;          // Points to Java wrapper name
+	PSZ      Wrapname;          // Points to Java wrapper name
 	bool     Prepared;          // True when using prepared statement
 	bool     Werr;							// Write error
 	bool     Rerr;							// Rewind error
@@ -173,7 +173,6 @@ public:
 	// Methods
 	virtual void ReadColumn(PGLOBAL g);
 	virtual void WriteColumn(PGLOBAL g);
-	//        void Printf(PGLOBAL g, FILE *, uint);
 
 protected:
 	// Members

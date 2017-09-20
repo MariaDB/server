@@ -232,12 +232,10 @@ class DllExport DOSCOL : public COLBLK {
   virtual PVBLK  GetDval(void) {return Dval;}
 
   // Methods
-  //using COLBLK::Print;
   virtual bool   VarSize(void);
   virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);
-  virtual void   Printf(PGLOBAL g, FILE *, uint);
 
  protected:
   virtual bool   SetMinMax(PGLOBAL g);

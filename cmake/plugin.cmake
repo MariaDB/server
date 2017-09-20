@@ -222,7 +222,8 @@ MACRO(MYSQL_ADD_PLUGIN)
     # Install dynamic library
     IF(ARG_COMPONENT)
       IF(CPACK_COMPONENTS_ALL AND
-         NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT})
+         NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT}
+         AND INSTALL_SYSCONF2DIR)
         IF (ARG_STORAGE_ENGINE)
           SET(ver " = %{version}-%{release}")
         ELSE()

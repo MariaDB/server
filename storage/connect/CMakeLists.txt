@@ -245,13 +245,10 @@ int main() {
 ENDIF(CONNECT_WITH_ODBC)
 
 #
-# JDBC
+# JDBC with MongoDB Java Driver included but disabled
 #
-IF(APPLE)
-  OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine without JDBC support" OFF)
-ELSE()
-  OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
-ENDIF()
+OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
+OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
   FIND_PACKAGE(Java 1.6)
@@ -262,11 +259,19 @@ IF(CONNECT_WITH_JDBC)
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH2})
     # SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY}) will be dynamically linked
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-    jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h
+    javaconn.cpp jdbconn.cpp tabjdbc.cpp
+    jdbccat.h javaconn.h jdbconn.h tabjdbc.h
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java
     JavaWrappers.jar)
     add_definitions(-DJDBC_SUPPORT)
+    IF(CONNECT_WITH_MONGO)
+      SET(CONNECT_SOURCES ${CONNECT_SOURCES}
+      jmgfam.cpp jmgoconn.cpp mongo.cpp tabjmg.cpp
+      jmgfam.h jmgoconn.h mongo.h tabjmg.h
+      Mongo2Interface.java Mongo3Interface.java)
+      add_definitions(-DMONGO_SUPPORT -DMONGO_ENABLED=0)
+    ENDIF()
   ELSE()
     SET(JDBC_LIBRARY "")
   ENDIF()
@@ -283,6 +288,38 @@ IF(CONNECT_WITH_ZIP)
     filamzip.h tabzip.h ioapi.h unzip.h zip.h)
   add_definitions(-DZIP_SUPPORT -DNOCRYPT)
 ENDIF(CONNECT_WITH_ZIP)
+
+#
+# MONGO C Driver
+#
+
+IF(CONNECT_WITH_MONGO)
+  IF(WIN32)
+    # Adding some typical places to search in
+    SET(PC_MONGO_INCLUDE_DIRS
+        C:/mongo-c-driver/include
+        D:/mongo-c-driver/include)
+    SET(PC_MONGO_LIBRARY_DIRS
+        C:/mongo-c-driver/lib
+        D:/mongo-c-driver/lib)
+  ENDIF(WIN32)
+  FIND_PACKAGE(libmongoc-1.0 1.7)
+  IF (libmongoc-1.0_FOUND)
+    INCLUDE_DIRECTORIES(${MONGOC_INCLUDE_DIRS})
+    SET(MONGOC_LIBRARY  ${MONGOC_LIBRARIES})
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES}
+    cmgoconn.cpp cmgfam.cpp tabcmg.cpp
+    cmgoconn.h cmgfam.h tabcmg.h)
+    add_definitions(-DCMGO_SUPPORT)
+    IF (NOT JAVA_FOUND AND JNI_FOUND)
+      SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
+      add_definitions(-DMONGO_SUPPORT -DMONGO_ENABLED=1)
+    ELSE ()
+      remove_definitions(-DMONGO_ENABLED=0)
+      add_definitions(-DMONGO_ENABLED=1)
+    ENDIF (NOT JAVA_FOUND AND JNI_FOUND)
+  ENDIF(libmongoc-1.0_FOUND)
+ENDIF(CONNECT_WITH_MONGO)
 
 
 #
@@ -304,7 +341,7 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   COMPONENT connect-engine
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
-                 ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${IPHLPAPI_LIBRARY})
+    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY})
 
 IF(NOT TARGET connect)
   RETURN()
@@ -333,4 +370,3 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
     ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
     DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
 ENDIF()
-

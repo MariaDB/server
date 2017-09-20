@@ -1742,7 +1742,10 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
   {
     set_name(item_name->ptr(), (uint) item_name->length(), system_charset_info);
   }
-  collation.set(value_item->collation.collation, DERIVATION_IMPLICIT);
+  if (value_item->collation.derivation == DERIVATION_NUMERIC)
+    collation.set_numeric();
+  else
+    collation.set(value_item->collation.collation, DERIVATION_IMPLICIT);
   max_length= value_item->max_length;
   decimals= value_item->decimals;
   fixed= 1;

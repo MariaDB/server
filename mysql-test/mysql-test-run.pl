@@ -742,8 +742,7 @@ sub run_test_server ($$$) {
 
 	  # Repeat test $opt_repeat number of times
 	  my $repeat= $result->{repeat} || 1;
-	  # Don't repeat if test was skipped
-	  if ($repeat < $opt_repeat && $result->{'result'} ne 'MTR_RES_SKIPPED')
+	  if ($repeat < $opt_repeat)
 	  {
 	    $result->{retries}= 0;
 	    $result->{rep_failures}++ if $result->{failures};
@@ -5818,7 +5817,7 @@ sub debugger_arguments {
     $$exe= $debugger;
 
   }
-  elsif ( $debugger =~ /windbg/ )
+  elsif ( $debugger =~ /windbg|vsjitdebugger/ )
   {
     # windbg exe arg1 .. argn
 
