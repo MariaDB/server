@@ -2136,7 +2136,7 @@ void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, uint *prefix_length)
   st_select_lex structures initialisations
 */
 
-void st_select_lex_node::init_query()
+void st_select_lex_node::init_query_common()
 {
   options= 0;
   sql_cache= SQL_CACHE_UNSPECIFIED;
@@ -2147,7 +2147,7 @@ void st_select_lex_node::init_query()
 
 void st_select_lex_unit::init_query()
 {
-  st_select_lex_node::init_query();
+  init_query_common();
   linkage= GLOBAL_OPTIONS_TYPE;
   select_limit_cnt= HA_POS_ERROR;
   offset_limit_cnt= 0;
@@ -2173,7 +2173,7 @@ void st_select_lex_unit::init_query()
 
 void st_select_lex::init_query()
 {
-  st_select_lex_node::init_query();
+  init_query_common();
   table_list.empty();
   top_join_list.empty();
   join_list= &top_join_list;

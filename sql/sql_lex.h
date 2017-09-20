@@ -550,6 +550,8 @@ protected:
   st_select_lex_node *next, **prev,   /* neighbor list */
     *master, *slave,                  /* vertical links */
     *link_next, **link_prev;          /* list of whole SELECT_LEX */
+
+  void init_query_common();
 public:
 
   ulonglong options;
@@ -589,7 +591,6 @@ public:
   }
 
   inline st_select_lex_node* get_master() { return master; }
-  void init_query();
   void include_down(st_select_lex_node *upper);
   void add_slave(st_select_lex_node *slave_arg);
   void include_neighbour(st_select_lex_node *before);
