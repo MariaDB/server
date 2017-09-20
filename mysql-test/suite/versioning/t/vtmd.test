@@ -46,7 +46,7 @@ begin
   select start from tmp_vtmd for system_time all order by start limit 1 into @start;
   select @start > 0 and @start < @inf;
   select
-    start + 0 = @start as A_start,
+    start >= @start as A_start,
     (@start:= end) and end = @inf as B_end,
     name,
     substr(archive_name, 1, instr(archive_name, '_')) as C_archive_name
@@ -58,10 +58,10 @@ delimiter ;~~
 
 # create
 set versioning_alter_history= keep;
-create or replace table t0 (x int) with system versioning;
+create table t0 (z int) with system versioning;
 show tables;
 set versioning_alter_history= survive;
-create or replace table t0 (x int) with system versioning;
+create or replace table t0 (y int) with system versioning;
 show tables;
 show create table t0_vtmd;
 call check_vtmd('t0_vtmd');
@@ -70,6 +70,10 @@ set versioning_alter_history= keep;
 drop table t0;
 set versioning_alter_history= survive;
 --error ER_VERS_VTMD_ERROR
+create table t0 (x int) with system versioning;
+
+drop table t0_vtmd;
+create table t0 (y int) with system versioning;
 create or replace table t0 (x int) with system versioning;
 
 # alter

@@ -237,10 +237,9 @@ VTMD_table::update(THD *thd, const char* archive_name)
     {
 err:
       vtmd->file->print_error(error, MYF(0));
-      goto quit;
     }
-
-    result= false;
+    else
+      result= local_da.is_error();
   }
 
 quit:
@@ -436,6 +435,8 @@ VTMD_rename::try_rename(THD *thd, LString new_db, LString new_alias, const char 
   if (lock_table_names(thd, &vtmd_tl, 0, thd->variables.lock_wait_timeout, 0))
     return true;
   tdc_remove_table(thd, TDC_RT_REMOVE_ALL, about.db, vtmd_name, false);
+  if (local_da.is_error()) // just safety check
+    return true;
   bool rc= mysql_rename_table(hton,
     about.db, vtmd_name,
     new_db, vtmd_new_name,

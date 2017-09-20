@@ -211,7 +211,7 @@ enum vers_hide_enum
 
 enum vers_alter_history_enum
 {
-  VERS_ALTER_HISTORY_KEEP,
+  VERS_ALTER_HISTORY_KEEP= 0,
   VERS_ALTER_HISTORY_SURVIVE,
   VERS_ALTER_HISTORY_DROP
 };

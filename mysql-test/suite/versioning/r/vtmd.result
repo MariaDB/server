@@ -37,7 +37,7 @@ set @start= null;
 select start from tmp_vtmd for system_time all order by start limit 1 into @start;
 select @start > 0 and @start < @inf;
 select
-start + 0 = @start as A_start,
+start >= @start as A_start,
 (@start:= end) and end = @inf as B_end,
 name,
 substr(archive_name, 1, instr(archive_name, '_')) as C_archive_name
@@ -45,12 +45,12 @@ from tmp_vtmd for system_time all;
 drop table tmp_vtmd;
 end~~
 set versioning_alter_history= keep;
-create or replace table t0 (x int) with system versioning;
+create table t0 (z int) with system versioning;
 show tables;
 Tables_in_test
 t0
 set versioning_alter_history= survive;
-create or replace table t0 (x int) with system versioning;
+create or replace table t0 (y int) with system versioning;
 show tables;
 Tables_in_test
 t0
@@ -75,13 +75,17 @@ A_start	B_end	name	C_archive_name
 set versioning_alter_history= keep;
 drop table t0;
 set versioning_alter_history= survive;
-create or replace table t0 (x int) with system versioning;
+create table t0 (x int) with system versioning;
 ERROR HY000: VTMD error: `test.t0_vtmd` exists and not empty!
+drop table t0_vtmd;
+create table t0 (y int) with system versioning;
+create or replace table t0 (x int) with system versioning;
 alter table t0 add column (y int);
 call check_vtmd('t0_vtmd');
 @start > 0 and @start < @inf
 1
 A_start	B_end	name	C_archive_name
+1	0	t0	t0_
 1	0	t0	t0_
 1	1	t0	NULL
 call drop_archives('t0_vtmd');

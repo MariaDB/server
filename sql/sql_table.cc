@@ -2438,6 +2438,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     else
     {
       char *end;
+      int frm_delete_error= 0;
       /*
         It could happen that table's share in the table definition cache
         is the only thing that keeps the engine plugin loaded
@@ -2476,7 +2477,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       // Remove extension for delete
       *(end= path + path_length - reg_ext_length)= '\0';
 
-      if (thd->lex->sql_command == SQLCOM_DROP_TABLE &&
+      if ((thd->lex->sql_command == SQLCOM_DROP_TABLE ||
+          thd->lex->sql_command == SQLCOM_CREATE_TABLE) &&
           thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE &&
           table_type && table_type != view_pseudo_hton)
       {
@@ -2493,29 +2495,33 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       drop_table:
         error= ha_delete_table(thd, table_type, path, db, table->table_name,
                               !dont_log_query);
+        if (!error)
+        {
+          /* Delete the table definition file */
+          strmov(end,reg_ext);
+          if (table_type && table_type != view_pseudo_hton &&
+              table_type->discover_table)
+          {
+            /*
+              Table type is using discovery and may not need a .frm file.
+              Delete it silently if it exists
+            */
+            (void) mysql_file_delete(key_file_frm, path, MYF(0));
+          }
+          else if (mysql_file_delete(key_file_frm, path,
+                                                MYF(MY_WME)))
+          {
+            frm_delete_error= my_errno;
+            DBUG_ASSERT(frm_delete_error);
+          }
+        }
       }
 
       if (!error)
       {
-        int frm_delete_error, trigger_drop_error= 0;
-	/* Delete the table definition file */
-	strmov(end,reg_ext);
-        if (table_type && table_type != view_pseudo_hton &&
-            table_type->discover_table)
-        {
-          /*
-            Table type is using discovery and may not need a .frm file.
-            Delete it silently if it exists
-          */
-          (void) mysql_file_delete(key_file_frm, path, MYF(0));
-          frm_delete_error= 0;
-        }
-        else
-          frm_delete_error= mysql_file_delete(key_file_frm, path,
-                                              MYF(MY_WME));
-        if (frm_delete_error)
-          frm_delete_error= my_errno;
-        else
+        int trigger_drop_error= 0;
+
+        if (!frm_delete_error)
         {
           non_tmp_table_deleted= TRUE;
           trigger_drop_error=
@@ -2534,7 +2540,10 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 
     if (!error && vtmd.exists)
     {
+      enum_sql_command sql_command= thd->lex->sql_command;
+      thd->lex->sql_command= SQLCOM_DROP_TABLE;
       error= vtmd.update(thd);
+      thd->lex->sql_command= sql_command;
       if (error)
         mysql_rename_table(table_type, table->db, vtmd.archive_name(),
                                    table->db, table->table_name, NO_FK_CHECKS);
@@ -5081,6 +5090,9 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     VTMD_table vtmd(*create_table);
     if (vtmd.update(thd))
     {
+      thd->variables.vers_alter_history = VERS_ALTER_HISTORY_KEEP;
+      mysql_rm_table_no_locks(thd, create_table, 0, 0, 0, 0, 1, 1);
+      thd->variables.vers_alter_history = VERS_ALTER_HISTORY_SURVIVE;
       result= 1;
       goto err;
     }
