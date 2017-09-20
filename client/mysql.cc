@@ -40,7 +40,7 @@
 #include "my_readline.h"
 #include <signal.h>
 #include <violite.h>
-
+#include <source_revision.h>
 #if defined(USE_LIBEDIT_INTERFACE) && defined(HAVE_LOCALE_H)
 #include <locale.h>
 #endif
@@ -1721,8 +1721,8 @@ static void usage(int version)
 	 my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE,
          readline, rl_library_version);
 #else
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n", my_progname, VER,
-	MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s  Ver %s Distrib %s, for %s (%s), source revision %s\n", my_progname, VER,
+	MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE,SOURCE_REVISION);
 #endif
 
   if (version)

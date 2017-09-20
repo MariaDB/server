@@ -432,6 +432,23 @@ CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/include/mysql_version.h.in
                ${CMAKE_BINARY_DIR}/include/mysql_version.h )
 CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/sql/sql_builtin.cc.in
     ${CMAKE_BINARY_DIR}/sql/sql_builtin.cc)
+
+FIND_PACKAGE(Git)
+IF(GIT_EXECUTABLE)
+  EXECUTE_PROCESS(
+    COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+       OUTPUT_VARIABLE OUT RESULT_VARIABLE RES)
+  IF(RES EQUAL 0)
+    STRING(REGEX REPLACE "\n$" "" SOURCE_REVISION "${OUT}")
+  ENDIF()
+ENDIF()
+IF(SOURCE_REVISION OR
+  (NOT EXISTS ${PROJECT_SOURCE_DIR}/include/source_revision.h))
+  CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/include/source_revision.h.in
+               ${PROJECT_BINARY_DIR}/include/source_revision.h )
+ENDIF()
+
 CONFIGURE_FILE(
     ${CMAKE_SOURCE_DIR}/cmake/info_macros.cmake.in
     ${CMAKE_BINARY_DIR}/info_macros.cmake @ONLY)
