@@ -7645,7 +7645,13 @@ static bool tokudb_check_db_dir_exist_from_table_name(const char *table_name) {
 
     memcpy(db_name, db_name_begin, db_name_size);
     db_name[db_name_size] = '\0';
-    mysql_dir_exists = (check_db_dir_existence(db_name) == 0);
+
+    // At this point, db_name contains the MySQL formatted database name.
+    // This is exactly the same format that would come into us through a
+    // CREATE TABLE. Some charaters (like ':' for example) might be expanded
+    // into hex (':' would papear as "@003a").
+    // We need to check that the MySQL destination database directory exists.
+    mysql_dir_exists = (my_access(db_name, F_OK) == 0);
 
     return mysql_dir_exists;
 }

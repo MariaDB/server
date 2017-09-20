@@ -1,7 +1,7 @@
 /******************** tabjson H Declares Source Code File (.H) *******************/
-/*  Name: jsonudf.h   Version 1.2                                                */
+/*  Name: jsonudf.h   Version 1.3                                                */
 /*                                                                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2015                   */
+/*  (C) Copyright to the author Olivier BERTRAND          2015-2017              */
 /*                                                                               */
 /*  This file contains the JSON UDF function and class declares.                 */
 /*********************************************************************************/
@@ -37,9 +37,9 @@ extern "C" {
 	DllExport char *jsonvalue(UDF_EXEC_ARGS);
 	DllExport void jsonvalue_deinit(UDF_INIT*);
 
-	DllExport my_bool json_array_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *json_array(UDF_EXEC_ARGS);
-	DllExport void json_array_deinit(UDF_INIT*);
+	DllExport my_bool json_make_array_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_make_array(UDF_EXEC_ARGS);
+	DllExport void json_make_array_deinit(UDF_INIT*);
 
 	DllExport my_bool json_array_add_values_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *json_array_add_values(UDF_EXEC_ARGS);
@@ -53,9 +53,21 @@ extern "C" {
 	DllExport char *json_array_delete(UDF_EXEC_ARGS);
 	DllExport void json_array_delete_deinit(UDF_INIT*);
 
-	DllExport my_bool json_object_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *json_object(UDF_EXEC_ARGS);
-	DllExport void json_object_deinit(UDF_INIT*);
+	DllExport my_bool jsonsum_int_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport long long jsonsum_int(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport void jsonsum_int_deinit(UDF_INIT*);
+
+	DllExport my_bool jsonsum_real_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport double jsonsum_real(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport void jsonsum_real_deinit(UDF_INIT*);
+
+	DllExport my_bool jsonavg_real_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport double jsonavg_real(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport void jsonavg_real_deinit(UDF_INIT*);
+
+	DllExport my_bool json_make_object_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_make_object(UDF_EXEC_ARGS);
+	DllExport void json_make_object_deinit(UDF_INIT*);
 
 	DllExport my_bool json_object_nonull_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *json_object_nonull(UDF_EXEC_ARGS);

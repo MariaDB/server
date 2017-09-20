@@ -129,17 +129,17 @@ bool user_connect::user_init()
   g->Activityp->Aptr= dup;
 
 	pthread_mutex_lock(&usrmut);
-	next= to_users;
+  next= to_users;
   to_users= this;
 
   if (next)
     next->previous= this;
 
-  count= 1;
+	count = 1;
 	pthread_mutex_unlock(&usrmut);
 
-	last_query_id = thdp->query_id;
-	return false;
+	last_query_id= thdp->query_id;
+  return false;
 } // end of user_init
 
 
@@ -162,8 +162,11 @@ bool user_connect::CheckCleanup(bool force)
 
     if (g->Sarea_Size != worksize) {
 			if (g->Sarea) {
+#if !defined(DEVELOPMENT)
 				if (trace)
-					htrc("CheckCleanup: Free Sarea %d\n", g->Sarea_Size);
+#endif
+					htrc("CheckCleanup: Free Sarea at %p size=%d\n",
+																g->Sarea, g->Sarea_Size);
 
 				free(g->Sarea);
 			}	// endif Size

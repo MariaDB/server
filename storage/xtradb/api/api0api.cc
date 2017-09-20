@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2008, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2008, 2017, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1988,6 +1988,7 @@ ib_cursor_read_row(
 
 			page_format = static_cast<ib_bool_t>(
 				dict_table_is_comp(tuple->index->table));
+
 			rec = btr_pcur_get_rec(pcur);
 
 			if (prebuilt->innodb_api_rec &&
@@ -2028,6 +2029,7 @@ ib_cursor_position(
 	unsigned char*	buf;
 
 	buf = static_cast<unsigned char*>(mem_alloc(UNIV_PAGE_SIZE));
+
 
 	/* We want to position at one of the ends, row_search_for_mysql()
 	uses the search_tuple fields to work out what to do. */

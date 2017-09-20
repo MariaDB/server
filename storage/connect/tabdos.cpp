@@ -132,6 +132,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   bool   map = (am && (*am == 'M' || *am == 'm'));
   LPCSTR dfm = (am && (*am == 'F' || *am == 'f')) ? "F"
              : (am && (*am == 'B' || *am == 'b')) ? "B"
+		         : (am && (*am == 'X' || *am == 'x')) ? "X"
 		         : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
 	if ((Zipped = GetBoolCatInfo("Zipped", false))) {
@@ -148,6 +149,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
           (toupper(*buf) == 'B') ? RECFM_BIN :
+		      (toupper(*buf) == 'X') ? RECFM_NAF : // MGO
 		      (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
   Lrecl = GetIntCatInfo("Lrecl", 0);
 
@@ -1645,8 +1647,8 @@ int TDBDOS::TestBlock(PGLOBAL g)
 /***********************************************************************/
 int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   {
-	int     k, n, rc = RC_OK;
-	bool    fixed, doit, sep, b = (pxdf != NULL);
+  int     k, n, rc = RC_OK;
+  bool    fixed, doit, sep, b = (pxdf != NULL);
   PCOL   *keycols, colp;
   PIXDEF  xdp, sxp = NULL;
   PKPDEF  kdp;
@@ -1692,8 +1694,8 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 
 	try {
 		// Allocate all columns that will be used by indexes.
-	// This must be done before opening the table so specific
-	// column initialization can be done (in particular by TDBVCT)
+		// This must be done before opening the table so specific
+		// column initialization can be done (in particular by TDBVCT)
 		for (n = 0, xdp = pxdf; xdp; xdp = xdp->GetNext())
 			for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
 				if (!(colp = ColDB(g, kdp->GetName(), 0))) {
@@ -1785,7 +1787,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 		rc = RC_FX;
 	} // end catch
 
-  if (Use == USE_OPEN)
+	if (Use == USE_OPEN)
     CloseDB(g);
 
   return rc;
@@ -2877,14 +2879,6 @@ bool DOSCOL::AddDistinctValue(PGLOBAL g)
 
   return false;
   } // end of AddDistinctValue
-
-/***********************************************************************/
-/*  Make file output of a Dos column descriptor block.                 */
-/***********************************************************************/
-void DOSCOL::Printf(PGLOBAL g, FILE *f, uint n)
-  {
-  COLBLK::Printf(g, f, n);
-  } // end of Printf
 
 /* ------------------------------------------------------------------- */
 

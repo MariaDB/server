@@ -238,13 +238,16 @@ struct __toku_dbc_internal {
     struct simple_dbt skey_s,sval_s;
     struct simple_dbt *skey,*sval;
 
-    // if the rmw flag is asserted, cursor operations (like set) grab write locks instead of read locks
+    // if the rmw flag is asserted, cursor operations (like set) grab write
+    // locks instead of read locks
     // the rmw flag is set when the cursor is created with the DB_RMW flag set
     bool rmw;
+    bool locking_read;
 };
 
-static_assert(sizeof(__toku_dbc_internal) <= sizeof(((DBC *) nullptr)->_internal),
-              "__toku_dbc_internal doesn't fit in the internal portion of a DBC");
+static_assert(
+    sizeof(__toku_dbc_internal) <= sizeof(((DBC *)nullptr)->_internal),
+    "__toku_dbc_internal doesn't fit in the internal portion of a DBC");
 
 static inline __toku_dbc_internal *dbc_struct_i(DBC *c) {
     union dbc_union {

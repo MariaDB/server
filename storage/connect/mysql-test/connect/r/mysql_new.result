@@ -23,7 +23,7 @@ OPTION_LIST='host=127.0.0.1,user=root,port=SLAVE_PORT' DBNAME='unknown' TABNAME=
 ERROR HY000: (1049) Unknown database 'unknown'
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/unknown';
-ERROR HY000: (1146) Table 'test.unknown' doesn't exist [SHOW FULL COLUMNS FROM unknown FROM test]
+ERROR HY000: (1146) Table 'test.unknown' doesn't exist [SHOW FULL COLUMNS FROM `unknown` FROM test]
 SHOW CREATE TABLE t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 CREATE TABLE t1 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL
@@ -188,7 +188,7 @@ t1	CREATE TABLE `t1` (
   `d` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `e` year(4) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES('2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23');
+INSERT IGNORE INTO t1 VALUES('2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23');
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'c' at row 1
