@@ -1098,9 +1098,7 @@ row_upd_build_difference_binary(
 	}
 
 	for (i = 0; i < n_fld; i++) {
-
-		/* data is read only, heap can be NULL */
-		data = rec_get_nth_cfield(rec, offsets, i, index, NULL, &len);
+		data = rec_get_nth_cfield(rec, index, offsets, i, &len);
 
 		dfield = dtuple_get_nth_field(entry, i);
 
@@ -2072,14 +2070,15 @@ row_upd_copy_columns(
 	sym_node_t*	column)	/*!< in: first column in a column list, or
 				NULL */
 {
+	ut_ad(dict_index_is_clust(index));
+
 	const byte*	data;
 	ulint	len;
 
 	while (column) {
-		data = rec_get_nth_cfield(rec, offsets,
-					 column->field_nos[SYM_CLUST_FIELD_NO],
-					 index, NULL,
-					 &len);
+		data = rec_get_nth_cfield(
+			rec, index, offsets,
+			column->field_nos[SYM_CLUST_FIELD_NO], &len);
 		eval_node_copy_and_alloc_val(column, data, len);
 
 		column = UT_LIST_GET_NEXT(col_var_list, column);

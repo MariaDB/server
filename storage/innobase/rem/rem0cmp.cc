@@ -1018,8 +1018,8 @@ cmp_rec_rec_simple_field(
 	ut_ad(!rec_offs_nth_extern(offsets1, n));
 	ut_ad(!rec_offs_nth_extern(offsets2, n));
 
-	rec1_b_ptr = rec_get_nth_cfield(rec1, offsets1, n, index, NULL, &rec1_f_len);
-	rec2_b_ptr = rec_get_nth_cfield(rec2, offsets2, n, index, NULL, &rec2_f_len);
+	rec1_b_ptr = rec_get_nth_field(rec1, offsets1, n, &rec1_f_len);
+	rec2_b_ptr = rec_get_nth_field(rec2, offsets2, n, &rec2_f_len);
 
 	return(cmp_data(col->mtype, col->prtype,
 			rec1_b_ptr, rec1_f_len, rec2_b_ptr, rec2_f_len));
@@ -1205,11 +1205,13 @@ cmp_rec_rec_with_match(
 		DB_ROLL_PTR, and any externally stored columns. */
 		ut_ad(!rec_offs_nth_extern(offsets1, cur_field));
 		ut_ad(!rec_offs_nth_extern(offsets2, cur_field));
+		ut_ad(!rec_offs_nth_default(offsets1, cur_field));
+		ut_ad(!rec_offs_nth_default(offsets2, cur_field));
 
-		rec1_b_ptr = rec_get_nth_cfield(rec1, offsets1,
-					       cur_field, index, NULL, &rec1_f_len);
-		rec2_b_ptr = rec_get_nth_cfield(rec2, offsets2,
-					       cur_field, index, NULL, &rec2_f_len);
+		rec1_b_ptr = rec_get_nth_field(rec1, offsets1,
+					       cur_field, &rec1_f_len);
+		rec2_b_ptr = rec_get_nth_field(rec2, offsets2,
+					       cur_field, &rec2_f_len);
 
 		if (nulls_unequal
 		    && rec1_f_len == UNIV_SQL_NULL

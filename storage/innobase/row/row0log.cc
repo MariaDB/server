@@ -1619,7 +1619,7 @@ row_log_table_apply_convert_mrec(
 blob_done:
 			rw_lock_x_unlock(dict_index_get_lock(index));
 		} else {
-			data = rec_get_nth_cfield(mrec, offsets, i, index, heap, &len);
+			data = rec_get_nth_field(mrec, offsets, i, &len);
 			dfield_set_data(dfield, data, len);
 		}
 

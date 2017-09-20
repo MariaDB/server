@@ -1958,8 +1958,7 @@ null_field:
 			continue;
 		}
 
-		/* ifield is read only, the heap can be NULL */
-		ifield = rec_get_nth_cfield(rec, offsets, ipos, index, NULL, &ilen);
+		ifield = rec_get_nth_cfield(rec, index, offsets, ipos, &ilen);
 
 		/* Assign the NULL flag */
 		if (ilen == UNIV_SQL_NULL) {

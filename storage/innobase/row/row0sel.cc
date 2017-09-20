@@ -242,9 +242,9 @@ row_sel_sec_rec_is_for_clust_rec(
 			clust_field = static_cast<byte*>(vfield->data);
 		} else {
 			clust_pos = dict_col_get_clust_pos(col, clust_index);
-
-			clust_field = rec_get_nth_cfield(
-				clust_rec, clust_offs, clust_pos, clust_index, heap, &clust_len);
+			ut_ad(!rec_offs_nth_default(clust_offs, clust_pos));
+			clust_field = rec_get_nth_field(
+				clust_rec, clust_offs, clust_pos, &clust_len);
 		}
 
 		sec_field = rec_get_nth_field(sec_rec, sec_offs, i, &sec_len);
@@ -517,7 +517,6 @@ row_sel_fetch_columns(
 					rec, offsets,
 					dict_table_page_size(index->table),
 					field_no, &len, heap);
-				//field_no, &len, heap, NULL);
 
 				/* data == NULL means that the
 				externally stored field was not
@@ -534,14 +533,9 @@ row_sel_fetch_columns(
 
 				needs_copy = TRUE;
 			} else {
-
-				data = rec_get_nth_cfield(rec, offsets,
-							 field_no, index, heap, &len);
-				if (rec_offs_nth_default(offsets, field_no)) {
-					needs_copy = TRUE;
-				} else {
-					needs_copy = column->copy_val;
-				}
+				data = rec_get_nth_cfield(rec, index, offsets,
+							  field_no, &len);
+				needs_copy = column->copy_val;
 			}
 
 			if (needs_copy) {
@@ -3056,22 +3050,17 @@ row_sel_store_mysql_field_func(
 			mem_heap_free(heap);
 		}
 	} else {
-		/* Field is stored in the row. */
+		/* The field is stored in the index record, or
+		in the 'default row' for instant ADD COLUMN. */
 
 		if (rec_offs_nth_default(offsets, field_no)) {
-			/* There is default value of added column only in 
-				cluster index */
-			const dict_index_t* clust_index = 
-				dict_table_get_first_index(prebuilt->index->table); 
-
-			/* Reuse the blob_heap for instant added columns */
-			if (prebuilt->blob_heap == NULL) {
-				prebuilt->blob_heap = mem_heap_create(
-					UNIV_PAGE_SIZE);
-			}
-
-			data = rec_get_nth_cfield(rec, offsets, field_no, clust_index, 
-						prebuilt->blob_heap, &len);
+			ut_ad(dict_index_is_clust(index));
+			ut_ad(index->is_instant());
+			const dict_index_t* clust_index
+				= dict_table_get_first_index(prebuilt->table);
+			ut_ad(index == clust_index);
+			data = dict_index_get_nth_field_def(
+				clust_index, field_no, &len);
 		} else {
 			data = rec_get_nth_field(rec, offsets, field_no, &len);
 		}
@@ -4042,6 +4031,8 @@ row_sel_fill_vrow(
 
 	ut_ad(!(*vrow));
 	ut_ad(heap);
+	ut_ad(!dict_index_is_clust(index));
+	ut_ad(!index->is_instant());
 	ut_ad(page_rec_is_leaf(rec));
 
 	offsets = rec_get_offsets(rec, index, offsets, true,
@@ -4064,7 +4055,7 @@ row_sel_fill_vrow(
 			const byte*     data;
 			ulint           len;
 
-			data = rec_get_nth_cfield(rec, offsets, i, index, heap, &len);
+			data = rec_get_nth_field(rec, offsets, i, &len);
 
 			const dict_v_col_t*     vcol = reinterpret_cast<
 				const dict_v_col_t*>(col);

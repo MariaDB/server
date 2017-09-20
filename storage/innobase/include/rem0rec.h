@@ -586,26 +586,23 @@ rec_get_nth_field_offs(
 	ulint*		len)	/*!< out: length of the field; UNIV_SQL_NULL
 				if SQL null */
 	MY_ATTRIBUTE((nonnull));
+#define rec_get_nth_field(rec, offsets, n, len) \
+((rec) + rec_get_nth_field_offs(offsets, n, len))
 
-/************************************************************//**
-Get the nth field from cluster index
-@return pointer of field(Maybe get the pointer of default value of dictionary) */
+/** Get the nth field from an index.
+@param[in]	rec	index record
+@param[in]	index	index
+@param[in]	offsets	rec_get_offsets(rec, index)
+@param[in]	n	field number
+@param[out]	len	length of the field in bytes, or UNIV_SQL_NULL
+@return a read-only copy of the index field */
 const byte*
 rec_get_nth_cfield(
-	const rec_t*		rec,	/*!< in: rec */
-	const ulint*		offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint				n,		/*!< in: index of the field */
-	const dict_index_t*	index,	/*!< in: dict_index of rec */
-	mem_heap_t*			heap,   /*!< in: mem_heap for default 
-									value of instant added columns */
-	ulint*				len); 	/*!< out: length of the field; UNIV_SQL_NULL 
-									if SQL null */
-
-/* 	Never return DEFAULT value(UNIV_SQL_DEFAULT) 
-	It always return pointer inside the record
-*/
-#define rec_get_nth_field(rec, offsets, n, len) \
-(byte*)rec_get_nth_cfield(rec, offsets, n, NULL, NULL, len)
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint			n,
+	ulint*			len);
 
 /******************************************************//**
 Determine if the offsets are for a record containing null BLOB pointers.

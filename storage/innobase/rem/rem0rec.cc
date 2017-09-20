@@ -946,36 +946,28 @@ resolved:
 		| REC_OFFS_COMPACT | any_ext;
 }
 
-/************************************************************//**
-Get the nth field from cluster index
-@return pointer of field(Maybe get the pointer of default value of dictionary) */
+/** Get the nth field from an index.
+@param[in]	rec	index record
+@param[in]	index	index
+@param[in]	offsets	rec_get_offsets(rec, index)
+@param[in]	n	field number
+@param[out]	len	length of the field in bytes, or UNIV_SQL_NULL
+@return a read-only copy of the index field */
 const byte*
 rec_get_nth_cfield(
-	const rec_t*	rec,		/*!< in: rec */
-	const ulint*	offsets,	/*!< in: array returned by rec_get_offsets() */
-	ulint			n,			/*!< in: index of the field */
-	const dict_index_t*	index,	/*!< in: dict_index of rec. 
-									If NULL, *len maybe UNIV_SQL_DEFAULT */
-	mem_heap_t*		heap,   	/*!< in: mem_heap for default value of instant added columns
-									IF NULL, return the dictionary memory directly.
-									It must be read only when heap = NULL. */
-	ulint*			len) 		/*!< out: length of the field; UNIV_SQL_NULL if SQL null */
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint			n,
+	ulint*			len)
 {
-	const byte*		field;
-	ulint off = rec_get_nth_field_offs(offsets, n, len);
-	ut_ad(index || !rec_offs_nth_default(offsets, n));
+	ut_ad(rec_offs_validate(rec, index, offsets));
 
-	if (*len != UNIV_SQL_DEFAULT || !index) {
-		return rec + off;
+	if (!rec_offs_nth_default(offsets, n)) {
+		return rec_get_nth_field(rec, offsets, n, len);
 	}
 
-	field = dict_index_get_nth_field_def(index, n, len);
-	ut_ad(*len != UNIV_SQL_DEFAULT);
-	if (heap) {
-		field = static_cast<byte*>(mem_heap_dup(heap, field, *len));
-	}
-
-	return field;
+	return dict_index_get_nth_field_def(index, n, len);
 }
 
 /************************************************************//**
@@ -1847,7 +1839,7 @@ rec_copy_prefix_to_dtuple(
 		ulint		len;
 
 		field = dtuple_get_nth_field(tuple, i);
-		data = rec_get_nth_cfield(rec, offsets, i, index, NULL, &len);
+		data = rec_get_nth_field(rec, offsets, i, &len);
 
 		if (len != UNIV_SQL_NULL) {
 			dfield_set_data(field,

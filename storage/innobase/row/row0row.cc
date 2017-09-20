@@ -506,10 +506,15 @@ row_build_low(
 		}
 
 		dfield_t*	dfield = dtuple_get_nth_field(row, col_no);
-
-		const byte*	field = rec_get_nth_cfield(
-			copy, offsets, i, index, heap, &len);
-
+		const void*	field = rec_get_nth_field(
+			copy, offsets, i, &len);
+		if (len == UNIV_SQL_DEFAULT) {
+			field = dict_index_get_nth_field_def(index, i, &len);
+			if (field && type != ROW_COPY_POINTERS) {
+				ut_ad(univ_is_stored(len));
+				field = mem_heap_dup(heap, field, len);
+			}
+		}
 		dfield_set_data(dfield, field, len);
 
 		if (rec_offs_nth_extern(offsets, i)) {
@@ -644,20 +649,23 @@ row_build_w_add_vcol(
 			     add_cols, add_v, col_map, ext, heap));
 }
 
-/*******************************************************************//**
-Converts an index record to a typed data tuple.
+/** Convert an index record to a data tuple.
+@tparam def whether the dict_col_t::def_val needs to be accessed
+@param[in]	rec	index record
+@param[in]	index	index
+@param[in]	offsets	rec_get_offsets(rec, index)
+@param[out]	n_ext	number of externally stored columns
+@param[in,out]	heap	memory heap for allocations
 @return index entry built; does not set info_bits, and the data fields
 in the entry will point directly to rec */
+template<bool def>
 dtuple_t*
-row_rec_to_index_entry_low(
-/*=======================*/
-	const rec_t*		rec,	/*!< in: record in the index */
-	const dict_index_t*	index,	/*!< in: index */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
-	ulint*			n_ext,	/*!< out: number of externally
-					stored columns */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
-					the memory needed is allocated */
+row_rec_to_index_entry_impl(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint*			n_ext,
+	mem_heap_t*		heap)
 {
 	dtuple_t*	entry;
 	dfield_t*	dfield;
@@ -669,6 +677,7 @@ row_rec_to_index_entry_low(
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(index != NULL);
+	ut_ad(def || !rec_offs_any_default(offsets));
 
 	/* Because this function may be invoked by row0merge.cc
 	on a record whose header is in different format, the check
@@ -693,7 +702,9 @@ row_rec_to_index_entry_low(
 	for (i = 0; i < rec_len; i++) {
 
 		dfield = dtuple_get_nth_field(entry, i);
-		field = rec_get_nth_cfield(rec, offsets, i, index, heap, &len);
+		field = def
+			? rec_get_nth_cfield(rec, index, offsets, i, &len)
+			: rec_get_nth_field(rec, offsets, i, &len);
 
 		dfield_set_data(dfield, field, len);
 
@@ -704,8 +715,25 @@ row_rec_to_index_entry_low(
 	}
 
 	ut_ad(dtuple_check_typed(entry));
-
 	return(entry);
+}
+
+/** Convert an index record to a data tuple.
+@param[in]	rec	index record
+@param[in]	index	index
+@param[in]	offsets	rec_get_offsets(rec, index)
+@param[out]	n_ext	number of externally stored columns
+@param[in,out]	heap	memory heap for allocations */
+dtuple_t*
+row_rec_to_index_entry_low(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint*			n_ext,
+	mem_heap_t*		heap)
+{
+	return row_rec_to_index_entry_impl<false>(
+		rec, index, offsets, n_ext, heap);
 }
 
 /*******************************************************************//**
@@ -740,7 +768,7 @@ row_rec_to_index_entry(
 
 	rec_offs_make_valid(copy_rec, index, true,
 			    const_cast<ulint*>(offsets));
-	entry = row_rec_to_index_entry_low(
+	entry = row_rec_to_index_entry_impl<true>(
 		copy_rec, index, offsets, n_ext, heap);
 	rec_offs_make_valid(rec, index, true,
 			    const_cast<ulint*>(offsets));

@@ -272,7 +272,7 @@ page_cur_rec_field_extends(
 
 	type = dfield_get_type(dfield);
 
-	rec_f = rec_get_nth_cfield(rec, offsets, n, index, NULL, &rec_f_len);
+	rec_f = rec_get_nth_field(rec, offsets, n, &rec_f_len);
 
 	if (type->mtype == DATA_VARCHAR
 	    || type->mtype == DATA_CHAR
