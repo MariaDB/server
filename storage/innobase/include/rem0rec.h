@@ -101,6 +101,22 @@ offsets[] array, first passed to rec_get_offsets() */
 #define REC_OFFS_NORMAL_SIZE	OFFS_IN_REC_NORMAL_SIZE
 #define REC_OFFS_SMALL_SIZE	10
 
+/** Get the base address of offsets.  The extra_size is stored at
+this position, and following positions hold the end offsets of
+the fields. */
+#define rec_offs_base(offsets) (offsets + REC_OFFS_HEADER_SIZE)
+
+/** Compact flag ORed to the extra size returned by rec_get_offsets() */
+const ulint REC_OFFS_COMPACT = ~(ulint(~0) >> 1);
+/** SQL NULL flag in offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_SQL_NULL = REC_OFFS_COMPACT;
+/** External flag in offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_EXTERNAL = REC_OFFS_COMPACT >> 1;
+/** Default value flag in offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_DEFAULT = REC_OFFS_COMPACT >> 2;
+/** Mask for offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_MASK = REC_OFFS_DEFAULT - 1;
+
 #ifndef UNIV_INNOCHECKSUM
 /******************************************************//**
 The following function is used to get the pointer of the next chained record
@@ -592,26 +608,6 @@ rec_get_nth_cfield(
 (byte*)rec_get_nth_cfield(rec, offsets, n, NULL, NULL, len)
 
 /******************************************************//**
-Determine if the offsets are for a record in the new
-compact format.
-@return nonzero if compact format */
-UNIV_INLINE
-ulint
-rec_offs_comp(
-/*==========*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-Determine if the offsets are for a record containing
-externally stored columns.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_any_extern(
-/*================*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
 Determine if the offsets are for a record containing null BLOB pointers.
 @return first field containing a null BLOB pointer, or NULL if none found */
 UNIV_INLINE
@@ -620,26 +616,6 @@ rec_offs_any_null_extern(
 /*=====================*/
 	const rec_t*	rec,		/*!< in: record */
 	const ulint*	offsets)	/*!< in: rec_get_offsets(rec) */
-	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-Determine if the offsets are for a record containing
-default value for instant added columns.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_any_default(
-/*================*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-Returns nonzero if the extern bit is set in nth field of rec.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_nth_extern(
-/*================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: nth field */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************//**
@@ -660,16 +636,141 @@ void
 rec_offs_make_nth_extern(
         ulint*		offsets,
         const ulint     n);
-/******************************************************//**
-Returns nonzero if the SQL NULL bit is set in nth field of rec.
-@return nonzero if SQL NULL */
-UNIV_INLINE
+
+/** Determine the number of allocated elements for an array of offsets.
+@param[in]	offsets		offsets after rec_offs_set_n_alloc()
+@return number of elements */
+inline
 ulint
-rec_offs_nth_sql_null(
-/*==================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: nth field */
-	MY_ATTRIBUTE((warn_unused_result));
+rec_offs_get_n_alloc(const ulint* offsets)
+{
+	ulint	n_alloc;
+	ut_ad(offsets);
+	n_alloc = offsets[0];
+	ut_ad(n_alloc > REC_OFFS_HEADER_SIZE);
+	UNIV_MEM_ASSERT_W(offsets, n_alloc * sizeof *offsets);
+	return(n_alloc);
+}
+
+/** Determine the number of fields for which offsets have been initialized.
+@param[in]	offsets	rec_get_offsets()
+@return number of fields */
+inline
+ulint
+rec_offs_n_fields(const ulint* offsets)
+{
+	ulint	n_fields;
+	ut_ad(offsets);
+	n_fields = offsets[1];
+	ut_ad(n_fields > 0);
+	ut_ad(n_fields <= REC_MAX_N_FIELDS);
+	ut_ad(n_fields + REC_OFFS_HEADER_SIZE
+	      <= rec_offs_get_n_alloc(offsets));
+	return(n_fields);
+}
+
+/** Get a flag of a record field.
+@param[in]	offsets	rec_get_offsets()
+@param[in]	n	nth field
+@param[in]	flag	flag to extract
+@return	the flag of the record field */
+inline
+ulint
+rec_offs_nth_flag(const ulint* offsets, ulint n, ulint flag)
+{
+	ut_ad(rec_offs_validate(NULL, NULL, offsets));
+	ut_ad(n < rec_offs_n_fields(offsets));
+	/* The DEFAULT, NULL, EXTERNAL flags are mutually exclusive. */
+	ut_ad(ut_is_2pow(rec_offs_base(offsets)[1 + n]
+			 & (REC_OFFS_DEFAULT
+			    | REC_OFFS_SQL_NULL
+			    | REC_OFFS_EXTERNAL)));
+	return rec_offs_base(offsets)[1 + n] & flag;
+}
+
+/** Determine if a record field is missing
+(should be replaced by dict_col_t::def_val).
+@param[in]	offsets	rec_get_offsets()
+@param[in]	n	nth field
+@return	nonzero if default bit is set */
+inline
+ulint
+rec_offs_nth_default(const ulint* offsets, ulint n)
+{
+	return rec_offs_nth_flag(offsets, n, REC_OFFS_DEFAULT);
+}
+
+/** Determine if a record field is SQL NULL
+(should be replaced by dict_col_t::def_val).
+@param[in]	offsets	rec_get_offsets()
+@param[in]	n	nth field
+@return	nonzero if SQL NULL set */
+inline
+ulint
+rec_offs_nth_sql_null(const ulint* offsets, ulint n)
+{
+	return rec_offs_nth_flag(offsets, n, REC_OFFS_SQL_NULL);
+}
+
+/** Determine if a record field is stored off-page.
+@param[in]	offsets	rec_get_offsets()
+@param[in]	n	nth field
+Returns nonzero if the extern bit is set in nth field of rec.
+@return nonzero if externally stored */
+inline
+ulint
+rec_offs_nth_extern(const ulint* offsets, ulint n)
+{
+	return rec_offs_nth_flag(offsets, n, REC_OFFS_EXTERNAL);
+}
+
+/** Get a global flag of a record.
+@param[in]	offsets	rec_get_offsets()
+@param[in]	flag	flag to extract
+@return	the flag of the record field */
+inline
+ulint
+rec_offs_any_flag(const ulint* offsets, ulint flag)
+{
+	ut_ad(rec_offs_validate(NULL, NULL, offsets));
+	/* The DEFAULT, EXTERNAL flags are mutually exclusive. */
+	ut_ad(ut_is_2pow(*rec_offs_base(offsets)
+			 & (REC_OFFS_DEFAULT | REC_OFFS_EXTERNAL)));
+	return *rec_offs_base(offsets) & flag;
+}
+
+/** Determine if the offsets are for a record containing off-page columns.
+@param[in]	offsets	rec_get_offsets()
+@return nonzero if any off-page columns exist */
+inline
+ulint
+rec_offs_any_extern(const ulint* offsets)
+{
+	return rec_offs_any_flag(offsets, REC_OFFS_EXTERNAL);
+}
+
+/** Determine if the offsets are for a record that is missing fields.
+@param[in]	offsets	rec_get_offsets()
+@return nonzero if any fields need to be replaced with dict_col_t::def_val. */
+inline
+ulint
+rec_offs_any_default(const ulint* offsets)
+{
+	return rec_offs_any_flag(offsets, REC_OFFS_DEFAULT);
+}
+
+/** Determine if the offsets are for other than ROW_FORMAT=REDUNDANT.
+@param[in]	offsets	rec_get_offsets()
+@return	nonzero	if ROW_FORMAT is COMPACT,DYNAMIC or COMPRESSED
+@retval	0	if ROW_FORMAT=REDUNDANT */
+inline
+ulint
+rec_offs_comp(const ulint* offsets)
+{
+	ut_ad(rec_offs_validate(NULL, NULL, offsets));
+	return(*rec_offs_base(offsets) & REC_OFFS_COMPACT);
+}
+
 /******************************************************//**
 Gets the physical size of a field.
 @return length of field */
@@ -723,16 +824,6 @@ rec_get_data_size_old(
 	const rec_t*	rec)	/*!< in: physical record */
 	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************//**
-The following function returns the number of allocated elements
-for an array of offsets.
-@return number of elements */
-UNIV_INLINE
-ulint
-rec_offs_get_n_alloc(
-/*=================*/
-	const ulint*	offsets)/*!< in: array for rec_get_offsets() */
-	MY_ATTRIBUTE((warn_unused_result));
-/**********************************************************//**
 The following function sets the number of allocated elements
 for an array of offsets. */
 UNIV_INLINE
@@ -745,15 +836,6 @@ rec_offs_set_n_alloc(
 	MY_ATTRIBUTE((nonnull));
 #define rec_offs_init(offsets) \
 	rec_offs_set_n_alloc(offsets, (sizeof offsets) / sizeof *offsets)
-/**********************************************************//**
-The following function returns the number of fields in a record.
-@return number of fields */
-UNIV_INLINE
-ulint
-rec_offs_n_fields(
-/*==============*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************//**
 The following function returns the data size of a physical
 record, that is the sum of field lengths. SQL null fields
@@ -1053,16 +1135,6 @@ rec_print(
 	ulint		info,
 	const ulint*	offsets);
 
-/******************************************************//**
-Returns nonzero if the default bit is set in nth field of rec.
-@return	nonzero if default bit is set */
-UNIV_INLINE
-ulint
-rec_offs_nth_default(
-/*================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n);	/*!< in: nth field */
-	
 /******************************************************//**
 set instant flag */
 UNIV_INLINE

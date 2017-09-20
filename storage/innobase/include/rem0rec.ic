@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,17 +29,6 @@ Created 5/30/1994 Heikki Tuuri
 #include "dict0dict.h"
 #include "dict0boot.h"
 #include "btr0types.h"
-
-/** Compact flag ORed to the extra size returned by rec_get_offsets() */
-const ulint REC_OFFS_COMPACT = ~(ulint(~0) >> 1);
-/** SQL NULL flag in offsets returned by rec_get_offsets() */
-const ulint REC_OFFS_SQL_NULL = REC_OFFS_COMPACT;
-/** External flag in offsets returned by rec_get_offsets() */
-const ulint REC_OFFS_EXTERNAL = REC_OFFS_COMPACT >> 1;
-/** Default value flag in offsets returned by rec_get_offsets() */
-const ulint REC_OFFS_DEFAULT = REC_OFFS_COMPACT >> 2;
-/** Mask for offsets returned by rec_get_offsets() */
-const ulint REC_OFFS_MASK = REC_OFFS_DEFAULT - 1;
 
 /* Offsets of the bit-fields in an old-style record. NOTE! In the table the
 most significant bytes and bits are written below less significant.
@@ -928,29 +918,6 @@ rec_2_is_field_extern(
 	return(rec_2_get_field_end_info(rec, n) & REC_2BYTE_EXTERN_MASK);
 }
 
-/* Get the base address of offsets.  The extra_size is stored at
-this position, and following positions hold the end offsets of
-the fields. */
-#define rec_offs_base(offsets) (offsets + REC_OFFS_HEADER_SIZE)
-
-/**********************************************************//**
-The following function returns the number of allocated elements
-for an array of offsets.
-@return number of elements */
-UNIV_INLINE
-ulint
-rec_offs_get_n_alloc(
-/*=================*/
-	const ulint*	offsets)/*!< in: array for rec_get_offsets() */
-{
-	ulint	n_alloc;
-	ut_ad(offsets);
-	n_alloc = offsets[0];
-	ut_ad(n_alloc > REC_OFFS_HEADER_SIZE);
-	UNIV_MEM_ASSERT_W(offsets, n_alloc * sizeof *offsets);
-	return(n_alloc);
-}
-
 /**********************************************************//**
 The following function sets the number of allocated elements
 for an array of offsets. */
@@ -966,25 +933,6 @@ rec_offs_set_n_alloc(
 	ut_ad(n_alloc > REC_OFFS_HEADER_SIZE);
 	UNIV_MEM_ASSERT_AND_ALLOC(offsets, n_alloc * sizeof *offsets);
 	offsets[0] = n_alloc;
-}
-
-/**********************************************************//**
-The following function returns the number of fields in a record.
-@return number of fields */
-UNIV_INLINE
-ulint
-rec_offs_n_fields(
-/*==============*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-{
-	ulint	n_fields;
-	ut_ad(offsets);
-	n_fields = offsets[1];
-	ut_ad(n_fields > 0);
-	ut_ad(n_fields <= REC_MAX_N_FIELDS);
-	ut_ad(n_fields + REC_OFFS_HEADER_SIZE
-	      <= rec_offs_get_n_alloc(offsets));
-	return(n_fields);
 }
 
 /************************************************************//**
@@ -1024,48 +972,6 @@ rec_get_nth_field_offs(
 
 	*len = length;
 	return(offs);
-}
-
-/******************************************************//**
-Determine if the offsets are for a record in the new
-compact format.
-@return nonzero if compact format */
-UNIV_INLINE
-ulint
-rec_offs_comp(
-/*==========*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-{
-	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	return(*rec_offs_base(offsets) & REC_OFFS_COMPACT);
-}
-
-/******************************************************//**
-Determine if the offsets are for a record containing
-externally stored columns.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_any_extern(
-/*================*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-{
-	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	return(*rec_offs_base(offsets) & REC_OFFS_EXTERNAL);
-}
-
-/******************************************************//**
-Determine if the offsets are for a record containing
-default value for instant added columns.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_any_default(
-/*================*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-{
-	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	return(*rec_offs_base(offsets) & REC_OFFS_DEFAULT);
 }
 
 /******************************************************//**
@@ -1109,21 +1015,6 @@ Returns nonzero if the extern bit is set in nth field of rec.
 @return nonzero if externally stored */
 UNIV_INLINE
 ulint
-rec_offs_nth_extern(
-/*================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: nth field */
-{
-	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	ut_ad(n < rec_offs_n_fields(offsets));
-	return(rec_offs_base(offsets)[1 + n] & REC_OFFS_EXTERNAL);
-}
-
-/******************************************************//**
-Returns nonzero if the extern bit is set in nth field of rec.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
 rec_offs_nth_extern_old(
 /*================*/
 	const rec_t*	rec,	/*!< in: record */
@@ -1132,38 +1023,6 @@ rec_offs_nth_extern_old(
 	if(rec_get_1byte_offs_flag(rec))
 		return 0;
 	return (rec_2_get_field_end_info(rec,n) & REC_2BYTE_EXTERN_MASK);
-}
-
-/******************************************************//**
-Returns nonzero if the default bit is set in nth field of rec.
-@return	nonzero if default bit is set */
-UNIV_INLINE
-ulint
-rec_offs_nth_default(
-/*================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: nth field */
-{
-	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	ut_ad(n < rec_offs_n_fields(offsets));
-	return(rec_offs_base(offsets)[1 + n] & REC_OFFS_DEFAULT);
-}
-
-/******************************************************//**
-Returns nonzero if the SQL NULL bit is set in nth field of rec.
-@return nonzero if SQL NULL */
-UNIV_INLINE
-ulint
-rec_offs_nth_sql_null(
-/*==================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: nth field */
-{
-	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	ut_ad(n < rec_offs_n_fields(offsets));
-	ulint ret = (rec_offs_base(offsets)[1 + n] & REC_OFFS_SQL_NULL);
-	ut_ad(!ret || !rec_offs_nth_default(offsets, n));
-	return ret;
 }
 
 /******************************************************//**
