@@ -4258,7 +4258,6 @@ public:
   uint from_length,to_length;
   Field *from_field,*to_field;
   String tmp;					// For items
-  MYSQL_TIME now;                               // Used for sys_trx_start
 
   Copy_field() {}
   ~Copy_field() {}
