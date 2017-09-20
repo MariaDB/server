@@ -1,6 +1,5 @@
 galera_wsrep_provider_unset_set : lp1379204 'Unsupported protocol downgrade: incremental data collection disabled. Expect abort.'
 galera_kill_nochanges : mysql-wsrep#24 Galera server does not restart properly if killed
-galera_bf_abort_for_update : mysql-wsrep#26 SELECT FOR UPDATE sometimes allowed to proceed in the face of a concurrent update
 galera_toi_ddl_fk_insert : qa#39 galera_toi_ddl_fk_insert fails sporadically
 galera_sst_xtrabackup-v2-options : SST Encryption does not work with xtrabackup 2.4.2
 galera_autoinc_sst_xtrabackup : due to cert index preload, this test will never pass in current form (gcache.size=1)
