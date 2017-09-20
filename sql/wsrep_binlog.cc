@@ -452,7 +452,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
   File file;
   IO_CACHE cache;
   Log_event_writer writer(&cache);
-  Format_description_log_event *ev;
+  Format_description_log_event *ev=NULL;
 
   int len= my_snprintf(filename, PATH_MAX, "%s/GRA_%ld_%lld_v2.log",
                        wsrep_data_home_dir, thd->thread_id,
