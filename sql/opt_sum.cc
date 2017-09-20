@@ -396,6 +396,8 @@ int opt_sum_query(THD *thd,
             const_result= 0;
             break;
           }
+          longlong info_limit = 1;
+          table->file->info_push(INFO_KIND_FORCE_LIMIT_BEGIN, &info_limit);
           if (!(error= table->file->ha_index_init((uint) ref.key, 1)))
             error= (is_max ? 
                     get_index_max_value(table, &ref, range_fl) :
@@ -405,10 +407,11 @@ int opt_sum_query(THD *thd,
           /* Verify that the read tuple indeed matches the search key */
 	  if (!error && reckey_in_range(is_max, &ref, item_field->field, 
 			                conds, range_fl, prefix_len))
-	    error= HA_ERR_KEY_NOT_FOUND;
-          table->set_keyread(false);
-          table->file->ha_index_end();
-          if (error)
+      error= HA_ERR_KEY_NOT_FOUND;
+    table->set_keyread(false);
+    table->file->ha_index_end();
+    table->file->info_push(INFO_KIND_FORCE_LIMIT_END, NULL);
+    if (error)
 	  {
 	    if (error == HA_ERR_KEY_NOT_FOUND || error == HA_ERR_END_OF_FILE)
 	      DBUG_RETURN(HA_ERR_KEY_NOT_FOUND); // No rows matching WHERE

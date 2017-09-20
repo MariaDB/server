@@ -43,6 +43,7 @@ struct st_partition_ft_info
 };
 
 
+/* Bulk access request info */
 typedef struct st_partition_bulk_access_info
 {
   uint                          sequence_num;
@@ -314,6 +315,7 @@ private:
   ha_rows   m_bulk_inserted_rows;
   /** used for prediction of start_bulk_insert rows */
   enum_monotonicity_info m_part_func_monotonicity_info;
+  part_id_range m_direct_update_part_spec;
   bool                m_pre_calling;
   bool                m_pre_call_use_parallel;
   /* Keep track of bulk access requests */
@@ -552,8 +554,26 @@ public:
   */
   virtual int pre_write_row(uchar *buf);
   virtual int write_row(uchar * buf);
+  virtual bool start_bulk_update();
+  virtual int exec_bulk_update(uint *dup_key_found);
+  virtual void end_bulk_update();
+  virtual int bulk_update_row(const uchar *old_data, uchar *new_data,
+                              uint *dup_key_found);
   virtual int update_row(const uchar * old_data, uchar * new_data);
+  virtual int direct_update_rows_init();
+  virtual int pre_direct_update_rows_init();
+  virtual int direct_update_rows(uint *update_rows);
+  virtual int pre_direct_update_rows();
+#if defined(HS_HAS_SQLCOM)
+  virtual bool check_hs_update_overlapping(key_range *key);
+#endif
+  virtual bool start_bulk_delete();
+  virtual int end_bulk_delete();
   virtual int delete_row(const uchar * buf);
+  virtual int direct_delete_rows_init();
+  virtual int pre_direct_delete_rows_init();
+  virtual int direct_delete_rows(uint *delete_rows);
+  virtual int pre_direct_delete_rows();
   virtual int delete_all_rows(void);
   virtual int truncate();
   virtual void start_bulk_insert(ha_rows rows, uint flags);
@@ -1344,6 +1364,7 @@ public:
   */
     virtual const COND *cond_push(const COND *cond);
     virtual void cond_pop();
+    virtual int info_push(uint info_type, void *info);
     virtual int set_top_table_and_fields(TABLE *top_table,
                                          Field **top_table_field,
                                          uint top_table_fields);

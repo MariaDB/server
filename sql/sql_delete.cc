@@ -241,6 +241,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   SELECT_LEX   *select_lex= &thd->lex->select_lex;
   killed_state killed_status= NOT_KILLED;
   THD::enum_binlog_query_type query_type= THD::ROW_QUERY_TYPE;
+  bool has_triggers, binlog_is_row, do_direct_delete = FALSE;
   bool with_select= !select_lex->item_list.is_empty();
   Explain_delete *explain;
   Delete_plan query_plan(thd->mem_root);
@@ -490,14 +491,33 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (!(select && select->quick))
     status_var_increment(thd->status_var.delete_scan_count);
 
-  if (query_plan.using_filesort)
+  has_triggers = (table->triggers && (table->triggers->has_delete_triggers()));
+  DBUG_PRINT("info", ("has_triggers = %s", has_triggers ? "TRUE" : "FALSE"));
+  binlog_is_row = (mysql_bin_log.is_open() &&
+                   thd->is_current_stmt_binlog_format_row());
+  DBUG_PRINT("info", ("binlog_is_row = %s", binlog_is_row ? "TRUE" : "FALSE"));
+  if (!has_triggers && !binlog_is_row)
   {
+    if (select && select->cond &&
+        (select->cond->used_tables() & table->map) &&
+        !table->file->pushed_cond)
+    {
+      if (!table->file->cond_push(select->cond))
+        table->file->pushed_cond = select->cond;
+    }
 
+    if (!table->file->ha_direct_delete_rows_init())
+      do_direct_delete = TRUE;
+  }
+
+  if (!do_direct_delete)
+  {
+    if (query_plan.using_filesort)
     {
       Filesort fsort(order, HA_POS_ERROR, true, select);
       DBUG_ASSERT(query_plan.index == MAX_KEY);
 
-      Filesort_tracker *fs_tracker= 
+      Filesort_tracker *fs_tracker=
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
       if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
@@ -536,94 +556,113 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   init_ftfuncs(thd, select_lex, 1);
   THD_STAGE_INFO(thd, stage_updating);
 
-  if (table->prepare_triggers_for_delete_stmt_or_event())
+  if (!do_direct_delete)
   {
-    will_batch= FALSE;
+    if (!(table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
+        table->prepare_triggers_for_delete_stmt_or_event())
+      will_batch= FALSE;
+    else
+      will_batch= !table->file->start_bulk_delete();
   }
-  else
-    will_batch= !table->file->start_bulk_delete();
 
   table->mark_columns_needed_for_delete();
 
-  if (with_select)
+  if (do_direct_delete)
   {
-    if (result->send_result_set_metadata(select_lex->item_list,
-                                         Protocol::SEND_NUM_ROWS |
-                                         Protocol::SEND_EOF))
-      goto cleanup;
+    /* Direct deleting is supported */
+    uint delete_rows = 0;
+    error = table->file->ha_direct_delete_rows(&delete_rows);
+    deleted = delete_rows;
+    if (!error)
+      error = -1;
   }
-
-  explain= (Explain_delete*)thd->lex->explain->get_upd_del_plan();
-  explain->tracker.on_scan_init();
-
-  while (!(error=info.read_record(&info)) && !thd->killed &&
-	 ! thd->is_error())
+  else
   {
-    explain->tracker.on_record_read();
-    thd->inc_examined_row_count(1);
-    if (table->vfield)
-      (void) table->update_virtual_fields(VCOL_UPDATE_FOR_DELETE);
-    if (!select || select->skip_record(thd) > 0)
+    /* Direct deleting is not supported */
+    if (with_select)
     {
-      explain->tracker.on_record_after_where();
-      if (table->triggers &&
-          table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                            TRG_ACTION_BEFORE, FALSE))
-      {
-        error= 1;
-        break;
-      }
+      if (result->send_result_set_metadata(select_lex->item_list,
+                                           Protocol::SEND_NUM_ROWS |
+                                           Protocol::SEND_EOF))
+        goto cleanup;
+    }
 
-      if (with_select && result->send_data(select_lex->item_list) < 0)
-      {
-        error=1;
-        break;
-      }
+    explain= (Explain_delete*)thd->lex->explain->get_upd_del_plan();
+    explain->tracker.on_scan_init();
 
-      if (!(error= table->file->ha_delete_row(table->record[0])))
+    while (!(error=info.read_record(&info)) && !thd->killed &&
+           !thd->is_error())
+    {
+      explain->tracker.on_record_read();
+      thd->inc_examined_row_count(1);
+      if (table->vfield)
+        (void) table->update_virtual_fields(VCOL_UPDATE_FOR_DELETE);
+      if (!select || select->skip_record(thd) > 0)
       {
-	deleted++;
+        explain->tracker.on_record_after_where();
         if (table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                              TRG_ACTION_AFTER, FALSE))
+                                              TRG_ACTION_BEFORE, FALSE))
         {
           error= 1;
           break;
         }
-	if (!--limit && using_limit)
-	{
-	  error= -1;
-	  break;
-	}
+
+        if (with_select && result->send_data(select_lex->item_list) < 0)
+        {
+          error=1;
+          break;
+        }
+
+        if (!(error= table->file->ha_delete_row(table->record[0])))
+        {
+          deleted++;
+          if (table->triggers &&
+              table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
+                                                TRG_ACTION_AFTER, FALSE))
+          {
+            error= 1;
+            break;
+          }
+          if (!--limit && using_limit)
+          {
+            error= -1;
+            break;
+          }
+        }
+        else
+        {
+          table->file->print_error(error,
+                                   MYF(thd->lex->ignore ? ME_JUST_WARNING
+                                                        : 0));
+          if (thd->is_error())
+          {
+            error= 1;
+            break;
+          }
+        }
       }
+      /*
+        Don't try unlocking the row if skip_record reported an error since in
+        this case the transaction might have been rolled back already.
+      */
+      else if (!thd->is_error())
+        table->file->unlock_row();  // Row failed selection, release lock on it
       else
-      {
-	table->file->print_error(error,
-                                 MYF(thd->lex->ignore ? ME_JUST_WARNING : 0));
-        if (thd->is_error())
-        {
-          error= 1;
-          break;
-        }
-      }
+        break;
     }
-    /*
-      Don't try unlocking the row if skip_record reported an error since in
-      this case the transaction might have been rolled back already.
-    */
-    else if (!thd->is_error())
-      table->file->unlock_row();  // Row failed selection, release lock on it
-    else
-      break;
   }
   killed_status= thd->killed;
   if (killed_status != NOT_KILLED || thd->is_error())
     error= 1;					// Aborted
-  if (will_batch && (loc_error= table->file->end_bulk_delete()))
+  if (!do_direct_delete)
   {
-    if (error != 1)
-      table->file->print_error(loc_error,MYF(0));
-    error=1;
+    if (will_batch && (loc_error= table->file->end_bulk_delete()))
+    {
+      if (error != 1)
+        table->file->print_error(loc_error, MYF(0));
+      error=1;
+    }
   }
   THD_STAGE_INFO(thd, stage_end);
   end_read_record(&info);

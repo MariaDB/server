@@ -17,20 +17,7 @@
 #pragma interface
 #endif
 
-#if (defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000)
-#define SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
-#endif
-
-#if MYSQL_VERSION_ID >=	100203
-#define HANDLER_HAS_TOP_TABLE_FIELDS
-#define HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
-#define HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
-#define PARTITION_HAS_EXTRA_ATTACH_CHILDREN
-#define PARTITION_HAS_GET_CHILD_HANDLERS
-#define PARTITION_HAS_EXTRA_ATTACH_CHILDREN
-#define PARTITION_HAS_GET_CHILD_HANDLERS
-#define HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN
-#endif
+#include "spd_environ.h"
 
 #define SPIDER_CONNECT_INFO_MAX_LEN 64
 #define SPIDER_CONNECT_INFO_PATH_MAX_LEN FN_REFLEN
@@ -588,6 +575,17 @@ public:
     uchar *new_data
   );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  inline int ha_direct_update_rows_init(uint mode,
+                                        KEY_MULTI_RANGE *ranges,
+                                        uint range_count, bool sorted,
+                                        uchar *new_data)
+  {
+    return handler::ha_direct_update_rows_init();
+  }
+  inline int direct_update_rows_init()
+  {
+    return direct_update_rows_init(2, NULL, 0, FALSE, NULL);
+  }
   int direct_update_rows_init(
     uint mode,
     KEY_MULTI_RANGE *ranges,
@@ -596,6 +594,17 @@ public:
     uchar *new_data
   );
 #ifdef HA_CAN_BULK_ACCESS
+  inline int ha_pre_direct_update_rows_init(uint mode,
+                                            KEY_MULTI_RANGE *ranges,
+                                            uint range_count, bool sorted,
+                                            uchar *new_data)
+  {
+    return handler::ha_pre_direct_update_rows_init();
+  }
+  inline int pre_direct_update_rows_init()
+  {
+    return pre_direct_update_rows_init(2, NULL, 0, FALSE, NULL);
+  }
   int pre_direct_update_rows_init(
     uint mode,
     KEY_MULTI_RANGE *ranges,
@@ -604,6 +613,16 @@ public:
     uchar *new_data
   );
 #endif
+  inline int ha_direct_update_rows(KEY_MULTI_RANGE *ranges,
+                                   uint range_count, bool sorted,
+                                   uchar *new_data, uint *update_rows)
+  {
+    return handler::ha_direct_update_rows(update_rows);
+  }
+  inline int direct_update_rows(uint *update_rows)
+  {
+    return direct_update_rows(NULL, 0, FALSE, NULL, update_rows);
+  }
   int direct_update_rows(
     KEY_MULTI_RANGE *ranges,
     uint range_count,
@@ -612,6 +631,18 @@ public:
     uint *update_rows
   );
 #ifdef HA_CAN_BULK_ACCESS
+  inline int ha_pre_direct_update_rows(KEY_MULTI_RANGE *ranges,
+                                       uint range_count, bool sorted,
+                                       uchar *new_data, uint *update_rows)
+  {
+    return handler::ha_pre_direct_update_rows();
+  }
+  inline int pre_direct_update_rows()
+  {
+    uint *update_rows;
+
+    return pre_direct_update_rows(NULL, 0, FALSE, NULL, update_rows);
+  }
   int pre_direct_update_rows(
     KEY_MULTI_RANGE *ranges,
     uint range_count,
@@ -627,6 +658,16 @@ public:
     const uchar *buf
   );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  inline int ha_direct_delete_rows_init(uint mode,
+                                        KEY_MULTI_RANGE *ranges,
+                                        uint range_count, bool sorted)
+  {
+    return handler::ha_direct_delete_rows_init();
+  }
+  inline int direct_delete_rows_init()
+  {
+    return direct_delete_rows_init(2, NULL, 0, FALSE);
+  }
   int direct_delete_rows_init(
     uint mode,
     KEY_MULTI_RANGE *ranges,
@@ -634,6 +675,16 @@ public:
     bool sorted
   );
 #ifdef HA_CAN_BULK_ACCESS
+  inline int ha_pre_direct_delete_rows_init(uint mode,
+                                            KEY_MULTI_RANGE *ranges,
+                                            uint range_count, bool sorted)
+  {
+    return handler::ha_pre_direct_delete_rows_init();
+  }
+  inline int pre_direct_delete_rows_init()
+  {
+    return pre_direct_delete_rows_init(2, NULL, 0, FALSE);
+  }
   int pre_direct_delete_rows_init(
     uint mode,
     KEY_MULTI_RANGE *ranges,
@@ -641,6 +692,16 @@ public:
     bool sorted
   );
 #endif
+  inline int ha_direct_delete_rows(KEY_MULTI_RANGE *ranges,
+                                   uint range_count, bool sorted,
+                                   uint *delete_rows)
+  {
+    return handler::ha_direct_delete_rows(delete_rows);
+  }
+  inline int direct_delete_rows(uint *delete_rows)
+  {
+    return direct_delete_rows(NULL, 0, FALSE, delete_rows);
+  }
   int direct_delete_rows(
     KEY_MULTI_RANGE *ranges,
     uint range_count,
@@ -648,6 +709,18 @@ public:
     uint *delete_rows
   );
 #ifdef HA_CAN_BULK_ACCESS
+  inline int ha_pre_direct_delete_rows(KEY_MULTI_RANGE *ranges,
+                                       uint range_count, bool sorted,
+                                       uint *delete_rows)
+  {
+    return handler::ha_pre_direct_delete_rows();
+  }
+  inline int pre_direct_delete_rows()
+  {
+    uint *delete_rows;
+
+    return pre_direct_delete_rows(NULL, 0, FALSE, delete_rows);
+  }
   int pre_direct_delete_rows(
     KEY_MULTI_RANGE *ranges,
     uint range_count,

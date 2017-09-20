@@ -43,6 +43,10 @@
 #include <keycache.h>
 #include <mysql/psi/mysql_table.h>
 
+#define INFO_KIND_UPDATE_FIELDS       101
+#define INFO_KIND_UPDATE_VALUES       102
+#define INFO_KIND_FORCE_LIMIT_BEGIN   103
+#define INFO_KIND_FORCE_LIMIT_END     104
 #define INFO_KIND_BULK_ACCESS_BEGIN   105
 #define INFO_KIND_BULK_ACCESS_CURRENT 106
 #define INFO_KIND_BULK_ACCESS_END     107
@@ -274,6 +278,10 @@ enum enum_alter_inplace_result {
 /* The following is for partition handler */
 #define HA_CAN_MULTISTEP_MERGE (1LL << 47)
 #define HA_CAN_BULK_ACCESS     (1LL << 48)
+
+/* The following are used by Spider */
+#define HA_CAN_FORCE_BULK_UPDATE (1LL << 49)
+#define HA_CAN_FORCE_BULK_DELETE (1LL << 50)
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -2917,6 +2925,29 @@ public:
   int ha_pre_write_row(uchar * buf) { return pre_write_row(buf); }
   int ha_update_row(const uchar * old_data, uchar * new_data);
   int ha_delete_row(const uchar * buf);
+  int ha_direct_update_rows_init();
+  int ha_pre_direct_update_rows_init()
+  {
+    return pre_direct_update_rows_init();
+  }
+  int ha_direct_update_rows(uint *update_rows);
+  int ha_pre_direct_update_rows()
+  {
+    return pre_direct_update_rows();
+  }
+  int ha_direct_update_row_binlog(const uchar *old_data,
+                                  uchar *new_data);
+  int ha_direct_delete_rows_init();
+  int ha_pre_direct_delete_rows_init()
+  {
+    return pre_direct_delete_rows_init();
+  }
+  int ha_direct_delete_rows(uint *delete_rows);
+  int ha_pre_direct_delete_rows()
+  {
+    return pre_direct_delete_rows();
+  }
+  int ha_direct_delete_row_binlog(const uchar *buf);
   virtual void bulk_req_exec() {}
   void ha_release_auto_increment();
 
@@ -3671,6 +3702,11 @@ public:
  virtual void cond_pop() { return; };
 
  /**
+   Push metadata for the current operation down to the table handler.
+ */
+ virtual int info_push(uint info_type, void *info) { return 0; };
+
+ /**
     This function is used to get correlating of a parent (table/column)
     and children (table/column). When conditions are pushed down to child
     table (like child of myisam_merge), child table needs to know about
@@ -4102,6 +4138,47 @@ private:
   {
     return HA_ERR_WRONG_COMMAND;
   }
+
+  virtual int direct_update_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
+  virtual int pre_direct_update_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
+  virtual int direct_update_rows(uint *update_rows __attribute__((unused)))
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
+  virtual int pre_direct_update_rows()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
+  virtual int direct_delete_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
+  virtual int pre_direct_delete_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
+  virtual int direct_delete_rows(uint *delete_rows __attribute__((unused)))
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
+  virtual int pre_direct_delete_rows()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
   /**
     Reset state of file to after 'open'.
     This function is called after every statement for all tables used
