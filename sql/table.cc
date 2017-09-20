@@ -4628,7 +4628,13 @@ void TABLE_LIST::cleanup_items()
 
 int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
 {
-  if (check_option && check_option->val_int() == 0)
+  Counting_error_handler ceh;
+  thd->push_internal_handler(&ceh);
+  bool res= check_option && check_option->val_int() == 0;
+  thd->pop_internal_handler();
+  if (ceh.errors)
+    return(VIEW_CHECK_ERROR);
+  if (res)
   {
     TABLE_LIST *main_view= top_table();
     if (ignore_failure)
@@ -4642,9 +4648,6 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
              main_view->view_name.str);
     return(VIEW_CHECK_ERROR);
   }
-  /* We check thd->error() because it can be set by conversion problem. */
-  if (thd->is_error())
-    return(VIEW_CHECK_ERROR);
   return(VIEW_CHECK_OK);
 }
 
