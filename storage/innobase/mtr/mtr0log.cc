@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -443,10 +444,11 @@ mlog_open_and_write_index(
 			alloc = mtr_buf_t::MAX_DATA_SIZE;
 		}
 
+		const bool is_leaf = page_is_leaf(page_align(rec));
+
 		/* For spatial index, on non-leaf page, we just keep
 		2 fields, MBR and page no. */
-		if (dict_index_is_spatial(index)
-		    && !page_is_leaf(page_align(rec))) {
+		if (!is_leaf && dict_index_is_spatial(index)) {
 			n = DICT_INDEX_SPATIAL_NODEPTR_SIZE;
 		}
 
@@ -464,7 +466,7 @@ mlog_open_and_write_index(
 		mach_write_to_2(log_ptr, n);
 		log_ptr += 2;
 
-		if (page_is_leaf(page_align(rec))) {
+		if (is_leaf) {
 			mach_write_to_2(
 				log_ptr, dict_index_get_n_unique_in_tree(index));
 		} else {

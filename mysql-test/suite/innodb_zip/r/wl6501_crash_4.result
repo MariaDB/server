@@ -461,10 +461,6 @@ i	f	c
 drop table t;
 set global innodb_file_per_table = 1;
 call mtr.add_suppression("does not exist in the InnoDB internal");
-Warnings:
-Error	145	Table './mtr/test_suppressions' is marked as crashed and should be repaired
-Error	1194	Table 'test_suppressions' is marked as crashed and should be repaired
-Error	1034	1 client is using or hasn't closed the table properly
 set global innodb_file_per_table = on;
 "1. Hit crash point on completing drop of all indexes before creation"
 "   of index is commenced."
@@ -520,3 +516,4 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	Error	Table 'test.t' doesn't exist
 test.t	check	status	Operation failed
+set global innodb_file_per_table = 1;
