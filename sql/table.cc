@@ -5078,7 +5078,11 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
              name_db, name_table);
     return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
   }
-  return table->verify_constraints(ignore_failure);
+  int result= table->verify_constraints(ignore_failure);
+  /* We check thd->error() because it can be set by conversion problem. */
+  if (thd->is_error())
+    return(VIEW_CHECK_ERROR);
+  return result;
 }
 
 
@@ -5100,7 +5104,7 @@ int TABLE::verify_constraints(bool ignore_failure)
       }
     }
   }
-  return VIEW_CHECK_OK;
+  return(VIEW_CHECK_OK);
 }
 
 
