@@ -453,7 +453,13 @@ dict_boot(void)
 						       MLOG_4BYTES, &mtr),
 					FALSE);
 	ut_a(error == DB_SUCCESS);
-	ut_ad(!table->is_instant());
+	/* The column SYS_INDEXES.MERGE_THRESHOLD was instantly added
+	in MySQL 5.7 (MariaDB 10.2.2). */
+	ut_ad(UT_LIST_GET_FIRST(table->indexes)->n_core_fields
+	      == DICT_NUM_FIELDS__SYS_INDEXES);
+	UT_LIST_GET_FIRST(table->indexes)->n_core_fields
+		= DICT_NUM_FIELDS__SYS_INDEXES - 1;
+	ut_ad(table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		table->indexes.start->n_nullable);
 
