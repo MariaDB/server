@@ -1172,6 +1172,7 @@ dict_stats_analyze_index_level(
 
 				prev_rec_offsets = rec_get_offsets(
 					prev_rec, index, prev_rec_offsets,
+					true,
 					n_uniq, &heap);
 
 				prev_rec = rec_copy_prefix_to_buf(
@@ -1185,7 +1186,7 @@ dict_stats_analyze_index_level(
 			continue;
 		}
 		rec_offsets = rec_get_offsets(
-			rec, index, rec_offsets, n_uniq, &heap);
+			rec, index, rec_offsets, !level, n_uniq, &heap);
 
 		(*total_recs)++;
 
@@ -1193,7 +1194,7 @@ dict_stats_analyze_index_level(
 			ulint	matched_fields;
 
 			prev_rec_offsets = rec_get_offsets(
-				prev_rec, index, prev_rec_offsets,
+				prev_rec, index, prev_rec_offsets, !level,
 				n_uniq, &heap);
 
 			cmp_rec_rec_with_match(rec,
@@ -1399,7 +1400,7 @@ dict_stats_scan_page(
 		return(NULL);
 	}
 
-	offsets_rec = rec_get_offsets(rec, index, offsets_rec,
+	offsets_rec = rec_get_offsets(rec, index, offsets_rec, is_leaf,
 				      ULINT_UNDEFINED, &heap);
 
 	if (should_count_external_pages) {
@@ -1416,7 +1417,7 @@ dict_stats_scan_page(
 		ulint	matched_fields;
 
 		offsets_next_rec = rec_get_offsets(next_rec, index,
-						   offsets_next_rec,
+						   offsets_next_rec, is_leaf,
 						   ULINT_UNDEFINED,
 						   &heap);
 
@@ -1522,8 +1523,9 @@ dict_stats_analyze_index_below_cur(
 	rec_offs_set_n_alloc(offsets2, size);
 
 	rec = btr_cur_get_rec(cur);
+	ut_ad(!page_rec_is_leaf(rec));
 
-	offsets_rec = rec_get_offsets(rec, index, offsets1,
+	offsets_rec = rec_get_offsets(rec, index, offsets1, false,
 				      ULINT_UNDEFINED, &heap);
 
 	page_id_t		page_id(dict_index_get_space(index),

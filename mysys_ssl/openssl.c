@@ -50,7 +50,7 @@ int check_openssl_compatibility()
   EVP_CIPHER_CTX *evp_ctx;
   EVP_MD_CTX     *md5_ctx;
 
-  if (!CRYPTO_set_mem_functions(coc_malloc, CRYPTO_realloc, CRYPTO_free))
+  if (!CRYPTO_set_mem_functions(coc_malloc, NULL, NULL))
     return 1;
 
   testing= 1;

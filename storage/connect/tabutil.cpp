@@ -186,7 +186,8 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     crp->Kdata->SetValue(colname, i);
 
     chset = (char *)fp->charset()->name;
-    v = (!strcmp(chset, "binary")) ? 'B' : 0;
+//  v = (!strcmp(chset, "binary")) ? 'B' : 0;
+		v = 0;
 
     if ((type = MYSQLtoPLG(fp->type(), &v)) == TYPE_ERROR) {
       if (v == 'K') {

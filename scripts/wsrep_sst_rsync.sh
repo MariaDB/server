@@ -68,7 +68,7 @@ check_pid_and_port()
         local port_info="$(sockstat -46lp ${rsync_port} 2>/dev/null | \
             grep ":${rsync_port}")"
         local is_rsync="$(echo $port_info | \
-            grep -w '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
+            grep '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
         ;;
     *)
         if ! which lsof > /dev/null; then

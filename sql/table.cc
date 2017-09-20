@@ -5089,7 +5089,11 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
              name_db, name_table);
     return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
   }
-  return table->verify_constraints(ignore_failure);
+  int result= table->verify_constraints(ignore_failure);
+  /* We check thd->error() because it can be set by conversion problem. */
+  if (thd->is_error())
+    return(VIEW_CHECK_ERROR);
+  return result;
 }
 
 
@@ -5101,7 +5105,8 @@ int TABLE::verify_constraints(bool ignore_failure)
   {
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
     {
-      if ((*chk)->expr->val_int() == 0)
+      /* yes! NULL is ok, see 4.23.3.4 Table check constraints, part 2, SQL:2016 */
+      if ((*chk)->expr->val_int() == 0 && !(*chk)->expr->null_value)
       {
         my_error(ER_CONSTRAINT_FAILED,
                  MYF(ignore_failure ? ME_JUST_WARNING : 0), (*chk)->name.str,
@@ -5110,7 +5115,7 @@ int TABLE::verify_constraints(bool ignore_failure)
       }
     }
   }
-  return VIEW_CHECK_OK;
+  return(VIEW_CHECK_OK);
 }
 
 
@@ -5777,9 +5782,10 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
+  Name_resolution_context *context= view->view ? &view->view->select_lex.context :
+                                    &thd->lex->select_lex.context;
   Item *item= (new (thd->mem_root)
-               Item_direct_view_ref(thd, &view->view->select_lex.context,
-                                    field_ref, view->alias,
+               Item_direct_view_ref(thd, context, field_ref, view->alias,
                                     name, view));
   /*
     Force creation of nullable item for the result tmp table for outer joined

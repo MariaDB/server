@@ -92,7 +92,7 @@ public:
   {
     return val_str_from_val_str_ascii(str, &ascii_buf);
   }
-  virtual String *val_str_ascii(String *)= 0;
+  String *val_str_ascii(String *)= 0;
 };
 
 
@@ -559,7 +559,7 @@ public:
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "trim"; }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   virtual const char *mode_name() const { return "both"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_trim>(thd, mem_root, this); }
@@ -943,7 +943,6 @@ public:
   String *val_str_ascii(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "format"; }
-  virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_format>(thd, mem_root, this); }
 };
@@ -1022,7 +1021,6 @@ public:
   const char *func_name() const { return "binlog_gtid_pos"; }
   bool check_vcol_func_processor(void *arg)
   {
-
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1207,7 +1205,7 @@ public:
     collation.set(&my_charset_bin);
     max_length=args[0]->max_length;
   }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   const char *func_name() const { return "cast_as_binary"; }
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1351,7 +1349,7 @@ public:
   }
   void fix_length_and_dec();
   const char *func_name() const { return "convert"; }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_conv_charset>(thd, mem_root, this); }
 };
@@ -1367,7 +1365,7 @@ public:
   const char *func_name() const { return "collate"; }
   enum precedence precedence() const { return COLLATE_PRECEDENCE; }
   enum Functype functype() const { return COLLATE_FUNC; }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   Item_field *field_for_view_update()
   {
     /* this function is transparent for view updating */
@@ -1549,8 +1547,8 @@ public:
   void fix_length_and_dec();
   const char *func_name() const{ return "column_create"; }
   String *val_str(String *);
-  virtual void print(String *str, enum_query_type query_type);
-  virtual enum Functype functype() const   { return DYNCOL_FUNC; }
+  void print(String *str, enum_query_type query_type);
+  enum Functype functype() const   { return DYNCOL_FUNC; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_dyncol_create>(thd, mem_root, this); }
 };
@@ -1564,7 +1562,7 @@ public:
   {}
   const char *func_name() const{ return "column_add"; }
   String *val_str(String *);
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_dyncol_add>(thd, mem_root, this); }
 };

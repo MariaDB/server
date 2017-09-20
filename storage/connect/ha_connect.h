@@ -348,6 +348,13 @@ const char *GetValStr(OPVAL vop, bool neg);
 PFIL  CondFilter(PGLOBAL g, Item *cond);
 //PFIL  CheckFilter(PGLOBAL g);
 
+/** admin commands - called from mysql_admin_table */
+virtual int check(THD* thd, HA_CHECK_OPT* check_opt)
+{
+	// TODO: implement it
+	return HA_ADMIN_OK;	// Just to avoid error message with checktables
+}	// end of check
+
  /**
    Number of rows in table. It will only be called if
    (table_flags() & (HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT)) != 0

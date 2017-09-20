@@ -1,51 +1,27 @@
---disable_warnings
-DROP TABLE IF EXISTS t_10;
-DROP TABLE IF EXISTS t_100;
-DROP TABLE IF EXISTS t_1000;
-DROP TABLE IF EXISTS tp;
-DROP TABLE IF EXISTS tsp;
-DROP TABLE IF EXISTS t_empty;
-DROP TABLE IF EXISTS t_null;
---enable_warnings
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE t_10 (a INT, b VARCHAR(55), PRIMARY KEY (a)) $data_directory $index_directory ENGINE = $engine_table;
 
-eval CREATE TABLE t_10 (a INT,
-  b VARCHAR(55),
-  PRIMARY KEY (a)) $data_directory $index_directory
-ENGINE = $engine_table;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE t_100 (a INT, b VARCHAR(55), PRIMARY KEY (a)) $data_directory $index_directory ENGINE = $engine_table;
 
-eval CREATE TABLE t_100 (a INT,
-  b VARCHAR(55),
-  PRIMARY KEY (a)) $data_directory $index_directory
-ENGINE = $engine_table;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE t_1000 (a INT, b VARCHAR(55), PRIMARY KEY (a)) $data_directory $index_directory ENGINE = $engine_table;
 
-eval CREATE TABLE t_1000 (a INT,
-  b VARCHAR(55),
-  PRIMARY KEY (a)) $data_directory $index_directory
-ENGINE = $engine_table;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE t_empty (a INT, b VARCHAR(55), PRIMARY KEY (a)) $data_directory $index_directory ENGINE = $engine_table;
 
-eval CREATE TABLE t_empty (a INT,
-  b VARCHAR(55),
-  PRIMARY KEY (a)) $data_directory $index_directory
-ENGINE = $engine_table;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE t_null (a INT, b VARCHAR(55), PRIMARY KEY (a)) $data_directory $index_directory ENGINE = $engine_table;
 
-eval CREATE TABLE t_null (a INT,
-  b VARCHAR(55),
-  PRIMARY KEY (a)) $data_directory $index_directory
-ENGINE = $engine_table;
-
-eval CREATE TABLE tp (a INT,
-  b VARCHAR(55),
-  PRIMARY KEY (a)) $data_directory $index_directory
-ENGINE = $engine_part
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE tp (a INT, b VARCHAR(55), PRIMARY KEY (a)) $data_directory $index_directory ENGINE = $engine_part
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) $p_data_directory $p_index_directory,
  PARTITION p1 VALUES LESS THAN (100) $p_data_directory $p_index_directory,
  PARTITION p2 VALUES LESS THAN (1000) $p_data_directory $p_index_directory);
 
-eval CREATE TABLE tsp (a INT,
-  b VARCHAR(55),
-  PRIMARY KEY (a)) $data_directory $index_directory
-ENGINE = $engine_subpart
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE tsp (a INT, b VARCHAR(55), PRIMARY KEY (a)) $data_directory $index_directory ENGINE = $engine_subpart
 PARTITION BY RANGE (a)
 SUBPARTITION BY HASH(a)
 (PARTITION p0 VALUES LESS THAN (10) $p_data_directory $p_index_directory
@@ -53,8 +29,7 @@ SUBPARTITION BY HASH(a)
   SUBPARTITION sp01,
   SUBPARTITION sp02,
   SUBPARTITION sp03,
-  SUBPARTITION sp04),
- PARTITION p1 VALUES LESS THAN (100)
+  SUBPARTITION sp04), PARTITION p1 VALUES LESS THAN (100)
  (SUBPARTITION sp10 $p_data_directory $p_index_directory,
   SUBPARTITION sp11 $p_data_directory $p_index_directory,
   SUBPARTITION sp12 $p_data_directory $p_index_directory,
@@ -99,41 +74,13 @@ INSERT INTO tsp VALUES (122, "Hundred twenty-two"), (124, "Hundred twenty-four")
 INSERT INTO tsp VALUES (162, "Hundred sixty-two"), (164, "Hundred sixty-four"), (166, "Hundred sixty-six"), (168, "Hundred sixty-eight");
 INSERT INTO tsp VALUES (182, "Hundred eight-two"), (184, "Hundred eighty-four"), (186, "Hundred eighty-six"), (188, "Hundred eighty-eight");
 
-eval CREATE TABLE tsp_01(a INT,b VARCHAR(55),PRIMARY KEY (a))
-             ENGINE = $engine_table $data_directory $index_directory
-             AS SELECT a, b FROM t_10 WHERE MOD(a,5)= 1;
-eval CREATE TABLE tsp_02(a INT,b VARCHAR(55),PRIMARY KEY (a)) 
-             ENGINE = $engine_table $data_directory $index_directory
-             AS SELECT a, b FROM t_10 WHERE MOD(a,5)= 2;
-eval CREATE TABLE tsp_03(a INT,b VARCHAR(55),PRIMARY KEY (a)) 
-             ENGINE = $engine_table $data_directory $index_directory
-             AS SELECT a, b FROM t_10 WHERE MOD(a,5)= 3;
-eval CREATE TABLE tsp_04(a INT,b VARCHAR(55),PRIMARY KEY (a)) 
-             ENGINE = $engine_table $data_directory $index_directory
-             AS SELECT a, b FROM t_10 WHERE MOD(a,5)= 4;
-eval CREATE TABLE tsp_00(a INT,b VARCHAR(55),PRIMARY KEY (a)) 
-             ENGINE = $engine_table $data_directory $index_directory
-             AS SELECT a, b FROM t_10 WHERE MOD(a,5)= 0;
- 
-SHOW CREATE TABLE t_10;
-SHOW CREATE TABLE t_100;
-SHOW CREATE TABLE t_1000;
-SHOW CREATE TABLE tp;
-SHOW CREATE TABLE tsp;
-
---sorted_result
-SELECT * FROM t_10;
---sorted_result
-SELECT * FROM t_100;
---sorted_result
-SELECT * FROM t_1000;
---sorted_result
-SELECT * FROM tp;
---sorted_result
-SELECT * FROM tp WHERE a< 10;
---sorted_result
-SELECT * FROM tp WHERE a BETWEEN 11 AND 100;
---sorted_result
-SELECT * FROM tp WHERE a BETWEEN 101 AND 200;
---sorted_result
-SELECT * FROM tsp;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE tsp_01(a INT,b VARCHAR(55),PRIMARY KEY (a)) ENGINE = $engine_table $data_directory $index_directory AS SELECT a, b FROM t_10 WHERE MOD(a,5)= 1;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE tsp_02(a INT,b VARCHAR(55),PRIMARY KEY (a)) ENGINE = $engine_table $data_directory $index_directory AS SELECT a, b FROM t_10 WHERE MOD(a,5)= 2;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE tsp_03(a INT,b VARCHAR(55),PRIMARY KEY (a)) ENGINE = $engine_table $data_directory $index_directory AS SELECT a, b FROM t_10 WHERE MOD(a,5)= 3;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE tsp_04(a INT,b VARCHAR(55),PRIMARY KEY (a)) ENGINE = $engine_table $data_directory $index_directory AS SELECT a, b FROM t_10 WHERE MOD(a,5)= 4;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval CREATE TABLE tsp_00(a INT,b VARCHAR(55),PRIMARY KEY (a)) ENGINE = $engine_table $data_directory $index_directory AS SELECT a, b FROM t_10 WHERE MOD(a,5)= 0;

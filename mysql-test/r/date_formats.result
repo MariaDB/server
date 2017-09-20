@@ -558,3 +558,18 @@ SET NAMES latin1;
 #
 # End of 5.1 tests
 #
+select time_format('2001-01-01 02:02:02', '%d.%m.%Y');
+time_format('2001-01-01 02:02:02', '%d.%m.%Y')
+NULL
+select time_format('2001-01-01 02:02:02', '%d %T');
+time_format('2001-01-01 02:02:02', '%d %T')
+NULL
+select time_format('01 02:02:02', '%d %T');
+time_format('01 02:02:02', '%d %T')
+NULL
+select time_format('01 02:02:02', '%T');
+time_format('01 02:02:02', '%T')
+26:02:02
+select time_format('2001-01-01 02:02:02', '%T');
+time_format('2001-01-01 02:02:02', '%T')
+02:02:02

@@ -982,6 +982,7 @@ trx_sys_close(void)
 
 /*********************************************************************
 Check if there are any active (non-prepared) transactions.
+This is only used to check if it's safe to shutdown.
 @return total number of active transactions or 0 if none */
 ulint
 trx_sys_any_active_transactions(void)
@@ -991,8 +992,13 @@ trx_sys_any_active_transactions(void)
 
 	trx_sys_mutex_enter();
 
-	total_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list)
-		  + UT_LIST_GET_LEN(trx_sys->mysql_trx_list);
+	total_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list);
+
+	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
+	     trx != NULL;
+	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
+		total_trx += trx->state != TRX_STATE_NOT_STARTED;
+	}
 
 	ut_a(total_trx >= trx_sys->n_prepared_trx);
 	total_trx -= trx_sys->n_prepared_trx;

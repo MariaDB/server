@@ -72,11 +72,11 @@ TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
 CATFUNC=Columns;
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
-NULL	MTR	T1	A	3	DECIMAL	38	40	0	10	1	NULL
-NULL	MTR	T1	B	6	NUMBER	38	40	NULL	NULL	1	NULL
-NULL	MTR	T2	A	12	VARCHAR2	64	64	NULL	NULL	1	NULL
-NULL	MTR	V1	A	3	DECIMAL	38	40	0	10	1	NULL
-NULL	MTR	V1	B	6	NUMBER	38	40	NULL	NULL	1	NULL
+	MTR	T1	A	3	DECIMAL	38	40	0	10	1	
+	MTR	T1	B	6	NUMBER	38	40	NULL	NULL	1	
+	MTR	T2	A	12	VARCHAR2	64	64	NULL	NULL	1	
+	MTR	V1	A	3	DECIMAL	38	40	0	10	1	
+	MTR	V1	B	6	NUMBER	38	40	NULL	NULL	1	
 DROP TABLE t1;
 # All columns in all schemas (limited with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
@@ -84,18 +84,18 @@ TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
 CATFUNC=Columns TABNAME='%.%';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
-NULL	MTR	T1	A	3	DECIMAL	38	40	0	10	1	NULL
-NULL	MTR	T1	B	6	NUMBER	38	40	NULL	NULL	1	NULL
-NULL	MTR	T2	A	12	VARCHAR2	64	64	NULL	NULL	1	NULL
-NULL	MTR	V1	A	3	DECIMAL	38	40	0	10	1	NULL
-NULL	MTR	V1	B	6	NUMBER	38	40	NULL	NULL	1	NULL
+	MTR	T1	A	3	DECIMAL	38	40	0	10	1	
+	MTR	T1	B	6	NUMBER	38	40	NULL	NULL	1	
+	MTR	T2	A	12	VARCHAR2	64	64	NULL	NULL	1	
+	MTR	V1	A	3	DECIMAL	38	40	0	10	1	
+	MTR	V1	B	6	NUMBER	38	40	NULL	NULL	1	
 DROP TABLE t1;
 # All tables "T1" in all schemas (limited with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.T1';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
-NULL	MTR	T1	A	3	DECIMAL	38	40	0	10	1	NULL
-NULL	MTR	T1	B	6	NUMBER	38	40	NULL	NULL	1	NULL
+	MTR	T1	A	3	DECIMAL	38	40	0	10	1	
+	MTR	T1	B	6	NUMBER	38	40	NULL	NULL	1	
 DROP TABLE t1;
 # Table "T1" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
@@ -103,8 +103,8 @@ TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
 CATFUNC=Columns TABNAME='MTR.T1';
 SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
-NULL	MTR	T1	A	3	DECIMAL	38	40	0	10	1	NULL
-NULL	MTR	T1	B	6	NUMBER	38	40	NULL	NULL	1	NULL
+	MTR	T1	A	3	DECIMAL	38	40	0	10	1	
+	MTR	T1	B	6	NUMBER	38	40	NULL	NULL	1	
 DROP TABLE t1;
 # All tables "T1" in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
@@ -112,8 +112,8 @@ TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
 CATFUNC=Columns TABNAME='%.T1';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
-NULL	MTR	T1	A	3	DECIMAL	38	40	0	10	1	NULL
-NULL	MTR	T1	B	6	NUMBER	38	40	NULL	NULL	1	NULL
+	MTR	T1	A	3	DECIMAL	38	40	0	10	1	
+	MTR	T1	B	6	NUMBER	38	40	NULL	NULL	1	
 DROP TABLE t1;
 #
 # Checking tables

@@ -69,6 +69,7 @@ class MYSQLDEF : public EXTDEF           {/* Logical table description */
 /***********************************************************************/
 class TDBMYSQL : public TDBEXT {
   friend class MYSQLCOL;
+	friend class TDBTBM;
  public:
   // Constructor
   TDBMYSQL(PMYDEF tdp);

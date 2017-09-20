@@ -176,7 +176,8 @@ PageBulk::insert(
 	if (!page_rec_is_infimum(m_cur_rec)) {
 		rec_t*	old_rec = m_cur_rec;
 		ulint*	old_offsets = rec_get_offsets(
-			old_rec, m_index, NULL,	ULINT_UNDEFINED, &m_heap);
+			old_rec, m_index, NULL,	page_rec_is_leaf(old_rec),
+			ULINT_UNDEFINED, &m_heap);
 
 		ut_ad(cmp_rec_rec(rec, old_rec, offsets, old_offsets, m_index)
 		      > 0);
@@ -377,9 +378,9 @@ PageBulk::getSplitRec()
 		rec = page_rec_get_next(rec);
 		ut_ad(page_rec_is_user_rec(rec));
 
-		offsets = rec_get_offsets(rec, m_index,
-					  offsets, ULINT_UNDEFINED,
-					  &(m_heap));
+		offsets = rec_get_offsets(rec, m_index, offsets,
+					  page_is_leaf(m_page),
+					  ULINT_UNDEFINED, &m_heap);
 		total_recs_size += rec_offs_size(offsets);
 		n_recs++;
 	} while (total_recs_size + page_dir_calc_reserved_space(n_recs)
@@ -409,7 +410,8 @@ PageBulk::copyIn(
 
 	do {
 		offsets = rec_get_offsets(rec, m_index, offsets,
-					  ULINT_UNDEFINED, &(m_heap));
+					  page_rec_is_leaf(split_rec),
+					  ULINT_UNDEFINED, &m_heap);
 
 		insert(rec, offsets);
 
@@ -449,18 +451,18 @@ PageBulk::copyOut(
 	/* Set last record's next in page */
 	ulint*		offsets = NULL;
 	rec = page_rec_get_prev(split_rec);
-	offsets = rec_get_offsets(rec, m_index,
-				  offsets, ULINT_UNDEFINED,
-				  &(m_heap));
+	offsets = rec_get_offsets(rec, m_index, offsets,
+				  page_rec_is_leaf(split_rec),
+				  ULINT_UNDEFINED, &m_heap);
 	page_rec_set_next(rec, page_get_supremum_rec(m_page));
 
 	/* Set related members */
 	m_cur_rec = rec;
 	m_heap_top = rec_get_end(rec, offsets);
 
-	offsets = rec_get_offsets(last_rec, m_index,
-				  offsets, ULINT_UNDEFINED,
-				  &(m_heap));
+	offsets = rec_get_offsets(last_rec, m_index, offsets,
+				  page_rec_is_leaf(split_rec),
+				  ULINT_UNDEFINED, &m_heap);
 
 	m_free_space += rec_get_end(last_rec, offsets)
 		- m_heap_top
@@ -876,8 +878,8 @@ BtrBulk::insert(
 	/* Convert tuple to rec. */
         rec = rec_convert_dtuple_to_rec(static_cast<byte*>(mem_heap_alloc(
 		page_bulk->m_heap, rec_size)), m_index, tuple, n_ext);
-        offsets = rec_get_offsets(rec, m_index, offsets, ULINT_UNDEFINED,
-		&(page_bulk->m_heap));
+        offsets = rec_get_offsets(rec, m_index, offsets, !level,
+				  ULINT_UNDEFINED, &page_bulk->m_heap);
 
 	page_bulk->insert(rec, offsets);
 

@@ -1647,7 +1647,7 @@ mdl_lock_init()
   }
 }
 
-#ifndef DBUF_OFF
+#ifndef DBUG_OFF
 /* Test  that table is really locked, if lock_ddl_per_table is set.
    The test is executed in DBUG_EXECUTE_IF block inside mdl_lock_table().
 */

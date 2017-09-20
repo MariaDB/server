@@ -237,3 +237,15 @@ DROP DATABASE x;
 CREATE TABLE test.t1(id INT(11)) ENGINE MYISAM
 DATA DIRECTORY "MYSQLTEST_VARDIR/tmp";
 DROP TABLE test.t1;
+use test;
+create table t1(c1 int, c2 int, c3 varchar(100)) engine=MyISAM data directory='MYSQL_TMP_DIR' index directory = 'MYSQL_TMP_DIR';
+insert t1 values (1,2,3), (2,3,4), (3,4,5), (4,5,6), (5,6,7), (6,7,8), (7,8,9);
+alter online table t1 delay_key_write=1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` varchar(100) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 DATA DIRECTORY='MYSQL_TMP_DIR/' INDEX DIRECTORY='MYSQL_TMP_DIR/'
+drop table t1;

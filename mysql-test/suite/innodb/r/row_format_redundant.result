@@ -67,7 +67,7 @@ SELECT COUNT(*) FROM t3;
 COUNT(*)
 0
 RENAME TABLE t1 TO tee_one;
-ERROR HY000: Error on rename of './test/t1' to './test/tee_one' (errno: 155 "The table does not exist in engine")
+ERROR HY000: Error on rename of './test/t1' to './test/tee_one' (errno: 155 "The table does not exist in the storage engine")
 DROP TABLE t1;
 Warnings:
 Warning	1932	Table 'test.t1' doesn't exist in engine

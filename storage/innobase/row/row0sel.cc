@@ -197,9 +197,9 @@ row_sel_sec_rec_is_for_clust_rec(
 	heap = mem_heap_create(256);
 
 	clust_offs = rec_get_offsets(clust_rec, clust_index, clust_offs,
-				     ULINT_UNDEFINED, &heap);
+				     true, ULINT_UNDEFINED, &heap);
 	sec_offs = rec_get_offsets(sec_rec, sec_index, sec_offs,
-				   ULINT_UNDEFINED, &heap);
+				   true, ULINT_UNDEFINED, &heap);
 
 	n = dict_index_get_n_ordering_defined_by_user(sec_index);
 
@@ -904,7 +904,7 @@ row_sel_get_clust_rec(
 
 	offsets = rec_get_offsets(rec,
 				  btr_pcur_get_btr_cur(&plan->pcur)->index,
-				  offsets, ULINT_UNDEFINED, &heap);
+				  offsets, true, ULINT_UNDEFINED, &heap);
 
 	row_build_row_ref_fast(plan->clust_ref, plan->clust_map, rec, offsets);
 
@@ -939,7 +939,7 @@ row_sel_get_clust_rec(
 		goto func_exit;
 	}
 
-	offsets = rec_get_offsets(clust_rec, index, offsets,
+	offsets = rec_get_offsets(clust_rec, index, offsets, true,
 				  ULINT_UNDEFINED, &heap);
 
 	if (!node->read_view) {
@@ -1158,7 +1158,7 @@ re_scan:
 
 		rec = btr_pcur_get_rec(pcur);
 		my_offsets = offsets_;
-		my_offsets = rec_get_offsets(rec, index, my_offsets,
+		my_offsets = rec_get_offsets(rec, index, my_offsets, true,
 					     ULINT_UNDEFINED, &heap);
 
 		/* No match record */
@@ -1181,8 +1181,8 @@ re_scan:
 		rtr_rec_t*	rtr_rec = &(*it);
 
 		my_offsets = rec_get_offsets(
-				rtr_rec->r_rec, index, my_offsets,
-				ULINT_UNDEFINED, &heap);
+			rtr_rec->r_rec, index, my_offsets, true,
+			ULINT_UNDEFINED, &heap);
 
 		err = lock_sec_rec_read_check_and_lock(
 			0, &match->block, rtr_rec->r_rec, index,
@@ -1196,11 +1196,9 @@ re_scan:
 		} else {
 			goto func_end;
 		}
-
 	}
 
 	match->locked = true;
-
 
 func_end:
 	rw_lock_x_unlock(&(match->block.lock));
@@ -1510,7 +1508,8 @@ row_sel_try_search_shortcut(
 	/* This is a non-locking consistent read: if necessary, fetch
 	a previous version of the record */
 
-	offsets = rec_get_offsets(rec, index, offsets, ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, true,
+				  ULINT_UNDEFINED, &heap);
 
 	if (dict_index_is_clust(index)) {
 		if (!lock_clust_rec_cons_read_sees(rec, index, offsets,
@@ -1768,6 +1767,7 @@ rec_loop:
 			trx = thr_get_trx(thr);
 
 			offsets = rec_get_offsets(next_rec, index, offsets,
+						  true,
 						  ULINT_UNDEFINED, &heap);
 
 			/* If innodb_locks_unsafe_for_binlog option is used
@@ -1826,7 +1826,7 @@ skip_lock:
 		ulint	lock_type;
 		trx_t*	trx;
 
-		offsets = rec_get_offsets(rec, index, offsets,
+		offsets = rec_get_offsets(rec, index, offsets, true,
 					  ULINT_UNDEFINED, &heap);
 
 		trx = thr_get_trx(thr);
@@ -1913,7 +1913,8 @@ skip_lock:
 	/* PHASE 3: Get previous version in a consistent read */
 
 	cons_read_requires_clust_rec = FALSE;
-	offsets = rec_get_offsets(rec, index, offsets, ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, true,
+				  ULINT_UNDEFINED, &heap);
 
 	if (consistent_read) {
 		/* This is a non-locking consistent read: if necessary, fetch
@@ -1943,7 +1944,7 @@ skip_lock:
 					exhausted. */
 
 					offsets = rec_get_offsets(
-						rec, index, offsets,
+						rec, index, offsets, true,
 						ULINT_UNDEFINED, &heap);
 
 					/* Fetch the columns needed in
@@ -3457,7 +3458,7 @@ row_sel_get_clust_rec_for_mysql(
 		goto func_exit;
 	}
 
-	*offsets = rec_get_offsets(clust_rec, clust_index, *offsets,
+	*offsets = rec_get_offsets(clust_rec, clust_index, *offsets, true,
 				   ULINT_UNDEFINED, offset_heap);
 
 	if (prebuilt->select_lock_type != LOCK_NONE) {
@@ -3901,7 +3902,7 @@ row_sel_try_search_shortcut_for_mysql(
 	/* This is a non-locking consistent read: if necessary, fetch
 	a previous version of the record */
 
-	*offsets = rec_get_offsets(rec, index, *offsets,
+	*offsets = rec_get_offsets(rec, index, *offsets, true,
 				   ULINT_UNDEFINED, heap);
 
 	if (!lock_clust_rec_cons_read_sees(
@@ -4031,8 +4032,9 @@ row_sel_fill_vrow(
 	rec_offs_init(offsets_);
 
 	ut_ad(!(*vrow));
+	ut_ad(page_rec_is_leaf(rec));
 
-	offsets = rec_get_offsets(rec, index, offsets,
+	offsets = rec_get_offsets(rec, index, offsets, true,
 				  ULINT_UNDEFINED, &heap);
 
 	*vrow = dtuple_create_with_vcol(
@@ -4585,6 +4587,7 @@ wait_table_again:
 		pcur->trx_if_known = trx;
 
 		rec = btr_pcur_get_rec(pcur);
+		ut_ad(page_rec_is_leaf(rec));
 
 		if (!moves_up
 		    && !page_rec_is_supremum(rec)
@@ -4599,6 +4602,7 @@ wait_table_again:
 			const rec_t*	next_rec = page_rec_get_next_const(rec);
 
 			offsets = rec_get_offsets(next_rec, index, offsets,
+						  true,
 						  ULINT_UNDEFINED, &heap);
 			err = sel_set_rec_lock(pcur,
 					       next_rec, index, offsets,
@@ -4656,6 +4660,7 @@ rec_loop:
 	}
 
 	ut_ad(!!page_rec_is_comp(rec) == comp);
+	ut_ad(page_rec_is_leaf(rec));
 
 	if (page_rec_is_infimum(rec)) {
 
@@ -4681,7 +4686,7 @@ rec_loop:
 			level we do not lock gaps. Supremum record is really
 			a gap and therefore we do not set locks there. */
 
-			offsets = rec_get_offsets(rec, index, offsets,
+			offsets = rec_get_offsets(rec, index, offsets, true,
 						  ULINT_UNDEFINED, &heap);
 			err = sel_set_rec_lock(pcur,
 					       rec, index, offsets,
@@ -4771,7 +4776,8 @@ wrong_offs:
 	ut_ad(fil_page_index_page_check(btr_pcur_get_page(pcur)));
 	ut_ad(btr_page_get_index_id(btr_pcur_get_page(pcur)) == index->id);
 
-	offsets = rec_get_offsets(rec, index, offsets, ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, true,
+				  ULINT_UNDEFINED, &heap);
 
 	if (UNIV_UNLIKELY(srv_force_recovery > 0)) {
 		if (!rec_validate(rec, offsets)
@@ -4992,8 +4998,8 @@ no_gap_lock:
 				Do a normal locking read. */
 
 				offsets = rec_get_offsets(
-					rec, index, offsets, ULINT_UNDEFINED,
-					&heap);
+					rec, index, offsets, true,
+					ULINT_UNDEFINED, &heap);
 				goto locks_ok;
 			case DB_DEADLOCK:
 				goto lock_wait_or_error;
@@ -5432,6 +5438,7 @@ requires_clust_rec:
 				/* We used 'offsets' for the clust
 				rec, recalculate them for 'rec' */
 				offsets = rec_get_offsets(rec, index, offsets,
+							  true,
 							  ULINT_UNDEFINED,
 							  &heap);
 				result_rec = rec;
@@ -5929,8 +5936,10 @@ row_search_autoinc_read_column(
 	ulint*		offsets	= offsets_;
 
 	rec_offs_init(offsets_);
+	ut_ad(page_rec_is_leaf(rec));
 
-	offsets = rec_get_offsets(rec, index, offsets, col_no + 1, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, true,
+				  col_no + 1, &heap);
 
 	if (rec_offs_nth_sql_null(offsets, col_no)) {
 		/* There is no non-NULL value in the auto-increment column. */

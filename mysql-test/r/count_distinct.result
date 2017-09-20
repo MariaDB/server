@@ -106,3 +106,28 @@ count(distinct user_id)
 17
 drop table t1;
 set @@tmp_table_size = default;
+create table t1 (
+a VARCHAR(1020),
+b int
+);
+insert into t1 values
+( 0 , 1 ),
+( 1 , 2 ),
+( 2 , 3 ),
+( 3 , 4 ),
+( 4 , 5 ),
+( 5 , 6 ),
+( 6 , 7 ),
+( 7 , 8 ),
+( 8 , 9 ),
+( 9 , 10 ),
+( 0 , 11 ),
+( 1 , 12 ),
+( 2 , 13 ),
+( 3 , 14 );
+set @@tmp_table_size=1024;
+select count(distinct a) from t1;
+count(distinct a)
+10
+drop table t1;
+set @@tmp_table_size = default;

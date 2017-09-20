@@ -223,5 +223,21 @@ SELECT * FROM non_existent;
 ERROR 42S02: Table 'test.non_existent' doesn't exist
 SET lc_time_names=@old_50915_lc_time_names;
 #
-# End of 5.6 tests
+# End of 10.0 tests
+#
+#
+# End of 10.1 tests
+#
+create view v1 as select
+format(123456789,2) as b,
+format(123456789,2,'rm_CH') as b1;
+select * from v1;
+b	b1
+123,456,789.00	123'456'789,00
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select format(123456789,2) AS `b`,format(123456789,2,'rm_CH') AS `b1`	utf8	utf8_general_ci
+drop view v1;
+#
+# End of 10.2 tests
 #

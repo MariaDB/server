@@ -1880,10 +1880,6 @@ public:
 
   // Add non-unique, non-primary index
   static const HA_ALTER_FLAGS ADD_INDEX                  = 1ULL << 0;
-  //
-  // Adds a spatial index. At the moment all engines treat it
-  // identically to the ADD_INDEX, so it gets the same code
-  static const HA_ALTER_FLAGS ADD_SPATIAL_INDEX          = ADD_INDEX;
 
   // Drop non-unique, non-primary index
   static const HA_ALTER_FLAGS DROP_INDEX                 = 1ULL << 1;
