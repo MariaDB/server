@@ -194,18 +194,6 @@ dict_col_set_mbminmaxlen(
 					character size, in bytes */
 	MY_ATTRIBUTE((nonnull));
 
-
-/*********************************************************************//**
-Sets default value of added columns  */
-UNIV_INLINE
-void
-dict_col_set_added_column_default(
-/*===============*/
-	dict_col_t*		col,			/*!< in/out: column */
-	const	byte*	def_val,		/*!< in: pointer of default value */
-	ulint			def_val_len,	/*!< in: length of default value */
-	mem_heap_t*		heap );			/*!< in: mem_heap_t for default value in col */
-
 /*********************************************************************//**
 Gets the column data type. */
 UNIV_INLINE

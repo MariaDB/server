@@ -505,7 +505,7 @@ computers! */
 
 #define UNIV_SQL_NULL ULINT32_UNDEFINED
 
-/** Flag for default value of instant added column */
+/** Special length indicating a missing instantly added column */
 #define UNIV_SQL_DEFAULT (UNIV_SQL_NULL - 1)
 
 /** Check the record whether store in the row */

@@ -260,40 +260,6 @@ dict_add_col_name(
 	return(res);
 }
 
-/****************************************************************//**
-Fake column default values for recovery*/
-UNIV_INTERN
-void
-dict_mem_table_fake_nth_col_default(
-/*==============*/
-	dict_table_t*	table,	/*!< in/out: table, set the default values 
-							for the nth columns */
-	ulint					pos,	/*!< in: the position of column in table */
-	mem_heap_t*		heap	/*!< in: mem_heap for default value */
-)
-{
-	ulint       fixed_size = 0;
-	ulint       def_val_len = 0;
-	dict_col_t*	col = NULL;
-
-	ut_ad(table->is_instant());
-
-	col = dict_table_get_nth_col(table, pos);
-	fixed_size = dict_col_get_fixed_size(col, dict_table_is_comp(table));
-
-	/* For non-fixed size columns, we fake one byte default value */
-	def_val_len = fixed_size ? fixed_size : 1;
-
-	col->def_val = (dict_col_def_t*)mem_heap_alloc(heap, sizeof(*col->def_val));
-	col->def_val->col = col;
-	col->def_val->def_val_len = def_val_len;
-	col->def_val->def_val = (unsigned char*)mem_heap_zalloc(heap, def_val_len + 1);
-
-	/* For string, we use space */
-	if(dtype_is_string_type(col->mtype)) 
-		memset(col->def_val->def_val, ' ', def_val_len);
-}
-
 /**********************************************************************//**
 Adds a column definition to a table. */
 void
@@ -656,6 +622,8 @@ dict_mem_fill_column_struct(
 	column->mtype = (unsigned int) mtype;
 	column->prtype = (unsigned int) prtype;
 	column->len = (unsigned int) col_len;
+	column->def_val.data = NULL;
+	column->def_val.len = UNIV_SQL_DEFAULT;
 
 	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
 	dict_col_set_mbminmaxlen(column, mbminlen, mbmaxlen);

@@ -74,28 +74,6 @@ dict_col_set_mbminmaxlen(
 }
 
 /*********************************************************************//**
-Sets default value of added columns  */
-UNIV_INLINE
-void
-dict_col_set_added_column_default(
-	dict_col_t*		col,		/*!< in: column */
-	const byte*		def_val,	/*!< in: default value */
-	ulint			def_val_len,	/*!< in: the length of default value */
-	mem_heap_t*		heap )		/*!< in: memory heap for dict object */
-{
-	ut_a(col);
-	
-	col->def_val = (dict_col_def_t*)mem_heap_alloc(heap, sizeof(*col->def_val));
-	col->def_val->col = col;
-	col->def_val->def_val_len = def_val_len;
-	if (def_val) {
-		col->def_val->def_val = (byte*)mem_heap_strdupl(heap, (char*)def_val, def_val_len);
-	} else {
-		col->def_val->def_val = NULL;
-	}
-}
-
-/*********************************************************************//**
 Gets the column data type. */
 UNIV_INLINE
 void
@@ -1314,9 +1292,9 @@ dict_index_get_nth_field_def(const dict_index_t* index, uint pos, ulint* len)
 	ut_ad(dict_index_is_clust(index));
 
 	const dict_col_t*       col = dict_index_get_nth_col(index, pos);
-	ut_ad(col->def_val);
-	*len = col->def_val->def_val_len;
-	return(col->def_val->def_val);
+	ut_ad(col->def_val.len != UNIV_SQL_DEFAULT);
+	*len = col->def_val.len;
+	return(col->def_val.data);
 }
 
 /********************************************************************//**

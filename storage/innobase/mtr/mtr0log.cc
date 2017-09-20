@@ -609,13 +609,6 @@ mlog_parse_index(
 				len & 0x8000 ? DATA_NOT_NULL : 0,
 				len & 0x7fff);
 
-			if (n_core_fields > 0 && n_core_fields <= i) {
-
-				/* For recovery, it does not need the true default values.
-					We fake it!*/
-				dict_mem_table_fake_nth_col_default(table, i, table->heap);
-			}
-
 			dict_index_add_col(ind, table,
 					   dict_table_get_nth_col(table, i),
 					   0);

@@ -336,16 +336,6 @@ void
 dict_mem_table_free(
 /*================*/
 	dict_table_t*	table);		/*!< in: table */
-/**********************************************************************//**
-Fake column default values for recovery */
-void
-dict_mem_table_fake_nth_col_default(
-/*================*/
-	dict_table_t*			table,	/*!< in/out: table, set the default values 
-									for the nth columns */
-	ulint					pos,	/*!< in: the position of column in table */
-	mem_heap_t*				heap	/*!< in: mem_heap for default value */
-);
 /****************************************************************//**
 Adds a column definition to a table. */
 void
@@ -585,13 +575,6 @@ struct table_name_t
 	char*	m_name;
 };
 
-/** Data structure for a column added default value */
-struct dict_col_def_t {
-	dict_col_t*		col;
-	byte*			def_val;
-	unsigned		def_val_len;
-};
-
 /** Data structure for a column in a table */
 struct dict_col_t{
 	/*----------------------*/
@@ -637,7 +620,13 @@ struct dict_col_t{
 					3072 (REC_VERSION_56_MAX_INDEX_COL_LEN)
 					bytes. */
 
-	dict_col_def_t*	def_val;/*!< default value of added columns */
+	/** Data for instantly added columns */
+	struct {
+		/** original default value of instantly added column */
+		const byte*	data;
+		/** len of data, or UNIV_SQL_DEFAULT if unavailable */
+		unsigned	len;
+	} def_val;
 
 	/** Retrieve the column name.
 	@param[in]	table	table name */
