@@ -522,9 +522,13 @@ wait_for_listen()
     local PORT=$1
     local ADDR=$2
     local MODULE=$3
+    if ! which lsof > /dev/null; then
+       wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
+       exit 1 
+    fi
     for i in {1..50}
     do
-        ss -p state listening "( sport = :$PORT )" | grep -qE 'socat|nc' && break
+        lsof -i :$PORT | grep LISTEN | grep -qE 'socat|nc' && break
         sleep 0.2
     done
     echo "ready ${ADDR}/${MODULE}//$sst_ver"
