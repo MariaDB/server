@@ -589,7 +589,7 @@ rec_get_offsets_func(
 		infimum and supremum record based on the heap number. */
 		ut_d(const bool is_user_rec = rec_get_heap_no_old(rec)
 		     >= PAGE_HEAP_NO_USER_LOW);
-		ut_ad(n <= index->n_fields + !leaf || index->is_dummy
+		ut_ad(n <= ulint(index->n_fields + !leaf) || index->is_dummy
 		      || dict_index_is_ibuf(index));
 		/* The infimum and supremum records carry 1 field. */
 		ut_ad(is_user_rec || n == 1);
