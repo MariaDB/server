@@ -1556,11 +1556,13 @@ The fields are copied into the memory heap.
 @param[in]	n_fields	number of fields to copy
 @param[in,out]	heap		memory heap */
 void
-rec_copy_prefix_to_dtuple(
+rec_copy_prefix_to_dtuple_func(
 	dtuple_t*		tuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
+#ifdef UNIV_DEBUG
 	bool			is_leaf,
+#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {

@@ -1352,7 +1352,7 @@ rtr_cur_restore_position(
 
 	heap = mem_heap_create(256);
 
-	tuple = dict_index_build_data_tuple(index, r_cursor->old_rec,
+	tuple = dict_index_build_data_tuple(r_cursor->old_rec, index, !level,
 					    r_cursor->old_n_fields, heap);
 
 	page_cursor = btr_pcur_get_page_cur(r_cursor);

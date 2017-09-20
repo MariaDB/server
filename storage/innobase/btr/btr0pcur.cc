@@ -331,7 +331,7 @@ btr_pcur_restore_position_func(
 
 	heap = mem_heap_create(256);
 
-	tuple = dict_index_build_data_tuple(index, cursor->old_rec,
+	tuple = dict_index_build_data_tuple(cursor->old_rec, index, true,
 					    cursor->old_n_fields, heap);
 
 	/* Save the old search mode of the cursor */
