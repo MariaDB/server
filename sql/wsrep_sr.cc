@@ -237,6 +237,7 @@ bool SR_pool::remove(THD* caller, THD *victim, bool persistent)
   }
   if (mysql_mutex_unlock (&LOCK_wsrep_SR_pool)) abort();
   return (ret);
+  }
 }
 
 void SR_pool::trimToNodes (THD* caller, const wsrep_member_info_t nodes[], int nodeCount)
