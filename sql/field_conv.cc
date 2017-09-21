@@ -419,11 +419,8 @@ void Field::do_field_decimal(Copy_field *copy)
 
 void Field::do_field_timestamp(Copy_field *copy)
 {
-  Field_timestamp *f= static_cast<Field_timestamp*>(copy->from_field);
-  Field_timestamp *t= static_cast<Field_timestamp*>(copy->to_field);
-  ulong sec_part;
-  my_time_t ts= f->get_timestamp(&sec_part);
-  t->store_TIME(ts, sec_part);
+  // XXX why couldn't we do it everywhere?
+  copy->from_field->save_in_field(copy->to_field);
 }
 
 

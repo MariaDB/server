@@ -1808,6 +1808,33 @@ int Field::store(const char *to, uint length, CHARSET_INFO *cs,
 }
 
 
+static int timestamp_to_TIME(THD *thd, MYSQL_TIME *ltime, my_time_t ts,
+                             ulong sec_part, ulonglong fuzzydate)
+{
+  thd->time_zone_used= 1;
+  if (ts == 0 && sec_part == 0)
+  {
+    if (fuzzydate & TIME_NO_ZERO_DATE)
+      return 1;
+    set_zero_time(ltime, MYSQL_TIMESTAMP_DATETIME);
+  }
+  else
+  {
+    thd->variables.time_zone->gmt_sec_to_TIME(ltime, ts);
+    ltime->second_part= sec_part;
+  }
+  return 0;
+}
+
+
+int Field::store_timestamp(my_time_t ts, ulong sec_part)
+{
+  MYSQL_TIME ltime;
+  THD *thd= get_thd();
+  timestamp_to_TIME(thd, &ltime, ts, sec_part, 0);
+  return store_time_dec(&ltime, decimals());
+}
+
 /**
    Pack the field into a format suitable for storage and transfer.
 
@@ -4966,6 +4993,13 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
 }
 
 
+int Field_timestamp::save_in_field(Field *to)
+{
+  ulong sec_part;
+  my_time_t ts= get_timestamp(&sec_part);
+  return to->store_timestamp(ts, sec_part);
+}
+
 my_time_t Field_timestamp::get_timestamp(const uchar *pos,
                                          ulong *sec_part) const
 {
@@ -5092,6 +5126,22 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
 }
 
 
+int Field_timestamp::store_timestamp(my_time_t ts, ulong sec_part)
+{
+  store_TIME(ts, sec_part);
+  if (ts == 0 && sec_part == 0 &&
+      get_thd()->variables.sql_mode & TIME_NO_ZERO_DATE)
+  {
+    ErrConvString s(
+      STRING_WITH_LEN("0000-00-00 00:00:00.000000") - (decimals() ? 6 - decimals() : 7),
+      system_charset_info);
+    set_datetime_warning(WARN_DATA_TRUNCATED, &s, MYSQL_TIMESTAMP_DATETIME, 1);
+    return 1;
+  }
+  return 0;
+}
+
+
 double Field_timestamp::val_real(void)
 {
   return (double) Field_timestamp::val_int();
@@ -5195,22 +5245,9 @@ Field_timestamp::validate_value_in_record(THD *thd, const uchar *record) const
 
 bool Field_timestamp::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
-  THD *thd= get_thd();
-  thd->time_zone_used= 1;
   ulong sec_part;
-  my_time_t temp= get_timestamp(&sec_part);
-  if (temp == 0 && sec_part == 0)
-  {				      /* Zero time is "000000" */
-    if (fuzzydate & TIME_NO_ZERO_DATE)
-      return 1;
-    set_zero_time(ltime, MYSQL_TIMESTAMP_DATETIME);
-  }
-  else
-  {
-    thd->variables.time_zone->gmt_sec_to_TIME(ltime, (my_time_t)temp);
-    ltime->second_part= sec_part;
-  }
-  return 0;
+  my_time_t ts= get_timestamp(&sec_part);
+  return timestamp_to_TIME(get_thd(), ltime, ts, sec_part, fuzzydate);
 }
 
 

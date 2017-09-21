@@ -842,6 +842,7 @@ public:
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
   virtual int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  virtual int  store_timestamp(my_time_t timestamp, ulong sec_part);
   int store_time(MYSQL_TIME *ltime)
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, uint length, CHARSET_INFO *cs,
@@ -2395,6 +2396,8 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
+  int  store_timestamp(my_time_t timestamp, ulong sec_part);
+  int  save_in_field(Field *to);
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
