@@ -2807,19 +2807,26 @@ page_find_rec_max_not_deleted(
 	const rec_t*	rec = page_get_infimum_rec(page);
 	const rec_t*	prev_rec = NULL; // remove warning
 
-	/* Because the page infimum is never delete-marked,
+	/* Because the page infimum is never delete-marked
+	and never the 'default row' pseudo-record (MIN_REC_FLAG)),
 	prev_rec will always be assigned to it first. */
-	ut_ad(!rec_get_deleted_flag(rec, page_rec_is_comp(rec)));
+	ut_ad(!rec_get_info_bits(rec, page_rec_is_comp(rec)));
+	ut_ad(page_is_leaf(page));
+
 	if (page_is_comp(page)) {
 		do {
-			if (!rec_get_deleted_flag(rec, true)) {
+			if (!(rec[-REC_NEW_INFO_BITS]
+			      & (REC_INFO_DELETED_FLAG
+				 | REC_INFO_MIN_REC_FLAG))) {
 				prev_rec = rec;
 			}
 			rec = page_rec_get_next_low(rec, true);
 		} while (rec != page + PAGE_NEW_SUPREMUM);
 	} else {
 		do {
-			if (!rec_get_deleted_flag(rec, false)) {
+			if (!(rec[-REC_OLD_INFO_BITS]
+			      & (REC_INFO_DELETED_FLAG
+				 | REC_INFO_MIN_REC_FLAG))) {
 				prev_rec = rec;
 			}
 			rec = page_rec_get_next_low(rec, false);

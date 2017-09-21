@@ -33,6 +33,7 @@ Created 5/30/1994 Heikki Tuuri
 #include "rem0types.h"
 #include "mtr0types.h"
 #include "page0types.h"
+#include "dict0dict.h"
 #include "trx0types.h"
 #endif /*! UNIV_INNOCHECKSUM */
 #include <ostream>
@@ -766,6 +767,21 @@ rec_offs_comp(const ulint* offsets)
 {
 	ut_ad(rec_offs_validate(NULL, NULL, offsets));
 	return(*rec_offs_base(offsets) & REC_OFFS_COMPACT);
+}
+
+/** Determine if the record is the 'default row' pseudo-record
+in the clustered index.
+@param[in]	rec	leaf page record
+@param[in]	index	index of the record
+@return	whether the record is the 'default row' pseudo-record */
+inline
+bool
+rec_is_default_row(const rec_t* rec, const dict_index_t* index)
+{
+	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
+		& REC_INFO_MIN_REC_FLAG;
+	ut_ad(!is || index->is_instant());
+	return is;
 }
 
 /******************************************************//**

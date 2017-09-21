@@ -1439,6 +1439,11 @@ IndexPurge::open() UNIV_NOTHROW
 
 	btr_pcur_open_at_index_side(
 		true, m_index, BTR_MODIFY_LEAF, &m_pcur, true, 0, &m_mtr);
+	if (rec_is_default_row(btr_pcur_get_rec(&m_pcur), m_index)) {
+		ut_ad(btr_pcur_is_on_user_rec(&m_pcur));
+		/* Skip the 'default row' pseudo-record. */
+		btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
+	}
 }
 
 /**
@@ -2319,7 +2324,14 @@ row_import_set_sys_max_row_id(
 	rec = btr_pcur_get_rec(&pcur);
 
 	/* Check for empty table. */
-	if (!page_rec_is_infimum(rec)) {
+	if (page_rec_is_infimum(rec)) {
+		/* The table is empty. */
+		err = DB_SUCCESS;
+	} else if (rec_is_default_row(rec, index)) {
+		/* The clustered index contains the 'default row',
+		that is, the table is empty. */
+		err = DB_SUCCESS;
+	} else {
 		ulint		len;
 		const byte*	field;
 		mem_heap_t*	heap = NULL;
@@ -2346,9 +2358,6 @@ row_import_set_sys_max_row_id(
 		if (heap != NULL) {
 			mem_heap_free(heap);
 		}
-	} else {
-		/* The table is empty. */
-		err = DB_SUCCESS;
 	}
 
 	btr_pcur_close(&pcur);

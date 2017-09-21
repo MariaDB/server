@@ -1492,6 +1492,15 @@ row_sel_try_search_shortcut(
 		return(SEL_RETRY);
 	}
 
+	if (rec_is_default_row(rec, index)) {
+		/* Skip the 'default row' pseudo-record. */
+		if (!btr_pcur_move_to_next_user_rec(&plan->pcur, mtr)) {
+			return(SEL_RETRY);
+		}
+
+		rec = btr_pcur_get_rec(&plan->pcur);
+	}
+
 	ut_ad(plan->mode == PAGE_CUR_GE);
 
 	/* As the cursor is now placed on a user record after a search with
@@ -1816,6 +1825,12 @@ skip_lock:
 
 		cost_counter++;
 
+		goto next_rec;
+	}
+
+	if (rec_is_default_row(rec, index)) {
+		/* Skip the 'default row' pseudo-record. */
+		cost_counter++;
 		goto next_rec;
 	}
 
@@ -3597,7 +3612,13 @@ sel_restore_position_for_mysql(
 	case BTR_PCUR_ON:
 		if (!success && moves_up) {
 next:
-			btr_pcur_move_to_next(pcur, mtr);
+			if (btr_pcur_move_to_next(pcur, mtr)
+			    && rec_is_default_row(
+				    btr_pcur_get_rec(pcur),
+				    pcur->btr_cur.page_cur.index)) {
+				btr_pcur_move_to_next(pcur, mtr);
+			}
+
 			return(TRUE);
 		}
 		return(!success);
@@ -3608,7 +3629,9 @@ next:
 		/* positioned to record after pcur->old_rec. */
 		pcur->pos_state = BTR_PCUR_IS_POSITIONED;
 prev:
-		if (btr_pcur_is_on_user_rec(pcur) && !moves_up) {
+		if (btr_pcur_is_on_user_rec(pcur) && !moves_up
+		    && !rec_is_default_row(btr_pcur_get_rec(pcur),
+					   pcur->btr_cur.page_cur.index)) {
 			btr_pcur_move_to_prev(pcur, mtr);
 		}
 		return(TRUE);
@@ -4716,12 +4739,24 @@ rec_loop:
 	corruption */
 
 	if (comp) {
+		if (rec_get_info_bits(rec, true) & REC_INFO_MIN_REC_FLAG) {
+			/* Skip the 'default row' pseudo-record. */
+			ut_ad(index->is_instant());
+			goto next_rec;
+		}
+
 		next_offs = rec_get_next_offs(rec, TRUE);
 		if (UNIV_UNLIKELY(next_offs < PAGE_NEW_SUPREMUM)) {
 
 			goto wrong_offs;
 		}
 	} else {
+		if (rec_get_info_bits(rec, false) & REC_INFO_MIN_REC_FLAG) {
+			/* Skip the 'default row' pseudo-record. */
+			ut_ad(index->is_instant());
+			goto next_rec;
+		}
+
 		next_offs = rec_get_next_offs(rec, FALSE);
 		if (UNIV_UNLIKELY(next_offs < PAGE_OLD_SUPREMUM)) {
 
@@ -5993,6 +6028,9 @@ row_search_get_max_rec(
 
 	btr_pcur_close(&pcur);
 
+	ut_ad(!rec
+	      || !(rec_get_info_bits(rec, dict_table_is_comp(index->table))
+		   & (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));
 	return(rec);
 }
 

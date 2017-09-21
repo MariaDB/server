@@ -26,7 +26,6 @@ Created 5/30/1994 Heikki Tuuri
 
 #include "mach0data.h"
 #include "ut0byte.h"
-#include "dict0dict.h"
 #include "dict0boot.h"
 #include "btr0types.h"
 

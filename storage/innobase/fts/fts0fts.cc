@@ -3599,6 +3599,8 @@ fts_get_max_doc_id(
 		return(0);
 	}
 
+	ut_ad(!index->is_instant());
+
 	dfield = dict_index_get_nth_field(index, 0);
 
 #if 0 /* This can fail when renaming a column to FTS_DOC_ID_COL_NAME. */
@@ -3633,6 +3635,7 @@ fts_get_max_doc_id(
 			goto func_exit;
 		}
 
+		ut_ad(!rec_is_default_row(rec, index));
 		offsets = rec_get_offsets(
 			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
 
