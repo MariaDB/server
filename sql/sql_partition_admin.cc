@@ -179,7 +179,8 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
 */
 static bool compare_table_with_partition(THD *thd, TABLE *table,
                                          TABLE *part_table,
-                                         partition_element *part_elem)
+                                         partition_element *part_elem,
+                                         uint part_id)
 {
   HA_CREATE_INFO table_create_info, part_create_info;
   Alter_info part_alter_info;
@@ -204,6 +205,7 @@ static bool compare_table_with_partition(THD *thd, TABLE *table,
   }
   /* db_type is not set in prepare_alter_table */
   part_create_info.db_type= part_table->part_info->default_engine_type;
+  ((ha_partition*)(part_table->file))->update_part_create_info(&part_create_info, part_id);
   /*
     Since we exchange the partition with the table, allow exchanging
     auto_increment value as well.
@@ -588,7 +590,8 @@ bool Sql_cmd_alter_table_exchange_partition::
     DBUG_RETURN(TRUE);
   }
 
-  if (compare_table_with_partition(thd, swap_table, part_table, part_elem))
+  if (compare_table_with_partition(thd, swap_table, part_table, part_elem,
+                                   swap_part_id))
     DBUG_RETURN(TRUE);
 
   /* Table and partition has same structure/options, OK to exchange */

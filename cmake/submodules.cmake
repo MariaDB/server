@@ -7,7 +7,7 @@ IF(GIT_EXECUTABLE AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
   IF(git_config_get_result EQUAL 128 OR cmake_update_submodules MATCHES no)
     SET(update_result 0)
   ELSEIF (cmake_update_submodules MATCHES force)
-    MESSAGE("-- Updating submodules (forced)")
+    MESSAGE(STATUS "Updating submodules (forced)")
     EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule update --init --force
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
                     RESULT_VARIABLE update_result)
@@ -16,7 +16,7 @@ IF(GIT_EXECUTABLE AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
                     RESULT_VARIABLE update_result)
   ELSE()
-    MESSAGE("-- Updating submodules")
+    MESSAGE(STATUS "Updating submodules")
     EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule update --init
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
                     RESULT_VARIABLE update_result)

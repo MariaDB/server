@@ -8215,7 +8215,7 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
 #ifdef HAVE_YASSL
 
 static char *
-my_asn1_time_to_string(ASN1_TIME *time, char *buf, size_t len)
+my_asn1_time_to_string(const ASN1_TIME *time, char *buf, size_t len)
 {
   return yaSSL_ASN1_TIME_to_string(time, buf, len);
 }
@@ -8223,7 +8223,7 @@ my_asn1_time_to_string(ASN1_TIME *time, char *buf, size_t len)
 #else /* openssl */
 
 static char *
-my_asn1_time_to_string(ASN1_TIME *time, char *buf, size_t len)
+my_asn1_time_to_string(const ASN1_TIME *time, char *buf, size_t len)
 {
   int n_read;
   char *res= NULL;
@@ -8271,7 +8271,7 @@ show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff,
   {
     SSL *ssl= (SSL*) thd->net.vio->ssl_arg;
     X509 *cert= SSL_get_certificate(ssl);
-    ASN1_TIME *not_before= X509_get_notBefore(cert);
+    const ASN1_TIME *not_before= X509_get0_notBefore(cert);
 
     var->value= my_asn1_time_to_string(not_before, buff,
                                        SHOW_VAR_FUNC_BUFF_SIZE);
@@ -8305,7 +8305,7 @@ show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff,
   {
     SSL *ssl= (SSL*) thd->net.vio->ssl_arg;
     X509 *cert= SSL_get_certificate(ssl);
-    ASN1_TIME *not_after= X509_get_notAfter(cert);
+    const ASN1_TIME *not_after= X509_get0_notAfter(cert);
 
     var->value= my_asn1_time_to_string(not_after, buff,
                                        SHOW_VAR_FUNC_BUFF_SIZE);

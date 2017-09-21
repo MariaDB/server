@@ -5654,7 +5654,7 @@ dict_index_build_node_ptr(
 
 	dtype_set(dfield_get_type(field), DATA_SYS_CHILD, DATA_NOT_NULL, 4);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, n_unique, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index, !level, n_unique, heap);
 	dtuple_set_info_bits(tuple, dtuple_get_info_bits(tuple)
 			     | REC_STATUS_NODE_PTR);
 
@@ -5686,7 +5686,7 @@ dict_index_copy_rec_order_prefix(
 		ut_a(!dict_table_is_comp(index->table));
 		n = rec_get_n_fields_old(rec);
 	} else {
-		if (page_is_leaf(page_align(rec))) {
+		if (page_rec_is_leaf(rec)) {
 			n = dict_index_get_n_unique_in_tree(index);
 		} else {
 			n = dict_index_get_n_unique_in_tree_nonleaf(index);
@@ -5703,16 +5703,22 @@ dict_index_copy_rec_order_prefix(
 	return(rec_copy_prefix_to_buf(rec, index, n, buf, buf_size));
 }
 
-/**********************************************************************//**
-Builds a typed data tuple out of a physical record.
+/** Convert a physical record into a search tuple.
+@param[in]	rec		index record (not necessarily in an index page)
+@param[in]	index		index
+@param[in]	leaf		whether rec is in a leaf page
+@param[in]	n_fields	number of data fields
+@param[in,out]	heap		memory heap for allocation
 @return own: data tuple */
 dtuple_t*
-dict_index_build_data_tuple(
-/*========================*/
-	dict_index_t*	index,	/*!< in: index tree */
-	rec_t*		rec,	/*!< in: record for which to build data tuple */
-	ulint		n_fields,/*!< in: number of data fields */
-	mem_heap_t*	heap)	/*!< in: memory heap where tuple created */
+dict_index_build_data_tuple_func(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+#ifdef UNIV_DEBUG
+	bool			leaf,
+#endif /* UNIV_DEBUG */
+	ulint			n_fields,
+	mem_heap_t*		heap)
 {
 	dtuple_t*	tuple;
 
@@ -5723,7 +5729,7 @@ dict_index_build_data_tuple(
 
 	dict_index_copy_types(tuple, index, n_fields);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, n_fields, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index, leaf, n_fields, heap);
 
 	ut_ad(dtuple_check_typed(tuple));
 

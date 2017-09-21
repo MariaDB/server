@@ -43,7 +43,7 @@ public:
   }
   virtual ~MyCTX()
   {
-    EVP_CIPHER_CTX_cleanup(ctx);
+    EVP_CIPHER_CTX_reset(ctx);
     ERR_remove_state(0);
   }
 

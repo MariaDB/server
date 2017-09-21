@@ -402,6 +402,7 @@ btr_defragment_calc_n_recs_for_size(
 	while (page_cur_get_rec(&cur) != page_get_supremum_rec(page)) {
 		rec_t* cur_rec = page_cur_get_rec(&cur);
 		offsets = rec_get_offsets(cur_rec, index, offsets,
+					  page_is_leaf(page),
 					  ULINT_UNDEFINED, &heap);
 		ulint rec_size = rec_offs_size(offsets);
 		size += rec_size;

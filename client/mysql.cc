@@ -1893,6 +1893,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     usage(1);
     status.exit_status= 0;
     mysql_end(-1);
+    break;
   case 'I':
   case '?':
     usage(0);

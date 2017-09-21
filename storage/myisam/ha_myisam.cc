@@ -2373,6 +2373,17 @@ ha_myisam::check_if_supported_inplace_alter(TABLE *new_table,
 }
 
 
+static bool directories_differ(const char *d1, const char *d2)
+{
+  if (!d1 && !d2)
+    return false;
+  if (!d1 || !d2)
+    return true;
+  size_t l1= dirname_length(d1), l2= dirname_length(d2);
+  return l1 != l2 || strncmp(d1, d2, l1);
+}
+
+
 bool ha_myisam::check_if_incompatible_data(HA_CREATE_INFO *create_info,
 					   uint table_changes)
 {
@@ -2380,8 +2391,8 @@ bool ha_myisam::check_if_incompatible_data(HA_CREATE_INFO *create_info,
 
   if ((create_info->used_fields & HA_CREATE_USED_AUTO &&
        create_info->auto_increment_value != stats.auto_increment_value) ||
-      create_info->data_file_name != data_file_name ||
-      create_info->index_file_name != index_file_name ||
+      directories_differ(create_info->data_file_name, data_file_name) ||
+      directories_differ(create_info->index_file_name, index_file_name) ||
       table_changes == IS_EQUAL_NO ||
       table_changes & IS_EQUAL_PACK_LENGTH) // Not implemented yet
     return COMPATIBLE_DATA_NO;

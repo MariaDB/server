@@ -71,8 +71,7 @@ static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=
 /** Operations for creating secondary indexes (no rebuild needed) */
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ONLINE_CREATE
 	= Alter_inplace_info::ADD_INDEX
-	| Alter_inplace_info::ADD_UNIQUE_INDEX
-	| Alter_inplace_info::ADD_SPATIAL_INDEX;
+	| Alter_inplace_info::ADD_UNIQUE_INDEX;
 
 /** Operations for rebuilding a table in place */
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
@@ -702,11 +701,11 @@ ha_innobase::check_if_supported_inplace_alter(
 	  codes for certain types. In some cases the signed/unsigned bit was
 	  generated differently too.
 
-	  Online ALTER would change the mtype/unsigned_flag (to what the
+	  Inplace ALTER would change the mtype/unsigned_flag (to what the
 	  current code generates) without changing the underlying data
 	  represenation, and it might result in data corruption.
 
-	  Don't do online ALTER if mtype/unsigned_flag are wrong.
+	  Don't do inplace ALTER if mtype/unsigned_flag are wrong.
 	*/
 	for (ulint i = 0, icol= 0; i < table->s->fields; i++) {
 		const Field*		field = table->field[i];
@@ -897,29 +896,6 @@ ha_innobase::check_if_supported_inplace_alter(
 	DBUG_ASSERT(!m_prebuilt->table->fts || m_prebuilt->table->fts->doc_col
 		    < dict_table_get_n_user_cols(m_prebuilt->table));
 
-       /* Spatial indexes should use copy method for now.
-       TOO: remove this when below ADD_SPATIAL_INDEX supported. */
-       for (uint i = 0; i < ha_alter_info->index_add_count; i++) {
-               const KEY* key =
-                       &ha_alter_info->key_info_buffer[
-                               ha_alter_info->index_add_buffer[i]];
-               if (key->flags & HA_SPATIAL) {
-                       ha_alter_info->unsupported_reason = innobase_get_err_msg(
-                             ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
-
-                       DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-               }
-       }
-
-#ifdef MYSQL_SPATIAL_INDEX
-	if (ha_alter_info->handler_flags
-	    & Alter_inplace_info::ADD_SPATIAL_INDEX) {
-		ha_alter_info->unsupported_reason = innobase_get_err_msg(
-			ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
-		online = false;
-	}
-#endif
-
 	if (m_prebuilt->table->fts
 	    && innobase_fulltext_exist(altered_table)) {
 		/* FULLTEXT indexes are supposed to remain. */
@@ -964,7 +940,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		operation is possible. */
 	} else if (((ha_alter_info->handler_flags
 		     & Alter_inplace_info::ADD_PK_INDEX)
-			|| innobase_need_rebuild(ha_alter_info, table))
+		    || innobase_need_rebuild(ha_alter_info, table))
 		   && (innobase_fulltext_exist(altered_table)
 		       || innobase_spatial_exist(altered_table))) {
 		/* Refuse to rebuild the table online, if
@@ -982,8 +958,6 @@ ha_innobase::check_if_supported_inplace_alter(
 			ha_alter_info->unsupported_reason =
 				innobase_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
-
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		} else {
 			ha_alter_info->unsupported_reason =
 				innobase_get_err_msg(
@@ -991,10 +965,15 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 	} else if ((ha_alter_info->handler_flags
 		    & Alter_inplace_info::ADD_INDEX)) {
-		/* Building a full-text index requires a lock.
-		We could do without a lock if the table already contains
-		an FTS_DOC_ID column, but in that case we would have
-		to apply the modification log to the full-text indexes. */
+		/* ADD FULLTEXT|SPATIAL INDEX requires a lock.
+
+		We could do ADD FULLTEXT INDEX without a lock if the
+		table already contains an FTS_DOC_ID column, but in
+		that case we would have to apply the modification log
+		to the full-text indexes.
+
+		We could also do ADD SPATIAL INDEX by implementing
+		row_log_apply() for it. */
 
 		for (uint i = 0; i < ha_alter_info->index_add_count; i++) {
 			const KEY* key =
@@ -1008,6 +987,12 @@ ha_innobase::check_if_supported_inplace_alter(
 						  | HA_BINARY_PACK_KEY)));
 				ha_alter_info->unsupported_reason = innobase_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
+				online = false;
+				break;
+			}
+			if (key->flags & HA_SPATIAL) {
+				ha_alter_info->unsupported_reason = innobase_get_err_msg(
+					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
 				online = false;
 				break;
 			}
@@ -5609,10 +5594,7 @@ ha_innobase::prepare_inplace_alter_table(
 		/* The clustered index is corrupted. */
 		my_error(ER_CHECK_NO_SUCH_TABLE, MYF(0));
 		DBUG_RETURN(true);
-	}
-
-	if (ha_alter_info->handler_flags
-	    & Alter_inplace_info::CHANGE_CREATE_OPTION) {
+	} else {
 		const char* invalid_opt = info.create_options_are_invalid();
 
 		/* Check engine specific table options */

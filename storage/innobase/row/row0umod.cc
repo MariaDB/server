@@ -196,7 +196,7 @@ row_undo_mod_remove_clust_low(
 
 		offsets = rec_get_offsets(
 			btr_cur_get_rec(btr_cur), btr_cur_get_index(btr_cur),
-			NULL, trx_id_col + 1, &heap);
+			NULL, true, trx_id_col + 1, &heap);
 
 		trx_id_offset = rec_get_nth_field_offs(
 			offsets, trx_id_col, &len);
@@ -751,7 +751,7 @@ try_again:
 		offsets_heap = NULL;
 		offsets = rec_get_offsets(
 			btr_cur_get_rec(btr_cur),
-			index, NULL, ULINT_UNDEFINED, &offsets_heap);
+			index, NULL, true, ULINT_UNDEFINED, &offsets_heap);
 		update = row_upd_build_sec_rec_difference_binary(
 			btr_cur_get_rec(btr_cur), index, offsets, entry, heap);
 		if (upd_get_n_fields(update) == 0) {

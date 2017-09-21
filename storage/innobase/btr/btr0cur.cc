@@ -1545,8 +1545,8 @@ retry_page_get:
 
 		node_ptr = page_cur_get_rec(page_cursor);
 
-		offsets = rec_get_offsets(
-			node_ptr, index, offsets, ULINT_UNDEFINED, &heap);
+		offsets = rec_get_offsets(node_ptr, index, offsets, false,
+					  ULINT_UNDEFINED, &heap);
 
 		/* If the rec is the first or last in the page for
 		pessimistic delete intention, it might cause node_ptr insert
@@ -1662,10 +1662,8 @@ need_opposite_intention:
 		    && latch_mode == BTR_MODIFY_TREE
 		    && (up_match >= rec_offs_n_fields(offsets) - 1
 			|| low_match >= rec_offs_n_fields(offsets) - 1)) {
-			const rec_t*	first_rec
-						= page_rec_get_next_const(
-							page_get_infimum_rec(
-								page));
+			const rec_t*	first_rec = page_rec_get_next_const(
+				page_get_infimum_rec(page));
 			ulint		matched_fields;
 
 			ut_ad(upper_rw_latch == RW_X_LATCH);
@@ -1678,7 +1676,7 @@ need_opposite_intention:
 
 				offsets2 = rec_get_offsets(
 					first_rec, index, offsets2,
-					ULINT_UNDEFINED, &heap);
+					false, ULINT_UNDEFINED, &heap);
 				cmp_rec_rec_with_match(node_ptr, first_rec,
 					offsets, offsets2, index, FALSE,
 					&matched_fields);
@@ -1690,14 +1688,13 @@ need_opposite_intention:
 					const rec_t*	last_rec;
 
 					last_rec = page_rec_get_prev_const(
-							page_get_supremum_rec(
-								page));
+						page_get_supremum_rec(page));
 
 					matched_fields = 0;
 
 					offsets2 = rec_get_offsets(
 						last_rec, index, offsets2,
-						ULINT_UNDEFINED, &heap);
+						false, ULINT_UNDEFINED, &heap);
 					cmp_rec_rec_with_match(
 						node_ptr, last_rec,
 						offsets, offsets2, index,
@@ -1854,14 +1851,9 @@ need_opposite_intention:
 				cursor->rtr_info->path;
 
 			if (!path->empty() && found) {
-#ifdef UNIV_DEBUG
-				node_visit_t    last_visit = path->back();
-
-				ut_ad(last_visit.page_no == page_id.page_no());
-#endif /* UNIV_DEBUG */
-
+				ut_ad(path->back().page_no
+				      == page_id.page_no());
 				path->pop_back();
-
 #ifdef UNIV_DEBUG
 				if (page_mode == PAGE_CUR_RTREE_LOCATE
 				    && (latch_mode != BTR_MODIFY_LEAF)) {
@@ -1873,14 +1865,13 @@ need_opposite_intention:
 
 					offsets = rec_get_offsets(
 						my_node_ptr, index, offsets,
-						ULINT_UNDEFINED, &heap);
+						false, ULINT_UNDEFINED, &heap);
 
 					ulint	my_page_no
 					= btr_node_ptr_get_child_page_no(
 						my_node_ptr, offsets);
 
 					ut_ad(page_id.page_no() == my_page_no);
-
 				}
 #endif
 			}
@@ -2316,7 +2307,7 @@ btr_cur_open_at_index_side_func(
 
 		node_ptr = page_cur_get_rec(page_cursor);
 		offsets = rec_get_offsets(node_ptr, cursor->index, offsets,
-					  ULINT_UNDEFINED, &heap);
+					  false, ULINT_UNDEFINED, &heap);
 
 		/* If the rec is the first or last in the page for
 		pessimistic delete intention, it might cause node_ptr insert
@@ -2612,7 +2603,7 @@ btr_cur_open_at_rnd_pos_func(
 
 		node_ptr = page_cur_get_rec(page_cursor);
 		offsets = rec_get_offsets(node_ptr, cursor->index, offsets,
-					  ULINT_UNDEFINED, &heap);
+					  false, ULINT_UNDEFINED, &heap);
 
 		/* If the rec is the first or last in the page for
 		pessimistic delete intention, it might cause node_ptr insert
@@ -3086,10 +3077,11 @@ fail_err:
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
+	if (!leaf) {
 # ifdef MYSQL_INDEX_DISABLE_AHI
-	if (index->disable_ahi); else
+	} else if (index->disable_ahi) {
 # endif
-	if (!reorg && leaf && (cursor->flag == BTR_CUR_HASH)) {
+	} else if (!reorg && cursor->flag == BTR_CUR_HASH) {
 		btr_search_update_hash_node_on_insert(cursor);
 	} else {
 		btr_search_update_hash_on_insert(cursor);
@@ -3285,15 +3277,19 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
+	if (!page_is_leaf(btr_cur_get_page(cursor))) {
+		ut_ad(!big_rec_vec);
+	} else {
 #ifdef BTR_CUR_HASH_ADAPT
 # ifdef MYSQL_INDEX_DISABLE_AHI
-	if (index->disable_ahi); else
+		if (index->disable_ahi); else
 # endif
-	btr_search_update_hash_on_insert(cursor);
+			btr_search_update_hash_on_insert(cursor);
 #endif /* BTR_CUR_HASH_ADAPT */
-	if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
+		if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
 
-		lock_update_insert(btr_cur_get_block(cursor), *rec);
+			lock_update_insert(btr_cur_get_block(cursor), *rec);
+		}
 	}
 
 	if (n_reserved > 0) {
@@ -3489,7 +3485,8 @@ btr_cur_parse_update_in_place(
 	/* We do not need to reserve search latch, as the page is only
 	being recovered, and there cannot be a hash index to it. */
 
-	offsets = rec_get_offsets(rec, index, NULL, ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(rec, index, NULL, true,
+				  ULINT_UNDEFINED, &heap);
 
 	if (!(flags & BTR_KEEP_SYS_FLAG)) {
 		row_upd_rec_sys_fields_in_recovery(rec, page_zip, offsets,
@@ -3813,7 +3810,7 @@ btr_cur_optimistic_update(
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(btr_page_get_index_id(page) == index->id);
 
-	*offsets = rec_get_offsets(rec, index, *offsets,
+	*offsets = rec_get_offsets(rec, index, *offsets, true,
 				   ULINT_UNDEFINED, heap);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 	ut_a(!rec_offs_any_null_extern(rec, *offsets)
@@ -4180,7 +4177,8 @@ btr_cur_pessimistic_update(
 	rec = btr_cur_get_rec(cursor);
 
 	*offsets = rec_get_offsets(
-		rec, index, *offsets, ULINT_UNDEFINED, offsets_heap);
+		rec, index, *offsets, page_is_leaf(page),
+		ULINT_UNDEFINED, offsets_heap);
 
 	dtuple_t*	new_entry = row_rec_to_index_entry(
 		rec, index, *offsets, &n_ext, entry_heap);
@@ -4614,7 +4612,7 @@ btr_cur_parse_del_mark_set_clust_rec(
 		if (!(flags & BTR_KEEP_SYS_FLAG)) {
 			row_upd_rec_sys_fields_in_recovery(
 				rec, page_zip,
-				rec_get_offsets(rec, index, offsets,
+				rec_get_offsets(rec, index, offsets, true,
 						pos + 2, &heap),
 				pos, trx_id, roll_ptr);
 		} else {
@@ -4623,8 +4621,8 @@ btr_cur_parse_del_mark_set_clust_rec(
 			ut_ad(memcmp(rec_get_nth_field(
 					     rec,
 					     rec_get_offsets(rec, index,
-							     offsets, pos,
-							     &heap),
+							     offsets, true,
+							     pos, &heap),
 					     pos, &offset),
 				     field_ref_zero, DATA_TRX_ID_LEN));
 			ut_ad(offset == DATA_TRX_ID_LEN);
@@ -4665,7 +4663,7 @@ btr_cur_del_mark_set_clust_rec(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
 	ut_ad(buf_block_get_frame(block) == page_align(rec));
-	ut_ad(page_is_leaf(page_align(rec)));
+	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(mtr->is_named_space(index->space));
 
 	if (rec_get_deleted_flag(rec, rec_offs_comp(offsets))) {
@@ -4959,7 +4957,7 @@ btr_cur_optimistic_delete_func(
 	      || (flags & BTR_CREATE_FLAG));
 
 	rec = btr_cur_get_rec(cursor);
-	offsets = rec_get_offsets(rec, cursor->index, offsets,
+	offsets = rec_get_offsets(rec, cursor->index, offsets, true,
 				  ULINT_UNDEFINED, &heap);
 
 	no_compress_needed = !rec_offs_any_extern(offsets)
@@ -5103,7 +5101,8 @@ btr_cur_pessimistic_delete(
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	offsets = rec_get_offsets(rec, index, NULL, ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(rec, index, NULL, page_is_leaf(page),
+				  ULINT_UNDEFINED, &heap);
 
 	if (rec_offs_any_extern(offsets)) {
 		btr_rec_free_externally_stored_fields(index,
@@ -5134,10 +5133,9 @@ btr_cur_pessimistic_delete(
 
 	level = btr_page_get_level(page, mtr);
 
-	if (level > 0
-	    && UNIV_UNLIKELY(rec == page_rec_get_next(
-				     page_get_infimum_rec(page)))) {
-
+	if (level == 0) {
+		btr_search_update_hash_on_delete(cursor);
+	} else if (UNIV_UNLIKELY(page_rec_is_first(rec, page))) {
 		rec_t*	next_rec = page_rec_get_next(rec);
 
 		if (btr_page_get_prev(page, mtr) == FIL_NULL) {
@@ -5166,8 +5164,8 @@ btr_cur_pessimistic_delete(
 						  block, mtr, NULL,
 						  &father_cursor);
 			offsets = rec_get_offsets(
-				btr_cur_get_rec(&father_cursor), index,
-				NULL, ULINT_UNDEFINED, &heap);
+				btr_cur_get_rec(&father_cursor), index, NULL,
+				false, ULINT_UNDEFINED, &heap);
 
 			father_rec = btr_cur_get_rec(&father_cursor);
 			rtr_read_mbr(rec_get_nth_field(
@@ -5203,8 +5201,6 @@ btr_cur_pessimistic_delete(
 			ut_d(parent_latched = true);
 		}
 	}
-
-	btr_search_update_hash_on_delete(cursor);
 
 	page_cur_delete_rec(btr_cur_get_page_cur(cursor), index, offsets, mtr);
 #ifdef UNIV_ZIP_DEBUG
@@ -6061,10 +6057,12 @@ btr_estimate_number_of_different_key_vals(
 		page = btr_cur_get_page(&cursor);
 
 		rec = page_rec_get_next(page_get_infimum_rec(page));
+		ut_d(const bool is_leaf = page_is_leaf(page));
 
 		if (!page_rec_is_supremum(rec)) {
 			not_empty_flag = 1;
 			offsets_rec = rec_get_offsets(rec, index, offsets_rec,
+						      is_leaf,
 						      ULINT_UNDEFINED, &heap);
 
 			if (n_not_null != NULL) {
@@ -6085,6 +6083,7 @@ btr_estimate_number_of_different_key_vals(
 
 			offsets_next_rec = rec_get_offsets(next_rec, index,
 							   offsets_next_rec,
+							   is_leaf,
 							   ULINT_UNDEFINED,
 							   &heap);
 
@@ -7353,6 +7352,8 @@ btr_rec_free_externally_stored_fields(
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(mtr_is_page_fix(mtr, rec, MTR_MEMO_PAGE_X_FIX, index->table));
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(page_rec_is_leaf(rec));
 	/* Free possible externally stored fields in the record */
 
 	ut_ad(dict_table_is_comp(index->table) == !!rec_offs_comp(offsets));
