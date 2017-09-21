@@ -234,24 +234,22 @@ rec_get_n_extern_new(
 	return(n_extern);
 }
 
-/*******************************************************************//**
-Get the bit number of nullable bitmap. */
-UNIV_INTERN
+/** Get the number of nullable columns.
+@param[in]	rec	clustered index record with added columns
+@param[in]	index	clustered index
+@return	number of possibly NULL columns in rec */
+static
 ulint
-rec_get_n_nullable(
-/*=======================*/
-	const rec_t*		rec,	/*!< in: gcs_record */
-	const dict_index_t*	index)	/*!< in: clustered index */
+rec_get_n_nullable(const rec_t* rec, const dict_index_t* index)
 {
-	ulint           field_count = 0;
-	ulint           field_count_len = 0;
-    
-	ut_ad(rec_is_instant(rec) && index->is_instant());
+	ut_ad(index->is_instant());
+	ut_ad(dict_table_is_comp(index->table));
+	ut_ad(rec_is_instant(rec));
 
-	field_count = rec_get_field_count(rec, &field_count_len);
-	ut_ad(field_count_len == rec_get_field_count_len(field_count));
-
-	return dict_index_get_first_n_field_n_nullable(index, field_count);
+	ulint len;
+	ulint n_fields = rec_get_field_count(rec, &len);
+	ut_ad(len == rec_get_field_count_len(n_fields));
+	return dict_index_get_first_n_field_n_nullable(index, n_fields);
 }
 
 /******************************************************//**
@@ -412,9 +410,111 @@ resolved:
 		= (rec - (lens + 1)) | REC_OFFS_COMPACT | any;
 }
 
-/******************************************************//**
-The following function determines the offsets to each field in the
-record.	 The offsets are written to a previously allocated array of
+#ifdef UNIV_DEBUG
+/** Update debug data in offsets, in order to tame rec_offs_validate().
+@param[in]	rec	record
+@param[in]	index	the index that the record belongs in
+@param[in]	leaf	whether the record resides in a leaf page
+@param[in,out]	offsets	offsets from rec_get_offsets() to adjust */
+void
+rec_offs_make_valid(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	bool			leaf,
+	ulint*			offsets)
+{
+	ut_ad(rec_offs_n_fields(offsets)
+	      <= (leaf
+		  ? dict_index_get_n_fields(index)
+		  : dict_index_get_n_unique_in_tree_nonleaf(index) + 1)
+	      || index->is_dummy || dict_index_is_ibuf(index));
+	const bool is_user_rec = (dict_table_is_comp(index->table)
+				  ? rec_get_heap_no_new(rec)
+				  : rec_get_heap_no_old(rec))
+		>= PAGE_HEAP_NO_USER_LOW;
+	ulint n = rec_get_n_fields(rec, index);
+	/* The infimum and supremum records carry 1 field. */
+	ut_ad(is_user_rec || n == 1);
+	ut_ad(is_user_rec || rec_offs_n_fields(offsets) == 1);
+	ut_ad(!is_user_rec || n >= index->n_core_fields
+	      || n >= rec_offs_n_fields(offsets));
+	for (; n < rec_offs_n_fields(offsets); n++) {
+		ut_ad(leaf);
+		ut_ad(rec_offs_base(offsets)[1 + n] & REC_OFFS_DEFAULT);
+	}
+	offsets[2] = ulint(rec);
+	offsets[3] = ulint(index);
+}
+
+/** Validate offsets returned by rec_get_offsets().
+@param[in]	rec	record, or NULL
+@param[in]	index	the index that the record belongs in, or NULL
+@param[in,out]	offsets	the offsets of the record
+@return true */
+bool
+rec_offs_validate(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets)
+{
+	ulint	i	= rec_offs_n_fields(offsets);
+	ulint	last	= ULINT_MAX;
+	ulint	comp	= *rec_offs_base(offsets) & REC_OFFS_COMPACT;
+
+	if (rec) {
+		ut_ad(ulint(rec) == offsets[2]);
+		if (!comp) {
+			const bool is_user_rec = rec_get_heap_no_old(rec)
+				>= PAGE_HEAP_NO_USER_LOW;
+			ulint n = rec_get_n_fields_old(rec);
+			/* The infimum and supremum records carry 1 field. */
+			ut_ad(is_user_rec || n == 1);
+			ut_ad(is_user_rec || i == 1);
+			ut_ad(!is_user_rec || n >= i
+			      || n >= index->n_core_fields);
+			for (; n < i; n++) {
+				ut_ad(rec_offs_base(offsets)[1 + n]
+				      & REC_OFFS_DEFAULT);
+			}
+		}
+	}
+	if (index) {
+		ulint max_n_fields;
+		ut_ad(ulint(index) == offsets[3]);
+		max_n_fields = ut_max(
+			dict_index_get_n_fields(index),
+			dict_index_get_n_unique_in_tree(index) + 1);
+		if (comp && rec) {
+			switch (rec_get_status(rec)) {
+			case REC_STATUS_ORDINARY:
+				break;
+			case REC_STATUS_NODE_PTR:
+				max_n_fields = dict_index_get_n_unique_in_tree(
+					index) + 1;
+				break;
+			case REC_STATUS_INFIMUM:
+			case REC_STATUS_SUPREMUM:
+				max_n_fields = 1;
+				break;
+			default:
+				ut_error;
+			}
+		}
+		/* index->n_def == 0 for dummy indexes if !comp */
+		ut_a(!comp || index->n_def);
+		ut_a(!index->n_def || i <= max_n_fields);
+	}
+	while (i--) {
+		ulint	curr = rec_offs_base(offsets)[1 + i] & REC_OFFS_MASK;
+		ut_a(curr <= last);
+		last = curr;
+	}
+	return(TRUE);
+}
+#endif /* UNIV_DEBUG */
+
+/** Determine the offsets to each field in the record.
+ The offsets are written to a previously allocated array of
 ulint, where rec_offs_n_fields(offsets) has been initialized to the
 number of fields in the record.	 The rest of the array will be
 initialized by this function.  rec_offs_base(offsets)[0] will be set
@@ -425,21 +525,25 @@ offsets past the end of fields 0..n_fields, or to the beginning of
 fields 1..n_fields+1.  When the high-order bit of the offset at [i+1]
 is set (REC_OFFS_SQL_NULL), the field i is NULL.  When the second
 high-order bit of the offset at [i+1] is set (REC_OFFS_EXTERNAL), the
-field i is being stored externally. */
+field i is being stored externally.
+@param[in]	rec	record
+@param[in]	index	the index that the record belongs in
+@param[in]	leaf	whether the record resides in a leaf page
+@param[in,out]	offsets	array of offsets, with valid rec_offs_n_fields() */
 static
 void
 rec_init_offsets(
-/*=============*/
-	const rec_t*		rec,	/*!< in: physical record */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in/out: array of offsets;
-					in: n=rec_offs_n_fields(offsets) */
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	bool			leaf,
+	ulint*			offsets)
 {
 	ulint	i	= 0;
 	ulint	offs;
 
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
-	rec_offs_make_valid(rec, index, offsets);
+	ut_d(offsets[2] = ulint(rec));
+	ut_d(offsets[3] = ulint(index));
 
 	if (dict_table_is_comp(index->table)) {
 		const byte*	nulls;
@@ -458,25 +562,26 @@ rec_init_offsets(
 			rec_offs_base(offsets)[1] = 8;
 			return;
 		case REC_STATUS_NODE_PTR:
+			ut_ad(!leaf);
 			n_node_ptr_field
 				= dict_index_get_n_unique_in_tree_nonleaf(
 					index);
 			break;
 		case REC_STATUS_ORDINARY:
+			ut_ad(leaf);
 			rec_init_offsets_comp_ordinary(
 				rec, false, index, offsets);
 			return;
 		}
 
-		/** The n_nullable flags in the clustered index node pointer 
-			records in ROW_FORMAT=COMPACT or ROW_FORMAT=DYNAMIC must 
-			reflect the number of 'core columns'. These flags are 
-			useless garbage, and they are only reserved because of 
-			file format compatibility. 
-			(Clustered index node pointer records only contain the 
-			PRIMARY KEY columns, which are always NOT NULL, 
-			so we should have used n_nullable=0.)
-		*/
+		/* The n_nullable flags in the clustered index node pointer
+		records in ROW_FORMAT=COMPACT or ROW_FORMAT=DYNAMIC must
+		reflect the number of 'core columns'. These flags are
+		useless garbage, and they are only reserved because of
+		file format compatibility.
+		(Clustered index node pointer records only contain the
+		PRIMARY KEY columns, which are always NOT NULL,
+		so we should have used n_nullable=0.) */
 		ut_ad(!rec_is_instant(rec));
 		ut_ad(index->n_core_fields > 0);
 
@@ -561,9 +666,13 @@ resolved:
 	} else {
 		/* Old-style record: determine extra size and end offsets */
 		offs = REC_N_OLD_EXTRA_BYTES;
+		const ulint n_fields = rec_get_n_fields_old(rec);
+		const ulint n = std::min(n_fields, rec_offs_n_fields(offsets));
+		ulint any;
+
 		if (rec_get_1byte_offs_flag(rec)) {
-			offs += rec_offs_n_fields(offsets);
-			*rec_offs_base(offsets) = offs;
+			offs += n_fields;
+			any = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_1_get_field_end_info(rec, i);
@@ -572,10 +681,10 @@ resolved:
 					offs |= REC_OFFS_SQL_NULL;
 				}
 				rec_offs_base(offsets)[1 + i] = offs;
-			} while (++i < rec_offs_n_fields(offsets));
+			} while (++i < n);
 		} else {
-			offs += 2 * rec_offs_n_fields(offsets);
-			*rec_offs_base(offsets) = offs;
+			offs += 2 * n_fields;
+			any = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_2_get_field_end_info(rec, i);
@@ -586,11 +695,23 @@ resolved:
 				if (offs & REC_2BYTE_EXTERN_MASK) {
 					offs &= ~REC_2BYTE_EXTERN_MASK;
 					offs |= REC_OFFS_EXTERNAL;
-					*rec_offs_base(offsets) |= REC_OFFS_EXTERNAL;
+					any |= REC_OFFS_EXTERNAL;
 				}
 				rec_offs_base(offsets)[1 + i] = offs;
-			} while (++i < rec_offs_n_fields(offsets));
+			} while (++i < n);
 		}
+
+		if (i < rec_offs_n_fields(offsets)) {
+			offs = rec_offs_base(offsets)[i] | REC_OFFS_DEFAULT;
+
+			do {
+				rec_offs_base(offsets)[1 + i] = offs;
+			} while (++i < rec_offs_n_fields(offsets));
+
+			any |= REC_OFFS_DEFAULT;
+		}
+
+		*rec_offs_base(offsets) = any;
 	}
 }
 
@@ -609,9 +730,7 @@ rec_get_offsets_func(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
-#ifdef UNIV_DEBUG
 	bool			leaf,
-#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
@@ -661,10 +780,8 @@ rec_get_offsets_func(
 		page_rec_is_user_rec(rec) and similar predicates
 		cannot be evaluated. We can still distinguish the
 		infimum and supremum record based on the heap number. */
-		ut_d(const bool is_user_rec = rec_get_heap_no_old(rec)
-		     >= PAGE_HEAP_NO_USER_LOW);
-		ut_ad(n <= ulint(index->n_fields + !leaf) || index->is_dummy
-		      || dict_index_is_ibuf(index));
+		const bool is_user_rec = rec_get_heap_no_old(rec)
+			>= PAGE_HEAP_NO_USER_LOW;
 		/* The infimum and supremum records carry 1 field. */
 		ut_ad(is_user_rec || n == 1);
 		ut_ad(!is_user_rec || leaf || index->is_dummy
@@ -674,9 +791,13 @@ rec_get_offsets_func(
 		ut_ad(!is_user_rec || !leaf || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* btr_pcur_restore_position() */
-		      || n == index->n_fields
-		      || (index->id == DICT_INDEXES_ID
-			  && (n == DICT_NUM_FIELDS__SYS_INDEXES - 1)));
+		      || (n >= index->n_core_fields && n <= index->n_fields));
+
+		if (is_user_rec && leaf && n < index->n_fields) {
+			ut_ad(!index->is_dummy);
+			ut_ad(!dict_index_is_ibuf(index));
+			n = index->n_fields;
+		}
 	}
 
 	if (UNIV_UNLIKELY(n_fields < n)) {
@@ -700,7 +821,7 @@ rec_get_offsets_func(
 	}
 
 	rec_offs_set_n_fields(offsets, n);
-	rec_init_offsets(rec, index, offsets);
+	rec_init_offsets(rec, index, leaf, offsets);
 	return(offsets);
 }
 
@@ -1251,17 +1372,14 @@ rec_convert_dtuple_to_rec_old(
 	/* Calculate the offset of the origin in the physical record */
 
 	rec = buf + rec_get_converted_extra_size(data_size, n_fields, n_ext);
-#ifdef UNIV_DEBUG
-	/* Suppress Valgrind warnings of ut_ad()
-	in mach_write_to_1(), mach_write_to_2() et al. */
-	memset(buf, 0xff, rec - buf + data_size);
-#endif /* UNIV_DEBUG */
 	/* Store the number of fields */
 	rec_set_n_fields_old(rec, n_fields);
 
 	/* Set the info bits of the record */
 	rec_set_info_bits_old(rec, dtuple_get_info_bits(dtuple)
 			      & REC_INFO_BITS_MASK);
+	/* Make rec_get_offsets() and rec_offs_make_valid() happy. */
+	ut_d(rec_set_heap_no_old(rec, PAGE_HEAP_NO_USER_LOW));
 
 	/* Store the data and the offsets */
 
@@ -1335,10 +1453,9 @@ rec_convert_dtuple_to_rec_old(
 
 /*********************************************************//**
 Builds a ROW_FORMAT=COMPACT record out of a data tuple. 
-@return TRUE if instant record.
-*/
+@return true if instant record */
 UNIV_INLINE
-ibool
+bool
 rec_convert_dtuple_to_rec_comp(
 /*===========================*/
 	rec_t*			rec,	/*!< in: origin of record */
@@ -1380,6 +1497,8 @@ rec_convert_dtuple_to_rec_comp(
 			temp = false;
 		}
 	} else {
+		/* Make rec_get_offsets() and rec_offs_make_valid() happy. */
+		ut_d(rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW));
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 
 		switch (UNIV_EXPECT(status, REC_STATUS_ORDINARY)) {
@@ -1698,13 +1817,11 @@ The fields are copied into the memory heap.
 @param[in]	n_fields	number of fields to copy
 @param[in,out]	heap		memory heap */
 void
-rec_copy_prefix_to_dtuple_func(
+rec_copy_prefix_to_dtuple(
 	dtuple_t*		tuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-#ifdef UNIV_DEBUG
 	bool			is_leaf,
-#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
@@ -1712,7 +1829,8 @@ rec_copy_prefix_to_dtuple_func(
 	ulint*	offsets	= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(is_leaf || n_fields <= index->n_uniq + 1);
+	ut_ad(is_leaf || n_fields
+	      <= dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
 
 	offsets = rec_get_offsets(rec, index, offsets, is_leaf,
 				  n_fields, &heap);
@@ -1739,6 +1857,8 @@ rec_copy_prefix_to_dtuple_func(
 			dfield_set_null(field);
 		}
 	}
+
+	ut_ad(!rec_offs_any_default(offsets));
 }
 
 /**************************************************************//**
@@ -1854,7 +1974,7 @@ rec_copy_prefix_to_buf(
 
 		field_count = rec_get_field_count(rec, &field_count_len);
 		ut_ad(field_count_len == rec_get_field_count_len(field_count));
-		ut_ad(field_count >= n_fields);    
+		ut_ad(field_count >= n_fields);
 
 		n_nullable = rec_get_n_nullable(rec, index);
 		ut_ad(n_nullable <= index->n_nullable);

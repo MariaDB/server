@@ -29,16 +29,16 @@ Created 5/30/1994 Heikki Tuuri
 #include "dict0boot.h"
 #include "btr0types.h"
 
-/* Compact flag ORed to the extra size returned by rec_get_offsets() */
-#define REC_OFFS_COMPACT	((ulint) 1 << 31)
-/* SQL NULL flag in offsets returned by rec_get_offsets() */
-#define REC_OFFS_SQL_NULL	((ulint) 1 << 31)
-/* External flag in offsets returned by rec_get_offsets() */
-#define REC_OFFS_EXTERNAL	((ulint) 1 << 30)
-/* Default value flag in offsets returned by rec_get_offsets() */
-#define REC_OFFS_DEFAULT	((ulint) 1 << 29)
-/* Mask for offsets returned by rec_get_offsets() */
-#define REC_OFFS_MASK		(REC_OFFS_DEFAULT - 1)
+/** Compact flag ORed to the extra size returned by rec_get_offsets() */
+const ulint REC_OFFS_COMPACT = ~(ulint(~0) >> 1);
+/** SQL NULL flag in offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_SQL_NULL = REC_OFFS_COMPACT;
+/** External flag in offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_EXTERNAL = REC_OFFS_COMPACT >> 1;
+/** Default value flag in offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_DEFAULT = REC_OFFS_COMPACT >> 2;
+/** Mask for offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_MASK = REC_OFFS_DEFAULT - 1;
 
 /* Offsets of the bit-fields in an old-style record. NOTE! In the table the
 most significant bytes and bits are written below less significant.
@@ -986,83 +986,6 @@ rec_offs_n_fields(
 	      <= rec_offs_get_n_alloc(offsets));
 	return(n_fields);
 }
-
-/************************************************************//**
-Validates offsets returned by rec_get_offsets().
-@return TRUE if valid */
-UNIV_INLINE
-ibool
-rec_offs_validate(
-/*==============*/
-	const rec_t*		rec,	/*!< in: record or NULL */
-	const dict_index_t*	index,	/*!< in: record descriptor or NULL */
-	const ulint*		offsets)/*!< in: array returned by
-					rec_get_offsets() */
-{
-	ulint	i	= rec_offs_n_fields(offsets);
-	ulint	last	= ULINT_MAX;
-	ulint	comp	= *rec_offs_base(offsets) & REC_OFFS_COMPACT;
-
-	if (rec) {
-		ut_ad((ulint) rec == offsets[2]);
-		if (!comp) {
-			ut_a(rec_get_n_fields_old(rec) >= i);
-		}
-	}
-	if (index) {
-		ulint max_n_fields;
-		ut_ad((ulint) index == offsets[3]);
-		max_n_fields = ut_max(
-			dict_index_get_n_fields(index),
-			dict_index_get_n_unique_in_tree(index) + 1);
-		if (comp && rec) {
-			switch (rec_get_status(rec)) {
-			case REC_STATUS_ORDINARY:
-				break;
-			case REC_STATUS_NODE_PTR:
-				max_n_fields = dict_index_get_n_unique_in_tree(
-					index) + 1;
-				break;
-			case REC_STATUS_INFIMUM:
-			case REC_STATUS_SUPREMUM:
-				max_n_fields = 1;
-				break;
-			default:
-				ut_error;
-			}
-		}
-		/* index->n_def == 0 for dummy indexes if !comp */
-		ut_a(!comp || index->n_def);
-		ut_a(!index->n_def || i <= max_n_fields);
-	}
-	while (i--) {
-		ulint	curr = rec_offs_base(offsets)[1 + i] & REC_OFFS_MASK;
-		ut_a(curr <= last);
-		last = curr;
-	}
-	return(TRUE);
-}
-#ifdef UNIV_DEBUG
-/************************************************************//**
-Updates debug data in offsets, in order to avoid bogus
-rec_offs_validate() failures. */
-UNIV_INLINE
-void
-rec_offs_make_valid(
-/*================*/
-	const rec_t*		rec,	/*!< in: record */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in: array returned by
-					rec_get_offsets() */
-{
-	ut_ad(rec);
-	ut_ad(index);
-	ut_ad(offsets);
-	ut_ad(rec_get_n_fields(rec, index) >= rec_offs_n_fields(offsets));
-	offsets[2] = (ulint) rec;
-	offsets[3] = (ulint) index;
-}
-#endif /* UNIV_DEBUG */
 
 /************************************************************//**
 The following function is used to get an offset to the nth

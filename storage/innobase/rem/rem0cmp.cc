@@ -1153,10 +1153,9 @@ cmp_rec_rec_with_match(
 	/* Test if rec is the predefined minimum record */
 	if (UNIV_UNLIKELY(rec_get_info_bits(rec1, comp)
 			  & REC_INFO_MIN_REC_FLAG)) {
-		/* There should only be one such record. */
-		ut_ad(!(rec_get_info_bits(rec2, comp)
-			& REC_INFO_MIN_REC_FLAG));
-		ret = -1;
+		ret = UNIV_UNLIKELY(rec_get_info_bits(rec2, comp)
+				    & REC_INFO_MIN_REC_FLAG)
+			? 0 : -1;
 		goto order_resolved;
 	} else if (UNIV_UNLIKELY
 		   (rec_get_info_bits(rec2, comp)

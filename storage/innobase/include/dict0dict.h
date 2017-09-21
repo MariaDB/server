@@ -1495,22 +1495,13 @@ dict_index_copy_rec_order_prefix(
 @param[in,out]	heap		memory heap for allocation
 @return own: data tuple */
 dtuple_t*
-dict_index_build_data_tuple_func(
+dict_index_build_data_tuple(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-#ifdef UNIV_DEBUG
 	bool			leaf,
-#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#ifdef UNIV_DEBUG
-# define dict_index_build_data_tuple(rec, index, leaf, n_fields, heap)	\
-	dict_index_build_data_tuple_func(rec, index, leaf, n_fields, heap)
-#else /* UNIV_DEBUG */
-# define dict_index_build_data_tuple(rec, index, leaf, n_fields, heap)	\
-	dict_index_build_data_tuple_func(rec, index, n_fields, heap)
-#endif /* UNIV_DEBUG */
 
 /*********************************************************************//**
 Gets the space id of the root of the index tree.

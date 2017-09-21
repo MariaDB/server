@@ -662,7 +662,7 @@ page_cur_search_with_match_bytes(
 
 	/* Perform binary search until the lower and upper limit directory
 	slots come to the distance 1 of each other */
-	ut_d(bool is_leaf = page_is_leaf(page));
+	const bool is_leaf = page_is_leaf(page);
 
 	while (up - low > 1) {
 		mid = (low + up) / 2;
@@ -860,7 +860,7 @@ page_cur_insert_rec_write_log(
 	ut_ad(!page_rec_is_comp(insert_rec)
 	      == !dict_table_is_comp(index->table));
 
-	ut_d(const bool is_leaf = page_rec_is_leaf(cursor_rec));
+	const bool is_leaf = page_rec_is_leaf(cursor_rec);
 
 	{
 		mem_heap_t*	heap		= NULL;
@@ -1134,7 +1134,7 @@ page_cur_parse_insert_rec(
 	/* Read from the log the inserted index record end segment which
 	differs from the cursor record */
 
-	ut_d(bool is_leaf = page_is_leaf(page));
+	const bool is_leaf = page_is_leaf(page);
 
 	offsets = rec_get_offsets(cursor_rec, index, offsets, is_leaf,
 				  ULINT_UNDEFINED, &heap);
@@ -1171,9 +1171,15 @@ page_cur_parse_insert_rec(
 	ut_memcpy(buf + mismatch_index, ptr, end_seg_len);
 
 	if (page_is_comp(page)) {
+		/* Make rec_get_offsets() and rec_offs_make_valid() happy. */
+		ut_d(rec_set_heap_no_new(buf + origin_offset,
+					 PAGE_HEAP_NO_USER_LOW));
 		rec_set_info_and_status_bits(buf + origin_offset,
 					     info_and_status_bits);
 	} else {
+		/* Make rec_get_offsets() and rec_offs_make_valid() happy. */
+		ut_d(rec_set_heap_no_old(buf + origin_offset,
+					 PAGE_HEAP_NO_USER_LOW));
 		rec_set_info_bits_old(buf + origin_offset,
 				      info_and_status_bits);
 	}
@@ -1312,7 +1318,7 @@ use_heap:
 
 	/* 3. Create the record */
 	insert_rec = rec_copy(insert_buf, rec, offsets);
-	rec_offs_make_valid(insert_rec, index, offsets);
+	rec_offs_make_valid(insert_rec, index, page_is_leaf(page), offsets);
 
 	/* This is because assertion below is debug assertion */
 #ifdef UNIV_DEBUG
@@ -1602,7 +1608,8 @@ page_cur_insert_rec_zip(
 			/* This should be followed by
 			MLOG_ZIP_PAGE_COMPRESS_NO_DATA,
 			which should succeed. */
-			rec_offs_make_valid(insert_rec, index, offsets);
+			rec_offs_make_valid(insert_rec, index,
+					    page_is_leaf(page), offsets);
 		} else {
 			ulint	pos = page_rec_get_n_recs_before(insert_rec);
 			ut_ad(pos > 0);
@@ -1618,7 +1625,8 @@ page_cur_insert_rec_zip(
 						level, page, index, mtr);
 
 					rec_offs_make_valid(
-						insert_rec, index, offsets);
+						insert_rec, index,
+						page_is_leaf(page), offsets);
 					return(insert_rec);
 				}
 
@@ -1661,7 +1669,8 @@ page_cur_insert_rec_zip(
 					insert_rec = page + rec_get_next_offs(
 						cursor->rec, TRUE);
 					rec_offs_make_valid(
-						insert_rec, index, offsets);
+						insert_rec, index,
+						page_is_leaf(page), offsets);
 					return(insert_rec);
 				}
 
@@ -1803,7 +1812,7 @@ use_heap:
 
 	/* 3. Create the record */
 	insert_rec = rec_copy(insert_buf, rec, offsets);
-	rec_offs_make_valid(insert_rec, index, offsets);
+	rec_offs_make_valid(insert_rec, index, page_is_leaf(page), offsets);
 
 	/* 4. Insert the record in the linked list of records */
 	ut_ad(cursor->rec != insert_rec);
@@ -2075,7 +2084,7 @@ page_copy_rec_list_end_to_created_page(
 	slot_index = 0;
 	n_recs = 0;
 
-	ut_d(const bool is_leaf = page_is_leaf(new_page));
+	const bool is_leaf = page_is_leaf(new_page);
 
 	do {
 		offsets = rec_get_offsets(rec, index, offsets, is_leaf,
@@ -2120,7 +2129,7 @@ page_copy_rec_list_end_to_created_page(
 
 		heap_top += rec_size;
 
-		rec_offs_make_valid(insert_rec, index, offsets);
+		rec_offs_make_valid(insert_rec, index, is_leaf, offsets);
 		page_cur_insert_rec_write_log(insert_rec, rec_size, prev_rec,
 					      index, mtr);
 		prev_rec = insert_rec;

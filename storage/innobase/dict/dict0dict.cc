@@ -5733,21 +5733,14 @@ dict_index_copy_rec_order_prefix(
 @param[in,out]	heap		memory heap for allocation
 @return own: data tuple */
 dtuple_t*
-dict_index_build_data_tuple_func(
+dict_index_build_data_tuple(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-#ifdef UNIV_DEBUG
 	bool			leaf,
-#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
-	dtuple_t*	tuple;
-
-	ut_ad(dict_table_is_comp(index->table)
-	      || n_fields <= rec_get_n_fields_old(rec));
-
-	tuple = dtuple_create(heap, n_fields);
+	dtuple_t* tuple = dtuple_create(heap, n_fields);
 
 	dict_index_copy_types(tuple, index, n_fields);
 

@@ -2174,7 +2174,7 @@ page_zip_apply_log(
 		rec_get_offsets_reverse(data, index,
 					hs & REC_STATUS_NODE_PTR,
 					offsets);
-		rec_offs_make_valid(rec, index, offsets);
+		rec_offs_make_valid(rec, index, is_leaf, offsets);
 
 		/* Copy the extra bytes (backwards). */
 		{

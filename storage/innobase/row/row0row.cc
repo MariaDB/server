@@ -436,7 +436,7 @@ row_build_low(
 	}
 
 	/* Avoid a debug assertion in rec_offs_validate(). */
-	rec_offs_make_valid(copy, index, const_cast<ulint*>(offsets));
+	rec_offs_make_valid(copy, index, true, const_cast<ulint*>(offsets));
 
 	if (!col_table) {
 		ut_ad(!col_map);
@@ -526,7 +526,7 @@ row_build_low(
 		}
 	}
 
-	rec_offs_make_valid(rec, index, const_cast<ulint*>(offsets));
+	rec_offs_make_valid(rec, index, true, const_cast<ulint*>(offsets));
 
 	ut_ad(dtuple_check_typed(row));
 
@@ -738,10 +738,12 @@ row_rec_to_index_entry(
 
 	copy_rec = rec_copy(buf, rec, offsets);
 
-	rec_offs_make_valid(copy_rec, index, const_cast<ulint*>(offsets));
+	rec_offs_make_valid(copy_rec, index, true,
+			    const_cast<ulint*>(offsets));
 	entry = row_rec_to_index_entry_low(
 		copy_rec, index, offsets, n_ext, heap);
-	rec_offs_make_valid(rec, index, const_cast<ulint*>(offsets));
+	rec_offs_make_valid(rec, index, true,
+			    const_cast<ulint*>(offsets));
 
 	dtuple_set_info_bits(entry,
 			     rec_get_info_bits(rec, rec_offs_comp(offsets)));
@@ -804,8 +806,7 @@ row_build_row_ref(
 			mem_heap_alloc(heap, rec_offs_size(offsets)));
 
 		rec = rec_copy(buf, rec, offsets);
-		/* Avoid a debug assertion in rec_offs_validate(). */
-		rec_offs_make_valid(rec, index, offsets);
+		rec_offs_make_valid(rec, index, true, offsets);
 	}
 
 	table = index->table;

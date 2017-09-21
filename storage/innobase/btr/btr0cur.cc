@@ -3666,7 +3666,8 @@ btr_cur_update_alloc_zip_func(
 		goto out_of_space;
 	}
 
-	rec_offs_make_valid(page_cur_get_rec(cursor), index, offsets);
+	rec_offs_make_valid(page_cur_get_rec(cursor), index,
+			    page_is_leaf(page), offsets);
 
 	/* After recompressing a page, we must make sure that the free
 	bits in the insert buffer bitmap will not exceed the free
@@ -4442,11 +4443,12 @@ btr_cur_pessimistic_update(
 		}
 
 		bool adjust = big_rec_vec && (flags & BTR_KEEP_POS_FLAG);
+		ut_ad(!adjust || page_is_leaf(page));
 
 		if (btr_cur_compress_if_useful(cursor, adjust, mtr)) {
 			if (adjust) {
-				rec_offs_make_valid(
-					page_cursor->rec, index, *offsets);
+				rec_offs_make_valid(page_cursor->rec, index,
+						    true, *offsets);
 			}
 		} else if (!dict_index_is_clust(index)
 			   && page_is_leaf(page)) {
@@ -6166,7 +6168,7 @@ btr_estimate_number_of_different_key_vals(
 		page = btr_cur_get_page(&cursor);
 
 		rec = page_rec_get_next(page_get_infimum_rec(page));
-		ut_d(const bool is_leaf = page_is_leaf(page));
+		const bool is_leaf = page_is_leaf(page);
 
 		if (!page_rec_is_supremum(rec)) {
 			not_empty_flag = 1;
@@ -6727,8 +6729,8 @@ struct btr_blob_log_check_t {
 		*m_block	= btr_pcur_get_block(m_pcur);
 		*m_rec		= btr_pcur_get_rec(m_pcur);
 
-		ut_d(rec_offs_make_valid(
-			*m_rec, index, const_cast<ulint*>(m_offsets)));
+		rec_offs_make_valid(*m_rec, index, true,
+				    const_cast<ulint*>(m_offsets));
 
 		ut_ad(m_mtr->memo_contains_page_flagged(
 		      *m_rec,

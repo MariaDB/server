@@ -466,9 +466,7 @@ rec_get_offsets_func(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
-#ifdef UNIV_DEBUG
 	bool			leaf,
-#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
@@ -478,7 +476,7 @@ rec_get_offsets_func(
 #ifdef UNIV_DEBUG
 	MY_ATTRIBUTE((nonnull(1,2,6,8),warn_unused_result));
 #else /* UNIV_DEBUG */
-	MY_ATTRIBUTE((nonnull(1,2,5),warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1,2,6),warn_unused_result));
 #endif /* UNIV_DEBUG */
 
 #ifdef UNIV_DEBUG
@@ -486,7 +484,7 @@ rec_get_offsets_func(
 	rec_get_offsets_func(rec,index,offsets,leaf,n,__FILE__,__LINE__,heap)
 #else /* UNIV_DEBUG */
 # define rec_get_offsets(rec, index, offsets, leaf, n, heap)		\
-	rec_get_offsets_func(rec, index, offsets, n, heap)
+	rec_get_offsets_func(rec, index, offsets, leaf, n, heap)
 #endif /* UNIV_DEBUG */
 
 /******************************************************//**
@@ -506,32 +504,31 @@ rec_get_offsets_reverse(
 					offsets[0] allocated elements */
 	MY_ATTRIBUTE((nonnull));
 #ifdef UNIV_DEBUG
-/************************************************************//**
-Validates offsets returned by rec_get_offsets().
-@return TRUE if valid */
-UNIV_INLINE
-ibool
+/** Validate offsets returned by rec_get_offsets().
+@param[in]	rec	record, or NULL
+@param[in]	index	the index that the record belongs in, or NULL
+@param[in,out]	offsets	the offsets of the record
+@return true */
+bool
 rec_offs_validate(
-/*==============*/
-	const rec_t*		rec,	/*!< in: record or NULL */
-	const dict_index_t*	index,	/*!< in: record descriptor or NULL */
-	const ulint*		offsets)/*!< in: array returned by
-					rec_get_offsets() */
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets)
 	MY_ATTRIBUTE((nonnull(3), warn_unused_result));
-/************************************************************//**
-Updates debug data in offsets, in order to avoid bogus
-rec_offs_validate() failures. */
-UNIV_INLINE
+/** Update debug data in offsets, in order to tame rec_offs_validate().
+@param[in]	rec	record
+@param[in]	index	the index that the record belongs in
+@param[in]	leaf	whether the record resides in a leaf page
+@param[in,out]	offsets	offsets from rec_get_offsets() to adjust */
 void
 rec_offs_make_valid(
-/*================*/
-	const rec_t*		rec,	/*!< in: record */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in: array returned by
-					rec_get_offsets() */
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	bool			leaf,
+	ulint*			offsets)
 	MY_ATTRIBUTE((nonnull));
 #else
-# define rec_offs_make_valid(rec, index, offsets) ((void) 0)
+# define rec_offs_make_valid(rec, index, leaf, offsets)
 #endif /* UNIV_DEBUG */
 
 /************************************************************//**
@@ -991,23 +988,14 @@ The fields are copied into the memory heap.
 @param[in]	n_fields	number of fields to copy
 @param[in,out]	heap		memory heap */
 void
-rec_copy_prefix_to_dtuple_func(
+rec_copy_prefix_to_dtuple(
 	dtuple_t*		tuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-#ifdef UNIV_DEBUG
 	bool			is_leaf,
-#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull));
-#ifdef UNIV_DEBUG
-# define rec_copy_prefix_to_dtuple(tuple,rec,index,leaf,n_fields,heap)	\
-	rec_copy_prefix_to_dtuple_func(tuple,rec,index,leaf,n_fields,heap)
-#else /* UNIV_DEBUG */
-# define rec_copy_prefix_to_dtuple(tuple,rec,index,leaf,n_fields,heap)	\
-	rec_copy_prefix_to_dtuple_func(tuple,rec,index,n_fields,heap)
-#endif /* UNIV_DEBUG */
 /***************************************************************//**
 Validates the consistency of a physical record.
 @return TRUE if ok */

@@ -1210,7 +1210,7 @@ row_vers_build_for_consistent_read(
 					in_heap, rec_offs_size(*offsets)));
 
 			*old_vers = rec_copy(buf, prev_version, *offsets);
-			rec_offs_make_valid(*old_vers, index, *offsets);
+			rec_offs_make_valid(*old_vers, index, true, *offsets);
 
 			if (vrow && *vrow) {
 				*vrow = dtuple_copy(*vrow, in_heap);
@@ -1337,7 +1337,7 @@ committed_version_trx:
 					in_heap, rec_offs_size(*offsets)));
 
 			*old_vers = rec_copy(buf, version, *offsets);
-			rec_offs_make_valid(*old_vers, index, *offsets);
+			rec_offs_make_valid(*old_vers, index, true, *offsets);
 			if (vrow && *vrow) {
 				*vrow = dtuple_copy(*vrow, in_heap);
 				dtuple_dup_v_fld(*vrow, in_heap);

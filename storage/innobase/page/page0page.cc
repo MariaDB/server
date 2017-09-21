@@ -599,7 +599,7 @@ page_copy_rec_list_end_no_locks(
 	ut_a(page_is_comp(new_page) == page_rec_is_comp(rec));
 	ut_a(mach_read_from_2(new_page + UNIV_PAGE_SIZE - 10) == (ulint)
 	     (page_is_comp(new_page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
-	ut_d(const bool is_leaf = page_is_leaf(block->frame));
+	const bool is_leaf = page_is_leaf(block->frame);
 
 	cur2 = page_get_infimum_rec(buf_block_get_frame(new_block));
 
@@ -1107,7 +1107,7 @@ delete_all:
 				       ? MLOG_COMP_LIST_END_DELETE
 				       : MLOG_LIST_END_DELETE, mtr);
 
-	ut_d(const bool is_leaf = page_is_leaf(page));
+	const bool is_leaf = page_is_leaf(page);
 
 	if (page_zip) {
 		mtr_log_t	log_mode;
@@ -1298,7 +1298,7 @@ page_delete_rec_list_start(
 	/* Individual deletes are not logged */
 
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
-	ut_d(const bool is_leaf = page_rec_is_leaf(rec));
+	const bool	is_leaf = page_rec_is_leaf(rec);
 
 	while (page_cur_get_rec(&cur1) != rec) {
 		offsets = rec_get_offsets(page_cur_get_rec(&cur1), index,

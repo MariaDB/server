@@ -2307,7 +2307,7 @@ trx_undo_prev_version_build(
 			heap, rec_offs_size(offsets)));
 
 		*old_vers = rec_copy(buf, rec, offsets);
-		rec_offs_make_valid(*old_vers, index, offsets);
+		rec_offs_make_valid(*old_vers, index, true, offsets);
 		row_upd_rec_in_place(*old_vers, index, offsets, update, NULL);
 	}
 
