@@ -5260,36 +5260,6 @@ int Field_timestamp::set_time()
   return 0;
 }
 
-/**
-  Mark the field as having an explicit default value.
-
-  @param value  if available, the value that the field is being set to
-  @returns whether the explicit default bit was set
-
-  @note
-    Fields that have an explicit default value should not be updated
-    automatically via the DEFAULT or ON UPDATE functions. The functions
-    that deal with data change functionality (INSERT/UPDATE/LOAD),
-    determine if there is an explicit value for each field before performing
-    the data change, and call this method to mark the field.
-
-    For timestamp columns, the only case where a column is not marked
-    as been given a value are:
-    - It's explicitly assigned with DEFAULT
-    - We assign NULL to a timestamp field that is defined as NOT NULL.
-      This is how MySQL has worked since it's start.
-*/
-
-bool Field_timestamp::set_explicit_default(Item *value)
-{
-  if (((value->type() == Item::DEFAULT_VALUE_ITEM &&
-        !((Item_default_value*)value)->arg) ||
-       (!maybe_null() && value->null_value)))
-    return false;
-  set_has_explicit_value();
-  return true;
-}
-
 #ifdef NOT_USED
 static void store_native(ulonglong num, uchar *to, uint bytes)
 {

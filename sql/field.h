@@ -975,7 +975,7 @@ public:
   {
     return bitmap_is_set(&table->has_value_set, field_index);
   }
-  virtual bool set_explicit_default(Item *value);
+  bool set_explicit_default(Item *value);
 
   /**
      Evaluates the @c UPDATE default function, if one exists, and stores the
@@ -2403,7 +2403,6 @@ public:
   void sql_type(String &str) const;
   bool zero_pack() const { return 0; }
   int set_time();
-  bool set_explicit_default(Item *value);
   int evaluate_update_default_function()
   {
     int res= 0;
