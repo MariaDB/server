@@ -1843,8 +1843,8 @@ row_merge_read_clustered_index(
 	based on that. */
 
 	clust_index = dict_table_get_first_index(old_table);
-	const ulint old_trx_id_col = old_table->n_cols + DATA_TRX_ID
-		- dict_table_get_n_sys_cols(table);
+	const ulint old_trx_id_col = DATA_TRX_ID - DATA_N_SYS_COLS
+		+ old_table->n_cols;
 	ut_ad(old_table->cols[old_trx_id_col].mtype == DATA_SYS);
 	ut_ad(old_table->cols[old_trx_id_col].prtype
 	      == (DATA_TRX_ID | DATA_NOT_NULL));

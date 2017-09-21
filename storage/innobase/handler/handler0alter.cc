@@ -4095,17 +4095,11 @@ innobase_add_virtual_try(
 	}
 
 
-	ulint	n_col = user_table->n_cols;
-	ulint	n_v_col = user_table->n_v_cols;
-
-	n_v_col +=  ctx->num_to_add_vcol;
-
-	n_col -= dict_table_get_n_sys_cols(user_table);
-
-	n_v_col -= ctx->num_to_drop_vcol;
-
+	ulint	n_col = user_table->n_cols - DATA_N_SYS_COLS;
+	ulint	n_v_col = user_table->n_v_cols
+		+ ctx->num_to_add_vcol - ctx->num_to_drop_vcol;
 	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
-			+ ((user_table->flags & DICT_TF_COMPACT) << 31);
+		+ ((user_table->flags & DICT_TF_COMPACT) << 31);
 
 	err = innobase_update_n_virtual(user_table, new_n, trx);
 
@@ -4270,8 +4264,7 @@ innobase_add_instant_try(
 	}
 
 	DBUG_ASSERT(af == &altered_table->field[altered_table->s->fields]);
-	const ulint n_stored = new_table->n_cols
-		- dict_table_get_n_sys_cols(new_table);
+	const ulint n_stored = new_table->n_cols - DATA_N_SYS_COLS;
 	/* FIXME: account for a hidden FTS_DOC_ID column */
 	DBUG_ASSERT(i == n_stored);
 	byte trx_id[DATA_TRX_ID_LEN], roll_ptr[DATA_ROLL_PTR_LEN];
@@ -4565,15 +4558,10 @@ innobase_drop_virtual_try(
 	}
 
 
-	ulint	n_col = user_table->n_cols;
-	ulint	n_v_col = user_table->n_v_cols;
-
-	n_v_col -=  ctx->num_to_drop_vcol;
-
-	n_col -= dict_table_get_n_sys_cols(user_table);
-
+	ulint	n_col = user_table->n_cols - DATA_N_SYS_COLS;
+	ulint	n_v_col = user_table->n_v_cols - ctx->num_to_drop_vcol;
 	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
-			+ ((user_table->flags & DICT_TF_COMPACT) << 31);
+		+ ((user_table->flags & DICT_TF_COMPACT) << 31);
 
 	err = innobase_update_n_virtual(user_table, new_n, trx);
 
@@ -5271,8 +5259,7 @@ new_clustered_failed:
 			goto not_instant_add_column;
 		}
 
-		for (uint i = ctx->old_table->n_cols
-			     - dict_table_get_n_sys_cols(ctx->old_table);
+		for (uint i = ctx->old_table->n_cols - DATA_N_SYS_COLS;
 		     i--; ) {
 			if (ctx->col_map[i] != i) {
 				goto not_instant_add_column;

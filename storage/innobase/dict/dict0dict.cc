@@ -1227,8 +1227,7 @@ dict_table_add_system_columns(
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 {
 	ut_ad(table);
-	ut_ad(table->n_def ==
-	      (table->n_cols - dict_table_get_n_sys_cols(table)));
+	ut_ad(table->n_def == (table->n_cols - DATA_N_SYS_COLS));
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(!table->cached);
 
@@ -3189,8 +3188,7 @@ dict_index_build_internal_clust(
 
 	/* Add to new_index non-system columns of table not yet included
 	there */
-	ulint n_sys_cols = dict_table_get_n_sys_cols(table);
-	for (i = 0; i + n_sys_cols < (ulint) table->n_cols; i++) {
+	for (i = 0; i + DATA_N_SYS_COLS < ulint(table->n_cols); i++) {
 
 		dict_col_t*	col = dict_table_get_nth_col(table, i);
 		ut_ad(col->mtype != DATA_SYS);
@@ -6586,15 +6584,13 @@ dict_table_schema_check(
 		return(DB_TABLE_NOT_FOUND);
 	}
 
-	ulint n_sys_cols = dict_table_get_n_sys_cols(table);
-	if ((ulint) table->n_def - n_sys_cols != req_schema->n_cols) {
+	if (ulint(table->n_def - DATA_N_SYS_COLS) != req_schema->n_cols) {
 		/* the table has a different number of columns than required */
 		ut_snprintf(errstr, errstr_sz,
-			    "%s has " ULINTPF " columns but should have "
-			    ULINTPF ".",
+			    "%s has %d columns but should have " ULINTPF ".",
 			    ut_format_name(req_schema->table_name,
 					   buf, sizeof(buf)),
-			    table->n_def - n_sys_cols,
+			    table->n_def - DATA_N_SYS_COLS,
 			    req_schema->n_cols);
 
 		return(DB_ERROR);
