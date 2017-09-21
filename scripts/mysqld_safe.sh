@@ -293,9 +293,6 @@ wsrep_recover_position() {
     wsrep_start_position_opt="--wsrep_start_position=$start_pos"
   fi
 
-<<<<<<< HEAD
-  [ $ret -eq 0 ] && rm $wr_logfile
-=======
   if [ $ret -eq 0 ] ; then
     local wr_logfile_permanent="$DATADIR/wsrep_recovery.ok"
   else
@@ -306,7 +303,6 @@ wsrep_recover_position() {
   chmod 600 $wr_logfile_permanent
   cat "$wr_logfile" >> $wr_logfile_permanent
   rm -f "$wr_logfile"
->>>>>>> eade014... MW-318 Packaging: Preserve --wsrep-recover log for future reference when starting server
 
   return $ret
 }
