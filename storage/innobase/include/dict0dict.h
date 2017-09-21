@@ -920,13 +920,12 @@ dict_table_get_sys_col(
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #else /* UNIV_DEBUG */
-#define dict_table_get_nth_col(table, pos)	\
-((table)->cols + (pos))
-#define dict_table_get_sys_col(table, sys)	\
-((table)->cols + (table)->n_cols + (sys)	\
- - (dict_table_get_n_sys_cols(table)))
+#define dict_table_get_nth_col(table, pos)				\
+	(&(table)->cols[pos])
+#define dict_table_get_sys_col(table, sys)				\
+	(&(table)->cols[(table)->n_cols + (sys) - DATA_N_SYS_COLS])
 /* Get nth virtual columns */
-#define dict_table_get_nth_v_col(table, pos)	((table)->v_cols + (pos))
+#define dict_table_get_nth_v_col(table, pos)	(&(table)->v_cols[pos])
 #endif /* UNIV_DEBUG */
 /********************************************************************//**
 Gets the given system column number of a table.

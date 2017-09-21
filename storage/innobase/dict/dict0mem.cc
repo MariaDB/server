@@ -128,8 +128,7 @@ dict_mem_table_create(
 	table->name.m_name = mem_strdup(name);
 	table->is_system_db = dict_mem_table_is_system(table->name.m_name);
 	table->space = (unsigned int) space;
-	table->n_t_cols = (unsigned int) (n_cols +
-			dict_table_get_n_sys_cols(table));
+	table->n_t_cols = unsigned(n_cols + DATA_N_SYS_COLS);
 	table->n_v_cols = (unsigned int) (n_v_cols);
 	table->n_cols = table->n_t_cols - table->n_v_cols;
 

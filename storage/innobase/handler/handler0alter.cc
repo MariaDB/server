@@ -3970,17 +3970,11 @@ innobase_add_virtual_try(
 	}
 
 
-	ulint	n_col = user_table->n_cols;
-	ulint	n_v_col = user_table->n_v_cols;
-
-	n_v_col +=  ctx->num_to_add_vcol;
-
-	n_col -= dict_table_get_n_sys_cols(user_table);
-
-	n_v_col -= ctx->num_to_drop_vcol;
-
+	ulint	n_col = user_table->n_cols - DATA_N_SYS_COLS;
+	ulint	n_v_col = user_table->n_v_cols
+		+ ctx->num_to_add_vcol - ctx->num_to_drop_vcol;
 	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
-			+ ((user_table->flags & DICT_TF_COMPACT) << 31);
+		+ ((user_table->flags & DICT_TF_COMPACT) << 31);
 
 	err = innobase_update_n_virtual(user_table, new_n, trx);
 
@@ -4204,15 +4198,10 @@ innobase_drop_virtual_try(
 	}
 
 
-	ulint	n_col = user_table->n_cols;
-	ulint	n_v_col = user_table->n_v_cols;
-
-	n_v_col -=  ctx->num_to_drop_vcol;
-
-	n_col -= dict_table_get_n_sys_cols(user_table);
-
+	ulint	n_col = user_table->n_cols - DATA_N_SYS_COLS;
+	ulint	n_v_col = user_table->n_v_cols - ctx->num_to_drop_vcol;
 	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
-			+ ((user_table->flags & DICT_TF_COMPACT) << 31);
+		+ ((user_table->flags & DICT_TF_COMPACT) << 31);
 
 	err = innobase_update_n_virtual(user_table, new_n, trx);
 
