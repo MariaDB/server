@@ -599,6 +599,7 @@ page_cur_search_with_match_bytes(
 	rec_offs_init(offsets_);
 
 	ut_ad(dtuple_validate(tuple));
+	ut_ad(!(tuple->info_bits & REC_INFO_MIN_REC_FLAG));
 #ifdef UNIV_DEBUG
 # ifdef PAGE_CUR_DBG
 	if (mode != PAGE_CUR_DBG)

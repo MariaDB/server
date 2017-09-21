@@ -1589,6 +1589,7 @@ retry_page_get:
 		}
 #ifdef BTR_CUR_HASH_ADAPT
 	} else if (height == 0 && btr_search_enabled
+		   && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG)
 		   && !dict_index_is_spatial(index)) {
 		/* The adaptive hash index is only used when searching
 		for leaf pages (height==0), but not in r-trees.
