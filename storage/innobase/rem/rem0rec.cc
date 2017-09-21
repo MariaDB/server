@@ -1570,7 +1570,7 @@ rec_copy_prefix_to_dtuple_func(
 	ulint*	offsets	= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(is_leaf || n_fields <= index->n_uniq + 1);
+	ut_ad(is_leaf || n_fields <= unsigned(index->n_uniq + 1));
 
 	offsets = rec_get_offsets(rec, index, offsets, is_leaf,
 				  n_fields, &heap);
