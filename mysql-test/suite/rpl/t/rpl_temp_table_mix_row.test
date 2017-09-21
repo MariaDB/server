@@ -9,9 +9,9 @@
 #   4: sync to slave and check the number of temp tables on slave.
 #
 
-source include/master-slave.inc;
 source include/have_binlog_format_mixed.inc;
 source include/have_innodb.inc;
+source include/master-slave.inc;
 
 --echo ==== Initialize ====
 

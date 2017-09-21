@@ -16,8 +16,8 @@
 #   along the way if error/no error is thrown and/or if replication starts
 #   working when expected.
 
---source include/master-slave.inc
 --source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
 
 connection slave;
 STOP SLAVE;

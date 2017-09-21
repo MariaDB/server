@@ -8,9 +8,9 @@
 # Finish the following tests by calling its common test script:  
 # extra/rpl_tests/rpl_get_master_version_and_clock.test. 
 
-source include/master-slave.inc;
 source include/have_debug.inc;
 source include/have_debug_sync.inc;
+source include/master-slave.inc;
 
 #
 # The test is not supposed to have any binglog affairs.

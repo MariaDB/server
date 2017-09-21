@@ -17,8 +17,8 @@
 #    b. nullifying the list and resuming of taking binlog from the very beginning with
 #       executing events this time
 
-source include/master-slave.inc;
 source include/have_binlog_format_mixed.inc;
+source include/master-slave.inc;
 
 connection slave;
 

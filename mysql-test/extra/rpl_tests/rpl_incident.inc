@@ -4,8 +4,8 @@
 # Please check all dependent tests after modifying it
 #
 
---source include/master-slave.inc
 --source include/have_debug.inc
+--source include/master-slave.inc
 
 --echo **** On Master ****
 CREATE TABLE t1 (a INT);

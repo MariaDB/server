@@ -1,7 +1,7 @@
 # Testing master to slave heartbeat protocol, test cases that need debug build.
 
---source include/master-slave.inc
 --source include/have_debug.inc
+--source include/master-slave.inc
 
 connection slave;
 --source include/stop_slave.inc
