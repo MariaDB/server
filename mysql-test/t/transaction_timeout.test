@@ -32,11 +32,11 @@ sleep 2;
 SELECT * FROM t1;
 disconnect c1;
 
---echo # Test idle_readwrite_transaction_timeout
+--echo # Test idle_write_transaction_timeout
 connect (c2,localhost,root,,test,,);
 SHOW VARIABLES LIKE 'idle_%transaction_timeout';
 SET autocommit=0;
-SET idle_readwrite_transaction_timeout=1;
+SET idle_write_transaction_timeout=1;
 
 BEGIN;
 SELECT * FROM t1;
