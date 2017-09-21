@@ -134,7 +134,22 @@ SELECT * FROM non_existent;
 
 SET lc_time_names=@old_50915_lc_time_names;
 
+--echo #
+--echo # End of 10.0 tests
+--echo #
 
 --echo #
---echo # End of 5.6 tests
+--echo # End of 10.1 tests
+--echo #
+
+# Item::print
+create view v1 as select
+        format(123456789,2) as b,
+        format(123456789,2,'rm_CH') as b1;
+select * from v1;
+show create view v1;
+drop view v1;
+
+--echo #
+--echo # End of 10.2 tests
 --echo #

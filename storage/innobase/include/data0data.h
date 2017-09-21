@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -586,11 +587,10 @@ struct dfield_t{
 	unsigned	len;	/*!< data length; UNIV_SQL_NULL if SQL null */
 	dtype_t		type;	/*!< type of data */
 
-	/** Create a deep copy of this object
-	@param[in]	heap	the memory heap in which the clone will be
-				created.
-	@return	the cloned object. */
-	dfield_t* clone(mem_heap_t* heap);
+	/** Create a deep copy of this object.
+	@param[in,out]	heap	memory heap in which the clone will be created
+	@return	the cloned object */
+	dfield_t* clone(mem_heap_t* heap) const;
 };
 
 /** Structure for an SQL data tuple of fields (logical record) */

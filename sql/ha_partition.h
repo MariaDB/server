@@ -345,6 +345,10 @@ public:
   virtual void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share);
   virtual bool check_if_incompatible_data(HA_CREATE_INFO *create_info,
                                           uint table_changes);
+  void update_part_create_info(HA_CREATE_INFO *create_info, uint part_id)
+  {
+    m_file[part_id]->update_create_info(create_info);
+  }
 private:
   int copy_partitions(ulonglong * const copied, ulonglong * const deleted);
   void cleanup_new_partition(uint part_count);

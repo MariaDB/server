@@ -7600,7 +7600,6 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
       DBUG_RETURN(1);
 
     unit->init_query();
-    unit->init_select();
     unit->thd= thd;
     unit->include_down(lex->current_select);
     unit->link_next= 0;

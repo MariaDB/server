@@ -739,8 +739,7 @@ sub run_test_server ($$$) {
 
 	  # Repeat test $opt_repeat number of times
 	  my $repeat= $result->{repeat} || 1;
-	  # Don't repeat if test was skipped
-	  if ($repeat < $opt_repeat && $result->{'result'} ne 'MTR_RES_SKIPPED')
+	  if ($repeat < $opt_repeat)
 	  {
 	    $result->{retries}= 0;
 	    $result->{rep_failures}++ if $result->{failures};
@@ -4559,8 +4558,8 @@ sub check_warnings ($) {
 
   my $timeout= start_timer(check_timeout($tinfo));
 
+  my $result= 0;
   while (1){
-    my $result= 0;
     my $proc= My::SafeProcess->wait_any_timeout($timeout);
     mtr_report("Got $proc");
 
@@ -5779,7 +5778,7 @@ sub debugger_arguments {
     $$exe= $debugger;
 
   }
-  elsif ( $debugger =~ /windbg/ )
+  elsif ( $debugger =~ /windbg|vsjitdebugger/ )
   {
     # windbg exe arg1 .. argn
 

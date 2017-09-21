@@ -720,8 +720,9 @@ btr_page_free_low(
 		ulint* offsets = NULL;
 		rec_t* rec = page_rec_get_next(page_get_infimum_rec(page));
 		while (!page_rec_is_supremum(rec)) {
-			offsets = rec_get_offsets(rec, index,
-						  offsets, ULINT_UNDEFINED,
+			offsets = rec_get_offsets(rec, index, offsets,
+						  page_is_leaf(page),
+						  ULINT_UNDEFINED,
 						  &heap);
 			ulint size = rec_offs_data_size(offsets);
 			memset(rec, 0, size);
@@ -832,7 +833,7 @@ btr_node_ptr_set_child_page_no(
 	ulint	len;
 
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
-	ut_ad(!page_is_leaf(page_align(rec)));
+	ut_ad(!page_rec_is_leaf(rec));
 	ut_ad(!rec_offs_comp(offsets) || rec_get_node_ptr_flag(rec));
 
 	/* The child address is in the last field */
@@ -937,7 +938,7 @@ btr_page_get_father_node_ptr_func(
 
 	node_ptr = btr_cur_get_rec(cursor);
 
-	offsets = rec_get_offsets(node_ptr, index, offsets,
+	offsets = rec_get_offsets(node_ptr, index, offsets, false,
 				  ULINT_UNDEFINED, &heap);
 
 	if (btr_node_ptr_get_child_page_no(node_ptr, offsets) != page_no) {
@@ -953,10 +954,11 @@ btr_page_get_father_node_ptr_func(
 
 		print_rec = page_rec_get_next(
 			page_get_infimum_rec(page_align(user_rec)));
-		offsets = rec_get_offsets(print_rec, index,
-					  offsets, ULINT_UNDEFINED, &heap);
+		offsets = rec_get_offsets(print_rec, index, offsets,
+					  page_rec_is_leaf(user_rec),
+					  ULINT_UNDEFINED, &heap);
 		page_rec_print(print_rec, offsets);
-		offsets = rec_get_offsets(node_ptr, index, offsets,
+		offsets = rec_get_offsets(node_ptr, index, offsets, false,
 					  ULINT_UNDEFINED, &heap);
 		page_rec_print(node_ptr, offsets);
 
@@ -2283,9 +2285,9 @@ btr_page_get_split_rec(
 			/* Include tuple */
 			incl_data += insert_size;
 		} else {
-			offsets = rec_get_offsets(rec, cursor->index,
-						  offsets, ULINT_UNDEFINED,
-						  &heap);
+			offsets = rec_get_offsets(rec, cursor->index, offsets,
+						  page_is_leaf(page),
+						  ULINT_UNDEFINED, &heap);
 			incl_data += rec_offs_size(offsets);
 		}
 
@@ -2393,6 +2395,7 @@ btr_page_insert_fits(
 		space after rec is removed from page. */
 
 		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
+					   page_is_leaf(page),
 					   ULINT_UNDEFINED, heap);
 
 		total_data -= rec_offs_size(*offsets);
@@ -2681,7 +2684,7 @@ btr_page_tuple_smaller(
 	first_rec = page_cur_get_rec(&pcur);
 
 	*offsets = rec_get_offsets(
-		first_rec, cursor->index, *offsets,
+		first_rec, cursor->index, *offsets, page_is_leaf(block->frame),
 		n_uniq, heap);
 
 	return(cmp_dtuple_rec(tuple, first_rec, *offsets) < 0);
@@ -2988,7 +2991,7 @@ func_start:
 		first_rec = move_limit = split_rec;
 
 		*offsets = rec_get_offsets(split_rec, cursor->index, *offsets,
-					   n_uniq, heap);
+					   page_is_leaf(page), n_uniq, heap);
 
 		if (tuple != NULL) {
 			insert_left = cmp_dtuple_rec(
@@ -3816,8 +3819,9 @@ retry:
 			cursor2.tree_height = cursor->tree_height;
 
 			offsets2 = rec_get_offsets(
-				btr_cur_get_rec(&cursor2), index,
-				NULL, ULINT_UNDEFINED, &heap);
+				btr_cur_get_rec(&cursor2), index, NULL,
+				page_is_leaf(cursor2.page_cur.block->frame),
+				ULINT_UNDEFINED, &heap);
 
 			/* Check if parent entry needs to be updated */
 			mbr_changed = rtr_merge_mbr_changed(
@@ -3997,8 +4001,9 @@ retry:
 			ulint	rec_info;
 
 			offsets2 = rec_get_offsets(
-				btr_cur_get_rec(&cursor2),
-				index, NULL, ULINT_UNDEFINED, &heap);
+				btr_cur_get_rec(&cursor2), index, NULL,
+				page_is_leaf(cursor2.page_cur.block->frame),
+				ULINT_UNDEFINED, &heap);
 
 			ut_ad(btr_node_ptr_get_child_page_no(
 				btr_cur_get_rec(&cursor2), offsets2)
@@ -4476,8 +4481,9 @@ btr_print_recursive(
 
 			node_ptr = page_cur_get_rec(&cursor);
 
-			*offsets = rec_get_offsets(node_ptr, index, *offsets,
-						   ULINT_UNDEFINED, heap);
+			*offsets = rec_get_offsets(
+				node_ptr, index, *offsets, false,
+				ULINT_UNDEFINED, heap);
 			btr_print_recursive(index,
 					    btr_node_ptr_get_child(node_ptr,
 								   index,
@@ -4670,7 +4676,8 @@ btr_index_rec_validate(
 		return(FALSE);
 	}
 
-	offsets = rec_get_offsets(rec, index, offsets, ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page),
+				  ULINT_UNDEFINED, &heap);
 
 	for (i = 0; i < n; i++) {
 		dict_field_t*	field = dict_index_get_nth_field(index, i);
@@ -4924,7 +4931,7 @@ btr_validate_level(
 		page_cur_move_to_next(&cursor);
 
 		node_ptr = page_cur_get_rec(&cursor);
-		offsets = rec_get_offsets(node_ptr, index, offsets,
+		offsets = rec_get_offsets(node_ptr, index, offsets, false,
 					  ULINT_UNDEFINED, &heap);
 
 		savepoint2 = mtr_set_savepoint(&mtr);
@@ -5050,10 +5057,12 @@ loop:
 		rec = page_rec_get_prev(page_get_supremum_rec(page));
 		right_rec = page_rec_get_next(page_get_infimum_rec(
 						      right_page));
-		offsets = rec_get_offsets(rec, index,
-					  offsets, ULINT_UNDEFINED, &heap);
-		offsets2 = rec_get_offsets(right_rec, index,
-					   offsets2, ULINT_UNDEFINED, &heap);
+		offsets = rec_get_offsets(rec, index, offsets,
+					  page_is_leaf(page),
+					  ULINT_UNDEFINED, &heap);
+		offsets2 = rec_get_offsets(right_rec, index, offsets2,
+					   page_is_leaf(right_page),
+					   ULINT_UNDEFINED, &heap);
 
 		/* For spatial index, we cannot guarantee the key ordering
 		across pages, so skip the record compare verification for

@@ -71,7 +71,7 @@ static void md5_input(EVP_MD_CTX *context, const uchar *buf, unsigned len)
 static void md5_result(EVP_MD_CTX *context, uchar digest[MD5_HASH_SIZE])
 {
   EVP_DigestFinal_ex(context, digest, NULL);
-  EVP_MD_CTX_cleanup(context);
+  EVP_MD_CTX_reset(context);
 }
 
 #endif /* HAVE_YASSL */

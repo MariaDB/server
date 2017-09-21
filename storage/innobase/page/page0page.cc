@@ -599,6 +599,7 @@ page_copy_rec_list_end_no_locks(
 	ut_a(page_is_comp(new_page) == page_rec_is_comp(rec));
 	ut_a(mach_read_from_2(new_page + UNIV_PAGE_SIZE - 10) == (ulint)
 	     (page_is_comp(new_page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
+	ut_d(const bool is_leaf = page_is_leaf(block->frame));
 
 	cur2 = page_get_infimum_rec(buf_block_get_frame(new_block));
 
@@ -607,7 +608,7 @@ page_copy_rec_list_end_no_locks(
 	while (!page_cur_is_after_last(&cur1)) {
 		rec_t*	cur1_rec = page_cur_get_rec(&cur1);
 		rec_t*	ins_rec;
-		offsets = rec_get_offsets(cur1_rec, index, offsets,
+		offsets = rec_get_offsets(cur1_rec, index, offsets, is_leaf,
 					  ULINT_UNDEFINED, &heap);
 		ins_rec = page_cur_insert_rec_low(cur2, index,
 						  cur1_rec, offsets, mtr);
@@ -836,6 +837,8 @@ page_copy_rec_list_start(
 
 	cur2 = ret;
 
+	const bool is_leaf = page_rec_is_leaf(rec);
+
 	/* Copy records from the original page to the new page */
 	if (dict_index_is_spatial(index)) {
 		ulint		max_to_move = page_get_n_recs(
@@ -857,6 +860,7 @@ page_copy_rec_list_start(
 		while (page_cur_get_rec(&cur1) != rec) {
 			rec_t*	cur1_rec = page_cur_get_rec(&cur1);
 			offsets = rec_get_offsets(cur1_rec, index, offsets,
+						  is_leaf,
 						  ULINT_UNDEFINED, &heap);
 			cur2 = page_cur_insert_rec_low(cur2, index,
 						       cur1_rec, offsets, mtr);
@@ -873,8 +877,7 @@ page_copy_rec_list_start(
 	same temp-table in parallel.
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
-	if (dict_index_is_sec_or_ibuf(index)
-	    && page_is_leaf(page_align(rec))
+	if (is_leaf && dict_index_is_sec_or_ibuf(index)
 	    && !dict_table_is_temporary(index->table)) {
 		page_update_max_trx_id(new_block, NULL,
 				       page_get_max_trx_id(page_align(rec)),
@@ -1104,6 +1107,8 @@ delete_all:
 				       ? MLOG_COMP_LIST_END_DELETE
 				       : MLOG_LIST_END_DELETE, mtr);
 
+	ut_d(const bool is_leaf = page_is_leaf(page));
+
 	if (page_zip) {
 		mtr_log_t	log_mode;
 
@@ -1116,7 +1121,7 @@ delete_all:
 			page_cur_t	cur;
 			page_cur_position(rec, block, &cur);
 
-			offsets = rec_get_offsets(rec, index, offsets,
+			offsets = rec_get_offsets(rec, index, offsets, is_leaf,
 						  ULINT_UNDEFINED, &heap);
 			rec = rec_get_next_ptr(rec, TRUE);
 #ifdef UNIV_ZIP_DEBUG
@@ -1150,6 +1155,7 @@ delete_all:
 		do {
 			ulint	s;
 			offsets = rec_get_offsets(rec2, index, offsets,
+						  is_leaf,
 						  ULINT_UNDEFINED, &heap);
 			s = rec_offs_size(offsets);
 			ut_ad(rec2 - page + s - rec_offs_extra_size(offsets)
@@ -1292,10 +1298,12 @@ page_delete_rec_list_start(
 	/* Individual deletes are not logged */
 
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
+	ut_d(const bool is_leaf = page_rec_is_leaf(rec));
 
 	while (page_cur_get_rec(&cur1) != rec) {
 		offsets = rec_get_offsets(page_cur_get_rec(&cur1), index,
-					  offsets, ULINT_UNDEFINED, &heap);
+					  offsets, is_leaf,
+					  ULINT_UNDEFINED, &heap);
 		page_cur_delete_rec(&cur1, index, offsets, mtr);
 	}
 
@@ -2467,6 +2475,7 @@ page_validate(
 
 	for (;;) {
 		offsets = rec_get_offsets(rec, index, offsets,
+					  page_is_leaf(page),
 					  ULINT_UNDEFINED, &heap);
 
 		if (page_is_comp(page) && page_rec_is_user_rec(rec)
@@ -2636,6 +2645,7 @@ n_owned_zero:
 
 	while (rec != NULL) {
 		offsets = rec_get_offsets(rec, index, offsets,
+					  page_is_leaf(page),
 					  ULINT_UNDEFINED, &heap);
 		if (UNIV_UNLIKELY(!page_rec_validate(rec, offsets))) {
 

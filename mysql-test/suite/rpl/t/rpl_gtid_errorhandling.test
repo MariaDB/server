@@ -132,7 +132,7 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,gtid_fail_after_record_gtid";
 SET sql_log_bin=0;
-CALL mtr.add_suppression('Got error 131 "Command not supported by database" during COMMIT');
+CALL mtr.add_suppression('Got error 131 "Command not supported by the engine" during COMMIT');
 SET sql_log_bin=1;
 START SLAVE;
 --let $slave_sql_errno= 1180

@@ -2130,7 +2130,7 @@ files_checked:
 		compile_time_assert(IBUF_SPACE_ID == 0);
 
 		ulint ibuf_root = btr_create(
-			DICT_CLUSTERED | DICT_UNIVERSAL | DICT_IBUF,
+			DICT_CLUSTERED | DICT_IBUF,
 			0, univ_page_size, DICT_IBUF_ID_MIN,
 			dict_ind_redundant, NULL, &mtr);
 

@@ -35,6 +35,22 @@ a	b
 9	test09
 10	test10
 11	test11
+CREATE TABLE rt4 (a int, b char(10));
+INSERT INTO rt4 VALUES (12,'test12'),(13,'test13'),(14,'test14'),(15,'test15');
+SELECT * FROM rt4;
+a	b
+12	test12
+13	test13
+14	test14
+15	test15
+CREATE TABLE rt5 (a int, b char(10));
+INSERT INTO rt5 VALUES (16,'test16'),(17,'test17'),(18,'test18'),(19,'test19');
+SELECT * FROM rt5;
+a	b
+16	test16
+17	test17
+18	test18
+19	test19
 connection default;
 CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL
 CONNECTION='mysql://root@127.0.0.1:MASTER_PORT/test/rt2';
@@ -52,11 +68,36 @@ a	b
 9	test09
 10	test10
 11	test11
+CREATE TABLE t4 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/rt4';
+SELECT * FROM t4;
+a	b
+12	test12
+13	test13
+14	test14
+15	test15
+CREATE TABLE t5 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/rt5';
+SELECT * FROM t5;
+a	b
+16	test16
+17	test17
+18	test18
+19	test19
 CREATE TABLE total (a int, b char(10))
-ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2,t3'
+ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2,t3,t4,t5'
 OPTION_LIST='thread=yes,port=PORT';
+set connect_xtrace=1;
 SELECT * FROM total order by a desc;
 a	b
+19	test19
+18	test18
+17	test17
+16	test16
+15	test15
+14	test14
+13	test13
+12	test12
 11	test11
 10	test10
 9	test09
@@ -69,12 +110,13 @@ a	b
 2	test02
 1	test01
 0	test00
+set connect_xtrace=0;
 connection master;
 DROP TABLE rt2;
 connection slave;
-DROP TABLE rt3;
+DROP TABLE rt3,rt4,rt5;
 connection default;
-DROP TABLE t1,t2,t3,total;
+DROP TABLE t1,t2,t3,t4,t5,total;
 #
 # Old thread TBL tables test modified
 #
@@ -87,13 +129,15 @@ SELECT * FROM t2;
 v
 22
 CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=PORT';;
+set connect_xtrace=1;
 SELECT * FROM total order by v desc;
 v
 22
 11
+set connect_xtrace=0;
 DROP TABLE t1,t2,total;
 #
-# Old thread TBL tables test not modified
+# Old thread TBL tables test not modified (suppressed until MDEV-10179 is fixed)
 #
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v';
 SELECT * FROM t1;
@@ -104,10 +148,12 @@ SELECT * FROM t2;
 v
 22
 CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=PORT';;
+set connect_xtrace=1;
 SELECT * FROM total order by v desc;
 v
 22
 11
+set connect_xtrace=0;
 DROP TABLE total;
 DROP TABLE t1;
 DROP TABLE t2;

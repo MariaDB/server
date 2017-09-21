@@ -1487,17 +1487,31 @@ dict_index_copy_rec_order_prefix(
 					copied prefix, or NULL */
 	ulint*			buf_size)/*!< in/out: buffer size */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/**********************************************************************//**
-Builds a typed data tuple out of a physical record.
+/** Convert a physical record into a search tuple.
+@param[in]	rec		index record (not necessarily in an index page)
+@param[in]	index		index
+@param[in]	leaf		whether rec is in a leaf page
+@param[in]	n_fields	number of data fields
+@param[in,out]	heap		memory heap for allocation
 @return own: data tuple */
 dtuple_t*
-dict_index_build_data_tuple(
-/*========================*/
-	dict_index_t*	index,	/*!< in: index */
-	rec_t*		rec,	/*!< in: record for which to build data tuple */
-	ulint		n_fields,/*!< in: number of data fields */
-	mem_heap_t*	heap)	/*!< in: memory heap where tuple created */
+dict_index_build_data_tuple_func(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+#ifdef UNIV_DEBUG
+	bool			leaf,
+#endif /* UNIV_DEBUG */
+	ulint			n_fields,
+	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+#ifdef UNIV_DEBUG
+# define dict_index_build_data_tuple(rec, index, leaf, n_fields, heap)	\
+	dict_index_build_data_tuple_func(rec, index, leaf, n_fields, heap)
+#else /* UNIV_DEBUG */
+# define dict_index_build_data_tuple(rec, index, leaf, n_fields, heap)	\
+	dict_index_build_data_tuple_func(rec, index, n_fields, heap)
+#endif /* UNIV_DEBUG */
+
 /*********************************************************************//**
 Gets the space id of the root of the index tree.
 @return space id */

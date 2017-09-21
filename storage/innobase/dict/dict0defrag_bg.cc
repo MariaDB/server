@@ -290,7 +290,7 @@ dict_stats_save_defrag_summary(
 	dberr_t	ret=DB_SUCCESS;
 	lint	now = (lint) ut_time();
 
-	if (dict_index_is_univ(index)) {
+	if (dict_index_is_ibuf(index)) {
 		return DB_SUCCESS;
 	}
 
@@ -320,7 +320,7 @@ dict_stats_save_defrag_stats(
 {
 	dberr_t	ret;
 
-	if (dict_index_is_univ(index)) {
+	if (dict_index_is_ibuf(index)) {
 		return DB_SUCCESS;
 	}
 

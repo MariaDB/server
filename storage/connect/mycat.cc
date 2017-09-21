@@ -107,6 +107,9 @@
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !__WIN__
 
+#if defined(MONGO_SUPPORT)
+bool MongoEnabled(void);
+#endif   // MONGO_SUPPORT
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
 /***********************************************************************/
@@ -554,7 +557,13 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
     case TAB_JSON: tdp= new(g) JSONDEF; break;
 #if defined(MONGO_SUPPORT)
-		case TAB_MONGO: tdp = new(g) MGODEF; break;
+		case TAB_MONGO:
+			if (MongoEnabled())
+			  tdp = new(g) MGODEF;
+			else
+				strcpy(g->Message, "MONGO type not enabled");
+
+			break;
 #endif   // MONGO_SUPPORT
 #if defined(ZIP_SUPPORT)
 		case TAB_ZIP: tdp= new(g) ZIPDEF;   break;

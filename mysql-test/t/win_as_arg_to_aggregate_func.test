@@ -1,0 +1,139 @@
+create table t1 (i int);
+insert into t1 values (5),(6),(0);
+
+--echo #
+--echo # Try out all set functions with window functions as arguments.
+--echo # Any such usage should return an error.
+--echo #
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select MIN( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select MIN(DISTINCT SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select MAX( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select MAX(DISTINCT SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select SUM( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select SUM(DISTINCT SUM(i) OVER (order by i) )
+from t1;
+
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select AVG( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select AVG(DISTINCT SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select COUNT( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select COUNT(DISTINCT SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select BIT_AND( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select BIT_OR( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select BIT_XOR( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select STD( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select STDDEV( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select STDDEV_POP( SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select STDDEV_SAMP(SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select VARIANCE(SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select VAR_POP(SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select VAR_SAMP(SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select GROUP_CONCAT(SUM(i) OVER (order by i) )
+from t1;
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select GROUP_CONCAT(DISTINCT SUM(i) OVER (order by i) )
+from t1;
+
+--echo #
+--echo # Test that partition instead of order by in over doesn't change result.
+--echo #
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select SUM( SUM(i) OVER (PARTITION BY i) )
+from t1;
+
+--echo #
+--echo # Test that no arguments in OVER() clause lead to crash in this case.
+--echo #
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select SUM( SUM(i) OVER () )
+from t1;
+drop table t1;
+
+-- echo #
+-- echo # MDEV-13774: Server Crash on Execuate of SQL Statement
+-- echo #
+create table t1 (i int);
+insert into t1 values (5),(6),(0);
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+select SUM(
+          IF( SUM( IF(i,1,0)) OVER (PARTITION BY i) > 0
+              AND
+              SUM( IF(i,1,0)) OVER (PARTITION BY i) > 0,
+             1,
+             0) )
+from t1;
+
+--echo #
+--echo # A way to get the aggregation result.
+--echo #
+
+select i, IF(SUM(IF(i,1,0)) OVER (PARTITION BY i) > 0 AND SUM( IF(i,1,0)) OVER (PARTITION BY i) > 0,1,0) AS if_col
+from t1
+order by i;
+
+select sum(if_col)
+from (select IF(SUM(IF(i,1,0)) OVER (PARTITION BY i) > 0 AND SUM( IF(i,1,0)) OVER (PARTITION BY i) > 0,1,0) AS if_col
+      from t1) tmp;
+drop table t1;

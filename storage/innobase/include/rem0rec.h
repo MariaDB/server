@@ -451,38 +451,41 @@ rec_get_n_extern_new(
 	ulint			n)	/*!< in: number of columns to scan */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/******************************************************//**
-The following function determines the offsets to each field
-in the record.	It can reuse a previously allocated array.
+/** Determine the offsets to each field in an index record.
+@param[in]	rec		physical record
+@param[in]	index		the index that the record belongs to
+@param[in,out]	offsets		array comprising offsets[0] allocated elements,
+				or an array from rec_get_offsets(), or NULL
+@param[in]	leaf		whether this is a leaf-page record
+@param[in]	n_fields	maximum number of offsets to compute
+				(ULINT_UNDEFINED to compute all offsets)
+@param[in,out]	heap		memory heap
 @return the new offsets */
 ulint*
 rec_get_offsets_func(
-/*=================*/
-	const rec_t*		rec,	/*!< in: physical record */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets,/*!< in/out: array consisting of
-					offsets[0] allocated elements,
-					or an array from rec_get_offsets(),
-					or NULL */
-	ulint			n_fields,/*!< in: maximum number of
-					initialized fields
-					 (ULINT_UNDEFINED if all fields) */
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets,
+#ifdef UNIV_DEBUG
+	bool			leaf,
+#endif /* UNIV_DEBUG */
+	ulint			n_fields,
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
 	unsigned		line,	/*!< in: line number where called */
 #endif /* UNIV_DEBUG */
 	mem_heap_t**		heap)	/*!< in/out: memory heap */
 #ifdef UNIV_DEBUG
-	MY_ATTRIBUTE((nonnull(1,2,5,7),warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1,2,6,8),warn_unused_result));
 #else /* UNIV_DEBUG */
 	MY_ATTRIBUTE((nonnull(1,2,5),warn_unused_result));
 #endif /* UNIV_DEBUG */
 
 #ifdef UNIV_DEBUG
-# define rec_get_offsets(rec,index,offsets,n,heap)			\
-	rec_get_offsets_func(rec,index,offsets,n,__FILE__,__LINE__,heap)
+# define rec_get_offsets(rec, index, offsets, leaf, n, heap)		\
+	rec_get_offsets_func(rec,index,offsets,leaf,n,__FILE__,__LINE__,heap)
 #else /* UNIV_DEBUG */
-# define rec_get_offsets(rec, index, offsets, n, heap)	\
+# define rec_get_offsets(rec, index, offsets, leaf, n, heap)		\
 	rec_get_offsets_func(rec, index, offsets, n, heap)
 #endif /* UNIV_DEBUG */
 
@@ -980,19 +983,31 @@ rec_get_converted_size(
 	const dtuple_t*	dtuple,	/*!< in: data tuple */
 	ulint		n_ext)	/*!< in: number of externally stored columns */
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
-/**************************************************************//**
-Copies the first n fields of a physical record to a data tuple.
-The fields are copied to the memory heap. */
+/** Copy the first n fields of a (copy of a) physical record to a data tuple.
+The fields are copied into the memory heap.
+@param[out]	tuple		data tuple
+@param[in]	rec		index record, or a copy thereof
+@param[in]	is_leaf		whether rec is a leaf page record
+@param[in]	n_fields	number of fields to copy
+@param[in,out]	heap		memory heap */
 void
-rec_copy_prefix_to_dtuple(
-/*======================*/
-	dtuple_t*		tuple,		/*!< out: data tuple */
-	const rec_t*		rec,		/*!< in: physical record */
-	const dict_index_t*	index,		/*!< in: record descriptor */
-	ulint			n_fields,	/*!< in: number of fields
-						to copy */
-	mem_heap_t*		heap)		/*!< in: memory heap */
+rec_copy_prefix_to_dtuple_func(
+	dtuple_t*		tuple,
+	const rec_t*		rec,
+	const dict_index_t*	index,
+#ifdef UNIV_DEBUG
+	bool			is_leaf,
+#endif /* UNIV_DEBUG */
+	ulint			n_fields,
+	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull));
+#ifdef UNIV_DEBUG
+# define rec_copy_prefix_to_dtuple(tuple,rec,index,leaf,n_fields,heap)	\
+	rec_copy_prefix_to_dtuple_func(tuple,rec,index,leaf,n_fields,heap)
+#else /* UNIV_DEBUG */
+# define rec_copy_prefix_to_dtuple(tuple,rec,index,leaf,n_fields,heap)	\
+	rec_copy_prefix_to_dtuple_func(tuple,rec,index,n_fields,heap)
+#endif /* UNIV_DEBUG */
 /***************************************************************//**
 Validates the consistency of a physical record.
 @return TRUE if ok */

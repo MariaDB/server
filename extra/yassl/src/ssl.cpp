@@ -1736,7 +1736,7 @@ unsigned long ERR_get_error()
 
     // end stunnel needs
 
-    char *yaSSL_ASN1_TIME_to_string(ASN1_TIME *time, char *buf, size_t len)
+    char *yaSSL_ASN1_TIME_to_string(const ASN1_TIME *time, char *buf, size_t len)
     {
       tm t;
       static const char *month_names[12]=

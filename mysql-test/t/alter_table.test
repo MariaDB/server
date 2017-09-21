@@ -1852,6 +1852,7 @@ create table t1 (a int, b int, check(a>b));
 alter table t1 drop column a;
 --error ER_BAD_FIELD_ERROR
 alter table t1 drop column b, add column b bigint first;
+alter table t1 drop column a, drop constraint constraint_1;
 show create table t1;
 drop table t1;
 
@@ -1873,5 +1874,6 @@ drop table t1;
 create table t1 (a int, b int, c int, unique(a,b));
 --error ER_KEY_COLUMN_DOES_NOT_EXITS
 alter table t1 drop column a;
+alter table t1 drop column a, drop index a;
 show create table t1;
 drop table t1;

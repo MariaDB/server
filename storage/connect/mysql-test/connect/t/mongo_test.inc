@@ -1,3 +1,5 @@
+set connect_enable_mongo=1;
+
 --echo #
 --echo # Test the MONGO table type
 --echo #
@@ -201,3 +203,5 @@ OPTION_LIST='Driver=$DRV,Version=$VERS,Pipeline=YES' $CONN;
 SELECT * FROM t1;
 DROP TABLE t1;
 --exec $MONGO --eval "db.testcoll.drop()" --quiet
+
+set connect_enable_mongo=0;

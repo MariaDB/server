@@ -2320,8 +2320,8 @@ trx_undo_prev_version_build(
 
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 	ut_a(!rec_offs_any_null_extern(
-		*old_vers, rec_get_offsets(
-			*old_vers, index, NULL, ULINT_UNDEFINED, &heap)));
+		*old_vers, rec_get_offsets(*old_vers, index, NULL, true,
+					   ULINT_UNDEFINED, &heap)));
 #endif // defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 
 	if (vrow && !(cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {

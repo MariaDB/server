@@ -952,7 +952,7 @@ row_ins_foreign_fill_virtual(
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 	const ulint*	offsets =
-		rec_get_offsets(rec, index, offsets_,
+		rec_get_offsets(rec, index, offsets_, true,
 				ULINT_UNDEFINED, &cascade->heap);
 	mem_heap_t*	v_heap = NULL;
 	upd_t*		update = cascade->update;
@@ -1732,8 +1732,8 @@ row_ins_check_foreign_constraint(
 			continue;
 		}
 
-		offsets = rec_get_offsets(rec, check_index,
-					  offsets, ULINT_UNDEFINED, &heap);
+		offsets = rec_get_offsets(rec, check_index, offsets, true,
+					  ULINT_UNDEFINED, &heap);
 
 		if (page_rec_is_supremum(rec)) {
 
@@ -2122,7 +2122,7 @@ row_ins_scan_sec_index_for_duplicate(
 			continue;
 		}
 
-		offsets = rec_get_offsets(rec, index, offsets,
+		offsets = rec_get_offsets(rec, index, offsets, true,
 					  ULINT_UNDEFINED, &offsets_heap);
 
 		if (flags & BTR_NO_LOCKING_FLAG) {
@@ -2253,7 +2253,7 @@ row_ins_duplicate_error_in_clust_online(
 	ut_ad(!cursor->index->is_instant());
 
 	if (cursor->low_match >= n_uniq && !page_rec_is_infimum(rec)) {
-		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
+		*offsets = rec_get_offsets(rec, cursor->index, *offsets, true,
 					   ULINT_UNDEFINED, heap);
 		err = row_ins_duplicate_online(n_uniq, entry, rec, *offsets);
 		if (err != DB_SUCCESS) {
@@ -2264,7 +2264,7 @@ row_ins_duplicate_error_in_clust_online(
 	rec = page_rec_get_next_const(btr_cur_get_rec(cursor));
 
 	if (cursor->up_match >= n_uniq && !page_rec_is_supremum(rec)) {
-		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
+		*offsets = rec_get_offsets(rec, cursor->index, *offsets, true,
 					   ULINT_UNDEFINED, heap);
 		err = row_ins_duplicate_online(n_uniq, entry, rec, *offsets);
 	}
@@ -2320,6 +2320,7 @@ row_ins_duplicate_error_in_clust(
 
 		if (!page_rec_is_infimum(rec)) {
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
+						  true,
 						  ULINT_UNDEFINED, &heap);
 
 			ulint lock_type;
@@ -2379,6 +2380,7 @@ duplicate:
 
 		if (!page_rec_is_supremum(rec)) {
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
+						  true,
 						  ULINT_UNDEFINED, &heap);
 
 			if (trx->duplicates) {
@@ -2494,7 +2496,7 @@ row_ins_index_entry_big_rec(
 	btr_pcur_open(index, entry, PAGE_CUR_LE, BTR_MODIFY_TREE,
 		      &pcur, &mtr);
 	rec = btr_pcur_get_rec(&pcur);
-	offsets = rec_get_offsets(rec, index, offsets,
+	offsets = rec_get_offsets(rec, index, offsets, true,
 				  ULINT_UNDEFINED, heap);
 
 	DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern");
@@ -3079,7 +3081,7 @@ row_ins_sec_index_entry_low(
 
 		ut_ad(!page_rec_is_infimum(rec));
 
-		offsets = rec_get_offsets(rec, index, offsets,
+		offsets = rec_get_offsets(rec, index, offsets, true,
 					  ULINT_UNDEFINED, &offsets_heap);
 
 		err = row_ins_set_exclusive_rec_lock(
@@ -3110,7 +3112,7 @@ row_ins_sec_index_entry_low(
 		prefix, we must convert the insert into a modify of an
 		existing record */
 		offsets = rec_get_offsets(
-			btr_cur_get_rec(&cursor), index, offsets,
+			btr_cur_get_rec(&cursor), index, offsets, true,
 			ULINT_UNDEFINED, &offsets_heap);
 
 		err = row_ins_sec_index_entry_by_modify(

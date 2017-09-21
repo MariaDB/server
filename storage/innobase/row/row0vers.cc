@@ -108,7 +108,7 @@ row_vers_impl_x_locked_low(
 	heap = mem_heap_create(1024);
 
 	clust_offsets = rec_get_offsets(
-		clust_rec, clust_index, NULL, ULINT_UNDEFINED, &heap);
+		clust_rec, clust_index, NULL, true, ULINT_UNDEFINED, &heap);
 
 	trx_id = row_get_rec_trx_id(clust_rec, clust_index, clust_offsets);
 	if (trx_id == 0) {
@@ -219,8 +219,8 @@ row_vers_impl_x_locked_low(
 		}
 
 		clust_offsets = rec_get_offsets(
-			prev_version, clust_index, NULL, ULINT_UNDEFINED,
-			&heap);
+			prev_version, clust_index, NULL, true,
+			ULINT_UNDEFINED, &heap);
 
 		vers_del = rec_get_deleted_flag(prev_version, comp);
 
@@ -581,7 +581,8 @@ row_vers_build_cur_vrow_low(
 		}
 
 		clust_offsets = rec_get_offsets(prev_version, clust_index,
-						NULL, ULINT_UNDEFINED, &heap);
+						NULL,
+						true, ULINT_UNDEFINED, &heap);
 
 		ulint	entry_len = dict_index_get_n_fields(index);
 
@@ -719,7 +720,8 @@ row_vers_vc_matches_cluster(
 		}
 
 		clust_offsets = rec_get_offsets(prev_version, clust_index,
-						NULL, ULINT_UNDEFINED, &heap);
+						NULL,
+						true, ULINT_UNDEFINED, &heap);
 
 		ulint	entry_len = dict_index_get_n_fields(index);
 
@@ -845,7 +847,7 @@ row_vers_build_cur_vrow(
 			index, roll_ptr, trx_id, v_heap, &cur_vrow, mtr);
 	}
 
-	*clust_offsets = rec_get_offsets(rec, clust_index, NULL,
+	*clust_offsets = rec_get_offsets(rec, clust_index, NULL, true,
 					 ULINT_UNDEFINED, &heap);
 	return(cur_vrow);
 }
@@ -894,7 +896,7 @@ row_vers_old_has_index_entry(
 	comp = page_rec_is_comp(rec);
 	ut_ad(!dict_table_is_comp(index->table) == !comp);
 	heap = mem_heap_create(1024);
-	clust_offsets = rec_get_offsets(rec, clust_index, NULL,
+	clust_offsets = rec_get_offsets(rec, clust_index, NULL, true,
 					ULINT_UNDEFINED, &heap);
 
 	if (dict_index_has_virtual(index)) {
@@ -968,6 +970,7 @@ row_vers_old_has_index_entry(
 				}
 			}
 			clust_offsets = rec_get_offsets(rec, clust_index, NULL,
+							true,
 							ULINT_UNDEFINED, &heap);
 		} else {
 
@@ -1042,7 +1045,8 @@ row_vers_old_has_index_entry(
 		}
 
 		clust_offsets = rec_get_offsets(prev_version, clust_index,
-						NULL, ULINT_UNDEFINED, &heap);
+						NULL, true,
+						ULINT_UNDEFINED, &heap);
 
 		if (dict_index_has_virtual(index)) {
 			if (vrow) {
@@ -1187,8 +1191,8 @@ row_vers_build_for_consistent_read(
 		}
 
 		*offsets = rec_get_offsets(
-			prev_version, index, *offsets, ULINT_UNDEFINED,
-			offset_heap);
+			prev_version, index, *offsets,
+			true, ULINT_UNDEFINED, offset_heap);
 
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 		ut_a(!rec_offs_any_null_extern(prev_version, *offsets));
@@ -1323,6 +1327,7 @@ committed_version_trx:
 				version = rec;
 				*offsets = rec_get_offsets(version,
 							   index, *offsets,
+							   true,
 							   ULINT_UNDEFINED,
 							   offset_heap);
 			}
@@ -1367,7 +1372,7 @@ committed_version_trx:
 		}
 
 		version = prev_version;
-		*offsets = rec_get_offsets(version, index, *offsets,
+		*offsets = rec_get_offsets(version, index, *offsets, true,
 					   ULINT_UNDEFINED, offset_heap);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 		ut_a(!rec_offs_any_null_extern(version, *offsets));

@@ -477,14 +477,14 @@ static bool make_date_time(DATE_TIME_FORMAT *format, MYSQL_TIME *l_time,
     {
       switch (*++ptr) {
       case 'M':
-        if (!l_time->month)
+        if (type == MYSQL_TIMESTAMP_TIME || !l_time->month)
           return 1;
         str->append(locale->month_names->type_names[l_time->month-1],
                     (uint) strlen(locale->month_names->type_names[l_time->month-1]),
                     system_charset_info);
         break;
       case 'b':
-        if (!l_time->month)
+        if (type == MYSQL_TIMESTAMP_TIME || !l_time->month)
           return 1;
         str->append(locale->ab_month_names->type_names[l_time->month-1],
                     (uint) strlen(locale->ab_month_names->type_names[l_time->month-1]),
@@ -534,26 +534,38 @@ static bool make_date_time(DATE_TIME_FORMAT *format, MYSQL_TIME *l_time,
 	}
 	break;
       case 'Y':
+        if (type == MYSQL_TIMESTAMP_TIME)
+          return 1;
 	length= (uint) (int10_to_str(l_time->year, intbuff, 10) - intbuff);
 	str->append_with_prefill(intbuff, length, 4, '0');
 	break;
       case 'y':
+        if (type == MYSQL_TIMESTAMP_TIME)
+          return 1;
 	length= (uint) (int10_to_str(l_time->year%100, intbuff, 10) - intbuff);
 	str->append_with_prefill(intbuff, length, 2, '0');
 	break;
       case 'm':
+        if (type == MYSQL_TIMESTAMP_TIME)
+          return 1;
 	length= (uint) (int10_to_str(l_time->month, intbuff, 10) - intbuff);
 	str->append_with_prefill(intbuff, length, 2, '0');
 	break;
       case 'c':
+        if (type == MYSQL_TIMESTAMP_TIME)
+          return 1;
 	length= (uint) (int10_to_str(l_time->month, intbuff, 10) - intbuff);
 	str->append_with_prefill(intbuff, length, 1, '0');
 	break;
       case 'd':
+	if (type == MYSQL_TIMESTAMP_TIME)
+	  return 1;
 	length= (uint) (int10_to_str(l_time->day, intbuff, 10) - intbuff);
 	str->append_with_prefill(intbuff, length, 2, '0');
 	break;
       case 'e':
+	if (type == MYSQL_TIMESTAMP_TIME)
+	  return 1;
 	length= (uint) (int10_to_str(l_time->day, intbuff, 10) - intbuff);
 	str->append_with_prefill(intbuff, length, 1, '0');
 	break;
