@@ -623,7 +623,7 @@ struct dict_col_t{
 	/** Data for instantly added columns */
 	struct {
 		/** original default value of instantly added column */
-		const byte*	data;
+		const void*	data;
 		/** len of data, or UNIV_SQL_DEFAULT if unavailable */
 		unsigned	len;
 	} def_val;

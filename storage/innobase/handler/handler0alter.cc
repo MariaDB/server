@@ -335,6 +335,20 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 			mem_heap_dup(old_table->heap, instant_table->cols,
 				     instant_table->n_cols
 				     * sizeof *old_table->cols));
+		/* Copy the default values to the old_table->heap.
+		They were allocated in this->heap. */
+		for (uint i = old_table->n_def - DATA_N_SYS_COLS;
+		     i < instant_table->n_def - DATA_N_SYS_COLS;
+		     i++) {
+			dict_col_t& col = old_table->cols[i];
+			ut_ad(col.def_val.len != UNIV_SQL_DEFAULT);
+			if (const void*& def = col.def_val.data) {
+				def = mem_heap_dup(old_table->heap, def,
+						   col.def_val.len);
+			} else {
+				ut_ad(col.def_val.len == UNIV_SQL_NULL);
+			}
+		}
 
 		for (uint i = old_table->n_v_def; i--; ) {
 			UT_DELETE(dict_table_get_nth_v_col(old_table, i)
@@ -360,6 +374,17 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		old_table->n_t_cols = instant_table->n_t_cols;
 		old_table->n_v_cols = instant_table->n_v_cols;
 		instant_table->n_v_def = 0;
+
+		for (uint i = old_table->n_v_def; i--; ) {
+			dict_v_col_t& v = old_table->v_cols[i];
+			v.base_col = static_cast<dict_col_t**>(
+				mem_heap_dup(old_table->heap, v.base_col,
+					     v.num_base * sizeof *v.base_col));
+			for (ulint n = v.num_base; n--; ) {
+				v.base_col[n] -= instant_table->cols
+					- old_table->cols;
+			}
+		}
 
 		dict_index_t* index = dict_table_get_first_index(old_table);
 		const dict_index_t* new_index = dict_table_get_first_index(
@@ -4233,7 +4258,15 @@ innobase_add_instant_try(
 			}
 		}
 
+		ut_ad(!dict_table_get_nth_col(new_table, i)->def_val.data);
+		ut_ad(dict_table_get_nth_col(new_table, i)->def_val.len
+		      == UNIV_SQL_DEFAULT);
+
 		if (!new_field->field) {
+			dict_col_t* col = dict_table_get_nth_col(new_table, i);
+			col->def_val.data = dfield_get_data(dfield);
+			col->def_val.len = dfield_get_len(dfield);
+
 			pars_info_t*    info = pars_info_create();
 			pars_info_add_ull_literal(info, "id", user_table->id);
 			pars_info_add_int4_literal(info, "pos", i);

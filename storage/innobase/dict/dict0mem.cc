@@ -360,7 +360,7 @@ dict_mem_table_add_v_col(
 						       i, name, heap);
 	}
 
-	v_col = dict_table_get_nth_v_col(table, i);
+	v_col = &table->v_cols[i];
 
 	dict_mem_fill_column_struct(&v_col->m_col, pos, mtype, prtype, len);
 	v_col->v_pos = i;

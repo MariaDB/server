@@ -557,8 +557,10 @@ dict_table_get_nth_v_col(
 	ut_ad(table);
 	ut_ad(pos < table->n_v_def);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	return(static_cast<dict_v_col_t*>(table->v_cols) + pos);
+	dict_v_col_t* vcol = &table->v_cols[pos];
+	ut_ad(vcol->m_col.def_val.len == UNIV_SQL_DEFAULT);
+	ut_ad(!vcol->m_col.def_val.data);
+	return vcol;
 }
 
 /********************************************************************//**
@@ -1277,23 +1279,6 @@ dict_index_get_first_n_field_n_nullable(
 	}
 
 	return n_nullable;
-}
-
-/** Get the default value of a clustered index field.
-@param[in]	index	clustered index
-@param[in]	pos	field position in the clustered index
-@param[out]	len	length of the default value, in bytes
-@return	default value */
-UNIV_INLINE
-const byte*
-dict_index_get_nth_field_def(const dict_index_t* index, uint pos, ulint* len)
-{
-	ut_ad(dict_index_is_clust(index));
-
-	const dict_col_t*       col = dict_index_get_nth_col(index, pos);
-	ut_ad(col->def_val.len != UNIV_SQL_DEFAULT);
-	*len = col->def_val.len;
-	return(col->def_val.data);
 }
 
 /********************************************************************//**

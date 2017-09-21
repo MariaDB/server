@@ -1276,11 +1276,20 @@ dict_index_get_nth_col_no(
 /** Get the default value of a clustered index field.
 @param[in]	index	clustered index
 @param[in]	pos	field position in the clustered index
-@param[out]	len	length of the default value, in bytes
-@return	default value */
-UNIV_INLINE
+@param[out]	len	length of the value (in bytes), or UNIV_SQL_NULL
+@return	default value
+@retval	NULL	if the default value is SQL NULL */
+inline
 const byte*
-dict_index_get_nth_field_def(const dict_index_t* index, uint pos, ulint* len);
+dict_index_get_nth_field_def(const dict_index_t* index, uint pos, ulint* len)
+{
+	ut_ad(dict_index_is_clust(index));
+
+	const dict_col_t*       col = dict_index_get_nth_col(index, pos);
+	ut_ad(col->def_val.len != UNIV_SQL_DEFAULT);
+	*len = col->def_val.len;
+	return static_cast<const byte*>(col->def_val.data);
+}
 
 /********************************************************************//**
 Looks for column n in an index.
