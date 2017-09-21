@@ -3506,7 +3506,7 @@ static Sys_var_charptr Sys_version_compile_os(
 #include <source_revision.h>
 static char *server_version_source_revision;
 static Sys_var_charptr Sys_version_source_revision(
-       "version_source_revision", "´Revision of the MariaDB source code",
+       "version_source_revision", "Source control revision id for MariaDB source code",
        READ_ONLY GLOBAL_VAR(server_version_source_revision),
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(SOURCE_REVISION));
