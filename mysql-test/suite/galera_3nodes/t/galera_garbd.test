@@ -32,7 +32,10 @@ INSERT INTO t1 VALUES (1);
 SELECT COUNT(*) = 1 FROM t1;
 
 --echo Killing garbd ...
---exec pkill --oldest --full garbd.*$NODE_GALERAPORT_3
+# FreeBSD's /bin/pkill only supports short versions of the options:
+# -o Select only the oldest (least recently started)
+# -f Match against full argument lists
+--exec pkill -o -f garbd.*$NODE_GALERAPORT_3
 
 --sleep 5
 
