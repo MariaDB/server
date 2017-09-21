@@ -8,8 +8,8 @@
 #  will be binlogged as 
 #  'INSERT INTO t1 VALUES (1) /*!10000, (2)*/ /* 99999 ,(3)*/'.
 ###############################################################################
-source include/master-slave.inc;
 source include/have_binlog_format_statement.inc;
+source include/master-slave.inc;
 
 CREATE TABLE t1(c1 INT);
 source include/show_binlog_events.inc;

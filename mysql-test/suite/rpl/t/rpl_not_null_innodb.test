@@ -11,9 +11,9 @@
 # 3 - NULL --> NOT NULL ( sql-mode != STRICT and no failures)
 #
 #################################################################################
---source include/master-slave.inc
 --source include/have_innodb.inc
 --source include/have_binlog_format_row.inc
+--source include/master-slave.inc
 
 let $engine=Innodb;
 --source extra/rpl_tests/rpl_not_null.test
