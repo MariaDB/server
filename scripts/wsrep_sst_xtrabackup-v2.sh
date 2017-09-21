@@ -657,7 +657,12 @@ wait_for_listen()
 
     for i in {1..300}
     do
-        ss -p state listening "( sport = :$PORT )" | grep -qE 'socat|nc' && break
+        if [ "`uname`" = "FreeBSD" ] ; then
+            get_listening_on_port_cmd="sockstat -l -P tcp -p $PORT"
+        else
+            get_listening_on_port_cmd="ss -p state listening ( sport = :$PORT )"
+        fi
+        $get_listening_on_port_cmd | grep -qE 'socat|nc' && break
         sleep 0.2
     done
 
