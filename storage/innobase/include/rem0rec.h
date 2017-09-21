@@ -944,14 +944,23 @@ The fields are copied into the memory heap.
 @param[in]	n_fields	number of fields to copy
 @param[in,out]	heap		memory heap */
 void
-rec_copy_prefix_to_dtuple(
+rec_copy_prefix_to_dtuple_func(
 	dtuple_t*		tuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
+#ifdef UNIV_DEBUG
 	bool			is_leaf,
+#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull));
+#ifdef UNIV_DEBUG
+# define rec_copy_prefix_to_dtuple(tuple,rec,index,leaf,n_fields,heap)	\
+	rec_copy_prefix_to_dtuple_func(tuple,rec,index,leaf,n_fields,heap)
+#else /* UNIV_DEBUG */
+# define rec_copy_prefix_to_dtuple(tuple,rec,index,leaf,n_fields,heap)	\
+	rec_copy_prefix_to_dtuple_func(tuple,rec,index,n_fields,heap)
+#endif /* UNIV_DEBUG */
 /***************************************************************//**
 Validates the consistency of a physical record.
 @return TRUE if ok */

@@ -3393,23 +3393,12 @@ row_sel_get_clust_rec_for_mysql(
                                 goto func_exit;
 			}
 
-			ulint		page_no = page_get_page_no(
-						btr_pcur_get_page(
-							prebuilt->pcur));
-
-			page_id_t	page_id(dict_index_get_space(sec_index),
-						page_no);
-
-			buf_block_t*	block = buf_page_get_gen(
-				page_id,
-				dict_table_page_size(sec_index->table),
-				RW_NO_LATCH, NULL, BUF_GET,
-				__FILE__, __LINE__, mtr, &err);
-
+			buf_block_t* block = btr_pcur_get_block(
+				prebuilt->pcur);
 			mem_heap_t*	heap = mem_heap_create(256);
 			dtuple_t*       tuple = dict_index_build_data_tuple(
-				sec_index, const_cast<rec_t*>(rec),
-				dict_index_get_n_fields(sec_index), heap);;
+				rec, sec_index, true,
+				sec_index->n_fields, heap);
 			page_cur_t     page_cursor;
 
 		        ulint		low_match = page_cur_search(
