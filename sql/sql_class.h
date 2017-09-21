@@ -1483,7 +1483,8 @@ public:
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
-    errors++;
+    if (level == Sql_condition::WARN_LEVEL_ERROR)
+      errors++;
     return false;
   }
   Counting_error_handler() : errors(0) {}
