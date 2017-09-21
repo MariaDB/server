@@ -4628,25 +4628,28 @@ void TABLE_LIST::cleanup_items()
 
 int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
 {
-  Counting_error_handler ceh;
-  thd->push_internal_handler(&ceh);
-  bool res= check_option && check_option->val_int() == 0;
-  thd->pop_internal_handler();
-  if (ceh.errors)
-    return(VIEW_CHECK_ERROR);
-  if (res)
+  if (check_option)
   {
-    TABLE_LIST *main_view= top_table();
-    if (ignore_failure)
+    Counting_error_handler ceh;
+    thd->push_internal_handler(&ceh);
+    bool res= check_option->val_int() == 0;
+    thd->pop_internal_handler();
+    if (ceh.errors)
+      return(VIEW_CHECK_ERROR);
+    if (res)
     {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_VIEW_CHECK_FAILED, ER(ER_VIEW_CHECK_FAILED),
-                          main_view->view_db.str, main_view->view_name.str);
-      return(VIEW_CHECK_SKIP);
+      TABLE_LIST *main_view= top_table();
+      if (ignore_failure)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_VIEW_CHECK_FAILED, ER(ER_VIEW_CHECK_FAILED),
+                            main_view->view_db.str, main_view->view_name.str);
+        return(VIEW_CHECK_SKIP);
+      }
+      my_error(ER_VIEW_CHECK_FAILED, MYF(0), main_view->view_db.str,
+               main_view->view_name.str);
+      return(VIEW_CHECK_ERROR);
     }
-    my_error(ER_VIEW_CHECK_FAILED, MYF(0), main_view->view_db.str,
-             main_view->view_name.str);
-    return(VIEW_CHECK_ERROR);
   }
   return(VIEW_CHECK_OK);
 }
