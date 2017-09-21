@@ -470,7 +470,7 @@ rec_offs_validate(
 			/* The infimum and supremum records carry 1 field. */
 			ut_ad(is_user_rec || n == 1);
 			ut_ad(is_user_rec || i == 1);
-			ut_ad(!is_user_rec || n >= i
+			ut_ad(!is_user_rec || n >= i || !index
 			      || n >= index->n_core_fields);
 			for (; n < i; n++) {
 				ut_ad(rec_offs_base(offsets)[1 + n]
@@ -2117,7 +2117,8 @@ rec_validate(
 		return(FALSE);
 	}
 
-	ut_a(rec_offs_comp(offsets) || n_fields <= rec_get_n_fields_old(rec));
+	ut_a(rec_offs_any_flag(offsets, REC_OFFS_COMPACT | REC_OFFS_DEFAULT)
+	     || n_fields <= rec_get_n_fields_old(rec));
 
 	for (i = 0; i < n_fields; i++) {
 		rec_get_nth_field_offs(offsets, i, &len);
@@ -2127,10 +2128,16 @@ rec_validate(
 			return(FALSE);
 		}
 
-		if (univ_is_stored(len)) {
+		switch (len) {
+		default:
 			len_sum += len;
-		} else if (!rec_offs_comp(offsets)) {
-			len_sum += rec_get_nth_field_size(rec, i);
+			break;
+		case UNIV_SQL_DEFAULT:
+			break;
+		case UNIV_SQL_NULL:
+			if (!rec_offs_comp(offsets)) {
+				len_sum += rec_get_nth_field_size(rec, i);
+			}
 		}
 	}
 
