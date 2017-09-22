@@ -1031,11 +1031,13 @@ struct dict_index_t{
 			return(n_fields >= old.n_fields
 			       && n_def >= old.n_def
 			       && n_core_fields >= old.n_core_fields
+			       && n_nullable >= old.n_nullable
 			       && n_core_null_bytes >= old.n_core_null_bytes);
 		} else {
 			return(n_fields == old.n_fields
 			       && n_def == old.n_def
 			       && n_core_fields == old.n_core_fields
+			       && n_nullable == old.n_nullable
 			       && n_core_null_bytes == old.n_core_null_bytes);
 		}
 	}
@@ -1847,8 +1849,12 @@ inline void dict_index_t::commit_instant_copy(const dict_index_t& instant)
 	DBUG_ASSERT(n_core_null_bytes == instant.n_core_null_bytes);
 
 	if (instant.is_instant()) {
+		DBUG_ASSERT(instant.n_fields > n_fields);
+		DBUG_ASSERT(instant.n_def > n_def);
+		DBUG_ASSERT(instant.n_nullable >= n_nullable);
 		n_fields = instant.n_fields;
 		n_def = instant.n_def;
+		n_nullable = instant.n_nullable;
 		fields = static_cast<dict_field_t*>(
 			mem_heap_dup(heap, instant.fields,
 				     n_fields * sizeof *fields));
