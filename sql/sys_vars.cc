@@ -409,7 +409,10 @@ static Sys_var_mybool Sys_vers_innodb_algorithm_simple(
 static const char *vers_alter_history_keywords[]= {"KEEP", "SURVIVE", "DROP",
                                                    NULL};
 static Sys_var_enum Sys_vers_alter_history(
-       "versioning_alter_history", "Versioning ALTER TABLE mode",
+       "versioning_alter_history", "Versioning ALTER TABLE mode. "
+       "KEEP: leave historical system rows as is on ALTER TABLE; "
+       "SURVIVE: use DDL survival feature; "
+       "DROP: delete historical system rows on ALTER TABLE",
        SESSION_VAR(vers_alter_history), CMD_LINE(OPT_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_KEEP));
 
