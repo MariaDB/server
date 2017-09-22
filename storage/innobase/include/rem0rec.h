@@ -731,9 +731,6 @@ ulint
 rec_offs_any_flag(const ulint* offsets, ulint flag)
 {
 	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	/* The DEFAULT, EXTERNAL flags are mutually exclusive. */
-	ut_ad(ut_is_2pow(*rec_offs_base(offsets)
-			 & (REC_OFFS_DEFAULT | REC_OFFS_EXTERNAL)));
 	return *rec_offs_base(offsets) & flag;
 }
 
