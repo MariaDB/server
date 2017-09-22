@@ -2050,8 +2050,12 @@ btr_root_raise_and_insert(
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(root_block->frame));
 
-	if (dict_index_is_clust(index) && index->is_instant()) {
+	if (index->is_instant()) {
 		ut_ad(!root_page_zip);
+		byte* page_type = root_block->frame + FIL_PAGE_TYPE;
+		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
+		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
+				 MLOG_2BYTES, mtr);
 		page_set_instant(root_block->frame, index->n_core_fields, mtr);
 	}
 
