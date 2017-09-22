@@ -1286,6 +1286,7 @@ buf_page_print(const byte* read_buf, const page_size_t& page_size)
 	switch (fil_page_get_type(read_buf)) {
 		index_id_t	index_id;
 	case FIL_PAGE_INDEX:
+	case FIL_PAGE_TYPE_INSTANT:
 	case FIL_PAGE_RTREE:
 		index_id = btr_page_get_index_id(read_buf);
 		ib::info() << "Page may be an index page where"
@@ -5628,13 +5629,14 @@ buf_page_monitor(
 
 	switch (fil_page_get_type(frame)) {
 		ulint	level;
-
+	case FIL_PAGE_TYPE_INSTANT:
 	case FIL_PAGE_INDEX:
 	case FIL_PAGE_RTREE:
 		level = btr_page_get_level_low(frame);
 
 		/* Check if it is an index page for insert buffer */
-		if (btr_page_get_index_id(frame)
+		if (fil_page_get_type(frame) == FIL_PAGE_INDEX
+		    && btr_page_get_index_id(frame)
 		    == (index_id_t)(DICT_IBUF_ID_MIN + IBUF_SPACE_ID)) {
 			if (level == 0) {
 				counter = MONITOR_RW_COUNTER(

@@ -1924,6 +1924,8 @@ PageConverter::update_page(
 			return(DB_CORRUPTION);
 		}
 
+		/* fall through */
+	case FIL_PAGE_TYPE_INSTANT:
 		/* This is on every page in the tablespace. */
 		mach_write_to_4(
 			get_frame(block)

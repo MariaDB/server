@@ -886,7 +886,6 @@ buf_dblwr_check_block(
 	case FIL_PAGE_TYPE_ALLOCATED:
 		/* empty pages should never be flushed */
 		return;
-		break;
 	}
 
 	buf_dblwr_assert_on_corrupt_block(block);
