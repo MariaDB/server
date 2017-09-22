@@ -2041,6 +2041,17 @@ class Item_func_case :public Item_func_case_expression,
   Item **arg_buffer;
   uint m_found_types;
   bool prepare_predicant_and_values(THD *thd, uint *found_types);
+  bool aggregate_then_and_else_arguments(THD *thd);
+  bool aggregate_switch_and_when_arguments(THD *thd);
+  Item *find_item_searched();
+  Item *find_item_simple();
+  Item *find_item()
+  {
+    return first_expr_num == -1 ? find_item_searched() : find_item_simple();
+  }
+  void print_when_then_arguments(String *str, enum_query_type query_type,
+                                 Item **items, uint count);
+  void print_else_argument(String *str, enum_query_type query_type, Item *item);
 public:
   Item_func_case(THD *thd, List<Item> &list, Item *first_expr_arg,
                  Item *else_expr_arg);
@@ -2055,7 +2066,6 @@ public:
   const char *func_name() const { return "case"; }
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
   virtual void print(String *str, enum_query_type query_type);
-  Item *find_item(String *str);
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   void cleanup()
   {
@@ -2080,6 +2090,7 @@ public:
     return clone;
   } 
 };
+
 
 /*
   The Item_func_in class implements

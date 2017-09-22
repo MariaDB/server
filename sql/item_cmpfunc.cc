@@ -2856,26 +2856,25 @@ Item_func_case::Item_func_case(THD *thd, List<Item> &list,
            failed
 */
 
-Item *Item_func_case::find_item(String *str)
+
+Item *Item_func_case::find_item_searched()
 {
-  if (first_expr_num == -1)
+  uint count= arg_count / 2;
+  for (uint i= 0 ; i < count ; i++)
   {
-    for (uint i=0 ; i < ncases ; i+=2)
-    {
-      // No expression between CASE and the first WHEN
-      if (args[i]->val_bool())
-	return args[i+1];
-      continue;
-    }
+    if (args[2 * i]->val_bool())
+      return args[2 * i + 1];
   }
-  else
-  {
-    /* Compare every WHEN argument with it and return the first match */
-    uint idx;
-    if (!Predicant_to_list_comparator::cmp(this, &idx, NULL))
-      return args[idx + 1];
-  }
-  // No, WHEN clauses all missed, return ELSE expression
+  return else_expr_num != -1 ? args[else_expr_num] : 0;
+}
+
+
+Item *Item_func_case::find_item_simple()
+{
+  /* Compare every WHEN argument with it and return the first match */
+  uint idx;
+  if (!Predicant_to_list_comparator::cmp(this, &idx, NULL))
+    return args[idx + 1];
   return else_expr_num != -1 ? args[else_expr_num] : 0;
 }
 
@@ -2884,7 +2883,7 @@ String *Item_func_case::str_op(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res;
-  Item *item=find_item(str);
+  Item *item= find_item();
 
   if (!item)
   {
@@ -2901,9 +2900,7 @@ String *Item_func_case::str_op(String *str)
 longlong Item_func_case::int_op()
 {
   DBUG_ASSERT(fixed == 1);
-  char buff[MAX_FIELD_WIDTH];
-  String dummy_str(buff,sizeof(buff),default_charset());
-  Item *item=find_item(&dummy_str);
+  Item *item= find_item();
   longlong res;
 
   if (!item)
@@ -2919,9 +2916,7 @@ longlong Item_func_case::int_op()
 double Item_func_case::real_op()
 {
   DBUG_ASSERT(fixed == 1);
-  char buff[MAX_FIELD_WIDTH];
-  String dummy_str(buff,sizeof(buff),default_charset());
-  Item *item=find_item(&dummy_str);
+  Item *item= find_item();
   double res;
 
   if (!item)
@@ -2938,9 +2933,7 @@ double Item_func_case::real_op()
 my_decimal *Item_func_case::decimal_op(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
-  char buff[MAX_FIELD_WIDTH];
-  String dummy_str(buff, sizeof(buff), default_charset());
-  Item *item= find_item(&dummy_str);
+  Item *item= find_item();
   my_decimal *res;
 
   if (!item)
@@ -2958,9 +2951,7 @@ my_decimal *Item_func_case::decimal_op(my_decimal *decimal_value)
 bool Item_func_case::date_op(MYSQL_TIME *ltime, uint fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
-  char buff[MAX_FIELD_WIDTH];
-  String dummy_str(buff, sizeof(buff), default_charset());
-  Item *item= find_item(&dummy_str);
+  Item *item= find_item();
   if (!item)
     return (null_value= true);
   return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
@@ -2979,6 +2970,10 @@ bool Item_func_case::fix_fields(THD *thd, Item **ref)
     return TRUE;
 
   bool res= Item_func::fix_fields(thd, ref);
+
+  if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
+    maybe_null= 1;
+
   /*
     Call check_stack_overrun after fix_fields to be sure that stack variable
     is not optimized away
@@ -3032,30 +3027,38 @@ bool Item_func_case::prepare_predicant_and_values(THD *thd, uint *found_types)
 
 void Item_func_case::fix_length_and_dec()
 {
+  THD *thd= current_thd;
+  m_found_types= 0;
+  if (!aggregate_then_and_else_arguments(thd) &&
+      first_expr_num != -1)
+    aggregate_switch_and_when_arguments(thd);
+}
+
+
+/*
+  Aggregate all THEN and ELSE expression types
+  and collations when string result
+  
+  @param THD   - current thd
+  @param offs  - the offset of the leftmost THEN argument
+  @paran count - the number or THEN..ELSE pairs
+*/
+bool Item_func_case::aggregate_then_and_else_arguments(THD *thd)
+{
   Item **agg= arg_buffer;
   uint nagg;
-  THD *thd= current_thd;
 
-  m_found_types= 0;
-  if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
-    maybe_null= 1;
-
-  /*
-    Aggregate all THEN and ELSE expression types
-    and collations when string result
-  */
-  
   for (nagg= 0 ; nagg < ncases/2 ; nagg++)
     agg[nagg]= args[nagg*2+1];
-  
+
   if (else_expr_num != -1)
     agg[nagg++]= args[else_expr_num];
 
   if (aggregate_for_result(func_name(), agg, nagg, true))
-    return;
+    return true;
 
   if (fix_attributes(agg, nagg))
-    return;
+    return true;
 
   /*
     Copy all modified THEN and ELSE items back to args[] array.
@@ -3066,81 +3069,85 @@ void Item_func_case::fix_length_and_dec()
 
   if (else_expr_num != -1)
     change_item_tree_if_needed(thd, &args[else_expr_num], agg[nagg++]);
+  return false;
+}
+
+
+/*
+  Aggregate the predicant expression and all WHEN expression types
+  and collations when string comparison
+*/
+bool Item_func_case::aggregate_switch_and_when_arguments(THD *thd)
+{
+  Item **agg= arg_buffer;
+  uint nagg;
+  if (prepare_predicant_and_values(thd, &m_found_types))
+  {
+    /*
+      If Predicant_to_list_comparator() fails to prepare components,
+      it must put an error into the diagnostics area. This is needed
+      to make fix_fields() catches such errors.
+    */
+    DBUG_ASSERT(thd->is_error());
+    return true;
+  }
 
   /*
-    Aggregate first expression and all WHEN expression types
-    and collations when string comparison
+    As the predicant expression and WHEN expressions
+    are intermixed in args[] array THEN and ELSE items,
+    extract the first expression and all WHEN expressions into
+    a temporary array, to process them easier.
   */
-  if (first_expr_num != -1)
+  agg[0]= args[first_expr_num]; // The predicant
+  for (nagg= 0; nagg < ncases/2 ; nagg++)
+    agg[nagg+1]= args[nagg*2];
+  nagg++;
+  if (!(m_found_types= collect_cmp_types(agg, nagg)))
+    return true;
+
+  if (m_found_types & (1U << STRING_RESULT))
   {
-    if (prepare_predicant_and_values(thd, &m_found_types))
-    {
-      /*
-        If Predicant_to_list_comparator() fails to prepare components,
-        it must put an error into the diagnostics area. This is needed
-        to make fix_fields() catches such errors.
-      */
-      DBUG_ASSERT(thd->is_error());
-      return;
-    }
-
-    agg[0]= args[first_expr_num];
-
     /*
-      As the first expression and WHEN expressions
-      are intermixed in args[] array THEN and ELSE items,
-      extract the first expression and all WHEN expressions into 
-      a temporary array, to process them easier.
+      If we'll do string comparison, we also need to aggregate
+      character set and collation for first/WHEN items and
+      install converters for some of them to cmp_collation when necessary.
+      This is done because cmp_item compatators cannot compare
+      strings in two different character sets.
+      Some examples when we install converters:
+
+      1. Converter installed for the first expression:
+
+         CASE         latin1_item              WHEN utf16_item THEN ... END
+
+      is replaced to:
+
+         CASE CONVERT(latin1_item USING utf16) WHEN utf16_item THEN ... END
+
+      2. Converter installed for the left WHEN item:
+
+        CASE utf16_item WHEN         latin1_item              THEN ... END
+
+      is replaced to:
+
+         CASE utf16_item WHEN CONVERT(latin1_item USING utf16) THEN ... END
     */
-    for (nagg= 0; nagg < ncases/2 ; nagg++)
-      agg[nagg+1]= args[nagg*2];
-    nagg++;
-    if (!(m_found_types= collect_cmp_types(agg, nagg)))
-      return;
+    if (agg_arg_charsets_for_comparison(cmp_collation, agg, nagg))
+      return true;
+    /*
+      Now copy first expression and all WHEN expressions back to args[]
+      arrray, because some of the items might have been changed to converters
+      (e.g. Item_func_conv_charset, or Item_string for constants).
+    */
+    change_item_tree_if_needed(thd, &args[first_expr_num], agg[0]);
 
-    if (m_found_types & (1U << STRING_RESULT))
-    {
-      /*
-        If we'll do string comparison, we also need to aggregate
-        character set and collation for first/WHEN items and
-        install converters for some of them to cmp_collation when necessary.
-        This is done because cmp_item compatators cannot compare
-        strings in two different character sets.
-        Some examples when we install converters:
-
-        1. Converter installed for the first expression:
-
-           CASE         latin1_item              WHEN utf16_item THEN ... END
-
-        is replaced to:
-
-           CASE CONVERT(latin1_item USING utf16) WHEN utf16_item THEN ... END
-
-        2. Converter installed for the left WHEN item:
-
-          CASE utf16_item WHEN         latin1_item              THEN ... END
-
-        is replaced to:
-
-           CASE utf16_item WHEN CONVERT(latin1_item USING utf16) THEN ... END
-      */
-      if (agg_arg_charsets_for_comparison(cmp_collation, agg, nagg))
-        return;
-      /*
-        Now copy first expression and all WHEN expressions back to args[]
-        arrray, because some of the items might have been changed to converters
-        (e.g. Item_func_conv_charset, or Item_string for constants).
-      */
-      change_item_tree_if_needed(thd, &args[first_expr_num], agg[0]);
-
-      for (nagg= 0; nagg < ncases / 2; nagg++)
-        change_item_tree_if_needed(thd, &args[nagg * 2], agg[nagg + 1]);
-
-    }
-
-    if (make_unique_cmp_items(thd, cmp_collation.collation))
-      return;
+    for (nagg= 0; nagg < ncases / 2; nagg++)
+      change_item_tree_if_needed(thd, &args[nagg * 2], agg[nagg + 1]);
   }
+
+  if (make_unique_cmp_items(thd, cmp_collation.collation))
+    return true;
+
+  return false;
 }
 
 
@@ -3230,10 +3237,30 @@ Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_
 }
 
 
-/**
-  @todo
-    Fix this so that it prints the whole CASE expression
-*/
+void Item_func_case::print_when_then_arguments(String *str,
+                                               enum_query_type query_type,
+                                               Item **items, uint count)
+{
+  for (uint i=0 ; i < count ; i++)
+  {
+    str->append(STRING_WITH_LEN("when "));
+    items[i * 2]->print_parenthesised(str, query_type, precedence());
+    str->append(STRING_WITH_LEN(" then "));
+    items[i * 2 + 1]->print_parenthesised(str, query_type, precedence());
+    str->append(' ');
+  }
+}
+
+
+void Item_func_case::print_else_argument(String *str,
+                                         enum_query_type query_type,
+                                         Item *item)
+{
+  str->append(STRING_WITH_LEN("else "));
+  item->print_parenthesised(str, query_type, precedence());
+  str->append(' ');
+}
+
 
 void Item_func_case::print(String *str, enum_query_type query_type)
 {
@@ -3243,20 +3270,9 @@ void Item_func_case::print(String *str, enum_query_type query_type)
     args[first_expr_num]->print_parenthesised(str, query_type, precedence());
     str->append(' ');
   }
-  for (uint i=0 ; i < ncases ; i+=2)
-  {
-    str->append(STRING_WITH_LEN("when "));
-    args[i]->print_parenthesised(str, query_type, precedence());
-    str->append(STRING_WITH_LEN(" then "));
-    args[i+1]->print_parenthesised(str, query_type, precedence());
-    str->append(' ');
-  }
+  print_when_then_arguments(str, query_type, &args[0], ncases / 2);
   if (else_expr_num != -1)
-  {
-    str->append(STRING_WITH_LEN("else "));
-    args[else_expr_num]->print_parenthesised(str, query_type, precedence());
-    str->append(' ');
-  }
+    print_else_argument(str, query_type, args[else_expr_num]);
   str->append(STRING_WITH_LEN("end"));
 }
 
