@@ -2859,6 +2859,16 @@ Item *Item_func_case_simple::find_item()
 }
 
 
+Item *Item_func_decode_oracle::find_item()
+{
+  uint idx;
+  if (!Predicant_to_list_comparator::cmp_nulls_equal(this, &idx))
+    return args[idx + 1];
+  Item **pos= Item_func_decode_oracle::else_expr_addr();
+  return pos ? pos[0] : 0;
+}
+
+
 String *Item_func_case::str_op(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -2988,7 +2998,8 @@ static void change_item_tree_if_needed(THD *thd,
 
 
 bool Item_func_case_simple::prepare_predicant_and_values(THD *thd,
-                                                         uint *found_types)
+                                                         uint *found_types,
+                                                         bool nulls_equal)
 {
   bool have_null= false;
   uint type_cnt;
@@ -2997,7 +3008,9 @@ bool Item_func_case_simple::prepare_predicant_and_values(THD *thd,
   add_predicant(this, 0);
   for (uint i= 0 ; i < ncases; i++)
   {
-    if (add_value_skip_null("case..when", this, i * 2 + 1, &have_null))
+    if (nulls_equal ?
+        add_value("case..when", this, i * 2 + 1) :
+        add_value_skip_null("case..when", this, i * 2 + 1, &have_null))
       return true;
   }
   all_values_added(&tmp, &type_cnt, &m_found_types);
@@ -3021,7 +3034,16 @@ void Item_func_case_simple::fix_length_and_dec()
   THD *thd= current_thd;
   Item **else_ptr= Item_func_case_simple::else_expr_addr();
   if (!aggregate_then_and_else_arguments(thd, &args[2], when_count(), else_ptr))
-    aggregate_switch_and_when_arguments(thd);
+    aggregate_switch_and_when_arguments(thd, false);
+}
+
+
+void Item_func_decode_oracle::fix_length_and_dec()
+{
+  THD *thd= current_thd;
+  Item **else_ptr= Item_func_decode_oracle::else_expr_addr();
+  if (!aggregate_then_and_else_arguments(thd, &args[2], when_count(), else_ptr))
+    aggregate_switch_and_when_arguments(thd, true);
 }
 
 
@@ -3072,13 +3094,14 @@ bool Item_func_case::aggregate_then_and_else_arguments(THD *thd,
   Aggregate the predicant expression and all WHEN expression types
   and collations when string comparison
 */
-bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd)
+bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd,
+                                                                bool nulls_eq)
 {
   Item **agg= arg_buffer;
   uint nagg;
   uint ncases= when_count();
   m_found_types= 0;
-  if (prepare_predicant_and_values(thd, &m_found_types))
+  if (prepare_predicant_and_values(thd, &m_found_types, nulls_eq))
   {
     /*
       If Predicant_to_list_comparator() fails to prepare components,
@@ -3962,6 +3985,14 @@ void cmp_item_decimal::store_value(Item *item)
 }
 
 
+int cmp_item_decimal::cmp_not_null(const Value *val)
+{
+  DBUG_ASSERT(!val->is_null());
+  DBUG_ASSERT(val->is_decimal());
+  return my_decimal_cmp(&value, &val->m_decimal);
+}
+
+
 int cmp_item_decimal::cmp(Item *arg)
 {
   my_decimal tmp_buf, *tmp= arg->val_decimal(&tmp_buf);
@@ -3993,10 +4024,26 @@ void cmp_item_temporal::store_value_internal(Item *item,
 }
 
 
+int cmp_item_datetime::cmp_not_null(const Value *val)
+{
+  DBUG_ASSERT(!val->is_null());
+  DBUG_ASSERT(val->is_temporal());
+  return value != pack_time(&val->value.m_time);
+}
+
+
 int cmp_item_datetime::cmp(Item *arg)
 {
   const bool rc= value != arg->val_datetime_packed();
   return (m_null_value || arg->null_value) ? UNKNOWN : rc;
+}
+
+
+int cmp_item_time::cmp_not_null(const Value *val)
+{
+  DBUG_ASSERT(!val->is_null());
+  DBUG_ASSERT(val->is_temporal());
+  return value != pack_time(&val->value.m_time);
 }
 
 

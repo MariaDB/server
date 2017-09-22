@@ -9465,7 +9465,7 @@ column_default_non_parenthesized_expr:
         | DECODE_SYM '(' expr ',' decode_when_list ')'
           {
             $5->push_front($3, thd->mem_root);
-            if (!($$= new (thd->mem_root) Item_func_case_simple(thd, *$5)))
+            if (!($$= new (thd->mem_root) Item_func_decode_oracle(thd, *$5)))
               MYSQL_YYABORT;
           }
         | DEFAULT '(' simple_ident ')'
