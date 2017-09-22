@@ -2814,27 +2814,6 @@ Item_func_nullif::is_null()
 }
 
 
-Item_func_case::Item_func_case(THD *thd, List<Item> &list,
-                               Item *first_expr_arg, Item *else_expr_arg):
-  Item_func_case_expression(thd),
-  Predicant_to_list_comparator(thd, list.elements/*QQ*/),
-  first_expr_num(-1), else_expr_num(-1),
-  m_found_types(0)
-{
-  ncases= list.elements;
-  if (first_expr_arg)
-  {
-    first_expr_num= list.elements;
-    list.push_back(first_expr_arg, thd->mem_root);
-  }
-  if (else_expr_arg)
-  {
-    else_expr_num= list.elements;
-    list.push_back(else_expr_arg, thd->mem_root);
-  }
-  set_arguments(thd, list);
-}
-
 /**
     Find and return matching items for CASE or ELSE item if all compares
     are failed or NULL if ELSE item isn't defined.
@@ -2856,26 +2835,27 @@ Item_func_case::Item_func_case(THD *thd, List<Item> &list,
            failed
 */
 
-
-Item *Item_func_case::find_item_searched()
+Item *Item_func_case_searched::find_item()
 {
-  uint count= arg_count / 2;
+  uint count= when_count();
   for (uint i= 0 ; i < count ; i++)
   {
     if (args[2 * i]->val_bool())
       return args[2 * i + 1];
   }
-  return else_expr_num != -1 ? args[else_expr_num] : 0;
+  Item **pos= Item_func_case_searched::else_expr_addr();
+  return pos ? pos[0] : 0;
 }
 
 
-Item *Item_func_case::find_item_simple()
+Item *Item_func_case_simple::find_item()
 {
   /* Compare every WHEN argument with it and return the first match */
   uint idx;
   if (!Predicant_to_list_comparator::cmp(this, &idx, NULL))
     return args[idx + 1];
-  return else_expr_num != -1 ? args[else_expr_num] : 0;
+  Item **pos= Item_func_case_simple::else_expr_addr();
+  return pos ? pos[0] : 0;
 }
 
 
@@ -2966,12 +2946,13 @@ bool Item_func_case::fix_fields(THD *thd, Item **ref)
   */
   uchar buff[MAX_FIELD_WIDTH*2+sizeof(String)*2+sizeof(String*)*2+sizeof(double)*2+sizeof(longlong)*2];
 
-  if (!(arg_buffer= (Item**) thd->alloc(sizeof(Item*)*(ncases+1))))
+  if (!(arg_buffer= (Item**) thd->alloc(sizeof(Item*)*(arg_count))))
     return TRUE;
 
   bool res= Item_func::fix_fields(thd, ref);
 
-  if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
+  Item **pos= else_expr_addr();
+  if (!pos || pos[0]->maybe_null)
     maybe_null= 1;
 
   /*
@@ -3006,15 +2987,17 @@ static void change_item_tree_if_needed(THD *thd,
 }
 
 
-bool Item_func_case::prepare_predicant_and_values(THD *thd, uint *found_types)
+bool Item_func_case_simple::prepare_predicant_and_values(THD *thd,
+                                                         uint *found_types)
 {
   bool have_null= false;
   uint type_cnt;
   Type_handler_hybrid_field_type tmp;
-  add_predicant(this, (uint) first_expr_num);
-  for (uint i= 0 ; i < ncases / 2; i++)
+  uint ncases= when_count();
+  add_predicant(this, 0);
+  for (uint i= 0 ; i < ncases; i++)
   {
-    if (add_value_skip_null("case..when", this, i * 2, &have_null))
+    if (add_value_skip_null("case..when", this, i * 2 + 1, &have_null))
       return true;
   }
   all_values_added(&tmp, &type_cnt, &m_found_types);
@@ -3025,12 +3008,19 @@ bool Item_func_case::prepare_predicant_and_values(THD *thd, uint *found_types)
 }
 
 
-void Item_func_case::fix_length_and_dec()
+void Item_func_case_searched::fix_length_and_dec()
 {
   THD *thd= current_thd;
-  m_found_types= 0;
-  if (!aggregate_then_and_else_arguments(thd) &&
-      first_expr_num != -1)
+  Item **else_ptr= Item_func_case_searched::else_expr_addr();
+  aggregate_then_and_else_arguments(thd, &args[1], when_count(), else_ptr);
+}
+
+
+void Item_func_case_simple::fix_length_and_dec()
+{
+  THD *thd= current_thd;
+  Item **else_ptr= Item_func_case_simple::else_expr_addr();
+  if (!aggregate_then_and_else_arguments(thd, &args[2], when_count(), else_ptr))
     aggregate_switch_and_when_arguments(thd);
 }
 
@@ -3039,20 +3029,25 @@ void Item_func_case::fix_length_and_dec()
   Aggregate all THEN and ELSE expression types
   and collations when string result
   
-  @param THD   - current thd
-  @param offs  - the offset of the leftmost THEN argument
-  @paran count - the number or THEN..ELSE pairs
+  @param THD       - current thd
+  @param them_expr - the pointer to the leftmost THEN argument in args[]
+  @param count     - the number or THEN..ELSE pairs
+  @param else_epxr - the pointer to the ELSE arguments in args[]
+                     (or NULL is there is not ELSE)
 */
-bool Item_func_case::aggregate_then_and_else_arguments(THD *thd)
+bool Item_func_case::aggregate_then_and_else_arguments(THD *thd,
+                                                       Item **then_expr,
+                                                       uint count,
+                                                       Item **else_expr)
 {
   Item **agg= arg_buffer;
   uint nagg;
 
-  for (nagg= 0 ; nagg < ncases/2 ; nagg++)
-    agg[nagg]= args[nagg*2+1];
+  for (nagg= 0 ; nagg < count ; nagg++)
+    agg[nagg]= then_expr[nagg * 2];
 
-  if (else_expr_num != -1)
-    agg[nagg++]= args[else_expr_num];
+  if (else_expr)
+    agg[nagg++]= *else_expr;
 
   if (aggregate_for_result(func_name(), agg, nagg, true))
     return true;
@@ -3061,14 +3056,14 @@ bool Item_func_case::aggregate_then_and_else_arguments(THD *thd)
     return true;
 
   /*
-    Copy all modified THEN and ELSE items back to args[] array.
+    Copy all modified THEN and ELSE items back to then_expr[] array.
     Some of the items might have been changed to Item_func_conv_charset.
   */
-  for (nagg= 0 ; nagg < ncases / 2 ; nagg++)
-    change_item_tree_if_needed(thd, &args[nagg * 2 + 1], agg[nagg]);
+  for (nagg= 0 ; nagg < count ; nagg++)
+    change_item_tree_if_needed(thd, &then_expr[nagg * 2], agg[nagg]);
 
-  if (else_expr_num != -1)
-    change_item_tree_if_needed(thd, &args[else_expr_num], agg[nagg++]);
+  if (else_expr)
+    change_item_tree_if_needed(thd, else_expr, agg[nagg++]);
   return false;
 }
 
@@ -3077,10 +3072,12 @@ bool Item_func_case::aggregate_then_and_else_arguments(THD *thd)
   Aggregate the predicant expression and all WHEN expression types
   and collations when string comparison
 */
-bool Item_func_case::aggregate_switch_and_when_arguments(THD *thd)
+bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd)
 {
   Item **agg= arg_buffer;
   uint nagg;
+  uint ncases= when_count();
+  m_found_types= 0;
   if (prepare_predicant_and_values(thd, &m_found_types))
   {
     /*
@@ -3098,9 +3095,9 @@ bool Item_func_case::aggregate_switch_and_when_arguments(THD *thd)
     extract the first expression and all WHEN expressions into
     a temporary array, to process them easier.
   */
-  agg[0]= args[first_expr_num]; // The predicant
-  for (nagg= 0; nagg < ncases/2 ; nagg++)
-    agg[nagg+1]= args[nagg*2];
+  agg[0]= args[0]; // The predicant
+  for (nagg= 0; nagg < ncases ; nagg++)
+    agg[nagg+1]= args[nagg * 2 + 1];
   nagg++;
   if (!(m_found_types= collect_cmp_types(agg, nagg)))
     return true;
@@ -3138,10 +3135,10 @@ bool Item_func_case::aggregate_switch_and_when_arguments(THD *thd)
       arrray, because some of the items might have been changed to converters
       (e.g. Item_func_conv_charset, or Item_string for constants).
     */
-    change_item_tree_if_needed(thd, &args[first_expr_num], agg[0]);
+    change_item_tree_if_needed(thd, &args[0], agg[0]);
 
-    for (nagg= 0; nagg < ncases / 2; nagg++)
-      change_item_tree_if_needed(thd, &args[nagg * 2], agg[nagg + 1]);
+    for (nagg= 0; nagg < ncases; nagg++)
+      change_item_tree_if_needed(thd, &args[nagg * 2 + 1], agg[nagg + 1]);
   }
 
   if (make_unique_cmp_items(thd, cmp_collation.collation))
@@ -3151,17 +3148,13 @@ bool Item_func_case::aggregate_switch_and_when_arguments(THD *thd)
 }
 
 
-Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+Item* Item_func_case_simple::propagate_equal_fields(THD *thd,
+                                                    const Context &ctx,
+                                                    COND_EQUAL *cond)
 {
   const Type_handler *first_expr_cmp_handler;
-  if (first_expr_num == -1)
-  {
-    // None of the arguments are in a comparison context
-    Item_args::propagate_equal_fields(thd, Context_identity(), cond);
-    return this;
-  }
 
-  first_expr_cmp_handler= args[first_expr_num]->type_handler_for_comparison();
+  first_expr_cmp_handler= args[0]->type_handler_for_comparison();
   for (uint i= 0; i < arg_count; i++)
   {
     /*
@@ -3171,7 +3164,7 @@ Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_
         CASE ... THEN y1 ... THEN y2 ... THEN y3 ... ELSE y4 END
     */
     Item *new_item= 0;
-    if ((int) i == first_expr_num) // Then CASE (the switch) argument
+    if (i == 0) // Then CASE (the switch) argument
     {
       /*
         Cannot replace the CASE (the switch) argument if
@@ -3208,7 +3201,7 @@ Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_
                                                     cmp_collation.collation),
                                                   cond);
     }
-    else if ((i % 2) == 0) // WHEN arguments
+    else if ((i % 2) == 1 && i != arg_count - 1) // WHEN arguments
     {
       /*
         These arguments are in comparison.
@@ -3262,17 +3255,26 @@ void Item_func_case::print_else_argument(String *str,
 }
 
 
-void Item_func_case::print(String *str, enum_query_type query_type)
+void Item_func_case_searched::print(String *str, enum_query_type query_type)
 {
+  Item **pos;
   str->append(STRING_WITH_LEN("case "));
-  if (first_expr_num != -1)
-  {
-    args[first_expr_num]->print_parenthesised(str, query_type, precedence());
-    str->append(' ');
-  }
-  print_when_then_arguments(str, query_type, &args[0], ncases / 2);
-  if (else_expr_num != -1)
-    print_else_argument(str, query_type, args[else_expr_num]);
+  print_when_then_arguments(str, query_type, &args[0], when_count());
+  if ((pos= Item_func_case_searched::else_expr_addr()))
+    print_else_argument(str, query_type, pos[0]);
+  str->append(STRING_WITH_LEN("end"));
+}
+
+
+void Item_func_case_simple::print(String *str, enum_query_type query_type)
+{
+  Item **pos;
+  str->append(STRING_WITH_LEN("case "));
+  args[0]->print_parenthesised(str, query_type, precedence());
+  str->append(' ');
+  print_when_then_arguments(str, query_type, &args[1], when_count());
+  if ((pos= Item_func_case_simple::else_expr_addr()))
+    print_else_argument(str, query_type, pos[0]);
   str->append(STRING_WITH_LEN("end"));
 }
 

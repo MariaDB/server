@@ -2016,79 +2016,129 @@ public:
 /*
   The class Item_func_case is the CASE ... WHEN ... THEN ... END function
   implementation.
-
-  When there is no expression between CASE and the first WHEN 
-  (the CASE expression) then this function simple checks all WHEN expressions
-  one after another. When some WHEN expression evaluated to TRUE then the
-  value of the corresponding THEN expression is returned.
-
-  When the CASE expression is specified then it is compared to each WHEN
-  expression individually. When an equal WHEN expression is found
-  corresponding THEN expression is returned.
-  In order to do correct comparisons several comparators are used. One for
-  each result type. Different result types that are used in particular
-  CASE ... END expression are collected in the fix_length_and_dec() member
-  function and only comparators for there result types are used.
 */
 
-class Item_func_case :public Item_func_case_expression,
-                      public Predicant_to_list_comparator
+class Item_func_case :public Item_func_case_expression
 {
-  int first_expr_num, else_expr_num;
+protected:
   String tmp_value;
-  uint ncases;
   DTCollation cmp_collation;
   Item **arg_buffer;
-  uint m_found_types;
-  bool prepare_predicant_and_values(THD *thd, uint *found_types);
-  bool aggregate_then_and_else_arguments(THD *thd);
-  bool aggregate_switch_and_when_arguments(THD *thd);
-  Item *find_item_searched();
-  Item *find_item_simple();
-  Item *find_item()
-  {
-    return first_expr_num == -1 ? find_item_searched() : find_item_simple();
-  }
+  bool aggregate_then_and_else_arguments(THD *thd,
+                                         Item **items, uint count,
+                                         Item **else_expr);
+  virtual Item **else_expr_addr() const= 0;
+  virtual Item *find_item()= 0;
   void print_when_then_arguments(String *str, enum_query_type query_type,
                                  Item **items, uint count);
   void print_else_argument(String *str, enum_query_type query_type, Item *item);
 public:
-  Item_func_case(THD *thd, List<Item> &list, Item *first_expr_arg,
-                 Item *else_expr_arg);
+  Item_func_case(THD *thd, List<Item> &list)
+   :Item_func_case_expression(thd, list)
+  { }
   double real_op();
   longlong int_op();
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
-  virtual void print(String *str, enum_query_type query_type);
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
-  void cleanup()
-  {
-    DBUG_ENTER("Item_func_case::cleanup");
-    Item_func::cleanup();
-    Predicant_to_list_comparator::cleanup();
-    DBUG_VOID_RETURN;
-  }
-  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
   bool need_parentheses_in_default() { return true; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_case>(thd, mem_root, this); }
   Item *build_clone(THD *thd, MEM_ROOT *mem_root)
   {
     Item_func_case *clone= (Item_func_case *) Item_func::build_clone(thd, mem_root);
     if (clone)
-    {
       clone->arg_buffer= 0;
-      if (clone->Predicant_to_list_comparator::init_clone(thd, ncases))
-        return NULL;
-    }
+    return clone;
+  }
+};
+
+
+/*
+  CASE WHEN cond THEN res [WHEN cond THEN res...] [ELSE res] END
+
+  Searched CASE checks all WHEN expressions one after another.
+  When some WHEN expression evaluated to TRUE then the
+  value of the corresponding THEN expression is returned.
+*/
+class Item_func_case_searched: public Item_func_case
+{
+  uint when_count() const { return arg_count / 2; }
+  bool with_else() const { return arg_count % 2; }
+  Item **else_expr_addr() const { return with_else() ? &args[arg_count - 1] : 0; }
+public:
+  Item_func_case_searched(THD *thd, List<Item> &list)
+   :Item_func_case(thd, list)
+  {
+    DBUG_ASSERT(arg_count >= 2);
+  }
+  void print(String *str, enum_query_type query_type);
+  void fix_length_and_dec();
+  Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    // None of the arguments are in a comparison context
+    Item_args::propagate_equal_fields(thd, Context_identity(), cond);
+    return this;
+  }
+  Item *find_item();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_case_searched>(thd, mem_root, this); }
+};
+
+
+/*
+  CASE pred WHEN value THEN res [WHEN value THEN res...] [ELSE res] END
+
+  When the predicant expression is specified then it is compared to each WHEN
+  expression individually. When an equal WHEN expression is found
+  the corresponding THEN expression is returned.
+  In order to do correct comparisons several comparators are used. One for
+  each result type. Different result types that are used in particular
+  CASE ... END expression are collected in the fix_length_and_dec() member
+  function and only comparators for there result types are used.
+*/
+class Item_func_case_simple: public Item_func_case,
+                             public Predicant_to_list_comparator
+{
+  uint m_found_types;
+  uint when_count() const { return (arg_count - 1) / 2; }
+  bool with_else() const { return arg_count % 2 == 0; }
+  Item **else_expr_addr() const { return with_else() ? &args[arg_count - 1] : 0; }
+  bool aggregate_switch_and_when_arguments(THD *thd);
+  bool prepare_predicant_and_values(THD *thd, uint *found_types);
+public:
+  Item_func_case_simple(THD *thd, List<Item> &list)
+   :Item_func_case(thd, list),
+    Predicant_to_list_comparator(thd, arg_count),
+    m_found_types(0)
+  {
+    DBUG_ASSERT(arg_count >= 3);
+  }
+  void cleanup()
+  {
+    DBUG_ENTER("Item_func_case_simple::cleanup");
+    Item_func::cleanup();
+    Predicant_to_list_comparator::cleanup();
+    DBUG_VOID_RETURN;
+  }
+  void print(String *str, enum_query_type query_type);
+  void fix_length_and_dec();
+  Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
+  Item *find_item();
+  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
+  {
+    Item_func_case_simple *clone= (Item_func_case_simple *)
+                                  Item_func_case::build_clone(thd, mem_root);
+    uint ncases= when_count();
+    if (clone && clone->Predicant_to_list_comparator::init_clone(thd, ncases))
+      return NULL;
     return clone;
   } 
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_case_simple>(thd, mem_root, this); }
 };
 
 

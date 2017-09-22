@@ -1133,7 +1133,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <item>
         literal text_literal insert_ident order_ident temporal_literal
-        simple_ident expr opt_expr opt_else sum_expr in_sum_expr
+        simple_ident expr sum_expr in_sum_expr
         variable variable_aux bool_pri
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
@@ -1163,7 +1163,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         NUM_literal
 
 %type <item_list>
-        expr_list opt_udf_expr_list udf_expr_list when_list
+        expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
         ident_list ident_list_arg opt_expr_list
         decode_when_list
 
@@ -9440,10 +9440,15 @@ column_default_non_parenthesized_expr:
             if (!($$= $5.create_typecast_item(thd, $3, Lex->charset)))
               MYSQL_YYABORT;
           }
-        | CASE_SYM opt_expr when_list opt_else END
+        | CASE_SYM when_list_opt_else END
           {
-            $$= new (thd->mem_root) Item_func_case(thd, *$3, $2, $4);
-            if ($$ == NULL)
+            if (!($$= new(thd->mem_root) Item_func_case_searched(thd, *$2)))
+              MYSQL_YYABORT;
+          }
+        | CASE_SYM expr when_list_opt_else END
+          {
+            $3->push_front($2, thd->mem_root);
+            if (!($$= new (thd->mem_root) Item_func_case_simple(thd, *$3)))
               MYSQL_YYABORT;
           }
         | CONVERT_SYM '(' expr ',' cast_type ')'
@@ -9459,32 +9464,8 @@ column_default_non_parenthesized_expr:
           }
         | DECODE_SYM '(' expr ',' decode_when_list ')'
           {
-            if (($5->elements % 2) == 0)
-            {
-              // No default expression
-              $$= new (thd->mem_root) Item_func_case(thd, *$5, $3, NULL);
-            }
-            else
-            {
-              /*
-                There is a default expression at the end of the list $5.
-                Create a new list without the default expression.
-              */
-              List<Item> tmp;
-              List_iterator_fast<Item> it(*$5);
-              for (uint i= 0; i < $5->elements - 1; i++) // copy all but last
-              {
-                Item *item= it++;
-                tmp.push_back(item);
-              }
-              /*
-                Now the new list "tmp" contains only WHEN-THEN pairs,
-                The default expression is pointed by the iterator "it"
-                and will be returned by the next call for it++ below.
-              */
-              $$= new (thd->mem_root) Item_func_case(thd, tmp, $3, it++);
-            }
-            if ($$ == NULL)
+            $5->push_front($3, thd->mem_root);
+            if (!($$= new (thd->mem_root) Item_func_case_simple(thd, *$5)))
               MYSQL_YYABORT;
           }
         | DEFAULT '(' simple_ident ')'
@@ -10907,16 +10888,6 @@ ident_list:
           }
         ;
 
-opt_expr:
-          /* empty */    { $$= NULL; }
-        | expr           { $$= $1; }
-        ;
-
-opt_else:
-          /* empty */  { $$= NULL; }
-        | ELSE expr    { $$= $2; }
-        ;
-
 when_list:
           WHEN_SYM expr THEN_SYM expr
           {
@@ -10934,6 +10905,15 @@ when_list:
           }
         ;
 
+
+when_list_opt_else:
+          when_list
+        | when_list ELSE expr
+          {
+            $1->push_back($3, thd->mem_root);
+            $$= $1;
+          }
+        ;
 
 decode_when_list:
           expr ',' expr
