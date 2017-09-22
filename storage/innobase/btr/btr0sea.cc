@@ -1552,47 +1552,37 @@ exit_func:
 	}
 }
 
-/** Moves or deletes hash entries for moved records. If new_page is already
-hashed, then the hash index for page, if any, is dropped. If new_page is not
-hashed, and page is hashed, then a new hash index is built to new_page with the
-same parameters as page (this often happens when a page is split).
-@param[in,out]	new_block	records are copied to this page.
-@param[in,out]	block		index page from which record are copied, and the
-				copied records will be deleted from this page.
-@param[in,out]	index		record descriptor */
+/** Move or delete hash entries for moved records, usually in a page split.
+If new_block is already hashed, then any hash index for block is dropped.
+If new_block is not hashed, and block is hashed, then a new hash index is
+built to new_block with the same parameters as block.
+@param[in,out]	new_block	destination page
+@param[in,out]	block		source page (subject to deletion later) */
 void
 btr_search_move_or_delete_hash_entries(
 	buf_block_t*	new_block,
-	buf_block_t*	block,
-	dict_index_t*	index)
+	buf_block_t*	block)
 {
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	if (index->disable_ahi) return;
-#endif
+	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_X));
+	ut_ad(rw_lock_own(&(new_block->lock), RW_LOCK_X));
+
 	if (!btr_search_enabled) {
 		return;
 	}
 
-	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_X));
-	ut_ad(rw_lock_own(&(new_block->lock), RW_LOCK_X));
-
-	btr_search_s_lock(index);
-
-	ut_a(!new_block->index || new_block->index == index);
-	ut_a(!block->index || block->index == index);
-	ut_a(!(new_block->index || block->index)
-	     || !dict_index_is_ibuf(index));
 	assert_block_ahi_valid(block);
 	assert_block_ahi_valid(new_block);
 
 	if (new_block->index) {
-
-		btr_search_s_unlock(index);
-
 		btr_search_drop_page_hash_index(block);
-
 		return;
 	}
+
+	dict_index_t* index = block->index;
+	if (!index) {
+		return;
+	}
+	btr_search_s_lock(index);
 
 	if (block->index) {
 		ulint	n_fields = block->curr_n_fields;

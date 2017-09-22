@@ -769,9 +769,10 @@ page_copy_rec_list_end(
 
 	/* Update the lock table and possible hash index */
 
-	if (dict_index_is_spatial(index) && rec_move) {
+	if (dict_table_is_locking_disabled(index->table)) {
+	} else if (rec_move && dict_index_is_spatial(index)) {
 		lock_rtr_move_rec_list(new_block, block, rec_move, num_moved);
-	} else if (!dict_table_is_locking_disabled(index->table)) {
+	} else {
 		lock_move_rec_list_end(new_block, block, rec);
 	}
 
@@ -779,7 +780,7 @@ page_copy_rec_list_end(
 		mem_heap_free(heap);
 	}
 
-	btr_search_move_or_delete_hash_entries(new_block, block, index);
+	btr_search_move_or_delete_hash_entries(new_block, block);
 
 	return(ret);
 }
@@ -929,9 +930,10 @@ zip_reorganize:
 
 	/* Update the lock table and possible hash index */
 
-	if (dict_index_is_spatial(index)) {
+	if (dict_table_is_locking_disabled(index->table)) {
+	} else if (dict_index_is_spatial(index)) {
 		lock_rtr_move_rec_list(new_block, block, rec_move, num_moved);
-	} else if (!dict_table_is_locking_disabled(index->table)) {
+	} else {
 		lock_move_rec_list_start(new_block, block, rec, ret);
 	}
 
@@ -939,7 +941,7 @@ zip_reorganize:
 		mem_heap_free(heap);
 	}
 
-	btr_search_move_or_delete_hash_entries(new_block, block, index);
+	btr_search_move_or_delete_hash_entries(new_block, block);
 
 	return(ret);
 }

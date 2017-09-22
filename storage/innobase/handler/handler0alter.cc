@@ -4367,9 +4367,9 @@ set_not_null_default_from_sql:
 			btr_pcur_open(index, entry, PAGE_CUR_LE,
 				      BTR_MODIFY_TREE, &pcur, &mtr);
 			/* FIXME: calculate and apply an update vector
-			with the instantly added columns */
-			/* FIXME: drop any AHI entries for the modified
-			leaf pages during the update */
+			with the instantly added columns (no changes
+			to key columns!) */
+			btr_pcur_close(&pcur);
 		} else if (page_t* root = btr_root_get(index, &mtr)) {
 #ifdef UNIV_DEBUG
 			switch (fil_page_get_type(root)) {
@@ -4395,8 +4395,6 @@ set_not_null_default_from_sql:
 			err = row_ins_clust_index_entry_low(
 				BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
 				index->n_uniq, entry, 0, ctx->thr, false);
-			/* FIXME: drop any AHI entries for the modified
-			leaf pages during the insert */
 		} else {
 			err = DB_CORRUPTION;
 		}

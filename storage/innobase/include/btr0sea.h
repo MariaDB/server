@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -106,19 +107,16 @@ btr_search_guess_on_hash(
 	ulint		has_search_latch,
 	mtr_t*		mtr);
 
-/** Moves or deletes hash entries for moved records. If new_page is already
-hashed, then the hash index for page, if any, is dropped. If new_page is not
-hashed, and page is hashed, then a new hash index is built to new_page with the
-same parameters as page (this often happens when a page is split).
-@param[in,out]	new_block	records are copied to this page.
-@param[in,out]	block		index page from which record are copied, and the
-				copied records will be deleted from this page.
-@param[in,out]	index		record descriptor */
+/** Move or delete hash entries for moved records, usually in a page split.
+If new_block is already hashed, then any hash index for block is dropped.
+If new_block is not hashed, and block is hashed, then a new hash index is
+built to new_block with the same parameters as block.
+@param[in,out]	new_block	destination page
+@param[in,out]	block		source page (subject to deletion later) */
 void
 btr_search_move_or_delete_hash_entries(
 	buf_block_t*	new_block,
-	buf_block_t*	block,
-	dict_index_t*	index);
+	buf_block_t*	block);
 
 /** Drop any adaptive hash index entries that point to an index page.
 @param[in,out]	block	block containing index page, s- or x-latched, or an
@@ -252,7 +250,7 @@ btr_get_search_table(const dict_index_t* index);
 # define btr_search_x_lock(index)
 # define btr_search_x_unlock(index)
 # define btr_search_info_update(index, cursor)
-# define btr_search_move_or_delete_hash_entries(new_block, block, index)
+# define btr_search_move_or_delete_hash_entries(new_block, block)
 # define btr_search_update_hash_on_insert(cursor)
 # define btr_search_update_hash_on_delete(cursor)
 # define btr_search_sys_resize(hash_size)

@@ -1966,19 +1966,16 @@ btr_root_raise_and_insert(
 				   root_page_zip, root, index, mtr);
 
 		/* Update the lock table and possible hash index. */
-
-		if (!dict_table_is_locking_disabled(index->table)) {
-			lock_move_rec_list_end(new_block, root_block,
-					       page_get_infimum_rec(root));
-		}
+		lock_move_rec_list_end(new_block, root_block,
+				       page_get_infimum_rec(root));
 
 		/* Move any existing predicate locks */
 		if (dict_index_is_spatial(index)) {
 			lock_prdt_rec_move(new_block, root_block);
+		} else {
+			btr_search_move_or_delete_hash_entries(
+				new_block, root_block);
 		}
-
-		btr_search_move_or_delete_hash_entries(new_block, root_block,
-						       index);
 	}
 
 	if (dict_index_is_sec_or_ibuf(index)) {
@@ -3093,16 +3090,12 @@ insert_empty:
 						 ULINT_UNDEFINED, mtr);
 
 			/* Update the lock table and possible hash index. */
-
-			if (!dict_table_is_locking_disabled(
-				cursor->index->table)) {
-				lock_move_rec_list_start(
-					new_block, block, move_limit,
-					new_page + PAGE_NEW_INFIMUM);
-			}
+			lock_move_rec_list_start(
+				new_block, block, move_limit,
+				new_page + PAGE_NEW_INFIMUM);
 
 			btr_search_move_or_delete_hash_entries(
-				new_block, block, cursor->index);
+				new_block, block);
 
 			/* Delete the records from the source page. */
 
@@ -3139,16 +3132,12 @@ insert_empty:
 						   cursor->index, mtr);
 
 			/* Update the lock table and possible hash index. */
-			if (!dict_table_is_locking_disabled(
-				cursor->index->table)) {
-				lock_move_rec_list_end(
-					new_block, block, move_limit);
-			}
+			lock_move_rec_list_end(new_block, block, move_limit);
 
 			ut_ad(!dict_index_is_spatial(index));
 
 			btr_search_move_or_delete_hash_entries(
-				new_block, block, cursor->index);
+				new_block, block);
 
 			/* Delete the records from the source page. */
 
@@ -3570,18 +3559,16 @@ btr_lift_page_up(
 
 		/* Update the lock table and possible hash index. */
 
-		if (!dict_table_is_locking_disabled(index->table)) {
-			lock_move_rec_list_end(father_block, block,
-					       page_get_infimum_rec(page));
-		}
+		lock_move_rec_list_end(father_block, block,
+				       page_get_infimum_rec(page));
 
 		/* Also update the predicate locks */
 		if (dict_index_is_spatial(index)) {
 			lock_prdt_rec_move(father_block, block);
+		} else {
+			btr_search_move_or_delete_hash_entries(
+				father_block, block);
 		}
-
-		btr_search_move_or_delete_hash_entries(father_block, block,
-						       index);
 	}
 
 	if (!dict_table_is_locking_disabled(index->table)) {

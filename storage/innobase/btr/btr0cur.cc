@@ -1032,6 +1032,7 @@ btr_cur_search_to_nth_level(
 	    will have to check it again. */
 	    && btr_search_enabled
 	    && !modify_external
+	    && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG)
 	    && rw_lock_get_writer(btr_get_search_latch(index))
 	    == RW_LOCK_NOT_LOCKED
 	    && btr_search_guess_on_hash(index, info, tuple, mode,
@@ -2075,11 +2076,12 @@ need_opposite_intention:
 		will properly check btr_search_enabled again in
 		btr_search_build_page_hash_index() before building a
 		page hash index, while holding search latch. */
-		if (btr_search_enabled
+		if (!btr_search_enabled) {
 # ifdef MYSQL_INDEX_DISABLE_AHI
-		    && !index->disable_ahi
+		} else if (index->disable_ahi) {
 # endif
-		    ) {
+		} else if (tuple->info_bits & REC_INFO_MIN_REC_FLAG) {
+		} else {
 			btr_search_info_update(index, cursor);
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -3191,6 +3193,11 @@ fail_err:
 # ifdef MYSQL_INDEX_DISABLE_AHI
 	} else if (index->disable_ahi) {
 # endif
+	} else if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
+		ut_ad(entry->info_bits == (REC_STATUS_COLUMNS_ADDED
+					   | REC_INFO_MIN_REC_FLAG));
+		ut_ad(index->is_instant());
+		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else if (!reorg && cursor->flag == BTR_CUR_HASH) {
 		btr_search_update_hash_node_on_insert(cursor);
 	} else {
@@ -3394,7 +3401,14 @@ btr_cur_pessimistic_insert(
 # ifdef MYSQL_INDEX_DISABLE_AHI
 		if (index->disable_ahi); else
 # endif
+		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
+			ut_ad(entry->info_bits == (REC_STATUS_COLUMNS_ADDED
+						   | REC_INFO_MIN_REC_FLAG));
+			ut_ad(index->is_instant());
+			ut_ad(flags == BTR_NO_LOCKING_FLAG);
+		} else {
 			btr_search_update_hash_on_insert(cursor);
+		}
 #endif /* BTR_CUR_HASH_ADAPT */
 		if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
 
@@ -3746,6 +3760,11 @@ btr_cur_update_in_place(
 		  | BTR_CREATE_FLAG | BTR_KEEP_SYS_FLAG));
 	ut_ad(fil_page_index_page_check(btr_cur_get_page(cursor)));
 	ut_ad(btr_page_get_index_id(btr_cur_get_page(cursor)) == index->id);
+	ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG)
+	      || update->info_bits == (REC_STATUS_COLUMNS_ADDED
+				       | REC_INFO_MIN_REC_FLAG));
+	ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG)
+	      || index->is_instant());
 
 	DBUG_LOG("ib_cur",
 		 "update-in-place " << index->name << " (" << index->id
@@ -3806,7 +3825,7 @@ btr_cur_update_in_place(
 		if (!dict_index_is_clust(index)
 		    || row_upd_changes_ord_field_binary(index, update, thr,
 							NULL, NULL)) {
-
+			ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG));
 			/* Remove possible hash index pointer to this record */
 			btr_search_update_hash_on_delete(cursor);
 		}
@@ -4085,7 +4104,12 @@ any_extern:
 		lock_rec_store_on_page_infimum(block, rec);
 	}
 
-	btr_search_update_hash_on_delete(cursor);
+	if (new_entry->info_bits & REC_INFO_MIN_REC_FLAG) {
+		ut_ad(index->is_instant());
+		ut_ad(flags == BTR_NO_LOCKING_FLAG);
+	} else {
+		btr_search_update_hash_on_delete(cursor);
+	}
 
 	page_cur_delete_rec(page_cursor, index, *offsets, mtr);
 
@@ -4410,7 +4434,12 @@ btr_cur_pessimistic_update(
 		lock_rec_store_on_page_infimum(block, rec);
 	}
 
-	btr_search_update_hash_on_delete(cursor);
+	if (new_entry->info_bits & REC_INFO_MIN_REC_FLAG) {
+		ut_ad(index->is_instant());
+		ut_ad(flags == BTR_NO_LOCKING_FLAG);
+	} else {
+		btr_search_update_hash_on_delete(cursor);
+	}
 
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
@@ -5069,6 +5098,8 @@ btr_cur_optimistic_delete_func(
 	      || (flags & BTR_CREATE_FLAG));
 
 	rec = btr_cur_get_rec(cursor);
+	ut_ad(!(rec_get_info_bits(rec, page_rec_is_comp(rec))
+		& REC_INFO_MIN_REC_FLAG));
 	offsets = rec_get_offsets(rec, cursor->index, offsets, true,
 				  ULINT_UNDEFINED, &heap);
 
@@ -5212,6 +5243,9 @@ btr_cur_pessimistic_delete(
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
+	ut_ad(!page_is_leaf(page)
+	      || !(rec_get_info_bits(rec, page_rec_is_comp(rec))
+		   & REC_INFO_MIN_REC_FLAG));
 
 	offsets = rec_get_offsets(rec, index, NULL, page_is_leaf(page),
 				  ULINT_UNDEFINED, &heap);
