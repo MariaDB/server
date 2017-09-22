@@ -3613,9 +3613,8 @@ sel_restore_position_for_mysql(
 		if (!success && moves_up) {
 next:
 			if (btr_pcur_move_to_next(pcur, mtr)
-			    && rec_is_default_row(
-				    btr_pcur_get_rec(pcur),
-				    pcur->btr_cur.page_cur.index)) {
+			    && rec_is_default_row(btr_pcur_get_rec(pcur),
+						  pcur->btr_cur.index)) {
 				btr_pcur_move_to_next(pcur, mtr);
 			}
 
@@ -3631,7 +3630,7 @@ next:
 prev:
 		if (btr_pcur_is_on_user_rec(pcur) && !moves_up
 		    && !rec_is_default_row(btr_pcur_get_rec(pcur),
-					   pcur->btr_cur.page_cur.index)) {
+					   pcur->btr_cur.index)) {
 			btr_pcur_move_to_prev(pcur, mtr);
 		}
 		return(TRUE);
