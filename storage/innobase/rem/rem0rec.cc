@@ -274,7 +274,7 @@ rec_init_offsets_comp_ordinary(
 	ulint		any		= 0;
 	const byte*	nulls		= NULL;
 	const byte*	lens		= NULL;
-	ulint		n_fields;
+	ulint		n_fields	= index->n_core_fields;
 	ulint		null_mask	= 1;
 	ulint		extra_bytes	= REC_N_NEW_EXTRA_BYTES;
 
@@ -295,18 +295,19 @@ rec_init_offsets_comp_ordinary(
 		}
 		/* fall through */
 	case REC_LEAF_ORDINARY:
+ordinary:
 		nulls = rec - (1 + extra_bytes);
 		lens = nulls - index->n_core_null_bytes;
 
 		ut_d(n_null = std::min(index->n_core_null_bytes * 8U,
 				       index->n_nullable));
-		n_fields = index->n_core_fields;
 		break;
 	case REC_LEAF_COLUMNS_ADDED:
-		ulint len;
 		ut_ad(index->is_instant());
-		ut_ad(!dict_index_is_ibuf(index));
-
+		if (rec_offs_n_fields(offsets) <= n_fields) {
+			goto ordinary;
+		}
+		ulint len;
 		n_fields = rec_get_field_count(rec, &len);
 		ut_ad(n_fields > index->n_core_fields);
 		ut_ad(extra_bytes == REC_N_NEW_EXTRA_BYTES);
