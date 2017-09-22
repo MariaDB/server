@@ -342,7 +342,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		     i++) {
 			dict_col_t& col = old_table->cols[i];
 			ut_ad(col.def_val.len != UNIV_SQL_DEFAULT);
-			if (const void*& def = col.def_val.data) {
+			if (col.def_val.len == 0) {
+				col.def_val.data = field_ref_zero;
+			} else if (const void*& def = col.def_val.data) {
 				def = mem_heap_dup(old_table->heap, def,
 						   col.def_val.len);
 			} else {
@@ -4200,24 +4202,54 @@ innobase_add_instant_try(
 			continue;
 		}
 
+		dict_col_t* col = dict_table_get_nth_col(new_table, i);
+		const dict_col_t* old_col = new_field->field
+			? dict_table_get_nth_col(user_table, i) : NULL;
+
 		DBUG_ASSERT(!strcmp((*af)->field_name.str,
 				    dict_table_get_col_name(new_table, i)));
+		DBUG_ASSERT(!col->def_val.data);
+		DBUG_ASSERT(col->def_val.len == UNIV_SQL_DEFAULT);
+
 		dfield_t* dfield = dtuple_get_nth_field(row, i);
-		if ((*af)->is_real_null()
-		    || (new_field->field && (*af)->real_maybe_null())) {
-			/* Store NULL for added columns that are NULL
-			by default, and for nullable pre-existing columns. */
-			dfield_set_null(dfield);
-		} else {
-			switch ((*af)->type()) {
-			case MYSQL_TYPE_VARCHAR:
-				if (new_field->field) {
+		if (new_field->field) {
+			DBUG_ASSERT(col->mtype == old_col->mtype);
+			DBUG_ASSERT(col->prtype == old_col->prtype);
+			DBUG_ASSERT(col->mbminmaxlen == old_col->mbminmaxlen);
+			DBUG_ASSERT(col->len >= old_col->len);
+			col->def_val = old_col->def_val;
+
+			if (old_col->def_val.len == UNIV_SQL_DEFAULT) {
+				/* We may only have missing DEFAULT
+				value for 'core' columns. */
+				DBUG_ASSERT(dict_col_get_clust_pos(
+						    old_col, old_index)
+					    < old_index->n_core_fields);
+				if ((*af)->real_maybe_null()) {
+					/* Store NULL for nullable
+					'core' columns. */
+					dfield_set_null(dfield);
+				} else if ((*af)->type()
+					   == MYSQL_TYPE_VARCHAR) {
 					/* Store the empty string for
 					pre-existing VARCHAR NOT NULL
 					columns. */
 					dfield_set_data(dfield, "", 0);
-					break;
+				} else {
+					goto set_not_null_default_from_sql;
 				}
+			} else {
+				dfield_set_data(dfield, old_col->def_val.data,
+						old_col->def_val.len);
+			}
+		} else if ((*af)->is_real_null()) {
+			/* Store NULL for added DEFAULT NULL columns. */
+			dfield_set_null(dfield);
+			col->def_val.len = UNIV_SQL_NULL;
+		} else {
+set_not_null_default_from_sql:
+			switch ((*af)->type()) {
+			case MYSQL_TYPE_VARCHAR:
 				dfield_set_data(dfield,
 						reinterpret_cast
 						<const Field_varstring*>
@@ -4256,17 +4288,12 @@ innobase_add_instant_try(
 					: NULL, true, (*af)->ptr, len,
 					dict_table_is_comp(user_table));
 			}
-		}
 
-		ut_ad(!dict_table_get_nth_col(new_table, i)->def_val.data);
-		ut_ad(dict_table_get_nth_col(new_table, i)->def_val.len
-		      == UNIV_SQL_DEFAULT);
-
-		if (!new_field->field) {
-			dict_col_t* col = dict_table_get_nth_col(new_table, i);
 			col->def_val.data = dfield_get_data(dfield);
 			col->def_val.len = dfield_get_len(dfield);
+		}
 
+		if (!new_field->field) {
 			pars_info_t*    info = pars_info_create();
 			pars_info_add_ull_literal(info, "id", user_table->id);
 			pars_info_add_int4_literal(info, "pos", i);
