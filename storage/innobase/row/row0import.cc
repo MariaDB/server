@@ -1439,10 +1439,12 @@ IndexPurge::open() UNIV_NOTHROW
 
 	btr_pcur_open_at_index_side(
 		true, m_index, BTR_MODIFY_LEAF, &m_pcur, true, 0, &m_mtr);
+	btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
 	if (rec_is_default_row(btr_pcur_get_rec(&m_pcur), m_index)) {
 		ut_ad(btr_pcur_is_on_user_rec(&m_pcur));
 		/* Skip the 'default row' pseudo-record. */
-		btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
+	} else {
+		btr_pcur_move_to_prev_on_page(&m_pcur);
 	}
 }
 
