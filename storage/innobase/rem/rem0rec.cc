@@ -299,7 +299,7 @@ rec_init_offsets_comp_ordinary(
 		ut_ad(n_null_bytes >= index->n_core_null_bytes);
 		lens = nulls - n_null_bytes;
 	} else {
-		ut_ad(!index->is_instant());
+		ut_ad(!temp || !index->is_instant());
 		nulls = rec - (1 + extra_bytes);
 		lens = nulls - index->n_core_null_bytes;
 
