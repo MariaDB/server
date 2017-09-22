@@ -5298,7 +5298,7 @@ new_clustered_failed:
 			error = DB_OUT_OF_MEMORY;
 			goto error_handling;);
 
-	if (ctx->need_rebuild()) {
+	if (ctx->need_rebuild() && ctx->new_table->supports_instant()) {
 		if (~ha_alter_info->handler_flags
 		    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
 			goto not_instant_add_column;
