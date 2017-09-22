@@ -172,7 +172,8 @@ rec_get_n_extern_new(
 	ulint		i;
 
 	ut_ad(dict_table_is_comp(index->table));
-	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY);
+	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
+	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
 	ut_ad(n == ULINT_UNDEFINED || n <= dict_index_get_n_fields(index));
 
 	if (n == ULINT_UNDEFINED) {
@@ -234,40 +235,40 @@ rec_get_n_extern_new(
 	return(n_extern);
 }
 
-/** Get the number of nullable columns.
-@param[in]	rec	clustered index record with added columns
-@param[in]	index	clustered index
-@return	number of possibly NULL columns in rec */
-static
-ulint
-rec_get_n_nullable(const rec_t* rec, const dict_index_t* index)
+/** Get the storage length of field count in rec_get_instant() header
+@param[in]	n_fields_add	number of added fields
+@return	size in bytes */
+inline
+unsigned
+rec_get_field_count_len(ulint n_fields_add)
 {
-	ut_ad(index->is_instant());
-	ut_ad(dict_table_is_comp(index->table));
-	ut_ad(rec_is_instant(rec));
-
-	ulint len;
-	ulint n_fields = rec_get_field_count(rec, &len);
-	ut_ad(len == rec_get_field_count_len(n_fields));
-	return dict_index_get_first_n_field_n_nullable(index, n_fields);
+	return (n_fields_add > REC_FIELD_COUNT_ONE_BYTE_MAX) ? 2 : 1;
 }
 
-/******************************************************//**
-Determine the offset to each field in a leaf-page record
-in ROW_FORMAT=COMPACT.  This is a special case of
-rec_init_offsets() and rec_get_offsets_func(). */
-UNIV_INLINE MY_ATTRIBUTE((nonnull))
+/** Format of a leaf-page ROW_FORMAT!=REDUNDANT record */
+enum rec_leaf_format {
+	/** temporary file record */
+	REC_LEAF_TEMP,
+	/** Normal (REC_STATUS_ORDINARY) */
+	REC_LEAF_ORDINARY,
+	/** With added columns (REC_STATUS_COLUMNS_ADDED) */
+	REC_LEAF_COLUMNS_ADDED
+};
+
+/** Determine the offset to each field in a leaf-page record
+in ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED.
+This is a special case of rec_init_offsets() and rec_get_offsets_func().
+@param[in]	rec	leaf-page record
+@param[in]	index	the index that the record belongs in
+@param[in,out]	offsets	offsets, with valid rec_offs_n_fields(offsets)
+@param[in]	format	record format */
+static inline
 void
 rec_init_offsets_comp_ordinary(
-/*===========================*/
-	const rec_t*		rec,	/*!< in: physical record in
-					ROW_FORMAT=COMPACT */
-	bool			temp,	/*!< in: whether to use the
-					format for temporary files in
-					index creation */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in/out: array of offsets;
-					in: n=rec_offs_n_fields(offsets) */
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets,
+	rec_leaf_format		format)
 {
 	ulint		offs		= 0;
 	ulint		any		= 0;
@@ -275,54 +276,58 @@ rec_init_offsets_comp_ordinary(
 	const byte*	lens		= NULL;
 	ulint		n_fields;
 	ulint		null_mask	= 1;
-	ulint		extra_bytes = temp ? 0 : REC_N_NEW_EXTRA_BYTES;	
+	ulint		extra_bytes	= REC_N_NEW_EXTRA_BYTES;
 
 	ut_ad(index->n_core_fields > 0);
 	ut_ad(index->n_fields >= index->n_core_fields);
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
+	ut_ad(format == REC_LEAF_TEMP || dict_table_is_comp(index->table));
 	ut_d(ulint n_null);
 
-	if (!temp && rec_is_instant(rec)) {
-		ulint field_count_len;
-		ut_ad(index->is_instant());
-		ut_ad(!dict_index_is_ibuf(index));
-
-		n_fields = rec_get_field_count(rec, &field_count_len);
-
-		ut_a(extra_bytes == REC_N_NEW_EXTRA_BYTES);
-		nulls = rec - (1 + extra_bytes + field_count_len);
-
-		const ulint n_nullable = rec_get_n_nullable(rec, index);
-		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
-		ut_d(n_null = n_nullable);
-		ut_ad(n_null <= index->n_nullable);
-		ut_ad(n_null_bytes >= index->n_core_null_bytes);
-		lens = nulls - n_null_bytes;
-	} else {
-		ut_ad(!temp || !index->is_instant());
+	switch (format) {
+	case REC_LEAF_TEMP:
+		ut_ad(!index->is_instant());
+		extra_bytes = 0;
+		if (dict_table_is_comp(index->table)) {
+			/* No need to do adjust fixed_len=0. We only need to
+			adjust it for ROW_FORMAT=REDUNDANT. */
+			format = REC_LEAF_ORDINARY;
+		}
+		/* fall through */
+	case REC_LEAF_ORDINARY:
 		nulls = rec - (1 + extra_bytes);
 		lens = nulls - index->n_core_null_bytes;
 
 		ut_d(n_null = std::min(index->n_core_null_bytes * 8U,
 				       index->n_nullable));
 		n_fields = index->n_core_fields;
+		break;
+	case REC_LEAF_COLUMNS_ADDED:
+		ulint len;
+		ut_ad(index->is_instant());
+		ut_ad(!dict_index_is_ibuf(index));
+
+		n_fields = rec_get_field_count(rec, &len);
+		ut_ad(n_fields > index->n_core_fields);
+		ut_ad(extra_bytes == REC_N_NEW_EXTRA_BYTES);
+		nulls = rec - (1 + REC_N_NEW_EXTRA_BYTES) - len;
+		const ulint n_nullable
+			= dict_index_get_first_n_field_n_nullable(index,
+								  n_fields);
+		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+		ut_d(n_null = n_nullable);
+		ut_ad(n_null <= index->n_nullable);
+		ut_ad(n_null_bytes >= index->n_core_null_bytes);
+		lens = nulls - n_null_bytes;
 	}
 
 #ifdef UNIV_DEBUG
-	/* We cannot invoke rec_offs_make_valid() here if temp=true.
+	/* We cannot invoke rec_offs_make_valid() if format==REC_LEAF_TEMP.
 	Similarly, rec_offs_validate() will fail in that case, because
 	it invokes rec_get_status(). */
 	offsets[2] = (ulint) rec;
 	offsets[3] = (ulint) index;
 #endif /* UNIV_DEBUG */
-
-	ut_ad(temp || dict_table_is_comp(index->table));
-
-	if (temp && dict_table_is_comp(index->table)) {
-		/* No need to do adjust fixed_len=0. We only need to
-		adjust it for ROW_FORMAT=REDUNDANT. */
-		temp = false;
-	}
 
 	/* read the lengths of fields 0..n_fields */
 	ulint i = 0;
@@ -371,7 +376,8 @@ rec_init_offsets_comp_ordinary(
 		}
 
 		if (!field->fixed_len
-		    || (temp && !dict_col_get_fixed_size(col, temp))) {
+		    || (format == REC_LEAF_TEMP
+			&& !dict_col_get_fixed_size(col, true))) {
 			/* Variable-length field: read the length */
 			len = *lens--;
 			/* If the maximum length of the field is up
@@ -486,6 +492,7 @@ rec_offs_validate(
 			dict_index_get_n_unique_in_tree(index) + 1);
 		if (comp && rec) {
 			switch (rec_get_status(rec)) {
+			case REC_STATUS_COLUMNS_ADDED:
 			case REC_STATUS_ORDINARY:
 				break;
 			case REC_STATUS_NODE_PTR:
@@ -567,10 +574,15 @@ rec_init_offsets(
 				= dict_index_get_n_unique_in_tree_nonleaf(
 					index);
 			break;
+		case REC_STATUS_COLUMNS_ADDED:
+			ut_ad(leaf);
+			rec_init_offsets_comp_ordinary(rec, index, offsets,
+						       REC_LEAF_COLUMNS_ADDED);
+			return;
 		case REC_STATUS_ORDINARY:
 			ut_ad(leaf);
-			rec_init_offsets_comp_ordinary(
-				rec, false, index, offsets);
+			rec_init_offsets_comp_ordinary(rec, index, offsets,
+						       REC_LEAF_ORDINARY);
 			return;
 		}
 
@@ -582,7 +594,6 @@ rec_init_offsets(
 		(Clustered index node pointer records only contain the
 		PRIMARY KEY columns, which are always NOT NULL,
 		so we should have used n_nullable=0.) */
-		ut_ad(!rec_is_instant(rec));
 		ut_ad(index->n_core_fields > 0);
 
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
@@ -748,6 +759,7 @@ rec_get_offsets_func(
 	if (dict_table_is_comp(index->table)) {
 		switch (UNIV_EXPECT(rec_get_status(rec),
 				    REC_STATUS_ORDINARY)) {
+		case REC_STATUS_COLUMNS_ADDED:
 		case REC_STATUS_ORDINARY:
 			ut_ad(leaf);
 			n = dict_index_get_n_fields(index);
@@ -1037,7 +1049,7 @@ rec_get_converted_size_comp_prefix_low(
 	const dfield_t*		fields,	/*!< in: array of data fields */
 	ulint			n_fields,/*!< in: number of data fields */
 	ulint*			extra,	/*!< out: extra size */
-	ulint			rec_flag,	/*!< in: REC_FLAG_* */
+	rec_comp_status_t	status,	/*!< in: status flags */
 	bool			temp)	/*!< in: whether this is a
 					temporary file record */
 {
@@ -1047,21 +1059,22 @@ rec_get_converted_size_comp_prefix_low(
 	ut_ad(n_fields > 0);
 	ut_ad(n_fields <= dict_index_get_n_fields(index));
 	ut_ad(!temp || extra);
-	ut_ad(!temp || rec_flag == REC_FLAG_NONE);
+	ut_ad(!temp || status == REC_STATUS_ORDINARY);
 
 	ut_d(ulint n_null = index->n_nullable);
 	ut_d(const ulint n_null_bytes = UT_BITS_IN_BYTES(n_null));
 
-	if (rec_flag == REC_FLAG_INSTANT && index->is_instant()) {
-		ut_ad(n_null_bytes >= index->n_core_null_bytes);
-		extra_size = REC_N_NEW_EXTRA_BYTES
-			+ UT_BITS_IN_BYTES(index->n_nullable)
-			+ rec_get_field_count_len(n_fields);
-	} else {
+	if (status == REC_STATUS_NODE_PTR || !index->is_instant()) {
 		ut_ad(n_null_bytes == index->n_core_null_bytes);
 		extra_size = temp
 			? index->n_core_null_bytes
 			: REC_N_NEW_EXTRA_BYTES + index->n_core_null_bytes;
+	} else {
+		ut_ad(!temp);
+		ut_ad(n_null_bytes >= index->n_core_null_bytes);
+		extra_size = REC_N_NEW_EXTRA_BYTES
+			+ UT_BITS_IN_BYTES(index->n_nullable)
+			+ rec_get_field_count_len(n_fields);
 	}
 
 	data_size = 0;
@@ -1224,7 +1237,8 @@ rec_get_converted_size_comp_prefix(
 {
 	ut_ad(dict_table_is_comp(index->table));
 	return(rec_get_converted_size_comp_prefix_low(
-		       index, fields, n_fields, extra, REC_FLAG_NONE, false));
+		       index, fields, n_fields, extra,
+		       REC_STATUS_ORDINARY, false));
 }
 
 /**********************************************************//**
@@ -1237,43 +1251,35 @@ rec_get_converted_size_comp(
 					dict_table_is_comp() is
 					assumed to hold, even if
 					it does not */
-	ulint			status,	/*!< in: status bits of the record */
+	rec_comp_status_t	status,	/*!< in: status bits of the record */
 	const dfield_t*		fields,	/*!< in: array of data fields */
 	ulint			n_fields,/*!< in: number of data fields */
 	ulint*			extra)	/*!< out: extra size */
 {
-	ulint	size;
 	ut_ad(n_fields > 0);
-	ulint	rec_flag = REC_FLAG_NONE;
 
 	switch (UNIV_EXPECT(status, REC_STATUS_ORDINARY)) {
 	case REC_STATUS_ORDINARY:
+	case REC_STATUS_COLUMNS_ADDED:
 		ut_ad(n_fields == dict_index_get_n_fields(index));
-		size = 0;
-		rec_flag |= REC_FLAG_INSTANT;
-		break;
+		return rec_get_converted_size_comp_prefix_low(
+			index, fields, n_fields, extra, status, false);
 	case REC_STATUS_NODE_PTR:
 		n_fields--;
 		ut_ad(n_fields == dict_index_get_n_unique_in_tree_nonleaf(
 					index));
 		ut_ad(dfield_get_len(&fields[n_fields]) == REC_NODE_PTR_SIZE);
-		size = REC_NODE_PTR_SIZE; /* child page number */
-		rec_flag |= REC_FLAG_NODE_PTR;
-		break;
+		return REC_NODE_PTR_SIZE /* child page number */
+			+ rec_get_converted_size_comp_prefix_low(
+				index, fields, n_fields, extra, status, false);
 	case REC_STATUS_INFIMUM:
 	case REC_STATUS_SUPREMUM:
-		/* infimum or supremum record, 8 data bytes */
-		if (UNIV_LIKELY_NULL(extra)) {
-			*extra = REC_N_NEW_EXTRA_BYTES;
-		}
-		return(REC_N_NEW_EXTRA_BYTES + 8);
-	default:
-		ut_error;
-		return(ULINT_UNDEFINED);
+		/* not supported */
+		break;
 	}
 
-	return(size + rec_get_converted_size_comp_prefix_low(
-		       index, fields, n_fields, extra, rec_flag, false));
+	ut_error;
+	return(ULINT_UNDEFINED);
 }
 
 /***********************************************************//**
@@ -1453,7 +1459,7 @@ rec_convert_dtuple_to_rec_comp(
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	const dfield_t*		fields,	/*!< in: array of data fields */
 	ulint			n_fields,/*!< in: number of data fields */
-	ulint			status,	/*!< in: status bits of the record */
+	rec_comp_status_t	status,	/*!< in: status bits of the record */
 	bool			temp)	/*!< in: whether to use the
 					format for temporary files in
 					index creation */
@@ -1492,15 +1498,17 @@ rec_convert_dtuple_to_rec_comp(
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 
 		switch (UNIV_EXPECT(status, REC_STATUS_ORDINARY)) {
+		case REC_STATUS_COLUMNS_ADDED:
+			ut_ad(index->is_instant());
+			/* fall through */
 		case REC_STATUS_ORDINARY:
 			ut_ad(n_fields <= dict_index_get_n_fields(index));
 			is_instant = index->is_instant();
 			if (is_instant) {
 				ut_ad(n_fields == index->n_fields);
-				ulint field_count_len = rec_set_field_count(
-					rec, n_fields);
-				nulls = rec - (REC_N_NEW_EXTRA_BYTES
-					       + field_count_len + 1);
+				rec_set_status(rec, REC_STATUS_COLUMNS_ADDED);
+				nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1)
+					- rec_set_field_count(rec, n_fields);
 			}
 
 			n_node_ptr_field = ULINT_UNDEFINED;
@@ -1704,21 +1712,30 @@ rec_convert_dtuple_to_rec_new(
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	const dtuple_t*		dtuple)	/*!< in: data tuple */
 {
+	ulint bits = dtuple->info_bits;
+	ut_ad(!(bits & ~(REC_NEW_STATUS_MASK | REC_INFO_DELETED_FLAG
+			 | REC_INFO_MIN_REC_FLAG)));
+	rec_comp_status_t status = static_cast<rec_comp_status_t>(
+		bits & REC_NEW_STATUS_MASK);
 	ulint	extra_size;
-	ulint	status;
-	rec_t*	rec;
 
-	status = dtuple_get_info_bits(dtuple) & REC_NEW_STATUS_MASK;
 	rec_get_converted_size_comp(
 		index, status, dtuple->fields, dtuple->n_fields, &extra_size);
-	rec = buf + extra_size;
+	rec_t* rec = buf + extra_size;
 
-	bool is_instant = rec_convert_dtuple_to_rec_comp(
-		rec, index, dtuple->fields, dtuple->n_fields, status, false);
-	rec_set_info_and_status_bits(rec, dtuple_get_info_bits(dtuple));
+	if (rec_convert_dtuple_to_rec_comp(
+		    rec, index, dtuple->fields, dtuple->n_fields,
+		    status, false)) {
+		ut_ad(status == REC_STATUS_ORDINARY
+		      || status == REC_STATUS_COLUMNS_ADDED);
+		bits &= ~REC_NEW_STATUS_MASK;
+		bits |= REC_STATUS_COLUMNS_ADDED;
+	} else {
+		ut_ad(status == REC_STATUS_ORDINARY
+		      || status == REC_STATUS_NODE_PTR);
+	}
 
-	rec_set_instant_flag(rec, is_instant);
-
+	rec_set_info_and_status_bits(rec, bits);
 	return(rec);
 }
 
@@ -1767,7 +1784,8 @@ rec_get_converted_size_temp(
 	ulint*			extra)
 {
 	return(rec_get_converted_size_comp_prefix_low(
-		       index, fields, n_fields, extra, REC_FLAG_NONE, true));
+		       index, fields, n_fields, extra,
+		       REC_STATUS_ORDINARY, true));
 }
 
 /******************************************************//**
@@ -1781,7 +1799,7 @@ rec_init_offsets_temp(
 	ulint*			offsets)/*!< in/out: array of offsets;
 					in: n=rec_offs_n_fields(offsets) */
 {
-	rec_init_offsets_comp_ordinary(rec, true, index, offsets);
+	rec_init_offsets_comp_ordinary(rec, index, offsets, REC_LEAF_TEMP);
 }
 
 /*********************************************************//**
@@ -1931,8 +1949,27 @@ rec_copy_prefix_to_buf(
 	status = rec_get_status(rec);
 
 	switch (status) {
+	case REC_STATUS_COLUMNS_ADDED:
+		ut_ad(index->is_instant());
+		if (n_fields >= index->n_core_fields) {
+			ut_ad(n_fields <= index->n_fields);
+			ulint len;
+			ulint n_fields_rec = rec_get_field_count(rec, &len);
+			ut_ad(len == rec_get_field_count_len(n_fields_rec));
+			ut_ad(n_fields_rec >= n_fields);
+			const ulint n_nullable
+				= dict_index_get_first_n_field_n_nullable(
+					index, n_fields_rec);
+			ut_ad(n_nullable <= index->n_nullable);
+			nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1) - len;
+			lens = nulls - UT_BITS_IN_BYTES(n_nullable);
+			break;
+		}
+		/* fall through */
 	case REC_STATUS_ORDINARY:
-		ut_ad(n_fields <= dict_index_get_n_fields(index));
+		ut_ad(n_fields <= index->n_core_fields);
+		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
+		lens = nulls - index->n_core_null_bytes;
 		break;
 	case REC_STATUS_NODE_PTR:
 		/* For R-tree, we need to copy the child page number field. */
@@ -1945,36 +1982,14 @@ rec_copy_prefix_to_buf(
 			ut_ad(n_fields <=
 			      dict_index_get_n_unique_in_tree_nonleaf(index));
 		}
+		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
+		lens = nulls - index->n_core_null_bytes;
 		break;
 	case REC_STATUS_INFIMUM:
 	case REC_STATUS_SUPREMUM:
 		/* infimum or supremum record: no sense to copy anything */
-	default:
 		ut_error;
 		return(NULL);
-	}
-
-	if (rec_is_instant(rec)) {
-		ut_ad(!dict_index_is_ibuf(index));
-		ulint field_count_len = 0;
-		ulint field_count = 0;
-		ulint n_nullable = 0;
-
-		ut_a(index->is_instant());
-
-		field_count = rec_get_field_count(rec, &field_count_len);
-		ut_ad(field_count_len == rec_get_field_count_len(field_count));
-		ut_ad(field_count >= n_fields);
-
-		n_nullable = rec_get_n_nullable(rec, index);
-		ut_ad(n_nullable <= index->n_nullable);
-
-		nulls = rec - (REC_N_NEW_EXTRA_BYTES + field_count_len + 1);
-		lens  = nulls - UT_BITS_IN_BYTES(n_nullable);
-
-	} else {
-		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
-		lens = nulls - index->n_core_null_bytes;
 	}
 
 	UNIV_PREFETCH_R(lens);

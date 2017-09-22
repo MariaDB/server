@@ -4343,7 +4343,7 @@ set_not_null_default_from_sql:
 	pars_info_add_int4_literal(info, "id", user_table->id);
 
 	dtuple_t* entry = row_build_index_entry(row, NULL, index, ctx->heap);
-	entry->info_bits = REC_INFO_MIN_REC_FLAG;
+	entry->info_bits = REC_INFO_MIN_REC_FLAG | REC_STATUS_COLUMNS_ADDED;
 
 	dberr_t err = que_eval_sql(
 		info,

@@ -2168,9 +2168,7 @@ page_zip_apply_log(
 			continue;
 		}
 
-#if REC_STATUS_NODE_PTR != TRUE
-# error "REC_STATUS_NODE_PTR != TRUE"
-#endif
+		compile_time_assert(REC_STATUS_NODE_PTR == TRUE);
 		rec_get_offsets_reverse(data, index,
 					hs & REC_STATUS_NODE_PTR,
 					offsets);

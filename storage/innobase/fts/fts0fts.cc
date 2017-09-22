@@ -3303,7 +3303,8 @@ fts_fetch_doc_from_rec(
 	parser = get_doc->index_cache->index->parser;
 
 	clust_rec = btr_pcur_get_rec(pcur);
-	ut_ad(!page_rec_is_comp(clust_rec) || !rec_is_instant(clust_rec));
+	ut_ad(!page_rec_is_comp(clust_rec)
+	      || rec_get_status(clust_rec) == REC_STATUS_ORDINARY);
 
 	num_field = dict_index_get_n_fields(index);
 

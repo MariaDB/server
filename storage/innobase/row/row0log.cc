@@ -1022,7 +1022,8 @@ row_log_table_low(
 	}
 
 	ut_ad(page_is_comp(page_align(rec)));
-	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY);
+	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
+	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
 
 	omit_size = REC_N_NEW_EXTRA_BYTES;
 

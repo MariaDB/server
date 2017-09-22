@@ -89,10 +89,6 @@ and the shift needed to obtain each bit-field of the record. */
 #define REC_OLD_N_FIELDS_MASK	0x7FEUL
 #define REC_OLD_N_FIELDS_SHIFT	1
 
-#define REC_NEW_STATUS		3	/* This is single byte bit-field */
-#define REC_NEW_STATUS_MASK	0x7UL
-#define REC_NEW_STATUS_SHIFT	0
-
 #define REC_OLD_HEAP_NO		5
 #define REC_HEAP_NO_MASK	0xFFF8UL
 #if 0 /* defined in rem0rec.h for use of page0zip.cc */
@@ -447,26 +443,6 @@ rec_set_n_fields_old(
 }
 
 /******************************************************//**
-The following function retrieves the status bits of a new-style record.
-@return status bits */
-UNIV_INLINE
-ulint
-rec_get_status(
-/*===========*/
-	const rec_t*	rec)	/*!< in: physical record */
-{
-	ulint	ret;
-
-	ut_ad(rec);
-
-	ret = rec_get_bit_field_1(rec, REC_NEW_STATUS,
-				  REC_NEW_STATUS_MASK, REC_NEW_STATUS_SHIFT);
-	ut_ad((ret & ~REC_NEW_STATUS_MASK) == 0);
-
-	return(ret);
-}
-
-/******************************************************//**
 The following function is used to get the number of fields
 in a record.
 @return number of data fields */
@@ -485,6 +461,7 @@ rec_get_n_fields(
 	}
 
 	switch (rec_get_status(rec)) {
+	case REC_STATUS_COLUMNS_ADDED:
 	case REC_STATUS_ORDINARY:
 		return(dict_index_get_n_fields(index));
 	case REC_STATUS_NODE_PTR:
@@ -492,10 +469,10 @@ rec_get_n_fields(
 	case REC_STATUS_INFIMUM:
 	case REC_STATUS_SUPREMUM:
 		return(1);
-	default:
-		ut_error;
-		return(ULINT_UNDEFINED);
 	}
+
+	ut_error;
+	return(ULINT_UNDEFINED);
 }
 
 /** Confirms the n_fields of the entry is sane with comparing the other
@@ -589,7 +566,7 @@ bool
 rec_info_bits_valid(
 	ulint	bits)
 {
-	return(0 == (bits & ~(REC_INFO_DELETED_FLAG | REC_INFO_MIN_REC_FLAG | REC_INFO_ADDED_FLAG)));
+	return(0 == (bits & ~(REC_INFO_DELETED_FLAG | REC_INFO_MIN_REC_FLAG)));
 }
 #endif /* UNIV_DEBUG */
 
@@ -635,19 +612,6 @@ rec_set_info_bits_new(
 	ut_ad(rec_info_bits_valid(bits));
 	rec_set_bit_field_1(rec, bits, REC_NEW_INFO_BITS,
 			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
-}
-
-/******************************************************//**
-The following function is used to set the status bits of a new-style record. */
-UNIV_INLINE
-void
-rec_set_status(
-/*===========*/
-	rec_t*	rec,	/*!< in/out: physical record */
-	ulint	bits)	/*!< in: info bits */
-{
-	rec_set_bit_field_1(rec, bits, REC_NEW_STATUS,
-			    REC_NEW_STATUS_MASK, REC_NEW_STATUS_SHIFT);
 }
 
 /******************************************************//**
@@ -1368,44 +1332,6 @@ rec_offs_size(
 	return(rec_offs_data_size(offsets) + rec_offs_extra_size(offsets));
 }
 
-
-/******************************************************//**
-set instant flag */
-UNIV_INLINE
-void
-rec_set_instant_flag(
-/*=====================*/
-	rec_t*		rec,	/*!< in/out: new-style physical record */
-	ulint		flag)	/*!< in: nonzero if instant marked */
-{
-	ulint	val;
-
-	val = rec_get_info_bits(rec, TRUE);
-
-	if (flag) {
-		val |= REC_INFO_ADDED_FLAG;
-	} else {
-		val &= ~REC_INFO_ADDED_FLAG;
-	}
-
-	rec_set_info_bits_new(rec, val);
-}
-
-/******************************************************//**
-@return	TRUE if instant record type */
-UNIV_INLINE
-ibool
-rec_is_instant(
-/*=====================*/
-	const rec_t*	rec)	/*!< in: new-style physical record */
-{
-	ulint	val;
-
-	val = rec_get_info_bits(rec, TRUE);
-
-	return (val & REC_INFO_ADDED_FLAG) != 0;
-}
-
 #define REC_FIELD_COUNT_TWO_BYTES_FLAG 0x80
 #define REC_FIELD_COUNT_ONE_BYTE_MAX 0x7F
 #define REC_FIELD_COUNT_HIGHER_BYTE_MASK 0x7F
@@ -1422,7 +1348,7 @@ rec_get_field_count(
 {
     byte*           ptr;
     ulint           ret;    
-    ut_ad(rec_is_instant(rec));
+    ut_ad(rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
 
     ptr = (byte*)rec - (REC_N_NEW_EXTRA_BYTES + 1);
 
@@ -1448,22 +1374,6 @@ rec_get_field_count(
 }
 
 /**********************************************************//**
-Returns length of field count input 
-@return	size */
-UNIV_INLINE
-ulint rec_get_field_count_len (
-/*==========*/
-	ulint	field_count )		/*!< in: field count*/
-{
-	if (field_count > REC_FIELD_COUNT_ONE_BYTE_MAX)
-		return 2;
-		
-	return 1;
-}
-
-#define rec_get_feild_count_len(n_feilds) ((n_feilds > 127) ? 2 : 1)
-
-/**********************************************************//**
 Set field count of instant record
 @return	the occupy size of field count */
 UNIV_INLINE
@@ -1475,7 +1385,7 @@ rec_set_field_count(
 {
     byte*            ptr;
 
-    //ut_ad(rec_is_instant(rec));
+    ut_ad(rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
     ut_ad(n_fields < REC_MAX_N_FIELDS);
     
     if (n_fields <= REC_FIELD_COUNT_ONE_BYTE_MAX) {
@@ -1605,52 +1515,19 @@ rec_get_converted_size(
 		     == dict_index_get_n_fields(index) - 1));
 
 	if (dict_table_is_comp(index->table)) {
-		return(rec_get_converted_size_comp(index,
-						   dtuple_get_info_bits(dtuple)
-						   & REC_NEW_STATUS_MASK,
-						   dtuple->fields,
-						   dtuple->n_fields, NULL));
+		return(rec_get_converted_size_comp(
+			       index,
+			       static_cast<rec_comp_status_t>(
+				       dtuple->info_bits
+				       & REC_NEW_STATUS_MASK),
+			       dtuple->fields,
+			       dtuple->n_fields, NULL));
 	}
 
 	data_size = dtuple_get_data_size(dtuple, 0);
 
 	extra_size = rec_get_converted_extra_size(
 		data_size, dtuple_get_n_fields(dtuple), n_ext);
-
-#if 0
-	/* This code is inactive since it may be the wrong place to add
-	in the size of node pointers used in parent pages AND it is not
-	currently needed since ha_innobase::max_supported_key_length()
-	ensures that the key size limit for each page size is well below
-	the actual limit ((free space on page / 4) - record overhead).
-	But those limits will need to be raised when InnoDB can
-	support multiple page sizes.  At that time, we will need
-	to consider the node pointer on these universal btrees. */
-
-	if (dict_index_is_ibuf(index)) {
-		/* This is for the insert buffer B-tree.
-		All fields in the leaf tuple ascend to the
-		parent node plus the child page pointer. */
-
-		/* ibuf cannot contain externally stored fields */
-		ut_ad(n_ext == 0);
-
-		/* Add the data pointer and recompute extra_size
-		based on one more field. */
-		data_size += REC_NODE_PTR_SIZE;
-		extra_size = rec_get_converted_extra_size(
-			data_size,
-			dtuple_get_n_fields(dtuple) + 1,
-			0);
-
-		/* Be sure dtuple->n_fields has this node ptr
-		accounted for.  This function should correspond to
-		what rec_convert_dtuple_to_rec() needs in storage.
-		In optimistic insert or update-not-in-place, we will
-		have to ensure that if the record is converted to a
-		node pointer, it will not become too large.*/
-	}
-#endif
 
 	return(data_size + extra_size);
 }

@@ -47,8 +47,6 @@ B-tree page that is the leftmost page on its level
 /* The deleted flag in info bits */
 #define REC_INFO_DELETED_FLAG	0x20UL	/* when bit is set to 1, it means the
 					record has been delete marked */
-#define REC_INFO_ADDED_FLAG   	0x80UL  /* when bit is set to 1, it means the
-					record has been instant added columns */
 
 /* Number of extra bytes in an old-style record,
 in addition to the data and the offsets */
@@ -57,16 +55,24 @@ in addition to the data and the offsets */
 in addition to the data and the offsets */
 #define REC_N_NEW_EXTRA_BYTES	5
 
-/* Record status values */
-#define REC_STATUS_ORDINARY	0
-#define REC_STATUS_NODE_PTR	1
-#define REC_STATUS_INFIMUM	2
-#define REC_STATUS_SUPREMUM	3
+/** Record status values for ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED */
+enum rec_comp_status_t {
+	/** User record (PAGE_LEVEL=0, heap>=PAGE_HEAP_NO_USER_LOW) */
+	REC_STATUS_ORDINARY = 0,
+	/** Node pointer record (PAGE_LEVEL>=0, heap>=PAGE_HEAP_NO_USER_LOW) */
+	REC_STATUS_NODE_PTR = 1,
+	/** The page infimum pseudo-record (heap=PAGE_HEAP_NO_INFIMUM) */
+	REC_STATUS_INFIMUM = 2,
+	/** The page supremum pseudo-record (heap=PAGE_HEAP_NO_SUPREMUM) */
+	REC_STATUS_SUPREMUM = 3,
+	/** Clustered index record that has been inserted or updated
+	after instant ADD COLUMN (more than dict_index_t::n_core_fields) */
+	REC_STATUS_COLUMNS_ADDED = 4
+};
 
-/* REC_FLAG for instant add columns */
-#define REC_FLAG_NONE           0x00
-#define REC_FLAG_INSTANT        0x01
-#define REC_FLAG_NODE_PTR       0x02
+#define REC_NEW_STATUS		3	/* This is single byte bit-field */
+#define REC_NEW_STATUS_MASK	0x7UL
+#define REC_NEW_STATUS_SHIFT	0
 
 /* The following four constants are needed in page0zip.cc in order to
 efficiently compress and decompress pages. */
@@ -276,25 +282,30 @@ rec_set_info_bits_new(
 	rec_t*	rec,	/*!< in/out: new-style physical record */
 	ulint	bits)	/*!< in: info bits */
 	MY_ATTRIBUTE((nonnull));
-/******************************************************//**
-The following function retrieves the status bits of a new-style record.
-@return status bits */
-UNIV_INLINE
-ulint
-rec_get_status(
-/*===========*/
-	const rec_t*	rec)	/*!< in: physical record */
-	MY_ATTRIBUTE((warn_unused_result));
 
-/******************************************************//**
-The following function is used to set the status bits of a new-style record. */
-UNIV_INLINE
+/** Determine the status bits of a non-REDUNDANT record.
+@param[in]	rec	ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED record
+@return status bits */
+inline
+rec_comp_status_t
+rec_get_status(const rec_t* rec)
+{
+	byte bits = rec[-REC_NEW_STATUS] & REC_NEW_STATUS_MASK;
+	ut_ad(bits <= REC_STATUS_COLUMNS_ADDED);
+	return static_cast<rec_comp_status_t>(bits);
+}
+
+/** Set the status bits of a non-REDUNDANT record.
+@param[in,out]	rec	ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED record
+@param[in]	bits	status bits */
+inline
 void
-rec_set_status(
-/*===========*/
-	rec_t*	rec,	/*!< in/out: physical record */
-	ulint	bits)	/*!< in: info bits */
-	MY_ATTRIBUTE((nonnull));
+rec_set_status(rec_t* rec, byte bits)
+{
+	ut_ad(bits <= REC_STATUS_COLUMNS_ADDED);
+	rec[-REC_NEW_STATUS] = (rec[-REC_NEW_STATUS] & ~REC_NEW_STATUS_MASK)
+		| bits;
+}
 
 /******************************************************//**
 The following function is used to retrieve the info and status
@@ -1055,7 +1066,7 @@ rec_get_converted_size_comp(
 					dict_table_is_comp() is
 					assumed to hold, even if
 					it does not */
-	ulint			status,	/*!< in: status bits of the record */
+	rec_comp_status_t	status,	/*!< in: status bits of the record */
 	const dfield_t*		fields,	/*!< in: array of data fields */
 	ulint			n_fields,/*!< in: number of data fields */
 	ulint*			extra)	/*!< out: extra size */
@@ -1144,31 +1155,6 @@ rec_print(
 	const rec_t*	rec,
 	ulint		info,
 	const ulint*	offsets);
-
-/******************************************************//**
-set instant flag */
-UNIV_INLINE
-void
-rec_set_instant_flag(
-/*=====================*/
-	rec_t*		rec,	/*!< in/out: new-style physical record */
-	ulint		flag);	/*!< in: nonzero if instant marked */
-
-/******************************************************//**
-@return	TRUE if instant record type */
-UNIV_INLINE
-ibool
-rec_is_instant(
-/*=====================*/
-	const rec_t*	rec);	/*!< in: new-style physical record */
-
-/**********************************************************//**
-Returns length of field count input 
-@return	size */
-UNIV_INLINE
-ulint rec_get_field_count_len (
-/*==========*/
-	ulint	field_count );		/*!< in: field count*/
 
 /**********************************************************//**
 Returns field count of instant record

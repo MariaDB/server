@@ -700,19 +700,25 @@ row_upd_rec_in_place(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
 	if (rec_offs_comp(offsets)) {
-		ulint is_instant = rec_is_instant(rec);
-
-		ut_ad(!is_instant || 
-				(index->is_instant() && 
-				rec_get_field_count(rec, NULL) <= dict_index_get_n_fields(index)));
+#ifdef UNIV_DEBUG
+		switch (rec_get_status(rec)) {
+		case REC_STATUS_ORDINARY:
+			break;
+		case REC_STATUS_COLUMNS_ADDED:
+			ut_ad(index->is_instant());
+			ut_ad(rec_get_field_count(rec, NULL)
+			      <= index->n_fields);
+			ut_ad(rec_get_field_count(rec, NULL)
+			      > index->n_core_fields);
+			break;
+		case REC_STATUS_INFIMUM:
+		case REC_STATUS_SUPREMUM:
+		case REC_STATUS_NODE_PTR:
+			ut_ad(!"wrong record status in update");
+		}
+#endif /* UNIV_DEBUG */
 
 		rec_set_info_bits_new(rec, update->info_bits);
-
-		if(is_instant) 
-			rec_set_instant_flag(rec, TRUE);
-		else
-			rec_set_instant_flag(rec, FALSE);
-
 	} else {
 		rec_set_info_bits_old(rec, update->info_bits);
 	}

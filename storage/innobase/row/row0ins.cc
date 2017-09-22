@@ -2634,7 +2634,8 @@ row_ins_clust_index_entry_low(
 #endif /* UNIV_DEBUG */
 
 	if (entry->info_bits) {
-		ut_ad(entry->info_bits == REC_INFO_MIN_REC_FLAG);
+		ut_ad(entry->info_bits
+		      == (REC_INFO_MIN_REC_FLAG | REC_STATUS_COLUMNS_ADDED));
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_online_ddl(index));

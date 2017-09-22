@@ -1319,27 +1319,6 @@ use_heap:
 	insert_rec = rec_copy(insert_buf, rec, offsets);
 	rec_offs_make_valid(insert_rec, index, page_is_leaf(page), offsets);
 
-	/* This is because assertion below is debug assertion */
-#ifdef UNIV_DEBUG
-	if (UNIV_UNLIKELY(current_rec == insert_rec)) {
-		ulint extra_len, data_len;
-		extra_len = rec_offs_extra_size(offsets);
-		data_len = rec_offs_data_size(offsets);
-
-		fprintf(stderr, "InnoDB: Error: current_rec == insert_rec "
-			" extra_len " ULINTPF
-			" data_len " ULINTPF " insert_buf %p rec %p\n",
-			extra_len, data_len, insert_buf, rec);
-		fprintf(stderr, "InnoDB; Physical record: \n");
-		rec_print(stderr, rec, index);
-		fprintf(stderr, "InnoDB: Inserted record: \n");
-		rec_print(stderr, insert_rec, index);
-		fprintf(stderr, "InnoDB: Current record: \n");
-		rec_print(stderr, current_rec, index);
-		ut_a(current_rec != insert_rec);
-	}
-#endif /* UNIV_DEBUG */
-
 	/* 4. Insert the record in the linked list of records */
 	ut_ad(current_rec != insert_rec);
 
@@ -1348,9 +1327,24 @@ use_heap:
 		rec_t*	next_rec = page_rec_get_next(current_rec);
 #ifdef UNIV_DEBUG
 		if (page_is_comp(page)) {
-			ut_ad(rec_get_status(current_rec)
-				<= REC_STATUS_INFIMUM);
-			ut_ad(rec_get_status(insert_rec) < REC_STATUS_INFIMUM);
+			switch (rec_get_status(current_rec)) {
+			case REC_STATUS_ORDINARY:
+			case REC_STATUS_NODE_PTR:
+			case REC_STATUS_COLUMNS_ADDED:
+			case REC_STATUS_INFIMUM:
+				break;
+			case REC_STATUS_SUPREMUM:
+				ut_ad(!"wrong status on current_rec");
+			}
+			switch (rec_get_status(insert_rec)) {
+			case REC_STATUS_ORDINARY:
+			case REC_STATUS_NODE_PTR:
+			case REC_STATUS_COLUMNS_ADDED:
+				break;
+			case REC_STATUS_INFIMUM:
+			case REC_STATUS_SUPREMUM:
+				ut_ad(!"wrong status on insert_rec");
+			}
 			ut_ad(rec_get_status(next_rec) != REC_STATUS_INFIMUM);
 		}
 #endif
