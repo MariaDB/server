@@ -875,7 +875,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
    Comments for TOKENS.
    For each token, please include in the same line a comment that contains
    the following tags:
-   SQL-2011-N : Non Reserved keywird as per SQL-2011
+   SQL-2011-N : Non Reserved keyword as per SQL-2011
    SQL-2003-R : Reserved keyword as per SQL-2003
    SQL-2003-N : Non Reserved keyword as per SQL-2003
    SQL-1999-R : Reserved keyword as per SQL-1999
@@ -1010,6 +1010,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  DATA_SYM                      /* SQL-2003-N */
 %token  DATETIME
 %token  DATE_ADD_INTERVAL             /* MYSQL-FUNC */
+%token  DATE_FORMAT_SYM               /* MYSQL-FUNC */
 %token  DATE_SUB_INTERVAL             /* MYSQL-FUNC */
 %token  DATE_SYM                      /* SQL-2003-R */
 %token  DAY_HOUR_SYM
@@ -9806,6 +9807,18 @@ function_call_nonkeyword:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
+        | DATE_FORMAT_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_date_format(thd, $3, $5);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | DATE_FORMAT_SYM '(' expr ',' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_date_format(thd, $3, $5, $7);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
         | DECODE_SYM '(' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_func_decode(thd, $3, $5);
@@ -14719,6 +14732,7 @@ keyword_sp_not_data_type:
         | CYCLE_SYM                {}
         | DATA_SYM                 {}
         | DATAFILE_SYM             {}
+        | DATE_FORMAT_SYM          {}
         | DAY_SYM                  {}
         | DECODE_SYM               {}
         | DEFINER_SYM              {}

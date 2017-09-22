@@ -2668,24 +2668,6 @@ String *Item_func_soundex::val_str(String *str)
 const int FORMAT_MAX_DECIMALS= 30;
 
 
-MY_LOCALE *Item_func_format::get_locale(Item *item)
-{
-  DBUG_ASSERT(arg_count == 3);
-  String tmp, *locale_name= args[2]->val_str_ascii(&tmp);
-  MY_LOCALE *lc;
-  if (!locale_name ||
-      !(lc= my_locale_by_name(locale_name->c_ptr_safe())))
-  {
-    THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_UNKNOWN_LOCALE,
-                        ER_THD(thd, ER_UNKNOWN_LOCALE),
-                        locale_name ? locale_name->c_ptr_safe() : "NULL");
-    lc= &my_locale_en_US;
-  }
-  return lc;
-}
-
 void Item_func_format::fix_length_and_dec()
 {
   uint32 char_length= args[0]->max_char_length();
@@ -2693,7 +2675,7 @@ void Item_func_format::fix_length_and_dec()
   collation.set(default_charset());
   fix_char_length(char_length + max_sep_count + decimals);
   if (arg_count == 3)
-    locale= args[2]->basic_const_item() ? get_locale(args[2]) : NULL;
+    locale= args[2]->basic_const_item() ? args[2]->locale_from_val_str() : NULL;
   else
     locale= &my_locale_en_US; /* Two arguments */
 }
@@ -2712,7 +2694,7 @@ String *Item_func_format::val_str_ascii(String *str)
   int dec;
   /* Number of characters used to represent the decimals, including '.' */
   uint32 dec_length;
-  MY_LOCALE *lc;
+  const MY_LOCALE *lc;
   DBUG_ASSERT(fixed == 1);
 
   dec= (int) args[1]->val_int();
@@ -2722,7 +2704,7 @@ String *Item_func_format::val_str_ascii(String *str)
     return NULL;
   }
 
-  lc= locale ? locale : get_locale(args[2]);
+  lc= locale ? locale : args[2]->locale_from_val_str();
 
   dec= set_zone(dec, 0, FORMAT_MAX_DECIMALS);
   dec_length= dec ? dec+1 : 0;

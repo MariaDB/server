@@ -797,27 +797,40 @@ public:
 
 class Item_func_date_format :public Item_str_func
 {
-  MY_LOCALE *locale;
+  const MY_LOCALE *locale;
   int fixed_length;
-  const bool is_time_format;
   String value;
+protected:
+  bool is_time_format;
 public:
-  Item_func_date_format(THD *thd, Item *a, Item *b, bool is_time_format_arg):
-    Item_str_func(thd, a, b), is_time_format(is_time_format_arg) {}
+  Item_func_date_format(THD *thd, Item *a, Item *b):
+    Item_str_func(thd, a, b), locale(0), is_time_format(false) {}
+  Item_func_date_format(THD *thd, Item *a, Item *b, Item *c):
+    Item_str_func(thd, a, b, c), locale(0), is_time_format(false) {}
   String *val_str(String *str);
-  const char *func_name() const
-    { return is_time_format ? "time_format" : "date_format"; }
+  const char *func_name() const { return "date_format"; }
   void fix_length_and_dec();
   uint format_length(const String *format);
   bool eq(const Item *item, bool binary_cmp) const;
   bool check_vcol_func_processor(void *arg)
   {
-    if (is_time_format)
+    if (arg_count > 2)
       return false;
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_date_format>(thd, mem_root, this); }
+};
+
+class Item_func_time_format: public Item_func_date_format
+{
+public:
+  Item_func_time_format(THD *thd, Item *a, Item *b):
+    Item_func_date_format(thd, a, b) { is_time_format= true; }
+  const char *func_name() const { return "time_format"; }
+  bool check_vcol_func_processor(void *arg) { return false; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_time_format>(thd, mem_root, this); }
 };
 
 

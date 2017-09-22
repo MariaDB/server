@@ -354,3 +354,6 @@ eval create or replace table t1 (a int, b varchar(16384) as (concat(a,'$tmp_long
 create or replace table t1 (a int as (PI()) PERSISTENT);
 
 drop table if exists t1;
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a timestamp, b varchar(255) as (date_format(a, '%w %a %m %b')) stored);

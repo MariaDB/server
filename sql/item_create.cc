@@ -783,19 +783,6 @@ protected:
 #endif
 
 
-class Create_func_date_format : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_date_format s_singleton;
-
-protected:
-  Create_func_date_format() {}
-  virtual ~Create_func_date_format() {}
-};
-
-
 class Create_func_datediff : public Create_func_arg2
 {
 public:
@@ -4051,15 +4038,6 @@ Create_func_crosses::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 #endif
 
 
-Create_func_date_format Create_func_date_format::s_singleton;
-
-Item*
-Create_func_date_format::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_date_format(thd, arg1, arg2, 0);
-}
-
-
 Create_func_datediff Create_func_datediff::s_singleton;
 
 Item*
@@ -4558,7 +4536,7 @@ Create_func_from_unixtime::create_native(THD *thd, LEX_CSTRING *name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *ut= new (thd->mem_root) Item_func_from_unixtime(thd, param_1);
-    func= new (thd->mem_root) Item_func_date_format(thd, ut, param_2, 0);
+    func= new (thd->mem_root) Item_func_date_format(thd, ut, param_2);
     break;
   }
   default:
@@ -6511,7 +6489,7 @@ Create_func_time_format Create_func_time_format::s_singleton;
 Item*
 Create_func_time_format::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_date_format(thd, arg1, arg2, 1);
+  return new (thd->mem_root) Item_func_time_format(thd, arg1, arg2);
 }
 
 
@@ -6872,7 +6850,6 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("CRC32") }, BUILDER(Create_func_crc32)},
   { { C_STRING_WITH_LEN("CROSSES") }, GEOM_BUILDER(Create_func_crosses)},
   { { C_STRING_WITH_LEN("DATEDIFF") }, BUILDER(Create_func_datediff)},
-  { { C_STRING_WITH_LEN("DATE_FORMAT") }, BUILDER(Create_func_date_format)},
   { { C_STRING_WITH_LEN("DAYNAME") }, BUILDER(Create_func_dayname)},
   { { C_STRING_WITH_LEN("DAYOFMONTH") }, BUILDER(Create_func_dayofmonth)},
   { { C_STRING_WITH_LEN("DAYOFWEEK") }, BUILDER(Create_func_dayofweek)},

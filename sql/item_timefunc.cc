@@ -455,7 +455,8 @@ err:
 */
 
 static bool make_date_time(DATE_TIME_FORMAT *format, MYSQL_TIME *l_time,
-                           timestamp_type type, MY_LOCALE *locale, String *str)
+                           timestamp_type type, const MY_LOCALE *locale,
+                           String *str)
 {
   char intbuff[15];
   uint hours_i;
@@ -1833,7 +1834,14 @@ overflow:
 void Item_func_date_format::fix_length_and_dec()
 {
   THD* thd= current_thd;
-  locale= thd->variables.lc_time_names;
+  if (!is_time_format)
+  {
+    if (arg_count < 3)
+      locale= thd->variables.lc_time_names;
+    else
+      if (args[2]->basic_const_item())
+        locale= args[2]->locale_from_val_str();
+  }
 
   /*
     Must use this_item() in case it's a local SP variable
@@ -1875,6 +1883,8 @@ bool Item_func_date_format::eq(const Item *item, bool binary_cmp) const
   if (this == item)
     return 1;
   item_func= (Item_func_date_format*) item;
+  if (arg_count != item_func->arg_count)
+    return 0;
   if (!args[0]->eq(item_func->args[0], binary_cmp))
     return 0;
   /*
@@ -1883,6 +1893,8 @@ bool Item_func_date_format::eq(const Item *item, bool binary_cmp) const
     for example %m and %M, have different meaning.
   */
   if (!args[1]->eq(item_func->args[1], 1))
+    return 0;
+  if (arg_count > 2 && !args[2]->eq(item_func->args[2], 1))
     return 0;
   return 1;
 }
@@ -1967,14 +1979,17 @@ String *Item_func_date_format::val_str(String *str)
   String *format;
   MYSQL_TIME l_time;
   uint size;
-  int is_time_flag = is_time_format ? TIME_TIME_ONLY : 0;
+  const MY_LOCALE *lc= 0;
   DBUG_ASSERT(fixed == 1);
   
-  if (get_arg0_date(&l_time, is_time_flag))
+  if (get_arg0_date(&l_time, is_time_format ? TIME_TIME_ONLY : 0))
     return 0;
   
   if (!(format = args[1]->val_str(str)) || !format->length())
     goto null_date;
+
+  if (!is_time_format && !(lc= locale) && !(lc= args[2]->locale_from_val_str()))
+    goto null_date; // invalid locale
 
   if (fixed_length)
     size=max_length;
@@ -1998,7 +2013,7 @@ String *Item_func_date_format::val_str(String *str)
   if (!make_date_time(&date_time_format, &l_time,
                       is_time_format ? MYSQL_TIMESTAMP_TIME :
                                        MYSQL_TIMESTAMP_DATE,
-                      locale, str))
+                      lc, str))
     return str;
 
 null_date:

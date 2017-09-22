@@ -1451,6 +1451,25 @@ bool Item::get_seconds(ulonglong *sec, ulong *sec_part)
   return my_decimal2seconds(dec, sec, sec_part);
 }
 
+const MY_LOCALE *Item::locale_from_val_str()
+{
+  StringBuffer<MAX_FIELD_WIDTH> tmp;
+  String *locale_name= val_str_ascii(&tmp);
+  const MY_LOCALE *lc;
+  if (!locale_name ||
+      !(lc= my_locale_by_name(locale_name->c_ptr_safe())))
+  {
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_UNKNOWN_LOCALE,
+                        ER_THD(thd, ER_UNKNOWN_LOCALE),
+                        locale_name ? locale_name->c_ptr_safe() : "NULL");
+    lc= &my_locale_en_US;
+  }
+  return lc;
+}
+
+
 CHARSET_INFO *Item::default_charset()
 {
   return current_thd->variables.collation_connection;

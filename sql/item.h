@@ -491,6 +491,8 @@ struct find_selective_predicates_list_processor_data
   List<st_cond_statistic> list;
 };
 
+class MY_LOCALE;
+
 class Item_equal;
 class COND_EQUAL;
 
@@ -643,6 +645,8 @@ public:
     expressions with subqueries in the ORDER/GROUP clauses.
   */
   String *val_str() { return val_str(&str_value); }
+
+  const MY_LOCALE *locale_from_val_str();
 
   LEX_CSTRING name;			/* Name of item */
   /* Original item name (if it was renamed)*/

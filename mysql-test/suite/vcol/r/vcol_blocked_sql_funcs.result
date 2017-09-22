@@ -247,3 +247,5 @@ ERROR HY000: Expression in the GENERATED ALWAYS AS clause is too big
 # Constant expression
 create or replace table t1 (a int as (PI()) PERSISTENT);
 drop table if exists t1;
+create table t1 (a timestamp, b varchar(255) as (date_format(a, '%w %a %m %b')) stored);
+ERROR HY000: Function or expression 'date_format()' cannot be used in the GENERATED ALWAYS AS clause of `b`

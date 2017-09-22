@@ -229,15 +229,80 @@ SET lc_time_names=@old_50915_lc_time_names;
 # End of 10.1 tests
 #
 create view v1 as select
+date_format('2001-10-02', '%c %b %M') as a,
+date_format('2001-10-02', '%c %b %M', 'ru_RU') as a1,
 format(123456789,2) as b,
 format(123456789,2,'rm_CH') as b1;
 select * from v1;
-b	b1
-123,456,789.00	123'456'789,00
+a	a1	b	b1
+10 Oct October	10 Окт Октября	123,456,789.00	123'456'789,00
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select format(123456789,2) AS `b`,format(123456789,2,'rm_CH') AS `b1`	utf8	utf8_general_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select date_format('2001-10-02','%c %b %M') AS `a`,date_format('2001-10-02','%c %b %M','ru_RU') AS `a1`,format(123456789,2) AS `b`,format(123456789,2,'rm_CH') AS `b1`	utf8	utf8_general_ci
 drop view v1;
 #
 # End of 10.2 tests
 #
+select date_format('2001-01-01', '%w %a %W', 'ro_RO');
+date_format('2001-01-01', '%w %a %W', 'ro_RO')
+1 Lu Luni
+select date_format('2001-01-03', '%w %a %W', 'ro_RO');
+date_format('2001-01-03', '%w %a %W', 'ro_RO')
+3 Mi Miercuri
+select date_format('2001-01-05', '%w %a %W', 'ro_RO');
+date_format('2001-01-05', '%w %a %W', 'ro_RO')
+5 Vi Vineri
+select date_format('2001-01-07', '%w %a %W', 'ro_RO');
+date_format('2001-01-07', '%w %a %W', 'ro_RO')
+0 Du Duminică
+select date_format('2001-01-01', '%w %a %W', 'de_AT');
+date_format('2001-01-01', '%w %a %W', 'de_AT')
+1 Mon Montag
+select date_format('2001-02-01', '%w %a %W', 'de_AT');
+date_format('2001-02-01', '%w %a %W', 'de_AT')
+4 Don Donnerstag
+select date_format('2001-03-01', '%w %a %W', 'de_AT');
+date_format('2001-03-01', '%w %a %W', 'de_AT')
+4 Don Donnerstag
+select date_format('2001-01-01', '%w %a %W', 'en_US');
+date_format('2001-01-01', '%w %a %W', 'en_US')
+1 Mon Monday
+select date_format('2001-03-01', '%c %b %M', 'en_US');
+date_format('2001-03-01', '%c %b %M', 'en_US')
+3 Mar March
+select date_format('2001-01-01', '%w %a %W', 'rm_CH');
+date_format('2001-01-01', '%w %a %W', 'rm_CH')
+1 gli glindesdi
+select date_format('2001-01-03', '%w %a %W', 'rm_CH');
+date_format('2001-01-03', '%w %a %W', 'rm_CH')
+3 me mesemna
+select date_format('2001-01-05', '%w %a %W', 'rm_CH');
+date_format('2001-01-05', '%w %a %W', 'rm_CH')
+5 ve venderdi
+select date_format('2001-01-07', '%w %a %W', 'rm_CH');
+date_format('2001-01-07', '%w %a %W', 'rm_CH')
+0 du dumengia
+select date_format('2001-02-01', '%c %b %M', 'rm_CH');
+date_format('2001-02-01', '%c %b %M', 'rm_CH')
+2 favr favrer
+select date_format('2001-04-01', '%c %b %M', 'rm_CH');
+date_format('2001-04-01', '%c %b %M', 'rm_CH')
+4 avr avrigl
+select date_format('2001-06-01', '%c %b %M', 'rm_CH');
+date_format('2001-06-01', '%c %b %M', 'rm_CH')
+6 zercl zercladur
+select date_format('2001-08-01', '%c %b %M', 'rm_CH');
+date_format('2001-08-01', '%c %b %M', 'rm_CH')
+8 avust avust
+select date_format('2001-10-01', '%c %b %M', 'rm_CH');
+date_format('2001-10-01', '%c %b %M', 'rm_CH')
+10 oct october
+select date_format('2001-12-01', '%c %b %M', 'rm_CH');
+date_format('2001-12-01', '%c %b %M', 'rm_CH')
+12 dec december
+select date_format('2001-01-06', '%w %a %W', 'de_CH');
+date_format('2001-01-06', '%w %a %W', 'de_CH')
+6 Sa Samstag
+select date_format('2001-09-01', '%c %b %M', 'de_CH');
+date_format('2001-09-01', '%c %b %M', 'de_CH')
+9 Sep September

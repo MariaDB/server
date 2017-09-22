@@ -726,6 +726,7 @@ static SYMBOL sql_functions[] = {
   { "CURTIME",		SYM(CURTIME)},
   { "DATE_ADD",		SYM(DATE_ADD_INTERVAL)},
   { "DATE_SUB",		SYM(DATE_SUB_INTERVAL)},
+  { "DATE_FORMAT",      SYM(DATE_FORMAT_SYM)},
   { "DECODE",           SYM(DECODE_SYM)},
   { "DENSE_RANK",       SYM(DENSE_RANK_SYM)},
   { "EXTRACT",		SYM(EXTRACT_SYM)},

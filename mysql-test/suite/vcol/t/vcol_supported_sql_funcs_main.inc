@@ -1197,6 +1197,12 @@ let $values1 = '2012-12-12',default;
 let $rows = 1;
 --source suite/vcol/inc/vcol_supported_sql_funcs.inc
 
+--echo # DATE_FORMAT() STORED
+let $cols = a date, b varchar(100) as (date_format(a, '%W %a %M %b', 'de_DE')) STORED;
+let $values1 = '2012-12-12',default;
+let $rows = 1;
+--source suite/vcol/inc/vcol_supported_sql_funcs.inc
+
 --echo # CURRENT_USER()
 let $cols = a char, b varchar(32) as (current_user());
 let $values1 = 'a', default;
