@@ -341,7 +341,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		     i < instant_table->n_def - DATA_N_SYS_COLS;
 		     i++) {
 			dict_col_t& col = old_table->cols[i];
-			ut_ad(col.def_val.len != UNIV_SQL_DEFAULT);
+			DBUG_ASSERT(col.is_instant());
 			if (col.def_val.len == 0) {
 				col.def_val.data = field_ref_zero;
 			} else if (const void*& def = col.def_val.data) {
@@ -4208,8 +4208,7 @@ innobase_add_instant_try(
 
 		DBUG_ASSERT(!strcmp((*af)->field_name.str,
 				    dict_table_get_col_name(new_table, i)));
-		DBUG_ASSERT(!col->def_val.data);
-		DBUG_ASSERT(col->def_val.len == UNIV_SQL_DEFAULT);
+		DBUG_ASSERT(!col->is_instant());
 
 		dfield_t* dfield = dtuple_get_nth_field(row, i);
 		if (new_field->field) {
@@ -4217,30 +4216,41 @@ innobase_add_instant_try(
 			DBUG_ASSERT(col->prtype == old_col->prtype);
 			DBUG_ASSERT(col->mbminmaxlen == old_col->mbminmaxlen);
 			DBUG_ASSERT(col->len >= old_col->len);
+			DBUG_ASSERT(old_col->is_instant()
+				    == (dict_col_get_clust_pos(
+						old_col, old_index)
+					>= old_index->n_core_fields));
 			col->def_val = old_col->def_val;
 
-			if (old_col->def_val.len == UNIV_SQL_DEFAULT) {
-				/* We may only have missing DEFAULT
-				value for 'core' columns. */
-				DBUG_ASSERT(dict_col_get_clust_pos(
-						    old_col, old_index)
-					    < old_index->n_core_fields);
-				if ((*af)->real_maybe_null()) {
-					/* Store NULL for nullable
-					'core' columns. */
-					dfield_set_null(dfield);
-				} else if ((*af)->type()
-					   == MYSQL_TYPE_VARCHAR) {
-					/* Store the empty string for
-					pre-existing VARCHAR NOT NULL
-					columns. */
-					dfield_set_data(dfield, "", 0);
-				} else {
-					goto set_not_null_default_from_sql;
-				}
-			} else {
+			if (old_col->is_instant()) {
 				dfield_set_data(dfield, old_col->def_val.data,
 						old_col->def_val.len);
+			} else if ((*af)->real_maybe_null()) {
+				/* Store NULL for nullable 'core' columns. */
+				dfield_set_null(dfield);
+			} else {
+				switch ((*af)->type()) {
+				case MYSQL_TYPE_VARCHAR:
+				case MYSQL_TYPE_GEOMETRY:
+				case MYSQL_TYPE_TINY_BLOB:
+				case MYSQL_TYPE_MEDIUM_BLOB:
+				case MYSQL_TYPE_BLOB:
+				case MYSQL_TYPE_LONG_BLOB:
+					/* Store the empty string for 'core'
+					variable-length NOT NULL columns. */
+					dfield_set_data(dfield, "", 0);
+					break;
+				default:
+					/* For fixed-length NOT NULL
+					'core' columns, get a dummy
+					default value from SQL. Note
+					that we should preserve the
+					old values of these columns
+					when updating the 'default
+					row' record, to avoid
+					unnecessary updates. */
+					goto set_not_null_default_from_sql;
+				}
 			}
 		} else if ((*af)->is_real_null()) {
 			/* Store NULL for added DEFAULT NULL columns. */
@@ -4263,11 +4273,6 @@ set_not_null_default_from_sql:
 			case MYSQL_TYPE_MEDIUM_BLOB:
 			case MYSQL_TYPE_BLOB:
 			case MYSQL_TYPE_LONG_BLOB:
-				if (new_field->field) {
-					/* Store the empty string for
-					pre-existing BLOB NOT NULL columns. */
-					dfield_set_data(dfield, "", 0);
-				}
 				dfield_set_data(dfield,
 						reinterpret_cast
 						<const Field_blob*>
@@ -4288,12 +4293,12 @@ set_not_null_default_from_sql:
 					: NULL, true, (*af)->ptr, len,
 					dict_table_is_comp(user_table));
 			}
-
-			col->def_val.data = dfield_get_data(dfield);
-			col->def_val.len = dfield_get_len(dfield);
 		}
 
 		if (!new_field->field) {
+			col->def_val.data = dfield_get_data(dfield);
+			col->def_val.len = dfield_get_len(dfield);
+
 			pars_info_t*    info = pars_info_create();
 			pars_info_add_ull_literal(info, "id", user_table->id);
 			pars_info_add_int4_literal(info, "pos", i);

@@ -244,17 +244,10 @@ created with old versions of InnoDB that only implemented
 ROW_FORMAT=REDUNDANT.  InnoDB engines do not check these flags
 for unknown bits in order to protect backward incompatibility. */
 /* @{ */
-/* The higher two bytes of SYS_TABLES.MIX_LEN is used by 
-instant add columns */
-#define DICT_TF2_MAX_BITS 16
 /** Total number of bits in table->flags2. */
 #define DICT_TF2_BITS			7
 #define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS)
 #define DICT_TF2_BIT_MASK		~DICT_TF2_UNUSED_BIT_MASK
-
-#if DICT_TF2_BITS > DICT_TF2_MAX_BITS 
-#error "DICT_TF2_BITS > DICT_TF2_MAX_BITS"
-#endif
 
 /** TEMPORARY; TRUE for tables from CREATE TEMPORARY TABLE. */
 #define DICT_TF2_TEMPORARY		1U
@@ -336,7 +329,7 @@ void
 dict_mem_table_free(
 /*================*/
 	dict_table_t*	table);		/*!< in: table */
-/****************************************************************//**
+/**********************************************************************//**
 Adds a column definition to a table. */
 void
 dict_mem_table_add_col(
@@ -631,6 +624,27 @@ struct dict_col_t{
 	/** Retrieve the column name.
 	@param[in]	table	table name */
 	const char* name(const dict_table_t& table) const;
+
+	/** @return whether this is a virtual column */
+	bool is_virtual() const { return prtype & DATA_VIRTUAL; }
+	/** @return whether NULL is an allowed value for this column */
+	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
+	/** @return whether this is an instantly-added column */
+	bool is_instant() const
+	{
+		DBUG_ASSERT(def_val.len != UNIV_SQL_DEFAULT || !def_val.data);
+		return def_val.len != UNIV_SQL_DEFAULT;
+	}
+	/** Get the default value of an instantly-added column.
+	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
+	@return	default value
+	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
+	const byte* instant_value(ulint* len) const
+	{
+		DBUG_ASSERT(is_instant());
+		*len = def_val.len;
+		return static_cast<const byte*>(def_val.data);
+	}
 };
 
 /** Index information put in a list of virtual column structure. Index
@@ -1013,6 +1027,37 @@ struct dict_index_t{
 
 	/** @return whether the index is the clustered index */
 	bool is_clust() const { return type & DICT_CLUSTERED; }
+
+	/** Determine how many fields of a given prefix can be set NULL.
+	@param[in]	n_prefix	number of fields in the prefix
+	@return	number of fields 0..n_prefix-1 that can be set NULL */
+	unsigned get_n_nullable(ulint n_prefix) const
+	{
+		DBUG_ASSERT(is_instant());
+		DBUG_ASSERT(n_prefix > 0);
+		DBUG_ASSERT(n_prefix <= n_fields);
+		unsigned n = n_nullable;
+		for (; n_prefix < n_fields; n_prefix++) {
+			const dict_col_t* col = fields[n_prefix].col;
+			DBUG_ASSERT(col->is_instant());
+			n -= col->is_nullable();
+		}
+		DBUG_ASSERT(n < n_def);
+		return n;
+	}
+
+	/** Get the default value of an instantly-added clustered index field.
+	@param[in]	n	instantly added field position
+	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
+	@return	default value
+	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
+	const byte* instant_field_value(uint n, ulint* len) const
+	{
+		DBUG_ASSERT(is_instant());
+		DBUG_ASSERT(n >= n_core_fields);
+		DBUG_ASSERT(n < n_fields);
+		return fields[n].col->instant_value(len);
+	}
 
 	/** Check whether two indexes have the same metadata.
 	@param[in]	old	the other index

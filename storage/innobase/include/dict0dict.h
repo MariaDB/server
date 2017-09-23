@@ -193,7 +193,6 @@ dict_col_set_mbminmaxlen(
 	ulint		mbmaxlen)	/*!< in: minimum multi-byte
 					character size, in bytes */
 	MY_ATTRIBUTE((nonnull));
-
 /*********************************************************************//**
 Gets the column data type. */
 UNIV_INLINE
@@ -900,7 +899,6 @@ dict_v_col_t*
 dict_table_get_nth_v_col(
         const dict_table_t*	table,
         ulint			pos);
-
 /********************************************************************//**
 Gets the given system column of a table.
 @return pointer to column object */
@@ -1174,15 +1172,6 @@ dict_index_get_n_fields(
 					representation of index (in
 					the dictionary cache) */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/********************************************************************//**
-@return	 nullable count of n_core_fields */
-UNIV_INLINE
-ulint 
-dict_index_get_first_n_field_n_nullable(
-/*================*/
-	const dict_index_t*     index,  		/*!< in: index */
-	ulint                   first_n_fields)	/*!< in: Precede n fields */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index
@@ -1272,25 +1261,6 @@ dict_index_get_nth_col_no(
 	const dict_index_t*	index,	/*!< in: index */
 	ulint			pos)	/*!< in: position of the field */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Get the default value of a clustered index field.
-@param[in]	index	clustered index
-@param[in]	pos	field position in the clustered index
-@param[out]	len	length of the value (in bytes), or UNIV_SQL_NULL
-@return	default value
-@retval	NULL	if the default value is SQL NULL */
-inline
-const byte*
-dict_index_get_nth_field_def(const dict_index_t* index, uint pos, ulint* len)
-{
-	ut_ad(dict_index_is_clust(index));
-
-	const dict_col_t*       col = dict_index_get_nth_col(index, pos);
-	ut_ad(col->def_val.len != UNIV_SQL_DEFAULT);
-	*len = col->def_val.len;
-	return static_cast<const byte*>(col->def_val.data);
-}
-
 /********************************************************************//**
 Looks for column n in an index.
 @return position in internal representation of the index;
@@ -2026,21 +1996,7 @@ dict_index_node_ptr_max_size(
 /*=========================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Check if a column is a virtual column
-@param[in]	col	column
-@return true if it is a virtual column, false otherwise */
-UNIV_INLINE
-bool
-dict_col_is_virtual(
-	const dict_col_t*	col);
-
-/*********************************************************************//**
-Gets the column is nullable.
-@return	TRUE if nullable */
-UNIV_INLINE
-ibool
-dict_col_is_nullable(
-	const dict_col_t*	col);	/*!< in: column */
+#define dict_col_is_virtual(col) (col)->is_virtual()
 
 /** encode number of columns and number of virtual columns in one
 4 bytes value. We could do this because the number of columns in

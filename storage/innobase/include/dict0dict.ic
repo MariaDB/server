@@ -72,7 +72,6 @@ dict_col_set_mbminmaxlen(
 
 	col->mbminmaxlen = DATA_MBMINMAXLEN(mbminlen, mbmaxlen);
 }
-
 /*********************************************************************//**
 Gets the column data type. */
 UNIV_INLINE
@@ -89,28 +88,6 @@ dict_col_copy_type(
 	type->prtype = col->prtype;
 	type->len = col->len;
 	type->mbminmaxlen = col->mbminmaxlen;
-}
-/** Check if a column is a virtual column
-@param[in]      col     column
-@return true if it is a virtual column, false otherwise */
-UNIV_INLINE
-bool
-dict_col_is_virtual(
-	const dict_col_t*	col)
-{
-	return(col->prtype & DATA_VIRTUAL);
-}
-
-/*********************************************************************//**
-Gets the column is nullable.
-@return	TRUE if nullable */
-UNIV_INLINE
-ibool
-dict_col_is_nullable(
-/*============*/
-	const dict_col_t*	col)	/*!< in: column */
-{
-	return (col->prtype & DATA_NOT_NULL) == 0;
 }
 
 #ifdef UNIV_DEBUG
@@ -1253,32 +1230,6 @@ dict_index_get_lock(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(&(index->lock));
-}
-
-/********************************************************************//**
-@return	 nullable count of n_core_fields */
-UNIV_INLINE
-ulint 
-dict_index_get_first_n_field_n_nullable(
-/*================*/
-    const dict_index_t*     index,  		/*!< in: index */
-    ulint                   first_n_fields)	/*!< in: Precede n fields */
-{
-	ulint           n_nullable = index->n_nullable;
-	const dict_field_t*   ifield;
-	ulint           i = 0;
-	ulint           n_fields;
-    
-	n_fields = dict_index_get_n_fields(index);
-	ut_a(first_n_fields <= n_fields);
-	for (i = first_n_fields ; i < n_fields; ++i) {
-		ifield = dict_index_get_nth_field(index, i);
-
-		if (dict_col_is_nullable(dict_field_get_col(ifield)))
-			n_nullable--;
-	}
-
-	return n_nullable;
 }
 
 /********************************************************************//**

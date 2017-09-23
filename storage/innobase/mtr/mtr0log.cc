@@ -633,8 +633,7 @@ mlog_parse_index(
 		if (n_core_fields) {
 			ind->n_core_fields = n_core_fields;
 			ind->n_core_null_bytes = UT_BITS_IN_BYTES(
-				dict_index_get_first_n_field_n_nullable(
-					ind, ind->n_core_fields));
+				ind->get_n_nullable(n_core_fields));
 		} else {
 			ind->n_core_null_bytes = UT_BITS_IN_BYTES(
 				ind->n_nullable);

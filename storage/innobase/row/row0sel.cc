@@ -3038,7 +3038,6 @@ row_sel_store_mysql_field_func(
 			rec, offsets,
 			dict_table_page_size(prebuilt->table),
 			field_no, &len, heap);
-		//field_no, &len, heap, NULL);
 
 		if (UNIV_UNLIKELY(!data)) {
 			/* The externally stored field was not written
@@ -3074,8 +3073,7 @@ row_sel_store_mysql_field_func(
 			const dict_index_t* clust_index
 				= dict_table_get_first_index(prebuilt->table);
 			ut_ad(index == clust_index);
-			data = dict_index_get_nth_field_def(
-				clust_index, field_no, &len);
+			data = clust_index->instant_field_value(field_no,&len);
 		} else {
 			data = rec_get_nth_field(rec, offsets, field_no, &len);
 		}

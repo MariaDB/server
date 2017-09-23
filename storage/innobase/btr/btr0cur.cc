@@ -494,12 +494,8 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 
 	uint16_t n = page_get_instant(page);
 	ut_ad(index->n_core_fields == index->n_fields);
-	ut_ad(n <= index->n_fields);
-	ut_ad(n > 0);
 	index->n_core_fields = n;
-	uint16_t n_null_bytes = UT_BITS_IN_BYTES(
-		dict_index_get_first_n_field_n_nullable(index, n));
-	index->n_core_null_bytes = n_null_bytes;
+	index->n_core_null_bytes = UT_BITS_IN_BYTES(index->get_n_nullable(n));
 }
 
 /** Optimistically latches the leaf page or pages requested.

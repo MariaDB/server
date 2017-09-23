@@ -601,21 +601,6 @@ rec_get_nth_field_offs(
 #define rec_get_nth_field(rec, offsets, n, len) \
 ((rec) + rec_get_nth_field_offs(offsets, n, len))
 
-/** Get the nth field from an index.
-@param[in]	rec	index record
-@param[in]	index	index
-@param[in]	offsets	rec_get_offsets(rec, index)
-@param[in]	n	field number
-@param[out]	len	length of the field in bytes, or UNIV_SQL_NULL
-@return a read-only copy of the index field */
-const byte*
-rec_get_nth_cfield(
-	const rec_t*		rec,
-	const dict_index_t*	index,
-	const ulint*		offsets,
-	ulint			n,
-	ulint*			len);
-
 /******************************************************//**
 Determine if the offsets are for a record containing null BLOB pointers.
 @return first field containing a null BLOB pointer, or NULL if none found */
@@ -698,7 +683,7 @@ rec_offs_nth_flag(const ulint* offsets, ulint n, ulint flag)
 }
 
 /** Determine if a record field is missing
-(should be replaced by dict_col_t::def_val).
+(should be replaced by dict_index_t::instant_field_value()).
 @param[in]	offsets	rec_get_offsets()
 @param[in]	n	nth field
 @return	nonzero if default bit is set */
@@ -710,7 +695,7 @@ rec_offs_nth_default(const ulint* offsets, ulint n)
 }
 
 /** Determine if a record field is SQL NULL
-(should be replaced by dict_col_t::def_val).
+(should be replaced by dict_index_t::instant_field_value()).
 @param[in]	offsets	rec_get_offsets()
 @param[in]	n	nth field
 @return	nonzero if SQL NULL set */
@@ -757,7 +742,8 @@ rec_offs_any_extern(const ulint* offsets)
 
 /** Determine if the offsets are for a record that is missing fields.
 @param[in]	offsets	rec_get_offsets()
-@return nonzero if any fields need to be replaced with dict_col_t::def_val. */
+@return nonzero if any fields need to be replaced with
+		dict_index_t::instant_field_value() */
 inline
 ulint
 rec_offs_any_default(const ulint* offsets)
@@ -790,6 +776,29 @@ rec_is_default_row(const rec_t* rec, const dict_index_t* index)
 		& REC_INFO_MIN_REC_FLAG;
 	ut_ad(!is || index->is_instant());
 	return is;
+}
+
+/** Get the nth field from an index.
+@param[in]	rec	index record
+@param[in]	index	index
+@param[in]	offsets	rec_get_offsets(rec, index)
+@param[in]	n	field number
+@param[out]	len	length of the field in bytes, or UNIV_SQL_NULL
+@return a read-only copy of the index field */
+inline
+const byte*
+rec_get_nth_cfield(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint			n,
+	ulint*			len)
+{
+	ut_ad(rec_offs_validate(rec, index, offsets));
+	if (!rec_offs_nth_default(offsets, n)) {
+		return rec_get_nth_field(rec, offsets, n, len);
+	}
+	return index->instant_field_value(n, len);
 }
 
 /******************************************************//**

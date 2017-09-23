@@ -312,9 +312,7 @@ ordinary:
 		ut_ad(n_fields > index->n_core_fields);
 		ut_ad(extra_bytes == REC_N_NEW_EXTRA_BYTES);
 		nulls = rec - (1 + REC_N_NEW_EXTRA_BYTES) - len;
-		const ulint n_nullable
-			= dict_index_get_first_n_field_n_nullable(index,
-								  n_fields);
+		const ulint n_nullable = index->get_n_nullable(n_fields);
 		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 		ut_d(n_null = n_nullable);
 		ut_ad(n_null <= index->n_nullable);
@@ -342,9 +340,7 @@ ordinary:
 		/* set default value flag */
 		if (i >= n_fields) {
 			ulint dlen;
-
-			ut_ad(index->is_instant());
-			if (!dict_index_get_nth_field_def(index, i, &dlen)) {
+			if (!index->instant_field_value(i, &dlen)) {
 				len = offs | REC_OFFS_SQL_NULL;
 				ut_ad(dlen == UNIV_SQL_NULL);
 			} else {
@@ -957,30 +953,6 @@ resolved:
 	ut_ad(lens >= extra);
 	*rec_offs_base(offsets) = (lens - extra + REC_N_NEW_EXTRA_BYTES)
 		| REC_OFFS_COMPACT | any_ext;
-}
-
-/** Get the nth field from an index.
-@param[in]	rec	index record
-@param[in]	index	index
-@param[in]	offsets	rec_get_offsets(rec, index)
-@param[in]	n	field number
-@param[out]	len	length of the field in bytes, or UNIV_SQL_NULL
-@return a read-only copy of the index field */
-const byte*
-rec_get_nth_cfield(
-	const rec_t*		rec,
-	const dict_index_t*	index,
-	const ulint*		offsets,
-	ulint			n,
-	ulint*			len)
-{
-	ut_ad(rec_offs_validate(rec, index, offsets));
-
-	if (!rec_offs_nth_default(offsets, n)) {
-		return rec_get_nth_field(rec, offsets, n, len);
-	}
-
-	return dict_index_get_nth_field_def(index, n, len);
 }
 
 /************************************************************//**
@@ -1958,10 +1930,8 @@ rec_copy_prefix_to_buf(
 			ulint n_fields_rec = rec_get_field_count(rec, &len);
 			ut_ad(len == rec_get_field_count_len(n_fields_rec));
 			ut_ad(n_fields_rec >= n_fields);
-			const ulint n_nullable
-				= dict_index_get_first_n_field_n_nullable(
-					index, n_fields_rec);
-			ut_ad(n_nullable <= index->n_nullable);
+			const ulint n_nullable = index->get_n_nullable(
+				n_fields_rec);
 			nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1) - len;
 			lens = nulls - UT_BITS_IN_BYTES(n_nullable);
 			break;

@@ -509,7 +509,7 @@ row_build_low(
 		const void*	field = rec_get_nth_field(
 			copy, offsets, i, &len);
 		if (len == UNIV_SQL_DEFAULT) {
-			field = dict_index_get_nth_field_def(index, i, &len);
+			field = index->instant_field_value(i, &len);
 			if (field && type != ROW_COPY_POINTERS) {
 				ut_ad(univ_is_stored(len));
 				field = mem_heap_dup(heap, field, len);
@@ -650,7 +650,7 @@ row_build_w_add_vcol(
 }
 
 /** Convert an index record to a data tuple.
-@tparam def whether the dict_col_t::def_val needs to be accessed
+@tparam def whether the index->instant_field_value() needs to be accessed
 @param[in]	rec	index record
 @param[in]	index	index
 @param[in]	offsets	rec_get_offsets(rec, index)
@@ -659,6 +659,7 @@ row_build_w_add_vcol(
 @return index entry built; does not set info_bits, and the data fields
 in the entry will point directly to rec */
 template<bool def>
+static inline
 dtuple_t*
 row_rec_to_index_entry_impl(
 	const rec_t*		rec,

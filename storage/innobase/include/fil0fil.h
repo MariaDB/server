@@ -427,7 +427,7 @@ Note: FIL_PAGE_TYPE_INSTANT maps to the same as FIL_PAGE_INDEX. */
 /** @return whether the page type is B-tree or R-tree index */
 inline bool fil_page_type_is_index(ulint page_type)
 {
-        switch (page_type) {
+	switch (page_type) {
 	case FIL_PAGE_TYPE_INSTANT:
 	case FIL_PAGE_INDEX:
 	case FIL_PAGE_RTREE:
