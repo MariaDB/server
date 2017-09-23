@@ -4685,14 +4685,10 @@ btr_index_rec_validate(
 		length.  When fixed_size == 0, prefix_len is the maximum
 		length of the prefix index column. */
 
-		if ((field->prefix_len == 0
-		     && univ_is_stored(len) && fixed_size
-		     && len != fixed_size)
-		    || (field->prefix_len > 0
-			&& univ_is_stored(len)
-			&& len
-			> field->prefix_len)) {
-
+		if (len_is_stored(len)
+		    && (field->prefix_len
+			? len > field->prefix_len
+			: (fixed_size && len != fixed_size))) {
 			btr_index_rec_validate_report(page, rec, index);
 
 			ib::error	error;

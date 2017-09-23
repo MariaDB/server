@@ -511,7 +511,6 @@ row_build_low(
 		if (len == UNIV_SQL_DEFAULT) {
 			field = index->instant_field_value(i, &len);
 			if (field && type != ROW_COPY_POINTERS) {
-				ut_ad(univ_is_stored(len));
 				field = mem_heap_dup(heap, field, len);
 			}
 		}

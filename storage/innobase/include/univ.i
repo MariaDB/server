@@ -505,12 +505,6 @@ computers! */
 
 #define UNIV_SQL_NULL ULINT32_UNDEFINED
 
-/** Special length indicating a missing instantly added column */
-#define UNIV_SQL_DEFAULT (UNIV_SQL_NULL - 1)
-
-/** Check the record whether store in the row */
-#define univ_is_stored(len) (len != UNIV_SQL_NULL && len != UNIV_SQL_DEFAULT)
-
 /** Lengths which are not UNIV_SQL_NULL, but bigger than the following
 number indicate that a field contains a reference to an externally
 stored part of the field in the tablespace. The length field then

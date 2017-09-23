@@ -56,7 +56,7 @@ dtype_get_at_most_n_mbchars(
 	ulint	mbminlen = DATA_MBMINLEN(mbminmaxlen);
 	ulint	mbmaxlen = DATA_MBMAXLEN(mbminmaxlen);
 
-	ut_a(univ_is_stored(data_len));
+	ut_a(len_is_stored(data_len));
 	ut_ad(!mbmaxlen || !(prefix_len % mbmaxlen));
 
 	if (mbminlen != mbmaxlen) {
