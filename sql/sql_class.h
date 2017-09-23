@@ -1636,6 +1636,29 @@ public:
 
 
 /**
+  Implements the trivial error handler which counts errors as they happen.
+*/
+
+class Counting_error_handler : public Internal_error_handler
+{
+public:
+  int errors;
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl)
+  {
+    if (*level == Sql_condition::WARN_LEVEL_ERROR)
+      errors++;
+    return false;
+  }
+  Counting_error_handler() : errors(0) {}
+};
+
+
+/**
   This class is an internal error handler implementation for
   DROP TABLE statements. The thing is that there may be warnings during
   execution of these statements, which should not be exposed to the user.

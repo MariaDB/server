@@ -602,3 +602,13 @@ remove_file $MYSQLD_DATADIR/test/t1.txt;
 drop view v1;
 drop table t1;
 SET @@sql_mode= @save_mode;
+
+#
+# MDEV-13861 Assertion `0' failed in Protocol::end_statement
+#
+CREATE TABLE t1 (f INT);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE f <=> 'foo' WITH CHECK OPTION;
+--error ER_TRUNCATED_WRONG_VALUE
+REPLACE INTO v1 SET f = NULL;
+DROP VIEW v1;
+DROP TABLE t1;

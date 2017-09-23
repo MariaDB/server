@@ -328,10 +328,10 @@ bool
 page_rec_is_leaf(const page_t* rec)
 {
 	const page_t* page = page_align(rec);
-	ut_ad(rec - page >= page_get_infimum_offset(page));
+	ut_ad(ulint(rec - page) >= page_get_infimum_offset(page));
 	bool leaf = page_is_leaf(page);
 	ut_ad(!page_rec_is_comp(rec)
-	      || !page_rec_is_user_rec_low(rec - page)
+	      || !page_rec_is_user_rec_low(ulint(rec - page))
 	      || leaf == !rec_get_node_ptr_flag(rec));
 	return leaf;
 }

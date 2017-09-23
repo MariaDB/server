@@ -1,7 +1,7 @@
 # Tests of grants and users
 
-source include/master-slave.inc;
 source include/not_embedded.inc;
+source include/master-slave.inc;
 
 connection master;
 

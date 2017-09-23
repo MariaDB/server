@@ -2790,3 +2790,11 @@ test.t1	check	status	OK
 SET aria_repair_threads=@@global.aria_repair_threads;
 SET aria_sort_buffer_size=@@global.aria_sort_buffer_size;
 DROP TABLE t1;
+CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b));
+INSERT INTO t1 VALUES(1,'0'),(2,'0'),(3,'0'),(4,'0'),(5,'0'),
+(6,'0'),(7,'0');
+flush tables test.t1 for export;
+insert into t1 values (8,'0');
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+unlock tables;
+drop table t1;

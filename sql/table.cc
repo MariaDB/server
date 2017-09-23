@@ -5077,23 +5077,28 @@ void TABLE_LIST::cleanup_items()
 
 int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
 {
-  /* VIEW's CHECK OPTION CLAUSE */
-  if (check_option && check_option->val_int() == 0)
+  if (check_option)
   {
-    TABLE_LIST *main_view= top_table();
-    const char *name_db= (main_view->view ? main_view->view_db.str :
-                          main_view->db);
-    const char *name_table= (main_view->view ? main_view->view_name.str :
-                             main_view->table_name);
-    my_error(ER_VIEW_CHECK_FAILED, MYF(ignore_failure ? ME_JUST_WARNING : 0),
-             name_db, name_table);
-    return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
+    /* VIEW's CHECK OPTION CLAUSE */
+    Counting_error_handler ceh;
+    thd->push_internal_handler(&ceh);
+    bool res= check_option->val_int() == 0;
+    thd->pop_internal_handler();
+    if (ceh.errors)
+      return(VIEW_CHECK_ERROR);
+    if (res)
+    {
+      TABLE_LIST *main_view= top_table();
+      const char *name_db= (main_view->view ? main_view->view_db.str :
+                            main_view->db);
+      const char *name_table= (main_view->view ? main_view->view_name.str :
+                               main_view->table_name);
+      my_error(ER_VIEW_CHECK_FAILED, MYF(ignore_failure ? ME_JUST_WARNING : 0),
+               name_db, name_table);
+      return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
+    }
   }
-  int result= table->verify_constraints(ignore_failure);
-  /* We check thd->error() because it can be set by conversion problem. */
-  if (thd->is_error())
-    return(VIEW_CHECK_ERROR);
-  return result;
+  return table->verify_constraints(ignore_failure);
 }
 
 

@@ -1706,6 +1706,25 @@ void Item_func_now::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
+
+int Item_func_now_local::save_in_field(Field *field, bool no_conversions)
+{
+  if (field->type() == MYSQL_TYPE_TIMESTAMP)
+  {
+    THD *thd= field->get_thd();
+    my_time_t ts= thd->query_start();
+    uint dec= MY_MIN(decimals, field->decimals());
+    ulong sec_part= dec ? thd->query_start_sec_part() : 0;
+    sec_part-= my_time_fraction_remainder(sec_part, dec);
+    field->set_notnull();
+    ((Field_timestamp*)field)->store_TIME(ts, sec_part);
+    return 0;
+  }
+  else
+    return Item_temporal_func::save_in_field(field, no_conversions);
+}
+
+
 /**
     Converts current time in my_time_t to MYSQL_TIME represenatation for local
     time zone. Defines time zone (local) used for whole NOW function.
