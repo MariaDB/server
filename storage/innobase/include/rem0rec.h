@@ -70,6 +70,11 @@ enum rec_comp_status_t {
 	REC_STATUS_COLUMNS_ADDED = 4
 };
 
+/** The dtuple_t::info_bits of the 'default row' record.
+@see rec_is_default_row() */
+static const byte REC_INFO_DEFAULT_ROW
+	= REC_INFO_MIN_REC_FLAG | REC_STATUS_COLUMNS_ADDED;
+
 #define REC_NEW_STATUS		3	/* This is single byte bit-field */
 #define REC_NEW_STATUS_MASK	0x7UL
 #define REC_NEW_STATUS_SHIFT	0
