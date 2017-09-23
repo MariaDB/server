@@ -436,7 +436,7 @@ mlog_open_and_write_index(
 		log_end = log_ptr + 11 + size;
 	} else {
 		ulint	i;
-		ibool is_instant = index->is_instant();
+		bool	is_instant = index->is_instant();
 		ulint	n	= dict_index_get_n_fields(index);
 		ulint	total	= 11 + (is_instant ? 2 : 0) + size + (n + 2) * 2;
 		ulint	alloc	= total;
@@ -472,7 +472,6 @@ mlog_open_and_write_index(
 
 			// record the n_core_fields
 			mach_write_to_2(log_ptr, index->n_core_fields);
-
 		} else {
 			mach_write_to_2(log_ptr, n);
 		}
@@ -563,13 +562,17 @@ mlog_parse_index(
 		}
 		n = mach_read_from_2(ptr);
 		ptr += 2;
-		if (n & 0x8000) {  // instant record
+		if (n & 0x8000) { /* record after instant ADD COLUMN */
 			n &= 0x7FFF;
 
 			n_core_fields = mach_read_from_2(ptr);
+
+			if (!n_core_fields || n_core_fields > n) {
+				recv_sys->found_corrupt_log = TRUE;
+				return(NULL);
+			}
+
 			ptr += 2;
-			ut_ad(n_core_fields > 0);
-			ut_ad(n_core_fields <= n);
 
 			if (end_ptr < ptr + 2) {
 				return(NULL);

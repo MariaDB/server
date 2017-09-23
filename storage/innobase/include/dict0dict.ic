@@ -536,10 +536,8 @@ dict_table_get_nth_v_col(
 	ut_ad(table);
 	ut_ad(pos < table->n_v_def);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	dict_v_col_t* vcol = &table->v_cols[pos];
-	ut_ad(vcol->m_col.def_val.len == UNIV_SQL_DEFAULT);
-	ut_ad(!vcol->m_col.def_val.data);
-	return vcol;
+	ut_ad(!table->v_cols[pos].m_col.is_instant());
+	return &table->v_cols[pos];
 }
 
 /********************************************************************//**

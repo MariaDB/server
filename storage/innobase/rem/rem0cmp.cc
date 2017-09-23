@@ -409,7 +409,8 @@ cmp_data(
 	const byte*	data2,
 	ulint		len2)
 {
-	ut_ad(len1 != UNIV_SQL_DEFAULT && len2 != UNIV_SQL_DEFAULT);
+	ut_ad(len1 != UNIV_SQL_DEFAULT);
+	ut_ad(len2 != UNIV_SQL_DEFAULT);
 
 	if (len1 == UNIV_SQL_NULL || len2 == UNIV_SQL_NULL) {
 		if (len1 == len2) {
@@ -710,8 +711,10 @@ cmp_dtuple_rec_with_match_low(
 		contain externally stored fields, and the first fields
 		(primary key fields) should already differ. */
 		ut_ad(!rec_offs_nth_extern(offsets, cur_field));
-		
-		/* We should never compare against instant add columns */
+		/* We should never compare against instantly added columns.
+		Columns can only be instantly added to clustered index
+		leaf page records, and the first fields (primary key fields)
+		should already differ. */
 		ut_ad(!rec_offs_nth_default(offsets, cur_field));
 
 		rec_b_ptr = rec_get_nth_field(rec, offsets, cur_field,

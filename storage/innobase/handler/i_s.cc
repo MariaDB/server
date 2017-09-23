@@ -278,30 +278,6 @@ field_store_string(
 }
 
 /*******************************************************************//**
-Auxiliary function to store char* value in MYSQL_TYPE_BLOB field.
-@return 0 on success */
-int
-field_store_blob(
-/*===============*/
-	Field*		field,	/*!< in/out: target field for storage */
-	const char*	str,	/*!< in: blob string, or NULL */
-	ulint		str_len)/*!< in: length of blob string */
-{
-	int	ret;
-
-	if (str != NULL) {
-		ret = field->store(str, str_len, 
-				field->charset());
-		field->set_notnull();
-	} else {
-		ret = 0; /* success */
-		field->set_null();
-	}
-
-	return(ret);
-}
-
-/*******************************************************************//**
 Store the name of an index in a MYSQL_TYPE_VARCHAR field.
 Handles the names of incomplete secondary indexes.
 @return 0 on success */

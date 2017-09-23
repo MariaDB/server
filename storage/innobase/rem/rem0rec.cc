@@ -1465,21 +1465,23 @@ rec_convert_dtuple_to_rec_old(
 	return(rec);
 }
 
-/*********************************************************//**
-Builds a ROW_FORMAT=COMPACT record out of a data tuple. 
-@return true if instant record */
-UNIV_INLINE
-bool
+/** Convert a data tuple into a ROW_FORMAT=COMPACT record.
+@param[out]	rec		converted record
+@param[in]	index		index
+@param[in]	fields		data fields to convert
+@param[in]	n_fields	number of data fields
+@param[in]	status		rec_get_status(rec)
+@param[in]	temp		whether to use the format for temporary files
+				in index creation */
+static inline
+void
 rec_convert_dtuple_to_rec_comp(
-/*===========================*/
-	rec_t*			rec,	/*!< in: origin of record */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	const dfield_t*		fields,	/*!< in: array of data fields */
-	ulint			n_fields,/*!< in: number of data fields */
-	rec_comp_status_t	status,	/*!< in: status bits of the record */
-	bool			temp)	/*!< in: whether to use the
-					format for temporary files in
-					index creation */
+	rec_t*			rec,
+	const dict_index_t*	index,
+	const dfield_t*		fields,
+	ulint			n_fields,
+	rec_comp_status_t	status,
+	bool			temp)
 {
 	const dfield_t*	field;
 	const dtype_t*	type;
@@ -1491,7 +1493,6 @@ rec_convert_dtuple_to_rec_comp(
 	ulint		n_node_ptr_field;
 	ulint		fixed_len;
 	ulint		null_mask	= 1;
-	bool		is_instant = false;
 
 	ut_ad(n_fields > 0);
 	ut_ad(temp || dict_table_is_comp(index->table));
@@ -1514,25 +1515,27 @@ rec_convert_dtuple_to_rec_comp(
 		rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 
-		switch (UNIV_EXPECT(status, REC_STATUS_ORDINARY)) {
+		switch (status) {
 		case REC_STATUS_COLUMNS_ADDED:
 			ut_ad(index->is_instant());
 			/* fall through */
 		case REC_STATUS_ORDINARY:
 			ut_ad(n_fields <= dict_index_get_n_fields(index));
-			is_instant = index->is_instant();
-			if (is_instant) {
+			if (index->is_instant()) {
 				ut_ad(n_fields == index->n_fields);
 				rec_set_status(rec, REC_STATUS_COLUMNS_ADDED);
 				nulls = rec_set_n_add_field(
 					rec, n_fields - 1
 					- index->n_core_fields);
+			} else {
+				rec_set_status(rec, REC_STATUS_ORDINARY);
 			}
 
 			n_node_ptr_field = ULINT_UNDEFINED;
 			lens = nulls - UT_BITS_IN_BYTES(index->n_nullable);
 			break;
 		case REC_STATUS_NODE_PTR:
+			rec_set_status(rec, status);
 			ut_ad(n_fields
 			      == dict_index_get_n_unique_in_tree_nonleaf(index)
 				 + 1);
@@ -1543,14 +1546,8 @@ rec_convert_dtuple_to_rec_comp(
 			break;
 		case REC_STATUS_INFIMUM:
 		case REC_STATUS_SUPREMUM:
-			ut_ad(n_fields == 1);
-			n_node_ptr_field = ULINT_UNDEFINED;
-			lens = nulls;
-			ut_d(n_null = 0);
-			break;
-		default:
 			ut_error;
-			return false;
+			return;
 		}
 	}
 
@@ -1651,8 +1648,6 @@ rec_convert_dtuple_to_rec_comp(
 			end += len;
 		}
 	}
-
-	return is_instant;
 }
 
 /** Write indexed virtual column data into a temporary file.
@@ -1730,30 +1725,20 @@ rec_convert_dtuple_to_rec_new(
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	const dtuple_t*		dtuple)	/*!< in: data tuple */
 {
-	ulint bits = dtuple->info_bits;
-	ut_ad(!(bits & ~(REC_NEW_STATUS_MASK | REC_INFO_DELETED_FLAG
-			 | REC_INFO_MIN_REC_FLAG)));
+	ut_ad(!(dtuple->info_bits
+		& ~(REC_NEW_STATUS_MASK | REC_INFO_DELETED_FLAG
+		    | REC_INFO_MIN_REC_FLAG)));
 	rec_comp_status_t status = static_cast<rec_comp_status_t>(
-		bits & REC_NEW_STATUS_MASK);
+		dtuple->info_bits & REC_NEW_STATUS_MASK);
 	ulint	extra_size;
 
 	rec_get_converted_size_comp(
 		index, status, dtuple->fields, dtuple->n_fields, &extra_size);
 	rec_t* rec = buf + extra_size;
 
-	if (rec_convert_dtuple_to_rec_comp(
-		    rec, index, dtuple->fields, dtuple->n_fields,
-		    status, false)) {
-		ut_ad(status == REC_STATUS_ORDINARY
-		      || status == REC_STATUS_COLUMNS_ADDED);
-		bits &= ~REC_NEW_STATUS_MASK;
-		bits |= REC_STATUS_COLUMNS_ADDED;
-	} else {
-		ut_ad(status == REC_STATUS_ORDINARY
-		      || status == REC_STATUS_NODE_PTR);
-	}
-
-	rec_set_info_and_status_bits(rec, bits);
+	rec_convert_dtuple_to_rec_comp(
+		rec, index, dtuple->fields, dtuple->n_fields, status, false);
+	rec_set_info_bits_new(rec, dtuple->info_bits & ~REC_NEW_STATUS_MASK);
 	return(rec);
 }
 
@@ -1862,10 +1847,10 @@ rec_copy_prefix_to_dtuple(
 				  n_fields, &heap);
 
 	ut_ad(rec_validate(rec, offsets));
+	ut_ad(!rec_offs_any_default(offsets));
 	ut_ad(dtuple_check_typed(tuple));
 
-	dtuple_set_info_bits(tuple, rec_get_info_bits(
-				     rec, dict_table_is_comp(index->table)));
+	tuple->info_bits = rec_get_info_bits(rec, rec_offs_comp(offsets));
 
 	for (ulint i = 0; i < n_fields; i++) {
 		dfield_t*	field;
@@ -1883,8 +1868,6 @@ rec_copy_prefix_to_dtuple(
 			dfield_set_null(field);
 		}
 	}
-
-	ut_ad(!rec_offs_any_default(offsets));
 }
 
 /**************************************************************//**
@@ -1950,7 +1933,6 @@ rec_copy_prefix_to_buf(
 	ulint		i;
 	ulint		prefix_len;
 	ulint		null_mask;
-	ulint		status;
 	bool		is_rtr_node_ptr = false;
 
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
@@ -1964,9 +1946,7 @@ rec_copy_prefix_to_buf(
 			       buf, buf_size));
 	}
 
-	status = rec_get_status(rec);
-
-	switch (status) {
+	switch (rec_get_status(rec)) {
 	case REC_STATUS_COLUMNS_ADDED:
 		ut_ad(index->is_instant());
 		if (n_fields >= index->n_core_fields) {
@@ -2150,13 +2130,13 @@ rec_validate(
 	for (i = 0; i < n_fields; i++) {
 		rec_get_nth_field_offs(offsets, i, &len);
 
-		if (!((len < UNIV_PAGE_SIZE) || (len == UNIV_SQL_NULL) || (len == UNIV_SQL_DEFAULT))) {
-			ib::error() << "Record field " << i << " len " << len;
-			return(FALSE);
-		}
-
 		switch (len) {
 		default:
+			if (len >= UNIV_PAGE_SIZE) {
+				ib::error() << "Record field " << i
+					<< " len " << len;
+				return(FALSE);
+			}
 			len_sum += len;
 			break;
 		case UNIV_SQL_DEFAULT:
@@ -2279,7 +2259,7 @@ rec_print_comp(
 				fprintf(file, " (total " ULINTPF " bytes)",
 					len);
 			}
-		} 
+		}
 		putc(';', file);
 		putc('\n', file);
 	}
@@ -2372,6 +2352,7 @@ rec_print_mbr_rec(
 	ut_ad(rec);
 	ut_ad(offsets);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
+	ut_ad(!rec_offs_any_default(offsets));
 
 	if (!rec_offs_comp(offsets)) {
 		rec_print_mbr_old(file, rec);
@@ -2382,11 +2363,7 @@ rec_print_mbr_rec(
 		const byte*	data;
 		ulint		len;
 
-		if (rec_offs_nth_default(offsets, i)) {
-			len = UNIV_SQL_DEFAULT;
-		} else {
-			data = rec_get_nth_field(rec, offsets, i, &len);
-		}
+		data = rec_get_nth_field(rec, offsets, i, &len);
 
 		if (i == 0) {
 			fprintf(file, " MBR:");
@@ -2404,11 +2381,7 @@ rec_print_mbr_rec(
 		} else {
 			fprintf(file, " %lu:", (ulong) i);
 
-			if (len == UNIV_SQL_NULL) {
-				fputs(" SQL NULL", file);
-			} else if (len == UNIV_SQL_DEFAULT) {
-				fputs(" SQL DEFAULT", file);
-			} else {
+			if (len != UNIV_SQL_NULL) {
 				if (len <= 30) {
 
 					ut_print_buf(file, data, len);
@@ -2418,6 +2391,8 @@ rec_print_mbr_rec(
 					fprintf(file, " (total %lu bytes)",
 						(ulong) len);
 				}
+			} else {
+				fputs(" SQL NULL", file);
 			}
 		}
 		putc(';', file);
@@ -2527,17 +2502,17 @@ rec_print(
 			o << ',';
 		}
 
-		if (rec_offs_nth_default(offsets, i)) {
+		data = rec_get_nth_field(rec, offsets, i, &len);
+
+		if (len == UNIV_SQL_DEFAULT) {
 			o << "DEFAULT";
 			continue;
 		}
 
-		data = rec_get_nth_field(rec, offsets, i, &len);
-
 		if (len == UNIV_SQL_NULL) {
 			o << "NULL";
 			continue;
-		} 
+		}
 
 		if (rec_offs_nth_extern(offsets, i)) {
 			ulint	local_len = len - BTR_EXTERN_FIELD_REF_SIZE;

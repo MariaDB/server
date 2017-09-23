@@ -926,9 +926,9 @@ rec_get_nth_field_offs(
 
 	if (length & REC_OFFS_SQL_NULL) {
 		length = UNIV_SQL_NULL;
-	} else if ( length & REC_OFFS_DEFAULT) { 
+	} else if (length & REC_OFFS_DEFAULT) {
 		length = UNIV_SQL_DEFAULT;
-	}else {
+	} else {
 		length &= REC_OFFS_MASK;
 		length -= offs;
 	}

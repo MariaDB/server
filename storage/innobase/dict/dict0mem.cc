@@ -133,9 +133,9 @@ dict_mem_table_create(
 	table->n_cols = table->n_t_cols - table->n_v_cols;
 
 	table->cols = static_cast<dict_col_t*>(
-		mem_heap_zalloc(heap, table->n_cols * sizeof(dict_col_t)));
+		mem_heap_alloc(heap, table->n_cols * sizeof(dict_col_t)));
 	table->v_cols = static_cast<dict_v_col_t*>(
-		mem_heap_zalloc(heap, n_v_cols * sizeof(*table->v_cols)));
+		mem_heap_alloc(heap, n_v_cols * sizeof(*table->v_cols)));
 
 	/* true means that the stats latch will be enabled -
 	dict_table_stats_lock() will not be noop. */

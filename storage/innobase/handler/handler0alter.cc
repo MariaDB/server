@@ -60,8 +60,6 @@ Smart ALTER TABLE
 //#include "wsrep_api.h"
 #include <sql_acl.h>	// PROCESS_ACL
 #endif
-#include "sql_time.h"
-#include "sql_class.h"
 
 static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=
 			"INPLACE ADD or DROP of virtual columns cannot be "
@@ -4139,13 +4137,14 @@ innobase_add_virtual_try(
 	return(false);
 }
 
-/** Update system table for instant adding column(s)
+/** Insert into SYS_COLUMNS and insert/update the 'default row'
+for instant ADD COLUMN.
 @param[in,out]	ha_alter_info	Data used during in-place alter
 @param[in]	altered_table	MySQL table that is being altered
 @param[in]	table		MySQL table as it is before the ALTER operation
 @param[in,out]	trx		dictionary transaction
-@retval true Failure
-@retval false Success */
+@retval	true	failure
+@retval	false	success */
 static
 bool
 innobase_add_instant_try(
