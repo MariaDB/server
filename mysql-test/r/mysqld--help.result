@@ -322,11 +322,11 @@ The following options may be given as the first argument:
  --idle-readonly-transaction-timeout=# 
  The number of seconds the server waits for read-only idle
  transaction
- --idle-readwrite-transaction-timeout=# 
- The number of seconds the server waits for read-write
- idle transaction
  --idle-transaction-timeout=# 
  The number of seconds the server waits for idle
+ transaction
+ --idle-write-transaction-timeout=# 
+ The number of seconds the server waits for write idle
  transaction
  --ignore-builtin-innodb 
  Disable initialization of builtin InnoDB plugin
@@ -1348,8 +1348,8 @@ histogram-size 0
 histogram-type SINGLE_PREC_HB
 host-cache-size 279
 idle-readonly-transaction-timeout 0
-idle-readwrite-transaction-timeout 0
 idle-transaction-timeout 0
+idle-write-transaction-timeout 0
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
 init-connect 

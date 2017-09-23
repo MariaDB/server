@@ -3552,6 +3552,14 @@ static Sys_var_charptr Sys_version_compile_os(
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(SYSTEM_TYPE));
 
+#include <source_revision.h>
+static char *server_version_source_revision;
+static Sys_var_charptr Sys_version_source_revision(
+       "version_source_revision", "Source control revision id for MariaDB source code",
+       READ_ONLY GLOBAL_VAR(server_version_source_revision),
+       CMD_LINE_HELP_ONLY,
+       IN_SYSTEM_CHARSET, DEFAULT(SOURCE_REVISION));
+
 static char *guess_malloc_library()
 {
   if (strcmp(MALLOC_LIBRARY, "system") == 0)
@@ -3607,10 +3615,10 @@ static Sys_var_uint Sys_idle_readonly_transaction_timeout(
        VALID_RANGE(0, IF_WIN(INT_MAX32/1000, LONG_TIMEOUT)),
        DEFAULT(0), BLOCK_SIZE(1));
 
-static Sys_var_uint Sys_idle_readwrite_transaction_timeout(
-       "idle_readwrite_transaction_timeout",
-       "The number of seconds the server waits for read-write idle transaction",
-       SESSION_VAR(idle_readwrite_transaction_timeout), CMD_LINE(REQUIRED_ARG),
+static Sys_var_uint Sys_idle_write_transaction_timeout(
+       "idle_write_transaction_timeout",
+       "The number of seconds the server waits for write idle transaction",
+       SESSION_VAR(idle_write_transaction_timeout), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, IF_WIN(INT_MAX32/1000, LONG_TIMEOUT)),
        DEFAULT(0), BLOCK_SIZE(1));
 

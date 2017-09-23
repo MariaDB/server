@@ -330,3 +330,31 @@ PREPARE stmt FROM "SELECT
 EXECUTE stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # MDEV-13864 Change Item_func_case to store the predicant in args[0]
+--echo #
+
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('b'),('c');
+
+# should propagate the predicant and the WHEN arguments (they are in comparison and use ANY_SUBST)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE a WHEN 'a' THEN 'a' ELSE 'a' END='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN a THEN 'a' ELSE 'a' END='a';
+
+# should not propagate the THEN and the ELSE arguments (they are not in comparison and use IDENTITY_SUBST)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN a ELSE 'a' END='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN 'a' ELSE a END='a';
+
+ALTER TABLE t1 MODIFY a VARBINARY(10);
+
+# with VARBINARY it should propagate all arguments
+# as IDENTITY_SUBST for VARBINARY allows substitution
+# of even those arguments that are not in comparison
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE a WHEN 'a' THEN 'a' ELSE 'a' END='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN a THEN 'a' ELSE 'a' END='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN a ELSE 'a' END='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN 'a' ELSE a END='a';
+
+DROP TABLE t1;

@@ -52,6 +52,9 @@ IF(GIT_EXECUTABLE)
   ENDIF()
 ENDIF()
 
+CONFIGURE_FILE(${CMAKE_BINARY_DIR}/include/source_revision.h
+       ${PACKAGE_DIR}/include/source_revision.h COPYONLY)
+
 IF(NOT GIT_EXECUTABLE)
   MESSAGE(STATUS "git not found or source dir is not a repo, use CPack")
   

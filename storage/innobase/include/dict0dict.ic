@@ -385,7 +385,9 @@ dict_table_get_n_user_cols(
 	const dict_table_t*	table)	/*!< in: table */
 {
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	ut_ad(table->n_cols > DATA_N_SYS_COLS);
+	/* n_cols counts stored columns only. A table may contain
+	virtual columns and no user-specified stored columns at all. */
+	ut_ad(table->n_cols >= DATA_N_SYS_COLS);
 	return(table->n_cols - DATA_N_SYS_COLS);
 }
 

@@ -56,8 +56,23 @@ struct st_value
 C_MODE_END
 
 
+class Value: public st_value
+{
+public:
+  bool is_null() const { return m_type == DYN_COL_NULL; }
+  bool is_longlong() const
+  {
+    return m_type == DYN_COL_UINT || m_type == DYN_COL_INT;
+  }
+  bool is_double() const { return m_type == DYN_COL_DOUBLE; }
+  bool is_temporal() const { return m_type == DYN_COL_DATETIME; }
+  bool is_string() const { return m_type == DYN_COL_STRING; }
+  bool is_decimal() const { return m_type == DYN_COL_DECIMAL; }
+};
+
+
 template<size_t buffer_size>
-class ValueBuffer: public st_value
+class ValueBuffer: public Value
 {
   char buffer[buffer_size];
   void reset_buffer()
