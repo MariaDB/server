@@ -285,8 +285,8 @@ row_build_row_ref_fast(
 	const ulint*	map,	/*!< in: array of field numbers in rec
 				telling how ref should be built from
 				the fields of rec */
-	const rec_t*	rec,	/*!< in: record in the index; must be
-				preserved while ref is used, as we do
+	const rec_t*	rec,	/*!< in: secondary index record;
+				must be preserved while ref is used, as we do
 				not copy field values to heap */
 	const ulint*	offsets);/*!< in: array returned by rec_get_offsets() */
 /***************************************************************//**
