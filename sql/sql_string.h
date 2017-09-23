@@ -469,9 +469,21 @@ public:
   }
   bool append(const String &s);
   bool append(const char *s);
-  bool append(const LEX_STRING *ls) { return append(ls->str, ls->length); }
-  bool append(const LEX_CSTRING *ls) { return append(ls->str, ls->length); }
-  bool append(const LEX_CSTRING &ls) { return append(ls.str, ls.length); }
+  bool append(const LEX_STRING *ls)
+  {
+    DBUG_ASSERT(ls->length < UINT_MAX32);
+    return append(ls->str, (uint32) ls->length);
+  }
+  bool append(const LEX_CSTRING *ls)
+  {
+    DBUG_ASSERT(ls->length < UINT_MAX32);
+    return append(ls->str, (uint32) ls->length);
+  }
+  bool append(const LEX_CSTRING &ls)
+  {
+    DBUG_ASSERT(ls.length < UINT_MAX32);
+    return append(ls.str, (uint32) ls.length);
+  }
   bool append(const char *s, uint32 arg_length);
   bool append(const char *s, uint32 arg_length, CHARSET_INFO *cs);
   bool append_ulonglong(ulonglong val);
@@ -563,7 +575,8 @@ public:
   }
   void q_append(const LEX_CSTRING *ls)
   {
-    q_append(ls->str, ls->length);
+    DBUG_ASSERT(ls->length < UINT_MAX32);
+    q_append(ls->str, (uint32) ls->length);
   }
 
   void write_at_position(int position, uint32 value)
@@ -643,7 +656,9 @@ public:
   }
   bool append_for_single_quote(const char *st)
   {
-    return append_for_single_quote(st, strlen(st));
+    size_t len= strlen(st);
+    DBUG_ASSERT(len < UINT_MAX32);
+    return append_for_single_quote(st, (uint32) len);
   }
 
   /* Swap two string objects. Efficient way to exchange data without memcpy. */
@@ -687,10 +702,11 @@ public:
   }
   void q_net_store_data(const uchar *from, size_t length)
   {
+    DBUG_ASSERT(length < UINT_MAX32);
     DBUG_ASSERT(Alloced_length >= (str_length + length +
                                    net_length_size(length)));
     q_net_store_length(length);
-    q_append((const char *)from, length);
+    q_append((const char *)from, (uint32) length);
   }
 };
 

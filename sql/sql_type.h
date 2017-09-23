@@ -227,7 +227,7 @@ static inline uint32
 char_to_byte_length_safe(size_t char_length_arg, uint32 mbmaxlen_arg)
 {
   ulonglong tmp= ((ulonglong) char_length_arg) * mbmaxlen_arg;
-  return tmp > UINT_MAX32 ? UINT_MAX32 : static_cast<uint32>(tmp);
+  return tmp > UINT_MAX32 ? (uint32) UINT_MAX32 : static_cast<uint32>(tmp);
 }
 
 /**
@@ -531,11 +531,12 @@ class Name: private LEX_CSTRING
 public:
   Name(const char *str_arg, uint length_arg)
   {
+    DBUG_ASSERT(length_arg < UINT_MAX32);
     LEX_CSTRING::str= str_arg;
     LEX_CSTRING::length= length_arg;
   }
   const char *ptr() const { return LEX_CSTRING::str; }
-  uint length() const { return LEX_CSTRING::length; }
+  uint length() const { return (uint) LEX_CSTRING::length; }
 };
 
 

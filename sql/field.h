@@ -212,7 +212,8 @@ protected:
                              CHARSET_INFO *cs, const char *str, size_t length,
                              my_decimal *buf)
     {
-      m_error= str2my_decimal(mask, str, length, cs,
+      DBUG_ASSERT(length < UINT_MAX32);
+      m_error= str2my_decimal(mask, str, (uint) length, cs,
                               buf, (const char **) &m_end_of_num);
       // E_DEC_TRUNCATED means a very minor truncation: '1e-100' -> 0
       m_edom= m_error && m_error != E_DEC_TRUNCATED;
@@ -661,7 +662,10 @@ public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void *operator new(size_t size) throw ()
-  { return thd_alloc(current_thd, size); }
+  {
+    DBUG_ASSERT(size < UINT_MAX32);
+    return thd_alloc(current_thd, (uint) size);
+  }
   static void operator delete(void *ptr_arg, size_t size) { TRASH(ptr_arg, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root)
   { DBUG_ASSERT(0); }
@@ -815,11 +819,20 @@ public:
   int store(const char *to, uint length, CHARSET_INFO *cs,
             enum_check_fields check_level);
   int store(const LEX_STRING *ls, CHARSET_INFO *cs)
-  { return store(ls->str, ls->length, cs); }
+  {
+    DBUG_ASSERT(ls->length < UINT_MAX32);
+    return store(ls->str, (uint) ls->length, cs);
+  }
   int store(const LEX_CSTRING *ls, CHARSET_INFO *cs)
-  { return store(ls->str, ls->length, cs); }
+  {
+    DBUG_ASSERT(ls->length < UINT_MAX32);
+    return store(ls->str, (uint) ls->length, cs);
+  }
   int store(const LEX_CSTRING &ls, CHARSET_INFO *cs)
-  { return store(ls.str, ls.length, cs); }
+  {
+    DBUG_ASSERT(ls.length < UINT_MAX32);
+    return store(ls.str, (uint) ls.length, cs);
+  }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
   virtual bool val_bool(void)= 0;
@@ -2500,7 +2513,7 @@ public:
 class Field_timestampf :public Field_timestamp_with_dec {
   int do_save_field_metadata(uchar *metadata_ptr)
   {
-    *metadata_ptr= decimals();
+    *metadata_ptr= (uchar) decimals();
     return 1;
   }
 public:
@@ -2768,7 +2781,7 @@ class Field_timef :public Field_time_with_dec {
   void store_TIME(MYSQL_TIME *ltime);
   int do_save_field_metadata(uchar *metadata_ptr)
   {
-    *metadata_ptr= decimals();
+    *metadata_ptr= (uchar) decimals();
     return 1;
   }
 public:
@@ -2930,7 +2943,7 @@ class Field_datetimef :public Field_datetime_with_dec {
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
   int do_save_field_metadata(uchar *metadata_ptr)
   {
-    *metadata_ptr= decimals();
+    *metadata_ptr= (uchar) decimals();
     return 1;
   }
 public:
@@ -3442,7 +3455,7 @@ public:
   enum storage_type { GEOM_STORAGE_WKB= 0, GEOM_STORAGE_BINARY= 1};
   enum storage_type storage;
 
-  Field_geom(uchar *ptr_arg, uchar *null_ptr_arg, uint null_bit_arg,
+  Field_geom(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	     TABLE_SHARE *share, uint blob_pack_length,
 	     enum geometry_type geom_type_arg, uint field_srid)
@@ -3848,7 +3861,8 @@ class Column_definition: public Sql_alloc,
          *pos ; pos++, len++)
     {
       size_t length= charset->cset->numchars(charset, *pos, *pos + *len);
-      *tot_length+= length;
+      DBUG_ASSERT(length < UINT_MAX32);
+      *tot_length+= (uint) length;
       set_if_bigger(*max_length, (uint32)length);
     }
   }

@@ -3549,7 +3549,7 @@ public:
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_from_value(dv, Metadata(&str_value));
-    set_name(thd, name_par, safe_strlen(name_par), system_charset_info);
+    set_name(thd, name_par, (uint) safe_strlen(name_par), system_charset_info);
   }
   Item_string(THD *thd, const char *name_par, const char *str, uint length,
               CHARSET_INFO *cs, Derivation dv, uint repertoire):
@@ -3557,7 +3557,7 @@ public:
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_from_value(dv, Metadata(&str_value, repertoire));
-    set_name(thd, name_par, safe_strlen(name_par), system_charset_info);
+    set_name(thd, name_par, (uint) safe_strlen(name_par), system_charset_info);
   }
   void print_value(String *to) const
   {
@@ -3679,7 +3679,7 @@ public:
     Item_string(thd, str, length, system_charset_info)
   { }
   Item_string_sys(THD *thd, const char *str):
-    Item_string(thd, str, strlen(str), system_charset_info)
+    Item_string(thd, str, (uint) strlen(str), system_charset_info)
   { }
 };
 
@@ -3692,7 +3692,7 @@ public:
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII)
   { }
   Item_string_ascii(THD *thd, const char *str):
-    Item_string(thd, str, strlen(str), &my_charset_latin1,
+    Item_string(thd, str, (uint) strlen(str), &my_charset_latin1,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII)
   { }
 };
@@ -3769,7 +3769,8 @@ class Item_blob :public Item_partition_func_safe_string
 {
 public:
   Item_blob(THD *thd, const char *name_arg, uint length):
-    Item_partition_func_safe_string(thd, name_arg, safe_strlen(name_arg), &my_charset_bin)
+    Item_partition_func_safe_string(thd, name_arg, (uint) safe_strlen(name_arg),
+                                    &my_charset_bin)
   { max_length= length; }
   enum Type type() const { return TYPE_HOLDER; }
   const Type_handler *type_handler() const
