@@ -1165,26 +1165,6 @@ rec_print(
 	ulint		info,
 	const ulint*	offsets);
 
-/**********************************************************//**
-Returns field count of instant record
-@return	size */
-UNIV_INLINE
-ulint
-rec_get_field_count(
-/*==========*/
-	const rec_t*    rec,                /*!< in: the record ptr */
-	ulint*	        field_count_len);   /*!< out: occupy size of field count */
-    
-/**********************************************************//**
-Set field count of instant record
-@return	the occupy size of field count */
-UNIV_INLINE
-ulint
-rec_set_field_count(
-/*==========*/
-	rec_t*          rec,                /*!< in: the record ptr */
-	const ulint     n_fields);          /*!< in: field count of instant record */
-
 /** Wrapper for pretty-printing a record */
 struct rec_index_print
 {

@@ -706,10 +706,6 @@ row_upd_rec_in_place(
 			break;
 		case REC_STATUS_COLUMNS_ADDED:
 			ut_ad(index->is_instant());
-			ut_ad(rec_get_field_count(rec, NULL)
-			      <= index->n_fields);
-			ut_ad(rec_get_field_count(rec, NULL)
-			      > index->n_core_fields);
 			break;
 		case REC_STATUS_INFIMUM:
 		case REC_STATUS_SUPREMUM:

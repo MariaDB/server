@@ -235,14 +235,57 @@ rec_get_n_extern_new(
 	return(n_extern);
 }
 
-/** Get the storage length of field count in rec_get_instant() header
-@param[in]	n_fields_add	number of added fields
-@return	size in bytes */
-inline
-unsigned
-rec_get_field_count_len(ulint n_fields_add)
+/** Get the length of added field count in a REC_STATUS_COLUMNS_ADDED record.
+@param[in]	n_add_field	number of added fields, minus one
+@return	storage size of the field count, in bytes */
+static inline unsigned rec_get_n_add_field_len(unsigned n_add_field)
 {
-	return (n_fields_add > REC_FIELD_COUNT_ONE_BYTE_MAX) ? 2 : 1;
+	ut_ad(n_add_field < REC_MAX_N_FIELDS);
+	return n_add_field < 0x80 ? 1 : 2;
+}
+
+/** Get the added field count in a REC_STATUS_COLUMNS_ADDED record.
+@param[in]	rec	REC_STATUS_COLUMNS_ADDED record
+@param[out]	len	storage size of the field count, in bytes
+@return	number of added fields */
+static inline unsigned rec_get_n_add_field(const rec_t* rec, ulint* len)
+{
+	ut_ad(rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
+	rec -= REC_N_NEW_EXTRA_BYTES + 1;
+	unsigned n_fields_add = *rec;
+	if (n_fields_add < 0x80) {
+		*len = 1;
+		ut_ad(rec_get_n_add_field_len(n_fields_add) == 1);
+		return n_fields_add;
+	}
+
+	*len = 2;
+	n_fields_add &= 0x7f;
+	n_fields_add |= unsigned(rec[-1]) << 7;
+	ut_ad(n_fields_add < REC_MAX_N_FIELDS);
+	ut_ad(rec_get_n_add_field_len(n_fields_add) == 2);
+	return n_fields_add;
+}
+
+/** Set the added field count in a REC_STATUS_COLUMNS_ADDED record.
+@param[in,out]	rec		REC_STATUS_COLUMNS_ADDED record
+@param[in]	n_add_field	number of added fields, minus 1
+@return	record header before the number of added fields */
+static inline byte* rec_set_n_add_field(rec_t* rec, unsigned n_add_field)
+{
+	ut_ad(rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
+	ut_ad(n_add_field < REC_MAX_N_FIELDS);
+
+	rec -= REC_N_NEW_EXTRA_BYTES + 1;
+	ut_d(const byte* end = rec - rec_get_n_add_field_len(n_add_field));
+	if (n_add_field < 0x80) {
+		*rec-- = byte(n_add_field);
+	} else {
+		*rec-- = byte(n_add_field) | 0x80;
+		*rec-- = byte(n_add_field >> 7);
+	}
+	ut_ad(rec == end);
+	return rec;
 }
 
 /** Format of a leaf-page ROW_FORMAT!=REDUNDANT record */
@@ -308,8 +351,9 @@ ordinary:
 			goto ordinary;
 		}
 		ulint len;
-		n_fields = rec_get_field_count(rec, &len);
-		ut_ad(n_fields > index->n_core_fields);
+		n_fields = index->n_core_fields + 1
+			+ rec_get_n_add_field(rec, &len);
+		ut_ad(n_fields <= index->n_fields);
 		ut_ad(extra_bytes == REC_N_NEW_EXTRA_BYTES);
 		nulls = rec - (1 + REC_N_NEW_EXTRA_BYTES) - len;
 		const ulint n_nullable = index->get_n_nullable(n_fields);
@@ -1033,21 +1077,21 @@ rec_get_converted_size_comp_prefix_low(
 	ut_ad(n_fields <= dict_index_get_n_fields(index));
 	ut_ad(!temp || extra);
 	ut_ad(!temp || status == REC_STATUS_ORDINARY);
-
+	ut_ad(!temp || !index->is_instant());
 	ut_d(ulint n_null = index->n_nullable);
-	ut_d(const ulint n_null_bytes = UT_BITS_IN_BYTES(n_null));
 
-	if (status == REC_STATUS_NODE_PTR || !index->is_instant()) {
-		ut_ad(n_null_bytes == index->n_core_null_bytes);
+	if (n_fields <= index->n_core_fields) {
 		extra_size = temp
 			? index->n_core_null_bytes
 			: REC_N_NEW_EXTRA_BYTES + index->n_core_null_bytes;
 	} else {
 		ut_ad(!temp);
-		ut_ad(n_null_bytes >= index->n_core_null_bytes);
+		ut_ad(index->is_instant());
+		ut_ad(UT_BITS_IN_BYTES(n_null) >= index->n_core_null_bytes);
 		extra_size = REC_N_NEW_EXTRA_BYTES
 			+ UT_BITS_IN_BYTES(index->n_nullable)
-			+ rec_get_field_count_len(n_fields);
+			+ rec_get_n_add_field_len(n_fields - 1
+						  - index->n_core_fields);
 	}
 
 	data_size = 0;
@@ -1480,8 +1524,9 @@ rec_convert_dtuple_to_rec_comp(
 			if (is_instant) {
 				ut_ad(n_fields == index->n_fields);
 				rec_set_status(rec, REC_STATUS_COLUMNS_ADDED);
-				nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1)
-					- rec_set_field_count(rec, n_fields);
+				nulls = rec_set_n_add_field(
+					rec, n_fields - 1
+					- index->n_core_fields);
 			}
 
 			n_node_ptr_field = ULINT_UNDEFINED;
@@ -1927,11 +1972,9 @@ rec_copy_prefix_to_buf(
 		if (n_fields >= index->n_core_fields) {
 			ut_ad(n_fields <= index->n_fields);
 			ulint len;
-			ulint n_fields_rec = rec_get_field_count(rec, &len);
-			ut_ad(len == rec_get_field_count_len(n_fields_rec));
-			ut_ad(n_fields_rec >= n_fields);
-			const ulint n_nullable = index->get_n_nullable(
-				n_fields_rec);
+			ulint n_rec = n_fields + 1
+				+ rec_get_n_add_field(rec, &len);
+			const uint n_nullable = index->get_n_nullable(n_rec);
 			nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1) - len;
 			lens = nulls - UT_BITS_IN_BYTES(n_nullable);
 			break;
