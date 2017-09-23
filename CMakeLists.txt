@@ -115,11 +115,13 @@ FOREACH(_base
   ENDIF()
 ENDFOREACH()
 
-FOREACH(tool gtar tar git)
+FOREACH(tool gtar tar)
  STRING(TOUPPER ${tool}  TOOL)
  FIND_PROGRAM(${TOOL}_EXECUTABLE ${tool} DOC "path to the executable")
  MARK_AS_ADVANCED(${TOOL}_EXECUTABLE)
 ENDFOREACH()
+
+FIND_PACKAGE(Git)
 
 # Following autotools tradition, add preprocessor definitions
 # specified in environment variable CPPFLAGS
@@ -433,7 +435,6 @@ CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/include/mysql_version.h.in
 CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/sql/sql_builtin.cc.in
     ${CMAKE_BINARY_DIR}/sql/sql_builtin.cc)
 
-FIND_PACKAGE(Git)
 IF(GIT_EXECUTABLE)
   EXECUTE_PROCESS(
     COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
