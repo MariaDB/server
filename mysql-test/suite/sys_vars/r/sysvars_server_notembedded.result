@@ -19,6 +19,7 @@ variable_name not in (
 'rand_seed2',
 'system_time_zone',
 'version_comment',
+'version_source_revision',
 'version_compile_machine', 'version_compile_os',
 'version_malloc_library', 'version_ssl_library', 'version'
         )
@@ -5303,6 +5304,7 @@ where variable_name in (
 'rand_seed2',
 'system_time_zone',
 'version_comment',
+'version_source_revision',
 'version_compile_machine', 'version_compile_os',
 'version_malloc_library', 'version_ssl_library', 'version'
         )
@@ -5451,6 +5453,16 @@ VARIABLE_NAME	VERSION_MALLOC_LIBRARY
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
 VARIABLE_COMMENT	Version of the used malloc library
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	VERSION_SOURCE_REVISION
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Source control revision id for MariaDB source code
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

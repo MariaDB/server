@@ -1,0 +1,1 @@
+#cmakedefine SOURCE_REVISION "@SOURCE_REVISION@"

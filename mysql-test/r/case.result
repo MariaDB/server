@@ -447,3 +447,51 @@ EXECUTE stmt;
 good	was_bad_now_good
 one	one
 DEALLOCATE PREPARE stmt;
+#
+# MDEV-13864 Change Item_func_case to store the predicant in args[0]
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('b'),('c');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE a WHEN 'a' THEN 'a' ELSE 'a' END='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN a THEN 'a' ELSE 'a' END='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN a ELSE 'a' END='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a' and (case 'a' when 'a' then `test`.`t1`.`a` else 'a' end) = 'a'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN 'a' ELSE a END='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a' and (case 'a' when 'a' then 'a' else `test`.`t1`.`a` end) = 'a'
+ALTER TABLE t1 MODIFY a VARBINARY(10);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE a WHEN 'a' THEN 'a' ELSE 'a' END='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN a THEN 'a' ELSE 'a' END='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN a ELSE 'a' END='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN 'a' ELSE a END='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
+DROP TABLE t1;

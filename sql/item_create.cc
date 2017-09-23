@@ -623,6 +623,19 @@ protected:
 };
 
 
+class Create_func_decode_oracle : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+
+  static Create_func_decode_oracle s_singleton;
+
+protected:
+  Create_func_decode_oracle() {}
+  virtual ~Create_func_decode_oracle() {}
+};
+
+
 class Create_func_concat_ws : public Create_native_func
 {
 public:
@@ -3894,6 +3907,21 @@ Create_func_decode_histogram::create_2_arg(THD *thd, Item *arg1, Item *arg2)
   return new (thd->mem_root) Item_func_decode_histogram(thd, arg1, arg2);
 }
 
+Create_func_decode_oracle Create_func_decode_oracle::s_singleton;
+
+Item*
+Create_func_decode_oracle::create_native(THD *thd, LEX_CSTRING *name,
+                                         List<Item> *item_list)
+{
+  uint arg_count= item_list ? item_list->elements : 0;
+  if (arg_count < 3)
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+  return new (thd->mem_root) Item_func_decode_oracle(thd, *item_list);
+}
+
 Create_func_concat_ws Create_func_concat_ws::s_singleton;
 
 Item*
@@ -6851,6 +6879,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("DAYOFYEAR") }, BUILDER(Create_func_dayofyear)},
   { { C_STRING_WITH_LEN("DEGREES") }, BUILDER(Create_func_degrees)},
   { { C_STRING_WITH_LEN("DECODE_HISTOGRAM") }, BUILDER(Create_func_decode_histogram)},
+  { { C_STRING_WITH_LEN("DECODE_ORACLE") }, BUILDER(Create_func_decode_oracle)},
   { { C_STRING_WITH_LEN("DES_DECRYPT") }, BUILDER(Create_func_des_decrypt)},
   { { C_STRING_WITH_LEN("DES_ENCRYPT") }, BUILDER(Create_func_des_encrypt)},
   { { C_STRING_WITH_LEN("DIMENSION") }, GEOM_BUILDER(Create_func_dimension)},
