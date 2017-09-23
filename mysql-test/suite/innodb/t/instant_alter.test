@@ -4,16 +4,21 @@
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
 --echo #
 
+# FIXME: Test that instant ADD is not allowed on ROW_FORMAT=COMPRESSED
+# (create a table with SPATIAL INDEX, ROW_FORMAT=COMPACT, and
+# show that ALTER TABLE…ADD COLUMN…LOCK=NONE is refused.
+# This does not work yet for any table, because
+# check_if_supported_inplace_alter()
+# does not check if instant ADD is possible.)
+
 SET timestamp = 42;
 SET time_zone='+03:00';
 
-let $format= 4;
+let $format= 3;
 while ($format) {
 let $engine= `SELECT CONCAT('ENGINE=InnoDB ROW_FORMAT=',CASE $format
-WHEN 1 THEN CASE WHEN @@GLOBAL.innodb_page_size>16384
-THEN 'DYNAMIC' ELSE 'COMPRESSED' END
-WHEN 2 THEN 'DYNAMIC'
-WHEN 3 THEN 'COMPACT'
+WHEN 1 THEN 'DYNAMIC'
+WHEN 2 THEN 'COMPACT'
 ELSE 'REDUNDANT' END)`;
 
 eval CREATE TABLE t1
