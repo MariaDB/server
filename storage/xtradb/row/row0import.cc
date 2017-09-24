@@ -1819,16 +1819,12 @@ PageConverter::update_records(
 
 	m_rec_iter.open(block);
 
+	if (!page_is_leaf(block->frame)) {
+		return DB_SUCCESS;
+	}
+
 	while (!m_rec_iter.end()) {
-
 		rec_t*	rec = m_rec_iter.current();
-
-		/* FIXME: Move out of the loop */
-
-		if (rec_get_status(rec) == REC_STATUS_NODE_PTR) {
-			break;
-		}
-
 		ibool	deleted = rec_get_deleted_flag(rec, comp);
 
 		/* For the clustered index we have to adjust the BLOB
