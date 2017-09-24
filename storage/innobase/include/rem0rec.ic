@@ -63,10 +63,11 @@ most significant bytes and bits are written below less significant.
 				  relative_offset + offset_of_this_record
 				  mod UNIV_PAGE_SIZE
 			3	3 bits status:
-					000=conventional record
-					001=node pointer record (inside B-tree)
-					010=infimum record
-					011=supremum record
+					000=REC_STATUS_ORDINARY
+					001=REC_STATUS_NODE_PTR
+					010=REC_STATUS_INFIMUM
+					011=REC_STATUS_SUPREMUM
+					100=REC_STATUS_COLUMNS_ADDED
 					1xx=reserved
 				5 bits heap number
 			4	8 bits heap number
