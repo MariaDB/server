@@ -21700,7 +21700,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
  
   table->file->ha_end_keyread();
   if (tab->type == JT_FT)
-    table->file->ft_end();
+    table->file->ha_ft_end();
   else
     table->file->ha_index_or_rnd_end();
 

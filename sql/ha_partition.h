@@ -69,6 +69,17 @@ public:
   }
 };
 
+class ha_partition;
+
+/* Partition Full Text Search info */
+struct st_partition_ft_info
+{
+  struct _ft_vft        *please;
+  st_partition_ft_info  *next;
+  ha_partition          *file;
+  FT_INFO               **part_ft_info;
+};
+
 
 /**
   Partition specific Handler_share.
@@ -168,6 +179,8 @@ private:
   partition_info *m_part_info;          // local reference to partition
   Field **m_part_field_array;           // Part field array locally to save acc
   uchar *m_ordered_rec_buffer;          // Row and key buffer for ord. idx scan
+  st_partition_ft_info *ft_first;
+  st_partition_ft_info *ft_current;
   /*
     Current index.
     When used in key_rec_cmp: If clustered pk, index compare
@@ -233,6 +246,7 @@ private:
   bool m_is_sub_partitioned;             // Is subpartitioned
   bool m_ordered_scan_ongoing;
   bool m_rnd_init_and_first;
+  bool m_ft_init_and_first;
 
   /*
     If set, this object was created with ha_partition::clone and doesn't
@@ -287,6 +301,9 @@ private:
   enum_monotonicity_info m_part_func_monotonicity_info;
   bool                m_pre_calling;
   bool                m_pre_call_use_parallel;
+  /* Keep track of bulk access requests */
+  bool                bulk_access_executing;
+
   /** keep track of locked partitions */
   MY_BITMAP m_locked_partitions;
   /** Stores shared auto_increment etc. */
@@ -337,6 +354,7 @@ public:
                  ha_partition *clone_arg,
                  MEM_ROOT *clone_mem_root_arg);
    ~ha_partition();
+   void ha_partition_init();
   /*
     A partition handler has no characteristics in itself. It only inherits
     those from the underlying handlers. Here we set-up those constants to
@@ -691,7 +709,7 @@ public:
   virtual int multi_range_read_next(range_id_t *range_info);
   virtual int multi_range_read_explain_info(uint mrr_mode, char *str,
                                             size_t size);
-
+  uint last_part() { return m_last_part; }
 
 private:
   bool init_record_priority_queue();
@@ -990,7 +1008,7 @@ public:
     special file for handling names of partitions, engine types.
     HA_REC_NOT_IN_SEQ is always set for partition handler since we cannot
     guarantee that the records will be returned in sequence.
-    HA_CAN_FULLTEXT, HA_DUPLICATE_POS,
+    HA_DUPLICATE_POS,
     HA_CAN_INSERT_DELAYED, HA_PRIMARY_KEY_REQUIRED_FOR_POSITION is disabled
     until further investigated.
   */
@@ -1203,14 +1221,15 @@ public:
     -------------------------------------------------------------------------
     MODULE fulltext index
     -------------------------------------------------------------------------
-    Fulltext stuff not yet.
-    -------------------------------------------------------------------------
-    virtual int ft_init() { return HA_ERR_WRONG_COMMAND; }
-    virtual FT_INFO *ft_init_ext(uint flags,uint inx,const uchar *key,
-    uint keylen)
-    { return NULL; }
-    virtual int ft_read(uchar *buf) { return HA_ERR_WRONG_COMMAND; }
   */
+    void ft_close_search(FT_INFO *handler);
+    virtual int ft_init();
+    virtual int pre_ft_init();
+    virtual void ft_end();
+    virtual int pre_ft_end();
+    virtual FT_INFO *ft_init_ext(uint flags, uint inx, String *key);
+    virtual int ft_read(uchar *buf);
+    virtual int pre_ft_read(bool use_parallel);
 
   /*
      -------------------------------------------------------------------------
