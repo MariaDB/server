@@ -879,7 +879,7 @@ row_log_table_low_redundant(
 
 	size = rec_get_converted_size_temp(
 		index, tuple->fields, tuple->n_fields, &extra_size);
-	ulint v_size = ventry
+	ulint v_size = num_v
 		? rec_get_converted_size_temp_v(index, ventry) : 0;
 
 	mrec_size = ROW_LOG_HEADER_SIZE + size + v_size + (extra_size >= 0x80);
@@ -935,12 +935,10 @@ row_log_table_low_redundant(
 		rec_convert_dtuple_to_temp(
 			b + extra_size, index, tuple->fields, tuple->n_fields);
 		b += size;
-		if (ventry) {
+		ut_ad(!num_v == !v_size);
+		if (num_v) {
                         rec_convert_dtuple_to_temp_v(b, new_index, ventry);
 			b += v_size;
-		}
-
-		if (num_v) {
 			if (o_ventry) {
 				rec_convert_dtuple_to_temp_v(
 					b, new_index, o_ventry);

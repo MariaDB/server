@@ -158,7 +158,8 @@ let $ID= `SELECT @id := CONNECTION_ID()`;
 --error ER_QUERY_INTERRUPTED
 KILL QUERY @id;
 
-SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR kill_done';
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR dml_done';
+SET DEBUG_SYNC = 'row_log_table_apply2_before SIGNAL applied WAIT_FOR kill_done';
 --send
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 
@@ -166,6 +167,10 @@ ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR rebuilt';
 eval $innodb_metrics_select;
+BEGIN;
+INSERT INTO t1 VALUES(7,4,2);
+ROLLBACK;
+SET DEBUG_SYNC = 'now SIGNAL dml_done WAIT_FOR applied';
 let $ignore= `SELECT @id := $ID`;
 KILL QUERY @id;
 SET DEBUG_SYNC = 'now SIGNAL kill_done';
@@ -201,6 +206,7 @@ WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 --echo # session con1
 connection con1;
 SHOW CREATE TABLE t1;
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 
 # Exceed the configured innodb_online_alter_log_max_size.
 # The actual limit is a multiple of innodb_sort_buf_size,
