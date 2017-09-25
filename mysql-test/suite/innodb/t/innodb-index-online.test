@@ -1,5 +1,6 @@
 --source include/innodb_page_size_small.inc
 --source include/innodb_encrypt_log.inc
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 
 let $innodb_metrics_select=

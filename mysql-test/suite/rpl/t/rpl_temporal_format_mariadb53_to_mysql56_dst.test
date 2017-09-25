@@ -1,0 +1,37 @@
+#
+# MDEV-12672 Replicated TIMESTAMP fields given wrong value near DST change
+#
+source include/have_binlog_format_row.inc;
+source include/master-slave.inc;
+
+connection slave;
+set global time_zone='Europe/Moscow';
+set time_zone='UTC';
+stop slave;
+start slave;
+
+connection master;
+set global mysql56_temporal_format=false;
+set global time_zone='Europe/Moscow';
+set time_zone='UTC';
+
+create table t1 (pk int primary key, t timestamp not null);
+set timestamp = 1288477526;
+insert into t1 values (1,null);
+set timestamp = 1288481126;
+insert into t1 values (2,null);
+
+sync_slave_with_master;
+
+select pk, t, unix_timestamp(t) from t1;
+set time_zone=default;
+select pk, t, unix_timestamp(t) from t1;
+
+set global time_zone=default;
+
+connection master;
+drop table t1;
+set global time_zone=default;
+set global mysql56_temporal_format=default;
+
+source include/rpl_end.inc;

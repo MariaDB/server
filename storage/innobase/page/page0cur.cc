@@ -1176,9 +1176,15 @@ page_cur_parse_insert_rec(
 	ut_memcpy(buf + mismatch_index, ptr, end_seg_len);
 
 	if (page_is_comp(page)) {
+		/* Make rec_get_offsets() and rec_offs_make_valid() happy. */
+		ut_d(rec_set_heap_no_new(buf + origin_offset,
+					 PAGE_HEAP_NO_USER_LOW));
 		rec_set_info_and_status_bits(buf + origin_offset,
 					     info_and_status_bits);
 	} else {
+		/* Make rec_get_offsets() and rec_offs_make_valid() happy. */
+		ut_d(rec_set_heap_no_old(buf + origin_offset,
+					 PAGE_HEAP_NO_USER_LOW));
 		rec_set_info_bits_old(buf + origin_offset,
 				      info_and_status_bits);
 	}

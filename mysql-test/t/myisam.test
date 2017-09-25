@@ -1770,6 +1770,19 @@ OPTIMIZE TABLE t1;
 DROP TABLE t1;
 
 #
+# Check FLUSH FOR EXPORT
+#
+
+CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b)) engine=myisam;
+INSERT INTO t1 VALUES(1,'0'),(2,'0'),(3,'0'),(4,'0'),(5,'0'),
+                     (6,'0'),(7,'0');
+flush tables test.t1 for export;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+insert into t1 values (8,'0');
+unlock tables;
+drop table t1;
+
+#
 # Check some variables
 #
 show variables like 'myisam_block_size';

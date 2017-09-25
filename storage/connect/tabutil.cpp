@@ -120,7 +120,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
                    FLD_REM,    FLD_NO,    FLD_CHARSET};
   unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 32, 32};
 	PCSZ         fmt;
-  char        *pn, *tn, *fld, *colname, *chset, v;
+  char        *pn, *tn, *fld, *colname, v; //, *chset;
   int          i, n, ncol = sizeof(buftyp) / sizeof(int);
   int          prec, len, type, scale;
   int          zconv = GetConvSize();
@@ -185,7 +185,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     colname = (char *)fp->field_name.str;
     crp->Kdata->SetValue(colname, i);
 
-    chset = (char *)fp->charset()->name;
+//    chset = (char *)fp->charset()->name;
 //  v = (!strcmp(chset, "binary")) ? 'B' : 0;
 		v = 0;
 

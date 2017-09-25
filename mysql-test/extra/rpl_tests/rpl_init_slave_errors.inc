@@ -35,8 +35,8 @@
 #                    Configuring the Environment
 ######################################################################
 source include/have_debug.inc;
-source include/master-slave.inc;
 source include/have_log_bin.inc;
+source include/master-slave.inc;
 
 connection slave;
 

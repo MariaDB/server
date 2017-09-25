@@ -105,7 +105,7 @@ inline void datetime_to_date(MYSQL_TIME *ltime)
   DBUG_ASSERT(ltime->time_type == MYSQL_TIMESTAMP_DATE ||
               ltime->time_type == MYSQL_TIMESTAMP_DATETIME);
   DBUG_ASSERT(ltime->neg == 0);
-  ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
+  ltime->second_part= ltime->hour= ltime->minute= ltime->second= 0;
   ltime->time_type= MYSQL_TIMESTAMP_DATE;
 }
 inline void date_to_datetime(MYSQL_TIME *ltime)

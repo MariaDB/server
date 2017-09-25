@@ -27,11 +27,13 @@ class Sql_alloc
 public:
   static void *operator new(size_t size) throw ()
   {
-    return thd_alloc(thd_get_current_thd(), size);
+    DBUG_ASSERT(size < UINT_MAX32);
+    return thd_alloc(thd_get_current_thd(), uint(size));
   }
   static void *operator new[](size_t size) throw ()
   {
-    return thd_alloc(thd_get_current_thd(), size);
+    DBUG_ASSERT(size < UINT_MAX32);
+    return thd_alloc(thd_get_current_thd(), uint(size));
   }
   static void *operator new[](size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }

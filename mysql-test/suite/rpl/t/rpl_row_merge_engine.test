@@ -12,8 +12,8 @@
 # deletes their contents through the merge table. Finally, the slave
 # is synchronized with the master and (after the fix) it won't crash.
 # 
---source include/master-slave.inc
 --source include/have_binlog_format_row.inc
+--source include/master-slave.inc
 --connection master
 
 CREATE TABLE t1 (a int) ENGINE=MyISAM;

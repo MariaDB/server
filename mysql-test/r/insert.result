@@ -745,3 +745,9 @@ f1	f2
 drop view v1;
 drop table t1;
 SET @@sql_mode= @save_mode;
+CREATE TABLE t1 (f INT);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE f <=> 'foo' WITH CHECK OPTION;
+REPLACE INTO v1 SET f = NULL;
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
+DROP VIEW v1;
+DROP TABLE t1;

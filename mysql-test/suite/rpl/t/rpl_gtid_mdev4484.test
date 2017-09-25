@@ -1,6 +1,6 @@
---source include/master-slave.inc
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/master-slave.inc
 
 --connection slave
 --source include/stop_slave.inc

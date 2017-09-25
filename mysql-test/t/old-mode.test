@@ -83,3 +83,39 @@ SELECT TO_DAYS(a), TO_DAYS(b) FROM t1;
 DROP TABLE t1;
 SET @@global.mysql56_temporal_format=DEFAULT;
 
+#
+# MDEV-12672 Replicated TIMESTAMP fields given wrong value near DST change
+#
+
+# Copy_field
+set time_zone='Europe/Moscow';
+set global mysql56_temporal_format=false;
+create table t1 (a timestamp);
+set timestamp=1288477526;
+insert t1 values (null);
+insert t1 values ();
+set timestamp=1288481126;
+insert t1 values (null);
+insert t1 values ();
+select a, unix_timestamp(a) from t1;
+set global mysql56_temporal_format=true;
+select a, unix_timestamp(a) from t1;
+alter table t1 modify a timestamp;
+select a, unix_timestamp(a) from t1;
+drop table t1;
+
+# field_conv_incompatible()
+set global mysql56_temporal_format=false;
+create table t1 (a timestamp);
+set timestamp=1288477526;
+insert t1 values (null);
+set timestamp=1288481126;
+insert t1 values (null);
+select a, unix_timestamp(a) from t1;
+set global mysql56_temporal_format=true;
+select a, unix_timestamp(a) from t1;
+create table t2 (a timestamp);
+insert t2 select a from t1;
+select a, unix_timestamp(a) from t2;
+drop table t1, t2;
+set time_zone=DEFAULT;

@@ -3424,9 +3424,13 @@ public:
   Item_param *add_placeholder(THD *thd, const LEX_CSTRING *name,
                               uint pos_in_query, uint len_in_query);
   Item_param *add_placeholder(THD *thd, const LEX_CSTRING *name,
-                              const char *pos, const char *end)
+                              const char *start, const char *end)
   {
-    return add_placeholder(thd, name, pos - substatement_query(thd), end - pos);
+    size_t pos= start - substatement_query(thd);
+    size_t len= end - start;
+    DBUG_ASSERT(pos < UINT_MAX32);
+    DBUG_ASSERT(len < UINT_MAX32);
+    return add_placeholder(thd, name, (uint) pos, (uint) len);
   }
 
   /* Integer range FOR LOOP methods */

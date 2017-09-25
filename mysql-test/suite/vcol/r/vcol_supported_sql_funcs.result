@@ -2894,6 +2894,21 @@ a	b
 2012-12-12	Wednesday Wed December Dec
 drop table t1;
 set sql_warnings = 0;
+# DATE_FORMAT() STORED
+set sql_warnings = 1;
+create table t1 (a date, b varchar(100) as (date_format(a, '%W %a %M %b', 'de_DE')) STORED);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` date DEFAULT NULL,
+  `b` varchar(100) GENERATED ALWAYS AS (date_format(`a`,'%W %a %M %b','de_DE')) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values ('2012-12-12',default);
+select * from t1;
+a	b
+2012-12-12	Mittwoch Mi Dezember Dez
+drop table t1;
+set sql_warnings = 0;
 # CURRENT_USER()
 set sql_warnings = 1;
 create table t1 (a char, b varchar(32) as (current_user()));
