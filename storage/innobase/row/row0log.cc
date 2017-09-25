@@ -997,7 +997,19 @@ row_log_table_low(
 	ut_ad(rw_lock_own_flagged(
 			&index->lock,
 			RW_LOCK_FLAG_S | RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
-	ut_ad(fil_page_get_type(page_align(rec)) == FIL_PAGE_INDEX);
+#ifdef UNIV_DEBUG
+	switch (fil_page_get_type(page_align(rec))) {
+	case FIL_PAGE_INDEX:
+		break;
+	case FIL_PAGE_TYPE_INSTANT:
+		ut_ad(index->is_instant());
+		ut_ad(page_is_root(page_align(rec)));
+		break;
+	default:
+		ut_ad(!"wrong page type");
+	}
+#endif /* UNIV_DEBUG */
+	ut_ad(!rec_is_default_row(rec, index));
 	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(!page_is_comp(page_align(rec)) == !rec_offs_comp(offsets));
 	/* old_pk=row_log_table_get_pk() [not needed in INSERT] is a prefix
