@@ -4218,7 +4218,7 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_STRING*> *files,
     @retval       2           Not fatal error; Safe to ignore this file list
 */
 
-static int
+int
 make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
                      LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
                      LEX_STRING *db_name)

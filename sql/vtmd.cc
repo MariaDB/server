@@ -6,6 +6,7 @@
 #include "sql_select.h"
 #include "table_cache.h" // tdc_remove_table()
 #include "key.h"
+#include "sql_show.h"
 
 LString VERS_VTMD_TEMPLATE(C_STRING_WITH_LEN("vtmd_template"));
 
@@ -572,4 +573,74 @@ err:
   tl.table->map= map;
   close_log_table(thd, &open_tables_backup);
   return error ? true : false;
+}
+
+Dynamic_array<String> VTMD_table::get_archive_tables(THD *thd)
+{
+  Dynamic_array<String> result;
+
+  Dynamic_array<LEX_STRING *> vtmd_tables= get_vtmd_tables(thd);
+  for (uint i= 0; i < vtmd_tables.elements(); i++)
+  {
+    LEX_STRING table_name= *vtmd_tables.at(i);
+
+    Open_tables_backup open_tables_backup;
+    TABLE_LIST table_list;
+    // Assume VTMD tables belongs to current db.
+    table_list.init_one_table(thd->db, strlen(thd->db),
+                              LEX_STRING_WITH_LEN(table_name), table_name.str,
+                              TL_READ);
+
+    TABLE *table= open_log_table(thd, &table_list, &open_tables_backup);
+    if (!table)
+      return result;
+
+    READ_RECORD read_record;
+    int error= 0;
+    SQL_SELECT *sql_select= make_select(table, 0, 0, NULL, NULL, 0, &error);
+    if (error)
+      goto error1;
+    if (error = init_read_record(&read_record, thd, table, sql_select, NULL, 1, 1,
+                         false))
+      goto error2;
+
+    while (!(error= read_record.read_record(&read_record)))
+    {
+      Field *field= table->field[FLD_ARCHIVE_NAME];
+      if (field->is_null())
+        continue;
+
+      String archive_name;
+      field->val_str(&archive_name);
+      archive_name.set_ascii(strmake_root(thd->mem_root, archive_name.c_ptr(),
+                                          archive_name.length()),
+                             archive_name.length());
+      result.push(archive_name);
+    }
+
+    end_read_record(&read_record);
+  error2:
+    delete sql_select;
+  error1:
+    close_log_table(thd, &open_tables_backup);
+
+    if (error)
+      break;
+  }
+
+  return result;
+}
+
+Dynamic_array<LEX_STRING *> get_vtmd_tables(THD *thd)
+{
+  // Note function retrieves table names from current db only.
+  LOOKUP_FIELD_VALUES lookup_field_values= {
+      *thd->make_lex_string(thd->db, strlen(thd->db)),
+      *thd->make_lex_string(C_STRING_WITH_LEN("%_vtmd")), false, true};
+
+  Dynamic_array<LEX_STRING *> table_names;
+  make_table_name_list(thd, &table_names, thd->lex, &lookup_field_values,
+                       &lookup_field_values.db_value);
+
+  return table_names;
 }
