@@ -5,7 +5,7 @@
  @rowlog_encrypt_1>@rowlog_encrypt_0;
  sort_balance	@merge_encrypt_1>@merge_encrypt_0	@merge_decrypt_1>@merge_decrypt_0	@rowlog_encrypt_1>@rowlog_encrypt_0
 -0	0	0	0
-+0	1	1	1
++0	0	0	1
  SET DEBUG_SYNC = 'now SIGNAL dml2_done';
  # session con1
  ERROR HY000: Creating index 'PRIMARY' required more than 'innodb_online_alter_log_max_size' bytes of modification log. Please try again.

@@ -293,6 +293,9 @@ link_directories(
 
 if(MRN_BUNDLED)
   target_link_libraries(mroonga ${MRN_LIBRARIES})
+  if(NOT TARGET mroonga)
+    return()
+  endif()
 else()
   add_library(mroonga MODULE ${MRN_ALL_SOURCES})
 
