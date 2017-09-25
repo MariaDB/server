@@ -4140,6 +4140,7 @@ innobase_add_virtual_try(
 /** Insert into SYS_COLUMNS and insert/update the 'default row'
 for instant ADD COLUMN.
 @param[in,out]	ha_alter_info	Data used during in-place alter
+@param[in,out]	ctx		ALTER TABLE context for the current partition
 @param[in]	altered_table	MySQL table that is being altered
 @param[in]	table		MySQL table as it is before the ALTER operation
 @param[in,out]	trx		dictionary transaction
@@ -4149,13 +4150,11 @@ static
 bool
 innobase_add_instant_try(
 	Alter_inplace_info*	ha_alter_info,
+	ha_innobase_inplace_ctx*ctx,
 	const TABLE*		altered_table,
 	const TABLE*		table,
 	trx_t*			trx)
 {
-	ha_innobase_inplace_ctx* ctx = static_cast<ha_innobase_inplace_ctx*>(
-		ha_alter_info->handler_ctx);
-
 	DBUG_ASSERT(!ctx->need_rebuild());
 
 	if (!ctx->is_instant()) return false;
@@ -8541,7 +8540,7 @@ commit_try_norebuild(
 		DBUG_RETURN(true);
 	}
 
-	if (innobase_add_instant_try(ha_alter_info, altered_table,
+	if (innobase_add_instant_try(ha_alter_info, ctx, altered_table,
 				     old_table, trx)) {
 		DBUG_RETURN(true);
 	}
