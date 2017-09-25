@@ -4295,7 +4295,8 @@ set_not_null_default_from_sql:
 		}
 
 		if (!new_field->field) {
-			col->def_val.data = dfield_get_data(dfield);
+			col->def_val.data = dfield_get_len(dfield)
+				? dfield_get_data(dfield) : "";
 			col->def_val.len = dfield_get_len(dfield);
 
 			pars_info_t*    info = pars_info_create();
