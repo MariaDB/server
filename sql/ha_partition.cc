@@ -1894,7 +1894,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
      in the  partitions.
   */
 
-  uint disable_non_uniq_indexes = indexes_are_disabled();
+  uint disable_non_uniq_indexes= indexes_are_disabled();
 
   i= 0;
   part_count= 0;
@@ -2133,8 +2133,8 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
     DATA DIRECTORY and INDEX DIRECTORY are never applied to the whole
     partitioned table, only its parts.
   */
-  my_bool from_alter = (create_info->data_file_name == (const char*) -1);
-  create_info->data_file_name= create_info->index_file_name = NULL;
+  my_bool from_alter= (create_info->data_file_name == (const char*) -1);
+  create_info->data_file_name= create_info->index_file_name= NULL;
 
   if (!(m_file[0]->ht->flags & HTON_CAN_READ_CONNECT_STRING_IN_PARTITION))
     create_info->connect_string= null_lex_str;
@@ -2155,8 +2155,8 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
   List_iterator<partition_element> part_it(m_part_info->partitions);
   partition_element *part_elem, *sub_elem;
   uint num_subparts= m_part_info->num_subparts;
-  uint num_parts = num_subparts ? m_file_tot_parts / num_subparts
-                                : m_file_tot_parts;
+  uint num_parts= (num_subparts ? m_file_tot_parts / num_subparts :
+                   m_file_tot_parts);
   HA_CREATE_INFO dummy_info;
   memset(&dummy_info, 0, sizeof(dummy_info));
 
@@ -2207,16 +2207,16 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         DBUG_ASSERT(part < m_file_tot_parts && m_file[part]);
         if (ha_legacy_type(m_file[part]->ht) == DB_TYPE_INNODB)
         {
-          dummy_info.data_file_name= dummy_info.index_file_name = NULL;
+          dummy_info.data_file_name= dummy_info.index_file_name= NULL;
           m_file[part]->update_create_info(&dummy_info);
 
           if (dummy_info.data_file_name || sub_elem->data_file_name)
           {
-            sub_elem->data_file_name = (char*) dummy_info.data_file_name;
+            sub_elem->data_file_name= (char*) dummy_info.data_file_name;
           }
           if (dummy_info.index_file_name || sub_elem->index_file_name)
           {
-            sub_elem->index_file_name = (char*) dummy_info.index_file_name;
+            sub_elem->index_file_name= (char*) dummy_info.index_file_name;
           }
         }
       }
@@ -2230,11 +2230,11 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         m_file[i]->update_create_info(&dummy_info);
         if (dummy_info.data_file_name || part_elem->data_file_name)
         {
-          part_elem->data_file_name = (char*) dummy_info.data_file_name;
+          part_elem->data_file_name= (char*) dummy_info.data_file_name;
         }
         if (dummy_info.index_file_name || part_elem->index_file_name)
         {
-          part_elem->index_file_name = (char*) dummy_info.index_file_name;
+          part_elem->index_file_name= (char*) dummy_info.index_file_name;
         }
       }
     }
@@ -2797,7 +2797,7 @@ bool ha_partition::create_handler_file(const char *name)
     {
       uchar buffer[4];
       part_elem= part_it++;
-      uint length = part_elem->connect_string.length;
+      uint length= part_elem->connect_string.length;
       int4store(buffer, length);
       if (my_write(file, buffer, 4, MYF(MY_WME | MY_NABP)) ||
           my_write(file, (uchar *) part_elem->connect_string.str, length,
@@ -3598,7 +3598,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
     {
       error= HA_ERR_INITIALIZATION;
       /* set file to last handler, so all of them are closed */
-      file = &m_file[m_tot_parts - 1];
+      file= &m_file[m_tot_parts - 1];
       goto err_handler;
     }
   }
@@ -5976,7 +5976,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
   else
     m_mrr_range_current= m_mrr_range_first;
 
-  for (i = 0; i < m_tot_parts; i++)
+  for (i= 0; i < m_tot_parts; i++)
   {
     if (!m_part_mrr_range_first[i])
     {
@@ -6492,7 +6492,7 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
   DBUG_ENTER("ha_partition::partition_scan_set_up");
 
   if (idx_read_flag)
-    get_partition_set(table,buf,active_index,&m_start_key,&m_part_spec);
+    get_partition_set(table, buf, active_index, &m_start_key, &m_part_spec);
   else
   {
     m_part_spec.start_part= 0;
@@ -8306,12 +8306,12 @@ int ha_partition::extra(enum ha_extra_function operation)
     int result;
     uint num_locks= 0;
     handler **file;
-    if ((result = loop_extra(operation)))
+    if ((result= loop_extra(operation)))
       DBUG_RETURN(result);
 
     /* Recalculate lock count as each child may have different set of locks */
-    num_locks = 0;
-    file = m_file;
+    num_locks= 0;
+    file= m_file;
     do
     {
       num_locks+= (*file)->lock_count();
@@ -9590,8 +9590,8 @@ int ha_partition::cmp_ref(const uchar *ref1, const uchar *ref2)
   my_ptrdiff_t diff1, diff2;
   DBUG_ENTER("ha_partition::cmp_ref");
 
-  cmp = m_file[0]->cmp_ref((ref1 + PARTITION_BYTES_IN_POS),
-			   (ref2 + PARTITION_BYTES_IN_POS));
+  cmp= m_file[0]->cmp_ref((ref1 + PARTITION_BYTES_IN_POS),
+                          (ref2 + PARTITION_BYTES_IN_POS));
   if (cmp)
     DBUG_RETURN(cmp);
 
@@ -10204,7 +10204,7 @@ TABLE_LIST *ha_partition::get_next_global_for_child()
 const COND *ha_partition::cond_push(const COND *cond)
 {
   handler **file= m_file;
-  COND *res_cond = NULL;
+  COND *res_cond= NULL;
   DBUG_ENTER("ha_partition::cond_push");
 
   if (set_top_table_fields)
@@ -10228,9 +10228,9 @@ const COND *ha_partition::cond_push(const COND *cond)
     if ((*file)->pushed_cond != cond)
     {
       if ((*file)->cond_push(cond))
-        res_cond = (COND *) cond;
+        res_cond= (COND *) cond;
       else
-        (*file)->pushed_cond = cond;
+        (*file)->pushed_cond= cond;
     }
   } while (*(++file));
   DBUG_RETURN(res_cond);
@@ -10254,7 +10254,7 @@ void ha_partition::clear_top_table_fields()
   handler **file;
   if (set_top_table_fields)
   {
-    set_top_table_fields = FALSE;
+    set_top_table_fields= FALSE;
     for (file= m_file; *file; file++)
       (*file)->clear_top_table_fields();
   }
