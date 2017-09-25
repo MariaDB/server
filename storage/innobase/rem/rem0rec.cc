@@ -754,7 +754,8 @@ resolved:
 		}
 
 		if (i < rec_offs_n_fields(offsets)) {
-			offs = rec_offs_base(offsets)[i] | REC_OFFS_DEFAULT;
+			offs = (rec_offs_base(offsets)[i] & REC_OFFS_MASK)
+				| REC_OFFS_DEFAULT;
 
 			do {
 				rec_offs_base(offsets)[1 + i] = offs;
