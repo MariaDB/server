@@ -1304,12 +1304,12 @@ rw_lock_debug_mutex_enter()
 void
 rw_lock_debug_mutex_exit()
 {
-	mutex_exit(&rw_lock_debug_mutex);
-
 	if (rw_lock_debug_waiters) {
 		rw_lock_debug_waiters = FALSE;
 		os_event_set(rw_lock_debug_event);
 	}
+
+	mutex_exit(&rw_lock_debug_mutex);
 }
 #endif /* UNIV_DEBUG */
 
