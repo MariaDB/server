@@ -2633,7 +2633,7 @@ row_ins_clust_index_entry_low(
 	}
 #endif /* UNIV_DEBUG */
 
-	if (entry->info_bits) {
+	if (UNIV_UNLIKELY(entry->info_bits)) {
 		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
@@ -2650,11 +2650,13 @@ row_ins_clust_index_entry_low(
 			goto err_exit;
 		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
 			ut_ad(row_ins_must_modify_rec(cursor));
-			goto do_insert;
+			goto do_update_purgeable;
 		default:
 			ut_ad(!row_ins_must_modify_rec(cursor));
 			goto do_insert;
 		}
+	} else if (rec_is_default_row(btr_cur_get_rec(cursor), index)) {
+		goto do_insert;
 	}
 
 	if (n_uniq
@@ -2699,10 +2701,10 @@ err_exit:
 		goto func_exit;
 	}
 
-do_insert:
 	/* Note: Allowing duplicates would qualify for modification of
 	an existing record as the new entry is exactly same as old entry. */
 	if (row_ins_must_modify_rec(cursor)) {
+do_update_purgeable:
 		/* There is already an index entry with a long enough common
 		prefix, we must convert the insert into a modify of an
 		existing record */
@@ -2720,6 +2722,7 @@ do_insert:
 		mtr_commit(&mtr);
 		mem_heap_free(entry_heap);
 	} else {
+do_insert:
 		rec_t*	insert_rec;
 
 		if (mode != BTR_MODIFY_TREE) {
