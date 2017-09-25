@@ -8,6 +8,12 @@
 --echo # Bug #23070734	CONCURRENT TRUNCATE TABLES CAUSE STALLS
 --echo #
 
+SET @ahi= @@global.innodb_adaptive_hash_index;
+# Ensure that there is no adaptive hash index on any system tables,
+# or any other tables than the ones that we are creating below.
+SET GLOBAL innodb_adaptive_hash_index=OFF;
+SET GLOBAL innodb_adaptive_hash_index=ON;
+
 --echo Test_1 :- Check if DDL operations are possible on
 --echo		 table being truncated. Also check if
 --echo		 DDL operations on other tables succeed.
@@ -115,8 +121,7 @@ disconnect con2;
 connection default;
 SET DEBUG_SYNC= 'RESET';
 
-SET session lock_wait_timeout=default;
-set global innodb_adaptive_hash_index=on;
+SET GLOBAL innodb_adaptive_hash_index=@ahi;
 
 drop table t1,t2,t3;
 --source include/wait_until_count_sessions.inc
