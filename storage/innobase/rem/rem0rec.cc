@@ -329,7 +329,6 @@ rec_init_offsets_comp_ordinary(
 
 	switch (format) {
 	case REC_LEAF_TEMP:
-		ut_ad(!index->is_instant());
 		extra_bytes = 0;
 		if (dict_table_is_comp(index->table)) {
 			/* No need to do adjust fixed_len=0. We only need to
@@ -1078,15 +1077,13 @@ rec_get_converted_size_comp_prefix_low(
 	ut_ad(n_fields <= dict_index_get_n_fields(index));
 	ut_ad(!temp || extra);
 	ut_ad(!temp || status == REC_STATUS_ORDINARY);
-	ut_ad(!temp || !index->is_instant());
 	ut_d(ulint n_null = index->n_nullable);
 
-	if (n_fields <= index->n_core_fields) {
+	if (n_fields <= index->n_core_fields || temp) {
 		extra_size = temp
 			? index->n_core_null_bytes
 			: REC_N_NEW_EXTRA_BYTES + index->n_core_null_bytes;
 	} else {
-		ut_ad(!temp);
 		ut_ad(index->is_instant());
 		ut_ad(UT_BITS_IN_BYTES(n_null) >= index->n_core_null_bytes);
 		extra_size = REC_N_NEW_EXTRA_BYTES
