@@ -143,7 +143,8 @@ ROLLBACK;
 # session con1
 KILL QUERY @id;
 ERROR 70100: Query execution was interrupted
-SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR kill_done';
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR dml_done';
+SET DEBUG_SYNC = 'row_log_table_apply2_before SIGNAL applied WAIT_FOR kill_done';
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 # session default
 SET DEBUG_SYNC = 'now WAIT_FOR rebuilt';
@@ -153,6 +154,10 @@ ddl_background_drop_indexes	0
 ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
+BEGIN;
+INSERT INTO t1 VALUES(7,4,2);
+ROLLBACK;
+SET DEBUG_SYNC = 'now SIGNAL dml_done WAIT_FOR applied';
 KILL QUERY @id;
 SET DEBUG_SYNC = 'now SIGNAL kill_done';
 # session con1
@@ -186,6 +191,7 @@ t1	CREATE TABLE `t1` (
   `c3` text NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt2 WAIT_FOR dml2_done';
 SET lock_wait_timeout = 10;
 ALTER TABLE t1 ROW_FORMAT=COMPACT, ALGORITHM = INPLACE;
