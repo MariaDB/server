@@ -645,6 +645,14 @@ struct dict_col_t{
 		*len = def_val.len;
 		return static_cast<const byte*>(def_val.data);
 	}
+
+	/** Remove the 'instant ADD' status of the column */
+	void remove_instant()
+	{
+		DBUG_ASSERT(is_instant());
+		def_val.len = UNIV_SQL_DEFAULT;
+		def_val.data = NULL;
+	}
 };
 
 /** Index information put in a list of virtual column structure. Index
@@ -1057,6 +1065,16 @@ struct dict_index_t{
 		DBUG_ASSERT(n >= n_core_fields);
 		DBUG_ASSERT(n < n_fields);
 		return fields[n].col->instant_value(len);
+	}
+
+	/** Remove the 'instant ADD' status of a clustered index */
+	void remove_instant()
+	{
+		DBUG_ASSERT(is_clust());
+		for (unsigned i = n_core_fields; i < n_fields; i++) {
+			fields[i].col->remove_instant();
+		}
+		n_core_fields = n_fields;
 	}
 
 	/** Check whether two indexes have the same metadata.
