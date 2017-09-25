@@ -66,6 +66,20 @@ begin
     drop table tmp;
   end if;
 end~~
+
+create procedure concat_exec2(a varchar(255), b varchar(255))
+begin
+  prepare stmt from concat(a, b);
+  execute stmt;
+  deallocate prepare stmt;
+end~~
+
+create procedure concat_exec3(a varchar(255), b varchar(255), c varchar(255))
+begin
+  prepare stmt from concat(a, b, c);
+  execute stmt;
+  deallocate prepare stmt;
+end~~
 delimiter ;~~
 
 let $default_engine= `select default_engine()`;

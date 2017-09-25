@@ -1,21 +1,6 @@
 -- source suite/versioning/common.inc
 
 delimiter ~~;
-
-create procedure concat_exec2(a varchar(255), b varchar(255))
-begin
-  prepare stmt from concat(a, b);
-  execute stmt;
-  deallocate prepare stmt;
-end~~
-
-create procedure concat_exec3(a varchar(255), b varchar(255), c varchar(255))
-begin
-  prepare stmt from concat(a, b, c);
-  execute stmt;
-  deallocate prepare stmt;
-end~~
-
 create function get_historical_table_name(table_name_arg varchar(255))
 returns varchar(255)
 begin
@@ -27,7 +12,6 @@ create procedure drop_last_historical(table_name_arg varchar(255))
 begin
   call concat_exec2('drop table ', get_historical_table_name(table_name_arg));
 end~~
-
 delimiter ;~~
 
 set versioning_alter_history= survive;
@@ -108,8 +92,6 @@ alter table t add column b int, algorithm=inplace;
 
 set versioning_alter_history = keep;
 
-drop procedure concat_exec2;
-drop procedure concat_exec3;
 drop function get_historical_table_name;
 drop procedure drop_last_historical;
 
