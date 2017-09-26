@@ -1928,12 +1928,17 @@ inline void dict_index_t::commit_instant_copy(const dict_index_t& instant)
 		DBUG_ASSERT(is_instant());
 	}
 
+	ut_d(unsigned n_null = 0);
+
 	for (unsigned i = 0; i < n_fields; i++) {
 		DBUG_ASSERT(fields[i].same(instant.fields[i]));
 		fields[i].col = &table->cols[instant.fields[i].col
 					     - instant.table->cols];
 		fields[i].name = fields[i].col->name(*table);
+		ut_d(n_null += fields[i].col->is_nullable());
 	}
+
+	ut_ad(n_null == n_nullable);
 }
 
 /*******************************************************************//**
