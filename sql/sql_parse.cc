@@ -4525,6 +4525,7 @@ end_with_restore_list:
     else
       res= 0;
 
+    unit->set_limit(select_lex);
     res= mysql_multi_update_prepare(thd);
 
 #ifdef HAVE_REPLICATION
@@ -9059,7 +9060,6 @@ Item * all_any_subquery_creator(THD *thd, Item *left_expr,
 
 bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
 {
-  const char *msg= 0;
   TABLE_LIST *table;
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= &lex->select_lex;
@@ -9115,15 +9115,6 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
     }
   }
 
-  if (select_lex->order_list.elements)
-    msg= "ORDER BY";
-  else if (select_lex->select_limit)
-    msg= "LIMIT";
-  if (msg)
-  {
-    my_error(ER_WRONG_USAGE, MYF(0), "UPDATE", msg);
-    DBUG_RETURN(TRUE);
-  }
   DBUG_RETURN(FALSE);
 }
 

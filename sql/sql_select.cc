@@ -1988,7 +1988,8 @@ int JOIN::optimize_stage2()
       FORCE INDEX FOR ORDER BY can be used to prevent join buffering when
       sorting on the first table.
     */
-    if (!stable || !stable->force_index_order)
+    if (!stable || (!stable->force_index_order &&
+                    !map2table[stable->tablenr]->keep_current_rowid))
     {
       if (group_list)
         simple_group= 0;

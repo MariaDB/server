@@ -1595,10 +1595,9 @@ bool mysql_multi_update(THD *thd,
   List<Item> total_list;
 
   res= mysql_select(thd,
-                    table_list, select_lex->with_wild,
-                    total_list,
-                    conds, 0, (ORDER *) NULL, (ORDER *)NULL, (Item *) NULL,
-                    (ORDER *)NULL,
+                    table_list, select_lex->with_wild, total_list, conds,
+                    select_lex->order_list.elements, select_lex->order_list.first,
+                    (ORDER *)NULL, (Item *) NULL, (ORDER *)NULL,
                     options | SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
                     OPTION_SETUP_TABLES_DONE,
                     *result, unit, select_lex);
@@ -1857,6 +1856,8 @@ static bool safe_update_on_fly(THD *thd, JOIN_TAB *join_tab,
   TABLE *table= join_tab->table;
   if (unique_table(thd, table_ref, all_tables, 0))
     return 0;
+  if (join_tab->join->order) // FIXME this is probably too strong
+    return 0;
   switch (join_tab->type) {
   case JT_SYSTEM:
   case JT_CONST:
@@ -1934,6 +1935,7 @@ multi_update::initialize_tables(JOIN *join)
       }
     }
     table->prepare_for_position();
+    join->map2table[table->tablenr]->keep_current_rowid= true;
 
     /*
       enable uncacheable flag if we update a view with check option
@@ -2001,6 +2003,7 @@ loop_end:
         that we need a position to be read first.
       */
       tbl->prepare_for_position();
+      join->map2table[tbl->tablenr]->keep_current_rowid= true;
 
       Field_string *field= new Field_string(tbl->file->ref_length, 0,
                                             &field_name,
