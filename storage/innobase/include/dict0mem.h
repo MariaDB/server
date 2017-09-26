@@ -1071,10 +1071,14 @@ struct dict_index_t{
 	void remove_instant()
 	{
 		DBUG_ASSERT(is_clust());
+		if (!is_instant()) {
+			return;
+		}
 		for (unsigned i = n_core_fields; i < n_fields; i++) {
 			fields[i].col->remove_instant();
 		}
 		n_core_fields = n_fields;
+		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 	}
 
 	/** Check whether two indexes have the same metadata.
