@@ -946,14 +946,46 @@ rec_copy(
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		record header size
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
 @return	total size, in bytes */
 ulint
 rec_get_converted_size_temp(
 	const dict_index_t*	index,
 	const dfield_t*		fields,
 	ulint			n_fields,
-	ulint*			extra)
-	MY_ATTRIBUTE((warn_unused_result, nonnull(1,2)));
+	ulint*			extra,
+	rec_comp_status_t	status = REC_STATUS_ORDINARY)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
+/** Determine the offset to each field in temporary file.
+@param[in]	rec	temporary file record
+@param[in]	index	index of that the record belongs to
+@param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
+*/
+void
+rec_init_offsets_temp(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets,
+	rec_comp_status_t	status = REC_STATUS_ORDINARY)
+	MY_ATTRIBUTE((nonnull));
+
+/** Convert a data tuple prefix to the temporary file format.
+@param[out]	rec		record in temporary file format
+@param[in]	index		clustered or secondary index
+@param[in]	fields		data fields
+@param[in]	n_fields	number of data fields
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
+*/
+void
+rec_convert_dtuple_to_temp(
+	rec_t*			rec,
+	const dict_index_t*	index,
+	const dfield_t*		fields,
+	ulint			n_fields,
+	rec_comp_status_t	status = REC_STATUS_ORDINARY)
+	MY_ATTRIBUTE((nonnull));
 
 /** Determine the converted size of virtual column data in a temporary file.
 @see rec_convert_dtuple_to_temp_v()
@@ -977,29 +1009,6 @@ rec_convert_dtuple_to_temp_v(
 	const dict_index_t*	index,
 	const dtuple_t*		v_entry)
 	MY_ATTRIBUTE((nonnull));
-
-/******************************************************//**
-Determine the offset to each field in temporary file.
-@see rec_convert_dtuple_to_temp() */
-void
-rec_init_offsets_temp(
-/*==================*/
-	const rec_t*		rec,	/*!< in: temporary file record */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in/out: array of offsets;
-					in: n=rec_offs_n_fields(offsets) */
-	MY_ATTRIBUTE((nonnull));
-
-/*********************************************************//**
-Builds a temporary file record out of a data tuple.
-@see rec_init_offsets_temp() */
-void
-rec_convert_dtuple_to_temp(
-/*=======================*/
-	rec_t*			rec,		/*!< out: record */
-	const dict_index_t*	index,		/*!< in: record descriptor */
-	const dfield_t*		fields,		/*!< in: array of data fields */
-	ulint			n_fields);	/*!< in: number of fields */
 
 /**************************************************************//**
 Copies the first n fields of a physical record to a new physical record in

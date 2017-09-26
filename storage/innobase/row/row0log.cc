@@ -832,16 +832,18 @@ row_log_table_low_redundant(
 	mem_heap_t*	heap		= NULL;
 	dtuple_t*	tuple;
 	ulint		num_v = ventry ? dtuple_get_n_v_fields(ventry) : 0;
+	const ulint	n_fields = rec_get_n_fields_old(rec);
 
 	ut_ad(!page_is_comp(page_align(rec)));
-	ut_ad(dict_index_get_n_fields(index) == rec_get_n_fields_old(rec));
+	ut_ad(index->n_fields >= n_fields);
+	ut_ad(index->n_fields == n_fields || index->is_instant());
 	ut_ad(dict_tf2_is_valid(index->table->flags, index->table->flags2));
 	ut_ad(!dict_table_is_comp(index->table));  /* redundant row format */
 	ut_ad(dict_index_is_clust(new_index));
 
-	heap = mem_heap_create(DTUPLE_EST_ALLOC(index->n_fields));
-	tuple = dtuple_create_with_vcol(heap, index->n_fields, num_v);
-	dict_index_copy_types(tuple, index, index->n_fields);
+	heap = mem_heap_create(DTUPLE_EST_ALLOC(n_fields));
+	tuple = dtuple_create_with_vcol(heap, n_fields, num_v);
+	dict_index_copy_types(tuple, index, n_fields);
 
 	if (num_v) {
 		dict_table_copy_v_types(tuple, index->table);
@@ -850,7 +852,7 @@ row_log_table_low_redundant(
 	dtuple_set_n_fields_cmp(tuple, dict_index_get_n_unique(index));
 
 	if (rec_get_1byte_offs_flag(rec)) {
-		for (ulint i = 0; i < index->n_fields; i++) {
+		for (ulint i = 0; i < n_fields; i++) {
 			dfield_t*	dfield;
 			ulint		len;
 			const void*	field;
@@ -861,7 +863,7 @@ row_log_table_low_redundant(
 			dfield_set_data(dfield, field, len);
 		}
 	} else {
-		for (ulint i = 0; i < index->n_fields; i++) {
+		for (ulint i = 0; i < n_fields; i++) {
 			dfield_t*	dfield;
 			ulint		len;
 			const void*	field;
@@ -877,8 +879,15 @@ row_log_table_low_redundant(
 		}
 	}
 
+	rec_comp_status_t status = index->is_instant()
+		? REC_STATUS_COLUMNS_ADDED : REC_STATUS_ORDINARY;
+
 	size = rec_get_converted_size_temp(
-		index, tuple->fields, tuple->n_fields, &extra_size);
+		index, tuple->fields, tuple->n_fields, &extra_size, status);
+	if (index->is_instant()) {
+		size++;
+		extra_size++;
+	}
 	ulint v_size = num_v
 		? rec_get_converted_size_temp_v(index, ventry) : 0;
 
@@ -913,15 +922,19 @@ row_log_table_low_redundant(
 
 	if (byte* b = row_log_table_open(index->online_log,
 					 mrec_size, &avail_size)) {
-		*b++ = insert ? ROW_T_INSERT : ROW_T_UPDATE;
+		if (insert) {
+			*b++ = ROW_T_INSERT;
+		} else {
+			*b++ = ROW_T_UPDATE;
 
-		if (old_pk_size) {
-			*b++ = static_cast<byte>(old_pk_extra_size);
+			if (old_pk_size) {
+				*b++ = static_cast<byte>(old_pk_extra_size);
 
-			rec_convert_dtuple_to_temp(
-				b + old_pk_extra_size, new_index,
-				old_pk->fields, old_pk->n_fields);
-			b += old_pk_size;
+				rec_convert_dtuple_to_temp(
+					b + old_pk_extra_size, new_index,
+					old_pk->fields, old_pk->n_fields);
+				b += old_pk_size;
+			}
 		}
 
 		if (extra_size < 0x80) {
@@ -932,8 +945,17 @@ row_log_table_low_redundant(
 			*b++ = static_cast<byte>(extra_size);
 		}
 
+		if (status == REC_STATUS_COLUMNS_ADDED) {
+			ut_ad(index->is_instant());
+			if (n_fields <= index->n_core_fields) {
+				status = REC_STATUS_ORDINARY;
+			}
+			*b = status;
+		}
+
 		rec_convert_dtuple_to_temp(
-			b + extra_size, index, tuple->fields, tuple->n_fields);
+			b + extra_size, index, tuple->fields, tuple->n_fields,
+			status);
 		b += size;
 		ut_ad(!num_v == !v_size);
 		if (num_v) {
@@ -976,7 +998,6 @@ row_log_table_low(
 	const dtuple_t*	old_pk)	/*!< in: old PRIMARY KEY value (if !insert
 				and a PRIMARY KEY is being created) */
 {
-	ulint			omit_size;
 	ulint			old_pk_size;
 	ulint			old_pk_extra_size;
 	ulint			extra_size;
@@ -1035,12 +1056,14 @@ row_log_table_low(
 	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
 	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
 
-	omit_size = REC_N_NEW_EXTRA_BYTES;
+	const ulint omit_size = REC_N_NEW_EXTRA_BYTES;
 
-	extra_size = rec_offs_extra_size(offsets) - omit_size;
+	const ulint rec_extra_size = rec_offs_extra_size(offsets) - omit_size;
+	extra_size = rec_extra_size + index->is_instant();
 
 	mrec_size = ROW_LOG_HEADER_SIZE
-		+ (extra_size >= 0x80) + rec_offs_size(offsets) - omit_size;
+		+ (extra_size >= 0x80) + rec_offs_size(offsets) - omit_size
+		+ index->is_instant();
 
 	if (ventry && ventry->n_v_fields > 0) {
 		mrec_size += rec_get_converted_size_temp_v(new_index, ventry);
@@ -1076,15 +1099,19 @@ row_log_table_low(
 
 	if (byte* b = row_log_table_open(index->online_log,
 					 mrec_size, &avail_size)) {
-		*b++ = insert ? ROW_T_INSERT : ROW_T_UPDATE;
+		if (insert) {
+			*b++ = ROW_T_INSERT;
+		} else {
+			*b++ = ROW_T_UPDATE;
 
-		if (old_pk_size) {
-			*b++ = static_cast<byte>(old_pk_extra_size);
+			if (old_pk_size) {
+				*b++ = static_cast<byte>(old_pk_extra_size);
 
-			rec_convert_dtuple_to_temp(
-				b + old_pk_extra_size, new_index,
-				old_pk->fields, old_pk->n_fields);
-			b += old_pk_size;
+				rec_convert_dtuple_to_temp(
+					b + old_pk_extra_size, new_index,
+					old_pk->fields, old_pk->n_fields);
+				b += old_pk_size;
+			}
 		}
 
 		if (extra_size < 0x80) {
@@ -1095,8 +1122,14 @@ row_log_table_low(
 			*b++ = static_cast<byte>(extra_size);
 		}
 
-		memcpy(b, rec - rec_offs_extra_size(offsets), extra_size);
-		b += extra_size;
+		if (index->is_instant()) {
+			*b++ = rec_get_status(rec);
+		} else {
+			ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY);
+		}
+
+		memcpy(b, rec - rec_extra_size - omit_size, rec_extra_size);
+		b += rec_extra_size;
 		memcpy(b, rec, rec_offs_data_size(offsets));
 		b += rec_offs_data_size(offsets);
 
@@ -2492,12 +2525,18 @@ row_log_table_apply_op(
 
 		mrec += extra_size;
 
+		ut_ad(extra_size || !dup->index->is_instant());
+
 		if (mrec > mrec_end) {
 			return(NULL);
 		}
 
 		rec_offs_set_n_fields(offsets, dup->index->n_fields);
-		rec_init_offsets_temp(mrec, dup->index, offsets);
+		rec_init_offsets_temp(mrec, dup->index, offsets,
+				      dup->index->is_instant()
+				      ? static_cast<rec_comp_status_t>(
+					      mrec[-extra_size])
+				      : REC_STATUS_ORDINARY);
 
 		next_mrec = mrec + rec_offs_data_size(offsets);
 
@@ -2533,6 +2572,9 @@ row_log_table_apply_op(
 		For fixed-length PRIMARY key columns, it is 0. */
 		mrec += extra_size;
 
+		/* The ROW_T_DELETE record was converted by
+		rec_convert_dtuple_to_temp() using new_index. */
+		ut_ad(!new_index->is_instant());
 		rec_offs_set_n_fields(offsets, new_index->n_uniq + 2);
 		rec_init_offsets_temp(mrec, new_index, offsets);
 		next_mrec = mrec + rec_offs_data_size(offsets) + ext_size;
@@ -2603,12 +2645,18 @@ row_log_table_apply_op(
 
 			mrec += extra_size;
 
+			ut_ad(extra_size || !dup->index->is_instant());
+
 			if (mrec > mrec_end) {
 				return(NULL);
 			}
 
 			rec_offs_set_n_fields(offsets, dup->index->n_fields);
-			rec_init_offsets_temp(mrec, dup->index, offsets);
+			rec_init_offsets_temp(mrec, dup->index, offsets,
+					      dup->index->is_instant()
+					      ? static_cast<rec_comp_status_t>(
+						      mrec[-extra_size])
+					      : REC_STATUS_ORDINARY);
 
 			next_mrec = mrec + rec_offs_data_size(offsets);
 
@@ -2651,6 +2699,9 @@ row_log_table_apply_op(
 
 			/* Get offsets for PRIMARY KEY,
 			DB_TRX_ID, DB_ROLL_PTR. */
+			/* The old_pk prefix was converted by
+			rec_convert_dtuple_to_temp() using new_index. */
+			ut_ad(!new_index->is_instant());
 			rec_offs_set_n_fields(offsets, new_index->n_uniq + 2);
 			rec_init_offsets_temp(mrec, new_index, offsets);
 
@@ -2703,12 +2754,18 @@ row_log_table_apply_op(
 
 			mrec += extra_size;
 
+			ut_ad(extra_size || !dup->index->is_instant());
+
 			if (mrec > mrec_end) {
 				return(NULL);
 			}
 
 			rec_offs_set_n_fields(offsets, dup->index->n_fields);
-			rec_init_offsets_temp(mrec, dup->index, offsets);
+			rec_init_offsets_temp(mrec, dup->index, offsets,
+					      dup->index->is_instant()
+					      ? static_cast<rec_comp_status_t>(
+						      mrec[-extra_size])
+					      : REC_STATUS_ORDINARY);
 
 			next_mrec = mrec + rec_offs_data_size(offsets);
 
