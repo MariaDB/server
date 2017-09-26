@@ -391,7 +391,6 @@ drop table t1, t2, t3;
 #
 create table t1 (col1 int);
 create table t2 (col1 int);
--- error ER_UPDATE_TABLE_USED
 update t1,t2 set t1.col1 = (select max(col1) from t1) where t1.col1 = t2.col1;
 -- error ER_UPDATE_TABLE_USED
 delete t1 from t1,t2 where t1.col1 < (select max(col1) from t1) and t1.col1 = t2.col1;
