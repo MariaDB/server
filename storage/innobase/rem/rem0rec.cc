@@ -245,23 +245,18 @@ static inline unsigned rec_get_n_add_field_len(unsigned n_add_field)
 }
 
 /** Get the added field count in a REC_STATUS_COLUMNS_ADDED record.
-@param[in]	rec	REC_STATUS_COLUMNS_ADDED record
-@param[out]	len	storage size of the field count, in bytes
+@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_ADDED record
 @return	number of added fields */
-static inline unsigned rec_get_n_add_field(const rec_t* rec, ulint* len)
+static inline unsigned rec_get_n_add_field(const byte*& header)
 {
-	ut_ad(rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
-	rec -= REC_N_NEW_EXTRA_BYTES + 1;
-	unsigned n_fields_add = *rec;
+	unsigned n_fields_add = *--header;
 	if (n_fields_add < 0x80) {
-		*len = 1;
 		ut_ad(rec_get_n_add_field_len(n_fields_add) == 1);
 		return n_fields_add;
 	}
 
-	*len = 2;
 	n_fields_add &= 0x7f;
-	n_fields_add |= unsigned(rec[-1]) << 7;
+	n_fields_add |= unsigned(*--header) << 7;
 	ut_ad(n_fields_add < REC_MAX_N_FIELDS);
 	ut_ad(rec_get_n_add_field_len(n_fields_add) == 2);
 	return n_fields_add;
@@ -349,18 +344,17 @@ ordinary:
 		if (rec_offs_n_fields(offsets) <= n_fields) {
 			goto ordinary;
 		}
-		ulint len;
+		nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
 		n_fields = index->n_core_fields + 1
-			+ rec_get_n_add_field(rec, &len);
+			+ rec_get_n_add_field(nulls);
 		ut_ad(n_fields <= index->n_fields);
 		ut_ad(extra_bytes == REC_N_NEW_EXTRA_BYTES);
-		nulls = rec - (1 + REC_N_NEW_EXTRA_BYTES) - len;
 		const ulint n_nullable = index->get_n_nullable(n_fields);
 		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 		ut_d(n_null = n_nullable);
 		ut_ad(n_null <= index->n_nullable);
 		ut_ad(n_null_bytes >= index->n_core_null_bytes);
-		lens = nulls - n_null_bytes;
+		lens = --nulls - n_null_bytes;
 	}
 
 #ifdef UNIV_DEBUG
@@ -1949,12 +1943,11 @@ rec_copy_prefix_to_buf(
 		ut_ad(index->is_instant());
 		if (n_fields >= index->n_core_fields) {
 			ut_ad(n_fields <= index->n_fields);
-			ulint len;
-			ulint n_rec = n_fields + 1
-				+ rec_get_n_add_field(rec, &len);
+			nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
+			const ulint n_rec = n_fields + 1
+				+ rec_get_n_add_field(nulls);
 			const uint n_nullable = index->get_n_nullable(n_rec);
-			nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1) - len;
-			lens = nulls - UT_BITS_IN_BYTES(n_nullable);
+			lens = --nulls - UT_BITS_IN_BYTES(n_nullable);
 			break;
 		}
 		/* fall through */
