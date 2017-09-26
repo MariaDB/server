@@ -1,5 +1,5 @@
---source include/master-slave.inc
 --source include/have_debug.inc
+--source include/master-slave.inc
 
 connection master;
 SET GLOBAL BINLOG_CHECKSUM=NONE;

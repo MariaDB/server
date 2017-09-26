@@ -160,7 +160,7 @@ void Type_std_attributes::count_decimal_length(Item **item, uint nitems)
   }
   int precision= MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
   fix_char_length(my_decimal_precision_to_length_no_truncation(precision,
-                                                               decimals,
+                                                               (uint8) decimals,
                                                                unsigned_flag));
 }
 
@@ -998,7 +998,8 @@ Type_handler::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
          Field_double(NULL, item->max_length,
                       (uchar *) (item->maybe_null ? "" : 0),
                       item->maybe_null ? 1 : 0, Field::NONE,
-                      &item->name, item->decimals, 0, item->unsigned_flag);
+                      &item->name, (uint8) item->decimals,
+                      0, item->unsigned_flag);
 }
 
 
@@ -1011,7 +1012,8 @@ Type_handler_float::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
          Field_float(NULL, item->max_length,
                      (uchar *) (item->maybe_null ? "" : 0),
                      item->maybe_null ? 1 : 0, Field::NONE,
-                     &item->name, item->decimals, 0, item->unsigned_flag);
+                     &item->name, (uint8) item->decimals,
+                     0, item->unsigned_flag);
 }
 
 
@@ -1026,7 +1028,8 @@ Type_handler_decimal_result::make_num_distinct_aggregator_field(
          Field_new_decimal(NULL, item->max_length,
                            (uchar *) (item->maybe_null ? "" : 0),
                            item->maybe_null ? 1 : 0, Field::NONE,
-                           &item->name, item->decimals, 0, item->unsigned_flag);
+                           &item->name, (uint8) item->decimals,
+                           0, item->unsigned_flag);
 }
 
 
@@ -1143,7 +1146,7 @@ Field *Type_handler_newdecimal::make_conversion_table_field(TABLE *table,
                                                             const
 {
   int  precision= metadata >> 8;
-  uint decimals= metadata & 0x00ff;
+  uint8 decimals= metadata & 0x00ff;
   uint32 max_length= my_decimal_precision_to_length(precision, decimals, false);
   DBUG_ASSERT(decimals <= DECIMAL_MAX_SCALE);
   return new (table->in_use->mem_root)
@@ -2058,7 +2061,7 @@ Field *Type_handler_float::make_table_field(const LEX_CSTRING *name,
          Field_float(addr.ptr, attr.max_char_length(),
                      addr.null_ptr, addr.null_bit,
                      Field::NONE, name,
-                     attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
+                     (uint8) attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
 }
 
 
@@ -2071,7 +2074,7 @@ Field *Type_handler_double::make_table_field(const LEX_CSTRING *name,
          Field_double(addr.ptr, attr.max_char_length(),
                       addr.null_ptr, addr.null_bit,
                       Field::NONE, name,
-                      attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
+                      (uint8) attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
 }
 
 
@@ -2091,7 +2094,7 @@ Type_handler_olddecimal::make_table_field(const LEX_CSTRING *name,
   DBUG_ASSERT(0);
   return new (table->in_use->mem_root)
          Field_decimal(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
-                       Field::NONE, name, attr.decimals,
+                       Field::NONE, name, (uint8) attr.decimals,
                        0/*zerofill*/,attr.unsigned_flag);
 }
 
@@ -2102,8 +2105,8 @@ Type_handler_newdecimal::make_table_field(const LEX_CSTRING *name,
                                           const Type_all_attributes &attr,
                                           TABLE *table) const
 {
-  uint8 dec= attr.decimals;
-  uint8 intg= attr.decimal_precision() - dec;
+  uint8 dec= (uint8) attr.decimals;
+  uint8 intg= (uint8) (attr.decimal_precision() - dec);
   uint32 len= attr.max_char_length();
 
   /*
@@ -5313,7 +5316,7 @@ static void wrong_precision_error(uint errcode, Item *a,
 */
 
 bool get_length_and_scale(ulonglong length, ulonglong decimals,
-                          ulong *out_length, uint *out_decimals,
+                          uint *out_length, uint *out_decimals,
                           uint max_precision, uint max_scale,
                           Item *a)
 {
@@ -5330,7 +5333,7 @@ bool get_length_and_scale(ulonglong length, ulonglong decimals,
 
   *out_decimals=  (uint) decimals;
   my_decimal_trim(&length, out_decimals);
-  *out_length=  (ulong) length;
+  *out_length=  (uint) length;
   
   if (*out_length < *out_decimals)
   {
@@ -5396,8 +5399,7 @@ Item *Type_handler_decimal_result::
         create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const
 {
-  ulong len;
-  uint dec;
+  uint len, dec;
   if (get_length_and_scale(attr.length(), attr.decimals(), &len, &dec,
                            DECIMAL_MAX_PRECISION, DECIMAL_MAX_SCALE, item))
     return NULL;
@@ -5409,8 +5411,7 @@ Item *Type_handler_double::
         create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const
 {
-  ulong len;
-  uint dec;
+  uint len, dec;
   if (!attr.length_specified())
     return new (thd->mem_root) Item_double_typecast(thd, item,
                                                     DBL_DIG + 7,

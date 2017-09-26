@@ -1,7 +1,7 @@
 --source include/have_binlog_format_row.inc
---source include/master-slave.inc
 --source include/have_debug.inc
 --source include/have_innodb.inc
+--source include/master-slave.inc
 
 # Bug#58997: Row-based replication breaks on table with only fulltext index: 
 connection master;

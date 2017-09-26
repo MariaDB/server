@@ -8,8 +8,8 @@
 #            in corrupt binlog 
 ##################################################################
 
--- source include/master-slave.inc
 -- source include/have_binlog_format_row.inc
+-- source include/master-slave.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t300;

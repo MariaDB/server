@@ -928,7 +928,8 @@ class Item_decimal_typecast :public Item_func
 {
   my_decimal decimal_value;
 public:
-  Item_decimal_typecast(THD *thd, Item *a, int len, int dec): Item_func(thd, a)
+  Item_decimal_typecast(THD *thd, Item *a, uint len, uint dec)
+   :Item_func(thd, a)
   {
     decimals= (uint8) dec;
     collation.set_numeric();
@@ -956,7 +957,7 @@ public:
 class Item_double_typecast :public Item_real_func
 {
 public:
-  Item_double_typecast(THD *thd, Item *a, int len, int dec):
+  Item_double_typecast(THD *thd, Item *a, uint len, uint dec):
     Item_real_func(thd, a)
   {
     decimals=   (uint8)  dec;
@@ -2398,7 +2399,10 @@ class Item_user_var_as_out_param :public Item
 public:
   Item_user_var_as_out_param(THD *thd, const LEX_CSTRING *a)
   :Item(thd), name(*a)
-  { set_name(thd, a->str, a->length, system_charset_info); }
+  {
+    DBUG_ASSERT(a->length < UINT_MAX32);
+    set_name(thd, a->str, (uint) a->length, system_charset_info);
+  }
   /* We should return something different from FIELD_ITEM here */
   enum Type type() const { return STRING_ITEM;}
   double val_real();

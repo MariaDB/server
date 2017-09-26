@@ -144,6 +144,8 @@ SET lc_time_names=@old_50915_lc_time_names;
 
 # Item::print
 create view v1 as select
+        date_format('2001-10-02', '%c %b %M') as a,
+        date_format('2001-10-02', '%c %b %M', 'ru_RU') as a1,
         format(123456789,2) as b,
         format(123456789,2,'rm_CH') as b1;
 select * from v1;
@@ -153,3 +155,29 @@ drop view v1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+#
+# MDEV-11553 Can't restore a PERSISTENT column that uses DATE_FORMAT()
+#
+# 3-argument syntax for DATE_FORMAT()
+select date_format('2001-01-01', '%w %a %W', 'ro_RO');
+select date_format('2001-01-03', '%w %a %W', 'ro_RO');
+select date_format('2001-01-05', '%w %a %W', 'ro_RO');
+select date_format('2001-01-07', '%w %a %W', 'ro_RO');
+select date_format('2001-01-01', '%w %a %W', 'de_AT');
+select date_format('2001-02-01', '%w %a %W', 'de_AT');
+select date_format('2001-03-01', '%w %a %W', 'de_AT');
+select date_format('2001-01-01', '%w %a %W', 'en_US');
+select date_format('2001-03-01', '%c %b %M', 'en_US');
+select date_format('2001-01-01', '%w %a %W', 'rm_CH');
+select date_format('2001-01-03', '%w %a %W', 'rm_CH');
+select date_format('2001-01-05', '%w %a %W', 'rm_CH');
+select date_format('2001-01-07', '%w %a %W', 'rm_CH');
+select date_format('2001-02-01', '%c %b %M', 'rm_CH');
+select date_format('2001-04-01', '%c %b %M', 'rm_CH');
+select date_format('2001-06-01', '%c %b %M', 'rm_CH');
+select date_format('2001-08-01', '%c %b %M', 'rm_CH');
+select date_format('2001-10-01', '%c %b %M', 'rm_CH');
+select date_format('2001-12-01', '%c %b %M', 'rm_CH');
+select date_format('2001-01-06', '%w %a %W', 'de_CH');
+select date_format('2001-09-01', '%c %b %M', 'de_CH');

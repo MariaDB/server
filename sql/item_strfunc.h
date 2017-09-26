@@ -27,8 +27,6 @@
 
 extern size_t username_char_length;
 
-class MY_LOCALE;
-
 class Item_str_func :public Item_func
 {
 protected:
@@ -825,7 +823,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
   {
-    max_length= (username_char_length +
+    max_length= (uint32) (username_char_length +
                  HOSTNAME_LENGTH + 1) * SYSTEM_CHARSET_MBMAXLEN;
   }
   const char *func_name() const { return "user"; }
@@ -867,7 +865,7 @@ public:
     Item_func_sysconst(thd), context(context_arg) {}
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
-  { max_length= username_char_length * SYSTEM_CHARSET_MBMAXLEN; }
+  { max_length= (uint32) username_char_length * SYSTEM_CHARSET_MBMAXLEN; }
   int save_in_field(Field *field, bool no_conversions)
   { return save_str_value_in_field(field, &str_value); }
   const char *func_name() const { return "current_role"; }
@@ -932,14 +930,13 @@ public:
 
 class Item_func_format :public Item_str_ascii_func
 {
-  MY_LOCALE *locale;
+  const MY_LOCALE *locale;
 public:
   Item_func_format(THD *thd, Item *org, Item *dec):
     Item_str_ascii_func(thd, org, dec) {}
   Item_func_format(THD *thd, Item *org, Item *dec, Item *lang):
     Item_str_ascii_func(thd, org, dec, lang) {}
 
-  MY_LOCALE *get_locale(Item *item);
   String *val_str_ascii(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "format"; }

@@ -16,8 +16,8 @@
 # so if it is needed, it should be set explicitly before each call.
 #
 
---source include/master-slave.inc
 --source include/have_innodb.inc
+--source include/master-slave.inc
 
 connection slave;
 # Test that SUPER is required to change @@replicate_events_marked_for_skip.
