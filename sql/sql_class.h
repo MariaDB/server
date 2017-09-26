@@ -1069,6 +1069,10 @@ public:
   {
     return static_cast<uint32>(query_string.length());
   }
+  inline char *query_end() const
+  {
+    return query_string.str() + query_string.length();
+  }
   CHARSET_INFO *query_charset() const { return query_string.charset(); }
   void set_query_inner(const CSET_STRING &string_arg)
   {

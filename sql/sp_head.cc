@@ -545,6 +545,7 @@ sp_head::sp_head(const Sp_handler *sph)
    Database_qualified_name(&null_clex_str, &null_clex_str),
    m_handler(sph),
    m_flags(0),
+   m_tmp_query(NULL),
    m_explicit_name(false),
    /*
      FIXME: the only use case when name is NULL is events, and it should

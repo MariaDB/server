@@ -11983,9 +11983,7 @@ limit_option:
           LEX *lex= thd->lex;
           Lex_input_stream *lip= & thd->m_parser_state->m_lip;
           if (!($$= lex->create_item_limit(thd, &$1,
-                                           $1.m_pos -
-                                           lex->substatement_query(thd),
-                                           lip->get_tok_end() - $1.m_pos)))
+                                           $1.m_pos, lip->get_tok_end())))
             MYSQL_YYABORT;
         }
         | ident_with_tok_start '.' ident
@@ -11993,9 +11991,7 @@ limit_option:
           LEX *lex= thd->lex;
           Lex_input_stream *lip= & thd->m_parser_state->m_lip;
           if (!($$= lex->create_item_limit(thd, &$1, &$3,
-                                           $1.m_pos -
-                                           lex->substatement_query(thd),
-                                           lip->get_ptr() - $1.m_pos)))
+                                           $1.m_pos, lip->get_ptr())))
             MYSQL_YYABORT;
         }
         | param_marker
@@ -14315,9 +14311,7 @@ simple_ident:
           {
             LEX *lex= thd->lex;
             if (!($$= lex->create_item_ident(thd, &$1, &$3,
-                                             $1.m_pos -
-                                             lex->substatement_query(thd),
-                                             YYLIP->get_tok_end() - $1.m_pos)))
+                                             $1.m_pos, YYLIP->get_tok_end())))
               MYSQL_YYABORT;
           }
         ;
