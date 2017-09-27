@@ -1937,15 +1937,7 @@ dict_table_is_discarded(
 	const dict_table_t*	table)	/*!< in: table to check */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/********************************************************************//**
-Check if it is a temporary table.
-@return true if temporary table flag is set. */
-UNIV_INLINE
-bool
-dict_table_is_temporary(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
+#define dict_table_is_temporary(table) (table)->is_temporary()
 
 /********************************************************************//**
 Turn-off redo-logging if temporary table. */

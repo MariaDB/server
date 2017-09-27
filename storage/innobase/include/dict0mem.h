@@ -1486,6 +1486,12 @@ struct dict_table_t {
 	{
 		return !(~flags & DICT_TF_MASK_NO_ROLLBACK);
         }
+	/** @return whether this is a temporary table */
+	bool is_temporary() const
+	{
+		return flags2 & DICT_TF2_TEMPORARY;
+	}
+
 	/** @return whether this table is readable
 	@retval	true	normally
 	@retval	false	if this is a single-table tablespace
@@ -1902,8 +1908,8 @@ inline bool dict_index_t::is_instant() const
 	ut_ad(n_core_fields <= n_fields);
 	ut_ad(n_core_fields == n_fields
 	      || (type & ~(DICT_UNIQUE | DICT_CORRUPT)) == DICT_CLUSTERED);
-	ut_ad(n_core_fields == n_fields
-	      || !(table->flags & DICT_TF_MASK_ZIP_SSIZE));
+	ut_ad(n_core_fields == n_fields || table->supports_instant());
+	ut_ad(n_core_fields == n_fields || !table->is_temporary());
 	return(n_core_fields != n_fields);
 }
 
