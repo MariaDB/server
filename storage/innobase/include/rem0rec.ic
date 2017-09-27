@@ -1224,6 +1224,7 @@ rec_set_nth_field(
 
 	ut_ad(rec);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
+	ut_ad(!rec_offs_nth_default(offsets, n));
 
 	if (len == UNIV_SQL_NULL) {
 		if (!rec_offs_nth_sql_null(offsets, n)) {
@@ -1234,7 +1235,6 @@ rec_set_nth_field(
 		return;
 	}
 
-	ut_ad(!rec_offs_nth_default(offsets, n));
 	data2 = (byte*)rec_get_nth_field(rec, offsets, n, &len2);
 	if (len2 == UNIV_SQL_NULL) {
 		ut_ad(!rec_offs_comp(offsets));
