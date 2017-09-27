@@ -1135,6 +1135,8 @@ public:
     auto_increment_column_changed
      -------------------------------------------------------------------------
   */
+  virtual bool need_info_for_auto_inc();
+  virtual bool can_use_for_auto_inc_init();
   virtual void get_auto_increment(ulonglong offset, ulonglong increment,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
@@ -1142,16 +1144,17 @@ public:
   virtual void release_auto_increment();
 private:
   virtual int reset_auto_increment(ulonglong value);
+  void update_next_auto_inc_val();
   virtual void lock_auto_increment()
   {
     /* lock already taken */
     if (auto_increment_safe_stmt_log_lock)
       return;
-    DBUG_ASSERT(!auto_increment_lock);
-    if(table_share->tmp_table == NO_TMP_TABLE)
+    if (table_share->tmp_table == NO_TMP_TABLE)
     {
-      auto_increment_lock= TRUE;
       part_share->lock_auto_inc();
+      DBUG_ASSERT(!auto_increment_lock);
+      auto_increment_lock= TRUE;
     }
   }
   virtual void unlock_auto_increment()
@@ -1161,10 +1164,10 @@ private:
       It will be set to false and thus unlocked at the end of the statement by
       ha_partition::release_auto_increment.
     */
-    if(auto_increment_lock && !auto_increment_safe_stmt_log_lock)
+    if (auto_increment_lock && !auto_increment_safe_stmt_log_lock)
     {
-      part_share->unlock_auto_inc();
       auto_increment_lock= FALSE;
+      part_share->unlock_auto_inc();
     }
   }
   virtual void set_auto_increment_if_higher(Field *field)
@@ -1172,7 +1175,8 @@ private:
     ulonglong nr= (((Field_num*) field)->unsigned_flag ||
                    field->val_int() > 0) ? field->val_int() : 0;
     lock_auto_increment();
-    DBUG_ASSERT(part_share->auto_inc_initialized);
+    DBUG_ASSERT(part_share->auto_inc_initialized ||
+                !can_use_for_auto_inc_init());
     /* must check when the mutex is taken */
     if (nr >= part_share->next_auto_inc_val)
       part_share->next_auto_inc_val= nr + 1;

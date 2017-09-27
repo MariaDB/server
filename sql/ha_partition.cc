@@ -4232,15 +4232,8 @@ int ha_partition::write_row(uchar * buf)
   */
   if (have_auto_increment)
   {
-    if (!part_share->auto_inc_initialized &&
-        !table_share->next_number_keypart)
-    {
-      /*
-        If auto_increment in table_share is not initialized, start by
-        initializing it.
-      */
-      info(HA_STATUS_AUTO);
-    }
+    if (!table_share->next_number_keypart)
+      update_next_auto_inc_val();
     error= update_auto_increment();
 
     /*
@@ -4433,8 +4426,11 @@ exit:
       bitmap_is_set(table->write_set,
                     table->found_next_number_field->field_index))
   {
-    if (!part_share->auto_inc_initialized)
-      info(HA_STATUS_AUTO);
+    update_next_auto_inc_val();
+    /*
+      The following call is safe as part_share->auto_inc_initialized
+      (tested in the call) is guaranteed to be set for update statements.
+    */
     set_auto_increment_if_higher(table->found_next_number_field);
   }
   DBUG_RETURN(error);
@@ -8114,7 +8110,8 @@ int ha_partition::info(uint flag)
         {
           set_if_bigger(part_share->next_auto_inc_val,
                         auto_increment_value);
-          part_share->auto_inc_initialized= true;
+          if (can_use_for_auto_inc_init())
+            part_share->auto_inc_initialized= true;
           DBUG_PRINT("info", ("initializing next_auto_inc_val to %lu",
                        (ulong) part_share->next_auto_inc_val));
         }
@@ -10082,6 +10079,82 @@ int ha_partition::cmp_ref(const uchar *ref1, const uchar *ref2)
 ****************************************************************************/
 
 
+/**
+   Retreive new values for part_share->next_auto_inc_val if needed
+
+   This is needed if the value has not been initialized or if one of
+   the underlying partitions require that the value should be re-calculated
+*/
+
+void ha_partition::update_next_auto_inc_val()
+{
+  if (!part_share->auto_inc_initialized ||
+      need_info_for_auto_inc())
+    info(HA_STATUS_AUTO);
+}
+
+
+/**
+  Determine whether a partition needs auto-increment initialization.
+
+  @return
+    TRUE                    A  partition needs auto-increment initialization
+    FALSE                   No partition needs auto-increment initialization
+
+  Resets part_share->auto_inc_initialized if next auto_increment needs to be
+  recalculated.
+*/
+
+bool ha_partition::need_info_for_auto_inc()
+{
+  handler **file= m_file;
+  DBUG_ENTER("ha_partition::need_info_for_auto_inc");
+
+  do
+  {
+    if ((*file)->need_info_for_auto_inc())
+    {
+      /* We have to get new auto_increment values from handler */
+      part_share->auto_inc_initialized= FALSE;
+      DBUG_RETURN(TRUE);
+    }
+  } while (*(++file));
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
+  Determine if all partitions can use the current auto-increment value for
+  auto-increment initialization.
+
+  @return
+    TRUE                    All partitions can use the current auto-increment
+                            value for auto-increment initialization
+    FALSE                   All partitions cannot use the current
+                            auto-increment value for auto-increment
+                            initialization
+
+  Notes
+    This function is only called for ::info(HA_STATUS_AUTO) and is
+    mainly used by the Spider engine, which returns false
+    except in the case of DROP TABLE or ALTER TABLE when it returns TRUE.
+    Other engines always returns TRUE for this call.
+*/
+
+bool ha_partition::can_use_for_auto_inc_init()
+{
+  handler **file= m_file;
+  DBUG_ENTER("ha_partition::can_use_for_auto_inc_init");
+
+  do
+  {
+    if (!(*file)->can_use_for_auto_inc_init())
+      DBUG_RETURN(FALSE);
+  } while (*(++file));
+  DBUG_RETURN(TRUE);
+}
+
+
 int ha_partition::reset_auto_increment(ulonglong value)
 {
   handler **file= m_file;
@@ -10171,8 +10244,8 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
       based replication. Because the statement-based binary log contains
       only the first generated value used by the statement, and slaves assumes
       all other generated values used by this statement were consecutive to
-      this first one, we must exclusively lock the generator until the statement
-      is done.
+      this first one, we must exclusively lock the generator until the
+      statement is done.
     */
     if (!auto_increment_safe_stmt_log_lock &&
         thd->lex->sql_command != SQLCOM_INSERT &&
