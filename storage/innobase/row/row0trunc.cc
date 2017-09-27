@@ -1882,8 +1882,6 @@ row_truncate_table_for_mysql(
 	we need to use index locks to sync up */
 	dict_table_x_lock_indexes(table);
 
-	dict_table_get_first_index(table)->remove_instant();
-
 	if (!dict_table_is_temporary(table)) {
 
 		if (is_file_per_table) {
@@ -1971,7 +1969,10 @@ row_truncate_table_for_mysql(
 			return(row_truncate_complete(
 				table, trx, fsp_flags, logger, err));
 		}
+
+		dict_table_get_first_index(table)->remove_instant();
 	} else {
+		ut_ad(!table->is_instant());
 		/* For temporary tables we don't have entries in SYSTEM TABLES*/
 		ut_ad(fsp_is_system_temporary(table->space));
 		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
