@@ -215,7 +215,7 @@ public:
     m_sp_cache_version= version_arg;
   }
 
-  sp_rcontext *rcontext_create(THD *thd, Field *retval);
+  sp_rcontext *rcontext_create(THD *thd, Field *retval, List<Item> *args);
 
 private:
   /**

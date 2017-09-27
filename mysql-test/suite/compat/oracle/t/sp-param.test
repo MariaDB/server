@@ -35,3 +35,85 @@ SET sql_mode=ORACLE;
 --let type = RAW
 --let length = 4000
 --source sp-param.inc
+
+--echo
+--echo MDEV-13919 sql_mode=ORACLE: Derive length of VARCHAR SP parameters with no length from actual parameters
+--echo
+set sql_mode= 'oracle,strict_trans_tables';
+delimiter /;
+CREATE OR REPLACE PROCEDURE p1(pinout INOUT varchar, pin IN varchar)
+AS
+BEGIN
+  pinout:=pin;
+END;
+/
+call p1(@w,'0123456789')
+/
+declare w varchar(10);
+begin
+  call p1(w,'0123456789');
+end;
+/
+--error ER_DATA_TOO_LONG
+declare w varchar(5);
+begin
+  call p1(w,'0123456789');
+end;
+/
+declare w varchar(20);
+begin
+  w:='aaa';
+  call p1(w,'0123456789');
+end;
+/
+--error ER_DATA_TOO_LONG
+declare w varchar(8);
+begin
+  w:='aaa';
+  call p1(w,'0123456789');
+end;
+/
+declare str varchar(6000);
+        pout varchar(6000);
+begin
+  str:=lpad('x',6000,'y');
+  call p1(pout,str);
+  select length(pout);
+end;
+/
+--error ER_DATA_TOO_LONG
+declare str varchar(6000);
+        pout varchar(4000);
+begin
+  str:=lpad('x',6000,'y');
+  call p1(pout,str);
+  select length(pout);
+end;
+/
+declare str varchar(40000);
+        pout varchar(60000);
+begin
+  str:=lpad('x',40000,'y');
+  call p1(pout,str);
+  select length(pout);
+end;
+/
+--error ER_DATA_TOO_LONG
+declare str text(80000);
+        pout text(80000);
+begin
+  str:=lpad('x',80000,'y');
+  call p1(pout,str);
+  select length(pout);
+end;
+/
+declare str text(80000);
+        pout text(80000);
+begin
+  str:=lpad('x',60000,'y');
+  call p1(pout,str);
+  select length(pout);
+end;
+/
+drop procedure p1
+/
