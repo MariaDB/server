@@ -24,13 +24,13 @@ INSERT INTO child VALUES (1);
 
 -- source include/restart_mysqld.inc
 
-SET SESSION DEBUG='+d,test_upd_stats_if_needed_not_inited';
+set debug_dbug='+d,test_upd_stats_if_needed_not_inited';
 
 # this will cause row_update_statistics_if_needed() to be called for a table
 # that is not opened (child) and thus has table->stat_initialized set to FALSE
 DELETE FROM parent;
 
-SET SESSION DEBUG='-d,test_upd_stats_if_needed_not_inited';
+set debug_dbug='-d,test_upd_stats_if_needed_not_inited';
 
 -- exec grep 'test_upd_stats_if_needed_not_inited was executed' $MYSQLTEST_VARDIR/log/mysqld.1.err || true
 

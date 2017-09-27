@@ -11,7 +11,7 @@ LET $regexp=/FTS_([0-9a-f_]+)([A-Z_]+)/FTS_AUX_\2/;
 
 --echo # Simulating old non-windows(< 5.6.16) data directory
 
-SET GLOBAL DEBUG='+d,innodb_test_wrong_fts_aux_table_name';
+set debug_dbug='+d,innodb_test_wrong_fts_aux_table_name';
 CREATE TABLE t1(a TEXT, b TEXT, FULLTEXT(a, b))engine=innodb;
 INSERT INTO t1 VALUES('TEST1', 'TEST2');
 INSERT INTO t1 VALUES('TEXT1', 'TEXT2');
@@ -33,8 +33,8 @@ DROP TABLE t1;
 --echo # Simulating old windows (< 5.6.16) data directory
 
 let $MYSQLD_DATADIR= `select @@datadir`;
-SET GLOBAL DEBUG='+d,innodb_test_wrong_fts_aux_table_name';
-SET GLOBAL DEBUG='+d,innodb_test_wrong_windows_fts_aux_table_name';
+SET GLOBAL debug_dbug='+d,innodb_test_wrong_fts_aux_table_name';
+SET GLOBAL debug_dbug='+d,innodb_test_wrong_windows_fts_aux_table_name';
 CREATE TABLE t1(a TEXT, b TEXT, FULLTEXT(a, b))engine=innodb;
 INSERT INTO t1 VALUES('TEST1', 'TEST2');
 INSERT INTO t1 VALUES('TEXT1', 'TEXT2');
@@ -81,14 +81,14 @@ call mtr.add_suppression("\\[Warning\\] InnoDB: Parent table of FTS auxiliary ta
 call mtr.add_suppression("\\[ERROR] InnoDB: Flagged corruption of .* in table .* in DROP ORPHANED TABLE");
 call mtr.add_suppression("\\[Warning\\] InnoDB: Setting aux table .* to hex format failed.");
 
-SET GLOBAL DEBUG='+d,innodb_test_wrong_fts_aux_table_name';
+SET GLOBAL debug_dbug='+d,innodb_test_wrong_fts_aux_table_name';
 CREATE TABLE t1(a TEXT, b TEXT, c TEXT, FULLTEXT `AB` (a, b), FULLTEXT `C1` (c));
 INSERT INTO t1 VALUES('TEST1', 'TEST2', 'TEXT3');
 INSERT INTO t1 VALUES('TEXT1', 'TEXT2', 'TEXT5');
 SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ('TEST2');
 SELECT * FROM t1 WHERE MATCH(c) AGAINST ('TEXT5');
 
-SET GLOBAL DEBUG='-d,innodb_test_wrong_fts_sys_table_name';
+SET GLOBAL debug_dbug='-d,innodb_test_wrong_fts_sys_table_name';
 
 # Write file to make mysql-test-run.pl wait for the server to stop
 -- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -138,14 +138,14 @@ DROP TABLE t1;
 
 --echo # Non windows parent table flag failure.
 
-SET GLOBAL DEBUG='+d,innodb_test_wrong_fts_aux_table_name';
+SET GLOBAL debug_dbug='+d,innodb_test_wrong_fts_aux_table_name';
 CREATE TABLE t1(a TEXT, b TEXT, c TEXT, FULLTEXT(a, b), FULLTEXT(c));
 INSERT INTO t1 VALUES('TEST1', 'TEST2', 'TEXT3');
 INSERT INTO t1 VALUES('TEXT1', 'TEXT2', 'TEXT5');
 SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ('TEST2');
 SELECT * FROM t1 WHERE MATCH(c) AGAINST ('TEXT5');
 
-SET GLOBAL DEBUG='-d,innodb_test_wrong_fts_sys_table_name';
+SET GLOBAL debug_dbug='-d,innodb_test_wrong_fts_sys_table_name';
 
 # Write file to make mysql-test-run.pl wait for the server to stop
 -- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -179,14 +179,14 @@ DROP TABLE t1;
 # Remove the orphaned table
 -- source include/restart_mysqld.inc
 
-SET GLOBAL DEBUG='+d,innodb_test_wrong_fts_aux_table_name';
-SET GLOBAL DEBUG='+d,innodb_test_wrong_windows_fts_aux_table_name';
+SET GLOBAL debug_dbug='+d,innodb_test_wrong_fts_aux_table_name';
+SET GLOBAL debug_dbug='+d,innodb_test_wrong_windows_fts_aux_table_name';
 CREATE TABLE t1(a TEXT, b TEXT, c TEXT, FULLTEXT f1(a, b));
 INSERT INTO t1 VALUES('TEST1', 'TEST2', 'TEXT3');
 INSERT INTO t1 VALUES('TEXT1', 'TEXT2', 'TEXT5');
 SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ('TEST2');
 alter table t1 drop index f1;
-SET SESSION debug='-d,innodb_test_wrong_fts_sys_table_name';
+SET SESSION debug_dbug='-d,innodb_test_wrong_fts_sys_table_name';
 --replace_regex $regexp
 SELECT SUBSTRING(name, LOCATE('_', name) - 3, 5) AS prefix, name
 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
@@ -210,15 +210,15 @@ call mtr.add_suppression("\\[Warning\\] InnoDB: Rollback operations on all aux t
 
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Flagged corruption of .* in table .* in DROP ORPHANED TABLE");
 
-SET GLOBAL DEBUG='+d,innodb_test_wrong_fts_aux_table_name';
-SET GLOBAL DEBUG='+d,innodb_test_wrong_windows_fts_aux_table_name';
+SET GLOBAL debug_dbug='+d,innodb_test_wrong_fts_aux_table_name';
+SET GLOBAL debug_dbug='+d,innodb_test_wrong_windows_fts_aux_table_name';
 CREATE TABLE t1(a TEXT, b TEXT, c TEXT, FULLTEXT `AB`(a, b), FULLTEXT `C1`(c));
 INSERT INTO t1 VALUES('TEST1', 'TEST2', 'TEXT3');
 INSERT INTO t1 VALUES('TEXT1', 'TEXT2', 'TEXT5');
 SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ('TEST2');
 SELECT * FROM t1 WHERE MATCH(c) AGAINST ('TEXT5');
 
-SET SESSION debug='-d,innodb_test_wrong_fts_sys_table_name';
+SET SESSION debug_dbug='-d,innodb_test_wrong_fts_sys_table_name';
 
 # Write file to make mysql-test-run.pl wait for the server to stop
 -- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
