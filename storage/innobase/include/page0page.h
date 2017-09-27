@@ -284,6 +284,20 @@ page_rec_is_comp(const byte* rec)
 	return(page_is_comp(page_align(rec)));
 }
 
+# ifdef UNIV_DEBUG
+/** Determine if the record is the 'default row' pseudo-record
+in the clustered index.
+@param[in]	rec	leaf page record on an index page
+@return	whether the record is the 'default row' pseudo-record */
+inline
+bool
+page_rec_is_default_row(const rec_t* rec)
+{
+	return rec_get_info_bits(rec, page_rec_is_comp(rec))
+		& REC_INFO_MIN_REC_FLAG;
+}
+# endif /* UNIV_DEBUG */
+
 /** Determine the offset of the infimum record on the page.
 @param[in]	page	index page
 @return offset of the infimum record in record list, relative from page */
