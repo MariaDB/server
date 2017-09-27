@@ -130,3 +130,89 @@ t1	CREATE TABLE "t1" (
 )
 DROP TABLE t1;
 DROP FUNCTION f1;
+
+MDEV-13919 sql_mode=ORACLE: Derive length of VARCHAR SP parameters with no length from actual parameters
+
+set sql_mode= 'oracle,strict_trans_tables';
+CREATE OR REPLACE PROCEDURE p1(pinout INOUT varchar, pin IN varchar)
+AS
+BEGIN
+pinout:=pin;
+END;
+/
+call p1(@w,'0123456789')
+/
+declare w varchar(10);
+begin
+call p1(w,'0123456789');
+end;
+/
+declare w varchar(5);
+begin
+call p1(w,'0123456789');
+end;
+/
+ERROR 22001: Data too long for column 'pinout' at row 1
+declare w varchar(20);
+begin
+w:='aaa';
+call p1(w,'0123456789');
+end;
+/
+declare w varchar(8);
+begin
+w:='aaa';
+call p1(w,'0123456789');
+end;
+/
+ERROR 22001: Data too long for column 'pinout' at row 1
+declare str varchar(6000);
+pout varchar(6000);
+begin
+str:=lpad('x',6000,'y');
+call p1(pout,str);
+select length(pout);
+end;
+/
+length(pout)
+6000
+declare str varchar(6000);
+pout varchar(4000);
+begin
+str:=lpad('x',6000,'y');
+call p1(pout,str);
+select length(pout);
+end;
+/
+ERROR 22001: Data too long for column 'pinout' at row 1
+declare str varchar(40000);
+pout varchar(60000);
+begin
+str:=lpad('x',40000,'y');
+call p1(pout,str);
+select length(pout);
+end;
+/
+length(pout)
+40000
+declare str text(80000);
+pout text(80000);
+begin
+str:=lpad('x',80000,'y');
+call p1(pout,str);
+select length(pout);
+end;
+/
+ERROR 22001: Data too long for column 'pin' at row 1
+declare str text(80000);
+pout text(80000);
+begin
+str:=lpad('x',60000,'y');
+call p1(pout,str);
+select length(pout);
+end;
+/
+length(pout)
+60000
+drop procedure p1
+/

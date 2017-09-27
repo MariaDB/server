@@ -63,7 +63,8 @@ sp_rcontext::~sp_rcontext()
 sp_rcontext *sp_rcontext::create(THD *thd,
                                  const sp_pcontext *root_parsing_ctx,
                                  Field *return_value_fld,
-                                 bool resolve_type_refs)
+                                 bool resolve_type_refs,
+                                 List<Item> *args)
 {
   sp_rcontext *ctx= new (thd->mem_root) sp_rcontext(root_parsing_ctx,
                                                     return_value_fld,
@@ -75,6 +76,10 @@ sp_rcontext *sp_rcontext::create(THD *thd,
   List<Spvar_definition> field_def_lst;
   ctx->m_root_parsing_ctx->retrieve_field_definitions(&field_def_lst);
 
+  if (args &&
+      ctx->adjust_formal_params_to_actual_params(thd, field_def_lst, args))
+    return NULL;
+
   if (ctx->alloc_arrays(thd) ||
       (resolve_type_refs && ctx->resolve_type_refs(thd, field_def_lst)) ||
       ctx->init_var_table(thd, field_def_lst) ||
@@ -85,6 +90,24 @@ sp_rcontext *sp_rcontext::create(THD *thd,
   }
 
   return ctx;
+}
+
+
+bool sp_rcontext::adjust_formal_params_to_actual_params(THD *thd,
+                                         List<Spvar_definition> &field_def_lst,
+                                         List<Item> *args)
+{
+  List_iterator<Spvar_definition> it(field_def_lst);
+  List_iterator<Item> it_args(*args);
+  DBUG_ASSERT(field_def_lst.elements >= args->elements );
+  Spvar_definition *def;
+  Item *arg;
+  while ((def= it++) && (arg= it_args++))
+  {
+    if (def->type_handler()->adjust_spparam_type(def, arg))
+      true;
+  }
+  return false;
 }
 
 

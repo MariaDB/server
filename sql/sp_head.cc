@@ -1439,7 +1439,8 @@ bool sp_head::check_execute_access(THD *thd) const
   @retval           NULL - error (access denided or EOM)
   @retval          !NULL - success (the invoker has rights to all %TYPE tables)
 */
-sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value)
+sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
+                                      List<Item> *args)
 {
   bool has_column_type_refs= m_flags & HAS_COLUMN_TYPE_REFS;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -1449,7 +1450,7 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value)
     return NULL;
 #endif
   sp_rcontext *res= sp_rcontext::create(thd, m_pcont, ret_value,
-                                        has_column_type_refs);
+                                        has_column_type_refs, args);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (has_column_type_refs)
     m_security_ctx.restore_security_context(thd, save_security_ctx);
@@ -1556,7 +1557,7 @@ sp_head::execute_trigger(THD *thd,
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   if (!(nctx= sp_rcontext::create(thd, m_pcont, NULL,
-                                  m_flags & HAS_COLUMN_TYPE_REFS)))
+                                  m_flags & HAS_COLUMN_TYPE_REFS, NULL)))
   {
     err_status= TRUE;
     goto err_with_cleanup;
@@ -1637,6 +1638,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   MEM_ROOT call_mem_root;
   Query_arena call_arena(&call_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
   Query_arena backup_arena;
+  List<Item> largs;
   DBUG_ENTER("sp_head::execute_function");
   DBUG_PRINT("info", ("function %s", m_name.str));
 
@@ -1671,7 +1673,12 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
-  if (!(nctx= rcontext_create(thd, return_value_fld)))
+  for (uint i= 0 ; i < argcount ; i++)
+  {
+    largs.push_back(argp[i]);
+  }
+
+  if (!(nctx= rcontext_create(thd, return_value_fld, &largs)))
   {
     thd->restore_active_arena(&call_arena, &backup_arena);
     err_status= TRUE;
@@ -1886,7 +1893,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (! octx)
   {
     /* Create a temporary old context. */
-    if (!(octx= rcontext_create(thd, NULL)))
+    if (!(octx= rcontext_create(thd, NULL, args)))
     {
       DBUG_PRINT("error", ("Could not create octx"));
       DBUG_RETURN(TRUE);
@@ -1901,7 +1908,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     thd->spcont->callers_arena= thd;
   }
 
-  if (!(nctx= rcontext_create(thd, NULL)))
+  if (!(nctx= rcontext_create(thd, NULL, args)))
   {
     delete nctx; /* Delete nctx if it was init() that failed. */
     thd->spcont= save_spcont;

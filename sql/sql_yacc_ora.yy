@@ -1054,8 +1054,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <const_simple_string>
         field_length opt_field_length opt_field_length_default_1
-        opt_field_length_default_sp_param_varchar
-        opt_field_length_default_sp_param_char
 
 %type <string>
         text_string hex_or_bin_String opt_gconcat_separator
@@ -1219,6 +1217,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <Lex_cast_type> cast_type cast_type_numeric cast_type_temporal
 
 %type <Lex_length_and_dec> precision opt_precision float_options
+        opt_field_length_default_sp_param_varchar
+        opt_field_length_default_sp_param_char
 
 %type <symbol> keyword keyword_sp
                keyword_directly_assignable
@@ -6549,9 +6549,11 @@ opt_field_length_default_1:
 
 
 /*
-  In sql_mode=ORACLE, a VARCHAR with no length is used
-  in SP parameters and return values and it's translated to VARCHAR(4000),
-  where 4000 is the maximum possible size for VARCHAR.
+  In sql_mode=ORACLE, real size of VARCHAR and CHAR with no length
+  in SP parameters is fixed at runtime with the length of real args.
+  Let's translate VARCHAR to VARCHAR(4000) for return value.
+
+  Since Oracle 9, maximum size for VARCHAR in PL/SQL is 32767.
 
   In MariaDB the limit for VARCHAR is 65535 bytes.
   We could translate VARCHAR with no length to VARCHAR(65535), but
@@ -6562,17 +6564,14 @@ opt_field_length_default_1:
   the maximum possible length in characters in case of mbmaxlen=4
   (e.g. utf32, utf16, utf8mb4). However, we'll have character sets with
   mbmaxlen=5 soon (e.g. gb18030).
-
-  Let's translate VARCHAR to VARCHAR(4000), which covert all possible Oracle
-  values.
 */
 opt_field_length_default_sp_param_varchar:
-          /* empty */  { $$= (char*) "4000"; }
-        | field_length { $$= $1; }
+          /* empty */  { $$.set("4000", "4000"); }
+        | field_length { $$.set($1, NULL); }
 
 opt_field_length_default_sp_param_char:
-          /* empty */  { $$= (char*) "2000"; }
-        | field_length { $$= $1; }
+          /* empty */  { $$.set("2000", "2000"); }
+        | field_length { $$.set($1, NULL); }
 
 opt_precision:
           /* empty */    { $$.set(0, 0); }
