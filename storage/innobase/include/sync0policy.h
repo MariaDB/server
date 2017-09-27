@@ -52,7 +52,7 @@ public:
 			m_line(),
 			m_thread_id(os_thread_id_t(ULINT_UNDEFINED))
 		{
-			/* No op */
+			m_thread_id_mutex.init();
 		}
 
 		/** Create the context for SyncDebug
@@ -61,7 +61,15 @@ public:
 			:
 			latch_t(id)
 		{
+			m_thread_id_mutex.init();
+
 			ut_ad(id != LATCH_ID_NONE);
+		}
+
+		/** Destructor */
+		~Context()
+		{
+			m_thread_id_mutex.destroy();
 		}
 
 		/** Set to locked state
@@ -76,7 +84,7 @@ public:
 		{
 			m_mutex = mutex;
 
-			m_thread_id = os_thread_get_curr_id();
+			set_thread_id(os_thread_get_curr_id());
 
 			m_filename = filename;
 
@@ -89,7 +97,7 @@ public:
 		{
 			m_mutex = NULL;
 
-			m_thread_id = os_thread_id_t(ULINT_UNDEFINED);
+			set_thread_id(os_thread_id_t(ULINT_UNDEFINED));
 
 			m_filename = NULL;
 
@@ -105,7 +113,7 @@ public:
 
 			msg << m_mutex->policy().to_string();
 
-			if (os_thread_pf(m_thread_id) != ULINT_UNDEFINED) {
+			if (os_thread_pf(get_thread_id()) != ULINT_UNDEFINED) {
 
 				msg << " addr: " << m_mutex
 				    << " acquired: " << locked_from().c_str();
@@ -128,6 +136,28 @@ public:
 			return(std::string(msg.str()));
 		}
 
+		/** Synchronized m_thread_id getter */
+		os_thread_id_t get_thread_id() const
+		{
+			m_thread_id_mutex.enter();
+
+			os_thread_id_t thread_id = m_thread_id;
+
+			m_thread_id_mutex.exit();
+
+			return thread_id;
+		}
+
+		/** Synchronized m_thread_id setter */
+		void set_thread_id(os_thread_id_t thread_id)
+		{
+			m_thread_id_mutex.enter();
+
+			m_thread_id = thread_id;
+
+			m_thread_id_mutex.exit();
+		}
+
 		/** Mutex to check for lock order violation */
 		const Mutex*	m_mutex;
 
@@ -137,8 +167,13 @@ public:
 		/** Line mumber in filename */
 		unsigned	m_line;
 
-		/** Thread ID of the thread that own(ed) the mutex */
+	private:
+		/** Thread ID of the thread that own(ed) the mutex
+		Guarded by m_thread_id_mutex */
 		os_thread_id_t	m_thread_id;
+
+		/** Mutex to m_thread_id */
+		mutable OSMutex m_thread_id_mutex;
 	};
 
 	/** Constructor. */
@@ -157,11 +192,11 @@ public:
 	/** Mutex is being destroyed. */
 	void destroy() UNIV_NOTHROW
 	{
-		ut_ad(m_context.m_thread_id == os_thread_id_t(ULINT_UNDEFINED));
+		ut_ad(m_context.get_thread_id() == os_thread_id_t(ULINT_UNDEFINED));
 
 		m_magic_n = 0;
 
-		m_context.m_thread_id = 0;
+		m_context.set_thread_id(0);
 	}
 
 	/** Called when the mutex is "created". Note: Not from the constructor
@@ -199,7 +234,7 @@ public:
 	bool is_owned() const UNIV_NOTHROW
 	{
 		return(os_thread_eq(
-				m_context.m_thread_id,
+				get_thread_id(),
 				os_thread_get_curr_id()));
 	}
 
@@ -221,7 +256,7 @@ public:
 	os_thread_id_t get_thread_id() const
 		UNIV_NOTHROW
 	{
-		return(m_context.m_thread_id);
+		return(m_context.get_thread_id());
 	}
 
 	/** Magic number to check for memory corruption. */
