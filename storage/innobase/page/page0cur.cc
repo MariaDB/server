@@ -2033,9 +2033,9 @@ page_copy_rec_list_end_to_created_page(
 	ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 	ut_ad(page_align(rec) != new_page);
 	ut_ad(page_rec_is_comp(rec) == page_is_comp(new_page));
-	/* This function is never invoked on the clustered index root page.
-	For other pages, this field must be zero-initialized. */
-	ut_ad(!page_get_instant(new_page));
+	/* This function is never invoked on the clustered index root page,
+	except in btr_lift_page_up(). */
+	ut_ad(!page_get_instant(new_page) || page_is_root(new_page));
 
 	if (page_rec_is_infimum(rec)) {
 

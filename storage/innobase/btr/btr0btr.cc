@@ -3540,6 +3540,19 @@ btr_lift_page_up(
 
 	/* Make the father empty */
 	btr_page_empty(father_block, father_page_zip, index, page_level, mtr);
+	/* btr_page_empty() is supposed to zero-initialize the field. */
+	ut_ad(!page_get_instant(father_block->frame));
+
+	if (page_level == 0 && index->is_instant()) {
+		ut_ad(!father_page_zip);
+		byte* page_type = father_block->frame + FIL_PAGE_TYPE;
+		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
+		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
+				 MLOG_2BYTES, mtr);
+		page_set_instant(father_block->frame,
+				 index->n_core_fields, mtr);
+	}
+
 	page_level++;
 
 	/* Copy the records to the father page one by one. */
@@ -4206,6 +4219,7 @@ btr_discard_only_page_on_level(
 
 	/* block is the root page, which must be empty, except
 	for the node pointer to the (now discarded) block(s). */
+	ut_ad(page_is_root(block->frame));
 
 #ifdef UNIV_BTR_DEBUG
 	if (!dict_index_is_ibuf(index)) {
@@ -4220,9 +4234,14 @@ btr_discard_only_page_on_level(
 
 	btr_page_empty(block, buf_block_get_page_zip(block), index, 0, mtr);
 	ut_ad(page_is_leaf(buf_block_get_frame(block)));
+	/* btr_page_empty() is supposed to zero-initialize the field. */
+	ut_ad(!page_get_instant(block->frame));
 
-	if (!dict_index_is_clust(index)
-	    && !dict_table_is_temporary(index->table)) {
+	if (index->is_clust()) {
+		/* Concurrent access is prevented by the root_block->lock
+		X-latch, so this should be safe. */
+		index->remove_instant();
+	} else if (!index->table->is_temporary()) {
 		/* We play it safe and reset the free bits for the root */
 		ibuf_reset_free_bits(block);
 
