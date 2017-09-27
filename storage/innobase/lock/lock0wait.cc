@@ -197,7 +197,7 @@ wsrep_is_BF_lock_timeout(
 /*====================*/
     trx_t* trx) /* in: trx to check for lock priority */
 {
-       if (wsrep_on(trx->mysql_thd) &&
+       if (wsrep_on_trx(trx) &&
            wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
                fprintf(stderr, "WSREP: BF lock wait long\n");
                 srv_print_innodb_monitor       = TRUE;
@@ -402,7 +402,7 @@ lock_wait_suspend_thread(
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout) {
 #ifdef WITH_WSREP
-                if (!wsrep_on(trx->mysql_thd) ||
+                if (!wsrep_on_trx(trx) ||
                     (!wsrep_is_BF_lock_timeout(trx) &&
                      trx->error_state != DB_DEADLOCK)) {
 #endif /* WITH_WSREP */

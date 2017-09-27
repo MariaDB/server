@@ -1983,7 +1983,7 @@ row_upd_sec_index_entry(
 			}
 #ifdef WITH_WSREP
 			if (err == DB_SUCCESS && !referenced                  &&
-			    wsrep_on(trx->mysql_thd)                          &&
+			    wsrep_on_trx(trx)                                 &&
 			    !wsrep_thd_is_BF(trx->mysql_thd, FALSE)           &&
 			    !(parent && que_node_get_type(parent) ==
 				QUE_NODE_UPDATE                               &&
@@ -2270,7 +2270,7 @@ err_exit:
 			}
 		}
 #ifdef WITH_WSREP
-		if (!referenced && wsrep_on(trx->mysql_thd)                  &&
+		if (!referenced && wsrep_on_trx(trx) &&
 		    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
 		      ((upd_node_t*)parent)->cascade_node == node)           &&
 		    foreign
@@ -2536,8 +2536,7 @@ row_upd_del_mark_clust_rec(
 	}
 #ifdef WITH_WSREP
 	trx_t* trx = thr_get_trx(thr) ;
-
-	if (err == DB_SUCCESS && !referenced && trx && wsrep_on(trx->mysql_thd) &&
+	if (err == DB_SUCCESS && !referenced && wsrep_on_trx(trx) &&
 	    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
 	      ((upd_node_t*)parent)->cascade_node == node)           &&
 	    foreign
