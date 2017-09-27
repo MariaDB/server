@@ -569,24 +569,26 @@ err:
 
 static
 bool
-get_vtmd_tables(THD *thd, Dynamic_array<LEX_STRING *> &table_names)
+get_vtmd_tables(THD *thd, const char *db,
+                size_t db_length, Dynamic_array<LEX_STRING *> &table_names)
 {
-  // Note function retrieves table names from current db only.
   LOOKUP_FIELD_VALUES lookup_field_values= {
-      *thd->make_lex_string(thd->db, strlen(thd->db)),
+      *thd->make_lex_string(db, db_length),
       *thd->make_lex_string(C_STRING_WITH_LEN("%_vtmd")), false, true};
 
-  int res= make_table_name_list(thd, &table_names, thd->lex, &lookup_field_values,
-                       &lookup_field_values.db_value);
+  int res=
+      make_table_name_list(thd, &table_names, thd->lex, &lookup_field_values,
+                           &lookup_field_values.db_value);
 
   return res;
 }
 
 bool
-VTMD_table::get_archive_tables(THD *thd, Dynamic_array<String> &result)
+VTMD_table::get_archive_tables(THD *thd, const char *db, size_t db_length,
+                               Dynamic_array<String> &result)
 {
   Dynamic_array<LEX_STRING *> vtmd_tables;
-  if (get_vtmd_tables(thd, vtmd_tables))
+  if (get_vtmd_tables(thd, db, db_length, vtmd_tables))
     return true;
 
   for (uint i= 0; i < vtmd_tables.elements(); i++)
@@ -595,10 +597,8 @@ VTMD_table::get_archive_tables(THD *thd, Dynamic_array<String> &result)
 
     Open_tables_backup open_tables_backup;
     TABLE_LIST table_list;
-    // Assume VTMD tables belongs to current db.
-    table_list.init_one_table(thd->db, strlen(thd->db),
-                              LEX_STRING_WITH_LEN(table_name), table_name.str,
-                              TL_READ);
+    table_list.init_one_table(db, db_length, LEX_STRING_WITH_LEN(table_name),
+                              table_name.str, TL_READ);
 
     TABLE *table= open_log_table(thd, &table_list, &open_tables_backup);
     if (!table)
@@ -633,6 +633,9 @@ VTMD_table::get_archive_tables(THD *thd, Dynamic_array<String> &result)
                              archive_name.length());
       result.push(archive_name);
     }
+    // check for EOF
+    if (!thd->is_error())
+      error= 0;
 
     end_read_record(&read_record);
     delete sql_select;

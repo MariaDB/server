@@ -72,15 +72,15 @@ prepare stmt from concat(a, b, c);
 execute stmt;
 deallocate prepare stmt;
 end~~
-create function get_historical_table_name(table_name_arg varchar(255))
+create function get_archive_table_name()
 returns varchar(255)
 begin
-return (select table_name from information_schema.tables
-where table_schema='test' and table_name like concat(table_name_arg, '_%') limit 1);
+return (select archive_name from t_vtmd for system_time all where archive_name is not NULL
+order by start desc limit 1);
 end~~
-create procedure drop_last_historical(table_name_arg varchar(255))
+create procedure drop_last_archive()
 begin
-call concat_exec2('drop table ', get_historical_table_name(table_name_arg));
+call concat_exec2('drop table ', get_archive_table_name());
 end~~
 set versioning_alter_history= survive;
 create or replace table t (a int) with system versioning;
@@ -91,21 +91,21 @@ alter table t add column b int;
 select * from t;
 a	b
 2	NULL
-call concat_exec3('select * from ', get_historical_table_name('t'), ' for system_time all');
+call concat_exec3('select * from ', get_archive_table_name(), ' for system_time all');
 a
 2
 1
-call concat_exec3('select @tm=sys_trx_start from ', get_historical_table_name('t'), ' for system_time all where a=2');
+call concat_exec3('select @tm=sys_trx_start from ', get_archive_table_name(), ' for system_time all where a=2');
 @tm=sys_trx_start
 1
 select @tm<sys_trx_start from t where a=2;
 @tm<sys_trx_start
 1
 select sys_trx_start from t where a=2 into @tm;
-call concat_exec3('select @tm=sys_trx_end from ', get_historical_table_name('t'), ' for system_time all where a=2');
+call concat_exec3('select @tm=sys_trx_end from ', get_archive_table_name(), ' for system_time all where a=2');
 @tm=sys_trx_end
 1
-call drop_last_historical('t');
+call drop_last_archive();
 set versioning_alter_history= keep;
 drop table t_vtmd;
 drop table t;
@@ -118,21 +118,21 @@ alter table t add column b int;
 select * from t;
 a	b
 2	NULL
-call concat_exec3('select * from ', get_historical_table_name('t'), ' for system_time all');
+call concat_exec3('select * from ', get_archive_table_name(), ' for system_time all');
 a
 2
 1
-call concat_exec3('select @tm=sys_trx_start from ', get_historical_table_name('t'), ' for system_time all where a=2');
+call concat_exec3('select @tm=sys_trx_start from ', get_archive_table_name(), ' for system_time all where a=2');
 @tm=sys_trx_start
 1
 select @tm<sys_trx_start from t where a=2;
 @tm<sys_trx_start
 1
 select sys_trx_start from t where a=2 into @tm;
-call concat_exec3('select @tm=sys_trx_end from ', get_historical_table_name('t'), ' for system_time all where a=2');
+call concat_exec3('select @tm=sys_trx_end from ', get_archive_table_name(), ' for system_time all where a=2');
 @tm=sys_trx_end
 1
-call drop_last_historical('t');
+call drop_last_archive();
 set versioning_alter_history= keep;
 drop table t_vtmd;
 drop table t;
@@ -145,21 +145,21 @@ alter table t add column b int;
 select * from t;
 a	b
 2	NULL
-call concat_exec3('select * from ', get_historical_table_name('t'), ' for system_time all');
+call concat_exec3('select * from ', get_archive_table_name(), ' for system_time all');
 a
 2
 1
-call concat_exec3('select @tm=sys_trx_start from ', get_historical_table_name('t'), ' for system_time all where a=2');
+call concat_exec3('select @tm=sys_trx_start from ', get_archive_table_name(), ' for system_time all where a=2');
 @tm=sys_trx_start
 1
 select @tm<sys_trx_start from t where a=2;
 @tm<sys_trx_start
 1
 select sys_trx_start from t where a=2 into @tm;
-call concat_exec3('select @tm=sys_trx_end from ', get_historical_table_name('t'), ' for system_time all where a=2');
+call concat_exec3('select @tm=sys_trx_end from ', get_archive_table_name(), ' for system_time all where a=2');
 @tm=sys_trx_end
 1
-call drop_last_historical('t');
+call drop_last_archive();
 set versioning_alter_history= keep;
 drop table t_vtmd;
 drop table t;
@@ -169,8 +169,8 @@ insert into t values (1);
 update t set a=2 where a=1;
 alter table t add column b int, algorithm=inplace;
 set versioning_alter_history = keep;
-drop function get_historical_table_name;
-drop procedure drop_last_historical;
+drop function get_archive_table_name;
+drop procedure drop_last_archive;
 select * from mysql.vtmd_template;
 start	end	name	archive_name	col_renames
 show create table mysql.vtmd_template;

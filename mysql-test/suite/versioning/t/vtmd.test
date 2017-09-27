@@ -56,6 +56,15 @@ begin
 end~~
 delimiter ;~~
 
+delimiter ~~;
+create or replace procedure show_tables()
+begin
+  show tables;
+  select table_name, table_schema from information_schema.tables
+    where table_schema not in ('mysql', 'performance_schema', 'information_schema', 'mtr');
+end~~
+delimiter ;~~
+
 # create
 set versioning_alter_history= keep;
 create table t0 (z int) with system versioning;
@@ -136,7 +145,6 @@ create database db0;
 rename table t0 to db0.t0;
 show tables;
 use db0;
---replace_regex /\d{8}_\d{6}_\d{6}/TIMESTAMP_SUFFIX/
 show tables;
 call test.check_vtmd('db0.t0_vtmd');
 
@@ -144,7 +152,6 @@ create database db1;
 rename table t0 to db1.other_name;
 show tables;
 use db1;
---replace_regex /\d{8}_\d{6}_\d{6}/TIMESTAMP_SUFFIX/
 show tables;
 call test.check_vtmd('db1.other_name_vtmd');
 
@@ -155,7 +162,6 @@ call test.check_vtmd('db1.t1_vtmd');
 # alter rename and modify to different schema
 alter table t1 rename to test.t2, add column (y int);
 use test;
---replace_regex /\d{8}_\d{6}_\d{6}/TIMESTAMP_SUFFIX/
 show tables;
 call check_vtmd('t2_vtmd');
 
@@ -163,6 +169,19 @@ create or replace table t3 (x int) with system versioning;
 alter table t3 change x x bigint;
 alter table t3 change x x bigint after sys_trx_start;
 call check_vtmd('t3_vtmd');
+
+set versioning_hide = auto;
+call show_tables();
+
+set versioning_hide = implicit;
+call show_tables();
+
+set versioning_hide = full;
+call show_tables();
+
+set versioning_hide = never;
+--replace_regex /\d{8}_\d{6}_\d{6}/TIMESTAMP_SUFFIX/
+call show_tables();
 
 drop database db0;
 drop database db1;

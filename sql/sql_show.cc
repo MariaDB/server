@@ -4863,6 +4863,59 @@ public:
   }
 };
 
+static bool get_all_archive_tables(THD *thd,
+                                   Dynamic_array<String> &all_archive_tables)
+{
+  if (thd->variables.vers_hide == VERS_HIDE_NEVER)
+    return false;
+
+  Dynamic_array<LEX_STRING *> all_db;
+  LOOKUP_FIELD_VALUES lookup_field_values= {
+      *thd->make_lex_string(C_STRING_WITH_LEN("%")), {NULL, 0}, true, false};
+  if (make_db_list(thd, &all_db, &lookup_field_values))
+    return true;
+
+  LEX_STRING information_schema= {C_STRING_WITH_LEN("information_schema")};
+  for (size_t i= 0; i < all_db.elements(); i++)
+  {
+    LEX_STRING db= *all_db.at(i);
+    if (db.length == information_schema.length &&
+        !memcmp(db.str, information_schema.str, db.length))
+    {
+      all_db.del(i);
+      break;
+    }
+  }
+
+  for (size_t i= 0; i < all_db.elements(); i++)
+  {
+    LEX_STRING db_name= *all_db.at(i);
+    Dynamic_array<String> archive_tables;
+    if (VTMD_table::get_archive_tables(thd, db_name.str, db_name.length,
+                                       archive_tables))
+      return true;
+    for (size_t i= 0; i < archive_tables.elements(); i++)
+      if (all_archive_tables.push(archive_tables.at(i)))
+        return true;
+  }
+
+  return false;
+}
+
+static bool is_archive_table(const Dynamic_array<String> &all_archive_tables,
+                             LEX_STRING candidate)
+{
+  for (size_t i= 0; i < all_archive_tables.elements(); i++)
+  {
+    const String &archive_table= all_archive_tables.at(i);
+    if (candidate.length == archive_table.length() &&
+        !memcmp(candidate.str, archive_table.ptr(), candidate.length))
+    {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
   @brief          Fill I_S tables whose data are retrieved
@@ -4905,6 +4958,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
+  Dynamic_array<String> all_archive_tables;
   DBUG_ENTER("get_all_tables");
 
   /*
@@ -4967,6 +5021,10 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
+
+  if (get_all_archive_tables(thd, all_archive_tables))
+    goto err;
+
   for (size_t i=0; i < db_names.elements(); i++)
   {
     LEX_STRING *db_name= db_names.at(i);
@@ -4991,6 +5049,9 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       {
         LEX_STRING *table_name= table_names.at(i);
         DBUG_ASSERT(table_name->length <= NAME_LEN);
+
+        if (is_archive_table(all_archive_tables, *table_name))
+          continue;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & TABLE_ACLS))

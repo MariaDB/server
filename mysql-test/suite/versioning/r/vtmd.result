@@ -44,6 +44,12 @@ substr(archive_name, 1, instr(archive_name, '_')) as C_archive_name
 from tmp_vtmd for system_time all;
 drop table tmp_vtmd;
 end~~
+create or replace procedure show_tables()
+begin
+show tables;
+select table_name, table_schema from information_schema.tables
+where table_schema not in ('mysql', 'performance_schema', 'information_schema', 'mtr');
+end~~
 set versioning_alter_history= keep;
 create table t0 (z int) with system versioning;
 show tables;
@@ -178,10 +184,6 @@ use db0;
 show tables;
 Tables_in_db0
 t0
-t0_TIMESTAMP_SUFFIX
-t0_TIMESTAMP_SUFFIX
-t0_TIMESTAMP_SUFFIX
-t0_TIMESTAMP_SUFFIX
 t0_vtmd
 call test.check_vtmd('db0.t0_vtmd');
 @start > 0 and @start < @inf
@@ -206,10 +208,6 @@ show tables;
 Tables_in_db1
 other_name
 other_name_vtmd
-t0_TIMESTAMP_SUFFIX
-t0_TIMESTAMP_SUFFIX
-t0_TIMESTAMP_SUFFIX
-t0_TIMESTAMP_SUFFIX
 call test.check_vtmd('db1.other_name_vtmd');
 @start > 0 and @start < @inf
 1
@@ -246,10 +244,6 @@ alter table t1 rename to test.t2, add column (y int);
 use test;
 show tables;
 Tables_in_test
-t0_TIMESTAMP_SUFFIX
-t0_TIMESTAMP_SUFFIX
-t0_TIMESTAMP_SUFFIX
-t0_TIMESTAMP_SUFFIX
 t2
 t2_vtmd
 call check_vtmd('t2_vtmd');
@@ -279,6 +273,67 @@ A_start	B_end	name	C_archive_name
 1	0	t3	t3_
 1	0	t3	t3_
 1	1	t3	NULL
+set versioning_hide = auto;
+call show_tables();
+Tables_in_test
+t2
+t2_vtmd
+t3
+t3_vtmd
+table_name	table_schema
+t2	test
+t2_vtmd	test
+t3	test
+t3_vtmd	test
+set versioning_hide = implicit;
+call show_tables();
+Tables_in_test
+t2
+t2_vtmd
+t3
+t3_vtmd
+table_name	table_schema
+t2	test
+t2_vtmd	test
+t3	test
+t3_vtmd	test
+set versioning_hide = full;
+call show_tables();
+Tables_in_test
+t2
+t2_vtmd
+t3
+t3_vtmd
+table_name	table_schema
+t2	test
+t2_vtmd	test
+t3	test
+t3_vtmd	test
+set versioning_hide = never;
+call show_tables();
+Tables_in_test
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t0_TIMESTAMP_SUFFIX
+t2
+t2_vtmd
+t3
+t3_TIMESTAMP_SUFFIX
+t3_TIMESTAMP_SUFFIX
+t3_vtmd
+table_name	table_schema
+t1_TIMESTAMP_SUFFIX	db1
+t0_TIMESTAMP_SUFFIX	test
+t0_TIMESTAMP_SUFFIX	test
+t0_TIMESTAMP_SUFFIX	test
+t0_TIMESTAMP_SUFFIX	test
+t2	test
+t2_vtmd	test
+t3	test
+t3_TIMESTAMP_SUFFIX	test
+t3_TIMESTAMP_SUFFIX	test
+t3_vtmd	test
 drop database db0;
 drop database db1;
 drop database test;

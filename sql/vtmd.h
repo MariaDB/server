@@ -92,7 +92,8 @@ public:
   }
 
   bool find_archive_name(THD *thd, String &out);
-  bool get_archive_tables(THD *thd, Dynamic_array<String> &result);
+  static bool get_archive_tables(THD *thd, const char *db, size_t db_length,
+                                 Dynamic_array<String> &result);
 };
 
 class VTMD_exists : public VTMD_table
