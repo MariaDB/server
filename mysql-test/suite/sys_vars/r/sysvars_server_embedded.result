@@ -4334,7 +4334,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	OPEN_FILES_LIMIT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	If this is not 0, then mysqld will use this value to reserve file descriptors to use with setrlimit(). If this value is 0 then mysqld will reserve max_connections*5 or max_connections + table_cache*2 (whichever is larger) number of file descriptors
+VARIABLE_COMMENT	If this is not 0, then mysqld will use this value to reserve file descriptors to use with setrlimit(). If this value is 0 or autoset then mysqld will reserve max_connections*5 or max_connections + table_cache*2 (whichever is larger) number of file descriptors
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
