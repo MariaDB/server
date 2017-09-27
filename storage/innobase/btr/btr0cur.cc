@@ -5093,6 +5093,29 @@ btr_cur_optimistic_delete_func(
 	      || dict_index_is_clust(cursor->index)
 	      || (flags & BTR_CREATE_FLAG));
 
+	if (UNIV_UNLIKELY(page_is_root(block->frame)
+			  && page_get_n_recs(block->frame)
+			  == 1 + cursor->index->is_instant())) {
+		/* The whole index (and table) becomes logically empty.
+		Empty the whole page, including the 'default row' record. */
+		dict_index_t* index = cursor->index;
+		ut_ad(!index->is_instant()
+		      || rec_is_default_row(
+			      page_rec_get_next_const(
+				      page_get_infimum_rec(block->frame)),
+			      index));
+		btr_page_empty(block, buf_block_get_page_zip(block),
+			       index, 0, mtr);
+		if (index->is_clust()) {
+			/* Concurrent access is prevented by
+			root_block->lock X-latch, so this should be
+			safe. */
+			index->remove_instant();
+		}
+
+		return true;
+	}
+
 	rec = btr_cur_get_rec(cursor);
 	ut_ad(!(rec_get_info_bits(rec, page_rec_is_comp(rec))
 		& REC_INFO_MIN_REC_FLAG));
@@ -5194,7 +5217,6 @@ btr_cur_pessimistic_delete(
 	ulint		n_reserved	= 0;
 	bool		success;
 	ibool		ret		= FALSE;
-	ulint		level;
 	mem_heap_t*	heap;
 	ulint*		offsets;
 #ifdef UNIV_DEBUG
@@ -5273,9 +5295,28 @@ btr_cur_pessimistic_delete(
 		lock_update_delete(block, rec);
 	}
 
-	level = btr_page_get_level(page, mtr);
+	if (page_is_leaf(page)) {
+		if (UNIV_UNLIKELY(page_is_root(page)
+				  && page_get_n_recs(page)
+				  == 1 + index->is_instant())) {
+			/* The whole index (and table) becomes logically empty.
+			Empty the whole page, including any 'default row'. */
+			ut_ad(!index->is_instant()
+			      || rec_is_default_row(
+				      page_rec_get_next_const(
+					      page_get_infimum_rec(page)),
+				      index));
+			btr_page_empty(block, page_zip, index, 0, mtr);
+			if (index->is_clust()) {
+				/* Concurrent access is prevented by
+				index->lock and root_block->lock
+				X-latch, so this should be safe. */
+				index->remove_instant();
+			}
+			ret = TRUE;
+			goto return_after_reservations;
+		}
 
-	if (level == 0) {
 		btr_search_update_hash_on_delete(cursor);
 	} else if (UNIV_UNLIKELY(page_rec_is_first(rec, page))) {
 		rec_t*	next_rec = page_rec_get_next(rec);
@@ -5332,6 +5373,7 @@ btr_cur_pessimistic_delete(
 			on the page */
 
 			btr_node_ptr_delete(index, block, mtr);
+			const ulint	level = btr_page_get_level(page, mtr);
 
 			dtuple_t*	node_ptr = dict_index_build_node_ptr(
 				index, next_rec, block->page.id.page_no(),
@@ -5349,10 +5391,10 @@ btr_cur_pessimistic_delete(
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
+return_after_reservations:
 	/* btr_check_node_ptr() needs parent block latched */
 	ut_ad(!parent_latched || btr_check_node_ptr(index, block, mtr));
 
-return_after_reservations:
 	*err = DB_SUCCESS;
 
 	mem_heap_free(heap);

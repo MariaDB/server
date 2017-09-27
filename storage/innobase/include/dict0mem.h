@@ -1067,7 +1067,8 @@ struct dict_index_t{
 		return fields[n].col->instant_value(len);
 	}
 
-	/** Remove the 'instant ADD' status of a clustered index */
+	/** Remove the 'instant ADD' status of a clustered index.
+	Protected by index root page x-latch or table X-lock. */
 	void remove_instant()
 	{
 		DBUG_ASSERT(is_clust());

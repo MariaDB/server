@@ -1818,17 +1818,19 @@ btr_parse_page_reorganize(
 	return(ptr);
 }
 
-/*************************************************************//**
-Empties an index page.  @see btr_page_create(). */
-static
+/** Empty an index page (possibly the root page). @see btr_page_create().
+@param[in,out]	block		page to be emptied
+@param[in,out]	page_zip	compressed page frame, or NULL
+@param[in]	index		index of the page
+@param[in]	level		B-tree level of the page (0=leaf)
+@param[in,out]	mtr		mini-transaction */
 void
 btr_page_empty(
-/*===========*/
-	buf_block_t*	block,	/*!< in: page to be emptied */
-	page_zip_des_t*	page_zip,/*!< out: compressed page, or NULL */
-	dict_index_t*	index,	/*!< in: index of the page */
-	ulint		level,	/*!< in: the B-tree level of the page */
-	mtr_t*		mtr)	/*!< in: mtr */
+	buf_block_t*	block,
+	page_zip_des_t*	page_zip,
+	dict_index_t*	index,
+	ulint		level,
+	mtr_t*		mtr)
 {
 	page_t*	page = buf_block_get_frame(block);
 
