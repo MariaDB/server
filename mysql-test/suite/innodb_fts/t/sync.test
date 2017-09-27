@@ -166,5 +166,5 @@ SET GLOBAL innodb_ft_aux_table=default;
 SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database good');
 
 DROP TABLE t1;
-
+SET GLOBAL debug_dbug="";
 --source include/wait_until_count_sessions.inc

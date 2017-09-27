@@ -11,13 +11,12 @@
 SET @old_log_output = @@global.log_output;
 SET @old_slow_query_log = @@global.slow_query_log;
 SET @old_general_log = @@global.general_log;
-SET @old_long_query_time = @@global.long_query_time
+SET @old_long_query_time = @@global.long_query_time;
 
 SET GLOBAL log_output = 'TABLE';
 SET GLOBAL general_log = 1;
 SET GLOBAL slow_query_log = 1;
 SET GLOBAL long_query_time = 1;
-SET GLOBAL binlog_order_commits = 1;
 
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
@@ -122,4 +121,5 @@ SET GLOBAL general_log = @old_general_log;
 SET GLOBAL slow_query_log = @old_slow_query_log;
 SET GLOBAL long_query_time = @old_long_query_time;
 
-#SET DEBUG_SYNC='RESET';
+SET DEBUG_SYNC='RESET';
+SET GLOBAL debug_dbug="";

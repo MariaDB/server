@@ -85,7 +85,7 @@ use	3	6	3	6	23
 well	3	3	1	3	17
 went	3	3	1	3	32
 you	3	3	1	3	28
-set debug_dbug="+d,fts_instrument_result_cache_limit";
+SET SESSION debug_dbug="+d,fts_instrument_result_cache_limit";
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
 1001	5	5	1	5	0
@@ -120,7 +120,7 @@ use	3	6	3	6	23
 well	3	3	1	3	17
 went	3	3	1	3	32
 you	3	3	1	3	28
-set debug_dbug="-d,fts_instrument_result_cache_limit";
+SET SESSION debug_dbug="-d,fts_instrument_result_cache_limit";
 DROP TABLE articles;
 SET GLOBAL innodb_ft_result_cache_limit=default;
 CREATE TABLE articles (
