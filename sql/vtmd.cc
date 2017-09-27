@@ -485,7 +485,8 @@ VTMD_rename::revert_rename(THD *thd, LString new_db)
   return rc;
 }
 
-void VTMD_table::archive_name(
+void
+VTMD_table::archive_name(
   THD* thd,
   const char* table_name,
   char* new_name,
@@ -497,7 +498,8 @@ void VTMD_table::archive_name(
               now.second, now.second_part);
 }
 
-bool VTMD_table::find_archive_name(THD *thd, String &out)
+bool
+VTMD_table::find_archive_name(THD *thd, String &out)
 {
   String vtmd_name;
   if (about.vers_vtmd_name(vtmd_name))
@@ -575,11 +577,28 @@ err:
   return error ? true : false;
 }
 
-Dynamic_array<String> VTMD_table::get_archive_tables(THD *thd)
+static
+bool
+get_vtmd_tables(THD *thd, Dynamic_array<LEX_STRING *> &table_names)
 {
-  Dynamic_array<String> result;
+  // Note function retrieves table names from current db only.
+  LOOKUP_FIELD_VALUES lookup_field_values= {
+      *thd->make_lex_string(thd->db, strlen(thd->db)),
+      *thd->make_lex_string(C_STRING_WITH_LEN("%_vtmd")), false, true};
 
-  Dynamic_array<LEX_STRING *> vtmd_tables= get_vtmd_tables(thd);
+  int res= make_table_name_list(thd, &table_names, thd->lex, &lookup_field_values,
+                       &lookup_field_values.db_value);
+
+  return res;
+}
+
+bool
+VTMD_table::get_archive_tables(THD *thd, Dynamic_array<String> &result)
+{
+  Dynamic_array<LEX_STRING *> vtmd_tables;
+  if (get_vtmd_tables(thd, vtmd_tables))
+    return true;
+
   for (uint i= 0; i < vtmd_tables.elements(); i++)
   {
     LEX_STRING table_name= *vtmd_tables.at(i);
@@ -593,16 +612,23 @@ Dynamic_array<String> VTMD_table::get_archive_tables(THD *thd)
 
     TABLE *table= open_log_table(thd, &table_list, &open_tables_backup);
     if (!table)
-      return result;
+      return true;
 
     READ_RECORD read_record;
     int error= 0;
     SQL_SELECT *sql_select= make_select(table, 0, 0, NULL, NULL, 0, &error);
     if (error)
-      goto error1;
-    if (error = init_read_record(&read_record, thd, table, sql_select, NULL, 1, 1,
-                         false))
-      goto error2;
+    {
+      close_log_table(thd, &open_tables_backup);
+      return true;
+    }
+    error= init_read_record(&read_record, thd, table, sql_select, NULL, 1, 1, false);
+    if (error)
+    {
+      delete sql_select;
+      close_log_table(thd, &open_tables_backup);
+      return true;
+    }
 
     while (!(error= read_record.read_record(&read_record)))
     {
@@ -619,28 +645,9 @@ Dynamic_array<String> VTMD_table::get_archive_tables(THD *thd)
     }
 
     end_read_record(&read_record);
-  error2:
     delete sql_select;
-  error1:
     close_log_table(thd, &open_tables_backup);
-
-    if (error)
-      break;
   }
 
-  return result;
-}
-
-Dynamic_array<LEX_STRING *> get_vtmd_tables(THD *thd)
-{
-  // Note function retrieves table names from current db only.
-  LOOKUP_FIELD_VALUES lookup_field_values= {
-      *thd->make_lex_string(thd->db, strlen(thd->db)),
-      *thd->make_lex_string(C_STRING_WITH_LEN("%_vtmd")), false, true};
-
-  Dynamic_array<LEX_STRING *> table_names;
-  make_table_name_list(thd, &table_names, thd->lex, &lookup_field_values,
-                       &lookup_field_values.db_value);
-
-  return table_names;
+  return false;
 }
