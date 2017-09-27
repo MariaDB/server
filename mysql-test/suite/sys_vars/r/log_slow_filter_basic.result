@@ -1,22 +1,22 @@
 SET @start_global_value = @@global.log_slow_filter;
 select @@global.log_slow_filter;
 @@global.log_slow_filter
-admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 select @@session.log_slow_filter;
 @@session.log_slow_filter
-admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 show global variables like 'log_slow_filter';
 Variable_name	Value
-log_slow_filter	admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+log_slow_filter	admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 show session variables like 'log_slow_filter';
 Variable_name	Value
-log_slow_filter	admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+log_slow_filter	admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 select * from information_schema.global_variables where variable_name='log_slow_filter';
 VARIABLE_NAME	VARIABLE_VALUE
-LOG_SLOW_FILTER	admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+LOG_SLOW_FILTER	admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 select * from information_schema.session_variables where variable_name='log_slow_filter';
 VARIABLE_NAME	VARIABLE_VALUE
-LOG_SLOW_FILTER	admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+LOG_SLOW_FILTER	admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 set global log_slow_filter=1;
 select @@global.log_slow_filter;
 @@global.log_slow_filter

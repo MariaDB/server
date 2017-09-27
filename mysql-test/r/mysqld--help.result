@@ -452,7 +452,7 @@ The following options may be given as the first argument:
  types are bound by slow_query_time, except
  'not_using_index' which is always logged if enabled. Any
  combination of: admin, filesort, filesort_on_disk, 
- filsort_priority_queue, full_join, full_scan, 
+ filesort_priority_queue, full_join, full_scan, 
  not_using_index, query_cache, query_cache_miss, tmp_table,
  tmp_table_on_disk
  --log-slow-rate-limit=# 
@@ -1388,7 +1388,7 @@ log-short-format FALSE
 log-slave-updates FALSE
 log-slow-admin-statements TRUE
 log-slow-disabled-statements sp
-log-slow-filter admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+log-slow-filter admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log-slow-rate-limit 1
 log-slow-slave-statements TRUE
 log-slow-verbosity 

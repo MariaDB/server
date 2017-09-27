@@ -1047,7 +1047,7 @@ set statement long_query_time=default for select @@long_query_time;
 10.000000
 set statement log_slow_filter=default for select @@log_slow_filter;
 @@log_slow_filter
-admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 set statement log_slow_verbosity=default for select @@log_slow_verbosity;
 @@log_slow_verbosity
 

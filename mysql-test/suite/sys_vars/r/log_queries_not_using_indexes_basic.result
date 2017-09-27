@@ -73,19 +73,19 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SET @@SESSION.log_queries_not_using_indexes= TRUE;
 select @@SESSION.log_slow_filter;
 @@SESSION.log_slow_filter
-admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,not_using_index,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,not_using_index,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 SET @@SESSION.log_queries_not_using_indexes= FALSE;
 select @@SESSION.log_slow_filter;
 @@SESSION.log_slow_filter
-admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 SET @@GLOBAL.log_queries_not_using_indexes= TRUE;
 select @@GLOBAL.log_slow_filter;
 @@GLOBAL.log_slow_filter
-admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,not_using_index,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,not_using_index,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 SET @@GLOBAL.log_queries_not_using_indexes= FALSE;
 select @@GLOBAL.log_slow_filter;
 @@GLOBAL.log_slow_filter
-admin,filesort,filesort_on_disk,filsort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 SET @@SESSION.log_slow_filter="";
 select @@SESSION.log_queries_not_using_indexes;
 @@SESSION.log_queries_not_using_indexes

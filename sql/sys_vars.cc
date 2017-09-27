@@ -5379,7 +5379,7 @@ static Sys_var_keycache Sys_key_cache_segments(
 
 static const char *log_slow_filter_names[]= 
 {
-  "admin", "filesort", "filesort_on_disk", "filsort_priority_queue",
+  "admin", "filesort", "filesort_on_disk", "filesort_priority_queue",
   "full_join", "full_scan", "not_using_index", "query_cache",
   "query_cache_miss", "tmp_table", "tmp_table_on_disk", 0
 };
