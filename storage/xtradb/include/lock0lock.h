@@ -1028,14 +1028,8 @@ Get lock mode and table/index name
 std::string
 lock_get_info(
 	const lock_t*);
-#ifdef WITH_WSREP
 
-/*******************************************************************//**
-@return whether wsrep_on is true on trx->mysql_thd*/
-bool
-wsrep_on_trx(const trx_t* trx);
-
-#endif /* WITH_WSREP */
+#define wsrep_on_trx(trx) ((trx)->mysql_thd && wsrep_on((trx)->mysql_thd))
 
 #ifndef UNIV_NONINL
 #include "lock0lock.ic"

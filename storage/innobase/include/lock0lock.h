@@ -1026,8 +1026,7 @@ lock_get_info(
 
 /*******************************************************************//**
 @return whether wsrep_on is true on trx->mysql_thd*/
-bool
-wsrep_on_trx(const trx_t* trx);
+#define wsrep_on_trx(trx) ((trx)->mysql_thd && wsrep_on((trx)->mysql_thd))
 
 #endif /* WITH_WSREP */
 #ifndef UNIV_NONINL

@@ -2293,7 +2293,7 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 }
 
 
-extern inline int wsrep_on(THD *thd)
+extern int wsrep_on(THD *thd)
 {
   return (int)(WSREP(thd));
 }

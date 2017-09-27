@@ -8336,11 +8336,3 @@ lock_get_info(
 
 	return info;
 }
-
-#ifdef WITH_WSREP
-bool inline
-wsrep_on_trx(const trx_t* trx)
-{
-    return trx->mysql_thd && wsrep_on(trx->mysql_thd);
-}
-#endif /* WITH_WSREP */
