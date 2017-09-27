@@ -51,7 +51,7 @@ drop table tt_vtmd;
 end~~
 create table t (a int) with system versioning;
 show create table t for system_time as of now;
-ERROR 42S02: Table 'test.t_vtmd' doesn't exist
+ERROR HY000: VTMD error: Table 'test.t_vtmd' doesn't exist
 set versioning_alter_history=survive;
 create or replace table t (a int) with system versioning;
 show create table t for system_time between timestamp @tm1 and timestamp @tm1;
@@ -59,9 +59,9 @@ ERROR HY000: SYSTEM_TIME range selector is prohibited
 show create table t for system_time from timestamp @tm1 to timestamp @tm1;
 ERROR HY000: SYSTEM_TIME range selector is prohibited
 show create table t for system_time as of timestamp '01-01-1990';
-ERROR HY000: VTMD error: failed to query VTMD table
+ERROR HY000: VTMD error: Table 'test.t' doesn't exist
 show create table t for system_time as of timestamp '01-01-2020';
-ERROR HY000: VTMD error: failed to query VTMD table
+ERROR HY000: VTMD error: Table 'test.t' doesn't exist
 drop table t;
 call drop_archives('t_vtmd');
 drop table t_vtmd;

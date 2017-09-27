@@ -65,7 +65,7 @@ end~~
 delimiter ;~~
 
 create table t (a int) with system versioning;
---error ER_NO_SUCH_TABLE
+--error ER_VERS_VTMD_ERROR
 show create table t for system_time as of now;
 
 set versioning_alter_history=survive;

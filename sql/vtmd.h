@@ -48,8 +48,10 @@ class THD;
 
 class VTMD_table
 {
+  Open_tables_backup open_tables_backup;
+
 protected:
-  TABLE *vtmd;
+  TABLE_LIST vtmd;
   const TABLE_LIST &about;
   SString_t vtmd_name;
 
@@ -72,13 +74,16 @@ public:
   };
 
   VTMD_table(TABLE_LIST &_about) :
-    vtmd(NULL),
     about(_about)
-  {}
+  {
+    vtmd.table= NULL;
+  }
 
   bool create(THD *thd);
   bool find_record(ulonglong sys_trx_end, bool &found);
+  bool open(THD *thd, Local_da &local_da, bool *created= NULL);
   bool update(THD *thd, const char* archive_name= NULL);
+  bool setup_select(THD *thd);
 
   static void archive_name(THD *thd, const char *table_name, char *new_name, size_t new_name_size);
   void archive_name(THD *thd, char *new_name, size_t new_name_size)

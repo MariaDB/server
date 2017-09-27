@@ -1270,23 +1270,22 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
-  TABLE_LIST tl;
-  bool versioned_query=
-      table_list->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED;
-  String archive_name;
-  if (versioned_query)
+  TABLE_LIST archive;
+  bool versioned= table_list->vers_conditions;
+  if (versioned)
   {
-    DBUG_ASSERT(table_list->vers_conditions.type == FOR_SYSTEM_TIME_AS_OF);
+    String archive_name;
+    DBUG_ASSERT(table_list->vers_conditions == FOR_SYSTEM_TIME_AS_OF);
     VTMD_table vtmd(*table_list);
     if (vtmd.find_archive_name(thd, archive_name))
       goto exit;
 
-    tl.init_one_table(table_list->db, table_list->db_length, archive_name.ptr(),
+    archive.init_one_table(table_list->db, table_list->db_length, archive_name.ptr(),
                       archive_name.length(), archive_name.ptr(), TL_READ);
 
-    tl.alias= table_list->table_name;
-    tl.vers_force_alias= true;
-    table_list= &tl;
+    archive.alias= table_list->table_name;
+    archive.vers_force_alias= true;
+    table_list= &archive;
   }
 
   if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
@@ -1302,9 +1301,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
     protocol->store(table_list->view_name.str, system_charset_info);
   else
   {
-    if (versioned_query)
-      protocol->store(tl.alias, system_charset_info);
-    else if (table_list->schema_table)
+    if (table_list->schema_table)
       protocol->store(table_list->schema_table->table_name,
                       system_charset_info);
     else
@@ -1332,7 +1329,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   my_eof(thd);
 
 exit:
-  if (versioned_query)
+  if (versioned)
   {
     /* If commit fails, we should be able to reset the OK status. */
     thd->get_stmt_da()->set_overwrite_status(true);
