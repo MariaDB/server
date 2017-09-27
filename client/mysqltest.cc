@@ -836,6 +836,47 @@ void revert_properties();
 static void handle_no_active_connection(struct st_command* command, 
   struct st_connection *cn, DYNAMIC_STRING *ds);
 
+
+/* Wrapper for fgets.Strips \r off newlines on Windows.
+   Should be used with together with my_popen().
+*/
+static char *my_fgets(char * s, int n, FILE * stream, int *len)
+{
+  char *buf = fgets(s, n, stream);
+  if (!buf)
+  {
+    *len= 0;
+    return buf;
+  }
+
+  *len = (int)strlen(buf);
+#ifdef _WIN32
+  /* Strip '\r' off newlines. */
+  if (*len > 1 && buf[*len - 2] == '\r' && buf[*len - 1] == '\n')
+  {
+    buf[*len - 2]= '\n';
+    buf[*len - 1]= 0;
+    (*len)--;
+  }
+#endif
+  return buf;
+}
+
+/*
+  Wrapper for popen().
+  On Windows, uses binary mode to workaround
+  C runtime bug mentioned in MDEV-9409
+*/
+static FILE* my_popen(const char *cmd, const char *mode)
+{
+  FILE *f= popen(cmd, mode);
+#ifdef _WIN32
+  if (f)
+    _setmode(fileno(f), O_BINARY);
+#endif
+  return f;
+}
+
 #ifdef EMBEDDED_LIBRARY
 
 #define EMB_SEND_QUERY 1
@@ -1785,19 +1826,20 @@ static int run_command(char* cmd,
   DBUG_ENTER("run_command");
   DBUG_PRINT("enter", ("cmd: %s", cmd));
 
-  if (!(res_file= popen(cmd, "r")))
+  if (!(res_file= my_popen(cmd, "r")))
   {
     report_or_die("popen(\"%s\", \"r\") failed", cmd);
     DBUG_RETURN(-1);
   }
 
-  while (fgets(buf, sizeof(buf), res_file))
+  int len;
+  while (my_fgets(buf, sizeof(buf), res_file, &len))
   {
     DBUG_PRINT("info", ("buf: %s", buf));
     if(ds_res)
     {
       /* Save the output of this command in the supplied string */
-      dynstr_append(ds_res, buf);
+      dynstr_append_mem(ds_res, buf,len);
     }
     else
     {
@@ -1886,14 +1928,15 @@ static int diff_check(const char *diff_name)
 
   my_snprintf(buf, sizeof(buf), "%s -v", diff_name);
 
-  if (!(res_file= popen(buf, "r")))
+  if (!(res_file= my_popen(buf, "r")))
     die("popen(\"%s\", \"r\") failed", buf);
 
   /*
     if diff is not present, nothing will be in stdout to increment
     have_diff
   */
-  if (fgets(buf, sizeof(buf), res_file))
+  int len;
+  if (my_fgets(buf, sizeof(buf), res_file, &len))
     have_diff= 1;
 
   pclose(res_file);
@@ -3246,18 +3289,6 @@ void free_tmp_sh_file()
 #endif
 
 
-FILE* my_popen(DYNAMIC_STRING *ds_cmd, const char *mode)
-{
-#if defined _WIN32 && defined USE_CYGWIN
-  /* Dump the command into a sh script file and execute with popen */
-  str_to_file(tmp_sh_name, ds_cmd->str, ds_cmd->length);
-  return popen(tmp_sh_cmd, mode);
-#else
-  return popen(ds_cmd->str, mode);
-#endif
-}
-
-
 static void init_builtin_echo(void)
 {
 #ifdef _WIN32
@@ -3392,7 +3423,7 @@ void do_exec(struct st_command *command)
   DBUG_PRINT("info", ("Executing '%s' as '%s'",
                       command->first_argument, ds_cmd.str));
 
-  if (!(res_file= my_popen(&ds_cmd, "r")))
+  if (!(res_file= my_popen(ds_cmd.str, "r")))
   {
     dynstr_free(&ds_cmd);
     if (command->abort_on_error)
@@ -3406,24 +3437,9 @@ void do_exec(struct st_command *command)
     init_dynamic_string(&ds_sorted, "", 1024, 1024);
     ds_result= &ds_sorted;
   }
-
-#ifdef _WIN32
-   /* Workaround for CRT bug, MDEV-9409 */
-  _setmode(fileno(res_file), O_BINARY);
-#endif
-
-  while (fgets(buf, sizeof(buf), res_file))
+  int len;
+  while (my_fgets(buf, sizeof(buf), res_file,&len))
   {
-    int len = (int)strlen(buf);
-#ifdef _WIN32
-    /* Strip '\r' off newlines. */
-    if (len > 1 && buf[len-2] == '\r' && buf[len-1] == '\n')
-    {
-      buf[len-2] = '\n';
-      buf[len-1] = 0;
-      len--;
-    }
-#endif
     replace_dynstr_append_mem(ds_result, buf, len);
   }
   error= pclose(res_file);
@@ -4685,7 +4701,7 @@ void do_perl(struct st_command *command)
     /* Format the "perl <filename>" command */
     my_snprintf(buf, sizeof(buf), "perl %s", temp_file_path);
 
-    if (!(res_file= popen(buf, "r")))
+    if (!(res_file= my_popen(buf, "r")))
     {
       if (command->abort_on_error)
         die("popen(\"%s\", \"r\") failed", buf);
@@ -4693,16 +4709,17 @@ void do_perl(struct st_command *command)
       DBUG_VOID_RETURN;
     }
 
-    while (fgets(buf, sizeof(buf), res_file))
+    int len;
+    while (my_fgets(buf, sizeof(buf), res_file,&len))
     {
       if (disable_result_log)
       {
-	buf[strlen(buf)-1]=0;
-	DBUG_PRINT("exec_result",("%s", buf));
+        buf[len - 1] = 0;
+        DBUG_PRINT("exec_result", ("%s", buf));
       }
       else
       {
-	replace_dynstr_append(&ds_res, buf);
+        replace_dynstr_append_mem(&ds_res, buf, len);
       }
     }
     error= pclose(res_file);
