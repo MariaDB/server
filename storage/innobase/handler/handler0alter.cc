@@ -269,7 +269,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		DBUG_ASSERT(num_to_add_index == 0);
 		DBUG_ASSERT(new_table->n_cols > old_table->n_cols);
 		DBUG_ASSERT(UT_LIST_GET_LEN(old_table->indexes)
-			    == UT_LIST_GET_LEN(new_table->indexes));
+			    >= UT_LIST_GET_LEN(new_table->indexes));
 
 		instant_table = new_table;
 		instant_table->remove_stub_from_cache();
@@ -288,11 +288,18 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		index->prepare_instant_copy(*old_index, true);
 
 		while ((old_index = dict_table_get_next_index(old_index))) {
-			index = dict_table_get_next_index(index);
-			index->prepare_instant_copy(*old_index);
+			for (index = dict_table_get_first_index(instant_table);
+			     (index = dict_table_get_next_index(index)) != 0;
+			     ) {
+				if (!strcmp(old_index->name, index->name)) {
+					index->prepare_instant_copy(
+						*old_index);
+					break;
+				}
+			}
+			DBUG_ASSERT(index || num_to_drop_index);
 		}
 
-		DBUG_ASSERT(!dict_table_get_next_index(index));
 		new_table = old_table;
 	}
 
@@ -387,17 +394,23 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		}
 
 		dict_index_t* index = dict_table_get_first_index(old_table);
-		const dict_index_t* new_index = dict_table_get_first_index(
+		const dict_index_t* idx = dict_table_get_first_index(
 			instant_table);
-		index->commit_instant_copy(*new_index);
+		index->commit_instant_copy(*idx);
 		DBUG_ASSERT(index->is_instant());
 
 		while ((index = dict_table_get_next_index(index))) {
-			new_index = dict_table_get_next_index(new_index);
-			index->commit_instant_copy(*new_index);
+			for (idx = dict_table_get_first_index(instant_table);
+			     (idx = dict_table_get_next_index(idx)) != NULL;
+			     ) {
+				if (!strcmp(index->name, idx->name)) {
+					index->commit_instant_copy(*idx);
+					break;
+				}
+			}
+			DBUG_ASSERT(idx || num_to_drop_index);
 		}
 
-		DBUG_ASSERT(!dict_table_get_next_index(new_index));
 		dict_mem_table_free(instant_table);
 		instant_table = NULL;
 		DBUG_ASSERT(!is_instant());
@@ -5336,7 +5349,9 @@ new_clustered_failed:
 		}
 
 #if 0 // FIXME: enable instant ADD COLUMN
-		/* FIXME: allow ADD INDEX together with instant ADD COLUMN */
+		/* FIXME: allow ADD INDEX together with instant ADD COLUMN.
+		Note that the index-name-matching in ctx->prepare_instant()
+		and ctx->commit_instant() would have to be replaced too! */
 		DBUG_ASSERT(ha_alter_info->key_count
 			    + dict_index_is_auto_gen_clust(
 				    dict_table_get_first_index(ctx->new_table))
