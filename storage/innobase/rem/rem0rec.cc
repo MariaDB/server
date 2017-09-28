@@ -1276,7 +1276,8 @@ rec_get_converted_size_comp(
 		}
 		/* fall through */
 	case REC_STATUS_COLUMNS_ADDED:
-		ut_ad(n_fields == dict_index_get_n_fields(index));
+		ut_ad(n_fields >= index->n_core_fields);
+		ut_ad(n_fields <= index->n_fields);
 		return rec_get_converted_size_comp_prefix_low(
 			index, fields, n_fields, extra, status, false);
 	case REC_STATUS_NODE_PTR:
@@ -1510,7 +1511,7 @@ rec_convert_dtuple_to_rec_comp(
 		ut_ad(n_fields <= dict_index_get_n_fields(index));
 		if (!temp) {
 			rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
-			rec_set_status(rec, index->is_instant()
+			rec_set_status(rec, n_fields != index->n_core_fields
 				       ? REC_STATUS_COLUMNS_ADDED
 				       : REC_STATUS_ORDINARY);
 		} else if (dict_table_is_comp(index->table)) {

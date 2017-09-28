@@ -2663,6 +2663,8 @@ row_ins_clust_index_entry_low(
 		}
 	}
 
+	if (index->is_instant()) entry->trim(*index);
+
 	if (rec_is_default_row(btr_cur_get_rec(cursor), index)) {
 		goto do_insert;
 	}
@@ -3226,16 +3228,19 @@ row_ins_clust_index_entry(
 
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
-	/* Try first optimistic descent to the B-tree */
-	log_free_check();
-	const ulint	flags = dict_table_is_temporary(index->table)
+	const ulint	flags = index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG
 		: index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
+	const ulint	orig_n_fields = entry->n_fields;
+
+	/* Try first optimistic descent to the B-tree */
+	log_free_check();
 
 	err = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, n_uniq, entry,
 		n_ext, thr, dup_chk_only);
 
+	entry->n_fields = orig_n_fields;
 
 	DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
 			    "after_row_ins_clust_index_entry_leaf");
@@ -3251,6 +3256,8 @@ row_ins_clust_index_entry(
 	err = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_TREE, index, n_uniq, entry,
 		n_ext, thr, dup_chk_only);
+
+	entry->n_fields = orig_n_fields;
 
 	DBUG_RETURN(err);
 }
@@ -3345,7 +3352,7 @@ row_ins_index_entry(
 			DBUG_SET("-d,row_ins_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
 
-	if (dict_index_is_clust(index)) {
+	if (index->is_clust()) {
 		return(row_ins_clust_index_entry(index, entry, thr, 0, false));
 	} else {
 		return(row_ins_sec_index_entry(index, entry, thr, false));

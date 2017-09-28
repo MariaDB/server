@@ -42,6 +42,38 @@ to data_error. */
 byte	data_error;
 #endif /* UNIV_DEBUG */
 
+/** Trim the tail of an index tuple before insert or update.
+After instant ADD COLUMN, if the last fields of a clustered index tuple
+match the 'default row', there will be no need to store them.
+NOTE: A page latch in the index must be held, so that the index
+may not lose 'instantness' before the trimmed tuple has been
+inserted or updated.
+@param[in]	index	index possibly with instantly added columns */
+void dtuple_t::trim(const dict_index_t& index)
+{
+	ut_ad(n_fields == index.n_fields);
+	ut_ad(index.is_instant());
+
+	ulint i = n_fields;
+	for (; i > index.n_core_fields; i--) {
+		const dfield_t* dfield = dtuple_get_nth_field(this, i - 1);
+		const dict_col_t* col = dict_index_get_nth_col(&index, i - 1);
+		ut_ad(col->is_instant());
+		ulint len = dfield_get_len(dfield);
+		if (len != col->def_val.len) {
+			break;
+		}
+
+		if (len != 0 && len != UNIV_SQL_NULL
+		    && dfield->data != col->def_val.data
+		    && memcmp(dfield->data, col->def_val.data, len)) {
+			break;
+		}
+	}
+
+	n_fields = i;
+}
+
 /** Compare two data tuples.
 @param[in] tuple1 first data tuple
 @param[in] tuple2 second data tuple
