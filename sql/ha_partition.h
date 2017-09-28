@@ -143,6 +143,7 @@ typedef struct st_partition_part_key_multi_range_hld
 } PARTITION_PART_KEY_MULTI_RANGE_HLD;
 
 
+extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
 extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
 
 class ha_partition :public handler
@@ -1381,5 +1382,6 @@ public:
   }
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
+  friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
 };
 #endif /* HA_PARTITION_INCLUDED */
