@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,7 +27,6 @@ Created 12/27/1996 Heikki Tuuri
 #ifndef row0upd_h
 #define row0upd_h
 
-#include "univ.i"
 #include "data0data.h"
 #include "row0types.h"
 #include "btr0types.h"
@@ -245,27 +245,19 @@ row_upd_build_difference_binary(
 	mem_heap_t*	heap,
 	TABLE*		mysql_table)
 	MY_ATTRIBUTE((nonnull(1,2,3,7), warn_unused_result));
-/***********************************************************//**
-Replaces the new column values stored in the update vector to the index entry
-given. */
+/** Apply an update vector to an index entry.
+@param[in,out]	entry	index entry to be updated; the clustered index record
+			must be covered by a lock or a page latch to prevent
+			deletion (rollback or purge)
+@param[in]	index	index of the entry
+@param[in]	update	update vector built for the entry
+@param[in,out]	heap	memory heap for copying off-page columns */
 void
 row_upd_index_replace_new_col_vals_index_pos(
-/*=========================================*/
-	dtuple_t*	entry,	/*!< in/out: index entry where replaced;
-				the clustered index record must be
-				covered by a lock or a page latch to
-				prevent deletion (rollback or purge) */
-	dict_index_t*	index,	/*!< in: index; NOTE that this may also be a
-				non-clustered index */
-	const upd_t*	update,	/*!< in: an update vector built for the index so
-				that the field number in an upd_field is the
-				index position */
-	ibool		order_only,
-				/*!< in: if TRUE, limit the replacement to
-				ordering fields of index; note that this
-				does not work for non-clustered indexes. */
-	mem_heap_t*	heap)	/*!< in: memory heap for allocating and
-				copying the new values */
+	dtuple_t*		entry,
+	const dict_index_t*	index,
+	const upd_t*		update,
+	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull));
 /***********************************************************//**
 Replaces the new column values stored in the update vector to the index entry

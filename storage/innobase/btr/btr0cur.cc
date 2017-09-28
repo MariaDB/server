@@ -3996,7 +3996,7 @@ any_extern:
 	corresponding to new_entry is latched in mtr.
 	Thus the following call is safe. */
 	row_upd_index_replace_new_col_vals_index_pos(new_entry, index, update,
-						     FALSE, *heap);
+						     *heap);
 	old_rec_size = rec_offs_size(*offsets);
 	new_rec_size = rec_get_converted_size(index, new_entry, 0);
 
@@ -4321,7 +4321,7 @@ btr_cur_pessimistic_update(
 	purge would also have removed the clustered index record
 	itself.  Thus the following call is safe. */
 	row_upd_index_replace_new_col_vals_index_pos(new_entry, index, update,
-						     FALSE, entry_heap);
+						     entry_heap);
 
 	/* We have to set appropriate extern storage bits in the new
 	record to be inserted: we have to remember which fields were such */

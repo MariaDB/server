@@ -1323,41 +1323,25 @@ row_upd_index_replace_new_col_val(
 	}
 }
 
-/***********************************************************//**
-Replaces the new column values stored in the update vector to the index entry
-given. */
+/** Apply an update vector to an index entry.
+@param[in,out]	entry	index entry to be updated; the clustered index record
+			must be covered by a lock or a page latch to prevent
+			deletion (rollback or purge)
+@param[in]	index	index of the entry
+@param[in]	update	update vector built for the entry
+@param[in,out]	heap	memory heap for copying off-page columns */
 void
 row_upd_index_replace_new_col_vals_index_pos(
-/*=========================================*/
-	dtuple_t*	entry,	/*!< in/out: index entry where replaced;
-				the clustered index record must be
-				covered by a lock or a page latch to
-				prevent deletion (rollback or purge) */
-	dict_index_t*	index,	/*!< in: index; NOTE that this may also be a
-				non-clustered index */
-	const upd_t*	update,	/*!< in: an update vector built for the index so
-				that the field number in an upd_field is the
-				index position */
-	ibool		order_only,
-				/*!< in: if TRUE, limit the replacement to
-				ordering fields of index; note that this
-				does not work for non-clustered indexes. */
-	mem_heap_t*	heap)	/*!< in: memory heap for allocating and
-				copying the new values */
+	dtuple_t*		entry,
+	const dict_index_t*	index,
+	const upd_t*		update,
+	mem_heap_t*		heap)
 {
-	ulint		i;
-	ulint		n_fields;
 	const page_size_t&	page_size = dict_table_page_size(index->table);
 
 	dtuple_set_info_bits(entry, update->info_bits);
 
-	if (order_only) {
-		n_fields = dict_index_get_n_unique(index);
-	} else {
-		n_fields = dict_index_get_n_fields(index);
-	}
-
-	for (i = 0; i < n_fields; i++) {
+	for (unsigned i = index->n_fields; i--; ) {
 		const dict_field_t*	field;
 		const dict_col_t*	col;
 		const upd_field_t*	uf;
