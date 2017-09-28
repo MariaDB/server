@@ -105,7 +105,7 @@ bool sp_rcontext::adjust_formal_params_to_actual_params(THD *thd,
   while ((def= it++) && (arg= it_args++))
   {
     if (def->type_handler()->adjust_spparam_type(def, arg))
-      true;
+      return true;
   }
   return false;
 }
