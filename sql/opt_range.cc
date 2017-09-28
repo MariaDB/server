@@ -10912,7 +10912,7 @@ int read_keys_and_merge_scans(THD *thd,
 
     unique= new Unique(refpos_order_cmp, (void *)file,
                        file->ref_length,
-                       thd->variables.sortbuff_size,
+                       (size_t)thd->variables.sortbuff_size,
 		       intersection ? quick_selects.elements : 0);                     
     if (!unique)
       goto err;
