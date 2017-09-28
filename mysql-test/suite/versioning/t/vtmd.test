@@ -86,7 +86,11 @@ create table t0 (y int) with system versioning;
 create or replace table t0 (x int) with system versioning;
 
 # alter
+insert into t0 values (1);
+set @t0= now(6);
 alter table t0 add column (y int);
+select * from t0 for system_time as of @t0;
+select * from t0;
 call check_vtmd('t0_vtmd');
 
 call drop_archives('t0_vtmd');

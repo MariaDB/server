@@ -52,7 +52,7 @@ class VTMD_table
 
 protected:
   TABLE_LIST vtmd;
-  const TABLE_LIST &about;
+  TABLE_LIST &about;
   SString_t vtmd_name;
 
 private:

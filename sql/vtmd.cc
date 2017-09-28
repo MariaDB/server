@@ -7,6 +7,8 @@
 #include "table_cache.h" // tdc_remove_table()
 #include "key.h"
 #include "sql_show.h"
+#include "sql_parse.h"
+#include "sql_lex.h"
 
 LString VERS_VTMD_TEMPLATE(C_STRING_WITH_LEN("vtmd_template"));
 
@@ -546,8 +548,6 @@ VTMD_table::find_archive_name(THD *thd, String &out)
     if (select->skip_record(thd) > 0)
     {
       vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
-      if (out.length() == 0) // Handle AS OF NOW or RENAME TABLE case
-        out.set(about.table_name, about.table_name_length, system_charset_info);
       break;
     }
   }
@@ -642,5 +642,22 @@ VTMD_table::get_archive_tables(THD *thd, const char *db, size_t db_length,
     close_log_table(thd, &open_tables_backup);
   }
 
+  return false;
+}
+
+bool VTMD_table::setup_select(THD* thd)
+{
+  SString archive_name;
+  if (find_archive_name(thd, archive_name))
+    return true;
+
+  if (archive_name.length() == 0)
+    return false;
+
+  about.table_name= (char *) thd->memdup(archive_name.c_ptr_safe(), archive_name.length() + 1);
+  about.table_name_length= archive_name.length();
+  DBUG_ASSERT(!about.mdl_request.ticket);
+  about.mdl_request.init(MDL_key::TABLE, about.db, about.table_name,
+                         about.mdl_request.type, about.mdl_request.duration);
   return false;
 }

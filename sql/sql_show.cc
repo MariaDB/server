@@ -1280,12 +1280,15 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
     if (vtmd.find_archive_name(thd, archive_name))
       goto exit;
 
-    archive.init_one_table(table_list->db, table_list->db_length, archive_name.ptr(),
-                      archive_name.length(), archive_name.ptr(), TL_READ);
+    if (archive_name.length() > 0)
+    {
+      archive.init_one_table(table_list->db, table_list->db_length, archive_name.ptr(),
+                        archive_name.length(), archive_name.ptr(), TL_READ);
 
-    archive.alias= table_list->table_name;
-    archive.vers_force_alias= true;
-    table_list= &archive;
+      archive.alias= table_list->table_name;
+      archive.vers_force_alias= true;
+      table_list= &archive;
+    }
   }
 
   if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))

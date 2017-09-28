@@ -86,7 +86,15 @@ ERROR HY000: VTMD error: `test.t0_vtmd` exists and not empty!
 drop table t0_vtmd;
 create table t0 (y int) with system versioning;
 create or replace table t0 (x int) with system versioning;
+insert into t0 values (1);
+set @t0= now(6);
 alter table t0 add column (y int);
+select * from t0 for system_time as of @t0;
+x
+1
+select * from t0;
+x	y
+1	NULL
 call check_vtmd('t0_vtmd');
 @start > 0 and @start < @inf
 1
