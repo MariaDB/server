@@ -1569,7 +1569,7 @@ page_dir_balance_slot(
 	/* The last directory slot cannot be balanced with the upper
 	neighbor, as there is none. */
 
-	if (UNIV_UNLIKELY(slot_no == page_dir_get_n_slots(page) - 1)) {
+	if (UNIV_UNLIKELY(slot_no + 1 == page_dir_get_n_slots(page))) {
 
 		return;
 	}

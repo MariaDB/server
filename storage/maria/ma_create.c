@@ -57,7 +57,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   char kfilename[FN_REFLEN], klinkname[FN_REFLEN], *klinkname_ptr;
   char dfilename[FN_REFLEN], dlinkname[FN_REFLEN], *dlinkname_ptr= 0;
   ulong pack_reclength;
-  ulonglong tot_length,max_rows, tmp;
+  ulonglong tot_length,max_rows, tmp, tot_length_part;
   enum en_fieldtype type;
   enum data_file_type org_datafile_type= datafile_type;
   MARIA_SHARE share;
@@ -664,10 +664,10 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     if (tot_length == ULLONG_MAX)
       continue;
 
-    ulonglong tot_length_part= (max_rows/(ulong) (((uint) maria_block_size -
-                                      MAX_KEYPAGE_HEADER_SIZE -
-                                      KEYPAGE_CHECKSUM_SIZE)/
-                                     (length*2)));
+    tot_length_part= (max_rows/(ulong) (((uint) maria_block_size -
+                                         MAX_KEYPAGE_HEADER_SIZE -
+                                         KEYPAGE_CHECKSUM_SIZE)/
+                                        (length*2)));
     if (tot_length_part >=  (ULLONG_MAX / maria_block_size +
                             ULLONG_MAX % maria_block_size))
       tot_length= ULLONG_MAX;
