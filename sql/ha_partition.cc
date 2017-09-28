@@ -89,9 +89,6 @@ static handler *partition_create_handler(handlerton *hton,
 static uint partition_flags();
 static uint alter_table_flags(uint flags);
 
-extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
-extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
-
 /*
   If frm_error() is called then we will use this to to find out what file
   extensions exist for the storage engine. This is also used by the default
@@ -5251,17 +5248,11 @@ bool ha_partition::init_record_priority_queue()
 
     /* Initialize priority queue, initialized to reading forward. */
     int (*cmp_func)(void *, uchar *, uchar *);
-    void *cmp_arg;
-    if (!m_using_extended_keys)
-    {
+    void *cmp_arg= (void*) this;
+    if (!m_using_extended_keys && !(table_flags() & HA_CMP_REF_IS_EXPENSIVE))
       cmp_func= cmp_key_rowid_part_id;
-      cmp_arg=  (void*)this;
-    }
     else
-    {
       cmp_func= cmp_key_part_id;
-      cmp_arg= (void*)m_curr_key_info;
-    }
     DBUG_PRINT("info", ("partition queue_init(1) used_parts: %u", used_parts));
     if (init_queue(&m_queue, used_parts, 0, 0, cmp_func, cmp_arg, 0, 0))
     {
@@ -5481,22 +5472,13 @@ int ha_partition::index_read_map(uchar *buf, const uchar *key,
 /* Compare two part_no partition numbers */
 static int cmp_part_ids(uchar *ref1, uchar *ref2)
 {
-  /* The following was taken from ha_partition::cmp_ref */
-  my_ptrdiff_t diff1= ref2[1] - ref1[1];
-  my_ptrdiff_t diff2= ref2[0] - ref1[0];
-  if (!diff1 && !diff2)
-    return 0;
-
-  if (diff1 > 0)
-    return(-1);
-
-  if (diff1 < 0)
-    return(+1);
-
-  if (diff2 > 0)
-    return(-1);
-
-  return(+1);
+  uint32 diff2= uint2korr(ref2);
+  uint32 diff1= uint2korr(ref1);
+  if (diff2 > diff1)
+    return -1;
+  if (diff2 < diff1)
+    return 1;
+  return 0;
 }
 
 
@@ -5505,10 +5487,11 @@ static int cmp_part_ids(uchar *ref1, uchar *ref2)
     Provide ordering by (key_value, part_no).
 */
 
-extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2)
+extern "C" int cmp_key_part_id(void *ptr, uchar *ref1, uchar *ref2)
 {
+  ha_partition *file= (ha_partition*)ptr;
   int res;
-  if ((res= key_rec_cmp(key_p, ref1 + PARTITION_BYTES_IN_POS,
+  if ((res= key_rec_cmp(file->m_curr_key_info, ref1 + PARTITION_BYTES_IN_POS,
                         ref2 + PARTITION_BYTES_IN_POS)))
   {
     return res;
@@ -7401,10 +7384,6 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
   DBUG_ENTER("ha_partition::handle_ordered_index_scan");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
-  if (!m_using_extended_keys &&
-      (error= loop_extra(HA_EXTRA_STARTING_ORDERED_INDEX_SCAN)))
-    DBUG_RETURN(error);
-
    if (m_pre_calling)
      error= handle_pre_scan(reverse_order, m_pre_call_use_parallel);
    else
@@ -7589,7 +7568,7 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
       after that read the first entry and copy it to the buffer to return in.
     */
     queue_set_max_at_top(&m_queue, reverse_order);
-    queue_set_cmp_arg(&m_queue, m_using_extended_keys? m_curr_key_info : (void*)this);
+    queue_set_cmp_arg(&m_queue, (void*) this);
     m_queue.elements= j - queue_first_element(&m_queue);
     queue_fix(&m_queue);
     return_top_record(buf);
@@ -7869,9 +7848,7 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
         DBUG_PRINT("info",("partition m_mrr_range_current->id: %u",
                            m_mrr_range_current ? m_mrr_range_current->id : 0));
         queue_set_max_at_top(&m_queue, FALSE);
-        queue_set_cmp_arg(&m_queue, (m_using_extended_keys ?
-                                     m_curr_key_info :
-                                     (void*) this));
+        queue_set_cmp_arg(&m_queue, (void*) this);
         m_queue.elements= j;
         queue_fix(&m_queue);
         return_top_record(buf);
@@ -10034,7 +10011,7 @@ uint ha_partition::min_record_length(uint options) const
 int ha_partition::cmp_ref(const uchar *ref1, const uchar *ref2)
 {
   int cmp;
-  my_ptrdiff_t diff1, diff2;
+  uint32 diff1, diff2;
   DBUG_ENTER("ha_partition::cmp_ref");
 
   cmp= m_file[0]->cmp_ref((ref1 + PARTITION_BYTES_IN_POS),
@@ -10042,7 +10019,10 @@ int ha_partition::cmp_ref(const uchar *ref1, const uchar *ref2)
   if (cmp)
     DBUG_RETURN(cmp);
 
-  if ((ref1[0] == ref2[0]) && (ref1[1] == ref2[1]))
+  diff2= uint2korr(ref2);
+  diff1= uint2korr(ref1);
+
+  if (diff1 == diff2)
   {
    /* This means that the references are same and are in same partition.*/
     DBUG_RETURN(0);
@@ -10055,22 +10035,7 @@ int ha_partition::cmp_ref(const uchar *ref1, const uchar *ref2)
     Remove this assert if DB_ROW_ID is changed to be per partition.
   */
   DBUG_ASSERT(!m_innodb);
-
-  diff1= ref2[1] - ref1[1];
-  diff2= ref2[0] - ref1[0];
-  if (diff1 > 0)
-  {
-    DBUG_RETURN(-1);
-  }
-  if (diff1 < 0)
-  {
-    DBUG_RETURN(+1);
-  }
-  if (diff2 > 0)
-  {
-    DBUG_RETURN(-1);
-  }
-  DBUG_RETURN(+1);
+  DBUG_RETURN(diff2 > diff1 ? -1 : 1);
 }
 
 

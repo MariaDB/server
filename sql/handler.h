@@ -160,6 +160,7 @@ enum enum_alter_inplace_result {
 */
 #define HA_BINLOG_ROW_CAPABLE  (1ULL << 34)
 #define HA_BINLOG_STMT_CAPABLE (1ULL << 35)
+
 /*
     When a multiple key conflict happens in a REPLACE command mysql
     expects the conflicts to be reported in the ascending order of
@@ -269,6 +270,9 @@ enum enum_alter_inplace_result {
 
 /* The following is for partition handler */
 #define HA_CAN_MULTISTEP_MERGE (1LL << 47)
+
+/* calling cmp_ref() on the engine is expensive */
+#define HA_CMP_REF_IS_EXPENSIVE (1ULL << 48)
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
