@@ -4432,21 +4432,6 @@ static int init_common_variables()
     SYSVAR_AUTOSIZE(threadpool_size, my_getncpus());
 #endif
 
-  /* Fix host_cache_size. */
-  if (IS_SYSVAR_AUTOSIZE(&host_cache_size))
-  {
-    if (max_connections <= 628 - 128)
-      SYSVAR_AUTOSIZE(host_cache_size, 128 + max_connections);
-    else if (max_connections <= ((ulong)(2000 - 628)) * 20 + 500)
-      SYSVAR_AUTOSIZE(host_cache_size, 628 + ((max_connections - 500) / 20));
-    else
-      SYSVAR_AUTOSIZE(host_cache_size, 2000);
-  }
-
-  /* Fix back_log (back_log == 0 added for MySQL compatibility) */
-  if (back_log == 0 || IS_SYSVAR_AUTOSIZE(&back_log))
-    SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
-
   /* connections and databases needs lots of files */
   {
     uint files, wanted_files, max_open_files;
@@ -4471,7 +4456,7 @@ static int init_common_variables()
 
     if (files < wanted_files)
     {
-      if (!open_files_limit)
+      if (!open_files_limit || IS_SYSVAR_AUTOSIZE(&open_files_limit))
       {
         /*
           If we have requested too much file handles than we bring
@@ -4500,6 +4485,36 @@ static int init_common_variables()
     }
     SYSVAR_AUTOSIZE(open_files_limit, files);
   }
+
+  /*
+    Max_connections is now set.
+    Now we can fix other variables depending on this variable.
+  */
+
+  /* Fix host_cache_size */
+  if (IS_SYSVAR_AUTOSIZE(&host_cache_size))
+  {
+    /*
+      The default value is 128.
+      The autoset value is 128, plus 1 for a value of max_connections
+      up to 500, plus 1 for every increment of 20 over 500 in the
+      max_connections value, capped at 2000.
+    */
+    uint size= (HOST_CACHE_SIZE + MY_MIN(max_connections, 500) +
+                MY_MAX(((long) max_connections)-500,0)/20);
+    SYSVAR_AUTOSIZE(host_cache_size, size);
+  }
+
+  /* Fix back_log (back_log == 0 added for MySQL compatibility) */
+  if (back_log == 0 || IS_SYSVAR_AUTOSIZE(&back_log))
+  {
+    /*
+      The default value is 150.
+      The autoset value is 50 + max_connections / 5 capped at 900
+    */
+    SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
+  }
+
   unireg_init(opt_specialflag); /* Set up extern variabels */
   if (!(my_default_lc_messages=
         my_locale_by_name(lc_messages)))

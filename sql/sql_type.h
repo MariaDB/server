@@ -65,6 +65,7 @@ class in_vector;
 class Type_handler_hybrid_field_type;
 class Sort_param;
 class Arg_comparator;
+class Spvar_definition;
 struct st_value;
 class Protocol;
 class handler;
@@ -688,6 +689,10 @@ public:
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const
   { return this; }
+  virtual bool adjust_spparam_type(Spvar_definition *def, Item *from) const
+  {
+    return false;
+  }
   virtual ~Type_handler() {}
   /**
     Determines MariaDB traditional data types that always present
@@ -2523,6 +2528,7 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  bool adjust_spparam_type(Spvar_definition *def, Item *from) const;
 };
 
 

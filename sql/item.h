@@ -89,6 +89,7 @@ public:
 
 const char *dbug_print_item(Item *item);
 
+class sp_head;
 class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
@@ -390,6 +391,31 @@ public:
   virtual const Send_field *get_out_param_info() const
   { return NULL; }
 };
+
+
+/*
+  A helper class to calculate offset and length of a query fragment
+  - outside of SP
+  - inside an SP
+  - inside a compound block
+*/
+class Query_fragment
+{
+  uint m_pos;
+  uint m_length;
+  void set(size_t pos, size_t length)
+  {
+    DBUG_ASSERT(pos < UINT_MAX32);
+    DBUG_ASSERT(length < UINT_MAX32);
+    m_pos= (uint) pos;
+    m_length= (uint) length;
+  }
+public:
+  Query_fragment(THD *thd, sp_head *sphead, const char *start, const char *end);
+  uint pos() const { return m_pos; }
+  uint length() const { return m_length; }
+};
+
 
 /**
   This is used for items in the query that needs to be rewritten
@@ -2100,7 +2126,6 @@ public:
   Field_enumerator() {}                       /* Remove gcc warning */
 };
 
-class sp_head;
 class Item_string;
 
 

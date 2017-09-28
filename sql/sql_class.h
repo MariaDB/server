@@ -1081,6 +1081,10 @@ public:
   {
     return static_cast<uint32>(query_string.length());
   }
+  inline char *query_end() const
+  {
+    return query_string.str() + query_string.length();
+  }
   CHARSET_INFO *query_charset() const { return query_string.charset(); }
   void set_query_inner(const CSET_STRING &string_arg)
   {
@@ -5587,6 +5591,7 @@ public:
   {
     db= *db_name;
   }
+  bool resolve_table_rowtype_ref(THD *thd, Row_definition_list &defs);
 };
 
 
@@ -5610,6 +5615,7 @@ public:
    :Table_ident(thd, db, table, false),
     m_column(*column)
   { }
+  bool resolve_type_ref(THD *thd, Column_definition *def);
 };
 
 

@@ -1,0 +1,1 @@
+--max_connections=1000 --open-files-limit=1000 --autoset-host-cache-size

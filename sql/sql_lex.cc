@@ -6261,27 +6261,23 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 
 
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
-                                 uint pos_in_query, uint len_in_query)
+                                 const char *start, const char *end)
 {
   if (!parsing_options.allows_variable)
   {
     my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
     return NULL;
   }
+
+  Query_fragment pos(thd, sphead, start, end);
   Item_param *item= new (thd->mem_root) Item_param(thd, name,
-                                                   pos_in_query, len_in_query);
+                                                   pos.pos(), pos.length());
   if (!item || param_list.push_back(item, thd->mem_root))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return NULL;
   }
   return item;
-}
-
-
-const char *LEX::substatement_query(THD *thd) const
-{
-  return sphead ? sphead->m_tmp_query : thd->query();
 }
 
 
@@ -6338,8 +6334,8 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
                                                const LEX_CSTRING *a,
                                                const LEX_CSTRING *b,
                                                sp_variable *spv,
-                                               uint pos_in_q,
-                                               uint length_in_q)
+                                               const char *start,
+                                               const char *end)
 {
   if (!parsing_options.allows_variable)
   {
@@ -6347,6 +6343,7 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
     return NULL;
   }
 
+  Query_fragment pos(thd, sphead, start, end);
   Item_splocal *item;
   if (spv->field_def.is_table_rowtype_ref() ||
       spv->field_def.is_cursor_rowtype_ref())
@@ -6354,7 +6351,7 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
     if (!(item= new (thd->mem_root)
                 Item_splocal_row_field_by_name(thd, a, b, spv->offset,
                                                MYSQL_TYPE_NULL,
-                                               pos_in_q, length_in_q)))
+                                               pos.pos(), pos.length())))
       return NULL;
   }
   else
@@ -6368,7 +6365,7 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
                 Item_splocal_row_field(thd, a, b,
                                        spv->offset, row_field_offset,
                                        def->real_field_type(),
-                                       pos_in_q, length_in_q)))
+                                       pos.pos(), pos.length())))
       return NULL;
   }
 #ifdef DBUG_ASSERT_EXISTS
@@ -6463,14 +6460,14 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
 Item *LEX::create_item_ident(THD *thd,
                              const LEX_CSTRING *a,
                              const LEX_CSTRING *b,
-                             uint pos_in_q, uint length_in_q)
+                             const char *start, const char *end)
 {
   sp_variable *spv;
   if (spcont && (spv= spcont->find_variable(a, false)) &&
       (spv->field_def.is_row() ||
        spv->field_def.is_table_rowtype_ref() ||
        spv->field_def.is_cursor_rowtype_ref()))
-    return create_item_spvar_row_field(thd, a, b, spv, pos_in_q, length_in_q);
+    return create_item_spvar_row_field(thd, a, b, spv, start, end);
 
   if ((thd->variables.sql_mode & MODE_ORACLE) && b->length == 7)
   {
@@ -6524,7 +6521,7 @@ Item *LEX::create_item_ident(THD *thd,
 
 Item *LEX::create_item_limit(THD *thd,
                              const LEX_CSTRING *a,
-                             uint pos_in_q, uint length_in_q)
+                             const char *start, const char *end)
 {
   sp_variable *spv;
   if (!spcont || !(spv= spcont->find_variable(a, false)))
@@ -6533,10 +6530,11 @@ Item *LEX::create_item_limit(THD *thd,
     return NULL;
   }
 
+  Query_fragment pos(thd, sphead, start, end);
   Item_splocal *item;
   if (!(item= new (thd->mem_root) Item_splocal(thd, a,
                                                spv->offset, spv->sql_type(),
-                                               pos_in_q, length_in_q)))
+                                               pos.pos(), pos.length())))
     return NULL;
 #ifdef DBUG_ASSERT_EXISTS
   item->m_sp= sphead;
@@ -6556,7 +6554,7 @@ Item *LEX::create_item_limit(THD *thd,
 Item *LEX::create_item_limit(THD *thd,
                              const LEX_CSTRING *a,
                              const LEX_CSTRING *b,
-                             uint pos_in_q, uint length_in_q)
+                             const char *start, const char *end)
 {
   sp_variable *spv;
   if (!spcont || !(spv= spcont->find_variable(a, false)))
@@ -6567,8 +6565,7 @@ Item *LEX::create_item_limit(THD *thd,
   // Qualified %TYPE variables are not possible
   DBUG_ASSERT(!spv->field_def.column_type_ref());
   Item_splocal *item;
-  if (!(item= create_item_spvar_row_field(thd, a, b, spv,
-                                          pos_in_q, length_in_q)))
+  if (!(item= create_item_spvar_row_field(thd, a, b, spv, start, end)))
     return NULL;
   if (item->type() != Item::INT_ITEM)
   {
@@ -6634,11 +6631,12 @@ Item *LEX::create_item_ident_nosp(THD *thd, LEX_CSTRING *name)
 
 
 Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
-                                uint start_in_q,
-                                uint length_in_q)
+                                const char *start,
+                                const char *end)
 {
   sp_variable *spv;
   DBUG_ASSERT(spcont);
+  DBUG_ASSERT(sphead);
   if ((spv= spcont->find_variable(name, false)))
   {
     /* We're compiling a stored procedure and found a variable */
@@ -6648,17 +6646,18 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
       return NULL;
     }
 
+    Query_fragment pos(thd, sphead, start, end);
     Item_splocal *splocal= spv->field_def.is_column_type_ref() ?
       new (thd->mem_root) Item_splocal_with_delayed_data_type(thd, name,
                                                               spv->offset,
-                                                              start_in_q,
-                                                              length_in_q) :
+                                                              pos.pos(),
+                                                              pos.length()) :
       spv->field_def.is_row() || spv->field_def.is_table_rowtype_ref() ?
       new (thd->mem_root) Item_splocal_row(thd, name, spv->offset,
-                                           start_in_q, length_in_q) :
+                                           pos.pos(), pos.length()) :
       new (thd->mem_root) Item_splocal(thd, name,
                                        spv->offset, spv->sql_type(),
-                                       start_in_q, length_in_q);
+                                       pos.pos(), pos.length());
     if (splocal == NULL)
       return NULL;
 #ifdef DBUG_ASSERT_EXISTS
@@ -6676,16 +6675,6 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
       return new (thd->mem_root) Item_func_sqlerrm(thd);
   }
   return create_item_ident_nosp(thd, name);
-}
-
-
-Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
-                                const char *start_in_q,
-                                const char *end_in_q)
-{
-  DBUG_ASSERT(sphead);
-  return create_item_ident_sp(thd, name, start_in_q - sphead->m_tmp_query,
-                                         end_in_q - start_in_q);
 }
 
 
