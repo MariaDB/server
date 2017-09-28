@@ -192,6 +192,10 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	const char**	drop_vcol_name;
 	/** ALTER TABLE stage progress recorder */
 	ut_stage_alter_t* m_stage;
+#ifdef UNIV_DEBUG
+	/** in prepare_instant(), the value of old_table->is_instant() */
+	bool		was_instant;
+#endif /* UNIV_DEBUG */
 
 	ha_innobase_inplace_ctx(row_prebuilt_t*& prebuilt_arg,
 				dict_index_t** drop_arg,
@@ -234,6 +238,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		drop_vcol(0),
 		drop_vcol_name(0),
 		m_stage(NULL)
+#ifdef UNIV_DEBUG
+		, was_instant(false)
+#endif
 	{
 #ifdef UNIV_DEBUG
 		for (ulint i = 0; i < num_to_add_index; i++) {
@@ -271,6 +278,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		DBUG_ASSERT(UT_LIST_GET_LEN(old_table->indexes)
 			    >= UT_LIST_GET_LEN(new_table->indexes));
 
+		ut_d(was_instant = old_table->is_instant());
 		instant_table = new_table;
 		instant_table->remove_stub_from_cache();
 		instant_table->id = old_table->id;
@@ -340,20 +348,22 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 			mem_heap_dup(old_table->heap, instant_table->cols,
 				     instant_table->n_cols
 				     * sizeof *old_table->cols));
-		/* Copy the default values to the old_table->heap.
-		They were allocated in this->heap. */
-		for (uint i = old_table->n_def - DATA_N_SYS_COLS;
-		     i < instant_table->n_def - DATA_N_SYS_COLS;
-		     i++) {
-			dict_col_t& col = old_table->cols[i];
-			DBUG_ASSERT(col.is_instant());
-			if (col.def_val.len == 0) {
-				col.def_val.data = field_ref_zero;
-			} else if (const void*& def = col.def_val.data) {
-				def = mem_heap_dup(old_table->heap, def,
-						   col.def_val.len);
-			} else {
-				ut_ad(col.def_val.len == UNIV_SQL_NULL);
+		if (instant_table->is_instant()) {
+			/* Copy the default values to the old_table->heap.
+			They were allocated in this->heap. */
+			for (uint i = old_table->n_def - DATA_N_SYS_COLS;
+			     i < instant_table->n_def - DATA_N_SYS_COLS;
+			     i++) {
+				dict_col_t& c = old_table->cols[i];
+				DBUG_ASSERT(c.is_instant());
+				if (c.def_val.len == 0) {
+					c.def_val.data = field_ref_zero;
+				} else if (const void*& d = c.def_val.data) {
+					d = mem_heap_dup(old_table->heap, d,
+							 c.def_val.len);
+				} else {
+					ut_ad(c.def_val.len == UNIV_SQL_NULL);
+				}
 			}
 		}
 
@@ -396,8 +406,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		dict_index_t* index = dict_table_get_first_index(old_table);
 		const dict_index_t* idx = dict_table_get_first_index(
 			instant_table);
+		DBUG_ASSERT(idx->same(*index, true));
 		index->commit_instant_copy(*idx);
-		DBUG_ASSERT(index->is_instant());
 
 		while ((index = dict_table_get_next_index(index))) {
 			for (idx = dict_table_get_first_index(instant_table);
@@ -4181,10 +4191,19 @@ innobase_add_instant_try(
 	const dict_index_t* old_index = dict_table_get_first_index(user_table);
 	dict_index_t* index = dict_table_get_first_index(new_table);
 	DBUG_ASSERT(index->is_instant());
-	DBUG_ASSERT(index->same(*old_index, true));
+	DBUG_ASSERT(ctx->was_instant || !old_index->is_instant());
 	DBUG_ASSERT(index->n_fields > old_index->n_fields);
+	/* If the table was emptied and lost previous 'instant-add-ness'
+	during this instant ADD COLUMN, then we could indeed have a smaller
+	number of core fields in the instant_table than in old_table. */
+	DBUG_ASSERT((ctx->was_instant && !old_index->is_instant())
+		    || index->n_core_fields == old_index->n_core_fields);
+	DBUG_ASSERT((ctx->was_instant && !old_index->is_instant())
+		    || index->n_core_null_bytes
+		    == old_index->n_core_null_bytes);
 	index->n_core_fields = old_index->n_core_fields;
 	index->n_core_null_bytes = old_index->n_core_null_bytes;
+	DBUG_ASSERT(index->same(*old_index, true));
 	index->id = old_index->id;
 	new_table->space = index->space = old_index->space;
 	DBUG_ASSERT(index->is_instant());
@@ -4372,23 +4391,44 @@ set_not_null_default_from_sql:
 		mtr_t mtr;
 		mtr.start();
 		mtr.set_named_space(index->space);
-		/* FIXME: DBUG_ASSERT(!index->is_committed())
-		and adjust all users of the AHI to skip updates
-		when the condition holds. We do not want any
-		buf_block_t to point to our 'stub' index.
-		They may keep pointing to the clustered index
-		in user_table. */
+		btr_cur_t cursor;
+		btr_cur_open_at_index_side(true, index, BTR_MODIFY_TREE,
+					   &cursor, 0, &mtr);
+		buf_block_t* block = btr_cur_get_block(&cursor);
+		rec_t* rec = btr_cur_get_rec(&cursor);
+		ut_ad(page_rec_is_infimum(rec));
+		rec = page_rec_get_next(rec);
+		ut_ad(page_is_leaf(block->frame));
+		ut_ad(!buf_block_get_page_zip(block));
 
-		if (user_table->is_instant()) {
-			btr_pcur_t pcur;
-			btr_pcur_open(index, entry, PAGE_CUR_LE,
-				      BTR_MODIFY_TREE, &pcur, &mtr);
+		if (rec_is_default_row(rec, index)) {
+			ut_ad(page_rec_is_user_rec(rec));
+			ut_ad(user_table->is_instant());
+			if (page_rec_is_last(rec, block->frame)) {
+				goto empty_table;
+			}
 			/* FIXME: calculate and apply an update vector
 			with the instantly added columns (no changes
 			to key columns!) */
-			btr_pcur_close(&pcur);
-		} else if (page_t* root = btr_root_get(index, &mtr)) {
-#ifdef UNIV_DEBUG
+			mtr.commit();
+			return false;
+		} else if (page_rec_is_supremum(rec)) {
+			ut_ad(!user_table->is_instant());
+empty_table:
+			/* The table is empty. */
+			ut_ad(page_is_root(block->frame));
+			btr_page_empty(block, NULL, index, 0, &mtr);
+			index->remove_instant();
+			mtr.commit();
+			return false;
+		}
+
+		/* Convert the table to the instant ADD COLUMN format. */
+		ut_ad(!user_table->is_instant());
+		mtr.commit();
+		mtr.start();
+		mtr.set_named_space(index->space);
+		if (page_t* root = btr_root_get(index, &mtr)) {
 			switch (fil_page_get_type(root)) {
 			case FIL_PAGE_TYPE_INSTANT:
 				DBUG_ASSERT(page_get_instant(root)
@@ -4400,8 +4440,10 @@ set_not_null_default_from_sql:
 				break;
 			default:
 				DBUG_ASSERT(!"wrong page type");
+				mtr.commit();
+				return true;
 			}
-#endif /* UNIV_DEBUG */
+
 			mlog_write_ulint(root + FIL_PAGE_TYPE,
 					 FIL_PAGE_TYPE_INSTANT, MLOG_2BYTES,
 					 &mtr);

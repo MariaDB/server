@@ -1915,26 +1915,35 @@ inline bool dict_index_t::is_instant() const
 
 inline void dict_index_t::commit_instant_copy(const dict_index_t& instant)
 {
-	DBUG_ASSERT(instant.is_instant() || !instant.is_clust());
 	/* We do not support renaming an index yet. */
 	DBUG_ASSERT(!strcmp(name, instant.name));
-	DBUG_ASSERT(instant.same(*this, instant.is_instant()));
-	DBUG_ASSERT(n_core_fields == instant.n_core_fields);
-	DBUG_ASSERT(n_core_null_bytes == instant.n_core_null_bytes);
 
-	if (instant.is_instant()) {
+	if (instant.is_clust()) {
+		/* We can have !instant.is_instant() if the table is
+		empty and no ADD COLUMN metadata was added. */
+		DBUG_ASSERT(!instant.is_instant()
+			    || instant.n_core_fields == n_core_fields);
+		DBUG_ASSERT(!instant.is_instant()
+			    || instant.n_core_null_bytes == n_core_null_bytes);
+		DBUG_ASSERT(instant.is_instant()
+			    || instant.n_core_fields > n_core_fields);
+		DBUG_ASSERT(instant.is_instant()
+			    || instant.n_core_null_bytes >= n_core_null_bytes);
 		DBUG_ASSERT(instant.n_fields > n_fields);
 		DBUG_ASSERT(instant.n_def > n_def);
 		DBUG_ASSERT(instant.n_nullable >= n_nullable);
 		n_fields = instant.n_fields;
 		n_def = instant.n_def;
 		n_nullable = instant.n_nullable;
+		n_core_fields = instant.n_core_fields;
+		n_core_null_bytes = instant.n_core_null_bytes;
 		fields = static_cast<dict_field_t*>(
 			mem_heap_dup(heap, instant.fields,
 				     n_fields * sizeof *fields));
-		DBUG_ASSERT(is_instant());
 	}
 
+	DBUG_ASSERT(n_core_fields == instant.n_core_fields);
+	DBUG_ASSERT(n_core_null_bytes == instant.n_core_null_bytes);
 	ut_d(unsigned n_null = 0);
 
 	for (unsigned i = 0; i < n_fields; i++) {
