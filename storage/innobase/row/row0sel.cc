@@ -3908,6 +3908,15 @@ row_sel_try_search_shortcut_for_mysql(
 		return(SEL_RETRY);
 	}
 
+	if (rec_is_default_row(rec, index)) {
+		/* Skip the 'default row' pseudo-record. */
+		if (!btr_pcur_move_to_next_user_rec(pcur, mtr)) {
+			return(SEL_RETRY);
+		}
+
+		rec = btr_pcur_get_rec(pcur);
+	}
+
 	/* As the cursor is now placed on a user record after a search with
 	the mode PAGE_CUR_GE, the up_match field in the cursor tells how many
 	fields in the user record matched to the search tuple */
