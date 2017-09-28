@@ -5254,6 +5254,7 @@ os_file_handle_error_no_exit(
 			name, operation, false, on_error_silent));
 }
 
+#ifndef _WIN32
 /** Tries to disable OS caching on an opened file descriptor.
 @param[in]	fd		file descriptor to alter
 @param[in]	file_name	file name, used in the diagnostic message
@@ -5261,7 +5262,7 @@ os_file_handle_error_no_exit(
 				message */
 void
 os_file_set_nocache(
-	os_file_t	fd		MY_ATTRIBUTE((unused)),
+	int	fd		MY_ATTRIBUTE((unused)),
 	const char*	file_name	MY_ATTRIBUTE((unused)),
 	const char*	operation_name	MY_ATTRIBUTE((unused)))
 {
@@ -5309,6 +5310,8 @@ short_warning:
 	}
 #endif /* defined(UNIV_SOLARIS) && defined(DIRECTIO_ON) */
 }
+
+#endif /* _WIN32 */
 
 /** Write the specified number of zeros to a newly created file.
 @param[in]	name		name of the file or path as a null-terminated

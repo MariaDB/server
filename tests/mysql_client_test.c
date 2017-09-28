@@ -11751,7 +11751,7 @@ static void test_bug5194()
     }
     *query_ptr= '\0';
 
-    rc= mysql_stmt_prepare(stmt, query, query_ptr - query);
+    rc= mysql_stmt_prepare(stmt, query, (ulong)(query_ptr - query));
     if (rc && nrows * COLUMN_COUNT > uint16_max)
     {
       if (!opt_silent)
@@ -15733,7 +15733,7 @@ static void test_bug21206()
   for (fetch= fetch_array; fetch < fetch_array + cursor_count; ++fetch)
   {
     /* Init will exit(1) in case of error */
-    stmt_fetch_init(fetch, fetch - fetch_array, query);
+    stmt_fetch_init(fetch, (uint)(fetch - fetch_array), query);
   }
 
   for (fetch= fetch_array; fetch < fetch_array + cursor_count; ++fetch)
@@ -15935,7 +15935,7 @@ static void test_bug21635()
     rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1)");
     myquery(rc);
 
-    rc= mysql_real_query(mysql, query, query_end - query);
+    rc= mysql_real_query(mysql, query, (ulong)(query_end - query));
     myquery(rc);
 
     result= mysql_use_result(mysql);

@@ -161,7 +161,7 @@ void my_sha_multi(uchar *digest, ...)
 
   sha_init_fast(&context);
   for (str= va_arg(args, const uchar*); str; str= va_arg(args, const uchar*))
-    sha_input(&context, str, va_arg(args, size_t));
+    sha_input(&context, str, (uint) va_arg(args, size_t));
 
   sha_result(&context, digest);
   va_end(args);
@@ -179,7 +179,7 @@ void my_sha_init(void *context)
 
 void my_sha_input(void *context, const uchar *buf, size_t len)
 {
-  sha_input((CONTEXT *)context, buf, len);
+  sha_input((CONTEXT *)context, buf, (uint) len);
 }
 
 void my_sha_result(void *context, uchar *digest)

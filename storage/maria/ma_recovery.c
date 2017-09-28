@@ -3349,7 +3349,7 @@ static LSN parse_checkpoint_record(LSN lsn)
                  page_id, rec_lsn, next_dirty_page_in_pool++))
       return LSN_ERROR;
     if (maria_recovery_verbose)
-      tprint(tracef, "%8u  %8u  %12lu    %lu,0x%lx\n", (uint) table_id,
+      tprint(tracef, "%8u  %8u  %12lu    " LSN_FMT "\n", (uint) table_id,
              (uint) is_index, (ulong) page_id, LSN_IN_PARTS(rec_lsn));
     set_if_smaller(minimum_rec_lsn_of_dirty_pages, rec_lsn);
   }

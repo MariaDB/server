@@ -1203,13 +1203,13 @@ int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
 
 ulong tdc_refresh_version(void)
 {
-  return my_atomic_load64_explicit(&tdc_version, MY_MEMORY_ORDER_RELAXED);
+  return (ulong)my_atomic_load64_explicit(&tdc_version, MY_MEMORY_ORDER_RELAXED);
 }
 
 
 ulong tdc_increment_refresh_version(void)
 {
-  ulong v= my_atomic_add64_explicit(&tdc_version, 1, MY_MEMORY_ORDER_RELAXED);
+  ulong v= (ulong)my_atomic_add64_explicit(&tdc_version, 1, MY_MEMORY_ORDER_RELAXED);
   DBUG_PRINT("tcache", ("incremented global refresh_version to: %lu", v));
   return v + 1;
 }

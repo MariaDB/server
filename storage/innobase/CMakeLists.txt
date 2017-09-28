@@ -163,6 +163,7 @@ IF(NOT TARGET innobase)
   RETURN()
 ENDIF()
 
+INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
 # A GCC bug causes crash when compiling these files on ARM64 with -O1+
 # Compile them with -O0 as a workaround.
 IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
@@ -170,7 +171,6 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
   EXECUTE_PROCESS(COMMAND ${CMAKE_C_COMPILER} -dumpversion
                   OUTPUT_VARIABLE GCC_VERSION)
   IF(GCC_VERSION VERSION_LESS 5.2)
-    INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
     ADD_COMPILE_FLAGS(
       btr/btr0btr.cc
       btr/btr0cur.cc
@@ -179,6 +179,11 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
       COMPILE_FLAGS "-O0"
       )
   ENDIF()
+ENDIF()
+IF(MSVC)
+  # silence "switch statement contains 'default' but no 'case' label
+  # on generated file.
+  TARGET_COMPILE_OPTIONS(innobase PRIVATE "/wd4065")
 ENDIF()
 
 ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)

@@ -1770,11 +1770,11 @@ static void translog_new_page_header(TRANSLOG_ADDRESS *horizon,
     ptr+= TRANSLOG_PAGE_SIZE / DISK_DRIVE_SECTOR_SIZE;
   }
   {
-    uint len= (ptr - cursor->ptr);
+    size_t len= (ptr - cursor->ptr);
     (*horizon)+= len; /* increasing the offset part of the address */
-    cursor->current_page_fill= len;
+    cursor->current_page_fill= (uint16)len;
     if (!cursor->chaser)
-      cursor->buffer->size+= len;
+      cursor->buffer->size+= (translog_size_t)len;
   }
   cursor->ptr= ptr;
   DBUG_PRINT("info", ("NewP buffer #%u: %p  chaser: %d  Size: %lu (%lu)  "
@@ -1885,14 +1885,14 @@ static void translog_finish_page(TRANSLOG_ADDRESS *horizon,
   DBUG_PRINT("enter", ("Buffer: #%u %p  "
                        "Buffer addr: " LSN_FMT "  "
                        "Page addr: " LSN_FMT "  "
-                       "size:%lu (%lu)  Pg:%u  left:%u",
+                       "size:%u (%u)  Pg:%u  left:%u",
                        (uint) cursor->buffer_no, cursor->buffer,
                        LSN_IN_PARTS(cursor->buffer->offset),
-                       LSN_FILE_NO(*horizon),
-                       (LSN_OFFSET(*horizon) -
+                       (uint)LSN_FILE_NO(*horizon),
+                       (uint)(LSN_OFFSET(*horizon) -
                                 cursor->current_page_fill),
-                       (ulong) cursor->buffer->size,
-                       (ulong) (cursor->ptr -cursor->buffer->buffer),
+                       (uint) cursor->buffer->size,
+                       (uint) (cursor->ptr -cursor->buffer->buffer),
                        (uint) cursor->current_page_fill, (uint) left));
   DBUG_ASSERT(LSN_FILE_NO(*horizon) == LSN_FILE_NO(cursor->buffer->offset));
   translog_check_cursor(cursor);
@@ -2637,8 +2637,8 @@ static my_bool translog_buffer_flush(struct st_translog_buffer *buffer)
     {
       DBUG_PRINT("error",
                  ("Can't write page " LSN_FMT " to pagecache, error: %d",
-                  (ulong) buffer->file->number,
-                  (ulong) (LSN_OFFSET(buffer->offset)+ i),
+                  buffer->file->number,
+                  (uint)(LSN_OFFSET(buffer->offset)+ i),
                   my_errno));
       translog_stop_writing();
       DBUG_RETURN(1);
@@ -2653,8 +2653,8 @@ static my_bool translog_buffer_flush(struct st_translog_buffer *buffer)
   {
     DBUG_PRINT("error", ("Can't write buffer " LSN_FMT " size %lu "
                          "to the disk (%d)",
-                         (ulong) file->handler.file,
-                         (ulong) LSN_OFFSET(buffer->offset),
+                         (uint) file->handler.file,
+                         (uint) LSN_OFFSET(buffer->offset),
                          (ulong) buffer->size, errno));
     translog_stop_writing();
     DBUG_RETURN(1);
@@ -2877,7 +2877,7 @@ static my_bool translog_page_validator(int res, PAGECACHE_IO_HOOK_ARGS *args)
     DBUG_PRINT("error", ("Page " LSN_FMT ": "
                          "page address written in the page is incorrect: "
                          "File %lu instead of %lu or page %lu instead of %lu",
-                         (ulong) data->number, (ulong) offset,
+                         (uint)data->number, (uint)offset,
                          (ulong) uint3korr(page + 3), (ulong) data->number,
                          (ulong) uint3korr(page),
                          (ulong) page_no));
@@ -2890,7 +2890,7 @@ static my_bool translog_page_validator(int res, PAGECACHE_IO_HOOK_ARGS *args)
   {
     DBUG_PRINT("error", ("Page " LSN_FMT ": "
                          "Garbage in the page flags field detected : %x",
-                         (ulong) data->number, (ulong) offset,
+                         (uint) data->number, (uint) offset,
                          (uint) flags));
     DBUG_RETURN(1);
   }
@@ -2904,7 +2904,7 @@ static my_bool translog_page_validator(int res, PAGECACHE_IO_HOOK_ARGS *args)
     {
       DBUG_PRINT("error", ("Page " LSN_FMT ": "
                            "CRC mismatch: calculated: %lx on the page %lx",
-                           (ulong) data->number, (ulong) offset,
+                           (uint) data->number, (uint) offset,
                            (ulong) crc, (ulong) uint4korr(page_pos)));
       DBUG_RETURN(1);
     }
@@ -4892,7 +4892,7 @@ static uint translog_get_current_page_rest()
 
 static uint translog_get_current_buffer_rest()
 {
-  return ((log_descriptor.bc.buffer->buffer + TRANSLOG_WRITE_BUFFER -
+  return (uint)((log_descriptor.bc.buffer->buffer + TRANSLOG_WRITE_BUFFER -
            log_descriptor.bc.ptr) /
           TRANSLOG_PAGE_SIZE);
 }
@@ -5087,10 +5087,10 @@ translog_write_variable_record_1group(LSN *lsn,
                                                  &horizon, &cursor))
     DBUG_RETURN(1);
     DBUG_PRINT("info", ("absolute horizon: " LSN_FMT "  local: " LSN_FMT,
-                        (ulong) LSN_FILE_NO(log_descriptor.horizon),
-                        (ulong) LSN_OFFSET(log_descriptor.horizon),
-                        (ulong) LSN_FILE_NO(horizon),
-                        (ulong) LSN_OFFSET(horizon)));
+                        (uint) LSN_FILE_NO(log_descriptor.horizon),
+                        (uint) LSN_OFFSET(log_descriptor.horizon),
+                        (uint) LSN_FILE_NO(horizon),
+                        (uint) LSN_OFFSET(horizon)));
 
   translog_buffer_lock(cursor.buffer);
   translog_buffer_decrease_writers(cursor.buffer);
@@ -6624,11 +6624,11 @@ static my_bool translog_scanner_eol(TRANSLOG_SCANNER_DATA *scanner)
 {
   DBUG_ENTER("translog_scanner_eol");
   DBUG_PRINT("enter",
-             ("Horizon: " LSN_FMT "  Current: (%lu, 0x%lx+0x%x=0x%lx)",
+             ("Horizon: " LSN_FMT "  Current: (%u, 0x%x+0x%x=0x%x)",
               LSN_IN_PARTS(scanner->horizon),
               LSN_IN_PARTS(scanner->page_addr),
               (uint) scanner->page_offset,
-              (ulong) (LSN_OFFSET(scanner->page_addr) + scanner->page_offset)));
+              (uint) (LSN_OFFSET(scanner->page_addr) + scanner->page_offset)));
   if (scanner->horizon > (scanner->page_addr +
                           scanner->page_offset))
   {
@@ -6834,7 +6834,7 @@ translog_variable_length_header(uchar *page, translog_size_t page_offset,
     src+= (2 + 2);
     page_rest= (uint16) (TRANSLOG_PAGE_SIZE - (src - page));
     curr= 0;
-    header_to_skip= src - (page + page_offset);
+    header_to_skip= (uint) (src - (page + page_offset));
     buff->chunk0_pages= 0;
 
     for (;;)
@@ -7465,8 +7465,8 @@ static void translog_force_current_buffer_to_finish()
                        (uint) old_buffer_no,
                        old_buffer,
                        LSN_IN_PARTS(old_buffer->offset),
-                       (ulong) LSN_FILE_NO(log_descriptor.horizon),
-                       (ulong) (LSN_OFFSET(log_descriptor.horizon) -
+                       LSN_FILE_NO(log_descriptor.horizon),
+                       (uint)(LSN_OFFSET(log_descriptor.horizon) -
                                 log_descriptor.bc.current_page_fill),
                        (ulong) old_buffer->size,
                        (ulong) (log_descriptor.bc.ptr -log_descriptor.bc.

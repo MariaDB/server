@@ -1733,7 +1733,7 @@ public:
 private:
   void move_cursor_if_possible()
   {
-    int rows_difference= n_rows - n_rows_behind;
+    longlong rows_difference= n_rows - n_rows_behind;
     if (rows_difference > 0) /* We still have to wait. */
       return;
 

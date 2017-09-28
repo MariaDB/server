@@ -28,7 +28,7 @@
 static uint decode_bits;
 static char **default_argv;
 static const char *load_default_groups[]= { "myisamchk", 0 };
-static const char *set_collation_name, *opt_tmpdir;
+static char *set_collation_name, *opt_tmpdir;
 static CHARSET_INFO *set_collation;
 static long opt_myisam_block_size;
 static long opt_key_cache_block_size;

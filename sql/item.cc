@@ -1051,7 +1051,7 @@ void Item::set_name(THD *thd, const char *str, uint length, CHARSET_INFO *cs)
   if (!cs->ctype || cs->mbminlen > 1)
   {
     str+= cs->cset->scan(cs, str, str + length, MY_SEQ_SPACES);
-    length-= str - str_start;
+    length-= (uint)(str - str_start);
   }
   else
   {

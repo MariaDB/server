@@ -62,15 +62,26 @@ static inline void mysql_audit_notify(THD *thd, uint event_class,
 #endif
 extern void mysql_audit_release(THD *thd);
 
+static inline unsigned int strlen_uint(const char *s)
+{
+  return (uint)strlen(s);
+}
+
+static inline unsigned int safe_strlen_uint(const char *s)
+{
+  return (uint)safe_strlen(s);
+}
+
 #define MAX_USER_HOST_SIZE 512
 static inline uint make_user_name(THD *thd, char *buf)
 {
   const Security_context *sctx= thd->security_ctx;
-  return strxnmov(buf, MAX_USER_HOST_SIZE,
+  char *end= strxnmov(buf, MAX_USER_HOST_SIZE,
                   sctx->priv_user[0] ? sctx->priv_user : "", "[",
                   sctx->user ? sctx->user : "", "] @ ",
                   sctx->host ? sctx->host : "", " [",
-                  sctx->ip ? sctx->ip : "", "]", NullS) - buf;
+                  sctx->ip ? sctx->ip : "", "]", NullS);
+  return (uint)(end-buf);
 }
 
 /**
@@ -112,7 +123,7 @@ void mysql_audit_general_log(THD *thd, time_t time,
       event.general_thread_id= (unsigned long)thd->thread_id;
       event.general_charset= thd->variables.character_set_client;
       event.database= thd->db;
-      event.database_length= thd->db_length;
+      event.database_length= (unsigned int)thd->db_length;
       event.query_id= thd->query_id;
     }
     else
@@ -153,7 +164,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
     event.general_error_code= error_code;
     event.general_time= my_time(0);
     event.general_command= msg;
-    event.general_command_length= safe_strlen(msg);
+    event.general_command_length= safe_strlen_uint(msg);
 
     if (thd)
     {
@@ -165,7 +176,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       event.general_charset= thd->query_string.charset();
       event.general_rows= thd->get_stmt_da()->current_row_for_warning();
       event.database= thd->db;
-      event.database_length= thd->db_length;
+      event.database_length= (uint)thd->db_length;
       event.query_id= thd->query_id;
     }
     else
@@ -199,19 +210,19 @@ void mysql_audit_notify_connection_connect(THD *thd)
                   thd->get_stmt_da()->sql_errno() : 0;
     event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
-    event.user_length= safe_strlen(sctx->user);
+    event.user_length= safe_strlen_uint(sctx->user);
     event.priv_user= sctx->priv_user;
-    event.priv_user_length= strlen(sctx->priv_user);
+    event.priv_user_length= strlen_uint(sctx->priv_user);
     event.external_user= sctx->external_user;
-    event.external_user_length= safe_strlen(sctx->external_user);
+    event.external_user_length= safe_strlen_uint(sctx->external_user);
     event.proxy_user= sctx->proxy_user;
-    event.proxy_user_length= strlen(sctx->proxy_user);
+    event.proxy_user_length= strlen_uint(sctx->proxy_user);
     event.host= sctx->host;
-    event.host_length= safe_strlen(sctx->host);
+    event.host_length= safe_strlen_uint(sctx->host);
     event.ip= sctx->ip;
-    event.ip_length= safe_strlen(sctx->ip);
+    event.ip_length= safe_strlen_uint(sctx->ip);
     event.database= thd->db;
-    event.database_length= safe_strlen(thd->db);
+    event.database_length= safe_strlen_uint(thd->db);
 
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
@@ -229,19 +240,19 @@ void mysql_audit_notify_connection_disconnect(THD *thd, int errcode)
     event.status= errcode;
     event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
-    event.user_length= safe_strlen(sctx->user);
+    event.user_length= safe_strlen_uint(sctx->user);
     event.priv_user= sctx->priv_user;
-    event.priv_user_length= strlen(sctx->priv_user);
+    event.priv_user_length= strlen_uint(sctx->priv_user);
     event.external_user= sctx->external_user;
-    event.external_user_length= safe_strlen(sctx->external_user);
+    event.external_user_length= safe_strlen_uint(sctx->external_user);
     event.proxy_user= sctx->proxy_user;
-    event.proxy_user_length= strlen(sctx->proxy_user);
+    event.proxy_user_length= strlen_uint(sctx->proxy_user);
     event.host= sctx->host;
-    event.host_length= safe_strlen(sctx->host);
+    event.host_length= safe_strlen_uint(sctx->host);
     event.ip= sctx->ip;
-    event.ip_length= safe_strlen(sctx->ip) ;
+    event.ip_length= safe_strlen_uint(sctx->ip) ;
     event.database= thd->db;
-    event.database_length= safe_strlen(thd->db);
+    event.database_length= safe_strlen_uint(thd->db);
 
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
@@ -260,19 +271,19 @@ void mysql_audit_notify_connection_change_user(THD *thd)
                   thd->get_stmt_da()->sql_errno() : 0;
     event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
-    event.user_length= safe_strlen(sctx->user);
+    event.user_length= safe_strlen_uint(sctx->user);
     event.priv_user= sctx->priv_user;
-    event.priv_user_length= strlen(sctx->priv_user);
+    event.priv_user_length= strlen_uint(sctx->priv_user);
     event.external_user= sctx->external_user;
-    event.external_user_length= safe_strlen(sctx->external_user);
+    event.external_user_length= safe_strlen_uint(sctx->external_user);
     event.proxy_user= sctx->proxy_user;
-    event.proxy_user_length= strlen(sctx->proxy_user);
+    event.proxy_user_length= strlen_uint(sctx->proxy_user);
     event.host= sctx->host;
-    event.host_length= safe_strlen(sctx->host);
+    event.host_length= safe_strlen_uint(sctx->host);
     event.ip= sctx->ip;
-    event.ip_length= safe_strlen(sctx->ip);
+    event.ip_length= safe_strlen_uint(sctx->ip);
     event.database= thd->db;
-    event.database_length= safe_strlen(thd->db);
+    event.database_length= safe_strlen_uint(thd->db);
 
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
@@ -297,9 +308,9 @@ void mysql_audit_external_lock(THD *thd, TABLE_SHARE *share, int lock)
     event.host= sctx->host;
     event.ip= sctx->ip;
     event.database= share->db.str;
-    event.database_length= share->db.length;
+    event.database_length= (unsigned int)share->db.length;
     event.table= share->table_name.str;
-    event.table_length= share->table_name.length;
+    event.table_length= (unsigned int)share->table_name.length;
     event.new_database= 0;
     event.new_database_length= 0;
     event.new_table= 0;
@@ -331,9 +342,9 @@ void mysql_audit_create_table(TABLE *table)
     event.host= sctx->host;
     event.ip= sctx->ip;
     event.database= share->db.str;
-    event.database_length= share->db.length;
+    event.database_length= (unsigned int)share->db.length;
     event.table= share->table_name.str;
-    event.table_length= share->table_name.length;
+    event.table_length= (unsigned int)share->table_name.length;
     event.new_database= 0;
     event.new_database_length= 0;
     event.new_table= 0;
@@ -363,9 +374,9 @@ void mysql_audit_drop_table(THD *thd, TABLE_LIST *table)
     event.host= sctx->host;
     event.ip= sctx->ip;
     event.database= table->db;
-    event.database_length= table->db_length;
+    event.database_length= (unsigned int)table->db_length;
     event.table= table->table_name;
-    event.table_length= table->table_name_length;
+    event.table_length= (unsigned int)table->table_name_length;
     event.new_database= 0;
     event.new_database_length= 0;
     event.new_table= 0;
@@ -396,13 +407,13 @@ void mysql_audit_rename_table(THD *thd, const char *old_db, const char *old_tb,
     event.host= sctx->host;
     event.ip= sctx->ip;
     event.database= old_db;
-    event.database_length= strlen(old_db);
+    event.database_length= strlen_uint(old_db);
     event.table= old_tb;
-    event.table_length= strlen(old_tb);
+    event.table_length= strlen_uint(old_tb);
     event.new_database= new_db;
-    event.new_database_length= strlen(new_db);
+    event.new_database_length= strlen_uint(new_db);
     event.new_table= new_tb;
-    event.new_table_length= strlen(new_tb);
+    event.new_table_length= strlen_uint(new_tb);
     event.query_id= thd->query_id;
 
     mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
@@ -428,9 +439,9 @@ void mysql_audit_alter_table(THD *thd, TABLE_LIST *table)
     event.host= sctx->host;
     event.ip= sctx->ip;
     event.database= table->db;
-    event.database_length= table->db_length;
+    event.database_length= (unsigned int)table->db_length;
     event.table= table->table_name;
-    event.table_length= table->table_name_length;
+    event.table_length= (unsigned int)table->table_name_length;
     event.new_database= 0;
     event.new_database_length= 0;
     event.new_table= 0;

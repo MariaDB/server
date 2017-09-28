@@ -32,9 +32,9 @@
 ** String functions
 *****************************************************************************/
 
-bool String::real_alloc(uint32 length)
+bool String::real_alloc(size_t length)
 {
-  uint32 arg_length= ALIGN_SIZE(length + 1);
+  size_t arg_length= ALIGN_SIZE(length + 1);
   DBUG_ASSERT(arg_length > length);
   if (arg_length <= length)
     return TRUE;                                 /* Overflow */
@@ -46,7 +46,8 @@ bool String::real_alloc(uint32 length)
                                                (thread_specific ?
                                                 MY_THREAD_SPECIFIC : 0)))))
       return TRUE;
-    Alloced_length=arg_length;
+    DBUG_ASSERT(length < UINT_MAX32);
+    Alloced_length=(uint32) arg_length;
     alloced=1;
   }
   Ptr[0]=0;
@@ -81,7 +82,7 @@ bool String::real_alloc(uint32 length)
 
    @retval true An error occurred when attempting to allocate memory.
 */
-bool String::realloc_raw(uint32 alloc_length)
+bool String::realloc_raw(size_t alloc_length)
 {
   if (Alloced_length <= alloc_length)
   {
@@ -113,7 +114,8 @@ bool String::realloc_raw(uint32 alloc_length)
     else
       return TRUE;			// Signal error
     Ptr= new_ptr;
-    Alloced_length= len;
+    DBUG_ASSERT(len < UINT_MAX32);
+    Alloced_length=  (uint32)len;
   }
   return FALSE;
 }
@@ -140,7 +142,7 @@ bool String::set_real(double num,uint decimals, CHARSET_INFO *cs)
   if (decimals >= FLOATING_POINT_DECIMALS)
   {
     len= my_gcvt(num, MY_GCVT_ARG_DOUBLE, sizeof(buff) - 1, buff, NULL);
-    return copy(buff, len, &my_charset_latin1, cs, &dummy_errors);
+    return copy(buff, (uint)len, &my_charset_latin1, cs, &dummy_errors);
   }
   len= my_fcvt(num, decimals, buff, NULL);
   return copy(buff, (uint32) len, &my_charset_latin1, cs,
@@ -180,10 +182,11 @@ bool String::copy(const String &str)
   return FALSE;
 }
 
-bool String::copy(const char *str,uint32 arg_length, CHARSET_INFO *cs)
+bool String::copy(const char *str,size_t arg_length, CHARSET_INFO *cs)
 {
   if (alloc(arg_length))
     return TRUE;
+  DBUG_ASSERT(arg_length < UINT_MAX32);
   if ((str_length=arg_length))
     memcpy(Ptr,str,arg_length);
   Ptr[arg_length]=0;
@@ -440,8 +443,10 @@ bool String::append(const String &s)
   Append an ASCII string to the a string of the current character set
 */
 
-bool String::append(const char *s,uint32 arg_length)
+bool String::append(const char *s,size_t size)
 {
+  DBUG_ASSERT(size <= UINT_MAX32);
+  uint32 arg_length= (uint32) size;
   if (!arg_length)
     return FALSE;
 
@@ -485,7 +490,7 @@ bool String::append_longlong(longlong val)
   if (realloc(str_length+MAX_BIGINT_WIDTH+2))
     return TRUE;
   char *end= (char*) longlong10_to_str(val, (char*) Ptr + str_length, -10);
-  str_length= end - Ptr;
+  str_length= (uint32)(end - Ptr);
   return FALSE;
 }
 
@@ -495,7 +500,7 @@ bool String::append_ulonglong(ulonglong val)
   if (realloc(str_length+MAX_BIGINT_WIDTH+2))
     return TRUE;
   char *end= (char*) longlong10_to_str(val, (char*) Ptr + str_length, 10);
-  str_length= end - Ptr;
+  str_length= (uint32) (end - Ptr);
   return FALSE;
 }
 
@@ -591,7 +596,7 @@ bool String::append_with_prefill(const char *s,uint32 arg_length,
 
 uint32 String::numchars() const
 {
-  return str_charset->cset->numchars(str_charset, Ptr, Ptr+str_length);
+  return (uint32) str_charset->cset->numchars(str_charset, Ptr, Ptr+str_length);
 }
 
 int String::charpos(longlong i,uint32 offset)
@@ -720,7 +725,7 @@ void String::qs_append(const char *str, uint32 len)
 void String::qs_append(double d)
 {
   char *buff = Ptr + str_length;
-  str_length+= my_gcvt(d, MY_GCVT_ARG_DOUBLE, FLOATING_POINT_BUFFER - 1, buff,
+  str_length+= (uint32) my_gcvt(d, MY_GCVT_ARG_DOUBLE, FLOATING_POINT_BUFFER - 1, buff,
                        NULL);
 }
 
@@ -1025,10 +1030,10 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
       my_charset_same(from_cs, to_cs))
   {
     m_cannot_convert_error_pos= NULL;
-    return to_cs->cset->copy_fix(to_cs, to, to_length, from, from_length,
+    return (uint) to_cs->cset->copy_fix(to_cs, to, to_length, from, from_length,
                                  nchars, this);
   }
-  return my_convert_fix(to_cs, to, to_length, from_cs, from, from_length,
+  return (uint) my_convert_fix(to_cs, to, to_length, from_cs, from, from_length,
                         nchars, this, this);
 }
 
@@ -1164,5 +1169,5 @@ uint convert_to_printable(char *to, size_t to_len,
     memcpy(dots, STRING_WITH_LEN("...\0"));
   else
     *t= '\0';
-  return t - to;
+  return (uint) (t - to);
 }

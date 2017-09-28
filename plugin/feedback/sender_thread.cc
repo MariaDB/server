@@ -238,7 +238,7 @@ static void send_report(const char *when)
       Url *url= todo[i];
 
       if (thd) // for nicer SHOW PROCESSLIST
-        thd->set_query(const_cast<char*>(url->url()), url->url_length());
+        thd->set_query(const_cast<char*>(url->url()), (uint) url->url_length());
 
       if (url->send(str.ptr(), str.length()))
         i++;

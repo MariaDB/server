@@ -211,7 +211,7 @@ protected:
                              CHARSET_INFO *cs, const char *str, size_t length,
                              my_decimal *buf)
     {
-      m_error= str2my_decimal(mask, str, length, cs,
+      m_error= str2my_decimal(mask, str,(uint) length, cs,
                               buf, (const char **) &m_end_of_num);
       // E_DEC_TRUNCATED means a very minor truncation: '1e-100' -> 0
       m_edom= m_error && m_error != E_DEC_TRUNCATED;
@@ -848,7 +848,7 @@ public:
   int store(const char *to, uint length, CHARSET_INFO *cs,
             enum_check_fields check_level);
   int store(const LEX_STRING *ls, CHARSET_INFO *cs)
-  { return store(ls->str, ls->length, cs); }
+  { return store(ls->str, (uint32) ls->length, cs); }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
   virtual bool val_bool(void)= 0;

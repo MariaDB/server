@@ -211,7 +211,7 @@ String *Item_func_inet_str_base::val_str_ascii(String *buffer)
   IPv4-part differently on different platforms.
 */
 
-static bool str_to_ipv4(const char *str, int str_length, in_addr *ipv4_address)
+static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_address)
 {
   if (str_length < 7)
   {
@@ -236,7 +236,7 @@ static bool str_to_ipv4(const char *str, int str_length, in_addr *ipv4_address)
   int dot_count= 0;
   char c= 0;
 
-  while (((p - str) < str_length) && *p)
+  while (((p - str) < (int)str_length) && *p)
   {
     c= *p++;
 
@@ -493,7 +493,7 @@ static bool str_to_ipv6(const char *str, int str_length, in6_addr *ipv6_address)
       return false;
     }
 
-    int bytes_to_move= dst - gap_ptr;
+    int bytes_to_move= (int)(dst - gap_ptr);
 
     for (int i= 1; i <= bytes_to_move; ++i)
     {

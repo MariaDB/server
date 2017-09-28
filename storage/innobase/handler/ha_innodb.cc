@@ -2181,7 +2181,7 @@ convert_error_code_to_mysql(
 		bool comp = !!(flags & DICT_TF_COMPACT);
 		ulint free_space = page_get_free_space_of_empty(comp) / 2;
 
-		if (free_space >= (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+		if (free_space >= ulint(comp ? COMPRESSED_REC_MAX_DATA_SIZE :
 				          REDUNDANT_REC_MAX_DATA_SIZE)) {
 			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
 				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
@@ -11850,7 +11850,7 @@ err_col:
 			err = row_create_table_for_mysql(
 				table, m_trx, false,
 				(fil_encryption_t)options->encryption,
-				options->encryption_key_id);
+				(uint32_t)options->encryption_key_id);
 		}
 
 		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
@@ -15472,7 +15472,7 @@ ha_innobase::update_table_comment(
 {
 	uint	length = (uint) strlen(comment);
 	char*	str=0;
-	long	flen;
+	size_t	flen;
 	std::string fk_str;
 
 	/* We do not know if MySQL can call this function before calling
@@ -15500,9 +15500,7 @@ ha_innobase::update_table_comment(
 
 	flen = fk_str.length();
 
-	if (flen < 0) {
-		flen = 0;
-	} else if (length + flen + 3 > 64000) {
+	if (length + flen + 3 > 64000) {
 		flen = 64000 - 3 - length;
 	}
 	/* allocate buffer for the full string */
@@ -22139,8 +22137,8 @@ innobase_find_mysql_table_for_vc(
 	char	dbname[MAX_DATABASE_NAME_LEN + 1];
 	char	tbname[MAX_TABLE_NAME_LEN + 1];
 	char*	name = table->name.m_name;
-	uint	dbnamelen = dict_get_db_name_len(name);
-	uint	tbnamelen = strlen(name) - dbnamelen - 1;
+	uint	dbnamelen = (uint) dict_get_db_name_len(name);
+	uint	tbnamelen = (uint) strlen(name) - dbnamelen - 1;
 	char	t_dbname[MAX_DATABASE_NAME_LEN + 1];
 	char	t_tbname[MAX_TABLE_NAME_LEN + 1];
 
@@ -22155,7 +22153,6 @@ innobase_find_mysql_table_for_vc(
 
 	if (is_part != NULL) {
 		*is_part = '\0';
-		tbnamelen = is_part - tbname;
 	}
 
 	dbnamelen = filename_to_tablename(dbname, t_dbname,
@@ -22665,7 +22662,7 @@ innobase_convert_to_filename_charset(
 
 	return(static_cast<uint>(strconvert(
 				cs_from, from, strlen(from),
-				cs_to, to, static_cast<size_t>(len), &errors)));
+				cs_to, to, static_cast<uint>(len), &errors)));
 }
 
 /**********************************************************************
@@ -22684,7 +22681,7 @@ innobase_convert_to_system_charset(
 
 	return(static_cast<uint>(strconvert(
 				cs1, from, strlen(from),
-				cs2, to, static_cast<size_t>(len), errors)));
+				cs2, to, static_cast<uint>(len), errors)));
 }
 
 /**********************************************************************

@@ -343,7 +343,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     */
     do
     {
-      share->table_map_id= my_atomic_add64_explicit(&last_table_id, 1,
+      share->table_map_id=(ulong) my_atomic_add64_explicit(&last_table_id, 1,
                                                     MY_MEMORY_ORDER_RELAXED);
     } while (unlikely(share->table_map_id == ~0UL));
   }

@@ -549,7 +549,7 @@ static void debug_sync_reset(THD *thd)
 static void debug_sync_remove_action(st_debug_sync_control *ds_control,
                                      st_debug_sync_action *action)
 {
-  uint dsp_idx= action - ds_control->ds_action;
+  uint dsp_idx= (uint)(action - ds_control->ds_action);
   DBUG_ENTER("debug_sync_remove_action");
   DBUG_ASSERT(ds_control);
   DBUG_ASSERT(ds_control == current_thd->debug_sync_control);
@@ -871,7 +871,7 @@ static char *debug_sync_token(char **token_p, uint *token_length_p,
                                         ptr, ptrend, MY_SEQ_NONSPACES);
 
   /* Get token length. */
-  *token_length_p= ptr - *token_p;
+  *token_length_p= (uint)(ptr - *token_p);
 
   /* If necessary, terminate token. */
   if (*ptr)

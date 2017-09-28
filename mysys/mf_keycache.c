@@ -5190,7 +5190,7 @@ int init_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
     }
   } 
 
-  keycache->partitions= partitions= partition_ptr-keycache->partition_array;
+  keycache->partitions= partitions= (uint) (partition_ptr-keycache->partition_array);
   keycache->key_cache_mem_size= mem_per_cache * partitions;
   for (i= 0; i < (int) partitions; i++)
     keycache->partition_array[i]->hash_factor= partitions;

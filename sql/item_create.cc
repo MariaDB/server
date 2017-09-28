@@ -71,7 +71,7 @@ static void wrong_precision_error(uint errcode, Item *a,
 */
 
 bool get_length_and_scale(ulonglong length, ulonglong decimals,
-                          ulong *out_length, uint *out_decimals,
+                          uint *out_length, uint *out_decimals,
                           uint max_precision, uint max_scale,
                           Item *a)
 {
@@ -88,8 +88,9 @@ bool get_length_and_scale(ulonglong length, ulonglong decimals,
 
   *out_decimals=  (uint) decimals;
   my_decimal_trim(&length, out_decimals);
-  *out_length=  (ulong) length;
-  
+  *out_length= (uint) length;
+
+
   if (*out_length < *out_decimals)
   {
     my_error(ER_M_BIGGER_THAN_D, MYF(0), "");
@@ -3309,7 +3310,7 @@ Create_udf_func Create_udf_func::s_singleton;
 Item*
 Create_udf_func::create_func(THD *thd, LEX_STRING name, List<Item> *item_list)
 {
-  udf_func *udf= find_udf(name.str, name.length);
+  udf_func *udf= find_udf(name.str, (uint)name.length);
   DBUG_ASSERT(udf);
   return create(thd, udf, item_list);
 }
@@ -7182,7 +7183,7 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
     break;
   case ITEM_CAST_DECIMAL:
   {
-    ulong len;
+    uint len;
     uint dec;
     if (get_length_and_scale(length, decimals, &len, &dec,
                              DECIMAL_MAX_PRECISION, DECIMAL_MAX_SCALE,
@@ -7193,9 +7194,7 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
   }
   case ITEM_CAST_DOUBLE:
   {
-    ulong len;
-    uint dec;
-
+    uint len, dec;
     if (!c_len)
     {
       length=   DBL_DIG+7;

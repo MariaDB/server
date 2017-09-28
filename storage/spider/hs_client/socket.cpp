@@ -223,7 +223,7 @@ socket_set_options(auto_file& fd, const socket_args& args, String& err_r)
 int
 socket_open(auto_file& fd, const socket_args& args, String& err_r)
 {
-  fd.reset(socket(args.family, args.socktype, args.protocol));
+  fd.reset((int)socket(args.family, args.socktype, args.protocol));
   if (fd.get() < 0) {
     return errno_string("socket", errno, err_r);
   }
@@ -253,7 +253,7 @@ socket_connect(auto_file& fd, const socket_args& args, String& err_r)
 int
 socket_bind(auto_file& fd, const socket_args& args, String& err_r)
 {
-  fd.reset(socket(args.family, args.socktype, args.protocol));
+  fd.reset((int)socket(args.family, args.socktype, args.protocol));
   if (fd.get() < 0) {
     return errno_string("socket", errno, err_r);
   }
@@ -300,7 +300,7 @@ int
 socket_accept(int listen_fd, auto_file& fd, const socket_args& args,
   sockaddr_storage& addr_r, socklen_t& addrlen_r, String& err_r)
 {
-  fd.reset(accept(listen_fd, reinterpret_cast<sockaddr *>(&addr_r),
+  fd.reset((int)accept(listen_fd, reinterpret_cast<sockaddr *>(&addr_r),
     &addrlen_r));
   if (fd.get() < 0) {
     return errno_string("accept", errno, err_r);

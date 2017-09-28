@@ -1423,7 +1423,7 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
         }
         next_s++;
       }
-      len-= next_s - str;
+      len-= (uint)(next_s - str);
       str= next_s;
       continue;
     }

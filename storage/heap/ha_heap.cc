@@ -216,7 +216,7 @@ void ha_heap::update_key_stats()
       else
       {
         ha_rows hash_buckets= file->s->keydef[i].hash_buckets;
-        ha_rows no_records= hash_buckets ? (file->s->records/hash_buckets) : 2;
+        ulong no_records= hash_buckets ? (ulong)(file->s->records/hash_buckets) : 2;
         if (no_records < 2)
           no_records= 2;
         key->rec_per_key[key->user_defined_key_parts-1]= no_records;

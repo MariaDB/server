@@ -3307,14 +3307,14 @@ uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
   {
     switch (plugin_var->flags & PLUGIN_VAR_TYPEMASK) {
     case PLUGIN_VAR_BOOL:
-      thd->sys_var_tmp.my_bool_value= option.def_value;
+      thd->sys_var_tmp.my_bool_value= (my_bool)option.def_value;
       return (uchar*) &thd->sys_var_tmp.my_bool_value;
     case PLUGIN_VAR_INT:
-      thd->sys_var_tmp.int_value= option.def_value;
+      thd->sys_var_tmp.int_value= (int)option.def_value;
       return (uchar*) &thd->sys_var_tmp.int_value;
     case PLUGIN_VAR_LONG:
     case PLUGIN_VAR_ENUM:
-      thd->sys_var_tmp.long_value= option.def_value;
+      thd->sys_var_tmp.long_value= (long)option.def_value;
       return (uchar*) &thd->sys_var_tmp.long_value;
     case PLUGIN_VAR_LONGLONG:
     case PLUGIN_VAR_SET:

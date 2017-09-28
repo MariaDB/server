@@ -524,7 +524,7 @@ is_page_corrupted(
 	normal method. */
 	if (is_encrypted && key_version != 0) {
 		is_corrupted = !fil_space_verify_crypt_checksum(buf,
-			page_size, space_id, cur_page_num);
+			page_size, space_id, (ulint)cur_page_num);
 	} else {
 		is_corrupted = true;
 	}

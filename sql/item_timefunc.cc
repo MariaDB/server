@@ -714,7 +714,7 @@ static bool get_interval_info(const char *str,uint length,CHARSET_INFO *cs,
 {
   const char *end=str+length;
   uint i;
-  long msec_length= 0;
+  int msec_length= 0;
 
   while (str != end && !my_isdigit(cs,*str))
     str++;
@@ -725,7 +725,7 @@ static bool get_interval_info(const char *str,uint length,CHARSET_INFO *cs,
     const char *start= str;
     for (value= 0; str != end && my_isdigit(cs, *str); str++)
       value= value*10 + *str - '0';
-    msec_length= 6 - (str - start);
+    msec_length= 6 - (int)(str - start);
     values[i]= value;
     while (str != end && !my_isdigit(cs,*str))
       str++;
@@ -1061,7 +1061,7 @@ longlong Item_func_week::val_int()
   if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
     return 0;
   if (arg_count > 1)
-    week_format= args[1]->val_int();
+    week_format= (uint)args[1]->val_int();
   else
     week_format= current_thd->variables.default_week_format;
   return (longlong) calc_week(&ltime, week_mode(week_format), &year);
@@ -2456,7 +2456,7 @@ String *Item_char_typecast::copy(String *str, CHARSET_INFO *strcs)
     null_value= 1; // EOM
     return 0;
   }
-  check_truncation_with_warn(str, copier.source_end_pos() - str->ptr());
+  check_truncation_with_warn(str, (uint)(copier.source_end_pos() - str->ptr()));
   return &tmp_value;
 }
 

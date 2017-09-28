@@ -5595,7 +5595,7 @@ int Field_temporal_with_date::store(double nr)
   ErrConvDouble str(nr);
 
   longlong tmp= double_to_datetime(nr, &ltime,
-                                    sql_mode_for_dates(thd), &error);
+                                    (uint) sql_mode_for_dates(thd), &error);
   return store_TIME_with_warning(&ltime, &str, error, tmp != -1);
 }
 
@@ -7949,7 +7949,7 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
     DBUG_ASSERT(length <= max_data_length());
     
     new_length= length;
-    copy_length= table->in_use->variables.group_concat_max_len;
+    copy_length= (uint)MY_MIN(UINT_MAX,table->in_use->variables.group_concat_max_len);
     if (new_length > copy_length)
     {
       new_length= Well_formed_prefix(cs,
@@ -8496,7 +8496,7 @@ uint gis_field_options_read(const uchar *buf, uint buf_len,
   }
 
 end_of_record:
-  return cbuf - buf;
+  return (uint)(cbuf - buf);
 }
 
 
@@ -9750,8 +9750,9 @@ void Column_definition::create_length_to_internal_length(void)
   case MYSQL_TYPE_STRING:
   case MYSQL_TYPE_VARCHAR:
     length*= charset->mbmaxlen;
-    key_length= length;
-    pack_length= calc_pack_length(sql_type, length);
+    DBUG_ASSERT(length <= UINT_MAX32);
+    key_length= (uint32)length;
+    pack_length= calc_pack_length(sql_type, key_length);
     break;
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
@@ -9766,21 +9767,21 @@ void Column_definition::create_length_to_internal_length(void)
     }
     else
     {
-      pack_length= length / 8;
+      pack_length= (uint)(length / 8);
       /* We need one extra byte to store the bits we save among the null bits */
       key_length= pack_length + MY_TEST(length & 7);
     }
     break;
   case MYSQL_TYPE_NEWDECIMAL:
     key_length= pack_length=
-      my_decimal_get_binary_size(my_decimal_length_to_precision(length,
+      my_decimal_get_binary_size(my_decimal_length_to_precision((uint)length,
 								decimals,
 								flags &
 								UNSIGNED_FLAG),
 				 decimals);
     break;
   default:
-    key_length= pack_length= calc_pack_length(sql_type, length);
+    key_length= pack_length= calc_pack_length(sql_type, (uint)length);
     break;
   }
 }
@@ -9953,9 +9954,9 @@ bool Column_definition::check(THD *thd)
       DBUG_RETURN(TRUE);
     }
     length=
-      my_decimal_precision_to_length(length, decimals, flags & UNSIGNED_FLAG);
+      my_decimal_precision_to_length((uint)length, decimals, flags & UNSIGNED_FLAG);
     pack_length=
-      my_decimal_get_binary_size(length, decimals);
+      my_decimal_get_binary_size((uint)length, decimals);
     break;
   case MYSQL_TYPE_VARCHAR:
     /*
@@ -10077,14 +10078,14 @@ bool Column_definition::check(THD *thd)
                  static_cast<ulong>(MAX_BIT_FIELD_LENGTH));
         DBUG_RETURN(TRUE);
       }
-      pack_length= (length + 7) / 8;
+      pack_length= ((uint)length + 7) / 8;
       break;
     }
   case MYSQL_TYPE_DECIMAL:
     DBUG_ASSERT(0); /* Was obsolete */
   }
   /* Remember the value of length */
-  char_length= length;
+  char_length= (uint)length;
 
   /*
     Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
@@ -10546,7 +10547,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     interval= ((Field_enum*) old_field)->typelib;
   else
     interval=0;
-  char_length= length;
+  char_length= (uint)length;
 
   /*
     Copy the default (constant/function) from the column object orig_field, if
@@ -10839,7 +10840,7 @@ bool Field::save_in_field_default_value(bool view_error_processing)
     {
       my_message(ER_CANT_CREATE_GEOMETRY_OBJECT,
                  ER_THD(thd, ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
-      return -1;
+      return true;
     }
 
     if (view_error_processing)
@@ -10858,13 +10859,13 @@ bool Field::save_in_field_default_value(bool view_error_processing)
                           ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
                           field_name);
     }
-    return 1;
+    return true;
   }
   set_default();
   return
     !is_null() &&
     validate_value_in_record_with_warn(thd, table->record[0]) &&
-    thd->is_error() ? -1 : 0;
+    thd->is_error();
 }
 
 

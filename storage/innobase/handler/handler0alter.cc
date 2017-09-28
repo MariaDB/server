@@ -326,7 +326,7 @@ my_error_innodb(
 		bool comp = !!(flags & DICT_TF_COMPACT);
 		ulint free_space = page_get_free_space_of_empty(comp) / 2;
 
-		if (free_space >= (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+		if (free_space >= ulint(comp ? COMPRESSED_REC_MAX_DATA_SIZE :
 					  REDUNDANT_REC_MAX_DATA_SIZE)) {
 			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
 				REDUNDANT_REC_MAX_DATA_SIZE) - 1;

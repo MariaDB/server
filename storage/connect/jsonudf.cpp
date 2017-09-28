@@ -1563,7 +1563,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 				n = strlen(s);
 
 			if (IsJson(args, i))
-				j = strchr(s, '_') - s + 1;
+				j = (int)(strchr(s, '_') - s + 1);
 
 			if (j && n > j) {
 				s += j;

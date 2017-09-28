@@ -48,7 +48,7 @@ static bool eq_ascii_string(const CHARSET_INFO *cs,
 }
 
 
-static bool append_simple(String *s, const char *a, uint a_len)
+static bool append_simple(String *s, const char *a, size_t a_len)
 {
   if (!s->realloc_with_extra_if_needed(s->length() + a_len))
   {
@@ -60,7 +60,7 @@ static bool append_simple(String *s, const char *a, uint a_len)
 }
 
 
-static inline bool append_simple(String *s, const uchar *a, uint a_len)
+static inline bool append_simple(String *s, const uchar *a, size_t a_len)
 {
   return append_simple(s, (const char *) a, a_len);
 }
@@ -255,7 +255,7 @@ void report_json_error_ex(String *js, json_engine_t *je,
                           Sql_condition::enum_warning_level lv)
 {
   THD *thd= current_thd;
-  int position= (const char *) je->s.c_str - js->ptr();
+  int position= (int)((const char *) je->s.c_str - js->ptr());
   uint code;
 
   n_param++;
@@ -312,7 +312,7 @@ static void report_path_error_ex(String *ps, json_path_t *p,
                                  Sql_condition::enum_warning_level lv)
 {
   THD *thd= current_thd;
-  int position= (const char *) p->s.c_str - ps->ptr() + 1;
+  int position= (int)((const char *) p->s.c_str - ps->ptr() + 1);
   uint code;
 
   n_param++;
@@ -539,7 +539,7 @@ bool Item_func_json_query::check_and_get_value(json_engine_t *je, String *res,
     return true;
   }
 
-  res->set((const char *) je->value, je->s.c_str - value, je->s.cs);
+  res->set((const char *) je->value, (uint32)(je->s.c_str - value), je->s.cs);
   return false;
 }
 
@@ -742,7 +742,8 @@ String *Item_func_json_extract::read_json(String *str,
   json_path_t p;
   const uchar *value;
   int not_first_value= 0;
-  uint n_arg, v_len;
+  uint n_arg;
+  size_t v_len;
   int possible_multiple_values;
 
   if ((null_value= args[0]->null_value))
@@ -1529,7 +1530,8 @@ String *Item_func_json_array_append::val_str(String *str)
 {
   json_engine_t je;
   String *js= args[0]->val_json(&tmp_js);
-  uint n_arg, n_path, str_rest_len;
+  uint n_arg, n_path;
+  size_t str_rest_len;
   const uchar *ar_end;
 
   DBUG_ASSERT(fixed == 1);
@@ -2860,7 +2862,7 @@ skip_search:
       } while (json_read_keyname_chr(&je) == 0);
       if (je.s.error)
         goto err_return;
-      key_len= key_end - key_start;
+      key_len= (int)(key_end - key_start);
 
       if (!check_key_in_list(str, key_start, key_len))
       { 
@@ -3134,7 +3136,7 @@ String *Item_func_json_format::val_str(String *str)
   {
     if (arg_count > 1)
     {
-      tab_size= args[1]->val_int();
+      tab_size= (int)args[1]->val_int();
       if (args[1]->null_value)
       {
         null_value= 1;

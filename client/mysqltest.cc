@@ -767,7 +767,7 @@ public:
       if (show_from != buf)
       {
         // The last new line was found in this buf, adjust offset
-        show_offset+= (show_from - buf) + 1;
+        show_offset+= (int)(show_from - buf) + 1;
         DBUG_PRINT("info", ("adjusted offset to %d", show_offset));
       }
       DBUG_PRINT("info", ("show_offset: %d", show_offset));
@@ -2700,7 +2700,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
     DBUG_ASSERT(query_end);
     memset(&command, 0, sizeof(command));
     command.query= (char*)query;
-    command.first_word_len= (*query_end - query);
+    command.first_word_len= (int)(*query_end - query);
     command.first_argument= command.query + command.first_word_len;
     command.end= (char*)*query_end;
     command.abort_on_error= 1; /* avoid uninitialized variables */
@@ -6501,7 +6501,7 @@ void do_delimiter(struct st_command* command)
   if (!(*p))
     die("Can't set empty delimiter");
 
-  delimiter_length= strmake_buf(delimiter, p) - delimiter;
+  delimiter_length= (uint)(strmake_buf(delimiter, p) - delimiter);
 
   DBUG_PRINT("exit", ("delimiter: %s", delimiter));
   command->last_argument= p + delimiter_length;
@@ -6987,7 +6987,7 @@ int read_command(struct st_command** command_ptr)
   command->first_argument= p;
 
   command->end= strend(command->query);
-  command->query_len= (command->end - command->query);
+  command->query_len= (int)(command->end - command->query);
   parser.read_lines++;
   DBUG_RETURN(0);
 }
@@ -7544,7 +7544,7 @@ void fix_win_paths(char *val, size_t len)
 */
 
 void append_field(DYNAMIC_STRING *ds, uint col_idx, MYSQL_FIELD* field,
-                  char* val, ulonglong len, my_bool is_null)
+                  char* val, size_t len, my_bool is_null)
 {
   char null[]= "NULL";
 
@@ -8540,7 +8540,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     if (flags & QUERY_PRINT_ORIGINAL_FLAG)
     {
       print_query= command->query;
-      print_len= command->end - command->query;
+      print_len= (int)(command->end - command->query);
     }
     replace_dynstr_append_mem(ds, print_query, print_len);
     dynstr_append_mem(ds, delimiter, delimiter_length);
@@ -10237,7 +10237,7 @@ void free_replace_regex()
 */
 #define SECURE_REG_BUF   if (buf_len < need_buf_len)                    \
   {                                                                     \
-    int off= res_p - buf;                                               \
+    ssize_t off= res_p - buf;                                               \
     buf= (char*)my_realloc(buf,need_buf_len,MYF(MY_WME+MY_FAE));        \
     res_p= buf + off;                                                   \
     buf_len= need_buf_len;                                              \
@@ -10262,13 +10262,15 @@ int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
   regmatch_t *subs;
   char *replace_end;
   char *buf= *buf_p;
-  int len;
-  int buf_len, need_buf_len;
+  size_t len;
+  size_t buf_len, need_buf_len;
   int cflags= REG_EXTENDED | REG_DOTALL;
   int err_code;
   char *res_p,*str_p,*str_end;
 
-  buf_len= *buf_len_p;
+  DBUG_ASSERT(*buf_len_p > 0);
+
+  buf_len= (size_t)*buf_len_p;
   len= strlen(string);
   str_end= string + len;
 
@@ -10411,7 +10413,7 @@ int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
     }
     else /* no match this time, just copy the string as is */
     {
-      int left_in_str= str_end-str_p;
+      size_t left_in_str= str_end-str_p;
       need_buf_len= (res_p-buf) + left_in_str;
       SECURE_REG_BUF
         memcpy(res_p,str_p,left_in_str);

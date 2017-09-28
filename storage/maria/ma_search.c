@@ -1134,7 +1134,7 @@ uint _ma_get_pack_key(MARIA_KEY *int_key, uint page_flag,
     page+=length;
   }
 
-  int_key->data_length= (key - int_key->data);
+  int_key->data_length= (uint)(key - int_key->data);
   int_key->flag= 0;
   length= keyseg->length;
   if (page_flag & KEYPAGE_FLAG_HAS_TRANSID)
@@ -1336,7 +1336,7 @@ uint _ma_get_binary_pack_key(MARIA_KEY *int_key, uint page_flag, uint nod_flag,
     If we have mixed key blocks with data pointer and key block pointer,
     we have to copy both.
   */
-  int_key->data_length= (key - int_key->data);
+  int_key->data_length= (uint)(key - int_key->data);
   int_key->ref_length= length= keyseg->length;
   int_key->flag= 0;
   if ((tmp=(uint) (from_end-from)) <= length)

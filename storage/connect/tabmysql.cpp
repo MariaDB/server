@@ -681,7 +681,7 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
       strlwr(strcpy(name, Name));     // Not a keyword
 
     if ((p = strstr(qrystr, name))) {
-      Query->Set(Qrystr, p - qrystr);
+      Query->Set(Qrystr, (uint)(p - qrystr));
 
       if (qtd && *(p-1) == ' ') {
         Query->Append('`');

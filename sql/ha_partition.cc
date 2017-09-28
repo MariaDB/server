@@ -2508,7 +2508,7 @@ register_query_cache_dependant_tables(THD *thd,
         part= i * num_subparts + j;
         /* we store the end \0 as part of the key */
         end= strmov(engine_pos, sub_elem->partition_name);
-        length= end - engine_key;
+        length= (uint)(end - engine_key);
         /* Copy the suffix also to query cache key */
         memcpy(query_cache_key_end, engine_key_end, (end - engine_key_end));
         if (reg_query_cache_dependant_table(thd, engine_key, length,
@@ -2524,7 +2524,7 @@ register_query_cache_dependant_tables(THD *thd,
     else
     {
       char *end= engine_pos+1;                  // copy end \0
-      uint length= end - engine_key;
+      uint length= (uint)(end - engine_key);
       /* Copy the suffix also to query cache key */
       memcpy(query_cache_key_end, engine_key_end, (end - engine_key_end));
       if (reg_query_cache_dependant_table(thd, engine_key, length,
@@ -6738,7 +6738,7 @@ int ha_partition::info(uint flag)
       /* Get variables if not already done */
       if (!(flag & HA_STATUS_VARIABLE) ||
           !bitmap_is_set(&(m_part_info->read_partitions),
-                         (file_array - m_file)))
+                         (uint)(file_array - m_file)))
         file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
       if (file->stats.records > max_records)
       {
@@ -7704,7 +7704,7 @@ ha_rows ha_partition::estimate_rows_upper_bound()
 
   do
   {
-    if (bitmap_is_set(&(m_part_info->read_partitions), (file - m_file)))
+    if (bitmap_is_set(&(m_part_info->read_partitions), (uint)(file - m_file)))
     {
       rows= (*file)->estimate_rows_upper_bound();
       if (rows == HA_POS_ERROR)

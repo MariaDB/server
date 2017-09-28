@@ -5097,7 +5097,7 @@ static inline bool copy_event_cache_to_string_and_reinit(IO_CACHE *cache, LEX_ST
   String tmp;
 
   reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE);
-  if (tmp.append(cache, cache->end_of_file))
+  if (tmp.append(cache, (uint32)cache->end_of_file))
     goto err;
   reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
 

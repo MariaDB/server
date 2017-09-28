@@ -561,7 +561,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   }
   if ((ptr= get_field(&mem_root, table->field[ET_FIELD_ORIGINATOR])) == NullS)
     DBUG_RETURN(TRUE);
-  originator = table->field[ET_FIELD_ORIGINATOR]->val_int(); 
+  originator = (uint32) table->field[ET_FIELD_ORIGINATOR]->val_int(); 
 
   /* ToDo : Andrey . Find a way not to allocate ptr on event_mem_root */
   if ((ptr= get_field(&mem_root,

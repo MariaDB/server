@@ -7807,7 +7807,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     */
     if (!is_hash_join_key_no(key))
     {
-      table_map quick_key_map= (table_map(1) << table->quick_key_parts[key]) - 1;
+      key_part_map quick_key_map= (key_part_map(1) << table->quick_key_parts[key]) - 1;
       if (table->quick_rows[key] && 
           !(quick_key_map & ~table->const_key_parts[key]))
       {

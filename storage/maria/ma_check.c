@@ -772,7 +772,7 @@ static
 void maria_collect_stats_nonulls_first(HA_KEYSEG *keyseg, ulonglong *notnull,
                                        const uchar *key)
 {
-  uint first_null, kp;
+  size_t first_null, kp;
   first_null= ha_find_null(keyseg, key) - keyseg;
   /*
     All prefix tuples that don't include keypart_{first_null} are not-null
@@ -814,7 +814,7 @@ int maria_collect_stats_nonulls_next(HA_KEYSEG *keyseg, ulonglong *notnull,
                                      const uchar *last_key)
 {
   uint diffs[2];
-  uint first_null_seg, kp;
+  size_t first_null_seg, kp;
   HA_KEYSEG *seg;
 
   /*
@@ -5671,7 +5671,7 @@ static int sort_maria_ft_key_write(MARIA_SORT_PARAM *sort_param,
       key_block++;
     sort_info->key_block=key_block;
     sort_param->keyinfo= &share->ft2_keyinfo;
-    ft_buf->count=(ft_buf->buf - p)/val_len;
+    ft_buf->count=(uint)(ft_buf->buf - p)/val_len;
 
     /* flushing buffer to second-level tree */
     for (error=0; !error && p < ft_buf->buf; p+= val_len)

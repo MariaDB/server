@@ -638,6 +638,9 @@ os_file_create_simple_no_error_handling_func(
 	bool*		success)
 	MY_ATTRIBUTE((warn_unused_result));
 
+#ifdef  _WIN32
+#define os_file_set_nocache(fd, file_name, operation_name) do{}while(0)
+#else
 /** Tries to disable OS caching on an opened file descriptor.
 @param[in]	fd		file descriptor to alter
 @param[in]	file_name	file name, used in the diagnostic message
@@ -646,9 +649,10 @@ os_file_create_simple_no_error_handling_func(
 void
 os_file_set_nocache(
 /*================*/
-	os_file_t	fd,		/*!< in: file descriptor to alter */
+	int	fd,		/*!< in: file descriptor to alter */
 	const char*	file_name,
 	const char*	operation_name);
+#endif
 
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!

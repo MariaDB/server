@@ -379,7 +379,7 @@ void Lex_input_stream::body_utf8_append(const char *ptr,
   if (m_cpp_utf8_processed_ptr >= ptr)
     return;
 
-  int bytes_to_copy= ptr - m_cpp_utf8_processed_ptr;
+  size_t bytes_to_copy= ptr - m_cpp_utf8_processed_ptr;
 
   memcpy(m_body_utf8_ptr, m_cpp_utf8_processed_ptr, bytes_to_copy);
   m_body_utf8_ptr += bytes_to_copy;

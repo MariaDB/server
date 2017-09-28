@@ -1684,7 +1684,7 @@ uint ha_myisammrg::count_query_cache_dependant_tables(uint8 *tables_type)
   (*tables_type)|= HA_CACHE_TBL_NONTRANSACT;
     but it has no effect because HA_CACHE_TBL_NONTRANSACT is 0
   */
-  return (file->end_table - file->open_tables);
+  return (uint)(file->end_table - file->open_tables);
 }
 
 

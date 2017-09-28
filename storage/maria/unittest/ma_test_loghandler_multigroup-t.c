@@ -485,7 +485,7 @@ int main(int argc __attribute__((unused)), char *argv[])
       fprintf(stderr, "Incorrect LOGREC_FIXED_RECORD_0LSN_EXAMPLE "
               "data read(0)\n"
               "type %u, strid %u, len %u, i: %u, 4: %u 5: %u, "
-              "lsn(0x%lu,0x%lx)\n",
+              LSN_FMT "\n",
               (uint) rec.type, (uint) rec.short_trid, (uint) rec.record_length,
               (uint)uint4korr(rec.header), (uint) rec.header[4],
               (uint) rec.header[5],

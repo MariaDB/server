@@ -477,11 +477,11 @@ int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
       memcpy(to_with_nod_flag, cur_key_with_nod_flag, full_length);
       if (log_this_change)
       {
-        uint to_with_nod_flag_offs= to_with_nod_flag - page->buff;
+        size_t to_with_nod_flag_offs= to_with_nod_flag - page->buff;
         if (likely(cur_key != key->data))
         {
           /* this memcpy() is internal to the page (source in the page) */
-          uint cur_key_with_nod_flag_offs= cur_key_with_nod_flag - page->buff;
+          size_t cur_key_with_nod_flag_offs= cur_key_with_nod_flag - page->buff;
           int2store(log_internal_copy_ptr, to_with_nod_flag_offs);
           log_internal_copy_ptr+= 2;
           int2store(log_internal_copy_ptr, cur_key_with_nod_flag_offs);
@@ -526,8 +526,8 @@ int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
         ( /* log change to split page */
          _ma_log_rt_split(page, key->data - nod_flag,
                           full_length, log_internal_copy,
-                          log_internal_copy_ptr - log_internal_copy,
-                          log_key_copy, org_length - page->size) ||
+                          (uint)(log_internal_copy_ptr - log_internal_copy),
+                          log_key_copy, (uint)(org_length - page->size)) ||
          /* and to new page */
          _ma_log_new(&new_page, 0)))
       err_code= -1;

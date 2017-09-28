@@ -2733,7 +2733,7 @@ static Sys_var_enum Sys_thread_handling(
 #ifdef HAVE_QUERY_CACHE
 static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
 {
-  ulong new_cache_size= query_cache.resize(query_cache_size);
+  ulong new_cache_size= query_cache.resize((ulong)query_cache_size);
   /*
      Note: query_cache_size is a global variable reflecting the
      requested cache size. See also query_cache_size_arg
@@ -4705,7 +4705,7 @@ static Sys_var_multi_source_ulonglong Sys_slave_skip_counter(
 static bool update_max_relay_log_size(sys_var *self, THD *thd, Master_info *mi)
 {
   mi->rli.max_relay_log_size= thd->variables.max_relay_log_size;
-  mi->rli.relay_log.set_max_size(mi->rli.max_relay_log_size);
+  mi->rli.relay_log.set_max_size((ulong)mi->rli.max_relay_log_size);
   return false;
 }
 
@@ -5330,7 +5330,7 @@ static Sys_var_ulong Sys_rowid_merge_buff_size(
        "rowid_merge_buff_size",
        "The size of the buffers used [NOT] IN evaluation via partial matching",
        SESSION_VAR(rowid_merge_buff_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, ((ulonglong)~(intptr)0)/2), DEFAULT(8*1024*1024),
+       VALID_RANGE(0, LONG_MAX), DEFAULT(8*1024*1024),
        BLOCK_SIZE(1));
 
 static Sys_var_mybool Sys_userstat(

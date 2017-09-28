@@ -339,8 +339,8 @@ unpack_row(rpl_group_info *rgi,
                        " pack_ptr: %p; conv_table %p conv_field %p table %s"
                        " row_end: %p",
                        f->field_name, metadata,
-                       (ulong) old_pack_ptr, conv_table, conv_field,
-                       (table_found) ? "found" : "not found", (ulong)row_end
+                       old_pack_ptr, conv_table, conv_field,
+                       (table_found) ? "found" : "not found", row_end
             );
 	  }
 

@@ -194,7 +194,7 @@ inline bool parse_date_time_format(timestamp_type format_type,
 {
   return parse_date_time_format(format_type,
                                 date_time_format->format.str,
-                                date_time_format->format.length,
+                                (uint) date_time_format->format.length,
                                 date_time_format);
 }
 

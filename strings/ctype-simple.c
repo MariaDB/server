@@ -1703,7 +1703,7 @@ my_strntoull10rnd_8bit(CHARSET_INFO *cs __attribute__((unused)),
     /* Unknown character, exit the loop */
     break; 
   }
-  shift= dot ? dot - str : 0; /* Right shift */
+  shift= dot ? (int)(dot - str) : 0; /* Right shift */
   addon= 0;
 
 exp:    /* [ E [ <sign> ] <unsigned integer> ] */
@@ -2019,7 +2019,7 @@ my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
   my_strxfrm_desc_and_reverse(str, frmend, flags, level);
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && frmend < strend)
   {
-    uint fill_length= strend - frmend;
+    size_t fill_length= strend - frmend;
     cs->cset->fill(cs, (char*) frmend, fill_length, cs->pad_char);
     frmend= strend;
   }
@@ -2041,7 +2041,7 @@ my_strxfrm_pad_desc_and_reverse_nopad(CHARSET_INFO *cs,
   my_strxfrm_desc_and_reverse(str, frmend, flags, level);
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && frmend < strend)
   {
-    uint fill_length= strend - frmend;
+    size_t fill_length= strend - frmend;
     memset(frmend, 0x00, fill_length);
     frmend= strend;
   }

@@ -4526,12 +4526,12 @@ Stopping slave I/O thread due to out-of-memory error from master");
           lastchecktime = currenttime;
           if(tokenamount < network_read_len)
           {
-            ulonglong micro_time = 1000*1000 * (network_read_len - tokenamount) / speed_limit_in_bytes ;  
-            ulonglong second_time = micro_time / (1000 * 1000);
-            micro_time = micro_time % (1000 * 1000);
+            ulonglong duration =1000ULL*1000 * (network_read_len - tokenamount) / speed_limit_in_bytes;
+            time_t second_time = (time_t)(duration / (1000 * 1000));
+            uint micro_time = duration % (1000 * 1000);
 
             // at least sleep 1000 micro second
-            my_sleep(micro_time > 1000 ? micro_time : 1000); 
+            my_sleep(MY_MAX(micro_time,1000));
 
             /*
               If it sleep more than one second, 

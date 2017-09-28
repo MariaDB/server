@@ -3968,7 +3968,7 @@ static int sort_ft_key_write(MI_SORT_PARAM *sort_param, const void *a)
       key_block++;
     sort_info->key_block=key_block;
     sort_param->keyinfo=& sort_info->info->s->ft2_keyinfo;
-    ft_buf->count=((uchar*) ft_buf->buf - p)/val_len;
+    ft_buf->count=(int)((uchar*) ft_buf->buf - p)/val_len;
 
     /* flushing buffer to second-level tree */
     for (error=0; !error && p < (uchar*) ft_buf->buf; p+= val_len)

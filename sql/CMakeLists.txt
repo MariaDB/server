@@ -240,6 +240,7 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   SET(CMAKE_CONFIGURABLE_FILE_CONTENT "
     IF ((mysqld_lib.def IS_NEWER_THAN mysqld_lib.lib) OR
         (mysqld_lib.def IS_NEWER_THAN mysqld_lib.exp))
+      FILE(REMOVE mysqld_lib.lib mysqld_lib.exp)
       SET(ENV{VS_UNICODE_OUTPUT})
       EXECUTE_PROCESS (
         COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${MYSQLD_DEF}\" /MACHINE:${_PLATFORM}
