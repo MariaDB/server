@@ -246,7 +246,7 @@ next:
 				ENCRYPTION_FLAG_DECRYPT
 @param[in]	offs		offset to block
 @param[in]	space_id	tablespace id
-@return true if successfull, false in case of failure
+@return true if successful, false in case of failure
 */
 static
 bool
