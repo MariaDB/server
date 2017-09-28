@@ -1333,7 +1333,7 @@ bool do_command(THD *thd)
       goto out;
     }
   }
-#endif
+#endif /WITH_WSREP */
 
   /* Restore read timeout value */
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
@@ -1344,24 +1344,6 @@ bool do_command(THD *thd)
                                  (uint) (packet_length-1), FALSE, FALSE);
   DBUG_ASSERT(!thd->apc_target.is_enabled());
 
-#ifdef WITH_WSREP
-  if (WSREP(thd)) {
-    while (thd->wsrep_conflict_state()== RETRY_AUTOCOMMIT)
-    {
-      return_value= dispatch_command(command, thd,
-                                     packet+1, (uint)(packet_length-1),
-                                     thd->wsrep_retry_query,
-                                     thd->wsrep_retry_query_len);
-    }
-  }
-  if (thd->wsrep_retry_query && thd->wsrep_conflict_state() != REPLAYING)
-  {
-    my_free(thd->wsrep_retry_query);
-    thd->wsrep_retry_query      = NULL;
-    thd->wsrep_retry_query_len  = 0;
-    thd->wsrep_retry_command    = COM_CONNECT;
-  }
-#endif /* WITH_WSREP */
 out:
   thd->lex->restore_set_statement_var();
   /* The statement instrumentation must be closed in all cases. */
@@ -3533,6 +3515,8 @@ mysql_execute_command(THD *thd)
     List_iterator_fast<set_var_base> it(lex->stmt_var_list);
     set_var_base *var;
 
+    if (lex->set_arena_for_set_stmt(&backup))
+      goto error;
 
     MEM_ROOT *mem_root= thd->mem_root;
     while ((var= it++))
@@ -6434,24 +6418,6 @@ finish:
         sp_rcontext::handle_sql_condition().
       */
       trans_rollback_stmt(thd);
-#ifdef WITH_WSREP
-    else if (thd->spcont &&
-             (thd->wsrep_conflict_state() == MUST_ABORT ||
-              thd->wsrep_conflict_state() == CERT_FAILURE))
-    {
-      /*
-        The error was cleared, but THD was aborted by wsrep and
-        wsrep_conflict_state is still set accordingly. This
-        situation is expected if we are running a stored procedure
-        that declares a handler that catches ER_LOCK_DEADLOCK error.
-        In which case the error may have been cleared in method
-        sp_rcontext::handle_sql_condition().
-      */
-      trans_rollback_stmt(thd);
-      thd->set_wsrep_conflict_state(NO_CONFLICT);
-      thd->killed= NOT_KILLED;
-    }
-#endif /* WITH_WSREP */
     else
     {
       /* If commit fails, we should be able to reset the OK status. */

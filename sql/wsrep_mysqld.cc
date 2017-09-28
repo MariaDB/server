@@ -900,6 +900,7 @@ int wsrep_init()
   if (strcmp(wsrep_start_position, WSREP_START_POSITION_ZERO) &&
       wsrep_start_position_init(wsrep_start_position))
   {
+    assert(0);
     return 1;
   }
 
@@ -3031,6 +3032,8 @@ void *start_wsrep_THD(void *arg)
 
   thd_args->fun()(thd, thd_args->args());
 
+  thd->store_globals();
+  
   WSREP_DEBUG("wsrep system thread: %lld closing", thd->thread_id);
   close_connection(thd, 0);
   delete thd_args;
