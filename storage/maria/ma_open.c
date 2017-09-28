@@ -918,6 +918,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     if (internal_table)
       set_if_smaller(share->base.max_data_file_length,
                      max_data_file_length);
+    if (share->now_transactional)
     {
       /* Setup initial state that is visible for all */
       MARIA_STATE_HISTORY_CLOSED *history;
