@@ -71,8 +71,7 @@ public:
   static sp_rcontext *create(THD *thd,
                              const sp_pcontext *root_parsing_ctx,
                              Field *return_value_fld,
-                             bool resolve_type_refs,
-                             List<Item> *args);
+                             Row_definition_list &defs);
 
   ~sp_rcontext();
 

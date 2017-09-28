@@ -1427,7 +1427,7 @@ bool sp_head::check_execute_access(THD *thd) const
 
 
 /**
-  Create rcontext using the routine security.
+  Create rcontext optionally using the routine security.
   This is important for sql_mode=ORACLE to make sure that the invoker has
   access to the tables mentioned in the %TYPE references.
 
@@ -1440,22 +1440,48 @@ bool sp_head::check_execute_access(THD *thd) const
   @retval          !NULL - success (the invoker has rights to all %TYPE tables)
 */
 sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
-                                      List<Item> *args)
+                                      Row_definition_list *defs,
+                                      bool switch_security_ctx)
 {
-  bool has_column_type_refs= m_flags & HAS_COLUMN_TYPE_REFS;
+  if (!(m_flags & HAS_COLUMN_TYPE_REFS))
+    return sp_rcontext::create(thd, m_pcont, ret_value, *defs);
+  sp_rcontext *res= NULL;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx;
-  if (has_column_type_refs &&
+  if (switch_security_ctx &&
       set_routine_security_ctx(thd, this, &save_security_ctx))
     return NULL;
 #endif
-  sp_rcontext *res= sp_rcontext::create(thd, m_pcont, ret_value,
-                                        has_column_type_refs, args);
+  if (!defs->resolve_type_refs(thd))
+    res= sp_rcontext::create(thd, m_pcont, ret_value, *defs);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (has_column_type_refs)
+  if (switch_security_ctx)
     m_security_ctx.restore_security_context(thd, save_security_ctx);
 #endif
   return res;
+}
+
+
+sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
+                                      List<Item> *args)
+{
+  DBUG_ASSERT(args);
+  Row_definition_list defs;
+  m_pcont->retrieve_field_definitions(&defs);
+  if (defs.adjust_formal_params_to_actual_params(thd, args))
+    return NULL;
+  return rcontext_create(thd, ret_value, &defs, true);
+}
+
+
+sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
+                                      Item **args, uint arg_count)
+{
+  Row_definition_list defs;
+  m_pcont->retrieve_field_definitions(&defs);
+  if (defs.adjust_formal_params_to_actual_params(thd, args, arg_count))
+    return NULL;
+  return rcontext_create(thd, ret_value, &defs, true);
 }
 
 
@@ -1556,8 +1582,9 @@ sp_head::execute_trigger(THD *thd,
   init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
-  if (!(nctx= sp_rcontext::create(thd, m_pcont, NULL,
-                                  m_flags & HAS_COLUMN_TYPE_REFS, NULL)))
+  Row_definition_list defs;
+  m_pcont->retrieve_field_definitions(&defs);
+  if (!(nctx= rcontext_create(thd, NULL, &defs, false)))
   {
     err_status= TRUE;
     goto err_with_cleanup;
@@ -1638,7 +1665,6 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   MEM_ROOT call_mem_root;
   Query_arena call_arena(&call_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
   Query_arena backup_arena;
-  List<Item> largs;
   DBUG_ENTER("sp_head::execute_function");
   DBUG_PRINT("info", ("function %s", m_name.str));
 
@@ -1673,10 +1699,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
-  for (uint i= 0 ; i < argcount ; i++)
-    largs.push_back(argp[i]);
-
-  if (!(nctx= rcontext_create(thd, return_value_fld, &largs)))
+  if (!(nctx= rcontext_create(thd, return_value_fld, argp, argcount)))
   {
     thd->restore_active_arena(&call_arena, &backup_arena);
     err_status= TRUE;

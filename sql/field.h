@@ -4096,6 +4096,8 @@ public:
     return 0;
   }
   bool adjust_formal_params_to_actual_params(THD *thd, List<Item> *args);
+  bool adjust_formal_params_to_actual_params(THD *thd,
+                                             Item **args, uint arg_count);
   bool resolve_type_refs(THD *);
 };
 
