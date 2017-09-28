@@ -1674,9 +1674,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   for (uint i= 0 ; i < argcount ; i++)
-  {
     largs.push_back(argp[i]);
-  }
 
   if (!(nctx= rcontext_create(thd, return_value_fld, &largs)))
   {

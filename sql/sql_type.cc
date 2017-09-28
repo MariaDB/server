@@ -2384,6 +2384,8 @@ Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
                    attr.collation);
 }
 
+/*************************************************************************/
+
 /*
    If length is not specified for a varchar parameter, set length to the
    maximum length of the actual argument. Goals are:
