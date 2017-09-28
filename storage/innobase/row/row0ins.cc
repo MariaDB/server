@@ -2582,6 +2582,7 @@ row_ins_clust_index_entry_low(
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 		ut_ad(!dict_index_is_online_ddl(index));
 		ut_ad(!index->table->persistent_autoinc);
+		ut_ad(!index->is_instant());
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		mtr.set_named_space(index->space);
@@ -2649,13 +2650,20 @@ row_ins_clust_index_entry_low(
 			err = DB_DUPLICATE_KEY;
 			goto err_exit;
 		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
-			ut_ad(row_ins_must_modify_rec(cursor));
-			goto do_update_purgeable;
+			/* The 'default row' is never delete-marked.
+			If a table loses its 'instantness', it happens
+			by the rollback of this first-time insert, or
+			by a call to btr_page_empty() on the root page
+			when the table becomes empty. */
+			err = DB_CORRUPTION;
+			goto err_exit;
 		default:
 			ut_ad(!row_ins_must_modify_rec(cursor));
 			goto do_insert;
 		}
-	} else if (rec_is_default_row(btr_cur_get_rec(cursor), index)) {
+	}
+
+	if (rec_is_default_row(btr_cur_get_rec(cursor), index)) {
 		goto do_insert;
 	}
 
@@ -2704,7 +2712,6 @@ err_exit:
 	/* Note: Allowing duplicates would qualify for modification of
 	an existing record as the new entry is exactly same as old entry. */
 	if (row_ins_must_modify_rec(cursor)) {
-do_update_purgeable:
 		/* There is already an index entry with a long enough common
 		prefix, we must convert the insert into a modify of an
 		existing record */
