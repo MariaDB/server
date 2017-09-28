@@ -15591,7 +15591,7 @@ get_foreign_key_info(
 
 	ptr = dict_remove_db_name(foreign->id);
 	f_key_info.foreign_id = thd_make_lex_string(
-		thd, 0, ptr, (uint) strlen(ptr), 1);
+		thd, 0, ptr, strlen(ptr), 1);
 
 	/* Name format: database name, '/', table name, '\0' */
 
@@ -15603,13 +15603,13 @@ get_foreign_key_info(
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
 	f_key_info.referenced_db = thd_make_lex_string(
-		thd, 0, name_buff, static_cast<unsigned int>(len), 1);
+		thd, 0, name_buff, len, 1);
 
 	/* Referenced (parent) table name */
 	ptr = dict_remove_db_name(foreign->referenced_table_name);
 	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff));
 	f_key_info.referenced_table = thd_make_lex_string(
-		thd, 0, name_buff, static_cast<unsigned int>(len), 1);
+		thd, 0, name_buff, len, 1);
 
 	/* Dependent (child) database name */
 	len = dict_get_db_name_len(foreign->foreign_table_name);
@@ -15619,22 +15619,22 @@ get_foreign_key_info(
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
 	f_key_info.foreign_db = thd_make_lex_string(
-		thd, 0, name_buff, static_cast<unsigned int>(len), 1);
+		thd, 0, name_buff, len, 1);
 
 	/* Dependent (child) table name */
 	ptr = dict_remove_db_name(foreign->foreign_table_name);
 	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff));
 	f_key_info.foreign_table = thd_make_lex_string(
-		thd, 0, name_buff, static_cast<unsigned int>(len), 1);
+		thd, 0, name_buff, len, 1);
 
 	do {
 		ptr = foreign->foreign_col_names[i];
 		name = thd_make_lex_string(thd, name, ptr,
-					   (uint) strlen(ptr), 1);
+					   strlen(ptr), 1);
 		f_key_info.foreign_fields.push_back(name);
 		ptr = foreign->referenced_col_names[i];
 		name = thd_make_lex_string(thd, name, ptr,
-					   (uint) strlen(ptr), 1);
+					   strlen(ptr), 1);
 		f_key_info.referenced_fields.push_back(name);
 	} while (++i < foreign->n_fields);
 
@@ -15691,7 +15691,7 @@ get_foreign_key_info(
 			thd,
 			f_key_info.referenced_key_name,
 			foreign->referenced_index->name,
-			(uint) strlen(foreign->referenced_index->name),
+			strlen(foreign->referenced_index->name),
 			1);
 	} else {
 		referenced_key_name = NULL;

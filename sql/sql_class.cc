@@ -1156,13 +1156,13 @@ Sql_condition* THD::raise_condition(uint sql_errno,
 }
 
 extern "C"
-void *thd_alloc(MYSQL_THD thd, unsigned int size)
+void *thd_alloc(MYSQL_THD thd, size_t size)
 {
   return thd->alloc(size);
 }
 
 extern "C"
-void *thd_calloc(MYSQL_THD thd, unsigned int size)
+void *thd_calloc(MYSQL_THD thd, size_t size)
 {
   return thd->calloc(size);
 }
@@ -1174,14 +1174,14 @@ char *thd_strdup(MYSQL_THD thd, const char *str)
 }
 
 extern "C"
-char *thd_strmake(MYSQL_THD thd, const char *str, unsigned int size)
+char *thd_strmake(MYSQL_THD thd, const char *str, size_t size)
 {
   return thd->strmake(str, size);
 }
 
 extern "C"
 LEX_STRING *thd_make_lex_string(THD *thd, LEX_STRING *lex_str,
-                                const char *str, unsigned int size,
+                                const char *str, size_t size,
                                 int allocate_lex_string)
 {
   return allocate_lex_string ? thd->make_lex_string(str, size)
@@ -1189,7 +1189,7 @@ LEX_STRING *thd_make_lex_string(THD *thd, LEX_STRING *lex_str,
 }
 
 extern "C"
-void *thd_memdup(MYSQL_THD thd, const void* str, unsigned int size)
+void *thd_memdup(MYSQL_THD thd, const void* str, size_t size)
 {
   return thd->memdup(str, size);
 }

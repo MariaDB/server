@@ -167,9 +167,9 @@ int my_random_bytes(unsigned char* buf, int num);
 unsigned int my_aes_get_size(enum my_aes_mode mode, unsigned int source_length);
 unsigned int my_aes_ctx_size(enum my_aes_mode mode);
 extern struct my_print_error_service_st {
-  void(*my_error_func)(unsigned int nr, unsigned long MyFlags, ...);
-  void(*my_printf_error_func)(unsigned int nr, const char *fmt, unsigned long MyFlags,...);
-  void(*my_printv_error_func)(unsigned int error, const char *format, unsigned long MyFlags, va_list ap);
+  void (*my_error_func)(unsigned int nr, unsigned long MyFlags, ...);
+  void (*my_printf_error_func)(unsigned int nr, const char *fmt, unsigned long MyFlags,...);
+  void (*my_printv_error_func)(unsigned int error, const char *format, unsigned long MyFlags, va_list ap);
 } *my_print_error_service;
 extern void my_error(unsigned int nr, unsigned long MyFlags, ...);
 extern void my_printf_error(unsigned int my_err, const char *format, unsigned long MyFlags, ...);
@@ -271,21 +271,21 @@ struct st_mysql_lex_string
 };
 typedef struct st_mysql_lex_string MYSQL_LEX_STRING;
 extern struct thd_alloc_service_st {
-  void *(*thd_alloc_func)(void*, unsigned int);
-  void *(*thd_calloc_func)(void*, unsigned int);
+  void *(*thd_alloc_func)(void*, size_t);
+  void *(*thd_calloc_func)(void*, size_t);
   char *(*thd_strdup_func)(void*, const char *);
-  char *(*thd_strmake_func)(void*, const char *, unsigned int);
-  void *(*thd_memdup_func)(void*, const void*, unsigned int);
+  char *(*thd_strmake_func)(void*, const char *, size_t);
+  void *(*thd_memdup_func)(void*, const void*, size_t);
   MYSQL_LEX_STRING *(*thd_make_lex_string_func)(void*, MYSQL_LEX_STRING *,
-                                        const char *, unsigned int, int);
+                                        const char *, size_t, int);
 } *thd_alloc_service;
-void *thd_alloc(void* thd, unsigned int size);
-void *thd_calloc(void* thd, unsigned int size);
+void *thd_alloc(void* thd, size_t size);
+void *thd_calloc(void* thd, size_t size);
 char *thd_strdup(void* thd, const char *str);
-char *thd_strmake(void* thd, const char *str, unsigned int size);
-void *thd_memdup(void* thd, const void* str, unsigned int size);
+char *thd_strmake(void* thd, const char *str, size_t size);
+void *thd_memdup(void* thd, const void* str, size_t size);
 MYSQL_LEX_STRING *thd_make_lex_string(void* thd, MYSQL_LEX_STRING *lex_str,
-                                      const char *str, unsigned int size,
+                                      const char *str, size_t size,
                                       int allocate_lex_string);
 extern struct thd_autoinc_service_st {
   void (*thd_get_autoinc_func)(const void* thd,
