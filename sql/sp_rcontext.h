@@ -340,15 +340,6 @@ private:
   /// @retval true on error.
   bool init_var_table(THD *thd, List<Spvar_definition> &defs);
 
-  bool resolve_type_refs(THD *, List<Spvar_definition> &defs);
-  bool resolve_type_ref(THD *thd, Column_definition *def,
-                                  Qualified_column_ident *ref);
-  bool resolve_table_rowtype_ref(THD *thd, Row_definition_list &defs,
-                                           Table_ident *ref);
-  bool adjust_formal_params_to_actual_params(THD *thd,
-                                         List<Spvar_definition> &field_def_lst,
-                                         List<Item> *args);
-
   /// Create and initialize an Item-adapter (Item_field) for each SP-var field.
   ///
   /// param thd Thread handle.

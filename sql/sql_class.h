@@ -5496,6 +5496,7 @@ public:
   {
     db= *db_name;
   }
+  bool resolve_table_rowtype_ref(THD *thd, Row_definition_list &defs);
 };
 
 
@@ -5519,6 +5520,7 @@ public:
    :Table_ident(thd, db, table, false),
     m_column(*column)
   { }
+  bool resolve_type_ref(THD *thd, Column_definition *def);
 };
 
 
