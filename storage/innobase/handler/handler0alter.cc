@@ -351,7 +351,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		if (instant_table->is_instant()) {
 			/* Copy the default values to the old_table->heap.
 			They were allocated in this->heap. */
-			for (uint i = old_table->n_def - DATA_N_SYS_COLS;
+			for (int i = old_table->n_def - DATA_N_SYS_COLS;
 			     i < instant_table->n_def - DATA_N_SYS_COLS;
 			     i++) {
 				dict_col_t& c = old_table->cols[i];
@@ -4370,6 +4370,10 @@ set_not_null_default_from_sql:
 	dfield_set_data(dtuple_get_nth_field(row, i),roll_ptr,sizeof roll_ptr);
 	DBUG_ASSERT(i + 1 == new_table->n_cols);
 	trx_write_trx_id(trx_id, trx->id);
+	/* The DB_ROLL_PTR will be assigned later, when allocating undo log.
+	Silence a Valgrind warning in dtuple_validate() when
+	row_ins_clust_index_entry_low() searches for the insert position. */
+	memset(roll_ptr, 0, sizeof roll_ptr);
 
 	const ulint	n_cols = dict_table_encode_n_col(
 		n_stored, user_table->n_v_cols)
