@@ -5106,6 +5106,8 @@ btr_cur_optimistic_delete_func(
 			      index));
 		btr_page_empty(block, buf_block_get_page_zip(block),
 			       index, 0, mtr);
+		page_cur_set_after_last(block, btr_cur_get_page_cur(cursor));
+
 		if (index->is_clust()) {
 			/* Concurrent access is prevented by
 			root_block->lock X-latch, so this should be
@@ -5307,6 +5309,8 @@ btr_cur_pessimistic_delete(
 					      page_get_infimum_rec(page)),
 				      index));
 			btr_page_empty(block, page_zip, index, 0, mtr);
+			page_cur_set_after_last(block,
+						btr_cur_get_page_cur(cursor));
 			if (index->is_clust()) {
 				/* Concurrent access is prevented by
 				index->lock and root_block->lock
