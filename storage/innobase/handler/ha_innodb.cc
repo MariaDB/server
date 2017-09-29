@@ -152,12 +152,6 @@ innodb_check_deprecated(void);
 #include <string>
 #include <sstream>
 
-/* for ha_innopart, Native InnoDB Partitioning. */
-/* JAN: TODO: MySQL 5.7 Native InnoDB Partitioning */
-#ifdef HAVE_HA_INNOPART_H
-#include "ha_innopart.h"
-#endif
-
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
 
@@ -1360,16 +1354,6 @@ innobase_release_savepoint(
 
 static void innobase_checkpoint_request(handlerton *hton, void *cookie);
 
-/************************************************************************//**
-Function for constructing an InnoDB table handler instance. */
-static
-handler*
-innobase_create_handler(
-/*====================*/
-	handlerton*	hton,		/*!< in/out: handlerton for InnoDB */
-	TABLE_SHARE*	table,
-	MEM_ROOT*	mem_root);
-
 /** @brief Initialize the default value of innodb_commit_concurrency.
 
 Once InnoDB is running, the innodb_commit_concurrency must not change
@@ -1636,26 +1620,6 @@ innobase_create_handler(
 	TABLE_SHARE*	table,
 	MEM_ROOT*	mem_root)
 {
-#ifdef MYSQL_INNODB_PARTITIONING
-	/* If the table:
-	1) have type InnoDB (not the generic partition handlerton)
-	2) have partitioning defined
-	Then return the native partitioning handler ha_innopart
-	else return normal ha_innobase handler. */
-	if (table
-	    && table->db_type() == innodb_hton_ptr // 1)
-	    && table->partition_info_str           // 2)
-	    && table->partition_info_str_len) {    // 2)
-		ha_innopart* file = new (mem_root) ha_innopart(hton, table);
-		if (file && file->init_partitioning(mem_root))
-		{
-			delete file;
-			return(NULL);
-		}
-		return(file);
-	}
-#endif
-
 	return(new (mem_root) ha_innobase(hton, table));
 }
 
@@ -5501,19 +5465,6 @@ ha_innobase::table_flags() const
 {
 	THD*			thd = ha_thd();
 	handler::Table_flags	flags = m_int_table_flags;
-
-	/* If querying the table flags when no table_share is given,
-	then we must check if the table to be created/checked is partitioned.
-	*/
-	if (table_share == NULL) {
-	  /* JAN: TODO: MySQL 5.7 Partitioning && thd_get_work_part_info(thd) != NULL) { */
-		/* Currently ha_innopart does not support
-		all InnoDB features such as GEOMETRY, FULLTEXT etc. */
-		/* JAN: TODO: MySQL 5.7
-		flags &= ~(HA_INNOPART_DISABLED_TABLE_FLAGS);
-                }
-		*/
-	}
 
 	/* Need to use tx_isolation here since table flags is (also)
 	called before prebuilt is inited. */
