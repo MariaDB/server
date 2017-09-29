@@ -11,6 +11,8 @@
 # check_if_supported_inplace_alter()
 # does not check if instant ADD is possible.)
 
+connect analyze, localhost, root;
+connection default;
 SET timestamp = 42;
 SET time_zone='+03:00';
 
@@ -130,12 +132,34 @@ SELECT * FROM t2;
 # inplace update, rollback
 BEGIN;
 UPDATE t2 SET c1 = repeat(id, 4000);
-ROLLBACK;
 
-# non-inplace update. Rollback will materialize off-page columns.
+connection analyze;
+ANALYZE TABLE t2;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+connection default;
+
+ROLLBACK;
+connection analyze;
+ANALYZE TABLE t2;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+connection default;
+
+# non-inplace update. Rollback MUST NOT materialize off-page columns.
 BEGIN;
 UPDATE t2 SET d1 = repeat(id, 200);
+connection analyze;
+ANALYZE TABLE t2;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+connection default;
 ROLLBACK;
+connection analyze;
+ANALYZE TABLE t2;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+connection default;
 
 --enable_info
 ALTER TABLE t2 DROP p;
@@ -194,13 +218,12 @@ INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
 INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
 INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
 INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
 COMMIT;
+connection analyze;
+ANALYZE TABLE big;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+connection default;
 --enable_info
 ALTER TABLE big ADD COLUMN
 (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
@@ -211,13 +234,24 @@ BEGIN;
 INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
 INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
 CHECKSUM TABLE big;
+connection analyze;
+ANALYZE TABLE big;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+connection default;
 ROLLBACK;
 CHECKSUM TABLE big;
+connection analyze;
+ANALYZE TABLE big;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+connection default;
 
 DROP TABLE big;
 
 dec $format;
 }
+disconnect analyze;
 SET GLOBAL innodb_monitor_disable = module_ddl;
 --disable_warnings
 SET GLOBAL innodb_monitor_enable  = default;
