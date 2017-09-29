@@ -4040,7 +4040,9 @@ btr_cur_optimistic_update(
 	     || trx_is_recv(thr_get_trx(thr)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
-	if (!row_upd_changes_field_size_or_external(index, *offsets, update)) {
+	if (UNIV_LIKELY(update->info_bits != REC_INFO_DEFAULT_ROW)
+	    && !row_upd_changes_field_size_or_external(index, *offsets,
+						       update)) {
 
 		/* The simplest and the most common case: the update does not
 		change the size of any field and none of the updated fields is
@@ -4094,7 +4096,10 @@ any_extern:
 	Thus the following call is safe. */
 	row_upd_index_replace_new_col_vals_index_pos(new_entry, index, update,
 						     *heap);
-	if (index->is_instant()) new_entry->trim(*index);
+	if (index->is_instant()
+	    && UNIV_LIKELY(update->info_bits != REC_INFO_DEFAULT_ROW)) {
+		new_entry->trim(*index);
+	}
 	old_rec_size = rec_offs_size(*offsets);
 	new_rec_size = rec_get_converted_size(index, new_entry, 0);
 
@@ -4420,7 +4425,10 @@ btr_cur_pessimistic_update(
 	itself.  Thus the following call is safe. */
 	row_upd_index_replace_new_col_vals_index_pos(new_entry, index, update,
 						     entry_heap);
-	if (index->is_instant()) new_entry->trim(*index);
+	if (index->is_instant()
+	    && UNIV_LIKELY(update->info_bits != REC_INFO_DEFAULT_ROW)) {
+		new_entry->trim(*index);
+	}
 
 	/* We have to set appropriate extern storage bits in the new
 	record to be inserted: we have to remember which fields were such */

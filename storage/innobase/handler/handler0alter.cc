@@ -45,6 +45,7 @@ Smart ALTER TABLE
 #include "row0merge.h"
 #include "row0ins.h"
 #include "row0row.h"
+#include "row0upd.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "handler0alter.h"
@@ -4398,26 +4399,68 @@ set_not_null_default_from_sql:
 	mtr_t mtr;
 	mtr.start();
 	mtr.set_named_space(index->space);
-	btr_cur_t cursor;
-	btr_cur_open_at_index_side(true, index, BTR_MODIFY_TREE, &cursor, 0,
-				   &mtr);
-	buf_block_t* block = btr_cur_get_block(&cursor);
-	rec_t* rec = btr_cur_get_rec(&cursor);
-	ut_ad(page_rec_is_infimum(rec));
-	rec = page_rec_get_next(rec);
+	btr_pcur_t pcur;
+	btr_pcur_open_at_index_side(true, index, BTR_MODIFY_TREE, &pcur, true,
+				    0, &mtr);
+	ut_ad(btr_pcur_is_before_first_on_page(&pcur));
+	btr_pcur_move_to_next_on_page(&pcur);
+
+	buf_block_t* block = btr_pcur_get_block(&pcur);
 	ut_ad(page_is_leaf(block->frame));
 	ut_ad(!buf_block_get_page_zip(block));
+	const rec_t* rec = btr_pcur_get_rec(&pcur);
 
-	if (rec_is_default_row(rec, index)) {
+	if (rec_is_default_row(rec, old_index)) {
 		ut_ad(page_rec_is_user_rec(rec));
-		ut_ad(user_table->is_instant());
+		ut_ad(old_index->is_instant());
 		if (page_rec_is_last(rec, block->frame)) {
 			goto empty_table;
 		}
-		/* FIXME: calculate and apply an update vector with
-		the instantly added columns (no changes to key columns!) */
+		/* Extend the record with the instantly added columns. */
+		const unsigned n = index->n_fields - old_index->n_fields;
+		/* Reserve room for DB_TRX_ID,DB_ROLL_PTR and any
+		non-updated off-page columns in case they are moved off
+		page as a result of the update. */
+		upd_t* update = upd_create(index->n_fields, ctx->heap);
+		update->n_fields = n + 2;
+		update->info_bits = REC_INFO_DEFAULT_ROW;
+		/* Add DB_TRX_ID, DB_ROLL_PTR */
+		for (unsigned i = 0; i < 2; i++) {
+			upd_field_t* uf = upd_get_nth_field(update, i);
+			uf->field_no = index->n_uniq + i;
+			uf->new_val = entry->fields[index->n_uniq + i];
+		}
+		/* Add the default values for instantly added columns */
+		for (unsigned i = 0; i < n; i++) {
+			upd_field_t* uf = upd_get_nth_field(update, i + 2);
+			unsigned f = i + old_index->n_fields;
+			uf->field_no = f;
+			uf->new_val = entry->fields[f];
+		}
+		ulint* offsets = NULL;
+		mem_heap_t* offsets_heap = NULL;
+		big_rec_t* big_rec;
+		dberr_t error = btr_cur_pessimistic_update(
+			BTR_NO_LOCKING_FLAG, btr_pcur_get_btr_cur(&pcur),
+			&offsets, &offsets_heap, ctx->heap,
+			&big_rec, update, UPD_NODE_NO_ORD_CHANGE,
+			pars_complete_graph_for_exec(NULL, trx, ctx->heap,
+						     NULL), trx->id, &mtr);
+		if (big_rec) {
+			if (error == DB_SUCCESS) {
+				error = btr_store_big_rec_extern_fields(
+					&pcur, update, offsets, big_rec, &mtr,
+					BTR_STORE_UPDATE);
+			}
+
+			dtuple_big_rec_free(big_rec);
+		}
+		if (offsets_heap) {
+			mem_heap_free(offsets_heap);
+		}
+		btr_pcur_close(&pcur);
 		mtr.commit();
-		return false;
+		return error != DB_SUCCESS;
 	} else if (page_rec_is_supremum(rec)) {
 		ut_ad(!user_table->is_instant());
 empty_table:
