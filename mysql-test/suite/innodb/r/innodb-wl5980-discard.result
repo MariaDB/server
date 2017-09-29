@@ -164,7 +164,7 @@ t5980.ibd.bak2
 #
 ALTER TABLE t5980 IMPORT TABLESPACE;
 Warnings:
-Warning	1814	InnoDB: Tablespace has been discarded for table 't5980'
+Warning	1814	Tablespace has been discarded for table 't5980'
 ### files in MYSQL_DATA_DIR/test
 t5980.frm
 t5980.isl
@@ -429,7 +429,7 @@ t5980.ibd.bak
 t5980.ibd.bak2
 ALTER TABLE t5980 IMPORT TABLESPACE;
 Warnings:
-Warning	1814	InnoDB: Tablespace has been discarded for table 't5980'
+Warning	1814	Tablespace has been discarded for table 't5980'
 INSERT INTO t5980 VALUES (2, "Insert this record after IMPORT");
 SELECT * FROM t5980;
 a	b
@@ -561,9 +561,9 @@ ERROR HY000: Tablespace has been discarded for table 't5980a'
 SELECT * FROM t5980b;
 ERROR HY000: Tablespace has been discarded for table 't5980b'
 SELECT * FROM t5980c;
-ERROR 42S02: Table 'test.t5980c' doesn't exist
+ERROR 42S02: Table 'test.t5980c' doesn't exist in engine
 SELECT * FROM t5980d;
-ERROR 42S02: Table 'test.t5980d' doesn't exist
+ERROR 42S02: Table 'test.t5980d' doesn't exist in engine
 SHOW CREATE TABLE t5980a;
 Table	Create Table
 t5980a	CREATE TABLE `t5980a` (
@@ -577,9 +577,9 @@ t5980b	CREATE TABLE `t5980b` (
   `b` text
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 SHOW CREATE TABLE t5980c;
-ERROR 42S02: Table 'test.t5980c' doesn't exist
+ERROR 42S02: Table 'test.t5980c' doesn't exist in engine
 SHOW CREATE TABLE t5980d;
-ERROR 42S02: Table 'test.t5980d' doesn't exist
+ERROR 42S02: Table 'test.t5980d' doesn't exist in engine
 SELECT name,n_cols,file_format,row_format FROM information_schema.innodb_sys_tables
 WHERE name LIKE 'test%' ORDER BY name;
 name	n_cols	file_format	row_format
@@ -615,9 +615,9 @@ ERROR HY000: Tablespace has been discarded for table 't5980a'
 TRUNCATE TABLE t5980b;
 ERROR HY000: Tablespace has been discarded for table 't5980b'
 TRUNCATE TABLE t5980c;
-ERROR 42S02: Table 'test.t5980c' doesn't exist
+ERROR 42S02: Table 'test.t5980c' doesn't exist in engine
 TRUNCATE TABLE t5980d;
-ERROR 42S02: Table 'test.t5980d' doesn't exist
+ERROR 42S02: Table 'test.t5980d' doesn't exist in engine
 #
 # Discarded tablespaces can be RENAMED but they remain discarded
 #
@@ -627,9 +627,9 @@ RENAME TABLE t5980b TO t5980bb;
 # Missing tablespaces cannot be RENAMED
 #
 RENAME TABLE t5980c TO t5980cc;
-ERROR HY000: Error on rename of './test/t5980c' to './test/t5980cc' (errno: 155 - The table does not exist in engine)
+ERROR HY000: Error on rename of './test/t5980c' to './test/t5980cc' (errno: 155 "The table does not exist in engine")
 RENAME TABLE t5980d TO t5980dd;
-ERROR HY000: Error on rename of './test/t5980d' to './test/t5980dd' (errno: 155 - The table does not exist in engine)
+ERROR HY000: Error on rename of './test/t5980d' to './test/t5980dd' (errno: 155 "The table does not exist in engine")
 SELECT * FROM t5980a;
 ERROR 42S02: Table 'test.t5980a' doesn't exist
 SELECT * FROM t5980b;
@@ -639,9 +639,9 @@ ERROR HY000: Tablespace has been discarded for table 't5980aa'
 SELECT * FROM t5980bb;
 ERROR HY000: Tablespace has been discarded for table 't5980bb'
 SELECT * FROM t5980c;
-ERROR 42S02: Table 'test.t5980c' doesn't exist
+ERROR 42S02: Table 'test.t5980c' doesn't exist in engine
 SELECT * FROM t5980d;
-ERROR 42S02: Table 'test.t5980d' doesn't exist
+ERROR 42S02: Table 'test.t5980d' doesn't exist in engine
 SHOW CREATE TABLE t5980aa;
 Table	Create Table
 t5980aa	CREATE TABLE `t5980aa` (
@@ -655,9 +655,9 @@ t5980bb	CREATE TABLE `t5980bb` (
   `b` text
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 SHOW CREATE TABLE t5980c;
-ERROR 42S02: Table 'test.t5980c' doesn't exist
+ERROR 42S02: Table 'test.t5980c' doesn't exist in engine
 SHOW CREATE TABLE t5980d;
-ERROR 42S02: Table 'test.t5980d' doesn't exist
+ERROR 42S02: Table 'test.t5980d' doesn't exist in engine
 SELECT name,n_cols,file_format,row_format FROM information_schema.innodb_sys_tables
 WHERE name LIKE 'test%' ORDER BY name;
 name	n_cols	file_format	row_format
@@ -693,10 +693,10 @@ SET @old_sql_mode = @@sql_mode;
 SET @@sql_mode = 'STRICT_TRANS_TABLES';
 ALTER TABLE t5980aa ADD PRIMARY KEY(a), ALGORITHM=INPLACE;
 Warnings:
-Warning	1814	InnoDB: Tablespace has been discarded for table 't5980aa'
+Warning	1814	Tablespace has been discarded for table 't5980aa'
 ALTER TABLE t5980bb ADD PRIMARY KEY(a), ALGORITHM=INPLACE;
 Warnings:
-Warning	1814	InnoDB: Tablespace has been discarded for table 't5980bb'
+Warning	1814	Tablespace has been discarded for table 't5980bb'
 SET @@sql_mode = @old_sql_mode;
 ### files in MYSQL_DATA_DIR/test
 t5980aa.frm
@@ -708,9 +708,9 @@ t5980d.frm
 # Missing tablespaces cannot be ALTERED.
 #
 ALTER TABLE t5980c ADD PRIMARY KEY(a);
-ERROR 42S02: Table 'test.t5980c' doesn't exist
+ERROR 42S02: Table 'test.t5980c' doesn't exist in engine
 ALTER TABLE t5980d ADD PRIMARY KEY(a);
-ERROR 42S02: Table 'test.t5980d' doesn't exist
+ERROR 42S02: Table 'test.t5980d' doesn't exist in engine
 SELECT * FROM t5980aa;
 ERROR HY000: Tablespace has been discarded for table 't5980aa'
 SELECT * FROM t5980bb;
@@ -780,7 +780,7 @@ t5980a	CREATE TABLE `t5980a` (
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 Warnings:
-Warning	1814	InnoDB: Tablespace has been discarded for table 't5980a'
+Warning	1814	Tablespace has been discarded for table 't5980a'
 SHOW CREATE TABLE t5980b;
 Table	Create Table
 t5980b	CREATE TABLE `t5980b` (
@@ -789,7 +789,7 @@ t5980b	CREATE TABLE `t5980b` (
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 Warnings:
-Warning	1814	InnoDB: Tablespace has been discarded for table 't5980b'
+Warning	1814	Tablespace has been discarded for table 't5980b'
 SELECT name,n_cols,file_format,row_format FROM information_schema.innodb_sys_tables
 WHERE name LIKE 'test%' ORDER BY name;
 name	n_cols	file_format	row_format
@@ -822,10 +822,10 @@ t5980d.frm
 #
 ALTER TABLE t5980a DISCARD TABLESPACE;
 Warnings:
-Warning	1812	InnoDB: Tablespace is missing for table 't5980a'
+Warning	1812	Tablespace is missing for table 't5980a'
 ALTER TABLE t5980b DISCARD TABLESPACE;
 Warnings:
-Warning	1812	InnoDB: Tablespace is missing for table 't5980b'
+Warning	1812	Tablespace is missing for table 't5980b'
 SELECT * FROM t5980a;
 ERROR HY000: Tablespace has been discarded for table 't5980a'
 SELECT * FROM t5980b;
@@ -842,10 +842,10 @@ ERROR HY000: Tablespace has been discarded for table 't5980b'
 #
 ALTER TABLE t5980a ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 Warnings:
-Warning	1814	InnoDB: Tablespace has been discarded for table 't5980a'
+Warning	1814	Tablespace has been discarded for table 't5980a'
 ALTER TABLE t5980b ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 Warnings:
-Warning	1814	InnoDB: Tablespace has been discarded for table 't5980b'
+Warning	1814	Tablespace has been discarded for table 't5980b'
 #
 # Discarded tablespaces that were ALTERED IN_PLACE are still discarded.
 #
@@ -868,10 +868,10 @@ t5980d.frm
 #
 ALTER TABLE t5980a DISCARD TABLESPACE;
 Warnings:
-Warning	1812	InnoDB: Tablespace is missing for table 't5980a'
+Warning	1812	Tablespace is missing for table 't5980a'
 ALTER TABLE t5980b DISCARD TABLESPACE;
 Warnings:
-Warning	1812	InnoDB: Tablespace is missing for table 't5980b'
+Warning	1812	Tablespace is missing for table 't5980b'
 SELECT * FROM t5980a;
 ERROR HY000: Tablespace has been discarded for table 't5980a'
 SELECT * FROM t5980b;
@@ -888,10 +888,10 @@ ERROR HY000: Tablespace has been discarded for table 't5980b'
 #
 ALTER TABLE t5980a ADD COLUMN c CHAR(20), ALGORITHM=INPLACE;
 Warnings:
-Warning	1814	InnoDB: Tablespace has been discarded for table 't5980a'
+Warning	1814	Tablespace has been discarded for table 't5980a'
 ALTER TABLE t5980b ADD COLUMN c CHAR(20), ALGORITHM=INPLACE;
 Warnings:
-Warning	1814	InnoDB: Tablespace has been discarded for table 't5980b'
+Warning	1814	Tablespace has been discarded for table 't5980b'
 #
 # Discarded tablespaces that were ALTERED IN_PLACE are still discarded.
 #
