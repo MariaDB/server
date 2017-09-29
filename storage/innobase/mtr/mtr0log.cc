@@ -634,6 +634,10 @@ mlog_parse_index(
 		ut_ad(table->n_cols == table->n_def);
 
 		if (n_core_fields) {
+			for (i = n_core_fields; i < n; i++) {
+				ind->fields[i].col->def_val.len
+					= UNIV_SQL_NULL;
+			}
 			ind->n_core_fields = n_core_fields;
 			ind->n_core_null_bytes = UT_BITS_IN_BYTES(
 				ind->get_n_nullable(n_core_fields));
