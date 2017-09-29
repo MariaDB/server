@@ -63,7 +63,7 @@ unlock tables;
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
-set debug='+d,crash_commit_before';
+set debug_dbug='+d,crash_commit_before';
 --error 2013
 insert into t1 values (6, repeat('%', 12));
 --source include/wait_until_disconnected.inc
@@ -108,7 +108,7 @@ unlock tables;
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
-set debug='+d,crash_commit_before';
+set debug_dbug='+d,crash_commit_before';
 --error 2013
 insert into t1 values (6, repeat('%', 12));
 --source include/wait_until_disconnected.inc
@@ -152,7 +152,7 @@ unlock tables;
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
-set debug='+d,crash_commit_before';
+set debug_dbug='+d,crash_commit_before';
 --error 2013
 insert into t1 values (6, repeat('%', 400));
 --source include/wait_until_disconnected.inc
@@ -197,7 +197,7 @@ unlock tables;
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
-set debug='+d,crash_commit_before';
+set debug_dbug='+d,crash_commit_before';
 --error 2013
 insert into t1 values (6, repeat('%', 400));
 --source include/wait_until_disconnected.inc
@@ -237,7 +237,7 @@ set global innodb_buf_flush_list_now = 1;
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
-set debug='+d,crash_commit_before';
+set debug_dbug='+d,crash_commit_before';
 --error 2013
 insert into t1 values (6, repeat('%', 400));
 --source include/wait_until_disconnected.inc
@@ -277,7 +277,7 @@ set global innodb_buf_flush_list_now = 1;
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
-set debug='+d,crash_commit_before';
+set debug_dbug='+d,crash_commit_before';
 --error 2013
 insert into t1 values (6, repeat('%', 400));
 --source include/wait_until_disconnected.inc
@@ -316,7 +316,7 @@ set global innodb_buf_flush_list_now = 1;
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
-set debug='+d,crash_commit_before';
+set debug_dbug='+d,crash_commit_before';
 --error 2013
 insert into t1 values (6, repeat('%', 400));
 --source include/wait_until_disconnected.inc
@@ -357,7 +357,7 @@ set global innodb_buf_flush_list_now = 1;
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
-set debug='+d,crash_commit_before';
+set debug_dbug='+d,crash_commit_before';
 --error 2013
 insert into t1 values (6, repeat('%', 400));
 --source include/wait_until_disconnected.inc

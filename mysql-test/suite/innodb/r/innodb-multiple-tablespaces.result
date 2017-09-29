@@ -179,13 +179,13 @@ MYSQL_TMP_DIR/alt_dir/test/nnn.ibd
 MYSQL_TMP_DIR/alt_dir/test/www.ibd
 MYSQL_TMP_DIR/alt_dir/test/nolink.ibd
 SELECT * FROM yyy;
-ERROR 42S02: Table 'test.yyy' doesn't exist
+ERROR 42S02: Table 'test.yyy' doesn't exist in engine
 SELECT * FROM nyy;
-ERROR 42S02: Table 'test.nyy' doesn't exist
+ERROR 42S02: Table 'test.nyy' doesn't exist in engine
 SELECT * FROM yny;
-ERROR 42S02: Table 'test.yny' doesn't exist
+ERROR 42S02: Table 'test.yny' doesn't exist in engine
 SELECT * FROM yyn;
-ERROR 42S02: Table 'test.yyn' doesn't exist
+ERROR 42S02: Table 'test.yyn' doesn't exist in engine
 SELECT * FROM nyw;
 c1	c2
 1	nyw
@@ -205,20 +205,20 @@ SELECT * FROM ywn;
 c1	c2
 1	ywn
 SELECT * FROM nnn;
-ERROR 42S02: Table 'test.nnn' doesn't exist
+ERROR 42S02: Table 'test.nnn' doesn't exist in engine
 SELECT * FROM www;
-ERROR 42S02: Table 'test.www' doesn't exist
+ERROR 42S02: Table 'test.www' doesn't exist in engine
 SELECT * FROM nolink;
 c1	c2
 1	no link file
 SHOW CREATE TABLE yyy;
-ERROR 42S02: Table 'test.yyy' doesn't exist
+ERROR 42S02: Table 'test.yyy' doesn't exist in engine
 SHOW CREATE TABLE nyy;
-ERROR 42S02: Table 'test.nyy' doesn't exist
+ERROR 42S02: Table 'test.nyy' doesn't exist in engine
 SHOW CREATE TABLE yny;
-ERROR 42S02: Table 'test.yny' doesn't exist
+ERROR 42S02: Table 'test.yny' doesn't exist in engine
 SHOW CREATE TABLE yyn;
-ERROR 42S02: Table 'test.yyn' doesn't exist
+ERROR 42S02: Table 'test.yyn' doesn't exist in engine
 SHOW CREATE TABLE nyw;
 Table	Create Table
 nyw	CREATE TABLE `nyw` (
@@ -262,9 +262,9 @@ ywn	CREATE TABLE `ywn` (
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW CREATE TABLE nnn;
-ERROR 42S02: Table 'test.nnn' doesn't exist
+ERROR 42S02: Table 'test.nnn' doesn't exist in engine
 SHOW CREATE TABLE www;
-ERROR 42S02: Table 'test.www' doesn't exist
+ERROR 42S02: Table 'test.www' doesn't exist in engine
 SHOW CREATE TABLE nolink;
 Table	Create Table
 nolink	CREATE TABLE `nolink` (
@@ -442,6 +442,8 @@ c1	c2
 1	yy
 2	yy
 SET SESSION debug="+d,crash_commit_before";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 COMMIT;
 ERROR HY000: Lost connection to MySQL server during query
 #
@@ -482,14 +484,14 @@ SELECT * FROM ny;
 c1	c2
 1	ny
 SELECT * FROM wy;
-ERROR 42S02: Table 'test.wy' doesn't exist
+ERROR 42S02: Table 'test.wy' doesn't exist in engine
 SELECT * FROM yn;
 c1	c2
 1	yn
 SELECT * FROM yw;
-ERROR 42S02: Table 'test.yw' doesn't exist
+ERROR 42S02: Table 'test.yw' doesn't exist in engine
 SELECT * FROM yy;
-ERROR 42S02: Table 'test.yy' doesn't exist
+ERROR 42S02: Table 'test.yy' doesn't exist in engine
 SHOW CREATE TABLE ny;
 Table	Create Table
 ny	CREATE TABLE `ny` (
@@ -498,7 +500,7 @@ ny	CREATE TABLE `ny` (
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 SHOW CREATE TABLE wy;
-ERROR 42S02: Table 'test.wy' doesn't exist
+ERROR 42S02: Table 'test.wy' doesn't exist in engine
 SHOW CREATE TABLE yn;
 Table	Create Table
 yn	CREATE TABLE `yn` (
@@ -507,9 +509,9 @@ yn	CREATE TABLE `yn` (
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW CREATE TABLE yw;
-ERROR 42S02: Table 'test.yw' doesn't exist
+ERROR 42S02: Table 'test.yw' doesn't exist in engine
 SHOW CREATE TABLE yy;
-ERROR 42S02: Table 'test.yy' doesn't exist
+ERROR 42S02: Table 'test.yy' doesn't exist in engine
 SELECT path FROM information_schema.innodb_sys_datafiles
 WHERE path LIKE '%test%' ORDER BY space;
 path

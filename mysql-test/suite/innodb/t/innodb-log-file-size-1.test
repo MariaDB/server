@@ -201,7 +201,7 @@ let $args=--loose-console > $SEARCH_FILE 2>&1;
 SET GLOBAL innodb_fast_shutdown=0;
 let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
 --exec echo "wait" > $restart_file
---shutdown_server
+--shutdown_server 10
 --source include/wait_until_disconnected.inc
 
 --echo "test misc 1"
