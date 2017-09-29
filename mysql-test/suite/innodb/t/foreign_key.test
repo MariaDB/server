@@ -13,11 +13,12 @@ constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
 create table t2 (f1 int primary key,
    constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 
---replace_regex /#sql-[0-9a-f_]*'/#sql-temporary'/
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 alter table t2 add constraint c1 foreign key (f1) references t1(f1); 
 
 set foreign_key_checks = 0;
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_FK_DUP_NAME
 alter table t2 add constraint c1 foreign key (f1) references t1(f1); 
 
