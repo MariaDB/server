@@ -1822,11 +1822,12 @@ PageConverter::update_index_page(
 	if (dict_index_is_clust(m_index->m_srv_index)) {
 		if (page_is_root(page)) {
 			/* Preserve the PAGE_ROOT_AUTO_INC. */
-			if (m_index->m_srv_index->table->supports_instant()) {
-				btr_cur_instant_root_init(
-					const_cast<dict_index_t*>(
-						m_index->m_srv_index),
-					page);
+			if (m_index->m_srv_index->table->supports_instant()
+			    && btr_cur_instant_root_init(
+				    const_cast<dict_index_t*>(
+					    m_index->m_srv_index),
+				    page)) {
+				return(DB_CORRUPTION);
 			}
 		} else {
 			/* Clear PAGE_MAX_TRX_ID so that it can be

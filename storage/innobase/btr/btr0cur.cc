@@ -398,7 +398,8 @@ when loading a table definition.
 @param[in,out]	index	clustered index definition
 @param[in,out]	mtr	mini-transaction
 @return	error code
-@retval	DB_SUCCESS	if no error occurred */
+@retval	DB_SUCCESS	if no error occurred
+@retval	DB_CORRUPTION	if any corruption was noticed */
 static
 dberr_t
 btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
@@ -409,18 +410,23 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 	ut_ad(index->table->is_readable());
 
 	if (page_t* root = btr_root_get(index, mtr)) {
-		btr_cur_instant_root_init(index, root);
+		if (btr_cur_instant_root_init(index, root)) {
+			ib::error() << "Table " << index->table->name
+				    << " has an unreadable root page";
+			index->table->corrupted = true;
+			return DB_CORRUPTION;
+		}
 		ut_ad(index->n_core_null_bytes
 		      != dict_index_t::NO_CORE_NULL_BYTES);
 		if (!index->is_instant()) {
-			return(DB_SUCCESS);
+			return DB_SUCCESS;
 		}
 		btr_cur_t	cur;
 		dberr_t err = btr_cur_open_at_index_side(
 			true, index, BTR_SEARCH_LEAF, &cur, 0, mtr);
 		if (err != DB_SUCCESS) {
 			index->table->corrupted = true;
-			return(err);
+			return err;
 		}
 
 		page_cur_set_before_first(cur.page_cur.block, &cur.page_cur);
@@ -432,7 +438,7 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 			ib::error() << "Table " << index->table->name
 				    << " is missing instant ALTER metadata";
 			index->table->corrupted = true;
-			return(DB_CORRUPTION);
+			return DB_CORRUPTION;
 		} else {
 			/* TODO: read the default values, using
 			READ COMMITTED isolation level */
@@ -460,13 +466,15 @@ btr_cur_instant_init(dict_table_t* table)
 /** Initialize the n_core_null_bytes on first access to a clustered
 index root page.
 @param[in]	index	clustered index that is on its first access
-@param[in]	page	clustered index root page */
-void
+@param[in]	page	clustered index root page
+@return	whether the page is corrupted */
+bool
 btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 {
 	ut_ad(page_is_root(page));
 	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_clust());
+	ut_ad(!index->is_instant());
 	ut_ad(index->table->supports_instant());
 	/* This is normally executed as part of btr_cur_instant_init()
 	when dict_load_table_one() is loading a table definition.
@@ -479,23 +487,32 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 	switch (fil_page_get_type(page)) {
 	default:
 		ut_ad(!"wrong page type");
-		/* fall through */
+		return true;
 	case FIL_PAGE_INDEX:
 		/* The field PAGE_INSTANT is guaranteed 0 on clustered
 		index root pages of ROW_FORMAT=COMPACT or
 		ROW_FORMAT=DYNAMIC when instant ADD COLUMN is not used. */
 		ut_ad(!page_is_comp(page) || !page_get_instant(page));
-		ut_ad(!index->is_instant());
 		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
-		return;
+		return false;
 	case FIL_PAGE_TYPE_INSTANT:
 		break;
 	}
 
 	uint16_t n = page_get_instant(page);
-	ut_ad(index->n_core_fields == index->n_fields);
+	if (n < index->n_uniq + 2 || n > index->n_fields) {
+		/* The PRIMARY KEY (or hidden DB_ROW_ID) and
+		DB_TRX_ID,DB_ROLL_PTR columns must always be present
+		as 'core' fields. All fields, including those for
+		instantly added columns, must be present in the data
+		dictionary. */
+		return true;
+	}
 	index->n_core_fields = n;
-	index->n_core_null_bytes = UT_BITS_IN_BYTES(index->get_n_nullable(n));
+	index->n_core_null_bytes = n == index->n_fields
+		? UT_BITS_IN_BYTES(index->n_nullable)
+		: UT_BITS_IN_BYTES(index->get_n_nullable(n));
+	return false;
 }
 
 /** Optimistically latches the leaf page or pages requested.

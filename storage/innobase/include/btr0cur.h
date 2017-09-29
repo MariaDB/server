@@ -144,10 +144,11 @@ btr_cur_instant_init(dict_table_t* table)
 /** Initialize the n_core_null_bytes on first access to a clustered
 index root page.
 @param[in]	index	clustered index that is on its first access
-@param[in]	page	clustered index root page */
-void
+@param[in]	page	clustered index root page
+@return	whether the page is corrupted */
+bool
 btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
-	ATTRIBUTE_COLD __attribute__((nonnull));
+	ATTRIBUTE_COLD __attribute__((nonnull, warn_unused_result));
 
 /** Optimistically latches the leaf page or pages requested.
 @param[in]	block		guessed buffer block
