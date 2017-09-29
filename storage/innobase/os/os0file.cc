@@ -858,7 +858,8 @@ os_file_get_block_size(
 		&tmp);
 
 	if (!result) {
-		if (GetLastError() == ERROR_INVALID_FUNCTION) {
+		DWORD err = GetLastError();
+		if (err == ERROR_INVALID_FUNCTION || err == ERROR_NOT_SUPPORTED) {
 			// Don't report error, it is driver's fault, not ours or users.
 			// We handle this with fallback. Report wit info message, just once.
 			static bool write_info = true;
@@ -3779,6 +3780,7 @@ os_file_get_last_error_low(
 	return(OS_FILE_ERROR_MAX + err);
 }
 
+
 /** NOTE! Use the corresponding macro os_file_create_simple(), not directly
 this function!
 A simple function to open or create a file.
@@ -3897,15 +3899,6 @@ os_file_create_simple_func(
 			retry = false;
 
 			*success = true;
-
-			DWORD	temp;
-
-			/* This is a best effort use case, if it fails then
-			we will find out when we try and punch the hole. */
-
-			os_win32_device_io_control(
-				file, FSCTL_SET_SPARSE, NULL, 0, NULL, 0,
-				&temp);
 		}
 
 	} while (retry);
@@ -4298,13 +4291,6 @@ os_file_create_func(
 				/* Bind the file handle to completion port */
 				ut_a(CreateIoCompletionPort(file, completion_port, 0, 0));
 			}
-			DWORD	temp;
-
-			/* This is a best effort use case, if it fails then
-			we will find out when we try and punch the hole. */
-			os_win32_device_io_control(
-				file, FSCTL_SET_SPARSE, NULL, 0, NULL, 0,
-				&temp);
 		}
 
 	} while (retry);
@@ -4752,16 +4738,36 @@ os_file_get_status_win32(
 	return(DB_SUCCESS);
 }
 
-/** Truncates a file to a specified size in bytes.
-Do nothing if the size to preserve is greater or equal to the current
-size of the file.
+/**
+Sets a sparse flag on Windows file.
+@param[in]	file  file handle
+@return true on success, false on error
+*/
+bool os_file_set_sparse_win32(os_file_t file)
+{
+
+	DWORD temp;
+	return os_win32_device_io_control(file, FSCTL_SET_SPARSE, 0, 0, 0, 0,&temp);
+}
+
+
+/**
+Change file size on Windows.
+
+If file is extended, the bytes between old and new EOF
+are zeros.
+
+If file is sparse, "virtual" block is added at the end of
+allocated area.
+
+If file is normal, file system allocates storage.
+
 @param[in]	pathname	file path
-@param[in]	file		file to be truncated
+@param[in]	file		file handle
 @param[in]	size		size to preserve in bytes
 @return true if success */
-static
 bool
-os_file_truncate_win32(
+os_file_change_size_win32(
 	const char*	pathname,
 	os_file_t	file,
 	os_offset_t	size)
@@ -5327,6 +5333,9 @@ os_file_set_size(
 	os_offset_t	size,
 	bool		read_only)
 {
+#ifdef _WIN32
+	return os_file_change_size_win32(name, file, size);
+#endif
 	/* Write up to 1 megabyte at a time. */
 	ulint	buf_size = ut_min(
 		static_cast<ulint>(64),
@@ -5416,7 +5425,7 @@ os_file_truncate(
 	}
 
 #ifdef _WIN32
-	return(os_file_truncate_win32(pathname, file, size));
+	return(os_file_change_size_win32(pathname, file, size));
 #else /* _WIN32 */
 	return(os_file_truncate_posix(pathname, file, size));
 #endif /* _WIN32 */
@@ -5556,14 +5565,10 @@ IORequest::punch_hole(os_file_t fh, os_offset_t off, ulint len)
 Warning: On POSIX systems we try and punch a hole from offset 0 to
 the system configured page size. This should only be called on an empty
 file.
-
-Note: On Windows we use the name and on Unices we use the file handle.
-
-@param[in]	name		File name
 @param[in]	fh		File handle for the file - if opened
 @return true if the file system supports sparse files */
 bool
-os_is_sparse_file_supported(const char* path, os_file_t fh)
+os_is_sparse_file_supported(os_file_t fh)
 {
 	/* In this debugging mode, we act as if punch hole is supported,
 	then we skip any calls to actually punch a hole.  In this way,
@@ -5573,7 +5578,13 @@ os_is_sparse_file_supported(const char* path, os_file_t fh)
 	);
 
 #ifdef _WIN32
-	return(os_is_sparse_file_supported_win32(path));
+	BY_HANDLE_FILE_INFORMATION info;
+	if (GetFileInformationByHandle(fh,&info)) {
+		if (info.dwFileAttributes != INVALID_FILE_ATTRIBUTES) {
+			return (info.dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0;
+		}
+	}
+	return false;
 #else
 	dberr_t	err;
 

@@ -1569,20 +1569,48 @@ innobase_mysql_tmpfile(
 void
 os_file_set_umask(ulint umask);
 
+#ifdef _WIN32
+
+/**
+Make file sparse, on Windows.
+
+@param[in]	file  file handle
+@return true on success, false on error */
+bool os_file_set_sparse_win32(os_file_t file);
+
+/**
+Changes file size on Windows
+
+If file is extended, following happens  the bytes between
+old and new EOF are zeros.
+
+If file is sparse, "virtual" block is added at the end of
+allocated area.
+
+If file is normal, file system allocates storage.
+
+@param[in]	pathname	file path
+@param[in]	file		file handle
+@param[in]	size		size to preserve in bytes
+@return true if success */
+bool
+os_file_change_size_win32(
+	const char*	pathname,
+	os_file_t	file,
+	os_offset_t	size);
+
+#endif /*_WIN32 */
+
 /** Check if the file system supports sparse files.
 
 Warning: On POSIX systems we try and punch a hole from offset 0 to
 the system configured page size. This should only be called on an empty
 file.
 
-Note: On Windows we use the name and on Unices we use the file handle.
-
-@param[in]	name		File name
 @param[in]	fh		File handle for the file - if opened
 @return true if the file system supports sparse files */
 bool
 os_is_sparse_file_supported(
-	const char*	path,
 	os_file_t	fh)
 	MY_ATTRIBUTE((warn_unused_result));
 
