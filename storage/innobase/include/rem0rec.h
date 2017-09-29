@@ -780,6 +780,8 @@ rec_is_default_row(const rec_t* rec, const dict_index_t* index)
 	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
 		& REC_INFO_MIN_REC_FLAG;
 	ut_ad(!is || index->is_instant());
+	ut_ad(!is || !dict_table_is_comp(index->table)
+	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
 	return is;
 }
 
