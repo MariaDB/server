@@ -4756,7 +4756,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   unique_calc_buff_size=
     Unique::get_cost_calc_buff_size((ulong)non_cpk_scan_records,
                                     param->table->file->ref_length,
-                                    param->thd->variables.sortbuff_size);
+                                    (size_t)param->thd->variables.sortbuff_size);
   if (param->imerge_cost_buff_size < unique_calc_buff_size)
   {
     if (!(param->imerge_cost_buff= (uint*)alloc_root(param->mem_root,
@@ -4768,7 +4768,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   imerge_cost +=
     Unique::get_use_cost(param->imerge_cost_buff, (uint)non_cpk_scan_records,
                          param->table->file->ref_length,
-                         param->thd->variables.sortbuff_size,
+                         (size_t)param->thd->variables.sortbuff_size,
                          TIME_FOR_COMPARE_ROWID,
                          FALSE, NULL);
   DBUG_PRINT("info",("index_merge total cost: %g (wanted: less then %g)",
@@ -5021,7 +5021,7 @@ typedef struct st_common_index_intersect_info
   PARAM *param;           /* context info for range optimizations            */
   uint key_size;          /* size of a ROWID element stored in Unique object */
   uint compare_factor;         /* 1/compare - cost to compare two ROWIDs     */
-  ulonglong max_memory_size;   /* maximum space allowed for Unique objects   */   
+  size_t max_memory_size;   /* maximum space allowed for Unique objects   */   
   ha_rows table_cardinality;   /* estimate of the number of records in table */
   double cutoff_cost;        /* discard index intersects with greater costs  */ 
   INDEX_SCAN_INFO *cpk_scan;  /* clustered primary key used in intersection  */
@@ -5216,7 +5216,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   common->param= param;
   common->key_size= table->file->ref_length;
   common->compare_factor= TIME_FOR_COMPARE_ROWID;
-  common->max_memory_size= param->thd->variables.sortbuff_size;
+  common->max_memory_size= (size_t)param->thd->variables.sortbuff_size;
   common->cutoff_cost= cutoff_cost;
   common->cpk_scan= NULL;
   common->table_cardinality= 
@@ -5652,7 +5652,7 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
     uint *buff_elems= common_info->buff_elems;
     uint key_size= common_info->key_size;
     uint compare_factor= common_info->compare_factor;         
-    ulonglong max_memory_size= common_info->max_memory_size; 
+    size_t max_memory_size= common_info->max_memory_size; 
     
     records_sent_to_unique+= ext_index_scan_records;
     cost= Unique::get_use_cost(buff_elems, (size_t) records_sent_to_unique, key_size,

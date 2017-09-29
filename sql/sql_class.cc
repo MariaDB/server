@@ -5235,7 +5235,7 @@ void THD::inc_status_sort_range()
 
 void THD::inc_status_sort_rows(ha_rows count)
 {
-  statistic_add(status_var.filesort_rows_, (ha_rows)count, &LOCK_status);
+  statistic_add(status_var.filesort_rows_, (ulong)count, &LOCK_status);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_STATEMENT_CALL(inc_statement_sort_rows)(m_statement_psi, (ulong)count);
 #endif

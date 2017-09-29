@@ -68,7 +68,7 @@ int mi_preload(MI_INFO *info, ulonglong key_map, my_bool ignore_leaves)
     }
   }
   else
-    block_length= share->key_cache->param_block_size;
+    block_length= (size_t)share->key_cache->param_block_size;
 
   length= info->preload_buff_size/block_length * block_length;
   set_if_bigger(length, block_length);
