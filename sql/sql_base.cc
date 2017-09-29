@@ -325,7 +325,7 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
 
 struct close_cached_tables_arg
 {
-  ulong refresh_version;
+  tdc_version_t refresh_version;
   TDC_element *element;
 };
 
@@ -351,7 +351,7 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
 {
   bool result= FALSE;
   struct timespec abstime;
-  ulong refresh_version;
+  tdc_version_t refresh_version;
   DBUG_ENTER("close_cached_tables");
   DBUG_ASSERT(thd || (!wait_for_refresh && !tables));
 
@@ -1192,7 +1192,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
 {
   DBUG_ENTER("wait_while_table_is_used");
   DBUG_ASSERT(!table->s->tmp_table);
-  DBUG_PRINT("enter", ("table: '%s'  share: %p  db_stat: %u  version: %lu",
+  DBUG_PRINT("enter", ("table: '%s'  share: %p  db_stat: %u  version: %lld",
                        table->s->table_name.str, table->s,
                        table->db_stat, table->s->tdc->version));
 
@@ -1808,7 +1808,7 @@ retry_share:
   {
     if (share->tdc->flushed)
     {
-      DBUG_PRINT("info", ("Found old share version: %lu  current: %lu",
+      DBUG_PRINT("info", ("Found old share version: %lld  current: %lld",
                           share->tdc->version, tdc_refresh_version()));
       /*
         We already have an MDL lock. But we have encountered an old
