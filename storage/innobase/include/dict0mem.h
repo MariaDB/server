@@ -618,7 +618,7 @@ struct dict_col_t{
 		/** original default value of instantly added column */
 		const void*	data;
 		/** len of data, or UNIV_SQL_DEFAULT if unavailable */
-		unsigned	len;
+		ulint		len;
 	} def_val;
 
 	/** Retrieve the column name.
@@ -1047,7 +1047,7 @@ struct dict_index_t{
 		unsigned n = n_nullable;
 		for (; n_prefix < n_fields; n_prefix++) {
 			const dict_col_t* col = fields[n_prefix].col;
-			DBUG_ASSERT(col->is_instant());
+			DBUG_ASSERT(is_dummy || col->is_instant());
 			n -= col->is_nullable();
 		}
 		DBUG_ASSERT(n < n_def);

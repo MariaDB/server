@@ -4268,7 +4268,8 @@ innobase_add_instant_try(
 				case MYSQL_TYPE_LONG_BLOB:
 					/* Store the empty string for 'core'
 					variable-length NOT NULL columns. */
-					dfield_set_data(dfield, "", 0);
+					dfield_set_data(dfield,
+							field_ref_zero, 0);
 					break;
 				default:
 					/* For fixed-length NOT NULL
@@ -4327,7 +4328,7 @@ set_not_null_default_from_sql:
 
 		if (!new_field->field) {
 			col->def_val.data = dfield_get_len(dfield)
-				? dfield_get_data(dfield) : "";
+				? dfield_get_data(dfield) : field_ref_zero;
 			col->def_val.len = dfield_get_len(dfield);
 
 			pars_info_t*    info = pars_info_create();
@@ -4360,112 +4361,112 @@ set_not_null_default_from_sql:
 	}
 
 	DBUG_ASSERT(af == &altered_table->field[altered_table->s->fields]);
-	const ulint n_stored = new_table->n_cols - DATA_N_SYS_COLS;
-	/* FIXME: account for a hidden FTS_DOC_ID column */
-	DBUG_ASSERT(i == n_stored);
+	DBUG_ASSERT(new_table->n_cols == new_table->n_def);
+	/* There may exist a hidden FTS_DOC_ID column for FULLTEXT INDEX. */
+	DBUG_ASSERT(DATA_N_SYS_COLS + i == new_table->n_cols
+		    || (1 + DATA_N_SYS_COLS + i == new_table->n_cols
+			&& !strcmp(dict_table_get_col_name(new_table, i),
+				   FTS_DOC_ID_COL_NAME)));
+	i = new_table->n_cols - DATA_N_SYS_COLS;
 	byte trx_id[DATA_TRX_ID_LEN], roll_ptr[DATA_ROLL_PTR_LEN];
 	dfield_set_data(dtuple_get_nth_field(row, i++), field_ref_zero,
 			DATA_ROW_ID_LEN);
 	dfield_set_data(dtuple_get_nth_field(row, i++), trx_id, sizeof trx_id);
 	dfield_set_data(dtuple_get_nth_field(row, i),roll_ptr,sizeof roll_ptr);
 	DBUG_ASSERT(i + 1 == new_table->n_cols);
+
 	trx_write_trx_id(trx_id, trx->id);
 	/* The DB_ROLL_PTR will be assigned later, when allocating undo log.
 	Silence a Valgrind warning in dtuple_validate() when
 	row_ins_clust_index_entry_low() searches for the insert position. */
 	memset(roll_ptr, 0, sizeof roll_ptr);
 
-	const ulint	n_cols = dict_table_encode_n_col(
-		n_stored, user_table->n_v_cols)
-		+ ((user_table->flags & DICT_TF_COMPACT) << 31);
-	pars_info_t*	info = pars_info_create();
-	pars_info_add_int4_literal(info, "n_cols", n_cols);
-	pars_info_add_int4_literal(info, "id", user_table->id);
+	if (innobase_update_n_virtual(user_table,
+				      dict_table_encode_n_col(
+					      new_table->n_cols
+					      - DATA_N_SYS_COLS,
+					      new_table->n_v_cols)
+				      | (user_table->flags & DICT_TF_COMPACT)
+				      << 31,
+				      trx) != DB_SUCCESS) {
+		return true;
+	}
 
 	dtuple_t* entry = row_build_index_entry(row, NULL, index, ctx->heap);
 	entry->info_bits = REC_INFO_DEFAULT_ROW;
 
-	dberr_t err = que_eval_sql(
-		info,
-		"PROCEDURE N_COLS () IS\n"
-		"BEGIN\n"
-		"UPDATE SYS_TABLES SET N_COLS = :n_cols WHERE ID = :id;\n"
-		"END;\n", FALSE, trx);
-	if (err == DB_SUCCESS) {
-		mtr_t mtr;
-		mtr.start();
-		mtr.set_named_space(index->space);
-		btr_cur_t cursor;
-		btr_cur_open_at_index_side(true, index, BTR_MODIFY_TREE,
-					   &cursor, 0, &mtr);
-		buf_block_t* block = btr_cur_get_block(&cursor);
-		rec_t* rec = btr_cur_get_rec(&cursor);
-		ut_ad(page_rec_is_infimum(rec));
-		rec = page_rec_get_next(rec);
-		ut_ad(page_is_leaf(block->frame));
-		ut_ad(!buf_block_get_page_zip(block));
+	mtr_t mtr;
+	mtr.start();
+	mtr.set_named_space(index->space);
+	btr_cur_t cursor;
+	btr_cur_open_at_index_side(true, index, BTR_MODIFY_TREE, &cursor, 0,
+				   &mtr);
+	buf_block_t* block = btr_cur_get_block(&cursor);
+	rec_t* rec = btr_cur_get_rec(&cursor);
+	ut_ad(page_rec_is_infimum(rec));
+	rec = page_rec_get_next(rec);
+	ut_ad(page_is_leaf(block->frame));
+	ut_ad(!buf_block_get_page_zip(block));
 
-		if (rec_is_default_row(rec, index)) {
-			ut_ad(page_rec_is_user_rec(rec));
-			ut_ad(user_table->is_instant());
-			if (page_rec_is_last(rec, block->frame)) {
-				goto empty_table;
-			}
-			/* FIXME: calculate and apply an update vector
-			with the instantly added columns (no changes
-			to key columns!) */
-			mtr.commit();
-			return false;
-		} else if (page_rec_is_supremum(rec)) {
-			ut_ad(!user_table->is_instant());
-empty_table:
-			/* The table is empty. */
-			ut_ad(page_is_root(block->frame));
-			btr_page_empty(block, NULL, index, 0, &mtr);
-			index->remove_instant();
-			mtr.commit();
-			return false;
+	if (rec_is_default_row(rec, index)) {
+		ut_ad(page_rec_is_user_rec(rec));
+		ut_ad(user_table->is_instant());
+		if (page_rec_is_last(rec, block->frame)) {
+			goto empty_table;
 		}
-
-		/* Convert the table to the instant ADD COLUMN format. */
+		/* FIXME: calculate and apply an update vector with
+		the instantly added columns (no changes to key columns!) */
+		mtr.commit();
+		return false;
+	} else if (page_rec_is_supremum(rec)) {
 		ut_ad(!user_table->is_instant());
+empty_table:
+		/* The table is empty. */
+		ut_ad(page_is_root(block->frame));
+		btr_page_empty(block, NULL, index, 0, &mtr);
+		index->remove_instant();
 		mtr.commit();
-		mtr.start();
-		mtr.set_named_space(index->space);
-		if (page_t* root = btr_root_get(index, &mtr)) {
-			switch (fil_page_get_type(root)) {
-			case FIL_PAGE_TYPE_INSTANT:
-				DBUG_ASSERT(page_get_instant(root)
-					    == index->n_core_fields);
-				break;
-			case FIL_PAGE_INDEX:
-				DBUG_ASSERT(!page_is_comp(root)
-					    || !page_get_instant(root));
-				break;
-			default:
-				DBUG_ASSERT(!"wrong page type");
-				mtr.commit();
-				return true;
-			}
-
-			mlog_write_ulint(root + FIL_PAGE_TYPE,
-					 FIL_PAGE_TYPE_INSTANT, MLOG_2BYTES,
-					 &mtr);
-			page_set_instant(root, index->n_core_fields, &mtr);
-			mtr.commit();
-			mtr.start();
-			mtr.set_named_space(index->space);
-			err = row_ins_clust_index_entry_low(
-				BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
-				index->n_uniq, entry, 0, ctx->thr, false);
-		} else {
-			err = DB_CORRUPTION;
-		}
-
-		mtr.commit();
+		return false;
 	}
 
-	return(err != DB_SUCCESS);
+	/* Convert the table to the instant ADD COLUMN format. */
+	ut_ad(!user_table->is_instant());
+	mtr.commit();
+	mtr.start();
+	mtr.set_named_space(index->space);
+	dberr_t err;
+	if (page_t* root = btr_root_get(index, &mtr)) {
+		switch (fil_page_get_type(root)) {
+		case FIL_PAGE_TYPE_INSTANT:
+			DBUG_ASSERT(page_get_instant(root)
+				    == index->n_core_fields);
+			break;
+		case FIL_PAGE_INDEX:
+			DBUG_ASSERT(!page_is_comp(root)
+				    || !page_get_instant(root));
+			break;
+		default:
+			DBUG_ASSERT(!"wrong page type");
+			mtr.commit();
+			return true;
+		}
+
+		mlog_write_ulint(root + FIL_PAGE_TYPE,
+				 FIL_PAGE_TYPE_INSTANT, MLOG_2BYTES,
+				 &mtr);
+		page_set_instant(root, index->n_core_fields, &mtr);
+		mtr.commit();
+		mtr.start();
+		mtr.set_named_space(index->space);
+		err = row_ins_clust_index_entry_low(
+			BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
+			index->n_uniq, entry, 0, ctx->thr, false);
+	} else {
+		err = DB_CORRUPTION;
+	}
+
+	mtr.commit();
+	return err != DB_SUCCESS;
 }
 
 /** Update INNODB SYS_COLUMNS on new virtual column's position

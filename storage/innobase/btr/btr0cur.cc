@@ -409,43 +409,120 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 	ut_ad(index->table->supports_instant());
 	ut_ad(index->table->is_readable());
 
-	if (page_t* root = btr_root_get(index, mtr)) {
-		if (btr_cur_instant_root_init(index, root)) {
-			ib::error() << "Table " << index->table->name
-				    << " has an unreadable root page";
-			index->table->corrupted = true;
-			return DB_CORRUPTION;
-		}
-		ut_ad(index->n_core_null_bytes
-		      != dict_index_t::NO_CORE_NULL_BYTES);
-		if (!index->is_instant()) {
-			return DB_SUCCESS;
-		}
-		btr_cur_t	cur;
-		dberr_t err = btr_cur_open_at_index_side(
-			true, index, BTR_SEARCH_LEAF, &cur, 0, mtr);
-		if (err != DB_SUCCESS) {
-			index->table->corrupted = true;
-			return err;
-		}
+	page_t* root = btr_root_get(index, mtr);
 
-		page_cur_set_before_first(cur.page_cur.block, &cur.page_cur);
-		page_cur_move_to_next(&cur.page_cur);
-		const rec_t* rec = cur.page_cur.rec;
-		if (page_rec_is_supremum(rec)
-		    || rec_get_info_bits(rec, page_rec_is_comp(rec))
-		    != REC_INFO_MIN_REC_FLAG) {
+	if (!root || btr_cur_instant_root_init(index, root)) {
+		ib::error() << "Table " << index->table->name
+			    << " has an unreadable root page";
+		index->table->corrupted = true;
+		return DB_CORRUPTION;
+	}
+
+	ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
+
+	if (!index->is_instant()) {
+		return DB_SUCCESS;
+	}
+
+	btr_cur_t cur;
+	dberr_t err = btr_cur_open_at_index_side(true, index, BTR_SEARCH_LEAF,
+						 &cur, 0, mtr);
+	if (err != DB_SUCCESS) {
+		index->table->corrupted = true;
+		return err;
+	}
+
+	ut_ad(page_cur_is_before_first(&cur.page_cur));
+	ut_ad(page_is_leaf(cur.page_cur.block->frame));
+
+	page_cur_move_to_next(&cur.page_cur);
+
+	const rec_t* rec = cur.page_cur.rec;
+
+	if (page_rec_is_supremum(rec) || !rec_is_default_row(rec, index)) {
+		ib::error() << "Table " << index->table->name
+			    << " is missing instant ALTER metadata";
+		index->table->corrupted = true;
+		return DB_CORRUPTION;
+	}
+
+	if (dict_table_is_comp(index->table)) {
+		if (rec_get_info_bits(rec, true) != REC_INFO_MIN_REC_FLAG
+		    && rec_get_status(rec) != REC_STATUS_COLUMNS_ADDED) {
+incompatible:
 			ib::error() << "Table " << index->table->name
-				    << " is missing instant ALTER metadata";
+				<< " contains unrecognizable "
+				"instant ALTER metadata";
 			index->table->corrupted = true;
 			return DB_CORRUPTION;
+		}
+	} else if (rec_get_info_bits(rec, false) != REC_INFO_MIN_REC_FLAG) {
+		goto incompatible;
+	}
+
+	/* Read the 'default row'. We can get here on server restart
+	or when the table was evicted from the data dictionary cache
+	and is now being accessed again.
+
+	Here, READ COMMITTED and REPEATABLE READ should be equivalent.
+	Committing the ADD COLUMN operation would acquire
+	MDL_EXCLUSIVE and LOCK_X|LOCK_TABLE, which would prevent any
+	concurrent operations on the table, including table eviction
+	from the cache. */
+
+	mem_heap_t* heap = NULL;
+	ulint* offsets = rec_get_offsets(rec, index, NULL, true,
+					 ULINT_UNDEFINED, &heap);
+	if (rec_offs_any_default(offsets)) {
+inconsistent:
+		mem_heap_free(heap);
+		goto incompatible;
+	}
+
+	/* In fact, because we only ever append fields to the 'default
+	value' record, it is also OK to perform READ UNCOMMITTED and
+	then ignore any extra fields, provided that
+	trx_rw_is_active(DB_TRX_ID). */
+	if (rec_offs_n_fields(offsets) > index->n_fields
+	    && !trx_rw_is_active(row_get_rec_trx_id(rec, index, offsets),
+				 NULL, false)) {
+		goto inconsistent;
+	}
+
+	for (unsigned i = index->n_core_fields; i < index->n_fields; i++) {
+		ulint len;
+		const byte* data = rec_get_nth_field(rec, offsets, i, &len);
+		dict_col_t* col = index->fields[i].col;
+		ut_ad(!col->is_instant());
+		ut_ad(!col->def_val.data);
+		col->def_val.len = len;
+		switch (len) {
+		case UNIV_SQL_NULL:
+			continue;
+		case 0:
+			col->def_val.data = field_ref_zero;
+			continue;
+		}
+		ut_ad(len != UNIV_SQL_DEFAULT);
+		if (!rec_offs_nth_extern(offsets, i)) {
+			col->def_val.data = mem_heap_dup(
+				index->table->heap, data, len);
+		} else if (len < BTR_EXTERN_FIELD_REF_SIZE
+			   || !memcmp(data + len - BTR_EXTERN_FIELD_REF_SIZE,
+				      field_ref_zero,
+				      BTR_EXTERN_FIELD_REF_SIZE)) {
+			col->def_val.len = UNIV_SQL_DEFAULT;
+			goto inconsistent;
 		} else {
-			/* TODO: read the default values, using
-			READ COMMITTED isolation level */
+			col->def_val.data = btr_copy_externally_stored_field(
+				&col->def_val.len, data,
+				dict_table_page_size(index->table),
+				len, index->table->heap);
 		}
 	}
 
-	return(DB_SUCCESS);
+	mem_heap_free(heap);
+	return DB_SUCCESS;
 }
 
 /** Load the instant ALTER TABLE metadata from the clustered index
@@ -500,7 +577,7 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 	}
 
 	uint16_t n = page_get_instant(page);
-	if (n < index->n_uniq + 2 || n > index->n_fields) {
+	if (n < index->n_uniq + DATA_ROLL_PTR || n > index->n_fields) {
 		/* The PRIMARY KEY (or hidden DB_ROW_ID) and
 		DB_TRX_ID,DB_ROLL_PTR columns must always be present
 		as 'core' fields. All fields, including those for
@@ -509,9 +586,12 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		return true;
 	}
 	index->n_core_fields = n;
+	ut_ad(!index->is_dummy);
+	ut_d(index->is_dummy = true);
 	index->n_core_null_bytes = n == index->n_fields
 		? UT_BITS_IN_BYTES(index->n_nullable)
 		: UT_BITS_IN_BYTES(index->get_n_nullable(n));
+	ut_d(index->is_dummy = false);
 	return false;
 }
 
