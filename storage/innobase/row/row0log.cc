@@ -1664,6 +1664,9 @@ blob_done:
 			rw_lock_x_unlock(dict_index_get_lock(index));
 		} else {
 			data = rec_get_nth_field(mrec, offsets, i, &len);
+			if (len == UNIV_SQL_DEFAULT) {
+				data = index->instant_field_value(i, &len);
+			}
 			dfield_set_data(dfield, data, len);
 		}
 
