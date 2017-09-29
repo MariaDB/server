@@ -1178,6 +1178,8 @@ public:
 
 class Item_dec_func :public Item_real_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_real(0, arg_count); }
  public:
   Item_dec_func(THD *thd, Item *a): Item_real_func(thd, a) {}
   Item_dec_func(THD *thd, Item *a, Item *b): Item_real_func(thd, a, b) {}
@@ -1403,6 +1405,8 @@ class Item_func_rand :public Item_real_func
 {
   struct my_rnd_struct *rand;
   bool first_eval; // TRUE if val_real() is called 1st time
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, arg_count); }
 public:
   Item_func_rand(THD *thd, Item *a):
     Item_real_func(thd, a), rand(0), first_eval(TRUE) {}
@@ -1441,6 +1445,8 @@ class Item_func_units :public Item_real_func
 {
   char *name;
   double mul,add;
+  bool check_arguments() const
+  { return check_argument_types_can_return_real(0, arg_count); }
 public:
   Item_func_units(THD *thd, char *name_arg, Item *a, double mul_arg,
                   double add_arg):

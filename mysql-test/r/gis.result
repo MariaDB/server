@@ -4668,5 +4668,92 @@ ERROR HY000: Illegal parameter data type varchar for operation 'st_touches'
 SELECT MBRTOUCHES(POINT(1,1), 'test');
 ERROR HY000: Illegal parameter data type varchar for operation 'st_touches'
 #
+# MDEV-13964 Parameter data type control for Item_real_func
+#
+SELECT EXP(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'exp'
+SELECT LN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'ln'
+SELECT LOG2(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'log2'
+SELECT LOG10(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'log10'
+SELECT SQRT(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'sqrt'
+SELECT ACOS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'acos'
+SELECT ASIN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'asin'
+SELECT COS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'cos'
+SELECT SIN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'sin'
+SELECT TAN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'tan'
+SELECT COT(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'cot'
+SELECT LOG(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'log'
+SELECT LOG(POINT(1,1),POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'log'
+SELECT LOG(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'log'
+SELECT ATAN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'atan'
+SELECT ATAN(POINT(1,1),POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'atan'
+SELECT ATAN(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'atan'
+SELECT POW(POINT(1,1),POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'pow'
+SELECT RAND(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'rand'
+SELECT RADIANS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'radians'
+SELECT DEGREES(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'degrees'
+SELECT EXP(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'exp'
+SELECT LN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'ln'
+SELECT LOG2(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'log2'
+SELECT LOG10(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'log10'
+SELECT SQRT(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'sqrt'
+SELECT ACOS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'acos'
+SELECT ASIN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'asin'
+SELECT COS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'cos'
+SELECT SIN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'sin'
+SELECT TAN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'tan'
+SELECT COT(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'cot'
+SELECT LOG(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'log'
+SELECT LOG(ROW(1,1),ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'log'
+SELECT LOG(1, ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'log'
+SELECT ATAN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'atan'
+SELECT ATAN(ROW(1,1),ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'atan'
+SELECT ATAN(1, ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'atan'
+SELECT POW(ROW(1,1),ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'pow'
+SELECT RAND(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'rand'
+SELECT RADIANS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'radians'
+SELECT DEGREES(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'degrees'
+#
 # End of 10.3 tests
 #
