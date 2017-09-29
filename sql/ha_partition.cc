@@ -5411,19 +5411,21 @@ err:
 int ha_partition::index_end()
 {
   int error= 0;
-  uint i;
+  handler **file;
   DBUG_ENTER("ha_partition::index_end");
 
   active_index= MAX_KEY;
   m_part_spec.start_part= NO_CURRENT_PART_ID;
-  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
-       i < m_tot_parts;
-       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+  file= m_file;
+  do
   {
-    int tmp;
-    if ((tmp= m_file[i]->ha_index_end()))
-      error= tmp;
-  }
+    if ((*file)->inited == INDEX)
+    {
+      int tmp;
+      if ((tmp= (*file)->ha_index_end()))
+        error= tmp;
+    }
+  } while (*(++file));
   destroy_record_priority_queue();
   DBUG_RETURN(error);
 }
