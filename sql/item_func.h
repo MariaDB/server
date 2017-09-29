@@ -48,6 +48,8 @@ protected:
                                       uint start, uint end) const;
   bool check_argument_types_can_return_int(uint start, uint end) const;
   bool check_argument_types_can_return_real(uint start, uint end) const;
+  bool check_argument_types_can_return_str_ascii(uint start, uint end) const;
+  bool check_argument_types_can_return_date(uint start, uint end) const;
 public:
 
   table_map not_null_tables_cache;
@@ -1742,6 +1744,8 @@ public:
 
 class Item_func_bit: public Item_longlong_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, arg_count); }
 public:
   Item_func_bit(THD *thd, Item *a, Item *b): Item_longlong_func(thd, a, b) {}
   Item_func_bit(THD *thd, Item *a): Item_longlong_func(thd, a) {}
@@ -1828,6 +1832,8 @@ public:
 
 class Item_func_last_insert_id :public Item_longlong_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, arg_count); }
 public:
   Item_func_last_insert_id(THD *thd): Item_longlong_func(thd) {}
   Item_func_last_insert_id(THD *thd, Item *a): Item_longlong_func(thd, a) {}
@@ -2199,6 +2205,14 @@ public:
 
 class Item_master_pos_wait :public Item_longlong_func
 {
+  bool check_arguments() const
+  {
+    return
+      args[0]->check_type_general_purpose_string(func_name()) ||
+      args[1]->check_type_can_return_int(func_name()) ||
+      (arg_count > 2 && args[2]->check_type_can_return_int(func_name())) ||
+      (arg_count > 3 && args[3]->check_type_general_purpose_string(func_name()));
+  }
   String value;
 public:
   Item_master_pos_wait(THD *thd, Item *a, Item *b)

@@ -4755,5 +4755,36 @@ ERROR HY000: Illegal parameter data type row for operation 'radians'
 SELECT DEGREES(ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'degrees'
 #
+# MDEV-13965 Parameter data type control for Item_longlong_func
+#
+SELECT POINT(1,1) | 1;
+ERROR HY000: Illegal parameter data type geometry for operation '|'
+SELECT 1 | POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '|'
+SELECT POINT(1,1) & 1;
+ERROR HY000: Illegal parameter data type geometry for operation '&'
+SELECT 1 & POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '&'
+SELECT POINT(1,1) << 1;
+ERROR HY000: Illegal parameter data type geometry for operation '<<'
+SELECT 1 << POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '<<'
+SELECT POINT(1,1) >> 1;
+ERROR HY000: Illegal parameter data type geometry for operation '>>'
+SELECT 1 >> POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '>>'
+SELECT ~POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '~'
+SELECT TO_SECONDS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'to_seconds'
+SELECT TIMESTAMPDIFF(SECOND,POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type geometry for operation 'timestampdiff'
+SELECT TIMESTAMPDIFF(SECOND,1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'timestampdiff'
+SELECT INET_ATON(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'inet_aton'
+SELECT LAST_INSERT_ID(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'last_insert_id'
+#
 # End of 10.3 tests
 #

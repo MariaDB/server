@@ -1,0 +1,37 @@
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-13965 Parameter data type control for Item_longlong_func
+#
+SELECT ROW(1,1) | 1;
+ERROR HY000: Illegal parameter data type row for operation '|'
+SELECT 1 | ROW(1,1);
+ERROR HY000: Illegal parameter data type row for operation '|'
+SELECT ROW(1,1) & 1;
+ERROR HY000: Illegal parameter data type row for operation '&'
+SELECT 1 & ROW(1,1);
+ERROR HY000: Illegal parameter data type row for operation '&'
+SELECT ROW(1,1) << 1;
+ERROR HY000: Illegal parameter data type row for operation '<<'
+SELECT 1 << ROW(1,1);
+ERROR HY000: Illegal parameter data type row for operation '<<'
+SELECT ROW(1,1) >> 1;
+ERROR HY000: Illegal parameter data type row for operation '>>'
+SELECT 1 >> ROW(1,1);
+ERROR HY000: Illegal parameter data type row for operation '>>'
+SELECT ~ROW(1,1);
+ERROR HY000: Illegal parameter data type row for operation '~'
+SELECT TO_SECONDS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'to_seconds'
+SELECT TIMESTAMPDIFF(SECOND,ROW(1,1), 1);
+ERROR HY000: Illegal parameter data type row for operation 'timestampdiff'
+SELECT TIMESTAMPDIFF(SECOND,1, ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'timestampdiff'
+SELECT INET_ATON(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'inet_aton'
+SELECT LAST_INSERT_ID(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'last_insert_id'
+#
+# End of 10.3 tests
+#

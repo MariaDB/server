@@ -705,6 +705,8 @@ public:
   virtual bool is_scalar_type() const { return true; }
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_real() const { return true; }
+  virtual bool can_return_str_ascii() const { return true; }
+  virtual bool can_return_date() const { return true; }
   virtual bool is_general_purpose_string_type() const { return false; }
   virtual uint Item_time_precision(Item *item) const;
   virtual uint Item_datetime_precision(Item *item) const;
@@ -1002,6 +1004,8 @@ public:
   bool is_scalar_type() const { return false; }
   bool can_return_int() const { return false; }
   bool can_return_real() const { return false; }
+  bool can_return_str_ascii() const { return false; }
+  bool can_return_date() const { return false; }
   enum_field_types field_type() const
   {
     DBUG_ASSERT(0);
@@ -2674,6 +2678,8 @@ public:
 
   bool can_return_int() const { return false; }
   bool can_return_real() const { return false; }
+  bool can_return_str_ascii() const { return false; }
+  bool can_return_date() const { return false; }
   bool is_traditional_type() const
   {
     return false;

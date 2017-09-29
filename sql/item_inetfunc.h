@@ -26,6 +26,8 @@
 
 class Item_func_inet_aton : public Item_longlong_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_str_ascii(0, arg_count); }
 public:
   Item_func_inet_aton(THD *thd, Item *a): Item_longlong_func(thd, a) {}
   longlong val_int();

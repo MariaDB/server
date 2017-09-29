@@ -1711,6 +1711,8 @@ public:
   bool check_type_general_purpose_string(const char *opname) const;
   bool check_type_can_return_int(const char *opname) const;
   bool check_type_can_return_real(const char *opname) const;
+  bool check_type_can_return_str_ascii(const char *opname) const;
+  bool check_type_can_return_date(const char *opname) const;
   // It is not row => null inside is impossible
   virtual bool null_inside() { return 0; }
   // used in row subselects to get value of elements
