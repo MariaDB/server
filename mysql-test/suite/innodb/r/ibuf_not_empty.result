@@ -24,7 +24,7 @@ INSERT INTO t1 SELECT 0,b,c FROM t1;
 # Stop server
 # Restart server.
 insert into t1 values(0,'y',1);
-ERROR HY000: Can't lock file (errno: 165 - Table is read only)
+ERROR HY000: Table 't1' is read only
 # Stop server
 # Restart server.
 DROP TABLE t1;

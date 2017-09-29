@@ -32,5 +32,4 @@ FLUSH TABLES t2 FOR EXPORT;
 UNLOCK TABLES;
 SET GLOBAL innodb_disable_background_merge=OFF;
 SET GLOBAL INNODB_PURGE_RUN_NOW=ON;
-SET GLOBAL innodb_stats_persistent=ON;
 DROP TABLE t1,t2;

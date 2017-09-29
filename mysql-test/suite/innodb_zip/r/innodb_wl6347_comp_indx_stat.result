@@ -36,7 +36,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # for deterministic reasons simple data should be inserted.
 # insert some 100 records
 ===============
@@ -1719,7 +1719,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # for determintic resons simple data should be inserted.
 #insert some 100 records
 ===============
@@ -1951,7 +1951,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -1977,7 +1977,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -2004,7 +2004,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # Restarting server
 # set the flag on (default off)
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
@@ -3408,7 +3408,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # for determintic resons simple data should be inserted.
 #insert some 100 records
 ===============
@@ -3640,7 +3640,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -3666,7 +3666,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -3693,7 +3693,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 DROP TABLE tab5;
 #reset the stat table before starting next testcase
 SET GLOBAL innodb_cmp_per_index_enabled=OFF;
@@ -4639,7 +4639,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # for determintic resons simple data should be inserted.
 #insert some 100 records
 ===============
@@ -4870,7 +4870,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -4896,7 +4896,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -4923,7 +4923,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # Restarting server
 # set the flag on (default off)
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
@@ -6300,7 +6300,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # for determintic resons simple data should be inserted.
 #insert some 100 records
 ===============
@@ -6531,7 +6531,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -6557,7 +6557,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -6584,7 +6584,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # Restarting server
 # set the flag on (default off)
 SET GLOBAL innodb_cmp_per_index_enabled=ON;

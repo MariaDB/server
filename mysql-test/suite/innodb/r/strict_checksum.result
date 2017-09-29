@@ -10,6 +10,7 @@ call mtr.add_suppression("\\[Warning\\] InnoDB: innodb_checksum_algorithm is set
 select count(*) from t1;
 count(*)
 0
+FOUND /\[Warning\] InnoDB: innodb_checksum_algorithm is set to "strict_innodb" but the page \[page id: space=\d+, page number=\d+\] contains a valid checksum .*. Accepting the page as valid. Change innodb_checksum_algorithm to .* to silently accept such pages or rewrite all pages so that they contain .* checksum./ in my_restart.err
 insert into t1 values(2),(3),(4);
 # Restart the server with --log-error
 set global innodb_checksum_algorithm=strict_none;
@@ -17,6 +18,7 @@ set global innodb_limit_optimistic_insert_debug = 2;
 select count(*) from t1;
 count(*)
 3
+FOUND /\[Warning\] InnoDB: innodb_checksum_algorithm is set to "strict_none" but the page \[page id: space=\d+, page number=\d+\] contains a valid checksum .*. Accepting the page as valid. Change innodb_checksum_algorithm to .* to silently accept such pages or rewrite all pages so that they contain .* checksum./ in my_restart.err
 insert into t1 values(5),(6),(7);
 select count(*) from t1;
 count(*)

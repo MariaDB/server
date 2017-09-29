@@ -1,4 +1,6 @@
 # Start mysqld to create tablespaces according to my.cnf
+aria_log.00000001
+aria_log_control
 ib_logfile0
 ib_logfile1
 ib_logfile2

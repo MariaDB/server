@@ -1627,6 +1627,7 @@ a
 drop table t1;
 create table t1 (a int not null, b int not null, c blob not null, d int not null, e int, primary key (a,b,c(255),d)) engine=innodb;
 insert into t1 values (2,2,"b",2,2),(1,1,"a",1,1),(3,3,"ab",3,3);
+analyze table t1;
 select * from t1 order by a,b,c,d;
 a	b	c	d	e
 1	1	a	1	1
@@ -1710,6 +1711,73 @@ variable_value - @innodb_row_lock_time_max_orig
 SELECT variable_value - @innodb_row_lock_time_avg_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_time_avg';
 variable_value - @innodb_row_lock_time_avg_orig
 0
+SET @innodb_sync_spin_loops_orig = @@innodb_sync_spin_loops;
+show variables like "innodb_sync_spin_loops";
+Variable_name	Value
+innodb_sync_spin_loops	30
+set global innodb_sync_spin_loops=1000;
+show variables like "innodb_sync_spin_loops";
+Variable_name	Value
+innodb_sync_spin_loops	1000
+set global innodb_sync_spin_loops=0;
+show variables like "innodb_sync_spin_loops";
+Variable_name	Value
+innodb_sync_spin_loops	0
+set global innodb_sync_spin_loops=20;
+show variables like "innodb_sync_spin_loops";
+Variable_name	Value
+innodb_sync_spin_loops	20
+set global innodb_sync_spin_loops=@innodb_sync_spin_loops_orig;
+show variables like "innodb_thread_concurrency";
+Variable_name	Value
+innodb_thread_concurrency	0
+set global innodb_thread_concurrency=1001;
+Warnings:
+Warning	1292	Truncated incorrect innodb_thread_concurrency value: '1001'
+show variables like "innodb_thread_concurrency";
+Variable_name	Value
+innodb_thread_concurrency	1000
+set global innodb_thread_concurrency=0;
+show variables like "innodb_thread_concurrency";
+Variable_name	Value
+innodb_thread_concurrency	0
+set global innodb_thread_concurrency=16;
+show variables like "innodb_thread_concurrency";
+Variable_name	Value
+innodb_thread_concurrency	16
+show variables like "innodb_concurrency_tickets";
+Variable_name	Value
+innodb_concurrency_tickets	5000
+set global innodb_concurrency_tickets=1000;
+show variables like "innodb_concurrency_tickets";
+Variable_name	Value
+innodb_concurrency_tickets	1000
+set global innodb_concurrency_tickets=0;
+Warnings:
+Warning	1292	Truncated incorrect innodb_concurrency_tickets value: '0'
+show variables like "innodb_concurrency_tickets";
+Variable_name	Value
+innodb_concurrency_tickets	1
+set global innodb_concurrency_tickets=5000;
+show variables like "innodb_concurrency_tickets";
+Variable_name	Value
+innodb_concurrency_tickets	5000
+show variables like "innodb_thread_sleep_delay";
+Variable_name	Value
+innodb_thread_sleep_delay	10000
+set global innodb_thread_sleep_delay=100000;
+show variables like "innodb_thread_sleep_delay";
+Variable_name	Value
+innodb_thread_sleep_delay	100000
+set global innodb_thread_sleep_delay=0;
+show variables like "innodb_thread_sleep_delay";
+Variable_name	Value
+innodb_thread_sleep_delay	0
+set global innodb_thread_sleep_delay=10000;
+show variables like "innodb_thread_sleep_delay";
+Variable_name	Value
+innodb_thread_sleep_delay	10000
+set global innodb_thread_sleep_delay=0;
 set storage_engine=INNODB;
 drop table if exists t1,t2,t3;
 --- Testing varchar ---
@@ -3143,3 +3211,83 @@ show status like "handler_read_key";
 Variable_name	Value
 Handler_read_key	0
 drop table t1;
+CREATE TABLE t1 (c1 INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2 (c1 INT) ENGINE=InnoDB;
+START TRANSACTION READ ONLY;
+INSERT INTO t2 VALUES(0);
+INSERT INTO t1 VALUES(0);
+ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ROLLBACK;
+SELECT * FROM t1;
+c1
+SELECT * FROM t2;
+c1
+START TRANSACTION READ ONLY;
+INSERT INTO t1 VALUES(0);
+ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+INSERT INTO t2 VALUES(1);
+COMMIT;
+SET TRANSACTION READ ONLY;
+START TRANSACTION;
+INSERT INTO t2 VALUES(3);
+INSERT INTO t1 VALUES(0);
+ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+COMMIT;
+SELECT * FROM t1;
+c1
+SELECT * FROM t2;
+c1
+1
+3
+DROP TABLE t2;
+CREATE TEMPORARY TABLE t2 (
+c1 INT AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TEMPORARY TABLE `t2` (
+  `c1` int(11) NOT NULL AUTO_INCREMENT,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`),
+  KEY `idx` (`c2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+START TRANSACTION READ ONLY;
+INSERT INTO t2 VALUES(NULL,1),(NULL,2),(NULL,3);
+INSERT INTO t1 VALUES(0);
+ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ROLLBACK;
+SELECT * FROM t1;
+c1
+SELECT * FROM t2;
+c1	c2
+START TRANSACTION READ ONLY;
+INSERT INTO t1 VALUES(0);
+ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+INSERT INTO t2 VALUES(NULL,1),(NULL,2),(NULL,3);
+COMMIT;
+SET TRANSACTION READ ONLY;
+START TRANSACTION;
+INSERT INTO t2 VALUES(NULL,1),(NULL,2),(NULL,3);
+INSERT INTO t1 VALUES(0);
+ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+COMMIT;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TEMPORARY TABLE `t2` (
+  `c1` int(11) NOT NULL AUTO_INCREMENT,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`),
+  KEY `idx` (`c2`)
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+c1
+SELECT * FROM t2;
+c1	c2
+4	1
+7	1
+5	2
+8	2
+6	3
+9	3
+DROP TABLE t1;
+DROP TABLE t2;

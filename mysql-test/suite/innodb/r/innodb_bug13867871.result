@@ -18,7 +18,7 @@ SET DEBUG_SYNC = 'foreign_constraint_check_for_ins WAIT_FOR drop_done';
 # connection default: replace the underlying index of FOREIGN KEY
 CREATE INDEX idx1 ON parent(b, c);
 Warnings:
-Note	1831	Duplicate index 'idx1' defined on the table 'test.parent'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index `idx1`. This is deprecated and will be disallowed in a future release.
 DROP INDEX b ON parent;
 SET DEBUG_SYNC = 'now SIGNAL drop_done';
 /* con1 reap */ INSERT INTO child VALUES (1, 5, 'khD','khD');
@@ -44,7 +44,7 @@ COMMIT;
 # connection default: no locks on table child
 CREATE INDEX idx ON child(b, c);
 Warnings:
-Note	1831	Duplicate index 'idx' defined on the table 'test.child'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index `idx`. This is deprecated and will be disallowed in a future release.
 DROP INDEX b ON child;
 SELECT * FROM child;
 a	d	b	c
