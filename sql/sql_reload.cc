@@ -153,7 +153,10 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     tmp_write_to_binlog= 0;
     if (mysql_bin_log.is_open())
     {
-      if (mysql_bin_log.rotate_and_purge(true))
+      DYNAMIC_ARRAY *drop_gtid_domain=
+        thd->lex->delete_gtid_domain.elements > 0 ?
+        &thd->lex->delete_gtid_domain : NULL;
+      if (mysql_bin_log.rotate_and_purge(true, drop_gtid_domain))
         *write_to_binlog= -1;
 
       if (WSREP_ON)
