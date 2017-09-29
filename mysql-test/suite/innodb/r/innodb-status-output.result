@@ -42,6 +42,8 @@ SELECT SLEEP(30);
 SLEEP(30)
 0
 COMMIT;
+FOUND /INNODB MONITOR OUTPUT/ in innodb-status-output.err
+NOT FOUND /SELECT SLEEP.*\nTABLE LOCK.*\nRECORD LOCKS space id/ in innodb-status-output.err
 BEGIN;
 SELECT * FROM t FOR UPDATE;
 a
@@ -51,6 +53,7 @@ SELECT SLEEP(30);
 SLEEP(30)
 0
 COMMIT;
+FOUND /ready for connections.*\nVersion:.*\n.*Normal shutdown/ in innodb-status-output.err
 BEGIN;
 SELECT * FROM t FOR UPDATE;
 a
@@ -60,4 +63,6 @@ SELECT SLEEP(30);
 SLEEP(30)
 0
 COMMIT;
+FOUND /INNODB MONITOR OUTPUT/ in innodb-status-output.err
+NOT FOUND /SELECT SLEEP.*\n------/ in innodb-status-output.err
 DROP TABLE t;

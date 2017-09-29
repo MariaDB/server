@@ -11,7 +11,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 LET $innodb_file_format_orig=`select @@innodb_file_format`;
 LET $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
 --enable_query_log
-
+SELECT table_id, name FROM information_schema.innodb_sys_tables;
 # The IDs of mysql.innodb_table_stats and mysql.innodb_index_stats are
 # unpredictable, probably they depend on whether mtr has created the
 # database for this test from scratch or is using a previously created

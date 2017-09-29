@@ -8,11 +8,12 @@ SET default_storage_engine=InnoDB;
 #
 SET SESSION innodb_strict_mode = ON;
 CREATE TABLE t1 (a int KEY, b text) INDEX DIRECTORY='MYSQL_TMP_DIR/alt_dir';
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: INDEX DIRECTORY is not supported
-Error	1031	Table storage engine for 't1' doesn't have this option
+Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 #
 # Without strict mode, INDEX DIRECTORY is just ignored
 #
@@ -37,11 +38,12 @@ DROP TABLE t1;
 SET SESSION innodb_strict_mode = ON;
 SET GLOBAL innodb_file_per_table=OFF;
 CREATE TABLE t1 (a int KEY, b text) DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir';
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: DATA DIRECTORY requires innodb_file_per_table.
-Error	1031	Table storage engine for 't1' doesn't have this option
+Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 #
 # Without strict mode, DATA DIRECTORY without innodb_file_per_table=ON is just ignored.
 #
@@ -105,9 +107,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 test/t1	Antelope	Compact or Redundant
 SELECT path FROM information_schema.innodb_sys_datafiles
 WHERE path LIKE '%test%' ORDER BY space;
@@ -127,9 +126,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 SELECT path FROM information_schema.innodb_sys_datafiles
 WHERE path LIKE '%test%' ORDER BY space;
 path
@@ -159,9 +155,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 test/t1	Antelope	Compact or Redundant
 SELECT path FROM information_schema.innodb_sys_datafiles
 WHERE path LIKE '%test%' ORDER BY space;
@@ -191,9 +184,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 test/t1	Antelope	Compact or Redundant
 SELECT path FROM information_schema.innodb_sys_datafiles
 WHERE path LIKE '%test%' ORDER BY space;
@@ -224,9 +214,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 test/t2	Antelope	Compact or Redundant
 SELECT path FROM information_schema.innodb_sys_datafiles
 WHERE path LIKE '%test%' ORDER BY space;
@@ -257,9 +244,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 test/t2	Antelope	Compact or Redundant
 test/t3	Antelope	Compact or Redundant
 SELECT path FROM information_schema.innodb_sys_datafiles
@@ -286,9 +270,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 SELECT path FROM information_schema.innodb_sys_datafiles
 WHERE path LIKE '%test%' ORDER BY space;
 path
@@ -320,11 +301,12 @@ ERROR HY000: Incorrect arguments to DATA DIRECTORY
 # TEMPORARY tables are incompatible with DATA DIRECTORY
 SET SESSION innodb_strict_mode = ON;
 CREATE TEMPORARY TABLE t1 (a int KEY, b text) engine=InnoDB DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir';
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: DATA DIRECTORY cannot be used for TEMPORARY tables.
-Error	1031	Table storage engine for 't1' doesn't have this option
+Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 SET SESSION innodb_strict_mode = OFF;
 CREATE TEMPORARY TABLE t1 (a int KEY, b text) engine=InnoDB DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir';
 Warnings:
@@ -444,9 +426,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 test/emp#p#east	Antelope	Compact or Redundant
 test/emp#p#north	Antelope	Compact or Redundant
 test/emp#p#west	Antelope	Compact or Redundant
@@ -501,9 +480,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 test/emp#p#east	Antelope	Compact or Redundant
 test/emp#p#north	Antelope	Compact or Redundant
 SELECT path FROM information_schema.innodb_sys_datafiles
@@ -557,9 +533,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 test/emp#p#east	Antelope	Compact or Redundant
 test/emp#p#north	Antelope	Compact or Redundant
 test/emp#p#west	Antelope	Compact or Redundant
@@ -617,9 +590,6 @@ ORDER BY name;
 name	file_format	row_format
 mysql/innodb_index_stats	Antelope	Compact or Redundant
 mysql/innodb_table_stats	Antelope	Compact or Redundant
-mysql/slave_master_info	Antelope	Compact or Redundant
-mysql/slave_relay_log_info	Antelope	Compact or Redundant
-mysql/slave_worker_info	Antelope	Compact or Redundant
 test/emp#p#east	Antelope	Compact or Redundant
 test/emp#p#north	Antelope	Compact or Redundant
 test/emp#p#west	Antelope	Compact or Redundant
