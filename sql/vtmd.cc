@@ -9,6 +9,8 @@
 #include "sql_show.h"
 #include "sql_parse.h"
 #include "sql_lex.h"
+#include "sp_head.h"
+#include "sp_rcontext.h"
 
 LString VERS_VTMD_TEMPLATE(C_STRING_WITH_LEN("vtmd_template"));
 
@@ -659,5 +661,12 @@ bool VTMD_table::setup_select(THD* thd)
   DBUG_ASSERT(!about.mdl_request.ticket);
   about.mdl_request.init(MDL_key::TABLE, about.db, about.table_name,
                          about.mdl_request.type, about.mdl_request.duration);
+  about.vers_force_alias= true;
+  // Since we modified SELECT_LEX::table_list, we need to invalidate current SP
+  if (thd->spcont)
+  {
+    DBUG_ASSERT(thd->spcont->sp);
+    thd->spcont->sp->set_sp_cache_version(ULONG_MAX);
+  }
   return false;
 }

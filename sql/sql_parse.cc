@@ -5810,6 +5810,11 @@ end_with_restore_list:
 
         if (do_execute_sp(thd, sp))
           goto error;
+
+        if (sp->sp_cache_version() == ULONG_MAX)
+        {
+          sp_cache_flush(thd->sp_proc_cache, sp);
+        }
       }
       break;
     }
