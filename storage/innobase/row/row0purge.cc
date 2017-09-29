@@ -819,7 +819,6 @@ row_purge_parse_undo_rec(
 {
 	dict_index_t*	clust_index;
 	byte*		ptr;
-	trx_t*		trx;
 	undo_no_t	undo_no;
 	table_id_t	table_id;
 	trx_id_t	trx_id;
@@ -911,10 +910,8 @@ err_exit:
 	ptr = trx_undo_rec_get_row_ref(ptr, clust_index, &(node->ref),
 				       node->heap);
 
-	trx = thr_get_trx(thr);
-
 	ptr = trx_undo_update_rec_get_update(ptr, clust_index, type, trx_id,
-					     roll_ptr, info_bits, trx,
+					     roll_ptr, info_bits,
 					     node->heap, &(node->update));
 
 	/* Read to the partial row the fields that occur in indexes */

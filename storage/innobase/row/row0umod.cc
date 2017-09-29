@@ -1160,7 +1160,7 @@ close_table:
 				       node->heap);
 
 	ptr = trx_undo_update_rec_get_update(ptr, clust_index, type, trx_id,
-				       roll_ptr, info_bits, node->trx,
+				       roll_ptr, info_bits,
 				       node->heap, &(node->update));
 	node->new_trx_id = trx_id;
 	node->cmpl_info = cmpl_info;

@@ -1006,7 +1006,7 @@ row_upd_build_sec_rec_difference_binary(
 
 			dfield_copy(&(upd_field->new_val), dfield);
 
-			upd_field_set_field_no(upd_field, i, index, NULL);
+			upd_field_set_field_no(upd_field, i, index);
 
 			n_diff++;
 		}
@@ -1103,7 +1103,7 @@ row_upd_build_difference_binary(
 
 			dfield_copy(&(upd_field->new_val), dfield);
 
-			upd_field_set_field_no(upd_field, i, index, trx);
+			upd_field_set_field_no(upd_field, i, index);
 
 			n_diff++;
 		}
