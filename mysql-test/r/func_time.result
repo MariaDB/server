@@ -3294,3 +3294,34 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+#
+# MDEV-13966 Parameter data type control for Item_temporal_func
+#
+SELECT FROM_DAYS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'from_days'
+SELECT MAKEDATE(ROW(1,1),1);
+ERROR HY000: Illegal parameter data type row for operation 'makedate'
+SELECT MAKEDATE(1, ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'makedate'
+SELECT LAST_DAY(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'last_day'
+SELECT SEC_TO_TIME(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'sec_to_time'
+SELECT TIMEDIFF(ROW(1,1),1);
+ERROR HY000: Illegal parameter data type row for operation 'timediff'
+SELECT TIMEDIFF(1, ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'timediff'
+SELECT MAKETIME(ROW(1,1),1,1);
+ERROR HY000: Illegal parameter data type row for operation 'maketime'
+SELECT MAKETIME(1, ROW(1,1), 1);
+ERROR HY000: Illegal parameter data type row for operation 'maketime'
+SELECT MAKETIME(1, 1, ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'maketime'
+SELECT FROM_UNIXTIME(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'from_unixtime'
+SELECT CONVERT_TZ(ROW(1,1),1,1);
+ERROR HY000: Illegal parameter data type row for operation 'convert_tz'
+SELECT CONVERT_TZ(1, ROW(1,1), 1);
+ERROR HY000: Illegal parameter data type row for operation 'convert_tz'
+SELECT CONVERT_TZ(1, 1, ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'convert_tz'

@@ -244,6 +244,19 @@ bool Item_func::check_argument_types_can_return_date(uint start,
 }
 
 
+bool Item_func::check_argument_types_can_return_time(uint start,
+                                                     uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_can_return_time(func_name()))
+      return true;
+  }
+  return false;
+}
+
+
 bool Item_func::check_argument_types_scalar(uint start, uint end) const
 {
   for (uint i= start; i < end; i++)

@@ -4786,5 +4786,36 @@ ERROR HY000: Illegal parameter data type geometry for operation 'inet_aton'
 SELECT LAST_INSERT_ID(POINT(1,1));
 ERROR HY000: Illegal parameter data type geometry for operation 'last_insert_id'
 #
+# MDEV-13966 Parameter data type control for Item_temporal_func
+#
+SELECT FROM_DAYS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'from_days'
+SELECT MAKEDATE(POINT(1,1),1);
+ERROR HY000: Illegal parameter data type geometry for operation 'makedate'
+SELECT MAKEDATE(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'makedate'
+SELECT LAST_DAY(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'last_day'
+SELECT SEC_TO_TIME(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'sec_to_time'
+SELECT TIMEDIFF(POINT(1,1),1);
+ERROR HY000: Illegal parameter data type geometry for operation 'timediff'
+SELECT TIMEDIFF(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'timediff'
+SELECT MAKETIME(POINT(1,1),1,1);
+ERROR HY000: Illegal parameter data type geometry for operation 'maketime'
+SELECT MAKETIME(1, POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type geometry for operation 'maketime'
+SELECT MAKETIME(1, 1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'maketime'
+SELECT FROM_UNIXTIME(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'from_unixtime'
+SELECT CONVERT_TZ(POINT(1,1),1,1);
+ERROR HY000: Illegal parameter data type geometry for operation 'convert_tz'
+SELECT CONVERT_TZ(1, POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type geometry for operation 'convert_tz'
+SELECT CONVERT_TZ(1, 1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'convert_tz'
+#
 # End of 10.3 tests
 #

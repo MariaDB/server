@@ -782,6 +782,8 @@ public:
 
 class Item_func_from_days :public Item_datefunc
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_int(func_name()); }
 public:
   Item_func_from_days(THD *thd, Item *a): Item_datefunc(thd, a) {}
   const char *func_name() const { return "from_days"; }
@@ -838,6 +840,8 @@ public:
 
 class Item_func_from_unixtime :public Item_datetimefunc
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_decimal(func_name()); }
   Time_zone *tz;
  public:
   Item_func_from_unixtime(THD *thd, Item *a): Item_datetimefunc(thd, a) {}
@@ -865,6 +869,11 @@ class Time_zone;
 */
 class Item_func_convert_tz :public Item_datetimefunc
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_date(func_name()) ||
+           check_argument_types_can_return_str_ascii(1, arg_count);
+  }
   /*
     If time zone parameters are constants we are caching objects that
     represent them (we use separate from_tz_cached/to_tz_cached members
@@ -891,6 +900,8 @@ class Item_func_convert_tz :public Item_datetimefunc
 
 class Item_func_sec_to_time :public Item_timefunc
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_decimal(func_name()); }
 public:
   Item_func_sec_to_time(THD *thd, Item *item): Item_timefunc(thd, item) {}
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
@@ -1130,6 +1141,8 @@ public:
 
 class Item_func_makedate :public Item_datefunc
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, arg_count); }
 public:
   Item_func_makedate(THD *thd, Item *a, Item *b):
     Item_datefunc(thd, a, b) {}
@@ -1159,6 +1172,8 @@ public:
 
 class Item_func_timediff :public Item_timefunc
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_time(0, arg_count); }
 public:
   Item_func_timediff(THD *thd, Item *a, Item *b): Item_timefunc(thd, a, b) {}
   const char *func_name() const { return "timediff"; }
@@ -1175,6 +1190,11 @@ public:
 
 class Item_func_maketime :public Item_timefunc
 {
+  bool check_arguments() const
+  {
+    return check_argument_types_can_return_int(0, 2) ||
+           args[2]->check_type_can_return_decimal(func_name());
+  }
 public:
   Item_func_maketime(THD *thd, Item *a, Item *b, Item *c):
     Item_timefunc(thd, a, b, c)
@@ -1283,6 +1303,8 @@ public:
 
 class Item_func_last_day :public Item_datefunc
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_date(func_name()); }
 public:
   Item_func_last_day(THD *thd, Item *a): Item_datefunc(thd, a) {}
   const char *func_name() const { return "last_day"; }

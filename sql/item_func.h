@@ -50,6 +50,7 @@ protected:
   bool check_argument_types_can_return_real(uint start, uint end) const;
   bool check_argument_types_can_return_str_ascii(uint start, uint end) const;
   bool check_argument_types_can_return_date(uint start, uint end) const;
+  bool check_argument_types_can_return_time(uint start, uint end) const;
 public:
 
   table_map not_null_tables_cache;
