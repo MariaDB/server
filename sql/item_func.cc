@@ -218,13 +218,26 @@ bool Item_func::check_argument_types_can_return_real(uint start,
 }
 
 
-bool Item_func::check_argument_types_can_return_str_ascii(uint start,
-                                                          uint end) const
+bool Item_func::check_argument_types_can_return_text(uint start,
+                                                     uint end) const
 {
   for (uint i= start; i < end ; i++)
   {
     DBUG_ASSERT(i < arg_count);
-    if (args[i]->check_type_can_return_str_ascii(func_name()))
+    if (args[i]->check_type_can_return_text(func_name()))
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_func::check_argument_types_can_return_str(uint start,
+                                                    uint end) const
+{
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_can_return_str(func_name()))
       return true;
   }
   return false;

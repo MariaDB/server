@@ -1712,7 +1712,8 @@ public:
   bool check_type_can_return_int(const char *opname) const;
   bool check_type_can_return_decimal(const char *opname) const;
   bool check_type_can_return_real(const char *opname) const;
-  bool check_type_can_return_str_ascii(const char *opname) const;
+  bool check_type_can_return_str(const char *opname) const;
+  bool check_type_can_return_text(const char *opname) const;
   bool check_type_can_return_date(const char *opname) const;
   bool check_type_can_return_time(const char *opname) const;
   // It is not row => null inside is impossible

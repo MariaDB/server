@@ -930,6 +930,8 @@ public:
 
 class Item_func_strcmp :public Item_long_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_str(0, 2); }
   String value1, value2;
   DTCollation cmp_collation;
 public:
@@ -2829,6 +2831,11 @@ public:
 */
 class Item_func_regexp_instr :public Item_long_func
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_str(func_name()) ||
+           args[1]->check_type_can_return_text(func_name());
+  }
   Regexp_processor_pcre re;
   DTCollation cmp_collation;
 public:

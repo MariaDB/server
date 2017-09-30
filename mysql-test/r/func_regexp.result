@@ -157,3 +157,9 @@ SELECT ' '  REGEXP '[[:space:]]';
 SELECT '\t' REGEXP '[[:space:]]';
 '\t' REGEXP '[[:space:]]'
 1
+#
+# MDEV-13967 Parameter data type control for Item_long_func
+#
+SELECT REGEXP_INSTR('111222333',2);
+REGEXP_INSTR('111222333',2)
+4

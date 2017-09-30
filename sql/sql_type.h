@@ -706,7 +706,8 @@ public:
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_decimal() const { return true; }
   virtual bool can_return_real() const { return true; }
-  virtual bool can_return_str_ascii() const { return true; }
+  virtual bool can_return_str() const { return true; }
+  virtual bool can_return_text() const { return true; }
   virtual bool can_return_date() const { return true; }
   virtual bool can_return_time() const { return true; }
   virtual bool is_general_purpose_string_type() const { return false; }
@@ -1007,7 +1008,8 @@ public:
   bool can_return_int() const { return false; }
   bool can_return_decimal() const { return false; }
   bool can_return_real() const { return false; }
-  bool can_return_str_ascii() const { return false; }
+  bool can_return_str() const { return false; }
+  bool can_return_text() const { return false; }
   bool can_return_date() const { return false; }
   bool can_return_time() const { return false; }
   enum_field_types field_type() const
@@ -2683,7 +2685,7 @@ public:
   bool can_return_int() const { return false; }
   bool can_return_decimal() const { return false; }
   bool can_return_real() const { return false; }
-  bool can_return_str_ascii() const { return false; }
+  bool can_return_text() const { return false; }
   bool can_return_date() const { return false; }
   bool can_return_time() const { return false; }
   bool is_traditional_type() const

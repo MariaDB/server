@@ -33,8 +33,31 @@ enum date_time_format_types
 
 bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval);
 
+
+class Item_long_func_date_field: public Item_long_func
+{
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_date(func_name()); }
+public:
+  Item_long_func_date_field(THD *thd, Item *a)
+   :Item_long_func(thd, a) { }
+};
+
+
+class Item_long_func_time_field: public Item_long_func
+{
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_time(func_name()); }
+public:
+  Item_long_func_time_field(THD *thd, Item *a)
+   :Item_long_func(thd, a) { }
+};
+
+
 class Item_func_period_add :public Item_long_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, 2); }
 public:
   Item_func_period_add(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
@@ -50,6 +73,8 @@ public:
 
 class Item_func_period_diff :public Item_long_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, 2); }
 public:
   Item_func_period_diff(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
@@ -64,10 +89,10 @@ public:
 };
 
 
-class Item_func_to_days :public Item_long_func
+class Item_func_to_days :public Item_long_func_date_field
 {
 public:
-  Item_func_to_days(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_to_days(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "to_days"; }
   void fix_length_and_dec()
@@ -117,10 +142,10 @@ public:
 };
 
 
-class Item_func_dayofmonth :public Item_long_func
+class Item_func_dayofmonth :public Item_long_func_date_field
 {
 public:
-  Item_func_dayofmonth(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_dayofmonth(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "dayofmonth"; }
   void fix_length_and_dec()
@@ -197,10 +222,10 @@ public:
 };
 
 
-class Item_func_dayofyear :public Item_long_func
+class Item_func_dayofyear :public Item_long_func_date_field
 {
 public:
-  Item_func_dayofyear(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_dayofyear(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "dayofyear"; }
   void fix_length_and_dec()
@@ -220,10 +245,10 @@ public:
 };
 
 
-class Item_func_hour :public Item_long_func
+class Item_func_hour :public Item_long_func_time_field
 {
 public:
-  Item_func_hour(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_hour(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "hour"; }
   void fix_length_and_dec()
@@ -243,10 +268,10 @@ public:
 };
 
 
-class Item_func_minute :public Item_long_func
+class Item_func_minute :public Item_long_func_time_field
 {
 public:
-  Item_func_minute(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_minute(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "minute"; }
   void fix_length_and_dec()
@@ -266,10 +291,10 @@ public:
 };
 
 
-class Item_func_quarter :public Item_long_func
+class Item_func_quarter :public Item_long_func_date_field
 {
 public:
-  Item_func_quarter(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_quarter(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "quarter"; }
   void fix_length_and_dec()
@@ -289,10 +314,10 @@ public:
 };
 
 
-class Item_func_second :public Item_long_func
+class Item_func_second :public Item_long_func_time_field
 {
 public:
-  Item_func_second(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_second(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "second"; }
   void fix_length_and_dec()
@@ -314,6 +339,11 @@ public:
 
 class Item_func_week :public Item_long_func
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_date(func_name()) ||
+           (arg_count > 1 && args[1]->check_type_can_return_int(func_name()));
+  }
 public:
   Item_func_week(THD *thd, Item *a): Item_long_func(thd, a) {}
   Item_func_week(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
@@ -341,8 +371,14 @@ public:
 
 class Item_func_yearweek :public Item_long_func
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_date(func_name()) ||
+           args[1]->check_type_can_return_int(func_name());
+  }
 public:
-  Item_func_yearweek(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
+  Item_func_yearweek(THD *thd, Item *a, Item *b)
+   :Item_long_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "yearweek"; }
   void fix_length_and_dec()
@@ -362,10 +398,10 @@ public:
 };
 
 
-class Item_func_year :public Item_long_func
+class Item_func_year :public Item_long_func_date_field
 {
 public:
-  Item_func_year(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_year(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "year"; }
   enum_monotonicity_info get_monotonicity_info() const;
@@ -872,7 +908,7 @@ class Item_func_convert_tz :public Item_datetimefunc
   bool check_arguments() const
   {
     return args[0]->check_type_can_return_date(func_name()) ||
-           check_argument_types_can_return_str_ascii(1, arg_count);
+           check_argument_types_can_return_text(1, arg_count);
   }
   /*
     If time zone parameters are constants we are caching objects that
@@ -1211,10 +1247,10 @@ public:
 };
 
 
-class Item_func_microsecond :public Item_long_func
+class Item_func_microsecond :public Item_long_func_time_field
 {
 public:
-  Item_func_microsecond(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_microsecond(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "microsecond"; }
   void fix_length_and_dec()
