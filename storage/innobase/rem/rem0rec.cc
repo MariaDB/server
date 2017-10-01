@@ -172,6 +172,8 @@ rec_get_n_extern_new(
 	ulint		i;
 
 	ut_ad(dict_table_is_comp(index->table));
+	ut_ad(!index->table->supports_instant());
+	ut_ad(!index->is_instant());
 	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
 	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
 	ut_ad(n == ULINT_UNDEFINED || n <= dict_index_get_n_fields(index));
@@ -903,6 +905,7 @@ rec_get_offsets_reverse(
 	ut_ad(index);
 	ut_ad(offsets);
 	ut_ad(dict_table_is_comp(index->table));
+	ut_ad(!index->is_instant());
 
 	if (UNIV_UNLIKELY(node_ptr)) {
 		n_node_ptr_field =
@@ -1079,7 +1082,7 @@ rec_get_converted_size_comp_prefix_low(
 	    && (!temp || n_fields > index->n_core_fields)) {
 		ut_ad(index->is_instant());
 		ut_ad(UT_BITS_IN_BYTES(n_null) >= index->n_core_null_bytes);
-		extra_size += UT_BITS_IN_BYTES(index->n_nullable)
+		extra_size += UT_BITS_IN_BYTES(index->get_n_nullable(n_fields))
 			+ rec_get_n_add_field_len(n_fields - 1
 						  - index->n_core_fields);
 	} else {
@@ -1511,17 +1514,20 @@ rec_convert_dtuple_to_rec_comp(
 		ut_ad(n_fields <= dict_index_get_n_fields(index));
 		if (!temp) {
 			rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
-			rec_set_status(rec, n_fields != index->n_core_fields
-				       ? REC_STATUS_COLUMNS_ADDED
-				       : REC_STATUS_ORDINARY);
-		} else if (dict_table_is_comp(index->table)) {
+			rec_set_status(rec, n_fields == index->n_core_fields
+				       ? REC_STATUS_ORDINARY
+				       : REC_STATUS_COLUMNS_ADDED);
+		} if (dict_table_is_comp(index->table)) {
 			/* No need to do adjust fixed_len=0. We only
 			need to adjust it for ROW_FORMAT=REDUNDANT. */
 			temp = false;
 		}
 
 		n_node_ptr_field = ULINT_UNDEFINED;
-		lens = nulls - UT_BITS_IN_BYTES(index->n_nullable);
+		lens = nulls - (index->is_instant()
+				? UT_BITS_IN_BYTES(index->get_n_nullable(
+							   n_fields))
+				: UT_BITS_IN_BYTES(index->n_nullable));
 		break;
 	case REC_STATUS_NODE_PTR:
 		ut_ad(!temp);
