@@ -172,7 +172,7 @@ rec_get_n_extern_new(
 	ulint		i;
 
 	ut_ad(dict_table_is_comp(index->table));
-	ut_ad(!index->table->supports_instant());
+	ut_ad(!index->table->supports_instant() || index->is_dummy);
 	ut_ad(!index->is_instant());
 	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
 	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
