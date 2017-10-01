@@ -1,4 +1,6 @@
 --source include/innodb_page_size.inc
+# The embedded server tests do not support restarting.
+--source include/not_embedded.inc
 
 --echo #
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
