@@ -2174,6 +2174,11 @@ need_opposite_intention:
 		} else if (index->disable_ahi) {
 # endif
 		} else if (tuple->info_bits & REC_INFO_MIN_REC_FLAG) {
+			ut_ad(index->is_instant());
+			/* This may be a search tuple for
+			btr_pcur_restore_position(). */
+			ut_ad(tuple->info_bits == REC_INFO_DEFAULT_ROW
+			      || tuple->info_bits == REC_INFO_MIN_REC_FLAG);
 		} else {
 			btr_search_info_update(index, cursor);
 		}
@@ -3287,8 +3292,7 @@ fail_err:
 	} else if (index->disable_ahi) {
 # endif
 	} else if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-		ut_ad(entry->info_bits == (REC_STATUS_COLUMNS_ADDED
-					   | REC_INFO_MIN_REC_FLAG));
+		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else if (!reorg && cursor->flag == BTR_CUR_HASH) {
@@ -3495,10 +3499,10 @@ btr_cur_pessimistic_insert(
 		if (index->disable_ahi); else
 # endif
 		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-			ut_ad(entry->info_bits == (REC_STATUS_COLUMNS_ADDED
-						   | REC_INFO_MIN_REC_FLAG));
+			ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
 			ut_ad(index->is_instant());
-			ut_ad(flags == BTR_NO_LOCKING_FLAG);
+			ut_ad((flags & ~BTR_KEEP_IBUF_BITMAP)
+			      == BTR_NO_LOCKING_FLAG);
 		} else {
 			btr_search_update_hash_on_insert(cursor);
 		}
@@ -3854,8 +3858,7 @@ btr_cur_update_in_place(
 	ut_ad(fil_page_index_page_check(btr_cur_get_page(cursor)));
 	ut_ad(btr_page_get_index_id(btr_cur_get_page(cursor)) == index->id);
 	ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG)
-	      || update->info_bits == (REC_STATUS_COLUMNS_ADDED
-				       | REC_INFO_MIN_REC_FLAG));
+	      || update->info_bits == REC_INFO_DEFAULT_ROW);
 	ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG)
 	      || index->is_instant());
 
@@ -4204,8 +4207,12 @@ any_extern:
 	}
 
 	if (new_entry->info_bits & REC_INFO_MIN_REC_FLAG) {
+		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(index->is_instant());
-		ut_ad(flags == BTR_NO_LOCKING_FLAG);
+		/* This can be innobase_add_instant_try() performing a
+		subsequent instant ADD COLUMN, or its rollback by
+		row_undo_mod_clust_low(). */
+		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 	} else {
 		btr_search_update_hash_on_delete(cursor);
 	}
@@ -4538,8 +4545,12 @@ btr_cur_pessimistic_update(
 	}
 
 	if (new_entry->info_bits & REC_INFO_MIN_REC_FLAG) {
+		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(index->is_instant());
-		ut_ad(flags == BTR_NO_LOCKING_FLAG);
+		/* This can be innobase_add_instant_try() performing a
+		subsequent instant ADD COLUMN, or its rollback by
+		row_undo_mod_clust_low(). */
+		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 	} else {
 		btr_search_update_hash_on_delete(cursor);
 	}
