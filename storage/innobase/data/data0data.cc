@@ -51,7 +51,8 @@ inserted or updated.
 @param[in]	index	index possibly with instantly added columns */
 void dtuple_t::trim(const dict_index_t& index)
 {
-	ut_ad(n_fields == index.n_fields);
+	ut_ad(n_fields >= index.n_core_fields);
+	ut_ad(n_fields <= index.n_fields);
 	ut_ad(index.is_instant());
 
 	ulint i = n_fields;
