@@ -5211,6 +5211,7 @@ btr_cur_optimistic_delete_func(
 			      page_rec_get_next_const(
 				      page_get_infimum_rec(block->frame)),
 			      index));
+		lock_update_delete(block, btr_cur_get_rec(cursor));
 		btr_page_empty(block, buf_block_get_page_zip(block),
 			       index, 0, mtr);
 		page_cur_set_after_last(block, btr_cur_get_page_cur(cursor));
@@ -5386,6 +5387,10 @@ btr_cur_pessimistic_delete(
 #endif /* UNIV_ZIP_DEBUG */
 	}
 
+	if (flags == 0) {
+		lock_update_delete(block, rec);
+	}
+
 	if (UNIV_UNLIKELY(page_get_n_recs(page) < 2)
 	    && UNIV_UNLIKELY(dict_index_get_page(index)
 			     != block->page.id.page_no())) {
@@ -5398,10 +5403,6 @@ btr_cur_pessimistic_delete(
 		ret = TRUE;
 
 		goto return_after_reservations;
-	}
-
-	if (flags == 0) {
-		lock_update_delete(block, rec);
 	}
 
 	if (page_is_leaf(page)) {
