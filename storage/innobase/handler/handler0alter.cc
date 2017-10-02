@@ -409,12 +409,10 @@ innobase_need_rebuild(
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
 	    && !(ha_alter_info->create_info->used_fields
 		 & (HA_CREATE_USED_ROW_FORMAT
-			 | HA_CREATE_USED_KEY_BLOCK_SIZE))) {
-		// JAN: TODO: MySQL 5.7
-		//		    | HA_CREATE_USED_TABLESPACE))) {
+		    | HA_CREATE_USED_KEY_BLOCK_SIZE))) {
 		/* Any other CHANGE_CREATE_OPTION than changing
-		ROW_FORMAT, KEY_BLOCK_SIZE or TABLESPACE can be done
-		without rebuilding the table. */
+		ROW_FORMAT or KEY_BLOCK_SIZE can be done without
+		rebuilding the table. */
 		return(false);
 	}
 

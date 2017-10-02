@@ -49,9 +49,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <sql_class.h>
 #include <sql_show.h>
 #include <sql_table.h>
-#include <sql_tablespace.h>
-// MySQL 5.7 Header */
-// #include <sql_thd_internal_api.h>
 #include <table_cache.h>
 #include <my_check_opt.h>
 #include <my_bitmap.h>
