@@ -51,7 +51,7 @@ INSERT INTO t1 VALUES (123);
 
 let MYSQLD_DATADIR= `select @@datadir`;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
-let $args=--loose-console > $SEARCH_FILE 2>&1;
+let $args=--loose-console --default-storage-engine=innodb > $SEARCH_FILE 2>&1;
 let crash=$args --innodb-force-recovery-crash;
 
 SET DEBUG='+d,crash_commit_before';
@@ -74,18 +74,18 @@ let SEARCH_PATTERN= innodb_mirrored_log_groups is an unimplemented feature and t
 
 # On Windows, DBUG_SUICIDE() does exit(3) instead of SIGKILL (128+9).
 --echo --innodb-force-recovery-crash=1
---error 3
+--error 7
 --exec $MYSQLD_CMD $crash=1
 let SEARCH_PATTERN= InnoDB: Starting an apply batch of log records;
 --source include/search_pattern_in_file.inc
 --remove_file $SEARCH_FILE
 --echo --innodb-force-recovery-crash=2
---error 3
+--error 7
 --exec $MYSQLD_CMD $crash=2
 let SEARCH_PATTERN= InnoDB: Starting an apply batch of log records;
 --source include/search_pattern_in_file.inc
 --echo --innodb-force-recovery-crash=3
---error 3
+--error 7
 --exec $MYSQLD_CMD $crash=3
 let SEARCH_PATTERN= InnoDB: Starting an apply batch of log records;
 --source include/search_pattern_in_file.inc
@@ -100,7 +100,7 @@ let SEARCH_PATTERN= InnoDB: Can.t initiate database recovery, running in read-on
 --remove_file $SEARCH_FILE
 
 --echo --innodb-force-recovery-crash=4
---error 3
+--error 7
 --exec $MYSQLD_CMD $crash=4
 let SEARCH_PATTERN= InnoDB: Starting an apply batch of log records;
 --source include/search_pattern_in_file.inc
@@ -108,7 +108,7 @@ let SEARCH_PATTERN= InnoDB: Resizing redo log from 3\*[0-9]+ to 2\*[0-9]+ pages;
 --source include/search_pattern_in_file.inc
 --remove_file $SEARCH_FILE
 --echo --innodb-force-recovery-crash=5
---error 3
+--error 7
 --exec $MYSQLD_CMD $crash=5
 let SEARCH_PATTERN= InnoDB: Starting an apply batch of log records;
 --source include/search_pattern_in_file.inc
@@ -123,7 +123,7 @@ let SEARCH_PATTERN= InnoDB: Can.t initiate database recovery, running in read-on
 --remove_file $SEARCH_FILE
 
 --echo --innodb-force-recovery-crash=6
---error 3
+--error 7
 --exec $MYSQLD_CMD $crash=6
 let SEARCH_PATTERN= InnoDB: Starting an apply batch of log records;
 --source include/search_pattern_in_file.inc
@@ -131,7 +131,7 @@ let SEARCH_PATTERN= InnoDB: Resizing redo log from 3\*[0-9]+ to 2\*[0-9]+ pages;
 --source include/search_pattern_in_file.inc
 --remove_file $SEARCH_FILE
 --echo --innodb-force-recovery-crash=7
---error 3
+--error 7
 --exec $MYSQLD_CMD $crash=7
 # this crashes right after deleting all log files
 --remove_file $SEARCH_FILE
@@ -143,13 +143,13 @@ let SEARCH_PATTERN= InnoDB: Cannot create log files in read-only mode;
 --remove_file $SEARCH_FILE
 
 --echo --innodb-force-recovery-crash=8
---error 3
+--error 7
 --exec $MYSQLD_CMD $crash=8
 let SEARCH_PATTERN= InnoDB: Setting log file .*ib_logfile[0-9]+ size to;
 --source include/search_pattern_in_file.inc
 --remove_file $SEARCH_FILE
 --echo --innodb-force-recovery-crash=9
---error 3
+--error 7
 --exec $MYSQLD_CMD $crash=9
 let SEARCH_PATTERN= InnoDB: Setting log file .*ib_logfile[0-9]+ size to;
 --source include/search_pattern_in_file.inc
@@ -195,7 +195,7 @@ let SEARCH_PATTERN= InnoDB: Log file .*ib_logfile1 is of different size 1048576 
 --move_file $MYSQLD_DATADIR/ib_logfile1_hidden $MYSQLD_DATADIR/ib_logfile1
 
 --echo --innodb-force-recovery-crash=10
---error 3
+--error 7
 --exec $MYSQLD_CMD $crash=10
 let SEARCH_PATTERN= InnoDB: Setting log file .*ib_logfile[0-9]+ size to;
 --source include/search_pattern_in_file.inc

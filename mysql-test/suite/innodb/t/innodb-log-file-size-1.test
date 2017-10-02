@@ -195,7 +195,7 @@ SELECT id,LEFT(bfield,20) FROM t1;
 # testcase misc
 let MYSQLD_DATADIR= `select @@datadir`;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
-let $args=--loose-console > $SEARCH_FILE 2>&1;
+let $args=--loose-console --default-storage-engine=innodb > $SEARCH_FILE 2>&1;
 
 # Stop the server
 SET GLOBAL innodb_fast_shutdown=0;
@@ -206,21 +206,21 @@ let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
 
 --echo "test misc 1"
 --error 1
---exec $MYSQLD_CMD $args --innodb-log-group-home-dir=foo\;bar
+--exec $MYSQLD_CMD $args --innodb-log-group-home-dir=foo\;bar 
 let SEARCH_PATTERN= syntax error in innodb_log_group_home_dir;
 --source include/search_pattern_in_file.inc
 --remove_file $SEARCH_FILE
 
 --echo "test misc 2"
 --error 1
---exec $MYSQLD_CMD $args --innodb-mirrored-log-groups=2
+--exec $MYSQLD_CMD $args --innodb-mirrored-log-groups=2 
 let SEARCH_PATTERN= innodb_mirrored_log_groups is an unimplemented feature and the variable will be completely removed in a future version. Using values other than 1 is not supported.;
 --source include/search_pattern_in_file.inc
 --remove_file $SEARCH_FILE
 
 --echo "test misc 3"
 --error 1
---exec $MYSQLD_CMD $args --innodb-read-only
+--exec $MYSQLD_CMD $args --innodb-read-only 
 let SEARCH_PATTERN= InnoDB: Cannot resize log files in read-only mode;
 --source include/search_pattern_in_file.inc
 --remove_file $SEARCH_FILE
