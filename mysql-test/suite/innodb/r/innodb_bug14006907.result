@@ -16,7 +16,7 @@ CREATE TABLE t2 (
 c2 INT PRIMARY KEY,
 CONSTRAINT t2c2 FOREIGN KEY (c2) REFERENCES t1 (c2))
 ENGINE = InnoDB;
-ERROR HY000: Cannot add foreign key constraint
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 SET DEBUG_SYNC = 'now SIGNAL fk';
 # Session default
 /* reap */ DROP INDEX c2 ON t1;
@@ -24,6 +24,6 @@ CREATE TABLE t2 (
 c2 INT PRIMARY KEY,
 CONSTRAINT t2c2 FOREIGN KEY (c2) REFERENCES t1 (c2))
 ENGINE = InnoDB;
-ERROR HY000: Cannot add foreign key constraint
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 SET DEBUG_SYNC='RESET';
 DROP TABLE t1;

@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_partition.inc
 
 CREATE TABLE t (id INT, a INT, b INT, KEY (a), KEY (b)) ENGINE=INNODB
 PARTITION BY HASH (id) PARTITIONS 10;

@@ -45,3 +45,4 @@ while ($1 < 40) {
 
 drop table t1;
 --source include/wait_until_count_sessions.inc
+SET DEBUG_SYNC='RESET';

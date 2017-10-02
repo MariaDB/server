@@ -10,3 +10,4 @@ insert into t1 values(NULL);
 set debug_sync='now SIGNAL continue_others';
 # Now all 40 connections can finish the insert operation on t1.
 drop table t1;
+SET DEBUG_SYNC='RESET';
