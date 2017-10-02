@@ -1,5 +1,5 @@
 --- instant_alter.result
-+++ instant_alter,8k.result.instant_add_disabled
++++ instant_alter,8k.result
 @@ -181,7 +181,7 @@
  SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
  WHERE name = 'test/t2';
@@ -59,7 +59,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -3
-+4
++5
  connection default;
  DROP TABLE big;
  CREATE TABLE t1
@@ -113,7 +113,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -7
-+12
++13
  connection default;
  ROLLBACK;
  CHECKSUM TABLE big;
@@ -122,7 +122,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -3
-+4
++5
  connection default;
  DROP TABLE big;
  CREATE TABLE t1
@@ -176,7 +176,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -7
-+12
++13
  connection default;
  ROLLBACK;
  CHECKSUM TABLE big;
@@ -185,7 +185,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -3
-+4
++5
  connection default;
  DROP TABLE big;
  disconnect analyze;

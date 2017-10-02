@@ -1328,30 +1328,6 @@ dict_table_t::add_to_cache()
 	ut_ad(dict_lru_validate());
 }
 
-/** When engaging instant ALTER TABLE, remove a table stub
-from the data dictionary cache. */
-void dict_table_t::remove_stub_from_cache()
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	HASH_DELETE(dict_table_t, name_hash, dict_sys->table_hash,
-		    ut_fold_string(name.m_name), this);
-
-	HASH_DELETE(dict_table_t, id_hash, dict_sys->table_id_hash,
-		    ut_fold_ull(id), this);
-
-	if (can_be_evicted) {
-		ut_ad(dict_lru_find_table(this));
-		UT_LIST_REMOVE(dict_sys->table_LRU, this);
-		can_be_evicted = false;
-	} else {
-		ut_ad(dict_non_lru_find_table(this));
-		UT_LIST_REMOVE(dict_sys->table_non_LRU, this);
-	}
-
-	ut_ad(dict_lru_validate());
-}
-
 /**********************************************************************//**
 Test whether a table can be evicted from the LRU cache.
 @return TRUE if table can be evicted. */

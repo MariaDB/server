@@ -4396,52 +4396,7 @@ row_merge_rename_tables_dict(
 	return(err);
 }
 
-/** Create and execute a query graph for creating an index.
-@param[in,out]	trx	trx
-@param[in,out]	table	table
-@param[in,out]	index	index
-@param[in]	add_v	new virtual columns added along with add index call
-@return DB_SUCCESS or error code */
-MY_ATTRIBUTE((nonnull(1,2,3), warn_unused_result))
-static
-dberr_t
-row_merge_create_index_graph(
-	trx_t*			trx,
-	dict_table_t*		table,
-	dict_index_t*		index,
-	const dict_add_v_col_t* add_v)
-{
-	ind_node_t*	node;		/*!< Index creation node */
-	mem_heap_t*	heap;		/*!< Memory heap */
-	que_thr_t*	thr;		/*!< Query thread */
-	dberr_t		err;
-
-	DBUG_ENTER("row_merge_create_index_graph");
-
-	ut_ad(trx);
-	ut_ad(table);
-	ut_ad(index);
-
-	heap = mem_heap_create(512);
-
-	index->table = table;
-	node = ind_create_graph_create(index, heap, add_v);
-	thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
-
-	ut_a(thr == que_fork_start_command(
-			static_cast<que_fork_t*>(que_node_get_parent(thr))));
-
-	que_run_threads(thr);
-
-	err = trx->error_state;
-
-	que_graph_free((que_t*) que_node_get_parent(thr));
-
-	DBUG_RETURN(err);
-}
-
 /** Create the index and load in to the dictionary.
-@param[in,out]	trx		trx (sets error_state)
 @param[in,out]	table		the index is on this table
 @param[in]	index_def	the index definition
 @param[in]	add_v		new virtual columns added along with add
@@ -4451,17 +4406,14 @@ row_merge_create_index_graph(
 @return index, or NULL on error */
 dict_index_t*
 row_merge_create_index(
-	trx_t*			trx,
 	dict_table_t*		table,
 	const index_def_t*	index_def,
 	const dict_add_v_col_t*	add_v,
 	const char**		col_names)
 {
 	dict_index_t*	index;
-	dberr_t		err;
 	ulint		n_fields = index_def->n_fields;
 	ulint		i;
-	bool		has_new_v_col = false;
 
 	DBUG_ENTER("row_merge_create_index");
 
@@ -4474,8 +4426,7 @@ row_merge_create_index(
 	index = dict_mem_index_create(table->name.m_name, index_def->name,
 				      0, index_def->ind_type, n_fields);
 
-	ut_a(index);
-
+	index->table = table;
 	index->set_committed(index_def->rebuild);
 
 	for (i = 0; i < n_fields; i++) {
@@ -4489,7 +4440,7 @@ row_merge_create_index(
 				ut_ad(ifield->col_no >= table->n_v_def);
 				name = add_v->v_col_name[
 					ifield->col_no - table->n_v_def];
-				has_new_v_col = true;
+				index->has_new_v_col = true;
 			} else {
 				name = dict_table_get_v_col_name(
 					table, ifield->col_no);
@@ -4512,27 +4463,6 @@ row_merge_create_index(
 		}
 
 		dict_mem_index_add_field(index, name, ifield->prefix_len);
-	}
-
-	/* Add the index to SYS_INDEXES, using the index prototype. */
-	err = row_merge_create_index_graph(trx, table, index, add_v);
-
-	if (err == DB_SUCCESS) {
-
-		index = dict_table_get_index_on_name(table, index_def->name,
-						     index_def->rebuild);
-
-		ut_a(index);
-
-		index->parser = index_def->parser;
-		index->has_new_v_col = has_new_v_col;
-
-		/* Note the id of the transaction that created this
-		index, we use it to restrict readers from accessing
-		this index, to ensure read consistency. */
-		ut_ad(index->trx_id == trx->id);
-	} else {
-		index = NULL;
 	}
 
 	DBUG_RETURN(index);
