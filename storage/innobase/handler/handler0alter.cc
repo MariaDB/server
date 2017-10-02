@@ -5184,6 +5184,7 @@ new_clustered_failed:
 
 			if (dict_col_name_is_reserved(field->field_name.str)) {
 				dict_mem_table_free(ctx->new_table);
+				ctx->new_table = ctx->old_table;
 				my_error(ER_WRONG_COLUMN_NAME, MYF(0),
 					 field->field_name.str);
 				goto new_clustered_failed;
@@ -5469,6 +5470,13 @@ new_table_failed:
 			index, we use it to restrict readers from accessing
 			this index, to ensure read consistency. */
 			ut_ad(index->trx_id == ctx->trx->id);
+
+			if (index->type & DICT_FTS) {
+				DBUG_ASSERT(num_fts_index);
+				DBUG_ASSERT(!fts_index);
+				DBUG_ASSERT(index->type == DICT_FTS);
+				fts_index = ctx->add_index[a];
+			}
 		}
 
 		dict_index_t*	clust_index = dict_table_get_first_index(
@@ -5709,6 +5717,11 @@ error_handling:
 error_handled:
 
 	ctx->prebuilt->trx->error_info = NULL;
+
+	if (!ctx->trx) {
+		goto err_exit;
+	}
+
 	ctx->trx->error_state = DB_SUCCESS;
 
 	if (!dict_locked) {
@@ -5770,9 +5783,11 @@ err_exit:
 	}
 #endif /* UNIV_DEBUG */
 
-	row_mysql_unlock_data_dictionary(ctx->trx);
+	if (ctx->trx) {
+		row_mysql_unlock_data_dictionary(ctx->trx);
 
-	trx_free_for_mysql(ctx->trx);
+		trx_free_for_mysql(ctx->trx);
+	}
 	trx_commit_for_mysql(ctx->prebuilt->trx);
 
 	delete ctx;
