@@ -386,13 +386,6 @@ dict_table_add_system_columns(
 	dict_table_t*	table,	/*!< in/out: table */
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
-
-/** Mark if table has big rows.
-@param[in,out]	table	table handler */
-void
-dict_table_set_big_rows(
-	dict_table_t*	table)
-	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Adds a table object to the dictionary cache. */
 void
